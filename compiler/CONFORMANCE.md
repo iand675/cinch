@@ -190,6 +190,21 @@ audit, `compiler/SPEC-MAPPING.md` "Roadmap gaps"):
 | Temporal contracts (safety/liveness/recurrence/stability) | closest to P12; unnamed there (A3) |
 | Cross-compilation (target width/capabilities) | `Usize` width and capability checks must key on the target (A4) |
 
+### Attributes, weights, inline hints, and layout (P17)
+
+Specified in `specifications/attribute-annotations-specification.md`
+(normative) and `design/attribute-annotations.md` (implementation
+design), 2026-10-25. The weight algebra follows GHC proposal 744
+(Branch Prediction Hints, Ian Duncan). Prerequisite for P10's optimizer
+and P11's FFI layout work.
+
+| Requirement | Status |
+| --- | --- |
+| `#[...]` attribute system: syntax, attachment points, compiler vs macro ownership, hygiene and provenance, identity rules | spec'd |
+| Manual branch weights `#[weight(n)]` with the marginalization and transformation rules; `cold`/`likely`/`unlikely` as wrappers over weights (2000/1/0) | spec'd |
+| Inline hints `#[inline]`/`#[inline(always)]`/`#[inline(never)]` as erasable optimizer hints | spec'd |
+| `repr(C)`/`repr(transparent)`/`repr(align)`/`repr(packed)`/discriminant representations with layout facts in the interface ABI table and the packed-borrow safety rule | spec'd |
+
 ## Spec requirement mapping
 
 Every spec MUST is mapped to enforcement and tests in

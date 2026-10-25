@@ -61,7 +61,19 @@ decision record in `compiler/CONFORMANCE.md` where applicable.
   them, and the language-level story is the prelude's (laziness and
   reclamation specification, section 2).
 
-# 5 Rejected for now (see compiler/CONFORMANCE.md)
+# 5 Attribute annotations
+
+- `#[...]` attributes (attribute annotations specification) prefix
+  declarations, constructor and field declarations, function clauses,
+  `case` alternatives, guards, and the branches of `if`. Grammar:
+  `attribute = "#[", attribute_name, [ attribute_args ], "]"` where the
+  name may be dotted and arguments are literals or a `name = literal`
+  list. `#` is otherwise unused in the token grammar (comments are
+  `--`), so `#[` is unambiguous. The forms are adopted here ahead of the
+  implementation slice: the compiler currently rejects `#[` at the
+  lexer.
+
+# 6 Rejected for now (see compiler/CONFORMANCE.md)
 
 Everything else in the draft EBNF parses only to a named rejection:
 `do` bodies and handlers, quotations and macros, `rewrite`/`upgrade`
