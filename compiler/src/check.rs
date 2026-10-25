@@ -8,10 +8,11 @@
 //! Operators are ordinary value names, so `x + y` is just a method call.
 
 use crate::ast;
-use crate::core::{CPat, CmpOp, FnDef, GlobalId, InstanceDef, IntOp, LocalId, NatOp, PrimOp, Program};
-use crate::types::{ClassApp, EffLabel, EffRow, EitherMeta, Mult, RowTail, Scalar, Scheme, Ty, Unifier, collect_row_names, default_mult};
+use crate::core::{BytesOp, CPat, CmpOp, FnDef, GlobalId, InstanceDef, IntOp, LocalId, NatOp, PrimOp, Program};
+use crate::types::{ClassApp, EffLabel, EffRow, EitherMeta, IxParam, ITerm, IdxCmp, IdxOp, Mult, PTerm, RowTail, Scalar, Scheme, Sort, Ty, Unifier, collect_row_names, default_mult};
 use crate::{Error, Result};
 use SolveOutcome::{Solved, Ambiguous};
+use std::cell::RefCell;
 use std::collections::HashMap;
 
 // ---------------------------------------------------------------- elaboration IR
@@ -56,6 +57,9 @@ enum ECore {
     Fault,
     /// Unresolved dictionary, filled before lowering.
     Hole(usize),
+    /// Deferred implicit index argument, reified once unification has
+    /// solved it ([`Checker::resolve_idx_pends`]).
+    IdxPending(usize),
 }
 
 #[derive(Clone, Debug)]
@@ -103,7 +107,7 @@ fn free_locals(e: &ECore, bound: &mut Vec<LocalId>, out: &mut Vec<LocalId>) {
             }
         }
         ECore::Int(_) | ECore::ConstBig { .. } | ECore::Lit(_) | ECore::Bool(_) | ECore::Unit | ECore::Global(_)
-        | ECore::Ctor(_) | ECore::Prim(_) | ECore::Hole(_) | ECore::Fault => {}
+        | ECore::Ctor(_) | ECore::Prim(_) | ECore::Hole(_) | ECore::IdxPending(_) | ECore::Fault => {}
         ECore::DictProj(d, _) => free_locals(d, bound, out),
         ECore::Proj(d, _) => free_locals(d, bound, out),
         ECore::InstDict(_, args) | ECore::App(_, args) | ECore::MkClos { env: args, .. } => {
@@ -177,6 +181,7 @@ fn hoist_lambdas(e: &mut ECore, hint: &str, counter: &mut usize, fns: &mut Vec<H
         | ECore::Ctor(_)
         | ECore::Prim(_)
         | ECore::Hole(_)
+        | ECore::IdxPending(_)
         | ECore::Fault => {}
         ECore::DictProj(d, _) => hoist_lambdas(d, hint, counter, fns),
         ECore::Proj(d, _) => hoist_lambdas(d, hint, counter, fns),
@@ -255,7 +260,7 @@ fn assign_locals(e: &ECore, map: &mut HashMap<LocalId, LocalId>, next: &mut usiz
     match e {
         ECore::Var(l) => note_local(*l, map, next),
         ECore::Int(_) | ECore::ConstBig { .. } | ECore::Lit(_) | ECore::Bool(_) | ECore::Unit | ECore::Global(_)
-        | ECore::Ctor(_) | ECore::Prim(_) | ECore::Hole(_) | ECore::Fault => {}
+        | ECore::Ctor(_) | ECore::Prim(_) | ECore::Hole(_) | ECore::IdxPending(_) | ECore::Fault => {}
         ECore::DictProj(d, _) => assign_locals(d, map, next),
         ECore::Proj(d, _) => assign_locals(d, map, next),
         ECore::InstDict(_, args) | ECore::App(_, args) | ECore::MkClos { env: args, .. } => {
@@ -322,6 +327,7 @@ fn rewrite_locals(e: &ECore, map: &HashMap<LocalId, LocalId>) -> ECore {
         ECore::Ctor(g) => ECore::Ctor(g.clone()),
         ECore::Prim(p) => ECore::Prim(*p),
         ECore::Hole(h) => ECore::Hole(*h),
+        ECore::IdxPending(i) => ECore::IdxPending(*i),
         ECore::Fault => ECore::Fault,
         ECore::DictProj(d, i) => ECore::DictProj(Box::new(rewrite_locals(d, map)), *i),
         ECore::Proj(d, i) => ECore::Proj(Box::new(rewrite_locals(d, map)), *i),
@@ -381,7 +387,7 @@ fn resolve_lit_words(e: &mut ECore, lits: &[ECore]) {
         ECore::Lit(i) => *e = lits[*i].clone(),
         ECore::Int(_) | ECore::ConstBig { .. } | ECore::Bool(_) | ECore::Unit | ECore::Var(_)
         | ECore::Global(_)
-        | ECore::Ctor(_) | ECore::Prim(_) | ECore::Hole(_) | ECore::Fault | ECore::LazyAlloc => {}
+        | ECore::Ctor(_) | ECore::Prim(_) | ECore::Hole(_) | ECore::IdxPending(_) | ECore::Fault | ECore::LazyAlloc => {}
         ECore::DictProj(d, _) | ECore::Proj(d, _) | ECore::Demand(d) => {
             resolve_lit_words(d, lits)
         }
@@ -411,6 +417,57 @@ fn resolve_lit_words(e: &mut ECore, lits: &[ECore]) {
             resolve_lit_words(scrut, lits);
             for (_, b) in alts {
                 resolve_lit_words(b, lits);
+            }
+        }
+    }
+}
+
+/// Replace resolved implicit index arguments (parallel to
+/// [`resolve_lit_words`]).
+fn resolve_idx_words(e: &mut ECore, vals: &[ECore]) {
+    match e {
+        ECore::IdxPending(i) => *e = vals[*i].clone(),
+        ECore::Int(_)
+        | ECore::ConstBig { .. }
+        | ECore::Lit(_)
+        | ECore::Bool(_)
+        | ECore::Unit
+        | ECore::Var(_)
+        | ECore::Global(_)
+        | ECore::Ctor(_)
+        | ECore::Prim(_)
+        | ECore::Hole(_)
+        | ECore::Fault
+        | ECore::LazyAlloc => {}
+        ECore::DictProj(d, _) | ECore::Proj(d, _) | ECore::Demand(d) => {
+            resolve_idx_words(d, vals)
+        }
+        ECore::InstDict(_, args) | ECore::MkClos { env: args, .. } => {
+            for a in args {
+                resolve_idx_words(a, vals);
+            }
+        }
+        ECore::App(f, args) => {
+            resolve_idx_words(f, vals);
+            for a in args {
+                resolve_idx_words(a, vals);
+            }
+        }
+        ECore::Lam { body, .. } => resolve_idx_words(body, vals),
+        ECore::Let(_, v, body) => {
+            resolve_idx_words(v, vals);
+            resolve_idx_words(body, vals);
+        }
+        ECore::If(c, t, f) => {
+            resolve_idx_words(c, vals);
+            resolve_idx_words(t, vals);
+            resolve_idx_words(f, vals);
+        }
+        ECore::LazyInit(_, t) => resolve_idx_words(t, vals),
+        ECore::Case { scrut, alts } => {
+            resolve_idx_words(scrut, vals);
+            for (_, b) in alts {
+                resolve_idx_words(b, vals);
             }
         }
     }
@@ -457,7 +514,7 @@ fn lower(e: &ECore) -> crate::core::Core {
         ECore::App(f, args) => {
             crate::core::Core::App(Box::new(lower(f)), args.iter().map(lower).collect())
         }
-        ECore::Lam { .. } | ECore::Hole(_) => {
+        ECore::Lam { .. } | ECore::Hole(_) | ECore::IdxPending(_) => {
             unreachable!("lambda hoisting and dictionary solving run before lowering")
         }
         ECore::Fault => crate::core::Core::Fault,
@@ -495,6 +552,15 @@ fn app_spine(head: ECore, args: Vec<ECore>) -> ECore {
 
 // ---------------------------------------------------------------- info tables
 
+/// A declared parameter's kind: a type parameter, an index value with its
+/// type (`n :: Nat`), or a proposition parameter (`p :: Prop`).
+#[derive(Clone, Debug, PartialEq)]
+pub enum ParamKind {
+    Type,
+    Val(Ty),
+    Prop,
+}
+
 #[derive(Clone)]
 enum ValueKind {
     TopFn,
@@ -509,15 +575,32 @@ enum ValueKind {
         /// Vtable slot (slot 0 is the return clause).
         slot: usize,
     },
-    /// Data constructor: tag in declaration order, field count, field types
-    /// and the data type's parameter names (for substitution at patterns).
+    /// Data constructor: tag in declaration order, all field types
+    /// (including erased evidence fields), the fields' erasure flags, the
+    /// family's parameter names (positional against the type's
+    /// arguments), constructor-local index binders, and the result's
+    /// arguments (`Vec 0 a`'s `0`, `Vec (k + 1) a`'s `k + 1`) with the
+    /// parameters still as placeholders.
     Ctor {
         tag: usize,
+        /// Pattern arity: every declared field.
         arity: usize,
+        /// Runtime arity: only the fields the block stores.
+        runtime_arity: usize,
         field_tys: Vec<Ty>,
+        field_erased: Vec<bool>,
+        /// Each field's Pi binder name, for dependent field types
+        /// (`(bound :: i < n)` mentions `i`).
+        field_binders: Vec<String>,
         ty_params: Vec<String>,
+        local_idx: Vec<IxParam>,
+        res_args: Vec<Ty>,
     },
     BoolLit(bool),
+    /// An erased evidence constructor (`refl`, `congr`): it constructs a
+    /// proof and never becomes runtime code (core specification
+    /// section 3).
+    ProofCtor,
 }
 
 #[derive(Clone)]
@@ -533,11 +616,17 @@ struct TypeKind {
     module: String,
     name: String,
     arity: usize,
+    /// Each parameter's kind, in declaration order: type parameters,
+    /// index values (`Vec (n :: Nat)`'s `n`), and proposition parameters
+    /// (`Dec (p :: Prop)`'s `p`).
+    param_kinds: Vec<ParamKind>,
     /// Constructor names with tags, in declaration order.
     ctors: Vec<(String, usize)>,
     /// For a `record` type: the declared field names in declaration order.
     /// `None` for `data` types.
     fields: Option<Vec<String>>,
+    /// Record fields' erasure flags, parallel to `fields`.
+    field_erased: Vec<bool>,
 }
 
 #[derive(Clone)]
@@ -576,6 +665,21 @@ struct PendLit {
     ty: Ty,
     /// The decimal digit string, with an optional leading `-`.
     value: String,
+    span: ast::Span,
+}
+
+/// A deferred implicit index argument (insert-and-solve, dependent core
+/// kernel design, section 2): a `forall`-bound value argument is a runtime
+/// argument, so its solved index term is reified to runtime code once
+/// unification is complete (core specification section 3: witnesses
+/// execution needs are retained).
+struct IdxPend {
+    /// The instantiated index metavariable.
+    iterm: ITerm,
+    /// Name to local mapping at the use site, for reifying variables.
+    names: HashMap<String, LocalId>,
+    /// The value's type selects the `Nat` or `Int` runtime.
+    nat: bool,
     span: ast::Span,
 }
 
@@ -1009,6 +1113,29 @@ struct Checker {
     tuple_ctors: Vec<usize>,
     /// Integer literals awaiting type determination, in creation order.
     literal_pends: Vec<PendLit>,
+    /// Implicit index arguments awaiting their solved values, in creation
+    /// order (insert-and-solve, dependent core kernel design, section 2).
+    idx_pends: Vec<IdxPend>,
+    /// Kind constraints collected while converting one scheme's type:
+    /// un-annotated `forall` binders are classified by where they are used
+    /// (a type parameter, an index value, or a region).
+    kind_constraints: RefCell<Vec<(String, ParamKind)>>,
+    /// Logical definitions (`spec` and `proof` declarations): the erased
+    /// total fragment, checked for termination and never emitted
+    /// (core specification sections 3 and 8).
+    logical: std::collections::HashSet<(String, String)>,
+    /// The logical definition being checked (its references are recorded
+    /// for the termination and cycle checks).
+    current_logical: Option<(String, String)>,
+    /// Logical references recorded while checking one definition.
+    pending_refs: Vec<(String, String)>,
+    /// Each logical definition's logical references, for the mutual
+    /// recursion check (a looping function must not inhabit a `Prop`).
+    logical_refs: HashMap<(String, String), Vec<(String, String)>>,
+    /// The pattern parameters of the definition being checked and the
+    /// subcomponent relation its pattern matching established, for the
+    /// structural termination check of logical definitions.
+    smaller: HashMap<LocalId, LocalId>,
     /// Each module's imported module names (interface metadata).
     module_imports: HashMap<String, Vec<String>>,
     /// Each module's own fixity declarations, for its interface.
@@ -1105,6 +1232,13 @@ impl Checker {
             prelude_module: String::new(),
             tuple_ctors: Vec::new(),
             literal_pends: Vec::new(),
+            idx_pends: Vec::new(),
+            kind_constraints: RefCell::new(Vec::new()),
+            logical: std::collections::HashSet::new(),
+            current_logical: None,
+            pending_refs: Vec::new(),
+            logical_refs: HashMap::new(),
+            smaller: HashMap::new(),
             module_imports: HashMap::new(),
             module_fixities: Vec::new(),
             module_foreign: Vec::new(),
@@ -1507,8 +1641,14 @@ impl Checker {
         match ty {
             Ty::Int | Ty::Nat | Ty::Bool | Ty::Unit | Ty::Prim(_) | Ty::Ref(_, _) => true,
             Ty::Bytes | Ty::Meta(_) | Ty::Mut(_, _) | Ty::Thunk { .. } | Ty::Lazy { .. } => false,
-            Ty::Fun(_, _, _, _) => false,
-            Ty::Handler { .. } => false,
+            Ty::Fun(_, _, _, _) | Ty::Pi { .. } | Ty::Handler { .. } => false,
+            // Index values and erased propositions occupy no runtime
+            // representation that could be duplicated (core specification
+            // section 3).
+            Ty::Sort(_) | Ty::Idx(_) | Ty::Prp(_) => true,
+            Ty::Sigma { dom, cod, .. } => {
+                self.copy_structural(dom, scope, seen) && self.copy_structural(cod, scope, seen)
+            }
             Ty::Region(_) => true,
             Ty::Param(p) => scope.iter().any(|(_, c)| {
                 c.class == "Copy" && c.args.iter().any(|a| matches!(a, Ty::Param(q) if q == p))
@@ -1530,8 +1670,8 @@ impl Checker {
                         Ok(v) => v,
                         Err(_) => return false,
                     };
-                    let fields = match self.ctor_field_tys(&v, args) {
-                        Ok((_, f)) => f,
+                    let fields = match self.ctor_parts(&v, args) {
+                        Ok(p) => p.fields.into_iter().map(|(_, t, _)| t).collect::<Vec<_>>(),
                         Err(_) => return false,
                     };
                     if !fields.iter().all(|f| self.copy_structural(f, scope, seen)) {
@@ -1695,6 +1835,100 @@ impl Checker {
             lits.push(self.literal_const(&t, &p.value, p.span)?);
         }
         resolve_lit_words(body, &lits);
+        Ok(())
+    }
+
+    /// Reify deferred implicit index arguments into runtime code once
+    /// unification has solved them (insert-and-solve, decision D29).
+    fn resolve_idx_pends(&mut self, body: &mut ECore) -> Result<()> {
+        let pends = std::mem::take(&mut self.idx_pends);
+        let mut vals: Vec<ECore> = Vec::with_capacity(pends.len());
+        for p in &pends {
+            vals.push(self.reify_idx(&p.iterm, &p.names, p.nat, p.span)?);
+        }
+        resolve_idx_words(body, &vals);
+        Ok(())
+    }
+
+    /// An index term as runtime code (core specification section 3:
+    /// witnesses execution needs are retained, and only executable
+    /// definitions can be reified).
+    fn reify_idx(
+        &self,
+        it: &ITerm,
+        names: &HashMap<String, LocalId>,
+        nat: bool,
+        span: ast::Span,
+    ) -> Result<ECore> {
+        Ok(match self.uni.resolve_idx(it) {
+            ITerm::Num(d) => ECore::ConstBig { nat, digits: d },
+            ITerm::Var(n) => match names.get(&n) {
+                Some(l) => ECore::Var(*l),
+                None => {
+                    return Err(Error::at(
+                        span,
+                        format!("the index value `{n}` has no runtime value at this call site"),
+                    ))
+                }
+            },
+            ITerm::Fn(g) => {
+                self.check_executable(&g, span)?;
+                ECore::Global(GlobalId(g))
+            }
+            ITerm::App(f, args) => {
+                let mut cores = vec![self.reify_idx(&f, names, nat, span)?];
+                for a in &args {
+                    cores.push(self.reify_idx(a, names, nat, span)?);
+                }
+                let head = cores.remove(0);
+                app_spine(head, cores)
+            }
+            ITerm::Bin(op, a, b) => {
+                let prim = if nat {
+                    PrimOp::Nat(match op {
+                        IdxOp::Add => NatOp::Add,
+                        IdxOp::Sub => NatOp::Sub,
+                        IdxOp::Mul => NatOp::Mul,
+                    })
+                } else {
+                    PrimOp::Int(match op {
+                        IdxOp::Add => IntOp::Add,
+                        IdxOp::Sub => IntOp::Sub,
+                        IdxOp::Mul => IntOp::Mul,
+                    })
+                };
+                ECore::App(
+                    Box::new(ECore::Prim(prim)),
+                    vec![
+                        self.reify_idx(&a, names, nat, span)?,
+                        self.reify_idx(&b, names, nat, span)?,
+                    ],
+                )
+            }
+            ITerm::MVar(m) => {
+                return Err(Error::at(
+                    span,
+                    format!(
+                        "the implicit index argument ?i{m} was never determined; add a type annotation"
+                    ),
+                ))
+            }
+        })
+    }
+
+    /// A ghost (`spec`) definition has no runtime code (core
+    /// specification section 4: a decision procedure must be executable).
+    fn check_executable(&self, gid: &str, span: ast::Span) -> Result<()> {
+        if let Some((m, n)) = gid.rsplit_once('.') {
+            if self.logical.contains(&(m.to_string(), n.to_string())) {
+                return Err(Error::at(
+                    span,
+                    format!(
+                        "{gid} is a `spec` definition: it is erased ghost code and has no executable form here (obligation status: unsupported)"
+                    ),
+                ));
+            }
+        }
         Ok(())
     }
 
@@ -1934,6 +2168,187 @@ impl Checker {
         Ok(t)
     }
 
+    /// Note how a name is used, for classifying un-annotated `forall`
+    /// binders after the scheme's type is converted. Conflicting uses are
+    /// recorded as-is; `conv_scheme` reports them.
+    fn note_kind(&self, name: &str, kind: ParamKind) {
+        let mut ks = self.kind_constraints.borrow_mut();
+        if !ks.iter().any(|(n, k)| n == name && *k == kind) {
+            ks.push((name.to_string(), kind));
+        }
+    }
+
+    /// Convert an index expression (a value in type position): a variable,
+    /// a numeral, mathematical arithmetic, or an application of a named
+    /// total definition (dependent core kernel design, section 2).
+    fn conv_idx(&self, ty: &ast::Type, vars: &[String], kind: &Ty) -> Result<ITerm> {
+        let mut args: Vec<&ast::Type> = Vec::new();
+        let mut cur = ty;
+        loop {
+            match cur {
+                ast::Type::App(f, a, _) => {
+                    args.push(a);
+                    cur = f;
+                }
+                _ => break,
+            }
+        }
+        args.reverse();
+        let head = cur;
+        let span = ty.span();
+        match head {
+            ast::Type::Num(s, _) => {
+                if !args.is_empty() {
+                    return Err(Error::at(span, "a numeral takes no arguments"));
+                }
+                Ok(ITerm::Num(s.clone()))
+            }
+            ast::Type::Var(n, _) => {
+                if args.is_empty() {
+                    if !vars.contains(&n.text) {
+                        return Err(Error::at(
+                            n.span,
+                            format!("unknown index variable {}", n.text),
+                        ));
+                    }
+                    self.note_kind(&n.text, ParamKind::Val(kind.clone()));
+                    return Ok(ITerm::Var(n.text.clone()));
+                }
+                if let Some(opc) = match n.text.as_str() {
+                    "+" => Some(IdxOp::Add),
+                    "-" => Some(IdxOp::Sub),
+                    "*" => Some(IdxOp::Mul),
+                    _ => None,
+                } {
+                    if args.len() != 2 {
+                        return Err(Error::at(
+                            span,
+                            format!("`{}` takes two index arguments", n.text),
+                        ));
+                    }
+                    return Ok(ITerm::Bin(
+                        opc,
+                        Box::new(self.conv_idx(args[0], vars, kind)?),
+                        Box::new(self.conv_idx(args[1], vars, kind)?),
+                    ));
+                }
+                self.idx_app(&n.text, &args, vars, kind, n.span)
+            }
+            ast::Type::Con(p, cspan) => {
+                let parts = p.parts();
+                if parts == ["Type"] || parts == ["Prop"] {
+                    return Err(Error::at(
+                        *cspan,
+                        "a universe is not an index value (it classifies types)",
+                    ));
+                }
+                let name = parts.join(".");
+                self.idx_app(&name, &args, vars, kind, *cspan)
+            }
+            other => Err(Error::at(
+                other.span(),
+                "expected an index value: a variable, a numeral, arithmetic (`n + 1`), or a total function application",
+            )),
+        }
+    }
+
+    /// An application in index position: `toNat limit`, `length bytes`,
+    /// or a named total definition.
+    fn idx_app(
+        &self,
+        name: &str,
+        args: &[&ast::Type],
+        vars: &[String],
+        kind: &Ty,
+        span: ast::Span,
+    ) -> Result<ITerm> {
+        // The builtin index vocabulary shadows ordinary names in index
+        // position (decision D29): `length` over `Bytes` and `toNat` over
+        // machine integers are total, executable, and reduce nowhere in
+        // conversion.
+        let head = if matches!(name, "toNat" | "length") {
+            format!("<builtin>.{name}")
+        } else {
+            match self.lookup_value(None, name) {
+                Ok(v) => fn_id(&v.module, &v.name).0,
+                Err(_) => {
+                    return Err(Error::at(
+                        span,
+                        format!("unknown name {name} in index position"),
+                    ))
+                }
+            }
+        };
+        let mut out = Vec::new();
+        for a in args {
+            out.push(self.conv_idx(a, vars, kind)?);
+        }
+        Ok(ITerm::app_fn(head, out))
+    }
+
+    /// Convert a proposition: a comparison over index values, `Eq x y`,
+    /// `Not p`, or a bound proposition variable.
+    fn conv_prop(&self, ty: &ast::Type, vars: &[String]) -> Result<PTerm> {
+        let mut args: Vec<&ast::Type> = Vec::new();
+        let mut cur = ty;
+        loop {
+            match cur {
+                ast::Type::App(f, a, _) => {
+                    args.push(a);
+                    cur = f;
+                }
+                _ => break,
+            }
+        }
+        args.reverse();
+        let head = cur;
+        let span = ty.span();
+        match head {
+            ast::Type::Var(op, _) if args.len() == 2 => {
+                let cmp = match op.text.as_str() {
+                    "<" => IdxCmp::Lt,
+                    "<=" => IdxCmp::Le,
+                    ">" => IdxCmp::Gt,
+                    ">=" => IdxCmp::Ge,
+                    "==" | "=" => IdxCmp::Eq,
+                    "/=" | "!=" => IdxCmp::Ne,
+                    _ => {
+                        return Err(Error::at(
+                            span,
+                            format!(
+                                "`{}` is not a proposition former (use a comparison, `Eq x y`, or `Not p`)",
+                                op.text
+                            ),
+                        ))
+                    }
+                };
+                let unit = Ty::Nat;
+                Ok(PTerm::Cmp(
+                    cmp,
+                    Box::new(self.conv_idx(args[0], vars, &unit)?),
+                    Box::new(self.conv_idx(args[1], vars, &unit)?),
+                ))
+            }
+            ast::Type::Con(p, _) if p.parts() == ["Eq"] && args.len() == 2 => {
+                let unit = Ty::Nat;
+                Ok(PTerm::Eq(
+                    Box::new(self.conv_idx(args[0], vars, &unit)?),
+                    Box::new(self.conv_idx(args[1], vars, &unit)?),
+                ))
+            }
+            ast::Type::Con(p, _) if p.parts() == ["Not"] && args.len() == 1 => {
+                Ok(PTerm::Not(Box::new(self.conv_prop(args[0], vars)?)))
+            }
+            ast::Type::Var(n, _) if args.is_empty() && vars.contains(&n.text) => {
+                Ok(PTerm::Var(n.text.clone()))
+            }
+            other => Err(Error::at(
+                other.span(),
+                "expected a proposition: a comparison (`i < n`), `Eq x y`, `Not p`, or a proposition variable",
+            )),
+        }
+    }
+
     fn check_applied(&self, t: &Ty, span: ast::Span) -> Result<()> {
         if let Ty::Adt(name, args) = t {
             let info = self.lookup_type(&[name])?;
@@ -2021,6 +2436,29 @@ impl Checker {
         }
         args.reverse();
         let head_span = cur.span();
+        // Propositions (`i < n`, `Eq x y`, `Not p`) are types in `Prop`
+        // (the surface shares term syntax between kinds, types and
+        // values), and arithmetic computes index values, not types.
+        let head_name = match cur {
+            ast::Type::Var(n, _) => Some(n.text.clone()),
+            ast::Type::Con(p, _) => Some(p.parts().join(".")),
+            _ => None,
+        };
+        match head_name.as_deref() {
+            Some("<" | "<=" | ">" | ">=" | "==" | "=" | "/=" | "!=") => {
+                return Ok(Ty::Prp(Box::new(self.conv_prop(ty, vars)?)));
+            }
+            Some("Eq" | "Not") => {
+                return Ok(Ty::Prp(Box::new(self.conv_prop(ty, vars)?)));
+            }
+            Some("+" | "-" | "*") => {
+                return Err(Error::at(
+                    head_span,
+                    "an arithmetic expression computes an index value, not a type; index expressions appear as arguments of an indexed family (as in `Vec (n + 1) a`)",
+                ));
+            }
+            _ => {}
+        }
         if let ast::Type::Con(p, _) = cur {
             let parts = p.parts();
             match (parts.as_slice(), args.as_slice()) {
@@ -2120,12 +2558,41 @@ impl Checker {
                 _ => {}
             }
         }
+        // Generic application: arguments convert by the head's parameter
+        // kinds, so `Vec n a` reads `n` as an index value and `a` as a
+        // type (dependent core kernel design, section 5).
+        let info = match cur {
+            ast::Type::Con(p, span) => {
+                Some(self.lookup_type(&p.parts()).map_err(|_| {
+                    Error::at(*span, format!("unknown type {}", p.parts().join(".")))
+                })?)
+            }
+            _ => None,
+        };
         let mut result = self.conv_raw(cur, vars)?;
-        for a in args {
+        for (i, a) in args.into_iter().enumerate() {
             match a {
                 Arg::Ty(t) => {
-                    let t = self.conv_type(&t, vars)?;
-                    result = self.type_app(result, t, head_span)?;
+                    let arg = match info.as_ref().and_then(|ik| ik.param_kinds.get(i).cloned()) {
+                        Some(ParamKind::Val(vty)) => {
+                            Ty::Idx(Box::new(self.conv_idx(&t, vars, &vty)?))
+                        }
+                        Some(ParamKind::Prop) => Ty::Prp(Box::new(self.conv_prop(&t, vars)?)),
+                        _ => self.conv_type(&t, vars)?,
+                    };
+                    // A universe argument claims `Type : Type`: `Type n`
+                    // has kind `Type (n + 1)` (core specification
+                    // section 2), so it cannot fill a `Type 0` slot.
+                    if let Ty::Sort(Sort::Type(n)) = &arg {
+                        return Err(Error::at(
+                            t.span(),
+                            format!(
+                                "the universe `Type {n}` has kind `Type {}`: `Type : Type` is not admitted",
+                                n + 1
+                            ),
+                        ));
+                    }
+                    result = self.type_app(result, arg, head_span)?;
                 }
                 Arg::Row(r) => {
                     return Err(Error::at(
@@ -2148,6 +2615,11 @@ impl Checker {
                     ["Bool"] => Ok(Ty::Bool),
                     ["Unit"] => Ok(Ty::Unit),
                     ["Bytes"] => Ok(Ty::Bytes),
+                    // Universes (dependent core kernel design, section 2):
+                    // `Type` is `Type 0`, and `Type : Type 1`, so
+                    // `Type : Type` is never admitted.
+                    ["Type"] => Ok(Ty::Sort(Sort::Type(0))),
+                    ["Prop"] => Ok(Ty::Sort(Sort::Prop)),
                     ["Thunk"] | ["Lazy"] | ["Ref"] | ["Mut"] | ["Io"] => Err(Error::at(
                         *span,
                         "Thunk, Lazy, Ref, Mut and Io must be fully applied (`Thunk {e} a`, `Lazy {e} r a`, `Ref r a`, `Mut r a`, `Io r`)",
@@ -2175,6 +2647,7 @@ impl Checker {
             }
             ast::Type::Var(n, _) => {
                 if vars.contains(&n.text) {
+                    self.note_kind(&n.text, ParamKind::Type);
                     Ok(Ty::Param(n.text.clone()))
                 } else {
                     Err(Error::at(n.span, format!("unknown type variable {}", n.text)))
@@ -2203,9 +2676,64 @@ impl Checker {
                 *span,
                 "using constraints are only supported at the outermost position of a signature",
             )),
-            ast::Type::DepFun(_, _, _, span) | ast::Type::Sigma(_, _, _, span) => Err(Error::at(
+            ast::Type::DepFun(name, ann, mult, eff, res, span) => {
+                let dom = self.conv_type(ann, vars)?;
+                let m = match mult {
+                    Some(n) => Mult::parse(&n.text).ok_or_else(|| {
+                        Error::at(n.span, format!("unknown multiplicity {}", n.text))
+                    })?,
+                    None => default_mult(&dom),
+                };
+                let eff = match eff {
+                    Some(e) => self.conv_row(e, vars)?,
+                    None => EffRow::pure(),
+                };
+                if vars.contains(&name.text) {
+                    return Err(Error::at(name.span, format!("duplicate binder {}", name.text)));
+                }
+                let mut vars2 = vars.to_vec();
+                vars2.push(name.text.clone());
+                match &dom {
+                    Ty::Sort(_) => self.note_kind(&name.text, ParamKind::Type),
+                    Ty::Prp(_) => self.note_kind(&name.text, ParamKind::Prop),
+                    other => self.note_kind(&name.text, ParamKind::Val(other.clone())),
+                }
+                let cod = self.conv_type(res, &vars2)?;
+                let _ = span;
+                if cod.mentions_idx(&name.text) {
+                    Ok(Ty::pi(name.text.clone(), dom, m, eff, cod))
+                } else {
+                    Ok(Ty::fun_mult(dom, m, eff, cod))
+                }
+            }
+            ast::Type::Sigma(name, ann, body, span) => {
+                let dom = self.conv_type(ann, vars)?;
+                if vars.contains(&name.text) {
+                    return Err(Error::at(name.span, format!("duplicate binder {}", name.text)));
+                }
+                let mut vars2 = vars.to_vec();
+                vars2.push(name.text.clone());
+                match &dom {
+                    Ty::Sort(_) => self.note_kind(&name.text, ParamKind::Type),
+                    Ty::Prp(_) => self.note_kind(&name.text, ParamKind::Prop),
+                    other => self.note_kind(&name.text, ParamKind::Val(other.clone())),
+                }
+                let cod = self.conv_type(body, &vars2)?;
+                if cod.mentions_idx(&name.text) {
+                    Ok(Ty::sigma(name.text.clone(), dom, cod))
+                } else {
+                    // A non-dependent pair is an ordinary structural
+                    // product (decision D1 tuples).
+                    Ok(Ty::Tuple(vec![dom, cod]))
+                }
+            }
+            ast::Type::Num(_, span) => Err(Error::at(
                 *span,
-                "dependent function and pair types are not supported in the bootstrap slice",
+                "a numeral is an index value, not a type; index values appear as arguments of an indexed family (as in `Vec 0 a`)",
+            )),
+            ast::Type::Infix(_, _, span) => Err(Error::at(
+                *span,
+                "internal error: unresolved infix chain in a type",
             )),
             ast::Type::Unit(_) => Ok(Ty::Unit),
             ast::Type::Tuple(items, span) => {
@@ -2222,27 +2750,40 @@ impl Checker {
         }
     }
 
+    /// What a binder's annotation binds: a universe binds a type
+    /// parameter, `Prop` binds a proposition, and any other annotation is
+    /// the type of an index value (`(n :: Nat)`).
+    fn binder_kind(&self, ann: &ast::Type, vars: &[String]) -> Result<ParamKind> {
+        if let ast::Type::Con(p, _) = ann {
+            match p.parts().as_slice() {
+                ["Type"] => return Ok(ParamKind::Type),
+                ["Prop"] => return Ok(ParamKind::Prop),
+                _ => {}
+            }
+        }
+        Ok(ParamKind::Val(self.conv_type(ann, vars)?))
+    }
+
     fn conv_scheme(&self, ty: &ast::Type) -> Result<Scheme> {
+        self.kind_constraints.borrow_mut().clear();
         let mut params: Vec<String> = Vec::new();
         let mut ctx: Vec<(String, ClassApp)> = Vec::new();
+        // `forall` binders in order, with their kind hints.
+        let mut binders: Vec<(String, Option<ParamKind>, ast::Span)> = Vec::new();
         let mut rest = ty;
         loop {
             match rest {
-                ast::Type::Forall(binders, body, _) => {
-                    for b in binders {
-                        if let Some(ann) = &b.ann {
-                            let is_type = matches!(ann, ast::Type::Con(p, _) if p.parts() == ["Type"]);
-                            if !is_type {
-                                return Err(Error::at(
-                                    b.name.span,
-                                    "kinds other than Type are not supported in the bootstrap slice",
-                                ));
-                            }
-                        }
+                ast::Type::Forall(bs, body, _) => {
+                    for b in bs {
                         if params.contains(&b.name.text) {
                             return Err(Error::at(b.name.span, "duplicate type parameter"));
                         }
+                        let hint = match &b.ann {
+                            Some(ann) => Some(self.binder_kind(ann, &params)?),
+                            None => None,
+                        };
                         params.push(b.name.text.clone());
+                        binders.push((b.name.text.clone(), hint, b.name.span));
                     }
                     rest = body;
                 }
@@ -2257,7 +2798,9 @@ impl Checker {
                     let t = self.conv_type(other, &params)?;
                     // Names used in tail position are row variables; names
                     // used in region position are region variables; the rest
-                    // are ordinary type parameters.
+                    // are classified by how they are used (an un-annotated
+                    // binder used only as an index value is an implicit
+                    // value argument, decision D29).
                     let mut row_params: Vec<String> = Vec::new();
                     let mut region_params: Vec<String> = Vec::new();
                     collect_row_names(&t, &mut row_params, &mut region_params);
@@ -2277,12 +2820,54 @@ impl Checker {
                         .into_iter()
                         .map(|(n, c)| (n, crate::types::regionize_class(&c, &region_params)))
                         .collect();
-                    let type_params: Vec<String> = params
-                        .into_iter()
-                        .filter(|p| !row_params.contains(p) && !region_params.contains(p))
-                        .collect();
+                    let constraints = self.kind_constraints.borrow().clone();
+                    let mut type_params: Vec<String> = Vec::new();
+                    let mut val_params: Vec<(String, Ty)> = Vec::new();
+                    let mut prop_params: Vec<String> = Vec::new();
+                    for (name, hint, span) in binders {
+                        if row_params.contains(&name) || region_params.contains(&name) {
+                            continue;
+                        }
+                        let uses: Vec<ParamKind> = constraints
+                            .iter()
+                            .filter(|(n, _)| *n == name)
+                            .map(|(_, k)| k.clone())
+                            .collect();
+                        let distinct = |ks: &[ParamKind]| -> Option<ParamKind> {
+                            let mut it = ks.iter();
+                            let first = it.next()?.clone();
+                            if it.all(|k| *k == first) {
+                                Some(first)
+                            } else {
+                                None
+                            }
+                        };
+                        let kind = match (&hint, distinct(&uses)) {
+                            (Some(h), Some(u)) if *h != u => {
+                                return Err(Error::at(
+                                    span,
+                                    format!(
+                                        "`{name}` is used both as a type and as an index value; annotate it"
+                                    ),
+                                ))
+                            }
+                            (Some(h), _) => h.clone(),
+                            (None, Some(u)) => u,
+                            // An unused binder keeps its historic reading:
+                            // a type parameter.
+                            (None, None) => ParamKind::Type,
+                        };
+                        match kind {
+                            ParamKind::Type => type_params.push(name),
+                            ParamKind::Val(vty) => val_params.push((name, vty)),
+                            ParamKind::Prop => prop_params.push(name),
+                        }
+                    }
                     return Ok(Scheme {
                         params: type_params,
+                        idx_params: Vec::new(),
+                        val_params,
+                        prop_params,
                         row_params,
                         region_params,
                         ctx,
@@ -2298,7 +2883,8 @@ impl Checker {
     }
 
     /// Substitute type parameters (by type), row variables (by tail) and
-    /// region names (by fresh name).
+    /// region names (by fresh name). Index-level variables substitute from
+    /// the same map: an index parameter's entry is a `Ty::Idx` value.
     fn subst_full(
         t: &Ty,
         types: &HashMap<String, Ty>,
@@ -2307,6 +2893,34 @@ impl Checker {
     ) -> Ty {
         match t {
             Ty::Param(p) => types.get(p).cloned().unwrap_or_else(|| t.clone()),
+            Ty::Idx(it) => Ty::Idx(Box::new(Checker::subst_it(it, types))),
+            Ty::Prp(p) => Ty::Prp(Box::new(Checker::subst_pt(p, types))),
+            Ty::Pi { var, dom, mult, eff, cod } => {
+                let cod = if types.contains_key(var) {
+                    (**cod).clone()
+                } else {
+                    Checker::subst_full(cod, types, rows, regions)
+                };
+                Ty::Pi {
+                    var: var.clone(),
+                    dom: Box::new(Checker::subst_full(dom, types, rows, regions)),
+                    mult: *mult,
+                    eff: subst_row(eff, rows, regions),
+                    cod: Box::new(cod),
+                }
+            }
+            Ty::Sigma { var, dom, cod } => {
+                let cod = if types.contains_key(var) {
+                    (**cod).clone()
+                } else {
+                    Checker::subst_full(cod, types, rows, regions)
+                };
+                Ty::Sigma {
+                    var: var.clone(),
+                    dom: Box::new(Checker::subst_full(dom, types, rows, regions)),
+                    cod: Box::new(cod),
+                }
+            }
             Ty::Adt(n, args) => Ty::Adt(
                 n.clone(),
                 args.iter()
@@ -2359,6 +2973,48 @@ impl Checker {
         }
     }
 
+    /// Substitute index-level variables in an index term from the map.
+    fn subst_it(t: &ITerm, map: &HashMap<String, Ty>) -> ITerm {
+        match t {
+            ITerm::Var(n) => match map.get(n) {
+                Some(Ty::Idx(it)) => (**it).clone(),
+                _ => t.clone(),
+            },
+            ITerm::App(f, args) => ITerm::App(
+                Box::new(Checker::subst_it(f, map)),
+                args.iter().map(|a| Checker::subst_it(a, map)).collect(),
+            ),
+            ITerm::Bin(op, a, b) => ITerm::Bin(
+                *op,
+                Box::new(Checker::subst_it(a, map)),
+                Box::new(Checker::subst_it(b, map)),
+            ),
+            other => other.clone(),
+        }
+    }
+
+    /// Substitute index-level variables in a proposition from the map.
+    fn subst_pt(p: &PTerm, map: &HashMap<String, Ty>) -> PTerm {
+        match p {
+            PTerm::Var(n) => match map.get(n) {
+                Some(Ty::Prp(q)) => (**q).clone(),
+                Some(Ty::Idx(_)) => p.clone(),
+                _ => p.clone(),
+            },
+            PTerm::Cmp(op, a, b) => PTerm::Cmp(
+                *op,
+                Box::new(Checker::subst_it(a, map)),
+                Box::new(Checker::subst_it(b, map)),
+            ),
+            PTerm::Eq(a, b) => PTerm::Eq(
+                Box::new(Checker::subst_it(a, map)),
+                Box::new(Checker::subst_it(b, map)),
+            ),
+            PTerm::Not(q) => PTerm::Not(Box::new(Checker::subst_pt(q, map))),
+            other => other.clone(),
+        }
+    }
+
     fn subst_class(c: &ClassApp, map: &HashMap<String, Ty>) -> ClassApp {
         ClassApp {
             class: c.class.clone(),
@@ -2367,12 +3023,34 @@ impl Checker {
     }
 
     /// Instantiate a scheme with fresh unification variables: type
-    /// parameters become type metavariables, row parameters become row
+    /// parameters become type metavariables, index and implicit value
+    /// parameters become index metavariables, row parameters become row
     /// metavariables, and region names are freshened to new rigid names.
-    fn instantiate(&mut self, s: &Scheme) -> (Ty, Vec<(String, ClassApp)>) {
+    /// The returned list is the instantiated form of `val_params`: each
+    /// entry becomes a runtime argument at the use site (insert-and-solve).
+    fn instantiate(&mut self, s: &Scheme) -> (Ty, Vec<(String, ClassApp)>, Vec<Ty>) {
         let mut types = HashMap::new();
         for p in &s.params {
             types.insert(p.clone(), self.uni.fresh());
+        }
+        for p in &s.idx_params {
+            match p {
+                IxParam::Val(n, _) => {
+                    types.insert(n.clone(), self.uni.fresh_idx());
+                }
+                IxParam::Prop(n) => {
+                    types.insert(n.clone(), self.uni.fresh_prop());
+                }
+            }
+        }
+        let mut val_args = Vec::new();
+        for (n, _) in &s.val_params {
+            let m = self.uni.fresh_idx();
+            types.insert(n.clone(), m.clone());
+            val_args.push(m);
+        }
+        for n in &s.prop_params {
+            types.insert(n.clone(), self.uni.fresh_prop());
         }
         let mut rows = HashMap::new();
         for p in &s.row_params {
@@ -2392,7 +3070,7 @@ impl Checker {
             .iter()
             .map(|(n, c)| (n.clone(), Self::subst_full_class(c, &types, &rows, &regions)))
             .collect();
-        (Self::subst_full(&s.ty, &types, &rows, &regions), ctx)
+        (Self::subst_full(&s.ty, &types, &rows, &regions), ctx, val_args)
     }
 
     fn subst_full_class(
@@ -2412,10 +3090,28 @@ impl Checker {
     }
 
     /// Turn a scheme into a definition signature with rigid parameters.
+    /// Index and implicit value parameters keep their names: the
+    /// definition's equation patterns and body mention them by name.
     fn rigidify(&mut self, s: &Scheme) -> (Ty, Vec<(String, ClassApp)>, HashMap<String, Ty>) {
         let mut types = HashMap::new();
         for p in &s.params {
             types.insert(p.clone(), Ty::Param(self.fresh_param(p)));
+        }
+        for p in &s.idx_params {
+            match p {
+                IxParam::Val(n, _) => {
+                    types.insert(n.clone(), Ty::Idx(Box::new(ITerm::Var(n.clone()))));
+                }
+                IxParam::Prop(n) => {
+                    types.insert(n.clone(), Ty::Prp(Box::new(PTerm::Var(n.clone()))));
+                }
+            }
+        }
+        for (n, _) in &s.val_params {
+            types.insert(n.clone(), Ty::Idx(Box::new(ITerm::Var(n.clone()))));
+        }
+        for n in &s.prop_params {
+            types.insert(n.clone(), Ty::Prp(Box::new(PTerm::Var(n.clone()))));
         }
         let mut rows = HashMap::new();
         for p in &s.row_params {
@@ -2670,7 +3366,7 @@ impl Checker {
             },
             ECore::Int(_) | ECore::ConstBig { .. } | ECore::Lit(_) | ECore::Bool(_)
             | ECore::Unit | ECore::Var(_) | ECore::Global(_)
-            | ECore::Ctor(_) | ECore::Prim(_) | ECore::Fault => e.clone(),
+            | ECore::Ctor(_) | ECore::Prim(_) | ECore::IdxPending(_) | ECore::Fault => e.clone(),
             ECore::DictProj(d, i) => {
                 ECore::DictProj(Box::new(self.fill_holes(d, sol)?), *i)
             }

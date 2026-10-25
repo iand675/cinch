@@ -373,7 +373,11 @@ impl<'a> Parser<'a> {
     fn parse_signature(&mut self) -> Result<SigDecl> {
         let span = self.expect(&Tok::Signature, "`signature`")?.span;
         let name = self.parse_ctor_name("a signature name")?;
-        let params = self.parse_params()?;
+        let params = self
+            .parse_params()?
+            .into_iter()
+            .map(|b| b.name)
+            .collect::<Vec<_>>();
         self.expect(&Tok::Where, "`where`")?;
         let methods =
             self.parse_block_items("the signature block", |p| p.parse_method_signature())?;
@@ -452,7 +456,11 @@ impl<'a> Parser<'a> {
         }
         self.expect(&Tok::Instance, "`instance`")?;
         let name = self.parse_ctor_name("an instance name")?;
-        let params = self.parse_params()?;
+        let params = self
+            .parse_params()?
+            .into_iter()
+            .map(|b| b.name)
+            .collect::<Vec<_>>();
         self.expect(&Tok::ColonColon, "`::`")?;
         let spec = self.parse_type()?;
         let (ctx, target) = match spec {
@@ -504,16 +512,15 @@ impl<'a> Parser<'a> {
         }
         self.expect(&Tok::Where, "`where`")?;
         let fields = self.parse_block_items("the field block", |p| {
-            if p.at(&Tok::Erased) {
-                return Err(p.err(
-                    "erasure is not implemented in the bootstrap slice (`erased` record fields are a later slice)",
-                ));
+            let erased = p.at(&Tok::Erased);
+            if erased {
+                p.bump();
             }
             let name = p.parse_value_name()?;
             p.expect(&Tok::ColonColon, "`::`")?;
             let ty = p.parse_type()?;
             let span = name.span;
-            Ok(FieldDecl { name, ty, span })
+            Ok(FieldDecl { name, ty, erased, span })
         })?;
         Ok(RecordDecl { name, params, fields, span })
     }
@@ -625,27 +632,27 @@ impl<'a> Parser<'a> {
         Ok(FixityDecl { assoc, prec, ops, span })
     }
 
-    /// Parameters of `data`, `signature` and `instance`. Kind and class
-    /// annotations on binders have no home in these AST nodes and are
-    /// dropped; only the names survive.
-    fn parse_params(&mut self) -> Result<Vec<Name>> {
-        let mut names = Vec::new();
+    /// Parameters of `data`, `record`, `signature` and `instance`:
+    /// `x`, `(x :: T)` or `{x}`. Annotations survive: on `data` and
+    /// `record` parameters they classify type parameters versus index
+    /// values (dependent core kernel design, section 5).
+    fn parse_params(&mut self) -> Result<Vec<TypeBinder>> {
+        let mut binders = Vec::new();
         loop {
             match self.peek_tok() {
                 Tok::VarId(s) if s != "_" => {
                     let span = self.peek().span;
                     let name = Name::new(s.clone(), span);
                     self.bump();
-                    names.push(name);
+                    binders.push(TypeBinder { name, ann: None, implicit: false });
                 }
                 Tok::LParen | Tok::LBrace => {
-                    let b = self.parse_type_binder()?;
-                    names.push(b.name);
+                    binders.push(self.parse_type_binder()?);
                 }
                 _ => break,
             }
         }
-        Ok(names)
+        Ok(binders)
     }
 
     fn parse_ctor_name(&mut self, what: &str) -> Result<Name> {
@@ -1450,6 +1457,34 @@ impl<'a> Parser<'a> {
         }
     }
 
+    /// An infix chain of type applications (`n + 1`, `length bytes <=
+    /// limit`); the fixity pass resolves it into nested `App` spines over
+    /// the operator names. Arrows bind looser than operators, so operands
+    /// are type applications.
+    fn parse_infix_type(&mut self) -> Result<Type> {
+        let mut terms = vec![self.parse_type_app()?];
+        let mut ops: Vec<Name> = Vec::new();
+        loop {
+            let span = self.peek().span;
+            let name = match self.peek_tok() {
+                Tok::Op(s) => {
+                    let s = s.clone();
+                    self.bump();
+                    Name::new(s, span)
+                }
+                _ => break,
+            };
+            ops.push(name);
+            terms.push(self.parse_type_app()?);
+        }
+        if ops.is_empty() {
+            Ok(terms.pop().expect("one type"))
+        } else {
+            let span = terms[0].span();
+            Ok(Type::Infix(terms, ops, span))
+        }
+    }
+
     fn parse_forall(&mut self) -> Result<Type> {
         let span = self.expect(&Tok::Forall, "`forall`")?.span;
         let mut binders = Vec::new();
@@ -1516,26 +1551,18 @@ impl<'a> Parser<'a> {
         let span = self.peek().span;
         if self.is_typed_binder_head() {
             let (name, ann) = self.parse_typed_binder()?;
-            if mult_name(self.peek_tok()).is_some() {
-                return Err(self.err(
-                    "multiplicities on dependent function types are not supported in the bootstrap slice",
-                ));
-            }
+            let mult = self.parse_mult_opt()?;
             self.expect(&Tok::Arrow, "`->` after the dependent binder")?;
-            if self.at(&Tok::LBrace) {
-                return Err(self.err(
-                    "effect rows on dependent function types are not supported in the bootstrap slice",
-                ));
-            }
+            let eff = self.parse_effect_row_opt()?;
             let res = self.parse_type()?;
-            return Ok(Type::DepFun(name, Box::new(ann), Box::new(res), span));
+            return Ok(Type::DepFun(name, Box::new(ann), mult, eff, Box::new(res), span));
         }
         if self.at(&Tok::LBrace) {
             return Err(self.err(
                 "implicit dependent function types (`{x :: A} -> B`) are not supported in the bootstrap slice",
             ));
         }
-        let arg = self.parse_type_app()?;
+        let arg = self.parse_infix_type()?;
         if mult_name(self.peek_tok()).is_some() || self.at(&Tok::Arrow) {
             let mult = self.parse_mult_opt()?;
             self.expect(&Tok::Arrow, "`->`")?;
@@ -1573,7 +1600,7 @@ impl<'a> Parser<'a> {
     }
 
     fn starts_type_atom(&self) -> bool {
-        matches!(self.peek_tok(), Tok::VarId(_) | Tok::ConId(_) | Tok::LParen)
+        matches!(self.peek_tok(), Tok::VarId(_) | Tok::ConId(_) | Tok::LParen | Tok::Int(_))
     }
 
     fn parse_type_atom(&mut self) -> Result<Type> {
@@ -1589,6 +1616,10 @@ impl<'a> Parser<'a> {
             Tok::VarId(s) => {
                 self.bump();
                 Ok(Type::Var(Name::new(s, span), span))
+            }
+            Tok::Int(s) => {
+                self.bump();
+                Ok(Type::Num(s, span))
             }
             Tok::LParen => {
                 self.bump();
@@ -1825,11 +1856,44 @@ fn resolve_module(m: &mut Module, fix: &FixityTable) -> Result<()> {
         match d {
             Decl::Equation { eq, .. } => resolve_equation(eq, fix)?,
             Decl::Instance(inst) => {
+                resolve_type(&mut inst.target, fix)?;
                 for eq in &mut inst.methods {
                     resolve_equation(eq, fix)?;
                 }
             }
-            _ => {}
+            Decl::ValueSig { ty, .. } => resolve_type(ty, fix)?,
+            Decl::Data(data) => {
+                for b in &mut data.params {
+                    if let Some(ann) = &mut b.ann {
+                        resolve_type(ann, fix)?;
+                    }
+                }
+                for c in &mut data.ctors {
+                    resolve_type(&mut c.ty, fix)?;
+                }
+            }
+            Decl::Record(rec) => {
+                for b in &mut rec.params {
+                    if let Some(ann) = &mut b.ann {
+                        resolve_type(ann, fix)?;
+                    }
+                }
+                for f in &mut rec.fields {
+                    resolve_type(&mut f.ty, fix)?;
+                }
+            }
+            Decl::Foreign(f) => resolve_type(&mut f.ty, fix)?,
+            Decl::Effect(e) => {
+                for (_, ty) in &mut e.ops {
+                    resolve_type(ty, fix)?;
+                }
+            }
+            Decl::Signature(sig) => {
+                for (_, ty) in &mut sig.methods {
+                    resolve_type(ty, fix)?;
+                }
+            }
+            Decl::Import(_) | Decl::Fixity(_) => {}
         }
     }
     Ok(())
@@ -1842,7 +1906,7 @@ fn resolve_equation(eq: &mut Equation, fix: &FixityTable) -> Result<()> {
             LocalDecl::Eq { body, .. }
             | LocalDecl::Bind { body, .. }
             | LocalDecl::Lazy { body, .. } => resolve_term(body, fix)?,
-            LocalDecl::Sig { .. } => {}
+            LocalDecl::Sig { ty, .. } => resolve_type(ty, fix)?,
         }
     }
     Ok(())
@@ -1863,7 +1927,7 @@ fn resolve_term(t: &mut Term, fix: &FixityTable) -> Result<()> {
                     LocalDecl::Eq { body, .. }
                     | LocalDecl::Bind { body, .. }
                     | LocalDecl::Lazy { body, .. } => resolve_term(body, fix)?,
-                    LocalDecl::Sig { .. } => {}
+                    LocalDecl::Sig { ty, .. } => resolve_type(ty, fix)?,
                 }
             }
             resolve_term(body, fix)?;
@@ -1882,7 +1946,10 @@ fn resolve_term(t: &mut Term, fix: &FixityTable) -> Result<()> {
                 resolve_term(&mut alt.body, fix)?;
             }
         }
-        Term::Ann(e, _, _) => resolve_term(e, fix)?,
+        Term::Ann(e, ty, _) => {
+            resolve_term(e, fix)?;
+            resolve_type(ty, fix)?;
+        }
         Term::Neg(e, _) => resolve_term(e, fix)?,
         Term::Tuple(items, _) | Term::List(items, _) => {
             for x in items {
@@ -1905,7 +1972,7 @@ fn resolve_term(t: &mut Term, fix: &FixityTable) -> Result<()> {
                         LocalDecl::Eq { body, .. }
                         | LocalDecl::Bind { body, .. }
                         | LocalDecl::Lazy { body, .. } => resolve_term(body, fix)?,
-                        LocalDecl::Sig { .. } => {}
+                        LocalDecl::Sig { ty, .. } => resolve_type(ty, fix)?,
                     },
                 }
             }
@@ -2063,6 +2130,170 @@ fn resolve_chain(
     Ok(vals.pop().expect("one result"))
 }
 
+// ------------------------------------------------- type-level fixity
+
+fn reduce_ty(vals: &mut Vec<Type>, op: Name, span: Span) -> Result<()> {
+    let rhs = vals.pop().expect("right operand");
+    if vals.is_empty() {
+        return Err(Error::at(span, "malformed infix chain"));
+    }
+    let lhs = vals.pop().expect("left operand");
+    let t = if op.text == "$" {
+        Type::App(Box::new(lhs), Box::new(rhs), span)
+    } else {
+        let f = Type::Var(op.clone(), op.span);
+        Type::App(
+            Box::new(Type::App(Box::new(f), Box::new(lhs), span)),
+            Box::new(rhs),
+            span,
+        )
+    };
+    vals.push(t);
+    Ok(())
+}
+
+/// Fixity of a type-level operator: the module's fixity table when the
+/// operator is declared, and reserved defaults for the compiler's index
+/// vocabulary (`+ - *` and the comparisons) otherwise (decision D34: a
+/// refinement like `length bytes <= limit` needs no fixity declaration;
+/// these spellings mean the mathematical operations in index position).
+fn type_op_fixity(op: &Name, fix: &FixityTable) -> Result<(i8, Assoc)> {
+    if let Some((assoc, prec)) = fix.get(&op.text) {
+        return Ok((prec as i8, assoc));
+    }
+    Ok(match op.text.as_str() {
+        "*" => (7, Assoc::Left),
+        "+" | "-" => (6, Assoc::Left),
+        "<" | "<=" | ">" | ">=" | "==" | "=" | "/=" | "!=" => (4, Assoc::None),
+        "$" => (-1, Assoc::Right),
+        _ => {
+            return Err(Error::at(
+                op.span,
+                format!(
+                    "there is no fixity declared for the operator `{}`, and there is no default for an undeclared operator",
+                    op.text
+                ),
+            ))
+        }
+    })
+}
+
+/// Resolve a type-level infix chain with the same fixity rules as terms.
+fn resolve_type_chain(
+    terms: Vec<Type>,
+    ops: Vec<Name>,
+    span: Span,
+    fix: &FixityTable,
+) -> Result<Type> {
+    let mut vals: Vec<Type> = Vec::with_capacity(terms.len());
+    let mut ostack: Vec<(Name, i8, Assoc)> = Vec::new();
+    let mut ts = terms.into_iter();
+    vals.push(ts.next().expect("nonempty chain"));
+    for (op, term) in ops.into_iter().zip(ts) {
+        let (prec, assoc) = type_op_fixity(&op, fix)?;
+        loop {
+            let pop = match ostack.last() {
+                None => false,
+                Some((top, top_prec, top_assoc)) => {
+                    if *top_prec > prec {
+                        true
+                    } else if *top_prec < prec {
+                        false
+                    } else {
+                        match (*top_assoc, assoc) {
+                            (Assoc::Left, Assoc::Left) => true,
+                            (Assoc::Right, Assoc::Right) => false,
+                            _ => {
+                                return Err(Error::at(
+                                    op.span,
+                                    format!(
+                                        "the operators `{}` and `{}` at equal precedence {prec} have incompatible associativity; add parentheses",
+                                        top.text, op.text
+                                    ),
+                                ))
+                            }
+                        }
+                    }
+                }
+            };
+            if !pop {
+                break;
+            }
+            let (top, _, _) = ostack.pop().expect("operator");
+            reduce_ty(&mut vals, top, span)?;
+        }
+        ostack.push((op, prec, assoc));
+        vals.push(term);
+    }
+    while let Some((op, _, _)) = ostack.pop() {
+        reduce_ty(&mut vals, op, span)?;
+    }
+    if vals.len() != 1 {
+        return Err(Error::at(span, "malformed infix chain"));
+    }
+    Ok(vals.pop().expect("one result"))
+}
+
+/// Fixity resolution over the type grammar: type-level infix chains are
+/// resolved into `App` spines over the operator names, and nested types
+/// are walked.
+fn resolve_type(t: &mut Type, fix: &FixityTable) -> Result<()> {
+    match t {
+        Type::Con(_, _) | Type::Var(_, _) | Type::Unit(_) | Type::Num(_, _) => {}
+        Type::App(f, a, _) => {
+            resolve_type(f, fix)?;
+            resolve_type(a, fix)?;
+        }
+        Type::AppRow(f, _, _) => resolve_type(f, fix)?,
+        Type::Fun { arg, res, .. } => {
+            resolve_type(arg, fix)?;
+            resolve_type(res, fix)?;
+        }
+        Type::Forall(binders, body, _) => {
+            for b in binders {
+                if let Some(ann) = &mut b.ann {
+                    resolve_type(ann, fix)?;
+                }
+            }
+            resolve_type(body, fix)?;
+        }
+        Type::Using(cs, body, _) => {
+            for c in cs {
+                for a in &mut c.args {
+                    resolve_type(a, fix)?;
+                }
+            }
+            resolve_type(body, fix)?;
+        }
+        Type::DepFun(_, ann, _, _, res, _) => {
+            resolve_type(ann, fix)?;
+            resolve_type(res, fix)?;
+        }
+        Type::Sigma(_, ann, body, _) => {
+            resolve_type(ann, fix)?;
+            resolve_type(body, fix)?;
+        }
+        Type::Tuple(items, _) => {
+            for i in items {
+                resolve_type(i, fix)?;
+            }
+        }
+        Type::Infix(_, _, _) => {
+            let (terms, ops, span) = match std::mem::replace(t, Type::Unit(Span { line: 0, col: 0 }))
+            {
+                Type::Infix(terms, ops, span) => (terms, ops, span),
+                _ => unreachable!(),
+            };
+            let mut terms = terms;
+            for x in &mut terms {
+                resolve_type(x, fix)?;
+            }
+            *t = resolve_type_chain(terms, ops, span, fix)?;
+        }
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2165,7 +2396,7 @@ mod tests {
             .expect("data decl");
         assert_eq!(data.name.text, "Option");
         assert_eq!(data.params.len(), 1);
-        assert_eq!(data.params[0].text, "a");
+        assert_eq!(data.params[0].name.text, "a");
         assert_eq!(data.ctors.len(), 2);
         assert_eq!(data.ctors[0].name.text, "None");
         assert!(matches!(data.ctors[1].ty, Type::Fun { .. }));
@@ -2469,7 +2700,7 @@ mod tests {
             other => panic!("expected a forall, got {other:?}"),
         }
         match sig_ty(m, "sigB") {
-            Type::DepFun(name, ann, res, _) => {
+            Type::DepFun(name, ann, _, _, res, _) => {
                 assert_eq!(name.text, "x");
                 assert!(matches!(ann.as_ref(), Type::Con(_, _)));
                 assert!(matches!(res.as_ref(), Type::Con(_, _)));
@@ -2530,18 +2761,25 @@ mod tests {
     }
 
     #[test]
-    fn record_declarations_parse_and_erased_fields_are_rejected() {
+    fn record_declarations_parse_and_erased_fields_parse() {
         let p = ok("module T where\n  record R where\n    x :: Int\n    y :: Bool\n");
         match &p.module.decls[0] {
             Decl::Record(r) => {
                 assert_eq!(r.name.text, "R");
                 let names: Vec<&str> = r.fields.iter().map(|f| f.name.text.as_str()).collect();
                 assert_eq!(names, vec!["x", "y"]);
+                assert!(r.fields.iter().all(|f| !f.erased));
             }
             other => panic!("expected a record, got {other:?}"),
         }
-        let e = err("module T where\n  record R where\n    erased x :: Int\n");
-        assert!(e.contains("erasure is not implemented"), "{e}");
+        let p = ok("module T where\n  record R where\n    x :: Int\n    erased bound :: x < 3\n");
+        match &p.module.decls[0] {
+            Decl::Record(r) => {
+                let erased: Vec<bool> = r.fields.iter().map(|f| f.erased).collect();
+                assert_eq!(erased, vec![false, true]);
+            }
+            other => panic!("expected a record, got {other:?}"),
+        }
     }
 
     #[test]

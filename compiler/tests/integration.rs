@@ -823,7 +823,7 @@ module Main where
   main :: Int
   main = 0
 "#,
-        "erasure is not implemented",
+        "an `erased` field is evidence",
     );
     expect_err(
         "codata-rejected",

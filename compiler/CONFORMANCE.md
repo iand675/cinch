@@ -98,13 +98,13 @@ needs the checker to consume export tables instead of sources.
 
 | Requirement | Status |
 | --- | --- |
-| Universes, `Type`, stratification | todo |
-| Pi/Sigma, dependent functions and pairs | todo |
-| Conversion checking (definitional equality) | todo |
-| Implicit arguments, inference | todo |
-| Indexed families (`Vec`, `Fin`), dependent matching, coverage | todo |
-| `Prop`, `proof`, `erased`, `Eq`/`refl`/`congr`, erasure | todo |
-| Totality (structural recursion), `decide`, branch evidence | todo |
+| Universes, `Type`, stratification | done (`Type 0 : Type 1 : ...`, `Prop : Type 0`; `Type : Type` rejected; D27) |
+| Pi/Sigma, dependent functions and pairs | done (explicit `(x :: A) -> B` and `Sigma (x :: A). B`; construction and elimination tested and exercised by examples 01/02) |
+| Conversion checking (definitional equality) | done (beta + iota-on-numerals + alpha + proof irrelevance; terminating by construction, no delta; D28) |
+| Implicit arguments, inference | done (`forall` binders classified by use; value binders solved by unification and reified; D29) |
+| Indexed families (`Vec`, `Fin`), dependent matching, coverage | done except rigid-index refinement (D35): `Vec`/`Fin`/`Dec` builtins (D30), general user indexed families, index equations solve/refute/unknown, refuted arms rejected |
+| `Prop`, `proof`, `erased`, `Eq`/`refl`/`congr`, erasure | done (erased fields/args bind `%0` evidence and take no runtime slot; proof irrelevance at runtime; D31) |
+| Totality (structural recursion), `decide`, branch evidence | done for the logical fragment (`spec`/`proof`: purity, self-structural decrease, mutual-cycle rejection); `decide` with Checked/Disproved folds, Unsupported/Timeout errors, Unresolved scoped runtime comparison; `Diverge` enforcement on executable definitions deferred (D32) |
 
 ### Codata (P8)
 
@@ -165,8 +165,8 @@ update as the slices land; 07 must reject, the rest must accept):
 
 | Program | First rejection | Owning slice |
 | --- | --- | --- |
-| 01-bounded-index | dependent function and pair types unsupported | P7 |
-| 02-vector-filter | unknown type `Vec` (indexed `Vec` arrives with the dependent core) | P7 |
+| 01-bounded-index | accepts (`safelang check` exit 0; `run` needs a `main` per D20) | done |
+| 02-vector-filter | line 7: `Nil` against `Vec n a` needs rigid-index refinement (D35) | P7 limit (D35) |
 | 03-map-fusion | field projection in types | P13 |
 | 04-productive-stream | `codata` declarations unsupported | P8 |
 | 05-schema-generator | `module` name at top level (stage/import syntax) | P9 |
@@ -174,7 +174,7 @@ update as the slices land; 07 must reject, the rest must accept):
 | 07-rejected-programs | rejected at parse (correct) | must stay rejected |
 | 08-platform-simd | `rewrite` declarations unsupported | P10 |
 | 09-foreign-codec | `Opaque` unsupported | P11 |
-| 10-wasm-component | `erased` fields unsupported | P7 |
+| 10-wasm-component | line 8: effect label `Foreign Component` is P11 vocabulary | P11 |
 | 11-structured-tasks | unknown type `Request` (structured-concurrency vocabulary) | P12 |
 | 12-runtime-effects | multi-module source file (`module` block after the first); one module per file is the current rule | modules follow-up |
 
@@ -185,7 +185,7 @@ audit, `compiler/SPEC-MAPPING.md` "Roadmap gaps"):
 
 | Requirement | Note |
 | --- | --- |
-| Positivity discipline for inductive definitions | applies to ordinary `data` today; needed before P7 (A1) |
+| Positivity discipline for inductive definitions | done (P7: strict positivity for all `data`; negative and nested occurrences rejected) |
 | Evidence invalidation over mutable state | flow-sensitive; adjacent to P7 refinements and P13 (A2) |
 | Temporal contracts (safety/liveness/recurrence/stability) | closest to P12; unnamed there (A3) |
 | Cross-compilation (target width/capabilities) | `Usize` width and capability checks must key on the target (A4) |
@@ -335,3 +335,39 @@ flags for future decisions).
   exactly once; handlers reached through a value (or clauses without
   `resume k`) are rejected in that case. Continuation-body captures
   count at most once; lambda captures stay unbounded (D18).
+- **D27 (P7 universes)**: `Type 0 : Type 1 : ...` and `Prop : Type 0`;
+  `Type : Type` is never admitted, and a universe argument to a `Type 0`
+  slot is rejected.
+- **D28 (P7 conversion)**: definitional equality is beta (at
+  elaboration), iota on numerals, alpha for Pi/Sigma, and proof
+  irrelevance (proofs erase to unit). User definitions never unfold in
+  conversion, so checking terminates by construction; general delta
+  reduction is deferred.
+- **D29 (P7 implicits)**: un-annotated `forall` binders classify by use
+  (type parameter / index value / region); value binders become runtime
+  arguments solved by unification and reified after solving. In index
+  position `+ - *` are mathematical and `toNat`/`length` are the builtin
+  total vocabulary; bare-numeral `decide` comparisons default to `Nat`.
+- **D30 (P7 builtins)**: `Vec`/`Fin`/`Dec` are builtin families this
+  slice (runtime helper `Vec.getCopy`; `Nil`/`Cons` collide with the
+  prelude `List`); the indexed-declaration mechanism itself is general
+  and tested with user families.
+- **D31 (P7 erasure)**: `Prp`/`Sort` fields and parameters take no
+  runtime slot; family indices are not stored in blocks; Sigma retains
+  its witness component.
+- **D32 (P7 totality)**: structural termination, purity, and mutual
+  acyclicity are enforced for `spec`/`proof` only; requiring a `Diverge`
+  effect on recursive executable definitions is deferred (it needs the
+  effect vocabulary extension and would invalidate existing P5/P6
+  tests).
+- **D33 (P7 coverage)**: an index-refuted arm is rejected ("impossible
+  arm"); a match stuck on rigid indices is rejected naming the equation
+  rather than guessed at.
+- **D34 (P7 type-level fixities)**: type-level operators have reserved
+  fixities when undeclared (`*` 7, `+ -` 6 left, comparisons 4
+  non-associative), so refinements need no fixity declarations.
+- **D35 (P7 rigid indices)**: matching a constructor against a family
+  applied to rigid indices (for example `Nil` against `Vec n a`) is
+  rejected with the index equation: this slice does not refine rigid
+  indices. Programs dispatch through `decide` or computed indices.
+  Acceptance example 02 currently stops here.

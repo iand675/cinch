@@ -98,6 +98,16 @@ The closure and dictionary ABI is documented in `src/core.rs`.
   `Ref r a`/`Mut r a` borrows with region escape checking and lexical `Mut`
   uniqueness, and thunk force discipline (`%1` exactly once, `%aff` at
   most once; unannotated thunks default `%aff`).
+- **Dependent core** (core spec sections 1-5, 8): stratified universes
+  (`Type 0 : Type 1 : ...`, `Prop`; `Type : Type` never admitted),
+  dependent function and pair types, kind-aware conversion checking
+  (terminating by construction, no delta), implicit arguments with
+  `forall` classification, indexed families (`Vec`/`Fin`/`Dec` builtins
+  plus general user families) with index-equation matching and
+  index-aware coverage, `spec`/`proof` with structural totality and
+  erasure (no runtime slots for proofs or indices), `refl`/`congr` with
+  proof irrelevance, and `decide` with the five obligation statuses.
+  Positivity checking covers all inductive definitions.
 - **Effects, capabilities, and sequencing** (runtime capabilities spec):
   effect rows with region-argument label unification, the handler
   calculus (`handle ... with`, one-shot `resume`, lexical operation
@@ -117,10 +127,11 @@ The closure and dictionary ABI is documented in `src/core.rs`.
 
 Rejected with an explicit error naming the form:
 
-- Dependent types: computed indices, `Sigma`, dependent function types,
-  `Type`/`Prop`/`Nat` universes, proofs, erasure, `spec`/`proof`/`stage`
-  modifiers. `erased` record fields parse and are rejected until the
-  erasure slice lands.
+- The `stage` modifier (staging slice) and `Diverge`-effect enforcement on
+  recursive executable definitions (decision D32).
+- A constructor match against a family applied to rigid indices (decision
+  D35: the error names the index equation; dispatch through `decide` or
+  computed indices instead).
 - Guarded codata (rejected at `codata` with a pointer to the codata slice),
   `rewrite`, `upgrade`, staging and macros, quotations.
 - Strings (string literals and string types; `Bytes` buffers and `Char`

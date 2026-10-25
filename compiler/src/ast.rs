@@ -97,8 +97,9 @@ pub enum Type {
     Forall(Vec<TypeBinder>, Box<Type>, Span),
     /// `using (...) => t`.
     Using(Vec<Constraint>, Box<Type>, Span),
-    /// Dependent function `(x :: A) -> B`.
-    DepFun(Name, Box<Type>, Box<Type>, Span),
+    /// Dependent function `(x :: A) -> B` with optional multiplicity and
+    /// effect row.
+    DepFun(Name, Box<Type>, Option<Name>, Option<EffectRow>, Box<Type>, Span),
     /// Dependent pair `Sigma (n :: A). B`.
     Sigma(Name, Box<Type>, Box<Type>, Span),
     /// Unit type `()`.
@@ -107,6 +108,12 @@ pub enum Type {
     /// grammar, which has tuple expressions but no tuple types (decision D1
     /// in `compiler/CONFORMANCE.md`).
     Tuple(Vec<Type>, Span),
+    /// Infix chain awaiting fixity resolution (`n + 1` in an index
+    /// position, `length bytes <= limit` in a proposition), resolved by the
+    /// fixity pass into nested `App` spines over the operator names.
+    Infix(Vec<Type>, Vec<Name>, Span),
+    /// A numeral in index position (`Vec 0 a`).
+    Num(String, Span),
 }
 
 impl Type {
@@ -119,10 +126,12 @@ impl Type {
             | Type::Fun { span: s, .. }
             | Type::Forall(_, _, s)
             | Type::Using(_, _, s)
-            | Type::DepFun(_, _, _, s)
+            | Type::DepFun(_, _, _, _, _, s)
             | Type::Sigma(_, _, _, s)
             | Type::Unit(s)
-            | Type::Tuple(_, s) => *s,
+            | Type::Tuple(_, s)
+            | Type::Infix(_, _, s)
+            | Type::Num(_, s) => *s,
         }
     }
 }
@@ -388,7 +397,10 @@ pub struct CtorDecl {
 #[derive(Clone, Debug)]
 pub struct DataDecl {
     pub name: Name,
-    pub params: Vec<Name>,
+    /// Parameters with optional kind annotations, as in
+    /// `data Vec (n :: Nat) (a :: Type) where`; an annotated parameter's
+    /// kind decides whether it is a type parameter or an index value.
+    pub params: Vec<TypeBinder>,
     pub ctors: Vec<CtorDecl>,
     pub span: Span,
 }
@@ -398,6 +410,9 @@ pub struct DataDecl {
 pub struct FieldDecl {
     pub name: Name,
     pub ty: Type,
+    /// `erased` fields are evidence: present in the type, absent from the
+    /// runtime representation (core specification section 3).
+    pub erased: bool,
     pub span: Span,
 }
 
@@ -405,7 +420,7 @@ pub struct FieldDecl {
 #[derive(Clone, Debug)]
 pub struct RecordDecl {
     pub name: Name,
-    pub params: Vec<Name>,
+    pub params: Vec<TypeBinder>,
     pub fields: Vec<FieldDecl>,
     pub span: Span,
 }

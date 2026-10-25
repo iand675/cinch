@@ -18,16 +18,16 @@ property holds by construction rather than by a named test.
 | 1 | core-lang#1-strict-cbv | Strict call-by-value evaluation, no implicit laziness | I | `codegen.rs` eager word model; thunks only via `Thunk`/`~` (structural) |
 | 2 | core-lang#1-scrutinee-once | Pattern matching evaluates its scrutinee once | CV | pattern-matrix compiler in `check_terms.rs` implies it; no test observes evaluation count |
 | 3 | core-lang#1-short-circuit | `&&`/`||` short-circuit | I | `parser.rs` desugars infix `&&`/`||` to `if` (D14); `tests/integration.rs::surface_and_or_short_circuit` |
-| 4 | core-lang#1-totality-diverge | Reject unsupported totality claims or require explicit `Diverge` | N | `Diverge` unimplemented; folds into P7 totality |
-| 5 | core-lang#2-dependent-core | Dependent function/pair types, indexed families, dependent matching, universes | N | rejected: `check.rs` "dependent function and pair types are not supported in the bootstrap slice"; catalogue 01/10; P7 |
-| 6 | core-lang#2-type-in-type | `Type :: Type` must not be admitted | N | moot until universes exist; P7 must handle |
-| 7 | core-lang#2-positivity | Inductive definitions satisfy positivity discipline | N | no positivity check exists; applies to ordinary `data` today; roadmap gap A1 (P16) |
-| 8 | core-lang#2-termination | Recursive logical definitions satisfy termination discipline | N | logical fragment rejected at `check_decls.rs`; P7 |
-| 9 | core-lang#2-coverage-indices | Pattern coverage accounts for indices/impossible constructors | P | pattern-matrix coverage (`tests/integration.rs::rejects_non_exhaustive_match`); index-awareness waits for P7 |
-| 10 | core-lang#2-defeq | Definitional vs. propositional equality distinguished; solvers must not extend conversion | N | no conversion/optimizer system; P7/P10 |
-| 11 | core-lang#3-logical-fragment | Logical fragment consistency, erasure correctness | N | `proof`/`spec`/`Prop` rejected; P7 |
-| 12 | core-lang#4-gradual-strengthening | Gradual strengthening of specifications | N | no contract layer; P7 |
-| 13 | core-lang#4-obligation-statuses | Disproved/unsupported/timeout obligation statuses distinct; tests never discharge universal obligations | N | no obligation machinery; P7 |
+| 4 | core-lang#1-totality-diverge | Reject unsupported totality claims or require explicit `Diverge` | N | `Diverge` enforcement on executable definitions deferred (D32); logical fragment is checked terminologically |
+| 5 | core-lang#2-dependent-core | Dependent function/pair types, indexed families, dependent matching, universes | I | Pi/Sigma, universes, indexed `Vec`/`Fin`/`Dec` builtins plus general user families (D27-D31); rigid-index refinement rejected conservatively (D35); `tests/dependent.rs` |
+| 6 | core-lang#2-type-in-type | `Type :: Type` must not be admitted | I | stratified `Type 0 : Type 1 : ...`, `Type : Type` rejected (D27); `tests/dependent.rs` |
+| 7 | core-lang#2-positivity | Inductive definitions satisfy positivity discipline | I | strict positivity for all `data` (P16 A1 closed); negative and nested occurrences rejected |
+| 8 | core-lang#2-termination | Recursive logical definitions satisfy termination discipline | I | `spec`/`proof` purity + self-structural decrease + mutual-cycle rejection (D32); executable `Diverge` enforcement deferred |
+| 9 | core-lang#2-coverage-indices | Pattern coverage accounts for indices/impossible constructors | I | index equations solve/refute/unknown; refuted arms rejected as impossible, refuted constructors need no branch (D33); rigid-index cases rejected naming the equation (D35) |
+| 10 | core-lang#2-defeq | Definitional vs. propositional equality distinguished; solvers must not extend conversion | I | conversion is beta/iota/alpha/proof-irrelevance only (D28); `decide` never extends it |
+| 11 | core-lang#3-logical-fragment | Logical fragment consistency, erasure correctness | I | `proof`/`spec`/`Prop` with erasure (no runtime slots), no evidence from failed checks; `tests/dependent.rs` |
+| 12 | core-lang#4-gradual-strengthening | Gradual strengthening of specifications | P | `spec`/`proof` declarations exist; the full strengthening story rides on P7 refinements |
+| 13 | core-lang#4-obligation-statuses | Disproved/unsupported/timeout obligation statuses distinct; tests never discharge universal obligations | I | `decide` folds Checked/Disproved, errors on Unsupported/Timeout, Unresolved runs scoped runtime comparison (D33) |
 | 14 | core-lang#4-holes | Deployment profile rejects unresolved required holes | N (by over-rejection) | typed holes categorically rejected (`check_terms.rs`); no hole reaches codegen |
 | 15 | core-lang#4-assumption-manifest | Trusted assumptions exposed in a transitive manifest | I | `interface.rs` `Assumptions`, `<entry>.manifest.json` (D4/D9); `tests/modules.rs::interface_round_trips_through_disk` |
 | 16 | core-lang#5-evidence-invalidation | Evidence about mutable state invalidated on change | N | no refinement/flow system; roadmap gap A2 (P16) |
@@ -40,7 +40,7 @@ property holds by construction rather than by a named test.
 | 23 | core-lang#9-coinduction | Coinductive data and sound guarded corecursion | N | `codata`/`corec` parse-rejected; P8 |
 | 24 | core-lang#9-productivity | `Later` force rules prevent unproductive recursion as total | N | no codata machinery; P8 |
 | 25 | core-lang#10-temporal | Safety/liveness/recurrence/stability contracts with explicit assumptions | N | no temporal system; roadmap gap A3 (P16) |
-| 26 | core-lang#11-acceptance-manifest | Manifest identifies axioms, external contracts, proof backends, trusted components | P | axioms/assumptions recorded (row 15); proof backends wait for P7 |
+| 26 | core-lang#11-acceptance-manifest | Manifest identifies axioms, external contracts, proof backends, trusted components | P | axioms/assumptions recorded (row 15); proof kernel is `refl`/`congr`/`decide` only |
 
 ## primitive-types-specification.md
 

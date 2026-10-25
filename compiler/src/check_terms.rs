@@ -2,6 +2,74 @@
 // pattern-match compiler, and local declarations. Kept separate for
 // readability only.
 
+/// The status of a proof obligation (core specification section 4):
+/// checked static evidence may be used wherever its assumptions hold; a
+/// disproved obligation, unsupported reasoning, and a proof-search timeout
+/// are never proofs; an unresolved obligation waits for an explicit
+/// runtime decision.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ObligStatus {
+    Checked,
+    Disproved,
+    Unsupported,
+    Timeout,
+    Unresolved,
+}
+
+/// A partially evaluated index expression: numerals reduce, everything
+/// else is stuck (or the evaluator ran out of fuel).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Stuck {
+    Val(i128),
+    Stuck,
+    Timeout,
+}
+
+/// A constructor's fields and result with the matched type's arguments
+/// substituted in.
+struct CtorParts {
+    /// Field binder name, substituted type, erasure flag.
+    fields: Vec<(String, Ty, bool)>,
+    /// Constructor-local index binders still to solve.
+    local_idx: Vec<IxParam>,
+    /// The result's arguments.
+    res_args: Vec<Ty>,
+}
+
+/// Whether a constructor can build the type being matched.
+enum CtorMatch {
+    Possible(CtorParts),
+    /// The indices refute it: this constructor is impossible here.
+    Refuted,
+    /// The index equations are stuck on rigid indices.
+    Unknown(String),
+}
+
+/// Is this type argument fully ground: a numeral after normalization?
+fn idx_ground(t: &Ty) -> bool {
+    match t {
+        Ty::Idx(it) => matches!(it.normalize(), ITerm::Num(_)),
+        Ty::Prp(p) => match p.normalize() {
+            PTerm::Var(_) | PTerm::MVar(_) => false,
+            PTerm::Cmp(_, a, b) | PTerm::Eq(a, b) => {
+                matches!(a.normalize(), ITerm::Num(_)) && matches!(b.normalize(), ITerm::Num(_))
+            }
+            PTerm::Not(q) => idx_ground(&Ty::Prp(q)),
+        },
+        _ => true,
+    }
+}
+
+/// Rename the index-level variables of a type (a constructor's field
+/// binders become the pattern's names).
+fn subst_idx_names(t: &Ty, map: &HashMap<String, String>) -> Ty {
+    let mut out = t.clone();
+    for (from, to) in map {
+        out = out.subst_idx(from, &ITerm::Var(to.clone()));
+    }
+    out
+}
+
 impl Checker {
     // ------------------------------------------------------------ terms
 
@@ -28,7 +96,7 @@ impl Checker {
     /// `copyOut`, `borrow`, `mutBorrow`)? A user definition of the same
     /// name shadows the builtin (decision D2).
     fn is_builtin_form(&self, env: &Env, name: &str) -> bool {
-        matches!(name, "delay" | "force" | "demand" | "copyOut" | "borrow" | "mutBorrow")
+        matches!(name, "delay" | "force" | "demand" | "copyOut" | "borrow" | "mutBorrow" | "decide")
             && env.lookup(name).is_none()
             && self.lookup_value(None, name).is_err()
     }
@@ -66,7 +134,7 @@ impl Checker {
                 }
                 if p.quals.is_empty() {
                     if let Some((l, s)) = env.lookup(&p.name.text) {
-                        let (t, _) = self.instantiate(&s);
+                        let (t, _, _) = self.instantiate(&s);
                         let t = self.uni.zonk(&t);
                         // A bare use of a memo cell demands it and copies
                         // the cached value out; the binding name elaborates
@@ -132,13 +200,37 @@ impl Checker {
                         }
                     }
                 }
+                // A constructor application is type-directed even in
+                // inference position (erased evidence arguments never
+                // reach runtime).
+                if let ast::Term::Con(p) = &**f {
+                    let fresh = self.uni.fresh();
+                    return self.ctor_app(env, p, args, &fresh, *span);
+                }
                 let (mut core, mut ty) = self.infer(env, f)?;
                 for a in args {
                     ty = self.uni.zonk(&ty);
                     let (arg_core, cod) = match ty {
                         Ty::Fun(dom, _, eff, cod) => {
                             self.perform(&eff)?;
-                            (self.check(env, a, &dom)?, *cod)
+                            let erased = matches!(self.uni.zonk(&dom), Ty::Prp(_) | Ty::Sort(_));
+                            let c = self.check(env, a, &dom)?;
+                            (if erased { None } else { Some(c) }, *cod)
+                        }
+                        Ty::Pi { var, dom, eff, cod, .. } => {
+                            self.perform(&eff)?;
+                            let erased = matches!(self.uni.zonk(&dom), Ty::Prp(_) | Ty::Sort(_));
+                            let c = self.check(env, a, &dom)?;
+                            let subst = self.idx_of_term(a, env).map_err(|e| {
+                                Error::at(
+                                    a.span(),
+                                    format!(
+                                        "{} (this function's result type mentions its argument)",
+                                        e.message
+                                    ),
+                                )
+                            })?;
+                            (if erased { None } else { Some(c) }, cod.subst_idx(&var, &subst))
                         }
                         Ty::Meta(_) => {
                             let dom = self.uni.fresh();
@@ -148,7 +240,7 @@ impl Checker {
                                 .unify(&ty, &Ty::fun_mult(dom.clone(), Mult::Flex, eff.clone(), cod.clone()))
                                 .map_err(|m| Error::at(f.span(), m))?;
                             self.perform(&eff)?;
-                            (self.check(env, a, &dom)?, cod)
+                            (Some(self.check(env, a, &dom)?), cod)
                         }
                         other => {
                             return Err(Error::at(
@@ -157,7 +249,9 @@ impl Checker {
                             ));
                         }
                     };
-                    core = app_spine(core, vec![arg_core]);
+                    if let Some(c) = arg_core {
+                        core = app_spine(core, vec![c]);
+                    }
                     ty = cod;
                 }
                 Ok((core, ty))
@@ -307,6 +401,12 @@ impl Checker {
                 let idx = fields.iter().position(|f| f == &field.text).ok_or_else(|| {
                     Error::at(field.span, format!("record {rec_name} has no field {}", field.text))
                 })?;
+                // Erased fields occupy no runtime slot: the block stores
+                // the others in declaration order (core specification
+                // section 3).
+                let erased = info.field_erased.get(idx).copied().unwrap_or(false);
+                let runtime_idx =
+                    info.field_erased[..idx].iter().filter(|e| !**e).count();
                 let v = self.lookup_value(None, &rec_name)?;
                 let field_ty = match &v.kind {
                     ValueKind::Ctor { field_tys, ty_params, .. } => {
@@ -320,7 +420,10 @@ impl Checker {
                         return Err(Error::at(*span, format!("{rec_name} has no constructor")));
                     }
                 };
-                Ok((ECore::Proj(Box::new(core), idx), field_ty))
+                if erased {
+                    return Ok((ECore::Unit, field_ty));
+                }
+                Ok((ECore::Proj(Box::new(core), runtime_idx), field_ty))
             }
             ast::Term::Record(path, fields, span) => {
                 let v = self.resolve_con(path, *span)?;
@@ -364,17 +467,31 @@ impl Checker {
                         format!("record construction is missing field {f}"),
                     ));
                 }
-                let (ctor_core, mut rest) = self.value_use(&v, *span, env)?;
                 // The constructor's arrows are in declaration order; field
                 // expressions evaluate in source order (core specification:
-                // record fields are left-to-right).
-                let mut doms: Vec<(&str, Ty)> = Vec::new();
+                // record fields are left-to-right). A dependent field type
+                // mentions earlier fields by name, and erased evidence
+                // fields are checked but never stored (core specification
+                // section 3).
+                let (mut rest, _ctx, _val) = self.instantiate(&v.scheme);
+                let ctor_core = ECore::Ctor(fn_id(&v.module, &v.name));
+                let mut doms: Vec<(String, Ty, bool)> = Vec::new();
                 for f in names.iter() {
                     rest = self.uni.zonk(&rest);
                     match rest {
                         Ty::Fun(a, _, _, b) => {
-                            doms.push((f.as_str(), *a));
+                            let erased = matches!(self.uni.zonk(&a), Ty::Prp(_) | Ty::Sort(_));
+                            doms.push((f.clone(), *a, erased));
                             rest = *b;
+                        }
+                        Ty::Pi { var, dom, cod, .. } => {
+                            let subst = match assigned.get(var.as_str()) {
+                                Some(t) => self.idx_of_term(t, env)?,
+                                None => ITerm::Var(var.clone()),
+                            };
+                            let erased = matches!(self.uni.zonk(&dom), Ty::Prp(_) | Ty::Sort(_));
+                            doms.push((f.clone(), *dom, erased));
+                            rest = cod.subst_idx(&var, &subst);
                         }
                         other => {
                             return Err(Error::at(
@@ -391,20 +508,26 @@ impl Checker {
                 for (n, t) in fields {
                     let dom = doms
                         .iter()
-                        .find(|(f, _)| *f == n.text.as_str())
-                        .map(|(_, d)| d.clone())
+                        .find(|(f, _, _)| *f == n.text)
+                        .map(|(_, d, _)| d.clone())
                         .expect("field membership checked above");
                     evaluated.insert(n.text.as_str(), self.check(env, t, &dom)?);
                 }
-                let arg_cores: Vec<ECore> = doms
-                    .iter()
-                    .map(|(f, _)| {
-                        evaluated
-                            .remove(*f)
-                            .expect("every declared field was assigned")
-                    })
-                    .collect();
-                Ok((app_spine(ctor_core, arg_cores), rest))
+                let mut arg_cores: Vec<ECore> = Vec::new();
+                for (f, _, erased) in &doms {
+                    let c = evaluated
+                        .remove(f.as_str())
+                        .expect("every declared field was assigned");
+                    if !*erased {
+                        arg_cores.push(c);
+                    }
+                }
+                let core = if arg_cores.is_empty() {
+                    ctor_core
+                } else {
+                    app_spine(ctor_core, arg_cores)
+                };
+                Ok((core, rest))
             }
             ast::Term::Do(stmts, span) => {
                 let shape = self.result_shape(env, *span)?;
@@ -434,6 +557,35 @@ impl Checker {
     }
 
     fn check(&mut self, env: &mut Env, term: &ast::Term, expected: &Ty) -> Result<ECore> {
+        // A proposition is checked as an erased proof term (core
+        // specification section 3).
+        if let Ty::Prp(p) = self.uni.zonk(expected) {
+            return self.check_proof(env, term, &p);
+        }
+        // Constructor applications are type-directed: the expected type
+        // solves the constructor's index parameters before its arguments
+        // are checked, and erased evidence arguments never reach runtime.
+        match term {
+            ast::Term::Con(p) => {
+                let want = self.uni.zonk(expected);
+                let (core, ty) = self.ctor_app(env, p, &[], &want, p.span())?;
+                self.uni
+                    .unify(&ty, &want)
+                    .map_err(|m| Error::at(term.span(), m))?;
+                return Ok(core);
+            }
+            ast::Term::App(f, args, span) => {
+                if let ast::Term::Con(p) = &**f {
+                    let want = self.uni.zonk(expected);
+                    let (core, ty) = self.ctor_app(env, p, args, &want, *span)?;
+                    self.uni
+                        .unify(&ty, &want)
+                        .map_err(|m| Error::at(term.span(), m))?;
+                    return Ok(core);
+                }
+            }
+            _ => {}
+        }
         match term {
             ast::Term::CpsWrap(body, span) => {
                 // A handler's alternative body: elaborate in the enclosing
@@ -505,6 +657,37 @@ impl Checker {
                     .map_err(|m| Error::at(term.span(), m))?;
                 Ok(core)
             }
+            ast::Term::Tuple(items, span) => {
+                // A dependent pair is a two-word product whose second
+                // component's type mentions the first (core specification
+                // section 1: `Sigma (n :: Nat). Vec n a` retains `n`).
+                if let Ty::Sigma { var, dom, cod } = self.uni.zonk(expected) {
+                    if items.len() != 2 {
+                        return Err(Error::at(
+                            *span,
+                            "a dependent pair has exactly two components",
+                        ));
+                    }
+                    let c0 = self.check(env, &items[0], &dom)?;
+                    let idx = self.idx_of_term(&items[0], env).map_err(|e| {
+                        Error::at(
+                            items[0].span(),
+                            format!(
+                                "{} (the first component of a dependent pair must be expressible as an index value)",
+                                e.message
+                            ),
+                        )
+                    })?;
+                    let c1 = self.check(env, &items[1], &cod.subst_idx(&var, &idx))?;
+                    let gid = self.tuple_ctor(2, *span)?;
+                    return Ok(app_spine(ECore::Ctor(gid), vec![c0, c1]));
+                }
+                let (core, ty) = self.infer(env, term)?;
+                self.uni
+                    .unify(&ty, expected)
+                    .map_err(|m| Error::at(term.span(), m))?;
+                Ok(core)
+            }
             _ => {
                 let (core, ty) = self.infer(env, term)?;
                 self.uni
@@ -566,7 +749,7 @@ impl Checker {
                     ast::Term::Var(p) if p.quals.is_empty() => {
                         match env.lookup(&p.name.text) {
                             Some((l, s)) => {
-                                let (t, _) = self.instantiate(&s);
+                                let (t, _, _) = self.instantiate(&s);
                                 let t = self.uni.zonk(&t);
                                 if matches!(t, Ty::Lazy { .. }) {
                                     self.note_use(l, p.span(), &[])?;
@@ -645,7 +828,693 @@ impl Checker {
                     "cannot infer the region of {name}; add a type annotation (`{name} e` against `Ref r a` or `Mut r a`)"
                 ),
             )),
+            "decide" => {
+                // `decide P` with a supplied decision procedure (core
+                // specification section 4): the result is `Yes evidence`
+                // or `No refutation`, scoped to the examined values. The
+                // compiler distinguishes static decisions, disproved
+                // obligations, unsupported reasoning and timeouts; none of
+                // the failing outcomes is a proof.
+                if args.len() != 1 {
+                    return Err(Error::at(span, "`decide` takes exactly one proposition"));
+                }
+                let is_eq = matches!(&args[0], ast::Term::App(f, _, _) if matches!(&**f, ast::Term::Con(p) if p.parts() == ["Eq"]));
+                let (cmp, lhs, rhs) = self.decide_shape(&args[0])?;
+                // Both operands check against one type, so literals
+                // adapt to the other side (primitive types specification,
+                // section 7).
+                let cmp_ty = self.uni.fresh();
+                let lc = self.check(env, &lhs, &cmp_ty)?;
+                let rc = self.check(env, &rhs, &cmp_ty)?;
+                // Two bare numerals compare at `Nat` (decision D7's
+                // literal defaulting, applied to `decide`).
+                if matches!(self.uni.zonk(&cmp_ty), Ty::Meta(_)) {
+                    self.uni
+                        .unify(&cmp_ty, &Ty::Nat)
+                        .map_err(|m| Error::at(span, m))?;
+                }
+                let lt = self.uni.zonk(&cmp_ty);
+                let li = self.idx_of_term(&lhs, env)?;
+                let ri = self.idx_of_term(&rhs, env)?;
+                let prop = if is_eq {
+                    PTerm::Eq(Box::new(li), Box::new(ri))
+                } else {
+                    PTerm::Cmp(cmp, Box::new(li), Box::new(ri))
+                };
+                let dec_ty = Ty::Adt("Dec".into(), vec![Ty::Prp(Box::new(prop.clone()))]);
+                let yes = ECore::Ctor(fn_id("<builtin>", "Yes"));
+                let no = ECore::Ctor(fn_id("<builtin>", "No"));
+                match self.static_obligation(&prop)? {
+                    ObligStatus::Checked => return Ok((yes, dec_ty)),
+                    ObligStatus::Disproved => return Ok((no, dec_ty)),
+                    ObligStatus::Timeout => {
+                        return Err(Error::at(
+                            span,
+                            format!(
+                                "obligation status: timeout: deciding `{prop}` ran out of reduction steps"
+                            ),
+                        ))
+                    }
+                    ObligStatus::Unsupported => {
+                        return Err(Error::at(
+                            span,
+                            format!(
+                                "obligation status: unsupported: there is no decision procedure for `{prop}`"
+                            ),
+                        ))
+                    }
+                    ObligStatus::Unresolved => {}
+                }
+                // An executable comparison over the examined values; the
+                // evidence exists only on the successful branch.
+                let cmp_op = match cmp {
+                    IdxCmp::Eq => CmpOp::Eq,
+                    IdxCmp::Ne => CmpOp::Ne,
+                    IdxCmp::Lt => CmpOp::Lt,
+                    IdxCmp::Le => CmpOp::Le,
+                    IdxCmp::Gt => CmpOp::Gt,
+                    IdxCmp::Ge => CmpOp::Ge,
+                };
+                let test = match &lt {
+                    Ty::Nat => {
+                        let imm = ECore::App(
+                            Box::new(ECore::Prim(PrimOp::Nat(NatOp::Cmp))),
+                            vec![lc, rc],
+                        );
+                        ECore::App(
+                            Box::new(ECore::Prim(PrimOp::Cmp { ty: Scalar::I64, op: cmp_op })),
+                            vec![imm, ECore::Int(0)],
+                        )
+                    }
+                    Ty::Int => {
+                        let imm = ECore::App(
+                            Box::new(ECore::Prim(PrimOp::Int(IntOp::Cmp))),
+                            vec![lc, rc],
+                        );
+                        ECore::App(
+                            Box::new(ECore::Prim(PrimOp::Cmp { ty: Scalar::I64, op: cmp_op })),
+                            vec![imm, ECore::Int(0)],
+                        )
+                    }
+                    Ty::Prim(s) if s.is_int_like() || *s == Scalar::Char => ECore::App(
+                        Box::new(ECore::Prim(PrimOp::Cmp { ty: *s, op: cmp_op })),
+                        vec![lc, rc],
+                    ),
+                    other => {
+                        return Err(Error::at(
+                            span,
+                            format!(
+                                "obligation status: unsupported: `decide` compares `Nat`, `Int`, and machine integers, not {other}"
+                            ),
+                        ))
+                    }
+                };
+                Ok((ECore::If(Box::new(test), Box::new(yes), Box::new(no)), dec_ty))
+            }
             _ => unreachable!(),
+        }
+    }
+
+    /// The shape `decide` accepts: a comparison (`i < n`) or `Eq x y`.
+    fn decide_shape(&self, t: &ast::Term) -> Result<(IdxCmp, ast::Term, ast::Term)> {
+        if let ast::Term::App(f, args, span) = t {
+            if args.len() == 2 {
+                match &**f {
+                    ast::Term::Var(p) => {
+                        let cmp = match p.name.text.as_str() {
+                            "<" => Some(IdxCmp::Lt),
+                            "<=" => Some(IdxCmp::Le),
+                            ">" => Some(IdxCmp::Gt),
+                            ">=" => Some(IdxCmp::Ge),
+                            "==" | "=" => Some(IdxCmp::Eq),
+                            "/=" | "!=" => Some(IdxCmp::Ne),
+                            _ => None,
+                        };
+                        if let Some(cmp) = cmp {
+                            return Ok((cmp, args[0].clone(), args[1].clone()));
+                        }
+                    }
+                    ast::Term::Con(p) if p.parts() == ["Eq"] => {
+                        return Ok((IdxCmp::Eq, args[0].clone(), args[1].clone()));
+                    }
+                    ast::Term::Con(p) if p.parts() == ["Not"] => {
+                        return Err(Error::at(
+                            *span,
+                            "obligation status: unsupported: `decide` has no decision procedure for a negated proposition",
+                        ));
+                    }
+                    _ => {}
+                }
+            }
+        }
+        if let ast::Term::Var(p) = t {
+            return Err(Error::at(
+                p.span(),
+                format!(
+                    "obligation status: unsupported: there is no decision procedure for the proposition variable `{}`",
+                    p.name.text
+                ),
+            ));
+        }
+        Err(Error::at(
+            t.span(),
+            "obligation status: unsupported: `decide` takes a comparison (`i < n`) or `Eq x y` over values it can compare",
+        ))
+    }
+
+    // ------------------------------------------------- dependent core (P7)
+
+    /// Resolve a constructor name against the expected type first (type
+    /// directed), so `Nil` and `Cons` patterns and constructions pick the
+    /// `Vec` constructors even though the prelude's `List` owns those
+    /// names, then fall back to ordinary resolution.
+    fn resolve_ctor_for(
+        &self,
+        path: &ast::ConPath,
+        expected: Option<&Ty>,
+        span: ast::Span,
+    ) -> Result<ValueInfo> {
+        if let Some(Ty::Adt(tname, _)) = expected {
+            if let Ok(info) = self.lookup_type(&[tname]) {
+                let parts = path.parts();
+                let last = parts[parts.len() - 1];
+                let qualified_ok = parts.len() == 1 || parts[0] == info.module;
+                if qualified_ok && info.ctors.iter().any(|(n, _)| n == last) {
+                    if let Some(v) = self.qualified.get(&(info.module.clone(), last.to_string())) {
+                        if matches!(v.kind, ValueKind::Ctor { .. }) {
+                            let mut v = v.clone();
+                            v.name = last.to_string();
+                            return Ok(v);
+                        }
+                    }
+                }
+            }
+        }
+        self.resolve_con(path, span)
+    }
+
+    /// Constructor application, type-directed: the expected type solves
+    /// the constructor's index parameters before its arguments are
+    /// checked, and erased evidence arguments are checked but never passed
+    /// at runtime (core specification section 3).
+    fn ctor_app(
+        &mut self,
+        env: &mut Env,
+        path: &ast::ConPath,
+        args: &[ast::Term],
+        expected: &Ty,
+        span: ast::Span,
+    ) -> Result<(ECore, Ty)> {
+        let v = self.resolve_ctor_for(path, Some(expected), span)?;
+        let (tag, arity, field_erased, runtime_arity) = match &v.kind {
+            ValueKind::Ctor { tag, arity, field_erased, runtime_arity, .. } => {
+                (*tag, *arity, field_erased.clone(), *runtime_arity)
+            }
+            _ => {
+                // Not a constructor: ordinary application.
+                let (mut core, mut ty) = self.value_use(&v, span, env)?;
+                for a in args {
+                    ty = self.uni.zonk(&ty);
+                    let (dom, cod, eff) = match ty {
+                        Ty::Fun(d, _, e, c) => (d, c, e),
+                        Ty::Pi { dom: d, eff: e, cod: c, var, .. } => {
+                            let subst = self.idx_of_term(a, env)?;
+                            let c = c.subst_idx(&var, &subst);
+                            (d, Box::new(c), e)
+                        }
+                        other => {
+                            return Err(Error::at(
+                                a.span(),
+                                format!("cannot apply a value of type {other}"),
+                            ))
+                        }
+                    };
+                    self.perform(&eff)?;
+                    let ac = self.check(env, a, &dom)?;
+                    core = app_spine(core, vec![ac]);
+                    ty = *cod;
+                }
+                return Ok((core, ty));
+            }
+        };
+        if args.len() != arity {
+            if args.len() < arity && !field_erased.iter().any(|e| *e) {
+                // A constructor without erased fields works under
+                // application through the apply stub.
+                let (mut core, mut ty) = self.value_use(&v, span, env)?;
+                for a in args {
+                    ty = self.uni.zonk(&ty);
+                    let (dom, cod, eff) = match ty {
+                        Ty::Fun(d, _, e, c) => (d, c, e),
+                        Ty::Pi { dom: d, eff: e, cod: c, var, .. } => {
+                            let subst = self.idx_of_term(a, env)?;
+                            let c = c.subst_idx(&var, &subst);
+                            (d, Box::new(c), e)
+                        }
+                        other => {
+                            return Err(Error::at(
+                                a.span(),
+                                format!("cannot apply a value of type {other}"),
+                            ))
+                        }
+                    };
+                    self.perform(&eff)?;
+                    let ac = self.check(env, a, &dom)?;
+                    core = app_spine(core, vec![ac]);
+                    ty = *cod;
+                }
+                return Ok((core, ty));
+            }
+            return Err(Error::at(
+                span,
+                format!(
+                    "constructor {} takes {} arguments{}, got {}",
+                    v.name,
+                    arity,
+                    if field_erased.iter().any(|e| *e) {
+                        " (its erased evidence arguments keep it from partial application)"
+                    } else {
+                        ""
+                    },
+                    args.len()
+                ),
+            ));
+        }
+        let (ty, _ctx, _) = self.instantiate(&v.scheme);
+        // Peel the argument chain, standing each dependent binder for an
+        // index metavariable so the result type can be solved first.
+        let mut fields: Vec<(Option<usize>, Ty, Mult, EffRow)> = Vec::new();
+        let mut cur = self.uni.zonk(&ty);
+        let result = loop {
+            match cur {
+                Ty::Fun(d, m, e, b) => {
+                    fields.push((None, *d, m, e));
+                    cur = self.uni.zonk(&b);
+                }
+                Ty::Pi { var, dom, mult, eff, cod } => {
+                    let mty = self.uni.fresh_idx();
+                    let mid = match &mty {
+                        Ty::Idx(t) => match &**t {
+                            ITerm::MVar(m) => Some(*m),
+                            _ => None,
+                        },
+                        _ => None,
+                    };
+                    let subst = match &mty {
+                        Ty::Idx(t) => (**t).clone(),
+                        _ => unreachable!(),
+                    };
+                    fields.push((mid, dom.subst_idx(&var, &subst), mult, eff));
+                    cur = self.uni.zonk(&cod.subst_idx(&var, &subst));
+                }
+                other => break other,
+            }
+        };
+        // The result's indices come from the expected type: `Fin 7 refl`
+        // against `Fin 3` knows `7 < 3` before it looks at the evidence.
+        self.uni.unify(&result, expected).map_err(|m| {
+            Error::at(
+                span,
+                format!(
+                    "constructor {} cannot build this value: {m}",
+                    v.name
+                ),
+            )
+        })?;
+        let mut cores: Vec<ECore> = Vec::new();
+        let mut kept: Vec<ECore> = Vec::new();
+        for (i, a) in args.iter().enumerate() {
+            let (mid, dom, mult, eff) = &fields[i];
+            self.perform(eff)?;
+            let ac = self.check(env, a, dom)?;
+            if let Some(m) = mid {
+                let it = self.idx_of_term(a, env).map_err(|e| {
+                    Error::at(
+                        a.span(),
+                        format!(
+                            "{} (this constructor's result type mentions its argument, so the argument must be expressible as an index value)",
+                            e.message
+                        ),
+                    )
+                })?;
+                self.uni.bind_idx(*m, it).map_err(|m| {
+                    Error::at(a.span(), format!("constructor {}: {m}", v.name))
+                })?;
+            }
+            let _ = mult;
+            cores.push(ac);
+        }
+        for (i, c) in cores.into_iter().enumerate() {
+            if !field_erased[i] {
+                kept.push(c);
+            }
+        }
+        debug_assert_eq!(kept.len(), runtime_arity);
+        Ok((
+            app_spine(ECore::Ctor(fn_id(&v.module, &v.name)), kept),
+            result,
+        ))
+    }
+
+    /// A term in index position (a value a dependent type mentions):
+    /// variables, numerals, mathematical arithmetic, and applications of
+    /// named total definitions (the surface shares term syntax between
+    /// kinds, types and values).
+    fn idx_of_term(&self, t: &ast::Term, env: &Env) -> Result<ITerm> {
+        Ok(match t {
+            ast::Term::Int(d, _) => ITerm::Num(d.clone()),
+            ast::Term::Ann(e, _, _) => return self.idx_of_term(e, env),
+            ast::Term::Neg(inner, span) => match neg_fold(inner) {
+                Some(v) => ITerm::Num(v),
+                None => {
+                    return Err(Error::at(
+                        *span,
+                        "this expression cannot appear in a dependent type",
+                    ))
+                }
+            },
+            ast::Term::Var(p) => {
+                if p.quals.is_empty() {
+                    if env.lookup(&p.name.text).is_some() {
+                        ITerm::Var(p.name.text.clone())
+                    } else if matches!(p.name.text.as_str(), "toNat" | "length") {
+                        ITerm::Fn(format!("<builtin>.{}", p.name.text))
+                    } else {
+                        let v = self.resolve_var(p, p.span())?;
+                        ITerm::Fn(fn_id(&v.module, &v.name).0)
+                    }
+                } else {
+                    let v = self.resolve_var(p, p.span())?;
+                    ITerm::Fn(fn_id(&v.module, &v.name).0)
+                }
+            }
+            ast::Term::Con(p) => {
+                let v = self.resolve_con(p, p.span())?;
+                ITerm::Fn(fn_id(&v.module, &v.name).0)
+            }
+            ast::Term::App(f, args, span) => {
+                // In index position `+`, `-` and `*` are mathematical
+                // arithmetic, never class methods (decision D29).
+                if let ast::Term::Var(p) = &**f {
+                    if p.quals.is_empty() {
+                        let opc = match p.name.text.as_str() {
+                            "+" => Some(IdxOp::Add),
+                            "-" => Some(IdxOp::Sub),
+                            "*" => Some(IdxOp::Mul),
+                            _ => None,
+                        };
+                        if let Some(opc) = opc {
+                            if args.len() == 2 {
+                                return Ok(ITerm::Bin(
+                                    opc,
+                                    Box::new(self.idx_of_term(&args[0], env)?),
+                                    Box::new(self.idx_of_term(&args[1], env)?),
+                                ));
+                            }
+                        }
+                    }
+                }
+                let mut out = Vec::new();
+                for a in args {
+                    out.push(self.idx_of_term(a, env)?);
+                }
+                ITerm::App(Box::new(self.idx_of_term(f, env)?), out)
+            }
+            other => {
+                return Err(Error::at(
+                    other.span(),
+                    "this expression cannot appear in a dependent type (only variables, numerals, arithmetic, and total function applications can)",
+                ))
+            }
+        })
+    }
+
+    /// Check an erased proof term against the proposition it must prove.
+    /// Proof terms check and vanish: they never become runtime code (core
+    /// specification section 3), and a failed check never produces
+    /// evidence.
+    fn check_proof(&mut self, env: &mut Env, term: &ast::Term, prop: &PTerm) -> Result<ECore> {
+        match self.static_obligation(prop)? {
+            ObligStatus::Disproved => {
+                return Err(Error::at(
+                    term.span(),
+                    format!(
+                        "obligation disproved: `{prop}` is false, so no evidence for it can exist here (a failed check must not produce evidence)"
+                    ),
+                ))
+            }
+            ObligStatus::Timeout => {
+                return Err(Error::at(
+                    term.span(),
+                    format!(
+                        "obligation status: timeout: deciding `{prop}` ran out of reduction steps (none of these outcomes is a proof)"
+                    ),
+                ))
+            }
+            _ => {}
+        }
+        match term {
+            ast::Term::Hole(span) => Err(Error::at(
+                *span,
+                "an unknown proof hole is not evidence; a deployment profile rejects unresolved obligations",
+            )),
+            ast::Term::Var(p) => {
+                if p.quals.is_empty() {
+                    if let Some((_, s)) = env.lookup(&p.name.text) {
+                        let (t, _, _) = self.instantiate(&s);
+                        let t = self.uni.zonk(&t);
+                        return match t {
+                            Ty::Prp(q) => {
+                                self.uni.unify_prop(&q, prop).map_err(|m| {
+                                    Error::at(
+                                        term.span(),
+                                        format!(
+                                            "{m}: `{}` is evidence of `{q}`, not of `{prop}`",
+                                            p.name.text
+                                        ),
+                                    )
+                                })?;
+                                Ok(ECore::Unit)
+                            }
+                            other => Err(Error::at(
+                                term.span(),
+                                format!(
+                                    "`{}` has type {other}, which is not a proposition",
+                                    p.name.text
+                                ),
+                            )),
+                        };
+                    }
+                }
+                let v = self.resolve_var(p, p.span())?;
+                let (t, _, _) = self.instantiate(&v.scheme);
+                let t = self.uni.zonk(&t);
+                match t {
+                    Ty::Prp(q) => {
+                        self.uni.unify_prop(&q, prop).map_err(|m| {
+                            Error::at(
+                                term.span(),
+                                format!("{m}: `{}` is evidence of `{q}`, not of `{prop}`", v.name),
+                            )
+                        })?;
+                        // A reference to a logical definition stays visible
+                        // to the termination and cycle checks; the body is
+                        // erased before code generation.
+                        let target = (v.module.clone(), v.name.clone());
+                        let core = match v.kind {
+                            ValueKind::TopFn => {
+                                if self.logical.contains(&target) {
+                                    self.pending_refs.push(target);
+                                }
+                                ECore::Global(fn_id(&v.module, &v.name))
+                            }
+                            _ => ECore::Unit,
+                        };
+                        Ok(core)
+                    }
+                    Ty::Fun(..) | Ty::Pi { .. } => Err(Error::at(
+                        term.span(),
+                        format!("evidence former `{}` must be applied to its evidence", v.name),
+                    )),
+                    other => Err(Error::at(
+                        term.span(),
+                        format!("`{}` has type {other}, which is not a proposition", v.name),
+                    )),
+                }
+            }
+            ast::Term::App(f, args, span) => {
+                let p = match &**f {
+                    ast::Term::Var(p) => p,
+                    other => {
+                        return Err(Error::at(
+                            other.span(),
+                            "a proof term is `refl`, `congr e`, or the name of evidence",
+                        ))
+                    }
+                };
+                let v = if p.quals.is_empty() && env.lookup(&p.name.text).is_none() {
+                    self.resolve_var(p, p.span())?
+                } else if p.quals.is_empty() {
+                    return Err(Error::at(
+                        *span,
+                        "a proof term is `refl`, `congr e`, or the name of evidence",
+                    ));
+                } else {
+                    self.resolve_var(p, p.span())?
+                };
+                let (mut ty, _, _) = self.instantiate(&v.scheme);
+                let mut arg_cores: Vec<ECore> = Vec::new();
+                for a in args {
+                    let z = self.uni.zonk(&ty);
+                    let (dom, cod) = match z {
+                        Ty::Fun(d, _, _, c) => (d, c),
+                        Ty::Pi { var, dom: d, cod: c, .. } => {
+                            let subst = self.idx_of_term(a, env)?;
+                            (d, Box::new(c.subst_idx(&var, &subst)))
+                        }
+                        other => {
+                            return Err(Error::at(
+                                a.span(),
+                                format!("too many evidence arguments ({other} is not a function)"),
+                            ))
+                        }
+                    };
+                    let d = self.uni.zonk(&dom);
+                    match d {
+                        Ty::Prp(q) => {
+                            arg_cores.push(self.check_proof(env, a, &q)?);
+                        }
+                        other => {
+                            return Err(Error::at(
+                                a.span(),
+                                format!(
+                                    "an evidence argument states a proposition, but this one has type {other}"
+                                ),
+                            ))
+                        }
+                    }
+                    ty = *cod;
+                }
+                match self.uni.zonk(&ty) {
+                    Ty::Prp(q) => {
+                        self.uni.unify_prop(&q, prop).map_err(|m| {
+                            Error::at(*span, format!("{m}: this term proves `{q}`, not `{prop}`"))
+                        })?;
+                        // The reference stays visible to the termination
+                        // and cycle checks; proof bodies are erased before
+                        // code generation.
+                        let target = (v.module.clone(), v.name.clone());
+                        let head = match v.kind {
+                            ValueKind::TopFn => {
+                                if self.logical.contains(&target) {
+                                    self.pending_refs.push(target);
+                                }
+                                ECore::Global(fn_id(&v.module, &v.name))
+                            }
+                            _ => ECore::Unit,
+                        };
+                        Ok(if arg_cores.is_empty() {
+                            head
+                        } else {
+                            app_spine(head, arg_cores)
+                        })
+                    }
+                    other => Err(Error::at(
+                        *span,
+                        format!("this proof former does not prove a proposition ({other})"),
+                    )),
+                }
+            }
+            other => Err(Error::at(
+                other.span(),
+                "a proof term is `refl`, `congr e`, or the name of evidence",
+            )),
+        }
+    }
+
+    /// The status of a proof obligation (core specification section 4):
+    /// checked static evidence, a disproved obligation, unsupported
+    /// reasoning, a search timeout, or an unresolved obligation that only
+    /// a runtime `decide` can settle. None of the failing outcomes is a
+    /// proof.
+    fn static_obligation(&self, p: &PTerm) -> Result<ObligStatus> {
+        Ok(match self.uni.resolve_prop(p).normalize() {
+            PTerm::Cmp(op, a, b) => {
+                let a = self.uni.resolve_idx(&a).normalize();
+                let b = self.uni.resolve_idx(&b).normalize();
+                match (self.eval_idx(&a, 32), self.eval_idx(&b, 32)) {
+                    (Stuck::Val(x), Stuck::Val(y)) => {
+                        let holds = match op {
+                            IdxCmp::Eq => x == y,
+                            IdxCmp::Ne => x != y,
+                            IdxCmp::Lt => x < y,
+                            IdxCmp::Le => x <= y,
+                            IdxCmp::Gt => x > y,
+                            IdxCmp::Ge => x >= y,
+                        };
+                        if holds {
+                            ObligStatus::Checked
+                        } else {
+                            ObligStatus::Disproved
+                        }
+                    }
+                    (Stuck::Timeout, _) | (_, Stuck::Timeout) => ObligStatus::Timeout,
+                    _ => ObligStatus::Unresolved,
+                }
+            }
+            PTerm::Eq(a, b) => {
+                if a.eq(&b) {
+                    ObligStatus::Checked
+                } else {
+                    match (self.eval_idx(&a, 32), self.eval_idx(&b, 32)) {
+                        (Stuck::Val(x), Stuck::Val(y)) if x != y => ObligStatus::Disproved,
+                        (Stuck::Timeout, _) | (_, Stuck::Timeout) => ObligStatus::Timeout,
+                        _ => ObligStatus::Unresolved,
+                    }
+                }
+            }
+            PTerm::Not(q) => match self.static_obligation(&q)? {
+                ObligStatus::Checked => ObligStatus::Disproved,
+                ObligStatus::Disproved => ObligStatus::Checked,
+                other => other,
+            },
+            // A proposition variable has no decision procedure.
+            PTerm::Var(_) | PTerm::MVar(_) => ObligStatus::Unsupported,
+        })
+    }
+
+    /// Evaluate an index expression on numerals (dependent core kernel
+    /// design, section 4: mathematical operations reduce on numerals
+    /// only), with a fuel bound so the evaluator always terminates.
+    fn eval_idx(&self, t: &ITerm, fuel: u32) -> Stuck {
+        if fuel == 0 {
+            return Stuck::Timeout;
+        }
+        match t {
+            ITerm::Num(d) => match d.parse::<i128>() {
+                Ok(v) => Stuck::Val(v),
+                Err(_) => Stuck::Stuck,
+            },
+            ITerm::Bin(op, a, b) => {
+                let a = self.eval_idx(&self.uni.resolve_idx(a), fuel - 1);
+                let b = self.eval_idx(&self.uni.resolve_idx(b), fuel - 1);
+                match (a, b) {
+                    (Stuck::Val(x), Stuck::Val(y)) => {
+                        let v = match op {
+                            IdxOp::Add => x.checked_add(y),
+                            IdxOp::Sub => x.checked_sub(y),
+                            IdxOp::Mul => x.checked_mul(y),
+                        };
+                        match v {
+                            Some(v) => Stuck::Val(v),
+                            None => Stuck::Stuck,
+                        }
+                    }
+                    (Stuck::Timeout, _) | (_, Stuck::Timeout) => Stuck::Timeout,
+                    _ => Stuck::Stuck,
+                }
+            }
+            _ => Stuck::Stuck,
         }
     }
 
@@ -724,6 +1593,7 @@ impl Checker {
                 }
             };
             let l = self.fresh_local();
+            let erased_dom = matches!(self.uni.zonk(&dom), Ty::Prp(_) | Ty::Sort(_));
             match p {
                 ast::Pat::Var(n, _) => {
                     self.bind_local(
@@ -745,7 +1615,11 @@ impl Checker {
                     ));
                 }
             }
-            params.push(l);
+            // An erased parameter takes no runtime slot (core
+            // specification section 3).
+            if !erased_dom {
+                params.push(l);
+            }
             effs.push(eff);
         }
         // Curried semantics: the body runs at the last application, so the
@@ -789,13 +1663,76 @@ impl Checker {
                     ),
                 ));
             }
+            ValueKind::ProofCtor => {
+                // Evidence constructors are erased: they are checked as
+                // proof terms and vanish at runtime (core specification
+                // section 3).
+                let (ty, _, _) = self.instantiate(&v.scheme);
+                return Ok((ECore::Unit, ty));
+            }
+            ValueKind::Ctor { field_erased, .. } => {
+                if field_erased.iter().any(|e| *e) {
+                    return Err(Error::at(
+                        span,
+                        format!(
+                            "constructor {} has erased evidence arguments and must be fully applied",
+                            v.name
+                        ),
+                    ));
+                }
+            }
             _ => {}
         }
-        let (ty, ctx) = self.instantiate(&v.scheme);
+        let (ty, ctx, val_args) = self.instantiate(&v.scheme);
+        // A `spec`/`proof` definition is erased ghost code: another
+        // logical definition may reference it (the termination and cycle
+        // checks see those references), but computational code may not
+        // (core specification section 3).
+        let target = (v.module.clone(), v.name.clone());
+        if self.logical.contains(&target) {
+            if self.current_logical.is_none() {
+                return Err(Error::at(
+                    span,
+                    format!(
+                        "{} is a `spec`/`proof` definition: it is erased ghost code and cannot be used computationally",
+                        v.name
+                    ),
+                ));
+            }
+            self.pending_refs.push(target);
+        }
         let mut holes = Vec::new();
         for (_, c) in &ctx {
             let id = self.new_want(c.clone(), span, env);
             holes.push(ECore::Hole(id));
+        }
+        // Implicit value arguments are runtime arguments (decision D29):
+        // each becomes a pending, reified to runtime code once unification
+        // has fixed its index.
+        let mut names: HashMap<String, LocalId> = HashMap::new();
+        for (n, l, _) in &env.locals {
+            names.entry(n.clone()).or_insert(*l);
+        }
+        let mut idx_holes = Vec::new();
+        for (i, m) in val_args.iter().enumerate() {
+            let iterm = match m {
+                Ty::Idx(it) => (**it).clone(),
+                other => {
+                    return Err(Error::at(
+                        span,
+                        format!("internal error: implicit argument of type {other} is not an index value"),
+                    ))
+                }
+            };
+            let nat = !matches!(v.scheme.val_params.get(i).map(|(_, t)| t), Some(Ty::Int));
+            let id = self.idx_pends.len();
+            self.idx_pends.push(IdxPend {
+                iterm,
+                names: names.clone(),
+                nat,
+                span,
+            });
+            idx_holes.push(ECore::IdxPending(id));
         }
         let core = match &v.kind {
             ValueKind::TopFn => ECore::Global(fn_id(&v.module, &v.name)),
@@ -807,8 +1744,11 @@ impl Checker {
                 let dict = holes.remove(0);
                 ECore::DictProj(Box::new(dict), *idx)
             }
-            ValueKind::BoolLit(_) | ValueKind::EffectOp { .. } => unreachable!(),
+            ValueKind::BoolLit(_) | ValueKind::EffectOp { .. } | ValueKind::ProofCtor => {
+                unreachable!()
+            }
         };
+        holes.extend(idx_holes);
         let core = if holes.is_empty() { core } else { app_spine(core, holes) };
         Ok((core, ty))
     }
@@ -1094,6 +2034,9 @@ impl Checker {
         let (ty2, tps, rps) = self.uni.generalize(ty, &quantify);
         Scheme {
             params: tps,
+            idx_params: Vec::new(),
+            val_params: Vec::new(),
+            prop_params: Vec::new(),
             row_params: rps,
             region_params: Vec::new(),
             ctx: Vec::new(),
@@ -1479,6 +2422,9 @@ impl Checker {
                 let mut ctor_rows: Vec<Vec<Row>> =
                     (0..info.ctors.len()).map(|_| Vec::new()).collect();
                 let mut var_rows: Vec<Row> = Vec::new();
+                let mut parts_by_tag: Vec<Option<CtorParts>> =
+                    (0..info.ctors.len()).map(|_| None).collect();
+                let mut binder_maps: HashMap<usize, HashMap<String, String>> = HashMap::new();
                 for mut r in rows.into_iter() {
                     let p0 = r.pats[0].clone();
                     match &p0 {
@@ -1503,7 +2449,13 @@ impl Checker {
                             var_rows.push(a);
                         }
                         ast::Pat::Con(p, args, span) => {
-                            let (tag, arity) = self.ctor_for_type(&info, p, *span)?;
+                            let v = self.ctor_for_type(&info, p, *span)?;
+                            let (tag, arity) = match &v.kind {
+                                ValueKind::Ctor { tag, arity, .. } => (*tag, *arity),
+                                _ => {
+                                    return Err(Error::at(*span, format!("{} is not a constructor", v.name)))
+                                }
+                            };
                             if args.len() != arity {
                                 return Err(Error::at(
                                     *span,
@@ -1515,9 +2467,105 @@ impl Checker {
                                     ),
                                 ));
                             }
+                            // Index equations decide whether this
+                            // constructor can build the type at all
+                            // (dependent core kernel design, section 5).
+                            if parts_by_tag[tag].is_none() {
+                                match self.match_ctor(&v, &ty_args)? {
+                                    CtorMatch::Possible(parts) => {
+                                        parts_by_tag[tag] = Some(parts);
+                                    }
+                                    CtorMatch::Refuted => {}
+                                    CtorMatch::Unknown(msg) => {
+                                        return Err(Error::at(
+                                            *span,
+                                            format!(
+                                                "cannot match constructor {} against {}: the index equation {msg} has no solution here (this slice does not refine rigid indices; reshape the type or dispatch through `decide`)",
+                                                v.name, ty0
+                                            ),
+                                        ));
+                                    }
+                                }
+                            }
+                            if parts_by_tag[tag].is_none() {
+                                return Err(Error::at(
+                                    *span,
+                                    format!(
+                                        "impossible arm: constructor {} cannot build {} (the indices refute it), so this arm can never match",
+                                        v.name, ty0
+                                    ),
+                                ));
+                            }
+                            let parts = parts_by_tag[tag].as_ref().unwrap();
+                            // Dependent field types mention earlier field
+                            // binders by name (Fin's `bound :: i < n`);
+                            // every row must agree on those names.
+                            let map = binder_maps.entry(tag).or_default();
+                            for (i, sp) in args.iter().enumerate() {
+                                let b = &parts.fields[i].0;
+                                if let ast::Pat::Var(n, _) = sp {
+                                    match map.get(b) {
+                                        Some(prev) if *prev != n.text => {
+                                            return Err(Error::at(
+                                                n.span,
+                                                format!(
+                                                    "constructor {} has dependent field types: every row must bind the same names (field `{}` binds `{}` here but `{}` in another row)",
+                                                    v.name, b, n.text, prev
+                                                ),
+                                            ))
+                                        }
+                                        _ => {
+                                            map.insert(b.clone(), n.text.clone());
+                                        }
+                                    }
+                                } else if parts
+                                    .fields
+                                    .iter()
+                                    .enumerate()
+                                    .any(|(j, (_, t, _))| j > i && ty_mentions(t, b))
+                                {
+                                    return Err(Error::at(
+                                        sp.span(),
+                                        format!(
+                                            "a field whose name later fields mention must be a variable pattern (the type of a later field of {} mentions `{}`)",
+                                            v.name, b
+                                        ),
+                                    ));
+                                }
+                            }
+                            // Erased fields bind evidence names; their
+                            // patterns never become runtime columns (core
+                            // specification section 3).
+                            let mut kept: Vec<ast::Pat> = Vec::new();
+                            for (i, sp) in args.iter().enumerate() {
+                                if parts.fields[i].2 {
+                                    match sp {
+                                        ast::Pat::Wild(_) => {}
+                                        ast::Pat::Var(n, _) => {
+                                            let l = self.fresh_local();
+                                            self.bind_local(
+                                                &mut r.env,
+                                                &n.text,
+                                                l,
+                                                Scheme::mono(parts.fields[i].1.clone()),
+                                                Some(Mult::Zero),
+                                                n.span,
+                                            )?;
+                                        }
+                                        other => {
+                                            return Err(Error::at(
+                                                other.span(),
+                                                "an erased field binds evidence: only variable and wildcard patterns are supported",
+                                            ))
+                                        }
+                                    }
+                                } else {
+                                    kept.push(sp.clone());
+                                }
+                            }
                             let mut a = r.clone();
                             self.mark_consumed(&mut a, &col0);
-                            let mut pats = args.clone();
+                            let mut pats = kept;
                             pats.extend(r.pats[1..].iter().cloned());
                             a.pats = pats;
                             ctor_rows[tag].push(a);
@@ -1533,9 +2581,33 @@ impl Checker {
                 let mut alts = Vec::new();
                 let mut alt_maps = Vec::new();
                 for (name, tag) in info.ctors.clone() {
-                    let (arity, field_tys) =
-                        self.ctor_field_tys(&self.ctor_of_type(&info, &name)?, &ty_args)?;
+                    // A constructor with no explicit arm may still run
+                    // (wildcard rows reach it), so it gets a branch unless
+                    // the indices refute it.
+                    let parts = match parts_by_tag[tag].take() {
+                        Some(p) => p,
+                        None => {
+                            let v = self.ctor_of_type(&info, &name)?;
+                            match self.match_ctor(&v, &ty_args)? {
+                                CtorMatch::Possible(p) => p,
+                                CtorMatch::Refuted => continue,
+                                CtorMatch::Unknown(_) => self.ctor_parts(&v, &ty_args)?,
+                            }
+                        }
+                    };
+                    let runtime_fields: Vec<(String, Ty)> = parts
+                        .fields
+                        .iter()
+                        .filter(|(_, _, e)| !*e)
+                        .map(|(b, t, _)| (b.clone(), t.clone()))
+                        .collect();
+                    let arity = runtime_fields.len();
                     let fields: Vec<LocalId> = (0..arity).map(|_| self.fresh_local()).collect();
+                    if let ECore::Var(l) = &col0 {
+                        for f in &fields {
+                            self.smaller.insert(*f, *l);
+                        }
+                    }
                     let mut branch = std::mem::take(&mut ctor_rows[tag]);
                     for r in &var_rows {
                         // A var or wildcard row matches this constructor
@@ -1553,10 +2625,17 @@ impl Checker {
                             format!("non-exhaustive patterns: constructor {name} is not covered"),
                         ));
                     }
+                    // Dependent field types mention earlier field binders
+                    // by name; the rows' pattern names substituted in.
+                    let bmap = binder_maps.get(&tag).cloned().unwrap_or_default();
+                    let field_tys: Vec<Ty> = runtime_fields
+                        .iter()
+                        .map(|(_, t)| wrap(&subst_idx_names(t, &bmap)))
+                        .collect();
                     let mut branch_cols: Vec<ECore> =
                         fields.iter().map(|l| ECore::Var(*l)).collect();
                     branch_cols.extend(cols[1..].iter().cloned());
-                    let mut branch_tys: Vec<Ty> = field_tys.iter().map(|t| wrap(t)).collect();
+                    let mut branch_tys: Vec<Ty> = field_tys;
                     branch_tys.extend(types[1..].iter().cloned());
                     let (core, m) = self.isolate(|s| {
                         s.compile_rows(
@@ -1572,6 +2651,14 @@ impl Checker {
                     alts.push((CPat::Con { tag, fields }, core));
                 }
                 self.merge_branches(alt_maps);
+                if alts.is_empty() {
+                    // Every constructor is refuted: the match runs on no
+                    // value (an impossible scrutinee type).
+                    return Err(Error::at(
+                        ctx_span,
+                        format!("no constructor of {} can build this value (the indices refute them all)", ty0),
+                    ));
+                }
                 Ok(ECore::Case { scrut: Box::new(col0), alts })
             }
             Ty::Tuple(items) => {
@@ -1687,6 +2774,134 @@ impl Checker {
             Ty::Handler { .. } => Err(Error::at(
                 ctx_span,
                 "cannot pattern match on a handler value in the bootstrap slice",
+            )),
+            Ty::Sigma { var, dom, cod } => {
+                // A dependent pair destructures like a tuple; the first
+                // component's pattern name ties the columns together (the
+                // second component's type mentions it).
+                let mut sub_rows: Vec<Row> = Vec::new();
+                let mut var_rows: Vec<Row> = Vec::new();
+                let mut binder: Option<String> = None;
+                for mut r in rows.into_iter() {
+                    let p0 = r.pats[0].clone();
+                    match &p0 {
+                        ast::Pat::Var(name, _) => {
+                            if let ECore::Var(l) = &col0 {
+                                self.bind_local(
+                                    &mut r.env,
+                                    &name.text,
+                                    *l,
+                                    Scheme::mono(ty0.clone()),
+                                    None,
+                                    name.span,
+                                )?;
+                            }
+                            let mut a = r.clone();
+                            a.pats = r.pats[1..].to_vec();
+                            var_rows.push(a);
+                        }
+                        ast::Pat::Wild(_) => {
+                            let mut a = r.clone();
+                            a.pats = r.pats[1..].to_vec();
+                            var_rows.push(a);
+                        }
+                        ast::Pat::Tuple(pats, span) => {
+                            if pats.len() != 2 {
+                                return Err(Error::at(
+                                    *span,
+                                    format!(
+                                        "a dependent pair pattern has two components, got {}",
+                                        pats.len()
+                                    ),
+                                ));
+                            }
+                            let nm = match &pats[0] {
+                                ast::Pat::Var(n, _) => n.text.clone(),
+                                ast::Pat::Wild(_) => var.clone(),
+                                other => {
+                                    return Err(Error::at(
+                                        other.span(),
+                                        "the first component of a dependent pair pattern must be a variable or wildcard (its name ties the pair together)",
+                                    ))
+                                }
+                            };
+                            match &binder {
+                                None => binder = Some(nm),
+                                Some(b) if *b == nm => {}
+                                Some(b) => {
+                                    return Err(Error::at(
+                                        *span,
+                                        format!(
+                                            "every row must bind the same name for a dependent pair's first component (`{nm}` here, `{b}` in another row)"
+                                        ),
+                                    ))
+                                }
+                            }
+                            self.mark_consumed(&mut r, &col0);
+                            let mut ps = pats.clone();
+                            ps.extend(r.pats[1..].iter().cloned());
+                            r.pats = ps;
+                            sub_rows.push(r);
+                        }
+                        other => {
+                            return Err(Error::at(
+                                other.span(),
+                                format!("pattern does not match type {ty0}"),
+                            ));
+                        }
+                    }
+                }
+                let name = binder.unwrap_or_else(|| var.clone());
+                let fields: Vec<LocalId> = (0..2).map(|_| self.fresh_local()).collect();
+                if let ECore::Var(l) = &col0 {
+                    for f in &fields {
+                        self.smaller.insert(*f, *l);
+                    }
+                }
+                let mut branch = sub_rows;
+                for r in &var_rows {
+                    let mut a = r.clone();
+                    let mut pats = vec![ast::Pat::Wild(ctx_span); 2];
+                    pats.extend(a.pats.iter().cloned());
+                    a.pats = pats;
+                    branch.push(a);
+                }
+                branch.sort_by_key(|r| r.idx);
+                let mut branch_cols: Vec<ECore> = fields.iter().map(|l| ECore::Var(*l)).collect();
+                branch_cols.extend(cols[1..].iter().cloned());
+                let mut branch_tys: Vec<Ty> = vec![
+                    wrap(&dom),
+                    wrap(&cod.subst_idx(&var, &ITerm::Var(name))),
+                ];
+                branch_tys.extend(types[1..].iter().cloned());
+                let core = self.compile_rows(
+                    branch,
+                    branch_cols,
+                    branch_tys,
+                    expected,
+                    ctx_span,
+                    covered,
+                )?;
+                Ok(ECore::Case {
+                    scrut: Box::new(col0),
+                    alts: vec![(CPat::Con { tag: 0, fields }, core)],
+                })
+            }
+            Ty::Pi { .. } => Err(Error::at(
+                ctx_span,
+                "cannot pattern match on a dependent function value",
+            )),
+            Ty::Sort(s) => Err(Error::at(
+                ctx_span,
+                format!("cannot pattern match on the universe {s}"),
+            )),
+            Ty::Idx(t) => Err(Error::at(
+                ctx_span,
+                format!("cannot pattern match on the index value {t}"),
+            )),
+            Ty::Prp(p) => Err(Error::at(
+                ctx_span,
+                format!("cannot pattern match on the proposition {p} (evidence is erased)"),
             )),
         }
     }
@@ -1843,19 +3058,29 @@ impl Checker {
             .ok_or_else(|| Error::plain(format!("unknown constructor {name}")))
     }
 
-    /// Resolve a constructor pattern against the type being matched. The
+    /// Resolve a constructor pattern against the type being matched,
+    /// preferring the type's own constructors so `Nil` and `Cons` match
+    /// `Vec n a` even though the prelude's `List` owns those names. The
     /// constructor must belong to that type; before this check, a foreign
     /// constructor was silently matched against a same-position tag of the
     /// scrutinee's type (review P0).
-    fn ctor_for_type(
-        &self,
-        info: &TypeKind,
-        p: &ast::ConPath,
-        span: ast::Span,
-    ) -> Result<(usize, usize)> {
+    fn ctor_for_type(&self, info: &TypeKind, p: &ast::ConPath, span: ast::Span) -> Result<ValueInfo> {
+        let parts = p.parts();
+        let last = parts[parts.len() - 1];
+        if parts.len() == 1 || parts[0] == info.module {
+            if info.ctors.iter().any(|(n, _)| n == last) {
+                if let Ok(v) = self.ctor_of_type(info, last) {
+                    if matches!(v.kind, ValueKind::Ctor { .. }) {
+                        let mut v = v;
+                        v.name = last.to_string();
+                        return Ok(v);
+                    }
+                }
+            }
+        }
         let v = self.resolve_con(p, span)?;
         match &v.kind {
-            ValueKind::Ctor { tag, arity, .. } => {
+            ValueKind::Ctor { tag, .. } => {
                 if v.module != info.module
                     || !info.ctors.iter().any(|(n, t)| n == &v.name && *t == *tag)
                 {
@@ -1867,28 +3092,109 @@ impl Checker {
                         ),
                     ));
                 }
-                Ok((*tag, *arity))
+                Ok(v)
             }
             _ => Err(Error::at(span, format!("{} is not a constructor", v.name))),
         }
     }
 
-    /// A constructor's arity and field types at the type arguments
-    /// `ty_args` of the type being matched.
-    fn ctor_field_tys(&self, v: &ValueInfo, ty_args: &[Ty]) -> Result<(usize, Vec<Ty>)> {
+    /// A constructor's fields and result at the type arguments of the
+    /// matched type: family parameters substitute positionally, and the
+    /// constructor-local index binders (`Cons`'s `k`) remain for the
+    /// caller to solve.
+    fn ctor_parts(&self, v: &ValueInfo, ty_args: &[Ty]) -> Result<CtorParts> {
         match &v.kind {
-            ValueKind::Ctor { arity, field_tys, ty_params, .. } => {
+            ValueKind::Ctor {
+                field_tys,
+                field_erased,
+                field_binders,
+                ty_params,
+                local_idx,
+                res_args,
+                ..
+            } => {
                 let mut map = HashMap::new();
                 for (p, a) in ty_params.iter().zip(ty_args) {
                     map.insert(p.clone(), a.clone());
                 }
-                Ok((
-                    *arity,
-                    field_tys.iter().map(|t| Self::subst_ty(t, &map)).collect(),
-                ))
+                let fields = field_tys
+                    .iter()
+                    .enumerate()
+                    .map(|(i, t)| {
+                        (field_binders[i].clone(), Self::subst_ty(t, &map), field_erased[i])
+                    })
+                    .collect();
+                Ok(CtorParts {
+                    fields,
+                    local_idx: local_idx.clone(),
+                    res_args: res_args.iter().map(|t| Self::subst_ty(t, &map)).collect(),
+                })
             }
             _ => Err(Error::plain(format!("{} is not a constructor", v.name))),
         }
+    }
+
+    /// Can this constructor build the matched type? Its result indices
+    /// must unify with the type's (dependent core kernel design, section
+    /// 5): solvable equations make it possible, a ground contradiction or
+    /// an out-of-range solution refutes it, and an equation stuck on rigid
+    /// indices is unknown (this slice rejects those matches rather than
+    /// guessing; it does not yet refine rigid indices in a branch).
+    fn match_ctor(&mut self, v: &ValueInfo, ty_args: &[Ty]) -> Result<CtorMatch> {
+        let parts = self.ctor_parts(v, ty_args)?;
+        let mut meta_of: HashMap<String, Ty> = HashMap::new();
+        for p in &parts.local_idx {
+            let m = self.uni.fresh_idx();
+            meta_of.insert(p.name().to_string(), m);
+        }
+        // Solve the index equations on a trial substitution and commit it
+        // on success: the metavariables must belong to the unifier the
+        // branch elaboration continues with.
+        let mut trial = self.uni.clone();
+        let res: Vec<Ty> = parts
+            .res_args
+            .iter()
+            .map(|t| Self::subst_ty(t, &meta_of))
+            .collect();
+        for (a, b) in res.iter().zip(ty_args.iter()) {
+            if trial.unify(a, b).is_ok() {
+                continue;
+            }
+            let za = trial.zonk(a);
+            let zb = trial.zonk(b);
+            if idx_ground(&za) && idx_ground(&zb) {
+                return Ok(CtorMatch::Refuted);
+            }
+            return Ok(CtorMatch::Unknown(format!("{za} vs {zb}")));
+        }
+        // An inversion guess like `?k + 1 = 0` solves with `?k := -1`,
+        // which is not a natural number: the constructor is impossible.
+        for p in &parts.local_idx {
+            if let IxParam::Val(n, t) = p {
+                if *t == Ty::Nat {
+                    if let Some(Ty::Idx(it)) = meta_of.get(n) {
+                        let solved = trial.resolve_idx(it).normalize();
+                        if let ITerm::Num(d) = &solved {
+                            if d.parse::<i128>().map(|v| v < 0).unwrap_or(false) {
+                                return Ok(CtorMatch::Refuted);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        let fields = parts
+            .fields
+            .into_iter()
+            .map(|(b, t, e)| (b, Self::subst_ty(&t, &meta_of), e))
+            .collect();
+        let res_args = res.clone();
+        self.uni = trial;
+        Ok(CtorMatch::Possible(CtorParts {
+            fields,
+            local_idx: parts.local_idx,
+            res_args,
+        }))
     }
 
     /// Drop column 0 of one row.
@@ -1901,7 +3207,7 @@ impl Checker {
     /// Does the pattern part of this row matrix cover its scrutinee space,
     /// ignoring guards? Integer literals cover an unbounded domain, so an
     /// integer column is covered only with a catch-all row.
-    fn matrix_covered(&self, rows: &[Row], types: &[Ty]) -> Result<bool> {
+    fn matrix_covered(&mut self, rows: &[Row], types: &[Ty]) -> Result<bool> {
         if rows.is_empty() {
             return Ok(false);
         }
@@ -2018,6 +3324,8 @@ impl Checker {
                 let mut ctor_rows: Vec<Vec<Row>> =
                     (0..info.ctors.len()).map(|_| Vec::new()).collect();
                 let mut var_rows: Vec<(ast::Span, Row)> = Vec::new();
+                let mut parts_by_tag: Vec<Option<CtorParts>> =
+                    (0..info.ctors.len()).map(|_| None).collect();
                 for r in &rows {
                     match &r.pats[0] {
                         ast::Pat::Var(..) | ast::Pat::Wild(_) => {
@@ -2026,16 +3334,59 @@ impl Checker {
                         ast::Pat::Con(p, args, _) => {
                             // A constructor from another type means this
                             // prover cannot claim coverage.
-                            let (tag, arity) =
-                                match self.ctor_for_type(&info, p, r.pats[0].span()) {
-                                    Ok(t) => t,
-                                    Err(_) => return Ok(false),
-                                };
+                            let v = match self.ctor_for_type(&info, p, r.pats[0].span()) {
+                                Ok(v) => v,
+                                Err(_) => return Ok(false),
+                            };
+                            let (tag, arity) = match &v.kind {
+                                ValueKind::Ctor { tag, arity, .. } => (*tag, *arity),
+                                _ => return Ok(false),
+                            };
                             if args.len() != arity || tag >= ctor_rows.len() {
                                 return Ok(false);
                             }
+                            // The indices decide whether the constructor
+                            // can build the type at all: an arm for a
+                            // refuted constructor is impossible, and a
+                            // match stuck on rigid indices is not
+                            // provable here.
+                            if parts_by_tag[tag].is_none() {
+                                match self.match_ctor(&v, ty_args) {
+                                    Ok(CtorMatch::Possible(parts)) => {
+                                        parts_by_tag[tag] = Some(parts);
+                                    }
+                                    Ok(CtorMatch::Refuted) => {
+                                        return Err(Error::at(
+                                            r.pats[0].span(),
+                                            format!(
+                                                "impossible arm: constructor {} cannot build {} (the indices refute it), so this arm can never match",
+                                                v.name, inner_ty
+                                            ),
+                                        ))
+                                    }
+                                    Ok(CtorMatch::Unknown(msg)) => {
+                                        return Err(Error::at(
+                                            r.pats[0].span(),
+                                            format!(
+                                                "cannot match constructor {} against {}: the index equation {msg} has no solution here (this slice does not refine rigid indices)",
+                                                v.name, inner_ty
+                                            ),
+                                        ))
+                                    }
+                                    Err(_) => return Ok(false),
+                                }
+                            }
+                            let parts = parts_by_tag[tag].as_ref().unwrap();
+                            // Erased fields bind evidence by name; they
+                            // cover themselves and take no column.
+                            let mut kept: Vec<ast::Pat> = Vec::new();
+                            for (i, sp) in args.iter().enumerate() {
+                                if !parts.fields[i].2 {
+                                    kept.push(sp.clone());
+                                }
+                            }
                             let mut a = self.drop_row_col(r);
-                            let mut pats = args.clone();
+                            let mut pats = kept;
                             pats.append(&mut a.pats);
                             a.pats = pats;
                             ctor_rows[tag].push(a);
@@ -2044,13 +3395,30 @@ impl Checker {
                     }
                 }
                 for (name, tag) in &info.ctors {
-                    let (arity, field_tys) = match self
-                        .ctor_of_type(&info, name)
-                        .and_then(|v| self.ctor_field_tys(&v, ty_args))
-                    {
-                        Ok(x) => x,
-                        Err(_) => return Ok(false),
+                    // A constructor with no explicit arm may still run
+                    // (wildcard rows reach it), so it must be covered
+                    // unless the indices refute it.
+                    let parts = match parts_by_tag[*tag].take() {
+                        Some(p) => p,
+                        None => {
+                            let v = match self.ctor_of_type(&info, name) {
+                                Ok(v) => v,
+                                Err(_) => return Ok(false),
+                            };
+                            match self.match_ctor(&v, ty_args) {
+                                Ok(CtorMatch::Possible(p)) => p,
+                                Ok(CtorMatch::Refuted) => continue,
+                                Ok(CtorMatch::Unknown(_)) => {
+                                    match self.ctor_parts(&v, ty_args) {
+                                        Ok(p) => p,
+                                        Err(_) => return Ok(false),
+                                    }
+                                }
+                                Err(_) => return Ok(false),
+                            }
+                        }
                     };
+                    let arity = parts.fields.iter().filter(|(_, _, e)| !*e).count();
                     let mut branch = std::mem::take(&mut ctor_rows[*tag]);
                     for (span, r) in &var_rows {
                         let mut a = r.clone();
@@ -2059,11 +3427,18 @@ impl Checker {
                         a.pats = pats;
                         branch.push(a);
                     }
+                    let field_tys: Vec<Ty> = parts
+                        .fields
+                        .iter()
+                        .filter(|(_, _, e)| !*e)
+                        .map(|(_, t, _)| t.clone())
+                        .collect();
                     let mut tys: Vec<Ty> = field_tys.iter().map(|t| wrap(t)).collect();
                     tys.extend(types[1..].iter().cloned());
                     if !self.matrix_covered(&branch, &tys)? {
                         return Ok(false);
                     }
+                    let _ = name;
                 }
                 Ok(true)
             }
@@ -2076,7 +3451,7 @@ impl Checker {
                             let span = r.pats[0].span();
                             let mut a = self.drop_row_col(r);
                             let mut pats = vec![ast::Pat::Wild(span); n];
-                            pats.append(&mut a.pats);
+                            pats.extend(a.pats.iter().cloned());
                             a.pats = pats;
                             sub_rows.push(a);
                         }
@@ -2091,6 +3466,35 @@ impl Checker {
                     }
                 }
                 let mut tys: Vec<Ty> = items.iter().map(|t| wrap(t)).collect();
+                tys.extend(types[1..].iter().cloned());
+                self.matrix_covered(&sub_rows, &tys)
+            }
+            Ty::Sigma { var, dom, cod } => {
+                let mut sub_rows: Vec<Row> = Vec::new();
+                for r in &rows {
+                    match &r.pats[0] {
+                        ast::Pat::Var(..) | ast::Pat::Wild(_) => {
+                            let span = r.pats[0].span();
+                            let mut a = self.drop_row_col(r);
+                            let mut pats = vec![ast::Pat::Wild(span); 2];
+                            pats.extend(a.pats.iter().cloned());
+                            a.pats = pats;
+                            sub_rows.push(a);
+                        }
+                        ast::Pat::Tuple(pats, _) if pats.len() == 2 => {
+                            let mut a = self.drop_row_col(r);
+                            let mut ps = pats.clone();
+                            ps.append(&mut a.pats);
+                            a.pats = ps;
+                            sub_rows.push(a);
+                        }
+                        _ => return Ok(false),
+                    }
+                }
+                let mut tys: Vec<Ty> = vec![
+                    wrap(&dom),
+                    wrap(&cod.subst_idx(&var, &ITerm::Var(var.clone()))),
+                ];
                 tys.extend(types[1..].iter().cloned());
                 self.matrix_covered(&sub_rows, &tys)
             }
@@ -2503,7 +3907,7 @@ impl Checker {
         kv: &Cont,
         span: ast::Span,
     ) -> Result<ECore> {
-        let (op_ty, ctx) = self.instantiate(&v.scheme);
+        let (op_ty, ctx, _) = self.instantiate(&v.scheme);
         if !ctx.is_empty() {
             return Err(Error::at(
                 span,
@@ -2621,7 +4025,7 @@ impl Checker {
         args: &[ast::Term],
         span: ast::Span,
     ) -> Result<(ECore, Ty)> {
-        let (op_ty, ctx) = self.instantiate(&v.scheme);
+        let (op_ty, ctx, _) = self.instantiate(&v.scheme);
         if !ctx.is_empty() {
             return Err(Error::at(
                 span,
@@ -3231,7 +4635,7 @@ impl Checker {
                     )
                 })?;
             seen.push(op_name.clone());
-            let (op_ty, op_ctx) = self.instantiate(op_scheme);
+            let (op_ty, op_ctx, _) = self.instantiate(op_scheme);
             if !op_ctx.is_empty() {
                 return Err(Error::at(
                     slot_clause.span,
@@ -3487,7 +4891,7 @@ impl Checker {
                     format!("sequencing provider {} has no {mname} method", class.class),
                 )
             })?;
-        let (ty, ctx) = self.instantiate(&mscheme);
+        let (ty, ctx, _) = self.instantiate(&mscheme);
         let mut holes = Vec::new();
         for (_, c) in &ctx {
             let id = self.new_want(c.clone(), span, env);
@@ -3626,7 +5030,7 @@ impl Checker {
         if matches!(v.kind, ValueKind::BoolLit(_)) {
             return Err(Error::at(span, "a boolean literal takes no capability supplies"));
         }
-        let (ty, ctx) = self.instantiate(&v.scheme);
+        let (ty, ctx, _) = self.instantiate(&v.scheme);
         let mut holes = Vec::new();
         for (n, c) in &ctx {
             if is_capability_class(&c.class) {
@@ -3658,7 +5062,7 @@ impl Checker {
                 let dict = holes.remove(0);
                 ECore::DictProj(Box::new(dict), *idx)
             }
-            ValueKind::BoolLit(_) | ValueKind::EffectOp { .. } => {
+            ValueKind::BoolLit(_) | ValueKind::EffectOp { .. } | ValueKind::ProofCtor => {
                 return Err(Error::at(span, "this value takes no capability supplies"))
             }
         };

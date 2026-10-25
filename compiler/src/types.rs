@@ -394,9 +394,354 @@ impl fmt::Display for EffRow {
     }
 }
 
+// ------------------------------------------------- dependent core vocabulary
+
+/// A universe: `Type i` is the universe of computational types at level
+/// `i`, `Prop` the universe of erased propositions (dependent core kernel
+/// design, section 2). `Type i : Type (i + 1)`, so `Type : Type` is never
+/// admitted.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Sort {
+    Type(u32),
+    Prop,
+}
+
+impl fmt::Display for Sort {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Sort::Type(0) => write!(f, "Type"),
+            Sort::Type(n) => write!(f, "Type {n}"),
+            Sort::Prop => write!(f, "Prop"),
+        }
+    }
+}
+
+/// Mathematical `Nat`/`Int` arithmetic in type-level positions
+/// (`Vec (k + 1) a`): these reduce on numerals only (dependent core kernel
+/// design, section 4), never through class dictionaries.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum IdxOp {
+    Add,
+    Sub,
+    Mul,
+}
+
+impl fmt::Display for IdxOp {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            IdxOp::Add => write!(f, "+"),
+            IdxOp::Sub => write!(f, "-"),
+            IdxOp::Mul => write!(f, "*"),
+        }
+    }
+}
+
+/// Comparison on index values; the proposition `a < b` and friends
+/// (`Eq x y` has its own form because it is type-parametric).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum IdxCmp {
+    Eq,
+    Ne,
+    Lt,
+    Le,
+    Gt,
+    Ge,
+}
+
+impl fmt::Display for IdxCmp {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            IdxCmp::Eq => write!(f, "=="),
+            IdxCmp::Ne => write!(f, "/="),
+            IdxCmp::Lt => write!(f, "<"),
+            IdxCmp::Le => write!(f, "<="),
+            IdxCmp::Gt => write!(f, ">"),
+            IdxCmp::Ge => write!(f, ">="),
+        }
+    }
+}
+
+/// A first-order value embedded in a type (an index): variables shared
+/// with term syntax (the surface shares term syntax between kinds, types
+/// and values), numerals, mathematical arithmetic, and applications of
+/// named total definitions. Inference variables support implicit-argument
+/// solving (design section 2: elaboration is insert-and-solve).
+#[derive(Clone, Debug, PartialEq)]
+pub enum ITerm {
+    Var(String),
+    Num(String),
+    /// A named total definition used as a function value (the head of an
+    /// index-level application).
+    Fn(String),
+    App(Box<ITerm>, Vec<ITerm>),
+    Bin(IdxOp, Box<ITerm>, Box<ITerm>),
+    MVar(usize),
+}
+
+impl ITerm {
+    pub fn num(n: i128) -> ITerm {
+        ITerm::Num(n.to_string())
+    }
+
+    /// A named application: `f a b`.
+    pub fn app_fn(head: impl Into<String>, args: Vec<ITerm>) -> ITerm {
+        ITerm::App(Box::new(ITerm::Fn(head.into())), args)
+    }
+
+    /// Free value names, in first-appearance order.
+    pub fn free_vars(&self, out: &mut Vec<String>) {
+        match self {
+            ITerm::Var(n) => {
+                if !out.contains(n) {
+                    out.push(n.clone());
+                }
+            }
+            ITerm::Num(_) | ITerm::Fn(_) | ITerm::MVar(_) => {}
+            ITerm::App(f, args) => {
+                f.free_vars(out);
+                for a in args {
+                    a.free_vars(out);
+                }
+            }
+            ITerm::Bin(_, a, b) => {
+                a.free_vars(out);
+                b.free_vars(out);
+            }
+        }
+    }
+
+    pub fn mentions(&self, name: &str) -> bool {
+        let mut out = Vec::new();
+        self.free_vars(&mut out);
+        out.iter().any(|v| v == name)
+    }
+
+    pub fn free_mvars(&self, out: &mut Vec<usize>) {
+        match self {
+            ITerm::MVar(m) => {
+                if !out.contains(m) {
+                    out.push(*m);
+                }
+            }
+            ITerm::Var(_) | ITerm::Num(_) | ITerm::Fn(_) => {}
+            ITerm::App(f, args) => {
+                f.free_mvars(out);
+                for a in args {
+                    a.free_mvars(out);
+                }
+            }
+            ITerm::Bin(_, a, b) => {
+                a.free_mvars(out);
+                b.free_mvars(out);
+            }
+        }
+    }
+
+    /// Substitute a value name (beta at the index level).
+    pub fn subst(&self, name: &str, by: &ITerm) -> ITerm {
+        match self {
+            ITerm::Var(n) if n == name => by.clone(),
+            ITerm::Var(_) | ITerm::Num(_) | ITerm::Fn(_) | ITerm::MVar(_) => self.clone(),
+            ITerm::App(f, args) => ITerm::App(
+                Box::new(f.subst(name, by)),
+                args.iter().map(|a| a.subst(name, by)).collect(),
+            ),
+            ITerm::Bin(op, a, b) => ITerm::Bin(
+                *op,
+                Box::new(a.subst(name, by)),
+                Box::new(b.subst(name, by)),
+            ),
+        }
+    }
+
+    /// Fold arithmetic on numerals (iota, dependent core kernel design
+    /// section 4: mathematical operations reduce on numerals only).
+    pub fn normalize(&self) -> ITerm {
+        match self {
+            ITerm::Bin(op, a, b) => {
+                let a = a.normalize();
+                let b = b.normalize();
+                let (x, y) = match (&a, &b) {
+                    (ITerm::Num(x), ITerm::Num(y)) => {
+                        let (Ok(x), Ok(y)) = (x.parse::<i128>(), y.parse::<i128>()) else {
+                            return ITerm::Bin(*op, Box::new(a), Box::new(b));
+                        };
+                        let v = match op {
+                            IdxOp::Add => x.checked_add(y),
+                            IdxOp::Sub => x.checked_sub(y),
+                            IdxOp::Mul => x.checked_mul(y),
+                        };
+                        return match v {
+                            Some(v) => ITerm::num(v),
+                            None => ITerm::Bin(*op, Box::new(a), Box::new(b)),
+                        };
+                    }
+                    _ => (a, b),
+                };
+                ITerm::Bin(*op, Box::new(x), Box::new(y))
+            }
+            ITerm::App(f, args) => ITerm::App(
+                Box::new(f.normalize()),
+                args.iter().map(|a| a.normalize()).collect(),
+            ),
+            other => other.clone(),
+        }
+    }
+
+    /// Definitional equality of index terms: beta (substitution happens at
+    /// elaboration), iota on numerals, and syntactic equality elsewhere.
+    /// Stuck terms compare syntactically; conversion never unfolds user
+    /// definitions (decision D28).
+    pub fn eq(&self, other: &ITerm) -> bool {
+        match (self.normalize(), other.normalize()) {
+            (ITerm::Var(x), ITerm::Var(y)) => x == y,
+            (ITerm::Num(x), ITerm::Num(y)) => x == y,
+            (ITerm::Fn(x), ITerm::Fn(y)) => x == y,
+            (ITerm::MVar(x), ITerm::MVar(y)) => x == y,
+            (ITerm::App(f, xs), ITerm::App(g, ys)) => {
+                f.eq(&g) && xs.len() == ys.len() && xs.iter().zip(ys.iter()).all(|(x, y)| x.eq(y))
+            }
+            (ITerm::Bin(op, a, b), ITerm::Bin(op2, c, d)) => {
+                op == op2 && a.eq(&c) && b.eq(&d)
+            }
+            _ => false,
+        }
+    }
+}
+
+impl fmt::Display for ITerm {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ITerm::Var(n) => write!(f, "{n}"),
+            ITerm::Num(n) => write!(f, "{n}"),
+            ITerm::Fn(n) => write!(f, "{n}"),
+            ITerm::MVar(m) => write!(f, "?i{m}"),
+            ITerm::App(head, args) => {
+                write!(f, "({head}")?;
+                for a in args {
+                    write!(f, " {a}")?;
+                }
+                write!(f, ")")
+            }
+            ITerm::Bin(op, a, b) => write!(f, "({a} {op} {b})"),
+        }
+    }
+}
+
+/// A proposition in `Prop` (dependent core kernel design, section 7):
+/// comparisons and equality over index values, negation, and inference
+/// variables for implicit solving.
+#[derive(Clone, Debug, PartialEq)]
+pub enum PTerm {
+    Cmp(IdxCmp, Box<ITerm>, Box<ITerm>),
+    Eq(Box<ITerm>, Box<ITerm>),
+    Not(Box<PTerm>),
+    Var(String),
+    MVar(usize),
+}
+
+impl PTerm {
+    pub fn free_vars(&self, out: &mut Vec<String>) {
+        match self {
+            PTerm::Cmp(_, a, b) => {
+                a.free_vars(out);
+                b.free_vars(out);
+            }
+            PTerm::Eq(a, b) => {
+                a.free_vars(out);
+                b.free_vars(out);
+            }
+            PTerm::Not(p) => p.free_vars(out),
+            PTerm::Var(n) => {
+                if !out.contains(n) {
+                    out.push(n.clone());
+                }
+            }
+            PTerm::MVar(_) => {}
+        }
+    }
+
+    pub fn mentions(&self, name: &str) -> bool {
+        let mut out = Vec::new();
+        self.free_vars(&mut out);
+        out.iter().any(|v| v == name)
+    }
+
+    pub fn free_mvars(&self, out: &mut Vec<usize>) {
+        match self {
+            PTerm::MVar(m) => {
+                if !out.contains(m) {
+                    out.push(*m);
+                }
+            }
+            PTerm::Var(_) => {}
+            PTerm::Cmp(_, a, b) | PTerm::Eq(a, b) => {
+                a.free_mvars(out);
+                b.free_mvars(out);
+            }
+            PTerm::Not(p) => p.free_mvars(out),
+        }
+    }
+
+    pub fn subst(&self, name: &str, by: &ITerm) -> PTerm {
+        match self {
+            PTerm::Cmp(op, a, b) => PTerm::Cmp(
+                *op,
+                Box::new(a.subst(name, by)),
+                Box::new(b.subst(name, by)),
+            ),
+            PTerm::Eq(a, b) => {
+                PTerm::Eq(Box::new(a.subst(name, by)), Box::new(b.subst(name, by)))
+            }
+            PTerm::Not(p) => PTerm::Not(Box::new(p.subst(name, by))),
+            PTerm::Var(_) | PTerm::MVar(_) => self.clone(),
+        }
+    }
+
+    pub fn normalize(&self) -> PTerm {
+        match self {
+            PTerm::Cmp(op, a, b) => PTerm::Cmp(
+                *op,
+                Box::new(a.normalize()),
+                Box::new(b.normalize()),
+            ),
+            PTerm::Eq(a, b) => PTerm::Eq(Box::new(a.normalize()), Box::new(b.normalize())),
+            PTerm::Not(p) => PTerm::Not(Box::new(p.normalize())),
+            other => other.clone(),
+        }
+    }
+
+    pub fn eq(&self, other: &PTerm) -> bool {
+        match (self.normalize(), other.normalize()) {
+            (PTerm::Cmp(op, a, b), PTerm::Cmp(op2, c, d)) => {
+                op == op2 && a.eq(&c) && b.eq(&d)
+            }
+            (PTerm::Eq(a, b), PTerm::Eq(c, d)) => a.eq(&c) && b.eq(&d),
+            (PTerm::Not(a), PTerm::Not(b)) => a.eq(&b),
+            (PTerm::Var(x), PTerm::Var(y)) => x == y,
+            (PTerm::MVar(x), PTerm::MVar(y)) => x == y,
+            _ => false,
+        }
+    }
+}
+
+impl fmt::Display for PTerm {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            PTerm::Cmp(op, a, b) => write!(f, "{a} {op} {b}"),
+            PTerm::Eq(a, b) => write!(f, "Eq {a} {b}"),
+            PTerm::Not(p) => write!(f, "Not ({p})"),
+            PTerm::Var(n) => write!(f, "{n}"),
+            PTerm::MVar(m) => write!(f, "?p{m}"),
+        }
+    }
+}
+
 /// Monomorphic type: rigid parameters, unification variables, primitives,
 /// algebraic data types, functions with effect rows and parameter usage
-/// multiplicities, affine thunks, memo cells and borrows.
+/// multiplicities, affine thunks, memo cells and borrows, plus the
+/// dependent core: universes, embedded index values, propositions, and
+/// dependent function and pair types.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Ty {
     /// The mathematical `Int`: a boxed bignum word (sign-magnitude),
@@ -448,6 +793,29 @@ pub enum Ty {
         eff: EffRow,
         resumption: Mult,
     },
+    /// A universe as a type: `Type i` or `Prop` (the kind of types and of
+    /// propositions).
+    Sort(Sort),
+    /// A value in type position: the `n` of `Vec n a`, the `k + 1` of
+    /// `Vec (k + 1) a`.
+    Idx(Box<ITerm>),
+    /// A proposition: a type whose universe is `Prop`, e.g. `i < n` or
+    /// `Eq x y`.
+    Prp(Box<PTerm>),
+    /// Dependent function `(x :: A) -> B`, where `B` may mention `x`.
+    Pi {
+        var: String,
+        dom: Box<Ty>,
+        mult: Mult,
+        eff: EffRow,
+        cod: Box<Ty>,
+    },
+    /// Dependent pair `Sigma (x :: A). B`, where `B` may mention `x`.
+    Sigma {
+        var: String,
+        dom: Box<Ty>,
+        cod: Box<Ty>,
+    },
 }
 
 impl Ty {
@@ -480,7 +848,145 @@ impl Ty {
     pub fn arity(&self) -> usize {
         match self {
             Ty::Fun(_, _, _, b) => 1 + b.arity(),
+            Ty::Pi { cod, .. } => 1 + cod.arity(),
             _ => 0,
+        }
+    }
+
+    /// A dependent function type whose binder is `var`.
+    pub fn pi(var: impl Into<String>, dom: Ty, mult: Mult, eff: EffRow, cod: Ty) -> Ty {
+        Ty::Pi {
+            var: var.into(),
+            dom: Box::new(dom),
+            mult,
+            eff,
+            cod: Box::new(cod),
+        }
+    }
+
+    /// A dependent pair type.
+    pub fn sigma(var: impl Into<String>, dom: Ty, cod: Ty) -> Ty {
+        Ty::Sigma {
+            var: var.into(),
+            dom: Box::new(dom),
+            cod: Box::new(cod),
+        }
+    }
+
+    /// View any function type as a (possibly non-dependent) Pi: `Ty::Fun`
+    /// is a Pi whose binder nothing mentions.
+    pub fn as_pi(&self) -> (String, &Ty, Mult, &EffRow, &Ty) {
+        match self {
+            Ty::Fun(a, m, e, b) => ("$".to_string(), a, *m, e, b),
+            Ty::Pi { var, dom, mult, eff, cod } => (var.clone(), dom, *mult, eff, cod),
+            _ => unreachable!("as_pi on a non-function type"),
+        }
+    }
+
+    /// Does this type mention the index-level variable `name`?
+    pub fn mentions_idx(&self, name: &str) -> bool {
+        match self {
+            Ty::Idx(t) => t.mentions(name),
+            Ty::Prp(p) => p.mentions(name),
+            Ty::Adt(_, args) | Ty::Tuple(args) => {
+                args.iter().any(|a| a.mentions_idx(name))
+            }
+            Ty::Fun(a, _, _, b) | Ty::Pi { dom: a, cod: b, .. } => {
+                a.mentions_idx(name) || b.mentions_idx(name)
+            }
+            Ty::Sigma { dom, cod, .. } => dom.mentions_idx(name) || cod.mentions_idx(name),
+            Ty::Thunk { inner, .. } => inner.mentions_idx(name),
+            Ty::Lazy { inner, .. } => inner.mentions_idx(name),
+            Ty::Ref(_, inner) | Ty::Mut(_, inner) => inner.mentions_idx(name),
+            Ty::Handler { input, output, .. } => {
+                input.mentions_idx(name) || output.mentions_idx(name)
+            }
+            _ => false,
+        }
+    }
+
+    /// Substitute the index-level variable `name` by the index term `by`
+    /// (beta for dependent application and elimination).
+    pub fn subst_idx(&self, name: &str, by: &ITerm) -> Ty {
+        match self {
+            Ty::Idx(t) => Ty::Idx(Box::new(t.subst(name, by))),
+            Ty::Prp(p) => Ty::Prp(Box::new(p.subst(name, by))),
+            Ty::Adt(n, args) => {
+                Ty::Adt(n.clone(), args.iter().map(|a| a.subst_idx(name, by)).collect())
+            }
+            Ty::Tuple(args) => {
+                Ty::Tuple(args.iter().map(|a| a.subst_idx(name, by)).collect())
+            }
+            Ty::Fun(a, m, e, b) => Ty::fun_mult(
+                a.subst_idx(name, by),
+                *m,
+                e.clone(),
+                b.subst_idx(name, by),
+            ),
+            Ty::Pi { var, dom, mult, eff, cod } => Ty::Pi {
+                var: var.clone(),
+                dom: Box::new(dom.subst_idx(name, by)),
+                mult: *mult,
+                eff: eff.clone(),
+                cod: Box::new(cod.subst_idx(name, by)),
+            },
+            Ty::Sigma { var, dom, cod } => Ty::Sigma {
+                var: var.clone(),
+                dom: Box::new(dom.subst_idx(name, by)),
+                cod: Box::new(cod.subst_idx(name, by)),
+            },
+            Ty::Thunk { eff, inner } => Ty::Thunk {
+                eff: eff.clone(),
+                inner: Box::new(inner.subst_idx(name, by)),
+            },
+            Ty::Lazy { eff, region, inner } => Ty::Lazy {
+                eff: eff.clone(),
+                region: region.clone(),
+                inner: Box::new(inner.subst_idx(name, by)),
+            },
+            Ty::Ref(region, inner) => {
+                Ty::Ref(region.clone(), Box::new(inner.subst_idx(name, by)))
+            }
+            Ty::Mut(region, inner) => {
+                Ty::Mut(region.clone(), Box::new(inner.subst_idx(name, by)))
+            }
+            Ty::Handler { label, input, output, eff, resumption } => Ty::Handler {
+                label: label.clone(),
+                input: Box::new(input.subst_idx(name, by)),
+                output: Box::new(output.subst_idx(name, by)),
+                eff: eff.clone(),
+                resumption: *resumption,
+            },
+            other => other.clone(),
+        }
+    }
+
+    /// Collect the index metavariables free in this type.
+    pub fn free_idx_metas(&self, out: &mut Vec<usize>) {
+        match self {
+            Ty::Idx(t) => t.free_mvars(out),
+            Ty::Prp(p) => p.free_mvars(out),
+            Ty::Adt(_, args) | Ty::Tuple(args) => {
+                for a in args {
+                    a.free_idx_metas(out);
+                }
+            }
+            Ty::Fun(a, _, _, b) | Ty::Pi { dom: a, cod: b, .. } => {
+                a.free_idx_metas(out);
+                b.free_idx_metas(out);
+            }
+            Ty::Sigma { dom, cod, .. } => {
+                dom.free_idx_metas(out);
+                cod.free_idx_metas(out);
+            }
+            Ty::Thunk { inner, .. } => inner.free_idx_metas(out),
+            Ty::Lazy { inner, .. } => inner.free_idx_metas(out),
+            Ty::Ref(_, inner) | Ty::Mut(_, inner) => inner.free_idx_metas(out),
+            Ty::Handler { input, output, .. } => {
+                input.free_idx_metas(out);
+                output.free_idx_metas(out);
+            }
+            _ => {}
         }
     }
 
@@ -497,6 +1003,15 @@ impl Ty {
                 a.free_metas(out);
                 e.free_metas(out);
                 b.free_metas(out);
+            }
+            Ty::Pi { dom, eff, cod, .. } => {
+                dom.free_metas(out);
+                eff.free_metas(out);
+                cod.free_metas(out);
+            }
+            Ty::Sigma { dom, cod, .. } => {
+                dom.free_metas(out);
+                cod.free_metas(out);
             }
             Ty::Thunk { eff, inner } => {
                 eff.free_metas(out);
@@ -585,6 +1100,19 @@ impl fmt::Display for Ty {
             Ty::Handler { label, input, output, eff, resumption } => {
                 write!(f, "(handle {label} {input} => {output} adding {eff} resuming {resumption})")
             }
+            Ty::Sort(s) => write!(f, "{s}"),
+            Ty::Idx(t) => write!(f, "{t}"),
+            Ty::Prp(p) => write!(f, "{p}"),
+            Ty::Pi { var, dom, mult, eff, cod } => {
+                if *mult == Mult::Many && eff.is_pure() {
+                    write!(f, "(({var} :: {dom}) -> {cod})")
+                } else {
+                    write!(f, "(({var} :: {dom}) {mult} ->{eff} {cod})")
+                }
+            }
+            Ty::Sigma { var, dom, cod } => {
+                write!(f, "(Sigma ({var} :: {dom}). {cod})")
+            }
         }
     }
 }
@@ -606,11 +1134,41 @@ impl fmt::Display for ClassApp {
     }
 }
 
+/// Index-level quantification (dependent core kernel design, section 2):
+/// `idx_params` are schema-level index and proposition parameters
+/// (constructor family parameters and constructor-local `forall` binders);
+/// they elaborate to metavariables and take no runtime argument.
+#[derive(Clone, Debug, PartialEq)]
+pub enum IxParam {
+    /// `forall k.` or `forall (n :: Nat).`, with its value type.
+    Val(String, Ty),
+    /// `forall (p :: Prop).`
+    Prop(String),
+}
+
+impl IxParam {
+    pub fn name(&self) -> &str {
+        match self {
+            IxParam::Val(n, _) | IxParam::Prop(n) => n,
+        }
+    }
+}
+
 /// A polymorphic scheme. `params`, `row_params` and `region_params` are the
-/// quantified type, row and region variables; `ctx` holds `using` constraints.
+/// quantified type, row and region variables; `ctx` holds `using`
+/// constraints. `val_params` are implicit value arguments (a
+/// `forall (n :: Nat)`): inserted at every call and passed at runtime
+/// (core specification section 3: witnesses execution needs are retained);
+/// `prop_params` are erased proposition binders.
 #[derive(Clone, Debug)]
 pub struct Scheme {
     pub params: Vec<String>,
+    /// Schema-level index parameters (no runtime argument).
+    pub idx_params: Vec<IxParam>,
+    /// Implicit runtime value arguments, name and type.
+    pub val_params: Vec<(String, Ty)>,
+    /// Implicit proposition binders (`forall (p :: Prop)`): erased.
+    pub prop_params: Vec<String>,
     pub row_params: Vec<String>,
     pub region_params: Vec<String>,
     pub ctx: Vec<(String, ClassApp)>,
@@ -621,6 +1179,9 @@ impl Scheme {
     pub fn mono(ty: Ty) -> Scheme {
         Scheme {
             params: Vec::new(),
+            idx_params: Vec::new(),
+            val_params: Vec::new(),
+            prop_params: Vec::new(),
             row_params: Vec::new(),
             region_params: Vec::new(),
             ctx: Vec::new(),
@@ -662,6 +1223,18 @@ pub fn regionize(t: &Ty, regions: &[String]) -> Ty {
             output: Box::new(regionize(output, regions)),
             eff: eff.clone(),
             resumption: *resumption,
+        },
+        Ty::Pi { var, dom, mult, eff, cod } => Ty::Pi {
+            var: var.clone(),
+            dom: Box::new(regionize(dom, regions)),
+            mult: *mult,
+            eff: eff.clone(),
+            cod: Box::new(regionize(cod, regions)),
+        },
+        Ty::Sigma { var, dom, cod } => Ty::Sigma {
+            var: var.clone(),
+            dom: Box::new(regionize(dom, regions)),
+            cod: Box::new(regionize(cod, regions)),
         },
         other => other.clone(),
     }
@@ -735,6 +1308,15 @@ pub fn collect_row_names(t: &Ty, rows: &mut Vec<String>, regions: &mut Vec<Strin
             collect_row_names(input, rows, regions);
             collect_row_names(output, rows, regions);
         }
+        Ty::Pi { dom, eff, cod, .. } => {
+            collect_row_names(dom, rows, regions);
+            note_row(eff, rows, regions);
+            collect_row_names(cod, rows, regions);
+        }
+        Ty::Sigma { dom, cod, .. } => {
+            collect_row_names(dom, rows, regions);
+            collect_row_names(cod, rows, regions);
+        }
         _ => {}
     }
 }
@@ -761,6 +1343,10 @@ pub struct Unifier {
     region_subst: HashMap<String, String>,
     /// Region names that may still be identified with another region.
     flex_regions: Vec<String>,
+    /// Inference variables for index values (implicit index arguments).
+    idx_subst: Vec<Option<ITerm>>,
+    /// Inference variables for propositions (implicit evidence types).
+    prop_subst: Vec<Option<PTerm>>,
 }
 
 impl Unifier {
@@ -772,6 +1358,21 @@ impl Unifier {
         let id = self.subst.len();
         self.subst.push(None);
         Ty::Meta(MetaId(id))
+    }
+
+    /// A fresh index-value metavariable, as a type (`?i` in index
+    /// position).
+    pub fn fresh_idx(&mut self) -> Ty {
+        let id = self.idx_subst.len();
+        self.idx_subst.push(None);
+        Ty::Idx(Box::new(ITerm::MVar(id)))
+    }
+
+    /// A fresh proposition metavariable, as a type.
+    pub fn fresh_prop(&mut self) -> Ty {
+        let id = self.prop_subst.len();
+        self.prop_subst.push(None);
+        Ty::Prp(Box::new(PTerm::MVar(id)))
     }
 
     pub fn fresh_row(&mut self) -> EffRow {
@@ -837,6 +1438,208 @@ impl Unifier {
         }
     }
 
+    /// Follow index metavariable bindings.
+    pub fn resolve_idx(&self, t: &ITerm) -> ITerm {
+        match t {
+            ITerm::MVar(m) => match self.idx_subst.get(*m).and_then(|s| s.as_ref()) {
+                Some(next) => self.resolve_idx(next),
+                None => t.clone(),
+            },
+            ITerm::App(f, args) => {
+                ITerm::App(
+                    Box::new(self.resolve_idx(f)),
+                    args.iter().map(|a| self.resolve_idx(a)).collect(),
+                )
+            }
+            ITerm::Bin(op, a, b) => ITerm::Bin(
+                *op,
+                Box::new(self.resolve_idx(a)),
+                Box::new(self.resolve_idx(b)),
+            ),
+            other => other.clone(),
+        }
+    }
+
+    /// Follow proposition metavariable bindings.
+    pub fn resolve_prop(&self, p: &PTerm) -> PTerm {
+        match p {
+            PTerm::MVar(m) => match self.prop_subst.get(*m).and_then(|s| s.as_ref()) {
+                Some(next) => self.resolve_prop(next),
+                None => p.clone(),
+            },
+            PTerm::Cmp(op, a, b) => PTerm::Cmp(
+                *op,
+                Box::new(self.resolve_idx(a)),
+                Box::new(self.resolve_idx(b)),
+            ),
+            PTerm::Eq(a, b) => {
+                PTerm::Eq(Box::new(self.resolve_idx(a)), Box::new(self.resolve_idx(b)))
+            }
+            PTerm::Not(q) => PTerm::Not(Box::new(self.resolve_prop(q))),
+            other => other.clone(),
+        }
+    }
+
+    fn idx_occurs(&self, id: usize, t: &ITerm) -> bool {
+        match self.resolve_idx(t) {
+            ITerm::MVar(m) => m == id,
+            ITerm::App(f, args) => {
+                self.idx_occurs(id, &f) || args.iter().any(|a| self.idx_occurs(id, a))
+            }
+            ITerm::Bin(_, a, b) => self.idx_occurs(id, &a) || self.idx_occurs(id, &b),
+            _ => false,
+        }
+    }
+
+    fn prop_occurs(&self, id: usize, p: &PTerm) -> bool {
+        match self.resolve_prop(p) {
+            PTerm::MVar(m) => m == id,
+            PTerm::Cmp(_, a, b) | PTerm::Eq(a, b) => {
+                self.idx_occurs_any(id, &a) || self.idx_occurs_any(id, &b)
+            }
+            PTerm::Not(q) => self.prop_occurs(id, &q),
+            _ => false,
+        }
+    }
+
+    /// Does the index term mention index metavariable `id`? (the occurs
+    /// check for propositions over index terms).
+    fn idx_occurs_any(&self, id: usize, t: &ITerm) -> bool {
+        self.idx_occurs(id, t)
+    }
+
+    /// Bind an index metavariable.
+    pub fn bind_idx(&mut self, id: usize, t: ITerm) -> std::result::Result<(), String> {
+        let t = self.resolve_idx(&t);
+        if self.idx_occurs(id, &t) {
+            return Err(format!(
+                "cannot construct infinite index: ?i{id} in {t}"
+            ));
+        }
+        self.idx_subst[id] = Some(t);
+        Ok(())
+    }
+
+    /// Bind a proposition metavariable.
+    pub fn bind_prop(&mut self, id: usize, p: PTerm) -> std::result::Result<(), String> {
+        let p = self.resolve_prop(&p);
+        if self.prop_occurs(id, &p) {
+            return Err(format!(
+                "cannot construct infinite proposition: ?p{id} in {p}"
+            ));
+        }
+        self.prop_subst[id] = Some(p);
+        Ok(())
+    }
+
+    /// Unify two index terms: metavariables bind, everything else is
+    /// structural with definitional-equality validation. Heuristic
+    /// bindings (inverting `?k + 1` against a numeral) are guesses that
+    /// the final conversion check must confirm.
+    pub fn unify_idx(&mut self, a: &ITerm, b: &ITerm) -> std::result::Result<(), String> {
+        let mut trial = self.clone();
+        trial.unify_idx_raw(a, b)?;
+        if trial.resolve_idx(a).eq(&trial.resolve_idx(b)) {
+            *self = trial;
+            Ok(())
+        } else {
+            Err(format!(
+                "index mismatch: {} vs {}",
+                self.resolve_idx(a),
+                self.resolve_idx(b)
+            ))
+        }
+    }
+
+    fn unify_idx_raw(&mut self, a: &ITerm, b: &ITerm) -> std::result::Result<(), String> {
+        let a = self.resolve_idx(a);
+        let b = self.resolve_idx(b);
+        match (&a, &b) {
+            (ITerm::MVar(m), _) => self.bind_idx(*m, b),
+            (_, ITerm::MVar(m)) => self.bind_idx(*m, a),
+            (ITerm::Var(x), ITerm::Var(y)) if x == y => Ok(()),
+            (ITerm::Num(x), ITerm::Num(y)) if x == y => Ok(()),
+            (ITerm::Fn(x), ITerm::Fn(y)) if x == y => Ok(()),
+            (ITerm::App(f, xs), ITerm::App(g, ys)) if xs.len() == ys.len() => {
+                self.unify_idx_raw(f, g)?;
+                for (x, y) in xs.iter().zip(ys) {
+                    self.unify_idx_raw(x, y)?;
+                }
+                Ok(())
+            }
+            (ITerm::Bin(op, x, y), ITerm::Bin(op2, u, v)) if op == op2 => {
+                self.unify_idx_raw(x, u)?;
+                self.unify_idx_raw(y, v)
+            }
+            _ => {
+                // Inversion heuristics: arithmetic with one unknown
+                // reduces to the other side (validated by conversion).
+                if let Some((m, rhs)) = idx_invert(&a, &b) {
+                    return self.bind_idx(m, rhs);
+                }
+                if let Some((m, rhs)) = idx_invert(&b, &a) {
+                    return self.bind_idx(m, rhs);
+                }
+                if a.eq(&b) {
+                    Ok(())
+                } else {
+                    Err(format!("index mismatch: {a} vs {b}"))
+                }
+            }
+        }
+    }
+
+    /// Unify two propositions (validated like index terms).
+    pub fn unify_prop(&mut self, a: &PTerm, b: &PTerm) -> std::result::Result<(), String> {
+        let mut trial = self.clone();
+        trial.unify_prop_raw(a, b)?;
+        if trial.resolve_prop(a).eq(&trial.resolve_prop(b)) {
+            *self = trial;
+            Ok(())
+        } else {
+            Err(format!(
+                "propositions do not match: {} vs {}",
+                self.resolve_prop(a),
+                self.resolve_prop(b)
+            ))
+        }
+    }
+
+    fn unify_prop_raw(&mut self, a: &PTerm, b: &PTerm) -> std::result::Result<(), String> {
+        let a = self.resolve_prop(a);
+        let b = self.resolve_prop(b);
+        match (&a, &b) {
+            (PTerm::MVar(m), _) => self.bind_prop(*m, b),
+            (_, PTerm::MVar(m)) => self.bind_prop(*m, a),
+            (PTerm::Var(x), PTerm::Var(y)) if x == y => Ok(()),
+            (PTerm::Cmp(op, x, y), PTerm::Cmp(op2, u, v)) if op == op2 => {
+                self.unify_idx(x, u)?;
+                self.unify_idx(y, v)
+            }
+            (PTerm::Eq(x, y), PTerm::Eq(u, v)) => {
+                self.unify_idx(x, u)?;
+                self.unify_idx(y, v)
+            }
+            (PTerm::Not(x), PTerm::Not(y)) => self.unify_prop(x, y),
+            _ => {
+                if a.eq(&b) {
+                    Ok(())
+                } else {
+                    Err(format!("propositions do not match: {a} vs {b}"))
+                }
+            }
+        }
+    }
+
+    /// Definitional equality (conversion) on resolved types: beta (at
+    /// elaboration), iota on numerals, proof irrelevance for `Prop`
+    /// components, and syntactic equality elsewhere. Terminating by
+    /// construction: conversion never unfolds user definitions
+    /// (decision D28).
+    pub fn conv_eq(&self, a: &Ty, b: &Ty) -> bool {
+        ty_eq(&self.zonk(a), &self.zonk(b))
+    }
+
     /// Resolve a row's tail through the row substitution, flattening the
     /// labels a bound tail contributes. Label region arguments follow the
     /// region-name substitution, so two labels of one head and one resolved
@@ -883,6 +1686,20 @@ impl Unifier {
             Ty::Fun(a, m, e, b) => {
                 Ty::fun_mult(self.zonk(&a), m, self.resolve_row(&e), self.zonk(&b))
             }
+            Ty::Pi { var, dom, mult, eff, cod } => Ty::Pi {
+                var,
+                dom: Box::new(self.zonk(&dom)),
+                mult,
+                eff: self.resolve_row(&eff),
+                cod: Box::new(self.zonk(&cod)),
+            },
+            Ty::Sigma { var, dom, cod } => Ty::Sigma {
+                var,
+                dom: Box::new(self.zonk(&dom)),
+                cod: Box::new(self.zonk(&cod)),
+            },
+            Ty::Idx(t) => Ty::Idx(Box::new(self.resolve_idx(&t))),
+            Ty::Prp(p) => Ty::Prp(Box::new(self.resolve_prop(&p))),
             Ty::Thunk { eff, inner } => Ty::Thunk {
                 eff: self.resolve_row(&eff),
                 inner: Box::new(self.zonk(&inner)),
@@ -970,6 +1787,20 @@ impl Unifier {
                 self.gen_row(&e, names),
                 self.gen_ty(&b, names),
             ),
+            Ty::Pi { var, dom, mult, eff, cod } => Ty::Pi {
+                var,
+                dom: Box::new(self.gen_ty(&dom, names)),
+                mult,
+                eff: self.gen_row(&eff, names),
+                cod: Box::new(self.gen_ty(&cod, names)),
+            },
+            Ty::Sigma { var, dom, cod } => Ty::Sigma {
+                var,
+                dom: Box::new(self.gen_ty(&dom, names)),
+                cod: Box::new(self.gen_ty(&cod, names)),
+            },
+            Ty::Idx(t) => Ty::Idx(Box::new(self.resolve_idx(&t))),
+            Ty::Prp(p) => Ty::Prp(Box::new(self.resolve_prop(&p))),
             Ty::Thunk { eff, inner } => Ty::Thunk {
                 eff: self.gen_row(&eff, names),
                 inner: Box::new(self.gen_ty(&inner, names)),
@@ -1015,6 +1846,8 @@ impl Unifier {
             Ty::Meta(m) => m == id,
             Ty::Adt(_, args) | Ty::Tuple(args) => args.iter().any(|a| self.occurs(id, a)),
             Ty::Fun(a, _, _, b) => self.occurs(id, &a) || self.occurs(id, &b),
+            Ty::Pi { dom, cod, .. } => self.occurs(id, &dom) || self.occurs(id, &cod),
+            Ty::Sigma { dom, cod, .. } => self.occurs(id, &dom) || self.occurs(id, &cod),
             Ty::Thunk { inner, .. } => self.occurs(id, &inner),
             Ty::Lazy { inner, .. } => self.occurs(id, &inner),
             Ty::Ref(_, inner) | Ty::Mut(_, inner) => self.occurs(id, &inner),
@@ -1303,8 +2136,65 @@ impl Unifier {
                 self.unify(i1, i2)?;
                 self.unify(o1, o2)
             }
-            _ => Err(format!("type mismatch: expected {}, got {}", self.zonk(&a), self.zonk(&b))),
+            (Ty::Sort(s1), Ty::Sort(s2)) if s1 == s2 => Ok(()),
+            (Ty::Idx(x), Ty::Idx(y)) => self.unify_idx(x, y),
+            (Ty::Prp(x), Ty::Prp(y)) => self.unify_prop(x, y),
+            (
+                Ty::Fun(a1, m1, e1, b1),
+                Ty::Pi { var, dom, mult, eff, cod },
+            )
+            | (
+                Ty::Pi { var, dom, mult, eff, cod },
+                Ty::Fun(a1, m1, e1, b1),
+            ) => self.unify_fun_shapes(
+                "$", a1, *m1, e1, b1, var, dom, *mult, eff, cod,
+            ),
+            (
+                Ty::Pi { var: v1, dom: d1, mult: m1, eff: e1, cod: c1 },
+                Ty::Pi { var: v2, dom: d2, mult: m2, eff: e2, cod: c2 },
+            ) => self.unify_fun_shapes(v1, d1, *m1, e1, c1, v2, d2, *m2, e2, c2),
+            (
+                Ty::Sigma { var: v1, dom: d1, cod: c1 },
+                Ty::Sigma { var: v2, dom: d2, cod: c2 },
+            ) => {
+                self.unify(d1, d2)?;
+                let fresh = format!("$sigma{}", self.subst.len());
+                self.unify(&c1.subst_idx(v1, &ITerm::Var(fresh.clone())), &c2.subst_idx(v2, &ITerm::Var(fresh)))
+            }
+            _ => {
+                if self.conv_eq(&a, &b) {
+                    Ok(())
+                } else {
+                    Err(format!("type mismatch: expected {}, got {}", self.zonk(&a), self.zonk(&b)))
+                }
+            }
         }
+    }
+
+    /// Unify two function shapes (plain arrows and dependent Pis) up to
+    /// the binder name: the codomains are compared under one fresh
+    /// binder.
+    fn unify_fun_shapes(
+        &mut self,
+        v1: &str,
+        d1: &Ty,
+        m1: Mult,
+        e1: &EffRow,
+        c1: &Ty,
+        v2: &str,
+        d2: &Ty,
+        m2: Mult,
+        e2: &EffRow,
+        c2: &Ty,
+    ) -> std::result::Result<(), String> {
+        unify_mults(m1, m2)?;
+        self.unify_rows(e1, e2)?;
+        self.unify(d1, d2)?;
+        let fresh = format!("$pi{}", self.subst.len());
+        self.unify(
+            &c1.subst_idx(v1, &ITerm::Var(fresh.clone())),
+            &c2.subst_idx(v2, &ITerm::Var(fresh)),
+        )
     }
 
     /// Row union: the accumulation operation for performed effects. The
@@ -1370,8 +2260,93 @@ impl Unifier {
     }
 }
 
+/// Invert a stuck index equation `lhs =?= rhs` when `lhs` is arithmetic
+/// with one metavariable and `rhs` is a numeral: `?k + c = n` solves
+/// `?k := n - c`. Solutions are guesses; the unifier validates them with
+/// conversion before committing.
+fn idx_invert(lhs: &ITerm, rhs: &ITerm) -> Option<(usize, ITerm)> {
+    let (ITerm::Num(n), ITerm::Bin(op, x, y)) = (rhs.normalize(), lhs.normalize()) else {
+        return None;
+    };
+    let n: i128 = n.parse().ok()?;
+    let (m, c, left) = match (&*x, &*y) {
+        (ITerm::MVar(m), ITerm::Num(c)) => (*m, c.parse::<i128>().ok()?, false),
+        (ITerm::Num(c), ITerm::MVar(m)) => (*m, c.parse::<i128>().ok()?, true),
+        _ => return None,
+    };
+    let v = match (op, left) {
+        (IdxOp::Add, _) => n.checked_sub(c),
+        (IdxOp::Sub, false) => n.checked_add(c),
+        (IdxOp::Sub, true) => c.checked_sub(n),
+        (IdxOp::Mul, _) if c != 0 && n % c == 0 => n.checked_div(c),
+        (IdxOp::Mul, _) => return None,
+    }?;
+    Some((m, ITerm::num(v)))
+}
+
 fn m_display(MetaId(m): MetaId) -> String {
     format!("?m{m}")
+}
+
+/// Definitional equality (conversion) on resolved types: dependent
+/// function and pair types compare up to binder names (beta happens at
+/// elaboration), index values and propositions compare with numeral
+/// reduction (iota), and everything else is structural. This procedure is
+/// total by construction: it never unfolds a user definition (decision
+/// D28), so it cannot loop.
+pub fn ty_eq(a: &Ty, b: &Ty) -> bool {
+    match (a, b) {
+        (Ty::Idx(x), Ty::Idx(y)) => x.eq(y),
+        (Ty::Prp(x), Ty::Prp(y)) => x.eq(y),
+        (Ty::Sort(s), Ty::Sort(t)) => s == t,
+        (Ty::Adt(n, xs), Ty::Adt(m, ys)) => {
+            n == m && xs.len() == ys.len() && xs.iter().zip(ys).all(|(x, y)| ty_eq(x, y))
+        }
+        (Ty::Tuple(xs), Ty::Tuple(ys)) => {
+            xs.len() == ys.len() && xs.iter().zip(ys).all(|(x, y)| ty_eq(x, y))
+        }
+        (
+            Ty::Fun(..) | Ty::Pi { .. },
+            Ty::Fun(..) | Ty::Pi { .. },
+        ) => {
+            let (v1, d1, m1, e1, c1) = a.as_pi();
+            let (v2, d2, m2, e2, c2) = b.as_pi();
+            if m1 != m2 && m1 != Mult::Flex && m2 != Mult::Flex {
+                return false;
+            }
+            if e1 != e2 {
+                return false;
+            }
+            if !ty_eq(d1, d2) {
+                return false;
+            }
+            let fresh = "$conv".to_string();
+            ty_eq(&c1.subst_idx(&v1, &ITerm::Var(fresh.clone())), &c2.subst_idx(&v2, &ITerm::Var(fresh)))
+        }
+        (Ty::Sigma { var: v1, dom: d1, cod: c1 }, Ty::Sigma { var: v2, dom: d2, cod: c2 }) => {
+            if !ty_eq(d1, d2) {
+                return false;
+            }
+            let fresh = "$conv".to_string();
+            ty_eq(&c1.subst_idx(v1, &ITerm::Var(fresh.clone())), &c2.subst_idx(v2, &ITerm::Var(fresh)))
+        }
+        (
+            Ty::Thunk { eff: e1, inner: i1 },
+            Ty::Thunk { eff: e2, inner: i2 },
+        ) => e1 == e2 && ty_eq(i1, i2),
+        (
+            Ty::Lazy { eff: e1, region: r1, inner: i1 },
+            Ty::Lazy { eff: e2, region: r2, inner: i2 },
+        ) => e1 == e2 && r1 == r2 && ty_eq(i1, i2),
+        (Ty::Ref(r1, i1), Ty::Ref(r2, i2)) | (Ty::Mut(r1, i1), Ty::Mut(r2, i2)) => {
+            r1 == r2 && ty_eq(i1, i2)
+        }
+        (
+            Ty::Handler { label: l1, input: i1, output: o1, eff: e1, resumption: r1 },
+            Ty::Handler { label: l2, input: i2, output: o2, eff: e2, resumption: r2 },
+        ) => l1 == l2 && r1 == r2 && e1 == e2 && ty_eq(i1, i2) && ty_eq(o1, o2),
+        _ => a == b,
+    }
 }
 
 #[cfg(test)]
