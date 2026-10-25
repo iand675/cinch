@@ -98,6 +98,13 @@ The closure and dictionary ABI is documented in `src/core.rs`.
   `Ref r a`/`Mut r a` borrows with region escape checking and lexical `Mut`
   uniqueness, and thunk force discipline (`%1` exactly once, `%aff` at
   most once; unannotated thunks default `%aff`).
+- **Staging and metaprogramming** (modules spec sections 7-11):
+  multi-module source files, `stage` declarations with typed quotations
+  `[||]`, splices `$()`, and `quoteDecls` over a compile-time
+  interpreter, `generate do` with capability-refined stage I/O (file and
+  subprocess), snapshot/replay build identity with redacted secrets,
+  hygienic token-tree macros with expansion provenance, macro-owned
+  attribute names, and stage scheduling with cycle diagnostics.
 - **Guarded codata** (core spec section 9): `codata` declarations as
   delayed-observation records, `corec` with structural productivity
   checking (unguarded recursion rejected naming the call), `Later` as a
@@ -138,7 +145,8 @@ Rejected with an explicit error naming the form:
 - A constructor match against a family applied to rigid indices (decision
   D35: the error names the index equation; dispatch through `decide` or
   computed indices instead).
-- `rewrite`, `upgrade`, staging and macros, quotations.
+- `rewrite`, `upgrade`, and module parameters (functor-style module
+  arguments).
 - Strings (string literals and string types; `Bytes` buffers and `Char`
   values are implemented).
 - `~` irrefutable patterns in function argument positions (Haskell's
@@ -191,12 +199,12 @@ compiler/
 
 ## Roadmap
 
-Remaining slices follow the implementation plan's milestones: staging
-and hygienic macros, the checked optimizer rules with target profiles,
-the FFI (real C symbols, opaque types, ABI contracts), structured
-concurrency and a real `Io r` runtime, runtime evolution (upgrades,
-record views, versioned dispatch), and the Wasm component profile.
-Beyond those: the P16 requirements (evidence invalidation, temporal
-contracts, cross-compilation), the P17 attribute/weight/layout work,
-and the P15 conformance sweep. Each slice should land with its positive
-and negative cases from `examples/`.
+Remaining slices follow the implementation plan's milestones: the
+checked optimizer rules with target profiles and the attribute/weight
+prerequisites, the FFI (real C symbols, opaque types, ABI contracts),
+structured concurrency and a real `Io r` runtime, runtime evolution
+(upgrades, record views, versioned dispatch), and the Wasm component
+profile. Beyond those: the P16 requirements (evidence invalidation,
+temporal contracts, cross-compilation, module parameters, schema
+generation), and the P15 conformance sweep. Each slice should land with
+its positive and negative cases from `examples/`.

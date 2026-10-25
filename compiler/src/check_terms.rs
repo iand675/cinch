@@ -112,12 +112,36 @@ impl Checker {
                 Ty::Int,
             )),
             ast::Term::Unit(_) => Ok((ECore::Unit, Ty::Unit)),
-            ast::Term::Str(_, span) => Err(Error::at(
-                *span,
-                "string values are not supported in the bootstrap slice",
-            )),
+            ast::Term::Str(s, span) => {
+                // `String` is a compile-time type in this slice (decision
+                // D43): literals elaborate where compile-time code runs,
+                // and the runtime string type arrives with the FFI slice.
+                if !self.compile_time {
+                    return Err(Error::at(
+                        *span,
+                        "string literals are compile-time only in this slice (the runtime `String` type arrives with the FFI slice)",
+                    ));
+                }
+                Ok((ECore::StrLit(s.clone()), Ty::Adt("String".into(), Vec::new())))
+            }
             ast::Term::Char(s, span) => {
                 Ok((ECore::Int(char_literal_word(s, *span)?), Ty::Prim(Scalar::Char)))
+            }
+            ast::Term::Quote { body, span } => self.infer_quote(env, body, *span),
+            ast::Term::QuoteDecls { decls, span } => self.infer_quote_decls(env, decls, *span),
+            ast::Term::Splice { span, .. } => Err(Error::at(
+                *span,
+                "a splice `$( ... )` is only valid inside a quotation",
+            )),
+            ast::Term::SpliceHole { idx, span } => match self.hole_tys.get(*idx) {
+                Some(t) => Ok((ECore::Unit, t.clone())),
+                None => Err(Error::at(
+                    *span,
+                    "internal error: a template hole outside template elaboration",
+                )),
+            },
+            ast::Term::MacroCall { path, args, span } => {
+                self.macro_call_value(env, path, args, *span)
             }
             ast::Term::Hole(span) => Err(Error::at(
                 *span,
@@ -663,6 +687,20 @@ impl Checker {
                 self.compile_alts(env, alts, scrut_core, scrut_ty, expected, *span)
             }
             ast::Term::Int(v, span) => self.lit_check(expected, v, *span),
+            ast::Term::Quote { body, span } => {
+                // Against a known `Code t`, check the template at `t`
+                // directly (better errors than infer-and-unify).
+                if let Ty::Adt(name, args) = self.uni.zonk(expected) {
+                    if name == "Code" && args.len() == 1 {
+                        return self.check_quote_template(env, body, &args[0], *span);
+                    }
+                }
+                let (core, ty) = self.infer_quote(env, body, *span)?;
+                self.uni
+                    .unify(&ty, expected)
+                    .map_err(|m| Error::at(term.span(), m))?;
+                Ok(core)
+            }
             ast::Term::Neg(inner, span) => {
                 // Prefix `-` folds into a literal and is range-checked with
                 // it when the expected type is known (primitive types
@@ -791,6 +829,194 @@ impl Checker {
     /// `delay e`, `force t`, `demand d`: builtin deferral forms from the
     /// laziness and reclamation specification. They are special forms so
     /// their effect rows are synthesized exactly.
+    // ------------------------------------------------------------ staging (P9)
+
+    /// `[| e |]`: a typed quotation, a `Code t` value built at compile
+    /// time from template `e` (modules specification section 7).
+    fn infer_quote(
+        &mut self,
+        env: &mut Env,
+        body: &ast::Term,
+        span: ast::Span,
+    ) -> Result<(ECore, Ty)> {
+        let t = self.uni.fresh();
+        let core = self.check_quote_template(env, body, &t, span)?;
+        Ok((core, Ty::Adt("Code".into(), vec![t])))
+    }
+
+    /// Check one quotation template at `expected`, elaborating its holes
+    /// in compile-time mode and its body in closed runtime-side scope: a
+    /// quotation cannot capture the enclosing locals (decision D43), and
+    /// its body's effects are latent in the code (decision D44), checked
+    /// under ordinary rules when the code is spliced into declarations.
+    fn check_quote_template(
+        &mut self,
+        env: &mut Env,
+        body: &ast::Term,
+        expected: &Ty,
+        span: ast::Span,
+    ) -> Result<ECore> {
+        let _ = span;
+        let mut template = body.clone();
+        let mut holes: Vec<ast::HoleExpr> = Vec::new();
+        ast::collect_template_holes(&mut template, &mut holes);
+        let (hole_cores, hole_tys) = self.elaborate_holes(env, &holes)?;
+        let mut tenv = Env::default();
+        let save_perf = std::mem::take(&mut self.perf);
+        let save_ct = self.compile_time;
+        let save_holes = std::mem::take(&mut self.hole_tys);
+        self.compile_time = false;
+        self.hole_tys = hole_tys;
+        let r = self.check(&mut tenv, &template, expected);
+        self.perf = save_perf;
+        self.compile_time = save_ct;
+        self.hole_tys = save_holes;
+        // Type checking of the template is the point: its elaboration is
+        // discarded, because the template stays AST and is checked again
+        // under ordinary rules wherever the code lands.
+        r?;
+        Ok(ECore::Quote { template: Box::new(template), holes: hole_cores })
+    }
+
+    /// `quoteDecls where { ... }`: a declaration-group value (modules
+    /// specification section 8: the generated declarations are checked
+    /// under ordinary rules at emission, so the template is only parsed
+    /// here and its holes elaborated).
+    fn infer_quote_decls(
+        &mut self,
+        env: &mut Env,
+        decls: &[ast::Decl],
+        _span: ast::Span,
+    ) -> Result<(ECore, Ty)> {
+        let mut template = decls.to_vec();
+        let mut holes: Vec<ast::HoleExpr> = Vec::new();
+        ast::collect_decl_template_holes(&mut template, &mut holes);
+        let (hole_cores, _) = self.elaborate_holes(env, &holes)?;
+        Ok((
+            ECore::DeclsQuote { template, holes: hole_cores },
+            Ty::Adt("Declarations".into(), Vec::new()),
+        ))
+    }
+
+    /// Elaborate a template's holes in compile-time mode; each hole's
+    /// position type is the code it splices (`Code t` fills a `t` hole) or
+    /// a fresh variable for raw `Syntax`.
+    fn elaborate_holes(
+        &mut self,
+        env: &mut Env,
+        holes: &[ast::HoleExpr],
+    ) -> Result<(Vec<ECore>, Vec<Ty>)> {
+        let mut cores = Vec::new();
+        let mut tys = Vec::new();
+        for h in holes {
+            let (core, ty) = self.elaborate_hole(env, h)?;
+            cores.push(core);
+            tys.push(ty);
+        }
+        Ok((cores, tys))
+    }
+
+    fn elaborate_hole(
+        &mut self,
+        env: &mut Env,
+        h: &ast::HoleExpr,
+    ) -> Result<(ECore, Ty)> {
+        let (core, ty, span) = match h {
+            ast::HoleExpr::Term(t) => {
+                let save = self.compile_time;
+                self.compile_time = true;
+                let r = self.infer(env, t);
+                self.compile_time = save;
+                let (core, ty) = r?;
+                (core, ty, t.span())
+            }
+            ast::HoleExpr::Macro { path, args, span } => {
+                let (core, ty) = self.macro_call_value(env, path, args, *span)?;
+                (core, ty, *span)
+            }
+        };
+        let ty = self.uni.zonk(&ty);
+        match ty {
+            Ty::Adt(name, args) if name == "Code" && args.len() == 1 => Ok((core, args[0].clone())),
+            Ty::Adt(name, args) if name == "Syntax" && args.is_empty() => {
+                let fresh = self.uni.fresh();
+                Ok((core, fresh))
+            }
+            other => Err(Error::at(
+                span,
+                format!(
+                    "a splice or macro invocation in a template must produce `Code t` or `Syntax`, but this one produces {other}"
+                ),
+            )),
+        }
+    }
+
+    /// `m!( tokens )`: apply the macro to its `Syntax` arguments at
+    /// compile time (the expansion is inserted where the value is used;
+    /// in runtime code the staging pass expands it before checking).
+    fn macro_call_value(
+        &mut self,
+        env: &mut Env,
+        path: &ast::VarPath,
+        args: &ast::TokenTree,
+        span: ast::Span,
+    ) -> Result<(ECore, Ty)> {
+        if !self.compile_time {
+            return Err(Error::at(
+                span,
+                "a macro invocation must be expanded before checking; it is only callable from compile-time code or a template",
+            ));
+        }
+        let v = self.resolve_var(path, span)?;
+        if !matches!(v.kind, ValueKind::MacroFn) {
+            return Err(Error::at(
+                span,
+                format!("`{}` is not a macro (only `macro` definitions take `!(...)` token-tree arguments)", v.name),
+            ));
+        }
+        let groups = args.arg_groups();
+        let key = (v.module.clone(), v.name.clone());
+        if let Some(info) = self.macros.get(&key) {
+            let want = if info.arity == 1 { 1 } else { info.arity };
+            if info.arity != groups.len() && !(info.arity == 1 && groups.len() == 1) {
+                return Err(Error::at(
+                    span,
+                    format!(
+                        "macro `{}` takes {} token-tree argument(s), but the invocation supplies {}",
+                        v.name,
+                        info.arity,
+                        groups.len()
+                    ),
+                ));
+            }
+            let _ = want;
+        }
+        let (mut ty, ctx, val_args) = self.instantiate(&v.scheme);
+        if !ctx.is_empty() || !val_args.is_empty() {
+            return Err(Error::at(
+                span,
+                "a macro cannot be polymorphic or constrained in this slice",
+            ));
+        }
+        let mut arg_cores = Vec::new();
+        for g in &groups {
+            arg_cores.push(ECore::SyntaxLit(g.tokens.clone()));
+        }
+        // The invocation applies one argument per token-tree group: the
+        // result type is what remains after that many arrows.
+        ty = self.uni.zonk(&ty);
+        for _ in &groups {
+            ty = self.uni.zonk(&ty);
+            ty = match ty {
+                Ty::Fun(_, _, _, b) => *b,
+                Ty::Pi { cod, .. } => *cod,
+                other => other,
+            };
+        }
+        let id = GlobalId(format!("{}.{}", v.module, v.name));
+        Ok((app_spine(ECore::Global(id), arg_cores), ty))
+    }
+
     fn infer_builtin_app(
         &mut self,
         env: &mut Env,
@@ -1777,6 +2003,33 @@ impl Checker {
     /// methods elaborate to dictionary projection.
     fn value_use(&mut self, v: &ValueInfo, span: ast::Span, env: &mut Env) -> Result<(ECore, Ty)> {
         match &v.kind {
+            ValueKind::StageBuiltin(op) => {
+                // The compile-time capability API (`Stage.*`): its values
+                // exist only during compilation (modules specification
+                // section 10).
+                if !self.compile_time {
+                    return Err(Error::at(
+                        span,
+                        format!(
+                            "{} is compile-time only: it cannot appear in runtime code (only in `stage`/`macro` definitions, `generate do` blocks, and quotation splices)",
+                            v.name
+                        ),
+                    ));
+                }
+                let (ty, _ctx, _val_args) = self.instantiate(&v.scheme);
+                return Ok((ECore::Global(op.global_id()), ty));
+            }
+            ValueKind::StageFn | ValueKind::MacroFn => {
+                if !self.compile_time {
+                    return Err(Error::at(
+                        span,
+                        format!(
+                            "{} is a compile-time definition (`stage`/`macro`): it cannot appear in runtime code",
+                            v.name
+                        ),
+                    ));
+                }
+            }
             ValueKind::BoolLit(b) => return Ok((ECore::Bool(*b), Ty::Bool)),
             ValueKind::EffectOp { head, .. } => {
                 return Err(Error::at(
@@ -1871,7 +2124,10 @@ impl Checker {
             idx_holes.push(ECore::IdxPending(id));
         }
         let core = match &v.kind {
-            ValueKind::TopFn => ECore::Global(fn_id(&v.module, &v.name)),
+            ValueKind::TopFn | ValueKind::StageFn | ValueKind::MacroFn => {
+                ECore::Global(fn_id(&v.module, &v.name))
+            }
+            ValueKind::StageBuiltin(op) => ECore::Global(op.global_id()),
             ValueKind::Prim(op) => ECore::Prim(*op),
             ValueKind::Ctor { .. } => ECore::Ctor(fn_id(&v.module, &v.name)),
             ValueKind::Method { idx, .. } => {
@@ -3724,7 +3980,13 @@ impl Checker {
                 | ast::Term::Char(_, _)
                 | ast::Term::Unit(_)
                 | ast::Term::Hole(_)
+                | ast::Term::SpliceHole { .. }
+                | ast::Term::MacroCall { .. }
                 | ast::Term::SeqOp(_, _) => {}
+                ast::Term::Quote { body, .. } | ast::Term::Splice { body, .. } => {
+                    walk(chk, body, found)
+                }
+                ast::Term::QuoteDecls { .. } => {}
                 ast::Term::App(f, args, _) => {
                     walk(chk, f, found);
                     for a in args {
@@ -3920,6 +4182,11 @@ impl Checker {
             | ast::Term::Char(_, _)
             | ast::Term::Unit(_)
             | ast::Term::Hole(_)
+            | ast::Term::SpliceHole { .. }
+            | ast::Term::MacroCall { .. }
+            | ast::Term::QuoteDecls { .. }
+            | ast::Term::Quote { .. }
+            | ast::Term::Splice { .. }
             | ast::Term::Lam(_, _, _)
             | ast::Term::SeqOp(_, _) => {
                 // Leaves and lambdas: an operation inside a lambda body
@@ -5221,14 +5488,19 @@ impl Checker {
             }
         }
         let core = match &v.kind {
-            ValueKind::TopFn => ECore::Global(fn_id(&v.module, &v.name)),
+            ValueKind::TopFn | ValueKind::StageFn | ValueKind::MacroFn => {
+                ECore::Global(fn_id(&v.module, &v.name))
+            }
             ValueKind::Prim(op) => ECore::Prim(*op),
             ValueKind::Ctor { .. } => ECore::Ctor(fn_id(&v.module, &v.name)),
             ValueKind::Method { idx, .. } => {
                 let dict = holes.remove(0);
                 ECore::DictProj(Box::new(dict), *idx)
             }
-            ValueKind::BoolLit(_) | ValueKind::EffectOp { .. } | ValueKind::ProofCtor => {
+            ValueKind::StageBuiltin(_)
+            | ValueKind::BoolLit(_)
+            | ValueKind::EffectOp { .. }
+            | ValueKind::ProofCtor => {
                 return Err(Error::at(span, "this value takes no capability supplies"))
             }
         };

@@ -14,9 +14,76 @@ pub struct Span {
     pub col: u32,
 }
 
+/// Expansion provenance for generated syntax (modules specification
+/// section 8: source maps retain expansion provenance for diagnostics):
+/// which expansion produced a node, its invocation site, and the enclosing
+/// expansion when generation happens inside generated code.
+#[derive(Clone, Debug)]
+pub struct ExpSite {
+    /// The macro or generator that produced the syntax.
+    pub name: String,
+    /// The invocation site in the caller's source.
+    pub call: Span,
+    /// The file the template came from, for the rendered form.
+    pub origin: String,
+    /// The template's own span, in `origin`'s coordinates.
+    pub template: Span,
+    /// The expansion this one happened inside, if any.
+    pub parent: Option<Span>,
+}
+
+thread_local! {
+    static EXPANSIONS: std::cell::RefCell<Vec<ExpSite>> =
+        const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// The marker `col` of a generated span; `line` indexes the expansion
+/// arena (one-based). Real spans never carry this column.
+const EXP_COL: u32 = u32::MAX;
+
+/// Record one expansion and return a span that renders its provenance.
+/// Generated syntax carries such spans so diagnostics trace back through
+/// expansions to the template and the call site.
+pub fn record_expansion(site: ExpSite) -> Span {
+    EXPANSIONS.with(|e| {
+        let mut e = e.borrow_mut();
+        e.push(site);
+        Span { line: e.len() as u32, col: EXP_COL }
+    })
+}
+
+/// Is `span` a generated span carrying expansion provenance?
+pub fn is_generated(span: Span) -> bool {
+    span.col == EXP_COL
+}
+
+/// The provenance recorded in a generated span.
+pub fn expansion_of(span: Span) -> Option<ExpSite> {
+    if span.col != EXP_COL {
+        return None;
+    }
+    EXPANSIONS.with(|e| e.borrow().get(span.line.saturating_sub(1) as usize).cloned())
+}
+
 impl fmt::Display for Span {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}:{}", self.line, self.col)
+        match expansion_of(*self) {
+            Some(site) => {
+                write!(f, "{}:{}:{} (in expansion of {} called at {}:{})", site.origin, site.template.line, site.template.col, site.name, site.call.line, site.call.col)?;
+                let mut parent = site.parent;
+                while let Some(p) = parent {
+                    match expansion_of(p) {
+                        Some(outer) => {
+                            write!(f, ", expanded from `{}` at {}:{}", outer.name, outer.call.line, outer.call.col)?;
+                            parent = outer.parent;
+                        }
+                        None => break,
+                    }
+                }
+                Ok(())
+            }
+            None => write!(f, "{}:{}", self.line, self.col),
+        }
     }
 }
 
@@ -115,6 +182,11 @@ pub enum Tok {
     /// Bare `~`, reserved for memo bindings. Symbol runs like `~>` remain
     /// ordinary operators.
     Tilde,
+
+    /// One `#[name]` or `#[name(args)]` attribute (attribute annotations
+    /// specification, section 1). `args` is the raw argument text: the
+    /// parentheses content, or the `= literal` tail of the named form.
+    Attr { name: String, args: Option<String> },
 
     LParen,
     RParen,
@@ -303,6 +375,19 @@ impl Lexer {
                 out.push(Token { tok: Tok::Eof, span, virtual_: false });
                 return Ok(out);
             };
+            // `$(` is the splice opener, but the layout pass must see `(`
+            // as its own delimiter (it shields layout and balances `)`):
+            // emit `Dollar` + `LParen` sharing one span, and the parser
+            // reconstitutes a splice from an adjacent pair (surface
+            // grammar: `$(` is reserved punctuation, so the pair is only
+            // one token when written together).
+            if c == '$' && self.peek_at(1) == Some('(') {
+                self.bump();
+                self.bump();
+                out.push(Token { tok: Tok::Dollar, span, virtual_: false });
+                out.push(Token { tok: Tok::LParen, span, virtual_: false });
+                continue;
+            }
             let tok = self.scan_token(c, span)?;
             out.push(Token { tok, span, virtual_: false });
         }
@@ -396,18 +481,14 @@ impl Lexer {
                     Ok(self.lex_symbol())
                 }
             }
+            '#' if self.peek_at(1) == Some('[') => self.lex_attr(span),
             '%' => match self.lex_multiplicity() {
                 Some(t) => Ok(t),
                 None => Ok(self.lex_symbol()),
             },
             '$' => {
                 self.bump();
-                if self.peek() == Some('(') {
-                    self.bump();
-                    Ok(Tok::DollarParen)
-                } else {
-                    Ok(Tok::Dollar)
-                }
+                Ok(Tok::Dollar)
             }
             '\\' => {
                 self.bump();
@@ -464,6 +545,108 @@ impl Lexer {
             }
             _ => None,
         }
+    }
+
+    /// `#[name]`, `#[name(args)]`, or `#[name = literal]`: one attribute
+    /// token (attribute annotations specification, section 1). The name is
+    /// dotted; the argument text is captured raw for per-family validation.
+    fn lex_attr(&mut self, span: Span) -> Result<Tok> {
+        self.bump(); // `#`
+        self.bump(); // `[`
+        let mut name = String::new();
+        while let Some(c) = self.peek() {
+            if c.is_ascii_alphanumeric() || c == '_' || c == '\'' || c == '.' {
+                name.push(c);
+                self.bump();
+            } else {
+                break;
+            }
+        }
+        if name.is_empty() || name.starts_with('.') || name.ends_with('.') {
+            return Err(Error::at(span, "an attribute needs a name"));
+        }
+        let mut args = None;
+        match self.peek() {
+            Some('(') => {
+                self.bump();
+                let mut text = String::new();
+                let mut depth = 1usize;
+                loop {
+                    match self.peek() {
+                        Some('"') => {
+                            // Keep string contents opaque so a `)` inside
+                            // one does not close the arguments.
+                            text.push('"');
+                            self.bump();
+                            loop {
+                                match self.peek() {
+                                    Some('\\') => {
+                                        text.push('\\');
+                                        self.bump();
+                                        if let Some(c) = self.peek() {
+                                            text.push(c);
+                                            self.bump();
+                                        }
+                                    }
+                                    Some('"') => {
+                                        text.push('"');
+                                        self.bump();
+                                        break;
+                                    }
+                                    Some(c) => {
+                                        text.push(c);
+                                        self.bump();
+                                    }
+                                    None => {
+                                        return Err(Error::at(
+                                            span,
+                                            "unterminated attribute arguments",
+                                        ))
+                                    }
+                                }
+                            }
+                        }
+                        Some('(') => {
+                            depth += 1;
+                            text.push('(');
+                            self.bump();
+                        }
+                        Some(')') => {
+                            depth -= 1;
+                            self.bump();
+                            if depth == 0 {
+                                break;
+                            }
+                            text.push(')');
+                        }
+                        Some(c) => {
+                            text.push(c);
+                            self.bump();
+                        }
+                        None => return Err(Error::at(span, "unterminated attribute arguments")),
+                    }
+                }
+                args = Some(text);
+            }
+            Some('=') => {
+                self.bump();
+                let mut text = "=".to_string();
+                while let Some(c) = self.peek() {
+                    if c == ']' {
+                        break;
+                    }
+                    text.push(c);
+                    self.bump();
+                }
+                args = Some(text.trim().to_string());
+            }
+            _ => {}
+        }
+        if self.peek() != Some(']') {
+            return Err(Error::at(span, "unterminated attribute"));
+        }
+        self.bump();
+        Ok(Tok::Attr { name, args })
     }
 
     fn lex_symbol(&mut self) -> Tok {
@@ -804,14 +987,23 @@ mod tests {
 
     #[test]
     fn splice_and_quote() {
-        assert_eq!(kinds("[| $ ( ) $( x"), vec![
+        // `$(` lexes as `Dollar` + `LParen` sharing one span (the parser
+        // reconstitutes the splice from an adjacent pair); `$ (` stays
+        // ordinary reserved application.
+        let toks = crate::lexer::lex("[| $ ( ) $( x").unwrap();
+        let kinds: Vec<Tok> = toks.iter().map(|t| t.tok.clone()).collect();
+        assert_eq!(kinds, vec![
             Tok::LQuote,
             Tok::Dollar,
             Tok::LParen,
             Tok::RParen,
-            Tok::DollarParen,
+            Tok::Dollar,
+            Tok::LParen,
             Tok::VarId("x".into()),
             Tok::Eof
         ]);
+        // The `$(` pair shares a span; the spaced `$ (` pair does not.
+        assert_eq!(toks[4].span, toks[5].span);
+        assert_ne!(toks[1].span, toks[2].span);
     }
 }

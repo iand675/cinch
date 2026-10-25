@@ -60,6 +60,24 @@ enum ECore {
     /// Deferred implicit index argument, reified once unification has
     /// solved it ([`Checker::resolve_idx_pends`]).
     IdxPending(usize),
+    /// A typed quotation template under construction (staging): the
+    /// template with `SpliceHole` placeholders and the elaborated splice
+    /// expressions evaluated at construction (modules specification
+    /// section 7).
+    Quote {
+        template: Box<crate::ast::Term>,
+        holes: Vec<ECore>,
+    },
+    /// A `quoteDecls` template under construction (modules specification
+    /// section 8).
+    DeclsQuote {
+        template: Vec<crate::ast::Decl>,
+        holes: Vec<ECore>,
+    },
+    /// A macro argument's raw token tree (`Syntax` values).
+    SyntaxLit(Vec<crate::lexer::Token>),
+    /// A compile-time string constant (`String` values).
+    StrLit(String),
 }
 
 #[derive(Clone, Debug)]
@@ -107,7 +125,13 @@ fn free_locals(e: &ECore, bound: &mut Vec<LocalId>, out: &mut Vec<LocalId>) {
             }
         }
         ECore::Int(_) | ECore::ConstBig { .. } | ECore::Lit(_) | ECore::Bool(_) | ECore::Unit | ECore::Global(_)
-        | ECore::Ctor(_) | ECore::Prim(_) | ECore::Hole(_) | ECore::IdxPending(_) | ECore::Fault => {}
+        | ECore::Ctor(_) | ECore::Prim(_) | ECore::Hole(_) | ECore::IdxPending(_) | ECore::Fault
+        | ECore::SyntaxLit(_) | ECore::StrLit(_) => {}
+        ECore::Quote { holes, .. } | ECore::DeclsQuote { holes, .. } => {
+            for h in holes {
+                free_locals(h, bound, out);
+            }
+        }
         ECore::DictProj(d, _) => free_locals(d, bound, out),
         ECore::Proj(d, _) => free_locals(d, bound, out),
         ECore::InstDict(_, args) | ECore::App(_, args) | ECore::MkClos { env: args, .. } => {
@@ -182,7 +206,14 @@ fn hoist_lambdas(e: &mut ECore, hint: &str, counter: &mut usize, fns: &mut Vec<H
         | ECore::Prim(_)
         | ECore::Hole(_)
         | ECore::IdxPending(_)
-        | ECore::Fault => {}
+        | ECore::Fault
+        | ECore::SyntaxLit(_)
+        | ECore::StrLit(_) => {}
+        ECore::Quote { holes, .. } | ECore::DeclsQuote { holes, .. } => {
+            for h in holes {
+                hoist_lambdas(h, hint, counter, fns);
+            }
+        }
         ECore::DictProj(d, _) => hoist_lambdas(d, hint, counter, fns),
         ECore::Proj(d, _) => hoist_lambdas(d, hint, counter, fns),
         ECore::InstDict(_, args) | ECore::App(_, args) | ECore::MkClos { env: args, .. } => {
@@ -260,7 +291,13 @@ fn assign_locals(e: &ECore, map: &mut HashMap<LocalId, LocalId>, next: &mut usiz
     match e {
         ECore::Var(l) => note_local(*l, map, next),
         ECore::Int(_) | ECore::ConstBig { .. } | ECore::Lit(_) | ECore::Bool(_) | ECore::Unit | ECore::Global(_)
-        | ECore::Ctor(_) | ECore::Prim(_) | ECore::Hole(_) | ECore::IdxPending(_) | ECore::Fault => {}
+        | ECore::Ctor(_) | ECore::Prim(_) | ECore::Hole(_) | ECore::IdxPending(_) | ECore::Fault
+        | ECore::SyntaxLit(_) | ECore::StrLit(_) => {}
+        ECore::Quote { holes, .. } | ECore::DeclsQuote { holes, .. } => {
+            for h in holes {
+                assign_locals(h, map, next);
+            }
+        }
         ECore::DictProj(d, _) => assign_locals(d, map, next),
         ECore::Proj(d, _) => assign_locals(d, map, next),
         ECore::InstDict(_, args) | ECore::App(_, args) | ECore::MkClos { env: args, .. } => {
@@ -329,6 +366,16 @@ fn rewrite_locals(e: &ECore, map: &HashMap<LocalId, LocalId>) -> ECore {
         ECore::Hole(h) => ECore::Hole(*h),
         ECore::IdxPending(i) => ECore::IdxPending(*i),
         ECore::Fault => ECore::Fault,
+        ECore::SyntaxLit(toks) => ECore::SyntaxLit(toks.clone()),
+        ECore::StrLit(s) => ECore::StrLit(s.clone()),
+        ECore::Quote { template, holes } => ECore::Quote {
+            template: template.clone(),
+            holes: holes.iter().map(|h| rewrite_locals(h, map)).collect(),
+        },
+        ECore::DeclsQuote { template, holes } => ECore::DeclsQuote {
+            template: template.clone(),
+            holes: holes.iter().map(|h| rewrite_locals(h, map)).collect(),
+        },
         ECore::DictProj(d, i) => ECore::DictProj(Box::new(rewrite_locals(d, map)), *i),
         ECore::Proj(d, i) => ECore::Proj(Box::new(rewrite_locals(d, map)), *i),
         ECore::InstDict(g, args) => ECore::InstDict(
@@ -387,7 +434,13 @@ fn resolve_lit_words(e: &mut ECore, lits: &[ECore]) {
         ECore::Lit(i) => *e = lits[*i].clone(),
         ECore::Int(_) | ECore::ConstBig { .. } | ECore::Bool(_) | ECore::Unit | ECore::Var(_)
         | ECore::Global(_)
-        | ECore::Ctor(_) | ECore::Prim(_) | ECore::Hole(_) | ECore::IdxPending(_) | ECore::Fault | ECore::LazyAlloc => {}
+        | ECore::Ctor(_) | ECore::Prim(_) | ECore::Hole(_) | ECore::IdxPending(_) | ECore::Fault | ECore::LazyAlloc
+        | ECore::SyntaxLit(_) | ECore::StrLit(_) => {}
+        ECore::Quote { holes, .. } | ECore::DeclsQuote { holes, .. } => {
+            for h in holes {
+                resolve_lit_words(h, lits);
+            }
+        }
         ECore::DictProj(d, _) | ECore::Proj(d, _) | ECore::Demand(d) => {
             resolve_lit_words(d, lits)
         }
@@ -438,7 +491,14 @@ fn resolve_idx_words(e: &mut ECore, vals: &[ECore]) {
         | ECore::Prim(_)
         | ECore::Hole(_)
         | ECore::Fault
-        | ECore::LazyAlloc => {}
+        | ECore::LazyAlloc
+        | ECore::SyntaxLit(_)
+        | ECore::StrLit(_) => {}
+        ECore::Quote { holes, .. } | ECore::DeclsQuote { holes, .. } => {
+            for h in holes {
+                resolve_idx_words(h, vals);
+            }
+        }
         ECore::DictProj(d, _) | ECore::Proj(d, _) | ECore::Demand(d) => {
             resolve_idx_words(d, vals)
         }
@@ -517,6 +577,16 @@ fn lower(e: &ECore) -> crate::core::Core {
         ECore::Lam { .. } | ECore::Hole(_) | ECore::IdxPending(_) => {
             unreachable!("lambda hoisting and dictionary solving run before lowering")
         }
+        ECore::Quote { template, holes } => crate::core::Core::Quote {
+            template: template.clone(),
+            holes: holes.iter().map(lower).collect(),
+        },
+        ECore::DeclsQuote { template, holes } => crate::core::Core::DeclsQuote {
+            template: template.clone(),
+            holes: holes.iter().map(lower).collect(),
+        },
+        ECore::SyntaxLit(toks) => crate::core::Core::SyntaxLit(toks.clone()),
+        ECore::StrLit(s) => crate::core::Core::StrLit(s.clone()),
         ECore::Fault => crate::core::Core::Fault,
         ECore::MkClos { fn_id, env } => crate::core::Core::Lam {
             fn_id: fn_id.clone(),
@@ -601,6 +671,13 @@ enum ValueKind {
     /// proof and never becomes runtime code (core specification
     /// section 3).
     ProofCtor,
+    /// A `stage` definition: compile-time code (staging, P9). It may only
+    /// be referenced from compile-time code.
+    StageFn,
+    /// A `macro` definition: a compile-time function over token trees.
+    MacroFn,
+    /// A builtin of the compile-time capability API (`Stage.*`).
+    StageBuiltin(crate::core::StageOp),
 }
 
 #[derive(Clone)]
@@ -1184,6 +1261,89 @@ struct Checker {
     /// Continuation currently being elaborated at each continuation
     /// position, for `CpsWrap` nodes.
     current_cont: Vec<Cont>,
+    /// Staging (P9): true while checking compile-time code (`stage`
+    /// definitions, macros, `generate` blocks, and quotation splices).
+    compile_time: bool,
+    /// Staging: the quotation template's hole types, indexed by
+    /// `SpliceHole`.
+    hole_tys: Vec<Ty>,
+    /// Staging: `stage` and `macro` definitions by `(module, name)`: the
+    /// compile-time-only fragment.
+    staging: std::collections::HashSet<(String, String)>,
+    /// Staging: macro metadata by `(module, name)`.
+    macros: std::collections::HashMap<(String, String), MacroInfo>,
+    /// Staging: elaborated compile-time function units (stage definitions,
+    /// macros and generate blocks), excluded from the runtime program.
+    staging_fns: std::collections::HashMap<String, Vec<crate::core::FnDef>>,
+    /// Staging: `generate do` blocks, in collection order.
+    generate_blocks: Vec<GenBlock>,
+    /// Staging: definitions already checked on demand (their Core is
+    /// available to compile-time evaluation before the final pass).
+    checked_early: std::collections::HashSet<(String, String)>,
+    /// Staging: the captured inputs of the build (file and subprocess
+    /// reads), recorded for the artifact manifest's build identity.
+    stage_inputs: Vec<StageInput>,
+    /// Staging: declarations emitted by executed generators, keyed by the
+    /// module they belong to.
+    stage_emitted: std::collections::HashMap<String, Vec<crate::ast::Decl>>,
+    /// Staging: the build mode (refresh, replay, live).
+    stage_mode: StageMode,
+    /// Module to source file, for expansion provenance.
+    module_files: std::collections::HashMap<String, String>,
+    /// Each module's `import stage` names (compile-time scope only).
+    module_stage_imports: std::collections::HashMap<String, Vec<String>>,
+    /// Staging: attribute names declared by macros (`name` -> declaring
+    /// macro and its declaration span), for the collision check.
+    macro_attr_names: std::collections::HashMap<String, (String, ast::Span)>,
+}
+
+/// A `generate do` block collected for compile-time execution (staging).
+struct GenBlock {
+    module: String,
+    stmts: Vec<crate::ast::DoStmt>,
+    span: ast::Span,
+}
+
+/// A `macro` definition's compile-time metadata (staging).
+#[derive(Clone, Debug)]
+struct MacroInfo {
+    /// Parameter count: the token-tree groups a call must supply.
+    arity: usize,
+    /// Attribute names the macro declares as its own (attribute
+    /// annotations specification section 6).
+    owned_attrs: Vec<String>,
+    /// The macro's definition-site span, for expansion provenance.
+    span: ast::Span,
+}
+
+/// How a build treats compile-time I/O (modules specification section 10).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum StageMode {
+    /// Execute external reads and record replayable input snapshots.
+    Refresh,
+    /// Use declared captured inputs; reject missing or incompatible ones.
+    Replay,
+    /// Perform current reads and record provenance without cache claims.
+    Live,
+}
+
+/// One captured compile-time input (modules specification section 10: the
+/// build identity includes declared input hashes). A secret records its
+/// name only: values never enter snapshots.
+#[derive(Clone, Debug)]
+pub struct StageInput {
+    /// Snapshot name (`Stage.snapshot`'s label).
+    pub snapshot: String,
+    /// `file`, `subprocess`, or `secret`.
+    pub kind: String,
+    /// The path, tool identity, or secret name.
+    pub name: String,
+    /// Content hash of the captured input (empty for secrets).
+    pub hash: String,
+    /// Recorded content for replay (empty for secrets).
+    pub captured: String,
+    /// Set when the read ran in `live` mode.
+    pub live: bool,
 }
 
 fn fn_id(module: &str, name: &str) -> GlobalId {
@@ -1267,6 +1427,19 @@ impl Checker {
             extents: Vec::new(),
             seq_binders: Vec::new(),
             current_cont: Vec::new(),
+            compile_time: false,
+            hole_tys: Vec::new(),
+            staging: std::collections::HashSet::new(),
+            macros: std::collections::HashMap::new(),
+            staging_fns: std::collections::HashMap::new(),
+            generate_blocks: Vec::new(),
+            checked_early: std::collections::HashSet::new(),
+            stage_inputs: Vec::new(),
+            stage_emitted: std::collections::HashMap::new(),
+            stage_mode: StageMode::Refresh,
+            module_files: std::collections::HashMap::new(),
+            module_stage_imports: std::collections::HashMap::new(),
+            macro_attr_names: std::collections::HashMap::new(),
         }
     }
 
@@ -3418,7 +3591,22 @@ impl Checker {
             },
             ECore::Int(_) | ECore::ConstBig { .. } | ECore::Lit(_) | ECore::Bool(_)
             | ECore::Unit | ECore::Var(_) | ECore::Global(_)
-            | ECore::Ctor(_) | ECore::Prim(_) | ECore::IdxPending(_) | ECore::Fault => e.clone(),
+            | ECore::Ctor(_) | ECore::Prim(_) | ECore::IdxPending(_) | ECore::Fault
+            | ECore::SyntaxLit(_) | ECore::StrLit(_) => e.clone(),
+            ECore::Quote { template, holes } => ECore::Quote {
+                template: template.clone(),
+                holes: holes
+                    .iter()
+                    .map(|h| self.fill_holes(h, sol))
+                    .collect::<Result<Vec<_>>>()?,
+            },
+            ECore::DeclsQuote { template, holes } => ECore::DeclsQuote {
+                template: template.clone(),
+                holes: holes
+                    .iter()
+                    .map(|h| self.fill_holes(h, sol))
+                    .collect::<Result<Vec<_>>>()?,
+            },
             ECore::DictProj(d, i) => {
                 ECore::DictProj(Box::new(self.fill_holes(d, sol)?), *i)
             }

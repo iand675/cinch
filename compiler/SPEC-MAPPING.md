@@ -82,7 +82,7 @@ property holds by construction rather than by a named test.
 
 | # | Anchor | Requirement | Status | Evidence |
 | --- | --- | --- | --- | --- |
-| 48 | mod#1-module-packaging | Modules package types, values, ops, associated families, laws, generators | N | flat `module`/`import`/classes only; module parameters rejected (`parser.rs`) |
+| 48 | mod#1-module-packaging | Modules package types, values, ops, associated families, laws, generators | P | multi-module files (D42), generators exported via `import stage`, manifest `staging.generated`; module parameters still rejected (A5) |
 | 49 | mod#1-abstraction-restricts-reflection | Abstraction restricts code and reflection equally | N | no reflection; P9 |
 | 50 | mod#1-coherent-resolution | Coherent default instances; explicit dictionary selection available | P | cross-module coherence (`interface.rs::coherence_rejects_duplicate_instances`, `tests/modules.rs::instance_coherence_across_modules`); `@{...}` supplies rejected until P6 |
 | 51 | mod#1-abstract-type-equality | Functor rules define abstract-type equality | N | no functors/opaque identity; P7/P9 |
@@ -92,10 +92,10 @@ property holds by construction rather than by a named test.
 | 55 | mod#4-dependency-kinds | Dependency kinds distinguished (interface/logical/impl/representation/generated/optimization) | P | interface deps + staleness chain (`::chain_detects_stale_metadata`, `::topo_order_respects_imports_and_detects_cycles`); finer kinds arrive with their features |
 | 56 | mod#5-rewrite-rules | Rewrite declarations, sound substitution, bounded termination | N | `rewrite` parse-rejected; P10 |
 | 57 | mod#6-fusion-preserves-observation | Fusion preserves observation model incl. divergence/effect order | N | no fusion; P10 |
-| 58 | mod#7-staging-support | Syntax macros, typed code, compile-time computation | N | quotes/splices/`generate` parse-rejected; P9 |
-| 59 | mod#8-hygiene | Binding identity, expansion provenance, checked generated decls | N | no macros; P9 |
-| 60 | mod#9-stage-scheduling | Compile-time execution scheduled from a dependency graph with cycle diagnostics | N | staging absent; import cycles do have diagnostics (`tests/modules.rs::import_cycle_is_rejected`) |
-| 61 | mod#10-compile-time-io | Stage I/O capabilities, resource release, build identity, no secrets | N | no staging; P9 |
+| 58 | mod#7-staging-support | Syntax macros, typed code, compile-time computation | I | `stage`/`[||]`/`$()`/`quoteDecls` + token-tree macros over a compile-time interpreter (D43/D46); `tests/staging.rs` |
+| 59 | mod#8-hygiene | Binding identity, expansion provenance, checked generated decls | I | capture-avoiding renaming + definition-site qualification, per-node provenance in spans, generated decls under ordinary checks (D46); `tests/staging.rs` |
+| 60 | mod#9-stage-scheduling | Compile-time execution scheduled from a dependency graph with cycle diagnostics | I | staging unit graph, statically-apparent emits, rendered cycle chain (D47); `tests/staging.rs::stage_dependency_cycle_shows_the_cycle` |
+| 61 | mod#10-compile-time-io | Stage I/O capabilities, resource release, build identity, no secrets | P | file + subprocess capabilities, child cleanup, manifest `staging` identity + snapshot replay, redacted secrets (D45); database/network introspection delegated to subprocess (A6) |
 | 62 | mod#12-trust-boundary-report | Implementation reports its trust boundary | P | assumption manifest (row 15); compiler-pass trust waits for P10's preservation discipline |
 | 63 | mod#13-target-specialization | Target conditions discharged and preserved in the manifest | N | no target profiles; P10 |
 

@@ -71,6 +71,17 @@ pub struct ParsedModule {
     pub fixities: FixityTable,
 }
 
+/// A parsed source file: one or more modules (the staging slice allows any
+/// number of `module` blocks per file), plus each module's merged fixity
+/// table.
+#[derive(Debug)]
+pub struct ParsedModules {
+    pub modules: Vec<Module>,
+    /// Per-module fixity tables (imported declarations plus the module's
+    /// own), keyed by module name.
+    pub fixities: std::collections::HashMap<String, FixityTable>,
+}
+
 /// Parse one module from a layout-processed token stream. `imported` holds the
 /// fixities visible through imports; the module's own fixity declarations
 /// shadow them and are returned in `ParsedModule.fixities`.
@@ -81,6 +92,44 @@ pub fn parse_module(tokens: &[Token], imported: &FixityTable) -> Result<ParsedMo
     let fixities = imported.merge(&p.own_fixities);
     resolve_module(&mut module, &fixities)?;
     Ok(ParsedModule { module, fixities })
+}
+
+/// Parse a whole source file: `program = { module_decl }` (the staging
+/// slice supersedes the one-module-per-file rule). Each module resolves its
+/// infix chains with `base` plus the fixities of the modules it imports
+/// (`tables`) plus its own; modules of the same file see each other's
+/// fixities when they import each other.
+pub fn parse_modules(
+    tokens: &[Token],
+    base: &FixityTable,
+    tables: &std::collections::HashMap<String, FixityTable>,
+) -> Result<ParsedModules> {
+    let mut p = Parser::new(tokens);
+    let mut modules: Vec<(Module, FixityTable)> = Vec::new();
+    while !p.at(&Tok::Eof) {
+        let module = p.parse_module_decl()?;
+        let own = std::mem::take(&mut p.own_fixities);
+        modules.push((module, own));
+    }
+    let mut out = Vec::new();
+    let mut fixities = std::collections::HashMap::new();
+    for (module, own) in &modules {
+        let mut module = module.clone();
+        let mut table = base.clone();
+        for imp in &module.imports {
+            let name = imp.path.parts().last().copied().unwrap_or("");
+            if let Some(t) = modules.iter().find(|(m, _)| m.name.text == name).map(|(_, o)| o) {
+                table = table.merge(t);
+            } else if let Some(t) = tables.get(name) {
+                table = table.merge(t);
+            }
+        }
+        table = table.merge(own);
+        resolve_module(&mut module, &table)?;
+        fixities.insert(module.name.text.clone(), table);
+        out.push(module);
+    }
+    Ok(ParsedModules { modules: out, fixities })
 }
 
 // ----------------------------------------------------------------- helpers
@@ -234,6 +283,36 @@ impl<'a> Parser<'a> {
     // ------------------------------------------------------- declarations
 
     fn parse_declaration(&mut self) -> Result<Decl> {
+        // `#[...]` attributes prefix the annotated declaration (attribute
+        // annotations specification section 1.1: declarations only in this
+        // slice).
+        if matches!(self.peek_tok(), Tok::Attr { .. }) {
+            let mut attrs = Vec::new();
+            loop {
+                // Layout inserts a virtual `;` at a new line's start; an
+                // attribute prefixes its declaration across lines too.
+                if self.at(&Tok::Semicolon) && self.peek().virtual_ {
+                    self.bump();
+                }
+                let span = self.peek().span;
+                match self.peek_tok().clone() {
+                    Tok::Attr { name, args } => {
+                        self.bump();
+                        attrs.push(Attribute {
+                            path: name
+                                .split('.')
+                                .map(|s| Name::new(s, span))
+                                .collect(),
+                            args,
+                            span,
+                        });
+                    }
+                    _ => break,
+                }
+            }
+            let inner = self.parse_declaration()?;
+            return Ok(Decl::Attributed { attrs, inner: Box::new(inner) });
+        }
         match self.peek_tok().clone() {
             Tok::Import => Ok(Decl::Import(self.parse_import()?)),
             Tok::Signature => Ok(Decl::Signature(self.parse_signature()?)),
@@ -244,6 +323,7 @@ impl<'a> Parser<'a> {
             Tok::Record => Ok(Decl::Record(self.parse_record()?)),
             Tok::Codata => Ok(Decl::Codata(self.parse_codata()?)),
             Tok::Effect => Ok(Decl::Effect(self.parse_effect_decl()?)),
+            Tok::Generate => self.parse_generate(),
             Tok::TypeKw | Tok::Opaque => {
                 Err(self.err("type declarations are not supported in the bootstrap slice"))
             }
@@ -251,8 +331,9 @@ impl<'a> Parser<'a> {
                 Err(self.err("rewrite declarations are not supported in the bootstrap slice"))
             }
             Tok::Upgrade => Err(self.err("upgrade declarations are not supported in the bootstrap slice")),
-            Tok::Generate => Err(self.err("generate declarations are not supported in the bootstrap slice")),
-            Tok::QuoteDecls => Err(self.err("quoted declarations are not supported in the bootstrap slice")),
+            Tok::QuoteDecls => Err(self.err(
+                "`quoteDecls where ...` is an expression; use `generate do ... emit (quoteDecls where ...)` to emit declarations",
+            )),
             Tok::Module => {
                 Err(self.err("nested module declarations are not supported in the bootstrap slice"))
             }
@@ -262,15 +343,61 @@ impl<'a> Parser<'a> {
         }
     }
 
+    /// `generate do { stmts }`: a compile-time generator (modules
+    /// specification section 10).
+    fn parse_generate(&mut self) -> Result<Decl> {
+        let span = self.expect(&Tok::Generate, "`generate`")?.span;
+        let stmts = self.parse_do_stmts()?;
+        Ok(Decl::Generate { stmts, span })
+    }
+
     fn parse_sig_or_equation(&mut self) -> Result<Decl> {
         let modifier = self.parse_modifier()?;
         let name = self.parse_value_name()?;
+        // A macro signature may declare its owned attribute names: `macro
+        // name attributes (codec, table) :: ty` (attribute annotations
+        // specification section 6).
+        let mut owned_attrs = Vec::new();
+        if modifier.as_ref().map(|m| m.text.as_str()) == Some("macro") {
+            if let Tok::VarId(s) = self.peek_tok() {
+                if s == "attributes" && matches!(self.peek_tok_at(1), Some(Tok::LParen)) {
+                    self.bump();
+                    self.bump();
+                    loop {
+                        let span = self.peek().span;
+                        match self.peek_tok().clone() {
+                            Tok::VarId(n) | Tok::ConId(n) => {
+                                self.bump();
+                                owned_attrs.push(Name::new(n, span));
+                            }
+                            t => {
+                                return Err(self.err(format!(
+                                    "expected an attribute name in the macro's `attributes` list, found {}",
+                                    describe(&t)
+                                )))
+                            }
+                        }
+                        if self.at(&Tok::Comma) {
+                            self.bump();
+                        } else {
+                            break;
+                        }
+                    }
+                    self.expect(&Tok::RParen, "`)` closing the `attributes` list")?;
+                }
+            }
+        }
         if self.at(&Tok::ColonColon) {
             self.bump();
             let ty = self.parse_type()?;
             let span = name.span;
-            Ok(Decl::ValueSig { name, modifier, ty, span })
+            Ok(Decl::ValueSig { name, modifier, owned_attrs, ty, span })
         } else {
+            if !owned_attrs.is_empty() {
+                return Err(self.err(
+                    "a macro's `attributes` list belongs on its signature (`macro name attributes (...) :: ty`)",
+                ));
+            }
             let eq = self.parse_equation_rest(name, true)?;
             Ok(Decl::Equation { modifier, eq })
         }
@@ -338,10 +465,14 @@ impl<'a> Parser<'a> {
 
     fn parse_import(&mut self) -> Result<Import> {
         let span = self.expect(&Tok::Import, "`import`")?.span;
-        // Import modifiers exist in the grammar but have no AST slot; they
-        // are accepted here and the checker judges the import itself.
+        // Import modifiers exist in the grammar; `stage` marks an import of
+        // executable generator code (modules specification section 9).
+        // `replaceable`/`specialized` are accepted here and the checker
+        // judges the import itself.
+        let mut stage = false;
         if self.at(&Tok::Stage) {
             self.bump();
+            stage = true;
         } else if let Tok::VarId(s) = self.peek_tok() {
             if s == "replaceable" || s == "specialized" {
                 self.bump();
@@ -365,7 +496,7 @@ impl<'a> Parser<'a> {
                 }
             }
         }
-        Ok(Import { path, alias, span })
+        Ok(Import { path, alias, stage, span })
     }
 
     fn parse_signature(&mut self) -> Result<SigDecl> {
@@ -952,20 +1083,29 @@ impl<'a> Parser<'a> {
     // ------------------------------------------------------------ terms
 
     fn starts_postfix(&self) -> bool {
-        matches!(
-            self.peek_tok(),
-            Tok::VarId(_)
-                | Tok::ConId(_)
-                | Tok::Int(_)
-                | Tok::FloatLit(_)
-                | Tok::StrLit(_)
-                | Tok::CharLit(_)
-                | Tok::LParen
-                | Tok::LBracket
-                | Tok::LQuote
-                | Tok::DollarParen
-                | Tok::Underscore
-        )
+        self.at_splice()
+            || matches!(
+                self.peek_tok(),
+                Tok::VarId(_)
+                    | Tok::ConId(_)
+                    | Tok::Int(_)
+                    | Tok::FloatLit(_)
+                    | Tok::StrLit(_)
+                    | Tok::CharLit(_)
+                    | Tok::LParen
+                    | Tok::LBracket
+                    | Tok::LQuote
+                    | Tok::Underscore
+            )
+    }
+
+    /// Is the token pair here a splice opener `$(`? The lexer emits
+    /// `Dollar` + `LParen` sharing one span for the reserved `$(` token;
+    /// a spaced `$ (` is ordinary reserved application (surface grammar).
+    fn at_splice(&self) -> bool {
+        matches!(self.peek_tok(), Tok::Dollar)
+            && matches!(self.peek_tok_at(1), Some(Tok::LParen))
+            && self.toks.get(self.pos).map(|t| t.span) == self.toks.get(self.pos + 1).map(|t| t.span)
     }
 
     fn parse_term(&mut self) -> Result<Term> {
@@ -1014,7 +1154,7 @@ impl<'a> Parser<'a> {
             let span = self.peek().span;
             let is_dollar = match self.peek_tok() {
                 Tok::Op(_) => false,
-                Tok::Dollar => true,
+                Tok::Dollar if !self.at_splice() => true,
                 _ => break,
             };
             let name = if is_dollar {
@@ -1127,7 +1267,19 @@ impl<'a> Parser<'a> {
                     t = Term::CapApply { head: Box::new(t), supplies, span };
                 }
                 Tok::Bang => {
-                    Err(self.err("macro invocations are not supported in the bootstrap slice"))?
+                    let path = match &t {
+                        Term::Var(p) => p.clone(),
+                        other => {
+                            return Err(Error::at(
+                                other.span(),
+                                "a macro invocation must name a macro (`name!(...)`)",
+                            ))
+                        }
+                    };
+                    self.bump();
+                    let args = self.parse_token_tree()?;
+                    let span = t.span();
+                    t = Term::MacroCall { path, args, span };
                 }
                 Tok::LBrace => Err(self.err(
                     "record construction must place `R { x = e, ... }` directly on a constructor name",
@@ -1268,11 +1420,33 @@ impl<'a> Parser<'a> {
                 self.expect(&Tok::RBracket, "`]` closing the list")?;
                 Ok(Term::List(items, span))
             }
-            Tok::LQuote => Err(self.err(
-                "typed quotations (`[| ... |]`) are not supported in the bootstrap slice",
-            )),
+            Tok::LQuote => {
+                self.bump();
+                let body = self.parse_term()?;
+                let close = self.expect(&Tok::RQuote, "`|]` closing the quotation")?;
+                let _ = close;
+                Ok(Term::Quote { body: Box::new(body), span })
+            }
+            Tok::QuoteDecls => {
+                self.bump();
+                self.expect(&Tok::Where, "`where` after `quoteDecls`")?;
+                let decls = self.parse_block_items("the quoted declaration block", |p| {
+                    p.parse_declaration()
+                })?;
+                Ok(Term::QuoteDecls { decls, span })
+            }
             Tok::DollarParen => {
-                Err(self.err("splices (`$( ...)`) are not supported in the bootstrap slice"))
+                self.bump();
+                let body = self.parse_term()?;
+                self.expect(&Tok::RParen, "`)` closing the splice")?;
+                Ok(Term::Splice { body: Box::new(body), span })
+            }
+            Tok::Dollar if self.at_splice() => {
+                self.bump();
+                self.bump();
+                let body = self.parse_term()?;
+                self.expect(&Tok::RParen, "`)` closing the splice")?;
+                Ok(Term::Splice { body: Box::new(body), span })
             }
             t => Err(self.err(format!("expected an expression, found {}", describe(&t)))),
         }
@@ -1333,12 +1507,70 @@ impl<'a> Parser<'a> {
     /// `do { stmts }`: statements are `pat <- term` or bare `term`; the
     /// last statement is the block's result.
     fn parse_do(&mut self) -> Result<Term> {
-        let span = self.expect(&Tok::Do, "`do`")?.span;
+        let span = self.peek().span;
+        let stmts = self.parse_do_stmts()?;
+        Ok(Term::Do(stmts, span))
+    }
+
+    /// `do { stmts }` (the keyword through the closing brace); also the
+    /// body of a `generate do` declaration.
+    fn parse_do_stmts(&mut self) -> Result<Vec<DoStmt>> {
+        self.expect(&Tok::Do, "`do`")?;
         let stmts = self.parse_block_items("the do block", |p| p.parse_do_stmt())?;
         if stmts.is_empty() {
-            return Err(Error::at(span, "a do block needs at least one statement"));
+            return Err(self.err("a do block needs at least one statement"));
         }
-        Ok(Term::Do(stmts, span))
+        Ok(stmts)
+    }
+
+    /// One balanced token tree: `(...)`, `[...]`, or `{...}` with nested
+    /// delimiters matching. The tree is macro input and stays unparsed
+    /// here (grammar: `token_tree`).
+    fn parse_token_tree(&mut self) -> Result<TokenTree> {
+        let start = self.peek().span;
+        if !matches!(self.peek_tok(), Tok::LParen | Tok::LBracket | Tok::LBrace) {
+            return Err(self.err(
+                "a macro invocation needs a balanced token tree in `()`, `[]` or `{}`",
+            ));
+        }
+        let mut stack: Vec<Tok> = Vec::new();
+        let mut tokens: Vec<Token> = Vec::new();
+        loop {
+            let tok = self.peek_tok().clone();
+            if tok == Tok::Eof {
+                return Err(Error::at(start, "unterminated macro argument token tree"));
+            }
+            if stack.is_empty() && !tokens.is_empty() {
+                return Err(Error::at(
+                    start,
+                    "a macro argument must be one balanced token tree",
+                ));
+            }
+            match &tok {
+                Tok::LParen => stack.push(Tok::RParen),
+                Tok::LBracket => stack.push(Tok::RBracket),
+                Tok::LBrace => stack.push(Tok::RBrace),
+                Tok::LQuote => stack.push(Tok::RQuote),
+                Tok::DollarParen => stack.push(Tok::RParen),
+                Tok::RParen | Tok::RBracket | Tok::RBrace | Tok::RQuote => {
+                    match stack.pop() {
+                        Some(expected) if expected == tok => {}
+                        _ => {
+                            return Err(Error::at(
+                                self.peek().span,
+                                "unbalanced delimiters in the macro argument token tree",
+                            ))
+                        }
+                    }
+                }
+                _ => {}
+            }
+            tokens.push(self.bump());
+            if stack.is_empty() {
+                break;
+            }
+        }
+        Ok(TokenTree { tokens, span: start })
     }
 
     fn parse_do_stmt(&mut self) -> Result<DoStmt> {
@@ -1880,50 +2112,87 @@ fn decompose_constraint(name: Name, ty: Type, span: Span) -> Result<Constraint> 
 
 fn resolve_module(m: &mut Module, fix: &FixityTable) -> Result<()> {
     for d in &mut m.decls {
-        match d {
-            Decl::Equation { eq, .. } => resolve_equation(eq, fix)?,
-            Decl::Instance(inst) => {
-                resolve_type(&mut inst.target, fix)?;
-                for eq in &mut inst.methods {
-                    resolve_equation(eq, fix)?;
+        resolve_module_decl(d, fix)?;
+    }
+    Ok(())
+}
+
+/// Fixity resolution of one declaration (shared by module and generated
+/// declaration resolution).
+fn resolve_module_decl(d: &mut Decl, fix: &FixityTable) -> Result<()> {
+    match d {
+        Decl::Equation { eq, .. } => resolve_equation(eq, fix)?,
+        Decl::Instance(inst) => {
+            resolve_type(&mut inst.target, fix)?;
+            for eq in &mut inst.methods {
+                resolve_equation(eq, fix)?;
+            }
+        }
+        Decl::ValueSig { ty, .. } => resolve_type(ty, fix)?,
+        Decl::Data(data) => {
+            for b in &mut data.params {
+                if let Some(ann) = &mut b.ann {
+                    resolve_type(ann, fix)?;
                 }
             }
-            Decl::ValueSig { ty, .. } => resolve_type(ty, fix)?,
-            Decl::Data(data) => {
-                for b in &mut data.params {
-                    if let Some(ann) = &mut b.ann {
-                        resolve_type(ann, fix)?;
+            for c in &mut data.ctors {
+                resolve_type(&mut c.ty, fix)?;
+            }
+        }
+        Decl::Record(rec) | Decl::Codata(rec) => {
+            for b in &mut rec.params {
+                if let Some(ann) = &mut b.ann {
+                    resolve_type(ann, fix)?;
+                }
+            }
+            for f in &mut rec.fields {
+                resolve_type(&mut f.ty, fix)?;
+            }
+        }
+        Decl::Foreign(f) => resolve_type(&mut f.ty, fix)?,
+        Decl::Effect(e) => {
+            for (_, ty) in &mut e.ops {
+                resolve_type(ty, fix)?;
+            }
+        }
+        Decl::Signature(sig) => {
+            for (_, ty) in &mut sig.methods {
+                resolve_type(ty, fix)?;
+            }
+        }
+        Decl::Import(_) | Decl::Fixity(_) => {}
+        Decl::Attributed { inner, .. } => resolve_module_decl(inner, fix)?,
+        Decl::Generate { stmts, .. } => {
+            for s in stmts {
+                match s {
+                    DoStmt::Bind { term, .. } | DoStmt::Expr { term, .. } => {
+                        resolve_term(term, fix)?
                     }
-                }
-                for c in &mut data.ctors {
-                    resolve_type(&mut c.ty, fix)?;
-                }
-            }
-            Decl::Record(rec) | Decl::Codata(rec) => {
-                for b in &mut rec.params {
-                    if let Some(ann) = &mut b.ann {
-                        resolve_type(ann, fix)?;
-                    }
-                }
-                for f in &mut rec.fields {
-                    resolve_type(&mut f.ty, fix)?;
+                    DoStmt::Let { decl, .. } => match decl {
+                        LocalDecl::Eq { body, .. }
+                        | LocalDecl::Bind { body, .. }
+                        | LocalDecl::Lazy { body, .. } => resolve_term(body, fix)?,
+                        LocalDecl::Sig { ty, .. } => resolve_type(ty, fix)?,
+                    },
                 }
             }
-            Decl::Foreign(f) => resolve_type(&mut f.ty, fix)?,
-            Decl::Effect(e) => {
-                for (_, ty) in &mut e.ops {
-                    resolve_type(ty, fix)?;
-                }
-            }
-            Decl::Signature(sig) => {
-                for (_, ty) in &mut sig.methods {
-                    resolve_type(ty, fix)?;
-                }
-            }
-            Decl::Import(_) | Decl::Fixity(_) => {}
         }
     }
     Ok(())
+}
+
+/// Parse spliced `Syntax` tokens as one term, resolving its infix chains
+/// with the caller's fixities (macro expansion, modules specification
+/// section 8).
+pub fn parse_term_tokens(tokens: &[Token], fix: &FixityTable) -> Result<Term> {
+    let mut toks = tokens.to_vec();
+    let span = toks.last().map(|t| t.span).unwrap_or(Span { line: 0, col: 0 });
+    toks.push(Token { tok: Tok::Eof, span, virtual_: false });
+    let mut p = Parser::new(&toks);
+    let mut t = p.parse_term()?;
+    p.expect_eof()?;
+    resolve_term(&mut t, fix)?;
+    Ok(t)
 }
 
 fn resolve_equation(eq: &mut Equation, fix: &FixityTable) -> Result<()> {
@@ -2025,6 +2294,15 @@ fn resolve_term(t: &mut Term, fix: &FixityTable) -> Result<()> {
             }
         }
         Term::SeqOp(_, _) => {}
+        Term::Quote { body, .. } => resolve_term(body, fix)?,
+        Term::QuoteDecls { decls, .. } => {
+            for d in decls {
+                resolve_module_decl(d, fix)?;
+            }
+        }
+        Term::Splice { body, .. } => resolve_term(body, fix)?,
+        Term::MacroCall { .. } | Term::SpliceHole { .. } | Term::Str(_, _) | Term::Char(_, _)
+        | Term::Unit(_) | Term::Hole(_) | Term::Var(_) | Term::Con(_) | Term::Int(_, _) => {}
         Term::Infix(_, _, _) => {
             let (terms, ops, span) = match std::mem::replace(t, Term::Unit(Span { line: 0, col: 0 })) {
                 Term::Infix(terms, ops, span) => (terms, ops, span),
@@ -2780,8 +3058,8 @@ mod tests {
         assert!(e.contains("type declarations are not supported"), "{e}");
         let e = err("module T where\n  upgrade A to B where\n    x = 1\n");
         assert!(e.contains("upgrade declarations are not supported"), "{e}");
-        let e = err("module T where\n  generate do\n    x\n");
-        assert!(e.contains("generate declarations are not supported"), "{e}");
+        let e = err("module T where\n  quoteDecls where\n    x :: Int\n    x = 1\n");
+        assert!(e.contains("`quoteDecls where ...` is an expression"), "{e}");
     }
 
     #[test]
@@ -2826,10 +3104,64 @@ mod tests {
 
     #[test]
     fn not_supported_terms_are_named() {
-        let e = err("module T where\n  f = [| x |]\n");
-        assert!(e.contains("typed quotations"), "{e}");
         let e = err("module T where\n  f = 1.5\n");
         assert!(e.contains("float literals are not supported"), "{e}");
+        // A macro invocation needs a balanced token tree.
+        let e = err("module T where\n  f = m! x\n");
+        assert!(e.contains("needs a balanced token tree"), "{e}");
+    }
+
+    #[test]
+    fn staging_forms_parse() {
+        // Quotations, splices, `quoteDecls`, macro calls, `generate do`,
+        // `import stage`, `stage`/`macro` modifiers, and attributes all
+        // parse (staging, P9).
+        let p = ok(
+            "module T where\n\
+             \x20 import stage Lib\n\
+             \x20 stage addOne :: Code Nat -> Code Nat\n\
+             \x20 stage addOne c = [| let x = $(c) in x |]\n\
+             \x20 macro decorate attributes (codec) :: Syntax -> Declarations\n\
+             \x20 macro decorate x = quoteDecls where\n\
+             \x20   #[codec]\n\
+             \x20   generated :: Int\n\
+             \x20   generated = $(x)\n\
+             \x20 generate do\n\
+             \x20   emit (decorate!(41))\n\
+             \x20 main :: Int\n\
+             \x20 main = decorate!(1 + 1)\n",
+        );
+        let m = &p.module;
+        assert!(m.imports.iter().any(|i| i.stage), "expected a stage import");
+        let add_one = eq_body(m, "addOne");
+        match add_one {
+            Term::Quote { body, .. } => match &**body {
+                Term::Let(_, inner, _) => {
+                    assert!(matches!(**inner, Term::Var(_)), "got {inner:?}");
+                }
+                other => panic!("expected a let in the quote, got {other:?}"),
+            },
+            other => panic!("expected a quotation, got {other:?}"),
+        }
+        let decorate = eq_body(m, "decorate");
+        match decorate {
+            Term::QuoteDecls { decls, .. } => {
+                assert_eq!(decls.len(), 2);
+                assert!(matches!(decls[0], Decl::Attributed { .. }));
+            }
+            other => panic!("expected quoteDecls, got {other:?}"),
+        }
+        assert!(
+            m.decls.iter().any(|d| matches!(d, Decl::Generate { .. })),
+            "expected a generate block"
+        );
+        match eq_body(m, "main") {
+            Term::MacroCall { path, args, .. } => {
+                assert_eq!(path.name.text, "decorate");
+                assert_eq!(args.arg_groups().len(), 1);
+            }
+            other => panic!("expected a macro call, got {other:?}"),
+        }
     }
 
     #[test]

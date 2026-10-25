@@ -163,9 +163,12 @@ fn missing_import_file_is_named() {
 }
 
 #[test]
-fn imported_module_name_must_match_file_stem() {
-    // `import Lib` resolves to `Lib.lang`; an imported module that declares a
-    // different name cannot be found reliably. The entry file is exempt.
+fn imported_module_is_resolved_by_declaration() {
+    // The staging slice supersedes the file-stem rule (decision D42):
+    // `import X` resolves to a module of an already loaded file, then to
+    // `X.lang`, then to a unique `module X` beside the entry. `Lib.lang`
+    // declaring only `Wrong` provides no `Lib`, and `import Wrong` finds
+    // it through the directory scan.
     let dir = write_project(&[
         (
             "Lib.lang",
@@ -181,8 +184,25 @@ fn imported_module_name_must_match_file_stem() {
              \x20 main = Lib.f 1\n",
         ),
     ]);
-    let err = check_entry(&dir, "Main.lang").expect_err("mismatch");
-    assert!(err.contains("file stem"), "{err}");
+    let err = check_entry(&dir, "Main.lang").expect_err("no module Lib");
+    assert!(err.contains("Lib"), "{err}");
+    let dir = write_project(&[
+        (
+            "Lib.lang",
+            "module Wrong where\n\
+             \x20 f :: Int -> Int\n\
+             \x20 f x = x\n",
+        ),
+        (
+            "Main.lang",
+            "module Main where\n\
+             \x20 import Wrong\n\
+             \x20 main :: Int\n\
+             \x20 main = Wrong.f 1\n",
+        ),
+    ]);
+    let code = run_entry(&dir, "Main.lang").expect("directory-scan resolution");
+    assert_eq!(code, 1);
 }
 
 #[test]
@@ -197,6 +217,32 @@ fn entry_module_name_is_free() {
     )]);
     let code = run_entry(&dir, "smoke.lang").expect("free entry name");
     assert_eq!(code, 7);
+}
+
+#[test]
+fn multi_module_file_links_and_runs() {
+    // The staging slice supersedes the one-module-per-file rule: one
+    // source file may declare several modules, and they reference each
+    // other across the blocks.
+    let dir = write_project(&[(
+        "Main.lang",
+        "module Lib where\n\
+         \x20 double :: Int -> Int\n\
+         \x20 double x = x + x\n\
+         \n\
+         module Main where\n\
+         \x20 import Lib\n\
+         \x20 main :: Int\n\
+         \x20 main = if Lib.double 21 == 42 then 0 else 1\n",
+    )]);
+    let code = run_entry(&dir, "Main.lang").expect("multi-module file run");
+    assert_eq!(code, 0);
+    for f in ["build/Lib.sliface", "build/Main.sliface"] {
+        assert!(dir.join(f).exists(), "missing artifact {f}");
+    }
+    let manifest = std::fs::read_to_string(dir.join("build/Main.manifest.json")).expect("manifest");
+    assert!(manifest.contains("\"Lib\""), "{manifest}");
+    assert!(manifest.contains("\"Main\""), "{manifest}");
 }
 
 #[test]

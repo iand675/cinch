@@ -963,6 +963,467 @@ pub enum Core {
     /// The runtime fault path: exit 70 through `__safelang_blackhole`,
     /// reached when a match falls through with pattern coverage unprovable.
     Fault,
+    /// A typed quotation template under construction (staging): the
+    /// template carrying `SpliceHole` placeholders plus the elaborated
+    /// splice expressions, evaluated when the quote is constructed
+    /// (modules specification section 7).
+    Quote {
+        template: Box<crate::ast::Term>,
+        holes: Vec<Core>,
+    },
+    /// A `quoteDecls` template under construction (modules specification
+    /// section 8: generated declarations are checked under ordinary rules).
+    DeclsQuote {
+        template: Vec<crate::ast::Decl>,
+        holes: Vec<Core>,
+    },
+    /// A macro argument's raw token tree: a `Syntax` value.
+    SyntaxLit(Vec<crate::lexer::Token>),
+    /// A compile-time string constant (`String` values).
+    StrLit(String),
+}
+
+/// The builtin compile-time capability API (modules specification section
+/// 10): values of these operations live only at compile time, and the
+/// interpreter performs their I/O under explicit capability arguments.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum StageOp {
+    /// `Stage.snapshot name k`: supply the root capability for a named
+    /// input snapshot and record the reads performed under it.
+    Snapshot,
+    /// `Stage.withReadFiles io k`: refine `io` to a file-read capability.
+    WithReadFiles,
+    /// `Stage.withWriteFiles io k`: refine `io` to a file-write capability.
+    WithWriteFiles,
+    /// `Stage.withProcess io k`: refine `io` to a subprocess capability.
+    WithProcess,
+    /// `Stage.readFile cap path`.
+    ReadFile,
+    /// `Stage.writeFile cap path contents`.
+    WriteFile,
+    /// `Stage.run cap tool args`: run a subprocess, capturing stdout.
+    Run,
+    /// `Stage.secret name`: a credential reference; its value never enters
+    /// generated source, logs, or snapshots.
+    Secret,
+    /// `Stage.emit decls`: append declarations to the generator's output.
+    Emit,
+    /// `Stage.quoteNat n`: approved constant transport (modules
+    /// specification section 9): a `Nat` becomes generated code.
+    QuoteNat,
+    /// `Stage.quoteInt n`: approved constant transport.
+    QuoteInt,
+    /// `Stage.quoteBool b`: approved constant transport.
+    QuoteBool,
+    /// `Stage.strNat s`: parse decimal digits into a `Nat`.
+    StrNat,
+    /// `Stage.natStr n`: render a `Nat` as decimal digits.
+    NatStr,
+    /// `Stage.strAppend a b`.
+    StrAppend,
+    /// `Stage.strLen s`.
+    StrLen,
+}
+
+impl StageOp {
+    pub fn from_name(name: &str) -> Option<StageOp> {
+        use StageOp::*;
+        Some(match name {
+            "snapshot" => Snapshot,
+            "withReadFiles" => WithReadFiles,
+            "withWriteFiles" => WithWriteFiles,
+            "withProcess" => WithProcess,
+            "readFile" => ReadFile,
+            "writeFile" => WriteFile,
+            "run" => Run,
+            "secret" => Secret,
+            "emit" => Emit,
+            "quoteNat" => QuoteNat,
+            "quoteInt" => QuoteInt,
+            "quoteBool" => QuoteBool,
+            "strNat" => StrNat,
+            "natStr" => NatStr,
+            "strAppend" => StrAppend,
+            "strLen" => StrLen,
+            _ => return None,
+        })
+    }
+
+    pub fn global_id(self) -> GlobalId {
+        use StageOp::*;
+        let n = match self {
+            Snapshot => "snapshot",
+            WithReadFiles => "withReadFiles",
+            WithWriteFiles => "withWriteFiles",
+            WithProcess => "withProcess",
+            ReadFile => "readFile",
+            WriteFile => "writeFile",
+            Run => "run",
+            Secret => "secret",
+            Emit => "emit",
+            QuoteNat => "quoteNat",
+            QuoteInt => "quoteInt",
+            QuoteBool => "quoteBool",
+            StrNat => "strNat",
+            NatStr => "natStr",
+            StrAppend => "strAppend",
+            StrLen => "strLen",
+        };
+        GlobalId(format!("<builtin>.Stage.{n}"))
+    }
+}
+
+/// Compile-time capability tokens (modules specification section 10):
+/// opaque values threaded through the `Stage` API. Capabilities determine
+/// permitted targets; effects record that I/O occurs.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Cap {
+    /// The root capability a `Stage.snapshot` callback receives.
+    Root,
+    /// File access; `write` distinguishes the write refinement (a reader
+    /// receives no write authority by default).
+    File { write: bool },
+    /// Subprocess execution.
+    Proc,
+}
+
+/// A compile-time value (staging evaluation): the value domain of the
+/// interpreter that runs `stage` definitions, macros and `generate` blocks
+/// during compilation. Compile-time-only types (`Code`, `Syntax`,
+/// `Declarations`, `String`, `Secret`, capabilities) never reach target
+/// code.
+#[derive(Clone, Debug)]
+pub enum Value {
+    /// Machine scalar and `Char` words.
+    Word(i64),
+    /// Mathematical `Nat`/`Int`, canonical decimal digits with an optional
+    /// leading `-` (same form as [`Core::ConstBig`]).
+    Big { nat: bool, digits: String },
+    Bool(bool),
+    Unit,
+    /// Boxed ADT or record: tag plus runtime fields.
+    Adt { tag: usize, fields: Vec<Value> },
+    /// An instance dictionary: its methods as (possibly partial) closures.
+    Dict { methods: Vec<Value> },
+    /// Closure over a function unit: captured environment and applied
+    /// arguments so far (`arity` is the unit's parameter count).
+    Clos {
+        fn_id: GlobalId,
+        env: Vec<Value>,
+        args: Vec<Value>,
+        arity: usize,
+    },
+    /// Constructor function value (apply to its runtime fields).
+    CtorFn { tag: usize, arity: usize, args: Vec<Value> },
+    /// Primitive function value (apply to its arguments).
+    PrimFn { op: PrimOp, args: Vec<Value> },
+    /// A typed code value: the hygienically prepared template.
+    Code(crate::ast::Term),
+    /// A declaration-group value.
+    Decls(Vec<crate::ast::Decl>),
+    /// A token-tree value; `origin` names the module the tokens were
+    /// written in (spliced syntax parses with its fixities).
+    Syntax {
+        tokens: Vec<crate::lexer::Token>,
+        origin: String,
+    },
+    /// A compile-time string.
+    Str(String),
+    /// A secret reference; the value never leaves the interpreter.
+    Secret(String),
+    /// A capability token (opaque to source code).
+    Cap(Cap),
+    /// A `Stage` builtin partially applied.
+    StageFn { op: StageOp, args: Vec<Value> },
+}
+
+/// Arbitrary-precision integers for compile-time `Nat`/`Int` arithmetic:
+/// sign plus base-1e9 limbs, little-endian (`mag` empty is zero).
+pub mod big {
+    /// Base-1e9 limbs; one limb renders as exactly nine decimal digits.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct Big {
+        pub neg: bool,
+        pub mag: Vec<u32>,
+    }
+
+    const BASE: u64 = 1_000_000_000;
+
+    fn trim(mag: &mut Vec<u32>) {
+        while mag.last() == Some(&0) {
+            mag.pop();
+        }
+    }
+
+    impl Big {
+        pub fn zero() -> Big {
+            Big { neg: false, mag: Vec::new() }
+        }
+
+        pub fn is_zero(&self) -> bool {
+            self.mag.is_empty()
+        }
+
+        pub fn from_i64(v: i64) -> Big {
+            if v == 0 {
+                return Big::zero();
+            }
+            let neg = v < 0;
+            let mut n = (v as i128).unsigned_abs();
+            let mut mag = Vec::new();
+            while n > 0 {
+                mag.push((n % BASE as u128) as u32);
+                n /= BASE as u128;
+            }
+            Big { neg, mag }
+        }
+
+        pub fn to_i64(&self) -> Option<i64> {
+            let mut v: u64 = 0;
+            for l in self.mag.iter().rev() {
+                v = v.checked_mul(BASE)?.checked_add(*l as u64)?;
+            }
+            if self.neg {
+                i64::try_from(v as i128 * -1).ok()
+            } else {
+                i64::try_from(v).ok()
+            }
+        }
+
+        /// Canonical decimal digits with a leading `-` for negatives.
+        pub fn to_dec(&self) -> String {
+            if self.is_zero() {
+                return "0".to_string();
+            }
+            let mut out = String::new();
+            if self.neg {
+                out.push('-');
+            }
+            for (i, l) in self.mag.iter().rev().enumerate() {
+                if i == 0 {
+                    out.push_str(&l.to_string());
+                } else {
+                    out.push_str(&format!("{l:09}"));
+                }
+            }
+            out
+        }
+
+        /// Parse decimal digits with an optional leading `-`; `None` on
+        /// malformed input.
+        pub fn from_dec(s: &str) -> Option<Big> {
+            let (neg, digits) = match s.strip_prefix('-') {
+                Some(rest) => (true, rest),
+                None => (false, s),
+            };
+            if digits.is_empty() || !digits.bytes().all(|b| b.is_ascii_digit()) {
+                return None;
+            }
+            let mut mag = Vec::new();
+            let bytes = digits.as_bytes();
+            let mut i = bytes.len();
+            while i > 0 {
+                let start = i.saturating_sub(9);
+                let chunk = std::str::from_utf8(&bytes[start..i]).ok()?;
+                mag.push(chunk.parse::<u32>().ok()?);
+                i = start;
+            }
+            trim(&mut mag);
+            if mag.is_empty() {
+                return Some(Big::zero());
+            }
+            Some(Big { neg, mag })
+        }
+
+        fn cmp_abs(a: &[u32], b: &[u32]) -> std::cmp::Ordering {
+            use std::cmp::Ordering;
+            if a.len() != b.len() {
+                return a.len().cmp(&b.len());
+            }
+            for (x, y) in a.iter().rev().zip(b.iter().rev()) {
+                match x.cmp(y) {
+                    Ordering::Equal => {}
+                    other => return other,
+                }
+            }
+            Ordering::Equal
+        }
+
+        pub fn cmp(&self, other: &Big) -> std::cmp::Ordering {
+            use std::cmp::Ordering;
+            match (self.is_zero(), other.is_zero()) {
+                (true, true) => return Ordering::Equal,
+                (true, false) => {
+                    return if other.neg { Ordering::Greater } else { Ordering::Less }
+                }
+                (false, true) => {
+                    return if self.neg { Ordering::Less } else { Ordering::Greater }
+                }
+                _ => {}
+            }
+            match (self.neg, other.neg) {
+                (false, true) => Ordering::Greater,
+                (true, false) => Ordering::Less,
+                (false, false) => Self::cmp_abs(&self.mag, &other.mag),
+                (true, true) => Self::cmp_abs(&other.mag, &self.mag),
+            }
+        }
+
+        fn add_abs(a: &[u32], b: &[u32]) -> Vec<u32> {
+            let mut out = Vec::with_capacity(a.len().max(b.len()) + 1);
+            let mut carry = 0u64;
+            for i in 0..a.len().max(b.len()) {
+                let x = *a.get(i).unwrap_or(&0) as u64 + *b.get(i).unwrap_or(&0) as u64 + carry;
+                out.push((x % BASE) as u32);
+                carry = x / BASE;
+            }
+            if carry > 0 {
+                out.push(carry as u32);
+            }
+            trim(&mut out);
+            out
+        }
+
+        /// `a >= b` in magnitude.
+        fn sub_abs(a: &[u32], b: &[u32]) -> Vec<u32> {
+            let mut out = Vec::with_capacity(a.len());
+            let mut borrow = 0i64;
+            for i in 0..a.len() {
+                let x = a[i] as i64 - *b.get(i).unwrap_or(&0) as i64 - borrow;
+                if x < 0 {
+                    out.push((x + BASE as i64) as u32);
+                    borrow = 1;
+                } else {
+                    out.push(x as u32);
+                    borrow = 0;
+                }
+            }
+            trim(&mut out);
+            out
+        }
+
+        pub fn add(&self, other: &Big) -> Big {
+            match (self.neg, other.neg) {
+                (false, false) => Big { neg: false, mag: Self::add_abs(&self.mag, &other.mag) },
+                (true, true) => Big { neg: true, mag: Self::add_abs(&self.mag, &other.mag) },
+                (false, true) => self.sub_mag(&other.mag),
+                (true, false) => other.sub_mag(&self.mag),
+            }
+        }
+
+        /// `self - |m2|` where `self` is non-negative.
+        fn sub_mag(&self, m2: &[u32]) -> Big {
+            match Self::cmp_abs(&self.mag, m2) {
+                std::cmp::Ordering::Less => Big {
+                    neg: true,
+                    mag: Self::sub_abs(m2, &self.mag),
+                },
+                _ => Big { neg: false, mag: Self::sub_abs(&self.mag, m2) },
+            }
+        }
+
+        pub fn sub(&self, other: &Big) -> Big {
+            self.add(&other.negate())
+        }
+
+        pub fn negate(&self) -> Big {
+            Big { neg: !self.neg && !self.is_zero(), mag: self.mag.clone() }
+        }
+
+        pub fn mul(&self, other: &Big) -> Big {
+            if self.is_zero() || other.is_zero() {
+                return Big::zero();
+            }
+            let mut acc = vec![0u64; self.mag.len() + other.mag.len()];
+            for (i, x) in self.mag.iter().enumerate() {
+                let mut carry = 0u64;
+                for (j, y) in other.mag.iter().enumerate() {
+                    let cur = acc[i + j] + *x as u64 * *y as u64 + carry;
+                    acc[i + j] = cur % BASE;
+                    carry = cur / BASE;
+                }
+                let mut j = i + other.mag.len();
+                while carry > 0 {
+                    let cur = acc[j] + carry;
+                    acc[j] = cur % BASE;
+                    carry = cur / BASE;
+                    j += 1;
+                }
+            }
+            let mag = acc.into_iter().map(|x| x as u32).collect::<Vec<_>>();
+            let mut mag = mag;
+            trim(&mut mag);
+            Big { neg: self.neg != other.neg, mag }
+        }
+
+        /// Truncating division and remainder (the `Nat`/`Int` runtime
+        /// operations divide toward zero); division by zero is `None`.
+        pub fn divmod(&self, other: &Big) -> Option<(Big, Big)> {
+            if other.is_zero() {
+                return None;
+            }
+            if self.is_zero() {
+                return Some((Big::zero(), Big::zero()));
+            }
+            // Long division on base-1e9 limbs.
+            let mut rem: Vec<u32> = Vec::new();
+            let mut quot = vec![0u32; self.mag.len()];
+            for (i, l) in self.mag.iter().enumerate().rev() {
+                rem.insert(0, *l);
+                trim(&mut rem);
+                // Find the largest q with |other| * q <= rem by per-limb
+                // estimation refined against the base.
+                let mut q = 0u32;
+                let mut lo = 0u64;
+                let mut hi = BASE - 1;
+                while lo <= hi {
+                    let mid = (lo + hi) / 2;
+                    let prod = Self::mul_abs(&other.mag, mid);
+                    match Self::cmp_abs(&rem, &prod) {
+                        std::cmp::Ordering::Less => {
+                            if mid == 0 {
+                                break;
+                            }
+                            hi = mid - 1;
+                        }
+                        _ => {
+                            q = mid as u32;
+                            lo = mid + 1;
+                        }
+                    }
+                }
+                if q > 0 {
+                    let prod = Self::mul_abs(&other.mag, q as u64);
+                    rem = Self::sub_abs(&rem, &prod);
+                }
+                quot[i] = q;
+            }
+            trim(&mut quot);
+            trim(&mut rem);
+            let qneg = !quot.is_empty() && self.neg != other.neg;
+            let rneg = !rem.is_empty() && self.neg;
+            Some((Big { neg: qneg, mag: quot }, Big { neg: rneg, mag: rem }))
+        }
+
+        fn mul_abs(a: &[u32], k: u64) -> Vec<u32> {
+            if k == 0 {
+                return Vec::new();
+            }
+            let mut out = Vec::with_capacity(a.len() + 1);
+            let mut carry = 0u64;
+            for x in a {
+                let cur = *x as u64 * k + carry;
+                out.push((cur % BASE) as u32);
+                carry = cur / BASE;
+            }
+            while carry > 0 {
+                out.push((carry % BASE) as u32);
+                carry /= BASE;
+            }
+            trim(&mut out);
+            out
+        }
+    }
 }
 
 #[derive(Clone, Debug)]

@@ -3,6 +3,7 @@
 //! rejected by the checker or parser with an explicit message.
 
 pub use crate::lexer::Span;
+use crate::{Error, Result};
 
 #[derive(Clone, Debug)]
 pub struct Name {
@@ -205,6 +206,86 @@ pub enum LocalDecl {
     Lazy { pat: Pat, body: Term, span: Span },
 }
 
+/// A balanced token tree: the argument form of macro invocations
+/// (`macro_call = var_path, "!", token_tree` in the grammar). The tokens
+/// run from the opening delimiter through its matching close; the tree is
+/// macro input and only becomes terms or declarations at expansion.
+#[derive(Clone, Debug)]
+pub struct TokenTree {
+    pub tokens: Vec<crate::lexer::Token>,
+    pub span: Span,
+}
+
+impl TokenTree {
+    /// The tree's top-level groups, split on commas outside nested
+    /// delimiters (the macro parameter binding form: `m!(a, b)` binds two
+    /// groups). The delimiters of the outermost tree are not part of the
+    /// content.
+    pub fn arg_groups(&self) -> Vec<TokenTree> {
+        let inner = match self.tokens.split_first() {
+            Some((first, rest))
+                if matches!(
+                    first.tok,
+                    crate::lexer::Tok::LParen
+                        | crate::lexer::Tok::LBracket
+                        | crate::lexer::Tok::LBrace
+                ) =>
+            {
+                &rest[..rest.len().saturating_sub(1)]
+            }
+            _ => &self.tokens[..],
+        };
+        let mut groups = Vec::new();
+        let mut cur: Vec<crate::lexer::Token> = Vec::new();
+        let mut depth = 0i32;
+        for t in inner {
+            match t.tok {
+                crate::lexer::Tok::LParen
+                | crate::lexer::Tok::LBracket
+                | crate::lexer::Tok::LBrace
+                | crate::lexer::Tok::LQuote
+                | crate::lexer::Tok::DollarParen => depth += 1,
+                crate::lexer::Tok::RParen
+                | crate::lexer::Tok::RBracket
+                | crate::lexer::Tok::RBrace
+                | crate::lexer::Tok::RQuote => depth -= 1,
+                crate::lexer::Tok::Comma if depth == 0 => {
+                    groups.push(TokenTree { tokens: std::mem::take(&mut cur), span: self.span });
+                    continue;
+                }
+                _ => {}
+            }
+            cur.push(t.clone());
+        }
+        if !cur.is_empty() || groups.is_empty() {
+            groups.push(TokenTree { tokens: cur, span: self.span });
+        }
+        groups
+    }
+}
+
+/// One `#[name(args)]` attribute (attribute annotations specification,
+/// section 1). `args` holds the raw argument text: the contents of the
+/// parentheses, or the `= literal` tail of the named form.
+#[derive(Clone, Debug)]
+pub struct Attribute {
+    /// The dotted attribute name (`repr`, `meta`, ...).
+    pub path: Vec<Name>,
+    pub args: Option<String>,
+    pub span: Span,
+}
+
+impl Attribute {
+    /// The dotted name as written.
+    pub fn name(&self) -> String {
+        self.path
+            .iter()
+            .map(|n| n.text.as_str())
+            .collect::<Vec<_>>()
+            .join(".")
+    }
+}
+
 /// One statement of a `do` block: `pat <- term`, `let` bindings, or a
 /// bare `term`.
 #[derive(Clone, Debug)]
@@ -301,6 +382,23 @@ pub enum Term {
     /// Elaborate the body in the enclosing continuation-passing context
     /// (built by handler elaboration; never produced by the parser).
     CpsWrap(Box<Term>, Span),
+    /// `[| e |]`: a typed quotation, a `Code t` value built at compile
+    /// time from the template `e` (modules specification section 7).
+    Quote { body: Box<Term>, span: Span },
+    /// `quoteDecls where { decls }`: a quotation of declarations, a
+    /// `Declarations` value whose expansion is checked under ordinary
+    /// rules (modules specification section 8).
+    QuoteDecls { decls: Vec<Decl>, span: Span },
+    /// `$( e )`: a typed hole in a quotation, filled at quote construction
+    /// with the `Code`/`Syntax` value of `e`.
+    Splice { body: Box<Term>, span: Span },
+    /// `m!(tokens)`: a macro invocation with a balanced token tree
+    /// argument (grammar: `macro_call`). In compile-time code it applies
+    /// the macro to `Syntax` values; in runtime code it expands in place.
+    MacroCall { path: VarPath, args: TokenTree, span: Span },
+    /// A template hole standing for a spliced value (elaboration of
+    /// quotations; never produced by the parser).
+    SpliceHole { idx: usize, span: Span },
 }
 
 impl Term {
@@ -330,7 +428,12 @@ impl Term {
             | Term::With { span: s, .. }
             | Term::CapApply { span: s, .. }
             | Term::SeqOp(_, s)
-            | Term::CpsWrap(_, s) => *s,
+            | Term::CpsWrap(_, s)
+            | Term::Quote { span: s, .. }
+            | Term::QuoteDecls { span: s, .. }
+            | Term::Splice { span: s, .. }
+            | Term::MacroCall { span: s, .. }
+            | Term::SpliceHole { span: s, .. } => *s,
             Term::Handler(h) => h.span,
         }
     }
@@ -355,6 +458,10 @@ pub struct FixityDecl {
 pub struct Import {
     pub path: ConPath,
     pub alias: Option<Name>,
+    /// `import stage M`: the module's executable generators (`stage`
+    /// definitions and macros) become visible to this module's compile-time
+    /// code; ordinary names stay invisible (modules specification section 9).
+    pub stage: bool,
     pub span: Span,
 }
 
@@ -460,11 +567,26 @@ pub enum Decl {
     /// form and elimination is observation only.
     Codata(RecordDecl),
     /// `name :: ty` (with optional unsupported modifier in `modifier`).
-    ValueSig { name: Name, modifier: Option<Name>, ty: Type, span: Span },
+    ValueSig {
+        name: Name,
+        modifier: Option<Name>,
+        /// Attribute names a `macro` signature declares as its own
+        /// (`macro name attributes (codec, ...) :: ty`; attribute
+        /// annotations specification section 6).
+        owned_attrs: Vec<Name>,
+        ty: Type,
+        span: Span,
+    },
     Equation { modifier: Option<Name>, eq: Equation },
     Foreign(ForeignDecl),
     Fixity(FixityDecl),
     Effect(EffectDecl),
+    /// `#[...]`-prefixed declaration: the attributes annotate `inner`
+    /// (attribute annotations specification section 1.1).
+    Attributed { attrs: Vec<Attribute>, inner: Box<Decl> },
+    /// `generate do { stmts }`: a compile-time generator (modules
+    /// specification section 10).
+    Generate { stmts: Vec<DoStmt>, span: Span },
 }
 
 #[derive(Clone, Debug)]
@@ -473,4 +595,1230 @@ pub struct Module {
     pub imports: Vec<Import>,
     pub decls: Vec<Decl>,
     pub span: Span,
+}
+
+// ------------------------------------------------- staging: template hygiene
+
+/// The namespace a top-level name resolves in: values (including
+/// constructors and operators), or types.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RefKind {
+    Value,
+    Type,
+}
+
+/// A top-level name reference found by [`collect_term_refs`] or
+/// [`collect_decl_refs`]: `quals` is the written module qualification (or
+/// empty for a bare name).
+#[derive(Clone, Debug)]
+pub struct RefSite {
+    pub kind: RefKind,
+    pub quals: Vec<String>,
+    pub name: String,
+    pub span: Span,
+}
+
+/// Definition-site resolution of a bare name to its owning `(module,
+/// name)`; `None` when the name does not resolve there.
+pub type NameResolver<'a> = &'a dyn Fn(RefKind, &str) -> Option<(String, String)>;
+
+fn ref_of_path(kind: RefKind, segments: &[Name], span: Span) -> RefSite {
+    RefSite {
+        kind,
+        quals: segments[..segments.len().saturating_sub(1)]
+            .iter()
+            .map(|n| n.text.clone())
+            .collect(),
+        name: segments.last().map(|n| n.text.clone()).unwrap_or_default(),
+        span,
+    }
+}
+
+/// Every top-level name `t` references (module call graph and staging
+/// dependency graph). Local binder occurrences are not references.
+pub fn collect_term_refs(t: &Term, out: &mut Vec<RefSite>) {
+    match t {
+        Term::Var(p) => out.push(RefSite {
+            kind: RefKind::Value,
+            quals: p.quals.iter().map(|n| n.text.clone()).collect(),
+            name: p.name.text.clone(),
+            span: p.span(),
+        }),
+        Term::Con(p) => out.push(ref_of_path(RefKind::Value, &p.segments, p.span())),
+        Term::Int(_, _)
+        | Term::Str(_, _)
+        | Term::Char(_, _)
+        | Term::Unit(_)
+        | Term::Hole(_)
+        | Term::SeqOp(_, _)
+        | Term::SpliceHole { .. } => {}
+        Term::App(f, args, _) => {
+            collect_term_refs(f, out);
+            for a in args {
+                collect_term_refs(a, out);
+            }
+        }
+        Term::Lam(_, body, _) => collect_term_refs(body, out),
+        Term::Let(_, body, _) => collect_term_refs(body, out),
+        Term::If(a, b, c, _) => {
+            collect_term_refs(a, out);
+            collect_term_refs(b, out);
+            collect_term_refs(c, out);
+        }
+        Term::Case(s, alts, _) => {
+            collect_term_refs(s, out);
+            for alt in alts {
+                if let Some(g) = &alt.guard {
+                    collect_term_refs(g, out);
+                }
+                collect_term_refs(&alt.body, out);
+            }
+        }
+        Term::Ann(e, _, _) => collect_term_refs(e, out),
+        Term::Infix(ts, _, _) => {
+            for x in ts {
+                collect_term_refs(x, out);
+            }
+        }
+        Term::Neg(e, _) => collect_term_refs(e, out),
+        Term::Tuple(ts, _) | Term::List(ts, _) => {
+            for x in ts {
+                collect_term_refs(x, out);
+            }
+        }
+        Term::Proj(e, _, _) => collect_term_refs(e, out),
+        Term::Record(p, fields, _) => {
+            out.push(ref_of_path(RefKind::Value, &p.segments, p.span()));
+            for (_, e) in fields {
+                collect_term_refs(e, out);
+            }
+        }
+        Term::Do(stmts, _) => {
+            for s in stmts {
+                match s {
+                    DoStmt::Bind { term, .. } | DoStmt::Expr { term, .. } => {
+                        collect_term_refs(term, out)
+                    }
+                    DoStmt::Let { decl, .. } => collect_local_refs(decl, out),
+                }
+            }
+        }
+        Term::Handle(e, h, _) => {
+            collect_term_refs(e, out);
+            collect_term_refs(h, out);
+        }
+        Term::Handler(h) => {
+            collect_term_refs(&h.ret_body, out);
+            for c in &h.clauses {
+                collect_term_refs(&c.body, out);
+            }
+        }
+        Term::With { value, body, .. } => {
+            collect_term_refs(value, out);
+            collect_term_refs(body, out);
+        }
+        Term::CapApply { head, supplies, .. } => {
+            collect_term_refs(head, out);
+            for (_, e) in supplies {
+                collect_term_refs(e, out);
+            }
+        }
+        Term::CpsWrap(e, _) => collect_term_refs(e, out),
+        Term::Quote { body, .. } => collect_term_refs(body, out),
+        Term::QuoteDecls { decls, .. } => {
+            for d in decls {
+                collect_decl_refs(d, out);
+            }
+        }
+        Term::Splice { body, .. } => collect_term_refs(body, out),
+        Term::MacroCall { path, .. } => out.push(RefSite {
+            kind: RefKind::Value,
+            quals: path.quals.iter().map(|n| n.text.clone()).collect(),
+            name: path.name.text.clone(),
+            span: path.span(),
+        }),
+    }
+}
+
+fn collect_local_refs(d: &LocalDecl, out: &mut Vec<RefSite>) {
+    match d {
+        LocalDecl::Sig { ty, .. } => collect_type_refs(ty, out),
+        LocalDecl::Eq { body, .. } | LocalDecl::Bind { body, .. } | LocalDecl::Lazy { body, .. } => {
+            collect_term_refs(body, out)
+        }
+    }
+}
+
+/// Every top-level name a declaration references.
+pub fn collect_decl_refs(d: &Decl, out: &mut Vec<RefSite>) {
+    match d {
+        Decl::Import(_)
+        | Decl::Fixity(_)
+        | Decl::Foreign(_) => {}
+        Decl::Attributed { inner, .. } => collect_decl_refs(inner, out),
+        Decl::Generate { stmts, .. } => {
+            for s in stmts {
+                match s {
+                    DoStmt::Bind { term, .. } | DoStmt::Expr { term, .. } => {
+                        collect_term_refs(term, out)
+                    }
+                    DoStmt::Let { decl, .. } => collect_local_refs(decl, out),
+                }
+            }
+        }
+        Decl::Signature(s) => {
+            for (_, ty) in &s.methods {
+                collect_type_refs(ty, out);
+            }
+        }
+        Decl::Instance(i) => {
+            collect_type_refs(&i.target, out);
+            for c in &i.ctx {
+                for a in &c.args {
+                    collect_type_refs(a, out);
+                }
+            }
+            for m in &i.methods {
+                collect_term_refs(&m.body, out);
+                for l in &m.locals {
+                    collect_local_refs(l, out);
+                }
+            }
+        }
+        Decl::Data(data) => {
+            for c in &data.ctors {
+                collect_type_refs(&c.ty, out);
+            }
+        }
+        Decl::Record(r) | Decl::Codata(r) => {
+            for f in &r.fields {
+                collect_type_refs(&f.ty, out);
+            }
+        }
+        Decl::Effect(e) => {
+            for (_, ty) in &e.ops {
+                collect_type_refs(ty, out);
+            }
+        }
+        Decl::ValueSig { ty, .. } => collect_type_refs(ty, out),
+        Decl::Equation { eq, .. } => {
+            collect_term_refs(&eq.body, out);
+            for l in &eq.locals {
+                collect_local_refs(l, out);
+            }
+        }
+    }
+}
+
+/// Every top-level name a type references.
+pub fn collect_type_refs(t: &Type, out: &mut Vec<RefSite>) {
+    match t {
+        Type::Con(p, span) => out.push(ref_of_path(RefKind::Type, &p.segments, *span)),
+        Type::Var(_, _) | Type::Unit(_) | Type::Num(_, _) => {}
+        Type::App(a, b, _) => {
+            collect_type_refs(a, out);
+            collect_type_refs(b, out);
+        }
+        Type::AppRow(a, _, _) => collect_type_refs(a, out),
+        Type::Fun { arg, res, .. } => {
+            collect_type_refs(arg, out);
+            collect_type_refs(res, out);
+        }
+        Type::Forall(_, b, _) => collect_type_refs(b, out),
+        Type::Using(cs, b, _) => {
+            for c in cs {
+                for a in &c.args {
+                    collect_type_refs(a, out);
+                }
+            }
+            collect_type_refs(b, out);
+        }
+        Type::DepFun(_, a, _, _, b, _) => {
+            collect_type_refs(a, out);
+            collect_type_refs(b, out);
+        }
+        Type::Sigma(_, a, b, _) => {
+            collect_type_refs(a, out);
+            collect_type_refs(b, out);
+        }
+        Type::Tuple(ts, _) => {
+            for x in ts {
+                collect_type_refs(x, out);
+            }
+        }
+        Type::Infix(ts, _, _) => {
+            for x in ts {
+                collect_type_refs(x, out);
+            }
+        }
+    }
+}
+
+// ------------------------------------------- staging: capture-avoiding templates
+
+/// Hygiene context for rewriting one quotation or macro template (modules
+/// specification section 8): generated binders are fresh by default, and
+/// free top-level names resolve where the template was defined.
+pub struct HygCx<'a> {
+    /// Definition-site resolution of bare top-level names.
+    pub resolve: NameResolver<'a>,
+    /// Fresh name generation (one counter per expansion).
+    pub fresh: &'a mut dyn FnMut(&str) -> String,
+    /// Top-level names the template itself declares (`quoteDecls` items):
+    /// references to them stay bare and bind the generated declarations.
+    pub own_values: Vec<String>,
+    pub own_types: Vec<String>,
+}
+
+#[derive(Default)]
+pub struct HygScope {
+    /// `(spelled, fresh)` pairs; the last one wins (shadowing).
+    values: Vec<(String, String)>,
+    types: Vec<(String, String)>,
+}
+
+impl HygScope {
+    pub fn new() -> HygScope {
+        HygScope::default()
+    }
+
+    fn lookup_value(&self, n: &str) -> Option<&str> {
+        self.values.iter().rev().find(|(a, _)| a == n).map(|(_, b)| b.as_str())
+    }
+    fn lookup_type(&self, n: &str) -> Option<&str> {
+        self.types.iter().rev().find(|(a, _)| a == n).map(|(_, b)| b.as_str())
+    }
+}
+
+fn fresh_name(cx: &mut HygCx, base: &str) -> String {
+    (cx.fresh)(base)
+}
+
+fn qualify_value(cx: &HygCx, path: &VarPath, span: Span) -> Result<VarPath> {
+    if !path.quals.is_empty() || cx.own_values.iter().any(|n| *n == path.name.text) {
+        return Ok(path.clone());
+    }
+    match (cx.resolve)(RefKind::Value, &path.name.text) {
+        // Builtins are in scope everywhere and cannot be redefined: a
+        // bare name keeps them (and stays readable in diagnostics).
+        Some((module, name)) if module == "<builtin>" => {
+            Ok(VarPath {
+                quals: Vec::new(),
+                name: Name::new(name, path.name.span),
+            })
+        }
+        Some((module, name)) => Ok(VarPath {
+            quals: vec![Name::new(module, span)],
+            name: Name::new(name, path.name.span),
+        }),
+        None => Err(Error::at(
+            path.span(),
+            format!(
+                "`{}` does not resolve where this template was defined; a template may only reference its own binders, its own declarations, and names visible at its definition site",
+                path.name.text
+            ),
+        )),
+    }
+}
+
+fn qualify_con(cx: &HygCx, path: &ConPath, span: Span) -> Result<ConPath> {
+    if path.segments.len() > 1 || cx.own_values.iter().any(|n| *n == path.segments[0].text) {
+        return Ok(path.clone());
+    }
+    match (cx.resolve)(RefKind::Value, &path.segments[0].text) {
+        Some((module, name)) if module == "<builtin>" => Ok(ConPath {
+            segments: vec![Name::new(name, path.segments[0].span)],
+        }),
+        Some((module, name)) => Ok(ConPath {
+            segments: vec![Name::new(module, span), Name::new(name, path.segments[0].span)],
+        }),
+        None => Err(Error::at(
+            span,
+            format!(
+                "`{}` does not resolve where this template was defined; a template may only reference its own binders, its own declarations, and names visible at its definition site",
+                path.segments[0].text
+            ),
+        )),
+    }
+}
+
+fn qualify_type_con(cx: &HygCx, path: &ConPath, span: Span) -> Result<ConPath> {
+    if path.segments.len() > 1 || cx.own_types.iter().any(|n| *n == path.segments[0].text) {
+        return Ok(path.clone());
+    }
+    match (cx.resolve)(RefKind::Type, &path.segments[0].text) {
+        Some((module, name)) if module == "<builtin>" => Ok(ConPath {
+            segments: vec![Name::new(name, path.segments[0].span)],
+        }),
+        Some((module, name)) => Ok(ConPath {
+            segments: vec![Name::new(module, span), Name::new(name, path.segments[0].span)],
+        }),
+        None => Err(Error::at(
+            span,
+            format!(
+                "type `{}` does not resolve where this template was defined; a template may only reference its own declarations and types visible at its definition site",
+                path.segments[0].text
+            ),
+        )),
+    }
+}
+
+fn hyg_pat(p: &Pat, cx: &mut HygCx, sc: &mut HygScope) -> Result<Pat> {
+    Ok(match p {
+        Pat::Var(n, s) => {
+            let f = fresh_name(cx, &n.text);
+            sc.values.push((n.text.clone(), f.clone()));
+            Pat::Var(Name::new(f, n.span), *s)
+        }
+        Pat::Wild(s) => Pat::Wild(*s),
+        Pat::Unit(s) => Pat::Unit(*s),
+        Pat::Int(v, s) => Pat::Int(v.clone(), *s),
+        Pat::Con(path, pats, s) => {
+            let path = qualify_con(cx, path, *s)?;
+            let mut out = Vec::new();
+            for x in pats {
+                out.push(hyg_pat(x, cx, sc)?);
+            }
+            Pat::Con(path, out, *s)
+        }
+        Pat::As(n, inner, s) => {
+            let inner = hyg_pat(inner, cx, sc)?;
+            let f = fresh_name(cx, &n.text);
+            sc.values.push((n.text.clone(), f.clone()));
+            Pat::As(Name::new(f, n.span), Box::new(inner), *s)
+        }
+        Pat::Tuple(pats, s) => {
+            let mut out = Vec::new();
+            for x in pats {
+                out.push(hyg_pat(x, cx, sc)?);
+            }
+            Pat::Tuple(out, *s)
+        }
+        Pat::List(pats, s) => {
+            let mut out = Vec::new();
+            for x in pats {
+                out.push(hyg_pat(x, cx, sc)?);
+            }
+            Pat::List(out, *s)
+        }
+        Pat::Record(path, fields, s) => {
+            let path = qualify_con(cx, path, *s)?;
+            let mut out = Vec::new();
+            for (f, x) in fields {
+                out.push((f.clone(), hyg_pat(x, cx, sc)?));
+            }
+            Pat::Record(path, out, *s)
+        }
+    })
+}
+
+fn hyg_type(t: &Type, cx: &mut HygCx, sc: &mut HygScope) -> Result<Type> {
+    Ok(match t {
+        Type::Con(path, s) => Type::Con(qualify_type_con(cx, path, *s)?, *s),
+        Type::Var(n, s) => match sc.lookup_type(&n.text) {
+            Some(f) => Type::Var(Name::new(f, n.span), *s),
+            None => Type::Var(n.clone(), *s),
+        },
+        Type::App(a, b, s) => {
+            Type::App(Box::new(hyg_type(a, cx, sc)?), Box::new(hyg_type(b, cx, sc)?), *s)
+        }
+        Type::AppRow(a, r, s) => Type::AppRow(Box::new(hyg_type(a, cx, sc)?), r.clone(), *s),
+        Type::Fun { arg, mult, eff, res, span } => Type::Fun {
+            arg: Box::new(hyg_type(arg, cx, sc)?),
+            mult: mult.clone(),
+            eff: eff.clone(),
+            res: Box::new(hyg_type(res, cx, sc)?),
+            span: *span,
+        },
+        Type::Forall(binders, body, s) => {
+            let mut binders = binders.clone();
+            for b in &mut binders {
+                if let Some(ann) = &b.ann {
+                    b.ann = Some(hyg_type(ann, cx, sc)?);
+                }
+                let f = fresh_name(cx, &b.name.text);
+                sc.types.push((b.name.text.clone(), f.clone()));
+                b.name = Name::new(f, b.name.span);
+            }
+            let body = hyg_type(body, cx, sc)?;
+            for _ in &binders {
+                sc.types.pop();
+            }
+            Type::Forall(binders, Box::new(body), *s)
+        }
+        Type::Using(cs, body, s) => {
+            let mut out = Vec::new();
+            for c in cs {
+                let mut c = c.clone();
+                for a in &mut c.args {
+                    *a = hyg_type(a, cx, sc)?;
+                }
+                out.push(c);
+            }
+            Type::Using(out, Box::new(hyg_type(body, cx, sc)?), *s)
+        }
+        Type::DepFun(n, a, mult, eff, b, s) => {
+            let a = hyg_type(a, cx, sc)?;
+            let f = fresh_name(cx, &n.text);
+            sc.types.push((n.text.clone(), f.clone()));
+            let b = hyg_type(b, cx, sc)?;
+            sc.types.pop();
+            Type::DepFun(Name::new(f, n.span), Box::new(a), mult.clone(), eff.clone(), Box::new(b), *s)
+        }
+        Type::Sigma(n, a, b, s) => {
+            let a = hyg_type(a, cx, sc)?;
+            let f = fresh_name(cx, &n.text);
+            sc.types.push((n.text.clone(), f.clone()));
+            let b = hyg_type(b, cx, sc)?;
+            sc.types.pop();
+            Type::Sigma(Name::new(f, n.span), Box::new(a), Box::new(b), *s)
+        }
+        Type::Unit(s) => Type::Unit(*s),
+        Type::Tuple(ts, s) => {
+            let mut out = Vec::new();
+            for x in ts {
+                out.push(hyg_type(x, cx, sc)?);
+            }
+            Type::Tuple(out, *s)
+        }
+        Type::Infix(ts, ops, s) => {
+            let mut out = Vec::new();
+            for x in ts {
+                out.push(hyg_type(x, cx, sc)?);
+            }
+            Type::Infix(out, ops.clone(), *s)
+        }
+        Type::Num(v, s) => Type::Num(v.clone(), *s),
+    })
+}
+
+fn hyg_local(d: &LocalDecl, cx: &mut HygCx, sc: &mut HygScope) -> Result<LocalDecl> {
+    Ok(match d {
+        LocalDecl::Sig { name, ty, span } => {
+            let ty = hyg_type(ty, cx, sc)?;
+            let f = fresh_name(cx, &name.text);
+            sc.values.push((name.text.clone(), f.clone()));
+            LocalDecl::Sig { name: Name::new(f, name.span), ty, span: *span }
+        }
+        LocalDecl::Eq { name, pats, body, span } => {
+            let f = fresh_name(cx, &name.text);
+            sc.values.push((name.text.clone(), f.clone()));
+            let mut new_pats = Vec::new();
+            for p in pats {
+                new_pats.push(hyg_pat(p, cx, sc)?);
+            }
+            let body = hyg_term(body, cx, sc)?;
+            LocalDecl::Eq { name: Name::new(f, name.span), pats: new_pats, body, span: *span }
+        }
+        LocalDecl::Bind { pat, body, span } => {
+            let body = hyg_term(body, cx, sc)?;
+            let pat = hyg_pat(pat, cx, sc)?;
+            LocalDecl::Bind { pat, body, span: *span }
+        }
+        LocalDecl::Lazy { pat, body, span } => {
+            let body = hyg_term(body, cx, sc)?;
+            let pat = hyg_pat(pat, cx, sc)?;
+            LocalDecl::Lazy { pat, body, span: *span }
+        }
+    })
+}
+
+fn hyg_alt(a: &Alt, cx: &mut HygCx, sc: &mut HygScope) -> Result<Alt> {
+    let pat = hyg_pat(&a.pat, cx, sc)?;
+    let guard = match &a.guard {
+        Some(g) => Some(hyg_term(g, cx, sc)?),
+        None => None,
+    };
+    let body = hyg_term(&a.body, cx, sc)?;
+    Ok(Alt { pat, guard, body, span: a.span })
+}
+
+fn hyg_do_stmt(s: &DoStmt, cx: &mut HygCx, sc: &mut HygScope) -> Result<DoStmt> {
+    Ok(match s {
+        DoStmt::Bind { pat, term, span } => {
+            let term = hyg_term(term, cx, sc)?;
+            let pat = hyg_pat(pat, cx, sc)?;
+            DoStmt::Bind { pat, term, span: *span }
+        }
+        DoStmt::Let { decl, span } => DoStmt::Let { decl: hyg_local(decl, cx, sc)?, span: *span },
+        DoStmt::Expr { term, span } => DoStmt::Expr { term: hyg_term(term, cx, sc)?, span: *span },
+    })
+}
+
+/// Alpha-rename one template term and qualify its free top-level names at
+/// the definition site. `SpliceHole`s pass through: substituted syntax is
+/// caller code and keeps its own binding relationships.
+pub fn hyg_term(t: &Term, cx: &mut HygCx, sc: &mut HygScope) -> Result<Term> {
+    Ok(match t {
+        Term::Var(p) => {
+            if p.quals.is_empty() {
+                if let Some(f) = sc.lookup_value(&p.name.text) {
+                    let f = f.to_string();
+                    return Ok(Term::Var(VarPath {
+                        quals: Vec::new(),
+                        name: Name::new(f, p.name.span),
+                    }));
+                }
+            }
+            Term::Var(qualify_value(cx, p, p.span())?)
+        }
+        Term::Con(p) => Term::Con(qualify_con(cx, p, p.span())?),
+        Term::Int(v, s) => Term::Int(v.clone(), *s),
+        Term::Str(v, s) => Term::Str(v.clone(), *s),
+        Term::Char(v, s) => Term::Char(v.clone(), *s),
+        Term::Unit(s) => Term::Unit(*s),
+        Term::Hole(s) => Term::Hole(*s),
+        Term::SpliceHole { idx, span } => Term::SpliceHole { idx: *idx, span: *span },
+        Term::SeqOp(k, s) => Term::SeqOp(*k, *s),
+        Term::App(f, args, s) => {
+            let f = hyg_term(f, cx, sc)?;
+            let mut out = Vec::new();
+            for a in args {
+                out.push(hyg_term(a, cx, sc)?);
+            }
+            Term::App(Box::new(f), out, *s)
+        }
+        Term::Lam(pats, body, s) => {
+            let mut new_pats = Vec::new();
+            for p in pats {
+                new_pats.push(hyg_pat(p, cx, sc)?);
+            }
+            let body = hyg_term(body, cx, sc)?;
+            Term::Lam(new_pats, Box::new(body), *s)
+        }
+        Term::Let(decls, body, s) => {
+            let mut new_decls = Vec::new();
+            for d in decls {
+                new_decls.push(hyg_local(d, cx, sc)?);
+            }
+            let body = hyg_term(body, cx, sc)?;
+            Term::Let(new_decls, Box::new(body), *s)
+        }
+        Term::If(a, b, c, s) => Term::If(
+            Box::new(hyg_term(a, cx, sc)?),
+            Box::new(hyg_term(b, cx, sc)?),
+            Box::new(hyg_term(c, cx, sc)?),
+            *s,
+        ),
+        Term::Case(scrut, alts, s) => {
+            let scrut = hyg_term(scrut, cx, sc)?;
+            let mut out = Vec::new();
+            for a in alts {
+                out.push(hyg_alt(a, cx, sc)?);
+            }
+            Term::Case(Box::new(scrut), out, *s)
+        }
+        Term::Ann(e, ty, s) => Term::Ann(Box::new(hyg_term(e, cx, sc)?), hyg_type(ty, cx, sc)?, *s),
+        Term::Infix(ts, ops, s) => {
+            let mut out = Vec::new();
+            for x in ts {
+                out.push(hyg_term(x, cx, sc)?);
+            }
+            Term::Infix(out, ops.clone(), *s)
+        }
+        Term::Neg(e, s) => Term::Neg(Box::new(hyg_term(e, cx, sc)?), *s),
+        Term::Tuple(ts, s) => {
+            let mut out = Vec::new();
+            for x in ts {
+                out.push(hyg_term(x, cx, sc)?);
+            }
+            Term::Tuple(out, *s)
+        }
+        Term::List(ts, s) => {
+            let mut out = Vec::new();
+            for x in ts {
+                out.push(hyg_term(x, cx, sc)?);
+            }
+            Term::List(out, *s)
+        }
+        Term::Proj(e, n, s) => Term::Proj(Box::new(hyg_term(e, cx, sc)?), n.clone(), *s),
+        Term::Record(p, fields, s) => {
+            let p = qualify_con(cx, p, *s)?;
+            let mut out = Vec::new();
+            for (n, e) in fields {
+                out.push((n.clone(), hyg_term(e, cx, sc)?));
+            }
+            Term::Record(p, out, *s)
+        }
+        Term::Do(stmts, s) => {
+            let mut out = Vec::new();
+            for x in stmts {
+                out.push(hyg_do_stmt(x, cx, sc)?);
+            }
+            Term::Do(out, *s)
+        }
+        Term::Handle(e, h, s) => Term::Handle(
+            Box::new(hyg_term(e, cx, sc)?),
+            Box::new(hyg_term(h, cx, sc)?),
+            *s,
+        ),
+        Term::Handler(h) => {
+            let mut h = (**h).clone();
+            let ret_body = hyg_term(&h.ret_body, cx, sc)?;
+            h.ret_body = ret_body;
+            let ret_pat = hyg_pat(&h.ret_pat, cx, sc)?;
+            h.ret_pat = ret_pat;
+            let mut clauses = Vec::new();
+            for c in &h.clauses {
+                let mut c = c.clone();
+                let mut pats = Vec::new();
+                for p in &c.pats {
+                    pats.push(hyg_pat(p, cx, sc)?);
+                }
+                c.pats = pats;
+                if let Some(r) = &c.resume {
+                    let f = fresh_name(cx, &r.text);
+                    sc.values.push((r.text.clone(), f.clone()));
+                    c.resume = Some(Name::new(f, r.span));
+                }
+                c.body = hyg_term(&c.body, cx, sc)?;
+                if c.resume.is_some() {
+                    sc.values.pop();
+                }
+                clauses.push(c);
+            }
+            h.clauses = clauses;
+            Term::Handler(Box::new(h))
+        }
+        Term::With { name, value, body, span } => {
+            let value = hyg_term(value, cx, sc)?;
+            let f = fresh_name(cx, &name.text);
+            sc.values.push((name.text.clone(), f.clone()));
+            let body = hyg_term(body, cx, sc)?;
+            sc.values.pop();
+            Term::With {
+                name: Name::new(f, name.span),
+                value: Box::new(value),
+                body: Box::new(body),
+                span: *span,
+            }
+        }
+        Term::CapApply { head, supplies, span } => {
+            let head = hyg_term(head, cx, sc)?;
+            let mut out = Vec::new();
+            for (n, e) in supplies {
+                out.push((n.clone(), hyg_term(e, cx, sc)?));
+            }
+            Term::CapApply { head: Box::new(head), supplies: out, span: *span }
+        }
+        Term::CpsWrap(e, s) => Term::CpsWrap(Box::new(hyg_term(e, cx, sc)?), *s),
+        Term::Quote { body, span } => Term::Quote {
+            body: Box::new(hyg_term(body, cx, sc)?),
+            span: *span,
+        },
+        Term::QuoteDecls { decls, span } => {
+            let mut out = Vec::new();
+            for d in decls {
+                out.push(hyg_decl(d, cx, sc)?);
+            }
+            Term::QuoteDecls { decls: out, span: *span }
+        }
+        Term::Splice { body, span } => Term::Splice {
+            body: Box::new(hyg_term(body, cx, sc)?),
+            span: *span,
+        },
+        Term::MacroCall { path, args, span } => {
+            let path = qualify_value(cx, path, *span)?;
+            Term::MacroCall { path, args: args.clone(), span: *span }
+        }
+    })
+}
+
+fn hyg_equation(eq: &Equation, cx: &mut HygCx, sc: &mut HygScope) -> Result<Equation> {
+    // The equation's own name is a generated declaration's chosen name:
+    // it stays as written and binds at the insertion site.
+    let mut pats = Vec::new();
+    for p in &eq.pats {
+        pats.push(hyg_pat(p, cx, sc)?);
+    }
+    let mut locals = Vec::new();
+    for l in &eq.locals {
+        locals.push(hyg_local(l, cx, sc)?);
+    }
+    let body = hyg_term(&eq.body, cx, sc)?;
+    Ok(Equation {
+        name: eq.name.clone(),
+        pats,
+        body,
+        locals,
+        span: eq.span,
+    })
+}
+
+/// Alpha-rename and definition-site qualify one template declaration.
+pub fn hyg_decl(d: &Decl, cx: &mut HygCx, sc: &mut HygScope) -> Result<Decl> {
+    Ok(match d {
+        Decl::Import(i) => Decl::Import(i.clone()),
+        Decl::Fixity(f) => Decl::Fixity(f.clone()),
+        Decl::Foreign(f) => {
+            let mut f = f.clone();
+            f.ty = hyg_type(&f.ty, cx, sc)?;
+            Decl::Foreign(f)
+        }
+        Decl::Attributed { attrs, inner } => Decl::Attributed {
+            attrs: attrs.clone(),
+            inner: Box::new(hyg_decl(inner, cx, sc)?),
+        },
+        Decl::Generate { span, .. } => {
+            return Err(Error::at(
+                *span,
+                "a generator cannot emit further `generate` declarations",
+            ))
+        }
+        Decl::Signature(s) => {
+            let mut s = s.clone();
+            let mut methods = Vec::new();
+            for (n, ty) in &s.methods {
+                let ty = hyg_type(ty, cx, sc)?;
+                let f = fresh_name(cx, &n.text);
+                sc.values.push((n.text.clone(), f.clone()));
+                methods.push((Name::new(f, n.span), ty));
+            }
+            s.methods = methods;
+            Decl::Signature(s)
+        }
+        Decl::Instance(i) => {
+            let mut i = i.clone();
+            i.target = hyg_type(&i.target, cx, sc)?;
+            let mut methods = Vec::new();
+            for m in &i.methods {
+                methods.push(hyg_equation(m, cx, sc)?);
+            }
+            i.methods = methods;
+            Decl::Instance(i)
+        }
+        Decl::Data(data) => {
+            let mut data = data.clone();
+            let mut params = Vec::new();
+            for b in &data.params {
+                let mut b = b.clone();
+                if let Some(ann) = &b.ann {
+                    b.ann = Some(hyg_type(ann, cx, sc)?);
+                }
+                let f = fresh_name(cx, &b.name.text);
+                sc.types.push((b.name.text.clone(), f.clone()));
+                b.name = Name::new(f, b.name.span);
+                params.push(b);
+            }
+            let mut ctors = Vec::new();
+            for c in &data.ctors {
+                let mut c = c.clone();
+                c.ty = hyg_type(&c.ty, cx, sc)?;
+                ctors.push(c);
+            }
+            data.ctors = ctors;
+            for _ in &params {
+                sc.types.pop();
+            }
+            data.params = params;
+            Decl::Data(data)
+        }
+        Decl::Record(r) | Decl::Codata(r) => {
+            let is_codata = matches!(d, Decl::Codata(_));
+            let mut r = r.clone();
+            let mut params = Vec::new();
+            for b in &r.params {
+                let mut b = b.clone();
+                if let Some(ann) = &b.ann {
+                    b.ann = Some(hyg_type(ann, cx, sc)?);
+                }
+                let f = fresh_name(cx, &b.name.text);
+                sc.types.push((b.name.text.clone(), f.clone()));
+                b.name = Name::new(f, b.name.span);
+                params.push(b);
+            }
+            let mut fields = Vec::new();
+            for fd in &r.fields {
+                let mut fd = fd.clone();
+                fd.ty = hyg_type(&fd.ty, cx, sc)?;
+                fields.push(fd);
+            }
+            r.fields = fields;
+            for _ in &params {
+                sc.types.pop();
+            }
+            r.params = params;
+            if is_codata {
+                Decl::Codata(r)
+            } else {
+                Decl::Record(r)
+            }
+        }
+        Decl::Effect(e) => {
+            let mut e = e.clone();
+            let mut ops = Vec::new();
+            for (n, ty) in &e.ops {
+                let ty = hyg_type(ty, cx, sc)?;
+                let f = fresh_name(cx, &n.text);
+                sc.values.push((n.text.clone(), f.clone()));
+                ops.push((Name::new(f, n.span), ty));
+            }
+            e.ops = ops;
+            Decl::Effect(e)
+        }
+        Decl::ValueSig { name, modifier, owned_attrs, ty, span } => {
+            let ty = hyg_type(ty, cx, sc)?;
+            Decl::ValueSig {
+                name: name.clone(),
+                modifier: modifier.clone(),
+                owned_attrs: owned_attrs.clone(),
+                ty,
+                span: *span,
+            }
+        }
+        Decl::Equation { modifier, eq } => Decl::Equation {
+            modifier: modifier.clone(),
+            eq: hyg_equation(eq, cx, sc)?,
+        },
+    })
+}
+
+/// Substitute template holes with their spliced syntax (already
+/// hygienically prepared): the substituted subtrees keep their own names.
+pub fn subst_holes(t: &Term, vals: &[Term]) -> Term {
+    match t {
+        Term::SpliceHole { idx, .. } => vals[*idx].clone(),
+        Term::Var(_) | Term::Con(_) | Term::Int(_, _) | Term::Str(_, _) | Term::Char(_, _)
+        | Term::Unit(_) | Term::Hole(_) | Term::SeqOp(_, _) => t.clone(),
+        Term::App(f, args, s) => Term::App(
+            Box::new(subst_holes(f, vals)),
+            args.iter().map(|a| subst_holes(a, vals)).collect(),
+            *s,
+        ),
+        Term::Lam(pats, body, s) => {
+            Term::Lam(pats.clone(), Box::new(subst_holes(body, vals)), *s)
+        }
+        Term::Let(decls, body, s) => Term::Let(
+            decls.iter().map(|d| subst_holes_local(d, vals)).collect(),
+            Box::new(subst_holes(body, vals)),
+            *s,
+        ),
+        Term::If(a, b, c, s) => Term::If(
+            Box::new(subst_holes(a, vals)),
+            Box::new(subst_holes(b, vals)),
+            Box::new(subst_holes(c, vals)),
+            *s,
+        ),
+        Term::Case(scrut, alts, s) => Term::Case(
+            Box::new(subst_holes(scrut, vals)),
+            alts
+                .iter()
+                .map(|a| Alt {
+                    pat: a.pat.clone(),
+                    guard: a.guard.as_ref().map(|g| subst_holes(g, vals)),
+                    body: subst_holes(&a.body, vals),
+                    span: a.span,
+                })
+                .collect(),
+            *s,
+        ),
+        Term::Ann(e, ty, s) => Term::Ann(Box::new(subst_holes(e, vals)), ty.clone(), *s),
+        Term::Infix(ts, ops, s) => {
+            Term::Infix(ts.iter().map(|x| subst_holes(x, vals)).collect(), ops.clone(), *s)
+        }
+        Term::Neg(e, s) => Term::Neg(Box::new(subst_holes(e, vals)), *s),
+        Term::Tuple(ts, s) => Term::Tuple(ts.iter().map(|x| subst_holes(x, vals)).collect(), *s),
+        Term::List(ts, s) => Term::List(ts.iter().map(|x| subst_holes(x, vals)).collect(), *s),
+        Term::Proj(e, n, s) => Term::Proj(Box::new(subst_holes(e, vals)), n.clone(), *s),
+        Term::Record(p, fields, s) => Term::Record(
+            p.clone(),
+            fields.iter().map(|(n, e)| (n.clone(), subst_holes(e, vals))).collect(),
+            *s,
+        ),
+        Term::Do(stmts, s) => Term::Do(
+            stmts
+                .iter()
+                .map(|x| match x {
+                    DoStmt::Bind { pat, term, span } => DoStmt::Bind {
+                        pat: pat.clone(),
+                        term: subst_holes(term, vals),
+                        span: *span,
+                    },
+                    DoStmt::Let { decl, span } => DoStmt::Let {
+                        decl: subst_holes_local(decl, vals),
+                        span: *span,
+                    },
+                    DoStmt::Expr { term, span } => DoStmt::Expr {
+                        term: subst_holes(term, vals),
+                        span: *span,
+                    },
+                })
+                .collect(),
+            *s,
+        ),
+        Term::Handle(e, h, s) => Term::Handle(
+            Box::new(subst_holes(e, vals)),
+            Box::new(subst_holes(h, vals)),
+            *s,
+        ),
+        Term::Handler(h) => {
+            let mut h = (**h).clone();
+            h.ret_body = subst_holes(&h.ret_body, vals);
+            h.clauses = h
+                .clauses
+                .iter()
+                .map(|c| {
+                    let mut c = c.clone();
+                    c.body = subst_holes(&c.body, vals);
+                    c
+                })
+                .collect();
+            Term::Handler(Box::new(h))
+        }
+        Term::With { name, value, body, span } => Term::With {
+            name: name.clone(),
+            value: Box::new(subst_holes(value, vals)),
+            body: Box::new(subst_holes(body, vals)),
+            span: *span,
+        },
+        Term::CapApply { head, supplies, span } => Term::CapApply {
+            head: Box::new(subst_holes(head, vals)),
+            supplies: supplies
+                .iter()
+                .map(|(n, e)| (n.clone(), subst_holes(e, vals)))
+                .collect(),
+            span: *span,
+        },
+        Term::CpsWrap(e, s) => Term::CpsWrap(Box::new(subst_holes(e, vals)), *s),
+        Term::Quote { body, span } => Term::Quote {
+            body: Box::new(subst_holes(body, vals)),
+            span: *span,
+        },
+        Term::QuoteDecls { decls, span } => Term::QuoteDecls {
+            decls: decls.iter().map(|d| subst_holes_decl(d, vals)).collect(),
+            span: *span,
+        },
+        Term::Splice { body, span } => Term::Splice {
+            body: Box::new(subst_holes(body, vals)),
+            span: *span,
+        },
+        Term::MacroCall { .. } => t.clone(),
+    }
+}
+
+fn subst_holes_local(d: &LocalDecl, vals: &[Term]) -> LocalDecl {
+    match d {
+        LocalDecl::Sig { .. } => d.clone(),
+        LocalDecl::Eq { name, pats, body, span } => LocalDecl::Eq {
+            name: name.clone(),
+            pats: pats.clone(),
+            body: subst_holes(body, vals),
+            span: *span,
+        },
+        LocalDecl::Bind { pat, body, span } => LocalDecl::Bind {
+            pat: pat.clone(),
+            body: subst_holes(body, vals),
+            span: *span,
+        },
+        LocalDecl::Lazy { pat, body, span } => LocalDecl::Lazy {
+            pat: pat.clone(),
+            body: subst_holes(body, vals),
+            span: *span,
+        },
+    }
+}
+
+/// Substitute template holes in a declaration template.
+pub fn subst_holes_decl(d: &Decl, vals: &[Term]) -> Decl {
+    match d {
+        Decl::Import(_) | Decl::Fixity(_) | Decl::Foreign(_) | Decl::Signature(_)
+        | Decl::Data(_) | Decl::Record(_) | Decl::Codata(_) | Decl::Effect(_)
+        | Decl::ValueSig { .. } | Decl::Generate { .. } => d.clone(),
+        Decl::Attributed { attrs, inner } => Decl::Attributed {
+            attrs: attrs.clone(),
+            inner: Box::new(subst_holes_decl(inner, vals)),
+        },
+        Decl::Instance(i) => {
+            let mut i = i.clone();
+            i.methods = i
+                .methods
+                .iter()
+                .map(|m| {
+                    let mut m = m.clone();
+                    m.body = subst_holes(&m.body, vals);
+                    m.locals = m.locals.iter().map(|l| subst_holes_local(l, vals)).collect();
+                    m
+                })
+                .collect();
+            Decl::Instance(i)
+        }
+        Decl::Equation { modifier, eq } => {
+            let mut eq = eq.clone();
+            eq.body = subst_holes(&eq.body, vals);
+            eq.locals = eq.locals.iter().map(|l| subst_holes_local(l, vals)).collect();
+            Decl::Equation { modifier: modifier.clone(), eq }
+        }
+    }
+}
+
+/// A template hole's source: a `$( e )` splice body or a macro invocation
+/// `m!( ... )`. Both produce code or syntax that fills the hole when the
+/// quotation is constructed.
+#[derive(Clone, Debug)]
+pub enum HoleExpr {
+    Term(Box<Term>),
+    Macro { path: VarPath, args: TokenTree, span: Span },
+}
+
+/// Replace every splice and macro invocation of `t` with `SpliceHole`
+/// markers, collecting their code-producing expressions in order. Splice
+/// bodies are compile-time expressions and are not descended into; a splice
+/// inside a nested quotation belongs to the enclosing template (modules
+/// specification section 8).
+pub fn collect_template_holes(t: &mut Term, holes: &mut Vec<HoleExpr>) {
+    match t {
+        Term::Var(_)
+        | Term::Con(_)
+        | Term::Int(_, _)
+        | Term::Str(_, _)
+        | Term::Char(_, _)
+        | Term::Unit(_)
+        | Term::Hole(_)
+        | Term::SeqOp(_, _)
+        | Term::SpliceHole { .. } => {}
+        Term::Splice { body, span } => {
+            let idx = holes.len();
+            holes.push(HoleExpr::Term(body.clone()));
+            *t = Term::SpliceHole { idx, span: *span };
+        }
+        Term::MacroCall { path, args, span } => {
+            let idx = holes.len();
+            holes.push(HoleExpr::Macro {
+                path: path.clone(),
+                args: args.clone(),
+                span: *span,
+            });
+            *t = Term::SpliceHole { idx, span: *span };
+        }
+        Term::App(f, args, _) => {
+            collect_template_holes(f, holes);
+            for a in args {
+                collect_template_holes(a, holes);
+            }
+        }
+        Term::Lam(_, body, _) => collect_template_holes(body, holes),
+        Term::Let(decls, body, _) => {
+            for d in decls {
+                match d {
+                    LocalDecl::Eq { body, .. }
+                    | LocalDecl::Bind { body, .. }
+                    | LocalDecl::Lazy { body, .. } => collect_template_holes(body, holes),
+                    LocalDecl::Sig { .. } => {}
+                }
+            }
+            collect_template_holes(body, holes);
+        }
+        Term::If(a, b, c, _) => {
+            collect_template_holes(a, holes);
+            collect_template_holes(b, holes);
+            collect_template_holes(c, holes);
+        }
+        Term::Case(scrut, alts, _) => {
+            collect_template_holes(scrut, holes);
+            for alt in alts {
+                if let Some(g) = &mut alt.guard {
+                    collect_template_holes(g, holes);
+                }
+                collect_template_holes(&mut alt.body, holes);
+            }
+        }
+        Term::Ann(e, _, _) => collect_template_holes(e, holes),
+        Term::Infix(ts, _, _) => {
+            for x in ts {
+                collect_template_holes(x, holes);
+            }
+        }
+        Term::Neg(e, _) => collect_template_holes(e, holes),
+        Term::Tuple(ts, _) | Term::List(ts, _) => {
+            for x in ts {
+                collect_template_holes(x, holes);
+            }
+        }
+        Term::Proj(e, _, _) => collect_template_holes(e, holes),
+        Term::Record(_, fields, _) => {
+            for (_, e) in fields {
+                collect_template_holes(e, holes);
+            }
+        }
+        Term::Do(stmts, _) => {
+            for s in stmts {
+                match s {
+                    DoStmt::Bind { term, .. } | DoStmt::Expr { term, .. } => {
+                        collect_template_holes(term, holes)
+                    }
+                    DoStmt::Let { decl, .. } => match decl {
+                        LocalDecl::Eq { body, .. }
+                        | LocalDecl::Bind { body, .. }
+                        | LocalDecl::Lazy { body, .. } => collect_template_holes(body, holes),
+                        LocalDecl::Sig { .. } => {}
+                    },
+                }
+            }
+        }
+        Term::Handle(e, h, _) => {
+            collect_template_holes(e, holes);
+            collect_template_holes(h, holes);
+        }
+        Term::Handler(h) => {
+            collect_template_holes(&mut h.ret_body, holes);
+            for c in &mut h.clauses {
+                collect_template_holes(&mut c.body, holes);
+            }
+        }
+        Term::With { value, body, .. } => {
+            collect_template_holes(value, holes);
+            collect_template_holes(body, holes);
+        }
+        Term::CapApply { head, supplies, .. } => {
+            collect_template_holes(head, holes);
+            for (_, e) in supplies {
+                collect_template_holes(e, holes);
+            }
+        }
+        Term::CpsWrap(e, _) => collect_template_holes(e, holes),
+        Term::Quote { body, .. } => collect_template_holes(body, holes),
+        Term::QuoteDecls { decls, .. } => collect_decl_template_holes(decls, holes),
+    }
+}
+
+/// The declaration-template form of [`collect_template_holes`]: holes are
+/// collected from every term of the quoted declarations.
+pub fn collect_decl_template_holes(decls: &mut Vec<Decl>, holes: &mut Vec<HoleExpr>) {
+    for d in decls.iter_mut() {
+        collect_decl_holes(d, holes);
+    }
+}
+
+fn collect_decl_holes(d: &mut Decl, holes: &mut Vec<HoleExpr>) {
+    match d {
+        Decl::Import(_) | Decl::Fixity(_) | Decl::Foreign(_) | Decl::ValueSig { .. } => {}
+        Decl::Attributed { inner, .. } => collect_decl_holes(inner, holes),
+        Decl::Generate { .. } => {}
+        Decl::Signature(_) => {}
+        Decl::Instance(i) => {
+            for m in &mut i.methods {
+                collect_template_holes(&mut m.body, holes);
+                for l in &mut m.locals {
+                    if let LocalDecl::Eq { body, .. }
+                    | LocalDecl::Bind { body, .. }
+                    | LocalDecl::Lazy { body, .. } = l
+                    {
+                        collect_template_holes(body, holes);
+                    }
+                }
+            }
+        }
+        Decl::Data(_) | Decl::Record(_) | Decl::Codata(_) | Decl::Effect(_) => {}
+        Decl::Equation { eq, .. } => {
+            collect_template_holes(&mut eq.body, holes);
+            for l in &mut eq.locals {
+                if let LocalDecl::Eq { body, .. }
+                | LocalDecl::Bind { body, .. }
+                | LocalDecl::Lazy { body, .. } = l
+                {
+                    collect_template_holes(body, holes);
+                }
+            }
+        }
+    }
 }

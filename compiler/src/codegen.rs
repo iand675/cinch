@@ -1660,7 +1660,11 @@ fn collect_prims(e: &Core, out: &mut BTreeSet<PrimOp>) {
     match e {
         Core::Int(_) | Core::ConstBig { .. } | Core::Bool(_) | Core::Unit | Core::Var(_)
         | Core::Global(_)
-        | Core::Ctor(_) | Core::Fault | Core::LazyAlloc => {}
+        | Core::Ctor(_) | Core::Fault | Core::LazyAlloc
+        | Core::Quote { .. }
+        | Core::DeclsQuote { .. }
+        | Core::SyntaxLit(_)
+        | Core::StrLit(_) => {}
         Core::Prim(op) => {
             out.insert(*op);
         }
@@ -1702,7 +1706,11 @@ fn collect_binders(e: &Core, out: &mut Vec<LocalId>) {
         | Core::Global(_)
         | Core::Ctor(_)
         | Core::Prim(_)
-        | Core::Fault => {}
+        | Core::Fault
+        | Core::Quote { .. }
+        | Core::DeclsQuote { .. }
+        | Core::SyntaxLit(_)
+        | Core::StrLit(_) => {}
         Core::DictProj(d, _) => collect_binders(d, out),
         Core::Proj(d, _) => collect_binders(d, out),
         Core::InstDict(_, subs) | Core::Lam { env: subs, .. } => {
@@ -1794,6 +1802,12 @@ impl CoreEmitter<'_, '_> {
     /// unterminated.
     fn emit_expr(&mut self, e: &Core) -> Result<String> {
         match e {
+            Core::Quote { .. }
+            | Core::DeclsQuote { .. }
+            | Core::SyntaxLit(_)
+            | Core::StrLit(_) => Err(crate::Error::plain(
+                "internal error: a compile-time value reached code generation (staging values never enter target code)",
+            )),
             Core::Int(i) => Ok(i.to_string()),
             Core::ConstBig { nat, digits } => {
                 // A boxed bignum word (core.rs): the fast path boxes an

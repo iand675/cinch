@@ -157,7 +157,11 @@ fn for_each_subterm(t: &ast::Term, f: &mut dyn FnMut(&ast::Term)) {
         | ast::Term::Char(_, _)
         | ast::Term::Unit(_)
         | ast::Term::Hole(_)
+        | ast::Term::SpliceHole { .. }
+        | ast::Term::MacroCall { .. }
+        | ast::Term::QuoteDecls { .. }
         | ast::Term::SeqOp(_, _) => {}
+        ast::Term::Quote { body, .. } | ast::Term::Splice { body, .. } => for_each_subterm(body, f),
         ast::Term::App(h, args, _) => {
             for_each_subterm(h, f);
             for a in args {
@@ -361,6 +365,269 @@ impl Checker {
             ctor: None,
         });
         self.install_index_families();
+        self.install_staging_api();
+    }
+
+    /// Staging (P9): the builtin compile-time types and the capability API
+    /// (modules specification sections 7 and 10). `Code`, `Syntax`,
+    /// `Declarations`, `String`, `Secret` and the capability tokens are
+    /// compile-time-only types: they never appear in target code (decision
+    /// D43).
+    fn install_staging_api(&mut self) {
+        for (n, arity) in [
+            ("Code", 1),
+            ("Syntax", 0),
+            ("Declarations", 0),
+            ("String", 0),
+            ("Secret", 0),
+            ("IoCap", 0),
+            ("FileReadCap", 0),
+            ("FileWriteCap", 0),
+            ("ProcCap", 0),
+        ] {
+            self.types.entry(n.to_string()).or_default().push(TypeKind {
+                module: "<builtin>".into(),
+                name: n.into(),
+                arity,
+                param_kinds: if arity == 1 {
+                    vec![ParamKind::Type]
+                } else {
+                    Vec::new()
+                },
+                ctors: Vec::new(),
+                fields: None,
+                field_erased: Vec::new(),
+            });
+        }
+        let adt = |name: &str, args: Vec<Ty>| Ty::Adt(name.to_string(), args);
+        let str_ty = adt("String", Vec::new());
+        let secret_ty = adt("Secret", Vec::new());
+        let decls_ty = adt("Declarations", Vec::new());
+        let io_ty = adt("IoCap", Vec::new());
+        let fr_ty = adt("FileReadCap", Vec::new());
+        let fw_ty = adt("FileWriteCap", Vec::new());
+        let pc_ty = adt("ProcCap", Vec::new());
+        let unit = Ty::Unit;
+        let nat = Ty::Nat;
+        let a = Ty::Param("a".to_string());
+        use crate::core::StageOp;
+        use crate::types::{Mult, RowTail};
+        // Capability refinements supply their token to a callback whose
+        // effects flow through the result: `forall a e. String ->
+        // (IoCap ->{e} a) ->{e} a` for the snapshot root, `forall a e.
+        // IoCap -> (cap ->{e} a) ->{e} a` for each refinement.
+        let row_e = EffRow { labels: Vec::new(), tail: RowTail::Rigid("e".to_string()) };
+        self.install_stage_value_row(
+            "snapshot",
+            StageOp::Snapshot,
+            vec!["a".to_string()],
+            vec!["e".to_string()],
+            Ty::fun_mult(
+                str_ty.clone(),
+                Mult::Many,
+                EffRow::pure(),
+                Ty::fun_mult(
+                    Ty::fun_mult(io_ty.clone(), Mult::Many, row_e.clone(), a.clone()),
+                    Mult::Many,
+                    row_e.clone(),
+                    a.clone(),
+                ),
+            ),
+        );
+        for (name, op, cap) in [
+            ("withReadFiles", StageOp::WithReadFiles, fr_ty.clone()),
+            ("withWriteFiles", StageOp::WithWriteFiles, fw_ty.clone()),
+            ("withProcess", StageOp::WithProcess, pc_ty.clone()),
+        ] {
+            self.install_stage_value_row(
+                name,
+                op,
+                vec!["a".to_string()],
+                vec!["e".to_string()],
+                Ty::fun_mult(
+                    io_ty.clone(),
+                    Mult::Many,
+                    EffRow::pure(),
+                    Ty::fun_mult(
+                        Ty::fun_mult(cap, Mult::Many, row_e.clone(), a.clone()),
+                        Mult::Many,
+                        row_e.clone(),
+                        a.clone(),
+                    ),
+                ),
+            );
+        }
+        let io_eff = |labels: &[&str]| EffRow {
+            labels: labels.iter().map(|l| EffLabel::plain(*l)).collect(),
+            tail: RowTail::Closed,
+        };
+        self.install_stage_value(
+            "readFile",
+            StageOp::ReadFile,
+            Vec::new(),
+            Ty::fun_mult(
+                fr_ty,
+                Mult::Many,
+                EffRow::pure(),
+                Ty::fun_mult(str_ty.clone(), Mult::Many, io_eff(&["StageFile"]), str_ty.clone()),
+            ),
+        );
+        self.install_stage_value(
+            "writeFile",
+            StageOp::WriteFile,
+            Vec::new(),
+            Ty::fun_mult(
+                fw_ty,
+                Mult::Many,
+                EffRow::pure(),
+                Ty::fun_mult(
+                    str_ty.clone(),
+                    Mult::Many,
+                    EffRow::pure(),
+                    Ty::fun_mult(str_ty.clone(), Mult::Many, io_eff(&["StageFile"]), unit.clone()),
+                ),
+            ),
+        );
+        self.install_stage_value(
+            "run",
+            StageOp::Run,
+            Vec::new(),
+            Ty::fun_mult(
+                pc_ty,
+                Mult::Many,
+                EffRow::pure(),
+                Ty::fun_mult(
+                    str_ty.clone(),
+                    Mult::Many,
+                    EffRow::pure(),
+                    Ty::fun_mult(
+                        adt("List", vec![str_ty.clone()]),
+                        Mult::Many,
+                        io_eff(&["StageProcess"]),
+                        str_ty.clone(),
+                    ),
+                ),
+            ),
+        );
+        self.install_stage_value(
+            "secret",
+            StageOp::Secret,
+            Vec::new(),
+            Ty::fun_mult(str_ty.clone(), Mult::Many, io_eff(&["StageSecret"]), secret_ty),
+        );
+        self.install_stage_value(
+            "emit",
+            StageOp::Emit,
+            Vec::new(),
+            Ty::fun_mult(decls_ty, Mult::Many, io_eff(&["StageEmit"]), unit.clone()),
+        );
+        // Approved constant transport (modules specification section 9):
+        // a supported constant becomes generated code. Secrets and other
+        // compile-time-only values cannot be lifted.
+        self.install_stage_value(
+            "quoteNat",
+            StageOp::QuoteNat,
+            Vec::new(),
+            Ty::fun_mult(
+                nat.clone(),
+                Mult::Many,
+                EffRow::pure(),
+                adt("Code", vec![nat.clone()]),
+            ),
+        );
+        self.install_stage_value(
+            "quoteInt",
+            StageOp::QuoteInt,
+            Vec::new(),
+            Ty::fun_mult(
+                Ty::Int,
+                Mult::Many,
+                EffRow::pure(),
+                adt("Code", vec![Ty::Int]),
+            ),
+        );
+        self.install_stage_value(
+            "quoteBool",
+            StageOp::QuoteBool,
+            Vec::new(),
+            Ty::fun_mult(
+                Ty::Bool,
+                Mult::Many,
+                EffRow::pure(),
+                adt("Code", vec![Ty::Bool]),
+            ),
+        );
+        self.install_stage_value(
+            "strNat",
+            StageOp::StrNat,
+            Vec::new(),
+            Ty::fun_mult(str_ty.clone(), Mult::Many, EffRow::pure(), nat.clone()),
+        );
+        self.install_stage_value(
+            "natStr",
+            StageOp::NatStr,
+            Vec::new(),
+            Ty::fun_mult(nat, Mult::Many, EffRow::pure(), str_ty.clone()),
+        );
+        self.install_stage_value(
+            "strAppend",
+            StageOp::StrAppend,
+            Vec::new(),
+            Ty::fun_mult(
+                str_ty.clone(),
+                Mult::Many,
+                EffRow::pure(),
+                Ty::fun_mult(str_ty.clone(), Mult::Many, EffRow::pure(), str_ty.clone()),
+            ),
+        );
+        self.install_stage_value(
+            "strLen",
+            StageOp::StrLen,
+            Vec::new(),
+            Ty::fun_mult(str_ty, Mult::Many, EffRow::pure(), Ty::Nat),
+        );
+    }
+
+    /// Register one builtin of the compile-time API under its bare name and
+    /// the `Stage.` qualification.
+    fn install_stage_value(
+        &mut self,
+        name: &str,
+        op: crate::core::StageOp,
+        params: Vec<String>,
+        ty: Ty,
+    ) {
+        self.install_stage_value_row(name, op, params, Vec::new(), ty);
+    }
+
+    /// [`install_stage_value`] with quantified row parameters.
+    fn install_stage_value_row(
+        &mut self,
+        name: &str,
+        op: crate::core::StageOp,
+        params: Vec<String>,
+        row_params: Vec<String>,
+        ty: Ty,
+    ) {
+        let scheme = Scheme {
+            params,
+            idx_params: Vec::new(),
+            val_params: Vec::new(),
+            prop_params: Vec::new(),
+            row_params,
+            region_params: Vec::new(),
+            ctx: Vec::new(),
+            ty,
+        };
+        let info = ValueInfo {
+            module: "<builtin>".into(),
+            name: name.into(),
+            scheme,
+            kind: ValueKind::StageBuiltin(op),
+        };
+        self.values.entry(name.into()).or_default().push(info.clone());
+        self.qualified.insert(("<builtin>".into(), name.into()), info.clone());
+        self.qualified.insert(("Stage".into(), name.into()), info);
     }
 
     /// The dependent core's builtin families (decision D30): `Vec`, `Fin`
@@ -846,11 +1113,36 @@ impl Checker {
         if !self.visible.contains(&prelude_name.to_string()) {
             self.visible.push(prelude_name.to_string());
         }
+        // `import stage M` brings only M's executable generators into the
+        // compile-time scope (modules specification section 9): runtime
+        // visibility keeps them out.
+        let mut stage_imports: Vec<String> = Vec::new();
+        for d in &m.decls {
+            if let ast::Decl::Import(i) = d {
+                if i.stage {
+                    if let Some(name) = i.path.parts().last() {
+                        stage_imports.push(name.to_string());
+                    }
+                }
+            }
+        }
+        self.visible
+            .retain(|v| !stage_imports.contains(v) || *v == module);
+        self.module_stage_imports.insert(module.clone(), stage_imports);
         self.module_imports.insert(module.clone(), imports.to_vec());
         let mut schemes: HashMap<String, Scheme> = HashMap::new();
         let mut eqs: Vec<(String, ast::Equation)> = Vec::new();
 
+        // Attributes are validated and unwrapped before collection, so the
+        // annotated declaration is collected as ordinary (attribute
+        // annotations specification section 1.2; macro-emitted attributes
+        // revalidate through this same path).
+        let mut flat: Vec<ast::Decl> = Vec::new();
         for d in &m.decls {
+            self.flatten_attributes(d, &mut flat)?;
+        }
+
+        for d in &flat {
             match d {
                 ast::Decl::Import(i) => {
                     let parts = i.path.parts();
@@ -881,7 +1173,7 @@ impl Checker {
                         ));
                     }
                 }
-                ast::Decl::ValueSig { name, modifier, ty, span } => {
+                ast::Decl::ValueSig { name, modifier, owned_attrs, ty, span } => {
                     let logical = match modifier.as_ref().map(|m| m.text.as_str()) {
                         None => None,
                         Some("spec") => Some("spec"),
@@ -890,6 +1182,9 @@ impl Checker {
                         // productive (core language specification section 9);
                         // it is not part of the logical fragment.
                         Some("corec") => None,
+                        // `stage` and `macro` mark compile-time definitions
+                        // (staging, P9): executable generator code.
+                        Some("stage") | Some("macro") => None,
                         Some(m) => {
                             return Err(Error::at(
                                 modifier.as_ref().unwrap().span,
@@ -928,11 +1223,54 @@ impl Checker {
                     if modifier.as_ref().map(|m| m.text.as_str()) == Some("corec") {
                         self.corec.insert((module.clone(), name.text.clone()));
                     }
+                    match modifier.as_ref().map(|m| m.text.as_str()) {
+                        Some("stage") => {
+                            self.staging.insert((module.clone(), name.text.clone()));
+                        }
+                        Some("macro") => {
+                            self.staging.insert((module.clone(), name.text.clone()));
+                            let key = (module.clone(), name.text.clone());
+                            if self.macros.contains_key(&key) {
+                                return Err(Error::at(
+                                    *span,
+                                    format!("duplicate macro signature for {}", name.text),
+                                ));
+                            }
+                            for a in owned_attrs {
+                                let attr = a.text.clone();
+                                match self.macro_attr_names.get(&attr) {
+                                    Some((owner, at)) => {
+                                        return Err(Error::at(
+                                            *span,
+                                            format!(
+                                                "attribute name `{attr}` is already declared by macro `{owner}` (declared at {}:{}); macro attribute namespaces cannot collide silently",
+                                                at.line, at.col
+                                            ),
+                                        ))
+                                    }
+                                    None => {
+                                        self.macro_attr_names
+                                            .insert(attr, (name.text.clone(), *span));
+                                    }
+                                }
+                            }
+                            self.macros.insert(
+                                key,
+                                MacroInfo {
+                                    arity: 0,
+                                    owned_attrs: owned_attrs.iter().map(|a| a.text.clone()).collect(),
+                                    span: *span,
+                                },
+                            );
+                        }
+                        _ => {}
+                    }
                     schemes.insert(name.text.clone(), s);
                 }
                 ast::Decl::Equation { modifier, eq } => {
                     match modifier.as_ref().map(|m| m.text.as_str()) {
-                        None | Some("spec") | Some("proof") | Some("corec") => {}
+                        None | Some("spec") | Some("proof") | Some("corec") | Some("stage")
+                        | Some("macro") => {}
                         Some(m) => {
                             return Err(Error::at(
                                 modifier.as_ref().unwrap().span,
@@ -945,6 +1283,9 @@ impl Checker {
                             "spec" | "proof" => {
                                 self.logical.contains(&(module.clone(), eq.name.text.clone()))
                             }
+                            "stage" | "macro" => {
+                                self.staging.contains(&(module.clone(), eq.name.text.clone()))
+                            }
                             _ => self.corec.contains(&(module.clone(), eq.name.text.clone())),
                         };
                         if !marked && schemes.get(&eq.name.text).is_some() {
@@ -955,6 +1296,33 @@ impl Checker {
                                     eq.name.text, mod_.text
                                 ),
                             ));
+                        }
+                    }
+                    if modifier.as_ref().map(|m| m.text.as_str()) == Some("macro") {
+                        let key = (module.clone(), eq.name.text.clone());
+                        match self.macros.get_mut(&key) {
+                            Some(info) => {
+                                if info.arity == 0 {
+                                    info.arity = eq.pats.len();
+                                } else if info.arity != eq.pats.len() {
+                                    return Err(Error::at(
+                                        eq.span,
+                                        format!(
+                                            "all equations of macro {} must take the same number of token-tree parameters",
+                                            eq.name.text
+                                        ),
+                                    ));
+                                }
+                            }
+                            None => {
+                                return Err(Error::at(
+                                    eq.span,
+                                    format!(
+                                        "the signature of macro {} is missing (a macro declares `macro {} :: ty`)",
+                                        eq.name.text, eq.name.text
+                                    ),
+                                ));
+                            }
                         }
                     }
                     eqs.push((eq.name.text.clone(), eq.clone()));
@@ -1019,7 +1387,23 @@ impl Checker {
                 }
                 ast::Decl::Data(data) => {
                     if Scalar::parse(&data.name.text).is_some()
-                        || matches!(data.name.text.as_str(), "Nat" | "Int" | "Bool" | "Unit" | "Bytes")
+                        || matches!(
+                            data.name.text.as_str(),
+                            "Nat"
+                                | "Int"
+                                | "Bool"
+                                | "Unit"
+                                | "Bytes"
+                                | "Code"
+                                | "Syntax"
+                                | "Declarations"
+                                | "String"
+                                | "Secret"
+                                | "IoCap"
+                                | "FileReadCap"
+                                | "FileWriteCap"
+                                | "ProcCap"
+                        )
                     {
                         return Err(Error::at(
                             data.name.span,
@@ -1825,18 +2209,39 @@ impl Checker {
                     self.instances.entry(class).or_default().push(idx);
                     self.instance_defs_pending.push((module.clone(), inst.clone()));
                 }
+                ast::Decl::Attributed { .. } => {
+                    // Attributes are validated and unwrapped before the
+                    // collection loop, so the annotated declaration is
+                    // collected as ordinary.
+                }
+                ast::Decl::Generate { stmts, span } => {
+                    self.generate_blocks.push(GenBlock {
+                        module: module.clone(),
+                        stmts: stmts.clone(),
+                        span: *span,
+                    });
+                }
             }
         }
 
         // Top-level values resolve by name from other bodies, including
-        // their own (recursion).
+        // their own (recursion). `stage` and `macro` definitions are the
+        // compile-time-only fragment (staging, P9).
         for (name, scheme) in &schemes {
+            let key = (module.clone(), name.clone());
+            let kind = if self.macros.contains_key(&key) {
+                ValueKind::MacroFn
+            } else if self.staging.contains(&key) {
+                ValueKind::StageFn
+            } else {
+                ValueKind::TopFn
+            };
             self.add_value(
                 ValueInfo {
                     module: module.clone(),
                     name: name.clone(),
                     scheme: scheme.clone(),
-                    kind: ValueKind::TopFn,
+                    kind,
                 },
                 m.name.span,
             )?;
@@ -1865,6 +2270,83 @@ impl Checker {
         Ok(())
     }
 
+    /// Validate one attribute and return its ownership class (attribute
+    /// annotations specification section 1.2): compiler-known families are
+    /// validated here, `meta(...)` passes through to tooling, and any other
+    /// name needs a macro that declares it. `repr` is rejected: it is a
+    /// semantic attribute and this slice must never silently ignore one
+    /// (decision D48).
+    fn validate_attribute(&self, a: &crate::ast::Attribute) -> Result<()> {
+        let name = a.name();
+        let args = a.args.as_deref().unwrap_or("");
+        match name.as_str() {
+            "meta" => Ok(()),
+            "weight" => {
+                let t = args.trim();
+                if t.is_empty() || !t.bytes().all(|b| b.is_ascii_digit()) {
+                    return Err(Error::at(
+                        a.span,
+                        "`#[weight(n)]` takes one non-negative integer literal (attribute annotations specification section 2)",
+                    ));
+                }
+                Ok(())
+            }
+            "likely" | "unlikely" | "cold" => {
+                if !args.trim().is_empty() {
+                    return Err(Error::at(
+                        a.span,
+                        format!("`#[{name}]` takes no arguments (attribute annotations specification section 3)"),
+                    ));
+                }
+                Ok(())
+            }
+            "inline" => {
+                let t = args.trim();
+                if t.is_empty() || t == "always" || t == "never" {
+                    Ok(())
+                } else {
+                    Err(Error::at(
+                        a.span,
+                        "`#[inline]` takes no argument or one of `(always)` and `(never)` (attribute annotations specification section 5)",
+                    ))
+                }
+            }
+            "repr" => Err(Error::at(
+                a.span,
+                "`#[repr(...)]` is a semantic attribute and is not implemented until the layout slice; it is rejected rather than silently ignored (attribute annotations specification section 4)",
+            )),
+            _ => {
+                if self.macro_attr_names.contains_key(&name) {
+                    Ok(())
+                } else {
+                    Err(Error::at(
+                        a.span,
+                        format!(
+                            "unknown attribute `{name}`: outside the `meta` namespace, an attribute name must be compiler-known or declared by a macro (`macro name attributes ({name}) :: ...`)"
+                        ),
+                    ))
+                }
+            }
+        }
+    }
+
+    /// Validate a declaration's attributes and unwrap it into `out`
+    /// (attributes attach to declarations only in this slice).
+    fn flatten_attributes(&self, d: &crate::ast::Decl, out: &mut Vec<crate::ast::Decl>) -> Result<()> {
+        match d {
+            crate::ast::Decl::Attributed { attrs, inner } => {
+                for a in attrs {
+                    self.validate_attribute(a)?;
+                }
+                self.flatten_attributes(inner, out)
+            }
+            other => {
+                out.push(other.clone());
+                Ok(())
+            }
+        }
+    }
+
     fn check_bodies(&mut self, module: &str, prelude_name: &str) -> Result<()> {
         self.current_module = module.to_string();
         self.visible = vec![module.to_string()];
@@ -1887,6 +2369,16 @@ impl Checker {
             }
         }
         for name in names {
+            // Staging (P9): `stage`/`macro` definitions are compile-time
+            // only, and code compiled on demand for compile-time evaluation
+            // is checked already.
+            if self
+                .checked_early
+                .contains(&(module.to_string(), name.clone()))
+                || self.staging.contains(&(module.to_string(), name.clone()))
+            {
+                continue;
+            }
             let eqs: Vec<ast::Equation> = self
                 .top_eqs
                 .iter()
@@ -2360,6 +2852,11 @@ impl Checker {
             | ast::Term::Char(_, _)
             | ast::Term::Unit(_)
             | ast::Term::Hole(_)
+            | ast::Term::SpliceHole { .. }
+            | ast::Term::MacroCall { .. }
+            | ast::Term::QuoteDecls { .. }
+            | ast::Term::Quote { .. }
+            | ast::Term::Splice { .. }
             | ast::Term::SeqOp(_, _) => {}
             ast::Term::App(f, args, _) => {
                 // `delay (\() -> e)` is the guard form when `delay` is the
@@ -2751,6 +3248,12 @@ impl Checker {
             )?
         };
         let performed = self.exit_perf(saved);
+        if name.starts_with('$') {
+            // A `generate do` block performs compile-time effects under its
+            // capabilities (modules specification section 10): its
+            // performed effects are recorded in the build identity, not
+            // declared on a signature.
+        } else {
         match effs.split_last() {
             Some((last, earlier)) => {
                 for e in earlier {
@@ -2774,6 +3277,7 @@ impl Checker {
                         )
                     })?;
             }
+        }
         }
         self.check_usage()?;
         if logical {
@@ -2984,26 +3488,28 @@ impl Checker {
         Ok(())
     }
 
-    fn finish(mut self, user: &ast::Module, prelude_name: &str) -> Result<Program> {
-        let user_module = user.name.text.clone();
-        self.current_module = user_module.clone();
-        self.visible = vec![user_module.clone()];
-        if let Some(imports) = self.module_imports.get(&user_module).cloned() {
-            for i in imports {
-                if !self.visible.contains(&i) {
-                    self.visible.push(i);
+    fn finish(mut self, entry_modules: &[String], prelude_name: &str) -> Result<Program> {
+        let _ = prelude_name;
+        // `main` may live in any module of the entry file (a source file
+        // may declare several modules); a library build has none, and
+        // `emit-ir`/`build`/`run` name the requirement at codegen time
+        // (decision D20).
+        let mut mains: Vec<ValueInfo> = Vec::new();
+        if let Some(vs) = self.values.get("main") {
+            for v in vs {
+                if entry_modules.contains(&v.module) {
+                    mains.push(v.clone());
                 }
             }
         }
-        if !self.visible.contains(&prelude_name.to_string()) {
-            self.visible.push(prelude_name.to_string());
+        if mains.len() > 1 {
+            let names: Vec<String> = mains.iter().map(|v| v.module.clone()).collect();
+            return Err(Error::plain(format!(
+                "several modules of the entry file define `main` ({}); the entry file's `main` is unique",
+                names.join(", ")
+            )));
         }
-        let main_info = match self.lookup_value(None, "main") {
-            Ok(info) if info.module == user_module => Some(info),
-            // Library modules check without an entry point; `emit-ir`,
-            // `build`, and `run` name the requirement at codegen time.
-            _ => None,
-        };
+        let main_info = mains.into_iter().next();
         let mut main_exit = None;
         if let Some(main_info) = main_info {
             if !main_info.scheme.params.is_empty() || !main_info.scheme.ctx.is_empty() {
@@ -3020,6 +3526,7 @@ impl Checker {
             // word to `i32`, so the checker synthesizes `"<module>.main.exit"`,
             // whose body converts the `main` thunk's result to a machine `i64`
             // through `sl_int_to_i64`, and `Program.main` points at it.
+            let user_module = main_info.module.clone();
             let main_id = fn_id(&user_module, "main");
             let exit_id = GlobalId(format!("{user_module}.main.exit"));
             self.fns.push(FnDef {
@@ -3270,15 +3777,19 @@ impl Checker {
 
 /// Check a program of one or more modules and elaborate it. `modules` is in
 /// dependency order (imports first); the last module is the entry module and
-/// must define `main :: Int`. Returns the program and one interface per
-/// module (prelude first), each carrying its import identities.
+/// must define `main :: Int`. Returns the program, one interface per module
+/// (prelude first), and the staging report (captured inputs and generated
+/// declarations) for the artifact manifest.
 pub fn check_program_multi(
     prelude: &ast::Module,
     modules: &[ast::Module],
     source_hashes: &HashMap<String, String>,
-) -> Result<(Program, Vec<crate::interface::Iface>)> {
+    scx: &StagingCx,
+) -> Result<(Program, Vec<crate::interface::Iface>, StageReport)> {
     let mut c = Checker::new();
     c.install_builtins();
+    c.stage_mode = scx.mode;
+    c.module_files = scx.files.clone();
     let prelude_name = prelude.name.text.clone();
     c.prelude_module = prelude_name.clone();
     c.collect_module(prelude, &prelude_name, &[])?;
@@ -3286,14 +3797,24 @@ pub fn check_program_multi(
         let imports = imports_of(m);
         c.collect_module(m, &prelude_name, &imports)?;
     }
+    // The prelude compiles first: its functions and instances run during
+    // compile-time evaluation.
     c.check_bodies(&prelude_name, &prelude_name)?;
+    // The staging phase (modules specification sections 7-10): compile
+    // the compile-time fragment, schedule and run generators, expand macro
+    // calls, and collect generated declarations under ordinary rules.
+    let report = if c.has_staging_work() {
+        c.run_staging(scx)?
+    } else {
+        StageReport { mode: scx.mode, inputs: Vec::new(), generated: Vec::new() }
+    };
     for m in modules {
         c.check_bodies(&m.name.text, &prelude_name)?;
     }
     c.check_instance_coherence()?;
-    let entry = modules
-        .last()
-        .ok_or_else(|| Error::plain("no modules to check"))?;
+    if modules.is_empty() {
+        return Err(Error::plain("no modules to check"));
+    }
     // Interfaces in dependency order: imports are known when built.
     let mut ifaces = Vec::new();
     let mut built: Vec<(String, String)> = Vec::new(); // (module, iface_hash)
@@ -3322,13 +3843,2622 @@ pub fn check_program_multi(
         }
         emit(&c, &m.name.text, &imports);
     }
-    let program = c.finish(entry, &prelude_name)?;
-    Ok((program, ifaces))
+    let program = c.finish(&scx.entry_modules, &prelude_name)?;
+    Ok((program, ifaces, report))
 }
 
 /// Check a single user module against the implicit prelude and elaborate it.
 pub fn check_program(prelude: &ast::Module, user: &ast::Module) -> Result<Program> {
     let mut hashes = HashMap::new();
     hashes.insert(user.name.text.clone(), String::new());
-    Ok(check_program_multi(prelude, std::slice::from_ref(user), &hashes)?.0)
+    let cx = StagingCx::default();
+    Ok(check_program_multi(prelude, std::slice::from_ref(user), &hashes, &cx)?.0)
+}
+
+// ------------------------------------------------------------ staging (P9)
+
+/// Inputs to the staging phase (modules specification sections 9 and 10).
+pub struct StagingCx {
+    /// Per-module fixity tables, for parsing spliced `Syntax`.
+    pub fixities: HashMap<String, crate::parser::FixityTable>,
+    /// Module to source file, for expansion provenance.
+    pub files: HashMap<String, String>,
+    /// Captured inputs of a previous build (replay mode).
+    pub prior_inputs: Vec<StageInput>,
+    /// The build's compile-time I/O mode.
+    pub mode: StageMode,
+    /// The entry file's directory: file capabilities resolve against it.
+    pub workdir: std::path::PathBuf,
+    /// The entry file's modules: `main` may live in any of them.
+    pub entry_modules: Vec<String>,
+}
+
+impl Default for StagingCx {
+    fn default() -> Self {
+        StagingCx {
+            fixities: HashMap::new(),
+            files: HashMap::new(),
+            prior_inputs: Vec::new(),
+            mode: StageMode::Refresh,
+            workdir: std::path::PathBuf::new(),
+            entry_modules: Vec::new(),
+        }
+    }
+}
+
+impl Default for StageMode {
+    fn default() -> Self {
+        StageMode::Refresh
+    }
+}
+
+/// What the staging phase produced: captured inputs and generated
+/// declarations, recorded in the artifact manifest's build identity.
+pub struct StageReport {
+    pub mode: StageMode,
+    pub inputs: Vec<StageInput>,
+    /// Generated declarations per module, in emission order.
+    pub generated: Vec<(String, Vec<String>)>,
+}
+
+/// The compile-time evaluation context: everything the interpreter needs
+/// beyond the checker itself.
+struct StageCx {
+    /// Function definitions available to interpretation (compiled units).
+    fns: HashMap<String, crate::core::FnDef>,
+    /// The module whose scope resolves quotation templates (definition
+    /// site of the unit being interpreted).
+    def_module: String,
+    /// The module the interpreted code was written in (call site): spliced
+    /// `Syntax` parses with its fixities.
+    origin: String,
+    /// The name of the unit being interpreted, for expansion provenance.
+    unit_name: String,
+    /// The invocation site of the current expansion, if any.
+    call: Option<ast::Span>,
+    /// The enclosing expansion, for provenance chains.
+    parent: Option<ast::Span>,
+    /// Fresh-name counter for generated binders (deterministic per build).
+    fresh: usize,
+    /// The generator's emitted declarations.
+    emitted: Vec<crate::ast::Decl>,
+    /// Named input snapshot scope (empty outside `Stage.snapshot`).
+    snapshot: Vec<String>,
+    /// Inputs captured so far.
+    inputs: Vec<StageInput>,
+    /// Captured inputs of the previous build (replay mode).
+    prior: Vec<StageInput>,
+    /// Macro expansion depth guard.
+    depth: usize,
+    /// Evaluation step budget (the staging termination policy).
+    steps: u64,
+    /// The entry directory: file capabilities resolve against it.
+    workdir: std::path::PathBuf,
+    /// Per-module fixity tables, for parsing spliced `Syntax`.
+    fixities: HashMap<String, crate::parser::FixityTable>,
+    /// Spawned subprocesses, killed if the stage fails (resource release).
+    children: Vec<std::process::Child>,
+}
+
+impl StageCx {
+    fn new(scx: &StagingCx) -> StageCx {
+        StageCx {
+            fns: HashMap::new(),
+            def_module: String::new(),
+            origin: String::new(),
+            unit_name: String::new(),
+            call: None,
+            parent: None,
+            fresh: 0,
+            emitted: Vec::new(),
+            snapshot: Vec::new(),
+            inputs: Vec::new(),
+            prior: scx.prior_inputs.clone(),
+            depth: 0,
+            steps: 8_000_000,
+            workdir: scx.workdir.clone(),
+            fixities: scx.fixities.clone(),
+            children: Vec::new(),
+        }
+    }
+}
+
+/// Kill any subprocess still running when the stage ends (modules
+/// specification section 10: cancellation and stage failure release
+/// resources).
+impl Drop for StageCx {
+    fn drop(&mut self) {
+        for c in &mut self.children {
+            let _ = c.kill();
+            let _ = c.wait();
+        }
+    }
+}
+
+/// A scheduled compile-time unit for the dependency graph.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+enum UnitKey {
+    /// A `stage` or `macro` definition.
+    Def(String, String),
+    /// A `generate do` block by index.
+    Gen(usize),
+    /// An ordinary definition (compiled on demand).
+    Ord(String, String),
+}
+
+impl UnitKey {
+    fn desc(&self, checker: &Checker) -> String {
+        match self {
+            UnitKey::Def(m, n) => {
+                if checker.macros.contains_key(&(m.clone(), n.clone())) {
+                    format!("macro `{n}` in {m}")
+                } else {
+                    format!("stage definition `{n}` in {m}")
+                }
+            }
+            UnitKey::Gen(i) => {
+                let b = &checker.generate_blocks[*i];
+                format!("generate block in {} (at {}:{})", b.module, b.span.line, b.span.col)
+            }
+            UnitKey::Ord(m, n) => format!("definition `{n}` in {m}"),
+        }
+    }
+}
+
+impl Checker {
+    /// Does this compilation involve any compile-time work?
+    fn has_staging_work(&self) -> bool {
+        !self.staging.is_empty()
+            || !self.generate_blocks.is_empty()
+            || self.top_eqs.iter().any(|(_, _, e)| term_has_macro_call(&e.body))
+    }
+
+    /// The staging phase (modules specification sections 7-10): compile
+    /// the compile-time fragment, schedule generators from the explicit
+    /// dependency graph (a cycle is a diagnostic showing the cycle), run
+    /// them, expand macro calls in ordinary code, and collect the
+    /// generated declarations under ordinary rules.
+    fn run_staging(&mut self, scx: &StagingCx) -> Result<StageReport> {
+        let mut cx = StageCx::new(scx);
+        // The explicit dependency graph over units (modules specification
+        // section 9): a cycle is rejected before any execution, and units
+        // compile on demand, in dependency order.
+        let order = self.schedule_units()?;
+        for key in &order {
+            if let UnitKey::Gen(idx) = key {
+                self.run_generator(&mut cx, *idx)?;
+            }
+        }
+        // Macro calls in ordinary code expand before the ordinary check
+        // (their expansions are checked under ordinary rules).
+        self.expand_remaining_macros(&mut cx)?;
+        let mut generated = Vec::new();
+        let mut names: HashMap<String, Vec<String>> = HashMap::new();
+        for (m, decls) in &self.stage_emitted {
+            let ns: Vec<String> = decls.iter().filter_map(decl_name).map(|n| n.text.clone()).collect();
+            names.insert(m.clone(), ns);
+        }
+        for (m, ns) in names {
+            generated.push((m, ns));
+        }
+        generated.sort();
+        Ok(StageReport {
+            mode: scx.mode,
+            inputs: std::mem::take(&mut cx.inputs),
+            generated,
+        })
+    }
+
+    /// Build the staging dependency graph and topologically order it; a
+    /// cyclic dependency is rejected with the cycle shown (modules
+    /// specification section 9).
+    fn schedule_units(&self) -> Result<Vec<UnitKey>> {
+        let mut desc: HashMap<UnitKey, String> = HashMap::new();
+        let mut edges: HashMap<UnitKey, Vec<UnitKey>> = HashMap::new();
+        let mut add_unit = |key: UnitKey, desc: &mut HashMap<UnitKey, String>,
+                            edges: &mut HashMap<UnitKey, Vec<UnitKey>>| {
+            desc.entry(key.clone()).or_insert_with(|| key.desc(self));
+            edges.entry(key.clone()).or_default();
+        };
+        for (module, name) in &self.staging {
+            add_unit(UnitKey::Def(module.clone(), name.clone()), &mut desc, &mut edges);
+        }
+        for (module, name, _) in &self.top_eqs {
+            add_unit(UnitKey::Ord(module.clone(), name.clone()), &mut desc, &mut edges);
+        }
+        for (i, b) in self.generate_blocks.iter().enumerate() {
+            let _ = b;
+            add_unit(UnitKey::Gen(i), &mut desc, &mut edges);
+        }
+        // Statically apparent generator outputs: `emit (quoteDecls where
+        // ...)` names. A computed `emit` produces names only at run time;
+        // those cannot satisfy a staging dependency (decision D47).
+        let mut produced: HashMap<(String, String), UnitKey> = HashMap::new();
+        for (i, b) in self.generate_blocks.iter().enumerate() {
+            for stmt in &b.stmts {
+                let term = match stmt {
+                    ast::DoStmt::Expr { term, .. } => Some(term),
+                    ast::DoStmt::Bind { term, .. } => Some(term),
+                    ast::DoStmt::Let { .. } => None,
+                };
+                if let Some(ast::Term::App(f, args, _)) = term {
+                    if let ast::Term::Var(p) = &**f {
+                        if p.quals.is_empty() && p.name.text == "emit" && args.len() == 1 {
+                            if let ast::Term::QuoteDecls { decls, .. } = &args[0] {
+                                for d in decls {
+                                    if let Some(n) = decl_name(d) {
+                                        produced.insert((b.module.clone(), n.text.clone()), UnitKey::Gen(i));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        // Edges: each unit requires the units behind the names it
+        // references.
+        let unit_refs = |key: &UnitKey, checker: &Checker| -> Vec<ast::RefSite> {
+            let mut out = Vec::new();
+            match key {
+                UnitKey::Def(m, n) => {
+                    for (mod_, name, eq) in &checker.top_eqs {
+                        if mod_ == m && name == n {
+                            ast::collect_decl_refs(&ast::Decl::Equation {
+                                modifier: None,
+                                eq: eq.clone(),
+                            }, &mut out);
+                        }
+                    }
+                }
+                UnitKey::Ord(m, n) => {
+                    for (mod_, name, eq) in &checker.top_eqs {
+                        if mod_ == m && name == n {
+                            ast::collect_decl_refs(&ast::Decl::Equation {
+                                modifier: None,
+                                eq: eq.clone(),
+                            }, &mut out);
+                        }
+                    }
+                }
+                UnitKey::Gen(i) => {
+                    for stmt in &checker.generate_blocks[*i].stmts {
+                        match stmt {
+                            ast::DoStmt::Bind { term, .. } | ast::DoStmt::Expr { term, .. } => {
+                                ast::collect_term_refs(term, &mut out)
+                            }
+                            ast::DoStmt::Let { decl, .. } => match decl {
+                                ast::LocalDecl::Eq { body, .. }
+                                | ast::LocalDecl::Bind { body, .. }
+                                | ast::LocalDecl::Lazy { body, .. } => {
+                                    ast::collect_term_refs(body, &mut out)
+                                }
+                                ast::LocalDecl::Sig { .. } => {}
+                            },
+                        }
+                    }
+                }
+            }
+            out
+        };
+        let unit_module = |key: &UnitKey, checker: &Checker| -> String {
+            match key {
+                UnitKey::Def(m, _) | UnitKey::Ord(m, _) => m.clone(),
+                UnitKey::Gen(i) => checker.generate_blocks[*i].module.clone(),
+            }
+        };
+        for key in desc.keys().cloned().collect::<Vec<_>>() {
+            let module = unit_module(&key, self);
+            let mut refs = unit_refs(&key, self);
+            // A local binder may share a name with a top-level definition;
+            // a reference that could be local adds no edge (missed edges
+            // only weaken this check, never reject a valid program).
+            let mut bound: Vec<String> = Vec::new();
+            collect_unit_binders(&key, self, &mut bound);
+            refs.retain(|r| !bound.contains(&r.name));
+            let mut deps: Vec<UnitKey> = Vec::new();
+            for r in &refs {
+                let ref_key = if r.quals.is_empty() {
+                    (module.clone(), r.name.clone())
+                } else {
+                    (r.quals[0].clone(), r.name.clone())
+                };
+                // A name a generator produces is a dependency on that
+                // generator: compiling the reference needs its output.
+                let target = self.resolve_top(&module, r).or_else(|| {
+                    produced.get(&ref_key).map(|_| ref_key.clone())
+                });
+                let Some((tm, tn)) = target else { continue };
+                if let Some(u) = self.unit_of(&tm, &tn, &produced) {
+                    if u != key && !deps.contains(&u) {
+                        deps.push(u);
+                    }
+                }
+            }
+            edges.insert(key, deps);
+        }
+        // Depth-first topological order with cycle reporting.
+        let mut order: Vec<UnitKey> = Vec::new();
+        let mut state: HashMap<UnitKey, u8> = HashMap::new(); // 1 visiting, 2 done
+        let mut stack: Vec<UnitKey> = Vec::new();
+        fn visit(
+            key: &UnitKey,
+            edges: &HashMap<UnitKey, Vec<UnitKey>>,
+            desc: &HashMap<UnitKey, String>,
+            state: &mut HashMap<UnitKey, u8>,
+            order: &mut Vec<UnitKey>,
+            stack: &mut Vec<UnitKey>,
+        ) -> Result<()> {
+            match state.get(key) {
+                Some(2) => return Ok(()),
+                Some(1) => {
+                    let start = stack.iter().position(|k| k == key).unwrap_or(0);
+                    let mut chain: Vec<String> =
+                        stack[start..].iter().map(|k| desc[k].clone()).collect();
+                    chain.push(desc[key].clone());
+                    return Err(Error::plain(format!(
+                        "stage dependency cycle: {}",
+                        chain.join(" -> ")
+                    )));
+                }
+                _ => {}
+            }
+            state.insert(key.clone(), 1);
+            stack.push(key.clone());
+            if let Some(deps) = edges.get(key) {
+                for d in deps {
+                    visit(d, edges, desc, state, order, stack)?;
+                }
+            }
+            stack.pop();
+            state.insert(key.clone(), 2);
+            order.push(key.clone());
+            Ok(())
+        }
+        for key in desc.keys() {
+            visit(key, &edges, &desc, &mut state, &mut order, &mut stack)?;
+        }
+        Ok(order)
+    }
+
+    /// The unit behind a resolved name, if any.
+    fn unit_of(
+        &self,
+        module: &str,
+        name: &str,
+        produced: &HashMap<(String, String), UnitKey>,
+    ) -> Option<UnitKey> {
+        let key = (module.to_string(), name.to_string());
+        if self.staging.contains(&key) {
+            return Some(UnitKey::Def(module.to_string(), name.to_string()));
+        }
+        if let Some(u) = produced.get(&key) {
+            return Some(u.clone());
+        }
+        if self.top_schemes.contains_key(&key) {
+            return Some(UnitKey::Ord(module.to_string(), name.to_string()));
+        }
+        None
+    }
+
+    /// Resolve a top-level name in `module`'s scope (own names, imports,
+    /// then the prelude and the builtins), the definition-site rule of
+    /// section 8.
+    fn resolve_top(&self, module: &str, r: &ast::RefSite) -> Option<(String, String)> {
+        if !r.quals.is_empty() {
+            return Some((r.quals[0].clone(), r.name.clone()));
+        }
+        let mut visible = vec![module.to_string()];
+        if let Some(imports) = self.module_imports.get(module) {
+            for i in imports {
+                if !visible.contains(i) {
+                    visible.push(i.clone());
+                }
+            }
+        }
+        if let Some(imports) = self.module_stage_imports.get(module) {
+            for i in imports {
+                if !visible.contains(i) {
+                    visible.push(i.clone());
+                }
+            }
+        }
+        if !visible.contains(&self.prelude_module) {
+            visible.push(self.prelude_module.clone());
+        }
+        // Builtin values and types (`True`, `Nat`, the `Stage` API) are in
+        // scope everywhere.
+        visible.push("<builtin>".to_string());
+        let table: &HashMap<String, Vec<ValueInfo>> = match r.kind {
+            ast::RefKind::Value => &self.values,
+            ast::RefKind::Type => {
+                // Type names resolve through the same visibility.
+                for m in &visible {
+                    if let Some(ts) = self.types.get(&r.name) {
+                        if ts.iter().any(|t| &t.module == m) {
+                            return Some((m.clone(), r.name.clone()));
+                        }
+                    }
+                }
+                return None;
+            }
+        };
+        for m in &visible {
+            if let Some(vs) = table.get(&r.name) {
+                if vs.iter().any(|v| &v.module == m) {
+                    return Some((m.clone(), r.name.clone()));
+                }
+            }
+        }
+        None
+    }
+
+    /// Compile one `stage` definition or macro into its compile-time
+    /// function unit.
+    fn compile_unit(&mut self, cx: &mut StageCx, module: &str, name: &str) -> Result<()> {
+        let id = fn_id(module, name);
+        if cx.fns.contains_key(&id.0) {
+            return Ok(());
+        }
+        let eqs: Vec<ast::Equation> = self
+            .top_eqs
+            .iter()
+            .filter(|(m, n, _)| m == module && n == name)
+            .map(|(_, _, e)| e.clone())
+            .collect();
+        let scheme = self
+            .top_schemes
+            .get(&(module.to_string(), name.to_string()))
+            .cloned()
+            .ok_or_else(|| Error::plain(format!("missing signature for {name}")))?;
+        self.set_scope(module);
+        let before = self.fns.len();
+        self.compile_time = true;
+        let r = self.check_equations(name, &id, &scheme, &eqs, Vec::new());
+        self.compile_time = false;
+        r?;
+        for f in self.fns.drain(before..) {
+            cx.fns.insert(f.id.0.clone(), f);
+        }
+        self.checked_early.insert((module.to_string(), name.to_string()));
+        Ok(())
+    }
+
+    /// Set the checker's scope to `module`'s visibility (own names, its
+    /// runtime and stage imports, then the prelude).
+    fn set_scope(&mut self, module: &str) {
+        self.current_module = module.to_string();
+        let mut visible = vec![module.to_string()];
+        if let Some(imports) = self.module_imports.get(module) {
+            for i in imports {
+                if !visible.contains(i) {
+                    visible.push(i.clone());
+                }
+            }
+        }
+        if let Some(imports) = self.module_stage_imports.get(module) {
+            for i in imports {
+                if !visible.contains(i) {
+                    visible.push(i.clone());
+                }
+            }
+        }
+        if !visible.contains(&self.prelude_module) {
+            visible.push(self.prelude_module.clone());
+        }
+        self.visible = visible;
+    }
+
+    /// Run one `generate do` block: its body is a compile-time
+    /// computation; `emit` appends declarations, which are validated,
+    /// macro-expanded and collected under ordinary rules (modules
+    /// specification section 8).
+    fn run_generator(&mut self, cx: &mut StageCx, idx: usize) -> Result<()> {
+        let (module, stmts, span) = {
+            let b = &self.generate_blocks[idx];
+            (b.module.clone(), b.stmts.clone(), b.span)
+        };
+        let name = format!("$gen{idx}");
+        let eq = ast::Equation {
+            name: ast::Name::new(&name, span),
+            pats: Vec::new(),
+            body: ast::Term::Do(stmts, span),
+            locals: Vec::new(),
+            span,
+        };
+        let id = fn_id(&module, &name);
+        let scheme = Scheme::mono(Ty::Unit);
+        self.set_scope(&module);
+        let before = self.fns.len();
+        self.compile_time = true;
+        let r = self.check_equations(&name, &id, &scheme, std::slice::from_ref(&eq), Vec::new());
+        self.compile_time = false;
+        r?;
+        for f in self.fns.drain(before..) {
+            cx.fns.insert(f.id.0.clone(), f);
+        }
+        // Interpretation: the generator's own scope.
+        cx.def_module = module.clone();
+        cx.origin = module.clone();
+        cx.unit_name = format!("generate block in {module}");
+        cx.call = Some(span);
+        cx.emitted = Vec::new();
+        cx.snapshot = Vec::new();
+        let empty = Vec::new();
+        let value = self.eval_fn(cx, &id, empty)?;
+        if !matches!(value, crate::core::Value::Unit) {
+            return Err(Error::at(
+                span,
+                "a `generate do` block must produce Unit (its declarations arrive through `emit`)",
+            ));
+        }
+        let emitted = std::mem::take(&mut cx.emitted);
+        self.collect_emitted(cx, &module, emitted, span)?;
+        Ok(())
+    }
+
+    /// Validate, expand and collect one generator's output (the ordinary
+    /// rules of section 8 apply to generated declarations).
+    fn collect_emitted(
+        &mut self,
+        cx: &mut StageCx,
+        module: &str,
+        mut decls: Vec<ast::Decl>,
+        span: ast::Span,
+    ) -> Result<()> {
+        let origin = self
+            .module_files
+            .get(module)
+            .cloned()
+            .unwrap_or_else(|| module.to_string());
+        let site = crate::lexer::ExpSite {
+            name: cx.unit_name.clone(),
+            call: span,
+            origin,
+            template: span,
+            parent: None,
+        };
+        let _ = &site;
+        for d in &mut decls {
+            if matches!(
+                d,
+                ast::Decl::Generate { .. }
+                    | ast::Decl::ValueSig { modifier: Some(_), .. }
+                    | ast::Decl::Equation { modifier: Some(_), .. }
+            ) {
+                return Err(Error::at(
+                    span,
+                    "generated declarations are checked under ordinary rules: a generator cannot emit `generate`, `stage` or `macro` declarations",
+                ));
+            }
+            // Provenance is stamped at quote construction (the template's
+            // nodes carry it; spliced caller syntax keeps its own spans).
+        }
+        // Attributes revalidate on the generated forms (attribute
+        // annotations specification section 6).
+        let mut flat = Vec::new();
+        for d in &decls {
+            self.flatten_attributes(d, &mut flat)?;
+        }
+        // Macro calls in generated code expand at emission.
+        for d in &mut flat {
+            self.expand_macros_in_decl(cx, module, d)?;
+        }
+        self.stage_emitted
+            .entry(module.to_string())
+            .or_default()
+            .extend(flat.iter().cloned());
+        // Collect the generated declarations now: later generators and
+        // on-demand compilation resolve their names.
+        let mut m = ast::Module {
+            name: ast::Name::new(module, span),
+            imports: Vec::new(),
+            decls: flat,
+            span,
+        };
+        // `collect_module` resolves imports against its argument; the
+        // generated declarations have none.
+        let _ = &mut m;
+        let prelude_name = self.prelude_module.clone();
+        let save_current = self.current_module.clone();
+        let save_visible = self.visible.clone();
+        let r = self.collect_module(&m, &prelude_name, &[]);
+        self.current_module = save_current;
+        self.visible = save_visible;
+        r
+    }
+
+    /// Expand every macro call of the not-yet-compiled ordinary code, so
+    /// the ordinary check runs on expanded syntax (section 8: expansions
+    /// must parse and elaborate under this same language).
+    fn expand_remaining_macros(&mut self, cx: &mut StageCx) -> Result<()> {
+        let pending: Vec<(String, String)> = self
+            .top_eqs
+            .iter()
+            .filter(|(m, n, e)| {
+                !self.checked_early.contains(&(m.clone(), n.clone()))
+                    && !self.staging.contains(&(m.clone(), n.clone()))
+                    && term_has_macro_call(&e.body)
+            })
+            .map(|(m, n, _)| (m.clone(), n.clone()))
+            .collect();
+        for (module, name) in pending {
+            let mut eqs: Vec<ast::Equation> = self
+                .top_eqs
+                .iter()
+                .filter(|(m, n, _)| m == &module && n == &name)
+                .map(|(_, _, e)| e.clone())
+                .collect();
+            for eq in &mut eqs {
+                self.expand_macros_in_term(cx, &module, &mut eq.body)?;
+                for l in &mut eq.locals {
+                    if let ast::LocalDecl::Eq { body, .. }
+                    | ast::LocalDecl::Bind { body, .. }
+                    | ast::LocalDecl::Lazy { body, .. } = l
+                    {
+                        self.expand_macros_in_term(cx, &module, body)?;
+                    }
+                }
+            }
+            let mut i = 0;
+            for slot in self.top_eqs.iter_mut() {
+                if slot.0 == module && slot.1 == name {
+                    slot.2 = eqs[i].clone();
+                    i += 1;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Expand the macro calls of one term in place.
+    fn expand_macros_in_term(
+        &mut self,
+        cx: &mut StageCx,
+        module: &str,
+        t: &mut ast::Term,
+    ) -> Result<()> {
+        match t {
+            ast::Term::MacroCall { path, args, span } => {
+                let (value, _ty) = self.eval_macro_call(cx, module, path, args, *span)?;
+                match value {
+                    crate::core::Value::Code(ast) => *t = ast,
+                    other => {
+                        return Err(Error::at(
+                            *span,
+                            format!(
+                                "a macro invocation in term position must expand to code (`Code t`), but this one produced {}",
+                                value_kind_name(&other)
+                            ),
+                        ))
+                    }
+                }
+                Ok(())
+            }
+            ast::Term::App(f, args, _) => {
+                self.expand_macros_in_term(cx, module, f)?;
+                for a in args {
+                    self.expand_macros_in_term(cx, module, a)?;
+                }
+                Ok(())
+            }
+            ast::Term::Lam(_, body, _)
+            | ast::Term::Neg(body, _)
+            | ast::Term::Proj(body, _, _)
+            | ast::Term::Ann(body, _, _)
+            | ast::Term::CpsWrap(body, _)
+            | ast::Term::Quote { body, .. }
+            | ast::Term::Splice { body, .. } => self.expand_macros_in_term(cx, module, body),
+            ast::Term::Let(decls, body, _) => {
+                for d in decls {
+                    self.expand_macros_in_local(cx, module, d)?;
+                }
+                self.expand_macros_in_term(cx, module, body)
+            }
+            ast::Term::If(a, b, c, _) => {
+                self.expand_macros_in_term(cx, module, a)?;
+                self.expand_macros_in_term(cx, module, b)?;
+                self.expand_macros_in_term(cx, module, c)
+            }
+            ast::Term::Case(scrut, alts, _) => {
+                self.expand_macros_in_term(cx, module, scrut)?;
+                for alt in alts {
+                    if let Some(g) = &mut alt.guard {
+                        self.expand_macros_in_term(cx, module, g)?;
+                    }
+                    self.expand_macros_in_term(cx, module, &mut alt.body)?;
+                }
+                Ok(())
+            }
+            ast::Term::Infix(ts, _, _) | ast::Term::Tuple(ts, _) | ast::Term::List(ts, _) => {
+                for x in ts {
+                    self.expand_macros_in_term(cx, module, x)?;
+                }
+                Ok(())
+            }
+            ast::Term::Record(_, fields, _) => {
+                for (_, e) in fields {
+                    self.expand_macros_in_term(cx, module, e)?;
+                }
+                Ok(())
+            }
+            ast::Term::Do(stmts, _) => {
+                for s in stmts {
+                    match s {
+                        ast::DoStmt::Bind { term, .. } | ast::DoStmt::Expr { term, .. } => {
+                            self.expand_macros_in_term(cx, module, term)?;
+                        }
+                        ast::DoStmt::Let { decl, .. } => {
+                            self.expand_macros_in_local(cx, module, decl)?;
+                        }
+                    }
+                }
+                Ok(())
+            }
+            ast::Term::Handle(e, h, _) => {
+                self.expand_macros_in_term(cx, module, e)?;
+                self.expand_macros_in_term(cx, module, h)
+            }
+            ast::Term::Handler(h) => {
+                self.expand_macros_in_term(cx, module, &mut h.ret_body)?;
+                for c in &mut h.clauses {
+                    self.expand_macros_in_term(cx, module, &mut c.body)?;
+                }
+                Ok(())
+            }
+            ast::Term::With { value, body, .. } => {
+                self.expand_macros_in_term(cx, module, value)?;
+                self.expand_macros_in_term(cx, module, body)
+            }
+            ast::Term::CapApply { head, supplies, .. } => {
+                self.expand_macros_in_term(cx, module, head)?;
+                for (_, e) in supplies {
+                    self.expand_macros_in_term(cx, module, e)?;
+                }
+                Ok(())
+            }
+            ast::Term::QuoteDecls { decls, .. } => {
+                for d in decls {
+                    self.expand_macros_in_decl(cx, module, d)?;
+                }
+                Ok(())
+            }
+            ast::Term::Var(_)
+            | ast::Term::Con(_)
+            | ast::Term::Int(_, _)
+            | ast::Term::Str(_, _)
+            | ast::Term::Char(_, _)
+            | ast::Term::Unit(_)
+            | ast::Term::Hole(_)
+            | ast::Term::SpliceHole { .. }
+            | ast::Term::SeqOp(_, _) => Ok(()),
+        }
+    }
+
+    fn expand_macros_in_local(
+        &mut self,
+        cx: &mut StageCx,
+        module: &str,
+        d: &mut ast::LocalDecl,
+    ) -> Result<()> {
+        match d {
+            ast::LocalDecl::Sig { .. } => Ok(()),
+            ast::LocalDecl::Eq { body, .. }
+            | ast::LocalDecl::Bind { body, .. }
+            | ast::LocalDecl::Lazy { body, .. } => self.expand_macros_in_term(cx, module, body),
+        }
+    }
+
+    fn expand_macros_in_decl(
+        &mut self,
+        cx: &mut StageCx,
+        module: &str,
+        d: &mut ast::Decl,
+    ) -> Result<()> {
+        match d {
+            ast::Decl::Equation { eq, .. } => {
+                self.expand_macros_in_term(cx, module, &mut eq.body)?;
+                for l in &mut eq.locals {
+                    self.expand_macros_in_local(cx, module, l)?;
+                }
+                Ok(())
+            }
+            ast::Decl::Instance(i) => {
+                for m in &mut i.methods {
+                    self.expand_macros_in_term(cx, module, &mut m.body)?;
+                    for l in &mut m.locals {
+                        self.expand_macros_in_local(cx, module, l)?;
+                    }
+                }
+                Ok(())
+            }
+            ast::Decl::Attributed { inner, .. } => self.expand_macros_in_decl(cx, module, inner),
+            ast::Decl::Generate { stmts, .. } => {
+                for s in stmts {
+                    match s {
+                        ast::DoStmt::Bind { term, .. } | ast::DoStmt::Expr { term, .. } => {
+                            self.expand_macros_in_term(cx, module, term)?;
+                        }
+                        ast::DoStmt::Let { decl, .. } => {
+                            self.expand_macros_in_local(cx, module, decl)?;
+                        }
+                    }
+                }
+                Ok(())
+            }
+            _ => Ok(()),
+        }
+    }
+
+    /// Evaluate one macro invocation to its code or syntax value (the
+    /// expansion is inserted wherever the value is used).
+    fn eval_macro_call(
+        &mut self,
+        cx: &mut StageCx,
+        module: &str,
+        path: &ast::VarPath,
+        args: &ast::TokenTree,
+        span: ast::Span,
+    ) -> Result<(crate::core::Value, Ty)> {
+        self.set_scope(module);
+        let v = self.resolve_var(path, span)?;
+        if !matches!(v.kind, ValueKind::MacroFn) {
+            return Err(Error::at(
+                span,
+                format!("`{}` is not a macro (only `macro` definitions take `!(...)` token-tree arguments)", v.name),
+            ));
+        }
+        let groups = args.arg_groups();
+        if let Some(info) = self.macros.get(&(v.module.clone(), v.name.clone())) {
+            if info.arity != groups.len() && !(info.arity <= 1 && groups.len() == 1) {
+                return Err(Error::at(
+                    span,
+                    format!(
+                        "macro `{}` takes {} token-tree argument(s), but the invocation supplies {}",
+                        v.name,
+                        info.arity,
+                        groups.len()
+                    ),
+                ));
+            }
+        }
+        let id = fn_id(&v.module, &v.name);
+        let mut vals = Vec::new();
+        for g in &groups {
+            vals.push(crate::core::Value::Syntax {
+                tokens: g.tokens.clone(),
+                origin: module.to_string(),
+            });
+        }
+        let save_origin = cx.origin.clone();
+        let save_def = cx.def_module.clone();
+        let save_call = cx.call;
+        let save_unit = cx.unit_name.clone();
+        let save_parent = cx.parent;
+        cx.origin = module.to_string();
+        cx.call = Some(span);
+        cx.unit_name = format!("macro `{}`", v.name);
+        cx.parent = save_call;
+        let r = self.eval_fn(cx, &id, vals);
+        cx.origin = save_origin;
+        cx.def_module = save_def;
+        cx.call = save_call;
+        cx.unit_name = save_unit;
+        cx.parent = save_parent;
+        let value = r?;
+        let ty = match &value {
+            crate::core::Value::Code(_) => Ty::Adt("Code".into(), vec![self.uni.fresh()]),
+            crate::core::Value::Decls(_) => Ty::Adt("Declarations".into(), Vec::new()),
+            crate::core::Value::Syntax { .. } => Ty::Adt("Syntax".into(), Vec::new()),
+            other => {
+                return Err(Error::at(
+                    span,
+                    format!(
+                        "a macro must produce `Code`, `Declarations` or `Syntax`, but `{}` produced {}",
+                        v.name,
+                        value_kind_name(other)
+                    ),
+                ))
+            }
+        };
+        Ok((value, ty))
+    }
+}
+
+/// The name of a value's kind, for diagnostics (secrets stay redacted).
+fn value_kind_name(v: &crate::core::Value) -> &'static str {
+    use crate::core::Value::*;
+    match v {
+        Word(_) => "a machine word",
+        Big { nat: true, .. } => "a `Nat`",
+        Big { nat: false, .. } => "an `Int`",
+        Bool(_) => "a `Bool`",
+        Unit => "Unit",
+        Adt { .. } => "a data value",
+        Dict { .. } => "a dictionary",
+        Clos { .. } => "a function",
+        CtorFn { .. } => "a constructor",
+        PrimFn { .. } => "a primitive",
+        Code(_) => "code",
+        Decls(_) => "declarations",
+        Syntax { .. } => "syntax",
+        Str(_) => "a `String`",
+        Secret(_) => "a secret",
+        Cap(_) => "a capability",
+        StageFn { .. } => "a compile-time operation",
+    }
+}
+
+/// Does `t` contain a macro invocation (the staging-work test)?
+fn term_has_macro_call(t: &ast::Term) -> bool {
+    let mut found = false;
+    fn walk(t: &ast::Term, found: &mut bool) {
+        if *found {
+            return;
+        }
+        match t {
+            ast::Term::MacroCall { .. } => *found = true,
+            ast::Term::App(f, args, _) => {
+                walk(f, found);
+                for a in args {
+                    walk(a, found);
+                }
+            }
+            ast::Term::Lam(_, b, _)
+            | ast::Term::Neg(b, _)
+            | ast::Term::Proj(b, _, _)
+            | ast::Term::Ann(b, _, _)
+            | ast::Term::CpsWrap(b, _)
+            | ast::Term::Quote { body: b, .. }
+            | ast::Term::Splice { body: b, .. } => walk(b, found),
+            ast::Term::Let(decls, b, _) => {
+                for d in decls {
+                    match d {
+                        ast::LocalDecl::Eq { body, .. }
+                        | ast::LocalDecl::Bind { body, .. }
+                        | ast::LocalDecl::Lazy { body, .. } => walk(body, found),
+                        ast::LocalDecl::Sig { .. } => {}
+                    }
+                }
+                walk(b, found);
+            }
+            ast::Term::If(a, b, c, _) => {
+                walk(a, found);
+                walk(b, found);
+                walk(c, found);
+            }
+            ast::Term::Case(s, alts, _) => {
+                walk(s, found);
+                for alt in alts {
+                    walk(&alt.body, found);
+                }
+            }
+            ast::Term::Infix(ts, _, _) | ast::Term::Tuple(ts, _) | ast::Term::List(ts, _) => {
+                for x in ts {
+                    walk(x, found);
+                }
+            }
+            ast::Term::Record(_, fields, _) => {
+                for (_, e) in fields {
+                    walk(e, found);
+                }
+            }
+            ast::Term::Do(stmts, _) => {
+                for s in stmts {
+                    match s {
+                        ast::DoStmt::Bind { term, .. } | ast::DoStmt::Expr { term, .. } => {
+                            walk(term, found)
+                        }
+                        ast::DoStmt::Let { decl, .. } => {
+                            if let ast::LocalDecl::Eq { body, .. }
+                            | ast::LocalDecl::Bind { body, .. }
+                            | ast::LocalDecl::Lazy { body, .. } = decl
+                            {
+                                walk(body, found);
+                            }
+                        }
+                    }
+                }
+            }
+            ast::Term::Handle(a, b, _) => {
+                walk(a, found);
+                walk(b, found);
+            }
+            ast::Term::Handler(h) => {
+                walk(&h.ret_body, found);
+                for c in &h.clauses {
+                    walk(&c.body, found);
+                }
+            }
+            ast::Term::With { value, body, .. } => {
+                walk(value, found);
+                walk(body, found);
+            }
+            ast::Term::CapApply { head, supplies, .. } => {
+                walk(head, found);
+                for (_, e) in supplies {
+                    walk(e, found);
+                }
+            }
+            ast::Term::QuoteDecls { .. }
+            | ast::Term::Var(_)
+            | ast::Term::Con(_)
+            | ast::Term::Int(_, _)
+            | ast::Term::Str(_, _)
+            | ast::Term::Char(_, _)
+            | ast::Term::Unit(_)
+            | ast::Term::Hole(_)
+            | ast::Term::SpliceHole { .. }
+            | ast::Term::SeqOp(_, _) => {}
+        }
+    }
+    walk(t, &mut found);
+    found
+}
+
+/// Binder names of a unit's syntax, for the dependency graph's local-name
+/// filter.
+fn collect_unit_binders(key: &UnitKey, checker: &Checker, out: &mut Vec<String>) {
+    let mut push_pat = |p: &ast::Pat, out: &mut Vec<String>| {
+        let mut names = Vec::new();
+        pat_names(p, &mut names);
+        out.extend(names);
+    };
+    match key {
+        UnitKey::Def(m, n) | UnitKey::Ord(m, n) => {
+            for (mod_, name, eq) in &checker.top_eqs {
+                if mod_ == m && name == n {
+                    for p in &eq.pats {
+                        push_pat(p, out);
+                    }
+                    for l in &eq.locals {
+                        match l {
+                            ast::LocalDecl::Sig { name, .. } => out.push(name.text.clone()),
+                            ast::LocalDecl::Eq { name, pats, .. } => {
+                                out.push(name.text.clone());
+                                for p in pats {
+                                    push_pat(p, out);
+                                }
+                            }
+                            ast::LocalDecl::Bind { pat, .. } | ast::LocalDecl::Lazy { pat, .. } => {
+                                push_pat(pat, out)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        UnitKey::Gen(i) => {
+            for stmt in &checker.generate_blocks[*i].stmts {
+                match stmt {
+                    ast::DoStmt::Bind { pat, .. } => push_pat(pat, out),
+                    ast::DoStmt::Let { decl, .. } => match decl {
+                        ast::LocalDecl::Sig { name, .. } => out.push(name.text.clone()),
+                        ast::LocalDecl::Eq { name, .. } => out.push(name.text.clone()),
+                        ast::LocalDecl::Bind { pat, .. } | ast::LocalDecl::Lazy { pat, .. } => {
+                            push_pat(pat, out)
+                        }
+                    },
+                    ast::DoStmt::Expr { .. } => {}
+                }
+            }
+        }
+    }
+}
+
+/// The declared name of a declaration, when it has one.
+fn decl_name(d: &ast::Decl) -> Option<&ast::Name> {
+    match d {
+        ast::Decl::ValueSig { name, .. } => Some(name),
+        ast::Decl::Equation { eq, .. } => Some(&eq.name),
+        ast::Decl::Attributed { inner, .. } => decl_name(inner),
+        _ => None,
+    }
+}
+
+/// Give every span of a generated term the expansion's provenance (modules
+/// specification section 8: source maps retain expansion provenance), so
+/// diagnostics in generated code trace back through the expansion.
+fn stamp_term_spans(t: &mut ast::Term, site: &crate::lexer::ExpSite) {
+    let stamp = |s: &mut ast::Span| {
+        *s = crate::lexer::record_expansion(crate::lexer::ExpSite {
+            name: site.name.clone(),
+            call: site.call,
+            origin: site.origin.clone(),
+            template: *s,
+            parent: site.parent,
+        })
+    };
+    match t {
+        ast::Term::Var(p) => {
+            for q in &mut p.quals {
+                stamp(&mut q.span);
+            }
+            stamp(&mut p.name.span);
+        }
+        ast::Term::Con(p) => {
+            for s in &mut p.segments {
+                stamp(&mut s.span);
+            }
+        }
+        ast::Term::Int(_, s)
+        | ast::Term::Str(_, s)
+        | ast::Term::Char(_, s)
+        | ast::Term::Unit(s)
+        | ast::Term::Hole(s)
+        | ast::Term::SpliceHole { span: s, .. }
+        | ast::Term::SeqOp(_, s) => stamp(s),
+        ast::Term::App(f, args, s) => {
+            stamp(s);
+            stamp_term_spans(f, site);
+            for a in args {
+                stamp_term_spans(a, site);
+            }
+        }
+        ast::Term::Lam(_, body, s) | ast::Term::Neg(body, s) | ast::Term::Proj(body, _, s) => {
+            stamp(s);
+            stamp_term_spans(body, site);
+        }
+        ast::Term::Let(_, body, s) | ast::Term::Ann(body, _, s) | ast::Term::CpsWrap(body, s) => {
+            stamp(s);
+            stamp_term_spans(body, site);
+        }
+        ast::Term::If(a, b, c, s) => {
+            stamp(s);
+            stamp_term_spans(a, site);
+            stamp_term_spans(b, site);
+            stamp_term_spans(c, site);
+        }
+        ast::Term::Case(scrut, alts, s) => {
+            stamp(s);
+            stamp_term_spans(scrut, site);
+            for alt in alts {
+                if let Some(g) = &mut alt.guard {
+                    stamp_term_spans(g, site);
+                }
+                stamp_term_spans(&mut alt.body, site);
+            }
+        }
+        ast::Term::Infix(ts, _, s) | ast::Term::Tuple(ts, s) | ast::Term::List(ts, s) => {
+            stamp(s);
+            for x in ts {
+                stamp_term_spans(x, site);
+            }
+        }
+        ast::Term::Record(_, fields, s) => {
+            stamp(s);
+            for (_, e) in fields {
+                stamp_term_spans(e, site);
+            }
+        }
+        ast::Term::Do(stmts, s) => {
+            stamp(s);
+            for st in stmts {
+                match st {
+                    ast::DoStmt::Bind { term, span, .. } | ast::DoStmt::Expr { term, span } => {
+                        stamp(span);
+                        stamp_term_spans(term, site);
+                    }
+                    ast::DoStmt::Let { span, .. } => stamp(span),
+                }
+            }
+        }
+        ast::Term::Handle(a, b, s) => {
+            stamp(s);
+            stamp_term_spans(a, site);
+            stamp_term_spans(b, site);
+        }
+        ast::Term::Handler(h) => {
+            stamp(&mut h.span);
+            stamp_term_spans(&mut h.ret_body, site);
+            for c in &mut h.clauses {
+                stamp(&mut c.span);
+                stamp_term_spans(&mut c.body, site);
+            }
+        }
+        ast::Term::With { span, value, body, .. } => {
+            stamp(span);
+            stamp_term_spans(value, site);
+            stamp_term_spans(body, site);
+        }
+        ast::Term::CapApply { span, head, supplies, .. } => {
+            stamp(span);
+            stamp_term_spans(head, site);
+            for (_, e) in supplies {
+                stamp_term_spans(e, site);
+            }
+        }
+        ast::Term::Quote { body, span } | ast::Term::Splice { body, span } => {
+            stamp(span);
+            stamp_term_spans(body, site);
+        }
+        ast::Term::QuoteDecls { decls, span } => {
+            stamp(span);
+            for d in decls {
+                stamp_decl_spans(d, site);
+            }
+        }
+        ast::Term::MacroCall { span, .. } => stamp(span),
+    }
+}
+
+/// Expansion provenance for a generated declaration's terms.
+fn stamp_decl_spans(d: &mut ast::Decl, site: &crate::lexer::ExpSite) {
+    match d {
+        ast::Decl::Attributed { inner, .. } => stamp_decl_spans(inner, site),
+        ast::Decl::Equation { eq, .. } => {
+            stamp_term_spans(&mut eq.body, site);
+            for l in &mut eq.locals {
+                match l {
+                    ast::LocalDecl::Eq { body, .. }
+                    | ast::LocalDecl::Bind { body, .. }
+                    | ast::LocalDecl::Lazy { body, .. } => stamp_term_spans(body, site),
+                    ast::LocalDecl::Sig { .. } => {}
+                }
+            }
+        }
+        ast::Decl::Instance(i) => {
+            for m in &mut i.methods {
+                stamp_term_spans(&mut m.body, site);
+            }
+        }
+        ast::Decl::Generate { stmts, .. } => {
+            for s in stmts {
+                match s {
+                    ast::DoStmt::Bind { term, .. } | ast::DoStmt::Expr { term, .. } => {
+                        stamp_term_spans(term, site)
+                    }
+                    ast::DoStmt::Let { .. } => {}
+                }
+            }
+        }
+        _ => {}
+    }
+}
+
+// ------------------------------------------------- staging: compile-time evaluation
+
+use crate::core::big::Big;
+use crate::core::{Cap, StageOp, Value};
+
+/// The `Value` of a mathematical constant.
+fn big_value(b: Big, nat: bool) -> Value {
+    Value::Big { nat, digits: b.to_dec() }
+}
+
+/// The `Big` behind a mathematical value.
+fn big_of(v: &Value, what: &str) -> Result<Big> {
+    match v {
+        Value::Big { digits, .. } => Big::from_dec(digits)
+            .ok_or_else(|| Error::plain(format!("internal error: malformed {what} constant"))),
+        other => Err(Error::plain(format!(
+            "expected {what} at compile time, found {}",
+            value_kind_name(other)
+        ))),
+    }
+}
+
+/// Width and signedness of a machine scalar (primitive types
+/// specification section 2).
+fn scalar_shape(name: &str) -> Option<(u32, bool)> {
+    Some(match name {
+        "I8" => (8, true),
+        "U8" | "Char" => (8, false),
+        "I16" => (16, true),
+        "U16" => (16, false),
+        "I32" => (32, true),
+        "U32" => (32, false),
+        "I64" | "Isize" => (64, true),
+        "U64" | "Usize" => (64, false),
+        _ => return None,
+    })
+}
+
+/// Reduce a machine word to its type's representation.
+fn mask_to(bits: u32, signed: bool, v: i64) -> i64 {
+    if bits >= 64 {
+        return v;
+    }
+    let m = (1i64 << bits) - 1;
+    let r = v & m;
+    if signed && r >> (bits - 1) & 1 == 1 {
+        r | !m
+    } else {
+        r
+    }
+}
+
+fn word_of(v: &Value, what: &str) -> Result<i64> {
+    match v {
+        Value::Word(w) => Ok(*w),
+        Value::Bool(b) => Ok(*b as i64),
+        Value::Unit => Ok(0),
+        other => Err(Error::plain(format!(
+            "expected {what} at compile time, found {}",
+            value_kind_name(other)
+        ))),
+    }
+}
+
+fn str_of(v: &Value, what: &str) -> Result<String> {
+    match v {
+        Value::Str(s) => Ok(s.clone()),
+        Value::Secret(_) => Err(Error::plain(
+            "a secret value must not be embedded in generated source, logs, or snapshots (modules specification section 10)",
+        )),
+        other => Err(Error::plain(format!(
+            "expected {what} at compile time, found {}",
+            value_kind_name(other)
+        ))),
+    }
+}
+
+impl Checker {
+    /// Evaluate a compiled function at compile time, applied to `args`.
+    fn eval_fn(&mut self, cx: &mut StageCx, id: &GlobalId, args: Vec<Value>) -> Result<Value> {
+        let f = self.global_value(cx, &id.0)?;
+        self.apply_value(cx, f, args)
+    }
+
+    /// The compile-time value of a global name.
+    fn global_value(&mut self, cx: &mut StageCx, id: &str) -> Result<Value> {
+        if let Some(op) = id.strip_prefix("<builtin>.Stage.") {
+            let op = StageOp::from_name(op)
+                .ok_or_else(|| Error::plain(format!("internal error: unknown stage operation {id}")))?;
+            return Ok(Value::StageFn { op, args: Vec::new() });
+        }
+        if let Some(f) = cx.fns.get(id) {
+            return Ok(self.closure_of(f));
+        }
+        // Constructors carry their tag in the value table.
+        if let Some((m, n)) = id.rsplit_once('.') {
+            if let Some(vs) = self.values.get(n) {
+                for v in vs {
+                    if v.module == m {
+                        if let ValueKind::Ctor { tag, runtime_arity, .. } = &v.kind {
+                            return Ok(Value::CtorFn {
+                                tag: *tag,
+                                arity: *runtime_arity,
+                                args: Vec::new(),
+                            });
+                        }
+                    }
+                }
+            }
+        }
+        self.ensure_fn(cx, id)?;
+        let f = cx
+            .fns
+            .get(id)
+            .ok_or_else(|| Error::plain(format!("internal error: no code for {id}")))?;
+        Ok(self.closure_of(f))
+    }
+
+    fn closure_of(&self, f: &crate::core::FnDef) -> Value {
+        if let Some((tag, arity)) = f.ctor {
+            return Value::CtorFn { tag, arity, args: Vec::new() };
+        }
+        if let Some(op) = f.prim {
+            return Value::PrimFn { op, args: Vec::new() };
+        }
+        Value::Clos {
+            fn_id: f.id.clone(),
+            env: Vec::new(),
+            args: Vec::new(),
+            arity: f.params.len(),
+        }
+    }
+
+    /// Make `id`'s code available to interpretation, compiling it on
+    /// demand (modules specification section 9: a prerequisite is compiled
+    /// before its use).
+    fn ensure_fn(&mut self, cx: &mut StageCx, id: &str) -> Result<()> {
+        if cx.fns.contains_key(id) {
+            return Ok(());
+        }
+        if let Some(f) = self.fns.iter().find(|f| f.id.0 == id).cloned() {
+            cx.fns.insert(id.to_string(), f);
+            return Ok(());
+        }
+        let parts: Vec<&str> = id.split('.').collect();
+        if parts.len() >= 3 && parts[parts.len() - 1].starts_with("lam") {
+            let parent = format!("{}.{}", parts[0], parts[1]);
+            self.ensure_fn(cx, &parent)?;
+            if cx.fns.contains_key(id) {
+                return Ok(());
+            }
+        }
+        if parts.len() == 3 {
+            // An instance method: compile the instance on demand.
+            let (module, inst) = (parts[0].to_string(), parts[1].to_string());
+            self.ensure_instance(cx, &module, &inst)?;
+            if let Some(f) = self.fns.iter().find(|f| f.id.0 == id).cloned() {
+                cx.fns.insert(id.to_string(), f);
+                return Ok(());
+            }
+        }
+        if parts.len() == 2 {
+            let (module, name) = (parts[0].to_string(), parts[1].to_string());
+            self.compile_ordinary_on_demand(cx, &module, &name)?;
+        }
+        if cx.fns.contains_key(id) {
+            return Ok(());
+        }
+        if let Some(f) = self.fns.iter().find(|f| f.id.0 == id).cloned() {
+            cx.fns.insert(id.to_string(), f);
+            return Ok(());
+        }
+        Err(Error::plain(format!(
+            "compile-time evaluation needs the definition of `{id}`, which is not available (a generator cannot use code that only exists after generation)"
+        )))
+    }
+
+    /// Compile an ordinary definition for compile-time use: expand its
+    /// macro calls, then check it under ordinary rules (modules
+    /// specification section 8).
+    fn compile_ordinary_on_demand(
+        &mut self,
+        cx: &mut StageCx,
+        module: &str,
+        name: &str,
+    ) -> Result<()> {
+        let key = (module.to_string(), name.to_string());
+        if self.checked_early.contains(&key) {
+            return Ok(());
+        }
+        if self.staging.contains(&key) {
+            return self.compile_unit(cx, module, name);
+        }
+        let mut eqs: Vec<ast::Equation> = self
+            .top_eqs
+            .iter()
+            .filter(|(m, n, _)| m == module && n == name)
+            .map(|(_, _, e)| e.clone())
+            .collect();
+        if eqs.is_empty() {
+            return Err(Error::plain(format!("no definition for {name}")));
+        }
+        for eq in &mut eqs {
+            self.expand_macros_in_term(cx, module, &mut eq.body)?;
+            for l in &mut eq.locals {
+                self.expand_macros_in_local(cx, module, l)?;
+            }
+        }
+        let scheme = self.top_schemes.get(&key).cloned().ok_or_else(|| {
+            Error::plain(format!("missing signature for {name} (definitions state their types)"))
+        })?;
+        self.set_scope(module);
+        let id = fn_id(module, name);
+        let before = self.fns.len();
+        self.check_equations(name, &id, &scheme, &eqs, Vec::new())?;
+        for f in self.fns[before..].iter() {
+            cx.fns.insert(f.id.0.clone(), f.clone());
+        }
+        self.checked_early.insert(key);
+        Ok(())
+    }
+
+    /// Compile a class instance on demand (its dictionary methods run at
+    /// compile time like any other code).
+    fn ensure_instance(&mut self, cx: &mut StageCx, module: &str, name: &str) -> Result<()> {
+        let base = fn_id(module, name);
+        if self.instance_defs.iter().any(|i| i.id == base) {
+            return Ok(());
+        }
+        let pending = self
+            .instance_defs_pending
+            .iter()
+            .position(|(m, i)| m == module && i.name.text == name)
+            .map(|i| self.instance_defs_pending.remove(i));
+        let Some((m, mut inst)) = pending else {
+            return Err(Error::plain(format!(
+                "compile-time evaluation needs the instance {module}.{name}, which is not available"
+            )));
+        };
+        // Instance methods may invoke macros: expand first.
+        let mut as_decl = ast::Decl::Instance(inst.clone());
+        self.expand_macros_in_decl(cx, module, &mut as_decl)?;
+        if let ast::Decl::Instance(i) = as_decl {
+            inst = i;
+        }
+        self.set_scope(module);
+        let before = self.fns.len();
+        self.check_instance(&m, &inst)?;
+        for f in self.fns[before..].iter() {
+            cx.fns.insert(f.id.0.clone(), f.clone());
+        }
+        Ok(())
+    }
+
+    /// Evaluate one core expression in `frame` (locals by id).
+    fn eval_core(
+        &mut self,
+        cx: &mut StageCx,
+        e: &crate::core::Core,
+        frame: &mut Vec<Value>,
+    ) -> Result<Value> {
+        cx.steps = cx.steps.saturating_sub(1);
+        if cx.steps == 0 {
+            return Err(Error::plain(
+                "compile-time evaluation exceeded its step budget (8000000 steps); a generator must terminate (the staging termination policy)",
+            ));
+        }
+        use crate::core::Core;
+        Ok(match e {
+            Core::Int(i) => Value::Word(*i),
+            Core::ConstBig { nat, digits } => Value::Big {
+                nat: *nat,
+                digits: digits.clone(),
+            },
+            Core::Bool(b) => Value::Bool(*b),
+            Core::Unit => Value::Unit,
+            Core::Var(l) => frame.get(l.0).cloned().ok_or_else(|| {
+                Error::plain(format!("internal error: unbound local {} at compile time", l.0))
+            })?,
+            Core::Global(g) => {
+                let v = self.global_value(cx, &g.0)?;
+                self.deref_value(cx, v)?
+            }
+            Core::Ctor(g) => {
+                let v = self.global_value(cx, &g.0)?;
+                self.deref_value(cx, v)?
+            }
+            Core::Prim(op) => {
+                let v = Value::PrimFn { op: *op, args: Vec::new() };
+                self.deref_value(cx, v)?
+            }
+            Core::DictProj(d, i) => match self.eval_core(cx, d, frame)? {
+                Value::Dict { methods } => methods.get(*i).cloned().ok_or_else(|| {
+                    Error::plain("internal error: dictionary projection out of range")
+                })?,
+                other => {
+                    return Err(Error::plain(format!(
+                        "internal error: dictionary projection from {}",
+                        value_kind_name(&other)
+                    )))
+                }
+            },
+            Core::Proj(d, i) => match self.eval_core(cx, d, frame)? {
+                Value::Adt { fields, .. } => fields.get(*i).cloned().ok_or_else(|| {
+                    Error::plain("internal error: record projection out of range")
+                })?,
+                other => {
+                    return Err(Error::plain(format!(
+                        "internal error: record projection from {}",
+                        value_kind_name(&other)
+                    )))
+                }
+            },
+            Core::InstDict(g, args) => {
+                let (module, name) = g.0.rsplit_once('.').unwrap_or(("", &g.0));
+                self.ensure_instance(cx, module, name)?;
+                let def = self
+                    .instance_defs
+                    .iter()
+                    .find(|i| i.id == *g)
+                    .cloned()
+                    .ok_or_else(|| {
+                        Error::plain(format!("internal error: no instance code for {}", g.0))
+                    })?;
+                let mut subs = Vec::new();
+                for a in args {
+                    subs.push(self.eval_core(cx, a, frame)?);
+                }
+                let mut methods = Vec::new();
+                for m in &def.methods {
+                    let f = self
+                        .fns
+                        .iter()
+                        .find(|f| f.id == *m)
+                        .cloned()
+                        .ok_or_else(|| {
+                            Error::plain(format!("internal error: no method code for {}", m.0))
+                        })?;
+                    let arity = f.params.len();
+                    methods.push(Value::Clos {
+                        fn_id: m.clone(),
+                        env: Vec::new(),
+                        args: subs.clone(),
+                        arity,
+                    });
+                }
+                Value::Dict { methods }
+            }
+            Core::App(f, args) => {
+                let fv = self.eval_core(cx, f, frame)?;
+                let mut vals = Vec::new();
+                for a in args {
+                    vals.push(self.eval_core(cx, a, frame)?);
+                }
+                self.apply_value(cx, fv, vals)?
+            }
+            Core::Lam { fn_id, env } => {
+                let mut captured = Vec::new();
+                for a in env {
+                    captured.push(self.eval_core(cx, a, frame)?);
+                }
+                let arity = match cx.fns.get(&fn_id.0) {
+                    Some(f) => f.params.len(),
+                    None => usize::MAX,
+                };
+                Value::Clos {
+                    fn_id: fn_id.clone(),
+                    env: captured,
+                    args: Vec::new(),
+                    arity,
+                }
+            }
+            Core::Let(l, v, body) => {
+                let val = self.eval_core(cx, v, frame)?;
+                let saved = set_local(frame, l.0, val);
+                let r = self.eval_core(cx, body, frame);
+                restore_local(frame, l.0, saved);
+                r?
+            }
+            Core::If(c, t, f) => {
+                if word_of(&self.eval_core(cx, c, frame)?, "a condition")? != 0 {
+                    self.eval_core(cx, t, frame)?
+                } else {
+                    self.eval_core(cx, f, frame)?
+                }
+            }
+            Core::Case { scrut, alts } => {
+                let s = self.eval_core(cx, scrut, frame)?;
+                let mut result = None;
+                for (pat, body) in alts {
+                    let mut saved: Vec<(usize, Option<Value>)> = Vec::new();
+                    let matched = match pat {
+                        crate::core::CPat::Wild => true,
+                        crate::core::CPat::Var(l) => {
+                            saved.push((l.0, set_local(frame, l.0, s.clone())));
+                            true
+                        }
+                        crate::core::CPat::Con { tag, fields } => match &s {
+                            Value::Adt { tag: t, fields: fs } if t == tag => {
+                                for (l, v) in fields.iter().zip(fs.iter()) {
+                                    saved.push((l.0, set_local(frame, l.0, v.clone())));
+                                }
+                                true
+                            }
+                            _ => false,
+                        },
+                    };
+                    if matched {
+                        result = Some(self.eval_core(cx, body, frame)?);
+                        for (l, old) in saved.into_iter().rev() {
+                            restore_local(frame, l, old);
+                        }
+                        break;
+                    }
+                    for (l, old) in saved.into_iter().rev() {
+                        restore_local(frame, l, old);
+                    }
+                }
+                result.ok_or_else(|| {
+                    Error::plain("the compile-time computation faulted (a match ran out)")
+                })?
+            }
+            Core::Quote { template, holes } => {
+                self.construct_quote(cx, template, holes, frame)?
+            }
+            Core::DeclsQuote { template, holes } => {
+                self.construct_decls(cx, template, holes, frame)?
+            }
+            Core::SyntaxLit(tokens) => Value::Syntax {
+                tokens: tokens.clone(),
+                origin: cx.origin.clone(),
+            },
+            Core::StrLit(s) => Value::Str(s.clone()),
+            Core::Demand(_) | Core::LazyAlloc | Core::LazyInit(_, _) => {
+                return Err(Error::plain(
+                    "lazy evaluation (`delay`, memo cells) is not available at compile time in this slice",
+                ))
+            }
+            Core::Fault => {
+                return Err(Error::plain(
+                    "the compile-time computation faulted (the fault path ran)",
+                ))
+            }
+        })
+    }
+
+    /// A nullary definition is a value: referencing a zero-arity function,
+    /// constructor, or primitive runs it (top-level values are 0-ary
+    /// thunks in the uniform word model).
+    fn deref_value(&mut self, cx: &mut StageCx, v: Value) -> Result<Value> {
+        let zero = match &v {
+            Value::Clos { args, arity, .. } => *arity == 0 && args.is_empty(),
+            Value::CtorFn { args, arity, .. } => *arity == 0 && args.is_empty(),
+            Value::PrimFn { op, args } => op.arity() == 0 && args.is_empty(),
+            _ => false,
+        };
+        if zero {
+            self.apply_value(cx, v, Vec::new())
+        } else {
+            Ok(v)
+        }
+    }
+
+    /// Apply `f` to `args` at compile time, currying.
+    fn apply_value(&mut self, cx: &mut StageCx, f: Value, mut args: Vec<Value>) -> Result<Value> {
+        cx.steps = cx.steps.saturating_sub(1);
+        if cx.steps == 0 {
+            return Err(Error::plain(
+                "compile-time evaluation exceeded its step budget (8000000 steps); a generator must terminate (the staging termination policy)",
+            ));
+        }
+        match f {
+            Value::Clos { fn_id, mut env, args: mut acc, arity } => {
+                acc.append(&mut args);
+                let arity = if arity == usize::MAX {
+                    self.ensure_fn(cx, &fn_id.0)?;
+                    cx.fns.get(&fn_id.0).map(|f| f.params.len()).unwrap_or(0)
+                } else {
+                    arity
+                };
+                if acc.len() < arity {
+                    return Ok(Value::Clos { fn_id, env, args: acc, arity });
+                }
+                let (now, rest) = acc.split_at(arity);
+                env.extend(now.iter().cloned());
+                self.ensure_fn(cx, &fn_id.0)?;
+                let body = cx
+                    .fns
+                    .get(&fn_id.0)
+                    .map(|f| f.body.clone())
+                    .ok_or_else(|| Error::plain(format!("internal error: no code for {}", fn_id.0)))?;
+                // A function's templates resolve at its definition site,
+                // and its literal syntax was written in its module. The
+                // unit name carries into expansion provenance.
+                let (save_def, save_origin, save_unit) = (
+                    cx.def_module.clone(),
+                    cx.origin.clone(),
+                    cx.unit_name.clone(),
+                );
+                {
+                    // Strip a hoisted-lambda suffix, then the name.
+                    let base = if fn_id
+                        .0
+                        .rsplit_once('.')
+                        .map(|(_, last)| last.starts_with("lam"))
+                        .unwrap_or(false)
+                    {
+                        fn_id.0.rsplit_once('.').map(|(p, _)| p.to_string()).unwrap_or_default()
+                    } else {
+                        fn_id.0.clone()
+                    };
+                    if let Some((m, n)) = base.rsplit_once('.') {
+                        cx.def_module = m.to_string();
+                        cx.origin = m.to_string();
+                        cx.unit_name = if self.macros.contains_key(&(m.to_string(), n.to_string()))
+                        {
+                            format!("macro `{n}`")
+                        } else if self.staging.contains(&(m.to_string(), n.to_string())) {
+                            format!("stage definition `{n}`")
+                        } else {
+                            format!("definition `{n}`")
+                        };
+                    }
+                }
+                let mut frame = env;
+                let r = self.eval_core(cx, &body, &mut frame);
+                cx.def_module = save_def;
+                cx.origin = save_origin;
+                cx.unit_name = save_unit;
+                let r = r?;
+                if rest.is_empty() {
+                    Ok(r)
+                } else {
+                    self.apply_value(cx, r, rest.to_vec())
+                }
+            }
+            Value::PrimFn { op, args: mut acc } => {
+                acc.append(&mut args);
+                if acc.len() < op.arity() {
+                    return Ok(Value::PrimFn { op, args: acc });
+                }
+                let (now, rest) = acc.split_at(op.arity());
+                let r = self.eval_prim(cx, op, now)?;
+                if rest.is_empty() {
+                    Ok(r)
+                } else {
+                    self.apply_value(cx, r, rest.to_vec())
+                }
+            }
+            Value::CtorFn { tag, arity, args: mut acc } => {
+                acc.append(&mut args);
+                if acc.len() < arity {
+                    return Ok(Value::CtorFn { tag, arity, args: acc });
+                }
+                let (now, rest) = acc.split_at(arity);
+                let r = Value::Adt { tag, fields: now.to_vec() };
+                if rest.is_empty() {
+                    Ok(r)
+                } else {
+                    self.apply_value(cx, r, rest.to_vec())
+                }
+            }
+            Value::StageFn { op, args: mut acc } => {
+                acc.append(&mut args);
+                let want = stage_op_arity(op);
+                if acc.len() < want {
+                    return Ok(Value::StageFn { op, args: acc });
+                }
+                let (now, rest) = acc.split_at(want);
+                let r = self.eval_stage_op(cx, op, now)?;
+                if rest.is_empty() {
+                    Ok(r)
+                } else {
+                    self.apply_value(cx, r, rest.to_vec())
+                }
+            }
+            other => Err(Error::plain(format!(
+                "cannot apply {} at compile time",
+                value_kind_name(&other)
+            ))),
+        }
+    }
+
+    /// Primitive operation semantics for compile-time evaluation.
+    fn eval_prim(&mut self, cx: &mut StageCx, op: PrimOp, args: &[Value]) -> Result<Value> {
+        use crate::core::{ArithMode, ArithOp, BitOp, CmpOp, IntOp, NatOp, PrimOp, ShiftOp};
+        match op {
+            PrimOp::Nat(nat) => {
+                let a = big_of(&args[0], "`Nat`")?;
+                let b = if args.len() > 1 { big_of(&args[1], "`Nat`")? } else { Big::zero() };
+                Ok(match nat {
+                    NatOp::Add => big_value(a.add(&b), true),
+                    NatOp::Mul => big_value(a.mul(&b), true),
+                    NatOp::Sub => {
+                        let r = a.sub(&b);
+                        if r.neg && !r.is_zero() {
+                            return Err(Error::plain(
+                                "`Nat` subtraction below zero faults at compile time (the runtime fault path is exit 71)",
+                            ));
+                        }
+                        big_value(r, true)
+                    }
+                    NatOp::Div | NatOp::Rem => {
+                        let (q, r) = a.divmod(&b).ok_or_else(|| {
+                            Error::plain(
+                                "division by zero faults at compile time (the runtime fault path is exit 72)",
+                            )
+                        })?;
+                        big_value(if matches!(nat, NatOp::Div) { q } else { r }, true)
+                    }
+                    NatOp::Cmp => Value::Word(big_cmp_word(&a, &b)),
+                    NatOp::FromI64 => {
+                        let w = word_of(&args[0], "a machine integer")?;
+                        if w < 0 {
+                            return Err(Error::plain("`natFromI64` faults on a negative input"));
+                        }
+                        big_value(Big::from_i64(w), true)
+                    }
+                    NatOp::ToI64 => {
+                        let w = a.to_i64().ok_or_else(|| {
+                            Error::plain("`natToI64` faults when the value leaves `I64` range")
+                        })?;
+                        Value::Word(w)
+                    }
+                })
+            }
+            PrimOp::Int(int) => {
+                let a = big_of(&args[0], "`Int`")?;
+                let b = if args.len() > 1 { big_of(&args[1], "`Int`")? } else { Big::zero() };
+                Ok(match int {
+                    IntOp::Add => big_value(a.add(&b), false),
+                    IntOp::Sub => big_value(a.sub(&b), false),
+                    IntOp::Mul => big_value(a.mul(&b), false),
+                    IntOp::Neg => big_value(a.negate(), false),
+                    IntOp::Div | IntOp::Rem => {
+                        let (q, r) = a.divmod(&b).ok_or_else(|| {
+                            Error::plain(
+                                "division by zero faults at compile time (the runtime fault path is exit 72)",
+                            )
+                        })?;
+                        big_value(if matches!(int, IntOp::Div) { q } else { r }, false)
+                    }
+                    IntOp::Cmp => Value::Word(big_cmp_word(&a, &b)),
+                    IntOp::FromI64 => big_value(Big::from_i64(word_of(&args[0], "a machine integer")?), false),
+                    IntOp::ToI64 => Value::Word(a.to_i64().ok_or_else(|| {
+                        Error::plain("`intToI64` faults when the value leaves `I64` range")
+                    })?),
+                })
+            }
+            PrimOp::EqBool => Ok(Value::Bool(
+                (word_of(&args[0], "`Bool`")? != 0) == (word_of(&args[1], "`Bool`")? != 0),
+            )),
+            PrimOp::NeBool => Ok(Value::Bool(
+                (word_of(&args[0], "`Bool`")? != 0) != (word_of(&args[1], "`Bool`")? != 0),
+            )),
+            PrimOp::NotBool => Ok(Value::Bool(word_of(&args[0], "`Bool`")? == 0)),
+            PrimOp::AndBool => Ok(Value::Bool(
+                word_of(&args[0], "`Bool`")? != 0 && word_of(&args[1], "`Bool`")? != 0,
+            )),
+            PrimOp::OrBool => Ok(Value::Bool(
+                word_of(&args[0], "`Bool`")? != 0 || word_of(&args[1], "`Bool`")? != 0,
+            )),
+            PrimOp::CharToU32 => Ok(Value::Word(word_of(&args[0], "a `Char`")?)),
+            PrimOp::U32ToChar => Ok(Value::Word(word_of(&args[0], "a `U32`")?)),
+            PrimOp::Bound { ty, max } => {
+                let (bits, signed) = scalar_shape(ty.name()).unwrap_or((64, true));
+                let v = if max {
+                    if signed {
+                        (1i64 << (bits - 1)) - 1
+                    } else {
+                        mask_to(bits, false, -1)
+                    }
+                } else if signed {
+                    -(1i64 << (bits - 1))
+                } else {
+                    0
+                };
+                Ok(Value::Word(v))
+            }
+            PrimOp::Cmp { ty, op: cmp } => {
+                let (bits, signed) = scalar_shape(ty.name()).unwrap_or((64, true));
+                let a = word_of(&args[0], "a machine word")?;
+                let b = word_of(&args[1], "a machine word")?;
+                let (a, b) = if signed {
+                    (mask_to(bits, true, a), mask_to(bits, true, b))
+                } else {
+                    let mask = if bits >= 64 { u64::MAX } else { (1u64 << bits) - 1 };
+                    ((a as u64 & mask) as i64, (b as u64 & mask) as i64)
+                };
+                let ord = if signed {
+                    a.cmp(&b)
+                } else {
+                    (a as u64).cmp(&(b as u64))
+                };
+                Ok(Value::Bool(match cmp {
+                    CmpOp::Eq => ord.is_eq(),
+                    CmpOp::Ne => ord.is_ne(),
+                    CmpOp::Lt => ord.is_lt(),
+                    CmpOp::Le => ord.is_le(),
+                    CmpOp::Gt => ord.is_gt(),
+                    CmpOp::Ge => ord.is_ge(),
+                }))
+            }
+            PrimOp::Arith { ty, op: aop, mode } => {
+                let (bits, signed) = scalar_shape(ty.name()).unwrap_or((64, true));
+                let a = word_of(&args[0], "a machine word")?;
+                let b = word_of(&args[1], "a machine word")?;
+                let raw = match aop {
+                    ArithOp::Add => a.wrapping_add(b),
+                    ArithOp::Sub => a.wrapping_sub(b),
+                    ArithOp::Mul => a.wrapping_mul(b),
+                };
+                Ok(Value::Word(match mode {
+                    ArithMode::Wrapping => mask_to(bits, signed, raw),
+                    ArithMode::Saturating => {
+                        let w = mask_to(bits, signed, raw);
+                        if signed {
+                            let (lo, hi) = (-(1i64 << (bits - 1)), (1i64 << (bits - 1)) - 1);
+                            // Re-do in wider space to detect overflow.
+                            let wide = match aop {
+                                ArithOp::Add => (a as i128) + (b as i128),
+                                ArithOp::Sub => (a as i128) - (b as i128),
+                                ArithOp::Mul => (a as i128) * (b as i128),
+                            };
+                            if wide > hi as i128 {
+                                hi
+                            } else if wide < lo as i128 {
+                                lo
+                            } else {
+                                w
+                            }
+                        } else {
+                            let max = if bits >= 64 { u64::MAX as i128 } else { (1i128 << bits) - 1 };
+                            let wide = match aop {
+                                ArithOp::Add => (a as u64 as i128) + (b as u64 as i128),
+                                ArithOp::Sub => (a as u64 as i128) - (b as u64 as i128),
+                                ArithOp::Mul => (a as u64 as i128) * (b as u64 as i128),
+                            };
+                            if wide > max {
+                                max as i64
+                            } else if wide < 0 {
+                                0
+                            } else {
+                                w
+                            }
+                        }
+                    }
+                    ArithMode::Checked => {
+                        return Err(Error::plain(
+                            "checked machine arithmetic returns `Option` and is not available at compile time in this slice",
+                        ))
+                    }
+                }))
+            }
+            PrimOp::Neg { ty, mode } => {
+                let (bits, signed) = scalar_shape(ty.name()).unwrap_or((64, true));
+                let a = word_of(&args[0], "a machine word")?;
+                Ok(Value::Word(match mode {
+                    ArithMode::Wrapping => mask_to(bits, signed, a.wrapping_neg()),
+                    ArithMode::Saturating => {
+                        let lo = -(1i64 << (bits - 1));
+                        if signed && a == lo {
+                            (1i64 << (bits - 1)) - 1
+                        } else {
+                            mask_to(bits, signed, a.wrapping_neg())
+                        }
+                    }
+                    ArithMode::Checked => {
+                        return Err(Error::plain(
+                            "checked machine arithmetic returns `Option` and is not available at compile time in this slice",
+                        ))
+                    }
+                }))
+            }
+            PrimOp::Shift { ty, op: sop, checked } => {
+                let (bits, signed) = scalar_shape(ty.name()).unwrap_or((64, true));
+                let a = word_of(&args[0], "a machine word")?;
+                let n = word_of(&args[1], "a shift count")?;
+                if checked && (n < 0 || n >= bits as i64) {
+                    return Err(Error::plain(
+                        "a checked shift out of its width returns `None` and is not available at compile time in this slice",
+                    ));
+                }
+                let n = n.rem_euclid(bits as i64) as u32;
+                let r = match sop {
+                    ShiftOp::Shl => a.wrapping_shl(n),
+                    ShiftOp::Shr => {
+                        if signed {
+                            a.wrapping_shr(n)
+                        } else {
+                            mask_to(bits, false, a).wrapping_shr(n)
+                        }
+                    }
+                };
+                Ok(Value::Word(mask_to(bits, signed, r)))
+            }
+            PrimOp::Rotate { ty, right } => {
+                let (bits, signed) = scalar_shape(ty.name()).unwrap_or((64, true));
+                let a = word_of(&args[0], "a machine word")? as u64;
+                let n = word_of(&args[1], "a rotate count")?.rem_euclid(bits as i64) as u32;
+                let mask = if bits >= 64 { u64::MAX } else { (1u64 << bits) - 1 };
+                let a = a & mask;
+                let r = if right {
+                    ((a >> n) | (a << (bits - n))) & mask
+                } else {
+                    ((a << n) | (a >> (bits - n))) & mask
+                };
+                Ok(Value::Word(mask_to(bits, signed, r as i64)))
+            }
+            PrimOp::Bit { ty, op: bop } => {
+                let (bits, signed) = scalar_shape(ty.name()).unwrap_or((64, true));
+                let a = word_of(&args[0], "a machine word")?;
+                let b = word_of(&args[1], "a machine word")?;
+                let r = match bop {
+                    BitOp::And => a & b,
+                    BitOp::Or => a | b,
+                    BitOp::Xor => a ^ b,
+                };
+                Ok(Value::Word(mask_to(bits, signed, r)))
+            }
+            PrimOp::BitNot { ty } => {
+                let (bits, signed) = scalar_shape(ty.name()).unwrap_or((64, true));
+                let a = word_of(&args[0], "a machine word")?;
+                Ok(Value::Word(mask_to(bits, signed, !a)))
+            }
+            PrimOp::BitScan { .. } => Err(Error::plain(
+                "bit-scan primitives are not available at compile time in this slice",
+            )),
+            _ => Err(Error::plain(format!(
+                "primitive `{}` is not available at compile time in this slice",
+                op.symbol()
+            ))),
+        }
+    }
+
+    /// The compile-time capability API (modules specification section 10):
+    /// capabilities determine permitted targets; effects record that I/O
+    /// occurs; inputs are captured for the build identity.
+    fn eval_stage_op(&mut self, cx: &mut StageCx, op: StageOp, args: &[Value]) -> Result<Value> {
+        match op {
+            StageOp::Snapshot => {
+                let name = str_of(&args[0], "a snapshot name")?;
+                let k = args[1].clone();
+                cx.snapshot.push(name);
+                let r = self.apply_value(cx, k, vec![Value::Cap(Cap::Root)]);
+                cx.snapshot.pop();
+                r
+            }
+            StageOp::WithReadFiles | StageOp::WithWriteFiles | StageOp::WithProcess => {
+                require_cap(&args[0], Cap::Root, "the root capability")?;
+                let cap = match op {
+                    StageOp::WithReadFiles => Cap::File { write: false },
+                    StageOp::WithWriteFiles => Cap::File { write: true },
+                    _ => Cap::Proc,
+                };
+                self.apply_value(cx, args[1].clone(), vec![Value::Cap(cap)])
+            }
+            StageOp::ReadFile => {
+                let cap = match &args[0] {
+                    Value::Cap(c @ Cap::File { .. }) => *c,
+                    other => {
+                        return Err(Error::plain(format!(
+                            "`readFile` needs a file capability, found {}",
+                            value_kind_name(other)
+                        )))
+                    }
+                };
+                let _ = cap;
+                let path = str_of(&args[1], "a file path")?;
+                let contents = self.stage_read(cx, &path)?;
+                Ok(Value::Str(contents))
+            }
+            StageOp::WriteFile => {
+                require_file_write(&args[0])?;
+                let path = str_of(&args[1], "a file path")?;
+                let contents = str_of(&args[2], "file contents")?;
+                let full = cx.workdir.join(&path);
+                if let Some(parent) = full.parent() {
+                    std::fs::create_dir_all(parent).map_err(|e| {
+                        Error::plain(format!("cannot create {}: {e}", parent.display()))
+                    })?;
+                }
+                std::fs::write(&full, &contents)
+                    .map_err(|e| Error::plain(format!("cannot write {}: {e}", full.display())))?;
+                Ok(Value::Unit)
+            }
+            StageOp::Run => {
+                require_cap(&args[0], Cap::Proc, "a subprocess capability")?;
+                let tool = str_of(&args[1], "a tool name")?;
+                let mut argv: Vec<String> = Vec::new();
+                let mut cur = &args[2];
+                loop {
+                    match cur {
+                        Value::Adt { tag: 0, .. } => break,
+                        Value::Adt { tag: 1, fields } if fields.len() == 2 => {
+                            argv.push(str_of(&fields[0], "a tool argument")?);
+                            cur = &fields[1];
+                        }
+                        other => {
+                            return Err(Error::plain(format!(
+                                "`run` takes a list of string arguments, found {}",
+                                value_kind_name(other)
+                            )))
+                        }
+                    }
+                }
+                self.stage_run(cx, &tool, &argv).map(Value::Str)
+            }
+            StageOp::Secret => {
+                let name = str_of(&args[0], "a secret name")?;
+                let value = std::env::var(&name).map_err(|_| {
+                    Error::plain(format!(
+                        "the secret `{name}` is not available in the build environment (it is referenced by name only; its value never enters generated source or snapshots)"
+                    ))
+                })?;
+                self.record_input(
+                    cx,
+                    StageInput {
+                        snapshot: cx.snapshot.last().cloned().unwrap_or_default(),
+                        kind: "secret".to_string(),
+                        name: name.clone(),
+                        hash: String::new(),
+                        captured: String::new(),
+                        live: false,
+                    },
+                );
+                Ok(Value::Secret(value))
+            }
+            StageOp::Emit => {
+                let mut decls = match &args[0] {
+                    Value::Decls(ds) => ds.clone(),
+                    other => {
+                        return Err(Error::plain(format!(
+                            "`emit` takes declarations, found {}",
+                            value_kind_name(other)
+                        )))
+                    }
+                };
+                cx.emitted.append(&mut decls);
+                Ok(Value::Unit)
+            }
+            StageOp::QuoteNat | StageOp::QuoteInt | StageOp::QuoteBool => {
+                let span = cx.call.unwrap_or(ast::Span { line: 0, col: 0 });
+                match op {
+                    StageOp::QuoteNat => {
+                        let b = big_of(&args[0], "`Nat`")?;
+                        Ok(Value::Code(ast::Term::Int(b.to_dec(), span)))
+                    }
+                    StageOp::QuoteInt => {
+                        let b = big_of(&args[0], "`Int`")?;
+                        Ok(Value::Code(ast::Term::Int(b.to_dec(), span)))
+                    }
+                    _ => {
+                        let b = word_of(&args[0], "`Bool`")? != 0;
+                        let name = if b { "True" } else { "False" };
+                        Ok(Value::Code(ast::Term::Con(ast::ConPath {
+                            segments: vec![ast::Name::new(name, span)],
+                        })))
+                    }
+                }
+            }
+            StageOp::StrNat => {
+                let s = str_of(&args[0], "a string")?;
+                let b = Big::from_dec(s.trim()).ok_or_else(|| {
+                    Error::plain(format!("`strNat` needs decimal digits, got `{s}`"))
+                })?;
+                if b.neg {
+                    return Err(Error::plain("`strNat` rejects a negative `Nat`"));
+                }
+                Ok(big_value(b, true))
+            }
+            StageOp::NatStr => {
+                let b = big_of(&args[0], "`Nat`")?;
+                Ok(Value::Str(b.to_dec()))
+            }
+            StageOp::StrAppend => {
+                let a = str_of(&args[0], "a string")?;
+                let b = str_of(&args[1], "a string")?;
+                Ok(Value::Str(format!("{a}{b}")))
+            }
+            StageOp::StrLen => {
+                let s = str_of(&args[0], "a string")?;
+                Ok(big_value(Big::from_i64(s.len() as i64), true))
+            }
+        }
+    }
+
+    /// A file read under the build mode (modules specification section 10).
+    fn stage_read(&mut self, cx: &mut StageCx, path: &str) -> Result<String> {
+        let snapshot = cx.snapshot.last().cloned().unwrap_or_default();
+        let full = cx.workdir.join(path);
+        let prior = cx
+            .prior
+            .iter()
+            .find(|i| i.kind == "file" && i.name == path && i.snapshot == snapshot)
+            .cloned();
+        match self.stage_mode {
+            StageMode::Replay => {
+                let rec = prior.ok_or_else(|| {
+                    Error::plain(format!(
+                        "replay mode: no captured input for the file `{path}` in snapshot `{snapshot}` (run a refresh build to record it)"
+                    ))
+                })?;
+                if let Ok(current) = std::fs::read(&full) {
+                    let hash = crate::interface::content_hash(&String::from_utf8_lossy(&current));
+                    if hash != rec.hash {
+                        return Err(Error::plain(format!(
+                            "replay mode: the captured input for `{path}` is incompatible with the file on disk (hashes differ); run a refresh build"
+                        )));
+                    }
+                }
+                self.record_input(cx, rec.clone());
+                Ok(rec.captured)
+            }
+            mode => {
+                let bytes = std::fs::read(&full).map_err(|e| {
+                    Error::plain(format!("cannot read {}: {e}", full.display()))
+                })?;
+                let contents = String::from_utf8_lossy(&bytes).to_string();
+                let hash = crate::interface::content_hash(&contents);
+                self.record_input(
+                    cx,
+                    StageInput {
+                        snapshot,
+                        kind: "file".to_string(),
+                        name: path.to_string(),
+                        hash,
+                        captured: contents.clone(),
+                        live: mode == StageMode::Live,
+                    },
+                );
+                Ok(contents)
+            }
+        }
+    }
+
+    /// A subprocess run under the build mode; the tool identity and output
+    /// are inputs to the build identity.
+    fn stage_run(&mut self, cx: &mut StageCx, tool: &str, argv: &[String]) -> Result<String> {
+        let snapshot = cx.snapshot.last().cloned().unwrap_or_default();
+        let key = format!("{tool} {}", argv.join(" "));
+        let prior = cx
+            .prior
+            .iter()
+            .find(|i| i.kind == "subprocess" && i.name == key && i.snapshot == snapshot)
+            .cloned();
+        if self.stage_mode == StageMode::Replay {
+            let rec = prior.ok_or_else(|| {
+                Error::plain(format!(
+                    "replay mode: no captured input for the subprocess `{key}` in snapshot `{snapshot}` (run a refresh build to record it)"
+                ))
+            })?;
+            self.record_input(cx, rec.clone());
+            return Ok(rec.captured);
+        }
+        let mut child = std::process::Command::new(tool)
+            .args(argv)
+            .current_dir(&cx.workdir)
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+            .map_err(|e| Error::plain(format!("cannot run `{tool}`: {e}")))?;
+        let out = child.wait_with_output().map_err(|e| {
+            Error::plain(format!("`{tool}` did not finish: {e}"))
+        })?;
+        if !out.status.success() {
+            return Err(Error::plain(format!(
+                "the subprocess `{key}` failed with status {} (a failed stage releases its resources; the failure is not retried)",
+                out.status
+            )));
+        }
+        let contents = String::from_utf8_lossy(&out.stdout).to_string();
+        self.record_input(
+            cx,
+            StageInput {
+                snapshot,
+                kind: "subprocess".to_string(),
+                name: key,
+                hash: crate::interface::content_hash(&contents),
+                captured: contents.clone(),
+                live: self.stage_mode == StageMode::Live,
+            },
+        );
+        Ok(contents)
+    }
+
+    fn record_input(&mut self, cx: &mut StageCx, input: StageInput) {
+        if input.kind != "secret" {
+            // Secrets record their name only (modules specification
+            // section 10).
+            cx.inputs.retain(|i| {
+                !(i.kind == input.kind && i.name == input.name && i.snapshot == input.snapshot)
+            });
+        }
+        cx.inputs.push(input);
+    }
+
+    /// Build one `Code` value: hygiene first (fresh binders and
+    /// definition-site names), then hole substitution (caller syntax keeps
+    /// its binding relationships), then macro expansion of spliced calls
+    /// (modules specification section 8).
+    fn construct_quote(
+        &mut self,
+        cx: &mut StageCx,
+        template: &ast::Term,
+        holes: &[crate::core::Core],
+        frame: &mut Vec<Value>,
+    ) -> Result<Value> {
+        let vals = self.eval_holes(cx, holes, frame)?;
+        let renamed = self.hygienic_term(cx, template, &[])?;
+        let mut out = renamed;
+        self.stamp_generated(cx, &mut out);
+        let terms = self.hole_terms(cx, &vals)?;
+        let mut out = ast::subst_holes(&out, &terms);
+        let module = cx.origin.clone();
+        self.expand_macros_in_term(cx, &module, &mut out)?;
+        Ok(Value::Code(out))
+    }
+
+    /// Build one `Declarations` value (the same discipline over a
+    /// declaration template).
+    fn construct_decls(
+        &mut self,
+        cx: &mut StageCx,
+        template: &[ast::Decl],
+        holes: &[crate::core::Core],
+        frame: &mut Vec<Value>,
+    ) -> Result<Value> {
+        let vals = self.eval_holes(cx, holes, frame)?;
+        let mut own_values = Vec::new();
+        let mut own_types = Vec::new();
+        for d in template {
+            match d {
+                ast::Decl::ValueSig { name, .. } | ast::Decl::Equation { eq: ast::Equation { name, .. }, .. } => {
+                    own_values.push(name.text.clone())
+                }
+                ast::Decl::Data(data) => own_types.push(data.name.text.clone()),
+                ast::Decl::Record(r) | ast::Decl::Codata(r) => own_types.push(r.name.text.clone()),
+                ast::Decl::Signature(s) => own_types.push(s.name.text.clone()),
+                ast::Decl::Attributed { inner, .. } => {
+                    if let Some(n) = decl_name(inner) {
+                        own_values.push(n.text.clone());
+                    }
+                }
+                _ => {}
+            }
+        }
+        let mut decls = Vec::new();
+        for d in template {
+            let mut d = d.clone();
+            self.hygienic_decl(cx, &mut d, &own_values, &own_types)?;
+            decls.push(d);
+        }
+        let site = self.expansion_site(cx, ast::Span { line: 0, col: 0 });
+        for d in &mut decls {
+            stamp_decl_spans(d, &site);
+        }
+        let terms = self.hole_terms(cx, &vals)?;
+        let mut decls: Vec<ast::Decl> =
+            decls.iter().map(|d| ast::subst_holes_decl(d, &terms)).collect();
+        let module = cx.origin.clone();
+        for d in &mut decls {
+            self.expand_macros_in_decl(cx, &module, d)?;
+        }
+        Ok(Value::Decls(decls))
+    }
+
+    fn eval_holes(
+        &mut self,
+        cx: &mut StageCx,
+        holes: &[crate::core::Core],
+        frame: &mut Vec<Value>,
+    ) -> Result<Vec<Value>> {
+        let mut vals = Vec::new();
+        for h in holes {
+            vals.push(self.eval_core(cx, h, frame)?);
+        }
+        Ok(vals)
+    }
+
+    /// The spliced syntax of each hole, parsed where it belongs.
+    fn hole_terms(&mut self, cx: &mut StageCx, vals: &[Value]) -> Result<Vec<ast::Term>> {
+        let mut terms = Vec::new();
+        for v in vals {
+            match v {
+                Value::Code(t) => terms.push(t.clone()),
+                Value::Syntax { tokens, origin } => {
+                    let fix = cx
+                        .fixities
+                        .get(origin)
+                        .cloned()
+                        .unwrap_or_default();
+                    terms.push(crate::parser::parse_term_tokens(tokens, &fix)?);
+                }
+                other => {
+                    return Err(Error::plain(format!(
+                        "a template hole takes code or syntax, found {}",
+                        value_kind_name(other)
+                    )))
+                }
+            }
+        }
+        Ok(terms)
+    }
+
+    /// The hygienic rename of one template: generated binders are fresh,
+    /// free top-level names resolve at the definition site (section 8).
+    fn hygienic_term(
+        &mut self,
+        cx: &mut StageCx,
+        t: &ast::Term,
+        own: &[String],
+    ) -> Result<ast::Term> {
+        let def_module = cx.def_module.clone();
+        let resolve = |kind: ast::RefKind, name: &str| -> Option<(String, String)> {
+            let site = ast::RefSite {
+                kind,
+                quals: Vec::new(),
+                name: name.to_string(),
+                span: ast::Span { line: 0, col: 0 },
+            };
+            self.resolve_top(&def_module, &site)
+        };
+        let mut fresh = |base: &str| -> String {
+            cx.fresh += 1;
+            format!("{base}${}", cx.fresh)
+        };
+        let mut hcx = ast::HygCx {
+            resolve: &resolve,
+            fresh: &mut fresh,
+            own_values: own.to_vec(),
+            own_types: Vec::new(),
+        };
+        let mut scope = ast::HygScope::new();
+        ast::hyg_term(t, &mut hcx, &mut scope)
+    }
+
+    fn hygienic_decl(
+        &mut self,
+        cx: &mut StageCx,
+        d: &mut ast::Decl,
+        own_values: &[String],
+        own_types: &[String],
+    ) -> Result<()> {
+        let def_module = cx.def_module.clone();
+        let resolve = |kind: ast::RefKind, name: &str| -> Option<(String, String)> {
+            let site = ast::RefSite {
+                kind,
+                quals: Vec::new(),
+                name: name.to_string(),
+                span: ast::Span { line: 0, col: 0 },
+            };
+            self.resolve_top(&def_module, &site)
+        };
+        let mut fresh = |base: &str| -> String {
+            cx.fresh += 1;
+            format!("{base}${}", cx.fresh)
+        };
+        let mut hcx = ast::HygCx {
+            resolve: &resolve,
+            fresh: &mut fresh,
+            own_values: own_values.to_vec(),
+            own_types: own_types.to_vec(),
+        };
+        let mut scope = ast::HygScope::new();
+        let replaced = ast::hyg_decl(d, &mut hcx, &mut scope)?;
+        *d = replaced;
+        Ok(())
+    }
+
+    /// The provenance of generated syntax (section 8: source maps retain
+    /// expansion provenance).
+    fn expansion_site(&self, cx: &StageCx, template: ast::Span) -> crate::lexer::ExpSite {
+        crate::lexer::ExpSite {
+            name: cx.unit_name.clone(),
+            call: cx.call.unwrap_or(template),
+            origin: self
+                .module_files
+                .get(&cx.def_module)
+                .cloned()
+                .unwrap_or_else(|| cx.def_module.clone()),
+            template,
+            parent: cx.parent,
+        }
+    }
+
+    fn stamp_generated(&self, cx: &StageCx, t: &mut ast::Term) {
+        let site = self.expansion_site(cx, t.span());
+        stamp_term_spans(t, &site);
+    }
+}
+
+fn set_local(frame: &mut Vec<Value>, idx: usize, v: Value) -> Option<Value> {
+    if frame.len() <= idx {
+        frame.resize_with(idx + 1, || Value::Unit);
+    }
+    Some(std::mem::replace(&mut frame[idx], v))
+}
+
+fn restore_local(frame: &mut Vec<Value>, idx: usize, old: Option<Value>) {
+    if let Some(old) = old {
+        if idx < frame.len() {
+            frame[idx] = old;
+        }
+    }
+}
+
+fn big_cmp_word(a: &Big, b: &Big) -> i64 {
+    match a.cmp(b) {
+        std::cmp::Ordering::Less => -1,
+        std::cmp::Ordering::Equal => 0,
+        std::cmp::Ordering::Greater => 1,
+    }
+}
+
+fn stage_op_arity(op: StageOp) -> usize {
+    use StageOp::*;
+    match op {
+        Snapshot | WithReadFiles | WithWriteFiles | WithProcess | ReadFile | StrAppend => 2,
+        WriteFile | Run => 3,
+        Secret | Emit | StrNat | NatStr | StrLen | QuoteNat | QuoteInt | QuoteBool => 1,
+    }
+}
+
+fn require_cap(v: &Value, want: Cap, what: &str) -> Result<()> {
+    match v {
+        Value::Cap(c) if *c == want => Ok(()),
+        other => Err(Error::plain(format!(
+            "expected {what}, found {}",
+            value_kind_name(other)
+        ))),
+    }
+}
+
+fn require_file_write(v: &Value) -> Result<()> {
+    match v {
+        Value::Cap(Cap::File { write: true }) => Ok(()),
+        Value::Cap(Cap::File { .. }) => Err(Error::plain(
+            "`writeFile` needs the write refinement (`Stage.withWriteFiles`); a file reader has no write authority by default (modules specification section 10)",
+        )),
+        other => Err(Error::plain(format!(
+            "expected a file-write capability, found {}",
+            value_kind_name(other)
+        ))),
+    }
 }

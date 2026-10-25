@@ -113,13 +113,13 @@ needs the checker to consume export tables instead of sources.
 | `codata`, `Later`, guarded `delay`/`force` | done (`codata` as delayed-observation records, `Later` distinct from `Thunk` with a usage-multiplicity rule, D36/D37; `tests/codata.rs`) |
 | `corec` with productivity checking | done (syntactic guard check: every recursive call under `delay` flowing to a `Later` observation, D38; unproductive recursion rejected naming the call) |
 
-### Staging (P9)
+### Staging (P9) — modules spec sections 7-11
 
 | Requirement | Status |
 | --- | --- |
-| `stage`, `[| |]`, `$()`, `quoteDecls` | todo |
-| `generate do`, `import stage`, captured replay | todo |
-| Hygienic macros `!` | todo |
+| `stage`, `[| |]`, `$()`, `quoteDecls` | done (`Code t` closed code with latent quote-body effects checked at insertion; compile-time interpreter with an 8M-step budget; D43/D44; `tests/staging.rs`) |
+| `generate do`, `import stage`, captured replay | done (capability-refined `IoCap` stage I/O over file + subprocess, secrets redacted and never embeddable, refresh/replay/live modes with captured inputs and hash checks, manifest `staging` build identity; D45) |
+| Hygienic macros `!` | done (token-tree macros, capture-avoiding renaming + definition-site qualification, per-node expansion provenance in spans, macro-owned attribute names; D46/D48) |
 
 ### Rewrites and optimizer (P10)
 
@@ -169,14 +169,14 @@ update as the slices land; 07 must reject, the rest must accept):
 | 02-vector-filter | line 7: `Nil` against `Vec n a` needs rigid-index refinement (D35) | P7 limit (D35) |
 | 03-map-fusion | field projection in types | P13 |
 | 04-productive-stream | accepts (`safelang check` exit 0) | done |
-| 05-schema-generator | `module` name at top level (stage/import syntax) | P9 |
+| 05-schema-generator | line 3: `unknown type SchemaSnapshot` (schema-introspection API sketch, modules spec section 11) | schema-generation slice |
 | 06-counter-upgrade | accepts (`safelang check` exit 0) | done |
 | 07-rejected-programs | rejected at parse (correct) | must stay rejected |
 | 08-platform-simd | `rewrite` declarations unsupported | P10 |
 | 09-foreign-codec | `Opaque` unsupported | P11 |
 | 10-wasm-component | line 8: effect label `Foreign Component` is P11 vocabulary | P11 |
 | 11-structured-tasks | unknown type `Request` (structured-concurrency vocabulary) | P12 |
-| 12-runtime-effects | multi-module source file (`module` block after the first); one module per file is the current rule | modules follow-up |
+| 12-runtime-effects | line 14: module parameters (`module ImportConfig (Seq :: ...)`) unsupported | modules follow-up (parameters) |
 
 ## Unplanned requirements (P16)
 
@@ -189,6 +189,8 @@ audit, `compiler/SPEC-MAPPING.md` "Roadmap gaps"):
 | Evidence invalidation over mutable state | flow-sensitive; adjacent to P7 refinements and P13 (A2) |
 | Temporal contracts (safety/liveness/recurrence/stability) | closest to P12; unnamed there (A3) |
 | Cross-compilation (target width/capabilities) | `Usize` width and capability checks must key on the target (A4) |
+| Module parameters and signatures as module arguments | modules spec section 1 (module packaging); example 12 stops here (A5) |
+| Schema generation / database introspection API | modules spec section 11 sketch; example 05 needs `SchemaSnapshot`, `CodecGenerator.derive`, `Stage.withDatabase`/`ReadSchema`/`introspectConsistently`; pair with P11 subprocess tooling (A6) |
 
 ### Attributes, weights, inline hints, and layout (P17)
 
@@ -422,3 +424,44 @@ flags for future decisions).
   `bisim` relation is outside this slice. D32's boundary is unchanged:
   divergence of non-codata-producing helpers is still unchecked (a
   pure-typed diverging helper can fake productivity through a guard).
+- **D42 (P9 multi-module files)**: a source file may contain any number
+  of `module` blocks. Imports resolve to a same-file module first, then
+  `<Name>.lang`, then a unique `module Name` beside the entry file
+  (ambiguity is an error). `main` must be unique among the entry file's
+  modules. The P3 one-module-per-file rule is superseded.
+- **D43 (P9 staging core)**: `Code t` is closed code (no local capture;
+  splices compose); quote-body effects are latent and checked at
+  insertion (D44). Compile-time-only types (`Code`, `Syntax`,
+  `Declarations`, `String`, `Secret`, capability tokens) never reach
+  target code. Compile-time evaluation interprets the elaborated core
+  (stage/macro code may call ordinary definitions and instance methods,
+  compiled on demand, macros expanded first) under an 8M-step
+  termination budget; lazy/memo/`Bytes`/float/`Option`-returning prims
+  are refused at compile time.
+- **D45 (P9 stage capabilities)**: capability values determine permitted
+  targets (`IoCap` root from `Stage.snapshot`, refined by
+  `withReadFiles`/`withWriteFiles`/`withProcess`; a reader has no write
+  authority); builtin effect labels (`StageFile`/`StageProcess`/
+  `StageSecret`/`StageEmit`) record occurrence; capability callbacks are
+  effect-row-polymorphic. Build identity: manifest `staging` section
+  (mode, compiler version, generated names, input kinds/names/hashes)
+  plus `build/<entry>.stage.snap` captured contents; refresh/replay/live
+  modes; replay rejects missing or hash-incompatible inputs; secrets
+  record names only and cannot be embedded; failed stages kill spawned
+  children and are never retried. `Stage.quoteNat`/`quoteInt`/
+  `quoteBool` are the approved constant transport; database/network
+  introspection is delegated to the subprocess capability this slice.
+- **D46 (P9 macros)**: macros are compile-time functions over token-tree
+  groups producing `Code`/`Declarations`/`Syntax`; hygiene is
+  capture-avoiding template renaming plus definition-site qualification
+  before hole substitution (spliced caller syntax keeps its bindings);
+  generated nodes carry per-node expansion provenance in spans.
+- **D47 (P9 stage scheduling)**: the staging graph covers units
+  (stage/macro defs, generate blocks, ordinary defs) over
+  statically-apparent `emit (quoteDecls ...)` outputs; computed emits
+  cannot satisfy a staging dependency; cycles reject with the rendered
+  chain.
+- **D48 (P9 attributes in staging)**: `#[...]` attributes attach to
+  declarations; unknown names outside `meta` need a macro declaration;
+  macro-owned attribute names reject on cross-macro collision; `repr` is
+  rejected, not ignored; macro-emitted attributes revalidate.

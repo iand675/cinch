@@ -1,8 +1,9 @@
 //! Command driver: source file in, diagnostics or native binary out.
 
-use crate::parser::{parse_module, FixityTable, ParsedModule};
+use crate::parser::{parse_modules, FixityTable, ParsedModules};
 use crate::{check, codegen, layout, lexer, Error, Result};
-use std::path::Path;
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Mode {
@@ -16,117 +17,222 @@ pub enum Mode {
 /// implicitly.
 pub const PRELUDE_SOURCE: &str = include_str!("../prelude/Prelude.lang");
 
-/// Lex, lay out and parse one module, with `imported` fixities visible.
-pub fn parse_source(src: &str, file: &str, imported: &FixityTable) -> Result<ParsedModule> {
+pub use crate::check::{StageInput, StageMode, StageReport, StagingCx};
+
+/// Lex, lay out and parse one source file: any number of `module` blocks
+/// (the staging slice supersedes the one-module-per-file rule). `base` is
+/// the fixity table every module sees (the prelude); `tables` maps imported
+/// module names to their tables.
+pub fn parse_source(
+    src: &str,
+    file: &str,
+    base: &FixityTable,
+    tables: &HashMap<String, FixityTable>,
+) -> Result<ParsedModules> {
     let ctx = |e: Error| Error::plain(format!("{file}: {e}"));
     let tokens = lexer::lex(src).map_err(ctx)?;
     let tokens = layout::layout(tokens).map_err(ctx)?;
-    parse_module(&tokens, imported).map_err(ctx)
+    parse_modules(&tokens, base, tables).map_err(ctx)
 }
 
-/// Scan a source's import declarations without full parsing: imports do not
-/// need fixity resolution, and the module graph must be known before the
-/// merge of imported fixity tables (design note, section 3).
-pub fn scan_imports(src: &str, file: &str) -> Result<Vec<String>> {
+/// A source file's module headers and their imports, without full parsing.
+pub struct ScannedFile {
+    /// `(module name, imports)` in declaration order; an import is
+    /// `(imported name, stage)`.
+    pub modules: Vec<(String, Vec<(String, bool)>)>,
+}
+
+/// Scan a source's `module` and `import` declarations: the module graph
+/// must be known before parsing (imports need their modules' fixities).
+pub fn scan_file(src: &str, file: &str) -> Result<ScannedFile> {
     let ctx = |e: Error| Error::plain(format!("{file}: {e}"));
     let tokens = lexer::lex(src).map_err(ctx)?;
     let tokens = layout::layout(tokens).map_err(ctx)?;
-    let mut imports = Vec::new();
+    let mut modules: Vec<(String, Vec<(String, bool)>)> = Vec::new();
     let mut i = 0;
+    // The module name is `con_id { "." con_id }`; an import contributes to
+    // the module declaration it follows.
+    let mut path_at = |i: &mut usize| -> Option<String> {
+        let mut segments = Vec::new();
+        while let Some(t) = tokens.get(*i) {
+            match &t.tok {
+                lexer::Tok::ConId(s) => {
+                    segments.push(s.clone());
+                    *i += 1;
+                    if matches!(tokens.get(*i).map(|t| &t.tok), Some(lexer::Tok::Dot)) {
+                        *i += 1;
+                    } else {
+                        break;
+                    }
+                }
+                _ => break,
+            }
+        }
+        if segments.is_empty() {
+            None
+        } else {
+            Some(segments.join("."))
+        }
+    };
     while i < tokens.len() {
-        if matches!(tokens[i].tok, lexer::Tok::Import) {
-            i += 1;
-            let mut last = None;
-            while let Some(t) = tokens.get(i) {
-                match &t.tok {
-                    lexer::Tok::ConId(name) => {
-                        last = Some(name.clone());
-                        i += 1;
-                        if matches!(tokens.get(i).map(|t| &t.tok), Some(lexer::Tok::Dot)) {
-                            i += 1;
-                        } else {
-                            break;
+        match &tokens[i].tok {
+            lexer::Tok::Module => {
+                i += 1;
+                let name = path_at(&mut i).unwrap_or_default();
+                modules.push((name, Vec::new()));
+            }
+            lexer::Tok::Import => {
+                i += 1;
+                let stage = matches!(tokens.get(i).map(|t| &t.tok), Some(lexer::Tok::Stage));
+                if stage {
+                    i += 1;
+                }
+                if let Some(name) = path_at(&mut i) {
+                    if let Some((_, imps)) = modules.last_mut() {
+                        if !imps.iter().any(|(n, _)| *n == name) {
+                            imps.push((name, stage));
                         }
                     }
-                    _ => break,
                 }
             }
-            if let Some(name) = last {
-                if !imports.contains(&name) {
-                    imports.push(name);
-                }
-            }
-        } else {
-            i += 1;
+            _ => i += 1,
         }
     }
-    Ok(imports)
+    Ok(ScannedFile { modules })
 }
 
 /// A resolved multi-file project: modules in dependency order (imports
-/// first), entry last, with each module's source and imports.
+/// first), the entry file's modules last, with each module's source file
+/// and imports.
 struct Project {
+    /// Module name to the file declaring it (a file may declare several).
+    module_file: HashMap<String, PathBuf>,
+    /// File to source text.
+    sources: HashMap<String, String>,
+    /// Module to its import names.
+    imports: HashMap<String, Vec<String>>,
+    /// The entry file's modules, in declaration order.
+    entry_modules: Vec<String>,
+    /// Module names in dependency order.
     order: Vec<String>,
-    sources: std::collections::BTreeMap<String, String>,
-    imports: std::collections::BTreeMap<String, Vec<String>>,
-    entry: String,
 }
 
-/// Load the entry file and every module it imports, transitively. Bootstrap
-/// rule: `Foo.lang` declares `module Foo`, and imports resolve to
-/// `<entry dir>/Foo.lang`.
-fn load_project(entry_path: &Path) -> Result<Project> {
-    let dir = entry_path
-        .parent()
-        .map(|p| p.to_path_buf())
-        .unwrap_or_default();
-    let mut sources: std::collections::BTreeMap<String, String> = std::collections::BTreeMap::new();
-    let mut imports: std::collections::BTreeMap<String, Vec<String>> =
-        std::collections::BTreeMap::new();
-    let mut queue: Vec<std::path::PathBuf> = vec![entry_path.to_path_buf()];
-    let mut entry_name = String::new();
-    while let Some(path) = queue.pop() {
-        let src = std::fs::read_to_string(&path)
-            .map_err(|e| Error::plain(format!("{}: {e}", path.display())))?;
-        let imports_here = scan_imports(&src, &path.display().to_string())?;
-        // The module name is the file stem for the bootstrap rule.
-        let name = path
-            .file_stem()
-            .map(|s| s.to_string_lossy().to_string())
-            .unwrap_or_default();
-        if entry_name.is_empty() {
-            entry_name = name.clone();
-        }
-        if let Some(prev) = sources.insert(name.clone(), src) {
-            if prev != sources[&name] {
-                return Err(Error::plain(format!("module {name} loaded twice with different sources")));
-            }
+/// Every `module X` declaration beside `dir`, for import resolution when
+/// `X.lang` does not exist (decision D42).
+fn index_dir_modules(dir: &Path) -> Result<HashMap<String, Vec<PathBuf>>> {
+    let mut index: HashMap<String, Vec<PathBuf>> = HashMap::new();
+    let entries = match std::fs::read_dir(dir) {
+        Ok(e) => e,
+        Err(_) => return Ok(index),
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.extension().and_then(|s| s.to_str()) != Some("lang") {
             continue;
         }
-        imports.insert(name.clone(), imports_here.clone());
-        for imp in imports_here {
-            if imp == "Prelude" {
-                continue;
-            }
-            let p = dir.join(format!("{imp}.lang"));
-            if !p.exists() {
-                return Err(Error::plain(format!(
-                    "module {name} imports {imp}, but {} does not exist",
-                    p.display()
-                )));
-            }
-            queue.push(p);
+        let Ok(src) = std::fs::read_to_string(&path) else {
+            continue;
+        };
+        let Ok(scanned) = scan_file(&src, &path.display().to_string()) else {
+            continue;
+        };
+        for (m, _) in &scanned.modules {
+            index.entry(m.clone()).or_default().push(path.clone());
         }
     }
-    // Dependency order; the entry goes last because its dependencies precede
-    // it and a cycle is an error.
+    Ok(index)
+}
+
+/// Load the entry file and every module it imports, transitively. A source
+/// file may declare any number of modules (the staging slice supersedes the
+/// one-module-per-file rule); `import X` resolves to a module of an already
+/// loaded file, then to `X.lang`, then to a unique `module X` beside the
+/// entry (decision D42).
+fn load_project(entry_path: &Path) -> Result<Project> {
+    let dir = entry_path.parent().map(|p| p.to_path_buf()).unwrap_or_default();
+    let mut sources: HashMap<String, String> = HashMap::new();
+    let mut module_file: HashMap<String, PathBuf> = HashMap::new();
+    let mut imports: HashMap<String, Vec<String>> = HashMap::new();
+    let mut entry_modules: Vec<String> = Vec::new();
+    let mut queue: Vec<PathBuf> = vec![entry_path.to_path_buf()];
+    let dir_index = index_dir_modules(&dir)?;
+    while let Some(path) = queue.pop() {
+        let key = path.display().to_string();
+        if sources.contains_key(&key) {
+            continue;
+        }
+        let src = std::fs::read_to_string(&path)
+            .map_err(|e| Error::plain(format!("{}: {e}", path.display())))?;
+        let scanned = scan_file(&src, &key)?;
+        if scanned.modules.is_empty() {
+            return Err(Error::plain(format!("{key}: no `module` declaration")));
+        }
+        if path == entry_path {
+            entry_modules = scanned.modules.iter().map(|(m, _)| m.clone()).collect();
+        }
+        for (m, imps) in &scanned.modules {
+            if m.is_empty() {
+                return Err(Error::plain(format!("{key}: a module needs a name")));
+            }
+            if let Some(prev) = module_file.get(m) {
+                if prev != &path {
+                    return Err(Error::plain(format!(
+                        "module {m} is declared in both {} and {key}",
+                        prev.display()
+                    )));
+                }
+            }
+            module_file.insert(m.clone(), path.clone());
+            imports.insert(m.clone(), imps.iter().map(|(n, _)| n.clone()).collect());
+        }
+        sources.insert(key, src);
+        for (_, imps) in &scanned.modules {
+            for (imp, _stage) in imps {
+                if imp == "Prelude" || module_file.contains_key(imp) {
+                    continue;
+                }
+                let direct = dir.join(format!("{imp}.lang"));
+                if direct.exists() {
+                    queue.push(direct);
+                    continue;
+                }
+                let candidates = dir_index.get(imp).cloned().unwrap_or_default();
+                let not_loaded: Vec<PathBuf> = candidates
+                    .into_iter()
+                    .filter(|p| !sources.contains_key(&p.display().to_string()))
+                    .collect();
+                match not_loaded.len() {
+                    1 => queue.push(not_loaded.into_iter().next().expect("one")),
+                    0 => {
+                        return Err(Error::plain(format!(
+                            "module {imp} is imported, but {} does not exist and no other source file beside the entry declares `module {imp}`",
+                            direct.display()
+                        )))
+                    }
+                    _ => {
+                        return Err(Error::plain(format!(
+                            "module {imp} is imported, but several source files declare it ({}); imports resolve to a unique module",
+                            not_loaded
+                                .iter()
+                                .map(|p| p.display().to_string())
+                                .collect::<Vec<_>>()
+                                .join(", ")
+                        )))
+                    }
+                }
+            }
+        }
+    }
+    // Dependency order; the entry file's modules go last, in declaration
+    // order, because their dependencies precede them and a cycle is an
+    // error.
     let graph: std::collections::BTreeMap<String, Vec<crate::interface::IfaceRef>> = imports
         .iter()
         .map(|(m, imps)| {
             (
                 m.clone(),
-                imps
-                    .iter()
+                imps.iter()
+                    .filter(|i| *i != m && module_file.contains_key(*i))
                     .map(|i| crate::interface::IfaceRef {
                         module: i.clone(),
                         iface_hash: String::new(),
@@ -137,21 +243,106 @@ fn load_project(entry_path: &Path) -> Result<Project> {
         .collect();
     let mut order = crate::interface::topo_order(&graph)
         .map_err(|e| Error::plain(e.to_string()))?;
-    order.retain(|m| sources.contains_key(m));
-    if let Some(pos) = order.iter().position(|m| m == &entry_name) {
-        let e = order.remove(pos);
-        order.push(e);
+    order.retain(|m| module_file.contains_key(m));
+    let entry: Vec<String> = entry_modules.clone();
+    order.retain(|m| !entry.contains(m));
+    for m in &entry {
+        order.push(m.clone());
     }
-    Ok(Project { order, sources, imports, entry: entry_name })
+    Ok(Project {
+        module_file,
+        sources,
+        imports,
+        entry_modules,
+        order,
+    })
 }
 
-/// Write the per-module interfaces and the artifact manifest (design note,
-/// sections 2 and 5; core specification, section 11).
+/// One escaped snapshot line: `kind \t snapshot \t name \t hash \t live \t
+/// captured`, with the captured content escaped for one line.
+fn escape_field(s: &str) -> String {
+    let mut out = String::new();
+    for c in s.chars() {
+        match c {
+            '\\' => out.push_str("\\\\"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            c => out.push(c),
+        }
+    }
+    out
+}
+
+fn unescape_field(s: &str) -> String {
+    let mut out = String::new();
+    let mut cs = s.chars();
+    while let Some(c) = cs.next() {
+        if c != '\\' {
+            out.push(c);
+            continue;
+        }
+        match cs.next() {
+            Some('n') => out.push('\n'),
+            Some('r') => out.push('\r'),
+            Some('t') => out.push('\t'),
+            Some('\\') => out.push('\\'),
+            Some(other) => out.push(other),
+            None => {}
+        }
+    }
+    out
+}
+
+fn json_escape(s: &str) -> String {
+    let mut out = String::new();
+    for c in s.chars() {
+        match c {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            c if (c as u32) < 0x20 => out.push_str(&format!("\\u{:04x}", c as u32)),
+            c => out.push(c),
+        }
+    }
+    out
+}
+
+/// The captured inputs of a previous build (replay mode), from the
+/// snapshot file beside the manifest.
+fn read_stage_snap(path: &Path) -> Vec<StageInput> {
+    let mut inputs = Vec::new();
+    let Ok(text) = std::fs::read_to_string(path) else {
+        return inputs;
+    };
+    for line in text.lines() {
+        let parts: Vec<&str> = line.splitn(6, '\t').collect();
+        if parts.len() < 5 {
+            continue;
+        }
+        inputs.push(StageInput {
+            kind: parts[0].to_string(),
+            snapshot: parts[1].to_string(),
+            name: unescape_field(parts[2]),
+            hash: parts[3].to_string(),
+            live: parts[4] == "live",
+            captured: parts.get(5).map(|s| unescape_field(s)).unwrap_or_default(),
+        });
+    }
+    inputs
+}
+
+/// Write the per-module interfaces, the artifact manifest, and the stage
+/// snapshot (design note sections 2 and 5; modules specification section
+/// 10: the build identity includes generator versions and input hashes).
 fn write_artifacts(
     out_dir: &Path,
     entry: &str,
     ifaces: &[crate::interface::Iface],
     manifest_path: &Path,
+    report: &StageReport,
 ) -> Result<()> {
     std::fs::create_dir_all(out_dir)
         .map_err(|e| Error::plain(format!("{}: {e}", out_dir.display())))?;
@@ -192,18 +383,96 @@ fn write_artifacts(
     text.push_str(&format!("    \"primitives\": {:?},\n", prims));
     text.push_str(&format!("    \"foreign\": {:?},\n", foreign));
     text.push_str(&format!("    \"declared\": {:?}\n", declared));
-    text.push_str("  }\n}\n");
+    text.push_str("  },\n");
+    // Staging build identity (modules specification section 10): the mode,
+    // the compiler version, generated declarations, and every captured
+    // input with its hash. Secrets record their name only.
+    text.push_str("  \"staging\": {\n");
+    text.push_str(&format!("    \"mode\": \"{}\",\n", match report.mode {
+        StageMode::Refresh => "refresh",
+        StageMode::Replay => "replay",
+        StageMode::Live => "live",
+    }));
+    text.push_str(&format!("    \"compiler\": \"{}\",\n", env!("CARGO_PKG_VERSION")));
+    text.push_str("    \"generated\": {");
+    let mut gen: Vec<(&String, &Vec<String>)> =
+        report.generated.iter().map(|(m, names)| (m, names)).collect();
+    gen.sort();
+    for (i, (m, names)) in gen.iter().enumerate() {
+        let list: Vec<String> = names.iter().map(|n| format!("{:?}", n)).collect();
+        text.push_str(&format!(
+            "{}{:?}: [{}]",
+            if i > 0 { ", " } else { "" },
+            m,
+            list.join(", ")
+        ));
+    }
+    text.push_str("},\n    \"inputs\": [\n");
+    for (i, input) in report.inputs.iter().enumerate() {
+        text.push_str(&format!(
+            "      {{\"kind\": \"{}\", \"snapshot\": \"{}\", \"name\": \"{}\", \"hash\": \"{}\", \"live\": {}}}",
+            input.kind,
+            json_escape(&input.snapshot),
+            json_escape(&input.name),
+            input.hash,
+            input.live
+        ));
+        text.push_str(if i + 1 < report.inputs.len() { ",\n" } else { "\n" });
+    }
+    text.push_str("    ]\n  }\n}\n");
     std::fs::write(manifest_path, text)
         .map_err(|e| Error::plain(format!("{}: {e}", manifest_path.display())))?;
+    // The snapshot file carries the captured input contents for replay.
+    let snap_path = out_dir.join(format!("{entry}.stage.snap"));
+    let mut snap = String::new();
+    for input in &report.inputs {
+        snap.push_str(&format!(
+            "{}\t{}\t{}\t{}\t{}\t{}\n",
+            input.kind,
+            input.snapshot,
+            escape_field(&input.name),
+            input.hash,
+            if input.live { "live" } else { "recorded" },
+            escape_field(&input.captured)
+        ));
+    }
+    std::fs::write(&snap_path, snap)
+        .map_err(|e| Error::plain(format!("{}: {e}", snap_path.display())))?;
     Ok(())
 }
 
 /// Check the prelude plus `user_src`, returning the elaborated program.
 pub fn check_sources(user_src: &str, user_file: &str) -> Result<crate::core::Program> {
+    check_sources_with(user_src, user_file, &mut StagingCx::default())
+}
+
+/// [`check_sources`] with an explicit staging context (mode, work
+/// directory, captured inputs) for compile-time I/O.
+pub fn check_sources_with(
+    user_src: &str,
+    user_file: &str,
+    scx: &mut StagingCx,
+) -> Result<crate::core::Program> {
     let empty = FixityTable::new();
-    let prelude = parse_source(PRELUDE_SOURCE, "Prelude.lang", &empty)?;
-    let user = parse_source(user_src, user_file, &prelude.fixities)?;
-    check::check_program(&prelude.module, &user.module)
+    let prelude = parse_source(PRELUDE_SOURCE, "Prelude.lang", &empty, &HashMap::new())?;
+    let prelude_fixities = prelude
+        .fixities
+        .get("Prelude")
+        .cloned()
+        .unwrap_or_default();
+    let user = parse_source(user_src, user_file, &prelude_fixities, &HashMap::new())?;
+    let mut hashes = HashMap::new();
+    let mut files = HashMap::new();
+    for m in &user.modules {
+        hashes.insert(m.name.text.clone(), String::new());
+        files.insert(m.name.text.clone(), user_file.to_string());
+    }
+    scx.fixities = user.fixities.clone();
+    scx.files = files;
+    scx.entry_modules = user.modules.iter().map(|m| m.name.text.clone()).collect();
+    let (program, _ifaces, _report) =
+        check::check_program_multi(&prelude.modules[0], &user.modules, &hashes, scx)?;
+    Ok(program)
 }
 
 fn clang() -> String {
@@ -270,57 +539,89 @@ fn scratch_dir(tag: &str) -> std::path::PathBuf {
 
 /// Compile `path` according to `mode`. `out` names the output file for
 /// `EmitIr` and `Build`; `Run` executes the produced binary and returns its
-/// exit code in `Ok`.
+/// exit code in `Ok`. The compile-time I/O mode comes from
+/// `SAFELANG_STAGE_MODE` (`refresh`, `replay`, or `live`; default
+/// `refresh`).
 pub fn driver(mode: Mode, path: &Path, out: Option<&Path>) -> Result<i32> {
-    // Multi-file project: load imports, parse in dependency order so each
-    // module sees its imports' fixities, then check the whole set and write
-    // per-module interfaces (design note, compiled interface metadata).
+    let stage_mode = match std::env::var("SAFELANG_STAGE_MODE").as_deref() {
+        Ok("replay") => StageMode::Replay,
+        Ok("live") => StageMode::Live,
+        _ => StageMode::Refresh,
+    };
+    driver_with(mode, stage_mode, path, out)
+}
+
+/// [`driver`] with an explicit compile-time I/O mode (modules
+/// specification section 10).
+pub fn driver_with(
+    mode: Mode,
+    stage_mode: StageMode,
+    path: &Path,
+    out: Option<&Path>,
+) -> Result<i32> {
     let project = load_project(path)?;
     let empty = FixityTable::new();
-    let prelude = parse_source(PRELUDE_SOURCE, "Prelude.lang", &empty)?;
-    let mut parsed_fixities: std::collections::HashMap<String, FixityTable> =
-        std::collections::HashMap::new();
+    let prelude = parse_source(PRELUDE_SOURCE, "Prelude.lang", &empty, &HashMap::new())?;
+    let prelude_fixities = prelude
+        .fixities
+        .get("Prelude")
+        .cloned()
+        .unwrap_or_default();
+    let mut module_fixities: HashMap<String, FixityTable> = prelude.fixities.clone();
+    let mut parsed_by_file: HashMap<String, ParsedModules> = HashMap::new();
     let mut modules: Vec<crate::ast::Module> = Vec::new();
+    // Each file parses once, at the position of its last module in
+    // dependency order: every module of the file has its dependencies'
+    // fixity tables by then.
     for name in &project.order {
-        let src = &project.sources[name];
-        let mut imported = prelude.fixities.clone();
-        for dep in &project.imports[name] {
-            if dep == "Prelude" {
-                continue;
+        let file = project.module_file[name].clone();
+        let key = file.display().to_string();
+        if !parsed_by_file.contains_key(&key) {
+            let src = &project.sources[&key];
+            let parsed = parse_source(src, &key, &prelude_fixities, &module_fixities)?;
+            for (m, f) in &parsed.fixities {
+                module_fixities.insert(m.clone(), f.clone());
             }
-            if let Some(t) = parsed_fixities.get(dep) {
-                imported = imported.merge(t);
-            }
+            parsed_by_file.insert(key, parsed);
         }
-        let parsed = parse_source(src, &format!("{name}.lang"), &imported)?;
-        // Imported modules follow the file-stem rule so `import Lib` finds
-        // `Lib.lang`; the entry file is free to declare any module name.
-        if *name != project.entry && parsed.module.name.text != *name {
-            return Err(Error::plain(format!(
-                "{}.lang declares module {}, but the bootstrap rule requires the file stem",
-                name, parsed.module.name.text
-            )));
-        }
-        parsed_fixities.insert(name.clone(), parsed.fixities);
-        modules.push(parsed.module);
+        let parsed = &parsed_by_file[&file.display().to_string()];
+        let m = parsed
+            .modules
+            .iter()
+            .find(|m| m.name.text == *name)
+            .cloned()
+            .ok_or_else(|| Error::plain(format!("{file:?}: no module {name}")))?;
+        modules.push(m);
     }
-    if let Some(pos) = modules.iter().position(|m| m.name.text == project.entry) {
-        let e = modules.remove(pos);
-        modules.push(e);
+    let mut hashes: HashMap<String, String> = HashMap::new();
+    let mut files: HashMap<String, String> = HashMap::new();
+    for name in &project.order {
+        let key = project.module_file[name].display().to_string();
+        hashes.insert(name.clone(), crate::interface::content_hash(&project.sources[&key]));
+        files.insert(name.clone(), key);
     }
-    let hashes: std::collections::HashMap<String, String> = project
-        .sources
-        .iter()
-        .map(|(n, s)| (n.clone(), crate::interface::content_hash(s)))
-        .collect();
-    let (program, ifaces) = check::check_program_multi(&prelude.module, &modules, &hashes)?;
+    let dir = path.parent().map(|p| p.to_path_buf()).unwrap_or_default();
+    let entry_stem = path
+        .file_stem()
+        .map(|s| s.to_string_lossy().to_string())
+        .unwrap_or_default();
+    let out_dir = dir.join("build");
+    let manifest_path = out_dir.join(format!("{entry_stem}.manifest.json"));
+    let prior_inputs = read_stage_snap(&out_dir.join(format!("{entry_stem}.stage.snap")));
+    let scx = StagingCx {
+        fixities: module_fixities.clone(),
+        files,
+        prior_inputs,
+        mode: stage_mode,
+        workdir: dir.clone(),
+        entry_modules: project.entry_modules.clone(),
+    };
+    let (program, ifaces, report) =
+        check::check_program_multi(&prelude.modules[0], &modules, &hashes, &scx)?;
     // Metadata boundary checks (design note, section 3).
     crate::interface::verify_chain(&ifaces).map_err(|e| Error::plain(e.to_string()))?;
     crate::interface::check_coherence(&ifaces).map_err(|e| Error::plain(e.to_string()))?;
-    let dir = path.parent().map(|p| p.to_path_buf()).unwrap_or_default();
-    let out_dir = dir.join("build");
-    let manifest = out_dir.join(format!("{}.manifest.json", project.entry));
-    write_artifacts(&out_dir, &project.entry, &ifaces, &manifest)?;
+    write_artifacts(&out_dir, &entry_stem, &ifaces, &manifest_path, &report)?;
     if mode == Mode::Check {
         return Ok(0);
     }
@@ -366,7 +667,12 @@ pub fn driver(mode: Mode, path: &Path, out: Option<&Path>) -> Result<i32> {
 
 /// Compile and run a source string; used by tests. Returns the exit code.
 pub fn run_source(src: &str) -> Result<i32> {
-    let program = check_sources(src, "<test>")?;
+    run_source_with(src, &mut StagingCx::default())
+}
+
+/// [`run_source`] with an explicit staging context.
+pub fn run_source_with(src: &str, scx: &mut StagingCx) -> Result<i32> {
+    let program = check_sources_with(src, "<test>", scx)?;
     let ir = codegen::emit(&program)?;
     let tmp = scratch_dir("test");
     std::fs::create_dir_all(&tmp).map_err(|e| Error::plain(format!("{}: {e}", tmp.display())))?;
