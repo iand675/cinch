@@ -18,3 +18,4 @@ dist/
 
 # Generated compiler artifacts (rebuilt by `safelang build`/`run`)
 examples/compiler/build/
+examples/source/build/
