@@ -10,11 +10,17 @@ This archive contains the current overview and **all 26 pages linked from it**: 
 - Read [the overview](overview.md) in any Markdown editor.
 - Browse [the example catalogue](examples/catalogue.md) and the individual sources below.
 
-The `*.html` files, including `index.html` and `style.css`, are the static pages from the original documentation export. They are kept for fidelity with `manifest.json` and `SHA256SUMS` and are no longer regenerated; the Astro site is the current rendering of every page, including chapters added after the export.
+The Astro site in `website/` is the rendering of every page: its loader
+turns each Markdown file in the repository (overview, specifications,
+tutorials, design, examples, context) into a page. The original
+documentation export's pre-rendered `*.html` pages were removed on
+2026-10-25 in favor of that rendering; `manifest.json` and `SHA256SUMS`
+remain as the record of what the export contained.
 
 ## Export contents
 
-- **27 documentation pages**, in Markdown and standalone HTML.
+- **27 documentation pages**, in Markdown (the export's standalone HTML
+  renderings were removed on 2026-10-25; see above).
 - **12 `.lang` source files and one WIT interface**, extracted verbatim from the current example catalogue. The final runtime-effects filename is an export label for its named code block.
 - Historical [design conversation](context/design-conversation.md), with 25 visible messages; no message content was omitted by the reader.
 - `source-data/pages.json` retains the exact original Markdown and ordered block text, plus source URLs, page IDs, update times, and revision numbers.
