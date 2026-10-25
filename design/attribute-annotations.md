@@ -49,7 +49,8 @@ is the common carrier.
 ## 4 Ownership split (compiler vs macros)
 
 - Compiler-known families: `weight`, `likely`, `unlikely`, `cold`,
-  `inline`, `repr`. The compiler MUST reject unknown names outside the
+  `inline`, `noinline`, `repr`. The compiler MUST reject unknown names
+  outside the
   `meta` namespace until an attribute macro declares them (P9); the
   declaration mechanism is the macro's, and hygiene applies to attribute
   names like other identifiers.

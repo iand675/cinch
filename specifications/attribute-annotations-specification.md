@@ -339,13 +339,17 @@ applies.
 
 # 5 Inline hints
 
-`#[inline]`, `#[inline(always)]`, and `#[inline(never)]` are hint
-attributes on function declarations (equations):
+`#[inline]`, `#[inline(always)]`, `#[inline(never)]`, and `#[noinline]`
+are hint attributes on function declarations (equations):
 
 - `#[inline]`: inlining is desirable at the optimizer's discretion.
 - `#[inline(always)]`: inlining is required unless impossible (an
   obligation on the optimizer, not on semantics).
 - `#[inline(never)]`: the function must not be inlined.
+- `#[noinline]`: an accepted spelling of `#[inline(never)]`, matching
+  LLVM and C/C++ attribute names. The two spellings carry the same hint
+  and the same lowering; using both on one function is a duplicate
+  attribute (section 1.3).
 
 Inline hints MUST NOT change program meaning (section 1.3). They are not
 part of the contract projection. When a function with inline hints and

@@ -204,7 +204,7 @@ and P11's FFI layout work.
 | --- | --- |
 | `#[...]` attribute system: syntax, attachment points, compiler vs macro ownership, hygiene and provenance, identity rules | spec'd |
 | Manual branch weights `#[weight(n)]` with the marginalization and transformation rules; `cold`/`likely`/`unlikely` as wrappers over weights (2000/1/0) | spec'd |
-| Inline hints `#[inline]`/`#[inline(always)]`/`#[inline(never)]` as erasable optimizer hints | spec'd |
+| Inline hints `#[inline]`/`#[inline(always)]`/`#[inline(never)]`/`#[noinline]` as erasable optimizer hints | spec'd |
 | `repr(C)`/`repr(transparent)`/`repr(align)`/`repr(packed)`/discriminant representations with layout facts in the interface ABI table and the packed-borrow safety rule | spec'd |
 
 ### Supercompilation and JIT (P10/P13/P14/P17)
