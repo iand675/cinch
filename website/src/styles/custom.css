@@ -1,0 +1,37 @@
+:root {
+  --sl-font: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --sl-font-mono: ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, monospace;
+}
+
+/* Provenance line under every page title. */
+.doc-provenance {
+  margin: 0.25rem 0 0;
+  font-size: var(--sl-text-sm);
+  color: var(--sl-color-gray-3);
+}
+
+.doc-provenance .separator {
+  margin: 0 0.5rem;
+}
+
+.doc-provenance a {
+  color: var(--sl-color-text-accent);
+}
+
+/* Long specification pages read better with a slightly tighter measure. */
+.sl-markdown-content {
+  --sl-content-width: 52rem;
+}
+
+.sl-markdown-content table {
+  font-size: var(--sl-text-sm);
+}
+
+.sl-markdown-content :not(pre) > code {
+  white-space: nowrap;
+}
+
+/* Requirement keywords (MUST, SHOULD, MAY) read as emphasis in spec prose. */
+.sl-markdown-content strong {
+  font-weight: 600;
+}

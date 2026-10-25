@@ -1,0 +1,48 @@
+---
+import Default from '@astrojs/starlight/components/PageTitle.astro';
+
+const { data } = Astro.locals.starlightRoute.entry;
+const { source, exported, added } = data as {
+  source?: string;
+  exported?: string;
+  added?: string;
+};
+
+const isUrl = source ? /^https?:\/\//.test(source) : false;
+const exportedLabel = exported ? new Date(exported) : undefined;
+const dateFormat = new Intl.DateTimeFormat('en-GB', {
+  year: 'numeric',
+  month: 'long',
+  day: 'numeric',
+  timeZone: 'UTC',
+});
+const exportedText =
+  exportedLabel && !Number.isNaN(exportedLabel.getTime())
+    ? dateFormat.format(exportedLabel)
+    : exported;
+---
+
+<Default><slot /></Default>
+
+{
+  source && (
+    <p class="doc-provenance">
+      {exported || added ? (
+        <span>
+          {exported ? 'Exported' : 'Added'} {exportedText ?? added}
+        </span>
+      ) : null}
+      {exported || added ? <span class="separator" aria-hidden="true">·</span> : null}
+      <span>
+        Source:{' '}
+        {isUrl ? (
+          <a href={source} rel="noreferrer">
+            original page
+          </a>
+        ) : (
+          source
+        )}
+      </span>
+    </p>
+  )
+}

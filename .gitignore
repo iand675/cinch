@@ -6,6 +6,11 @@ result-*
 *.out
 *.bc
 
+# Node (website)
+node_modules/
+dist/
+.astro/
+
 # devenv / direnv
 .devenv/
 .direnv/
