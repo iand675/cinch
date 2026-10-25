@@ -73,7 +73,24 @@ decision record in `compiler/CONFORMANCE.md` where applicable.
   implementation slice: the compiler currently rejects `#[` at the
   lexer.
 
-# 6 Rejected for now (see compiler/CONFORMANCE.md)
+# 6 Capability supply clauses
+
+- The runtime capability supply `with (io = e) in body` (runtime
+  capabilities specification) adds `with (...) in` to the grammar: a
+  `with` followed by a parenthesized binding list is closed by `in`.
+  Layout resolves which `in` belongs to which construct by nesting: a
+  supply clause's `in` is the token immediately after the clause's
+  closing `)`, so `let x = with (io = e) in x in y` interleaves
+  correctly, and a `let`'s `in` is unaffected by supplies around it.
+- Known ambiguity: a `handle` operand written as a parenthesized
+  expression immediately before a `let`-closing `in` (as in `let x =
+  handle e with (h) in x`) is indistinguishable from a supply clause at
+  the layout layer, which cannot see inside the parens. The paren group
+  is read as a supply clause; write the handler operand unparenthesized
+  or bind it first. A `with (...)` group without `name = e` bindings is
+  rejected by the parser with a supply-binding diagnostic.
+
+# 7 Rejected for now (see compiler/CONFORMANCE.md)
 
 Everything else in the draft EBNF parses only to a named rejection:
 `do` bodies and handlers, quotations and macros, `rewrite`/`upgrade`

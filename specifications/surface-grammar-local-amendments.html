@@ -263,7 +263,27 @@ the token grammar (comments are <code>--</code>), so <code>#[</code> is
 unambiguous. The forms are adopted here ahead of the implementation
 slice: the compiler currently rejects <code>#[</code> at the lexer.</li>
 </ul>
-<h1 id="rejected-for-now-see-compilerconformance.md">6 Rejected for now
+<h1 id="capability-supply-clauses">6 Capability supply clauses</h1>
+<ul>
+<li>The runtime capability supply <code>with (io = e) in body</code>
+(runtime capabilities specification) adds <code>with (...) in</code> to
+the grammar: a <code>with</code> followed by a parenthesized binding
+list is closed by <code>in</code>. Layout resolves which <code>in</code>
+belongs to which construct by nesting: a supply clause’s <code>in</code>
+is the token immediately after the clause’s closing <code>)</code>, so
+<code>let x = with (io = e) in x in y</code> interleaves correctly, and
+a <code>let</code>’s <code>in</code> is unaffected by supplies around
+it.</li>
+<li>Known ambiguity: a <code>handle</code> operand written as a
+parenthesized expression immediately before a <code>let</code>-closing
+<code>in</code> (as in <code>let x = handle e with (h) in x</code>) is
+indistinguishable from a supply clause at the layout layer, which cannot
+see inside the parens. The paren group is read as a supply clause; write
+the handler operand unparenthesized or bind it first. A
+<code>with (...)</code> group without <code>name = e</code> bindings is
+rejected by the parser with a supply-binding diagnostic.</li>
+</ul>
+<h1 id="rejected-for-now-see-compilerconformance.md">7 Rejected for now
 (see compiler/CONFORMANCE.md)</h1>
 <p>Everything else in the draft EBNF parses only to a named rejection:
 <code>do</code> bodies and handlers, quotations and macros,

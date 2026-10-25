@@ -9,8 +9,10 @@
 //! implicit block must indent farther than its enclosing implicit block.
 //! Explicit `(`, `[` and `{` shield enclosing layout while open, and a closing
 //! `)`, `]` or `}` first closes implicit blocks opened inside that delimiter.
-//! `in` closes the nearest implicit `let` block plus anything nested inside it
-//! and must not cross an unmatched explicit delimiter. End of file closes all
+//! `in` closes the innermost construct that takes one: a capability supply
+//! clause `with (...)` (emitting no virtual braces) or the nearest implicit
+//! `let` block plus anything nested inside it; a `let`'s `in` must not cross
+//! an unmatched explicit delimiter or a `with` clause. End of file closes all
 //! implicit blocks. Inserted `{`, `;` and `}` tokens carry `virtual_: true`.
 
 use crate::lexer::{Span, Tok, Token};
@@ -27,8 +29,10 @@ enum Frame {
     /// An implicit block opened by `where`, `of`, `do` or `let`; `is_let`
     /// marks blocks that `in` may close.
     Implicit { col: u32, is_let: bool },
-    /// An explicit `(`, `[` or `{` shielding enclosing layout.
-    Delim(Delim),
+    /// An explicit `(`, `[` or `{` shielding enclosing layout. The flag
+    /// marks the `(` of a capability supply clause `with (...)`, whose
+    /// closing `)` arms the supply `in` (see `supply_close_pending`).
+    Delim(Delim, bool),
 }
 
 fn virtual_tok(tok: Tok, span: Span) -> Token {
@@ -43,11 +47,25 @@ pub fn layout(tokens: Vec<Token>) -> Result<Vec<Token>> {
     // opens at the next token. The flag records a `let` context.
     let mut pending: Option<(Span, bool)> = None;
     let mut prev: Option<Span> = None;
+    // Set when `with` is seen: a following `(` opens a capability supply
+    // clause `with (...)`; a `with` followed by anything else introduces a
+    // handler operand and opens nothing.
+    let mut with_paren_pending = false;
+    // Armed when the `)` closing a supply clause's `(` arrives: the next
+    // token, if it is `in`, is the supply's closing `in` (it closes no let
+    // block and emits no virtual braces). Any other next token clears the
+    // marker, so a lexically distinct supply `in` token also passes through
+    // harmlessly.
+    let mut supply_close_pending = false;
 
     for tok in tokens {
         let span = tok.span;
         // The token that opens a block is its first item: no separator checks.
         let mut check = true;
+
+        let with_group_open =
+            std::mem::replace(&mut with_paren_pending, false) && tok.tok == Tok::LParen;
+        let supply_in = std::mem::replace(&mut supply_close_pending, false);
 
         if let Some((_, is_let)) = pending.take() {
             if tok.tok == Tok::Eof {
@@ -56,7 +74,7 @@ pub fn layout(tokens: Vec<Token>) -> Result<Vec<Token>> {
             } else if tok.tok == Tok::LBrace {
                 // An explicit `{` supplies the block verbatim.
                 out.push(tok);
-                stack.push(Frame::Delim(Delim::Brace));
+                stack.push(Frame::Delim(Delim::Brace, false));
                 prev = Some(span);
                 continue;
             } else {
@@ -96,9 +114,24 @@ pub fn layout(tokens: Vec<Token>) -> Result<Vec<Token>> {
                     Tok::RBracket => Delim::Bracket,
                     _ => Delim::Brace,
                 };
-                if !matches!(stack.pop(), Some(Frame::Delim(d)) if d == want) {
+                let (got, was_with_group) = match stack.pop() {
+                    Some(Frame::Delim(d, w)) => (d, w),
+                    _ => return Err(Error::at(span, "mismatched closing delimiter")),
+                };
+                if got != want {
                     return Err(Error::at(span, "mismatched closing delimiter"));
                 }
+                if was_with_group {
+                    // The next token, if `in`, is the supply clause's own.
+                    supply_close_pending = true;
+                }
+                out.push(tok);
+                prev = Some(span);
+                continue;
+            }
+            Tok::In if supply_in => {
+                // A capability supply clause `with (...)` closes itself: no
+                // virtual braces, no `let` block involved.
                 out.push(tok);
                 prev = Some(span);
                 continue;
@@ -110,7 +143,7 @@ pub fn layout(tokens: Vec<Token>) -> Result<Vec<Token>> {
                 let mut crossed_delim = false;
                 for (i, f) in stack.iter().enumerate().rev() {
                     match f {
-                        Frame::Delim(_) => {
+                        Frame::Delim(_, _) => {
                             crossed_delim = true;
                             break;
                         }
@@ -138,6 +171,9 @@ pub fn layout(tokens: Vec<Token>) -> Result<Vec<Token>> {
                 out.push(tok);
                 prev = Some(span);
                 continue;
+            }
+            Tok::With => {
+                with_paren_pending = true;
             }
             _ => {}
         }
@@ -181,7 +217,7 @@ pub fn layout(tokens: Vec<Token>) -> Result<Vec<Token>> {
                 Some(Tok::LBracket) => Delim::Bracket,
                 _ => Delim::Brace,
             };
-            stack.push(Frame::Delim(d));
+            stack.push(Frame::Delim(d, with_group_open));
         }
         prev = Some(span);
     }
@@ -194,6 +230,20 @@ mod tests {
 
     fn kinds(src: &str) -> Vec<Tok> {
         let toks = crate::lexer::lex(src).expect("lex");
+        layout(toks).expect("layout").into_iter().map(|t| t.tok).collect()
+    }
+
+    /// Run layout over a token stream built directly, for tests that pin
+    /// layout's contract independently of the lexer's surface tokens.
+    fn kinds_of(toks: &[Tok]) -> Vec<Tok> {
+        let toks: Vec<Token> = toks
+            .iter()
+            .map(|t| Token {
+                tok: t.clone(),
+                span: Span { line: 1, col: 1 },
+                virtual_: false,
+            })
+            .collect();
         layout(toks).expect("layout").into_iter().map(|t| t.tok).collect()
     }
 
@@ -519,5 +569,115 @@ mod tests {
             .map(|t| t.tok.clone())
             .collect();
         assert_eq!(virt, vec![Tok::LBrace, Tok::Semicolon, Tok::RBrace]);
+    }
+
+    #[test]
+    fn with_clause_in_passes_through() {
+        // A capability supply `with (...) in` closes itself: the `in` emits
+        // no virtual braces. The stream is built directly so this pins
+        // layout's contract with a plain `in` token whatever the lexer's
+        // surface spelling for the supply close is.
+        let stream = vec![
+            Tok::With,
+            Tok::LParen,
+            Tok::VarId("io".into()),
+            Tok::Equals,
+            Tok::Int("1".to_string()),
+            Tok::RParen,
+            Tok::In,
+            Tok::Int("2".to_string()),
+            Tok::Eof,
+        ];
+        assert_eq!(kinds_of(&stream), stream);
+    }
+
+    #[test]
+    fn with_clause_and_let_interleave_by_nesting() {
+        // In `let x = with (io = 1) in x in y` the first `in` belongs to the
+        // supply clause (it directly follows the clause's `)`) and the
+        // second closes the `let`.
+        let stream = vec![
+            Tok::Let,
+            Tok::VarId("x".into()),
+            Tok::Equals,
+            Tok::With,
+            Tok::LParen,
+            Tok::VarId("io".into()),
+            Tok::Equals,
+            Tok::Int("1".to_string()),
+            Tok::RParen,
+            Tok::In,
+            Tok::VarId("x".into()),
+            Tok::In,
+            Tok::VarId("y".into()),
+            Tok::Eof,
+        ];
+        assert_eq!(
+            kinds_of(&stream),
+            vec![
+                Tok::Let,
+                Tok::LBrace,
+                Tok::VarId("x".into()),
+                Tok::Equals,
+                Tok::With,
+                Tok::LParen,
+                Tok::VarId("io".into()),
+                Tok::Equals,
+                Tok::Int("1".to_string()),
+                Tok::RParen,
+                Tok::In,
+                Tok::VarId("x".into()),
+                Tok::RBrace,
+                Tok::In,
+                Tok::VarId("y".into()),
+                Tok::Eof
+            ]
+        );
+    }
+
+    #[test]
+    fn nested_supply_clauses_match_in_order() {
+        let stream = vec![
+            Tok::With,
+            Tok::LParen,
+            Tok::VarId("io".into()),
+            Tok::Equals,
+            Tok::With,
+            Tok::LParen,
+            Tok::VarId("j".into()),
+            Tok::Equals,
+            Tok::Int("1".to_string()),
+            Tok::RParen,
+            Tok::In,
+            Tok::VarId("f".into()),
+            Tok::RParen,
+            Tok::In,
+            Tok::VarId("g".into()),
+            Tok::Eof,
+        ];
+        assert_eq!(kinds_of(&stream), stream);
+    }
+
+    #[test]
+    fn handler_with_operand_does_not_take_the_lets_in() {
+        // `with` followed by a non-parenthesis introduces a handler operand
+        // and opens nothing: the `in` still closes the `let`.
+        assert_eq!(
+            kinds("let x = handle e with h in x"),
+            vec![
+                Tok::Let,
+                Tok::LBrace,
+                Tok::VarId("x".into()),
+                Tok::Equals,
+                Tok::Handle,
+                Tok::VarId("e".into()),
+                Tok::With,
+                Tok::VarId("h".into()),
+                Tok::RBrace,
+                Tok::In,
+                Tok::VarId("x".into()),
+                Tok::Eof
+            ]
+        );
     }
 }
