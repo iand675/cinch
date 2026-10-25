@@ -35,11 +35,11 @@ not a second compiler front end.
 
 ## 2 What the language already gives the driver
 
-- **Typed quotes (P9)** are the currency of online specialization:
-  `Code a` is typechecked at quote time, so `eval` of a quote cannot
-  change a program's type. A quoted function type carries its effect
-  row, so a specialized variant's required capabilities are visible in
-  its type before it runs.
+- **Typed quotes (P9)** are the currency of explicit runtime code
+  generation (section 7), not of the automatic JIT. `Code a` is
+  typechecked at quote time, so evaluating a quote cannot change a
+  program's type. The automatic JIT operates on core closures and never
+  involves quotes or any language surface at all.
 - **Effect rows (P3/P6)** tell the driver exactly where it may not
   reorder: driving may float and duplicate pure work, but an effectful
   sequence is a fixed observation order (modules specification section 6:
@@ -158,25 +158,26 @@ treating level 3 as the P10 justify extension.
 ## 7 JIT architecture
 
 The online half reuses P13 and P14 machinery rather than inventing a
-second runtime story:
+second runtime story. One design position governs this section: **the
+automatic JIT is invisible to the language**. How a function happens to
+run is a performance property, never a semantic one, so it MUST NOT
+appear in types, source syntax, or the compiled interface. This is the
+same rule the attribute chapter gives hint attributes (section 1.3):
+they may not affect type checking outcomes. Concretely:
 
-- **Code currency**: typed quotes. `eval : Compile -> Code a -> a` (a
-  capability-gated intrinsic; name and shape follow the runtime
-  capabilities chapter) runs the compiler as a library at runtime. The
-  `Compile` capability is a lexical `Io`-style capability, so JIT use is
-  visible in types like any other effect; a profile that forbids
-  compilation simply never provides it.
-- **Tiering**: the baseline is the existing code generator's output;
-  hot closures with observed stable arguments produce specialized
-  variants (the P14 "baseline/specialized variant packaging" item).
+- **Transparent tiering**: the baseline is the existing code
+  generator's output; hot closures with observed stable arguments
+  produce specialized variants (the P14 "baseline/specialized variant
+  packaging" item). Nothing in the program names or requests this.
   Counters live at call sites and branch sites; the P17 branch weights
   are the same numbers seen from the other side.
 - **Guards and deoptimization**: speculative specialization on a value
   installs a guard; guard failure transfers to the generic code through
   the versioned dispatch of P13. Deoptimization MUST be
   consumption-safe: if the specialized frame held a `%1` value, the
-  fallback frame receives it exactly once (the usage checker's rule
-  applies across the transfer).
+  fallback frame receives it exactly once. This is a runtime invariant
+  checked when the specialized variant is built (the section 4 recheck
+  of the specialize/deoptimize pair), not a type-level promise.
 - **Live frames**: replacing an installed variant while frames are live
   is exactly runtime evolution specification section 6 ("the runtime
   MUST retain a code version while live frames can enter it"). The JIT
@@ -184,6 +185,19 @@ second runtime story:
 - **Wasm**: the same pipeline targets the Wasm artifact profile; the
   capability checks of the platform specification apply before any
   variant with new instruction requirements is reachable.
+
+**Explicit runtime code generation is a separate feature.** `eval` of a
+user-built `Code a` value (the staging slice's quotes) runs the compiler
+as a library at runtime. It is type-safe by quote typing: `eval : Code a
+-> a` cannot produce an ill-typed value because quotes are typed when
+constructed, so no capability belongs in its signature and none is
+proposed here. Its use is recorded in the artifact manifest (it is a
+build-visible assumption like any other), a target profile MAY forbid it
+entirely (a deployment that does not admit runtime code generation
+simply never links the eval service), and its results are executable
+code only, never evidence (section 10). The security story is the
+manifest and target profile, exactly like `foreign import`: policy at
+the deployment boundary, not per-function signatures.
 
 ## 8 Build identity and reporting
 
