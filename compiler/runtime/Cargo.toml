@@ -1,0 +1,16 @@
+[package]
+name = "slruntime"
+version = "0.1.0"
+edition = "2021"
+description = "Runtime library for generated SafeLang code: bignum Nat/Int, allocation, defined fault paths"
+license = "UNLICENSED"
+
+# Standalone package root: keeps this crate buildable on its own even if the
+# parent compiler package ever becomes a workspace root.
+[workspace]
+
+[lib]
+name = "slruntime"
+crate-type = ["staticlib", "rlib"]
+
+[dependencies]
