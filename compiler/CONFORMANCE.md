@@ -205,6 +205,18 @@ and P11's FFI layout work.
 | Inline hints `#[inline]`/`#[inline(always)]`/`#[inline(never)]` as erasable optimizer hints | spec'd |
 | `repr(C)`/`repr(transparent)`/`repr(align)`/`repr(packed)`/discriminant representations with layout facts in the interface ABI table and the packed-borrow safety rule | spec'd |
 
+### Supercompilation and JIT (design study)
+
+`design/supercompilation-and-jit.md` (2026-10-25) designs a single
+driving engine with two consumers: an offline supercompiler (P10) and a
+runtime JIT over typed quotes (P13's versioned dispatch, P14's variant
+packaging, P17's branch weights as the PGO loop). The safety core is a
+residual-program recheck table: types, effect order, `%1` usage, memo
+sharing, codata productivity, erasure, and capability rows all rechecked
+by existing machinery, with specialization staying representation-only
+(contract identity unchanged, D4). Implementation items ride P10 and
+P13; this section is the pointer, not a new phase.
+
 ## Spec requirement mapping
 
 Every spec MUST is mapped to enforcement and tests in
