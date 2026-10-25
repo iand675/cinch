@@ -1,0 +1,1199 @@
+-- Prelude for the bootstrap slice.
+--
+-- Operators are class methods, never compiler builtins. The only
+-- compiler-known operations are the `safelang.prim.*` (machine scalars)
+-- and `safelang.runtime.*` (mathematical `Nat`/`Int` and `Bytes`)
+-- intrinsics below, which are representation-level and declared through
+-- `foreign import`.
+--
+-- The machine scalar types and their operations follow the primitive
+-- types specification. Names follow decision D6 (CONFORMANCE.md): an
+-- operation is a prelude-level name of the form `<op><Type>`
+-- (`wrappingAddU32`) and a conversion is `<src>To<dst>`
+-- (`u8ToI32`). The `checked*`, `saturating*` and `wrapping*` conversion
+-- families capitalize the source type (`checkedU8ToI64`); the total
+-- family lowercases it (`u8ToI32`). The specification's dotted
+-- `U32.wrappingAdd` spelling is a presentation form that lands with the
+-- module slice.
+module Prelude where
+
+  -- Data declarations come first: the primitive signatures mention
+  -- Option (checked results) and Ordering (totalOrder).
+
+  data Option a where
+    None :: Option a
+    Some :: a -> Option a
+
+  data List a where
+    Nil :: List a
+    Cons :: a -> List a -> List a
+
+  data Ordering where
+    LT :: Ordering
+    EQ :: Ordering
+    GT :: Ordering
+
+  -- The mathematical `Nat` and `Int` (primitive types specification,
+  -- section 1): boxed bignums, distinct from every machine scalar.
+  foreign import ccall "safelang.runtime.natAdd" natAdd :: Nat -> Nat -> Nat
+  foreign import ccall "safelang.runtime.natSub" natSub :: Nat -> Nat -> Nat
+  foreign import ccall "safelang.runtime.natMul" natMul :: Nat -> Nat -> Nat
+  foreign import ccall "safelang.runtime.natDiv" natDiv :: Nat -> Nat -> Nat
+  foreign import ccall "safelang.runtime.natRem" natRem :: Nat -> Nat -> Nat
+  foreign import ccall "safelang.runtime.natCmp" natCmp :: Nat -> Nat -> I64
+  foreign import ccall "safelang.runtime.natFromI64" natFromI64 :: I64 -> Nat
+  foreign import ccall "safelang.runtime.natToI64" natToI64 :: Nat -> I64
+  foreign import ccall "safelang.runtime.intAdd" intAdd :: Int -> Int -> Int
+  foreign import ccall "safelang.runtime.intSub" intSub :: Int -> Int -> Int
+  foreign import ccall "safelang.runtime.intMul" intMul :: Int -> Int -> Int
+  foreign import ccall "safelang.runtime.intDiv" intDiv :: Int -> Int -> Int
+  foreign import ccall "safelang.runtime.intRem" intRem :: Int -> Int -> Int
+  foreign import ccall "safelang.runtime.intNeg" intNeg :: Int -> Int
+  foreign import ccall "safelang.runtime.intCmp" intCmp :: Int -> Int -> I64
+  foreign import ccall "safelang.runtime.intFromI64" intFromI64 :: I64 -> Int
+  foreign import ccall "safelang.runtime.intToI64" intToI64 :: Int -> I64
+
+  -- `natCmp`/`intCmp` return the raw -1/0/1 immediate at `I64`, so
+  -- equality is `eqI64 (intCmp a b) 0`. Division and remainder by zero
+  -- fault with the division fault code (exit 72); `natSub` below zero and
+  -- every `Bytes` fault below (out-of-bounds index, byte value outside
+  -- 0..=255, a length outside `i64` range) exit through the panic path
+  -- (71).
+
+  -- `Bytes`: boxed byte buffers. Indices, lengths and byte values are
+  -- `Nat` and convert through `sl_nat_to_i64`/`sl_nat_from_i64`.
+  foreign import ccall "safelang.runtime.bytesNew" bytesNew :: Nat -> Bytes
+  foreign import ccall "safelang.runtime.bytesLen" bytesLen :: Bytes -> Nat
+  foreign import ccall "safelang.runtime.bytesGet" bytesGet :: Bytes -> Nat -> Nat
+  foreign import ccall "safelang.runtime.bytesSet" bytesSet :: Bytes -> Nat -> Nat -> Unit
+
+  foreign import ccall "safelang.prim.eqBool" primEqBool :: Bool -> Bool -> Bool
+  foreign import ccall "safelang.prim.neBool" primNeBool :: Bool -> Bool -> Bool
+  foreign import ccall "safelang.prim.notBool" primNotBool :: Bool -> Bool
+  foreign import ccall "safelang.prim.andBool" primAndBool :: Bool -> Bool -> Bool
+  foreign import ccall "safelang.prim.orBool" primOrBool :: Bool -> Bool -> Bool
+
+  -- Primitive types specification, section 4: integer arithmetic for
+  -- every machine integer type. Overflow behavior is never implicit:
+  -- `checked` returns Option and never the wrapped value, `wrapping` is
+  -- two's complement wrap, `saturating` clamps to the bounds. There is
+  -- no Add/Sub/Mul/Neg instance for machine types: a class method has a
+  -- single result type and cannot express which family is meant.
+
+  -- I8 (8 bits).
+  foreign import ccall "safelang.prim.minBoundI8" minBoundI8 :: I8
+  foreign import ccall "safelang.prim.maxBoundI8" maxBoundI8 :: I8
+  foreign import ccall "safelang.prim.checkedAddI8" checkedAddI8 :: I8 -> I8 -> Option I8
+  foreign import ccall "safelang.prim.checkedSubI8" checkedSubI8 :: I8 -> I8 -> Option I8
+  foreign import ccall "safelang.prim.checkedMulI8" checkedMulI8 :: I8 -> I8 -> Option I8
+  foreign import ccall "safelang.prim.wrappingAddI8" wrappingAddI8 :: I8 -> I8 -> I8
+  foreign import ccall "safelang.prim.wrappingSubI8" wrappingSubI8 :: I8 -> I8 -> I8
+  foreign import ccall "safelang.prim.wrappingMulI8" wrappingMulI8 :: I8 -> I8 -> I8
+  foreign import ccall "safelang.prim.saturatingAddI8" saturatingAddI8 :: I8 -> I8 -> I8
+  foreign import ccall "safelang.prim.saturatingSubI8" saturatingSubI8 :: I8 -> I8 -> I8
+  foreign import ccall "safelang.prim.saturatingMulI8" saturatingMulI8 :: I8 -> I8 -> I8
+  foreign import ccall "safelang.prim.checkedNegI8" checkedNegI8 :: I8 -> Option I8
+  foreign import ccall "safelang.prim.wrappingNegI8" wrappingNegI8 :: I8 -> I8
+  foreign import ccall "safelang.prim.saturatingNegI8" saturatingNegI8 :: I8 -> I8
+  foreign import ccall "safelang.prim.checkedDivI8" checkedDivI8 :: I8 -> I8 -> Option I8
+  foreign import ccall "safelang.prim.checkedRemI8" checkedRemI8 :: I8 -> I8 -> Option I8
+  foreign import ccall "safelang.prim.checkedShlI8" checkedShlI8 :: I8 -> U32 -> Option I8
+  foreign import ccall "safelang.prim.wrappingShlI8" wrappingShlI8 :: I8 -> U32 -> I8
+  foreign import ccall "safelang.prim.checkedShrI8" checkedShrI8 :: I8 -> U32 -> Option I8
+  foreign import ccall "safelang.prim.wrappingShrI8" wrappingShrI8 :: I8 -> U32 -> I8
+  foreign import ccall "safelang.prim.rotateLeftI8" rotateLeftI8 :: I8 -> U32 -> I8
+  foreign import ccall "safelang.prim.rotateRightI8" rotateRightI8 :: I8 -> U32 -> I8
+  foreign import ccall "safelang.prim.bitAndI8" bitAndI8 :: I8 -> I8 -> I8
+  foreign import ccall "safelang.prim.bitOrI8" bitOrI8 :: I8 -> I8 -> I8
+  foreign import ccall "safelang.prim.bitXorI8" bitXorI8 :: I8 -> I8 -> I8
+  foreign import ccall "safelang.prim.bitNotI8" bitNotI8 :: I8 -> I8
+  foreign import ccall "safelang.prim.countOnesI8" countOnesI8 :: I8 -> U32
+  foreign import ccall "safelang.prim.leadingZerosI8" leadingZerosI8 :: I8 -> U32
+  foreign import ccall "safelang.prim.trailingZerosI8" trailingZerosI8 :: I8 -> U32
+  foreign import ccall "safelang.prim.reverseBitsI8" reverseBitsI8 :: I8 -> I8
+  foreign import ccall "safelang.prim.swapBytesI8" swapBytesI8 :: I8 -> I8
+  foreign import ccall "safelang.prim.eqI8" eqI8 :: I8 -> I8 -> Bool
+  foreign import ccall "safelang.prim.neI8" neI8 :: I8 -> I8 -> Bool
+  foreign import ccall "safelang.prim.ltI8" ltI8 :: I8 -> I8 -> Bool
+  foreign import ccall "safelang.prim.leI8" leI8 :: I8 -> I8 -> Bool
+  foreign import ccall "safelang.prim.gtI8" gtI8 :: I8 -> I8 -> Bool
+  foreign import ccall "safelang.prim.geI8" geI8 :: I8 -> I8 -> Bool
+
+  -- I16 (16 bits).
+  foreign import ccall "safelang.prim.minBoundI16" minBoundI16 :: I16
+  foreign import ccall "safelang.prim.maxBoundI16" maxBoundI16 :: I16
+  foreign import ccall "safelang.prim.checkedAddI16" checkedAddI16 :: I16 -> I16 -> Option I16
+  foreign import ccall "safelang.prim.checkedSubI16" checkedSubI16 :: I16 -> I16 -> Option I16
+  foreign import ccall "safelang.prim.checkedMulI16" checkedMulI16 :: I16 -> I16 -> Option I16
+  foreign import ccall "safelang.prim.wrappingAddI16" wrappingAddI16 :: I16 -> I16 -> I16
+  foreign import ccall "safelang.prim.wrappingSubI16" wrappingSubI16 :: I16 -> I16 -> I16
+  foreign import ccall "safelang.prim.wrappingMulI16" wrappingMulI16 :: I16 -> I16 -> I16
+  foreign import ccall "safelang.prim.saturatingAddI16" saturatingAddI16 :: I16 -> I16 -> I16
+  foreign import ccall "safelang.prim.saturatingSubI16" saturatingSubI16 :: I16 -> I16 -> I16
+  foreign import ccall "safelang.prim.saturatingMulI16" saturatingMulI16 :: I16 -> I16 -> I16
+  foreign import ccall "safelang.prim.checkedNegI16" checkedNegI16 :: I16 -> Option I16
+  foreign import ccall "safelang.prim.wrappingNegI16" wrappingNegI16 :: I16 -> I16
+  foreign import ccall "safelang.prim.saturatingNegI16" saturatingNegI16 :: I16 -> I16
+  foreign import ccall "safelang.prim.checkedDivI16" checkedDivI16 :: I16 -> I16 -> Option I16
+  foreign import ccall "safelang.prim.checkedRemI16" checkedRemI16 :: I16 -> I16 -> Option I16
+  foreign import ccall "safelang.prim.checkedShlI16" checkedShlI16 :: I16 -> U32 -> Option I16
+  foreign import ccall "safelang.prim.wrappingShlI16" wrappingShlI16 :: I16 -> U32 -> I16
+  foreign import ccall "safelang.prim.checkedShrI16" checkedShrI16 :: I16 -> U32 -> Option I16
+  foreign import ccall "safelang.prim.wrappingShrI16" wrappingShrI16 :: I16 -> U32 -> I16
+  foreign import ccall "safelang.prim.rotateLeftI16" rotateLeftI16 :: I16 -> U32 -> I16
+  foreign import ccall "safelang.prim.rotateRightI16" rotateRightI16 :: I16 -> U32 -> I16
+  foreign import ccall "safelang.prim.bitAndI16" bitAndI16 :: I16 -> I16 -> I16
+  foreign import ccall "safelang.prim.bitOrI16" bitOrI16 :: I16 -> I16 -> I16
+  foreign import ccall "safelang.prim.bitXorI16" bitXorI16 :: I16 -> I16 -> I16
+  foreign import ccall "safelang.prim.bitNotI16" bitNotI16 :: I16 -> I16
+  foreign import ccall "safelang.prim.countOnesI16" countOnesI16 :: I16 -> U32
+  foreign import ccall "safelang.prim.leadingZerosI16" leadingZerosI16 :: I16 -> U32
+  foreign import ccall "safelang.prim.trailingZerosI16" trailingZerosI16 :: I16 -> U32
+  foreign import ccall "safelang.prim.reverseBitsI16" reverseBitsI16 :: I16 -> I16
+  foreign import ccall "safelang.prim.swapBytesI16" swapBytesI16 :: I16 -> I16
+  foreign import ccall "safelang.prim.eqI16" eqI16 :: I16 -> I16 -> Bool
+  foreign import ccall "safelang.prim.neI16" neI16 :: I16 -> I16 -> Bool
+  foreign import ccall "safelang.prim.ltI16" ltI16 :: I16 -> I16 -> Bool
+  foreign import ccall "safelang.prim.leI16" leI16 :: I16 -> I16 -> Bool
+  foreign import ccall "safelang.prim.gtI16" gtI16 :: I16 -> I16 -> Bool
+  foreign import ccall "safelang.prim.geI16" geI16 :: I16 -> I16 -> Bool
+
+  -- I32 (32 bits).
+  foreign import ccall "safelang.prim.minBoundI32" minBoundI32 :: I32
+  foreign import ccall "safelang.prim.maxBoundI32" maxBoundI32 :: I32
+  foreign import ccall "safelang.prim.checkedAddI32" checkedAddI32 :: I32 -> I32 -> Option I32
+  foreign import ccall "safelang.prim.checkedSubI32" checkedSubI32 :: I32 -> I32 -> Option I32
+  foreign import ccall "safelang.prim.checkedMulI32" checkedMulI32 :: I32 -> I32 -> Option I32
+  foreign import ccall "safelang.prim.wrappingAddI32" wrappingAddI32 :: I32 -> I32 -> I32
+  foreign import ccall "safelang.prim.wrappingSubI32" wrappingSubI32 :: I32 -> I32 -> I32
+  foreign import ccall "safelang.prim.wrappingMulI32" wrappingMulI32 :: I32 -> I32 -> I32
+  foreign import ccall "safelang.prim.saturatingAddI32" saturatingAddI32 :: I32 -> I32 -> I32
+  foreign import ccall "safelang.prim.saturatingSubI32" saturatingSubI32 :: I32 -> I32 -> I32
+  foreign import ccall "safelang.prim.saturatingMulI32" saturatingMulI32 :: I32 -> I32 -> I32
+  foreign import ccall "safelang.prim.checkedNegI32" checkedNegI32 :: I32 -> Option I32
+  foreign import ccall "safelang.prim.wrappingNegI32" wrappingNegI32 :: I32 -> I32
+  foreign import ccall "safelang.prim.saturatingNegI32" saturatingNegI32 :: I32 -> I32
+  foreign import ccall "safelang.prim.checkedDivI32" checkedDivI32 :: I32 -> I32 -> Option I32
+  foreign import ccall "safelang.prim.checkedRemI32" checkedRemI32 :: I32 -> I32 -> Option I32
+  foreign import ccall "safelang.prim.checkedShlI32" checkedShlI32 :: I32 -> U32 -> Option I32
+  foreign import ccall "safelang.prim.wrappingShlI32" wrappingShlI32 :: I32 -> U32 -> I32
+  foreign import ccall "safelang.prim.checkedShrI32" checkedShrI32 :: I32 -> U32 -> Option I32
+  foreign import ccall "safelang.prim.wrappingShrI32" wrappingShrI32 :: I32 -> U32 -> I32
+  foreign import ccall "safelang.prim.rotateLeftI32" rotateLeftI32 :: I32 -> U32 -> I32
+  foreign import ccall "safelang.prim.rotateRightI32" rotateRightI32 :: I32 -> U32 -> I32
+  foreign import ccall "safelang.prim.bitAndI32" bitAndI32 :: I32 -> I32 -> I32
+  foreign import ccall "safelang.prim.bitOrI32" bitOrI32 :: I32 -> I32 -> I32
+  foreign import ccall "safelang.prim.bitXorI32" bitXorI32 :: I32 -> I32 -> I32
+  foreign import ccall "safelang.prim.bitNotI32" bitNotI32 :: I32 -> I32
+  foreign import ccall "safelang.prim.countOnesI32" countOnesI32 :: I32 -> U32
+  foreign import ccall "safelang.prim.leadingZerosI32" leadingZerosI32 :: I32 -> U32
+  foreign import ccall "safelang.prim.trailingZerosI32" trailingZerosI32 :: I32 -> U32
+  foreign import ccall "safelang.prim.reverseBitsI32" reverseBitsI32 :: I32 -> I32
+  foreign import ccall "safelang.prim.swapBytesI32" swapBytesI32 :: I32 -> I32
+  foreign import ccall "safelang.prim.eqI32" eqI32 :: I32 -> I32 -> Bool
+  foreign import ccall "safelang.prim.neI32" neI32 :: I32 -> I32 -> Bool
+  foreign import ccall "safelang.prim.ltI32" ltI32 :: I32 -> I32 -> Bool
+  foreign import ccall "safelang.prim.leI32" leI32 :: I32 -> I32 -> Bool
+  foreign import ccall "safelang.prim.gtI32" gtI32 :: I32 -> I32 -> Bool
+  foreign import ccall "safelang.prim.geI32" geI32 :: I32 -> I32 -> Bool
+
+  -- I64 (64 bits).
+  foreign import ccall "safelang.prim.minBoundI64" minBoundI64 :: I64
+  foreign import ccall "safelang.prim.maxBoundI64" maxBoundI64 :: I64
+  foreign import ccall "safelang.prim.checkedAddI64" checkedAddI64 :: I64 -> I64 -> Option I64
+  foreign import ccall "safelang.prim.checkedSubI64" checkedSubI64 :: I64 -> I64 -> Option I64
+  foreign import ccall "safelang.prim.checkedMulI64" checkedMulI64 :: I64 -> I64 -> Option I64
+  foreign import ccall "safelang.prim.wrappingAddI64" wrappingAddI64 :: I64 -> I64 -> I64
+  foreign import ccall "safelang.prim.wrappingSubI64" wrappingSubI64 :: I64 -> I64 -> I64
+  foreign import ccall "safelang.prim.wrappingMulI64" wrappingMulI64 :: I64 -> I64 -> I64
+  foreign import ccall "safelang.prim.saturatingAddI64" saturatingAddI64 :: I64 -> I64 -> I64
+  foreign import ccall "safelang.prim.saturatingSubI64" saturatingSubI64 :: I64 -> I64 -> I64
+  foreign import ccall "safelang.prim.saturatingMulI64" saturatingMulI64 :: I64 -> I64 -> I64
+  foreign import ccall "safelang.prim.checkedNegI64" checkedNegI64 :: I64 -> Option I64
+  foreign import ccall "safelang.prim.wrappingNegI64" wrappingNegI64 :: I64 -> I64
+  foreign import ccall "safelang.prim.saturatingNegI64" saturatingNegI64 :: I64 -> I64
+  foreign import ccall "safelang.prim.checkedDivI64" checkedDivI64 :: I64 -> I64 -> Option I64
+  foreign import ccall "safelang.prim.checkedRemI64" checkedRemI64 :: I64 -> I64 -> Option I64
+  foreign import ccall "safelang.prim.checkedShlI64" checkedShlI64 :: I64 -> U32 -> Option I64
+  foreign import ccall "safelang.prim.wrappingShlI64" wrappingShlI64 :: I64 -> U32 -> I64
+  foreign import ccall "safelang.prim.checkedShrI64" checkedShrI64 :: I64 -> U32 -> Option I64
+  foreign import ccall "safelang.prim.wrappingShrI64" wrappingShrI64 :: I64 -> U32 -> I64
+  foreign import ccall "safelang.prim.rotateLeftI64" rotateLeftI64 :: I64 -> U32 -> I64
+  foreign import ccall "safelang.prim.rotateRightI64" rotateRightI64 :: I64 -> U32 -> I64
+  foreign import ccall "safelang.prim.bitAndI64" bitAndI64 :: I64 -> I64 -> I64
+  foreign import ccall "safelang.prim.bitOrI64" bitOrI64 :: I64 -> I64 -> I64
+  foreign import ccall "safelang.prim.bitXorI64" bitXorI64 :: I64 -> I64 -> I64
+  foreign import ccall "safelang.prim.bitNotI64" bitNotI64 :: I64 -> I64
+  foreign import ccall "safelang.prim.countOnesI64" countOnesI64 :: I64 -> U32
+  foreign import ccall "safelang.prim.leadingZerosI64" leadingZerosI64 :: I64 -> U32
+  foreign import ccall "safelang.prim.trailingZerosI64" trailingZerosI64 :: I64 -> U32
+  foreign import ccall "safelang.prim.reverseBitsI64" reverseBitsI64 :: I64 -> I64
+  foreign import ccall "safelang.prim.swapBytesI64" swapBytesI64 :: I64 -> I64
+  foreign import ccall "safelang.prim.eqI64" eqI64 :: I64 -> I64 -> Bool
+  foreign import ccall "safelang.prim.neI64" neI64 :: I64 -> I64 -> Bool
+  foreign import ccall "safelang.prim.ltI64" ltI64 :: I64 -> I64 -> Bool
+  foreign import ccall "safelang.prim.leI64" leI64 :: I64 -> I64 -> Bool
+  foreign import ccall "safelang.prim.gtI64" gtI64 :: I64 -> I64 -> Bool
+  foreign import ccall "safelang.prim.geI64" geI64 :: I64 -> I64 -> Bool
+
+  -- U8 (8 bits).
+  foreign import ccall "safelang.prim.minBoundU8" minBoundU8 :: U8
+  foreign import ccall "safelang.prim.maxBoundU8" maxBoundU8 :: U8
+  foreign import ccall "safelang.prim.checkedAddU8" checkedAddU8 :: U8 -> U8 -> Option U8
+  foreign import ccall "safelang.prim.checkedSubU8" checkedSubU8 :: U8 -> U8 -> Option U8
+  foreign import ccall "safelang.prim.checkedMulU8" checkedMulU8 :: U8 -> U8 -> Option U8
+  foreign import ccall "safelang.prim.wrappingAddU8" wrappingAddU8 :: U8 -> U8 -> U8
+  foreign import ccall "safelang.prim.wrappingSubU8" wrappingSubU8 :: U8 -> U8 -> U8
+  foreign import ccall "safelang.prim.wrappingMulU8" wrappingMulU8 :: U8 -> U8 -> U8
+  foreign import ccall "safelang.prim.saturatingAddU8" saturatingAddU8 :: U8 -> U8 -> U8
+  foreign import ccall "safelang.prim.saturatingSubU8" saturatingSubU8 :: U8 -> U8 -> U8
+  foreign import ccall "safelang.prim.saturatingMulU8" saturatingMulU8 :: U8 -> U8 -> U8
+  foreign import ccall "safelang.prim.checkedNegU8" checkedNegU8 :: U8 -> Option U8
+  foreign import ccall "safelang.prim.wrappingNegU8" wrappingNegU8 :: U8 -> U8
+  foreign import ccall "safelang.prim.saturatingNegU8" saturatingNegU8 :: U8 -> U8
+  foreign import ccall "safelang.prim.checkedDivU8" checkedDivU8 :: U8 -> U8 -> Option U8
+  foreign import ccall "safelang.prim.checkedRemU8" checkedRemU8 :: U8 -> U8 -> Option U8
+  foreign import ccall "safelang.prim.checkedShlU8" checkedShlU8 :: U8 -> U32 -> Option U8
+  foreign import ccall "safelang.prim.wrappingShlU8" wrappingShlU8 :: U8 -> U32 -> U8
+  foreign import ccall "safelang.prim.checkedShrU8" checkedShrU8 :: U8 -> U32 -> Option U8
+  foreign import ccall "safelang.prim.wrappingShrU8" wrappingShrU8 :: U8 -> U32 -> U8
+  foreign import ccall "safelang.prim.rotateLeftU8" rotateLeftU8 :: U8 -> U32 -> U8
+  foreign import ccall "safelang.prim.rotateRightU8" rotateRightU8 :: U8 -> U32 -> U8
+  foreign import ccall "safelang.prim.bitAndU8" bitAndU8 :: U8 -> U8 -> U8
+  foreign import ccall "safelang.prim.bitOrU8" bitOrU8 :: U8 -> U8 -> U8
+  foreign import ccall "safelang.prim.bitXorU8" bitXorU8 :: U8 -> U8 -> U8
+  foreign import ccall "safelang.prim.bitNotU8" bitNotU8 :: U8 -> U8
+  foreign import ccall "safelang.prim.countOnesU8" countOnesU8 :: U8 -> U32
+  foreign import ccall "safelang.prim.leadingZerosU8" leadingZerosU8 :: U8 -> U32
+  foreign import ccall "safelang.prim.trailingZerosU8" trailingZerosU8 :: U8 -> U32
+  foreign import ccall "safelang.prim.reverseBitsU8" reverseBitsU8 :: U8 -> U8
+  foreign import ccall "safelang.prim.swapBytesU8" swapBytesU8 :: U8 -> U8
+  foreign import ccall "safelang.prim.eqU8" eqU8 :: U8 -> U8 -> Bool
+  foreign import ccall "safelang.prim.neU8" neU8 :: U8 -> U8 -> Bool
+  foreign import ccall "safelang.prim.ltU8" ltU8 :: U8 -> U8 -> Bool
+  foreign import ccall "safelang.prim.leU8" leU8 :: U8 -> U8 -> Bool
+  foreign import ccall "safelang.prim.gtU8" gtU8 :: U8 -> U8 -> Bool
+  foreign import ccall "safelang.prim.geU8" geU8 :: U8 -> U8 -> Bool
+
+  -- U16 (16 bits).
+  foreign import ccall "safelang.prim.minBoundU16" minBoundU16 :: U16
+  foreign import ccall "safelang.prim.maxBoundU16" maxBoundU16 :: U16
+  foreign import ccall "safelang.prim.checkedAddU16" checkedAddU16 :: U16 -> U16 -> Option U16
+  foreign import ccall "safelang.prim.checkedSubU16" checkedSubU16 :: U16 -> U16 -> Option U16
+  foreign import ccall "safelang.prim.checkedMulU16" checkedMulU16 :: U16 -> U16 -> Option U16
+  foreign import ccall "safelang.prim.wrappingAddU16" wrappingAddU16 :: U16 -> U16 -> U16
+  foreign import ccall "safelang.prim.wrappingSubU16" wrappingSubU16 :: U16 -> U16 -> U16
+  foreign import ccall "safelang.prim.wrappingMulU16" wrappingMulU16 :: U16 -> U16 -> U16
+  foreign import ccall "safelang.prim.saturatingAddU16" saturatingAddU16 :: U16 -> U16 -> U16
+  foreign import ccall "safelang.prim.saturatingSubU16" saturatingSubU16 :: U16 -> U16 -> U16
+  foreign import ccall "safelang.prim.saturatingMulU16" saturatingMulU16 :: U16 -> U16 -> U16
+  foreign import ccall "safelang.prim.checkedNegU16" checkedNegU16 :: U16 -> Option U16
+  foreign import ccall "safelang.prim.wrappingNegU16" wrappingNegU16 :: U16 -> U16
+  foreign import ccall "safelang.prim.saturatingNegU16" saturatingNegU16 :: U16 -> U16
+  foreign import ccall "safelang.prim.checkedDivU16" checkedDivU16 :: U16 -> U16 -> Option U16
+  foreign import ccall "safelang.prim.checkedRemU16" checkedRemU16 :: U16 -> U16 -> Option U16
+  foreign import ccall "safelang.prim.checkedShlU16" checkedShlU16 :: U16 -> U32 -> Option U16
+  foreign import ccall "safelang.prim.wrappingShlU16" wrappingShlU16 :: U16 -> U32 -> U16
+  foreign import ccall "safelang.prim.checkedShrU16" checkedShrU16 :: U16 -> U32 -> Option U16
+  foreign import ccall "safelang.prim.wrappingShrU16" wrappingShrU16 :: U16 -> U32 -> U16
+  foreign import ccall "safelang.prim.rotateLeftU16" rotateLeftU16 :: U16 -> U32 -> U16
+  foreign import ccall "safelang.prim.rotateRightU16" rotateRightU16 :: U16 -> U32 -> U16
+  foreign import ccall "safelang.prim.bitAndU16" bitAndU16 :: U16 -> U16 -> U16
+  foreign import ccall "safelang.prim.bitOrU16" bitOrU16 :: U16 -> U16 -> U16
+  foreign import ccall "safelang.prim.bitXorU16" bitXorU16 :: U16 -> U16 -> U16
+  foreign import ccall "safelang.prim.bitNotU16" bitNotU16 :: U16 -> U16
+  foreign import ccall "safelang.prim.countOnesU16" countOnesU16 :: U16 -> U32
+  foreign import ccall "safelang.prim.leadingZerosU16" leadingZerosU16 :: U16 -> U32
+  foreign import ccall "safelang.prim.trailingZerosU16" trailingZerosU16 :: U16 -> U32
+  foreign import ccall "safelang.prim.reverseBitsU16" reverseBitsU16 :: U16 -> U16
+  foreign import ccall "safelang.prim.swapBytesU16" swapBytesU16 :: U16 -> U16
+  foreign import ccall "safelang.prim.eqU16" eqU16 :: U16 -> U16 -> Bool
+  foreign import ccall "safelang.prim.neU16" neU16 :: U16 -> U16 -> Bool
+  foreign import ccall "safelang.prim.ltU16" ltU16 :: U16 -> U16 -> Bool
+  foreign import ccall "safelang.prim.leU16" leU16 :: U16 -> U16 -> Bool
+  foreign import ccall "safelang.prim.gtU16" gtU16 :: U16 -> U16 -> Bool
+  foreign import ccall "safelang.prim.geU16" geU16 :: U16 -> U16 -> Bool
+
+  -- U32 (32 bits).
+  foreign import ccall "safelang.prim.minBoundU32" minBoundU32 :: U32
+  foreign import ccall "safelang.prim.maxBoundU32" maxBoundU32 :: U32
+  foreign import ccall "safelang.prim.checkedAddU32" checkedAddU32 :: U32 -> U32 -> Option U32
+  foreign import ccall "safelang.prim.checkedSubU32" checkedSubU32 :: U32 -> U32 -> Option U32
+  foreign import ccall "safelang.prim.checkedMulU32" checkedMulU32 :: U32 -> U32 -> Option U32
+  foreign import ccall "safelang.prim.wrappingAddU32" wrappingAddU32 :: U32 -> U32 -> U32
+  foreign import ccall "safelang.prim.wrappingSubU32" wrappingSubU32 :: U32 -> U32 -> U32
+  foreign import ccall "safelang.prim.wrappingMulU32" wrappingMulU32 :: U32 -> U32 -> U32
+  foreign import ccall "safelang.prim.saturatingAddU32" saturatingAddU32 :: U32 -> U32 -> U32
+  foreign import ccall "safelang.prim.saturatingSubU32" saturatingSubU32 :: U32 -> U32 -> U32
+  foreign import ccall "safelang.prim.saturatingMulU32" saturatingMulU32 :: U32 -> U32 -> U32
+  foreign import ccall "safelang.prim.checkedNegU32" checkedNegU32 :: U32 -> Option U32
+  foreign import ccall "safelang.prim.wrappingNegU32" wrappingNegU32 :: U32 -> U32
+  foreign import ccall "safelang.prim.saturatingNegU32" saturatingNegU32 :: U32 -> U32
+  foreign import ccall "safelang.prim.checkedDivU32" checkedDivU32 :: U32 -> U32 -> Option U32
+  foreign import ccall "safelang.prim.checkedRemU32" checkedRemU32 :: U32 -> U32 -> Option U32
+  foreign import ccall "safelang.prim.checkedShlU32" checkedShlU32 :: U32 -> U32 -> Option U32
+  foreign import ccall "safelang.prim.wrappingShlU32" wrappingShlU32 :: U32 -> U32 -> U32
+  foreign import ccall "safelang.prim.checkedShrU32" checkedShrU32 :: U32 -> U32 -> Option U32
+  foreign import ccall "safelang.prim.wrappingShrU32" wrappingShrU32 :: U32 -> U32 -> U32
+  foreign import ccall "safelang.prim.rotateLeftU32" rotateLeftU32 :: U32 -> U32 -> U32
+  foreign import ccall "safelang.prim.rotateRightU32" rotateRightU32 :: U32 -> U32 -> U32
+  foreign import ccall "safelang.prim.bitAndU32" bitAndU32 :: U32 -> U32 -> U32
+  foreign import ccall "safelang.prim.bitOrU32" bitOrU32 :: U32 -> U32 -> U32
+  foreign import ccall "safelang.prim.bitXorU32" bitXorU32 :: U32 -> U32 -> U32
+  foreign import ccall "safelang.prim.bitNotU32" bitNotU32 :: U32 -> U32
+  foreign import ccall "safelang.prim.countOnesU32" countOnesU32 :: U32 -> U32
+  foreign import ccall "safelang.prim.leadingZerosU32" leadingZerosU32 :: U32 -> U32
+  foreign import ccall "safelang.prim.trailingZerosU32" trailingZerosU32 :: U32 -> U32
+  foreign import ccall "safelang.prim.reverseBitsU32" reverseBitsU32 :: U32 -> U32
+  foreign import ccall "safelang.prim.swapBytesU32" swapBytesU32 :: U32 -> U32
+  foreign import ccall "safelang.prim.eqU32" eqU32 :: U32 -> U32 -> Bool
+  foreign import ccall "safelang.prim.neU32" neU32 :: U32 -> U32 -> Bool
+  foreign import ccall "safelang.prim.ltU32" ltU32 :: U32 -> U32 -> Bool
+  foreign import ccall "safelang.prim.leU32" leU32 :: U32 -> U32 -> Bool
+  foreign import ccall "safelang.prim.gtU32" gtU32 :: U32 -> U32 -> Bool
+  foreign import ccall "safelang.prim.geU32" geU32 :: U32 -> U32 -> Bool
+
+  -- U64 (64 bits).
+  foreign import ccall "safelang.prim.minBoundU64" minBoundU64 :: U64
+  foreign import ccall "safelang.prim.maxBoundU64" maxBoundU64 :: U64
+  foreign import ccall "safelang.prim.checkedAddU64" checkedAddU64 :: U64 -> U64 -> Option U64
+  foreign import ccall "safelang.prim.checkedSubU64" checkedSubU64 :: U64 -> U64 -> Option U64
+  foreign import ccall "safelang.prim.checkedMulU64" checkedMulU64 :: U64 -> U64 -> Option U64
+  foreign import ccall "safelang.prim.wrappingAddU64" wrappingAddU64 :: U64 -> U64 -> U64
+  foreign import ccall "safelang.prim.wrappingSubU64" wrappingSubU64 :: U64 -> U64 -> U64
+  foreign import ccall "safelang.prim.wrappingMulU64" wrappingMulU64 :: U64 -> U64 -> U64
+  foreign import ccall "safelang.prim.saturatingAddU64" saturatingAddU64 :: U64 -> U64 -> U64
+  foreign import ccall "safelang.prim.saturatingSubU64" saturatingSubU64 :: U64 -> U64 -> U64
+  foreign import ccall "safelang.prim.saturatingMulU64" saturatingMulU64 :: U64 -> U64 -> U64
+  foreign import ccall "safelang.prim.checkedNegU64" checkedNegU64 :: U64 -> Option U64
+  foreign import ccall "safelang.prim.wrappingNegU64" wrappingNegU64 :: U64 -> U64
+  foreign import ccall "safelang.prim.saturatingNegU64" saturatingNegU64 :: U64 -> U64
+  foreign import ccall "safelang.prim.checkedDivU64" checkedDivU64 :: U64 -> U64 -> Option U64
+  foreign import ccall "safelang.prim.checkedRemU64" checkedRemU64 :: U64 -> U64 -> Option U64
+  foreign import ccall "safelang.prim.checkedShlU64" checkedShlU64 :: U64 -> U32 -> Option U64
+  foreign import ccall "safelang.prim.wrappingShlU64" wrappingShlU64 :: U64 -> U32 -> U64
+  foreign import ccall "safelang.prim.checkedShrU64" checkedShrU64 :: U64 -> U32 -> Option U64
+  foreign import ccall "safelang.prim.wrappingShrU64" wrappingShrU64 :: U64 -> U32 -> U64
+  foreign import ccall "safelang.prim.rotateLeftU64" rotateLeftU64 :: U64 -> U32 -> U64
+  foreign import ccall "safelang.prim.rotateRightU64" rotateRightU64 :: U64 -> U32 -> U64
+  foreign import ccall "safelang.prim.bitAndU64" bitAndU64 :: U64 -> U64 -> U64
+  foreign import ccall "safelang.prim.bitOrU64" bitOrU64 :: U64 -> U64 -> U64
+  foreign import ccall "safelang.prim.bitXorU64" bitXorU64 :: U64 -> U64 -> U64
+  foreign import ccall "safelang.prim.bitNotU64" bitNotU64 :: U64 -> U64
+  foreign import ccall "safelang.prim.countOnesU64" countOnesU64 :: U64 -> U32
+  foreign import ccall "safelang.prim.leadingZerosU64" leadingZerosU64 :: U64 -> U32
+  foreign import ccall "safelang.prim.trailingZerosU64" trailingZerosU64 :: U64 -> U32
+  foreign import ccall "safelang.prim.reverseBitsU64" reverseBitsU64 :: U64 -> U64
+  foreign import ccall "safelang.prim.swapBytesU64" swapBytesU64 :: U64 -> U64
+  foreign import ccall "safelang.prim.eqU64" eqU64 :: U64 -> U64 -> Bool
+  foreign import ccall "safelang.prim.neU64" neU64 :: U64 -> U64 -> Bool
+  foreign import ccall "safelang.prim.ltU64" ltU64 :: U64 -> U64 -> Bool
+  foreign import ccall "safelang.prim.leU64" leU64 :: U64 -> U64 -> Bool
+  foreign import ccall "safelang.prim.gtU64" gtU64 :: U64 -> U64 -> Bool
+  foreign import ccall "safelang.prim.geU64" geU64 :: U64 -> U64 -> Bool
+
+  -- Usize (64 bits, target word).
+  foreign import ccall "safelang.prim.minBoundUsize" minBoundUsize :: Usize
+  foreign import ccall "safelang.prim.maxBoundUsize" maxBoundUsize :: Usize
+  foreign import ccall "safelang.prim.checkedAddUsize" checkedAddUsize :: Usize -> Usize -> Option Usize
+  foreign import ccall "safelang.prim.checkedSubUsize" checkedSubUsize :: Usize -> Usize -> Option Usize
+  foreign import ccall "safelang.prim.checkedMulUsize" checkedMulUsize :: Usize -> Usize -> Option Usize
+  foreign import ccall "safelang.prim.wrappingAddUsize" wrappingAddUsize :: Usize -> Usize -> Usize
+  foreign import ccall "safelang.prim.wrappingSubUsize" wrappingSubUsize :: Usize -> Usize -> Usize
+  foreign import ccall "safelang.prim.wrappingMulUsize" wrappingMulUsize :: Usize -> Usize -> Usize
+  foreign import ccall "safelang.prim.saturatingAddUsize" saturatingAddUsize :: Usize -> Usize -> Usize
+  foreign import ccall "safelang.prim.saturatingSubUsize" saturatingSubUsize :: Usize -> Usize -> Usize
+  foreign import ccall "safelang.prim.saturatingMulUsize" saturatingMulUsize :: Usize -> Usize -> Usize
+  foreign import ccall "safelang.prim.checkedNegUsize" checkedNegUsize :: Usize -> Option Usize
+  foreign import ccall "safelang.prim.wrappingNegUsize" wrappingNegUsize :: Usize -> Usize
+  foreign import ccall "safelang.prim.saturatingNegUsize" saturatingNegUsize :: Usize -> Usize
+  foreign import ccall "safelang.prim.checkedDivUsize" checkedDivUsize :: Usize -> Usize -> Option Usize
+  foreign import ccall "safelang.prim.checkedRemUsize" checkedRemUsize :: Usize -> Usize -> Option Usize
+  foreign import ccall "safelang.prim.checkedShlUsize" checkedShlUsize :: Usize -> U32 -> Option Usize
+  foreign import ccall "safelang.prim.wrappingShlUsize" wrappingShlUsize :: Usize -> U32 -> Usize
+  foreign import ccall "safelang.prim.checkedShrUsize" checkedShrUsize :: Usize -> U32 -> Option Usize
+  foreign import ccall "safelang.prim.wrappingShrUsize" wrappingShrUsize :: Usize -> U32 -> Usize
+  foreign import ccall "safelang.prim.rotateLeftUsize" rotateLeftUsize :: Usize -> U32 -> Usize
+  foreign import ccall "safelang.prim.rotateRightUsize" rotateRightUsize :: Usize -> U32 -> Usize
+  foreign import ccall "safelang.prim.bitAndUsize" bitAndUsize :: Usize -> Usize -> Usize
+  foreign import ccall "safelang.prim.bitOrUsize" bitOrUsize :: Usize -> Usize -> Usize
+  foreign import ccall "safelang.prim.bitXorUsize" bitXorUsize :: Usize -> Usize -> Usize
+  foreign import ccall "safelang.prim.bitNotUsize" bitNotUsize :: Usize -> Usize
+  foreign import ccall "safelang.prim.countOnesUsize" countOnesUsize :: Usize -> U32
+  foreign import ccall "safelang.prim.leadingZerosUsize" leadingZerosUsize :: Usize -> U32
+  foreign import ccall "safelang.prim.trailingZerosUsize" trailingZerosUsize :: Usize -> U32
+  foreign import ccall "safelang.prim.reverseBitsUsize" reverseBitsUsize :: Usize -> Usize
+  foreign import ccall "safelang.prim.swapBytesUsize" swapBytesUsize :: Usize -> Usize
+  foreign import ccall "safelang.prim.eqUsize" eqUsize :: Usize -> Usize -> Bool
+  foreign import ccall "safelang.prim.neUsize" neUsize :: Usize -> Usize -> Bool
+  foreign import ccall "safelang.prim.ltUsize" ltUsize :: Usize -> Usize -> Bool
+  foreign import ccall "safelang.prim.leUsize" leUsize :: Usize -> Usize -> Bool
+  foreign import ccall "safelang.prim.gtUsize" gtUsize :: Usize -> Usize -> Bool
+  foreign import ccall "safelang.prim.geUsize" geUsize :: Usize -> Usize -> Bool
+
+  -- Isize (64 bits, target word).
+  foreign import ccall "safelang.prim.minBoundIsize" minBoundIsize :: Isize
+  foreign import ccall "safelang.prim.maxBoundIsize" maxBoundIsize :: Isize
+  foreign import ccall "safelang.prim.checkedAddIsize" checkedAddIsize :: Isize -> Isize -> Option Isize
+  foreign import ccall "safelang.prim.checkedSubIsize" checkedSubIsize :: Isize -> Isize -> Option Isize
+  foreign import ccall "safelang.prim.checkedMulIsize" checkedMulIsize :: Isize -> Isize -> Option Isize
+  foreign import ccall "safelang.prim.wrappingAddIsize" wrappingAddIsize :: Isize -> Isize -> Isize
+  foreign import ccall "safelang.prim.wrappingSubIsize" wrappingSubIsize :: Isize -> Isize -> Isize
+  foreign import ccall "safelang.prim.wrappingMulIsize" wrappingMulIsize :: Isize -> Isize -> Isize
+  foreign import ccall "safelang.prim.saturatingAddIsize" saturatingAddIsize :: Isize -> Isize -> Isize
+  foreign import ccall "safelang.prim.saturatingSubIsize" saturatingSubIsize :: Isize -> Isize -> Isize
+  foreign import ccall "safelang.prim.saturatingMulIsize" saturatingMulIsize :: Isize -> Isize -> Isize
+  foreign import ccall "safelang.prim.checkedNegIsize" checkedNegIsize :: Isize -> Option Isize
+  foreign import ccall "safelang.prim.wrappingNegIsize" wrappingNegIsize :: Isize -> Isize
+  foreign import ccall "safelang.prim.saturatingNegIsize" saturatingNegIsize :: Isize -> Isize
+  foreign import ccall "safelang.prim.checkedDivIsize" checkedDivIsize :: Isize -> Isize -> Option Isize
+  foreign import ccall "safelang.prim.checkedRemIsize" checkedRemIsize :: Isize -> Isize -> Option Isize
+  foreign import ccall "safelang.prim.checkedShlIsize" checkedShlIsize :: Isize -> U32 -> Option Isize
+  foreign import ccall "safelang.prim.wrappingShlIsize" wrappingShlIsize :: Isize -> U32 -> Isize
+  foreign import ccall "safelang.prim.checkedShrIsize" checkedShrIsize :: Isize -> U32 -> Option Isize
+  foreign import ccall "safelang.prim.wrappingShrIsize" wrappingShrIsize :: Isize -> U32 -> Isize
+  foreign import ccall "safelang.prim.rotateLeftIsize" rotateLeftIsize :: Isize -> U32 -> Isize
+  foreign import ccall "safelang.prim.rotateRightIsize" rotateRightIsize :: Isize -> U32 -> Isize
+  foreign import ccall "safelang.prim.bitAndIsize" bitAndIsize :: Isize -> Isize -> Isize
+  foreign import ccall "safelang.prim.bitOrIsize" bitOrIsize :: Isize -> Isize -> Isize
+  foreign import ccall "safelang.prim.bitXorIsize" bitXorIsize :: Isize -> Isize -> Isize
+  foreign import ccall "safelang.prim.bitNotIsize" bitNotIsize :: Isize -> Isize
+  foreign import ccall "safelang.prim.countOnesIsize" countOnesIsize :: Isize -> U32
+  foreign import ccall "safelang.prim.leadingZerosIsize" leadingZerosIsize :: Isize -> U32
+  foreign import ccall "safelang.prim.trailingZerosIsize" trailingZerosIsize :: Isize -> U32
+  foreign import ccall "safelang.prim.reverseBitsIsize" reverseBitsIsize :: Isize -> Isize
+  foreign import ccall "safelang.prim.swapBytesIsize" swapBytesIsize :: Isize -> Isize
+  foreign import ccall "safelang.prim.eqIsize" eqIsize :: Isize -> Isize -> Bool
+  foreign import ccall "safelang.prim.neIsize" neIsize :: Isize -> Isize -> Bool
+  foreign import ccall "safelang.prim.ltIsize" ltIsize :: Isize -> Isize -> Bool
+  foreign import ccall "safelang.prim.leIsize" leIsize :: Isize -> Isize -> Bool
+  foreign import ccall "safelang.prim.gtIsize" gtIsize :: Isize -> Isize -> Bool
+  foreign import ccall "safelang.prim.geIsize" geIsize :: Isize -> Isize -> Bool
+
+  -- Primitive types specification, section 5: IEEE 754 binary32 and
+  -- binary64 arithmetic with round-to-nearest ties-to-even. Floats have
+  -- no Eq and no Ord instance (`==` and `<` on F64 are rejected); the
+  -- comparisons below are the quiet, non-signaling IEEE ones.
+
+  -- F32.
+  foreign import ccall "safelang.prim.addF32" addF32 :: F32 -> F32 -> F32
+  foreign import ccall "safelang.prim.subF32" subF32 :: F32 -> F32 -> F32
+  foreign import ccall "safelang.prim.mulF32" mulF32 :: F32 -> F32 -> F32
+  foreign import ccall "safelang.prim.divF32" divF32 :: F32 -> F32 -> F32
+  foreign import ccall "safelang.prim.negF32" negF32 :: F32 -> F32
+  foreign import ccall "safelang.prim.absF32" absF32 :: F32 -> F32
+  foreign import ccall "safelang.prim.sqrtF32" sqrtF32 :: F32 -> F32
+  foreign import ccall "safelang.prim.minimumF32" minimumF32 :: F32 -> F32 -> F32
+  foreign import ccall "safelang.prim.maximumF32" maximumF32 :: F32 -> F32 -> F32
+  foreign import ccall "safelang.prim.feqF32" feqF32 :: F32 -> F32 -> Bool
+  foreign import ccall "safelang.prim.fneF32" fneF32 :: F32 -> F32 -> Bool
+  foreign import ccall "safelang.prim.fltF32" fltF32 :: F32 -> F32 -> Bool
+  foreign import ccall "safelang.prim.fleF32" fleF32 :: F32 -> F32 -> Bool
+  foreign import ccall "safelang.prim.fgtF32" fgtF32 :: F32 -> F32 -> Bool
+  foreign import ccall "safelang.prim.fgeF32" fgeF32 :: F32 -> F32 -> Bool
+  foreign import ccall "safelang.prim.isNaNF32" isNaNF32 :: F32 -> Bool
+  foreign import ccall "safelang.prim.isInfiniteF32" isInfiniteF32 :: F32 -> Bool
+  foreign import ccall "safelang.prim.isFiniteF32" isFiniteF32 :: F32 -> Bool
+  foreign import ccall "safelang.prim.isNormalF32" isNormalF32 :: F32 -> Bool
+  foreign import ccall "safelang.prim.signBitF32" signBitF32 :: F32 -> Bool
+  foreign import ccall "safelang.prim.totalOrderF32" totalOrderF32 :: F32 -> F32 -> Ordering
+
+  -- F64.
+  foreign import ccall "safelang.prim.addF64" addF64 :: F64 -> F64 -> F64
+  foreign import ccall "safelang.prim.subF64" subF64 :: F64 -> F64 -> F64
+  foreign import ccall "safelang.prim.mulF64" mulF64 :: F64 -> F64 -> F64
+  foreign import ccall "safelang.prim.divF64" divF64 :: F64 -> F64 -> F64
+  foreign import ccall "safelang.prim.negF64" negF64 :: F64 -> F64
+  foreign import ccall "safelang.prim.absF64" absF64 :: F64 -> F64
+  foreign import ccall "safelang.prim.sqrtF64" sqrtF64 :: F64 -> F64
+  foreign import ccall "safelang.prim.minimumF64" minimumF64 :: F64 -> F64 -> F64
+  foreign import ccall "safelang.prim.maximumF64" maximumF64 :: F64 -> F64 -> F64
+  foreign import ccall "safelang.prim.feqF64" feqF64 :: F64 -> F64 -> Bool
+  foreign import ccall "safelang.prim.fneF64" fneF64 :: F64 -> F64 -> Bool
+  foreign import ccall "safelang.prim.fltF64" fltF64 :: F64 -> F64 -> Bool
+  foreign import ccall "safelang.prim.fleF64" fleF64 :: F64 -> F64 -> Bool
+  foreign import ccall "safelang.prim.fgtF64" fgtF64 :: F64 -> F64 -> Bool
+  foreign import ccall "safelang.prim.fgeF64" fgeF64 :: F64 -> F64 -> Bool
+  foreign import ccall "safelang.prim.isNaNF64" isNaNF64 :: F64 -> Bool
+  foreign import ccall "safelang.prim.isInfiniteF64" isInfiniteF64 :: F64 -> Bool
+  foreign import ccall "safelang.prim.isFiniteF64" isFiniteF64 :: F64 -> Bool
+  foreign import ccall "safelang.prim.isNormalF64" isNormalF64 :: F64 -> Bool
+  foreign import ccall "safelang.prim.signBitF64" signBitF64 :: F64 -> Bool
+  foreign import ccall "safelang.prim.totalOrderF64" totalOrderF64 :: F64 -> F64 -> Ordering
+
+  -- Primitive types specification, section 6: Char values are Unicode
+  -- scalar values, in code point order. `u32ToChar` rejects surrogates
+  -- and values above 0x10FFFF.
+  foreign import ccall "safelang.prim.charToU32" charToU32 :: Char -> U32
+  foreign import ccall "safelang.prim.u32ToChar" u32ToChar :: U32 -> Option Char
+  foreign import ccall "safelang.prim.eqChar" eqChar :: Char -> Char -> Bool
+  foreign import ccall "safelang.prim.neChar" neChar :: Char -> Char -> Bool
+  foreign import ccall "safelang.prim.ltChar" ltChar :: Char -> Char -> Bool
+  foreign import ccall "safelang.prim.leChar" leChar :: Char -> Char -> Bool
+  foreign import ccall "safelang.prim.gtChar" gtChar :: Char -> Char -> Bool
+  foreign import ccall "safelang.prim.geChar" geChar :: Char -> Char -> Bool
+
+  -- Primitive types specification, section 7: explicit conversions for
+  -- every ordered pair of numeric machine types. The total family
+  -- (`u8ToI32`) exists when the conversion preserves every value, and
+  -- for integer-to-float and float-to-float, which round per IEEE 754.
+  -- `checked` returns Option (None on NaN and out-of-range floats),
+  -- `saturating` clamps (NaN maps to zero), `wrapping` truncates in
+  -- two's complement and is defined between integer types only.
+
+  foreign import ccall "safelang.prim.i8ToI8" i8ToI8 :: I8 -> I8
+  foreign import ccall "safelang.prim.i8ToI16" i8ToI16 :: I8 -> I16
+  foreign import ccall "safelang.prim.i8ToI32" i8ToI32 :: I8 -> I32
+  foreign import ccall "safelang.prim.i8ToI64" i8ToI64 :: I8 -> I64
+  foreign import ccall "safelang.prim.i8ToIsize" i8ToIsize :: I8 -> Isize
+  foreign import ccall "safelang.prim.i16ToI16" i16ToI16 :: I16 -> I16
+  foreign import ccall "safelang.prim.i16ToI32" i16ToI32 :: I16 -> I32
+  foreign import ccall "safelang.prim.i16ToI64" i16ToI64 :: I16 -> I64
+  foreign import ccall "safelang.prim.i16ToIsize" i16ToIsize :: I16 -> Isize
+  foreign import ccall "safelang.prim.i32ToI32" i32ToI32 :: I32 -> I32
+  foreign import ccall "safelang.prim.i32ToI64" i32ToI64 :: I32 -> I64
+  foreign import ccall "safelang.prim.i32ToIsize" i32ToIsize :: I32 -> Isize
+  foreign import ccall "safelang.prim.i64ToI64" i64ToI64 :: I64 -> I64
+  foreign import ccall "safelang.prim.i64ToIsize" i64ToIsize :: I64 -> Isize
+  foreign import ccall "safelang.prim.u8ToI16" u8ToI16 :: U8 -> I16
+  foreign import ccall "safelang.prim.u8ToI32" u8ToI32 :: U8 -> I32
+  foreign import ccall "safelang.prim.u8ToI64" u8ToI64 :: U8 -> I64
+  foreign import ccall "safelang.prim.u8ToU8" u8ToU8 :: U8 -> U8
+  foreign import ccall "safelang.prim.u8ToU16" u8ToU16 :: U8 -> U16
+  foreign import ccall "safelang.prim.u8ToU32" u8ToU32 :: U8 -> U32
+  foreign import ccall "safelang.prim.u8ToU64" u8ToU64 :: U8 -> U64
+  foreign import ccall "safelang.prim.u8ToUsize" u8ToUsize :: U8 -> Usize
+  foreign import ccall "safelang.prim.u8ToIsize" u8ToIsize :: U8 -> Isize
+  foreign import ccall "safelang.prim.u16ToI32" u16ToI32 :: U16 -> I32
+  foreign import ccall "safelang.prim.u16ToI64" u16ToI64 :: U16 -> I64
+  foreign import ccall "safelang.prim.u16ToU16" u16ToU16 :: U16 -> U16
+  foreign import ccall "safelang.prim.u16ToU32" u16ToU32 :: U16 -> U32
+  foreign import ccall "safelang.prim.u16ToU64" u16ToU64 :: U16 -> U64
+  foreign import ccall "safelang.prim.u16ToUsize" u16ToUsize :: U16 -> Usize
+  foreign import ccall "safelang.prim.u16ToIsize" u16ToIsize :: U16 -> Isize
+  foreign import ccall "safelang.prim.u32ToI64" u32ToI64 :: U32 -> I64
+  foreign import ccall "safelang.prim.u32ToU32" u32ToU32 :: U32 -> U32
+  foreign import ccall "safelang.prim.u32ToU64" u32ToU64 :: U32 -> U64
+  foreign import ccall "safelang.prim.u32ToUsize" u32ToUsize :: U32 -> Usize
+  foreign import ccall "safelang.prim.u32ToIsize" u32ToIsize :: U32 -> Isize
+  foreign import ccall "safelang.prim.u64ToU64" u64ToU64 :: U64 -> U64
+  foreign import ccall "safelang.prim.u64ToUsize" u64ToUsize :: U64 -> Usize
+  foreign import ccall "safelang.prim.usizeToU64" usizeToU64 :: Usize -> U64
+  foreign import ccall "safelang.prim.usizeToUsize" usizeToUsize :: Usize -> Usize
+  foreign import ccall "safelang.prim.isizeToI64" isizeToI64 :: Isize -> I64
+  foreign import ccall "safelang.prim.isizeToIsize" isizeToIsize :: Isize -> Isize
+  foreign import ccall "safelang.prim.i8ToF32" i8ToF32 :: I8 -> F32
+  foreign import ccall "safelang.prim.i8ToF64" i8ToF64 :: I8 -> F64
+  foreign import ccall "safelang.prim.i16ToF32" i16ToF32 :: I16 -> F32
+  foreign import ccall "safelang.prim.i16ToF64" i16ToF64 :: I16 -> F64
+  foreign import ccall "safelang.prim.i32ToF32" i32ToF32 :: I32 -> F32
+  foreign import ccall "safelang.prim.i32ToF64" i32ToF64 :: I32 -> F64
+  foreign import ccall "safelang.prim.i64ToF32" i64ToF32 :: I64 -> F32
+  foreign import ccall "safelang.prim.i64ToF64" i64ToF64 :: I64 -> F64
+  foreign import ccall "safelang.prim.u8ToF32" u8ToF32 :: U8 -> F32
+  foreign import ccall "safelang.prim.u8ToF64" u8ToF64 :: U8 -> F64
+  foreign import ccall "safelang.prim.u16ToF32" u16ToF32 :: U16 -> F32
+  foreign import ccall "safelang.prim.u16ToF64" u16ToF64 :: U16 -> F64
+  foreign import ccall "safelang.prim.u32ToF32" u32ToF32 :: U32 -> F32
+  foreign import ccall "safelang.prim.u32ToF64" u32ToF64 :: U32 -> F64
+  foreign import ccall "safelang.prim.u64ToF32" u64ToF32 :: U64 -> F32
+  foreign import ccall "safelang.prim.u64ToF64" u64ToF64 :: U64 -> F64
+  foreign import ccall "safelang.prim.usizeToF32" usizeToF32 :: Usize -> F32
+  foreign import ccall "safelang.prim.usizeToF64" usizeToF64 :: Usize -> F64
+  foreign import ccall "safelang.prim.isizeToF32" isizeToF32 :: Isize -> F32
+  foreign import ccall "safelang.prim.isizeToF64" isizeToF64 :: Isize -> F64
+  foreign import ccall "safelang.prim.f32ToF32" f32ToF32 :: F32 -> F32
+  foreign import ccall "safelang.prim.f32ToF64" f32ToF64 :: F32 -> F64
+  foreign import ccall "safelang.prim.f64ToF32" f64ToF32 :: F64 -> F32
+  foreign import ccall "safelang.prim.f64ToF64" f64ToF64 :: F64 -> F64
+
+  -- Checked, saturating and wrapping integer conversions; float to
+  -- integer is checked or saturating (it is never total).
+  foreign import ccall "safelang.prim.checkedI8ToI8" checkedI8ToI8 :: I8 -> Option I8
+  foreign import ccall "safelang.prim.saturatingI8ToI8" saturatingI8ToI8 :: I8 -> I8
+  foreign import ccall "safelang.prim.wrappingI8ToI8" wrappingI8ToI8 :: I8 -> I8
+  foreign import ccall "safelang.prim.checkedI8ToI16" checkedI8ToI16 :: I8 -> Option I16
+  foreign import ccall "safelang.prim.saturatingI8ToI16" saturatingI8ToI16 :: I8 -> I16
+  foreign import ccall "safelang.prim.wrappingI8ToI16" wrappingI8ToI16 :: I8 -> I16
+  foreign import ccall "safelang.prim.checkedI8ToI32" checkedI8ToI32 :: I8 -> Option I32
+  foreign import ccall "safelang.prim.saturatingI8ToI32" saturatingI8ToI32 :: I8 -> I32
+  foreign import ccall "safelang.prim.wrappingI8ToI32" wrappingI8ToI32 :: I8 -> I32
+  foreign import ccall "safelang.prim.checkedI8ToI64" checkedI8ToI64 :: I8 -> Option I64
+  foreign import ccall "safelang.prim.saturatingI8ToI64" saturatingI8ToI64 :: I8 -> I64
+  foreign import ccall "safelang.prim.wrappingI8ToI64" wrappingI8ToI64 :: I8 -> I64
+  foreign import ccall "safelang.prim.checkedI8ToU8" checkedI8ToU8 :: I8 -> Option U8
+  foreign import ccall "safelang.prim.saturatingI8ToU8" saturatingI8ToU8 :: I8 -> U8
+  foreign import ccall "safelang.prim.wrappingI8ToU8" wrappingI8ToU8 :: I8 -> U8
+  foreign import ccall "safelang.prim.checkedI8ToU16" checkedI8ToU16 :: I8 -> Option U16
+  foreign import ccall "safelang.prim.saturatingI8ToU16" saturatingI8ToU16 :: I8 -> U16
+  foreign import ccall "safelang.prim.wrappingI8ToU16" wrappingI8ToU16 :: I8 -> U16
+  foreign import ccall "safelang.prim.checkedI8ToU32" checkedI8ToU32 :: I8 -> Option U32
+  foreign import ccall "safelang.prim.saturatingI8ToU32" saturatingI8ToU32 :: I8 -> U32
+  foreign import ccall "safelang.prim.wrappingI8ToU32" wrappingI8ToU32 :: I8 -> U32
+  foreign import ccall "safelang.prim.checkedI8ToU64" checkedI8ToU64 :: I8 -> Option U64
+  foreign import ccall "safelang.prim.saturatingI8ToU64" saturatingI8ToU64 :: I8 -> U64
+  foreign import ccall "safelang.prim.wrappingI8ToU64" wrappingI8ToU64 :: I8 -> U64
+  foreign import ccall "safelang.prim.checkedI8ToUsize" checkedI8ToUsize :: I8 -> Option Usize
+  foreign import ccall "safelang.prim.saturatingI8ToUsize" saturatingI8ToUsize :: I8 -> Usize
+  foreign import ccall "safelang.prim.wrappingI8ToUsize" wrappingI8ToUsize :: I8 -> Usize
+  foreign import ccall "safelang.prim.checkedI8ToIsize" checkedI8ToIsize :: I8 -> Option Isize
+  foreign import ccall "safelang.prim.saturatingI8ToIsize" saturatingI8ToIsize :: I8 -> Isize
+  foreign import ccall "safelang.prim.wrappingI8ToIsize" wrappingI8ToIsize :: I8 -> Isize
+  foreign import ccall "safelang.prim.checkedI16ToI8" checkedI16ToI8 :: I16 -> Option I8
+  foreign import ccall "safelang.prim.saturatingI16ToI8" saturatingI16ToI8 :: I16 -> I8
+  foreign import ccall "safelang.prim.wrappingI16ToI8" wrappingI16ToI8 :: I16 -> I8
+  foreign import ccall "safelang.prim.checkedI16ToI16" checkedI16ToI16 :: I16 -> Option I16
+  foreign import ccall "safelang.prim.saturatingI16ToI16" saturatingI16ToI16 :: I16 -> I16
+  foreign import ccall "safelang.prim.wrappingI16ToI16" wrappingI16ToI16 :: I16 -> I16
+  foreign import ccall "safelang.prim.checkedI16ToI32" checkedI16ToI32 :: I16 -> Option I32
+  foreign import ccall "safelang.prim.saturatingI16ToI32" saturatingI16ToI32 :: I16 -> I32
+  foreign import ccall "safelang.prim.wrappingI16ToI32" wrappingI16ToI32 :: I16 -> I32
+  foreign import ccall "safelang.prim.checkedI16ToI64" checkedI16ToI64 :: I16 -> Option I64
+  foreign import ccall "safelang.prim.saturatingI16ToI64" saturatingI16ToI64 :: I16 -> I64
+  foreign import ccall "safelang.prim.wrappingI16ToI64" wrappingI16ToI64 :: I16 -> I64
+  foreign import ccall "safelang.prim.checkedI16ToU8" checkedI16ToU8 :: I16 -> Option U8
+  foreign import ccall "safelang.prim.saturatingI16ToU8" saturatingI16ToU8 :: I16 -> U8
+  foreign import ccall "safelang.prim.wrappingI16ToU8" wrappingI16ToU8 :: I16 -> U8
+  foreign import ccall "safelang.prim.checkedI16ToU16" checkedI16ToU16 :: I16 -> Option U16
+  foreign import ccall "safelang.prim.saturatingI16ToU16" saturatingI16ToU16 :: I16 -> U16
+  foreign import ccall "safelang.prim.wrappingI16ToU16" wrappingI16ToU16 :: I16 -> U16
+  foreign import ccall "safelang.prim.checkedI16ToU32" checkedI16ToU32 :: I16 -> Option U32
+  foreign import ccall "safelang.prim.saturatingI16ToU32" saturatingI16ToU32 :: I16 -> U32
+  foreign import ccall "safelang.prim.wrappingI16ToU32" wrappingI16ToU32 :: I16 -> U32
+  foreign import ccall "safelang.prim.checkedI16ToU64" checkedI16ToU64 :: I16 -> Option U64
+  foreign import ccall "safelang.prim.saturatingI16ToU64" saturatingI16ToU64 :: I16 -> U64
+  foreign import ccall "safelang.prim.wrappingI16ToU64" wrappingI16ToU64 :: I16 -> U64
+  foreign import ccall "safelang.prim.checkedI16ToUsize" checkedI16ToUsize :: I16 -> Option Usize
+  foreign import ccall "safelang.prim.saturatingI16ToUsize" saturatingI16ToUsize :: I16 -> Usize
+  foreign import ccall "safelang.prim.wrappingI16ToUsize" wrappingI16ToUsize :: I16 -> Usize
+  foreign import ccall "safelang.prim.checkedI16ToIsize" checkedI16ToIsize :: I16 -> Option Isize
+  foreign import ccall "safelang.prim.saturatingI16ToIsize" saturatingI16ToIsize :: I16 -> Isize
+  foreign import ccall "safelang.prim.wrappingI16ToIsize" wrappingI16ToIsize :: I16 -> Isize
+  foreign import ccall "safelang.prim.checkedI32ToI8" checkedI32ToI8 :: I32 -> Option I8
+  foreign import ccall "safelang.prim.saturatingI32ToI8" saturatingI32ToI8 :: I32 -> I8
+  foreign import ccall "safelang.prim.wrappingI32ToI8" wrappingI32ToI8 :: I32 -> I8
+  foreign import ccall "safelang.prim.checkedI32ToI16" checkedI32ToI16 :: I32 -> Option I16
+  foreign import ccall "safelang.prim.saturatingI32ToI16" saturatingI32ToI16 :: I32 -> I16
+  foreign import ccall "safelang.prim.wrappingI32ToI16" wrappingI32ToI16 :: I32 -> I16
+  foreign import ccall "safelang.prim.checkedI32ToI32" checkedI32ToI32 :: I32 -> Option I32
+  foreign import ccall "safelang.prim.saturatingI32ToI32" saturatingI32ToI32 :: I32 -> I32
+  foreign import ccall "safelang.prim.wrappingI32ToI32" wrappingI32ToI32 :: I32 -> I32
+  foreign import ccall "safelang.prim.checkedI32ToI64" checkedI32ToI64 :: I32 -> Option I64
+  foreign import ccall "safelang.prim.saturatingI32ToI64" saturatingI32ToI64 :: I32 -> I64
+  foreign import ccall "safelang.prim.wrappingI32ToI64" wrappingI32ToI64 :: I32 -> I64
+  foreign import ccall "safelang.prim.checkedI32ToU8" checkedI32ToU8 :: I32 -> Option U8
+  foreign import ccall "safelang.prim.saturatingI32ToU8" saturatingI32ToU8 :: I32 -> U8
+  foreign import ccall "safelang.prim.wrappingI32ToU8" wrappingI32ToU8 :: I32 -> U8
+  foreign import ccall "safelang.prim.checkedI32ToU16" checkedI32ToU16 :: I32 -> Option U16
+  foreign import ccall "safelang.prim.saturatingI32ToU16" saturatingI32ToU16 :: I32 -> U16
+  foreign import ccall "safelang.prim.wrappingI32ToU16" wrappingI32ToU16 :: I32 -> U16
+  foreign import ccall "safelang.prim.checkedI32ToU32" checkedI32ToU32 :: I32 -> Option U32
+  foreign import ccall "safelang.prim.saturatingI32ToU32" saturatingI32ToU32 :: I32 -> U32
+  foreign import ccall "safelang.prim.wrappingI32ToU32" wrappingI32ToU32 :: I32 -> U32
+  foreign import ccall "safelang.prim.checkedI32ToU64" checkedI32ToU64 :: I32 -> Option U64
+  foreign import ccall "safelang.prim.saturatingI32ToU64" saturatingI32ToU64 :: I32 -> U64
+  foreign import ccall "safelang.prim.wrappingI32ToU64" wrappingI32ToU64 :: I32 -> U64
+  foreign import ccall "safelang.prim.checkedI32ToUsize" checkedI32ToUsize :: I32 -> Option Usize
+  foreign import ccall "safelang.prim.saturatingI32ToUsize" saturatingI32ToUsize :: I32 -> Usize
+  foreign import ccall "safelang.prim.wrappingI32ToUsize" wrappingI32ToUsize :: I32 -> Usize
+  foreign import ccall "safelang.prim.checkedI32ToIsize" checkedI32ToIsize :: I32 -> Option Isize
+  foreign import ccall "safelang.prim.saturatingI32ToIsize" saturatingI32ToIsize :: I32 -> Isize
+  foreign import ccall "safelang.prim.wrappingI32ToIsize" wrappingI32ToIsize :: I32 -> Isize
+  foreign import ccall "safelang.prim.checkedI64ToI8" checkedI64ToI8 :: I64 -> Option I8
+  foreign import ccall "safelang.prim.saturatingI64ToI8" saturatingI64ToI8 :: I64 -> I8
+  foreign import ccall "safelang.prim.wrappingI64ToI8" wrappingI64ToI8 :: I64 -> I8
+  foreign import ccall "safelang.prim.checkedI64ToI16" checkedI64ToI16 :: I64 -> Option I16
+  foreign import ccall "safelang.prim.saturatingI64ToI16" saturatingI64ToI16 :: I64 -> I16
+  foreign import ccall "safelang.prim.wrappingI64ToI16" wrappingI64ToI16 :: I64 -> I16
+  foreign import ccall "safelang.prim.checkedI64ToI32" checkedI64ToI32 :: I64 -> Option I32
+  foreign import ccall "safelang.prim.saturatingI64ToI32" saturatingI64ToI32 :: I64 -> I32
+  foreign import ccall "safelang.prim.wrappingI64ToI32" wrappingI64ToI32 :: I64 -> I32
+  foreign import ccall "safelang.prim.checkedI64ToI64" checkedI64ToI64 :: I64 -> Option I64
+  foreign import ccall "safelang.prim.saturatingI64ToI64" saturatingI64ToI64 :: I64 -> I64
+  foreign import ccall "safelang.prim.wrappingI64ToI64" wrappingI64ToI64 :: I64 -> I64
+  foreign import ccall "safelang.prim.checkedI64ToU8" checkedI64ToU8 :: I64 -> Option U8
+  foreign import ccall "safelang.prim.saturatingI64ToU8" saturatingI64ToU8 :: I64 -> U8
+  foreign import ccall "safelang.prim.wrappingI64ToU8" wrappingI64ToU8 :: I64 -> U8
+  foreign import ccall "safelang.prim.checkedI64ToU16" checkedI64ToU16 :: I64 -> Option U16
+  foreign import ccall "safelang.prim.saturatingI64ToU16" saturatingI64ToU16 :: I64 -> U16
+  foreign import ccall "safelang.prim.wrappingI64ToU16" wrappingI64ToU16 :: I64 -> U16
+  foreign import ccall "safelang.prim.checkedI64ToU32" checkedI64ToU32 :: I64 -> Option U32
+  foreign import ccall "safelang.prim.saturatingI64ToU32" saturatingI64ToU32 :: I64 -> U32
+  foreign import ccall "safelang.prim.wrappingI64ToU32" wrappingI64ToU32 :: I64 -> U32
+  foreign import ccall "safelang.prim.checkedI64ToU64" checkedI64ToU64 :: I64 -> Option U64
+  foreign import ccall "safelang.prim.saturatingI64ToU64" saturatingI64ToU64 :: I64 -> U64
+  foreign import ccall "safelang.prim.wrappingI64ToU64" wrappingI64ToU64 :: I64 -> U64
+  foreign import ccall "safelang.prim.checkedI64ToUsize" checkedI64ToUsize :: I64 -> Option Usize
+  foreign import ccall "safelang.prim.saturatingI64ToUsize" saturatingI64ToUsize :: I64 -> Usize
+  foreign import ccall "safelang.prim.wrappingI64ToUsize" wrappingI64ToUsize :: I64 -> Usize
+  foreign import ccall "safelang.prim.checkedI64ToIsize" checkedI64ToIsize :: I64 -> Option Isize
+  foreign import ccall "safelang.prim.saturatingI64ToIsize" saturatingI64ToIsize :: I64 -> Isize
+  foreign import ccall "safelang.prim.wrappingI64ToIsize" wrappingI64ToIsize :: I64 -> Isize
+  foreign import ccall "safelang.prim.checkedU8ToI8" checkedU8ToI8 :: U8 -> Option I8
+  foreign import ccall "safelang.prim.saturatingU8ToI8" saturatingU8ToI8 :: U8 -> I8
+  foreign import ccall "safelang.prim.wrappingU8ToI8" wrappingU8ToI8 :: U8 -> I8
+  foreign import ccall "safelang.prim.checkedU8ToI16" checkedU8ToI16 :: U8 -> Option I16
+  foreign import ccall "safelang.prim.saturatingU8ToI16" saturatingU8ToI16 :: U8 -> I16
+  foreign import ccall "safelang.prim.wrappingU8ToI16" wrappingU8ToI16 :: U8 -> I16
+  foreign import ccall "safelang.prim.checkedU8ToI32" checkedU8ToI32 :: U8 -> Option I32
+  foreign import ccall "safelang.prim.saturatingU8ToI32" saturatingU8ToI32 :: U8 -> I32
+  foreign import ccall "safelang.prim.wrappingU8ToI32" wrappingU8ToI32 :: U8 -> I32
+  foreign import ccall "safelang.prim.checkedU8ToI64" checkedU8ToI64 :: U8 -> Option I64
+  foreign import ccall "safelang.prim.saturatingU8ToI64" saturatingU8ToI64 :: U8 -> I64
+  foreign import ccall "safelang.prim.wrappingU8ToI64" wrappingU8ToI64 :: U8 -> I64
+  foreign import ccall "safelang.prim.checkedU8ToU8" checkedU8ToU8 :: U8 -> Option U8
+  foreign import ccall "safelang.prim.saturatingU8ToU8" saturatingU8ToU8 :: U8 -> U8
+  foreign import ccall "safelang.prim.wrappingU8ToU8" wrappingU8ToU8 :: U8 -> U8
+  foreign import ccall "safelang.prim.checkedU8ToU16" checkedU8ToU16 :: U8 -> Option U16
+  foreign import ccall "safelang.prim.saturatingU8ToU16" saturatingU8ToU16 :: U8 -> U16
+  foreign import ccall "safelang.prim.wrappingU8ToU16" wrappingU8ToU16 :: U8 -> U16
+  foreign import ccall "safelang.prim.checkedU8ToU32" checkedU8ToU32 :: U8 -> Option U32
+  foreign import ccall "safelang.prim.saturatingU8ToU32" saturatingU8ToU32 :: U8 -> U32
+  foreign import ccall "safelang.prim.wrappingU8ToU32" wrappingU8ToU32 :: U8 -> U32
+  foreign import ccall "safelang.prim.checkedU8ToU64" checkedU8ToU64 :: U8 -> Option U64
+  foreign import ccall "safelang.prim.saturatingU8ToU64" saturatingU8ToU64 :: U8 -> U64
+  foreign import ccall "safelang.prim.wrappingU8ToU64" wrappingU8ToU64 :: U8 -> U64
+  foreign import ccall "safelang.prim.checkedU8ToUsize" checkedU8ToUsize :: U8 -> Option Usize
+  foreign import ccall "safelang.prim.saturatingU8ToUsize" saturatingU8ToUsize :: U8 -> Usize
+  foreign import ccall "safelang.prim.wrappingU8ToUsize" wrappingU8ToUsize :: U8 -> Usize
+  foreign import ccall "safelang.prim.checkedU8ToIsize" checkedU8ToIsize :: U8 -> Option Isize
+  foreign import ccall "safelang.prim.saturatingU8ToIsize" saturatingU8ToIsize :: U8 -> Isize
+  foreign import ccall "safelang.prim.wrappingU8ToIsize" wrappingU8ToIsize :: U8 -> Isize
+  foreign import ccall "safelang.prim.checkedU16ToI8" checkedU16ToI8 :: U16 -> Option I8
+  foreign import ccall "safelang.prim.saturatingU16ToI8" saturatingU16ToI8 :: U16 -> I8
+  foreign import ccall "safelang.prim.wrappingU16ToI8" wrappingU16ToI8 :: U16 -> I8
+  foreign import ccall "safelang.prim.checkedU16ToI16" checkedU16ToI16 :: U16 -> Option I16
+  foreign import ccall "safelang.prim.saturatingU16ToI16" saturatingU16ToI16 :: U16 -> I16
+  foreign import ccall "safelang.prim.wrappingU16ToI16" wrappingU16ToI16 :: U16 -> I16
+  foreign import ccall "safelang.prim.checkedU16ToI32" checkedU16ToI32 :: U16 -> Option I32
+  foreign import ccall "safelang.prim.saturatingU16ToI32" saturatingU16ToI32 :: U16 -> I32
+  foreign import ccall "safelang.prim.wrappingU16ToI32" wrappingU16ToI32 :: U16 -> I32
+  foreign import ccall "safelang.prim.checkedU16ToI64" checkedU16ToI64 :: U16 -> Option I64
+  foreign import ccall "safelang.prim.saturatingU16ToI64" saturatingU16ToI64 :: U16 -> I64
+  foreign import ccall "safelang.prim.wrappingU16ToI64" wrappingU16ToI64 :: U16 -> I64
+  foreign import ccall "safelang.prim.checkedU16ToU8" checkedU16ToU8 :: U16 -> Option U8
+  foreign import ccall "safelang.prim.saturatingU16ToU8" saturatingU16ToU8 :: U16 -> U8
+  foreign import ccall "safelang.prim.wrappingU16ToU8" wrappingU16ToU8 :: U16 -> U8
+  foreign import ccall "safelang.prim.checkedU16ToU16" checkedU16ToU16 :: U16 -> Option U16
+  foreign import ccall "safelang.prim.saturatingU16ToU16" saturatingU16ToU16 :: U16 -> U16
+  foreign import ccall "safelang.prim.wrappingU16ToU16" wrappingU16ToU16 :: U16 -> U16
+  foreign import ccall "safelang.prim.checkedU16ToU32" checkedU16ToU32 :: U16 -> Option U32
+  foreign import ccall "safelang.prim.saturatingU16ToU32" saturatingU16ToU32 :: U16 -> U32
+  foreign import ccall "safelang.prim.wrappingU16ToU32" wrappingU16ToU32 :: U16 -> U32
+  foreign import ccall "safelang.prim.checkedU16ToU64" checkedU16ToU64 :: U16 -> Option U64
+  foreign import ccall "safelang.prim.saturatingU16ToU64" saturatingU16ToU64 :: U16 -> U64
+  foreign import ccall "safelang.prim.wrappingU16ToU64" wrappingU16ToU64 :: U16 -> U64
+  foreign import ccall "safelang.prim.checkedU16ToUsize" checkedU16ToUsize :: U16 -> Option Usize
+  foreign import ccall "safelang.prim.saturatingU16ToUsize" saturatingU16ToUsize :: U16 -> Usize
+  foreign import ccall "safelang.prim.wrappingU16ToUsize" wrappingU16ToUsize :: U16 -> Usize
+  foreign import ccall "safelang.prim.checkedU16ToIsize" checkedU16ToIsize :: U16 -> Option Isize
+  foreign import ccall "safelang.prim.saturatingU16ToIsize" saturatingU16ToIsize :: U16 -> Isize
+  foreign import ccall "safelang.prim.wrappingU16ToIsize" wrappingU16ToIsize :: U16 -> Isize
+  foreign import ccall "safelang.prim.checkedU32ToI8" checkedU32ToI8 :: U32 -> Option I8
+  foreign import ccall "safelang.prim.saturatingU32ToI8" saturatingU32ToI8 :: U32 -> I8
+  foreign import ccall "safelang.prim.wrappingU32ToI8" wrappingU32ToI8 :: U32 -> I8
+  foreign import ccall "safelang.prim.checkedU32ToI16" checkedU32ToI16 :: U32 -> Option I16
+  foreign import ccall "safelang.prim.saturatingU32ToI16" saturatingU32ToI16 :: U32 -> I16
+  foreign import ccall "safelang.prim.wrappingU32ToI16" wrappingU32ToI16 :: U32 -> I16
+  foreign import ccall "safelang.prim.checkedU32ToI32" checkedU32ToI32 :: U32 -> Option I32
+  foreign import ccall "safelang.prim.saturatingU32ToI32" saturatingU32ToI32 :: U32 -> I32
+  foreign import ccall "safelang.prim.wrappingU32ToI32" wrappingU32ToI32 :: U32 -> I32
+  foreign import ccall "safelang.prim.checkedU32ToI64" checkedU32ToI64 :: U32 -> Option I64
+  foreign import ccall "safelang.prim.saturatingU32ToI64" saturatingU32ToI64 :: U32 -> I64
+  foreign import ccall "safelang.prim.wrappingU32ToI64" wrappingU32ToI64 :: U32 -> I64
+  foreign import ccall "safelang.prim.checkedU32ToU8" checkedU32ToU8 :: U32 -> Option U8
+  foreign import ccall "safelang.prim.saturatingU32ToU8" saturatingU32ToU8 :: U32 -> U8
+  foreign import ccall "safelang.prim.wrappingU32ToU8" wrappingU32ToU8 :: U32 -> U8
+  foreign import ccall "safelang.prim.checkedU32ToU16" checkedU32ToU16 :: U32 -> Option U16
+  foreign import ccall "safelang.prim.saturatingU32ToU16" saturatingU32ToU16 :: U32 -> U16
+  foreign import ccall "safelang.prim.wrappingU32ToU16" wrappingU32ToU16 :: U32 -> U16
+  foreign import ccall "safelang.prim.checkedU32ToU32" checkedU32ToU32 :: U32 -> Option U32
+  foreign import ccall "safelang.prim.saturatingU32ToU32" saturatingU32ToU32 :: U32 -> U32
+  foreign import ccall "safelang.prim.wrappingU32ToU32" wrappingU32ToU32 :: U32 -> U32
+  foreign import ccall "safelang.prim.checkedU32ToU64" checkedU32ToU64 :: U32 -> Option U64
+  foreign import ccall "safelang.prim.saturatingU32ToU64" saturatingU32ToU64 :: U32 -> U64
+  foreign import ccall "safelang.prim.wrappingU32ToU64" wrappingU32ToU64 :: U32 -> U64
+  foreign import ccall "safelang.prim.checkedU32ToUsize" checkedU32ToUsize :: U32 -> Option Usize
+  foreign import ccall "safelang.prim.saturatingU32ToUsize" saturatingU32ToUsize :: U32 -> Usize
+  foreign import ccall "safelang.prim.wrappingU32ToUsize" wrappingU32ToUsize :: U32 -> Usize
+  foreign import ccall "safelang.prim.checkedU32ToIsize" checkedU32ToIsize :: U32 -> Option Isize
+  foreign import ccall "safelang.prim.saturatingU32ToIsize" saturatingU32ToIsize :: U32 -> Isize
+  foreign import ccall "safelang.prim.wrappingU32ToIsize" wrappingU32ToIsize :: U32 -> Isize
+  foreign import ccall "safelang.prim.checkedU64ToI8" checkedU64ToI8 :: U64 -> Option I8
+  foreign import ccall "safelang.prim.saturatingU64ToI8" saturatingU64ToI8 :: U64 -> I8
+  foreign import ccall "safelang.prim.wrappingU64ToI8" wrappingU64ToI8 :: U64 -> I8
+  foreign import ccall "safelang.prim.checkedU64ToI16" checkedU64ToI16 :: U64 -> Option I16
+  foreign import ccall "safelang.prim.saturatingU64ToI16" saturatingU64ToI16 :: U64 -> I16
+  foreign import ccall "safelang.prim.wrappingU64ToI16" wrappingU64ToI16 :: U64 -> I16
+  foreign import ccall "safelang.prim.checkedU64ToI32" checkedU64ToI32 :: U64 -> Option I32
+  foreign import ccall "safelang.prim.saturatingU64ToI32" saturatingU64ToI32 :: U64 -> I32
+  foreign import ccall "safelang.prim.wrappingU64ToI32" wrappingU64ToI32 :: U64 -> I32
+  foreign import ccall "safelang.prim.checkedU64ToI64" checkedU64ToI64 :: U64 -> Option I64
+  foreign import ccall "safelang.prim.saturatingU64ToI64" saturatingU64ToI64 :: U64 -> I64
+  foreign import ccall "safelang.prim.wrappingU64ToI64" wrappingU64ToI64 :: U64 -> I64
+  foreign import ccall "safelang.prim.checkedU64ToU8" checkedU64ToU8 :: U64 -> Option U8
+  foreign import ccall "safelang.prim.saturatingU64ToU8" saturatingU64ToU8 :: U64 -> U8
+  foreign import ccall "safelang.prim.wrappingU64ToU8" wrappingU64ToU8 :: U64 -> U8
+  foreign import ccall "safelang.prim.checkedU64ToU16" checkedU64ToU16 :: U64 -> Option U16
+  foreign import ccall "safelang.prim.saturatingU64ToU16" saturatingU64ToU16 :: U64 -> U16
+  foreign import ccall "safelang.prim.wrappingU64ToU16" wrappingU64ToU16 :: U64 -> U16
+  foreign import ccall "safelang.prim.checkedU64ToU32" checkedU64ToU32 :: U64 -> Option U32
+  foreign import ccall "safelang.prim.saturatingU64ToU32" saturatingU64ToU32 :: U64 -> U32
+  foreign import ccall "safelang.prim.wrappingU64ToU32" wrappingU64ToU32 :: U64 -> U32
+  foreign import ccall "safelang.prim.checkedU64ToU64" checkedU64ToU64 :: U64 -> Option U64
+  foreign import ccall "safelang.prim.saturatingU64ToU64" saturatingU64ToU64 :: U64 -> U64
+  foreign import ccall "safelang.prim.wrappingU64ToU64" wrappingU64ToU64 :: U64 -> U64
+  foreign import ccall "safelang.prim.checkedU64ToUsize" checkedU64ToUsize :: U64 -> Option Usize
+  foreign import ccall "safelang.prim.saturatingU64ToUsize" saturatingU64ToUsize :: U64 -> Usize
+  foreign import ccall "safelang.prim.wrappingU64ToUsize" wrappingU64ToUsize :: U64 -> Usize
+  foreign import ccall "safelang.prim.checkedU64ToIsize" checkedU64ToIsize :: U64 -> Option Isize
+  foreign import ccall "safelang.prim.saturatingU64ToIsize" saturatingU64ToIsize :: U64 -> Isize
+  foreign import ccall "safelang.prim.wrappingU64ToIsize" wrappingU64ToIsize :: U64 -> Isize
+  foreign import ccall "safelang.prim.checkedUsizeToI8" checkedUsizeToI8 :: Usize -> Option I8
+  foreign import ccall "safelang.prim.saturatingUsizeToI8" saturatingUsizeToI8 :: Usize -> I8
+  foreign import ccall "safelang.prim.wrappingUsizeToI8" wrappingUsizeToI8 :: Usize -> I8
+  foreign import ccall "safelang.prim.checkedUsizeToI16" checkedUsizeToI16 :: Usize -> Option I16
+  foreign import ccall "safelang.prim.saturatingUsizeToI16" saturatingUsizeToI16 :: Usize -> I16
+  foreign import ccall "safelang.prim.wrappingUsizeToI16" wrappingUsizeToI16 :: Usize -> I16
+  foreign import ccall "safelang.prim.checkedUsizeToI32" checkedUsizeToI32 :: Usize -> Option I32
+  foreign import ccall "safelang.prim.saturatingUsizeToI32" saturatingUsizeToI32 :: Usize -> I32
+  foreign import ccall "safelang.prim.wrappingUsizeToI32" wrappingUsizeToI32 :: Usize -> I32
+  foreign import ccall "safelang.prim.checkedUsizeToI64" checkedUsizeToI64 :: Usize -> Option I64
+  foreign import ccall "safelang.prim.saturatingUsizeToI64" saturatingUsizeToI64 :: Usize -> I64
+  foreign import ccall "safelang.prim.wrappingUsizeToI64" wrappingUsizeToI64 :: Usize -> I64
+  foreign import ccall "safelang.prim.checkedUsizeToU8" checkedUsizeToU8 :: Usize -> Option U8
+  foreign import ccall "safelang.prim.saturatingUsizeToU8" saturatingUsizeToU8 :: Usize -> U8
+  foreign import ccall "safelang.prim.wrappingUsizeToU8" wrappingUsizeToU8 :: Usize -> U8
+  foreign import ccall "safelang.prim.checkedUsizeToU16" checkedUsizeToU16 :: Usize -> Option U16
+  foreign import ccall "safelang.prim.saturatingUsizeToU16" saturatingUsizeToU16 :: Usize -> U16
+  foreign import ccall "safelang.prim.wrappingUsizeToU16" wrappingUsizeToU16 :: Usize -> U16
+  foreign import ccall "safelang.prim.checkedUsizeToU32" checkedUsizeToU32 :: Usize -> Option U32
+  foreign import ccall "safelang.prim.saturatingUsizeToU32" saturatingUsizeToU32 :: Usize -> U32
+  foreign import ccall "safelang.prim.wrappingUsizeToU32" wrappingUsizeToU32 :: Usize -> U32
+  foreign import ccall "safelang.prim.checkedUsizeToU64" checkedUsizeToU64 :: Usize -> Option U64
+  foreign import ccall "safelang.prim.saturatingUsizeToU64" saturatingUsizeToU64 :: Usize -> U64
+  foreign import ccall "safelang.prim.wrappingUsizeToU64" wrappingUsizeToU64 :: Usize -> U64
+  foreign import ccall "safelang.prim.checkedUsizeToUsize" checkedUsizeToUsize :: Usize -> Option Usize
+  foreign import ccall "safelang.prim.saturatingUsizeToUsize" saturatingUsizeToUsize :: Usize -> Usize
+  foreign import ccall "safelang.prim.wrappingUsizeToUsize" wrappingUsizeToUsize :: Usize -> Usize
+  foreign import ccall "safelang.prim.checkedUsizeToIsize" checkedUsizeToIsize :: Usize -> Option Isize
+  foreign import ccall "safelang.prim.saturatingUsizeToIsize" saturatingUsizeToIsize :: Usize -> Isize
+  foreign import ccall "safelang.prim.wrappingUsizeToIsize" wrappingUsizeToIsize :: Usize -> Isize
+  foreign import ccall "safelang.prim.checkedIsizeToI8" checkedIsizeToI8 :: Isize -> Option I8
+  foreign import ccall "safelang.prim.saturatingIsizeToI8" saturatingIsizeToI8 :: Isize -> I8
+  foreign import ccall "safelang.prim.wrappingIsizeToI8" wrappingIsizeToI8 :: Isize -> I8
+  foreign import ccall "safelang.prim.checkedIsizeToI16" checkedIsizeToI16 :: Isize -> Option I16
+  foreign import ccall "safelang.prim.saturatingIsizeToI16" saturatingIsizeToI16 :: Isize -> I16
+  foreign import ccall "safelang.prim.wrappingIsizeToI16" wrappingIsizeToI16 :: Isize -> I16
+  foreign import ccall "safelang.prim.checkedIsizeToI32" checkedIsizeToI32 :: Isize -> Option I32
+  foreign import ccall "safelang.prim.saturatingIsizeToI32" saturatingIsizeToI32 :: Isize -> I32
+  foreign import ccall "safelang.prim.wrappingIsizeToI32" wrappingIsizeToI32 :: Isize -> I32
+  foreign import ccall "safelang.prim.checkedIsizeToI64" checkedIsizeToI64 :: Isize -> Option I64
+  foreign import ccall "safelang.prim.saturatingIsizeToI64" saturatingIsizeToI64 :: Isize -> I64
+  foreign import ccall "safelang.prim.wrappingIsizeToI64" wrappingIsizeToI64 :: Isize -> I64
+  foreign import ccall "safelang.prim.checkedIsizeToU8" checkedIsizeToU8 :: Isize -> Option U8
+  foreign import ccall "safelang.prim.saturatingIsizeToU8" saturatingIsizeToU8 :: Isize -> U8
+  foreign import ccall "safelang.prim.wrappingIsizeToU8" wrappingIsizeToU8 :: Isize -> U8
+  foreign import ccall "safelang.prim.checkedIsizeToU16" checkedIsizeToU16 :: Isize -> Option U16
+  foreign import ccall "safelang.prim.saturatingIsizeToU16" saturatingIsizeToU16 :: Isize -> U16
+  foreign import ccall "safelang.prim.wrappingIsizeToU16" wrappingIsizeToU16 :: Isize -> U16
+  foreign import ccall "safelang.prim.checkedIsizeToU32" checkedIsizeToU32 :: Isize -> Option U32
+  foreign import ccall "safelang.prim.saturatingIsizeToU32" saturatingIsizeToU32 :: Isize -> U32
+  foreign import ccall "safelang.prim.wrappingIsizeToU32" wrappingIsizeToU32 :: Isize -> U32
+  foreign import ccall "safelang.prim.checkedIsizeToU64" checkedIsizeToU64 :: Isize -> Option U64
+  foreign import ccall "safelang.prim.saturatingIsizeToU64" saturatingIsizeToU64 :: Isize -> U64
+  foreign import ccall "safelang.prim.wrappingIsizeToU64" wrappingIsizeToU64 :: Isize -> U64
+  foreign import ccall "safelang.prim.checkedIsizeToUsize" checkedIsizeToUsize :: Isize -> Option Usize
+  foreign import ccall "safelang.prim.saturatingIsizeToUsize" saturatingIsizeToUsize :: Isize -> Usize
+  foreign import ccall "safelang.prim.wrappingIsizeToUsize" wrappingIsizeToUsize :: Isize -> Usize
+  foreign import ccall "safelang.prim.checkedIsizeToIsize" checkedIsizeToIsize :: Isize -> Option Isize
+  foreign import ccall "safelang.prim.saturatingIsizeToIsize" saturatingIsizeToIsize :: Isize -> Isize
+  foreign import ccall "safelang.prim.wrappingIsizeToIsize" wrappingIsizeToIsize :: Isize -> Isize
+  foreign import ccall "safelang.prim.checkedF32ToI8" checkedF32ToI8 :: F32 -> Option I8
+  foreign import ccall "safelang.prim.saturatingF32ToI8" saturatingF32ToI8 :: F32 -> I8
+  foreign import ccall "safelang.prim.checkedF32ToI16" checkedF32ToI16 :: F32 -> Option I16
+  foreign import ccall "safelang.prim.saturatingF32ToI16" saturatingF32ToI16 :: F32 -> I16
+  foreign import ccall "safelang.prim.checkedF32ToI32" checkedF32ToI32 :: F32 -> Option I32
+  foreign import ccall "safelang.prim.saturatingF32ToI32" saturatingF32ToI32 :: F32 -> I32
+  foreign import ccall "safelang.prim.checkedF32ToI64" checkedF32ToI64 :: F32 -> Option I64
+  foreign import ccall "safelang.prim.saturatingF32ToI64" saturatingF32ToI64 :: F32 -> I64
+  foreign import ccall "safelang.prim.checkedF32ToU8" checkedF32ToU8 :: F32 -> Option U8
+  foreign import ccall "safelang.prim.saturatingF32ToU8" saturatingF32ToU8 :: F32 -> U8
+  foreign import ccall "safelang.prim.checkedF32ToU16" checkedF32ToU16 :: F32 -> Option U16
+  foreign import ccall "safelang.prim.saturatingF32ToU16" saturatingF32ToU16 :: F32 -> U16
+  foreign import ccall "safelang.prim.checkedF32ToU32" checkedF32ToU32 :: F32 -> Option U32
+  foreign import ccall "safelang.prim.saturatingF32ToU32" saturatingF32ToU32 :: F32 -> U32
+  foreign import ccall "safelang.prim.checkedF32ToU64" checkedF32ToU64 :: F32 -> Option U64
+  foreign import ccall "safelang.prim.saturatingF32ToU64" saturatingF32ToU64 :: F32 -> U64
+  foreign import ccall "safelang.prim.checkedF32ToUsize" checkedF32ToUsize :: F32 -> Option Usize
+  foreign import ccall "safelang.prim.saturatingF32ToUsize" saturatingF32ToUsize :: F32 -> Usize
+  foreign import ccall "safelang.prim.checkedF32ToIsize" checkedF32ToIsize :: F32 -> Option Isize
+  foreign import ccall "safelang.prim.saturatingF32ToIsize" saturatingF32ToIsize :: F32 -> Isize
+  foreign import ccall "safelang.prim.checkedF64ToI8" checkedF64ToI8 :: F64 -> Option I8
+  foreign import ccall "safelang.prim.saturatingF64ToI8" saturatingF64ToI8 :: F64 -> I8
+  foreign import ccall "safelang.prim.checkedF64ToI16" checkedF64ToI16 :: F64 -> Option I16
+  foreign import ccall "safelang.prim.saturatingF64ToI16" saturatingF64ToI16 :: F64 -> I16
+  foreign import ccall "safelang.prim.checkedF64ToI32" checkedF64ToI32 :: F64 -> Option I32
+  foreign import ccall "safelang.prim.saturatingF64ToI32" saturatingF64ToI32 :: F64 -> I32
+  foreign import ccall "safelang.prim.checkedF64ToI64" checkedF64ToI64 :: F64 -> Option I64
+  foreign import ccall "safelang.prim.saturatingF64ToI64" saturatingF64ToI64 :: F64 -> I64
+  foreign import ccall "safelang.prim.checkedF64ToU8" checkedF64ToU8 :: F64 -> Option U8
+  foreign import ccall "safelang.prim.saturatingF64ToU8" saturatingF64ToU8 :: F64 -> U8
+  foreign import ccall "safelang.prim.checkedF64ToU16" checkedF64ToU16 :: F64 -> Option U16
+  foreign import ccall "safelang.prim.saturatingF64ToU16" saturatingF64ToU16 :: F64 -> U16
+  foreign import ccall "safelang.prim.checkedF64ToU32" checkedF64ToU32 :: F64 -> Option U32
+  foreign import ccall "safelang.prim.saturatingF64ToU32" saturatingF64ToU32 :: F64 -> U32
+  foreign import ccall "safelang.prim.checkedF64ToU64" checkedF64ToU64 :: F64 -> Option U64
+  foreign import ccall "safelang.prim.saturatingF64ToU64" saturatingF64ToU64 :: F64 -> U64
+  foreign import ccall "safelang.prim.checkedF64ToUsize" checkedF64ToUsize :: F64 -> Option Usize
+  foreign import ccall "safelang.prim.saturatingF64ToUsize" saturatingF64ToUsize :: F64 -> Usize
+  foreign import ccall "safelang.prim.checkedF64ToIsize" checkedF64ToIsize :: F64 -> Option Isize
+  foreign import ccall "safelang.prim.saturatingF64ToIsize" saturatingF64ToIsize :: F64 -> Isize
+
+  signature Eq a where
+    (==) :: a -> a -> Bool
+    (/=) :: a -> a -> Bool
+
+  signature Ord a where
+    (<) :: a -> a -> Bool
+    (<=) :: a -> a -> Bool
+    (>) :: a -> a -> Bool
+    (>=) :: a -> a -> Bool
+
+  signature Add a where
+    (+) :: a -> a -> a
+
+  signature Sub a where
+    (-) :: a -> a -> a
+
+  signature Mul a where
+    (*) :: a -> a -> a
+
+  signature Neg a where
+    negate :: a -> a
+
+  infixl 6 +, -
+  infixl 7 *
+  infix 4 ==, /=
+  infix 4 <, <=, >, >=
+  infixr 3 &&
+  infixr 2 ||
+
+  -- These are strict functions in the bootstrap slice; the surface `&&`
+  -- and `||` short-circuit once that deviation is corrected (primitive
+  -- types specification, section 6).
+  (&&) :: Bool -> Bool -> Bool
+  (&&) x y = primAndBool x y
+
+  (||) :: Bool -> Bool -> Bool
+  (||) x y = primOrBool x y
+
+  not :: Bool -> Bool
+  not b = primNotBool b
+
+  -- The strict boolean algebra (primitive types specification, section 6).
+  and :: Bool -> Bool -> Bool
+  and x y = primAndBool x y
+
+  or :: Bool -> Bool -> Bool
+  or x y = primOrBool x y
+
+  xor :: Bool -> Bool -> Bool
+  xor x y = primAndBool (primOrBool x y) (primNotBool (primAndBool x y))
+
+  identity :: forall a. a -> a
+  identity x = x
+
+  const :: forall a b. a -> b -> a
+  const x y = x
+
+  map :: forall a b. (a -> b) -> List a -> List b
+  map f xs = case xs of
+    Nil -> Nil
+    Cons y ys -> Cons (f y) (map f ys)
+
+  foldr :: forall a b. (a -> b -> b) -> b -> List a -> b
+  foldr f z xs = case xs of
+    Nil -> z
+    Cons y ys -> f y (foldr f z ys)
+
+  length :: forall a. List a -> Int
+  length xs = case xs of
+    Nil -> 0
+    Cons y ys -> 1 + length ys
+
+  sumList :: forall a. using (add :: Add a) => a -> List a -> a
+  sumList z xs = foldr (\x acc -> x + acc) z xs
+
+  -- Primitive types specification, section 8: class instances. Eq and
+  -- Ord cover Bool, Char, the mathematical Nat and Int, every machine
+  -- integer type, Usize and Isize; the order is numeric on the integer
+  -- types and code point order on Char. F32 and F64 have none of these
+  -- instances.
+
+  -- Mathematical `Int` and `Nat` instances (primitive types
+  -- specification, section 1): comparison through the cmp prims'
+  -- immediates, arithmetic through the runtime. `Sub` on `Nat` is the
+  -- runtime's truncated subtraction: the inductive `Nat` subtraction is
+  -- truncated, and `natSub` faults rather than producing a negative.
+
+  implicit instance Eq_Int :: Eq Int where
+    (==) x y = eqI64 (intCmp x y) 0
+    (/=) x y = neI64 (intCmp x y) 0
+
+  implicit instance Ord_Int :: Ord Int where
+    (<) x y = ltI64 (intCmp x y) 0
+    (<=) x y = leI64 (intCmp x y) 0
+    (>) x y = gtI64 (intCmp x y) 0
+    (>=) x y = geI64 (intCmp x y) 0
+
+  implicit instance Add_Int :: Add Int where
+    (+) x y = intAdd x y
+
+  implicit instance Sub_Int :: Sub Int where
+    (-) x y = intSub x y
+
+  implicit instance Mul_Int :: Mul Int where
+    (*) x y = intMul x y
+
+  implicit instance Neg_Int :: Neg Int where
+    negate x = intNeg x
+
+  implicit instance Eq_Nat :: Eq Nat where
+    (==) x y = eqI64 (natCmp x y) 0
+    (/=) x y = neI64 (natCmp x y) 0
+
+  implicit instance Ord_Nat :: Ord Nat where
+    (<) x y = ltI64 (natCmp x y) 0
+    (<=) x y = leI64 (natCmp x y) 0
+    (>) x y = gtI64 (natCmp x y) 0
+    (>=) x y = geI64 (natCmp x y) 0
+
+  implicit instance Add_Nat :: Add Nat where
+    (+) x y = natAdd x y
+
+  implicit instance Sub_Nat :: Sub Nat where
+    (-) x y = natSub x y
+
+  implicit instance Mul_Nat :: Mul Nat where
+    (*) x y = natMul x y
+
+  implicit instance Eq_Bool :: Eq Bool where
+    (==) x y = primEqBool x y
+    (/=) x y = primNeBool x y
+
+  implicit instance Ord_Bool :: Ord Bool where
+    (<) x y = primAndBool (primNotBool x) y
+    (<=) x y = primNotBool (primAndBool (primNotBool y) x)
+    (>) x y = primAndBool (primNotBool y) x
+    (>=) x y = primNotBool (primAndBool (primNotBool x) y)
+
+  implicit instance Eq_I8 :: Eq I8 where
+    (==) x y = eqI8 x y
+    (/=) x y = neI8 x y
+
+  implicit instance Ord_I8 :: Ord I8 where
+    (<) x y = ltI8 x y
+    (<=) x y = leI8 x y
+    (>) x y = gtI8 x y
+    (>=) x y = geI8 x y
+
+  implicit instance Eq_I16 :: Eq I16 where
+    (==) x y = eqI16 x y
+    (/=) x y = neI16 x y
+
+  implicit instance Ord_I16 :: Ord I16 where
+    (<) x y = ltI16 x y
+    (<=) x y = leI16 x y
+    (>) x y = gtI16 x y
+    (>=) x y = geI16 x y
+
+  implicit instance Eq_I32 :: Eq I32 where
+    (==) x y = eqI32 x y
+    (/=) x y = neI32 x y
+
+  implicit instance Ord_I32 :: Ord I32 where
+    (<) x y = ltI32 x y
+    (<=) x y = leI32 x y
+    (>) x y = gtI32 x y
+    (>=) x y = geI32 x y
+
+  implicit instance Eq_I64 :: Eq I64 where
+    (==) x y = eqI64 x y
+    (/=) x y = neI64 x y
+
+  implicit instance Ord_I64 :: Ord I64 where
+    (<) x y = ltI64 x y
+    (<=) x y = leI64 x y
+    (>) x y = gtI64 x y
+    (>=) x y = geI64 x y
+
+  implicit instance Eq_U8 :: Eq U8 where
+    (==) x y = eqU8 x y
+    (/=) x y = neU8 x y
+
+  implicit instance Ord_U8 :: Ord U8 where
+    (<) x y = ltU8 x y
+    (<=) x y = leU8 x y
+    (>) x y = gtU8 x y
+    (>=) x y = geU8 x y
+
+  implicit instance Eq_U16 :: Eq U16 where
+    (==) x y = eqU16 x y
+    (/=) x y = neU16 x y
+
+  implicit instance Ord_U16 :: Ord U16 where
+    (<) x y = ltU16 x y
+    (<=) x y = leU16 x y
+    (>) x y = gtU16 x y
+    (>=) x y = geU16 x y
+
+  implicit instance Eq_U32 :: Eq U32 where
+    (==) x y = eqU32 x y
+    (/=) x y = neU32 x y
+
+  implicit instance Ord_U32 :: Ord U32 where
+    (<) x y = ltU32 x y
+    (<=) x y = leU32 x y
+    (>) x y = gtU32 x y
+    (>=) x y = geU32 x y
+
+  implicit instance Eq_U64 :: Eq U64 where
+    (==) x y = eqU64 x y
+    (/=) x y = neU64 x y
+
+  implicit instance Ord_U64 :: Ord U64 where
+    (<) x y = ltU64 x y
+    (<=) x y = leU64 x y
+    (>) x y = gtU64 x y
+    (>=) x y = geU64 x y
+
+  implicit instance Eq_Usize :: Eq Usize where
+    (==) x y = eqUsize x y
+    (/=) x y = neUsize x y
+
+  implicit instance Ord_Usize :: Ord Usize where
+    (<) x y = ltUsize x y
+    (<=) x y = leUsize x y
+    (>) x y = gtUsize x y
+    (>=) x y = geUsize x y
+
+  implicit instance Eq_Isize :: Eq Isize where
+    (==) x y = eqIsize x y
+    (/=) x y = neIsize x y
+
+  implicit instance Ord_Isize :: Ord Isize where
+    (<) x y = ltIsize x y
+    (<=) x y = leIsize x y
+    (>) x y = gtIsize x y
+    (>=) x y = geIsize x y
+
+  implicit instance Eq_Char :: Eq Char where
+    (==) x y = eqChar x y
+    (/=) x y = neChar x y
+
+  implicit instance Ord_Char :: Ord Char where
+    (<) x y = ltChar x y
+    (<=) x y = leChar x y
+    (>) x y = gtChar x y
+    (>=) x y = geChar x y

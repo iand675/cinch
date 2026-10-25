@@ -1,0 +1,817 @@
+//! Tokenizer for the draft 0.2 surface syntax.
+//!
+//! Lexical rules follow `specifications/surface-syntax-and-grammar.md`:
+//! comment recognition wins over symbol identifiers, reserved punctuation is
+//! matched longest first, tabs are rejected in indentation, identifiers are
+//! ASCII, string and character contents are Unicode scalar values.
+
+use crate::{Error, Result};
+use std::fmt;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Span {
+    pub line: u32,
+    pub col: u32,
+}
+
+impl fmt::Display for Span {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}:{}", self.line, self.col)
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum Tok {
+    // Names.
+    VarId(String),
+    ConId(String),
+    /// Symbol identifier that is not reserved punctuation.
+    Op(String),
+
+    // Literals.
+    /// Integer literal: the decimal digit string (no sign, no leading
+    /// zeros); negation folds in at the parser and may prepend `-`.
+    Int(String),
+    FloatLit(String),
+    StrLit(String),
+    CharLit(String),
+
+    // Reserved words.
+    Module,
+    Where,
+    Data,
+    Record,
+    Codata,
+    Effect,
+    Signature,
+    Instance,
+    Implicit,
+    Import,
+    As,
+    TypeKw,
+    Opaque,
+    Forall,
+    Sigma,
+    Using,
+    In,
+    Let,
+    If,
+    Then,
+    Else,
+    Case,
+    Of,
+    Do,
+    Handle,
+    With,
+    Rewrite,
+    Target,
+    Justify,
+    MatchKw,
+    Replace,
+    Require,
+    Upgrade,
+    To,
+    Generate,
+    QuoteDecls,
+    Foreign,
+    Export,
+    Ccall,
+    Component,
+    Proof,
+    Spec,
+    Stage,
+    Corec,
+    Macro,
+    Infix,
+    Infixl,
+    Infixr,
+    Erased,
+    Own,
+    Return,
+    Resume,
+
+    // Reserved punctuation.
+    ColonColon,
+    Arrow,
+    LArrow,
+    Darrow,
+    /// `[|` typed quote open.
+    LQuote,
+    /// `|]` typed quote close.
+    RQuote,
+    /// `$(` splice open.
+    DollarParen,
+    MultZero,
+    MultOne,
+    MultAff,
+    MultMany,
+    Bang,
+    At,
+    Dot,
+    Equals,
+    Pipe,
+    Dollar,
+    Backslash,
+    /// Bare `~`, reserved for memo bindings. Symbol runs like `~>` remain
+    /// ordinary operators.
+    Tilde,
+
+    LParen,
+    RParen,
+    LBracket,
+    RBracket,
+    LBrace,
+    RBrace,
+    Comma,
+    Semicolon,
+    Underscore,
+
+    Eof,
+}
+
+#[derive(Clone, Debug)]
+pub struct Token {
+    pub tok: Tok,
+    pub span: Span,
+    /// True for `{`, `;`, `}` inserted by the layout pass.
+    pub virtual_: bool,
+}
+
+impl Token {
+    pub fn is(&self, t: &Tok) -> bool {
+        &self.tok == t
+    }
+}
+
+/// Symbol identifier characters, excluding reserved `$`, `\` and `.`.
+fn is_symbol_char(c: char) -> bool {
+    matches!(c, '!' | '#' | '%' | '&' | '*' | '+' | '/' | '<' | '=' | '>' | '?' | '@' | '^' | '|' | '~' | ':' | '-')
+}
+
+fn keyword(w: &str) -> Option<Tok> {
+    use Tok::*;
+    Some(match w {
+        "module" => Module,
+        "where" => Where,
+        "data" => Data,
+        "record" => Record,
+        "codata" => Codata,
+        "effect" => Effect,
+        "signature" => Signature,
+        "instance" => Instance,
+        "implicit" => Implicit,
+        "import" => Import,
+        "as" => As,
+        "type" => TypeKw,
+        "opaque" => Opaque,
+        "forall" => Forall,
+        "Sigma" => Sigma,
+        "using" => Using,
+        "in" => In,
+        "let" => Let,
+        "if" => If,
+        "then" => Then,
+        "else" => Else,
+        "case" => Case,
+        "of" => Of,
+        "do" => Do,
+        "handle" => Handle,
+        "with" => With,
+        "rewrite" => Rewrite,
+        "target" => Target,
+        "justify" => Justify,
+        "match" => MatchKw,
+        "replace" => Replace,
+        "require" => Require,
+        "upgrade" => Upgrade,
+        "to" => To,
+        "generate" => Generate,
+        "quoteDecls" => QuoteDecls,
+        "foreign" => Foreign,
+        "export" => Export,
+        "ccall" => Ccall,
+        "component" => Component,
+        "proof" => Proof,
+        "spec" => Spec,
+        "stage" => Stage,
+        "corec" => Corec,
+        "macro" => Macro,
+        "infix" => Infix,
+        "infixl" => Infixl,
+        "infixr" => Infixr,
+        "erased" => Erased,
+        "own" => Own,
+        "return" => Return,
+        "resume" => Resume,
+        _ => return None,
+    })
+}
+
+/// `dec = dec * mul + add` on a canonical decimal digit string.
+fn dec_mul_add(dec: &mut String, mul: u32, add: u32) {
+    let mut carry = add;
+    let bytes = dec.as_bytes();
+    let mut out = vec![0u8; bytes.len()];
+    for i in (0..bytes.len()).rev() {
+        let x = (bytes[i] - b'0') as u32 * mul + carry;
+        out[i] = b'0' + (x % 10) as u8;
+        carry = x / 10;
+    }
+    let mut s = String::new();
+    while carry > 0 {
+        s.push(char::from_digit(carry % 10, 10).unwrap());
+        carry /= 10;
+    }
+    let s: String = s.chars().rev().collect();
+    dec.clear();
+    dec.push_str(&s);
+    dec.push_str(std::str::from_utf8(&out).unwrap());
+}
+
+/// Canonical decimal digit string: no leading zeros (`"0"` for zero).
+fn canon_dec(s: &str) -> String {
+    let t = s.trim_start_matches('0');
+    if t.is_empty() {
+        "0".to_string()
+    } else {
+        t.to_string()
+    }
+}
+
+pub fn lex(src: &str) -> Result<Vec<Token>> {
+    Lexer::new(src).run()
+}
+
+struct Lexer {
+    cs: Vec<char>,
+    i: usize,
+    line: u32,
+    col: u32,
+    /// True while only spaces have been seen on the current line.
+    leading: bool,
+}
+
+impl Lexer {
+    fn new(src: &str) -> Self {
+        Lexer { cs: src.chars().collect(), i: 0, line: 1, col: 1, leading: true }
+    }
+
+    fn span(&self) -> Span {
+        Span { line: self.line, col: self.col }
+    }
+
+    fn peek(&self) -> Option<char> {
+        self.cs.get(self.i).copied()
+    }
+
+    fn peek_at(&self, n: usize) -> Option<char> {
+        self.cs.get(self.i + n).copied()
+    }
+
+    fn bump(&mut self) -> Option<char> {
+        let c = self.cs.get(self.i).copied()?;
+        self.i += 1;
+        match c {
+            '\n' => {
+                self.line += 1;
+                self.col = 1;
+                self.leading = true;
+            }
+            '\r' => {
+                if self.peek() != Some('\n') {
+                    self.line += 1;
+                    self.col = 1;
+                    self.leading = true;
+                }
+            }
+            _ => {
+                self.col += 1;
+                if !c.is_whitespace() {
+                    self.leading = false;
+                }
+            }
+        }
+        Some(c)
+    }
+
+    fn run(mut self) -> Result<Vec<Token>> {
+        let mut out = Vec::new();
+        loop {
+            self.skip_blank()?;
+            let span = self.span();
+            let Some(c) = self.peek() else {
+                out.push(Token { tok: Tok::Eof, span, virtual_: false });
+                return Ok(out);
+            };
+            let tok = self.scan_token(c, span)?;
+            out.push(Token { tok, span, virtual_: false });
+        }
+    }
+
+    fn skip_blank(&mut self) -> Result<()> {
+        loop {
+            match self.peek() {
+                Some(' ') => {
+                    self.bump();
+                }
+                Some('\t') if self.leading => {
+                    return Err(Error::at(self.span(), "tabs are rejected in indentation"));
+                }
+                Some('\t') | Some('\n') | Some('\r') => {
+                    self.bump();
+                }
+                Some('-') if self.peek_at(1) == Some('-') => {
+                    while let Some(c) = self.peek() {
+                        if c == '\n' || c == '\r' {
+                            break;
+                        }
+                        self.bump();
+                    }
+                }
+                Some('{') if self.peek_at(1) == Some('-') => {
+                    self.bump();
+                    self.bump();
+                    let mut depth = 1usize;
+                    loop {
+                        match (self.peek(), self.peek_at(1)) {
+                            (Some('-'), Some('}')) => {
+                                self.bump();
+                                self.bump();
+                                depth -= 1;
+                                if depth == 0 {
+                                    break;
+                                }
+                            }
+                            (Some('{'), Some('-')) => {
+                                self.bump();
+                                self.bump();
+                                depth += 1;
+                            }
+                            (Some(_), _) => {
+                                self.bump();
+                            }
+                            (None, _) => {
+                                return Err(Error::at(self.span(), "unterminated block comment"));
+                            }
+                        }
+                    }
+                }
+                _ => return Ok(()),
+            }
+        }
+    }
+
+    fn scan_token(&mut self, c: char, span: Span) -> Result<Tok> {
+        match c {
+            '(' | ')' | ']' | '{' | '}' | ',' | ';' | '.' => {
+                self.bump();
+                Ok(match c {
+                    '(' => Tok::LParen,
+                    ')' => Tok::RParen,
+                    ']' => Tok::RBracket,
+                    '{' => Tok::LBrace,
+                    '}' => Tok::RBrace,
+                    ',' => Tok::Comma,
+                    ';' => Tok::Semicolon,
+                    '.' => Tok::Dot,
+                    _ => unreachable!(),
+                })
+            }
+            '[' => {
+                if self.peek_at(1) == Some('|') {
+                    self.bump();
+                    self.bump();
+                    Ok(Tok::LQuote)
+                } else {
+                    self.bump();
+                    Ok(Tok::LBracket)
+                }
+            }
+            '|' => {
+                if self.peek_at(1) == Some(']') {
+                    self.bump();
+                    self.bump();
+                    Ok(Tok::RQuote)
+                } else {
+                    Ok(self.lex_symbol())
+                }
+            }
+            '%' => match self.lex_multiplicity() {
+                Some(t) => Ok(t),
+                None => Ok(self.lex_symbol()),
+            },
+            '$' => {
+                self.bump();
+                if self.peek() == Some('(') {
+                    self.bump();
+                    Ok(Tok::DollarParen)
+                } else {
+                    Ok(Tok::Dollar)
+                }
+            }
+            '\\' => {
+                self.bump();
+                Ok(Tok::Backslash)
+            }
+            '-' => Ok(self.lex_symbol()),
+            '"' => self.lex_string(),
+            '\'' => self.lex_char(span),
+            c if c.is_ascii_digit() => self.lex_number(span),
+            c if c.is_ascii_alphabetic() || c == '_' => Ok(self.lex_word()),
+            c if is_symbol_char(c) => Ok(self.lex_symbol()),
+            _ => Err(Error::at(span, format!("unexpected character {c:?}"))),
+        }
+    }
+
+    /// `%0`, `%1`, `%aff`, `%many` are reserved multiplicities; any other
+    /// symbol run starting with `%` is an ordinary operator.
+    fn lex_multiplicity(&mut self) -> Option<Tok> {
+        fn boundary(c: Option<char>) -> bool {
+            !c.map(|c| c.is_ascii_alphanumeric() || c == '_' || c == '\'')
+                .unwrap_or(false)
+        }
+        match self.peek_at(1) {
+            Some('0') if boundary(self.peek_at(2)) => {
+                self.bump();
+                self.bump();
+                Some(Tok::MultZero)
+            }
+            Some('1') if boundary(self.peek_at(2)) => {
+                self.bump();
+                self.bump();
+                Some(Tok::MultOne)
+            }
+            Some('a')
+                if self.peek_at(2) == Some('f')
+                    && self.peek_at(3) == Some('f')
+                    && boundary(self.peek_at(4)) =>
+            {
+                for _ in 0..4 {
+                    self.bump();
+                }
+                Some(Tok::MultAff)
+            }
+            Some('m')
+                if self.peek_at(2) == Some('a')
+                    && self.peek_at(3) == Some('n')
+                    && self.peek_at(4) == Some('y')
+                    && boundary(self.peek_at(5)) =>
+            {
+                for _ in 0..5 {
+                    self.bump();
+                }
+                Some(Tok::MultMany)
+            }
+            _ => None,
+        }
+    }
+
+    fn lex_symbol(&mut self) -> Tok {
+        let mut s = String::new();
+        while let Some(c) = self.peek() {
+            if is_symbol_char(c) {
+                s.push(c);
+                self.bump();
+            } else {
+                break;
+            }
+        }
+        match s.as_str() {
+            "::" => Tok::ColonColon,
+            "->" => Tok::Arrow,
+            "<-" => Tok::LArrow,
+            "=>" => Tok::Darrow,
+            "!" => Tok::Bang,
+            "@" => Tok::At,
+            "=" => Tok::Equals,
+            "|" => Tok::Pipe,
+            "~" => Tok::Tilde,
+            _ => Tok::Op(s),
+        }
+    }
+
+    fn lex_word(&mut self) -> Tok {
+        let mut w = String::new();
+        while let Some(c) = self.peek() {
+            if c.is_ascii_alphanumeric() || c == '_' || c == '\'' {
+                w.push(c);
+                self.bump();
+            } else {
+                break;
+            }
+        }
+        if let Some(kw) = keyword(&w) {
+            return kw;
+        }
+        let first = w.chars().next().unwrap();
+        if first.is_ascii_uppercase() {
+            Tok::ConId(w)
+        } else {
+            Tok::VarId(w)
+        }
+    }
+
+    fn lex_number(&mut self, span: Span) -> Result<Tok> {
+        let mut raw = String::new();
+        if self.peek() == Some('0') && matches!(self.peek_at(1), Some('x') | Some('X')) {
+            raw.push(self.bump().unwrap());
+            raw.push(self.bump().unwrap());
+            let mut digits = String::new();
+            while let Some(c) = self.peek() {
+                if c.is_ascii_hexdigit() {
+                    digits.push(c);
+                    self.bump();
+                } else if c == '_' {
+                    self.bump();
+                } else {
+                    break;
+                }
+            }
+            if digits.is_empty() {
+                return Err(Error::at(span, "malformed hexadecimal literal"));
+            }
+            // Hexadecimal literals are unbounded like decimal ones: fold
+            // the digits into a decimal digit string one nybble at a time.
+            let mut dec = String::from("0");
+            for c in digits.chars() {
+                let d = c.to_digit(16).unwrap();
+                dec_mul_add(&mut dec, 16, d);
+            }
+            return Ok(Tok::Int(canon_dec(&dec)));
+        }
+        while let Some(c) = self.peek() {
+            if c.is_ascii_digit() {
+                raw.push(c);
+                self.bump();
+            } else if c == '_' {
+                self.bump();
+            } else {
+                break;
+            }
+        }
+        // A float needs `.` immediately followed by a digit; `.` otherwise
+        // starts qualification or projection.
+        if self.peek() == Some('.') && self.peek_at(1).map(|c| c.is_ascii_digit()).unwrap_or(false) {
+            raw.push(self.bump().unwrap());
+            while let Some(c) = self.peek() {
+                if c.is_ascii_digit() {
+                    raw.push(c);
+                    self.bump();
+                } else if c == '_' {
+                    self.bump();
+                } else {
+                    break;
+                }
+            }
+            if matches!(self.peek(), Some('e') | Some('E')) {
+                raw.push(self.bump().unwrap());
+                if matches!(self.peek(), Some('+') | Some('-')) {
+                    raw.push(self.bump().unwrap());
+                }
+                while let Some(c) = self.peek() {
+                    if c.is_ascii_digit() {
+                        raw.push(c);
+                        self.bump();
+                    } else {
+                        break;
+                    }
+                }
+            }
+            return Ok(Tok::FloatLit(raw));
+        }
+        let cleaned: String = {
+            let src: String = raw.chars().filter(|c| *c != '_').collect();
+            src
+        };
+        Ok(Tok::Int(canon_dec(&cleaned)))
+    }
+
+    fn lex_string(&mut self) -> Result<Tok> {
+        let span = self.span();
+        self.bump(); // opening quote
+        let mut s = String::new();
+        loop {
+            match self.peek() {
+                None | Some('\n') | Some('\r') => {
+                    return Err(Error::at(span, "unterminated string literal"));
+                }
+                Some('"') => {
+                    self.bump();
+                    return Ok(Tok::StrLit(s));
+                }
+                Some('\\') => {
+                    self.bump();
+                    let c = self.lex_escape(span)?;
+                    s.push(c);
+                }
+                Some(c) => {
+                    self.bump();
+                    s.push(c);
+                }
+            }
+        }
+    }
+
+    fn lex_char(&mut self, span: Span) -> Result<Tok> {
+        self.bump(); // opening quote
+        let c = match self.peek() {
+            None | Some('\n') | Some('\r') | Some('\'') => {
+                return Err(Error::at(span, "malformed character literal"));
+            }
+            Some('\\') => {
+                self.bump();
+                self.lex_escape(span)?
+            }
+            Some(c) => {
+                self.bump();
+                c
+            }
+        };
+        if self.peek() != Some('\'') {
+            return Err(Error::at(span, "unterminated character literal"));
+        }
+        self.bump();
+        Ok(Tok::CharLit(c.to_string()))
+    }
+
+    fn lex_escape(&mut self, span: Span) -> Result<char> {
+        let Some(c) = self.bump() else {
+            return Err(Error::at(span, "unterminated escape sequence"));
+        };
+        Ok(match c {
+            '\\' => '\\',
+            '"' => '"',
+            '\'' => '\'',
+            'n' => '\n',
+            'r' => '\r',
+            't' => '\t',
+            'u' => {
+                if self.bump() != Some('{') {
+                    return Err(Error::at(span, "expected `{` after \\u escape"));
+                }
+                let mut hex = String::new();
+                loop {
+                    match self.bump() {
+                        Some('}') => break,
+                        Some(h) if h.is_ascii_hexdigit() => hex.push(h),
+                        _ => return Err(Error::at(span, "malformed \\u escape")),
+                    }
+                }
+                let v = u32::from_str_radix(&hex, 16)
+                    .map_err(|_| Error::at(span, "malformed \\u escape"))?;
+                match char::from_u32(v) {
+                    Some(c) => c,
+                    None => return Err(Error::at(span, "\\u escape is not a Unicode scalar value")),
+                }
+            }
+            _ => return Err(Error::at(span, "unknown escape sequence")),
+        })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn kinds(src: &str) -> Vec<Tok> {
+        lex(src).unwrap().into_iter().map(|t| t.tok).collect()
+    }
+
+    #[test]
+    fn identifiers_and_keywords() {
+        assert_eq!(
+            kinds("module Foo where"),
+            vec![Tok::Module, Tok::ConId("Foo".into()), Tok::Where, Tok::Eof]
+        );
+    }
+
+    #[test]
+    fn reserved_punctuation_longest_first() {
+        assert_eq!(
+            kinds("a :: b -> c <- d => e"),
+            vec![
+                Tok::VarId("a".into()),
+                Tok::ColonColon,
+                Tok::VarId("b".into()),
+                Tok::Arrow,
+                Tok::VarId("c".into()),
+                Tok::LArrow,
+                Tok::VarId("d".into()),
+                Tok::Darrow,
+                Tok::VarId("e".into()),
+                Tok::Eof
+            ]
+        );
+    }
+
+    #[test]
+    fn operators_versus_reserved() {
+        // `==` is an operator; `=` is reserved. `|]` closes a quote.
+        assert_eq!(
+            kinds("x == y |] | || ! !="),
+            vec![
+                Tok::VarId("x".into()),
+                Tok::Op("==".into()),
+                Tok::VarId("y".into()),
+                Tok::RQuote,
+                Tok::Pipe,
+                Tok::Op("||".into()),
+                Tok::Bang,
+                Tok::Op("!=".into()),
+                Tok::Eof
+            ]
+        );
+    }
+
+    #[test]
+    fn bare_tilde_is_reserved_but_runs_are_operators() {
+        // `~` is reserved punctuation for memo bindings (spec: lazy
+        // computation and reclamation); symbol runs keep their operator
+        // identity, like `=` versus `==`.
+        assert_eq!(
+            kinds("~ ~x ~> <~> ~~~"),
+            vec![
+                Tok::Tilde,
+                Tok::Tilde,
+                Tok::VarId("x".into()),
+                Tok::Op("~>".into()),
+                Tok::Op("<~>".into()),
+                Tok::Op("~~~".into()),
+                Tok::Eof
+            ]
+        );
+    }
+
+    #[test]
+    fn comments_win_over_symbol_identifiers() {
+        assert_eq!(kinds("a -- comment\n{- nest {- in -} out -} b"), vec![
+            Tok::VarId("a".into()),
+            Tok::VarId("b".into()),
+            Tok::Eof
+        ]);
+    }
+
+    #[test]
+    fn numbers() {
+        assert_eq!(
+            kinds("10 0x1F 1_000"),
+            vec![
+                Tok::Int("10".into()),
+                Tok::Int("31".into()),
+                Tok::Int("1000".into()),
+                Tok::Eof
+            ]
+        );
+        assert_eq!(
+            kinds("0x00 007 18446744073709551616"),
+            vec![
+                Tok::Int("0".into()),
+                Tok::Int("7".into()),
+                Tok::Int("18446744073709551616".into()),
+                Tok::Eof
+            ]
+        );
+        assert!(matches!(kinds("1.5").as_slice(), [Tok::FloatLit(_), Tok::Eof]));
+    }
+
+    #[test]
+    fn strings_and_chars() {
+        assert_eq!(kinds(r#""a\n\u{41}""#), vec![Tok::StrLit("a\nA".into()), Tok::Eof]);
+        assert_eq!(kinds("'x'"), vec![Tok::CharLit("x".into()), Tok::Eof]);
+    }
+
+    #[test]
+    fn multiplicities_are_reserved() {
+        assert_eq!(
+            kinds("%0 %1 %aff %many %affix"),
+            vec![
+                Tok::MultZero,
+                Tok::MultOne,
+                Tok::MultAff,
+                Tok::MultMany,
+                Tok::Op("%".into()),
+                Tok::VarId("affix".into()),
+                Tok::Eof
+            ]
+        );
+    }
+
+    #[test]
+    fn tabs_in_indentation_rejected() {
+        assert!(lex("module M where\n\tfoo = 1").is_err());
+        assert!(lex("x\t= 1").is_ok());
+    }
+
+    #[test]
+    fn splice_and_quote() {
+        assert_eq!(kinds("[| $ ( ) $( x"), vec![
+            Tok::LQuote,
+            Tok::Dollar,
+            Tok::LParen,
+            Tok::RParen,
+            Tok::DollarParen,
+            Tok::VarId("x".into()),
+            Tok::Eof
+        ]);
+    }
+}
