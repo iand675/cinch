@@ -143,6 +143,19 @@ property holds by construction rather than by a named test.
 | 86 | lazy#6-blackhole-fault | `BlackHole` fault as defense in depth | I | `runtime/src/abi.rs::sl_blackhole` (70) |
 | 87 | lazy#9-rejection-cases | The nine required rejection cases | P | demand cycles, double-force, thunk discipline enforced (`tests/ownership.rs::linear_thunk_is_forced_exactly_once`, `::affine_thunk_is_forced_at_most_once`, `::unannotated_thunk_defaults_to_affine`, `::linear_thunk_forced_once_per_branch_is_accepted`); thread-shared memo moot (P12); forced-dependent-erased-proof waits for P7 |
 
+## supercompilation-and-jit-specification.md
+
+| # | Anchor | Requirement | Status | Evidence |
+| --- | --- | --- | --- | --- |
+| 88 | scjit#2-managed-transformations | Known-application unfolding, case folding, dictionary/handler/index/effect-static specialization, fusion, constant folding | N | rides P10 (offline) and P13 (JIT) |
+| 89 | scjit#3-barriers | Driving stops at effect barriers, opaque boundaries, and rigid indices; never duplicates or drops `%1`/`%aff` values, memo cells, or guards | N | the per-feature rules exist (P5/P7/P8); no driver to constrain yet |
+| 90 | scjit#4-preservation | Residual programs rechecked (types, effect order, usage, sharing, productivity, erasure, capabilities); specialization representation-only | N | the recheckers all exist; the driver does not |
+| 91 | scjit#5-bounds | Driving terminates via whistle and fuel; bounds are target profile parameters; the report says where specialization stopped | N | rides P10's report obligations |
+| 92 | scjit#6-jit-invisible | JIT must not appear in types, source, or interface; deoptimization consumption-safe; variant lifecycle via runtime evolution only | N | rides P13 |
+| 93 | scjit#7-eval | `eval : Code a -> a` typed by quotes, never evidence, manifest-recorded, profiles MAY forbid | N | typed quotes land with P9 |
+| 94 | scjit#8-reporting | Manifest records specialization config, sites, trust level, code-generation use; no secrets or absolute paths | N | manifest infrastructure exists (row 15); specialization fields absent |
+| 95 | scjit#9-trust-levels | Per-artifact trust level identified; full recheck is the default; un-recheckable variants discarded | N | platform section 8 rule applies at implementation |
+
 ## Roadmap gaps (unplanned requirements)
 
 Flagged by the audit as MUSTs no P1-P15 phase owns; added as phase P16 in

@@ -37,6 +37,7 @@ export default defineConfig({
             { label: 'WebAssembly and WASI', link: '/specifications/webassembly-and-wasi-specification/' },
             { label: 'Runtime evolution', link: '/specifications/runtime-evolution-specification/' },
             { label: 'Attribute annotations and branch weights', link: '/specifications/attribute-annotations-specification/' },
+            { label: 'Supercompilation and JIT', link: '/specifications/supercompilation-and-jit-specification/' },
           ],
         },
         {

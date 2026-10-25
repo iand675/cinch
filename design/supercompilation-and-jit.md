@@ -1,9 +1,11 @@
 # Supercompilation and JIT systems
 
 Design study for whole-program specialization (offline supercompilation)
-and runtime specialization (JIT) over the SafeLang core. Status: design
-study; the implementation items ride the existing phases (section 9),
-tracked in `compiler/CONFORMANCE.md`. The specs already
+and runtime specialization (JIT) over the SafeLang core. Status: the
+normative rules are now `specifications/supercompilation-and-jit-specification.md`;
+this note is the implementation reference, and the implementation items
+ride the existing phases (section 9), tracked in
+`compiler/CONFORMANCE.md`. The specs already
 leave hooks for this work: the modules specification requires compiled
 interfaces to record "representation information intentionally exposed
 to specialization", requires compiler reports to identify "where
