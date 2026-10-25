@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Surface syntax and grammar</title>
+  <style>
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+    /* CSS for syntax highlighting */
+    pre > code.sourceCode { white-space: pre; position: relative; }
+    pre > code.sourceCode > span { line-height: 1.25; }
+    pre > code.sourceCode > span:empty { height: 1.2em; }
+    .sourceCode { overflow: visible; }
+    code.sourceCode > span { color: inherit; text-decoration: inherit; }
+    div.sourceCode { margin: 1em 0; }
+    pre.sourceCode { margin: 0; }
+    @media screen {
+    div.sourceCode { overflow: auto; }
+    }
+    @media print {
+    pre > code.sourceCode { white-space: pre-wrap; }
+    pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+    }
+    pre.numberSource code
+      { counter-reset: source-line 0; }
+    pre.numberSource code > span
+      { position: relative; left: -4em; counter-increment: source-line; }
+    pre.numberSource code > span > a:first-child::before
+      { content: counter(source-line);
+        position: relative; left: -1em; text-align: right; vertical-align: baseline;
+        border: none; display: inline-block;
+        -webkit-touch-callout: none; -webkit-user-select: none;
+        -khtml-user-select: none; -moz-user-select: none;
+        -ms-user-select: none; user-select: none;
+        padding: 0 4px; width: 4em;
+        color: #aaaaaa;
+      }
+    pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
+    div.sourceCode
+      {   }
+    @media screen {
+    pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+    }
+    code span.al { color: #ff0000; font-weight: bold; } /* Alert */
+    code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
+    code span.at { color: #7d9029; } /* Attribute */
+    code span.bn { color: #40a070; } /* BaseN */
+    code span.bu { color: #008000; } /* BuiltIn */
+    code span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
+    code span.ch { color: #4070a0; } /* Char */
+    code span.cn { color: #880000; } /* Constant */
+    code span.co { color: #60a0b0; font-style: italic; } /* Comment */
+    code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
+    code span.do { color: #ba2121; font-style: italic; } /* Documentation */
+    code span.dt { color: #902000; } /* DataType */
+    code span.dv { color: #40a070; } /* DecVal */
+    code span.er { color: #ff0000; font-weight: bold; } /* Error */
+    code span.ex { } /* Extension */
+    code span.fl { color: #40a070; } /* Float */
+    code span.fu { color: #06287e; } /* Function */
+    code span.im { color: #008000; font-weight: bold; } /* Import */
+    code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
+    code span.kw { color: #007020; font-weight: bold; } /* Keyword */
+    code span.op { color: #666666; } /* Operator */
+    code span.ot { color: #007020; } /* Other */
+    code span.pp { color: #bc7a00; } /* Preprocessor */
+    code span.sc { color: #4070a0; } /* SpecialChar */
+    code span.ss { color: #bb6688; } /* SpecialString */
+    code span.st { color: #4070a0; } /* String */
+    code span.va { color: #19177c; } /* Variable */
+    code span.vs { color: #4070a0; } /* VerbatimString */
+    code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
+  </style>
+  <link rel="stylesheet" href="../style.css" />
+</head>
+<body>
+<nav id="TOC" role="doc-toc">
+<ul>
+<li><a href="#surface-syntax-and-grammar"
+id="toc-surface-syntax-and-grammar">Surface syntax and grammar</a></li>
+<li><a href="#core-notation" id="toc-core-notation">Core
+notation</a></li>
+<li><a href="#strictness-and-effects"
+id="toc-strictness-and-effects">Strictness and effects</a></li>
+<li><a href="#layout-and-lexing" id="toc-layout-and-lexing">Layout and
+lexing</a></li>
+<li><a href="#operators-and-binding"
+id="toc-operators-and-binding">Operators and binding</a></li>
+<li><a href="#declarations-and-abstractions"
+id="toc-declarations-and-abstractions">Declarations and
+abstractions</a></li>
+<li><a href="#sequencing" id="toc-sequencing">Sequencing</a></li>
+<li><a href="#validation-boundary"
+id="toc-validation-boundary">Validation boundary</a></li>
+<li><a href="#complete-ebnf" id="toc-complete-ebnf">Complete
+EBNF</a></li>
+</ul>
+</nav>
+<p><a href="../index.html">← Documentation index</a></p>
+<h1 id="surface-syntax-and-grammar">Surface syntax and grammar</h1>
+<p>Source: <a
+href="https://chatgpt.com/space/page_18d4c95146a48191a722223f1e8dd18a"
+class="uri">https://chatgpt.com/space/page_18d4c95146a48191a722223f1e8dd18a</a><br />
+Exported: 2026-10-22T18:59:36Z</p>
+<hr />
+<p>Draft 0.2. This chapter and <code>grammar/surface.ebnf</code> replace
+the earlier Rust-like surface sketches. The language remains strict and
+fully dependently typed. Haskell-like notation does not imply Haskell’s
+evaluation strategy, implicit laziness or unrestricted sharing.</p>
+<h1 id="core-notation">Core notation</h1>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">module</span> <span class="dt">Example</span> <span class="kw">where</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="ot">  twice ::</span> <span class="dt">Nat</span> <span class="ot">-&gt;</span> <span class="dt">Nat</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>  twice x <span class="ot">=</span> x <span class="op">+</span> x</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>  <span class="kw">data</span> <span class="dt">Vec</span> (<span class="ot">n ::</span> <span class="dt">Nat</span>) (<span class="ot">a ::</span> <span class="dt">Type</span>) <span class="kw">where</span></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>    <span class="dt">Nil</span><span class="ot">  ::</span> <span class="dt">Vec</span> <span class="dv">0</span> a</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>    <span class="dt">Cons</span><span class="ot"> ::</span> <span class="kw">forall</span> n<span class="op">.</span> a <span class="ot">-&gt;</span> <span class="dt">Vec</span> n a <span class="ot">-&gt;</span> <span class="dt">Vec</span> (n <span class="op">+</span> <span class="dv">1</span>) a</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a><span class="ot">  first ::</span> <span class="kw">forall</span> a n region<span class="op">.</span></span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>           <span class="dt">Ref</span> region (<span class="dt">Vec</span> (n <span class="op">+</span> <span class="dv">1</span>) a) <span class="ot">-&gt;</span> <span class="dt">Ref</span> region a</span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>  first xs <span class="ot">=</span> <span class="kw">case</span> xs <span class="kw">of</span></span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>    <span class="dt">Cons</span> x rest <span class="ot">-&gt;</span> x</span></code></pre></div>
+<p><code>f x y</code> is curried application, <code>::</code> introduces
+a signature, and <code>case ... of</code> performs pattern matching.
+Pattern matching a borrowed value uses checked borrow-pattern
+elaboration; it does not move fields out of the referent.
+<code>Ref</code> and <code>Mut</code> are library-visible reference
+types with region indices. Functions consume or borrow according to
+their types; using a Haskell-like surface does not grant implicit
+duplication of resources.</p>
+<p>Kinds, types and values share term syntax. <code>Type</code>,
+<code>Prop</code>, <code>Nat</code>, equality and type constructors are
+checked by elaboration rather than by a second restricted
+type-expression grammar. <code>Vec (n + 1) a</code> uses a computed
+index. <code>(n :: Nat) -&gt; Vec n a</code> is a dependent function
+type; <code>Sigma (n :: Nat). Vec n a</code> is a dependent pair.
+<code>forall</code> binds implicit parameters; explicit annotations
+remain necessary where inference cannot determine them. Unbound
+signature variables are errors in this draft, rather than silently
+generalized.</p>
+<h1 id="strictness-and-effects">Strictness and effects</h1>
+<p>Arguments evaluate left to right, after the function expression.
+Application associates left, arrows associate right. Partial application
+creates a closure; the type of each arrow states the effects at that
+application step. <code>a -&gt; b -&gt;{IO r} c</code> is pure when
+given only the first argument and effectful when given the second.</p>
+<p><code>a -&gt; b</code> means a pure total arrow.
+<code>a -&gt;{|e} b</code> has an open effect row.
+<code>a -&gt;{Async r, Net r | e} b</code> has named effects and a row
+tail. A local definition without a signature may infer effects; an
+explicit pure signature cannot hide them. <code>Diverge</code> remains
+explicit whenever termination is not established.</p>
+<p>There is no <code>async</code> declaration modifier or special
+<code>await</code> expression. A suspendable call returns its ordinary
+result under an <code>Async</code> effect. Task handles remain explicit
+values when work is spawned. Because evaluation is strict,
+<code>spawn s (fetch request)</code> starts evaluating
+<code>fetch</code> too early; write
+<code>spawn s (\() -&gt; fetch request)</code>.</p>
+<h1 id="layout-and-lexing">Layout and lexing</h1>
+<p>The EBNF consumes explicit <code>{</code>, <code>;</code> and
+<code>}</code> tokens after a deterministic layout pass.
+<code>where</code>, <code>of</code>, <code>do</code> and
+<code>let</code> introduce a layout block unless followed by an explicit
+<code>{</code>. The next non-comment token starts the block at its
+column. At a later logical line start, equal indentation inserts
+<code>;</code>, lower indentation closes nested implicit blocks, and
+greater indentation continues the current item. The first item receives
+no inserted separator.</p>
+<p>An implicit block must indent farther than its enclosing implicit
+block. An explicit delimiter shields enclosing layout while it is open;
+layout blocks begun inside it still use their own indentation. Closing
+<code>)</code>, <code>]</code> or an explicit <code>}</code> first
+closes implicit blocks opened inside that delimiter. End of file closes
+remaining implicit blocks. <code>in</code> closes the nearest applicable
+implicit <code>let</code> block and any nested implicit blocks; it must
+not cross an unmatched explicit delimiter. A <code>let</code> statement
+in <code>do</code> has no <code>in</code> and closes by indentation. Use
+explicit braces for empty blocks or a form the layout rule cannot
+express. There is no parser-error-based insertion rule.</p>
+<p>Comments are <code>--</code> to end of line and nestable
+<code>{- ... -}</code> blocks. Tabs are rejected in indentation. Line
+endings normalize to LF. Identifiers are ASCII in this draft; string and
+character contents are Unicode scalar values. Strings support
+<code>\\</code>, <code>\"</code>, <code>\'</code>, <code>\n</code>,
+<code>\r</code>, <code>\t</code>, and <code>\u{HEX}</code> with a valid
+scalar. Comment recognition has priority over symbol identifiers.
+Reserved punctuation is matched longest first, including
+<code>::</code>, <code>-&gt;</code>, <code>&lt;-</code>,
+<code>=&gt;</code>, <code>[|</code>, <code>|]</code>, <code>$(</code>
+and multiplicities. Dot is qualification or projection, never decimal
+punctuation except inside a numeric token. <code>f(x)</code> parses as
+applying <code>f</code> to <code>x</code>; <code>f(x,y)</code> supplies
+one tuple argument, not two curried arguments.</p>
+<p>All quoted alphabetic terminals in the EBNF are reserved.
+<code>async</code>, <code>await</code>, <code>pure</code>,
+<code>spawn</code>, <code>join</code>, <code>delay</code>,
+<code>force</code>, <code>borrow</code> and <code>mutBorrow</code> are
+ordinary library names, not control syntax. Bare <code>_</code> is a
+pattern wildcard or elaboration hole; a hole cannot survive a deployable
+build.</p>
+<h1 id="operators-and-binding">Operators and binding</h1>
+<p>The parser records an infix chain, then a fixity pass resolves it
+using the imported, unambiguous operator declarations. Fixity
+precedences range from 0 to 9; equal-precedence operators must have
+compatible associativity or require parentheses. There is no default for
+an undeclared operator. Application and projection bind tighter than
+infix operators; <code>$</code> is reserved right-associative
+application below all ordinary infix operators. Type annotations and
+arrows bind more loosely than expression operators. Prefix negation
+binds to one postfixed atomic term; write <code>-(f x)</code> to negate
+an application result.</p>
+<p>The prelude declares arithmetic, comparison, Boolean and composition
+fixities. Comparisons are nonassociative. Local fixity declarations do
+not change the interpretation of already imported code. Parenthesized
+named binders before an arrow are dependent binders; a caller cannot
+reinterpret <code>(x :: A) -&gt; B</code> as a value annotation followed
+by an arrow.</p>
+<p><code>%0</code>, <code>%1</code>, <code>%aff</code> and
+<code>%many</code> annotate erased, linear, affine and unrestricted
+arrow usage. These are constraints checked with the resource calculus,
+not a completed soundness result. Runtime capability parameters use
+<code>using (io :: Io r) =&gt; ...</code>.
+<code>with (io = selectedIO) in expression</code> supplies a lexical
+binding. <code>f @{io = selectedIO}</code> supplies an explicit
+dictionary at a call. No thread-local runtime lookup is implied.</p>
+<h1 id="declarations-and-abstractions">Declarations and
+abstractions</h1>
+<p><code>signature</code> declares an abstraction with abstract types,
+operations and laws. <code>module M (S :: Signature) where ...</code>
+accepts a module parameter. <code>instance</code> implements a
+signature; <code>implicit instance</code> makes it eligible for unique
+dictionary resolution. Abstract module identity and associated types
+preserve the OCaml/Backpack-style abstraction boundary. These forms
+share one elaboration model, rather than creating unrelated module and
+trait systems.</p>
+<p><code>proof</code>, <code>spec</code>, <code>stage</code> and
+<code>corec</code> decorate signatures and matching equations.
+<code>rewrite</code> and <code>target rewrite</code> carry typed
+metavariable binders, a match, replacement, optional requirements and
+justification. Such a rule changes optimized program code only after
+proof checking; it does not extend definitional equality.
+<code>foreign import</code> declares ABI operations with explicit
+effects. <code>upgrade</code> names migration fields checked by the
+upgrade schema. WIT itself retains its own standard grammar.</p>
+<p>Typed quotation is <code>[| expression |]</code>, with
+<code>$(code)</code> for a splice. <code>quoteDecls where ...</code>
+quotes declarations. <code>generate do ...</code> executes a checked
+generator. A macro invocation uses a balanced token tree; its expansion
+is hygienic and must parse and elaborate under this same language.
+Cross-module expansion does not bypass stage dependency checks.</p>
+<h1 id="sequencing">Sequencing</h1>
+<p>All sequencing uses unqualified <code>do</code>. Its interpretation
+is chosen by an in-scope sequencing module, with direct effect
+sequencing as the defined default. A custom interpretation must be
+explicit in the enclosing module or signature; the compiler does not
+infer short-circuiting merely because a result type happens to be
+<code>Result</code>.</p>
+<p><code>x &lt;- action</code> binds according to that module,
+<code>let x = value</code> introduces a pure local binding, and the
+final expression supplies the block’s result. Refutable patterns require
+an explicit case or an interpretation with a declared typed failure
+operation. A discarded linear result requires a valid consumption
+operation. The companion runtime and sequencing specification defines
+the distinction between control effects, result composition and runtime
+capabilities.</p>
+<h1 id="validation-boundary">Validation boundary</h1>
+<p>The EBNF defines a proposed concrete syntax, with the lexical and
+layout rules in this chapter. It is not a type checker, parser
+implementation or mechanized metatheory. Context checks still enforce
+legal declarations in signatures, complete module implementations,
+coverage, totality, effect rows, resource usage, module coherence, proof
+obligations and stage ordering. The grammar deliberately permits some
+forms that these later checks must reject.</p>
+<h1 id="complete-ebnf">Complete EBNF</h1>
+<pre class="ebnf"><code>(* Surface grammar 0.2. EBNF after layout insertion and tokenization.
+   Quoted strings are terminals. ? ... ? names lexical classes.
+   Syntax acceptance is not type, proof, effect or ownership acceptance. *)
+
+program = { module_decl } ;
+module_decl = &quot;module&quot;, con_path, { module_parameter },
+              [ &quot;::&quot;, term ], &quot;where&quot;, declaration_block ;
+module_parameter = &quot;(&quot;, con_id, &quot;::&quot;, term, &quot;)&quot; ;
+declaration_block = &quot;{&quot;, [ declaration, { &quot;;&quot;, declaration }, [ &quot;;&quot; ] ], &quot;}&quot; ;
+declaration = import_decl | signature_decl | module_decl | instance_decl
+            | type_decl | data_decl | record_decl | effect_decl
+            | value_signature | equation | foreign_decl | rewrite_decl
+            | upgrade_decl | generate_decl | fixity_decl ;
+import_decl = &quot;import&quot;, [ &quot;stage&quot; | &quot;replaceable&quot; | &quot;specialized&quot; ],
+              con_path, [ &quot;as&quot;, con_id ] ;
+signature_decl = &quot;signature&quot;, con_id, { binder }, &quot;where&quot;, declaration_block ;
+instance_decl = [ &quot;implicit&quot; ], &quot;instance&quot;, con_id, { binder },
+                &quot;::&quot;, term, &quot;where&quot;, declaration_block ;
+type_decl = [ &quot;opaque&quot; ], &quot;type&quot;, con_id, { binder },
+            ( &quot;::&quot;, term | &quot;=&quot;, term ) ;
+data_decl = &quot;data&quot;, con_id, { binder }, [ &quot;::&quot;, term ], &quot;where&quot;, constructor_block ;
+constructor_block = &quot;{&quot;, [ constructor_decl, { &quot;;&quot;, constructor_decl }, [ &quot;;&quot; ] ], &quot;}&quot; ;
+constructor_decl = con_id, &quot;::&quot;, term ;
+record_decl = ( &quot;record&quot; | &quot;codata&quot; ), con_id, { binder }, &quot;where&quot;, field_block ;
+field_block = &quot;{&quot;, [ field_decl, { &quot;;&quot;, field_decl }, [ &quot;;&quot; ] ], &quot;}&quot; ;
+field_decl = [ &quot;erased&quot; ], var_id, &quot;::&quot;, term ;
+effect_decl = &quot;effect&quot;, con_id, { binder }, &quot;where&quot;, operation_block ;
+operation_block = &quot;{&quot;, [ operation_decl, { &quot;;&quot;, operation_decl }, [ &quot;;&quot; ] ], &quot;}&quot; ;
+operation_decl = var_id, &quot;::&quot;, term ;
+modifier = &quot;proof&quot; | &quot;spec&quot; | &quot;stage&quot; | &quot;corec&quot; | &quot;macro&quot; ;
+value_signature = [ modifier ], value_name, &quot;::&quot;, term ;
+equation = [ modifier ], value_name, { atomic_pattern }, &quot;=&quot;, term,
+           [ &quot;where&quot;, local_block ] ;
+value_name = var_id | &quot;(&quot;, operator, &quot;)&quot; ;
+local_block = &quot;{&quot;, local_decl, { &quot;;&quot;, local_decl }, [ &quot;;&quot; ], &quot;}&quot; ;
+local_decl = value_signature | equation | pattern_binding ;
+pattern_binding = pattern, &quot;=&quot;, term ;
+fixity_decl = ( &quot;infix&quot; | &quot;infixl&quot; | &quot;infixr&quot; ), integer,
+              operator, { &quot;,&quot;, operator } ;
+
+foreign_decl = &quot;foreign&quot;, ( &quot;import&quot; | &quot;export&quot; ),
+               ( &quot;ccall&quot; | &quot;component&quot; ), string, var_id, &quot;::&quot;, term ;
+rewrite_decl = [ &quot;target&quot; ], &quot;rewrite&quot;, var_id,
+               [ &quot;forall&quot;, binder, { binder }, &quot;.&quot; ],
+               [ using_context ], &quot;where&quot;, rewrite_block ;
+rewrite_block = &quot;{&quot;, &quot;match&quot;, term, &quot;;&quot;, &quot;replace&quot;, term, &quot;;&quot;,
+                { &quot;require&quot;, term, &quot;;&quot; }, &quot;justify&quot;, term, [ &quot;;&quot; ], &quot;}&quot; ;
+upgrade_decl = &quot;upgrade&quot;, con_path, &quot;to&quot;, con_path, &quot;where&quot;, assignment_block ;
+generate_decl = &quot;generate&quot;, do_expr ;
+assignment_block = &quot;{&quot;, assignment, { &quot;;&quot;, assignment }, [ &quot;;&quot; ], &quot;}&quot; ;
+assignment = var_id, &quot;=&quot;, term ;
+
+(* Terms also occur in types. Sorting, relevance and totality are checked later. *)
+term = forall_term | sigma_term | contextual_term | lambda | let_term
+     | if_term | case_term | do_expr | handle_term | with_term | arrow_term ;
+forall_term = &quot;forall&quot;, binder, { binder }, &quot;.&quot;, term ;
+sigma_term = &quot;Sigma&quot;, typed_binder, &quot;.&quot;, term ;
+contextual_term = using_context, &quot;=&gt;&quot;, term ;
+using_context = &quot;using&quot;, &quot;(&quot;, capability_binder,
+                { &quot;,&quot;, capability_binder }, &quot;)&quot; ;
+capability_binder = var_id, &quot;::&quot;, term ;
+binder = var_id | typed_binder | implicit_binder ;
+typed_binder = &quot;(&quot;, [ &quot;erased&quot; | &quot;own&quot; ], var_id, &quot;::&quot;, term, &quot;)&quot; ;
+implicit_binder = &quot;{&quot;, [ &quot;erased&quot; ], var_id, &quot;::&quot;, term, &quot;}&quot; ;
+arrow_term = ( typed_binder | implicit_binder ), [ multiplicity ], arrow, term
+           | annotation, [ [ multiplicity ], arrow, term ] ;
+multiplicity = &quot;%0&quot; | &quot;%1&quot; | &quot;%aff&quot; | &quot;%many&quot; ;
+arrow = &quot;-&gt;&quot;, [ effect_row ] ;
+effect_row = &quot;{&quot;, [ effect_label, { &quot;,&quot;, effect_label } ],
+             [ &quot;|&quot;, var_id ], &quot;}&quot; ;
+effect_label = con_path, { atomic_term } ;
+annotation = dollar_expr, [ &quot;::&quot;, term ] ;
+dollar_expr = infix_expr, [ &quot;$&quot;, term ] ;
+infix_expr = application, { operator, application } ;
+application = prefix, { postfix } ;
+prefix = { &quot;-&quot; }, postfix ;
+postfix = atomic_term, { projection | type_argument | supplied_capabilities } ;
+projection = &quot;.&quot;, var_id ;
+type_argument = &quot;@&quot;, atomic_term ;
+supplied_capabilities = &quot;@&quot;, &quot;{&quot;, assignment, { &quot;,&quot;, assignment }, &quot;}&quot; ;
+atomic_term = var_path | con_path | literal | &quot;_&quot; | &quot;()&quot;
+            | &quot;(&quot;, term, &quot;)&quot;
+            | &quot;(&quot;, term, &quot;,&quot;, term, { &quot;,&quot;, term }, &quot;)&quot;
+            | &quot;[&quot;, [ term, { &quot;,&quot;, term } ], &quot;]&quot;
+            | con_path, &quot;{&quot;, [ assignment, { &quot;,&quot;, assignment } ], &quot;}&quot;
+            | &quot;(&quot;, operator, &quot;)&quot;
+            | quote_expr | splice_expr | handler_expr | macro_call ;
+lambda = &quot;\\&quot;, atomic_pattern, { atomic_pattern }, &quot;-&gt;&quot;, term ;
+let_term = &quot;let&quot;, local_block, &quot;in&quot;, term ;
+if_term = &quot;if&quot;, term, &quot;then&quot;, term, &quot;else&quot;, term ;
+case_term = &quot;case&quot;, term, &quot;of&quot;, alternative_block ;
+alternative_block = &quot;{&quot;, alternative, { &quot;;&quot;, alternative }, [ &quot;;&quot; ], &quot;}&quot; ;
+alternative = pattern, [ &quot;|&quot;, term ], &quot;-&gt;&quot;, term ;
+do_expr = &quot;do&quot;, &quot;{&quot;, { do_statement, &quot;;&quot; }, term, [ &quot;;&quot; ], &quot;}&quot; ;
+do_statement = &quot;let&quot;, local_block | pattern, &quot;&lt;-&quot;, term | term ;
+with_term = &quot;with&quot;, &quot;(&quot;, assignment, { &quot;,&quot;, assignment }, &quot;)&quot;, &quot;in&quot;, term ;
+handle_term = &quot;handle&quot;, term, &quot;with&quot;, term ;
+handler_expr = &quot;handler&quot;, effect_label, &quot;where&quot;, handler_block ;
+handler_block = &quot;{&quot;, return_clause, { &quot;;&quot;, operation_clause }, [ &quot;;&quot; ], &quot;}&quot; ;
+return_clause = &quot;return&quot;, atomic_pattern, &quot;-&gt;&quot;, term ;
+operation_clause = var_id, { atomic_pattern }, &quot;resume&quot;, var_id, &quot;-&gt;&quot;, term ;
+quote_expr = &quot;[|&quot;, term, &quot;|]&quot; | &quot;quoteDecls&quot;, &quot;where&quot;, declaration_block ;
+splice_expr = &quot;$(&quot;, term, &quot;)&quot; ;
+macro_call = var_path, &quot;!&quot;, token_tree ;
+token_tree = ? balanced token tree in (), [] or {}; nested delimiters match ? ;
+
+pattern = constructor_pattern, [ &quot;::&quot;, term ] ;
+constructor_pattern = con_path, { atomic_pattern } | atomic_pattern ;
+atomic_pattern = var_id | &quot;_&quot; | literal | &quot;()&quot; | con_path
+               | &quot;(&quot;, pattern, &quot;)&quot;
+               | &quot;(&quot;, pattern, &quot;,&quot;, pattern, { &quot;,&quot;, pattern }, &quot;)&quot;
+               | &quot;[&quot;, [ pattern, { &quot;,&quot;, pattern } ], &quot;]&quot;
+               | con_path, &quot;{&quot;, pattern_field, { &quot;,&quot;, pattern_field }, &quot;}&quot;
+               | var_id, &quot;@&quot;, atomic_pattern ;
+pattern_field = var_id, &quot;=&quot;, pattern ;
+
+con_path = con_id, { &quot;.&quot;, con_id } ;
+var_path = { con_id, &quot;.&quot; }, var_id ;
+var_id = ? ASCII lowercase or underscore followed by letters, digits, underscores or apostrophes; not a keyword or lone underscore ? ;
+con_id = ? ASCII uppercase followed by letters, digits, underscores or apostrophes ? ;
+operator = ? nonempty symbol identifier, or backtick-delimited value path; excludes reserved punctuation and dollar ? ;
+literal = integer | float | string | character ;
+integer = ? decimal digits, or 0x hexadecimal digits; internal single underscores allowed ? ;
+float = ? digits dot digits with optional e/E signed decimal exponent ? ;
+string = ? double-quoted UTF-8 text with defined escapes; no raw newline ? ;
+character = ? one Unicode scalar or escape in single quotes ? ;</code></pre>
+<p><a href="../overview.html">Documentation overview</a></p>
+</body>
+</html>

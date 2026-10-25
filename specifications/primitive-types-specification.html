@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Primitive types specification</title>
+  <style>
+    html {
+      color: #1a1a1a;
+      background-color: #fdfdfd;
+    }
+    body {
+      margin: 0 auto;
+      max-width: 36em;
+      padding-left: 50px;
+      padding-right: 50px;
+      padding-top: 50px;
+      padding-bottom: 50px;
+      hyphens: auto;
+      overflow-wrap: break-word;
+      text-rendering: optimizeLegibility;
+      font-kerning: normal;
+    }
+    @media (max-width: 600px) {
+      body {
+        font-size: 0.9em;
+        padding: 12px;
+      }
+      h1 {
+        font-size: 1.8em;
+      }
+    }
+    @media print {
+      html {
+        background-color: white;
+      }
+      body {
+        background-color: transparent;
+        color: black;
+        font-size: 12pt;
+      }
+      p, h2, h3 {
+        orphans: 3;
+        widows: 3;
+      }
+      h2, h3, h4 {
+        page-break-after: avoid;
+      }
+    }
+    p {
+      margin: 1em 0;
+    }
+    a {
+      color: #1a1a1a;
+    }
+    a:visited {
+      color: #1a1a1a;
+    }
+    img {
+      max-width: 100%;
+    }
+    svg {
+      height: auto;
+      max-width: 100%;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      margin-top: 1.4em;
+    }
+    h5, h6 {
+      font-size: 1em;
+      font-style: italic;
+    }
+    h6 {
+      font-weight: normal;
+    }
+    ol, ul {
+      padding-left: 1.7em;
+      margin-top: 1em;
+    }
+    li > ol, li > ul {
+      margin-top: 0;
+    }
+    blockquote {
+      margin: 1em 0 1em 1.7em;
+      padding-left: 1em;
+      border-left: 2px solid #e6e6e6;
+      color: #606060;
+    }
+    code {
+      font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
+      font-size: 85%;
+      margin: 0;
+      hyphens: manual;
+    }
+    pre {
+      margin: 1em 0;
+      overflow: auto;
+    }
+    pre code {
+      padding: 0;
+      overflow: visible;
+      overflow-wrap: normal;
+    }
+    .sourceCode {
+     background-color: transparent;
+     overflow: visible;
+    }
+    hr {
+      border: none;
+      border-top: 1px solid #1a1a1a;
+      height: 1px;
+      margin: 1em 0;
+    }
+    table {
+      margin: 1em 0;
+      border-collapse: collapse;
+      width: 100%;
+      overflow-x: auto;
+      display: block;
+      font-variant-numeric: lining-nums tabular-nums;
+    }
+    table caption {
+      margin-bottom: 0.75em;
+    }
+    tbody {
+      margin-top: 0.5em;
+      border-top: 1px solid #1a1a1a;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    th {
+      border-top: 1px solid #1a1a1a;
+      padding: 0.25em 0.5em 0.25em 0.5em;
+    }
+    td {
+      padding: 0.125em 0.5em 0.25em 0.5em;
+    }
+    header {
+      margin-bottom: 4em;
+      text-align: center;
+    }
+    #TOC li {
+      list-style: none;
+    }
+    #TOC ul {
+      padding-left: 1.3em;
+    }
+    #TOC > ul {
+      padding-left: 0;
+    }
+    #TOC a:not(:hover) {
+      text-decoration: none;
+    }
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+    /* CSS for syntax highlighting */
+    html { -webkit-text-size-adjust: 100%; }
+    pre > code.sourceCode { white-space: pre; position: relative; }
+    pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+    pre > code.sourceCode > span:empty { height: 1.2em; }
+    .sourceCode { overflow: visible; }
+    code.sourceCode > span { color: inherit; text-decoration: inherit; }
+    div.sourceCode { margin: 1em 0; }
+    pre.sourceCode { margin: 0; }
+    @media screen {
+    div.sourceCode { overflow: auto; }
+    }
+    @media print {
+    pre > code.sourceCode { white-space: pre-wrap; }
+    pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+    }
+    pre.numberSource code
+      { counter-reset: source-line 0; }
+    pre.numberSource code > span
+      { position: relative; left: -4em; counter-increment: source-line; }
+    pre.numberSource code > span > a:first-child::before
+      { content: counter(source-line);
+        position: relative; left: -1em; text-align: right; vertical-align: baseline;
+        border: none; display: inline-block;
+        -webkit-touch-callout: none; -webkit-user-select: none;
+        -khtml-user-select: none; -moz-user-select: none;
+        -ms-user-select: none; user-select: none;
+        padding: 0 4px; width: 4em;
+        color: #aaaaaa;
+      }
+    pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
+    div.sourceCode
+      {   }
+    @media screen {
+    pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+    }
+    code span.al { color: #ff0000; font-weight: bold; } /* Alert */
+    code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
+    code span.at { color: #7d9029; } /* Attribute */
+    code span.bn { color: #40a070; } /* BaseN */
+    code span.bu { color: #008000; } /* BuiltIn */
+    code span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
+    code span.ch { color: #4070a0; } /* Char */
+    code span.cn { color: #880000; } /* Constant */
+    code span.co { color: #60a0b0; font-style: italic; } /* Comment */
+    code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
+    code span.do { color: #ba2121; font-style: italic; } /* Documentation */
+    code span.dt { color: #902000; } /* DataType */
+    code span.dv { color: #40a070; } /* DecVal */
+    code span.er { color: #ff0000; font-weight: bold; } /* Error */
+    code span.ex { } /* Extension */
+    code span.fl { color: #40a070; } /* Float */
+    code span.fu { color: #06287e; } /* Function */
+    code span.im { color: #008000; font-weight: bold; } /* Import */
+    code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
+    code span.kw { color: #007020; font-weight: bold; } /* Keyword */
+    code span.op { color: #666666; } /* Operator */
+    code span.ot { color: #007020; } /* Other */
+    code span.pp { color: #bc7a00; } /* Preprocessor */
+    code span.sc { color: #4070a0; } /* SpecialChar */
+    code span.ss { color: #bb6688; } /* SpecialString */
+    code span.st { color: #4070a0; } /* String */
+    code span.va { color: #19177c; } /* Variable */
+    code span.vs { color: #4070a0; } /* VerbatimString */
+    code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
+  </style>
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">Primitive types specification</h1>
+</header>
+<h1 id="primitive-types-specification">Primitive types
+specification</h1>
+<p>Source: local draft in this repository (added after the documentation
+export)<br />
+Added: 2026-10-22</p>
+<hr />
+<p><a href="../overview.md">Documentation overview</a></p>
+<p>Draft 0.1. This chapter defines the primitive, unboxed types: the
+fixed-width machine scalars that executable code manipulates directly.
+It extends draft 0.2 and makes concrete the core specification’s
+requirement that “machine integer types use explicit checked, wrapping,
+or saturating operations”. MUST denotes a requirement of this draft.
+Proposed choices are identified explicitly; unresolved items are listed
+in Open decisions.</p>
+<h1 id="scope-and-role">1 Scope and role</h1>
+<p>Three families of types must not be confused:</p>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr>
+<th>Family</th>
+<th>Examples</th>
+<th>Semantics</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Mathematical</td>
+<td><code>Nat</code>, <code>Int</code></td>
+<td>Unbounded; exact, total arithmetic; see the core specification</td>
+</tr>
+<tr>
+<td>Primitive machine scalars</td>
+<td><code>I32</code>, <code>U64</code>, <code>F64</code>,
+<code>Char</code>, <code>Bool</code></td>
+<td>This chapter: fixed width, unboxed, explicitly chosen overflow
+behavior</td>
+</tr>
+<tr>
+<td>Structured and target-indexed</td>
+<td><code>Vec n U32</code>, closures, records, dictionaries</td>
+<td>Other chapters; not primitives</td>
+</tr>
+</tbody>
+</table>
+<p>A primitive value is <strong>unboxed</strong>: it occupies its stated
+fixed layout, is passed, stored and compared inline, and involves no
+indirection, allocation or ownership transfer. Primitive types are
+ordinary types in <code>Type</code>; they carry no proofs and are never
+erased.</p>
+<p>Dependent mathematics keeps using <code>Nat</code> and
+<code>Int</code>. A machine integer is not an <code>Int</code>:
+converting between them is explicit (section 7), and <code>Nat</code>
+and <code>Int</code> never acquire machine overflow behavior.</p>
+<h1 id="the-type-set">2 The type set</h1>
+<table>
+<colgroup>
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+</colgroup>
+<thead>
+<tr>
+<th>Type</th>
+<th>Width (bits)</th>
+<th>Align</th>
+<th>Values</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Bool</code></td>
+<td>8</td>
+<td>1</td>
+<td><code>False</code>, <code>True</code></td>
+</tr>
+<tr>
+<td><code>Char</code></td>
+<td>32</td>
+<td>4</td>
+<td>Unicode scalar values</td>
+</tr>
+<tr>
+<td><code>I8</code>, <code>I16</code>, <code>I32</code>,
+<code>I64</code></td>
+<td>8, 16, 32, 64</td>
+<td>1, 2, 4, 8</td>
+<td>Two’s complement signed</td>
+</tr>
+<tr>
+<td><code>U8</code>, <code>U16</code>, <code>U32</code>,
+<code>U64</code></td>
+<td>8, 16, 32, 64</td>
+<td>1, 2, 4, 8</td>
+<td>Unsigned</td>
+</tr>
+<tr>
+<td><code>F32</code>, <code>F64</code></td>
+<td>32, 64</td>
+<td>4, 8</td>
+<td>IEEE 754 binary32 and binary64</td>
+</tr>
+<tr>
+<td><code>Usize</code>, <code>Isize</code></td>
+<td>target word</td>
+<td>target word</td>
+<td>Unsigned and signed; see below</td>
+</tr>
+<tr>
+<td><code>()</code></td>
+<td>0</td>
+<td>1</td>
+<td>The single value <code>()</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>Usize</code> and <code>Isize</code> are the target-width
+machine words: their width and alignment are fields of the target
+profile (see <a
+href="platform-proofs-and-simd-specification.md">Platform proofs and
+SIMD specification</a> section 1), MUST be at least 32 bits, and MUST be
+equal to each other on a given target. They are the types of sizes,
+indices and pointer differences. A program compiled for wasm32 has
+32-bit <code>Usize</code>; a program with a 64-bit memory model has
+64-bit <code>Usize</code>. Cross-compilation MUST use the target’s
+width, never the build host’s.</p>
+<p><code>I128</code> and <code>U128</code> are an OPTIONAL extension
+(Open decisions). Where supported they follow every rule below with
+width 128.</p>
+<h1 id="unboxed-semantics-and-layout">3 Unboxed semantics and
+layout</h1>
+<ul>
+<li>A primitive type’s size and alignment are exactly as stated in
+section 2, on every target. They are part of the language, not of an
+implementation’s discretion, because <a
+href="foreign-function-interface-specification.md">Foreign function
+interface specification</a> bindings and raw memory layouts depend on
+them.</li>
+<li>Arrays and <code>Vec n t</code> of a primitive type <code>t</code>
+have element stride equal to <code>sizeof t</code> with no padding.</li>
+<li>Primitive values are <code>Copy</code>: they may be duplicated and
+dropped freely (see the core specification, section 7). They impose no
+ownership or lifetime obligations.</li>
+<li>Evaluation of primitive operations follows the core rules: strict,
+left-to-right, call-by-value.</li>
+<li>Byte order is not observable through primitive values. It becomes
+observable only through explicit serialization and raw memory APIs,
+which state the order they use.</li>
+</ul>
+<h1 id="integer-arithmetic">4 Integer arithmetic</h1>
+<p>Overflow behavior is never implicit. For every integer type
+<code>t</code> and each of addition, subtraction, multiplication and
+negation, the prelude provides exactly three families, named for their
+behavior:</p>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr>
+<th>Family</th>
+<th>Signature shape</th>
+<th>Behavior on overflow</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>checked</code></td>
+<td><code>checkedAdd : t -&gt; t -&gt; Option t</code></td>
+<td><code>None</code>; the wrapped value is never returned</td>
+</tr>
+<tr>
+<td><code>wrapping</code></td>
+<td><code>wrappingAdd : t -&gt; t -&gt; t</code></td>
+<td>Two’s complement wrap modulo <code>2^n</code></td>
+</tr>
+<tr>
+<td><code>saturating</code></td>
+<td><code>saturatingAdd : t -&gt; t -&gt; t</code></td>
+<td>Clamp to <code>minBound</code> or <code>maxBound</code></td>
+</tr>
+</tbody>
+</table>
+<p>The families are <code>checkedAdd</code>, <code>wrappingAdd</code>,
+<code>saturatingAdd</code>, and likewise <code>Sub</code>,
+<code>Mul</code>, <code>Neg</code>. <code>U32.wrappingAdd</code> (used
+as the worked example in <a
+href="platform-proofs-and-simd-specification.md">Platform proofs and
+SIMD specification</a> section 5) is this operation: the scalar model is
+the sum modulo <code>2^32</code>. <code>checkedNeg</code> returns
+<code>None</code> for <code>minBound</code>; <code>wrappingNeg</code>
+and <code>saturatingNeg</code> follow their family. Bounds are
+<code>minBound, maxBound : t</code>.</p>
+<p>Division and remainder exist only as
+<code>checkedDiv, checkedRem : t -&gt; t -&gt; Option t</code>. They
+return <code>None</code> when the divisor is zero and, for signed types,
+when the quotient <code>minBound / -1</code> would overflow. Quotients
+truncate toward zero; the remainder satisfies
+<code>x = checkedDiv x y * y + checkedRem x y</code> when both are
+<code>Some</code>. Flooring variants are library functions, not
+primitives.</p>
+<p>Bitwise operations are total:
+<code>bitAnd, bitOr, bitXor, bitNot : t -&gt; t -&gt; t</code> (or
+<code>t</code> for <code>bitNot</code>). Shifts distinguish invalid
+counts from defined wraparound:</p>
+<ul>
+<li><code>checkedShl, checkedShr : t -&gt; U32 -&gt; Option t</code>
+return <code>None</code> when the count is at least the width of
+<code>t</code>.</li>
+<li><code>wrappingShl, wrappingShr : t -&gt; U32 -&gt; t</code> reduce
+the count modulo the width.</li>
+<li><code>rotateLeft, rotateRight : t -&gt; U32 -&gt; t</code> are total
+and reduce the count modulo the width.</li>
+<li><code>shr</code> is arithmetic (sign-propagating) on <code>I*</code>
+and <code>Isize</code>, logical (zero-filling) on <code>U*</code> and
+<code>Usize</code>.</li>
+</ul>
+<p>Bit inspection is total:
+<code>countOnes, leadingZeros, trailingZeros, reverseBits, swapBytes : t -&gt; U32</code>
+where meaningful (<code>swapBytes</code> is identity on one-byte
+types).</p>
+<p>There is <strong>no</strong> <code>Add</code>, <code>Sub</code>,
+<code>Mul</code> or <code>Neg</code> instance for machine integer types:
+<code>x + y</code> on <code>I32</code> MUST be rejected, because a class
+method has a single result type and cannot express which overflow family
+is meant. The prelude MAY offer opt-in wrapper newtypes whose instances
+commit to one family:</p>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co">-- Proposed prelude wrapper. `Wrapping I32` is a newtype over `I32` whose</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="co">-- `Add` instance commits to two&#39;s complement wrap; the compiler never</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="co">-- chooses an overflow family silently.</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="co">-- instance Add (Wrapping I32) where</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="co">--   (+) x y = wrap (wrappingAdd (unwrap x) (unwrap y))</span></span></code></pre></div>
+<h1 id="floating-point">5 Floating point</h1>
+<p><code>F32</code> and <code>F64</code> implement IEEE 754 binary32 and
+binary64 arithmetic: <code>add, sub, mul, div, neg, abs, sqrt</code>
+with round-to-nearest ties-to-even as the default rounding direction.
+Signed zeros, infinities and NaNs follow IEEE 754. NaN payloads are
+unspecified; operations propagate a quiet NaN but which one is not
+observable.</p>
+<p>Floats have <strong>no</strong> <code>Eq</code> and
+<strong>no</strong> <code>Ord</code> instance: <code>==</code> and
+<code>&lt;</code> on <code>F64</code> MUST be rejected, because IEEE
+equality is not an equivalence relation. The prelude provides the IEEE
+comparisons
+<code>feq, fne, flt, fle, fgt, fge : F64 -&gt; F64 -&gt; Bool</code>
+(quiet, non-signaling) and a total order:</p>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ot">totalOrder ::</span> <span class="dt">F64</span> <span class="ot">-&gt;</span> <span class="dt">F64</span> <span class="ot">-&gt;</span> <span class="dt">Ordering</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="co">-- IEEE 754-2019 totalOrder: -NaN &lt; -inf &lt; ... &lt; -0 &lt; +0 &lt; ... &lt; +inf &lt; +NaN</span></span></code></pre></div>
+<p><code>isNaN, isInfinite, isFinite, isNormal, signBit : F64 -&gt; Bool</code>
+are total. <code>minimum, maximum : F64 -&gt; F64 -&gt; F64</code> are
+the IEEE 754-2019 <code>minimum</code> and <code>maximum</code>: they
+propagate NaN and distinguish <code>-0</code> from <code>+0</code>.</p>
+<p>Floating-point status flags and the dynamic rounding mode are not
+observable in this draft (Open decisions). No transformation may
+reassociate, contract or re-round floating-point computation without a
+separate contract of the kind <a
+href="platform-proofs-and-simd-specification.md">Platform proofs and
+SIMD specification</a> section 5 requires.</p>
+<h1 id="bool-and-char">6 Bool and Char</h1>
+<p><code>Bool</code> has exactly the values <code>False</code> and
+<code>True</code>. The total functions
+<code>not : Bool -&gt; Bool</code> and
+<code>and, or, xor : Bool -&gt; Bool -&gt; Bool</code> are the strict
+boolean algebra.</p>
+<p>The surface operators <code>&amp;&amp;</code> and <code>||</code>
+MUST short-circuit, as required by the core specification. They
+therefore elaborate to <code>if</code> expressions, not to method
+application; their right operand is not evaluated when the result is
+already determined. A class-method operator is always strict, so a
+hypothetical <code>(&amp;&amp;)</code> method is a different, strict
+operation and MUST NOT be given the short-circuit meaning. (The compiler
+implements this: the parser elaborates infix
+<code>&amp;&amp;</code>/<code>||</code> to <code>if</code> at parse
+time, while parenthesized <code>(&amp;&amp;)</code>/<code>(||)</code>
+still name the strict prelude methods.)</p>
+<p><code>Char</code> values are Unicode scalar values: the code points
+<code>0x0</code> to <code>0xD7FF</code> and <code>0xE000</code> to
+<code>0x10FFFF</code>. <code>Char.toU32 : Char -&gt; U32</code> is
+total; <code>U32.checkedToChar</code> (section 7) rejects surrogates.
+<code>Char</code> has <code>Eq</code> and <code>Ord</code> in code point
+order. Character literals and their escapes are defined by <a
+href="surface-syntax-and-grammar.md">Surface syntax and grammar</a>.</p>
+<h1 id="conversions-and-literals">7 Conversions and literals</h1>
+<p>All conversions between primitive types are explicit; there is no
+implicit widening, narrowing or signedness change. For every ordered
+pair of numeric primitive types <code>S</code> and <code>T</code> the
+prelude provides:</p>
+<ul>
+<li><code>S.toT : S -&gt; T</code> when every value of <code>S</code> is
+representable in <code>T</code> (widening, or <code>U8 -&gt; I32</code>
+style cases). This conversion is total.</li>
+<li><code>S.checkedToT : S -&gt; Option T</code> otherwise, returning
+<code>None</code> when the value is not representable.</li>
+<li><code>S.saturatingToT : S -&gt; T</code> clamping to the
+representable range.</li>
+<li><code>S.wrappingToT : S -&gt; T</code> truncating in two’s
+complement, defined between integer types only.</li>
+</ul>
+<p>Float-to-integer conversion is never total: <code>checkedToT</code>
+returns <code>None</code> for NaN and out-of-range values,
+<code>saturatingToT</code> clamps and maps NaN to zero. Integer-to-float
+and float-to-float conversions are total but may round per IEEE 754; the
+rounding is part of the operation’s meaning.</p>
+<p>Conversion to and from the mathematical types is explicit as well:
+<code>toInt : t -&gt; Int</code> and <code>toNat : U8 -&gt; Nat</code>
+(and the other unsigned types) are total,
+<code>checkedFromInt : Int -&gt; Option t</code> and
+<code>checkedFromNat : Nat -&gt; Option t</code> are checked, matching
+the pattern above.</p>
+<p>Integer literals are elaborated against their expected type. A
+literal outside that type’s range is a compile error, and
+<code>Nat</code> and <code>Int</code> literals are unbounded.
+Hexadecimal literals (<code>0x</code> form) name the same values as
+decimal ones. A literal whose type is not determined by context is an
+error, with one narrow exception: when pending literal wants are the
+only thing blocking resolution, the literal defaults to the mathematical
+<code>Int</code>. There is no defaulting to <code>I64</code> or
+<code>F64</code>. Prefix <code>-</code> on a literal folds into the
+literal and is range-checked with it, so <code>-128 : I8</code> is
+valid; prefix <code>-</code> on a non-literal machine number is rejected
+(use <code>checkedNeg</code>, <code>wrappingNeg</code> or
+<code>saturatingNeg</code>).</p>
+<h1 id="class-instances">8 Class instances</h1>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr>
+<th>Instance</th>
+<th>Types</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Copy</code></td>
+<td>All primitives</td>
+</tr>
+<tr>
+<td><code>Eq</code></td>
+<td><code>Bool</code>, <code>Char</code>,
+<code>I8</code>-<code>I64</code>, <code>U8</code>-<code>U64</code>,
+<code>Usize</code>, <code>Isize</code></td>
+</tr>
+<tr>
+<td><code>Ord</code></td>
+<td>The same types as <code>Eq</code>, with signed numeric order on
+<code>I*</code>/<code>Isize</code>, unsigned on
+<code>U*</code>/<code>Usize</code>, <code>False &lt; True</code>, code
+point order on <code>Char</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>F32</code> and <code>F64</code> have none of these instances;
+use section 5’s operations. A <code>Bits</code> class unifying the
+bitwise operations is an open decision; until then they are ordinary
+named functions per type.</p>
+<h1 id="foreign-wasm-and-simd-correspondence">9 Foreign, Wasm and SIMD
+correspondence</h1>
+<p>The layout table in section 2 is the FFI layout table. The C ABI
+mappings are <code>U8</code> to <code>uint8_t</code> through
+<code>U64</code> to <code>uint64_t</code>, <code>I8</code> to
+<code>int8_t</code> through <code>I64</code> to <code>int64_t</code>,
+<code>F32</code>/<code>F64</code> to
+<code>float</code>/<code>double</code> where the target ABI defines them
+as IEEE 754, and <code>Bool</code> to C’s <code>_Bool</code>.
+<code>Char</code> has no C counterpart; use <code>U32</code>. FFI layer
+names such as <code>SizeT</code> and <code>CInt</code> in <a
+href="foreign-function-interface-specification.md">Foreign function
+interface specification</a> are mapped to primitives by the target’s
+recorded ABI metadata (commonly <code>SizeT</code> = <code>Usize</code>,
+<code>CInt</code> = <code>I32</code>), never by the generator host’s
+<code>sizeof</code>.</p>
+<p>For Wasm, <code>I8</code>-<code>I32</code>,
+<code>U8</code>-<code>U32</code> and
+<code>Usize</code>/<code>Isize</code> on wasm32 use <code>i32</code>
+operations, <code>I64</code>/<code>U64</code> use <code>i64</code>, and
+<code>F32</code>/<code>F64</code> use <code>f32</code>/<code>f64</code>.
+Sub-word types are value-level: their width is enforced by the
+operations of section 4 and section 7, not by a narrower Wasm type. A
+memory64 profile makes <code>Usize</code>/<code>Isize</code> 64-bit; see
+<a href="webassembly-and-wasi-specification.md">WebAssembly and WASI
+specification</a> section 8 on keeping these widths a target
+property.</p>
+<p>For SIMD, the lane element types of target-indexed vectors are
+exactly these primitives (<code>Vec n U32</code> and friends). Vector
+types themselves are not primitives and are not unboxed scalars. A
+rewrite between a scalar loop and a vectorized one must respect the
+arithmetic family: wrapping operations reassociate freely under their
+modular model, checked operations do not (a regrouping can change which
+operation overflows), and floating-point reassociation needs its own
+contract.</p>
+<h1 id="required-rejection-cases">10 Required rejection cases</h1>
+<ul>
+<li><code>x + y</code> on <code>I32</code>, or any use of
+<code>Add</code>/<code>Sub</code>/<code>Mul</code>/<code>Neg</code> on a
+machine integer type, without an explicit wrapper instance.</li>
+<li><code>x == y</code> or <code>x &lt; y</code> on
+<code>F32</code>/<code>F64</code> (no <code>Eq</code>/<code>Ord</code>
+instance).</li>
+<li>An integer literal that does not fit its expected type, such as
+<code>300 : U8</code>, and a literal with no determined type.</li>
+<li>Implicit conversion in either direction between machine integer
+types, or between <code>Int</code> and a machine integer type.</li>
+<li><code>-x</code> on a non-literal machine integer, and
+<code>checkedShl x 64</code> returning a wrapped value instead of
+<code>None</code> on <code>I64</code>.</li>
+<li>A <code>Char</code> built from a surrogate code point, or a
+float-to-integer conversion that is allowed to trap or wrap without
+saying so.</li>
+<li>Using the build host’s <code>Usize</code> width in a cross-compiled
+layout or proof.</li>
+</ul>
+<h1 id="open-decisions">11 Open decisions</h1>
+<ul>
+<li>Literal defaulting for unconstrained numeric literals beyond the
+narrow <code>Int</code> rule recorded in section 7 (pending wants
+only).</li>
+<li>Whether <code>I128</code>/<code>U128</code> belong in the core
+prelude or an extension module, and how targets without hardware support
+expose them.</li>
+<li>Observability of IEEE status flags and the dynamic rounding mode,
+and the exact contract under which reassociation or contraction is
+permitted.</li>
+<li>A <code>Bits</code> class (and possibly <code>Wrapping</code>-style
+wrappers) unifying section 4’s bit operations and overflow
+families.</li>
+<li>Encoding <code>Usize</code>’s width as a target-indexed value that
+dependent specifications can mention (needed before proofs may compute
+sizes).</li>
+<li>Byte order and alignment guarantees of raw memory APIs built on
+these types.</li>
+</ul>
+<p>Resolved since draft 0.2: <code>&amp;&amp;</code>/<code>||</code> are
+surface control forms (section 6). The compiler elaborates infix
+<code>&amp;&amp;</code>/<code>||</code> to <code>if</code> at parse
+time; parenthesized <code>(&amp;&amp;)</code>/<code>(||)</code> name
+strict class methods and are different operations.</p>
+<h1 id="implementation-status">Implementation status</h1>
+<p>The compiler in <code>compiler/</code> implements this chapter’s
+machine types and families (the <code>I8</code>-<code>I64</code>,
+<code>U8</code>-<code>U64</code>, <code>F32</code>, <code>F64</code>,
+<code>Char</code>, <code>Usize</code>, <code>Isize</code> names, the
+checked/wrapping/saturating families, explicit conversions, and literal
+range checking), and now has the mathematical <code>Nat</code> and
+<code>Int</code> on the bignum runtime with unbounded digit-string
+literals. <code>&amp;&amp;</code>/<code>||</code> short-circuit as
+required by section 10. Deviations still open: machine conversion names
+(<code>toInt</code>, <code>toNat</code>, <code>checkedFromInt</code>,
+<code>checkedFromNat</code>) are spelled with the machine type suffix
+(<code>intToI64</code> style) until the module slice lets this chapter’s
+dotted spelling land (decision D6 in
+<code>compiler/CONFORMANCE.md</code>), and <code>Bytes</code> has no
+string literal form yet.</p>
+<p><a href="../overview.md">Documentation overview</a></p>
+</body>
+</html>

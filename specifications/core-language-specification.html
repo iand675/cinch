@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Core language specification</title>
+  <style>
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+    /* CSS for syntax highlighting */
+    pre > code.sourceCode { white-space: pre; position: relative; }
+    pre > code.sourceCode > span { line-height: 1.25; }
+    pre > code.sourceCode > span:empty { height: 1.2em; }
+    .sourceCode { overflow: visible; }
+    code.sourceCode > span { color: inherit; text-decoration: inherit; }
+    div.sourceCode { margin: 1em 0; }
+    pre.sourceCode { margin: 0; }
+    @media screen {
+    div.sourceCode { overflow: auto; }
+    }
+    @media print {
+    pre > code.sourceCode { white-space: pre-wrap; }
+    pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+    }
+    pre.numberSource code
+      { counter-reset: source-line 0; }
+    pre.numberSource code > span
+      { position: relative; left: -4em; counter-increment: source-line; }
+    pre.numberSource code > span > a:first-child::before
+      { content: counter(source-line);
+        position: relative; left: -1em; text-align: right; vertical-align: baseline;
+        border: none; display: inline-block;
+        -webkit-touch-callout: none; -webkit-user-select: none;
+        -khtml-user-select: none; -moz-user-select: none;
+        -ms-user-select: none; user-select: none;
+        padding: 0 4px; width: 4em;
+        color: #aaaaaa;
+      }
+    pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
+    div.sourceCode
+      {   }
+    @media screen {
+    pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+    }
+    code span.al { color: #ff0000; font-weight: bold; } /* Alert */
+    code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
+    code span.at { color: #7d9029; } /* Attribute */
+    code span.bn { color: #40a070; } /* BaseN */
+    code span.bu { color: #008000; } /* BuiltIn */
+    code span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
+    code span.ch { color: #4070a0; } /* Char */
+    code span.cn { color: #880000; } /* Constant */
+    code span.co { color: #60a0b0; font-style: italic; } /* Comment */
+    code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
+    code span.do { color: #ba2121; font-style: italic; } /* Documentation */
+    code span.dt { color: #902000; } /* DataType */
+    code span.dv { color: #40a070; } /* DecVal */
+    code span.er { color: #ff0000; font-weight: bold; } /* Error */
+    code span.ex { } /* Extension */
+    code span.fl { color: #40a070; } /* Float */
+    code span.fu { color: #06287e; } /* Function */
+    code span.im { color: #008000; font-weight: bold; } /* Import */
+    code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
+    code span.kw { color: #007020; font-weight: bold; } /* Keyword */
+    code span.op { color: #666666; } /* Operator */
+    code span.ot { color: #007020; } /* Other */
+    code span.pp { color: #bc7a00; } /* Preprocessor */
+    code span.sc { color: #4070a0; } /* SpecialChar */
+    code span.ss { color: #bb6688; } /* SpecialString */
+    code span.st { color: #4070a0; } /* String */
+    code span.va { color: #19177c; } /* Variable */
+    code span.vs { color: #4070a0; } /* VerbatimString */
+    code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
+  </style>
+  <link rel="stylesheet" href="../style.css" />
+</head>
+<body>
+<nav id="TOC" role="doc-toc">
+<ul>
+<li><a href="#core-language-specification"
+id="toc-core-language-specification">Core language
+specification</a></li>
+<li><a href="#evaluation-and-syntax" id="toc-evaluation-and-syntax">1
+Evaluation and syntax</a></li>
+<li><a href="#dependent-types" id="toc-dependent-types">2 Dependent
+types</a></li>
+<li><a href="#logical-evidence-and-erasure"
+id="toc-logical-evidence-and-erasure">3 Logical evidence and
+erasure</a></li>
+<li><a href="#incremental-verification"
+id="toc-incremental-verification">4 Incremental verification</a></li>
+<li><a href="#refinement-and-flow-analysis"
+id="toc-refinement-and-flow-analysis">5 Refinement and flow
+analysis</a></li>
+<li><a href="#effects-and-capabilities"
+id="toc-effects-and-capabilities">6 Effects and capabilities</a></li>
+<li><a href="#ownership-and-memory-safety"
+id="toc-ownership-and-memory-safety">7 Ownership and memory
+safety</a></li>
+<li><a href="#induction-and-totality" id="toc-induction-and-totality">8
+Induction and totality</a></li>
+<li><a href="#coinduction-and-productivity"
+id="toc-coinduction-and-productivity">9 Coinduction and
+productivity</a></li>
+<li><a href="#processes-and-temporal-contracts"
+id="toc-processes-and-temporal-contracts">10 Processes and temporal
+contracts</a></li>
+<li><a href="#desired-metatheory-and-trust"
+id="toc-desired-metatheory-and-trust">11 Desired metatheory and
+trust</a></li>
+<li><a href="#foreign-and-concurrent-computation"
+id="toc-foreign-and-concurrent-computation">Foreign and concurrent
+computation</a></li>
+<li><a href="#current-syntax-and-sequencing"
+id="toc-current-syntax-and-sequencing">Current syntax and
+sequencing</a></li>
+</ul>
+</nav>
+<p><a href="../index.html">← Documentation index</a></p>
+<h1 id="core-language-specification">Core language specification</h1>
+<p>Source: <a
+href="https://chatgpt.com/space/page_1e97031528908191b713513863e30e6b"
+class="uri">https://chatgpt.com/space/page_1e97031528908191b713513863e30e6b</a><br />
+Exported: 2026-10-22T18:59:36Z</p>
+<hr />
+<p><a href="../overview.html">Documentation overview</a></p>
+<p>Draft 0.2. This chapter defines the intended static and dynamic
+obligations of the language. MUST denotes a requirement of this draft.
+Proposed choices are identified explicitly; unresolved foundations are
+listed in Open decisions. The surface notation is provisional and no
+compiler implementation is claimed.</p>
+<h1 id="evaluation-and-syntax">1 Evaluation and syntax</h1>
+<p>The language MUST use strict call-by-value evaluation for executable
+code. The proposed order is left-to-right for function arguments, record
+fields, and sequence elements. Pattern matching evaluates its scrutinee
+once. Short-circuit Boolean operators evaluate only the necessary
+operand. There is no implicit general laziness.</p>
+<p>Blocks are expressions. Layout groups declarations and
+<code>do</code> statements; <code>let</code> introduces an immutable
+binding. <code>name patterns = body</code> defines executable functions;
+<code>spec</code> marks total ghost definitions; <code>proof</code>
+constructs erased evidence. An explicit arrow without an effect row is
+total and pure; unannotated local definitions infer their effects. The
+compiler MUST reject an unsupported totality claim or require an
+explicit <code>Diverge</code> effect.</p>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ot">compose ::</span> <span class="kw">forall</span> a b c<span class="op">.</span> (b <span class="ot">-&gt;</span> c) <span class="ot">-&gt;</span> (a <span class="ot">-&gt;</span> b) <span class="ot">-&gt;</span> a <span class="ot">-&gt;</span> c</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>compose f g x <span class="ot">=</span> f (g x)</span></code></pre></div>
+<p>This example assumes reusable callback values. Closure usage is
+inferred from captures; a closure that consumes a captured resource
+cannot automatically inhabit a reusable function type.</p>
+<p>The following notation is used consistently throughout the draft:</p>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Notation</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>f :: forall a b. a -&gt; b</code> and
+<code>f x = ...</code></td>
+<td>Generic function</td>
+</tr>
+<tr class="even">
+<td><code>a -&gt; b</code></td>
+<td>Total pure reusable function, subject to usage checking</td>
+</tr>
+<tr class="odd">
+<td><code>a -&gt;{|e} b</code></td>
+<td>Function with effect row <code>e</code></td>
+</tr>
+<tr class="even">
+<td><code>Ref r a</code>, <code>Mut r a</code></td>
+<td>Shared or exclusive borrow with lifetime <code>r</code></td>
+</tr>
+<tr class="odd">
+<td><code>a %1 -&gt; b</code></td>
+<td>Consuming parameter</td>
+</tr>
+<tr class="even">
+<td><code>erased p :: P</code></td>
+<td>Evidence unavailable for computational branching</td>
+</tr>
+<tr class="odd">
+<td><code>Eq x y</code></td>
+<td>Propositional equality</td>
+</tr>
+<tr class="even">
+<td><code>Sigma (n :: Nat). Vec n a</code></td>
+<td>Dependent pair with computational first component</td>
+</tr>
+<tr class="odd">
+<td><code>using (dictionary :: Signature) =&gt; ...</code></td>
+<td>Explicit dictionary parameter eligible for implicit resolution</td>
+</tr>
+<tr class="even">
+<td><code>[| expression |]</code>, <code>$(code)</code></td>
+<td>Typed code construction and insertion</td>
+</tr>
+<tr class="odd">
+<td><code>Later a</code>, <code>delay (\() -&gt; expression)</code></td>
+<td>Guarded delayed observation; not an unrestricted thunk</td>
+</tr>
+</tbody>
+</table>
+<p>Space-separated type applications may contain types or values;
+compound indices use parentheses. <code>Nat</code> and <code>Int</code>
+are mathematical natural and signed integers. Machine integer types use
+explicit checked, wrapping, or saturating operations. Generic
+<code>+</code> in mathematical examples has mathematical semantics.</p>
+<h1 id="dependent-types">2 Dependent types</h1>
+<p>The core MUST support dependent function types, dependent pairs,
+indexed inductive families, dependent pattern matching, and a stratified
+universe hierarchy. <code>Type :: Type</code> MUST NOT be admitted.
+Universe inference and polymorphism are required; the exact cumulativity
+and level syntax remain open.</p>
+<p>Types may depend on ordinary values, not only compile-time literals.
+Evaluating a program can produce an existential package whose type
+refers to the produced value. The type checker need not evaluate an
+unknown runtime value; it reasons symbolically in a context containing
+that value.</p>
+<p>Inductive definitions MUST satisfy a sound positivity discipline.
+Recursive logical definitions MUST satisfy a sound termination
+discipline. Pattern coverage MUST account for indices and impossible
+constructors. General recursion is available only in a computation form
+whose divergence is explicit and which cannot fabricate logical
+evidence.</p>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">data</span> <span class="dt">Vec</span> (<span class="ot">n ::</span> <span class="dt">Nat</span>) (<span class="ot">a ::</span> <span class="dt">Type</span>) <span class="kw">where</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">Nil</span><span class="ot"> ::</span> <span class="dt">Vec</span> <span class="dv">0</span> a</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">Cons</span><span class="ot"> ::</span> <span class="kw">forall</span> k<span class="op">.</span> a <span class="ot">-&gt;</span> <span class="dt">Vec</span> k a <span class="ot">-&gt;</span> <span class="dt">Vec</span> (k <span class="op">+</span> <span class="dv">1</span>) a</span></code></pre></div>
+<p>This notation suppresses constructor-local implicit binders. The
+elaborated declaration binds each index explicitly.</p>
+<p>Type checking MUST distinguish definitional equality from a
+propositional equality proved by the user. The proposed definitional
+equality uses a controlled, terminating reduction discipline. Arbitrary
+SMT equivalences and arbitrary optimizer rules MUST NOT silently extend
+conversion.</p>
+<p>An explicit transport operation converts a value across a proved
+equality of indices. Automation may insert such transports, but the
+resulting core must be checked. Function extensionality, proof
+irrelevance, cubical equality, and the exact relationship between stream
+bisimilarity and identity remain foundation decisions; the draft does
+not assume all of them.</p>
+<h1 id="logical-evidence-and-erasure">3 Logical evidence and
+erasure</h1>
+<p>The logical fragment MUST remain consistent in the presence of
+effectful programs, divergence, staged computation, and hot replacement.
+A looping function MUST NOT inhabit an arbitrary proposition. Failed
+runtime checks MUST NOT produce evidence. Untrusted generated terms MUST
+pass the same checking rules as handwritten terms.</p>
+<p>This draft uses <code>Prop</code> as a proposed notation for erased
+propositions. Its elimination rules MUST prevent computational decisions
+from depending on erased proof identity. Constructive witnesses required
+at runtime belong in <code>Type</code> or in another explicitly retained
+computational representation.</p>
+<p>For example, <code>Sigma (n :: Nat). Vec n a</code> may retain
+<code>n</code>; a proof that <code>n &lt;= limit</code> can be erased. A
+proof that a match exists does not itself provide executable search code
+unless the selected logical and representation discipline supplies a
+retained witness or certified terminating search.</p>
+<p>Erasure MUST preserve the semantics of executable code. The compiler
+MUST retain indices, dictionaries, and witnesses when execution requires
+them, or derive their runtime values from retained data. It MUST NOT
+erase an argument merely because the surface syntax resembles a
+proof.</p>
+<p>Ghost models of owned values MUST NOT duplicate ownership. A
+specification may mention an immutable mathematical view of a resource
+without creating a second executable resource. The formal connection
+between such views and borrowing is an open core-design task.</p>
+<h1 id="incremental-verification">4 Incremental verification</h1>
+<p>The language MUST support gradual strengthening of specifications. A
+module with an ordinary type promises only that type and its baseline
+effects and resource guarantees. Adding a stronger contract creates new
+proof obligations; it does not retroactively establish properties absent
+from the earlier contract.</p>
+<p>An obligation has one of these statuses:</p>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Status</th>
+<th>Consequence</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Checked static evidence</td>
+<td>May be used wherever its assumptions hold</td>
+</tr>
+<tr class="even">
+<td>Explicit runtime decision</td>
+<td>Evidence exists only on the successful branch for the checked
+values</td>
+</tr>
+<tr class="odd">
+<td>Declared trusted assumption</td>
+<td>Recorded transitively; allowed only by the selected policy</td>
+</tr>
+<tr class="even">
+<td>Unresolved</td>
+<td>Editor exploration may continue; an artifact requiring it cannot be
+accepted</td>
+</tr>
+</tbody>
+</table>
+<p>The compiler MUST distinguish disproved obligations, unsupported
+reasoning, and proof-search timeout. None of the latter outcomes is a
+proof. Testing may find counterexamples but MUST NOT discharge a
+universal obligation by itself.</p>
+<p><code>decide(P)</code> is available only when an executable decision
+procedure for <code>P</code> is supplied. It returns
+<code>Yes(proof)</code> or <code>No(refutation)</code> with evidence
+scoped to the examined state. Runtime checking MUST be explicit in the
+source or public effect and error contract; solver timeouts MUST NOT
+silently introduce new runtime failures.</p>
+<p>An editor may represent typed holes and unfinished proofs. A
+deployment profile MUST reject unresolved required holes. The design may
+permit trusted FFI or primitive assumptions, but it MUST expose them in
+a transitive assumption manifest. A profile named certified, if
+introduced, must have a precisely defined trust boundary rather than
+imply that hardware and all external systems are verified.</p>
+<h1 id="refinement-and-flow-analysis">5 Refinement and flow
+analysis</h1>
+<p>Branch conditions, matches, and early returns SHOULD construct usable
+evidence automatically. Refinements are a convenient surface over the
+dependent core, not a restriction on its expressiveness.</p>
+<div class="sourceCode" id="cb3"><pre
+class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ot">firstCopy ::</span> <span class="kw">forall</span> a region<span class="op">.</span> using (<span class="ot">copy ::</span> <span class="dt">Copy</span> a) <span class="ot">=&gt;</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>              <span class="dt">Ref</span> region (<span class="dt">Array</span> a) <span class="ot">-&gt;</span> <span class="dt">Option</span> a</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>firstCopy xs <span class="ot">=</span> <span class="kw">if</span> <span class="fu">length</span> xs <span class="op">==</span> <span class="dv">0</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>  <span class="kw">then</span> <span class="dt">None</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>  <span class="kw">else</span> <span class="dt">Some</span> (Array.getCopy xs <span class="dv">0</span>)</span></code></pre></div>
+<p>On the successful branch the bounds obligation is established. The
+shared borrow prevents incompatible mutation of the array during the
+operation. Evidence about mutable state MUST be invalidated or
+transformed when that state changes. A numeric fact about a previous
+array length does not authorize indexing a shorter array.</p>
+<p>Refinement construction at external boundaries SHOULD produce useful
+error paths and validated domain types. Opaque nominal types distinguish
+values with the same representation, such as <code>UserId</code> and
+<code>InvoiceId</code>. Structural records support reusable data
+manipulation, row polymorphism, and explicit optional fields. Missing
+fields and fields containing <code>None</code> MUST remain
+distinguishable where the data model observes the difference.</p>
+<h1 id="effects-and-capabilities">6 Effects and capabilities</h1>
+<p>Effects describe computational behavior; capabilities authorize
+access to resources. Both MUST be represented. Public signatures expose
+effects; local inference may infer them. Higher-order effects are
+row-polymorphic.</p>
+<div class="sourceCode" id="cb4"><pre
+class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="fu">map</span><span class="ot"> ::</span> <span class="kw">forall</span> a b e<span class="op">.</span> (a <span class="ot">-&gt;</span>{<span class="op">|</span>e} b) <span class="ot">-&gt;</span> <span class="dt">List</span> a <span class="ot">-&gt;</span>{<span class="op">|</span>e} <span class="dt">List</span> b</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="fu">read</span><span class="ot"> ::</span> <span class="kw">forall</span> region<span class="op">.</span> <span class="dt">Ref</span> region <span class="dt">FileReadCap</span> <span class="ot">-&gt;</span> <span class="dt">Path</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>     <span class="ot">-&gt;</span>{<span class="dt">IO</span>} <span class="dt">Result</span> <span class="dt">ReadError</span> <span class="dt">Bytes</span></span></code></pre></div>
+<p>The draft distinguishes I/O, state, asynchronous suspension,
+divergence, and explicit failure mechanisms. The final effect vocabulary
+and handler calculus remain open. Typed <code>Result</code> values are
+the default recoverable-error notation in examples.</p>
+<p>Handling an effect does not automatically establish totality. A
+handler can introduce divergence or other effects, which MUST be
+reflected in its type. Multi-shot resumption MUST NOT duplicate linear
+captures; the initial design should prefer one-shot handlers or require
+evidence that the captured continuation is duplicable.</p>
+<p>Panic, allocation failure, cancellation, and stack exhaustion need an
+explicit runtime policy. A no-panic contract cannot be inferred merely
+from the absence of an ordinary exception effect if the runtime exposes
+additional failure paths. Logical proofs may use an idealized
+unbounded-resource model only when that modeling assumption is
+stated.</p>
+<h1 id="ownership-and-memory-safety">7 Ownership and memory safety</h1>
+<p>Safe code MUST prevent use-after-free, double free, invalid mutable
+aliasing, and data races under the specified runtime memory model. The
+language MUST offer shared immutable borrows, exclusive mutable borrows,
+consuming ownership transfer, and safe synchronized sharing. Foreign and
+primitive implementations remain explicit trust boundaries unless
+verified.</p>
+<p>The proposed foundation tracks erased, affine, linear, and
+unrestricted usage where appropriate. Exact usage algebra is unresolved.
+Affine values may be dropped through valid destruction. Linear
+obligations require exactly one valid consumption along every relevant
+path, including error and cancellation paths. Destructor effects and
+failure policies are part of the resource protocol.</p>
+<p>Immutable values are not universally free to copy. Sharing, copying,
+and cloning MUST have defined semantics, and potentially expensive
+copies SHOULD be explicit. Closures capture values with their ownership
+and borrowing constraints. A callback cannot outlive a borrowed
+environment.</p>
+<p>Ownership rules MUST interact soundly with dependencies: moving or
+mutating a value cannot leave live types or executable witnesses relying
+on invalid state. The implementation may use stable logical names,
+snapshots, borrowing restrictions, or a combination; this must be
+settled in the core calculus before claiming soundness.</p>
+<p>Memory safety does not establish deadlock freedom, leak freedom,
+fairness, bounded memory use, or freedom from timing channels. Separate
+contracts may express these properties.</p>
+<h1 id="induction-and-totality">8 Induction and totality</h1>
+<p>Inductive proofs establish properties of finite constructions and
+reachable states. Total functions require structural recursion, a
+well-founded measure, or another checked termination argument.
+Automation may infer such evidence but MUST return a checkable result
+under the chosen kernel design.</p>
+<p>Partial correctness states that a returning computation satisfies its
+postcondition. Total correctness additionally establishes termination
+under the relevant assumptions. Diverging services are not excluded from
+the language; they inhabit an explicit computation or process
+abstraction.</p>
+<h1 id="coinduction-and-productivity">9 Coinduction and
+productivity</h1>
+<p>The language MUST support coinductive data and a sound guarded
+corecursion discipline. A productive stream provides every requested
+finite prefix in finite internal computation, under the declared
+assumptions. This differs from a process that may wait indefinitely for
+input or search indefinitely for its next output.</p>
+<div class="sourceCode" id="cb5"><pre
+class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>codata <span class="dt">Stream</span> (<span class="ot">a ::</span> <span class="dt">Type</span>) <span class="kw">where</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="ot">  head ::</span> a</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="ot">  tail ::</span> <span class="dt">Later</span> (<span class="dt">Stream</span> a)</span></code></pre></div>
+<p><code>Later</code> is a guarded observation mechanism. Its force
+rules MUST prevent an unproductive recursive definition from
+masquerading as a total stream. This draft leaves the choice of guarded
+clocks, sized types, or another sound discipline open.</p>
+<p>Stream bisimilarity is a relation whose evidence establishes equal
+current observations and recursively related future observations. It
+need not be definitionally identical to identity equality. Rewrites may
+use a named observational relation with congruence evidence rather than
+assume arbitrary bisimilar terms are interchangeable in every
+context.</p>
+<p>Unrestricted filtering of an infinite productive stream MUST NOT
+promise a productive output stream. An infinite sequence of rejected
+values is possible. A stronger filter requires computational progress
+evidence sufficient to implement a total next-match search. A machine
+with terminating <code>Skip</code> steps can still skip forever.</p>
+<h1 id="processes-and-temporal-contracts">10 Processes and temporal
+contracts</h1>
+<p>Process specifications may describe infinite traces, state
+transitions, and environmental assumptions. The language MUST
+distinguish safety, liveness, recurrence, and stability. Proposed
+notation includes <code>always(P)</code>, <code>eventually(P)</code>,
+and leads-to properties over correlated request identities.</p>
+<p>An invariant proof can use induction over transitions and cover an
+infinite execution. Coinduction can establish behavioral equivalence.
+Liveness often requires well-founded progress arguments and fairness. No
+single proof technique subsumes all three uses.</p>
+<p>Temporal contracts MUST state scheduler, dependency, crash, network,
+and fairness assumptions when relied upon. Liveness evidence MUST be
+connected to the implementation by a refinement argument. A finite
+model-checking run establishes only its modeled scope unless accompanied
+by a proof justifying generalization.</p>
+<p>Safety refinement alone MUST NOT certify liveness preservation.
+Internal stuttering or an infinite sequence of upgrades may prevent
+progress while preserving all finite safety observations. Temporal
+obligations therefore extend to runtime scheduling and update
+policy.</p>
+<h1 id="desired-metatheory-and-trust">11 Desired metatheory and
+trust</h1>
+<p>The core design requires proofs of type preservation, progress in the
+appropriate effectful sense, logical consistency or normalization for
+the logical fragment, sound usage checking, erasure correctness, and the
+selected productivity principle. These are implementation milestones,
+not established results of this draft.</p>
+<p>The acceptance manifest MUST identify primitive axioms, external
+contracts, proof backends, and other trusted components that affect
+claimed guarantees. Proof automation should generate certificates
+checked by the kernel where feasible. A trusted solver mode may be
+offered, but MUST be distinguished from certificate checking.</p>
+<p>The module, optimizer, staging, and upgrade obligations in the other
+specification chapters extend this core. They cannot bypass it.</p>
+<h1 id="foreign-and-concurrent-computation">Foreign and concurrent
+computation</h1>
+<p>Foreign declarations do not inherit ordinary pure-total function
+defaults. They expose their effect, failure, blocking, divergence and
+ownership contracts explicitly. Concurrent execution belongs to the
+effectful program layer; scheduler progress is not used as an unchecked
+premise in the total logical fragment.</p>
+<p>Task captures, borrows across suspension and thread transfer require
+ownership evidence. Erasure does not remove runtime witnesses needed at
+an ABI or task boundary. See <a
+href="foreign-function-interface-specification.html">Foreign function
+interface specification</a> and <a
+href="concurrency-specification.html">Concurrency specification</a>.</p>
+<h1 id="current-syntax-and-sequencing">Current syntax and
+sequencing</h1>
+<p>The draft 0.2 surface uses layout, equations and unqualified
+<code>do</code>. See <a href="surface-syntax-and-grammar.html">Surface
+syntax and grammar</a> and <a
+href="runtime-capabilities-effects-and-sequencing.html">Runtime
+capabilities, effects and sequencing</a> for formal syntax, runtime
+arguments, effect-polymorphic calls and sequencing-module selection.</p>
+</body>
+</html>

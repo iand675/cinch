@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Platform proofs and SIMD specification</title>
+  <style>
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+    /* CSS for syntax highlighting */
+    pre > code.sourceCode { white-space: pre; position: relative; }
+    pre > code.sourceCode > span { line-height: 1.25; }
+    pre > code.sourceCode > span:empty { height: 1.2em; }
+    .sourceCode { overflow: visible; }
+    code.sourceCode > span { color: inherit; text-decoration: inherit; }
+    div.sourceCode { margin: 1em 0; }
+    pre.sourceCode { margin: 0; }
+    @media screen {
+    div.sourceCode { overflow: auto; }
+    }
+    @media print {
+    pre > code.sourceCode { white-space: pre-wrap; }
+    pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+    }
+    pre.numberSource code
+      { counter-reset: source-line 0; }
+    pre.numberSource code > span
+      { position: relative; left: -4em; counter-increment: source-line; }
+    pre.numberSource code > span > a:first-child::before
+      { content: counter(source-line);
+        position: relative; left: -1em; text-align: right; vertical-align: baseline;
+        border: none; display: inline-block;
+        -webkit-touch-callout: none; -webkit-user-select: none;
+        -khtml-user-select: none; -moz-user-select: none;
+        -ms-user-select: none; user-select: none;
+        padding: 0 4px; width: 4em;
+        color: #aaaaaa;
+      }
+    pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
+    div.sourceCode
+      {   }
+    @media screen {
+    pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+    }
+    code span.al { color: #ff0000; font-weight: bold; } /* Alert */
+    code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
+    code span.at { color: #7d9029; } /* Attribute */
+    code span.bn { color: #40a070; } /* BaseN */
+    code span.bu { color: #008000; } /* BuiltIn */
+    code span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
+    code span.ch { color: #4070a0; } /* Char */
+    code span.cn { color: #880000; } /* Constant */
+    code span.co { color: #60a0b0; font-style: italic; } /* Comment */
+    code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
+    code span.do { color: #ba2121; font-style: italic; } /* Documentation */
+    code span.dt { color: #902000; } /* DataType */
+    code span.dv { color: #40a070; } /* DecVal */
+    code span.er { color: #ff0000; font-weight: bold; } /* Error */
+    code span.ex { } /* Extension */
+    code span.fl { color: #40a070; } /* Float */
+    code span.fu { color: #06287e; } /* Function */
+    code span.im { color: #008000; font-weight: bold; } /* Import */
+    code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
+    code span.kw { color: #007020; font-weight: bold; } /* Keyword */
+    code span.op { color: #666666; } /* Operator */
+    code span.ot { color: #007020; } /* Other */
+    code span.pp { color: #bc7a00; } /* Preprocessor */
+    code span.sc { color: #4070a0; } /* SpecialChar */
+    code span.ss { color: #bb6688; } /* SpecialString */
+    code span.st { color: #4070a0; } /* String */
+    code span.va { color: #19177c; } /* Variable */
+    code span.vs { color: #4070a0; } /* VerbatimString */
+    code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
+  </style>
+  <link rel="stylesheet" href="../style.css" />
+</head>
+<body>
+<nav id="TOC" role="doc-toc">
+<ul>
+<li><a href="#platform-proofs-and-simd-specification"
+id="toc-platform-proofs-and-simd-specification">Platform proofs and SIMD
+specification</a></li>
+<li><a href="#target-descriptions" id="toc-target-descriptions">1 Target
+descriptions</a></li>
+<li><a href="#target-capabilities-as-evidence"
+id="toc-target-capabilities-as-evidence">2 Target capabilities as
+evidence</a></li>
+<li><a href="#conditional-rewrite-declarations"
+id="toc-conditional-rewrite-declarations">3 Conditional rewrite
+declarations</a></li>
+<li><a href="#simd-proof-obligations" id="toc-simd-proof-obligations">4
+SIMD proof obligations</a></li>
+<li><a href="#a-precise-first-example"
+id="toc-a-precise-first-example">5 A precise first example</a></li>
+<li><a href="#fixed-and-scalable-vector-shapes"
+id="toc-fixed-and-scalable-vector-shapes">6 Fixed and scalable vector
+shapes</a></li>
+<li><a href="#dispatch-and-profitability"
+id="toc-dispatch-and-profitability">7 Dispatch and
+profitability</a></li>
+<li><a href="#backend-trust-and-certificates"
+id="toc-backend-trust-and-certificates">8 Backend trust and
+certificates</a></li>
+<li><a href="#fusion-and-hot-replacement"
+id="toc-fusion-and-hot-replacement">9 Fusion and hot
+replacement</a></li>
+<li><a href="#related-implementation-references"
+id="toc-related-implementation-references">10 Related implementation
+references</a></li>
+<li><a href="#wasm-validation-and-feature-selection"
+id="toc-wasm-validation-and-feature-selection">Wasm validation and
+feature selection</a></li>
+</ul>
+</nav>
+<p><a href="../index.html">← Documentation index</a></p>
+<h1 id="platform-proofs-and-simd-specification">Platform proofs and SIMD
+specification</h1>
+<p>Source: <a
+href="https://chatgpt.com/space/page_b24cfef55f608191b1494b251d782fe4"
+class="uri">https://chatgpt.com/space/page_b24cfef55f608191b1494b251d782fe4</a><br />
+Exported: 2026-10-22T18:59:36Z</p>
+<hr />
+<p><a href="../overview.html">Documentation overview</a></p>
+<p>Draft 0.2. Platform-specific proofs and rewrite rules are a required
+part of the design. Libraries may provide scalar, SIMD, and other
+target-specialized implementations under explicit target assumptions.
+This chapter proposes how those assumptions enter typing, verification,
+dispatch, and hot replacement.</p>
+<h1 id="target-descriptions">1 Target descriptions</h1>
+<p>A target profile MUST identify the instruction semantics and
+deployment assumptions used by a proof. Relevant fields include
+instruction-set version, feature set, data layout, endianness, pointer
+representation, ABI, memory model, vector shape, and floating-point
+behavior. The proof need only depend on the fields it uses, but those
+dependencies must be recorded.</p>
+<p>A target triple or architecture name is not sufficient evidence that
+a particular instruction can execute on the deployment machine. The
+actual runtime environment must satisfy the selected feature and
+operating-environment contract. Cross-compilation MUST distinguish
+generator-host capabilities from target capabilities.</p>
+<p>Profiles and instruction models are versioned. Changing an
+intrinsic’s modeled semantics invalidates dependent proof artifacts
+unless a checked compatibility argument preserves them.</p>
+<h1 id="target-capabilities-as-evidence">2 Target capabilities as
+evidence</h1>
+<p>Proposed interfaces include a logical target description and a
+capability whose construction establishes that the required operations
+may execute in the current environment:</p>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>signature <span class="dt">VecU32Target</span> (<span class="ot">t ::</span> <span class="dt">Target</span>) (<span class="ot">w ::</span> <span class="dt">Nat</span>) <span class="kw">where</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>  proof<span class="ot"> positiveWidth ::</span> w <span class="op">&gt;</span> <span class="dv">0</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>  <span class="co">-- Intrinsics, memory preconditions, modeled semantics and lowering identity.</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>  <span class="co">-- See the platform contract table for the required associated operations.</span></span></code></pre></div>
+<p>This is schematic. Feature detection is a trusted or verified runtime
+boundary, not a proof of physical hardware behavior produced from
+nothing. It must account for all execution requirements in the target
+contract, rather than testing only an architecture string.</p>
+<p>The capability’s validity scope MUST be defined. If a process can
+move to an incompatible execution environment, the runtime must preserve
+a baseline guarantee, constrain placement, revalidate safely, or
+otherwise prevent using stale availability evidence. Thread-specific
+vector configuration must not be silently assumed to apply to every
+thread.</p>
+<h1 id="conditional-rewrite-declarations">3 Conditional rewrite
+declarations</h1>
+<p>A rewrite may be parameterized by a target module and require both
+logical and operational evidence:</p>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>target rewrite sumWrap32Vector</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>  <span class="kw">forall</span> t w n region (<span class="ot">xs ::</span> <span class="dt">Ref</span> region (<span class="dt">Vec</span> n <span class="dt">U32</span>))<span class="op">.</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>  using (<span class="ot">vectors ::</span> <span class="dt">VecU32Target</span> t w) <span class="kw">where</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>  match Scalar.sumWrap32 xs</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>  replace Simd.sumWrap32 vectors xs</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>  require <span class="dt">Available</span> vectors</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>  justify SumProofs.scalarToSimd vectors xs</span></code></pre></div>
+<p>The compiler MUST apply the rule only in a region where the required
+capability is valid, or under a deployment profile that supplies it. An
+assumed deployment baseline must be enforced at artifact admission. A
+runtime-guarded variant must not execute unsupported instructions while
+evaluating the guard or taking the fallback.</p>
+<p>Target rules remain optimizer rules. They MUST NOT alter global
+definitional equality or make a source type mean something different
+merely because another machine is compiling it. Explicit target-indexed
+types may legitimately differ, and their target dependencies are then
+part of the interface.</p>
+<h1 id="simd-proof-obligations">4 SIMD proof obligations</h1>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Obligation</th>
+<th>Required reasoning</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Lane computation</td>
+<td>Each lane implements the selected scalar operation with the same bit
+width and arithmetic mode</td>
+</tr>
+<tr class="even">
+<td>Memory access</td>
+<td>Addresses, allocation bounds, pointer provenance, and alignment
+satisfy the intrinsic contract</td>
+</tr>
+<tr class="odd">
+<td>Remainders</td>
+<td>Short inputs and partial final blocks do not introduce invalid
+accesses</td>
+</tr>
+<tr class="even">
+<td>Aliasing</td>
+<td>Reordered or widened reads and writes preserve the required
+dependency and ownership rules</td>
+</tr>
+<tr class="odd">
+<td>Control and effects</td>
+<td>Speculated or reordered operations preserve errors, effects, and
+observable termination</td>
+</tr>
+<tr class="even">
+<td>Reduction</td>
+<td>Reassociation is justified by the operation’s actual semantics</td>
+</tr>
+<tr class="odd">
+<td>Representation</td>
+<td>Lane order, conversions, masks, and ABI agree with the target
+model</td>
+</tr>
+<tr class="even">
+<td>Exceptional behavior</td>
+<td>Traps, floating-point flags, NaNs, signed zero, and other declared
+observations are preserved</td>
+</tr>
+</tbody>
+</table>
+<p>Loading a full vector and masking the result afterward is not a proof
+that out-of-range lanes were never accessed. A masked-load lowering
+needs the specific memory-access semantics promised by its intrinsic and
+backend. A scalar remainder loop is the proposed conservative default
+when no such proof is available.</p>
+<p>Vectorizing ordinary immutable memory does not authorize vectorizing
+volatile I/O or arbitrary atomics. Their access granularity and ordering
+may be observable. Such transformations need dedicated semantics and
+laws.</p>
+<h1 id="a-precise-first-example">5 A precise first example</h1>
+<p>Use <code>U32.wrappingAdd</code> for an initial reduction rule. The
+scalar model is the sum modulo <code>2^32</code>; its associativity
+permits lane accumulation and a final horizontal reduction.</p>
+<p>For width <code>W &gt; 0</code> and input length <code>n</code>, let
+<code>q = n div W</code> and <code>r = n mod W</code>. Process
+<code>q</code> complete blocks, reduce lane totals with wrapping
+addition, and process the remaining <code>r</code> elements scalarly.
+The proof combines modular arithmetic with a loop invariant relating the
+consumed prefix to the accumulator model.</p>
+<p>The memory proof must establish <code>q * W &lt;= n</code>,
+full-block load bounds, and safe conversion from mathematical indices to
+target pointer arithmetic. Evaluating a bounds formula with overflowing
+machine arithmetic is not a valid substitute for that proof.</p>
+<p>The rule is not valid for checked addition merely because both
+operations use 32-bit storage. Different regrouping can change which
+checked operation overflows. Nor does it justify floating-point
+reassociation. Those variants require separate contracts.</p>
+<h1 id="fixed-and-scalable-vector-shapes">6 Fixed and scalable vector
+shapes</h1>
+<p>Fixed-width variants may quantify over a compile-time positive width.
+Scalable-vector variants need a model parameterized by the active
+runtime vector length and its permitted changes. They MUST NOT assume an
+observed length remains fixed beyond the target contract’s validity
+scope.</p>
+<p>Proofs can be generic over a target module if the module exposes
+sufficient instruction laws. Architecture-specific modules discharge
+those laws against their own instruction semantics. This avoids
+duplicating the entire algorithm proof while keeping target assumptions
+explicit.</p>
+<h1 id="dispatch-and-profitability">7 Dispatch and profitability</h1>
+<p>A portable artifact may contain multiple verified implementations and
+a scalar fallback. Dispatch checks required capabilities and chooses
+among valid candidates. Selection based on estimated cost does not
+establish correctness; all selectable paths already need evidence.</p>
+<p>An ahead-of-time build may omit the fallback when deployment
+admission guarantees the required profile. The requirement must be
+recorded and enforced rather than silently assumed. A valid vectorized
+implementation may be slower for short inputs; profitability remains a
+cost-model or profiling question unless the contract includes a proved
+cost bound.</p>
+<p>Dispatch caching must respect capability validity. Cached target
+availability cannot outlive the environment or thread configuration on
+which it relies.</p>
+<h1 id="backend-trust-and-certificates">8 Backend trust and
+certificates</h1>
+<p>A proof of source-to-vector-IR refinement does not establish that
+arbitrary backend machine code implements that IR. The artifact MUST
+identify which lowering and instruction semantics were checked and which
+backend stages remain trusted.</p>
+<p>Possible implementations include verified lowerings, instruction
+certificates, or translation validation. A bounded validator result must
+retain its bound and modeling restrictions; it cannot be relabeled as a
+theorem for arbitrary loop iterations. Proof certificates checked by the
+language kernel are the preferred long-term interface where
+practical.</p>
+<p>The trust boundary includes the fidelity of the instruction model and
+execution environment. Hardware faults and undocumented deviations are
+outside the proof unless modeled explicitly.</p>
+<h1 id="fusion-and-hot-replacement">9 Fusion and hot replacement</h1>
+<p>Fusion can expose vectorizable loops, and target specialization can
+lower them further. Each stage must preserve the preceding stage’s
+contract; a proof of fusion is not automatically a proof of
+vectorization.</p>
+<p>The dependency manifest records target profiles, feature
+requirements, intrinsic semantics, arithmetic modes, and laws used by
+specialized consumers. Hot replacement that introduces new instruction
+requirements must establish their availability before activation.
+Existing frames may still require the old variant.</p>
+<p>Upgrading a target module or rewrite law may require replacing
+dependent specialized code. Replaceable dispatch boundaries retain the
+ability to select a compatible implementation, at the cost of limiting
+unrestricted cross-boundary specialization.</p>
+<h1 id="related-implementation-references">10 Related implementation
+references</h1>
+<p><a href="https://llvm.org/docs/LangRef.html">LLVM’s language
+reference</a> specifies vector types, masked memory operations, and
+other IR-level details a backend proof must respect. It is an IR
+contract, not an end-to-end guarantee for this proposed language. <a
+href="https://github.com/AliveToolkit/alive2">Alive2</a> and the <a
+href="https://users.cs.utah.edu/~regehr/alive2-pldi21.pdf">bounded
+translation validation paper</a> are useful references for checking
+transformations and understanding bounded validation’s scope.</p>
+<h1 id="wasm-validation-and-feature-selection">Wasm validation and
+feature selection</h1>
+<p>For Wasm, feature dispatch may need to occur before module
+instantiation. Unsupported SIMD instructions can invalidate an entire
+module even when their branch would not execute. Package separate
+baseline and specialized variants when required, detect supported
+features and select a valid variant before loading. The proof manifest
+must match the selected module and target semantics; relaxed SIMD
+requires its own semantic relation. See <a
+href="webassembly-and-wasi-specification.html">WebAssembly and WASI
+specification</a>.</p>
+</body>
+</html>

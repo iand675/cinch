@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Lazy computation and reclamation specification</title>
+  <style>
+    html {
+      color: #1a1a1a;
+      background-color: #fdfdfd;
+    }
+    body {
+      margin: 0 auto;
+      max-width: 36em;
+      padding-left: 50px;
+      padding-right: 50px;
+      padding-top: 50px;
+      padding-bottom: 50px;
+      hyphens: auto;
+      overflow-wrap: break-word;
+      text-rendering: optimizeLegibility;
+      font-kerning: normal;
+    }
+    @media (max-width: 600px) {
+      body {
+        font-size: 0.9em;
+        padding: 12px;
+      }
+      h1 {
+        font-size: 1.8em;
+      }
+    }
+    @media print {
+      html {
+        background-color: white;
+      }
+      body {
+        background-color: transparent;
+        color: black;
+        font-size: 12pt;
+      }
+      p, h2, h3 {
+        orphans: 3;
+        widows: 3;
+      }
+      h2, h3, h4 {
+        page-break-after: avoid;
+      }
+    }
+    p {
+      margin: 1em 0;
+    }
+    a {
+      color: #1a1a1a;
+    }
+    a:visited {
+      color: #1a1a1a;
+    }
+    img {
+      max-width: 100%;
+    }
+    svg {
+      height: auto;
+      max-width: 100%;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      margin-top: 1.4em;
+    }
+    h5, h6 {
+      font-size: 1em;
+      font-style: italic;
+    }
+    h6 {
+      font-weight: normal;
+    }
+    ol, ul {
+      padding-left: 1.7em;
+      margin-top: 1em;
+    }
+    li > ol, li > ul {
+      margin-top: 0;
+    }
+    blockquote {
+      margin: 1em 0 1em 1.7em;
+      padding-left: 1em;
+      border-left: 2px solid #e6e6e6;
+      color: #606060;
+    }
+    code {
+      font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
+      font-size: 85%;
+      margin: 0;
+      hyphens: manual;
+    }
+    pre {
+      margin: 1em 0;
+      overflow: auto;
+    }
+    pre code {
+      padding: 0;
+      overflow: visible;
+      overflow-wrap: normal;
+    }
+    .sourceCode {
+     background-color: transparent;
+     overflow: visible;
+    }
+    hr {
+      border: none;
+      border-top: 1px solid #1a1a1a;
+      height: 1px;
+      margin: 1em 0;
+    }
+    table {
+      margin: 1em 0;
+      border-collapse: collapse;
+      width: 100%;
+      overflow-x: auto;
+      display: block;
+      font-variant-numeric: lining-nums tabular-nums;
+    }
+    table caption {
+      margin-bottom: 0.75em;
+    }
+    tbody {
+      margin-top: 0.5em;
+      border-top: 1px solid #1a1a1a;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    th {
+      border-top: 1px solid #1a1a1a;
+      padding: 0.25em 0.5em 0.25em 0.5em;
+    }
+    td {
+      padding: 0.125em 0.5em 0.25em 0.5em;
+    }
+    header {
+      margin-bottom: 4em;
+      text-align: center;
+    }
+    #TOC li {
+      list-style: none;
+    }
+    #TOC ul {
+      padding-left: 1.3em;
+    }
+    #TOC > ul {
+      padding-left: 0;
+    }
+    #TOC a:not(:hover) {
+      text-decoration: none;
+    }
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+    /* CSS for syntax highlighting */
+    html { -webkit-text-size-adjust: 100%; }
+    pre > code.sourceCode { white-space: pre; position: relative; }
+    pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+    pre > code.sourceCode > span:empty { height: 1.2em; }
+    .sourceCode { overflow: visible; }
+    code.sourceCode > span { color: inherit; text-decoration: inherit; }
+    div.sourceCode { margin: 1em 0; }
+    pre.sourceCode { margin: 0; }
+    @media screen {
+    div.sourceCode { overflow: auto; }
+    }
+    @media print {
+    pre > code.sourceCode { white-space: pre-wrap; }
+    pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+    }
+    pre.numberSource code
+      { counter-reset: source-line 0; }
+    pre.numberSource code > span
+      { position: relative; left: -4em; counter-increment: source-line; }
+    pre.numberSource code > span > a:first-child::before
+      { content: counter(source-line);
+        position: relative; left: -1em; text-align: right; vertical-align: baseline;
+        border: none; display: inline-block;
+        -webkit-touch-callout: none; -webkit-user-select: none;
+        -khtml-user-select: none; -moz-user-select: none;
+        -ms-user-select: none; user-select: none;
+        padding: 0 4px; width: 4em;
+        color: #aaaaaa;
+      }
+    pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
+    div.sourceCode
+      {   }
+    @media screen {
+    pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+    }
+    code span.al { color: #ff0000; font-weight: bold; } /* Alert */
+    code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
+    code span.at { color: #7d9029; } /* Attribute */
+    code span.bn { color: #40a070; } /* BaseN */
+    code span.bu { color: #008000; } /* BuiltIn */
+    code span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
+    code span.ch { color: #4070a0; } /* Char */
+    code span.cn { color: #880000; } /* Constant */
+    code span.co { color: #60a0b0; font-style: italic; } /* Comment */
+    code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
+    code span.do { color: #ba2121; font-style: italic; } /* Documentation */
+    code span.dt { color: #902000; } /* DataType */
+    code span.dv { color: #40a070; } /* DecVal */
+    code span.er { color: #ff0000; font-weight: bold; } /* Error */
+    code span.ex { } /* Extension */
+    code span.fl { color: #40a070; } /* Float */
+    code span.fu { color: #06287e; } /* Function */
+    code span.im { color: #008000; font-weight: bold; } /* Import */
+    code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
+    code span.kw { color: #007020; font-weight: bold; } /* Keyword */
+    code span.op { color: #666666; } /* Operator */
+    code span.ot { color: #007020; } /* Other */
+    code span.pp { color: #bc7a00; } /* Preprocessor */
+    code span.sc { color: #4070a0; } /* SpecialChar */
+    code span.ss { color: #bb6688; } /* SpecialString */
+    code span.st { color: #4070a0; } /* String */
+    code span.va { color: #19177c; } /* Variable */
+    code span.vs { color: #4070a0; } /* VerbatimString */
+    code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
+  </style>
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">Lazy computation and reclamation specification</h1>
+</header>
+<h1 id="lazy-computation-and-reclamation-specification">Lazy computation
+and reclamation specification</h1>
+<p>Source: local draft in this repository (added after the documentation
+export)<br />
+Added: 2026-10-22</p>
+<hr />
+<p><a href="../overview.md">Documentation overview</a></p>
+<p>Draft 0.1. The language is strict call-by-value, and stays so: there
+is no implicit general laziness. This chapter adds an explicit laziness
+layer that does not require a garbage collector. Every deferred value
+states, in its type, when its captured environment dies. MUST denotes a
+requirement of this draft. Proposed choices are identified explicitly;
+unresolved items are listed in Open decisions.</p>
+<h1 id="the-problem-laziness-actually-poses">1 The problem laziness
+actually poses</h1>
+<p>Deferring a computation is cheap: a closure already does it. The hard
+part is reclamation. A deferred value keeps its captured environment
+alive until the value is either forced or destroyed, and with sharing it
+may be kept alive across scopes that the language cannot predict. A
+garbage collector answers “when is the environment dead?” at runtime.
+This design answers it statically instead: every lazy value carries a
+reclamation policy among three deterministic options, and no fourth is
+needed.</p>
+<table>
+<colgroup>
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+</colgroup>
+<thead>
+<tr>
+<th>Mechanism</th>
+<th>Sharing</th>
+<th>Death time of captures</th>
+<th>Needs GC</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Affine thunk <code>Thunk {e} a</code></td>
+<td>None: force consumes</td>
+<td>At force, or at destruction</td>
+<td>No</td>
+</tr>
+<tr>
+<td>Region memo cell <code>Lazy {e} r a</code></td>
+<td>Yes, inside region <code>r</code></td>
+<td>Region teardown</td>
+<td>No</td>
+</tr>
+<tr>
+<td>Duplicable thunk <code>%many</code></td>
+<td>Copies recompute</td>
+<td>Each copy’s own consumption</td>
+<td>No</td>
+</tr>
+</tbody>
+</table>
+<p>Two capabilities must not be conflated: deferring work (cheap) and
+sharing one evaluation among many uses (needs a cell with a lifetime).
+The design makes the second explicit and scope-bound instead of
+universal.</p>
+<h1 id="what-stays-unchanged">2 What stays unchanged</h1>
+<ul>
+<li><code>Later a</code> and <code>delay (\() -&gt; expression)</code>
+in the core specification remain the guarded observation mechanism for
+productivity and coinduction. <code>Later</code> is a logical modality,
+may be erased, and carries no reclamation obligations. It is not an
+unrestricted thunk and MUST NOT be given one.</li>
+<li><code>delay</code> and <code>force</code> remain ordinary library
+names, not control syntax, as <a
+href="surface-syntax-and-grammar.md">Surface syntax and grammar</a>
+states. The forms in this chapter are prelude types and operations plus
+the <code>~</code> binding form in <code>let</code> and
+<code>where</code> blocks (section 5).</li>
+<li>Evaluation of executable code stays strict and left-to-right. A
+function’s strictness never changes because a thunk exists somewhere in
+its type.</li>
+</ul>
+<h1 id="affine-thunks">3 Affine thunks</h1>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co">-- The effect row of the body is part of the thunk type.</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="dt">Thunk</span><span class="ot"> ::</span> {e} <span class="ot">-&gt;</span> <span class="dt">Type</span> <span class="ot">-&gt;</span> <span class="dt">Type</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="ot">delay  ::</span> <span class="kw">forall</span> a e<span class="op">.</span> (() <span class="ot">-&gt;</span>{<span class="op">|</span>e} a) <span class="ot">-&gt;</span> <span class="dt">Thunk</span> {e} a</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="ot">force  ::</span> <span class="kw">forall</span> a e<span class="op">.</span> <span class="dt">Thunk</span> {e} a <span class="ot">-&gt;</span>{<span class="op">|</span>e} a</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="ot">destroy ::</span> <span class="kw">forall</span> a e<span class="op">.</span> <span class="dt">Thunk</span> {e} a <span class="ot">-&gt;</span>{<span class="dt">DestructorEffects</span> e} ()</span></code></pre></div>
+<ul>
+<li><code>delay f</code> allocates a closure capturing <code>f</code>’s
+environment under the ordinary closure rules: owned captures transfer,
+borrowed captures keep their lifetimes (“a callback cannot outlive a
+borrowed environment” applies verbatim).</li>
+<li><code>force</code> <strong>consumes</strong> the thunk. A thunk is
+used at multiplicity <code>%1</code> or <code>%aff</code> by default
+(the multiplicities of <a href="surface-syntax-and-grammar.md">Surface
+syntax and grammar</a> apply). With <code>%1</code>, every path,
+including error and cancellation paths, must force or destroy the thunk
+exactly once; with <code>%aff</code>, at most once. Destroying an
+unforced thunk runs the destructors of its captures, deterministically
+and in reverse capture order.</li>
+<li>Because forcing consumes, there is no memoization cell and no
+sharing question: the body runs at most once. This is laziness without a
+GC and without a cache.</li>
+<li>Effects are honest. <code>force</code> has exactly the effect row of
+the body. <code>Thunk {e} a</code> cannot hide <code>IO</code>, failure
+or suspension inside a pure type, matching “an explicit pure signature
+cannot hide them”. Divergence appears in <code>e</code> as
+<code>Diverge</code> whenever the body’s termination is not established;
+forcing a thunk is never a way to run a diverging computation while
+claiming totality.</li>
+<li>A thunk is a value in <code>Type</code>. Forcing is computation, so
+erased evidence may live inside a thunk, but the erasure rules of the
+core specification apply to the body unchanged: a failed check inside a
+thunk produces no evidence, and erasure must not remove a force whose
+effects are observable.</li>
+</ul>
+<p>This level covers the common need: “compute this later, at most once,
+and clean up deterministically”, for example validating an expensive
+argument only on the path that uses it, or building an error payload
+only when the error happens.</p>
+<h1 id="duplicable-thunks">4 Duplicable thunks</h1>
+<p>A thunk used at multiplicity <code>%many</code> is duplicable and
+unshared: every duplicate re-runs the body. Copies are ordinary owned
+values; each dies with its owner. This gives call-by-later semantics for
+total pure code where recomputation is acceptable, without a cell and
+without a collector.</p>
+<p>Sharing one evaluation among many uses is a different feature and is
+section 5’s. The compiler MUST NOT silently turn a <code>%many</code>
+thunk into a shared memo: that would introduce a hidden lifetime.</p>
+<h1 id="region-memo-cells-lazy-e-r-a-and-bindings">5 Region memo cells:
+<code>Lazy {e} r a</code> and <code>~</code> bindings</h1>
+<p>For call-by-need with sharing, evaluation state must live somewhere
+with a reclamation time. It lives in a region, like the
+<code>Ref r a</code> and <code>Mut r a</code> of the core
+specification.</p>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="dt">Lazy</span><span class="ot"> ::</span> {e} <span class="ot">-&gt;</span> <span class="dt">Region</span> <span class="ot">-&gt;</span> <span class="dt">Type</span> <span class="ot">-&gt;</span> <span class="dt">Type</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="co">-- `~` bindings work in `let` blocks and `where` blocks alike:</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="co">--   f x = y * 2</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="co">--     where ~y = expensive x</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a><span class="ot">demand ::</span> <span class="kw">forall</span> r a e<span class="op">.</span> <span class="dt">Lazy</span> {e} r a <span class="ot">-&gt;</span>{<span class="dt">Eval</span> r <span class="op">|</span> e} <span class="dt">Ref</span> r a</span></code></pre></div>
+<ul>
+<li>The memo binding form is <code>~ pattern = term</code> inside a
+<code>let</code> block or a <code>where</code> block. The bare
+<code>~</code> is reserved punctuation, like <code>$</code>,
+<code>=</code> and <code>|</code>, so it is not an operator; symbol
+operators such as <code>~&gt;</code> and <code>&lt;~&gt;</code> remain
+available. In Haskell <code>~p</code> marks an irrefutable pattern; here
+<code>~</code> marks the memo binding itself, and the shared intuition
+is the same: the binding is not evaluated eagerly. All <code>~</code>
+bindings of one block form one memo group: one fresh region
+<code>r</code>, one effect label <code>Eval r</code>, mutually visible
+cells. <code>let ~x = e in body</code> is the single-binding case of the
+same form. A bare use of a <code>~</code>-bound name elaborates to
+<code>demand</code>, so <code>f x = y * 2 where ~y = expensive x</code>
+demands <code>y</code> at that use; holding a cell undemanded means
+storing the <code>Lazy {e} r a</code> value explicitly.</li>
+<li>A memo cell’s type records the effect row <code>e</code> of its
+body. <code>demand</code> has the row <code>Eval r | e</code>: the first
+demand runs <code>e</code>, later demands run nothing, and a demand in
+effect-polymorphic code simply carries <code>e</code> along. The row is
+an over-approximation on every demand; refinement may prove later
+demands pure.</li>
+<li>A <code>~</code> group in a <code>where</code> block is scoped to
+one evaluation of the equation. The cells are allocated at call entry,
+are visible in the equation body and in the block’s other bindings, and
+the whole group is reclaimed at return, in reverse allocation order. Two
+calls of the same function own disjoint groups.</li>
+<li>Strict <code>where</code> bindings evaluate in declaration order at
+call entry and may see earlier strict bindings and every <code>~</code>
+binding of the block. A <code>~</code> body may see all bindings of the
+block. If a strict binding demands the group and a <code>~</code> body
+refers back to that strict binding, the composition carries the group’s
+<code>Eval r</code> into the cell’s row and is rejected exactly like a
+direct cycle (section 6).</li>
+<li>The first <code>demand x</code> evaluates <code>e</code>; later
+demands observe the same value. <code>x</code> MAY be used at
+multiplicity <code>%many</code>.</li>
+<li>The cell’s captures die at <strong>region teardown</strong>: for a
+<code>where</code> block group, at return from the call; for a
+<code>let</code> block group, at the end of the enclosing block.
+Teardown reclaims the cells and everything only they own, in reverse
+allocation order, running destructors then. Regions can reclaim cycles,
+so mutually referential cells are reclamation-safe.</li>
+<li><code>Lazy {e} r a</code> does not outlive <code>r</code>, exactly
+like <code>Ref r a</code>. It may be stored in data structures that are
+themselves parameterized by <code>r</code>; it may not escape them. A
+value needed beyond its region must be forced and moved out, or rebuilt
+as an owned thunk.</li>
+<li>Because a cached value is observed many times, the cached type
+<code>a</code> MUST be duplicable (an immutable <code>Share</code>
+value). Linear or affine resources use section 3’s affine thunks
+instead: lazily opening a file is a <code>%aff</code> thunk, not a memo
+cell. <code>demand</code> returns a borrow <code>Ref r a</code> so the
+cached value is never silently duplicated; the caller copies explicitly
+when it needs an owned value.</li>
+<li>Re-entrancy: a cell has states <code>Unevaluated</code>,
+<code>Evaluating</code>, <code>Evaluated</code>. Demanding a cell that
+is <code>Evaluating</code> is a black hole. Section 6 rules black holes
+out statically through the <code>Eval r</code> effect and defines the
+runtime fault for the paths that cross a trust boundary.</li>
+<li>Concurrency: cells are single-threaded by construction and belong to
+the scope that allocated them. Moving a thunk or a demand across task
+boundaries follows the ownership rules of <a
+href="concurrency-specification.md">Concurrency specification</a>: an
+affine thunk moves by ownership transfer, a <code>Lazy r a</code> does
+not cross its region’s thread. A thread-shared memo needs an explicit
+synchronized structure, not this mechanism.</li>
+</ul>
+<h1 id="black-hole-freedom-and-the-demand-effect">6 Black-hole freedom
+and the demand effect</h1>
+<p>Demanding a cell while it is evaluating is a black hole. Two rules
+rule it out: a static discipline that makes it impossible in well-typed
+code, and a defined runtime fault at the boundaries where the discipline
+can be bypassed.</p>
+<p><strong>Demand is an effect.</strong> Every memo region
+<code>r</code> has a fresh effect label <code>Eval r</code>, and
+<code>demand</code> performs it (section 5). Creating a thunk performs
+nothing; <code>force</code> performs its thunk’s row. Effects are
+honest, so the evaluation row of a cell body records every demand that
+body can perform, directly or through higher-order code, exactly as
+<code>IO</code>, <code>Cancel</code> and <code>Diverge</code> propagate
+through rows today.</p>
+<p><strong>The rule.</strong> For a <code>~</code>-binding memo region
+<code>r</code>, the effect row of every cell’s evaluation MUST NOT
+contain <code>Eval r</code>. Demanding a cell of a different region is
+fine. Storing a thunk that demands <code>r</code> without forcing it is
+fine: the thunk’s <code>Eval r</code> sits inside
+<code>Thunk {Eval r | e} a</code> and runs only when someone forces it,
+which is later than the cell’s evaluation.</p>
+<p><strong>Why it is sufficient.</strong> A black hole requires a demand
+of a cell of <code>r</code> during the evaluation of a cell of
+<code>r</code>. By effect soundness that demand’s <code>Eval r</code>
+appears in the evaluation row of the cell body, and the rule forbids
+exactly that. The argument needs only that effects are honest, which the
+language already requires. It needs no termination, sized-type or
+productivity analysis.</p>
+<p><strong>Discharge and scoping.</strong> The memo construct binds
+<code>r</code> like a region binder and discharges <code>Eval r</code>
+from the residual row at scope end; it is, in effect, a built-in handler
+of its own label. This is sound because nothing that can perform
+<code>Eval r</code> escapes the scope: <code>Lazy {e} r a</code>,
+<code>Ref r a</code> and <code>Thunk {Eval r | e} a</code> all mention
+<code>r</code> in their types and cannot outlive it (section 5’s escape
+rule). The effects of evaluating cells themselves are not discharged:
+<code>IO</code>, failure and <code>Diverge</code> run at first demand
+and propagate to the enclosing row like any other effect.</p>
+<p><strong>Recursion and re-entry.</strong> A function whose body uses
+<code>~</code> bindings in its <code>where</code> block has a public
+effect row that does not mention its group’s <code>Eval r</code>, so a
+cell body may call its own function recursively: the recursive call
+allocates a fresh group and reaches the caller’s cells only by handle.
+Handing a <code>Lazy {e} r a</code> handle to such a call, or capturing
+one in a closure it runs, makes the demand of <code>r</code> visible in
+the row again and is rejected. The label is per binding site, so this
+covers re-entry across activations of the same function, not just a
+single cell instance.</p>
+<p><strong>Why guarding with <code>delay</code> alone is not
+sufficient.</strong> Syntactic guardedness does not help:
+<code>let ~x = force (delay (\() -&gt; demand x))</code> has a cycle
+through a <code>delay</code>, and still re-enters <code>x</code> on the
+first demand. What defuses a cycle is deferring the demand past the
+cell’s evaluation, and the effect row is what detects whether that
+actually happened.</p>
+<p><strong>What the rule rejects.</strong> It is conservative in one
+direction: demanding a <em>different</em> cell of the same region during
+evaluation is a dependency, not a cycle, and is rejected too. The
+program-level fix is structure, not annotation: put acyclic dependencies
+in separate <code>~</code> groups, since each group gets its own region
+name and its own <code>Eval</code> label, or name the memo region
+explicitly and split it. Per-cell labels would be finer and are not
+proposed in this draft.</p>
+<p><strong>Runtime fault as defense in depth.</strong> The cell states
+of section 5 remain, and a demand that finds <code>Evaluating</code>
+fails with a defined <code>BlackHole</code> fault, in the same policy
+class as stack exhaustion and allocation failure (core specification,
+section 6). Well-typed code cannot reach it; code that crosses a
+declared trusted assumption, a foreign boundary, or a runtime bug can. A
+deployment profile claiming the fault cannot occur MUST discharge the
+effect discipline and record its trust boundaries in the assumption
+manifest.</p>
+<p><strong>Relation to divergence.</strong> A black hole is morally an
+infinite regress. In code whose row already contains
+<code>Diverge</code>, a cycle is one more way to diverge; the
+<code>BlackHole</code> fault remains its observable behavior.
+<code>Diverge</code> does not grant <code>Eval r</code>, so the rule
+still applies.</p>
+<h1 id="data-structures-and-unboxed-values">7 Data structures and
+unboxed values</h1>
+<ul>
+<li>Fields are strict by default. A field MAY be
+<code>Lazy {e} r a</code>, and then the structure’s type mentions
+<code>r</code> and the body row <code>e</code>; implicit lazy fields
+with hidden regions are rejected.</li>
+<li>Primitive unboxed values (see <a
+href="primitive-types-specification.md">Primitive types
+specification</a>) are never lazy: deferring an <code>I64</code>
+computation is a thunk around the computation, not a lazy
+<code>I64</code>.</li>
+<li>Streams and other codata keep using <code>Later</code> for guarded
+productivity. An infinite stream is not a memo of its elements;
+unbounded memoization is exactly what a collector would be needed for
+and is not provided here.</li>
+</ul>
+<h1 id="erasure-upgrades-and-trust">8 Erasure, upgrades and trust</h1>
+<ul>
+<li>Forcing a pure total thunk is an ordinary computation step; no
+runtime evidence survives erasure unless the core rules retain it.</li>
+<li>An unforced thunk pins the code version that will run when forced,
+exactly like a registered foreign callback. <a
+href="runtime-evolution-specification.md">Runtime evolution
+specification</a> obligations apply: an upgrade package must drain,
+migrate or retain thunks, and old code stays loaded while any thunk from
+it can still run. A memo cell that is already <code>Evaluated</code>
+pins nothing further.</li>
+<li>The reclamation claims of this chapter are about deterministic
+deallocation, not about absence of leaks in the large: a region that is
+never exited keeps its cells alive, and a <code>%1</code> obligation
+violated at runtime is a checked usage error, not a safety hole.</li>
+</ul>
+<h1 id="required-rejection-cases">9 Required rejection cases</h1>
+<ul>
+<li>An implicit lazy argument or lazy field whose region is not in its
+type.</li>
+<li>A <code>Thunk {e} a</code> whose declared effect row omits an effect
+of its body, or a diverging body typed as total.</li>
+<li>Forcing a <code>%1</code> thunk twice, or destroying it after
+forcing; using an affine thunk after force; a <code>%1</code> obligation
+skipped on an error or cancellation path.</li>
+<li>A <code>Lazy {e} r a</code> used after <code>r</code> ends, or
+returned from the scope that defines <code>r</code>.</li>
+<li>Demanding a <code>Lazy {e} r a</code> whose cached type
+<code>a</code> is linear or affine.</li>
+<li>A <code>~</code> cell body (in <code>let</code> or
+<code>where</code>) whose evaluation row contains <code>Eval r</code>
+for its own group: a demand cycle, whether direct, through forcing a
+thunk, or through a strict <code>where</code> sibling that demands the
+group (section 6).</li>
+<li>Escaping a memo group: a <code>Lazy {e} r a</code>,
+<code>Ref r a</code> or <code>Thunk {Eval r | e} a</code> in an
+equation’s result, a returned closure, or any other value that outlives
+the group’s scope.</li>
+<li>A thread-shared memo cell built from <code>Lazy {e} r a</code>
+across task boundaries.</li>
+<li>An erased proof whose availability depends on whether a thunk was
+forced.</li>
+</ul>
+<h1 id="open-decisions">10 Open decisions</h1>
+<ul>
+<li>The exact <code>Share</code> class for duplicable values, and
+whether it is primitive or derived from the usage algebra. Core section
+7 leaves immutable sharing unsettled; this chapter needs it.</li>
+<li>Demand labels finer than one per <code>~</code> group (per cell, or
+per dependency edge) so that acyclic demand inside one group is
+accepted. The group rule of section 6 is conservative in exactly this
+one direction; finer labels should wait until the group rule has been
+used in practice.</li>
+<li>Whether <code>~</code> should also mark irrefutable patterns in
+function arguments (Haskell’s <code>~p</code>), with the fields of such
+a pattern elaborating to thunks. This draft reserves <code>~</code> for
+the memo binding form only.</li>
+<li>Whether <code>demand</code> should have an owned variant for
+<code>Share</code> types
+(<code>forceShared : Lazy {e} r a -&gt;{|e} a</code> when
+<code>a : Share</code>), trading a borrow for convenience.</li>
+<li>Destructor order at region teardown beyond “reverse allocation
+order” when cells borrow from each other.</li>
+<li>Interaction with <code>Later</code>: whether <code>Later</code>
+observations compile to erased thunks, sized structures, or something
+else remains the guarded-recursion decision of core section 9.</li>
+<li>Cost model: whether the compiler may allocate a <code>~</code> cell
+on the stack when <code>r</code> does not escape, or elide the cell when
+demand count is statically one. These are optimizations and MUST NOT
+change observable reclamation.</li>
+</ul>
+<h1 id="implementation-status">Implementation status</h1>
+<p>The bootstrap compiler in <code>compiler/</code> implements this
+chapter’s runtime shape: <code>Thunk</code> as a closure over
+<code>Unit</code> (<code>delay</code>, <code>force</code>),
+<code>~ name = term</code> memo bindings with one memo group per block,
+demand-on-use elaboration, and the <code>Eval r</code> black-hole rule
+of section 6 enforced statically through row lacks constraints (cell
+bodies may not perform their group’s label). Not yet implemented there:
+the multiplicity discipline of section 3, region escape checking,
+<code>Ref r a</code> (the bootstrap <code>demand</code> returns the
+value), and the <code>Share</code> class, so a <code>Lazy {e} r a</code>
+value can outlive its region in the bootstrap, which is the same
+lifetime-checking gap the rest of the bootstrap has. The
+<code>BlackHole</code> runtime fault exists as defense in depth.</p>
+<p><a href="../overview.md">Documentation overview</a></p>
+</body>
+</html>

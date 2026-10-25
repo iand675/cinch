@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>WebAssembly and WASI specification</title>
+  <style>
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+  <link rel="stylesheet" href="../style.css" />
+</head>
+<body>
+<nav id="TOC" role="doc-toc">
+<ul>
+<li><a href="#webassembly-and-wasi-specification"
+id="toc-webassembly-and-wasi-specification">WebAssembly and WASI
+specification</a></li>
+<li><a href="#standards-baseline" id="toc-standards-baseline">1
+Standards baseline</a></li>
+<li><a href="#artifact-profiles" id="toc-artifact-profiles">2 Artifact
+profiles</a></li>
+<li><a href="#representation-and-dependent-boundaries"
+id="toc-representation-and-dependent-boundaries">3 Representation and
+dependent boundaries</a></li>
+<li><a href="#canonical-abi-and-resources"
+id="toc-canonical-abi-and-resources">4 Canonical ABI and
+resources</a></li>
+<li><a href="#capabilities-and-isolation"
+id="toc-capabilities-and-isolation">5 Capabilities and
+isolation</a></li>
+<li><a href="#async-semantics" id="toc-async-semantics">6 Async
+semantics</a></li>
+<li><a href="#concurrency-and-browser-execution"
+id="toc-concurrency-and-browser-execution">7 Concurrency and browser
+execution</a></li>
+<li><a href="#simd-and-feature-selection"
+id="toc-simd-and-feature-selection">8 SIMD and feature
+selection</a></li>
+<li><a href="#replacement-and-component-state"
+id="toc-replacement-and-component-state">9 Replacement and component
+state</a></li>
+<li><a href="#required-tooling-and-acceptance-cases"
+id="toc-required-tooling-and-acceptance-cases">10 Required tooling and
+acceptance cases</a></li>
+</ul>
+</nav>
+<p><a href="../index.html">← Documentation index</a></p>
+<h1 id="webassembly-and-wasi-specification">WebAssembly and WASI
+specification</h1>
+<p>Source: <a
+href="https://chatgpt.com/space/page_93721e2e8a6081919c8e74d0c3f11211"
+class="uri">https://chatgpt.com/space/page_93721e2e8a6081919c8e74d0c3f11211</a><br />
+Exported: 2026-10-22T18:59:36Z</p>
+<hr />
+<p>Draft 0.2 extension. WebAssembly and WASI are first-class compilation
+and interoperability targets. This chapter proposes artifact profiles,
+binding rules, and runtime obligations. Standards status was checked on
+22 October 2026; exact implementation support is a target-profile
+requirement rather than a universal assumption.</p>
+<h1 id="standards-baseline">1 Standards baseline</h1>
+<p><a href="https://wasi.dev/releases/wasi-p3">WASI 0.3.0 was released
+on 11 June 2026</a>, including Component Model async functions, futures,
+and streams. This draft therefore proposes WASI 0.3 as the preferred
+component profile, with a pinned WASI 0.2 compatibility profile and
+explicit adapters where their semantics can be preserved. Exact WIT
+package versions and engine capabilities are recorded in each
+artifact.</p>
+<p>Core Wasm, the Component Model, WASI interfaces, browser host APIs,
+and shared-memory threads are separate dimensions. Supporting one does
+not imply all the others. A browser deployment needs an explicit browser
+host binding or component adapter; it must not assume access to the
+server’s WASI filesystem or sockets.</p>
+<h1 id="artifact-profiles">2 Artifact profiles</h1>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Proposed profile</th>
+<th>Intended output and environment</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Core Wasm</td>
+<td>A module with explicit imports and exports for embedding</td>
+</tr>
+<tr class="even">
+<td>Browser</td>
+<td>Core module plus generated host bindings and an explicit browser
+capability policy</td>
+</tr>
+<tr class="odd">
+<td>WASI component</td>
+<td>Component Model artifact, WIT world, canonical bindings and pinned
+WASI dependencies</td>
+</tr>
+<tr class="even">
+<td>WASI 0.2 compatibility</td>
+<td>Versioned older interfaces and checked or explicitly trusted
+adapters</td>
+</tr>
+</tbody>
+</table>
+<p>Each profile lists optional features such as SIMD, relaxed SIMD,
+shared memory, atomics, exception handling, memory64, GC, and stack
+switching. The compiler MUST reject a missing required capability or
+select a supported lowering. These are design profile names, not claims
+about existing compiler command-line flags.</p>
+<p>The initial portable runtime should not require shared-memory threads
+or a particular GC extension for basic programs. A linear-memory
+implementation with explicit task state machines is a candidate
+baseline; faster host features may specialize it under their own proof
+and trust contracts.</p>
+<h1 id="representation-and-dependent-boundaries">3 Representation and
+dependent boundaries</h1>
+<p>The compiler MUST define how owned allocations, references, function
+values, opaque resources, and runtime type indices are represented.
+Proof erasure remains governed by the core rules. Exported APIs do not
+expose arbitrary dependent terms through an ordinary WIT signature.</p>
+<pre class="wit"><code>package example:codec@0.1.0;
+
+interface decoder {
+  enum decode-error { malformed, too-large }
+  decode: func(input: list&lt;u8&gt;, limit: u32)
+    -&gt; result&lt;list&lt;u8&gt;, decode-error&gt;;
+}
+
+world codec-plugin {
+  export decoder;
+}</code></pre>
+<p>This is an interface example, not an implementation. WIT describes
+shapes and resource interfaces; additional functional laws require a
+side contract, validated values, or checked proof artifacts. A wrapper
+can validate that returned bytes satisfy <code>length &lt;= limit</code>
+and return an existential length-indexed value. It cannot infer that the
+bytes are the correct decompression solely from their length.</p>
+<p>For same-language components, optional proof metadata may travel
+alongside the interface, but the consumer must check evidence, semantics
+versions, dependencies, and artifact identity. Metadata saying verified
+is not evidence.</p>
+<h1 id="canonical-abi-and-resources">4 Canonical ABI and resources</h1>
+<p>Generated import and export bindings MUST implement the selected
+Canonical ABI version, including value conversion, allocation, cleanup
+and resource behavior. WIT resources map to opaque owned or borrowed
+handles under the adapter’s exact lifetime rules. They are not arbitrary
+host pointers.</p>
+<p>Strings, variants, lists and integers need checked conversion.
+Zero-copy requires a specifically supported sharing arrangement and
+proof; it is not a default consequence of matching element types. Memory
+growth and asynchronous suspension can affect host views and retained
+buffers, so adapters must preserve the required lifetimes.</p>
+<p>The <a
+href="https://component-model.bytecodealliance.org/design/wit.html">WIT
+reference</a> defines the interface constructs, including resources and
+ownership transfer. These constructs do not replace the language’s
+semantic and temporal contracts.</p>
+<h1 id="capabilities-and-isolation">5 Capabilities and isolation</h1>
+<p>A component world lists its imports. Linking supplies concrete
+capabilities such as a permitted directory, clock, entropy source or
+network service. A generator, test or deployed plugin does not acquire
+all host authority merely by targeting WASI.</p>
+<p>The host runtime and import implementations are part of the trust
+boundary. Wasm’s sandbox boundary does not prove memory safety between
+allocations inside a guest linear memory. Unsafe foreign code sharing
+the language heap can corrupt that heap; put untrusted code behind a
+separate instance/component with separated memory or an external process
+when that isolation is required. Imported shared memory and powerful
+host APIs can deliberately weaken that separation.</p>
+<p>Fuel limits, deadlines and host termination controls can bound
+execution resources under a specified engine policy. They do not prove
+semantic termination, undo external effects, or guarantee guest
+destructors ran. Trap and forced-termination recovery must account for
+resource revocation at the host boundary.</p>
+<h1 id="async-semantics">6 Async semantics</h1>
+<p>The proposed language adapter maps a WASI 0.3 future to a fallible
+asynchronous completion and a WASI stream to an asynchronous source or
+sink. A WASI stream may end, fail or wait indefinitely; it MUST NOT
+automatically become the language’s productive infinite
+<code>Stream a</code>.</p>
+<p>Async imports integrate with the language scheduler’s wakeups,
+backpressure and cancellation protocol. If an API reports data through a
+stream and completion through another value, the adapter must preserve
+both channels: end of data alone is not necessarily successful
+completion.</p>
+<p>WASI 0.2 adapters must preserve their declared readiness, close and
+error behavior. An adapter that cannot preserve cancellation or another
+required guarantee must expose the weaker guarantee instead of claiming
+equivalent semantics. Component async scheduling does not by itself
+establish CPU parallelism or a universal fairness theorem.</p>
+<h1 id="concurrency-and-browser-execution">7 Concurrency and browser
+execution</h1>
+<p>Structured concurrency MUST work on a single-threaded cooperative
+backend as well as supported multithreaded backends. Thread migration,
+shared-memory atomics, and true parallel execution require explicit
+backend capabilities and appropriate transfer constraints.</p>
+<p>Blocking operations must not freeze a cooperative event loop under an
+API promising asynchronous progress. Browser and component profiles may
+need state-machine lowering or host-driven suspension. Optional stack
+switching is a lowering choice, not an excuse to make programs depend on
+unsupported instructions.</p>
+<p>Foreign promises and callbacks have the FFI retention rules.
+Requesting cancellation does not authorize releasing a buffer still
+retained by an asynchronous host operation.</p>
+<h1 id="simd-and-feature-selection">8 SIMD and feature selection</h1>
+<p>Wasm SIMD rewrites need proofs against Wasm instruction semantics.
+The engine’s subsequent native lowering remains a separate trust or
+verification boundary. Relaxed SIMD requires its own allowed-results
+contract; it cannot be substituted into an exact-result API without
+evidence.</p>
+<p>A module containing unsupported instructions can fail validation
+before its dispatch branch executes. Therefore a portable distribution
+may require separate baseline and feature-specific modules selected
+before instantiation, rather than putting unsupported instructions
+behind a Boolean branch in one module.</p>
+<p>The loader records the selected feature profile. Backend-specific
+type sizes and memory64 assumptions cannot be imported from the
+compile-time host. SIMD kernels retain the bounds, tail, alignment and
+ownership obligations in the platform specification.</p>
+<h1 id="replacement-and-component-state">9 Replacement and component
+state</h1>
+<p>Wasm does not supply our checked hot-swapping protocol automatically.
+The language runtime must provide versioned dispatch, state
+export/migration or stable handle adapters, pending-task coordination,
+and old-instance retention where needed.</p>
+<p>Component interface compatibility is necessary but insufficient.
+Replacing an instance must preserve resource identity or provide a
+checked transfer, handle in-flight imports and callbacks, and maintain
+pending temporal obligations. Raw linear-memory copying is not a general
+migration algorithm for pointers, resource tables, async frames or host
+handles.</p>
+<p>Forced destruction can contain a failed component, but it does not
+establish that pending external operations were rolled back. Restart
+policies must preserve unknown outcomes and deduplication state when the
+protocol requires them.</p>
+<h1 id="required-tooling-and-acceptance-cases">10 Required tooling and
+acceptance cases</h1>
+<p>The toolchain SHOULD import and export WIT, generate browser
+bindings, report required features and capabilities, preserve
+source-level diagnostics, and emit reproducible component artifacts.
+Tests should cover both embedding and the selected WASI worlds, with
+validation and execution on pinned runtimes.</p>
+<p>Acceptance cases include a core pure function, a capability-scoped
+file operation, an async stream with a distinct completion error, a
+component resource’s lifecycle, and a baseline/SIMD distribution.
+Rejection cases include unsupported required features, malformed foreign
+values, a productive-stream claim for an arbitrary async source, and an
+update that loses a live resource table.</p>
+<p>No Wasm compiler or runtime implementation has been built by this
+documentation task. These are conformance requirements for the planned
+toolchain.</p>
+<p><a href="../overview.html">Documentation overview</a></p>
+</body>
+</html>
