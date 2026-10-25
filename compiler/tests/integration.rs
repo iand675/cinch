@@ -825,17 +825,6 @@ module Main where
 "#,
         "an `erased` field is evidence",
     );
-    expect_err(
-        "codata-rejected",
-        r#"
-module Main where
-  codata C where
-    x :: Int
-  main :: Int
-  main = 0
-"#,
-        "codata",
-    );
 }
 
 #[test]

@@ -73,9 +73,11 @@ fn check_positivity(
                 }
                 Ok(())
             }
-            Ty::Thunk { inner, .. } | Ty::Lazy { inner, .. } => {
+            Ty::Thunk { inner, .. } | Ty::Later(inner) | Ty::Lazy { inner, .. } => {
                 // A thunk's body runs at force time: the same positive
-                // reading as a product component.
+                // reading as a product component. A `Later` payload is a
+                // guarded future observation (core language specification
+                // section 9), read the same way.
                 go(family, field, ctor, inner, span, positive)
             }
             _ => Ok(()),
@@ -100,7 +102,7 @@ fn ty_mentions(t: &Ty, name: &str) -> bool {
             ty_mentions(a, name) || ty_mentions(b, name)
         }
         Ty::Sigma { dom, cod, .. } => ty_mentions(dom, name) || ty_mentions(cod, name),
-        Ty::Thunk { inner, .. } | Ty::Lazy { inner, .. } => ty_mentions(inner, name),
+        Ty::Thunk { inner, .. } | Ty::Later(inner) | Ty::Lazy { inner, .. } => ty_mentions(inner, name),
         Ty::Ref(_, i) | Ty::Mut(_, i) => ty_mentions(i, name),
         Ty::Handler { input, output, .. } => {
             ty_mentions(input, name) || ty_mentions(output, name)
@@ -113,6 +115,172 @@ fn ty_mentions(t: &Ty, name: &str) -> bool {
 /// are evidence and universes are types (core specification section 3).
 fn erased_ty(t: &Ty) -> bool {
     matches!(t, Ty::Prp(_) | Ty::Sort(_))
+}
+
+// ------------------------------------------------------------ productivity helpers (P8)
+
+/// The names a pattern binds (for the guard walk's shadowing).
+fn pat_names(p: &ast::Pat, out: &mut Vec<String>) {
+    match p {
+        ast::Pat::Var(n, _) => out.push(n.text.clone()),
+        ast::Pat::As(n, inner, _) => {
+            out.push(n.text.clone());
+            pat_names(inner, out);
+        }
+        ast::Pat::Con(_, args, _) => {
+            for a in args {
+                pat_names(a, out);
+            }
+        }
+        ast::Pat::Tuple(items, _) | ast::Pat::List(items, _) => {
+            for a in items {
+                pat_names(a, out);
+            }
+        }
+        ast::Pat::Record(_, fields, _) => {
+            for (_, a) in fields {
+                pat_names(a, out);
+            }
+        }
+        ast::Pat::Wild(_) | ast::Pat::Unit(_) | ast::Pat::Int(_, _) => {}
+    }
+}
+
+/// Visit every subterm of `t`, `t` included.
+fn for_each_subterm(t: &ast::Term, f: &mut dyn FnMut(&ast::Term)) {
+    f(t);
+    match t {
+        ast::Term::Var(_)
+        | ast::Term::Con(_)
+        | ast::Term::Int(_, _)
+        | ast::Term::Str(_, _)
+        | ast::Term::Char(_, _)
+        | ast::Term::Unit(_)
+        | ast::Term::Hole(_)
+        | ast::Term::SeqOp(_, _) => {}
+        ast::Term::App(h, args, _) => {
+            for_each_subterm(h, f);
+            for a in args {
+                for_each_subterm(a, f);
+            }
+        }
+        ast::Term::Lam(_, b, _) | ast::Term::Neg(b, _) | ast::Term::CpsWrap(b, _) => {
+            for_each_subterm(b, f)
+        }
+        ast::Term::Let(decls, b, _) => {
+            for d in decls {
+                match d {
+                    ast::LocalDecl::Sig { .. } => {}
+                    ast::LocalDecl::Eq { body, .. }
+                    | ast::LocalDecl::Bind { body, .. }
+                    | ast::LocalDecl::Lazy { body, .. } => for_each_subterm(body, f),
+                }
+            }
+            for_each_subterm(b, f);
+        }
+        ast::Term::If(c, x, y, _) => {
+            for_each_subterm(c, f);
+            for_each_subterm(x, f);
+            for_each_subterm(y, f);
+        }
+        ast::Term::Case(s, alts, _) => {
+            for_each_subterm(s, f);
+            for a in alts {
+                if let Some(g) = &a.guard {
+                    for_each_subterm(g, f);
+                }
+                for_each_subterm(&a.body, f);
+            }
+        }
+        ast::Term::Ann(e, _, _) | ast::Term::Proj(e, _, _) => for_each_subterm(e, f),
+        ast::Term::Infix(items, _, _) | ast::Term::Tuple(items, _) | ast::Term::List(items, _) => {
+            for x in items {
+                for_each_subterm(x, f);
+            }
+        }
+        ast::Term::Record(_, fields, _) => {
+            for (_, x) in fields {
+                for_each_subterm(x, f);
+            }
+        }
+        ast::Term::Do(stmts, _) => {
+            for s in stmts {
+                match s {
+                    ast::DoStmt::Bind { term, .. } | ast::DoStmt::Expr { term, .. } => {
+                        for_each_subterm(term, f)
+                    }
+                    ast::DoStmt::Let { decl, .. } => match decl {
+                        ast::LocalDecl::Sig { .. } => {}
+                        ast::LocalDecl::Eq { body, .. }
+                        | ast::LocalDecl::Bind { body, .. }
+                        | ast::LocalDecl::Lazy { body, .. } => for_each_subterm(body, f),
+                    },
+                }
+            }
+        }
+        ast::Term::Handle(e, h, _) => {
+            for_each_subterm(e, f);
+            for_each_subterm(h, f);
+        }
+        ast::Term::Handler(h) => for_each_handler(h, f),
+        ast::Term::With { value, body, .. } => {
+            for_each_subterm(value, f);
+            for_each_subterm(body, f);
+        }
+        ast::Term::CapApply { head, supplies, .. } => {
+            for_each_subterm(head, f);
+            for (_, x) in supplies {
+                for_each_subterm(x, f);
+            }
+        }
+    }
+}
+
+fn for_each_handler(h: &ast::HandlerExpr, f: &mut dyn FnMut(&ast::Term)) {
+    for_each_subterm(&h.ret_body, f);
+    for c in &h.clauses {
+        for_each_subterm(&c.body, f);
+    }
+}
+
+/// Every unqualified variable reference and infix operator of `t` (the
+/// module call graph for the recursion groups).
+fn collect_calls(t: &ast::Term, out: &mut Vec<String>) {
+    for_each_subterm(t, &mut |x| match x {
+        ast::Term::Var(p) if p.quals.is_empty() => out.push(p.name.text.clone()),
+        ast::Term::Infix(_, ops, _) => {
+            for o in ops {
+                out.push(o.text.clone());
+            }
+        }
+        _ => {}
+    })
+}
+
+/// A subterm's position in the guardedness discipline (core language
+/// specification section 9; codata and guardedness design, section 3).
+#[derive(Clone, Copy, Default)]
+struct GuardPos {
+    /// Inside a `delay` argument: a lambda body here runs at force.
+    delay_arg: bool,
+    /// Inside a `delay` thunk body.
+    in_delay: bool,
+    /// Inside a codata observation's value.
+    in_obs: bool,
+    /// The nearest enclosing observation is `Later`-typed.
+    obs_later: bool,
+    /// Inside a `delay` thunk flowing to a `Later`-typed observation: the
+    /// guarded position of the discipline.
+    guarded: bool,
+}
+
+/// What the guard walk enforces for one definition.
+enum GuardMode {
+    /// A `corec` claim: every recursive call must be guarded.
+    Corec,
+    /// An ordinary codata producer: unguarded recursion must be reflected
+    /// in the type (`Diverge` on the arrows) or refused.
+    Ordinary { diverge: bool },
 }
 
 impl Checker {
@@ -718,6 +886,10 @@ impl Checker {
                         None => None,
                         Some("spec") => Some("spec"),
                         Some("proof") => Some("proof"),
+                        // `corec` marks a definition whose recursion must be
+                        // productive (core language specification section 9);
+                        // it is not part of the logical fragment.
+                        Some("corec") => None,
                         Some(m) => {
                             return Err(Error::at(
                                 modifier.as_ref().unwrap().span,
@@ -753,11 +925,14 @@ impl Checker {
                     if logical.is_some() {
                         self.logical.insert((module.clone(), name.text.clone()));
                     }
+                    if modifier.as_ref().map(|m| m.text.as_str()) == Some("corec") {
+                        self.corec.insert((module.clone(), name.text.clone()));
+                    }
                     schemes.insert(name.text.clone(), s);
                 }
                 ast::Decl::Equation { modifier, eq } => {
                     match modifier.as_ref().map(|m| m.text.as_str()) {
-                        None | Some("spec") | Some("proof") => {}
+                        None | Some("spec") | Some("proof") | Some("corec") => {}
                         Some(m) => {
                             return Err(Error::at(
                                 modifier.as_ref().unwrap().span,
@@ -766,9 +941,13 @@ impl Checker {
                         }
                     }
                     if let Some(mod_) = modifier {
-                        if !self.logical.contains(&(module.clone(), eq.name.text.clone()))
-                            && schemes.get(&eq.name.text).is_some()
-                        {
+                        let marked = match mod_.text.as_str() {
+                            "spec" | "proof" => {
+                                self.logical.contains(&(module.clone(), eq.name.text.clone()))
+                            }
+                            _ => self.corec.contains(&(module.clone(), eq.name.text.clone())),
+                        };
+                        if !marked && schemes.get(&eq.name.text).is_some() {
                             return Err(Error::at(
                                 mod_.span,
                                 format!(
@@ -1236,6 +1415,151 @@ impl Checker {
                         .and_then(|ts| ts.iter_mut().find(|t| t.module == module))
                         .expect("type registered above");
                     entry.ctors = vec![(rec.name.text.clone(), 0)];
+                }
+                ast::Decl::Codata(rec) => {
+                    // A codata type is a record of delayed observations
+                    // (codata and guardedness design, section 2): it
+                    // registers like a record, but construction is the
+                    // observed form and elimination is observation only.
+                    if Scalar::parse(&rec.name.text).is_some()
+                        || matches!(
+                            rec.name.text.as_str(),
+                            "Nat" | "Int" | "Bool" | "Unit" | "Bytes"
+                                | "Thunk" | "Lazy" | "Later" | "Ref" | "Mut" | "Io"
+                                | "Type" | "Prop"
+                        )
+                    {
+                        return Err(Error::at(
+                            rec.name.span,
+                            format!("{} is a builtin type former and cannot be redefined", rec.name.text),
+                        ));
+                    }
+                    if self
+                        .types
+                        .get(&rec.name.text)
+                        .map(|l| l.iter().any(|t| t.module == module))
+                        .unwrap_or(false)
+                    {
+                        return Err(Error::at(rec.name.span, format!("duplicate type {}", rec.name.text)));
+                    }
+                    let mut params: Vec<String> = Vec::new();
+                    let mut param_kinds: Vec<ParamKind> = Vec::new();
+                    for b in &rec.params {
+                        let k = match &b.ann {
+                            Some(ann) => self.binder_kind(ann, &params)?,
+                            None => ParamKind::Type,
+                        };
+                        params.push(b.name.text.clone());
+                        param_kinds.push(k);
+                    }
+                    let mut obs_names: Vec<String> = Vec::new();
+                    for f in &rec.fields {
+                        if obs_names.iter().any(|n| n == &f.name.text) {
+                            return Err(Error::at(
+                                f.name.span,
+                                format!("duplicate observation {}", f.name.text),
+                            ));
+                        }
+                        obs_names.push(f.name.text.clone());
+                    }
+                    // Register the type before converting observation
+                    // types, which may mention the type being declared
+                    // (`tail :: Later (Stream a)`).
+                    self.types.entry(rec.name.text.clone()).or_default().push(TypeKind {
+                        module: module.clone(),
+                        name: rec.name.text.clone(),
+                        arity: params.len(),
+                        param_kinds: param_kinds.clone(),
+                        ctors: Vec::new(),
+                        fields: Some(obs_names.clone()),
+                        field_erased: Vec::new(),
+                    });
+                    let mut vars = params.clone();
+                    let mut obs_tys = Vec::new();
+                    for f in &rec.fields {
+                        let t = self.conv_type(&f.ty, &vars)?;
+                        check_positivity(&rec.name.text, &f.name.text, &t, &rec.name, f.span)?;
+                        obs_tys.push(t);
+                        vars.push(f.name.text.clone());
+                    }
+                    let field_erased: Vec<bool> = obs_tys.iter().map(|t| erased_ty(t)).collect();
+                    let runtime_arity = field_erased.iter().filter(|e| !**e).count();
+                    let res_args: Vec<Ty> = params
+                        .iter()
+                        .zip(&param_kinds)
+                        .map(|(p, k)| match k {
+                            ParamKind::Type => Ty::Param(p.clone()),
+                            ParamKind::Val(_) => Ty::Idx(Box::new(ITerm::Var(p.clone()))),
+                            ParamKind::Prop => Ty::Prp(Box::new(PTerm::Var(p.clone()))),
+                        })
+                        .collect();
+                    let mut all = obs_tys.clone();
+                    all.extend(res_args.iter().cloned());
+                    let mut type_params: Vec<String> = Vec::new();
+                    let mut idx_params: Vec<IxParam> = Vec::new();
+                    for (p, k) in params.iter().zip(&param_kinds) {
+                        if !all.iter().any(|t| ty_mentions(t, p)) {
+                            continue;
+                        }
+                        match k {
+                            ParamKind::Type => type_params.push(p.clone()),
+                            ParamKind::Val(t) => {
+                                idx_params.push(IxParam::Val(p.clone(), t.clone()))
+                            }
+                            ParamKind::Prop => idx_params.push(IxParam::Prop(p.clone())),
+                        }
+                    }
+                    let res_ty = Ty::Adt(rec.name.text.clone(), res_args.clone());
+                    let mut scheme_ty = res_ty.clone();
+                    for (i, t) in obs_tys.iter().enumerate().rev() {
+                        let b = obs_names[i].clone();
+                        let rest = scheme_ty;
+                        scheme_ty = if rest.mentions_idx(&b) {
+                            Ty::pi(b, t.clone(), default_mult(t), EffRow::pure(), rest)
+                        } else {
+                            Ty::fun_mult(t.clone(), default_mult(t), EffRow::pure(), rest)
+                        };
+                    }
+                    let scheme = Scheme {
+                        params: type_params,
+                        idx_params,
+                        val_params: Vec::new(),
+                        prop_params: Vec::new(),
+                        row_params: Vec::new(),
+                        region_params: Vec::new(),
+                        ctx: Vec::new(),
+                        ty: scheme_ty,
+                    };
+                    // The observations' closures occupy one block word
+                    // each; the constructor exists for the block
+                    // allocation and is never a callable value.
+                    self.add_value(
+                        ValueInfo {
+                            module: module.clone(),
+                            name: rec.name.text.clone(),
+                            scheme,
+                            kind: ValueKind::Ctor {
+                                tag: 0,
+                                arity: obs_tys.len(),
+                                runtime_arity,
+                                field_binders: obs_names.clone(),
+                                field_tys: obs_tys,
+                                field_erased: field_erased.clone(),
+                                ty_params: params.clone(),
+                                local_idx: Vec::new(),
+                                res_args,
+                            },
+                        },
+                        rec.name.span,
+                    )?;
+                    let entry = self
+                        .types
+                        .get_mut(&rec.name.text)
+                        .and_then(|ts| ts.iter_mut().find(|t| t.module == module))
+                        .expect("type registered above");
+                    entry.ctors = vec![(rec.name.text.clone(), 0)];
+                    entry.field_erased = field_erased;
+                    self.codata_types.insert((module.clone(), rec.name.text.clone()));
                 }
                 ast::Decl::Signature(sig) => {
                     if matches!(sig.name.text.as_str(), "Copy" | "Share") {
@@ -1753,6 +2077,482 @@ impl Checker {
         Ok(())
     }
 
+    // ------------------------------------------------------------ productivity (P8)
+
+    /// The mutually recursive group of `name` among this module's
+    /// definitions: `name` plus every definition that can call back into
+    /// it. Recursive calls (to group members) are what the guardedness
+    /// discipline governs (core language specification section 9).
+    fn rec_group(&self, name: &str) -> Vec<String> {
+        let module = self.current_module.clone();
+        let mut names: Vec<String> = Vec::new();
+        for (m, n, _) in &self.top_eqs {
+            if *m == module && !names.contains(n) {
+                names.push(n.clone());
+            }
+        }
+        if !names.iter().any(|n| n == name) {
+            return vec![name.to_string()];
+        }
+        let mut edges: Vec<(String, Vec<String>)> = Vec::new();
+        for n in &names {
+            let mut calls: Vec<String> = Vec::new();
+            for (m, n2, e) in &self.top_eqs {
+                if *m == module && n2 == n {
+                    collect_calls(&e.body, &mut calls);
+                }
+            }
+            calls.retain(|c| names.contains(c));
+            calls.sort();
+            calls.dedup();
+            edges.push((n.clone(), calls));
+        }
+        let reach = |from: &str, to: &str| -> bool {
+            let mut seen = vec![from.to_string()];
+            let mut stack = vec![from.to_string()];
+            while let Some(k) = stack.pop() {
+                if let Some((_, cs)) = edges.iter().find(|(n, _)| *n == k) {
+                    for c in cs {
+                        if c == to {
+                            return true;
+                        }
+                        if !seen.contains(c) {
+                            seen.push(c.clone());
+                            stack.push(c.clone());
+                        }
+                    }
+                }
+            }
+            false
+        };
+        names
+            .into_iter()
+            .filter(|b| reach(name, b) && reach(b, name))
+            .collect()
+    }
+
+    /// Is this a codata type?
+    fn is_codata_path(&self, path: &ast::ConPath) -> bool {
+        let parts = path.parts();
+        match self.lookup_type(&parts) {
+            Ok(info) => self
+                .codata_types
+                .contains(&(info.module.clone(), info.name.clone())),
+            Err(_) => false,
+        }
+    }
+
+    /// Is the observation `field` of codata type `path` a `Later`-typed
+    /// guard? (codata and guardedness design, section 3)
+    fn obs_is_later(&self, path: &ast::ConPath, field: &str) -> bool {
+        let parts = path.parts();
+        let Ok(info) = self.lookup_type(&parts) else {
+            return false;
+        };
+        if !self
+            .codata_types
+            .contains(&(info.module.clone(), info.name.clone()))
+        {
+            return false;
+        }
+        let Some(fields) = &info.fields else {
+            return false;
+        };
+        let Some(i) = fields.iter().position(|f| f == field) else {
+            return false;
+        };
+        match self.ctor_of_type(&info, &info.name) {
+            Ok(v) => match &v.kind {
+                ValueKind::Ctor { field_tys, .. } => {
+                    matches!(field_tys.get(i), Some(Ty::Later(_)))
+                }
+                _ => false,
+            },
+            Err(_) => false,
+        }
+    }
+
+    /// Does this definition produce codata (its result type is codata, or
+    /// its body builds a codata value)?
+    fn produces_codata(&self, scheme: &Scheme, eqs: &[ast::Equation]) -> bool {
+        let mut t = &scheme.ty;
+        loop {
+            match t {
+                Ty::Fun(_, _, _, b) | Ty::Pi { cod: b, .. } => t = b,
+                _ => break,
+            }
+        }
+        if let Ty::Adt(n, _) = t {
+            if let Ok(info) = self.lookup_type(&[n]) {
+                if self
+                    .codata_types
+                    .contains(&(info.module.clone(), info.name.clone()))
+                {
+                    return true;
+                }
+            }
+        }
+        let mut found = false;
+        for e in eqs {
+            for_each_subterm(&e.body, &mut |x| {
+                if let ast::Term::Record(path, _, _) = x {
+                    if self.is_codata_path(path) {
+                        found = true;
+                    }
+                }
+            });
+        }
+        found
+    }
+
+    /// The productivity discipline (core language specification section
+    /// 9). A `corec` definition claims productivity: its guard check runs
+    /// (design section 3). An ordinary definition that produces codata is
+    /// not certified, so any unguarded recursion must be reflected in its
+    /// type (`Diverge` on the arrows) or refused where no row can carry
+    /// the loss of productivity.
+    fn check_productivity(&self, name: &str, scheme: &Scheme, eqs: &[ast::Equation]) -> Result<()> {
+        let key = (self.current_module.clone(), name.to_string());
+        if self.corec.contains(&key) {
+            let group = self.rec_group(name);
+            for e in eqs {
+                let mut bound = Vec::new();
+                for p in &e.pats {
+                    pat_names(p, &mut bound);
+                }
+                self.walk_guard(
+                    &e.body,
+                    GuardPos::default(),
+                    &group,
+                    &GuardMode::Corec,
+                    &mut bound,
+                )?;
+            }
+            for e in eqs {
+                self.construction_layer(&e.body)?;
+            }
+            return Ok(());
+        }
+        if eqs.is_empty() || !self.produces_codata(scheme, eqs) {
+            return Ok(());
+        }
+        // The body runs at the last application: the loss of productivity,
+        // if any, surfaces there (decision D3's effect placement).
+        let mut diverge = false;
+        let mut t = &scheme.ty;
+        loop {
+            match t {
+                Ty::Fun(_, _, e, b) | Ty::Pi { eff: e, cod: b, .. } => {
+                    diverge = e.labels.iter().any(|l| l.head == "Diverge");
+                    t = b;
+                }
+                _ => break,
+            }
+        }
+        let group = self.rec_group(name);
+        for e in eqs {
+            let mut bound = Vec::new();
+            for p in &e.pats {
+                pat_names(p, &mut bound);
+            }
+            self.walk_guard(
+                &e.body,
+                GuardPos::default(),
+                &group,
+                &GuardMode::Ordinary { diverge },
+                &mut bound,
+            )?;
+        }
+        Ok(())
+    }
+
+    /// The guard check's construction layer: a `corec` body must build its
+    /// codata type at every step, so each recursion level produces its
+    /// observations before the next call (design section 3).
+    fn construction_layer(&self, t: &ast::Term) -> Result<()> {
+        match t {
+            ast::Term::Record(path, _, _) if self.is_codata_path(path) => Ok(()),
+            ast::Term::Ann(e, _, _) => self.construction_layer(e),
+            ast::Term::If(_, a, b, _) => {
+                self.construction_layer(a)?;
+                self.construction_layer(b)
+            }
+            ast::Term::Case(_, alts, _) => {
+                for alt in alts {
+                    self.construction_layer(&alt.body)?;
+                }
+                Ok(())
+            }
+            ast::Term::Let(_, body, _) => self.construction_layer(body),
+            other => Err(Error::at(
+                other.span(),
+                "a `corec` body must build its codata type at every step (an observation layer per recursion level); this body does not construct a codata value (core language specification section 9)",
+            )),
+        }
+    }
+
+    /// The syntactic guard walk (design section 3): recursive calls are
+    /// allowed only inside `delay` thunks that flow to a `Later`-typed
+    /// observation.
+    fn walk_guard(
+        &self,
+        t: &ast::Term,
+        pos: GuardPos,
+        group: &[String],
+        mode: &GuardMode,
+        bound: &mut Vec<String>,
+    ) -> Result<()> {
+        let call = |p: &ast::Name, pos: GuardPos| -> Result<()> {
+            if group.iter().all(|g| g != &p.text) {
+                return Ok(());
+            }
+            match mode {
+                GuardMode::Corec => {
+                    if !pos.guarded {
+                        return Err(Error::at(
+                            p.span,
+                            format!(
+                                "unguarded recursive call to `{}`: a `corec` definition must place every recursive call under `delay` in a `Later`-typed observation (core language specification section 9)",
+                                p.text
+                            ),
+                        ));
+                    }
+                    Ok(())
+                }
+                GuardMode::Ordinary { diverge } => {
+                    if pos.in_delay {
+                        // Under a `delay` thunk: the thunk's own type
+                        // records what forcing performs (a `Later` body
+                        // must be pure; a `Thunk {e}` carries `e`).
+                        return Ok(());
+                    }
+                    if pos.in_obs {
+                        return Err(Error::at(
+                            p.span,
+                            format!(
+                                "unguarded recursive call to `{}` in a codata observation: an observation must produce its value in finite time, so an unproductive search cannot run here; compute it before construction or defer it in a `Thunk {{Diverge}}` observation (core language specification section 9)",
+                                p.text
+                            ),
+                        ));
+                    }
+                    if !*diverge {
+                        return Err(Error::at(
+                            p.span,
+                            format!(
+                                "unguarded recursive call to `{}`: this definition is not productive, so its type must reflect the loss of productivity: declare `Diverge` on its arrows (as in `... ->{{Diverge}} ...`), or guard the call under `delay` in a `Later` observation (core language specification section 9)",
+                                p.text
+                            ),
+                        ));
+                    }
+                    Ok(())
+                }
+            }
+        };
+        match t {
+            ast::Term::Var(p) => {
+                if p.quals.is_empty() && !bound.contains(&p.name.text) {
+                    call(&p.name, pos)?;
+                }
+            }
+            ast::Term::Con(_)
+            | ast::Term::Int(_, _)
+            | ast::Term::Str(_, _)
+            | ast::Term::Char(_, _)
+            | ast::Term::Unit(_)
+            | ast::Term::Hole(_)
+            | ast::Term::SeqOp(_, _) => {}
+            ast::Term::App(f, args, _) => {
+                // `delay (\() -> e)` is the guard form when `delay` is the
+                // builtin (unshadowed); its lambda body runs at force.
+                if let ast::Term::Var(p) = &**f {
+                    if p.quals.is_empty()
+                        && p.name.text == "delay"
+                        && !bound.contains(&p.name.text)
+                        && args.len() == 1
+                        && self.lookup_value(None, "delay").is_err()
+                    {
+                        let arg_pos = GuardPos { delay_arg: true, ..pos };
+                        return self.walk_guard(&args[0], arg_pos, group, mode, bound);
+                    }
+                }
+                self.walk_guard(f, pos, group, mode, bound)?;
+                for a in args {
+                    self.walk_guard(a, pos, group, mode, bound)?;
+                }
+            }
+            ast::Term::Lam(pats, body, _) => {
+                let body_pos = if pos.delay_arg {
+                    GuardPos {
+                        delay_arg: false,
+                        in_delay: true,
+                        guarded: pos.guarded || (pos.in_obs && pos.obs_later),
+                        ..pos
+                    }
+                } else {
+                    GuardPos { delay_arg: false, ..pos }
+                };
+                let mut bound2 = bound.clone();
+                for p in pats {
+                    pat_names(p, &mut bound2);
+                }
+                self.walk_guard(body, body_pos, group, mode, &mut bound2)?;
+            }
+            ast::Term::Let(decls, body, _) => {
+                for d in decls {
+                    let mut bound2 = bound.clone();
+                    match d {
+                        ast::LocalDecl::Sig { .. } => continue,
+                        ast::LocalDecl::Eq { name: n, pats, body: b, .. } => {
+                            bound2.push(n.text.clone());
+                            for p in pats {
+                                pat_names(p, &mut bound2);
+                            }
+                            self.walk_guard(b, pos, group, mode, &mut bound2)?;
+                        }
+                        ast::LocalDecl::Bind { pat, body: b, .. }
+                        | ast::LocalDecl::Lazy { pat, body: b, .. } => {
+                            pat_names(pat, &mut bound2);
+                            self.walk_guard(b, pos, group, mode, &mut bound2)?;
+                        }
+                    }
+                }
+                let mut bound2 = bound.clone();
+                for d in decls {
+                    match d {
+                        ast::LocalDecl::Sig { .. } => {}
+                        ast::LocalDecl::Eq { name: n, .. } => bound2.push(n.text.clone()),
+                        ast::LocalDecl::Bind { pat, .. } | ast::LocalDecl::Lazy { pat, .. } => {
+                            pat_names(pat, &mut bound2)
+                        }
+                    }
+                }
+                self.walk_guard(body, pos, group, mode, &mut bound2)?;
+            }
+            ast::Term::If(c, a, b, _) => {
+                self.walk_guard(c, pos, group, mode, bound)?;
+                self.walk_guard(a, pos, group, mode, bound)?;
+                self.walk_guard(b, pos, group, mode, bound)?;
+            }
+            ast::Term::Case(scrut, alts, _) => {
+                self.walk_guard(scrut, pos, group, mode, bound)?;
+                for alt in alts {
+                    if let Some(g) = &alt.guard {
+                        self.walk_guard(g, pos, group, mode, bound)?;
+                    }
+                    let mut bound2 = bound.clone();
+                    pat_names(&alt.pat, &mut bound2);
+                    self.walk_guard(&alt.body, pos, group, mode, &mut bound2)?;
+                }
+            }
+            ast::Term::Ann(e, _, _) | ast::Term::Neg(e, _) | ast::Term::Proj(e, _, _) => {
+                self.walk_guard(e, pos, group, mode, bound)?
+            }
+            ast::Term::Infix(terms, ops, _) => {
+                for o in ops {
+                    if !bound.contains(&o.text) {
+                        call(o, pos)?;
+                    }
+                }
+                for x in terms {
+                    self.walk_guard(x, pos, group, mode, bound)?;
+                }
+            }
+            ast::Term::Tuple(items, _) | ast::Term::List(items, _) => {
+                for x in items {
+                    self.walk_guard(x, pos, group, mode, bound)?;
+                }
+            }
+            ast::Term::Record(path, fields, _) => {
+                // A codata observation's value runs at observation time:
+                // it is a fresh closure, and a `Later`-typed one is the
+                // guarded position of the discipline.
+                let codata = self.is_codata_path(path);
+                for (fname, fval) in fields {
+                    let fpos = if codata {
+                        GuardPos {
+                            delay_arg: false,
+                            in_obs: true,
+                            obs_later: self.obs_is_later(path, &fname.text),
+                            ..pos
+                        }
+                    } else {
+                        GuardPos { delay_arg: false, ..pos }
+                    };
+                    self.walk_guard(fval, fpos, group, mode, bound)?;
+                }
+            }
+            ast::Term::Do(stmts, _) => {
+                for s in stmts {
+                    match s {
+                        ast::DoStmt::Bind { pat, term, .. } => {
+                            let mut bound2 = bound.clone();
+                            pat_names(pat, &mut bound2);
+                            self.walk_guard(term, pos, group, mode, &mut bound2)?;
+                        }
+                        ast::DoStmt::Let { decl, .. } => match decl {
+                            ast::LocalDecl::Sig { .. } => {}
+                            ast::LocalDecl::Eq { name: n, body: b, .. } => {
+                                let mut bound2 = bound.clone();
+                                bound2.push(n.text.clone());
+                                self.walk_guard(b, pos, group, mode, &mut bound2)?;
+                            }
+                            ast::LocalDecl::Bind { pat, body: b, .. }
+                            | ast::LocalDecl::Lazy { pat, body: b, .. } => {
+                                let mut bound2 = bound.clone();
+                                pat_names(pat, &mut bound2);
+                                self.walk_guard(b, pos, group, mode, &mut bound2)?;
+                            }
+                        },
+                        ast::DoStmt::Expr { term, .. } => {
+                            self.walk_guard(term, pos, group, mode, bound)?
+                        }
+                    }
+                }
+            }
+            ast::Term::Handle(e, h, _) => {
+                self.walk_guard(e, pos, group, mode, bound)?;
+                self.walk_guard(h, pos, group, mode, bound)?;
+            }
+            ast::Term::Handler(h) => self.walk_handler(h, pos, group, mode, bound)?,
+            ast::Term::With { name: _, value, body, .. } => {
+                self.walk_guard(value, pos, group, mode, bound)?;
+                self.walk_guard(body, pos, group, mode, bound)?;
+            }
+            ast::Term::CapApply { head, supplies, .. } => {
+                self.walk_guard(head, pos, group, mode, bound)?;
+                for (_, x) in supplies {
+                    self.walk_guard(x, pos, group, mode, bound)?;
+                }
+            }
+            ast::Term::CpsWrap(body, _) => self.walk_guard(body, pos, group, mode, bound)?,
+        }
+        Ok(())
+    }
+
+    fn walk_handler(
+        &self,
+        h: &ast::HandlerExpr,
+        pos: GuardPos,
+        group: &[String],
+        mode: &GuardMode,
+        bound: &mut Vec<String>,
+    ) -> Result<()> {
+        let mut bound2 = bound.clone();
+        pat_names(&h.ret_pat, &mut bound2);
+        self.walk_guard(&h.ret_body, pos, group, mode, &mut bound2)?;
+        for c in &h.clauses {
+            let mut bound2 = bound.clone();
+            for p in &c.pats {
+                pat_names(p, &mut bound2);
+            }
+            if let Some(k) = &c.resume {
+                bound2.push(k.text.clone());
+            }
+            self.walk_guard(&c.body, pos, group, mode, &mut bound2)?;
+        }
+        Ok(())
+    }
+
     fn check_equations(
         &mut self,
         name: &str,
@@ -1761,6 +2561,7 @@ impl Checker {
         eqs: &[ast::Equation],
         extra_dicts: Vec<(LocalId, ClassApp)>,
     ) -> Result<()> {
+        self.check_productivity(name, scheme, eqs)?;
         let logical = self
             .logical
             .contains(&(self.current_module.clone(), name.to_string()));

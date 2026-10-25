@@ -110,8 +110,8 @@ needs the checker to consume export tables instead of sources.
 
 | Requirement | Status |
 | --- | --- |
-| `codata`, `Later`, guarded `delay`/`force` | partial (`Later` is spec; memo/thunk machinery exists) |
-| `corec` with productivity checking | todo |
+| `codata`, `Later`, guarded `delay`/`force` | done (`codata` as delayed-observation records, `Later` distinct from `Thunk` with a usage-multiplicity rule, D36/D37; `tests/codata.rs`) |
+| `corec` with productivity checking | done (syntactic guard check: every recursive call under `delay` flowing to a `Later` observation, D38; unproductive recursion rejected naming the call) |
 
 ### Staging (P9)
 
@@ -168,7 +168,7 @@ update as the slices land; 07 must reject, the rest must accept):
 | 01-bounded-index | accepts (`safelang check` exit 0; `run` needs a `main` per D20) | done |
 | 02-vector-filter | line 7: `Nil` against `Vec n a` needs rigid-index refinement (D35) | P7 limit (D35) |
 | 03-map-fusion | field projection in types | P13 |
-| 04-productive-stream | `codata` declarations unsupported | P8 |
+| 04-productive-stream | accepts (`safelang check` exit 0) | done |
 | 05-schema-generator | `module` name at top level (stage/import syntax) | P9 |
 | 06-counter-upgrade | accepts (`safelang check` exit 0) | done |
 | 07-rejected-programs | rejected at parse (correct) | must stay rejected |
@@ -371,3 +371,37 @@ flags for future decisions).
   rejected with the index equation: this slice does not refine rigid
   indices. Programs dispatch through `decide` or computed indices.
   Acceptance example 02 currently stops here.
+- **D36 (P8 Later)**: the `Later`-vs-`Thunk` rule is a usage-multiplicity
+  rule: `Later a` is a distinct type former (never unifies with `Thunk`),
+  a `Later` binder lives at `%1`/`%aff` only (default `%aff`) and
+  `force` consumes it; `%many` is rejected as unrestricted-thunk
+  semantics. Supporting kinding: `Later` takes exactly one type argument
+  and no effect row.
+- **D37 (P8 codata)**: a codata type is a record of delayed
+  observations; construction is only by the observed form `C { obs = e }`,
+  each value a closure run at observation time (unbounded-use positions
+  per D18); values box like ADTs (one closure word per observation;
+  `Prp`/`Sort` observations erase); pattern matching on codata is
+  refused; codata values are never `Copy`.
+- **D38 (P8 productivity)**: the check is syntactic (design section 3):
+  a `corec` body must build its codata type at every step, and every
+  recursive call (SCC of the module call graph) must sit under `delay`
+  flowing to a `Later`-typed observation; violations error naming the
+  unguarded call. `corec` requires its marked signature.
+- **D39 (P8 productivity loss)**: productivity is certified only by
+  `corec`. A codata-producing definition with an unguarded call reflects
+  the loss in its type (`Diverge` on the last arrow); an unguarded call
+  directly in an observation value is refused. An unrestricted filter
+  can therefore never present itself as a productive stream.
+- **D40 (P8 Later purity)**: a `delay` building a `Later` must have an
+  empty performed row and observation values must be effect-free;
+  effectful deferral belongs to `Thunk {e}`.
+- **D41 (P8 guard spelling)**: `\() -> e` lambdas accept the unit
+  pattern as a unit-checked wildcard (the design's guard spelling;
+  example 04 needs it).
+- **P8 design divergences** (recorded per the slice report): the design
+  note's "streams live in the prelude" is deferred (the prelude would
+  shadow user `codata Stream` declarations in type lookup), and its
+  `bisim` relation is outside this slice. D32's boundary is unchanged:
+  divergence of non-codata-producing helpers is still unchecked (a
+  pure-typed diverging helper can fake productivity through a guard).

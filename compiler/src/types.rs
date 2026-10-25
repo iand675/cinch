@@ -774,6 +774,12 @@ pub enum Ty {
     Fun(Box<Ty>, Mult, EffRow, Box<Ty>),
     /// `Thunk {e} a`.
     Thunk { eff: EffRow, inner: Box<Ty> },
+    /// `Later a`: the guarded observation modality (core language
+    /// specification section 9). A logical modality with no effect row and
+    /// no reclamation obligation; at runtime it keeps the thunk
+    /// representation (codata and guardedness design, section 1). It is
+    /// never interchangeable with `Thunk`.
+    Later(Box<Ty>),
     /// `Lazy {e} r a`: a memo cell in region `r`.
     Lazy { eff: EffRow, region: String, inner: Box<Ty> },
     /// `Ref r a`: a shared borrow of `a` in region `r`.
@@ -895,7 +901,7 @@ impl Ty {
                 a.mentions_idx(name) || b.mentions_idx(name)
             }
             Ty::Sigma { dom, cod, .. } => dom.mentions_idx(name) || cod.mentions_idx(name),
-            Ty::Thunk { inner, .. } => inner.mentions_idx(name),
+            Ty::Thunk { inner, .. } | Ty::Later(inner) => inner.mentions_idx(name),
             Ty::Lazy { inner, .. } => inner.mentions_idx(name),
             Ty::Ref(_, inner) | Ty::Mut(_, inner) => inner.mentions_idx(name),
             Ty::Handler { input, output, .. } => {
@@ -939,6 +945,7 @@ impl Ty {
                 eff: eff.clone(),
                 inner: Box::new(inner.subst_idx(name, by)),
             },
+            Ty::Later(inner) => Ty::Later(Box::new(inner.subst_idx(name, by))),
             Ty::Lazy { eff, region, inner } => Ty::Lazy {
                 eff: eff.clone(),
                 region: region.clone(),
@@ -979,7 +986,7 @@ impl Ty {
                 dom.free_idx_metas(out);
                 cod.free_idx_metas(out);
             }
-            Ty::Thunk { inner, .. } => inner.free_idx_metas(out),
+            Ty::Thunk { inner, .. } | Ty::Later(inner) => inner.free_idx_metas(out),
             Ty::Lazy { inner, .. } => inner.free_idx_metas(out),
             Ty::Ref(_, inner) | Ty::Mut(_, inner) => inner.free_idx_metas(out),
             Ty::Handler { input, output, .. } => {
@@ -1017,6 +1024,9 @@ impl Ty {
                 eff.free_metas(out);
                 inner.free_metas(out);
             }
+            Ty::Later(inner) => {
+                inner.free_metas(out);
+            }
             Ty::Lazy { eff, inner, .. } => {
                 eff.free_metas(out);
                 inner.free_metas(out);
@@ -1038,7 +1048,10 @@ impl Ty {
 /// section 3); everything else is unrestricted in this slice.
 pub fn default_mult(ty: &Ty) -> Mult {
     match ty {
-        Ty::Thunk { .. } => Mult::Aff,
+        // A thunk is consumed by `force`; a `Later` observation likewise
+        // (the usage-multiplicity rule keeping `Later` from unrestricted
+        // thunk semantics).
+        Ty::Thunk { .. } | Ty::Later(_) => Mult::Aff,
         _ => Mult::Many,
     }
 }
@@ -1094,6 +1107,7 @@ impl fmt::Display for Ty {
                 (_, false) => write!(f, "({a} {m} ->{e} {b})"),
             },
             Ty::Thunk { eff, inner } => write!(f, "Thunk {eff} {inner}"),
+            Ty::Later(inner) => write!(f, "Later {inner}"),
             Ty::Lazy { eff, region, inner } => write!(f, "Lazy {eff} {region} {inner}"),
             Ty::Ref(region, inner) => write!(f, "Ref {region} {inner}"),
             Ty::Mut(region, inner) => write!(f, "Mut {region} {inner}"),
@@ -1206,6 +1220,7 @@ pub fn regionize(t: &Ty, regions: &[String]) -> Ty {
             eff: eff.clone(),
             inner: Box::new(regionize(inner, regions)),
         },
+        Ty::Later(inner) => Ty::Later(Box::new(regionize(inner, regions))),
         Ty::Lazy { eff, region, inner } => Ty::Lazy {
             eff: eff.clone(),
             region: region.clone(),
@@ -1273,6 +1288,9 @@ pub fn collect_row_names(t: &Ty, rows: &mut Vec<String>, regions: &mut Vec<Strin
         }
         Ty::Thunk { eff, inner } => {
             note_row(eff, rows, regions);
+            collect_row_names(inner, rows, regions);
+        }
+        Ty::Later(inner) => {
             collect_row_names(inner, rows, regions);
         }
         Ty::Lazy { eff, region, inner } => {
@@ -1704,6 +1722,7 @@ impl Unifier {
                 eff: self.resolve_row(&eff),
                 inner: Box::new(self.zonk(&inner)),
             },
+            Ty::Later(inner) => Ty::Later(Box::new(self.zonk(&inner))),
             Ty::Lazy { eff, region, inner } => Ty::Lazy {
                 eff: self.resolve_row(&eff),
                 region: self.resolve_region(&region),
@@ -1805,6 +1824,7 @@ impl Unifier {
                 eff: self.gen_row(&eff, names),
                 inner: Box::new(self.gen_ty(&inner, names)),
             },
+            Ty::Later(inner) => Ty::Later(Box::new(self.gen_ty(&inner, names))),
             Ty::Lazy { eff, region, inner } => Ty::Lazy {
                 eff: self.gen_row(&eff, names),
                 region,
@@ -1848,7 +1868,7 @@ impl Unifier {
             Ty::Fun(a, _, _, b) => self.occurs(id, &a) || self.occurs(id, &b),
             Ty::Pi { dom, cod, .. } => self.occurs(id, &dom) || self.occurs(id, &cod),
             Ty::Sigma { dom, cod, .. } => self.occurs(id, &dom) || self.occurs(id, &cod),
-            Ty::Thunk { inner, .. } => self.occurs(id, &inner),
+            Ty::Thunk { inner, .. } | Ty::Later(inner) => self.occurs(id, &inner),
             Ty::Lazy { inner, .. } => self.occurs(id, &inner),
             Ty::Ref(_, inner) | Ty::Mut(_, inner) => self.occurs(id, &inner),
             Ty::Handler { input, output, .. } => {
@@ -2084,6 +2104,16 @@ impl Unifier {
                 self.unify_rows(e1, e2)?;
                 self.unify(i1, i2)
             }
+            (Ty::Later(i1), Ty::Later(i2)) => self.unify(i1, i2),
+            // `Later` and `Thunk` are kept apart by design (laziness and
+            // reclamation specification, section 2): a `Later` is a
+            // guarded observation modality, a `Thunk` an affine deferred
+            // computation, and neither converts to the other.
+            (Ty::Later(_), Ty::Thunk { .. }) | (Ty::Thunk { .. }, Ty::Later(_)) => Err(format!(
+                "type mismatch: expected {}, got {} (Later and Thunk are distinct types; a Later is a guarded observation, not a deferred computation)",
+                self.zonk(&a),
+                self.zonk(&b)
+            )),
             (
                 Ty::Lazy { eff: e1, region: r1, inner: i1 },
                 Ty::Lazy { eff: e2, region: r2, inner: i2 },
@@ -2334,6 +2364,7 @@ pub fn ty_eq(a: &Ty, b: &Ty) -> bool {
             Ty::Thunk { eff: e1, inner: i1 },
             Ty::Thunk { eff: e2, inner: i2 },
         ) => e1 == e2 && ty_eq(i1, i2),
+        (Ty::Later(i1), Ty::Later(i2)) => ty_eq(i1, i2),
         (
             Ty::Lazy { eff: e1, region: r1, inner: i1 },
             Ty::Lazy { eff: e2, region: r2, inner: i2 },

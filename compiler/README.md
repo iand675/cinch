@@ -98,6 +98,12 @@ The closure and dictionary ABI is documented in `src/core.rs`.
   `Ref r a`/`Mut r a` borrows with region escape checking and lexical `Mut`
   uniqueness, and thunk force discipline (`%1` exactly once, `%aff` at
   most once; unannotated thunks default `%aff`).
+- **Guarded codata** (core spec section 9): `codata` declarations as
+  delayed-observation records, `corec` with structural productivity
+  checking (unguarded recursion rejected naming the call), `Later` as a
+  logical modality distinct from `Thunk` under a usage-multiplicity rule
+  (a `Later` binder is `%1`/`%aff` only), and productivity-loss typing
+  for unguarded codata producers (`Diverge` on the last arrow).
 - **Dependent core** (core spec sections 1-5, 8): stratified universes
   (`Type 0 : Type 1 : ...`, `Prop`; `Type : Type` never admitted),
   dependent function and pair types, kind-aware conversion checking
@@ -132,8 +138,7 @@ Rejected with an explicit error naming the form:
 - A constructor match against a family applied to rigid indices (decision
   D35: the error names the index equation; dispatch through `decide` or
   computed indices instead).
-- Guarded codata (rejected at `codata` with a pointer to the codata slice),
-  `rewrite`, `upgrade`, staging and macros, quotations.
+- `rewrite`, `upgrade`, staging and macros, quotations.
 - Strings (string literals and string types; `Bytes` buffers and `Char`
   values are implemented).
 - `~` irrefutable patterns in function argument positions (Haskell's
@@ -186,9 +191,12 @@ compiler/
 
 ## Roadmap
 
-The next slices follow the implementation plan's milestones: the dependent
-core (universes, indexed families, definitional equality), erasure with
-retained witnesses, effect rows and capabilities over the same dictionary
-mechanism, then modules-as-signatures, guarded codata, and the checked
-optimizer rules. Each slice should land with its positive and negative cases
-from `examples/`.
+Remaining slices follow the implementation plan's milestones: staging
+and hygienic macros, the checked optimizer rules with target profiles,
+the FFI (real C symbols, opaque types, ABI contracts), structured
+concurrency and a real `Io r` runtime, runtime evolution (upgrades,
+record views, versioned dispatch), and the Wasm component profile.
+Beyond those: the P16 requirements (evidence invalidation, temporal
+contracts, cross-compilation), the P17 attribute/weight/layout work,
+and the P15 conformance sweep. Each slice should land with its positive
+and negative cases from `examples/`.

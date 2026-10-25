@@ -454,6 +454,11 @@ pub enum Decl {
     Instance(InstDecl),
     Data(DataDecl),
     Record(RecordDecl),
+    /// `codata C params where { obs :: T, ... }`: a coinductive type of
+    /// observations (codata and guardedness design, section 2). The shape
+    /// is a record declaration, but construction is the observed record
+    /// form and elimination is observation only.
+    Codata(RecordDecl),
     /// `name :: ty` (with optional unsupported modifier in `modifier`).
     ValueSig { name: Name, modifier: Option<Name>, ty: Type, span: Span },
     Equation { modifier: Option<Name>, eq: Equation },

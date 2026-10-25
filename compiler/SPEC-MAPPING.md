@@ -37,8 +37,8 @@ property holds by construction rather than by a named test.
 | 20 | core-lang#7-memory-safety | No use-after-free, double-free, invalid mutable aliasing, data races | P | multiplicities + regions (`tests/ownership.rs::linear_double_use_is_rejected`, `::affine_double_use_is_rejected`, `::borrow_escape_is_rejected`, `::exclusive_borrows_are_lexically_unique`); races wait for P12 |
 | 21 | core-lang#7-borrow-kinds | Shared/exclusive borrows, consuming transfer, synchronized sharing | P | `Ref`/`Mut`/`%1` transfer done (`::scoped_borrow_is_accepted`); synchronized sharing is P12 |
 | 22 | core-lang#7-copy-semantics | Sharing/copying/cloning defined | I | structural `Copy` (`::copy_class_from_the_vector_filter_shape_works`, `::copy_class_is_structural_and_not_user_extensible`, `::copy_out_coheres_with_multiplicity`) |
-| 23 | core-lang#9-coinduction | Coinductive data and sound guarded corecursion | N | `codata`/`corec` parse-rejected; P8 |
-| 24 | core-lang#9-productivity | `Later` force rules prevent unproductive recursion as total | N | no codata machinery; P8 |
+| 23 | core-lang#9-coinduction | Coinductive data and sound guarded corecursion | I | `codata` delayed-observation records + `corec` with guard checking (D37/D38); `tests/codata.rs` |
+| 24 | core-lang#9-productivity | `Later` force rules prevent unproductive recursion as total | I | unguarded `corec` rejected naming the call; productivity loss typed as `Diverge` (D39); `tests/codata.rs` |
 | 25 | core-lang#10-temporal | Safety/liveness/recurrence/stability contracts with explicit assumptions | N | no temporal system; roadmap gap A3 (P16) |
 | 26 | core-lang#11-acceptance-manifest | Manifest identifies axioms, external contracts, proof backends, trusted components | P | axioms/assumptions recorded (row 15); proof kernel is `refl`/`congr`/`decide` only |
 
@@ -136,7 +136,7 @@ property holds by construction rather than by a named test.
 
 | # | Anchor | Requirement | Status | Evidence |
 | --- | --- | --- | --- | --- |
-| 82 | lazy#2-later-not-unrestricted-thunk | `Later a` not given unrestricted-thunk semantics | P | misuse impossible today (`Later` rejected); positive mechanism is P8 |
+| 82 | lazy#2-later-not-unrestricted-thunk | `Later a` not given unrestricted-thunk semantics | I | usage-multiplicity rule (D36): `Later` never unifies with `Thunk`, binders `%1`/`%aff` only |
 | 83 | lazy#4-no-silent-many-to-memo | No silent `%many` thunk to shared memo conversion | I | distinct type forms (`types.rs` `Mult::Many` vs `Ty::Lazy`); structural |
 | 84 | lazy#5-cached-type-duplicable | Cached type `a` is duplicable (`Share`) | I | memo bare-use requires `Copy` via `copyOut` (D16/D19); `tests/ownership.rs` copy-coherence tests |
 | 85 | lazy#6-eval-r-rule | A memo region's cells never contain `Eval r` | I | row lacks-constraints (`check_terms.rs` memo groups); `tests/integration.rs::memo_group_black_hole_is_rejected`, `::memo_group_mutual_demand_is_rejected` |
@@ -177,4 +177,6 @@ Flagged by the audit as MUSTs no P1-P15 phase owns; added as phase P16 in
   D16 (structural, non-extensible `Copy`), recorded here for traceability.
 - `Later`'s "MUST NOT be an unrestricted thunk" has no named enforcement
   mechanism (kinding vs usage vs erasure); the lazy spec's own open
-  decisions acknowledge this. P8 must pick one and record it.
+  decisions acknowledge this. **Resolved by D36** (P8): a
+  usage-multiplicity rule (`Later` binders are `%1`/`%aff` only, never
+  unifying with `Thunk`), supported by kinding.

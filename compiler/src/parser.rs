@@ -242,9 +242,7 @@ impl<'a> Parser<'a> {
             Tok::Foreign => Ok(Decl::Foreign(self.parse_foreign()?)),
             Tok::Infix | Tok::Infixl | Tok::Infixr => Ok(Decl::Fixity(self.parse_fixity()?)),
             Tok::Record => Ok(Decl::Record(self.parse_record()?)),
-            Tok::Codata => Err(self.err(
-                "codata declarations are not supported in the bootstrap slice; guarded codata is the codata slice's work",
-            )),
+            Tok::Codata => Ok(Decl::Codata(self.parse_codata()?)),
             Tok::Effect => Ok(Decl::Effect(self.parse_effect_decl()?)),
             Tok::TypeKw | Tok::Opaque => {
                 Err(self.err("type declarations are not supported in the bootstrap slice"))
@@ -521,6 +519,35 @@ impl<'a> Parser<'a> {
             let ty = p.parse_type()?;
             let span = name.span;
             Ok(FieldDecl { name, ty, erased, span })
+        })?;
+        Ok(RecordDecl { name, params, fields, span })
+    }
+
+    /// `codata C params where { obs :: T, ... }`: a coinductive type of
+    /// observations (codata and guardedness design, section 2). The block
+    /// has the shape of a record's field block, but an observation is
+    /// always runtime code, never `erased` evidence.
+    fn parse_codata(&mut self) -> Result<RecordDecl> {
+        let span = self.expect(&Tok::Codata, "`codata`")?.span;
+        let name = self.parse_ctor_name("a codata type name")?;
+        let params = self.parse_params()?;
+        if self.at(&Tok::ColonColon) {
+            return Err(self.err(
+                "kind signatures on `codata` declarations are not supported in the bootstrap slice",
+            ));
+        }
+        self.expect(&Tok::Where, "`where`")?;
+        let fields = self.parse_block_items("the observation block", |p| {
+            if p.at(&Tok::Erased) {
+                return Err(p.err(
+                    "an observation is runtime code, not erased evidence; `erased` is only for record fields",
+                ));
+            }
+            let name = p.parse_value_name()?;
+            p.expect(&Tok::ColonColon, "`::`")?;
+            let ty = p.parse_type()?;
+            let span = name.span;
+            Ok(FieldDecl { name, ty, erased: false, span })
         })?;
         Ok(RecordDecl { name, params, fields, span })
     }
@@ -1872,7 +1899,7 @@ fn resolve_module(m: &mut Module, fix: &FixityTable) -> Result<()> {
                     resolve_type(&mut c.ty, fix)?;
                 }
             }
-            Decl::Record(rec) => {
+            Decl::Record(rec) | Decl::Codata(rec) => {
                 for b in &mut rec.params {
                     if let Some(ann) = &mut b.ann {
                         resolve_type(ann, fix)?;
@@ -2747,9 +2774,6 @@ mod tests {
 
     #[test]
     fn not_supported_declarations_are_named() {
-        let e = err("module T where\n  codata C where\n    x :: Int\n");
-        assert!(e.contains("codata declarations are not supported"), "{e}");
-        assert!(e.contains("codata slice"), "{e}");
         let e = err("module T where\n  effect E (r :: Type) where\n    op :: Int\n");
         assert!(e.contains("effect parameters are region identities"), "{e}");
         let e = err("module T where\n  type T = Int\n");
@@ -2758,6 +2782,24 @@ mod tests {
         assert!(e.contains("upgrade declarations are not supported"), "{e}");
         let e = err("module T where\n  generate do\n    x\n");
         assert!(e.contains("generate declarations are not supported"), "{e}");
+    }
+
+    #[test]
+    fn codata_declarations_parse_observations() {
+        let p = ok(
+            "module T where\n  codata Stream (a :: Type) where\n    head :: a\n    tail :: Later (Stream a)\n",
+        );
+        match &p.module.decls[0] {
+            Decl::Codata(r) => {
+                assert_eq!(r.name.text, "Stream");
+                let names: Vec<&str> = r.fields.iter().map(|f| f.name.text.as_str()).collect();
+                assert_eq!(names, vec!["head", "tail"]);
+                assert!(r.fields.iter().all(|f| !f.erased));
+            }
+            other => panic!("expected a codata declaration, got {other:?}"),
+        }
+        let e = err("module T where\n  codata C where\n    erased x :: Int\n");
+        assert!(e.contains("an observation is runtime code"), "{e}");
     }
 
     #[test]

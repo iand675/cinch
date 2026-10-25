@@ -13,7 +13,7 @@ use crate::types::{ClassApp, EffLabel, EffRow, EitherMeta, IxParam, ITerm, IdxCm
 use crate::{Error, Result};
 use SolveOutcome::{Solved, Ambiguous};
 use std::cell::RefCell;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 // ---------------------------------------------------------------- elaboration IR
 
@@ -1014,7 +1014,7 @@ fn borrow_regions(ty: &Ty, out: &mut Vec<(String, bool)>) {
                 borrow_regions(a, out);
             }
         }
-        Ty::Thunk { inner, .. } | Ty::Lazy { inner, .. } => borrow_regions(inner, out),
+        Ty::Thunk { inner, .. } | Ty::Later(inner) | Ty::Lazy { inner, .. } => borrow_regions(inner, out),
         _ => {}
     }
 }
@@ -1057,6 +1057,9 @@ fn escape_regions(ty: &Ty, out: &mut Vec<String>) {
                     note(a, out);
                 }
             }
+            escape_regions(inner, out);
+        }
+        Ty::Later(inner) => {
             escape_regions(inner, out);
         }
         Ty::Adt(_, args) | Ty::Tuple(args) => {
@@ -1124,6 +1127,9 @@ struct Checker {
     /// total fragment, checked for termination and never emitted
     /// (core specification sections 3 and 8).
     logical: std::collections::HashSet<(String, String)>,
+    /// `corec` declarations: definitions whose recursion must be
+    /// productive (core language specification section 9).
+    corec: std::collections::HashSet<(String, String)>,
     /// The logical definition being checked (its references are recorded
     /// for the termination and cycle checks).
     current_logical: Option<(String, String)>,
@@ -1156,6 +1162,10 @@ struct Checker {
     place_path: Vec<String>,
     /// User-declared effects by name (`effect L where ...`).
     effects: HashMap<String, EffectInfo>,
+    /// Codata types by `(module, type name)` (codata and guardedness
+    /// design, section 2): a record of delayed observations, built only by
+    /// its observed construction form and eliminated only by observation.
+    codata_types: HashSet<(String, String)>,
     /// Effect operations by `(module, name)`, for the dispatch gate.
     effect_ops: HashMap<(String, String), ()>,
     /// Continuation closures currently being elaborated (usage counting).
@@ -1235,6 +1245,7 @@ impl Checker {
             idx_pends: Vec::new(),
             kind_constraints: RefCell::new(Vec::new()),
             logical: std::collections::HashSet::new(),
+            corec: std::collections::HashSet::new(),
             current_logical: None,
             pending_refs: Vec::new(),
             logical_refs: HashMap::new(),
@@ -1249,6 +1260,7 @@ impl Checker {
             active_regions: Vec::new(),
             place_path: Vec::new(),
             effects: HashMap::new(),
+            codata_types: HashSet::new(),
             effect_ops: HashMap::new(),
             conts: Vec::new(),
             cont_depth: 0,
@@ -1641,6 +1653,10 @@ impl Checker {
         match ty {
             Ty::Int | Ty::Nat | Ty::Bool | Ty::Unit | Ty::Prim(_) | Ty::Ref(_, _) => true,
             Ty::Bytes | Ty::Meta(_) | Ty::Mut(_, _) | Ty::Thunk { .. } | Ty::Lazy { .. } => false,
+            // `Later` keeps the thunk representation at runtime (codata
+            // and guardedness design, section 6), so like a thunk it is
+            // not duplicable evidence.
+            Ty::Later(_) => false,
             Ty::Fun(_, _, _, _) | Ty::Pi { .. } | Ty::Handler { .. } => false,
             // Index values and erased propositions occupy no runtime
             // representation that could be duplicated (core specification
@@ -1665,6 +1681,11 @@ impl Checker {
                     Ok(i) => i,
                     Err(_) => return false,
                 };
+                // A codata value is a record of observation closures: the
+                // closures themselves are never `Copy`.
+                if self.codata_types.contains(&(info.module.clone(), info.name.clone())) {
+                    return false;
+                }
                 for (cname, _) in &info.ctors {
                     let v = match self.ctor_of_type(&info, cname) {
                         Ok(v) => v,
@@ -2168,6 +2189,20 @@ impl Checker {
         Ok(t)
     }
 
+    /// The usage-multiplicity rule keeping `Later` from unrestricted-thunk
+    /// semantics (laziness and reclamation specification, section 2): a
+    /// `Later` value is consumed by `force` and may not be bound `%many`,
+    /// which would make it a duplicable thunk in disguise.
+    fn check_later_mult(&self, arg_ty: &Ty, m: Mult, span: ast::Span) -> Result<()> {
+        if matches!(arg_ty, Ty::Later(_)) && m == Mult::Many {
+            return Err(Error::at(
+                span,
+                "a Later-typed parameter must be used at most once: %many would give Later unrestricted-thunk semantics, which the laziness specification forbids (annotate %aff or %1)",
+            ));
+        }
+        Ok(())
+    }
+
     /// Note how a name is used, for classifying un-annotated `forall`
     /// binders after the scheme's type is converted. Conflicting uses are
     /// recorded as-is; `conv_scheme` reports them.
@@ -2498,6 +2533,18 @@ impl Checker {
                         "Thunk and Lazy must be fully applied as `Thunk {e} a` and `Lazy {e} r a`",
                     ));
                 }
+                (["Later"], [Arg::Ty(a)]) => {
+                    // `Later a`: the guarded observation modality (core
+                    // language specification section 9). One type argument,
+                    // no effect row: it carries no effects to hide.
+                    return Ok(Ty::Later(Box::new(self.conv_type(a, vars)?)));
+                }
+                (["Later"], _) => {
+                    return Err(Error::at(
+                        head_span,
+                        "Later must be applied to exactly one type (`Later a`): it is a logical modality and takes no effect row; effectful deferral is `Thunk {e} a`",
+                    ));
+                }
                 (["Ref"] | ["Mut"], [Arg::Ty(r), Arg::Ty(a)]) => {
                     let is_ref = parts[0] == "Ref";
                     let region = match r {
@@ -2620,9 +2667,9 @@ impl Checker {
                     // `Type : Type` is never admitted.
                     ["Type"] => Ok(Ty::Sort(Sort::Type(0))),
                     ["Prop"] => Ok(Ty::Sort(Sort::Prop)),
-                    ["Thunk"] | ["Lazy"] | ["Ref"] | ["Mut"] | ["Io"] => Err(Error::at(
+                    ["Thunk"] | ["Lazy"] | ["Later"] | ["Ref"] | ["Mut"] | ["Io"] => Err(Error::at(
                         *span,
-                        "Thunk, Lazy, Ref, Mut and Io must be fully applied (`Thunk {e} a`, `Lazy {e} r a`, `Ref r a`, `Mut r a`, `Io r`)",
+                        "Thunk, Lazy, Later, Ref, Mut and Io must be fully applied (`Thunk {e} a`, `Lazy {e} r a`, `Later a`, `Ref r a`, `Mut r a`, `Io r`)",
                     )),
                     [name] => {
                         if let Some(s) = Scalar::parse(name) {
@@ -2661,6 +2708,7 @@ impl Checker {
                         .ok_or_else(|| Error::at(n.span, format!("unknown multiplicity {}", n.text)))?,
                     None => default_mult(&arg_ty),
                 };
+                self.check_later_mult(&arg_ty, m, *span)?;
                 let eff = match eff {
                     Some(e) => self.conv_row(e, vars)?,
                     None => EffRow::pure(),
@@ -2684,6 +2732,7 @@ impl Checker {
                     })?,
                     None => default_mult(&dom),
                 };
+                self.check_later_mult(&dom, m, *span)?;
                 let eff = match eff {
                     Some(e) => self.conv_row(e, vars)?,
                     None => EffRow::pure(),
@@ -2942,6 +2991,9 @@ impl Checker {
                 eff: subst_row(eff, rows, regions),
                 inner: Box::new(Checker::subst_full(inner, types, rows, regions)),
             },
+            Ty::Later(inner) => {
+                Ty::Later(Box::new(Checker::subst_full(inner, types, rows, regions)))
+            }
             Ty::Lazy { eff, region, inner } => Ty::Lazy {
                 eff: subst_row(eff, rows, regions),
                 region: regions.get(region).cloned().unwrap_or_else(|| region.clone()),

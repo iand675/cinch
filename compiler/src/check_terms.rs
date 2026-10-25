@@ -423,6 +423,20 @@ impl Checker {
                 if erased {
                     return Ok((ECore::Unit, field_ty));
                 }
+                if self
+                    .codata_types
+                    .contains(&(info.module.clone(), info.name.clone()))
+                {
+                    // A codata observation runs the field's closure (codata
+                    // and guardedness design, section 2).
+                    return Ok((
+                        app_spine(
+                            ECore::Proj(Box::new(core), runtime_idx),
+                            vec![ECore::Unit],
+                        ),
+                        field_ty,
+                    ));
+                }
                 Ok((ECore::Proj(Box::new(core), runtime_idx), field_ty))
             }
             ast::Term::Record(path, fields, span) => {
@@ -467,6 +481,9 @@ impl Checker {
                         format!("record construction is missing field {f}"),
                     ));
                 }
+                let codata = self
+                    .codata_types
+                    .contains(&(info.module.clone(), info.name.clone()));
                 // The constructor's arrows are in declaration order; field
                 // expressions evaluate in source order (core specification:
                 // record fields are left-to-right). A dependent field type
@@ -511,7 +528,34 @@ impl Checker {
                         .find(|(f, _, _)| *f == n.text)
                         .map(|(_, d, _)| d.clone())
                         .expect("field membership checked above");
-                    evaluated.insert(n.text.as_str(), self.check(env, t, &dom)?);
+                    let c = if codata {
+                        // A codata value is a record of delayed
+                        // observations (design section 2): each value
+                        // becomes a closure run at observation time, so it
+                        // is a lazy position for the enclosing binders
+                        // (ownership and usage design, section 2) and its
+                        // performed effects surface at observation, where
+                        // the declared type carries no effect row.
+                        let saved = self.enter_perf();
+                        self.lam_depth += 1;
+                        let c = self.check(env, t, &dom);
+                        self.lam_depth -= 1;
+                        let c = c?;
+                        let performed = self.exit_perf(saved);
+                        self.uni
+                            .unify_rows(&performed, &EffRow::pure())
+                            .map_err(|_| {
+                                Error::at(
+                                    t.span(),
+                                    "an observation value must be effect-free: it runs at observation time and its declared type carries no effect row; defer effectful or diverging computation in a `delay` (a `Thunk {e}` or `Later` observation)",
+                                )
+                            })?;
+                        let unit = self.fresh_local();
+                        ECore::Lam { params: vec![unit], body: Box::new(c) }
+                    } else {
+                        self.check(env, t, &dom)?
+                    };
+                    evaluated.insert(n.text.as_str(), c);
                 }
                 let mut arg_cores: Vec<ECore> = Vec::new();
                 for (f, _, erased) in &doms {
@@ -639,6 +683,20 @@ impl Checker {
                 Ok(core)
             }
             ast::Term::App(f, args, span) => {
+                // `delay (\() -> e)` against `Later a` builds the guarded
+                // observation modality (core language specification
+                // section 9; codata and guardedness design, section 2).
+                if let ast::Term::Var(p) = &**f {
+                    if p.quals.is_empty()
+                        && p.name.text == "delay"
+                        && args.len() == 1
+                        && self.is_builtin_form(env, "delay")
+                    {
+                        if let Ty::Later(inner) = self.uni.zonk(expected) {
+                            return self.check_later_delay(env, args, *span, *inner);
+                        }
+                    }
+                }
                 // `borrow e` / `mutBorrow e` are bidirectional: the
                 // borrow's region comes from the expected type (ownership
                 // and usage design, section 4).
@@ -698,6 +756,38 @@ impl Checker {
         }
     }
 
+    /// `delay (\() -> e)` against `Later a`: the guarded observation of
+    /// the codata discipline (core language specification section 9).
+    /// `Later` is a logical modality with no effect row, so its body must
+    /// be pure: effectful or diverging computation belongs in a
+    /// `Thunk {e}` value, whose row records it.
+    fn check_later_delay(
+        &mut self,
+        env: &mut Env,
+        args: &[ast::Term],
+        span: ast::Span,
+        inner: Ty,
+    ) -> Result<ECore> {
+        if args.len() != 1 {
+            return Err(Error::at(
+                span,
+                "delay takes exactly one argument in the bootstrap slice",
+            ));
+        }
+        let eff = self.uni.fresh_row();
+        let fty = Ty::fun_eff(Ty::Unit, eff.clone(), inner);
+        let arg = self.check(env, &args[0], &fty)?;
+        self.uni.unify_rows(&eff, &EffRow::pure()).map_err(|_| {
+            Error::at(
+                span,
+                "a `delay` building a `Later` must be pure: `Later` is a logical modality with no effect row (core language specification section 9); defer effectful or diverging computation in a `Thunk {e}` value",
+            )
+        })?;
+        // Creating the guard performs nothing; at runtime the Later keeps
+        // the thunk representation (design section 6).
+        Ok(app_spine(ECore::Prim(PrimOp::Delay), vec![arg]))
+    }
+
     /// `delay e`, `force t`, `demand d`: builtin deferral forms from the
     /// laziness and reclamation specification. They are special forms so
     /// their effect rows are synthesized exactly.
@@ -729,12 +819,19 @@ impl Checker {
             }
             "force" => {
                 let (arg, ty) = self.infer(env, &args[0])?;
+                if let Ty::Later(inner) = self.uni.zonk(&ty) {
+                    // Forcing a `Later` is the next tick of the guarded
+                    // observation: it runs the guard body and performs no
+                    // effects beyond what the body does (core language
+                    // specification section 9).
+                    return Ok((app_spine(ECore::Prim(PrimOp::Force), vec![arg]), *inner));
+                }
                 let eff = self.uni.fresh_row();
                 let inner = self.uni.fresh();
                 self.uni
                     .unify(&ty, &Ty::Thunk { eff: eff.clone(), inner: Box::new(inner.clone()) })
                     .map_err(|m| {
-                        Error::at(args[0].span(), format!("{m} (force expects a Thunk)"))
+                        Error::at(args[0].span(), format!("{m} (force expects a Thunk or a Later)"))
                     })?;
                 self.perform(&eff)?;
                 Ok((app_spine(ECore::Prim(PrimOp::Force), vec![arg]), inner))
@@ -1026,6 +1123,19 @@ impl Checker {
         span: ast::Span,
     ) -> Result<(ECore, Ty)> {
         let v = self.resolve_ctor_for(path, Some(expected), span)?;
+        if matches!(&v.kind, ValueKind::Ctor { .. })
+            && self
+                .codata_types
+                .contains(&(v.module.clone(), v.name.clone()))
+        {
+            return Err(Error::at(
+                span,
+                format!(
+                    "a codata value is built only by its observed construction form `{} {{ ... }}`: its observations are closures run at observation time",
+                    v.name
+                ),
+            ));
+        }
         let (tag, arity, field_erased, runtime_arity) = match &v.kind {
             ValueKind::Ctor { tag, arity, field_erased, runtime_arity, .. } => {
                 (*tag, *arity, field_erased.clone(), *runtime_arity)
@@ -1608,6 +1718,20 @@ impl Checker {
                 ast::Pat::Wild(_) => {
                     self.register_obligation(l, "_", Some(mult), dom, p.span());
                 }
+                // `\() -> e`: the unit pattern of a guard thunk body
+                // (`delay (\() -> ...)`, the codata spelling).
+                ast::Pat::Unit(pat_span) => {
+                    match self.uni.zonk(&dom) {
+                        Ty::Unit | Ty::Meta(_) => {}
+                        other => {
+                            return Err(Error::at(
+                                *pat_span,
+                                format!("the unit pattern `()` cannot match {other}"),
+                            ))
+                        }
+                    }
+                    self.register_obligation(l, "_", Some(mult), dom, p.span());
+                }
                 other => {
                     return Err(Error::at(
                         other.span(),
@@ -1671,6 +1795,18 @@ impl Checker {
                 return Ok((ECore::Unit, ty));
             }
             ValueKind::Ctor { field_erased, .. } => {
+                if self
+                    .codata_types
+                    .contains(&(v.module.clone(), v.name.clone()))
+                {
+                    return Err(Error::at(
+                        span,
+                        format!(
+                            "a codata value is built only by its observed construction form `{} {{ ... }}`: its observations are closures run at observation time",
+                            v.name
+                        ),
+                    ));
+                }
                 if field_erased.iter().any(|e| *e) {
                     return Err(Error::at(
                         span,
@@ -2755,6 +2891,10 @@ impl Checker {
                 ctx_span,
                 format!("cannot pattern match on a thunk (Thunk _ {inner}); force it first"),
             )),
+            Ty::Later(inner) => Err(Error::at(
+                ctx_span,
+                format!("cannot pattern match on a Later ({inner}); force it first"),
+            )),
             Ty::Lazy { inner, .. } => Err(Error::at(
                 ctx_span,
                 format!("cannot pattern match on a memo cell (Lazy _ _ {inner}); demand it first"),
@@ -2992,6 +3132,15 @@ impl Checker {
                 let info = self.lookup_type(&parts).map_err(|_| {
                     Error::at(*span, format!("unknown type {}", parts.join(".")))
                 })?;
+                if self
+                    .codata_types
+                    .contains(&(info.module.clone(), info.name.clone()))
+                {
+                    return Err(Error::at(
+                        *span,
+                        "a codata value is observed, not destructured: use `.field` projection (codata has no constructor patterns)",
+                    ));
+                }
                 let names = info.fields.clone().ok_or_else(|| {
                     Error::at(
                         *span,
@@ -3065,6 +3214,15 @@ impl Checker {
     /// constructor was silently matched against a same-position tag of the
     /// scrutinee's type (review P0).
     fn ctor_for_type(&self, info: &TypeKind, p: &ast::ConPath, span: ast::Span) -> Result<ValueInfo> {
+        if self
+            .codata_types
+            .contains(&(info.module.clone(), info.name.clone()))
+        {
+            return Err(Error::at(
+                span,
+                "a codata value is observed, not destructured: use `.field` projection (codata has no constructor patterns)",
+            ));
+        }
         let parts = p.parts();
         let last = parts[parts.len() - 1];
         if parts.len() == 1 || parts[0] == info.module {
@@ -3103,6 +3261,14 @@ impl Checker {
     /// constructor-local index binders (`Cons`'s `k`) remain for the
     /// caller to solve.
     fn ctor_parts(&self, v: &ValueInfo, ty_args: &[Ty]) -> Result<CtorParts> {
+        if self
+            .codata_types
+            .contains(&(v.module.clone(), v.name.clone()))
+        {
+            return Err(Error::plain(
+                "a codata value is observed, not destructured: use `.field` projection (codata has no constructor patterns)",
+            ));
+        }
         match &v.kind {
             ValueKind::Ctor {
                 field_tys,
