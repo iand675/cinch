@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Open decisions and implementation plan</title>
+  <style>
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+  <link rel="stylesheet" href="../style.css" />
+</head>
+<body>
+<nav id="TOC" role="doc-toc">
+<ul>
+<li><a href="#open-decisions-and-implementation-plan"
+id="toc-open-decisions-and-implementation-plan">Open decisions and
+implementation plan</a></li>
+<li><a href="#established-requirements"
+id="toc-established-requirements">Established requirements</a></li>
+<li><a href="#proposed-mechanisms" id="toc-proposed-mechanisms">Proposed
+mechanisms</a></li>
+<li><a href="#decisions-that-need-a-formal-design"
+id="toc-decisions-that-need-a-formal-design">Decisions that need a
+formal design</a></li>
+<li><a href="#implementation-milestones"
+id="toc-implementation-milestones">Implementation milestones</a></li>
+<li><a href="#research-risks-to-resolve-early"
+id="toc-research-risks-to-resolve-early">Research risks to resolve
+early</a></li>
+<li><a href="#backend-and-concurrency-implementation-track"
+id="toc-backend-and-concurrency-implementation-track">Backend and
+concurrency implementation track</a></li>
+<li><a href="#draft-0.2-syntax-and-runtime-decisions"
+id="toc-draft-0.2-syntax-and-runtime-decisions">Draft 0.2 syntax and
+runtime decisions</a></li>
+</ul>
+</nav>
+<p><a href="../index.html">← Documentation index</a></p>
+<h1 id="open-decisions-and-implementation-plan">Open decisions and
+implementation plan</h1>
+<p>Source: <a
+href="https://chatgpt.com/space/page_a2ab477ad93881918c2b00c47fe9c608"
+class="uri">https://chatgpt.com/space/page_a2ab477ad93881918c2b00c47fe9c608</a><br />
+Exported: 2026-10-22T18:59:36Z</p>
+<hr />
+<p><a href="../overview.html">Documentation overview</a></p>
+<p>The language requirements are ambitious but coherent enough to define
+a research and implementation program. This page separates established
+goals from proposed mechanisms and unresolved semantic choices. No
+language name has been selected.</p>
+<h1 id="established-requirements">Established requirements</h1>
+<ul>
+<li><p>Strict functional execution with full dependent types from the
+core.</p></li>
+<li><p>Memory safety and explicit ownership of resources, with useful
+error and effect guarantees.</p></li>
+<li><p>Incremental verification without treating missing evidence as
+established truth.</p></li>
+<li><p>Haskell-like higher-order abstraction and TypeScript-like local
+narrowing and record ergonomics.</p></li>
+<li><p>Modules or typeclass-style abstraction that carry different
+result families, laws, and guarantees.</p></li>
+<li><p>Inductive, coinductive, and temporal reasoning, including
+infinite behavior.</p></li>
+<li><p>User-defined rewrite rules and stream fusion with appropriate
+correctness evidence.</p></li>
+<li><p>Platform-specific proof modules and SIMD rewrites with explicit
+target semantics, availability, and fallback policies.</p></li>
+<li><p>Hygienic, cross-module metaprogramming with fewer accidental
+staging restrictions.</p></li>
+<li><p>Compile-time file, subprocess, network, and database
+access.</p></li>
+<li><p>Compatible hot swapping across interfaces, state, resources,
+protocols, temporal properties, and compiled dependencies.</p></li>
+<li><p>FFI support for external libraries with explicit ownership, ABI,
+effect and trust boundaries.</p></li>
+<li><p>First-class Wasm/WASI deployment and a concurrency model that
+composes with proofs and hot replacement.</p></li>
+</ul>
+<h1 id="proposed-mechanisms">Proposed mechanisms</h1>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Proposal</th>
+<th>Why it fits</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Dependent modules with implicit dictionary arguments</td>
+<td>Unifies explicit abstraction and typeclass ergonomics</td>
+</tr>
+<tr class="even">
+<td>A quantitative dependent foundation</td>
+<td>Connects erasure and usage, while leaving borrowing to be modeled
+explicitly</td>
+</tr>
+<tr class="odd">
+<td>Total logical fragment and effectful executable computations</td>
+<td>Permits services without admitting divergent proofs</td>
+</tr>
+<tr class="even">
+<td>Explicit runtime decisions</td>
+<td>Makes dynamic verification visible and predictable</td>
+</tr>
+<tr class="odd">
+<td>Proof-carrying optimizer rules</td>
+<td>Lets libraries provide checked specialization and fusion</td>
+</tr>
+<tr class="even">
+<td>Target-indexed proof modules</td>
+<td>Shares algorithm proofs while exposing architecture-specific
+instruction and memory laws</td>
+</tr>
+<tr class="odd">
+<td>Guarded codata plus separate processes</td>
+<td>Separates productive data from unbounded search and waiting</td>
+</tr>
+<tr class="even">
+<td>Captured stage inputs and replay</td>
+<td>Supports real external generation and reproducible builds</td>
+</tr>
+<tr class="odd">
+<td>Checked upgrade packages with runtime safe points</td>
+<td>Combines static compatibility with operational coordination</td>
+</tr>
+<tr class="even">
+<td>C ABI plus checked wrappers and explicit foreign assumptions</td>
+<td>Practical native integration with reviewable trust</td>
+</tr>
+<tr class="odd">
+<td>WASI 0.3 component profile with pinned 0.2 compatibility</td>
+<td>Portable typed interfaces and async interoperability</td>
+</tr>
+<tr class="even">
+<td>Structured scopes, bounded channels and optional STM</td>
+<td>Haskell-like composition with explicit lifetimes and
+cancellation</td>
+</tr>
+</tbody>
+</table>
+<h1 id="decisions-that-need-a-formal-design">Decisions that need a
+formal design</h1>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Question</th>
+<th>Decision needed before</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Universe hierarchy, equality, proof irrelevance and elimination</td>
+<td>Kernel implementation</td>
+</tr>
+<tr class="even">
+<td>Resource usage algebra and dependent borrowing</td>
+<td>Claiming memory and logical soundness together</td>
+</tr>
+<tr class="odd">
+<td>Effect calculus and continuation multiplicity</td>
+<td>General handlers and asynchronous APIs</td>
+</tr>
+<tr class="even">
+<td>Guarded recursion, clocks or sized types</td>
+<td>Accepting productive codata and coinductive proofs</td>
+</tr>
+<tr class="odd">
+<td>Immutable sharing and reclamation strategy</td>
+<td>Stable runtime representation and performance claims</td>
+</tr>
+<tr class="even">
+<td>Abstract type identity and functor generativity</td>
+<td>Separate compilation and module evolution</td>
+</tr>
+<tr class="odd">
+<td>Optimization equivalence and observable allocation failure</td>
+<td>Certifying transformations consistently</td>
+</tr>
+<tr class="even">
+<td>Typed-code contexts and stage dependencies</td>
+<td>Hygienic dependent metaprogramming</td>
+</tr>
+<tr class="odd">
+<td>Migration atomicity and cancellation semantics</td>
+<td>Production hot replacement</td>
+</tr>
+<tr class="even">
+<td>Certificate formats and trusted backends</td>
+<td>Meaningful artifact assurance profiles</td>
+</tr>
+<tr class="odd">
+<td>Instruction models, target capability lifetime and scalable
+widths</td>
+<td>Sound platform-specific SIMD specialization</td>
+</tr>
+<tr class="even">
+<td>Native pointer provenance, callback entry and unwind policy</td>
+<td>Publishing safe foreign wrappers</td>
+</tr>
+<tr class="odd">
+<td>Source concurrency memory model and backend correspondence</td>
+<td>Claiming data-race freedom across native and Wasm</td>
+</tr>
+<tr class="even">
+<td>Cancellation, task failure and cleanup semantics</td>
+<td>Stabilizing async APIs</td>
+</tr>
+<tr class="odd">
+<td>Exact component profiles, host support and adapter rules</td>
+<td>Declaring a supported Wasm deployment matrix</td>
+</tr>
+<tr class="even">
+<td>STM rollback ownership and scheduling assumptions</td>
+<td>Claiming transactional and progress guarantees</td>
+</tr>
+</tbody>
+</table>
+<p>Syntax remains provisional. A concrete surface grammar is now
+specified in draft 0.2; the sound core calculus and elaboration
+judgments still require formalization. Surface convenience must
+elaborate to explicit core evidence; it cannot substitute for these
+decisions.</p>
+<h1 id="implementation-milestones">Implementation milestones</h1>
+<ol type="1">
+<li><p><strong>Define the core.</strong> Specify universes, dependent
+functions and pairs, inductive families, equality, erasure, and
+totality. Implement a small checker and reference evaluator. Full
+dependent types are present from this milestone.</p></li>
+<li><p><strong>Integrate resources and effects.</strong> Formalize
+usage, borrows, ghost views, failure, and cancellation. Prove the
+relevant preservation and logical-soundness results for the selected
+subset.</p></li>
+<li><p><strong>Add elaboration and modules.</strong> Implement
+inference, narrowing, dependent records, dictionary resolution, opaque
+interfaces, and useful proof diagnostics.</p></li>
+<li><p><strong>Add infinite behavior.</strong> Implement guarded codata
+and its proof principles. Define process semantics and the bridge from
+executable code to temporal models.</p></li>
+<li><p><strong>Add metaprogramming.</strong> Implement hygienic
+expansion, typed quotations, stage dependency scheduling,
+capability-scoped I/O, captured inputs, and replay.</p></li>
+<li><p><strong>Add checked optimization.</strong> Begin with directed
+rules for a small pure IR, then stream fusion, effect-aware lowerings,
+target-specific SIMD rules, and dependency manifests. Expand only when
+preservation arguments exist.</p></li>
+<li><p><strong>Add runtime evolution.</strong> Begin with
+drain-and-replace for private module state. Then add coexistence and
+explicit continuation migration with their additional proofs.</p></li>
+</ol>
+<p>Each milestone should run the relevant positive and negative cases in
+the example catalogue once an implementation exists. The milestones do
+not defer dependent types; they progressively establish the other
+features around a dependent foundation.</p>
+<h1 id="research-risks-to-resolve-early">Research risks to resolve
+early</h1>
+<p>The most difficult interfaces are dependent types with mutable
+ownership, erased logic with executable witnesses, coinduction with
+effects, and optimization dependencies with live replacement. A
+prototype that treats these as unrelated plugins would miss the core
+design problem.</p>
+<p>The initial deliverable should be a small coherent calculus and a few
+complete end-to-end examples, including a checked vector operation, a
+productive stream law, a generated schema interface, and a stateful
+upgrade. A large syntax surface without those examples would provide
+little evidence that the design works.</p>
+<h1 id="backend-and-concurrency-implementation-track">Backend and
+concurrency implementation track</h1>
+<p>Alongside the core milestones, implement a small C ABI wrapper layer,
+a portable core-Wasm backend and WIT adapters. Begin concurrency with
+local structured scopes, cooperative cancellation, bounded channels and
+explicit blocking-call handling. Establish the source memory model
+before adding migratable tasks, atomics or claims about shared-memory
+execution.</p>
+<p>Use an isolated codec component and a scoped two-request client as
+early integration examples. Test ownership at cancellation races,
+foreign callback draining, component trap handling, cross-target widths
+and Wasm feature selection. Extend the hot-upgrade milestone to these
+resources before adding arbitrary continuation migration. STM and
+advanced session or lock-free libraries remain later work built on the
+checked foundations.</p>
+<h1 id="draft-0.2-syntax-and-runtime-decisions">Draft 0.2 syntax and
+runtime decisions</h1>
+<p>Adopt a strict Haskell-like surface with unqualified
+module/typeclass-driven <code>do</code>. Suspension is an effect of
+ordinary functions, with lexical runtime capabilities passed explicitly
+in the core. The published EBNF fixes concrete syntax; the formal
+elaboration, handler ownership and indexed sequencing bridge remain
+proof and implementation work. Initial sequencing providers are direct,
+Result and Option. Arbitrary indexed providers require the checked
+bridge described in <a
+href="../specifications/runtime-capabilities-effects-and-sequencing.html">Runtime
+capabilities, effects and sequencing</a>.</p>
+</body>
+</html>
