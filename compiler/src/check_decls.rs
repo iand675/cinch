@@ -19,6 +19,16 @@ impl Checker {
                 fields: None,
             });
         }
+        // `Io r`: runtime capability evidence for identity `r` (design
+        // section 4, decision D21). The value is a uniform word; the
+        // identity lives in the type.
+        self.types.entry("Io".to_string()).or_default().push(TypeKind {
+            module: "<builtin>".into(),
+            name: "Io".into(),
+            arity: 1,
+            ctors: Vec::new(),
+            fields: None,
+        });
         // Machine scalars are primitives of the language, not user types
         // (primitive types specification, section 2).
         for s in Scalar::ALL {
@@ -40,6 +50,32 @@ impl Checker {
             self.values.entry(n.into()).or_default().push(info.clone());
             self.qualified.insert(("<builtin>".into(), n.into()), info);
         }
+        // `newIO`: construct a fresh runtime identity (design section 6,
+        // `Runtime.newIO`). Each use instantiates a fresh identity; the
+        // uniform word is a unit marker until the runtime grows I/O.
+        let new_io = ValueInfo {
+            module: "<builtin>".into(),
+            name: "newIO".into(),
+            scheme: Scheme {
+                params: Vec::new(),
+                row_params: Vec::new(),
+                region_params: vec!["r".into()],
+                ctx: Vec::new(),
+                ty: Ty::fun(Ty::Unit, Ty::Adt("Io".into(), vec![Ty::Region("r".into())])),
+            },
+            kind: ValueKind::TopFn,
+        };
+        self.values.entry("newIO".into()).or_default().push(new_io.clone());
+        self.qualified.insert(("<builtin>".into(), "newIO".into()), new_io.clone());
+        // The qualified spelling `Runtime.newIO` from the design note.
+        self.qualified.insert(("Runtime".into(), "newIO".into()), new_io);
+        self.fns.push(FnDef {
+            id: GlobalId("<builtin>.newIO".into()),
+            params: vec!["_".into()],
+            body: crate::core::Core::Unit,
+            prim: None,
+            ctor: None,
+        });
     }
 
     fn add_value(&mut self, v: ValueInfo, span: ast::Span) -> Result<()> {
@@ -476,6 +512,11 @@ impl Checker {
                         let mut row_params: Vec<String> = Vec::new();
                         let mut region_params: Vec<String> = Vec::new();
                         collect_row_names(&ty, &mut row_params, &mut region_params);
+                        let ty = crate::types::regionize(&ty, &region_params);
+                        let ctx = ctx
+                            .into_iter()
+                            .map(|(n, c)| (n, crate::types::regionize_class(&c, &region_params)))
+                            .collect();
                         let type_params: Vec<String> = all_params
                             .into_iter()
                             .filter(|p| !row_params.contains(p) && !region_params.contains(p))
@@ -490,17 +531,28 @@ impl Checker {
                                 ty,
                             },
                         ));
-                        self.add_value(
-                            ValueInfo {
-                                module: module.clone(),
-                                name: mname.text.clone(),
-                                scheme: methods.last().unwrap().1.clone(),
-                                kind: ValueKind::Method {
-                                    idx,
-                                },
+                        let info = ValueInfo {
+                            module: module.clone(),
+                            name: mname.text.clone(),
+                            scheme: methods.last().unwrap().1.clone(),
+                            kind: ValueKind::Method {
+                                idx,
                             },
-                            mname.span,
-                        )?;
+                        };
+                        if SEQ_CLASSES.contains(&sig.name.text.as_str()) {
+                            // The three sequencing providers all have
+                            // `pure`/`bind` methods: they share the value
+                            // namespace, and the first registered answers
+                            // bare uses (decision D22).
+                            self.values
+                                .entry(mname.text.clone())
+                                .or_default()
+                                .push(info.clone());
+                            self.qualified
+                                .insert((module.clone(), mname.text.clone()), info);
+                        } else {
+                            self.add_value(info, mname.span)?;
+                        }
                     }
                     let info = SigInfo {
                         module: module.clone(),
@@ -510,6 +562,122 @@ impl Checker {
                     };
                     self.sigs.entry(sig.name.text.clone()).or_default().push(info.clone());
                     self.qualified_sigs.insert((module.clone(), sig.name.text.clone()), info);
+                }
+                ast::Decl::Effect(eff) => {
+                    if self.effects.contains_key(&eff.name.text) {
+                        return Err(Error::at(
+                            eff.name.span,
+                            format!("duplicate effect {}", eff.name.text),
+                        ));
+                    }
+                    let region_param = eff.params.first().map(|p| p.text.clone());
+                    let base_vars: Vec<String> =
+                        eff.params.iter().map(|p| p.text.clone()).collect();
+                    // The effect's label: `L` or `L r`.
+                    let label = EffLabel {
+                        head: eff.name.text.clone(),
+                        arg: region_param.clone(),
+                    };
+                    let mut ops: Vec<(String, Scheme)> = Vec::new();
+                    for (mname, mty) in &eff.ops {
+                        let mut extra: Vec<String> = Vec::new();
+                        let mut rest = mty;
+                        loop {
+                            match rest {
+                                ast::Type::Forall(binders, body, _) => {
+                                    for b in binders {
+                                        if base_vars.contains(&b.name.text)
+                                            || extra.contains(&b.name.text)
+                                        {
+                                            return Err(Error::at(
+                                                b.name.span,
+                                                "duplicate type parameter",
+                                            ));
+                                        }
+                                        extra.push(b.name.text.clone());
+                                    }
+                                    rest = body;
+                                }
+                                _ => break,
+                            }
+                        }
+                        let mut all = base_vars.clone();
+                        all.extend(extra.iter().cloned());
+                        let ty = self.conv_type(rest, &all)?;
+                        let mut row_params: Vec<String> = Vec::new();
+                        let mut region_params: Vec<String> = Vec::new();
+                        collect_row_names(&ty, &mut row_params, &mut region_params);
+                        let ty = crate::types::regionize(&ty, &region_params);
+                        // The operation performs exactly its effect's
+                        // label (bootstrap restriction): the arrows are
+                        // pure up to the one carrying the label, which is
+                        // the operation's last argument arrow.
+                        let mut rest_ty = &ty;
+                        let mut found_label = false;
+                        loop {
+                            match rest_ty {
+                                Ty::Fun(a, _, e, b) => {
+                                    let _ = a;
+                                    let want = EffRow::closed(vec![label.clone()]);
+                                    if e == &want {
+                                        found_label = true;
+                                        break;
+                                    }
+                                    if !e.is_pure() {
+                                        return Err(Error::at(
+                                            mname.span,
+                                            format!(
+                                                "effect operation {} must perform exactly its effect's label {{{label}}}",
+                                                mname.text
+                                            ),
+                                        ));
+                                    }
+                                    rest_ty = b;
+                                }
+                                _ => break,
+                            }
+                        }
+                        if !found_label {
+                            return Err(Error::at(
+                                mname.span,
+                                format!(
+                                    "effect operation {} must perform its effect's label {{{label}}}",
+                                    mname.text
+                                ),
+                            ));
+                        }
+                        let type_params: Vec<String> = all
+                            .into_iter()
+                            .filter(|p| !row_params.contains(p) && !region_params.contains(p))
+                            .collect();
+                        let scheme = Scheme {
+                            params: type_params,
+                            row_params,
+                            region_params,
+                            ctx: Vec::new(),
+                            ty,
+                        };
+                        let slot = ops.len() + 1;
+                        let info = ValueInfo {
+                            module: module.clone(),
+                            name: mname.text.clone(),
+                            scheme: scheme.clone(),
+                            kind: ValueKind::EffectOp {
+                                head: eff.name.text.clone(),
+                                slot,
+                            },
+                        };
+                        self.add_value(info, mname.span)?;
+                        self.effect_ops.insert((module.clone(), mname.text.clone()), ());
+                        ops.push((mname.text.clone(), scheme));
+                    }
+                    self.effects.insert(
+                        eff.name.text.clone(),
+                        EffectInfo {
+                            region_param,
+                            ops,
+                        },
+                    );
                 }
                 ast::Decl::Instance(inst) => {
                     let params: Vec<String> = inst.params.iter().map(|p| p.text.clone()).collect();
@@ -765,11 +933,23 @@ impl Checker {
             env.dicts.push((l, c));
             param_ids.push(l);
         }
-        for (_, c) in &ctx {
+        for (n, c) in &ctx {
             let l = self.fresh_local();
             env.dicts.push((l, c.clone()));
+            if is_capability_class(&c.class) {
+                // A capability binder is a term-level value too: `f @{io =
+                // io}` and `with (io = io) in ...` name it (decision D21).
+                let ty = Ty::Adt(c.class.clone(), c.args.clone());
+                self.bind_local(&mut env, n, l, Scheme::mono(ty), None, eqs[0].span)?;
+            }
             param_ids.push(l);
         }
+        self.seq_binders = env
+            .dicts
+            .iter()
+            .filter(|(_, c)| SEQ_CLASSES.contains(&c.class.as_str()))
+            .map(|(_, c)| c.clone())
+            .collect();
         let n_pats = eqs[0].pats.len();
         for e in eqs {
             if e.pats.len() != n_pats {

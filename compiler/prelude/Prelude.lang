@@ -24,6 +24,10 @@ module Prelude where
     None :: Option a
     Some :: a -> Option a
 
+  data Result e a where
+    Err :: e -> Result e a
+    Ok :: a -> Result e a
+
   data List a where
     Nil :: List a
     Cons :: a -> List a -> List a
@@ -1197,3 +1201,38 @@ module Prelude where
     (<=) x y = leChar x y
     (>) x y = gtChar x y
     (>=) x y = geChar x y
+
+  -- Sequencing providers for `do` notation (runtime capabilities,
+  -- effects and sequencing specification, "Unqualified do through
+  -- modules and typeclasses"; design section 5). The same `do` spelling
+  -- types differently per provider: direct sequencing is the default and
+  -- a `using` binder with a provider head selects another. `pure` and
+  -- `bind` are the provider's class methods (decision D2).
+
+  signature DirectSequencing where
+    pure :: forall a. a -> a
+    bind :: forall a b ef. a -> (a ->{ef} b) ->{ef} b
+
+  implicit instance SeqDirect :: DirectSequencing where
+    pure x = x
+    bind v k = k v
+
+  signature ResultSequencing e where
+    pure :: forall a. a -> Result e a
+    bind :: forall a b ef. Result e a -> (a ->{ef} Result e b) ->{ef} Result e b
+
+  implicit instance SeqResult e :: ResultSequencing e where
+    pure x = Ok x
+    bind r k = case r of
+      Err err -> Err err
+      Ok x -> k x
+
+  signature OptionSequencing where
+    pure :: forall a. a -> Option a
+    bind :: forall a b ef. Option a -> (a ->{ef} Option b) ->{ef} Option b
+
+  implicit instance SeqOption :: OptionSequencing where
+    pure x = Some x
+    bind o k = case o of
+      None -> None
+      Some x -> k x

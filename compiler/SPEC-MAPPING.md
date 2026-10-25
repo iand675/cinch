@@ -32,8 +32,8 @@ property holds by construction rather than by a named test.
 | 15 | core-lang#4-assumption-manifest | Trusted assumptions exposed in a transitive manifest | I | `interface.rs` `Assumptions`, `<entry>.manifest.json` (D4/D9); `tests/modules.rs::interface_round_trips_through_disk` |
 | 16 | core-lang#5-evidence-invalidation | Evidence about mutable state invalidated on change | N | no refinement/flow system; roadmap gap A2 (P16) |
 | 17 | core-lang#5-missing-vs-none | Missing fields vs `None` distinguishable | I | records require all fields (`check_decls.rs`); `Option` explicit (structural) |
-| 18 | core-lang#6-effects-capabilities-both | Effects and capabilities both represented | P | effect rows typed and honest (`tests/integration.rs::effect_rows_are_typed_and_honest`); runtime capabilities are P6 |
-| 19 | core-lang#6-handler-type | Handler effect typing; multi-shot resumption must not duplicate linear captures | N | `handle`/`with` parse-rejected; P6 |
+| 18 | core-lang#6-effects-capabilities-both | Effects and capabilities both represented | I | effect rows honest; capabilities modeled as `Io`-headed runtime identities with lexical supplies (D21); `tests/effects.rs` capability tests |
+| 19 | core-lang#6-handler-type | Handler effect typing; multi-shot resumption must not duplicate linear captures | P | `handle ... with` with effect-typed clauses and one-shot `resume` (D23/D26: `%1` captures promoted to exactly-once; call-dispatched handling deferred); `tests/effects.rs` handler and resumption tests |
 | 20 | core-lang#7-memory-safety | No use-after-free, double-free, invalid mutable aliasing, data races | P | multiplicities + regions (`tests/ownership.rs::linear_double_use_is_rejected`, `::affine_double_use_is_rejected`, `::borrow_escape_is_rejected`, `::exclusive_borrows_are_lexically_unique`); races wait for P12 |
 | 21 | core-lang#7-borrow-kinds | Shared/exclusive borrows, consuming transfer, synchronized sharing | P | `Ref`/`Mut`/`%1` transfer done (`::scoped_borrow_is_accepted`); synchronized sharing is P12 |
 | 22 | core-lang#7-copy-semantics | Sharing/copying/cloning defined | I | structural `Copy` (`::copy_class_from_the_vector_filter_shape_works`, `::copy_class_is_structural_and_not_user_extensible`, `::copy_out_coheres_with_multiplicity`) |
@@ -168,8 +168,10 @@ Flagged by the audit as MUSTs no P1-P15 phase owns; added as phase P16 in
   section when P11 lands.
 - `core-lang#6` "capabilities" vs the runtime-capabilities chapter:
   `using (...)` is syntactically identical to an ordinary constraint and
-  nothing states how to tell them apart. Needs a decision when P6's
-  capability layer lands (today `using` elaborates as dictionary passing).
+  nothing states how to tell them apart. **Resolved by D21** (P6): the
+  binder is a runtime capability iff its class head is the builtin `Io`
+  head over a runtime identity `r`; everything else is a class
+  constraint. `Io` solves only from lexical providers.
 - Lazy computation section 5 phrases duplicability as settled while the
   ownership design note listed `Share` extensibility as open; resolved by
   D16 (structural, non-extensible `Copy`), recorded here for traceability.

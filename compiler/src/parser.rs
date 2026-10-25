@@ -245,7 +245,7 @@ impl<'a> Parser<'a> {
             Tok::Codata => Err(self.err(
                 "codata declarations are not supported in the bootstrap slice; guarded codata is the codata slice's work",
             )),
-            Tok::Effect => Err(self.err("effect declarations are not supported in the bootstrap slice")),
+            Tok::Effect => Ok(Decl::Effect(self.parse_effect_decl()?)),
             Tok::TypeKw | Tok::Opaque => {
                 Err(self.err("type declarations are not supported in the bootstrap slice"))
             }
@@ -390,6 +390,58 @@ impl<'a> Parser<'a> {
         self.expect(&Tok::ColonColon, "`::`")?;
         let ty = self.parse_type()?;
         Ok((name, ty))
+    }
+
+    /// `effect L [params] where { op :: ty, ... }`: a user-declared effect
+    /// whose operations are ordinary functions performing the label
+    /// (design/effects-capabilities-sequencing.md section 2). Parameters
+    /// are region identities: `r` or `(r :: Region)`.
+    fn parse_effect_decl(&mut self) -> Result<EffectDecl> {
+        let span = self.expect(&Tok::Effect, "`effect`")?.span;
+        let name = self.parse_ctor_name("an effect name")?;
+        let mut params = Vec::new();
+        while !self.at(&Tok::Where) {
+            if self.at(&Tok::LParen) {
+                self.bump();
+                let p = self.parse_value_name()?;
+                if self.at(&Tok::ColonColon) {
+                    self.bump();
+                    let kind = self.parse_ctor_name("a kind name")?;
+                    if kind.text != "Region" {
+                        return Err(Error::at(
+                            kind.span,
+                            "effect parameters are region identities (`(r :: Region)`); other kinds are not supported in the bootstrap slice",
+                        ));
+                    }
+                }
+                self.expect(&Tok::RParen, "`)`")?;
+                params.push(p);
+            } else if let Tok::VarId(s) = self.peek_tok().clone() {
+                if s == "_" {
+                    return Err(self.err("an effect parameter needs a name"));
+                }
+                let sp = self.peek().span;
+                self.bump();
+                params.push(Name::new(s, sp));
+            } else {
+                return Err(self.err(format!(
+                    "expected an effect parameter or `where`, found {}",
+                    describe(self.peek_tok())
+                )));
+            }
+            if params.len() > 1 {
+                return Err(Error::at(
+                    span,
+                    "an effect takes at most one region parameter in the bootstrap slice",
+                ));
+            }
+        }
+        self.expect(&Tok::Where, "`where`")?;
+        let ops = self.parse_block_items("the effect block", |p| p.parse_method_signature())?;
+        if ops.is_empty() {
+            return Err(Error::at(span, "an effect needs at least one operation"));
+        }
+        Ok(EffectDecl { name, params, ops, span })
     }
 
     fn parse_instance(&mut self) -> Result<InstDecl> {
@@ -891,9 +943,9 @@ impl<'a> Parser<'a> {
             )),
             Tok::If => self.parse_if(),
             Tok::Case => self.parse_case(),
-            Tok::Do => Err(self.err("do expressions are not supported in the bootstrap slice")),
-            Tok::Handle => Err(self.err("handle expressions are not supported in the bootstrap slice")),
-            Tok::With => Err(self.err("with expressions are not supported in the bootstrap slice")),
+            Tok::Do => self.parse_do(),
+            Tok::Handle => self.parse_handle(),
+            Tok::With => self.parse_with(),
             Tok::Forall => Err(self.err(
                 "forall terms are not supported in the bootstrap slice; write the quantifier in a type",
             )),
@@ -1019,9 +1071,27 @@ impl<'a> Parser<'a> {
                     let span = t.span();
                     t = Term::Proj(Box::new(t), name, span);
                 }
-                Tok::At => Err(self.err(
-                    "type arguments and capability supplies (`@`) are not supported in the bootstrap slice",
-                ))?,
+                Tok::At => {
+                    self.bump();
+                    self.expect(&Tok::LBrace, "`{` after `@`")?;
+                    let mut supplies = Vec::new();
+                    if !self.at(&Tok::RBrace) {
+                        loop {
+                            let name = self.parse_value_name()?;
+                            self.expect(&Tok::Equals, "`=` in the capability supply")?;
+                            let value = self.parse_term()?;
+                            supplies.push((name, value));
+                            if self.at(&Tok::Comma) {
+                                self.bump();
+                            } else {
+                                break;
+                            }
+                        }
+                    }
+                    self.expect(&Tok::RBrace, "`}` closing the capability supplies")?;
+                    let span = t.span();
+                    t = Term::CapApply { head: Box::new(t), supplies, span };
+                }
                 Tok::Bang => {
                     Err(self.err("macro invocations are not supported in the bootstrap slice"))?
                 }
@@ -1078,9 +1148,7 @@ impl<'a> Parser<'a> {
                 self.bump();
                 Ok(Term::Hole(span))
             }
-            Tok::VarId(s) if s == "handler" => Err(self.err(
-                "handler expressions are not supported in the bootstrap slice",
-            )),
+            Tok::VarId(s) if s == "handler" => self.parse_handler_expr(),
             Tok::VarId(s) => {
                 self.bump();
                 Ok(Term::Var(VarPath { quals: Vec::new(), name: Name::new(s, span) }))
@@ -1226,6 +1294,149 @@ impl<'a> Parser<'a> {
             Ok(Alt { pat, guard, body, span })
         })?;
         Ok(Term::Case(Box::new(scrut), alts, span))
+    }
+
+    /// `do { stmts }`: statements are `pat <- term` or bare `term`; the
+    /// last statement is the block's result.
+    fn parse_do(&mut self) -> Result<Term> {
+        let span = self.expect(&Tok::Do, "`do`")?.span;
+        let stmts = self.parse_block_items("the do block", |p| p.parse_do_stmt())?;
+        if stmts.is_empty() {
+            return Err(Error::at(span, "a do block needs at least one statement"));
+        }
+        Ok(Term::Do(stmts, span))
+    }
+
+    fn parse_do_stmt(&mut self) -> Result<DoStmt> {
+        let span = self.peek().span;
+        // `let decl`: a pure local binding. The layout pass closes the
+        // `let`'s implicit block with a virtual `}` before the next
+        // statement; a real `}` belongs to the enclosing block.
+        if self.at(&Tok::Let) {
+            self.bump();
+            // The layout pass opens an implicit block after `let`.
+            if self.at(&Tok::LBrace) && self.peek().virtual_ {
+                self.bump();
+            }
+            let decl = self.parse_local_decl()?;
+            if self.at(&Tok::RBrace) && self.peek().virtual_ {
+                self.bump();
+            }
+            return Ok(DoStmt::Let { decl, span });
+        }
+        // `pat <- term` without consuming on failure: a statement that is
+        // not a binding parses as a plain expression.
+        let save = self.pos;
+        if let Ok(pat) = self.parse_pattern() {
+            if self.at(&Tok::LArrow) {
+                self.bump();
+                let term = self.parse_term()?;
+                return Ok(DoStmt::Bind { pat, term, span });
+            }
+        }
+        self.pos = save;
+        let term = self.parse_term()?;
+        Ok(DoStmt::Expr { term, span })
+    }
+
+    /// `handle e with h`.
+    fn parse_handle(&mut self) -> Result<Term> {
+        let span = self.expect(&Tok::Handle, "`handle`")?.span;
+        let handled = self.parse_term()?;
+        self.expect(&Tok::With, "`with` after the handled computation")?;
+        let handler = self.parse_term()?;
+        Ok(Term::Handle(Box::new(handled), Box::new(handler), span))
+    }
+
+    /// `with (x = e) in body`: a lexical capability supply (the `in` is
+    /// routed to the supply by the layout pass, layout.rs).
+    fn parse_with(&mut self) -> Result<Term> {
+        let span = self.expect(&Tok::With, "`with`")?.span;
+        self.expect(&Tok::LParen, "`(` opening the capability supply")?;
+        let name = self.parse_value_name()?;
+        if !self.at(&Tok::Equals) {
+            return Err(self.err(
+                "expected a capability supply binding (`name = expression`); a parenthesized `with` operand is ambiguous at the layout layer, so bind it first",
+            ));
+        }
+        self.bump();
+        let value = self.parse_term()?;
+        self.expect(&Tok::RParen, "`)` closing the capability supply")?;
+        self.expect(&Tok::In, "`in` after the capability supply")?;
+        let body = self.parse_term()?;
+        Ok(Term::With { name, value: Box::new(value), body: Box::new(body), span })
+    }
+
+    /// `handler L [r] where { return p -> e; op pats [resume k] -> e }`.
+    fn parse_handler_expr(&mut self) -> Result<Term> {
+        let span = self.bump().span;
+        let effect = self.parse_con_path()?;
+        let region = match self.peek_tok().clone() {
+            Tok::VarId(s) if s != "_" => {
+                let sp = self.peek().span;
+                self.bump();
+                Some(Name::new(s, sp))
+            }
+            _ => None,
+        };
+        self.expect(&Tok::Where, "`where` after the handled label")?;
+        enum HClause {
+            Ret(Pat, Term, Span),
+            Op(OpClause),
+        }
+        let items = self.parse_block_items("the handler block", |p| {
+            let start = p.peek().span;
+            if p.at(&Tok::Return) {
+                p.bump();
+                let pat = p.parse_pattern()?;
+                p.expect(&Tok::Arrow, "`->` after the return pattern")?;
+                let body = p.parse_term()?;
+                return Ok(HClause::Ret(pat, body, start));
+            }
+            let op = p.parse_value_name()?;
+            let mut pats = Vec::new();
+            let mut resume = None;
+            while !p.at(&Tok::Arrow) {
+                if p.at(&Tok::Resume) {
+                    if resume.is_some() {
+                        return Err(p.err("a clause takes at most one `resume` binder"));
+                    }
+                    p.bump();
+                    let kspan = p.peek().span;
+                    let k = p.parse_value_name()?;
+                    resume = Some(Name::new(k.text, kspan));
+                } else {
+                    pats.push(p.parse_atomic_pattern()?);
+                }
+            }
+            p.expect(&Tok::Arrow, "`->` after the clause patterns")?;
+            let body = p.parse_term()?;
+            Ok(HClause::Op(OpClause { op, pats, resume, body, span: start }))
+        })?;
+        let mut ret: Option<(Pat, Term)> = None;
+        let mut clauses = Vec::new();
+        for item in items {
+            match item {
+                HClause::Ret(pat, body, start) => {
+                    if ret.is_some() {
+                        return Err(Error::at(start, "a handler takes exactly one `return` clause"));
+                    }
+                    ret = Some((pat, body));
+                }
+                HClause::Op(c) => clauses.push(c),
+            }
+        }
+        let (ret_pat, ret_body) = ret.ok_or_else(|| {
+            Error::at(span, "a handler needs a `return p -> e` clause")
+        })?;
+        Ok(Term::Handler(Box::new(HandlerExpr {
+            effect,
+            region,
+            ret_pat,
+            ret_body,
+            clauses,
+            span,
+        })))
     }
 
     // ------------------------------------------------------------ types
@@ -1684,6 +1895,42 @@ fn resolve_term(t: &mut Term, fix: &FixityTable) -> Result<()> {
                 resolve_term(x, fix)?;
             }
         }
+        Term::Do(stmts, _) => {
+            for s in stmts {
+                match s {
+                    DoStmt::Bind { term, .. } | DoStmt::Expr { term, .. } => {
+                        resolve_term(term, fix)?
+                    }
+                    DoStmt::Let { decl, .. } => match decl {
+                        LocalDecl::Eq { body, .. }
+                        | LocalDecl::Bind { body, .. }
+                        | LocalDecl::Lazy { body, .. } => resolve_term(body, fix)?,
+                        LocalDecl::Sig { .. } => {}
+                    },
+                }
+            }
+        }
+        Term::Handle(e, h, _) => {
+            resolve_term(e, fix)?;
+            resolve_term(h, fix)?;
+        }
+        Term::Handler(hx) => {
+            resolve_term(&mut hx.ret_body, fix)?;
+            for c in &mut hx.clauses {
+                resolve_term(&mut c.body, fix)?;
+            }
+        }
+        Term::With { value, body, .. } => {
+            resolve_term(value, fix)?;
+            resolve_term(body, fix)?;
+        }
+        Term::CapApply { head, supplies, .. } => {
+            resolve_term(head, fix)?;
+            for (_, x) in supplies {
+                resolve_term(x, fix)?;
+            }
+        }
+        Term::SeqOp(_, _) => {}
         Term::Infix(_, _, _) => {
             let (terms, ops, span) = match std::mem::replace(t, Term::Unit(Span { line: 0, col: 0 })) {
                 Term::Infix(terms, ops, span) => (terms, ops, span),
@@ -2272,8 +2519,8 @@ mod tests {
         let e = err("module T where\n  codata C where\n    x :: Int\n");
         assert!(e.contains("codata declarations are not supported"), "{e}");
         assert!(e.contains("codata slice"), "{e}");
-        let e = err("module T where\n  effect E where\n    op :: Int\n");
-        assert!(e.contains("effect declarations are not supported"), "{e}");
+        let e = err("module T where\n  effect E (r :: Type) where\n    op :: Int\n");
+        assert!(e.contains("effect parameters are region identities"), "{e}");
         let e = err("module T where\n  type T = Int\n");
         assert!(e.contains("type declarations are not supported"), "{e}");
         let e = err("module T where\n  upgrade A to B where\n    x = 1\n");
@@ -2299,14 +2546,37 @@ mod tests {
 
     #[test]
     fn not_supported_terms_are_named() {
-        let e = err("module T where\n  f = do\n    x\n");
-        assert!(e.contains("do expressions are not supported"), "{e}");
-        let e = err("module T where\n  f = g @{a = b}\n");
-        assert!(e.contains("capability supplies"), "{e}");
         let e = err("module T where\n  f = [| x |]\n");
         assert!(e.contains("typed quotations"), "{e}");
         let e = err("module T where\n  f = 1.5\n");
         assert!(e.contains("float literals are not supported"), "{e}");
+    }
+
+    #[test]
+    fn effects_handlers_do_and_capabilities_parse() {
+        let p = ok(
+            "module T where\n  effect Poke where\n    poke :: Unit ->{Poke} Int\n\n  run :: forall r. using (io :: Io r) => Unit ->{Poke, IO r} Int\n  run u = with (io = newIO ()) in handle poke () with (handler Poke where\n    return x -> x\n    poke t resume k -> k 1)\n\n  call :: forall r. using (io :: Io r) => Unit ->{IO r} Unit\n  call u = run @{io = io} u2\n    where u2 = ()\n\n  seq :: Int -> Int\n  seq n = do\n    x <- n\n    pure x\n",
+        );
+        let m = &p.module;
+        assert!(
+            m.decls.iter().any(|d| matches!(d, Decl::Effect(_))),
+            "expected an effect declaration"
+        );
+        let run = eq_body(m, "run");
+        assert!(matches!(run, Term::With { .. }), "expected a with supply, got {run:?}");
+        let call = eq_body(m, "call");
+        assert!(
+            matches!(call, Term::App(f, _, _) if matches!(**f, Term::CapApply { .. })),
+            "expected capability supplies, got {call:?}"
+        );
+        match eq_body(m, "seq") {
+            Term::Do(stmts, _) => {
+                assert_eq!(stmts.len(), 2);
+                assert!(matches!(stmts[0], DoStmt::Bind { .. }));
+                assert!(matches!(stmts[1], DoStmt::Expr { .. }));
+            }
+            other => panic!("expected a do block, got {other:?}"),
+        }
     }
 
     #[test]

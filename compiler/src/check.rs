@@ -501,6 +501,14 @@ enum ValueKind {
     Prim(PrimOp),
     /// Class method at position `idx` of its signature.
     Method { idx: usize },
+    /// An effect operation (`effect L where op :: ...`): dispatches
+    /// through the handler record of the enclosing `handle`.
+    EffectOp {
+        /// The effect's label head.
+        head: String,
+        /// Vtable slot (slot 0 is the return clause).
+        slot: usize,
+    },
     /// Data constructor: tag in declaration order, field count, field types
     /// and the data type's parameter names (for substitution at patterns).
     Ctor {
@@ -592,6 +600,99 @@ impl Env {
 struct MemoGroup {
     region: String,
     label: EffLabel,
+}
+
+/// A user-declared effect (`effect L r where op :: ...`): its label and
+/// its operations (design/effects-capabilities-sequencing.md section 2).
+struct EffectInfo {
+    /// The effect's region parameter name, when the label is `L r`.
+    region_param: Option<String>,
+    /// Operation name and scheme, in declaration order; the vtable slot is
+    /// the index plus one (slot 0 is the return clause).
+    ops: Vec<(String, Scheme)>,
+}
+
+/// How often a continuation closure's body runs. Every continuation runs
+/// at most once per execution of its build site; a body over `%1` captures
+/// needs exactly-once semantics, which handler resumptions must promise
+/// (see [`Checker::note_use`]).
+#[derive(Clone, Debug)]
+enum ContKind {
+    /// Ordinary control continuations and direct-provider `do` binds.
+    Once,
+    /// `Result`/`Option` provider binds: the continuation may be skipped
+    /// by short-circuiting, so linear captures inside are rejected.
+    AtMost,
+}
+
+/// A continuation closure currently being elaborated.
+struct ContFrame {
+    kind: ContKind,
+    /// The continuation's build-site subterm contains an operation call:
+    /// its evaluation may hand control to a handler clause, which may drop
+    /// the resumption and skip this body.
+    risky: bool,
+    /// Set when the body consumes a `%1` capture: a resumption capturing
+    /// this continuation must then resume exactly once.
+    consumes_linear: bool,
+}
+
+/// A continuation as a value: the local bound to a one-parameter closure
+/// (`ContFrame` at index `frame` recorded its body), whose parameter has
+/// type `ty`. Continuation-passing elaboration flows every computed value
+/// into it.
+#[derive(Clone)]
+struct Cont {
+    kv: LocalId,
+    ty: Ty,
+    frame: usize,
+}
+
+/// The handler extent of one `handle e with h` elaboration: operation
+/// calls for the handled label dispatch through the handler record.
+struct HandlerExtent {
+    /// The handled label.
+    label: crate::types::EffLabel,
+    /// The local bound to the handler vtable (a tuple of clause closures).
+    vtable: LocalId,
+    /// The `resume k` binders of the handler's operation clauses (per
+    /// slot), when the handler is written inline at this site.
+    k_binders: Vec<Option<LocalId>>,
+    /// Whether those binders may still be promoted to `%1`.
+    flexible: bool,
+    /// Lambda and memo depths when the extent opened: an operation
+    /// dispatches here only outside nested lambda and memo bodies.
+    lam: usize,
+    memo: usize,
+}
+
+/// Compiler-known sequencing provider class heads.
+const SEQ_CLASSES: [&str; 3] = ["DirectSequencing", "ResultSequencing", "OptionSequencing"];
+
+/// The selected sequencing provider of the definition being checked
+/// (`design/effects-capabilities-sequencing.md` section 5): the nearest
+/// explicit `using` binder with a provider class head, or the direct
+/// provider by default. Two active providers in one selection scope are
+/// ambiguous.
+fn select_provider(binders: &[ClassApp], span: ast::Span) -> Result<ClassApp> {
+    match binders {
+        [] => Ok(ClassApp { class: "DirectSequencing".into(), args: Vec::new() }),
+        [one] => Ok(one.clone()),
+        many => Err(Error::at(
+            span,
+            format!(
+                "two active sequencing providers in one selection scope are ambiguous ({}); bind one explicitly",
+                many.iter().map(|c| c.to_string()).collect::<Vec<_>>().join(", ")
+            ),
+        )),
+    }
+}
+
+/// Is this class head a runtime capability? `Io r` is runtime evidence for
+/// which implementation executes a computation (decision D21); every
+/// other head is compile-time class evidence.
+fn is_capability_class(class: &str) -> bool {
+    class == "Io"
 }
 
 /// Is this expression a syntactic value? Let-generalization is restricted
@@ -783,6 +884,9 @@ struct Obligation {
     /// bodies (uses deeper than these are lazy-position uses).
     lam: usize,
     memo: usize,
+    /// Continuation depth at binding time: uses inside a continuation
+    /// closure over this binder are resumption-position uses.
+    cont: usize,
 }
 
 /// Region names a type mentions in `Ref`/`Mut` borrow positions, with
@@ -923,6 +1027,26 @@ struct Checker {
     active_regions: Vec<String>,
     /// Record-projection path accumulated for a `Proj` operand place.
     place_path: Vec<String>,
+    /// User-declared effects by name (`effect L where ...`).
+    effects: HashMap<String, EffectInfo>,
+    /// Effect operations by `(module, name)`, for the dispatch gate.
+    effect_ops: HashMap<(String, String), ()>,
+    /// Continuation closures currently being elaborated (usage counting).
+    /// Frames stay recorded after their body is done (a continuation value
+    /// refers back to its frame); `cont_depth` counts the enclosing ones.
+    conts: Vec<ContFrame>,
+    /// Nesting depth of continuation bodies being elaborated.
+    cont_depth: usize,
+    /// Handler extents of enclosing `handle` expressions (operation
+    /// dispatch is lexical: see `handle_expr`).
+    extents: Vec<HandlerExtent>,
+    /// The definition's selected sequencing providers (decision D22): a
+    /// `using` binder with a provider class head selects the provider for
+    /// its `do` blocks.
+    seq_binders: Vec<ClassApp>,
+    /// Continuation currently being elaborated at each continuation
+    /// position, for `CpsWrap` nodes.
+    current_cont: Vec<Cont>,
 }
 
 fn fn_id(module: &str, name: &str) -> GlobalId {
@@ -990,6 +1114,13 @@ impl Checker {
             memo_depth: 0,
             active_regions: Vec::new(),
             place_path: Vec::new(),
+            effects: HashMap::new(),
+            effect_ops: HashMap::new(),
+            conts: Vec::new(),
+            cont_depth: 0,
+            extents: Vec::new(),
+            seq_binders: Vec::new(),
+            current_cont: Vec::new(),
         }
     }
 
@@ -1068,6 +1199,9 @@ impl Checker {
         self.memo_depth = 0;
         self.active_regions.clear();
         self.place_path.clear();
+        self.conts.clear();
+        self.cont_depth = 0;
+        self.extents.clear();
     }
 
     /// Bind a local name: enforce `Mut` uniqueness for its borrow regions
@@ -1130,6 +1264,7 @@ impl Checker {
                     span,
                     lam: self.lam_depth,
                     memo: self.memo_depth,
+                    cont: self.cont_depth,
                 },
             );
         }
@@ -1138,14 +1273,18 @@ impl Checker {
     /// Record one use of a local at a record-projection place. Uses under
     /// a lambda body are unbounded (the closure may be called any number
     /// of times); uses under a memo cell body happen at most once (the
-    /// cell evaluates at most once).
+    /// cell evaluates at most once). A use inside a continuation closure
+    /// over the binder happens at most once per execution of the
+    /// continuation's build site, and exactly once only when every handler
+    /// in flight promises exactly-once resumption (see
+    /// [`Checker::promote_resumptions`]).
     fn note_use(&mut self, l: LocalId, span: ast::Span, path: &[String]) -> Result<()> {
         let Some(ob) = self.obligations.get(&l) else {
             return Ok(());
         };
         let name = ob.name.clone();
         let ty = ob.ty.clone();
-        let (lam, memo) = (ob.lam, ob.memo);
+        let (lam, memo, created_cont) = (ob.lam, ob.memo, ob.cont);
         if self.lam_depth > lam {
             // A callback cannot outlive a borrowed environment (core
             // specification, section 7). Capture-based ownership transfer
@@ -1168,10 +1307,72 @@ impl Checker {
             Count::UNBOUNDED
         } else if self.memo_depth > memo {
             Count::AT_MOST_ONCE
+        } else if self.cont_depth > created_cont {
+            // Use inside a continuation closure over this binder. The
+            // body runs when its continuation is called: at most once, and
+            // exactly once only when no enclosing frame can skip it.
+            let linear = self.effective_mult(l) == Some(Mult::One);
+            let (has_at_most, has_risky) = {
+                let active = &self.conts[self.conts.len() - self.cont_depth..];
+                (
+                    active.iter().any(|f| matches!(f.kind, ContKind::AtMost)),
+                    active.iter().any(|f| f.risky),
+                )
+            };
+            if linear && has_at_most {
+                Count::AT_MOST_ONCE
+            } else if linear && has_risky {
+                self.promote_resumptions(span)?;
+                Count::ONE
+            } else if linear {
+                Count::ONE
+            } else {
+                Count::AT_MOST_ONCE
+            }
         } else {
             Count::ONE
         };
         self.uses.entry(l).or_default().add(path, c);
+        if self.cont_depth > created_cont && self.effective_mult(l) == Some(Mult::One) {
+            // The `%1` capture is consumed in a continuation body: mark
+            // the enclosing frames so a resumption capture over them can
+            // demand exactly-once resumption.
+            let start = self.conts.len() - self.cont_depth;
+            for f in &mut self.conts[start..] {
+                f.consumes_linear = true;
+            }
+        }
+        Ok(())
+    }
+
+    /// A continuation consuming a `%1` capture is reachable through a
+    /// resumption: every handler in flight must resume its one-shot
+    /// continuation exactly once, so the capture is consumed exactly once
+    /// and never duplicated or silently dropped. Handlers written inline
+    /// at their `handle` site can promise this (their `resume k` binders
+    /// become `%1`); a handler reached through a value cannot, and its
+    /// resumption discipline is fixed at construction.
+    fn promote_resumptions(&mut self, span: ast::Span) -> Result<()> {
+        if self.extents.is_empty() {
+            // No handler is in flight: an unhandled operation faults, so
+            // the continuation is never skipped without aborting.
+            return Ok(());
+        }
+        for e in &self.extents {
+            if !e.flexible || e.k_binders.iter().any(|k| k.is_none()) {
+                return Err(Error::at(
+                    span,
+                    "a %1 capture flows into a one-shot resumption, but this handler cannot promise exactly-once resumption (it is not written inline at its `handle` site, or a clause has no `resume k` binder)",
+                ));
+            }
+        }
+        for e in &self.extents {
+            for k in &e.k_binders {
+                if let Some(ob) = self.obligations.get_mut(&k.unwrap()) {
+                    ob.mult = Some(Mult::One);
+                }
+            }
+        }
         Ok(())
     }
 
@@ -1307,6 +1508,8 @@ impl Checker {
             Ty::Int | Ty::Nat | Ty::Bool | Ty::Unit | Ty::Prim(_) | Ty::Ref(_, _) => true,
             Ty::Bytes | Ty::Meta(_) | Ty::Mut(_, _) | Ty::Thunk { .. } | Ty::Lazy { .. } => false,
             Ty::Fun(_, _, _, _) => false,
+            Ty::Handler { .. } => false,
+            Ty::Region(_) => true,
             Ty::Param(p) => scope.iter().any(|(_, c)| {
                 c.class == "Copy" && c.args.iter().any(|a| matches!(a, Ty::Param(q) if q == p))
             }),
@@ -1552,12 +1755,19 @@ impl Checker {
                 // with structural instances: immutable values that may be
                 // duplicated and dropped freely (primitive types
                 // specification, section 3; ownership and usage design,
-                // section 3). It is not user-extensible.
-                if matches!(*name, "Copy" | "Share") {
+                // section 3). It is not user-extensible. `Io` is the
+                // runtime capability head (decision D21): its instances
+                // are runtime objects supplied lexically, never declared.
+                if matches!(*name, "Copy" | "Share" | "Io") {
+                    let (name, params) = if *name == "Io" {
+                        ("Io", vec!["r".into()])
+                    } else {
+                        ("Copy", vec!["a".into()])
+                    };
                     return Ok(SigInfo {
                         module: "<builtin>".into(),
-                        name: "Copy".into(),
-                        params: vec!["a".into()],
+                        name: name.into(),
+                        params,
                         methods: Vec::new(),
                     });
                 }
@@ -1700,10 +1910,22 @@ impl Checker {
             .iter()
             .map(|a| self.conv_type(a, vars))
             .collect::<Result<Vec<_>>>()?;
-        Ok((
-            c.name.text.clone(),
-            ClassApp { class: sig.name.clone(), args },
-        ))
+        let mut app = ClassApp { class: sig.name.clone(), args };
+        if is_capability_class(&app.class) {
+            // A capability's argument is a runtime identity (decision D21).
+            for (a, src) in app.args.iter_mut().zip(&c.args) {
+                match a {
+                    Ty::Param(p) => *a = Ty::Region(p.clone()),
+                    _ => {
+                        return Err(Error::at(
+                            src.span(),
+                            "a capability's argument is a runtime identity (a region variable)",
+                        ))
+                    }
+                }
+            }
+        }
+        Ok((c.name.text.clone(), app))
     }
 
     fn conv_type(&self, ty: &ast::Type, vars: &[String]) -> Result<Ty> {
@@ -1870,6 +2092,31 @@ impl Checker {
                         "Ref and Mut must be fully applied as `Ref r a` and `Mut r a`",
                     ));
                 }
+                (["Io"], [Arg::Ty(r)]) => {
+                    // `Io r`: runtime evidence for identity `r` (decision
+                    // D21).
+                    let region = match r {
+                        ast::Type::Var(n, _) => {
+                            if !vars.contains(&n.text) {
+                                return Err(Error::at(
+                                    n.span,
+                                    format!("unknown region variable {}", n.text),
+                                ));
+                            }
+                            n.text.clone()
+                        }
+                        other => {
+                            return Err(Error::at(
+                                other.span(),
+                                "the argument of Io is a runtime identity (a region variable)",
+                            ));
+                        }
+                    };
+                    return Ok(Ty::Adt("Io".into(), vec![Ty::Region(region)]));
+                }
+                (["Io"], _) => {
+                    return Err(Error::at(head_span, "Io must be fully applied as `Io r`"));
+                }
                 _ => {}
             }
         }
@@ -1901,9 +2148,9 @@ impl Checker {
                     ["Bool"] => Ok(Ty::Bool),
                     ["Unit"] => Ok(Ty::Unit),
                     ["Bytes"] => Ok(Ty::Bytes),
-                    ["Thunk"] | ["Lazy"] | ["Ref"] | ["Mut"] => Err(Error::at(
+                    ["Thunk"] | ["Lazy"] | ["Ref"] | ["Mut"] | ["Io"] => Err(Error::at(
                         *span,
-                        "Thunk, Lazy, Ref and Mut must be fully applied (`Thunk {e} a`, `Lazy {e} r a`, `Ref r a`, `Mut r a`)",
+                        "Thunk, Lazy, Ref, Mut and Io must be fully applied (`Thunk {e} a`, `Lazy {e} r a`, `Ref r a`, `Mut r a`, `Io r`)",
                     )),
                     [name] => {
                         if let Some(s) = Scalar::parse(name) {
@@ -2014,6 +2261,22 @@ impl Checker {
                     let mut row_params: Vec<String> = Vec::new();
                     let mut region_params: Vec<String> = Vec::new();
                     collect_row_names(&t, &mut row_params, &mut region_params);
+                    for (_, c) in &ctx {
+                        for a in &c.args {
+                            if let Ty::Region(r) = a {
+                                if !region_params.contains(r) {
+                                    region_params.push(r.clone());
+                                }
+                            }
+                        }
+                    }
+                    // Region-classified parameters are runtime identities
+                    // in argument position too (decision D21).
+                    let t = crate::types::regionize(&t, &region_params);
+                    let ctx = ctx
+                        .into_iter()
+                        .map(|(n, c)| (n, crate::types::regionize_class(&c, &region_params)))
+                        .collect();
                     let type_params: Vec<String> = params
                         .into_iter()
                         .filter(|p| !row_params.contains(p) && !region_params.contains(p))
@@ -2078,6 +2341,20 @@ impl Checker {
                 regions.get(region).cloned().unwrap_or_else(|| region.clone()),
                 Box::new(Checker::subst_full(inner, types, rows, regions)),
             ),
+            Ty::Region(r) => Ty::Region(regions.get(r).cloned().unwrap_or_else(|| r.clone())),
+            Ty::Handler { label, input, output, eff, resumption } => Ty::Handler {
+                label: EffLabel {
+                    head: label.head.clone(),
+                    arg: label
+                        .arg
+                        .as_ref()
+                        .map(|a| regions.get(a).cloned().unwrap_or_else(|| a.clone())),
+                },
+                input: Box::new(Checker::subst_full(input, types, rows, regions)),
+                output: Box::new(Checker::subst_full(output, types, rows, regions)),
+                eff: subst_row(eff, rows, regions),
+                resumption: *resumption,
+            },
             other => other.clone(),
         }
     }
@@ -2255,8 +2532,9 @@ impl Checker {
             return Err(Error::at(span, "dictionary resolution too deep (recursive instance?)"));
         }
         let wanted_z = self.uni.zonk_class(wanted);
-        // Visible `using` binders win over instances.
-        for (local, binder) in scope {
+        // Visible `using` binders win over instances, nearest first (the
+        // nearest explicitly introduced provider binds the name).
+        for (local, binder) in scope.iter().rev() {
             let binder_z = self.uni.zonk_class(binder);
             if binder_z.class == wanted_z.class {
                 let mut trial = self.uni.clone();
@@ -2269,6 +2547,16 @@ impl Checker {
                     return Ok(Solved(DictExpr::Binder(*local)));
                 }
             }
+        }
+        // Runtime capabilities are lexical evidence only: there are no
+        // `Io` instances, and nothing global is searched (decision D21).
+        if is_capability_class(&wanted_z.class) {
+            return Err(Error::at(
+                span,
+                format!(
+                    "no {wanted_z} capability in scope; supply one lexically with `with (io = ...) in` or `f @{{io = ...}}`, or take it in a `using` clause"
+                ),
+            ));
         }
         let class = wanted_z.class.clone();
         // The `Copy` class is compiler-known with structural instances

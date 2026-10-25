@@ -196,6 +196,51 @@ pub enum LocalDecl {
     Lazy { pat: Pat, body: Term, span: Span },
 }
 
+/// One statement of a `do` block: `pat <- term`, `let` bindings, or a
+/// bare `term`.
+#[derive(Clone, Debug)]
+pub enum DoStmt {
+    Bind { pat: Pat, term: Term, span: Span },
+    /// `let decls`: a pure local binding ("`let` remains pure and strict
+    /// in either interpretation").
+    Let { decl: LocalDecl, span: Span },
+    Expr { term: Term, span: Span },
+}
+
+/// The sequencing-provider method a `do` block desugars through
+/// (`design/effects-capabilities-sequencing.md` section 5).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SeqKind {
+    Pure,
+    Bind,
+}
+
+/// One `op pats ... [resume k] -> body` clause of a handler expression.
+#[derive(Clone, Debug)]
+pub struct OpClause {
+    pub op: Name,
+    pub pats: Vec<Pat>,
+    /// The `resume k` binder, when the clause may continue the handled
+    /// computation (one-shot).
+    pub resume: Option<Name>,
+    pub body: Term,
+    pub span: Span,
+}
+
+/// `handler Effect [r] where { return p -> e; op ... -> e }`, a handler
+/// value: a return clause plus one clause per operation of the effect
+/// (design section 3).
+#[derive(Clone, Debug)]
+pub struct HandlerExpr {
+    pub effect: ConPath,
+    /// The region argument of a label like `Async r`.
+    pub region: Option<Name>,
+    pub ret_pat: Pat,
+    pub ret_body: Term,
+    pub clauses: Vec<OpClause>,
+    pub span: Span,
+}
+
 #[derive(Clone, Debug)]
 pub enum Term {
     Var(VarPath),
@@ -231,6 +276,22 @@ pub enum Term {
     Proj(Box<Term>, Name, Span),
     /// `R { x = e, ... }`, record construction with named fields.
     Record(ConPath, Vec<(Name, Term)>, Span),
+    /// `do { stmts }`, sequencing through the selected provider.
+    Do(Vec<DoStmt>, Span),
+    /// `handle e with h`.
+    Handle(Box<Term>, Box<Term>, Span),
+    /// `handler L where { ... }`, a handler value.
+    Handler(Box<HandlerExpr>),
+    /// `with (x = e) in body`, a lexical capability supply.
+    With { name: Name, value: Box<Term>, body: Box<Term>, span: Span },
+    /// `f @{x = e, ...}`, explicit capability supplies at a call.
+    CapApply { head: Box<Term>, supplies: Vec<(Name, Term)>, span: Span },
+    /// The selected sequencing provider's `pure`/`bind` method, built by
+    /// `do` desugaring (never produced by the parser).
+    SeqOp(SeqKind, Span),
+    /// Elaborate the body in the enclosing continuation-passing context
+    /// (built by handler elaboration; never produced by the parser).
+    CpsWrap(Box<Term>, Span),
 }
 
 impl Term {
@@ -254,7 +315,14 @@ impl Term {
             | Term::Tuple(_, s)
             | Term::List(_, s)
             | Term::Proj(_, _, s)
-            | Term::Record(_, _, s) => *s,
+            | Term::Record(_, _, s)
+            | Term::Do(_, s)
+            | Term::Handle(_, _, s)
+            | Term::With { span: s, .. }
+            | Term::CapApply { span: s, .. }
+            | Term::SeqOp(_, s)
+            | Term::CpsWrap(_, s) => *s,
+            Term::Handler(h) => h.span,
         }
     }
 }
@@ -353,6 +421,17 @@ pub struct ForeignDecl {
     pub span: Span,
 }
 
+/// `effect L params where { op :: ty, ... }`: a user-declared effect whose
+/// operations are ordinary functions performing the label (design section
+/// 2). `params` holds the effect's region parameter, if any.
+#[derive(Clone, Debug)]
+pub struct EffectDecl {
+    pub name: Name,
+    pub params: Vec<Name>,
+    pub ops: Vec<(Name, Type)>,
+    pub span: Span,
+}
+
 #[derive(Clone, Debug)]
 pub enum Decl {
     Import(Import),
@@ -365,6 +444,7 @@ pub enum Decl {
     Equation { modifier: Option<Name>, eq: Equation },
     Foreign(ForeignDecl),
     Fixity(FixityDecl),
+    Effect(EffectDecl),
 }
 
 #[derive(Clone, Debug)]

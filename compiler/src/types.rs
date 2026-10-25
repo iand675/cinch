@@ -415,6 +415,10 @@ pub enum Ty {
     Prim(Scalar),
     /// Rigid type parameter bound by a `forall`.
     Param(String),
+    /// Runtime identity (a region-like name) in argument position, as in
+    /// `Io r`: identities unify by the region rules (flexible names take a
+    /// rigid identity; distinct rigid identities never merge).
+    Region(String),
     /// Unification variable.
     Meta(MetaId),
     /// `T a b ...`.
@@ -431,6 +435,19 @@ pub enum Ty {
     Ref(String, Box<Ty>),
     /// `Mut r a`: an exclusive borrow of `a` in region `r`.
     Mut(String, Box<Ty>),
+    /// A handler value for one effect label: operation clauses plus a
+    /// return clause. `input` is the handled computation's result, `output`
+    /// the result of handling, `eff` the effects the clause bodies perform
+    /// (core specification section 6: introduced effects appear in the
+    /// handler's type), and `resumption` the clause's promise about its
+    /// one-shot continuation: `%aff` at most once, `%1` exactly once.
+    Handler {
+        label: EffLabel,
+        input: Box<Ty>,
+        output: Box<Ty>,
+        eff: EffRow,
+        resumption: Mult,
+    },
 }
 
 impl Ty {
@@ -490,6 +507,11 @@ impl Ty {
                 inner.free_metas(out);
             }
             Ty::Ref(_, inner) | Ty::Mut(_, inner) => inner.free_metas(out),
+            Ty::Handler { input, output, eff, .. } => {
+                input.free_metas(out);
+                eff.free_metas(out);
+                output.free_metas(out);
+            }
             _ => {}
         }
     }
@@ -531,6 +553,7 @@ impl fmt::Display for Ty {
             Ty::Bytes => write!(f, "Bytes"),
             Ty::Prim(s) => write!(f, "{s}"),
             Ty::Param(p) => write!(f, "{p}"),
+            Ty::Region(r) => write!(f, "{r}"),
             Ty::Meta(MetaId(m)) => write!(f, "?m{m}"),
             Ty::Adt(t, args) => {
                 write!(f, "{t}")?;
@@ -559,6 +582,9 @@ impl fmt::Display for Ty {
             Ty::Lazy { eff, region, inner } => write!(f, "Lazy {eff} {region} {inner}"),
             Ty::Ref(region, inner) => write!(f, "Ref {region} {inner}"),
             Ty::Mut(region, inner) => write!(f, "Mut {region} {inner}"),
+            Ty::Handler { label, input, output, eff, resumption } => {
+                write!(f, "(handle {label} {input} => {output} adding {eff} resuming {resumption})")
+            }
         }
     }
 }
@@ -600,6 +626,52 @@ impl Scheme {
             ctx: Vec::new(),
             ty,
         }
+    }
+}
+
+/// Rewrite the region-classified parameters of a converted type into
+/// runtime identities: `Io r`'s argument and effect label arguments are
+/// regions, so a parameter used in those positions is a region everywhere
+/// it appears in argument position (decision D21).
+pub fn regionize(t: &Ty, regions: &[String]) -> Ty {
+    match t {
+        Ty::Param(p) if regions.contains(p) => Ty::Region(p.clone()),
+        Ty::Adt(n, args) => {
+            Ty::Adt(n.clone(), args.iter().map(|a| regionize(a, regions)).collect())
+        }
+        Ty::Tuple(args) => Ty::Tuple(args.iter().map(|a| regionize(a, regions)).collect()),
+        Ty::Fun(a, m, e, b) => Ty::fun_mult(regionize(a, regions), *m, e.clone(), regionize(b, regions)),
+        Ty::Thunk { eff, inner } => Ty::Thunk {
+            eff: eff.clone(),
+            inner: Box::new(regionize(inner, regions)),
+        },
+        Ty::Lazy { eff, region, inner } => Ty::Lazy {
+            eff: eff.clone(),
+            region: region.clone(),
+            inner: Box::new(regionize(inner, regions)),
+        },
+        Ty::Ref(region, inner) => {
+            Ty::Ref(region.clone(), Box::new(regionize(inner, regions)))
+        }
+        Ty::Mut(region, inner) => {
+            Ty::Mut(region.clone(), Box::new(regionize(inner, regions)))
+        }
+        Ty::Handler { label, input, output, eff, resumption } => Ty::Handler {
+            label: label.clone(),
+            input: Box::new(regionize(input, regions)),
+            output: Box::new(regionize(output, regions)),
+            eff: eff.clone(),
+            resumption: *resumption,
+        },
+        other => other.clone(),
+    }
+}
+
+/// [`regionize`] for a class application.
+pub fn regionize_class(c: &ClassApp, regions: &[String]) -> ClassApp {
+    ClassApp {
+        class: c.class.clone(),
+        args: c.args.iter().map(|a| regionize(a, regions)).collect(),
     }
 }
 
@@ -647,6 +719,21 @@ pub fn collect_row_names(t: &Ty, rows: &mut Vec<String>, regions: &mut Vec<Strin
             for a in args {
                 collect_row_names(a, rows, regions);
             }
+        }
+        Ty::Region(r) => {
+            if !regions.contains(r) {
+                regions.push(r.clone());
+            }
+        }
+        Ty::Handler { label, input, output, eff, .. } => {
+            if let Some(a) = &label.arg {
+                if !regions.contains(a) {
+                    regions.push(a.clone());
+                }
+            }
+            note_row(eff, rows, regions);
+            collect_row_names(input, rows, regions);
+            collect_row_names(output, rows, regions);
         }
         _ => {}
     }
@@ -702,6 +789,13 @@ impl Unifier {
         }
     }
 
+    /// Is this (resolved) region name still flexible: not yet pinned to a
+    /// rigid identity?
+    pub fn is_flex_region(&self, name: &str) -> bool {
+        let r = self.resolve_region(name);
+        self.flex_regions.contains(&r)
+    }
+
     /// Follow the region-name substitution.
     pub fn resolve_region(&self, r: &str) -> String {
         match self.region_subst.get(r) {
@@ -744,17 +838,30 @@ impl Unifier {
     }
 
     /// Resolve a row's tail through the row substitution, flattening the
-    /// labels a bound tail contributes.
+    /// labels a bound tail contributes. Label region arguments follow the
+    /// region-name substitution, so two labels of one head and one resolved
+    /// identity collapse.
     pub fn resolve_row(&self, row: &EffRow) -> EffRow {
-        let mut labels = row.labels.clone();
+        let canon = |l: &EffLabel| EffLabel {
+            head: l.head.clone(),
+            arg: l.arg.as_ref().map(|a| self.resolve_region(a)),
+        };
+        let mut labels = Vec::new();
+        for l in &row.labels {
+            let l = canon(l);
+            if !labels.contains(&l) {
+                labels.push(l);
+            }
+        }
         let mut tail = row.tail.clone();
         loop {
             match tail {
                 RowTail::Meta(m) => match self.row_subst.get(m.0).and_then(|s| s.as_ref()) {
                     Some(r) => {
                         for l in &r.labels {
-                            if !labels.contains(l) {
-                                labels.push(l.clone());
+                            let l = canon(l);
+                            if !labels.contains(&l) {
+                                labels.push(l);
                             }
                         }
                         tail = r.tail.clone();
@@ -791,6 +898,17 @@ impl Unifier {
             Ty::Mut(region, inner) => {
                 Ty::Mut(self.resolve_region(&region), Box::new(self.zonk(&inner)))
             }
+            Ty::Region(r) => Ty::Region(self.resolve_region(&r)),
+            Ty::Handler { label, input, output, eff, resumption } => Ty::Handler {
+                label: EffLabel {
+                    head: label.head.clone(),
+                    arg: label.arg.as_ref().map(|a| self.resolve_region(a)),
+                },
+                input: Box::new(self.zonk(&input)),
+                output: Box::new(self.zonk(&output)),
+                eff: self.resolve_row(&eff),
+                resumption,
+            },
             t => t,
         }
     }
@@ -867,6 +985,13 @@ impl Unifier {
             Ty::Mut(region, inner) => {
                 Ty::Mut(region, Box::new(self.gen_ty(&inner, names)))
             }
+            Ty::Handler { label, input, output, eff, resumption } => Ty::Handler {
+                label: label.clone(),
+                input: Box::new(self.gen_ty(&input, names)),
+                output: Box::new(self.gen_ty(&output, names)),
+                eff: self.gen_row(&eff, names),
+                resumption,
+            },
             t => t,
         }
     }
@@ -893,6 +1018,9 @@ impl Unifier {
             Ty::Thunk { inner, .. } => self.occurs(id, &inner),
             Ty::Lazy { inner, .. } => self.occurs(id, &inner),
             Ty::Ref(_, inner) | Ty::Mut(_, inner) => self.occurs(id, &inner),
+            Ty::Handler { input, output, .. } => {
+                self.occurs(id, &input) || self.occurs(id, &output)
+            }
             _ => false,
         }
     }
@@ -948,6 +1076,56 @@ impl Unifier {
         }
     }
 
+    /// Do two labels denote one effect? Heads must agree and the region
+    /// identities must be unifiable; a flexible name takes the other side's
+    /// identity on success (committed).
+    fn label_matches(&mut self, a: &EffLabel, b: &EffLabel) -> bool {
+        if a.head != b.head {
+            return false;
+        }
+        match (&a.arg, &b.arg) {
+            (None, None) => true,
+            (Some(x), Some(y)) => {
+                let mut trial = self.clone();
+                if trial.unify_regions(x, y).is_ok() {
+                    *self = trial;
+                    true
+                } else {
+                    false
+                }
+            }
+            _ => false,
+        }
+    }
+
+    /// Pair up the labels of two rows by head and region identity, greedily
+    /// in row order. Returns each side's unmatched labels.
+    fn split_rows(&mut self, ra: &EffRow, rb: &EffRow) -> (Vec<EffLabel>, Vec<EffLabel>) {
+        let mut matched_b = vec![false; rb.labels.len()];
+        let mut a_only = Vec::new();
+        for la in &ra.labels {
+            let mut hit = None;
+            for (j, lb) in rb.labels.iter().enumerate() {
+                if !matched_b[j] && self.label_matches(la, lb) {
+                    hit = Some(j);
+                    break;
+                }
+            }
+            match hit {
+                Some(j) => matched_b[j] = true,
+                None => a_only.push(la.clone()),
+            }
+        }
+        let b_only = rb
+            .labels
+            .iter()
+            .enumerate()
+            .filter(|(j, _)| !matched_b[*j])
+            .map(|(_, l)| l.clone())
+            .collect();
+        (a_only, b_only)
+    }
+
     /// Row unification with extension: the extra labels of each row must be
     /// absorbed by the other row's tail.
     pub fn unify_rows(
@@ -957,10 +1135,7 @@ impl Unifier {
     ) -> std::result::Result<(), String> {
         let ra = self.resolve_row(a);
         let rb = self.resolve_row(b);
-        let mut a_only: Vec<EffLabel> =
-            ra.labels.iter().filter(|l| !rb.contains(l)).cloned().collect();
-        let mut b_only: Vec<EffLabel> =
-            rb.labels.iter().filter(|l| !ra.contains(l)).cloned().collect();
+        let (mut a_only, mut b_only) = self.split_rows(&ra, &rb);
         a_only.sort_by(|x, y| x.to_string().cmp(&y.to_string()));
         b_only.sort_by(|x, y| x.to_string().cmp(&y.to_string()));
         match (&ra.tail, &rb.tail) {
@@ -1088,23 +1263,61 @@ impl Unifier {
                 self.unify_regions(r1, r2)?;
                 self.unify(i1, i2)
             }
+            (Ty::Region(r1), Ty::Region(r2)) => self.unify_regions(r1, r2),
+            (
+                Ty::Handler {
+                    label: l1,
+                    input: i1,
+                    output: o1,
+                    eff: e1,
+                    resumption: m1,
+                },
+                Ty::Handler {
+                    label: l2,
+                    input: i2,
+                    output: o2,
+                    eff: e2,
+                    resumption: m2,
+                },
+            ) => {
+                if l1.head != l2.head {
+                    return Err(format!(
+                        "type mismatch: expected {}, got {}",
+                        self.zonk(&a),
+                        self.zonk(&b)
+                    ));
+                }
+                match (&l1.arg, &l2.arg) {
+                    (Some(x), Some(y)) => self.unify_regions(x, y)?,
+                    (None, None) => {}
+                    _ => {
+                        return Err(format!(
+                            "type mismatch: expected {}, got {}",
+                            self.zonk(&a),
+                            self.zonk(&b)
+                        ))
+                    }
+                }
+                unify_mults(*m1, *m2)?;
+                self.unify_rows(e1, e2)?;
+                self.unify(i1, i2)?;
+                self.unify(o1, o2)
+            }
             _ => Err(format!("type mismatch: expected {}, got {}", self.zonk(&a), self.zonk(&b))),
         }
     }
 
     /// Row union: the accumulation operation for performed effects. The
     /// result contains both rows' labels; tails are joined through the row
-    /// substitution.
+    /// substitution. Labels of one head and one region identity merge.
     pub fn union_rows(&mut self, a: &EffRow, b: &EffRow) -> std::result::Result<EffRow, String> {
         let ra = self.resolve_row(a);
         let rb = self.resolve_row(b);
+        let (only_a, b_only) = self.split_rows(&ra, &rb);
         let mut labels = ra.labels.clone();
-        for l in &rb.labels {
-            if !labels.contains(l) {
-                labels.push(l.clone());
-            }
-        }
+        labels.extend(b_only);
         labels.sort_by(|x, y| x.to_string().cmp(&y.to_string()));
+        let _ = only_a;
         let tail = match (&ra.tail, &rb.tail) {
             (RowTail::Closed, RowTail::Closed) => RowTail::Closed,
             (t @ RowTail::Rigid(_), RowTail::Closed)

@@ -88,11 +88,11 @@ needs the checker to consume export tables instead of sources.
 
 | Requirement | Status |
 | --- | --- |
-| Effect rows on arrows, honesty checking | done |
-| Handler calculus (`handle ... with`, operation clauses) | todo |
-| `do` notation; sequencing modules (direct/Result/Option) | todo |
-| `using (io :: Io r)`, `with (io = ...) in`, `@{...}` | todo |
-| Runtime identity `r` | todo |
+| Effect rows on arrows, honesty checking | done (with region-argument label unification across definitions) |
+| Handler calculus (`handle ... with`, operation clauses) | done (one-shot `resume`, lexical operation dispatch, effect-typed handlers; per-call dispatch deferred, D23; `tests/effects.rs`) |
+| `do` notation; sequencing modules (direct/Result/Option) | done (provider selection via `using` binders with `DirectSequencing`/`ResultSequencing`/`OptionSequencing`, `pure`/`bind` stay class methods, D22) |
+| `using (io :: Io r)`, `with (io = ...) in`, `@{...}` | done (capability head `Io`, lexical-only solving, wrong-type supplies rejected; D21) |
+| Runtime identity `r` | done (check-level `Ty::Region`, flex/rigid identities, `with`-scope escape checking) |
 
 ### Dependent core (P7) — core spec sections 1-5, 8
 
@@ -175,8 +175,8 @@ update as the slices land; 07 must reject, the rest must accept):
 | 08-platform-simd | `rewrite` declarations unsupported | P10 |
 | 09-foreign-codec | `Opaque` unsupported | P11 |
 | 10-wasm-component | `erased` fields unsupported | P7 |
-| 11-structured-tasks | `do` expressions unsupported | P6 |
-| 12-runtime-effects | `do` expressions unsupported | P6 |
+| 11-structured-tasks | unknown type `Request` (structured-concurrency vocabulary) | P12 |
+| 12-runtime-effects | multi-module source file (`module` block after the first); one module per file is the current rule | modules follow-up |
 
 ## Unplanned requirements (P16)
 
@@ -300,3 +300,38 @@ flags for future decisions).
   library modules without `main` (acceptance example 06 is one), while
   `emit-ir`/`build`/`run` name the `main :: Int` requirement at codegen.
   A `main` outside the entry module no longer errors at check time.
+- **D21 (P6 capabilities)**: a `using (x :: C ...)` binder is a runtime
+  capability iff its class head is the builtin `Io` head over a runtime
+  identity `r`; everything else is a compile-time class constraint. `Io`
+  wants are solved ONLY from lexical providers (nearest `using`/`with`
+  binding or explicit `@{...}`; no instances, no global state), `with
+  (io = e) in` checks `e` against `Io r` with `r` pinned by the body,
+  and `@{...}` names capability parameters only. This resolves the
+  capability-vs-constraint wording flag in `SPEC-MAPPING.md`.
+- **D22 (P6 providers)**: `do` provider selection is the definition's
+  `using` binder with a compiler-known provider head
+  (`DirectSequencing`, `ResultSequencing e`, `OptionSequencing`, with
+  `pure`/`bind` class methods and implicit instances); default is
+  direct; two active providers in one scope are ambiguous at `do`/`pure`
+  use. `pure`/`bind` remain class methods (D2).
+- **D23 (P6 handlers)**: handlers are vtables of clause closures; the
+  handled computation elaborates in continuation-passing style with
+  delimited one-shot continuations; operation dispatch is lexical to the
+  handled computation's own expression. An operation reached through a
+  call is rejected at `handle` ("performed through a called
+  computation"); call-dispatched handling needs answer-passing
+  elaboration and is deferred. Unhandled operations are rejected at
+  check time via effect honesty; the runtime fallback is the fault path
+  (exit 70).
+- **D24 (P6 do-let)**: `let x = v` in `do` binds one pure value strictly
+  in either interpretation; destructuring, local-function, and memo
+  `let` in `do` are rejected.
+- **D25 (P6 refutable binds)**: a refutable `x <- e` needs a
+  provider-typed failure operation; the three bootstrap providers have
+  none, so refutable binds are rejected.
+- **D26 (P6 resumptions)**: `resume k` is one-shot (`%aff`). When the
+  resumption's continuation consumes a `%1` capture, inline handlers'
+  `resume k` binders are promoted to `%1` so the capture is consumed
+  exactly once; handlers reached through a value (or clauses without
+  `resume k`) are rejected in that case. Continuation-body captures
+  count at most once; lambda captures stay unbounded (D18).

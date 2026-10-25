@@ -98,6 +98,13 @@ The closure and dictionary ABI is documented in `src/core.rs`.
   `Ref r a`/`Mut r a` borrows with region escape checking and lexical `Mut`
   uniqueness, and thunk force discipline (`%1` exactly once, `%aff` at
   most once; unannotated thunks default `%aff`).
+- **Effects, capabilities, and sequencing** (runtime capabilities spec):
+  effect rows with region-argument label unification, the handler
+  calculus (`handle ... with`, one-shot `resume`, lexical operation
+  dispatch, effect-typed handlers), `do` notation with direct/`Result`/
+  `Option` sequencing providers (class-method `pure`/`bind`), runtime
+  capabilities (`using (io :: Io r)`, `with (io = ...) in`, `@{...}`,
+  `newIO`) with lexical-only solving and runtime identity `r` scoping.
 - **Codegen**: uniform word representation (immediates for machine words/
   `Bool`/`Unit`, boxed blocks for ADTs and the bignum/`Bytes` types,
   closure records for functions and dictionaries), generic curried
@@ -114,11 +121,6 @@ Rejected with an explicit error naming the form:
   `Type`/`Prop`/`Nat` universes, proofs, erasure, `spec`/`proof`/`stage`
   modifiers. `erased` record fields parse and are rejected until the
   erasure slice lands.
-- Effects as capabilities: handlers, `do` notation, capabilities (`using`
-  as a term, `with`, `@{...}`). Effect *rows* on arrows and multiplicity
-  annotations (`%0`, `%1`, `%aff`, `%many`) are parsed and checked; what is
-  missing is the handler calculus, `do` sequencing, and a richer effect
-  vocabulary.
 - Guarded codata (rejected at `codata` with a pointer to the codata slice),
   `rewrite`, `upgrade`, staging and macros, quotations.
 - Strings (string literals and string types; `Bytes` buffers and `Char`

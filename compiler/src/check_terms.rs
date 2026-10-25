@@ -111,6 +111,26 @@ impl Checker {
                     if p.quals.is_empty() && self.is_builtin_form(env, &p.name.text) {
                         return self.infer_builtin_app(env, &p.name.text, args, *span);
                     }
+                    if p.quals.is_empty() && self.is_provider_pure(env, &p.name.text) {
+                        // `pure e` is the selected provider's return.
+                        let seq = ast::Term::App(
+                            Box::new(ast::Term::SeqOp(ast::SeqKind::Pure, *span)),
+                            args.clone(),
+                            *span,
+                        );
+                        return self.infer(env, &seq);
+                    }
+                    if env.lookup(&p.name.text).is_none() {
+                        if let Ok(v) = self.resolve_var(p, p.span()) {
+                            if matches!(v.kind, ValueKind::EffectOp { .. }) {
+                                // An operation call outside a handler's
+                                // dispatch reach: its label surfaces and
+                                // the call is the unhandled fault path
+                                // (decision D23).
+                                return self.infer_unhandled_op(env, &v, args, *span);
+                            }
+                        }
+                    }
                 }
                 let (mut core, mut ty) = self.infer(env, f)?;
                 for a in args {
@@ -386,11 +406,44 @@ impl Checker {
                     .collect();
                 Ok((app_spine(ctor_core, arg_cores), rest))
             }
+            ast::Term::Do(stmts, span) => {
+                let shape = self.result_shape(env, *span)?;
+                let core = self.elab_do(env, stmts, &shape, None, *span)?;
+                Ok((core, shape))
+            }
+            ast::Term::Handle(e, h, _) => self.handle_expr(env, e, h, None),
+            ast::Term::Handler(h) => self.handler_value(env, h),
+            ast::Term::With { name, value, body, span } => {
+                let (vc, vty) = self.infer(env, value)?;
+                let mut env2 = env.clone();
+                let (l, bind, region) =
+                    self.bind_capability(&mut env2, name, vc, vty, *span)?;
+                let (bcore, bty) = self.infer(&mut env2, body)?;
+                self.check_cap_escape(&region, &bty, *span)?;
+                Ok((wrap_lets(vec![(l, bind)], bcore), bty))
+            }
+            ast::Term::CapApply { head, supplies, span } => {
+                self.cap_apply(env, head, supplies, *span)
+            }
+            ast::Term::SeqOp(kind, span) => self.seq_method(env, *kind, *span),
+            ast::Term::CpsWrap(_, span) => Err(Error::at(
+                *span,
+                "internal error: a continuation wrapper escaped handler elaboration",
+            )),
         }
     }
 
     fn check(&mut self, env: &mut Env, term: &ast::Term, expected: &Ty) -> Result<ECore> {
         match term {
+            ast::Term::CpsWrap(body, span) => {
+                // A handler's alternative body: elaborate in the enclosing
+                // continuation-passing context; its code produces the
+                // computation's answer, not a value of `expected`.
+                let cont = self.current_cont.last().cloned().ok_or_else(|| {
+                    Error::at(*span, "internal error: continuation wrapper outside a continuation")
+                })?;
+                self.cps(env, body, &cont)
+            }
             ast::Term::Lam(_, _, _) => self.check_lam(env, term, expected),
             ast::Term::If(c, t, e, _) => {
                 let ccore = self.check(env, c, &Ty::Bool)?;
@@ -727,6 +780,15 @@ impl Checker {
     fn value_use(&mut self, v: &ValueInfo, span: ast::Span, env: &mut Env) -> Result<(ECore, Ty)> {
         match &v.kind {
             ValueKind::BoolLit(b) => return Ok((ECore::Bool(*b), Ty::Bool)),
+            ValueKind::EffectOp { head, .. } => {
+                return Err(Error::at(
+                    span,
+                    format!(
+                        "effect operation {} must be applied (it dispatches to the enclosing `handle` of {head})",
+                        v.name
+                    ),
+                ));
+            }
             _ => {}
         }
         let (ty, ctx) = self.instantiate(&v.scheme);
@@ -745,7 +807,7 @@ impl Checker {
                 let dict = holes.remove(0);
                 ECore::DictProj(Box::new(dict), *idx)
             }
-            ValueKind::BoolLit(_) => unreachable!(),
+            ValueKind::BoolLit(_) | ValueKind::EffectOp { .. } => unreachable!(),
         };
         let core = if holes.is_empty() { core } else { app_spine(core, holes) };
         Ok((core, ty))
@@ -1618,6 +1680,14 @@ impl Checker {
                 ctx_span,
                 "cannot determine the type of the scrutinee; add a type annotation",
             )),
+            Ty::Region(r) => Err(Error::at(
+                ctx_span,
+                format!("cannot pattern match on a runtime identity ({r})"),
+            )),
+            Ty::Handler { .. } => Err(Error::at(
+                ctx_span,
+                "cannot pattern match on a handler value in the bootstrap slice",
+            )),
         }
     }
 
@@ -2026,6 +2096,1632 @@ impl Checker {
             }
             _ => Ok(false),
         }
+    }
+}
+
+// ------------------------------------------------------------ effects, handlers, do (P6)
+
+impl Checker {
+    /// Bind a continuation closure `\v -> body` to a fresh local and run
+    /// `then` with it. The body runs at most once per execution of its
+    /// build site, so it is elaborated at a continuation position (usage
+    /// counting; ownership and usage design section 2).
+    fn bind_cont(
+        &mut self,
+        env: &mut Env,
+        kind: ContKind,
+        risky: bool,
+        make_body: impl FnOnce(&mut Self, &mut Env, LocalId, Ty) -> Result<ECore>,
+        make_then: impl FnOnce(&mut Self, &mut Env, &Cont) -> Result<ECore>,
+    ) -> Result<ECore> {
+        let kv = self.fresh_local();
+        let v = self.fresh_local();
+        let ty = self.uni.fresh();
+        let frame = self.conts.len();
+        self.conts.push(ContFrame { kind, risky, consumes_linear: false });
+        self.cont_depth += 1;
+        let body = make_body(self, env, v, ty.clone());
+        self.cont_depth -= 1;
+        let body = body?;
+        let then = make_then(self, env, &Cont { kv, ty, frame })?;
+        Ok(ECore::Let(
+            kv,
+            Box::new(ECore::Lam { params: vec![v], body: Box::new(body) }),
+            Box::new(then),
+        ))
+    }
+
+    /// Does this subterm contain a call to an effect operation? Operation
+    /// calls must be elaborated in continuation-passing style to capture
+    /// their resumption; this syntactic check is the conservative gate.
+    fn term_may_dispatch(&self, t: &ast::Term) -> bool {
+        fn walk(chk: &Checker, t: &ast::Term, found: &mut bool) {
+            if *found {
+                return;
+            }
+            match t {
+                ast::Term::Var(p) => {
+                    if chk.effect_ops.keys().any(|(m, n)| {
+                        n == &p.name.text
+                            && (p.quals.is_empty() || p.quals[0].text == *m)
+                    }) {
+                        *found = true;
+                    }
+                }
+                ast::Term::Con(_)
+                | ast::Term::Int(_, _)
+                | ast::Term::Str(_, _)
+                | ast::Term::Char(_, _)
+                | ast::Term::Unit(_)
+                | ast::Term::Hole(_)
+                | ast::Term::SeqOp(_, _) => {}
+                ast::Term::App(f, args, _) => {
+                    walk(chk, f, found);
+                    for a in args {
+                        walk(chk, a, found);
+                    }
+                }
+                ast::Term::Neg(e, _) => walk(chk, e, found),
+                ast::Term::Lam(_, b, _) => walk(chk, b, found),
+                ast::Term::Let(decls, b, _) => {
+                    for d in decls {
+                        match d {
+                            ast::LocalDecl::Sig { .. } => {}
+                            ast::LocalDecl::Eq { body, .. }
+                            | ast::LocalDecl::Bind { body, .. }
+                            | ast::LocalDecl::Lazy { body, .. } => walk(chk, body, found),
+                        }
+                    }
+                    walk(chk, b, found);
+                }
+                ast::Term::If(c, x, y, _) => {
+                    walk(chk, c, found);
+                    walk(chk, x, found);
+                    walk(chk, y, found);
+                }
+                ast::Term::Case(s, alts, _) => {
+                    walk(chk, s, found);
+                    for a in alts {
+                        walk(chk, &a.body, found);
+                    }
+                }
+                ast::Term::Ann(e, _, _) | ast::Term::Proj(e, _, _) => walk(chk, e, found),
+                ast::Term::Infix(ts, _, _) => {
+                    for x in ts {
+                        walk(chk, x, found);
+                    }
+                }
+                ast::Term::Tuple(items, _) | ast::Term::List(items, _) => {
+                    for x in items {
+                        walk(chk, x, found);
+                    }
+                }
+                ast::Term::Record(_, fields, _) => {
+                    for (_, x) in fields {
+                        walk(chk, x, found);
+                    }
+                }
+                ast::Term::Do(stmts, _) => {
+                    for s in stmts {
+                        match s {
+                            ast::DoStmt::Bind { term, .. } | ast::DoStmt::Expr { term, .. } => {
+                                walk(chk, term, found)
+                            }
+                            ast::DoStmt::Let { decl, .. } => match decl {
+                                ast::LocalDecl::Sig { .. } => {}
+                                ast::LocalDecl::Eq { body, .. }
+                                | ast::LocalDecl::Bind { body, .. }
+                                | ast::LocalDecl::Lazy { body, .. } => walk(chk, body, found),
+                            },
+                        }
+                    }
+                }
+                ast::Term::Handle(e, h, _) => {
+                    walk(chk, e, found);
+                    walk(chk, h, found);
+                }
+                ast::Term::Handler(h) => {
+                    walk(chk, &h.ret_body, found);
+                    for c in &h.clauses {
+                        walk(chk, &c.body, found);
+                    }
+                }
+                ast::Term::With { value, body, .. } => {
+                    walk(chk, value, found);
+                    walk(chk, body, found);
+                }
+                ast::Term::CapApply { head, supplies, .. } => {
+                    walk(chk, head, found);
+                    for (_, x) in supplies {
+                        walk(chk, x, found);
+                    }
+                }
+                ast::Term::CpsWrap(b, _) => walk(chk, b, found),
+            }
+        }
+        let mut found = false;
+        walk(self, t, &mut found);
+        found
+    }
+
+    /// Elaborate `term` in continuation-passing style: every value it
+    /// computes flows into the continuation `kv`, and operation calls
+    /// capture their continuation as the one-shot resumption given to the
+    /// handler clause (design section 3).
+    fn cps(&mut self, env: &mut Env, term: &ast::Term, kv: &Cont) -> Result<ECore> {
+        if !self.term_may_dispatch(term) {
+            // No operation can fire here: ordinary evaluation, then flow.
+            let (core, ty) = self.infer(env, term)?;
+            self.uni
+                .unify(&ty, &kv.ty)
+                .map_err(|m| Error::at(term.span(), m))?;
+            return Ok(app_spine(ECore::Var(kv.kv), vec![core]));
+        }
+        match term {
+            ast::Term::App(f, args, span) => self.cps_app(env, f, args, kv, *span),
+            ast::Term::Neg(e, span) => {
+                let negate = ast::Term::Var(ast::VarPath {
+                    quals: Vec::new(),
+                    name: ast::Name::new("negate", *span),
+                });
+                let app = ast::Term::App(Box::new(negate), vec![(**e).clone()], *span);
+                self.cps(env, &app, kv)
+            }
+            ast::Term::If(c, t, e, _) => {
+                let tc = (**t).clone();
+                let ec = (**e).clone();
+                let kv2 = kv.clone();
+                let cond = (**c).clone();
+                let cond2 = (**c).clone();
+                self.bind_cont(
+                    env,
+                    ContKind::Once,
+                    self.term_may_dispatch(c),
+                    move |this, env, v, vty| {
+                        this.uni
+                            .unify(&vty, &Ty::Bool)
+                            .map_err(|m| Error::at(cond2.span(), m))?;
+                        let (tcore, tm) = this.isolate(|s| s.cps(env, &tc, &kv2))?;
+                        let (ecore, em) = this.isolate(|s| s.cps(env, &ec, &kv2))?;
+                        this.merge_branches(vec![tm, em]);
+                        Ok(ECore::If(
+                            Box::new(ECore::Var(v)),
+                            Box::new(tcore),
+                            Box::new(ecore),
+                        ))
+                    },
+                    move |this, env, k| this.cps(env, &cond, k),
+                )
+            }
+            ast::Term::Case(scrut, alts, span) => self.cps_case(env, scrut, alts, kv, *span),
+            ast::Term::Let(decls, body, span) => self.cps_let(env, decls, body, kv, *span),
+            ast::Term::Do(stmts, span) => {
+                let shape = self.result_shape(env, *span)?;
+                self.elab_do(env, stmts, &shape, Some(kv), *span)
+            }
+            ast::Term::Handle(e, h, _) => {
+                let (core, _) = self.handle_expr(env, e, h, Some(kv))?;
+                Ok(core)
+            }
+            ast::Term::With { name, value, body, span } => {
+                let name2 = name.clone();
+                let body2 = (**body).clone();
+                let kv2 = kv.clone();
+                let sp = *span;
+                let val = (**value).clone();
+                self.bind_cont(
+                    env,
+                    ContKind::Once,
+                    self.term_may_dispatch(value),
+                    move |this, env, v, vty| {
+                        let (l, bind, region) =
+                            this.bind_capability(env, &name2, ECore::Var(v), vty, sp)?;
+                        let code = this.cps(env, &body2, &kv2)?;
+                        this.check_cap_escape(&region, &kv2.ty, sp)?;
+                        Ok(wrap_lets(vec![(l, bind)], code))
+                    },
+                    move |this, env, k| this.cps(env, &val, k),
+                )
+            }
+            ast::Term::Handler(h) => {
+                // Handler construction evaluates no computation (the
+                // clauses are closures), so it is a plain value here.
+                let (core, ty) = self.handler_value(env, h)?;
+                self.uni
+                    .unify(&ty, &kv.ty)
+                    .map_err(|m| Error::at(h.span, m))?;
+                Ok(app_spine(ECore::Var(kv.kv), vec![core]))
+            }
+            ast::Term::CpsWrap(b, _) => self.cps(env, b, kv),
+            // Container forms with operations inside: bind each subterm to
+            // a fresh local in evaluation order, then rebuild the term over
+            // the locals and run its ordinary elaboration.
+            ast::Term::Ann(_, _, _)
+            | ast::Term::Tuple(_, _)
+            | ast::Term::List(_, _)
+            | ast::Term::Record(_, _, _)
+            | ast::Term::Proj(_, _, _)
+            | ast::Term::CapApply { .. }
+            | ast::Term::Infix(_, _, _) => self.cps_rebuild(env, term, kv),
+            ast::Term::Var(_)
+            | ast::Term::Con(_)
+            | ast::Term::Int(_, _)
+            | ast::Term::Str(_, _)
+            | ast::Term::Char(_, _)
+            | ast::Term::Unit(_)
+            | ast::Term::Hole(_)
+            | ast::Term::Lam(_, _, _)
+            | ast::Term::SeqOp(_, _) => {
+                // Leaves and lambdas: an operation inside a lambda body
+                // does not dispatch (the closure may run anywhere), so the
+                // ordinary elaboration is exact here.
+                let (core, ty) = self.infer(env, term)?;
+                self.uni
+                    .unify(&ty, &kv.ty)
+                    .map_err(|m| Error::at(term.span(), m))?;
+                Ok(app_spine(ECore::Var(kv.kv), vec![core]))
+            }
+        }
+    }
+}
+
+impl Checker {
+    /// Application in continuation-passing style: the head, then the
+    /// arguments in evaluation order, each into a continuation; the final
+    /// body performs the application and flows to `kv`. An operation call
+    /// dispatches to the enclosing handler instead.
+    fn cps_app(
+        &mut self,
+        env: &mut Env,
+        f: &ast::Term,
+        args: &[ast::Term],
+        kv: &Cont,
+        span: ast::Span,
+    ) -> Result<ECore> {
+        if let ast::Term::Var(p) = f {
+            if p.quals.is_empty() && env.lookup(&p.name.text).is_none() {
+                if self.is_provider_pure(env, &p.name.text) {
+                    let seq = ast::Term::App(
+                        Box::new(ast::Term::SeqOp(ast::SeqKind::Pure, span)),
+                        args.to_vec(),
+                        span,
+                    );
+                    return self.cps(env, &seq, kv);
+                }
+                let op = self.resolve_var(p, p.span()).ok().filter(|v| {
+                    matches!(v.kind, ValueKind::EffectOp { .. })
+                });
+                if let Some(v) = op {
+                    return self.cps_op(env, &v, args, kv, span);
+                }
+            }
+        }
+        let fc = f.clone();
+        self.bind_cont(
+            env,
+            ContKind::Once,
+            self.term_may_dispatch(f),
+            move |this, env, v_f, ty_f| {
+                this.cps_apply_args(env, v_f, ty_f, args, kv, span, Vec::new())
+            },
+            move |this, env, k| this.cps(env, &fc, k),
+        )
+    }
+
+    fn cps_apply_args(
+        &mut self,
+        env: &mut Env,
+        v_f: LocalId,
+        ty_f: Ty,
+        args: &[ast::Term],
+        kv: &Cont,
+        span: ast::Span,
+        mut done: Vec<(LocalId, Ty)>,
+    ) -> Result<ECore> {
+        match args.split_first() {
+            None => {
+                // Perform the application and flow the result to the
+                // continuation.
+                let mut ty = ty_f;
+                for (_, aty) in &done {
+                    ty = self.uni.zonk(&ty);
+                    let (dom, eff, cod) = match ty {
+                        Ty::Fun(dom, _, eff, cod) => (*dom, eff, *cod),
+                        Ty::Meta(_) => {
+                            // The head's type is not yet determined (a
+                            // continuation body elaborates before its
+                            // subterm): open a fresh arrow.
+                            let dom = self.uni.fresh();
+                            let eff = self.uni.fresh_row();
+                            let cod = self.uni.fresh();
+                            self.uni
+                                .unify(
+                                    &ty,
+                                    &Ty::fun_mult(
+                                        dom.clone(),
+                                        Mult::Flex,
+                                        eff.clone(),
+                                        cod.clone(),
+                                    ),
+                                )
+                                .map_err(|m| Error::at(span, m))?;
+                            (dom, eff, cod)
+                        }
+                        other => {
+                            return Err(Error::at(
+                                span,
+                                format!("cannot apply a value of type {other}"),
+                            ))
+                        }
+                    };
+                    self.perform(&eff)?;
+                    self.uni
+                        .unify(&dom, aty)
+                        .map_err(|m| Error::at(span, m))?;
+                    ty = cod;
+                }
+                self.uni
+                    .unify(&ty, &kv.ty)
+                    .map_err(|m| Error::at(span, m))?;
+                let mut core = ECore::Var(v_f);
+                for (l, _) in &done {
+                    core = app_spine(core, vec![ECore::Var(*l)]);
+                }
+                Ok(app_spine(ECore::Var(kv.kv), vec![core]))
+            }
+            Some((arg, rest)) => {
+                let ac = arg.clone();
+                let restv = rest.to_vec();
+                let kv2 = kv.clone();
+                let ty2 = ty_f.clone();
+                self.bind_cont(
+                    env,
+                    ContKind::Once,
+                    self.term_may_dispatch(arg),
+                    move |this, env, v_a, ty_a| {
+                        done.push((v_a, ty_a));
+                        this.cps_apply_args(env, v_f, ty2, &restv, &kv2, span, done)
+                    },
+                    move |this, env, k| this.cps(env, &ac, k),
+                )
+            }
+        }
+    }
+
+    /// An effect operation call: evaluate the arguments in order, then
+    /// dispatch through the enclosing handler's vtable, handing the clause
+    /// the one-shot resumption (the continuation of this call). Without an
+    /// enclosing handler for the label the call is the defined unhandled
+    /// fault path (decision D23): its label still surfaces in the
+    /// performed row, so effect honesty rejects unhandled operations at
+    /// check time before any program can run one.
+    fn cps_op(
+        &mut self,
+        env: &mut Env,
+        v: &ValueInfo,
+        args: &[ast::Term],
+        kv: &Cont,
+        span: ast::Span,
+    ) -> Result<ECore> {
+        let (op_ty, ctx) = self.instantiate(&v.scheme);
+        if !ctx.is_empty() {
+            return Err(Error::at(
+                span,
+                format!("effect operation {} takes no class constraints in the bootstrap slice", v.name),
+            ));
+        }
+        self.cps_op_args(env, v, op_ty, args, kv, span, Vec::new())
+    }
+
+    fn cps_op_args(
+        &mut self,
+        env: &mut Env,
+        v: &ValueInfo,
+        op_ty: Ty,
+        args: &[ast::Term],
+        kv: &Cont,
+        span: ast::Span,
+        mut done: Vec<(LocalId, Ty)>,
+    ) -> Result<ECore> {
+        match args.split_first() {
+            None => self.cps_op_dispatch(env, v, op_ty, done, kv, span),
+            Some((arg, rest)) => {
+                let ac = arg.clone();
+                let restv = rest.to_vec();
+                let kv2 = kv.clone();
+                let ty2 = op_ty.clone();
+                self.bind_cont(
+                    env,
+                    ContKind::Once,
+                    self.term_may_dispatch(arg),
+                    move |this, env, v_a, ty_a| {
+                        done.push((v_a, ty_a));
+                        this.cps_op_args(env, v, ty2, &restv, &kv2, span, done)
+                    },
+                    move |this, env, k| this.cps(env, &ac, k),
+                )
+            }
+        }
+    }
+
+    fn cps_op_dispatch(
+        &mut self,
+        env: &mut Env,
+        v: &ValueInfo,
+        op_ty: Ty,
+        done: Vec<(LocalId, Ty)>,
+        kv: &Cont,
+        span: ast::Span,
+    ) -> Result<ECore> {
+        // Walk the operation's arrows: the arguments' domains and the
+        // result type, and the performed label on the label arrow.
+        let mut ty = op_ty;
+        let n = done.len();
+        for (i, (_, aty)) in done.iter().enumerate() {
+            ty = self.uni.zonk(&ty);
+            let (dom, eff, cod) = match ty {
+                Ty::Fun(dom, _, eff, cod) => (*dom, eff, *cod),
+                Ty::Meta(_) => {
+                    let dom = self.uni.fresh();
+                    let eff = self.uni.fresh_row();
+                    let cod = self.uni.fresh();
+                    self.uni
+                        .unify(
+                            &ty,
+                            &Ty::fun_mult(dom.clone(), Mult::Flex, eff.clone(), cod.clone()),
+                        )
+                        .map_err(|m| Error::at(span, m))?;
+                    (dom, eff, cod)
+                }
+                other => {
+                    return Err(Error::at(
+                        span,
+                        format!("effect operation {} is applied to too many arguments ({other})", v.name),
+                    ))
+                }
+            };
+            self.uni
+                .unify(&dom, aty)
+                .map_err(|m| Error::at(span, m))?;
+            ty = cod;
+            if !eff.is_pure() {
+                // The label arrow: the operation is fully applied here.
+                if i + 1 != n {
+                    return Err(Error::at(
+                        span,
+                        format!("effect operation {} is applied to too many arguments", v.name),
+                    ));
+                }
+                let resolved = self.uni.resolve_row(&eff);
+                let label = match resolved.labels.as_slice() {
+                    [label] if resolved.tail == RowTail::Closed => label.clone(),
+                    _ => {
+                        return Err(Error::at(
+                            span,
+                            format!("effect operation {} must perform exactly its effect's label", v.name),
+                        ))
+                    }
+                };
+                return self.dispatch_op(env, v, label, &done, ty, kv, span);
+            }
+        }
+        Err(Error::at(
+            span,
+            format!("effect operation {} is not applied to enough arguments", v.name),
+        ))
+    }
+
+    /// An effect operation call outside any handler's dispatch reach: the
+    /// performed label surfaces honestly and the call is the defined
+    /// unhandled fault path (exit 70) as defense in depth (decision D23).
+    fn infer_unhandled_op(
+        &mut self,
+        env: &mut Env,
+        v: &ValueInfo,
+        args: &[ast::Term],
+        span: ast::Span,
+    ) -> Result<(ECore, Ty)> {
+        let (op_ty, ctx) = self.instantiate(&v.scheme);
+        if !ctx.is_empty() {
+            return Err(Error::at(
+                span,
+                format!(
+                    "effect operation {} takes no class constraints in the bootstrap slice",
+                    v.name
+                ),
+            ));
+        }
+        let mut ty = op_ty;
+        let mut binds: Vec<(LocalId, ECore)> = Vec::new();
+        for (i, a) in args.iter().enumerate() {
+            ty = self.uni.zonk(&ty);
+            let (dom, eff, cod) = match ty {
+                Ty::Fun(dom, _, eff, cod) => (*dom, eff, *cod),
+                Ty::Meta(_) => {
+                    let dom = self.uni.fresh();
+                    let eff = self.uni.fresh_row();
+                    let cod = self.uni.fresh();
+                    self.uni
+                        .unify(
+                            &ty,
+                            &Ty::fun_mult(dom.clone(), Mult::Flex, eff.clone(), cod.clone()),
+                        )
+                        .map_err(|m| Error::at(span, m))?;
+                    (dom, eff, cod)
+                }
+                other => {
+                    return Err(Error::at(
+                        span,
+                        format!(
+                            "effect operation {} is applied to too many arguments ({other})",
+                            v.name
+                        ),
+                    ))
+                }
+            };
+            let ac = self.check(env, a, &dom)?;
+            let l = self.fresh_local();
+            binds.push((l, ac));
+            ty = cod;
+            if !eff.is_pure() {
+                if i + 1 != args.len() {
+                    return Err(Error::at(
+                        span,
+                        format!("effect operation {} is applied to too many arguments", v.name),
+                    ));
+                }
+                let resolved = self.uni.resolve_row(&eff);
+                match resolved.labels.as_slice() {
+                    [label] if resolved.tail == RowTail::Closed => {
+                        self.perform(&EffRow {
+                            labels: vec![label.clone()],
+                            tail: RowTail::Closed,
+                        })?;
+                        return Ok((wrap_lets(binds, ECore::Fault), ty));
+                    }
+                    _ => {
+                        return Err(Error::at(
+                            span,
+                            format!(
+                                "effect operation {} must perform exactly its effect's label",
+                                v.name
+                            ),
+                        ))
+                    }
+                }
+            }
+        }
+        Err(Error::at(
+            span,
+            format!("effect operation {} is not applied to enough arguments", v.name),
+        ))
+    }
+
+    /// Build the dispatch (or unhandled fault) code for one operation
+    /// call, with every argument already evaluated.
+    fn dispatch_op(
+        &mut self,
+        env: &mut Env,
+        v: &ValueInfo,
+        label: EffLabel,
+        done: &[(LocalId, Ty)],
+        result: Ty,
+        kv: &Cont,
+        span: ast::Span,
+    ) -> Result<ECore> {
+        let _ = env;
+        let slot = match &v.kind {
+            ValueKind::EffectOp { slot, .. } => *slot,
+            _ => unreachable!("dispatch_op is called for effect operations"),
+        };
+        self.uni
+            .unify(&result, &kv.ty)
+            .map_err(|m| Error::at(span, m))?;
+        // The innermost handler extent for this label, at this lexical
+        // level (lambda and memo bodies do not dispatch).
+        let candidates: Vec<(usize, Option<String>)> = self
+            .extents
+            .iter()
+            .enumerate()
+            .filter(|(_, e)| {
+                e.lam == self.lam_depth
+                    && e.memo == self.memo_depth
+                    && e.label.head == label.head
+            })
+            .map(|(i, e)| (i, e.label.arg.clone()))
+            .collect();
+        let mut found = None;
+        for (i, arg) in candidates.into_iter().rev() {
+            match (&arg, &label.arg) {
+                (Some(x), Some(y)) => {
+                    let mut trial = self.uni.clone();
+                    if trial.unify_regions(x, y).is_ok() {
+                        self.uni = trial;
+                        found = Some(i);
+                        break;
+                    }
+                }
+                (None, None) => {
+                    found = Some(i);
+                    break;
+                }
+                _ => {}
+            }
+        }
+        let Some(idx) = found else {
+            // Unhandled operation: the label surfaces honestly and the
+            // call takes the defined fault path (exit 70) as defense in
+            // depth (decision D23).
+            self.perform(&EffRow { labels: vec![label], tail: RowTail::Closed })?;
+            return Ok(ECore::Fault);
+        };
+        // The resumption: the continuation of this call, one-shot.
+        if self.conts[kv.frame].consumes_linear {
+            self.promote_resumptions(span)?;
+        }
+        let rv = self.fresh_local();
+        let resumption = ECore::Lam {
+            params: vec![rv],
+            body: Box::new(app_spine(ECore::Var(kv.kv), vec![ECore::Var(rv)])),
+        };
+        let vtable = self.extents[idx].vtable;
+        let mut core = ECore::Proj(Box::new(ECore::Var(vtable)), slot);
+        for (l, _) in done {
+            core = app_spine(core, vec![ECore::Var(*l)]);
+        }
+        Ok(app_spine(core, vec![resumption]))
+    }
+}
+
+impl Checker {
+    /// `case` in continuation-passing style: the scrutinee flows into a
+    /// continuation whose body runs the ordinary pattern compiler over
+    /// `CpsWrap`ped alternative bodies (each flows to `kv`).
+    fn cps_case(
+        &mut self,
+        env: &mut Env,
+        scrut: &ast::Term,
+        alts: &[ast::Alt],
+        kv: &Cont,
+        span: ast::Span,
+    ) -> Result<ECore> {
+        let kv2 = kv.clone();
+        let alts2: Vec<ast::Alt> = alts
+            .iter()
+            .map(|a| {
+                let mut a = a.clone();
+                a.body = ast::Term::CpsWrap(Box::new(a.body.clone()), a.span);
+                a
+            })
+            .collect();
+        let scrut2 = scrut.clone();
+        self.bind_cont(
+            env,
+            ContKind::Once,
+            self.term_may_dispatch(scrut),
+            move |this, env, v, vty| {
+                let ans = this.uni.fresh();
+                this.current_cont.push(kv2.clone());
+                let code = this.compile_alts(env, &alts2, ECore::Var(v), vty, &ans, span);
+                this.current_cont.pop();
+                code
+            },
+            move |this, env, k| this.cps(env, &scrut2, k),
+        )
+    }
+
+    /// `let` in continuation-passing style. Only simple value bindings
+    /// sequence here (decision D24): a local function or memo binding under
+    /// a handled computation would need its operations dispatched from a
+    /// deferred body, which the bootstrap rejects.
+    fn cps_let(
+        &mut self,
+        env: &mut Env,
+        decls: &[ast::LocalDecl],
+        body: &ast::Term,
+        kv: &Cont,
+        span: ast::Span,
+    ) -> Result<ECore> {
+        match decls.split_first() {
+            None => self.cps(env, body, kv),
+            Some((d, rest)) => match d {
+                ast::LocalDecl::Sig { .. } => self.cps_let(env, rest, body, kv, span),
+                ast::LocalDecl::Bind { pat, body: dbody, span: dspan } => {
+                    let (name, _) = match pat {
+                        ast::Pat::Var(n, _) => (Some(n.text.clone()), ()),
+                        ast::Pat::Wild(_) => (None, ()),
+                        other => {
+                            return Err(Error::at(
+                                other.span(),
+                                "destructuring `let` bindings under a handled computation are not supported in the bootstrap slice",
+                            ))
+                        }
+                    };
+                    let dspan = *dspan;
+                    let risky = self.term_may_dispatch(dbody);
+                    let restv = rest.to_vec();
+                    let body2 = body.clone();
+                    let kv2 = kv.clone();
+                    let db = dbody.clone();
+                    self.bind_cont(
+                        env,
+                        ContKind::Once,
+                        risky,
+                        move |this, env, v, vty| {
+                            let mut env2 = env.clone();
+                            let l = match &name {
+                                Some(n) => {
+                                    this.bind_local(
+                                        &mut env2,
+                                        n,
+                                        v,
+                                        Scheme::mono(vty),
+                                        None,
+                                        dspan,
+                                    )?;
+                                    v
+                                }
+                                None => {
+                                    this.register_obligation(v, "_", None, vty, dspan);
+                                    v
+                                }
+                            };
+                            let code = this.cps_let(&mut env2, &restv, &body2, &kv2, span)?;
+                            Ok(wrap_lets(vec![(l, ECore::Var(v))], code))
+                        },
+                        move |this, env, k| this.cps(env, &db, k),
+                    )
+                }
+                ast::LocalDecl::Eq { .. } | ast::LocalDecl::Lazy { .. } => Err(Error::at(
+                    span,
+                    "local functions and memo bindings under a handled computation are not supported in the bootstrap slice",
+                )),
+            },
+        }
+    }
+
+    /// A container form with operations inside: bind each immediate
+    /// subterm to a fresh local in evaluation order, then rebuild the form
+    /// over the locals and elaborate it ordinarily.
+    fn cps_rebuild(&mut self, env: &mut Env, term: &ast::Term, kv: &Cont) -> Result<ECore> {
+        let subs = immediate_subterms(term);
+        self.cps_rebuild_go(env, term, subs, 0, kv, Vec::new())
+    }
+
+    fn cps_rebuild_go(
+        &mut self,
+        env: &mut Env,
+        template: &ast::Term,
+        subs: Vec<ast::Term>,
+        idx: usize,
+        kv: &Cont,
+        mut bound: Vec<String>,
+    ) -> Result<ECore> {
+        if idx >= subs.len() {
+            let rebuilt = replace_subterms(template, &bound);
+            let (core, ty) = self.infer(env, &rebuilt)?;
+            self.uni
+                .unify(&ty, &kv.ty)
+                .map_err(|m| Error::at(template.span(), m))?;
+            return Ok(app_spine(ECore::Var(kv.kv), vec![core]));
+        }
+        let sub = subs[idx].clone();
+        let name = format!("s#{}", self.param_counter);
+        self.param_counter += 1;
+        let name2 = name.clone();
+        let kv2 = kv.clone();
+        let template_span = template.span();
+        self.bind_cont(
+            env,
+            ContKind::Once,
+            self.term_may_dispatch(&sub),
+            move |this, env, v, vty| {
+                this.bind_local(env, &name2, v, Scheme::mono(vty), None, template_span)?;
+                bound.push(name2);
+                this.cps_rebuild_go(env, template, subs, idx + 1, &kv2, bound)
+            },
+            move |this, env, k| this.cps(env, &sub, k),
+        )
+    }
+
+    /// The result shape `M b` of a `do` block, from the provider's
+    /// `pure` (`pure :: a -> M a`).
+    fn result_shape(&mut self, env: &mut Env, span: ast::Span) -> Result<Ty> {
+        let (_, ty) = self.seq_method(env, ast::SeqKind::Pure, span)?;
+        match self.uni.zonk(&ty) {
+            Ty::Fun(_, _, _, res) => Ok(*res),
+            other => Err(Error::at(
+                span,
+                format!("internal error: the provider's pure has type {other}"),
+            )),
+        }
+    }
+
+    /// `do { stmts }` through the selected provider's `bind`/`pure`
+    /// methods (design section 5). With `kv` the block's result flows into
+    /// the continuation (continuation-passing mode); without it the block
+    /// is a value.
+    fn elab_do(
+        &mut self,
+        env: &mut Env,
+        stmts: &[ast::DoStmt],
+        shape: &Ty,
+        kv: Option<&Cont>,
+        span: ast::Span,
+    ) -> Result<ECore> {
+        let (last, init) = stmts.split_last().ok_or_else(|| {
+            Error::at(span, "internal error: empty do block")
+        })?;
+        let last_term = match last {
+            ast::DoStmt::Expr { term, .. } => term,
+            ast::DoStmt::Bind { span: s, .. } | ast::DoStmt::Let { span: s, .. } => {
+                return Err(Error::at(
+                    *s,
+                    "the last statement of a do block must be an expression",
+                ))
+            }
+        };
+        if init.is_empty() {
+            return match kv {
+                Some(kv) => self.cps(env, last_term, kv),
+                None => self.check(env, last_term, shape),
+            };
+        }
+        let rest = &stmts[1..];
+        let (pat, stmt, sspan) = match &init[0] {
+            ast::DoStmt::Bind { pat, term, span } => (Some(pat), term, *span),
+            ast::DoStmt::Expr { term, span } => (None, term, *span),
+            ast::DoStmt::Let { decl, span: lspan } => {
+                // `let x = value` binds a pure value strictly, in either
+                // interpretation (the sequencing spec's `do` rules).
+                let (name, body, bspan) = match decl {
+                    ast::LocalDecl::Bind { pat: ast::Pat::Var(n, _), body, span } => {
+                        (Some(n.text.clone()), body, *span)
+                    }
+                    ast::LocalDecl::Bind { pat: ast::Pat::Wild(_), body, span } => {
+                        (None, body, *span)
+                    }
+                    ast::LocalDecl::Eq { name, pats, body, span } if pats.is_empty() => {
+                        (Some(name.text.clone()), body, *span)
+                    }
+                    _ => {
+                        return Err(Error::at(
+                            *lspan,
+                            "a `let` statement in `do` binds one pure value in the bootstrap slice",
+                        ))
+                    }
+                };
+                let ty = self.uni.fresh();
+                let saved = self.enter_perf();
+                let vcore = self.check(env, body, &ty);
+                let performed = self.exit_perf(saved);
+                let vcore = vcore?;
+                self.uni
+                    .unify_rows(&performed, &EffRow::pure())
+                    .map_err(|_| {
+                        Error::at(
+                            bspan,
+                            "a `let` statement in `do` must be pure (its interpretation does not sequence effects)",
+                        )
+                    })?;
+                let l = self.fresh_local();
+                let mut env2 = env.clone();
+                match &name {
+                    Some(n) => {
+                        self.bind_local(&mut env2, n, l, Scheme::mono(ty), None, bspan)?
+                    }
+                    None => self.register_obligation(l, "_", None, ty, bspan),
+                }
+                let rest_code = self.elab_do(&mut env2, rest, shape, kv, span)?;
+                return Ok(wrap_lets(vec![(l, vcore)], rest_code));
+            }
+        };
+        // Refutable patterns need a typed failure operation; the direct,
+        // Result and Option bootstrap providers do not supply one
+        // (decision D25).
+        let bind_name = match pat {
+            None | Some(ast::Pat::Wild(_)) => None,
+            Some(ast::Pat::Var(n, _)) => Some(n.text.clone()),
+            Some(other) => {
+                return Err(Error::at(
+                    other.span(),
+                    "refutable patterns in `do` bindings need a provider failure operation; the direct, Result and Option bootstrap providers do not supply one",
+                ))
+            }
+        };
+        let (bind_core, bind_ty) = self.seq_method(env, ast::SeqKind::Bind, sspan)?;
+        let bind_ty = self.uni.zonk(&bind_ty);
+        // `bind :: M a -> (a ->{ef} M b) ->{ef} M b`: the statement's type,
+        // the continuation, and the block's result shape.
+        let (stmt_ty, cont_ty) = match &bind_ty {
+            Ty::Fun(a, _, _, rest) => ((**a).clone(), (**rest).clone()),
+            other => {
+                return Err(Error::at(
+                    sspan,
+                    format!("internal error: the provider's bind has type {other}"),
+                ))
+            }
+        };
+        // The payload `a` is the continuation's parameter.
+        let payload = match &cont_ty {
+            Ty::Fun(k, _, _, _) => match &**k {
+                Ty::Fun(p, _, _, _) => (**p).clone(),
+                other => {
+                    return Err(Error::at(
+                        sspan,
+                        format!("internal error: the provider's bind continues with {other}"),
+                    ))
+                }
+            },
+            other => {
+                return Err(Error::at(
+                    sspan,
+                    format!("internal error: the provider's bind takes {other}"),
+                ))
+            }
+        };
+        let kind = if select_provider(&self.seq_binders, sspan)?.class == "DirectSequencing" {
+            ContKind::Once
+        } else {
+            // A short-circuiting provider may skip the continuation.
+            ContKind::AtMost
+        };
+        let risky = self.term_may_dispatch(stmt);
+        let sp = span;
+        match kv {
+            None => {
+                let stmt_core = self.check(env, stmt, &stmt_ty)?;
+                let l = self.fresh_local();
+                let mut env2 = env.clone();
+                match &bind_name {
+                    Some(n) => {
+                        self.bind_local(&mut env2, n, l, Scheme::mono(payload), None, sspan)?
+                    }
+                    None => self.register_obligation(l, "_", None, payload, sspan),
+                }
+                self.conts.push(ContFrame { kind, risky, consumes_linear: false });
+                self.cont_depth += 1;
+                let rest_code = self.elab_do(&mut env2, rest, shape, None, sp);
+                self.cont_depth -= 1;
+                let rest_code = rest_code?;
+                let lam = ECore::Lam { params: vec![l], body: Box::new(rest_code) };
+                Ok(app_spine(bind_core, vec![stmt_core, lam]))
+            }
+            Some(kv) => {
+                let rest2 = rest.to_vec();
+                let shape2 = shape.clone();
+                let kv2 = kv.clone();
+                let stmt2 = stmt.clone();
+                let bname = bind_name.clone();
+                self.bind_cont(
+                    env,
+                    kind,
+                    risky,
+                    move |this, env, v, vty| {
+                        this.uni
+                            .unify(&vty, &stmt_ty)
+                            .map_err(|m| Error::at(sspan, m))?;
+                        let l = this.fresh_local();
+                        let mut env2 = env.clone();
+                        match &bname {
+                            Some(n) => {
+                                this.bind_local(
+                                    &mut env2,
+                                    n,
+                                    l,
+                                    Scheme::mono(payload),
+                                    None,
+                                    sspan,
+                                )?
+                            }
+                            None => {
+                                this.register_obligation(l, "_", None, payload, sspan)
+                            }
+                        }
+                        let rest_code =
+                            this.elab_do(&mut env2, &rest2, &shape2, Some(&kv2), sp)?;
+                        let lam = ECore::Lam { params: vec![l], body: Box::new(rest_code) };
+                        Ok(app_spine(bind_core, vec![ECore::Var(v), lam]))
+                    },
+                    move |this, env, k| this.cps(env, &stmt2, k),
+                )
+            }
+        }
+    }
+}
+
+impl Checker {
+    /// `handler L [r] where { return p -> e; op pats [resume k] -> e }`:
+    /// a handler record of clause closures (design section 3). Returns the
+    /// vtable, its type, the `resume k` binders per operation slot, and
+    /// whether those binders may still be promoted to `%1`.
+    fn handler_value_full(
+        &mut self,
+        env: &mut Env,
+        h: &ast::HandlerExpr,
+        out_cont: Option<&Cont>,
+    ) -> Result<(ECore, Ty, Vec<Option<LocalId>>, bool)> {
+        let span = h.span;
+        if h.effect.segments.len() > 1 {
+            return Err(Error::at(
+                h.effect.span(),
+                "effect label paths deeper than one segment are not supported",
+            ));
+        }
+        let head = h.effect.segments[0].text.clone();
+        let (region_param, ops) = {
+            let e = self.effects.get(&head).ok_or_else(|| {
+                Error::at(h.effect.span(), format!("unknown effect {head}"))
+            })?;
+            (e.region_param.clone(), e.ops.clone())
+        };
+        match (&region_param, &h.region) {
+            (Some(_), None) => {
+                return Err(Error::at(
+                    span,
+                    format!("effect {head} has a region parameter: write `handler {head} r where`"),
+                ))
+            }
+            (None, Some(n)) => {
+                return Err(Error::at(
+                    n.span,
+                    format!("effect {head} has no region parameter"),
+                ))
+            }
+            _ => {}
+        }
+        let label = EffLabel {
+            head: head.clone(),
+            arg: h.region.as_ref().map(|n| n.text.clone()),
+        };
+        let input = self.uni.fresh();
+        let output = self.uni.fresh();
+        if let Some(kv) = out_cont {
+            self.uni
+                .unify(&output, &kv.ty)
+                .map_err(|m| Error::at(span, m))?;
+        }
+        let mut clause_eff = EffRow::pure();
+        let mut closures: Vec<ECore> = Vec::new();
+        // The return clause: `return p -> e`.
+        let x = self.fresh_local();
+        let mut env2 = env.clone();
+        self.lam_depth += 1;
+        match &h.ret_pat {
+            ast::Pat::Var(n, _) => self.bind_local(
+                &mut env2,
+                &n.text,
+                x,
+                Scheme::mono(input.clone()),
+                None,
+                n.span,
+            )?,
+            ast::Pat::Wild(_) => {
+                self.register_obligation(x, "_", None, input.clone(), span)
+            }
+            other => {
+                return Err(Error::at(
+                    other.span(),
+                    "handler clauses take variable and wildcard patterns in the bootstrap slice",
+                ))
+            }
+        }
+        let saved = self.enter_perf();
+        let body = self.check(&mut env2, &h.ret_body, &output);
+        self.lam_depth -= 1;
+        let body = body?;
+        let performed = self.exit_perf(saved);
+        clause_eff = self
+                .uni
+                .union_rows(&clause_eff, &performed)
+                .map_err(|m| Error::plain(m))?;
+        closures.push(ECore::Lam { params: vec![x], body: Box::new(body) });
+        // One clause per operation, in declaration order (slot order).
+        let mut k_binders: Vec<Option<LocalId>> = Vec::new();
+        let mut seen: Vec<String> = Vec::new();
+        for (op_name, op_scheme) in &ops {
+            let slot_clause = h
+                .clauses
+                .iter()
+                .find(|c| &c.op.text == op_name)
+                .ok_or_else(|| {
+                    Error::at(
+                        span,
+                        format!("handler for {head} is missing a clause for operation {op_name}"),
+                    )
+                })?;
+            seen.push(op_name.clone());
+            let (op_ty, op_ctx) = self.instantiate(op_scheme);
+            if !op_ctx.is_empty() {
+                return Err(Error::at(
+                    slot_clause.span,
+                    format!("effect operation {op_name} takes no class constraints"),
+                ));
+            }
+            let mut ty = op_ty;
+            let mut params: Vec<LocalId> = Vec::new();
+            let mut env3 = env.clone();
+            let mut saw_label = false;
+            self.lam_depth += 1;
+            for p in slot_clause.pats.iter() {
+                let (dom, cod) = match self.uni.zonk(&ty) {
+                    Ty::Fun(a, _, e, b) => {
+                        if !e.is_pure() {
+                            saw_label = true;
+                        }
+                        (*a, *b)
+                    }
+                    other => {
+                        return Err(Error::at(
+                            p.span(),
+                            format!("clause for {op_name} has too many patterns ({other})"),
+                        ))
+                    }
+                };
+                let l = self.fresh_local();
+                match p {
+                    ast::Pat::Var(pn, _) => {
+                        self.bind_local(&mut env3, &pn.text, l, Scheme::mono(dom), None, pn.span)?
+                    }
+                    ast::Pat::Wild(_) => {
+                        self.register_obligation(l, "_", None, dom, p.span())
+                    }
+                    other => {
+                        return Err(Error::at(
+                            other.span(),
+                            "handler clauses take variable and wildcard patterns in the bootstrap slice",
+                        ))
+                    }
+                }
+                params.push(l);
+                ty = cod;
+            }
+            if !saw_label {
+                return Err(Error::at(
+                    slot_clause.span,
+                    format!("clause for {op_name} has too few patterns"),
+                ));
+            }
+            // Everything past the label arrow is the operation's result.
+            let result = ty;
+            let k = match &slot_clause.resume {
+                Some(kn) => {
+                    let kl = self.fresh_local();
+                    self.bind_local(
+                        &mut env3,
+                        &kn.text,
+                        kl,
+                        Scheme::mono(Ty::fun(result, output.clone())),
+                        Some(Mult::Aff),
+                        kn.span,
+                    )?;
+                    params.push(kl);
+                    Some(kl)
+                }
+                None => {
+                    // The resumption slot exists even when the clause
+                    // cannot continue the computation.
+                    let kl = self.fresh_local();
+                    self.register_obligation(
+                        kl,
+                        "_",
+                        Some(Mult::Aff),
+                        Ty::fun(result, output.clone()),
+                        slot_clause.span,
+                    );
+                    params.push(kl);
+                    None
+                }
+            };
+            k_binders.push(k);
+            let saved = self.enter_perf();
+            let body = self.check(&mut env3, &slot_clause.body, &output);
+            self.lam_depth -= 1;
+            let body = body?;
+            let performed = self.exit_perf(saved);
+            clause_eff = self
+                .uni
+                .union_rows(&clause_eff, &performed)
+                .map_err(|m| Error::plain(m))?;
+            closures.push(ECore::Lam { params, body: Box::new(body) });
+        }
+        for c in &h.clauses {
+            if !seen.contains(&c.op.text) {
+                return Err(Error::at(
+                    c.op.span,
+                    format!("{c_op} is not an operation of {head}", c_op = c.op.text),
+                ));
+            }
+        }
+        let n = closures.len();
+        let gid = self.tuple_ctor(n, span)?;
+        let core = app_spine(ECore::Ctor(gid), closures);
+        let ty = Ty::Handler {
+            label,
+            input: Box::new(input),
+            output: Box::new(output),
+            eff: clause_eff,
+            resumption: Mult::Flex,
+        };
+        Ok((core, ty, k_binders, true))
+    }
+
+    fn handler_value(
+        &mut self,
+        env: &mut Env,
+        h: &ast::HandlerExpr,
+    ) -> Result<(ECore, Ty)> {
+        let (core, ty, _, _) = self.handler_value_full(env, h, None)?;
+        Ok((core, ty))
+    }
+
+    /// `handle e with h`: the handled computation is elaborated in
+    /// continuation-passing style inside a handler extent; operations of
+    /// the handled label performed in its own expression dispatch to `h`,
+    /// and the handled label must not arrive through a call (decision
+    /// D23).
+    fn handle_expr(
+        &mut self,
+        env: &mut Env,
+        handled: &ast::Term,
+        h_term: &ast::Term,
+        kv: Option<&Cont>,
+    ) -> Result<(ECore, Ty)> {
+        let span = h_term.span();
+        let (hcore, hty, k_binders, flexible) = if let ast::Term::Handler(h) = h_term {
+            self.handler_value_full(env, h, kv)?
+        } else {
+            let (core, ty) = self.infer(env, h_term)?;
+            (core, ty, Vec::new(), false)
+        };
+        let (label, input, output, clause_eff) = match self.uni.zonk(&hty) {
+            Ty::Handler { label, input, output, eff, .. } => {
+                (label, *input, *output, eff)
+            }
+            other => {
+                return Err(Error::at(
+                    span,
+                    format!("handle expects a handler value, got {other}"),
+                ))
+            }
+        };
+        if let Some(kv) = kv {
+            self.uni
+                .unify(&output, &kv.ty)
+                .map_err(|m| Error::at(span, m))?;
+        }
+        // The prompt: the return clause, then the surrounding
+        // continuation.
+        let hv = self.fresh_local();
+        let pv = self.fresh_local();
+        let ret_call = app_spine(ECore::Proj(Box::new(ECore::Var(hv)), 0), vec![ECore::Var(pv)]);
+        let prompt_body = match kv {
+            Some(kv) => app_spine(ECore::Var(kv.kv), vec![ret_call]),
+            None => ret_call,
+        };
+        let prompt_frame = self.conts.len();
+        self.conts.push(ContFrame {
+            kind: ContKind::Once,
+            risky: false,
+            consumes_linear: false,
+        });
+        self.cont_depth += 1;
+        let kv0_local = self.fresh_local();
+        let kv0 = Cont { kv: kv0_local, ty: input.clone(), frame: prompt_frame };
+        self.extents.push(HandlerExtent {
+            label: label.clone(),
+            vtable: hv,
+            k_binders,
+            flexible,
+            lam: self.lam_depth,
+            memo: self.memo_depth,
+        });
+        let saved = self.enter_perf();
+        let ecode = self.cps(env, handled, &kv0);
+        self.extents.pop();
+        self.cont_depth -= 1;
+        let ecode = ecode?;
+        let pe = self.exit_perf(saved);
+        // The handled label must not arrive through a call: dispatch is
+        // lexical in the bootstrap (decision D23).
+        let resolved = self.uni.resolve_row(&pe);
+        for l in &resolved.labels {
+            if l.head != label.head {
+                continue;
+            }
+            let same = match (&l.arg, &label.arg) {
+                (Some(x), Some(y)) => {
+                    let mut trial = self.uni.clone();
+                    let ok = trial.unify_regions(x, y).is_ok();
+                    if ok {
+                        self.uni = trial;
+                    }
+                    ok
+                }
+                (None, None) => true,
+                _ => false,
+            };
+            if same {
+                return Err(Error::at(
+                    span,
+                    format!(
+                        "the handled effect {{{label}}} is performed through a called computation; the bootstrap handler calculus dispatches operations only from the handled computation's own expression"
+                    ),
+                ));
+            }
+        }
+        self.perform(&pe)?;
+        self.perform(&clause_eff)?;
+        let prompt = ECore::Lam { params: vec![pv], body: Box::new(prompt_body) };
+        Ok((wrap_lets(vec![(hv, hcore), (kv0_local, prompt)], ecode), output))
+    }
+
+    /// The selected provider's `pure`/`bind` method value and type (the
+    /// provider dictionary resolves from the selection's class).
+    fn seq_method(
+        &mut self,
+        env: &mut Env,
+        kind: ast::SeqKind,
+        span: ast::Span,
+    ) -> Result<(ECore, Ty)> {
+        let class = select_provider(&self.seq_binders, span)?;
+        let path = ast::ConPath {
+            segments: vec![ast::Name::new(class.class.clone(), span)],
+        };
+        let sig = self
+            .lookup_sig(&path)
+            .map_err(|e| Error::at(span, e.message))?;
+        let mname = match kind {
+            ast::SeqKind::Pure => "pure",
+            ast::SeqKind::Bind => "bind",
+        };
+        let (idx, mscheme) = sig
+            .methods
+            .iter()
+            .enumerate()
+            .find(|(_, (n, _))| n == mname)
+            .map(|(i, (_, s))| (i, s.clone()))
+            .ok_or_else(|| {
+                Error::at(
+                    span,
+                    format!("sequencing provider {} has no {mname} method", class.class),
+                )
+            })?;
+        let (ty, ctx) = self.instantiate(&mscheme);
+        let mut holes = Vec::new();
+        for (_, c) in &ctx {
+            let id = self.new_want(c.clone(), span, env);
+            holes.push(ECore::Hole(id));
+        }
+        let dict = holes.remove(0);
+        let core = if holes.is_empty() {
+            ECore::DictProj(Box::new(dict), idx)
+        } else {
+            app_spine(ECore::DictProj(Box::new(dict), idx), holes)
+        };
+        Ok((core, ty))
+    }
+
+    /// Is `name` the selected provider's `pure` form (decision D22)? A
+    /// local or user definition of the same name shadows it.
+    fn is_provider_pure(&self, env: &Env, name: &str) -> bool {
+        if name != "pure" || env.lookup(name).is_some() {
+            return false;
+        }
+        match self.lookup_value(None, name) {
+            Ok(v) => match &v.kind {
+                ValueKind::Method { .. } => v
+                    .scheme
+                    .ctx
+                    .first()
+                    .map(|(_, c)| SEQ_CLASSES.contains(&c.class.as_str()))
+                    .unwrap_or(false),
+                _ => false,
+            },
+            Err(_) => true,
+        }
+    }
+
+    /// Bind a capability name to a value of type `Io r` (decision D21):
+    /// the binder is both a term-level value and a solver-visible provider.
+    fn bind_capability(
+        &mut self,
+        env: &mut Env,
+        name: &ast::Name,
+        core: ECore,
+        ty: Ty,
+        span: ast::Span,
+    ) -> Result<(LocalId, ECore, String)> {
+        let z = self.uni.zonk(&ty);
+        let region = match &z {
+            Ty::Adt(n, args) if n == "Io" && args.len() == 1 => match &args[0] {
+                Ty::Region(r) => r.clone(),
+                other => {
+                    return Err(Error::at(
+                        span,
+                        format!(
+                            "a capability's argument is a runtime identity, got {other}"
+                        ),
+                    ))
+                }
+            },
+            Ty::Meta(_) => {
+                let r = self.fresh_region();
+                self.uni.note_flex_region(&r);
+                self.uni
+                    .unify(&ty, &Ty::Adt("Io".into(), vec![Ty::Region(r.clone())]))
+                    .map_err(|m| Error::at(span, m))?;
+                r
+            }
+            other => {
+                return Err(Error::at(
+                    span,
+                    format!(
+                        "capability supply {} must have type `Io r`, got {other}",
+                        name.text
+                    ),
+                ))
+            }
+        };
+        let l = self.fresh_local();
+        self.bind_local(
+            env,
+            &name.text,
+            l,
+            Scheme::mono(Ty::Adt("Io".into(), vec![Ty::Region(region.clone())])),
+            Some(Mult::Many),
+            span,
+        )?;
+        env.dicts
+            .push((l, ClassApp { class: "Io".into(), args: vec![Ty::Region(region.clone())] }));
+        Ok((l, core, region))
+    }
+
+    /// A capability for a still-flex runtime identity must not leak that
+    /// identity through the supply's scope (design section 4).
+    fn check_cap_escape(&mut self, region: &str, ty: &Ty, span: ast::Span) -> Result<()> {
+        let r = self.uni.resolve_region(region);
+        if !self.uni.is_flex_region(&r) {
+            return Ok(());
+        }
+        let t = self.uni.zonk(ty);
+        let mut regions = Vec::new();
+        escape_regions(&t, &mut regions);
+        if regions.iter().any(|x| self.uni.resolve_region(x) == r) {
+            return Err(Error::at(
+                span,
+                format!(
+                    "runtime identity {r} escapes its capability scope; package the runtime to let it out"
+                ),
+            ));
+        }
+        Ok(())
+    }
+
+    /// `f @{io = e}`: explicit capability supplies at a call (decision
+    /// D21). Named capability parameters take the supplies; the rest are
+    /// solved as usual.
+    fn cap_apply(
+        &mut self,
+        env: &mut Env,
+        head: &ast::Term,
+        supplies: &[(ast::Name, ast::Term)],
+        span: ast::Span,
+    ) -> Result<(ECore, Ty)> {
+        let v = match head {
+            ast::Term::Var(p) => self.resolve_var(p, p.span())?,
+            other => {
+                return Err(Error::at(
+                    other.span(),
+                    "explicit capability supplies apply to a named function",
+                ))
+            }
+        };
+        if matches!(v.kind, ValueKind::EffectOp { .. }) {
+            return Err(Error::at(
+                span,
+                format!("effect operation {} must be applied", v.name),
+            ));
+        }
+        if matches!(v.kind, ValueKind::BoolLit(_)) {
+            return Err(Error::at(span, "a boolean literal takes no capability supplies"));
+        }
+        let (ty, ctx) = self.instantiate(&v.scheme);
+        let mut holes = Vec::new();
+        for (n, c) in &ctx {
+            if is_capability_class(&c.class) {
+                if let Some((_, term)) = supplies.iter().find(|(sn, _)| &sn.text == n) {
+                    let want = Ty::Adt(c.class.clone(), c.args.clone());
+                    holes.push(self.check(env, term, &want)?);
+                    continue;
+                }
+            }
+            let id = self.new_want(c.clone(), span, env);
+            holes.push(ECore::Hole(id));
+        }
+        for (sn, _) in supplies {
+            if !ctx
+                .iter()
+                .any(|(n, c)| &sn.text == n && is_capability_class(&c.class))
+            {
+                return Err(Error::at(
+                    sn.span,
+                    format!("{} has no capability parameter {}", v.name, sn.text),
+                ));
+            }
+        }
+        let core = match &v.kind {
+            ValueKind::TopFn => ECore::Global(fn_id(&v.module, &v.name)),
+            ValueKind::Prim(op) => ECore::Prim(*op),
+            ValueKind::Ctor { .. } => ECore::Ctor(fn_id(&v.module, &v.name)),
+            ValueKind::Method { idx, .. } => {
+                let dict = holes.remove(0);
+                ECore::DictProj(Box::new(dict), *idx)
+            }
+            ValueKind::BoolLit(_) | ValueKind::EffectOp { .. } => {
+                return Err(Error::at(span, "this value takes no capability supplies"))
+            }
+        };
+        let core = if holes.is_empty() { core } else { app_spine(core, holes) };
+        Ok((core, ty))
+    }
+}
+
+/// The immediate subterms of a container form, in evaluation order.
+fn immediate_subterms(t: &ast::Term) -> Vec<ast::Term> {
+    match t {
+        ast::Term::Ann(e, _, _) | ast::Term::Proj(e, _, _) => vec![(**e).clone()],
+        ast::Term::Tuple(items, _) | ast::Term::List(items, _) => items.clone(),
+        ast::Term::Record(_, fields, _) => {
+            fields.iter().map(|(_, x)| x.clone()).collect()
+        }
+        ast::Term::CapApply { head, supplies, .. } => {
+            let mut v = vec![(**head).clone()];
+            v.extend(supplies.iter().map(|(_, x)| x.clone()));
+            v
+        }
+        _ => Vec::new(),
+    }
+}
+
+/// Rebuild a container form with its immediate subterms replaced by
+/// variable references to already-evaluated locals.
+fn replace_subterms(t: &ast::Term, names: &[String]) -> ast::Term {
+    let span = t.span();
+    let mk = |n: &String| {
+        ast::Term::Var(ast::VarPath {
+            quals: Vec::new(),
+            name: ast::Name::new(n.clone(), span),
+        })
+    };
+    match t {
+        ast::Term::Ann(_, ty, s) => {
+            ast::Term::Ann(Box::new(mk(&names[0])), ty.clone(), *s)
+        }
+        ast::Term::Proj(_, f, s) => {
+            ast::Term::Proj(Box::new(mk(&names[0])), f.clone(), *s)
+        }
+        ast::Term::Tuple(_, s) => ast::Term::Tuple(names.iter().map(mk).collect(), *s),
+        ast::Term::List(_, s) => ast::Term::List(names.iter().map(mk).collect(), *s),
+        ast::Term::Record(p, fields, s) => ast::Term::Record(
+            p.clone(),
+            fields
+                .iter()
+                .zip(names.iter())
+                .map(|((n, _), nn)| (n.clone(), mk(nn)))
+                .collect(),
+            *s,
+        ),
+        ast::Term::CapApply { supplies, .. } => ast::Term::CapApply {
+            head: Box::new(mk(&names[0])),
+            supplies: supplies
+                .iter()
+                .zip(names.iter().skip(1))
+                .map(|((n, _), nn)| (n.clone(), mk(nn)))
+                .collect(),
+            span,
+        },
+        _ => t.clone(),
     }
 }
 
