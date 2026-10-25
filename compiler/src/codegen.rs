@@ -2307,6 +2307,7 @@ mod tests {
 
     fn fndef(id: &str, ps: &[&str], body: Core) -> FnDef {
         FnDef {
+            meta: crate::core::FnMeta::default(),
             id: gid(id),
             params: ps.iter().map(|s| s.to_string()).collect(),
             body,
@@ -2318,6 +2319,7 @@ mod tests {
 
     fn prim_fn(id: &str, ps: &[&str], op: PrimOp) -> FnDef {
         FnDef {
+            meta: crate::core::FnMeta::default(),
             id: gid(id),
             params: ps.iter().map(|s| s.to_string()).collect(),
             body: Core::Unit,
@@ -2329,6 +2331,7 @@ mod tests {
 
     fn ctor_fn(id: &str, ps: &[&str], tag: usize, fields: usize) -> FnDef {
         FnDef {
+            meta: crate::core::FnMeta::default(),
             id: gid(id),
             params: ps.iter().map(|s| s.to_string()).collect(),
             body: Core::Unit,
@@ -2393,6 +2396,7 @@ mod tests {
     fn main_prog(mut fns: Vec<FnDef>, body: Core) -> Program {
         fns.push(thunk("program.main", body));
         Program {
+            rewrites: Vec::new(),
             fns,
             instances: vec![],
             main: Some(gid("program.main")),

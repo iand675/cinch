@@ -364,6 +364,7 @@ impl Checker {
             prim: None,
             ctor: None,
             hints: crate::core::FnHints::default(),
+                    meta: crate::core::FnMeta::default(),
         });
         self.install_index_families();
         self.install_staging_api();
@@ -814,6 +815,7 @@ impl Checker {
                 prim: None,
                 ctor: Some((tag, runtime_arity)),
                 hints: crate::core::FnHints::default(),
+                    meta: crate::core::FnMeta::default(),
             });
             ctor_names.push((cname, tag));
         }
@@ -851,6 +853,7 @@ impl Checker {
             prim: None,
             ctor: None,
             hints: crate::core::FnHints::default(),
+                    meta: crate::core::FnMeta::default(),
         });
         let length = ValueInfo {
             module: "<builtin>".to_string(),
@@ -870,6 +873,7 @@ impl Checker {
             prim: None,
             ctor: None,
             hints: crate::core::FnHints::default(),
+                    meta: crate::core::FnMeta::default(),
         });
         // `Vec.getCopy`: copy the element at a `Fin` index out of a
         // borrowed vector (the acceptance probe's safe element access).
@@ -967,6 +971,7 @@ impl Checker {
             prim: None,
             ctor: None,
             hints: crate::core::FnHints::default(),
+                    meta: crate::core::FnMeta::default(),
         });
         self.fns.push(FnDef {
             id: GlobalId("<builtin>.getCopy".to_string()),
@@ -987,6 +992,71 @@ impl Checker {
             prim: None,
             ctor: None,
             hints: crate::core::FnHints::default(),
+                    meta: crate::core::FnMeta::default(),
+        });
+        // `vecStream`/`vecStreamStep` (P10): a producer over a borrowed
+        // `Vec` for the target library's scalar sum. The step is the same
+        // block walk as `Vec.getCopy`, producing the step form of
+        // modules and compilation specification section 6.
+        let step_gid = GlobalId("<builtin>.vecStreamStep".to_string());
+        let done_gid = GlobalId("Prelude.Done".to_string());
+        let yield_gid = GlobalId("Prelude.Yield".to_string());
+        let step_walk = crate::core::Core::Case {
+            scrut: Box::new(crate::core::Core::Var(LocalId(0))),
+            alts: vec![
+                CAlt::new(
+                    CPat::Con { tag: 0, fields: vec![] },
+                    crate::core::Core::App(Box::new(crate::core::Core::Ctor(done_gid)), vec![]),
+                ),
+                CAlt::new(
+                    CPat::Con { tag: 1, fields: vec![LocalId(1), LocalId(2)] },
+                    crate::core::Core::App(
+                        Box::new(crate::core::Core::Ctor(yield_gid)),
+                        vec![
+                            crate::core::Core::Var(LocalId(1)),
+                            crate::core::Core::Var(LocalId(2)),
+                        ],
+                    ),
+                ),
+            ],
+        };
+        let vec_ty = Ty::Adt(
+            "Vec".to_string(),
+            vec![
+                Ty::Idx(Box::new(ITerm::Var("n".to_string()))),
+                Ty::Param("a".to_string()),
+            ],
+        );
+        let ref_ty = Ty::Ref("region".to_string(), Box::new(vec_ty.clone()));
+        let step_ty = Ty::Adt(
+            "Step".to_string(),
+            vec![ref_ty.clone(), Ty::Param("a".to_string())],
+        );
+        let step_value = ValueInfo {
+            module: "<builtin>".to_string(),
+            name: "vecStreamStep".to_string(),
+            scheme: Scheme {
+                params: vec!["a".to_string()],
+                idx_params: vec![IxParam::Val("n".to_string(), Ty::Nat)],
+                val_params: Vec::new(),
+                prop_params: Vec::new(),
+                row_params: Vec::new(),
+                region_params: vec!["region".to_string()],
+                ctx: Vec::new(),
+                ty: Ty::fun_mult(ref_ty, Mult::Many, EffRow::pure(), step_ty),
+            },
+            kind: ValueKind::TopFn,
+        };
+        self.add_value(step_value, ast::Span { line: 0, col: 0 })
+            .expect("builtin");
+        self.fns.push(FnDef {
+            id: step_gid,
+            params: vec!["v".to_string()],
+            body: step_walk,
+            prim: None,
+            ctor: None,
+            hints: crate::core::FnHints::default(),
+                    meta: crate::core::FnMeta::default(),
         });
         // Evidence constructors (core specification section 3): `refl`
         // proves `Eq x x`, `congr` lifts equality across a named total
@@ -1295,6 +1365,27 @@ impl Checker {
                         }
                         _ => {}
                     }
+                    // Register the value now: later declarations'
+                    // signatures may reference it in index position (a
+                    // proposition's `Eq` arguments name total
+                    // definitions).
+                    let key = (module.clone(), name.text.clone());
+                    let kind = if self.macros.contains_key(&key) {
+                        ValueKind::MacroFn
+                    } else if self.staging.contains(&key) {
+                        ValueKind::StageFn
+                    } else {
+                        ValueKind::TopFn
+                    };
+                    self.add_value(
+                        ValueInfo {
+                            module: module.clone(),
+                            name: name.text.clone(),
+                            scheme: s.clone(),
+                            kind,
+                        },
+                        *span,
+                    )?;
                     schemes.insert(name.text.clone(), s);
                 }
                 ast::Decl::Equation { modifier, eq } => {
@@ -2207,7 +2298,14 @@ impl Checker {
                             self.qualified
                                 .insert((module.clone(), mname.text.clone()), info);
                         } else {
-                            self.add_value(info, mname.span)?;
+                            self.add_value(info.clone(), mname.span)?;
+                            // The `Signature.method` spelling: a law or
+                            // operation method resolves by its
+                            // signature's name as well as its module's
+                            // (modules and compilation specification
+                            // section 5).
+                            self.qualified
+                                .insert((sig.name.text.clone(), mname.text.clone()), info);
                         }
                     }
                     let info = SigInfo {
@@ -2216,6 +2314,22 @@ impl Checker {
                         params,
                         methods,
                     };
+                    // A class application is also the dictionary's type:
+                    // `(vectors :: VecU32Target t w)` names the class as
+                    // a type former (the capability binder rule of
+                    // decision D21 already builds `Ty::Adt(class, args)`).
+                    let tk = TypeKind {
+                        module: module.clone(),
+                        name: sig.name.text.clone(),
+                        arity: info.params.len(),
+                        param_kinds: vec![ParamKind::Type; info.params.len()],
+                        ctors: Vec::new(),
+                        fields: None,
+                        field_erased: Vec::new(),
+                    };
+                    self.types.entry(sig.name.text.clone()).or_default().push(tk.clone());
+                    self.qualified_types
+                        .insert((module.clone(), sig.name.text.clone()), tk);
                     self.sigs.entry(sig.name.text.clone()).or_default().push(info.clone());
                     self.qualified_sigs.insert((module.clone(), sig.name.text.clone()), info);
                 }
@@ -2377,33 +2491,19 @@ impl Checker {
                         span: *span,
                     });
                 }
+                ast::Decl::Rewrite(r) => {
+                    // Rewrite rules are checked after the module's other
+                    // declarations (their `match`, `replace` and
+                    // `justify` reference the module's names).
+                    self.pending_rewrites.push((module.clone(), r.clone()));
+                }
             }
         }
 
         // Top-level values resolve by name from other bodies, including
-        // their own (recursion). `stage` and `macro` definitions are the
-        // compile-time-only fragment (staging, P9).
-        for (name, scheme) in &schemes {
-            let key = (module.clone(), name.clone());
-            let kind = if self.macros.contains_key(&key) {
-                ValueKind::MacroFn
-            } else if self.staging.contains(&key) {
-                ValueKind::StageFn
-            } else {
-                ValueKind::TopFn
-            };
-            self.add_value(
-                ValueInfo {
-                    module: module.clone(),
-                    name: name.clone(),
-                    scheme: scheme.clone(),
-                    kind,
-                },
-                m.name.span,
-            )?;
-        }
-
-        // Every equation needs a signature; every signature needs an equation.
+        // their own (recursion): they are registered as their signature
+        // is collected. Every equation needs a signature; every signature
+        // needs an equation.
         for (name, eq) in &eqs {
             if !schemes.contains_key(name) {
                 return Err(Error::at(
@@ -2669,6 +2769,7 @@ impl Checker {
                     prim: None,
                     ctor: Some((*tag, runtime_arity)),
                     hints: crate::core::FnHints::default(),
+                    meta: crate::core::FnMeta::default(),
                 });
             }
         }
@@ -3322,13 +3423,19 @@ impl Checker {
         self.smaller.clear();
         let mut env = Env::default();
         let mut param_ids = Vec::new();
+        // Optimizer metadata (supercompilation and JIT specification
+        // sections 3-4): which parameters are dictionaries, carry a usage
+        // multiplicity, or are honest pure callbacks.
+        let mut dict_meta: Vec<(LocalId, String)> = Vec::new();
         for (l, c) in extra_dicts {
-            env.dicts.push((l, c));
+            env.dicts.push((l, c.clone()));
+            dict_meta.push((l, c.class.clone()));
             param_ids.push(l);
         }
         for (n, c) in &ctx {
             let l = self.fresh_local();
             env.dicts.push((l, c.clone()));
+            dict_meta.push((l, c.class.clone()));
             if is_capability_class(&c.class) {
                 // A capability binder is a term-level value too: `f @{io =
                 // io}` and `with (io = io) in ...` name it (decision D21).
@@ -3495,6 +3602,27 @@ impl Checker {
             })
             .collect::<Result<Vec<_>>>()?;
         let covered = self.matrix_covered(&rows, &doms)?;
+        // Optimizer metadata for this code generation unit: usage
+        // multiplicities of the runtime parameters, honest pure callback
+        // parameters, and capability dictionaries (supercompilation and
+        // JIT specification sections 3-4). The unit's own purity is set
+        // once the body's performed effects are known.
+        let mut meta = crate::core::FnMeta::default();
+        for (i, l) in value_params.iter().enumerate() {
+            if let Some(pos) = param_ids.iter().position(|p| p == l) {
+                if matches!(mults[i], Mult::One | Mult::Aff) {
+                    meta.linear.push((pos, mults[i]));
+                }
+                if pure_arrow_ty(&doms[i]) {
+                    meta.pure_arrows.push(pos);
+                }
+            }
+        }
+        for (l, c) in &dict_meta {
+            if let Some(pos) = param_ids.iter().position(|p| p == l) {
+                meta.dicts.push((pos, c.clone()));
+            }
+        }
         // The body runs at the last application, so its effects belong to
         // the last arrow; intermediate arrows are pure closure construction,
         // and a nullary definition is pure.
@@ -3544,6 +3672,7 @@ impl Checker {
         }
         }
         self.check_usage()?;
+        meta.pure = self.uni.resolve_row(&performed).is_pure();
         if logical {
             // The logical fragment is total, pure and erased (core
             // specification sections 3 and 8): a looping function cannot
@@ -3562,11 +3691,11 @@ impl Checker {
                 std::mem::take(&mut self.pending_refs),
             );
             self.current_logical = None;
-            return self.finish_fn(id.clone(), param_ids, body, None, None, true);
+            return self.finish_fn(id.clone(), param_ids, body, None, None, true, meta);
         }
         self.pending_refs.clear();
         self.current_logical = None;
-        self.finish_fn(id.clone(), param_ids, body, None, None, false)
+        self.finish_fn(id.clone(), param_ids, body, None, None, false, meta)
     }
 
     /// Structural termination for the logical fragment (core
@@ -3732,6 +3861,7 @@ impl Checker {
         prim: Option<PrimOp>,
         ctor: Option<(usize, usize)>,
         erased: bool,
+        meta: crate::core::FnMeta,
     ) -> Result<()> {
         let sol = self.solve_wants()?;
         body = self.fill_holes(&body, &sol)?;
@@ -3747,7 +3877,7 @@ impl Checker {
             // Hint attributes ride the function's code generation unit
             // (attribute annotations specification section 5).
             let hints = self.fn_hints.get(&id.0).copied().unwrap_or_default();
-            self.fns.push(finalize_fn(id, param_ids, body, prim, ctor, hints));
+            self.fns.push(finalize_fn(id, param_ids, body, prim, ctor, hints, meta));
             for h in hoisted {
                 self.fns.push(finalize_fn(
                     h.id,
@@ -3756,10 +3886,563 @@ impl Checker {
                     None,
                     None,
                     crate::core::FnHints::default(),
+                    crate::core::FnMeta::default(),
                 ));
             }
         }
         Ok(())
+    }
+
+    /// The dotted presentation forms of the primitive spec (decision D6)
+    /// and of the P10 target library: `U32.wrappingAdd` for
+    /// `wrappingAddU32`, `Stream.fold` for the producer library's fold,
+    /// and the scalar/SIMD pair's qualified spellings.
+    fn install_presentation_aliases(&mut self) {
+        let aliases: [((&str, &str), (&str, &str)); 9] = [
+            (("U32", "zero"), ("Prelude", "zeroU32")),
+            (("U32", "wrappingAdd"), ("Prelude", "wrappingAddU32")),
+            (("Vec", "stream"), ("Prelude", "vecStream")),
+            (("Stream", "fold"), ("Prelude", "prodFold")),
+            (("Stream", "map"), ("Prelude", "prodMap")),
+            (("Scalar", "sumWrap32"), ("Prelude", "scalarSumWrap32")),
+            (("Simd", "sumWrap32"), ("Prelude", "simdSumWrap32")),
+            (("Target", "detectVecU32"), ("Prelude", "detectVecU32")),
+            (("SumProofs", "scalarToSimd"), ("Prelude", "scalarToSimd")),
+        ];
+        for ((qm, qn), (m, n)) in aliases {
+            if let Some(v) = self.qualified.get(&(m.to_string(), n.to_string())).cloned() {
+                self.qualified.insert((qm.to_string(), qn.to_string()), v);
+            }
+        }
+    }
+
+    /// Check every rewrite declaration in source order (modules and
+    /// compilation specification section 5). The declarations reference
+    /// their module's names, so they are checked after the ordinary
+    /// declarations.
+    fn check_rewrites(&mut self) -> Result<()> {
+        let pending = std::mem::take(&mut self.pending_rewrites);
+        for (module, r) in pending {
+            self.current_module = module.clone();
+            self.visible = vec![module.clone()];
+            if let Some(imports) = self.module_imports.get(&module).cloned() {
+                for i in imports {
+                    if !self.visible.contains(&i) {
+                        self.visible.push(i);
+                    }
+                }
+            }
+            let prelude = self.prelude_module.clone();
+            if !self.visible.contains(&prelude) {
+                self.visible.push(prelude);
+            }
+            self.check_rewrite(&r)?;
+        }
+        Ok(())
+    }
+
+    /// Check one rewrite declaration. The justification mechanism
+    /// (decision D55): `justify` must check under the rule's equation,
+    /// either through the ordinary proof checker (`refl`, `congr`, and
+    /// declared `proof`/`spec` functions) or as a law method of a
+    /// `signature`, whose declared type is the checked obligation and
+    /// whose identity is recorded in the manifest's `assumptions.declared`
+    /// when no instance discharges it. In every case the rule must
+    /// preserve types, satisfy the resource side conditions, avoid
+    /// effectful instantiations its pure equation does not authorize
+    /// (modules section 5), and never extend definitional equality
+    /// (conversion stays exactly the D28 rules).
+    fn check_rewrite(&mut self, r: &ast::RewriteDecl) -> Result<()> {
+        self.reset_usage();
+        self.kind_constraints.borrow_mut().clear();
+        let span = r.span;
+        let mut names: Vec<String> = Vec::new();
+        for b in &r.binders {
+            if names.contains(&b.name.text) {
+                return Err(Error::at(b.name.span, "duplicate rewrite binder"));
+            }
+            names.push(b.name.text.clone());
+        }
+        for c in &r.ctx {
+            if names.contains(&c.name.text) {
+                return Err(Error::at(c.span, "duplicate rewrite binder"));
+            }
+            names.push(c.name.text.clone());
+        }
+        // Binder hints from their annotations, and the class constraints
+        // of the `using` clause, record how each bare binder is used.
+        let mut hints: Vec<(String, Option<ParamKind>)> = Vec::new();
+        for b in &r.binders {
+            let hint = match &b.ann {
+                Some(ann) => Some(self.binder_kind(ann, &names)?),
+                None => None,
+            };
+            hints.push((b.name.text.clone(), hint));
+        }
+        let mut ctx: Vec<(String, ClassApp)> = Vec::new();
+        let mut ctx_tys: Vec<Ty> = Vec::new();
+        for c in &r.ctx {
+            let (n, app) = self.conv_class(c, &names)?;
+            ctx_tys.extend(app.args.iter().cloned());
+            ctx.push((n, app));
+        }
+        // Region and row names from the annotations and constraints.
+        let mut region_params: Vec<String> = Vec::new();
+        let mut row_params: Vec<String> = Vec::new();
+        let mut ann_tys: Vec<Ty> = Vec::new();
+        for b in &r.binders {
+            if let Some(ann) = &b.ann {
+                let t = self.conv_type(ann, &names)?;
+                ann_tys.push(t);
+            }
+        }
+        for t in ann_tys.iter().chain(ctx_tys.iter()) {
+            collect_row_names(t, &mut row_params, &mut region_params);
+            let mut regs: Vec<(String, bool)> = Vec::new();
+            borrow_regions(t, &mut regs);
+            for (rr, _) in regs {
+                if !region_params.contains(&rr) {
+                    region_params.push(rr);
+                }
+            }
+        }
+        // Classify the bare binders by how they are used (decision D29).
+        let constraints = self.kind_constraints.borrow().clone();
+        let mut kinds: HashMap<String, ParamKind> = HashMap::new();
+        for (name, hint) in &hints {
+            if row_params.contains(name) || region_params.contains(name) {
+                continue;
+            }
+            let uses: Vec<ParamKind> = constraints
+                .iter()
+                .filter(|(n, _)| n == name)
+                .map(|(_, k)| k.clone())
+                .collect();
+            let axis = |k: &ParamKind| match k {
+                ParamKind::Type => 0u8,
+                ParamKind::Val(_) => 1,
+                ParamKind::Prop => 2,
+            };
+            let mut distinct_axis: Option<u8> = None;
+            let mut first_val: Option<ParamKind> = None;
+            for k in &uses {
+                match distinct_axis {
+                    None => distinct_axis = Some(axis(k)),
+                    Some(prev) if prev != axis(k) => distinct_axis = None,
+                    _ => {}
+                }
+                if first_val.is_none() && matches!(k, ParamKind::Val(_)) {
+                    first_val = Some(k.clone());
+                }
+            }
+            let kind = match (hint, distinct_axis) {
+                (Some(h), _) => h.clone(),
+                (None, Some(1)) => first_val.unwrap_or(ParamKind::Type),
+                (None, Some(2)) => ParamKind::Prop,
+                (None, _) => ParamKind::Type,
+            };
+            kinds.insert(name.clone(), kind);
+        }
+        // The rule's local environment: value binders and dictionaries
+        // are term-level locals (a rule's template consumes both), type
+        // and proposition binders are rigid names in the converted types.
+        let mut env = Env::default();
+        let mut lids: HashMap<String, LocalId> = HashMap::new();
+        for (name, hint) in &hints {
+            let l = self.fresh_local();
+            lids.insert(name.clone(), l);
+            let ty = match kinds.get(name) {
+                Some(ParamKind::Val(t)) => t.clone(),
+                Some(ParamKind::Prop) => {
+                    Ty::Prp(Box::new(PTerm::Var(name.clone())))
+                }
+                _ => Ty::Param(name.clone()),
+            };
+            if matches!(kinds.get(name), Some(ParamKind::Val(_)) | Some(ParamKind::Prop)) {
+                self.bind_local(&mut env, name, l, Scheme::mono(ty), None, span)?;
+            }
+            let _ = hint;
+        }
+        let mut ctx_lids: Vec<(String, LocalId, ClassApp)> = Vec::new();
+        for (n, app) in &ctx {
+            let l = self.fresh_local();
+            let ty = Ty::Adt(app.class.clone(), app.args.clone());
+            self.bind_local(&mut env, n, l, Scheme::mono(ty), None, span)?;
+            env.dicts.push((l, app.clone()));
+            lids.insert(n.clone(), l);
+            ctx_lids.push((n.clone(), l, app.clone()));
+        }
+        // Elaborate the four terms in this context, recording the effects
+        // each performs.
+        let saved = self.enter_perf();
+        let (match_ec, match_ty) = self.infer(&mut env, &r.match_tm)?;
+        let match_perf = self.exit_perf(saved);
+        let saved = self.enter_perf();
+        let (replace_ec, replace_ty) = self.infer(&mut env, &r.replace_tm)?;
+        let replace_perf = self.exit_perf(saved);
+        let require_pair = match &r.require {
+            Some(req) => {
+                let saved = self.enter_perf();
+                let (ec, ty) = self.infer(&mut env, req)?;
+                let perf = self.exit_perf(saved);
+                Some((ec, ty, perf, req.clone()))
+            }
+            None => None,
+        };
+        // Type preservation: the replacement must have the pattern's
+        // type (modules section 5: the substitution must satisfy the
+        // theorem's type and effect conditions).
+        self.uni
+            .unify(&match_ty, &replace_ty)
+            .map_err(|m| Error::at(span, format!("the `replace` term must have the `match` term's type: {m}")))?;
+        let mty = self.uni.zonk(&match_ty);
+        // Definitional equality is exactly the D28 rules: a rule over
+        // erased evidence would break proof irrelevance, and a rule over
+        // types would make a source type mean something else.
+        match &mty {
+            Ty::Prp(_) => {
+                return Err(Error::at(
+                    span,
+                    "a rewrite over erased evidence would change definitional equality (proof irrelevance) and resurrect erased components",
+                ))
+            }
+            Ty::Sort(_) => {
+                return Err(Error::at(
+                    span,
+                    "a rewrite over types would change definitional equality: the pattern's type is a universe",
+                ))
+            }
+            _ => {}
+        }
+        // The rule's own instantiation is pure: the equation is `Eq`, and
+        // a theorem proved for pure values must not be reused for
+        // effectful computations (modules section 5). Constraining the
+        // performed row to empty also rejects row-polymorphic rules,
+        // whose callbacks can perform anything.
+        for (what, perf) in [
+            ("`match`", match_perf),
+            ("`replace`", replace_perf),
+            ("`require`", require_pair.as_ref().map(|p| p.2.clone()).unwrap_or_else(EffRow::pure)),
+        ] {
+            self.uni.unify_rows(&perf, &EffRow::pure()).map_err(|_| {
+                Error::at(
+                    span,
+                    format!(
+                        "an effectful rewrite rule needs an observational-equivalence justification, which the proof kernel does not express in this slice: the {what} term performs effects, and pure `Eq` evidence does not authorize reordering them"
+                    ),
+                )
+            })?;
+        }
+        // The rule's equation over index values: the same reification the
+        // proposition language uses (decision D29).
+        let lhs = self.idx_of_term(&r.match_tm, &env)?;
+        let rhs = self.idx_of_term(&r.replace_tm, &env)?;
+        let mut lhs_vars: Vec<String> = Vec::new();
+        lhs.free_vars(&mut lhs_vars);
+        let mut rhs_vars: Vec<String> = Vec::new();
+        rhs.free_vars(&mut rhs_vars);
+        // The pattern must be headed by a defined unit: a bare variable
+        // pattern would rewrite every term of its type and change
+        // definitional equality.
+        let mut head: &ECore = &match_ec;
+        while let ECore::App(f, _) = head {
+            head = f;
+        }
+        match head {
+            ECore::Global(_) | ECore::Ctor(_) | ECore::Prim(_) => {}
+            _ => {
+                return Err(Error::at(
+                    r.match_tm.span(),
+                    "the rule's `match` pattern must be headed by a defined function, constructor, or primitive: a bare variable pattern would change definitional equality",
+                ))
+            }
+        }
+        // Resource side conditions: the template's free variables are
+        // bound by the pattern or the `using` context, and a linear
+        // binder is consumed exactly once by the template (a rule must
+        // not duplicate or drop a `%1`/`%aff` value).
+        let dict_names: Vec<String> = ctx_lids.iter().map(|(n, _, _)| n.clone()).collect();
+        for v in rhs_vars.iter().chain(std::iter::empty()) {
+            if !lhs_vars.contains(v) && !dict_names.contains(v) {
+                return Err(Error::at(
+                    span,
+                    format!(
+                        "the `replace` term mentions `{v}`, which the `match` pattern does not bind"
+                    ),
+                ));
+            }
+        }
+        for (name, l) in &lids {
+            if dict_names.contains(name) {
+                continue;
+            }
+            let ty = match kinds.get(name) {
+                Some(ParamKind::Val(t)) => t.clone(),
+                _ => continue,
+            };
+            if matches!(default_mult(&ty), Mult::One | Mult::Aff) {
+                let count = rhs_vars.iter().filter(|v| *v == name).count();
+                if count != 1 {
+                    return Err(Error::at(
+                        span,
+                        format!(
+                            "the `replace` term uses the linear binder `{name}` {count} times: a rewrite must not duplicate or drop a `%1`/`%aff` value"
+                        ),
+                    ));
+                }
+            }
+            let _ = l;
+        }
+        // Every pattern variable the rule fires on must be a binder of
+        // the rule; unused binders are fine (they appear only in the
+        // condition or the justification).
+        for v in &lhs_vars {
+            if !lids.contains_key(v) {
+                return Err(Error::at(
+                    span,
+                    format!("the `match` pattern mentions `{v}`, which is not a rewrite binder"),
+                ));
+            }
+        }
+        // The justification: checked evidence under the rule's equation.
+        let eq = PTerm::Eq(Box::new(lhs), Box::new(rhs));
+        let assumptions = self.check_justify(&mut env, &r.justify, &eq, span)?;
+        // The `require` clause's operative form (platform section 3).
+        let cond = match &require_pair {
+            None => crate::core::RequireCond::Always,
+            Some((_, ty, _, _)) => {
+                if matches!(self.uni.zonk(ty), Ty::Prp(_)) {
+                    return Err(Error::at(
+                        span,
+                        "a `require` condition is operational evidence, not a proof: it must have a runtime type",
+                    ));
+                }
+                crate::core::RequireCond::Unknown
+            }
+        };
+        // Lower the pattern and template (decision D28: beta at
+        // elaboration; the holes are the rule's binder locals). Literal
+        // words and implicit index arguments resolve positionally across
+        // all four terms at once.
+        let sol = self.solve_wants()?;
+        let mut m = match_ec;
+        let mut rp = replace_ec;
+        let mut req_ec = require_pair.as_ref().map(|p| p.0.clone());
+        m = self.fill_holes(&m, &sol)?;
+        rp = self.fill_holes(&rp, &sol)?;
+        if let Some(req) = &mut req_ec {
+            *req = self.fill_holes(req, &sol)?;
+        }
+        let lit_pends = std::mem::take(&mut self.literal_pends);
+        let mut lits: Vec<ECore> = Vec::with_capacity(lit_pends.len());
+        for p in &lit_pends {
+            let t = self.uni.zonk(&p.ty);
+            if matches!(t, Ty::Meta(_)) {
+                return Err(Error::at(
+                    p.span,
+                    "the type of this integer literal is not determined by context; add a type annotation",
+                ));
+            }
+            lits.push(self.literal_const(&t, &p.value, p.span)?);
+        }
+        let idx_pends = std::mem::take(&mut self.idx_pends);
+        let mut vals: Vec<ECore> = Vec::with_capacity(idx_pends.len());
+        for p in &idx_pends {
+            vals.push(self.reify_idx(&p.iterm, &p.names, p.nat, p.span)?);
+        }
+        for body in [&mut m, &mut rp] {
+            resolve_lit_words(body, &lits);
+            resolve_idx_words(body, &vals);
+        }
+        if let Some(req) = &mut req_ec {
+            resolve_lit_words(req, &lits);
+            resolve_idx_words(req, &vals);
+        }
+        let mut hoisted = Vec::new();
+        let rule_unit = GlobalId(format!("{}.rewrite.{}", self.current_module, r.name.text));
+        hoist_lambdas(&mut m, &rule_unit.0, &mut self.lam_counter, &mut hoisted);
+        hoist_lambdas(&mut rp, &rule_unit.0, &mut self.lam_counter, &mut hoisted);
+        for h in hoisted {
+            self.fns.push(finalize_fn(
+                h.id,
+                h.params,
+                h.body,
+                None,
+                None,
+                crate::core::FnHints::default(),
+                crate::core::FnMeta::default(),
+            ));
+        }
+        let pattern = lower(&m);
+        let template = lower(&rp);
+        let require = req_ec.as_ref().map(|req| lower(req));
+        // The `require` clause's operative condition: `Available v` over a
+        // capability binder is valid exactly where that capability is in
+        // the firing function's validity scope.
+        let cond = match (&require, cond) {
+            (Some(req), crate::core::RequireCond::Unknown) => match req {
+                crate::core::Core::App(f, args) => match (&**f, args.as_slice()) {
+                    (
+                        crate::core::Core::Global(_) | crate::core::Core::Ctor(_),
+                        [crate::core::Core::Var(l)],
+                    ) if ctx_lids.iter().any(|(_, c, _)| c == l) => {
+                        let class = ctx_lids
+                            .iter()
+                            .find(|(_, c, _)| c == l)
+                            .map(|(_, _, a)| a.class.clone())
+                            .expect("ctx binder");
+                        crate::core::RequireCond::CapabilityInScope { hole: *l, class }
+                    }
+                    _ => crate::core::RequireCond::Unknown,
+                },
+                crate::core::Core::Bool(true) => crate::core::RequireCond::Always,
+                crate::core::Core::Bool(false) => crate::core::RequireCond::Never,
+                _ => crate::core::RequireCond::Unknown,
+            },
+            (_, other) => other,
+        };
+        // Pattern variables: every binder of the rule (a pattern position
+        // may be an implicit index argument the elaboration reified).
+        let mut holes: Vec<LocalId> = Vec::new();
+        for l in lids.values() {
+            holes.push(*l);
+        }
+        holes.sort_by_key(|l| l.0);
+        // Every binder the template or condition mentions must be bound
+        // at a match site: by the pattern or by a `using` capability.
+        let mut template_holes: Vec<LocalId> = Vec::new();
+        crate::core::walk_locals(&template, &mut |l: LocalId| {
+            if lids.values().any(|h| *h == l) {
+                template_holes.push(l);
+            }
+        });
+        let mut pattern_holes: Vec<LocalId> = Vec::new();
+        crate::core::walk_locals(&pattern, &mut |l: LocalId| {
+            if lids.values().any(|h| *h == l) {
+                pattern_holes.push(l);
+            }
+        });
+        for l in &template_holes {
+            if !pattern_holes.contains(l) && !ctx_lids.iter().any(|(_, c, _)| c == l) {
+                return Err(Error::at(
+                    span,
+                    "the `replace` term mentions a binder the `match` pattern does not bind",
+                ));
+            }
+        }
+        let pure_holes: Vec<LocalId> = r
+            .binders
+            .iter()
+            .filter(|b| {
+                kinds
+                    .get(&b.name.text)
+                    .map(|k| matches!(k, ParamKind::Val(t) if pure_arrow_ty(t)))
+                    .unwrap_or(false)
+            })
+            .filter_map(|b| lids.get(&b.name.text).copied())
+            .collect();
+        let dict_holes: Vec<(LocalId, String)> = ctx_lids
+            .iter()
+            .map(|(_, l, app)| (*l, app.class.clone()))
+            .collect();
+        self.rewrites.push(crate::core::RewriteRule {
+            name: r.name.text.clone(),
+            module: self.current_module.clone(),
+            target: r.target,
+            holes,
+            pattern,
+            template,
+            require,
+            cond,
+            pure_holes,
+            dict_holes,
+            assumptions,
+            line: r.span.line as u32,
+        });
+        Ok(())
+    }
+
+    /// `justify e`: checked evidence under the rule's equation (decision
+    /// D55). A law method of a `signature` is the checked obligation its
+    /// declared type states (platform proofs and SIMD specification
+    /// section 6: instruction laws); everything else is checked by the
+    /// ordinary proof kernel (`refl`, `congr`, `decide` extractions, and
+    /// declared `proof`/`spec` functions).
+    fn check_justify(
+        &mut self,
+        env: &mut Env,
+        tm: &ast::Term,
+        eq: &PTerm,
+        span: ast::Span,
+    ) -> Result<Vec<String>> {
+        let head: &ast::Term = match tm {
+            ast::Term::App(f, _, _) => f,
+            other => other,
+        };
+        if let ast::Term::Var(p) = head {
+            if let Ok(v) = self.resolve_var(p, p.span()) {
+                if matches!(v.kind, ValueKind::Method { .. }) {
+                    return self.check_law_justify(env, tm, &v, eq, span);
+                }
+            }
+        }
+        self.check_proof(env, tm, eq)?;
+        Ok(Vec::new())
+    }
+
+    /// A law method as justification: instantiate its declared type,
+    /// check the arguments, unify the resulting proposition with the
+    /// rule's equation, and record the law as a declared assumption when
+    /// no instance discharges it.
+    fn check_law_justify(
+        &mut self,
+        env: &mut Env,
+        tm: &ast::Term,
+        v: &ValueInfo,
+        eq: &PTerm,
+        span: ast::Span,
+    ) -> Result<Vec<String>> {
+        let args: Vec<ast::Term> = match tm {
+            ast::Term::App(_, args, _) => args.clone(),
+            _ => Vec::new(),
+        };
+        let (mut ty, _ctx, _) = self.instantiate(&v.scheme);
+        for a in &args {
+            let zt = self.uni.zonk(&ty);
+            let (var, dom, cod) = match zt {
+                Ty::Fun(d, _, _, c) => (String::from("$"), *d, *c),
+                Ty::Pi { var, dom, cod, .. } => (var, *dom, *cod),
+                other => {
+                    return Err(Error::at(
+                        a.span(),
+                        format!("the justification takes no further arguments (remaining type {other})"),
+                    ))
+                }
+            };
+            self.check(env, a, &dom)?;
+            let subst = self.idx_of_term(a, env)?;
+            ty = cod.subst_idx(&var, &subst);
+        }
+        let result = self.uni.zonk(&ty);
+        match result {
+            Ty::Prp(p) => {
+                self.uni.unify_prop(&p, eq).map_err(|m| {
+                    Error::at(
+                        span,
+                        format!(
+                            "the justification does not prove the rule's equation: it proves `p`, and the rule states `Eq` over its `match` and `replace` terms ({m})"
+                        ),
+                    )
+                })?;
+            }
+            other => {
+                return Err(Error::at(
+                    span,
+                    format!("the justification must state a proposition, but has type {other}"),
+                ))
+            }
+        }
+        Ok(vec![format!("{}.{}", v.module, v.name)])
     }
 
     fn finish(mut self, entry_modules: &[String], prelude_name: &str) -> Result<Program> {
@@ -3813,6 +4496,7 @@ impl Checker {
                 prim: None,
                 ctor: None,
                 hints: crate::core::FnHints::default(),
+                    meta: crate::core::FnMeta::default(),
             });
             main_exit = Some(exit_id);
         }
@@ -3820,6 +4504,7 @@ impl Checker {
             fns: self.fns,
             instances: self.instance_defs,
             main: main_exit,
+            rewrites: self.rewrites,
         })
     }
 }
@@ -4852,6 +5537,7 @@ pub fn check_program_multi_diag(
     let prelude_name = prelude.name.text.clone();
     c.prelude_module = prelude_name.clone();
     c.collect_module(prelude, &prelude_name, &[])?;
+    c.install_presentation_aliases();
     for m in modules {
         let imports = imports_of(m);
         c.collect_module(m, &prelude_name, &imports)?;
@@ -4877,6 +5563,9 @@ pub fn check_program_multi_diag(
         c.check_bodies(&m.name.text, &prelude_name)?;
     }
     c.check_instance_coherence()?;
+    // Rewrite rules are checked after every module's declarations (their
+    // `match`, `replace` and `justify` terms reference them).
+    c.check_rewrites()?;
     if modules.is_empty() {
         return Err(Error::plain("no modules to check"));
     }
@@ -7542,4 +8231,26 @@ fn require_file_write(v: &Value) -> Result<()> {
             value_kind_name(other)
         ))),
     }
+}
+
+/// A parameter is an honest pure callback when its type is a function
+/// whose effect rows are all empty (effect honesty makes the declared row
+/// an upper bound on everything the callback performs).
+fn pure_arrow_ty(t: &Ty) -> bool {
+    fn go(t: &Ty, saw: &mut bool) -> bool {
+        match t {
+            Ty::Fun(a, _, eff, b) => {
+                *saw = true;
+                eff.is_pure() && go(a, saw) && go(b, saw)
+            }
+            Ty::Pi { dom, eff, cod, .. } => {
+                *saw = true;
+                eff.is_pure() && go(dom, saw) && go(cod, saw)
+            }
+            _ => true,
+        }
+    }
+    let mut saw = false;
+    let ok = go(t, &mut saw);
+    saw && ok
 }

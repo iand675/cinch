@@ -336,13 +336,21 @@ fn read_stage_snap(path: &Path) -> Vec<StageInput> {
 
 /// Write the per-module interfaces, the artifact manifest, and the stage
 /// snapshot (design note sections 2 and 5; modules specification section
-/// 10: the build identity includes generator versions and input hashes).
+/// 10: the build identity includes generator versions and input hashes;
+/// supercompilation and JIT specification sections 5, 8 and 9: the
+/// specialization configuration and trust level; platform proofs and SIMD
+/// specification sections 1 and 8: the target conditions and which
+/// lowering was checked).
+#[allow(clippy::too_many_arguments)]
 fn write_artifacts(
     out_dir: &Path,
     entry: &str,
     ifaces: &[crate::interface::Iface],
     manifest_path: &Path,
     report: &StageReport,
+    program: &crate::core::Program,
+    opt: &crate::core::OptReport,
+    profile: &crate::core::TargetProfile,
 ) -> Result<()> {
     std::fs::create_dir_all(out_dir)
         .map_err(|e| Error::plain(format!("{}: {e}", out_dir.display())))?;
@@ -361,6 +369,13 @@ fn write_artifacts(
         prims.extend(i.assumptions.primitives.iter().cloned());
         foreign.extend(i.assumptions.foreign.iter().cloned());
         declared.extend(i.assumptions.declared.iter().cloned());
+    }
+    // A rewrite's justification identities are declared assumptions when
+    // no instance discharges them (decision D55).
+    for r in &program.rewrites {
+        for a in &r.assumptions {
+            declared.push(a.clone());
+        }
     }
     prims.sort();
     prims.dedup();
@@ -383,6 +398,117 @@ fn write_artifacts(
     text.push_str(&format!("    \"primitives\": {:?},\n", prims));
     text.push_str(&format!("    \"foreign\": {:?},\n", foreign));
     text.push_str(&format!("    \"declared\": {:?}\n", declared));
+    text.push_str("  },\n");
+    // The target profile and the conditions the target rules discharged
+    // (platform proofs and SIMD specification sections 1-3; modules and
+    // compilation specification section 13: target conditions are
+    // preserved in the manifest).
+    text.push_str("  \"target\": {\n");
+    text.push_str(&format!("    \"profile\": \"{}\",\n", profile.name));
+    text.push_str(&format!("    \"word_size\": {},\n", profile.word_size));
+    text.push_str(&format!("    \"endian\": \"{}\",\n", profile.endian));
+    text.push_str(&format!(
+        "    \"vector_shape\": \"{}\",\n",
+        match profile.vector_shape {
+            crate::core::VectorShape::Fixed(w) => format!("fixed({w})"),
+            crate::core::VectorShape::Scalable => "scalable".to_string(),
+        }
+    ));
+    text.push_str(&format!("    \"features\": {:?},\n", profile.features));
+    text.push_str(&format!(
+        "    \"admission\": \"{}\",\n",
+        "the deployment contract must satisfy the recorded feature assumptions"
+    ));
+    text.push_str("    \"conditions\": [\n");
+    let conds: Vec<String> = program
+        .rewrites
+        .iter()
+        .filter(|r| r.target)
+        .map(|r| {
+            let fired = opt
+                .sites
+                .iter()
+                .any(|s| s.kind == format!("rewrite:{}", r.name) && s.stop.is_none());
+            format!(
+                "      {{\"rule\": \"{}\", \"condition\": \"{}\", \"discharged\": {}}}",
+                r.name,
+                match &r.cond {
+                    crate::core::RequireCond::CapabilityInScope { class, .. } => {
+                        format!("capability {class} valid in the firing region's validity scope")
+                    }
+                    crate::core::RequireCond::Always => "always".to_string(),
+                    crate::core::RequireCond::Never => "never".to_string(),
+                    crate::core::RequireCond::Unknown => {
+                        "decided at the match site".to_string()
+                    }
+                },
+                fired
+            )
+        })
+        .collect();
+    text.push_str(&conds.join(",\n"));
+    if !conds.is_empty() {
+        text.push('\n');
+    }
+    text.push_str("    ]\n  },\n");
+    // Specialization configuration and report (supercompilation and JIT
+    // specification sections 5 and 8).
+    text.push_str("  \"specialization\": {\n");
+    text.push_str("    \"ran\": true,\n");
+    text.push_str(&format!("    \"fuel\": {},\n", profile.fuel));
+    text.push_str(&format!("    \"measure\": {},\n", profile.measure));
+    text.push_str("    \"whistle\": \"repetition-or-measure\",\n");
+    text.push_str(&format!("    \"runtime_codegen\": {},\n", false));
+    text.push_str("    \"sites\": [\n");
+    for (i, s) in opt.sites.iter().enumerate() {
+        text.push_str(&format!(
+            "      {{\"unit\": {:?}, \"kind\": {:?}, \"stop\": {}}}",
+            s.fn_id,
+            s.kind,
+            match &s.stop {
+                Some(stop) => format!("{stop:?}"),
+                None => "null".to_string(),
+            }
+        ));
+        text.push_str(if i + 1 < opt.sites.len() { ",\n" } else { "\n" });
+    }
+    text.push_str("    ],\n");
+    text.push_str(&format!("    \"fused\": {:?},\n", opt.fused));
+    text.push_str(&format!("    \"discarded\": {:?}\n", opt.discarded));
+    text.push_str("  },\n");
+    // Trust level (supercompilation and JIT specification section 9:
+    // full recheck is the default) and the checked-versus-trusted
+    // lowering split (platform proofs and SIMD specification section 8).
+    text.push_str("  \"trust\": {\n");
+    text.push_str("    \"level\": 2,\n");
+    text.push_str("    \"name\": \"full-recheck\",\n");
+    text.push_str(&format!("    \"rechecked\": {:?},\n", opt.rechecked));
+    text.push_str(&format!(
+        "    \"trusted\": {:?}\n",
+        vec![
+            "type preservation by construction",
+            "effect-order preservation by construction",
+        ]
+    ));
+    text.push_str("  },\n");
+    text.push_str("  \"lowering\": {\n");
+    text.push_str(&format!(
+        "    \"checked\": {:?},\n",
+        vec![
+            "core structure and scoping",
+            "usage of %1/%aff parameters",
+            "memo and demand sharing",
+            "decision-point weights",
+            "contract identity",
+        ]
+    ));
+    text.push_str(&format!(
+        "    \"trusted\": {:?}\n",
+        vec![
+            "LLVM code generation",
+            "the runtime and its instruction model",
+        ]
+    ));
     text.push_str("  },\n");
     // Staging build identity (modules specification section 10): the mode,
     // the compiler version, generated declarations, and every captured
@@ -559,6 +685,20 @@ pub fn driver_with(
     path: &Path,
     out: Option<&Path>,
 ) -> Result<i32> {
+    driver_with_profile(mode, stage_mode, path, out, &crate::core::TargetProfile::native())
+}
+
+/// [`driver_with`] with an explicit target profile (the driving bounds
+/// and feature assumptions of supercompilation section 5 and platform
+/// section 1).
+#[allow(clippy::too_many_arguments)]
+pub fn driver_with_profile(
+    mode: Mode,
+    stage_mode: StageMode,
+    path: &Path,
+    out: Option<&Path>,
+    profile: &crate::core::TargetProfile,
+) -> Result<i32> {
     let project = load_project(path)?;
     let empty = FixityTable::new();
     let prelude = parse_source(PRELUDE_SOURCE, "Prelude.lang", &empty, &HashMap::new())?;
@@ -621,7 +761,11 @@ pub fn driver_with(
     // Metadata boundary checks (design note, section 3).
     crate::interface::verify_chain(&ifaces).map_err(|e| Error::plain(e.to_string()))?;
     crate::interface::check_coherence(&ifaces).map_err(|e| Error::plain(e.to_string()))?;
-    write_artifacts(&out_dir, &entry_stem, &ifaces, &manifest_path, &report)?;
+    // Specialization (supercompilation and JIT specification sections
+    // 2-5): every residual program is rechecked before installation, and
+    // the report records where specialization stopped.
+    let (program, opt) = crate::core::optimize(&program, profile)?;
+    write_artifacts(&out_dir, &entry_stem, &ifaces, &manifest_path, &report, &program, &opt, profile)?;
     if mode == Mode::Check {
         return Ok(0);
     }
@@ -673,6 +817,20 @@ pub fn run_source(src: &str) -> Result<i32> {
 /// [`run_source`] with an explicit staging context.
 pub fn run_source_with(src: &str, scx: &mut StagingCx) -> Result<i32> {
     let program = check_sources_with(src, "<test>", scx)?;
+    run_program(&program, &crate::core::TargetProfile::native())
+}
+
+/// Compile and run a source string under an explicit target profile
+/// (the driving bounds are profile parameters; a zero fuel runs nothing
+/// and is the unfused baseline).
+pub fn run_source_profile(src: &str, profile: &crate::core::TargetProfile) -> Result<i32> {
+    let program = check_sources_with(src, "<test>", &mut StagingCx::default())?;
+    run_program(&program, profile)
+}
+
+/// Specialize, compile and run a checked program.
+pub fn run_program(program: &crate::core::Program, profile: &crate::core::TargetProfile) -> Result<i32> {
+    let (program, _opt) = crate::core::optimize(program, profile)?;
     let ir = codegen::emit(&program)?;
     let tmp = scratch_dir("test");
     std::fs::create_dir_all(&tmp).map_err(|e| Error::plain(format!("{}: {e}", tmp.display())))?;

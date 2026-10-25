@@ -350,8 +350,10 @@ impl<'a> Parser<'a> {
             Tok::TypeKw | Tok::Opaque => {
                 Err(self.err("type declarations are not supported in the bootstrap slice"))
             }
-            Tok::Rewrite | Tok::Target => {
-                Err(self.err("rewrite declarations are not supported in the bootstrap slice"))
+            Tok::Rewrite => self.parse_rewrite(false),
+            Tok::Target => {
+                self.bump();
+                self.parse_rewrite(true)
             }
             Tok::Upgrade => Err(self.err("upgrade declarations are not supported in the bootstrap slice")),
             Tok::QuoteDecls => Err(self.err(
@@ -372,6 +374,82 @@ impl<'a> Parser<'a> {
         let span = self.expect(&Tok::Generate, "`generate`")?.span;
         let stmts = self.parse_do_stmts()?;
         Ok(Decl::Generate { stmts, span })
+    }
+
+    /// `rewrite name forall binders. [using (ctx)] where { match e;
+    /// replace e; [require e]; justify e }` and the `target rewrite` form
+    /// (modules and compilation specification section 5; platform proofs
+    /// and SIMD specification section 3). The clause keywords are the
+    /// lexer's reserved words, so the clauses parse in any order but each
+    /// appears at most once.
+    fn parse_rewrite(&mut self, target: bool) -> Result<Decl> {
+        let span = self.expect(&Tok::Rewrite, "`rewrite`")?.span;
+        let name = self.parse_value_name()?;
+        self.expect(&Tok::Forall, "`forall` binding the rule's pattern variables")?;
+        let mut binders = vec![self.parse_type_binder()?];
+        loop {
+            match self.peek_tok() {
+                Tok::VarId(s) if s != "_" => binders.push(self.parse_type_binder()?),
+                Tok::LParen | Tok::LBrace => binders.push(self.parse_type_binder()?),
+                _ => break,
+            }
+        }
+        self.expect(&Tok::Dot, "`.` after the `forall` binders")?;
+        let ctx = if self.at(&Tok::Using) {
+            self.bump();
+            self.expect(&Tok::LParen, "`(` after `using`")?;
+            let cs = self.parse_constraint_items()?;
+            self.expect(&Tok::RParen, "`)` after the constraint list")?;
+            cs
+        } else {
+            Vec::new()
+        };
+        self.expect(&Tok::Where, "`where` opening the rewrite's clauses")?;
+        let mut match_tm: Option<Term> = None;
+        let mut replace_tm: Option<Term> = None;
+        let mut require: Option<Term> = None;
+        let mut justify: Option<Term> = None;
+        let clauses = self.parse_block_items("the rewrite's clauses", |p| {
+            let cspan = p.peek().span;
+            let slot = match p.peek_tok() {
+                Tok::MatchKw => 0,
+                Tok::Replace => 1,
+                Tok::Require => 2,
+                Tok::Justify => 3,
+                t => {
+                    return Err(p.err(format!(
+                        "expected a rewrite clause (`match`, `replace`, `require`, or `justify`), found {}",
+                        describe(t)
+                    )))
+                }
+            };
+            p.bump();
+            Ok((slot, cspan, p.parse_term()?))
+        })?;
+        for (slot, cspan, tm) in clauses {
+            let (slot_name, cell) = match slot {
+                0 => ("match", &mut match_tm),
+                1 => ("replace", &mut replace_tm),
+                2 => ("require", &mut require),
+                _ => ("justify", &mut justify),
+            };
+            if cell.is_some() {
+                return Err(Error::at(cspan, format!("duplicate `{slot_name}` clause in a rewrite declaration")));
+            }
+            *cell = Some(tm);
+        }
+        let missing = |what: &str| Error::at(span, format!("a rewrite declaration needs a `{what}` clause"));
+        Ok(Decl::Rewrite(RewriteDecl {
+            target,
+            name,
+            binders,
+            ctx,
+            match_tm: match_tm.ok_or_else(|| missing("match"))?,
+            replace_tm: replace_tm.ok_or_else(|| missing("replace"))?,
+            require,
+            justify: justify.ok_or_else(|| missing("justify"))?,
+            span,
+        }))
     }
 
     fn parse_sig_or_equation(&mut self) -> Result<Decl> {
@@ -1832,6 +1910,16 @@ impl<'a> Parser<'a> {
     fn parse_using(&mut self) -> Result<Type> {
         let span = self.expect(&Tok::Using, "`using`")?.span;
         self.expect(&Tok::LParen, "`(` after `using`")?;
+        let cs = self.parse_constraint_items()?;
+        self.expect(&Tok::RParen, "`)` after the constraint list")?;
+        self.expect(&Tok::Darrow, "`=>`")?;
+        let body = self.parse_type()?;
+        Ok(Type::Using(cs, Box::new(body), span))
+    }
+
+    /// The comma-separated `name :: Class args` items of a `using (...)`
+    /// clause (the `(` has been consumed).
+    fn parse_constraint_items(&mut self) -> Result<Vec<Constraint>> {
         let mut cs = Vec::new();
         loop {
             let c_span = self.peek().span;
@@ -1856,10 +1944,7 @@ impl<'a> Parser<'a> {
                 break;
             }
         }
-        self.expect(&Tok::RParen, "`)` after the constraint list")?;
-        self.expect(&Tok::Darrow, "`=>`")?;
-        let body = self.parse_type()?;
-        Ok(Type::Using(cs, Box::new(body), span))
+        Ok(cs)
     }
 
     fn parse_arrow_type(&mut self) -> Result<Type> {
@@ -1922,9 +2007,20 @@ impl<'a> Parser<'a> {
         let span = self.peek().span;
         match self.peek_tok().clone() {
             Tok::ConId(_) => {
-                let path = self.parse_con_path()?;
+                let mut path = self.parse_con_path()?;
                 if self.at(&Tok::Dot) {
-                    return Err(self.err("field projection is not supported in types"));
+                    // A dotted value name in type position: `List.map` in
+                    // `Eq (List.map f xs) ys` is the index-level function
+                    // reference of a proposition's argument, not a field
+                    // projection (dependent core kernel design section 2).
+                    if let Some(Tok::VarId(v)) = self.peek_tok_at(1).cloned() {
+                        let v_span = self.peek_tok_at(1).map(|_| self.toks[self.pos + 1].span).unwrap_or(span);
+                        self.bump();
+                        self.bump();
+                        path.segments.push(Name::new(v, v_span));
+                    } else {
+                        return Err(self.err("field projection is not supported in types"));
+                    }
                 }
                 Ok(Type::Con(path, span))
             }
@@ -2185,6 +2281,24 @@ fn resolve_module_decl(d: &mut Decl, fix: &FixityTable) -> Result<()> {
             }
         }
         Decl::ValueSig { ty, .. } => resolve_type(ty, fix)?,
+        Decl::Rewrite(r) => {
+            for b in &mut r.binders {
+                if let Some(ann) = &mut b.ann {
+                    resolve_type(ann, fix)?;
+                }
+            }
+            for c in &mut r.ctx {
+                for a in &mut c.args {
+                    resolve_type(a, fix)?;
+                }
+            }
+            resolve_term(&mut r.match_tm, fix)?;
+            resolve_term(&mut r.replace_tm, fix)?;
+            if let Some(req) = &mut r.require {
+                resolve_term(req, fix)?;
+            }
+            resolve_term(&mut r.justify, fix)?;
+        }
         Decl::Data(data) => {
             for b in &mut data.params {
                 if let Some(ann) = &mut b.ann {

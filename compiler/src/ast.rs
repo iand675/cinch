@@ -585,6 +585,29 @@ pub struct EffectDecl {
     pub span: Span,
 }
 
+/// `rewrite name forall binders. [using (ctx)] where { match e; replace e;
+/// [require e]; justify e }`, and its `target rewrite` form (modules and
+/// compilation specification section 5; platform proofs and SIMD
+/// specification section 3). `match`/`replace` are the rule's pattern and
+/// template terms, `require` its applicability condition (the target
+/// rule's operational evidence), and `justify` its checked evidence under
+/// the rule's semantic relation.
+#[derive(Clone, Debug)]
+pub struct RewriteDecl {
+    /// `target rewrite`: parameterized by a target capability (modules
+    /// specification section 13).
+    pub target: bool,
+    pub name: Name,
+    pub binders: Vec<TypeBinder>,
+    /// `using (...)` context: the evidence the rule's template may use.
+    pub ctx: Vec<Constraint>,
+    pub match_tm: Term,
+    pub replace_tm: Term,
+    pub require: Option<Term>,
+    pub justify: Term,
+    pub span: Span,
+}
+
 #[derive(Clone, Debug)]
 pub enum Decl {
     Import(Import),
@@ -618,6 +641,10 @@ pub enum Decl {
     /// `generate do { stmts }`: a compile-time generator (modules
     /// specification section 10).
     Generate { stmts: Vec<DoStmt>, span: Span },
+    /// A verified rewrite rule (modules and compilation specification
+    /// section 5), or its `target rewrite` form (platform proofs and SIMD
+    /// specification section 3).
+    Rewrite(RewriteDecl),
 }
 
 #[derive(Clone, Debug)]
@@ -796,6 +823,24 @@ pub fn collect_decl_refs(d: &Decl, out: &mut Vec<RefSite>) {
                     DoStmt::Let { decl, .. } => collect_local_refs(decl, out),
                 }
             }
+        }
+        Decl::Rewrite(r) => {
+            for b in &r.binders {
+                if let Some(ann) = &b.ann {
+                    collect_type_refs(ann, out);
+                }
+            }
+            for c in &r.ctx {
+                for a in &c.args {
+                    collect_type_refs(a, out);
+                }
+            }
+            collect_term_refs(&r.match_tm, out);
+            collect_term_refs(&r.replace_tm, out);
+            if let Some(req) = &r.require {
+                collect_term_refs(req, out);
+            }
+            collect_term_refs(&r.justify, out);
         }
         Decl::Signature(s) => {
             for (_, ty) in &s.methods {
@@ -1401,6 +1446,27 @@ pub fn hyg_decl(d: &Decl, cx: &mut HygCx, sc: &mut HygScope) -> Result<Decl> {
             attrs: attrs.clone(),
             inner: Box::new(hyg_decl(inner, cx, sc)?),
         },
+        Decl::Rewrite(r) => {
+            let mut r = r.clone();
+            for b in &mut r.binders {
+                if let Some(ann) = &mut b.ann {
+                    *ann = hyg_type(ann, cx, sc)?;
+                }
+            }
+            for c in &mut r.ctx {
+                for a in &mut c.args {
+                    *a = hyg_type(a, cx, sc)?;
+                }
+            }
+            r.match_tm = hyg_term(&r.match_tm, cx, sc)?;
+            r.replace_tm = hyg_term(&r.replace_tm, cx, sc)?;
+            if let Some(req) = &r.require {
+                let t = hyg_term(req, cx, sc)?;
+                r.require = Some(t);
+            }
+            r.justify = hyg_term(&r.justify, cx, sc)?;
+            Decl::Rewrite(r)
+        }
         Decl::Generate { span, .. } => {
             return Err(Error::at(
                 *span,
@@ -1675,6 +1741,14 @@ pub fn subst_holes_decl(d: &Decl, vals: &[Term]) -> Decl {
             attrs: attrs.clone(),
             inner: Box::new(subst_holes_decl(inner, vals)),
         },
+        Decl::Rewrite(r) => {
+            let mut r = r.clone();
+            r.match_tm = subst_holes(&r.match_tm, vals);
+            r.replace_tm = subst_holes(&r.replace_tm, vals);
+            r.require = r.require.as_ref().map(|t| subst_holes(t, vals));
+            r.justify = subst_holes(&r.justify, vals);
+            Decl::Rewrite(r)
+        }
         Decl::Instance(i) => {
             let mut i = i.clone();
             i.methods = i
@@ -1840,6 +1914,14 @@ fn collect_decl_holes(d: &mut Decl, holes: &mut Vec<HoleExpr>) {
     match d {
         Decl::Import(_) | Decl::Fixity(_) | Decl::Foreign(_) | Decl::ValueSig { .. } => {}
         Decl::Attributed { inner, .. } => collect_decl_holes(inner, holes),
+        Decl::Rewrite(r) => {
+            collect_template_holes(&mut r.match_tm, holes);
+            collect_template_holes(&mut r.replace_tm, holes);
+            if let Some(req) = &mut r.require {
+                collect_template_holes(req, holes);
+            }
+            collect_template_holes(&mut r.justify, holes);
+        }
         Decl::Generate { .. } => {}
         Decl::Signature(_) => {}
         Decl::Instance(i) => {

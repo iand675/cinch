@@ -554,6 +554,7 @@ fn finalize_fn(
     prim: Option<PrimOp>,
     ctor: Option<(usize, usize)>,
     hints: crate::core::FnHints,
+    meta: crate::core::FnMeta,
 ) -> FnDef {
     let body = renumber_fn(&body, &params);
     FnDef {
@@ -563,6 +564,7 @@ fn finalize_fn(
         prim,
         ctor,
         hints,
+        meta,
     }
 }
 
@@ -1373,6 +1375,11 @@ struct Checker {
     layout_recipes: HashMap<(String, String), LayoutRecipe>,
     /// Computed ABI layout facts per type, keyed `(module, name)`.
     type_layouts: HashMap<(String, String), crate::interface::AbiLayout>,
+    /// Rewrite declarations awaiting checking, in source order (modules
+    /// and compilation specification section 5).
+    pending_rewrites: Vec<(String, ast::RewriteDecl)>,
+    /// Checked rewrite rules, in declaration order.
+    rewrites: Vec<crate::core::RewriteRule>,
 }
 
 /// A `generate do` block collected for compile-time execution (staging).
@@ -1522,6 +1529,8 @@ impl Checker {
             fn_hints: HashMap::new(),
             layout_recipes: HashMap::new(),
             type_layouts: HashMap::new(),
+            pending_rewrites: Vec::new(),
+            rewrites: Vec::new(),
         }
     }
 
@@ -2297,17 +2306,18 @@ impl Checker {
     }
 
     fn resolve_var(&self, p: &ast::VarPath, span: ast::Span) -> Result<ValueInfo> {
-        let mut v = match p.quals.as_slice() {
-            [] => self.lookup_value(None, &p.name.text).map_err(|e| Error::at(span, e.message))?,
+        // The registered name is the unit's real name: a qualified
+        // spelling (`U32.wrappingAdd`) is an alias over it, and code
+        // generation ids derive from the registered pair.
+        match p.quals.as_slice() {
+            [] => self.lookup_value(None, &p.name.text).map_err(|e| Error::at(span, e.message)),
             [q] => self
                 .lookup_value(Some(&q.text), &p.name.text)
-                .map_err(|e| Error::at(span, e.message))?,
+                .map_err(|e| Error::at(span, e.message)),
             _ => {
-                return Err(Error::at(span, "qualified names deeper than Module.name are not supported"));
+                Err(Error::at(span, "qualified names deeper than Module.name are not supported"))
             }
-        };
-        v.name = p.name.text.clone();
-        Ok(v)
+        }
     }
 
     fn resolve_con(&self, p: &ast::ConPath, span: ast::Span) -> Result<ValueInfo> {
@@ -2396,6 +2406,7 @@ impl Checker {
                 prim: None,
                 ctor: Some((0, n)),
                 hints: crate::core::FnHints::default(),
+                    meta: crate::core::FnMeta::default(),
             });
         }
         Ok(GlobalId(format!("Tuple.{n}")))
@@ -3138,17 +3149,31 @@ impl Checker {
                             .filter(|(n, _)| *n == name)
                             .map(|(_, k)| k.clone())
                             .collect();
-                        let distinct = |ks: &[ParamKind]| -> Option<ParamKind> {
-                            let mut it = ks.iter();
-                            let first = it.next()?.clone();
-                            if it.all(|k| *k == first) {
-                                Some(first)
-                            } else {
-                                None
-                            }
+                        // The classification axis must be consistent: a
+                        // binder used both as a type and as an index value
+                        // needs an annotation. Several value uses only fix
+                        // the axis, not the index type (the annotation, or
+                        // the first value use, supplies the type).
+                        let axis = |k: &ParamKind| match k {
+                            ParamKind::Type => 0u8,
+                            ParamKind::Val(_) => 1,
+                            ParamKind::Prop => 2,
                         };
-                        let kind = match (&hint, distinct(&uses)) {
-                            (Some(h), Some(u)) if *h != u => {
+                        let mut distinct_axis: Option<u8> = None;
+                        let mut ambiguous = false;
+                        let mut first_val: Option<ParamKind> = None;
+                        for k in &uses {
+                            match distinct_axis {
+                                None => distinct_axis = Some(axis(k)),
+                                Some(prev) if prev != axis(k) => ambiguous = true,
+                                _ => {}
+                            }
+                            if first_val.is_none() && matches!(k, ParamKind::Val(_)) {
+                                first_val = Some(k.clone());
+                            }
+                        }
+                        let kind = match (&hint, distinct_axis) {
+                            (Some(h), Some(a)) if axis(h) != a => {
                                 return Err(Error::at(
                                     span,
                                     format!(
@@ -3157,10 +3182,16 @@ impl Checker {
                                 ))
                             }
                             (Some(h), _) => h.clone(),
-                            (None, Some(u)) => u,
+                            // A mixed-use binder without an annotation
+                            // keeps its historic reading: a type
+                            // parameter (the index unification absorbs
+                            // the difference).
+                            (None, _) if ambiguous => ParamKind::Type,
+                            (None, Some(1)) => first_val.unwrap_or(ParamKind::Type),
+                            (None, Some(2)) => ParamKind::Prop,
                             // An unused binder keeps its historic reading:
                             // a type parameter.
-                            (None, None) => ParamKind::Type,
+                            (None, _) => ParamKind::Type,
                         };
                         match kind {
                             ParamKind::Type => type_params.push(name),

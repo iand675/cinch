@@ -90,26 +90,26 @@ property holds by construction rather than by a named test.
 | 53 | mod#3-associativity-evidence | Associativity evidence tied to the exact dictionary | N | no law modules; P7 |
 | 54 | mod#4-compiled-interface-contents | Compiled interface carries signatures, identities, equations, effects, contracts, laws | P | `.sliface` has exports/instances/fixities/foreign/assumptions (no law identities); `interface.rs::round_trips`, `::hash_is_content_identity` |
 | 55 | mod#4-dependency-kinds | Dependency kinds distinguished (interface/logical/impl/representation/generated/optimization) | P | interface deps + staleness chain (`::chain_detects_stale_metadata`, `::topo_order_respects_imports_and_detects_cycles`); finer kinds arrive with their features |
-| 56 | mod#5-rewrite-rules | Rewrite declarations, sound substitution, bounded termination | N | `rewrite` parse-rejected; P10 |
-| 57 | mod#6-fusion-preserves-observation | Fusion preserves observation model incl. divergence/effect order | N | no fusion; P10 |
+| 56 | mod#5-rewrite-rules | Rewrite declarations, sound substitution, bounded termination | I | `rewrite`/`target rewrite` + `justify` (D55-D57: kernel evidence or law methods, effectful rules rejected, defeq guard); `tests/optimizer.rs` |
+| 57 | mod#6-fusion-preserves-observation | Fusion preserves observation model incl. divergence/effect order | I | `map_fusion_preserves_values_and_effect_order`, `blocked_fusion_names_the_blocker` (D60) |
 | 58 | mod#7-staging-support | Syntax macros, typed code, compile-time computation | I | `stage`/`[||]`/`$()`/`quoteDecls` + token-tree macros over a compile-time interpreter (D43/D46); `tests/staging.rs` |
 | 59 | mod#8-hygiene | Binding identity, expansion provenance, checked generated decls | I | capture-avoiding renaming + definition-site qualification, per-node provenance in spans, generated decls under ordinary checks (D46); `tests/staging.rs` |
 | 60 | mod#9-stage-scheduling | Compile-time execution scheduled from a dependency graph with cycle diagnostics | I | staging unit graph, statically-apparent emits, rendered cycle chain (D47); `tests/staging.rs::stage_dependency_cycle_shows_the_cycle` |
 | 61 | mod#10-compile-time-io | Stage I/O capabilities, resource release, build identity, no secrets | P | file + subprocess capabilities, child cleanup, manifest `staging` identity + snapshot replay, redacted secrets (D45); database/network introspection delegated to subprocess (A6) |
-| 62 | mod#12-trust-boundary-report | Implementation reports its trust boundary | P | assumption manifest (row 15); compiler-pass trust waits for P10's preservation discipline |
-| 63 | mod#13-target-specialization | Target conditions discharged and preserved in the manifest | N | no target profiles; P10 |
+| 62 | mod#12-trust-boundary-report | Implementation reports its trust boundary | P | assumption manifest (row 15); compiler-pass trust now disclosed via the `lowering` checked/trusted split (D63) |
+| 63 | mod#13-target-specialization | Target conditions discharged and preserved in the manifest | I | `target.conditions` in the manifest, `trust.level`, checked/trusted lowering split (D63); `manifest_records_trust_level_and_target_conditions` |
 
 ## platform-proofs-and-simd-specification.md
 
 | # | Anchor | Requirement | Status | Evidence |
 | --- | --- | --- | --- | --- |
-| 64 | platform#1-target-profile | Target profile identifies instruction semantics and deployment assumptions | N | one hard-coded LLVM target; P10 |
+| 64 | platform#1-target-profile | Target profile identifies instruction semantics and deployment assumptions | I | marker-type target model (`VecU32Target t w`) and `Available` evidence (D58) |
 | 65 | platform#1-cross-compile-distinguish | Generator-host vs target capabilities distinguished | N | roadmap gap A4 (P16) |
-| 66 | platform#2-capability-validity-scope | Capability validity scope defined | N | P10 |
-| 67 | platform#3-apply-rule-in-valid-region | Target rewrites only where capability valid | N | P10 |
-| 68 | platform#3-no-defeq-change | Target rules do not alter definitional equality | N | moot until P7/P10 |
-| 69 | platform#6-scalable-vector-length | Scalable vectors do not assume fixed length | N | P10 |
-| 70 | platform#8-backend-trust-identification | Artifact identifies checked vs trusted lowering | N | P10 |
+| 66 | platform#2-capability-validity-scope | Capability validity scope defined | I | `Available v` (lexical region + thread, no cached evidence) (D58) |
+| 67 | platform#3-apply-rule-in-valid-region | Target rewrites only where capability valid | I | `target_rewrite_applies_in_capability_scope_only` (D59) |
+| 68 | platform#3-no-defeq-change | Target rules do not alter definitional equality | I | conversion never extended (D56; `rewrites_do_not_extend_conversion`) |
+| 69 | platform#6-scalable-vector-length | Scalable vectors do not assume fixed length | I | `scalable_profile_does_not_pin_a_width` |
+| 70 | platform#8-backend-trust-identification | Artifact identifies checked vs trusted lowering | I | `lowering` checked/trusted split in the manifest (D63) |
 
 ## webassembly-and-wasi-specification.md
 
@@ -147,14 +147,14 @@ property holds by construction rather than by a named test.
 
 | # | Anchor | Requirement | Status | Evidence |
 | --- | --- | --- | --- | --- |
-| 88 | scjit#2-managed-transformations | Known-application unfolding, case folding, dictionary/handler/index/effect-static specialization, fusion, constant folding | N | rides P10 (offline) and P13 (JIT) |
-| 89 | scjit#3-barriers | Driving stops at effect barriers, opaque boundaries, and rigid indices; never duplicates or drops `%1`/`%aff` values, memo cells, or guards | N | the per-feature rules exist (P5/P7/P8); no driver to constrain yet |
-| 90 | scjit#4-preservation | Residual programs rechecked (types, effect order, usage, sharing, productivity, erasure, capabilities); specialization representation-only | N | the recheckers all exist; the driver does not |
-| 91 | scjit#5-bounds | Driving terminates via whistle and fuel; bounds are target profile parameters; the report says where specialization stopped | N | rides P10's report obligations |
+| 88 | scjit#2-managed-transformations | Known-application unfolding, case folding, dictionary/handler/index/effect-static specialization, fusion, constant folding | P | done except handler-vtable specialization (opaque barrier, rides P13) and named index-specialization sites (folded via `Vec` chains and ground `decide`); `tests/optimizer.rs` |
+| 89 | scjit#3-barriers | Driving stops at effect barriers, opaque boundaries, and rigid indices; never duplicates or drops `%1`/`%aff` values, memo cells, or guards | I | D60 barriers; `linear_value_generalizes_instead_of_duplicating` |
+| 90 | scjit#4-preservation | Residual programs rechecked (types, effect order, usage, sharing, productivity, erasure, capabilities); specialization representation-only | I | D63 recheck; `contract_identity_is_unchanged_by_specialization` |
+| 91 | scjit#5-bounds | Driving terminates via whistle and fuel; bounds are target profile parameters; the report says where specialization stopped | I | D62; `fuel_exhaustion_preserves_behavior` |
 | 92 | scjit#6-jit-invisible | JIT must not appear in types, source, or interface; deoptimization consumption-safe; variant lifecycle via runtime evolution only | N | rides P13 |
-| 93 | scjit#7-eval | `eval : Code a -> a` typed by quotes, never evidence, manifest-recorded, profiles MAY forbid | N | typed quotes land with P9 |
-| 94 | scjit#8-reporting | Manifest records specialization config, sites, trust level, code-generation use; no secrets or absolute paths | N | manifest infrastructure exists (row 15); specialization fields absent |
-| 95 | scjit#9-trust-levels | Per-artifact trust level identified; full recheck is the default; un-recheckable variants discarded | N | platform section 8 rule applies at implementation |
+| 93 | scjit#7-eval | `eval : Code a -> a` typed by quotes, never evidence, manifest-recorded, profiles MAY forbid | N | typed quotes exist (P9); `eval` itself rides P13/P14 |
+| 94 | scjit#8-reporting | Manifest records specialization config, sites, trust level, code-generation use; no secrets or absolute paths | P | `specialization`, `trust.level`, `target.conditions`, `lowering` in the manifest; stopped-at report entries (code-generation use stays with the P13/P14 `eval` item) |
+| 95 | scjit#9-trust-levels | Per-artifact trust level identified; full recheck is the default; un-recheckable variants discarded | I | D63 (level 2 default; failing candidates discarded) |
 
 ## attribute-annotations-specification.md
 
@@ -162,7 +162,7 @@ property holds by construction rather than by a named test.
 | --- | --- | --- | --- | --- |
 | 96 | attr#1-system | `#[...]` attachment points, argument grammar, compiler/macro ownership, identity split (semantic in contract projection, hints out) | I | `tests/attributes.rs`; identity both directions pinned |
 | 97 | attr#2-weights | `#[weight(n)]` with relativity, zero, all-or-nothing; per-alternative storage; both weight reports | I | `tests/attributes.rs` (marginalization at the reference's 2100/100 numbers; partial drop + report) |
-| 98 | attr#2.4-transformations | Decision-point weight reconciliation under optimization (dead-alternative conditioning, case merging, inlining) | N | P10's obligations (the optimizer slice) |
+| 98 | attr#2.4-transformations | Decision-point weight reconciliation under optimization (dead-alternative conditioning, case merging, inlining) | I | `weights_survive_optimization` (unrescaled conditioning; case-merge rescale to the reference's 3:58:29) (D61) |
 | 99 | attr#3-wrappers | `cold`/`likely`/`unlikely` wrappers over weights (0/2000/1), wrapper/manual IR equality | I | `tests/attributes.rs` |
 | 100 | attr#4-representations | `repr(C)`/`transparent`/`align`/`packed`/`uN`, C layout algorithm, layout facts in the ABI table and contract hash, packed-borrow rule | I | `tests/attributes.rs`; runtime slot enforcement stays with P11/P14 |
 | 101 | attr#5-inline | `#[inline]`/`#[inline(always)]`/`#[inline(never)]`/`#[noinline]` and function `#[cold]` as erasable hints | I | `tests/attributes.rs` (LLVM emission; duplicates rejected) |

@@ -121,13 +121,13 @@ needs the checker to consume export tables instead of sources.
 | `generate do`, `import stage`, captured replay | done (capability-refined `IoCap` stage I/O over file + subprocess, secrets redacted and never embeddable, refresh/replay/live modes with captured inputs and hash checks, manifest `staging` build identity; D45) |
 | Hygienic macros `!` | done (token-tree macros, capture-avoiding renaming + definition-site qualification, per-node expansion provenance in spans, macro-owned attribute names; D46/D48) |
 
-### Rewrites and optimizer (P10)
+### Rewrites and optimizer (P10) — modules spec sections 5, 6, 13; platform spec
 
 | Requirement | Status |
 | --- | --- |
-| `rewrite` / `target rewrite` with `justify` | todo |
-| Optimizer with preservation discipline | todo |
-| Target profiles, capability evidence, SIMD dispatch | todo |
+| `rewrite` / `target rewrite` with `justify` | done (D55: kernel evidence or a law method of a `signature`, recorded in `assumptions.declared` when undischarged; type preservation + resource side conditions; effectful rules rejected (D57); conversion never extended (D56 guard) |
+| Optimizer with preservation discipline | done (managed transformations with the supercompilation chapter's barriers; residual recheck (D63); map fusion preserves values and effect order, blocked fusion reports the blocker (D60); attribute 2.4 weight reconciliation incl. the 3:58:29 case-merge rescale (D61); `%1` values generalize instead of duplicating; fuel/whistle bounds (D62); `tests/optimizer.rs`) |
+| Target profiles, capability evidence, SIMD dispatch | done (marker-type target model and `Available` evidence (D58); `target rewrite` fires only in capability scope (D59); replaceable `Target.detectVecU32` dispatch; scalable profiles do not pin widths; manifest records trust level, target conditions, and the checked/trusted lowering split (D63)) |
 
 ### FFI (P11)
 
@@ -167,12 +167,12 @@ update as the slices land; 07 must reject, the rest must accept):
 | --- | --- | --- |
 | 01-bounded-index | accepts (`safelang check` exit 0; `run` needs a `main` per D20) | done |
 | 02-vector-filter | line 7: `Nil` against `Vec n a` needs rigid-index refinement (D35) | P7 limit (D35) |
-| 03-map-fusion | field projection in types | P13 |
+| 03-map-fusion | line 6:36 `expected a type, found Backslash` (index terms lack lambda; even then its `refl` at `Nil` is unprovable under D28's no-delta conversion; needs a proof over named helpers or an assumed law) | P7 limit + example-side proof |
 | 04-productive-stream | accepts (`safelang check` exit 0) | done |
 | 05-schema-generator | line 3: `unknown type SchemaSnapshot` (schema-introspection API sketch, modules spec section 11) | schema-generation slice |
 | 06-counter-upgrade | accepts (`safelang check` exit 0) | done |
 | 07-rejected-programs | rejected at parse (correct) | must stay rejected |
-| 08-platform-simd | `rewrite` declarations unsupported | P10 |
+| 08-platform-simd | line 6:10 the justification cannot prove the rule's equation (the example matches its own local `scalar`; the supplied theorem is over the library pair; the example's header calls its theorem module "obligations, not supplied proofs") | example-side proof obligation |
 | 09-foreign-codec | `Opaque` unsupported | P11 |
 | 10-wasm-component | line 8: effect label `Foreign Component` is P11 vocabulary | P11 |
 | 11-structured-tasks | unknown type `Request` (structured-concurrency vocabulary) | P12 |
@@ -217,18 +217,18 @@ through P17's branch weights. Implementation items ride those phases.
 
 | Requirement | Status |
 | --- | --- |
-| What specialization manages (dictionary/handler/index/effect-static specialization, fusion, constant folding) with barrier rules (effect order, linear values, memo, codata, erasure, rigid indices) | spec'd |
-| Preservation obligations: residual program rechecked (types, effect order, `%1` usage, memo sharing, productivity, erasure, capability rows); specialization representation-only (contract identity unchanged) | spec'd |
-| Driving bounds (whistle, fuel as target profile parameters) and the compiler report obligations (where specialization stopped) | spec'd |
-| JIT invisible to types/source/interface; consumption-safe deoptimization; variant install/retire through runtime evolution only | spec'd |
-| Explicit `eval` of typed quotes: no capability in the signature, never evidence, manifest-recorded, target profiles MAY forbid | spec'd |
-| Trust levels: manifest identity, full recheck (default), step certificates (future) | spec'd |
+| What specialization manages (dictionary/handler/index/effect-static specialization, fusion, constant folding) with barrier rules (effect order, linear values, memo, codata, erasure, rigid indices) | done except handler-vtable specialization (opaque barrier, reported; rides P13) and index specialization via named sites (achieved through case folding over `Vec` chains and ground `decide` instead); D60 |
+| Preservation obligations: residual program rechecked (types, effect order, `%1` usage, memo sharing, productivity, erasure, capability rows); specialization representation-only (contract identity unchanged) | done (D63 recheck; contract identity pinned unchanged by test) |
+| Driving bounds (whistle, fuel as target profile parameters) and the compiler report obligations (where specialization stopped) | done (D62; fuel/whistle in `TargetProfile` and the manifest; `fuel-exhausted`, `linear value: generalizing`, `capability scope:` report entries) |
+| JIT invisible to types/source/interface; consumption-safe deoptimization; variant install/retire through runtime evolution only | spec'd (P13/P14) |
+| Explicit `eval` of typed quotes: no capability in the signature, never evidence, manifest-recorded, target profiles MAY forbid | spec'd (typed quotes exist; `eval` itself rides the P13/P14 items) |
+| Trust levels: manifest identity, full recheck (default), step certificates (future) | done for levels 1-2 (D63: level 2 default, failing candidates discarded; level 3 future) |
 
 ## Spec requirement mapping
 
 Every spec MUST is mapped to enforcement and tests in
-`compiler/SPEC-MAPPING.md` (87 rows, statuses I/P/N/CV, plus the wording
-flags for future decisions).
+`compiler/SPEC-MAPPING.md` (101 rows, statuses I/P/N/CV, plus the
+wording flags for future decisions).
 
 ## Decisions log
 
@@ -500,3 +500,52 @@ flags for future decisions).
   warn-and-drop. Both are non-fatal diagnostics from
   `check_program_multi_diag`; `check_program_multi` and the driver are
   unchanged.
+- **D55 (P10 justification)**: `justify e` checks under the rule's
+  equation (`Eq match replace`, reified with the index language):
+  ordinary kernel evidence (`refl`, `congr`, `decide` extractions,
+  declared `proof`/`spec` functions) or a law method of a `signature`
+  (the platform chapter's instruction laws), recorded in
+  `assumptions.declared` when no instance discharges it; plus type
+  preservation and resource side conditions (template free vars bound by
+  the pattern or `using` context; `%1`/`%aff` binders used exactly
+  once). Conversion is never extended (D28).
+- **D56 (P10 defeq guard)**: bare-variable patterns and equations at
+  erased (`Prp`) or universe types are rejected ("would change
+  definitional equality").
+- **D57 (P10 effectful rules)**: a rule whose `match`/`replace`/`require`
+  performs effects (or leaves a row open) is rejected: pure `Eq` evidence
+  does not authorize reordering. At fire time, pure-hole callbacks are
+  checked by body scan (buffer mutation, fault, unknown closures refuse).
+- **D58 (P10 target model)**: target profiles and vector shapes are
+  marker types (`VecU32Target t w`, `CapAvailable t w`) in the
+  bootstrap; `Available v` is the operational evidence of the platform
+  chapter's validity scope (lexical region + thread; no cached
+  evidence).
+- **D59 (P10 capability validity)**: a `target rewrite` fires only where
+  the firing unit carries a matching capability parameter;
+  `Target.detectVecU32` is a replaceable dispatch boundary (never
+  folded).
+- **D60 (P10 fusion)**: pull-based producer fusion composes callbacks at
+  the same per-element positions, preserving effect order even for
+  effectful callbacks; barriers are memo/thunk allocation (demand
+  reordering) and, for eager pipelines under the `mapMap` law, callback
+  purity. Case folds let-bind constructor fields, preserving strict
+  evaluation order.
+- **D61 (P10 weights)**: over compiled shapes (default alternatives
+  expanded per constructor with scrutinee synonym `let`s): inner
+  alternatives outside the default set are conditioned away unrescaled,
+  then the rescale formula and GCD run; dead-alternative removal is
+  negation conditioning; case-push duplicates decisions keeping weights.
+- **D62 (P10 bounds)**: fuel charges every transformation (zero fuel =
+  the generic form, the behavior baseline); whistle = recursion
+  repetition plus 8x measure growth; bounds are `TargetProfile` fields
+  and land in the manifest.
+- **D63 (P10 trust)**: level 2 (full recheck) per artifact; the recheck
+  covers core structure/scoping, `%1`/`%aff` usage equality, memo/demand
+  counts, weight all-or-nothing, and contract identity; a failing
+  candidate is discarded. Type/effect-order preservation is by
+  construction (core carries no types) and is disclosed in
+  `lowering.trusted`.
+- **D64 (P10 naming)**: dotted presentations (`U32.wrappingAdd`,
+  `Scalar`/`Simd.sumWrap32`, `Target.detectVecU32`) are prelude aliases;
+  `Signature.method` resolves under the signature name.

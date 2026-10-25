@@ -1236,3 +1236,117 @@ module Prelude where
     bind o k = case o of
       None -> None
       Some x -> k x
+
+  -- ================================================================
+  -- Target profiles and the scalar/SIMD pair (P10): target capability
+  -- evidence, the scalar/SIMD pair of the platform chapter's section 5
+  -- example, capability dispatch, and the step-form producer library
+  -- that fusion composes (modules and compilation specification
+  -- section 6).
+  -- ================================================================
+
+  -- Target profiles and vector shapes as marker types: the platform
+  -- chapter's `Target` kind and the compile-time lane width are
+  -- represented as types in the bootstrap (decision D58).
+  data AVX2_256 where
+    AVX2_256Tag :: AVX2_256
+
+  data NEON64 where
+    NEON64Tag :: NEON64
+
+  data ScalableShape where
+    ScalableShapeTag :: ScalableShape
+
+  data EightLanes where
+    EightLanesTag :: EightLanes
+
+  -- The u32-sum capability: its construction establishes that the sum
+  -- intrinsics may execute in the current environment (platform proofs
+  -- and SIMD specification section 2). The method is the width evidence
+  -- a generic proof consumes (section 6).
+  signature VecU32Target t w where
+    positiveWidth :: Unit -> Nat
+
+  -- Operational evidence that a capability is valid in the current
+  -- validity scope (platform section 2): the lexical region and thread
+  -- supplying it. A rewrite's `require` clause names it.
+  data CapAvailable t w where
+    Available :: VecU32Target t w -> CapAvailable t w
+
+  -- The vector step form (modules section 6): `Done`, `Skip(state)` and
+  -- `Yield(value, state)`. Producer pipelines lower to state machines.
+  data Step s a where
+    Done :: Step s a
+    Skip :: s -> Step s a
+    Yield :: a -> s -> Step s a
+
+  -- A producer: a state with its step function.
+  data Producer s a where
+    Producer :: (s -> Step s a) -> s -> Producer s a
+
+  prodMap :: forall s a b. (a -> b) -> Producer s a -> Producer s b
+  prodMap f p = case p of
+    Producer step s0 ->
+      Producer (\s -> case step s of
+        Done -> Done
+        Skip s1 -> Skip s1
+        Yield x s1 -> Yield (f x) s1) s0
+
+  data TakeSt s where
+    TakeSt :: Nat -> s -> TakeSt s
+
+  prodTakeStep :: forall s a. (s -> Step s a) -> TakeSt s -> Step (TakeSt s) a
+  prodTakeStep step st = case st of
+    TakeSt k s0 ->
+      if k == 0 then Done
+      else case step s0 of
+        Done -> Done
+        Skip s1 -> Skip (TakeSt k s1)
+        Yield x s1 -> Yield x (TakeSt (k - 1) s1)
+
+  prodTake :: forall s a. Nat -> Producer s a -> Producer (TakeSt s) a
+  prodTake n p = case p of
+    Producer step s0 -> Producer (prodTakeStep step) (TakeSt n s0)
+
+  prodFoldGo :: forall s a b. (s -> Step s a) -> (b -> a -> b) -> b -> s -> b
+  prodFoldGo step k acc s = case step s of
+    Done -> acc
+    Skip s1 -> prodFoldGo step k acc s1
+    Yield x s1 -> prodFoldGo step k (k acc x) s1
+
+  prodFold :: forall s a b. b -> (b -> a -> b) -> Producer s a -> b
+  prodFold z k p = case p of
+    Producer step s0 -> prodFoldGo step k z s0
+
+  -- The scalar model (platform section 5): the sum modulo 2^32 over the
+  -- borrowed vector.
+  zeroU32 :: U32
+  zeroU32 = minBoundU32
+
+  -- A producer over a borrowed vector: the block walk of the step form
+  -- is the `vecStreamStep` intrinsic.
+  vecStream :: forall n a region. Ref region (Vec n a) -> Producer (Ref region (Vec n a)) a
+  vecStream xs = Producer vecStreamStep xs
+
+  scalarSumWrap32 :: forall n region. Ref region (Vec n U32) -> U32
+  scalarSumWrap32 xs = prodFold zeroU32 wrappingAddU32 (vecStream xs)
+
+  -- The SIMD intrinsic (the scalar/SIMD pair): its bootstrap lowering is
+  -- the scalar loop, and the artifact manifest records which lowering
+  -- was checked (platform section 8).
+  simdSumWrap32 :: forall t w n region. (vectors :: VecU32Target t w) -> Ref region (Vec n U32) -> U32
+  simdSumWrap32 vectors xs = scalarSumWrap32 xs
+
+  -- Capability dispatch (platform section 7): the bootstrap runtime
+  -- performs no feature detection, so dispatch conservatively selects
+  -- the scalar path. The boundary is replaceable: the optimizer never
+  -- folds this call or the `case` around it.
+  detectVecU32 :: Unit -> Option (VecU32Target AVX2_256 EightLanes)
+  detectVecU32 u = None
+
+  -- The instruction law (platform section 5): the scalar model and the
+  -- SIMD intrinsic compute the same sum. Discharging it is a proof
+  -- obligation of the target library; a rewrite citing it records the
+  -- assumption in the artifact manifest (decision D55).
+  signature SumProofs where
+    scalarToSimd :: forall t w n region. (vectors :: VecU32Target t w) -> (xs :: Ref region (Vec n U32)) -> Eq (scalarSumWrap32 xs) (simdSumWrap32 vectors xs)

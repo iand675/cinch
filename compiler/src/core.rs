@@ -30,6 +30,8 @@
 //! of any length without allocating intermediate closures.
 
 use crate::types::{Scalar, Ty};
+use crate::{Error, Result};
+use std::collections::HashMap;
 use std::fmt;
 
 /// A resolved code generation unit name, e.g. `"Prelude.natAdd"`.
@@ -1503,6 +1505,42 @@ pub struct FnHints {
     pub cold: bool,
 }
 
+/// Per-function metadata the optimizer's preservation discipline needs
+/// (supercompilation and JIT specification sections 3-4). Everything here
+/// is also re-derivable from the checked program; it is recorded on the
+/// [`FnDef`] so the optimizer can consult it on residual programs.
+#[derive(Clone, Debug)]
+pub struct FnMeta {
+    /// Parameters with a `%1` or `%aff` usage multiplicity (`(index,
+    /// mult)`); every unlisted parameter behaves as `%many`. Driving
+    /// never duplicates or drops these (section 3, linear values).
+    pub linear: Vec<(usize, crate::types::Mult)>,
+    /// Parameters whose function type's effect rows are empty (an honest
+    /// pure callback may be reordered or fused; an effectful one may not:
+    /// modules and compilation specification section 5).
+    pub pure_arrows: Vec<usize>,
+    /// Dictionary and capability parameters as `(index, class)` pairs,
+    /// for target-rewrite application inside a capability's validity
+    /// scope (platform proofs and SIMD specification section 2).
+    pub dicts: Vec<(usize, String)>,
+    /// Whether the definition's own effect rows are all empty.
+    pub pure: bool,
+}
+
+impl Default for FnMeta {
+    fn default() -> Self {
+        // Units the checker does not annotate (builtins and synthesized
+        // helpers) are pure unless their body says otherwise; the
+        // optimizer's purity scan backstops this.
+        FnMeta {
+            linear: Vec::new(),
+            pure_arrows: Vec::new(),
+            dicts: Vec::new(),
+            pure: true,
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct FnDef {
     pub id: GlobalId,
@@ -1518,6 +1556,8 @@ pub struct FnDef {
     /// Hint attributes on the function (erasable; never in the contract
     /// projection).
     pub hints: FnHints,
+    /// Optimizer metadata (usage multiplicities, purity, dictionaries).
+    pub meta: FnMeta,
 }
 
 impl FnDef {
@@ -1545,6 +1585,2781 @@ pub struct Program {
     /// defines `main`. `None` for library modules, which check fine but
     /// cannot be emitted or run (codegen names the requirement).
     pub main: Option<GlobalId>,
+    /// Checked rewrite rules (modules and compilation specification
+    /// section 5), in declaration order, and their `target rewrite` forms
+    /// (platform proofs and SIMD specification section 3). Rules never
+    /// extend definitional equality: conversion is exactly the D28 rules.
+    pub rewrites: Vec<RewriteRule>,
+}
+
+/// A checked rewrite rule. `pattern` is the elaborated form of the rule's
+/// `match` term, whose occurrences of the pattern variables (the rule's
+/// `forall` and `using` binders, by [`LocalId`]) are the match holes;
+/// `template` is the elaborated `replace` term over the same binder ids.
+/// Matching is first-order: a hole matches any subterm, and a repeated
+/// hole must match structurally equal subterms.
+#[derive(Clone, Debug)]
+pub struct RewriteRule {
+    pub name: String,
+    pub module: String,
+    /// `target rewrite`: may only be applied where its capability
+    /// condition is valid (platform proofs and SIMD specification
+    /// section 3).
+    pub target: bool,
+    /// The pattern variables' local ids (the match holes).
+    pub holes: Vec<LocalId>,
+    pub pattern: Core,
+    pub template: Core,
+    /// The `require` applicability condition over the same binders.
+    pub require: Option<Core>,
+    /// The condition's operative form (the optimizer evaluates this at a
+    /// match site; `require` is kept for the report).
+    pub cond: RequireCond,
+    /// Holes whose bound argument must be a pure callback for the rule to
+    /// apply (modules and compilation specification section 5: a theorem
+    /// proved for pure values must not be reused for effectful callbacks).
+    pub pure_holes: Vec<LocalId>,
+    /// Holes whose bound argument supplies a capability or dictionary of
+    /// this class (the rule's `using` binders).
+    pub dict_holes: Vec<(LocalId, String)>,
+    /// Justification identities recorded in the artifact manifest
+    /// (`assumptions.declared` when no instance discharges them).
+    pub assumptions: Vec<String>,
+    /// Source line of the declaration (for the specialization report).
+    pub line: u32,
+}
+
+/// A `require` clause's operative form. The optimizer applies a rule only
+/// where its condition holds (platform proofs and SIMD specification
+/// section 3: a target rule applies only in a region where the required
+/// capability is valid).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum RequireCond {
+    /// No `require` clause (or one that is statically true).
+    Always,
+    /// `Available v` over the rule's `using` binder `hole` of class
+    /// `class`: the rule applies only where that capability is in the
+    /// enclosing function's validity scope.
+    CapabilityInScope { hole: LocalId, class: String },
+    /// Statically false: the rule never applies.
+    Never,
+    /// Not statically decidable at the match site: refused there.
+    Unknown,
+}
+
+// ============================== P10: the optimizer ==============================
+//
+// Rewrites, the driving engine, and target profiles (modules and
+// compilation specification sections 5, 6, 10 and 13; supercompilation
+// and JIT specification sections 2-5, 8 and 9; attribute annotations
+// specification section 2.4). The engine is a library over the core
+// language: it drives symbolic evaluation bounded by a whistle and a fuel
+// bound taken from the target profile, residualizes at the barriers of
+// supercompilation section 3, reconciles decision-point weights as the
+// attribute chapter requires, and rechecks every residual program before
+// installing it (trust level 2, full recheck).
+
+/// The target's vector shape (platform proofs and SIMD specification
+/// section 6): a fixed lane width, or a scalable vector whose active
+/// length is a runtime parameter of the proof. A rule over a scalable
+/// shape must not assume an observed length stays fixed beyond the
+/// capability's validity scope.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum VectorShape {
+    Fixed(u64),
+    Scalable,
+}
+
+/// A target profile: the instruction semantics and deployment assumptions
+/// of the artifact, and the driving bounds of specialization (platform
+/// proofs and SIMD specification section 1; supercompilation and JIT
+/// specification section 5: fuel and measure bounds are target profile
+/// parameters). The profile records which fields a proof depends on; a
+/// changed intrinsic model invalidates dependent specializations.
+#[derive(Clone, Debug)]
+pub struct TargetProfile {
+    pub name: String,
+    /// Pointer and word width in bits (`Usize`/`Isize` width).
+    pub word_size: u32,
+    /// `"little"` or `"big"`.
+    pub endian: String,
+    pub vector_shape: VectorShape,
+    /// Feature assumptions the deployment contract requires.
+    pub features: Vec<String>,
+    /// Driving fuel: how many unfoldings one driving site may spend
+    /// before it must residualize (supercompilation section 5).
+    pub fuel: u32,
+    /// The whistle's measure bound: residual programs may not grow past
+    /// `measure` times the original size.
+    pub measure: u32,
+    /// Whether this profile admits runtime code generation (`eval` of a
+    /// typed quote; supercompilation section 7: a profile MAY forbid it).
+    pub allow_eval: bool,
+}
+
+impl TargetProfile {
+    /// The profile of the build host's own 64-bit target: little endian,
+    /// fixed 8-lane 32-bit vectors, the bootstrap's driving defaults.
+    pub fn native() -> Self {
+        TargetProfile {
+            name: "native64".to_string(),
+            word_size: 64,
+            endian: "little".to_string(),
+            vector_shape: VectorShape::Fixed(8),
+            features: vec!["u32.wrappingAdd".to_string()],
+            fuel: 8,
+            measure: 8,
+            allow_eval: true,
+        }
+    }
+}
+
+/// One specialization site's outcome (supercompilation and JIT
+/// specification section 8: the report says where specialization stopped
+/// and which barrier or bound stopped it).
+#[derive(Clone, Debug)]
+pub struct OptSite {
+    /// The residual unit the transformation applies to.
+    pub fn_id: String,
+    /// `"unfold"`, `"case-fold"`, `"const-fold"`, `"dictionary-specialize"`,
+    /// `"effect-static"`, `"rewrite:<name>"`, `"fusion"`, `"case-merge"`,
+    /// `"dead-alternative"`, or `"case-push"`.
+    pub kind: String,
+    /// `None` when the transformation ran to completion, otherwise the
+    /// barrier or bound that stopped it (`"fuel-exhausted"`,
+    /// `"whistle: ..."`, `"effect barrier: ..."`, `"allocation barrier:
+    /// ..."`, `"linear value: ..."`, `"opaque boundary: ..."`,
+    /// `"capability scope: ..."`).
+    pub stop: Option<String>,
+}
+
+/// The compiler report of specialization (modules and compilation
+/// specification section 10; supercompilation section 8).
+#[derive(Clone, Debug, Default)]
+pub struct OptReport {
+    /// Every driving site with its stopping reason, in program order.
+    pub sites: Vec<OptSite>,
+    /// Fusion steps that occurred (the map-fusion case of modules
+    /// section 6: which allocation or effect prevented a requested
+    /// transformation is named in `sites[].stop`).
+    pub fused: Vec<String>,
+    /// Residual programs rechecked before installation (trust level 2).
+    pub rechecked: Vec<String>,
+    /// Candidates whose recheck failed: discarded, never installed
+    /// (supercompilation section 9).
+    pub discarded: Vec<String>,
+    /// Justification identities the rules relied on, for the artifact
+    /// manifest's `assumptions.declared`.
+    pub assumptions: Vec<String>,
+}
+
+// ------------------------------------------------------------- core utilities
+
+/// Structural equality of core terms (pattern matching needs it for a
+/// repeated pattern variable).
+fn core_eq(a: &Core, b: &Core) -> bool {
+    match (a, b) {
+        (Core::Int(x), Core::Int(y)) => x == y,
+        (Core::ConstBig { nat: n1, digits: d1 }, Core::ConstBig { nat: n2, digits: d2 }) => {
+            n1 == n2 && d1 == d2
+        }
+        (Core::Bool(x), Core::Bool(y)) => x == y,
+        (Core::Unit, Core::Unit) | (Core::Fault, Core::Fault) | (Core::LazyAlloc, Core::LazyAlloc) => true,
+        (Core::Var(x), Core::Var(y)) => x == y,
+        (Core::Global(x), Core::Global(y)) | (Core::Ctor(x), Core::Ctor(y)) => x == y,
+        (Core::Prim(x), Core::Prim(y)) => x == y,
+        (Core::DictProj(d1, i1), Core::DictProj(d2, i2)) | (Core::Proj(d1, i1), Core::Proj(d2, i2)) => {
+            i1 == i2 && core_eq(d1, d2)
+        }
+        (Core::InstDict(g1, a1), Core::InstDict(g2, a2)) => {
+            g1 == g2 && a1.len() == a2.len() && a1.iter().zip(a2).all(|(x, y)| core_eq(x, y))
+        }
+        (Core::App(f1, a1), Core::App(f2, a2)) => {
+            core_eq(f1, f2) && a1.len() == a2.len() && a1.iter().zip(a2).all(|(x, y)| core_eq(x, y))
+        }
+        (Core::Lam { fn_id: g1, env: e1 }, Core::Lam { fn_id: g2, env: e2 }) => {
+            g1 == g2 && e1.len() == e2.len() && e1.iter().zip(e2).all(|(x, y)| core_eq(x, y))
+        }
+        (Core::Let(l1, v1, b1), Core::Let(l2, v2, b2)) => l1 == l2 && core_eq(v1, v2) && core_eq(b1, b2),
+        (Core::If(c1, t1, f1), Core::If(c2, t2, f2)) => {
+            core_eq(c1, c2)
+                && t1.weight == t2.weight
+                && f1.weight == f2.weight
+                && core_eq(&t1.body, &t2.body)
+                && core_eq(&f1.body, &f2.body)
+        }
+        (Core::Case { scrut: s1, alts: a1 }, Core::Case { scrut: s2, alts: a2 }) => {
+            core_eq(s1, s2)
+                && a1.len() == a2.len()
+                && a1.iter().zip(a2).all(|(x, y)| {
+                    x.weight == y.weight && pat_eq(&x.pat, &y.pat) && core_eq(&x.body, &y.body)
+                })
+        }
+        (Core::Demand(d1), Core::Demand(d2)) => core_eq(d1, d2),
+        (Core::LazyInit(l1, t1), Core::LazyInit(l2, t2)) => l1 == l2 && core_eq(t1, t2),
+        (Core::StrLit(s1), Core::StrLit(s2)) => s1 == s2,
+        (Core::SyntaxLit(t1), Core::SyntaxLit(t2)) => format!("{t1:?}") == format!("{t2:?}"),
+        _ => false,
+    }
+}
+
+fn pat_eq(a: &CPat, b: &CPat) -> bool {
+    match (a, b) {
+        (CPat::Var(x), CPat::Var(y)) => x == y,
+        (CPat::Wild, CPat::Wild) => true,
+        (CPat::Con { tag: t1, fields: f1 }, CPat::Con { tag: t2, fields: f2 }) => {
+            t1 == t2 && f1 == f2
+        }
+        _ => false,
+    }
+}
+
+/// The largest local id a term mentions (fresh ids must exceed it).
+fn max_local(e: &Core) -> usize {
+    let mut m = 0;
+    walk_locals(e, &mut |l: LocalId| {
+        m = m.max(l.0);
+    });
+    m
+}
+
+pub fn walk_locals(e: &Core, f: &mut impl FnMut(LocalId)) {
+    match e {
+        Core::Var(l) => f(*l),
+        Core::Int(_) | Core::ConstBig { .. } | Core::Bool(_) | Core::Unit | Core::Global(_)
+        | Core::Ctor(_) | Core::Prim(_) | Core::Fault | Core::LazyAlloc | Core::SyntaxLit(_)
+        | Core::StrLit(_) => {}
+        Core::DictProj(d, _) | Core::Proj(d, _) | Core::Demand(d) => walk_locals(d, f),
+        Core::InstDict(_, args) | Core::App(_, args) => {
+            if let Core::App(h, _) = e {
+                walk_locals(h, f);
+            }
+            for a in args {
+                walk_locals(a, f);
+            }
+        }
+        Core::Lam { env, .. } => {
+            for a in env {
+                walk_locals(a, f);
+            }
+        }
+        Core::Let(l, v, body) => {
+            f(*l);
+            walk_locals(v, f);
+            walk_locals(body, f);
+        }
+        Core::LazyInit(l, t) => {
+            f(*l);
+            walk_locals(t, f);
+        }
+        Core::If(c, t, fe) => {
+            walk_locals(c, f);
+            walk_locals(&t.body, f);
+            walk_locals(&fe.body, f);
+        }
+        Core::Case { scrut, alts } => {
+            walk_locals(scrut, f);
+            for a in alts {
+                match &a.pat {
+                    CPat::Var(l) => f(*l),
+                    CPat::Con { fields, .. } => {
+                        for l in fields {
+                            f(*l);
+                        }
+                    }
+                    CPat::Wild => {}
+                }
+                walk_locals(&a.body, f);
+            }
+        }
+        Core::Quote { holes, .. } | Core::DeclsQuote { holes, .. } => {
+            for h in holes {
+                walk_locals(h, f);
+            }
+        }
+    }
+}
+
+/// Per-path use counts of one local: `(min, max)` over the evaluation
+/// paths (a branch contributes the sum across its taken side only).
+fn use_range(e: &Core, l: LocalId) -> (usize, usize) {
+    let seq = |parts: &[(usize, usize)]| {
+        (
+            parts.iter().map(|p| p.0).sum(),
+            parts.iter().map(|p| p.1).sum(),
+        )
+    };
+    match e {
+        Core::Var(v) => {
+            if *v == l {
+                (1, 1)
+            } else {
+                (0, 0)
+            }
+        }
+        Core::Int(_) | Core::ConstBig { .. } | Core::Bool(_) | Core::Unit | Core::Global(_)
+        | Core::Ctor(_) | Core::Prim(_) | Core::Fault | Core::LazyAlloc | Core::SyntaxLit(_)
+        | Core::StrLit(_) => (0, 0),
+        Core::DictProj(d, _) | Core::Proj(d, _) | Core::Demand(d) => use_range(d, l),
+        Core::InstDict(_, args) | Core::App(_, args) => {
+            let mut parts: Vec<(usize, usize)> = Vec::new();
+            if let Core::App(h, _) = e {
+                parts.push(use_range(h, l));
+            }
+            for a in args {
+                parts.push(use_range(a, l));
+            }
+            seq(&parts)
+        }
+        Core::Lam { env, .. } => {
+            let parts: Vec<(usize, usize)> = env.iter().map(|a| use_range(a, l)).collect();
+            seq(&parts)
+        }
+        Core::Let(x, v, body) => {
+            let (vmin, vmax) = use_range(v, l);
+            if *x == l {
+                (vmin, vmax)
+            } else {
+                let (bmin, bmax) = use_range(body, l);
+                (vmin + bmin, vmax + bmax)
+            }
+        }
+        Core::LazyInit(x, t) => {
+            if *x == l {
+                (0, 0)
+            } else {
+                use_range(t, l)
+            }
+        }
+        Core::If(c, t, fe) => {
+            let (cmin, cmax) = use_range(c, l);
+            let (tmin, tmax) = use_range(&t.body, l);
+            let (fmin, fmax) = use_range(&fe.body, l);
+            (cmin + tmin.min(fmin), cmax + tmax.max(fmax))
+        }
+        Core::Case { scrut, alts } => {
+            let (smin, smax) = use_range(scrut, l);
+            let mut mins = Vec::new();
+            let mut maxs = Vec::new();
+            for a in alts {
+                let shadowed = match &a.pat {
+                    CPat::Var(x) => *x == l,
+                    CPat::Con { fields, .. } => fields.contains(&l),
+                    CPat::Wild => false,
+                };
+                let r = if shadowed { (0, 0) } else { use_range(&a.body, l) };
+                mins.push(r.0);
+                maxs.push(r.1);
+            }
+            let (bmin, bmax) = if alts.is_empty() {
+                (0, 0)
+            } else {
+                (mins.into_iter().min().unwrap_or(0), maxs.into_iter().max().unwrap_or(0))
+            };
+            (smin + bmin, smax + bmax)
+        }
+        Core::Quote { holes, .. } | Core::DeclsQuote { holes, .. } => {
+            let parts: Vec<(usize, usize)> = holes.iter().map(|h| use_range(h, l)).collect();
+            seq(&parts)
+        }
+    }
+}
+
+/// Alpha-rename every binder of `e` densely, parameters first (mirroring
+/// the checker's `renumber_fn` for lowered core).
+fn renumber_core(e: &Core, nparams: usize) -> Core {
+    let mut map: HashMap<LocalId, LocalId> = HashMap::new();
+    for i in 0..nparams {
+        map.insert(LocalId(i), LocalId(i));
+    }
+    let mut next = nparams;
+    let mut note = |l: LocalId, map: &mut HashMap<LocalId, LocalId>, next: &mut usize| {
+        map.entry(l).or_insert_with(|| {
+            let id = LocalId(*next);
+            *next += 1;
+            id
+        });
+    };
+    // First assign, then rewrite (a body use may precede its binder's
+    // textual position in the id order).
+    fn assign(e: &Core, map: &mut HashMap<LocalId, LocalId>, next: &mut usize) {
+        let mut note = |l: LocalId, map: &mut HashMap<LocalId, LocalId>, next: &mut usize| {
+            map.entry(l).or_insert_with(|| {
+                let id = LocalId(*next);
+                *next += 1;
+                id
+            });
+        };
+        match e {
+            Core::Var(l) => note(*l, map, next),
+            Core::Int(_) | Core::ConstBig { .. } | Core::Bool(_) | Core::Unit | Core::Global(_)
+            | Core::Ctor(_) | Core::Prim(_) | Core::Fault | Core::LazyAlloc | Core::SyntaxLit(_)
+            | Core::StrLit(_) => {}
+            Core::DictProj(d, _) | Core::Proj(d, _) | Core::Demand(d) => assign(d, map, next),
+            Core::InstDict(_, args) | Core::App(_, args) => {
+                if let Core::App(h, _) = e {
+                    assign(h, map, next);
+                }
+                for a in args {
+                    assign(a, map, next);
+                }
+            }
+            Core::Lam { env, .. } => {
+                for a in env {
+                    assign(a, map, next);
+                }
+            }
+            Core::Let(l, v, body) => {
+                note(*l, map, next);
+                assign(v, map, next);
+                assign(body, map, next);
+            }
+            Core::LazyInit(l, t) => {
+                note(*l, map, next);
+                assign(t, map, next);
+            }
+            Core::If(c, t, fe) => {
+                assign(c, map, next);
+                assign(&t.body, map, next);
+                assign(&fe.body, map, next);
+            }
+            Core::Case { scrut, alts } => {
+                assign(scrut, map, next);
+                for a in alts {
+                    match &a.pat {
+                        CPat::Var(l) => note(*l, map, next),
+                        CPat::Con { fields, .. } => {
+                            for l in fields {
+                                note(*l, map, next);
+                            }
+                        }
+                        CPat::Wild => {}
+                    }
+                    assign(&a.body, map, next);
+                }
+            }
+            Core::Quote { holes, .. } | Core::DeclsQuote { holes, .. } => {
+                for h in holes {
+                    assign(h, map, next);
+                }
+            }
+        }
+    }
+    fn rewrite(e: &Core, map: &HashMap<LocalId, LocalId>) -> Core {
+        let rw = |x: &Core| rewrite(x, map);
+        match e {
+            Core::Var(l) => Core::Var(*map.get(l).unwrap_or(l)),
+            Core::Int(v) => Core::Int(*v),
+            Core::ConstBig { nat, digits } => Core::ConstBig { nat: *nat, digits: digits.clone() },
+            Core::Bool(b) => Core::Bool(*b),
+            Core::Unit => Core::Unit,
+            Core::Global(g) => Core::Global(g.clone()),
+            Core::Ctor(g) => Core::Ctor(g.clone()),
+            Core::Prim(p) => Core::Prim(*p),
+            Core::Fault => Core::Fault,
+            Core::LazyAlloc => Core::LazyAlloc,
+            Core::SyntaxLit(t) => Core::SyntaxLit(t.clone()),
+            Core::StrLit(s) => Core::StrLit(s.clone()),
+            Core::DictProj(d, i) => Core::DictProj(Box::new(rw(d)), *i),
+            Core::Proj(d, i) => Core::Proj(Box::new(rw(d)), *i),
+            Core::Demand(d) => Core::Demand(Box::new(rw(d))),
+            Core::InstDict(g, args) => Core::InstDict(g.clone(), args.iter().map(rw).collect()),
+            Core::App(f, args) => Core::App(Box::new(rw(f)), args.iter().map(rw).collect()),
+            Core::Lam { fn_id, env } => Core::Lam {
+                fn_id: fn_id.clone(),
+                env: env.iter().map(rw).collect(),
+            },
+            Core::Let(l, v, body) => Core::Let(
+                *map.get(l).unwrap_or(l),
+                Box::new(rw(v)),
+                Box::new(rw(body)),
+            ),
+            Core::LazyInit(l, t) => {
+                Core::LazyInit(*map.get(l).unwrap_or(l), Box::new(rw(t)))
+            }
+            Core::If(c, t, fe) => Core::If(
+                Box::new(rw(c)),
+                CBranch { weight: t.weight, body: Box::new(rw(&t.body)) },
+                CBranch { weight: fe.weight, body: Box::new(rw(&fe.body)) },
+            ),
+            Core::Case { scrut, alts } => Core::Case {
+                scrut: Box::new(rw(scrut)),
+                alts: alts
+                    .iter()
+                    .map(|a| {
+                        let pat = match &a.pat {
+                            CPat::Var(l) => CPat::Var(*map.get(l).unwrap_or(l)),
+                            CPat::Con { tag, fields } => CPat::Con {
+                                tag: *tag,
+                                fields: fields
+                                    .iter()
+                                    .map(|l| *map.get(l).unwrap_or(l))
+                                    .collect(),
+                            },
+                            CPat::Wild => CPat::Wild,
+                        };
+                        CAlt { pat, weight: a.weight, body: Box::new(rw(&a.body)) }
+                    })
+                    .collect(),
+            },
+            Core::Quote { template, holes } => Core::Quote {
+                template: template.clone(),
+                holes: holes.iter().map(rw).collect(),
+            },
+            Core::DeclsQuote { template, holes } => Core::DeclsQuote {
+                template: template.clone(),
+                holes: holes.iter().map(rw).collect(),
+            },
+        }
+    }
+    let _ = &mut note;
+    assign(e, &mut map, &mut next);
+    rewrite(e, &map)
+}
+
+/// Instantiate a rule's template at a match site: pattern variables
+/// (`holes`) take their bound subterms, and the template's own binders are
+/// alpha-renamed away from the residual program's locals.
+fn instantiate(
+    tmpl: &Core,
+    holes: &std::collections::HashSet<LocalId>,
+    binds: &HashMap<LocalId, Core>,
+    next: &mut usize,
+) -> Core {
+    let mut ren: HashMap<LocalId, LocalId> = HashMap::new();
+    fn go(
+        e: &Core,
+        holes: &std::collections::HashSet<LocalId>,
+        binds: &HashMap<LocalId, Core>,
+        ren: &mut HashMap<LocalId, LocalId>,
+        next: &mut usize,
+    ) -> Core {
+        let fresh = |l: LocalId, ren: &mut HashMap<LocalId, LocalId>, next: &mut usize| {
+            *ren.entry(l).or_insert_with(|| {
+                let id = LocalId(*next);
+                *next += 1;
+                id
+            })
+        };
+        match e {
+            Core::Var(l) => {
+                if holes.contains(l) {
+                    binds.get(l).cloned().unwrap_or(Core::Fault)
+                } else {
+                    Core::Var(*ren.get(l).unwrap_or(l))
+                }
+            }
+            Core::Int(v) => Core::Int(*v),
+            Core::ConstBig { nat, digits } => Core::ConstBig { nat: *nat, digits: digits.clone() },
+            Core::Bool(b) => Core::Bool(*b),
+            Core::Unit => Core::Unit,
+            Core::Global(g) => Core::Global(g.clone()),
+            Core::Ctor(g) => Core::Ctor(g.clone()),
+            Core::Prim(p) => Core::Prim(*p),
+            Core::Fault => Core::Fault,
+            Core::LazyAlloc => Core::LazyAlloc,
+            Core::SyntaxLit(t) => Core::SyntaxLit(t.clone()),
+            Core::StrLit(s) => Core::StrLit(s.clone()),
+            Core::DictProj(d, i) => {
+                Core::DictProj(Box::new(go(d, holes, binds, ren, next)), *i)
+            }
+            Core::Proj(d, i) => Core::Proj(Box::new(go(d, holes, binds, ren, next)), *i),
+            Core::Demand(d) => Core::Demand(Box::new(go(d, holes, binds, ren, next))),
+            Core::InstDict(g, args) => Core::InstDict(
+                g.clone(),
+                args.iter().map(|a| go(a, holes, binds, ren, next)).collect(),
+            ),
+            Core::App(f, args) => Core::App(
+                Box::new(go(f, holes, binds, ren, next)),
+                args.iter().map(|a| go(a, holes, binds, ren, next)).collect(),
+            ),
+            Core::Lam { fn_id, env } => Core::Lam {
+                fn_id: fn_id.clone(),
+                env: env.iter().map(|a| go(a, holes, binds, ren, next)).collect(),
+            },
+            Core::Let(l, v, body) => {
+                let v = go(v, holes, binds, ren, next);
+                let nl = fresh(*l, ren, next);
+                let body = go(body, holes, binds, ren, next);
+                ren.remove(l);
+                Core::Let(nl, Box::new(v), Box::new(body))
+            }
+            Core::LazyInit(l, t) => {
+                let nl = fresh(*l, ren, next);
+                let t = go(t, holes, binds, ren, next);
+                ren.remove(l);
+                Core::LazyInit(nl, Box::new(t))
+            }
+            Core::If(c, t, fe) => Core::If(
+                Box::new(go(c, holes, binds, ren, next)),
+                CBranch {
+                    weight: t.weight,
+                    body: Box::new(go(&t.body, holes, binds, ren, next)),
+                },
+                CBranch {
+                    weight: fe.weight,
+                    body: Box::new(go(&fe.body, holes, binds, ren, next)),
+                },
+            ),
+            Core::Case { scrut, alts } => Core::Case {
+                scrut: Box::new(go(scrut, holes, binds, ren, next)),
+                alts: alts
+                    .iter()
+                    .map(|a| {
+                        let mut locals: Vec<LocalId> = Vec::new();
+                        let pat = match &a.pat {
+                            CPat::Var(l) => {
+                                let nl = fresh(*l, ren, next);
+                                locals.push(*l);
+                                CPat::Var(nl)
+                            }
+                            CPat::Con { tag, fields } => {
+                                let mut out = Vec::new();
+                                for l in fields {
+                                    let nl = fresh(*l, ren, next);
+                                    locals.push(*l);
+                                    out.push(nl);
+                                }
+                                CPat::Con { tag: *tag, fields: out }
+                            }
+                            CPat::Wild => CPat::Wild,
+                        };
+                        let body = go(&a.body, holes, binds, ren, next);
+                        for l in locals {
+                            ren.remove(&l);
+                        }
+                        CAlt { pat, weight: a.weight, body: Box::new(body) }
+                    })
+                    .collect(),
+            },
+            Core::Quote { template, holes: hs } => Core::Quote {
+                template: template.clone(),
+                holes: hs.iter().map(|h| go(h, holes, binds, ren, next)).collect(),
+            },
+            Core::DeclsQuote { template, holes: hs } => Core::DeclsQuote {
+                template: template.clone(),
+                holes: hs.iter().map(|h| go(h, holes, binds, ren, next)).collect(),
+            },
+        }
+    }
+    go(tmpl, holes, binds, &mut ren, next)
+}
+
+/// First-order matching of a rule's pattern against a core subterm: a
+/// pattern variable matches anything, and a repeated variable must match
+/// structurally equal subterms.
+fn match_pat(
+    pat: &Core,
+    holes: &std::collections::HashSet<LocalId>,
+    sub: &Core,
+    binds: &mut HashMap<LocalId, Core>,
+) -> bool {
+    if let Core::Var(l) = pat {
+        if holes.contains(l) {
+            match binds.get(l) {
+                Some(prev) => return core_eq(prev, sub),
+                None => {
+                    binds.insert(*l, sub.clone());
+                    return true;
+                }
+            }
+        }
+    }
+    match (pat, sub) {
+        (Core::Int(x), Core::Int(y)) => x == y,
+        (Core::ConstBig { nat: n1, digits: d1 }, Core::ConstBig { nat: n2, digits: d2 }) => {
+            n1 == n2 && d1 == d2
+        }
+        (Core::Bool(x), Core::Bool(y)) => x == y,
+        (Core::Unit, Core::Unit) | (Core::Fault, Core::Fault) | (Core::LazyAlloc, Core::LazyAlloc) => {
+            true
+        }
+        (Core::Var(x), Core::Var(y)) => x == y,
+        (Core::Global(x), Core::Global(y)) | (Core::Ctor(x), Core::Ctor(y)) => x == y,
+        (Core::Prim(x), Core::Prim(y)) => x == y,
+        (Core::DictProj(d1, i1), Core::DictProj(d2, i2)) | (Core::Proj(d1, i1), Core::Proj(d2, i2)) => {
+            i1 == i2 && match_pat(d1, holes, d2, binds)
+        }
+        (Core::InstDict(g1, a1), Core::InstDict(g2, a2)) => {
+            g1 == g2
+                && a1.len() == a2.len()
+                && a1.iter().zip(a2).all(|(x, y)| match_pat(x, holes, y, binds))
+        }
+        (Core::App(f1, a1), Core::App(f2, a2)) => {
+            a1.len() == a2.len()
+                && match_pat(f1, holes, f2, binds)
+                && a1.iter().zip(a2).all(|(x, y)| match_pat(x, holes, y, binds))
+        }
+        (Core::Lam { fn_id: g1, env: e1 }, Core::Lam { fn_id: g2, env: e2 }) => {
+            g1 == g2
+                && e1.len() == e2.len()
+                && e1.iter().zip(e2).all(|(x, y)| match_pat(x, holes, y, binds))
+        }
+        (Core::Let(_, v1, b1), Core::Let(_, v2, b2)) => {
+            match_pat(v1, holes, v2, binds) && match_pat(b1, holes, b2, binds)
+        }
+        (Core::If(c1, t1, f1), Core::If(c2, t2, f2)) => {
+            t1.weight == t2.weight
+                && f1.weight == f2.weight
+                && match_pat(c1, holes, c2, binds)
+                && match_pat(&t1.body, holes, &t2.body, binds)
+                && match_pat(&f1.body, holes, &f2.body, binds)
+        }
+        (Core::Case { scrut: s1, alts: a1 }, Core::Case { scrut: s2, alts: a2 }) => {
+            a1.len() == a2.len()
+                && match_pat(s1, holes, s2, binds)
+                && a1.iter().zip(a2).all(|(x, y)| {
+                    x.weight == y.weight
+                        && pat_shape_eq(&x.pat, &y.pat)
+                        && match_pat(&x.body, holes, &y.body, binds)
+                })
+        }
+        (Core::Demand(d1), Core::Demand(d2)) => match_pat(d1, holes, d2, binds),
+        (Core::LazyInit(_, t1), Core::LazyInit(_, t2)) => match_pat(t1, holes, t2, binds),
+        (Core::StrLit(s1), Core::StrLit(s2)) => s1 == s2,
+        (Core::SyntaxLit(t1), Core::SyntaxLit(t2)) => format!("{t1:?}") == format!("{t2:?}"),
+        _ => false,
+    }
+}
+
+/// Pattern shapes match when their binders are alpha-equivalent (the
+/// pattern's own binders are freshened at every use).
+fn pat_shape_eq(a: &CPat, b: &CPat) -> bool {
+    match (a, b) {
+        (CPat::Var(_), CPat::Var(_)) | (CPat::Wild, CPat::Wild) => true,
+        (CPat::Con { tag: t1, fields: f1 }, CPat::Con { tag: t2, fields: f2 }) => {
+            t1 == t2 && f1.len() == f2.len()
+        }
+        _ => false,
+    }
+}
+
+// ------------------------------------------------------- constant folding
+
+/// Word width and signedness of a machine scalar (the word model stores
+/// every scalar as its raw `i64` bit pattern, zero/sign extended).
+fn scalar_bits(s: Scalar) -> (u32, bool) {
+    use Scalar::*;
+    match s {
+        I8 => (8, true),
+        I16 => (16, true),
+        I32 => (32, true),
+        I64 => (64, true),
+        U8 => (8, false),
+        U16 => (16, false),
+        U32 => (32, false),
+        U64 => (64, false),
+        Usize | Isize => (64, s == Isize),
+        Char => (32, false),
+        F32 | F64 => (64, false),
+    }
+}
+
+fn scalar_max(s: Scalar) -> i128 {
+    let (bits, signed) = scalar_bits(s);
+    if signed {
+        (1i128 << (bits - 1)) - 1
+    } else if bits >= 64 {
+        u64::MAX as i128
+    } else {
+        (1i128 << bits) - 1
+    }
+}
+
+fn scalar_min(s: Scalar) -> i128 {
+    let (bits, signed) = scalar_bits(s);
+    if signed {
+        -(1i128 << (bits - 1))
+    } else {
+        0
+    }
+}
+
+/// Truncate a raw word to the scalar's stored pattern.
+fn trunc_word(v: i128, s: Scalar) -> i64 {
+    let (bits, signed) = scalar_bits(s);
+    if bits >= 64 {
+        v as i64
+    } else {
+        let m = (1i128 << bits) - 1;
+        let t = v & m;
+        if signed && (t & (1i128 << (bits - 1))) != 0 {
+            (t | !m) as i64
+        } else {
+            t as i64
+        }
+    }
+}
+
+/// The Option constructors a folded checked primitive returns to.
+struct FoldCtors {
+    none: Option<GlobalId>,
+    some: Option<GlobalId>,
+}
+
+fn opt_value(ctors: &FoldCtors, v: Option<Core>) -> Option<Core> {
+    match v {
+        Some(v) => {
+            let g = ctors.some.as_ref()?;
+            Some(Core::App(Box::new(Core::Ctor(g.clone())), vec![v]))
+        }
+        None => {
+            let g = ctors.none.as_ref()?;
+            Some(Core::App(Box::new(Core::Ctor(g.clone())), vec![]))
+        }
+    }
+}
+
+/// Fold a primitive application on known arguments (supercompilation and
+/// JIT specification section 2: constant folding of pure total
+/// primitives, with the defined fault behavior for out-of-domain results:
+/// a folded `checkedDiv` on zero folds to `None` and a division that
+/// faults is never silently dropped).
+fn fold_prim(op: PrimOp, args: &[Core], ctors: &FoldCtors) -> Option<Core> {
+    use self::big::Big;
+    let words: Vec<i64> = args
+        .iter()
+        .map(|a| match a {
+            Core::Int(v) => Some(*v),
+            Core::Bool(b) => Some(*b as i64),
+            _ => None,
+        })
+        .collect::<Option<_>>()?;
+    let bigs: Option<Vec<(bool, Big)>> = args
+        .iter()
+        .map(|a| match a {
+            Core::ConstBig { nat, digits } => Some((*nat, Big::from_dec(digits)?)),
+            Core::Int(v) => Some((false, Big::from_i64(*v))),
+            _ => None,
+        })
+        .collect();
+    match op {
+        PrimOp::Arith { ty, op: aop, mode } => {
+            let (x, y) = (words[0] as i128, words[1] as i128);
+            let raw = match aop {
+                ArithOp::Add => x + y,
+                ArithOp::Sub => x - y,
+                ArithOp::Mul => x * y,
+            };
+            Some(Core::Int(match mode {
+                ArithMode::Wrapping => trunc_word(raw, ty),
+                ArithMode::Saturating => trunc_word(raw.clamp(scalar_min(ty), scalar_max(ty)), ty),
+                ArithMode::Checked => {
+                    return opt_value(
+                        ctors,
+                        if raw < scalar_min(ty) || raw > scalar_max(ty) {
+                            None
+                        } else {
+                            Some(Core::Int(trunc_word(raw, ty)))
+                        },
+                    )
+                }
+            }))
+        }
+        PrimOp::Neg { ty, mode } => {
+            let raw = -(words[0] as i128);
+            Some(Core::Int(match mode {
+                ArithMode::Wrapping => trunc_word(raw, ty),
+                ArithMode::Saturating => trunc_word(raw.clamp(scalar_min(ty), scalar_max(ty)), ty),
+                ArithMode::Checked => {
+                    return opt_value(
+                        ctors,
+                        if raw < scalar_min(ty) || raw > scalar_max(ty) {
+                            None
+                        } else {
+                            Some(Core::Int(trunc_word(raw, ty)))
+                        },
+                    )
+                }
+            }))
+        }
+        PrimOp::CheckedDiv { ty } | PrimOp::CheckedRem { ty } => {
+            let (x, y) = (words[0] as i128, words[1] as i128);
+            if y == 0 {
+                return opt_value(ctors, None);
+            }
+            let (bits, signed) = scalar_bits(ty);
+            let _ = bits;
+            let q = if matches!(op, PrimOp::CheckedDiv { .. }) { x / y } else { x % y };
+            if signed && q < scalar_min(ty) || q > scalar_max(ty) {
+                return opt_value(ctors, None);
+            }
+            opt_value(ctors, Some(Core::Int(trunc_word(q, ty))))
+        }
+        PrimOp::Shift { ty, op: sop, checked } => {
+            let (x, sh) = (words[0] as i128, words[1] as u32);
+            let (bits, _) = scalar_bits(ty);
+            if checked {
+                return opt_value(
+                    ctors,
+                    if sh >= bits {
+                        None
+                    } else {
+                        Some(Core::Int(match sop {
+                            ShiftOp::Shl => trunc_word(x << sh, ty),
+                            ShiftOp::Shr => trunc_word(x >> sh, ty),
+                        }))
+                    },
+                );
+            }
+            let sh = sh % bits.max(1);
+            Some(Core::Int(match sop {
+                ShiftOp::Shl => trunc_word(x << sh, ty),
+                ShiftOp::Shr => trunc_word(x >> sh, ty),
+            }))
+        }
+        PrimOp::Rotate { ty, right } => {
+            let (bits, _) = scalar_bits(ty);
+            let mask: u64 = if bits >= 64 { u64::MAX } else { (1u64 << bits) - 1 };
+            let pat = (words[0] as u64) & mask;
+            let sh = (words[1] as u32) % bits.max(1);
+            let r = if sh == 0 {
+                pat
+            } else if right {
+                (pat >> sh) | (pat << (bits - sh))
+            } else {
+                (pat << sh) | (pat >> (bits - sh))
+            };
+            Some(Core::Int(trunc_word((r & mask) as i128, ty)))
+        }
+        PrimOp::Bit { op: bop, ty } => {
+            let (x, y) = (words[0], words[1]);
+            let raw = match bop {
+                BitOp::And => x & y,
+                BitOp::Or => x | y,
+                BitOp::Xor => x ^ y,
+            };
+            Some(Core::Int(trunc_word(raw as i128, ty)))
+        }
+        PrimOp::BitNot { ty } => Some(Core::Int(trunc_word(!(words[0] as i128), ty))),
+        PrimOp::BitScan { op: bop, ty } => {
+            let (bits, _) = scalar_bits(ty);
+            let mask: u64 = if bits >= 64 { u64::MAX } else { (1u64 << bits) - 1 };
+            let pat = (words[0] as u64) & mask;
+            let v = match bop {
+                BitScanOp::CountOnes => pat.count_ones(),
+                BitScanOp::LeadingZeros => pat.leading_zeros() - (64 - bits),
+                BitScanOp::TrailingZeros => {
+                    if pat == 0 {
+                        bits
+                    } else {
+                        pat.trailing_zeros()
+                    }
+                }
+                BitScanOp::ReverseBits => (pat.reverse_bits() >> (64 - bits)) as u32,
+                BitScanOp::SwapBytes => ((pat.swap_bytes() >> (64 - bits)) & mask) as u32,
+            };
+            let v = match bop {
+                BitScanOp::ReverseBits | BitScanOp::SwapBytes => {
+                    return Some(Core::Int(trunc_word(v as i128, ty)))
+                }
+                _ => v,
+            };
+            Some(Core::Int(v as i64))
+        }
+        PrimOp::Cmp { op: cop, .. } => {
+            let (x, y) = (words[0], words[1]);
+            let b = match cop {
+                CmpOp::Eq => x == y,
+                CmpOp::Ne => x != y,
+                CmpOp::Lt => x < y,
+                CmpOp::Le => x <= y,
+                CmpOp::Gt => x > y,
+                CmpOp::Ge => x >= y,
+            };
+            Some(Core::Bool(b))
+        }
+        PrimOp::NotBool => Some(Core::Bool(words[0] == 0)),
+        PrimOp::AndBool => Some(Core::Bool(words[0] != 0 && words[1] != 0)),
+        PrimOp::OrBool => Some(Core::Bool(words[0] != 0 || words[1] != 0)),
+        PrimOp::Nat(nop) => {
+            let bs = bigs?;
+            match nop {
+                NatOp::Add => {
+                    let v = bs[0].1.add(&bs[1].1);
+                    Some(Core::ConstBig { nat: true, digits: v.to_dec() })
+                }
+                NatOp::Sub => {
+                    let v = bs[0].1.sub(&bs[1].1);
+                    Some(Core::ConstBig { nat: true, digits: v.to_dec() })
+                }
+                NatOp::Mul => {
+                    let v = bs[0].1.mul(&bs[1].1);
+                    Some(Core::ConstBig { nat: true, digits: v.to_dec() })
+                }
+                NatOp::Div | NatOp::Rem => {
+                    if bs[1].1.is_zero() {
+                        return None;
+                    }
+                    let (q, r) = bs[0].1.divmod(&bs[1].1)?;
+                    let v = if matches!(nop, NatOp::Div) { q } else { r };
+                    Some(Core::ConstBig { nat: true, digits: v.to_dec() })
+                }
+                NatOp::Cmp => {
+                    let c = match bs[0].1.cmp(&bs[1].1) {
+                        std::cmp::Ordering::Less => -1,
+                        std::cmp::Ordering::Equal => 0,
+                        std::cmp::Ordering::Greater => 1,
+                    };
+                    Some(Core::Int(c))
+                }
+                NatOp::FromI64 => {
+                    let v = Big::from_i64(words[0]);
+                    Some(Core::ConstBig { nat: true, digits: v.to_dec() })
+                }
+                NatOp::ToI64 => {
+                    let v = bs[0].1.to_i64()?;
+                    Some(Core::Int(v))
+                }
+            }
+        }
+        PrimOp::Int(iop) => {
+            let bs = bigs?;
+            match iop {
+                IntOp::Add => {
+                    let v = bs[0].1.add(&bs[1].1);
+                    Some(Core::ConstBig { nat: false, digits: v.to_dec() })
+                }
+                IntOp::Sub => {
+                    let v = bs[0].1.add(&bs[1].1.negate());
+                    Some(Core::ConstBig { nat: false, digits: v.to_dec() })
+                }
+                IntOp::Mul => {
+                    let v = bs[0].1.mul(&bs[1].1);
+                    Some(Core::ConstBig { nat: false, digits: v.to_dec() })
+                }
+                IntOp::Div | IntOp::Rem => {
+                    if bs[1].1.is_zero() {
+                        return None;
+                    }
+                    let (q, r) = bs[0].1.divmod(&bs[1].1)?;
+                    let v = if matches!(iop, IntOp::Div) { q } else { r };
+                    Some(Core::ConstBig { nat: false, digits: v.to_dec() })
+                }
+                IntOp::Neg => {
+                    let v = bs[0].1.negate();
+                    Some(Core::ConstBig { nat: false, digits: v.to_dec() })
+                }
+                IntOp::Cmp => {
+                    let c = match bs[0].1.cmp(&bs[1].1) {
+                        std::cmp::Ordering::Less => -1,
+                        std::cmp::Ordering::Equal => 0,
+                        std::cmp::Ordering::Greater => 1,
+                    };
+                    Some(Core::Int(c))
+                }
+                IntOp::FromI64 => {
+                    let v = Big::from_i64(words[0]);
+                    Some(Core::ConstBig { nat: false, digits: v.to_dec() })
+                }
+                IntOp::ToI64 => {
+                    let v = bs[0].1.to_i64()?;
+                    Some(Core::Int(v))
+                }
+            }
+        }
+        PrimOp::Conv { from, to, mode } => {
+            // Integer-to-integer only: a float operand's word model is
+            // the backend's business, and folding it here would invent a
+            // representation.
+            if matches!(from, Scalar::F32 | Scalar::F64)
+                || matches!(to, Scalar::F32 | Scalar::F64)
+            {
+                return None;
+            }
+            let x = words[0] as i128;
+            let (from_bits, from_signed) = scalar_bits(from);
+            let _ = from_bits;
+            let xv = if from_signed { x } else { x & ((1i128 << 63) - 1) };
+            let raw = xv;
+            Some(Core::Int(match mode {
+                ConvMode::Total => trunc_word(raw, to),
+                ConvMode::Wrapping => trunc_word(raw, to),
+                ConvMode::Saturating => {
+                    trunc_word(raw.clamp(scalar_min(to), scalar_max(to)), to)
+                }
+                ConvMode::Checked => {
+                    return opt_value(
+                        ctors,
+                        if raw < scalar_min(to) || raw > scalar_max(to) {
+                            None
+                        } else {
+                            Some(Core::Int(trunc_word(raw, to)))
+                        },
+                    )
+                }
+            }))
+        }
+        _ => None,
+    }
+}
+
+// ------------------------------------------------------------- purity map
+
+/// Whether a primitive is pure (performed effects are observable order:
+/// the buffer operations mutate, everything else is total computation).
+fn prim_is_pure(op: PrimOp) -> bool {
+    !matches!(op, PrimOp::Bytes(_))
+}
+
+/// A term's allocation and demand structure (supercompilation section 3:
+/// a memo cell or thunk is never duplicated or reordered). Used as a
+/// fusion barrier when it appears inside a callback.
+fn has_alloc(e: &Core) -> bool {
+    let mut found = false;
+    fn go(e: &Core, found: &mut bool) {
+        if *found {
+            return;
+        }
+        match e {
+            Core::LazyAlloc | Core::LazyInit(_, _) | Core::Demand(_) | Core::Quote { .. }
+            | Core::DeclsQuote { .. } => *found = true,
+            Core::Prim(PrimOp::Delay) => *found = true,
+            Core::Int(_) | Core::ConstBig { .. } | Core::Bool(_) | Core::Unit | Core::Global(_)
+            | Core::Ctor(_) | Core::Prim(_) | Core::Fault | Core::SyntaxLit(_) | Core::StrLit(_)
+            | Core::Var(_) => {}
+            Core::DictProj(d, _) | Core::Proj(d, _) => go(d, found),
+            Core::InstDict(_, args) | Core::App(_, args) | Core::Lam { env: args, .. } => {
+                for a in args {
+                    go(a, found);
+                }
+            }
+            Core::Let(_, v, body) => {
+                go(v, found);
+                go(body, found);
+            }
+            Core::LazyInit(_, t) => go(t, found),
+            Core::If(c, t, fe) => {
+                go(c, found);
+                go(&t.body, found);
+                go(&fe.body, found);
+            }
+            Core::Case { scrut, alts } => {
+                go(scrut, found);
+                for a in alts {
+                    go(&a.body, found);
+                }
+            }
+        }
+    }
+    go(e, &mut found);
+    found
+}
+
+// ---------------------------------------------------- the driving engine
+
+/// Per-program optimization context.
+struct OptCx {
+    /// Purity per global id (effect honesty plus a scan for the mutating
+    /// primitives and the fault path).
+    pure: HashMap<String, bool>,
+    ctors: FoldCtors,
+    /// Units that must residualize: replaceable dispatch boundaries
+    /// retain their selection ability (platform proofs and SIMD
+    /// specification section 7).
+    opaque: std::collections::HashSet<String>,
+    measure: u32,
+    fuel: u32,
+}
+
+fn scan_calls(e: &Core, f: &mut impl FnMut(&GlobalId)) {
+    match e {
+        Core::Global(g) => f(g),
+        Core::Int(_) | Core::ConstBig { .. } | Core::Bool(_) | Core::Unit | Core::Ctor(_)
+        | Core::Prim(_) | Core::Fault | Core::LazyAlloc | Core::SyntaxLit(_) | Core::StrLit(_)
+        | Core::Var(_) => {}
+        Core::DictProj(d, _) | Core::Proj(d, _) | Core::Demand(d) => scan_calls(d, f),
+        Core::InstDict(_, args) | Core::App(_, args) => {
+            if let Core::App(h, _) = e {
+                scan_calls(h, f);
+            }
+            for a in args {
+                scan_calls(a, f);
+            }
+        }
+        Core::Lam { fn_id, env } => {
+            f(fn_id);
+            for a in env {
+                scan_calls(a, f);
+            }
+        }
+        Core::Let(_, v, body) => {
+            scan_calls(v, f);
+            scan_calls(body, f);
+        }
+        Core::LazyInit(_, t) => scan_calls(t, f),
+        Core::If(c, t, fe) => {
+            scan_calls(c, f);
+            scan_calls(&t.body, f);
+            scan_calls(&fe.body, f);
+        }
+        Core::Case { scrut, alts } => {
+            scan_calls(scrut, f);
+            for a in alts {
+                scan_calls(&a.body, f);
+            }
+        }
+        Core::Quote { holes, .. } | Core::DeclsQuote { holes, .. } => {
+            for h in holes {
+                scan_calls(h, f);
+            }
+        }
+    }
+}
+
+/// Count memo and demand nodes (the recheck pins the residual's memo
+/// sharing: supercompilation section 4).
+fn memo_count(e: &Core) -> usize {
+    let mut n = 0;
+    scan_memo(e, &mut n);
+    n
+}
+
+fn scan_memo(e: &Core, n: &mut usize) {
+    match e {
+        Core::LazyAlloc | Core::LazyInit(_, _) | Core::Demand(_) => *n += 1,
+        Core::Int(_) | Core::ConstBig { .. } | Core::Bool(_) | Core::Unit | Core::Global(_)
+        | Core::Ctor(_) | Core::Prim(_) | Core::Fault | Core::SyntaxLit(_) | Core::StrLit(_)
+        | Core::Var(_) => {}
+        Core::DictProj(d, _) | Core::Proj(d, _) => scan_memo(d, n),
+        Core::InstDict(_, args) | Core::App(_, args) | Core::Lam { env: args, .. } => {
+            for a in args {
+                scan_memo(a, n);
+            }
+        }
+        Core::Let(_, v, body) => {
+            scan_memo(v, n);
+            scan_memo(body, n);
+        }
+        Core::LazyInit(_, t) => scan_memo(t, n),
+        Core::If(c, t, fe) => {
+            scan_memo(c, n);
+            scan_memo(&t.body, n);
+            scan_memo(&fe.body, n);
+        }
+        Core::Case { scrut, alts } => {
+            scan_memo(scrut, n);
+            for a in alts {
+                scan_memo(&a.body, n);
+            }
+        }
+        Core::Quote { holes, .. } | Core::DeclsQuote { holes, .. } => {
+            for h in holes {
+                scan_memo(h, n);
+            }
+        }
+    }
+}
+
+/// Every residual decision point keeps the attribute chapter's
+/// all-or-nothing rule (attribute annotations specification section 2.1).
+fn weights_ok(e: &Core) -> bool {
+    let mut ok = true;
+    fn go(e: &Core, ok: &mut bool) {
+        match e {
+            Core::If(c, t, fe) => {
+                if t.weight.is_some() != fe.weight.is_some() {
+                    *ok = false;
+                }
+                go(c, ok);
+                go(&t.body, ok);
+                go(&fe.body, ok);
+            }
+            Core::Case { scrut, alts } => {
+                let any = alts.iter().any(|a| a.weight.is_some());
+                let all = alts.iter().all(|a| a.weight.is_some());
+                if any && !all {
+                    *ok = false;
+                }
+                go(scrut, ok);
+                for a in alts {
+                    go(&a.body, ok);
+                }
+            }
+            Core::Int(_) | Core::ConstBig { .. } | Core::Bool(_) | Core::Unit | Core::Global(_)
+            | Core::Ctor(_) | Core::Prim(_) | Core::Fault | Core::LazyAlloc | Core::SyntaxLit(_)
+            | Core::StrLit(_) | Core::Var(_) => {}
+            Core::DictProj(d, _) | Core::Proj(d, _) | Core::Demand(d) => go(d, ok),
+            Core::InstDict(_, args) | Core::App(_, args) | Core::Lam { env: args, .. } => {
+                for a in args {
+                    go(a, ok);
+                }
+            }
+            Core::Let(_, v, body) => {
+                go(v, ok);
+                go(body, ok);
+            }
+            Core::LazyInit(_, t) => go(t, ok),
+            Core::Quote { holes, .. } | Core::DeclsQuote { holes, .. } => {
+                for h in holes {
+                    go(h, ok);
+                }
+            }
+        }
+    }
+    go(e, &mut ok);
+    ok
+}
+
+/// Scope well-formedness of a residual body (every local bound).
+fn scope_ok(e: &Core, nparams: usize) -> bool {
+    let mut bound: std::collections::HashSet<LocalId> = (0..nparams).map(LocalId).collect();
+    fn go(e: &Core, bound: &mut std::collections::HashSet<LocalId>) -> bool {
+        match e {
+            Core::Var(l) => bound.contains(l),
+            Core::Int(_) | Core::ConstBig { .. } | Core::Bool(_) | Core::Unit | Core::Global(_)
+            | Core::Ctor(_) | Core::Prim(_) | Core::Fault | Core::LazyAlloc | Core::SyntaxLit(_)
+            | Core::StrLit(_) => true,
+            Core::DictProj(d, _) | Core::Proj(d, _) | Core::Demand(d) => go(d, bound),
+            Core::InstDict(_, args) | Core::App(_, args) | Core::Lam { env: args, .. } => {
+                args.iter().all(|a| go(a, bound))
+            }
+            Core::Let(l, v, body) => {
+                if !go(v, bound) {
+                    return false;
+                }
+                bound.insert(*l);
+                let ok = go(body, bound);
+                bound.remove(l);
+                ok
+            }
+            Core::LazyInit(l, t) => {
+                bound.insert(*l);
+                let ok = go(t, bound);
+                bound.remove(l);
+                ok
+            }
+            Core::If(c, t, fe) => go(c, bound) && go(&t.body, bound) && go(&fe.body, bound),
+            Core::Case { scrut, alts } => {
+                if !go(scrut, bound) {
+                    return false;
+                }
+                for a in alts {
+                    let mut added: Vec<LocalId> = Vec::new();
+                    match &a.pat {
+                        CPat::Var(l) => {
+                            bound.insert(*l);
+                            added.push(*l);
+                        }
+                        CPat::Con { fields, .. } => {
+                            for l in fields {
+                                bound.insert(*l);
+                                added.push(*l);
+                            }
+                        }
+                        CPat::Wild => {}
+                    }
+                    let ok = go(&a.body, bound);
+                    for l in added {
+                        bound.remove(&l);
+                    }
+                    if !ok {
+                        return false;
+                    }
+                }
+                true
+            }
+            Core::Quote { holes, .. } | Core::DeclsQuote { holes, .. } => {
+                holes.iter().all(|h| go(h, bound))
+            }
+        }
+    }
+    go(e, &mut bound)
+}
+
+/// Build the purity map: effect honesty gives each unit's own flag, and
+/// the closure over calls covers indirect effects. The mutating `Bytes`
+/// primitives and the fault path are impure regardless.
+fn build_purity(program: &Program) -> HashMap<String, bool> {
+    let mut pure = HashMap::new();
+    for f in &program.fns {
+        let own = if let Some(op) = f.prim {
+            prim_is_pure(op)
+        } else if f.ctor.is_some() {
+            true
+        } else {
+            f.meta.pure && !body_impure(&f.body)
+        };
+        pure.insert(f.id.0.clone(), own);
+    }
+    loop {
+        let mut changed = false;
+        for f in &program.fns {
+            if !pure.get(&f.id.0).copied().unwrap_or(false) {
+                continue;
+            }
+            let mut impure = false;
+            scan_calls(&f.body, &mut |g: &GlobalId| {
+                if !pure.get(&g.0).copied().unwrap_or(false) {
+                    impure = true;
+                }
+            });
+            if impure {
+                pure.insert(f.id.0.clone(), false);
+                changed = true;
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
+    pure
+}
+
+fn body_impure(e: &Core) -> bool {
+    let mut bad = false;
+    fn go(e: &Core, bad: &mut bool) {
+        if *bad {
+            return;
+        }
+        match e {
+            Core::Fault => *bad = true,
+            Core::Prim(op) => {
+                if !prim_is_pure(*op) {
+                    *bad = true;
+                }
+            }
+            Core::Int(_) | Core::ConstBig { .. } | Core::Bool(_) | Core::Unit | Core::Global(_)
+            | Core::Ctor(_) | Core::LazyAlloc | Core::SyntaxLit(_) | Core::StrLit(_) | Core::Var(_) => {}
+            Core::DictProj(d, _) | Core::Proj(d, _) | Core::Demand(d) => go(d, bad),
+            Core::InstDict(_, args) | Core::App(_, args) | Core::Lam { env: args, .. } => {
+                for a in args {
+                    go(a, bad);
+                }
+            }
+            Core::Let(_, v, body) => {
+                go(v, bad);
+                go(body, bad);
+            }
+            Core::LazyInit(_, t) => go(t, bad),
+            Core::If(c, t, fe) => {
+                go(c, bad);
+                go(&t.body, bad);
+                go(&fe.body, bad);
+            }
+            Core::Case { scrut, alts } => {
+                go(scrut, bad);
+                for a in alts {
+                    go(&a.body, bad);
+                }
+            }
+            Core::Quote { holes, .. } | Core::DeclsQuote { holes, .. } => {
+                for h in holes {
+                    go(h, bad);
+                }
+            }
+        }
+    }
+    go(e, &mut bad);
+    bad
+}
+
+/// A callback argument is usable in a fused or rewritten position when it
+/// is an honest pure function and allocates no memo cells (modules and
+/// compilation specification section 5; supercompilation section 3).
+fn pure_value(
+    v: &Core,
+    cx: &OptCx,
+    defs: &HashMap<String, FnDef>,
+    caller: &FnDef,
+) -> Result<(), String> {
+    match v {
+        Core::Global(g) => {
+            if !cx.pure.get(&g.0).copied().unwrap_or(false) {
+                return Err("effect barrier: the callback performs effects".to_string());
+            }
+            if let Some(f) = defs.get(&g.0) {
+                if has_alloc(&f.body) {
+                    return Err("allocation barrier: the callback allocates a memo cell".to_string());
+                }
+            }
+            Ok(())
+        }
+        Core::Lam { fn_id, env } => {
+            if !cx.pure.get(&fn_id.0).copied().unwrap_or(false) {
+                return Err("effect barrier: the callback performs effects".to_string());
+            }
+            if let Some(f) = defs.get(&fn_id.0) {
+                if has_alloc(&f.body) {
+                    return Err("allocation barrier: the callback allocates a memo cell".to_string());
+                }
+            }
+            for a in env {
+                pure_value(a, cx, defs, caller)?;
+            }
+            Ok(())
+        }
+        Core::Var(l) => {
+            if caller.meta.pure_arrows.iter().any(|i| *i == l.0) {
+                Ok(())
+            } else {
+                Err("effect barrier: the callback's purity is unknown (an effectful argument would change effect order)".to_string())
+            }
+        }
+        _ => Err("effect barrier: the callback is not a known pure function".to_string()),
+    }
+}
+
+/// Split a producer pipeline into its stages and base producer
+/// (`prodMap`/`prodTake` are the prelude's step-form producer library).
+fn split_chain(e: &Core) -> (Vec<(bool, Core)>, Core) {
+    let mut stages: Vec<(bool, Core)> = Vec::new();
+    let mut cur = e.clone();
+    loop {
+        match &cur {
+            Core::App(h, args)
+                if matches!(&**h, Core::Global(g) if g.0.ends_with(".prodMap"))
+                    && args.len() == 2 =>
+            {
+                stages.push((true, args[0].clone()));
+                cur = args[1].clone();
+            }
+            Core::App(h, args)
+                if matches!(&**h, Core::Global(g) if g.0.ends_with(".prodTake"))
+                    && args.len() == 2 =>
+            {
+                stages.push((false, args[0].clone()));
+                cur = args[1].clone();
+            }
+            _ => break,
+        }
+    }
+    (stages, cur)
+}
+
+/// The transformation set of supercompilation section 2 and the weight
+/// reconciliation of attribute annotations section 2.4, driven over one
+/// residual unit with the profile's fuel and whistle bounds.
+struct Driver<'a> {
+    cx: &'a OptCx,
+    defs: HashMap<String, FnDef>,
+    instances: Vec<InstanceDef>,
+    rules: Vec<RewriteRule>,
+    caller: FnDef,
+    stack: Vec<String>,
+    sites: Vec<OptSite>,
+    fused: Vec<String>,
+    new_fns: Vec<FnDef>,
+    fuse_counter: usize,
+    fresh: usize,
+    changed: bool,
+    fuel_left: u32,
+    fuel_reported: bool,
+}
+
+impl Driver<'_> {
+    fn site(&mut self, kind: &str, stop: Option<String>) {
+        self.sites.push(OptSite {
+            fn_id: self.caller.id.0.clone(),
+            kind: kind.to_string(),
+            stop,
+        });
+    }
+
+    /// Fuse producer/consumer pipelines over the `Done`/`Skip`/`Yield`
+    /// step form into a single state machine (modules and compilation
+    /// specification section 6: no intermediate allocation, the
+    /// observation model preserved).
+    fn fuse(&mut self, e: &Core) -> Option<Core> {
+        let (is_fold, head, args) = match e {
+            Core::App(h, args) => match &**h {
+                Core::Global(g) if g.0.ends_with(".prodFold") && args.len() == 3 => {
+                    (true, g.0.clone(), args.clone())
+                }
+                Core::Global(g) if g.0.ends_with(".prodMap") && args.len() == 2 => {
+                    (false, g.0.clone(), args.clone())
+                }
+                _ => return None,
+            },
+            _ => return None,
+        };
+        let (stages, base) = split_chain(if is_fold { &args[2] } else { &args[1] });
+        let maps: Vec<Core> = stages.iter().filter(|(m, _)| *m).map(|(_, f)| f.clone()).collect();
+        if maps.len() < 2 && !(is_fold && maps.len() == 1) {
+            return None;
+        }
+        if self.fuel_left == 0 {
+            self.note_fuel();
+            return None;
+        }
+        // Barriers: composition over the pull-based step form runs each
+        // callback at the same point of the same element's processing as
+        // the unfused pipeline, so effects keep their order; what fusion
+        // must not move is memo and demand structure (supercompilation
+        // section 3). An eager pipeline's pure-justification rule is the
+        // one that refuses effectful callbacks (modules section 5).
+        let callbacks: Vec<&Core> = if is_fold {
+            let mut v = vec![&args[1]];
+            v.extend(maps.iter());
+            v
+        } else {
+            maps.iter().collect()
+        };
+        for c in callbacks {
+            let blocked = match c {
+                Core::Global(g) => self
+                    .defs
+                    .get(&g.0)
+                    .map(|f| has_alloc(&f.body))
+                    .unwrap_or(false),
+                Core::Lam { fn_id, env } => {
+                    self.defs
+                        .get(&fn_id.0)
+                        .map(|f| has_alloc(&f.body))
+                        .unwrap_or(false)
+                        || env.iter().any(has_alloc)
+                }
+                other => has_alloc(other),
+            };
+            if blocked {
+                self.site(
+                    "fusion",
+                    Some("allocation barrier: the callback allocates a memo cell, which fusion would reorder relative to its demand".to_string()),
+                );
+                return None;
+            }
+        }
+        // Composed callback: `\acc x -> k acc (m1 (m2 ... (mn x)))` for a
+        // fold, `\x -> m1 (m2 ... (mn x))` for a map.
+        let env: Vec<Core> = if is_fold {
+            let mut v = vec![args[1].clone()];
+            v.extend(maps.iter().cloned());
+            v
+        } else {
+            maps.clone()
+        };
+        let nmaps = maps.len();
+        let gid = GlobalId(format!("$fuse.{}", self.fuse_counter));
+        self.fuse_counter += 1;
+        let (params, body) = if is_fold {
+            let acc = LocalId(nmaps + 1);
+            let x = LocalId(nmaps + 2);
+            // k is env slot 0; map i is slot i + 1.
+            let mut inner = Core::Var(x);
+            for i in (1..=nmaps).rev() {
+                inner = Core::App(Box::new(Core::Var(LocalId(i))), vec![inner]);
+            }
+            let body = Core::App(Box::new(Core::Var(LocalId(0))), vec![Core::Var(acc), inner]);
+            let params: Vec<String> = std::iter::once("k".to_string())
+                .chain((1..=nmaps).map(|i| format!("m{i}")))
+                .chain(["acc".to_string(), "x".to_string()])
+                .collect();
+            (params, body)
+        } else {
+            let x = LocalId(nmaps);
+            let mut inner = Core::Var(x);
+            for i in (1..nmaps).rev() {
+                inner = Core::App(Box::new(Core::Var(LocalId(i))), vec![inner]);
+            }
+            let params: Vec<String> = (1..=nmaps)
+                .map(|i| format!("m{i}"))
+                .chain(["x".to_string()])
+                .collect();
+            (params, inner)
+        };
+        let nparams = params.len();
+        let body = renumber_core(&body, nparams);
+        self.new_fns.push(FnDef {
+            id: gid.clone(),
+            params,
+            body,
+            prim: None,
+            ctor: None,
+            hints: FnHints::default(),
+            meta: FnMeta { pure: true, ..FnMeta::default() },
+        });
+        // Rebuild the producer: the map stages collapse into the composed
+        // callback, the take stages keep their order over the base.
+        let mut producer = base;
+        for (is_map, arg) in stages.iter().rev() {
+            if *is_map {
+                continue;
+            }
+            producer = Core::App(
+                Box::new(Core::Global(GlobalId(
+                    self.defs
+                        .keys()
+                        .find(|k| k.ends_with(".prodTake"))
+                        .cloned()
+                        .unwrap_or_else(|| "Prelude.prodTake".to_string()),
+                ))),
+                vec![arg.clone(), producer],
+            );
+        }
+        self.changed = true;
+        self.fuel_left -= 1;
+        self.fused.push(format!(
+            "{}: fused {} map stage(s) into the {} state machine (Done/Skip/Yield); eliminated the intermediate step allocation",
+            self.caller.id.0,
+            nmaps,
+            if is_fold { "fold loop" } else { "map" }
+        ));
+        self.site("fusion", None);
+        let lam = Core::Lam { fn_id: gid, env };
+        Some(if is_fold {
+            Core::App(
+                Box::new(Core::Global(GlobalId(head))),
+                vec![args[0].clone(), lam, producer],
+            )
+        } else {
+            Core::App(Box::new(Core::Global(GlobalId(head))), vec![lam, producer])
+        })
+    }
+
+    /// Dead alternatives in the default alternatives of a decision (the
+    /// branch that decided the scrutinee's negation): dropping an
+    /// impossible alternative is conditioning on its negation, and the
+    /// surviving weights are NOT rescaled (attribute annotations
+    /// specification section 2.4).
+    fn dead_alts(&mut self, e: &mut Core) {
+        let mut syn: HashMap<LocalId, LocalId> = HashMap::new();
+        self.dead_alts_in(e, &mut syn);
+    }
+
+    fn dead_alts_in(&mut self, e: &mut Core, syn: &mut HashMap<LocalId, LocalId>) {
+        match e {
+            Core::Let(l, v, _) => {
+                if let Core::Var(src) = &**v {
+                    let root = syn.get(src).copied().unwrap_or(*src);
+                    syn.insert(*l, root);
+                }
+            }
+            Core::Case { scrut, alts } => {
+                if let Core::Var(v) = &**scrut {
+                    let root = syn.get(v).copied().unwrap_or(*v);
+                    // The default alternatives share one nested decision
+                    // on the scrutinee; the explicit alternatives are the
+                    // constructors the default excludes.
+                    let mut shared: Vec<usize> = Vec::new();
+                    let mut neg: Vec<usize> = Vec::new();
+                    for (i, a) in alts.iter().enumerate() {
+                        if contains_case_on(&a.body, syn, root) {
+                            shared.push(i);
+                        } else if let CPat::Con { tag, .. } = &a.pat {
+                            neg.push(*tag);
+                        }
+                    }
+                    if !shared.is_empty() && !neg.is_empty() {
+                        for i in shared {
+                            drop_dead(&mut alts[i].body, root, syn, &neg, self);
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
+        let mut kids = child_slots(e);
+        for k in kids.iter_mut() {
+            self.dead_alts_in(k, syn);
+        }
+        let _ = &mut kids;
+    }
+
+    /// Decision merging: two decisions on the same scrutinee merge into
+    /// one, reconciling the weight spaces by the rescale formula and a
+    /// greatest-common-divisor reduction (attribute annotations
+    /// specification section 2.4). The pattern compiler expands a default
+    /// alternative into one alternative per uncovered constructor, all
+    /// sharing the default's body and weight: those are the alternatives
+    /// the merged decision absorbs.
+    fn merge_cases(&mut self, e: &mut Core) {
+        let mut syn: HashMap<LocalId, LocalId> = HashMap::new();
+        self.merge_cases_in(e, &mut syn);
+    }
+
+    fn merge_cases_in(&mut self, e: &mut Core, syn: &mut HashMap<LocalId, LocalId>) {
+        if let Core::Let(l, v, _) = e {
+            if let Core::Var(src) = &**v {
+                let root = syn.get(src).copied().unwrap_or(*src);
+                syn.insert(*l, root);
+            }
+        }
+        if let Some(merged) = try_merge_case(e, syn) {
+            *e = merged;
+            self.changed = true;
+            self.site("case-merge", None);
+        }
+        let mut kids = child_slots(e);
+        for k in kids.iter_mut() {
+            self.merge_cases_in(k, syn);
+        }
+        let _ = &mut kids;
+    }
+
+    /// Decision-of-decision independence: a decision on a value produced
+    /// by another decision is pushed inward; every duplicated decision
+    /// keeps its original weights.
+    fn push_cases(&mut self, e: &mut Core) {
+        if let Core::Case { scrut, alts } = e {
+            if let Core::If(c, t, fe) = &**scrut {
+                let mk = |branch: &Core| -> Core {
+                    Core::Case {
+                        scrut: Box::new(branch.clone()),
+                        alts: alts
+                            .iter()
+                            .map(|a| CAlt {
+                                pat: a.pat.clone(),
+                                weight: a.weight,
+                                body: a.body.clone(),
+                            })
+                            .collect(),
+                    }
+                };
+                let new = Core::If(
+                    c.clone(),
+                    CBranch { weight: t.weight, body: Box::new(mk(&t.body)) },
+                    CBranch { weight: fe.weight, body: Box::new(mk(&fe.body)) },
+                );
+                *e = new;
+                self.changed = true;
+                self.site("case-push", None);
+            }
+        }
+        let mut kids = child_slots(e);
+        for k in kids.iter_mut() {
+            self.push_cases(k);
+        }
+        let _ = &mut kids;
+    }
+
+    /// One driving pass over a term: rewrite rules and fusion see the
+    /// pipeline as written (before its children are driven), then the
+    /// children, then the local managed transformations.
+    fn drive(&mut self, e: &mut Core) {
+        if self.try_rules(e) {
+            let mut kids = child_slots(e);
+            for k in kids.iter_mut() {
+                self.drive(k);
+            }
+            return;
+        }
+        if let Some(fused) = self.fuse(e) {
+            *e = fused;
+            self.drive(e);
+            return;
+        }
+        let mut kids = child_slots(e);
+        for k in kids.iter_mut() {
+            self.drive(k);
+        }
+        drop(kids);
+        self.node(e);
+    }
+
+    /// Note fuel exhaustion once per residual unit.
+    fn note_fuel(&mut self) {
+        if !self.fuel_reported {
+            self.fuel_reported = true;
+            self.site("unfold", Some("fuel-exhausted".to_string()));
+        }
+    }
+
+    /// Rewrite-rule application at one node (modules and compilation
+    /// specification section 5): a rule fires where its pattern matches
+    /// and its barriers hold; the template's weights replace the target's
+    /// entirely (attribute annotations specification section 2.4).
+    fn try_rules(&mut self, e: &mut Core) -> bool {
+        let rules: Vec<RewriteRule> = self.rules.clone();
+        for rule in &rules {
+            let holes: std::collections::HashSet<LocalId> =
+                rule.holes.iter().copied().collect();
+            let mut binds: HashMap<LocalId, Core> = HashMap::new();
+            if !match_pat(&rule.pattern, &holes, e, &mut binds) {
+                continue;
+            }
+            if self.fuel_left == 0 {
+                self.note_fuel();
+                return false;
+            }
+            // A `using` binder the pattern does not bind comes from the
+            // firing unit's capability parameters of that class.
+            let mut outside: Option<String> = None;
+            for (hole, class) in &rule.dict_holes {
+                if binds.contains_key(hole) {
+                    continue;
+                }
+                match self.caller.meta.dicts.iter().find(|(i, c)| c == class) {
+                    Some((i, _)) => {
+                        binds.insert(*hole, Core::Var(LocalId(*i)));
+                    }
+                    None => {
+                        outside = Some(format!(
+                            "capability scope: the rule applies only where a `{class}` capability is valid"
+                        ));
+                        break;
+                    }
+                }
+            }
+            if let Some(stop) = outside {
+                self.site(&format!("rewrite:{}", rule.name), Some(stop));
+                continue;
+            }
+            if let Err(stop) = self.rule_barriers(rule, &binds) {
+                self.site(&format!("rewrite:{}", rule.name), Some(stop));
+                continue;
+            }
+            let mut next = self.fresh;
+            let inst = instantiate(&rule.template, &holes, &binds, &mut next);
+            self.fresh = next.max(self.fresh);
+            *e = inst;
+            self.changed = true;
+            self.fuel_left -= 1;
+            self.site(&format!("rewrite:{}", rule.name), None);
+            return true;
+        }
+        false
+    }
+
+    fn node(&mut self, e: &mut Core) {
+        // Constant folding of total primitives on known arguments.
+        if let Core::App(h, args) = e {
+            if let Core::Prim(op) = &**h {
+                let ctors = FoldCtors {
+                    none: self.cx.ctors.none.clone(),
+                    some: self.cx.ctors.some.clone(),
+                };
+                if let Some(v) = fold_prim(*op, args, &ctors) {
+                    if !self.spend_fuel() {
+                        return;
+                    }
+                    *e = v;
+                    self.changed = true;
+                    self.site("const-fold", None);
+                    return;
+                }
+            }
+        }
+        // Case of a known constructor (its weights are discarded: the
+        // decision point is eliminated).
+        if let Core::Case { scrut, alts } = e {
+            let (tag, fields) = ctor_shape(&**scrut, &self.defs);
+            if let Some(tag) = tag {
+                let mut pick: Option<usize> = None;
+                let mut fallback: Option<usize> = None;
+                for (i, a) in alts.iter().enumerate() {
+                    match &a.pat {
+                        CPat::Con { tag: t, .. } if *t == tag => pick = Some(i),
+                        CPat::Var(_) | CPat::Wild => fallback = Some(i),
+                        _ => {}
+                    }
+                }
+                if let Some(i) = pick.or(fallback) {
+                    if !self.spend_fuel() {
+                        return;
+                    }
+                    let alt = alts[i].clone();
+                    let mut out = *alt.body.clone();
+                    match &alt.pat {
+                        CPat::Con { fields: fs, .. } => {
+                            for (slot, f) in fs.iter().enumerate() {
+                                if let Some(val) = fields.get(slot) {
+                                    out = Core::Let(*f, Box::new(val.clone()), Box::new(out));
+                                }
+                            }
+                        }
+                        CPat::Var(l) => {
+                            out = Core::Let(*l, Box::new((**scrut).clone()), Box::new(out));
+                        }
+                        CPat::Wild => {}
+                    }
+                    *e = out;
+                    self.changed = true;
+                    self.site("case-fold", None);
+                    return;
+                }
+            }
+        }
+        // Dictionary and effect-static specialization: a call through a
+        // statically known dictionary becomes a direct call.
+        if let Core::App(h, args) = e {
+            if let Core::DictProj(d, idx) = &**h {
+                if let Core::InstDict(id, subs) = &**d {
+                    if let Some(inst_def) = self.caller_program_instance(id) {
+                        if let Some(mid) = inst_def.methods.get(*idx) {
+                            let want = self.defs.get(&mid.0).map(|f| f.params.len());
+                            if want == Some(subs.len() + args.len()) && self.spend_fuel() {
+                                let mut new_args = subs.clone();
+                                new_args.extend(args.iter().cloned());
+                                *e = Core::App(Box::new(Core::Global(mid.clone())), new_args);
+                                self.changed = true;
+                                self.site("dictionary-specialize", None);
+                                return;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        // Known-application unfolding, bounded by fuel and the whistle.
+        if let Core::App(h, args) = e {
+            if let Core::Global(g) = &**h {
+                if let Some(new) = self.try_unfold(g, args) {
+                    *e = new;
+                    return;
+                }
+            }
+        }
+    }
+
+    /// One unit of driving fuel, or a noted exhaustion.
+    fn spend_fuel(&mut self) -> bool {
+        if self.fuel_left == 0 {
+            self.note_fuel();
+            return false;
+        }
+        self.fuel_left -= 1;
+        true
+    }
+
+    fn caller_program_instance(&self, id: &GlobalId) -> Option<InstanceDef> {
+        self.instances
+            .iter()
+            .find(|i| i.id.0 == id.0)
+            .cloned()
+    }
+
+    /// The barriers of supercompilation section 3 for one rule firing.
+    fn rule_barriers(&self, rule: &RewriteRule, binds: &HashMap<LocalId, Core>) -> Result<(), String> {
+        for (hole, class) in &rule.dict_holes {
+            let v = binds.get(hole).ok_or_else(|| {
+                "capability scope: the capability is not in scope".to_string()
+            })?;
+            match v {
+                Core::Var(l)
+                    if self.caller.meta.dicts.iter().any(|(i, c)| *i == l.0 && c == class) => {}
+                _ => {
+                    return Err(format!(
+                        "capability scope: the rule applies only where a `{class}` capability is valid"
+                    ))
+                }
+            }
+        }
+        match &rule.cond {
+            RequireCond::Always => {}
+            RequireCond::Never => {
+                return Err("applicability condition: the `require` clause is false here".to_string())
+            }
+            RequireCond::Unknown => {
+                return Err(
+                    "applicability condition: the `require` clause is not statically decidable here"
+                        .to_string(),
+                )
+            }
+            RequireCond::CapabilityInScope { hole, class } => {
+                let v = binds
+                    .get(hole)
+                    .ok_or_else(|| "capability scope: the capability is not in scope".to_string())?;
+                match v {
+                    Core::Var(l)
+                        if self
+                            .caller
+                            .meta
+                            .dicts
+                            .iter()
+                            .any(|(i, c)| *i == l.0 && c == class) => {}
+                    _ => {
+                        return Err(format!(
+                            "capability scope: the rule applies only where a `{class}` capability is valid"
+                        ))
+                    }
+                }
+            }
+        }
+        for hole in &rule.pure_holes {
+            if let Some(v) = binds.get(hole) {
+                pure_value(v, self.cx, &self.defs, &self.caller)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn try_unfold(&mut self, g: &GlobalId, args: &[Core]) -> Option<Core> {
+        if self.cx.opaque.contains(&g.0) {
+            self.site("unfold", Some("opaque boundary: a replaceable dispatch boundary residualizes".to_string()));
+            return None;
+        }
+        let f = self.defs.get(&g.0)?.clone();
+        if f.prim.is_some() || f.ctor.is_some() || args.len() != f.params.len() {
+            return None;
+        }
+        if self.stack.iter().any(|s| s == &g.0) {
+            self.site("unfold", Some("whistle: a repeated configuration folds to a residual call".to_string()));
+            return None;
+        }
+        if self.fuel_left == 0 {
+            self.note_fuel();
+            return None;
+        }
+        // Linear values are never duplicated or dropped; a configuration
+        // that would require either generalizes instead.
+        let mut binds: HashMap<LocalId, Core> = HashMap::new();
+        for (i, arg) in args.iter().enumerate() {
+            let l = LocalId(i);
+            let (min, max) = use_range(&f.body, l);
+            let arg_is_linear = matches!(arg, Core::Var(v)
+                if self.caller.meta.linear.iter().any(|(j, _)| *j == v.0));
+            let param_is_linear = self.caller_callee_linear(&f, i);
+            if arg_is_linear || param_is_linear {
+                if min != 1 || max != 1 {
+                    self.site(
+                        "unfold",
+                        Some("linear value: generalizing instead of duplicating or dropping a %1/%aff value".to_string()),
+                    );
+                    return None;
+                }
+                binds.insert(l, arg.clone());
+                continue;
+            }
+            let atom = matches!(
+                arg,
+                Core::Var(_) | Core::Int(_) | Core::ConstBig { .. } | Core::Bool(_)
+                    | Core::Unit | Core::Global(_) | Core::Ctor(_) | Core::Prim(_)
+            );
+            if atom {
+                binds.insert(l, arg.clone());
+            } else {
+                // Let-sharing keeps the strict argument order of the
+                // original call (effect order is a barrier of its own).
+                let fresh_v = LocalId(self.fresh);
+                self.fresh += 1;
+                binds.insert(l, Core::Var(fresh_v));
+                // Enclose after building the body (below).
+                binds.insert(LocalId(0x8000_0000 + i), Core::Var(fresh_v));
+                binds.insert(LocalId(0x4000_0000 + i), arg.clone());
+            }
+        }
+        let holes: std::collections::HashSet<LocalId> = (0..args.len()).map(LocalId).collect();
+        let mut next = self.fresh;
+        let mut body = instantiate(&f.body, &holes, &binds, &mut next);
+        self.fresh = next;
+        for i in (0..args.len()).rev() {
+            let fresh_v = LocalId(0x8000_0000 + i);
+            let arg = LocalId(0x4000_0000 + i);
+            if let (Some(Core::Var(v)), Some(a)) = (binds.get(&fresh_v), binds.get(&arg)) {
+                body = Core::Let(*v, Box::new(a.clone()), Box::new(body));
+            }
+        }
+        self.fuel_left -= 1;
+        self.changed = true;
+        self.stack.push(g.0.clone());
+        self.node(&mut body);
+        self.stack.pop();
+        self.site("unfold", None);
+        Some(body)
+    }
+
+    fn caller_callee_linear(&self, f: &FnDef, i: usize) -> bool {
+        f.meta.linear.iter().any(|(j, _)| *j == i)
+    }
+}
+
+/// Dead-alternative pruning inside `e`: the nested decision on `v` drops
+/// the alternatives the enclosing decision excluded (`impossible`),
+/// conditioning on their negation without rescaling the survivors.
+fn drop_dead(
+    e: &mut Core,
+    v: LocalId,
+    syn: &mut HashMap<LocalId, LocalId>,
+    impossible: &[usize],
+    drv: &mut Driver,
+) {
+    match e {
+        Core::Let(l, src, _) => {
+            if let Core::Var(s) = &**src {
+                let root = syn.get(s).copied().unwrap_or(*s);
+                syn.insert(*l, root);
+            }
+        }
+        Core::Case { scrut, alts } => {
+            if let Core::Var(sv) = &**scrut {
+                let root = syn.get(sv).copied().unwrap_or(*sv);
+                if root == v {
+                    let before = alts.len();
+                    alts.retain(|a| match &a.pat {
+                        CPat::Con { tag, .. } => !impossible.contains(tag),
+                        _ => true,
+                    });
+                    if alts.len() != before {
+                        drv.changed = true;
+                        drv.site("dead-alternative", None);
+                    }
+                }
+            }
+        }
+        _ => {}
+    }
+    let mut kids = child_slots(e);
+    for k in kids.iter_mut() {
+        drop_dead(k, v, syn, impossible, drv);
+    }
+    let _ = &mut kids;
+}
+
+/// Mutable views of a term's child positions (for bottom-up rewrites).
+fn child_slots(e: &mut Core) -> Vec<&mut Core> {
+    let mut out: Vec<&mut Core> = Vec::new();
+    match e {
+        Core::Int(_) | Core::ConstBig { .. } | Core::Bool(_) | Core::Unit | Core::Global(_)
+        | Core::Ctor(_) | Core::Prim(_) | Core::Fault | Core::LazyAlloc | Core::SyntaxLit(_)
+        | Core::StrLit(_) | Core::Var(_) => {}
+        Core::DictProj(d, _) | Core::Proj(d, _) | Core::Demand(d) => out.push(&mut **d),
+        Core::InstDict(_, args) | Core::App(_, args) | Core::Lam { env: args, .. } => {
+            for a in args {
+                out.push(a);
+            }
+        }
+        Core::Let(_, v, body) => {
+            out.push(&mut **v);
+            out.push(&mut **body);
+        }
+        Core::LazyInit(_, t) => out.push(&mut **t),
+        Core::If(c, t, fe) => {
+            out.push(&mut **c);
+            out.push(&mut *t.body);
+            out.push(&mut *fe.body);
+        }
+        Core::Case { scrut, alts } => {
+            out.push(&mut **scrut);
+            for a in alts {
+                out.push(&mut *a.body);
+            }
+        }
+        Core::Quote { holes, .. } | Core::DeclsQuote { holes, .. } => {
+            for h in holes {
+                out.push(h);
+            }
+        }
+    }
+    out
+}
+
+/// The constructor a scrutinee applies, if it is a known one.
+fn ctor_shape(e: &Core, defs: &HashMap<String, FnDef>) -> (Option<usize>, Vec<Core>) {
+    match e {
+        Core::Ctor(g) => {
+            let tag = defs.get(&g.0).and_then(|f| f.ctor).map(|(t, _)| t);
+            (tag, Vec::new())
+        }
+        Core::App(h, args) => match &**h {
+            Core::Ctor(g) => {
+                let tag = defs.get(&g.0).and_then(|f| f.ctor).map(|(t, _)| t);
+                (tag, args.clone())
+            }
+            _ => (None, Vec::new()),
+        },
+        _ => (None, Vec::new()),
+    }
+}
+
+/// Alpha-equivalence of two terms: the pattern compiler clones a default
+/// alternative's body once per uncovered constructor, renaming its local
+/// binders.
+fn alpha_eq(a: &Core, b: &Core) -> bool {
+    fn go(a: &Core, b: &Core, map: &mut HashMap<LocalId, LocalId>) -> bool {
+        match (a, b) {
+            (Core::Var(x), Core::Var(y)) => match map.get(x) {
+                Some(q) => q == y,
+                None => x == y,
+            },
+            (Core::Int(x), Core::Int(y)) => x == y,
+            (
+                Core::ConstBig { nat: n1, digits: d1 },
+                Core::ConstBig { nat: n2, digits: d2 },
+            ) => n1 == n2 && d1 == d2,
+            (Core::Bool(x), Core::Bool(y)) => x == y,
+            (Core::Unit, Core::Unit) | (Core::Fault, Core::Fault) | (Core::LazyAlloc, Core::LazyAlloc) => true,
+            (Core::Global(x), Core::Global(y)) | (Core::Ctor(x), Core::Ctor(y)) => x == y,
+            (Core::Prim(x), Core::Prim(y)) => x == y,
+            (Core::DictProj(d1, i1), Core::DictProj(d2, i2)) | (Core::Proj(d1, i1), Core::Proj(d2, i2)) => {
+                i1 == i2 && go(d1, d2, map)
+            }
+            (Core::InstDict(g1, a1), Core::InstDict(g2, a2)) => {
+                g1 == g2 && a1.len() == a2.len() && a1.iter().zip(a2).all(|(x, y)| go(x, y, map))
+            }
+            (Core::App(f1, a1), Core::App(f2, a2)) => {
+                a1.len() == a2.len()
+                    && go(f1, f2, map)
+                    && a1.iter().zip(a2).all(|(x, y)| go(x, y, map))
+            }
+            (Core::Lam { fn_id: g1, env: e1 }, Core::Lam { fn_id: g2, env: e2 }) => {
+                g1 == g2 && e1.len() == e2.len() && e1.iter().zip(e2).all(|(x, y)| go(x, y, map))
+            }
+            (Core::Let(l1, v1, b1), Core::Let(l2, v2, b2)) => {
+                if !go(v1, v2, map) {
+                    return false;
+                }
+                map.insert(*l1, *l2);
+                let ok = go(b1, b2, map);
+                map.remove(l1);
+                ok
+            }
+            (Core::LazyInit(l1, t1), Core::LazyInit(l2, t2)) => {
+                map.insert(*l1, *l2);
+                let ok = go(t1, t2, map);
+                map.remove(l1);
+                ok
+            }
+            (Core::If(c1, t1, f1), Core::If(c2, t2, f2)) => {
+                t1.weight == t2.weight
+                    && f1.weight == f2.weight
+                    && go(c1, c2, map)
+                    && go(&t1.body, &t2.body, map)
+                    && go(&f1.body, &f2.body, map)
+            }
+            (Core::Case { scrut: s1, alts: a1 }, Core::Case { scrut: s2, alts: a2 }) => {
+                if !go(s1, s2, map) || a1.len() != a2.len() {
+                    return false;
+                }
+                for (x, y) in a1.iter().zip(a2) {
+                    if x.weight != y.weight {
+                        return false;
+                    }
+                    let mut bound: Vec<LocalId> = Vec::new();
+                    let ok = match (&x.pat, &y.pat) {
+                        (CPat::Wild, CPat::Wild) => true,
+                        (CPat::Var(p), CPat::Var(q)) => {
+                            map.insert(*p, *q);
+                            bound.push(*p);
+                            true
+                        }
+                        (CPat::Con { tag: t1, fields: f1 }, CPat::Con { tag: t2, fields: f2 })
+                            if t1 == t2 && f1.len() == f2.len() =>
+                        {
+                            for (p, q) in f1.iter().zip(f2) {
+                                map.insert(*p, *q);
+                                bound.push(*p);
+                            }
+                            true
+                        }
+                        _ => false,
+                    };
+                    let ok = ok && go(&x.body, &y.body, map);
+                    for p in bound {
+                        map.remove(&p);
+                    }
+                    if !ok {
+                        return false;
+                    }
+                }
+                true
+            }
+            (Core::StrLit(s1), Core::StrLit(s2)) => s1 == s2,
+            (Core::SyntaxLit(t1), Core::SyntaxLit(t2)) => format!("{t1:?}") == format!("{t2:?}"),
+            _ => false,
+        }
+    }
+    go(a, b, &mut HashMap::new())
+}
+
+/// The nested decision an outer alternative's body holds on the same
+/// scrutinee, through the compiler's synonym `let`s only: a default
+/// alternative is `let y = x in case y of ...` up to renaming.
+fn shared_inner_case<'a>(
+    body: &'a Core,
+    syn: &HashMap<LocalId, LocalId>,
+    root: LocalId,
+) -> Option<(LocalId, &'a Vec<CAlt<Core>>)> {
+    let (sub, case): (LocalId, &Core) = match body {
+        Core::Let(l, src, rest) => match &**src {
+            Core::Var(s) if syn.get(s).copied().unwrap_or(*s) == root => (*l, &**rest),
+            _ => return None,
+        },
+        _ => (LocalId(usize::MAX), body),
+    };
+    match case {
+        Core::Case { scrut: s2, alts: inner } => {
+            let w = match &**s2 {
+                Core::Var(w) => *w,
+                _ => return None,
+            };
+            let resolved = syn.get(&w).copied().unwrap_or(w);
+            if w == sub || resolved == root {
+                Some((sub, inner))
+            } else {
+                None
+            }
+        }
+        _ => None,
+    }
+}
+
+/// Does the term contain a decision on the scrutinee's root synonym?
+fn contains_case_on(e: &Core, syn: &HashMap<LocalId, LocalId>, root: LocalId) -> bool {
+    let mut syn = syn.clone();
+    let mut found = false;
+    fn go(e: &Core, syn: &mut HashMap<LocalId, LocalId>, root: LocalId, found: &mut bool) {
+        if *found {
+            return;
+        }
+        match e {
+            Core::Let(l, src, _) => {
+                if let Core::Var(s) = &**src {
+                    let r = syn.get(s).copied().unwrap_or(*s);
+                    syn.insert(*l, r);
+                }
+            }
+            Core::Case { scrut, .. } => {
+                if let Core::Var(sv) = &**scrut {
+                    if syn.get(sv).copied().unwrap_or(*sv) == root {
+                        *found = true;
+                        return;
+                    }
+                }
+            }
+            _ => {}
+        }
+        for k in child_slots_imm(e) {
+            go(k, syn, root, found);
+        }
+    }
+    go(e, &mut syn, root, &mut found);
+    found
+}
+
+/// Merge a decision with the nested decision its default alternatives
+/// share (attribute annotations specification section 2.4): for each
+/// outer alternative of weight `w_i` the merged weight is `w_i * S` (S
+/// the sum of the inner weights), for each inner alternative of weight
+/// `u_j` under the outer default `w_d` it is `w_d * u_j`, and the merged
+/// set is divided by its greatest common divisor. A partially annotated
+/// decision merges with no weights at all.
+fn try_merge_case(e: &Core, syn: &HashMap<LocalId, LocalId>) -> Option<Core> {
+    let (scrut, alts) = match e {
+        Core::Case { scrut, alts } => (scrut.clone(), alts.clone()),
+        _ => return None,
+    };
+    let v = match &*scrut {
+        Core::Var(v) => *v,
+        _ => return None,
+    };
+    let root = syn.get(&v).copied().unwrap_or(v);
+    // The shared nested decision: every alternative whose body is the
+    // same case on the scrutinee is a default alternative.
+    let mut default_idx: Vec<usize> = Vec::new();
+    let mut shared: Option<(LocalId, &Vec<CAlt<Core>>)> = None;
+    for (i, a) in alts.iter().enumerate() {
+        if let Some(inner) = shared_inner_case(&a.body, syn, root) {
+            match &shared {
+                None => shared = Some(inner),
+                Some((_sub, alts2)) => {
+                    let same = alts2.len() == inner.1.len()
+                        && alts2.iter().zip(inner.1).all(|(x, y)| {
+                            x.weight == y.weight
+                                && pat_eq(&x.pat, &y.pat)
+                                && alpha_eq(&x.body, &y.body)
+                        });
+                    if !same {
+                        return None;
+                    }
+                }
+            }
+            default_idx.push(i);
+        }
+    }
+    let (sub, inner) = shared?;
+    if default_idx.is_empty() || default_idx.len() == alts.len() {
+        return None;
+    }
+    // The inner decision must cover the default alternatives'
+    // constructors (first-match semantics would change otherwise). Its
+    // own alternatives outside that set are impossible under the default
+    // and are conditioned away without rescaling (section 2.4's
+    // dead-alternative rule).
+    let mut inner_tags: Vec<usize> = Vec::new();
+    for a in inner.iter() {
+        match &a.pat {
+            CPat::Con { tag, .. } => {
+                if inner_tags.contains(tag) {
+                    return None;
+                }
+                inner_tags.push(*tag);
+            }
+            _ => return None,
+        }
+    }
+    let mut default_tags: Vec<usize> = Vec::new();
+    let mut other_tags: Vec<usize> = Vec::new();
+    for (i, a) in alts.iter().enumerate() {
+        if let CPat::Con { tag, .. } = &a.pat {
+            if default_idx.contains(&i) {
+                default_tags.push(*tag);
+            } else {
+                other_tags.push(*tag);
+            }
+        }
+    }
+    default_tags.sort();
+    if !default_tags.iter().all(|t| inner_tags.contains(t)) {
+        return None;
+    }
+    let kept: Vec<usize> = (0..inner.len())
+        .filter(|j| match &inner[*j].pat {
+            CPat::Con { tag, .. } => default_tags.contains(tag),
+            _ => false,
+        })
+        .collect();
+    // Weights: all-or-nothing on both decisions, and the default
+    // alternatives must agree on their weight.
+    let w_d = alts[default_idx[0]].weight;
+    if default_idx.iter().any(|i| alts[*i].weight != w_d) {
+        return None;
+    }
+    let outer_w: Vec<Option<u32>> = alts.iter().map(|a| a.weight).collect();
+    let inner_w: Vec<Option<u32>> = kept.iter().map(|j| inner[*j].weight).collect();
+    let outer_all = outer_w.iter().all(|w| w.is_some()) && outer_w.iter().any(|w| w.is_some());
+    let inner_all = inner_w.iter().all(|w| w.is_some()) && inner_w.iter().any(|w| w.is_some());
+    let mut merged_w: Vec<Option<u32>> = Vec::new();
+    if outer_all && inner_all {
+        let s: u128 = inner_w.iter().map(|w| w.unwrap() as u128).sum();
+        let wd = w_d.unwrap() as u128;
+        let mut vals: Vec<u128> = Vec::new();
+        for (i, w) in outer_w.iter().enumerate() {
+            if !default_idx.contains(&i) {
+                vals.push(w.unwrap() as u128 * s);
+            }
+        }
+        for w in &inner_w {
+            vals.push(wd * w.unwrap() as u128);
+        }
+        let g = vals.iter().copied().reduce(|a, b| gcd(a, b)).unwrap_or(1).max(1);
+        merged_w = vals.iter().map(|v| Some((v / g) as u32)).collect();
+    }
+    // Assemble: the outer alternatives keep their bodies, the inner
+    // alternatives arrive from the shared default body.
+    let mut out: Vec<CAlt<Core>> = Vec::new();
+    let mut wi = 0;
+    for (i, a) in alts.iter().enumerate() {
+        if default_idx.contains(&i) {
+            continue;
+        }
+        out.push(CAlt {
+            pat: a.pat.clone(),
+            weight: merged_w.get(wi).copied().flatten(),
+            body: a.body.clone(),
+        });
+        wi += 1;
+    }
+    for j in kept {
+        let a = &inner[j];
+        let body = if sub != LocalId(usize::MAX) {
+            Box::new(subst_var(&a.body, sub, &Core::Var(v)))
+        } else {
+            a.body.clone()
+        };
+        out.push(CAlt {
+            pat: a.pat.clone(),
+            weight: merged_w.get(wi).copied().flatten(),
+            body,
+        });
+        wi += 1;
+    }
+    Some(Core::Case { scrut, alts: out })
+}
+
+fn gcd(a: u128, b: u128) -> u128 {
+    if b == 0 {
+        a
+    } else {
+        gcd(b, a % b)
+    }
+}
+
+/// Substitute one local throughout a term.
+fn subst_var(e: &Core, from: LocalId, to: &Core) -> Core {
+    let mut out = e.clone();
+    subst_in_place(&mut out, from, to);
+    out
+}
+
+fn subst_in_place(e: &mut Core, from: LocalId, to: &Core) {
+    for slot in child_slots(e) {
+        subst_in_place(slot, from, to);
+    }
+    if let Core::Var(l) = e {
+        if *l == from {
+            *e = to.clone();
+        }
+    }
+}
+
+/// The residual program recheck (supercompilation and JIT specification
+/// section 4): every candidate passes before it is installed; a failing
+/// candidate is discarded and the generic form stays.
+fn verify_residual(orig: &FnDef, body: &Core) -> Result<(), String> {
+    if !scope_ok(body, orig.params.len()) {
+        return Err("recheck failed: an unbound local in the residual".to_string());
+    }
+    for (i, _) in &orig.meta.linear {
+        let before = use_range(&orig.body, LocalId(*i));
+        let after = use_range(body, LocalId(*i));
+        if before != after {
+            return Err(format!(
+                "recheck failed: the usage of linear parameter {i} changed ({before:?} to {after:?})"
+            ));
+        }
+    }
+    if memo_count(&orig.body) != memo_count(body) {
+        return Err("recheck failed: memo/demand sharing changed".to_string());
+    }
+    if !weights_ok(body) {
+        return Err("recheck failed: a decision point lost its all-or-nothing weights".to_string());
+    }
+    Ok(())
+}
+
+/// Specialize a checked program (supercompilation and JIT specification
+/// sections 2-5 and 8-9). Returns the residual program and the compiler
+/// report; the residual's contract identity is the generic form's.
+pub fn optimize(program: &Program, profile: &TargetProfile) -> Result<(Program, OptReport)> {
+    let pure = build_purity(program);
+    let mut defs: HashMap<String, FnDef> = HashMap::new();
+    for f in &program.fns {
+        defs.insert(f.id.0.clone(), f.clone());
+    }
+    let mut ctor_none = None;
+    let mut ctor_some = None;
+    for f in &program.fns {
+        if f.ctor == Some((0, 0)) && f.id.0.ends_with(".None") {
+            ctor_none = Some(f.id.clone());
+        }
+        if f.ctor == Some((1, 1)) && f.id.0.ends_with(".Some") {
+            ctor_some = Some(f.id.clone());
+        }
+    }
+    let cx = OptCx {
+        pure,
+        ctors: FoldCtors { none: ctor_none, some: ctor_some },
+        opaque: std::collections::HashSet::new(),
+        measure: profile.measure,
+        fuel: profile.fuel,
+    };
+    let mut out = program.clone();
+    let mut report = OptReport::default();
+    let mut new_fns: Vec<FnDef> = Vec::new();
+    for fi in 0..program.fns.len() {
+        let orig = program.fns[fi].clone();
+        if orig.prim.is_some() || orig.ctor.is_some() {
+            continue;
+        }
+        let mut drv = Driver {
+            cx: &cx,
+            defs: defs.clone(),
+            instances: program.instances.clone(),
+            rules: program.rewrites.clone(),
+            caller: orig.clone(),
+            stack: Vec::new(),
+            sites: Vec::new(),
+            fused: Vec::new(),
+            new_fns: Vec::new(),
+            fuse_counter: 0,
+            fresh: max_local(&orig.body) + 1,
+            changed: false,
+            fuel_left: profile.fuel,
+            fuel_reported: false,
+        };
+        let mut body = orig.body.clone();
+        let base_size = size_of(&body).max(1);
+        let mut rounds = 0;
+        loop {
+            drv.changed = false;
+            drv.drive(&mut body);
+            drv.merge_cases(&mut body);
+            drv.push_cases(&mut body);
+            drv.dead_alts(&mut body);
+            rounds += 1;
+            if !drv.changed || rounds >= 8 {
+                break;
+            }
+            if size_of(&body) > base_size * profile.measure.max(1) as usize {
+                drv.site("unfold", Some("whistle: the residual grew past the measure bound".to_string()));
+                break;
+            }
+        }
+        body = renumber_core(&body, orig.params.len());
+        match verify_residual(&orig, &body) {
+            Ok(()) => {
+                out.fns[fi].body = body;
+                report.rechecked.push(orig.id.0.clone());
+            }
+            Err(why) => {
+                report.discarded.push(format!("{}: {why}", orig.id.0));
+            }
+        }
+        report.sites.extend(drv.sites);
+        report.fused.extend(drv.fused);
+        for f in drv.new_fns {
+            new_fns.push(f);
+        }
+        defs.insert(out.fns[fi].id.0.clone(), out.fns[fi].clone());
+    }
+    out.fns.extend(new_fns);
+    // The justification identities the rules relied on (supercompilation
+    // and JIT specification section 8; decision D55).
+    report.assumptions = program
+        .rewrites
+        .iter()
+        .flat_map(|r| r.assumptions.clone())
+        .collect();
+    // Contract identity (supercompilation section 4): specialization is
+    // representation-only; the residual's exported units are unchanged.
+    for (a, b) in program.fns.iter().zip(out.fns.iter()) {
+        if a.id != b.id || a.params.len() != b.params.len() {
+            return Err(Error::plain(
+                "internal error: specialization changed a unit's identity",
+            ));
+        }
+    }
+    Ok((out, report))
+}
+
+/// Node count for the whistle's measure bound.
+fn size_of(e: &Core) -> usize {
+    let mut n = 0;
+    fn count(e: &Core, n: &mut usize) {
+        *n += 1;
+        for slot in child_slots_imm(e) {
+            count(slot, n);
+        }
+    }
+    count(e, &mut n);
+    n
+}
+
+fn child_slots_imm(e: &Core) -> Vec<&Core> {
+    let mut out: Vec<&Core> = Vec::new();
+    match e {
+        Core::Int(_) | Core::ConstBig { .. } | Core::Bool(_) | Core::Unit | Core::Global(_)
+        | Core::Ctor(_) | Core::Prim(_) | Core::Fault | Core::LazyAlloc | Core::SyntaxLit(_)
+        | Core::StrLit(_) | Core::Var(_) => {}
+        Core::DictProj(d, _) | Core::Proj(d, _) | Core::Demand(d) => out.push(&**d),
+        Core::InstDict(_, args) | Core::App(_, args) | Core::Lam { env: args, .. } => {
+            for a in args {
+                out.push(a);
+            }
+        }
+        Core::Let(_, v, body) => {
+            out.push(&**v);
+            out.push(&**body);
+        }
+        Core::LazyInit(_, t) => out.push(&**t),
+        Core::If(c, t, fe) => {
+            out.push(&**c);
+            out.push(&*t.body);
+            out.push(&*fe.body);
+        }
+        Core::Case { scrut, alts } => {
+            out.push(&**scrut);
+            for a in alts {
+                out.push(&*a.body);
+            }
+        }
+        Core::Quote { holes, .. } | Core::DeclsQuote { holes, .. } => {
+            for h in holes {
+                out.push(h);
+            }
+        }
+    }
+    out
 }
 
 #[cfg(test)]

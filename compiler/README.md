@@ -98,6 +98,17 @@ The closure and dictionary ABI is documented in `src/core.rs`.
   `Ref r a`/`Mut r a` borrows with region escape checking and lexical `Mut`
   uniqueness, and thunk force discipline (`%1` exactly once, `%aff` at
   most once; unannotated thunks default `%aff`).
+- **Rewrites, optimizer, and target profiles** (modules spec sections 5,
+  6, 13; platform spec): `rewrite`/`target rewrite` declarations with
+  `justify` checking (kernel evidence or `signature` law methods,
+  recorded in the assumptions when undischarged; effectful rules
+  rejected; definitional equality never extended), the optimizer with
+  preservation discipline (barrier rules, residual recheck, map fusion
+  preserving values and effect order with the blocker named when fusion
+  stops, weight reconciliation with the case-merge rescale), fuel/whistle
+  driving bounds in target profiles with the specialization report, and
+  target capability evidence (`Available`) with replaceable SIMD
+  dispatch and the checked/trusted lowering split in the manifest.
 - **Attribute annotations** (attribute annotations specification): the
   `#[...]` system across declarations, fields, clauses, alternatives,
   guards, `if` branches, and field types; branch weights `#[weight(n)]`
@@ -154,8 +165,8 @@ Rejected with an explicit error naming the form:
 - A constructor match against a family applied to rigid indices (decision
   D35: the error names the index equation; dispatch through `decide` or
   computed indices instead).
-- `rewrite`, `upgrade`, and module parameters (functor-style module
-  arguments).
+- `upgrade`, module parameters (functor-style module arguments), and
+  handler-vtable specialization (runtimes P13's elaboration work).
 - Strings (string literals and string types; `Bytes` buffers and `Char`
   values are implemented).
 - `~` irrefutable patterns in function argument positions (Haskell's
