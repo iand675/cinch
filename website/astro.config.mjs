@@ -27,6 +27,7 @@ export default defineConfig({
             { label: 'Core language', link: '/specifications/core-language-specification/' },
             { label: 'Primitive types', link: '/specifications/primitive-types-specification/' },
             { label: 'Surface syntax and grammar', link: '/specifications/surface-syntax-and-grammar/' },
+            { label: 'Surface grammar local amendments', link: '/specifications/surface-grammar-local-amendments/' },
             { label: 'Modules and compilation', link: '/specifications/modules-and-compilation-specification/' },
             { label: 'Runtime capabilities, effects and sequencing', link: '/specifications/runtime-capabilities-effects-and-sequencing/' },
             { label: 'Concurrency', link: '/specifications/concurrency-specification/' },
@@ -35,6 +36,7 @@ export default defineConfig({
             { label: 'Foreign function interface', link: '/specifications/foreign-function-interface-specification/' },
             { label: 'WebAssembly and WASI', link: '/specifications/webassembly-and-wasi-specification/' },
             { label: 'Runtime evolution', link: '/specifications/runtime-evolution-specification/' },
+            { label: 'Attribute annotations and branch weights', link: '/specifications/attribute-annotations-specification/' },
           ],
         },
         {
@@ -62,6 +64,17 @@ export default defineConfig({
             { label: 'Open decisions and implementation plan', link: '/design/open-decisions-and-implementation-plan/' },
             { label: 'References and related work', link: '/design/references-and-related-work/' },
             { label: 'Design conversation (historical record)', link: '/context/design-conversation/' },
+            {
+              label: 'Slice design notes',
+              items: [
+                { label: 'Attribute annotations', link: '/design/attribute-annotations/' },
+                { label: 'Codata and guardedness', link: '/design/codata-guardedness/' },
+                { label: 'Compiled interface metadata', link: '/design/compiled-interface-metadata/' },
+                { label: 'Dependent core kernel', link: '/design/dependent-core-kernel/' },
+                { label: 'Effects, capabilities, sequencing', link: '/design/effects-capabilities-sequencing/' },
+                { label: 'Ownership and usage', link: '/design/ownership-and-usage/' },
+              ],
+            },
           ],
         },
         {
