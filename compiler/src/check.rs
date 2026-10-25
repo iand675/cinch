@@ -8,7 +8,7 @@
 //! Operators are ordinary value names, so `x + y` is just a method call.
 
 use crate::ast;
-use crate::core::{BytesOp, CPat, CmpOp, FnDef, GlobalId, InstanceDef, IntOp, LocalId, NatOp, PrimOp, Program};
+use crate::core::{BytesOp, CAlt, CBranch, CPat, CmpOp, FnDef, GlobalId, InstanceDef, IntOp, LocalId, NatOp, PrimOp, Program};
 use crate::types::{ClassApp, EffLabel, EffRow, EitherMeta, IxParam, ITerm, IdxCmp, IdxOp, Mult, PTerm, RowTail, Scalar, Scheme, Sort, Ty, Unifier, collect_row_names, default_mult};
 use crate::{Error, Result};
 use SolveOutcome::{Solved, Ambiguous};
@@ -44,8 +44,12 @@ enum ECore {
     /// Hoisted form after [`hoist_lambdas`].
     MkClos { fn_id: GlobalId, env: Vec<ECore> },
     Let(LocalId, Box<ECore>, Box<ECore>),
-    If(Box<ECore>, Box<ECore>, Box<ECore>),
-    Case { scrut: Box<ECore>, alts: Vec<(CPat, ECore)> },
+    /// A two-way decision point: the condition and its two weighted
+    /// branches (attribute annotations specification section 2.1).
+    If(Box<ECore>, CBranch<ECore>, CBranch<ECore>),
+    /// Case on a boxed ADT value; the alternatives carry their weights
+    /// beside them (attribute annotations specification section 2.1).
+    Case { scrut: Box<ECore>, alts: Vec<CAlt<ECore>> },
     /// Demand a memo cell (its state machine runs at code generation).
     Demand(Box<ECore>),
     /// Allocate an empty memo cell.
@@ -157,8 +161,8 @@ fn free_locals(e: &ECore, bound: &mut Vec<LocalId>, out: &mut Vec<LocalId>) {
         }
         ECore::If(c, t, f) => {
             free_locals(c, bound, out);
-            free_locals(t, bound, out);
-            free_locals(f, bound, out);
+            free_locals(&t.body, bound, out);
+            free_locals(&f.body, bound, out);
         }
         ECore::Demand(d) => free_locals(d, bound, out),
         ECore::LazyAlloc => {}
@@ -170,14 +174,14 @@ fn free_locals(e: &ECore, bound: &mut Vec<LocalId>, out: &mut Vec<LocalId>) {
         }
         ECore::Case { scrut, alts } => {
             free_locals(scrut, bound, out);
-            for (pat, body) in alts {
+            for alt in alts {
                 let n = bound.len();
-                match pat {
+                match &alt.pat {
                     CPat::Var(l) => bound.push(*l),
                     CPat::Con { fields, .. } => bound.extend(fields.iter().copied()),
                     CPat::Wild => {}
                 }
-                free_locals(body, bound, out);
+                free_locals(&alt.body, bound, out);
                 bound.truncate(n);
             }
         }
@@ -230,16 +234,16 @@ fn hoist_lambdas(e: &mut ECore, hint: &str, counter: &mut usize, fns: &mut Vec<H
         }
         ECore::If(c, t, f) => {
             hoist_lambdas(c, hint, counter, fns);
-            hoist_lambdas(t, hint, counter, fns);
-            hoist_lambdas(f, hint, counter, fns);
+            hoist_lambdas(&mut t.body, hint, counter, fns);
+            hoist_lambdas(&mut f.body, hint, counter, fns);
         }
         ECore::Demand(d) => hoist_lambdas(d, hint, counter, fns),
         ECore::LazyAlloc => {}
         ECore::LazyInit(_, t) => hoist_lambdas(t, hint, counter, fns),
         ECore::Case { scrut, alts } => {
             hoist_lambdas(scrut, hint, counter, fns);
-            for (_, body) in alts {
-                hoist_lambdas(body, hint, counter, fns);
+            for alt in alts {
+                hoist_lambdas(&mut alt.body, hint, counter, fns);
             }
         }
         ECore::Lam { params, body } => {
@@ -321,8 +325,8 @@ fn assign_locals(e: &ECore, map: &mut HashMap<LocalId, LocalId>, next: &mut usiz
         }
         ECore::If(c, t, f) => {
             assign_locals(c, map, next);
-            assign_locals(t, map, next);
-            assign_locals(f, map, next);
+            assign_locals(&t.body, map, next);
+            assign_locals(&f.body, map, next);
         }
         ECore::Demand(d) => assign_locals(d, map, next),
         ECore::LazyAlloc => {}
@@ -332,8 +336,8 @@ fn assign_locals(e: &ECore, map: &mut HashMap<LocalId, LocalId>, next: &mut usiz
         }
         ECore::Case { scrut, alts } => {
             assign_locals(scrut, map, next);
-            for (pat, body) in alts {
-                match pat {
+            for alt in alts {
+                match &alt.pat {
                     CPat::Var(l) => note_local(*l, map, next),
                     CPat::Con { fields, .. } => {
                         for f in fields {
@@ -342,7 +346,7 @@ fn assign_locals(e: &ECore, map: &mut HashMap<LocalId, LocalId>, next: &mut usiz
                     }
                     CPat::Wild => {}
                 }
-                assign_locals(body, map, next);
+                assign_locals(&alt.body, map, next);
             }
         }
     }
@@ -401,8 +405,14 @@ fn rewrite_locals(e: &ECore, map: &HashMap<LocalId, LocalId>) -> ECore {
         ),
         ECore::If(c, t, f) => ECore::If(
             Box::new(rewrite_locals(c, map)),
-            Box::new(rewrite_locals(t, map)),
-            Box::new(rewrite_locals(f, map)),
+            CBranch {
+                weight: t.weight,
+                body: Box::new(rewrite_locals(&t.body, map)),
+            },
+            CBranch {
+                weight: f.weight,
+                body: Box::new(rewrite_locals(&f.body, map)),
+            },
         ),
         ECore::Demand(d) => ECore::Demand(Box::new(rewrite_locals(d, map))),
         ECore::LazyAlloc => ECore::LazyAlloc,
@@ -413,15 +423,19 @@ fn rewrite_locals(e: &ECore, map: &HashMap<LocalId, LocalId>) -> ECore {
             scrut: Box::new(rewrite_locals(scrut, map)),
             alts: alts
                 .iter()
-                .map(|(p, b)| {
-                    let p = match p {
+                .map(|a| {
+                    let p = match &a.pat {
                         CPat::Var(l) => CPat::Var(m(l)),
                         CPat::Con { tag, fields } => {
                             CPat::Con { tag: *tag, fields: fields.iter().map(m).collect() }
                         }
                         CPat::Wild => CPat::Wild,
                     };
-                    (p, rewrite_locals(b, map))
+                    CAlt {
+                        pat: p,
+                        weight: a.weight,
+                        body: Box::new(rewrite_locals(&a.body, map)),
+                    }
                 })
                 .collect(),
         },
@@ -462,14 +476,14 @@ fn resolve_lit_words(e: &mut ECore, lits: &[ECore]) {
         }
         ECore::If(c, t, f) => {
             resolve_lit_words(c, lits);
-            resolve_lit_words(t, lits);
-            resolve_lit_words(f, lits);
+            resolve_lit_words(&mut t.body, lits);
+            resolve_lit_words(&mut f.body, lits);
         }
         ECore::LazyInit(_, t) => resolve_lit_words(t, lits),
         ECore::Case { scrut, alts } => {
             resolve_lit_words(scrut, lits);
-            for (_, b) in alts {
-                resolve_lit_words(b, lits);
+            for alt in alts {
+                resolve_lit_words(&mut alt.body, lits);
             }
         }
     }
@@ -520,14 +534,14 @@ fn resolve_idx_words(e: &mut ECore, vals: &[ECore]) {
         }
         ECore::If(c, t, f) => {
             resolve_idx_words(c, vals);
-            resolve_idx_words(t, vals);
-            resolve_idx_words(f, vals);
+            resolve_idx_words(&mut t.body, vals);
+            resolve_idx_words(&mut f.body, vals);
         }
         ECore::LazyInit(_, t) => resolve_idx_words(t, vals),
         ECore::Case { scrut, alts } => {
             resolve_idx_words(scrut, vals);
-            for (_, b) in alts {
-                resolve_idx_words(b, vals);
+            for alt in alts {
+                resolve_idx_words(&mut alt.body, vals);
             }
         }
     }
@@ -539,6 +553,7 @@ fn finalize_fn(
     body: ECore,
     prim: Option<PrimOp>,
     ctor: Option<(usize, usize)>,
+    hints: crate::core::FnHints,
 ) -> FnDef {
     let body = renumber_fn(&body, &params);
     FnDef {
@@ -547,6 +562,7 @@ fn finalize_fn(
         body: lower(&body),
         prim,
         ctor,
+        hints,
     }
 }
 
@@ -595,9 +611,17 @@ fn lower(e: &ECore) -> crate::core::Core {
         ECore::Let(l, v, body) => {
             crate::core::Core::Let(*l, Box::new(lower(v)), Box::new(lower(body)))
         }
-        ECore::If(c, t, f) => {
-            crate::core::Core::If(Box::new(lower(c)), Box::new(lower(t)), Box::new(lower(f)))
-        }
+        ECore::If(c, t, f) => crate::core::Core::If(
+            Box::new(lower(c)),
+            CBranch {
+                weight: t.weight,
+                body: Box::new(lower(&t.body)),
+            },
+            CBranch {
+                weight: f.weight,
+                body: Box::new(lower(&f.body)),
+            },
+        ),
         ECore::Demand(d) => crate::core::Core::Demand(Box::new(lower(d))),
         ECore::LazyAlloc => crate::core::Core::LazyAlloc,
         ECore::LazyInit(l, t) => {
@@ -605,7 +629,14 @@ fn lower(e: &ECore) -> crate::core::Core {
         }
         ECore::Case { scrut, alts } => crate::core::Core::Case {
             scrut: Box::new(lower(scrut)),
-            alts: alts.iter().map(|(p, b)| (p.clone(), lower(b))).collect(),
+            alts: alts
+                .iter()
+                .map(|a| CAlt {
+                    pat: a.pat.clone(),
+                    weight: a.weight,
+                    body: Box::new(lower(&a.body)),
+                })
+                .collect(),
         },
     }
 }
@@ -1150,6 +1181,41 @@ fn escape_regions(ty: &Ty, out: &mut Vec<String>) {
 
 // ---------------------------------------------------------------- the checker
 
+/// A non-fatal diagnostic reported by the compiler (attribute
+/// annotations specification section 2: the branch weight reports are
+/// reported and the weights dropped, never a hard failure).
+#[derive(Clone, Debug)]
+pub struct Diagnostic {
+    /// The report's code: `incomplete-branch-weights` or
+    /// `incoherent-weights`.
+    pub code: &'static str,
+    pub message: String,
+    pub span: ast::Span,
+    /// `true` for an informational report (`incoherent-weights`: the
+    /// weights remain usable), `false` for a warning-level one
+    /// (`incomplete-branch-weights`: the weights are dropped).
+    pub informational: bool,
+}
+
+/// One type's pending layout computation: its representation spec and
+/// the source-order fields (attribute annotations specification section
+/// 4). Recorded while declarations are collected and computed into ABI
+/// layout facts once every type name is known.
+#[derive(Clone)]
+pub(crate) struct LayoutRecipe {
+    pub module: String,
+    pub name: String,
+    pub repr: ReprSpec,
+    /// `(field name, field type, erased, the field's layout modifiers)`.
+    pub fields: Vec<(String, Ty, bool, ReprSpec)>,
+    /// The number of constructors (a multi-constructor `data` has no
+    /// field layout).
+    pub ctor_count: usize,
+    /// `true` for a `record`/`codata` declaration.
+    pub record: bool,
+    pub span: ast::Span,
+}
+
 struct Checker {
     uni: Unifier,
     values: HashMap<String, Vec<ValueInfo>>,
@@ -1295,6 +1361,18 @@ struct Checker {
     /// Staging: attribute names declared by macros (`name` -> declaring
     /// macro and its declaration span), for the collision check.
     macro_attr_names: std::collections::HashMap<String, (String, ast::Span)>,
+    /// Non-fatal diagnostics (the branch weight reports), in report
+    /// order (attribute annotations specification section 2).
+    diags: Vec<Diagnostic>,
+    /// Hint attributes recorded per function id (attribute annotations
+    /// specification sections 3 and 5); erased before the contract
+    /// projection.
+    fn_hints: HashMap<String, crate::core::FnHints>,
+    /// Layout computation pending per type (attribute annotations
+    /// specification section 4.3).
+    layout_recipes: HashMap<(String, String), LayoutRecipe>,
+    /// Computed ABI layout facts per type, keyed `(module, name)`.
+    type_layouts: HashMap<(String, String), crate::interface::AbiLayout>,
 }
 
 /// A `generate do` block collected for compile-time execution (staging).
@@ -1440,6 +1518,10 @@ impl Checker {
             module_files: std::collections::HashMap::new(),
             module_stage_imports: std::collections::HashMap::new(),
             macro_attr_names: std::collections::HashMap::new(),
+            diags: Vec::new(),
+            fn_hints: HashMap::new(),
+            layout_recipes: HashMap::new(),
+            type_layouts: HashMap::new(),
         }
     }
 
@@ -2313,6 +2395,7 @@ impl Checker {
                 body: crate::core::Core::Unit,
                 prim: None,
                 ctor: Some((0, n)),
+                hints: crate::core::FnHints::default(),
             });
         }
         Ok(GlobalId(format!("Tuple.{n}")))
@@ -3640,8 +3723,14 @@ impl Checker {
             ),
             ECore::If(c, t, f) => ECore::If(
                 Box::new(self.fill_holes(c, sol)?),
-                Box::new(self.fill_holes(t, sol)?),
-                Box::new(self.fill_holes(f, sol)?),
+                CBranch {
+                    weight: t.weight,
+                    body: Box::new(self.fill_holes(&t.body, sol)?),
+                },
+                CBranch {
+                    weight: f.weight,
+                    body: Box::new(self.fill_holes(&f.body, sol)?),
+                },
             ),
             ECore::Demand(d) => ECore::Demand(Box::new(self.fill_holes(d, sol)?)),
             ECore::LazyAlloc => ECore::LazyAlloc,
@@ -3652,7 +3741,13 @@ impl Checker {
                 scrut: Box::new(self.fill_holes(scrut, sol)?),
                 alts: alts
                     .iter()
-                    .map(|(p, b)| Ok((p.clone(), self.fill_holes(b, sol)?)))
+                    .map(|a| {
+                        Ok(CAlt {
+                            pat: a.pat.clone(),
+                            weight: a.weight,
+                            body: Box::new(self.fill_holes(&a.body, sol)?),
+                        })
+                    })
                     .collect::<Result<Vec<_>>>()?,
             },
         })

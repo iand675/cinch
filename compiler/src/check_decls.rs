@@ -182,7 +182,7 @@ fn for_each_subterm(t: &ast::Term, f: &mut dyn FnMut(&ast::Term)) {
             }
             for_each_subterm(b, f);
         }
-        ast::Term::If(c, x, y, _) => {
+        ast::Term::If { cond: c, then: x, els: y, .. } => {
             for_each_subterm(c, f);
             for_each_subterm(x, f);
             for_each_subterm(y, f);
@@ -363,6 +363,7 @@ impl Checker {
             body: crate::core::Core::Unit,
             prim: None,
             ctor: None,
+            hints: crate::core::FnHints::default(),
         });
         self.install_index_families();
         self.install_staging_api();
@@ -812,6 +813,7 @@ impl Checker {
                 body: crate::core::Core::Unit,
                 prim: None,
                 ctor: Some((tag, runtime_arity)),
+                hints: crate::core::FnHints::default(),
             });
             ctor_names.push((cname, tag));
         }
@@ -848,6 +850,7 @@ impl Checker {
             ),
             prim: None,
             ctor: None,
+            hints: crate::core::FnHints::default(),
         });
         let length = ValueInfo {
             module: "<builtin>".to_string(),
@@ -866,6 +869,7 @@ impl Checker {
             ),
             prim: None,
             ctor: None,
+            hints: crate::core::FnHints::default(),
         });
         // `Vec.getCopy`: copy the element at a `Fin` index out of a
         // borrowed vector (the acceptance probe's safe element access).
@@ -936,13 +940,13 @@ impl Checker {
         let walk = crate::core::Core::Case {
             scrut: Box::new(crate::core::Core::Var(LocalId(0))),
             alts: vec![
-                (CPat::Con { tag: 0, fields: vec![] }, crate::core::Core::Fault),
-                (
+                CAlt::new(CPat::Con { tag: 0, fields: vec![] }, crate::core::Core::Fault),
+                CAlt::new(
                     CPat::Con { tag: 1, fields: vec![LocalId(2), LocalId(3)] },
                     crate::core::Core::If(
                         Box::new(i_is_zero),
-                        Box::new(crate::core::Core::Var(LocalId(2))),
-                        Box::new(crate::core::Core::App(
+                        CBranch::new(crate::core::Core::Var(LocalId(2))),
+                        CBranch::new(crate::core::Core::App(
                             Box::new(crate::core::Core::Global(go.clone())),
                             vec![
                                 crate::core::Core::Var(LocalId(3)),
@@ -962,6 +966,7 @@ impl Checker {
             body: walk,
             prim: None,
             ctor: None,
+            hints: crate::core::FnHints::default(),
         });
         self.fns.push(FnDef {
             id: GlobalId("<builtin>.getCopy".to_string()),
@@ -981,6 +986,7 @@ impl Checker {
             ),
             prim: None,
             ctor: None,
+            hints: crate::core::FnHints::default(),
         });
         // Evidence constructors (core specification section 3): `refl`
         // proves `Eq x x`, `congr` lifts equality across a named total
@@ -1133,16 +1139,31 @@ impl Checker {
         let mut schemes: HashMap<String, Scheme> = HashMap::new();
         let mut eqs: Vec<(String, ast::Equation)> = Vec::new();
 
-        // Attributes are validated and unwrapped before collection, so the
-        // annotated declaration is collected as ordinary (attribute
-        // annotations specification section 1.2; macro-emitted attributes
-        // revalidate through this same path).
-        let mut flat: Vec<ast::Decl> = Vec::new();
+        // Attributes are validated at their attachment position as the
+        // position's owner is collected, so the annotated declaration is
+        // collected as ordinary and macro-emitted attributes revalidate
+        // through this same path (attribute annotations specification
+        // sections 1.2 and 6).
+        let mut flat: Vec<(Vec<ast::Attribute>, ast::Decl)> = Vec::new();
         for d in &m.decls {
             self.flatten_attributes(d, &mut flat)?;
         }
 
-        for d in &flat {
+        for (decl_attrs, d) in &flat {
+            // The declarations with per-family effects validate inside
+            // their own collection below; the rest take the ordinary
+            // declaration position here (attribute annotations
+            // specification section 1.1).
+            match d {
+                ast::Decl::Data(..)
+                | ast::Decl::Record(..)
+                | ast::Decl::Codata(..)
+                | ast::Decl::ValueSig { .. }
+                | ast::Decl::Equation { .. } => {}
+                _ => {
+                    self.validate_attr_site(decl_attrs, AttrSite::Decl)?;
+                }
+            }
             match d {
                 ast::Decl::Import(i) => {
                     let parts = i.path.parts();
@@ -1174,6 +1195,15 @@ impl Checker {
                     }
                 }
                 ast::Decl::ValueSig { name, modifier, owned_attrs, ty, span } => {
+                    // Function declarations carry the hint attributes of
+                    // attribute annotations specification section 5.
+                    let set = self.validate_attr_site(decl_attrs, AttrSite::FnDecl)?;
+                    self.record_fn_hints(
+                        &fn_id(&module, &name.text).0,
+                        set.inline,
+                        set.fn_cold,
+                        *span,
+                    )?;
                     let logical = match modifier.as_ref().map(|m| m.text.as_str()) {
                         None => None,
                         Some("spec") => Some("spec"),
@@ -1268,6 +1298,17 @@ impl Checker {
                     schemes.insert(name.text.clone(), s);
                 }
                 ast::Decl::Equation { modifier, eq } => {
+                    // Function declarations carry the hint attributes of
+                    // attribute annotations specification section 5; a
+                    // weight on a clause sits between the name and its
+                    // patterns (section 2).
+                    let set = self.validate_attr_site(decl_attrs, AttrSite::FnDecl)?;
+                    self.record_fn_hints(
+                        &fn_id(&module, &eq.name.text).0,
+                        set.inline,
+                        set.fn_cold,
+                        eq.span,
+                    )?;
                     match modifier.as_ref().map(|m| m.text.as_str()) {
                         None | Some("spec") | Some("proof") | Some("corec") | Some("stage")
                         | Some("macro") => {}
@@ -1386,6 +1427,7 @@ impl Checker {
                     ));
                 }
                 ast::Decl::Data(data) => {
+                    let set = self.validate_attr_site(decl_attrs, AttrSite::TypeDecl)?;
                     if Scalar::parse(&data.name.text).is_some()
                         || matches!(
                             data.name.text.as_str(),
@@ -1446,6 +1488,7 @@ impl Checker {
                         field_erased: Vec::new(),
                     });
                     for (tag, c) in data.ctors.iter().enumerate() {
+                        self.validate_attr_site(&c.attrs, AttrSite::Ctor)?;
                         self.kind_constraints.borrow_mut().clear();
                         // Constructor type: optional extra `forall` binders
                         // (constructor-local index binders, suppressed in
@@ -1649,6 +1692,45 @@ impl Checker {
                         )?;
                         ctors.push((c.name.text.clone(), tag));
                     }
+                    // A representation attribute compiles into layout
+                    // facts once every type name is known (attribute
+                    // annotations specification section 4.3).
+                    if let Some(repr) = set.repr.clone() {
+                        let mut fields: Vec<(String, Ty, bool, ReprSpec)> = Vec::new();
+                        if data.ctors.len() == 1 {
+                            let cname = data.ctors[0].name.text.clone();
+                            if let Some(v) = self.qualified.get(&(module.clone(), cname.clone())) {
+                                if let ValueKind::Ctor {
+                                    field_tys,
+                                    field_erased,
+                                    field_binders,
+                                    ..
+                                } = &v.kind
+                                {
+                                    for (i, t) in field_tys.iter().enumerate() {
+                                        fields.push((
+                                            field_binders[i].clone(),
+                                            t.clone(),
+                                            field_erased[i],
+                                            ReprSpec::default(),
+                                        ));
+                                    }
+                                }
+                            }
+                        }
+                        self.layout_recipes.insert(
+                            (module.clone(), data.name.text.clone()),
+                            LayoutRecipe {
+                                module: module.clone(),
+                                name: data.name.text.clone(),
+                                repr,
+                                fields,
+                                ctor_count: data.ctors.len(),
+                                record: false,
+                                span: data.name.span,
+                            },
+                        );
+                    }
                     let entry = self
                         .types
                         .get_mut(&data.name.text)
@@ -1657,6 +1739,7 @@ impl Checker {
                     entry.ctors = ctors;
                 }
                 ast::Decl::Record(rec) => {
+                    let set = self.validate_attr_site(decl_attrs, AttrSite::TypeDecl)?;
                     if self
                         .types
                         .get(&rec.name.text)
@@ -1677,7 +1760,32 @@ impl Checker {
                     }
                     let mut field_names: Vec<String> = Vec::new();
                     let mut field_erased: Vec<bool> = Vec::new();
+                    let mut field_reprs: Vec<ReprSpec> = Vec::new();
                     for f in &rec.fields {
+                        // A record field may carry the layout modifiers
+                        // of attribute annotations specification section
+                        // 4, on fields of `repr(C)` records.
+                        let fset = self.validate_attr_site(&f.attrs, AttrSite::Field)?;
+                        if let Some(fr) = fset.repr {
+                            if !fr.field_only() {
+                                return Err(Error::at(
+                                    f.span,
+                                    format!(
+                                        "a field takes `repr(align(N))` or `repr(packed)`/`repr(packed(N))`, not `{}` (attribute annotations specification section 4.1)",
+                                        fr.spelled
+                                    ),
+                                ));
+                            }
+                            if !set.repr.as_ref().map(|r| r.c_layout).unwrap_or(false) {
+                                return Err(Error::at(
+                                    f.span,
+                                    "a field's representation applies to fields of a `repr(C)` record (attribute annotations specification section 9's open decision admits them there)",
+                                ));
+                            }
+                            field_reprs.push(fr);
+                        } else {
+                            field_reprs.push(ReprSpec::default());
+                        }
                         if field_names.iter().any(|n| n == &f.name.text) {
                             return Err(Error::at(
                                 f.name.span,
@@ -1726,6 +1834,31 @@ impl Checker {
                         .map(|(i, t)| field_erased[i] || erased_ty(t))
                         .collect();
                     let runtime_arity = field_erased.iter().filter(|e| !**e).count();
+                    // A representation attribute compiles into layout
+                    // facts once every type name is known (attribute
+                    // annotations specification section 4.3).
+                    if let Some(repr) = set.repr.clone() {
+                        let fields: Vec<(String, Ty, bool, ReprSpec)> = field_names
+                            .iter()
+                            .zip(field_tys.iter())
+                            .zip(field_erased.iter().zip(field_reprs.iter()))
+                            .map(|((n, t), (e, fr))| {
+                                (n.clone(), t.clone(), *e, fr.clone())
+                            })
+                            .collect();
+                        self.layout_recipes.insert(
+                            (module.clone(), rec.name.text.clone()),
+                            LayoutRecipe {
+                                module: module.clone(),
+                                name: rec.name.text.clone(),
+                                repr,
+                                fields,
+                                ctor_count: 1,
+                                record: true,
+                                span: rec.name.span,
+                            },
+                        );
+                    }
                     let res_args: Vec<Ty> = params
                         .iter()
                         .zip(&param_kinds)
@@ -1801,6 +1934,19 @@ impl Checker {
                     entry.ctors = vec![(rec.name.text.clone(), 0)];
                 }
                 ast::Decl::Codata(rec) => {
+                    // A codata type is not a `data` or `record`
+                    // declaration: no representation attribute applies
+                    // (attribute annotations specification section 4.1).
+                    let set = self.validate_attr_site(decl_attrs, AttrSite::TypeDecl)?;
+                    if let Some(fr) = &set.repr {
+                        return Err(Error::at(
+                            rec.name.span,
+                            format!(
+                                "`#[repr({})]` attaches to a `data` or `record` declaration (attribute annotations specification section 4.1)",
+                                fr.spelled
+                            ),
+                        ));
+                    }
                     // A codata type is a record of delayed observations
                     // (codata and guardedness design, section 2): it
                     // registers like a record, but construction is the
@@ -1838,6 +1984,16 @@ impl Checker {
                     }
                     let mut obs_names: Vec<String> = Vec::new();
                     for f in &rec.fields {
+                        let fset = self.validate_attr_site(&f.attrs, AttrSite::Field)?;
+                        if let Some(fr) = &fset.repr {
+                            return Err(Error::at(
+                                f.span,
+                                format!(
+                                    "a codata observation takes no representation (found `#[repr({})]`; attribute annotations specification section 4.1)",
+                                    fr.spelled
+                                ),
+                            ));
+                        }
                         if obs_names.iter().any(|n| n == &f.name.text) {
                             return Err(Error::at(
                                 f.name.span,
@@ -2270,78 +2426,161 @@ impl Checker {
         Ok(())
     }
 
-    /// Validate one attribute and return its ownership class (attribute
-    /// annotations specification section 1.2): compiler-known families are
-    /// validated here, `meta(...)` passes through to tooling, and any other
-    /// name needs a macro that declares it. `repr` is rejected: it is a
-    /// semantic attribute and this slice must never silently ignore one
-    /// (decision D48).
-    fn validate_attribute(&self, a: &crate::ast::Attribute) -> Result<()> {
-        let name = a.name();
-        let args = a.args.as_deref().unwrap_or("");
-        match name.as_str() {
-            "meta" => Ok(()),
-            "weight" => {
-                let t = args.trim();
-                if t.is_empty() || !t.bytes().all(|b| b.is_ascii_digit()) {
-                    return Err(Error::at(
-                        a.span,
-                        "`#[weight(n)]` takes one non-negative integer literal (attribute annotations specification section 2)",
-                    ));
-                }
-                Ok(())
+    /// Validate one attribute list at its attachment position (attribute
+    /// annotations specification sections 1.1-1.3) and return what the
+    /// position's owner may use: one weight-family value (the wrappers
+    /// are weights), one inline hint, a function-level `#[cold]`, and a
+    /// parsed `#[repr(...)]` spec. The family, the argument grammar, the
+    /// placement and the duplicate rules are all enforced here.
+    fn validate_attr_site(
+        &self,
+        attrs: &[crate::ast::Attribute],
+        site: AttrSite,
+    ) -> Result<AttrSet> {
+        let mut out = AttrSet::default();
+        let mut seen: Vec<String> = Vec::new();
+        for a in attrs {
+            let name = a.name();
+            // Two attributes with the same name on one construct are an
+            // error unless a macro declares the multi-attribute form
+            // (section 1.3); a macro-owned name's forms are its macro's
+            // to validate.
+            let macro_owned = self.macro_attr_names.contains_key(&name);
+            if seen.contains(&name) && !macro_owned {
+                return Err(Error::at(
+                    a.span,
+                    format!(
+                        "two `{name}` attributes on one construct: duplicate attribute names are an error unless a macro declares a multi-attribute form (attribute annotations specification section 1.3)"
+                    ),
+                ));
             }
-            "likely" | "unlikely" | "cold" => {
-                if !args.trim().is_empty() {
-                    return Err(Error::at(
-                        a.span,
-                        format!("`#[{name}]` takes no arguments (attribute annotations specification section 3)"),
-                    ));
+            seen.push(name.clone());
+            let args = a.args.as_deref().unwrap_or("");
+            match name.as_str() {
+                "meta" => {}
+                "weight" | "likely" | "unlikely" | "cold" => {
+                    let family_ok = match site {
+                        AttrSite::Clause
+                        | AttrSite::Alt
+                        | AttrSite::Guard
+                        | AttrSite::IfCond
+                        | AttrSite::IfBranch => true,
+                        AttrSite::FnDecl => name == "cold",
+                        _ => false,
+                    };
+                    if !family_ok {
+                        return Err(Error::at(a.span, site.placement_error(&name)));
+                    }
+                    if site == AttrSite::FnDecl {
+                        // `#[cold]` on a function declaration is the
+                        // function-level hint of section 5, not the
+                        // weight wrapper of section 3.
+                        if !args.trim().is_empty() {
+                            return Err(Error::at(
+                                a.span,
+                                "`#[cold]` takes no arguments (attribute annotations specification sections 3 and 5)",
+                            ));
+                        }
+                        out.fn_cold = true;
+                        continue;
+                    }
+                    let w = weight_value(a)?;
+                    if out.weight.is_some() {
+                        return Err(Error::at(
+                            a.span,
+                            format!(
+                                "one alternative carries one weight: `{name}` and the weight attribute before it both assign one (attribute annotations specification section 2.1)"
+                            ),
+                        ));
+                    }
+                    out.weight = Some(w);
                 }
-                Ok(())
-            }
-            "inline" => {
-                let t = args.trim();
-                if t.is_empty() || t == "always" || t == "never" {
-                    Ok(())
-                } else {
-                    Err(Error::at(
-                        a.span,
-                        "`#[inline]` takes no argument or one of `(always)` and `(never)` (attribute annotations specification section 5)",
-                    ))
+                "inline" | "noinline" => {
+                    if site != AttrSite::FnDecl {
+                        return Err(Error::at(a.span, site.placement_error("inline")));
+                    }
+                    // `#[noinline]` is the spelling of `#[inline(never)]`
+                    // (attribute annotations specification section 5).
+                    let hint = if name == "noinline" {
+                        if !arg_text(args).is_empty() {
+                            return Err(Error::at(
+                                a.span,
+                                "`#[noinline]` takes no arguments (attribute annotations specification section 5)",
+                            ));
+                        }
+                        InlineHint::Never
+                    } else {
+                        match arg_text(args) {
+                            "" => InlineHint::Inline,
+                            "always" => InlineHint::Always,
+                            "never" => InlineHint::Never,
+                            _ => {
+                                return Err(Error::at(
+                                    a.span,
+                                    "`#[inline]` takes no argument or one of `(always)` and `(never)` (attribute annotations specification section 5)",
+                                ))
+                            }
+                        }
+                    };
+                    if out.inline.is_some() {
+                        return Err(Error::at(
+                            a.span,
+                            "one function carries one inline hint: `#[inline]`, `#[inline(always)]`, `#[inline(never)]` and `#[noinline]` are one hint family (attribute annotations specification section 5)",
+                        ));
+                    }
+                    out.inline = Some(hint);
                 }
-            }
-            "repr" => Err(Error::at(
-                a.span,
-                "`#[repr(...)]` is a semantic attribute and is not implemented until the layout slice; it is rejected rather than silently ignored (attribute annotations specification section 4)",
-            )),
-            _ => {
-                if self.macro_attr_names.contains_key(&name) {
-                    Ok(())
-                } else {
-                    Err(Error::at(
-                        a.span,
-                        format!(
-                            "unknown attribute `{name}`: outside the `meta` namespace, an attribute name must be compiler-known or declared by a macro (`macro name attributes ({name}) :: ...`)"
-                        ),
-                    ))
+                "repr" => {
+                    if !matches!(site, AttrSite::TypeDecl | AttrSite::Field) {
+                        return Err(Error::at(a.span, site.placement_error("repr")));
+                    }
+                    let spec = parse_repr_args(a)?;
+                    if out.repr.is_some() {
+                        return Err(Error::at(
+                            a.span,
+                            "one declaration carries one `#[repr(...)]` attribute: combine its representations inside one list (attribute annotations specification section 1.3)",
+                        ));
+                    }
+                    out.repr = Some(spec);
+                }
+                _ => {
+                    if !macro_owned {
+                        return Err(Error::at(
+                            a.span,
+                            format!(
+                                "unknown attribute `{name}`: outside the `meta` namespace, an attribute name must be compiler-known or declared by a macro (`macro name attributes ({name}) :: ...`)"
+                            ),
+                        ));
+                    }
                 }
             }
         }
+        Ok(out)
     }
 
-    /// Validate a declaration's attributes and unwrap it into `out`
-    /// (attributes attach to declarations only in this slice).
-    fn flatten_attributes(&self, d: &crate::ast::Decl, out: &mut Vec<crate::ast::Decl>) -> Result<()> {
+    /// A declaration's attributes and the declaration they annotate
+    /// (attribute annotations specification section 1.1). Validation is
+    /// per attachment position and happens where the position's owner is
+    /// collected or checked, so macro-emitted attributes revalidate
+    /// under ordinary rules (section 6).
+    fn flatten_attributes(
+        &self,
+        d: &crate::ast::Decl,
+        out: &mut Vec<(Vec<crate::ast::Attribute>, crate::ast::Decl)>,
+    ) -> Result<()> {
         match d {
             crate::ast::Decl::Attributed { attrs, inner } => {
-                for a in attrs {
-                    self.validate_attribute(a)?;
+                let mut rest = Vec::new();
+                self.flatten_attributes(inner, &mut rest)?;
+                for (mut a, dd) in rest {
+                    let mut merged = attrs.clone();
+                    merged.append(&mut a);
+                    out.push((merged, dd));
                 }
-                self.flatten_attributes(inner, out)
+                Ok(())
             }
             other => {
-                out.push(other.clone());
+                out.push((Vec::new(), other.clone()));
                 Ok(())
             }
         }
@@ -2402,8 +2641,17 @@ impl Checker {
         self.check_logical_cycles()?;
 
         // Constructors as code generation units: the block stores the
-        // non-erased fields only (core specification section 3).
-        for t in self.types.values().flatten().filter(|t| t.module == module).cloned().collect::<Vec<_>>() {
+        // non-erased fields only (core specification section 3). The
+        // type order is fixed so the emitted units are reproducible.
+        let mut type_ks: Vec<TypeKind> = self
+            .types
+            .values()
+            .flatten()
+            .filter(|t| t.module == module)
+            .cloned()
+            .collect();
+        type_ks.sort_by(|a, b| a.name.cmp(&b.name));
+        for t in type_ks {
             for (cname, tag) in &t.ctors {
                 let v = self
                     .qualified
@@ -2420,6 +2668,7 @@ impl Checker {
                     body: crate::core::Core::Unit,
                     prim: None,
                     ctor: Some((*tag, runtime_arity)),
+                    hints: crate::core::FnHints::default(),
                 });
             }
         }
@@ -2765,7 +3014,7 @@ impl Checker {
         match t {
             ast::Term::Record(path, _, _) if self.is_codata_path(path) => Ok(()),
             ast::Term::Ann(e, _, _) => self.construction_layer(e),
-            ast::Term::If(_, a, b, _) => {
+            ast::Term::If { then: a, els: b, .. } => {
                 self.construction_layer(a)?;
                 self.construction_layer(b)
             }
@@ -2925,7 +3174,7 @@ impl Checker {
                 }
                 self.walk_guard(body, pos, group, mode, &mut bound2)?;
             }
-            ast::Term::If(c, a, b, _) => {
+            ast::Term::If { cond: c, then: a, els: b, .. } => {
                 self.walk_guard(c, pos, group, mode, bound)?;
                 self.walk_guard(a, pos, group, mode, bound)?;
                 self.walk_guard(b, pos, group, mode, bound)?;
@@ -3212,6 +3461,19 @@ impl Checker {
                 eqs[0].pats[i].span(),
             );
         }
+        // Clause weights (attribute annotations specification section
+        // 2): every clause of the group is one alternative of the
+        // function's match, all-or-nothing.
+        let mut clause_weights: Vec<Option<u32>> = Vec::new();
+        for e in eqs {
+            let set = self.validate_attr_site(&e.attrs, AttrSite::Clause)?;
+            clause_weights.push(set.weight);
+        }
+        self.complete_weights(
+            &mut clause_weights,
+            &format!("the clauses of {name}"),
+            eqs[0].span,
+        );
         let rows: Vec<Row> = eqs
             .iter()
             .enumerate()
@@ -3227,6 +3489,8 @@ impl Checker {
                     env: env.clone(),
                     idx: i,
                     consumed: Vec::new(),
+                    weight: clause_weights[i],
+                    guard_weight: None,
                 })
             })
             .collect::<Result<Vec<_>>>()?;
@@ -3428,14 +3692,14 @@ impl Checker {
                 }
                 ECore::If(c, t, f) => {
                     walk(c, id, smaller, extra, params, bad);
-                    walk(t, id, smaller, extra, params, bad);
-                    walk(f, id, smaller, extra, params, bad);
+                    walk(&t.body, id, smaller, extra, params, bad);
+                    walk(&f.body, id, smaller, extra, params, bad);
                 }
                 ECore::LazyInit(_, t) => walk(t, id, smaller, extra, params, bad),
                 ECore::Case { scrut, alts } => {
                     walk(scrut, id, smaller, extra, params, bad);
-                    for (_, b) in alts {
-                        walk(b, id, smaller, extra, params, bad);
+                    for a in alts {
+                        walk(&a.body, id, smaller, extra, params, bad);
                     }
                 }
                 _ => {}
@@ -3480,9 +3744,19 @@ impl Checker {
         let mut hoisted = Vec::new();
         hoist_lambdas(&mut body, &id.0, &mut self.lam_counter, &mut hoisted);
         if !erased {
-            self.fns.push(finalize_fn(id, param_ids, body, prim, ctor));
+            // Hint attributes ride the function's code generation unit
+            // (attribute annotations specification section 5).
+            let hints = self.fn_hints.get(&id.0).copied().unwrap_or_default();
+            self.fns.push(finalize_fn(id, param_ids, body, prim, ctor, hints));
             for h in hoisted {
-                self.fns.push(finalize_fn(h.id, h.params, h.body, None, None));
+                self.fns.push(finalize_fn(
+                    h.id,
+                    h.params,
+                    h.body,
+                    None,
+                    None,
+                    crate::core::FnHints::default(),
+                ));
             }
         }
         Ok(())
@@ -3538,6 +3812,7 @@ impl Checker {
                 ),
                 prim: None,
                 ctor: None,
+                hints: crate::core::FnHints::default(),
             });
             main_exit = Some(exit_id);
         }
@@ -3554,6 +3829,759 @@ fn wrap_eq_body(e: &ast::Equation) -> ast::Term {
         e.body.clone()
     } else {
         ast::Term::Let(e.locals.clone(), Box::new(e.body.clone()), e.span)
+    }
+}
+
+// --------------------------------------- attribute annotations (P17)
+
+use crate::core::InlineHint;
+
+/// Where one `#[...]` list sits (attribute annotations specification
+/// section 1.1); the position decides which families it may carry.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum AttrSite {
+    /// A `data`, `record` or `codata` declaration.
+    TypeDecl,
+    /// A function declaration: a value signature or a top-level equation.
+    FnDecl,
+    /// Any other declaration.
+    Decl,
+    /// A data constructor declaration.
+    Ctor,
+    /// A record field (its declaration or its type).
+    Field,
+    /// A function clause.
+    Clause,
+    /// A `case` alternative.
+    Alt,
+    /// A guard, after `|`.
+    Guard,
+    /// The `if` condition position (the pair form of section 2.1).
+    IfCond,
+    /// An `if` branch position.
+    IfBranch,
+}
+
+impl AttrSite {
+    /// The named placement rejection of section 1.1.
+    fn placement_error(self, family: &str) -> String {
+        match family {
+            "weight" | "likely" | "unlikely" => match self {
+                AttrSite::FnDecl => format!(
+                    "`#[{family}]` annotates one alternative of a decision point (attribute annotations specification sections 2 and 3); a function declaration carries `#[inline]`, `#[noinline]` and `#[cold]` (section 5), and a weight on a clause is written between the name and its patterns"
+                ),
+                _ => format!(
+                    "`#[{family}]` annotates a `case` alternative, a function clause, a guard, or an `if` branch (attribute annotations specification sections 2 and 3)"
+                ),
+            },
+            "cold" => "`#[cold]` is a weight wrapper on an alternative or a hint on a function declaration (attribute annotations specification sections 3 and 5); this position takes neither".to_string(),
+            "inline" => {
+                "`#[inline]` is a hint on a function declaration (attribute annotations specification section 5)".to_string()
+            }
+            "repr" => match self {
+                AttrSite::FnDecl | AttrSite::Decl | AttrSite::Ctor => {
+                    "`#[repr(...)]` attaches to a `data` or `record` declaration (attribute annotations specification section 4.1)".to_string()
+                }
+                _ => "`#[repr(...)]` attaches to a `data` or `record` declaration or to a field of a `repr(C)` record (attribute annotations specification section 4.1)".to_string(),
+            },
+            other => format!("`#[{other}]` is not admitted at this position (attribute annotations specification section 1.1)"),
+        }
+    }
+}
+
+/// What one attachment position's attribute list carries (attribute
+/// annotations specification sections 2, 3, 4 and 5).
+#[derive(Clone, Debug, Default)]
+pub(crate) struct AttrSet {
+    /// The one weight-family value (the wrappers ARE weights).
+    pub weight: Option<u32>,
+    pub inline: Option<InlineHint>,
+    /// `#[cold]` at a function declaration: the function-level hint of
+    /// section 5.
+    pub fn_cold: bool,
+    pub repr: Option<ReprSpec>,
+}
+
+/// The raw argument text of one attribute: the parenthesized list, or
+/// the `= literal` tail (attribute annotations specification section 1).
+fn arg_text(args: &str) -> &str {
+    let t = args.trim();
+    t.strip_prefix('=').unwrap_or(t).trim()
+}
+
+/// The weight a weight-family attribute assigns (attribute annotations
+/// specification sections 2 and 3: the wrappers are exactly the manual
+/// weights 2000, 1 and 0).
+fn weight_value(a: &crate::ast::Attribute) -> Result<u32> {
+    let name = a.name();
+    let raw = arg_text(a.args.as_deref().unwrap_or(""));
+    let constant = match name.as_str() {
+        "likely" => Some(2000),
+        "unlikely" => Some(1),
+        "cold" => Some(0),
+        _ => None,
+    };
+    if let Some(w) = constant {
+        if !raw.is_empty() {
+            return Err(Error::at(
+                a.span,
+                format!(
+                    "`#[{name}]` takes no arguments (attribute annotations specification section 3)"
+                ),
+            ));
+        }
+        return Ok(w);
+    }
+    // `#[weight(n)]`: one non-negative integer literal representable in
+    // 32 bits (section 2).
+    if raw.is_empty() || !raw.bytes().all(|b| b.is_ascii_digit()) {
+        return Err(Error::at(
+            a.span,
+            "`#[weight(n)]` takes one non-negative integer literal (attribute annotations specification section 2)",
+        ));
+    }
+    raw.parse::<u32>().map_err(|_| {
+        Error::at(
+            a.span,
+            "a weight is a non-negative integer literal representable in 32 bits (attribute annotations specification section 2)",
+        )
+    })
+}
+
+/// The parsed `#[repr(...)]` argument list (attribute annotations
+/// specification section 4.1).
+#[derive(Clone, Debug, Default, PartialEq)]
+pub(crate) struct ReprSpec {
+    /// `repr(C)`: the platform C layout algorithm over source-order
+    /// fields.
+    pub c_layout: bool,
+    /// `repr(transparent)`: exactly the single field's representation.
+    pub transparent: bool,
+    /// `repr(align(N))`: the type's alignment floor (section 4.2: the
+    /// attribute only raises).
+    pub align: Option<u64>,
+    /// `repr(packed)` or `repr(packed(N))`: the field alignment cap
+    /// (1 for bare `packed`).
+    pub packed: Option<u64>,
+    /// `repr(u8|u16|u32|u64)`: the constructor discriminant's width in
+    /// bytes.
+    pub discriminant: Option<u64>,
+    /// The representations as written, for the ABI table's `repr` fact.
+    pub spelled: String,
+}
+
+impl ReprSpec {
+    /// Does this representation lay out fields?
+    fn has_fields(&self) -> bool {
+        self.c_layout || self.transparent || self.align.is_some() || self.packed.is_some()
+    }
+
+    /// The field-level forms: `align(N)` and `packed(N)` (the section 9
+    /// open decision admits them on fields of `repr(C)` records).
+    fn field_only(&self) -> bool {
+        !self.c_layout && !self.transparent && self.discriminant.is_none()
+    }
+}
+
+/// Split a raw argument list at top-level commas (attribute annotations
+/// specification section 1: `literal, { ",", literal }`).
+fn split_top_commas(raw: &str) -> Vec<&str> {
+    let mut out = Vec::new();
+    let mut depth = 0usize;
+    let mut start = 0;
+    for (i, c) in raw.char_indices() {
+        match c {
+            '(' => depth += 1,
+            ')' => depth = depth.saturating_sub(1),
+            ',' if depth == 0 => {
+                out.push(&raw[start..i]);
+                start = i + 1;
+            }
+            _ => {}
+        }
+    }
+    out.push(&raw[start..]);
+    out
+}
+
+/// Parse one `#[repr(...)]` argument list (attribute annotations
+/// specification sections 1 and 4.1).
+fn parse_repr_args(a: &crate::ast::Attribute) -> Result<ReprSpec> {
+    let raw = a.args.as_deref().unwrap_or("");
+    if raw.trim_start().starts_with('=') {
+        return Err(Error::at(
+            a.span,
+            "`#[repr(...)]` takes its representations in parentheses (attribute annotations specification section 1)",
+        ));
+    }
+    if raw.trim().is_empty() {
+        return Err(Error::at(
+            a.span,
+            "`#[repr(...)]` takes at least one representation (attribute annotations specification section 4.1)",
+        ));
+    }
+    let mut spec = ReprSpec { spelled: raw.trim().to_string(), ..Default::default() };
+    for item in split_top_commas(raw) {
+        let t = item.trim();
+        if t.is_empty() {
+            return Err(Error::at(
+                a.span,
+                "an empty representation item (attribute annotations specification section 4.1)",
+            ));
+        }
+        let mut ident_end = 0;
+        for (i, c) in t.char_indices() {
+            if c.is_ascii_alphanumeric() || c == '_' {
+                ident_end = i + c.len_utf8();
+            } else {
+                break;
+            }
+        }
+        let (ident, tail) = t.split_at(ident_end);
+        let tail = tail.trim();
+        let mut number = None;
+        if !tail.is_empty() {
+            let n = tail
+                .strip_prefix('(')
+                .and_then(|x| x.strip_suffix(')'))
+                .map(str::trim)
+                .filter(|x| !x.is_empty() && x.bytes().all(|b| b.is_ascii_digit()))
+                .and_then(|x| x.parse::<u64>().ok());
+            match n {
+                Some(n) => number = Some(n),
+                None => return Err(Error::at(a.span, repr_item_error(t))),
+            }
+        }
+        let mut once = |set: bool| -> Result<()> {
+            if set {
+                Err(Error::at(
+                    a.span,
+                    format!(
+                        "`{t}` is written twice in one `#[repr(...)]` (attribute annotations specification section 1.3)"
+                    ),
+                ))
+            } else {
+                Ok(())
+            }
+        };
+        match (ident, number) {
+            ("C", None) => {
+                once(spec.c_layout)?;
+                spec.c_layout = true;
+            }
+            ("transparent", None) => {
+                once(spec.transparent)?;
+                spec.transparent = true;
+            }
+            ("align", Some(n)) => {
+                once(spec.align.is_some())?;
+                if n == 0 || !n.is_power_of_two() {
+                    return Err(Error::at(
+                        a.span,
+                        "`repr(align(N))` takes a non-zero power of two (attribute annotations specification section 4.1)",
+                    ));
+                }
+                spec.align = Some(n);
+            }
+            ("packed", None) => {
+                once(spec.packed.is_some())?;
+                spec.packed = Some(1);
+            }
+            ("packed", Some(n)) => {
+                once(spec.packed.is_some())?;
+                if n == 0 || !n.is_power_of_two() {
+                    return Err(Error::at(
+                        a.span,
+                        "`repr(packed(N))` takes a non-zero power of two (attribute annotations specification section 4.1)",
+                    ));
+                }
+                spec.packed = Some(n);
+            }
+            ("u8", None) => {
+                once(spec.discriminant.is_some())?;
+                spec.discriminant = Some(1);
+            }
+            ("u16", None) => {
+                once(spec.discriminant.is_some())?;
+                spec.discriminant = Some(2);
+            }
+            ("u32", None) => {
+                once(spec.discriminant.is_some())?;
+                spec.discriminant = Some(4);
+            }
+            ("u64", None) => {
+                once(spec.discriminant.is_some())?;
+                spec.discriminant = Some(8);
+            }
+            _ => return Err(Error::at(a.span, repr_item_error(t))),
+        }
+    }
+    // Combination rules (sections 4.1 and 4.2): `transparent` is exactly
+    // one field's layout, `align` only raises, and a fixed discriminant
+    // is its own representation.
+    if spec.transparent
+        && (spec.c_layout || spec.align.is_some() || spec.packed.is_some() || spec.discriminant.is_some())
+    {
+        return Err(Error::at(
+            a.span,
+            "`repr(transparent)` is exactly its field's representation and combines with no other representation (attribute annotations specification section 4.1)",
+        ));
+    }
+    if spec.packed.is_some() && spec.align.is_some() {
+        return Err(Error::at(
+            a.span,
+            "`repr(packed)` removes padding and `repr(align(N))` raises alignment; they conflict (attribute annotations specification section 4.1)",
+        ));
+    }
+    if spec.discriminant.is_some()
+        && (spec.c_layout || spec.align.is_some() || spec.packed.is_some())
+    {
+        return Err(Error::at(
+            a.span,
+            "a fixed discriminant representation combines with no other representation here (attribute annotations specification section 4.1)",
+        ));
+    }
+    Ok(spec)
+}
+
+fn repr_item_error(t: &str) -> String {
+    format!(
+        "`{t}` is not a representation (attribute annotations specification section 4.1 expects `C`, `transparent`, `align(N)`, `packed`, `packed(N)`, or `u8`/`u16`/`u32`/`u64`)"
+    )
+}
+
+/// Does pattern `a` match everything pattern `b` matches (a sufficient
+/// condition for a row to shadow a later one)?
+fn pats_cover(a: &ast::Pat, b: &ast::Pat) -> bool {
+    use ast::Pat;
+    match (a, b) {
+        (Pat::Var(..), _) | (Pat::Wild(_), _) => true,
+        (Pat::As(_, inner, _), _) => pats_cover(inner, b),
+        (_, Pat::As(_, inner, _)) => pats_cover(a, inner),
+        (Pat::Unit(_), Pat::Unit(_)) => true,
+        (Pat::Int(x, _), Pat::Int(y, _)) => x == y,
+        (Pat::Con(pa, aa, _), Pat::Con(pb, ab, _)) => {
+            pa.parts() == pb.parts()
+                && aa.len() == ab.len()
+                && aa.iter().zip(ab.iter()).all(|(x, y)| pats_cover(x, y))
+        }
+        (Pat::Record(pa, fa, _), Pat::Record(pb, fb, _)) => {
+            pa.parts() == pb.parts()
+                && fa.len() == fb.len()
+                && fa
+                    .iter()
+                    .zip(fb.iter())
+                    .all(|((na, x), (nb, y))| na.text == nb.text && pats_cover(x, y))
+        }
+        (Pat::Tuple(aa, _), Pat::Tuple(ab, _)) | (Pat::List(aa, _), Pat::List(ab, _)) => {
+            aa.len() == ab.len() && aa.iter().zip(ab.iter()).all(|(x, y)| pats_cover(x, y))
+        }
+        _ => false,
+    }
+}
+
+/// The uniform-word ABI of a boxed value (the compiler's calling
+/// convention: one `i64` word, 8-byte aligned).
+const WORD_SIZE: u64 = 8;
+const WORD_ALIGN: u64 = 8;
+
+impl Checker {
+    /// Report a non-fatal diagnostic (attribute annotations
+    /// specification section 2: the weight reports).
+    fn report(
+        &mut self,
+        code: &'static str,
+        message: String,
+        span: ast::Span,
+        informational: bool,
+    ) {
+        self.diags.push(Diagnostic { code, message, span, informational });
+    }
+
+    /// An `if` decision point's branch weights from its three attribute
+    /// positions (attribute annotations specification section 2.1): the
+    /// condition-position attributes annotate the true branch and
+    /// complete the pair with the reference base 1 for the false branch,
+    /// and the branch-position attributes annotate their branch
+    /// directly.
+    fn if_weights(
+        &mut self,
+        cond_attrs: &[ast::Attribute],
+        then_attrs: &[ast::Attribute],
+        else_attrs: &[ast::Attribute],
+        span: ast::Span,
+    ) -> Result<(Option<u32>, Option<u32>)> {
+        let c = self.validate_attr_site(cond_attrs, AttrSite::IfCond)?;
+        let t = self.validate_attr_site(then_attrs, AttrSite::IfBranch)?;
+        let e = self.validate_attr_site(else_attrs, AttrSite::IfBranch)?;
+        if c.weight.is_some() && t.weight.is_some() {
+            return Err(Error::at(
+                span,
+                "the true branch of this `if` is annotated twice (before the condition and before the `then` expression); annotate one (attribute annotations specification section 2.1)",
+            ));
+        }
+        let true_w = t.weight.or(c.weight);
+        let false_w = e.weight.or(if c.weight.is_some() { Some(1) } else { None });
+        let mut ws = [true_w, false_w];
+        self.complete_weights(&mut ws, "this `if`", span);
+        Ok((ws[0], ws[1]))
+    }
+
+    /// The all-or-nothing rule (attribute annotations specification
+    /// section 2.1): if any alternative of a decision point carries a
+    /// weight, every alternative must carry one (directly or through a
+    /// wrapper). Partial annotation is ambiguous under relativity, so it
+    /// drops ALL the decision point's weights and reports
+    /// `incomplete-branch-weights`.
+    fn complete_weights(
+        &mut self,
+        ws: &mut [Option<u32>],
+        what: &str,
+        span: ast::Span,
+    ) {
+        let any = ws.iter().any(|w| w.is_some());
+        let all = ws.iter().all(|w| w.is_some());
+        if any && !all {
+            self.report(
+                "incomplete-branch-weights",
+                format!(
+                    "{what} is only partly annotated with weights: all of its weights are dropped (attribute annotations specification section 2.1)"
+                ),
+                span,
+                false,
+            );
+            for w in ws.iter_mut() {
+                *w = None;
+            }
+        }
+    }
+
+    /// The weights of one compiled decision point's alternatives
+    /// (attribute annotations specification sections 2.1-2.3): an
+    /// alternative's weight is the sum of the weights of the clauses
+    /// whose right-hand side is reachable through it (the
+    /// marginalization rule), a row counted at more than one path is the
+    /// wildcard/or-pattern/guard-fallthrough inflation of section 2.3
+    /// and is reported informationally, and explicit weights never mix
+    /// with inference (a reachable row without a weight leaves the whole
+    /// decision point unweighted, section 3.2).
+    fn decision_weights(
+        &mut self,
+        branches: &[Vec<Row>],
+        what: &str,
+        span: ast::Span,
+    ) -> Vec<Option<u32>> {
+        let mut sums: Vec<u32> = Vec::new();
+        let mut contrib: HashMap<usize, usize> = HashMap::new();
+        let mut any = false;
+        let mut mixed = false;
+        for rows in branches {
+            let mut sum: u32 = 0;
+            for (j, r) in rows.iter().enumerate() {
+                // An earlier unguarded row whose patterns cover this
+                // one's shadows it: its right-hand side is unreachable
+                // through this alternative (section 2.3).
+                let reachable = rows[..j].iter().all(|earlier| {
+                    !(earlier.guard.is_none()
+                        && earlier.pats.len() == r.pats.len()
+                        && earlier
+                            .pats
+                            .iter()
+                            .zip(r.pats.iter())
+                            .all(|(x, y)| pats_cover(x, y)))
+                });
+                if !reachable {
+                    continue;
+                }
+                *contrib.entry(r.idx).or_insert(0) += 1;
+                match r.weight {
+                    Some(w) => {
+                        any = true;
+                        sum = sum.saturating_add(w);
+                    }
+                    None => mixed = true,
+                }
+            }
+            sums.push(sum);
+        }
+        if !any || mixed {
+            return sums.iter().map(|_| None).collect();
+        }
+        for rows in branches {
+            for r in rows {
+                if r.weight.is_some() && contrib.get(&r.idx).copied().unwrap_or(0) > 1 {
+                    self.report(
+                        "incoherent-weights",
+                        format!(
+                            "{what} counts a weighted clause at more than one path (wildcard, or-pattern, or guard fallthrough): the weights remain usable per decision point (attribute annotations specification section 2.3)"
+                        ),
+                        span,
+                        true,
+                    );
+                    return sums.into_iter().map(Some).collect();
+                }
+            }
+        }
+        sums.into_iter().map(Some).collect()
+    }
+
+    /// Record one function declaration's hints (attribute annotations
+    /// specification section 5); hints may ride the signature and the
+    /// equations, but one function carries at most one inline hint and
+    /// one `#[cold]`.
+    fn record_fn_hints(
+        &mut self,
+        key: &str,
+        inline: Option<InlineHint>,
+        cold: bool,
+        span: ast::Span,
+    ) -> Result<()> {
+        if inline.is_none() && !cold {
+            return Ok(());
+        }
+        let entry = self.fn_hints.entry(key.to_string()).or_default();
+        if let Some(i) = inline {
+            if entry.inline.is_some() {
+                return Err(Error::at(
+                    span,
+                    format!(
+                        "{key} carries two inline hints: `#[inline]`, `#[inline(always)]`, `#[inline(never)]` and `#[noinline]` are one hint family (attribute annotations specification section 5)"
+                    ),
+                ));
+            }
+            entry.inline = Some(i);
+        }
+        if cold {
+            if entry.cold {
+                return Err(Error::at(
+                    span,
+                    format!(
+                        "{key} carries two `#[cold]` hints (attribute annotations specification section 5)"
+                    ),
+                ));
+            }
+            entry.cold = true;
+        }
+        Ok(())
+    }
+
+    /// Compute every pending type's ABI layout facts (attribute
+    /// annotations specification section 4.3); types without a
+    /// representation attribute keep the uniform-word ABI and are still
+    /// recorded.
+    fn compute_layouts(&mut self) -> Result<()> {
+        let keys: Vec<(String, String)> = self.layout_recipes.keys().cloned().collect();
+        for (m, n) in keys {
+            self.layout_of(&m, &n, &mut Vec::new())?;
+        }
+        Ok(())
+    }
+
+    /// The recorded ABI layout of a type, computed on demand: an
+    /// explicitly laid out type resolves through its recipe (nested
+    /// layouts recurse; a cycle through explicit layouts is an error),
+    /// and everything else is the uniform word.
+    fn layout_of(
+        &mut self,
+        module: &str,
+        name: &str,
+        stack: &mut Vec<(String, String)>,
+    ) -> Result<crate::interface::AbiLayout> {
+        let key = (module.to_string(), name.to_string());
+        if let Some(l) = self.type_layouts.get(&key) {
+            return Ok(l.clone());
+        }
+        if stack.contains(&key) {
+            return Err(Error::plain(format!(
+                "{module}.{name} has an infinite explicit layout: its fields' layouts depend on the type itself (attribute annotations specification section 4)"
+            )));
+        }
+        let recipe = match self.layout_recipes.get(&key) {
+            Some(r) => {
+                let r = r.clone();
+                Some(r)
+            }
+            None => None,
+        };
+        let recipe = match recipe {
+            Some(r) => r,
+            None => {
+                let l = crate::interface::AbiLayout {
+                    name: name.to_string(),
+                    repr: "uniform-word".to_string(),
+                    size: WORD_SIZE,
+                    align: WORD_ALIGN,
+                    fields: Vec::new(),
+                    discriminant: None,
+                };
+                return Ok(l);
+            }
+        };
+        stack.push(key.clone());
+        let built = self.build_layout(&recipe, stack);
+        stack.pop();
+        let l = built?;
+        self.type_layouts.insert(key, l.clone());
+        Ok(l)
+    }
+
+    /// The C layout algorithm over source-order fields (attribute
+    /// annotations specification section 4.1), with the representation's
+    /// modifiers applied.
+    fn build_layout(
+        &mut self,
+        recipe: &LayoutRecipe,
+        stack: &mut Vec<(String, String)>,
+    ) -> Result<crate::interface::AbiLayout> {
+        use crate::interface::{AbiField, AbiLayout};
+        let repr = &recipe.repr;
+        let span = recipe.span;
+        let err = |m: String| Error::at(span, m);
+        if repr.discriminant.is_some() {
+            if recipe.record {
+                return Err(err(
+                    "a `record` has no constructor discriminant (attribute annotations specification section 4.1)".to_string(),
+                ));
+            }
+            // The discriminant is a recorded fact; the payload layout is
+            // not fixed by this representation.
+            return Ok(AbiLayout {
+                name: recipe.name.clone(),
+                repr: repr.spelled.clone(),
+                size: WORD_SIZE,
+                align: WORD_ALIGN,
+                fields: Vec::new(),
+                discriminant: repr.discriminant,
+            });
+        }
+        let mut fields: Vec<(&String, &Ty, &ReprSpec)> = Vec::new();
+        for (n, t, erased, fr) in &recipe.fields {
+            if *erased {
+                // Erased fields are evidence: no runtime slot (core
+                // specification section 3).
+                if fr.has_fields() {
+                    return Err(err(format!(
+                        "field {n} is erased and has no representation to lay out (attribute annotations specification section 4)"
+                    )));
+                }
+                continue;
+            }
+            fields.push((n, t, fr));
+        }
+        if repr.transparent {
+            if fields.len() != 1 {
+                return Err(err(format!(
+                    "`repr(transparent)` needs exactly one represented field, found {} (attribute annotations specification section 4.1)",
+                    fields.len()
+                )));
+            }
+            let (n, t, fr) = fields[0];
+            if fr.has_fields() {
+                return Err(err(format!(
+                    "`repr(transparent)` is exactly field {n}'s representation: the field takes no layout modifier (attribute annotations specification section 4.1)"
+                )));
+            }
+            let (size, align) = self.field_size_align(t, span, stack)?;
+            return Ok(AbiLayout {
+                name: recipe.name.clone(),
+                repr: "transparent".to_string(),
+                size,
+                align,
+                fields: vec![AbiField {
+                    name: n.to_string(),
+                    offset: 0,
+                    size,
+                    align,
+                }],
+                discriminant: None,
+            });
+        }
+        if recipe.ctor_count > 1 && repr.has_fields() {
+            return Err(err(
+                "a multi-constructor `data` has no field layout to compute: `repr(C)`, `align` and `packed` apply to one constructor's source-order fields (attribute annotations specification section 4.1); use `#[repr(u8|u16|u32|u64)]` for a fixed discriminant".to_string(),
+            ));
+        }
+        // The C algorithm: natural alignment, source order, tail padding
+        // to the type's alignment; `packed` caps field alignment, a
+        // field's `align` raises it.
+        let mut offset: u64 = 0;
+        let mut natural: u64 = 1;
+        let mut out: Vec<AbiField> = Vec::new();
+        for (n, t, fr) in &fields {
+            let (size, nat) = self.field_size_align(t, span, stack)?;
+            let mut align = nat;
+            if let Some(raise) = fr.align {
+                if raise < nat {
+                    return Err(err(format!(
+                        "`repr(align({raise}))` on field {n} only raises: the field's natural alignment is {nat} (attribute annotations specification section 4.2)"
+                    )));
+                }
+                align = raise;
+            }
+            if let Some(cap) = fr.packed.or(repr.packed) {
+                align = align.min(cap);
+            }
+            offset = offset.div_ceil(align) * align;
+            out.push(AbiField {
+                name: (*n).to_string(),
+                offset,
+                size,
+                align: nat,
+            });
+            offset += size;
+            natural = natural.max(align);
+        }
+        let mut type_align = natural;
+        if let Some(raise) = repr.align {
+            if raise < natural {
+                return Err(err(format!(
+                    "`repr(align({raise}))` only raises: {}'s natural alignment is {natural} (attribute annotations specification section 4.2)",
+                    recipe.name
+                )));
+            }
+            type_align = raise;
+        }
+        let size = offset.div_ceil(type_align) * type_align;
+        Ok(AbiLayout {
+            name: recipe.name.clone(),
+            repr: repr.spelled.clone(),
+            size,
+            align: type_align,
+            fields: out,
+            discriminant: None,
+        })
+    }
+
+    /// One field type's size and alignment: the primitive types
+    /// specification section 2 table for unboxed primitives, the
+    /// computed layout of an explicitly laid out type, and the uniform
+    /// word for everything boxed. A type parameter has no fixed layout.
+    fn field_size_align(
+        &mut self,
+        ty: &Ty,
+        span: ast::Span,
+        stack: &mut Vec<(String, String)>,
+    ) -> Result<(u64, u64)> {
+        match ty {
+            Ty::Unit => Ok((0, 1)),
+            Ty::Bool => Ok((1, 1)),
+            Ty::Prim(s) => Ok((s.size(), s.align())),
+            Ty::Adt(name, _) => {
+                let kind = self.lookup_type(&[name.as_str()])?.clone();
+                let key = (kind.module.clone(), kind.name.clone());
+                if self.layout_recipes.contains_key(&key) {
+                    let l = self.layout_of(&key.0, &key.1, stack)?;
+                    Ok((l.size, l.align))
+                } else {
+                    Ok((WORD_SIZE, WORD_ALIGN))
+                }
+            }
+            Ty::Param(_) | Ty::Meta(_) | Ty::Idx(_) | Ty::Prp(_) | Ty::Sort(_) => Err(Error::at(
+                span,
+                "a representation attribute fixes every field's layout, but this field's type is not fixed (a type parameter or an unresolved index); attribute annotations specification section 4.1".to_string(),
+            )),
+            _ => Ok((WORD_SIZE, WORD_ALIGN)),
+        }
     }
 }
 
@@ -3727,6 +4755,23 @@ impl Checker {
                     ctors,
                     fields: t.fields.clone().unwrap_or_default(),
                 });
+                // Computed layout facts (attribute annotations
+                // specification section 4.3): part of the contract
+                // projection, so a representation change changes the
+                // interface identity.
+                iface.layouts.push(
+                    self.type_layouts
+                        .get(&(module.to_string(), t.name.clone()))
+                        .cloned()
+                        .unwrap_or(crate::interface::AbiLayout {
+                            name: t.name.clone(),
+                            repr: "uniform-word".to_string(),
+                            size: WORD_SIZE,
+                            align: WORD_ALIGN,
+                            fields: Vec::new(),
+                            discriminant: None,
+                        }),
+                );
             }
         }
         for s in self.sigs.values().flatten() {
@@ -3786,6 +4831,20 @@ pub fn check_program_multi(
     source_hashes: &HashMap<String, String>,
     scx: &StagingCx,
 ) -> Result<(Program, Vec<crate::interface::Iface>, StageReport)> {
+    let (program, ifaces, report, _) =
+        check_program_multi_diag(prelude, modules, source_hashes, scx)?;
+    Ok((program, ifaces, report))
+}
+
+/// [`check_program_multi`], also returning the non-fatal diagnostics
+/// (the branch weight reports of attribute annotations specification
+/// section 2).
+pub fn check_program_multi_diag(
+    prelude: &ast::Module,
+    modules: &[ast::Module],
+    source_hashes: &HashMap<String, String>,
+    scx: &StagingCx,
+) -> Result<(Program, Vec<crate::interface::Iface>, StageReport, Vec<Diagnostic>)> {
     let mut c = Checker::new();
     c.install_builtins();
     c.stage_mode = scx.mode;
@@ -3797,6 +4856,10 @@ pub fn check_program_multi(
         let imports = imports_of(m);
         c.collect_module(m, &prelude_name, &imports)?;
     }
+    // ABI layout facts resolve once every type name is known (attribute
+    // annotations specification section 4.3); the packed-borrow rule of
+    // section 4.2 reads them during checking.
+    c.compute_layouts()?;
     // The prelude compiles first: its functions and instances run during
     // compile-time evaluation.
     c.check_bodies(&prelude_name, &prelude_name)?;
@@ -3808,6 +4871,8 @@ pub fn check_program_multi(
     } else {
         StageReport { mode: scx.mode, inputs: Vec::new(), generated: Vec::new() }
     };
+    // Generated declarations may declare types with representations.
+    c.compute_layouts()?;
     for m in modules {
         c.check_bodies(&m.name.text, &prelude_name)?;
     }
@@ -3843,8 +4908,9 @@ pub fn check_program_multi(
         }
         emit(&c, &m.name.text, &imports);
     }
+    let diags = std::mem::take(&mut c.diags);
     let program = c.finish(&scx.entry_modules, &prelude_name)?;
-    Ok((program, ifaces, report))
+    Ok((program, ifaces, report, diags))
 }
 
 /// Check a single user module against the implicit prelude and elaborate it.
@@ -4360,6 +5426,7 @@ impl Checker {
         };
         let name = format!("$gen{idx}");
         let eq = ast::Equation {
+            attrs: Vec::new(),
             name: ast::Name::new(&name, span),
             pats: Vec::new(),
             body: ast::Term::Do(stmts, span),
@@ -4434,26 +5501,40 @@ impl Checker {
             // Provenance is stamped at quote construction (the template's
             // nodes carry it; spliced caller syntax keeps its own spans).
         }
-        // Attributes revalidate on the generated forms (attribute
-        // annotations specification section 6).
-        let mut flat = Vec::new();
+        // Attributes revalidate at their attachment position when the
+        // generated forms are collected (attribute annotations
+        // specification section 6).
+        let mut flat: Vec<(Vec<ast::Attribute>, ast::Decl)> = Vec::new();
         for d in &decls {
             self.flatten_attributes(d, &mut flat)?;
         }
         // Macro calls in generated code expand at emission.
-        for d in &mut flat {
+        for (_, d) in &mut flat {
             self.expand_macros_in_decl(cx, module, d)?;
         }
+        let decls_out: Vec<ast::Decl> = flat
+            .iter()
+            .map(|(attrs, d)| {
+                if attrs.is_empty() {
+                    d.clone()
+                } else {
+                    ast::Decl::Attributed {
+                        attrs: attrs.clone(),
+                        inner: Box::new(d.clone()),
+                    }
+                }
+            })
+            .collect();
         self.stage_emitted
             .entry(module.to_string())
             .or_default()
-            .extend(flat.iter().cloned());
+            .extend(decls_out.iter().cloned());
         // Collect the generated declarations now: later generators and
         // on-demand compilation resolve their names.
         let mut m = ast::Module {
             name: ast::Name::new(module, span),
             imports: Vec::new(),
-            decls: flat,
+            decls: decls_out,
             span,
         };
         // `collect_module` resolves imports against its argument; the
@@ -4555,7 +5636,7 @@ impl Checker {
                 }
                 self.expand_macros_in_term(cx, module, body)
             }
-            ast::Term::If(a, b, c, _) => {
+            ast::Term::If { cond: a, then: b, els: c, .. } => {
                 self.expand_macros_in_term(cx, module, a)?;
                 self.expand_macros_in_term(cx, module, b)?;
                 self.expand_macros_in_term(cx, module, c)
@@ -4822,7 +5903,7 @@ fn term_has_macro_call(t: &ast::Term) -> bool {
                 }
                 walk(b, found);
             }
-            ast::Term::If(a, b, c, _) => {
+            ast::Term::If { cond: a, then: b, els: c, .. } => {
                 walk(a, found);
                 walk(b, found);
                 walk(c, found);
@@ -5003,7 +6084,7 @@ fn stamp_term_spans(t: &mut ast::Term, site: &crate::lexer::ExpSite) {
             stamp(s);
             stamp_term_spans(body, site);
         }
-        ast::Term::If(a, b, c, s) => {
+        ast::Term::If { cond: a, then: b, els: c, span: s, .. } => {
             stamp(s);
             stamp_term_spans(a, site);
             stamp_term_spans(b, site);
@@ -5497,17 +6578,17 @@ impl Checker {
             }
             Core::If(c, t, f) => {
                 if word_of(&self.eval_core(cx, c, frame)?, "a condition")? != 0 {
-                    self.eval_core(cx, t, frame)?
+                    self.eval_core(cx, &t.body, frame)?
                 } else {
-                    self.eval_core(cx, f, frame)?
+                    self.eval_core(cx, &f.body, frame)?
                 }
             }
             Core::Case { scrut, alts } => {
                 let s = self.eval_core(cx, scrut, frame)?;
                 let mut result = None;
-                for (pat, body) in alts {
+                for alt in alts {
                     let mut saved: Vec<(usize, Option<Value>)> = Vec::new();
-                    let matched = match pat {
+                    let matched = match &alt.pat {
                         crate::core::CPat::Wild => true,
                         crate::core::CPat::Var(l) => {
                             saved.push((l.0, set_local(frame, l.0, s.clone())));
@@ -5524,7 +6605,7 @@ impl Checker {
                         },
                     };
                     if matched {
-                        result = Some(self.eval_core(cx, body, frame)?);
+                        result = Some(self.eval_core(cx, &alt.body, frame)?);
                         for (l, old) in saved.into_iter().rev() {
                             restore_local(frame, l, old);
                         }

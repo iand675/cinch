@@ -98,6 +98,15 @@ The closure and dictionary ABI is documented in `src/core.rs`.
   `Ref r a`/`Mut r a` borrows with region escape checking and lexical `Mut`
   uniqueness, and thunk force discipline (`%1` exactly once, `%aff` at
   most once; unannotated thunks default `%aff`).
+- **Attribute annotations** (attribute annotations specification): the
+  `#[...]` system across declarations, fields, clauses, alternatives,
+  guards, `if` branches, and field types; branch weights `#[weight(n)]`
+  with the `cold`/`likely`/`unlikely` wrappers (2000/1/0),
+  all-or-nothing reporting, and LLVM `branch_weights` emission; inline
+  hints including `#[noinline]`; and `repr(C)`/`transparent`/`align`/
+  `packed`/`uN` with layout facts in the interface ABI table and the
+  packed-borrow safety rule. Semantic attributes enter the contract
+  projection; hints never do.
 - **Staging and metaprogramming** (modules spec sections 7-11):
   multi-module source files, `stage` declarations with typed quotations
   `[||]`, splices `$()`, and `quoteDecls` over a compile-time

@@ -294,12 +294,21 @@ impl Checker {
                 }
                 Ok((wrap_lets(binds, bcore), bty))
             }
-            ast::Term::If(c, t, e, _) => {
-                let ccore = self.check(env, c, &Ty::Bool)?;
-                let ((tcore, tty), tm) = self.isolate(|s| s.infer(env, t))?;
-                let (ecore, em) = self.isolate(|s| s.check(env, e, &tty))?;
+            ast::Term::If { cond, then, els, cond_attrs, then_attrs, else_attrs, span } => {
+                let (tw, fw) =
+                    self.if_weights(cond_attrs, then_attrs, else_attrs, *span)?;
+                let ccore = self.check(env, cond, &Ty::Bool)?;
+                let ((tcore, tty), tm) = self.isolate(|s| s.infer(env, then))?;
+                let (ecore, em) = self.isolate(|s| s.check(env, els, &tty))?;
                 self.merge_branches(vec![tm, em]);
-                Ok((ECore::If(Box::new(ccore), Box::new(tcore), Box::new(ecore)), tty))
+                Ok((
+                    ECore::If(
+                        Box::new(ccore),
+                        CBranch::weighted(tw, tcore),
+                        CBranch::weighted(fw, ecore),
+                    ),
+                    tty,
+                ))
             }
             ast::Term::Case(scrut, alts, span) => {
                 let (scrut_core, scrut_ty) = self.infer(env, scrut)?;
@@ -665,12 +674,18 @@ impl Checker {
                 self.cps(env, body, &cont)
             }
             ast::Term::Lam(_, _, _) => self.check_lam(env, term, expected),
-            ast::Term::If(c, t, e, _) => {
-                let ccore = self.check(env, c, &Ty::Bool)?;
-                let (tcore, tm) = self.isolate(|s| s.check(env, t, expected))?;
-                let (ecore, em) = self.isolate(|s| s.check(env, e, expected))?;
+            ast::Term::If { cond, then, els, cond_attrs, then_attrs, else_attrs, span } => {
+                let (tw, fw) =
+                    self.if_weights(cond_attrs, then_attrs, else_attrs, *span)?;
+                let ccore = self.check(env, cond, &Ty::Bool)?;
+                let (tcore, tm) = self.isolate(|s| s.check(env, then, expected))?;
+                let (ecore, em) = self.isolate(|s| s.check(env, els, expected))?;
                 self.merge_branches(vec![tm, em]);
-                Ok(ECore::If(Box::new(ccore), Box::new(tcore), Box::new(ecore)))
+                Ok(ECore::If(
+                    Box::new(ccore),
+                    CBranch::weighted(tw, tcore),
+                    CBranch::weighted(fw, ecore),
+                ))
             }
             ast::Term::Let(decls, body, span) => {
                 let mut env2 = env.clone();
@@ -1252,7 +1267,14 @@ impl Checker {
                         ))
                     }
                 };
-                Ok((ECore::If(Box::new(test), Box::new(yes), Box::new(no)), dec_ty))
+                Ok((
+                    ECore::If(
+                        Box::new(test),
+                        CBranch::new(yes),
+                        CBranch::new(no),
+                    ),
+                    dec_ty,
+                ))
             }
             _ => unreachable!(),
         }
@@ -1891,7 +1913,93 @@ impl Checker {
             }
         };
         let _ = region;
+        self.check_misaligned_place(env, &args[0], is_mut)?;
         self.check(env, &args[0], &inner)
+    }
+
+    /// The packed-borrow safety rule (attribute annotations
+    /// specification section 4.2): a field whose offset is not a multiple
+    /// of its natural alignment cannot be borrowed, since a reference
+    /// asserts alignment. A borrowable place is a variable with a chain
+    /// of field projections.
+    fn check_misaligned_place(
+        &self,
+        env: &Env,
+        t: &ast::Term,
+        is_mut: bool,
+    ) -> Result<()> {
+        let mut proj: Vec<&ast::Name> = Vec::new();
+        let mut cur = t;
+        while let ast::Term::Proj(base, field, _) = cur {
+            proj.push(field);
+            cur = base;
+        }
+        let mut ty = match cur {
+            ast::Term::Var(p) if p.quals.is_empty() => match env.lookup(&p.name.text) {
+                Some((_, scheme)) => scheme.ty.clone(),
+                None => return Ok(()),
+            },
+            _ => return Ok(()),
+        };
+        for f in proj.into_iter().rev() {
+            let ty2 = self.uni.zonk(&ty);
+            // A borrowed place projects through the borrow.
+            let ty2 = match ty2 {
+                Ty::Ref(_, inner) | Ty::Mut(_, inner) => *inner,
+                other => other,
+            };
+            let ty_name = match &ty2 {
+                Ty::Adt(name, _) => name.clone(),
+                _ => return Ok(()),
+            };
+            let kind = match self.lookup_type(&[ty_name.as_str()]) {
+                Ok(k) => k.clone(),
+                Err(_) => return Ok(()),
+            };
+            let names = match &kind.fields {
+                Some(names) => names,
+                None => return Ok(()),
+            };
+            let idx = match names.iter().position(|n| n == &f.text) {
+                Some(i) => i,
+                None => return Ok(()),
+            };
+            if let Some(l) =
+                self.type_layouts.get(&(kind.module.clone(), kind.name.clone()))
+            {
+                if let Some(ff) = l.fields.iter().find(|ff| ff.name == f.text) {
+                    if ff.align != 0 && ff.offset % ff.align != 0 {
+                        let form = if is_mut { "mutBorrow" } else { "borrow" };
+                        return Err(Error::at(
+                            f.span,
+                            format!(
+                                "field {} of {} sits at offset {} but its alignment is {}: a field whose offset is not a multiple of its natural alignment cannot be borrowed, since `{}` asserts alignment; copy the field instead (attribute annotations specification section 4.2)",
+                                f.text, kind.name, ff.offset, ff.align, form
+                            ),
+                        ));
+                    }
+                }
+            }
+            // The next projection steps through this field's type.
+            let fty = match self
+                .qualified
+                .get(&(kind.module.clone(), kind.name.clone()))
+                .map(|v| &v.kind)
+            {
+                Some(ValueKind::Ctor { field_tys, ty_params, .. }) => {
+                    let mut map = HashMap::new();
+                    if let Ty::Adt(_, args) = &ty2 {
+                        for (p, a) in ty_params.iter().zip(args.iter()) {
+                            map.insert(p.clone(), a.clone());
+                        }
+                    }
+                    Checker::subst_ty(&field_tys[idx], &map)
+                }
+                _ => return Ok(()),
+            };
+            ty = fty;
+        }
+        Ok(())
     }
 
     fn check_lam(&mut self, env: &mut Env, term: &ast::Term, expected: &Ty) -> Result<ECore> {
@@ -2448,6 +2556,24 @@ impl Checker {
         span: ast::Span,
     ) -> Result<ECore> {
         let sloc = self.fresh_local();
+        // Every alternative carries its weight beside it, and a guarded
+        // one its guard's weight (attribute annotations specification
+        // sections 2 and 3).
+        let mut weights: Vec<Option<u32>> = Vec::new();
+        let mut guard_weights: Vec<Option<u32>> = Vec::new();
+        for a in alts {
+            let set = self.validate_attr_site(&a.attrs, AttrSite::Alt)?;
+            let gset = self.validate_attr_site(&a.guard_attrs, AttrSite::Guard)?;
+            if gset.weight.is_some() && a.guard.is_none() {
+                return Err(Error::at(
+                    a.span,
+                    "a guard's weight annotates a guard: write `pat | #[weight(n)] guard -> ...` (attribute annotations specification section 2)",
+                ));
+            }
+            weights.push(set.weight);
+            guard_weights.push(gset.weight);
+        }
+        self.complete_weights(&mut weights, "this `case`", span);
         let mut rows: Vec<Row> = Vec::new();
         for (i, a) in alts.iter().enumerate() {
             rows.push(Row {
@@ -2457,6 +2583,8 @@ impl Checker {
                 env: env.clone(),
                 idx: i,
                 consumed: Vec::new(),
+                weight: weights[i],
+                guard_weight: guard_weights[i],
             });
         }
         let covered = self.matrix_covered(&rows, &[scrut_ty.clone()])?;
@@ -2520,10 +2648,15 @@ impl Checker {
                     )
                 })?;
                 self.merge_branches(vec![bm, rm]);
+                // The guard's own decision point (attribute annotations
+                // specification sections 2.1 and 3): the guard's weight
+                // annotates its pass outcome, and the reference base 1
+                // completes the pair for the fallthrough.
+                let gw = first.guard_weight;
                 return Ok(ECore::If(
                     Box::new(gcore),
-                    Box::new(body_core),
-                    Box::new(rest_core),
+                    CBranch::weighted(gw, body_core),
+                    CBranch::weighted(gw.map(|_| 1), rest_core),
                 ));
             }
             for l in &first.consumed {
@@ -2690,6 +2823,22 @@ impl Checker {
                 let rest_tys = types[1..].to_vec();
                 // Values no literal matched take the var and wildcard
                 // rows. Every literal arm is its own evaluation path.
+                // Branch weights (attribute annotations specification
+                // section 2.2) marginalize over the literal alternatives
+                // and the default; the nested comparisons see the rest
+                // as their other alternative.
+                let mut branch_lists: Vec<Vec<Row>> = Vec::new();
+                for (v, _) in &literals {
+                    let mut branch = defaults.clone();
+                    branch.extend(
+                        lit_rows.iter().filter(|(x, _)| x == v).map(|(_, r)| r.clone()),
+                    );
+                    branch.sort_by_key(|r| r.idx);
+                    branch_lists.push(branch);
+                }
+                branch_lists.push(defaults.clone());
+                let sums = self.decision_weights(&branch_lists, "this literal match", ctx_span);
+                let (lit_sums, default_sum) = sums.split_at(literals.len());
                 let mut branch_maps = Vec::new();
                 let (mut chain, m) = self.isolate(|s| {
                     s.compile_rows(
@@ -2702,12 +2851,9 @@ impl Checker {
                     )
                 })?;
                 branch_maps.push(m);
-                for (v, node) in literals.into_iter().rev() {
-                    let mut branch = defaults.clone();
-                    branch.extend(
-                        lit_rows.iter().filter(|(x, _)| *x == v).map(|(_, r)| r.clone()),
-                    );
-                    branch.sort_by_key(|r| r.idx);
+                let mut rest_w = default_sum.first().copied().unwrap_or(None);
+                for (i, (v, node)) in literals.into_iter().enumerate().rev() {
+                    let branch = branch_lists[i].clone();
                     let (body, m) = self.isolate(|s| {
                         s.compile_rows(
                             branch,
@@ -2720,7 +2866,18 @@ impl Checker {
                     })?;
                     branch_maps.push(m);
                     let cmp = literal_eq_cond(&inner_ty, col0.clone(), node);
-                    chain = ECore::If(Box::new(cmp), Box::new(body), Box::new(chain));
+                    // One binary decision point per comparison: the
+                    // literal's alternative against everything left.
+                    let (tw, fw) = pair_weights(lit_sums[i], rest_w);
+                    chain = ECore::If(
+                        Box::new(cmp),
+                        CBranch::weighted(tw, body),
+                        CBranch::weighted(fw, chain),
+                    );
+                    rest_w = match (lit_sums[i], rest_w) {
+                        (Some(a), Some(b)) => Some(a.saturating_add(b)),
+                        _ => None,
+                    };
                 }
                 self.merge_branches(branch_maps);
                 Ok(chain)
@@ -2789,6 +2946,15 @@ impl Checker {
                 }
                 let rest_cols = cols[1..].to_vec();
                 let rest_tys = types[1..].to_vec();
+                // Branch weights (attribute annotations specification
+                // section 2.2): each side's weight is the sum of the
+                // weights of the rows reachable through it.
+                let sums = self.decision_weights(
+                    &[true_rows.clone(), false_rows.clone()],
+                    "this `Bool` match",
+                    ctx_span,
+                );
+                let (tw, fw) = pair_weights(sums[0], sums[1]);
                 let (t, tm) = self.isolate(|s| {
                     s.compile_rows(
                         true_rows,
@@ -2803,7 +2969,11 @@ impl Checker {
                     s.compile_rows(false_rows, rest_cols, rest_tys, expected, ctx_span, covered)
                 })?;
                 self.merge_branches(vec![tm, fm]);
-                Ok(ECore::If(Box::new(col0), Box::new(t), Box::new(f)))
+                Ok(ECore::If(
+                    Box::new(col0),
+                    CBranch::weighted(tw, t),
+                    CBranch::weighted(fw, f),
+                ))
             }
             Ty::Adt(_, ty_args) => {
                 let info = self.lookup_type(&[type_name_str(&inner_ty)])?.clone();
@@ -2970,8 +3140,10 @@ impl Checker {
                         }
                     }
                 }
-                let mut alts = Vec::new();
+                let mut alts: Vec<ECore> = Vec::new();
                 let mut alt_maps = Vec::new();
+                let mut alt_pats: Vec<CPat> = Vec::new();
+                let mut branch_lists: Vec<Vec<Row>> = Vec::new();
                 for (name, tag) in info.ctors.clone() {
                     // A constructor with no explicit arm may still run
                     // (wildcard rows reach it), so it gets a branch unless
@@ -3031,7 +3203,7 @@ impl Checker {
                     branch_tys.extend(types[1..].iter().cloned());
                     let (core, m) = self.isolate(|s| {
                         s.compile_rows(
-                            branch,
+                            branch.clone(),
                             branch_cols,
                             branch_tys,
                             expected,
@@ -3039,8 +3211,10 @@ impl Checker {
                             covered,
                         )
                     })?;
+                    branch_lists.push(branch);
                     alt_maps.push(m);
-                    alts.push((CPat::Con { tag, fields }, core));
+                    alt_pats.push(CPat::Con { tag, fields });
+                    alts.push(core);
                 }
                 self.merge_branches(alt_maps);
                 if alts.is_empty() {
@@ -3051,6 +3225,16 @@ impl Checker {
                         format!("no constructor of {} can build this value (the indices refute them all)", ty0),
                     ));
                 }
+                // Branch weights (attribute annotations specification
+                // section 2.2): each constructor's alternative sums the
+                // weights of the rows reachable through it.
+                let sums = self.decision_weights(&branch_lists, "this `case`", ctx_span);
+                let alts = alt_pats
+                    .into_iter()
+                    .zip(alts)
+                    .zip(sums)
+                    .map(|((pat, body), w)| CAlt::weighted(pat, w, body))
+                    .collect();
                 Ok(ECore::Case { scrut: Box::new(col0), alts })
             }
             Ty::Tuple(items) => {
@@ -3132,7 +3316,7 @@ impl Checker {
                 )?;
                 Ok(ECore::Case {
                     scrut: Box::new(col0),
-                    alts: vec![(CPat::Con { tag: 0, fields }, core)],
+                    alts: vec![CAlt::new(CPat::Con { tag: 0, fields }, core)],
                 })
             }
             Ty::Param(p) => Err(Error::at(
@@ -3280,7 +3464,7 @@ impl Checker {
                 )?;
                 Ok(ECore::Case {
                     scrut: Box::new(col0),
-                    alts: vec![(CPat::Con { tag: 0, fields }, core)],
+                    alts: vec![CAlt::new(CPat::Con { tag: 0, fields }, core)],
                 })
             }
             Ty::Pi { .. } => Err(Error::at(
@@ -4006,7 +4190,7 @@ impl Checker {
                     }
                     walk(chk, b, found);
                 }
-                ast::Term::If(c, x, y, _) => {
+                ast::Term::If { cond: c, then: x, els: y, .. } => {
                     walk(chk, c, found);
                     walk(chk, x, found);
                     walk(chk, y, found);
@@ -4099,7 +4283,8 @@ impl Checker {
                 let app = ast::Term::App(Box::new(negate), vec![(**e).clone()], *span);
                 self.cps(env, &app, kv)
             }
-            ast::Term::If(c, t, e, _) => {
+            ast::Term::If { cond: c, then: t, els: e, cond_attrs, then_attrs, else_attrs, span } => {
+                let (tw, fw) = self.if_weights(cond_attrs, then_attrs, else_attrs, *span)?;
                 let tc = (**t).clone();
                 let ec = (**e).clone();
                 let kv2 = kv.clone();
@@ -4118,8 +4303,8 @@ impl Checker {
                         this.merge_branches(vec![tm, em]);
                         Ok(ECore::If(
                             Box::new(ECore::Var(v)),
-                            Box::new(tcore),
-                            Box::new(ecore),
+                            CBranch::weighted(tw, tcore),
+                            CBranch::weighted(fw, ecore),
                         ))
                     },
                     move |this, env, k| this.cps(env, &cond, k),
@@ -5579,6 +5764,12 @@ struct Row {
     /// counting notes one use per consumed column on the row's path,
     /// ownership and usage design, section 2).
     consumed: Vec<LocalId>,
+    /// The clause's or alternative's weight, beside the alternative it
+    /// annotates (attribute annotations specification section 2.1).
+    weight: Option<u32>,
+    /// The guard's weight: its pass outcome, with the reference base 1
+    /// completing the pair for the fallthrough (sections 2.1 and 3).
+    guard_weight: Option<u32>,
 }
 
 /// A row's patterns must bind every variable at most once; duplicate
@@ -5617,6 +5808,16 @@ fn check_row_binders(pats: &[ast::Pat]) -> Result<()> {
         walk(p, &mut seen)?;
     }
     Ok(())
+}
+
+/// A binary decision point's weights: both alternatives carry one or
+/// neither does (attribute annotations specification section 2.1).
+fn pair_weights(a: Option<u32>, b: Option<u32>) -> (Option<u32>, Option<u32>) {
+    if a.is_some() && b.is_some() {
+        (a, b)
+    } else {
+        (None, None)
+    }
 }
 
 fn type_name_str(t: &Ty) -> &str {

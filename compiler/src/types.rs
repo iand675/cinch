@@ -152,6 +152,17 @@ impl Scalar {
         }
     }
 
+    /// Size in bytes (primitive types specification section 2: the
+    /// layout table every target must honor).
+    pub fn size(self) -> u64 {
+        self.width() as u64 / 8
+    }
+
+    /// Alignment in bytes (equals the size for every primitive type).
+    pub fn align(self) -> u64 {
+        self.size()
+    }
+
     pub fn is_float(self) -> bool {
         matches!(self, Scalar::F32 | Scalar::F64)
     }

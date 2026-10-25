@@ -202,10 +202,10 @@ and P11's FFI layout work.
 
 | Requirement | Status |
 | --- | --- |
-| `#[...]` attribute system: syntax, attachment points, compiler vs macro ownership, hygiene and provenance, identity rules | spec'd |
-| Manual branch weights `#[weight(n)]` with the marginalization and transformation rules; `cold`/`likely`/`unlikely` as wrappers over weights (2000/1/0) | spec'd |
-| Inline hints `#[inline]`/`#[inline(always)]`/`#[inline(never)]`/`#[noinline]` as erasable optimizer hints | spec'd |
-| `repr(C)`/`repr(transparent)`/`repr(align)`/`repr(packed)`/discriminant representations with layout facts in the interface ABI table and the packed-borrow safety rule | spec'd |
+| `#[...]` attribute system: syntax, attachment points, compiler vs macro ownership, hygiene and provenance, identity rules | done (declarations, constructor/field declarations, function clauses, `case` alternatives, guards, `if` condition and branches, field types; `= literal` and literal-list args; unknown names outside `meta` rejected unless macro-declared; semantic attributes enter the contract projection, hints never do; `tests/attributes.rs`) |
+| Manual branch weights `#[weight(n)]` with the marginalization and transformation rules; `cold`/`likely`/`unlikely` as wrappers over weights (2000/1/0) | done except section 2.4's transformation rules (P10's obligations); all-or-nothing drop + `incomplete-branch-weights` warning; inflation reported as `incoherent-weights` informationally; weights are `Maybe u32` beside each alternative in core; LLVM `branch_weights` on `br`/`sw` |
+| Inline hints `#[inline]`/`#[inline(always)]`/`#[inline(never)]`/`#[noinline]` as erasable optimizer hints | done (LLVM `inlinehint`/`alwaysinline`/`noinline`; function-level `#[cold]` lowers to LLVM `cold`; not in the contract projection) |
+| `repr(C)`/`repr(transparent)`/`repr(align)`/`repr(packed)`/discriminant representations with layout facts in the interface ABI table and the packed-borrow safety rule | done (C layout over source-order non-erased fields with tail padding; facts in the interface `abi.layouts` table hashed into `iface_hash`; `align(N)` only raises (power of two); `transparent` is the single field's layout; packed fields reject `borrow`/`mutBorrow` while plain copies run; `repr(uN)` records the discriminant) |
 
 ### Supercompilation and JIT (P10/P13/P14/P17)
 
@@ -465,3 +465,38 @@ flags for future decisions).
   declarations; unknown names outside `meta` need a macro declaration;
   macro-owned attribute names reject on cross-macro collision; `repr` is
   rejected, not ignored; macro-emitted attributes revalidate.
+- **D49 (P17 if weights)**: the `if` condition position is a pair form:
+  `if #[w] c then t else e` weights the true branch `w` and completes
+  the pair with the reference base 1 for the false branch (so
+  `if #[likely] c` is the conventional 2000:1 pair). Attributes before
+  the `then`/`else` expressions annotate their branch directly, where
+  the one-branch rule applies (one-sided annotation drops all weights
+  and reports). An explicit else-side weight overrides the pair's
+  implicit 1; annotating the true side twice (condition plus `then`) is
+  an error.
+- **D50 (P17 guards)**: a guard's weight annotates its pass outcome
+  with the fallthrough completed by the base 1 (one guard is one
+  decision point).
+- **D51 (P17 type-position attributes)**: parsed at record field types
+  and merged with the field-declaration position (`#[repr(align(8))]
+  magic :: U64` and `magic :: #[repr(align(8))] U64` are one construct);
+  other type positions are syntax errors naming section 1.1.
+- **D52 (P17 repr scope)**: `repr(C)`/`align`/`packed` on a
+  multi-constructor `data` are rejected (`repr(uN)` covers enums);
+  `repr(transparent)` is exclusive; `packed`+`align` conflict;
+  `repr(uN)`+anything conflicts; field-level `align`/`packed` require
+  `repr(C)` on the declaration; `align` below natural is rejected at
+  either level. A fixed-discriminant `data` records the discriminant as
+  an interface fact and keeps the uniform-word representation (the
+  payload layout is not fixed by that representation).
+- **D53 (P17 duplicates)**: same-name duplicates on one construct are
+  errors except macro-owned names (the macro governs its forms); `meta`
+  is not exempt. One weight-family attribute per alternative
+  (`#[likely] #[weight(5)]` is an error); one inline hint per function
+  (`#[noinline] #[inline(never)]` rejects) and one `#[cold]`.
+- **D54 (P17 reports)**: `incomplete-branch-weights` is a warning
+  (weights dropped); `incoherent-weights` is informational (weights
+  kept), per the chapter's open decision inheriting the reference's
+  warn-and-drop. Both are non-fatal diagnostics from
+  `check_program_multi_diag`; `check_program_multi` and the driver are
+  unchanged.

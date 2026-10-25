@@ -282,34 +282,57 @@ impl<'a> Parser<'a> {
 
     // ------------------------------------------------------- declarations
 
+    /// The `#[...]` attributes prefixing an annotated construct
+    /// (attribute annotations specification section 1.1). Layout inserts
+    /// a virtual `;` at a new line's start, so an attribute prefixing its
+    /// construct across lines is preceded by one; those separators are
+    /// skipped here. The list is empty when no attribute is written.
+    fn parse_attr_list(&mut self) -> Result<Vec<Attribute>> {
+        let mut attrs = Vec::new();
+        loop {
+            // An attribute prefixes its construct across lines too, but
+            // only when an attribute actually follows the separator.
+            if self.at(&Tok::Semicolon)
+                && self.peek().virtual_
+                && matches!(self.peek_tok_at(1), Some(Tok::Attr { .. }))
+            {
+                self.bump();
+            }
+            let span = self.peek().span;
+            match self.peek_tok().clone() {
+                Tok::Attr { name, args } => {
+                    self.bump();
+                    attrs.push(Attribute {
+                        path: name
+                            .split('.')
+                            .map(|s| Name::new(s, span))
+                            .collect(),
+                        args,
+                        span,
+                    });
+                }
+                _ => break,
+            }
+        }
+        if !attrs.is_empty() {
+            // The annotated construct follows: drop any layout
+            // separators between it and its attributes.
+            while self.at(&Tok::Semicolon) && self.peek().virtual_ {
+                self.bump();
+            }
+        }
+        Ok(attrs)
+    }
+
     fn parse_declaration(&mut self) -> Result<Decl> {
         // `#[...]` attributes prefix the annotated declaration (attribute
-        // annotations specification section 1.1: declarations only in this
-        // slice).
-        if matches!(self.peek_tok(), Tok::Attr { .. }) {
-            let mut attrs = Vec::new();
-            loop {
-                // Layout inserts a virtual `;` at a new line's start; an
-                // attribute prefixes its declaration across lines too.
-                if self.at(&Tok::Semicolon) && self.peek().virtual_ {
-                    self.bump();
-                }
-                let span = self.peek().span;
-                match self.peek_tok().clone() {
-                    Tok::Attr { name, args } => {
-                        self.bump();
-                        attrs.push(Attribute {
-                            path: name
-                                .split('.')
-                                .map(|s| Name::new(s, span))
-                                .collect(),
-                            args,
-                            span,
-                        });
-                    }
-                    _ => break,
-                }
-            }
+        // annotations specification section 1.1).
+        if matches!(self.peek_tok(), Tok::Attr { .. })
+            || (self.at(&Tok::Semicolon)
+                && self.peek().virtual_
+                && matches!(self.peek_tok_at(1), Some(Tok::Attr { .. })))
+        {
+            let attrs = self.parse_attr_list()?;
             let inner = self.parse_declaration()?;
             return Ok(Decl::Attributed { attrs, inner: Box::new(inner) });
         }
@@ -441,9 +464,12 @@ impl<'a> Parser<'a> {
         }
     }
 
-    /// `name pats = body [where locals]`.
+    /// `name [clause attrs] pats = body [where locals]`: the clause
+    /// attributes sit between the function name and its first pattern
+    /// (attribute annotations specification section 1.1).
     fn parse_equation_rest(&mut self, name: Name, allow_where: bool) -> Result<Equation> {
         let span = name.span;
+        let attrs = self.parse_attr_list()?;
         let mut pats = Vec::new();
         while self.starts_atomic_pattern() {
             pats.push(self.parse_atomic_pattern()?);
@@ -460,7 +486,7 @@ impl<'a> Parser<'a> {
             self.bump();
             locals = self.parse_block_items("the local block", |p| p.parse_local_decl())?;
         }
-        Ok(Equation { name, pats, body, locals, span })
+        Ok(Equation { attrs, name, pats, body, locals, span })
     }
 
     fn parse_import(&mut self) -> Result<Import> {
@@ -620,11 +646,12 @@ impl<'a> Parser<'a> {
         }
         self.expect(&Tok::Where, "`where`")?;
         let ctors = self.parse_block_items("the constructor block", |p| {
+            let attrs = p.parse_attr_list()?;
             let name = p.parse_ctor_name("a constructor name")?;
             p.expect(&Tok::ColonColon, "`::`")?;
             let ty = p.parse_type()?;
             let span = name.span;
-            Ok(CtorDecl { name, ty, span })
+            Ok(CtorDecl { attrs, name, ty, span })
         })?;
         Ok(DataDecl { name, params, ctors, span })
     }
@@ -641,15 +668,20 @@ impl<'a> Parser<'a> {
         }
         self.expect(&Tok::Where, "`where`")?;
         let fields = self.parse_block_items("the field block", |p| {
+            // Attributes may prefix the field declaration or its type
+            // (attribute annotations specification sections 1.1 and 4);
+            // both spell the field's layout modifiers.
+            let mut attrs = p.parse_attr_list()?;
             let erased = p.at(&Tok::Erased);
             if erased {
                 p.bump();
             }
             let name = p.parse_value_name()?;
             p.expect(&Tok::ColonColon, "`::`")?;
+            attrs.extend(p.parse_attr_list()?);
             let ty = p.parse_type()?;
             let span = name.span;
-            Ok(FieldDecl { name, ty, erased, span })
+            Ok(FieldDecl { attrs, name, ty, erased, span })
         })?;
         Ok(RecordDecl { name, params, fields, span })
     }
@@ -669,6 +701,7 @@ impl<'a> Parser<'a> {
         }
         self.expect(&Tok::Where, "`where`")?;
         let fields = self.parse_block_items("the observation block", |p| {
+            let mut attrs = p.parse_attr_list()?;
             if p.at(&Tok::Erased) {
                 return Err(p.err(
                     "an observation is runtime code, not erased evidence; `erased` is only for record fields",
@@ -676,9 +709,10 @@ impl<'a> Parser<'a> {
             }
             let name = p.parse_value_name()?;
             p.expect(&Tok::ColonColon, "`::`")?;
+            attrs.extend(p.parse_attr_list()?);
             let ty = p.parse_type()?;
             let span = name.span;
-            Ok(FieldDecl { name, ty, erased: false, span })
+            Ok(FieldDecl { attrs, name, ty, erased: false, span })
         })?;
         Ok(RecordDecl { name, params, fields, span })
     }
@@ -1474,14 +1508,30 @@ impl<'a> Parser<'a> {
         Ok(Term::Let(decls, Box::new(body), span))
     }
 
+    /// `if [cond attrs] c then [then attrs] t else [else attrs] e`
+    /// (attribute annotations specification sections 1.1 and 2.1): the
+    /// condition-position attributes annotate the true branch and
+    /// complete the decision point's weight pair; the branch-position
+    /// attributes annotate their branch.
     fn parse_if(&mut self) -> Result<Term> {
         let span = self.expect(&Tok::If, "`if`")?.span;
+        let cond_attrs = self.parse_attr_list()?;
         let c = self.parse_term()?;
         self.expect(&Tok::Then, "`then`")?;
+        let then_attrs = self.parse_attr_list()?;
         let t = self.parse_term()?;
         self.expect(&Tok::Else, "`else`")?;
+        let else_attrs = self.parse_attr_list()?;
         let e = self.parse_term()?;
-        Ok(Term::If(Box::new(c), Box::new(t), Box::new(e), span))
+        Ok(Term::If {
+            cond: Box::new(c),
+            then: Box::new(t),
+            els: Box::new(e),
+            cond_attrs,
+            then_attrs,
+            else_attrs,
+            span,
+        })
     }
 
     fn parse_case(&mut self) -> Result<Term> {
@@ -1489,9 +1539,15 @@ impl<'a> Parser<'a> {
         let scrut = self.parse_term()?;
         self.expect(&Tok::Of, "`of`")?;
         let alts = self.parse_block_items("the alternative block", |p| {
+            // The alternative's attributes prefix its pattern; the
+            // guard's attributes sit after `|` (attribute annotations
+            // specification section 1.1).
+            let attrs = p.parse_attr_list()?;
             let pat = p.parse_pattern()?;
+            let mut guard_attrs = Vec::new();
             let guard = if p.at(&Tok::Pipe) {
                 p.bump();
+                guard_attrs = p.parse_attr_list()?;
                 Some(p.parse_term()?)
             } else {
                 None
@@ -1499,7 +1555,7 @@ impl<'a> Parser<'a> {
             p.expect(&Tok::Arrow, "`->`")?;
             let body = p.parse_term()?;
             let span = pat.span();
-            Ok(Alt { pat, guard, body, span })
+            Ok(Alt { attrs, pat, guard, guard_attrs, body, span })
         })?;
         Ok(Term::Case(Box::new(scrut), alts, span))
     }
@@ -2228,10 +2284,10 @@ fn resolve_term(t: &mut Term, fix: &FixityTable) -> Result<()> {
             }
             resolve_term(body, fix)?;
         }
-        Term::If(c, a, b, _) => {
-            resolve_term(c, fix)?;
-            resolve_term(a, fix)?;
-            resolve_term(b, fix)?;
+        Term::If { cond, then, els, .. } => {
+            resolve_term(cond, fix)?;
+            resolve_term(then, fix)?;
+            resolve_term(els, fix)?;
         }
         Term::Case(scrut, alts, _) => {
             resolve_term(scrut, fix)?;
@@ -2358,10 +2414,19 @@ fn reduce(vals: &mut Vec<Term>, op: Name, span: Span) -> Result<()> {
                 }],
             })
         };
+        let if_term = |cond: Term, then: Term, els: Term| Term::If {
+            cond: Box::new(cond),
+            then: Box::new(then),
+            els: Box::new(els),
+            cond_attrs: Vec::new(),
+            then_attrs: Vec::new(),
+            else_attrs: Vec::new(),
+            span,
+        };
         if op.text == "&&" {
-            Term::If(Box::new(lhs), Box::new(rhs), Box::new(bool_con("False")), span)
+            if_term(lhs, rhs, bool_con("False"))
         } else {
-            Term::If(Box::new(lhs), Box::new(bool_con("True")), Box::new(rhs), span)
+            if_term(lhs, bool_con("True"), rhs)
         }
     } else {
         let f = Term::Var(VarPath { quals: Vec::new(), name: op });
@@ -2878,7 +2943,7 @@ mod tests {
             }
             other => panic!("expected a let, got {other:?}"),
         }
-        assert!(matches!(eq_body(m, "h"), Term::If(_, _, _, _)));
+        assert!(matches!(eq_body(m, "h"), Term::If { .. }));
         match eq_body(m, "k") {
             Term::Case(scrut, alts, _) => {
                 assert!(matches!(scrut.as_ref(), Term::Var(_)));

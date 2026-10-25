@@ -36,11 +36,12 @@
 //! optimisation passes can promote them.
 
 use crate::core::{
-    ArithMode, ArithOp, BitOp, BitScanOp, BytesOp, CmpOp, ConvMode, Core, CPat, FClassOp, FloatBinOp,
-    FloatUnOp, FnDef, LocalId, PrimOp, Program, ShiftOp,
+    ArithMode, ArithOp, BitOp, BitScanOp, BytesOp, CAlt, CBranch, CmpOp, ConvMode, Core, CPat,
+    FClassOp, FloatBinOp, FloatUnOp, FnDef, LocalId, PrimOp, Program, ShiftOp,
 };
 use crate::types::Scalar;
 use crate::Result;
+use std::cell::{Cell, RefCell};
 use std::collections::{BTreeSet, HashMap, HashSet};
 
 /// Emit one LLVM module for the program.
@@ -173,6 +174,9 @@ pub fn emit(program: &Program) -> Result<String> {
         "define i32 @main() {{\nentry:\n  %r = call i64 @{}()\n  %c = trunc i64 %r to i32\n  ret i32 %c\n}}\n",
         quote(main_unit)
     ));
+    // Function attribute groups and metadata nodes (the branch weights
+    // of attribute annotations specification section 3.1).
+    out.push_str(&reg.finish_meta());
     Ok(out)
 }
 
@@ -217,6 +221,71 @@ struct Registry {
     /// Primitive operations the program mentions through `Core::Prim`;
     /// each gets one synthesized unit under its intrinsic symbol.
     prims: BTreeSet<PrimOp>,
+    /// Module-level metadata nodes (branch weights) in emission order;
+    /// metadata ids are module-scoped and the registry is one per
+    /// module (attribute annotations specification section 3.1).
+    meta_defs: RefCell<Vec<String>>,
+    meta_next: Cell<usize>,
+    /// Function attribute groups by content (attribute annotations
+    /// specification section 5).
+    attr_groups: RefCell<Vec<(String, usize)>>,
+}
+
+impl Registry {
+    /// Register one module-level metadata node; returns its `!N`
+    /// reference.
+    fn meta_node(&self, def: String) -> String {
+        let id = self.meta_next.get();
+        self.meta_next.set(id + 1);
+        self.meta_defs.borrow_mut().push(format!("!{id} = {def}\n"));
+        format!("!{id}")
+    }
+
+    /// A `!prof` branch weights node for one terminator's successors
+    /// (attribute annotations specification section 3.1).
+    fn branch_weights(&self, ws: &[u32]) -> String {
+        let list: Vec<String> = ws.iter().map(|w| format!("i32 {w}")).collect();
+        self.meta_node(format!("!{{!\"branch_weights\", {}}}", list.join(", ")))
+    }
+
+    /// The `#N` function attribute group for one hint set, registered
+    /// once per distinct group.
+    fn attr_group(&self, hints: crate::core::FnHints) -> Option<String> {
+        let mut attrs: Vec<&str> = Vec::new();
+        match hints.inline {
+            Some(crate::core::InlineHint::Inline) => attrs.push("inlinehint"),
+            Some(crate::core::InlineHint::Always) => attrs.push("alwaysinline"),
+            Some(crate::core::InlineHint::Never) => attrs.push("noinline"),
+            None => {}
+        }
+        if hints.cold {
+            attrs.push("cold");
+        }
+        if attrs.is_empty() {
+            return None;
+        }
+        attrs.sort_unstable();
+        let content = attrs.join(" ");
+        let mut groups = self.attr_groups.borrow_mut();
+        if let Some((_, n)) = groups.iter().find(|(c, _)| *c == content) {
+            return Some(format!("#{n}"));
+        }
+        let n = groups.len();
+        groups.push((content, n));
+        Some(format!("#{n}"))
+    }
+
+    /// The module's function attribute and metadata definitions.
+    fn finish_meta(&self) -> String {
+        let mut out = String::new();
+        for (content, n) in self.attr_groups.borrow().iter() {
+            out.push_str(&format!("attributes #{n} = {{ {content} }}\n"));
+        }
+        for d in self.meta_defs.borrow().iter() {
+            out.push_str(d);
+        }
+        out
+    }
 }
 
 impl Registry {
@@ -331,8 +400,16 @@ fn emit_unit(
     arity: usize,
     body: UnitBody,
 ) -> Result<()> {
-    let header = fn_header(name, arity);
+    let mut header = fn_header(name, arity);
     let mut b = Builder::new();
+    if let UnitBody::Fn(f) = &body {
+        // Hint attributes lower to LLVM function attributes (attribute
+        // annotations specification section 5).
+        if let Some(group) = reg.attr_group(f.hints) {
+            header.push(' ');
+            header.push_str(&group);
+        }
+    }
     match body {
         UnitBody::Prim(op) => {
             // A primitive that returns `Option` or `Ordering` boxes its
@@ -1683,14 +1760,14 @@ fn collect_prims(e: &Core, out: &mut BTreeSet<PrimOp>) {
         }
         Core::If(c, t, f) => {
             collect_prims(c, out);
-            collect_prims(t, out);
-            collect_prims(f, out);
+            collect_prims(&t.body, out);
+            collect_prims(&f.body, out);
         }
         Core::LazyInit(_, t) => collect_prims(t, out),
         Core::Case { scrut, alts } => {
             collect_prims(scrut, out);
-            for (_, body) in alts {
-                collect_prims(body, out);
+            for a in alts {
+                collect_prims(&a.body, out);
             }
         }
     }
@@ -1734,18 +1811,18 @@ fn collect_binders(e: &Core, out: &mut Vec<LocalId>) {
         }
         Core::If(c, t, e) => {
             collect_binders(c, out);
-            collect_binders(t, out);
-            collect_binders(e, out);
+            collect_binders(&t.body, out);
+            collect_binders(&e.body, out);
         }
         Core::Case { scrut, alts } => {
             collect_binders(scrut, out);
-            for (pat, rhs) in alts {
-                match pat {
+            for a in alts {
+                match &a.pat {
                     CPat::Var(x) => out.push(*x),
                     CPat::Wild => {}
                     CPat::Con { fields, .. } => out.extend(fields.iter().copied()),
                 }
-                collect_binders(rhs, out);
+                collect_binders(&a.body, out);
             }
         }
     }
@@ -1984,14 +2061,25 @@ impl CoreEmitter<'_, '_> {
                 let lthen = self.b.label();
                 let lelse = self.b.label();
                 let ljoin = self.b.label();
-                self.b.line(&format!("br i1 {cmp}, label %{lthen}, label %{lelse}"));
+                // Branch weights (attribute annotations specification
+                // section 3.1): `!prof !{!"branch_weights", w_true,
+                // w_false}` on the conditional branch.
+                let prof = match (t.weight, f.weight) {
+                    (Some(tw), Some(fw)) => {
+                        format!(", !prof {}", self.reg.branch_weights(&[tw, fw]))
+                    }
+                    _ => String::new(),
+                };
+                self.b.line(&format!(
+                    "br i1 {cmp}, label %{lthen}, label %{lelse}{prof}"
+                ));
                 let slot = self.b.alloca_i64();
                 self.b.start(&lthen);
-                let tv = self.emit_expr(t)?;
+                let tv = self.emit_expr(&t.body)?;
                 self.b.line(&format!("store i64 {tv}, ptr {slot}"));
                 self.b.line(&format!("br label %{ljoin}"));
                 self.b.start(&lelse);
-                let fv = self.emit_expr(f)?;
+                let fv = self.emit_expr(&f.body)?;
                 self.b.line(&format!("store i64 {fv}, ptr {slot}"));
                 self.b.line(&format!("br label %{ljoin}"));
                 self.b.start(&ljoin);
@@ -2037,34 +2125,34 @@ impl CoreEmitter<'_, '_> {
         }
     }
 
-    fn emit_case(&mut self, scrut: &Core, alts: &[(CPat, Core)]) -> Result<String> {
+    fn emit_case(&mut self, scrut: &Core, alts: &[CAlt<Core>]) -> Result<String> {
         let sv = self.emit_expr(scrut)?;
         let sp = self.b.reg();
         self.b.line(&format!("{sp} = inttoptr i64 {sv} to ptr"));
         let tagv = self.b.reg();
         self.b.line(&format!("{tagv} = load i64, ptr {sp}"));
 
-        let mut cons: Vec<(usize, &Vec<LocalId>, &Core)> = Vec::new();
-        let mut default: Option<(Option<LocalId>, &Core)> = None;
-        for (pat, rhs) in alts {
-            match pat {
+        let mut cons: Vec<(usize, &Vec<LocalId>, &Core, Option<u32>)> = Vec::new();
+        let mut default: Option<(Option<LocalId>, &Core, Option<u32>)> = None;
+        for a in alts {
+            match &a.pat {
                 CPat::Con { tag, fields } => {
-                    if cons.iter().any(|(t, _, _)| t == tag) {
+                    if cons.iter().any(|(t, _, _, _)| t == tag) {
                         return err(format!("duplicate case tag {tag}"));
                     }
-                    cons.push((*tag, fields, rhs));
+                    cons.push((*tag, fields, &a.body, a.weight));
                 }
                 CPat::Var(x) => {
                     if default.is_some() {
                         return err("case has more than one default alternative");
                     }
-                    default = Some((Some(*x), rhs));
+                    default = Some((Some(*x), &a.body, a.weight));
                 }
                 CPat::Wild => {
                     if default.is_some() {
                         return err("case has more than one default alternative");
                     }
-                    default = Some((None, rhs));
+                    default = Some((None, &a.body, a.weight));
                 }
             }
         }
@@ -2074,15 +2162,29 @@ impl CoreEmitter<'_, '_> {
         let ldefault = self.b.label();
         let mut alt_labels = Vec::with_capacity(cons.len());
         let mut sw = format!("switch i64 {tagv}, label %{ldefault} [");
-        for (tag, _, _) in &cons {
+        for (tag, _, _, _) in &cons {
             let l = self.b.label();
             sw.push_str(&format!("\n  i64 {tag}, label %{l}"));
             alt_labels.push(l);
         }
         sw.push_str("\n]");
+        // Branch weights (attribute annotations specification section
+        // 3.1): one weight per successor, and the default is always case
+        // #0 of an LLVM switch, so it is the first weight. The run-out
+        // path of a covered match carries weight 0.
+        let fully = !cons.is_empty()
+            && cons.iter().all(|(_, _, _, w)| w.is_some())
+            && default.as_ref().map(|(_, _, w)| w.is_some()).unwrap_or(true);
+        if fully {
+            let mut ws = vec![default.as_ref().and_then(|(_, _, w)| *w).unwrap_or(0)];
+            for (_, _, _, w) in &cons {
+                ws.push(w.unwrap_or(0));
+            }
+            sw.push_str(&format!(", !prof {}", self.reg.branch_weights(&ws)));
+        }
         self.b.line(&sw);
 
-        for ((_, fields, rhs), l) in cons.iter().zip(&alt_labels) {
+        for ((_, fields, rhs, _), l) in cons.iter().zip(&alt_labels) {
             self.b.start(l);
             for (i, x) in fields.iter().enumerate() {
                 if !self.bound.contains(x) {
@@ -2099,7 +2201,7 @@ impl CoreEmitter<'_, '_> {
 
         self.b.start(&ldefault);
         match default {
-            Some((bind, rhs)) => {
+            Some((bind, rhs, _)) => {
                 if let Some(x) = bind {
                     if !self.bound.contains(&x) {
                         return err(format!("pattern binds unknown local {}", x.0));
@@ -2210,6 +2312,7 @@ mod tests {
             body,
             prim: None,
             ctor: None,
+            hints: crate::core::FnHints::default(),
         }
     }
 
@@ -2220,6 +2323,7 @@ mod tests {
             body: Core::Unit,
             prim: Some(op),
             ctor: None,
+            hints: crate::core::FnHints::default(),
         }
     }
 
@@ -2230,6 +2334,7 @@ mod tests {
             body: Core::Unit,
             prim: None,
             ctor: Some((tag, fields)),
+            hints: crate::core::FnHints::default(),
         }
     }
 
@@ -2328,8 +2433,8 @@ mod tests {
                 p(cmp(CmpOp::Eq)),
                 vec![app(p(negi()), vec![n(3)]), n(-3)],
             )),
-            Box::new(n(2)),
-            Box::new(n(3)),
+            CBranch::new(n(2)),
+            CBranch::new(n(3)),
         );
         assert_eq!(run("neg_int_comparison_and_if", &main_prog(vec![], body)), 2);
     }
@@ -2342,7 +2447,7 @@ mod tests {
                 p(PrimOp::EqBool),
                 vec![Core::Bool(true), Core::Bool(true)],
             )),
-            Box::new(app(p(PrimOp::NotBool), vec![app(
+            CBranch::new(app(p(PrimOp::NotBool), vec![app(
                 p(PrimOp::OrBool),
                 vec![
                     Core::Bool(false),
@@ -2352,7 +2457,7 @@ mod tests {
                     ),
                 ],
             )])),
-            Box::new(n(9)),
+            CBranch::new(n(9)),
         );
         assert_eq!(run("bool_prims", &main_prog(vec![], body)), 1);
     }
@@ -2537,14 +2642,14 @@ mod tests {
         let case_on = |scrut: Core, field: usize, tag: usize| Core::Case {
             scrut: Box::new(scrut),
             alts: vec![
-                (
+                CAlt::new(
                     CPat::Con {
                         tag,
                         fields: vec![LocalId(field)],
                     },
                     app(p(arith(ArithOp::Add)), vec![v(field), n(37)]),
                 ),
-                (CPat::Wild, n(7)),
+                CAlt::new(CPat::Wild, n(7)),
             ],
         };
         let body = Core::Let(
@@ -2583,14 +2688,14 @@ mod tests {
                 Box::new(Core::Case {
                     scrut: Box::new(v(11)),
                     alts: vec![
-                        (
+                        CAlt::new(
                             CPat::Con {
                                 tag: 0,
                                 fields: vec![LocalId(20)],
                             },
                             app(p(arith(ArithOp::Add)), vec![v(20), n(37)]),
                         ),
-                        (CPat::Wild, n(7)),
+                        CAlt::new(CPat::Wild, n(7)),
                     ],
                 }),
             )),
@@ -2610,12 +2715,12 @@ mod tests {
             Box::new(app(ct("T.Some"), vec![n(9)])),
             Box::new(Core::Case {
                 scrut: Box::new(v(10)),
-                alts: vec![(
+                alts: vec![CAlt::new(
                     CPat::Var(LocalId(20)),
                     Core::If(
                         Box::new(app(p(cmp(CmpOp::Eq)), vec![v(20), v(20)])),
-                        Box::new(n(4)),
-                        Box::new(n(5)),
+                        CBranch::new(n(4)),
+                        CBranch::new(n(5)),
                     ),
                 )],
             }),
@@ -2664,8 +2769,8 @@ mod tests {
         // `Core::Fault` is the runtime fault path: exit 70.
         let body = Core::If(
             Box::new(Core::Bool(false)),
-            Box::new(n(1)),
-            Box::new(Core::Fault),
+            CBranch::new(n(1)),
+            CBranch::new(Core::Fault),
         );
         assert_eq!(run("fault_path", &main_prog(vec![], body)), 70);
     }

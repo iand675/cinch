@@ -156,6 +156,17 @@ property holds by construction rather than by a named test.
 | 94 | scjit#8-reporting | Manifest records specialization config, sites, trust level, code-generation use; no secrets or absolute paths | N | manifest infrastructure exists (row 15); specialization fields absent |
 | 95 | scjit#9-trust-levels | Per-artifact trust level identified; full recheck is the default; un-recheckable variants discarded | N | platform section 8 rule applies at implementation |
 
+## attribute-annotations-specification.md
+
+| # | Anchor | Requirement | Status | Evidence |
+| --- | --- | --- | --- | --- |
+| 96 | attr#1-system | `#[...]` attachment points, argument grammar, compiler/macro ownership, identity split (semantic in contract projection, hints out) | I | `tests/attributes.rs`; identity both directions pinned |
+| 97 | attr#2-weights | `#[weight(n)]` with relativity, zero, all-or-nothing; per-alternative storage; both weight reports | I | `tests/attributes.rs` (marginalization at the reference's 2100/100 numbers; partial drop + report) |
+| 98 | attr#2.4-transformations | Decision-point weight reconciliation under optimization (dead-alternative conditioning, case merging, inlining) | N | P10's obligations (the optimizer slice) |
+| 99 | attr#3-wrappers | `cold`/`likely`/`unlikely` wrappers over weights (0/2000/1), wrapper/manual IR equality | I | `tests/attributes.rs` |
+| 100 | attr#4-representations | `repr(C)`/`transparent`/`align`/`packed`/`uN`, C layout algorithm, layout facts in the ABI table and contract hash, packed-borrow rule | I | `tests/attributes.rs`; runtime slot enforcement stays with P11/P14 |
+| 101 | attr#5-inline | `#[inline]`/`#[inline(always)]`/`#[inline(never)]`/`#[noinline]` and function `#[cold]` as erasable hints | I | `tests/attributes.rs` (LLVM emission; duplicates rejected) |
+
 ## Roadmap gaps (unplanned requirements)
 
 Flagged by the audit as MUSTs no P1-P15 phase owns; added as phase P16 in

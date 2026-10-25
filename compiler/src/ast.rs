@@ -188,8 +188,14 @@ pub fn negate_literal(digits: &str) -> String {
 
 #[derive(Clone, Debug)]
 pub struct Alt {
+    /// `#[...]` attributes before the pattern (attribute annotations
+    /// specification section 1.1: `case` alternatives).
+    pub attrs: Vec<Attribute>,
     pub pat: Pat,
     pub guard: Option<crate::ast::Term>,
+    /// `#[...]` attributes after `|`, before the guard expression
+    /// (attribute annotations specification section 1.1: guards).
+    pub guard_attrs: Vec<Attribute>,
     pub body: crate::ast::Term,
     pub span: Span,
 }
@@ -348,7 +354,20 @@ pub enum Term {
     Lam(Vec<Pat>, Box<Term>, Span),
     /// `let block in body`.
     Let(Vec<LocalDecl>, Box<Term>, Span),
-    If(Box<Term>, Box<Term>, Box<Term>, Span),
+    /// `if [cond attrs] c then [then attrs] t else [else attrs] e`. The
+    /// condition-position attributes annotate the true branch and
+    /// complete the decision point's weight pair for the false branch
+    /// (attribute annotations specification sections 1.1 and 2.1); the
+    /// branch-position attributes annotate their branch directly.
+    If {
+        cond: Box<Term>,
+        then: Box<Term>,
+        els: Box<Term>,
+        cond_attrs: Vec<Attribute>,
+        then_attrs: Vec<Attribute>,
+        else_attrs: Vec<Attribute>,
+        span: Span,
+    },
     /// `case scrut of { alts }`.
     Case(Box<Term>, Vec<Alt>, Span),
     /// `e :: ty`.
@@ -414,7 +433,7 @@ impl Term {
             | Term::App(_, _, s)
             | Term::Lam(_, _, s)
             | Term::Let(_, _, s)
-            | Term::If(_, _, _, s)
+            | Term::If { span: s, .. }
             | Term::Case(_, _, s)
             | Term::Ann(_, _, s)
             | Term::Infix(_, _, s)
@@ -475,6 +494,10 @@ pub struct SigDecl {
 
 #[derive(Clone, Debug)]
 pub struct Equation {
+    /// `#[...]` attributes on the function clause: between the function
+    /// name and its first pattern (attribute annotations specification
+    /// section 1.1).
+    pub attrs: Vec<Attribute>,
     pub name: Name,
     pub pats: Vec<Pat>,
     pub body: Term,
@@ -496,6 +519,9 @@ pub struct InstDecl {
 
 #[derive(Clone, Debug)]
 pub struct CtorDecl {
+    /// `#[...]` attributes on the constructor declaration (attribute
+    /// annotations specification section 1.1).
+    pub attrs: Vec<Attribute>,
     pub name: Name,
     pub ty: Type,
     pub span: Span,
@@ -515,6 +541,11 @@ pub struct DataDecl {
 /// One `field :: T` entry of a `record` declaration.
 #[derive(Clone, Debug)]
 pub struct FieldDecl {
+    /// `#[...]` attributes on the field: both the declaration position
+    /// (before `field`) and the type position (before `T`, where a
+    /// representation attribute applies; attribute annotations
+    /// specification sections 1.1 and 4).
+    pub attrs: Vec<Attribute>,
     pub name: Name,
     pub ty: Type,
     /// `erased` fields are evidence: present in the type, absent from the
@@ -660,10 +691,10 @@ pub fn collect_term_refs(t: &Term, out: &mut Vec<RefSite>) {
         }
         Term::Lam(_, body, _) => collect_term_refs(body, out),
         Term::Let(_, body, _) => collect_term_refs(body, out),
-        Term::If(a, b, c, _) => {
-            collect_term_refs(a, out);
-            collect_term_refs(b, out);
-            collect_term_refs(c, out);
+        Term::If { cond, then, els, .. } => {
+            collect_term_refs(cond, out);
+            collect_term_refs(then, out);
+            collect_term_refs(els, out);
         }
         Term::Case(s, alts, _) => {
             collect_term_refs(s, out);
@@ -1130,7 +1161,14 @@ fn hyg_alt(a: &Alt, cx: &mut HygCx, sc: &mut HygScope) -> Result<Alt> {
         None => None,
     };
     let body = hyg_term(&a.body, cx, sc)?;
-    Ok(Alt { pat, guard, body, span: a.span })
+    Ok(Alt {
+        attrs: a.attrs.clone(),
+        pat,
+        guard,
+        guard_attrs: a.guard_attrs.clone(),
+        body,
+        span: a.span,
+    })
 }
 
 fn hyg_do_stmt(s: &DoStmt, cx: &mut HygCx, sc: &mut HygScope) -> Result<DoStmt> {
@@ -1194,12 +1232,15 @@ pub fn hyg_term(t: &Term, cx: &mut HygCx, sc: &mut HygScope) -> Result<Term> {
             let body = hyg_term(body, cx, sc)?;
             Term::Let(new_decls, Box::new(body), *s)
         }
-        Term::If(a, b, c, s) => Term::If(
-            Box::new(hyg_term(a, cx, sc)?),
-            Box::new(hyg_term(b, cx, sc)?),
-            Box::new(hyg_term(c, cx, sc)?),
-            *s,
-        ),
+        Term::If { cond, then, els, cond_attrs, then_attrs, else_attrs, span } => Term::If {
+            cond: Box::new(hyg_term(cond, cx, sc)?),
+            then: Box::new(hyg_term(then, cx, sc)?),
+            els: Box::new(hyg_term(els, cx, sc)?),
+            cond_attrs: cond_attrs.clone(),
+            then_attrs: then_attrs.clone(),
+            else_attrs: else_attrs.clone(),
+            span: *span,
+        },
         Term::Case(scrut, alts, s) => {
             let scrut = hyg_term(scrut, cx, sc)?;
             let mut out = Vec::new();
@@ -1337,6 +1378,7 @@ fn hyg_equation(eq: &Equation, cx: &mut HygCx, sc: &mut HygScope) -> Result<Equa
     }
     let body = hyg_term(&eq.body, cx, sc)?;
     Ok(Equation {
+        attrs: eq.attrs.clone(),
         name: eq.name.clone(),
         pats,
         body,
@@ -1493,19 +1535,24 @@ pub fn subst_holes(t: &Term, vals: &[Term]) -> Term {
             Box::new(subst_holes(body, vals)),
             *s,
         ),
-        Term::If(a, b, c, s) => Term::If(
-            Box::new(subst_holes(a, vals)),
-            Box::new(subst_holes(b, vals)),
-            Box::new(subst_holes(c, vals)),
-            *s,
-        ),
+        Term::If { cond, then, els, cond_attrs, then_attrs, else_attrs, span } => Term::If {
+            cond: Box::new(subst_holes(cond, vals)),
+            then: Box::new(subst_holes(then, vals)),
+            els: Box::new(subst_holes(els, vals)),
+            cond_attrs: cond_attrs.clone(),
+            then_attrs: then_attrs.clone(),
+            else_attrs: else_attrs.clone(),
+            span: *span,
+        },
         Term::Case(scrut, alts, s) => Term::Case(
             Box::new(subst_holes(scrut, vals)),
             alts
                 .iter()
                 .map(|a| Alt {
+                    attrs: a.attrs.clone(),
                     pat: a.pat.clone(),
                     guard: a.guard.as_ref().map(|g| subst_holes(g, vals)),
+                    guard_attrs: a.guard_attrs.clone(),
                     body: subst_holes(&a.body, vals),
                     span: a.span,
                 })
@@ -1708,10 +1755,10 @@ pub fn collect_template_holes(t: &mut Term, holes: &mut Vec<HoleExpr>) {
             }
             collect_template_holes(body, holes);
         }
-        Term::If(a, b, c, _) => {
-            collect_template_holes(a, holes);
-            collect_template_holes(b, holes);
-            collect_template_holes(c, holes);
+        Term::If { cond, then, els, .. } => {
+            collect_template_holes(cond, holes);
+            collect_template_holes(then, holes);
+            collect_template_holes(els, holes);
         }
         Term::Case(scrut, alts, _) => {
             collect_template_holes(scrut, holes);

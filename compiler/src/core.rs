@@ -912,6 +912,51 @@ pub enum CPat {
     Con { tag: usize, fields: Vec<LocalId> },
 }
 
+/// One branch of a two-way decision point (`if`, a guard test, a
+/// compiled comparison) with its optional weight beside it (attribute
+/// annotations specification section 2.1: a weight is a property of the
+/// alternative itself, never a parallel list on the decision node).
+#[derive(Clone, Debug)]
+pub struct CBranch<B> {
+    pub weight: Option<u32>,
+    pub body: Box<B>,
+}
+
+/// One alternative of a `case` decision point, weight beside it (same
+/// rule as [`CBranch`]).
+#[derive(Clone, Debug)]
+pub struct CAlt<B> {
+    pub pat: CPat,
+    pub weight: Option<u32>,
+    pub body: Box<B>,
+}
+
+impl<B> CBranch<B> {
+    /// An unweighted branch.
+    pub fn new(body: B) -> Self {
+        CBranch { weight: None, body: Box::new(body) }
+    }
+
+    /// A weighted branch (weight is `Some` exactly when the decision
+    /// point is fully annotated).
+    pub fn weighted(weight: Option<u32>, body: B) -> Self {
+        CBranch { weight, body: Box::new(body) }
+    }
+}
+
+impl<B> CAlt<B> {
+    /// An unweighted alternative.
+    pub fn new(pat: CPat, body: B) -> Self {
+        CAlt { pat, weight: None, body: Box::new(body) }
+    }
+
+    /// A weighted alternative (weight is `Some` exactly when the
+    /// decision point is fully annotated).
+    pub fn weighted(pat: CPat, weight: Option<u32>, body: B) -> Self {
+        CAlt { pat, weight, body: Box::new(body) }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub enum Core {
     /// Raw `i64` word constant (machine scalar values and words).
@@ -945,12 +990,16 @@ pub enum Core {
     /// whose parameters are `env` followed by the lambda's own parameter(s).
     Lam { fn_id: GlobalId, env: Vec<Core> },
     Let(LocalId, Box<Core>, Box<Core>),
-    If(Box<Core>, Box<Core>, Box<Core>),
-    /// Case on a boxed ADT value; `default` is the fall-through for the
-    /// single wildcard or variable alternative, if any.
+    /// A two-way decision point: the condition and its two weighted
+    /// branches (attribute annotations specification section 2.1).
+    If(Box<Core>, CBranch<Core>, CBranch<Core>),
+    /// Case on a boxed ADT value; the alternatives carry their weights
+    /// beside them (attribute annotations specification section 2.1).
+    /// `default` is the fall-through for the single wildcard or variable
+    /// alternative, if any.
     Case {
         scrut: Box<Core>,
-        alts: Vec<(CPat, Core)>,
+        alts: Vec<CAlt<Core>>,
     },
     /// Demand a memo cell: run its state machine (lazy allocation is
     /// `LazyAlloc` + `LazyInit`; see the laziness and reclamation
@@ -1426,6 +1475,34 @@ pub mod big {
     }
 }
 
+/// An inline hint (attribute annotations specification section 5): a
+/// hint attribute on a function declaration, erasable and never part of
+/// the contract projection.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum InlineHint {
+    /// `#[inline]`: inlining is desirable at the optimizer's discretion
+    /// (LLVM `inlinehint`).
+    Inline,
+    /// `#[inline(always)]`: inlining is required unless impossible
+    /// (LLVM `alwaysinline`).
+    Always,
+    /// `#[inline(never)]`: the function must not be inlined (LLVM
+    /// `noinline`).
+    Never,
+}
+
+/// The hint attributes recorded on one function (attribute annotations
+/// specification sections 3 and 5). Hints may only affect performance,
+/// never observable behavior: they are erased before the contract
+/// projection.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct FnHints {
+    pub inline: Option<InlineHint>,
+    /// `#[cold]` on a function declaration: the function is unlikely to
+    /// be called (LLVM `cold`).
+    pub cold: bool,
+}
+
 #[derive(Clone, Debug)]
 pub struct FnDef {
     pub id: GlobalId,
@@ -1438,6 +1515,9 @@ pub struct FnDef {
     /// For constructors: `(tag, field_count)`; the body is generated as
     /// block allocation.
     pub ctor: Option<(usize, usize)>,
+    /// Hint attributes on the function (erasable; never in the contract
+    /// projection).
+    pub hints: FnHints,
 }
 
 impl FnDef {
