@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Tutorial 12 WebAssembly components</title>
+  <style>
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+  <link rel="stylesheet" href="../style.css" />
+</head>
+<body>
+<nav id="TOC" role="doc-toc">
+<ul>
+<li><a href="#tutorial-12-webassembly-components"
+id="toc-tutorial-12-webassembly-components">Tutorial 12 WebAssembly
+components</a></li>
+<li><a href="#define-the-interoperable-shape"
+id="toc-define-the-interoperable-shape">Define the interoperable
+shape</a></li>
+<li><a href="#generate-and-check-an-adapter"
+id="toc-generate-and-check-an-adapter">Generate and check an
+adapter</a></li>
+<li><a href="#choose-a-target-and-capabilities"
+id="toc-choose-a-target-and-capabilities">Choose a target and
+capabilities</a></li>
+<li><a href="#add-async-deliberately"
+id="toc-add-async-deliberately">Add async deliberately</a></li>
+<li><a href="#add-simd-and-hot-replacement"
+id="toc-add-simd-and-hot-replacement">Add SIMD and hot
+replacement</a></li>
+<li><a href="#continue-reading" id="toc-continue-reading">Continue
+reading</a></li>
+</ul>
+</nav>
+<p><a href="../index.html">← Documentation index</a></p>
+<h1 id="tutorial-12-webassembly-components">Tutorial 12 WebAssembly
+components</h1>
+<p>Source: <a
+href="https://chatgpt.com/space/page_f0fa8d6024188191862d6256eb506b72"
+class="uri">https://chatgpt.com/space/page_f0fa8d6024188191862d6256eb506b72</a><br />
+Exported: 2026-10-22T18:59:36Z</p>
+<hr />
+<p>Export a library as a Wasm component while keeping its stronger
+source-language contracts visible inside the program. This tutorial uses
+a portable, synchronous WIT interface; async APIs can be added with the
+WASI 0.3 profile.</p>
+<h1 id="define-the-interoperable-shape">Define the interoperable
+shape</h1>
+<pre class="wit"><code>package example:codec@0.1.0;
+
+interface decoder {
+  enum decode-error { malformed, too-large }
+  decode: func(input: list&lt;u8&gt;, limit: u32)
+    -&gt; result&lt;list&lt;u8&gt;, decode-error&gt;;
+}
+
+world codec-plugin {
+  export decoder;
+}</code></pre>
+<p>WIT describes the values and interfaces that another language can
+call. It does not express the dependent claim that the returned list has
+length at most <code>limit</code>, nor that it decodes the input
+correctly. Our generated source signature can expose a stronger result
+when the local implementation proves it.</p>
+<h1 id="generate-and-check-an-adapter">Generate and check an
+adapter</h1>
+<p>On export, the adapter translates the checked source result into
+canonical component values. On import from an arbitrary component, it
+starts with the weaker WIT result. It checks the length before
+constructing <code>BoundedBytes limit</code> and returns an additional
+boundary error if validation fails.</p>
+<p>The adapter must also establish integer conversions, string or list
+representation, resource ownership and cleanup. Proof terms are erased;
+essential runtime tags, lengths and discriminants remain. Passing a
+dependent value does not imply sending its proof object over the
+ABI.</p>
+<p>The isolated implementation may trap or terminate without producing a
+result. Treat those outcomes according to the host’s component-failure
+policy. A valid length is evidence about that returned value, not a
+proof that the external implementation is correct on all inputs.</p>
+<h1 id="choose-a-target-and-capabilities">Choose a target and
+capabilities</h1>
+<p>Use the WASI 0.3 component profile for hosts supporting that
+interface set. Keep a pinned WASI 0.2 profile where compatibility is
+needed. For a browser, generate the selected component or core-module
+JavaScript adapter and request the corresponding host interfaces
+explicitly. Browser DOM access is a host binding, not an automatic WASI
+facility.</p>
+<p>Wasm itself does not grant filesystem or network access. The
+component’s world declares imports; the application supplies only the
+selected capabilities. A decoder needing no I/O should have no
+filesystem or network imports. Build-time schema generation has a
+separate capability environment from runtime execution.</p>
+<h1 id="add-async-deliberately">Add async deliberately</h1>
+<p>A WASI future can represent an eventual outcome; a WASI stream
+transports a sequence with host protocol rules. Neither is automatically
+our productive infinite <code>Stream a</code>. An adapter must account
+for end-of-stream, errors, cancellation and the separate completion
+outcome where the interface has one.</p>
+<p>For a bounded consumer, backpressure is part of the contract. A
+cancelled consumer must release its registration or keep it alive until
+the host acknowledges completion. Async I/O can work on a single-thread
+event loop; parallel CPU work additionally requires a supported
+execution capability.</p>
+<h1 id="add-simd-and-hot-replacement">Add SIMD and hot replacement</h1>
+<p>Ship a portable module and a SIMD-enabled variant when host support
+differs. Choose a valid variant before instantiation: placing
+unsupported Wasm instructions behind a runtime branch may still make the
+entire module fail validation.</p>
+<p>Hot replacement happens through runtime-managed dispatch and resource
+migration. An old component resource cannot be reinterpreted as a handle
+owned by a new instance. Drain, translate, or retain it according to the
+upgrade package, including outstanding async operations.</p>
+<p>The accompanying files are
+<code>examples/10-wasm-component.lang</code> and
+<code>examples/codec.wit</code>. See the WebAssembly and WASI
+specification for the full backend requirements.</p>
+<p><a href="../overview.html">Documentation overview</a></p>
+<h1 id="continue-reading">Continue reading</h1>
+<p><a href="11-foreign-libraries.html">Tutorial 11 Foreign libraries</a>
+· <a href="13-structured-concurrency.html">Tutorial 13 Structured
+concurrency</a> · <a href="../overview.html">Language design
+overview</a></p>
+</body>
+</html>

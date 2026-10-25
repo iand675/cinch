@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Tutorial 10 Platform specific SIMD</title>
+  <style>
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+    /* CSS for syntax highlighting */
+    pre > code.sourceCode { white-space: pre; position: relative; }
+    pre > code.sourceCode > span { line-height: 1.25; }
+    pre > code.sourceCode > span:empty { height: 1.2em; }
+    .sourceCode { overflow: visible; }
+    code.sourceCode > span { color: inherit; text-decoration: inherit; }
+    div.sourceCode { margin: 1em 0; }
+    pre.sourceCode { margin: 0; }
+    @media screen {
+    div.sourceCode { overflow: auto; }
+    }
+    @media print {
+    pre > code.sourceCode { white-space: pre-wrap; }
+    pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+    }
+    pre.numberSource code
+      { counter-reset: source-line 0; }
+    pre.numberSource code > span
+      { position: relative; left: -4em; counter-increment: source-line; }
+    pre.numberSource code > span > a:first-child::before
+      { content: counter(source-line);
+        position: relative; left: -1em; text-align: right; vertical-align: baseline;
+        border: none; display: inline-block;
+        -webkit-touch-callout: none; -webkit-user-select: none;
+        -khtml-user-select: none; -moz-user-select: none;
+        -ms-user-select: none; user-select: none;
+        padding: 0 4px; width: 4em;
+        color: #aaaaaa;
+      }
+    pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
+    div.sourceCode
+      {   }
+    @media screen {
+    pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+    }
+    code span.al { color: #ff0000; font-weight: bold; } /* Alert */
+    code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
+    code span.at { color: #7d9029; } /* Attribute */
+    code span.bn { color: #40a070; } /* BaseN */
+    code span.bu { color: #008000; } /* BuiltIn */
+    code span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
+    code span.ch { color: #4070a0; } /* Char */
+    code span.cn { color: #880000; } /* Constant */
+    code span.co { color: #60a0b0; font-style: italic; } /* Comment */
+    code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
+    code span.do { color: #ba2121; font-style: italic; } /* Documentation */
+    code span.dt { color: #902000; } /* DataType */
+    code span.dv { color: #40a070; } /* DecVal */
+    code span.er { color: #ff0000; font-weight: bold; } /* Error */
+    code span.ex { } /* Extension */
+    code span.fl { color: #40a070; } /* Float */
+    code span.fu { color: #06287e; } /* Function */
+    code span.im { color: #008000; font-weight: bold; } /* Import */
+    code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
+    code span.kw { color: #007020; font-weight: bold; } /* Keyword */
+    code span.op { color: #666666; } /* Operator */
+    code span.ot { color: #007020; } /* Other */
+    code span.pp { color: #bc7a00; } /* Preprocessor */
+    code span.sc { color: #4070a0; } /* SpecialChar */
+    code span.ss { color: #bb6688; } /* SpecialString */
+    code span.st { color: #4070a0; } /* String */
+    code span.va { color: #19177c; } /* Variable */
+    code span.vs { color: #4070a0; } /* VerbatimString */
+    code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
+  </style>
+  <link rel="stylesheet" href="../style.css" />
+</head>
+<body>
+<nav id="TOC" role="doc-toc">
+<ul>
+<li><a href="#tutorial-10-platform-specific-simd"
+id="toc-tutorial-10-platform-specific-simd">Tutorial 10 Platform
+specific SIMD</a></li>
+<li><a href="#choose-exact-arithmetic"
+id="toc-choose-exact-arithmetic">Choose exact arithmetic</a></li>
+<li><a href="#state-the-target-requirement"
+id="toc-state-the-target-requirement">State the target
+requirement</a></li>
+<li><a href="#prove-complete-blocks-and-the-tail"
+id="toc-prove-complete-blocks-and-the-tail">Prove complete blocks and
+the tail</a></li>
+<li><a href="#select-a-safe-implementation"
+id="toc-select-a-safe-implementation">Select a safe
+implementation</a></li>
+<li><a href="#keep-updates-compatible"
+id="toc-keep-updates-compatible">Keep updates compatible</a></li>
+<li><a href="#exercise-and-answer" id="toc-exercise-and-answer">Exercise
+and answer</a></li>
+<li><a href="#continue-reading" id="toc-continue-reading">Continue
+reading</a></li>
+</ul>
+</nav>
+<p><a href="../index.html">← Documentation index</a></p>
+<h1 id="tutorial-10-platform-specific-simd">Tutorial 10 Platform
+specific SIMD</h1>
+<p>Source: <a
+href="https://chatgpt.com/space/page_cb25fa2f09f881918ae41fba88919548"
+class="uri">https://chatgpt.com/space/page_cb25fa2f09f881918ae41fba88919548</a><br />
+Exported: 2026-10-22T18:59:36Z</p>
+<hr />
+<p><a href="../overview.html">Documentation overview</a></p>
+<p>Learn to expose a portable operation with target-specific verified
+implementations. Prerequisite: Tutorial 7 on rewrites and Tutorial 9 on
+compiled dependencies. The SIMD APIs and rule syntax below are
+proposals, not implemented intrinsics.</p>
+<h1 id="choose-exact-arithmetic">Choose exact arithmetic</h1>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ot">sumWrap32 ::</span> <span class="kw">forall</span> n region<span class="op">.</span> <span class="dt">Ref</span> region (<span class="dt">Vec</span> n <span class="dt">U32</span>) <span class="ot">-&gt;</span> <span class="dt">U32</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>sumWrap32 xs <span class="ot">=</span> Stream.fold U32.zero U32.wrappingAdd (Vec.stream xs)</span></code></pre></div>
+<p>The contract is the sum modulo <code>2^32</code>. That arithmetic is
+associative, so a vector implementation may accumulate independent lanes
+and reduce them at the end. This statement is not a theorem about
+checked addition or floating-point addition.</p>
+<h1 id="state-the-target-requirement">State the target requirement</h1>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>target rewrite sumWrap32Vector</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>  <span class="kw">forall</span> t w n region (<span class="ot">xs ::</span> <span class="dt">Ref</span> region (<span class="dt">Vec</span> n <span class="dt">U32</span>))<span class="op">.</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>  using (<span class="ot">vectors ::</span> <span class="dt">VecU32Target</span> t w) <span class="kw">where</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>  match Scalar.sumWrap32 xs</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>  replace Simd.sumWrap32 vectors xs</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>  require <span class="dt">Available</span> vectors</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>  justify SumProofs.scalarToSimd vectors xs</span></code></pre></div>
+<p><code>V</code> supplies a positive lane count, intrinsic semantics,
+memory preconditions, and a lowering identity. Availability evidence
+connects that model to the permitted execution environment. The law
+proves the algorithm under the model; detection does not independently
+prove the hardware implements the model.</p>
+<h1 id="prove-complete-blocks-and-the-tail">Prove complete blocks and
+the tail</h1>
+<p>For width four and length ten, process elements zero through seven
+with two full loads, then elements eight and nine scalarly. The general
+proof uses <code>n = q * W + r</code>, with <code>r &lt; W</code>.</p>
+<p>Maintain an invariant equating the modular sum of the consumed prefix
+with the accumulator lanes. Prove each load remains within the
+allocation and has the alignment its intrinsic requires. Pointer-index
+calculations must not overflow their target representation.</p>
+<p>Do not load twelve elements and mask away the final two afterward.
+Those memory accesses already happened. A different implementation may
+use a masked-load intrinsic, but it needs evidence that inactive lanes
+are not accessed by that lowering.</p>
+<h1 id="select-a-safe-implementation">Select a safe implementation</h1>
+<div class="sourceCode" id="cb3"><pre
+class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">case</span> Target.detectVecU32 () <span class="kw">of</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">Some</span> available <span class="ot">-&gt;</span> Simd.sumWrap32 available xs</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">None</span> <span class="ot">-&gt;</span> Scalar.sumWrap32 xs</span></code></pre></div>
+<p>The successful branch unpacks a target dictionary and its
+availability evidence. The actual type may be existential in the vector
+width. Detection and the fallback must themselves run on the baseline
+platform.</p>
+<p>For a scalable target, quantify over the permitted active vector
+length and respect its validity scope. Do not treat it as a universal
+compile-time constant.</p>
+<h1 id="keep-updates-compatible">Keep updates compatible</h1>
+<p>An upgraded SIMD implementation may require a different feature set
+or arithmetic contract. Activation checks those requirements and updates
+the dependent specialization set. Existing old-version frames and
+closures retain their valid code until they finish.</p>
+<h1 id="exercise-and-answer">Exercise and answer</h1>
+<p>Can a vectorized floating-point sum reuse the wrapping-integer
+theorem? No. Floating-point regrouping can change values and other
+declared observations. Require an exact theorem for the chosen semantics
+or an explicit approximate-result contract with its own error proof.</p>
+<p><a href="09-compatible-hot-upgrades.html">Previous tutorial</a> · <a
+href="../overview.html">Documentation overview</a></p>
+<h1 id="continue-reading">Continue reading</h1>
+<p><a href="09-compatible-hot-upgrades.html">Tutorial 9 Compatible hot
+upgrades</a> · <a href="11-foreign-libraries.html">Tutorial 11 Foreign
+libraries</a> · <a href="../overview.html">Language design
+overview</a></p>
+</body>
+</html>

@@ -1,0 +1,15 @@
+# Build artifacts
+target/
+result
+result-*
+*.o
+*.out
+*.bc
+
+# devenv / direnv
+.devenv/
+.direnv/
+.envrc.local
+
+# Generated compiler artifacts (rebuilt by `safelang build`/`run`)
+examples/compiler/build/

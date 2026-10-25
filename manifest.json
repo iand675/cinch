@@ -1,0 +1,441 @@
+{
+  "title": "Designing a Safe Language documentation export",
+  "exported_at": "2026-10-22T18:59:36Z",
+  "scope": "Overview and all 26 linked documentation pages",
+  "page_count": 27,
+  "source_page_id": "page_b647a1112d5c8191a20ef25f039a366a",
+  "source_url": "https://chatgpt.com/space/page_b647a1112d5c8191a20ef25f039a366a",
+  "pages": [
+    {
+      "page_id": "page_b647a1112d5c8191a20ef25f039a366a",
+      "title": "Language design overview",
+      "url": "https://chatgpt.com/space/page_b647a1112d5c8191a20ef25f039a366a",
+      "updated_at": "2026-10-22T17:27:25.351967Z",
+      "sequence": 5,
+      "markdown_path": "overview.md",
+      "html_path": "overview.html",
+      "source_markdown_sha256": "694855d5d36591404f822d366dbd90ec603d1c65acd7c5910d63f5aeb365d58f",
+      "source_markdown_utf8_bytes": 12746,
+      "block_count": 82
+    },
+    {
+      "page_id": "page_1e97031528908191b713513863e30e6b",
+      "title": "Core language specification",
+      "url": "https://chatgpt.com/space/page_1e97031528908191b713513863e30e6b",
+      "updated_at": "2026-10-22T15:41:39.959262Z",
+      "sequence": 2,
+      "markdown_path": "specifications/core-language-specification.md",
+      "html_path": "specifications/core-language-specification.html",
+      "source_markdown_sha256": "6d5c6490351c82d3f7d8d314d742796caa101274ee5162017310a5fe8a7400f8",
+      "source_markdown_utf8_bytes": 16980,
+      "block_count": 71
+    },
+    {
+      "page_id": "page_d64504b7cf08819185f30f677ededc93",
+      "title": "Modules and compilation specification",
+      "url": "https://chatgpt.com/space/page_d64504b7cf08819185f30f677ededc93",
+      "updated_at": "2026-10-22T15:41:46.961477Z",
+      "sequence": 3,
+      "markdown_path": "specifications/modules-and-compilation-specification.md",
+      "html_path": "specifications/modules-and-compilation-specification.html",
+      "source_markdown_sha256": "1546c42003033dcf9a46b8f0259a082dd1881c79a2a1ef0ee2ed4bb72b6e1427",
+      "source_markdown_utf8_bytes": 17395,
+      "block_count": 77
+    },
+    {
+      "page_id": "page_d92d79c6a7748191817f7baeb2489fe5",
+      "title": "Runtime evolution specification",
+      "url": "https://chatgpt.com/space/page_d92d79c6a7748191817f7baeb2489fe5",
+      "updated_at": "2026-10-22T15:41:54.512289Z",
+      "sequence": 3,
+      "markdown_path": "specifications/runtime-evolution-specification.md",
+      "html_path": "specifications/runtime-evolution-specification.html",
+      "source_markdown_sha256": "22633c278d58cf48baa312f19b69934f33386eeea618d57ff90a96a878b94cf4",
+      "source_markdown_utf8_bytes": 12943,
+      "block_count": 62
+    },
+    {
+      "page_id": "page_b24cfef55f608191b1494b251d782fe4",
+      "title": "Platform proofs and SIMD specification",
+      "url": "https://chatgpt.com/space/page_b24cfef55f608191b1494b251d782fe4",
+      "updated_at": "2026-10-22T15:43:05.500056Z",
+      "sequence": 3,
+      "markdown_path": "specifications/platform-proofs-and-simd-specification.md",
+      "html_path": "specifications/platform-proofs-and-simd-specification.html",
+      "source_markdown_sha256": "68c1bee02616372d9d12c427a116f21215b2ba9bb186fe13da22e27bde8b6e78",
+      "source_markdown_utf8_bytes": 10065,
+      "block_count": 44
+    },
+    {
+      "page_id": "page_4f4effb6396c8191a2b8bf41e791ca09",
+      "title": "Foreign function interface specification",
+      "url": "https://chatgpt.com/space/page_4f4effb6396c8191a2b8bf41e791ca09",
+      "updated_at": "2026-10-22T15:43:43.753914Z",
+      "sequence": 1,
+      "markdown_path": "specifications/foreign-function-interface-specification.md",
+      "html_path": "specifications/foreign-function-interface-specification.html",
+      "source_markdown_sha256": "36c32849f70a1f2af83853c884b48770cb7294d4f66ce257ad6cf7e4cefd5200",
+      "source_markdown_utf8_bytes": 9686,
+      "block_count": 39
+    },
+    {
+      "page_id": "page_93721e2e8a6081919c8e74d0c3f11211",
+      "title": "WebAssembly and WASI specification",
+      "url": "https://chatgpt.com/space/page_93721e2e8a6081919c8e74d0c3f11211",
+      "updated_at": "2026-10-22T15:43:52.103783Z",
+      "sequence": 1,
+      "markdown_path": "specifications/webassembly-and-wasi-specification.md",
+      "html_path": "specifications/webassembly-and-wasi-specification.html",
+      "source_markdown_sha256": "42fc126270be39f11c80af51164dc5376d742257e92ef03f899b58c367f59b3d",
+      "source_markdown_utf8_bytes": 9747,
+      "block_count": 42
+    },
+    {
+      "page_id": "page_25f65d18f4508191ada994923cd97c35",
+      "title": "Concurrency specification",
+      "url": "https://chatgpt.com/space/page_25f65d18f4508191ada994923cd97c35",
+      "updated_at": "2026-10-22T15:43:58.481331Z",
+      "sequence": 2,
+      "markdown_path": "specifications/concurrency-specification.md",
+      "html_path": "specifications/concurrency-specification.html",
+      "source_markdown_sha256": "4fdb20f54aa5bf8039a911f82ada98fcf324bc2bcb2bd2225560f9d95b92914d",
+      "source_markdown_utf8_bytes": 11882,
+      "block_count": 49
+    },
+    {
+      "page_id": "page_18d4c95146a48191a722223f1e8dd18a",
+      "title": "Surface syntax and grammar",
+      "url": "https://chatgpt.com/space/page_18d4c95146a48191a722223f1e8dd18a",
+      "updated_at": "2026-10-22T16:27:01.557347Z",
+      "sequence": 1,
+      "markdown_path": "specifications/surface-syntax-and-grammar.md",
+      "html_path": "specifications/surface-syntax-and-grammar.html",
+      "source_markdown_sha256": "f2cef2d21f6164cdfe60a6ab41afc05a43e619a67fd2c944c62821cd2e38fd94",
+      "source_markdown_utf8_bytes": 15977,
+      "block_count": 31
+    },
+    {
+      "page_id": "page_f7f7e6466b348191803f2f900098b667",
+      "title": "Runtime capabilities, effects and sequencing",
+      "url": "https://chatgpt.com/space/page_f7f7e6466b348191803f2f900098b667",
+      "updated_at": "2026-10-22T15:38:48.818939Z",
+      "sequence": 0,
+      "markdown_path": "specifications/runtime-capabilities-effects-and-sequencing.md",
+      "html_path": "specifications/runtime-capabilities-effects-and-sequencing.html",
+      "source_markdown_sha256": "d6e6a0396b91765ed4ab4615e22f1a0b336220a0b1216083a6876832324547b4",
+      "source_markdown_utf8_bytes": 11258,
+      "block_count": 39
+    },
+    {
+      "page_id": "page_7e6a395e629c819195dc11bcf37cf789",
+      "title": "Tutorial 1 Values and dependent types",
+      "url": "https://chatgpt.com/space/page_7e6a395e629c819195dc11bcf37cf789",
+      "updated_at": "2026-10-22T15:42:01.543725Z",
+      "sequence": 2,
+      "markdown_path": "tutorials/01-values-and-dependent-types.md",
+      "html_path": "tutorials/01-values-and-dependent-types.html",
+      "source_markdown_sha256": "ec3891a20564d7a99455d92d40eb1070509bed2b9d29fe06dcaede1916747ce4",
+      "source_markdown_utf8_bytes": 2903,
+      "block_count": 25
+    },
+    {
+      "page_id": "page_811f5c451ea481919981aba5cd276baf",
+      "title": "Tutorial 2 Proofs and runtime checks",
+      "url": "https://chatgpt.com/space/page_811f5c451ea481919981aba5cd276baf",
+      "updated_at": "2026-10-22T15:42:08.322308Z",
+      "sequence": 2,
+      "markdown_path": "tutorials/02-proofs-and-runtime-checks.md",
+      "html_path": "tutorials/02-proofs-and-runtime-checks.html",
+      "source_markdown_sha256": "cf4fd62633eaa764ed81e547a7388979aae1ef9a820d1139df4f0b5b273ce09a",
+      "source_markdown_utf8_bytes": 3363,
+      "block_count": 22
+    },
+    {
+      "page_id": "page_564c957a4e5c8191b7166e65d755285c",
+      "title": "Tutorial 3 Ownership and effects",
+      "url": "https://chatgpt.com/space/page_564c957a4e5c8191b7166e65d755285c",
+      "updated_at": "2026-10-22T15:42:16.295759Z",
+      "sequence": 2,
+      "markdown_path": "tutorials/03-ownership-and-effects.md",
+      "html_path": "tutorials/03-ownership-and-effects.html",
+      "source_markdown_sha256": "187dca026625e2a9dfe2062bd74dd50fc9983657e3047b519a2e25cf17c691d8",
+      "source_markdown_utf8_bytes": 3046,
+      "block_count": 21
+    },
+    {
+      "page_id": "page_c16fa5ea6e148191831f925724d373f2",
+      "title": "Tutorial 4 Modules and laws",
+      "url": "https://chatgpt.com/space/page_c16fa5ea6e148191831f925724d373f2",
+      "updated_at": "2026-10-22T15:42:22.915390Z",
+      "sequence": 2,
+      "markdown_path": "tutorials/04-modules-and-laws.md",
+      "html_path": "tutorials/04-modules-and-laws.html",
+      "source_markdown_sha256": "6b0d04783ad9ce46bcb6e3c15c379502e85af9ecb75b0b687b76eef301e0d318",
+      "source_markdown_utf8_bytes": 3313,
+      "block_count": 21
+    },
+    {
+      "page_id": "page_7af778a2dd6881919c77d929cd4d8cb8",
+      "title": "Tutorial 5 Streams and coinduction",
+      "url": "https://chatgpt.com/space/page_7af778a2dd6881919c77d929cd4d8cb8",
+      "updated_at": "2026-10-22T17:27:15.561082Z",
+      "sequence": 3,
+      "markdown_path": "tutorials/05-streams-and-coinduction.md",
+      "html_path": "tutorials/05-streams-and-coinduction.html",
+      "source_markdown_sha256": "12830fed65aac704082c11a5d21ff21036aaa4984225880749d01b3bff3c7c89",
+      "source_markdown_utf8_bytes": 3027,
+      "block_count": 21
+    },
+    {
+      "page_id": "page_2d2960d3ed2c8191a601fdeb3e741de8",
+      "title": "Tutorial 6 Processes and temporal contracts",
+      "url": "https://chatgpt.com/space/page_2d2960d3ed2c8191a601fdeb3e741de8",
+      "updated_at": "2026-10-22T15:42:36.358563Z",
+      "sequence": 2,
+      "markdown_path": "tutorials/06-processes-and-temporal-contracts.md",
+      "html_path": "tutorials/06-processes-and-temporal-contracts.html",
+      "source_markdown_sha256": "aac16e51e552bbc7f9a46f7be628893aa7886bd5002e5e464b42cc8f12b4d761",
+      "source_markdown_utf8_bytes": 3368,
+      "block_count": 20
+    },
+    {
+      "page_id": "page_f812b35e00ec8191ae0252ac9dda7bc7",
+      "title": "Tutorial 7 Rewrites and stream fusion",
+      "url": "https://chatgpt.com/space/page_f812b35e00ec8191ae0252ac9dda7bc7",
+      "updated_at": "2026-10-22T15:42:43.335351Z",
+      "sequence": 2,
+      "markdown_path": "tutorials/07-rewrites-and-stream-fusion.md",
+      "html_path": "tutorials/07-rewrites-and-stream-fusion.html",
+      "source_markdown_sha256": "10b08348e47d70693b83a691173ad56baabf997eba4586496cf1d9d9c6fa1b92",
+      "source_markdown_utf8_bytes": 3759,
+      "block_count": 25
+    },
+    {
+      "page_id": "page_668e270bca9c8191a1822f4548af4a0c",
+      "title": "Tutorial 8 Staging and schema generation",
+      "url": "https://chatgpt.com/space/page_668e270bca9c8191a1822f4548af4a0c",
+      "updated_at": "2026-10-22T15:42:50.580391Z",
+      "sequence": 2,
+      "markdown_path": "tutorials/08-staging-and-schema-generation.md",
+      "html_path": "tutorials/08-staging-and-schema-generation.html",
+      "source_markdown_sha256": "2089a0f9684cf9634275e1235087d55639951ef40ab872e600e23ffb38958da3",
+      "source_markdown_utf8_bytes": 3547,
+      "block_count": 22
+    },
+    {
+      "page_id": "page_630a9348c72c8191b3e2cd5fd9f3153d",
+      "title": "Tutorial 9 Compatible hot upgrades",
+      "url": "https://chatgpt.com/space/page_630a9348c72c8191b3e2cd5fd9f3153d",
+      "updated_at": "2026-10-22T15:42:57.846423Z",
+      "sequence": 2,
+      "markdown_path": "tutorials/09-compatible-hot-upgrades.md",
+      "html_path": "tutorials/09-compatible-hot-upgrades.html",
+      "source_markdown_sha256": "2cf39920996f36d10b050875b75bda4304e0fc8636c75556ffdfde8f0760373e",
+      "source_markdown_utf8_bytes": 3697,
+      "block_count": 26
+    },
+    {
+      "page_id": "page_cb25fa2f09f881918ae41fba88919548",
+      "title": "Tutorial 10 Platform specific SIMD",
+      "url": "https://chatgpt.com/space/page_cb25fa2f09f881918ae41fba88919548",
+      "updated_at": "2026-10-22T15:43:12.664788Z",
+      "sequence": 3,
+      "markdown_path": "tutorials/10-platform-specific-simd.md",
+      "html_path": "tutorials/10-platform-specific-simd.html",
+      "source_markdown_sha256": "08a610a42a3944fcb393d8919cbdda9ff1afeb0887a5ed9b22307c9aae687247",
+      "source_markdown_utf8_bytes": 3702,
+      "block_count": 23
+    },
+    {
+      "page_id": "page_eb03321bfde48191bcd197291ad9eadf",
+      "title": "Tutorial 11 Foreign libraries",
+      "url": "https://chatgpt.com/space/page_eb03321bfde48191bcd197291ad9eadf",
+      "updated_at": "2026-10-22T15:44:05.596147Z",
+      "sequence": 3,
+      "markdown_path": "tutorials/11-foreign-libraries.md",
+      "html_path": "tutorials/11-foreign-libraries.html",
+      "source_markdown_sha256": "dbca7d4b6e7d6466fdc6035066b0285bbb83efef0949e70ee42f83c47a3b2b96",
+      "source_markdown_utf8_bytes": 4279,
+      "block_count": 22
+    },
+    {
+      "page_id": "page_f0fa8d6024188191862d6256eb506b72",
+      "title": "Tutorial 12 WebAssembly components",
+      "url": "https://chatgpt.com/space/page_f0fa8d6024188191862d6256eb506b72",
+      "updated_at": "2026-10-22T15:44:11.857417Z",
+      "sequence": 2,
+      "markdown_path": "tutorials/12-webassembly-components.md",
+      "html_path": "tutorials/12-webassembly-components.html",
+      "source_markdown_sha256": "1652ba642a7f1e95fc3e7b0794ae73b7b310ed79934d9c768746a118f6cc9101",
+      "source_markdown_utf8_bytes": 4122,
+      "block_count": 21
+    },
+    {
+      "page_id": "page_1a35ce96cd3c819197921ef44d2d156e",
+      "title": "Tutorial 13 Structured concurrency",
+      "url": "https://chatgpt.com/space/page_1a35ce96cd3c819197921ef44d2d156e",
+      "updated_at": "2026-10-22T15:44:19.586611Z",
+      "sequence": 3,
+      "markdown_path": "tutorials/13-structured-concurrency.md",
+      "html_path": "tutorials/13-structured-concurrency.html",
+      "source_markdown_sha256": "7741cc0fd50245ebdc67f7b50ea0886eadc133d18088bbaad25e2f516d15c085",
+      "source_markdown_utf8_bytes": 4640,
+      "block_count": 24
+    },
+    {
+      "page_id": "page_edc8263b2390819188b488f4fbcf2372",
+      "title": "Tutorial 14 Haskell-like syntax, effects and runtime selection",
+      "url": "https://chatgpt.com/space/page_edc8263b2390819188b488f4fbcf2372",
+      "updated_at": "2026-10-22T16:12:38.005180Z",
+      "sequence": 1,
+      "markdown_path": "tutorials/14-haskell-like-syntax-effects-and-runtime-selection.md",
+      "html_path": "tutorials/14-haskell-like-syntax-effects-and-runtime-selection.html",
+      "source_markdown_sha256": "b7dd90191d6ac85814529040880aa6ac536fa8ec1c43998fe887ace55275988a",
+      "source_markdown_utf8_bytes": 3834,
+      "block_count": 21
+    },
+    {
+      "page_id": "page_ca01753c1a108191b5a81b2138f93a2e",
+      "title": "Example catalogue",
+      "url": "https://chatgpt.com/space/page_ca01753c1a108191b5a81b2138f93a2e",
+      "updated_at": "2026-10-22T15:43:21.806722Z",
+      "sequence": 3,
+      "markdown_path": "examples/catalogue.md",
+      "html_path": "examples/catalogue.html",
+      "source_markdown_sha256": "e425bd484a83cd4aa4e67a4d6de7dbf6255ad429dece73dd7222320947663018",
+      "source_markdown_utf8_bytes": 18891,
+      "block_count": 59
+    },
+    {
+      "page_id": "page_a2ab477ad93881918c2b00c47fe9c608",
+      "title": "Open decisions and implementation plan",
+      "url": "https://chatgpt.com/space/page_a2ab477ad93881918c2b00c47fe9c608",
+      "updated_at": "2026-10-22T17:30:34.430456Z",
+      "sequence": 3,
+      "markdown_path": "design/open-decisions-and-implementation-plan.md",
+      "html_path": "design/open-decisions-and-implementation-plan.html",
+      "source_markdown_sha256": "a96275150587820dbc7253a443d4e4eab58cb735a05892d97a8b21edb73f1858",
+      "source_markdown_utf8_bytes": 8582,
+      "block_count": 39
+    },
+    {
+      "page_id": "page_e5b11110b6408191b7b5389ab932a93f",
+      "title": "References and related work",
+      "url": "https://chatgpt.com/space/page_e5b11110b6408191b7b5389ab932a93f",
+      "updated_at": "2026-10-22T15:43:36.607648Z",
+      "sequence": 2,
+      "markdown_path": "design/references-and-related-work.md",
+      "html_path": "design/references-and-related-work.html",
+      "source_markdown_sha256": "dd51f8e7ec2b9eb1f4a166ec5bcddb16b48bf9f58aaa7cab04466c5db1bed89c",
+      "source_markdown_utf8_bytes": 4406,
+      "block_count": 13
+    }
+  ],
+  "notes": [
+    "No source pages were edited.",
+    "Page bodies and code blocks were exported in full. Markdown adds a title and source link and localizes internal links. Exact original bodies and block text are retained in source-data/pages.json.",
+    "The language is a design draft, not an implemented compiler. Example outcomes are intended conformance requirements, not compiler results."
+  ],
+  "example_sources": [
+    {
+      "path": "examples/source/01-bounded-index.lang",
+      "source_url": "https://chatgpt.com/space/page_ca01753c1a108191b5a81b2138f93a2e",
+      "source_code_block_index": 1,
+      "sha256": "cf0a90f9673985bb560e70f301d7f4b4d61072c77ff0b93ff4f617ab241fb327",
+      "language_tag": "haskell"
+    },
+    {
+      "path": "examples/source/02-vector-filter.lang",
+      "source_url": "https://chatgpt.com/space/page_ca01753c1a108191b5a81b2138f93a2e",
+      "source_code_block_index": 2,
+      "sha256": "515b9baf6a83c13033006d2d64bd9dbc3cbc1ff2315741700de4605513c249de",
+      "language_tag": "haskell"
+    },
+    {
+      "path": "examples/source/03-map-fusion.lang",
+      "source_url": "https://chatgpt.com/space/page_ca01753c1a108191b5a81b2138f93a2e",
+      "source_code_block_index": 3,
+      "sha256": "70d4c37f49108cb733cc0b8876116a7957c10f223445a2fd27f8617b50682063",
+      "language_tag": "haskell"
+    },
+    {
+      "path": "examples/source/04-productive-stream.lang",
+      "source_url": "https://chatgpt.com/space/page_ca01753c1a108191b5a81b2138f93a2e",
+      "source_code_block_index": 4,
+      "sha256": "368ffd5cf0bdb58722a4380f36287902612cb8b6fd7871478a6173cd4d1285c0",
+      "language_tag": "haskell"
+    },
+    {
+      "path": "examples/source/05-schema-generator.lang",
+      "source_url": "https://chatgpt.com/space/page_ca01753c1a108191b5a81b2138f93a2e",
+      "source_code_block_index": 5,
+      "sha256": "2d902ba6e669110793f10a003b00c68b42276a267e0912a8c4b9dfb5a9d3ff80",
+      "language_tag": "haskell"
+    },
+    {
+      "path": "examples/source/06-counter-upgrade.lang",
+      "source_url": "https://chatgpt.com/space/page_ca01753c1a108191b5a81b2138f93a2e",
+      "source_code_block_index": 6,
+      "sha256": "306690418d93ed5d7a3b174292cb837fc084b0857b29e1d8d51ee7294c72796a",
+      "language_tag": "haskell"
+    },
+    {
+      "path": "examples/source/07-rejected-programs.lang",
+      "source_url": "https://chatgpt.com/space/page_ca01753c1a108191b5a81b2138f93a2e",
+      "source_code_block_index": 7,
+      "sha256": "4d414107e7248dfc35e6c6d90729a76b0d8fa96b8b4c71fc717a3d0fa1220214",
+      "language_tag": "haskell"
+    },
+    {
+      "path": "examples/source/08-platform-simd.lang",
+      "source_url": "https://chatgpt.com/space/page_ca01753c1a108191b5a81b2138f93a2e",
+      "source_code_block_index": 8,
+      "sha256": "b7b6283f4a9a00afea93e33dbe79b5c0c1e005eccf6d025f065571c4c7bef4df",
+      "language_tag": "haskell"
+    },
+    {
+      "path": "examples/source/09-foreign-codec.lang",
+      "source_url": "https://chatgpt.com/space/page_ca01753c1a108191b5a81b2138f93a2e",
+      "source_code_block_index": 9,
+      "sha256": "45eb1b8b9d974164a198f84ed2214b93a93dc017e25c19679fc964995b79fe58",
+      "language_tag": "haskell"
+    },
+    {
+      "path": "examples/source/10-wasm-component.lang",
+      "source_url": "https://chatgpt.com/space/page_ca01753c1a108191b5a81b2138f93a2e",
+      "source_code_block_index": 10,
+      "sha256": "c6eccd3a384936677b8ee1ee30bd432a775780612976619760d7c23e219ccb40",
+      "language_tag": "haskell"
+    },
+    {
+      "path": "examples/source/11-structured-tasks.lang",
+      "source_url": "https://chatgpt.com/space/page_ca01753c1a108191b5a81b2138f93a2e",
+      "source_code_block_index": 11,
+      "sha256": "4e52735a326f87136652695d8b06a4506a0d34c1d93c89a18f2f2b1bc84a89da",
+      "language_tag": "haskell"
+    },
+    {
+      "path": "examples/source/codec.wit",
+      "source_url": "https://chatgpt.com/space/page_ca01753c1a108191b5a81b2138f93a2e",
+      "source_code_block_index": 12,
+      "sha256": "2379c66338ab2d465530effc3d23d72a9749cf4397a6a0a1ba96dade0d15e7b4",
+      "language_tag": "wit"
+    },
+    {
+      "path": "examples/source/12-runtime-effects.lang",
+      "source_url": "https://chatgpt.com/space/page_ca01753c1a108191b5a81b2138f93a2e",
+      "source_code_block_index": 13,
+      "sha256": "a62391f3c6d229459845741901cb4635bf7f565afe952cdb0e6505935dad3d68",
+      "language_tag": "haskell"
+    }
+  ],
+  "conversation": {
+    "source_url": "https://chatgpt.com/c/6ada0c74-85f0-83ed-b30a-cf4de7eeaf37",
+    "message_count": 25,
+    "content_omitted_count": 0,
+    "pagination_exhausted": true,
+    "first_message_at": "2026-10-22T13:17:48.157949Z",
+    "last_message_at": "2026-10-22T15:25:31.994847Z"
+  },
+  "export_completed_at": "2026-10-22T18:59:40Z"
+}

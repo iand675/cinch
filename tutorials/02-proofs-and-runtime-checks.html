@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Tutorial 2 Proofs and runtime checks</title>
+  <style>
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+    /* CSS for syntax highlighting */
+    pre > code.sourceCode { white-space: pre; position: relative; }
+    pre > code.sourceCode > span { line-height: 1.25; }
+    pre > code.sourceCode > span:empty { height: 1.2em; }
+    .sourceCode { overflow: visible; }
+    code.sourceCode > span { color: inherit; text-decoration: inherit; }
+    div.sourceCode { margin: 1em 0; }
+    pre.sourceCode { margin: 0; }
+    @media screen {
+    div.sourceCode { overflow: auto; }
+    }
+    @media print {
+    pre > code.sourceCode { white-space: pre-wrap; }
+    pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+    }
+    pre.numberSource code
+      { counter-reset: source-line 0; }
+    pre.numberSource code > span
+      { position: relative; left: -4em; counter-increment: source-line; }
+    pre.numberSource code > span > a:first-child::before
+      { content: counter(source-line);
+        position: relative; left: -1em; text-align: right; vertical-align: baseline;
+        border: none; display: inline-block;
+        -webkit-touch-callout: none; -webkit-user-select: none;
+        -khtml-user-select: none; -moz-user-select: none;
+        -ms-user-select: none; user-select: none;
+        padding: 0 4px; width: 4em;
+        color: #aaaaaa;
+      }
+    pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
+    div.sourceCode
+      {   }
+    @media screen {
+    pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+    }
+    code span.al { color: #ff0000; font-weight: bold; } /* Alert */
+    code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
+    code span.at { color: #7d9029; } /* Attribute */
+    code span.bn { color: #40a070; } /* BaseN */
+    code span.bu { color: #008000; } /* BuiltIn */
+    code span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
+    code span.ch { color: #4070a0; } /* Char */
+    code span.cn { color: #880000; } /* Constant */
+    code span.co { color: #60a0b0; font-style: italic; } /* Comment */
+    code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
+    code span.do { color: #ba2121; font-style: italic; } /* Documentation */
+    code span.dt { color: #902000; } /* DataType */
+    code span.dv { color: #40a070; } /* DecVal */
+    code span.er { color: #ff0000; font-weight: bold; } /* Error */
+    code span.ex { } /* Extension */
+    code span.fl { color: #40a070; } /* Float */
+    code span.fu { color: #06287e; } /* Function */
+    code span.im { color: #008000; font-weight: bold; } /* Import */
+    code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
+    code span.kw { color: #007020; font-weight: bold; } /* Keyword */
+    code span.op { color: #666666; } /* Operator */
+    code span.ot { color: #007020; } /* Other */
+    code span.pp { color: #bc7a00; } /* Preprocessor */
+    code span.sc { color: #4070a0; } /* SpecialChar */
+    code span.ss { color: #bb6688; } /* SpecialString */
+    code span.st { color: #4070a0; } /* String */
+    code span.va { color: #19177c; } /* Variable */
+    code span.vs { color: #4070a0; } /* VerbatimString */
+    code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
+  </style>
+  <link rel="stylesheet" href="../style.css" />
+</head>
+<body>
+<nav id="TOC" role="doc-toc">
+<ul>
+<li><a href="#tutorial-2-proofs-and-runtime-checks"
+id="toc-tutorial-2-proofs-and-runtime-checks">Tutorial 2 Proofs and
+runtime checks</a></li>
+<li><a href="#build-a-bounded-index"
+id="toc-build-a-bounded-index">Build a bounded index</a></li>
+<li><a href="#prove-a-general-statement"
+id="toc-prove-a-general-statement">Prove a general statement</a></li>
+<li><a href="#strengthen-an-interface-gradually"
+id="toc-strengthen-an-interface-gradually">Strengthen an interface
+gradually</a></li>
+<li><a href="#diagnose-three-different-failures"
+id="toc-diagnose-three-different-failures">Diagnose three different
+failures</a></li>
+<li><a href="#exercise-and-answer" id="toc-exercise-and-answer">Exercise
+and answer</a></li>
+</ul>
+</nav>
+<p><a href="../index.html">← Documentation index</a></p>
+<h1 id="tutorial-2-proofs-and-runtime-checks">Tutorial 2 Proofs and
+runtime checks</h1>
+<p>Source: <a
+href="https://chatgpt.com/space/page_811f5c451ea481919981aba5cd276baf"
+class="uri">https://chatgpt.com/space/page_811f5c451ea481919981aba5cd276baf</a><br />
+Exported: 2026-10-22T18:59:36Z</p>
+<hr />
+<p><a href="../overview.html">Documentation overview</a></p>
+<p>Learn how static evidence, runtime decisions, and unfinished proofs
+differ. Prerequisite: Tutorial 1. The examples use proposed prelude
+operations with the contracts described here.</p>
+<h1 id="build-a-bounded-index">Build a bounded index</h1>
+<p><code>Fin n</code> contains a natural number <code>i</code> and
+erased evidence that <code>i &lt; n</code>. Its constructor is available
+only when that evidence exists.</p>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ot">checkedIndex ::</span> (<span class="ot">n ::</span> <span class="dt">Nat</span>) <span class="ot">-&gt;</span> <span class="dt">Nat</span> <span class="ot">-&gt;</span> <span class="dt">Option</span> (<span class="dt">Fin</span> n)</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>checkedIndex n i <span class="ot">=</span> <span class="kw">case</span> decide (i <span class="op">&lt;</span> n) <span class="kw">of</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">Yes</span> bound <span class="ot">-&gt;</span> <span class="dt">Some</span> (<span class="dt">Fin</span> i bound)</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">No</span> _ <span class="ot">-&gt;</span> <span class="dt">None</span></span></code></pre></div>
+<p><code>decide</code> uses a total decision procedure for
+natural-number comparison. The successful result carries evidence about
+this particular <code>i</code> and <code>n</code>. It does not prove
+that all caller-supplied indices are valid.</p>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ot">tryGet ::</span> <span class="kw">forall</span> a n region<span class="op">.</span> using (<span class="ot">copy ::</span> <span class="dt">Copy</span> a) <span class="ot">=&gt;</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>          <span class="dt">Ref</span> region (<span class="dt">Vec</span> n a) <span class="ot">-&gt;</span> <span class="dt">Nat</span> <span class="ot">-&gt;</span> <span class="dt">Option</span> a</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>tryGet xs i <span class="ot">=</span> <span class="kw">case</span> checkedIndex n i <span class="kw">of</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">Some</span> <span class="fu">index</span> <span class="ot">-&gt;</span> <span class="dt">Some</span> (Vec.getCopy xs <span class="fu">index</span>)</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>  <span class="dt">None</span> <span class="ot">-&gt;</span> <span class="dt">None</span></span></code></pre></div>
+<p>Here the length is available from the vector representation or a
+retained index. <code>Vec.getCopy</code> requires <code>Fin n</code> and
+returns the element without a bounds-error path. <code>tryGet</code>
+exposes invalid input as <code>None</code>.</p>
+<h1 id="prove-a-general-statement">Prove a general statement</h1>
+<div class="sourceCode" id="cb3"><pre
+class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>proof<span class="ot"> plusZero ::</span> (<span class="ot">n ::</span> <span class="dt">Nat</span>) <span class="ot">-&gt;</span> <span class="dt">Eq</span> (n <span class="op">+</span> <span class="dv">0</span>) n</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>proof plusZero n <span class="ot">=</span> <span class="kw">case</span> n <span class="kw">of</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">Zero</span> <span class="ot">-&gt;</span> refl</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">Succ</span> k <span class="ot">-&gt;</span> congr <span class="dt">Succ</span> (plusZero k)</span></code></pre></div>
+<p>This example uses addition defined recursively on its first argument.
+<code>refl</code> proves definitional equality. <code>congr</code>
+transports equality through a total function. The recursive proof is
+smaller because it uses <code>k</code>.</p>
+<p>Proof execution is erased. Its recursive structure is checked before
+erasure, so infinite recursion cannot be used to manufacture
+evidence.</p>
+<h1 id="strengthen-an-interface-gradually">Strengthen an interface
+gradually</h1>
+<p>A function initially returning <code>List a</code> can later return a
+package proving its result is sorted and a permutation of the input.
+Existing weaker code may still use the list projection. Code relying on
+sorting must request the stronger package from the beginning.</p>
+<p>The compiler cannot silently upgrade the original return type because
+tests passed. Nor can it reinterpret a proof-search timeout as
+success.</p>
+<h1 id="diagnose-three-different-failures">Diagnose three different
+failures</h1>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Situation</th>
+<th>Required response</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>Fin(7, proof)</code> for a bound of <code>3</code></td>
+<td>Refute the obligation or report a concrete contradiction</td>
+</tr>
+<tr class="even">
+<td>A valid theorem exceeds the automation budget</td>
+<td>Report unresolved evidence and allow an explicit lemma</td>
+</tr>
+<tr class="odd">
+<td>A runtime index is unknown statically</td>
+<td>Use a decision procedure and handle its failure branch</td>
+</tr>
+</tbody>
+</table>
+<p>An editor hole such as <code>?bound</code> can show the current
+context, but it cannot appear in an accepted artifact whose contract
+requires that proof.</p>
+<h1 id="exercise-and-answer">Exercise and answer</h1>
+<p>Can <code>decide(eventuallyResponds(server))</code> prove liveness at
+startup? No general decision procedure exists for that claim. Use a
+static temporal argument with explicit environment assumptions, or
+expose a bounded timeout outcome without calling it a proof of eventual
+response.</p>
+<p>Next: Tutorial 3 explains how mutation and effects constrain
+evidence.</p>
+<p><a href="01-values-and-dependent-types.html">Previous tutorial</a> ·
+<a href="03-ownership-and-effects.html">Next tutorial</a> · <a
+href="../overview.html">Documentation overview</a></p>
+</body>
+</html>

@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Tutorial 6 Processes and temporal contracts</title>
+  <style>
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+    /* CSS for syntax highlighting */
+    pre > code.sourceCode { white-space: pre; position: relative; }
+    pre > code.sourceCode > span { line-height: 1.25; }
+    pre > code.sourceCode > span:empty { height: 1.2em; }
+    .sourceCode { overflow: visible; }
+    code.sourceCode > span { color: inherit; text-decoration: inherit; }
+    div.sourceCode { margin: 1em 0; }
+    pre.sourceCode { margin: 0; }
+    @media screen {
+    div.sourceCode { overflow: auto; }
+    }
+    @media print {
+    pre > code.sourceCode { white-space: pre-wrap; }
+    pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+    }
+    pre.numberSource code
+      { counter-reset: source-line 0; }
+    pre.numberSource code > span
+      { position: relative; left: -4em; counter-increment: source-line; }
+    pre.numberSource code > span > a:first-child::before
+      { content: counter(source-line);
+        position: relative; left: -1em; text-align: right; vertical-align: baseline;
+        border: none; display: inline-block;
+        -webkit-touch-callout: none; -webkit-user-select: none;
+        -khtml-user-select: none; -moz-user-select: none;
+        -ms-user-select: none; user-select: none;
+        padding: 0 4px; width: 4em;
+        color: #aaaaaa;
+      }
+    pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
+    div.sourceCode
+      {   }
+    @media screen {
+    pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+    }
+    code span.al { color: #ff0000; font-weight: bold; } /* Alert */
+    code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
+    code span.at { color: #7d9029; } /* Attribute */
+    code span.bn { color: #40a070; } /* BaseN */
+    code span.bu { color: #008000; } /* BuiltIn */
+    code span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
+    code span.ch { color: #4070a0; } /* Char */
+    code span.cn { color: #880000; } /* Constant */
+    code span.co { color: #60a0b0; font-style: italic; } /* Comment */
+    code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
+    code span.do { color: #ba2121; font-style: italic; } /* Documentation */
+    code span.dt { color: #902000; } /* DataType */
+    code span.dv { color: #40a070; } /* DecVal */
+    code span.er { color: #ff0000; font-weight: bold; } /* Error */
+    code span.ex { } /* Extension */
+    code span.fl { color: #40a070; } /* Float */
+    code span.fu { color: #06287e; } /* Function */
+    code span.im { color: #008000; font-weight: bold; } /* Import */
+    code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
+    code span.kw { color: #007020; font-weight: bold; } /* Keyword */
+    code span.op { color: #666666; } /* Operator */
+    code span.ot { color: #007020; } /* Other */
+    code span.pp { color: #bc7a00; } /* Preprocessor */
+    code span.sc { color: #4070a0; } /* SpecialChar */
+    code span.ss { color: #bb6688; } /* SpecialString */
+    code span.st { color: #4070a0; } /* String */
+    code span.va { color: #19177c; } /* Variable */
+    code span.vs { color: #4070a0; } /* VerbatimString */
+    code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
+  </style>
+  <link rel="stylesheet" href="../style.css" />
+</head>
+<body>
+<nav id="TOC" role="doc-toc">
+<ul>
+<li><a href="#tutorial-6-processes-and-temporal-contracts"
+id="toc-tutorial-6-processes-and-temporal-contracts">Tutorial 6
+Processes and temporal contracts</a></li>
+<li><a href="#give-requests-identities"
+id="toc-give-requests-identities">Give requests identities</a></li>
+<li><a href="#state-safety-and-progress-separately"
+id="toc-state-safety-and-progress-separately">State safety and progress
+separately</a></li>
+<li><a href="#connect-the-implementation"
+id="toc-connect-the-implementation">Connect the implementation</a></li>
+<li><a href="#preserve-uncertainty-at-external-boundaries"
+id="toc-preserve-uncertainty-at-external-boundaries">Preserve
+uncertainty at external boundaries</a></li>
+<li><a href="#exercise-and-answer" id="toc-exercise-and-answer">Exercise
+and answer</a></li>
+</ul>
+</nav>
+<p><a href="../index.html">← Documentation index</a></p>
+<h1 id="tutorial-6-processes-and-temporal-contracts">Tutorial 6
+Processes and temporal contracts</h1>
+<p>Source: <a
+href="https://chatgpt.com/space/page_2d2960d3ed2c8191a601fdeb3e741de8"
+class="uri">https://chatgpt.com/space/page_2d2960d3ed2c8191a601fdeb3e741de8</a><br />
+Exported: 2026-10-22T18:59:36Z</p>
+<hr />
+<p><a href="../overview.html">Documentation overview</a></p>
+<p>Learn how to specify a service that intentionally runs forever.
+Prerequisite: Tutorial 5. Temporal formulas are specification notation;
+they are not runtime assertions that can inspect an infinite future.</p>
+<h1 id="give-requests-identities">Give requests identities</h1>
+<p>Imagine a worker that accepts jobs and eventually records an outcome.
+Track each job by <code>JobId</code>, with states such as
+<code>Queued</code>, <code>Running</code>, <code>Succeeded</code>, and
+<code>Failed</code>. Keep completed-job history if the protocol uses it
+to prevent duplicate completion.</p>
+<p>An abstract model might have transitions <code>Accept(id)</code>,
+<code>Start(id)</code>, and <code>Finish(id, outcome)</code>. The state
+invariant says a job has one status and cannot move back from a terminal
+status to <code>Running</code>.</p>
+<p>Prove the invariant by checking the initial state and each
+transition. That inductive proof covers all reachable states even though
+the service can execute infinitely many transitions.</p>
+<h1 id="state-safety-and-progress-separately">State safety and progress
+separately</h1>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>always (completionCount requestId <span class="op">&lt;=</span> <span class="dv">1</span>)</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>always (implies (accepted requestId) (eventually (completed requestId)))</span></code></pre></div>
+<p>The first formula forbids duplicate completion records. The second
+promises eventual completion for every accepted job. To establish the
+second, the protocol needs assumptions such as eventual scheduling,
+terminating job execution or a specified timeout outcome, and
+recoverable dependency behavior.</p>
+<p>A job that is permanently disabled is not rescued by weak fairness.
+Weak fairness requires an action that remains enabled to eventually
+execute; strong fairness concerns actions enabled repeatedly. Choose the
+actual needed assumption rather than adding fairness as an unexplained
+label.</p>
+<h1 id="connect-the-implementation">Connect the implementation</h1>
+<p>Define a relation from concrete worker state to the abstract model:
+queue entries map to <code>Queued</code>, owned work items map to
+<code>Running</code>, and durable outcomes map to terminal states. Each
+executable operation must correspond to an allowed abstract transition
+or a justified internal step.</p>
+<p>For liveness, internal steps cannot stutter forever while a response
+obligation is pending. A progress measure and scheduler assumptions must
+connect implementation execution to the temporal theorem.</p>
+<h1 id="preserve-uncertainty-at-external-boundaries">Preserve
+uncertainty at external boundaries</h1>
+<p>A timeout after submitting a payment may mean the payment failed,
+succeeded, or remains pending. The state machine should contain an
+unknown-outcome state and a reconciliation transition if the external
+protocol requires them. Returning <code>Failed</code> merely because the
+local socket timed out can violate the intended contract.</p>
+<p>The same issue matters during hot replacement: the new version must
+inherit pending and unknown outcomes, not just the successful
+records.</p>
+<h1 id="exercise-and-answer">Exercise and answer</h1>
+<p>If a model checker explores ten jobs and all allowed queue states
+under that limit, has it proved the unbounded implementation correct?
+No. That result covers the modeled instance. A parameterized proof or a
+justified abstraction theorem is needed to extend it.</p>
+<p>Next: Tutorial 7 turns semantic laws into executable optimization
+rules.</p>
+<p><a href="05-streams-and-coinduction.html">Previous tutorial</a> · <a
+href="07-rewrites-and-stream-fusion.html">Next tutorial</a> · <a
+href="../overview.html">Documentation overview</a></p>
+</body>
+</html>
