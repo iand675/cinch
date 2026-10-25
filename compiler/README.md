@@ -91,6 +91,13 @@ The closure and dictionary ABI is documented in `src/core.rs`.
   effect rows as row-typed parts of function and thunk types (row
   metavariables, extension through tails, structural unification), and
   effect honesty: a body's performed effects must match its declared row.
+- **Ownership, multiplicities, and regions** (core spec sections 3 and 7):
+  `%0`/`%1`/`%aff`/`%many` usage checking with path-sensitive counts
+  (disjoint projection places split, repeated places stack), the `Copy`
+  class (`Share` alias; structural, non-extensible) with `copyOut`,
+  `Ref r a`/`Mut r a` borrows with region escape checking and lexical `Mut`
+  uniqueness, and thunk force discipline (`%1` exactly once, `%aff` at
+  most once; unannotated thunks default `%aff`).
 - **Codegen**: uniform word representation (immediates for machine words/
   `Bool`/`Unit`, boxed blocks for ADTs and the bignum/`Bytes` types,
   closure records for functions and dictionaries), generic curried
@@ -107,11 +114,11 @@ Rejected with an explicit error naming the form:
   `Type`/`Prop`/`Nat` universes, proofs, erasure, `spec`/`proof`/`stage`
   modifiers. `erased` record fields parse and are rejected until the
   erasure slice lands.
-- Effects as capabilities: handlers, `do` notation, multiplicity
-  annotations (`%0`, `%1`, `%aff`, `%many`), capabilities (`using` as a term,
-  `with`, `@{...}`). Effect *rows* on arrows are parsed and checked
-  (`->{IO}`, `->{Eval r | e}`); what is missing is the handler calculus and
-  a richer effect vocabulary.
+- Effects as capabilities: handlers, `do` notation, capabilities (`using`
+  as a term, `with`, `@{...}`). Effect *rows* on arrows and multiplicity
+  annotations (`%0`, `%1`, `%aff`, `%many`) are parsed and checked; what is
+  missing is the handler calculus, `do` sequencing, and a richer effect
+  vocabulary.
 - Guarded codata (rejected at `codata` with a pointer to the codata slice),
   `rewrite`, `upgrade`, staging and macros, quotations.
 - Strings (string literals and string types; `Bytes` buffers and `Char`

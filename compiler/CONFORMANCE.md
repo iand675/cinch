@@ -79,10 +79,10 @@ needs the checker to consume export tables instead of sources.
 
 | Requirement | Status |
 | --- | --- |
-| `%0`/`%1`/`%aff`/`%many` usage checking | todo |
-| `Share` class; immutable sharing | todo |
-| `Ref r a` / `Mut r a`; region escape checking | todo |
-| Thunk multiplicity discipline | todo |
+| `%0`/`%1`/`%aff`/`%many` usage checking | done (path-sensitive usage counts over `case`/`if`/sequences; disjoint projection places split, repeated places stack; `tests/ownership.rs`) |
+| `Share` class; immutable sharing | done (`Copy` with `Share` alias, structural and non-extensible, `Bytes`/functions/thunks/`Mut` excluded; `copyOut` coherent with multiplicities) |
+| `Ref r a` / `Mut r a`; region escape checking | done (borrow matching binds `Ref` places, `borrow`/`mutBorrow`, escape rejected at scope discharge, lexical `Mut` uniqueness) |
+| Thunk multiplicity discipline | done (`force` consumes; `%1` exactly once, `%aff` at most once, unannotated thunks default `%aff`) |
 
 ### Effects, capabilities, sequencing (P6) — runtime capabilities spec
 
@@ -166,17 +166,35 @@ update as the slices land; 07 must reject, the rest must accept):
 | Program | First rejection | Owning slice |
 | --- | --- | --- |
 | 01-bounded-index | dependent function and pair types unsupported | P7 |
-| 02-vector-filter | unknown signature `Copy` | P5 |
+| 02-vector-filter | unknown type `Vec` (indexed `Vec` arrives with the dependent core) | P7 |
 | 03-map-fusion | field projection in types | P13 |
 | 04-productive-stream | `codata` declarations unsupported | P8 |
 | 05-schema-generator | `module` name at top level (stage/import syntax) | P9 |
-| 06-counter-upgrade | multiplicity annotations unsupported | P5 |
+| 06-counter-upgrade | accepts (`safelang check` exit 0) | done |
 | 07-rejected-programs | rejected at parse (correct) | must stay rejected |
 | 08-platform-simd | `rewrite` declarations unsupported | P10 |
 | 09-foreign-codec | `Opaque` unsupported | P11 |
 | 10-wasm-component | `erased` fields unsupported | P7 |
 | 11-structured-tasks | `do` expressions unsupported | P6 |
 | 12-runtime-effects | `do` expressions unsupported | P6 |
+
+## Unplanned requirements (P16)
+
+Four spec MUSTs have no owning phase in P1-P15 (found by the 2026-10-25
+audit, `compiler/SPEC-MAPPING.md` "Roadmap gaps"):
+
+| Requirement | Note |
+| --- | --- |
+| Positivity discipline for inductive definitions | applies to ordinary `data` today; needed before P7 (A1) |
+| Evidence invalidation over mutable state | flow-sensitive; adjacent to P7 refinements and P13 (A2) |
+| Temporal contracts (safety/liveness/recurrence/stability) | closest to P12; unnamed there (A3) |
+| Cross-compilation (target width/capabilities) | `Usize` width and capability checks must key on the target (A4) |
+
+## Spec requirement mapping
+
+Every spec MUST is mapped to enforcement and tests in
+`compiler/SPEC-MAPPING.md` (87 rows, statuses I/P/N/CV, plus the wording
+flags for future decisions).
 
 ## Decisions log
 
@@ -240,3 +258,30 @@ update as the slices land; 07 must reject, the rest must accept):
   the strict prelude class methods, which are different operations.
   Ambiguous integer literals default to the mathematical `Int` only when
   pending literal wants block resolution (D7), now recorded in the spec.
+- **D15 (P5 defaults)**: unannotated binders default `%many`, except
+  `Thunk`-typed binders which default `%aff` (lazy spec section 3). Thunks
+  are the slice's only owned resources with destruction; everything else
+  `%many`, so previously checked programs keep their meaning.
+- **D16 (P5 Copy)**: the sharing class is spelled `Copy` (primitive types
+  spec sections 3/8) with `Share` as alias; structural instances (scalars,
+  `Nat`/`Int`/`Bool`/`Unit`, products/ADTs of `Copy` parts coinductively,
+  `Ref r a`), not user-extensible. `Bytes`, functions, thunks, cells, and
+  `Mut` are not `Copy`. Evidence is structural or from a `using (copy ::
+  Copy a)` binder; `copyOut` is the only implicit-copy site plus memo
+  bare-use, coherent with `%0`/`%1`/`%aff`.
+- **D17 (P5 places)**: disjoint projection places (`x.f.g`) fuse into one
+  consumption of the root; repeated/nested places stack; non-variable
+  patterns consume their column on the row's path. Branch-merged disjoint
+  projections fuse conservatively (pointwise max).
+- **D18 (P5 lazy positions)**: lambda/thunk bodies count uses as unbounded,
+  memo bodies as at most once; capturing a live-region borrow/cell in a
+  lambda is rejected (deferred to closure usage inference).
+- **D19 (P5 regions)**: borrows are check-level over the uniform word model
+  (no codegen change); `demand` returns `Ref r a` (lazy spec); region names
+  unify by identity with flexible instantiation names; `Mut r` uniqueness
+  is lexical. Memo bare-use requires the cached type to be `Copy`, which
+  discharges lazy spec section 5's duplicability rule.
+- **D20 (entry point)**: `Program.main` is `Option`: `check` accepts
+  library modules without `main` (acceptance example 06 is one), while
+  `emit-ir`/`build`/`run` name the `main :: Int` requirement at codegen.
+  A `main` outside the entry module no longer errors at check time.
