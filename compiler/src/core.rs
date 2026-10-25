@@ -1000,7 +1000,10 @@ pub struct InstanceDef {
 pub struct Program {
     pub fns: Vec<FnDef>,
     pub instances: Vec<InstanceDef>,
-    pub main: GlobalId,
+    /// The synthesized exit adapter for `main :: Int`, when the entry module
+    /// defines `main`. `None` for library modules, which check fine but
+    /// cannot be emitted or run (codegen names the requirement).
+    pub main: Option<GlobalId>,
 }
 
 #[cfg(test)]

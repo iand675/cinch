@@ -929,3 +929,39 @@ fn surface_and_or_short_circuit() {
         0,
     );
 }
+
+#[test]
+fn library_modules_check_without_an_entry_point() {
+    // A module without `main` is a library: `check` accepts it (this is
+    // how examples/source/06-counter-upgrade.lang, a pure module, must
+    // behave), while running it names the requirement.
+    check_sources(
+        "module Counter where\n\
+         bump :: Nat -> Nat\n\
+         bump n = n + 1\n",
+        "<test>",
+    )
+    .expect("library module should check without main");
+    let err = run_source(
+        "module Counter where\n\
+         bump :: Nat -> Nat\n\
+         bump n = n + 1\n",
+    )
+    .expect_err("running a library module must fail");
+    let msg = err.to_string();
+    assert!(
+        msg.contains("main"),
+        "error {msg:?} should name the missing `main` requirement"
+    );
+}
+
+#[test]
+fn wrong_main_type_still_rejected() {
+    expect_err(
+        "wrong-main-type",
+        "module Main where\n\
+         main :: Nat\n\
+         main = 0\n",
+        "main must have type Int",
+    );
+}

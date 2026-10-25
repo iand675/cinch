@@ -930,40 +930,46 @@ impl Checker {
         if !self.visible.contains(&prelude_name.to_string()) {
             self.visible.push(prelude_name.to_string());
         }
-        let main_info = self.lookup_value(None, "main")?;
-        if main_info.module != user_module {
-            return Err(Error::plain("the bootstrap slice requires `main :: Int` in the user module"));
+        let main_info = match self.lookup_value(None, "main") {
+            Ok(info) if info.module == user_module => Some(info),
+            // Library modules check without an entry point; `emit-ir`,
+            // `build`, and `run` name the requirement at codegen time.
+            _ => None,
+        };
+        let mut main_exit = None;
+        if let Some(main_info) = main_info {
+            if !main_info.scheme.params.is_empty() || !main_info.scheme.ctx.is_empty() {
+                return Err(Error::plain("main must have type Int in the bootstrap slice"));
+            }
+            if self.uni.zonk(&main_info.scheme.ty) != Ty::Int {
+                return Err(Error::plain(format!(
+                    "main must have type Int in the bootstrap slice, got {}",
+                    self.uni.zonk(&main_info.scheme.ty)
+                )));
+            }
+            // The exit adapter (mathematical `Int` slice): `main :: Int`
+            // returns a boxed bignum while the C `main` truncates its unit's
+            // word to `i32`, so the checker synthesizes `"<module>.main.exit"`,
+            // whose body converts the `main` thunk's result to a machine `i64`
+            // through `sl_int_to_i64`, and `Program.main` points at it.
+            let main_id = fn_id(&user_module, "main");
+            let exit_id = GlobalId(format!("{user_module}.main.exit"));
+            self.fns.push(FnDef {
+                id: exit_id.clone(),
+                params: Vec::new(),
+                body: crate::core::Core::App(
+                    Box::new(crate::core::Core::Prim(PrimOp::Int(IntOp::ToI64))),
+                    vec![crate::core::Core::Global(main_id)],
+                ),
+                prim: None,
+                ctor: None,
+            });
+            main_exit = Some(exit_id);
         }
-        if !main_info.scheme.params.is_empty() || !main_info.scheme.ctx.is_empty() {
-            return Err(Error::plain("main must have type Int in the bootstrap slice"));
-        }
-        if self.uni.zonk(&main_info.scheme.ty) != Ty::Int {
-            return Err(Error::plain(format!(
-                "main must have type Int in the bootstrap slice, got {}",
-                self.uni.zonk(&main_info.scheme.ty)
-            )));
-        }
-        // The exit adapter (mathematical `Int` slice): `main :: Int`
-        // returns a boxed bignum while the C `main` truncates its unit's
-        // word to `i32`, so the checker synthesizes `"<module>.main.exit"`,
-        // whose body converts the `main` thunk's result to a machine `i64`
-        // through `sl_int_to_i64`, and `Program.main` points at it.
-        let main_id = fn_id(&user_module, "main");
-        let exit_id = GlobalId(format!("{user_module}.main.exit"));
-        self.fns.push(FnDef {
-            id: exit_id.clone(),
-            params: Vec::new(),
-            body: crate::core::Core::App(
-                Box::new(crate::core::Core::Prim(PrimOp::Int(IntOp::ToI64))),
-                vec![crate::core::Core::Global(main_id)],
-            ),
-            prim: None,
-            ctor: None,
-        });
         Ok(Program {
             fns: self.fns,
             instances: self.instance_defs,
-            main: exit_id,
+            main: main_exit,
         })
     }
 }

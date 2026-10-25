@@ -46,7 +46,12 @@ use std::collections::{BTreeSet, HashMap, HashSet};
 /// Emit one LLVM module for the program.
 pub fn emit(program: &Program) -> Result<String> {
     let reg = Registry::build(program)?;
-    let main_unit = &program.main.0;
+    let Some(main_exit) = &program.main else {
+        return err(format!(
+            "this program has no `main`; `emit-ir`, `build`, and `run` need `main :: Int` in the entry module"
+        ));
+    };
+    let main_unit = &main_exit.0;
     let main_arity = reg.arity_of(main_unit)?;
     if main_arity != 0 {
         return err(format!(
@@ -2271,7 +2276,7 @@ mod tests {
         Program {
             fns,
             instances: vec![],
-            main: gid("program.main"),
+            main: Some(gid("program.main")),
         }
     }
 
