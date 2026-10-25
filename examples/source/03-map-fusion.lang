@@ -1,0 +1,18 @@
+-- Surface 0.2. Pure finite reusable lists and total callbacks.
+module PureMapFusion where
+  proof mapFusion :: (f :: Int -> Int) -> (g :: Int -> Int)
+                  -> (xs :: List Int)
+                  -> Eq (List.map f (List.map g xs))
+                        (List.map (\x -> f (g x)) xs)
+  proof mapFusion f g xs = case xs of
+    Nil -> refl
+    Cons x rest ->
+      congr (\ys -> Cons (f (g x)) ys) (mapFusion f g rest)
+
+  rewrite mapMap forall (f :: Int -> Int) (g :: Int -> Int)
+                       (xs :: List Int). where
+    match List.map f (List.map g xs)
+    replace List.map (\x -> f (g x)) xs
+    justify mapFusion f g xs
+
+  -- This theorem does not allow effectful callbacks or extend definitional equality.

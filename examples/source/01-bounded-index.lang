@@ -1,0 +1,15 @@
+-- Surface 0.2. Proposed prelude and borrow-pattern rules; not compiled.
+module BoundedIndex where
+  checkedIndex :: (n :: Nat) -> Nat -> Option (Fin n)
+  checkedIndex n i = case decide (i < n) of
+    Yes bound -> Some (Fin i bound)
+    No _ -> None
+
+  tryGet :: forall a n region. using (copy :: Copy a) =>
+            Ref region (Vec n a) -> Nat -> Option a
+  tryGet xs i = case checkedIndex n i of
+    Some index -> Some (Vec.getCopy xs index)
+    None -> None
+
+  -- For xs = [10, 20, 30], indices 0 and 2 succeed; index 3 returns None.
+  -- Comparison stays executable; its successful proof is erased.

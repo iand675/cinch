@@ -1,0 +1,18 @@
+module ForeignCodecContract where
+  -- Surface 0.2. A fictional codec interface, not an implemented wrapper.
+  signature SafeCodec where
+    opaque type Decoder :: Type
+    record BoundedBytes (limit :: Nat) where
+      bytes :: Bytes
+      erased bound :: length bytes <= limit
+  
+    decode :: forall region. Mut region Decoder -> Ref region Bytes
+           -> (limit :: Nat) ->{Foreign Codec, Blocking, Diverge}
+              Result DecodeError (BoundedBytes limit)
+  
+  -- The signature intentionally leaves the concrete wrapper implementation abstract.
+  -- The implementation must check target size conversions and allocator pairing,
+  -- establish pointer access, interpret initialization, and check written <= limit.
+  -- A native safety assumption remains unless verified; a postcheck cannot undo
+  -- prior corruption. Isolation plus output validation is a separate trust profile.
+  -- Cancellation must not free buffers or unload callbacks before acknowledgment.

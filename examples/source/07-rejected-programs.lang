@@ -1,0 +1,20 @@
+-- Independent intended semantic rejections; not one accepted module.
+module Rejections where
+  badIndex :: Fin 3
+  badIndex = Fin 7 refl
+
+  proof impossible :: Void
+  proof impossible = impossible
+
+  hiddenSuspend :: Request -> Bytes
+  hiddenSuspend request = fetch request
+
+  -- Other required rejections:
+  -- A task outliving a borrowed buffer; copying a mutable handle.
+  -- An unknown proof hole in a deployable artifact.
+  -- An unguarded recursive stream, or filter claiming productivity without progress.
+  -- Reusing a bound after mutating the indexed buffer.
+  -- An effectful map instantiated at the pure fusion theorem.
+  -- An unsupported SIMD module selected before validation.
+  -- FFI inside retryable STM, or freeing a cancelled foreign operation's buffer.
+  -- Two ambiguous do providers, or changing a closure's captured runtime implicitly.

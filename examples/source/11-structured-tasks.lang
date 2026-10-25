@@ -1,0 +1,17 @@
+-- Surface 0.2. Ordinary functions; no async/await function category.
+module StructuredTasks where
+  loadPair :: forall r. using (io :: Io r) =>
+              Request -> Request
+              ->{Async r, IO r, Cancel r, Diverge}
+                Result LoadError (Bytes, Bytes)
+  loadPair left right = withScope $ \s -> do
+    a <- spawn s (\() -> fetch left)
+    b <- spawn s (\() -> fetch right)
+    joinAllOrCancel s a b
+
+  -- spawn consumes a thunk; strict argument evaluation must not start fetch early.
+  -- Direct sequencing is the default; a and b are task handles.
+  -- On supported failure, request sibling cancellation and join cleanup.
+  -- Shutdown is not time-bounded without progress assumptions.
+  -- Migratable tasks additionally need transfer-safe captures/results.
+  -- io is a lexical capability; its region identity is retained by tasks.

@@ -1,0 +1,11 @@
+package example:codec@0.1.0;
+
+interface decoder {
+  enum decode-error { malformed, too-large }
+  decode: func(input: list<u8>, limit: u32)
+    -> result<list<u8>, decode-error>;
+}
+
+world codec-plugin {
+  export decoder;
+}

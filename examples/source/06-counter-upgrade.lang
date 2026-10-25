@@ -1,0 +1,22 @@
+-- Surface 0.2. State model, not a complete deployable package.
+module CounterEvolution where
+  record StateV1 where
+    value :: Nat
+  record StateV2 where
+    base :: Nat
+    delta :: Nat
+
+  viewV1 :: StateV1 -> Nat
+  viewV1 s = s.value
+  viewV2 :: StateV2 -> Nat
+  viewV2 s = s.base + s.delta
+  incrementV1 :: StateV1 %1 -> StateV1
+  incrementV1 s = StateV1 { value = s.value + 1 }
+  incrementV2 :: StateV2 %1 -> StateV2
+  incrementV2 s = StateV2 { base = s.base, delta = s.delta + 1 }
+  migrate :: StateV1 %1 -> StateV2
+  migrate s = StateV2 { base = s.value, delta = 0 }
+
+  -- Related old next means old.value = next.base + next.delta.
+  -- Migration preserves the view by Nat's zero law; increments by addition laws.
+  -- Drain-and-replace also needs quiescence, resources and dependency evidence.

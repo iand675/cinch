@@ -1,0 +1,27 @@
+-- Surface 0.2. Proposed APIs, not a compiled program.
+module GenericEffects where
+  traverse :: forall a b e. (a ->{|e} b) -> List a ->{|e} List b
+  traverse f xs = case xs of
+    Nil -> Nil
+    Cons x rest -> do
+      y <- f x
+      ys <- traverse f rest
+      pure (Cons y ys)
+
+  -- One definition supports pure and suspending callbacks through row e.
+  -- Direct sequencing binds ordinary results; callbacks are reusable here.
+
+module ImportConfig (Seq :: ResultSequencing ConfigError) where
+  -- The signature marks Seq as this module's sequencing provider.
+  loadConfig :: forall r. using (io :: Io r) =>
+                Path ->{IO r, Async r, Cancel r, Diverge}
+                  Result ConfigError Config
+  loadConfig path = do
+    bytes <- readConfigBytes path
+    config <- parseConfig bytes
+    pure config
+
+  -- Same do spelling, explicitly selected Result composition.
+  -- io is a lexical runtime argument. Supplying it does not handle effects.
+  -- An explicit call can use: loadConfig @{io = chosenIO} path
+  -- Handler installation belongs to the entry point or an enclosing runtime scope.

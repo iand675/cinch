@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Example catalogue</title>
+  <style>
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+    /* CSS for syntax highlighting */
+    pre > code.sourceCode { white-space: pre; position: relative; }
+    pre > code.sourceCode > span { line-height: 1.25; }
+    pre > code.sourceCode > span:empty { height: 1.2em; }
+    .sourceCode { overflow: visible; }
+    code.sourceCode > span { color: inherit; text-decoration: inherit; }
+    div.sourceCode { margin: 1em 0; }
+    pre.sourceCode { margin: 0; }
+    @media screen {
+    div.sourceCode { overflow: auto; }
+    }
+    @media print {
+    pre > code.sourceCode { white-space: pre-wrap; }
+    pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+    }
+    pre.numberSource code
+      { counter-reset: source-line 0; }
+    pre.numberSource code > span
+      { position: relative; left: -4em; counter-increment: source-line; }
+    pre.numberSource code > span > a:first-child::before
+      { content: counter(source-line);
+        position: relative; left: -1em; text-align: right; vertical-align: baseline;
+        border: none; display: inline-block;
+        -webkit-touch-callout: none; -webkit-user-select: none;
+        -khtml-user-select: none; -moz-user-select: none;
+        -ms-user-select: none; user-select: none;
+        padding: 0 4px; width: 4em;
+        color: #aaaaaa;
+      }
+    pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
+    div.sourceCode
+      {   }
+    @media screen {
+    pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+    }
+    code span.al { color: #ff0000; font-weight: bold; } /* Alert */
+    code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
+    code span.at { color: #7d9029; } /* Attribute */
+    code span.bn { color: #40a070; } /* BaseN */
+    code span.bu { color: #008000; } /* BuiltIn */
+    code span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
+    code span.ch { color: #4070a0; } /* Char */
+    code span.cn { color: #880000; } /* Constant */
+    code span.co { color: #60a0b0; font-style: italic; } /* Comment */
+    code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
+    code span.do { color: #ba2121; font-style: italic; } /* Documentation */
+    code span.dt { color: #902000; } /* DataType */
+    code span.dv { color: #40a070; } /* DecVal */
+    code span.er { color: #ff0000; font-weight: bold; } /* Error */
+    code span.ex { } /* Extension */
+    code span.fl { color: #40a070; } /* Float */
+    code span.fu { color: #06287e; } /* Function */
+    code span.im { color: #008000; font-weight: bold; } /* Import */
+    code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
+    code span.kw { color: #007020; font-weight: bold; } /* Keyword */
+    code span.op { color: #666666; } /* Operator */
+    code span.ot { color: #007020; } /* Other */
+    code span.pp { color: #bc7a00; } /* Preprocessor */
+    code span.sc { color: #4070a0; } /* SpecialChar */
+    code span.ss { color: #bb6688; } /* SpecialString */
+    code span.st { color: #4070a0; } /* String */
+    code span.va { color: #19177c; } /* Variable */
+    code span.vs { color: #4070a0; } /* VerbatimString */
+    code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
+  </style>
+  <link rel="stylesheet" href="../style.css" />
+</head>
+<body>
+<nav id="TOC" role="doc-toc">
+<ul>
+<li><a href="#example-catalogue" id="toc-example-catalogue">Example
+catalogue</a></li>
+<li><a href="#files-and-assumptions"
+id="toc-files-and-assumptions">Files and assumptions</a></li>
+<li><a href="#bounded-indexing" id="toc-bounded-indexing">Bounded
+indexing</a></li>
+<li><a href="#vector-filtering" id="toc-vector-filtering">Vector
+filtering</a></li>
+<li><a href="#map-fusion" id="toc-map-fusion">Map fusion</a></li>
+<li><a href="#productive-streams" id="toc-productive-streams">Productive
+streams</a></li>
+<li><a href="#schema-generation" id="toc-schema-generation">Schema
+generation</a></li>
+<li><a href="#counter-migration" id="toc-counter-migration">Counter
+migration</a></li>
+<li><a href="#conformance-matrix"
+id="toc-conformance-matrix">Conformance matrix</a></li>
+<li><a href="#platform-specific-simd"
+id="toc-platform-specific-simd">Platform specific SIMD</a></li>
+<li><a href="#reading-an-incomplete-example"
+id="toc-reading-an-incomplete-example">Reading an incomplete
+example</a></li>
+<li><a href="#source-examples" id="toc-source-examples">Source
+examples</a>
+<ul>
+<li><a href="#bounded-indexing-1" id="toc-bounded-indexing-1">Bounded
+indexing</a></li>
+<li><a href="#vector-filtering-1" id="toc-vector-filtering-1">Vector
+filtering</a></li>
+<li><a href="#map-fusion-1" id="toc-map-fusion-1">Map fusion</a></li>
+<li><a href="#productive-streams-1"
+id="toc-productive-streams-1">Productive streams</a></li>
+<li><a href="#schema-generation-1" id="toc-schema-generation-1">Schema
+generation</a></li>
+<li><a href="#counter-upgrade" id="toc-counter-upgrade">Counter
+upgrade</a></li>
+<li><a href="#expected-rejections" id="toc-expected-rejections">Expected
+rejections</a></li>
+<li><a href="#platform-specific-simd-source"
+id="toc-platform-specific-simd-source">Platform specific SIMD
+source</a></li>
+<li><a href="#foreign-codec.lang"
+id="toc-foreign-codec.lang">09-foreign-codec.lang</a></li>
+<li><a href="#wasm-component.lang"
+id="toc-wasm-component.lang">10-wasm-component.lang</a></li>
+<li><a href="#structured-tasks.lang"
+id="toc-structured-tasks.lang">11-structured-tasks.lang</a></li>
+<li><a href="#codec.wit" id="toc-codec.wit">codec.wit</a></li>
+<li><a href="#runtime-effects-and-unqualified-do"
+id="toc-runtime-effects-and-unqualified-do">Runtime effects and
+unqualified do</a></li>
+</ul></li>
+</ul>
+</nav>
+<p><a href="../index.html">← Documentation index</a></p>
+<h1 id="example-catalogue">Example catalogue</h1>
+<p>Source: <a
+href="https://chatgpt.com/space/page_ca01753c1a108191b5a81b2138f93a2e"
+class="uri">https://chatgpt.com/space/page_ca01753c1a108191b5a81b2138f93a2e</a><br />
+Exported: 2026-10-22T18:59:36Z</p>
+<hr />
+<p><a href="../overview.html">Documentation overview</a></p>
+<p>The accompanying files include twelve <code>.lang</code> files in
+provisional language notation. There is no executable compiler, and the
+files have not been typechecked. They specify intended behavior and
+rejection criteria. Some files contain complete small algorithms under
+the proposed prelude; others are explicitly labeled API or proof-package
+sketches.</p>
+<h1 id="files-and-assumptions">Files and assumptions</h1>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>File</th>
+<th>Scope</th>
+<th>Required environment</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>01-bounded-index.lang</code></td>
+<td>Runtime bounds decision and safe element access</td>
+<td><code>Nat</code>, <code>Fin</code>, <code>Vec</code>,
+<code>Option</code>, comparison decision procedure, borrowed access</td>
+</tr>
+<tr class="even">
+<td><code>02-vector-filter.lang</code></td>
+<td>Recursive finite filter with dependent output length</td>
+<td>Vector constructors, copying elements, total pure predicate</td>
+</tr>
+<tr class="odd">
+<td><code>03-map-fusion.lang</code></td>
+<td>Inductive proof and associated rewrite</td>
+<td>Immutable finite <code>List</code>, total <code>map</code>,
+equality, <code>congr</code></td>
+</tr>
+<tr class="even">
+<td><code>04-productive-stream.lang</code></td>
+<td>Guarded infinite producer and mapping</td>
+<td>A sound <code>Later</code> discipline and coinductive
+observations</td>
+</tr>
+<tr class="odd">
+<td><code>05-schema-generator.lang</code></td>
+<td>Compile-time database generator API</td>
+<td>Stage I/O, snapshots, secret handles, declaration generator</td>
+</tr>
+<tr class="even">
+<td><code>06-counter-upgrade.lang</code></td>
+<td>Concrete state migration and operation models</td>
+<td>Natural arithmetic, consuming ownership, upgrade coordinator for
+deployment</td>
+</tr>
+<tr class="odd">
+<td><code>07-rejected-programs.lang</code></td>
+<td>Independent expected rejection cases</td>
+<td>The rules identified by each case</td>
+</tr>
+<tr class="even">
+<td><code>08-platform-simd.lang</code></td>
+<td>Target-specific wrapping reduction and dispatch</td>
+<td>Instruction semantics, capability detection, memory proofs, and
+checked lowering</td>
+</tr>
+<tr class="odd">
+<td><code>09-foreign-codec.lang</code></td>
+<td>Foreign wrapper contract</td>
+<td>Explicit native assumptions or isolation profile</td>
+</tr>
+<tr class="even">
+<td><code>10-wasm-component.lang</code> and <code>codec.wit</code></td>
+<td>Checked component adapter</td>
+<td>WIT bindings, host failure policy, runtime bound check</td>
+</tr>
+<tr class="odd">
+<td><code>11-structured-tasks.lang</code></td>
+<td>Scoped concurrent requests</td>
+<td>Task outcome, cancellation and cleanup contracts</td>
+</tr>
+</tbody>
+</table>
+<p><code>Copy</code> permits intentional element duplication.
+Mathematical <code>Int</code> and <code>Nat</code> do not silently use
+wrapping machine arithmetic. Proof constructors are logical primitives
+or checked library lemmas. Named generator and runtime services describe
+required library contracts rather than pretend implementations.</p>
+<h1 id="bounded-indexing">Bounded indexing</h1>
+<p><code>checkedIndex(3, 2)</code> returns an index usable with a vector
+of length three. <code>checkedIndex(3, 3)</code> returns
+<code>None</code>. A successful runtime comparison creates evidence
+about the concrete value; that evidence is erased, while the comparison
+remains where static proof is unavailable.</p>
+<p>Expected rejection: fabricating <code>Fin 3</code> for the value
+seven. Expected acceptance: branching on a checked bound and using the
+result only on the successful branch.</p>
+<h1 id="vector-filtering">Vector filtering</h1>
+<p>Filtering <code>[1, 2, 3, 4]</code> with an even predicate returns an
+existential length of two and <code>[2, 4]</code>. Filtering the empty
+vector returns length zero. Filtering with an always-false predicate
+returns the empty vector.</p>
+<p>The algorithm records predicate decisions in source order before
+recursing. The example returns a dependent pair but does not silently
+claim the additional proofs. The accompanying proof targets are size
+preservation and exact subsequence correctness. The induction outline
+shows what must be supplied to expose those stronger guarantees.</p>
+<h1 id="map-fusion">Map fusion</h1>
+<p>For pure total functions, the list induction supplies a proof of the
+map-composition equation. The rewrite uses that exact theorem. The
+intended optimization removes an intermediate list under the selected
+pure semantic model.</p>
+<p>An effectful counterexample uses callbacks that log. Nested eager
+maps log every inner callback before any outer callback. A fused map
+interleaves those logs. The pure theorem is inapplicable, and the
+compiler must reject that instantiation.</p>
+<h1 id="productive-streams">Productive streams</h1>
+<p><code>from(0)</code> supports every finite requested prefix. Mapping
+square over it produces <code>0, 1, 4, 9, ...</code>. The delayed
+recursive call is guarded; a raw self-reference that fails to produce a
+head must be rejected.</p>
+<p>The bisimulation outline compares heads and then guarded tails. A
+full implementation must select and formalize the guarded calculus
+before this syntax can be accepted. Arbitrary filtering remains a
+process unless a constructive progress interface justifies productive
+output.</p>
+<h1 id="schema-generation">Schema generation</h1>
+<p>The schema example scopes a compile-time database connection,
+captures introspection input, and passes the snapshot to a generator. No
+connection is attempted by this documentation package. The secret name
+is illustrative and contains no value.</p>
+<p>Expected mode behavior: refresh obtains and records input; replay
+uses recorded input; live explicitly contacts the database. Generated
+declarations require checking. Runtime bindings require a compatible
+schema and a policy maintaining the facts they rely on.</p>
+<h1 id="counter-migration">Counter migration</h1>
+<p>For old state <code>value = 12</code>, migration produces
+<code>base = 12, delta = 0</code>. Reading returns twelve. After three
+increments, the new representation returns fifteen. The relation is
+equality of total values, not equality of layouts.</p>
+<p>These finite observations are illustrative checks, not the universal
+proof. The arithmetic proof establishes the relation for all naturals.
+Deployment also requires the operational and dependency checks described
+in the runtime specification.</p>
+<h1 id="conformance-matrix">Conformance matrix</h1>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Case</th>
+<th>Intended outcome</th>
+<th>Reason</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Branch-certified vector access</td>
+<td>Accept</td>
+<td>Bound evidence matches the live vector</td>
+</tr>
+<tr class="even">
+<td>Retained existential output length</td>
+<td>Accept</td>
+<td>Runtime witness supports the dependent value</td>
+</tr>
+<tr class="odd">
+<td>Pure map-composition theorem</td>
+<td>Accept</td>
+<td>Structural induction and equality congruence</td>
+</tr>
+<tr class="even">
+<td>Productive guarded natural stream</td>
+<td>Accept under selected guarded calculus</td>
+<td>Each observation is justified</td>
+</tr>
+<tr class="odd">
+<td>Unknown index without a check</td>
+<td>Reject</td>
+<td>Required evidence is unresolved</td>
+</tr>
+<tr class="even">
+<td>Recursive proof of <code>False</code></td>
+<td>Reject</td>
+<td>Logical termination fails</td>
+</tr>
+<tr class="odd">
+<td>Arbitrary productive stream filter</td>
+<td>Reject claimed total signature</td>
+<td>No next accepted element may exist</td>
+</tr>
+<tr class="even">
+<td>Effectful use of pure fusion rule</td>
+<td>Reject</td>
+<td>The theorem’s effect conditions fail</td>
+</tr>
+<tr class="odd">
+<td>Embedded compile-time file handle</td>
+<td>Reject</td>
+<td>Resource cannot cross stages by serialization</td>
+</tr>
+<tr class="even">
+<td>Same-module acyclic generator</td>
+<td>Accept</td>
+<td>Compile-time dependencies can be scheduled</td>
+</tr>
+<tr class="odd">
+<td>Genuine generator dependency cycle</td>
+<td>Reject</td>
+<td>Generator cannot be compiled before its own result</td>
+</tr>
+<tr class="even">
+<td>Layout migration with a surviving borrow</td>
+<td>Reject activation</td>
+<td>Old reference would become invalid</td>
+</tr>
+<tr class="odd">
+<td>Upgrade omitting affected specialized clients</td>
+<td>Reject activation</td>
+<td>Checked assumptions of old machine code may fail</td>
+</tr>
+</tbody>
+</table>
+<h1 id="platform-specific-simd">Platform specific SIMD</h1>
+<p>The wrapping-sum example has a scalar semantic definition and a
+conditional SIMD rule. Its correctness theorem is parameterized by the
+target module. Positive cases include empty inputs, inputs shorter than
+a vector, exact blocks, partial tails, and arithmetic wrapping. A
+correct implementation handles all lengths through a general proof, not
+just those examples.</p>
+<p>Expected rejection: an unsupported vector instruction without
+availability evidence, a full-width load beyond the valid tail, or reuse
+of the wrapping-integer theorem for floating-point reassociation. A
+scalar fallback keeps the public operation usable on the baseline
+platform.</p>
+<h1 id="reading-an-incomplete-example">Reading an incomplete
+example</h1>
+<p>A named proof module in an upgrade sketch is an obligation to
+implement, not evidence by naming. An example comment listing proof
+targets is not an axiom declaration. This distinction is deliberate: the
+documentation should be useful for implementation without claiming that
+an unspecified prelude or runtime has already been verified.</p>
+<h1 id="source-examples">Source examples</h1>
+<p>These source examples are provided individually and reproduced below.
+The WIT interface accompanies the component adapter.</p>
+<h2 id="bounded-indexing-1">Bounded indexing</h2>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co">-- Surface 0.2. Proposed prelude and borrow-pattern rules; not compiled.</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="kw">module</span> <span class="dt">BoundedIndex</span> <span class="kw">where</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="ot">  checkedIndex ::</span> (<span class="ot">n ::</span> <span class="dt">Nat</span>) <span class="ot">-&gt;</span> <span class="dt">Nat</span> <span class="ot">-&gt;</span> <span class="dt">Option</span> (<span class="dt">Fin</span> n)</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>  checkedIndex n i <span class="ot">=</span> <span class="kw">case</span> decide (i <span class="op">&lt;</span> n) <span class="kw">of</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    <span class="dt">Yes</span> bound <span class="ot">-&gt;</span> <span class="dt">Some</span> (<span class="dt">Fin</span> i bound)</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>    <span class="dt">No</span> _ <span class="ot">-&gt;</span> <span class="dt">None</span></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="ot">  tryGet ::</span> <span class="kw">forall</span> a n region<span class="op">.</span> using (<span class="ot">copy ::</span> <span class="dt">Copy</span> a) <span class="ot">=&gt;</span></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>            <span class="dt">Ref</span> region (<span class="dt">Vec</span> n a) <span class="ot">-&gt;</span> <span class="dt">Nat</span> <span class="ot">-&gt;</span> <span class="dt">Option</span> a</span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>  tryGet xs i <span class="ot">=</span> <span class="kw">case</span> checkedIndex n i <span class="kw">of</span></span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>    <span class="dt">Some</span> <span class="fu">index</span> <span class="ot">-&gt;</span> <span class="dt">Some</span> (Vec.getCopy xs <span class="fu">index</span>)</span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>    <span class="dt">None</span> <span class="ot">-&gt;</span> <span class="dt">None</span></span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a>  <span class="co">-- For xs = [10, 20, 30], indices 0 and 2 succeed; index 3 returns None.</span></span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a>  <span class="co">-- Comparison stays executable; its successful proof is erased.</span></span></code></pre></div>
+<h2 id="vector-filtering-1">Vector filtering</h2>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co">-- Surface 0.2. Algorithm; additional sequence laws are proof targets.</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="kw">module</span> <span class="dt">VectorFilter</span> <span class="kw">where</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="ot">  filter ::</span> <span class="kw">forall</span> a n region<span class="op">.</span> using (<span class="ot">copy ::</span> <span class="dt">Copy</span> a) <span class="ot">=&gt;</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>            (a <span class="ot">-&gt;</span> <span class="dt">Bool</span>) <span class="ot">-&gt;</span> <span class="dt">Ref</span> region (<span class="dt">Vec</span> n a)</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>            <span class="ot">-&gt;</span> <span class="dt">Sigma</span> (<span class="ot">m ::</span> <span class="dt">Nat</span>)<span class="op">.</span> <span class="dt">Vec</span> m a</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span> predicate xs <span class="ot">=</span> <span class="kw">case</span> xs <span class="kw">of</span></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>    <span class="dt">Nil</span> <span class="ot">-&gt;</span> (<span class="dv">0</span>, <span class="dt">Nil</span>)</span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>    <span class="dt">Cons</span> x rest <span class="ot">-&gt;</span></span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>      <span class="kw">let</span> keep <span class="ot">=</span> predicate (copyOut x)</span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>          packed <span class="ot">=</span> <span class="fu">filter</span> predicate rest</span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>      <span class="kw">in</span> <span class="kw">case</span> packed <span class="kw">of</span></span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>        (m, <span class="fu">tail</span>) <span class="ot">-&gt;</span> <span class="kw">if</span> keep</span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a>          <span class="kw">then</span> (m <span class="op">+</span> <span class="dv">1</span>, <span class="dt">Cons</span> (copyOut x) <span class="fu">tail</span>)</span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>          <span class="kw">else</span> (m, <span class="fu">tail</span>)</span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>  <span class="co">-- Strict let preserves source predicate order.</span></span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a>  <span class="co">-- Borrow matching yields references; copyOut requires Copy evidence.</span></span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a>  <span class="co">-- Prove by induction: m &lt;= n and exact predicate-selected subsequence.</span></span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a>  <span class="co">-- The result retains the witness m, not just an erased proof of existence.</span></span></code></pre></div>
+<h2 id="map-fusion-1">Map fusion</h2>
+<div class="sourceCode" id="cb3"><pre
+class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co">-- Surface 0.2. Pure finite reusable lists and total callbacks.</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="kw">module</span> <span class="dt">PureMapFusion</span> <span class="kw">where</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>  proof<span class="ot"> mapFusion ::</span> (<span class="ot">f ::</span> <span class="dt">Int</span> <span class="ot">-&gt;</span> <span class="dt">Int</span>) <span class="ot">-&gt;</span> (<span class="ot">g ::</span> <span class="dt">Int</span> <span class="ot">-&gt;</span> <span class="dt">Int</span>)</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>                  <span class="ot">-&gt;</span> (<span class="ot">xs ::</span> <span class="dt">List</span> <span class="dt">Int</span>)</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>                  <span class="ot">-&gt;</span> <span class="dt">Eq</span> (List.map f (List.map g xs))</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>                        (List.map (\x <span class="ot">-&gt;</span> f (g x)) xs)</span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>  proof mapFusion f g xs <span class="ot">=</span> <span class="kw">case</span> xs <span class="kw">of</span></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>    <span class="dt">Nil</span> <span class="ot">-&gt;</span> refl</span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>    <span class="dt">Cons</span> x rest <span class="ot">-&gt;</span></span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>      congr (\ys <span class="ot">-&gt;</span> <span class="dt">Cons</span> (f (g x)) ys) (mapFusion f g rest)</span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>  rewrite mapMap <span class="kw">forall</span> (<span class="ot">f ::</span> <span class="dt">Int</span> <span class="ot">-&gt;</span> <span class="dt">Int</span>) (<span class="ot">g ::</span> <span class="dt">Int</span> <span class="ot">-&gt;</span> <span class="dt">Int</span>)</span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>                       (<span class="ot">xs ::</span> <span class="dt">List</span> <span class="dt">Int</span>)<span class="op">.</span> <span class="kw">where</span></span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a>    match List.map f (List.map g xs)</span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a>    replace List.map (\x <span class="ot">-&gt;</span> f (g x)) xs</span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a>    justify mapFusion f g xs</span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a>  <span class="co">-- This theorem does not allow effectful callbacks or extend definitional equality.</span></span></code></pre></div>
+<h2 id="productive-streams-1">Productive streams</h2>
+<div class="sourceCode" id="cb4"><pre
+class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co">-- Surface 0.2. The guarded Later calculus still needs a formal choice.</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="kw">module</span> <span class="dt">NaturalStreams</span> <span class="kw">where</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>  codata <span class="dt">Stream</span> (<span class="ot">a ::</span> <span class="dt">Type</span>) <span class="kw">where</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="ot">    head ::</span> a</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="ot">    tail ::</span> <span class="dt">Later</span> (<span class="dt">Stream</span> a)</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>  corec<span class="ot"> from ::</span> <span class="dt">Nat</span> <span class="ot">-&gt;</span> <span class="dt">Stream</span> <span class="dt">Nat</span></span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>  corec from n <span class="ot">=</span> <span class="dt">Stream</span> { <span class="fu">head</span> <span class="ot">=</span> n, <span class="fu">tail</span> <span class="ot">=</span> delay (\() <span class="ot">-&gt;</span> from (n <span class="op">+</span> <span class="dv">1</span>)) }</span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>  corec<span class="ot"> map ::</span> <span class="kw">forall</span> a b<span class="op">.</span> (a <span class="ot">-&gt;</span> b) <span class="ot">-&gt;</span> <span class="dt">Stream</span> a <span class="ot">-&gt;</span> <span class="dt">Stream</span> b</span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>  corec <span class="fu">map</span> f xs <span class="ot">=</span> <span class="dt">Stream</span></span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>    { <span class="fu">head</span> <span class="ot">=</span> f xs<span class="op">.</span><span class="fu">head</span></span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a>    , <span class="fu">tail</span> <span class="ot">=</span> delay (\() <span class="ot">-&gt;</span> <span class="fu">map</span> f (force xs<span class="op">.</span><span class="fu">tail</span>)) }</span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a>  <span class="co">-- delay takes a checked guarded thunk; ordinary strict calls do not create delay.</span></span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a>  <span class="co">-- Finite observations of map (\x -&gt; x * x) (from 0): 0, 1, 4, 9, ...</span></span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a>  <span class="co">-- Bisimulation needs matching heads and guarded tails.</span></span>
+<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a>  <span class="co">-- Arbitrary filtering remains a process without recurring-match evidence.</span></span></code></pre></div>
+<h2 id="schema-generation-1">Schema generation</h2>
+<div class="sourceCode" id="cb5"><pre
+class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co">-- Surface 0.2. API sketch; no real database connection or credentials.</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="kw">module</span> <span class="dt">SchemaBindings</span> <span class="kw">where</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>  stage<span class="ot"> derive ::</span> <span class="dt">SchemaSnapshot</span> <span class="ot">-&gt;</span> <span class="dt">Declarations</span></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>  stage derive schema <span class="ot">=</span> CodecGenerator.derive schema</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a><span class="kw">module</span> <span class="dt">Billing</span> <span class="kw">where</span></span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>  <span class="kw">import</span> stage <span class="dt">SchemaBindings</span></span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>  generate <span class="kw">do</span></span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>    snapshot <span class="ot">&lt;-</span> Stage.snapshot <span class="st">&quot;billing-schema&quot;</span> (\io <span class="ot">-&gt;</span></span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a>      Stage.withDatabase io (secret <span class="st">&quot;SCHEMA_DATABASE_URL&quot;</span>) <span class="dt">ReadSchema</span></span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a>        (\db <span class="ot">-&gt;</span> introspectConsistently db))</span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a>    emit (SchemaBindings.derive snapshot)</span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a>  <span class="co">-- Generator effects are checked against compile-time capabilities.</span></span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a>  <span class="co">-- Refresh captures input, replay uses it, live explicitly contacts a database.</span></span>
+<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a>  <span class="co">-- Generated bindings are checked; runtime use needs schema compatibility.</span></span></code></pre></div>
+<h2 id="counter-upgrade">Counter upgrade</h2>
+<div class="sourceCode" id="cb6"><pre
+class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co">-- Surface 0.2. State model, not a complete deployable package.</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="kw">module</span> <span class="dt">CounterEvolution</span> <span class="kw">where</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>  record <span class="dt">StateV1</span> <span class="kw">where</span></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a><span class="ot">    value ::</span> <span class="dt">Nat</span></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>  record <span class="dt">StateV2</span> <span class="kw">where</span></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a><span class="ot">    base ::</span> <span class="dt">Nat</span></span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a><span class="ot">    delta ::</span> <span class="dt">Nat</span></span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a><span class="ot">  viewV1 ::</span> <span class="dt">StateV1</span> <span class="ot">-&gt;</span> <span class="dt">Nat</span></span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>  viewV1 s <span class="ot">=</span> s<span class="op">.</span>value</span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a><span class="ot">  viewV2 ::</span> <span class="dt">StateV2</span> <span class="ot">-&gt;</span> <span class="dt">Nat</span></span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a>  viewV2 s <span class="ot">=</span> s<span class="op">.</span>base <span class="op">+</span> s<span class="op">.</span>delta</span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a><span class="ot">  incrementV1 ::</span> <span class="dt">StateV1</span> <span class="op">%</span><span class="dv">1</span> <span class="ot">-&gt;</span> <span class="dt">StateV1</span></span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a>  incrementV1 s <span class="ot">=</span> <span class="dt">StateV1</span> { value <span class="ot">=</span> s<span class="op">.</span>value <span class="op">+</span> <span class="dv">1</span> }</span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a><span class="ot">  incrementV2 ::</span> <span class="dt">StateV2</span> <span class="op">%</span><span class="dv">1</span> <span class="ot">-&gt;</span> <span class="dt">StateV2</span></span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a>  incrementV2 s <span class="ot">=</span> <span class="dt">StateV2</span> { base <span class="ot">=</span> s<span class="op">.</span>base, delta <span class="ot">=</span> s<span class="op">.</span>delta <span class="op">+</span> <span class="dv">1</span> }</span>
+<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a><span class="ot">  migrate ::</span> <span class="dt">StateV1</span> <span class="op">%</span><span class="dv">1</span> <span class="ot">-&gt;</span> <span class="dt">StateV2</span></span>
+<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a>  migrate s <span class="ot">=</span> <span class="dt">StateV2</span> { base <span class="ot">=</span> s<span class="op">.</span>value, delta <span class="ot">=</span> <span class="dv">0</span> }</span>
+<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a>  <span class="co">-- Related old next means old.value = next.base + next.delta.</span></span>
+<span id="cb6-21"><a href="#cb6-21" aria-hidden="true" tabindex="-1"></a>  <span class="co">-- Migration preserves the view by Nat&#39;s zero law; increments by addition laws.</span></span>
+<span id="cb6-22"><a href="#cb6-22" aria-hidden="true" tabindex="-1"></a>  <span class="co">-- Drain-and-replace also needs quiescence, resources and dependency evidence.</span></span></code></pre></div>
+<h2 id="expected-rejections">Expected rejections</h2>
+<div class="sourceCode" id="cb7"><pre
+class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co">-- Independent intended semantic rejections; not one accepted module.</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="kw">module</span> <span class="dt">Rejections</span> <span class="kw">where</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="ot">  badIndex ::</span> <span class="dt">Fin</span> <span class="dv">3</span></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>  badIndex <span class="ot">=</span> <span class="dt">Fin</span> <span class="dv">7</span> refl</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>  proof<span class="ot"> impossible ::</span> <span class="dt">Void</span></span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>  proof impossible <span class="ot">=</span> impossible</span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a><span class="ot">  hiddenSuspend ::</span> <span class="dt">Request</span> <span class="ot">-&gt;</span> <span class="dt">Bytes</span></span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>  hiddenSuspend request <span class="ot">=</span> fetch request</span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a>  <span class="co">-- Other required rejections:</span></span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a>  <span class="co">-- A task outliving a borrowed buffer; copying a mutable handle.</span></span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a>  <span class="co">-- An unknown proof hole in a deployable artifact.</span></span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a>  <span class="co">-- An unguarded recursive stream, or filter claiming productivity without progress.</span></span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a>  <span class="co">-- Reusing a bound after mutating the indexed buffer.</span></span>
+<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a>  <span class="co">-- An effectful map instantiated at the pure fusion theorem.</span></span>
+<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a>  <span class="co">-- An unsupported SIMD module selected before validation.</span></span>
+<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a>  <span class="co">-- FFI inside retryable STM, or freeing a cancelled foreign operation&#39;s buffer.</span></span>
+<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a>  <span class="co">-- Two ambiguous do providers, or changing a closure&#39;s captured runtime implicitly.</span></span></code></pre></div>
+<h2 id="platform-specific-simd-source">Platform specific SIMD
+source</h2>
+<div class="sourceCode" id="cb8"><pre
+class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="co">-- Surface 0.2. Target APIs and theorem module are obligations, not supplied proofs.</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="kw">module</span> <span class="dt">PlatformSum</span> <span class="kw">where</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a><span class="ot">  scalar ::</span> <span class="kw">forall</span> n region<span class="op">.</span> <span class="dt">Ref</span> region (<span class="dt">Vec</span> n <span class="dt">U32</span>) <span class="ot">-&gt;</span> <span class="dt">U32</span></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>  scalar xs <span class="ot">=</span> Stream.fold U32.zero U32.wrappingAdd (Vec.stream xs)</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>  target rewrite sumWrap32Vector</span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>    <span class="kw">forall</span> t w n region (<span class="ot">xs ::</span> <span class="dt">Ref</span> region (<span class="dt">Vec</span> n <span class="dt">U32</span>))<span class="op">.</span></span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>    using (<span class="ot">vectors ::</span> <span class="dt">VecU32Target</span> t w) <span class="kw">where</span></span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>    match scalar xs</span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>    replace Simd.sumWrap32 vectors xs</span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a>    require <span class="dt">Available</span> vectors</span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>    justify SumProofs.scalarToSimd vectors xs</span>
+<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a><span class="ot">  dispatched ::</span> <span class="kw">forall</span> n region<span class="op">.</span> <span class="dt">Ref</span> region (<span class="dt">Vec</span> n <span class="dt">U32</span>) <span class="ot">-&gt;</span> <span class="dt">U32</span></span>
+<span id="cb8-15"><a href="#cb8-15" aria-hidden="true" tabindex="-1"></a>  dispatched xs <span class="ot">=</span> <span class="kw">case</span> Target.detectVecU32 () <span class="kw">of</span></span>
+<span id="cb8-16"><a href="#cb8-16" aria-hidden="true" tabindex="-1"></a>    <span class="dt">Some</span> available <span class="ot">-&gt;</span> Simd.sumWrap32 available xs</span>
+<span id="cb8-17"><a href="#cb8-17" aria-hidden="true" tabindex="-1"></a>    <span class="dt">None</span> <span class="ot">-&gt;</span> scalar xs</span>
+<span id="cb8-18"><a href="#cb8-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-19"><a href="#cb8-19" aria-hidden="true" tabindex="-1"></a>  <span class="co">-- detectVecU32 reads runtime-established metadata in this proposed pure API.</span></span>
+<span id="cb8-20"><a href="#cb8-20" aria-hidden="true" tabindex="-1"></a>  <span class="co">-- Bounds, tails, modular arithmetic, intrinsic semantics and target availability</span></span>
+<span id="cb8-21"><a href="#cb8-21" aria-hidden="true" tabindex="-1"></a>  <span class="co">-- are required proof obligations. Floating-point reassociation needs other laws.</span></span>
+<span id="cb8-22"><a href="#cb8-22" aria-hidden="true" tabindex="-1"></a>  <span class="co">-- Wasm can require separate variants selected before module instantiation.</span></span></code></pre></div>
+<h2 id="foreign-codec.lang">09-foreign-codec.lang</h2>
+<div class="sourceCode" id="cb9"><pre
+class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="kw">module</span> <span class="dt">ForeignCodecContract</span> <span class="kw">where</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>  <span class="co">-- Surface 0.2. A fictional codec interface, not an implemented wrapper.</span></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>  signature <span class="dt">SafeCodec</span> <span class="kw">where</span></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>    opaque <span class="kw">type</span> <span class="dt">Decoder</span><span class="ot"> ::</span> <span class="dt">Type</span></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>    record <span class="dt">BoundedBytes</span> (<span class="ot">limit ::</span> <span class="dt">Nat</span>) <span class="kw">where</span></span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a><span class="ot">      bytes ::</span> <span class="dt">Bytes</span></span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>      erased<span class="ot"> bound ::</span> <span class="fu">length</span> bytes <span class="op">&lt;=</span> limit</span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a><span class="ot">    decode ::</span> <span class="kw">forall</span> region<span class="op">.</span> <span class="dt">Mut</span> region <span class="dt">Decoder</span> <span class="ot">-&gt;</span> <span class="dt">Ref</span> region <span class="dt">Bytes</span></span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>           <span class="ot">-&gt;</span> (<span class="ot">limit ::</span> <span class="dt">Nat</span>) <span class="ot">-&gt;</span>{<span class="dt">Foreign</span> <span class="dt">Codec</span>, <span class="dt">Blocking</span>, <span class="dt">Diverge</span>}</span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a>              <span class="dt">Result</span> <span class="dt">DecodeError</span> (<span class="dt">BoundedBytes</span> limit)</span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a>  <span class="co">-- The signature intentionally leaves the concrete wrapper implementation abstract.</span></span>
+<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a>  <span class="co">-- The implementation must check target size conversions and allocator pairing,</span></span>
+<span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a>  <span class="co">-- establish pointer access, interpret initialization, and check written &lt;= limit.</span></span>
+<span id="cb9-16"><a href="#cb9-16" aria-hidden="true" tabindex="-1"></a>  <span class="co">-- A native safety assumption remains unless verified; a postcheck cannot undo</span></span>
+<span id="cb9-17"><a href="#cb9-17" aria-hidden="true" tabindex="-1"></a>  <span class="co">-- prior corruption. Isolation plus output validation is a separate trust profile.</span></span>
+<span id="cb9-18"><a href="#cb9-18" aria-hidden="true" tabindex="-1"></a>  <span class="co">-- Cancellation must not free buffers or unload callbacks before acknowledgment.</span></span></code></pre></div>
+<h2 id="wasm-component.lang">10-wasm-component.lang</h2>
+<div class="sourceCode" id="cb10"><pre
+class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="co">-- Surface 0.2. Adapter sketch for codec.wit; host failure policy is explicit.</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="kw">module</span> <span class="dt">CheckedComponentClient</span> <span class="kw">where</span></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>  record <span class="dt">BoundedBytes</span> (<span class="ot">limit ::</span> <span class="dt">Nat</span>) <span class="kw">where</span></span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a><span class="ot">    bytes ::</span> <span class="dt">Bytes</span></span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>    erased<span class="ot"> bound ::</span> <span class="fu">length</span> bytes <span class="op">&lt;=</span> limit</span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a><span class="ot">  decode ::</span> <span class="kw">forall</span> region<span class="op">.</span> <span class="dt">Ref</span> region <span class="dt">Bytes</span> <span class="ot">-&gt;</span> (<span class="ot">limit ::</span> <span class="dt">U32</span>)</span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a>         <span class="ot">-&gt;</span>{<span class="dt">Foreign</span> <span class="dt">Component</span>, <span class="dt">Diverge</span>}</span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a>           <span class="dt">Result</span> <span class="dt">BoundaryError</span> (<span class="dt">BoundedBytes</span> (toNat limit))</span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a>  decode input limit <span class="ot">=</span> <span class="kw">do</span></span>
+<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a>    outcome <span class="ot">&lt;-</span> Raw.decode input limit</span>
+<span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a>    <span class="kw">case</span> outcome <span class="kw">of</span></span>
+<span id="cb10-13"><a href="#cb10-13" aria-hidden="true" tabindex="-1"></a>      <span class="dt">Err</span> e <span class="ot">-&gt;</span> <span class="dt">Err</span> (<span class="dt">ForeignError</span> e)</span>
+<span id="cb10-14"><a href="#cb10-14" aria-hidden="true" tabindex="-1"></a>      <span class="dt">Ok</span> bytes <span class="ot">-&gt;</span> <span class="kw">case</span> decide (<span class="fu">length</span> bytes <span class="op">&lt;=</span> toNat limit) <span class="kw">of</span></span>
+<span id="cb10-15"><a href="#cb10-15" aria-hidden="true" tabindex="-1"></a>        <span class="dt">Yes</span> bound <span class="ot">-&gt;</span> <span class="dt">Ok</span> (<span class="dt">BoundedBytes</span> { bytes <span class="ot">=</span> bytes, bound <span class="ot">=</span> bound })</span>
+<span id="cb10-16"><a href="#cb10-16" aria-hidden="true" tabindex="-1"></a>        <span class="dt">No</span> _ <span class="ot">-&gt;</span> <span class="dt">Err</span> <span class="dt">ContractViolation</span></span>
+<span id="cb10-17"><a href="#cb10-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-18"><a href="#cb10-18" aria-hidden="true" tabindex="-1"></a>  <span class="co">-- Direct do binds the whole Result; it does not automatically short-circuit.</span></span>
+<span id="cb10-19"><a href="#cb10-19" aria-hidden="true" tabindex="-1"></a>  <span class="co">-- Only the concrete bound is proved, not all-input decompression correctness.</span></span>
+<span id="cb10-20"><a href="#cb10-20" aria-hidden="true" tabindex="-1"></a>  <span class="co">-- Instance resource identity and trap policy survive adapter generation.</span></span></code></pre></div>
+<h2 id="structured-tasks.lang">11-structured-tasks.lang</h2>
+<div class="sourceCode" id="cb11"><pre
+class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="co">-- Surface 0.2. Ordinary functions; no async/await function category.</span></span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="kw">module</span> <span class="dt">StructuredTasks</span> <span class="kw">where</span></span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a><span class="ot">  loadPair ::</span> <span class="kw">forall</span> r<span class="op">.</span> using (<span class="ot">io ::</span> <span class="dt">Io</span> r) <span class="ot">=&gt;</span></span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>              <span class="dt">Request</span> <span class="ot">-&gt;</span> <span class="dt">Request</span></span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>              <span class="ot">-&gt;</span>{<span class="dt">Async</span> r, <span class="dt">IO</span> r, <span class="dt">Cancel</span> r, <span class="dt">Diverge</span>}</span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>                <span class="dt">Result</span> <span class="dt">LoadError</span> (<span class="dt">Bytes</span>, <span class="dt">Bytes</span>)</span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a>  loadPair left right <span class="ot">=</span> withScope <span class="op">$</span> \s <span class="ot">-&gt;</span> <span class="kw">do</span></span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a>    a <span class="ot">&lt;-</span> spawn s (\() <span class="ot">-&gt;</span> fetch left)</span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a>    b <span class="ot">&lt;-</span> spawn s (\() <span class="ot">-&gt;</span> fetch right)</span>
+<span id="cb11-10"><a href="#cb11-10" aria-hidden="true" tabindex="-1"></a>    joinAllOrCancel s a b</span>
+<span id="cb11-11"><a href="#cb11-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-12"><a href="#cb11-12" aria-hidden="true" tabindex="-1"></a>  <span class="co">-- spawn consumes a thunk; strict argument evaluation must not start fetch early.</span></span>
+<span id="cb11-13"><a href="#cb11-13" aria-hidden="true" tabindex="-1"></a>  <span class="co">-- Direct sequencing is the default; a and b are task handles.</span></span>
+<span id="cb11-14"><a href="#cb11-14" aria-hidden="true" tabindex="-1"></a>  <span class="co">-- On supported failure, request sibling cancellation and join cleanup.</span></span>
+<span id="cb11-15"><a href="#cb11-15" aria-hidden="true" tabindex="-1"></a>  <span class="co">-- Shutdown is not time-bounded without progress assumptions.</span></span>
+<span id="cb11-16"><a href="#cb11-16" aria-hidden="true" tabindex="-1"></a>  <span class="co">-- Migratable tasks additionally need transfer-safe captures/results.</span></span>
+<span id="cb11-17"><a href="#cb11-17" aria-hidden="true" tabindex="-1"></a>  <span class="co">-- io is a lexical capability; its region identity is retained by tasks.</span></span></code></pre></div>
+<h2 id="codec.wit">codec.wit</h2>
+<pre class="wit"><code>package example:codec@0.1.0;
+
+interface decoder {
+  enum decode-error { malformed, too-large }
+  decode: func(input: list&lt;u8&gt;, limit: u32)
+    -&gt; result&lt;list&lt;u8&gt;, decode-error&gt;;
+}
+
+world codec-plugin {
+  export decoder;
+}</code></pre>
+<h2 id="runtime-effects-and-unqualified-do">Runtime effects and
+unqualified do</h2>
+<p>The effect-polymorphic traversal works with both pure and suspending
+callbacks. A separate module selects Result sequencing through its
+signature parameter; the source still uses ordinary <code>do</code>.</p>
+<div class="sourceCode" id="cb13"><pre
+class="sourceCode haskell"><code class="sourceCode haskell"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="co">-- Surface 0.2. Proposed APIs, not a compiled program.</span></span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="kw">module</span> <span class="dt">GenericEffects</span> <span class="kw">where</span></span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a><span class="ot">  traverse ::</span> <span class="kw">forall</span> a b e<span class="op">.</span> (a <span class="ot">-&gt;</span>{<span class="op">|</span>e} b) <span class="ot">-&gt;</span> <span class="dt">List</span> a <span class="ot">-&gt;</span>{<span class="op">|</span>e} <span class="dt">List</span> b</span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">traverse</span> f xs <span class="ot">=</span> <span class="kw">case</span> xs <span class="kw">of</span></span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>    <span class="dt">Nil</span> <span class="ot">-&gt;</span> <span class="dt">Nil</span></span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a>    <span class="dt">Cons</span> x rest <span class="ot">-&gt;</span> <span class="kw">do</span></span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a>      y <span class="ot">&lt;-</span> f x</span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a>      ys <span class="ot">&lt;-</span> <span class="fu">traverse</span> f rest</span>
+<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a>      <span class="fu">pure</span> (<span class="dt">Cons</span> y ys)</span>
+<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-11"><a href="#cb13-11" aria-hidden="true" tabindex="-1"></a>  <span class="co">-- One definition supports pure and suspending callbacks through row e.</span></span>
+<span id="cb13-12"><a href="#cb13-12" aria-hidden="true" tabindex="-1"></a>  <span class="co">-- Direct sequencing binds ordinary results; callbacks are reusable here.</span></span>
+<span id="cb13-13"><a href="#cb13-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-14"><a href="#cb13-14" aria-hidden="true" tabindex="-1"></a><span class="kw">module</span> <span class="dt">ImportConfig</span> (<span class="dt">Seq</span><span class="ot"> ::</span> <span class="dt">ResultSequencing</span> <span class="dt">ConfigError</span>) <span class="kw">where</span></span>
+<span id="cb13-15"><a href="#cb13-15" aria-hidden="true" tabindex="-1"></a>  <span class="co">-- The signature marks Seq as this module&#39;s sequencing provider.</span></span>
+<span id="cb13-16"><a href="#cb13-16" aria-hidden="true" tabindex="-1"></a><span class="ot">  loadConfig ::</span> <span class="kw">forall</span> r<span class="op">.</span> using (<span class="ot">io ::</span> <span class="dt">Io</span> r) <span class="ot">=&gt;</span></span>
+<span id="cb13-17"><a href="#cb13-17" aria-hidden="true" tabindex="-1"></a>                <span class="dt">Path</span> <span class="ot">-&gt;</span>{<span class="dt">IO</span> r, <span class="dt">Async</span> r, <span class="dt">Cancel</span> r, <span class="dt">Diverge</span>}</span>
+<span id="cb13-18"><a href="#cb13-18" aria-hidden="true" tabindex="-1"></a>                  <span class="dt">Result</span> <span class="dt">ConfigError</span> <span class="dt">Config</span></span>
+<span id="cb13-19"><a href="#cb13-19" aria-hidden="true" tabindex="-1"></a>  loadConfig path <span class="ot">=</span> <span class="kw">do</span></span>
+<span id="cb13-20"><a href="#cb13-20" aria-hidden="true" tabindex="-1"></a>    bytes <span class="ot">&lt;-</span> readConfigBytes path</span>
+<span id="cb13-21"><a href="#cb13-21" aria-hidden="true" tabindex="-1"></a>    config <span class="ot">&lt;-</span> parseConfig bytes</span>
+<span id="cb13-22"><a href="#cb13-22" aria-hidden="true" tabindex="-1"></a>    <span class="fu">pure</span> config</span>
+<span id="cb13-23"><a href="#cb13-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-24"><a href="#cb13-24" aria-hidden="true" tabindex="-1"></a>  <span class="co">-- Same do spelling, explicitly selected Result composition.</span></span>
+<span id="cb13-25"><a href="#cb13-25" aria-hidden="true" tabindex="-1"></a>  <span class="co">-- io is a lexical runtime argument. Supplying it does not handle effects.</span></span>
+<span id="cb13-26"><a href="#cb13-26" aria-hidden="true" tabindex="-1"></a>  <span class="co">-- An explicit call can use: loadConfig @{io = chosenIO} path</span></span>
+<span id="cb13-27"><a href="#cb13-27" aria-hidden="true" tabindex="-1"></a>  <span class="co">-- Handler installation belongs to the entry point or an enclosing runtime scope.</span></span></code></pre></div>
+</body>
+</html>

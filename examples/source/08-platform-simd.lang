@@ -1,0 +1,22 @@
+-- Surface 0.2. Target APIs and theorem module are obligations, not supplied proofs.
+module PlatformSum where
+  scalar :: forall n region. Ref region (Vec n U32) -> U32
+  scalar xs = Stream.fold U32.zero U32.wrappingAdd (Vec.stream xs)
+
+  target rewrite sumWrap32Vector
+    forall t w n region (xs :: Ref region (Vec n U32)).
+    using (vectors :: VecU32Target t w) where
+    match scalar xs
+    replace Simd.sumWrap32 vectors xs
+    require Available vectors
+    justify SumProofs.scalarToSimd vectors xs
+
+  dispatched :: forall n region. Ref region (Vec n U32) -> U32
+  dispatched xs = case Target.detectVecU32 () of
+    Some available -> Simd.sumWrap32 available xs
+    None -> scalar xs
+
+  -- detectVecU32 reads runtime-established metadata in this proposed pure API.
+  -- Bounds, tails, modular arithmetic, intrinsic semantics and target availability
+  -- are required proof obligations. Floating-point reassociation needs other laws.
+  -- Wasm can require separate variants selected before module instantiation.

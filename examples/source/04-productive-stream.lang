@@ -1,0 +1,18 @@
+-- Surface 0.2. The guarded Later calculus still needs a formal choice.
+module NaturalStreams where
+  codata Stream (a :: Type) where
+    head :: a
+    tail :: Later (Stream a)
+
+  corec from :: Nat -> Stream Nat
+  corec from n = Stream { head = n, tail = delay (\() -> from (n + 1)) }
+
+  corec map :: forall a b. (a -> b) -> Stream a -> Stream b
+  corec map f xs = Stream
+    { head = f xs.head
+    , tail = delay (\() -> map f (force xs.tail)) }
+
+  -- delay takes a checked guarded thunk; ordinary strict calls do not create delay.
+  -- Finite observations of map (\x -> x * x) (from 0): 0, 1, 4, 9, ...
+  -- Bisimulation needs matching heads and guarded tails.
+  -- Arbitrary filtering remains a process without recurring-match evidence.

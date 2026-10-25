@@ -1,0 +1,19 @@
+-- Surface 0.2. Algorithm; additional sequence laws are proof targets.
+module VectorFilter where
+  filter :: forall a n region. using (copy :: Copy a) =>
+            (a -> Bool) -> Ref region (Vec n a)
+            -> Sigma (m :: Nat). Vec m a
+  filter predicate xs = case xs of
+    Nil -> (0, Nil)
+    Cons x rest ->
+      let keep = predicate (copyOut x)
+          packed = filter predicate rest
+      in case packed of
+        (m, tail) -> if keep
+          then (m + 1, Cons (copyOut x) tail)
+          else (m, tail)
+
+  -- Strict let preserves source predicate order.
+  -- Borrow matching yields references; copyOut requires Copy evidence.
+  -- Prove by induction: m <= n and exact predicate-selected subsequence.
+  -- The result retains the witness m, not just an erased proof of existence.

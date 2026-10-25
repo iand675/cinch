@@ -1,0 +1,24 @@
+-- Example for the bootstrap compiler: the type class stack is user code.
+-- Defines a class, an instance, a custom operator with its own fixity, and
+-- a generic function over a `using` constraint. Exits 0 on success.
+module Main where
+  signature Box a where
+    unbox :: a -> Int
+
+  infixl 5 |+|
+
+  (|+|) :: Int -> Int -> Int
+  (|+|) x y = x + y
+
+  data Wrap where
+    W :: Int -> Wrap
+
+  implicit instance Box_Wrap :: Box Wrap where
+    unbox w = case w of
+      W n -> n
+
+  twice :: forall a. using (b :: Box a) => a -> Int
+  twice w = unbox w + unbox w
+
+  main :: Int
+  main = if twice (W 3) |+| (1 |+| 1) == 8 then 0 else 1

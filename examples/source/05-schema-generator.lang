@@ -1,0 +1,17 @@
+-- Surface 0.2. API sketch; no real database connection or credentials.
+module SchemaBindings where
+  stage derive :: SchemaSnapshot -> Declarations
+  stage derive schema = CodecGenerator.derive schema
+
+module Billing where
+  import stage SchemaBindings
+
+  generate do
+    snapshot <- Stage.snapshot "billing-schema" (\io ->
+      Stage.withDatabase io (secret "SCHEMA_DATABASE_URL") ReadSchema
+        (\db -> introspectConsistently db))
+    emit (SchemaBindings.derive snapshot)
+
+  -- Generator effects are checked against compile-time capabilities.
+  -- Refresh captures input, replay uses it, live explicitly contacts a database.
+  -- Generated bindings are checked; runtime use needs schema compatibility.

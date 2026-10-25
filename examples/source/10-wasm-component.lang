@@ -1,0 +1,20 @@
+-- Surface 0.2. Adapter sketch for codec.wit; host failure policy is explicit.
+module CheckedComponentClient where
+  record BoundedBytes (limit :: Nat) where
+    bytes :: Bytes
+    erased bound :: length bytes <= limit
+
+  decode :: forall region. Ref region Bytes -> (limit :: U32)
+         ->{Foreign Component, Diverge}
+           Result BoundaryError (BoundedBytes (toNat limit))
+  decode input limit = do
+    outcome <- Raw.decode input limit
+    case outcome of
+      Err e -> Err (ForeignError e)
+      Ok bytes -> case decide (length bytes <= toNat limit) of
+        Yes bound -> Ok (BoundedBytes { bytes = bytes, bound = bound })
+        No _ -> Err ContractViolation
+
+  -- Direct do binds the whole Result; it does not automatically short-circuit.
+  -- Only the concrete bound is proved, not all-input decompression correctness.
+  -- Instance resource identity and trap policy survive adapter generation.
