@@ -58,6 +58,16 @@ enum ECore {
     LazyAlloc,
     /// Store a thunk into a memo cell.
     LazyInit(LocalId, Box<ECore>),
+    /// Allocate an empty one-word fixpoint box: the knot for a recursive
+    /// `letrec` value whose uses sit under thunks (surface grammar local
+    /// amendments section 9).
+    BoxAlloc,
+    /// Evaluate `value`, store it into the box bound to `box_l`, and
+    /// return it.
+    BoxInit(LocalId, Box<ECore>),
+    /// Read a fixpoint box: a use of a recursive `letrec` value inside a
+    /// thunk, resolved when the thunk runs.
+    BoxGet(Box<ECore>),
     /// The runtime fault path (exit 70): emitted when a match falls through
     /// with pattern coverage unprovable.
     Fault,
@@ -181,6 +191,14 @@ fn free_locals(e: &ECore, bound: &mut Vec<LocalId>, out: &mut Vec<LocalId>) {
             }
             free_locals(t, bound, out);
         }
+        ECore::BoxAlloc => {}
+        ECore::BoxInit(l, v) => {
+            if !bound.contains(l) && !out.contains(l) {
+                out.push(*l);
+            }
+            free_locals(v, bound, out);
+        }
+        ECore::BoxGet(v) => free_locals(v, bound, out),
         ECore::Case { scrut, alts } => {
             free_locals(scrut, bound, out);
             for alt in alts {
@@ -258,6 +276,9 @@ fn hoist_lambdas(e: &mut ECore, hint: &str, counter: &mut usize, fns: &mut Vec<H
         ECore::Demand(d) => hoist_lambdas(d, hint, counter, fns),
         ECore::LazyAlloc => {}
         ECore::LazyInit(_, t) => hoist_lambdas(t, hint, counter, fns),
+        ECore::BoxAlloc => {}
+        ECore::BoxInit(_, v) => hoist_lambdas(v, hint, counter, fns),
+        ECore::BoxGet(v) => hoist_lambdas(v, hint, counter, fns),
         ECore::Case { scrut, alts } => {
             hoist_lambdas(scrut, hint, counter, fns);
             for alt in alts {
@@ -358,6 +379,12 @@ fn assign_locals(e: &ECore, map: &mut HashMap<LocalId, LocalId>, next: &mut usiz
             note_local(*l, map, next);
             assign_locals(t, map, next);
         }
+        ECore::BoxAlloc => {}
+        ECore::BoxInit(l, v) => {
+            note_local(*l, map, next);
+            assign_locals(v, map, next);
+        }
+        ECore::BoxGet(v) => assign_locals(v, map, next),
         ECore::Case { scrut, alts } => {
             assign_locals(scrut, map, next);
             for alt in alts {
@@ -446,6 +473,9 @@ fn rewrite_locals(e: &ECore, map: &HashMap<LocalId, LocalId>) -> ECore {
         ECore::LazyInit(l, t) => {
             ECore::LazyInit(m(l), Box::new(rewrite_locals(t, map)))
         }
+        ECore::BoxAlloc => ECore::BoxAlloc,
+        ECore::BoxInit(l, v) => ECore::BoxInit(m(l), Box::new(rewrite_locals(v, map))),
+        ECore::BoxGet(v) => ECore::BoxGet(Box::new(rewrite_locals(v, map))),
         ECore::Case { scrut, alts } => ECore::Case {
             scrut: Box::new(rewrite_locals(scrut, map)),
             alts: alts
@@ -475,7 +505,7 @@ fn resolve_lit_words(e: &mut ECore, lits: &[ECore]) {
         ECore::Lit(i) => *e = lits[*i].clone(),
         ECore::Int(_) | ECore::ConstBig { .. } | ECore::Bool(_) | ECore::Unit | ECore::Var(_)
         | ECore::Global(_)
-        | ECore::Ctor(_) | ECore::Prim(_) | ECore::Foreign(_) | ECore::Hole(_) | ECore::QuoteHole(_) | ECore::IdxPending(_) | ECore::Fault | ECore::LazyAlloc
+        | ECore::Ctor(_) | ECore::Prim(_) | ECore::Foreign(_) | ECore::Hole(_) | ECore::QuoteHole(_) | ECore::IdxPending(_) | ECore::Fault | ECore::LazyAlloc | ECore::BoxAlloc
         | ECore::SyntaxLit(_) | ECore::StrLit(_) => {}
         ECore::Quote { holes, body, .. } => {
             for h in holes {
@@ -513,6 +543,8 @@ fn resolve_lit_words(e: &mut ECore, lits: &[ECore]) {
             resolve_lit_words(&mut f.body, lits);
         }
         ECore::LazyInit(_, t) => resolve_lit_words(t, lits),
+        ECore::BoxInit(_, v) => resolve_lit_words(v, lits),
+        ECore::BoxGet(v) => resolve_lit_words(v, lits),
         ECore::Case { scrut, alts } => {
             resolve_lit_words(scrut, lits);
             for alt in alts {
@@ -540,6 +572,7 @@ fn resolve_idx_words(e: &mut ECore, vals: &[ECore]) {
         | ECore::QuoteHole(_)
         | ECore::Fault
         | ECore::LazyAlloc
+        | ECore::BoxAlloc
         | ECore::SyntaxLit(_)
         | ECore::StrLit(_) => {}
         ECore::Quote { holes, body, .. } => {
@@ -578,6 +611,8 @@ fn resolve_idx_words(e: &mut ECore, vals: &[ECore]) {
             resolve_idx_words(&mut f.body, vals);
         }
         ECore::LazyInit(_, t) => resolve_idx_words(t, vals),
+        ECore::BoxInit(_, v) => resolve_idx_words(v, vals),
+        ECore::BoxGet(v) => resolve_idx_words(v, vals),
         ECore::Case { scrut, alts } => {
             resolve_idx_words(scrut, vals);
             for alt in alts {
@@ -672,6 +707,11 @@ fn lower(e: &ECore) -> crate::core::Core {
         ECore::LazyInit(l, t) => {
             crate::core::Core::LazyInit(*l, Box::new(lower(t)))
         }
+        ECore::BoxAlloc => crate::core::Core::BoxAlloc,
+        ECore::BoxInit(l, v) => {
+            crate::core::Core::BoxInit(*l, Box::new(lower(v)))
+        }
+        ECore::BoxGet(v) => crate::core::Core::BoxGet(Box::new(lower(v))),
         ECore::Case { scrut, alts } => crate::core::Core::Case {
             scrut: Box::new(lower(scrut)),
             alts: alts
@@ -1470,6 +1510,11 @@ struct Checker {
     instance_list: Vec<InstanceInfo>,
     fns: Vec<FnDef>,
     lam_counter: usize,
+    /// `letrec` member lambdas awaiting their code generation unit:
+    /// elaborated with their final unit id already chosen, finalized in
+    /// `finish_fn` beside the enclosing definition's hoisted lambdas
+    /// (surface grammar local amendments section 9).
+    pending_rec: Vec<(crate::core::GlobalId, ECore)>,
     next_local: usize,
     param_counter: usize,
     want_counter: usize,
@@ -1776,6 +1821,7 @@ impl Checker {
             instance_list: Vec::new(),
             fns: Vec::new(),
             lam_counter: 0,
+            pending_rec: Vec::new(),
             next_local: 0,
             param_counter: 0,
             want_counter: 0,
@@ -4497,6 +4543,11 @@ impl Checker {
             | ECore::Ctor(_) | ECore::Prim(_) | ECore::Foreign(_) | ECore::QuoteHole(_)
             | ECore::IdxPending(_) | ECore::Fault
             | ECore::SyntaxLit(_) | ECore::StrLit(_) => e.clone(),
+            ECore::BoxAlloc => ECore::BoxAlloc,
+            ECore::BoxInit(l, v) => {
+                ECore::BoxInit(*l, Box::new(self.fill_holes(v, sol)?))
+            }
+            ECore::BoxGet(v) => ECore::BoxGet(Box::new(self.fill_holes(v, sol)?)),
             ECore::Quote { template, holes, body } => ECore::Quote {
                 template: template.clone(),
                 holes: holes

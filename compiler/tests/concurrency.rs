@@ -158,11 +158,11 @@ fn join_all_or_cancel_cancels_siblings_on_failure() {
         r#"
 module Main where
   setByte :: Bytes -> Nat -> Nat -> Bytes
-  setByte b i v = case bytesSet b i v of
+  setByte b i v = case bytes-set b i v of
     _ -> b
 
   fill :: Nat -> Bytes
-  fill v = setByte (bytesNew 1) 0 v
+  fill v = setByte (bytes-new 1) 0 v
 
   putByte :: forall r. using (io :: Io r) => Nat ->{IO r} Unit
   putByte v = ioWrite (fill v)
@@ -205,7 +205,7 @@ fn a_linear_capture_transfers_into_a_task_exactly_once() {
         r#"
 module Main where
   consume :: forall r. using (io :: Io r) => Bytes %1 ->{IO r} Nat
-  consume b = bytesLen b
+  consume b = bytes-len b
 
   work :: forall r. using (io :: Io r) => Bytes %1 ->{Async r, IO r, Cancel r, Diverge} Result LoadError Nat
   work x = withScope $ \s -> do
@@ -213,7 +213,7 @@ module Main where
     joinAllOrCancel s h
 
   main :: Unit ->{Async r, IO r, Cancel r, Diverge} Int
-  main u = with (io = newIO ()) in case work (bytesNew 3) of
+  main u = with (io = newIO ()) in case work (bytes-new 3) of
     Ok n -> if n == 3 then 0 else 1
     Err e -> 2
 "#,
@@ -229,7 +229,7 @@ fn double_capture_of_a_linear_value_is_rejected() {
         r#"
 module Main where
   consume :: forall r. using (io :: Io r) => Bytes %1 ->{IO r} Nat
-  consume b = bytesLen b
+  consume b = bytes-len b
 
   work :: forall r. using (io :: Io r) => Bytes %1 ->{Async r, IO r, Cancel r, Diverge} Result LoadError (Nat, Nat)
   work x = withScope $ \s -> do
@@ -331,7 +331,7 @@ fn an_unshared_mutable_capture_is_rejected() {
 module Main where
   bad :: forall r. using (io :: Io r) => Bytes ->{Async r, Cancel r, Diverge} Result LoadError Nat
   bad b = withScope $ \s -> do
-    h <- spawn s (\() -> Ok (bytesLen b))
+    h <- spawn s (\() -> Ok (bytes-len b))
     joinAllOrCancel s h
 "#,
         "without shareable evidence",
@@ -349,7 +349,7 @@ fn a_thread_shared_memo_cell_is_rejected() {
         r#"
 module Main where
   bad :: forall r. using (io :: Io r) => Unit ->{Async r, Cancel r, Diverge} Result LoadError Nat
-  bad u = let ~y = bytesLen (bytesNew 2) in withScope $ \s -> do
+  bad u = let ~y = bytes-len (bytes-new 2) in withScope $ \s -> do
     h <- spawn s (\() -> Ok (copyOut (demand y)))
     joinAllOrCancel s h
 "#,
@@ -420,7 +420,7 @@ module Main where
   main :: Unit ->{IO r, Diverge} Int
   main u = with (io = newIO ()) in case fetch (Request 8) of
     Ok b -> case ioWrite b of
-      _ -> if bytesLen b == 5 then 0 else 1
+      _ -> if bytes-len b == 5 then 0 else 1
     Err e -> 2
 "#,
         b"hello",

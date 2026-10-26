@@ -341,8 +341,9 @@ pub struct HandlerExpr {
 pub enum Term {
     Var(VarPath),
     Con(ConPath),
-    /// Integer literal: the decimal digit string, with a leading `-` when
-    /// prefix negation folded into it (same form as [`Pat::Int`]).
+    /// Integer literal: the decimal digit string, with a leading `-` for
+    /// a signed literal (`-42`) or a folded pattern negation (same form
+    /// as [`Pat::Int`]).
     Int(String, Span),
     Str(String, Span),
     Char(String, Span),
@@ -352,8 +353,13 @@ pub enum Term {
     App(Box<Term>, Vec<Term>, Span),
     /// `\p1 .. pn -> body`.
     Lam(Vec<Pat>, Box<Term>, Span),
-    /// `let block in body`.
+    /// `let block in body`: a sequential binding group (later bindings
+    /// see earlier ones).
     Let(Vec<LocalDecl>, Box<Term>, Span),
+    /// `letrec block in body`: a recursive binding group; recursive
+    /// occurrences need a guard (surface grammar local amendments
+    /// section 9).
+    Letrec(Vec<LocalDecl>, Box<Term>, Span),
     /// `if [cond attrs] c then [then attrs] t else [else attrs] e`. The
     /// condition-position attributes annotate the true branch and
     /// complete the decision point's weight pair for the false branch
@@ -433,6 +439,7 @@ impl Term {
             | Term::App(_, _, s)
             | Term::Lam(_, _, s)
             | Term::Let(_, _, s)
+            | Term::Letrec(_, _, s)
             | Term::If { span: s, .. }
             | Term::Case(_, _, s)
             | Term::Ann(_, _, s)
@@ -815,7 +822,7 @@ pub fn collect_term_refs(t: &Term, out: &mut Vec<RefSite>) {
             }
         }
         Term::Lam(_, body, _) => collect_term_refs(body, out),
-        Term::Let(_, body, _) => collect_term_refs(body, out),
+        Term::Let(_, body, _) | Term::Letrec(_, body, _) => collect_term_refs(body, out),
         Term::If { cond, then, els, .. } => {
             collect_term_refs(cond, out);
             collect_term_refs(then, out);
@@ -1405,13 +1412,18 @@ pub fn hyg_term(t: &Term, cx: &mut HygCx, sc: &mut HygScope) -> Result<Term> {
             let body = hyg_term(body, cx, sc)?;
             Term::Lam(new_pats, Box::new(body), *s)
         }
-        Term::Let(decls, body, s) => {
+        Term::Let(decls, body, s) | Term::Letrec(decls, body, s) => {
+            let rec = matches!(t, Term::Letrec(..));
             let mut new_decls = Vec::new();
             for d in decls {
                 new_decls.push(hyg_local(d, cx, sc)?);
             }
             let body = hyg_term(body, cx, sc)?;
-            Term::Let(new_decls, Box::new(body), *s)
+            if rec {
+                Term::Letrec(new_decls, Box::new(body), *s)
+            } else {
+                Term::Let(new_decls, Box::new(body), *s)
+            }
         }
         Term::If { cond, then, els, cond_attrs, then_attrs, else_attrs, span } => Term::If {
             cond: Box::new(hyg_term(cond, cx, sc)?),
@@ -1743,11 +1755,17 @@ pub fn subst_holes(t: &Term, vals: &[Term]) -> Term {
         Term::Lam(pats, body, s) => {
             Term::Lam(pats.clone(), Box::new(subst_holes(body, vals)), *s)
         }
-        Term::Let(decls, body, s) => Term::Let(
-            decls.iter().map(|d| subst_holes_local(d, vals)).collect(),
-            Box::new(subst_holes(body, vals)),
-            *s,
-        ),
+        Term::Let(decls, body, s) | Term::Letrec(decls, body, s) => {
+            let rec = matches!(t, Term::Letrec(..));
+            let new_decls: Vec<LocalDecl> =
+                decls.iter().map(|d| subst_holes_local(d, vals)).collect();
+            let body = Box::new(subst_holes(body, vals));
+            if rec {
+                Term::Letrec(new_decls, body, *s)
+            } else {
+                Term::Let(new_decls, body, *s)
+            }
+        }
         Term::If { cond, then, els, cond_attrs, then_attrs, else_attrs, span } => Term::If {
             cond: Box::new(subst_holes(cond, vals)),
             then: Box::new(subst_holes(then, vals)),
@@ -1972,7 +1990,7 @@ pub fn collect_template_holes(t: &mut Term, holes: &mut Vec<HoleExpr>) {
             }
         }
         Term::Lam(_, body, _) => collect_template_holes(body, holes),
-        Term::Let(decls, body, _) => {
+        Term::Let(decls, body, _) | Term::Letrec(decls, body, _) => {
             for d in decls {
                 match d {
                     LocalDecl::Eq { body, .. }

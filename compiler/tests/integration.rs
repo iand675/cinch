@@ -160,7 +160,7 @@ fn prelude_sum_list_generic() {
         r#"
 module Main where
   main :: Int
-  main = if sumList 0 (Cons 1 (Cons 2 (Cons 3 Nil))) == 6 then 0 else 1
+  main = if sum-list 0 (Cons 1 (Cons 2 (Cons 3 Nil))) == 6 then 0 else 1
 "#,
         0,
     );
@@ -488,15 +488,15 @@ module Main where
   total :: List (List Int) -> Int
   total xss = case xss of
     [] -> 0
-    [ys] -> sumList 0 ys
-    [ys, zs] -> sumList 0 ys + 10 * sumList 0 zs
+    [ys] -> sum-list 0 ys
+    [ys, zs] -> sum-list 0 ys + 10 * sum-list 0 zs
     Cons _ _ -> -1
 
   main :: Int
   main = if describe [1, 2] == 3 && describe [5] == 5 && describe [] == 0
             && describe [1, 2, 3] == 99
             && total [[1, 2], [3, 4]] == 73 && total [[5]] == 5 && total [] == 0
-            && sumList 0 [1, 2, 3, 4] == 10
+            && sum-list 0 [1, 2, 3, 4] == 10
          then 0 else 1
 "#,
         0,
@@ -886,20 +886,20 @@ module Main where
 fn surface_and_or_short_circuit() {
     // Primitive types specification section 10: surface `&&`/`||` elaborate
     // to `if`, so the right operand is not evaluated when the result is
-    // already determined. `intDiv 1 0` faults at runtime (exit 72) if it
+    // already determined. `int-div 1 0` faults at runtime (exit 72) if it
     // is ever forced, so these programs only exit 0 if it stays unevaluated.
     expect_ok(
         "and-short-circuit",
         "module Main where\n\
          main :: Int\n\
-         main = if False && (intDiv 1 0 == 0) then 1 else 0\n",
+         main = if False && (int-div 1 0 == 0) then 1 else 0\n",
         0,
     );
     expect_ok(
         "or-short-circuit",
         "module Main where\n\
          main :: Int\n\
-         main = if True || (intDiv 1 0 == 0) then 0 else 1\n",
+         main = if True || (int-div 1 0 == 0) then 0 else 1\n",
         0,
     );
     // When the result does depend on the right operand, it is evaluated.
@@ -907,14 +907,14 @@ fn surface_and_or_short_circuit() {
         "and-or-evaluate-when-needed",
         "module Main where\n\
          main :: Int\n\
-         main = if True && (intDiv 4 2 == 2) then (if False || (intDiv 6 3 == 2) then 0 else 1) else 2\n",
+         main = if True && (int-div 4 2 == 2) then (if False || (int-div 6 3 == 2) then 0 else 1) else 2\n",
         0,
     );
     expect_ok(
         "and-false-propagates",
         "module Main where\n\
          main :: Int\n\
-         main = if (True && (intDiv 4 2 == 3)) && (intDiv 1 0 == 0) then 1 else 0\n",
+         main = if (True && (int-div 4 2 == 3)) && (int-div 1 0 == 0) then 1 else 0\n",
         0,
     );
 }

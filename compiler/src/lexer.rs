@@ -96,8 +96,9 @@ pub enum Tok {
     Op(String),
 
     // Literals.
-    /// Integer literal: the decimal digit string (no sign, no leading
-    /// zeros); negation folds in at the parser and may prepend `-`.
+    /// Integer literal: the decimal digit string with a leading `-` for a
+    /// signed literal or folded prefix negation (same form as `Pat::Int`);
+    /// no other leading zeros.
     Int(String),
     FloatLit(String),
     StrLit(String),
@@ -122,6 +123,7 @@ pub enum Tok {
     Using,
     In,
     Let,
+    Letrec,
     If,
     Then,
     Else,
@@ -220,6 +222,25 @@ fn is_symbol_char(c: char) -> bool {
     matches!(c, '!' | '#' | '%' | '&' | '*' | '+' | '/' | '<' | '=' | '>' | '?' | '@' | '^' | '|' | '~' | ':' | '-')
 }
 
+/// Identifier characters (`lex_word`'s set): ASCII alphanumeric, `_`, `'`.
+fn is_ident_char(c: char) -> bool {
+    c.is_ascii_alphanumeric() || c == '_' || c == '\''
+}
+
+/// The identifier characters a dash may glue onto inside a word. Digits do
+/// not continue an identifier across a dash (surface grammar local
+/// amendments section 8), so `x-1` is subtraction while `x-y` is one name.
+fn is_dash_glue_char(c: char) -> bool {
+    c.is_ascii_alphabetic() || c == '_' || c == '\''
+}
+
+/// Characters that end an expression and so keep a following `-` in
+/// operator position: `f ()-1` and `x.y-1` subtract, while `f -42` and
+/// `(-42)` sign a literal (surface grammar local amendments section 8).
+fn is_expr_end_char(c: char) -> bool {
+    matches!(c, ')' | ']' | '}' | '"' | '\'')
+}
+
 fn keyword(w: &str) -> Option<Tok> {
     use Tok::*;
     Some(match w {
@@ -241,6 +262,7 @@ fn keyword(w: &str) -> Option<Tok> {
         "using" => Using,
         "in" => In,
         "let" => Let,
+        "letrec" => Letrec,
         "if" => If,
         "then" => Then,
         "else" => Else,
@@ -389,6 +411,14 @@ impl Lexer {
                 continue;
             }
             let tok = self.scan_token(c, span)?;
+            if tok == Tok::Letrec {
+                // `letrec` is the `let` keyword with a recursion marker
+                // (`$(` precedent: two tokens sharing one span). The pair
+                // keeps `let`'s layout block opening at the first binding.
+                out.push(Token { tok: Tok::Letrec, span, virtual_: false });
+                out.push(Token { tok: Tok::Let, span, virtual_: false });
+                continue;
+            }
             out.push(Token { tok, span, virtual_: false });
         }
     }
@@ -494,7 +524,7 @@ impl Lexer {
                 self.bump();
                 Ok(Tok::Backslash)
             }
-            '-' => Ok(self.lex_symbol()),
+            '-' => self.lex_minus(),
             '"' => self.lex_string(),
             '\'' => self.lex_char(span),
             c if c.is_ascii_digit() => self.lex_number(span),
@@ -649,10 +679,47 @@ impl Lexer {
         Ok(Tok::Attr { name, args })
     }
 
+    /// `-` tight only to what follows (space before, digits after) is the
+    /// sign of a negative literal: `f -42`, `x = -3`, `(-42)` are atoms
+    /// with no `negate` needed. Any other `-` is the operator, and
+    /// identifier glue is decided inside `lex_word`
+    /// (surface grammar local amendments section 8).
+    fn lex_minus(&mut self) -> Result<Tok> {
+        let span = self.span();
+        if self.at_sign_minus() {
+            self.bump();
+            return Ok(match self.lex_number(span)? {
+                Tok::Int(v) => Tok::Int(format!("-{v}")),
+                Tok::FloatLit(v) => Tok::FloatLit(format!("-{v}")),
+                other => other,
+            });
+        }
+        Ok(self.lex_symbol())
+    }
+
+    /// Is the `-` at the cursor the sign of a negative literal? It must be
+    /// tight to following digits and tight to nothing that could end an
+    /// expression before it.
+    fn at_sign_minus(&self) -> bool {
+        if !self.peek_at(1).map(|c| c.is_ascii_digit()).unwrap_or(false) {
+            return false;
+        }
+        match self.cs.get(self.i.wrapping_sub(1)) {
+            None => true,
+            Some(c) if is_ident_char(*c) || is_expr_end_char(*c) => false,
+            Some(_) => true,
+        }
+    }
+
     fn lex_symbol(&mut self) -> Tok {
         let mut s = String::new();
         while let Some(c) = self.peek() {
             if is_symbol_char(c) {
+                // A negative-literal sign never joins a symbol run:
+                // `=-3` is `=` applied to the atom `-3`.
+                if c == '-' && self.at_sign_minus() {
+                    break;
+                }
                 s.push(c);
                 self.bump();
             } else {
@@ -675,12 +742,25 @@ impl Lexer {
 
     fn lex_word(&mut self) -> Tok {
         let mut w = String::new();
-        while let Some(c) = self.peek() {
-            if c.is_ascii_alphanumeric() || c == '_' || c == '\'' {
-                w.push(c);
-                self.bump();
-            } else {
-                break;
+        loop {
+            match self.peek() {
+                Some(c) if is_ident_char(c) => {
+                    w.push(c);
+                    self.bump();
+                }
+                // A `-` tight on both sides between identifier characters
+                // is identifier glue (`int-digits-into`); the right side
+                // must not be a digit (`x-1` is subtraction).
+                Some('-')
+                    if self
+                        .peek_at(1)
+                        .map(is_dash_glue_char)
+                        .unwrap_or(false) =>
+                {
+                    w.push('-');
+                    self.bump();
+                }
+                _ => break,
             }
         }
         if let Some(kw) = keyword(&w) {
@@ -865,6 +945,65 @@ mod tests {
         assert_eq!(
             kinds("module Foo where"),
             vec![Tok::Module, Tok::ConId("Foo".into()), Tok::Where, Tok::Eof]
+        );
+    }
+
+    #[test]
+    fn dashes_glue_identifiers_on_both_sides() {
+        // A `-` tight on both sides between identifier characters is
+        // glue; digits do not continue an identifier across a dash, so
+        // `x-1` and `1-2` are subtraction (section 8).
+        assert_eq!(
+            kinds("int-digits-into x-y x-1 1-2 x_1-y X-y"),
+            vec![
+                Tok::VarId("int-digits-into".into()),
+                Tok::VarId("x-y".into()),
+                Tok::VarId("x".into()),
+                Tok::Op("-".into()),
+                Tok::Int("1".into()),
+                Tok::Int("1".into()),
+                Tok::Op("-".into()),
+                Tok::Int("2".into()),
+                Tok::VarId("x_1-y".into()),
+                Tok::ConId("X-y".into()),
+                Tok::Eof
+            ]
+        );
+    }
+
+    #[test]
+    fn minus_signs_versus_operators() {
+        // A `-` tight only to following digits signs a literal; anything
+        // else is the binary minus (`f -42` applies, `f - 42` subtracts).
+        assert_eq!(
+            kinds("f -42 x = -3 (-42) x - 1 x-1 f ()-1"),
+            vec![
+                Tok::VarId("f".into()),
+                Tok::Int("-42".into()),
+                Tok::VarId("x".into()),
+                Tok::Equals,
+                Tok::Int("-3".into()),
+                Tok::LParen,
+                Tok::Int("-42".into()),
+                Tok::RParen,
+                Tok::VarId("x".into()),
+                Tok::Op("-".into()),
+                Tok::Int("1".into()),
+                Tok::VarId("x".into()),
+                Tok::Op("-".into()),
+                Tok::Int("1".into()),
+                Tok::VarId("f".into()),
+                Tok::LParen,
+                Tok::RParen,
+                Tok::Op("-".into()),
+                Tok::Int("1".into()),
+                Tok::Eof
+            ]
+        );
+        // A signed literal never joins a symbol run.
+        assert_eq!(
+            kinds("=-3"),
+            vec![Tok::Equals, Tok::Int("-3".into()), Tok::Eof]
         );
     }
 

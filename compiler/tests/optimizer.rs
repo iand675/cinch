@@ -74,15 +74,15 @@ module RuleFire where
     justify OptLaws.mapPair f g xs
 
   double :: U32 -> U32
-  double x = wrappingAddU32 x x
+  double x = wrapping-add-u32 x x
 
   incr :: U32 -> U32
-  incr x = wrappingAddU32 x 1
+  incr x = wrapping-add-u32 x 1
 
   sumL :: List U32 -> U32
   sumL xs = case xs of
     Nil -> 0
-    Cons x rest -> wrappingAddU32 x (sumL rest)
+    Cons x rest -> wrapping-add-u32 x (sumL rest)
 
   main :: Int
   main =
@@ -119,15 +119,15 @@ module RuleFireRun where
     justify OptLaws.mapPair f g xs
 
   double :: U32 -> U32
-  double x = wrappingAddU32 x x
+  double x = wrapping-add-u32 x x
 
   incr :: U32 -> U32
-  incr x = wrappingAddU32 x 1
+  incr x = wrapping-add-u32 x 1
 
   sumL :: List U32 -> U32
   sumL xs = case xs of
     Nil -> 0
-    Cons x rest -> wrappingAddU32 x (sumL rest)
+    Cons x rest -> wrapping-add-u32 x (sumL rest)
 
   main :: Int
   main =
@@ -215,8 +215,8 @@ module ConversionUnchanged where
 // ------------------------------------------------- fusion (modules section 6)
 
 /// The producer library's step form is in the prelude: `Step s a` with
-/// `Done`/`Skip`/`Yield`, `Producer s a`, `prodMap`, `prodTake` and
-/// `prodFold`.
+/// `Done`/`Skip`/`Yield`, `Producer s a`, `prod-map`, `prod-take` and
+/// `prod-fold`.
 const PRODUCER: &str = r#"
   step3 :: Nat -> Step Nat Nat
   step3 k = case k of
@@ -228,13 +228,13 @@ const PRODUCER: &str = r#"
   srcP = Producer step3 0
 
   doubleN :: Nat -> Nat
-  doubleN x = natAdd x x
+  doubleN x = nat-add x x
 
   tripleN :: Nat -> Nat
-  tripleN x = natAdd x (natAdd x x)
+  tripleN x = nat-add x (nat-add x x)
 
   sumP :: Nat
-  sumP = prodFold 0 natAdd (prodMap doubleN (prodMap tripleN srcP))
+  sumP = prod-fold 0 nat-add (prod-map doubleN (prod-map tripleN srcP))
 "#;
 
 #[test]
@@ -255,13 +255,13 @@ module TracePipe where
 
   trace :: Nat
   trace =
-    let log = bytesNew 1 in
-    let bump m = bytesSet log 0 (natRem (natAdd (natMul (bytesGet log 0) 4) m) 256) in
-    let g x = let _r = bump 1 in natAdd x (natAdd x x) in
-    let f x = let _q = bump 2 in natAdd x x in
-    let k acc x = let _p = bump 3 in natAdd acc x in
-    let _v = prodFold 0 k (prodMap f (prodMap g srcP)) in
-    bytesGet log 0
+    let log = bytes-new 1 in
+    let bump m = bytes-set log 0 (nat-rem (nat-add (nat-mul (bytes-get log 0) 4) m) 256) in
+    let g x = let _r = bump 1 in nat-add x (nat-add x x) in
+    let f x = let _q = bump 2 in nat-add x x in
+    let k acc x = let _p = bump 3 in nat-add acc x in
+    let _v = prod-fold 0 k (prod-map f (prod-map g srcP)) in
+    bytes-get log 0
 
   main :: Int
   -- Per element the callbacks run inner-map (1), outer-map (2), fold
@@ -284,7 +284,7 @@ module TracePipe where
 
 #[test]
 fn fusion_preserves_the_pull_boundary() {
-    // A producer whose third step takes the fault path: `prodTake 2`
+    // A producer whose third step takes the fault path: `prod-take 2`
     // means the fused pipeline must never pull it.
     let src = r#"
 module Pull where
@@ -294,13 +294,13 @@ module Pull where
     1 -> Yield 5 2
 
   doubleN :: Nat -> Nat
-  doubleN x = natAdd x x
+  doubleN x = nat-add x x
 
   main :: Int
   main =
     let s = Producer stepF 0 in
-    let taken = prodTake 2 (prodMap doubleN s) in
-    if prodFold 0 natAdd taken == 16 then 0 else 1
+    let taken = prod-take 2 (prod-map doubleN s) in
+    if prod-fold 0 nat-add taken == 16 then 0 else 1
 "#;
     let fused = run("pull-fused", src, &TargetProfile::native());
     assert_eq!(fused, 0, "the fused pipeline must pull exactly two steps");
@@ -325,12 +325,12 @@ module AllocBlock where
     2 -> Done
 
   mem :: Nat -> Nat
-  mem x = let ~y = natAdd x x in copyOut (demand y)
+  mem x = let ~y = nat-add x x in copyOut (demand y)
 
   main :: Int
   main =
     let s = Producer step3 0 in
-    if prodFold 0 natAdd (prodMap mem (prodMap mem s)) == 8 then 0 else 1
+    if prod-fold 0 nat-add (prod-map mem (prod-map mem s)) == 8 then 0 else 1
 "#;
     let (_p, report) = opt_of("alloc-block", alloc, &TargetProfile::native());
     assert!(
@@ -354,12 +354,12 @@ module EffectBlock where
 
   traceRun :: Nat
   traceRun =
-    let log = bytesNew 1 in
-    let bump m = bytesSet log 0 (natRem (natAdd (natMul (bytesGet log 0) 4) m) 256) in
-    let g x = let _q = bump 1 in wrappingAddU32 x 2 in
-    let f x = let _p = bump 2 in wrappingAddU32 x 1 in
+    let log = bytes-new 1 in
+    let bump m = bytes-set log 0 (nat-rem (nat-add (nat-mul (bytes-get log 0) 4) m) 256) in
+    let g x = let _q = bump 1 in wrapping-add-u32 x 2 in
+    let f x = let _p = bump 2 in wrapping-add-u32 x 1 in
     let _v = mapL f (mapL g (Cons 1 (Cons 2 Nil))) in
-    bytesGet log 0
+    bytes-get log 0
 
   main :: Int
   -- Unfused order: the inner map runs to completion (1,1) then the
@@ -389,10 +389,10 @@ const TARGET_RULE: &str = r#"
   target rewrite sumPair
     forall t w n region (xs :: Ref region (Vec n U32)).
     using (vectors :: VecU32Target t w) where
-    match Scalar.sumWrap32 xs
-    replace Simd.sumWrap32 vectors xs
+    match Scalar.sum-wrap32 xs
+    replace Simd.sum-wrap32 vectors xs
     require Available vectors
-    justify SumProofs.scalarToSimd vectors xs
+    justify SumProofs.scalar-to-simd vectors xs
 "#;
 
 #[test]
@@ -402,10 +402,10 @@ fn target_rewrite_applies_in_capability_scope_only() {
 module TargetScope where
 {TARGET_RULE}
   fast :: forall t w n region. using (vectors :: VecU32Target t w) => Ref region (Vec n U32) -> U32
-  fast xs = Scalar.sumWrap32 xs
+  fast xs = Scalar.sum-wrap32 xs
 
   slow :: forall n region. Ref region (Vec n U32) -> U32
-  slow xs = Scalar.sumWrap32 xs
+  slow xs = Scalar.sum-wrap32 xs
 "#
     );
     let (program, report) = opt_of("target-scope", &src, &TargetProfile::native());
@@ -481,7 +481,7 @@ module WeightDead where
   dead :: Tri -> Nat
   dead x = case x of
     #[weight(10)] A -> 1
-    #[weight(290)] y -> let w = natAdd 1 2 in case x of
+    #[weight(290)] y -> let w = nat-add 1 2 in case x of
       #[weight(10)] A -> 2
       #[weight(20)] B -> 3
       #[weight(10)] C -> 4
@@ -536,7 +536,7 @@ fn linear_value_generalizes_instead_of_duplicating() {
     let src = r#"
 module Linear where
   dup2 :: Nat -> Nat
-  dup2 x = natAdd x x
+  dup2 x = nat-add x x
 
   consume1 :: Nat %1 -> Nat
   consume1 y = dup2 y
@@ -628,7 +628,7 @@ module Main where
     assert!(manifest.contains("\"specialization\""), "{manifest}");
     assert!(manifest.contains("\"lowering\""), "{manifest}");
     // The justification identity is a declared assumption in the manifest.
-    assert!(manifest.contains("scalarToSimd"), "{manifest}");
+    assert!(manifest.contains("scalar-to-simd"), "{manifest}");
     let _ = std::fs::remove_dir_all(&dir);
 }
 

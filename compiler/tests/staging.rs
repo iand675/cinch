@@ -175,7 +175,7 @@ fn generate_file_capability_feeds_the_program() {
              \x20     answer :: Nat\n\
              \x20     answer = $(quoteNat n))\n\
              \x20 main :: Int\n\
-             \x20 main = intFromI64 (natToI64 answer)\n",
+             \x20 main = int-from-i64 (nat-to-i64 answer)\n",
         ),
     ]);
     let code = driver_with(Mode::Run, StageMode::Refresh, &dir.join("Main.lang"), None)
@@ -207,7 +207,7 @@ fn stage_replay_uses_captured_inputs() {
              \x20     answer :: Nat\n\
              \x20     answer = $(quoteNat n))\n\
              \x20 main :: Int\n\
-             \x20 main = intFromI64 (natToI64 answer)\n",
+             \x20 main = int-from-i64 (nat-to-i64 answer)\n",
         ),
     ]);
     driver_with(Mode::Check, StageMode::Refresh, &dir.join("Main.lang"), None).expect("refresh");
@@ -226,7 +226,7 @@ fn stage_replay_uses_captured_inputs() {
          \x20     answer :: Nat\n\
          \x20     answer = $(quoteNat n))\n\
          \x20 main :: Int\n\
-         \x20 main = intFromI64 (natToI64 answer)\n",
+         \x20 main = int-from-i64 (nat-to-i64 answer)\n",
     )]);
     let err = driver_with(Mode::Check, StageMode::Replay, &dir.join("Main.lang"), None)
         .expect_err("no captured input");
@@ -249,7 +249,7 @@ fn generate_subprocess_capability_runs_a_tool() {
          \x20     answer :: Nat\n\
          \x20     answer = $(quoteNat (strLen out)))\n\
          \x20 main :: Int\n\
-         \x20 main = intFromI64 (natToI64 answer)\n",
+         \x20 main = int-from-i64 (nat-to-i64 answer)\n",
     )]);
     let code = driver_with(Mode::Run, StageMode::Refresh, &dir.join("Main.lang"), None)
         .expect("subprocess capability run");
@@ -270,7 +270,7 @@ fn secret_cannot_be_embedded() {
          \x20     answer :: Nat\n\
          \x20     answer = $(quoteNat (strNat s)))\n\
          \x20 main :: Int\n\
-         \x20 main = intFromI64 (natToI64 answer)\n",
+         \x20 main = int-from-i64 (nat-to-i64 answer)\n",
     );
     assert!(
         err.contains("Secret") || err.contains("secret"),

@@ -30,13 +30,13 @@ fn bits_class_machine_operations() {
         "module Main where\n\
          main :: Int\n\
          main =\n\
-         \x20 let x = setBit (setBit (0 :: U64) 3) 65 in\n\
-         \x20 let y = countOnes x in\n\
-         \x20 let z = rotateLeft x 1 in\n\
-         \x20 if eqU32 y 2 then\n\
-         \x20   if testBit z 4 then\n\
-         \x20     if eqU64 (clearBit x 3) (setBit (0 :: U64) 1) then\n\
-         \x20       if eqU32 (leadingZeros (0 :: U64)) 64 then 0 else 4\n\
+         \x20 let x = set-bit (set-bit (0 :: U64) 3) 65 in\n\
+         \x20 let y = count-ones x in\n\
+         \x20 let z = rotate-left x 1 in\n\
+         \x20 if eq-u32 y 2 then\n\
+         \x20   if test-bit z 4 then\n\
+         \x20     if eq-u64 (clear-bit x 3) (set-bit (0 :: U64) 1) then\n\
+         \x20       if eq-u32 (leading-zeros (0 :: U64)) 64 then 0 else 4\n\
          \x20     else 3\n\
          \x20   else 2\n\
          \x20 else 1\n",
@@ -51,12 +51,12 @@ fn bits_class_is_generic() {
         "bits-generic",
         "module Main where\n\
          \x20 maskCount :: forall a. using (bits :: Bits a) => a -> a -> U32\n\
-         \x20 maskCount x m = countOnes (bitAnd x m)\n\
+         \x20 maskCount x m = count-ones (bit-and x m)\n\
          \x20 main :: Int\n\
          \x20 main =\n\
-         \x20   let a = maskCount (255 :: U8) (bitNot (0 :: U8)) in\n\
-         \x20   let b = maskCount (3 :: U64) (bitNot (0 :: U64)) in\n\
-         \x20   if eqU32 a 8 then (if eqU32 b 2 then 0 else 2) else 1\n",
+         \x20   let a = maskCount (255 :: U8) (bit-not (0 :: U8)) in\n\
+         \x20   let b = maskCount (3 :: U64) (bit-not (0 :: U64)) in\n\
+         \x20   if eq-u32 a 8 then (if eq-u32 b 2 then 0 else 2) else 1\n",
         0,
     );
 }
@@ -69,11 +69,11 @@ fn bits_shift_and_complement_laws() {
          main :: Int\n\
          main =\n\
          \x20 let x = 201 :: U32 in\n\
-         \x20 let y = complementBit x 0 in\n\
-         \x20 let s = shiftLeft x 1 in\n\
-         \x20 if eqU32 y 200 then\n\
-         \x20   if eqU32 s 402 then\n\
-         \x20     if eqU32 (countOnes (bitXor x x)) 0 then 0 else 3\n\
+         \x20 let y = complement-bit x 0 in\n\
+         \x20 let s = shift-left x 1 in\n\
+         \x20 if eq-u32 y 200 then\n\
+         \x20   if eq-u32 s 402 then\n\
+         \x20     if eq-u32 (count-ones (bit-xor x x)) 0 then 0 else 3\n\
          \x20   else 2\n\
          \x20 else 1\n",
         0,
@@ -87,18 +87,18 @@ fn string_from_bytes_validates_utf8() {
         "module Main where\n\
          main :: Int\n\
          main =\n\
-         \x20 let b = bytesNew 6 in\n\
-         \x20 let u0 = bytesSet b 0 104 in\n\
-         \x20 let u1 = bytesSet b 1 195 in\n\
-         \x20 let u2 = bytesSet b 2 169 in\n\
-         \x20 let u3 = bytesSet b 3 108 in\n\
-         \x20 let u4 = bytesSet b 4 108 in\n\
-         \x20 let u5 = bytesSet b 5 111 in\n\
-         \x20 case stringFromBytes b of\n\
+         \x20 let b = bytes-new 6 in\n\
+         \x20 let u0 = bytes-set b 0 104 in\n\
+         \x20 let u1 = bytes-set b 1 195 in\n\
+         \x20 let u2 = bytes-set b 2 169 in\n\
+         \x20 let u3 = bytes-set b 3 108 in\n\
+         \x20 let u4 = bytes-set b 4 108 in\n\
+         \x20 let u5 = bytes-set b 5 111 in\n\
+         \x20 case string-from-bytes b of\n\
          \x20   None -> 1\n\
          \x20   Some s ->\n\
-         \x20     if natCmp (stringByteLength s) 6 == 0 then\n\
-         \x20       if natCmp (stringLength s) 5 == 0 then 0 else 3\n\
+         \x20     if nat-cmp (string-byte-length s) 6 == 0 then\n\
+         \x20       if nat-cmp (string-length s) 5 == 0 then 0 else 3\n\
          \x20     else 2\n",
         0,
     );
@@ -111,10 +111,10 @@ fn string_rejects_malformed_utf8() {
         "module Main where\n\
          main :: Int\n\
          main =\n\
-         \x20 let b = bytesNew 2 in\n\
-         \x20 let u0 = bytesSet b 0 192 in\n\
-         \x20 let u1 = bytesSet b 1 128 in\n\
-         \x20 case stringFromBytes b of\n\
+         \x20 let b = bytes-new 2 in\n\
+         \x20 let u0 = bytes-set b 0 192 in\n\
+         \x20 let u1 = bytes-set b 1 128 in\n\
+         \x20 case string-from-bytes b of\n\
          \x20   None -> 0\n\
          \x20   Some s -> 1\n",
         0,
@@ -128,20 +128,20 @@ fn string_char_at_sees_code_points() {
         "module Main where\n\
          main :: Int\n\
          main =\n\
-         \x20 let b = bytesNew 4 in\n\
-         \x20 let u0 = bytesSet b 0 104 in\n\
-         \x20 let u1 = bytesSet b 1 195 in\n\
-         \x20 let u2 = bytesSet b 2 169 in\n\
-         \x20 let u3 = bytesSet b 3 105 in\n\
-         \x20 case stringFromBytes b of\n\
+         \x20 let b = bytes-new 4 in\n\
+         \x20 let u0 = bytes-set b 0 104 in\n\
+         \x20 let u1 = bytes-set b 1 195 in\n\
+         \x20 let u2 = bytes-set b 2 169 in\n\
+         \x20 let u3 = bytes-set b 3 105 in\n\
+         \x20 case string-from-bytes b of\n\
          \x20   None -> 1\n\
-         \x20   Some s -> case stringCharAt s 1 of\n\
+         \x20   Some s -> case string-char-at s 1 of\n\
          \x20     None -> 2\n\
          \x20     Some c ->\n\
-         \x20       if eqU32 (charToU32 c) 233 then\n\
-         \x20         case stringCharAt s 2 of\n\
+         \x20       if eq-u32 (char-to-u32 c) 233 then\n\
+         \x20         case string-char-at s 2 of\n\
          \x20           None -> 3\n\
-         \x20           Some d -> if eqU32 (charToU32 d) 105 then 0 else 4\n\
+         \x20           Some d -> if eq-u32 (char-to-u32 d) 105 then 0 else 4\n\
          \x20       else 5\n",
         0,
     );
@@ -154,19 +154,19 @@ fn string_concat_slice_and_order() {
         "module Main where\n\
          main :: Int\n\
          main =\n\
-         \x20 let b1 = bytesNew 2 in\n\
-         \x20 let a0 = bytesSet b1 0 97 in\n\
-         \x20 let a1 = bytesSet b1 1 98 in\n\
-         \x20 case stringFromBytes b1 of\n\
+         \x20 let b1 = bytes-new 2 in\n\
+         \x20 let a0 = bytes-set b1 0 97 in\n\
+         \x20 let a1 = bytes-set b1 1 98 in\n\
+         \x20 case string-from-bytes b1 of\n\
          \x20   None -> 1\n\
-         \x20   Some x -> case stringFromBytes b1 of\n\
+         \x20   Some x -> case string-from-bytes b1 of\n\
          \x20     None -> 2\n\
          \x20     Some y ->\n\
-         \x20       let z = stringConcat x y in\n\
-         \x20       let w = stringSlice z 1 3 in\n\
-         \x20       if natCmp (stringByteLength z) 4 == 0 then\n\
-         \x20         if natCmp (stringLength w) 2 == 0 then\n\
-         \x20           if stringCompare x y == 0 then 0 else 4\n\
+         \x20       let z = string-concat x y in\n\
+         \x20       let w = string-slice z 1 3 in\n\
+         \x20       if nat-cmp (string-byte-length z) 4 == 0 then\n\
+         \x20         if nat-cmp (string-length w) 2 == 0 then\n\
+         \x20           if string-compare x y == 0 then 0 else 4\n\
          \x20         else 3\n\
          \x20       else 2\n",
         0,
@@ -180,16 +180,16 @@ fn string_nat_and_int_formatting() {
         "module Main where\n\
          main :: Int\n\
          main =\n\
-         \x20 let s = natToString 12345 in\n\
-         \x20 let t = intToString (-42) in\n\
-         \x20 let u = intToString 1000000000000000000000000 in\n\
-         \x20 if natCmp (stringLength s) 5 == 0 then\n\
-         \x20   case stringCharAt s 0 of\n\
+         \x20 let s = nat-to-string 12345 in\n\
+         \x20 let t = int-to-string (-42) in\n\
+         \x20 let u = int-to-string 1000000000000000000000000 in\n\
+         \x20 if nat-cmp (string-length s) 5 == 0 then\n\
+         \x20   case string-char-at s 0 of\n\
          \x20     None -> 1\n\
          \x20     Some c ->\n\
-         \x20       if eqU32 (charToU32 c) 49 then\n\
-         \x20         if natCmp (stringLength t) 3 == 0 then\n\
-         \x20           if natCmp (stringLength u) 25 == 0 then 0 else 4\n\
+         \x20       if eq-u32 (char-to-u32 c) 49 then\n\
+         \x20         if nat-cmp (string-length t) 3 == 0 then\n\
+         \x20           if nat-cmp (string-length u) 25 == 0 then 0 else 4\n\
          \x20         else 3\n\
          \x20       else 2\n\
          \x20 else 1\n",
@@ -204,9 +204,9 @@ fn string_equality_instance() {
         "module Main where\n\
          main :: Int\n\
          main =\n\
-         \x20 let s = natToString 7 in\n\
-         \x20 let t = natToString 7 in\n\
-         \x20 let u = natToString 8 in\n\
+         \x20 let s = nat-to-string 7 in\n\
+         \x20 let t = nat-to-string 7 in\n\
+         \x20 let u = nat-to-string 8 in\n\
          \x20 if s == t then (if s /= u then 0 else 2) else 1\n",
         0,
     );
@@ -231,10 +231,10 @@ fn bitwise_operators_and_rust_precedence() {
          \x20 let b = (6 :: U32) & 3 == 2 in\n\
          \x20 let c = (1 :: U32) | 2 ^ 3 in\n\
          \x20 let d = (5 :: U32) << 1 & 3 in\n\
-         \x20 if natCmp a 4 == 0 then\n\
+         \x20 if nat-cmp a 4 == 0 then\n\
          \x20   if b then\n\
-         \x20     if eqU32 c 1 then\n\
-         \x20       if eqU32 d 2 then 0 else 4\n\
+         \x20     if eq-u32 c 1 then\n\
+         \x20       if eq-u32 d 2 then 0 else 4\n\
          \x20     else 3\n\
          \x20   else 2\n\
          \x20 else 1\n",
@@ -255,10 +255,10 @@ fn bitwise_operators_on_machine_ints() {
          \x20 let w = x ^ 255 in\n\
          \x20 let s = x >> 2 in\n\
          \x20 let t = (1 :: U32) << 5 in\n\
-         \x20 if eqU32 y 9 then\n\
-         \x20   if eqU32 z 207 then\n\
-         \x20     if eqU32 w 54 then\n\
-         \x20       if eqU32 s 50 then (if eqU32 t 32 then 0 else 5) else 4\n\
+         \x20 if eq-u32 y 9 then\n\
+         \x20   if eq-u32 z 207 then\n\
+         \x20     if eq-u32 w 54 then\n\
+         \x20       if eq-u32 s 50 then (if eq-u32 t 32 then 0 else 5) else 4\n\
          \x20     else 3\n\
          \x20   else 2\n\
          \x20 else 1\n",
@@ -280,10 +280,10 @@ fn modulo_and_division_on_math_types() {
          \x20 let b = (17 :: Nat) / 5 in\n\
          \x20 let c = (-17 :: Int) % 5 in\n\
          \x20 let d = (-17 :: Int) / 5 in\n\
-         \x20 if natCmp a 2 == 0 then\n\
-         \x20   if natCmp b 3 == 0 then\n\
-         \x20     if intCmp c (-2) == 0 then\n\
-         \x20       if intCmp d (-3) == 0 then 0 else 4\n\
+         \x20 if nat-cmp a 2 == 0 then\n\
+         \x20   if nat-cmp b 3 == 0 then\n\
+         \x20     if int-cmp c (-2) == 0 then\n\
+         \x20       if int-cmp d (-3) == 0 then 0 else 4\n\
          \x20     else 3\n\
          \x20   else 2\n\
          \x20 else 1\n",
@@ -298,8 +298,8 @@ fn string_library_type_errors_rejected() {
         "module Main where\n\
          main :: Int\n\
          main =\n\
-         \x20 let s = natToString 7 in\n\
-         \x20 if eqU32 s 7 then 0 else 1\n",
+         \x20 let s = nat-to-string 7 in\n\
+         \x20 if eq-u32 s 7 then 0 else 1\n",
         "expected",
     );
 }

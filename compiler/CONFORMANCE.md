@@ -205,15 +205,15 @@ and dash-style prelude function names.
 
 | Requirement | Status |
 | --- | --- |
-| Dash identifiers and the minus whitespace contract (D102) | spec'd |
-| Multi-binding `let` and guarded `letrec` (D103): recursion only under lambda/`~`/`delay`, eager cycles rejected with the fix named | spec'd |
-| Tail recursion in constant stack, self and mutual (D104) | spec'd |
-| `[...]`/`{k => v}` literals desugaring to `FromList`/`FromMap`, with the prelude `Map` (D105) | spec'd |
-| Dash-style prelude function names (D106) | spec'd |
-| Export declarations and re-exports (`export module X`, `export A.b`); imports private until re-exported (D107) | spec'd |
-| Import renaming and selection (`import X as Y`, `import X (a as b)`); duplicate imports error naming both sources (D108) | spec'd |
-| File-type import converters: extension-keyed compile-time conversion (`import data "config.json" as config`), built-ins json/txt/bytes, plugins as stage modules with provenance (D109) | spec'd |
-| Collection literals fold at compile time to direct construction (macro expansion + stage evaluation + constant emission); runtime class call otherwise; fold boundary reported (D110) | spec'd |
+| Dash identifiers and the minus whitespace contract (D102) | done (lexer + ast; whole minus table unit-tested (D128/D129); digits excluded from the right of a glue dash so `x-1` subtracts) |
+| Multi-binding `let` and guarded `letrec` (D103): recursion only under lambda/`~`/`delay`, eager cycles rejected with the fix named | done (fixpoint boxes with black-hole fault 70 (D131-D137); `tests/letrec.rs` 9/9) |
+| Tail recursion in constant stack, self and mutual (D104) | settled design ready to build (tail-position emitter; loop header for self; `musttail` for same-signature mutual groups; SCC report with fallback reasons) |
+| `[...]`/`{k => v}` literals desugaring to `FromList`/`FromMap`, with the prelude `Map` (D105) | settled design ready to build (expected-type instance selection; prelude `Map` BST) |
+| Dash-style prelude function names (D106) | done (all 911 prelude-declared functions/methods renamed; compiler-side name references moved; builtin surface values and intrinsic symbols unchanged (D130)) |
+| Export declarations and re-exports (`export module X`, `export A.b`); imports private until re-exported (D107) | continuation building (design settled) |
+| Import renaming and selection (`import X as Y`, `import X (a as b)`); duplicate imports error naming both sources (D108) | continuation building (design settled) |
+| File-type import converters: extension-keyed compile-time conversion (`import data "config.json" as config`), built-ins json/txt/bytes, plugins as stage modules with provenance (D109) | continuation building (design settled) |
+| Collection literals fold at compile time to direct construction (macro expansion + stage evaluation + constant emission); runtime class call otherwise; fold boundary reported (D110) | continuation building (fold via D92 into P14 constant emission; boundary recorded as a `StageReport` field in the manifest) |
 
 ### Safety assertion attributes (P20)
 
@@ -293,6 +293,45 @@ correspondence: one lexeme in expression/pattern, staging `Name`, and
   parked in the class modules and move to `Data.*` homes at the
   prelude split; `Nat` deliberately has no bare Semigroup (Sum/Product
   choose its monoids).
+- **D128 (P19 dash glue detail)**: a glue dash requires a non-digit
+  identifier character to its right (any identifier character left);
+  digits inside a word (`x1`, `pow10`) continue identifiers, so `x-1`
+  and `1-2` subtract while `int-digits-into` glues.
+- **D129 (P19 negative-literal context)**: the literal sign applies
+  when the `-` is followed by digits and preceded by whitespace, input
+  start, or a non-closing delimiter; after `)`, `]`, `}`, `"`, `'`, or
+  an identifier character it is the operator (`f ()-1` subtracts).
+- **D130 (P106 rename scope)**: the dash rename covers the prelude's
+  declared functions and methods only; compiler-installed builtin
+  surface values (`newIO`, `withScope`, `ioWrite`, `quoteNat`,
+  `readFile`, the staging API) keep their spellings, and dotted
+  presentation method parts follow the dash spelling
+  (`U32.wrapping-add`).
+- **D131 (P19 letrec lexing)**: `letrec` lexes as a `Letrec` marker
+  plus `Let` sharing one span (the `$(` precedent), so `layout.rs` is
+  untouched and the `let` layout block opens at the first binding.
+- **D132 (P19 guardedness on core)**: guardedness is decided on the
+  elaborated core (unique locals; `Prim(Delay)` arguments are the
+  delay guard); an unguarded cycle edge is rejected while acyclic
+  unguarded uses are allowed; `force`-consumed guards are not cancelled
+  syntactically and such programs reach the runtime black-hole fault.
+- **D133 (P19 letrec binding forms)**: name equations (`x = e`, `f
+  pats = body`, lambda-valued `=` compiles as the function form) and
+  `~` memo bindings; destructuring binds are rejected by name.
+- **D134 (P19 fixpoint boxes)**: every named value member of a
+  `letrec` group gets a uniform two-word fixpoint box (order-free
+  bindings); an early read is the black-hole fault (exit 70), never
+  garbage.
+- **D135 (P19 thunk usage interaction)**: `Ty::Thunk`'s `%aff` default
+  rejects self-referencing thunk-typed values at usage check before
+  the knot runs (a pre-existing rule, orthogonal to `letrec`).
+- **D136 (P19 staging boundary)**: fixpoint boxes exist on the runtime
+  path only; evaluating or reifying one at compile time is a named
+  compile-time error.
+- **D137 (P19 cps letrec)**: `cps_letrec` elaborates the group in
+  ordinary style before the continuation; a member body that itself
+  dispatches an operation elaborates without a resumption, as local
+  lambda bodies do.
 - **D127 (P25 scaffolding ruling)**: FoldAgent's defunctionalized
   class shapes (`Foldable t a`, `Traversable t x g h tg hs`) are
   accepted as NON-CURATED scaffolding: they ship in the `Category`

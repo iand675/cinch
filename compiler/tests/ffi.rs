@@ -88,7 +88,7 @@ int main(void) { return fix_mul(6, 7) == 42 ? 0 : 3; }
         r#"
 module Main where
   fixMul :: I64 -> I64 -> I64
-  fixMul x y = wrappingMulI64 x y
+  fixMul x y = wrapping-mul-i64 x y
 
   foreign export ccall "fix_mul" fixMul :: I64 -> I64 -> I64
 "#,
@@ -447,7 +447,7 @@ int main(void) { fix_boom(); return 0; }
         r#"
 module Main where
   boom :: Unit -> I64
-  boom _ = natToI64 (bytesGet (bytesNew 1) 5)
+  boom _ = nat-to-i64 (bytes-get (bytes-new 1) 5)
 
   foreign export ccall "fix_boom" boom :: Unit -> I64
 "#,

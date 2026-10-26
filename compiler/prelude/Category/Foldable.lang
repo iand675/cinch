@@ -21,6 +21,13 @@
 -- `to-list`, `null` and `length` have exactly their mathematical
 -- meanings; only the arity of the class head is encoded.
 --
+-- Status (Main decision, 2026-10-26): this encoding is accepted as
+-- SCAFFOLDING, not as API. The curated Prelude re-export list will not
+-- export it; the higher-kinded slice (A7) collapses it in place to
+-- `Foldable (t :: Type -> Type)` before it faces users. Do not write
+-- generic code against the two-parameter head; the semantics tests
+-- carry over unchanged at collapse.
+--
 -- Instance home deviation: instances belong with their type
 -- (`Data.List`, `Data.Option` once the Prelude split lands). The List
 -- and Option types currently live in `Prelude.lang`, which this slice

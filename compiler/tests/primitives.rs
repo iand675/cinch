@@ -40,13 +40,13 @@ fn sub_word_canonicalization() {
 module Main where
   main :: Int
   main =
-    if wrappingAddU8 255 1 == 0 then
-      if wrappingAddI8 127 1 == -128 then
-        if wrappingSubU8 0 1 == 255 then
-          if wrappingMulU8 16 16 == 0 then
-            if wrappingNegU8 1 == 255 then
-              if wrappingAddU32 4294967295 1 == 0 then
-                if wrappingAddI8 127 2 == -127 then 0 else 8
+    if wrapping-add-u8 255 1 == 0 then
+      if wrapping-add-i8 127 1 == -128 then
+        if wrapping-sub-u8 0 1 == 255 then
+          if wrapping-mul-u8 16 16 == 0 then
+            if wrapping-neg-u8 1 == 255 then
+              if wrapping-add-u32 4294967295 1 == 0 then
+                if wrapping-add-i8 127 2 == -127 then 0 else 8
               else 7
             else 5
           else 4
@@ -66,18 +66,18 @@ fn checked_overflow_returns_none() {
 module Main where
   main :: Int
   main =
-    case checkedAddU8 255 1 of
+    case checked-add-u8 255 1 of
       None ->
-        case checkedAddU8 254 1 of
+        case checked-add-u8 254 1 of
           Some v ->
             if v == 255 then
-              case checkedSubU8 0 1 of
+              case checked-sub-u8 0 1 of
                 None ->
-                  case checkedMulI8 127 2 of
+                  case checked-mul-i8 127 2 of
                     None ->
-                      case checkedNegI8 minBoundI8 of
+                      case checked-neg-i8 min-bound-i8 of
                         None ->
-                          case checkedSubI8 minBoundI8 1 of
+                          case checked-sub-i8 min-bound-i8 1 of
                             None -> 0
                             Some _ -> 9
                         Some _ -> 8
@@ -99,13 +99,13 @@ fn saturating_clamps_to_bounds() {
 module Main where
   main :: Int
   main =
-    if saturatingAddU8 255 1 == 255 then
-      if saturatingSubU8 0 1 == 0 then
-        if saturatingMulI8 127 2 == 127 then
-          if saturatingAddI8 127 1 == 127 then
-            if saturatingSubI8 minBoundI8 1 == minBoundI8 then
-              if saturatingNegI8 minBoundI8 == 127 then
-                if saturatingMulU8 255 2 == 255 then 0 else 8
+    if saturating-add-u8 255 1 == 255 then
+      if saturating-sub-u8 0 1 == 0 then
+        if saturating-mul-i8 127 2 == 127 then
+          if saturating-add-i8 127 1 == 127 then
+            if saturating-sub-i8 min-bound-i8 1 == min-bound-i8 then
+              if saturating-neg-i8 min-bound-i8 == 127 then
+                if saturating-mul-u8 255 2 == 255 then 0 else 8
               else 7
             else 6
           else 5
@@ -127,21 +127,21 @@ fn checked_div_and_rem() {
 module Main where
   main :: Int
   main =
-    case checkedDivI32 minBoundI32 (-1) of
+    case checked-div-i32 min-bound-i32 (-1) of
       None ->
-        case checkedRemI32 minBoundI32 (-1) of
+        case checked-rem-i32 min-bound-i32 (-1) of
           None ->
-            case checkedDivU8 7 0 of
+            case checked-div-u8 7 0 of
               None ->
-                case checkedRemU8 7 0 of
+                case checked-rem-u8 7 0 of
                   None ->
-                    case checkedDivU8 7 2 of
+                    case checked-div-u8 7 2 of
                       Some q ->
                         if q == 3 then
-                          case checkedRemI8 (-7) 2 of
+                          case checked-rem-i8 (-7) 2 of
                             Some r ->
                               if r == -1 then
-                                case checkedDivI8 (-7) 2 of
+                                case checked-div-i8 (-7) 2 of
                                   Some d -> if d == -3 then 0 else 10
                                   None -> 9
                               else 8
@@ -168,18 +168,18 @@ fn shifts_distinguish_invalid_counts() {
 module Main where
   main :: Int
   main =
-    case checkedShlU8 1 8 of
+    case checked-shl-u8 1 8 of
       None ->
-        case checkedShlI64 1 64 of
+        case checked-shl-i64 1 64 of
           None ->
-            if wrappingShlU8 1 9 == 2 then
-              if wrappingShlU8 1 8 == 1 then
-                if wrappingShrU8 128 9 == 64 then
-                  if wrappingShrU8 255 4 == 15 then
-                    case checkedShrI8 (-4) 1 of
+            if wrapping-shl-u8 1 9 == 2 then
+              if wrapping-shl-u8 1 8 == 1 then
+                if wrapping-shr-u8 128 9 == 64 then
+                  if wrapping-shr-u8 255 4 == 15 then
+                    case checked-shr-i8 (-4) 1 of
                       Some s ->
                         if s == -2 then
-                          case checkedShlU8 1 7 of
+                          case checked-shl-u8 1 7 of
                             Some t -> if t == 128 then 0 else 10
                             None -> 9
                         else 8
@@ -203,11 +203,11 @@ fn rotates_are_total() {
 module Main where
   main :: Int
   main =
-    if rotateLeftU8 129 1 == 3 then
-      if rotateRightU8 129 1 == 192 then
-        if rotateLeftU8 129 9 == 3 then
-          if rotateRightU8 129 8 == 129 then
-            if rotateLeftU32 1 31 == 2147483648 then 0 else 5
+    if rotate-left-u8 129 1 == 3 then
+      if rotate-right-u8 129 1 == 192 then
+        if rotate-left-u8 129 9 == 3 then
+          if rotate-right-u8 129 8 == 129 then
+            if rotate-left-u32 1 31 == 2147483648 then 0 else 5
           else 4
         else 3
       else 2
@@ -225,19 +225,19 @@ fn bit_operations_and_inspection() {
 module Main where
   main :: Int
   main =
-    if bitAndU8 240 60 == 48 then
-      if bitOrU8 240 15 == 255 then
-        if bitXorU8 255 15 == 240 then
-          if bitNotU8 0 == 255 then
-            if bitNotI8 0 == -1 then
-              if countOnesU8 255 == 8 then
-                if countOnesU32 255 == 8 then
-                  if leadingZerosU8 1 == 7 then
-                    if leadingZerosU8 0 == 8 then
-                      if trailingZerosU8 8 == 3 then
-                        if reverseBitsU8 1 == 128 then
-                          if swapBytesU16 4660 == 13330 then
-                            if swapBytesU8 7 == 7 then 0 else 14
+    if bit-and-u8 240 60 == 48 then
+      if bit-or-u8 240 15 == 255 then
+        if bit-xor-u8 255 15 == 240 then
+          if bit-not-u8 0 == 255 then
+            if bit-not-i8 0 == -1 then
+              if count-ones-u8 255 == 8 then
+                if count-ones-u32 255 == 8 then
+                  if leading-zeros-u8 1 == 7 then
+                    if leading-zeros-u8 0 == 8 then
+                      if trailing-zeros-u8 8 == 3 then
+                        if reverse-bits-u8 1 == 128 then
+                          if swap-bytes-u16 4660 == 13330 then
+                            if swap-bytes-u8 7 == 7 then 0 else 14
                           else 13
                         else 12
                       else 11
@@ -263,11 +263,11 @@ fn min_and_max_bounds() {
 module Main where
   main :: Int
   main =
-    if minBoundU8 == 0 && maxBoundU8 == 255 then
-      if minBoundI8 == -128 && maxBoundI8 == 127 then
-        if maxBoundU32 == 4294967295 then
-          if wrappingAddI64 maxBoundI64 1 == minBoundI64 then
-            if minBoundU64 == 0 then 0 else 5
+    if min-bound-u8 == 0 && max-bound-u8 == 255 then
+      if min-bound-i8 == -128 && max-bound-i8 == 127 then
+        if max-bound-u32 == 4294967295 then
+          if wrapping-add-i64 max-bound-i64 1 == min-bound-i64 then
+            if min-bound-u64 == 0 then 0 else 5
           else 4
         else 3
       else 2
@@ -289,19 +289,19 @@ fn float_nan_behavior() {
 module Main where
   main :: Int
   main =
-    let nan = divF64 0 0 in
-    let inf = divF64 1 0 in
-    if feqF64 nan nan then 1 else
-    if not (fneF64 nan nan) then 2 else
-    if fltF64 nan nan then 3 else
-    if fleF64 nan nan then 4 else
-    if not (isNaNF64 nan) then 5 else
-    if not (isInfiniteF64 inf) then 6 else
-    if isInfiniteF64 1 then 7 else
-    if not (isFiniteF64 1) then 8 else
-    if not (isNormalF64 1) then 9 else
-    if isNormalF64 0 then 10 else
-    if feqF64 (addF64 1 2) 3 then 0 else 11
+    let nan = div-f64 0 0 in
+    let inf = div-f64 1 0 in
+    if feq-f64 nan nan then 1 else
+    if not (fne-f64 nan nan) then 2 else
+    if flt-f64 nan nan then 3 else
+    if fle-f64 nan nan then 4 else
+    if not (is-na-nf64 nan) then 5 else
+    if not (is-infinite-f64 inf) then 6 else
+    if is-infinite-f64 1 then 7 else
+    if not (is-finite-f64 1) then 8 else
+    if not (is-normal-f64 1) then 9 else
+    if is-normal-f64 0 then 10 else
+    if feq-f64 (add-f64 1 2) 3 then 0 else 11
 "#,
         0,
     );
@@ -316,15 +316,15 @@ fn minimum_maximum_propagate_nan() {
 module Main where
   main :: Int
   main =
-    let nan = divF64 0 0 in
-    if not (signBitF64 (minimumF64 0 (negF64 0))) then 1 else
-    if signBitF64 (maximumF64 0 (negF64 0)) then 2 else
-    if not (isNaNF64 (minimumF64 nan 1)) then 3 else
-    if not (isNaNF64 (maximumF64 1 nan)) then 4 else
-    if not (feqF64 (minimumF64 1 2) 1) then 5 else
-    if not (feqF64 (maximumF64 1 2) 2) then 6 else
-    if not (signBitF64 (negF64 0)) then 7 else
-    if signBitF64 0 then 8 else 0
+    let nan = div-f64 0 0 in
+    if not (sign-bit-f64 (minimum-f64 0 (neg-f64 0))) then 1 else
+    if sign-bit-f64 (maximum-f64 0 (neg-f64 0)) then 2 else
+    if not (is-na-nf64 (minimum-f64 nan 1)) then 3 else
+    if not (is-na-nf64 (maximum-f64 1 nan)) then 4 else
+    if not (feq-f64 (minimum-f64 1 2) 1) then 5 else
+    if not (feq-f64 (maximum-f64 1 2) 2) then 6 else
+    if not (sign-bit-f64 (neg-f64 0)) then 7 else
+    if sign-bit-f64 0 then 8 else 0
 "#,
         0,
     );
@@ -334,27 +334,27 @@ module Main where
 fn total_order_orders_neg_zero_and_nan() {
     // IEEE 754-2019 totalOrder: -NaN < -inf < ... < -0 < +0 < ... < +inf
     // < +NaN. The sign of a produced NaN is unspecified, so the test
-    // builds +NaN with `absF64` and -NaN by negating it.
+    // builds +NaN with `abs-f64` and -NaN by negating it.
     run_ok(
         "total-order",
         r#"
 module Main where
   main :: Int
   main =
-    let pn = absF64 (divF64 0 0) in
-    let nn = negF64 pn in
-    let inf = divF64 1 0 in
-    case totalOrderF64 (negF64 0) 0 of
+    let pn = abs-f64 (div-f64 0 0) in
+    let nn = neg-f64 pn in
+    let inf = div-f64 1 0 in
+    case total-order-f64 (neg-f64 0) 0 of
       LT ->
-        case totalOrderF64 0 (negF64 0) of
+        case total-order-f64 0 (neg-f64 0) of
           GT ->
-            case totalOrderF64 inf pn of
+            case total-order-f64 inf pn of
               LT ->
-                case totalOrderF64 pn inf of
+                case total-order-f64 pn inf of
                   GT ->
-                    case totalOrderF64 nn (negF64 inf) of
+                    case total-order-f64 nn (neg-f64 inf) of
                       LT ->
-                        case totalOrderF64 1 1 of
+                        case total-order-f64 1 1 of
                           EQ -> 0
                           _ -> 6
                       _ -> 5
@@ -375,11 +375,11 @@ fn f32_families_match_f64_shape() {
 module Main where
   main :: Int
   main =
-    let nan = divF32 0 0 in
-    if feqF32 (addF32 1 2) 3 then
-      if isNaNF32 nan then
-        if signBitF32 (negF32 0) then
-          case totalOrderF32 (negF32 0) 0 of
+    let nan = div-f32 0 0 in
+    if feq-f32 (add-f32 1 2) 3 then
+      if is-na-nf32 nan then
+        if sign-bit-f32 (neg-f32 0) then
+          case total-order-f32 (neg-f32 0) 0 of
             LT -> 0
             _ -> 4
         else 3
@@ -400,12 +400,12 @@ fn char_values_and_ordering() {
 module Main where
   main :: Int
   main =
-    if charToU32 'a' == 97 then
-      if charToU32 '\n' == 10 then
+    if char-to-u32 'a' == 97 then
+      if char-to-u32 '\n' == 10 then
         if 'a' < 'b' && not ('b' < 'a') then
-          case u32ToChar 65 of
+          case u32-to-char 65 of
             Some c ->
-              if charToU32 c == 65 then 0 else 5
+              if char-to-u32 c == 65 then 0 else 5
             None -> 4
         else 3
       else 2
@@ -418,19 +418,19 @@ module Main where
 #[test]
 fn u32_to_char_rejects_non_scalars() {
     run_ok(
-        "u32ToChar",
+        "u32-to-char",
         r#"
 module Main where
   main :: Int
   main =
-    case u32ToChar 0xD800 of
+    case u32-to-char 0xD800 of
       None ->
-        case u32ToChar 0xDFFF of
+        case u32-to-char 0xDFFF of
           None ->
-            case u32ToChar 0x110000 of
+            case u32-to-char 0x110000 of
               None ->
-                case u32ToChar 0x10FFFF of
-                  Some c -> if charToU32 c == 1114111 then 0 else 5
+                case u32-to-char 0x10FFFF of
+                  Some c -> if char-to-u32 c == 1114111 then 0 else 5
                   None -> 4
               Some _ -> 3
           Some _ -> 2
@@ -450,20 +450,20 @@ fn conversions_at_range_boundaries() {
 module Main where
   main :: Int
   main =
-    case checkedU8ToI64 255 of
+    case checked-u8-to-i64 255 of
       Some v ->
         if v == 255 then
-          if u8ToI32 255 == 255 then
-            case checkedI64ToU8 256 of
+          if u8-to-i32 255 == 255 then
+            case checked-i64-to-u8 256 of
               None ->
-                case checkedI64ToU8 255 of
+                case checked-i64-to-u8 255 of
                   Some w ->
                     if w == 255 then
-                      if saturatingI64ToU8 256 == 255 then
-                        if saturatingI64ToU8 (-1) == 0 then
-                          if wrappingI32ToU8 256 == 0 then
-                            if wrappingI32ToI8 128 == minBoundI8 then
-                              if u8ToU8 7 == 7 then 0 else 10
+                      if saturating-i64-to-u8 256 == 255 then
+                        if saturating-i64-to-u8 (-1) == 0 then
+                          if wrapping-i32-to-u8 256 == 0 then
+                            if wrapping-i32-to-i8 128 == min-bound-i8 then
+                              if u8-to-u8 7 == 7 then 0 else 10
                             else 9
                           else 8
                         else 7
@@ -489,39 +489,39 @@ fn float_conversions() {
         r#"
 module Main where
   totalRound :: Bool
-  totalRound = feqF64 (i64ToF64 3) 3 && feqF64 (f32ToF64 (u8ToF32 3)) 3
+  totalRound = feq-f64 (i64-to-f64 3) 3 && feq-f64 (f32-to-f64 (u8-to-f32 3)) 3
 
   checkedMax :: Bool
-  checkedMax = case checkedF64ToI32 (i64ToF64 2147483647) of
+  checkedMax = case checked-f64-to-i32 (i64-to-f64 2147483647) of
     Some v -> v == 2147483647
     None -> False
 
   checkedBig :: Bool
-  checkedBig = case checkedF64ToI32 (i64ToF64 2147483648) of
+  checkedBig = case checked-f64-to-i32 (i64-to-f64 2147483648) of
     None -> True
     Some _ -> False
 
   checkedNan :: Bool
-  checkedNan = case checkedF64ToI32 (divF64 0 0) of
+  checkedNan = case checked-f64-to-i32 (div-f64 0 0) of
     None -> True
     Some _ -> False
 
   saturatingNan :: Bool
-  saturatingNan = saturatingF64ToI32 (divF64 0 0) == 0
+  saturatingNan = saturating-f64-to-i32 (div-f64 0 0) == 0
 
   saturatingBig :: Bool
-  saturatingBig = saturatingF64ToI32 (i64ToF64 3000000000) == 2147483647
+  saturatingBig = saturating-f64-to-i32 (i64-to-f64 3000000000) == 2147483647
 
   float32Checked :: Bool
-  float32Checked = case checkedF32ToU8 (u32ToF32 300) of
+  float32Checked = case checked-f32-to-u8 (u32-to-f32 300) of
     None -> True
     Some _ -> False
 
   float32Saturating :: Bool
-  float32Saturating = saturatingF32ToU8 (u32ToF32 300) == 255
+  float32Saturating = saturating-f32-to-u8 (u32-to-f32 300) == 255
 
   alwaysSome :: Bool
-  alwaysSome = case checkedU8ToI64 255 of
+  alwaysSome = case checked-u8-to-i64 255 of
     Some v -> v == 255
     None -> False
 
@@ -597,8 +597,8 @@ module Main where
 module Main where
   main :: Int
   main =
-    if (-128 :: I8) == minBoundI8 then
-      if (255 :: U8) == maxBoundU8 then
+    if (-128 :: I8) == min-bound-i8 then
+      if (255 :: U8) == max-bound-u8 then
         if (0x7F :: I8) == 127 then 0 else 3
       else 2
     else 1
@@ -759,8 +759,8 @@ module Main where
   main :: Int
   main =
     if (3 :: U8) == 3 && (255 :: U8) > (0 :: U8) then
-      if (-2 :: I8) < (1 :: I8) && minBoundI8 < (0 :: I8) then
-        if eqUsize minBoundUsize 0 && eqU64 maxBoundU64 (wrappingSubU64 0 1) then
+      if (-2 :: I8) < (1 :: I8) && min-bound-i8 < (0 :: I8) then
+        if eq-usize min-bound-usize 0 && eq-u64 max-bound-u64 (wrapping-sub-u64 0 1) then
           if ('a' :: Char) < 'b' && not (True < False) then
             if False < True && (3 :: U64) /= (4 :: U64) then 0 else 5
           else 4
@@ -785,14 +785,14 @@ fn cli_smoke_several_prim_families() {
 module Main where
   main :: Int
   main =
-    let scaled = saturatingMulU8 (wrappingAddU8 200 100) 12 in
+    let scaled = saturating-mul-u8 (wrapping-add-u8 200 100) 12 in
     if scaled == 255 then
-      case checkedDivI32 (-7) 2 of
+      case checked-div-i32 (-7) 2 of
         Some q ->
           if q == -3 then
-            if feqF64 (mulF64 (i64ToF64 6) (i64ToF64 7)) 42 then
-              case u32ToChar 97 of
-                Some c -> if charToU32 c == 97 then 23 else 3
+            if feq-f64 (mul-f64 (i64-to-f64 6) (i64-to-f64 7)) 42 then
+              case u32-to-char 97 of
+                Some c -> if char-to-u32 c == 97 then 23 else 3
                 None -> 2
             else 1
           else 4
@@ -849,7 +849,7 @@ module Main where
 
 #[test]
 fn nat_truncating_subtraction() {
-    // The inductive `Nat` subtraction is truncated: `natSub` faults (exit
+    // The inductive `Nat` subtraction is truncated: `nat-sub` faults (exit
     // 71, the panic path) instead of producing a negative result.
     run_ok(
         "nat-sub",
@@ -1001,9 +1001,9 @@ module Main where
   main :: Int
   main =
     if negate 5 == -5 then
-      if intFromI64 (natToI64 (natAdd 2 3)) == 5 then
-        if intToI64 7 == 7 then
-          if natFromI64 9 == 9 then 0 else 4
+      if int-from-i64 (nat-to-i64 (nat-add 2 3)) == 5 then
+        if int-to-i64 7 == 7 then
+          if nat-from-i64 9 == 9 then 0 else 4
         else 3
       else 2
     else 1
@@ -1019,7 +1019,7 @@ fn division_by_zero_faults() {
         r#"
 module Main where
   main :: Int
-  main = let x = intDiv 7 0 in 0
+  main = let x = int-div 7 0 in 0
 "#,
         72,
     );
@@ -1028,7 +1028,7 @@ module Main where
         r#"
 module Main where
   main :: Int
-  main = let x = natRem 7 0 in 0
+  main = let x = nat-rem 7 0 in 0
 "#,
         72,
     );
@@ -1044,13 +1044,13 @@ fn bytes_construction_length_get_set() {
 module Main where
   main :: Int
   main =
-    let b = bytesNew 4 in
-    let u = bytesSet b 0 65 in
-    let u2 = bytesSet b 3 66 in
-    if bytesLen b == 4 then
-      if bytesGet b 0 == 65 then
-        if bytesGet b 3 == 66 then
-          if bytesGet b 1 == 0 then 0 else 4
+    let b = bytes-new 4 in
+    let u = bytes-set b 0 65 in
+    let u2 = bytes-set b 3 66 in
+    if bytes-len b == 4 then
+      if bytes-get b 0 == 65 then
+        if bytes-get b 3 == 66 then
+          if bytes-get b 1 == 0 then 0 else 4
         else 3
       else 2
     else 1
@@ -1068,7 +1068,7 @@ fn bytes_faults_are_panic_path_71() {
         r#"
 module Main where
   main :: Int
-  main = let b = bytesNew 2 in let x = bytesGet b 2 in 0
+  main = let b = bytes-new 2 in let x = bytes-get b 2 in 0
 "#,
         71,
     );
@@ -1077,7 +1077,7 @@ module Main where
         r#"
 module Main where
   main :: Int
-  main = let b = bytesNew 2 in let u = bytesSet b 2 1 in 0
+  main = let b = bytes-new 2 in let u = bytes-set b 2 1 in 0
 "#,
         71,
     );
@@ -1086,7 +1086,7 @@ module Main where
         r#"
 module Main where
   main :: Int
-  main = let b = bytesNew 2 in let u = bytesSet b 0 300 in 0
+  main = let b = bytes-new 2 in let u = bytes-set b 0 300 in 0
 "#,
         71,
     );
@@ -1124,8 +1124,8 @@ module Main where
 module Main where
   main :: Int
   main =
-    if eqI64 (intCmp 3 3) 0 then
-      if eqI64 (natCmp 3 4) 0 then 2 else 0
+    if eq-i64 (int-cmp 3 3) 0 then
+      if eq-i64 (nat-cmp 3 4) 0 then 2 else 0
     else 1
 "#,
         0,

@@ -2589,6 +2589,7 @@ fn collect_prims(e: &Core, out: &mut BTreeSet<PrimOp>) {
         Core::Int(_) | Core::ConstBig { .. } | Core::Bool(_) | Core::Unit | Core::Var(_)
         | Core::Global(_)
         | Core::Ctor(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc
+        | Core::BoxAlloc
         | Core::DeclsQuote { .. }
         | Core::SyntaxLit(_)
         | Core::StrLit(_) => {}
@@ -2626,6 +2627,8 @@ fn collect_prims(e: &Core, out: &mut BTreeSet<PrimOp>) {
             collect_prims(&f.body, out);
         }
         Core::LazyInit(_, t) => collect_prims(t, out),
+        Core::BoxInit(_, v) => collect_prims(v, out),
+        Core::BoxGet(v) => collect_prims(v, out),
         Core::Case { scrut, alts } => {
             collect_prims(scrut, out);
             for a in alts {
@@ -2668,6 +2671,12 @@ fn collect_binders(e: &Core, out: &mut Vec<LocalId>) {
         Core::Demand(d) => collect_binders(d, out),
         Core::LazyAlloc => {}
         Core::LazyInit(_, t) => collect_binders(t, out),
+        Core::BoxAlloc => {}
+        Core::BoxInit(l, v) => {
+            out.push(*l);
+            collect_binders(v, out);
+        }
+        Core::BoxGet(v) => collect_binders(v, out),
         Core::Let(x, e, body) => {
             out.push(*x);
             collect_binders(e, out);
@@ -2981,6 +2990,50 @@ impl CoreEmitter<'_, '_> {
                     "{r} = call i64 @{}(i64 {v})",
                     quote("__safelang_demand")
                 ));
+                Ok(r)
+            }
+            Core::BoxAlloc => {
+                // `{ state; value }` fixpoint box: an empty read faults
+                // through the black-hole rule (exit 70).
+                let c = self.b.reg();
+                self.b.line(&format!("{c} = call ptr @malloc(i64 16)"));
+                self.b.store_at(&c, 0, "0");
+                self.b.store_at(&c, 8, "0");
+                let w = self.b.reg();
+                self.b.line(&format!("{w} = ptrtoint ptr {c} to i64"));
+                Ok(w)
+            }
+            Core::BoxInit(cell, v) => {
+                if !self.bound.contains(cell) {
+                    return err(format!("box init for unknown local {}", cell.0));
+                }
+                let v = self.emit_expr(v)?;
+                let slot = self.slot(*cell);
+                let bw = self.b.reg();
+                self.b.line(&format!("{bw} = load i64, ptr {slot}"));
+                let p = self.b.reg();
+                self.b.line(&format!("{p} = inttoptr i64 {bw} to ptr"));
+                self.b.store_at(&p, 8, &v);
+                self.b.store_at(&p, 0, "1");
+                Ok(v)
+            }
+            Core::BoxGet(cell) => {
+                let w = self.emit_expr(cell)?;
+                let p = self.b.reg();
+                self.b.line(&format!("{p} = inttoptr i64 {w} to ptr"));
+                let st = self.b.reg();
+                self.b.line(&format!("{st} = load i64, ptr {p}"));
+                let empty = self.b.reg();
+                self.b.line(&format!("{empty} = icmp eq i64 {st}, 0"));
+                let lbad = self.b.label();
+                let lok = self.b.label();
+                self.b.line(&format!("br i1 {empty}, label %{lbad}, label %{lok}"));
+                self.b.start(&lbad);
+                self.b.line("call void @exit(i32 70)");
+                self.b.line("unreachable");
+                self.b.start(&lok);
+                let r = self.b.reg();
+                self.b.line(&format!("{r} = load i64, ptr {p}"));
                 Ok(r)
             }
             Core::LazyAlloc => {
@@ -4069,6 +4122,11 @@ fn reify(out: &mut Vec<QWord>, e: &Core, reg: &Registry) -> Result<()> {
             }
         }
         Core::Fault => q_imm(out, quote_op::FAULT),
+        Core::BoxAlloc | Core::BoxInit(_, _) | Core::BoxGet(_) => {
+            return Err(crate::Error::plain(
+                "a recursive `letrec` value cannot be reified into a quotation body",
+            ))
+        }
         Core::LazyAlloc => q_imm(out, quote_op::LAZY_ALLOC),
         Core::LazyInit(cell, thunk) => {
             q_imm(out, quote_op::LAZY_INIT);

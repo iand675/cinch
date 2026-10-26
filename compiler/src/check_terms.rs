@@ -531,6 +531,15 @@ impl Checker {
                 }
                 Ok((wrap_lets(binds, bcore), bty))
             }
+            ast::Term::Letrec(decls, body, span) => {
+                let mut env2 = env.clone();
+                let (binds, group) = self.elab_letrec(&mut env2, decls)?;
+                let (bcore, bty) = self.infer(&mut env2, body)?;
+                if let Some(g) = &group {
+                    self.discharge_group(g, &bty, *span)?;
+                }
+                Ok((wrap_lets(binds, bcore), bty))
+            }
             ast::Term::If { cond, then, els, cond_attrs, then_attrs, else_attrs, span } => {
                 let (tw, fw) =
                     self.if_weights(cond_attrs, then_attrs, else_attrs, *span)?;
@@ -952,6 +961,15 @@ impl Checker {
             ast::Term::Let(decls, body, span) => {
                 let mut env2 = env.clone();
                 let (binds, group) = self.elab_locals(&mut env2, decls)?;
+                let bcore = self.check(&mut env2, body, expected)?;
+                if let Some(g) = &group {
+                    self.discharge_group(g, expected, *span)?;
+                }
+                Ok(wrap_lets(binds, bcore))
+            }
+            ast::Term::Letrec(decls, body, span) => {
+                let mut env2 = env.clone();
+                let (binds, group) = self.elab_letrec(&mut env2, decls)?;
                 let bcore = self.check(&mut env2, body, expected)?;
                 if let Some(g) = &group {
                     self.discharge_group(g, expected, *span)?;
@@ -2867,6 +2885,414 @@ impl Checker {
         Ok((out, group))
     }
 
+    /// `letrec b1; ...; bn in e`: one recursive binding group (surface
+    /// grammar local amendments section 9). Every use of a group name
+    /// that closes a cycle sits under a lambda, a `~` memo body, or a
+    /// `delay`; an eager cycle is a compile error. Recursive function
+    /// uses become direct calls into the member's own code generation
+    /// unit (so self tail calls stay jumps and mutual tail calls stay
+    /// tail-marked, decision D104); recursive value uses read a fixpoint
+    /// box filled at binding time.
+    fn elab_letrec<'a>(
+        &mut self,
+        env: &mut Env,
+        decls: &'a [ast::LocalDecl],
+    ) -> Result<(Vec<(LocalId, ECore)>, Option<MemoGroup>)> {
+        // Signatures first.
+        let mut sigs: HashMap<String, Ty> = HashMap::new();
+        for d in decls {
+            if let ast::LocalDecl::Sig { name, ty, span } = d {
+                if sigs.contains_key(&name.text) {
+                    return Err(Error::at(*span, "duplicate local signature"));
+                }
+                let s = self.conv_scheme(ty)?;
+                if !s.params.is_empty()
+                    || !s.ctx.is_empty()
+                    || !s.row_params.is_empty()
+                    || !s.region_params.is_empty()
+                {
+                    return Err(Error::at(
+                        *span,
+                        "local signatures with forall or using are not supported in the bootstrap slice",
+                    ));
+                }
+                sigs.insert(name.text.clone(), s.ty);
+            }
+        }
+
+        // The members: name equations (`x = e`, `f pats = body`) and `~`
+        // memo bindings. A value whose body is a lambda is the function
+        // equation written with `=`; it compiles as one.
+        struct RecMember<'a> {
+            name: String,
+            span: ast::Span,
+            /// The function's parameters; empty for a value.
+            pats: Vec<ast::Pat>,
+            is_fun: bool,
+            is_cell: bool,
+            body: &'a ast::Term,
+            l: LocalId,
+            ty: Ty,
+            boxed: Option<LocalId>,
+            cell: Option<(EffRow, Ty)>,
+        }
+        let mut mems: Vec<RecMember> = Vec::new();
+        let mut by_name: HashSet<String> = HashSet::new();
+        fn rec_push<'a>(
+            mems: &mut Vec<RecMember<'a>>,
+            by_name: &mut HashSet<String>,
+            name: String,
+            span: ast::Span,
+            pats: Vec<ast::Pat>,
+            is_fun: bool,
+            is_cell: bool,
+            body: &'a ast::Term,
+        ) -> Result<()> {
+            if !name.is_empty() && !by_name.insert(name.clone()) {
+                return Err(Error::at(
+                    span,
+                    format!("duplicate binding `{name}` in the `letrec` group"),
+                ));
+            }
+            mems.push(RecMember {
+                name,
+                span,
+                pats,
+                is_fun,
+                is_cell,
+                body,
+                l: LocalId(0),
+                ty: Ty::Unit,
+                boxed: None,
+                cell: None,
+            });
+            Ok(())
+        }
+        for d in decls {
+            match d {
+                ast::LocalDecl::Sig { .. } => {}
+                ast::LocalDecl::Eq { name, pats, body, span } => {
+                    for p in pats {
+                        if !matches!(p, ast::Pat::Var(..) | ast::Pat::Wild(..)) {
+                            return Err(Error::at(
+                                *span,
+                                "local function equations support only variable and wildcard patterns in the bootstrap slice",
+                            ));
+                        }
+                    }
+                    let (pats, body, is_fun) = match (pats.is_empty(), body) {
+                        (true, ast::Term::Lam(ps, b, _)) => {
+                            (ps.clone(), &**b as &ast::Term, true)
+                        }
+                        (false, _) => (pats.clone(), body, true),
+                        (true, _) => (Vec::new(), body, false),
+                    };
+                    rec_push(
+                        &mut mems,
+                        &mut by_name,
+                        name.text.clone(),
+                        name.span,
+                        pats,
+                        is_fun,
+                        false,
+                        body,
+                    )?;
+                }
+                ast::LocalDecl::Bind { pat, body, .. } => match pat {
+                    ast::Pat::Var(n, _) => {
+                        let (pats, body, is_fun) = match body {
+                            ast::Term::Lam(ps, b, _) => (ps.clone(), &**b as &ast::Term, true),
+                            _ => (Vec::new(), body, false),
+                        };
+                        rec_push(
+                            &mut mems,
+                            &mut by_name,
+                            n.text.clone(),
+                            n.span,
+                            pats,
+                            is_fun,
+                            false,
+                            body,
+                        )?;
+                    }
+                    ast::Pat::Wild(_) => rec_push(
+                        &mut mems,
+                        &mut by_name,
+                        String::new(),
+                        pat.span(),
+                        Vec::new(),
+                        false,
+                        false,
+                        body,
+                    )?,
+                    other => {
+                        return Err(Error::at(
+                            other.span(),
+                            "a `letrec` binding needs a name equation (`x = e`, `f pats = body`) or a `~` memo binding; destructuring binds are outside the recursive group",
+                        ))
+                    }
+                },
+                ast::LocalDecl::Lazy { pat, body, .. } => {
+                    let n = match pat {
+                        ast::Pat::Var(n, _) => n.clone(),
+                        ast::Pat::Wild(_) => {
+                            return Err(Error::at(pat.span(), "a memo binding must have a name"))
+                        }
+                        other => {
+                            return Err(Error::at(
+                                other.span(),
+                                "memo bindings support only variable patterns in the bootstrap slice",
+                            ))
+                        }
+                    };
+                    rec_push(
+                        &mut mems,
+                        &mut by_name,
+                        n.text.clone(),
+                        n.span,
+                        Vec::new(),
+                        false,
+                        true,
+                        body,
+                    )?;
+                }
+            }
+        }
+
+        // The memo group: all `~` bindings share one region and `Eval`
+        // label (laziness and reclamation specification, section 5).
+        let group = if mems.iter().any(|m| m.is_cell) {
+            let region = self.fresh_region();
+            let label = EffLabel::with_arg("Eval", region.clone());
+            self.active_regions.push(region.clone());
+            Some(MemoGroup { region, label })
+        } else {
+            None
+        };
+
+        // Pre-bind every member, so bodies see the whole group. The
+        // group is monomorphic within itself.
+        let env0 = env.clone();
+        for m in &mut mems {
+            m.l = self.fresh_local();
+            if m.is_cell {
+                let g = group.as_ref().unwrap();
+                let eff = self.uni.fresh_row();
+                let inner = self.uni.fresh();
+                let cell_ty = Ty::Lazy {
+                    eff: eff.clone(),
+                    region: g.region.clone(),
+                    inner: Box::new(inner.clone()),
+                };
+                m.cell = Some((eff, inner));
+                if !m.name.is_empty() {
+                    self.bind_local(env, &m.name, m.l, Scheme::mono(cell_ty), None, m.span)?;
+                }
+            } else {
+                let ty = sigs.get(&m.name).cloned().unwrap_or_else(|| self.uni.fresh());
+                m.ty = ty.clone();
+                if !m.name.is_empty() {
+                    self.bind_local(env, &m.name, m.l, Scheme::mono(ty), None, m.span)?;
+                }
+            }
+        }
+
+        // Elaborate the bodies. A value member of a cyclic group reads
+        // through a fixpoint box, so every value member gets one.
+        for m in &mut mems {
+            if !m.is_cell && !m.is_fun && !m.name.is_empty() {
+                m.boxed = Some(self.fresh_local());
+            }
+        }
+        let mut cores: Vec<ECore> = Vec::new();
+        for m in &mems {
+            if m.is_cell {
+                let (eff, inner) = m.cell.clone().unwrap();
+                let g = group.as_ref().unwrap();
+                let saved = self.enter_perf();
+                self.memo_depth += 1;
+                let checked = self.infer(env, m.body);
+                self.memo_depth -= 1;
+                let (bc, bt) = checked?;
+                let performed = self.exit_perf(saved);
+                self.uni
+                    .require_lacks(&performed, g.label.clone())
+                    .map_err(|e| {
+                        Error::at(
+                            m.span,
+                            format!("{e}: this memo binding demands its own memo group"),
+                        )
+                    })?;
+                self.uni
+                    .unify_rows(&eff, &performed)
+                    .map_err(|e| Error::at(m.span, e))?;
+                self.uni
+                    .unify(&inner, &bt)
+                    .map_err(|e| Error::at(m.span, e))?;
+                let unit_param = self.fresh_local();
+                cores.push(ECore::Lam {
+                    params: vec![unit_param],
+                    body: Box::new(bc),
+                });
+            } else if m.is_fun {
+                let lam =
+                    ast::Term::Lam(m.pats.clone(), Box::new(m.body.clone()), m.span);
+                cores.push(self.check_lam(env, &lam, &m.ty)?);
+            } else {
+                match sigs.get(&m.name) {
+                    Some(t) => cores.push(self.check(env, m.body, t)?),
+                    None => {
+                        let (c, t) = self.infer(env, m.body)?;
+                        self.uni
+                            .unify(&t, &m.ty)
+                            .map_err(|e| Error::at(m.span, e))?;
+                        cores.push(c);
+                    }
+                }
+            }
+        }
+
+        // The guarded-letrec rule (section 9): a use that closes a cycle
+        // sits under a lambda, a `~` memo body, or a `delay`.
+        let members: Vec<(LocalId, ast::Span, String)> =
+            mems.iter().map(|m| (m.l, m.span, m.name.clone())).collect();
+        check_rec_guards(&members, &cores)?;
+
+        // Captured words for each function member's unit: free variables
+        // from outside the group, siblings' boxes and cells, and
+        // (transitively) siblings' captured words.
+        let member_locals: HashSet<LocalId> = mems.iter().map(|m| m.l).collect();
+        let mut by_local: HashMap<LocalId, usize> = HashMap::new();
+        for (i, m) in mems.iter().enumerate() {
+            by_local.insert(m.l, i);
+        }
+        let mut base: Vec<Vec<LocalId>> = Vec::new();
+        let mut refs: Vec<Vec<usize>> = Vec::new();
+        for core in cores.iter() {
+            let (params, body): (&[LocalId], &ECore) = match core {
+                ECore::Lam { params, body } => (params, body),
+                other => (&[], other),
+            };
+            let mut bound: Vec<LocalId> = params.to_vec();
+            bound.extend(member_locals.iter().copied());
+            let mut free = Vec::new();
+            free_locals(body, &mut bound, &mut free);
+            base.push(free);
+            let mut rs = Vec::new();
+            rec_collect_refs(core, &by_local, &mut rs);
+            refs.push(rs);
+        }
+        let mut captured: Vec<Vec<LocalId>> = vec![Vec::new(); mems.len()];
+        loop {
+            let mut changed = false;
+            for (i, m) in mems.iter().enumerate() {
+                if !m.is_fun {
+                    continue;
+                }
+                let mut want = base[i].clone();
+                for &r in &refs[i] {
+                    let rm = &mems[r];
+                    if rm.is_fun {
+                        want.extend(captured[r].iter().copied());
+                    } else if rm.is_cell {
+                        want.push(rm.l);
+                    } else if let Some(b) = rm.boxed {
+                        want.push(b);
+                    }
+                }
+                want.sort_by_key(|l| l.0);
+                want.dedup();
+                if want != captured[i] {
+                    captured[i] = want;
+                    changed = true;
+                }
+            }
+            if !changed {
+                break;
+            }
+        }
+
+        // Give each function member its code generation unit, then
+        // rewrite the group's uses: direct calls and closures into the
+        // member's unit, fixpoint box reads for recursive values.
+        let mut subs: HashMap<LocalId, RecSub> = HashMap::new();
+        let mut unit_ids: Vec<Option<GlobalId>> = Vec::new();
+        for (i, m) in mems.iter().enumerate() {
+            if m.is_fun {
+                let id = GlobalId(format!(
+                    "{}.letrec#{}",
+                    self.current_module, self.lam_counter
+                ));
+                self.lam_counter += 1;
+                subs.insert(m.l, RecSub::Fun(id.clone(), captured[i].clone()));
+                unit_ids.push(Some(id));
+            } else {
+                if let Some(b) = m.boxed {
+                    subs.insert(m.l, RecSub::Val(b));
+                }
+                unit_ids.push(None);
+            }
+        }
+        for core in cores.iter_mut() {
+            subst_rec_refs(core, &subs);
+        }
+
+        // The bindings: memo cells first, then the fixpoint boxes, then
+        // the members (every reference is order-free: values go through
+        // boxes and functions through their units).
+        let mut out: Vec<(LocalId, ECore)> = Vec::new();
+        for m in &mems {
+            if m.is_cell {
+                out.push((m.l, ECore::LazyAlloc));
+            }
+        }
+        for m in &mems {
+            if let Some(b) = m.boxed {
+                out.push((b, ECore::BoxAlloc));
+            }
+        }
+        for (i, m) in mems.iter().enumerate() {
+            let core = cores[i].clone();
+            if m.is_cell {
+                let tmp = self.fresh_local();
+                out.push((tmp, ECore::LazyInit(m.l, Box::new(core))));
+            } else if m.is_fun {
+                let id = unit_ids[i].clone().unwrap();
+                out.push((
+                    m.l,
+                    ECore::MkClos {
+                        fn_id: id.clone(),
+                        env: captured[i].iter().map(|c| ECore::Var(*c)).collect(),
+                    },
+                ));
+                self.pending_rec.push((id, core));
+            } else if let Some(b) = m.boxed {
+                out.push((m.l, ECore::BoxInit(b, Box::new(core))));
+            } else {
+                out.push((m.l, core));
+            }
+        }
+
+        // The group is monomorphic within itself; its named members
+        // generalize for the body like any other local binding.
+        for m in &mems {
+            if m.name.is_empty() || m.is_cell {
+                continue;
+            }
+            let is_value = if m.is_fun {
+                true
+            } else if m.is_cell {
+                false
+            } else {
+                is_syntactic_value(m.body)
+            };
+            let ty = self.uni.zonk(&m.ty);
+            let scheme = self.generalize_local(&env0, &ty, is_value);
+            self.bind_local(env, &m.name, m.l, scheme, None, m.span)?;
+        }
+        Ok((out, group))
+    }
+
     /// Bind the components of an irrefutable structural pattern to fresh
     /// locals by field projection, extending `out` with one let per binder.
     fn destructure_bind(
@@ -4604,7 +5030,7 @@ impl Checker {
                 }
                 ast::Term::Neg(e, _) => walk(chk, e, found),
                 ast::Term::Lam(_, b, _) => walk(chk, b, found),
-                ast::Term::Let(decls, b, _) => {
+                ast::Term::Let(decls, b, _) | ast::Term::Letrec(decls, b, _) => {
                     for d in decls {
                         match d {
                             ast::LocalDecl::Sig { .. } => {}
@@ -4737,6 +5163,9 @@ impl Checker {
             }
             ast::Term::Case(scrut, alts, span) => self.cps_case(env, scrut, alts, kv, *span),
             ast::Term::Let(decls, body, span) => self.cps_let(env, decls, body, kv, *span),
+            ast::Term::Letrec(decls, body, span) => {
+                self.cps_letrec(env, decls, body, kv, *span)
+            }
             ast::Term::Do(stmts, span) => {
                 let shape = self.result_shape(env, *span)?;
                 self.elab_do(env, stmts, &shape, Some(kv), *span)
@@ -5280,6 +5709,27 @@ impl Checker {
             },
             move |this, env, k| this.cps(env, &scrut2, k),
         )
+    }
+
+    /// `letrec` in continuation-passing position: the group elaborates
+    /// recursively in ordinary style, then the body continues (a group
+    /// body that itself dispatches an operation elaborates without its
+    /// resumption, as a local lambda body does).
+    fn cps_letrec(
+        &mut self,
+        env: &mut Env,
+        decls: &[ast::LocalDecl],
+        body: &ast::Term,
+        kv: &Cont,
+        span: ast::Span,
+    ) -> Result<ECore> {
+        let mut env2 = env.clone();
+        let (binds, group) = self.elab_letrec(&mut env2, decls)?;
+        let bcore = self.cps(&mut env2, body, kv)?;
+        if let Some(g) = &group {
+            self.discharge_group(g, &kv.ty, span)?;
+        }
+        Ok(wrap_lets(binds, bcore))
     }
 
     /// `let` in continuation-passing style. Only simple value bindings
@@ -6399,6 +6849,311 @@ fn char_literal_word(s: &str, span: ast::Span) -> Result<i64> {
             span,
             "a character literal must be a single Unicode scalar value",
         )),
+    }
+}
+
+/// How a `letrec` group member is reached from its siblings' bodies
+/// (surface grammar local amendments section 9).
+enum RecSub {
+    /// A function member: its code generation unit and captured words.
+    Fun(GlobalId, Vec<LocalId>),
+    /// A value member: its fixpoint box.
+    Val(LocalId),
+}
+
+/// The guarded-letrec rule (surface grammar local amendments section 9):
+/// a use of a group name that closes a dependency cycle sits under a
+/// lambda, a `~` memo body, or a `delay`. An eager cycle is a compile
+/// error naming the variable and the missing guard.
+fn check_rec_guards(members: &[(LocalId, ast::Span, String)], cores: &[ECore]) -> Result<()> {
+    let mut by_local: HashMap<LocalId, usize> = HashMap::new();
+    for (i, (l, _, _)) in members.iter().enumerate() {
+        by_local.insert(*l, i);
+    }
+    // (owner, referenced, guarded)
+    let mut edges: Vec<(usize, usize, bool)> = Vec::new();
+    for (owner, core) in cores.iter().enumerate() {
+        rec_walk(core, 0, owner, &by_local, &mut edges);
+    }
+    let n = members.len();
+    let mut reach = vec![vec![false; n]; n];
+    for &(o, r, _) in &edges {
+        if o < n && r < n {
+            reach[o][r] = true;
+        }
+    }
+    for k in 0..n {
+        for i in 0..n {
+            for j in 0..n {
+                if reach[i][k] && reach[k][j] {
+                    reach[i][j] = true;
+                }
+            }
+        }
+    }
+    for &(o, r, guarded) in &edges {
+        if !guarded && (o == r || reach[r][o]) {
+            let name = &members[r].2;
+            return Err(Error::at(
+                members[o].1,
+                format!(
+                    "unguarded recursion; wrap the use in `delay` or a lambda (the use of `{name}` closes an eager cycle in the binding group)"
+                ),
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// Collect the group uses in one member's core as `(owner, referenced,
+/// guarded)` edges; `guard` counts the suspension positions entered.
+fn rec_walk(
+    e: &ECore,
+    guard: i32,
+    owner: usize,
+    by_local: &HashMap<LocalId, usize>,
+    edges: &mut Vec<(usize, usize, bool)>,
+) {
+    match e {
+        ECore::Var(l) => {
+            if let Some(&r) = by_local.get(l) {
+                edges.push((owner, r, guard >= 1));
+            }
+        }
+        ECore::Int(_)
+        | ECore::ConstBig { .. }
+        | ECore::Lit(_)
+        | ECore::Bool(_)
+        | ECore::Unit
+        | ECore::Global(_)
+        | ECore::Ctor(_)
+        | ECore::Prim(_)
+        | ECore::Foreign(_)
+        | ECore::Hole(_)
+        | ECore::QuoteHole(_)
+        | ECore::IdxPending(_)
+        | ECore::Fault
+        | ECore::LazyAlloc
+        | ECore::BoxAlloc
+        | ECore::SyntaxLit(_)
+        | ECore::StrLit(_) => {}
+        ECore::Quote { holes, body, .. } => {
+            for h in holes {
+                rec_walk(h, guard, owner, by_local, edges);
+            }
+            rec_walk(body, guard, owner, by_local, edges);
+        }
+        ECore::DeclsQuote { holes, .. } => {
+            for h in holes {
+                rec_walk(h, guard, owner, by_local, edges);
+            }
+        }
+        ECore::DictProj(d, _) | ECore::Proj(d, _) | ECore::Demand(d) | ECore::BoxGet(d) => {
+            rec_walk(d, guard, owner, by_local, edges);
+        }
+        ECore::App(f, args) => {
+            rec_walk(f, guard, owner, by_local, edges);
+            // A `delay`'s argument is one of the suspension positions.
+            let bump = if matches!(**f, ECore::Prim(PrimOp::Delay)) { 1 } else { 0 };
+            for a in args {
+                rec_walk(a, guard + bump, owner, by_local, edges);
+            }
+        }
+        ECore::InstDict(_, args) | ECore::MkClos { env: args, .. } => {
+            for a in args {
+                rec_walk(a, guard, owner, by_local, edges);
+            }
+        }
+        // A lambda body is a suspension position; a `~` memo body is one
+        // because its thunk is a lambda.
+        ECore::Lam { body, .. } => rec_walk(body, guard + 1, owner, by_local, edges),
+        ECore::Let(_, v, body) => {
+            rec_walk(v, guard, owner, by_local, edges);
+            rec_walk(body, guard, owner, by_local, edges);
+        }
+        ECore::BoxInit(_, v) | ECore::LazyInit(_, v) => {
+            rec_walk(v, guard, owner, by_local, edges)
+        }
+        ECore::If(c, t, f) => {
+            rec_walk(c, guard, owner, by_local, edges);
+            rec_walk(&t.body, guard, owner, by_local, edges);
+            rec_walk(&f.body, guard, owner, by_local, edges);
+        }
+        ECore::Case { scrut, alts } => {
+            rec_walk(scrut, guard, owner, by_local, edges);
+            for alt in alts {
+                rec_walk(&alt.body, guard, owner, by_local, edges);
+            }
+        }
+
+    }
+}
+
+/// The group members referenced from one member's core, by index.
+fn rec_collect_refs(e: &ECore, by_local: &HashMap<LocalId, usize>, out: &mut Vec<usize>) {
+    match e {
+        ECore::Var(l) => {
+            if let Some(&r) = by_local.get(l) {
+                out.push(r);
+            }
+        }
+        ECore::Int(_)
+        | ECore::ConstBig { .. }
+        | ECore::Lit(_)
+        | ECore::Bool(_)
+        | ECore::Unit
+        | ECore::Global(_)
+        | ECore::Ctor(_)
+        | ECore::Prim(_)
+        | ECore::Foreign(_)
+        | ECore::Hole(_)
+        | ECore::QuoteHole(_)
+        | ECore::IdxPending(_)
+        | ECore::Fault
+        | ECore::LazyAlloc
+        | ECore::BoxAlloc
+        | ECore::SyntaxLit(_)
+        | ECore::StrLit(_) => {}
+        ECore::Quote { holes, body, .. } => {
+            for h in holes {
+                rec_collect_refs(h, by_local, out);
+            }
+            rec_collect_refs(body, by_local, out);
+        }
+        ECore::DeclsQuote { holes, .. } => {
+            for h in holes {
+                rec_collect_refs(h, by_local, out);
+            }
+        }
+        ECore::DictProj(d, _) | ECore::Proj(d, _) | ECore::Demand(d) | ECore::BoxGet(d) => {
+            rec_collect_refs(d, by_local, out)
+        }
+        ECore::App(f, args) => {
+            rec_collect_refs(f, by_local, out);
+            for a in args {
+                rec_collect_refs(a, by_local, out);
+            }
+        }
+        ECore::InstDict(_, args) | ECore::MkClos { env: args, .. } => {
+            for a in args {
+                rec_collect_refs(a, by_local, out);
+            }
+        }
+        ECore::Lam { body, .. } => rec_collect_refs(body, by_local, out),
+        ECore::Let(_, v, body) => {
+            rec_collect_refs(v, by_local, out);
+            rec_collect_refs(body, by_local, out);
+        }
+        ECore::BoxInit(_, v) | ECore::LazyInit(_, v) => rec_collect_refs(v, by_local, out),
+        ECore::If(c, t, f) => {
+            rec_collect_refs(c, by_local, out);
+            rec_collect_refs(&t.body, by_local, out);
+            rec_collect_refs(&f.body, by_local, out);
+        }
+        ECore::Case { scrut, alts } => {
+            rec_collect_refs(scrut, by_local, out);
+            for alt in alts {
+                rec_collect_refs(&alt.body, by_local, out);
+            }
+        }
+
+    }
+}
+
+/// Rewrite one member's core: function uses become direct calls into the
+/// member's code generation unit (or closures over it), recursive value
+/// uses read the value's fixpoint box at use time.
+fn subst_rec_refs(e: &mut ECore, subs: &HashMap<LocalId, RecSub>) {
+    if let ECore::App(f, args) = e {
+        if let ECore::Var(l) = &**f {
+            if let Some(RecSub::Fun(id, cap)) = subs.get(l) {
+                let id = id.clone();
+                let cap = cap.clone();
+                for a in args.iter_mut() {
+                    subst_rec_refs(a, subs);
+                }
+                let mut new_args: Vec<ECore> = cap.iter().map(|c| ECore::Var(*c)).collect();
+                new_args.append(args);
+                *e = ECore::App(Box::new(ECore::Global(id)), new_args);
+                return;
+            }
+        }
+    }
+    match e {
+        ECore::Var(l) => match subs.get(l) {
+            Some(RecSub::Fun(id, cap)) => {
+                let (id, cap) = (id.clone(), cap.clone());
+                *e = ECore::MkClos {
+                    fn_id: id,
+                    env: cap.iter().map(|c| ECore::Var(*c)).collect(),
+                };
+            }
+            Some(RecSub::Val(b)) => {
+                let b = *b;
+                *e = ECore::BoxGet(Box::new(ECore::Var(b)));
+            }
+            None => {}
+        },
+        ECore::Int(_)
+        | ECore::ConstBig { .. }
+        | ECore::Lit(_)
+        | ECore::Bool(_)
+        | ECore::Unit
+        | ECore::Global(_)
+        | ECore::Ctor(_)
+        | ECore::Prim(_)
+        | ECore::Foreign(_)
+        | ECore::Hole(_)
+        | ECore::QuoteHole(_)
+        | ECore::IdxPending(_)
+        | ECore::Fault
+        | ECore::LazyAlloc
+        | ECore::BoxAlloc
+        | ECore::SyntaxLit(_)
+        | ECore::StrLit(_) => {}
+        ECore::Quote { holes, body, .. } => {
+            for h in holes {
+                subst_rec_refs(h, subs);
+            }
+            subst_rec_refs(body, subs);
+        }
+        ECore::DeclsQuote { holes, .. } => {
+            for h in holes {
+                subst_rec_refs(h, subs);
+            }
+        }
+        ECore::DictProj(d, _) | ECore::Proj(d, _) | ECore::Demand(d) | ECore::BoxGet(d) => {
+            subst_rec_refs(d, subs)
+        }
+        ECore::App(f, args) => {
+            subst_rec_refs(f, subs);
+            for a in args {
+                subst_rec_refs(a, subs);
+            }
+        }
+        ECore::InstDict(_, args) | ECore::MkClos { env: args, .. } => {
+            for a in args {
+                subst_rec_refs(a, subs);
+            }
+        }
+        ECore::Lam { body, .. } => subst_rec_refs(body, subs),
+        ECore::Let(_, v, body) => {
+            subst_rec_refs(v, subs);
+            subst_rec_refs(body, subs);
+        }
+        ECore::BoxInit(_, v) | ECore::LazyInit(_, v) => subst_rec_refs(v, subs),
+        ECore::If(c, t, f) => {
+            subst_rec_refs(c, subs);
+            subst_rec_refs(&mut t.body, subs);
+            subst_rec_refs(&mut f.body, subs);
+        }
+        ECore::Case { scrut, alts } => {
+            subst_rec_refs(scrut, subs);
+            for alt in alts {
+                subst_rec_refs(&mut alt.body, subs);
+            }
+        }
+
     }
 }
 

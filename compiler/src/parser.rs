@@ -1484,6 +1484,7 @@ impl<'a> Parser<'a> {
         match self.peek_tok() {
             Tok::Backslash => self.parse_lambda(),
             Tok::Let => self.parse_let(),
+            Tok::Letrec => self.parse_letrec(),
             Tok::Tilde => Err(self.err(
                 "memo bindings (`~ pattern = term`) are not supported in the bootstrap slice",
             )),
@@ -1853,6 +1854,19 @@ impl<'a> Parser<'a> {
         self.expect(&Tok::In, "`in`")?;
         let body = self.parse_term()?;
         Ok(Term::Let(decls, Box::new(body), span))
+    }
+
+    /// `letrec b1; ...; bn in e` (the `letrec` keyword lexes as its
+    /// marker plus `let`, so the group opens a plain `let` layout block).
+    fn parse_letrec(&mut self) -> Result<Term> {
+        let span = self.expect(&Tok::Letrec, "`letrec`")?.span;
+        self.expect(&Tok::Let, "`let` after `letrec`")?;
+        let decls = self.parse_block_items("the recursive local block", |p| {
+            p.parse_local_decl()
+        })?;
+        self.expect(&Tok::In, "`in`")?;
+        let body = self.parse_term()?;
+        Ok(Term::Letrec(decls, Box::new(body), span))
     }
 
     /// `if [cond attrs] c then [then attrs] t else [else attrs] e`
@@ -2680,7 +2694,7 @@ fn resolve_term(t: &mut Term, fix: &FixityTable) -> Result<()> {
             }
         }
         Term::Lam(_, body, _) => resolve_term(body, fix)?,
-        Term::Let(decls, body, _) => {
+        Term::Let(decls, body, _) | Term::Letrec(decls, body, _) => {
             for l in decls {
                 match l {
                     LocalDecl::Eq { body, .. }

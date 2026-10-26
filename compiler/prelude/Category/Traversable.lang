@@ -19,6 +19,15 @@
 -- defunctionalized encoding that typechecks today; the HK slice should
 -- collapse it to the two mathematical methods above.
 --
+-- Status (Main decision, 2026-10-26): this encoding is accepted as
+-- SCAFFOLDING, not as API. The curated Prelude re-export list will not
+-- export it; the higher-kinded slice (A7) collapses it in place to the
+-- two mathematical methods before it faces users. Do not write generic
+-- code against the six-parameter head. The `hs`-duplicates-`h` slot
+-- (a `sequence` call determines y but not x, so one shared result slot
+-- leaves an undetermined dictionary variable) is recorded as an A7
+-- acceptance consideration at collapse.
+--
 -- Slots per instance, with T the container constructor, F the target
 -- constructor, x the input element and y the output element:
 --   t  = T x          the traversed container

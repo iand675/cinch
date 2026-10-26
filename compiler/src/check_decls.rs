@@ -281,7 +281,7 @@ fn for_each_subterm(t: &ast::Term, f: &mut dyn FnMut(&ast::Term)) {
         ast::Term::Lam(_, b, _) | ast::Term::Neg(b, _) | ast::Term::CpsWrap(b, _) => {
             for_each_subterm(b, f)
         }
-        ast::Term::Let(decls, b, _) => {
+        ast::Term::Let(decls, b, _) | ast::Term::Letrec(decls, b, _) => {
             for d in decls {
                 match d {
                     ast::LocalDecl::Sig { .. } => {}
@@ -4742,7 +4742,7 @@ impl Checker {
                 }
                 self.walk_guard(body, body_pos, group, mode, &mut bound2)?;
             }
-            ast::Term::Let(decls, body, _) => {
+            ast::Term::Let(decls, body, _) | ast::Term::Letrec(decls, body, _) => {
                 for d in decls {
                     let mut bound2 = bound.clone();
                     match d {
@@ -5394,6 +5394,38 @@ impl Checker {
         }
         let mut hoisted = Vec::new();
         hoist_lambdas(&mut body, &id.0, &mut self.lam_counter, &mut hoisted);
+        // `letrec` member units (surface grammar local amendments
+        // section 9): their bodies arrive with their final unit ids, so
+        // only their nested lambdas hoist like any others.
+        for (mid, mut core) in std::mem::take(&mut self.pending_rec) {
+            core = self.fill_holes(&core, &sol)?;
+            self.resolve_literals(&mut core)?;
+            if !erased {
+                self.resolve_idx_pends(&mut core)?;
+            }
+            let (params, mbody) = match core {
+                ECore::Lam { params, body } => (params, *body),
+                _ => {
+                    return Err(Error::plain(
+                        "internal error: a letrec member is not a lambda",
+                    ))
+                }
+            };
+            let mut mbody = mbody;
+            hoist_lambdas(&mut mbody, &id.0, &mut self.lam_counter, &mut hoisted);
+            let mut free = Vec::new();
+            free_locals(&mbody, &mut Vec::new(), &mut free);
+            let mut env: Vec<LocalId> =
+                free.into_iter().filter(|l| !params.contains(l)).collect();
+            env.sort_by_key(|l| l.0);
+            let mut fn_params = env.clone();
+            fn_params.extend(params.iter().copied());
+            hoisted.push(HoistedFn {
+                id: mid,
+                params: fn_params,
+                body: mbody,
+            });
+        }
         if !erased {
             // Hint attributes ride the function's code generation unit
             // (attribute annotations specification section 5).
@@ -5415,20 +5447,22 @@ impl Checker {
     }
 
     /// The dotted presentation forms of the primitive spec (decision D6)
-    /// and of the P10 target library: `U32.wrappingAdd` for
-    /// `wrappingAddU32`, `Stream.fold` for the producer library's fold,
-    /// and the scalar/SIMD pair's qualified spellings.
+    /// and of the P10 target library: `U32.wrapping-add` for
+    /// `wrapping-add-u32`, `Stream.fold` for the producer library's fold,
+    /// and the scalar/SIMD pair's qualified spellings. The method part of
+    /// a dotted spelling follows the D106 method spelling (`bit-and`),
+    /// so it matches the prelude name it presents.
     fn install_presentation_aliases(&mut self) {
         let aliases: [((&str, &str), (&str, &str)); 9] = [
-            (("U32", "zero"), ("Prelude", "zeroU32")),
-            (("U32", "wrappingAdd"), ("Prelude", "wrappingAddU32")),
-            (("Vec", "stream"), ("Prelude", "vecStream")),
-            (("Stream", "fold"), ("Prelude", "prodFold")),
-            (("Stream", "map"), ("Prelude", "prodMap")),
-            (("Scalar", "sumWrap32"), ("Prelude", "scalarSumWrap32")),
-            (("Simd", "sumWrap32"), ("Prelude", "simdSumWrap32")),
-            (("Target", "detectVecU32"), ("Prelude", "detectVecU32")),
-            (("SumProofs", "scalarToSimd"), ("Prelude", "scalarToSimd")),
+            (("U32", "zero"), ("Prelude", "zero-u32")),
+            (("U32", "wrapping-add"), ("Prelude", "wrapping-add-u32")),
+            (("Vec", "stream"), ("Prelude", "vec-stream")),
+            (("Stream", "fold"), ("Prelude", "prod-fold")),
+            (("Stream", "map"), ("Prelude", "prod-map")),
+            (("Scalar", "sum-wrap32"), ("Prelude", "scalar-sum-wrap32")),
+            (("Simd", "sum-wrap32"), ("Prelude", "simd-sum-wrap32")),
+            (("Target", "detect-vec-u32"), ("Prelude", "detect-vec-u32")),
+            (("SumProofs", "scalar-to-simd"), ("Prelude", "scalar-to-simd")),
         ];
         for ((qm, qn), (m, n)) in aliases {
             if let Some(v) = self.qualified.get(&(m.to_string(), n.to_string())).cloned() {
@@ -8629,7 +8663,7 @@ impl Checker {
             | ast::Term::CpsWrap(body, _)
             | ast::Term::Quote { body, .. }
             | ast::Term::Splice { body, .. } => self.expand_macros_in_term(cx, module, body),
-            ast::Term::Let(decls, body, _) => {
+            ast::Term::Let(decls, body, _) | ast::Term::Letrec(decls, body, _) => {
                 for d in decls {
                     self.expand_macros_in_local(cx, module, d)?;
                 }
@@ -8893,7 +8927,7 @@ fn term_has_macro_call(t: &ast::Term) -> bool {
             | ast::Term::CpsWrap(b, _)
             | ast::Term::Quote { body: b, .. }
             | ast::Term::Splice { body: b, .. } => walk(b, found),
-            ast::Term::Let(decls, b, _) => {
+            ast::Term::Let(decls, b, _) | ast::Term::Letrec(decls, b, _) => {
                 for d in decls {
                     match d {
                         ast::LocalDecl::Eq { body, .. }
@@ -9081,7 +9115,10 @@ fn stamp_term_spans(t: &mut ast::Term, site: &crate::lexer::ExpSite) {
             stamp(s);
             stamp_term_spans(body, site);
         }
-        ast::Term::Let(_, body, s) | ast::Term::Ann(body, _, s) | ast::Term::CpsWrap(body, s) => {
+        ast::Term::Let(_, body, s)
+        | ast::Term::Letrec(_, body, s)
+        | ast::Term::Ann(body, _, s)
+        | ast::Term::CpsWrap(body, s) => {
             stamp(s);
             stamp_term_spans(body, site);
         }
@@ -9641,6 +9678,11 @@ impl Checker {
                 origin: cx.origin.clone(),
             },
             Core::StrLit(s) => Value::Str(s.clone()),
+            Core::BoxAlloc | Core::BoxInit(_, _) | Core::BoxGet(_) => {
+                return Err(Error::plain(
+                    "a recursive `letrec` value cannot be evaluated at compile time (the staging evaluator has no fixpoint boxes)",
+                ))
+            }
             Core::Demand(_) | Core::LazyAlloc | Core::LazyInit(_, _) => {
                 return Err(Error::plain(
                     "lazy evaluation (`delay`, memo cells) is not available at compile time in this slice",
@@ -10574,13 +10616,13 @@ impl Checker {
             let buf = ast::Name::new("buf", sp);
             let mut binds = vec![ast::LocalDecl::Bind {
                 pat: ast::Pat::Var(buf.clone(), sp),
-                body: app(var("bytesNew"), vec![int(offset)]),
+                body: app(var("bytes-new"), vec![int(offset)]),
                 span: sp,
             }];
             for (fname, off, size, is_bool) in &cols {
                 for k in 0..*size {
                     let byte_val = if *is_bool {
-                        app(var("natFromI64"), vec![ast::Term::If {
+                        app(var("nat-from-i64"), vec![ast::Term::If {
                             cond: Box::new(proj(var("row"), fname)),
                             then: Box::new(int(1)),
                             els: Box::new(int(0)),
@@ -10590,14 +10632,14 @@ impl Checker {
                             span: sp,
                         }])
                     } else {
-                        app(var("natFromI64"), vec![app(var("bitAndI64"), vec![
-                            app(var("wrappingShrI64"), vec![proj(var("row"), fname), int(k * 8)]),
+                        app(var("nat-from-i64"), vec![app(var("bit-and-i64"), vec![
+                            app(var("wrapping-shr-i64"), vec![proj(var("row"), fname), int(k * 8)]),
                             int(255),
                         ])])
                     };
                     binds.push(ast::LocalDecl::Bind {
                         pat: ast::Pat::Wild(sp),
-                        body: app(var("bytesSet"), vec![var("buf"), int(off + k), byte_val]),
+                        body: app(var("bytes-set"), vec![var("buf"), int(off + k), byte_val]),
                         span: sp,
                     });
                 }
@@ -10629,7 +10671,7 @@ impl Checker {
                 let v = if *is_bool {
                     ast::Term::If {
                         cond: Box::new(app(var("=="), vec![
-                            app(var("natToI64"), vec![app(var("bytesGet"), vec![var("b"), int(*off)])]),
+                            app(var("nat-to-i64"), vec![app(var("bytes-get"), vec![var("b"), int(*off)])]),
                             int(1),
                         ])),
                         then: Box::new(con("True")),
@@ -10642,11 +10684,11 @@ impl Checker {
                 } else {
                     let mut acc = int(0);
                     for k in 0..*size {
-                        let byte = app(var("natToI64"), vec![
-                            app(var("bytesGet"), vec![var("b"), int(off + k)]),
+                        let byte = app(var("nat-to-i64"), vec![
+                            app(var("bytes-get"), vec![var("b"), int(off + k)]),
                         ]);
-                        let shifted = app(var("wrappingShlI64"), vec![byte, int(k * 8)]);
-                        acc = app(var("wrappingAddI64"), vec![acc, shifted]);
+                        let shifted = app(var("wrapping-shl-i64"), vec![byte, int(k * 8)]);
+                        acc = app(var("wrapping-add-i64"), vec![acc, shifted]);
                     }
                     acc
                 };
@@ -10660,7 +10702,7 @@ impl Checker {
             let some = app(con("Some"), vec![record]);
             let body = ast::Term::If {
                 cond: Box::new(app(var("=="), vec![
-                    app(var("bytesLen"), vec![var("b")]),
+                    app(var("bytes-len"), vec![var("b")]),
                     int(offset),
                 ])),
                 then: Box::new(some),

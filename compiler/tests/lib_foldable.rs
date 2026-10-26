@@ -17,9 +17,13 @@
 //!                Some`), and first-error short-circuit order for both
 //!                `traverse` and `sequence`.
 //!
-//! A nonzero exit code is a bitmask naming the failed checks (check k
-//! contributes bit 2^(k-1)); any failure mode of one check shares that
-//! check's bit, so the total always fits the 8-bit exit status.
+//! Each check is a top-level `check-*` function returning 0 or its bit;
+//! `main` sums them, so a nonzero exit code is a bitmask naming the
+//! failed checks (check k contributes bit 2^(k-1)) and any failure mode
+//! of one check shares that bit, keeping the total inside the 8-bit
+//! exit status. The checks are top-level because a `case` in a `let`
+//! binder's right-hand side must indent past the binder's column under
+//! the layout rules.
 
 use safelang::driver::{driver, Mode};
 use std::path::PathBuf;
@@ -202,22 +206,30 @@ fn traverse_list_result_short_circuits_on_first_error() {
          \x20 half x = if x == 2 then Err 2 else if x == 4 then Err 4 else Ok x\n\
          \x20 bump :: Int -> Result Int Int\n\
          \x20 bump x = Ok (x + 10)\n\
-         \x20 main :: Int\n\
-         \x20 main =\n\
+         \x20 check-a :: Int\n\
+         \x20 check-a =\n\
          \x20   let xs = Cons (1 :: Int) (Cons 2 (Cons 3 (Cons 4 Nil))) in\n\
-         \x20   let c1 = case (traverse half xs :: Result Int (List Int)) of\n\
+         \x20   case (traverse half xs :: Result Int (List Int)) of\n\
          \x20     Err e -> if e == 2 then 0 else 1\n\
-         \x20     Ok vs -> 1 in\n\
-         \x20   let c2 = case (traverse half (Cons (2 :: Int) (Cons 4 Nil)) :: Result Int (List Int)) of\n\
-         \x20     Err e -> if e == 2 then 0 else 2\n\
-         \x20     Ok vs -> 2 in\n\
-         \x20   let c3 = case (traverse bump xs :: Result Int (List Int)) of\n\
+         \x20     Ok vs -> 1\n\
+         \x20 check-b :: Int\n\
+         \x20 check-b = case (traverse half (Cons (2 :: Int) (Cons 4 Nil)) :: Result Int (List Int)) of\n\
+         \x20   Err e -> if e == 2 then 0 else 2\n\
+         \x20   Ok vs -> 2\n\
+         \x20 check-c :: Int\n\
+         \x20 check-c =\n\
+         \x20   let xs = Cons (1 :: Int) (Cons 2 (Cons 3 (Cons 4 Nil))) in\n\
+         \x20   case (traverse bump xs :: Result Int (List Int)) of\n\
          \x20     Err e -> 4\n\
-         \x20     Ok vs -> if same vs (Cons 11 (Cons 12 (Cons 13 (Cons 14 Nil)))) then 0 else 4 in\n\
-         \x20   let c4 = case (traverse (\\v -> Ok v) xs :: Result Int (List Int)) of\n\
+         \x20     Ok vs -> if same vs (Cons 11 (Cons 12 (Cons 13 (Cons 14 Nil)))) then 0 else 4\n\
+         \x20 check-d :: Int\n\
+         \x20 check-d =\n\
+         \x20   let xs = Cons (1 :: Int) (Cons 2 (Cons 3 (Cons 4 Nil))) in\n\
+         \x20   case (traverse (\\v -> Ok v) xs :: Result Int (List Int)) of\n\
          \x20     Err e -> 8\n\
-         \x20     Ok vs -> if same vs xs then 0 else 8 in\n\
-         \x20   c1 + c2 + c3 + c4\n",
+         \x20     Ok vs -> if same vs xs then 0 else 8\n\
+         \x20 main :: Int\n\
+         \x20 main = check-a + check-b + check-c + check-d\n",
     );
 }
 
@@ -240,22 +252,30 @@ fn traverse_list_option_short_circuits() {
          \x20 not-two x = if x == 2 then None else Some x\n\
          \x20 bump :: Int -> Option Int\n\
          \x20 bump x = Some (x + 10)\n\
-         \x20 main :: Int\n\
-         \x20 main =\n\
+         \x20 check-a :: Int\n\
+         \x20 check-a =\n\
          \x20   let xs = Cons (1 :: Int) (Cons 2 (Cons 3 Nil)) in\n\
-         \x20   let c1 = case (traverse not-two xs :: Option (List Int)) of\n\
+         \x20   case (traverse not-two xs :: Option (List Int)) of\n\
          \x20     None -> 0\n\
-         \x20     Some vs -> 1 in\n\
-         \x20   let c2 = case (traverse not-two (Cons (1 :: Int) Nil) :: Option (List Int)) of\n\
-         \x20     None -> 2\n\
-         \x20     Some vs -> if same vs (Cons 1 Nil) then 0 else 2 in\n\
-         \x20   let c3 = case (traverse bump xs :: Option (List Int)) of\n\
+         \x20     Some vs -> 1\n\
+         \x20 check-b :: Int\n\
+         \x20 check-b = case (traverse not-two (Cons (1 :: Int) Nil) :: Option (List Int)) of\n\
+         \x20   None -> 2\n\
+         \x20   Some vs -> if same vs (Cons 1 Nil) then 0 else 2\n\
+         \x20 check-c :: Int\n\
+         \x20 check-c =\n\
+         \x20   let xs = Cons (1 :: Int) (Cons 2 (Cons 3 Nil)) in\n\
+         \x20   case (traverse bump xs :: Option (List Int)) of\n\
          \x20     None -> 4\n\
-         \x20     Some vs -> if same vs (Cons 11 (Cons 12 (Cons 13 Nil))) then 0 else 4 in\n\
-         \x20   let c4 = case (traverse (\\v -> Some v) xs :: Option (List Int)) of\n\
+         \x20     Some vs -> if same vs (Cons 11 (Cons 12 (Cons 13 Nil))) then 0 else 4\n\
+         \x20 check-d :: Int\n\
+         \x20 check-d =\n\
+         \x20   let xs = Cons (1 :: Int) (Cons 2 (Cons 3 Nil)) in\n\
+         \x20   case (traverse (\\v -> Some v) xs :: Option (List Int)) of\n\
          \x20     None -> 8\n\
-         \x20     Some vs -> if same vs xs then 0 else 8 in\n\
-         \x20   c1 + c2 + c3 + c4\n",
+         \x20     Some vs -> if same vs xs then 0 else 8\n\
+         \x20 main :: Int\n\
+         \x20 main = check-a + check-b + check-c + check-d\n",
     );
 }
 
@@ -278,25 +298,28 @@ fn traverse_option_container_into_result_and_option() {
          \x20 half x = if x == 2 then Err 2 else Ok x\n\
          \x20 not-two :: Int -> Option Int\n\
          \x20 not-two x = if x == 2 then None else Some x\n\
-         \x20 main :: Int\n\
-         \x20 main =\n\
-         \x20   let c1 = case (traverse half (Some (2 :: Int)) :: Result Int (Option Int)) of\n\
-         \x20     Err e -> if e == 2 then 0 else 1\n\
-         \x20     Ok v -> 1 in\n\
-         \x20   let c2 = case (traverse half (Some (1 :: Int)) :: Result Int (Option Int)) of\n\
-         \x20     Err e -> 2\n\
-         \x20     Ok v -> case v of\n\
-         \x20       None -> 2\n\
-         \x20       Some y -> if y == 1 then 0 else 2 in\n\
-         \x20   let c3 = case (traverse half (None :: Option Int) :: Result Int (Option Int)) of\n\
-         \x20     Err e -> 4\n\
-         \x20     Ok v -> case v of\n\
-         \x20       None -> 0\n\
-         \x20       Some y -> 4 in\n\
-         \x20   let c4 = case (traverse not-two (Some (2 :: Int)) :: Option (Option Int)) of\n\
+         \x20 check-a :: Int\n\
+         \x20 check-a = case (traverse half (Some (2 :: Int)) :: Result Int (Option Int)) of\n\
+         \x20   Err e -> if e == 2 then 0 else 1\n\
+         \x20   Ok v -> 1\n\
+         \x20 check-b :: Int\n\
+         \x20 check-b = case (traverse half (Some (1 :: Int)) :: Result Int (Option Int)) of\n\
+         \x20   Err e -> 2\n\
+         \x20   Ok v -> case v of\n\
+         \x20     None -> 2\n\
+         \x20     Some y -> if y == 1 then 0 else 2\n\
+         \x20 check-c :: Int\n\
+         \x20 check-c = case (traverse half (None :: Option Int) :: Result Int (Option Int)) of\n\
+         \x20   Err e -> 4\n\
+         \x20   Ok v -> case v of\n\
          \x20     None -> 0\n\
-         \x20     Some v -> 8 in\n\
-         \x20   c1 + c2 + c3 + c4\n",
+         \x20     Some y -> 4\n\
+         \x20 check-d :: Int\n\
+         \x20 check-d = case (traverse not-two (Some (2 :: Int)) :: Option (Option Int)) of\n\
+         \x20   None -> 0\n\
+         \x20   Some v -> 8\n\
+         \x20 main :: Int\n\
+         \x20 main = check-a + check-b + check-c + check-d\n",
     );
 }
 
@@ -320,24 +343,32 @@ fn traverse_nonempty_into_result_and_option() {
          \x20 half x = if x == 2 then Err 2 else if x == 4 then Err 4 else Ok x\n\
          \x20 not-two :: Int -> Option Int\n\
          \x20 not-two x = if x == 2 then None else Some x\n\
-         \x20 main :: Int\n\
-         \x20 main =\n\
-         \x20   let ne = NonEmpty (1 :: Int) (Cons 2 (Cons 3 Nil)) in\n\
-         \x20   let tail-bad = NonEmpty (1 :: Int) (Cons 2 (Cons 4 Nil)) in\n\
-         \x20   let head-bad = NonEmpty (2 :: Int) (Cons 4 Nil) in\n\
-         \x20   let c1 = case (traverse half ne :: Result Int (NonEmpty Int)) of\n\
+         \x20 check-a :: Int\n\
+         \x20 check-a =\n\
+         \x20   let ne = NonEmpty (1 :: Int) (Cons 3 (Cons 5 Nil)) in\n\
+         \x20   case (traverse half ne :: Result Int (NonEmpty Int)) of\n\
          \x20     Err e -> 1\n\
-         \x20     Ok v -> if same (to-list v) (to-list ne) then 0 else 1 in\n\
-         \x20   let c2 = case (traverse half tail-bad :: Result Int (NonEmpty Int)) of\n\
+         \x20     Ok v -> if same (to-list v) (to-list ne) then 0 else 1\n\
+         \x20 check-b :: Int\n\
+         \x20 check-b =\n\
+         \x20   let tail-bad = NonEmpty (1 :: Int) (Cons 2 (Cons 4 Nil)) in\n\
+         \x20   case (traverse half tail-bad :: Result Int (NonEmpty Int)) of\n\
          \x20     Err e -> if e == 2 then 0 else 2\n\
-         \x20     Ok v -> 2 in\n\
-         \x20   let c3 = case (traverse half head-bad :: Result Int (NonEmpty Int)) of\n\
+         \x20     Ok v -> 2\n\
+         \x20 check-c :: Int\n\
+         \x20 check-c =\n\
+         \x20   let head-bad = NonEmpty (2 :: Int) (Cons 4 Nil) in\n\
+         \x20   case (traverse half head-bad :: Result Int (NonEmpty Int)) of\n\
          \x20     Err e -> if e == 2 then 0 else 4\n\
-         \x20     Ok v -> 4 in\n\
-         \x20   let c4 = case (traverse not-two ne :: Option (NonEmpty Int)) of\n\
+         \x20     Ok v -> 4\n\
+         \x20 check-d :: Int\n\
+         \x20 check-d =\n\
+         \x20   let ne = NonEmpty (1 :: Int) (Cons 3 (Cons 5 Nil)) in\n\
+         \x20   case (traverse not-two ne :: Option (NonEmpty Int)) of\n\
          \x20     None -> 8\n\
-         \x20     Some w -> if same (to-list w) (to-list ne) then 0 else 8 in\n\
-         \x20   c1 + c2 + c3 + c4\n",
+         \x20     Some w -> if same (to-list w) (to-list ne) then 0 else 8\n\
+         \x20 main :: Int\n\
+         \x20 main = check-a + check-b + check-c + check-d\n",
     );
 }
 
@@ -357,25 +388,27 @@ fn sequence_short_circuits_on_first_error() {
          \x20   Cons x xs -> case b of\n\
          \x20     Nil -> False\n\
          \x20     Cons y ys -> if x == y then same xs ys else False\n\
+         \x20 check-a :: Int\n\
+         \x20 check-a = case (sequence (Cons (Ok (1 :: Int)) (Cons (Err (7 :: Int)) (Cons (Err (9 :: Int)) Nil))) :: Result Int (List Int)) of\n\
+         \x20   Err e -> if e == 7 then 0 else 1\n\
+         \x20   Ok vs -> 1\n\
+         \x20 check-b :: Int\n\
+         \x20 check-b = case (sequence (Cons (Ok (1 :: Int)) (Cons (Ok (2 :: Int)) Nil)) :: Result Int (List Int)) of\n\
+         \x20   Err e -> 2\n\
+         \x20   Ok vs -> if same vs (Cons 1 (Cons 2 Nil)) then 0 else 2\n\
+         \x20 check-c :: Int\n\
+         \x20 check-c = case (sequence (Cons (Some (1 :: Int)) (Cons None (Cons (Some 3) Nil))) :: Option (List Int)) of\n\
+         \x20   None -> 0\n\
+         \x20   Some vs -> 4\n\
+         \x20 check-d :: Int\n\
+         \x20 check-d = case (sequence (NonEmpty (Ok (1 :: Int)) (Cons (Err (7 :: Int)) (Cons (Err (9 :: Int)) Nil))) :: Result Int (NonEmpty Int)) of\n\
+         \x20   Err e -> if e == 7 then 0 else 8\n\
+         \x20   Ok v -> 8\n\
+         \x20 check-e :: Int\n\
+         \x20 check-e = case (sequence (NonEmpty (Ok (1 :: Int)) (Cons (Ok (2 :: Int)) Nil)) :: Result Int (NonEmpty Int)) of\n\
+         \x20   Err e -> 16\n\
+         \x20   Ok v -> if same (to-list v) (Cons 1 (Cons 2 Nil)) then 0 else 16\n\
          \x20 main :: Int\n\
-         \x20 main =\n\
-         \x20   let errs = Cons (Ok (1 :: Int)) (Cons (Err (7 :: Int)) (Cons (Err (9 :: Int)) Nil)) in\n\
-         \x20   let oks = Cons (Ok (1 :: Int)) (Cons (Ok (2 :: Int)) Nil) in\n\
-         \x20   let c1 = case (sequence errs :: Result Int (List Int)) of\n\
-         \x20     Err e -> if e == 7 then 0 else 1\n\
-         \x20     Ok vs -> 1 in\n\
-         \x20   let c2 = case (sequence oks :: Result Int (List Int)) of\n\
-         \x20     Err e -> 2\n\
-         \x20     Ok vs -> if same vs (Cons 1 (Cons 2 Nil)) then 0 else 2 in\n\
-         \x20   let c3 = case (sequence (Cons (Some (1 :: Int)) (Cons None (Cons (Some 3) Nil))) :: Option (List Int)) of\n\
-         \x20     None -> 0\n\
-         \x20     Some vs -> 4 in\n\
-         \x20   let c4 = case (sequence (NonEmpty (Ok (1 :: Int)) (Cons (Err (7 :: Int)) (Cons (Err (9 :: Int)) Nil))) :: Result Int (NonEmpty Int)) of\n\
-         \x20     Err e -> if e == 7 then 0 else 8\n\
-         \x20     Ok v -> 8 in\n\
-         \x20   let c5 = case (sequence (NonEmpty (Ok (1 :: Int)) (Cons (Ok (2 :: Int)) Nil)) :: Result Int (NonEmpty Int)) of\n\
-         \x20     Err e -> 16\n\
-         \x20     Ok v -> if same (to-list v) (Cons 1 (Cons 2 Nil)) then 0 else 16 in\n\
-         \x20   c1 + c2 + c3 + c4 + c5\n",
+         \x20 main = check-a + check-b + check-c + check-d + check-e\n",
     );
 }
