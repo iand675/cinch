@@ -1,0 +1,64 @@
+-- Category.Monad: the monad class over type constructors.
+--
+-- Monad is `>>=` (infixl 1, decision D2's per-module fixity
+-- declarations) and `join`. There is NO `return` method (`return` is
+-- handler-clause syntax; decision D152): `pure` lives on
+-- Category.Applicative, and the monad laws state `pure` under an added
+-- `Applicative f` constraint (the bare-`pure` rule, decision D153).
+-- The import below is explicit because a class constraint entails
+-- nothing (the standing no-superbundle rule): `Monad` does not extend
+-- `Applicative`, and every function states the constraints it uses.
+--
+-- `do` notation and these classes (decision D22): `do` picks its
+-- provider lexically per definition; this class abstracts over
+-- containers. The two mechanisms do not interact.
+--
+-- Instance homes: the function instance is structural and lives here
+-- permanently; List, Option and Result are Prelude types (not split
+-- yet), so their instances are parked here until the prelude split
+-- moves them to their Data.* homes. `append-list` is
+-- Category.Applicative's list-append helper for the List family.
+module Category.Monad where
+
+  import Category.Applicative
+
+  signature Monad (f :: Type -> Type) where
+    (>>=) :: forall a b. f a -> (a -> f b) -> f b
+    join :: forall a. f (f a) -> f a
+
+  infixl 1 >>=
+
+  -- Structural: feed a function's result into the continuation.
+  implicit instance Monad_Function r :: Monad ((->) r) where
+    (>>=) fx k r = (k (fx r)) r
+    join ffx r = (ffx r) r
+
+  -- Parked here; see the header (the type's home is Prelude.lang).
+  -- Bind is flatMap: every element's continuation result, in order.
+  implicit instance Monad_List :: Monad List where
+    (>>=) xs k = case xs of
+      Nil -> Nil
+      Cons y ys -> append-list (k y) ((>>=) ys k)
+    join xss = case xss of
+      Nil -> Nil
+      Cons ys yss -> append-list ys (join yss)
+
+  -- Parked here; see the header (the type's home is Prelude.lang).
+  -- The failing case short-circuits: `None >>= k` is `None`.
+  implicit instance Monad_Option :: Monad Option where
+    (>>=) o k = case o of
+      None -> None
+      Some x -> k x
+    join oo = case oo of
+      None -> None
+      Some o -> o
+
+  -- Parked here; see the header (the type's home is Prelude.lang).
+  -- The error case short-circuits: `Err e >>= k` is `Err e`.
+  implicit instance Monad_Result e :: Monad (Result e) where
+    (>>=) r k = case r of
+      Err e -> Err e
+      Ok x -> k x
+    join rr = case rr of
+      Err e -> Err e
+      Ok r -> r

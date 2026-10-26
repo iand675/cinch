@@ -1,95 +1,177 @@
-//! Category-family library tests: the `Identity` and `Const` universal
-//! visitors and the law groups the category classes must satisfy, checked
-//! over sample values.
+//! Category-family library tests: the real `Functor`/`Applicative`/
+//! `Monad`/`Alternative` classes (compiler/prelude/Category/*.lang)
+//! with the shipped instance families (List, Option, Result e,
+//! `((->) r)`), the `Identity` and `Const` universal visitors
+//! (compiler/prelude/Data/Identity.lang, Data/Const.lang), and the law
+//! groups the classes must satisfy, checked over sample values.
 //!
-//! The `Functor`/`Applicative`/`Monad` classes themselves are blocked on
-//! missing surface (the checker rejects type-constructor variables, so
-//! `class Functor f` cannot be declared; see the slice report). What is
-//! under test here is the per-type instance content of
-//! `compiler/prelude/Data/Identity.lang` and `compiler/prelude/Data/Const.lang`
-//! (the method bodies the classes will carry as instances), so the law
-//! groups lock in their semantics now: functor identity and composition,
-//! applicative homomorphism, monad left and right identity, and monad
-//! associativity in both bind and join form.
+//! Each test compiles a real multi-file project: the class modules,
+//! the visitor modules, and a `Main` exercising them, driven through
+//! the CLI pipeline like modules.rs and lib_foldable.rs. The law
+//! statements are the polymorphic ones: quantified over the container
+//! and decided through their `Eq` constraints, with `pure` stated
+//! under an added `Applicative` constraint (decision D152) so a bare
+//! `pure` reaches the class method through that constraint (decision
+//! D153). The containers' `Eq` instances ship with their types in the
+//! prelude split, so the tests declare the ones they need. The law
+//! groups:
+//!   Functor:      identity and composition.
+//!   Applicative:  homomorphism.
+//!   Monad:        left and right identity, associativity in bind and
+//!                 join form.
+//!   Const:        the constant functor's identity, composition and
+//!                 constant laws.
+//! and the `((->) r)` family runs the same groups pointwise (there is
+//! no `Eq` of functions).
 
-use safelang::driver::{check_sources, run_source};
+use safelang::driver::{driver, Mode};
+use std::path::PathBuf;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
+const FUNCTOR: &str = include_str!("../prelude/Category/Functor.lang");
+const APPLICATIVE: &str = include_str!("../prelude/Category/Applicative.lang");
+const MONAD: &str = include_str!("../prelude/Category/Monad.lang");
+const ALTERNATIVE: &str = include_str!("../prelude/Category/Alternative.lang");
 const IDENTITY: &str = include_str!("../prelude/Data/Identity.lang");
 const CONST: &str = include_str!("../prelude/Data/Const.lang");
 
-/// The law statements, polymorphic over the element types and decided
-/// through their `Eq` constraints.
-const LAWS: &str = r#"  functor-identity-law :: forall a. using (eq :: Eq a) => Identity a -> Bool
-  functor-identity-law v =
-    run-identity (map-identity (\x -> x) v) == run-identity v
+/// The shared `Main` prefix: the imports, the structural equality
+/// helpers and `Eq` instances the law statements need, and the law
+/// statements themselves. `applicative-homomorphism` takes an `f b`
+/// witness to pin the container at call sites: its other arguments
+/// leave `f` undetermined, and dictionary resolution would be
+/// ambiguous without it.
+const PREFIX: &str = r#"module Main where
+  import Category.Functor
+  import Category.Applicative
+  import Category.Monad
+  import Category.Alternative
+  import Data.Identity
+  import Data.Const
 
-  functor-composition-law :: forall a b c. using (eq :: Eq c) => (b -> c) -> (a -> b) -> Identity a -> Bool
-  functor-composition-law g f v =
-    let left = run-identity (map-identity g (map-identity f v)) in
-    let right = run-identity (map-identity (\x -> g (f x)) v) in
+  same-list :: forall a. using (ea :: Eq a) => List a -> List a -> Bool
+  same-list a b = case a of
+    Nil -> case b of
+      Nil -> True
+      Cons y ys -> False
+    Cons x xs -> case b of
+      Nil -> False
+      Cons y ys -> if x == y then same-list xs ys else False
+
+  same-option :: forall a. using (ea :: Eq a) => Option a -> Option a -> Bool
+  same-option a b = case a of
+    None -> case b of
+      None -> True
+      Some y -> False
+    Some x -> case b of
+      None -> False
+      Some y -> x == y
+
+  same-result :: forall e a. using (ee :: Eq e, ea :: Eq a) => Result e a -> Result e a -> Bool
+  same-result a b = case a of
+    Err p -> case b of
+      Err q -> p == q
+      Ok v -> False
+    Ok x -> case b of
+      Err q -> False
+      Ok y -> x == y
+
+  implicit instance Eq_List_T a :: using (ea :: Eq a) => Eq (List a) where
+    (==) x y = same-list x y
+    (/=) x y = if same-list x y then False else True
+
+  implicit instance Eq_Option_T a :: using (ea :: Eq a) => Eq (Option a) where
+    (==) x y = same-option x y
+    (/=) x y = if same-option x y then False else True
+
+  implicit instance Eq_Result_T e a :: using (ee :: Eq e, ea :: Eq a) => Eq (Result e a) where
+    (==) x y = same-result x y
+    (/=) x y = if same-result x y then False else True
+
+  implicit instance Eq_Identity_T a :: using (ea :: Eq a) => Eq (Identity a) where
+    (==) x y = run-identity x == run-identity y
+    (/=) x y = if run-identity x == run-identity y then False else True
+
+  implicit instance Eq_Const_T m a :: using (em :: Eq m) => Eq (Const m a) where
+    (==) x y = get-const x == get-const y
+    (/=) x y = if get-const x == get-const y then False else True
+
+  functor-identity :: forall f a. using (fun :: Functor f, eq :: Eq (f a)) => f a -> Bool
+  functor-identity v = map (\x -> x) v == v
+
+  functor-composition :: forall f a b c. using (fun :: Functor f, eq :: Eq (f c)) => (b -> c) -> (a -> b) -> f a -> Bool
+  functor-composition g f v = map g (map f v) == map (\x -> g (f x)) v
+
+  applicative-homomorphism :: forall f a b. using (app :: Applicative f, eq :: Eq (f b)) => (a -> b) -> a -> f b -> Bool
+  applicative-homomorphism f x w = pure (f x) == (<*>) (pure f) (pure x)
+
+  monad-left-identity :: forall f a b. using (mon :: Monad f, app :: Applicative f, eq :: Eq (f b)) => a -> (a -> f b) -> Bool
+  monad-left-identity x k = (>>=) (pure x) k == k x
+
+  monad-right-identity :: forall f a. using (mon :: Monad f, app :: Applicative f, eq :: Eq (f a)) => f a -> Bool
+  monad-right-identity v = (>>=) v pure == v
+
+  monad-associativity :: forall f a b c. using (mon :: Monad f, eq :: Eq (f c)) => f a -> (a -> f b) -> (b -> f c) -> Bool
+  monad-associativity v f g = (>>=) ((>>=) v f) g == (>>=) v (\x -> (>>=) (f x) g)
+
+  monad-join-associativity :: forall f a. using (mon :: Monad f, fun :: Functor f, eq :: Eq (f a)) => f (f (f a)) -> Bool
+  monad-join-associativity vvv = join (map join vvv) == join (join vvv)
+
+  const-functor-identity :: forall m a. using (eq :: Eq m) => Const m a -> Bool
+  const-functor-identity c = get-const (map (\x -> x) c) == get-const c
+
+  const-functor-composition :: forall m a b r. using (eq :: Eq m) => (b -> r) -> (a -> b) -> Const m a -> Bool
+  const-functor-composition g f c =
+    let left = get-const (map g (map f c)) in
+    let right = get-const (map (\x -> g (f x)) c) in
     left == right
 
-  applicative-homomorphism-law :: forall a b. using (eq :: Eq b) => (a -> b) -> a -> Bool
-  applicative-homomorphism-law f x =
-    run-identity (pure-identity (f x)) == run-identity (ap-identity (pure-identity f) (pure-identity x))
-
-  monad-left-identity-law :: forall a b. using (eq :: Eq b) => a -> (a -> Identity b) -> Bool
-  monad-left-identity-law x k =
-    run-identity (bind-identity (pure-identity x) k) == run-identity (k x)
-
-  monad-right-identity-law :: forall a. using (eq :: Eq a) => Identity a -> Bool
-  monad-right-identity-law v =
-    run-identity (bind-identity v pure-identity) == run-identity v
-
-  monad-associativity-law :: forall a b c. using (eq :: Eq c) => Identity a -> (a -> Identity b) -> (b -> Identity c) -> Bool
-  monad-associativity-law v f g =
-    let left = run-identity (bind-identity (bind-identity v f) g) in
-    let right = run-identity (bind-identity v (\x -> bind-identity (f x) g)) in
-    left == right
-
-  monad-join-associativity-law :: forall a. using (eq :: Eq a) => Identity (Identity (Identity a)) -> Bool
-  monad-join-associativity-law vvv =
-    let left = run-identity (join-identity (map-identity join-identity vvv)) in
-    let right = run-identity (join-identity (join-identity vvv)) in
-    left == right
-
-  const-functor-identity-law :: forall m a. using (eq :: Eq m) => Const m a -> Bool
-  const-functor-identity-law c =
-    get-const (map-const (\x -> x) c) == get-const c
-
-  const-functor-composition-law :: forall m a b r. using (eq :: Eq m) => (b -> r) -> (a -> b) -> Const m a -> Bool
-  const-functor-composition-law g f c =
-    let left = get-const (map-const g (map-const f c)) in
-    let right = get-const (map-const (\x -> g (f x)) c) in
-    left == right
-
-  const-constant-law :: forall m a b. using (eq :: Eq m) => (a -> b) -> (a -> b) -> Const m a -> Bool
-  const-constant-law f h c =
-    get-const (map-const f c) == get-const (map-const h c)
+  const-constant :: forall m a b. using (eq :: Eq m) => (a -> b) -> (a -> b) -> Const m a -> Bool
+  const-constant f h c = get-const (map f c) == get-const (map h c)
 "#;
 
-/// The prelude modules plus a `Main` exercising them. The module
-/// headers are single-segment pending the dotted-module-name fix, so
-/// the imports name `Identity` and `Const`.
+fn compile(name: &str, main_src: &str, mode: Mode) -> Result<i32, String> {
+    static N: AtomicUsize = AtomicUsize::new(0);
+    let dir: PathBuf = std::env::temp_dir().join(format!(
+        "safelang_cattest_{}_{}_{}",
+        std::process::id(),
+        N.fetch_add(1, Ordering::SeqCst),
+        name
+    ));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("temp project dir");
+    for (file, src) in [
+        ("Functor.lang", FUNCTOR),
+        ("Applicative.lang", APPLICATIVE),
+        ("Monad.lang", MONAD),
+        ("Alternative.lang", ALTERNATIVE),
+        ("Identity.lang", IDENTITY),
+        ("Const.lang", CONST),
+        ("Main.lang", main_src),
+    ] {
+        std::fs::write(dir.join(file), src).expect("write module");
+    }
+    driver(mode, &dir.join("Main.lang"), None).map_err(|e| e.to_string())
+}
+
 fn source(body: &str) -> String {
-    format!("{IDENTITY}\n{CONST}\nmodule Main where\n  import Identity\n  import Const\n\n{LAWS}\n{body}\n")
+    format!("{PREFIX}\n{body}\n")
 }
 
 fn expect_ok(name: &str, body: &str, expected: i32) {
-    match run_source(&source(body)) {
+    match compile(name, &source(body), Mode::Run) {
         Ok(code) => assert_eq!(code, expected, "{name}: expected exit {expected}, got {code}"),
         Err(e) => panic!("{name}: compilation failed: {e}"),
     }
 }
 
 fn expect_err(name: &str, body: &str, needle: &str) {
-    match check_sources(&source(body), "<test>") {
+    match compile(name, &source(body), Mode::Check) {
         Ok(_) => panic!("{name}: expected an error containing {needle:?}"),
         Err(e) => {
-            let msg = e.to_string();
             assert!(
-                msg.contains(needle),
-                "{name}: error {msg:?} does not contain {needle:?}"
+                e.contains(needle),
+                "{name}: error {e:?} does not contain {needle:?}"
             );
         }
     }
@@ -99,19 +181,19 @@ fn expect_err(name: &str, body: &str, needle: &str) {
 fn visitors_round_trip() {
     expect_ok(
         "visitors-round-trip",
-        "  main :: Int\n\
-         \x20 main =\n\
-         \x20   let v = (Identity 7 :: Identity Int) in\n\
-         \x20   let w = Identity True in\n\
-         \x20   let c = (Const 11 :: Const Int Bool) in\n\
-         \x20   let s = (Const 'q' :: Const Char Int) in\n\
-         \x20   if run-identity v == 7 then\n\
-         \x20     if run-identity w == True then\n\
-         \x20       if get-const c == 11 then\n\
-         \x20         if get-const s == 'q' then 0 else 4\n\
-         \x20       else 3\n\
-         \x20     else 2\n\
-         \x20   else 1\n",
+        r#"  main :: Int
+  main =
+    let v = (Identity 7 :: Identity Int) in
+    let w = Identity True in
+    let c = (Const 11 :: Const Int Bool) in
+    let s = (Const 'q' :: Const Char Int) in
+    if run-identity v == 7 then
+      if run-identity w == True then
+        if get-const c == 11 then
+          if get-const s == 'q' then 0 else 4
+        else 3
+      else 2
+    else 1"#,
         0,
     );
 }
@@ -120,17 +202,17 @@ fn visitors_round_trip() {
 fn identity_functor_laws() {
     expect_ok(
         "identity-functor-laws",
-        "  main :: Int\n\
-         \x20 main =\n\
-         \x20   let v = (Identity 7 :: Identity Int) in\n\
-         \x20   let w = Identity True in\n\
-         \x20   if functor-identity-law v then\n\
-         \x20     if functor-identity-law w then\n\
-         \x20       if functor-composition-law (\\x -> x * 2) (\\x -> x + 1) v then\n\
-         \x20         if functor-composition-law (\\p -> if p then False else True) (\\p -> if p then False else True) w then 0 else 4\n\
-         \x20       else 3\n\
-         \x20     else 2\n\
-         \x20   else 1\n",
+        r#"  main :: Int
+  main =
+    let v = (Identity 7 :: Identity Int) in
+    let w = Identity True in
+    if functor-identity v then
+      if functor-identity w then
+        if functor-composition (\x -> x * 2) (\x -> x + 1) v then
+          if functor-composition (\p -> if p then False else True) (\p -> if p then False else True) w then 0 else 4
+        else 3
+      else 2
+    else 1"#,
         0,
     );
 }
@@ -139,15 +221,15 @@ fn identity_functor_laws() {
 fn identity_applicative_homomorphism() {
     expect_ok(
         "identity-applicative-homomorphism",
-        "  main :: Int\n\
-         \x20 main =\n\
-         \x20   if applicative-homomorphism-law (\\x -> x + 1) (5 :: Int) then\n\
-         \x20     if applicative-homomorphism-law (\\p -> if p then False else True) True then\n\
-         \x20       if run-identity (ap-identity (Identity (\\x -> x + 1)) (Identity (5 :: Int))) == 6 then\n\
-         \x20         if run-identity (lift-a2-identity (\\x y -> x + y) (Identity (2 :: Int)) (Identity (3 :: Int))) == 5 then 0 else 4\n\
-         \x20       else 3\n\
-         \x20     else 2\n\
-         \x20   else 1\n",
+        r#"  main :: Int
+  main =
+    if applicative-homomorphism (\x -> x + 1) (5 :: Int) (Identity 0) then
+      if applicative-homomorphism (\p -> if p then False else True) True (Identity False) then
+        if run-identity ((<*>) (Identity (\x -> x + 1)) (Identity (5 :: Int))) == 6 then
+          if run-identity (lift-a2 (\x y -> x + y) (Identity (2 :: Int)) (Identity (3 :: Int))) == 5 then 0 else 4
+        else 3
+      else 2
+    else 1"#,
         0,
     );
 }
@@ -156,16 +238,16 @@ fn identity_applicative_homomorphism() {
 fn identity_monad_identity_laws() {
     expect_ok(
         "identity-monad-identity-laws",
-        "  main :: Int\n\
-         \x20 main =\n\
-         \x20   let v = (Identity 10 :: Identity Int) in\n\
-         \x20   if monad-left-identity-law (4 :: Int) (\\x -> Identity (x + 3)) then\n\
-         \x20     if monad-right-identity-law v then\n\
-         \x20       if monad-left-identity-law True (\\p -> Identity (if p then False else True)) then\n\
-         \x20         if monad-right-identity-law (Identity False) then 0 else 4\n\
-         \x20       else 3\n\
-         \x20     else 2\n\
-         \x20   else 1\n",
+        r#"  main :: Int
+  main =
+    let v = (Identity 10 :: Identity Int) in
+    if monad-left-identity (4 :: Int) (\x -> Identity (x + 3)) then
+      if monad-right-identity v then
+        if monad-left-identity True (\p -> Identity (if p then False else True)) then
+          if monad-right-identity (Identity False) then 0 else 4
+        else 3
+      else 2
+    else 1"#,
         0,
     );
 }
@@ -174,12 +256,12 @@ fn identity_monad_identity_laws() {
 fn identity_monad_associativity_laws() {
     expect_ok(
         "identity-monad-associativity-laws",
-        "  main :: Int\n\
-         \x20 main =\n\
-         \x20   let v = (Identity 3 :: Identity Int) in\n\
-         \x20   if monad-associativity-law v (\\x -> Identity (x + 4)) (\\x -> Identity (x * 5)) then\n\
-         \x20     if monad-join-associativity-law (Identity (Identity (Identity (6 :: Int)))) then 0 else 2\n\
-         \x20   else 1\n",
+        r#"  main :: Int
+  main =
+    let v = (Identity 3 :: Identity Int) in
+    if monad-associativity v (\x -> Identity (x + 4)) (\x -> Identity (x * 5)) then
+      if monad-join-associativity (Identity (Identity (Identity (6 :: Int)))) then 0 else 2
+    else 1"#,
         0,
     );
 }
@@ -188,16 +270,16 @@ fn identity_monad_associativity_laws() {
 fn const_functor_laws() {
     expect_ok(
         "const-functor-laws",
-        "  main :: Int\n\
-         \x20 main =\n\
-         \x20   let c = (Const 11 :: Const Int Int) in\n\
-         \x20   if const-functor-identity-law c then\n\
-         \x20     if const-functor-composition-law (\\x -> x * 2) (\\x -> x + 1) c then\n\
-         \x20       if const-constant-law (\\x -> x + 1) (\\x -> x * 3) c then\n\
-         \x20         if const-functor-identity-law (Const 'q' :: Const Char Int) then 0 else 4\n\
-         \x20       else 3\n\
-         \x20     else 2\n\
-         \x20   else 1\n",
+        r#"  main :: Int
+  main =
+    let c = (Const 11 :: Const Int Int) in
+    if const-functor-identity c then
+      if const-functor-composition (\x -> x * 2) (\x -> x + 1) c then
+        if const-constant (\x -> x + 1) (\x -> x * 3) c then
+          if const-functor-identity (Const 'q' :: Const Char Int) then 0 else 4
+        else 3
+      else 2
+    else 1"#,
         0,
     );
 }
@@ -206,14 +288,189 @@ fn const_functor_laws() {
 fn visitors_reject_wrong_shapes() {
     expect_err(
         "identity-rejects-non-identity",
-        "  main :: Int\n\
-         \x20 main = run-identity 3\n",
+        r#"  main :: Int
+  main = run-identity 3"#,
         "cannot have type Identity",
     );
     expect_err(
         "const-rejects-non-const",
-        "  main :: Int\n\
-         \x20 main = get-const 3\n",
+        r#"  main :: Int
+  main = get-const 3"#,
         "cannot have type Const",
+    );
+}
+
+/// The law groups over the shipped instance families: List, Option and
+/// `Result e` through the polymorphic statements, `Const` through the
+/// functor group. Each check is a top-level function returning 0 or
+/// its bit (check k contributes bit 2^(k-1)); `main` sums them, so a
+/// nonzero exit is the failing checks' bitmask (the 8-bit exit status
+/// bounds the groups, and the checks are top-level because a `case` in
+/// a `let` binder's right-hand side must indent past the binder's
+/// column under the layout rules).
+#[test]
+fn family_laws_over_shipped_instances() {
+    expect_ok(
+        "family-laws",
+        r#"  check-list :: Int
+  check-list =
+    let v = Cons (1 :: Int) (Cons 2 Nil) in
+    if functor-identity v then
+      if functor-composition (\x -> x * 2) (\x -> x + 1) v then
+        if applicative-homomorphism (\x -> x + 1) (5 :: Int) (Nil :: List Int) then
+          if monad-left-identity (4 :: Int) (\x -> Cons (x + 3) Nil) then
+            if monad-right-identity v then
+              if monad-associativity v (\x -> Cons (x + 1) Nil) (\y -> Cons (y * 5) Nil) then
+                if monad-join-associativity (Cons (Cons (Cons (1 :: Int) Nil) Nil) Nil) then 0 else 64
+              else 32
+            else 16
+          else 8
+        else 4
+      else 2
+    else 1
+
+  check-option :: Int
+  check-option =
+    let v = Some (1 :: Int) in
+    if functor-identity v then
+      if functor-composition (\x -> x * 2) (\x -> x + 1) v then
+        if applicative-homomorphism (\x -> x + 1) (5 :: Int) (None :: Option Int) then
+          if monad-left-identity (4 :: Int) (\x -> Some (x + 3)) then
+            if monad-right-identity v then
+              if monad-associativity v (\x -> Some (x + 1)) (\y -> Some (y * 5)) then
+                if monad-join-associativity (Some (Some (Some (1 :: Int)))) then 0 else 64
+              else 32
+            else 16
+          else 8
+        else 4
+      else 2
+    else 1
+
+  check-result :: Int
+  check-result =
+    let v = Ok (1 :: Int) :: Result Int Int in
+    if functor-identity v then
+      if functor-composition (\x -> x * 2) (\x -> x + 1) v then
+        if applicative-homomorphism (\x -> x + 1) (5 :: Int) (Ok 0 :: Result Int Int) then
+          if monad-left-identity (4 :: Int) (\x -> Ok (x + 3) :: Result Int Int) then
+            if monad-right-identity v then
+              if monad-associativity v (\x -> Ok (x + 1) :: Result Int Int) (\y -> Ok (y * 5) :: Result Int Int) then
+                if monad-join-associativity (Ok (Ok (Ok (1 :: Int))) :: Result Int (Result Int (Result Int Int))) then 0 else 64
+              else 32
+            else 16
+          else 8
+        else 4
+      else 2
+    else 1
+
+  check-const :: Int
+  check-const =
+    let c = (Const 11 :: Const Int Int) in
+    if functor-identity c then
+      if functor-composition (\x -> x * 2) (\x -> x + 1) c then 0 else 2
+    else 1
+
+  check-operators :: Int
+  check-operators =
+    let xs = (Cons (1 :: Int) (Cons 2 Nil)) in
+    let ys = (Cons (11 :: Int) (Cons 12 Nil)) in
+    let a = if same-list ((<$>) (\x -> x + 10) xs) ys then 0 else 1 in
+    let b = if same-list (lift-a2 (\x y -> x + y) xs (Cons (10 :: Int) Nil)) (Cons 11 (Cons 12 Nil)) then 0 else 2 in
+    let c = if same-list ((<*>) (Cons (\x -> x + 10) Nil) xs) ys then 0 else 4 in
+    a + b + c
+
+  check-alternative :: Int
+  check-alternative =
+    let a = if same-option ((<|>) (empty :: Option Int) (Some (1 :: Int))) (Some (1 :: Int)) then 0 else 1 in
+    let b = if same-option ((<|>) (Some (2 :: Int)) (Some (1 :: Int))) (Some (2 :: Int)) then 0 else 2 in
+    let c = if same-list ((<|>) (empty :: List Int) (Cons (1 :: Int) Nil)) (Cons (1 :: Int) Nil) then 0 else 4 in
+    let d = if same-list ((<|>) (Cons (1 :: Int) Nil) (Cons (2 :: Int) Nil)) (Cons 1 (Cons 2 Nil)) then 0 else 8 in
+    a + b + c + d
+
+  main :: Int
+  main = check-list + check-option + check-result + check-const + check-operators + check-alternative"#,
+        0,
+    );
+}
+
+/// The `((->) r)` family has no `Eq` of functions, so its law groups
+/// run pointwise at sample arguments.
+#[test]
+fn function_family_laws_pointwise() {
+    expect_ok(
+        "function-family-laws",
+        r#"  fn-id :: Int -> Int
+  fn-id x = x
+
+  fn-inc :: Int -> Int
+  fn-inc x = x + 1
+
+  fn-double :: Int -> Int
+  fn-double x = x * 2
+
+  fn-plus10 :: Int -> Int
+  fn-plus10 r = r + 10
+
+  fn-add :: Int -> Int -> Int
+  fn-add x r = x + r
+
+  fn-mul :: Int -> Int -> Int
+  fn-mul y r = y * r
+
+  fn-sum3 :: Int -> Int -> Int -> Int
+  fn-sum3 x y z = x + y + z
+
+  fn-pure6 :: Int -> Int
+  fn-pure6 = pure (6 :: Int)
+
+  fn-homomorphism :: Int -> Int
+  fn-homomorphism = (<*>) (pure fn-inc) (pure (5 :: Int))
+
+  fn-left-identity :: Int -> Int
+  fn-left-identity = (>>=) (pure (5 :: Int)) fn-add
+
+  fn-right-identity :: Int -> Int
+  fn-right-identity = (>>=) fn-inc pure
+
+  fn-associativity :: Int -> Int
+  fn-associativity = (>>=) ((>>=) fn-inc fn-add) fn-mul
+
+  fn-associativity-right :: Int -> Int
+  fn-associativity-right = (>>=) fn-inc (\x -> (>>=) (fn-add x) fn-mul)
+
+  fn-join :: Int -> Int
+  fn-join = join (map join fn-sum3)
+
+  fn-join-right :: Int -> Int
+  fn-join-right = join (join fn-sum3)
+
+  check-map-id :: Int
+  check-map-id = if map fn-id fn-inc (3 :: Int) == 4 then 0 else 1
+
+  check-map-comp :: Int
+  check-map-comp =
+    if map fn-double (map fn-inc fn-plus10) (3 :: Int) == map (\x -> (x + 1) * 2) fn-plus10 (3 :: Int) then 0 else 2
+
+  check-homomorphism :: Int
+  check-homomorphism = if fn-pure6 (0 :: Int) == fn-homomorphism (0 :: Int) then 0 else 4
+
+  check-lift-a2 :: Int
+  check-lift-a2 = if lift-a2 (\x y -> x + y) fn-inc fn-double (3 :: Int) == 10 then 0 else 8
+
+  check-left-identity :: Int
+  check-left-identity = if fn-left-identity (3 :: Int) == 8 then 0 else 16
+
+  check-right-identity :: Int
+  check-right-identity = if fn-right-identity (3 :: Int) == 4 then 0 else 32
+
+  check-associativity :: Int
+  check-associativity = if fn-associativity (2 :: Int) == fn-associativity-right (2 :: Int) then 0 else 64
+
+  check-join :: Int
+  check-join = if fn-join (2 :: Int) == fn-join-right (2 :: Int) then 0 else 128
+
+  main :: Int
+  main = check-map-id + check-map-comp + check-homomorphism + check-lift-a2 + check-left-identity + check-right-identity + check-associativity + check-join"#,
+        0,
     );
 }

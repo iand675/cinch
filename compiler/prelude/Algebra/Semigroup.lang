@@ -27,7 +27,7 @@
 -- Endo) are declared in Algebra.Monoid with both of their instances,
 -- because an instance lives with its type and a newtype's home is its
 -- class module.
-module Semigroup where
+module Algebra.Semigroup where
 
   infixr 6 <>
 

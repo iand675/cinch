@@ -30,9 +30,9 @@
 -- Structural instances over functions and tuples live with the class
 -- module permanently; the Semigroup halves of those live in
 -- Algebra.Semigroup.
-module Monoid where
+module Algebra.Monoid where
 
-  import Semigroup
+  import Algebra.Semigroup
 
   infixr 6 <>
 

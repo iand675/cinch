@@ -1,0 +1,39 @@
+-- Category.Alternative: the class of containers with an identity for
+-- choice.
+--
+-- `empty` is the nullary method (the dictionary carries the value
+-- itself) and `<|>` is the choice operator (infixl 3, decision D2's
+-- per-module fixity declarations). As in Haskell the class sits over
+-- Applicative (the import below), which also supplies the List
+-- family's `append-list`.
+--
+-- `Alternative (Result e)` is omitted by design: its `empty` needs a
+-- distinguished error value, which is a Monoid on `e`'s error type;
+-- it belongs with the Monoid integration, not here.
+--
+-- Instance homes: List and Option are Prelude types (not split yet),
+-- so their instances are parked here until the prelude split moves
+-- them to their Data.* homes.
+module Category.Alternative where
+
+  import Category.Applicative
+
+  signature Alternative (f :: Type -> Type) where
+    empty :: forall a. f a
+    (<|>) :: forall a. f a -> f a -> f a
+
+  infixl 3 <|>
+
+  -- Parked here; see the header (the type's home is Prelude.lang).
+  -- First success wins: `None <|> y` is `y`, `Some x <|> y` keeps `x`.
+  implicit instance Alternative_Option :: Alternative Option where
+    empty = None
+    (<|>) o1 o2 = case o1 of
+      None -> o2
+      Some x -> Some x
+
+  -- Parked here; see the header (the type's home is Prelude.lang).
+  -- Choice is concatenation.
+  implicit instance Alternative_List :: Alternative List where
+    empty = Nil
+    (<|>) xs ys = append-list xs ys

@@ -1,155 +1,49 @@
 -- Category.Traversable: the traversal class over containers.
 --
--- Module header deviation (this slice, 2026-10-26): the base-library
--- scheme names this module `Category.Traversable`, but dotted module
--- names are unreachable from other modules in the bootstrap checker
--- (imports register under the import path's last segment; see
--- Category/Foldable.lang). Header is the single-segment `Traversable`;
--- rename when the dotted-module-name fix lands.
+-- Class shape: `Traversable (t :: Type -> Type)` with the two
+-- mathematical methods at the applied container:
+--   traverse :: (a -> f b) -> t a -> f (t b)
+--   sequence :: t (f a) -> f (t a)
+-- The effect constructor `f` is quantified per method under its
+-- `Applicative f` constraint (a class constraint entails nothing, so
+-- the constraint is stated on each method). The defunctionalized
+-- six-parameter scaffolding (`Traversable t x g h tg hs`) is gone,
+-- `hs`-duplicates-`h` and all: higher-kinded parameters landed and
+-- the class is the mathematical one now.
 --
--- Class shape deviation: the scheme's mathematical class is
---   `Traversable (t :: Type -> Type)` with
---   `traverse :: (a -> f b) -> t a -> f (t b)` and
---   `sequence :: t (f a) -> f (t a)`.
--- Stating that needs higher-kinded type application (`f b`, `t a` with
--- quantified constructors `f`, `t`) and partial application (`Result e`
--- as a target): both are rejected by the bootstrap type grammar ("cannot
--- apply non-type-constructor", "type Result must be fully applied"), and
--- the HK work is a scheduled compiler slice. This class is the
--- defunctionalized encoding that typechecks today; the HK slice should
--- collapse it to the two mathematical methods above.
+-- The instances below are written against the effect's Applicative
+-- dictionary (`pure`/`lift-a2`), so one instance serves every effect.
+-- For `Result` and `Option` this preserves the tested short-circuit
+-- order exactly: their applicatives are left-biased and the
+-- combinations nest in traversal order, so the returned error is
+-- always the FIRST error in traversal order (asserted over sample
+-- values in compiler/tests/lib_foldable.rs).
 --
--- Status (Main decision, 2026-10-26): this encoding is accepted as
--- SCAFFOLDING, not as API. The curated Prelude re-export list will not
--- export it; the higher-kinded slice (A7) collapses it in place to the
--- two mathematical methods before it faces users. Do not write generic
--- code against the six-parameter head. The `hs`-duplicates-`h` slot
--- (a `sequence` call determines y but not x, so one shared result slot
--- leaves an undetermined dictionary variable) is recorded as an A7
--- acceptance consideration at collapse.
---
--- Slots per instance, with T the container constructor, F the target
--- constructor, x the input element and y the output element:
---   t  = T x          the traversed container
---   x  = x            its element type
---   g  = F y          one effectful output element
---   h  = F (T y)      the effectful output container
---   tg = T (F y)      a container of effectful output elements
---   hs = F (T y)      the same as h; sequence's result, stated
---                     separately so a `sequence` call pins every slot
---                     it uses. (A `sequence` call determines y but not
---                     x, so sharing one result slot would leave an
---                     undetermined variable in the dictionary at those
---                     call sites.)
--- So `traverse` has its mathematical shape `(x -> F y) -> T x -> F (T y)`
--- and `sequence` has `T (F y) -> F (T y)`; only the class head is
--- encoded, not the meaning. The invariant slots (g = F y, h = F (T y),
--- tg = T (F y)) are held by each instance head explicitly.
---
--- Why the bodies delegate to top-level helpers: a class-method call's
--- type slots are pinned only when its constraint is solved, but `case`
--- needs the scrutinee's type while compiling the branch rows. A `case`
--- directly on a method call reports "cannot determine the type of the
--- scrutinee". Helpers with explicit signatures are ordinary values with
--- concrete result types, so the recursions below compile. The helpers
--- are the real implementations; the instance methods are one-line
--- delegations.
---
--- Instance home deviation: List and Option instances belong with their
--- types (Data.List, Data.Option after the Prelude split; the types are
--- in Prelude.lang, which this slice cannot edit), so they live here with
--- the class until the split. NonEmpty's instances live in
--- Data/NonEmpty.lang and reuse the List helpers on the tail.
-module Traversable where
+-- Instance homes. List and Option are Prelude types whose home
+-- (compiler/prelude/Prelude.lang) is not split yet, so their instances
+-- are parked here with the class until the prelude split moves them to
+-- Data.List/Data.Option. NonEmpty's instance lives with its type in
+-- Data/NonEmpty.lang and reuses the List instance on the tail.
+module Category.Traversable where
 
-  signature Traversable t x g h tg hs where
-    traverse :: (x -> g) -> t -> h
-    sequence :: tg -> hs
+  import Category.Applicative
 
-  -- List into Result: left-to-right, the FIRST Err short-circuits.
-  traverse-list-result :: forall x e y. (x -> Result e y) -> List x -> Result e (List y)
-  traverse-list-result f xs = case xs of
-    Nil -> Ok Nil
-    Cons a rest -> case f a of
-      Err e -> Err e
-      Ok b -> case traverse-list-result f rest of
-        Err e -> Err e
-        Ok bs -> Ok (Cons b bs)
+  signature Traversable (t :: Type -> Type) where
+    traverse :: forall f a b. using (app :: Applicative f) => (a -> f b) -> t a -> f (t b)
+    sequence :: forall f a. using (app :: Applicative f) => t (f a) -> f (t a)
 
-  sequence-list-result :: forall e y. List (Result e y) -> Result e (List y)
-  sequence-list-result xs = case xs of
-    Nil -> Ok Nil
-    Cons r rest -> case r of
-      Err e -> Err e
-      Ok v -> case sequence-list-result rest of
-        Err e -> Err e
-        Ok vs -> Ok (Cons v vs)
+  -- Parked here; see the header (the type's home is Prelude.lang).
+  -- Left-to-right; the whole list rebuilds under one `f`.
+  implicit instance Traversable_List :: Traversable List where
+    traverse f xs = case xs of
+      Nil -> pure Nil
+      Cons y ys -> lift-a2 (\b bs -> Cons b bs) (f y) (traverse f ys)
+    sequence xs = traverse (\x -> x) xs
 
-  implicit instance Traverse_List_Result x e y
-    :: Traversable (List x) x (Result e y) (Result e (List y)) (List (Result e y)) (Result e (List y)) where
-    traverse f xs = traverse-list-result f xs
-    sequence xs = sequence-list-result xs
-
-  -- List into Option: left-to-right, the first None short-circuits.
-  traverse-list-option :: forall x y. (x -> Option y) -> List x -> Option (List y)
-  traverse-list-option f xs = case xs of
-    Nil -> Some Nil
-    Cons a rest -> case f a of
-      None -> None
-      Some b -> case traverse-list-option f rest of
-        None -> None
-        Some bs -> Some (Cons b bs)
-
-  sequence-list-option :: forall y. List (Option y) -> Option (List y)
-  sequence-list-option xs = case xs of
-    Nil -> Some Nil
-    Cons o rest -> case o of
-      None -> None
-      Some v -> case sequence-list-option rest of
-        None -> None
-        Some vs -> Some (Cons v vs)
-
-  implicit instance Traverse_List_Option x y
-    :: Traversable (List x) x (Option y) (Option (List y)) (List (Option y)) (Option (List y)) where
-    traverse f xs = traverse-list-option f xs
-    sequence xs = sequence-list-option xs
-
-  -- Option into Result.
-  traverse-option-result :: forall x e y. (x -> Result e y) -> Option x -> Result e (Option y)
-  traverse-option-result f o = case o of
-    None -> Ok None
-    Some a -> case f a of
-      Err e -> Err e
-      Ok b -> Ok (Some b)
-
-  sequence-option-result :: forall e y. Option (Result e y) -> Result e (Option y)
-  sequence-option-result o = case o of
-    None -> Ok None
-    Some r -> case r of
-      Err e -> Err e
-      Ok v -> Ok (Some v)
-
-  implicit instance Traverse_Option_Result x e y
-    :: Traversable (Option x) x (Result e y) (Result e (Option y)) (Option (Result e y)) (Result e (Option y)) where
-    traverse f o = traverse-option-result f o
-    sequence o = sequence-option-result o
-
-  -- Option into Option.
-  traverse-option-option :: forall x y. (x -> Option y) -> Option x -> Option (Option y)
-  traverse-option-option f o = case o of
-    None -> Some None
-    Some a -> case f a of
-      None -> None
-      Some b -> Some (Some b)
-
-  sequence-option-option :: forall y. Option (Option y) -> Option (Option y)
-  sequence-option-option o = case o of
-    None -> Some None
-    Some r -> case r of
-      None -> None
-      Some v -> Some (Some v)
-
-  implicit instance Traverse_Option_Option x y
-    :: Traversable (Option x) x (Option y) (Option (Option y)) (Option (Option y)) (Option (Option y)) where
-    traverse f o = traverse-option-option f o
-    sequence o = sequence-option-option o
+  -- Parked here; see the header (the type's home is Prelude.lang).
+  -- `None` traverses to `pure None`; `Some` carries one effect.
+  implicit instance Traversable_Option :: Traversable Option where
+    traverse f o = case o of
+      None -> pure None
+      Some a -> (<*>) (pure (\b -> Some b)) (f a)
+    sequence o = traverse (\x -> x) o

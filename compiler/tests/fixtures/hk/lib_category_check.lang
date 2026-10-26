@@ -1,183 +1,68 @@
--- The identity type: the universal visitor that changes nothing. It is
--- the unit of the category family (the identity functor and the trivial
--- monad), so its operations below are the reference instance bodies the
--- Category.* classes will carry.
+-- The shipped category family end to end (it RUNS): the Identity and
+-- Const universal visitors exercised through the real
+-- Functor/Applicative/Monad classes, with the law groups over sample
+-- values and the visitors' round trip.
 --
--- Module name: the module scheme (design/base-library.md) names this
--- module `Data.Identity`. The header is the single-segment `Identity`
--- pending the dotted-module-name fix: the checker keys imports by an
--- import path's last segment (check_decls.rs `imports_of`), so a
--- `module Data.Identity` header cannot be imported from anywhere. The
--- file path is the scheme's; rename the header when the fix lands.
---
--- `do` notation and these classes (decision D22): `do` picks its
--- provider lexically per definition, through a `using` binder with a
--- DirectSequencing/ResultSequencing/OptionSequencing head (default:
--- DirectSequencing). A do-provider is a fixed instance choice: exactly
--- one container per definition, no polymorphism. The Category.*
--- classes (Functor/Applicative/Monad) abstract over containers for
--- polymorphic code; their `fmap`/`pure`/`>>=` are ordinary class
--- methods resolved per use site. The two mechanisms do not interact
--- and neither is changing: `do` never consults the classes, and a class
--- constraint never selects a do provider.
---
--- Why these are plain functions rather than class instances: the
--- Category.* classes cannot be declared in the current surface. The
--- checker rejects type-constructor variables (`f a` for a class
--- parameter `f` fails with "cannot apply non-type-constructor f"), so
--- `class Functor f` with `fmap :: (a -> b) -> f a -> f b` and its
--- instances are unexpressible; the fix is scheduled as a compiler
--- slice (higher-kinded parameters are a requirement of the modules and
--- compilation specification, section 1). The functions below are the
--- instance method bodies (Functor `fmap`, Applicative `pure`/`<*>`/
--- `lift-a2`, Monad `return`/`>>=`/`join`) held at the type until the
--- classes land; `Identity`'s instances will be defined through them.
--- The operators `<$>`, `<*>` and `>>=` are class methods per decision
--- D2 (operators are class methods with per-module fixity
--- declarations), so no per-type operator stand-ins are defined here:
--- the operator names belong to the classes and arrive with them.
-module Identity where
-
-  data Identity a where
-    Identity :: a -> Identity a
-
-  -- Elimination: the wrapped value.
-  run-identity :: forall a. Identity a -> a
-  run-identity v = case v of
-    Identity x -> x
-
-  -- Functor body: map over the wrapped value.
-  map-identity :: forall a b. (a -> b) -> Identity a -> Identity b
-  map-identity f v = case v of
-    Identity x -> Identity (f x)
-
-  -- Applicative body (also the Monad `return` body).
-  pure-identity :: forall a. a -> Identity a
-  pure-identity x = Identity x
-
-  -- Applicative body: apply a wrapped function to a wrapped value.
-  ap-identity :: forall a b. Identity (a -> b) -> Identity a -> Identity b
-  ap-identity vf vx = case vf of
-    Identity f -> map-identity f vx
-
-  -- Applicative body: lift a two-argument function.
-  lift-a2-identity :: forall a b c. (a -> b -> c) -> Identity a -> Identity b -> Identity c
-  lift-a2-identity f vx vy = ap-identity (map-identity f vx) vy
-
-  -- Monad body: sequence a dependent computation.
-  bind-identity :: forall a b. Identity a -> (a -> Identity b) -> Identity b
-  bind-identity v k = case v of
-    Identity x -> k x
-
-  -- Monad body: collapse one layer.
-  join-identity :: forall a. Identity (Identity a) -> Identity a
-  join-identity vv = case vv of
-    Identity v -> v
--- The constant functor: `Const a b` carries an `a` and erases the `b`.
--- It is the universal visitor for computations whose result type is
--- fixed, and the composing piece the Category.* classes use as their
--- lawful constant functor.
---
--- Module name: the module scheme (design/base-library.md) names this
--- module `Data.Const`. The header is the single-segment `Const` pending
--- the dotted-module-name fix: the checker keys imports by an import
--- path's last segment (check_decls.rs `imports_of`), so a
--- `module Data.Const` header cannot be imported from anywhere. The file
--- path is the scheme's; rename the header when the fix lands.
---
--- `do` notation and these classes (decision D22): `do` picks its
--- provider lexically per definition, through a `using` binder with a
--- DirectSequencing/ResultSequencing/OptionSequencing head (default:
--- DirectSequencing). A do-provider is a fixed instance choice: exactly
--- one container per definition, no polymorphism. The Category.*
--- classes (Functor/Applicative/Monad) abstract over containers for
--- polymorphic code; their `fmap`/`pure`/`>>=` are ordinary class
--- methods resolved per use site. The two mechanisms do not interact
--- and neither is changing: `do` never consults the classes, and a class
--- constraint never selects a do provider.
---
--- Why these are plain functions rather than class instances: the
--- Category.* classes cannot be declared in the current surface. The
--- checker rejects type-constructor variables (`f a` for a class
--- parameter `f` fails with "cannot apply non-type-constructor f"), so
--- `class Functor f` with `fmap :: (a -> b) -> f a -> f b` and its
--- instances are unexpressible; the fix is scheduled as a compiler
--- slice (higher-kinded parameters are a requirement of the modules and
--- compilation specification, section 1). `map-const` is the Functor
--- `fmap` body for `Const`, held at the type until the class lands.
--- `Const`'s Applicative bodies are not here: `pure`/`<*>` for `Const`
--- need to combine payloads under the `Algebra.Monoid` constraint, which
--- is another slice's class, so they belong to the `Category.Applicative`
--- instance once both classes exist. The operator `<$>` is a class
--- method per decision D2 (operators are class methods with per-module
--- fixity declarations), so no per-type operator stand-in is defined
--- here.
-module Const where
-
-  data Const a b where
-    Const :: a -> Const a b
-
-  -- Elimination: the carried value.
-  get-const :: forall a b. Const a b -> a
-  get-const c = case c of
-    Const x -> x
-
-  -- Functor body: the carried value is unchanged and the function is
-  -- ignored (the constant functor).
-  map-const :: forall m a b. (a -> b) -> Const m a -> Const m b
-  map-const f c = case c of
-    Const x -> Const x
+-- Simplification (the D127 collapse): this fixture previously carried
+-- inline copies of Data.Identity and Data.Const. Those are the shipped
+-- modules now (compiler/prelude/Data/{Identity,Const}.lang, carrying
+-- their class instances), so the copies are gone and compiler/tests/hk.rs
+-- assembles this file with the shipped modules. The law bodies below
+-- call the real class methods (`map`, `pure`, `<*>`, `lift-a2`, `>>=`,
+-- `join`); the law groups and their exit codes are the acceptance.
 module Main where
-  import Identity
-  import Const
+  import Category.Functor
+  import Category.Applicative
+  import Category.Monad
+  import Data.Identity
+  import Data.Const
 
   functor-identity-law :: forall a. using (eq :: Eq a) => Identity a -> Bool
   functor-identity-law v =
-    run-identity (map-identity (\x -> x) v) == run-identity v
+    run-identity (map (\x -> x) v) == run-identity v
 
   functor-composition-law :: forall a b c. using (eq :: Eq c) => (b -> c) -> (a -> b) -> Identity a -> Bool
   functor-composition-law g f v =
-    let left = run-identity (map-identity g (map-identity f v)) in
-    let right = run-identity (map-identity (\x -> g (f x)) v) in
+    let left = run-identity (map g (map f v)) in
+    let right = run-identity (map (\x -> g (f x)) v) in
     left == right
 
   applicative-homomorphism-law :: forall a b. using (eq :: Eq b) => (a -> b) -> a -> Bool
   applicative-homomorphism-law f x =
-    run-identity (pure-identity (f x)) == run-identity (ap-identity (pure-identity f) (pure-identity x))
+    run-identity (pure (f x)) == run-identity ((<*>) (pure f) (pure x))
 
   monad-left-identity-law :: forall a b. using (eq :: Eq b) => a -> (a -> Identity b) -> Bool
   monad-left-identity-law x k =
-    run-identity (bind-identity (pure-identity x) k) == run-identity (k x)
+    run-identity ((>>=) (pure x) k) == run-identity (k x)
 
   monad-right-identity-law :: forall a. using (eq :: Eq a) => Identity a -> Bool
   monad-right-identity-law v =
-    run-identity (bind-identity v pure-identity) == run-identity v
+    run-identity ((>>=) v pure) == run-identity v
 
   monad-associativity-law :: forall a b c. using (eq :: Eq c) => Identity a -> (a -> Identity b) -> (b -> Identity c) -> Bool
   monad-associativity-law v f g =
-    let left = run-identity (bind-identity (bind-identity v f) g) in
-    let right = run-identity (bind-identity v (\x -> bind-identity (f x) g)) in
+    let left = run-identity ((>>=) ((>>=) v f) g) in
+    let right = run-identity ((>>=) v (\x -> (>>=) (f x) g)) in
     left == right
 
   monad-join-associativity-law :: forall a. using (eq :: Eq a) => Identity (Identity (Identity a)) -> Bool
   monad-join-associativity-law vvv =
-    let left = run-identity (join-identity (map-identity join-identity vvv)) in
-    let right = run-identity (join-identity (join-identity vvv)) in
+    let left = run-identity (join (map join vvv)) in
+    let right = run-identity (join (join vvv)) in
     left == right
 
   const-functor-identity-law :: forall m a. using (eq :: Eq m) => Const m a -> Bool
   const-functor-identity-law c =
-    get-const (map-const (\x -> x) c) == get-const c
+    get-const (map (\x -> x) c) == get-const c
 
   const-functor-composition-law :: forall m a b r. using (eq :: Eq m) => (b -> r) -> (a -> b) -> Const m a -> Bool
   const-functor-composition-law g f c =
-    let left = get-const (map-const g (map-const f c)) in
-    let right = get-const (map-const (\x -> g (f x)) c) in
+    let left = get-const (map g (map f c)) in
+    let right = get-const (map (\x -> g (f x)) c) in
     left == right
 
   const-constant-law :: forall m a b. using (eq :: Eq m) => (a -> b) -> (a -> b) -> Const m a -> Bool
-  const-constant-law f h c =
-    get-const (map-const f c) == get-const (map-const h c)
+  const-constant-law f h c = get-const (map f c) == get-const (map h c)
 
   main :: Int
   main =
@@ -198,7 +83,7 @@ module Main where
                         if const-functor-composition-law (\x -> x * 2) (\x -> x + 1) c then
                           if const-constant-law (\x -> x + 1) (\x -> x * 3) c then
                             if const-functor-identity-law s then
-                              if run-identity (lift-a2-identity (\x y -> x + y) (Identity (2 :: Int)) (Identity (3 :: Int))) == 5 then 0 else 14
+                              if run-identity (lift-a2 (\x y -> x + y) (Identity (2 :: Int)) (Identity (3 :: Int))) == 5 then 0 else 14
                             else 13
                           else 12
                         else 11

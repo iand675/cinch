@@ -3,12 +3,9 @@
 -- fixed, and the composing piece the Category.* classes use as their
 -- lawful constant functor.
 --
--- Module name: the module scheme (design/base-library.md) names this
--- module `Data.Const`. The header is the single-segment `Const` pending
--- the dotted-module-name fix: the checker keys imports by an import
--- path's last segment (check_decls.rs `imports_of`), so a
--- `module Data.Const` header cannot be imported from anywhere. The file
--- path is the scheme's; rename the header when the fix lands.
+-- Module name: `Data.Const` (the module scheme's name,
+-- design/base-library.md; the temporary single-segment header is gone
+-- now that dotted module names resolve).
 --
 -- `do` notation and these classes (decision D22): `do` picks its
 -- provider lexically per definition, through a `using` binder with a
@@ -16,28 +13,25 @@
 -- DirectSequencing). A do-provider is a fixed instance choice: exactly
 -- one container per definition, no polymorphism. The Category.*
 -- classes (Functor/Applicative/Monad) abstract over containers for
--- polymorphic code; their `fmap`/`pure`/`>>=` are ordinary class
+-- polymorphic code; their `map`/`pure`/`>>=` are ordinary class
 -- methods resolved per use site. The two mechanisms do not interact
 -- and neither is changing: `do` never consults the classes, and a class
 -- constraint never selects a do provider.
 --
--- Why these are plain functions rather than class instances: the
--- Category.* classes cannot be declared in the current surface. The
--- checker rejects type-constructor variables (`f a` for a class
--- parameter `f` fails with "cannot apply non-type-constructor f"), so
--- `class Functor f` with `fmap :: (a -> b) -> f a -> f b` and its
--- instances are unexpressible; the fix is scheduled as a compiler
--- slice (higher-kinded parameters are a requirement of the modules and
--- compilation specification, section 1). `map-const` is the Functor
--- `fmap` body for `Const`, held at the type until the class lands.
--- `Const`'s Applicative bodies are not here: `pure`/`<*>` for `Const`
--- need to combine payloads under the `Algebra.Monoid` constraint, which
--- is another slice's class, so they belong to the `Category.Applicative`
--- instance once both classes exist. The operator `<$>` is a class
+-- The functions and the instances: `map-const` is the Functor `map`
+-- body for `Const` (the class name is `map`, decision D152), and the
+-- Functor instance at the bottom is defined through it (instances live
+-- with their type). `Const`'s Applicative bodies are not here:
+-- `pure`/`<*>` for `Const` combine payloads under `Algebra.Monoid` and
+-- `Algebra.Semigroup` constraints, which belong to the prelude split's
+-- instance-homes integration along with the containers' `Eq` story;
+-- they arrive then, with `Const`'s home. The operator `<$>` is a class
 -- method per decision D2 (operators are class methods with per-module
 -- fixity declarations), so no per-type operator stand-in is defined
 -- here.
-module Const where
+module Data.Const where
+
+  import Category.Functor
 
   data Const a b where
     Const :: a -> Const a b
@@ -52,3 +46,9 @@ module Const where
   map-const :: forall m a b. (a -> b) -> Const m a -> Const m b
   map-const f c = case c of
     Const x -> Const x
+
+  -- The class instance (instances live with their type), defined
+  -- through the body above.
+  implicit instance Functor_Const m :: Functor (Const m) where
+    map f c = map-const f c
+    (<$>) f c = map-const f c

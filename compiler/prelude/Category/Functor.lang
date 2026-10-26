@@ -1,0 +1,64 @@
+-- Category.Functor: the functor class over type constructors.
+--
+-- The method is `map` (not `fmap`; decision D152's lisp-style naming),
+-- and `<$>` is its operator spelling (decision D2: operators are class
+-- methods with per-module fixity declarations, so `infixl 4 <$>`
+-- below is the declaration consumers import). Both methods have the
+-- same type; a lawful instance defines them identically.
+--
+-- Class shape: `Functor (f :: Type -> Type)` with the methods at the
+-- applied container `f a` (higher-kinded parameters, modules
+-- specification section 1).
+--
+-- `do` notation and these classes (decision D22): `do` picks its
+-- provider lexically per definition, through a `using` binder with a
+-- DirectSequencing/ResultSequencing/OptionSequencing head (default:
+-- DirectSequencing). A do-provider is a fixed instance choice: exactly
+-- one container per definition, no polymorphism. This class abstracts
+-- over containers for polymorphic code; its methods are ordinary class
+-- methods resolved per use site. The two mechanisms do not interact:
+-- `do` never consults the class, and a class constraint never selects
+-- a do provider.
+--
+-- Instance homes. The ownership rule is "instances live with their
+-- type; structural instances over functions and tuples live with the
+-- class module" (design/base-library.md). The function instance below
+-- is structural and lives here permanently. List, Option and Result
+-- are Prelude types whose home (compiler/prelude/Prelude.lang) is not
+-- split yet, so their instances are parked here with the class until
+-- the prelude split moves the types to Data.List/Data.Option/
+-- Data.Result and the instances with them.
+module Category.Functor where
+
+  signature Functor (f :: Type -> Type) where
+    map :: forall a b. (a -> b) -> f a -> f b
+    (<$>) :: forall a b. (a -> b) -> f a -> f b
+
+  infixl 4 <$>
+
+  -- Structural: map over a function's result (the reader functor).
+  implicit instance Functor_Function r :: Functor ((->) r) where
+    map f g x = f (g x)
+    (<$>) f g x = f (g x)
+
+  -- Parked here; see the header (the type's home is Prelude.lang).
+  implicit instance Functor_List :: Functor List where
+    map f xs = case xs of
+      Nil -> Nil
+      Cons y ys -> Cons (f y) (map f ys)
+    (<$>) f xs = map f xs
+
+  -- Parked here; see the header (the type's home is Prelude.lang).
+  implicit instance Functor_Option :: Functor Option where
+    map f o = case o of
+      None -> None
+      Some x -> Some (f x)
+    (<$>) f o = map f o
+
+  -- Parked here; see the header (the type's home is Prelude.lang).
+  -- The error side is untouched: `map f (Err e)` is `Err e`.
+  implicit instance Functor_Result e :: Functor (Result e) where
+    map f r = case r of
+      Err e -> Err e
+      Ok x -> Ok (f x)
+    (<$>) f r = map f r

@@ -97,7 +97,7 @@ const HELPERS: &str = r#"
 /// shared helpers and the program body.
 fn main_module(body: &str) -> String {
     let mut src = String::from(
-        "module Main where\n\n  import Semigroup\n  import Monoid\n\n  infixr 6 <>\n",
+        "module Main where\n\n  import Algebra.Semigroup\n  import Algebra.Monoid\n\n  infixr 6 <>\n",
     );
     src.push_str(HELPERS);
     src.push('\n');
@@ -733,8 +733,9 @@ fn tuple_semigroup_and_monoid_are_componentwise_and_obeys_the_laws() {
 #[test]
 fn modules_load_as_a_multi_file_project() {
     // The real `compiler/prelude/Algebra/*.lang` files, consumed the
-    // way a project consumes them: `import Semigroup` / `import
-    // Monoid` resolved from beside the entry file (decision D42).
+    // way a project consumes them: `import Algebra.Semigroup` /
+    // `import Algebra.Monoid` resolved from beside the entry file
+    // (decision D42).
     let dir: PathBuf = std::env::temp_dir().join(format!(
         "safelang_algebra_proj_{}",
         std::process::id()

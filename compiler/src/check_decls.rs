@@ -3233,8 +3233,16 @@ impl Checker {
                                     rest = body;
                                 }
                                 ast::Type::Using(cs, body, _) => {
+                                    // A method's own constraint may name
+                                    // the method's quantified binders
+                                    // (`traverse`'s `using (app ::
+                                    // Applicative f)`), so it converts
+                                    // against the class parameters plus
+                                    // the binders seen so far.
+                                    let mut cvars = params.clone();
+                                    cvars.extend(extra.iter().cloned());
                                     for c in cs {
-                                        let (n, app) = self.conv_class(c, &params)?;
+                                        let (n, app) = self.conv_class(c, &cvars)?;
                                         own_ctx.push((n, app));
                                     }
                                     rest = body;

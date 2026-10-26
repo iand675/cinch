@@ -5,9 +5,13 @@
 //!
 //! Each test compiles a real multi-file project: the prelude modules
 //! under test (Category/Foldable.lang, Category/Traversable.lang,
-//! Data/NonEmpty.lang) plus Algebra/Semigroup.lang, driven through the
-//! CLI pipeline like modules.rs. The sources exercise only
-//! consumer-visible semantics and the classes' laws over sample values:
+//! Data/NonEmpty.lang) plus Algebra/Semigroup.lang and the
+//! Category.Functor/Category.Applicative class modules the instances
+//! build on, driven through the CLI pipeline like modules.rs. The
+//! classes are the constructor-ary ones (`Foldable (t :: Type ->
+//! Type)`, `Traversable (t :: Type -> Type)`); the sources exercise
+//! only consumer-visible semantics and the classes' laws over sample
+//! values:
 //!   Foldable:    foldr/to-list agreement (`foldr Cons Nil (to-list xs)
 //!                == to-list xs`), to-list idempotence, length/null
 //!                agreement with to-list, foldl/foldr agreement.
@@ -31,6 +35,8 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 const FOLDABLE: &str = include_str!("../prelude/Category/Foldable.lang");
 const TRAVERSABLE: &str = include_str!("../prelude/Category/Traversable.lang");
+const FUNCTOR: &str = include_str!("../prelude/Category/Functor.lang");
+const APPLICATIVE: &str = include_str!("../prelude/Category/Applicative.lang");
 const NONEMPTY: &str = include_str!("../prelude/Data/NonEmpty.lang");
 const SEMIGROUP: &str = include_str!("../prelude/Algebra/Semigroup.lang");
 
@@ -47,6 +53,8 @@ fn run_main(name: &str, main_src: &str) -> i32 {
     for (file, src) in [
         ("Foldable.lang", FOLDABLE),
         ("Traversable.lang", TRAVERSABLE),
+        ("Functor.lang", FUNCTOR),
+        ("Applicative.lang", APPLICATIVE),
         ("NonEmpty.lang", NONEMPTY),
         ("Semigroup.lang", SEMIGROUP),
         ("Main.lang", main_src),
@@ -69,7 +77,7 @@ fn foldable_list_semantics_and_laws() {
     expect_ok(
         "foldable-list",
         "module Main where\n\
-         \x20 import Foldable\n\
+         \x20 import Category.Foldable\n\
          \x20 same :: List Int -> List Int -> Bool\n\
          \x20 same a b = case a of\n\
          \x20   Nil -> case b of\n\
@@ -98,7 +106,7 @@ fn foldable_option_semantics_and_laws() {
     expect_ok(
         "foldable-option",
         "module Main where\n\
-         \x20 import Foldable\n\
+         \x20 import Category.Foldable\n\
          \x20 same :: List Int -> List Int -> Bool\n\
          \x20 same a b = case a of\n\
          \x20   Nil -> case b of\n\
@@ -127,8 +135,8 @@ fn foldable_nonempty_semantics_and_laws() {
     expect_ok(
         "foldable-nonempty",
         "module Main where\n\
-         \x20 import Foldable\n\
-         \x20 import NonEmpty\n\
+         \x20 import Category.Foldable\n\
+         \x20 import Data.NonEmpty\n\
          \x20 same :: List Int -> List Int -> Bool\n\
          \x20 same a b = case a of\n\
          \x20   Nil -> case b of\n\
@@ -158,9 +166,9 @@ fn semigroup_nonempty_associativity_and_concatenation() {
     expect_ok(
         "semigroup-nonempty",
         "module Main where\n\
-         \x20 import Foldable\n\
-         \x20 import NonEmpty\n\
-         \x20 import Semigroup\n\
+         \x20 import Category.Foldable\n\
+         \x20 import Data.NonEmpty\n\
+         \x20 import Algebra.Semigroup\n\
          \x20 infixr 6 <>\n\
          \x20 same :: List Int -> List Int -> Bool\n\
          \x20 same a b = case a of\n\
@@ -192,8 +200,8 @@ fn traverse_list_result_short_circuits_on_first_error() {
     expect_ok(
         "traverse-list-result",
         "module Main where\n\
-         \x20 import Foldable\n\
-         \x20 import Traversable\n\
+         \x20 import Category.Foldable\n\
+         \x20 import Category.Traversable\n\
          \x20 same :: List Int -> List Int -> Bool\n\
          \x20 same a b = case a of\n\
          \x20   Nil -> case b of\n\
@@ -238,8 +246,8 @@ fn traverse_list_option_short_circuits() {
     expect_ok(
         "traverse-list-option",
         "module Main where\n\
-         \x20 import Foldable\n\
-         \x20 import Traversable\n\
+         \x20 import Category.Foldable\n\
+         \x20 import Category.Traversable\n\
          \x20 same :: List Int -> List Int -> Bool\n\
          \x20 same a b = case a of\n\
          \x20   Nil -> case b of\n\
@@ -284,8 +292,8 @@ fn traverse_option_container_into_result_and_option() {
     expect_ok(
         "traverse-option-container",
         "module Main where\n\
-         \x20 import Foldable\n\
-         \x20 import Traversable\n\
+         \x20 import Category.Foldable\n\
+         \x20 import Category.Traversable\n\
          \x20 same :: List Int -> List Int -> Bool\n\
          \x20 same a b = case a of\n\
          \x20   Nil -> case b of\n\
@@ -328,9 +336,9 @@ fn traverse_nonempty_into_result_and_option() {
     expect_ok(
         "traverse-nonempty",
         "module Main where\n\
-         \x20 import Foldable\n\
-         \x20 import Traversable\n\
-         \x20 import NonEmpty\n\
+         \x20 import Category.Foldable\n\
+         \x20 import Category.Traversable\n\
+         \x20 import Data.NonEmpty\n\
          \x20 same :: List Int -> List Int -> Bool\n\
          \x20 same a b = case a of\n\
          \x20   Nil -> case b of\n\
@@ -377,9 +385,9 @@ fn sequence_short_circuits_on_first_error() {
     expect_ok(
         "sequence-short-circuit",
         "module Main where\n\
-         \x20 import Foldable\n\
-         \x20 import Traversable\n\
-         \x20 import NonEmpty\n\
+         \x20 import Category.Foldable\n\
+         \x20 import Category.Traversable\n\
+         \x20 import Data.NonEmpty\n\
          \x20 same :: List Int -> List Int -> Bool\n\
          \x20 same a b = case a of\n\
          \x20   Nil -> case b of\n\

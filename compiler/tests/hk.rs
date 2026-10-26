@@ -5,23 +5,44 @@
 //! context, and the nullary class method round trip.
 //!
 //! The committed fixtures under `fixtures/hk/` are the acceptance:
-//! `hk_surface_fixture.lang` is the full Functor/Applicative/Monad/
-//! Alternative/Compose surface plus the four instance families and the
-//! `Category.FamilyLaws` polymorphic law statements (it CHECKS),
+//! `hk_surface_fixture.lang` is the `Category.FamilyLaws` polymorphic
+//! law statements over the shipped class surface (it CHECKS),
 //! `lib_category_check.lang` is the shipped family end to end (it
-//! RUNS), and probe1-probe17 map each gap to its checker site. Probe
+//! RUNS). Since the D127 collapse both fixtures reference the SHIPPED
+//! modules (compiler/prelude/**, assembled below) instead of carrying
+//! inline class copies, so what they check is the surface users get.
+//! Probe1-probe17 map each gap to its checker site. Probe
 //! expectations: 1/2/5/6 flipped from rejection to acceptance at this
 //! slice; 3/4/9/11/13/15/16 are controls that stay green; 8/12/14 are
 //! the dotted imports (single-file, multi-file, aliased) and resolve
 //! after the dotted-name fix; 7/10/17 keep their documented forms (7:
 //! an instance head variable must be a declared instance parameter; 10:
 //! `do` parses, the probe's own type error stays; 17: an unimported
-//! name is unknown).
+//! name is unknown). `shipped_category_functor_imports_across_files`
+//! is the dotted-name probe over the real modules.
 
 use safelang::driver::{check_sources, driver, run_source, Mode};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
+/// The shipped prelude library modules the fixtures are assembled
+/// with: the Category class modules, the universal visitors and their
+/// instances, and the remaining library modules (their dotted headers
+/// and instances check in the same program).
+const SHIPPED: &str = concat!(
+    include_str!("../prelude/Algebra/Semigroup.lang"),
+    include_str!("../prelude/Algebra/Monoid.lang"),
+    include_str!("../prelude/Category/Functor.lang"),
+    include_str!("../prelude/Category/Applicative.lang"),
+    include_str!("../prelude/Category/Monad.lang"),
+    include_str!("../prelude/Category/Alternative.lang"),
+    include_str!("../prelude/Category/Foldable.lang"),
+    include_str!("../prelude/Category/Traversable.lang"),
+    include_str!("../prelude/Data/Compose.lang"),
+    include_str!("../prelude/Data/Identity.lang"),
+    include_str!("../prelude/Data/Const.lang"),
+    include_str!("../prelude/Data/NonEmpty.lang"),
+);
 const HK_SURFACE: &str = include_str!("fixtures/hk/hk_surface_fixture.lang");
 const LIB_CATEGORY_CHECK: &str = include_str!("fixtures/hk/lib_category_check.lang");
 const PROBE1: &str = include_str!("fixtures/hk/probe1.lang");
@@ -64,13 +85,52 @@ fn expect_reject(name: &str, needle: &str, src: &str) {
 
 #[test]
 fn hk_surface_fixture_checks() {
-    expect_ok("hk_surface_fixture.lang", HK_SURFACE);
+    expect_ok("hk_surface_fixture.lang", &format!("{SHIPPED}\n{HK_SURFACE}"));
 }
 
 #[test]
 fn lib_category_check_runs() {
-    let code = run_source(LIB_CATEGORY_CHECK).expect("lib_category_check compiles");
+    let code = run_source(&format!("{SHIPPED}\n{LIB_CATEGORY_CHECK}"))
+        .expect("lib_category_check compiles");
     assert_eq!(code, 0, "lib_category_check exit code");
+}
+
+#[test]
+fn shipped_category_functor_imports_across_files() {
+    // The dotted-name probe over the real modules: a project whose
+    // entry imports `Category.Functor` and `Category.Applicative` from
+    // files beside it resolves, checks and runs.
+    static N: AtomicUsize = AtomicUsize::new(0);
+    let dir: PathBuf = std::env::temp_dir().join(format!(
+        "safelang_hkshipped_{}_{}",
+        std::process::id(),
+        N.fetch_add(1, Ordering::SeqCst)
+    ));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("temp project dir");
+    std::fs::write(
+        dir.join("Functor.lang"),
+        include_str!("../prelude/Category/Functor.lang"),
+    )
+    .expect("write Functor");
+    std::fs::write(
+        dir.join("Applicative.lang"),
+        include_str!("../prelude/Category/Applicative.lang"),
+    )
+    .expect("write Applicative");
+    let main = "module Main where\n\
+         \x20 import Category.Functor\n\
+         \x20 import Category.Applicative\n\
+         \x20 main :: Int\n\
+         \x20 main = case map (\\x -> x + 1) (Some (1 :: Int)) of\n\
+         \x20   None -> 1\n\
+         \x20   Some n -> if n == 2 then 0 else 2\n";
+    std::fs::write(dir.join("Main.lang"), main).expect("write Main");
+    let code = match driver(Mode::Run, &dir.join("Main.lang"), None) {
+        Ok(code) => code,
+        Err(e) => panic!("shipped multi-file: compilation failed: {e}"),
+    };
+    assert_eq!(code, 0, "shipped multi-file exit code");
 }
 
 // Flipped probes: rejected before this slice, accepted now.

@@ -1,0 +1,83 @@
+-- Category.Applicative: the applicative class over type constructors.
+--
+-- `pure` and the operator `<*>` (infixl 4, decision D2's per-module
+-- fixity declarations) plus `lift-a2`, which lets an instance express
+-- two-effect combination directly. All three are methods so a lawful
+-- instance can implement whichever pair is primitive (`lift-a2 f x y`
+-- is `(<*>) (map f x) y` for the instances below).
+--
+-- Bare `pure` (decision D153): a `pure` carried by an in-scope
+-- non-provider class constraint answers a bare `pure` first; with no
+-- such constraint and this module imported, a bare `pure` is this
+-- class's method (its constraint is solved at the use site); with this
+-- module unimported the D22 provider meaning stands (`do`'s lexically
+-- selected provider is untouched).
+--
+-- `do` notation and these classes (decision D22): `do` picks its
+-- provider lexically per definition; this class abstracts over
+-- containers. The two mechanisms do not interact.
+--
+-- Instance homes: the function instance is structural and lives here
+-- permanently; List, Option and Result are Prelude types (not split
+-- yet), so their instances are parked here until the prelude split
+-- moves them to their Data.* homes. `map` in the instance bodies is
+-- the Category.Functor method, resolved at the same container through
+-- its instance there.
+module Category.Applicative where
+
+  import Category.Functor
+
+  signature Applicative (f :: Type -> Type) where
+    pure :: forall a. a -> f a
+    (<*>) :: forall a b. f (a -> b) -> f a -> f b
+    lift-a2 :: forall a b c. (a -> b -> c) -> f a -> f b -> f c
+
+  infixl 4 <*>
+
+  -- Structural: apply a function in an environment to a value in it.
+  implicit instance Applicative_Function r :: Applicative ((->) r) where
+    pure x _ = x
+    (<*>) ff fx r = (ff r) (fx r)
+    lift-a2 f fx fy r = f (fx r) (fy r)
+
+  -- Parked here; see the header (the type's home is Prelude.lang).
+  -- `pure` is the singleton list; `<*>` applies every function to every
+  -- value in order (the list of all results).
+  implicit instance Applicative_List :: Applicative List where
+    pure x = Cons x Nil
+    (<*>) fs xs = case fs of
+      Nil -> Nil
+      Cons g gs -> append-list (map g xs) ((<*>) gs xs)
+    lift-a2 f xs ys = (<*>) (map f xs) ys
+
+  -- Parked here; see the header (the type's home is Prelude.lang).
+  -- `pure` is `Some`; application is `None` if either side is.
+  implicit instance Applicative_Option :: Applicative Option where
+    pure x = Some x
+    (<*>) g ox = case g of
+      None -> None
+      Some f -> case ox of
+        None -> None
+        Some x -> Some (f x)
+    lift-a2 f ox oy = (<*>) (map f ox) oy
+
+  -- Parked here; see the header (the type's home is Prelude.lang).
+  -- `pure` is `Ok`; application propagates the FIRST `Err` (the left
+  -- operand's error wins), which is what makes `traverse` into
+  -- `Result` short-circuit on the first error in traversal order.
+  implicit instance Applicative_Result e :: Applicative (Result e) where
+    pure x = Ok x
+    (<*>) rf rx = case rf of
+      Err e -> Err e
+      Ok f -> case rx of
+        Err e -> Err e
+        Ok x -> Ok (f x)
+    lift-a2 f rx ry = (<*>) (map f rx) ry
+
+  -- List append for the List instance family. The Prelude's List
+  -- section has no append; it moves to Data.List with the prelude
+  -- split.
+  append-list :: forall a. List a -> List a -> List a
+  append-list xs ys = case xs of
+    Nil -> ys
+    Cons z zs -> Cons z (append-list zs ys)

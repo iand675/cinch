@@ -1,49 +1,35 @@
 -- Category.Foldable: the fold class over containers.
 --
--- Module header deviation (this slice, 2026-10-26): the base-library
--- scheme names this module `Category.Foldable`, but the bootstrap
--- checker registers imports under the import path's LAST segment
--- (`imports_of`, check_decls.rs) while a module registers its names
--- under its full dotted name, and qualified paths deeper than
--- `Module.Name` are rejected. A dotted module name is therefore
--- unreachable from any other module today. The header is the
--- single-segment `Foldable`; rename to `Category.Foldable` when the
--- import surface gains dotted names. The same applies to the sibling
--- Category/Data modules of this buildout.
+-- Class shape: `Foldable (t :: Type -> Type)` with `foldr`, `foldl`,
+-- `to-list`, `null` and `length` at the applied container `t a`. The
+-- defunctionalized two-parameter scaffolding (`Foldable t a`) that
+-- this module carried is gone: higher-kinded parameters landed and the
+-- class is the mathematical one now. The methods have exactly their
+-- mathematical meanings at every instance.
 --
--- Class shape deviation: the scheme's mathematical class is
--- `Foldable (t :: Type -> Type)`, but the bootstrap type grammar has no
--- higher-kinded type application: `t a` with `t` a quantified type
--- variable is rejected ("cannot apply non-type-constructor"), and class
--- arguments must be fully applied. The class is therefore
--- defunctionalized to two parameters: `t` is the fully applied
--- container type and `a` is its element type. `foldr`, `foldl`,
--- `to-list`, `null` and `length` have exactly their mathematical
--- meanings; only the arity of the class head is encoded.
+-- `to-list`/`null`/`length` agree with the fold at every lawful
+-- instance (`foldr Cons Nil (to-list xs) == to-list xs`, `length` is
+-- the `to-list` length, `null` is the empty check); the semantics
+-- tests in compiler/tests/lib_foldable.rs carry them over sample
+-- values for List, Option and NonEmpty.
 --
--- Status (Main decision, 2026-10-26): this encoding is accepted as
--- SCAFFOLDING, not as API. The curated Prelude re-export list will not
--- export it; the higher-kinded slice (A7) collapses it in place to
--- `Foldable (t :: Type -> Type)` before it faces users. Do not write
--- generic code against the two-parameter head; the semantics tests
--- carry over unchanged at collapse.
---
--- Instance home deviation: instances belong with their type
--- (`Data.List`, `Data.Option` once the Prelude split lands). The List
--- and Option types currently live in `Prelude.lang`, which this slice
--- cannot edit, so their instances live here with the class until the
--- split moves both. NonEmpty's instances live with NonEmpty in
--- `Data/NonEmpty.lang`.
-module Foldable where
+-- Instance homes. The ownership rule is "instances live with their
+-- type" (design/base-library.md). List and Option are Prelude types
+-- whose home (compiler/prelude/Prelude.lang) is not split yet, so
+-- their instances are parked here with the class until the prelude
+-- split moves them to Data.List/Data.Option. NonEmpty's instance
+-- lives with its type in Data/NonEmpty.lang.
+module Category.Foldable where
 
-  signature Foldable t a where
-    foldr :: forall b. (a -> b -> b) -> b -> t -> b
-    foldl :: forall b. (b -> a -> b) -> b -> t -> b
-    to-list :: t -> List a
-    null :: t -> Bool
-    length :: t -> Int
+  signature Foldable (t :: Type -> Type) where
+    foldr :: forall a b. (a -> b -> b) -> b -> t a -> b
+    foldl :: forall a b. (b -> a -> b) -> b -> t a -> b
+    to-list :: forall a. t a -> List a
+    null :: forall a. t a -> Bool
+    length :: forall a. t a -> Int
 
-  implicit instance Foldable_List x :: Foldable (List x) x where
+  -- Parked here; see the header (the type's home is Prelude.lang).
+  implicit instance Foldable_List :: Foldable List where
     foldr f z xs = case xs of
       Nil -> z
       Cons y ys -> f y (foldr f z ys)
@@ -58,7 +44,9 @@ module Foldable where
       Nil -> 0
       Cons y ys -> 1 + length ys
 
-  implicit instance Foldable_Option x :: Foldable (Option x) x where
+  -- Parked here; see the header (the type's home is Prelude.lang).
+  -- A `Some` is a one-element container; `None` folds as empty.
+  implicit instance Foldable_Option :: Foldable Option where
     foldr f z o = case o of
       None -> z
       Some y -> f y z
