@@ -194,6 +194,23 @@ audit, `compiler/SPEC-MAPPING.md` "Roadmap gaps"):
 | Module parameters and signatures as module arguments | modules spec section 1 (module packaging); example 12 stops here (A5) |
 | Schema generation / database introspection API | done (P11+A6: `SchemaSnapshot`/`Database`/`SchemaRead` over the subprocess capability, `introspectConsistently`, `CodecGenerator.derive`; example 05 accepts with its build inputs) |
 
+### Language surface DX (P19)
+
+Specified in `specifications/surface-grammar-local-amendments.md`
+sections 8-10 and `design/recursive-bindings-and-tail-calls.md`,
+2026-10-26, at the user's direction: dash identifiers, ergonomic
+negative literals, multi-binding `let`/guarded `letrec`, constant-stack
+tail recursion (including mutual), class-desugared list/map literals,
+and dash-style prelude function names.
+
+| Requirement | Status |
+| --- | --- |
+| Dash identifiers and the minus whitespace contract (D102) | spec'd |
+| Multi-binding `let` and guarded `letrec` (D103): recursion only under lambda/`~`/`delay`, eager cycles rejected with the fix named | spec'd |
+| Tail recursion in constant stack, self and mutual (D104) | spec'd |
+| `[...]`/`{k => v}` literals desugaring to `FromList`/`FromMap`, with the prelude `Map` (D105) | spec'd |
+| Dash-style prelude function names (D106) | spec'd |
+
 ### Primitive operations and inline target IR (P18)
 
 Specified in
@@ -775,6 +792,29 @@ wording flags for future decisions).
   staticlib older than any runtime source as absent and rebuilds; a
   stale `libslruntime.a` silently drops newer `sl_*` entry points (the
   root cause of the eval link failure).
+- **D102 (P19 dashes and minus)**: dash identifiers are written tight
+  (`-` between identifier characters is glue; digits do not continue an
+  identifier, so `x-1` is subtraction); a `-` tight only to following
+  digits is a negative-literal sign (`f -42` applies to `-42`); other
+  `-` is the binary minus; prefix `-` negates any expression through
+  `Neg`. Prelude function names move to dash style; type/class names
+  stay capitalized; intrinsic symbol names are unchanged.
+- **D103 (P19 guarded letrec)**: `let` binds groups (`;`-separated,
+  `where` declaration grammar); `letrec` admits recursion only under a
+  lambda, a `~` memo body, or a `delay` (the explicit suspension
+  positions), so recursion never introduces implicit laziness; eager
+  cycles are rejected naming the variable and the missing guard.
+- **D104 (P19 tail calls)**: tail-recursive definitions (self and
+  mutual) run in constant stack: self tail calls compile to jumps,
+  mutual tail calls use tail-marked calls at the ABI boundary; a group
+  that cannot be tail-marked falls back and the report says so.
+- **D105 (P19 collection literals)**: `[a, b, c]` desugars to
+  `from-list` at the expected `FromList c e` instance (default `List`);
+  `{k => v}` desugars to `from-map` over pairs at the `FromMap m k v`
+  instance; the prelude gains `Map k v` (ordered map over `Ord k`).
+- **D106 (P19 prelude naming)**: prelude function names use dash
+  style; this supersedes the D6/D64 spelling notes for the prelude's own
+  API surface (intrinsic symbol identity is unchanged).
 - **P13 deferrals (reported)**: handler-vtable specialization is blocked
   on propagating concrete vtables across function boundaries (dispatch
   sites can live in callees through `do`/`spawn`); explicit `eval` rides

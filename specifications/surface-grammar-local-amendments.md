@@ -123,7 +123,54 @@ decision record in `compiler/CONFORMANCE.md` where applicable.
   or bind it first. A `with (...)` group without `name = e` bindings is
   rejected by the parser with a supply-binding diagnostic.
 
-# 8 Rejected for now (see compiler/CONFORMANCE.md)
+# 8 Identifiers, dashes, and minus
+
+- Identifiers may contain dashes: a `-` tight on both sides between
+  identifier characters is identifier glue (`int-digits-into`, `x-y`).
+  Digits do not continue an identifier, so `1-2` and `x-1` are
+  subtraction (`x-1`: the `-` cannot glue `1`, so it is the operator).
+- A `-` tight only to what follows (space before, digits after) is the
+  sign of a negative literal: `f -42`, `x = -3`, and `(-42)` all treat
+  `-42` as one atom. A signed literal is one atom everywhere an atom is
+  expected; no `negate` is needed to write a negative number.
+- Otherwise `-` is the binary minus (spaced `x - 1`; tight-left before
+  digits `x-1`).
+- Prefix `-` in a prefix position (after `(`, `,`, `=`, `->`, `then`,
+  `else`, `of`, or an operator) negates any expression through the
+  `Neg` class method, not only literals.
+- Prelude function names use dash style (`nat-to-string`,
+  `int-digits-into`); type and class names stay capitalized. Intrinsic
+  symbol names (`safelang.prim.*`) are symbol identity, not surface
+  API, and are unchanged.
+
+# 9 Binding groups and recursion
+
+- `let b1; b2; ... in e` binds a group; each binding uses the `where`
+  declaration grammar (pattern equations, `~` memo bindings, local
+  function equations). The group form replaces nested single `let`s.
+- `letrec` admits a binding group whose names occur in their own or
+  siblings' bodies only under a lambda, a `~` memo body, or a `delay`.
+  These are the language's explicit suspension positions, so recursion
+  never introduces implicit laziness. An eager cycle is a compile error
+  naming the variable and the missing guard ("unguarded recursion; wrap
+  the use in `delay` or a lambda").
+- Tail recursion MUST run in constant stack: self and mutual tail calls
+  in a recursive group compile to jumps or tail-marked calls
+  (design/recursive-bindings-and-tail-calls.md section 3); a group that
+  cannot be tail-marked falls back to ordinary calls and the compiler
+  report says so.
+
+# 10 Collection literals
+
+- `[a, b, c]` desugars to `from-list` at the expected type's `FromList
+  c e` instance (elements typed by the literal); unconstrained, it
+  defaults to the prelude `List`.
+- `{k => v, k2 => v2}` desugars to `from-map` over a `List (k, v)` of
+  pairs at the expected type's `FromMap m k v` instance.
+- Instances opt in per container; the slice also introduces the
+  prelude `Map k v` (ordered map over `Ord k`).
+
+# 11 Rejected for now (see compiler/CONFORMANCE.md)
 
 Everything else in the draft EBNF parses only to a named rejection:
 `do` bodies and handlers, quotations and macros, `rewrite`/`upgrade`
