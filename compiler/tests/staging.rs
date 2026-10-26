@@ -360,3 +360,160 @@ fn multi_module_staging_crosses_modules() {
     .expect("cross-module staging compiles and runs");
     assert_eq!(code, 42);
 }
+
+// -------------------------------------- schema introspection (A6; section 11)
+
+/// Write a schema introspection tool script (the subprocess the
+/// `Stage.withDatabase` delegation runs) and return its path.
+fn schema_tool(name: &str, doc: &str) -> String {
+    let dir =
+        std::env::temp_dir().join(format!("safelang_schema_{}_{}", std::process::id(), name));
+    std::fs::create_dir_all(&dir).expect("schema tool dir");
+    let path = dir.join("introspect.sh");
+    std::fs::write(&path, format!("#!/bin/sh\ncat <<'JSON'\n{doc}\nJSON\n")).expect("write tool");
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).expect("chmod");
+    }
+    path.to_string_lossy().into_owned()
+}
+
+/// The generator and program the schema tests share: `CodecGenerator.derive`
+/// turns the captured snapshot into the row record and its codec pair,
+/// and `main` round-trips a row through them.
+const A6_PROGRAM: &str = r#"module Main where
+  generate do
+    snapshot <- Stage.snapshot "billing-schema" (\io ->
+      Stage.withDatabase io (secret "SL_TEST_A6_DSN") ReadSchema
+        (\db -> introspectConsistently db))
+    emit (CodecGenerator.derive snapshot)
+  main :: Int
+  main =
+    let row = BillingEvents { id = 42, active = True } in
+    case decodeBillingEvents (encodeBillingEvents row) of
+      Some r -> if r.id == 42 then if r.active then 0 else 1 else 2
+      None -> 3
+"#;
+
+/// The introspection tool, the consistency check and the codec generator
+/// run end to end: the derived row record and codec pair compile as
+/// ordinary declarations and round-trip a row at runtime.
+#[test]
+fn generate_with_database_introspection_derives_codecs() {
+    std::env::set_var("SL_TEST_A6_DSN", "postgres://test");
+    let tool = schema_tool(
+        "derive",
+        r#"{"dialect": "postgresql", "collation": "en_US.UTF-8", "snapshot": "0/16B3748", "tables": [{"name": "billing_events", "columns": [{"name": "id", "type": "INTEGER", "nullable": false}, {"name": "active", "type": "BOOLEAN", "nullable": false}]}]}"#,
+    );
+    let mut scx = StagingCx::default();
+    scx.schema_tool = Some(tool);
+    let code = run_source_with(A6_PROGRAM, &mut scx).expect("introspection derives codecs");
+    assert_eq!(code, 0);
+}
+
+/// `introspectConsistently` is the sketch's consistency check: a document
+/// whose table names collide is rejected (modules specification
+/// section 11).
+#[test]
+fn introspect_consistently_rejects_an_inconsistent_document() {
+    std::env::set_var("SL_TEST_A6_DSN", "postgres://test");
+    let tool = schema_tool(
+        "dup",
+        r#"{"tables": [{"name": "t", "columns": []}, {"name": "t", "columns": []}]}"#,
+    );
+    let mut scx = StagingCx::default();
+    scx.schema_tool = Some(tool);
+    let err = run_source_with(A6_PROGRAM, &mut scx).expect_err("duplicate table rejected");
+    let err = err.to_string();
+    assert!(err.contains("inconsistent schema"), "{err}");
+    assert!(err.contains("`t` appears twice"), "{err}");
+}
+
+/// The interpreted schema vocabulary is named in the error: a column type
+/// outside INTEGER, REAL, BOOLEAN and TEXT is rejected, and the codec
+/// generator's coverage gap is explicit.
+#[test]
+fn schema_column_types_and_codec_coverage_are_explicit() {
+    std::env::set_var("SL_TEST_A6_DSN", "postgres://test");
+    let tool = schema_tool(
+        "bogus",
+        r#"{"tables": [{"name": "t", "columns": [{"name": "c", "type": "JSONB"}]}]}"#,
+    );
+    let mut scx = StagingCx::default();
+    scx.schema_tool = Some(tool.clone());
+    let err = run_source_with(A6_PROGRAM, &mut scx).expect_err("unknown column type");
+    let err = err.to_string();
+    assert!(err.contains("unsupported column type `JSONB`"), "{err}");
+    // TEXT is interpreted but not yet encoded (decision D65).
+    let tool = schema_tool(
+        "text",
+        r#"{"tables": [{"name": "billing_events", "columns": [{"name": "id", "type": "INTEGER"}, {"name": "active", "type": "BOOLEAN"}, {"name": "note", "type": "TEXT"}]}]}"#,
+    );
+    let mut scx = StagingCx::default();
+    scx.schema_tool = Some(tool);
+    let err = run_source_with(A6_PROGRAM, &mut scx).expect_err("TEXT not encoded");
+    let err = err.to_string();
+    assert!(err.contains("the codec generator's column encoders cover INTEGER and BOOLEAN"), "{err}");
+}
+
+/// Without a configured introspection tool, `Stage.withDatabase` names
+/// the delegation rather than inventing a network stack (decision D65).
+#[test]
+fn with_database_needs_a_configured_introspection_tool() {
+    std::env::set_var("SL_TEST_A6_DSN", "postgres://test");
+    let mut scx = StagingCx::default();
+    let err = run_source_with(A6_PROGRAM, &mut scx).expect_err("no tool configured");
+    let err = err.to_string();
+    assert!(err.contains("no schema introspection tool is configured"), "{err}");
+}
+
+/// Replay uses the captured schema: the tool on disk now reports
+/// `active` as INTEGER, but the captured document says BOOLEAN, and the
+/// program (which reads `active` as a `Bool`) compiles and runs from the
+/// capture.
+#[test]
+fn stage_replay_uses_the_captured_schema() {
+    use safelang::check::StageInput;
+    std::env::set_var("SL_TEST_A6_DSN", "postgres://test");
+    let tool = schema_tool(
+        "replay",
+        r#"{"tables": [{"name": "billing_events", "columns": [{"name": "id", "type": "INTEGER"}, {"name": "active", "type": "INTEGER"}]}]}"#,
+    );
+    let captured = r#"{"snapshot": "0/16B3748", "tables": [{"name": "billing_events", "columns": [{"name": "id", "type": "INTEGER", "nullable": false}, {"name": "active", "type": "BOOLEAN", "nullable": false}]}]}"#;
+    let key = format!("{tool}  env:SL_TEST_A6_DSN");
+    let mut scx = StagingCx::default();
+    scx.mode = StageMode::Replay;
+    scx.schema_tool = Some(tool);
+    scx.prior_inputs = vec![StageInput {
+        snapshot: "billing-schema".to_string(),
+        kind: "subprocess".to_string(),
+        name: key,
+        hash: safelang::interface::content_hash(captured),
+        captured: captured.to_string(),
+        live: false,
+    }];
+    let code = run_source_with(A6_PROGRAM, &mut scx).expect("replay from the captured schema");
+    assert_eq!(code, 0);
+}
+
+/// The build identity records the introspection tool and the credential's
+/// environment name, never the credential (modules specification
+/// section 10).
+#[test]
+fn schema_build_identity_records_the_tool_not_the_credential() {
+    std::env::set_var("SL_TEST_A6_DSN", "postgres://supersecret");
+    let tool = schema_tool(
+        "identity",
+        r#"{"tables": [{"name": "billing_events", "columns": [{"name": "id", "type": "INTEGER"}, {"name": "active", "type": "BOOLEAN"}]}]}"#,
+    );
+    std::env::set_var("SAFELANG_SCHEMA_TOOL", &tool);
+    let dir = write_project(&[("Main.lang", A6_PROGRAM)]);
+    let code = driver_with(Mode::Run, StageMode::Refresh, &dir.join("Main.lang"), None)
+        .expect("schema introspection run");
+    assert_eq!(code, 0);
+    let manifest =
+        std::fs::read_to_string(dir.join("build/Main.manifest.json")).expect("manifest");
+    assert!(manifest.contains("env:SL_TEST_A6_DSN"), "{manifest}");
+    assert!(!manifest.contains("supersecret"), "the credential leaked: {manifest}");
+}

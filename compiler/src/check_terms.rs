@@ -464,13 +464,38 @@ impl Checker {
                     // and guardedness design, section 2).
                     return Ok((
                         app_spine(
-                            ECore::Proj(Box::new(core), runtime_idx),
+                            ECore::Proj(
+                                Box::new(core),
+                                ProjField {
+                                    slot: runtime_idx,
+                                    access: self.field_access_plan(
+                                        &info.module,
+                                        &info.name,
+                                        runtime_idx,
+                                        &field_ty,
+                                    ),
+                                },
+                            ),
                             vec![ECore::Unit],
                         ),
                         field_ty,
                     ));
                 }
-                Ok((ECore::Proj(Box::new(core), runtime_idx), field_ty))
+                Ok((
+                    ECore::Proj(
+                        Box::new(core),
+                        ProjField {
+                            slot: runtime_idx,
+                            access: self.field_access_plan(
+                                &info.module,
+                                &info.name,
+                                runtime_idx,
+                                &field_ty,
+                            ),
+                        },
+                    ),
+                    field_ty,
+                ))
             }
             ast::Term::Record(path, fields, span) => {
                 let v = self.resolve_con(path, *span)?;
@@ -730,8 +755,7 @@ impl Checker {
                     }
                 }
                 let (core, ty) = self.infer(env, term)?;
-                self.uni
-                    .unify(&ty, expected)
+                self.unify_arg(&ty, expected)
                     .map_err(|m| Error::at(term.span(), m))?;
                 Ok(core)
             }
@@ -763,8 +787,7 @@ impl Checker {
                     }
                 }
                 let (core, ty) = self.infer(env, term)?;
-                self.uni
-                    .unify(&ty, expected)
+                self.unify_arg(&ty, expected)
                     .map_err(|m| Error::at(term.span(), m))?;
                 Ok(core)
             }
@@ -794,15 +817,13 @@ impl Checker {
                     return Ok(app_spine(ECore::Ctor(gid), vec![c0, c1]));
                 }
                 let (core, ty) = self.infer(env, term)?;
-                self.uni
-                    .unify(&ty, expected)
+                self.unify_arg(&ty, expected)
                     .map_err(|m| Error::at(term.span(), m))?;
                 Ok(core)
             }
             _ => {
                 let (core, ty) = self.infer(env, term)?;
-                self.uni
-                    .unify(&ty, expected)
+                self.unify_arg(&ty, expected)
                     .map_err(|m| Error::at(term.span(), m))?;
                 Ok(core)
             }
@@ -2237,6 +2258,7 @@ impl Checker {
             }
             ValueKind::StageBuiltin(op) => ECore::Global(op.global_id()),
             ValueKind::Prim(op) => ECore::Prim(*op),
+            ValueKind::Foreign { unit, .. } => ECore::Foreign(unit.clone()),
             ValueKind::Ctor { .. } => ECore::Ctor(fn_id(&v.module, &v.name)),
             ValueKind::Method { idx, .. } => {
                 // The class constraint is `ctx[0]`: it becomes the dictionary
@@ -2498,7 +2520,7 @@ impl Checker {
                 };
                 for (i, item) in items.iter().enumerate() {
                     let fl = self.fresh_local();
-                    out.push((fl, ECore::Proj(Box::new(ECore::Var(l)), i)));
+                    out.push((fl, ECore::Proj(Box::new(ECore::Var(l)), ProjField::slot(i))));
                     self.destructure_bind(env, item, fl, &comps[i], out)?;
                 }
             }
@@ -2760,6 +2782,20 @@ impl Checker {
                         return Err(Error::at(
                             r.pats[0].span(),
                             "pattern does not match type Bytes",
+                        ));
+                    }
+                }
+                self.consume_column(rows, cols, types, expected, ctx_span, covered)
+            }
+            Ty::Ptr { role, .. } => {
+                // Boundary pointers carry one role and have no
+                // constructors to match; only variables and wildcards
+                // (caught above).
+                for r in &rows {
+                    if !matches!(r.pats[0], ast::Pat::Var(..) | ast::Pat::Wild(_)) {
+                        return Err(Error::at(
+                            r.pats[0].span(),
+                            format!("pattern does not match type {role} (a boundary pointer is matched by a variable or wildcard only)"),
                         ));
                     }
                 }
@@ -4430,6 +4466,32 @@ impl Checker {
         )
     }
 
+    /// Argument coercion at application and check sites (foreign
+    /// function interface specification section 3): an owned boundary
+    /// pointer may flow into a borrow, retained or raw position, because
+    /// ownership subsumes a borrow of the same pointer. Every other role
+    /// pair unifies exactly, so borrowed data is never claimed as owned
+    /// and allocator identities never convert.
+    fn unify_arg(&mut self, inferred: &Ty, expected: &Ty) -> std::result::Result<(), String> {
+        if let (
+            Ty::Ptr { role: ar, pointee: ap },
+            Ty::Ptr { role: pr, pointee: pp },
+        ) = (inferred, expected)
+        {
+            let weakens = matches!(ar, crate::types::PtrRole::Owned(_))
+                && matches!(
+                    pr,
+                    crate::types::PtrRole::Borrowed
+                        | crate::types::PtrRole::Retained
+                        | crate::types::PtrRole::Raw
+                );
+            if weakens {
+                return self.uni.unify(ap, pp);
+            }
+        }
+        self.uni.unify(inferred, expected)
+    }
+
     fn cps_apply_args(
         &mut self,
         env: &mut Env,
@@ -4477,8 +4539,7 @@ impl Checker {
                         }
                     };
                     self.perform(&eff)?;
-                    self.uni
-                        .unify(&dom, aty)
+                    self.unify_arg(aty, &dom)
                         .map_err(|m| Error::at(span, m))?;
                     ty = cod;
                 }
@@ -4787,7 +4848,7 @@ impl Checker {
             body: Box::new(app_spine(ECore::Var(kv.kv), vec![ECore::Var(rv)])),
         };
         let vtable = self.extents[idx].vtable;
-        let mut core = ECore::Proj(Box::new(ECore::Var(vtable)), slot);
+        let mut core = ECore::Proj(Box::new(ECore::Var(vtable)), ProjField::slot(slot));
         for (l, _) in done {
             core = app_spine(core, vec![ECore::Var(*l)]);
         }
@@ -5416,7 +5477,10 @@ impl Checker {
         // continuation.
         let hv = self.fresh_local();
         let pv = self.fresh_local();
-        let ret_call = app_spine(ECore::Proj(Box::new(ECore::Var(hv)), 0), vec![ECore::Var(pv)]);
+        let ret_call = app_spine(
+            ECore::Proj(Box::new(ECore::Var(hv)), ProjField::slot(0)),
+            vec![ECore::Var(pv)],
+        );
         let prompt_body = match kv {
             Some(kv) => app_spine(ECore::Var(kv.kv), vec![ret_call]),
             None => ret_call,
@@ -5677,6 +5741,7 @@ impl Checker {
                 ECore::Global(fn_id(&v.module, &v.name))
             }
             ValueKind::Prim(op) => ECore::Prim(*op),
+            ValueKind::Foreign { unit, .. } => ECore::Foreign(unit.clone()),
             ValueKind::Ctor { .. } => ECore::Ctor(fn_id(&v.module, &v.name)),
             ValueKind::Method { idx, .. } => {
                 let dict = holes.remove(0);

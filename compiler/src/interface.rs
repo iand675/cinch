@@ -192,6 +192,30 @@ pub struct FixityExport {
     pub prec: u64,
 }
 
+/// One foreign parameter or result's binding contract (foreign function
+/// interface specification section 2: integer widths and signedness,
+/// structure offsets and alignment, ownership of returned allocations).
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct ForeignParam {
+    /// The SafeLang type as written.
+    pub ty: String,
+    /// `unit`, `scalar`, `ptr`, or `aggregate`.
+    pub class: String,
+    /// `value`, `raw`, `borrowed`, `retained`, `owned`, `out`,
+    /// `maybe-null`, or `opaque-handle` (section 3's pointer roles).
+    pub role: String,
+    /// The `Owned` allocator identity (empty otherwise).
+    pub allocator: String,
+    /// Whether the pointer may be null (only `maybe-null` roles may).
+    pub nullable: bool,
+    /// The byte width crossing the boundary and its alignment.
+    pub width: u64,
+    pub align: u64,
+    pub signed: bool,
+    /// For aggregates: `(offset, size)` per recorded C-layout field.
+    pub offsets: Vec<(u64, u64)>,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ForeignExport {
     pub symbol: String,
@@ -200,6 +224,15 @@ pub struct ForeignExport {
     pub ty: String,
     pub effects: String,
     pub notes: String,
+    /// `intrinsic`, `import`, or `export`.
+    pub kind: String,
+    /// Per-parameter binding contracts, in order.
+    pub params: Vec<ForeignParam>,
+    /// The result's binding contract.
+    pub result: ForeignParam,
+    /// For an owned result: the matching deallocator's external symbol
+    /// (foreign function interface specification section 4).
+    pub deallocator: String,
 }
 
 /// One record field's computed layout facts (attribute annotations
@@ -425,6 +458,16 @@ impl Iface {
             json_str(o, &f.effects);
             o.push_str(", \"notes\": ");
             json_str(o, &f.notes);
+            o.push_str(", \"kind\": ");
+            json_str(o, &f.kind);
+            o.push_str(", \"deallocator\": ");
+            json_str(o, &f.deallocator);
+            o.push_str(", \"params\": ");
+            arr_of(o, 0, &f.params, |o, p| {
+                json_foreign_param(o, p);
+            });
+            o.push_str(", \"result\": ");
+            json_foreign_param(o, &f.result);
             o.push('}');
         });
         out.push_str("\n  },\n");
@@ -620,6 +663,45 @@ impl Iface {
         let mut foreign = Vec::new();
         for item in ex_get("foreign")?.as_array()? {
             let o = item.as_object().map_err(|_| ParseError("foreign entry".into()))?;
+            // A document from before the binding contracts (foreign
+            // function interface specification section 2) carries only
+            // the free-text fields.
+            let (params, result, kind, deallocator) = match o.get("kind") {
+                Some(_) => {
+                    let mut params = Vec::new();
+                    for v in o
+                        .get("params")
+                        .ok_or_else(|| ParseError("foreign params".into()))?
+                        .as_array()?
+                    {
+                        params.push(parse_foreign_param(v)?);
+                    }
+                    (
+                        params,
+                        parse_foreign_param(
+                            o.get("result").ok_or_else(|| ParseError("foreign result".into()))?,
+                        )?,
+                        field_str(o, "kind")?,
+                        field_str(o, "deallocator")?,
+                    )
+                }
+                None => (
+                    Vec::new(),
+                    ForeignParam {
+                        ty: String::new(),
+                        class: "unit".to_string(),
+                        role: "value".to_string(),
+                        allocator: String::new(),
+                        nullable: false,
+                        width: 0,
+                        align: 1,
+                        signed: false,
+                        offsets: Vec::new(),
+                    },
+                    "intrinsic".to_string(),
+                    String::new(),
+                ),
+            };
             foreign.push(ForeignExport {
                 symbol: field_str(o, "symbol")?,
                 abi: field_str(o, "abi")?,
@@ -627,6 +709,10 @@ impl Iface {
                 ty: field_str(o, "type")?,
                 effects: field_str(o, "effects")?,
                 notes: field_str(o, "notes")?,
+                kind,
+                params,
+                result,
+                deallocator,
             });
         }
         let assumptions_obj = get("assumptions")?.as_object()?;
@@ -794,7 +880,7 @@ impl From<String> for ParseError {
 }
 
 #[derive(Debug, Clone)]
-enum JsonValue {
+pub(crate) enum JsonValue {
     Num(u64),
     Str(String),
     Bool(bool),
@@ -803,40 +889,52 @@ enum JsonValue {
 }
 
 impl JsonValue {
-    fn as_object(&self) -> Result<&BTreeMap<String, JsonValue>, ParseError> {
+    pub(crate) fn as_object(&self) -> Result<&BTreeMap<String, JsonValue>, ParseError> {
         match self {
             JsonValue::Obj(m) => Ok(m),
             _ => Err(ParseError("expected object".into())),
         }
     }
 
-    fn as_array(&self) -> Result<&Vec<JsonValue>, ParseError> {
+    pub(crate) fn as_array(&self) -> Result<&Vec<JsonValue>, ParseError> {
         match self {
             JsonValue::Arr(a) => Ok(a),
             _ => Err(ParseError("expected array".into())),
         }
     }
 
-    fn as_str(&self) -> Result<&str, ParseError> {
+    pub(crate) fn as_str(&self) -> Result<&str, ParseError> {
         match self {
             JsonValue::Str(s) => Ok(s),
             _ => Err(ParseError("expected string".into())),
         }
     }
 
-    fn as_num(&self) -> Result<u64, ParseError> {
+    pub(crate) fn as_num(&self) -> Result<u64, ParseError> {
         match self {
             JsonValue::Num(n) => Ok(*n),
             _ => Err(ParseError("expected number".into())),
         }
     }
 
-    fn as_bool(&self) -> Result<bool, ParseError> {
+    pub(crate) fn as_bool(&self) -> Result<bool, ParseError> {
         match self {
             JsonValue::Bool(b) => Ok(*b),
             _ => Err(ParseError("expected boolean".into())),
         }
     }
+}
+
+/// Parse one JSON document (shared with the schema introspection
+/// interpreter; modules specification section 11).
+pub(crate) fn parse_json(text: &str) -> Result<JsonValue, ParseError> {
+    let mut p = JsonParser::new(text);
+    let v = p.parse_value()?;
+    p.ws();
+    if p.i != p.b.len() {
+        return Err(ParseError("trailing data after the JSON document".into()));
+    }
+    Ok(v)
 }
 
 fn field_str(o: &BTreeMap<String, JsonValue>, k: &str) -> Result<String, ParseError> {
@@ -845,6 +943,67 @@ fn field_str(o: &BTreeMap<String, JsonValue>, k: &str) -> Result<String, ParseEr
 
 fn field_num(o: &BTreeMap<String, JsonValue>, k: &str) -> Result<u64, ParseError> {
     o.get(k).ok_or_else(|| ParseError(format!("missing {k}")))?.as_num()
+}
+
+fn field_bool(o: &BTreeMap<String, JsonValue>, k: &str) -> Result<bool, ParseError> {
+    match o.get(k) {
+        Some(JsonValue::Bool(b)) => Ok(*b),
+        Some(_) => Err(ParseError(format!("{k} is not a boolean"))),
+        None => Err(ParseError(format!("missing {k}"))),
+    }
+}
+
+/// Serialize one foreign parameter or result's binding contract.
+fn json_foreign_param(out: &mut String, p: &ForeignParam) {
+    out.push_str("{\"type\": ");
+    json_str(out, &p.ty);
+    out.push_str(", \"class\": ");
+    json_str(out, &p.class);
+    out.push_str(", \"role\": ");
+    json_str(out, &p.role);
+    out.push_str(", \"allocator\": ");
+    json_str(out, &p.allocator);
+    out.push_str(", \"nullable\": ");
+    out.push_str(if p.nullable { "true" } else { "false" });
+    out.push_str(", \"width\": ");
+    out.push_str(&p.width.to_string());
+    out.push_str(", \"align\": ");
+    out.push_str(&p.align.to_string());
+    out.push_str(", \"signed\": ");
+    out.push_str(if p.signed { "true" } else { "false" });
+    out.push_str(", \"offsets\": ");
+    arr_of(out, 0, &p.offsets, |o, (off, size)| {
+        o.push_str(&format!("[{off}, {size}]"));
+    });
+    out.push('}');
+}
+
+/// Parse one foreign parameter or result's binding contract.
+fn parse_foreign_param(v: &JsonValue) -> Result<ForeignParam, ParseError> {
+    let o = v.as_object().map_err(|_| ParseError("foreign param".into()))?;
+    let mut offsets = Vec::new();
+    for pair in o
+        .get("offsets")
+        .ok_or_else(|| ParseError("foreign param offsets".into()))?
+        .as_array()?
+    {
+        let p = pair.as_array().map_err(|_| ParseError("offset pair".into()))?;
+        if p.len() != 2 {
+            return Err(ParseError("offset pair".into()));
+        }
+        offsets.push((p[0].as_num()?, p[1].as_num()?));
+    }
+    Ok(ForeignParam {
+        ty: field_str(o, "type")?,
+        class: field_str(o, "class")?,
+        role: field_str(o, "role")?,
+        allocator: field_str(o, "allocator")?,
+        nullable: field_bool(o, "nullable")?,
+        width: field_num(o, "width")?,
+        align: field_num(o, "align")?,
+        signed: field_bool(o, "signed")?,
+        offsets,
+    })
 }
 
 fn field_list(o: &BTreeMap<String, JsonValue>, k: &str) -> Result<Vec<String>, ParseError> {
@@ -1115,6 +1274,30 @@ mod tests {
             ty: "() -> RawPtr Context".into(),
             effects: "Foreign Codec".into(),
             notes: "owned handle".into(),
+            kind: "import".into(),
+            params: vec![ForeignParam {
+                ty: "()".into(),
+                class: "unit".into(),
+                role: "value".into(),
+                allocator: String::new(),
+                nullable: false,
+                width: 0,
+                align: 1,
+                signed: false,
+                offsets: Vec::new(),
+            }],
+            result: ForeignParam {
+                ty: "RawPtr Context".into(),
+                class: "ptr".into(),
+                role: "raw".into(),
+                allocator: String::new(),
+                nullable: false,
+                width: 8,
+                align: 8,
+                signed: false,
+                offsets: Vec::new(),
+            },
+            deallocator: String::new(),
         });
         f.assumptions.primitives = vec!["safelang.prim.addInt".into()];
         f.assumptions.foreign = vec!["codec_open".into()];

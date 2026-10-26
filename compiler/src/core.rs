@@ -980,10 +980,15 @@ pub enum Core {
     Ctor(GlobalId),
     /// Primitive function used as a value.
     Prim(PrimOp),
+    /// A real foreign import used as a value: the synthesized wrapper
+    /// unit's name (foreign function interface specification section 2).
+    /// Like `Prim`, it is opaque to the optimizer.
+    Foreign(String),
     /// Method selection from a dictionary value.
     DictProj(Box<Core>, usize),
-    /// Record field projection: load field `idx` from the record block.
-    Proj(Box<Core>, usize),
+    /// Record field projection: load the field from the record block
+    /// (uniform-word slot, or the recorded offset for boundary layouts).
+    Proj(Box<Core>, ProjField),
     /// Instance dictionary construction: call the instance's `mk` unit.
     InstDict(GlobalId, Vec<Core>),
     /// Curried application spine with at least one argument.
@@ -1057,6 +1062,19 @@ pub enum StageOp {
     /// `Stage.secret name`: a credential reference; its value never enters
     /// generated source, logs, or snapshots.
     Secret,
+    /// `Stage.withDatabase io cfg op k`: run the schema introspection
+    /// tool over the subprocess capability (modules specification
+    /// section 10's delegation, decision D45) and hand the raw
+    /// introspection result to the continuation (section 11).
+    WithDatabase,
+    /// `ReadSchema`: the schema-read operation token.
+    ReadSchema,
+    /// `introspectConsistently db`: interpret and consistency-check a raw
+    /// introspection result into a schema snapshot (section 11).
+    Introspect,
+    /// `CodecGenerator.derive snapshot`: generate codec declarations
+    /// from a schema snapshot (section 11).
+    CodecDerive,
     /// `Stage.emit decls`: append declarations to the generator's output.
     Emit,
     /// `Stage.quoteNat n`: approved constant transport (modules
@@ -1088,6 +1106,10 @@ impl StageOp {
             "writeFile" => WriteFile,
             "run" => Run,
             "secret" => Secret,
+            "withDatabase" => WithDatabase,
+            "readSchema" => ReadSchema,
+            "introspectConsistently" => Introspect,
+            "codecDerive" => CodecDerive,
             "emit" => Emit,
             "quoteNat" => QuoteNat,
             "quoteInt" => QuoteInt,
@@ -1111,6 +1133,10 @@ impl StageOp {
             WriteFile => "writeFile",
             Run => "run",
             Secret => "secret",
+            WithDatabase => "withDatabase",
+            ReadSchema => "readSchema",
+            Introspect => "introspectConsistently",
+            CodecDerive => "codecDerive",
             Emit => "emit",
             QuoteNat => "quoteNat",
             QuoteInt => "quoteInt",
@@ -1136,6 +1162,40 @@ pub enum Cap {
     File { write: bool },
     /// Subprocess execution.
     Proc,
+}
+
+/// An interpreted, consistency-checked database schema snapshot
+/// (modules specification section 11): the recorded schema plus the
+/// dialect, collation and snapshot assumptions the binding semantics
+/// needs. Generated binding proofs are relative to this capture.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SchemaData {
+    /// The provider's SQL dialect where the tool reports one.
+    pub dialect: String,
+    /// The recorded collation assumption.
+    pub collation: String,
+    /// The provider's consistent-snapshot identity where supported
+    /// (empty records the assumption that no such identity exists).
+    pub snapshot: String,
+    /// The recorded extension assumptions.
+    pub extensions: Vec<String>,
+    pub tables: Vec<SchemaTable>,
+    /// The captured document's content hash (a build identity input).
+    pub hash: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SchemaTable {
+    pub name: String,
+    pub columns: Vec<SchemaColumn>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SchemaColumn {
+    pub name: String,
+    /// `INTEGER`, `REAL`, `BOOLEAN`, or `TEXT`.
+    pub ty: String,
+    pub nullable: bool,
 }
 
 /// A compile-time value (staging evaluation): the value domain of the
@@ -1180,8 +1240,14 @@ pub enum Value {
     },
     /// A compile-time string.
     Str(String),
-    /// A secret reference; the value never leaves the interpreter.
-    Secret(String),
+    /// A secret reference; the value never leaves the interpreter. `name`
+    /// is the environment variable the credential lives in (it records
+    /// into the build identity; the value does not).
+    Secret { name: String, value: String },
+    /// A raw database introspection result (the schema tool's output).
+    Db(String),
+    /// A checked schema snapshot (modules specification section 11).
+    Schema(SchemaData),
     /// A capability token (opaque to source code).
     Cap(Cap),
     /// A `Stage` builtin partially applied.
@@ -1541,6 +1607,129 @@ impl Default for FnMeta {
     }
 }
 
+/// A record field projection's lowering plan: the runtime field slot,
+/// and for boundary-layout types (`repr(C)`, `repr(packed)`,
+/// `repr(transparent)`) the recorded-offset access (attribute
+/// annotations specification section 4.3).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ProjField {
+    pub slot: usize,
+    pub access: Option<FieldAccess>,
+}
+
+impl ProjField {
+    /// A uniform-word slot projection (no recorded layout).
+    pub fn slot(slot: usize) -> ProjField {
+        ProjField { slot, access: None }
+    }
+}
+
+/// One field's runtime access inside a boundary-layout block (attribute
+/// annotations specification section 4.3): the recorded offset and size
+/// from the interface ABI table, plus how the stored bytes convert to
+/// and from the value word.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FieldAccess {
+    /// Byte offset from the payload base (the recorded layout offset).
+    pub offset: u64,
+    /// Byte size (the recorded layout size).
+    pub size: u64,
+    pub shape: FieldShape,
+}
+
+/// The stored shape of a boundary-layout field.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum FieldShape {
+    /// A machine scalar stored in `size` bytes: `signed` selects sign
+    /// extension into the value word; floats and `Char` are unsigned bit
+    /// patterns (the word holds `F32` bits zero-extended, `F64` bits).
+    Scalar { size: u64, signed: bool },
+    /// A boxed or pointer word: 8 bytes holding the value word directly.
+    Word,
+    /// A nested boundary-layout aggregate stored inline: its payload is
+    /// `size` bytes of `fields`, boxed out (with `tag`) when projected.
+    Inline { size: u64, tag: usize, fields: Vec<FieldAccess> },
+}
+
+/// A constructor's boundary layout plan: fields stored at their recorded
+/// offsets in the block payload (uniform-word types have none and keep
+/// the slot convention).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CtorLayout {
+    /// The recorded payload size in bytes (after the tag word).
+    pub payload: u64,
+    /// The store plan per runtime field slot.
+    pub fields: Vec<FieldAccess>,
+}
+
+/// The marshalling class of one foreign parameter or result (foreign
+/// function interface specification section 2).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum AbiClass {
+    /// `Unit`: void (elided parameter; void result).
+    Unit,
+    /// A machine scalar crossing by value.
+    Scalar(crate::types::Scalar),
+    /// Any pointer role, including opaque handles: crossing as `ptr`.
+    Ptr,
+    /// An aggregate crossing by const-pointer to a call-scoped C-layout
+    /// copy (parameters only; a foreign result cannot be an aggregate).
+    Aggregate,
+}
+
+/// One foreign parameter or result's binding contract: the widths,
+/// signedness, offsets, alignment, role, nullability and ownership the
+/// binding must specify (foreign function interface specification
+/// section 2).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct AbiParam {
+    /// The SafeLang type as written (contract text).
+    pub ty: String,
+    pub class: AbiClass,
+    /// The ownership role: `value`, `raw`, `borrowed`, `retained`,
+    /// `owned`, `out`, `maybe-null`, or `opaque-handle` (section 3).
+    pub role: String,
+    /// The `Owned` allocator identity (empty otherwise).
+    pub allocator: String,
+    /// Whether the pointer may be null (only `MaybeNull` roles may).
+    pub nullable: bool,
+    /// The byte width crossing the boundary, its alignment, and (for
+    /// scalars) signedness.
+    pub width: u64,
+    pub align: u64,
+    pub signed: bool,
+    /// For aggregates: the constructor tag of the boxed block built on
+    /// the way in (the C-layout field plan is `fields`).
+    pub tag: u64,
+    /// For aggregates: the C-layout field plan (recorded offsets).
+    pub fields: Vec<FieldAccess>,
+}
+
+/// One foreign binding's contract and marshalling plan (foreign function
+/// interface specification sections 2-4).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ForeignPlan {
+    /// The C symbol identity.
+    pub symbol: String,
+    /// `foreign export`: emit a C-callable entry for `unit`.
+    pub export: bool,
+    /// The synthesized wrapper unit (import) or target unit (export).
+    pub unit: String,
+    /// The calling convention (`ccall`).
+    pub convention: String,
+    pub params: Vec<AbiParam>,
+    pub result: AbiParam,
+    /// For an `Owned` result: the matching deallocator's external symbol
+    /// (section 4); empty when the result is not owned.
+    pub deallocator: String,
+}
+
+impl ForeignPlan {
+    pub fn arity(&self) -> usize {
+        self.params.len()
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct FnDef {
     pub id: GlobalId,
@@ -1590,6 +1779,14 @@ pub struct Program {
     /// (platform proofs and SIMD specification section 3). Rules never
     /// extend definitional equality: conversion is exactly the D28 rules.
     pub rewrites: Vec<RewriteRule>,
+    /// Boundary layout plans for constructors of `repr(C)`,
+    /// `repr(packed)` and `repr(transparent)` types, keyed by the
+    /// constructor unit name (attribute annotations specification
+    /// section 4.3: runtime field access uses the recorded offsets).
+    pub plans: std::collections::BTreeMap<String, CtorLayout>,
+    /// Foreign binding contracts, keyed by unit name (foreign function
+    /// interface specification section 2).
+    pub foreigns: std::collections::BTreeMap<String, ForeignPlan>,
 }
 
 /// A checked rewrite rule. `pattern` is the elaborated form of the rule's
@@ -1768,9 +1965,9 @@ fn core_eq(a: &Core, b: &Core) -> bool {
         (Core::Var(x), Core::Var(y)) => x == y,
         (Core::Global(x), Core::Global(y)) | (Core::Ctor(x), Core::Ctor(y)) => x == y,
         (Core::Prim(x), Core::Prim(y)) => x == y,
-        (Core::DictProj(d1, i1), Core::DictProj(d2, i2)) | (Core::Proj(d1, i1), Core::Proj(d2, i2)) => {
-            i1 == i2 && core_eq(d1, d2)
-        }
+        (Core::Foreign(x), Core::Foreign(y)) => x == y,
+        (Core::DictProj(d1, i1), Core::DictProj(d2, i2)) => i1 == i2 && core_eq(d1, d2),
+        (Core::Proj(d1, i1), Core::Proj(d2, i2)) => i1 == i2 && core_eq(d1, d2),
         (Core::InstDict(g1, a1), Core::InstDict(g2, a2)) => {
             g1 == g2 && a1.len() == a2.len() && a1.iter().zip(a2).all(|(x, y)| core_eq(x, y))
         }
@@ -1827,7 +2024,7 @@ pub fn walk_locals(e: &Core, f: &mut impl FnMut(LocalId)) {
     match e {
         Core::Var(l) => f(*l),
         Core::Int(_) | Core::ConstBig { .. } | Core::Bool(_) | Core::Unit | Core::Global(_)
-        | Core::Ctor(_) | Core::Prim(_) | Core::Fault | Core::LazyAlloc | Core::SyntaxLit(_)
+        | Core::Ctor(_) | Core::Prim(_) | Core::Foreign(_) | Core::Fault | Core::LazyAlloc | Core::SyntaxLit(_)
         | Core::StrLit(_) => {}
         Core::DictProj(d, _) | Core::Proj(d, _) | Core::Demand(d) => walk_locals(d, f),
         Core::InstDict(_, args) | Core::App(_, args) => {
@@ -1898,7 +2095,7 @@ fn use_range(e: &Core, l: LocalId) -> (usize, usize) {
             }
         }
         Core::Int(_) | Core::ConstBig { .. } | Core::Bool(_) | Core::Unit | Core::Global(_)
-        | Core::Ctor(_) | Core::Prim(_) | Core::Fault | Core::LazyAlloc | Core::SyntaxLit(_)
+        | Core::Ctor(_) | Core::Prim(_) | Core::Foreign(_) | Core::Fault | Core::LazyAlloc | Core::SyntaxLit(_)
         | Core::StrLit(_) => (0, 0),
         Core::DictProj(d, _) | Core::Proj(d, _) | Core::Demand(d) => use_range(d, l),
         Core::InstDict(_, args) | Core::App(_, args) => {
@@ -1993,7 +2190,7 @@ fn renumber_core(e: &Core, nparams: usize) -> Core {
         match e {
             Core::Var(l) => note(*l, map, next),
             Core::Int(_) | Core::ConstBig { .. } | Core::Bool(_) | Core::Unit | Core::Global(_)
-            | Core::Ctor(_) | Core::Prim(_) | Core::Fault | Core::LazyAlloc | Core::SyntaxLit(_)
+            | Core::Ctor(_) | Core::Prim(_) | Core::Foreign(_) | Core::Fault | Core::LazyAlloc | Core::SyntaxLit(_)
             | Core::StrLit(_) => {}
             Core::DictProj(d, _) | Core::Proj(d, _) | Core::Demand(d) => assign(d, map, next),
             Core::InstDict(_, args) | Core::App(_, args) => {
@@ -2056,12 +2253,13 @@ fn renumber_core(e: &Core, nparams: usize) -> Core {
             Core::Global(g) => Core::Global(g.clone()),
             Core::Ctor(g) => Core::Ctor(g.clone()),
             Core::Prim(p) => Core::Prim(*p),
+            Core::Foreign(n) => Core::Foreign(n.clone()),
             Core::Fault => Core::Fault,
             Core::LazyAlloc => Core::LazyAlloc,
             Core::SyntaxLit(t) => Core::SyntaxLit(t.clone()),
             Core::StrLit(s) => Core::StrLit(s.clone()),
             Core::DictProj(d, i) => Core::DictProj(Box::new(rw(d)), *i),
-            Core::Proj(d, i) => Core::Proj(Box::new(rw(d)), *i),
+            Core::Proj(d, f) => Core::Proj(Box::new(rw(d)), f.clone()),
             Core::Demand(d) => Core::Demand(Box::new(rw(d))),
             Core::InstDict(g, args) => Core::InstDict(g.clone(), args.iter().map(rw).collect()),
             Core::App(f, args) => Core::App(Box::new(rw(f)), args.iter().map(rw).collect()),
@@ -2156,6 +2354,7 @@ fn instantiate(
             Core::Global(g) => Core::Global(g.clone()),
             Core::Ctor(g) => Core::Ctor(g.clone()),
             Core::Prim(p) => Core::Prim(*p),
+            Core::Foreign(n) => Core::Foreign(n.clone()),
             Core::Fault => Core::Fault,
             Core::LazyAlloc => Core::LazyAlloc,
             Core::SyntaxLit(t) => Core::SyntaxLit(t.clone()),
@@ -2163,7 +2362,7 @@ fn instantiate(
             Core::DictProj(d, i) => {
                 Core::DictProj(Box::new(go(d, holes, binds, ren, next)), *i)
             }
-            Core::Proj(d, i) => Core::Proj(Box::new(go(d, holes, binds, ren, next)), *i),
+            Core::Proj(d, f) => Core::Proj(Box::new(go(d, holes, binds, ren, next)), f.clone()),
             Core::Demand(d) => Core::Demand(Box::new(go(d, holes, binds, ren, next))),
             Core::InstDict(g, args) => Core::InstDict(
                 g.clone(),
@@ -2277,7 +2476,11 @@ fn match_pat(
         (Core::Var(x), Core::Var(y)) => x == y,
         (Core::Global(x), Core::Global(y)) | (Core::Ctor(x), Core::Ctor(y)) => x == y,
         (Core::Prim(x), Core::Prim(y)) => x == y,
-        (Core::DictProj(d1, i1), Core::DictProj(d2, i2)) | (Core::Proj(d1, i1), Core::Proj(d2, i2)) => {
+        (Core::Foreign(x), Core::Foreign(y)) => x == y,
+        (Core::DictProj(d1, i1), Core::DictProj(d2, i2)) => {
+            i1 == i2 && match_pat(d1, holes, d2, binds)
+        }
+        (Core::Proj(d1, i1), Core::Proj(d2, i2)) => {
             i1 == i2 && match_pat(d1, holes, d2, binds)
         }
         (Core::InstDict(g1, a1), Core::InstDict(g2, a2)) => {
@@ -2716,7 +2919,7 @@ fn has_alloc(e: &Core) -> bool {
             | Core::DeclsQuote { .. } => *found = true,
             Core::Prim(PrimOp::Delay) => *found = true,
             Core::Int(_) | Core::ConstBig { .. } | Core::Bool(_) | Core::Unit | Core::Global(_)
-            | Core::Ctor(_) | Core::Prim(_) | Core::Fault | Core::SyntaxLit(_) | Core::StrLit(_)
+            | Core::Ctor(_) | Core::Prim(_) | Core::Foreign(_) | Core::Fault | Core::SyntaxLit(_) | Core::StrLit(_)
             | Core::Var(_) => {}
             Core::DictProj(d, _) | Core::Proj(d, _) => go(d, found),
             Core::InstDict(_, args) | Core::App(_, args) | Core::Lam { env: args, .. } => {
@@ -2766,7 +2969,7 @@ fn scan_calls(e: &Core, f: &mut impl FnMut(&GlobalId)) {
     match e {
         Core::Global(g) => f(g),
         Core::Int(_) | Core::ConstBig { .. } | Core::Bool(_) | Core::Unit | Core::Ctor(_)
-        | Core::Prim(_) | Core::Fault | Core::LazyAlloc | Core::SyntaxLit(_) | Core::StrLit(_)
+        | Core::Prim(_) | Core::Foreign(_) | Core::Fault | Core::LazyAlloc | Core::SyntaxLit(_) | Core::StrLit(_)
         | Core::Var(_) => {}
         Core::DictProj(d, _) | Core::Proj(d, _) | Core::Demand(d) => scan_calls(d, f),
         Core::InstDict(_, args) | Core::App(_, args) => {
@@ -2819,7 +3022,7 @@ fn scan_memo(e: &Core, n: &mut usize) {
     match e {
         Core::LazyAlloc | Core::LazyInit(_, _) | Core::Demand(_) => *n += 1,
         Core::Int(_) | Core::ConstBig { .. } | Core::Bool(_) | Core::Unit | Core::Global(_)
-        | Core::Ctor(_) | Core::Prim(_) | Core::Fault | Core::SyntaxLit(_) | Core::StrLit(_)
+        | Core::Ctor(_) | Core::Prim(_) | Core::Foreign(_) | Core::Fault | Core::SyntaxLit(_) | Core::StrLit(_)
         | Core::Var(_) => {}
         Core::DictProj(d, _) | Core::Proj(d, _) => scan_memo(d, n),
         Core::InstDict(_, args) | Core::App(_, args) | Core::Lam { env: args, .. } => {
@@ -2877,7 +3080,7 @@ fn weights_ok(e: &Core) -> bool {
                 }
             }
             Core::Int(_) | Core::ConstBig { .. } | Core::Bool(_) | Core::Unit | Core::Global(_)
-            | Core::Ctor(_) | Core::Prim(_) | Core::Fault | Core::LazyAlloc | Core::SyntaxLit(_)
+            | Core::Ctor(_) | Core::Prim(_) | Core::Foreign(_) | Core::Fault | Core::LazyAlloc | Core::SyntaxLit(_)
             | Core::StrLit(_) | Core::Var(_) => {}
             Core::DictProj(d, _) | Core::Proj(d, _) | Core::Demand(d) => go(d, ok),
             Core::InstDict(_, args) | Core::App(_, args) | Core::Lam { env: args, .. } => {
@@ -2908,7 +3111,7 @@ fn scope_ok(e: &Core, nparams: usize) -> bool {
         match e {
             Core::Var(l) => bound.contains(l),
             Core::Int(_) | Core::ConstBig { .. } | Core::Bool(_) | Core::Unit | Core::Global(_)
-            | Core::Ctor(_) | Core::Prim(_) | Core::Fault | Core::LazyAlloc | Core::SyntaxLit(_)
+            | Core::Ctor(_) | Core::Prim(_) | Core::Foreign(_) | Core::Fault | Core::LazyAlloc | Core::SyntaxLit(_)
             | Core::StrLit(_) => true,
             Core::DictProj(d, _) | Core::Proj(d, _) | Core::Demand(d) => go(d, bound),
             Core::InstDict(_, args) | Core::App(_, args) | Core::Lam { env: args, .. } => {
@@ -3014,6 +3217,9 @@ fn body_impure(e: &Core) -> bool {
         }
         match e {
             Core::Fault => *bad = true,
+            // A real foreign call is opaque and effectful by contract
+            // (foreign function interface specification section 4).
+            Core::Foreign(_) => *bad = true,
             Core::Prim(op) => {
                 if !prim_is_pure(*op) {
                     *bad = true;
@@ -3713,7 +3919,7 @@ impl Driver<'_> {
             let atom = matches!(
                 arg,
                 Core::Var(_) | Core::Int(_) | Core::ConstBig { .. } | Core::Bool(_)
-                    | Core::Unit | Core::Global(_) | Core::Ctor(_) | Core::Prim(_)
+                    | Core::Unit | Core::Global(_) | Core::Ctor(_) | Core::Prim(_) | Core::Foreign(_)
             );
             if atom {
                 binds.insert(l, arg.clone());
@@ -3800,7 +4006,7 @@ fn child_slots(e: &mut Core) -> Vec<&mut Core> {
     let mut out: Vec<&mut Core> = Vec::new();
     match e {
         Core::Int(_) | Core::ConstBig { .. } | Core::Bool(_) | Core::Unit | Core::Global(_)
-        | Core::Ctor(_) | Core::Prim(_) | Core::Fault | Core::LazyAlloc | Core::SyntaxLit(_)
+        | Core::Ctor(_) | Core::Prim(_) | Core::Foreign(_) | Core::Fault | Core::LazyAlloc | Core::SyntaxLit(_)
         | Core::StrLit(_) | Core::Var(_) => {}
         Core::DictProj(d, _) | Core::Proj(d, _) | Core::Demand(d) => out.push(&mut **d),
         Core::InstDict(_, args) | Core::App(_, args) | Core::Lam { env: args, .. } => {
@@ -3870,9 +4076,9 @@ fn alpha_eq(a: &Core, b: &Core) -> bool {
             (Core::Unit, Core::Unit) | (Core::Fault, Core::Fault) | (Core::LazyAlloc, Core::LazyAlloc) => true,
             (Core::Global(x), Core::Global(y)) | (Core::Ctor(x), Core::Ctor(y)) => x == y,
             (Core::Prim(x), Core::Prim(y)) => x == y,
-            (Core::DictProj(d1, i1), Core::DictProj(d2, i2)) | (Core::Proj(d1, i1), Core::Proj(d2, i2)) => {
-                i1 == i2 && go(d1, d2, map)
-            }
+            (Core::Foreign(x), Core::Foreign(y)) => x == y,
+            (Core::DictProj(d1, i1), Core::DictProj(d2, i2)) => i1 == i2 && go(d1, d2, map),
+            (Core::Proj(d1, i1), Core::Proj(d2, i2)) => i1 == i2 && go(d1, d2, map),
             (Core::InstDict(g1, a1), Core::InstDict(g2, a2)) => {
                 g1 == g2 && a1.len() == a2.len() && a1.iter().zip(a2).all(|(x, y)| go(x, y, map))
             }
@@ -4329,7 +4535,7 @@ fn child_slots_imm(e: &Core) -> Vec<&Core> {
     let mut out: Vec<&Core> = Vec::new();
     match e {
         Core::Int(_) | Core::ConstBig { .. } | Core::Bool(_) | Core::Unit | Core::Global(_)
-        | Core::Ctor(_) | Core::Prim(_) | Core::Fault | Core::LazyAlloc | Core::SyntaxLit(_)
+        | Core::Ctor(_) | Core::Prim(_) | Core::Foreign(_) | Core::Fault | Core::LazyAlloc | Core::SyntaxLit(_)
         | Core::StrLit(_) | Core::Var(_) => {}
         Core::DictProj(d, _) | Core::Proj(d, _) | Core::Demand(d) => out.push(&**d),
         Core::InstDict(_, args) | Core::App(_, args) | Core::Lam { env: args, .. } => {

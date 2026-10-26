@@ -8,8 +8,8 @@
 //! Operators are ordinary value names, so `x + y` is just a method call.
 
 use crate::ast;
-use crate::core::{BytesOp, CAlt, CBranch, CPat, CmpOp, FnDef, GlobalId, InstanceDef, IntOp, LocalId, NatOp, PrimOp, Program};
-use crate::types::{ClassApp, EffLabel, EffRow, EitherMeta, IxParam, ITerm, IdxCmp, IdxOp, Mult, PTerm, RowTail, Scalar, Scheme, Sort, Ty, Unifier, collect_row_names, default_mult};
+use crate::core::{BytesOp, CAlt, CBranch, CPat, CmpOp, FieldAccess, FieldShape, FnDef, GlobalId, InstanceDef, IntOp, LocalId, NatOp, PrimOp, Program, ProjField};
+use crate::types::{ClassApp, EffLabel, EffRow, EitherMeta, IxParam, ITerm, IdxCmp, IdxOp, Mult, PTerm, PtrRole, RowTail, Scalar, Scheme, Sort, Ty, Unifier, c_abi_scalar, collect_row_names, default_mult};
 use crate::{Error, Result};
 use SolveOutcome::{Solved, Ambiguous};
 use std::cell::RefCell;
@@ -34,9 +34,11 @@ enum ECore {
     Global(GlobalId),
     Ctor(GlobalId),
     Prim(PrimOp),
+    /// A real foreign import used as a value (its wrapper unit's name).
+    Foreign(String),
     DictProj(Box<ECore>, usize),
-    /// Record field projection: load field `idx` from the record block.
-    Proj(Box<ECore>, usize),
+    /// Record field projection: load the field from the record block.
+    Proj(Box<ECore>, crate::core::ProjField),
     InstDict(GlobalId, Vec<ECore>),
     App(Box<ECore>, Vec<ECore>),
     /// Un-hoisted lambda: `params` are its pattern parameters.
@@ -129,7 +131,7 @@ fn free_locals(e: &ECore, bound: &mut Vec<LocalId>, out: &mut Vec<LocalId>) {
             }
         }
         ECore::Int(_) | ECore::ConstBig { .. } | ECore::Lit(_) | ECore::Bool(_) | ECore::Unit | ECore::Global(_)
-        | ECore::Ctor(_) | ECore::Prim(_) | ECore::Hole(_) | ECore::IdxPending(_) | ECore::Fault
+        | ECore::Ctor(_) | ECore::Prim(_) | ECore::Foreign(_) | ECore::Hole(_) | ECore::IdxPending(_) | ECore::Fault
         | ECore::SyntaxLit(_) | ECore::StrLit(_) => {}
         ECore::Quote { holes, .. } | ECore::DeclsQuote { holes, .. } => {
             for h in holes {
@@ -207,7 +209,7 @@ fn hoist_lambdas(e: &mut ECore, hint: &str, counter: &mut usize, fns: &mut Vec<H
         | ECore::Var(_)
         | ECore::Global(_)
         | ECore::Ctor(_)
-        | ECore::Prim(_)
+        | ECore::Prim(_) | ECore::Foreign(_)
         | ECore::Hole(_)
         | ECore::IdxPending(_)
         | ECore::Fault
@@ -295,7 +297,7 @@ fn assign_locals(e: &ECore, map: &mut HashMap<LocalId, LocalId>, next: &mut usiz
     match e {
         ECore::Var(l) => note_local(*l, map, next),
         ECore::Int(_) | ECore::ConstBig { .. } | ECore::Lit(_) | ECore::Bool(_) | ECore::Unit | ECore::Global(_)
-        | ECore::Ctor(_) | ECore::Prim(_) | ECore::Hole(_) | ECore::IdxPending(_) | ECore::Fault
+        | ECore::Ctor(_) | ECore::Prim(_) | ECore::Foreign(_) | ECore::Hole(_) | ECore::IdxPending(_) | ECore::Fault
         | ECore::SyntaxLit(_) | ECore::StrLit(_) => {}
         ECore::Quote { holes, .. } | ECore::DeclsQuote { holes, .. } => {
             for h in holes {
@@ -367,6 +369,7 @@ fn rewrite_locals(e: &ECore, map: &HashMap<LocalId, LocalId>) -> ECore {
         ECore::Global(g) => ECore::Global(g.clone()),
         ECore::Ctor(g) => ECore::Ctor(g.clone()),
         ECore::Prim(p) => ECore::Prim(*p),
+        ECore::Foreign(n) => ECore::Foreign(n.clone()),
         ECore::Hole(h) => ECore::Hole(*h),
         ECore::IdxPending(i) => ECore::IdxPending(*i),
         ECore::Fault => ECore::Fault,
@@ -381,7 +384,7 @@ fn rewrite_locals(e: &ECore, map: &HashMap<LocalId, LocalId>) -> ECore {
             holes: holes.iter().map(|h| rewrite_locals(h, map)).collect(),
         },
         ECore::DictProj(d, i) => ECore::DictProj(Box::new(rewrite_locals(d, map)), *i),
-        ECore::Proj(d, i) => ECore::Proj(Box::new(rewrite_locals(d, map)), *i),
+        ECore::Proj(d, i) => ECore::Proj(Box::new(rewrite_locals(d, map)), i.clone()),
         ECore::InstDict(g, args) => ECore::InstDict(
             g.clone(),
             args.iter().map(|a| rewrite_locals(a, map)).collect(),
@@ -448,7 +451,7 @@ fn resolve_lit_words(e: &mut ECore, lits: &[ECore]) {
         ECore::Lit(i) => *e = lits[*i].clone(),
         ECore::Int(_) | ECore::ConstBig { .. } | ECore::Bool(_) | ECore::Unit | ECore::Var(_)
         | ECore::Global(_)
-        | ECore::Ctor(_) | ECore::Prim(_) | ECore::Hole(_) | ECore::IdxPending(_) | ECore::Fault | ECore::LazyAlloc
+        | ECore::Ctor(_) | ECore::Prim(_) | ECore::Foreign(_) | ECore::Hole(_) | ECore::IdxPending(_) | ECore::Fault | ECore::LazyAlloc
         | ECore::SyntaxLit(_) | ECore::StrLit(_) => {}
         ECore::Quote { holes, .. } | ECore::DeclsQuote { holes, .. } => {
             for h in holes {
@@ -502,7 +505,7 @@ fn resolve_idx_words(e: &mut ECore, vals: &[ECore]) {
         | ECore::Var(_)
         | ECore::Global(_)
         | ECore::Ctor(_)
-        | ECore::Prim(_)
+        | ECore::Prim(_) | ECore::Foreign(_)
         | ECore::Hole(_)
         | ECore::Fault
         | ECore::LazyAlloc
@@ -584,8 +587,9 @@ fn lower(e: &ECore) -> crate::core::Core {
         ECore::Global(g) => crate::core::Core::Global(g.clone()),
         ECore::Ctor(g) => crate::core::Core::Ctor(g.clone()),
         ECore::Prim(p) => crate::core::Core::Prim(*p),
+        ECore::Foreign(n) => crate::core::Core::Foreign(n.clone()),
         ECore::DictProj(d, i) => crate::core::Core::DictProj(Box::new(lower(d)), *i),
-        ECore::Proj(d, i) => crate::core::Core::Proj(Box::new(lower(d)), *i),
+        ECore::Proj(d, f) => crate::core::Core::Proj(Box::new(lower(d)), f.clone()),
         ECore::InstDict(g, args) => {
             crate::core::Core::InstDict(g.clone(), args.iter().map(lower).collect())
         }
@@ -668,6 +672,10 @@ pub enum ParamKind {
 enum ValueKind {
     TopFn,
     Prim(PrimOp),
+    /// A real `foreign import ccall` binding: its synthesized marshalling
+    /// wrapper unit and parameter count (foreign function interface
+    /// specification section 2).
+    Foreign { unit: String, arity: usize },
     /// Class method at position `idx` of its signature.
     Method { idx: usize },
     /// An effect operation (`effect L where op :: ...`): dispatches
@@ -737,6 +745,9 @@ struct TypeKind {
     fields: Option<Vec<String>>,
     /// Record fields' erasure flags, parallel to `fields`.
     field_erased: Vec<bool>,
+    /// An `opaque type` (foreign function interface specification
+    /// section 2): abstract, no constructors, no layout projection.
+    opaque: bool,
 }
 
 #[derive(Clone)]
@@ -1293,6 +1304,13 @@ struct Checker {
     module_fixities: Vec<(String, crate::interface::FixityExport)>,
     /// Each module's foreign declarations, for its interface.
     module_foreign: Vec<(String, crate::interface::ForeignExport)>,
+    /// Real foreign binding contracts by unit name (foreign function
+    /// interface specification section 2), for the program's ABI maps.
+    foreign_plans: Vec<(String, crate::core::ForeignPlan)>,
+    /// Real foreign bindings awaiting contract construction (their
+    /// classification reads the ABI layout table, computed after the
+    /// declaration pass).
+    pending_foreign: Vec<(String, crate::ast::ForeignDecl, Scheme)>,
     /// Use counts accumulated for the definition being checked.
     uses: HashMap<LocalId, UseNode>,
     /// Usage obligations of the definition's binders.
@@ -1498,6 +1516,8 @@ impl Checker {
             module_imports: HashMap::new(),
             module_fixities: Vec::new(),
             module_foreign: Vec::new(),
+            foreign_plans: Vec::new(),
+            pending_foreign: Vec::new(),
             uses: HashMap::new(),
             obligations: HashMap::new(),
             lam_depth: 0,
@@ -1917,6 +1937,12 @@ impl Checker {
         match ty {
             Ty::Int | Ty::Nat | Ty::Bool | Ty::Unit | Ty::Prim(_) | Ty::Ref(_, _) => true,
             Ty::Bytes | Ty::Meta(_) | Ty::Mut(_, _) | Ty::Thunk { .. } | Ty::Lazy { .. } => false,
+            // An owned boundary pointer transfers ownership exactly once
+            // (foreign function interface specification section 3), so it
+            // is not duplicable; raw and borrow roles are plain addresses
+            // and carry no ownership to duplicate.
+            Ty::Ptr { role: PtrRole::Owned(_), .. } => false,
+            Ty::Ptr { .. } => true,
             // `Later` keeps the thunk representation at runtime (codata
             // and guardedness design, section 6), so like a thunk it is
             // not duplicable evidence.
@@ -2244,6 +2270,87 @@ impl Checker {
             return Ok(v.clone());
         }
         Err(Error::plain(format!("unknown name {name}")))
+    }
+
+    /// The recorded-offset access plan for one runtime field slot of a
+    /// boundary-layout type (`repr(C)`, `repr(packed)`,
+    /// `repr(transparent)`), from the interface ABI table's recorded
+    /// offsets (attribute annotations specification section 4.3).
+    /// `None` for uniform-word types, which keep the slot convention.
+    pub(crate) fn field_access_plan(
+        &self,
+        module: &str,
+        name: &str,
+        slot: usize,
+        field_ty: &Ty,
+    ) -> Option<FieldAccess> {
+        let layout = self.type_layouts.get(&(module.to_string(), name.to_string()))?;
+        if layout.repr == "uniform-word" {
+            return None;
+        }
+        let f = layout.fields.get(slot)?;
+        Some(FieldAccess {
+            offset: f.offset,
+            size: f.size,
+            shape: self.field_shape(field_ty, f.size),
+        })
+    }
+
+    /// The stored shape of one boundary-layout field's type: machine
+    /// scalars fill their recorded width; everything boxed (including
+    /// pointer roles and opaque handles) is one word; a nested
+    /// boundary-layout aggregate is stored inline at the recorded size.
+    pub(crate) fn field_shape(&self, ty: &Ty, size: u64) -> FieldShape {
+        match ty {
+            Ty::Prim(s) => {
+                let float = matches!(s, Scalar::F32 | Scalar::F64);
+                FieldShape::Scalar {
+                    size: s.size(),
+                    signed: s.is_signed() && !float,
+                }
+            }
+            Ty::Adt(n, _) => {
+                if let Some(nested) = self.inline_layout(n) {
+                    nested
+                } else {
+                    FieldShape::Word
+                }
+            }
+            _ => FieldShape::Word,
+        }
+    }
+
+    /// The inline plan for a nested boundary-layout aggregate (its own
+    /// recorded layout, boxed out by `tag` when projected).
+    fn inline_layout(&self, name: &str) -> Option<FieldShape> {
+        let info = self.lookup_type(&[name]).ok()?;
+        let layout = self
+            .type_layouts
+            .get(&(info.module.clone(), info.name.clone()))?;
+        if layout.repr == "uniform-word" || layout.fields.is_empty() {
+            return None;
+        }
+        let tag = info.ctors.first().map(|(_, t)| *t).unwrap_or(0);
+        let v = self.qualified.get(&(info.module.clone(), info.name.clone()))?;
+        let (field_tys, field_erased) = match &v.kind {
+            ValueKind::Ctor { field_tys, field_erased, .. } => (field_tys.clone(), field_erased.clone()),
+            _ => return None,
+        };
+        let mut fields = Vec::new();
+        let mut slot = 0;
+        for (t, erased) in field_tys.iter().zip(field_erased.iter()) {
+            if *erased {
+                continue;
+            }
+            let f = layout.fields.get(slot)?;
+            fields.push(FieldAccess {
+                offset: f.offset,
+                size: f.size,
+                shape: self.field_shape(t, f.size),
+            });
+            slot += 1;
+        }
+        Some(FieldShape::Inline { size: layout.size, tag, fields })
     }
 
     fn lookup_type(&self, parts: &[&str]) -> Result<TypeKind> {
@@ -2869,6 +2976,66 @@ impl Checker {
                 (["Io"], _) => {
                     return Err(Error::at(head_span, "Io must be fully applied as `Io r`"));
                 }
+                // Boundary pointers (foreign function interface
+                // specification section 3): every pointer role wraps its
+                // pointee type; `Owned` additionally names the allocator
+                // identity.
+                (["RawPtr"], [Arg::Ty(a)]) => {
+                    return Ok(Ty::Ptr {
+                        role: PtrRole::Raw,
+                        pointee: Box::new(self.conv_type(a, vars)?),
+                    });
+                }
+                (["Borrowed"], [Arg::Ty(a)]) => {
+                    return Ok(Ty::Ptr {
+                        role: PtrRole::Borrowed,
+                        pointee: Box::new(self.conv_type(a, vars)?),
+                    });
+                }
+                (["Retained"], [Arg::Ty(a)]) => {
+                    return Ok(Ty::Ptr {
+                        role: PtrRole::Retained,
+                        pointee: Box::new(self.conv_type(a, vars)?),
+                    });
+                }
+                (["MaybeNull"], [Arg::Ty(a)]) => {
+                    return Ok(Ty::Ptr {
+                        role: PtrRole::MaybeNull,
+                        pointee: Box::new(self.conv_type(a, vars)?),
+                    });
+                }
+                (["Out"], [Arg::Ty(a)]) => {
+                    return Ok(Ty::Ptr {
+                        role: PtrRole::Out,
+                        pointee: Box::new(self.conv_type(a, vars)?),
+                    });
+                }
+                (["Owned"], [Arg::Ty(tok), Arg::Ty(a)]) => {
+                    let alloc = match tok {
+                        ast::Type::Con(p, _) if p.parts().len() == 1 => p.parts()[0].to_string(),
+                        ast::Type::Var(n, _) => n.text.clone(),
+                        other => {
+                            return Err(Error::at(
+                                other.span(),
+                                "the allocator identity of an owned pointer is a bare name (`Owned CodecHeap U8`); a foreign allocation is released only by its matching deallocator (foreign function interface specification section 4)",
+                            ))
+                        }
+                    };
+                    return Ok(Ty::Ptr {
+                        role: PtrRole::Owned(alloc),
+                        pointee: Box::new(self.conv_type(a, vars)?),
+                    });
+                }
+                (
+                    ["RawPtr"] | ["Borrowed"] | ["Retained"] | ["MaybeNull"] | ["Out"]
+                    | ["Owned"],
+                    _,
+                ) => {
+                    return Err(Error::at(
+                        head_span,
+                        "RawPtr and the ownership roles must be fully applied (`RawPtr t`, `Borrowed t`, `Retained t`, `Owned Alloc t`, `Out t`, `MaybeNull t`)",
+                    ));
+                }
                 _ => {}
             }
         }
@@ -2934,12 +3101,21 @@ impl Checker {
                     // `Type : Type` is never admitted.
                     ["Type"] => Ok(Ty::Sort(Sort::Type(0))),
                     ["Prop"] => Ok(Ty::Sort(Sort::Prop)),
+                    ["CVoid"] => Ok(Ty::Unit),
                     ["Thunk"] | ["Lazy"] | ["Later"] | ["Ref"] | ["Mut"] | ["Io"] => Err(Error::at(
                         *span,
                         "Thunk, Lazy, Later, Ref, Mut and Io must be fully applied (`Thunk {e} a`, `Lazy {e} r a`, `Later a`, `Ref r a`, `Mut r a`, `Io r`)",
                     )),
+                    ["RawPtr"] | ["Borrowed"] | ["Retained"] | ["Owned"] | ["Out"]
+                    | ["MaybeNull"] => Err(Error::at(
+                        *span,
+                        "RawPtr, Borrowed, Retained, Owned, Out and MaybeNull must be fully applied (`RawPtr t`, `Owned Alloc t`, ...; foreign function interface specification section 3)",
+                    )),
                     [name] => {
                         if let Some(s) = Scalar::parse(name) {
+                            return Ok(Ty::Prim(s));
+                        }
+                        if let Some(s) = c_abi_scalar(name) {
                             return Ok(Ty::Prim(s));
                         }
                         let info = self.lookup_type(&parts).map_err(|_| {
@@ -3705,7 +3881,7 @@ impl Checker {
             },
             ECore::Int(_) | ECore::ConstBig { .. } | ECore::Lit(_) | ECore::Bool(_)
             | ECore::Unit | ECore::Var(_) | ECore::Global(_)
-            | ECore::Ctor(_) | ECore::Prim(_) | ECore::IdxPending(_) | ECore::Fault
+            | ECore::Ctor(_) | ECore::Prim(_) | ECore::Foreign(_) | ECore::IdxPending(_) | ECore::Fault
             | ECore::SyntaxLit(_) | ECore::StrLit(_) => e.clone(),
             ECore::Quote { template, holes } => ECore::Quote {
                 template: template.clone(),
@@ -3724,7 +3900,7 @@ impl Checker {
             ECore::DictProj(d, i) => {
                 ECore::DictProj(Box::new(self.fill_holes(d, sol)?), *i)
             }
-            ECore::Proj(d, i) => ECore::Proj(Box::new(self.fill_holes(d, sol)?), *i),
+            ECore::Proj(d, i) => ECore::Proj(Box::new(self.fill_holes(d, sol)?), i.clone()),
             ECore::InstDict(g, args) => ECore::InstDict(
                 g.clone(),
                 args.iter()

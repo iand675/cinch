@@ -748,6 +748,81 @@ impl fmt::Display for PTerm {
     }
 }
 
+/// The role of a boundary pointer (foreign function interface
+/// specification section 3): every pointer argument or result carries
+/// one. Safe callers never construct these roles from integer casts;
+/// roles only arise from foreign results, out-cells, and buffer borrows.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum PtrRole {
+    /// `RawPtr t`: a raw unchecked pointer (the value is not claimed to
+    /// be valid, aligned, or owned).
+    Raw,
+    /// `Borrowed t`: a call-scoped borrow, valid only for the duration
+    /// of the call that produced or consumes it.
+    Borrowed,
+    /// `Retained t`: a retained borrow, valid until the foreign side
+    /// acknowledges release (foreign function interface specification
+    /// section 8).
+    Retained,
+    /// `Owned <allocator> t`: transferred ownership; released only by
+    /// the deallocator of the same allocator identity (foreign function
+    /// interface specification section 4).
+    Owned(String),
+    /// `Out t`: a caller-allocated one-word out-cell, initialized before
+    /// the call and read afterward.
+    Out,
+    /// `MaybeNull t`: a nullable raw pointer (`null` is the absence).
+    MaybeNull,
+}
+
+impl fmt::Display for PtrRole {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            PtrRole::Raw => write!(f, "RawPtr"),
+            PtrRole::Borrowed => write!(f, "Borrowed"),
+            PtrRole::Retained => write!(f, "Retained"),
+            PtrRole::Owned(a) => write!(f, "Owned {a}"),
+            PtrRole::Out => write!(f, "Out"),
+            PtrRole::MaybeNull => write!(f, "MaybeNull"),
+        }
+    }
+}
+
+impl PtrRole {
+    /// Whether values of this role may be absent (the null pointer).
+    pub fn nullable(&self) -> bool {
+        matches!(self, PtrRole::MaybeNull)
+    }
+
+    /// Whether the callee takes ownership (a deallocator must exist).
+    pub fn owned(&self) -> bool {
+        matches!(self, PtrRole::Owned(_))
+    }
+}
+
+/// The C ABI scalar spellings accepted at a `foreign` boundary (foreign
+/// function interface specification section 2: bindings specify integer
+/// widths and signedness). Each maps to its target scalar; the foreign
+/// contract records the width and signedness explicitly.
+pub fn c_abi_scalar(name: &str) -> Option<Scalar> {
+    use Scalar::*;
+    Some(match name {
+        "CChar" => I8,
+        "CUchar" => U8,
+        "CShort" => I16,
+        "CUshort" => U16,
+        "CInt" => I32,
+        "CUint" => U32,
+        "CLong" | "CLongLong" => I64,
+        "CULong" | "CULongLong" => U64,
+        "CSize" | "SizeT" => Usize,
+        "CSsize" => Isize,
+        "CFloat" => F32,
+        "CDouble" => F64,
+        _ => return None,
+    })
+}
+
 /// Monomorphic type: rigid parameters, unification variables, primitives,
 /// algebraic data types, functions with effect rows and parameter usage
 /// multiplicities, affine thunks, memo cells and borrows, plus the
@@ -833,6 +908,11 @@ pub enum Ty {
         dom: Box<Ty>,
         cod: Box<Ty>,
     },
+    /// A boundary pointer to `pointee` with an ownership role (foreign
+    /// function interface specification sections 2 and 3). All pointer
+    /// roles cross the C ABI as `ptr`; the role is contract metadata and
+    /// a static discipline, never a runtime difference.
+    Ptr { role: PtrRole, pointee: Box<Ty> },
 }
 
 impl Ty {
@@ -915,6 +995,7 @@ impl Ty {
             Ty::Thunk { inner, .. } | Ty::Later(inner) => inner.mentions_idx(name),
             Ty::Lazy { inner, .. } => inner.mentions_idx(name),
             Ty::Ref(_, inner) | Ty::Mut(_, inner) => inner.mentions_idx(name),
+            Ty::Ptr { pointee, .. } => pointee.mentions_idx(name),
             Ty::Handler { input, output, .. } => {
                 input.mentions_idx(name) || output.mentions_idx(name)
             }
@@ -946,6 +1027,10 @@ impl Ty {
                 mult: *mult,
                 eff: eff.clone(),
                 cod: Box::new(cod.subst_idx(name, by)),
+            },
+            Ty::Ptr { role, pointee } => Ty::Ptr {
+                role: role.clone(),
+                pointee: Box::new(pointee.subst_idx(name, by)),
             },
             Ty::Sigma { var, dom, cod } => Ty::Sigma {
                 var: var.clone(),
@@ -1000,6 +1085,7 @@ impl Ty {
             Ty::Thunk { inner, .. } | Ty::Later(inner) => inner.free_idx_metas(out),
             Ty::Lazy { inner, .. } => inner.free_idx_metas(out),
             Ty::Ref(_, inner) | Ty::Mut(_, inner) => inner.free_idx_metas(out),
+            Ty::Ptr { pointee, .. } => pointee.free_idx_metas(out),
             Ty::Handler { input, output, .. } => {
                 input.free_idx_metas(out);
                 output.free_idx_metas(out);
@@ -1043,6 +1129,7 @@ impl Ty {
                 inner.free_metas(out);
             }
             Ty::Ref(_, inner) | Ty::Mut(_, inner) => inner.free_metas(out),
+            Ty::Ptr { pointee, .. } => pointee.free_metas(out),
             Ty::Handler { input, output, eff, .. } => {
                 input.free_metas(out);
                 eff.free_metas(out);
@@ -1122,6 +1209,12 @@ impl fmt::Display for Ty {
             Ty::Lazy { eff, region, inner } => write!(f, "Lazy {eff} {region} {inner}"),
             Ty::Ref(region, inner) => write!(f, "Ref {region} {inner}"),
             Ty::Mut(region, inner) => write!(f, "Mut {region} {inner}"),
+            Ty::Ptr { role, pointee } => match pointee.as_ref() {
+                Ty::Ptr { .. } | Ty::Fun(..) | Ty::Pi { .. } | Ty::Sigma { .. } => {
+                    write!(f, "{role} ({pointee})")
+                }
+                other => write!(f, "{role} {other}"),
+            },
             Ty::Handler { label, input, output, eff, resumption } => {
                 write!(f, "(handle {label} {input} => {output} adding {eff} resuming {resumption})")
             }
@@ -1243,6 +1336,10 @@ pub fn regionize(t: &Ty, regions: &[String]) -> Ty {
         Ty::Mut(region, inner) => {
             Ty::Mut(region.clone(), Box::new(regionize(inner, regions)))
         }
+        Ty::Ptr { role, pointee } => Ty::Ptr {
+            role: role.clone(),
+            pointee: Box::new(regionize(pointee, regions)),
+        },
         Ty::Handler { label, input, output, eff, resumption } => Ty::Handler {
             label: label.clone(),
             input: Box::new(regionize(input, regions)),
@@ -1316,6 +1413,9 @@ pub fn collect_row_names(t: &Ty, rows: &mut Vec<String>, regions: &mut Vec<Strin
                 regions.push(region.clone());
             }
             collect_row_names(inner, rows, regions);
+        }
+        Ty::Ptr { pointee, .. } => {
+            collect_row_names(pointee, rows, regions);
         }
         Ty::Adt(_, args) | Ty::Tuple(args) => {
             for a in args {
@@ -1745,6 +1845,9 @@ impl Unifier {
             Ty::Mut(region, inner) => {
                 Ty::Mut(self.resolve_region(&region), Box::new(self.zonk(&inner)))
             }
+            Ty::Ptr { role, pointee } => {
+                Ty::Ptr { role: role.clone(), pointee: Box::new(self.zonk(&pointee)) }
+            }
             Ty::Region(r) => Ty::Region(self.resolve_region(&r)),
             Ty::Handler { label, input, output, eff, resumption } => Ty::Handler {
                 label: EffLabel {
@@ -1847,6 +1950,10 @@ impl Unifier {
             Ty::Mut(region, inner) => {
                 Ty::Mut(region, Box::new(self.gen_ty(&inner, names)))
             }
+            Ty::Ptr { role, pointee } => Ty::Ptr {
+                role: role.clone(),
+                pointee: Box::new(self.gen_ty(&pointee, names)),
+            },
             Ty::Handler { label, input, output, eff, resumption } => Ty::Handler {
                 label: label.clone(),
                 input: Box::new(self.gen_ty(&input, names)),
@@ -1882,6 +1989,7 @@ impl Unifier {
             Ty::Thunk { inner, .. } | Ty::Later(inner) => self.occurs(id, &inner),
             Ty::Lazy { inner, .. } => self.occurs(id, &inner),
             Ty::Ref(_, inner) | Ty::Mut(_, inner) => self.occurs(id, &inner),
+            Ty::Ptr { pointee, .. } => self.occurs(id, &pointee),
             Ty::Handler { input, output, .. } => {
                 self.occurs(id, &input) || self.occurs(id, &output)
             }
@@ -2137,6 +2245,21 @@ impl Unifier {
                 self.unify_regions(r1, r2)?;
                 self.unify(i1, i2)
             }
+            // Boundary pointers unify only under the same ownership role;
+            // `Owned` identities name the allocator, so an allocation from
+            // one allocator never unifies with another's (foreign function
+            // interface specification section 4: a foreign allocation is
+            // released by its matching deallocator).
+            (Ty::Ptr { role: r1, pointee: p1 }, Ty::Ptr { role: r2, pointee: p2 }) => {
+                if r1 != r2 {
+                    return Err(format!(
+                        "pointer role mismatch: expected {}, got {} (a boundary pointer carries exactly one role; raw, borrow, owned, out and nullable roles never convert into each other)",
+                        self.zonk(&a),
+                        self.zonk(&b)
+                    ));
+                }
+                self.unify(p1, p2)
+            }
             (Ty::Region(r1), Ty::Region(r2)) => self.unify_regions(r1, r2),
             (
                 Ty::Handler {
@@ -2201,6 +2324,19 @@ impl Unifier {
                 self.unify(d1, d2)?;
                 let fresh = format!("$sigma{}", self.subst.len());
                 self.unify(&c1.subst_idx(v1, &ITerm::Var(fresh.clone())), &c2.subst_idx(v2, &ITerm::Var(fresh)))
+            }
+            // A boundary pointer role is never constructed from an
+            // integer or any other non-pointer (foreign function
+            // interface specification section 3: safe callers MUST NOT
+            // construct these roles by casting integers).
+            (Ty::Ptr { .. }, other) | (other, Ty::Ptr { .. })
+                if !matches!(other, Ty::Ptr { .. } | Ty::Meta(_)) =>
+            {
+                Err(format!(
+                    "type mismatch: expected {}, got {} (a boundary pointer role is never constructed from an integer or another non-pointer; foreign function interface specification section 3)",
+                    self.zonk(&a),
+                    self.zonk(&b)
+                ))
             }
             _ => {
                 if self.conv_eq(&a, &b) {

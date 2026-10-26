@@ -117,6 +117,115 @@ fn erased_ty(t: &Ty) -> bool {
     matches!(t, Ty::Prp(_) | Ty::Sort(_))
 }
 
+/// Builtin type names: machine scalars, the compile-time-only staging
+/// types, the boundary pointer roles (foreign function interface
+/// specification section 3), the C ABI spellings (section 2), and the
+/// schema introspection types (modules specification section 11). A
+/// source declaration cannot redefine them.
+fn builtin_type_name(name: &str) -> bool {
+    if Scalar::parse(name).is_some() {
+        return true;
+    }
+    matches!(
+        name,
+        "Nat" | "Int" | "Bool" | "Unit" | "Bytes" | "Type" | "Prop"
+            | "Code" | "Syntax" | "Declarations" | "String" | "Secret"
+            | "IoCap" | "FileReadCap" | "FileWriteCap" | "ProcCap"
+            | "RawPtr" | "Borrowed" | "Retained" | "Owned" | "Out" | "MaybeNull"
+            | "CChar" | "CUchar" | "CShort" | "CUshort" | "CInt" | "CUint"
+            | "CLong" | "CULong" | "CLongLong" | "CULongLong" | "CSize" | "SizeT"
+            | "CSsize" | "CFloat" | "CDouble" | "CVoid"
+            | "SchemaSnapshot" | "Database" | "SchemaRead"
+    )
+}
+
+/// The effect labels a foreign binding's row must account for (foreign
+/// function interface specification section 4: I/O, global state,
+/// blocking, divergence, reentrancy, thread affinity and failure).
+const ACCOUNTED_EFFECTS: &str =
+    "`Foreign <boundary>`, `IO`, `Global`, `Blocking`, `Diverge`, `Fail`, `Reentrant`, `ThreadAffine`";
+
+fn accounted_effect(head: &str) -> bool {
+    matches!(
+        head,
+        "Foreign" | "IO" | "Global" | "Blocking" | "Diverge" | "Fail" | "Reentrant" | "ThreadAffine"
+    )
+}
+
+/// The arrow count of a (possibly curried) function type.
+fn arity_of_arrows(ty: &Ty) -> usize {
+    let mut n = 0;
+    let mut cur = ty;
+    loop {
+        match cur {
+            Ty::Fun(_, _, _, b) | Ty::Pi { cod: b, .. } => {
+                n += 1;
+                cur = b;
+            }
+            _ => return n,
+        }
+    }
+}
+
+/// One schema table's derived type name (`billing_events` becomes
+/// `BillingEvents`).
+fn codec_type_name(table: &str) -> Result<String> {
+    let mut out = String::new();
+    let mut upper = true;
+    for ch in table.chars() {
+        if ch.is_ascii_alphanumeric() {
+            out.push(if upper { ch.to_ascii_uppercase() } else { ch });
+            upper = false;
+        } else if ch == '_' || ch == '-' || ch == ' ' {
+            upper = true;
+        } else {
+            return Err(Error::plain(format!(
+                "table name `{table}` is not a type name (the codec generator derives one type per table)"
+            )));
+        }
+    }
+    if out.is_empty() {
+        return Err(Error::plain(format!(
+            "table name `{table}` is not a type name (the codec generator derives one type per table)"
+        )));
+    }
+    if out.as_bytes()[0].is_ascii_digit() {
+        out.insert(0, 'T');
+    }
+    Ok(out)
+}
+
+/// Whether a schema column name is a field name.
+fn codec_field_name(name: &str) -> bool {
+    let mut chars = name.chars();
+    match chars.next() {
+        Some(c) if c.is_ascii_lowercase() || c == '_' => {}
+        _ => return false,
+    }
+    chars.all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '\'')
+}
+
+/// The interface's record of one parameter's binding contract.
+fn iface_param(p: &crate::core::AbiParam) -> crate::interface::ForeignParam {
+    crate::interface::ForeignParam {
+        ty: p.ty.clone(),
+        class: match p.class {
+            crate::core::AbiClass::Unit => "unit",
+            crate::core::AbiClass::Scalar(_) => "scalar",
+            crate::core::AbiClass::Ptr => "ptr",
+            crate::core::AbiClass::Aggregate => "aggregate",
+        }
+        .to_string(),
+        role: p.role.clone(),
+        allocator: p.allocator.clone(),
+        nullable: p.nullable,
+        width: p.width,
+        align: p.align,
+        signed: p.signed,
+        offsets: p.fields.iter().map(|fa| (fa.offset, fa.size)).collect(),
+    }
+}
+
 // ------------------------------------------------------------ productivity helpers (P8)
 
 /// The names a pattern binds (for the guard walk's shadowing).
@@ -297,7 +406,7 @@ impl Checker {
                 param_kinds: Vec::new(),
                 ctors: Vec::new(),
                 fields: None,
-                field_erased: Vec::new(),
+                field_erased: Vec::new(), opaque: false,
             });
         }
         // `Io r`: runtime capability evidence for identity `r` (design
@@ -310,7 +419,7 @@ impl Checker {
             param_kinds: vec![ParamKind::Type],
             ctors: Vec::new(),
             fields: None,
-            field_erased: Vec::new(),
+            field_erased: Vec::new(), opaque: false,
         });
         // Machine scalars are primitives of the language, not user types
         // (primitive types specification, section 2).
@@ -322,7 +431,7 @@ impl Checker {
                 param_kinds: Vec::new(),
                 ctors: Vec::new(),
                 fields: None,
-                field_erased: Vec::new(),
+                field_erased: Vec::new(), opaque: false,
             });
         }
         for (n, b) in [("True", true), ("False", false)] {
@@ -386,6 +495,9 @@ impl Checker {
             ("FileReadCap", 0),
             ("FileWriteCap", 0),
             ("ProcCap", 0),
+            ("SchemaSnapshot", 0),
+            ("Database", 0),
+            ("SchemaRead", 0),
         ] {
             self.types.entry(n.to_string()).or_default().push(TypeKind {
                 module: "<builtin>".into(),
@@ -398,7 +510,7 @@ impl Checker {
                 },
                 ctors: Vec::new(),
                 fields: None,
-                field_erased: Vec::new(),
+                field_erased: Vec::new(), opaque: false,
             });
         }
         let adt = |name: &str, args: Vec<Ty>| Ty::Adt(name.to_string(), args);
@@ -515,13 +627,13 @@ impl Checker {
             "secret",
             StageOp::Secret,
             Vec::new(),
-            Ty::fun_mult(str_ty.clone(), Mult::Many, io_eff(&["StageSecret"]), secret_ty),
+            Ty::fun_mult(str_ty.clone(), Mult::Many, io_eff(&["StageSecret"]), secret_ty.clone()),
         );
         self.install_stage_value(
             "emit",
             StageOp::Emit,
             Vec::new(),
-            Ty::fun_mult(decls_ty, Mult::Many, io_eff(&["StageEmit"]), unit.clone()),
+            Ty::fun_mult(decls_ty.clone(), Mult::Many, io_eff(&["StageEmit"]), unit.clone()),
         );
         // Approved constant transport (modules specification section 9):
         // a supported constant becomes generated code. Secrets and other
@@ -586,8 +698,75 @@ impl Checker {
             "strLen",
             StageOp::StrLen,
             Vec::new(),
-            Ty::fun_mult(str_ty, Mult::Many, EffRow::pure(), Ty::Nat),
+            Ty::fun_mult(str_ty.clone(), Mult::Many, EffRow::pure(), Ty::Nat),
         );
+        // Schema introspection (modules specification section 11; the
+        // A6 vocabulary): `Stage.withDatabase` runs the introspection
+        // tool over the subprocess capability (decision D45's
+        // delegation), `introspectConsistently` is the consistency check
+        // the sketch names, and `CodecGenerator.derive` is the codec
+        // generator producing `quoteDecls` output from a snapshot. The
+        // snapshot is compile-time-only (decision D43's family).
+        let db_ty = adt("Database", Vec::new());
+        let snap_ty = adt("SchemaSnapshot", Vec::new());
+        self.install_stage_value_row(
+            "withDatabase",
+            StageOp::WithDatabase,
+            vec!["a".to_string()],
+            vec!["e".to_string()],
+            Ty::fun_mult(
+                io_ty.clone(),
+                Mult::Many,
+                EffRow::pure(),
+                Ty::fun_mult(
+                    secret_ty.clone(),
+                    Mult::Many,
+                    EffRow::pure(),
+                    Ty::fun_mult(
+                        adt("SchemaRead", Vec::new()),
+                        Mult::Many,
+                        EffRow::pure(),
+                        Ty::fun_mult(
+                            Ty::fun_mult(db_ty.clone(), Mult::Many, row_e.clone(), a.clone()),
+                            Mult::Many,
+                            row_e.clone(),
+                            a.clone(),
+                        ),
+                    ),
+                ),
+            ),
+        );
+        self.install_stage_value(
+            "ReadSchema",
+            StageOp::ReadSchema,
+            Vec::new(),
+            adt("SchemaRead", Vec::new()),
+        );
+        self.install_stage_value(
+            "introspectConsistently",
+            StageOp::Introspect,
+            Vec::new(),
+            Ty::fun_mult(db_ty, Mult::Many, EffRow::pure(), snap_ty.clone()),
+        );
+        // `CodecGenerator.derive` is qualified (a bare `derive` stays
+        // available to user definitions).
+        let derive_info = ValueInfo {
+            module: "<builtin>".into(),
+            name: "derive".into(),
+            scheme: Scheme {
+                params: Vec::new(),
+                idx_params: Vec::new(),
+                val_params: Vec::new(),
+                prop_params: Vec::new(),
+                row_params: Vec::new(),
+                region_params: Vec::new(),
+                ctx: Vec::new(),
+                ty: Ty::fun_mult(snap_ty, Mult::Many, EffRow::pure(), decls_ty),
+            },
+            kind: ValueKind::StageBuiltin(StageOp::CodecDerive),
+        };
+        self.qualified
+            .insert(("CodecGenerator".into(), "derive".into()), derive_info);
     }
 
     /// Register one builtin of the compile-time API under its bare name and
@@ -826,7 +1005,7 @@ impl Checker {
             param_kinds,
             ctors: ctor_names,
             fields: None,
-            field_erased: Vec::new(),
+            field_erased: Vec::new(), opaque: false,
         });
     }
 
@@ -980,7 +1159,7 @@ impl Checker {
                 LocalId(3),
                 Box::new(crate::core::Core::Proj(
                     Box::new(crate::core::Core::Var(LocalId(2))),
-                    0,
+                    crate::core::ProjField::slot(0),
                 )),
                 Box::new(crate::core::Core::App(
                     Box::new(crate::core::Core::Global(
@@ -1460,62 +1639,181 @@ impl Checker {
                     eqs.push((eq.name.text.clone(), eq.clone()));
                 }
                 ast::Decl::Foreign(f) => {
-                    if !f.is_import {
-                        return Err(Error::at(f.span, "foreign export is not supported in the bootstrap slice"));
-                    }
                     if f.abi != "ccall" {
                         return Err(Error::at(
                             f.span,
-                            "only the ccall ABI is supported in the bootstrap slice",
+                            "only the ccall ABI is supported; the component ABI needs the WIT adapter (P14)",
                         ));
                     }
-                    let Some(op) = PrimOp::from_symbol(&f.symbol) else {
-                        return Err(Error::at(
+                    if let Some(op) = PrimOp::from_symbol(&f.symbol) {
+                        // Compiler intrinsics have known signatures
+                        // (decision D6).
+                        if !f.is_import {
+                            return Err(Error::at(f.span, "a compiler intrinsic cannot be exported"));
+                        }
+                        let s = self.conv_scheme(&f.ty)?;
+                        if !s.params.is_empty() || !s.ctx.is_empty() {
+                            return Err(Error::at(f.span, "primitives cannot be polymorphic or constrained"));
+                        }
+                        let expected = prim_scheme(op);
+                        if s.ty != expected.ty {
+                            return Err(Error::at(
+                                f.span,
+                                format!(
+                                    "intrinsic {} has type {}, but is declared {}",
+                                    f.symbol, expected.ty, s.ty
+                                ),
+                            ));
+                        }
+                        let rendered = render_scheme(&s);
+                        self.add_value(
+                            ValueInfo {
+                                module: module.clone(),
+                                name: f.name.text.clone(),
+                                scheme: s,
+                                kind: ValueKind::Prim(op),
+                            },
                             f.span,
-                            format!(
-                                "foreign symbol {} is not a safelang intrinsic; only safelang.prim.* and safelang.runtime.* intrinsics are supported in the bootstrap slice",
-                                f.symbol
-                            ),
+                        )?;
+                        // The interface records the contract; the primitive is
+                        // part of the assumption manifest (core specification,
+                        // section 11).
+                        self.module_foreign.push((
+                            module.clone(),
+                            crate::interface::ForeignExport {
+                                symbol: f.name.text.clone(),
+                                abi: "ccall".to_string(),
+                                external: f.symbol.clone(),
+                                ty: rendered,
+                                effects: String::new(),
+                                notes: "safelang intrinsic".to_string(),
+                                kind: "intrinsic".to_string(),
+                                params: Vec::new(),
+                                result: crate::interface::ForeignParam {
+                                    ty: String::new(),
+                                    class: "unit".to_string(),
+                                    role: "value".to_string(),
+                                    allocator: String::new(),
+                                    nullable: false,
+                                    width: 0,
+                                    align: 1,
+                                    signed: false,
+                                    offsets: Vec::new(),
+                                },
+                                deallocator: String::new(),
+                            },
                         ));
+                    } else {
+                        // The intrinsic namespaces are reserved: a
+                        // `safelang.prim.*`/`safelang.runtime.*` symbol
+                        // that does not resolve names a retired or
+                        // unknown intrinsic, not a C symbol (those names
+                        // are not C identifiers anyway).
+                        if f.symbol.starts_with("safelang.prim.")
+                            || f.symbol.starts_with("safelang.runtime.")
+                        {
+                            return Err(Error::at(
+                                f.span,
+                                format!(
+                                    "foreign symbol {} is not a safelang intrinsic; only safelang.prim.* and safelang.runtime.* intrinsics are supported in the bootstrap slice",
+                                    f.symbol
+                                ),
+                            ));
+                        }
+                        // A real C symbol (foreign function interface
+                        // specification sections 2-4). The envelope is
+                        // checked here; the binding contract is built once
+                        // every type's layout is known
+                        // (`build_foreign_contracts`).
+                        let s = self.conv_scheme(&f.ty)?;
+                        if !s.params.is_empty() || !s.ctx.is_empty() {
+                            return Err(Error::at(
+                                f.span,
+                                "a foreign binding cannot be polymorphic or constrained",
+                            ));
+                        }
+                        self.check_foreign_envelope(f, &s.ty)?;
+                        let unit = fn_id(&module, &f.name.text).0;
+                        let arity = arity_of_arrows(&s.ty);
+                        if f.is_import {
+                            self.add_value(
+                                ValueInfo {
+                                    module: module.clone(),
+                                    name: f.name.text.clone(),
+                                    scheme: s.clone(),
+                                    kind: ValueKind::Foreign { unit, arity },
+                                },
+                                f.span,
+                            )?;
+                        }
+                        // The export's target check and the binding
+                        // classification both wait for the deferred
+                        // contract build (`build_foreign_contracts`).
+                        self.pending_foreign
+                            .push((module.clone(), f.clone(), s));
+                    }
+                }
+                ast::Decl::OpaqueType(o) => {
+                    let _set = self.validate_attr_site(decl_attrs, AttrSite::TypeDecl)?;
+                    // The kind is `Type` in this slice (foreign function
+                    // interface specification section 2 declares opaque
+                    // resources kinded `Type`).
+                    match &o.kind {
+                        ast::Type::Con(p, _) if p.parts() == ["Type"] => {}
+                        other => {
+                            return Err(Error::at(
+                                other.span(),
+                                "an opaque type's kind is `Type` in this slice (`opaque type T :: Type`)",
+                            ))
+                        }
+                    }
+                    if builtin_type_name(&o.name.text) {
+                        return Err(Error::at(
+                            o.name.span,
+                            format!("{} is a builtin type and cannot be redefined", o.name.text),
+                        ));
+                    }
+                    if self
+                        .types
+                        .get(&o.name.text)
+                        .map(|l| l.iter().any(|t| t.module == module))
+                        .unwrap_or(false)
+                    {
+                        return Err(Error::at(o.name.span, format!("duplicate type {}", o.name.text)));
+                    }
+                    let mut params: Vec<String> = Vec::new();
+                    let mut param_kinds: Vec<ParamKind> = Vec::new();
+                    for b in &o.params {
+                        let k = match &b.ann {
+                            Some(ann) => self.binder_kind(ann, &params)?,
+                            None => ParamKind::Type,
+                        };
+                        if !matches!(k, ParamKind::Type) {
+                            return Err(Error::at(
+                                b.name.span,
+                                "an opaque type's parameters are type parameters in this slice",
+                            ));
+                        }
+                        params.push(b.name.text.clone());
+                        param_kinds.push(k);
+                    }
+                    // Abstract: no constructors and no fields, so values
+                    // arise only from foreign calls and there is no
+                    // layout projection (foreign function interface
+                    // specification section 2).
+                    let tk = TypeKind {
+                        module: module.clone(),
+                        name: o.name.text.clone(),
+                        arity: params.len(),
+                        param_kinds: param_kinds.clone(),
+                        ctors: Vec::new(),
+                        fields: None,
+                        field_erased: Vec::new(),
+                        opaque: true,
                     };
-                    let s = self.conv_scheme(&f.ty)?;
-                    if !s.params.is_empty() || !s.ctx.is_empty() {
-                        return Err(Error::at(f.span, "primitives cannot be polymorphic or constrained"));
-                    }
-                    let expected = prim_scheme(op);
-                    if s.ty != expected.ty {
-                        return Err(Error::at(
-                            f.span,
-                            format!(
-                                "intrinsic {} has type {}, but is declared {}",
-                                f.symbol, expected.ty, s.ty
-                            ),
-                        ));
-                    }
-                    let rendered = render_scheme(&s);
-                    self.add_value(
-                        ValueInfo {
-                            module: module.clone(),
-                            name: f.name.text.clone(),
-                            scheme: s,
-                            kind: ValueKind::Prim(op),
-                        },
-                        f.span,
-                    )?;
-                    // The interface records the contract; the primitive is
-                    // part of the assumption manifest (core specification,
-                    // section 11).
-                    self.module_foreign.push((
-                        module.clone(),
-                        crate::interface::ForeignExport {
-                            symbol: f.name.text.clone(),
-                            abi: "ccall".to_string(),
-                            external: f.symbol.clone(),
-                            ty: rendered,
-                            effects: String::new(),
-                            notes: "safelang intrinsic".to_string(),
-                        },
-                    ));
+                    self.types.entry(o.name.text.clone()).or_default().push(tk.clone());
+                    self.qualified_types
+                        .insert((module.clone(), o.name.text.clone()), tk);
                 }
                 ast::Decl::Data(data) => {
                     let set = self.validate_attr_site(decl_attrs, AttrSite::TypeDecl)?;
@@ -1576,7 +1874,7 @@ impl Checker {
                         param_kinds: param_kinds.clone(),
                         ctors: Vec::new(),
                         fields: None,
-                        field_erased: Vec::new(),
+                        field_erased: Vec::new(), opaque: false,
                     });
                     for (tag, c) in data.ctors.iter().enumerate() {
                         self.validate_attr_site(&c.attrs, AttrSite::Ctor)?;
@@ -1895,7 +2193,7 @@ impl Checker {
                         param_kinds: param_kinds.clone(),
                         ctors: Vec::new(),
                         fields: Some(field_names.clone()),
-                        field_erased: field_erased.clone(),
+                        field_erased: field_erased.clone(), opaque: false,
                     });
                     // A record's fields see the parameters and the earlier
                     // fields: `erased bound :: length bytes <= limit`
@@ -2103,7 +2401,7 @@ impl Checker {
                         param_kinds: param_kinds.clone(),
                         ctors: Vec::new(),
                         fields: Some(obs_names.clone()),
-                        field_erased: Vec::new(),
+                        field_erased: Vec::new(), opaque: false,
                     });
                     let mut vars = params.clone();
                     let mut obs_tys = Vec::new();
@@ -2325,7 +2623,7 @@ impl Checker {
                         param_kinds: vec![ParamKind::Type; info.params.len()],
                         ctors: Vec::new(),
                         fields: None,
-                        field_erased: Vec::new(),
+                        field_erased: Vec::new(), opaque: false,
                     };
                     self.types.entry(sig.name.text.clone()).or_default().push(tk.clone());
                     self.qualified_types
@@ -4470,28 +4768,54 @@ impl Checker {
         let mut main_exit = None;
         if let Some(main_info) = main_info {
             if !main_info.scheme.params.is_empty() || !main_info.scheme.ctx.is_empty() {
-                return Err(Error::plain("main must have type Int in the bootstrap slice"));
+                return Err(Error::plain("main must have type Int or Unit ->{e} Int in the bootstrap slice"));
             }
-            if self.uni.zonk(&main_info.scheme.ty) != Ty::Int {
-                return Err(Error::plain(format!(
-                    "main must have type Int in the bootstrap slice, got {}",
-                    self.uni.zonk(&main_info.scheme.ty)
-                )));
-            }
-            // The exit adapter (mathematical `Int` slice): `main :: Int`
-            // returns a boxed bignum while the C `main` truncates its unit's
-            // word to `i32`, so the checker synthesizes `"<module>.main.exit"`,
-            // whose body converts the `main` thunk's result to a machine `i64`
-            // through `sl_int_to_i64`, and `Program.main` points at it.
+            // The entry rule (decision D65): `main :: Int` is the pure
+            // entry; `main :: Unit ->{e} Int` is the effectful entry,
+            // whose declared row is the program's runtime effect
+            // envelope (foreign function interface specification
+            // section 4's accounting reaches the artifact boundary).
+            let main_ty = self.uni.zonk(&main_info.scheme.ty);
+            let effectful = match &main_ty {
+                Ty::Int => false,
+                Ty::Fun(dom, _, _, cod) => {
+                    if **dom != Ty::Unit || **cod != Ty::Int {
+                        return Err(Error::plain(format!(
+                            "main must have type Int or Unit ->{{e}} Int in the bootstrap slice, got {main_ty}"
+                        )));
+                    }
+                    true
+                }
+                other => {
+                    return Err(Error::plain(format!(
+                        "main must have type Int or Unit ->{{e}} Int in the bootstrap slice, got {other}"
+                    )))
+                }
+            };
+            // The exit adapter (mathematical `Int` slice): `main`'s
+            // result is a boxed bignum while the C `main` truncates its
+            // unit's word to `i32`, so the checker synthesizes
+            // `"<module>.main.exit"`, whose body converts the `main`
+            // unit's result to a machine `i64` through `sl_int_to_i64`,
+            // and `Program.main` points at it. An effectful `main` is
+            // applied to its `Unit` argument first.
             let user_module = main_info.module.clone();
             let main_id = fn_id(&user_module, "main");
             let exit_id = GlobalId(format!("{user_module}.main.exit"));
+            let main_word = if effectful {
+                crate::core::Core::App(
+                    Box::new(crate::core::Core::Global(main_id)),
+                    vec![crate::core::Core::Unit],
+                )
+            } else {
+                crate::core::Core::Global(main_id)
+            };
             self.fns.push(FnDef {
                 id: exit_id.clone(),
                 params: Vec::new(),
                 body: crate::core::Core::App(
                     Box::new(crate::core::Core::Prim(PrimOp::Int(IntOp::ToI64))),
-                    vec![crate::core::Core::Global(main_id)],
+                    vec![main_word],
                 ),
                 prim: None,
                 ctor: None,
@@ -4500,12 +4824,487 @@ impl Checker {
             });
             main_exit = Some(exit_id);
         }
+        let (plans, foreigns) = self.build_abi_maps();
         Ok(Program {
             fns: self.fns,
             instances: self.instance_defs,
             main: main_exit,
             rewrites: self.rewrites,
+            plans,
+            foreigns,
         })
+    }
+
+    /// The foreign envelope (foreign function interface specification
+    /// section 4): a function type with closed, explicit effect rows,
+    /// and for an import a result arrow that accounts for I/O, blocking,
+    /// divergence or failure. Returns the parameter count.
+    fn check_foreign_envelope(&self, f: &ast::ForeignDecl, ty: &Ty) -> Result<usize> {
+        let mut n = 0;
+        let mut rows: Vec<&EffRow> = Vec::new();
+        let mut cur = ty;
+        loop {
+            match cur {
+                Ty::Fun(_, _, e, b) | Ty::Pi { eff: e, cod: b, .. } => {
+                    n += 1;
+                    rows.push(e);
+                    cur = b;
+                }
+                _ => break,
+            }
+        }
+        if n == 0 {
+            return Err(Error::at(
+                f.span,
+                "a foreign binding has a function type (`arg -> ... ->{e} res`)",
+            ));
+        }
+        for r in &rows {
+            if !matches!(r.tail, crate::types::RowTail::Closed) {
+                return Err(Error::at(
+                    f.span,
+                    "a foreign binding's effect rows are closed and explicit (foreign function interface specification section 4)",
+                ));
+            }
+        }
+        let result_row = rows.last().unwrap();
+        if f.is_import
+            && (result_row.is_pure()
+                || !result_row.labels.iter().any(|l| accounted_effect(&l.head)))
+        {
+            return Err(Error::at(
+                f.span,
+                format!(
+                    "a foreign import must declare its effects: the result arrow's row names at least one of {ACCOUNTED_EFFECTS} (foreign function interface specification section 4: an external function is not pure merely because its C signature has no explicit state parameter)"
+                ),
+            ));
+        }
+        Ok(n)
+    }
+
+    /// Build the pending foreign binding contracts once every type's
+    /// layout is known (the classification reads the recorded ABI table).
+    fn build_foreign_contracts(&mut self) -> Result<()> {
+        let pending = std::mem::take(&mut self.pending_foreign);
+        for (module, f, s) in pending {
+            if !f.is_import {
+                // A foreign export wraps an existing SafeLang function
+                // under a C-callable entry; its type is exactly the
+                // target's (foreign function interface specification
+                // section 2).
+                match self.top_schemes.get(&(module.clone(), f.name.text.clone())) {
+                    Some(t) => {
+                        if t.ty != s.ty {
+                            return Err(Error::at(
+                                f.span,
+                                format!(
+                                    "a foreign export's type is exactly the target function's type: `{}` is declared {}",
+                                    f.name.text, t.ty
+                                ),
+                            ));
+                        }
+                    }
+                    None => {
+                        return Err(Error::at(
+                            f.name.span,
+                            format!(
+                                "a foreign export wraps a defined function: declare `{} :: ...` before exporting it",
+                                f.name.text
+                            ),
+                        ))
+                    }
+                }
+            }
+            let (plan, entry) = self.foreign_contract(&module, &f, &s.ty)?;
+            self.module_foreign.push((module, entry));
+            self.foreign_plans.push((plan.unit.clone(), plan));
+        }
+        Ok(())
+    }
+
+    /// One foreign binding's contract (foreign function interface
+    /// specification sections 2-4): every parameter and result is
+    /// classified for the C ABI with its width, signedness, offsets,
+    /// alignment and ownership role recorded; the declared effects are
+    /// checked for honesty; the marshalling plan and the interface entry
+    /// come back together.
+    fn foreign_contract(
+        &self,
+        module: &str,
+        f: &ast::ForeignDecl,
+        ty: &Ty,
+    ) -> Result<(crate::core::ForeignPlan, crate::interface::ForeignExport)> {
+        use crate::core::{AbiClass, ForeignPlan};
+        // Peel the arrow spine: parameters, per-arrow effect rows, result.
+        let mut arg_tys: Vec<&Ty> = Vec::new();
+        let mut rows: Vec<&EffRow> = Vec::new();
+        let mut cur = ty;
+        loop {
+            match cur {
+                Ty::Fun(a, _, e, b) => {
+                    arg_tys.push(a);
+                    rows.push(e);
+                    cur = b;
+                }
+                Ty::Pi { dom, eff, cod, .. } => {
+                    arg_tys.push(dom);
+                    rows.push(eff);
+                    cur = cod;
+                }
+                _ => break,
+            }
+        }
+        if arg_tys.is_empty() {
+            return Err(Error::at(
+                f.span,
+                "a foreign binding has a function type (`arg -> ... ->{e} res`)",
+            ));
+        }
+        // Effect honesty (section 4): every declared row is closed and
+        // explicit, and an import's result arrow accounts for the
+        // behavior an external function is never assumed not to have.
+        for r in &rows {
+            if !matches!(r.tail, crate::types::RowTail::Closed) {
+                return Err(Error::at(
+                    f.span,
+                    "a foreign binding's effect rows are closed and explicit (foreign function interface specification section 4)",
+                ));
+            }
+        }
+        let result_row = rows.last().unwrap();
+        if f.is_import
+            && (result_row.is_pure()
+                || !result_row.labels.iter().any(|l| accounted_effect(&l.head)))
+        {
+            return Err(Error::at(
+                f.span,
+                format!(
+                    "a foreign import must declare its effects: the result arrow's row names at least one of {ACCOUNTED_EFFECTS} (foreign function interface specification section 4: an external function is not pure merely because its C signature has no explicit state parameter)"
+                ),
+            ));
+        }
+        let mut params = Vec::new();
+        for a in &arg_tys {
+            params.push(self.abi_param(a).map_err(|e| Error::at(f.span, e.message))?);
+        }
+        let result = self
+            .abi_param(cur)
+            .map_err(|e| Error::at(f.span, e.message))?;
+        if matches!(result.class, AbiClass::Aggregate) {
+            return Err(Error::at(
+                f.span,
+                format!(
+                    "a foreign result cannot be an aggregate: `{}` follows the platform's by-value struct ABI, which this slice does not guess (foreign function interface specification section 2: reject unsupported layouts); return through an `Out` cell or an `Owned` pointer",
+                    result.ty
+                ),
+            ));
+        }
+        let unit = if f.is_import {
+            fn_id(module, &f.name.text).0
+        } else {
+            fn_id(module, &f.name.text).0
+        };
+        let effects: Vec<String> = rows
+            .iter()
+            .flat_map(|r| r.labels.iter().map(|l| l.to_string()))
+            .collect();
+        let plan = ForeignPlan {
+            symbol: f.symbol.clone(),
+            export: !f.is_import,
+            unit: unit.clone(),
+            convention: "ccall".to_string(),
+            params: params.clone(),
+            result: result.clone(),
+            deallocator: String::new(),
+        };
+        let entry = crate::interface::ForeignExport {
+            symbol: f.name.text.clone(),
+            abi: "ccall".to_string(),
+            external: f.symbol.clone(),
+            ty: render_scheme(&Scheme {
+                params: Vec::new(),
+                idx_params: Vec::new(),
+                val_params: Vec::new(),
+                prop_params: Vec::new(),
+                row_params: Vec::new(),
+                region_params: Vec::new(),
+                ctx: Vec::new(),
+                ty: ty.clone(),
+            }),
+            effects: effects.join(", "),
+            notes: if f.is_import {
+                "foreign import".to_string()
+            } else {
+                "foreign export".to_string()
+            },
+            kind: if f.is_import { "import" } else { "export" }.to_string(),
+            params: params.iter().map(iface_param).collect(),
+            result: iface_param(&result),
+            deallocator: String::new(),
+        };
+        Ok((plan, entry))
+    }
+
+    /// One parameter or result's C ABI class and binding contract
+    /// (foreign function interface specification sections 2-3).
+    fn abi_param(&self, ty: &Ty) -> std::result::Result<crate::core::AbiParam, Error> {
+        use crate::core::{AbiClass, AbiParam, FieldAccess};
+        let mut p = AbiParam {
+            ty: ty.to_string(),
+            class: AbiClass::Unit,
+            role: "value".to_string(),
+            allocator: String::new(),
+            nullable: false,
+            width: 0,
+            align: 1,
+            signed: false,
+            tag: 0,
+            fields: Vec::new(),
+        };
+        match ty {
+            Ty::Unit => Ok(p),
+            Ty::Prim(s) => {
+                p.class = AbiClass::Scalar(*s);
+                p.width = s.size();
+                p.align = s.align();
+                p.signed = s.is_signed();
+                Ok(p)
+            }
+            Ty::Ptr { role, pointee } => {
+                p.class = AbiClass::Ptr;
+                p.width = 8;
+                p.align = 8;
+                p.role = match role {
+                    crate::types::PtrRole::Raw => "raw".to_string(),
+                    crate::types::PtrRole::Borrowed => "borrowed".to_string(),
+                    crate::types::PtrRole::Retained => "retained".to_string(),
+                    crate::types::PtrRole::Owned(a) => {
+                        p.allocator = a.clone();
+                        "owned".to_string()
+                    }
+                    crate::types::PtrRole::Out => "out".to_string(),
+                    crate::types::PtrRole::MaybeNull => {
+                        p.nullable = true;
+                        "maybe-null".to_string()
+                    }
+                };
+                if matches!(role, crate::types::PtrRole::Out) {
+                    // The out-parameter rule (section 4): the cell is one
+                    // caller-owned word, zeroed before the call and read
+                    // after it; aggregates cross by pointer instead.
+                    match pointee.as_ref() {
+                        Ty::Prim(_) | Ty::Ptr { .. } => {}
+                        Ty::Adt(n, _) if self.lookup_type(&[n]).map(|t| t.opaque).unwrap_or(false) => {}
+                        other => {
+                            return Err(Error::plain(format!(
+                                "an `Out` cell is one word: its pointee is a machine scalar, a pointer role, or an opaque handle (`Out {other}` is an out-parameter over an aggregate in this slice)"
+                            )))
+                        }
+                    }
+                }
+                Ok(p)
+            }
+            Ty::Adt(n, _) => {
+                let info = self
+                    .lookup_type(&[n])
+                    .map_err(|_| Error::plain(format!("{ty} has no C representation")))?;
+                if info.opaque {
+                    // The opaque-handle role (section 3).
+                    p.class = AbiClass::Ptr;
+                    p.role = "opaque-handle".to_string();
+                    p.width = 8;
+                    p.align = 8;
+                    return Ok(p);
+                }
+                let Some(layout) = self
+                    .type_layouts
+                    .get(&(info.module.clone(), info.name.clone()))
+                    .cloned()
+                else {
+                    return Err(Error::plain(format!(
+                        "the recorded layout of {ty} is `uniform-word` (no representation attribute), which has no C representation at the boundary (foreign function interface specification section 2: only `#[repr(C)]`, `#[repr(packed)]` and `#[repr(transparent)]` aggregates cross; boxed aggregates and fixed-discriminant data are rejected instead of guessed)"
+                    )));
+                };
+                if layout.repr == "uniform-word" || layout.discriminant.is_some() {
+                    return Err(Error::plain(format!(
+                        "the recorded layout of {ty} is `{}`, which has no C representation at the boundary (foreign function interface specification section 2: a source-language type name is not an ABI specification; this slice rejects fixed-discriminant data and boxed aggregates instead of guessing)",
+                        layout.repr
+                    )));
+                }
+                // `repr(transparent)` passes through as its field
+                // (attribute annotations specification section 4.2).
+                if layout.repr == "transparent" {
+                    let v = self
+                        .qualified
+                        .get(&(info.module.clone(), info.name.clone()))
+                        .ok_or_else(|| Error::plain(format!("{ty} has no constructor")))?;
+                    let inner = match &v.kind {
+                        ValueKind::Ctor { field_tys, .. } if field_tys.len() == 1 => {
+                            field_tys[0].clone()
+                        }
+                        _ => {
+                            return Err(Error::plain(format!(
+                                "{ty} is `repr(transparent)` over something other than one fixed field"
+                            )))
+                        }
+                    };
+                    let mut inner_p = self.abi_param(&inner)?;
+                    inner_p.ty = ty.to_string();
+                    return Ok(inner_p);
+                }
+                if layout.fields.is_empty() {
+                    return Err(Error::plain(format!(
+                        "the recorded layout of {ty} has no fields to marshal"
+                    )));
+                }
+                // An aggregate parameter crosses by const-pointer to a
+                // call-scoped C-layout copy at the recorded offsets.
+                let v = self
+                    .qualified
+                    .get(&(info.module.clone(), info.name.clone()))
+                    .ok_or_else(|| Error::plain(format!("{ty} has no constructor")))?;
+                let (field_tys, field_erased, tag) = match &v.kind {
+                    ValueKind::Ctor { field_tys, field_erased, tag, .. } => {
+                        (field_tys.clone(), field_erased.clone(), *tag)
+                    }
+                    _ => return Err(Error::plain(format!("{ty} has no constructor"))),
+                };
+                p.class = AbiClass::Aggregate;
+                p.width = layout.size;
+                p.align = layout.align;
+                p.tag = tag as u64;
+                let mut slot = 0;
+                for (fty, er) in field_tys.iter().zip(field_erased.iter()) {
+                    if *er {
+                        continue;
+                    }
+                    let f = layout.fields.get(slot).ok_or_else(|| {
+                        Error::plain(format!("internal error: no layout fact for {ty} field {slot}"))
+                    })?;
+                    p.fields.push(FieldAccess {
+                        offset: f.offset,
+                        size: f.size,
+                        shape: self.field_shape(fty, f.size),
+                    });
+                    slot += 1;
+                }
+                Ok(p)
+            }
+            other => Err(Error::plain(format!(
+                "{other} has no C representation: language-native closures, dictionaries, vectors, dependent pairs and proofs have no implicit C representation (foreign function interface specification section 2)"
+            ))),
+        }
+    }
+
+    /// Ownership discipline at the boundary (foreign function interface
+    /// specification section 4): every owned foreign result is released
+    /// by its matching deallocator, the foreign import consuming the
+    /// same allocator identity. The pairing is recorded in the contract.
+    fn check_deallocators(&mut self) -> Result<()> {
+        let mut pairs: Vec<(String, String)> = Vec::new();
+        for (_, plan) in &self.foreign_plans {
+            if plan.result.role == "owned" && !plan.result.allocator.is_empty() {
+                let alloc = plan.result.allocator.clone();
+                let symbol = plan.symbol.clone();
+                let deallocator = self
+                    .foreign_plans
+                    .iter()
+                    .find(|(_, q)| {
+                        !q.export
+                            && q.params
+                                .iter()
+                                .any(|p| p.role == "owned" && p.allocator == alloc)
+                    })
+                    .map(|(_, q)| q.symbol.clone());
+                match deallocator {
+                    Some(d) => pairs.push((symbol, d)),
+                    None => {
+                        return Err(Error::plain(format!(
+                            "an owned foreign result needs its matching deallocator: `{symbol}` allocates from `{alloc}`, but no foreign import consumes `Owned {alloc} t` (foreign function interface specification section 4: a foreign allocation is released by its matching deallocator)"
+                        )))
+                    }
+                }
+            }
+        }
+        for (symbol, d) in pairs {
+            for (_, plan) in &mut self.foreign_plans {
+                if plan.symbol == symbol && plan.result.role == "owned" {
+                    plan.deallocator = d.clone();
+                }
+            }
+            for (_, e) in &mut self.module_foreign {
+                if e.external == symbol && e.kind == "import" {
+                    e.deallocator = d.clone();
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// The boundary ABI maps for [`Program`]: constructor layout plans
+    /// for `repr(C)`/`repr(packed)`/`repr(transparent)` types (attribute
+    /// annotations specification section 4.3) and the foreign binding
+    /// contracts (foreign function interface specification section 2).
+    fn build_abi_maps(
+        &self,
+    ) -> (
+        std::collections::BTreeMap<String, crate::core::CtorLayout>,
+        std::collections::BTreeMap<String, crate::core::ForeignPlan>,
+    ) {
+        use crate::core::{CtorLayout, FieldAccess};
+        let mut plans = std::collections::BTreeMap::new();
+        let mut type_ks: Vec<&TypeKind> = self.types.values().flatten().collect();
+        type_ks.sort_by(|a, b| (a.module.as_str(), a.name.as_str()).cmp(&(b.module.as_str(), b.name.as_str())));
+        for t in type_ks {
+            let Some(layout) = self
+                .type_layouts
+                .get(&(t.module.clone(), t.name.clone()))
+                .cloned()
+            else {
+                continue;
+            };
+            if layout.repr == "uniform-word" || layout.fields.is_empty() {
+                continue;
+            }
+            for (cname, tag) in &t.ctors {
+                let _ = tag;
+                let Some(v) = self.qualified.get(&(t.module.clone(), cname.clone())) else {
+                    continue;
+                };
+                let (field_tys, field_erased) = match &v.kind {
+                    ValueKind::Ctor { field_tys, field_erased, .. } => {
+                        (field_tys.clone(), field_erased.clone())
+                    }
+                    _ => continue,
+                };
+                let mut fields = Vec::new();
+                let mut slot = 0;
+                for (fty, er) in field_tys.iter().zip(field_erased.iter()) {
+                    if *er {
+                        continue;
+                    }
+                    let Some(f) = layout.fields.get(slot) else {
+                        fields.clear();
+                        break;
+                    };
+                    fields.push(FieldAccess {
+                        offset: f.offset,
+                        size: f.size,
+                        shape: self.field_shape(fty, f.size),
+                    });
+                    slot += 1;
+                }
+                if fields.is_empty() && !layout.fields.is_empty() {
+                    continue;
+                }
+                plans.insert(
+                    fn_id(&t.module, cname).0,
+                    CtorLayout { payload: layout.size, fields },
+                );
+            }
+        }
+        let foreigns = self.foreign_plans.iter().cloned().collect();
+        (plans, foreigns)
     }
 }
 
@@ -5494,13 +6293,24 @@ impl Checker {
             }
         }
         let mut prims = Vec::new();
+        let mut trusted = Vec::new();
         for (m, f) in &self.module_foreign {
             if m == module {
                 iface.exports.foreign.push(f.clone());
-                prims.push(f.external.clone());
+                if f.kind == "intrinsic" {
+                    prims.push(f.external.clone());
+                } else if f.kind == "import" {
+                    // The module trusts this external symbol: an
+                    // unverified native library remains in the process's
+                    // memory-safety trust boundary (core specification
+                    // section 11's acceptance manifest; foreign function
+                    // interface specification section 1).
+                    trusted.push(f.external.clone());
+                }
             }
         }
         iface.assumptions.primitives = prims;
+        iface.assumptions.foreign = trusted;
         iface
     }
 }
@@ -5546,6 +6356,10 @@ pub fn check_program_multi_diag(
     // annotations specification section 4.3); the packed-borrow rule of
     // section 4.2 reads them during checking.
     c.compute_layouts()?;
+    // Foreign binding contracts classify their parameters against the
+    // recorded layouts (foreign function interface specification
+    // section 2).
+    c.build_foreign_contracts()?;
     // The prelude compiles first: its functions and instances run during
     // compile-time evaluation.
     c.check_bodies(&prelude_name, &prelude_name)?;
@@ -5559,6 +6373,7 @@ pub fn check_program_multi_diag(
     };
     // Generated declarations may declare types with representations.
     c.compute_layouts()?;
+    c.build_foreign_contracts()?;
     for m in modules {
         c.check_bodies(&m.name.text, &prelude_name)?;
     }
@@ -5566,6 +6381,10 @@ pub fn check_program_multi_diag(
     // Rewrite rules are checked after every module's declarations (their
     // `match`, `replace` and `justify` terms reference them).
     c.check_rewrites()?;
+    // Ownership discipline at the boundary: an owned foreign result is
+    // released by its matching deallocator (foreign function interface
+    // specification section 4).
+    c.check_deallocators()?;
     if modules.is_empty() {
         return Err(Error::plain("no modules to check"));
     }
@@ -5626,6 +6445,10 @@ pub struct StagingCx {
     pub workdir: std::path::PathBuf,
     /// The entry file's modules: `main` may live in any of them.
     pub entry_modules: Vec<String>,
+    /// The database schema introspection tool for `Stage.withDatabase`
+    /// (modules specification section 11 delegates introspection to a
+    /// tool run over the subprocess capability; decision D65).
+    pub schema_tool: Option<String>,
 }
 
 impl Default for StagingCx {
@@ -5637,6 +6460,7 @@ impl Default for StagingCx {
             mode: StageMode::Refresh,
             workdir: std::path::PathBuf::new(),
             entry_modules: Vec::new(),
+            schema_tool: None,
         }
     }
 }
@@ -5693,6 +6517,8 @@ struct StageCx {
     fixities: HashMap<String, crate::parser::FixityTable>,
     /// Spawned subprocesses, killed if the stage fails (resource release).
     children: Vec<std::process::Child>,
+    /// The database schema introspection tool (decision D65).
+    schema_tool: Option<String>,
 }
 
 impl StageCx {
@@ -5714,6 +6540,7 @@ impl StageCx {
             workdir: scx.workdir.clone(),
             fixities: scx.fixities.clone(),
             children: Vec::new(),
+            schema_tool: scx.schema_tool.clone(),
         }
     }
 }
@@ -6553,7 +7380,9 @@ fn value_kind_name(v: &crate::core::Value) -> &'static str {
         Decls(_) => "declarations",
         Syntax { .. } => "syntax",
         Str(_) => "a `String`",
-        Secret(_) => "a secret",
+        Secret { .. } => "a secret",
+        Db(_) => "a database introspection result",
+        Schema(_) => "a schema snapshot",
         Cap(_) => "a capability",
         StageFn { .. } => "a compile-time operation",
     }
@@ -6953,7 +7782,7 @@ fn word_of(v: &Value, what: &str) -> Result<i64> {
 fn str_of(v: &Value, what: &str) -> Result<String> {
     match v {
         Value::Str(s) => Ok(s.clone()),
-        Value::Secret(_) => Err(Error::plain(
+        Value::Secret { .. } => Err(Error::plain(
             "a secret value must not be embedded in generated source, logs, or snapshots (modules specification section 10)",
         )),
         other => Err(Error::plain(format!(
@@ -7173,6 +8002,11 @@ impl Checker {
                 let v = self.global_value(cx, &g.0)?;
                 self.deref_value(cx, v)?
             }
+            Core::Foreign(_) => {
+                return Err(Error::plain(
+                    "a foreign import cannot run at compile time (it needs target code and a linked foreign library)",
+                ))
+            }
             Core::Prim(op) => {
                 let v = Value::PrimFn { op: *op, args: Vec::new() };
                 self.deref_value(cx, v)?
@@ -7189,7 +8023,7 @@ impl Checker {
                 }
             },
             Core::Proj(d, i) => match self.eval_core(cx, d, frame)? {
-                Value::Adt { fields, .. } => fields.get(*i).cloned().ok_or_else(|| {
+                Value::Adt { fields, .. } => fields.get(i.slot).cloned().ok_or_else(|| {
                     Error::plain("internal error: record projection out of range")
                 })?,
                 other => {
@@ -7340,6 +8174,7 @@ impl Checker {
             Value::Clos { args, arity, .. } => *arity == 0 && args.is_empty(),
             Value::CtorFn { args, arity, .. } => *arity == 0 && args.is_empty(),
             Value::PrimFn { op, args } => op.arity() == 0 && args.is_empty(),
+            Value::StageFn { op, args } => stage_op_arity(*op) == 0 && args.is_empty(),
             _ => false,
         };
         if zero {
@@ -7812,7 +8647,60 @@ impl Checker {
                         live: false,
                     },
                 );
-                Ok(Value::Secret(value))
+                Ok(Value::Secret { name, value })
+            }
+            StageOp::WithDatabase => {
+                require_cap(&args[0], Cap::Root, "the root capability")?;
+                let (dsn_name, dsn) = match &args[1] {
+                    Value::Secret { name, value } => (name.clone(), value.clone()),
+                    other => {
+                        return Err(Error::plain(format!(
+                            "`withDatabase` takes a `secret` connection string, found {}",
+                            value_kind_name(other)
+                        )))
+                    }
+                };
+                let _op = &args[2];
+                let k = args[3].clone();
+                // Modules specification section 11 delegates database
+                // introspection to a tool run over the subprocess
+                // capability (decision D45): the snapshot comes from
+                // running a tool, not from a new network stack (decision
+                // D65). The credential travels in the tool's environment
+                // and never enters the captured input.
+                let tool = cx.schema_tool.clone().ok_or_else(|| {
+                    Error::plain(
+                        "no schema introspection tool is configured for `Stage.withDatabase` (modules specification section 11 delegates introspection to a tool run over the subprocess capability; decision D65)",
+                    )
+                })?;
+                let raw = self.stage_run_env(cx, &tool, &[], &dsn_name, &dsn)?;
+                self.apply_value(cx, k, vec![Value::Db(raw)])
+            }
+            StageOp::ReadSchema => Ok(Value::Adt { tag: 0, fields: Vec::new() }),
+            StageOp::Introspect => {
+                let raw = match &args[0] {
+                    Value::Db(s) => s.clone(),
+                    other => {
+                        return Err(Error::plain(format!(
+                            "`introspectConsistently` takes a database introspection result, found {}",
+                            value_kind_name(other)
+                        )))
+                    }
+                };
+                let snap = self.interpret_schema(&raw)?;
+                Ok(Value::Schema(snap))
+            }
+            StageOp::CodecDerive => {
+                let snap = match &args[0] {
+                    Value::Schema(s) => s.clone(),
+                    other => {
+                        return Err(Error::plain(format!(
+                            "`CodecGenerator.derive` takes a schema snapshot, found {}",
+                            value_kind_name(other)
+                        )))
+                    }
+                };
+                Ok(Value::Decls(self.derive_codecs(&snap)?))
             }
             StageOp::Emit => {
                 let mut decls = match &args[0] {
@@ -7925,8 +8813,28 @@ impl Checker {
     /// A subprocess run under the build mode; the tool identity and output
     /// are inputs to the build identity.
     fn stage_run(&mut self, cx: &mut StageCx, tool: &str, argv: &[String]) -> Result<String> {
+        self.stage_run_env(cx, tool, argv, "", "")
+    }
+
+    /// [`stage_run`] with one credential in the tool's environment
+    /// (foreign function interface pairing aside, modules specification
+    /// section 10: secrets authorize access but never enter snapshots;
+    /// the captured input records the environment variable's name and the
+    /// tool's output, never the credential).
+    fn stage_run_env(
+        &mut self,
+        cx: &mut StageCx,
+        tool: &str,
+        argv: &[String],
+        env_name: &str,
+        env_value: &str,
+    ) -> Result<String> {
         let snapshot = cx.snapshot.last().cloned().unwrap_or_default();
-        let key = format!("{tool} {}", argv.join(" "));
+        let key = if env_name.is_empty() {
+            format!("{tool} {}", argv.join(" "))
+        } else {
+            format!("{tool} {} env:{env_name}", argv.join(" "))
+        };
         let prior = cx
             .prior
             .iter()
@@ -7941,9 +8849,15 @@ impl Checker {
             self.record_input(cx, rec.clone());
             return Ok(rec.captured);
         }
-        let mut child = std::process::Command::new(tool)
-            .args(argv)
-            .current_dir(&cx.workdir)
+        let mut cmd = std::process::Command::new(tool);
+        cmd.args(argv);
+        if !cx.workdir.as_os_str().is_empty() {
+            cmd.current_dir(&cx.workdir);
+        }
+        if !env_name.is_empty() {
+            cmd.env(env_name, env_value);
+        }
+        let mut child = cmd
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped())
             .spawn()
@@ -7970,6 +8884,325 @@ impl Checker {
             },
         );
         Ok(contents)
+    }
+
+    /// `introspectConsistently` (modules specification section 11): the
+    /// consistency check the sketch names. The tool's document is parsed
+    /// and checked for internal consistency (unique table and column
+    /// names, known column types); the interpreted schema records the
+    /// dialect, collation, extension and nullability assumptions and the
+    /// snapshot identity where the provider supports one. Generated
+    /// binding proofs are relative to this capture.
+    fn interpret_schema(&self, raw: &str) -> Result<crate::core::SchemaData> {
+        use crate::core::{SchemaColumn, SchemaData, SchemaTable};
+        let v = crate::interface::parse_json(raw)
+            .map_err(|e| Error::plain(format!("the introspection output is not a schema document: {e}")))?;
+        let obj = v
+            .as_object()
+            .map_err(|_| Error::plain("the introspection output is not a schema document (expected an object)"))?;
+        let str_field = |k: &str| -> Result<String> {
+            match obj.get(k) {
+                Some(v) => v
+                    .as_str()
+                    .map(|s| s.to_string())
+                    .map_err(|_| Error::plain(format!("schema field `{k}` is not a string"))),
+                None => Ok(String::new()),
+            }
+        };
+        let dialect = str_field("dialect")?;
+        let collation = str_field("collation")?;
+        let snapshot = str_field("snapshot")?;
+        let mut extensions = Vec::new();
+        if let Some(ext) = obj.get("extensions") {
+            for e in ext
+                .as_array()
+                .map_err(|_| Error::plain("schema field `extensions` is not a list"))?
+            {
+                extensions.push(
+                    e.as_str()
+                        .map(|s| s.to_string())
+                        .map_err(|_| Error::plain("a schema extension is not a string"))?,
+                );
+            }
+        }
+        let mut tables = Vec::new();
+        let mut seen: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+        let tabs = obj
+            .get("tables")
+            .ok_or_else(|| Error::plain("the schema document has no `tables` list"))?
+            .as_array()
+            .map_err(|_| Error::plain("schema field `tables` is not a list"))?;
+        for t in tabs {
+            let t = t
+                .as_object()
+                .map_err(|_| Error::plain("a schema table is not an object"))?;
+            let name = t
+                .get("name")
+                .ok_or_else(|| Error::plain("a schema table has no `name`"))?
+                .as_str()
+                .map_err(|_| Error::plain("a schema table name is not a string"))?
+                .to_string();
+            if !seen.insert(name.clone()) {
+                return Err(Error::plain(format!(
+                    "inconsistent schema: table `{name}` appears twice (modules specification section 11: introspection must obtain a consistent snapshot)"
+                )));
+            }
+            let mut columns = Vec::new();
+            let mut cseen: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+            for c in t
+                .get("columns")
+                .ok_or_else(|| Error::plain(format!("schema table `{name}` has no `columns` list")))?
+                .as_array()
+                .map_err(|_| Error::plain(format!("schema table `{name}` columns are not a list")))?
+            {
+                let c = c
+                    .as_object()
+                    .map_err(|_| Error::plain("a schema column is not an object"))?;
+                let cname = c
+                    .get("name")
+                    .ok_or_else(|| Error::plain("a schema column has no `name`"))?
+                    .as_str()
+                    .map_err(|_| Error::plain("a schema column name is not a string"))?
+                    .to_string();
+                if !cseen.insert(cname.clone()) {
+                    return Err(Error::plain(format!(
+                        "inconsistent schema: column `{cname}` appears twice in table `{name}` (modules specification section 11)"
+                    )));
+                }
+                let ctype = c
+                    .get("type")
+                    .ok_or_else(|| Error::plain(format!("schema column `{name}.{cname}` has no `type`")))?
+                    .as_str()
+                    .map_err(|_| Error::plain("a schema column type is not a string"))?
+                    .to_ascii_uppercase();
+                match ctype.as_str() {
+                    "INTEGER" | "REAL" | "BOOLEAN" | "TEXT" => {}
+                    other => {
+                        return Err(Error::plain(format!(
+                            "unsupported column type `{other}` for {name}.{cname}: the interpreted schema vocabulary is INTEGER, REAL, BOOLEAN and TEXT (modules specification section 11)"
+                        )))
+                    }
+                }
+                let nullable = match c.get("nullable") {
+                    Some(v) => v
+                        .as_bool()
+                        .map_err(|_| Error::plain(format!("schema column `{name}.{cname}` nullable is not a boolean")))?,
+                    None => true,
+                };
+                columns.push(SchemaColumn { name: cname, ty: ctype, nullable });
+            }
+            tables.push(SchemaTable { name, columns });
+        }
+        Ok(SchemaData {
+            dialect,
+            collation,
+            snapshot,
+            extensions,
+            tables,
+            hash: crate::interface::content_hash(raw),
+        })
+    }
+
+    /// `CodecGenerator.derive` (modules specification section 11): the
+    /// codec generator, producing `quoteDecls`-shaped declarations from a
+    /// captured schema: one row record and one `encode`/`decode` pair per
+    /// table, in a fixed little-endian column format (INTEGER: 8 bytes;
+    /// BOOLEAN: 1 byte). The generated declarations are ordinary checked
+    /// declarations (P9's rules).
+    fn derive_codecs(&self, snap: &crate::core::SchemaData) -> Result<Vec<ast::Decl>> {
+        use crate::core::SchemaData;
+        let _ = std::any::type_name::<SchemaData>();
+        let sp = ast::Span { line: 0, col: 0 };
+        let con = |n: &str| ast::Term::Con(ast::ConPath { segments: vec![ast::Name::new(n, sp)] });
+        let var = |n: &str| {
+            ast::Term::Var(ast::VarPath {
+                quals: Vec::new(),
+                name: ast::Name::new(n, sp),
+            })
+        };
+        let app = |f: ast::Term, args: Vec<ast::Term>| ast::Term::App(Box::new(f), args, sp);
+        let int = |n: u64| ast::Term::Int(n.to_string(), sp);
+        let proj = |base: ast::Term, f: &str| {
+            ast::Term::Proj(Box::new(base), ast::Name::new(f, sp), sp)
+        };
+        let con_ty = |n: &str| ast::Type::Con(ast::ConPath { segments: vec![ast::Name::new(n, sp)] }, sp);
+        let app_ty = |f: ast::Type, a: ast::Type| ast::Type::App(Box::new(f), Box::new(a), sp);
+        let fun_ty = |arg: ast::Type, res: ast::Type| ast::Type::Fun {
+            arg: Box::new(arg),
+            mult: None,
+            eff: None,
+            res: Box::new(res),
+            span: sp,
+        };
+        let mut decls = Vec::new();
+        let mut used: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+        for t in &snap.tables {
+            let tname = codec_type_name(&t.name)?;
+            if !used.insert(tname.clone()) {
+                return Err(Error::plain(format!(
+                    "the codec generator cannot derive two types named {tname} (table {})",
+                    t.name
+                )));
+            }
+            let mut fields: Vec<ast::FieldDecl> = Vec::new();
+            let mut cols: Vec<(String, u64, u64, bool)> = Vec::new();
+            let mut offset = 0u64;
+            for c in &t.columns {
+                if !codec_field_name(&c.name) {
+                    return Err(Error::plain(format!(
+                        "column {}.{}` is not a field name (the codec generator derives one record field per column)",
+                        t.name, c.name
+                    )));
+                }
+                let (fty, size, is_bool) = match c.ty.as_str() {
+                    "INTEGER" => (con_ty("I64"), 8u64, false),
+                    "BOOLEAN" => (con_ty("Bool"), 1u64, true),
+                    other => {
+                        return Err(Error::plain(format!(
+                            "the codec generator's column encoders cover INTEGER and BOOLEAN in this slice; {}.{} is {other} (REAL needs float bit access and TEXT a length-prefixed copy; decision D65)",
+                            t.name, c.name
+                        )))
+                    }
+                };
+                fields.push(ast::FieldDecl {
+                    attrs: Vec::new(),
+                    name: ast::Name::new(&c.name, sp),
+                    ty: fty,
+                    erased: false,
+                    span: sp,
+                });
+                cols.push((c.name.clone(), offset, size, is_bool));
+                offset += size;
+            }
+            decls.push(ast::Decl::Record(ast::RecordDecl {
+                name: ast::Name::new(&tname, sp),
+                params: Vec::new(),
+                fields,
+                span: sp,
+            }));
+            // `encodeT row`: a fresh buffer of the fixed row width, each
+            // column written little-endian at its offset.
+            let row = ast::Name::new("row", sp);
+            let buf = ast::Name::new("buf", sp);
+            let mut binds = vec![ast::LocalDecl::Bind {
+                pat: ast::Pat::Var(buf.clone(), sp),
+                body: app(var("bytesNew"), vec![int(offset)]),
+                span: sp,
+            }];
+            for (fname, off, size, is_bool) in &cols {
+                for k in 0..*size {
+                    let byte_val = if *is_bool {
+                        app(var("natFromI64"), vec![ast::Term::If {
+                            cond: Box::new(proj(var("row"), fname)),
+                            then: Box::new(int(1)),
+                            els: Box::new(int(0)),
+                            cond_attrs: Vec::new(),
+                            then_attrs: Vec::new(),
+                            else_attrs: Vec::new(),
+                            span: sp,
+                        }])
+                    } else {
+                        app(var("natFromI64"), vec![app(var("bitAndI64"), vec![
+                            app(var("wrappingShrI64"), vec![proj(var("row"), fname), int(k * 8)]),
+                            int(255),
+                        ])])
+                    };
+                    binds.push(ast::LocalDecl::Bind {
+                        pat: ast::Pat::Wild(sp),
+                        body: app(var("bytesSet"), vec![var("buf"), int(off + k), byte_val]),
+                        span: sp,
+                    });
+                }
+            }
+            let enc = format!("encode{tname}");
+            decls.push(ast::Decl::ValueSig {
+                name: ast::Name::new(&enc, sp),
+                modifier: None,
+                owned_attrs: Vec::new(),
+                ty: fun_ty(con_ty(&tname), con_ty("Bytes")),
+                span: sp,
+            });
+            decls.push(ast::Decl::Equation {
+                modifier: None,
+                eq: ast::Equation {
+                    attrs: Vec::new(),
+                    name: ast::Name::new(&enc, sp),
+                    pats: vec![ast::Pat::Var(row, sp)],
+                    body: ast::Term::Let(binds, Box::new(var("buf")), sp),
+                    locals: Vec::new(),
+                    span: sp,
+                },
+            });
+            // `decodeT b`: the fixed row width checked up front; each
+            // column reassembled little-endian at its offset.
+            let b = ast::Name::new("b", sp);
+            let mut fields_out: Vec<(ast::Name, ast::Term)> = Vec::new();
+            for (fname, off, size, is_bool) in &cols {
+                let v = if *is_bool {
+                    ast::Term::If {
+                        cond: Box::new(app(var("=="), vec![
+                            app(var("natToI64"), vec![app(var("bytesGet"), vec![var("b"), int(*off)])]),
+                            int(1),
+                        ])),
+                        then: Box::new(con("True")),
+                        els: Box::new(con("False")),
+                        cond_attrs: Vec::new(),
+                        then_attrs: Vec::new(),
+                        else_attrs: Vec::new(),
+                        span: sp,
+                    }
+                } else {
+                    let mut acc = int(0);
+                    for k in 0..*size {
+                        let byte = app(var("natToI64"), vec![
+                            app(var("bytesGet"), vec![var("b"), int(off + k)]),
+                        ]);
+                        let shifted = app(var("wrappingShlI64"), vec![byte, int(k * 8)]);
+                        acc = app(var("wrappingAddI64"), vec![acc, shifted]);
+                    }
+                    acc
+                };
+                fields_out.push((ast::Name::new(fname, sp), v));
+            }
+            let record = ast::Term::Record(
+                ast::ConPath { segments: vec![ast::Name::new(&tname, sp)] },
+                fields_out,
+                sp,
+            );
+            let some = app(con("Some"), vec![record]);
+            let body = ast::Term::If {
+                cond: Box::new(app(var("=="), vec![
+                    app(var("bytesLen"), vec![var("b")]),
+                    int(offset),
+                ])),
+                then: Box::new(some),
+                els: Box::new(con("None")),
+                cond_attrs: Vec::new(),
+                then_attrs: Vec::new(),
+                else_attrs: Vec::new(),
+                span: sp,
+            };
+            let dec = format!("decode{tname}");
+            decls.push(ast::Decl::ValueSig {
+                name: ast::Name::new(&dec, sp),
+                modifier: None,
+                owned_attrs: Vec::new(),
+                ty: fun_ty(con_ty("Bytes"), app_ty(con_ty("Option"), con_ty(&tname))),
+                span: sp,
+            });
+            decls.push(ast::Decl::Equation {
+                modifier: None,
+                eq: ast::Equation {
+                    attrs: Vec::new(),
+                    name: ast::Name::new(&dec, sp),
+                    pats: vec![ast::Pat::Var(b, sp)],
+                    body,
+                    locals: Vec::new(),
+                    span: sp,
+                },
+            });
+        }
+        Ok(decls)
     }
 
     fn record_input(&mut self, cx: &mut StageCx, input: StageInput) {
@@ -8206,7 +9439,10 @@ fn stage_op_arity(op: StageOp) -> usize {
     match op {
         Snapshot | WithReadFiles | WithWriteFiles | WithProcess | ReadFile | StrAppend => 2,
         WriteFile | Run => 3,
-        Secret | Emit | StrNat | NatStr | StrLen | QuoteNat | QuoteInt | QuoteBool => 1,
+        WithDatabase => 4,
+        Secret | Emit | StrNat | NatStr | StrLen | QuoteNat | QuoteInt | QuoteBool | Introspect
+        | CodecDerive => 1,
+        ReadSchema => 0,
     }
 }
 

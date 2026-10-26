@@ -64,6 +64,28 @@ impl FixityTable {
     }
 }
 
+/// One parsed signature block item: an associated type member or a
+/// method signature.
+enum SigItem {
+    Member(Decl),
+    Method((Name, Type)),
+}
+
+/// The declared name of a signature's type member.
+fn sig_member_name(d: &Decl) -> Name {
+    match d {
+        Decl::OpaqueType(o) => o.name.clone(),
+        Decl::Data(t) => t.name.clone(),
+        Decl::Record(r) | Decl::Codata(r) => r.name.clone(),
+        Decl::Signature(s) => s.name.clone(),
+        Decl::Attributed { inner, .. } => sig_member_name(inner),
+        other => {
+            let _ = other;
+            Name::new("_", Span { line: 0, col: 0 })
+        }
+    }
+}
+
 /// A parsed module together with the fixity table for parsing the next one.
 #[derive(Debug)]
 pub struct ParsedModule {
@@ -238,6 +260,9 @@ impl<'a> Parser<'a> {
         }
         self.expect(&Tok::Where, "`where`")?;
         let decls = self.parse_block_items("the declaration block", |p| p.parse_declaration())?;
+        // Signature type members are declared ahead of the signature so
+        // its method types resolve them (decision D65).
+        let decls = crate::ast::splice_sig_members(decls);
         let mut imports = Vec::new();
         for d in &decls {
             if let Decl::Import(i) = d {
@@ -347,8 +372,9 @@ impl<'a> Parser<'a> {
             Tok::Codata => Ok(Decl::Codata(self.parse_codata()?)),
             Tok::Effect => Ok(Decl::Effect(self.parse_effect_decl()?)),
             Tok::Generate => self.parse_generate(),
-            Tok::TypeKw | Tok::Opaque => {
-                Err(self.err("type declarations are not supported in the bootstrap slice"))
+            Tok::Opaque => Ok(Decl::OpaqueType(self.parse_opaque_type()?)),
+            Tok::TypeKw => {
+                Err(self.err("type aliases are not supported in the bootstrap slice (`opaque type T :: Type` declares an abstract foreign resource)"))
             }
             Tok::Rewrite => self.parse_rewrite(false),
             Tok::Target => {
@@ -612,9 +638,48 @@ impl<'a> Parser<'a> {
             .map(|b| b.name)
             .collect::<Vec<_>>();
         self.expect(&Tok::Where, "`where`")?;
-        let methods =
-            self.parse_block_items("the signature block", |p| p.parse_method_signature())?;
-        Ok(SigDecl { name, params, methods, span })
+        let items = self.parse_block_items("the signature block", |p| p.parse_sig_item())?;
+        let mut type_members = Vec::new();
+        let mut member_decls = Vec::new();
+        let mut methods = Vec::new();
+        for it in items {
+            match it {
+                SigItem::Member(d) => {
+                    type_members.push(sig_member_name(&d));
+                    member_decls.push(d);
+                }
+                SigItem::Method(m) => methods.push(m),
+            }
+        }
+        Ok(SigDecl { name, params, type_members, member_decls, methods, span })
+    }
+
+    /// One signature block item: an associated type member (`opaque type`
+    /// or `record`) or a method signature (modules and compilation
+    /// specification section 1; foreign function interface specification
+    /// section 2). Members are spliced ahead of the signature so its
+    /// method types resolve them (decision D65).
+    fn parse_sig_item(&mut self) -> Result<SigItem> {
+        if self.at(&Tok::Opaque) {
+            return Ok(SigItem::Member(Decl::OpaqueType(self.parse_opaque_type()?)));
+        }
+        if self.at(&Tok::Record) {
+            return Ok(SigItem::Member(Decl::Record(self.parse_record()?)));
+        }
+        Ok(SigItem::Method(self.parse_method_signature()?))
+    }
+
+    /// `opaque type T [params] :: Type` (foreign function interface
+    /// specification section 2): an abstract foreign resource with no
+    /// constructors and no layout projection.
+    fn parse_opaque_type(&mut self) -> Result<OpaqueTypeDecl> {
+        let span = self.expect(&Tok::Opaque, "`opaque`")?.span;
+        self.expect(&Tok::TypeKw, "`type` after `opaque`")?;
+        let name = self.parse_ctor_name("an opaque type name")?;
+        let params = self.parse_params()?;
+        self.expect(&Tok::ColonColon, "`::`")?;
+        let kind = self.parse_type()?;
+        Ok(OpaqueTypeDecl { name, params, kind, span })
     }
 
     fn parse_method_signature(&mut self) -> Result<(Name, Type)> {
@@ -2091,12 +2156,21 @@ impl<'a> Parser<'a> {
             if !self.at(&Tok::RBrace) && !self.at(&Tok::Pipe) {
                 loop {
                     let path = self.parse_con_path()?;
-                    // Effect label arguments are region names (at most one).
+                    // Effect label arguments are region names (at most one),
+                    // or the boundary name of a `Foreign <boundary>` label
+                    // (foreign function interface specification section 2).
                     let mut args = Vec::new();
                     while let Tok::VarId(s) = self.peek_tok().clone() {
                         let span = self.peek().span;
                         self.bump();
                         args.push(Name::new(s, span));
+                    }
+                    if args.is_empty() {
+                        if let Tok::ConId(s) = self.peek_tok().clone() {
+                            let span = self.peek().span;
+                            self.bump();
+                            args.push(Name::new(s, span));
+                        }
                     }
                     labels.push((path, args));
                     if self.at(&Tok::Comma) {
@@ -2281,6 +2355,7 @@ fn resolve_module_decl(d: &mut Decl, fix: &FixityTable) -> Result<()> {
             }
         }
         Decl::ValueSig { ty, .. } => resolve_type(ty, fix)?,
+        Decl::OpaqueType(o) => resolve_type(&mut o.kind, fix)?,
         Decl::Rewrite(r) => {
             for b in &mut r.binders {
                 if let Some(ann) = &mut b.ann {
@@ -3234,7 +3309,7 @@ mod tests {
         let e = err("module T where\n  effect E (r :: Type) where\n    op :: Int\n");
         assert!(e.contains("effect parameters are region identities"), "{e}");
         let e = err("module T where\n  type T = Int\n");
-        assert!(e.contains("type declarations are not supported"), "{e}");
+        assert!(e.contains("type aliases are not supported"), "{e}");
         let e = err("module T where\n  upgrade A to B where\n    x = 1\n");
         assert!(e.contains("upgrade declarations are not supported"), "{e}");
         let e = err("module T where\n  quoteDecls where\n    x :: Int\n    x = 1\n");

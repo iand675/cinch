@@ -63,12 +63,12 @@ property holds by construction rather than by a named test.
 
 | # | Anchor | Requirement | Status | Evidence |
 | --- | --- | --- | --- | --- |
-| 39 | ffi#0-must-support | External libraries without implying proof of behavior | P | `foreign import ccall` limited to `safelang.prim.*`/`safelang.runtime.*` intrinsics; real C is P11 |
-| 40 | ffi#1-header-not-safe | Generated bindings not automatically safe | N | no header generation; P11 |
-| 41 | ffi#2-binding-specification | Bindings specify widths/offsets/alignment/discriminants/convention/ownership | N | only intrinsic signatures checked; P11 |
-| 42 | ffi#3-pointer-roles | No pointer roles from integer casts | N | `RawPtr`/opaque parse but unchecked; P11 |
-| 43 | ffi#4-effects-accounted | Bindings account for I/O, blocking, divergence, reentrancy, affinity, failure | N | effect rows on foreigns parse, not enforced; P11 |
-| 44 | ffi#4-no-unwind-across-abi | No panics across an unimplemented ABI protocol | CV | single fault path (`sl_panic`, 71); no foreign-call boundary exists to test |
+| 39 | ffi#0-must-support | External libraries without implying proof of behavior | I | real `foreign import/export ccall` with binding contracts and effect honesty (D68); assumptions recorded |
+| 40 | ffi#1-header-not-safe | Generated bindings not automatically safe | I | every binding carries explicit roles/ownership in its contract; nothing is inferred from headers (D66/D67/D69/D70) |
+| 41 | ffi#2-binding-specification | Bindings specify widths/offsets/alignment/discriminants/convention/ownership | I | full contract in the interface foreign table (canonical JSON round-trips); `tests/ffi.rs` |
+| 42 | ffi#3-pointer-roles | No pointer roles from integer casts | I | integer-to-pointer rejected at unification; roles arise only from foreign results (D69) |
+| 43 | ffi#4-effects-accounted | Bindings account for I/O, blocking, divergence, reentrancy, affinity, failure | I | closed explicit rows over the accounted vocabulary, effect honesty enforced (D68) |
+| 44 | ffi#4-no-unwind-across-abi | No panics across an unimplemented ABI protocol | I | fault path exits 71 and never unwinds, tested both directions (`tests/ffi.rs`) |
 
 ## concurrency-specification.md
 
@@ -164,7 +164,7 @@ property holds by construction rather than by a named test.
 | 97 | attr#2-weights | `#[weight(n)]` with relativity, zero, all-or-nothing; per-alternative storage; both weight reports | I | `tests/attributes.rs` (marginalization at the reference's 2100/100 numbers; partial drop + report) |
 | 98 | attr#2.4-transformations | Decision-point weight reconciliation under optimization (dead-alternative conditioning, case merging, inlining) | I | `weights_survive_optimization` (unrescaled conditioning; case-merge rescale to the reference's 3:58:29) (D61) |
 | 99 | attr#3-wrappers | `cold`/`likely`/`unlikely` wrappers over weights (0/2000/1), wrapper/manual IR equality | I | `tests/attributes.rs` |
-| 100 | attr#4-representations | `repr(C)`/`transparent`/`align`/`packed`/`uN`, C layout algorithm, layout facts in the ABI table and contract hash, packed-borrow rule | I | `tests/attributes.rs`; runtime slot enforcement stays with P11/P14 |
+| 100 | attr#4-representations | `repr(C)`/`transparent`/`align`/`packed`/`uN`, C layout algorithm, layout facts in the ABI table and contract hash, packed-borrow rule | I | `tests/attributes.rs`; boundary and runtime field access now use the recorded offsets (P11: `Program.plans`, packed byte-exact loads) |
 | 101 | attr#5-inline | `#[inline]`/`#[inline(always)]`/`#[inline(never)]`/`#[noinline]` and function `#[cold]` as erasable hints | I | `tests/attributes.rs` (LLVM emission; duplicates rejected) |
 
 ## Roadmap gaps (unplanned requirements)

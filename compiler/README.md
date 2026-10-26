@@ -98,6 +98,14 @@ The closure and dictionary ABI is documented in `src/core.rs`.
   `Ref r a`/`Mut r a` borrows with region escape checking and lexical `Mut`
   uniqueness, and thunk force discipline (`%1` exactly once, `%aff` at
   most once; unannotated thunks default `%aff`).
+- **FFI** (foreign function interface specification): real `foreign
+  import`/`export ccall` with layout-checked binding contracts in the
+  interface metadata and honest effect rows; `opaque` types, `RawPtr`
+  and ownership roles with the deallocator rule and no integer-to-pointer
+  roles; boundary and runtime field access over recorded `repr` layouts
+  (packed fields marshal byte-exact); and the schema-introspection
+  vocabulary (`SchemaSnapshot`, `introspectConsistently`,
+  `CodecGenerator.derive`) over the subprocess capability.
 - **Rewrites, optimizer, and target profiles** (modules spec sections 5,
   6, 13; platform spec): `rewrite`/`target rewrite` declarations with
   `justify` checking (kernel evidence or `signature` law methods,

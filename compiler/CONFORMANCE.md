@@ -129,13 +129,13 @@ needs the checker to consume export tables instead of sources.
 | Optimizer with preservation discipline | done (managed transformations with the supercompilation chapter's barriers; residual recheck (D63); map fusion preserves values and effect order, blocked fusion reports the blocker (D60); attribute 2.4 weight reconciliation incl. the 3:58:29 case-merge rescale (D61); `%1` values generalize instead of duplicating; fuel/whistle bounds (D62); `tests/optimizer.rs`) |
 | Target profiles, capability evidence, SIMD dispatch | done (marker-type target model and `Available` evidence (D58); `target rewrite` fires only in capability scope (D59); replaceable `Target.detectVecU32` dispatch; scalable profiles do not pin widths; manifest records trust level, target conditions, and the checked/trusted lowering split (D63)) |
 
-### FFI (P11)
+### FFI (P11) — foreign function interface specification
 
 | Requirement | Status |
 | --- | --- |
-| `foreign import ccall` intrinsics (`safelang.prim.*`) | done |
-| Real C symbols, `foreign export`, effects, layouts | todo |
-| `opaque type`, `RawPtr`, ownership roles | todo |
+| `foreign import ccall` intrinsics (`safelang.prim.*`) | done (namespaces reserved; retired names rejected as retired intrinsics, D73) |
+| Real C symbols, `foreign export`, effects, layouts | done (binding contracts with widths/offsets/alignment/convention/symbol identity/roles/ownership in the interface foreign table; closed explicit effect rows with honesty (D68); C fixtures linked through clang; faults exit 71, never unwind; `tests/ffi.rs`) |
+| `opaque type`, `RawPtr`, ownership roles | done (`RawPtr`/`Borrowed`/`Retained`/`Owned`/`Out`/`MaybeNull`, integer-to-pointer rejection, deallocator pairing checked program-wide and recorded (D69), nullability by default non-null (D70); aggregates as const-pointer copies, aggregate results rejected (D66); boundary type grammar (D67)) |
 
 ### Concurrency (P12)
 
@@ -169,12 +169,12 @@ update as the slices land; 07 must reject, the rest must accept):
 | 02-vector-filter | line 7: `Nil` against `Vec n a` needs rigid-index refinement (D35) | P7 limit (D35) |
 | 03-map-fusion | line 6:36 `expected a type, found Backslash` (index terms lack lambda; even then its `refl` at `Nil` is unprovable under D28's no-delta conversion; needs a proof over named helpers or an assumed law) | P7 limit + example-side proof |
 | 04-productive-stream | accepts (`safelang check` exit 0) | done |
-| 05-schema-generator | line 3: `unknown type SchemaSnapshot` (schema-introspection API sketch, modules spec section 11) | schema-generation slice |
+| 05-schema-generator | accepts with its declared build inputs (`SCHEMA_DATABASE_URL` + a schema tool via `SAFELANG_SCHEMA_TOOL`); without them stops at the correct secret refusal (D45) | done (A6) |
 | 06-counter-upgrade | accepts (`safelang check` exit 0) | done |
 | 07-rejected-programs | rejected at parse (correct) | must stay rejected |
 | 08-platform-simd | line 6:10 the justification cannot prove the rule's equation (the example matches its own local `scalar`; the supplied theorem is over the library pair; the example's header calls its theorem module "obligations, not supplied proofs") | example-side proof obligation |
-| 09-foreign-codec | `Opaque` unsupported | P11 |
-| 10-wasm-component | line 8: effect label `Foreign Component` is P11 vocabulary | P11 |
+| 09-foreign-codec | line 11:22 `unknown type DecodeError` (example-side: the sketch never declares its error type) | example-side vocabulary |
+| 10-wasm-component | line 9:19 `unknown type BoundaryError` (WIT adapter vocabulary) | P14 |
 | 11-structured-tasks | unknown type `Request` (structured-concurrency vocabulary) | P12 |
 | 12-runtime-effects | line 14: module parameters (`module ImportConfig (Seq :: ...)`) unsupported | modules follow-up (parameters) |
 
@@ -190,7 +190,7 @@ audit, `compiler/SPEC-MAPPING.md` "Roadmap gaps"):
 | Temporal contracts (safety/liveness/recurrence/stability) | closest to P12; unnamed there (A3) |
 | Cross-compilation (target width/capabilities) | `Usize` width and capability checks must key on the target (A4) |
 | Module parameters and signatures as module arguments | modules spec section 1 (module packaging); example 12 stops here (A5) |
-| Schema generation / database introspection API | modules spec section 11 sketch; example 05 needs `SchemaSnapshot`, `CodecGenerator.derive`, `Stage.withDatabase`/`ReadSchema`/`introspectConsistently`; pair with P11 subprocess tooling (A6) |
+| Schema generation / database introspection API | done (P11+A6: `SchemaSnapshot`/`Database`/`SchemaRead` over the subprocess capability, `introspectConsistently`, `CodecGenerator.derive`; example 05 accepts with its build inputs) |
 
 ### Attributes, weights, inline hints, and layout (P17)
 
@@ -549,3 +549,48 @@ wording flags for future decisions).
 - **D64 (P10 naming)**: dotted presentations (`U32.wrappingAdd`,
   `Scalar`/`Simd.sumWrap32`, `Target.detectVecU32`) are prelude aliases;
   `Signature.method` resolves under the signature name.
+- **D65 (P11 entry rule)**: `main :: Unit ->{e} Int` is accepted
+  alongside `main :: Int`. D20 is otherwise unchanged: `Program.main`
+  stays `Option`, library modules check without it, `emit-ir`/`build`/
+  `run` still require `main`, except `foreign export` programs may be
+  linked as libraries with the C side supplying `main`. The exit adapter
+  is unchanged in shape.
+- **D66 (P11 aggregates)**: aggregate parameters cross as
+  const-pointers to call-scoped C-layout copies; aggregate results are
+  rejected (use `Out` cells or `Owned` pointers) rather than guessing
+  the platform by-value struct ABI.
+- **D67 (P11 boundary grammar)**: scalars, `Unit` (void; parameters
+  elided), pointer roles, opaque handles, and `repr(C)`/`packed`/
+  `transparent` aggregates cross the boundary; boxed ADTs, uniform-word
+  records, fixed-discriminant data, closures, dependent pairs, and
+  proofs are rejected naming the recorded layout. `Out` cells are one
+  word.
+- **D68 (P11 effect honesty)**: foreign rows are closed and explicit;
+  an import's result arrow names at least one accounted label (`Foreign
+  <boundary>`, `IO`, `Global`, `Blocking`, `Diverge`, `Fail`,
+  `Reentrant`, `ThreadAffine`). `Foreign` boundaries unify rigidly.
+- **D69 (P11 ownership)**: `RawPtr`/`Borrowed`/`Retained`/`Owned` plus
+  `Out`/`MaybeNull`; `Owned` is linear and only weakens to borrow/raw;
+  every `Owned A` result requires a matching consuming foreign (same
+  allocator), recorded as the contract's `deallocator` symbol and
+  checked program-wide.
+- **D70 (P11 nullability)**: pointer roles are non-null by default;
+  `MaybeNull` marks nullable; a contract violation takes the fault path
+  (71). Zero-length buffers cross as non-null dangling pointers per the
+  C convention (recorded in the contract).
+- **D71 (P11 signature type members)**: `opaque type`/`record` members
+  in a `signature` desugar ahead of the signature (module-scope,
+  order-dependent like other types); per-instance associated types are
+  the P8 packaging gap.
+- **D72 (A6 shape)**: `SchemaSnapshot`/`Database`/`SchemaRead` are
+  compile-time-only; introspection runs over the subprocess capability
+  (the credential travels in the tool environment under its own name
+  and never enters captured inputs); `introspectConsistently` checks the
+  document and records dialect/collation/extensions/nullability,
+  provider identity, and a content hash; `CodecGenerator.derive` emits
+  per-table record plus `encode`/`decode` as ordinary checked
+  declarations. Codec columns cover `INTEGER` and `BOOLEAN` this slice;
+  `REAL`/`TEXT` report explicitly at generation time.
+- **D73 (P11 intrinsics)**: the intrinsic symbol namespaces stay
+  reserved; a non-resolving name there is a retired-intrinsic error,
+  never treated as a C symbol.

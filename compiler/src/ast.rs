@@ -488,6 +488,15 @@ pub struct Import {
 pub struct SigDecl {
     pub name: Name,
     pub params: Vec<Name>,
+    /// Associated type members written inside the signature block:
+    /// `opaque type T [params] :: Type` and `record`/`data` members
+    /// (modules and compilation specification section 1; the foreign
+    /// function interface specification's `opaque` resources). The
+    /// declarations themselves are spliced ahead of the signature so the
+    /// method types resolve them (decision D65).
+    pub type_members: Vec<Name>,
+    /// The member declarations to splice (emptied by the splice).
+    pub member_decls: Vec<Decl>,
     pub methods: Vec<(Name, Type)>,
     pub span: Span,
 }
@@ -574,6 +583,18 @@ pub struct ForeignDecl {
     pub span: Span,
 }
 
+/// `opaque type T [params] :: Type`: an abstract foreign resource
+/// (foreign function interface specification section 2). Values of the
+/// type arise only from foreign calls; there are no constructors and no
+/// layout projection.
+#[derive(Clone, Debug)]
+pub struct OpaqueTypeDecl {
+    pub name: Name,
+    pub params: Vec<TypeBinder>,
+    pub kind: Type,
+    pub span: Span,
+}
+
 /// `effect L params where { op :: ty, ... }`: a user-declared effect whose
 /// operations are ordinary functions performing the label (design section
 /// 2). `params` holds the effect's region parameter, if any.
@@ -633,6 +654,9 @@ pub enum Decl {
     },
     Equation { modifier: Option<Name>, eq: Equation },
     Foreign(ForeignDecl),
+    /// `opaque type T [params] :: Type` (foreign function interface
+    /// specification section 2).
+    OpaqueType(OpaqueTypeDecl),
     Fixity(FixityDecl),
     Effect(EffectDecl),
     /// `#[...]`-prefixed declaration: the attributes annotate `inner`
@@ -807,11 +831,39 @@ fn collect_local_refs(d: &LocalDecl, out: &mut Vec<RefSite>) {
     }
 }
 
+/// Splice signature type members ahead of their signatures so the
+/// method types resolve them (decision D65: associated type members are
+/// declared in the enclosing scope; per-instance refinement belongs to
+/// the module-packaging follow-up).
+pub fn splice_sig_members(decls: Vec<Decl>) -> Vec<Decl> {
+    let mut out = Vec::new();
+    for d in decls {
+        match d {
+            Decl::Signature(mut s) => {
+                let mut members = std::mem::take(&mut s.member_decls);
+                out.append(&mut members);
+                out.push(Decl::Signature(s));
+            }
+            Decl::Attributed { attrs, inner } => {
+                let mut inner = *inner;
+                if let Decl::Signature(s) = &mut inner {
+                    let mut members = std::mem::take(&mut s.member_decls);
+                    out.append(&mut members);
+                }
+                out.push(Decl::Attributed { attrs, inner: Box::new(inner) });
+            }
+            other => out.push(other),
+        }
+    }
+    out
+}
+
 /// Every top-level name a declaration references.
 pub fn collect_decl_refs(d: &Decl, out: &mut Vec<RefSite>) {
     match d {
         Decl::Import(_)
         | Decl::Fixity(_)
+        | Decl::OpaqueType(_)
         | Decl::Foreign(_) => {}
         Decl::Attributed { inner, .. } => collect_decl_refs(inner, out),
         Decl::Generate { stmts, .. } => {
@@ -1437,6 +1489,7 @@ pub fn hyg_decl(d: &Decl, cx: &mut HygCx, sc: &mut HygScope) -> Result<Decl> {
     Ok(match d {
         Decl::Import(i) => Decl::Import(i.clone()),
         Decl::Fixity(f) => Decl::Fixity(f.clone()),
+        Decl::OpaqueType(o) => Decl::OpaqueType(o.clone()),
         Decl::Foreign(f) => {
             let mut f = f.clone();
             f.ty = hyg_type(&f.ty, cx, sc)?;
@@ -1734,7 +1787,8 @@ fn subst_holes_local(d: &LocalDecl, vals: &[Term]) -> LocalDecl {
 /// Substitute template holes in a declaration template.
 pub fn subst_holes_decl(d: &Decl, vals: &[Term]) -> Decl {
     match d {
-        Decl::Import(_) | Decl::Fixity(_) | Decl::Foreign(_) | Decl::Signature(_)
+        Decl::Import(_) | Decl::Fixity(_) | Decl::Foreign(_) | Decl::OpaqueType(_)
+        | Decl::Signature(_)
         | Decl::Data(_) | Decl::Record(_) | Decl::Codata(_) | Decl::Effect(_)
         | Decl::ValueSig { .. } | Decl::Generate { .. } => d.clone(),
         Decl::Attributed { attrs, inner } => Decl::Attributed {
@@ -1912,7 +1966,8 @@ pub fn collect_decl_template_holes(decls: &mut Vec<Decl>, holes: &mut Vec<HoleEx
 
 fn collect_decl_holes(d: &mut Decl, holes: &mut Vec<HoleExpr>) {
     match d {
-        Decl::Import(_) | Decl::Fixity(_) | Decl::Foreign(_) | Decl::ValueSig { .. } => {}
+        Decl::Import(_) | Decl::Fixity(_) | Decl::Foreign(_) | Decl::OpaqueType(_)
+        | Decl::ValueSig { .. } => {}
         Decl::Attributed { inner, .. } => collect_decl_holes(inner, holes),
         Decl::Rewrite(r) => {
             collect_template_holes(&mut r.match_tm, holes);

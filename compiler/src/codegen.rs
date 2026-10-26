@@ -36,28 +36,38 @@
 //! optimisation passes can promote them.
 
 use crate::core::{
-    ArithMode, ArithOp, BitOp, BitScanOp, BytesOp, CAlt, CBranch, CmpOp, ConvMode, Core, CPat,
-    FClassOp, FloatBinOp, FloatUnOp, FnDef, LocalId, PrimOp, Program, ShiftOp,
+    AbiClass, AbiParam, ArithMode, ArithOp, BitOp, BitScanOp, BytesOp, CAlt, CBranch, CmpOp,
+    ConvMode, Core, CPat, CtorLayout, FClassOp, FieldAccess, FieldShape, FloatBinOp, FloatUnOp,
+    FnDef, ForeignPlan, LocalId, PrimOp, Program, ShiftOp,
 };
 use crate::types::Scalar;
 use crate::Result;
 use std::cell::{Cell, RefCell};
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 /// Emit one LLVM module for the program.
 pub fn emit(program: &Program) -> Result<String> {
     let reg = Registry::build(program)?;
-    let Some(main_exit) = &program.main else {
-        return err(format!(
-            "this program has no `main`; `emit-ir`, `build`, and `run` need `main :: Int` in the entry module"
-        ));
+    // A program with `foreign export` entries may be linked as a library
+    // with the C side supplying `main` (foreign function interface
+    // specification section 1; decision D65).
+    let main_exit = match &program.main {
+        Some(m) => Some(m),
+        None if program.foreigns.values().any(|p| p.export) => None,
+        None => {
+            return err(format!(
+                "this program has no `main`; `emit-ir`, `build`, and `run` need `main :: Int` in the entry module"
+            ))
+        }
     };
-    let main_unit = &main_exit.0;
-    let main_arity = reg.arity_of(main_unit)?;
-    if main_arity != 0 {
-        return err(format!(
-            "program.main {main_unit:?} must be a zero-arity thunk, got arity {main_arity}"
-        ));
+    if let Some(main_exit) = main_exit {
+        let main_unit = &main_exit.0;
+        let main_arity = reg.arity_of(main_unit)?;
+        if main_arity != 0 {
+            return err(format!(
+                "program.main {main_unit:?} must be a zero-arity thunk, got arity {main_arity}"
+            ));
+        }
     }
 
     let mut out = String::new();
@@ -128,9 +138,35 @@ pub fn emit(program: &Program) -> Result<String> {
     out.push_str(APPLY_DEF);
     out.push_str(MEMO_HELPERS);
 
+    // Real foreign bindings (foreign function interface specification
+    // section 2): the C symbol declarations, one marshalling wrapper per
+    // import, and one C-callable entry per export.
+    if !program.foreigns.is_empty() {
+        out.push_str("declare void @sl_panic(ptr, i64)\n");
+        out.push_str("declare void @llvm.memset.p0.i64(ptr, i8, i64, i1)\n");
+        out.push_str(&format!(
+            "@__safelang_ffi_nn = internal constant [{} x i8] c\"{}\"\n",
+            FFI_NULL_MSG.len(),
+            FFI_NULL_MSG
+        ));
+        for plan in program.foreigns.values() {
+            if !plan.export {
+                out.push_str(&foreign_declare(plan));
+            }
+        }
+        out.push('\n');
+    }
+
     for op in &reg.prims {
         let op = *op;
         emit_unit(&mut out, &reg, &op.symbol(), op.arity(), UnitBody::Prim(op))?;
+    }
+    for (name, plan) in &reg.foreigns {
+        if plan.export {
+            export_entry(&mut out, plan)?;
+        } else {
+            emit_unit(&mut out, &reg, name, plan.arity(), UnitBody::Foreign(plan))?;
+        }
     }
     for f in &program.fns {
         match (f.prim, f.ctor) {
@@ -170,10 +206,13 @@ pub fn emit(program: &Program) -> Result<String> {
         emit_unit(&mut out, &reg, &name, inst.subdict_count, UnitBody::Mk(info))?;
     }
 
-    out.push_str(&format!(
-        "define i32 @main() {{\nentry:\n  %r = call i64 @{}()\n  %c = trunc i64 %r to i32\n  ret i32 %c\n}}\n",
-        quote(main_unit)
-    ));
+    if let Some(main_exit) = main_exit {
+        let main_unit = &main_exit.0;
+        out.push_str(&format!(
+            "define i32 @main() {{\nentry:\n  %r = call i64 @{}()\n  %c = trunc i64 %r to i32\n  ret i32 %c\n}}\n",
+            quote(main_unit)
+        ));
+    }
     // Function attribute groups and metadata nodes (the branch weights
     // of attribute annotations specification section 3.1).
     out.push_str(&reg.finish_meta());
@@ -221,6 +260,13 @@ struct Registry {
     /// Primitive operations the program mentions through `Core::Prim`;
     /// each gets one synthesized unit under its intrinsic symbol.
     prims: BTreeSet<PrimOp>,
+    /// Foreign binding contracts by unit name (foreign function
+    /// interface specification section 2); each import gets one
+    /// synthesized wrapper unit, each export one C-callable entry.
+    foreigns: BTreeMap<String, crate::core::ForeignPlan>,
+    /// Boundary layout plans by constructor unit name (attribute
+    /// annotations specification section 4.3).
+    plans: BTreeMap<String, CtorLayout>,
     /// Module-level metadata nodes (branch weights) in emission order;
     /// metadata ids are module-scoped and the registry is one per
     /// module (attribute annotations specification section 3.1).
@@ -349,6 +395,16 @@ impl Registry {
         for (sym, arity) in used {
             reg.add_unit(&sym, arity)?;
         }
+        // Boundary layout plans for constructor units, and one wrapper
+        // unit per real foreign import (foreign function interface
+        // specification section 2).
+        reg.plans.extend(p.plans.iter().map(|(k, v)| (k.clone(), v.clone())));
+        reg.foreigns.extend(p.foreigns.iter().map(|(k, v)| (k.clone(), v.clone())));
+        for (name, plan) in &p.foreigns {
+            if !plan.export {
+                reg.add_unit(name, plan.arity())?;
+            }
+        }
 
         // Every unit emits four global names; all of them must be distinct
         // and must not collide with the runtime helpers.
@@ -391,6 +447,9 @@ enum UnitBody<'a> {
     Ctor(usize, usize),
     Mk(&'a InstInfo),
     Fn(&'a FnDef),
+    /// A real foreign import's synthesized marshalling wrapper (foreign
+    /// function interface specification section 2).
+    Foreign(&'a crate::core::ForeignPlan),
 }
 
 fn emit_unit(
@@ -439,9 +498,10 @@ fn emit_unit(
                     blk = quote(&format!("{name}.blk"))
                 ));
             }
-            ctor_body(&mut b, name, tag, fields);
+            ctor_body(&mut b, name, tag, fields, reg.plans.get(name));
         }
         UnitBody::Mk(info) => mk_body(&mut b, info),
+        UnitBody::Foreign(plan) => foreign_import_body(&mut b, plan)?,
         UnitBody::Fn(f) => core_body(&mut b, reg, f)?,
     }
     out.push_str(&b.finish(&header));
@@ -680,6 +740,15 @@ impl Builder {
         let r = self.reg();
         self.allocas
             .push_str(&format!("  {r} = alloca [{n} x i64]\n"));
+        r
+    }
+
+    /// A byte buffer alloca (call-scoped C-layout copies at the foreign
+    /// boundary).
+    fn alloca_bytes(&mut self, n: u64) -> String {
+        let r = self.reg();
+        self.allocas
+            .push_str(&format!("  {r} = alloca [{n} x i8]\n"));
         r
     }
 
@@ -1647,13 +1716,37 @@ fn conv_body(b: &mut Builder, name: &str, from: Scalar, to: Scalar, mode: ConvMo
     }
 }
 
-fn ctor_body(b: &mut Builder, name: &str, tag: usize, fields: usize) {
+fn ctor_body(
+    b: &mut Builder,
+    name: &str,
+    tag: usize,
+    fields: usize,
+    plan: Option<&crate::core::CtorLayout>,
+) {
     if fields == 0 {
         let w = b.reg();
         b.line(&format!(
             "{w} = ptrtoint ptr @{blk} to i64",
             blk = quote(&format!("{name}.blk"))
         ));
+        b.line(&format!("ret i64 {w}"));
+        return;
+    }
+    // A boundary-layout type (`repr(C)`, `repr(packed)`,
+    // `repr(transparent)`): the block payload is the recorded C layout
+    // and every field is stored at its recorded offset with its recorded
+    // size (attribute annotations specification section 4.3).
+    if let Some(plan) = plan {
+        let bytes = 8 + plan.payload;
+        let p = b.reg();
+        b.line(&format!("{p} = call ptr @malloc(i64 {bytes})"));
+        b.store_at(&p, 0, &tag.to_string());
+        let payload = b.gep(&p, 8);
+        for (i, fa) in plan.fields.iter().enumerate() {
+            store_field_word(b, &payload, fa, &format!("%p{i}"));
+        }
+        let w = b.reg();
+        b.line(&format!("{w} = ptrtoint ptr {p} to i64"));
         b.line(&format!("ret i64 {w}"));
         return;
     }
@@ -1667,6 +1760,418 @@ fn ctor_body(b: &mut Builder, name: &str, tag: usize, fields: usize) {
     let w = b.reg();
     b.line(&format!("{w} = ptrtoint ptr {p} to i64"));
     b.line(&format!("ret i64 {w}"));
+}
+
+// ----------------------------------------------- foreign bindings (P11)
+//
+// The C ABI marshalling for `foreign import`/`foreign export ccall`
+// (foreign function interface specification sections 2-4): machine
+// scalars cross by value in their recorded widths and signedness, `Unit`
+// is void (its parameters elided), every pointer role and opaque handle
+// crosses as `ptr`, and an aggregate parameter crosses as a
+// const-pointer to a call-scoped C-layout copy whose fields are read and
+// written at the recorded offsets with their recorded sizes. Field
+// copies are byte-exact, so a packed field marshals without any padding
+// read (attribute annotations specification section 4.2). By-value
+// aggregate passing follows a platform coercion ABI this slice does not
+// guess: such layouts are rejected at check time instead (section 2:
+// reject unsupported layouts instead of guessing).
+
+/// The fault message for a foreign boundary contract violation.
+const FFI_NULL_MSG: &str =
+    "a foreign boundary contract was violated: null pointer where the binding requires non-null";
+
+/// The LLVM type of one foreign parameter or result's C shape.
+fn abi_llvm_ty(p: &AbiParam) -> &'static str {
+    match &p.class {
+        AbiClass::Unit => "void",
+        AbiClass::Scalar(s) => {
+            if s.is_float() {
+                float_ty(*s)
+            } else {
+                int_ty(*s)
+            }
+        }
+        AbiClass::Ptr | AbiClass::Aggregate => "ptr",
+    }
+}
+
+/// Convert one canonical value word to its C scalar shape.
+fn word_to_c(b: &mut Builder, s: Scalar, w: &str) -> String {
+    if s == Scalar::F32 {
+        let i = b.reg();
+        b.line(&format!("{i} = trunc i64 {w} to i32"));
+        let f = b.reg();
+        b.line(&format!("{f} = bitcast i32 {i} to float"));
+        f
+    } else if s == Scalar::F64 {
+        let f = b.reg();
+        b.line(&format!("{f} = bitcast i64 {w} to double"));
+        f
+    } else {
+        match s.width() {
+            64 => w.to_string(),
+            bits => {
+                let r = b.reg();
+                b.line(&format!("{r} = trunc i64 {w} to i{bits}"));
+                r
+            }
+        }
+    }
+}
+
+/// Convert one C scalar value to its canonical value word.
+fn c_to_word(b: &mut Builder, s: Scalar, v: &str) -> String {
+    if s == Scalar::F32 {
+        let i = b.reg();
+        b.line(&format!("{i} = bitcast float {v} to i32"));
+        let w = b.reg();
+        b.line(&format!("{w} = zext i32 {i} to i64"));
+        w
+    } else if s == Scalar::F64 {
+        let w = b.reg();
+        b.line(&format!("{w} = bitcast double {v} to i64"));
+        w
+    } else {
+        match s.width() {
+            64 => v.to_string(),
+            bits => {
+                let r = b.reg();
+                let op = if s.is_signed() { "sext" } else { "zext" };
+                b.line(&format!("{r} = {op} i{bits} {v} to i64"));
+                r
+            }
+        }
+    }
+}
+
+/// Load one stored field's value word from a block payload at the
+/// field's recorded offset (attribute annotations specification
+/// section 4.3).
+fn load_field_word(b: &mut Builder, payload: &str, fa: &FieldAccess) -> String {
+    match &fa.shape {
+        FieldShape::Scalar { size: 0, .. } => "0".to_string(),
+        FieldShape::Scalar { size, signed } => {
+            let p = b.gep(payload, fa.offset as usize);
+            let v = b.reg();
+            b.line(&format!(
+                "{v} = load i{}, ptr {p}, align 1",
+                size * 8
+            ));
+            if *size == 8 {
+                v
+            } else {
+                let w = b.reg();
+                let op = if *signed { "sext" } else { "zext" };
+                b.line(&format!("{w} = {op} i{} {v} to i64", size * 8));
+                w
+            }
+        }
+        FieldShape::Word => {
+            let p = b.gep(payload, fa.offset as usize);
+            let v = b.reg();
+            b.line(&format!("{v} = load i64, ptr {p}, align 1"));
+            v
+        }
+        FieldShape::Inline { size, tag, fields } => {
+            // Box the inline payload out into a fresh block.
+            let blk = b.reg();
+            b.line(&format!("{blk} = call ptr @malloc(i64 {})", 8 + size));
+            b.store_at(&blk, 0, &tag.to_string());
+            let dst = b.gep(&blk, 8);
+            let src = b.gep(payload, fa.offset as usize);
+            for f in fields {
+                copy_field_exact(b, &dst, 0, &src, 0, f);
+            }
+            let w = b.reg();
+            b.line(&format!("{w} = ptrtoint ptr {blk} to i64"));
+            w
+        }
+    }
+}
+
+/// Store one value word into a block payload field at its recorded
+/// offset.
+fn store_field_word(b: &mut Builder, payload: &str, fa: &FieldAccess, val: &str) {
+    match &fa.shape {
+        FieldShape::Scalar { size: 0, .. } => {}
+        FieldShape::Scalar { size, .. } => {
+            let p = b.gep(payload, fa.offset as usize);
+            if *size == 8 {
+                b.line(&format!("store i64 {val}, ptr {p}, align 1"));
+            } else {
+                let v = b.reg();
+                b.line(&format!("{v} = trunc i64 {val} to i{}", size * 8));
+                b.line(&format!("store i{} {v}, ptr {p}, align 1", size * 8));
+            }
+        }
+        FieldShape::Word => {
+            let p = b.gep(payload, fa.offset as usize);
+            b.line(&format!("store i64 {val}, ptr {p}, align 1"));
+        }
+        FieldShape::Inline { fields, .. } => {
+            // The value is a nested block: copy its payload in.
+            let blk = b.reg();
+            b.line(&format!("{blk} = inttoptr i64 {val} to ptr"));
+            let src = b.gep(&blk, 8);
+            let dst = b.gep(payload, fa.offset as usize);
+            for f in fields {
+                copy_field_exact(b, &dst, 0, &src, 0, f);
+            }
+        }
+    }
+}
+
+/// Copy one layout field's stored bytes between a block payload and a
+/// C-layout buffer, byte-exact at the recorded offsets and sizes:
+/// padding is never read or written, so a packed field marshals without
+/// padding reads (attribute annotations specification section 4.2).
+fn copy_field_exact(
+    b: &mut Builder,
+    dst: &str,
+    dst_off: u64,
+    src: &str,
+    src_off: u64,
+    fa: &FieldAccess,
+) {
+    let size = match &fa.shape {
+        FieldShape::Scalar { size: 0, .. } => return,
+        FieldShape::Scalar { size, .. } => *size,
+        FieldShape::Word => 8,
+        FieldShape::Inline { fields, .. } => {
+            for f in fields {
+                copy_field_exact(b, dst, dst_off + fa.offset, src, src_off + fa.offset, f);
+            }
+            return;
+        }
+    };
+    let sp = b.gep(src, (src_off + fa.offset) as usize);
+    let v = b.reg();
+    b.line(&format!("{v} = load i{}, ptr {sp}, align 1", size * 8));
+    let dp = b.gep(dst, (dst_off + fa.offset) as usize);
+    b.line(&format!("store i{} {v}, ptr {dp}, align 1", size * 8));
+}
+
+/// Branch to the unit's fault block when `v` is null: a non-null
+/// boundary pointer crossing as null is a contract violation, handled by
+/// the runtime fault path (the no-unwind rule of foreign function
+/// interface specification section 4).
+fn check_non_null(b: &mut Builder, v: &str, fault: &str) {
+    let chk = b.reg();
+    b.line(&format!("{chk} = icmp eq ptr {v}, null"));
+    let cont = b.label();
+    b.line(&format!("br i1 {chk}, label %{fault}, label %{cont}"));
+    b.start(&cont);
+}
+
+/// Append one unit's shared fault block.
+fn ffi_fault_block(b: &mut Builder, fault: &str) {
+    b.start(fault);
+    b.line(&format!(
+        "call void @sl_panic(ptr @__safelang_ffi_nn, i64 {})",
+        FFI_NULL_MSG.len()
+    ));
+    b.line("unreachable");
+}
+
+/// The `declare` for one imported foreign symbol.
+fn foreign_declare(plan: &ForeignPlan) -> String {
+    let params: Vec<&str> = plan
+        .params
+        .iter()
+        .filter(|p| !matches!(p.class, AbiClass::Unit))
+        .map(abi_llvm_ty)
+        .collect();
+    let ret = abi_llvm_ty(&plan.result);
+    format!(
+        "declare {ret} @{}({})\n",
+        quote(&plan.symbol),
+        params.join(", ")
+    )
+}
+
+/// The synthesized wrapper for one foreign import: convert the canonical
+/// value words to the C ABI shape, call the symbol, and convert the
+/// result back (foreign function interface specification section 2).
+fn foreign_import_body(b: &mut Builder, plan: &ForeignPlan) -> Result<()> {
+    let fault = b.label();
+    let mut any_check = false;
+    let mut tys: Vec<&str> = Vec::new();
+    let mut args: Vec<String> = Vec::new();
+    for (i, p) in plan.params.iter().enumerate() {
+        match &p.class {
+            AbiClass::Unit => {}
+            AbiClass::Scalar(s) => {
+                tys.push(abi_llvm_ty(p));
+                args.push(word_to_c(b, *s, &format!("%p{i}")));
+            }
+            AbiClass::Ptr => {
+                let v = b.reg();
+                b.line(&format!("{v} = inttoptr i64 %p{i} to ptr"));
+                if !p.nullable {
+                    check_non_null(b, &v, &fault);
+                    any_check = true;
+                }
+                tys.push("ptr");
+                args.push(v);
+            }
+            AbiClass::Aggregate => {
+                // A call-scoped C-layout copy of the block payload.
+                let buf = b.alloca_bytes(p.width);
+                b.line(&format!(
+                    "call void @llvm.memset.p0.i64(ptr {buf}, i8 0, i64 {}, i1 false)",
+                    p.width
+                ));
+                let blk = b.reg();
+                b.line(&format!("{blk} = inttoptr i64 %p{i} to ptr"));
+                let payload = b.gep(&blk, 8);
+                for fa in &p.fields {
+                    copy_field_exact(b, &buf, 0, &payload, 0, fa);
+                }
+                tys.push("ptr");
+                args.push(buf);
+            }
+        }
+    }
+    let call_args: Vec<String> = tys
+        .iter()
+        .zip(args.iter())
+        .map(|(t, a)| format!("{t} {a}"))
+        .collect();
+    match &plan.result.class {
+        AbiClass::Unit => {
+            b.line(&format!(
+                "call void @{}({})",
+                quote(&plan.symbol),
+                call_args.join(", ")
+            ));
+            b.line("ret i64 0");
+        }
+        AbiClass::Scalar(s) => {
+            let rty = abi_llvm_ty(&plan.result);
+            let r = b.reg();
+            b.line(&format!(
+                "{r} = call {rty} @{}({})",
+                quote(&plan.symbol),
+                call_args.join(", ")
+            ));
+            let w = c_to_word(b, *s, &r);
+            b.line(&format!("ret i64 {w}"));
+        }
+        AbiClass::Ptr => {
+            let r = b.reg();
+            b.line(&format!(
+                "{r} = call ptr @{}({})",
+                quote(&plan.symbol),
+                call_args.join(", ")
+            ));
+            if !plan.result.nullable {
+                check_non_null(b, &r, &fault);
+                any_check = true;
+            }
+            let w = b.reg();
+            b.line(&format!("{w} = ptrtoint ptr {r} to i64"));
+            b.line(&format!("ret i64 {w}"));
+        }
+        AbiClass::Aggregate => {
+            return err(
+                "internal error: a foreign result cannot be an aggregate (rejected at check time)",
+            );
+        }
+    }
+    if any_check {
+        ffi_fault_block(b, &fault);
+    }
+    Ok(())
+}
+
+/// The C-callable entry for one foreign export (foreign function
+/// interface specification section 2): convert the C ABI arguments to
+/// canonical value words, call the target unit, convert the result back.
+fn export_entry(out: &mut String, plan: &ForeignPlan) -> Result<()> {
+    let mut b = Builder::new();
+    let fault = b.label();
+    let mut any_check = false;
+    let mut params: Vec<String> = Vec::new();
+    let mut words: Vec<String> = Vec::new();
+    for (i, p) in plan.params.iter().enumerate() {
+        let n = format!("%c{i}");
+        match &p.class {
+            AbiClass::Unit => {}
+            AbiClass::Scalar(s) => {
+                params.push(format!("{} {n}", abi_llvm_ty(p)));
+                words.push(c_to_word(&mut b, *s, &n));
+            }
+            AbiClass::Ptr => {
+                params.push(format!("ptr {n}"));
+                if !p.nullable {
+                    check_non_null(&mut b, &n, &fault);
+                    any_check = true;
+                }
+                let w = b.reg();
+                b.line(&format!("{w} = ptrtoint ptr {n} to i64"));
+                words.push(w);
+            }
+            AbiClass::Aggregate => {
+                // The C side passes a pointer to a C-layout struct: box
+                // it into a boundary-layout block at the recorded
+                // offsets.
+                params.push(format!("ptr {n}"));
+                let blk = b.reg();
+                b.line(&format!("{blk} = call ptr @malloc(i64 {})", 8 + p.width));
+                b.store_at(&blk, 0, &p.tag.to_string());
+                let payload = b.gep(&blk, 8);
+                for fa in &p.fields {
+                    copy_field_exact(&mut b, &payload, 0, &n, 0, fa);
+                }
+                let w = b.reg();
+                b.line(&format!("{w} = ptrtoint ptr {blk} to i64"));
+                words.push(w);
+            }
+        }
+    }
+    let r = b.reg();
+    b.line(&format!(
+        "{r} = call i64 @{}({})",
+        quote(&plan.unit),
+        words
+            .iter()
+            .map(|w| format!("i64 {w}"))
+            .collect::<Vec<_>>()
+            .join(", ")
+    ));
+    let header = format!(
+        "define {} @{}({})",
+        abi_llvm_ty(&plan.result),
+        quote(&plan.symbol),
+        params.join(", ")
+    );
+    match &plan.result.class {
+        AbiClass::Unit => b.line("ret void"),
+        AbiClass::Scalar(s) => {
+            let v = word_to_c(&mut b, *s, &r);
+            b.line(&format!("ret {} {v}", abi_llvm_ty(&plan.result)));
+        }
+        AbiClass::Ptr => {
+            let p = b.reg();
+            b.line(&format!("{p} = inttoptr i64 {r} to ptr"));
+            if !plan.result.nullable {
+                check_non_null(&mut b, &p, &fault);
+                any_check = true;
+            }
+            b.line(&format!("ret ptr {p}"));
+        }
+        AbiClass::Aggregate => {
+            return err(
+                "internal error: a foreign result cannot be an aggregate (rejected at check time)",
+            );
+        }
+    }
+    if any_check {
+        ffi_fault_block(&mut b, &fault);
+    }
+    out.push_str(&b.finish(&header));
+    Ok(())
 }
 
 /// Body of `@"<id>.mk"`: build `{ i64 nmeth; i64 meth0; ... }` where each
@@ -1737,7 +2242,7 @@ fn collect_prims(e: &Core, out: &mut BTreeSet<PrimOp>) {
     match e {
         Core::Int(_) | Core::ConstBig { .. } | Core::Bool(_) | Core::Unit | Core::Var(_)
         | Core::Global(_)
-        | Core::Ctor(_) | Core::Fault | Core::LazyAlloc
+        | Core::Ctor(_) | Core::Foreign(_) | Core::Fault | Core::LazyAlloc
         | Core::Quote { .. }
         | Core::DeclsQuote { .. }
         | Core::SyntaxLit(_)
@@ -1783,6 +2288,7 @@ fn collect_binders(e: &Core, out: &mut Vec<LocalId>) {
         | Core::Global(_)
         | Core::Ctor(_)
         | Core::Prim(_)
+        | Core::Foreign(_)
         | Core::Fault
         | Core::Quote { .. }
         | Core::DeclsQuote { .. }
@@ -1870,6 +2376,9 @@ impl CoreEmitter<'_, '_> {
                 self.reg.arity.get(&id.0).map(|a| (id.0.clone(), *a))
             }
             Core::Prim(op) => Some((op.symbol(), op.arity())),
+            Core::Foreign(n) => {
+                self.reg.foreigns.get(n).map(|p| (n.clone(), p.arity()))
+            }
             _ => None,
         }
     }
@@ -1928,6 +2437,7 @@ impl CoreEmitter<'_, '_> {
             Core::Global(id) => self.unit_value(&id.0),
             Core::Ctor(id) => self.unit_value(&id.0),
             Core::Prim(op) => self.unit_value(&op.symbol()),
+            Core::Foreign(n) => self.unit_value(n),
             Core::DictProj(d, idx) => {
                 let dv = self.emit_expr(d)?;
                 let p = self.b.reg();
@@ -1939,8 +2449,16 @@ impl CoreEmitter<'_, '_> {
                 let dv = self.emit_expr(d)?;
                 let p = self.b.reg();
                 self.b.line(&format!("{p} = inttoptr i64 {dv} to ptr"));
-                let r = self.b.load_at(&p, (1 + idx) * 8);
-                Ok(r)
+                if let Some(fa) = &idx.access {
+                    // A boundary-layout type: the field sits at its
+                    // recorded offset in the payload (attribute
+                    // annotations specification section 4.3).
+                    let payload = self.b.gep(&p, 8);
+                    Ok(load_field_word(&mut self.b, &payload, fa))
+                } else {
+                    let r = self.b.load_at(&p, (1 + idx.slot) * 8);
+                    Ok(r)
+                }
             }
             Core::Fault => {
                 // The runtime fault path (exit 70); the value is only the
@@ -2400,6 +2918,8 @@ mod tests {
             fns,
             instances: vec![],
             main: Some(gid("program.main")),
+            plans: Default::default(),
+            foreigns: Default::default(),
         }
     }
 
@@ -2764,7 +3284,10 @@ mod tests {
         // A boxed product allocates `{ tag; words }`; `Proj` loads field
         // words in order.
         let pair = ctor_fn("T.pair", &["a", "b"], 0, 2);
-        let body = Core::Proj(Box::new(app(ct("T.pair"), vec![n(41), n(2)])), 1);
+        let body = Core::Proj(
+            Box::new(app(ct("T.pair"), vec![n(41), n(2)])),
+            crate::core::ProjField::slot(1),
+        );
         assert_eq!(run("tuple_block_projection", &main_prog(vec![pair], body)), 2);
     }
 

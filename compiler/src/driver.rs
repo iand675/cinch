@@ -634,9 +634,20 @@ fn ensure_runtime() -> Result<std::path::PathBuf> {
 }
 
 fn link(ir_path: &Path, out: &Path) -> Result<()> {
+    link_with(ir_path, out, &[])
+}
+
+/// [`link`] with extra objects (the C fixtures of the foreign binding
+/// tests; foreign function interface specification section 7: the linker
+/// checks the compatible symbols).
+fn link_with(ir_path: &Path, out: &Path, objects: &[&str]) -> Result<()> {
     let runtime = ensure_runtime()?;
     let mut cmd = std::process::Command::new(clang());
-    cmd.arg(ir_path).arg(&runtime).arg("-o").arg(out);
+    cmd.arg(ir_path);
+    for o in objects {
+        cmd.arg(o);
+    }
+    cmd.arg(&runtime).arg("-o").arg(out);
     // Rust staticlibs need the usual system libraries on Linux.
     if cfg!(target_os = "linux") {
         cmd.args(["-ldl", "-lpthread", "-lm"]);
@@ -755,6 +766,7 @@ pub fn driver_with_profile(
         mode: stage_mode,
         workdir: dir.clone(),
         entry_modules: project.entry_modules.clone(),
+        schema_tool: std::env::var("SAFELANG_SCHEMA_TOOL").ok(),
     };
     let (program, ifaces, report) =
         check::check_program_multi(&prelude.modules[0], &modules, &hashes, &scx)?;
@@ -830,6 +842,17 @@ pub fn run_source_profile(src: &str, profile: &crate::core::TargetProfile) -> Re
 
 /// Specialize, compile and run a checked program.
 pub fn run_program(program: &crate::core::Program, profile: &crate::core::TargetProfile) -> Result<i32> {
+    run_program_objects(program, profile, &[])
+}
+
+/// [`run_program`] linked with extra objects (a `foreign export` program
+/// may also leave `main` to the C side; foreign function interface
+/// specification section 1).
+pub fn run_program_objects(
+    program: &crate::core::Program,
+    profile: &crate::core::TargetProfile,
+    objects: &[&str],
+) -> Result<i32> {
     let (program, _opt) = crate::core::optimize(program, profile)?;
     let ir = codegen::emit(&program)?;
     let tmp = scratch_dir("test");
@@ -838,9 +861,16 @@ pub fn run_program(program: &crate::core::Program, profile: &crate::core::Target
     let exe = tmp.join("program");
     std::fs::write(&ir_path, &ir)
         .map_err(|e| Error::plain(format!("{}: {e}", ir_path.display())))?;
-    link(&ir_path, &exe)?;
+    link_with(&ir_path, &exe, objects)?;
     let status = std::process::Command::new(&exe)
         .status()
         .map_err(|e| Error::plain(format!("{}: {e}", exe.display())))?;
     Ok(status.code().unwrap_or(1))
+}
+
+/// Compile and run a source string linked with extra objects; used by
+/// the foreign binding tests.
+pub fn run_source_objects(src: &str, objects: &[&str]) -> Result<i32> {
+    let program = check_sources_with(src, "<test>", &mut StagingCx::default())?;
+    run_program_objects(&program, &crate::core::TargetProfile::native(), objects)
 }
