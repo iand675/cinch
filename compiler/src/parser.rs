@@ -1786,6 +1786,27 @@ impl<'a> Parser<'a> {
                 self.expect(&Tok::RParen, "`)`")?;
                 Ok(first)
             }
+            Tok::LBrace if !self.peek().virtual_ => {
+                // `{k => v, ...}`, the map literal (surface grammar local
+                // amendments section 10); empty is the empty map.
+                self.bump();
+                let mut kvs = Vec::new();
+                if !self.at(&Tok::RBrace) {
+                    loop {
+                        let k = self.parse_term()?;
+                        self.expect(&Tok::Darrow, "`=>` in the map literal")?;
+                        let v = self.parse_term()?;
+                        kvs.push((k, v));
+                        if self.at(&Tok::Comma) {
+                            self.bump();
+                        } else {
+                            break;
+                        }
+                    }
+                }
+                self.expect(&Tok::RBrace, "`}` closing the map literal")?;
+                Ok(Term::Map(kvs, span))
+            }
             Tok::LBracket => {
                 self.bump();
                 let mut items = Vec::new();

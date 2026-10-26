@@ -387,6 +387,9 @@ pub enum Term {
     Tuple(Vec<Term>, Span),
     /// `[e1, ..., en]`; empty is `Nil`.
     List(Vec<Term>, Span),
+    /// `{k1 => v1, ...}`, the map literal (surface grammar local
+    /// amendments section 10); empty is the empty map.
+    Map(Vec<(Term, Term)>, Span),
     /// `e.x`, field projection.
     Proj(Box<Term>, Name, Span),
     /// `R { x = e, ... }`, record construction with named fields.
@@ -447,6 +450,7 @@ impl Term {
             | Term::Neg(_, s)
             | Term::Tuple(_, s)
             | Term::List(_, s)
+            | Term::Map(_, s)
             | Term::Proj(_, _, s)
             | Term::Record(_, _, s)
             | Term::Do(_, s)
@@ -847,6 +851,12 @@ pub fn collect_term_refs(t: &Term, out: &mut Vec<RefSite>) {
         Term::Tuple(ts, _) | Term::List(ts, _) => {
             for x in ts {
                 collect_term_refs(x, out);
+            }
+        }
+        Term::Map(kvs, _) => {
+            for (k, v) in kvs {
+                collect_term_refs(k, out);
+                collect_term_refs(v, out);
             }
         }
         Term::Proj(e, _, _) => collect_term_refs(e, out),
@@ -1465,6 +1475,13 @@ pub fn hyg_term(t: &Term, cx: &mut HygCx, sc: &mut HygScope) -> Result<Term> {
             }
             Term::List(out, *s)
         }
+        Term::Map(kvs, s) => {
+            let mut out = Vec::new();
+            for (k, v) in kvs {
+                out.push((hyg_term(k, cx, sc)?, hyg_term(v, cx, sc)?));
+            }
+            Term::Map(out, *s)
+        }
         Term::Proj(e, n, s) => Term::Proj(Box::new(hyg_term(e, cx, sc)?), n.clone(), *s),
         Term::Record(p, fields, s) => {
             let p = qualify_con(cx, p, *s)?;
@@ -1797,6 +1814,12 @@ pub fn subst_holes(t: &Term, vals: &[Term]) -> Term {
         Term::Neg(e, s) => Term::Neg(Box::new(subst_holes(e, vals)), *s),
         Term::Tuple(ts, s) => Term::Tuple(ts.iter().map(|x| subst_holes(x, vals)).collect(), *s),
         Term::List(ts, s) => Term::List(ts.iter().map(|x| subst_holes(x, vals)).collect(), *s),
+        Term::Map(kvs, s) => Term::Map(
+            kvs.iter()
+                .map(|(k, v)| (subst_holes(k, vals), subst_holes(v, vals)))
+                .collect(),
+            *s,
+        ),
         Term::Proj(e, n, s) => Term::Proj(Box::new(subst_holes(e, vals)), n.clone(), *s),
         Term::Record(p, fields, s) => Term::Record(
             p.clone(),
@@ -2025,6 +2048,12 @@ pub fn collect_template_holes(t: &mut Term, holes: &mut Vec<HoleExpr>) {
         Term::Tuple(ts, _) | Term::List(ts, _) => {
             for x in ts {
                 collect_template_holes(x, holes);
+            }
+        }
+        Term::Map(kvs, _) => {
+            for (k, v) in kvs {
+                collect_template_holes(k, holes);
+                collect_template_holes(v, holes);
             }
         }
         Term::Proj(e, _, _) => collect_template_holes(e, holes),

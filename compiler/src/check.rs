@@ -24,6 +24,15 @@ enum ECore {
     /// A mathematical `Nat`/`Int` constant (decimal digit string with an
     /// optional leading `-`; `nat` selects the `Nat` runtime).
     ConstBig { nat: bool, digits: String },
+    /// A constant `Bytes` buffer (the compile-time fold of a collection
+    /// literal; [`crate::core::Core::ConstBytes`] is its target form).
+    ConstBytes(Vec<u8>),
+    /// A collection literal's class desugar awaiting its compile-time
+    /// fold (surface grammar local amendments section 10): `body` is the
+    /// elaborated `from-list`/`from-map` call and `idx` indexes
+    /// `Checker::literal_folds`, whose record the fold pass fills. A
+    /// site that does not fold lowers to its class call.
+    LitFold { idx: usize, body: Box<ECore> },
     /// A deferred integer literal ([`Checker::literal_pends`]): its
     /// constant form is fixed once the literal's type is determined, then
     /// it lowers to `Int` or `ConstBig`.
@@ -142,12 +151,13 @@ fn dict_expr_ecore(d: &DictExpr) -> ECore {
 
 fn free_locals(e: &ECore, bound: &mut Vec<LocalId>, out: &mut Vec<LocalId>) {
     match e {
+        ECore::LitFold { body, .. } => free_locals(body, bound, out),
         ECore::Var(l) => {
             if !bound.contains(l) && !out.contains(l) {
                 out.push(*l);
             }
         }
-        ECore::Int(_) | ECore::ConstBig { .. } | ECore::Lit(_) | ECore::Bool(_) | ECore::Unit | ECore::Global(_)
+        ECore::Int(_) | ECore::ConstBig { .. } | ECore::ConstBytes(_) | ECore::Lit(_) | ECore::Bool(_) | ECore::Unit | ECore::Global(_)
         | ECore::Ctor(_) | ECore::Prim(_) | ECore::Foreign(_) | ECore::Hole(_) | ECore::QuoteHole(_) | ECore::IdxPending(_) | ECore::Fault
         | ECore::SyntaxLit(_) | ECore::StrLit(_) => {}
         ECore::Quote { holes, .. } | ECore::DeclsQuote { holes, .. } => {
@@ -226,8 +236,9 @@ struct HoistedFn {
 /// Replace lambda nodes with `MkClos` over hoisted functions.
 fn hoist_lambdas(e: &mut ECore, hint: &str, counter: &mut usize, fns: &mut Vec<HoistedFn>) {
     match e {
+        ECore::LitFold { body, .. } => hoist_lambdas(body, hint, counter, fns),
         ECore::Int(_)
-        | ECore::ConstBig { .. }
+        | ECore::ConstBig { .. } | ECore::ConstBytes(_)
         | ECore::Lit(_)
         | ECore::Bool(_)
         | ECore::Unit
@@ -332,8 +343,9 @@ fn note_local(l: LocalId, map: &mut HashMap<LocalId, LocalId>, next: &mut usize)
 
 fn assign_locals(e: &ECore, map: &mut HashMap<LocalId, LocalId>, next: &mut usize) {
     match e {
+        ECore::LitFold { body, .. } => assign_locals(body, map, next),
         ECore::Var(l) => note_local(*l, map, next),
-        ECore::Int(_) | ECore::ConstBig { .. } | ECore::Lit(_) | ECore::Bool(_) | ECore::Unit | ECore::Global(_)
+        ECore::Int(_) | ECore::ConstBig { .. } | ECore::ConstBytes(_) | ECore::Lit(_) | ECore::Bool(_) | ECore::Unit | ECore::Global(_)
         | ECore::Ctor(_) | ECore::Prim(_) | ECore::Foreign(_) | ECore::Hole(_) | ECore::QuoteHole(_) | ECore::IdxPending(_) | ECore::Fault
         | ECore::SyntaxLit(_) | ECore::StrLit(_) => {}
         ECore::Quote { holes, body, .. } => {
@@ -406,12 +418,17 @@ fn assign_locals(e: &ECore, map: &mut HashMap<LocalId, LocalId>, next: &mut usiz
 fn rewrite_locals(e: &ECore, map: &HashMap<LocalId, LocalId>) -> ECore {
     let m = |l: &LocalId| *map.get(l).unwrap_or(l);
     match e {
+        ECore::LitFold { idx, body } => ECore::LitFold {
+            idx: *idx,
+            body: Box::new(rewrite_locals(body, map)),
+        },
         ECore::Var(l) => ECore::Var(m(l)),
         ECore::Int(v) => ECore::Int(*v),
         ECore::ConstBig { nat, digits } => ECore::ConstBig {
             nat: *nat,
             digits: digits.clone(),
         },
+        ECore::ConstBytes(b) => ECore::ConstBytes(b.clone()),
         ECore::Lit(i) => ECore::Lit(*i),
         ECore::Bool(b) => ECore::Bool(*b),
         ECore::Unit => ECore::Unit,
@@ -502,8 +519,9 @@ fn rewrite_locals(e: &ECore, map: &HashMap<LocalId, LocalId>) -> ECore {
 /// Replace deferred literal nodes by their resolved constants.
 fn resolve_lit_words(e: &mut ECore, lits: &[ECore]) {
     match e {
+        ECore::LitFold { body, .. } => resolve_lit_words(body, lits),
         ECore::Lit(i) => *e = lits[*i].clone(),
-        ECore::Int(_) | ECore::ConstBig { .. } | ECore::Bool(_) | ECore::Unit | ECore::Var(_)
+        ECore::Int(_) | ECore::ConstBig { .. } | ECore::ConstBytes(_) | ECore::Bool(_) | ECore::Unit | ECore::Var(_)
         | ECore::Global(_)
         | ECore::Ctor(_) | ECore::Prim(_) | ECore::Foreign(_) | ECore::Hole(_) | ECore::QuoteHole(_) | ECore::IdxPending(_) | ECore::Fault | ECore::LazyAlloc | ECore::BoxAlloc
         | ECore::SyntaxLit(_) | ECore::StrLit(_) => {}
@@ -558,9 +576,10 @@ fn resolve_lit_words(e: &mut ECore, lits: &[ECore]) {
 /// [`resolve_lit_words`]).
 fn resolve_idx_words(e: &mut ECore, vals: &[ECore]) {
     match e {
+        ECore::LitFold { body, .. } => resolve_idx_words(body, vals),
         ECore::IdxPending(i) => *e = vals[*i].clone(),
         ECore::Int(_)
-        | ECore::ConstBig { .. }
+        | ECore::ConstBig { .. } | ECore::ConstBytes(_)
         | ECore::Lit(_)
         | ECore::Bool(_)
         | ECore::Unit
@@ -650,6 +669,8 @@ fn lower(e: &ECore) -> crate::core::Core {
             nat: *nat,
             digits: digits.clone(),
         },
+        ECore::ConstBytes(b) => crate::core::Core::ConstBytes(b.clone()),
+        ECore::LitFold { body, .. } => lower(body),
         ECore::Lit(_) => {
             unreachable!("deferred literals are resolved before lowering")
         }
@@ -1546,6 +1567,13 @@ struct Checker {
     tuple_ctors: Vec<usize>,
     /// Integer literals awaiting type determination, in creation order.
     literal_pends: Vec<PendLit>,
+    /// Collection literals' fold boundaries, in creation order (surface
+    /// grammar local amendments section 10): the `LitFold` nodes index
+    /// it, and the fold pass fills each record.
+    literal_folds: Vec<LitFold>,
+    /// The staging context the literal fold evaluates in (the D92
+    /// evaluator's file and replay inputs).
+    fold_scx: Option<StagingCx>,
     /// Implicit index arguments awaiting their solved values, in creation
     /// order (insert-and-solve, dependent core kernel design, section 2).
     idx_pends: Vec<IdxPend>,
@@ -1751,6 +1779,24 @@ struct MacroInfo {
     span: ast::Span,
 }
 
+/// One collection literal's fold boundary (surface grammar local
+/// amendments section 10): which literals the compile-time fold made
+/// constant values and which stayed runtime `from-list`/`from-map`
+/// calls. The list is the compiler report item; the artifact manifest
+/// records it beside the staging identity.
+#[derive(Clone, Debug)]
+pub struct LitFold {
+    /// The code generation unit the literal lives in (the enclosing
+    /// definition, filled when the fold runs).
+    pub unit: String,
+    /// The literal's source site.
+    pub site: String,
+    /// `"list"` for `[a, b, c]`, `"map"` for `{k => v}`.
+    pub kind: String,
+    /// Whether the construction folded to a constant value.
+    pub folded: bool,
+}
+
 /// How a build treats compile-time I/O (modules specification section 10).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum StageMode {
@@ -1838,6 +1884,8 @@ impl Checker {
             prelude_module: String::new(),
             tuple_ctors: Vec::new(),
             literal_pends: Vec::new(),
+            literal_folds: Vec::new(),
+            fold_scx: None,
             idx_pends: Vec::new(),
             kind_constraints: RefCell::new(Vec::new()),
             logical: std::collections::HashSet::new(),
@@ -4534,11 +4582,15 @@ impl Checker {
 
     fn fill_holes(&mut self, e: &ECore, sol: &HashMap<usize, DictExpr>) -> Result<ECore> {
         Ok(match e {
+            ECore::LitFold { idx, body } => ECore::LitFold {
+                idx: *idx,
+                body: Box::new(self.fill_holes(body, sol)?),
+            },
             ECore::Hole(id) => match sol.get(id) {
                 Some(d) => dict_expr_ecore(d),
                 None => return Err(Error::plain("internal error: unsolved dictionary hole")),
             },
-            ECore::Int(_) | ECore::ConstBig { .. } | ECore::Lit(_) | ECore::Bool(_)
+            ECore::Int(_) | ECore::ConstBig { .. } | ECore::ConstBytes(_) | ECore::Lit(_) | ECore::Bool(_)
             | ECore::Unit | ECore::Var(_) | ECore::Global(_)
             | ECore::Ctor(_) | ECore::Prim(_) | ECore::Foreign(_) | ECore::QuoteHole(_)
             | ECore::IdxPending(_) | ECore::Fault

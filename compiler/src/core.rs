@@ -1142,6 +1142,12 @@ pub enum Core {
     /// string, with an `sl_nat_from_i64`/`sl_int_from_i64` fast path when
     /// the value fits an `i64`.
     ConstBig { nat: bool, digits: String },
+    /// Constant `Bytes` (the compile-time fold of a collection literal
+    /// and the file converters' `txt`/`bytes` payloads). Code generation
+    /// emits the contents as a private constant and materialises a fresh
+    /// buffer through `sl_bytes_from_data` (the P14 constant-emission
+    /// path).
+    ConstBytes(Vec<u8>),
     Bool(bool),
     Unit,
     /// Local binder (value or dictionary binder).
@@ -1402,10 +1408,22 @@ pub enum Value {
     /// Mathematical `Nat`/`Int`, canonical decimal digits with an optional
     /// leading `-` (same form as [`Core::ConstBig`]).
     Big { nat: bool, digits: String },
+    /// A `Bytes` buffer (the compile-time fold of a `Bytes` collection
+    /// literal and the file converters' `txt`/`bytes` payloads;
+    /// [`Core::ConstBytes`] is its target form). The buffer is shared
+    /// and mutated in place, like the runtime's `Bytes` words.
+    Bytes(std::rc::Rc<std::cell::RefCell<Vec<u8>>>),
     Bool(bool),
     Unit,
-    /// Boxed ADT or record: tag plus runtime fields.
-    Adt { tag: usize, fields: Vec<Value> },
+    /// Boxed ADT or record: tag plus runtime fields. `ctor` is the
+    /// constructor's code generation unit (constant reification names
+    /// the constructor back); the stage API's synthesized structural
+    /// values leave it empty, meaning "not reifiable as a constant".
+    Adt {
+        ctor: String,
+        tag: usize,
+        fields: Vec<Value>,
+    },
     /// An instance dictionary: its methods as (possibly partial) closures.
     Dict { methods: Vec<Value> },
     /// Closure over a function unit: captured environment and applied
@@ -1416,8 +1434,15 @@ pub enum Value {
         args: Vec<Value>,
         arity: usize,
     },
-    /// Constructor function value (apply to its runtime fields).
-    CtorFn { tag: usize, arity: usize, args: Vec<Value> },
+    /// Constructor function value (apply to its runtime fields). `unit`
+    /// is the constructor's code generation unit (constant reification
+    /// names the constructed [`Value::Adt`] back).
+    CtorFn {
+        unit: String,
+        tag: usize,
+        arity: usize,
+        args: Vec<Value>,
+    },
     /// Primitive function value (apply to its arguments).
     PrimFn { op: PrimOp, args: Vec<Value> },
     /// A typed code value: the hygienically prepared template.
@@ -2161,6 +2186,304 @@ pub enum RequireCond {
     Unknown,
 }
 
+// ============================== the tail-call report (D104) ==============================
+
+/// One recursive group of the call graph with its tail-call mark
+/// (surface grammar local amendments section 9): `"marked"` when the
+/// group's self and mutual tail calls compile to jumps or `musttail`
+/// calls (constant stack), `"fallback (<reason>)"` when one compiles to
+/// an ordinary call (the reason names the call that could not be
+/// tail-marked).
+#[derive(Clone, Debug)]
+pub struct TailGroup {
+    /// The group's units, sorted.
+    pub members: Vec<String>,
+    /// `"marked"` or `"fallback (<reason>)"`.
+    pub mark: String,
+}
+
+/// The recursive groups of `program`'s call graph with their tail-call
+/// marks (surface grammar local amendments section 9), for the
+/// `tail_calls` section of the artifact manifest. Non-recursive units
+/// form no group: they need no marking.
+///
+/// The mark is exactly the language's guarantee: a tail call to a member
+/// of the group (a self call, or a mutual call) lowers to a jump or a
+/// `musttail` call when the callee is a known unit applied to its exact
+/// arity at the caller's exact arity. Tail calls to units outside the
+/// group and dynamically dispatched tail calls are outside the claim
+/// (a dynamic cycle through a first-class self value is not statically
+/// visible). The tail positions mirror the code generator's
+/// [`crate::codegen`] `emit_tail`: `Let` bodies, `If` branches and `Case`
+/// alternatives, stopping at the first call.
+pub fn tail_report(program: &Program) -> Vec<TailGroup> {
+    // Unit arities as code generation sees them: every function (its
+    // parameter count), and every instance's dictionary construction
+    // unit. Primitives and foreign wrappers answer from their own
+    // metadata (`unit_of`).
+    let mut fns: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+    let mut bodies: std::collections::HashMap<String, &Core> = std::collections::HashMap::new();
+    for f in &program.fns {
+        fns.insert(f.id.0.clone(), f.arity());
+        if f.prim.is_none() && f.ctor.is_none() {
+            bodies.insert(f.id.0.clone(), &f.body);
+        }
+    }
+    let mut insts: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+    for i in &program.instances {
+        insts.insert(format!("{}.mk", i.id.0), i.subdict_count);
+    }
+
+    /// The unit a call head names, with its arity (`None` for a
+    /// dynamically dispatched head).
+    fn unit_of(
+        e: &Core,
+        fns: &std::collections::HashMap<String, usize>,
+        insts: &std::collections::HashMap<String, usize>,
+        foreigns: &std::collections::BTreeMap<String, ForeignPlan>,
+    ) -> Option<(String, usize)> {
+        match e {
+            Core::Global(id) | Core::Ctor(id) => fns
+                .get(&id.0)
+                .or_else(|| insts.get(&id.0))
+                .map(|a| (id.0.clone(), *a)),
+            Core::Prim(op) => Some((op.symbol(), op.arity())),
+            Core::Foreign(n) => foreigns.get(n).map(|p| (n.clone(), p.arity())),
+            _ => None,
+        }
+    }
+
+    /// Every called unit in a body (any position): the call graph's
+    /// out-edges.
+    fn all_calls(
+        e: &Core,
+        fns: &std::collections::HashMap<String, usize>,
+        insts: &std::collections::HashMap<String, usize>,
+        foreigns: &std::collections::BTreeMap<String, ForeignPlan>,
+        out: &mut Vec<String>,
+    ) {
+        match e {
+            Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::Bool(_) | Core::Unit | Core::Var(_)
+            | Core::Global(_) | Core::Ctor(_) | Core::Prim(_) | Core::Foreign(_)
+            | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc
+            | Core::SyntaxLit(_) | Core::StrLit(_) => {}
+            Core::Quote { holes, body, .. } => {
+                for h in holes {
+                    all_calls(h, fns, insts, foreigns, out);
+                }
+                if let Some(b) = body {
+                    all_calls(b, fns, insts, foreigns, out);
+                }
+            }
+            Core::DeclsQuote { holes, .. } => {
+                for h in holes {
+                    all_calls(h, fns, insts, foreigns, out);
+                }
+            }
+            Core::DictProj(d, _) | Core::Proj(d, _) | Core::Demand(d) | Core::BoxGet(d) => {
+                all_calls(d, fns, insts, foreigns, out)
+            }
+            Core::InstDict(_, args) => {
+                for a in args {
+                    all_calls(a, fns, insts, foreigns, out);
+                }
+            }
+            Core::App(f, args) => {
+                if let Some((u, _)) = unit_of(f, fns, insts, foreigns) {
+                    out.push(u);
+                }
+                all_calls(f, fns, insts, foreigns, out);
+                for a in args {
+                    all_calls(a, fns, insts, foreigns, out);
+                }
+            }
+            Core::Lam { env, .. } => {
+                for a in env {
+                    all_calls(a, fns, insts, foreigns, out);
+                }
+            }
+            Core::Let(_, v, body) => {
+                all_calls(v, fns, insts, foreigns, out);
+                all_calls(body, fns, insts, foreigns, out);
+            }
+            Core::BoxInit(_, v) => all_calls(v, fns, insts, foreigns, out),
+            Core::LazyInit(_, t) => all_calls(t, fns, insts, foreigns, out),
+            Core::If(c, t, fe) => {
+                all_calls(c, fns, insts, foreigns, out);
+                all_calls(&t.body, fns, insts, foreigns, out);
+                all_calls(&fe.body, fns, insts, foreigns, out);
+            }
+            Core::Case { scrut, alts } => {
+                all_calls(scrut, fns, insts, foreigns, out);
+                for a in alts {
+                    all_calls(&a.body, fns, insts, foreigns, out);
+                }
+            }
+        }
+    }
+
+    /// The tail-position calls of a body, as `(callee, arguments,
+    /// callee arity)`; `callee` is `None` for a dynamically dispatched
+    /// tail call. The traversal mirrors code generation's `emit_tail`.
+    fn tail_calls(
+        e: &Core,
+        fns: &std::collections::HashMap<String, usize>,
+        insts: &std::collections::HashMap<String, usize>,
+        foreigns: &std::collections::BTreeMap<String, ForeignPlan>,
+        out: &mut Vec<(Option<String>, usize, usize)>,
+    ) {
+        match e {
+            Core::Let(_, _, body) => tail_calls(body, fns, insts, foreigns, out),
+            Core::If(_, t, fe) => {
+                tail_calls(&t.body, fns, insts, foreigns, out);
+                tail_calls(&fe.body, fns, insts, foreigns, out);
+            }
+            Core::Case { alts, .. } => {
+                for a in alts {
+                    tail_calls(&a.body, fns, insts, foreigns, out);
+                }
+            }
+            Core::App(f, args) => {
+                let (u, a) = match unit_of(f, fns, insts, foreigns) {
+                    Some((u, a)) => (Some(u), a),
+                    None => (None, args.len()),
+                };
+                out.push((u, args.len(), a));
+            }
+            _ => {}
+        }
+    }
+
+    // The call graph over the analyzed units (primitives and foreign
+    // wrappers are leaves; hoisted lambdas and `letrec` members are
+    // ordinary units in `program.fns`).
+    let mut edges: std::collections::HashMap<String, Vec<String>> =
+        std::collections::HashMap::new();
+    for (name, body) in &bodies {
+        let mut out = Vec::new();
+        all_calls(body, &fns, &insts, &program.foreigns, &mut out);
+        out.sort();
+        out.dedup();
+        edges.insert((*name).clone(), out);
+    }
+
+    // Strongly connected components (Tarjan), recursive on the graph.
+    fn connect(
+        node: &str,
+        edges: &std::collections::HashMap<String, Vec<String>>,
+        index: &mut std::collections::HashMap<String, usize>,
+        low: &mut std::collections::HashMap<String, usize>,
+        on_stack: &mut std::collections::HashSet<String>,
+        stack: &mut Vec<String>,
+        next: &mut usize,
+        groups: &mut Vec<Vec<String>>,
+    ) {
+        index.insert(node.to_string(), *next);
+        low.insert(node.to_string(), *next);
+        *next += 1;
+        stack.push(node.to_string());
+        on_stack.insert(node.to_string());
+        for callee in edges.get(node).map(|v| v.as_slice()).unwrap_or(&[]) {
+            if !index.contains_key(callee) {
+                connect(callee, edges, index, low, on_stack, stack, next, groups);
+                let cl = low[callee];
+                let entry = low.entry(node.to_string()).or_insert(usize::MAX);
+                *entry = (*entry).min(cl);
+            } else if on_stack.contains(callee) {
+                let ci = index[callee];
+                let entry = low.entry(node.to_string()).or_insert(usize::MAX);
+                *entry = (*entry).min(ci);
+            }
+        }
+        if low[node] == index[node] {
+            let mut group = Vec::new();
+            while let Some(top) = stack.pop() {
+                on_stack.remove(&top);
+                group.push(top.clone());
+                if top == node {
+                    break;
+                }
+            }
+            groups.push(group);
+        }
+    }
+
+    let mut names: Vec<String> = edges.keys().cloned().collect();
+    names.sort();
+    let mut index = std::collections::HashMap::new();
+    let mut low = std::collections::HashMap::new();
+    let mut on_stack = std::collections::HashSet::new();
+    let mut stack = Vec::new();
+    let mut next = 0;
+    let mut groups = Vec::new();
+    for n in &names {
+        if !index.contains_key(n) {
+            connect(
+                n,
+                &edges,
+                &mut index,
+                &mut low,
+                &mut on_stack,
+                &mut stack,
+                &mut next,
+                &mut groups,
+            );
+        }
+    }
+
+    // Recursive groups only: a cycle needs a self edge or two members.
+    let mut out = Vec::new();
+    for group in groups {
+        let self_edge = group.len() == 1
+            && edges
+                .get(&group[0])
+                .map(|cs| cs.contains(&group[0]))
+                .unwrap_or(false);
+        if group.len() < 2 && !self_edge {
+            continue;
+        }
+        let mut members = group;
+        members.sort();
+        // The mark: every tail call to a group member is a jump (self)
+        // or a `musttail` call (mutual) exactly when it saturates the
+        // callee at the caller's arity (`codegen::emit_tail`).
+        let mut mark = "marked".to_string();
+        'marks: for caller in &members {
+            let Some(body) = bodies.get(caller) else {
+                // A leaf unit (a primitive or foreign wrapper) never
+                // reaches a cycle through its own code.
+                continue;
+            };
+            let caller_arity = fns[caller];
+            let mut tails = Vec::new();
+            tail_calls(body, &fns, &insts, &program.foreigns, &mut tails);
+            for (callee, args, callee_arity) in tails {
+                let Some(callee) = callee else {
+                    continue;
+                };
+                if !members.contains(&callee) {
+                    continue;
+                }
+                if args != callee_arity {
+                    mark = format!(
+                        "fallback (tail call {caller} -> {callee}: applied to {args} arguments, unit arity {callee_arity})"
+                    );
+                    break 'marks;
+                }
+                if callee_arity != caller_arity {
+                    mark = format!(
+                        "fallback (tail call {caller} -> {callee}: arity {callee_arity} differs from caller arity {caller_arity})"
+                    );
+                    break 'marks;
+                }
+            }
+        }
+        out.push(TailGroup { members, mark });
+    }
+    out.sort_by(|a, b| a.members.cmp(&b.members));
+    out
+}
+
 // ============================== P10: the optimizer ==============================
 //
 // Rewrites, the driving engine, and target profiles (modules and
@@ -2352,6 +2675,7 @@ fn core_eq(a: &Core, b: &Core) -> bool {
         (Core::ConstBig { nat: n1, digits: d1 }, Core::ConstBig { nat: n2, digits: d2 }) => {
             n1 == n2 && d1 == d2
         }
+        (Core::ConstBytes(x), Core::ConstBytes(y)) => x == y,
         (Core::Bool(x), Core::Bool(y)) => x == y,
         (Core::Unit, Core::Unit) | (Core::Fault, Core::Fault) | (Core::LazyAlloc, Core::LazyAlloc) => true,
         (Core::Var(x), Core::Var(y)) => x == y,
@@ -2415,7 +2739,7 @@ fn max_local(e: &Core) -> usize {
 pub fn walk_locals(e: &Core, f: &mut impl FnMut(LocalId)) {
     match e {
         Core::Var(l) => f(*l),
-        Core::Int(_) | Core::ConstBig { .. } | Core::Bool(_) | Core::Unit | Core::Global(_)
+        Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::Bool(_) | Core::Unit | Core::Global(_)
         | Core::Ctor(_) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(_)
         | Core::StrLit(_) => {}
         Core::DictProj(d, _) | Core::Proj(d, _) | Core::Demand(d) => walk_locals(d, f),
@@ -2491,7 +2815,7 @@ fn use_range(e: &Core, l: LocalId) -> (usize, usize) {
                 (0, 0)
             }
         }
-        Core::Int(_) | Core::ConstBig { .. } | Core::Bool(_) | Core::Unit | Core::Global(_)
+        Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::Bool(_) | Core::Unit | Core::Global(_)
         | Core::Ctor(_) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(_)
         | Core::StrLit(_) => (0, 0),
         Core::DictProj(d, _) | Core::Proj(d, _) | Core::Demand(d) => use_range(d, l),
@@ -2594,7 +2918,7 @@ fn renumber_core(e: &Core, nparams: usize) -> Core {
         };
         match e {
             Core::Var(l) => note(*l, map, next),
-            Core::Int(_) | Core::ConstBig { .. } | Core::Bool(_) | Core::Unit | Core::Global(_)
+            Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::Bool(_) | Core::Unit | Core::Global(_)
             | Core::Ctor(_) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(_)
             | Core::StrLit(_) => {}
             Core::DictProj(d, _) | Core::Proj(d, _) | Core::Demand(d) => assign(d, map, next),
@@ -2659,6 +2983,7 @@ fn renumber_core(e: &Core, nparams: usize) -> Core {
             Core::SpliceVal(i) => Core::SpliceVal(*i),
             Core::Int(v) => Core::Int(*v),
             Core::ConstBig { nat, digits } => Core::ConstBig { nat: *nat, digits: digits.clone() },
+            Core::ConstBytes(b) => Core::ConstBytes(b.clone()),
             Core::Bool(b) => Core::Bool(*b),
             Core::Unit => Core::Unit,
             Core::Global(g) => Core::Global(g.clone()),
@@ -2767,6 +3092,7 @@ fn instantiate(
             Core::SpliceVal(i) => Core::SpliceVal(*i),
             Core::Int(v) => Core::Int(*v),
             Core::ConstBig { nat, digits } => Core::ConstBig { nat: *nat, digits: digits.clone() },
+            Core::ConstBytes(b) => Core::ConstBytes(b.clone()),
             Core::Bool(b) => Core::Bool(*b),
             Core::Unit => Core::Unit,
             Core::Global(g) => Core::Global(g.clone()),
@@ -2896,6 +3222,7 @@ fn match_pat(
         (Core::ConstBig { nat: n1, digits: d1 }, Core::ConstBig { nat: n2, digits: d2 }) => {
             n1 == n2 && d1 == d2
         }
+        (Core::ConstBytes(x), Core::ConstBytes(y)) => x == y,
         (Core::Bool(x), Core::Bool(y)) => x == y,
         (Core::Unit, Core::Unit) | (Core::Fault, Core::Fault) | (Core::LazyAlloc, Core::LazyAlloc) => {
             true
@@ -3348,7 +3675,7 @@ fn has_alloc(e: &Core) -> bool {
             | Core::BoxGet(_) | Core::Demand(_) | Core::Quote { .. }
             | Core::DeclsQuote { .. } => *found = true,
             Core::Prim(PrimOp::Delay) => *found = true,
-            Core::Int(_) | Core::ConstBig { .. } | Core::Bool(_) | Core::Unit | Core::Global(_)
+            Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::Bool(_) | Core::Unit | Core::Global(_)
             | Core::Ctor(_) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_)
             | Core::Fault | Core::SyntaxLit(_) | Core::StrLit(_)
             | Core::Var(_) => {}
@@ -3401,7 +3728,7 @@ struct OptCx {
 fn scan_calls(e: &Core, f: &mut impl FnMut(&GlobalId)) {
     match e {
         Core::Global(g) => f(g),
-        Core::Int(_) | Core::ConstBig { .. } | Core::Bool(_) | Core::Unit | Core::Ctor(_)
+        Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::Bool(_) | Core::Unit | Core::Ctor(_)
         | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(_) | Core::StrLit(_)
         | Core::Var(_) => {}
         Core::DictProj(d, _) | Core::Proj(d, _) | Core::Demand(d) => scan_calls(d, f),
@@ -3457,7 +3784,7 @@ fn scan_memo(e: &Core, n: &mut usize) {
     match e {
         Core::LazyAlloc | Core::LazyInit(_, _) | Core::BoxAlloc | Core::BoxInit(_, _)
         | Core::BoxGet(_) | Core::Demand(_) => *n += 1,
-        Core::Int(_) | Core::ConstBig { .. } | Core::Bool(_) | Core::Unit | Core::Global(_)
+        Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::Bool(_) | Core::Unit | Core::Global(_)
         | Core::Ctor(_) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_)
         | Core::Fault | Core::SyntaxLit(_) | Core::StrLit(_)
         | Core::Var(_) => {}
@@ -3516,7 +3843,7 @@ fn weights_ok(e: &Core) -> bool {
                     go(&a.body, ok);
                 }
             }
-            Core::Int(_) | Core::ConstBig { .. } | Core::Bool(_) | Core::Unit | Core::Global(_)
+            Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::Bool(_) | Core::Unit | Core::Global(_)
             | Core::Ctor(_) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(_)
             | Core::StrLit(_) | Core::Var(_) => {}
             Core::DictProj(d, _) | Core::Proj(d, _) | Core::Demand(d) | Core::BoxGet(d) => {
@@ -3550,7 +3877,7 @@ fn scope_ok(e: &Core, nparams: usize) -> bool {
     fn go(e: &Core, bound: &mut std::collections::HashSet<LocalId>) -> bool {
         match e {
             Core::Var(l) => bound.contains(l),
-            Core::Int(_) | Core::ConstBig { .. } | Core::Bool(_) | Core::Unit | Core::Global(_)
+            Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::Bool(_) | Core::Unit | Core::Global(_)
             | Core::Ctor(_) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(_)
             | Core::StrLit(_) => true,
             Core::DictProj(d, _) | Core::Proj(d, _) | Core::Demand(d) | Core::BoxGet(d) => {
@@ -3673,7 +4000,7 @@ fn body_impure(e: &Core) -> bool {
                     *bad = true;
                 }
             }
-            Core::Int(_) | Core::ConstBig { .. } | Core::Bool(_) | Core::Unit | Core::Global(_)
+            Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::Bool(_) | Core::Unit | Core::Global(_)
             | Core::Ctor(_) | Core::SpliceVal(_) | Core::LazyAlloc | Core::BoxAlloc
             | Core::SyntaxLit(_) | Core::StrLit(_) | Core::Var(_) => {}
             Core::DictProj(d, _) | Core::Proj(d, _) | Core::Demand(d) | Core::BoxGet(d) => {
@@ -4370,7 +4697,7 @@ impl Driver<'_> {
             }
             let atom = matches!(
                 arg,
-                Core::Var(_) | Core::Int(_) | Core::ConstBig { .. } | Core::Bool(_)
+                Core::Var(_) | Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::Bool(_)
                     | Core::Unit | Core::Global(_) | Core::Ctor(_) | Core::Prim(_) | Core::Foreign(_)
             );
             if atom {
@@ -4457,7 +4784,7 @@ fn drop_dead(
 fn child_slots(e: &mut Core) -> Vec<&mut Core> {
     let mut out: Vec<&mut Core> = Vec::new();
     match e {
-        Core::Int(_) | Core::ConstBig { .. } | Core::Bool(_) | Core::Unit | Core::Global(_)
+        Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::Bool(_) | Core::Unit | Core::Global(_)
         | Core::Ctor(_) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(_)
         | Core::StrLit(_) | Core::Var(_) => {}
         Core::DictProj(d, _) | Core::Proj(d, _) | Core::Demand(d) | Core::BoxGet(d) => {
@@ -4989,7 +5316,7 @@ fn size_of(e: &Core) -> usize {
 fn child_slots_imm(e: &Core) -> Vec<&Core> {
     let mut out: Vec<&Core> = Vec::new();
     match e {
-        Core::Int(_) | Core::ConstBig { .. } | Core::Bool(_) | Core::Unit | Core::Global(_)
+        Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::Bool(_) | Core::Unit | Core::Global(_)
         | Core::Ctor(_) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(_)
         | Core::StrLit(_) | Core::Var(_) => {}
         Core::DictProj(d, _) | Core::Proj(d, _) | Core::Demand(d) | Core::BoxGet(d) => {

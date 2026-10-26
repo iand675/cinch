@@ -625,6 +625,10 @@ impl Checker {
                 }
                 Ok((core, list_ty))
             }
+            ast::Term::Map(_, span) => Err(Error::at(
+                *span,
+                "map literals (`{k => v}`) elaborate through `from-map` at the expected type's `FromMap m k v` instance (surface grammar local amendments section 10); the `FromMap` class, the prelude `Map`, and the literal fold land with the collection literal slice",
+            )),
             ast::Term::Proj(e, field, span) => {
                 // `x.f.g` is a record-projection place rooted at a
                 // variable; usage counting tracks these places per binder
@@ -5063,6 +5067,12 @@ impl Checker {
                         walk(chk, x, found);
                     }
                 }
+                ast::Term::Map(kvs, _) => {
+                    for (k, v) in kvs {
+                        walk(chk, k, found);
+                        walk(chk, v, found);
+                    }
+                }
                 ast::Term::Record(_, fields, _) => {
                     for (_, x) in fields {
                         walk(chk, x, found);
@@ -5210,6 +5220,7 @@ impl Checker {
             ast::Term::Ann(_, _, _)
             | ast::Term::Tuple(_, _)
             | ast::Term::List(_, _)
+            | ast::Term::Map(_, _)
             | ast::Term::Record(_, _, _)
             | ast::Term::Proj(_, _, _)
             | ast::Term::CapApply { .. }
@@ -6604,6 +6615,9 @@ fn immediate_subterms(t: &ast::Term) -> Vec<ast::Term> {
     match t {
         ast::Term::Ann(e, _, _) | ast::Term::Proj(e, _, _) => vec![(**e).clone()],
         ast::Term::Tuple(items, _) | ast::Term::List(items, _) => items.clone(),
+        ast::Term::Map(kvs, _) => {
+            kvs.iter().flat_map(|(k, v)| [k.clone(), v.clone()]).collect()
+        }
         ast::Term::Record(_, fields, _) => {
             fields.iter().map(|(_, x)| x.clone()).collect()
         }
@@ -6635,6 +6649,10 @@ fn replace_subterms(t: &ast::Term, names: &[String]) -> ast::Term {
         }
         ast::Term::Tuple(_, s) => ast::Term::Tuple(names.iter().map(mk).collect(), *s),
         ast::Term::List(_, s) => ast::Term::List(names.iter().map(mk).collect(), *s),
+        ast::Term::Map(_, s) => ast::Term::Map(
+            names.chunks(2).map(|c| (mk(&c[0]), mk(&c[1]))).collect(),
+            *s,
+        ),
         ast::Term::Record(p, fields, s) => ast::Term::Record(
             p.clone(),
             fields
@@ -6915,13 +6933,14 @@ fn rec_walk(
     edges: &mut Vec<(usize, usize, bool)>,
 ) {
     match e {
+        ECore::LitFold { body, .. } => rec_walk(body, guard, owner, by_local, edges),
         ECore::Var(l) => {
             if let Some(&r) = by_local.get(l) {
                 edges.push((owner, r, guard >= 1));
             }
         }
         ECore::Int(_)
-        | ECore::ConstBig { .. }
+        | ECore::ConstBig { .. } | ECore::ConstBytes(_)
         | ECore::Lit(_)
         | ECore::Bool(_)
         | ECore::Unit
@@ -6992,13 +7011,14 @@ fn rec_walk(
 /// The group members referenced from one member's core, by index.
 fn rec_collect_refs(e: &ECore, by_local: &HashMap<LocalId, usize>, out: &mut Vec<usize>) {
     match e {
+        ECore::LitFold { body, .. } => rec_collect_refs(body, by_local, out),
         ECore::Var(l) => {
             if let Some(&r) = by_local.get(l) {
                 out.push(r);
             }
         }
         ECore::Int(_)
-        | ECore::ConstBig { .. }
+        | ECore::ConstBig { .. } | ECore::ConstBytes(_)
         | ECore::Lit(_)
         | ECore::Bool(_)
         | ECore::Unit
@@ -7080,6 +7100,7 @@ fn subst_rec_refs(e: &mut ECore, subs: &HashMap<LocalId, RecSub>) {
         }
     }
     match e {
+        ECore::LitFold { body, .. } => subst_rec_refs(body, subs),
         ECore::Var(l) => match subs.get(l) {
             Some(RecSub::Fun(id, cap)) => {
                 let (id, cap) = (id.clone(), cap.clone());
@@ -7095,7 +7116,7 @@ fn subst_rec_refs(e: &mut ECore, subs: &HashMap<LocalId, RecSub>) {
             None => {}
         },
         ECore::Int(_)
-        | ECore::ConstBig { .. }
+        | ECore::ConstBig { .. } | ECore::ConstBytes(_)
         | ECore::Lit(_)
         | ECore::Bool(_)
         | ECore::Unit

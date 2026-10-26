@@ -312,6 +312,12 @@ fn for_each_subterm(t: &ast::Term, f: &mut dyn FnMut(&ast::Term)) {
                 for_each_subterm(x, f);
             }
         }
+        ast::Term::Map(kvs, _) => {
+            for (k, v) in kvs {
+                for_each_subterm(k, f);
+                for_each_subterm(v, f);
+            }
+        }
         ast::Term::Record(_, fields, _) => {
             for (_, x) in fields {
                 for_each_subterm(x, f);
@@ -4807,6 +4813,12 @@ impl Checker {
                     self.walk_guard(x, pos, group, mode, bound)?;
                 }
             }
+            ast::Term::Map(kvs, _) => {
+                for (k, v) in kvs {
+                    self.walk_guard(k, pos, group, mode, bound)?;
+                    self.walk_guard(v, pos, group, mode, bound)?;
+                }
+            }
             ast::Term::Record(path, fields, _) => {
                 // A codata observation's value runs at observation time:
                 // it is a fresh closure, and a `Later`-typed one is the
@@ -8690,6 +8702,13 @@ impl Checker {
                 }
                 Ok(())
             }
+            ast::Term::Map(kvs, _) => {
+                for (k, v) in kvs {
+                    self.expand_macros_in_term(cx, module, k)?;
+                    self.expand_macros_in_term(cx, module, v)?;
+                }
+                Ok(())
+            }
             ast::Term::Record(_, fields, _) => {
                 for (_, e) in fields {
                     self.expand_macros_in_term(cx, module, e)?;
@@ -8886,6 +8905,7 @@ fn value_kind_name(v: &crate::core::Value) -> &'static str {
         Word(_) => "a machine word",
         Big { nat: true, .. } => "a `Nat`",
         Big { nat: false, .. } => "an `Int`",
+        Bytes(_) => "a `Bytes` buffer",
         Bool(_) => "a `Bool`",
         Unit => "Unit",
         Adt { .. } => "a data value",
@@ -8952,6 +8972,12 @@ fn term_has_macro_call(t: &ast::Term) -> bool {
             ast::Term::Infix(ts, _, _) | ast::Term::Tuple(ts, _) | ast::Term::List(ts, _) => {
                 for x in ts {
                     walk(x, found);
+                }
+            }
+            ast::Term::Map(kvs, _) => {
+                for (k, v) in kvs {
+                    walk(k, found);
+                    walk(v, found);
                 }
             }
             ast::Term::Record(_, fields, _) => {
@@ -9142,6 +9168,13 @@ fn stamp_term_spans(t: &mut ast::Term, site: &crate::lexer::ExpSite) {
             stamp(s);
             for x in ts {
                 stamp_term_spans(x, site);
+            }
+        }
+        ast::Term::Map(kvs, s) => {
+            stamp(s);
+            for (k, v) in kvs {
+                stamp_term_spans(k, site);
+                stamp_term_spans(v, site);
             }
         }
         ast::Term::Record(_, fields, s) => {
@@ -9336,6 +9369,7 @@ impl Checker {
                     if v.module == m {
                         if let ValueKind::Ctor { tag, runtime_arity, .. } = &v.kind {
                             return Ok(Value::CtorFn {
+                                unit: id.to_string(),
                                 tag: *tag,
                                 arity: *runtime_arity,
                                 args: Vec::new(),
@@ -9355,7 +9389,12 @@ impl Checker {
 
     fn closure_of(&self, f: &crate::core::FnDef) -> Value {
         if let Some((tag, arity)) = f.ctor {
-            return Value::CtorFn { tag, arity, args: Vec::new() };
+            return Value::CtorFn {
+                unit: f.id.0.clone(),
+                tag,
+                arity,
+                args: Vec::new(),
+            };
         }
         if let Some(op) = f.prim {
             return Value::PrimFn { op, args: Vec::new() };
@@ -9509,6 +9548,9 @@ impl Checker {
                 nat: *nat,
                 digits: digits.clone(),
             },
+            Core::ConstBytes(b) => Value::Bytes(std::rc::Rc::new(std::cell::RefCell::new(
+                b.clone(),
+            ))),
             Core::Bool(b) => Value::Bool(*b),
             Core::Unit => Value::Unit,
             Core::Var(l) => frame.get(l.0).cloned().ok_or_else(|| {
@@ -9643,7 +9685,7 @@ impl Checker {
                             true
                         }
                         crate::core::CPat::Con { tag, fields } => match &s {
-                            Value::Adt { tag: t, fields: fs } if t == tag => {
+                            Value::Adt { tag: t, fields: fs, .. } if t == tag => {
                                 for (l, v) in fields.iter().zip(fs.iter()) {
                                     saved.push((l.0, set_local(frame, l.0, v.clone())));
                                 }
@@ -9800,13 +9842,13 @@ impl Checker {
                     self.apply_value(cx, r, rest.to_vec())
                 }
             }
-            Value::CtorFn { tag, arity, args: mut acc } => {
+            Value::CtorFn { unit, tag, arity, args: mut acc } => {
                 acc.append(&mut args);
                 if acc.len() < arity {
-                    return Ok(Value::CtorFn { tag, arity, args: acc });
+                    return Ok(Value::CtorFn { unit, tag, arity, args: acc });
                 }
                 let (now, rest) = acc.split_at(arity);
-                let r = Value::Adt { tag, fields: now.to_vec() };
+                let r = Value::Adt { ctor: unit, tag, fields: now.to_vec() };
                 if rest.is_empty() {
                     Ok(r)
                 } else {
@@ -10076,6 +10118,98 @@ impl Checker {
                 let a = word_of(&args[0], "a machine word")?;
                 Ok(Value::Word(mask_to(bits, signed, !a)))
             }
+            PrimOp::Bytes(bop) => {
+                use crate::core::BytesOp;
+                // The `Bytes` primitives speak `Nat` words (the intrinsic
+                // units convert through `sl_nat_to_i64` and back), so the
+                // compile-time values are `Nat` words too.
+                fn bytes_word(v: &Value, what: &str) -> Result<i64> {
+                    let b = big_of(v, what)?;
+                    b.to_i64().ok_or_else(|| {
+                        Error::plain(format!("{what} leaves `i64` range at compile time"))
+                    })
+                }
+                Ok(match bop {
+                    BytesOp::New => {
+                        let n = bytes_word(&args[0], "a `Bytes` length")?;
+                        if n < 0 {
+                            return Err(Error::plain(
+                                "`bytesNew` faults on a negative length at compile time (the runtime fault path is exit 71)",
+                            ));
+                        }
+                        Value::Bytes(std::rc::Rc::new(std::cell::RefCell::new(vec![
+                            0u8;
+                            n as usize
+                        ])))
+                    }
+                    BytesOp::Len => match &args[0] {
+                        Value::Bytes(b) => {
+                            big_value(Big::from_i64(b.borrow().len() as i64), true)
+                        }
+                        other => {
+                            return Err(Error::plain(format!(
+                                "expected a `Bytes` buffer at compile time, found {}",
+                                value_kind_name(other)
+                            )))
+                        }
+                    },
+                    BytesOp::Get => {
+                        let i = bytes_word(&args[1], "a `Bytes` index")?;
+                        match &args[0] {
+                            Value::Bytes(b) => {
+                                let buf = b.borrow();
+                                let v = if i < 0 {
+                                    None
+                                } else {
+                                    buf.get(i as usize).copied()
+                                };
+                                match v {
+                                    Some(v) => big_value(Big::from_i64(v as i64), true),
+                                    None => {
+                                        return Err(Error::plain(
+                                            "`bytesGet` out of bounds faults at compile time (the runtime fault path is exit 71)",
+                                        ))
+                                    }
+                                }
+                            }
+                            other => {
+                                return Err(Error::plain(format!(
+                                    "expected a `Bytes` buffer at compile time, found {}",
+                                    value_kind_name(other)
+                                )))
+                            }
+                        }
+                    }
+                    BytesOp::Set => {
+                        let i = bytes_word(&args[1], "a `Bytes` index")?;
+                        let v = bytes_word(&args[2], "a `Bytes` value")?;
+                        let Value::Bytes(b) = &args[0] else {
+                            return Err(Error::plain(format!(
+                                "expected a `Bytes` buffer at compile time, found {}",
+                                value_kind_name(&args[0])
+                            )));
+                        };
+                        let byte = u8::try_from(v).map_err(|_| {
+                            Error::plain(
+                                "`bytesSet` on a value outside 0..=255 faults at compile time (the runtime fault path is exit 71)",
+                            )
+                        })?;
+                        let mut buf = b.borrow_mut();
+                        let slot = if i < 0 {
+                            None
+                        } else {
+                            buf.get_mut(i as usize)
+                        };
+                        let Some(slot) = slot else {
+                            return Err(Error::plain(
+                                "`bytesSet` out of bounds faults at compile time (the runtime fault path is exit 71)",
+                            ));
+                        };
+                        *slot = byte;
+                        Value::Unit
+                    }
+                })
+            }
             PrimOp::BitScan { .. } => Err(Error::plain(
                 "bit-scan primitives are not available at compile time in this slice",
             )),
@@ -10145,7 +10279,7 @@ impl Checker {
                 loop {
                     match cur {
                         Value::Adt { tag: 0, .. } => break,
-                        Value::Adt { tag: 1, fields } if fields.len() == 2 => {
+                        Value::Adt { tag: 1, fields, .. } if fields.len() == 2 => {
                             argv.push(str_of(&fields[0], "a tool argument")?);
                             cur = &fields[1];
                         }
@@ -10206,7 +10340,12 @@ impl Checker {
                 let raw = self.stage_run_env(cx, &tool, &[], &dsn_name, &dsn)?;
                 self.apply_value(cx, k, vec![Value::Db(raw)])
             }
-            StageOp::ReadSchema => Ok(Value::Adt { tag: 0, fields: Vec::new() }),
+            // A schema snapshot's structural value: the stage API
+            // synthesizes it, so it carries no constructor name (it is
+            // never reifiable as a constant).
+            StageOp::ReadSchema => {
+                Ok(Value::Adt { ctor: String::new(), tag: 0, fields: Vec::new() })
+            }
             StageOp::Introspect => {
                 let raw = match &args[0] {
                     Value::Db(s) => s.clone(),

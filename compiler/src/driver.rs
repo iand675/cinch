@@ -558,6 +558,21 @@ fn write_artifacts(
     text.push_str(&format!("    \"fused\": {:?},\n", opt.fused));
     text.push_str(&format!("    \"discarded\": {:?}\n", opt.discarded));
     text.push_str("  },\n");
+    // Tail-call status of the recursive call-graph groups (surface
+    // grammar local amendments section 9; decision D104): "marked" when
+    // the group's self and mutual tail calls are jumps or `musttail`
+    // calls (constant stack), "fallback (<reason>)" when one is an
+    // ordinary call (the reason names the call).
+    let tail_groups = crate::core::tail_report(program);
+    text.push_str("  \"tail_calls\": {\n    \"groups\": [\n");
+    for (i, g) in tail_groups.iter().enumerate() {
+        text.push_str(&format!(
+            "      {{\"members\": {:?}, \"mark\": {:?}}}",
+            g.members, g.mark
+        ));
+        text.push_str(if i + 1 < tail_groups.len() { ",\n" } else { "\n" });
+    }
+    text.push_str("    ]\n  },\n");
     // Trust level (supercompilation and JIT specification section 9:
     // full recheck is the default) and the checked-versus-trusted
     // lowering split (platform proofs and SIMD specification section 8).

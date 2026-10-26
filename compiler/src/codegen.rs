@@ -131,6 +131,10 @@ pub fn emit_for(profile: &crate::core::TargetProfile, program: &Program) -> Resu
         "declare i64 @sl_bytes_len(i64)",
         "declare i64 @sl_bytes_get(i64, i64)",
         "declare i64 @sl_bytes_set(i64, i64, i64)",
+        // A fresh `Bytes` from a pointer-length span: the constant
+        // `Bytes` emission (the P14 constant-emission path) and the
+        // canonical ABI glue both materialise buffers through it.
+        "declare i64 @sl_bytes_from_data(i64, i64)",
         // Structured concurrency and runtime I/O (concurrency
         // specification sections 2, 4 and 9; `compiler/runtime/src/task.rs`).
         "declare i64 @sl_scope_open()",
@@ -292,6 +296,20 @@ fn quote(name: &str) -> String {
         }
     }
     s.push('"');
+    s
+}
+
+/// The LLVM `c"..."` spelling of constant bytes (the constant `Bytes`
+/// emission): printable ASCII except `"` and `\` stays literal, every
+/// other byte is a hex escape.
+fn c_string_bytes(buf: &[u8]) -> String {
+    let mut s = String::with_capacity(buf.len());
+    for &b in buf {
+        match b {
+            0x20..=0x7E if b != b'"' && b != b'\\' => s.push(b as char),
+            _ => s.push_str(&format!("\\{b:02X}")),
+        }
+    }
     s
 }
 
@@ -2571,6 +2589,8 @@ fn core_body(b: &mut Builder, reg: &Registry, f: &FnDef) -> Result<()> {
         b,
         reg,
         unit: f.id.0.clone(),
+        unit_arity: f.arity(),
+        loop_label: String::new(),
         bound: bound.into_iter().collect(),
         slots: HashMap::new(),
     };
@@ -2578,15 +2598,22 @@ fn core_body(b: &mut Builder, reg: &Registry, f: &FnDef) -> Result<()> {
         let slot = e.slot(LocalId(i));
         e.b.line(&format!("store i64 %p{i}, ptr {slot}"));
     }
-    let v = e.emit_expr(&f.body)?;
-    e.b.line(&format!("ret i64 {v}"));
-    Ok(())
+    // Tail recursion runs in constant stack (surface grammar local
+    // amendments section 9; decision D104): the body runs under a loop
+    // header after the entry block's parameter spills and allocas, so a
+    // saturated self tail call stores its arguments over the parameter
+    // slots and jumps here instead of growing the stack.
+    let loop_label = e.b.label();
+    e.b.line(&format!("br label %{loop_label}"));
+    e.b.start(&loop_label);
+    e.loop_label = loop_label;
+    e.emit_tail(&f.body)
 }
 
 /// The primitive operations mentioned in a body.
 fn collect_prims(e: &Core, out: &mut BTreeSet<PrimOp>) {
     match e {
-        Core::Int(_) | Core::ConstBig { .. } | Core::Bool(_) | Core::Unit | Core::Var(_)
+        Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::Bool(_) | Core::Unit | Core::Var(_)
         | Core::Global(_)
         | Core::Ctor(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc
         | Core::BoxAlloc
@@ -2641,7 +2668,7 @@ fn collect_prims(e: &Core, out: &mut BTreeSet<PrimOp>) {
 fn collect_binders(e: &Core, out: &mut Vec<LocalId>) {
     match e {
         Core::Int(_)
-        | Core::ConstBig { .. }
+        | Core::ConstBig { .. } | Core::ConstBytes(_)
         | Core::Bool(_)
         | Core::Unit
         | Core::Var(_)
@@ -2706,6 +2733,12 @@ struct CoreEmitter<'a, 'b> {
     reg: &'a Registry,
     /// The unit's name, for unique private constant names.
     unit: String,
+    /// The unit's parameter count: the tail-call rules compare callee
+    /// signatures against it (decision D104).
+    unit_arity: usize,
+    /// The loop header a saturated self tail call jumps to (decision
+    /// D104).
+    loop_label: String,
     bound: HashSet<LocalId>,
     slots: HashMap<LocalId, String>,
 }
@@ -2773,6 +2806,28 @@ impl CoreEmitter<'_, '_> {
                 "internal error: a compile-time value reached code generation (staging values never enter target code)",
             )),
             Core::Int(i) => Ok(i.to_string()),
+            Core::ConstBytes(buf) => {
+                // A constant `Bytes` buffer: the contents are a private
+                // constant and the runtime materialises a fresh buffer
+                // from it (the P14 constant-emission path).
+                let unit = self.unit.clone();
+                let name = self.b.dec_name(&unit);
+                self.b.global(format!(
+                    "@{} = private constant [{} x i8] c\"{}\"",
+                    quote(&name),
+                    buf.len(),
+                    c_string_bytes(buf)
+                ));
+                let p = self.b.reg();
+                self.b
+                    .line(&format!("{p} = ptrtoint ptr @{} to i64", quote(&name)));
+                let r = self.b.reg();
+                self.b.line(&format!(
+                    "{r} = call i64 @sl_bytes_from_data(i64 {p}, i64 {})",
+                    buf.len()
+                ));
+                Ok(r)
+            }
             Core::ConstBig { nat, digits } => {
                 // A boxed bignum word (core.rs): the fast path boxes an
                 // `i64` immediate, the slow path parses a private decimal
@@ -2876,40 +2931,7 @@ impl CoreEmitter<'_, '_> {
                 ));
                 Ok(r)
             }
-            Core::App(f, args) => {
-                if let Some((unit, arity)) = self.known_unit(f) {
-                    if arity == args.len() {
-                        let mut vals = Vec::with_capacity(args.len());
-                        for a in args {
-                            let v = self.emit_expr(a)?;
-                            vals.push(format!("i64 {v}"));
-                        }
-                        let r = self.b.reg();
-                        self.b.line(&format!(
-                            "{r} = call i64 @{}({})",
-                            quote(&unit),
-                            vals.join(", ")
-                        ));
-                        return Ok(r);
-                    }
-                }
-                let fv = self.emit_expr(f)?;
-                let mut vals = Vec::with_capacity(args.len());
-                for a in args {
-                    vals.push(self.emit_expr(a)?);
-                }
-                let buf = self.b.alloca_words(args.len());
-                for (i, v) in vals.iter().enumerate() {
-                    let p = self.b.gep(&buf, i * 8);
-                    self.b.line(&format!("store i64 {v}, ptr {p}"));
-                }
-                let r = self.b.reg();
-                self.b.line(&format!(
-                    "{r} = call i64 @__apply(i64 {fv}, i64 {}, ptr {buf})",
-                    args.len()
-                ));
-                Ok(r)
-            }
+            Core::App(f, args) => self.emit_app(f, args),
             Core::Lam { fn_id, env } => {
                 let arity = self.reg.arity_of(&fn_id.0)?;
                 if env.len() > arity {
@@ -3061,11 +3083,162 @@ impl CoreEmitter<'_, '_> {
                 self.b.store_at(&p, 8, &tv);
                 Ok("0".to_string())
             }
-            Core::Case { scrut, alts } => self.emit_case(scrut, alts),
+            Core::Case { scrut, alts } => match self.emit_case(scrut, alts, false)? {
+                Some(v) => Ok(v),
+                None => err("internal error: a value-position case emitted no result"),
+            },
         }
     }
 
-    fn emit_case(&mut self, scrut: &Core, alts: &[CAlt<Core>]) -> Result<String> {
+    /// Emit an application: a saturated call of a known unit is a direct
+    /// `call`; anything else (a dynamic head, a partial application, an
+    /// over-application) goes through the `__apply` stub.
+    fn emit_app(&mut self, f: &Core, args: &[Core]) -> Result<String> {
+        if let Some((unit, arity)) = self.known_unit(f) {
+            if arity == args.len() {
+                let mut vals = Vec::with_capacity(args.len());
+                for a in args {
+                    let v = self.emit_expr(a)?;
+                    vals.push(format!("i64 {v}"));
+                }
+                let r = self.b.reg();
+                self.b.line(&format!(
+                    "{r} = call i64 @{}({})",
+                    quote(&unit),
+                    vals.join(", ")
+                ));
+                return Ok(r);
+            }
+        }
+        let fv = self.emit_expr(f)?;
+        let mut vals = Vec::with_capacity(args.len());
+        for a in args {
+            vals.push(self.emit_expr(a)?);
+        }
+        let buf = self.b.alloca_words(args.len());
+        for (i, v) in vals.iter().enumerate() {
+            let p = self.b.gep(&buf, i * 8);
+            self.b.line(&format!("store i64 {v}, ptr {p}"));
+        }
+        let r = self.b.reg();
+        self.b.line(&format!(
+            "{r} = call i64 @__apply(i64 {fv}, i64 {}, ptr {buf})",
+            args.len()
+        ));
+        Ok(r)
+    }
+
+    /// Emit `e` in tail position: the unit returns whatever `e` produces
+    /// (surface grammar local amendments section 9; decision D104). The
+    /// caller has already emitted its entry block (the parameter spills
+    /// and allocas) and branched to the loop header this emitter jumps
+    /// back to.
+    ///
+    /// - A saturated call of this very unit evaluates its arguments into
+    ///   registers first, then stores them over the unit's parameter
+    ///   slots and jumps to the loop header: constant stack however deep
+    ///   the recursion runs.
+    /// - A tail call to a known unit with the caller's exact arity is a
+    ///   `musttail` call whose result returns directly (mutual tail
+    ///   recursion: the C ABI boundary does not keep frames).
+    /// - Anything else is an ordinary call followed by `ret`.
+    fn emit_tail(&mut self, e: &Core) -> Result<()> {
+        match e {
+            Core::Let(x, v, body) => {
+                if !self.bound.contains(x) {
+                    return err(format!("let binds unknown local {}", x.0));
+                }
+                let v = self.emit_expr(v)?;
+                let slot = self.slot(*x);
+                self.b.line(&format!("store i64 {v}, ptr {slot}"));
+                self.emit_tail(body)
+            }
+            Core::If(c, t, f) => {
+                let cv = self.emit_expr(c)?;
+                let cmp = self.b.reg();
+                self.b.line(&format!("{cmp} = icmp ne i64 {cv}, 0"));
+                let lthen = self.b.label();
+                let lelse = self.b.label();
+                let prof = match (t.weight, f.weight) {
+                    (Some(tw), Some(fw)) => {
+                        format!(", !prof {}", self.reg.branch_weights(&[tw, fw]))
+                    }
+                    _ => String::new(),
+                };
+                self.b.line(&format!(
+                    "br i1 {cmp}, label %{lthen}, label %{lelse}{prof}"
+                ));
+                self.b.start(&lthen);
+                self.emit_tail(&t.body)?;
+                self.b.start(&lelse);
+                self.emit_tail(&f.body)
+            }
+            Core::Case { scrut, alts } => self.emit_case(scrut, alts, true).map(|_| ()),
+            Core::App(f, args) => {
+                let direct = self
+                    .known_unit(f)
+                    .filter(|(_, arity)| *arity == args.len());
+                match direct {
+                    Some((unit, _)) if unit == self.unit => {
+                        // The self tail call: arguments first (a
+                        // cross-assignment like `sum (acc + n) (n - 1)`
+                        // must not clobber a slot mid-update), then the
+                        // parameter slots, then the jump.
+                        let mut vals = Vec::with_capacity(args.len());
+                        for a in args {
+                            vals.push(self.emit_expr(a)?);
+                        }
+                        for (i, v) in vals.iter().enumerate() {
+                            let slot = self.slot(LocalId(i));
+                            self.b.line(&format!("store i64 {v}, ptr {slot}"));
+                        }
+                        let loop_label = self.loop_label.clone();
+                        self.b.line(&format!("br label %{loop_label}"));
+                        Ok(())
+                    }
+                    Some((unit, arity)) if arity == self.unit_arity => {
+                        // Same signature as the caller, so `musttail` is
+                        // legal: the callee's frame replaces ours.
+                        let mut vals = Vec::with_capacity(args.len());
+                        for a in args {
+                            let v = self.emit_expr(a)?;
+                            vals.push(format!("i64 {v}"));
+                        }
+                        let r = self.b.reg();
+                        self.b.line(&format!(
+                            "{r} = musttail call i64 @{}({})",
+                            quote(&unit),
+                            vals.join(", ")
+                        ));
+                        self.b.line(&format!("ret i64 {r}"));
+                        Ok(())
+                    }
+                    _ => {
+                        let v = self.emit_app(f, args)?;
+                        self.b.line(&format!("ret i64 {v}"));
+                        Ok(())
+                    }
+                }
+            }
+            other => {
+                let v = self.emit_expr(other)?;
+                self.b.line(&format!("ret i64 {v}"));
+                Ok(())
+            }
+        }
+    }
+
+    /// Emit the scrutinee dispatch of a `Case`. In value position (`tail`
+    /// false) every alternative stores its result into one join slot and
+    /// the join block loads it; in tail position each alternative
+    /// tail-emits its body (`emit_tail`) and there is no join block
+    /// (decision D104).
+    fn emit_case(
+        &mut self,
+        scrut: &Core,
+        alts: &[CAlt<Core>],
+        tail: bool,
+    ) -> Result<Option<String>> {
         let sv = self.emit_expr(scrut)?;
         let sp = self.b.reg();
         self.b.line(&format!("{sp} = inttoptr i64 {sv} to ptr"));
@@ -3097,8 +3270,11 @@ impl CoreEmitter<'_, '_> {
             }
         }
 
-        let slot = self.b.alloca_i64();
-        let ljoin = self.b.label();
+        let (slot, ljoin) = if tail {
+            (None, None)
+        } else {
+            (Some(self.b.alloca_i64()), Some(self.b.label()))
+        };
         let ldefault = self.b.label();
         let mut alt_labels = Vec::with_capacity(cons.len());
         let mut sw = format!("switch i64 {tagv}, label %{ldefault} [");
@@ -3108,8 +3284,8 @@ impl CoreEmitter<'_, '_> {
             alt_labels.push(l);
         }
         sw.push_str("\n]");
-        // Branch weights (attribute annotations specification section
-        // 3.1): one weight per successor, and the default is always case
+        // Branch weights (attribute annotations specification
+        // section 3.1): one weight per successor, and the default is always case
         // #0 of an LLVM switch, so it is the first weight. The run-out
         // path of a covered match carries weight 0.
         let fully = !cons.is_empty()
@@ -3134,9 +3310,14 @@ impl CoreEmitter<'_, '_> {
                 let s = self.slot(*x);
                 self.b.line(&format!("store i64 {w}, ptr {s}"));
             }
-            let v = self.emit_expr(rhs)?;
-            self.b.line(&format!("store i64 {v}, ptr {slot}"));
-            self.b.line(&format!("br label %{ljoin}"));
+            if tail {
+                self.emit_tail(rhs)?;
+            } else {
+                let v = self.emit_expr(rhs)?;
+                self.b.line(&format!("store i64 {v}, ptr {}", slot.as_ref().unwrap()));
+                let lj = ljoin.as_ref().unwrap();
+                self.b.line(&format!("br label %{lj}"));
+            }
         }
 
         self.b.start(&ldefault);
@@ -3149,9 +3330,14 @@ impl CoreEmitter<'_, '_> {
                     let s = self.slot(x);
                     self.b.line(&format!("store i64 {sv}, ptr {s}"));
                 }
-                let v = self.emit_expr(rhs)?;
-                self.b.line(&format!("store i64 {v}, ptr {slot}"));
-                self.b.line(&format!("br label %{ljoin}"));
+                if tail {
+                    self.emit_tail(rhs)?;
+                } else {
+                    let v = self.emit_expr(rhs)?;
+                    self.b.line(&format!("store i64 {v}, ptr {}", slot.as_ref().unwrap()));
+                    let lj = ljoin.as_ref().unwrap();
+                    self.b.line(&format!("br label %{lj}"));
+                }
             }
             None => {
                 // The checker enforces coverage; an unmatched tag has no
@@ -3160,10 +3346,14 @@ impl CoreEmitter<'_, '_> {
             }
         }
 
-        self.b.start(&ljoin);
+        if tail {
+            return Ok(None);
+        }
+        let lj = ljoin.as_ref().unwrap();
+        self.b.start(lj);
         let r = self.b.reg();
-        self.b.line(&format!("{r} = load i64, ptr {slot}"));
-        Ok(r)
+        self.b.line(&format!("{r} = load i64, ptr {}", slot.as_ref().unwrap()));
+        Ok(Some(r))
     }
 }
 
@@ -3724,6 +3914,207 @@ mod tests {
         assert_eq!(run("fault_path", &main_prog(vec![], body)), 70);
     }
 
+    // ------------------------------------------------ tail calls (D104)
+
+    /// `sum acc n = if n == 0 then acc else sum (acc + n) (n - 1)`: a
+    /// self tail call under `If` with cross-assigning arguments.
+    fn sum_fn() -> FnDef {
+        fndef(
+            "T.sum",
+            &["acc", "n"],
+            Core::If(
+                Box::new(app(p(cmp(CmpOp::Eq)), vec![v(1), n(0)])),
+                CBranch::new(v(0)),
+                CBranch::new(app(
+                    g("T.sum"),
+                    vec![
+                        app(p(arith(ArithOp::Add)), vec![v(0), v(1)]),
+                        app(p(arith(ArithOp::Sub)), vec![v(1), n(1)]),
+                    ],
+                )),
+            ),
+        )
+    }
+
+    #[test]
+    fn self_tail_recursion_runs_in_constant_stack() {
+        // 1,000,000-deep self tail recursion sums 1..=1_000_000 in
+        // constant stack (surface grammar local amendments section 9);
+        // without the loop jump the process would die on the stack.
+        let body = Core::If(
+            Box::new(app(
+                p(cmp(CmpOp::Eq)),
+                vec![
+                    app(g("T.sum"), vec![n(0), n(1_000_000)]),
+                    n(500_000_500_000),
+                ],
+            )),
+            CBranch::new(n(0)),
+            CBranch::new(n(1)),
+        );
+        let prog = main_prog(vec![sum_fn()], body);
+        assert_eq!(run("self_tail_recursion_constant_stack", &prog), 0);
+        // The self call is a jump back to the loop header: the emitted
+        // unit never calls itself.
+        let ir = emit(&prog).expect("emit");
+        let unit = ir
+            .split("define i64 @\"T.sum\"")
+            .nth(1)
+            .and_then(|rest| rest.split("\n}\n").next())
+            .expect("T.sum body");
+        assert!(!unit.contains("call i64 @\"T.sum\""), "{unit}");
+        assert!(unit.contains("br label %"), "{unit}");
+    }
+
+    #[test]
+    fn mutual_tail_ping_pong_is_a_musttail_call() {
+        // Two units tail-calling each other 1,000,001 times run in
+        // constant stack through `musttail` calls (the signatures match
+        // exactly).
+        let ping = fndef(
+            "T.ping",
+            &["n"],
+            Core::If(
+                Box::new(app(p(cmp(CmpOp::Eq)), vec![v(0), n(0)])),
+                CBranch::new(n(0)),
+                CBranch::new(app(
+                    g("T.pong"),
+                    vec![app(p(arith(ArithOp::Sub)), vec![v(0), n(1)])],
+                )),
+            ),
+        );
+        let pong = fndef(
+            "T.pong",
+            &["n"],
+            Core::If(
+                Box::new(app(p(cmp(CmpOp::Eq)), vec![v(0), n(0)])),
+                CBranch::new(n(1)),
+                CBranch::new(app(
+                    g("T.ping"),
+                    vec![app(p(arith(ArithOp::Sub)), vec![v(0), n(1)])],
+                )),
+            ),
+        );
+        let prog = main_prog(vec![ping, pong], app(g("T.ping"), vec![n(1_000_001)]));
+        assert_eq!(run("mutual_tail_ping_pong", &prog), 1);
+        let ir = emit(&prog).expect("emit");
+        assert!(
+            ir.contains("musttail call i64 @\"T.pong\"")
+                && ir.contains("musttail call i64 @\"T.ping\""),
+            "mutual tail calls must be tail-marked:\n{ir}"
+        );
+    }
+
+    #[test]
+    fn self_tail_call_under_let_and_case() {
+        // The tail emitter runs through `Let` and `Case` tails: the loop
+        // is entered again from inside the case alternative.
+        // `boxsum acc n = let m = n - 1; bx = box n in case bx of
+        // box x -> if n == 0 then acc else boxsum (acc + x) m`;
+        // from `boxsum 0 3` the recursion sums 3 + 2 + 1 = 6.
+        let boxx = ctor_fn("T.box", &["x"], 0, 1);
+        let body = Core::Let(
+            LocalId(2),
+            Box::new(app(p(arith(ArithOp::Sub)), vec![v(1), n(1)])),
+            Box::new(Core::Let(
+                LocalId(4),
+                Box::new(app(ct("T.box"), vec![v(1)])),
+                Box::new(Core::Case {
+                    scrut: Box::new(v(4)),
+                    alts: vec![CAlt {
+                        pat: CPat::Con { tag: 0, fields: vec![LocalId(3)] },
+                        weight: None,
+                        body: Box::new(Core::If(
+                            Box::new(app(p(cmp(CmpOp::Eq)), vec![v(1), n(0)])),
+                            CBranch::new(v(0)),
+                            CBranch::new(app(
+                                g("T.boxsum"),
+                                vec![app(p(arith(ArithOp::Add)), vec![v(0), v(3)]), v(2)],
+                            )),
+                        )),
+                    }],
+                }),
+            )),
+        );
+        let f = fndef("T.boxsum", &["acc", "n"], body);
+        let prog = main_prog(vec![boxx, f], app(g("T.boxsum"), vec![n(0), n(3)]));
+        assert_eq!(run("self_tail_call_under_let_and_case", &prog), 6);
+        let ir = emit(&prog).expect("emit");
+        let unit = ir
+            .split("define i64 @\"T.boxsum\"")
+            .nth(1)
+            .and_then(|rest| rest.split("\n}\n").next())
+            .expect("T.boxsum body");
+        assert!(!unit.contains("call i64 @\"T.boxsum\""), "{unit}");
+    }
+
+    #[test]
+    fn tail_call_fallback_on_signature_mismatch_is_reported() {
+        // `f a b = if a == 0 then 0 else g (a - 1)` tail-calls `g`, whose
+        // arity differs from `f`'s: `musttail` needs identical
+        // signatures, so the group falls back to ordinary calls and the
+        // report says so (surface grammar local amendments section 9).
+        let f = fndef(
+            "T.f",
+            &["a", "b"],
+            Core::If(
+                Box::new(app(p(cmp(CmpOp::Eq)), vec![v(0), n(0)])),
+                CBranch::new(n(0)),
+                CBranch::new(app(
+                    g("T.g"),
+                    vec![app(p(arith(ArithOp::Sub)), vec![v(0), n(1)])],
+                )),
+            ),
+        );
+        let gg = fndef("T.g", &["x"], app(g("T.f"), vec![v(0), v(0)]));
+        let prog = main_prog(vec![f, gg], app(g("T.f"), vec![n(3), n(0)]));
+        assert_eq!(run("tail_call_fallback_runs", &prog), 0);
+        let ir = emit(&prog).expect("emit");
+        assert!(
+            !ir.contains("musttail"),
+            "a signature mismatch must not be tail-marked:\n{ir}"
+        );
+        let groups = crate::core::tail_report(&prog);
+        assert_eq!(groups.len(), 1, "{groups:?}");
+        assert_eq!(groups[0].members, vec!["T.f", "T.g"]);
+        assert_eq!(
+            groups[0].mark,
+            "fallback (tail call T.f -> T.g: arity 1 differs from caller arity 2)"
+        );
+    }
+
+    #[test]
+    fn tail_report_marks_recursive_groups() {
+        // The self-recursive sum and the mutual ping-pong are groups of
+        // the call graph, both marked; the non-recursive thunk forms no
+        // group.
+        let ping = fndef(
+            "T.ping",
+            &["n"],
+            Core::If(
+                Box::new(app(p(cmp(CmpOp::Eq)), vec![v(0), n(0)])),
+                CBranch::new(n(0)),
+                CBranch::new(app(g("T.pong"), vec![v(0)])),
+            ),
+        );
+        let pong = fndef(
+            "T.pong",
+            &["n"],
+            Core::If(
+                Box::new(app(p(cmp(CmpOp::Eq)), vec![v(0), n(0)])),
+                CBranch::new(n(1)),
+                CBranch::new(app(g("T.ping"), vec![v(0)])),
+            ),
+        );
+        let prog = main_prog(vec![sum_fn(), ping, pong], app(g("T.sum"), vec![n(0), n(3)]));
+        let groups = crate::core::tail_report(&prog);
+        assert_eq!(groups.len(), 2, "{groups:?}");
+        assert_eq!(groups[0].members, vec!["T.ping", "T.pong"]);
+        assert_eq!(groups[0].mark, "marked");
+        assert_eq!(groups[1].members, vec!["T.sum"]);
+        assert_eq!(groups[1].mark, "marked");
+    }
+
     // ------------------------------------------------ mathematical Nat/Int and Bytes
 
     #[test]
@@ -4157,6 +4548,12 @@ fn reify(out: &mut Vec<QWord>, e: &Core, reg: &Registry) -> Result<()> {
             return err(
                 "a quotation body cannot contain staging values \
                  (a nested quotation is not reified yet)",
+            )
+        }
+        Core::ConstBytes(_) => {
+            return err(
+                "a constant `Bytes` buffer is not reified into a quotation body yet \
+                 (the literal fold leaves class calls inside quotation bodies)",
             )
         }
     }
