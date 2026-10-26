@@ -435,6 +435,29 @@ correspondence: one lexeme in expression/pattern, staging `Name`, and
   distinct; `(,)`/`(,,)` formers partial-apply structural tuples;
   record fields keep the full-application rule (`field :: Result e`
   rejects).
+- **D156 (A7 Traversable shape)**: `Traversable`'s methods state
+  `Applicative f` per method (without it a one-parameter instance is
+  unimplementable); instances use the effect dictionary, and the
+  first-error short-circuit order is preserved by the left bias of the
+  `Result`/`Option` applicatives under traversal-order nesting.
+- **D157 (A7 visitor instances)**: `Identity`/`Const` instances are
+  defined through their plain-function bodies (the headers' designated
+  plan); `Const` gets `Functor` only, its `Applicative` waits for the
+  prelude split's instance homes (it needs `Monoid` on the payload).
+- **D158 (A7 law-statement witnesses)**: the applicative-homomorphism
+  test takes an `f b` witness; without it `f` is undetermined and
+  dictionary resolution is ambiguous. Check-only law statements keep
+  the two-argument shape.
+- **D159 (A7 instance placement)**: instance families for
+  `Prelude.lang` types are parked in the class modules with the
+  deviation stated in each header (they move to `Data.*` homes at the
+  prelude split); `((->) r)` instances are structural and permanent;
+  `Data.Compose` ships as type plus `get-compose` only.
+- **D160 (A7 method-constraint conversion)**: a class method's own
+  `using` constraint converts against the class parameters plus the
+  method's accumulated binders (previously class parameters only,
+  which rejected `traverse`'s `using (app :: Applicative f)` naming its
+  own `forall f`).
 - **D127 (P25 scaffolding ruling)**: FoldAgent's defunctionalized
   class shapes (`Foldable t a`, `Traversable t x g h tg hs`) are
   accepted as NON-CURATED scaffolding: they ship in the `Category`
