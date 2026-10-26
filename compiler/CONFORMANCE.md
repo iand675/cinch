@@ -280,6 +280,19 @@ correspondence: one lexeme in expression/pattern, staging `Name`, and
   full dotted name, so `module Category.Functor` never resolves);
   single-segment module headers are the accepted temporary deviation.
   CategoryAgent's probe signatures become the A7 acceptance fixtures.
+- **P25 progress (reported)**: the Algebra family landed
+  (`Algebra.Semigroup`/`Algebra.Monoid`, six instance-carrying
+  newtypes, 17 `lib_algebra.rs` tests: laws exhaustive over sample
+  triples). Two more checker gaps found and folded into A7:
+  `check_instance` substitutes the class parameter into instance
+  contexts WITHOUT capture avoidance (`using (sa :: Semigroup a) =>
+  Semigroup (Dual a)` silently rewrites `sa` to the instance head;
+  workaround is renaming params), and nullary class methods are
+  rejected (`ty.arity() == 0`, so `mempty :: Unit -> a` per the
+  prelude's own convention). Cross instances of prelude types are
+  parked in the class modules and move to `Data.*` homes at the
+  prelude split; `Nat` deliberately has no bare Semigroup (Sum/Product
+  choose its monoids).
 - **D125 (P25 base library curation, user-approved 2026-10-26)**:
   pulled in: `Algebra.Group`/`Algebra.Semiring`, `Data.Set` +
   `Data.Hash`/`Data.HashMap` (symbol hashing exploits Sym interning),
