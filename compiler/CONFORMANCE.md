@@ -207,8 +207,8 @@ and dash-style prelude function names.
 | --- | --- |
 | Dash identifiers and the minus whitespace contract (D102) | done (lexer + ast; whole minus table unit-tested (D128/D129); digits excluded from the right of a glue dash so `x-1` subtracts) |
 | Multi-binding `let` and guarded `letrec` (D103): recursion only under lambda/`~`/`delay`, eager cycles rejected with the fix named | done (fixpoint boxes with black-hole fault 70 (D131-D137); `tests/letrec.rs` 9/9) |
-| Tail recursion in constant stack, self and mutual (D104) | settled design ready to build (tail-position emitter; loop header for self; `musttail` for same-signature mutual groups; SCC report with fallback reasons) |
-| `[...]`/`{k => v}` literals desugaring to `FromList`/`FromMap`, with the prelude `Map` (D105) | settled design ready to build (expected-type instance selection; prelude `Map` BST) |
+| Tail recursion in constant stack, self and mutual (D104) | done (loop-header self-jumps + `musttail` mutual groups; 1,000,000-deep proofs; `tail_calls` manifest section with Tarjan SCC marks and fallback reasons (D138-D139); `tests/surface.rs` run-tests) |
+| `[...]`/`{k => v}` literals desugaring to `FromList`/`FromMap`, with the prelude `Map` (D105) | groundwork staged, desugar wiring building (`Term::Map` parses; `ConstBytes` emission (D140); shared `Bytes` in the eval VM (D141); `LitFold` markers (D142); the classes, `Map`, and the fold pass remain) |
 | Dash-style prelude function names (D106) | done (all 911 prelude-declared functions/methods renamed; compiler-side name references moved; builtin surface values and intrinsic symbols unchanged (D130)) |
 | Export declarations and re-exports (`export module X`, `export A.b`); imports private until re-exported (D107) | continuation building (design settled) |
 | Import renaming and selection (`import X as Y`, `import X (a as b)`); duplicate imports error naming both sources (D108) | continuation building (design settled) |
@@ -332,6 +332,28 @@ correspondence: one lexeme in expression/pattern, staging `Name`, and
   ordinary style before the continuation; a member body that itself
   dispatches an operation elaborates without a resumption, as local
   lambda bodies do.
+- **D138 (P19 tail-call manifest)**: the `tail_calls` manifest shape is
+  `{"groups": [{"members": [...], "mark": "marked" | "fallback
+  (<reason>)"}]}`; marking covers intra-group self/mutual tail edges
+  only (the spec's guarantee), with reasons like `applied to N
+  arguments, unit arity M`; dynamic tail calls and non-member calls do
+  not affect a group's mark, and a dynamic cycle through a first-class
+  self value is outside the static claim.
+- **D139 (P19 uniform loop header)**: every function body runs under
+  the loop header (one extra block per unit) so the self-jump path is
+  uniform; non-recursive units get no special casing.
+- **D140 (P19 bytes constant declare)**: `sl_bytes_from_data` is
+  declared `(i64, i64)`; every call site passes the pointer as an i64
+  word and the native ABI passes it identically (it was previously
+  called undeclared, which clang rejects).
+- **D141 (P19 eval-VM bytes sharing)**: the compile-time VM's `Bytes`
+  values are shared reference-counted buffers mirroring the runtime's
+  in-place mutation (copy-on-write would silently change semantics
+  under aliasing).
+- **D142 (P19 map-literal default)**: map literals in infer position
+  default to `Map k v`, symmetric with the list default (currently
+  they reject naming the unlanded `from-map` class until the wiring
+  lands).
 - **D127 (P25 scaffolding ruling)**: FoldAgent's defunctionalized
   class shapes (`Foldable t a`, `Traversable t x g h tg hs`) are
   accepted as NON-CURATED scaffolding: they ship in the `Category`
