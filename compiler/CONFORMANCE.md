@@ -487,6 +487,21 @@ correspondence: one lexeme in expression/pattern, staging `Name`, and
   exactly as at baseline; 07 rejects). Named gap: `tests/prelude_split.rs`
   unwritten (continuation). Proposed facade trim list recorded in the
   report (implementation helpers).
+- **D175 (P25 facade trim, approved pending execution)**: the 22
+  implementation helpers on the proposed trim list (`utf8-*` internals,
+  `list-byte-count`/`bytes-fill`/`bytes-from-list`,
+  `nat-digits-into`/`int-digits-into`/`pow10`,
+  `copy-bytes-into`/`compare-bytes-from`/`string-length-from`/
+  `string-char-at-from`/`string-byte-index-from`, `prod-fold-go`/
+  `prod-take-step`) leave the curated facade: every one is behind a
+  public wrapper, no `.lang` source anywhere references them, and
+  family-internal cross-module users import the homes directly. The
+  facade surface is pinned at 1016 names by `tests/prelude_split.rs`
+  (export list equals the checked surface name for name; every name
+  resolves through the implicit layer; `invert`/`show`/`hash` are
+  correctly absent and home-reachable). Execution of the trim rides
+  the P15 sweep, which re-verifies the examples against the trimmed
+  surface.
 - **D127 (P25 scaffolding ruling)**: FoldAgent's defunctionalized
   class shapes (`Foldable t a`, `Traversable t x g h tg hs`) are
   accepted as NON-CURATED scaffolding: they ship in the `Category`
