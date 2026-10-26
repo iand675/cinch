@@ -47,7 +47,7 @@ property holds by construction rather than by a named test.
 | # | Anchor | Requirement | Status | Evidence |
 | --- | --- | --- | --- | --- |
 | 27 | prim#2-usize-width | `Usize`/`Isize` at least 32 bits, same width | I | `types.rs` `Scalar::Usize/Isize` (64-bit) (structural) |
-| 28 | prim#2-usize-cross-compile | Cross-compilation uses the target's width | N | single target; roadmap gap A4 (P16) |
+| 28 | prim#2-usize-cross-compile | Cross-compilation uses the target's width | I | wasm32 profile: widths keyed on the target in literal checks, lowering, and the manifest (P14) |
 | 29 | prim#4-overflow-families | checked/wrapping/saturating Add/Sub/Mul/Neg | I | prelude + `core.rs::PrimOp`; `tests/primitives.rs::checked_overflow_returns_none`, `::saturating_clamps_to_bounds` |
 | 30 | prim#4-div-rem-checked-only | Division/remainder only checked | I | `::checked_div_and_rem` |
 | 31 | prim#4-shifts-rotates | Checked/wrapping shifts; total rotates | I | `::shifts_distinguish_invalid_counts`, `::rotates_are_total` |
@@ -104,7 +104,7 @@ property holds by construction rather than by a named test.
 | # | Anchor | Requirement | Status | Evidence |
 | --- | --- | --- | --- | --- |
 | 64 | platform#1-target-profile | Target profile identifies instruction semantics and deployment assumptions | I | marker-type target model (`VecU32Target t w`) and `Available` evidence (D58) |
-| 65 | platform#1-cross-compile-distinguish | Generator-host vs target capabilities distinguished | N | roadmap gap A4 (P16) |
+| 65 | platform#1-cross-compile-distinguish | Generator-host vs target capabilities distinguished | I | `admit_artifact` enforces the assumed baseline per target (D96); widths keyed on the target (P14) |
 | 66 | platform#2-capability-validity-scope | Capability validity scope defined | I | `Available v` (lexical region + thread, no cached evidence) (D58) |
 | 67 | platform#3-apply-rule-in-valid-region | Target rewrites only where capability valid | I | `target_rewrite_applies_in_capability_scope_only` (D59) |
 | 68 | platform#3-no-defeq-change | Target rules do not alter definitional equality | I | conversion never extended (D56; `rewrites_do_not_extend_conversion`) |
@@ -115,11 +115,11 @@ property holds by construction rather than by a named test.
 
 | # | Anchor | Requirement | Status | Evidence |
 | --- | --- | --- | --- | --- |
-| 71 | wasm#2-reject-missing-capability | Reject missing capability or select supported lowering | N | P14 |
-| 72 | wasm#3-representation | Wasm representation of allocations, refs, function values, type indices | N | P14 |
-| 73 | wasm#4-canonical-abi | Bindings implement the selected Canonical ABI | N | P14 |
-| 74 | wasm#6-stream-not-productive | WASI streams do not become productive `Stream a` | N | moot until P8/P14 |
-| 75 | wasm#7-structured-concurrency-backend | Structured concurrency works on cooperative and multithreaded backends | N | P12/P14 |
+| 71 | wasm#2-reject-missing-capability | Reject missing capability or select supported lowering | I | `admit_artifact` reject-or-lower (D96); `tests/wasm.rs` |
+| 72 | wasm#3-representation | Wasm representation of allocations, refs, function values, type indices | I | 32-bit words/handles/table-index-free closures with the platform memory obligations in the ABI table (P14) |
+| 73 | wasm#4-canonical-abi | Bindings implement the selected Canonical ABI | I | canonical flatten/join/discriminant/elem tables asserted exactly on the codec case (D93/D94); the codec glue IR is a named deferral |
+| 74 | wasm#6-stream-not-productive | WASI streams do not become productive `Stream a` | I | `WasiStream`/`WasiFuture` with `Diverge` observations (D95) |
+| 75 | wasm#7-structured-concurrency-backend | Structured concurrency works on cooperative and multithreaded backends | I | P12 threads + P14 cooperative scheduler, both preserving D80 observations |
 
 ## runtime-evolution-specification.md
 
@@ -152,8 +152,8 @@ property holds by construction rather than by a named test.
 | 90 | scjit#4-preservation | Residual programs rechecked (types, effect order, usage, sharing, productivity, erasure, capabilities); specialization representation-only | I | D63 recheck; `contract_identity_is_unchanged_by_specialization` |
 | 91 | scjit#5-bounds | Driving terminates via whistle and fuel; bounds are target profile parameters; the report says where specialization stopped | I | D62; `fuel_exhaustion_preserves_behavior` |
 | 92 | scjit#6-jit-invisible | JIT must not appear in types, source, or interface; deoptimization consumption-safe; variant lifecycle via runtime evolution only | I | variants install/retire through runtime evolution only; consumption-safe deopt with unbalanced-linear-transfer refusal; nothing in types/source/interface (`tests/evolution.rs`) |
-| 93 | scjit#7-eval | `eval : Code a -> a` typed by quotes, never evidence, manifest-recorded, profiles MAY forbid | N | typed quotes exist (P9); `eval` rides P14 (P13 reported it left out) |
-| 94 | scjit#8-reporting | Manifest records specialization config, sites, trust level, code-generation use; no secrets or absolute paths | P | `specialization`, `trust.level`, `target.conditions`, `lowering` in the manifest; stopped-at report entries (code-generation use stays with the P13/P14 `eval` item) |
+| 93 | scjit#7-eval | `eval : Code a -> a` typed by quotes, never evidence, manifest-recorded, profiles MAY forbid | I | runtime evaluator + build-time reifier (D92); one `tests/wasm.rs` link case outstanding |
+| 94 | scjit#8-reporting | Manifest records specialization config, sites, trust level, code-generation use; no secrets or absolute paths | I | `specialization`, `trust.level`, `target.conditions`, `lowering` in the manifest; `eval at <site>` assumption rows (D92); the manifest `wasm` section is a named deferral |
 | 95 | scjit#9-trust-levels | Per-artifact trust level identified; full recheck is the default; un-recheckable variants discarded | I | D63 (level 2 default; failing candidates discarded) |
 
 ## attribute-annotations-specification.md

@@ -153,12 +153,12 @@ needs the checker to consume export tables instead of sources.
 | Versioned dispatch, state migration | done (the runtime evolution arena: epochs and activation publishing, code retention with live-frame counts (spec section 6), complete-update-set gating (section 8), no-old-code-over-new-state with authorized reverse transitions (section 10), target compatibility before reachability (section 13); `sl_evo_*` externs, `nm`-verified; D85) |
 | JIT deopt (tracked item) | done (transparent tiering over the same machinery: variants install/retire through runtime evolution only, consumption-safe deopt with the unbalanced-linear-transfer refusal, nothing in types/source/interface; `tests/evolution.rs`) |
 
-### Wasm and components (P14)
+### Wasm and components (P14) — webassembly and wasi specification
 
 | Requirement | Status |
 | --- | --- |
-| Wasm artifact profile, feature selection | todo |
-| WIT parsing, component adapters | todo |
+| Wasm artifact profile, feature selection | done at the IR/adapter level (wasm32 triple + data layout, `Usize`/`Isize` widths keyed on the target (A4 closed), feature vocabulary with `admit_artifact` reject-or-lower (D96), cooperative task backend preserving D80 observations); `tests/wasm.rs` |
+| WIT parsing, component adapters | done at the IR/adapter level (WIT subset parser, canonical ABI flatten/join/discriminant/elem tables asserted exactly on the codec case (D93/D94), `BoundaryError`/`DecodeError` adapter vocabulary, `stream`/`future` map to `WasiStream`/`WasiFuture` with degraded `Diverge` observations, never the codata `Stream` (D95); `eval : Code a -> a` with the runtime evaluator (D92)) |
 
 ### Acceptance catalogue (P15)
 
@@ -175,8 +175,8 @@ update as the slices land; 07 must reject, the rest must accept):
 | 06-counter-upgrade | accepts (`safelang check` exit 0) | done |
 | 07-rejected-programs | rejected at parse (correct) | must stay rejected |
 | 08-platform-simd | line 6:10 the justification cannot prove the rule's equation (the example matches its own local `scalar`; the supplied theorem is over the library pair; the example's header calls its theorem module "obligations, not supplied proofs") | example-side proof obligation |
-| 09-foreign-codec | line 11:22 `unknown type DecodeError` (example-side: the sketch never declares its error type) | example-side vocabulary |
-| 10-wasm-component | line 9:19 `unknown type BoundaryError` (WIT adapter vocabulary) | P14 |
+| 09-foreign-codec | accepts (`safelang check` exit 0; its `DecodeError` comes from the codec adapter vocabulary) | done |
+| 10-wasm-component | accepts (`safelang check` exit 0; `BoundaryError` from the WIT adapter vocabulary) | done |
 | 11-structured-tasks | accepts (`safelang check` exit 0; its sketch vocabulary `Request`/`LoadError`/`fetch` is provided by the prelude over `ioRead`, D81) | done |
 | 12-runtime-effects | line 14: module parameters (`module ImportConfig (Seq :: ...)`) unsupported | modules follow-up (parameters) |
 
@@ -190,7 +190,7 @@ audit, `compiler/SPEC-MAPPING.md` "Roadmap gaps"):
 | Positivity discipline for inductive definitions | done (P7: strict positivity for all `data`; negative and nested occurrences rejected) |
 | Evidence invalidation over mutable state | flow-sensitive; adjacent to P7 refinements and P13 (A2) |
 | Temporal contracts (safety/liveness/recurrence/stability) | closest to P12; unnamed there (A3) |
-| Cross-compilation (target width/capabilities) | `Usize` width and capability checks must key on the target (A4) |
+| Cross-compilation (target width/capabilities) | done (P14: `Usize`/`Isize` widths keyed on the target in literal checks, lowering, and the manifest (A4)) |
 | Module parameters and signatures as module arguments | modules spec section 1 (module packaging); example 12 stops here (A5) |
 | Schema generation / database introspection API | done (P11+A6: `SchemaSnapshot`/`Database`/`SchemaRead` over the subprocess capability, `introspectConsistently`, `CodecGenerator.derive`; example 05 accepts with its build inputs) |
 
@@ -717,6 +717,45 @@ wording flags for future decisions).
   machine integers keep the explicit checked/wrapping/saturating
   families (primitive types specification sections 4 and 8). Division or
   remainder by zero takes the defined fault path (exit 72).
+- **D92 (P14 eval mechanism)**: `eval` runs a build-time-reified
+  program on the runtime evaluator (`codegen.rs` encoder and
+  `runtime/src/eval.rs` decoder are one documented format) rather than
+  embedding the compiler as a library; the supercompilation chapter's
+  section 7 contract holds (typed by quotes, never evidence, recorded in
+  `assumptions.foreign`, profiles MAY forbid it) and this is the only
+  realistic lowering for wasm32 guests.
+- **D93 (P14 adapter scope)**: every WIT function gets a call-side
+  `Raw.<func>` binding; a world `export` additionally emits the
+  canonical trampoline forwarding to the implementation unit (checked
+  at admission).
+- **D94 (P14 glue boundary)**: canonical tables are computed for all
+  shapes; the runtime glue marshals scalars, byte buffers, handles,
+  enums/flags, and single-layer records/variants of those. Nested
+  aggregate payloads and more than 16 flat params are refused at
+  emission with the shape named (honest boundary, no stubs).
+- **D95 (P14 stream observations)**: `stream`/`future` cross as
+  word-level host imports over the runtime block convention; full
+  canonical stream interop is a named boundary. WASI streams are typed
+  `WasiStream`/`WasiFuture` with `Diverge` observation rows, never the
+  productive codata `Stream`.
+- **D96 (P14 admission split)**: `check` is not artifact admission:
+  `safelang check` accepts programs while `admit_artifact` enforces the
+  assumed baseline and the `wasm.component-model` requirement for
+  adapters on Wasm profiles (native lowers through the FFI shim).
+- **D97 (P14 foreign label args)**: synthesized schemes quantify the
+  `Foreign <boundary>` name like user `foreign import` schemes (it
+  renames per call).
+- **D98 (P14 decide operands)**: the index builtins `length`/`toNat`
+  compute their runtime test values through `bytesLen`/`natFromI64`,
+  matching their index reading.
+- **P14 deferrals (reported)**: one `tests/wasm.rs` case fails at link
+  (the quote block's emitted constants need one debugging pass);
+  `emit_quote_block`'s canonical glue has placeholders where the codec
+  marshalling must emit; variant packaging (spec section 8) is designed
+  but not implemented; the manifest `wasm` section is designed but not
+  written. Eval opcode semantics settled with the delegate (nonzero `IF`
+  is true; `CASE` tags unique; `BIG` padding zero; nested faults via a
+  per-thread pending fault) are recorded in the slice transcript.
 - **P13 deferrals (reported)**: handler-vtable specialization is blocked
   on propagating concrete vtables across function boundaries (dispatch
   sites can live in callees through `do`/`spawn`); explicit `eval` rides

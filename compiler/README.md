@@ -98,6 +98,14 @@ The closure and dictionary ABI is documented in `src/core.rs`.
   `Ref r a`/`Mut r a` borrows with region escape checking and lexical `Mut`
   uniqueness, and thunk force discipline (`%1` exactly once, `%aff` at
   most once; unannotated thunks default `%aff`).
+- **Wasm and components** (webassembly and wasi specification): the
+  wasm32 artifact profile with target-keyed widths and feature
+  admission, the WIT subset parser with canonical-ABI component adapters
+  (the codec case asserted exactly; `BoundaryError`/`DecodeError`
+  adapter vocabulary), `WasiStream`/`WasiFuture` with degraded
+  observations (never the productive codata `Stream`), a cooperative
+  task backend preserving the memory model, and `eval : Code a -> a`
+  over a build-time-reified runtime evaluator.
 - **Runtime evolution** (runtime evolution specification): `upgrade`
   declarations with field-change classification and checked migrations,
   migration-free record views recording schema compatibility evidence in
