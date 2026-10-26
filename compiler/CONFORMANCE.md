@@ -157,8 +157,8 @@ needs the checker to consume export tables instead of sources.
 
 | Requirement | Status |
 | --- | --- |
-| Wasm artifact profile, feature selection | done at the IR/adapter level (wasm32 triple + data layout, `Usize`/`Isize` widths keyed on the target (A4 closed), feature vocabulary with `admit_artifact` reject-or-lower (D96), cooperative task backend preserving D80 observations); `tests/wasm.rs` |
-| WIT parsing, component adapters | done at the IR/adapter level (WIT subset parser, canonical ABI flatten/join/discriminant/elem tables asserted exactly on the codec case (D93/D94), `BoundaryError`/`DecodeError` adapter vocabulary, `stream`/`future` map to `WasiStream`/`WasiFuture` with degraded `Diverge` observations, never the codata `Stream` (D95); `eval : Code a -> a` with the runtime evaluator (D92)) |
+| Wasm artifact profile, feature selection | done (wasm32 triple + data layout with target-keyed widths (A4), `admit_artifact` reject-or-lower at artifact production with world-export obligations (D96/D99), cooperative task backend preserving D80 observations, and real builds honoring the profile at emission; `tests/wasm.rs` 11/11) |
+| WIT parsing, component adapters | done (WIT subset parser; canonical-ABI tables and the runtime glue for scalars/bytes/handles/enums/flags and single-layer aggregates, asserted exactly on the codec case (D93/D94/D99); `BoundaryError`/`DecodeError` vocabulary; `WasiStream`/`WasiFuture` with degraded `Diverge` observations (D95); `eval` over the reified runtime evaluator with its end-to-end case green (D92); variant packaging round trip through the P13 machinery (D100); manifest `wasm` section) |
 
 ### Acceptance catalogue (P15)
 
@@ -748,14 +748,33 @@ wording flags for future decisions).
 - **D98 (P14 decide operands)**: the index builtins `length`/`toNat`
   compute their runtime test values through `bytesLen`/`natFromI64`,
   matching their index reading.
-- **P14 deferrals (reported)**: one `tests/wasm.rs` case fails at link
-  (the quote block's emitted constants need one debugging pass);
-  `emit_quote_block`'s canonical glue has placeholders where the codec
-  marshalling must emit; variant packaging (spec section 8) is designed
-  but not implemented; the manifest `wasm` section is designed but not
-  written. Eval opcode semantics settled with the delegate (nonzero `IF`
-  is true; `CASE` tags unique; `BIG` padding zero; nested faults via a
-  per-thread pending fault) are recorded in the slice transcript.
+- **P14 deferrals (reported)**: all four continuation items are closed
+  (the quote-block link case is green; the canonical glue emits the
+  codec marshalling; variant packaging round-trips through the P13
+  machinery; the manifest `wasm` section records profiles and adapters).
+  The standing emission boundary (D94) is unchanged: nested aggregate
+  payloads, non-`u8` element lists, and more than 16 flat parameters
+  refuse at emission with the shape named, while their canonical tables
+  are still computed and recorded. Eval opcode semantics settled with
+  the delegate (nonzero `IF` is true; `CASE` tags unique; `BIG` padding
+  zero; nested faults via a per-thread pending fault) are recorded in
+  the slice transcript.
+- **D99 (P14 canonical glue target)**: the canonical ABI is the wasm32
+  shape (i32 pointer slots, canonical memory layout), so adapter glue
+  emits for Wasm artifact profiles only and native emission refuses with
+  a named diagnostic (revising D96's FFI-shim remark: there is no native
+  canonical lowering). `admit_artifact` runs at artifact production and
+  enforces the assumed baseline and world-export implementation
+  obligations (a `world` export without its implementation is rejected).
+- **D100 (P14 packaging identity)**: a packaged variant's identity is
+  the content hash of its emitted module produced through the same
+  optimization path as a build, so profile parameters are part of the
+  artifact's meaning; the loader record is deterministic and re-loadable
+  by re-packaging.
+- **D101 (P14 stale runtime libraries)**: `ensure_runtime` treats a
+  staticlib older than any runtime source as absent and rebuilds; a
+  stale `libslruntime.a` silently drops newer `sl_*` entry points (the
+  root cause of the eval link failure).
 - **P13 deferrals (reported)**: handler-vtable specialization is blocked
   on propagating concrete vtables across function boundaries (dispatch
   sites can live in callees through `do`/`spawn`); explicit `eval` rides

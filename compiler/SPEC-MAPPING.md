@@ -117,7 +117,7 @@ property holds by construction rather than by a named test.
 | --- | --- | --- | --- | --- |
 | 71 | wasm#2-reject-missing-capability | Reject missing capability or select supported lowering | I | `admit_artifact` reject-or-lower (D96); `tests/wasm.rs` |
 | 72 | wasm#3-representation | Wasm representation of allocations, refs, function values, type indices | I | 32-bit words/handles/table-index-free closures with the platform memory obligations in the ABI table (P14) |
-| 73 | wasm#4-canonical-abi | Bindings implement the selected Canonical ABI | I | canonical flatten/join/discriminant/elem tables asserted exactly on the codec case (D93/D94); the codec glue IR is a named deferral |
+| 73 | wasm#4-canonical-abi | Bindings implement the selected Canonical ABI | I | canonical tables + runtime glue (scalars/bytes/handles/enums/flags, single-layer aggregates) asserted exactly on the codec case (D93/D94/D99); uncovered shapes refuse at emission with the shape named |
 | 74 | wasm#6-stream-not-productive | WASI streams do not become productive `Stream a` | I | `WasiStream`/`WasiFuture` with `Diverge` observations (D95) |
 | 75 | wasm#7-structured-concurrency-backend | Structured concurrency works on cooperative and multithreaded backends | I | P12 threads + P14 cooperative scheduler, both preserving D80 observations |
 
@@ -152,8 +152,8 @@ property holds by construction rather than by a named test.
 | 90 | scjit#4-preservation | Residual programs rechecked (types, effect order, usage, sharing, productivity, erasure, capabilities); specialization representation-only | I | D63 recheck; `contract_identity_is_unchanged_by_specialization` |
 | 91 | scjit#5-bounds | Driving terminates via whistle and fuel; bounds are target profile parameters; the report says where specialization stopped | I | D62; `fuel_exhaustion_preserves_behavior` |
 | 92 | scjit#6-jit-invisible | JIT must not appear in types, source, or interface; deoptimization consumption-safe; variant lifecycle via runtime evolution only | I | variants install/retire through runtime evolution only; consumption-safe deopt with unbalanced-linear-transfer refusal; nothing in types/source/interface (`tests/evolution.rs`) |
-| 93 | scjit#7-eval | `eval : Code a -> a` typed by quotes, never evidence, manifest-recorded, profiles MAY forbid | I | runtime evaluator + build-time reifier (D92); one `tests/wasm.rs` link case outstanding |
-| 94 | scjit#8-reporting | Manifest records specialization config, sites, trust level, code-generation use; no secrets or absolute paths | I | `specialization`, `trust.level`, `target.conditions`, `lowering` in the manifest; `eval at <site>` assumption rows (D92); the manifest `wasm` section is a named deferral |
+| 93 | scjit#7-eval | `eval : Code a -> a` typed by quotes, never evidence, manifest-recorded, profiles MAY forbid | I | runtime evaluator + build-time reifier (D92); end-to-end case green (`eval [| 40 + 2 |]` = 42) |
+| 94 | scjit#8-reporting | Manifest records specialization config, sites, trust level, code-generation use; no secrets or absolute paths | I | `specialization`, `trust.level`, `target.conditions`, `lowering`, the `wasm` section (profiles/adapters/lowerings), and `eval at <site>` assumption rows |
 | 95 | scjit#9-trust-levels | Per-artifact trust level identified; full recheck is the default; un-recheckable variants discarded | I | D63 (level 2 default; failing candidates discarded) |
 
 ## attribute-annotations-specification.md
