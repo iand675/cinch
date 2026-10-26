@@ -194,6 +194,28 @@ audit, `compiler/SPEC-MAPPING.md` "Roadmap gaps"):
 | Module parameters and signatures as module arguments | modules spec section 1 (module packaging); example 12 stops here (A5) |
 | Schema generation / database introspection API | done (P11+A6: `SchemaSnapshot`/`Database`/`SchemaRead` over the subprocess capability, `introspectConsistently`, `CodecGenerator.derive`; example 05 accepts with its build inputs) |
 
+### Primitive operations and inline target IR (P18)
+
+Specified in
+`specifications/primitive-operations-and-inline-target-ir-specification.md`
+(normative) and `design/inline-target-ir.md` (implementation reference),
+2026-10-26, at the user's direction: `prim` declarations with inline
+per-target-IR bodies (LLVM now; Wasm/asm/CLR/JVM families registered),
+selected by capability evidence like `target rewrite`, justified by law
+evidence or recorded as assumptions, with containment validation
+(no-escape, no-unwind, declared effects). Replaces the closed `PrimOp`
+set as the extension path so operations like arithmetic need no foreign
+call surface. Implementation rides P18, after P14 clears the code
+generator.
+
+| Requirement | Status |
+| --- | --- |
+| `prim` declarations: signature discipline, inline bodies per target-IR family | spec'd |
+| Selection by capability condition with baseline rule; selection never in the contract, always in the manifest | spec'd |
+| `justify`/assumed tiers: justified bodies are representation (contract = signature + law identity); assumed bodies carry body identity | spec'd |
+| Containment validation (no-escape via `uses` contracts, no-unwind, declared effects, family grammar) | spec'd |
+| Migration path for the intrinsic families (intrinsic namespaces stay reserved, D73) | spec'd |
+
 ### Attributes, weights, inline hints, and layout (P17)
 
 Specified in `specifications/attribute-annotations-specification.md`

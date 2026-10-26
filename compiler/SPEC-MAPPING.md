@@ -167,6 +167,16 @@ property holds by construction rather than by a named test.
 | 100 | attr#4-representations | `repr(C)`/`transparent`/`align`/`packed`/`uN`, C layout algorithm, layout facts in the ABI table and contract hash, packed-borrow rule | I | `tests/attributes.rs`; boundary and runtime field access now use the recorded offsets (P11: `Program.plans`, packed byte-exact loads) |
 | 101 | attr#5-inline | `#[inline]`/`#[inline(always)]`/`#[inline(never)]`/`#[noinline]` and function `#[cold]` as erasable hints | I | `tests/attributes.rs` (LLVM emission; duplicates rejected) |
 
+## primitive-operations-and-inline-target-ir-specification.md
+
+| # | Anchor | Requirement | Status | Evidence |
+| --- | --- | --- | --- | --- |
+| 102 | prim#2-declarations | `prim` declarations with monomorphic closed-row types and inline per-family bodies | N | rides P18 |
+| 103 | prim#4-validation | Containment validation: signature discipline, no-escape via `uses`, no-unwind, declared effects, family grammar | N | rides P18 |
+| 104 | prim#5-justification | `justify`/assumed tiers with the law/assumption identity rules (justified = representation-only) | N | rides P18; reuses D55 machinery |
+| 105 | prim#6-selection | Capability-scoped selection with the baseline rule; selection in the manifest, never the contract | N | rides P18; reuses D58/D59 machinery |
+| 106 | prim#8-reporting | Per-prim report and manifest entries (family, condition, tier, uses, validation) | N | rides P18 |
+
 ## Roadmap gaps (unplanned requirements)
 
 Flagged by the audit as MUSTs no P1-P15 phase owns; added as phase P16 in

@@ -38,6 +38,7 @@ export default defineConfig({
             { label: 'Runtime evolution', link: '/specifications/runtime-evolution-specification/' },
             { label: 'Attribute annotations and branch weights', link: '/specifications/attribute-annotations-specification/' },
             { label: 'Supercompilation and JIT', link: '/specifications/supercompilation-and-jit-specification/' },
+            { label: 'Primitive operations and inline target IR', link: '/specifications/primitive-operations-and-inline-target-ir-specification/' },
           ],
         },
         {
