@@ -502,6 +502,23 @@ correspondence: one lexeme in expression/pattern, staging `Name`, and
   correctly absent and home-reachable). Execution of the trim rides
   the P15 sweep, which re-verifies the examples against the trimmed
   surface.
+- **D176-D181 (P20 implementation, reported; detail in
+  `history://SafetySlice`)**: the full assertion vocabulary with its
+  argument grammar and placement rules verifies at the definition with
+  offending-site errors (D111/D112 live); satisfied assertions become
+  contract facts as `assertions` + `must_use` rows in `.sliface` and
+  `iface_hash` (the `repr` precedent); recursion/stack group
+  verification reuses D104's `core::tail_report` plus a `core::calls_to`
+  scan; `bounded(x)` proves structural depth first
+  (`decrease_bound` size-index detection), falls back to conservative
+  call-graph bounds with the report saying which, and REFUSES what it
+  cannot bound (D113 live); the Result must-use default rejects
+  discards without `ignore` (D114 live); the `jpl` profile exists both
+  as a module attribute and `TargetProfile::jpl()` with the
+  whole-program summary in `StageReport.safety`. Named follow-ups
+  (continuation): the `tests/safety.rs` acceptance matrix (source
+  syntaxes gathered), the manifest `"safety"` section, and empirical
+  tuning of message needles and `decrease_bound` detection.
 - **D127 (P25 scaffolding ruling)**: FoldAgent's defunctionalized
   class shapes (`Foldable t a`, `Traversable t x g h tg hs`) are
   accepted as NON-CURATED scaffolding: they ship in the `Category`

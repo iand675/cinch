@@ -808,6 +808,10 @@ pub enum Decl {
 
 #[derive(Clone, Debug)]
 pub struct Module {
+    /// `#[...]` attributes before the `module` keyword (attribute
+    /// annotations specification section 10: `#[profile "jpl"]` and
+    /// `#[deny-warnings]` on a module header).
+    pub attrs: Vec<Attribute>,
     pub name: Name,
     /// The parameter block of `module M (x :: T, ...) where` (module
     /// parameters as module arguments): ordinary bindings in the module

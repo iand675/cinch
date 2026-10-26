@@ -1932,6 +1932,11 @@ impl Checker {
         let module = m.name.text.clone();
         self.current_module = module.clone();
         self.module_names.insert(module.clone());
+        // Module header safety state (attribute annotations
+        // specification section 10): `#[profile "jpl"]` and
+        // `#[deny-warnings]` scope the whole module.
+        self.module_safety
+            .insert(module.clone(), validate_module_attrs(&m.attrs)?);
         // A parameter block (`module M (x :: T, ...) where`, module
         // parameters as module arguments): the module's values are reached
         // only through instantiation units. The parameter types convert
@@ -2143,13 +2148,20 @@ impl Checker {
                 }
                 ast::Decl::ValueSig { name, modifier, owned_attrs, ty, span } => {
                     // Function declarations carry the hint attributes of
-                    // attribute annotations specification section 5.
+                    // attribute annotations specification section 5 and
+                    // the safety assertions of section 10.
                     let set = self.validate_attr_site(decl_attrs, AttrSite::FnDecl)?;
+                    let fn_key = fn_id(&module, &name.text).0;
                     self.record_fn_hints(
-                        &fn_id(&module, &name.text).0,
+                        &fn_key,
                         set.inline,
                         set.fn_cold,
                         *span,
+                    )?;
+                    self.record_fn_safety(
+                        &fn_key,
+                        &set.safety,
+                        &format!("{}.{}", module, name.text),
                     )?;
                     let logical = match modifier.as_ref().map(|m| m.text.as_str()) {
                         None => None,
@@ -2267,15 +2279,22 @@ impl Checker {
                 }
                 ast::Decl::Equation { modifier, eq } => {
                     // Function declarations carry the hint attributes of
-                    // attribute annotations specification section 5; a
-                    // weight on a clause sits between the name and its
-                    // patterns (section 2).
+                    // attribute annotations specification section 5 and
+                    // the safety assertions of section 10; a weight on a
+                    // clause sits between the name and its patterns
+                    // (section 2).
                     let set = self.validate_attr_site(decl_attrs, AttrSite::FnDecl)?;
+                    let fn_key = fn_id(&module, &eq.name.text).0;
                     self.record_fn_hints(
-                        &fn_id(&module, &eq.name.text).0,
+                        &fn_key,
                         set.inline,
                         set.fn_cold,
                         eq.span,
+                    )?;
+                    self.record_fn_safety(
+                        &fn_key,
+                        &set.safety,
+                        &format!("{}.{}", module, eq.name.text),
                     )?;
                     match modifier.as_ref().map(|m| m.text.as_str()) {
                         None | Some("spec") | Some("proof") | Some("corec") | Some("stage")
@@ -3689,6 +3708,24 @@ impl Checker {
                     }
                     out.repr = Some(spec);
                 }
+                // P20: the safety assertion vocabulary (attribute
+                // annotations specification section 10). Every
+                // assertion attaches to a function definition and is
+                // verified there.
+                "recursion" | "stack" | "no-alloc" | "alloc" | "max-complexity" | "max-lines"
+                | "assert-min" | "checked-params" | "no-macros" | "no-raw-ptr"
+                | "deny-warnings" => {
+                    if site != AttrSite::FnDecl {
+                        return Err(Error::at(a.span, site.placement_error("safety")));
+                    }
+                    out.safety.fill_from(a)?;
+                }
+                "profile" => {
+                    return Err(Error::at(
+                        a.span,
+                        "`#[profile \"jpl\"]` annotates a module header (attribute annotations specification section 10)",
+                    ));
+                }
                 _ => {
                     if !macro_owned {
                         return Err(Error::at(
@@ -5013,6 +5050,14 @@ impl Checker {
         let (ty, ctx, _map) = self.rigidify(scheme);
         self.reset_usage();
         self.smaller.clear();
+        // P20: a fresh safety fact collector per definition (attribute
+        // annotations specification section 10).
+        self.cur_runtime_decides.clear();
+        self.cur_def_deny = self
+            .safety_attrs
+            .get(&id.0)
+            .map(|s| s.deny_warnings.is_some())
+            .unwrap_or(false);
         let mut env = Env::default();
         let mut param_ids = Vec::new();
         // Optimizer metadata (supercompilation and JIT specification
@@ -5195,7 +5240,7 @@ impl Checker {
             &mut clause_weights,
             &format!("the clauses of {name}"),
             eqs[0].span,
-        );
+        )?;
         let rows: Vec<Row> = eqs
             .iter()
             .enumerate()
@@ -5241,6 +5286,7 @@ impl Checker {
         // The body runs at the last application, so its effects belong to
         // the last arrow; intermediate arrows are pure closure construction,
         // and a nullary definition is pure.
+        let doms_safety = doms.clone();
         let saved = self.enter_perf();
         let body = if n_pats == 0 {
             self.check(&mut env.clone(), &rows[0].body, &rest)?
@@ -5288,6 +5334,24 @@ impl Checker {
         }
         self.check_usage()?;
         meta.pure = self.uni.resolve_row(&performed).is_pure();
+        // P20: the safety assertions are verified at the definition
+        // (attribute annotations specification section 10; decision
+        // D112): a violation is a compile error naming the attribute,
+        // the rule, and the offending site.
+        {
+            let module = self.current_module.clone();
+            let mut sig_tys: Vec<Ty> = doms_safety.iter().map(|t| self.uni.zonk(t)).collect();
+            sig_tys.push(self.uni.zonk(&rest));
+            self.verify_definition_safety(
+                &id.0,
+                &module,
+                name,
+                eqs,
+                &sig_tys,
+                logical,
+                eqs[0].span,
+            )?;
+        }
         if logical {
             // The logical fragment is total, pure and erased (core
             // specification sections 3 and 8): a looping function cannot
@@ -6922,6 +6986,7 @@ impl AttrSite {
             "inline" => {
                 "`#[inline]` is a hint on a function declaration (attribute annotations specification section 5)".to_string()
             }
+            "safety" => "`#[recursion]`, `#[stack]`, `#[no-alloc]`, `#[alloc]`, `#[max-complexity]`, `#[max-lines]`, `#[assert-min]`, `#[checked-params]`, `#[no-macros]`, `#[no-raw-ptr]` and `#[deny-warnings]` attach to a function definition (a signature or a top-level equation; attribute annotations specification section 10)".to_string(),
             "repr" => match self {
                 AttrSite::FnDecl | AttrSite::Decl | AttrSite::Ctor => {
                     "`#[repr(...)]` attaches to a `data` or `record` declaration (attribute annotations specification section 4.1)".to_string()
@@ -6934,7 +6999,7 @@ impl AttrSite {
 }
 
 /// What one attachment position's attribute list carries (attribute
-/// annotations specification sections 2, 3, 4 and 5).
+/// annotations specification sections 2, 3, 4, 5 and 10).
 #[derive(Clone, Debug, Default)]
 pub(crate) struct AttrSet {
     /// The one weight-family value (the wrappers ARE weights).
@@ -6944,6 +7009,9 @@ pub(crate) struct AttrSet {
     /// section 5.
     pub fn_cold: bool,
     pub repr: Option<ReprSpec>,
+    /// The P20 safety assertions (attribute annotations specification
+    /// section 10), verified at the definition.
+    pub safety: SafetySet,
 }
 
 /// The raw argument text of one attribute: the parenthesized list, or
@@ -7194,6 +7262,2175 @@ fn repr_item_error(t: &str) -> String {
     )
 }
 
+// ==================== P20: the safety assertion vocabulary ====================
+//
+// Attribute annotations specification section 10;
+// design/safety-assertion-attributes.md; decisions D111-D114. Every
+// attribute is compiler-owned and verified at the definition: a
+// violation is a compile error naming the attribute, the asserted rule,
+// and the offending site. A satisfied assertion is a contract fact
+// (recorded in `.sliface`, hashed into `iface_hash` exactly like `repr`
+// facts).
+
+/// The `bounded(x)` argument: a natural number literal (the depth bound
+/// as a number), or the name of the argument or size index the bound is
+/// measured by (the `Nat`/`Fin` bounded-counter pattern of
+/// design/safety-assertion-attributes.md rule 2).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum BoundArg {
+    Num(u64),
+    Name(String),
+}
+
+impl std::fmt::Display for BoundArg {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            BoundArg::Num(n) => write!(f, "{n}"),
+            BoundArg::Name(n) => write!(f, "{n}"),
+        }
+    }
+}
+
+/// `#[recursion "none"|"tail"|"bounded(n)"]` (section 10).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum RecursionSpec {
+    /// No recursive calls (self or mutual).
+    None,
+    /// All recursive calls are tail calls (constant stack).
+    Tail,
+    /// Call depth statically at most the bound.
+    Bounded(BoundArg),
+}
+
+/// `#[stack "constant"|"bounded(n)"]` (section 10).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum StackSpec {
+    /// Tail or non-recursive.
+    Constant,
+    /// Stack usage bounded by the bound.
+    Bounded(BoundArg),
+}
+
+/// The safety assertions one attachment position carries (section 10),
+/// each with the span naming the assertion in violations.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct SafetySet {
+    pub recursion: Option<(RecursionSpec, ast::Span)>,
+    pub stack: Option<(StackSpec, ast::Span)>,
+    pub no_alloc: Option<ast::Span>,
+    pub alloc_once: Option<ast::Span>,
+    pub max_complexity: Option<(u64, ast::Span)>,
+    pub max_lines: Option<(u64, ast::Span)>,
+    pub assert_min: Option<(u64, ast::Span)>,
+    pub checked_params: Option<ast::Span>,
+    pub no_macros: Option<ast::Span>,
+    pub no_raw_ptr: Option<ast::Span>,
+    pub deny_warnings: Option<ast::Span>,
+}
+
+impl SafetySet {
+    /// Validate one safety assertion's arguments and record it (attribute
+    /// annotations specification section 10).
+    fn fill_from(&mut self, a: &crate::ast::Attribute) -> Result<()> {
+        let span = a.span;
+        match a.name().as_str() {
+            "recursion" => {
+                self.recursion = Some((parse_recursion_args(a)?, span));
+            }
+            "stack" => {
+                self.stack = Some((parse_stack_args(a)?, span));
+            }
+            "no-alloc" => {
+                no_arg(a)?;
+                self.no_alloc = Some(span);
+            }
+            "alloc" => {
+                if quoted_arg(a)? != "once" {
+                    return Err(Error::at(
+                        span,
+                        "`#[alloc]` takes `\"once\"` (the initialization pattern of attribute annotations specification section 10)",
+                    ));
+                }
+                self.alloc_once = Some(span);
+            }
+            "max-complexity" => {
+                self.max_complexity = Some((uint_arg(a)?, span));
+            }
+            "max-lines" => {
+                self.max_lines = Some((uint_arg(a)?, span));
+            }
+            "assert-min" => {
+                self.assert_min = Some((uint_arg(a)?, span));
+            }
+            "checked-params" => {
+                no_arg(a)?;
+                self.checked_params = Some(span);
+            }
+            "no-macros" => {
+                no_arg(a)?;
+                self.no_macros = Some(span);
+            }
+            "no-raw-ptr" => {
+                no_arg(a)?;
+                self.no_raw_ptr = Some(span);
+            }
+            "deny-warnings" => {
+                no_arg(a)?;
+                self.deny_warnings = Some(span);
+            }
+            other => {
+                return Err(Error::at(
+                    span,
+                    format!("internal error: `{other}` is not a safety assertion"),
+                ))
+            }
+        }
+        Ok(())
+    }
+
+    fn is_empty(&self) -> bool {
+        self.recursion.is_none()
+            && self.stack.is_none()
+            && self.no_alloc.is_none()
+            && self.alloc_once.is_none()
+            && self.max_complexity.is_none()
+            && self.max_lines.is_none()
+            && self.assert_min.is_none()
+            && self.checked_params.is_none()
+            && self.no_macros.is_none()
+            && self.no_raw_ptr.is_none()
+            && self.deny_warnings.is_none()
+    }
+
+    /// Merge a second attachment position's assertions onto the
+    /// definition (a signature and its equations share the definition):
+    /// one definition carries one of each assertion (section 1.3's
+    /// duplicate rule).
+    fn merge(&mut self, other: &SafetySet, name: &str) -> Result<()> {
+        macro_rules! take1 {
+            ($field:ident, $spelling:expr) => {
+                if let Some(v) = other.$field.clone() {
+                    if self.$field.is_some() {
+                        return Err(Error::at(
+                            v.1,
+                            format!(
+                                "{name} carries two `{}` assertions: one definition carries one (attribute annotations specification sections 1.3 and 10)",
+                                $spelling
+                            ),
+                        ));
+                    }
+                    self.$field = Some(v);
+                }
+            };
+        }
+        macro_rules! take0 {
+            ($field:ident, $spelling:expr) => {
+                if let Some(s) = other.$field {
+                    if self.$field.is_some() {
+                        return Err(Error::at(
+                            s,
+                            format!(
+                                "{name} carries two `{}` assertions: one definition carries one (attribute annotations specification sections 1.3 and 10)",
+                                $spelling
+                            ),
+                        ));
+                    }
+                    self.$field = Some(s);
+                }
+            };
+        }
+        take1!(recursion, "#[recursion]");
+        take1!(stack, "#[stack]");
+        take0!(no_alloc, "#[no-alloc]");
+        take0!(alloc_once, "#[alloc]");
+        take1!(max_complexity, "#[max-complexity]");
+        take1!(max_lines, "#[max-lines]");
+        take1!(assert_min, "#[assert-min]");
+        take0!(checked_params, "#[checked-params]");
+        take0!(no_macros, "#[no-macros]");
+        take0!(no_raw_ptr, "#[no-raw-ptr]");
+        take0!(deny_warnings, "#[deny-warnings]");
+        Ok(())
+    }
+
+    /// The contract facts the satisfied assertions record (decision
+    /// D112), in a normalized spelling.
+    fn fact_strings(&self) -> Vec<String> {
+        let mut out = Vec::new();
+        if let Some((r, _)) = &self.recursion {
+            out.push(match r {
+                RecursionSpec::None => "recursion=none".to_string(),
+                RecursionSpec::Tail => "recursion=tail".to_string(),
+                RecursionSpec::Bounded(b) => format!("recursion=bounded({b})"),
+            });
+        }
+        if let Some((s, _)) = &self.stack {
+            out.push(match s {
+                StackSpec::Constant => "stack=constant".to_string(),
+                StackSpec::Bounded(b) => format!("stack=bounded({b})"),
+            });
+        }
+        if self.no_alloc.is_some() {
+            out.push("no-alloc".to_string());
+        }
+        if self.alloc_once.is_some() {
+            out.push("alloc=once".to_string());
+        }
+        if let Some((n, _)) = self.max_complexity {
+            out.push(format!("complexity<={n}"));
+        }
+        if let Some((n, _)) = self.max_lines {
+            out.push(format!("lines<={n}"));
+        }
+        if let Some((n, _)) = self.assert_min {
+            out.push(format!("assert-min={n}"));
+        }
+        if self.checked_params.is_some() {
+            out.push("checked-params".to_string());
+        }
+        if self.no_macros.is_some() {
+            out.push("no-macros".to_string());
+        }
+        if self.no_raw_ptr.is_some() {
+            out.push("no-raw-ptr".to_string());
+        }
+        if self.deny_warnings.is_some() {
+            out.push("deny-warnings".to_string());
+        }
+        out
+    }
+}
+
+/// Module-scope safety state (section 10): `#[profile "jpl"]` and
+/// `#[deny-warnings]` on the module header.
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct ModuleSafety {
+    pub profile_jpl: bool,
+    pub deny_warnings: bool,
+}
+
+/// The unquoted argument of a string-argument attribute (`"tail"`), or
+/// the raw `= literal` tail (attribute annotations specification
+/// section 1).
+fn quoted_arg(a: &crate::ast::Attribute) -> Result<String> {
+    let raw = arg_text(a.args.as_deref().unwrap_or(""));
+    let Some(inner) = raw.strip_prefix('"').and_then(|r| r.strip_suffix('"')) else {
+        return Err(Error::at(
+            a.span,
+            format!(
+                "`#[{}]` takes one string argument in quotes (attribute annotations specification sections 1 and 10)",
+                a.name()
+            ),
+        ));
+    };
+    Ok(inner.to_string())
+}
+
+/// The `bounded(x)` argument: a natural number literal or a name.
+fn bound_arg(raw: &str, span: ast::Span) -> Result<BoundArg> {
+    let inner = raw
+        .strip_prefix("bounded(")
+        .and_then(|r| r.strip_suffix(')'))
+        .map(str::trim)
+        .filter(|r| !r.is_empty())
+        .ok_or_else(|| {
+            Error::at(
+                span,
+                format!(
+                    "`{raw}` is not a depth bound: `bounded(n)` takes a natural number or the name of the argument or size index the depth is bounded by (attribute annotations specification section 10)"
+                ),
+            )
+        })?;
+    if inner.bytes().all(|b| b.is_ascii_digit()) {
+        return Ok(BoundArg::Num(inner.parse::<u64>().map_err(|_| {
+            Error::at(span, "a depth bound is a natural number representable in 64 bits")
+        })?));
+    }
+    if !inner.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '\'')
+        || inner.chars().next().map(|c| c.is_ascii_digit()).unwrap_or(true)
+    {
+        return Err(Error::at(
+            span,
+            format!(
+                "`{inner}` is not a depth bound name (attribute annotations specification section 10: `bounded(n)` names an argument or a size index)"
+            ),
+        ));
+    }
+    Ok(BoundArg::Name(inner.to_string()))
+}
+
+/// Parse `#[recursion "none"|"tail"|"bounded(n)"]`.
+fn parse_recursion_args(a: &crate::ast::Attribute) -> Result<RecursionSpec> {
+    let s = quoted_arg(a)?;
+    match s.as_str() {
+        "none" => Ok(RecursionSpec::None),
+        "tail" => Ok(RecursionSpec::Tail),
+        _ if s.starts_with("bounded(") => Ok(RecursionSpec::Bounded(bound_arg(&s, a.span)?)),
+        _ => Err(Error::at(
+            a.span,
+            format!(
+                "`{s}` is not a recursion assertion: `#[recursion]` takes `\"none\"`, `\"tail\"` or `\"bounded(n)\"` (attribute annotations specification section 10)"
+            ),
+        )),
+    }
+}
+
+/// Parse `#[stack "constant"|"bounded(n)"]`.
+fn parse_stack_args(a: &crate::ast::Attribute) -> Result<StackSpec> {
+    let s = quoted_arg(a)?;
+    match s.as_str() {
+        "constant" => Ok(StackSpec::Constant),
+        _ if s.starts_with("bounded(") => Ok(StackSpec::Bounded(bound_arg(&s, a.span)?)),
+        _ => Err(Error::at(
+            a.span,
+            format!(
+                "`{s}` is not a stack assertion: `#[stack]` takes `\"constant\"` or `\"bounded(n)\"` (attribute annotations specification section 10)"
+            ),
+        )),
+    }
+}
+
+/// Parse a bare natural number argument (`#[max-complexity 10]`).
+fn uint_arg(a: &crate::ast::Attribute) -> Result<u64> {
+    let raw = arg_text(a.args.as_deref().unwrap_or(""));
+    if raw.is_empty() || !raw.bytes().all(|b| b.is_ascii_digit()) {
+        return Err(Error::at(
+            a.span,
+            format!(
+                "`#[{}]` takes one natural number literal (attribute annotations specification section 10)",
+                a.name()
+            ),
+        ));
+    }
+    raw.parse::<u64>().map_err(|_| {
+        Error::at(a.span, "a bound is a natural number representable in 64 bits")
+    })
+}
+
+/// A no-argument assertion: reject any argument.
+fn no_arg(a: &crate::ast::Attribute) -> Result<()> {
+    if !arg_text(a.args.as_deref().unwrap_or("")).is_empty() {
+        return Err(Error::at(
+            a.span,
+            format!(
+                "`#[{}]` takes no arguments (attribute annotations specification section 10)",
+                a.name()
+            ),
+        ));
+    }
+    Ok(())
+}
+
+/// Validate a module header's safety attributes (attribute annotations
+/// specification section 10): `#[profile "jpl"]` and `#[deny-warnings]`
+/// (the `warn # error` pragma's module scope).
+fn validate_module_attrs(attrs: &[crate::ast::Attribute]) -> Result<ModuleSafety> {
+    let mut out = ModuleSafety::default();
+    for a in attrs {
+        match a.name().as_str() {
+            "meta" => {}
+            "profile" => {
+                if quoted_arg(a)? != "jpl" {
+                    return Err(Error::at(
+                        a.span,
+                        "`#[profile]` takes `\"jpl\"` (the JPL rule profile of attribute annotations specification section 10)",
+                    ));
+                }
+                if out.profile_jpl {
+                    return Err(Error::at(
+                        a.span,
+                        "one module carries one `#[profile \"jpl\"]` attribute (attribute annotations specification section 1.3)",
+                    ));
+                }
+                out.profile_jpl = true;
+            }
+            "deny-warnings" => {
+                no_arg(a)?;
+                if out.deny_warnings {
+                    return Err(Error::at(
+                        a.span,
+                        "one module carries one `#[deny-warnings]` attribute (attribute annotations specification section 1.3)",
+                    ));
+                }
+                out.deny_warnings = true;
+            }
+            other => {
+                return Err(Error::at(
+                    a.span,
+                    format!(
+                        "unknown module attribute `{other}`: a module header carries `#[profile \"jpl\"]`, `#[deny-warnings]` and `#[meta(...)]` (attribute annotations specification section 10)"
+                    ),
+                ))
+            }
+        }
+    }
+    Ok(out)
+}
+
+// ------------------------------ the body facts walker ------------------------------
+
+/// One named call site (for naming the offending call of a tail
+/// violation).
+#[derive(Clone, Debug)]
+pub(crate) struct CallRec {
+    pub callee: String,
+    pub span: ast::Span,
+    /// In tail position (the D104 walk).
+    pub tail: bool,
+    /// Under a hoisted closure (a lambda, a thunk, a `do` continuation):
+    /// the call runs in the closure's own unit.
+    pub closure: bool,
+}
+
+/// The shape of one argument at a self-recursive call site.
+#[derive(Clone, Debug)]
+pub(crate) enum ArgShape {
+    /// A value of this parameter's subcomponent tree.
+    Sub { strict: bool },
+    /// `param - k`: a well-founded measure step of the parameter's
+    /// value (core specification section 8).
+    Measure,
+    /// A numeric literal (the conservative call-graph ladder).
+    Literal(i128),
+    /// A dictionary or index placeholder.
+    Hole,
+    /// Anything else.
+    Other,
+}
+
+/// One self-recursive call site with its argument shapes (the
+/// `bounded(n)` structural proof reads these).
+#[derive(Clone, Debug)]
+pub(crate) struct SelfCallRec {
+    pub span: ast::Span,
+    pub tail: bool,
+    pub closure: bool,
+    pub args: Vec<ArgShape>,
+    /// The equation the site sits in (the call-graph ladder walks the
+    /// equations).
+    pub eq: usize,
+}
+
+/// One allocation construction site (attribute annotations
+/// specification section 10: cons, closures, thunks, `Mut`, strings,
+/// `Bytes`, foreign aggregates). An allocation violation names it.
+#[derive(Clone, Debug)]
+pub(crate) struct AllocRec {
+    pub what: String,
+    pub span: ast::Span,
+    /// Under a hoisted closure: the site runs whenever the closure runs,
+    /// not at most once per enclosing call.
+    pub closure: bool,
+}
+
+/// What one definition's body contains, collected from the surface
+/// syntax with spans so violations name the offending site.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct BodyFacts {
+    /// The body's source line span (its syntax's first to last line).
+    pub body_lines: u64,
+    /// Decision branches over the body (cyclomatic complexity is
+    /// `branches + 1`): one per `if`, one per `case` alternative beyond
+    /// the first, one per guard.
+    pub branches: u64,
+    /// Runtime `decide` check sites, recorded while the body checks
+    /// (attribute annotations specification section 10: proof
+    /// obligations do not count).
+    pub runtime_decides: Vec<ast::Span>,
+    pub alloc_sites: Vec<AllocRec>,
+    pub calls: Vec<CallRec>,
+    pub self_calls: Vec<SelfCallRec>,
+    /// Self references in value position (a recursive use that is not a
+    /// static call).
+    pub self_refs: Vec<ast::Span>,
+    /// Macro expansion provenance inside the definition (checked from
+    /// P9's expansion provenance).
+    pub macro_site: Option<ast::Span>,
+    /// Foreign pointer operations in the body (the foreign name).
+    pub ptr_ops: Vec<(String, ast::Span)>,
+    /// Parameters used before any validating check (the
+    /// `checked-params` rule): `(parameter, the offending use)`.
+    pub unchecked_params: Vec<(String, ast::Span)>,
+    /// The lowest and highest source line the body's syntax spans.
+    pub min_line: u32,
+    pub max_line: u32,
+}
+
+/// The foreign bindings a body's calls may name (attribute annotations
+/// specification section 10's `#[no-raw-ptr]` and the foreign aggregate
+/// allocation sites).
+#[derive(Clone, Debug, Default)]
+pub(crate) struct ForeignMarks {
+    /// Foreign names whose binding contract carries a pointer.
+    pub ptrs: HashSet<String>,
+    /// Foreign names whose binding contract marshals an aggregate.
+    pub aggregates: HashSet<String>,
+}
+
+/// Is this pattern refutable (a check that can fail)?
+fn pat_refutable(p: &ast::Pat) -> bool {
+    match p {
+        ast::Pat::Var(..) | ast::Pat::Wild(_) | ast::Pat::Tuple(..) => false,
+        ast::Pat::As(_, inner, _) => pat_refutable(inner),
+        _ => true,
+    }
+}
+
+/// The variable a pattern binds directly (its `x` in `x@p` or its bare
+/// variable), if any.
+fn pat_direct(p: &ast::Pat) -> Option<&ast::Name> {
+    match p {
+        ast::Pat::Var(n, _) => Some(n),
+        ast::Pat::As(n, inner, _) => pat_direct(inner).or(Some(n)),
+        _ => None,
+    }
+}
+
+struct FactWalk<'a> {
+    self_mod: &'a str,
+    self_name: &'a str,
+    /// The equation's argument positions: the name bound directly to
+    /// each argument (empty when the head pattern destructures it).
+    arg_names: Vec<Option<String>>,
+    /// Per tracked position: `(validated, reported)`.
+    param_state: Vec<(bool, bool)>,
+    /// The equation's head-pattern binders: `(name, "#pos")`, the roots
+    /// of the argument positions' subcomponent trees.
+    head: Vec<(String, String)>,
+    /// Nested binder frames, innermost last: `(name, parent)` pairs
+    /// where a pattern binder's parent is its scrutinee's value root. A
+    /// nested binder shadows a parameter or the definition's own name.
+    frames: Vec<Vec<(String, Option<String>)>>,
+    /// Under a hoisted closure.
+    closure: bool,
+    /// In tail position (the D104 walk).
+    tail: bool,
+    /// The current occurrence is a validating check (a `decide`
+    /// operand).
+    validating: bool,
+    eq: usize,
+    foreign: &'a ForeignMarks,
+    facts: &'a mut BodyFacts,
+}
+
+impl<'a> FactWalk<'a> {
+    fn in_scope(&self, name: &str) -> bool {
+        self.frames.iter().any(|g| g.iter().any(|(b, _)| b == name))
+    }
+
+    /// The innermost binding of `name`'s subcomponent parent.
+    fn parent_of(&self, name: &str) -> Option<Option<String>> {
+        for g in self.frames.iter().rev() {
+            if let Some((_, p)) = g.iter().rev().find(|(b, _)| b == name) {
+                return Some(p.clone());
+            }
+        }
+        if let Some((_, p)) = self.head.iter().rev().find(|(b, _)| b == name) {
+            return Some(Some(p.clone()));
+        }
+        None
+    }
+
+    fn note_span(&mut self, span: ast::Span) {
+        if self.facts.macro_site.is_none() && crate::lexer::is_generated(span) {
+            self.facts.macro_site = Some(span);
+        }
+        if span.line > 0 {
+            if self.facts.min_line == 0 || span.line < self.facts.min_line {
+                self.facts.min_line = span.line;
+            }
+            if span.line > self.facts.max_line {
+                self.facts.max_line = span.line;
+            }
+        }
+    }
+
+    fn bind(&mut self, name: &str) {
+        self.frames.push(vec![(name.to_string(), None)]);
+    }
+
+    fn bind_pat(&mut self, p: &ast::Pat, parent: Option<&str>) {
+        let mut names = Vec::new();
+        collect_pat_names(p, &mut names);
+        let frame: Vec<(String, Option<String>)> = names
+            .into_iter()
+            .map(|n| (n, parent.map(|p| p.to_string())))
+            .collect();
+        if !frame.is_empty() {
+            self.frames.push(frame);
+        }
+    }
+
+    /// The subcomponent chain of `name` back to the argument position
+    /// `pos`'s value (`#pos`), if it belongs to that tree.
+    fn chain_at(&self, name: &str, pos: usize) -> Option<Vec<String>> {
+        let target = format!("#{pos}");
+        let mut chain = vec![name.to_string()];
+        let mut x = name.to_string();
+        for _ in 0..self.frames.iter().map(|g| g.len()).sum::<usize>() + 1 {
+            match self.parent_of(&x) {
+                Some(Some(parent)) => {
+                    chain.push(parent.clone());
+                    if parent == target {
+                        return Some(chain);
+                    }
+                    x = parent;
+                }
+                _ => return None,
+            }
+        }
+        None
+    }
+
+    fn use_param(&mut self, name: &str, span: ast::Span) {
+        for (i, an) in self.arg_names.iter().enumerate() {
+            if an.as_deref() == Some(name) {
+                if self.validating {
+                    self.param_state[i].0 = true;
+                } else if !self.param_state[i].0 && !self.param_state[i].1 {
+                    self.param_state[i].1 = true;
+                    self.facts.unchecked_params.push((name.to_string(), span));
+                }
+                return;
+            }
+        }
+    }
+
+    fn record_var(&mut self, p: &ast::VarPath) {
+        let span = p.span();
+        self.note_span(span);
+        let name = p.name.text.as_str();
+        if self.in_scope(name) {
+            return;
+        }
+        if self.arg_names.iter().any(|a| a.as_deref() == Some(name)) {
+            self.use_param(name, span);
+            return;
+        }
+        let self_match = p.quals.is_empty()
+            || (p.quals.len() == 1 && p.quals[0].text == self.self_mod);
+        if self_match && name == self.self_name {
+            // A bare self reference: a recursive use that is not a
+            // static call (it cannot carry a tail claim).
+            self.facts.self_refs.push(span);
+        }
+    }
+
+    fn record_head(&mut self, p: &ast::VarPath, args: &[ast::Term]) {
+        let span = p.span();
+        self.note_span(span);
+        let name = p.name.text.as_str();
+        if self.in_scope(name) {
+            // A local closure's call: no named unit's call site.
+            return;
+        }
+        let is_param = self.arg_names.iter().any(|a| a.as_deref() == Some(name));
+        if is_param {
+            self.use_param(name, span);
+        } else {
+            let self_match = p.quals.is_empty()
+                || (p.quals.len() == 1 && p.quals[0].text == self.self_mod);
+            if self_match && name == self.self_name {
+                let shapes = args
+                    .iter()
+                    .enumerate()
+                    .map(|(i, a)| self.arg_shape(a, i))
+                    .collect();
+                self.facts.self_calls.push(SelfCallRec {
+                    span,
+                    tail: self.tail,
+                    closure: self.closure,
+                    args: shapes,
+                    eq: self.eq,
+                });
+            } else {
+                if self.foreign.ptrs.contains(name) {
+                    self.facts.ptr_ops.push((name.to_string(), span));
+                }
+                if self.foreign.aggregates.contains(name) {
+                    self.facts.alloc_sites.push(AllocRec {
+                        what: format!("a foreign aggregate (the call to `{name}`)"),
+                        span,
+                        closure: self.closure,
+                    });
+                }
+            }
+        }
+        self.facts.calls.push(CallRec {
+            callee: name.to_string(),
+            span,
+            tail: self.tail,
+            closure: self.closure,
+        });
+    }
+
+    fn arg_shape(&self, a: &ast::Term, pos: usize) -> ArgShape {
+        match a {
+            ast::Term::Var(p) if p.quals.is_empty() => {
+                match self.chain_at(&p.name.text, pos) {
+                    Some(_) => ArgShape::Sub {
+                        strict: self.arg_names[pos].as_deref() != Some(p.name.text.as_str()),
+                    },
+                    None => ArgShape::Other,
+                }
+            }
+            ast::Term::Int(v, _) => v
+                .parse::<i128>()
+                .map(ArgShape::Literal)
+                .unwrap_or(ArgShape::Other),
+            ast::Term::Hole(_) => ArgShape::Hole,
+            // `param - k` (or `nat-sub param k`): a measure step of the
+            // parameter's value at this very position.
+            ast::Term::App(f, args, _) if args.len() == 2 => {
+                let head_name = match &**f {
+                    ast::Term::Var(p) if p.quals.is_empty() && !self.in_scope(&p.name.text) => {
+                        Some(p.name.text.as_str())
+                    }
+                    _ => None,
+                };
+                let step = matches!(head_name, Some("-") | Some("nat-sub"));
+                let base = matches!(&args[0], ast::Term::Var(p)
+                    if p.quals.is_empty()
+                        && !self.in_scope(&p.name.text)
+                        && self.arg_names[pos].as_deref() == Some(p.name.text.as_str()));
+                let down = match &args[1] {
+                    ast::Term::Int(v, _) => v.parse::<i128>().map(|k| k > 0).unwrap_or(false),
+                    _ => false,
+                };
+                if step && base && down {
+                    ArgShape::Measure
+                } else {
+                    ArgShape::Other
+                }
+            }
+            _ => ArgShape::Other,
+        }
+    }
+
+    fn walk_term(&mut self, t: &ast::Term) {
+        self.note_span(t.span());
+        match t {
+            ast::Term::Var(p) => self.record_var(p),
+            ast::Term::Con(p) => {
+                self.note_span(p.span());
+                self.facts.alloc_sites.push(AllocRec {
+                    what: format!("the constructor `{}`", p.parts().last().unwrap_or(&"")),
+                    span: p.span(),
+                    closure: self.closure,
+                });
+            }
+            ast::Term::Int(..) | ast::Term::Char(..) | ast::Term::Unit(_) | ast::Term::Hole(_)
+            | ast::Term::SpliceHole { .. } | ast::Term::SeqOp(..) => {}
+            ast::Term::Str(_, s) => {
+                self.note_span(*s);
+                self.facts.alloc_sites.push(AllocRec {
+                    what: "a string literal".to_string(),
+                    span: *s,
+                    closure: self.closure,
+                });
+            }
+            ast::Term::App(f, args, _) => {
+                // The application head is the call; its arguments run
+                // before it in non-tail position.
+                for a in args {
+                    self.walk_child(a);
+                }
+                match &**f {
+                    ast::Term::Var(p) => self.record_head(p, args),
+                    ast::Term::Con(p) => {
+                        self.note_span(p.span());
+                        self.facts.alloc_sites.push(AllocRec {
+                            what: format!("the constructor `{}`", p.parts().last().unwrap_or(&"")),
+                            span: p.span(),
+                            closure: self.closure,
+                        });
+                    }
+                    other => self.walk_child(other),
+                }
+            }
+            ast::Term::Lam(pats, body, s) => {
+                self.note_span(*s);
+                self.facts.alloc_sites.push(AllocRec {
+                    what: "a closure (a lambda)".to_string(),
+                    span: *s,
+                    closure: self.closure,
+                });
+                let saved = self.closure;
+                let depth = self.frames.len();
+                self.closure = true;
+                for p in pats {
+                    self.bind_pat(p, None);
+                }
+                self.walk_term(body);
+                self.closure = saved;
+                self.frames.truncate(depth);
+            }
+            ast::Term::Let(decls, body, _) | ast::Term::Letrec(decls, body, _) => {
+                let recursive = matches!(t, ast::Term::Letrec(..));
+                if recursive {
+                    self.facts.alloc_sites.push(AllocRec {
+                        what: "a `letrec` fixpoint box".to_string(),
+                        span: t.span(),
+                        closure: self.closure,
+                    });
+                }
+                let depth = self.frames.len();
+                self.walk_decls(decls, recursive);
+                let saved = self.tail;
+                self.walk_term(body);
+                self.tail = saved;
+                self.frames.truncate(depth);
+            }
+            ast::Term::If { cond, then, els, .. } => {
+                self.facts.branches += 1;
+                self.walk_child(cond);
+                let saved = self.tail;
+                self.walk_term(then);
+                self.walk_term(els);
+                self.tail = saved;
+            }
+            ast::Term::Case(scrut, alts, _) => {
+                if !alts.is_empty() {
+                    self.facts.branches += (alts.len() - 1) as u64;
+                }
+                // A `case` whose alternatives can fail validates its
+                // scrutinee (the `checked-params` rule).
+                let validates = alts.iter().any(|a| pat_refutable(&a.pat));
+                let scrut_param = match &**scrut {
+                    ast::Term::Var(p) if p.quals.is_empty() && !self.in_scope(&p.name.text) => {
+                        Some(p.name.text.clone())
+                    }
+                    _ => None,
+                };
+                if validates && scrut_param.is_some() {
+                    self.validating = true;
+                    self.walk_child(scrut);
+                    self.validating = false;
+                } else {
+                    self.walk_child(scrut);
+                }
+                for a in alts {
+                    if a.guard.is_some() {
+                        self.facts.branches += 1;
+                    }
+                    let depth = self.frames.len();
+                    self.bind_pat(&a.pat, scrut_param.as_deref());
+                    if let Some(g) = &a.guard {
+                        self.walk_child(g);
+                    }
+                    let saved = self.tail;
+                    self.walk_term(&a.body);
+                    self.tail = saved;
+                    self.frames.truncate(depth);
+                }
+            }
+            ast::Term::Ann(e, _, _) => {
+                let saved = self.tail;
+                self.walk_term(e);
+                self.tail = saved;
+            }
+            ast::Term::Infix(terms, ops, _) => {
+                for t in terms {
+                    self.walk_child(t);
+                }
+                for op in ops {
+                    self.facts.calls.push(CallRec {
+                        callee: op.text.clone(),
+                        span: op.span,
+                        tail: self.tail,
+                        closure: self.closure,
+                    });
+                }
+            }
+            ast::Term::Neg(e, _) | ast::Term::Proj(e, _, _) => self.walk_child(e),
+            ast::Term::Tuple(items, s) => {
+                self.note_span(*s);
+                self.facts.alloc_sites.push(AllocRec {
+                    what: "a tuple construction".to_string(),
+                    span: *s,
+                    closure: self.closure,
+                });
+                for i in items {
+                    self.walk_child(i);
+                }
+            }
+            ast::Term::List(items, s) => {
+                self.note_span(*s);
+                self.facts.alloc_sites.push(AllocRec {
+                    what: "a list construction (a `Bytes` buffer or cons cells)".to_string(),
+                    span: *s,
+                    closure: self.closure,
+                });
+                for i in items {
+                    self.walk_child(i);
+                }
+            }
+            ast::Term::Map(items, s) => {
+                self.note_span(*s);
+                self.facts.alloc_sites.push(AllocRec {
+                    what: "a map construction".to_string(),
+                    span: *s,
+                    closure: self.closure,
+                });
+                for (k, v) in items {
+                    self.walk_child(k);
+                    self.walk_child(v);
+                }
+            }
+            ast::Term::Record(path, fields, s) => {
+                self.note_span(*s);
+                self.facts.alloc_sites.push(AllocRec {
+                    what: format!(
+                        "the record construction of `{}`",
+                        path.parts().last().unwrap_or(&"")
+                    ),
+                    span: *s,
+                    closure: self.closure,
+                });
+                for (_, v) in fields {
+                    self.walk_child(v);
+                }
+            }
+            ast::Term::Do(stmts, _) => {
+                // One statement alone is the block's value in the
+                // enclosing unit; the first statement of a longer block
+                // is the bind's argument, and every later statement
+                // lowers into the bind's continuation closure.
+                let multi = stmts.len() > 1;
+                let depth = self.frames.len();
+                for (i, s) in stmts.iter().enumerate() {
+                    let saved_closure = self.closure;
+                    let saved_tail = self.tail;
+                    if multi {
+                        self.tail = false;
+                        if i > 0 {
+                            self.closure = true;
+                        }
+                    }
+                    match s {
+                        ast::DoStmt::Bind { pat, term, .. } => {
+                            self.walk_term(term);
+                            self.bind_pat(pat, None);
+                        }
+                        ast::DoStmt::Let { decl, .. } => {
+                            self.walk_decls(std::slice::from_ref(decl), false)
+                        }
+                        ast::DoStmt::Expr { term, .. } => self.walk_term(term),
+                    }
+                    self.closure = saved_closure;
+                    self.tail = saved_tail;
+                }
+                self.frames.truncate(depth);
+            }
+            ast::Term::Handle(body, handler, _) => {
+                self.walk_child(body);
+                self.walk_child(handler);
+            }
+            ast::Term::Handler(h) => {
+                let saved = self.closure;
+                let depth = self.frames.len();
+                self.closure = true;
+                self.bind_pat(&h.ret_pat, None);
+                self.walk_term(&h.ret_body);
+                for c in &h.clauses {
+                    let clause_depth = self.frames.len();
+                    for p in &c.pats {
+                        self.bind_pat(p, None);
+                    }
+                    if let Some(r) = &c.resume {
+                        self.bind(&r.text);
+                    }
+                    self.walk_term(&c.body);
+                    self.frames.truncate(clause_depth);
+                }
+                self.closure = saved;
+                self.frames.truncate(depth);
+            }
+            ast::Term::With { name, value, body, .. } => {
+                self.walk_child(value);
+                let depth = self.frames.len();
+                self.bind(&name.text);
+                let saved = self.tail;
+                self.walk_term(body);
+                self.tail = saved;
+                self.frames.truncate(depth);
+            }
+            ast::Term::CapApply { head, supplies, .. } => {
+                for (_, v) in supplies {
+                    self.walk_child(v);
+                }
+                let saved = self.tail;
+                self.walk_term(head);
+                self.tail = saved;
+            }
+            ast::Term::Quote { body, .. } | ast::Term::Splice { body, .. } => {
+                self.walk_child(body)
+            }
+            ast::Term::QuoteDecls { decls, .. } => {
+                for d in decls {
+                    self.walk_decl_tree(d);
+                }
+            }
+            ast::Term::MacroCall { span, .. } => {
+                self.note_span(*span);
+                if self.facts.macro_site.is_none() {
+                    self.facts.macro_site = Some(*span);
+                }
+            }
+            ast::Term::CpsWrap(body, _) => {
+                let saved = self.tail;
+                self.walk_term(body);
+                self.tail = saved;
+            }
+        }
+    }
+
+    /// A subterm in non-tail position.
+    fn walk_child(&mut self, t: &ast::Term) {
+        let saved = self.tail;
+        self.tail = false;
+        self.walk_term(t);
+        self.tail = saved;
+    }
+
+    fn walk_decls(&mut self, decls: &[ast::LocalDecl], recursive: bool) {
+        // A `let` group is sequential: later bindings see earlier ones.
+        // A `letrec` group binds every name first, so a body's own name
+        // is a local there, never the definition or a parameter.
+        if recursive {
+            let names: Vec<String> = decls
+                .iter()
+                .filter_map(|d| match d {
+                    ast::LocalDecl::Eq { name, .. } => Some(name.text.clone()),
+                    _ => None,
+                })
+                .collect();
+            if !names.is_empty() {
+                self.frames
+                    .push(names.into_iter().map(|n| (n, None)).collect());
+            }
+        }
+        for d in decls {
+            match d {
+                ast::LocalDecl::Sig { span, .. } => self.note_span(*span),
+                ast::LocalDecl::Bind { pat, body, span } => {
+                    self.note_span(*span);
+                    self.walk_child(body);
+                    self.bind_pat(pat, None);
+                }
+                ast::LocalDecl::Lazy { pat, body, span } => {
+                    self.note_span(*span);
+                    self.facts.alloc_sites.push(AllocRec {
+                        what: "a `delay` thunk (a memo binding)".to_string(),
+                        span: *span,
+                        closure: self.closure,
+                    });
+                    let saved = self.closure;
+                    self.closure = true;
+                    self.walk_child(body);
+                    self.closure = saved;
+                    self.bind_pat(pat, None);
+                }
+                ast::LocalDecl::Eq { name, pats, body, span } => {
+                    self.note_span(*span);
+                    self.facts.alloc_sites.push(AllocRec {
+                        what: "a closure (a local function)".to_string(),
+                        span: *span,
+                        closure: self.closure,
+                    });
+                    let saved = self.closure;
+                    self.closure = true;
+                    for p in pats {
+                        self.bind_pat(p, None);
+                    }
+                    self.walk_term(body);
+                    self.closure = saved;
+                    if !recursive {
+                        self.bind(&name.text);
+                    }
+                }
+            }
+        }
+    }
+
+    fn walk_decl_tree(&mut self, d: &ast::Decl) {
+        match d {
+            ast::Decl::Attributed { inner, .. } => self.walk_decl_tree(inner),
+            ast::Decl::Equation { eq, .. } => {
+                let depth = self.frames.len();
+                self.walk_decls(&eq.locals, true);
+                self.walk_child(&eq.body);
+                self.frames.truncate(depth);
+            }
+            _ => {}
+        }
+    }
+}
+
+fn collect_pat_names(p: &ast::Pat, out: &mut Vec<String>) {
+    match p {
+        ast::Pat::Var(n, _) => out.push(n.text.clone()),
+        ast::Pat::As(n, inner, _) => {
+            out.push(n.text.clone());
+            collect_pat_names(inner, out);
+        }
+        ast::Pat::Con(_, args, _) | ast::Pat::Tuple(args, _) | ast::Pat::List(args, _) => {
+            for a in args {
+                collect_pat_names(a, out);
+            }
+        }
+        ast::Pat::Record(_, fields, _) => {
+            for (_, f) in fields {
+                collect_pat_names(f, out);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Collect one definition's body facts from its equations (attribute
+/// annotations specification section 10).
+fn collect_body_facts(
+    self_mod: &str,
+    self_name: &str,
+    eqs: &[ast::Equation],
+    foreign: &ForeignMarks,
+) -> BodyFacts {
+    let mut facts = BodyFacts::default();
+    for (i, e) in eqs.iter().enumerate() {
+        let mut arg_names = Vec::new();
+        for p in &e.pats {
+            arg_names.push(pat_direct(p).map(|n| n.text.clone()));
+        }
+        let mut w = FactWalk {
+            self_mod,
+            self_name,
+            param_state: vec![(false, false); e.pats.len()],
+            arg_names,
+            head: Vec::new(),
+            frames: Vec::new(),
+            closure: false,
+            tail: true,
+            validating: false,
+            eq: i,
+            foreign,
+            facts: &mut facts,
+        };
+        for (pos, p) in e.pats.iter().enumerate() {
+            // The argument at `pos` is the root of its subcomponent tree.
+            let root = format!("#{pos}");
+            let mut names = Vec::new();
+            collect_pat_names(p, &mut names);
+            for n in names {
+                w.head.push((n, root.clone()));
+            }
+            // A head pattern that destructures the argument is the
+            // boundary check; a bare variable defers validation to the
+            // body (the `checked-params` rule).
+            w.param_state[pos].0 = !matches!(p, ast::Pat::Var(..));
+        }
+        let depth = w.frames.len();
+        w.walk_decls(&e.locals, true);
+        w.walk_term(&e.body);
+        w.frames.truncate(depth);
+    }
+    if facts.max_line >= facts.min_line && facts.min_line > 0 {
+        facts.body_lines = (facts.max_line - facts.min_line + 1) as u64;
+    }
+    facts
+}
+
+// ------------------------------ the verification ------------------------------
+
+/// The depth bound one proof method establishes (decision D113).
+#[derive(Clone, Debug)]
+pub(crate) enum Established {
+    /// A number of nested recursive calls.
+    Num(u64),
+    /// The named argument or size index the depth is bounded by (the
+    /// `Nat`/`Fin` bounded-counter pattern: "bounded by its arguments").
+    Named(Vec<String>),
+    /// Bounded by the size of a destructured argument the surface names
+    /// no variable for: a bound no assertion can cite.
+    Unnamed,
+}
+
+/// One definition's verified safety state (attribute annotations
+/// specification section 10).
+#[derive(Clone, Debug)]
+pub(crate) struct SafetyRecord {
+    /// The unit name (`Module.name`).
+    pub key: String,
+    pub display: String,
+    pub module: String,
+    pub attrs: SafetySet,
+    pub facts: BodyFacts,
+    pub def_span: ast::Span,
+    pub exported: bool,
+    /// A `spec`/`proof` definition: erased ghost code (the `jpl`
+    /// profile's runtime rules do not reach it).
+    pub logical: bool,
+    /// Under the `jpl` profile (decision D114).
+    pub jpl: bool,
+    /// The structural depth proof (`bounded(n)`'s first method), with
+    /// its report.
+    pub structural: Option<(String, Established)>,
+    /// The conservative call-graph depth proof (the fallback), with its
+    /// report.
+    pub call_graph: Option<(String, Established)>,
+    /// The satisfied assertions as contract facts (decision D112).
+    pub fact_strings: Vec<String>,
+}
+
+/// The `jpl` profile's numbers (decision D114): complexity 10, lines 60,
+/// `assert-min 2` on exported functions.
+pub(crate) const JPL_COMPLEXITY: u64 = 10;
+pub(crate) const JPL_LINES: u64 = 60;
+pub(crate) const JPL_ASSERT_MIN: u64 = 2;
+
+/// The P20 safety assertion report (attribute annotations specification
+/// section 10; decision D113: the report says which proof method was
+/// used).
+#[derive(Clone, Debug, Default)]
+pub struct SafetyReport {
+    /// One line per verified definition carrying an assertion (or
+    /// enforced under the `jpl` profile).
+    pub definitions: Vec<String>,
+    /// The `jpl` profile's whole-program summary (decision D114);
+    /// `None` without the profile.
+    pub jpl: Option<JplSummary>,
+}
+
+/// The `jpl` profile's whole-program summary (decision D114).
+#[derive(Clone, Debug, Default)]
+pub struct JplSummary {
+    /// The profiled user modules.
+    pub modules: Vec<String>,
+    /// Definitions checked under the profile.
+    pub definitions: u64,
+    /// Assertions verified (the profile's mandated set, plus each
+    /// definition's own stricter attributes).
+    pub assertions: u64,
+}
+
+/// Does the type carry a raw pointer or an opaque type (the
+/// `#[no-raw-ptr]` signature rule)?
+fn ty_has_raw_ptr(t: &Ty, opaque: &HashSet<String>, out: &mut Option<String>) -> bool {
+    match t {
+        Ty::Ptr { role, pointee } => {
+            if matches!(role, PtrRole::Raw) {
+                if out.is_none() {
+                    *out = Some(format!("{role}"));
+                }
+                return true;
+            }
+            ty_has_raw_ptr(pointee, opaque, out)
+        }
+        Ty::Adt(name, args) => {
+            if opaque.contains(name) {
+                if out.is_none() {
+                    *out = Some(format!("the opaque type `{name}`"));
+                }
+                return true;
+            }
+            args.iter().any(|a| ty_has_raw_ptr(a, opaque, out))
+        }
+        Ty::App(h, args) => {
+            ty_has_raw_ptr(h, opaque, out) || args.iter().any(|a| ty_has_raw_ptr(a, opaque, out))
+        }
+        Ty::Tuple(items) => items.iter().any(|a| ty_has_raw_ptr(a, opaque, out)),
+        Ty::Fun(a, _, _, b) => {
+            ty_has_raw_ptr(a, opaque, out) || ty_has_raw_ptr(b, opaque, out)
+        }
+        Ty::Ref(_, a) | Ty::Mut(_, a) | Ty::Later(a) => ty_has_raw_ptr(a, opaque, out),
+        Ty::Thunk { inner, .. } | Ty::Lazy { inner, .. } => ty_has_raw_ptr(inner, opaque, out),
+        Ty::Pi { dom, cod, .. } => ty_has_raw_ptr(dom, opaque, out) || ty_has_raw_ptr(cod, opaque, out),
+        Ty::Sigma { dom, cod, .. } => {
+            ty_has_raw_ptr(dom, opaque, out) || ty_has_raw_ptr(cod, opaque, out)
+        }
+        _ => false,
+    }
+}
+
+/// The depth bound of one strict decrease at a self-recursive call
+/// (attribute annotations specification section 10: structural
+/// recursion over `Vec`/`Nat` sizes proves it via the totality
+/// machinery).
+fn decrease_bound(doms: &[Ty], pos: usize, measure: bool, name: Option<&str>) -> Established {
+    if measure {
+        // A well-founded measure step of the parameter's value: the
+        // depth is bounded by the entry value (the bounded-counter
+        // pattern of design/safety-assertion-attributes.md rule 2).
+        return match name {
+            Some(n) => Established::Named(vec![n.to_string()]),
+            None => Established::Unnamed,
+        };
+    }
+    // A structural subcomponent descent: the depth is bounded by the
+    // argument's size, which a size index may name exactly.
+    let mut named = Vec::new();
+    if let Some(n) = name {
+        named.push(n.to_string());
+    }
+    if let Some(t) = doms.get(pos) {
+        match t {
+            Ty::Adt(_, args) => {
+                for a in args {
+                    if let Ty::Idx(ix) = a {
+                        match &**ix {
+                            ITerm::Num(v) => {
+                                if let Ok(n) = v.parse::<u64>() {
+                                    return Established::Num(n);
+                                }
+                            }
+                            ITerm::Var(v) => named.push(v.clone()),
+                            _ => {}
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    if named.is_empty() {
+        Established::Unnamed
+    } else {
+        Established::Named(named)
+    }
+}
+
+/// The conservative call-graph depth bound (decision D113's fallback):
+/// the literal counter ladder, where every equation matches a literal
+/// counter and every recursive call steps down a literal. Returns `None`
+/// when no conservative bound applies.
+fn literal_ladder(eqs: &[ast::Equation], self_calls: &[SelfCallRec]) -> Option<u64> {
+    if self_calls.iter().any(|c| c.closure || c.args.is_empty()) {
+        return None;
+    }
+    // Depth from a literal entry counter at position 0.
+    fn depth(k: i128, eqs: &[ast::Equation], calls: &[&SelfCallRec], seen: usize) -> Option<u64> {
+        if seen > calls.len() + 1 {
+            return None;
+        }
+        let mut best = 0u64;
+        for c in calls {
+            let Some(ArgShape::Literal(m)) = c.args.first() else {
+                return None;
+            };
+            if *m >= k {
+                return None;
+            }
+            let d = depth(*m, eqs, calls, seen + 1)?;
+            best = best.max(1 + d);
+        }
+        let _ = eqs;
+        Some(best)
+    }
+    let mut bound = 0u64;
+    let mut entries = 0u64;
+    for (i, e) in eqs.iter().enumerate() {
+        let ast::Pat::Int(k, _) = &e.pats[0] else {
+            return None;
+        };
+        let k: i128 = k.parse().ok()?;
+        let calls: Vec<&SelfCallRec> = self_calls.iter().filter(|c| c.eq == i).collect();
+        entries += 1;
+        bound = bound.max(depth(k, eqs, &calls, 0)?);
+    }
+    if entries == 0 {
+        return None;
+    }
+    Some(bound)
+}
+
+/// One definition's `bounded(n)` proof, structural first and the
+/// conservative call-graph bound otherwise (decision D113).
+fn bounded_proof(rec: &SafetyRecord) -> Result<(String, Established)> {
+    if rec.facts.self_refs.is_empty() && rec.facts.self_calls.is_empty() {
+        return Ok((
+            "call-graph (no recursive calls; depth 0)".to_string(),
+            Established::Num(0),
+        ));
+    }
+    if let Some((report, est)) = &rec.structural {
+        return Ok((report.clone(), est.clone()));
+    }
+    if let Some((report, est)) = &rec.call_graph {
+        return Ok((report.clone(), est.clone()));
+    }
+    Err(Error::at(
+        rec.def_span,
+        format!(
+            "no depth bound is established for {}: the structural proof does not apply and no conservative call-graph bound applies; a bound that cannot be established is refused, never trusted (attribute annotations specification section 10; decision D113)",
+            rec.display
+        ),
+    ))
+}
+
+/// Establish the structural depth proof of one definition, if its
+/// self-recursive calls all decrease (the totality machinery's
+/// subcomponent chains, extended with the well-founded measure decrease
+/// of core specification section 8).
+fn structural_proof_for(
+    eqs: &[ast::Equation],
+    doms: &[Ty],
+    facts: &BodyFacts,
+    def_span: ast::Span,
+) -> Option<(String, Established)> {
+    let _ = def_span;
+    if !facts.self_refs.is_empty() {
+        return None;
+    }
+    if facts.self_calls.is_empty() {
+        return None;
+    }
+    let mut bounds: Vec<Established> = Vec::new();
+    for c in &facts.self_calls {
+        if c.closure {
+            // The call runs in a hoisted closure: no static descent
+            // reaches it.
+            return None;
+        }
+        let mut strict = None;
+        for (i, shape) in c.args.iter().enumerate() {
+            let (dec, measure) = match shape {
+                ArgShape::Sub { strict } => (*strict, false),
+                ArgShape::Measure => (true, true),
+                _ => (false, false),
+            };
+            if dec {
+                let name = eqs
+                    .get(c.eq)
+                    .and_then(|e| e.pats.get(i))
+                    .and_then(pat_direct)
+                    .map(|n| n.text.clone());
+                strict = Some(decrease_bound(doms, i, measure, name.as_deref()));
+                break;
+            }
+        }
+        let Some(b) = strict else {
+            // No argument decreases structurally: the totality
+            // machinery refuses this recursion.
+            return None;
+        };
+        bounds.push(b);
+    }
+    // The claim is established when some strict decrease names the
+    // bound it gives.
+    let established = bounds.into_iter().find(|b| !matches!(b, Established::Unnamed));
+    let established = established?;
+    let report = match &established {
+        Established::Num(n) => format!("structural (depth <= {n}: a size index)"),
+        Established::Named(ns) => {
+            format!("structural (depth <= {}: the size of the decreasing argument)", ns[0])
+        }
+        Established::Unnamed => return None,
+    };
+    Some((report, established))
+}
+
+impl Checker {
+    /// The foreign bindings of the collected modules (the `#[no-raw-ptr]`
+    /// and foreign-aggregate marks the body walker reads).
+    fn foreign_marks(&self) -> ForeignMarks {
+        let mut marks = ForeignMarks::default();
+        for (name, f) in &self.module_foreign {
+            let _ = name;
+            let mut ptr = false;
+            let mut agg = false;
+            for p in &f.params {
+                ptr |= p.class == "ptr" || p.role == "raw" || p.role == "opaque-handle";
+                agg |= p.class == "aggregate";
+            }
+            ptr |= f.result.class == "ptr"
+                || f.result.role == "raw"
+                || f.result.role == "opaque-handle";
+            agg |= f.result.class == "aggregate";
+            if ptr {
+                marks.ptrs.insert(f.symbol.clone());
+                marks.ptrs.insert(f.external.clone());
+            }
+            if agg {
+                marks.aggregates.insert(f.symbol.clone());
+                marks.aggregates.insert(f.external.clone());
+            }
+        }
+        marks
+    }
+
+    /// Is `name` in this module's export surface (the `jpl` profile's
+    /// `assert-min` rule counts exported functions)?
+    fn surface_value(&self, module: &str, name: &str) -> bool {
+        match self.module_surface.get(module) {
+            Some(sm) => sm.iter().any(|(_, d)| d.name == name),
+            None => self.declared_names(module).iter().any(|n| n == name),
+        }
+    }
+
+    /// Record one definition's safety assertions (attribute annotations
+    /// specification section 10): one definition carries one of each,
+    /// merged across its signature and equations.
+    fn record_fn_safety(
+        &mut self,
+        key: &str,
+        set: &SafetySet,
+        display: &str,
+    ) -> Result<()> {
+        if set.is_empty() {
+            return Ok(());
+        }
+        let entry = self.safety_attrs.entry(key.to_string()).or_default();
+        entry.merge(set, display)
+    }
+
+    /// Is the `jpl` profile in force for `module` (the `jpl` target
+    /// profile covers the user's program; `#[profile "jpl"]` covers its
+    /// module; decision D114)?
+    fn jpl_for(&self, module: &str) -> bool {
+        (self.jpl_target && self.jpl_user_modules.contains(module))
+            || self
+                .module_safety
+                .get(module)
+                .map(|m| m.profile_jpl)
+                .unwrap_or(false)
+    }
+
+    /// Verify one definition's safety assertions at the definition
+    /// (attribute annotations specification section 10; decision D112):
+    /// a violation is a compile error naming the attribute, the asserted
+    /// rule, and the offending site. The group claims (`#[recursion]`,
+    /// `#[stack]`) verify against the checked program's D104 groups once
+    /// every definition is elaborated.
+    fn verify_definition_safety(
+        &mut self,
+        key: &str,
+        module: &str,
+        name: &str,
+        eqs: &[ast::Equation],
+        doms: &[Ty],
+        logical: bool,
+        def_span: ast::Span,
+    ) -> Result<()> {
+        let attrs = self.safety_attrs.get(key).cloned().unwrap_or_default();
+        let jpl = !logical && self.jpl_for(module);
+        if attrs.is_empty() && !jpl {
+            return Ok(());
+        }
+        let display = format!("{module}.{name}");
+        let exported = self.surface_value(module, name);
+        let marks = self.foreign_marks();
+        let mut facts = collect_body_facts(module, name, eqs, &marks);
+        facts.runtime_decides = std::mem::take(&mut self.cur_runtime_decides);
+
+        // Opaque types of the signature (the `#[no-raw-ptr]` rule).
+        let mut opaque: HashSet<String> = HashSet::new();
+        for (n, kinds) in &self.types {
+            if kinds.iter().any(|k| k.opaque) {
+                opaque.insert(n.clone());
+            }
+        }
+
+        // -- `#[max-complexity n]` (JPL rule 4): branches + 1.
+        let complexity_cap = match attrs.max_complexity {
+            Some((n, span)) => {
+                if jpl && n > JPL_COMPLEXITY {
+                    return Err(Error::at(
+                        span,
+                        format!(
+                            "`#[max-complexity {n}]` is looser than the `jpl` profile's rule (complexity {JPL_COMPLEXITY}): a definition's own attributes may be stricter than the profile, never looser (attribute annotations specification section 10; decision D114)"
+                        ),
+                    ));
+                }
+                n
+            }
+            None => {
+                if jpl {
+                    JPL_COMPLEXITY
+                } else {
+                    u64::MAX
+                }
+            }
+        };
+        if complexity_cap != u64::MAX {
+            let c = facts.branches + 1;
+            if c > complexity_cap {
+                let who = if attrs.max_complexity.is_some() {
+                    format!(
+                        "`#[max-complexity {complexity_cap}]` on {display} asserts the bounded-complexity rule (JPL rule 4)"
+                    )
+                } else {
+                    format!(
+                        "the `jpl` profile mandates complexity {JPL_COMPLEXITY} for every definition (decision D114)"
+                    )
+                };
+                return Err(Error::at(
+                    attrs.max_complexity.map(|(_, s)| s).unwrap_or(def_span),
+                    format!(
+                        "{who}: the body's cyclomatic complexity (branches + 1) is {c}, above {complexity_cap}"
+                    ),
+                ));
+            }
+        }
+
+        // -- `#[max-lines n]` (JPL rule 4): body source lines.
+        let lines_cap = match attrs.max_lines {
+            Some((n, span)) => {
+                if jpl && n > JPL_LINES {
+                    return Err(Error::at(
+                        span,
+                        format!(
+                            "`#[max-lines {n}]` is looser than the `jpl` profile's rule (lines {JPL_LINES}): a definition's own attributes may be stricter than the profile, never looser (attribute annotations specification section 10; decision D114)"
+                        ),
+                    ));
+                }
+                n
+            }
+            None => {
+                if jpl {
+                    JPL_LINES
+                } else {
+                    u64::MAX
+                }
+            }
+        };
+        if lines_cap != u64::MAX && facts.body_lines > lines_cap {
+            let who = if attrs.max_lines.is_some() {
+                format!(
+                    "`#[max-lines {lines_cap}]` on {display} asserts the small-functions rule (JPL rule 4)"
+                )
+            } else {
+                format!(
+                    "the `jpl` profile mandates at most {JPL_LINES} source lines (decision D114)"
+                )
+            };
+            return Err(Error::at(
+                attrs.max_lines.map(|(_, s)| s).unwrap_or(def_span),
+                format!(
+                    "{who}: the body spans {} source lines, above {lines_cap}",
+                    facts.body_lines
+                ),
+            ));
+        }
+
+        // -- `#[assert-min n]` (JPL rule 5): runtime checks in the body;
+        // proof obligations do not count.
+        let assert_floor = match attrs.assert_min {
+            Some((n, span)) => {
+                if jpl && exported && n < JPL_ASSERT_MIN {
+                    return Err(Error::at(
+                        span,
+                        format!(
+                            "`#[assert-min {n}]` is looser than the `jpl` profile's rule ({JPL_ASSERT_MIN} runtime checks on exported functions): a definition's own attributes may be stricter than the profile, never looser (attribute annotations specification section 10; decision D114)"
+                        ),
+                    ));
+                }
+                n
+            }
+            None => {
+                if jpl && exported {
+                    JPL_ASSERT_MIN
+                } else {
+                    0
+                }
+            }
+        };
+        if (facts.runtime_decides.len() as u64) < assert_floor {
+            let who = if attrs.assert_min.is_some() {
+                format!(
+                    "`#[assert-min {assert_floor}]` on {display} asserts the runtime-assertion rule (JPL rule 5)"
+                )
+            } else {
+                format!(
+                    "the `jpl` profile mandates {JPL_ASSERT_MIN} runtime checks on exported functions (decision D114)"
+                )
+            };
+            return Err(Error::at(
+                attrs.assert_min.map(|(_, s)| s).unwrap_or(def_span),
+                format!(
+                    "{who}: the body has {} runtime `decide` check(s) (proof obligations do not count), below {assert_floor}",
+                    facts.runtime_decides.len()
+                ),
+            ));
+        }
+
+        // -- `#[checked-params]` (JPL rule 7): every parameter is
+        // validated before first use.
+        if attrs.checked_params.is_some() {
+            for (p, span) in &facts.unchecked_params {
+                return Err(Error::at(
+                    *span,
+                    format!(
+                        "`#[checked-params]` on {display} asserts the boundary-validation rule (JPL rule 7): the parameter `{p}` is used here before any validating check (a refutable `case` match or a runtime `decide`)"
+                    ),
+                ));
+            }
+        }
+
+        // -- `#[no-macros]` (JPL rule 8): no expansion inside.
+        if attrs.no_macros.is_some() || jpl {
+            if let Some(span) = facts.macro_site {
+                let who = if attrs.no_macros.is_some() {
+                    format!("`#[no-macros]` on {display} asserts the preprocessor rule (JPL rule 8)")
+                } else {
+                    format!(
+                        "the `jpl` profile forbids macro expansion inside a definition (decision D114)"
+                    )
+                };
+                return Err(Error::at(
+                    attrs.no_macros.unwrap_or(span),
+                    format!("{who}: a macro expansion occurred at this site"),
+                ));
+            }
+        }
+
+        // -- `#[no-raw-ptr]` (JPL rule 9): no raw pointer or opaque type
+        // in the signature, no foreign pointer operation in the body.
+        let sig_ptr = attrs.no_raw_ptr.is_some() || jpl;
+        if sig_ptr {
+            let mut where_ = None;
+            for t in doms {
+                if ty_has_raw_ptr(t, &opaque, &mut where_) {
+                    let who = if attrs.no_raw_ptr.is_some() {
+                        format!(
+                            "`#[no-raw-ptr]` on {display} asserts the pointer rule (JPL rule 9)"
+                        )
+                    } else {
+                        format!(
+                            "the `jpl` profile forbids raw pointers and opaque types (decision D114)"
+                        )
+                    };
+                    return Err(Error::at(
+                        attrs.no_raw_ptr.unwrap_or(def_span),
+                        format!(
+                            "{who}: {} appears in the signature",
+                            where_.unwrap_or_else(|| "a raw pointer".to_string())
+                        ),
+                    ));
+                }
+            }
+            for (fname, span) in &facts.ptr_ops {
+                let who = if attrs.no_raw_ptr.is_some() {
+                    format!(
+                        "`#[no-raw-ptr]` on {display} asserts the pointer rule (JPL rule 9)"
+                    )
+                } else {
+                    format!(
+                        "the `jpl` profile forbids foreign pointer operations (decision D114)"
+                    )
+                };
+                return Err(Error::at(
+                    attrs.no_raw_ptr.unwrap_or(*span),
+                    format!("{who}: the foreign pointer operation `{fname}` runs here"),
+                ));
+            }
+        }
+
+        // -- `#[no-alloc]` (JPL rule 3): no allocation site in the body.
+        if attrs.no_alloc.is_some() {
+            for site in &facts.alloc_sites {
+                return Err(Error::at(
+                    site.span,
+                    format!(
+                        "`#[no-alloc]` on {display} asserts the no-allocation rule (JPL rule 3): {} is constructed here",
+                        site.what
+                    ),
+                ));
+            }
+        }
+
+        // -- `#[alloc "once"]` (JPL rule 3): the initialization pattern;
+        // the `jpl` profile admits allocation only here.
+        let alloc_cap = if attrs.alloc_once.is_some() {
+            Some((1u64, format!(
+                "`#[alloc \"once\"]` on {display} asserts the initialization pattern (JPL rule 3)"
+            )))
+        } else if jpl {
+            Some((0u64, format!(
+                "the `jpl` profile admits no allocation outside initialization (decision D114)"
+            )))
+        } else {
+            None
+        };
+        if let Some((cap, who)) = alloc_cap {
+            let mut seen = 0u64;
+            for site in &facts.alloc_sites {
+                if site.closure {
+                    return Err(Error::at(
+                        site.span,
+                        format!(
+                            "{who}: {} is constructed under a closure here: at most one allocation per call cannot be established",
+                            site.what
+                        ),
+                    ));
+                }
+                seen += 1;
+                if seen > cap {
+                    return Err(Error::at(
+                        site.span,
+                        format!(
+                            "{who}: {} is constructed here as well: at most {cap} allocation site(s) run per call",
+                            site.what
+                        ),
+                    ));
+                }
+            }
+        }
+
+        // The `bounded(n)` depth proofs (decision D113): structural
+        // first, the conservative call-graph bound otherwise. The group
+        // claims check against the program's D104 groups later.
+        let structural = structural_proof_for(eqs, doms, &facts, def_span);
+        let call_graph = literal_ladder(eqs, &facts.self_calls).map(|b| {
+            (
+                format!("call-graph (the literal counter ladder: depth <= {b})"),
+                Established::Num(b),
+            )
+        });
+
+        let mut fact_strings = attrs.fact_strings();
+        if jpl {
+            fact_strings.push("profile=jpl".to_string());
+        }
+        fact_strings.sort();
+        fact_strings.dedup();
+        self.safety_records.push(SafetyRecord {
+            key: key.to_string(),
+            display,
+            module: module.to_string(),
+            attrs,
+            facts,
+            def_span,
+            exported,
+            logical,
+            jpl,
+            structural,
+            call_graph,
+            fact_strings: fact_strings.clone(),
+        });
+        if !fact_strings.is_empty() {
+            self.safety_facts.insert(key.to_string(), fact_strings);
+        }
+        Ok(())
+    }
+}
+
+/// Verify the group-level safety claims against the checked program's
+/// D104 tail-call groups (attribute annotations specification section
+/// 10; decisions D112-D114): `#[recursion]` and `#[stack]` cover self
+/// and mutual recursion within the definition's recursive group (the
+/// `core::tail_report` marks are the source of truth), and the `jpl`
+/// profile requires every recursion to establish a static bound.
+pub(crate) fn verify_safety_groups(
+    records: &[SafetyRecord],
+    program: &Program,
+) -> Result<SafetyReport> {
+    let groups = crate::core::tail_report(program);
+    let mut report = SafetyReport::default();
+    let mut jpl_defs = 0u64;
+    let mut jpl_asserts = 0u64;
+    let mut jpl_modules: Vec<String> = Vec::new();
+    for rec in records {
+        if rec.jpl {
+            jpl_defs += 1;
+            jpl_asserts += rec.fact_strings.len() as u64;
+            if !jpl_modules.contains(&rec.module) {
+                jpl_modules.push(rec.module.clone());
+            }
+        }
+        let unit = rec.key.as_str();
+        let group = groups.iter().find(|g| g.members.iter().any(|m| m == unit));
+        let mut multi = false;
+        let mut members: std::collections::BTreeSet<String> =
+            std::collections::BTreeSet::new();
+        members.insert(unit.to_string());
+        if let Some(g) = group {
+            for m in &g.members {
+                members.insert(m.clone());
+            }
+            multi = g.members.len() > 1;
+        }
+        // The definition's units: its own and its hoisted closures.
+        let prefix = format!("{unit}.");
+        let mut subs: Vec<String> = Vec::new();
+        for f in &program.fns {
+            if f.id.0.starts_with(&prefix) {
+                subs.push(f.id.0.clone());
+            }
+        }
+        let hidden_call = rec.facts.self_calls.iter().find(|c| c.closure);
+        let value_ref = rec.facts.self_refs.first();
+        let recursive = multi
+            || hidden_call.is_some()
+            || value_ref.is_some()
+            || !rec.facts.self_calls.is_empty()
+            || group.is_some();
+
+        // The span naming the offending call to a group member.
+        let member_span = |want_tail: Option<bool>| -> Option<ast::Span> {
+            for c in &rec.facts.calls {
+                let hit = members
+                    .iter()
+                    .any(|m| m == &c.callee || m.ends_with(&format!(".{}", c.callee)));
+                if !hit {
+                    continue;
+                }
+                match want_tail {
+                    Some(true) if !c.tail => continue,
+                    Some(false) if c.tail => continue,
+                    _ => {}
+                }
+                return Some(c.span);
+            }
+            None
+        };
+
+        // The tail claim: every recursive call is a jump or `musttail`
+        // call (D104's sense).
+        let tail_check = |aspan: ast::Span, who: &str| -> Result<()> {
+            if let Some(c) = hidden_call {
+                return Err(Error::at(
+                    c.span,
+                    format!(
+                        "{who}: the recursive call at this site runs in a hoisted closure, so it is not a tail call of {display} (its frame separates the call from the definition's; decision D104)",
+                        display = rec.display
+                    ),
+                ));
+            }
+            if let Some(s) = value_ref {
+                return Err(Error::at(
+                    *s,
+                    format!(
+                        "{who}: {display} refers to itself as a value at this site: a recursive use that is not a static call carries no tail claim",
+                        display = rec.display
+                    ),
+                ));
+            }
+            if let Some(g) = group {
+                if g.mark != "marked" {
+                    return Err(Error::at(
+                        aspan,
+                        format!(
+                            "{who}: the recursive group {:?} is not tail-marked ({}); its calls do not all lower to jumps or `musttail` calls",
+                            g.members, g.mark
+                        ),
+                    ));
+                }
+            }
+            let mut called: std::collections::BTreeSet<String> = members.clone();
+            called.insert(unit.to_string());
+            for site in crate::core::calls_to(program, unit, &called) {
+                if !site.tail {
+                    let span = member_span(Some(false)).unwrap_or(aspan);
+                    return Err(Error::at(
+                        span,
+                        format!(
+                            "{who}: the call to `{}` at this site is not in tail position",
+                            site.callee
+                        ),
+                    ));
+                }
+            }
+            for su in &subs {
+                for site in crate::core::calls_to(program, su, &called) {
+                    let span = member_span(Some(false)).or(member_span(None)).unwrap_or(aspan);
+                    return Err(Error::at(
+                        span,
+                        format!(
+                            "{who}: the call to `{}` at this site runs in the hoisted closure `{su}`, not in {display} itself",
+                            site.callee,
+                            display = rec.display
+                        ),
+                    ));
+                }
+            }
+            Ok(())
+        };
+
+        // The `none` claim: no recursive calls at all.
+        let none_check = |aspan: ast::Span| -> Result<()> {
+            if let Some(c) = rec.facts.self_calls.first() {
+                return Err(Error::at(
+                    c.span,
+                    format!(
+                        "`#[recursion \"none\"]` on {} asserts the no-recursion rule (JPL rule 1): the recursive call at this site (self or mutual)",
+                        rec.display
+                    ),
+                ));
+            }
+            if let Some(s) = value_ref {
+                return Err(Error::at(
+                    *s,
+                    format!(
+                        "`#[recursion \"none\"]` on {} asserts the no-recursion rule (JPL rule 1): the recursive use of the definition at this site",
+                        rec.display
+                    ),
+                ));
+            }
+            if multi {
+                let span = member_span(None).unwrap_or(aspan);
+                return Err(Error::at(
+                    span,
+                    format!(
+                        "`#[recursion \"none\"]` on {} asserts the no-recursion rule (JPL rule 1): the definition is in the recursive group {:?} (a mutual recursive call is at this site)",
+                        rec.display,
+                        group.map(|g| g.members.clone()).unwrap_or_default()
+                    ),
+                ));
+            }
+            Ok(())
+        };
+
+        let mut line: Vec<String> = Vec::new();
+
+        // -- `#[recursion ...]` (JPL rule 1).
+        match &rec.attrs.recursion {
+            Some((RecursionSpec::None, span)) => {
+                none_check(*span)?;
+                line.push("recursion=none: verified (no recursive calls)".to_string());
+            }
+            Some((RecursionSpec::Tail, span)) => {
+                let who = format!(
+                    "`#[recursion \"tail\"]` on {} asserts the tail-recursion rule (JPL rule 1: constant stack)",
+                    rec.display
+                );
+                tail_check(*span, &who)?;
+                line.push("recursion=tail: verified (D104 tail marks)".to_string());
+            }
+            Some((RecursionSpec::Bounded(arg), span)) => {
+                if multi {
+                    return Err(Error::at(
+                        *span,
+                        format!(
+                            "`#[recursion \"bounded({arg})\"]` on {}: the recursive group {:?} is mutual: no depth bound is established for a mutual cycle (bounds that cannot be established are refused, never trusted; decision D113)",
+                            rec.display,
+                            group.map(|g| g.members.clone()).unwrap_or_default()
+                        ),
+                    ));
+                }
+                if let Some(c) = hidden_call {
+                    return Err(Error::at(
+                        c.span,
+                        format!(
+                            "`#[recursion \"bounded({arg})\"]` on {}: the recursion goes through a hoisted closure at this site: no depth bound is established (decision D113)",
+                            rec.display
+                        ),
+                    ));
+                }
+                if let Some(s) = value_ref {
+                    return Err(Error::at(
+                        *s,
+                        format!(
+                            "`#[recursion \"bounded({arg})\"]` on {}: the recursion goes through a value reference at this site: no depth bound is established (decision D113)",
+                            rec.display
+                        ),
+                    ));
+                }
+                let (proof, est) = bounded_proof(rec)?;
+                match (arg, &est) {
+                    (BoundArg::Num(m), Established::Num(b)) if *b <= *m => {}
+                    (BoundArg::Name(n), Established::Named(ns)) if ns.contains(n) => {}
+                    _ => {
+                        return Err(Error::at(
+                            *span,
+                            format!(
+                                "`#[recursion \"bounded({arg})\"]` on {}: the established bound is {proof}, which does not bound the depth by {arg} (bounds that cannot be established are refused, never trusted; decision D113)",
+                                rec.display
+                            ),
+                        ));
+                    }
+                }
+                line.push(format!("recursion=bounded({arg}): {proof}"));
+            }
+            None => {}
+        }
+
+        // -- `#[stack ...]` (rule 1's stack companion).
+        match &rec.attrs.stack {
+            Some((StackSpec::Constant, span)) => {
+                let who = format!(
+                    "`#[stack \"constant\"]` on {} asserts constant stack (JPL rule 1: tail or non-recursive)",
+                    rec.display
+                );
+                none_check(*span).or_else(|_| tail_check(*span, &who))?;
+                line.push("stack=constant: verified".to_string());
+            }
+            Some((StackSpec::Bounded(arg), span)) => {
+                if multi || hidden_call.is_some() || value_ref.is_some() {
+                    return Err(Error::at(
+                        *span,
+                        format!(
+                            "`#[stack \"bounded({arg})\"]` on {}: no stack bound is established for this recursion (bounds that cannot be established are refused, never trusted; decision D113)",
+                            rec.display
+                        ),
+                    ));
+                }
+                let (proof, est) = bounded_proof(rec)?;
+                match (arg, &est) {
+                    (BoundArg::Num(m), Established::Num(b)) if *b <= *m => {}
+                    (BoundArg::Name(n), Established::Named(ns)) if ns.contains(n) => {}
+                    _ => {
+                        return Err(Error::at(
+                            *span,
+                            format!(
+                                "`#[stack \"bounded({arg})\"]` on {}: the established bound is {proof}, which does not bound the stack by {arg} (decision D113)",
+                                rec.display
+                            ),
+                        ));
+                    }
+                }
+                line.push(format!("stack=bounded({arg}): {proof}"));
+            }
+            None => {}
+        }
+
+        // -- The `jpl` profile's recursion rule (decision D114): every
+        // definition establishes a static bound (the mandated set at the
+        // rule numbers; per-definition attributes may be stricter).
+        if rec.jpl && rec.attrs.recursion.is_none() && rec.attrs.stack.is_none() {
+            if recursive {
+                let bound = if multi || hidden_call.is_some() || value_ref.is_some() {
+                    None
+                } else {
+                    bounded_proof(rec).ok()
+                };
+                match bound {
+                    Some((proof, _)) => line.push(format!("jpl recursion: {proof}")),
+                    None => {
+                        let tail_ok = tail_check(rec.def_span, "jpl").is_ok();
+                        if !tail_ok {
+                            return Err(Error::at(
+                                rec.def_span,
+                                format!(
+                                    "the `jpl` profile requires a static recursion bound for every definition (decision D114): {} establishes none (its recursion is neither tail nor structurally or conservatively bounded)",
+                                    rec.display
+                                ),
+                            ));
+                        }
+                        line.push("jpl recursion: tail (constant stack)".to_string());
+                    }
+                }
+            } else {
+                line.push("jpl recursion: verified (no recursive calls)".to_string());
+            }
+        }
+
+        if !line.is_empty() {
+            report
+                .definitions
+                .push(format!("{}: {}", rec.display, line.join("; ")));
+        }
+    }
+    if !jpl_modules.is_empty() {
+        jpl_modules.sort();
+        report.jpl = Some(JplSummary {
+            modules: jpl_modules,
+            definitions: jpl_defs,
+            assertions: jpl_asserts,
+        });
+    }
+    Ok(report)
+}
+
 /// Does pattern `a` match everything pattern `b` matches (a sufficient
 /// condition for a row to shadow a later one)?
 fn pats_cover(a: &ast::Pat, b: &ast::Pat) -> bool {
@@ -7231,15 +9468,39 @@ const WORD_ALIGN: u64 = 8;
 
 impl Checker {
     /// Report a non-fatal diagnostic (attribute annotations
-    /// specification section 2: the weight reports).
+    /// specification section 2: the weight reports). Under
+    /// `#[deny-warnings]` (a module, a definition, or the `jpl`
+    /// profile; `warn # error` scoped) a warning-level report is a
+    /// compile error (attribute annotations specification section 10).
     fn report(
         &mut self,
         code: &'static str,
         message: String,
         span: ast::Span,
         informational: bool,
-    ) {
+    ) -> Result<()> {
+        if !informational && self.deny_live() {
+            return Err(Error::at(
+                span,
+                format!(
+                    "{message} (denied by `#[deny-warnings]`/`warn # error`: a warning in scope is a compile error)"
+                ),
+            ));
+        }
         self.diags.push(Diagnostic { code, message, span, informational });
+        Ok(())
+    }
+
+    /// Is `warn # error` in force for the code being checked (attribute
+    /// annotations specification section 10)?
+    fn deny_live(&self) -> bool {
+        self.cur_def_deny
+            || self.jpl_for(&self.current_module)
+            || self
+                .module_safety
+                .get(&self.current_module)
+                .map(|m| m.deny_warnings)
+                .unwrap_or(false)
     }
 
     /// An `if` decision point's branch weights from its three attribute
@@ -7267,7 +9528,7 @@ impl Checker {
         let true_w = t.weight.or(c.weight);
         let false_w = e.weight.or(if c.weight.is_some() { Some(1) } else { None });
         let mut ws = [true_w, false_w];
-        self.complete_weights(&mut ws, "this `if`", span);
+        self.complete_weights(&mut ws, "this `if`", span)?;
         Ok((ws[0], ws[1]))
     }
 
@@ -7282,7 +9543,7 @@ impl Checker {
         ws: &mut [Option<u32>],
         what: &str,
         span: ast::Span,
-    ) {
+    ) -> Result<()> {
         let any = ws.iter().any(|w| w.is_some());
         let all = ws.iter().all(|w| w.is_some());
         if any && !all {
@@ -7293,11 +9554,12 @@ impl Checker {
                 ),
                 span,
                 false,
-            );
+            )?;
             for w in ws.iter_mut() {
                 *w = None;
             }
         }
+        Ok(())
     }
 
     /// The weights of one compiled decision point's alternatives
@@ -7314,7 +9576,7 @@ impl Checker {
         branches: &[Vec<Row>],
         what: &str,
         span: ast::Span,
-    ) -> Vec<Option<u32>> {
+    ) -> Result<Vec<Option<u32>>> {
         let mut sums: Vec<u32> = Vec::new();
         let mut contrib: HashMap<usize, usize> = HashMap::new();
         let mut any = false;
@@ -7349,7 +9611,7 @@ impl Checker {
             sums.push(sum);
         }
         if !any || mixed {
-            return sums.iter().map(|_| None).collect();
+            return Ok(sums.iter().map(|_| None).collect());
         }
         for rows in branches {
             for r in rows {
@@ -7361,12 +9623,12 @@ impl Checker {
                         ),
                         span,
                         true,
-                    );
-                    return sums.into_iter().map(Some).collect();
+                    )?;
+                    return Ok(sums.into_iter().map(Some).collect());
                 }
             }
         }
-        sums.into_iter().map(Some).collect()
+        Ok(sums.into_iter().map(Some).collect())
     }
 
     /// Record one function declaration's hints (attribute annotations
@@ -8085,6 +10347,34 @@ impl Checker {
                                 + v.scheme.ctx.len()
                                 + v.scheme.val_params.len()) as u64,
                         });
+                        // The satisfied safety assertions are contract
+                        // facts (attribute annotations specification
+                        // section 10; decision D112): recorded exactly
+                        // like `repr` facts, hashed into `iface_hash`.
+                        if let Some(facts) =
+                            self.safety_facts.get(&fn_id(&d.module, &d.name).0)
+                        {
+                            iface.assertions.push(crate::interface::AssertionFact {
+                                name: local.clone(),
+                                facts: facts.clone(),
+                            });
+                        }
+                        // The `must-use` rows of the return-value
+                        // discipline (decision D114's rule 7 default): a
+                        // `Result`-returning value is discarded only
+                        // through `ignore`.
+                        let mut res: &Ty = &v.scheme.ty;
+                        loop {
+                            match res {
+                                Ty::Fun(_, _, _, b) | Ty::Pi { cod: b, .. } => res = b,
+                                _ => break,
+                            }
+                        }
+                        if let Ty::Adt(n, _) = res {
+                            if n == "Result" {
+                                iface.must_use.push(local.clone());
+                            }
+                        }
                     }
                     _ => {}
                 }
@@ -8302,6 +10592,11 @@ pub fn check_program_multi_full(
     c.install_builtins();
     c.allow_eval = profile.allow_eval;
     c.usize_bits = profile.word_size;
+    // P20: the `jpl` target profile makes the safety assertion set
+    // mandatory for the user's program (decision D114); the prelude
+    // family is the standard library, not flight code.
+    c.jpl_target = profile.jpl;
+    c.jpl_user_modules = modules.iter().map(|m| m.name.text.clone()).collect();
     c.install_wit_api(wit)?;
     c.stage_mode = scx.mode;
     c.module_files = scx.files.clone();
@@ -8390,6 +10685,7 @@ pub fn check_program_multi_full(
             generated: Vec::new(),
             literal_folds: Vec::new(),
             data_imports: Vec::new(),
+            safety: SafetyReport::default(),
         }
     };
     // Generated declarations may declare instances: their heads convert
@@ -8420,6 +10716,10 @@ pub fn check_program_multi_full(
     if modules.is_empty() {
         return Err(Error::plain("no modules to check"));
     }
+    // P20: the group-level safety claims (`#[recursion]`, `#[stack]`)
+    // verify against the checked program's D104 groups before any
+    // interface is emitted (decisions D112-D114).
+    let safety_records = std::mem::take(&mut c.safety_records);
     // Interfaces in dependency order: imports are known when built.
     let mut ifaces = Vec::new();
     let mut built: Vec<(String, String)> = Vec::new(); // (module, iface_hash)
@@ -8458,6 +10758,10 @@ pub fn check_program_multi_full(
     }
     let diags = std::mem::take(&mut c.diags);
     let program = c.finish(&scx.entry_modules, &prelude_name)?;
+    // P20: the group-level safety claims verify over the finished
+    // program's D104 groups; the report says which proof method
+    // established each `bounded(n)` bound (decision D113).
+    report.safety = verify_safety_groups(&safety_records, &program)?;
     Ok((program, ifaces, report, diags))
 }
 
@@ -8526,6 +10830,11 @@ pub struct StageReport {
     /// The `import data` bindings' provenance (surface grammar local
     /// amendments section 11): converter identity and file content hash.
     pub data_imports: Vec<DataImport>,
+    /// The P20 safety assertion report (attribute annotations
+    /// specification section 10): which proof method verified each
+    /// `bounded(n)` claim (decision D113), and the `jpl` profile's
+    /// whole-program summary (decision D114).
+    pub safety: SafetyReport,
 }
 
 /// The compile-time evaluation context: everything the interpreter needs
@@ -8678,6 +10987,7 @@ impl Checker {
             generated,
             literal_folds: Vec::new(),
             data_imports: Vec::new(),
+            safety: SafetyReport::default(),
         })
     }
 
@@ -9671,6 +11981,7 @@ impl Checker {
         // Collect the generated declarations now: later generators and
         // on-demand compilation resolve their names.
         let mut m = ast::Module {
+            attrs: Vec::new(),
             name: ast::Name::new(module, span),
             params: Vec::new(),
             imports: Vec::new(),

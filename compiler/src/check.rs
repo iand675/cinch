@@ -1893,6 +1893,27 @@ struct Checker {
     layout_recipes: HashMap<(String, String), LayoutRecipe>,
     /// Computed ABI layout facts per type, keyed `(module, name)`.
     type_layouts: HashMap<(String, String), crate::interface::AbiLayout>,
+    /// P20: the safety assertion set recorded per definition (attribute
+    /// annotations specification section 10).
+    safety_attrs: HashMap<String, SafetySet>,
+    /// P20: module-scope safety state (`#[profile "jpl"]`,
+    /// `#[deny-warnings]` on the module header).
+    module_safety: HashMap<String, ModuleSafety>,
+    /// P20: the verified per-definition records for the group checks.
+    safety_records: Vec<SafetyRecord>,
+    /// P20: satisfied assertion facts per definition, for the
+    /// interface's contract rows (decision D112).
+    safety_facts: HashMap<String, Vec<String>>,
+    /// P20: the runtime `decide` sites of the definition being checked
+    /// (proof obligations do not count).
+    cur_runtime_decides: Vec<ast::Span>,
+    /// P20: `#[deny-warnings]` on the definition being checked.
+    cur_def_deny: bool,
+    /// P20: the `jpl` target profile in force (decision D114).
+    jpl_target: bool,
+    /// P20: the user modules (the profiled program; the prelude family
+    /// is not flight code).
+    jpl_user_modules: HashSet<String>,
     /// Rewrite declarations awaiting checking, in source order (modules
     /// and compilation specification section 5).
     pending_rewrites: Vec<(String, ast::RewriteDecl)>,
@@ -2161,6 +2182,14 @@ impl Checker {
             fn_hints: HashMap::new(),
             layout_recipes: HashMap::new(),
             type_layouts: HashMap::new(),
+            safety_attrs: HashMap::new(),
+            module_safety: HashMap::new(),
+            safety_records: Vec::new(),
+            safety_facts: HashMap::new(),
+            cur_runtime_decides: Vec::new(),
+            cur_def_deny: false,
+            jpl_target: false,
+            jpl_user_modules: HashSet::new(),
             pending_rewrites: Vec::new(),
             pending_upgrades: Vec::new(),
             upgrade_evidence: Vec::new(),

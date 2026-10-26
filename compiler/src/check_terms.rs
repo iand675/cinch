@@ -93,10 +93,10 @@ impl Checker {
     }
 
     /// Is `name` an unshadowed builtin form (`delay`, `force`, `demand`,
-    /// `copyOut`, `borrow`, `mutBorrow`)? A user definition of the same
-    /// name shadows the builtin (decision D2).
+    /// `copyOut`, `borrow`, `mutBorrow`, `ignore`)? A user definition of
+    /// the same name shadows the builtin (decision D2).
     fn is_builtin_form(&self, env: &Env, name: &str) -> bool {
-        matches!(name, "delay" | "force" | "demand" | "copyOut" | "borrow" | "mutBorrow" | "decide")
+        matches!(name, "delay" | "force" | "demand" | "copyOut" | "borrow" | "mutBorrow" | "decide" | "ignore")
             && env.lookup(name).is_none()
             && self.lookup_value(None, name).is_err()
     }
@@ -1416,6 +1416,23 @@ impl Checker {
         Ok((app_spine(ECore::Global(id), arg_cores), ty))
     }
 
+    /// The `Result` must-use default (attribute annotations
+    /// specification section 10; decision D114's rule 7 default):
+    /// discarding a `Result`-typed value without `ignore` is a check
+    /// error (the return-value discipline of JPL rule 7).
+    fn check_must_use_discard(&mut self, discarded: &Ty, span: ast::Span) -> Result<()> {
+        let t = self.uni.zonk(discarded);
+        if let Ty::Adt(n, _) = &t {
+            if n == "Result" {
+                return Err(Error::at(
+                    span,
+                    "discarding a `Result`-typed expression without `ignore`: check the outcome or discard it on purpose (`ignore e`; the return-value discipline of JPL rule 7, decision D114)",
+                ));
+            }
+        }
+        Ok(())
+    }
+
     fn infer_builtin_app(
         &mut self,
         env: &mut Env,
@@ -1430,6 +1447,20 @@ impl Checker {
             ));
         }
         match name {
+            "ignore" => {
+                // `ignore e`: the explicit discard of the return-value
+                // discipline (attribute annotations specification
+                // section 10; decision D114's rule 7 default). The value
+                // runs and is dropped on purpose; a `Result` discarded
+                // any other way is a check error.
+                let (core, ty) = self.infer(env, &args[0])?;
+                let l = self.fresh_local();
+                self.register_obligation(l, "_", None, ty, span);
+                Ok((
+                    ECore::Let(l, Box::new(core), Box::new(ECore::Unit)),
+                    Ty::Unit,
+                ))
+            }
             "delay" => {
                 // arg : Unit ->{e} a; result Thunk {e} a; creating the thunk
                 // performs nothing.
@@ -1607,6 +1638,11 @@ impl Checker {
                     }
                     ObligStatus::Unresolved => {}
                 }
+                // An executable comparison over the examined values: a
+                // runtime check of the `#[assert-min]` count (attribute
+                // annotations specification section 10; proof
+                // obligations do not count).
+                self.cur_runtime_decides.push(span);
                 // An executable comparison over the examined values; the
                 // evidence exists only on the successful branch.
                 let cmp_op = match cmp {
@@ -2908,7 +2944,14 @@ impl Checker {
                                 self.generalize_local(env, &bt, is_syntactic_value(body));
                             self.bind_local(env, &n.text, l, scheme, None, n.span)?;
                         }
-                        ast::Pat::Wild(_) => {}
+                        ast::Pat::Wild(_) => {
+                            // The `Result` must-use default (decision
+                            // D114's rule 7): `let _ = e` discards the
+                            // value.
+                            if !is_ignore_discard(body) {
+                                self.check_must_use_discard(&bt, *span)?;
+                            }
+                        }
                         ast::Pat::Unit(_)
                         | ast::Pat::Tuple(_, _)
                         | ast::Pat::As(_, _, _) => {
@@ -3505,7 +3548,7 @@ impl Checker {
             weights.push(set.weight);
             guard_weights.push(gset.weight);
         }
-        self.complete_weights(&mut weights, "this `case`", span);
+        self.complete_weights(&mut weights, "this `case`", span)?;
         let mut rows: Vec<Row> = Vec::new();
         for (i, a) in alts.iter().enumerate() {
             rows.push(Row {
@@ -3783,7 +3826,7 @@ impl Checker {
                     branch_lists.push(branch);
                 }
                 branch_lists.push(defaults.clone());
-                let sums = self.decision_weights(&branch_lists, "this literal match", ctx_span);
+                let sums = self.decision_weights(&branch_lists, "this literal match", ctx_span)?;
                 let (lit_sums, default_sum) = sums.split_at(literals.len());
                 let mut branch_maps = Vec::new();
                 let (mut chain, m) = self.isolate(|s| {
@@ -3899,7 +3942,7 @@ impl Checker {
                     &[true_rows.clone(), false_rows.clone()],
                     "this `Bool` match",
                     ctx_span,
-                );
+                )?;
                 let (tw, fw) = pair_weights(sums[0], sums[1]);
                 let (t, tm) = self.isolate(|s| {
                     s.compile_rows(
@@ -4174,7 +4217,7 @@ impl Checker {
                 // Branch weights (attribute annotations specification
                 // section 2.2): each constructor's alternative sums the
                 // weights of the rows reachable through it.
-                let sums = self.decision_weights(&branch_lists, "this `case`", ctx_span);
+                let sums = self.decision_weights(&branch_lists, "this `case`", ctx_span)?;
                 let alts = alt_pats
                     .into_iter()
                     .zip(alts)
@@ -5871,6 +5914,9 @@ impl Checker {
                     };
                     let dspan = *dspan;
                     let risky = self.term_may_dispatch(dbody);
+                    // The `Result` must-use default (decision D114's
+                    // rule 7): `let _ = e` discards the value.
+                    let dbody_ignored = is_ignore_discard(dbody);
                     let restv = rest.to_vec();
                     let body2 = body.clone();
                     let kv2 = kv.clone();
@@ -5894,6 +5940,9 @@ impl Checker {
                                     v
                                 }
                                 None => {
+                                    if !dbody_ignored {
+                                        this.check_must_use_discard(&vty, dspan)?;
+                                    }
                                     this.register_obligation(v, "_", None, vty, dspan);
                                     v
                                 }
@@ -6042,7 +6091,14 @@ impl Checker {
                     Some(n) => {
                         self.bind_local(&mut env2, n, l, Scheme::mono(ty), None, bspan)?
                     }
-                    None => self.register_obligation(l, "_", None, ty, bspan),
+                    None => {
+                        // The `Result` must-use default (decision D114's
+                        // rule 7): `let _ = e` discards the value.
+                        if !is_ignore_discard(body) {
+                            self.check_must_use_discard(&ty, bspan)?;
+                        }
+                        self.register_obligation(l, "_", None, ty, bspan)
+                    }
                 }
                 let rest_code = self.elab_do(&mut env2, rest, shape, kv, span)?;
                 return Ok(wrap_lets(vec![(l, vcore)], rest_code));
@@ -6100,6 +6156,10 @@ impl Checker {
         };
         let risky = self.term_may_dispatch(stmt);
         let sp = span;
+        // The `Result` must-use default (decision D114's rule 7): a
+        // wildcard statement discards the payload, and a `Result` may be
+        // discarded only through `ignore`.
+        let stmt_ignored = is_ignore_discard(stmt);
         match kv {
             None => {
                 let stmt_core = self.check(env, stmt, &stmt_ty)?;
@@ -6109,7 +6169,12 @@ impl Checker {
                     Some(n) => {
                         self.bind_local(&mut env2, n, l, Scheme::mono(payload), None, sspan)?
                     }
-                    None => self.register_obligation(l, "_", None, payload, sspan),
+                    None => {
+                        if !stmt_ignored {
+                            self.check_must_use_discard(&payload, sspan)?;
+                        }
+                        self.register_obligation(l, "_", None, payload, sspan)
+                    }
                 }
                 self.conts.push(ContFrame { kind, risky, consumes_linear: false });
                 self.cont_depth += 1;
@@ -6147,6 +6212,9 @@ impl Checker {
                                 )?
                             }
                             None => {
+                                if !stmt_ignored {
+                                    this.check_must_use_discard(&payload, sspan)?;
+                                }
                                 this.register_obligation(l, "_", None, payload, sspan)
                             }
                         }
@@ -6863,6 +6931,21 @@ fn check_row_binders(pats: &[ast::Pat]) -> Result<()> {
         walk(p, &mut seen)?;
     }
     Ok(())
+}
+
+/// Is this term an explicit `ignore e` (the purposeful discard of the
+/// `Result` must-use default; attribute annotations specification
+/// section 10)?
+fn is_ignore_discard(t: &ast::Term) -> bool {
+    match t {
+        ast::Term::Ann(e, _, _) => is_ignore_discard(e),
+        ast::Term::App(f, args, _) => {
+            matches!(&**f, ast::Term::Var(p)
+                if p.quals.is_empty() && p.name.text == "ignore")
+                && args.len() == 1
+        }
+        _ => false,
+    }
 }
 
 /// A binary decision point's weights: both alternatives carry one or

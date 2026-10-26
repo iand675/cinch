@@ -2188,6 +2188,25 @@ pub enum RequireCond {
 
 // ============================== the tail-call report (D104) ==============================
 
+/// The unit a call head names, with its arity (`None` for a dynamically
+/// dispatched head): the tail-call report's notion of a callable unit.
+fn scan_unit_of(
+    e: &Core,
+    fns: &std::collections::HashMap<String, usize>,
+    insts: &std::collections::HashMap<String, usize>,
+    foreigns: &std::collections::BTreeMap<String, ForeignPlan>,
+) -> Option<(String, usize)> {
+    match e {
+        Core::Global(id) | Core::Ctor(id) => fns
+            .get(&id.0)
+            .or_else(|| insts.get(&id.0))
+            .map(|a| (id.0.clone(), *a)),
+        Core::Prim(op) => Some((op.symbol(), op.arity())),
+        Core::Foreign(n) => foreigns.get(n).map(|p| (n.clone(), p.arity())),
+        _ => None,
+    }
+}
+
 /// One recursive group of the call graph with its tail-call mark
 /// (surface grammar local amendments section 9): `"marked"` when the
 /// group's self and mutual tail calls compile to jumps or `musttail`
@@ -2234,24 +2253,8 @@ pub fn tail_report(program: &Program) -> Vec<TailGroup> {
         insts.insert(format!("{}.mk", i.id.0), i.subdict_count);
     }
 
-    /// The unit a call head names, with its arity (`None` for a
-    /// dynamically dispatched head).
-    fn unit_of(
-        e: &Core,
-        fns: &std::collections::HashMap<String, usize>,
-        insts: &std::collections::HashMap<String, usize>,
-        foreigns: &std::collections::BTreeMap<String, ForeignPlan>,
-    ) -> Option<(String, usize)> {
-        match e {
-            Core::Global(id) | Core::Ctor(id) => fns
-                .get(&id.0)
-                .or_else(|| insts.get(&id.0))
-                .map(|a| (id.0.clone(), *a)),
-            Core::Prim(op) => Some((op.symbol(), op.arity())),
-            Core::Foreign(n) => foreigns.get(n).map(|p| (n.clone(), p.arity())),
-            _ => None,
-        }
-    }
+    // The unit a call head names (`None` for a dynamically dispatched
+    // head) is `scan_unit_of`.
 
     /// Every called unit in a body (any position): the call graph's
     /// out-edges.
@@ -2289,7 +2292,7 @@ pub fn tail_report(program: &Program) -> Vec<TailGroup> {
                 }
             }
             Core::App(f, args) => {
-                if let Some((u, _)) = unit_of(f, fns, insts, foreigns) {
+                if let Some((u, _)) = scan_unit_of(f, fns, insts, foreigns) {
                     out.push(u);
                 }
                 all_calls(f, fns, insts, foreigns, out);
@@ -2344,7 +2347,7 @@ pub fn tail_report(program: &Program) -> Vec<TailGroup> {
                 }
             }
             Core::App(f, args) => {
-                let (u, a) = match unit_of(f, fns, insts, foreigns) {
+                let (u, a) = match scan_unit_of(f, fns, insts, foreigns) {
                     Some((u, a)) => (Some(u), a),
                     None => (None, args.len()),
                 };
@@ -2484,6 +2487,124 @@ pub fn tail_report(program: &Program) -> Vec<TailGroup> {
     out
 }
 
+/// One call from a unit's body to a named callee, with whether the call
+/// sits in a tail position.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CallSite {
+    pub callee: String,
+    pub tail: bool,
+}
+
+/// Every call from `unit`'s body to a unit named in `callees`, in
+/// traversal order. The tail-position notion is the tail-call report's
+/// own (decisions D104 and D138): the same walk that decides which
+/// calls lower to jumps or `musttail` calls, over the same call-head
+/// resolution. P20's recursion assertions read this scan as the source
+/// of truth for "a tail call"; a body under a hoisted lambda is its own
+/// unit and is scanned by naming that unit.
+pub fn calls_to(
+    program: &Program,
+    unit: &str,
+    callees: &std::collections::BTreeSet<String>,
+) -> Vec<CallSite> {
+    let mut fns: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+    let mut insts: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+    for f in &program.fns {
+        fns.insert(f.id.0.clone(), f.arity());
+    }
+    for i in &program.instances {
+        insts.insert(format!("{}.mk", i.id.0), i.subdict_count);
+    }
+    let body = program
+        .fns
+        .iter()
+        .find(|f| f.id.0 == unit && f.prim.is_none() && f.ctor.is_none())
+        .map(|f| &f.body);
+    let Some(body) = body else {
+        return Vec::new();
+    };
+    let mut out = Vec::new();
+    calls_walk(body, true, &fns, &insts, &program.foreigns, callees, &mut out);
+    out
+}
+
+/// The `calls_to` walk: `tail` mirrors `tail_report`'s `tail_calls`
+/// (a `Let` body, an `If` branch, a `Case` alternative, or the head of
+/// an application), and every other subterm is scanned in non-tail
+/// position. A hoisted lambda's body is another unit's body, so only
+/// its captured environment is scanned here.
+fn calls_walk(
+    e: &Core,
+    tail: bool,
+    fns: &std::collections::HashMap<String, usize>,
+    insts: &std::collections::HashMap<String, usize>,
+    foreigns: &std::collections::BTreeMap<String, ForeignPlan>,
+    callees: &std::collections::BTreeSet<String>,
+    out: &mut Vec<CallSite>,
+) {
+    match e {
+        Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::Bool(_) | Core::Unit
+        | Core::Var(_) | Core::Global(_) | Core::Ctor(_) | Core::Prim(_) | Core::Foreign(_)
+        | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc
+        | Core::SyntaxLit(_) | Core::StrLit(_) => {}
+        Core::Quote { holes, body, .. } => {
+            for h in holes {
+                calls_walk(h, false, fns, insts, foreigns, callees, out);
+            }
+            if let Some(b) = body {
+                calls_walk(b, false, fns, insts, foreigns, callees, out);
+            }
+        }
+        Core::DeclsQuote { holes, .. } => {
+            for h in holes {
+                calls_walk(h, false, fns, insts, foreigns, callees, out);
+            }
+        }
+        Core::DictProj(d, _) | Core::Proj(d, _) | Core::Demand(d) | Core::BoxGet(d) => {
+            calls_walk(d, false, fns, insts, foreigns, callees, out)
+        }
+        Core::InstDict(_, args) => {
+            for a in args {
+                calls_walk(a, false, fns, insts, foreigns, callees, out);
+            }
+        }
+        Core::App(f, args) => {
+            if let Some((u, _)) = scan_unit_of(f, fns, insts, foreigns) {
+                if callees.contains(&u) {
+                    out.push(CallSite { callee: u, tail });
+                }
+            }
+            calls_walk(f, false, fns, insts, foreigns, callees, out);
+            for a in args {
+                calls_walk(a, false, fns, insts, foreigns, callees, out);
+            }
+        }
+        Core::Lam { env, .. } => {
+            for a in env {
+                calls_walk(a, false, fns, insts, foreigns, callees, out);
+            }
+        }
+        Core::Let(_, v, body) => {
+            calls_walk(v, false, fns, insts, foreigns, callees, out);
+            calls_walk(body, tail, fns, insts, foreigns, callees, out);
+        }
+        Core::BoxInit(_, v) | Core::LazyInit(_, v) => {
+            calls_walk(v, false, fns, insts, foreigns, callees, out)
+        }
+        Core::If(c, t, fe) => {
+            calls_walk(c, false, fns, insts, foreigns, callees, out);
+            calls_walk(&t.body, tail, fns, insts, foreigns, callees, out);
+            calls_walk(&fe.body, tail, fns, insts, foreigns, callees, out);
+        }
+        Core::Case { scrut, alts } => {
+            calls_walk(scrut, false, fns, insts, foreigns, callees, out);
+            for a in alts {
+                calls_walk(&a.body, tail, fns, insts, foreigns, callees, out);
+            }
+        }
+    }
+}
+
 // ============================== P10: the optimizer ==============================
 //
 // Rewrites, the driving engine, and target profiles (modules and
@@ -2573,6 +2694,10 @@ pub struct TargetProfile {
     /// deployment baseline, enforced at artifact admission: platform
     /// proofs and SIMD specification section 3).
     pub required: Vec<String>,
+    /// The `jpl` target profile (attribute annotations specification
+    /// section 10; decision D114): the whole safety assertion set is
+    /// mandatory at the JPL rule numbers for every user definition.
+    pub jpl: bool,
 }
 
 impl TargetProfile {
@@ -2590,6 +2715,7 @@ impl TargetProfile {
             allow_eval: true,
             artifact: ArtifactProfile::Native,
             required: Vec::new(),
+            jpl: false,
         }
     }
 
@@ -2622,6 +2748,23 @@ impl TargetProfile {
             allow_eval: true,
             artifact,
             required: Vec::new(),
+            jpl: false,
+        }
+    }
+
+    /// The `jpl` target profile (attribute annotations specification
+    /// section 10; decision D114): the host's native target with the
+    /// whole safety assertion set mandatory at the JPL rule numbers
+    /// (complexity 10, lines 60, `assert-min 2` on exported functions,
+    /// bounded recursion, no allocation outside initialization, no
+    /// macros, no raw pointers, warnings as errors) for every user
+    /// definition, with a whole-program summary. A definition's own
+    /// attributes may be stricter than the profile, never looser.
+    pub fn jpl() -> Self {
+        TargetProfile {
+            name: "jpl".to_string(),
+            jpl: true,
+            ..TargetProfile::native()
         }
     }
 }

@@ -295,6 +295,21 @@ pub struct AbiLayout {
     pub discriminant: Option<u64>,
 }
 
+/// One definition's satisfied safety assertions (attribute annotations
+/// specification section 10; decision D112): contract facts recorded in
+/// the interface's contract projection exactly like `repr` facts, hashed
+/// into `iface_hash`, so a consumer may rely on `#[no-alloc]` across a
+/// call without re-deriving it. The facts are the assertions as
+/// verified at the definition, in a normalized spelling.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct AssertionFact {
+    /// The exported value's name.
+    pub name: String,
+    /// The satisfied assertions (`"recursion=tail"`, `"no-alloc"`,
+    /// `"complexity<=5"`, ...), sorted.
+    pub facts: Vec<String>,
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Exports {
     pub values: Vec<ValueExport>,
@@ -352,6 +367,16 @@ pub struct Iface {
     /// Computed layout facts for the module's types (the ABI section's
     /// `layouts` table; part of the contract projection).
     pub layouts: Vec<AbiLayout>,
+    /// The safety assertions satisfied at each exported definition
+    /// (attribute annotations specification section 10; decision D112):
+    /// contract facts recorded exactly like `repr` facts and hashed into
+    /// `iface_hash`.
+    pub assertions: Vec<AssertionFact>,
+    /// The exported values whose result type is `Result`: the
+    /// `must-use` rows of the return-value discipline (attribute
+    /// annotations specification section 10; decision D114's rule 7
+    /// default). A consumer discards one only through `ignore`.
+    pub must_use: Vec<String>,
     /// Schema compatibility evidence from the module's checked `upgrade`
     /// declarations (runtime evolution specification section 11).
     pub upgrades: Vec<UpgradeEvidence>,
@@ -374,6 +399,8 @@ impl Iface {
             exports: Exports::default(),
             assumptions: Assumptions::default(),
             layouts: Vec::new(),
+            assertions: Vec::new(),
+            must_use: Vec::new(),
             upgrades: Vec::new(),
             units: Vec::new(),
         }
@@ -645,9 +672,28 @@ impl Iface {
                 o.push_str(", \"discriminant\": ");
                 o.push_str(&w.to_string());
             }
-            o.push_str("}");
+            o.push('}');
         });
-        out.push_str("\n  }\n}\n");
+        out.push_str("\n  },\n");
+
+        // Satisfied safety assertions (attribute annotations
+        // specification section 10; decision D112): contract facts
+        // exactly like the `repr` facts above, hashed into `iface_hash`.
+        out.push_str("  \"assertions\": ");
+        let mut assertions = self.assertions.clone();
+        assertions.sort();
+        arr_of(&mut out, 2, &assertions, |o, a| {
+            o.push_str("{\"name\": ");
+            json_str(o, &a.name);
+            o.push_str(", \"facts\": ");
+            json_list(o, &sorted(&a.facts));
+            o.push('}');
+        });
+        // The `must-use` rows of the return-value discipline (decision
+        // D114's rule 7 default): the exported `Result`-returning values.
+        out.push_str(",\n  \"must_use\": ");
+        json_list(&mut out, &sorted(&self.must_use));
+        out.push_str("\n}\n");
         out
     }
 
@@ -933,6 +979,25 @@ impl Iface {
                 });
             }
         }
+        // Satisfied safety assertions and the `must-use` rows (attribute
+        // annotations specification section 10; decisions D112 and D114);
+        // an older document may omit them.
+        let mut assertions = Vec::new();
+        if let Some(JsonValue::Arr(items)) = obj.get("assertions") {
+            for item in items {
+                let o = item.as_object().map_err(|_| ParseError("assertion entry".into()))?;
+                assertions.push(AssertionFact {
+                    name: field_str(o, "name")?,
+                    facts: field_list(o, "facts")?,
+                });
+            }
+        }
+        let mut must_use = Vec::new();
+        if let Some(JsonValue::Arr(items)) = obj.get("must_use") {
+            for item in items {
+                must_use.push(item.as_str()?.to_string());
+            }
+        }
         Ok(Iface {
             schema: schema as u32,
             language: get("language")?.as_str()?.to_string(),
@@ -949,6 +1014,8 @@ impl Iface {
                 declared: as_get("declared")?.as_array()?.iter().map(|v| Ok(v.as_str()?.to_string())).collect::<Result<Vec<_>, ParseError>>()?,
             },
             layouts,
+            assertions,
+            must_use,
             upgrades,
             units,
         })

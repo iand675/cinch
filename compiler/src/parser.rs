@@ -251,6 +251,10 @@ impl<'a> Parser<'a> {
     // ------------------------------------------------------------- modules
 
     fn parse_module_decl(&mut self) -> Result<Module> {
+        // Module header attributes (attribute annotations specification
+        // section 10) sit in prefix position before the `module`
+        // keyword.
+        let attrs = self.parse_attr_list()?;
         let start = self.expect(&Tok::Module, "`module`")?.span;
         let path = self.parse_con_path()?;
         // `module M (x :: T, sig :: S, ...) where`: the parameter block of
@@ -304,7 +308,7 @@ impl<'a> Parser<'a> {
             }
         }
         let name = Name::new(path.parts().join("."), start);
-        Ok(Module { name, params, imports, decls, span: start })
+        Ok(Module { attrs, name, params, imports, decls, span: start })
     }
 
     fn parse_block_items<T>(
