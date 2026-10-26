@@ -169,8 +169,37 @@ decision record in `compiler/CONFORMANCE.md` where applicable.
   pairs at the expected type's `FromMap m k v` instance.
 - Instances opt in per container; the slice also introduces the
   prelude `Map k v` (ordered map over `Ord k`).
+- The desugar is a compile-time macro expansion: when the elements are
+  compile-time known (stage constants), the construction is evaluated
+  at compile time and the result is emitted as a constant value (no
+  runtime `from-list`/`from-map` call); otherwise the expansion is the
+  ordinary runtime class call. The fold boundary (which literals folded
+  and which stayed runtime) is a compiler report item.
 
-# 11 Rejected for now (see compiler/CONFORMANCE.md)
+# 11 Module exports and imports
+
+- `export name, ...` declarations re-export names, including imported
+  ones (`export Config.parse`, `export module Data` re-exports
+  everything imported from `Data`). Without `export` declarations a
+  module exports its declared names as before; imports are private
+  until re-exported.
+- Import renaming: `import Foo as F` renames the module alias;
+  `import Foo (x as y, z)` renames and selects members. Duplicate
+  unrenamed imported names are a compile error naming both sources;
+  renaming is the fix.
+- File-type import converters (the TypeScript loader analogy):
+  `import data "config.json" as config` binds the converted value of a
+  non-source file; the extension selects the converter. Built-ins:
+  `json` (to a `Json`-shaped value or a decoded record at the declared
+  type), `txt` (to `String`), `bytes` (to `Bytes`). Plugins are
+  stage modules registered per extension, running under the P9 staging
+  discipline (budget, capability limits, secrets redaction), with
+  provenance and the converter identity plus file content hash recorded
+  in the manifest (the import's contract covers the conversion, not the
+  file bytes). A converter failure is a build error naming the file and
+  converter.
+
+# 12 Rejected for now (see compiler/CONFORMANCE.md)
 
 Everything else in the draft EBNF parses only to a named rejection:
 `do` bodies and handlers, quotations and macros, `rewrite`/`upgrade`

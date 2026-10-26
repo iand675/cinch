@@ -210,6 +210,10 @@ and dash-style prelude function names.
 | Tail recursion in constant stack, self and mutual (D104) | spec'd |
 | `[...]`/`{k => v}` literals desugaring to `FromList`/`FromMap`, with the prelude `Map` (D105) | spec'd |
 | Dash-style prelude function names (D106) | spec'd |
+| Export declarations and re-exports (`export module X`, `export A.b`); imports private until re-exported (D107) | spec'd |
+| Import renaming and selection (`import X as Y`, `import X (a as b)`); duplicate imports error naming both sources (D108) | spec'd |
+| File-type import converters: extension-keyed compile-time conversion (`import data "config.json" as config`), built-ins json/txt/bytes, plugins as stage modules with provenance (D109) | spec'd |
+| Collection literals fold at compile time to direct construction (macro expansion + stage evaluation + constant emission); runtime class call otherwise; fold boundary reported (D110) | spec'd |
 
 ### Primitive operations and inline target IR (P18)
 
@@ -815,6 +819,25 @@ wording flags for future decisions).
 - **D106 (P19 prelude naming)**: prelude function names use dash
   style; this supersedes the D6/D64 spelling notes for the prelude's own
   API surface (intrinsic symbol identity is unchanged).
+- **D107 (P19 exports and re-exports)**: `export name, ...`
+  declarations re-export names including imported ones (`export
+  module X` bulk, `export A.b` named); without them a module exports
+  its declared names as before and imports stay private.
+- **D108 (P19 import renaming)**: `import X as Y` and `import X (a as
+  b, c)` rename/select; duplicate unrenamed imported names are a
+  compile error naming both sources.
+- **D109 (P19 file-type converters)**: `import data "f.ext" as x`
+  converts non-source files at compile time; extensions select
+  converters (built-ins json/txt/bytes; plugins are stage modules under
+  the P9 discipline); the manifest records converter identity and the
+  file content hash (the contract covers the conversion); converter
+  failures name the file and converter.
+- **D110 (P19 compile-time literals)**: collection literals expand
+  through the hygienic macro system to `from-list`/`from-map`; when the
+  elements are stage-known the construction is evaluated at compile
+  time and emitted as a constant (reusing the D92 evaluator and the P14
+  constant emission), otherwise the runtime class call stands; the fold
+  boundary is reported.
 - **P13 deferrals (reported)**: handler-vtable specialization is blocked
   on propagating concrete vtables across function boundaries (dispatch
   sites can live in callees through `do`/`spawn`); explicit `eval` rides
