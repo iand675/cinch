@@ -585,14 +585,19 @@ impl Lexer {
         self.bump(); // `[`
         let mut name = String::new();
         while let Some(c) = self.peek() {
-            if c.is_ascii_alphanumeric() || c == '_' || c == '\'' || c == '.' {
+            if c.is_ascii_alphanumeric() || c == '_' || c == '\'' || c == '.' || c == '-' {
                 name.push(c);
                 self.bump();
             } else {
                 break;
             }
         }
-        if name.is_empty() || name.starts_with('.') || name.ends_with('.') {
+        if name.is_empty()
+            || name.starts_with('.')
+            || name.ends_with('.')
+            || name.starts_with('-')
+            || name.ends_with('-')
+        {
             return Err(Error::at(span, "an attribute needs a name"));
         }
         let mut args = None;

@@ -755,6 +755,31 @@ fn write_artifacts(
         text.push_str(if i + 1 < report.data_imports.len() { ",\n" } else { "\n" });
     }
     text.push_str("    ]\n  },\n");
+    // P20's safety assertion summary (attribute annotations
+    // specification section 10): per definition, the assertion, its
+    // verification result, and for `bounded(x)` which proof method
+    // established the bound (decision D113); plus the `jpl` profile's
+    // whole-program summary (decision D114). Definition names, never
+    // paths.
+    text.push_str("  \"safety\": {\n    \"assertions\": [\n");
+    for (i, a) in report.safety.assertions.iter().enumerate() {
+        text.push_str(&format!(
+            "      {{\"definition\": {:?}, \"attribute\": {:?}, \"result\": {:?}}}",
+            a.definition, a.attribute, a.result
+        ));
+        text.push_str(
+            if i + 1 < report.safety.assertions.len() { ",\n" } else { "\n" },
+        );
+    }
+    text.push_str("    ],\n");
+    match &report.safety.jpl {
+        Some(j) => text.push_str(&format!(
+            "    \"jpl\": {{\"modules\": {:?}, \"definitions\": {}, \"assertions\": {}}}\n",
+            j.modules, j.definitions, j.assertions
+        )),
+        None => text.push_str("    \"jpl\": null\n"),
+    }
+    text.push_str("  },\n");
     // Trust level (supercompilation and JIT specification section 9:
     // full recheck is the default) and the checked-versus-trusted
     // lowering split (platform proofs and SIMD specification section 8).

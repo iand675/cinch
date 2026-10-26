@@ -7944,6 +7944,16 @@ impl<'a> FactWalk<'a> {
                     eq: self.eq,
                 });
             } else {
+                if name == "mutBorrow" {
+                    // The `Mut` introduction is an allocation site
+                    // (attribute annotations specification section 10:
+                    // a `Mut` cell is fresh state).
+                    self.facts.alloc_sites.push(AllocRec {
+                        what: "a `Mut` cell (the `mutBorrow` introduction)".to_string(),
+                        span,
+                        closure: self.closure,
+                    });
+                }
                 if self.foreign.ptrs.contains(name) {
                     self.facts.ptr_ops.push((name.to_string(), span));
                 }
@@ -8031,9 +8041,20 @@ impl<'a> FactWalk<'a> {
             }
             ast::Term::App(f, args, _) => {
                 // The application head is the call; its arguments run
-                // before it in non-tail position.
+                // before it in non-tail position. A `decide` operand is
+                // a validating check of the parameters it examines (the
+                // `checked-params` rule's runtime `decide`).
+                let deciding = matches!(&**f, ast::Term::Var(p)
+                    if p.quals.is_empty()
+                        && p.name.text == "decide"
+                        && !self.in_scope(&p.name.text));
                 for a in args {
+                    let saved = self.validating;
+                    if deciding {
+                        self.validating = true;
+                    }
                     self.walk_child(a);
+                    self.validating = saved;
                 }
                 match &**f {
                     ast::Term::Var(p) => self.record_head(p, args),
@@ -8333,13 +8354,21 @@ impl<'a> FactWalk<'a> {
                 }
                 ast::LocalDecl::Eq { name, pats, body, span } => {
                     self.note_span(*span);
-                    self.facts.alloc_sites.push(AllocRec {
-                        what: "a closure (a local function)".to_string(),
-                        span: *span,
-                        closure: self.closure,
-                    });
+                    // A local function (its equation takes patterns) is a
+                    // lambda and allocates a closure; a nullary binding is
+                    // the strict `let` of the elaboration (check_terms),
+                    // not a construction site.
+                    if !pats.is_empty() {
+                        self.facts.alloc_sites.push(AllocRec {
+                            what: "a closure (a local function)".to_string(),
+                            span: *span,
+                            closure: self.closure,
+                        });
+                    }
                     let saved = self.closure;
-                    self.closure = true;
+                    if !pats.is_empty() {
+                        self.closure = true;
+                    }
                     for p in pats {
                         self.bind_pat(p, None);
                     }
@@ -8488,14 +8517,31 @@ pub(crate) const JPL_COMPLEXITY: u64 = 10;
 pub(crate) const JPL_LINES: u64 = 60;
 pub(crate) const JPL_ASSERT_MIN: u64 = 2;
 
+/// One verified assertion's summary row (attribute annotations
+/// specification section 10): per definition, the attribute, its
+/// verification result, and for `bounded(x)` which proof method
+/// established the bound (decision D113). The artifact manifest's
+/// `safety` section records these; they name definitions, never paths.
+#[derive(Clone, Debug)]
+pub struct SafetyAssertion {
+    /// The definition (`Module.name`).
+    pub definition: String,
+    /// The assertion as the contract facts spell it
+    /// (`recursion=bounded(3)`, `no-alloc`, ...), or `jpl <rule>` for a
+    /// rule the `jpl` profile mandated.
+    pub attribute: String,
+    /// The verification result (the proof method for `bounded(x)`).
+    pub result: String,
+}
+
 /// The P20 safety assertion report (attribute annotations specification
 /// section 10; decision D113: the report says which proof method was
 /// used).
 #[derive(Clone, Debug, Default)]
 pub struct SafetyReport {
-    /// One line per verified definition carrying an assertion (or
-    /// enforced under the `jpl` profile).
-    pub definitions: Vec<String>,
+    /// One row per verified assertion (the definition's own attributes,
+    /// and the `jpl` profile's mandated rules under the profile).
+    pub assertions: Vec<SafetyAssertion>,
     /// The `jpl` profile's whole-program summary (decision D114);
     /// `None` without the profile.
     pub jpl: Option<JplSummary>,
@@ -8567,7 +8613,11 @@ fn decrease_bound(doms: &[Ty], pos: usize, measure: bool, name: Option<&str>) ->
         };
     }
     // A structural subcomponent descent: the depth is bounded by the
-    // argument's size, which a size index may name exactly.
+    // argument's size. A size index names that size exactly when it is
+    // a variable; a LITERAL index is deliberately not claimed as a
+    // numeric bound here, because a well-typed self-descent preserves
+    // its index (the checker refuses a descent that would shrink one),
+    // so a literal index never measures the descent's depth.
     let mut named = Vec::new();
     if let Some(n) = name {
         named.push(n.to_string());
@@ -8577,14 +8627,8 @@ fn decrease_bound(doms: &[Ty], pos: usize, measure: bool, name: Option<&str>) ->
             Ty::Adt(_, args) => {
                 for a in args {
                     if let Ty::Idx(ix) = a {
-                        match &**ix {
-                            ITerm::Num(v) => {
-                                if let Ok(n) = v.parse::<u64>() {
-                                    return Established::Num(n);
-                                }
-                            }
-                            ITerm::Var(v) => named.push(v.clone()),
-                            _ => {}
+                        if let ITerm::Var(v) = &**ix {
+                            named.push(v.clone());
                         }
                     }
                 }
@@ -8601,44 +8645,53 @@ fn decrease_bound(doms: &[Ty], pos: usize, measure: bool, name: Option<&str>) ->
 
 /// The conservative call-graph depth bound (decision D113's fallback):
 /// the literal counter ladder, where every equation matches a literal
-/// counter and every recursive call steps down a literal. Returns `None`
-/// when no conservative bound applies.
+/// counter at position 0 and every recursive call steps the counter
+/// down a literal that some equation matches. The bound is the deepest
+/// chain of nested self-call frames from any entry counter. Returns
+/// `None` when no conservative bound applies.
 fn literal_ladder(eqs: &[ast::Equation], self_calls: &[SelfCallRec]) -> Option<u64> {
+    if self_calls.is_empty() {
+        return None;
+    }
     if self_calls.iter().any(|c| c.closure || c.args.is_empty()) {
         return None;
     }
-    // Depth from a literal entry counter at position 0.
-    fn depth(k: i128, eqs: &[ast::Equation], calls: &[&SelfCallRec], seen: usize) -> Option<u64> {
-        if seen > calls.len() + 1 {
-            return None;
-        }
-        let mut best = 0u64;
-        for c in calls {
-            let Some(ArgShape::Literal(m)) = c.args.first() else {
-                return None;
-            };
-            if *m >= k {
-                return None;
-            }
-            let d = depth(*m, eqs, calls, seen + 1)?;
-            best = best.max(1 + d);
-        }
-        let _ = eqs;
-        Some(best)
-    }
-    let mut bound = 0u64;
-    let mut entries = 0u64;
-    for (i, e) in eqs.iter().enumerate() {
+    // Every equation matches a literal counter at position 0.
+    let mut lits: Vec<i128> = Vec::with_capacity(eqs.len());
+    for e in eqs {
         let ast::Pat::Int(k, _) = &e.pats[0] else {
             return None;
         };
-        let k: i128 = k.parse().ok()?;
-        let calls: Vec<&SelfCallRec> = self_calls.iter().filter(|c| c.eq == i).collect();
-        entries += 1;
-        bound = bound.max(depth(k, eqs, &calls, 0)?);
+        lits.push(k.parse().ok()?);
     }
-    if entries == 0 {
-        return None;
+    // Every self-call steps the counter down a literal.
+    let mut steps: Vec<Vec<i128>> = vec![Vec::new(); eqs.len()];
+    for c in self_calls {
+        let Some(ArgShape::Literal(m)) = c.args.first() else {
+            return None;
+        };
+        steps[c.eq].push(*m);
+    }
+    // The frames one entry counter reaches: the equation matching the
+    // counter runs, and its calls step strictly down to the equations
+    // matching those literals.
+    fn frames(k: i128, lits: &[i128], steps: &[Vec<i128>], seen: usize) -> Option<u64> {
+        if seen > lits.len() {
+            return None;
+        }
+        let eq = lits.iter().position(|l| *l == k)?;
+        let mut deepest = 0u64;
+        for &m in &steps[eq] {
+            if m >= k {
+                return None;
+            }
+            deepest = deepest.max(frames(m, lits, steps, seen + 1)?);
+        }
+        Some(1 + deepest)
+    }
+    let mut bound = 0u64;
+    for &k in &lits {
+        bound = bound.max(frames(k, &lits, &steps, 0)?);
     }
     Some(bound)
 }
@@ -8718,15 +8771,17 @@ fn structural_proof_for(
     // The claim is established when some strict decrease names the
     // bound it gives.
     let established = bounds.into_iter().find(|b| !matches!(b, Established::Unnamed));
-    let established = established?;
-    let report = match &established {
-        Established::Num(n) => format!("structural (depth <= {n}: a size index)"),
-        Established::Named(ns) => {
-            format!("structural (depth <= {}: the size of the decreasing argument)", ns[0])
-        }
-        Established::Unnamed => return None,
+    let Some(Established::Named(ns)) = established else {
+        // `decrease_bound` establishes named bounds only (the argument
+        // or its size index); a bound no assertion can cite is not a
+        // bound.
+        return None;
     };
-    Some((report, established))
+    let report = format!(
+        "structural (depth <= {}: the size of the decreasing argument)",
+        ns[0]
+    );
+    Some((report, Established::Named(ns)))
 }
 
 impl Checker {
@@ -9052,13 +9107,18 @@ impl Checker {
             None
         };
         if let Some((cap, who)) = alloc_cap {
+            let cap_txt = if cap == 0 {
+                "no allocation site may run per call".to_string()
+            } else {
+                format!("at most {cap} allocation site(s) run per call")
+            };
             let mut seen = 0u64;
             for site in &facts.alloc_sites {
                 if site.closure {
                     return Err(Error::at(
                         site.span,
                         format!(
-                            "{who}: {} is constructed under a closure here: at most one allocation per call cannot be established",
+                            "{who}: {} is constructed under a closure here: the site runs whenever the closure runs",
                             site.what
                         ),
                     ));
@@ -9068,8 +9128,9 @@ impl Checker {
                     return Err(Error::at(
                         site.span,
                         format!(
-                            "{who}: {} is constructed here as well: at most {cap} allocation site(s) run per call",
-                            site.what
+                            "{who}: {} is constructed here{}: {cap_txt}",
+                            site.what,
+                            if seen > 1 { " as well" } else { "" }
                         ),
                     ));
                 }
@@ -9132,7 +9193,6 @@ pub(crate) fn verify_safety_groups(
     for rec in records {
         if rec.jpl {
             jpl_defs += 1;
-            jpl_asserts += rec.fact_strings.len() as u64;
             if !jpl_modules.contains(&rec.module) {
                 jpl_modules.push(rec.module.clone());
             }
@@ -9280,13 +9340,16 @@ pub(crate) fn verify_safety_groups(
             Ok(())
         };
 
-        let mut line: Vec<String> = Vec::new();
+        let mut rows: Vec<(String, String)> = Vec::new();
 
         // -- `#[recursion ...]` (JPL rule 1).
         match &rec.attrs.recursion {
             Some((RecursionSpec::None, span)) => {
                 none_check(*span)?;
-                line.push("recursion=none: verified (no recursive calls)".to_string());
+                rows.push((
+                    "recursion=none".to_string(),
+                    "verified (no recursive calls)".to_string(),
+                ));
             }
             Some((RecursionSpec::Tail, span)) => {
                 let who = format!(
@@ -9294,7 +9357,10 @@ pub(crate) fn verify_safety_groups(
                     rec.display
                 );
                 tail_check(*span, &who)?;
-                line.push("recursion=tail: verified (D104 tail marks)".to_string());
+                rows.push((
+                    "recursion=tail".to_string(),
+                    "verified (D104 tail marks)".to_string(),
+                ));
             }
             Some((RecursionSpec::Bounded(arg), span)) => {
                 if multi {
@@ -9325,7 +9391,15 @@ pub(crate) fn verify_safety_groups(
                         ),
                     ));
                 }
-                let (proof, est) = bounded_proof(rec)?;
+                let (proof, est) = bounded_proof(rec).map_err(|_| {
+                    Error::at(
+                        *span,
+                        format!(
+                            "`#[recursion \"bounded({arg})\"]` on {}: no depth bound is established for this recursion (the structural proof does not apply and no conservative call-graph bound applies); a bound that cannot be established is refused, never trusted (attribute annotations specification section 10; decision D113)",
+                            rec.display
+                        ),
+                    )
+                })?;
                 match (arg, &est) {
                     (BoundArg::Num(m), Established::Num(b)) if *b <= *m => {}
                     (BoundArg::Name(n), Established::Named(ns)) if ns.contains(n) => {}
@@ -9339,7 +9413,7 @@ pub(crate) fn verify_safety_groups(
                         ));
                     }
                 }
-                line.push(format!("recursion=bounded({arg}): {proof}"));
+                rows.push((format!("recursion=bounded({arg})"), proof));
             }
             None => {}
         }
@@ -9352,7 +9426,7 @@ pub(crate) fn verify_safety_groups(
                     rec.display
                 );
                 none_check(*span).or_else(|_| tail_check(*span, &who))?;
-                line.push("stack=constant: verified".to_string());
+                rows.push(("stack=constant".to_string(), "verified".to_string()));
             }
             Some((StackSpec::Bounded(arg), span)) => {
                 if multi || hidden_call.is_some() || value_ref.is_some() {
@@ -9364,7 +9438,15 @@ pub(crate) fn verify_safety_groups(
                         ),
                     ));
                 }
-                let (proof, est) = bounded_proof(rec)?;
+                let (proof, est) = bounded_proof(rec).map_err(|_| {
+                    Error::at(
+                        *span,
+                        format!(
+                            "`#[stack \"bounded({arg})\"]` on {}: no stack bound is established for this recursion (the structural proof does not apply and no conservative call-graph bound applies); a bound that cannot be established is refused, never trusted (attribute annotations specification section 10; decision D113)",
+                            rec.display
+                        ),
+                    )
+                })?;
                 match (arg, &est) {
                     (BoundArg::Num(m), Established::Num(b)) if *b <= *m => {}
                     (BoundArg::Name(n), Established::Named(ns)) if ns.contains(n) => {}
@@ -9378,7 +9460,7 @@ pub(crate) fn verify_safety_groups(
                         ));
                     }
                 }
-                line.push(format!("stack=bounded({arg}): {proof}"));
+                rows.push((format!("stack=bounded({arg})"), proof));
             }
             None => {}
         }
@@ -9394,7 +9476,7 @@ pub(crate) fn verify_safety_groups(
                     bounded_proof(rec).ok()
                 };
                 match bound {
-                    Some((proof, _)) => line.push(format!("jpl recursion: {proof}")),
+                    Some((proof, _)) => rows.push(("jpl recursion".to_string(), proof)),
                     None => {
                         let tail_ok = tail_check(rec.def_span, "jpl").is_ok();
                         if !tail_ok {
@@ -9406,18 +9488,123 @@ pub(crate) fn verify_safety_groups(
                                 ),
                             ));
                         }
-                        line.push("jpl recursion: tail (constant stack)".to_string());
+                        rows.push((
+                            "jpl recursion".to_string(),
+                            "tail (constant stack)".to_string(),
+                        ));
                     }
                 }
             } else {
-                line.push("jpl recursion: verified (no recursive calls)".to_string());
+                rows.push((
+                    "jpl recursion".to_string(),
+                    "verified (no recursive calls)".to_string(),
+                ));
             }
         }
 
-        if !line.is_empty() {
-            report
-                .definitions
-                .push(format!("{}: {}", rec.display, line.join("; ")));
+        // -- The remaining per-definition checks (verified at
+        // `verify_definition_safety`): each satisfied attribute reports
+        // its result. The group claims above already report theirs.
+        for f in &rec.fact_strings {
+            let result = if f == "no-alloc" {
+                format!(
+                    "verified ({} allocation site(s) in the body)",
+                    rec.facts.alloc_sites.len()
+                )
+            } else if f == "alloc=once" {
+                format!(
+                    "verified ({} allocation site(s) run per call)",
+                    rec.facts.alloc_sites.len()
+                )
+            } else if let Some(n) = f.strip_prefix("complexity<=") {
+                format!(
+                    "verified (cyclomatic complexity {} <= {n})",
+                    rec.facts.branches + 1
+                )
+            } else if let Some(n) = f.strip_prefix("lines<=") {
+                format!("verified ({} source line(s) <= {n})", rec.facts.body_lines)
+            } else if let Some(n) = f.strip_prefix("assert-min=") {
+                format!(
+                    "verified ({} runtime `decide` check(s) >= {n})",
+                    rec.facts.runtime_decides.len()
+                )
+            } else if f == "checked-params" {
+                "verified (every parameter validated before first use)".to_string()
+            } else if f == "no-macros" {
+                "verified (no macro expansion inside the definition)".to_string()
+            } else if f == "no-raw-ptr" {
+                "verified (no raw pointer or opaque type in the signature, no foreign pointer operation in the body)".to_string()
+            } else if f == "deny-warnings" {
+                "verified (warnings in scope are compile errors)".to_string()
+            } else {
+                // The group claims and the profile rows report their own
+                // results.
+                continue;
+            };
+            rows.push((f.clone(), result));
+        }
+
+        // -- The `jpl` profile's mandated set at the rule numbers
+        // (decision D114): rules a stricter per-definition attribute does
+        // not already cover report their result under the profile.
+        if rec.jpl {
+            if rec.attrs.max_complexity.is_none() {
+                rows.push((
+                    format!("jpl complexity<={JPL_COMPLEXITY}"),
+                    format!("verified (cyclomatic complexity {})", rec.facts.branches + 1),
+                ));
+            }
+            if rec.attrs.max_lines.is_none() {
+                rows.push((
+                    format!("jpl lines<={JPL_LINES}"),
+                    format!("verified ({} source lines)", rec.facts.body_lines),
+                ));
+            }
+            if rec.exported && rec.attrs.assert_min.is_none() {
+                rows.push((
+                    format!("jpl assert-min={JPL_ASSERT_MIN}"),
+                    format!(
+                        "verified ({} runtime `decide` checks)",
+                        rec.facts.runtime_decides.len()
+                    ),
+                ));
+            }
+            if rec.attrs.alloc_once.is_none() && rec.attrs.no_alloc.is_none() {
+                rows.push((
+                    "jpl alloc=none".to_string(),
+                    format!(
+                        "verified ({} allocation site(s))",
+                        rec.facts.alloc_sites.len()
+                    ),
+                ));
+            }
+            if rec.attrs.no_macros.is_none() {
+                rows.push((
+                    "jpl no-macros".to_string(),
+                    "verified (no macro expansion inside the definition)".to_string(),
+                ));
+            }
+            if rec.attrs.no_raw_ptr.is_none() {
+                rows.push((
+                    "jpl no-raw-ptr".to_string(),
+                    "verified (no raw pointer or opaque type in the signature, no foreign pointer operation in the body)".to_string(),
+                ));
+            }
+            if rec.attrs.deny_warnings.is_none() {
+                rows.push((
+                    "jpl deny-warnings".to_string(),
+                    "verified (warnings in scope are compile errors)".to_string(),
+                ));
+            }
+            jpl_asserts += rows.len() as u64;
+        }
+
+        for (attribute, result) in rows {
+            report.assertions.push(SafetyAssertion {
+                definition: rec.display.clone(),
+                attribute,
+                result,
+            });
         }
     }
     if !jpl_modules.is_empty() {

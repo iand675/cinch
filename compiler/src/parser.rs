@@ -1493,7 +1493,16 @@ impl<'a> Parser<'a> {
                     Ok(LocalDecl::Bind { pat, body, span })
                 }
             }
-            Tok::ConId(_) | Tok::Int(_) | Tok::StrLit(_) | Tok::CharLit(_) | Tok::Underscore => {
+            Tok::VarId(_)
+            | Tok::ConId(_)
+            | Tok::Int(_)
+            | Tok::StrLit(_)
+            | Tok::CharLit(_)
+            | Tok::Underscore => {
+                // `VarId` reaches here only as the wildcard binder `_`
+                // (`let _ = e`: the purposeful discard of the
+                // `Result` must-use default; attribute annotations
+                // specification section 10).
                 let pat = self.parse_pattern()?;
                 self.expect(&Tok::Equals, "`=`")?;
                 let body = self.parse_term()?;
