@@ -19,3 +19,6 @@ dist/
 # Generated compiler artifacts (rebuilt by `safelang build`/`run`)
 examples/compiler/build/
 examples/source/build/
+
+# Slice scratch dirs (probe scripts and fixtures)
+.wasm-probe/
