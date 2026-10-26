@@ -319,6 +319,97 @@ impl Checker {
         }
     }
 
+    /// A collection literal (surface grammar local amendments section 10):
+    /// `[e1, ..., en]` desugars to `from-list` at the expected type's
+    /// `FromList c e` instance over the `Cons` spine of its elements, and
+    /// `{k => v}` to `from-map` over a `List (k, v)` of pairs at the
+    /// `FromMap m k v` instance (`items` carries the flattened key/value
+    /// terms for a map). `expected` is the check position's container
+    /// type; in inference position the container is a fresh type the
+    /// instance solve defaults to `List`/`Map` (decision D142). The call
+    /// is a `LitFold` boundary: the fold pass reifies stage-known
+    /// elements to a constant value, and the marker lowers to the runtime
+    /// class call otherwise.
+    fn elab_collection(
+        &mut self,
+        env: &mut Env,
+        items: &[ast::Term],
+        map: bool,
+        expected: Option<&Ty>,
+        span: ast::Span,
+    ) -> Result<(ECore, Ty)> {
+        let prelude = self.prelude_module.clone();
+        let method = if map { "from-map" } else { "from-list" };
+        let minfo = self
+            .lookup_value(Some(&prelude), method)
+            .map_err(|e| Error::at(span, e.message))?;
+        let (mcore, mty) = self.value_use(&minfo, span, env)?;
+        let mut cores: Vec<ECore> = Vec::new();
+        let elem = if map {
+            if items.len() % 2 != 0 {
+                return Err(Error::plain(
+                    "internal error: a map literal without key/value pairs",
+                ));
+            }
+            let k = self.uni.fresh();
+            let v = self.uni.fresh();
+            let gid = self.tuple_ctor(2, span)?;
+            for kv in items.chunks(2) {
+                let kc = self.check(env, &kv[0], &k)?;
+                let vc = self.check(env, &kv[1], &v)?;
+                cores.push(app_spine(ECore::Ctor(gid.clone()), vec![kc, vc]));
+            }
+            Ty::Tuple(vec![k, v])
+        } else {
+            let e = self.uni.fresh();
+            for it in items {
+                cores.push(self.check(env, it, &e)?);
+            }
+            e
+        };
+        let list_ty = Ty::Adt("List".into(), vec![elem.clone()]);
+        let nil = self
+            .lookup_value(Some(&prelude), "Nil")
+            .map_err(|e| Error::at(span, e.message))?;
+        let cons = self
+            .lookup_value(Some(&prelude), "Cons")
+            .map_err(|e| Error::at(span, e.message))?;
+        let (mut core, nil_ty) = self.value_use(&nil, span, env)?;
+        self.uni
+            .unify(&nil_ty, &list_ty)
+            .map_err(|m| Error::at(span, m))?;
+        for ic in cores.into_iter().rev() {
+            let (cons_core, cons_ty) = self.value_use(&cons, span, env)?;
+            let want = Ty::funs(&[elem.clone(), list_ty.clone()], list_ty.clone());
+            self.uni
+                .unify(&cons_ty, &want)
+                .map_err(|m| Error::at(span, m))?;
+            core = app_spine(cons_core, vec![ic, core]);
+        }
+        let result = match expected {
+            Some(t) => t.clone(),
+            None => self.uni.fresh(),
+        };
+        let want = Ty::funs(&[list_ty], result.clone());
+        self.uni
+            .unify(&mty, &want)
+            .map_err(|m| Error::at(span, m))?;
+        let idx = self.literal_folds.len();
+        self.literal_folds.push(LitFold {
+            unit: String::new(),
+            site: format!("{}:{}", span.line, span.col),
+            kind: if map { "map" } else { "list" }.to_string(),
+            folded: false,
+        });
+        Ok((
+            ECore::LitFold {
+                idx,
+                body: Box::new(app_spine(mcore, vec![core])),
+            },
+            result,
+        ))
+    }
+
     fn infer(&mut self, env: &mut Env, term: &ast::Term) -> Result<(ECore, Ty)> {
         match term {
             // In inference position a literal keeps the default `Int` type
@@ -597,38 +688,14 @@ impl Checker {
                 }
                 Ok((app_spine(ECore::Ctor(gid), cores), Ty::Tuple(tys)))
             }
-            ast::Term::List(items, span) => {
-                // `[e1, ..., en]` desugars to `Cons e1 (... (Cons en Nil))`
-                // against the prelude `List` type.
-                let prelude = self.prelude_module.clone();
-                let nil = self
-                    .lookup_value(Some(&prelude), "Nil")
-                    .map_err(|e| Error::at(*span, e.message))?;
-                let cons = self
-                    .lookup_value(Some(&prelude), "Cons")
-                    .map_err(|e| Error::at(*span, e.message))?;
-                let elem_ty = self.uni.fresh();
-                let list_ty = Ty::Adt("List".into(), vec![elem_ty.clone()]);
-                let (mut core, nil_ty) = self.value_use(&nil, *span, env)?;
-                self.uni
-                    .unify(&nil_ty, &list_ty)
-                    .map_err(|m| Error::at(*span, m))?;
-                for item in items.iter().rev() {
-                    let ic = self.check(env, item, &elem_ty)?;
-                    let (cons_core, cons_ty) = self.value_use(&cons, *span, env)?;
-                    let want =
-                        Ty::funs(&[elem_ty.clone(), list_ty.clone()], list_ty.clone());
-                    self.uni
-                        .unify(&cons_ty, &want)
-                        .map_err(|m| Error::at(*span, m))?;
-                    core = app_spine(cons_core, vec![ic, core]);
-                }
-                Ok((core, list_ty))
+            ast::Term::List(items, span) => self.elab_collection(env, items, false, None, *span),
+            ast::Term::Map(kvs, span) => {
+                let flat: Vec<ast::Term> = kvs
+                    .iter()
+                    .flat_map(|(k, v)| [k.clone(), v.clone()])
+                    .collect();
+                self.elab_collection(env, &flat, true, None, *span)
             }
-            ast::Term::Map(_, span) => Err(Error::at(
-                *span,
-                "map literals (`{k => v}`) elaborate through `from-map` at the expected type's `FromMap m k v` instance (surface grammar local amendments section 10); the `FromMap` class, the prelude `Map`, and the literal fold land with the collection literal slice",
-            )),
             ast::Term::Proj(e, field, span) => {
                 // `x.f.g` is a record-projection place rooted at a
                 // variable; usage counting tracks these places per binder
@@ -984,6 +1051,18 @@ impl Checker {
                 let (scrut_core, scrut_ty) = self.infer(env, scrut)?;
                 let scrut_ty = self.uni.zonk(&scrut_ty);
                 self.compile_alts(env, alts, scrut_core, scrut_ty, expected, *span)
+            }
+            ast::Term::List(items, span) => {
+                let (core, _) = self.elab_collection(env, items, false, Some(expected), *span)?;
+                Ok(core)
+            }
+            ast::Term::Map(kvs, span) => {
+                let flat: Vec<ast::Term> = kvs
+                    .iter()
+                    .flat_map(|(k, v)| [k.clone(), v.clone()])
+                    .collect();
+                let (core, _) = self.elab_collection(env, &flat, true, Some(expected), *span)?;
+                Ok(core)
             }
             ast::Term::Int(v, span) => self.lit_check(expected, v, *span),
             ast::Term::Quote { body, span } => {

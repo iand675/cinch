@@ -520,8 +520,54 @@ pub struct Import {
     /// as module arguments): non-empty means this import instantiates the
     /// parameterized module `path` at these static arguments, producing the
     /// unit named `alias`. Without arguments an import is the ordinary
-    /// visibility form and `alias` is ignored.
+    /// visibility form and `alias` is the module qualifier it is seen
+    /// under (`import X as Y`, surface grammar local amendments section 11).
     pub args: Vec<ModuleArg>,
+    /// `import X (a as b, c)`: the selected members under their imported
+    /// names; empty selects the whole surface under its own names
+    /// (surface grammar local amendments section 11).
+    pub members: Vec<ImportMember>,
+    pub span: Span,
+}
+
+/// One selected member of `import X (a as b, c)` (surface grammar local
+/// amendments section 11): the member's name in `X`, and the name it is
+/// imported under (`None`: its own name).
+#[derive(Clone, Debug)]
+pub struct ImportMember {
+    pub name: Name,
+    pub as_name: Option<Name>,
+}
+
+/// `import data "config.json" as config` (surface grammar local
+/// amendments section 11): the compile-time converted value of a
+/// non-source file, bound under `name`; the extension selects the
+/// converter.
+#[derive(Clone, Debug)]
+pub struct ImportData {
+    pub file: String,
+    pub name: Name,
+    pub span: Span,
+}
+
+/// One `export` item (surface grammar local amendments section 11):
+/// `name` (a name in this module's scope), `A.name` (the member `name`
+/// imported from `A`), or `module A` (everything imported from `A`).
+#[derive(Clone, Debug)]
+pub enum ExportItem {
+    Name(Name),
+    /// `A.name`: exactly two segments.
+    Member(ConPath),
+    Module(Name),
+}
+
+/// An `export name, ...` declaration: when present, the module's export
+/// surface is exactly the names its items resolve to; without one a
+/// module exports its declared names as before and imports stay private
+/// (surface grammar local amendments section 11).
+#[derive(Clone, Debug)]
+pub struct ExportDecl {
+    pub items: Vec<ExportItem>,
     pub span: Span,
 }
 
@@ -705,6 +751,11 @@ pub struct UpgradeDecl {
 #[derive(Clone, Debug)]
 pub enum Decl {
     Import(Import),
+    /// `import data "f.ext" as x` (surface grammar local amendments
+    /// section 11): a non-source file's converted value.
+    ImportData(ImportData),
+    /// `export name, ...` (surface grammar local amendments section 11).
+    Export(ExportDecl),
     Signature(SigDecl),
     Instance(InstDecl),
     Data(DataDecl),
@@ -953,6 +1004,8 @@ pub fn splice_sig_members(decls: Vec<Decl>) -> Vec<Decl> {
 pub fn collect_decl_refs(d: &Decl, out: &mut Vec<RefSite>) {
     match d {
         Decl::Import(_)
+        | Decl::ImportData(_)
+        | Decl::Export(_)
         | Decl::Fixity(_)
         | Decl::OpaqueType(_)
         | Decl::Foreign(_) => {}
@@ -1601,6 +1654,8 @@ fn hyg_equation(eq: &Equation, cx: &mut HygCx, sc: &mut HygScope) -> Result<Equa
 pub fn hyg_decl(d: &Decl, cx: &mut HygCx, sc: &mut HygScope) -> Result<Decl> {
     Ok(match d {
         Decl::Import(i) => Decl::Import(i.clone()),
+        Decl::ImportData(d) => Decl::ImportData(d.clone()),
+        Decl::Export(e) => Decl::Export(e.clone()),
         Decl::Fixity(f) => Decl::Fixity(f.clone()),
         Decl::OpaqueType(o) => Decl::OpaqueType(o.clone()),
         Decl::Foreign(f) => {
@@ -1922,7 +1977,8 @@ fn subst_holes_local(d: &LocalDecl, vals: &[Term]) -> LocalDecl {
 /// Substitute template holes in a declaration template.
 pub fn subst_holes_decl(d: &Decl, vals: &[Term]) -> Decl {
     match d {
-        Decl::Import(_) | Decl::Fixity(_) | Decl::Foreign(_) | Decl::OpaqueType(_)
+        Decl::Import(_) | Decl::ImportData(_) | Decl::Export(_) | Decl::Fixity(_)
+        | Decl::Foreign(_) | Decl::OpaqueType(_)
         | Decl::Signature(_)
         | Decl::Data(_) | Decl::Record(_) | Decl::Codata(_) | Decl::Effect(_)
         | Decl::ValueSig { .. } | Decl::Generate { .. } => d.clone(),
@@ -2113,7 +2169,12 @@ pub fn collect_decl_template_holes(decls: &mut Vec<Decl>, holes: &mut Vec<HoleEx
 
 fn collect_decl_holes(d: &mut Decl, holes: &mut Vec<HoleExpr>) {
     match d {
-        Decl::Import(_) | Decl::Fixity(_) | Decl::Foreign(_) | Decl::OpaqueType(_)
+        Decl::Import(_)
+        | Decl::ImportData(_)
+        | Decl::Export(_)
+        | Decl::Fixity(_)
+        | Decl::Foreign(_)
+        | Decl::OpaqueType(_)
         | Decl::ValueSig { .. } => {}
         Decl::Attributed { inner, .. } => collect_decl_holes(inner, holes),
         Decl::Rewrite(r) => {

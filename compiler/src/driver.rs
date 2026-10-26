@@ -78,6 +78,14 @@ pub fn scan_file(src: &str, file: &str) -> Result<ScannedFile> {
         match &tokens[i].tok {
             lexer::Tok::Module => {
                 i += 1;
+                // `export module X` names a module to re-export; it does
+                // not declare one (surface grammar local amendments
+                // section 11).
+                let exported = i >= 2 && matches!(tokens[i - 2].tok, lexer::Tok::Export);
+                if exported {
+                    let _ = path_at(&mut i);
+                    continue;
+                }
                 let name = path_at(&mut i).unwrap_or_default();
                 modules.push((name, Vec::new()));
             }
@@ -571,6 +579,33 @@ fn write_artifacts(
             g.members, g.mark
         ));
         text.push_str(if i + 1 < tail_groups.len() { ",\n" } else { "\n" });
+    }
+    text.push_str("    ]\n  },\n");
+    // The collection literal fold boundary (surface grammar local
+    // amendments section 10; decision D110): each literal's site, its
+    // construction's kind, and whether the compile-time fold made it a
+    // constant value or it keeps its runtime `from-list`/`from-map` call.
+    text.push_str("  \"literal_folds\": {\n    \"sites\": [\n");
+    for (i, f) in report.literal_folds.iter().enumerate() {
+        text.push_str(&format!(
+            "      {{\"unit\": {:?}, \"site\": {:?}, \"kind\": {:?}, \"folded\": {}}}",
+            f.unit, f.site, f.kind, f.folded
+        ));
+        text.push_str(if i + 1 < report.literal_folds.len() { ",\n" } else { "\n" });
+    }
+    text.push_str("    ]\n  },\n");
+    // The `import data` bindings' provenance (surface grammar local
+    // amendments section 11): the converter identity and the file's
+    // content hash per binding. The import's contract covers the
+    // conversion, not the file bytes; the manifest records hashes, never
+    // contents.
+    text.push_str("  \"data_imports\": {\n    \"bindings\": [\n");
+    for (i, d) in report.data_imports.iter().enumerate() {
+        text.push_str(&format!(
+            "      {{\"module\": {:?}, \"name\": {:?}, \"file\": {:?}, \"converter\": {:?}, \"hash\": {:?}}}",
+            d.module, d.name, d.file, d.converter, d.hash
+        ));
+        text.push_str(if i + 1 < report.data_imports.len() { ",\n" } else { "\n" });
     }
     text.push_str("    ]\n  },\n");
     // Trust level (supercompilation and JIT specification section 9:

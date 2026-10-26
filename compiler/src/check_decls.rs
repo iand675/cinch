@@ -1935,44 +1935,66 @@ impl Checker {
         // reached through `N`, and a parameterized module's values reject
         // direct use).
         let mut applied: Vec<String> = Vec::new();
-        for d in &m.decls {
-            if let ast::Decl::Import(i) = d {
-                if !i.args.is_empty() {
-                    if let Some(name) = i.path.parts().last() {
-                        applied.push(name.to_string());
-                    }
-                }
-            }
-        }
-        // Visibility: the module's own names, then its imports, then the
-        // prelude (design note: compiled interface metadata, section 3).
-        self.visible = vec![module.clone()];
-        for i in imports {
-            if applied.contains(i) {
-                continue;
-            }
-            if !self.visible.contains(i) {
-                self.visible.push(i.clone());
-            }
-        }
-        if !self.visible.contains(&prelude_name.to_string()) {
-            self.visible.push(prelude_name.to_string());
-        }
-        // `import stage M` brings only M's executable generators into the
-        // compile-time scope (modules specification section 9): runtime
-        // visibility keeps them out.
+        let mut views: Vec<ImportView> = Vec::new();
         let mut stage_imports: Vec<String> = Vec::new();
         for d in &m.decls {
             if let ast::Decl::Import(i) = d {
-                if i.stage {
-                    if let Some(name) = i.path.parts().last() {
-                        stage_imports.push(name.to_string());
-                    }
+                let target = i.path.parts().last().copied().unwrap_or("").to_string();
+                if !i.args.is_empty() {
+                    applied.push(target.clone());
+                    views.push(ImportView {
+                        target,
+                        alias: i.alias
+                            .as_ref()
+                            .map(|a| a.text.clone())
+                            .unwrap_or_default(),
+                        stage: i.stage,
+                        applied: true,
+                        alias_only: false,
+                        members: None,
+                    });
+                    continue;
                 }
+                if i.stage {
+                    stage_imports.push(target.clone());
+                }
+                views.push(ImportView {
+                    alias: i
+                        .alias
+                        .as_ref()
+                        .map(|a| a.text.clone())
+                        .unwrap_or_else(|| target.clone()),
+                    alias_only: i.alias.is_some() && i.members.is_empty(),
+                    members: if i.members.is_empty() {
+                        None
+                    } else {
+                        Some(
+                            i.members
+                                .iter()
+                                .map(|m| {
+                                    (
+                                        m.as_name
+                                            .as_ref()
+                                            .map(|a| a.text.clone())
+                                            .unwrap_or_else(|| m.name.text.clone()),
+                                        m.name.text.clone(),
+                                    )
+                                })
+                                .collect(),
+                        )
+                    },
+                    target,
+                    stage: i.stage,
+                    applied: false,
+                });
             }
         }
-        self.visible
-            .retain(|v| !stage_imports.contains(v) || *v == module);
+        // A module re-collected with generated declarations keeps its
+        // import views: the synthetic module fragment has no imports.
+        self.module_views.entry(module.clone()).or_insert(views);
+        // Visibility: the module's own names, then its imports, then the
+        // prelude (design note: compiled interface metadata, section 3).
+        self.build_scope(&module, false);
         self.module_stage_imports.insert(module.clone(), stage_imports);
         self.module_imports.insert(
             module.clone(),
@@ -2068,6 +2090,18 @@ impl Checker {
                     if !i.args.is_empty() {
                         self.unit_decls.push((module.clone(), i.clone()));
                     }
+                }
+                ast::Decl::ImportData(d) => {
+                    self.module_data_imports
+                        .entry(module.clone())
+                        .or_default()
+                        .push(d.clone());
+                }
+                ast::Decl::Export(e) => {
+                    self.module_exports
+                        .entry(module.clone())
+                        .or_default()
+                        .extend(e.items.iter().cloned());
                 }
                 ast::Decl::Fixity(f) => {
                     let assoc = match f.assoc {
@@ -3463,7 +3497,14 @@ impl Checker {
             }
         }
         for (name, _) in &schemes {
-            if name != "main" && !eqs.iter().any(|(n, _)| n == name) {
+            // An `import data` binding defines its name (surface grammar
+            // local amendments section 11).
+            let bound_by_import = self
+                .module_data_imports
+                .get(&module)
+                .map(|ds| ds.iter().any(|d| &d.name.text == name))
+                .unwrap_or(false);
+            if name != "main" && !bound_by_import && !eqs.iter().any(|(n, _)| n == name) {
                 return Err(Error::plain(format!("missing defining equation for {name}")));
             }
         }
@@ -3492,6 +3533,14 @@ impl Checker {
                 ));
             }
         }
+        // The `import data` converters run once the module's names and
+        // types are registered (surface grammar local amendments section
+        // 11), before the export surface resolves its items.
+        self.collect_data_imports(&module, m)?;
+        // The export surface and the import hygiene check run once the
+        // module's names are registered (surface grammar local
+        // amendments section 11).
+        self.finish_module_surface(&module)?;
         Ok(())
     }
 
@@ -3669,19 +3718,7 @@ impl Checker {
         modules.sort();
         for module in modules {
             let decls = self.mod_param_asts.get(&module).cloned().unwrap_or_default();
-            self.current_module = module.clone();
-            self.visible = vec![module.clone()];
-            if let Some(imports) = self.module_imports.get(&module).cloned() {
-                for i in imports {
-                    if !self.visible.contains(&i) {
-                        self.visible.push(i);
-                    }
-                }
-            }
-            let prelude = self.prelude_module.clone();
-            if !self.visible.contains(&prelude) {
-                self.visible.push(prelude);
-            }
+            self.build_scope(&module, true);
             let mut out = Vec::new();
             for p in &decls {
                 let mut head = &p.ty;
@@ -3741,18 +3778,8 @@ impl Checker {
     }
 
     fn check_bodies(&mut self, module: &str, prelude_name: &str) -> Result<()> {
-        self.current_module = module.to_string();
-        self.visible = vec![module.to_string()];
-        if let Some(imports) = self.module_imports.get(module).cloned() {
-            for i in imports {
-                if !self.visible.contains(&i) {
-                    self.visible.push(i);
-                }
-            }
-        }
-        if !self.visible.contains(&prelude_name.to_string()) {
-            self.visible.push(prelude_name.to_string());
-        }
+        self.build_scope(module, true);
+        let _ = prelude_name;
 
         // Instantiation declarations (`import M (args) as N`) check their
         // static arguments and register the unit's values before this
@@ -3854,7 +3881,7 @@ impl Checker {
         let sig = self
             .sigs
             .get(&class)
-            .and_then(|ss| ss.iter().find(|s| self.visible.contains(&s.module)))
+            .and_then(|ss| ss.iter().find(|s| self.def_in_scope(&s.module, &s.name)))
             .cloned()
             .ok_or_else(|| Error::plain(format!("unknown signature {class}")))?;
 
@@ -4195,14 +4222,25 @@ impl Checker {
                 arg_texts.push(text);
             }
             let sol = self.solve_wants()?;
-            let mut cores: Vec<crate::core::Core> = Vec::new();
+            let mut filled: Vec<(ECore, String)> = Vec::new();
             for (c, text) in arg_cores.into_iter().zip(&arg_texts) {
                 let c = self.fill_holes(&c, &sol)?;
+                filled.push((c, text.clone()));
+            }
+            // Deferred literal words and index arguments resolve
+            // positionally across every argument at once (their indices
+            // are shared); module arguments keep their runtime class
+            // calls (the collection literal fold covers definition
+            // bodies).
+            let lits = self.resolved_literals()?;
+            let idx_vals = self.resolved_idx_args()?;
+            let mut cores: Vec<crate::core::Core> = Vec::new();
+            for (c, text) in filled {
                 let mut c = c;
-                self.resolve_literals(&mut c)?;
-                self.resolve_idx_pends(&mut c)?;
+                resolve_lit_words(&mut c, &lits);
+                resolve_idx_words(&mut c, &idx_vals);
                 let low = lower(&c);
-                arg_ids.push(arg_identity(&low, text));
+                arg_ids.push(arg_identity(&low, &text));
                 cores.push(low);
             }
             // The unit's values are wrapper units over the target's
@@ -5398,23 +5436,42 @@ impl Checker {
     ) -> Result<()> {
         let sol = self.solve_wants()?;
         body = self.fill_holes(&body, &sol)?;
-        self.resolve_literals(&mut body)?;
-        if !erased {
-            self.resolve_idx_pends(&mut body)?;
-        } else {
+        let mut recs: Vec<(GlobalId, ECore)> = Vec::new();
+        for (mid, core) in std::mem::take(&mut self.pending_rec) {
+            recs.push((mid, self.fill_holes(&core, &sol)?));
+        }
+        // Deferred literal words and implicit index arguments resolve
+        // positionally across the body and its `letrec` member units at
+        // once (their indices are shared).
+        let lits = self.resolved_literals()?;
+        let vals = if erased {
             self.idx_pends.clear();
+            Vec::new()
+        } else {
+            self.resolved_idx_args()?
+        };
+        resolve_lit_words(&mut body, &lits);
+        resolve_idx_words(&mut body, &vals);
+        for (_, core) in recs.iter_mut() {
+            resolve_lit_words(core, &lits);
+            resolve_idx_words(core, &vals);
+        }
+        // The collection literal fold (surface grammar local amendments
+        // section 10) runs on every emitted body once its constants are
+        // fixed and before lambdas hoist.
+        if !erased {
+            for (mid, core) in recs.iter_mut() {
+                let mid = mid.0.clone();
+                self.fold_pass(core, &mid, true);
+            }
+            self.fold_pass(&mut body, &id.0.clone(), true);
         }
         let mut hoisted = Vec::new();
         hoist_lambdas(&mut body, &id.0, &mut self.lam_counter, &mut hoisted);
         // `letrec` member units (surface grammar local amendments
         // section 9): their bodies arrive with their final unit ids, so
         // only their nested lambdas hoist like any others.
-        for (mid, mut core) in std::mem::take(&mut self.pending_rec) {
-            core = self.fill_holes(&core, &sol)?;
-            self.resolve_literals(&mut core)?;
-            if !erased {
-                self.resolve_idx_pends(&mut core)?;
-            }
+        for (mid, core) in recs {
             let (params, mbody) = match core {
                 ECore::Lam { params, body } => (params, *body),
                 _ => {
@@ -7563,6 +7620,224 @@ fn imports_of(m: &ast::Module) -> Vec<String> {
         .collect()
 }
 
+/// One JSON document's compile-time shape (surface grammar local
+/// amendments section 11): the `json` converter's parsed form, before it
+/// becomes constant code.
+enum JsonVal {
+    Null,
+    Bool(bool),
+    /// The raw digit run of a JSON number.
+    Num(String),
+    Str(String),
+    Arr(Vec<JsonVal>),
+    Obj(Vec<(String, JsonVal)>),
+}
+
+/// Parse a JSON document (RFC 8259 shapes) for the `json` converter.
+fn parse_json(buf: &[u8]) -> Result<JsonVal, String> {
+    let mut p = JsonParser { buf, i: 0 };
+    p.ws();
+    let v = p.value(0)?;
+    p.ws();
+    if p.i != buf.len() {
+        return Err(format!("trailing content at byte {}", p.i));
+    }
+    Ok(v)
+}
+
+struct JsonParser<'a> {
+    buf: &'a [u8],
+    i: usize,
+}
+
+impl<'a> JsonParser<'a> {
+    fn ws(&mut self) {
+        while matches!(self.buf.get(self.i), Some(b' ' | b'\t' | b'\n' | b'\r')) {
+            self.i += 1;
+        }
+    }
+
+    fn value(&mut self, depth: usize) -> Result<JsonVal, String> {
+        // The converter budget (P9 discipline) bounds recursion too.
+        if depth > 64 {
+            return Err("the JSON document nests deeper than 64 levels".to_string());
+        }
+        match self.buf.get(self.i) {
+            Some(b'n') => self.word("null").map(|_| JsonVal::Null),
+            Some(b't') => self.word("true").map(|_| JsonVal::Bool(true)),
+            Some(b'f') => self.word("false").map(|_| JsonVal::Bool(false)),
+            Some(b'"') => Ok(JsonVal::Str(self.string()?)),
+            Some(b'[') => {
+                self.i += 1;
+                let mut out = Vec::new();
+                self.ws();
+                if self.buf.get(self.i) == Some(&b']') {
+                    self.i += 1;
+                    return Ok(JsonVal::Arr(out));
+                }
+                loop {
+                    self.ws();
+                    out.push(self.value(depth + 1)?);
+                    self.ws();
+                    match self.buf.get(self.i) {
+                        Some(b',') => self.i += 1,
+                        Some(b']') => {
+                            self.i += 1;
+                            return Ok(JsonVal::Arr(out));
+                        }
+                        _ => return Err(format!("expected `,` or `]` at byte {}", self.i)),
+                    }
+                }
+            }
+            Some(b'{') => {
+                self.i += 1;
+                let mut out = Vec::new();
+                self.ws();
+                if self.buf.get(self.i) == Some(&b'}') {
+                    self.i += 1;
+                    return Ok(JsonVal::Obj(out));
+                }
+                loop {
+                    self.ws();
+                    let k = self.string()?;
+                    self.ws();
+                    if self.buf.get(self.i) != Some(&b':') {
+                        return Err(format!("expected `:` at byte {}", self.i));
+                    }
+                    self.i += 1;
+                    self.ws();
+                    let v = self.value(depth + 1)?;
+                    out.push((k, v));
+                    self.ws();
+                    match self.buf.get(self.i) {
+                        Some(b',') => self.i += 1,
+                        Some(b'}') => {
+                            self.i += 1;
+                            return Ok(JsonVal::Obj(out));
+                        }
+                        _ => return Err(format!("expected `,` or `}}` at byte {}", self.i)),
+                    }
+                }
+            }
+            Some(b'-' | b'0'..=b'9') => Ok(JsonVal::Num(self.number()?)),
+            Some(c) => Err(format!("unexpected byte {c:#04x} at {}", self.i)),
+            None => Err("unexpected end of the JSON document".to_string()),
+        }
+    }
+
+    fn word(&mut self, w: &str) -> Result<(), String> {
+        if self.buf[self.i..].starts_with(w.as_bytes()) {
+            self.i += w.len();
+            Ok(())
+        } else {
+            Err(format!("expected `{w}` at byte {}", self.i))
+        }
+    }
+
+    fn number(&mut self) -> Result<String, String> {
+        let start = self.i;
+        if self.buf.get(self.i) == Some(&b'-') {
+            self.i += 1;
+        }
+        while matches!(self.buf.get(self.i), Some(b'0'..=b'9' | b'.' | b'e' | b'E' | b'+' | b'-')) {
+            self.i += 1;
+        }
+        let s = std::str::from_utf8(&self.buf[start..self.i])
+            .map_err(|_| "a JSON number is not UTF-8".to_string())?
+            .to_string();
+        if s.is_empty() || s == "-" {
+            return Err(format!("expected a number at byte {start}"));
+        }
+        Ok(s)
+    }
+
+    fn string(&mut self) -> Result<String, String> {
+        if self.buf.get(self.i) != Some(&b'"') {
+            return Err(format!("expected a string at byte {}", self.i));
+        }
+        self.i += 1;
+        let mut out: Vec<u8> = Vec::new();
+        loop {
+            match self.buf.get(self.i) {
+                Some(b'"') => {
+                    self.i += 1;
+                    return String::from_utf8(out)
+                        .map_err(|_| "a JSON string is not UTF-8".to_string());
+                }
+                Some(b'\\') => {
+                    self.i += 1;
+                    let esc = *self
+                        .buf
+                        .get(self.i)
+                        .ok_or_else(|| "truncated escape".to_string())?;
+                    self.i += 1;
+                    match esc {
+                        b'"' => out.push(b'"'),
+                        b'\\' => out.push(b'\\'),
+                        b'/' => out.push(b'/'),
+                        b'b' => out.push(0x08),
+                        b'f' => out.push(0x0c),
+                        b'n' => out.push(b'\n'),
+                        b'r' => out.push(b'\r'),
+                        b't' => out.push(b'\t'),
+                        b'u' => {
+                            let cp = self.hex4()?;
+                            let cp = if (0xD800..=0xDBFF).contains(&cp) {
+                                if self.buf.get(self.i) == Some(&b'\\')
+                                    && self.buf.get(self.i + 1) == Some(&b'u')
+                                {
+                                    self.i += 2;
+                                    let lo = self.hex4()?;
+                                    if !(0xDC00..=0xDFFF).contains(&lo) {
+                                        return Err(format!(
+                                            "invalid surrogate pair at byte {}",
+                                            self.i
+                                        ));
+                                    }
+                                    0x10000 + ((cp - 0xD800) << 10) + (lo - 0xDC00)
+                                } else {
+                                    return Err(format!(
+                                        "unpaired surrogate at byte {}",
+                                        self.i
+                                    ));
+                                }
+                            } else {
+                                cp
+                            };
+                            out.extend(
+                                char::from_u32(cp)
+                                    .ok_or_else(|| {
+                                        format!("invalid Unicode scalar value {cp:#x}")
+                                    })?
+                                    .to_string()
+                                    .as_bytes(),
+                            );
+                        }
+                        _ => return Err(format!("unknown escape at byte {}", self.i)),
+                    }
+                }
+                Some(c) => {
+                    out.push(*c);
+                    self.i += 1;
+                }
+                None => return Err("unterminated JSON string".to_string()),
+            }
+        }
+    }
+
+    fn hex4(&mut self) -> Result<u32, String> {
+        if self.i + 4 > self.buf.len() {
+            return Err("truncated `\\u` escape".to_string());
+        }
+        let s = std::str::from_utf8(&self.buf[self.i..self.i + 4])
+            .map_err(|_| "a `\\u` escape is not UTF-8".to_string())?;
+        let v = u32::from_str_radix(s, 16)
+            .map_err(|_| format!("invalid `\\u` escape `{s}`"))?;
+        self.i += 4;
+        Ok(v)
+    }
+}
+
 impl Checker {
     /// Instance coherence across the compiled set (design note, section 3,
     /// rule 4): two instances of one class with unifiable targets are
@@ -7644,33 +7919,58 @@ impl Checker {
                 iface_hash: h.clone(),
             });
         }
-        for v in self.qualified.values() {
-            if v.module != module {
-                continue;
-            }
-            match &v.kind {
-                ValueKind::TopFn | ValueKind::Prim(_) => {
-                    iface.exports.values.push(ValueExport {
-                        name: v.name.clone(),
-                        scheme: render_scheme(&v.scheme),
-                        symbol: format!("{module}.{}", v.name),
-                        arity: (v.scheme.ty.arity()
-                            + v.scheme.ctx.len()
-                            + v.scheme.val_params.len()) as u64,
-                    });
+        // The export surface (surface grammar local amendments section
+        // 11): with `export` declarations exactly the names their items
+        // resolve to, re-exports included; the declared names as before
+        // without them. Instances, fixities and the foreign table stay
+        // module-owned: they are coherence and contract facts, not
+        // names.
+        let mut surface: Vec<(String, SurfaceName)> = match self.module_surface.get(module) {
+            Some(sm) => sm
+                .iter()
+                .map(|(l, d)| (l.clone(), d.clone()))
+                .collect(),
+            None => self
+                .declared_names(module)
+                .into_iter()
+                .map(|n| {
+                    (
+                        n.clone(),
+                        SurfaceName {
+                            module: module.to_string(),
+                            name: n,
+                        },
+                    )
+                })
+                .collect(),
+        };
+        surface.sort_by(|a, b| a.0.cmp(&b.0));
+        for (local, d) in &surface {
+            if let Some(v) = self.qualified.get(&(d.module.clone(), d.name.clone())) {
+                match &v.kind {
+                    ValueKind::TopFn | ValueKind::Prim(_) => {
+                        iface.exports.values.push(ValueExport {
+                            name: local.clone(),
+                            scheme: render_scheme(&v.scheme),
+                            symbol: format!("{}.{}", d.module, d.name),
+                            arity: (v.scheme.ty.arity()
+                                + v.scheme.ctx.len()
+                                + v.scheme.val_params.len()) as u64,
+                        });
+                    }
+                    _ => {}
                 }
-                _ => {}
             }
-        }
-        for ts in self.types.values() {
-            for t in ts {
-                if t.module != module {
-                    continue;
-                }
+            let t = self
+                .types
+                .get(&d.name)
+                .and_then(|ts| ts.iter().find(|t| t.module == d.module))
+                .cloned();
+            if let Some(t) = t {
                 let mut ctors = Vec::new();
                 let mut params: Vec<String> = Vec::new();
                 for (cname, tag) in &t.ctors {
-                    if let Some(v) = self.qualified.get(&(module.to_string(), cname.clone())) {
+                    if let Some(v) = self.qualified.get(&(d.module.clone(), cname.clone())) {
                         if let ValueKind::Ctor { field_tys, field_erased, ty_params, .. } = &v.kind {
                             if params.is_empty() {
                                 params = ty_params.clone();
@@ -7693,7 +7993,7 @@ impl Checker {
                     }
                 }
                 iface.exports.types.push(TypeExport {
-                    name: t.name.clone(),
+                    name: local.clone(),
                     params,
                     kind: if t.fields.is_some() { "record".to_string() } else { "data".to_string() },
                     ctors,
@@ -7703,37 +8003,39 @@ impl Checker {
                 // specification section 4.3): part of the contract
                 // projection, so a representation change changes the
                 // interface identity.
-                iface.layouts.push(
-                    self.type_layouts
-                        .get(&(module.to_string(), t.name.clone()))
-                        .cloned()
-                        .unwrap_or(crate::interface::AbiLayout {
-                            name: t.name.clone(),
-                            repr: "uniform-word".to_string(),
-                            size: WORD_SIZE,
-                            align: WORD_ALIGN,
-                            fields: Vec::new(),
-                            discriminant: None,
-                        }),
-                );
+                let mut layout = self
+                    .type_layouts
+                    .get(&(d.module.clone(), d.name.clone()))
+                    .cloned()
+                    .unwrap_or(crate::interface::AbiLayout {
+                        name: local.clone(),
+                        repr: "uniform-word".to_string(),
+                        size: WORD_SIZE,
+                        align: WORD_ALIGN,
+                        fields: Vec::new(),
+                        discriminant: None,
+                    });
+                layout.name = local.clone();
+                iface.layouts.push(layout);
             }
-        }
-        for s in self.sigs.values().flatten() {
-            if s.module != module {
-                continue;
+            if let Some(s) = self
+                .sigs
+                .get(&d.name)
+                .and_then(|ss| ss.iter().find(|s| s.module == d.module))
+            {
+                iface.exports.signatures.push(SigExport {
+                    name: local.clone(),
+                    params: s.params.clone(),
+                    methods: s
+                        .methods
+                        .iter()
+                        .map(|(n, sch)| MethodExport {
+                            name: n.clone(),
+                            scheme: render_scheme(sch),
+                        })
+                        .collect(),
+                });
             }
-            iface.exports.signatures.push(SigExport {
-                name: s.name.clone(),
-                params: s.params.clone(),
-                methods: s
-                    .methods
-                    .iter()
-                    .map(|(n, sch)| MethodExport {
-                        name: n.clone(),
-                        scheme: render_scheme(sch),
-                    })
-                    .collect(),
-            });
         }
         for i in &self.instance_list {
             if i.module != module {
@@ -7862,6 +8164,7 @@ pub fn check_program_multi_full(
     c.install_wit_api(wit)?;
     c.stage_mode = scx.mode;
     c.module_files = scx.files.clone();
+    c.fold_scx = Some(scx.clone());
     let prelude_name = prelude.name.text.clone();
     c.prelude_module = prelude_name.clone();
     c.collect_module(prelude, &prelude_name, &[])?;
@@ -7887,10 +8190,16 @@ pub fn check_program_multi_full(
     // The staging phase (modules specification sections 7-10): compile
     // the compile-time fragment, schedule and run generators, expand macro
     // calls, and collect generated declarations under ordinary rules.
-    let report = if c.has_staging_work() {
+    let mut report = if c.has_staging_work() {
         c.run_staging(scx)?
     } else {
-        StageReport { mode: scx.mode, inputs: Vec::new(), generated: Vec::new() }
+        StageReport {
+            mode: scx.mode,
+            inputs: Vec::new(),
+            generated: Vec::new(),
+            literal_folds: Vec::new(),
+            data_imports: Vec::new(),
+        }
     };
     // Generated declarations may declare types with representations.
     c.compute_layouts()?;
@@ -7910,6 +8219,10 @@ pub fn check_program_multi_full(
     // released by its matching deallocator (foreign function interface
     // specification section 4).
     c.check_deallocators()?;
+    // The collection literals' fold boundary (surface grammar local
+    // amendments section 10) accumulates through every unit's check.
+    report.literal_folds = std::mem::take(&mut c.literal_folds);
+    report.data_imports = std::mem::take(&mut c.data_imports);
     if modules.is_empty() {
         return Err(Error::plain("no modules to check"));
     }
@@ -7960,6 +8273,7 @@ pub fn check_program(prelude: &ast::Module, user: &ast::Module) -> Result<Progra
 // ------------------------------------------------------------ staging (P9)
 
 /// Inputs to the staging phase (modules specification sections 9 and 10).
+#[derive(Clone)]
 pub struct StagingCx {
     /// Per-module fixity tables, for parsing spliced `Syntax`.
     pub fixities: HashMap<String, crate::parser::FixityTable>,
@@ -8006,6 +8320,13 @@ pub struct StageReport {
     pub inputs: Vec<StageInput>,
     /// Generated declarations per module, in emission order.
     pub generated: Vec<(String, Vec<String>)>,
+    /// The collection literals' fold boundaries (surface grammar local
+    /// amendments section 10): which constructions became constant
+    /// values and which kept their runtime `from-list`/`from-map` calls.
+    pub literal_folds: Vec<LitFold>,
+    /// The `import data` bindings' provenance (surface grammar local
+    /// amendments section 11): converter identity and file content hash.
+    pub data_imports: Vec<DataImport>,
 }
 
 /// The compile-time evaluation context: everything the interpreter needs
@@ -8156,6 +8477,8 @@ impl Checker {
             mode: scx.mode,
             inputs: std::mem::take(&mut cx.inputs),
             generated,
+            literal_folds: Vec::new(),
+            data_imports: Vec::new(),
         })
     }
 
@@ -8434,29 +8757,558 @@ impl Checker {
         Ok(())
     }
 
-    /// Set the checker's scope to `module`'s visibility (own names, its
-    /// runtime and stage imports, then the prelude).
-    fn set_scope(&mut self, module: &str) {
+    /// Build the checking module's scope (surface grammar local
+    /// amendments section 11): its own names resolve first, then its
+    /// imports in declaration order, then the prelude's. `include_stage`
+    /// adds the `import stage` modules (the compile-time scope sees their
+    /// generators; ordinary collection keeps them out).
+    fn build_scope(&mut self, module: &str, include_stage: bool) {
         self.current_module = module.to_string();
+        let mut views: Vec<ImportView> = Vec::new();
+        if let Some(vs) = self.module_views.get(module).cloned() {
+            for v in vs {
+                if v.applied || (!include_stage && v.stage) {
+                    continue;
+                }
+                views.push(v);
+            }
+        }
+        if self.prelude_module != module {
+            views.push(ImportView {
+                target: self.prelude_module.clone(),
+                alias: self.prelude_module.clone(),
+                stage: false,
+                applied: false,
+                alias_only: false,
+                members: None,
+            });
+        }
         let mut visible = vec![module.to_string()];
-        if let Some(imports) = self.module_imports.get(module) {
-            for i in imports {
-                if !visible.contains(i) {
-                    visible.push(i.clone());
-                }
+        for v in &views {
+            if !visible.contains(&v.target) {
+                visible.push(v.target.clone());
             }
         }
-        if let Some(imports) = self.module_stage_imports.get(module) {
-            for i in imports {
-                if !visible.contains(i) {
-                    visible.push(i.clone());
-                }
-            }
-        }
-        if !visible.contains(&self.prelude_module) {
-            visible.push(self.prelude_module.clone());
-        }
+        self.scope_views = views;
         self.visible = visible;
+    }
+
+    /// One module's export surface and import hygiene (surface grammar
+    /// local amendments section 11): with `export` declarations exactly
+    /// the names their items resolve to, including re-exported imports;
+    /// without them nothing is recorded and the module exposes its
+    /// declared names as before. Duplicate unrenamed imported names are
+    /// an error naming both sources (renaming is the fix).
+    fn finish_module_surface(&mut self, module: &str) -> Result<()> {
+        // Import hygiene: each import's bare contribution, by local name.
+        let mut seen: Vec<(String, String)> = Vec::new();
+        for v in self.module_views.get(module).cloned().unwrap_or_default() {
+            if v.applied {
+                continue;
+            }
+            if let Some(ms) = &v.members {
+                // A selection names members of the source's surface
+                // (surface grammar local amendments section 11).
+                for (local, source) in ms {
+                    if self.surface_def(&v.target, source).is_none() {
+                        return Err(Error::plain(format!(
+                            "`{}` has no member `{source}` to import (as `{local}`)",
+                            v.target
+                        )));
+                    }
+                }
+            }
+            if v.alias_only || v.stage {
+                continue;
+            }
+            let names: Vec<String> = match &v.members {
+                Some(ms) => ms.iter().map(|(l, _)| l.clone()).collect(),
+                None => self
+                    .module_surface
+                    .get(&v.target)
+                    .map(|s| s.keys().cloned().collect())
+                    .unwrap_or_else(|| self.declared_names(&v.target)),
+            };
+            for n in names {
+                if let Some((_, prev_target)) = seen.iter().find(|(l, _)| *l == n).cloned() {
+                    return Err(Error::plain(format!(
+                        "the name `{n}` is imported from both {prev_target} and {}: rename one (a selection like `import {} ({n} as ...)`)",
+                        v.target, v.target
+                    )));
+                }
+                seen.push((n, v.target.clone()));
+            }
+        }
+        // The export surface (empty items: the declared names, as before).
+        let items = match self.module_exports.get(module) {
+            Some(items) if !items.is_empty() => items.clone(),
+            _ => return Ok(()),
+        };
+        let mut surface: HashMap<String, SurfaceName> = HashMap::new();
+        for item in &items {
+            let entries: Vec<(String, SurfaceName)> = match item {
+                ast::ExportItem::Name(n) => match self.export_target(module, None, &n.text) {
+                    Some(d) => vec![(n.text.clone(), d)],
+                    None => {
+                        return Err(Error::at(
+                            n.span,
+                            format!("`{}` is not a name in scope to export", n.text),
+                        ))
+                    }
+                },
+                ast::ExportItem::Member(path) => {
+                    let parts = path.parts();
+                    let (qual, name) = (parts[0], parts[1]);
+                    match self.export_target(module, Some(qual), name) {
+                        Some(d) => vec![(name.to_string(), d)],
+                        None => {
+                            return Err(Error::at(
+                                path.span(),
+                                format!("`{qual}.{name}` is not an imported member to export"),
+                            ))
+                        }
+                    }
+                }
+                ast::ExportItem::Module(q) => {
+                    let view = self
+                        .module_views
+                        .get(module)
+                        .into_iter()
+                        .flatten()
+                        .find(|v| !v.applied && v.alias == q.text)
+                        .cloned();
+                    match view {
+                        Some(v) => {
+                            let mut out = Vec::new();
+                            match &v.members {
+                                Some(ms) => {
+                                    for (l, s) in ms {
+                                        if let Some(d) = self.surface_def(&v.target, s) {
+                                            out.push((l.clone(), d));
+                                        }
+                                    }
+                                }
+                                None => match self.module_surface.get(&v.target) {
+                                    Some(sm) => {
+                                        for (l, d) in sm {
+                                            out.push((l.clone(), d.clone()));
+                                        }
+                                    }
+                                    None => {
+                                        for n in self.declared_names(&v.target) {
+                                            if let Some(d) =
+                                                self.surface_def(&v.target, &n)
+                                            {
+                                                out.push((n, d));
+                                            }
+                                        }
+                                    }
+                                },
+                            }
+                            out
+                        }
+                        None => {
+                            return Err(Error::at(
+                                q.span,
+                                format!("`{}` is not an imported module to export", q.text),
+                            ))
+                        }
+                    }
+                }
+            };
+            for (local, d) in entries {
+                if let Some(prev) = surface.get(&local) {
+                    if prev.module != d.module || prev.name != d.name {
+                        return Err(Error::plain(format!(
+                            "duplicate export `{local}` (naming both {} and {})",
+                            prev.module, d.module
+                        )));
+                    }
+                    continue;
+                }
+                surface.insert(local, d);
+            }
+        }
+        self.module_surface.insert(module.to_string(), surface);
+        Ok(())
+    }
+
+    /// The names a module declares (its default export surface).
+    fn declared_names(&self, module: &str) -> Vec<String> {
+        let mut out: Vec<String> = Vec::new();
+        for (n, vs) in &self.values {
+            if vs.iter().any(|v| v.module == module) && !out.contains(n) {
+                out.push(n.clone());
+            }
+        }
+        for (n, ts) in &self.types {
+            if ts.iter().any(|t| t.module == module) && !out.contains(n) {
+                out.push(n.clone());
+            }
+        }
+        for (n, ss) in &self.sigs {
+            if ss.iter().any(|s| s.module == module) && !out.contains(n) {
+                out.push(n.clone());
+            }
+        }
+        out
+    }
+
+    /// The definition an `export` item names: a name in the exporting
+    /// module's scope (its own, or bare through an import), optionally
+    /// qualified by the import's qualifier (`export A.b`).
+    fn export_target(
+        &self,
+        module: &str,
+        qual: Option<&str>,
+        name: &str,
+    ) -> Option<SurfaceName> {
+        let candidates = match qual {
+            Some(q) => self.scope_qual_candidates(q, name),
+            None => self.scope_candidates(name),
+        };
+        for (dm, dn) in candidates {
+            if dm == "<builtin>" {
+                continue;
+            }
+            if let Some(d) = self.surface_def(&dm, &dn) {
+                return Some(d);
+            }
+        }
+        None
+    }
+
+    /// One module's `import data` bindings (surface grammar local
+    /// amendments section 11): the extension-keyed converter runs at
+    /// compile time over the named file and binds its converted value
+    /// under the import's name. The converter's identity and the file's
+    /// content hash are provenance; a converter failure is a build error
+    /// naming the file and the converter.
+    fn collect_data_imports(&mut self, module: &str, m: &ast::Module) -> Result<()> {
+        let imports = self
+            .module_data_imports
+            .get(module)
+            .cloned()
+            .unwrap_or_default();
+        for d in imports {
+            let bound = fn_id(module, &d.name.text);
+            if self.fns.iter().any(|f| f.id == bound) {
+                // Re-collection with generated declarations: the binding
+                // converted already.
+                continue;
+            }
+            let converter = match d.file.rsplit_once('.').map(|(_, e)| e) {
+                Some("json") => "json",
+                Some("txt") => "txt",
+                Some("bytes") => "bytes",
+                other => {
+                    return Err(Error::at(
+                        d.span,
+                        format!(
+                            "no converter for `{}`: the built-in converters are keyed by extension (`json`, `txt`, `bytes`)",
+                            other.unwrap_or(&d.file)
+                        ),
+                    ))
+                }
+            };
+            // The file resolves beside the importing module's source
+            // (capability limits: the named file is the only input).
+            let mut path = std::path::PathBuf::new();
+            if let Some(src) = self.module_files.get(module) {
+                if let Some(dir) = std::path::Path::new(src).parent() {
+                    path = dir.to_path_buf();
+                }
+            }
+            if path.as_os_str().is_empty() {
+                path = self
+                    .fold_scx
+                    .as_ref()
+                    .map(|s| s.workdir.clone())
+                    .unwrap_or_default();
+            }
+            path = path.join(&d.file);
+            let fail = |why: String| {
+                Error::at(
+                    d.span,
+                    format!("the `{converter}` converter could not convert {}: {why}", d.file),
+                )
+            };
+            let bytes = std::fs::read(&path).map_err(|e| fail(e.to_string()))?;
+            // The converter budget (P9 discipline): a file beyond the cap
+            // is a build error, not a silently truncated import.
+            if bytes.len() > 4 * 1024 * 1024 {
+                return Err(fail(format!(
+                    "the file is {} bytes, over the 4 MiB converter budget",
+                    bytes.len()
+                )));
+            }
+            let hash = crate::interface::content_hash_bytes(&bytes);
+            // The bound type: a declared signature is the decoded type,
+            // otherwise the converter's default (`Json`, `String`,
+            // `Bytes`).
+            let declared = self
+                .top_schemes
+                .get(&(module.to_string(), d.name.text.clone()))
+                .cloned();
+            if let Some(s) = &declared {
+                if !s.params.is_empty()
+                    || !s.ctx.is_empty()
+                    || !s.row_params.is_empty()
+                    || !s.region_params.is_empty()
+                {
+                    return Err(fail(format!(
+                        "the declared type of {} must be monomorphic",
+                        d.name.text
+                    )));
+                }
+            }
+            let ty = match &declared {
+                Some(s) => s.ty.clone(),
+                None => match converter {
+                    "json" => Ty::Adt("Json".into(), Vec::new()),
+                    "txt" => Ty::Adt("String".into(), Vec::new()),
+                    _ => Ty::Bytes,
+                },
+            };
+            let prelude = self.prelude_module.clone();
+            let body = match converter {
+                "bytes" => {
+                    if self.uni.zonk(&ty) != Ty::Bytes {
+                        return Err(fail(format!(
+                            "the `bytes` converter produces a Bytes value, not {ty}"
+                        )));
+                    }
+                    ECore::ConstBytes(bytes.clone())
+                }
+                "txt" => {
+                    if self.uni.zonk(&ty) != Ty::Adt("String".into(), Vec::new()) {
+                        return Err(fail(format!(
+                            "the `txt` converter produces a String value, not {ty}"
+                        )));
+                    }
+                    app_spine(
+                        ECore::Ctor(fn_id(&prelude, "String")),
+                        vec![ECore::ConstBytes(bytes.clone())],
+                    )
+                }
+                _ => {
+                    let v = parse_json(&bytes).map_err(fail)?;
+                    self.json_const(&v, &self.uni.zonk(&ty), d.span)
+                        .map_err(fail)?
+                }
+            };
+            let name = d.name.text.clone();
+            if declared.is_none() {
+                let scheme = Scheme::mono(ty.clone());
+                self.add_value(
+                    ValueInfo {
+                        module: module.to_string(),
+                        name: name.clone(),
+                        scheme: scheme.clone(),
+                        kind: ValueKind::TopFn,
+                    },
+                    d.span,
+                )?;
+                self.top_schemes
+                    .insert((module.to_string(), name.clone()), scheme);
+            }
+            self.fns.push(finalize_fn(
+                bound,
+                Vec::new(),
+                body,
+                None,
+                None,
+                crate::core::FnHints::default(),
+                crate::core::FnMeta::default(),
+            ));
+            self.data_imports.push(DataImport {
+                module: module.to_string(),
+                name,
+                file: d.file.clone(),
+                converter: converter.to_string(),
+                hash,
+            });
+        }
+        Ok(())
+    }
+
+    /// The constant value of one JSON document at `ty` (surface grammar
+    /// local amendments section 11): the `Json`-shaped tree at `Json`, a
+    /// decoded value at a declared type (scalars, `String`, `List`,
+    /// `Option`, and records decoded field by name).
+    fn json_const(&mut self, v: &JsonVal, ty: &Ty, span: ast::Span) -> Result<ECore, String> {
+        let prelude = self.prelude_module.clone();
+        let pctor = |n: &str| ECore::Ctor(fn_id(&prelude, n));
+        let unit = |n: &str, arg: ECore| -> ECore { app_spine(pctor(n), vec![arg]) };
+        if let Ty::Adt(name, args) = ty {
+            match (name.as_str(), args.as_slice()) {
+                ("Json", []) => {
+                    return Ok(match v {
+                        JsonVal::Null => pctor("JNull"),
+                        JsonVal::Bool(b) => unit("JBool", ECore::Bool(*b)),
+                        JsonVal::Num(d) => {
+                            if d.contains('.') || d.contains('e') || d.contains('E') {
+                                let f: f64 = d
+                                    .parse()
+                                    .map_err(|_| format!("{d} is not a JSON number"))?;
+                                unit("JFloat", ECore::Int(f.to_bits() as i64))
+                            } else {
+                                unit(
+                                    "JNum",
+                                    ECore::ConstBig {
+                                        nat: false,
+                                        digits: d.clone(),
+                                    },
+                                )
+                            }
+                        }
+                        JsonVal::Str(s) => unit("JStr", self.string_const(s)),
+                        JsonVal::Arr(xs) => {
+                            let mut spine = pctor("JArrEnd");
+                            for x in xs.iter().rev() {
+                                let ic = self.json_const(x, ty, span)?;
+                                spine = app_spine(pctor("JArr"), vec![ic, spine]);
+                            }
+                            spine
+                        }
+                        JsonVal::Obj(kvs) => {
+                            let mut spine = pctor("JObjEnd");
+                            for (k, x) in kvs.iter().rev() {
+                                let ic = self.json_const(x, ty, span)?;
+                                spine = app_spine(
+                                    pctor("JObj"),
+                                    vec![self.string_const(k), ic, spine],
+                                );
+                            }
+                            spine
+                        }
+                    });
+                }
+                ("String", []) => {
+                    return match v {
+                        JsonVal::Str(s) => Ok(self.string_const(s)),
+                        _ => Err(format!("a JSON string is required for String")),
+                    };
+                }
+                ("List", [t]) => {
+                    let xs = match v {
+                        JsonVal::Arr(xs) => xs,
+                        _ => return Err(format!("a JSON array is required for List")),
+                    };
+                    let t = t.clone();
+                    let mut spine = pctor("Nil");
+                    for x in xs.iter().rev() {
+                        let ic = self.json_const(x, &t, span)?;
+                        spine = app_spine(pctor("Cons"), vec![ic, spine]);
+                    }
+                    return Ok(spine);
+                }
+                ("Option", [t]) => {
+                    return match v {
+                        JsonVal::Null => Ok(pctor("None")),
+                        _ => {
+                            let t = t.clone();
+                            let ic = self.json_const(v, &t, span)?;
+                            Ok(app_spine(pctor("Some"), vec![ic]))
+                        }
+                    };
+                }
+                _ => {}
+            }
+            // A record decoded field by field (the declared-type form).
+            if args.is_empty() {
+                if let Some(t) = self.lookup_type(&[name]).ok() {
+                    if let Some(fields) = t.fields.clone() {
+                        let kvs = match v {
+                            JsonVal::Obj(kvs) => kvs,
+                            _ => {
+                                return Err(format!(
+                                    "a JSON object is required for the record {name}"
+                                ))
+                            }
+                        };
+                        let (cname, _) = t
+                            .ctors
+                            .first()
+                            .ok_or_else(|| format!("the record {name} has no constructor"))?;
+                        let vinfo = self
+                            .qualified
+                            .get(&(t.module.clone(), cname.clone()))
+                            .cloned()
+                            .ok_or_else(|| {
+                                format!("the record {name} has no construction plan")
+                            })?;
+                        let field_tys = match &vinfo.kind {
+                            ValueKind::Ctor { field_tys, field_erased, .. } => {
+                                if field_erased.iter().any(|e| *e) {
+                                    return Err(format!(
+                                        "the record {name} has erased fields the converter cannot fill"
+                                    ));
+                                }
+                                field_tys.clone()
+                            }
+                            _ => return Err(format!("the record {name} has no construction plan")),
+                        };
+                        let mut args: Vec<ECore> = Vec::new();
+                        for (i, f) in fields.iter().enumerate() {
+                            let x = kvs.iter().find(|(k, _)| k == f).map(|(_, x)| x);
+                            let x = x.ok_or_else(|| {
+                                format!("the JSON object has no field `{f}` of {name}")
+                            })?;
+                            args.push(self.json_const(x, &field_tys[i], span)?);
+                        }
+                        return Ok(app_spine(
+                            ECore::Ctor(fn_id(&t.module, cname)),
+                            args,
+                        ));
+                    }
+                }
+            }
+            return Err(format!("the `json` converter cannot produce the type {ty}"));
+        }
+        match (v, ty) {
+            (JsonVal::Str(s), Ty::Bytes) => Ok(ECore::ConstBytes(s.as_bytes().to_vec())),
+            (JsonVal::Bool(b), Ty::Bool) => Ok(ECore::Bool(*b)),
+            (JsonVal::Num(d), Ty::Nat | Ty::Int) => {
+                if d.contains('.') || d.contains('e') || d.contains('E') {
+                    return Err(format!("{d} is not an integer"));
+                }
+                if *ty == Ty::Nat && d.starts_with('-') {
+                    return Err(format!("the JSON number {d} is out of range for Nat"));
+                }
+                Ok(ECore::ConstBig {
+                    nat: *ty == Ty::Nat,
+                    digits: d.clone(),
+                })
+            }
+            (JsonVal::Num(d), Ty::Prim(s @ (Scalar::F64 | Scalar::F32))) => {
+                let f: f64 =
+                    d.parse().map_err(|_| format!("{d} is not a JSON number"))?;
+                let w = if *s == Scalar::F64 {
+                    f.to_bits() as i64
+                } else {
+                    (f as f32).to_bits() as i64
+                };
+                Ok(ECore::Int(w))
+            }
+            (JsonVal::Num(d), t @ Ty::Prim(_)) => {
+                let w = self.literal_word(t, d, span).map_err(|e| e.message)?;
+                Ok(ECore::Int(w))
+            }
+            _ => Err(format!("the `json` converter cannot produce the type {ty}")),
+        }
+    }
+
+    /// The runtime `String` constant of a compile-time string.
+    fn string_const(&mut self, s: &str) -> ECore {
+        app_spine(
+            ECore::Ctor(fn_id(&self.prelude_module.clone(), "String")),
+            vec![ECore::ConstBytes(s.as_bytes().to_vec())],
+        )
+    }
+
+    fn set_scope(&mut self, module: &str) {
+        self.build_scope(module, true);
     }
 
     /// Run one `generate do` block: its body is a compile-time
@@ -9763,6 +10615,16 @@ impl Checker {
             return Err(Error::plain(
                 "compile-time evaluation exceeded its step budget (8000000 steps); a generator must terminate (the staging termination policy)",
             ));
+        }
+        // An empty application spine is the value itself: a nullary
+        // constructor reaches application position as `App(Ctor, [])`
+        // (the runtime passes it through identically).
+        if args.is_empty() {
+            match f {
+                Value::Clos { .. } | Value::CtorFn { .. } | Value::PrimFn { .. }
+                | Value::StageFn { .. } => {}
+                other => return Ok(other),
+            }
         }
         match f {
             Value::Clos { fn_id, mut env, args: mut acc, arity } => {

@@ -1033,6 +1033,11 @@ pub fn content_hash(text: &str) -> String {
     fnv1a64(text.as_bytes()).to_string()
 }
 
+/// Content hash for a captured binary input (`import data` provenance).
+pub fn content_hash_bytes(bytes: &[u8]) -> String {
+    fnv1a64(bytes).to_string()
+}
+
 fn fnv1a64(bytes: &[u8]) -> u64 {
     let mut h: u64 = 0xcbf29ce484222325;
     for b in bytes {

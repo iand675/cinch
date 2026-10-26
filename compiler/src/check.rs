@@ -87,7 +87,7 @@ enum ECore {
     /// specification section 7).
     QuoteHole(usize),
     /// Deferred implicit index argument, reified once unification has
-    /// solved it ([`Checker::resolve_idx_pends`]).
+    /// solved it ([`Checker::resolved_idx_args`]).
     IdxPending(usize),
     /// A typed quotation template under construction (staging): the
     /// template with `SpliceHole` placeholders and the elaborated splice
@@ -641,6 +641,84 @@ fn resolve_idx_words(e: &mut ECore, vals: &[ECore]) {
     }
 }
 
+/// A compile-time value reified to constant code (the P14 constant
+/// emission forms; surface grammar local amendments section 10). Only
+/// first-order constants have a constant form: closures, quotations,
+/// compile-time-only values, and stage-synthesized structures do not
+/// reify, and their constructions keep their runtime class calls.
+fn reify_value(v: &crate::core::Value) -> Option<ECore> {
+    use crate::core::Value;
+    Some(match v {
+        Value::Word(w) => ECore::Int(*w),
+        Value::Big { nat, digits } => ECore::ConstBig {
+            nat: *nat,
+            digits: digits.clone(),
+        },
+        Value::Bytes(b) => ECore::ConstBytes(b.borrow().clone()),
+        Value::Bool(b) => ECore::Bool(*b),
+        Value::Unit => ECore::Unit,
+        Value::Adt { ctor, fields, .. } => {
+            if ctor.is_empty() {
+                return None;
+            }
+            let mut core = ECore::Ctor(GlobalId(ctor.clone()));
+            for f in fields {
+                core = app_spine(core, vec![reify_value(f)?]);
+            }
+            core
+        }
+        _ => return None,
+    })
+}
+
+/// Whether `e` contains a node the compile-time evaluator cannot run
+/// (foreign code, lazy and fixpoint machinery, the fault path, quotation
+/// machinery, compile-time-only values, or an unresolved placeholder): a
+/// collection literal around one keeps its runtime class call.
+fn fold_blocked(e: &ECore) -> bool {
+    match e {
+        ECore::Int(_)
+        | ECore::ConstBig { .. }
+        | ECore::ConstBytes(_)
+        | ECore::Bool(_)
+        | ECore::Unit
+        | ECore::Var(_)
+        | ECore::Global(_)
+        | ECore::Ctor(_)
+        | ECore::Prim(_) => false,
+        ECore::Lit(_)
+        | ECore::Foreign(_)
+        | ECore::Hole(_)
+        | ECore::QuoteHole(_)
+        | ECore::IdxPending(_)
+        | ECore::Fault
+        | ECore::SyntaxLit(_)
+        | ECore::StrLit(_)
+        | ECore::Demand(_)
+        | ECore::LazyAlloc
+        | ECore::LazyInit(_, _)
+        | ECore::BoxAlloc
+        | ECore::BoxInit(_, _)
+        | ECore::BoxGet(_)
+        | ECore::Quote { .. }
+        | ECore::DeclsQuote { .. } => true,
+        ECore::LitFold { body, .. } => fold_blocked(body),
+        ECore::DictProj(d, _) | ECore::Proj(d, _) => fold_blocked(d),
+        ECore::InstDict(_, args) | ECore::MkClos { env: args, .. } => {
+            args.iter().any(fold_blocked)
+        }
+        ECore::App(f, args) => fold_blocked(f) || args.iter().any(fold_blocked),
+        ECore::Lam { body, .. } => fold_blocked(body),
+        ECore::Let(_, v, body) => fold_blocked(v) || fold_blocked(body),
+        ECore::If(c, t, f) => {
+            fold_blocked(c) || fold_blocked(&t.body) || fold_blocked(&f.body)
+        }
+        ECore::Case { scrut, alts } => {
+            fold_blocked(scrut) || alts.iter().any(|a| fold_blocked(&a.body))
+        }
+    }
+}
+
 fn finalize_fn(
     id: GlobalId,
     params: Vec<LocalId>,
@@ -930,7 +1008,7 @@ struct Want {
 /// A deferred integer literal (primitive types specification, section 7):
 /// it elaborates against its expected type, which may only become known
 /// after unification and instance resolution, so the constant is fixed by
-/// [`Checker::resolve_literals`] once the definition is complete.
+/// [`Checker::resolved_literals`] once the definition is complete.
 struct PendLit {
     /// The literal's type metavariable.
     ty: Ty,
@@ -1544,6 +1622,26 @@ struct Checker {
     current_module: String,
     /// Modules whose exports are in scope unqualified.
     visible: Vec<String>,
+    /// The visible name sources of the checking module, in scope order
+    /// (surface grammar local amendments section 11): its own names
+    /// resolve first, then each import's contribution, then the
+    /// prelude's.
+    scope_views: Vec<ImportView>,
+    /// Each module's imports as it sees them (surface grammar local
+    /// amendments section 11), in declaration order.
+    module_views: HashMap<String, Vec<ImportView>>,
+    /// Each module's `export` items; a module with none exports its
+    /// declared names as before.
+    module_exports: HashMap<String, Vec<ast::ExportItem>>,
+    /// Each module's `import data` bindings, in declaration order.
+    module_data_imports: HashMap<String, Vec<ast::ImportData>>,
+    /// The `import data` bindings' provenance (converter identity and
+    /// file content hash), for the artifact manifest.
+    data_imports: Vec<DataImport>,
+    /// Each module's export surface: the name as its importers see it to
+    /// the definition it names (a re-export names another module's
+    /// definition).
+    module_surface: HashMap<String, HashMap<String, SurfaceName>>,
     /// Top-level signature schemes, keyed by `(module, name)`.
     top_schemes: HashMap<(String, String), Scheme>,
     /// Top-level equations, keyed by module and name.
@@ -1779,6 +1877,64 @@ struct MacroInfo {
     span: ast::Span,
 }
 
+/// One `import data` binding's provenance (surface grammar local
+/// amendments section 11): the converter identity and the file's content
+/// hash, recorded in the artifact manifest. The import's contract covers
+/// the conversion, not the file bytes; the manifest records hashes, never
+/// contents.
+#[derive(Clone, Debug)]
+pub struct DataImport {
+    pub module: String,
+    pub name: String,
+    pub file: String,
+    pub converter: String,
+    pub hash: String,
+}
+
+/// One import as the importing module sees it (surface grammar local
+/// amendments section 11).
+#[derive(Clone, Debug)]
+struct ImportView {
+    /// The imported module's real name.
+    target: String,
+    /// The qualifier its members are seen under (`import X as Y` renames
+    /// the module alias).
+    alias: String,
+    /// `import stage M`: compile-time-only visibility.
+    stage: bool,
+    /// `import M (args) as N`: the module's names stay out of scope
+    /// (they are reached through the unit `N`).
+    applied: bool,
+    /// `import X as Y`: members are visible only through the alias.
+    alias_only: bool,
+    /// `import X (a as b, c)`: local name to the source's name; `None`
+    /// imports the whole surface under its own names.
+    members: Option<Vec<(String, String)>>,
+}
+
+impl ImportView {
+    /// The source's name for this view's local name, or `None` when the
+    /// view does not make it visible.
+    fn source_name<'a>(&'a self, local: &'a str) -> Option<&'a str> {
+        match &self.members {
+            None => Some(local),
+            Some(ms) => ms
+                .iter()
+                .find(|(l, _)| l == local)
+                .map(|(_, s)| s.as_str()),
+        }
+    }
+}
+
+/// One export-surface entry (surface grammar local amendments section
+/// 11): the definition a surface name names. A re-export names another
+/// module's definition under the exporting module's surface name.
+#[derive(Clone, Debug)]
+struct SurfaceName {
+    module: String,
+    name: String,
+}
+
 /// One collection literal's fold boundary (surface grammar local
 /// amendments section 10): which literals the compile-time fold made
 /// constant values and which stayed runtime `from-list`/`from-map`
@@ -1874,6 +2030,12 @@ impl Checker {
             wants: Vec::new(),
             current_module: String::new(),
             visible: Vec::new(),
+            scope_views: Vec::new(),
+            module_views: HashMap::new(),
+            module_exports: HashMap::new(),
+            module_data_imports: HashMap::new(),
+            data_imports: Vec::new(),
+            module_surface: HashMap::new(),
             top_schemes: HashMap::new(),
             top_eqs: Vec::new(),
             instance_defs: Vec::new(),
@@ -2642,7 +2804,7 @@ impl Checker {
     /// Elaborate an integer literal against its expected type (primitive
     /// types specification, section 7). A known expected type materialises
     /// the literal immediately; a metavariable defers the constant choice
-    /// to [`Checker::resolve_literals`].
+    /// to [`Checker::resolved_literals`].
     fn lit_check(&mut self, expected: &Ty, digits: &str, span: ast::Span) -> Result<ECore> {
         match self.uni.zonk(expected) {
             Ty::Meta(m) => {
@@ -2755,21 +2917,25 @@ impl Checker {
 
     /// The metavariables of the literals still awaiting determination; they
     /// stay monomorphic through let-generalization (one literal has one
-    /// type, section 7).
+    /// type, section 7). A literal's meta may have unified with another
+    /// meta since, so the reported metas are the zonked ones.
     fn literal_metas(&self) -> Vec<EitherMeta> {
-        self.literal_pends
-            .iter()
-            .filter_map(|p| match &p.ty {
-                Ty::Meta(m) => Some(EitherMeta::Type(*m)),
-                _ => None,
-            })
-            .collect()
+        let mut out: Vec<EitherMeta> = Vec::new();
+        for p in &self.literal_pends {
+            for m in self.uni.free_metas(&self.uni.zonk(&p.ty)) {
+                if !out.contains(&m) {
+                    out.push(m);
+                }
+            }
+        }
+        out
     }
 
-    /// Fix every deferred literal's word once its type is determined
-    /// (section 7: a literal whose type is not determined by context is an
-    /// error in this draft).
-    fn resolve_literals(&mut self, body: &mut ECore) -> Result<()> {
+    /// The resolved constant words of one definition's deferred literals
+    /// (section 7: a literal whose type is not determined by context is
+    /// an error in this draft), positional against the `ECore::Lit`
+    /// indices shared by the body and its `letrec` member units.
+    fn resolved_literals(&mut self) -> Result<Vec<ECore>> {
         let pends = std::mem::take(&mut self.literal_pends);
         let mut lits: Vec<ECore> = Vec::with_capacity(pends.len());
         for p in &pends {
@@ -2782,20 +2948,132 @@ impl Checker {
             }
             lits.push(self.literal_const(&t, &p.value, p.span)?);
         }
-        resolve_lit_words(body, &lits);
-        Ok(())
+        Ok(lits)
     }
 
-    /// Reify deferred implicit index arguments into runtime code once
-    /// unification has solved them (insert-and-solve, decision D29).
-    fn resolve_idx_pends(&mut self, body: &mut ECore) -> Result<()> {
+    /// The resolved runtime code of one definition's deferred implicit
+    /// index arguments (decision D29), positional against the
+    /// `ECore::IdxPending` indices shared by the body and its `letrec`
+    /// member units.
+    fn resolved_idx_args(&mut self) -> Result<Vec<ECore>> {
         let pends = std::mem::take(&mut self.idx_pends);
         let mut vals: Vec<ECore> = Vec::with_capacity(pends.len());
         for p in &pends {
             vals.push(self.reify_idx(&p.iterm, &p.names, p.nat, p.span)?);
         }
-        resolve_idx_words(body, &vals);
-        Ok(())
+        Ok(vals)
+    }
+
+    /// The collection literal fold of one unit (surface grammar local
+    /// amendments section 10): a stage-known construction evaluates
+    /// through the D92 evaluator and reifies to a constant value,
+    /// replacing the class call; any other construction keeps its runtime
+    /// `from-list`/`from-map` call. Each record in `literal_folds` fills
+    /// with the unit and the fold boundary. `fold` is false inside a
+    /// quotation's retained body: its reification cannot carry a constant
+    /// buffer yet, so those sites keep their class calls and record the
+    /// boundary.
+    fn fold_pass(&mut self, e: &mut ECore, unit: &str, fold: bool) {
+        match e {
+            ECore::LitFold { idx, body } => {
+                let idx = *idx;
+                match if fold { self.fold_constant(body) } else { None } {
+                    Some(k) => {
+                        self.literal_folds[idx].folded = true;
+                        self.literal_folds[idx].unit = unit.to_string();
+                        *e = k;
+                    }
+                    None => {
+                        self.fold_pass(body, unit, fold);
+                        self.literal_folds[idx].unit = unit.to_string();
+                    }
+                }
+            }
+            ECore::Int(_)
+            | ECore::ConstBig { .. }
+            | ECore::ConstBytes(_)
+            | ECore::Lit(_)
+            | ECore::Bool(_)
+            | ECore::Unit
+            | ECore::Var(_)
+            | ECore::Global(_)
+            | ECore::Ctor(_)
+            | ECore::Prim(_)
+            | ECore::Foreign(_)
+            | ECore::Hole(_)
+            | ECore::QuoteHole(_)
+            | ECore::IdxPending(_)
+            | ECore::Fault
+            | ECore::SyntaxLit(_)
+            | ECore::StrLit(_)
+            | ECore::LazyAlloc
+            | ECore::BoxAlloc => {}
+            ECore::Quote { holes, body, .. } => {
+                for h in holes {
+                    self.fold_pass(h, unit, fold);
+                }
+                self.fold_pass(body, unit, false);
+            }
+            ECore::DeclsQuote { holes, .. } => {
+                for h in holes {
+                    self.fold_pass(h, unit, fold);
+                }
+            }
+            ECore::DictProj(d, _) | ECore::Proj(d, _) | ECore::Demand(d) => {
+                self.fold_pass(d, unit, fold)
+            }
+            ECore::InstDict(_, args) | ECore::MkClos { env: args, .. } => {
+                for a in args {
+                    self.fold_pass(a, unit, fold);
+                }
+            }
+            ECore::App(f, args) => {
+                self.fold_pass(f, unit, fold);
+                for a in args {
+                    self.fold_pass(a, unit, fold);
+                }
+            }
+            ECore::Lam { body, .. } => self.fold_pass(body, unit, fold),
+            ECore::Let(_, v, body) => {
+                self.fold_pass(v, unit, fold);
+                self.fold_pass(body, unit, fold);
+            }
+            ECore::If(c, t, f) => {
+                self.fold_pass(c, unit, fold);
+                self.fold_pass(&mut t.body, unit, fold);
+                self.fold_pass(&mut f.body, unit, fold);
+            }
+            ECore::LazyInit(_, t) => self.fold_pass(t, unit, fold),
+            ECore::BoxInit(_, v) => self.fold_pass(v, unit, fold),
+            ECore::BoxGet(v) => self.fold_pass(v, unit, fold),
+            ECore::Case { scrut, alts } => {
+                self.fold_pass(scrut, unit, fold);
+                for alt in alts {
+                    self.fold_pass(&mut alt.body, unit, fold);
+                }
+            }
+        }
+    }
+
+    /// The constant a collection literal's construction folds to, when
+    /// it is stage-known and evaluates to a constant value. Anything
+    /// else (free runtime values, code the evaluator cannot run, a value
+    /// with no constant form) keeps the runtime class call.
+    fn fold_constant(&mut self, body: &ECore) -> Option<ECore> {
+        let mut free = Vec::new();
+        free_locals(body, &mut Vec::new(), &mut free);
+        if !free.is_empty() || fold_blocked(body) {
+            return None;
+        }
+        let core = lower(body);
+        let scx = self.fold_scx.clone().unwrap_or_default();
+        let mut cx = StageCx::new(&scx);
+        let mut frame: Vec<crate::core::Value> = Vec::new();
+        // A construction that does not evaluate at compile time (or
+        // exceeds the fold's budget) computes at runtime, exactly as it
+        // would without the fold.
+        let v = self.eval_core(&mut cx, &core, &mut frame).ok()?;
+        reify_value(&v)
     }
 
     /// An index term as runtime code (core specification section 3:
@@ -2882,19 +3160,141 @@ impl Checker {
 
     // ------------------------------------------------------------ resolution
 
+    /// The definition behind a module's surface name (surface grammar
+    /// local amendments section 11). A module with `export` declarations
+    /// exposes exactly the names they resolve to; one without exposes
+    /// its declared names as before.
+    fn surface_def(&self, module: &str, name: &str) -> Option<SurfaceName> {
+        if let Some(m) = self.module_surface.get(module) {
+            return m.get(name).cloned();
+        }
+        let declared = self
+            .values
+            .get(name)
+            .map(|vs| vs.iter().any(|v| v.module == module))
+            .unwrap_or(false)
+            || self
+                .types
+                .get(name)
+                .map(|ts| ts.iter().any(|t| t.module == module))
+                .unwrap_or(false)
+            || self
+                .sigs
+                .get(name)
+                .map(|ss| ss.iter().any(|s| s.module == module))
+                .unwrap_or(false);
+        if declared {
+            Some(SurfaceName {
+                module: module.to_string(),
+                name: name.to_string(),
+            })
+        } else {
+            None
+        }
+    }
+
+    /// The definitions a bare name may name, in scope order: the
+    /// checking module's own, then each import's contribution (renaming
+    /// and selection applied), then the prelude's.
+    fn scope_candidates(&self, name: &str) -> Vec<(String, String)> {
+        let mut out: Vec<(String, String)> =
+            vec![(self.current_module.clone(), name.to_string())];
+        for v in &self.scope_views {
+            if v.alias_only {
+                continue;
+            }
+            if let Some(s) = v.source_name(name) {
+                if let Some(d) = self.surface_def(&v.target, s) {
+                    let pair = (d.module.clone(), d.name.clone());
+                    if !out.contains(&pair) {
+                        out.push(pair);
+                    }
+                }
+            }
+        }
+        out
+    }
+
+    /// The definitions `qual.name` may name when `qual` is a module
+    /// qualifier: the checking module's own, then the matching import's
+    /// (the import renaming makes the imported name the only spelling).
+    fn scope_qual_candidates(&self, qual: &str, name: &str) -> Vec<(String, String)> {
+        let mut out: Vec<(String, String)> = Vec::new();
+        if qual == self.current_module {
+            out.push((self.current_module.clone(), name.to_string()));
+        }
+        for v in &self.scope_views {
+            if v.alias != qual {
+                continue;
+            }
+            if let Some(s) = v.source_name(name) {
+                if let Some(d) = self.surface_def(&v.target, s) {
+                    let pair = (d.module.clone(), d.name.clone());
+                    if !out.contains(&pair) {
+                        out.push(pair);
+                    }
+                }
+            }
+        }
+        out
+    }
+
+    /// Whether the definition `(module, name)` is reachable through the
+    /// checking module's scope (its own, or any import's surface).
+    fn def_in_scope(&self, module: &str, name: &str) -> bool {
+        if module == self.current_module || module == "<builtin>" {
+            return true;
+        }
+        for v in &self.scope_views {
+            let hit = match &v.members {
+                None => match self.module_surface.get(&v.target) {
+                    Some(m) => m.values().any(|d| d.module == module && d.name == name),
+                    None => {
+                        v.target == module && self.surface_def(&v.target, name).is_some()
+                    }
+                },
+                Some(ms) => ms.iter().any(|(_, s)| {
+                    self.surface_def(&v.target, s)
+                        .map(|d| d.module == module && d.name == name)
+                        .unwrap_or(false)
+                }),
+            };
+            if hit {
+                return true;
+            }
+        }
+        false
+    }
+
     fn lookup_value(&self, module: Option<&str>, name: &str) -> Result<ValueInfo> {
         if let Some(m) = module {
+            for (dm, dn) in self.scope_qual_candidates(m, name) {
+                if let Some(v) = self
+                    .values
+                    .get(&dn)
+                    .and_then(|vs| vs.iter().find(|v| v.module == dm))
+                {
+                    return Ok(v.clone());
+                }
+            }
+            // Class-method spellings (`FromList.from-list`), dotted
+            // presentation aliases (`U32.wrapping-add`) and module
+            // instantiation units register their names directly; a
+            // module qualifier resolves only through the scope.
+            if self.module_names.contains(m) {
+                return Err(Error::plain(format!("unknown name {m}.{name}")));
+            }
             return self
                 .qualified
                 .get(&(m.to_string(), name.to_string()))
                 .cloned()
                 .ok_or_else(|| Error::plain(format!("unknown name {m}.{name}")));
         }
-        for m in &self.visible {
+        for (dm, dn) in self.scope_candidates(name) {
             if let Some(v) = self
                 .values
-                .get(name)
-                .and_then(|vs| vs.iter().find(|v| &v.module == m))
+                .get(&dn)
+                .and_then(|vs| vs.iter().find(|v| v.module == dm))
             {
                 return Ok(v.clone());
             }
@@ -2992,20 +3392,40 @@ impl Checker {
 
     fn lookup_type(&self, parts: &[&str]) -> Result<TypeKind> {
         match parts {
-            [name] => self
-                .types
-                .get(*name)
-                .and_then(|ts| {
-                    ts.iter()
-                        .find(|t| t.module == "<builtin>" || self.visible.contains(&t.module))
-                })
-                .cloned()
-                .ok_or_else(|| Error::plain(format!("unknown type {name}"))),
-            [m, name] => self
-                .qualified_types
-                .get(&(m.to_string(), name.to_string()))
-                .cloned()
-                .ok_or_else(|| Error::plain(format!("unknown type {m}.{name}"))),
+            [name] => {
+                for (dm, dn) in self.scope_candidates(name) {
+                    if let Some(t) = self
+                        .types
+                        .get(&dn)
+                        .and_then(|ts| ts.iter().find(|t| t.module == dm))
+                    {
+                        return Ok(t.clone());
+                    }
+                }
+                self.types
+                    .get(*name)
+                    .and_then(|ts| ts.iter().find(|t| t.module == "<builtin>"))
+                    .cloned()
+                    .ok_or_else(|| Error::plain(format!("unknown type {name}")))
+            }
+            [m, name] => {
+                for (dm, dn) in self.scope_qual_candidates(m, name) {
+                    if let Some(t) = self
+                        .types
+                        .get(&dn)
+                        .and_then(|ts| ts.iter().find(|t| t.module == dm))
+                    {
+                        return Ok(t.clone());
+                    }
+                }
+                if self.module_names.contains(*m) {
+                    return Err(Error::plain(format!("unknown type {m}.{name}")));
+                }
+                self.qualified_types
+                    .get(&(m.to_string(), name.to_string()))
+                    .cloned()
+                    .ok_or_else(|| Error::plain(format!("unknown type {m}.{name}")))
+            }
             _ => Err(Error::plain("type paths deeper than Module.Type are not supported")),
         }
     }
@@ -3036,15 +3456,33 @@ impl Checker {
                 }
                 self.sigs
                     .get(*name)
-                    .and_then(|ss| ss.iter().find(|s| self.visible.contains(&s.module)))
+                    .and_then(|ss| {
+                        ss.iter().find(|s| {
+                            self.scope_candidates(name)
+                                .contains(&(s.module.clone(), s.name.clone()))
+                        })
+                    })
                     .cloned()
                     .ok_or_else(|| Error::plain(format!("unknown signature {name}")))
             }
-            [m, name] => self
-                .qualified_sigs
-                .get(&(m.to_string(), name.to_string()))
-                .cloned()
-                .ok_or_else(|| Error::plain(format!("unknown signature {m}.{name}"))),
+            [m, name] => {
+                for (dm, dn) in self.scope_qual_candidates(m, name) {
+                    if let Some(s) = self
+                        .sigs
+                        .get(&dn)
+                        .and_then(|ss| ss.iter().find(|s| s.module == dm))
+                    {
+                        return Ok(s.clone());
+                    }
+                }
+                if self.module_names.contains(*m) {
+                    return Err(Error::plain(format!("unknown signature {m}.{name}")));
+                }
+                self.qualified_sigs
+                    .get(&(m.to_string(), name.to_string()))
+                    .cloned()
+                    .ok_or_else(|| Error::plain(format!("unknown signature {m}.{name}")))
+            }
             _ => Err(Error::plain("signature paths deeper than Module.Sig are not supported")),
         }
     }
@@ -3072,10 +3510,19 @@ impl Checker {
                 (v.module.clone(), name.to_string())
             }
             [q, name] => {
-                // Module-qualified, or type-qualified as in `Option.None`.
-                if self
-                    .qualified
-                    .contains_key(&(q.to_string(), name.to_string()))
+                // Module-qualified (through the import scope, surface
+                // grammar local amendments section 11), or
+                // type-qualified as in `Option.None`.
+                let scoped = self
+                    .scope_qual_candidates(q, name)
+                    .into_iter()
+                    .find(|(dm, dn)| self.qualified.contains_key(&(dm.clone(), dn.clone())));
+                if let Some(pair) = scoped {
+                    pair
+                } else if !self.module_names.contains(*q)
+                    && self
+                        .qualified
+                        .contains_key(&(q.to_string(), name.to_string()))
                 {
                     (q.to_string(), name.to_string())
                 } else if let Ok(t) = self.lookup_type(&[q, name]) {
@@ -3105,7 +3552,7 @@ impl Checker {
         let mut hits: Vec<(TypeKind, usize)> = Vec::new();
         for ts in self.types.values() {
             for t in ts {
-                if !(t.module == "<builtin>" || self.visible.contains(&t.module)) {
+                if !(t.module == "<builtin>" || self.def_in_scope(&t.module, &t.name)) {
                     continue;
                 }
                 if let Some(fields) = &t.fields {
@@ -4485,6 +4932,28 @@ impl Checker {
                 format!("Copy expects exactly one type argument, got {wanted_z}"),
             ));
         }
+        // Collection literals default their container when nothing else
+        // determines it (surface grammar local amendments section 10):
+        // `[..]` unconstrained is a `List`, `{..}` a `Map`.
+        if class == "FromList" && wanted_z.args.len() == 2 {
+            if matches!(self.uni.zonk(&wanted_z.args[0]), Ty::Meta(_)) {
+                let list = Ty::Adt("List".into(), vec![wanted_z.args[1].clone()]);
+                self.uni
+                    .unify(&wanted_z.args[0], &list)
+                    .map_err(|m| Error::at(span, m))?;
+            }
+        } else if class == "FromMap" && wanted_z.args.len() == 3 {
+            if matches!(self.uni.zonk(&wanted_z.args[0]), Ty::Meta(_)) {
+                let map = Ty::Adt(
+                    "Map".into(),
+                    vec![wanted_z.args[1].clone(), wanted_z.args[2].clone()],
+                );
+                self.uni
+                    .unify(&wanted_z.args[0], &map)
+                    .map_err(|m| Error::at(span, m))?;
+            }
+        }
+        let wanted_z = self.uni.zonk_class(wanted);
         let wanted_app = Ty::Adt(class.clone(), wanted_z.args.clone());
         let mut matches: Vec<(usize, HashMap<String, Ty>, Unifier)> = Vec::new();
         if let Some(idxs) = self.instances.get(&class).cloned() {
@@ -4545,6 +5014,17 @@ impl Checker {
                 ),
             )),
             [(idx, sub, trial)] => {
+                // A unique match that leaves an instance parameter bound
+                // only to an undetermined literal defers to literal
+                // defaulting (decision D7): `[1]` with no other constraint
+                // is a `List Int`, not an unsolved literal type.
+                let lits = self.literal_metas();
+                let undetermined = sub.values().any(|t| {
+                    matches!(t, Ty::Meta(m) if lits.contains(&EitherMeta::Type(*m)))
+                });
+                if undetermined {
+                    return Ok(Ambiguous);
+                }
                 let (ctx, base_id, base) = {
                     let inst = &self.instance_list[*idx];
                     (inst.ctx.clone(), inst.base_id.clone(), inst.base)

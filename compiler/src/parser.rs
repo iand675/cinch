@@ -395,7 +395,14 @@ impl<'a> Parser<'a> {
             return Ok(Decl::Attributed { attrs, inner: Box::new(inner) });
         }
         match self.peek_tok().clone() {
-            Tok::Import => Ok(Decl::Import(self.parse_import()?)),
+            Tok::Import => {
+                if matches!(self.peek_tok_at(1), Some(Tok::Data)) {
+                    Ok(Decl::ImportData(self.parse_import_data()?))
+                } else {
+                    Ok(Decl::Import(self.parse_import()?))
+                }
+            }
+            Tok::Export => Ok(Decl::Export(self.parse_export()?)),
             Tok::Signature => Ok(Decl::Signature(self.parse_signature()?)),
             Tok::Instance | Tok::Implicit => Ok(Decl::Instance(self.parse_instance()?)),
             Tok::Data => Ok(Decl::Data(self.parse_data()?)),
@@ -709,22 +716,101 @@ impl<'a> Parser<'a> {
             }
         }
         let path = self.parse_con_path()?;
-        // `import M (arg, ...) as N`: instantiate the parameterized module
-        // at these static arguments (module parameters as module
-        // arguments). Each instantiation is a distinct unit, so the `as`
-        // alias names it.
+        // `(...)` is the module argument list when a unit alias follows
+        // (`import M (arg, ...) as N`, module parameters as module
+        // arguments), and the selected member list otherwise (`import X
+        // (a as b, c)`, surface grammar local amendments section 11).
         let mut args = Vec::new();
+        let mut members = Vec::new();
         if self.at(&Tok::LParen) {
-            self.bump();
+            let mut depth = 0usize;
+            let mut k = 0usize;
+            let mut inner_as = false;
             loop {
-                args.push(self.parse_module_arg()?);
-                if self.at(&Tok::Comma) {
-                    self.bump();
-                } else {
-                    break;
+                match self.peek_tok_at(k) {
+                    Some(Tok::LParen) => depth += 1,
+                    Some(Tok::RParen) => {
+                        depth -= 1;
+                        if depth == 0 {
+                            break;
+                        }
+                    }
+                    Some(Tok::As) if depth == 1 => inner_as = true,
+                    Some(Tok::Eof) | None => break,
+                    _ => {}
                 }
+                k += 1;
             }
-            self.expect(&Tok::RParen, "`)` closing the module argument list")?;
+            let applied = matches!(self.peek_tok_at(k + 1), Some(Tok::As));
+            if applied && inner_as {
+                return Err(Error::at(
+                    span,
+                    "a member selection and a module alias cannot combine: `import X (a as b)` selects members, `import M (args) as N` instantiates",
+                ));
+            }
+            if applied {
+                self.bump();
+                loop {
+                    args.push(self.parse_module_arg()?);
+                    if self.at(&Tok::Comma) {
+                        self.bump();
+                    } else {
+                        break;
+                    }
+                }
+                self.expect(&Tok::RParen, "`)` closing the module argument list")?;
+            } else {
+                self.bump();
+                loop {
+                    let nspan = self.peek().span;
+                    let name = match self.peek_tok().clone() {
+                        Tok::VarId(s) | Tok::ConId(s) => {
+                            self.bump();
+                            Name::new(s, nspan)
+                        }
+                        t => {
+                            return Err(self.err(format!(
+                                "expected a member name, found {}",
+                                describe(&t)
+                            )))
+                        }
+                    };
+                    let as_name = if self.at(&Tok::As) {
+                        self.bump();
+                        let sspan = self.peek().span;
+                        match self.peek_tok().clone() {
+                            Tok::VarId(s) | Tok::ConId(s) => {
+                                self.bump();
+                                Some(Name::new(s, sspan))
+                            }
+                            t => {
+                                return Err(self.err(format!(
+                                    "expected a member name after `as`, found {}",
+                                    describe(&t)
+                                )))
+                            }
+                        }
+                    } else {
+                        None
+                    };
+                    if members
+                        .iter()
+                        .any(|m: &ImportMember| m.name.text == name.text)
+                    {
+                        return Err(Error::at(
+                            nspan,
+                            format!("duplicate member selection for {}", name.text),
+                        ));
+                    }
+                    members.push(ImportMember { name, as_name });
+                    if self.at(&Tok::Comma) {
+                        self.bump();
+                    } else {
+                        break;
+                    }
+                }
+                self.expect(&Tok::RParen, "`)` closing the member list")?;
+            }
         }
         let mut alias = None;
         if self.at(&Tok::As) {
@@ -757,7 +843,117 @@ impl<'a> Parser<'a> {
                 ));
             }
         }
-        Ok(Import { path, alias, stage, args, span })
+        if !members.is_empty() && alias.is_some() {
+            return Err(Error::at(
+                span,
+                "a member selection and a module alias cannot combine: `import X (a as b)` selects members under their imported names",
+            ));
+        }
+        Ok(Import { path, alias, stage, args, members, span })
+    }
+
+    /// `import data "config.json" as config` (surface grammar local
+    /// amendments section 11): the converted value of a non-source file,
+    /// bound under its name; the file's extension selects the converter.
+    fn parse_import_data(&mut self) -> Result<ImportData> {
+        let span = self.expect(&Tok::Import, "`import`")?.span;
+        self.expect(&Tok::Data, "`data` in a file import")?;
+        let fspan = self.peek().span;
+        let file = match self.peek_tok().clone() {
+            Tok::StrLit(s) => {
+                self.bump();
+                s
+            }
+            t => {
+                return Err(self.err(format!(
+                    "expected the file path as a string literal, found {}",
+                    describe(&t)
+                )))
+            }
+        };
+        self.expect(&Tok::As, "`as` naming the imported value")?;
+        let nspan = self.peek().span;
+        let name = match self.peek_tok().clone() {
+            Tok::VarId(s) => {
+                self.bump();
+                Name::new(s, nspan)
+            }
+            t => {
+                return Err(self.err(format!(
+                    "expected the imported value's name, found {}",
+                    describe(&t)
+                )))
+            }
+        };
+        Ok(ImportData { file, name, span: fspan })
+    }
+
+    /// `export name, ...` (surface grammar local amendments section 11):
+    /// the module's export surface when present. An item is a name in
+    /// scope (`foo`, `MyType`), an imported member (`A.foo`), or a whole
+    /// import (`module A`).
+    fn parse_export(&mut self) -> Result<ExportDecl> {
+        let span = self.expect(&Tok::Export, "`export`")?.span;
+        let mut items = Vec::new();
+        loop {
+            items.push(self.parse_export_item()?);
+            if self.at(&Tok::Comma) {
+                self.bump();
+            } else {
+                break;
+            }
+        }
+        Ok(ExportDecl { items, span })
+    }
+
+    fn parse_export_item(&mut self) -> Result<ExportItem> {
+        let span = self.peek().span;
+        if self.at(&Tok::Module) {
+            self.bump();
+            return match self.peek_tok().clone() {
+                Tok::ConId(s) => {
+                    self.bump();
+                    Ok(ExportItem::Module(Name::new(s, span)))
+                }
+                t => Err(self.err(format!(
+                    "expected a module name after `export module`, found {}",
+                    describe(&t)
+                ))),
+            };
+        }
+        let head = match self.peek_tok().clone() {
+            Tok::VarId(s) | Tok::ConId(s) => {
+                self.bump();
+                Name::new(s, span)
+            }
+            t => {
+                return Err(self.err(format!(
+                    "expected an exported name, found {}",
+                    describe(&t)
+                )))
+            }
+        };
+        if self.at(&Tok::Dot) {
+            self.bump();
+            let nspan = self.peek().span;
+            let name = match self.peek_tok().clone() {
+                Tok::VarId(s) | Tok::ConId(s) => {
+                    self.bump();
+                    Name::new(s, nspan)
+                }
+                t => {
+                    return Err(self.err(format!(
+                        "expected a member name after `{}.` in an export item, found {}",
+                        head.text,
+                        describe(&t)
+                    )))
+                }
+            };
+            return Ok(ExportItem::Member(ConPath {
+                segments: vec![head, name],
+            }));
+        }
+        Ok(ExportItem::Name(head))
     }
 
     /// One module argument: a static name (an `instance` dictionary or a
@@ -2658,7 +2854,7 @@ fn resolve_module_decl(d: &mut Decl, fix: &FixityTable) -> Result<()> {
                 resolve_type(ty, fix)?;
             }
         }
-        Decl::Import(_) | Decl::Fixity(_) => {}
+        Decl::Import(_) | Decl::ImportData(_) | Decl::Export(_) | Decl::Fixity(_) => {}
         Decl::Attributed { inner, .. } => resolve_module_decl(inner, fix)?,
         Decl::Generate { stmts, .. } => {
             for s in stmts {
@@ -3775,8 +3971,59 @@ mod tests {
         assert!(e.contains("module signatures are not supported"), "{e}");
         let e = err("module T where\n  module U where\n    f = 1\n");
         assert!(e.contains("nested module declarations"), "{e}");
-        let e = err("module T where\n  import M (d)\n  f = 1\n");
-        assert!(e.contains("names its instantiation unit"), "{e}");
+        let e = err("module T where\n  import M (d as e) as N\n  f = 1\n");
+        assert!(
+            e.contains("a member selection and a module alias cannot combine"),
+            "{e}"
+        );
+        let e = err("module T where\n  import M (3)\n  f = 1\n");
+        assert!(e.contains("expected a member name"), "{e}");
+    }
+
+    #[test]
+    fn import_renaming_and_exports_parse() {
+        // `import X (a as b, c)` selects and renames members (surface
+        // grammar local amendments section 11).
+        let p = ok("module T where\n  import M (d as e, f)\n  f = 1\n");
+        let imp = match &p.module.decls[0] {
+            Decl::Import(i) => i.clone(),
+            other => panic!("expected an import, got {other:?}"),
+        };
+        assert_eq!(imp.members.len(), 2);
+        assert_eq!(imp.members[0].name.text, "d");
+        assert_eq!(
+            imp.members[0].as_name.as_ref().map(|a| a.text.as_str()),
+            Some("e")
+        );
+        assert_eq!(imp.members[1].name.text, "f");
+        assert!(imp.members[1].as_name.is_none());
+        // `import X as Y` renames the module alias.
+        let p = ok("module T where\n  import M as N\n  f = 1\n");
+        let imp = match &p.module.decls[0] {
+            Decl::Import(i) => i.clone(),
+            other => panic!("expected an import, got {other:?}"),
+        };
+        assert_eq!(imp.alias.as_ref().map(|a| a.text.as_str()), Some("N"));
+        assert!(imp.members.is_empty());
+        // `export name, ...`, `export A.b`, `export module A`.
+        let p = ok("module T where\n  import M as N\n  export module N, helper, N.thing\n  f = 1\n");
+        let items = match &p.module.decls[1] {
+            Decl::Export(e) => e.items.clone(),
+            other => panic!("expected an export, got {other:?}"),
+        };
+        assert_eq!(items.len(), 3);
+        assert!(matches!(&items[0], ExportItem::Module(n) if n.text == "N"));
+        assert!(matches!(&items[1], ExportItem::Name(n) if n.text == "helper"));
+        assert!(matches!(&items[2], ExportItem::Member(p) if p.parts() == ["N", "thing"]));
+        // `import data "config.json" as config`.
+        let p = ok("module T where\n  import data \"config.json\" as config\n  f = 1\n");
+        match &p.module.decls[0] {
+            Decl::ImportData(d) => {
+                assert_eq!(d.file, "config.json");
+                assert_eq!(d.name.text, "config");
+            }
+            other => panic!("expected a data import, got {other:?}"),
+        }
     }
 
     #[test]

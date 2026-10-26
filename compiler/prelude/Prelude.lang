@@ -1039,6 +1039,74 @@ module Prelude where
   sum-list :: forall a. using (add :: Add a) => a -> List a -> a
   sum-list z xs = foldr (\x acc -> x + acc) z xs
 
+  -- Collection literals (surface grammar local amendments, section 10):
+  -- `[a, b, c]` desugars to `from-list` at the expected type's `FromList
+  -- c e` instance and `{k => v}` to `from-map` over a `List (k, v)` of
+  -- pairs at the expected type's `FromMap m k v` instance; unconstrained
+  -- they default to `List` and `Map`. Instances opt in per container.
+  signature FromList c e where
+    from-list :: List e -> c
+
+  signature FromMap m k v where
+    from-map :: List (k, v) -> m
+
+  -- The ordered map: an unbalanced binary search tree over `Ord k`
+  -- (decision D105). `map-insert` keeps the left subtree strictly
+  -- smaller and the right strictly greater, so a repeated key replaces
+  -- the stored value in place.
+  data Map k v where
+    Tip :: Map k v
+    Bin :: k -> v -> Map k v -> Map k v -> Map k v
+
+  map-insert :: forall k v. using (ord :: Ord k) => k -> v -> Map k v -> Map k v
+  map-insert k v m = case m of
+    Tip -> Bin k v Tip Tip
+    Bin k2 v2 l r ->
+      if k < k2 then Bin k2 v2 (map-insert k v l) r
+      else if k2 < k then Bin k2 v2 l (map-insert k v r)
+      else Bin k v l r
+
+  map-lookup :: forall k v. using (ord :: Ord k) => k -> Map k v -> Option v
+  map-lookup k m = case m of
+    Tip -> None
+    Bin k2 v2 l r ->
+      if k < k2 then map-lookup k l
+      else if k2 < k then map-lookup k r
+      else Some v2
+
+  map-from-pairs :: forall k v. using (ord :: Ord k) => List (k, v) -> Map k v
+  map-from-pairs kvs = case kvs of
+    Nil -> Tip
+    Cons p ps -> case p of
+      (a, b) -> map-insert a b (map-from-pairs ps)
+
+  -- `FromList Bytes Nat`: a buffer whose bytes are the list's `Nat`
+  -- values in order. A value that does not fit a byte faults in
+  -- `bytes-set`, like every out-of-range byte write.
+  list-byte-count :: List Nat -> Nat
+  list-byte-count xs = case xs of
+    Nil -> 0
+    Cons y ys -> 1 + list-byte-count ys
+
+  bytes-from-list :: List Nat -> Bytes
+  bytes-from-list xs = bytes-fill (bytes-new (list-byte-count xs)) 0 xs
+
+  bytes-fill :: Bytes -> Nat -> List Nat -> Bytes
+  bytes-fill b i xs = case xs of
+    Nil -> b
+    Cons y ys ->
+      let u = bytes-set b i y in
+      bytes-fill b (i + 1) ys
+
+  implicit instance FromList_List e :: FromList (List e) e where
+    from-list xs = xs
+
+  implicit instance FromList_Bytes :: FromList Bytes Nat where
+    from-list xs = bytes-from-list xs
+
+  implicit instance FromMap_Map k v :: using (ord :: Ord k) => FromMap (Map k v) k v where
+    from-map kvs = map-from-pairs kvs
+
   -- Primitive types specification, section 8: class instances. Eq and
   -- Ord cover Bool, Char, the mathematical Nat and Int, every machine
   -- integer type, Usize and Isize; the order is numeric on the integer
@@ -1668,6 +1736,24 @@ module Prelude where
 
   data String where
     String :: Bytes -> String
+
+  -- The `Json`-shaped value a file converter binds for a JSON file with
+  -- no declared type (surface grammar local amendments section 11); with
+  -- a declared record type the converter decodes into it instead. An
+  -- array is a cons spine (`JArr item tail`, ended by `JArrEnd`) and an
+  -- object entry is `JObj key value tail` (ended by `JObjEnd`): the
+  -- positivity discipline allows only direct recursive occurrences, so
+  -- the payloads stay inside the family.
+  data Json where
+    JNull :: Json
+    JBool :: Bool -> Json
+    JNum :: Int -> Json
+    JFloat :: F64 -> Json
+    JStr :: String -> Json
+    JArr :: Json -> Json -> Json
+    JObj :: String -> Json -> Json -> Json
+    JArrEnd :: Json
+    JObjEnd :: Json
 
   string-to-bytes :: String -> Bytes
   string-to-bytes s = case s of
