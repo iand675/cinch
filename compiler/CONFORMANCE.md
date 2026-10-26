@@ -225,10 +225,10 @@ rule mapping (six rules inherent to the language, the rest asserted).
 
 | Requirement | Status |
 | --- | --- |
-| Assertion vocabulary: `#[recursion]`, `#[stack]`, `#[no-alloc]`/`#[alloc "once"]`, `#[max-complexity]`/`#[max-lines]`, `#[assert-min]`, `#[checked-params]`, `#[no-macros]`, `#[no-raw-ptr]`, `#[deny-warnings]` (D111) | spec'd |
-| Verified at the definition; violations name the offending site; satisfied assertions are contract facts in `.sliface`/`iface_hash` like `repr` (D112) | spec'd |
-| `bounded(n)` depth bounds via structural proofs first, conservative call-graph bounds otherwise, report saying which (D113) | spec'd |
-| The `jpl` profile enforcing the whole set at rule numbers, never looser per-definition (D114); Result must-use default | spec'd |
+| Assertion vocabulary: `#[recursion]`, `#[stack]`, `#[no-alloc]`/`#[alloc "once"]`, `#[max-complexity]`/`#[max-lines]`, `#[assert-min]`, `#[checked-params]`, `#[no-macros]`, `#[no-raw-ptr]`, `#[deny-warnings]` (D111) | done (full vocabulary; hyphenated names and parenthesized arguments (`#[recursion("tail")]`) per D184; `tests/safety.rs` 24/24) |
+| Verified at the definition; violations name the offending site; satisfied assertions are contract facts in `.sliface`/`iface_hash` like `repr` (D112) | done (`assertions`/`must_use` rows; identity pinned both ways; manifest `"safety"` section) |
+| `bounded(n)` depth bounds via structural proofs first, conservative call-graph bounds otherwise, report saying which (D113) | done (structural named-size proofs vs the literal ladder (D182/D183); numeric-over-structural refused and pinned as a negative) |
+| The `jpl` profile enforcing the whole set at rule numbers, never looser per-definition (D114); Result must-use default | done (module attribute + `TargetProfile::jpl()`; whole-program summary; `let _ = e` rejects rule 7, `ignore` passes) |
 
 ### Interned symbols (P24)
 
@@ -519,6 +519,25 @@ correspondence: one lexeme in expression/pattern, staging `Name`, and
   (continuation): the `tests/safety.rs` acceptance matrix (source
   syntaxes gathered), the manifest `"safety"` section, and empirical
   tuning of message needles and `decrease_bound` detection.
+- **D182-D186 (P20 acceptance/tuning, reported)**: the size-index
+  numeric claim in `decrease_bound` was a false positive (a well-typed
+  self-descent preserves its type index; the checker refuses
+  index-shrinking outright), so structural proofs establish the named
+  size bound only and numeric `bounded(k)` claims use the conservative
+  literal ladder or depth 0; names and numbers never substitute
+  (`bounded(xs)` proves structurally, `bounded(3)` via the ladder; a
+  numeric claim over a structural bound is deliberately refused and
+  pinned as a negative); the literal ladder walks literal-stepped
+  equations counting nested frames (its first form never established
+  any bound); the lexer accepts hyphenated attribute names (they never
+  lexed) and attribute arguments are parenthesized
+  (`#[recursion("tail")]`, matching `#[weight(n)]`), with the `let _ =
+  e` binder parseable as the must-use rule documents; in the
+  allocation analysis a nullary `let n = e` is a strict binding, not a
+  closure, and `mutBorrow` is the `Mut` introduction (an allocation
+  site), while a runtime `decide` operand validates the parameters it
+  examines (`checked-params`); `SafetyReport` carries structured rows
+  and the `jpl` assertion count is the verified rows.
 - **D127 (P25 scaffolding ruling)**: FoldAgent's defunctionalized
   class shapes (`Foldable t a`, `Traversable t x g h tg hs`) are
   accepted as NON-CURATED scaffolding: they ship in the `Category`

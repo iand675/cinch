@@ -454,6 +454,9 @@ a violation is a compile error naming the attribute, the asserted rule,
 and the offending site. A satisfied assertion is a contract fact: it is
 recorded in the module's interface and hashed into `iface_hash` exactly
 as `repr` facts are (section 4.3), so consumers may rely on it.
+Attribute names may be hyphenated and arguments are parenthesized
+(`#[recursion("tail")]`, consistent with `#[weight(n)]`); the `let _ =
+e` binder is the documented form of an explicit discard.
 
 | Attribute | Asserts |
 | --- | --- |
