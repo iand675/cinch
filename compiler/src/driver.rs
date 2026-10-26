@@ -874,3 +874,47 @@ pub fn run_source_objects(src: &str, objects: &[&str]) -> Result<i32> {
     let program = check_sources_with(src, "<test>", &mut StagingCx::default())?;
     run_program_objects(&program, &crate::core::TargetProfile::native(), objects)
 }
+
+/// Compile and run a source string with the runtime's input source fed
+/// from `input` and its output sink captured; used by the runtime I/O
+/// and concurrency tests (concurrency specification, sections 4 and 9).
+pub fn run_source_io(src: &str, input: &[u8]) -> Result<(i32, String)> {
+    let program = check_sources_with(src, "<test>", &mut StagingCx::default())?;
+    run_program_io(&program, &crate::core::TargetProfile::native(), input)
+}
+
+/// [`run_source_io`] at the program level.
+pub fn run_program_io(
+    program: &crate::core::Program,
+    profile: &crate::core::TargetProfile,
+    input: &[u8],
+) -> Result<(i32, String)> {
+    let (program, _opt) = crate::core::optimize(program, profile)?;
+    let ir = codegen::emit(&program)?;
+    let tmp = scratch_dir("test");
+    std::fs::create_dir_all(&tmp).map_err(|e| Error::plain(format!("{}: {e}", tmp.display())))?;
+    let ir_path = tmp.join("program.ll");
+    let exe = tmp.join("program");
+    std::fs::write(&ir_path, &ir)
+        .map_err(|e| Error::plain(format!("{}: {e}", ir_path.display())))?;
+    link_with(&ir_path, &exe, &[])?;
+    use std::io::Write;
+    let mut child = std::process::Command::new(&exe)
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .spawn()
+        .map_err(|e| Error::plain(format!("{}: {e}", exe.display())))?;
+    child
+        .stdin
+        .take()
+        .ok_or_else(|| Error::plain("child stdin unavailable"))?
+        .write_all(input)
+        .map_err(|e| Error::plain(format!("{}: {e}", exe.display())))?;
+    let out = child
+        .wait_with_output()
+        .map_err(|e| Error::plain(format!("{}: {e}", exe.display())))?;
+    Ok((
+        out.status.code().unwrap_or(1),
+        String::from_utf8_lossy(&out.stdout).into_owned(),
+    ))
+}

@@ -74,9 +74,9 @@ property holds by construction rather than by a named test.
 
 | # | Anchor | Requirement | Status | Evidence |
 | --- | --- | --- | --- | --- |
-| 45 | conc#0-must-support | Concurrent application code with ownership/effect/cancellation rules | N | no concurrency primitives; P12 |
-| 46 | conc#2-drop-handle | Dropping a task handle must not silently detach | N | no task handles; P12 |
-| 47 | conc#6-memory-model-backends | Backends preserve the source memory model | N | single LLVM-text backend, no atomics; P12/P14 |
+| 45 | conc#0-must-support | Concurrent application code with ownership/effect/cancellation rules | I | structured scopes, local tasks, ownership/effect/cancellation rules (D74-D79); bounded channels remain open (spec section 5) |
+| 46 | conc#2-drop-handle | Dropping a task handle must not silently detach | I | handles are `%1` (D76); check-time rejection tested in both shapes (`tests/concurrency.rs::dropping_a_handle_is_rejected`) |
+| 47 | conc#6-memory-model-backends | Backends preserve the source memory model | P | native backend implements and documents the model (D80: one OS thread per task, fork-join happens-before, sequentially consistent cancellation); the multi-backend half stays N until P14 |
 
 ## modules-and-compilation-specification.md
 
@@ -141,7 +141,7 @@ property holds by construction rather than by a named test.
 | 84 | lazy#5-cached-type-duplicable | Cached type `a` is duplicable (`Share`) | I | memo bare-use requires `Copy` via `copyOut` (D16/D19); `tests/ownership.rs` copy-coherence tests |
 | 85 | lazy#6-eval-r-rule | A memo region's cells never contain `Eval r` | I | row lacks-constraints (`check_terms.rs` memo groups); `tests/integration.rs::memo_group_black_hole_is_rejected`, `::memo_group_mutual_demand_is_rejected` |
 | 86 | lazy#6-blackhole-fault | `BlackHole` fault as defense in depth | I | `runtime/src/abi.rs::sl_blackhole` (70) |
-| 87 | lazy#9-rejection-cases | The nine required rejection cases | P | demand cycles, double-force, thunk discipline enforced (`tests/ownership.rs::linear_thunk_is_forced_exactly_once`, `::affine_thunk_is_forced_at_most_once`, `::unannotated_thunk_defaults_to_affine`, `::linear_thunk_forced_once_per_branch_is_accepted`); thread-shared memo moot (P12); forced-dependent-erased-proof waits for P7 |
+| 87 | lazy#9-rejection-cases | The nine required rejection cases | P | demand cycles, double-force, thunk discipline enforced (`tests/ownership.rs`); thread-shared memo refused (`tests/concurrency.rs::a_thread_shared_memo_cell_is_rejected`); `%1` consumption holds on cancellation early-returns (D77); forced-dependent-erased-proof waits for P7 |
 
 ## supercompilation-and-jit-specification.md
 

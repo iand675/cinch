@@ -131,6 +131,7 @@ fn builtin_type_name(name: &str) -> bool {
         "Nat" | "Int" | "Bool" | "Unit" | "Bytes" | "Type" | "Prop"
             | "Code" | "Syntax" | "Declarations" | "String" | "Secret"
             | "IoCap" | "FileReadCap" | "FileWriteCap" | "ProcCap"
+            | "Scope" | "Task"
             | "RawPtr" | "Borrowed" | "Retained" | "Owned" | "Out" | "MaybeNull"
             | "CChar" | "CUchar" | "CShort" | "CUshort" | "CInt" | "CUint"
             | "CLong" | "CULong" | "CLongLong" | "CULongLong" | "CSize" | "SizeT"
@@ -477,6 +478,249 @@ impl Checker {
         });
         self.install_index_families();
         self.install_staging_api();
+        self.install_concurrency_api();
+    }
+
+    /// Structured concurrency and runtime I/O (concurrency specification
+    /// sections 2, 4 and 9): the builtin `Scope`/`Task` types and the
+    /// `Io r` operation surface. These values are polymorphic builtin
+    /// primitives (`PrimOp::Conc`), so they carry full schemes here
+    /// instead of prelude `foreign import` signatures; the applications
+    /// of `withScope`, `spawn` and `joinAllOrCancel` get their capture,
+    /// scope and one-shot elaboration in `check_terms.rs`.
+    fn install_concurrency_api(&mut self) {
+        use crate::core::{ConcOp, PrimOp};
+        use crate::types::{EffLabel, EffRow, Mult, RowTail};
+        for (n, arity) in [("Scope", 2), ("Task", 3)] {
+            self.types.entry(n.to_string()).or_default().push(TypeKind {
+                module: "<builtin>".into(),
+                name: n.into(),
+                arity,
+                param_kinds: vec![ParamKind::Type; arity],
+                ctors: Vec::new(),
+                fields: None,
+                field_erased: Vec::new(),
+                opaque: false,
+            });
+        }
+        let unit = Ty::Unit;
+        let bool_ty = Ty::Bool;
+        let nat = Ty::Nat;
+        let bytes = Ty::Bytes;
+        let a = Ty::Param("a".to_string());
+        let x = Ty::Param("x".to_string());
+        let v = Ty::Param("v".to_string());
+        let w = Ty::Param("w".to_string());
+        let open = |tail: &str| EffRow {
+            labels: Vec::new(),
+            tail: RowTail::Rigid(tail.to_string()),
+        };
+        let closed = |labels: Vec<EffLabel>| EffRow { labels, tail: RowTail::Closed };
+        let plain = EffLabel::plain;
+        let arg = EffLabel::with_arg;
+        let io_ctx = || {
+            vec![(
+                "io".to_string(),
+                ClassApp {
+                    class: "Io".to_string(),
+                    args: vec![Ty::Region("r".to_string())],
+                },
+            )]
+        };
+        let mut reg = |this: &mut Self, name: &str, scheme: Scheme, op: ConcOp| {
+            let info = ValueInfo {
+                module: "<builtin>".to_string(),
+                name: name.to_string(),
+                scheme,
+                kind: ValueKind::Prim(PrimOp::Conc(op)),
+            };
+            this.values.entry(name.to_string()).or_default().push(info.clone());
+            this.qualified.insert(("<builtin>".to_string(), name.to_string()), info);
+        };
+        // `withScope body`: the body sees a fresh structured scope; the
+        // scope joins or cancels its children before the result returns,
+        // so cleanup may not complete (`Diverge`) and the body's effects
+        // flow through the result row.
+        reg(
+            self,
+            "withScope",
+            Scheme {
+                params: vec!["a".to_string()],
+                idx_params: Vec::new(),
+                val_params: Vec::new(),
+                prop_params: Vec::new(),
+                row_params: vec!["e".to_string()],
+                region_params: vec!["r".to_string(), "s".to_string()],
+                ctx: io_ctx(),
+                ty: Ty::fun_mult(
+                    Ty::fun_mult(
+                        crate::check::conc_scope_ty("r", "s"),
+                        Mult::Many,
+                        open("e"),
+                        a.clone(),
+                    ),
+                    Mult::Many,
+                    EffRow {
+                        labels: vec![plain("Diverge")],
+                        tail: RowTail::Rigid("e".to_string()),
+                    },
+                    a.clone(),
+                ),
+            },
+            ConcOp::WithScope,
+        );
+        // `spawn scope body`: the body's effects are the spawning
+        // scope's responsibility (`{Async r | eb}`), and the body runs
+        // exactly once on a task thread.
+        reg(
+            self,
+            "spawn",
+            Scheme {
+                params: vec!["x".to_string(), "a".to_string()],
+                idx_params: Vec::new(),
+                val_params: Vec::new(),
+                prop_params: Vec::new(),
+                row_params: vec!["eb".to_string()],
+                region_params: vec!["r".to_string(), "s".to_string()],
+                ctx: Vec::new(),
+                ty: Ty::fun_mult(
+                    crate::check::conc_scope_ty("r", "s"),
+                    Mult::Many,
+                    EffRow::pure(),
+                    Ty::fun_mult(
+                        Ty::fun_mult(unit.clone(), Mult::Many, open("eb"), {
+                            crate::check::conc_result_ty(&x, &a)
+                        }),
+                        Mult::Many,
+                        EffRow {
+                            labels: vec![arg("Async", "r")],
+                            tail: RowTail::Rigid("eb".to_string()),
+                        },
+                        crate::check::conc_task_ty("s", &x, &a),
+                    ),
+                ),
+            },
+            ConcOp::Spawn,
+        );
+        // `joinAllOrCancel scope h1 h2`: the two-handle shape of the
+        // sketch (concurrency specification, section 2); wider joins
+        // elaborate to a wider `JoinN` unit. Each handle is consumed
+        // exactly once here: this is the handle's join.
+        reg(
+            self,
+            "joinAllOrCancel",
+            Scheme {
+                params: vec!["x".to_string(), "v".to_string(), "w".to_string()],
+                idx_params: Vec::new(),
+                val_params: Vec::new(),
+                prop_params: Vec::new(),
+                row_params: Vec::new(),
+                region_params: vec!["r".to_string(), "s".to_string()],
+                ctx: Vec::new(),
+                ty: Ty::fun_mult(
+                    crate::check::conc_scope_ty("r", "s"),
+                    Mult::Many,
+                    EffRow::pure(),
+                    Ty::fun_mult(
+                        crate::check::conc_task_ty("s", &x, &v),
+                        Mult::One,
+                        EffRow::pure(),
+                        Ty::fun_mult(
+                            crate::check::conc_task_ty("s", &x, &w),
+                            Mult::One,
+                            closed(vec![arg("Async", "r"), arg("Cancel", "r"), plain("Diverge")]),
+                            crate::check::conc_result_ty(
+                                &x,
+                                &Ty::Tuple(vec![v.clone(), w.clone()]),
+                            ),
+                        ),
+                    ),
+                ),
+            },
+            ConcOp::JoinN(2),
+        );
+        // The `Io r` operations (runtime capabilities, effects and
+        // sequencing spec): effect-labeled per the P6 vocabulary.
+        reg(
+            self,
+            "ioWrite",
+            Scheme {
+                params: Vec::new(),
+                idx_params: Vec::new(),
+                val_params: Vec::new(),
+                prop_params: Vec::new(),
+                row_params: Vec::new(),
+                region_params: vec!["r".to_string()],
+                ctx: io_ctx(),
+                ty: Ty::fun_mult(
+                    bytes.clone(),
+                    Mult::Many,
+                    closed(vec![arg("IO", "r")]),
+                    unit.clone(),
+                ),
+            },
+            ConcOp::IoWrite,
+        );
+        reg(
+            self,
+            "ioRead",
+            Scheme {
+                params: Vec::new(),
+                idx_params: Vec::new(),
+                val_params: Vec::new(),
+                prop_params: Vec::new(),
+                row_params: Vec::new(),
+                region_params: vec!["r".to_string()],
+                ctx: io_ctx(),
+                ty: Ty::fun_mult(
+                    nat.clone(),
+                    Mult::Many,
+                    closed(vec![arg("IO", "r"), plain("Diverge")]),
+                    Ty::Adt("Option".to_string(), vec![bytes.clone()]),
+                ),
+            },
+            ConcOp::IoRead,
+        );
+        reg(
+            self,
+            "ioSleep",
+            Scheme {
+                params: Vec::new(),
+                idx_params: Vec::new(),
+                val_params: Vec::new(),
+                prop_params: Vec::new(),
+                row_params: Vec::new(),
+                region_params: vec!["r".to_string()],
+                ctx: io_ctx(),
+                ty: Ty::fun_mult(
+                    nat,
+                    Mult::Many,
+                    closed(vec![arg("IO", "r"), arg("Cancel", "r")]),
+                    unit,
+                ),
+            },
+            ConcOp::IoSleep,
+        );
+        reg(
+            self,
+            "pollCancel",
+            Scheme {
+                params: Vec::new(),
+                idx_params: Vec::new(),
+                val_params: Vec::new(),
+                prop_params: Vec::new(),
+                row_params: Vec::new(),
+                region_params: vec!["r".to_string()],
+                ctx: io_ctx(),
+                ty: Ty::fun_mult(
+                    Ty::Unit,
+                    Mult::Many,
+                    closed(vec![arg("Cancel", "r")]),
+                    bool_ty,
+                ),
+            },
+            ConcOp::PollCancel,
+        );
     }
 
     /// Staging (P9): the builtin compile-time types and the capability API

@@ -8,7 +8,7 @@
 //! Operators are ordinary value names, so `x + y` is just a method call.
 
 use crate::ast;
-use crate::core::{BytesOp, CAlt, CBranch, CPat, CmpOp, FieldAccess, FieldShape, FnDef, GlobalId, InstanceDef, IntOp, LocalId, NatOp, PrimOp, Program, ProjField};
+use crate::core::{BytesOp, CAlt, CBranch, CPat, CmpOp, ConcOp, FieldAccess, FieldShape, FnDef, GlobalId, InstanceDef, IntOp, LocalId, NatOp, PrimOp, Program, ProjField};
 use crate::types::{ClassApp, EffLabel, EffRow, EitherMeta, IxParam, ITerm, IdxCmp, IdxOp, Mult, PTerm, PtrRole, RowTail, Scalar, Scheme, Sort, Ty, Unifier, c_abi_scalar, collect_row_names, default_mult};
 use crate::{Error, Result};
 use SolveOutcome::{Solved, Ambiguous};
@@ -1114,6 +1114,53 @@ struct Obligation {
     cont: usize,
 }
 
+/// A one-shot frame: a task body or a `withScope` body (concurrency
+/// specification section 2). The body runs exactly once per spawn or
+/// scope execution, so a use directly in it is a one-shot use of its
+/// captures, not an unbounded closure capture.
+struct OneshotFrame {
+    /// The lambda depth inside the body (its uses have this depth).
+    lam: usize,
+    /// Whether this is a task body (the task capture rules apply) or a
+    /// scope body.
+    task: bool,
+    /// The scope this frame belongs to (its region identity).
+    scope: String,
+    /// The memo regions active when the scope opened: a borrow of these
+    /// outlives the scope's joins and may be captured.
+    outer: Vec<String>,
+}
+
+/// A structured scope whose body is being checked.
+struct ScopeFrame {
+    /// The scope's region identity (`Task s x a` and `Scope r s` mention
+    /// it; it may not leave the scope).
+    region: String,
+    /// The memo regions active when the scope opened: a borrow of these
+    /// outlives the scope's joins and may be captured by its tasks.
+    outer: Vec<String>,
+}
+
+/// A capture of a definition-level binder into a task body, validated at
+/// the definition's end when unification has resolved the binder's type
+/// (concurrency specification, section 3).
+struct TaskCapture {
+    binder: LocalId,
+    name: String,
+    ty: Ty,
+    span: ast::Span,
+    /// The lexical class dictionaries live at the capture (for `Copy`
+    /// evidence over abstract parameters).
+    dicts: Vec<(LocalId, ClassApp)>,
+    /// The task's scope region and the scope stack at the capture.
+    scope: String,
+    scopes: Vec<String>,
+    /// The memo regions active at the capture.
+    active: Vec<String>,
+    /// The memo regions that predate the task's scope.
+    outer: Vec<String>,
+}
+
 /// Region names a type mentions in `Ref`/`Mut` borrow positions, with
 /// whether each is an exclusive borrow.
 fn borrow_regions(ty: &Ty, out: &mut Vec<(String, bool)>) {
@@ -1190,6 +1237,99 @@ fn escape_regions(ty: &Ty, out: &mut Vec<String>) {
         }
         _ => {}
     }
+}
+
+/// Every region name a type mentions, including runtime identities and
+/// structured-scope regions (`Io r`, `Scope r s`, `Task s x a`) that
+/// [`escape_regions`] deliberately skips. Used for task-handle and scope
+/// confinement (concurrency specification, section 2).
+fn all_regions(ty: &Ty, out: &mut Vec<String>) {
+    let note = |r: &str, out: &mut Vec<String>| {
+        if !out.iter().any(|x| x == r) {
+            out.push(r.to_string());
+        }
+    };
+    match ty {
+        Ty::Region(r) => note(r, out),
+        Ty::Ref(r, inner) | Ty::Mut(r, inner) => {
+            note(r, out);
+            all_regions(inner, out);
+        }
+        Ty::Lazy { eff, region, inner } => {
+            note(region, out);
+            for l in &eff.labels {
+                if let Some(a) = &l.arg {
+                    note(a, out);
+                }
+            }
+            all_regions(inner, out);
+        }
+        Ty::Fun(a, _, e, b) | Ty::Pi { dom: a, eff: e, cod: b, .. } => {
+            for l in &e.labels {
+                if let Some(a2) = &l.arg {
+                    note(a2, out);
+                }
+            }
+            all_regions(a, out);
+            all_regions(b, out);
+        }
+        Ty::Sigma { dom, cod, .. } => {
+            all_regions(dom, out);
+            all_regions(cod, out);
+        }
+        Ty::Thunk { eff, inner } => {
+            for l in &eff.labels {
+                if let Some(a) = &l.arg {
+                    note(a, out);
+                }
+            }
+            all_regions(inner, out);
+        }
+        Ty::Later(inner) => all_regions(inner, out),
+        Ty::Adt(_, args) | Ty::Tuple(args) => {
+            for a in args {
+                all_regions(a, out);
+            }
+        }
+        Ty::Ptr { pointee, .. } => all_regions(pointee, out),
+        Ty::Handler { label, input, output, eff, .. } => {
+            if let Some(a) = &label.arg {
+                note(a, out);
+            }
+            for l in &eff.labels {
+                if let Some(a) = &l.arg {
+                    note(a, out);
+                }
+            }
+            all_regions(input, out);
+            all_regions(output, out);
+        }
+        _ => {}
+    }
+}
+
+/// The concurrency API's builtin type shapes (concurrency specification
+/// section 2), shared by the builtin schemes and the special application
+/// elaboration.
+pub(crate) fn conc_io_ty(r: &str) -> Ty {
+    Ty::Adt("Io".into(), vec![Ty::Region(r.into())])
+}
+
+/// `Scope r s`: a structured scope of runtime identity `r`, bounding the
+/// tasks of scope region `s`.
+pub(crate) fn conc_scope_ty(r: &str, s: &str) -> Ty {
+    Ty::Adt("Scope".into(), vec![Ty::Region(r.into()), Ty::Region(s.into())])
+}
+
+/// `Task s x a`: a handle to a scoped task producing `a` with task
+/// outcome `x`.
+pub(crate) fn conc_task_ty(s: &str, x: &Ty, v: &Ty) -> Ty {
+    Ty::Adt("Task".into(), vec![Ty::Region(s.into()), x.clone(), v.clone()])
+}
+
+/// The prelude `Result e a`: a task body's outcome and a join's result.
+pub(crate) fn conc_result_ty(e: &Ty, v: &Ty) -> Ty {
+    Ty::Adt("Result".into(), vec![e.clone(), v.clone()])
 }
 
 // ---------------------------------------------------------------- the checker
@@ -1321,6 +1461,14 @@ struct Checker {
     memo_depth: usize,
     /// Memo-group regions currently in scope (region escape checking).
     active_regions: Vec<String>,
+    /// One-shot frames: task bodies and `withScope` bodies being
+    /// elaborated (concurrency specification section 2).
+    oneshot_frames: Vec<OneshotFrame>,
+    /// Structured scopes whose bodies are being elaborated.
+    scope_frames: Vec<ScopeFrame>,
+    /// Task-capture sites of the definition being checked, validated at
+    /// its end (concurrency specification section 3).
+    task_captures: Vec<TaskCapture>,
     /// Record-projection path accumulated for a `Proj` operand place.
     place_path: Vec<String>,
     /// User-declared effects by name (`effect L where ...`).
@@ -1523,6 +1671,9 @@ impl Checker {
             lam_depth: 0,
             memo_depth: 0,
             active_regions: Vec::new(),
+            oneshot_frames: Vec::new(),
+            scope_frames: Vec::new(),
+            task_captures: Vec::new(),
             place_path: Vec::new(),
             effects: HashMap::new(),
             codata_types: HashSet::new(),
@@ -1628,6 +1779,9 @@ impl Checker {
         self.lam_depth = 0;
         self.memo_depth = 0;
         self.active_regions.clear();
+        self.oneshot_frames.clear();
+        self.scope_frames.clear();
+        self.task_captures.clear();
         self.place_path.clear();
         self.conts.clear();
         self.cont_depth = 0;
@@ -1703,62 +1857,99 @@ impl Checker {
     /// Record one use of a local at a record-projection place. Uses under
     /// a lambda body are unbounded (the closure may be called any number
     /// of times); uses under a memo cell body happen at most once (the
-    /// cell evaluates at most once). A use inside a continuation closure
-    /// over the binder happens at most once per execution of the
-    /// continuation's build site, and exactly once only when every handler
-    /// in flight promises exactly-once resumption (see
+    /// cell evaluates at most once). A use directly in a task body or a
+    /// `withScope` body is one-shot: that body runs exactly once per
+    /// spawn or scope execution, so it transfers a capture exactly once
+    /// (concurrency specification section 2). A use inside a continuation
+    /// closure over the binder happens at most once per execution of the
+    /// continuation's build site, and exactly once only when every
+    /// handler in flight promises exactly-once resumption (see
     /// [`Checker::promote_resumptions`]).
-    fn note_use(&mut self, l: LocalId, span: ast::Span, path: &[String]) -> Result<()> {
+    fn note_use(
+        &mut self,
+        l: LocalId,
+        span: ast::Span,
+        path: &[String],
+        dicts: &[(LocalId, ClassApp)],
+    ) -> Result<()> {
         let Some(ob) = self.obligations.get(&l) else {
             return Ok(());
         };
         let name = ob.name.clone();
         let ty = ob.ty.clone();
         let (lam, memo, created_cont) = (ob.lam, ob.memo, ob.cont);
-        if self.lam_depth > lam {
-            // A callback cannot outlive a borrowed environment (core
-            // specification, section 7). Capture-based ownership transfer
-            // needs closure usage inference, which this slice does not
-            // have, so capturing a borrow or memo cell of a live region is
-            // rejected conservatively.
+        let crosses_lam = self.lam_depth > lam;
+        // Every lambda layer between the binder and this use is a
+        // one-shot frame (a task body or a `withScope` body), so the use
+        // happens at most once per enclosing execution.
+        let oneshot = crosses_lam
+            && (lam + 1..=self.lam_depth)
+                .all(|d| self.oneshot_frames.iter().any(|f| f.lam == d));
+        if crosses_lam {
             let t = self.uni.zonk(&ty);
-            let mut regions = Vec::new();
-            escape_regions(&t, &mut regions);
-            if let Some(r) = regions.into_iter().find(|r| self.active_regions.contains(r)) {
-                return Err(Error::at(
-                    span,
-                    format!(
-                        "region escape: {name} is captured in a lambda that may outlive region {r}"
-                    ),
-                ));
+            if oneshot {
+                let frame = self
+                    .oneshot_frames
+                    .iter()
+                    .rev()
+                    .find(|f| f.lam == self.lam_depth)
+                    .expect("the innermost layer is a one-shot frame");
+                if frame.task {
+                    // A task capture (concurrency specification section
+                    // 3): the ownership rules are validated at the
+                    // definition's end, when the binder's type is fully
+                    // resolved.
+                    self.task_captures.push(TaskCapture {
+                        binder: l,
+                        name: name.clone(),
+                        ty: t,
+                        span,
+                        dicts: dicts.to_vec(),
+                        scope: frame.scope.clone(),
+                        scopes: self.scope_frames.iter().map(|f| f.region.clone()).collect(),
+                        active: self.active_regions.clone(),
+                        outer: frame.outer.clone(),
+                    });
+                } else {
+                    // A `withScope` body capture: the borrowed
+                    // environment rule (core specification, section 7)
+                    // still applies.
+                    self.reject_live_region_capture(&t, &name, span)?;
+                }
+            } else {
+                // A callback cannot outlive a borrowed environment (core
+                // specification, section 7). Capture-based ownership
+                // transfer needs closure usage inference, which this slice
+                // does not have, so capturing a borrow or memo cell of a
+                // live region is rejected conservatively.
+                self.reject_live_region_capture(&t, &name, span)?;
+                // A task handle or scope value must not be captured by a
+                // lambda that may outlive its structured scope
+                // (concurrency specification, section 2).
+                if let Some(r) = self.open_scope_region(&t) {
+                    return Err(Error::at(
+                        span,
+                        format!(
+                            "region escape: {name} is captured in a lambda that may outlive the structured scope of region {r} (concurrency specification, section 2)"
+                        ),
+                    ));
+                }
             }
         }
-        let c = if self.lam_depth > lam {
+        let c = if oneshot && self.memo_depth == memo {
+            if self.cont_depth > created_cont {
+                // A one-shot body inside a continuation: the
+                // continuation's own discipline composes on top of it.
+                self.cont_use_count(l, span)?
+            } else {
+                Count::ONE
+            }
+        } else if crosses_lam {
             Count::UNBOUNDED
         } else if self.memo_depth > memo {
             Count::AT_MOST_ONCE
         } else if self.cont_depth > created_cont {
-            // Use inside a continuation closure over this binder. The
-            // body runs when its continuation is called: at most once, and
-            // exactly once only when no enclosing frame can skip it.
-            let linear = self.effective_mult(l) == Some(Mult::One);
-            let (has_at_most, has_risky) = {
-                let active = &self.conts[self.conts.len() - self.cont_depth..];
-                (
-                    active.iter().any(|f| matches!(f.kind, ContKind::AtMost)),
-                    active.iter().any(|f| f.risky),
-                )
-            };
-            if linear && has_at_most {
-                Count::AT_MOST_ONCE
-            } else if linear && has_risky {
-                self.promote_resumptions(span)?;
-                Count::ONE
-            } else if linear {
-                Count::ONE
-            } else {
-                Count::AT_MOST_ONCE
-            }
+            self.cont_use_count(l, span)?
         } else {
             Count::ONE
         };
@@ -1773,6 +1964,55 @@ impl Checker {
             }
         }
         Ok(())
+    }
+
+    /// The conservative borrowed-environment rule (core specification,
+    /// section 7): a borrow or memo cell of a live region is never
+    /// captured by a closure that may outlive the region.
+    fn reject_live_region_capture(&self, t: &Ty, name: &str, span: ast::Span) -> Result<()> {
+        let mut regions = Vec::new();
+        escape_regions(t, &mut regions);
+        if let Some(r) = regions.into_iter().find(|r| self.active_regions.contains(r)) {
+            return Err(Error::at(
+                span,
+                format!("region escape: {name} is captured in a lambda that may outlive region {r}"),
+            ));
+        }
+        Ok(())
+    }
+
+    /// The scope region a captured type mentions while that scope is
+    /// still open (its `Task`/`Scope` values cannot outlive it).
+    fn open_scope_region(&self, t: &Ty) -> Option<String> {
+        let mut regions = Vec::new();
+        all_regions(t, &mut regions);
+        regions
+            .into_iter()
+            .find(|r| self.scope_frames.iter().any(|f| f.region == r.as_str()))
+    }
+
+    /// A use inside a continuation closure over the binder: the body
+    /// runs when its continuation is called: at most once, and exactly
+    /// once only when no enclosing frame can skip it.
+    fn cont_use_count(&mut self, l: LocalId, span: ast::Span) -> Result<Count> {
+        let linear = self.effective_mult(l) == Some(Mult::One);
+        let (has_at_most, has_risky) = {
+            let active = &self.conts[self.conts.len() - self.cont_depth..];
+            (
+                active.iter().any(|f| matches!(f.kind, ContKind::AtMost)),
+                active.iter().any(|f| f.risky),
+            )
+        };
+        if linear && has_at_most {
+            Ok(Count::AT_MOST_ONCE)
+        } else if linear && has_risky {
+            self.promote_resumptions(span)?;
+            Ok(Count::ONE)
+        } else if linear {
+            Ok(Count::ONE)
+        } else {
+            Ok(Count::AT_MOST_ONCE)
+        }
     }
 
     /// A continuation consuming a `%1` capture is reachable through a
@@ -1859,6 +2099,7 @@ impl Checker {
     /// Compare every binder's use count against its multiplicity
     /// (ownership and usage design, section 2).
     fn check_usage(&mut self) -> Result<()> {
+        self.check_task_captures()?;
         let mut binders: Vec<(&LocalId, &Obligation)> = self.obligations.iter().collect();
         binders.sort_by_key(|(l, _)| l.0);
         for (l, ob) in binders {
@@ -1867,9 +2108,18 @@ impl Checker {
                 .get(l)
                 .map(|n| n.consumptions())
                 .unwrap_or(Count::ZERO);
-            let mult = match ob.mult {
-                Some(m) if m != Mult::Flex => m,
-                _ => default_mult(&self.uni.zonk(&ob.ty)),
+            let t = self.uni.zonk(&ob.ty);
+            // A task handle is consumed exactly once by joining, whatever
+            // its annotation says (concurrency specification, section 2):
+            // its multiplicity cannot be relaxed to dropping.
+            let handle = crate::types::mentions_task(&t);
+            let mult = if handle {
+                Mult::One
+            } else {
+                match ob.mult {
+                    Some(m) if m != Mult::Flex => m,
+                    _ => default_mult(&t),
+                }
             };
             match mult {
                 Mult::Many | Mult::Flex => {}
@@ -1889,11 +2139,19 @@ impl Checker {
                     if c.min != 1 || c.max != 1 {
                         return Err(Error::at(
                             ob.span,
-                            format!(
-                                "multiplicity %1: {} must be used exactly once on every path, but is {}",
-                                ob.name,
-                                c.describe()
-                            ),
+                            if handle {
+                                format!(
+                                    "task handle {} must be joined exactly once; dropping it would silently detach execution (concurrency specification, section 2), but it is {}",
+                                    ob.name,
+                                    c.describe()
+                                )
+                            } else {
+                                format!(
+                                    "multiplicity %1: {} must be used exactly once on every path, but is {}",
+                                    ob.name,
+                                    c.describe()
+                                )
+                            },
                         ));
                     }
                 }
@@ -1914,13 +2172,138 @@ impl Checker {
         Ok(())
     }
 
+    /// The task-capture rules (concurrency specification, section 3),
+    /// once every binder type is resolved: an exclusive borrow never
+    /// crosses a task boundary; a borrowed region released inside the
+    /// task's scope never crosses it; a scope's handles stay in their
+    /// scope; and a capture is transferred exactly once or shareable.
+    fn check_task_captures(&mut self) -> Result<()> {
+        for c in std::mem::take(&mut self.task_captures) {
+            let t = self.uni.zonk(&c.ty);
+            // A memo cell is single-threaded by construction: a
+            // thread-shared memo needs an explicit synchronized
+            // structure, not `Lazy` (lazy specification, sections 5 and
+            // 9's required rejection cases).
+            if crate::types::mentions_memo(&t) {
+                return Err(Error::at(
+                    c.span,
+                    format!(
+                        "a thread-shared memo cell cannot cross a task boundary: {} holds a `Lazy` cell, which is single-threaded by construction (a shared memo needs an explicit synchronized structure) (lazy specification, section 9)",
+                        c.name
+                    ),
+                ));
+            }
+            let mut borrows = Vec::new();
+            borrow_regions(&t, &mut borrows);
+            if borrows.iter().any(|(_, is_mut)| *is_mut) {
+                return Err(Error::at(
+                    c.span,
+                    format!(
+                        "an exclusive `Mut` borrow cannot cross a task boundary: {} holds one (concurrency specification, section 3)",
+                        c.name
+                    ),
+                ));
+            }
+            let mut regions = Vec::new();
+            escape_regions(&t, &mut regions);
+            for r in &regions {
+                if c.active.contains(r) && !c.outer.contains(r) {
+                    return Err(Error::at(
+                        c.span,
+                        format!(
+                            "region escape: {} is captured by a task that outlives region {r} (the borrow's region is released inside the task's scope)",
+                            c.name
+                        ),
+                    ));
+                }
+            }
+            // A captured task handle or scope value belongs to this
+            // task's scope or to a scope that encloses it.
+            let mut names = Vec::new();
+            all_regions(&t, &mut names);
+            let scope_pos = c.scopes.iter().position(|s| *s == c.scope);
+            for r in &names {
+                let is_scope = c.scopes.iter().any(|s| s == r);
+                if !is_scope {
+                    continue;
+                }
+                let outlives = r == &c.scope
+                    || match (scope_pos, c.scopes.iter().position(|s| s == r)) {
+                        (Some(sp), Some(rp)) => rp < sp,
+                        _ => false,
+                    };
+                if !outlives {
+                    return Err(Error::at(
+                        c.span,
+                        format!(
+                            "region escape: {} belongs to a scope that does not outlive the task's scope (region {r}) (concurrency specification, section 2)",
+                            c.name
+                        ),
+                    ));
+                }
+            }
+            let transferred = matches!(
+                self.effective_mult(c.binder),
+                Some(Mult::One) | Some(Mult::Aff)
+            );
+            if !transferred && !self.share_safe(&t, &c.dicts) {
+                return Err(Error::at(
+                    c.span,
+                    format!(
+                        "a task capture must be `Copy`, a shared `Ref`, or transferred exactly once: {} is shared across tasks without shareable evidence (concurrency specification, section 3)",
+                        c.name
+                    ),
+                ));
+            }
+        }
+        Ok(())
+    }
+
+    /// The `Share`-like evidence for a task capture (concurrency
+    /// specification, section 3): structural `Copy`, or a class
+    /// dictionary over shareable evidence (an immutable method record).
+    fn share_safe(&self, t: &Ty, dicts: &[(LocalId, ClassApp)]) -> bool {
+        match t {
+            Ty::Adt(name, args)
+                if self.lookup_type(&[name]).is_err() && self.sigs.contains_key(name) =>
+            {
+                args.iter().all(|a| self.share_safe(a, dicts))
+            }
+            _ => self.copy_structural(t, dicts, &mut Vec::new()),
+        }
+    }
+
+    /// A parameter position that may receive a task handle must consume
+    /// it exactly once (concurrency specification, section 2): a sink
+    /// that could drop the handle would silently detach execution.
+    fn check_handle_param(&self, dom: &Ty, m: Mult, span: ast::Span) -> Result<()> {
+        if matches!(m, Mult::One | Mult::Flex) {
+            return Ok(());
+        }
+        let t = self.uni.zonk(dom);
+        if crate::types::mentions_task(&t) {
+            return Err(Error::at(
+                span,
+                format!(
+                    "a task handle must be consumed exactly once by its function: this argument position is {m}, so dropping it would silently detach execution (declare the parameter `%1`) (concurrency specification, section 2)"
+                ),
+            ));
+        }
+        Ok(())
+    }
+
     /// The effective multiplicity of a binder: its declared class, or the
-    /// type-directed default once the type is determined.
+    /// type-directed default once the type is determined. A task handle
+    /// is always exactly-once (concurrency specification, section 2).
     fn effective_mult(&self, l: LocalId) -> Option<Mult> {
         let ob = self.obligations.get(&l)?;
+        let t = self.uni.zonk(&ob.ty);
+        if crate::types::mentions_task(&t) {
+            return Some(Mult::One);
+        }
         Some(match ob.mult {
             Some(m) if m != Mult::Flex => m,
-            _ => default_mult(&self.uni.zonk(&ob.ty)),
+            _ => default_mult(&t),
         })
     }
 
@@ -2821,6 +3204,26 @@ impl Checker {
         Ok(EffRow { labels, tail })
     }
 
+    /// A region argument of a builtin applied type (`Io r`, `Scope r s`,
+    /// `Task s x a`): a `forall`-bound region variable.
+    fn region_arg(&self, t: &ast::Type, vars: &[String], what: &str) -> Result<String> {
+        match t {
+            ast::Type::Var(n, _) => {
+                if !vars.contains(&n.text) {
+                    return Err(Error::at(
+                        n.span,
+                        format!("unknown region variable {}", n.text),
+                    ));
+                }
+                Ok(n.text.clone())
+            }
+            other => Err(Error::at(
+                other.span(),
+                format!("{what} must be a region variable"),
+            )),
+        }
+    }
+
     /// Convert a possibly applied type. `Thunk {e} a` and `Lazy {e} r a`
     /// are builtin type constructors taking an effect-row argument first.
     fn conv_spine(&self, ty: &ast::Type, vars: &[String]) -> Result<Ty> {
@@ -2975,6 +3378,39 @@ impl Checker {
                 }
                 (["Io"], _) => {
                     return Err(Error::at(head_span, "Io must be fully applied as `Io r`"));
+                }
+                (["Scope"], [Arg::Ty(r), Arg::Ty(s)]) => {
+                    // `Scope r s`: a structured scope of runtime identity
+                    // `r`, bounding the tasks of scope region `s`
+                    // (concurrency specification, section 2).
+                    let r = self.region_arg(r, vars, "Scope's runtime identity")?;
+                    let s = self.region_arg(s, vars, "Scope's scope region")?;
+                    return Ok(Ty::Adt(
+                        "Scope".into(),
+                        vec![Ty::Region(r), Ty::Region(s)],
+                    ));
+                }
+                (["Scope"], _) => {
+                    return Err(Error::at(
+                        head_span,
+                        "Scope must be fully applied as `Scope r s`",
+                    ));
+                }
+                (["Task"], [Arg::Ty(s), Arg::Ty(x), Arg::Ty(v)]) => {
+                    // `Task s x a`: a handle to a scoped task producing
+                    // `a` with task outcome `x` (concurrency
+                    // specification, sections 2 and 4).
+                    let s = self.region_arg(s, vars, "Task's scope region")?;
+                    return Ok(Ty::Adt(
+                        "Task".into(),
+                        vec![Ty::Region(s), self.conv_type(x, vars)?, self.conv_type(v, vars)?],
+                    ));
+                }
+                (["Task"], _) => {
+                    return Err(Error::at(
+                        head_span,
+                        "Task must be fully applied as `Task s x a`",
+                    ));
                 }
                 // Boundary pointers (foreign function interface
                 // specification section 3): every pointer role wraps its

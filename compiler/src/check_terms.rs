@@ -101,6 +101,224 @@ impl Checker {
             && self.lookup_value(None, name).is_err()
     }
 
+    /// The structured-concurrency builtin behind an application head
+    /// (`withScope`, `spawn`, `joinAllOrCancel`), when it is unshadowed:
+    /// their application elaboration is [`Checker::infer_conc_app`]. The
+    /// `Io r` operations are ordinary builtin values.
+    fn conc_builtin(&self, env: &Env, f: &ast::Term) -> Option<ValueInfo> {
+        let ast::Term::Var(p) = f else { return None };
+        if !p.quals.is_empty() || env.lookup(&p.name.text).is_some() {
+            return None;
+        }
+        let v = self.resolve_var(p, p.span()).ok()?;
+        match v.kind {
+            ValueKind::Prim(PrimOp::Conc(
+                ConcOp::WithScope | ConcOp::Spawn | ConcOp::JoinN(_),
+            )) => Some(v),
+            _ => None,
+        }
+    }
+
+    /// `withScope body`, `spawn scope body`, `joinAllOrCancel scope h1 ..
+    /// hn` (concurrency specification, section 2): the scope body and task
+    /// bodies run exactly once, so their captures are one-shot transfers;
+    /// a scope's task handles and scope values stay inside the scope; and
+    /// a spawn's body effects flow into the spawning scope's row.
+    fn infer_conc_app(
+        &mut self,
+        env: &mut Env,
+        v: &ValueInfo,
+        args: &[ast::Term],
+        span: ast::Span,
+    ) -> Result<(ECore, Ty)> {
+        let op = match v.kind {
+            ValueKind::Prim(PrimOp::Conc(op)) => op,
+            _ => unreachable!("conc_builtin only yields concurrency builtins"),
+        };
+        match op {
+            ConcOp::WithScope => {
+                if args.len() != 1 {
+                    return Err(Error::at(
+                        span,
+                        "withScope takes exactly one argument: the scope body",
+                    ));
+                }
+                let r = self.fresh_region();
+                self.uni.note_flex_region(&r);
+                // The scope region is rigid per call: handles of distinct
+                // scopes never unify (section 2).
+                let s = self.fresh_region();
+                let e = self.uni.fresh_row();
+                let a = self.uni.fresh();
+                let body_ty = Ty::fun_mult(
+                    conc_scope_ty(&r, &s),
+                    Mult::Many,
+                    e.clone(),
+                    a.clone(),
+                );
+                let want = ClassApp {
+                    class: "Io".to_string(),
+                    args: vec![Ty::Region(r.clone())],
+                };
+                let hole = self.new_want(want, span, env);
+                let outer = self.active_regions.clone();
+                self.scope_frames.push(ScopeFrame {
+                    region: s.clone(),
+                    outer: outer.clone(),
+                });
+                let lam = matches!(&args[0], ast::Term::Lam(_, _, _));
+                if lam {
+                    self.oneshot_frames.push(OneshotFrame {
+                        lam: self.lam_depth + 1,
+                        task: false,
+                        scope: s.clone(),
+                        outer,
+                    });
+                }
+                let kcore = self.check(env, &args[0], &body_ty);
+                if lam {
+                    self.oneshot_frames.pop();
+                }
+                self.scope_frames.pop();
+                let kcore = kcore?;
+                // No task handle or scope value leaves its scope
+                // (concurrency specification, section 2).
+                let res = self.uni.zonk(&a);
+                let mut names = Vec::new();
+                all_regions(&res, &mut names);
+                if names.iter().any(|n| {
+                    self.uni.resolve_region(n) == self.uni.resolve_region(&s)
+                }) {
+                    return Err(Error::at(
+                        args[0].span(),
+                        format!(
+                            "region escape: a task handle or scope of region {s} leaves its `withScope` in {res} (concurrency specification, section 2)"
+                        ),
+                    ));
+                }
+                // Scope exit joins or cancels the children before the
+                // result returns and may not complete: `{Diverge | e}`,
+                // and the body's effects are the caller's (section 2).
+                self.perform(&EffRow {
+                    labels: vec![EffLabel::plain("Diverge")],
+                    tail: RowTail::Closed,
+                })?;
+                self.perform(&e)?;
+                Ok((
+                    app_spine(
+                        ECore::Prim(PrimOp::Conc(ConcOp::WithScope)),
+                        vec![ECore::Hole(hole), kcore],
+                    ),
+                    a,
+                ))
+            }
+            ConcOp::Spawn => {
+                if args.len() != 2 {
+                    return Err(Error::at(
+                        span,
+                        "spawn takes a scope and one task body",
+                    ));
+                }
+                let r = self.fresh_region();
+                self.uni.note_flex_region(&r);
+                let s = self.fresh_region();
+                self.uni.note_flex_region(&s);
+                let sarg = self.check(env, &args[0], &conc_scope_ty(&r, &s))?;
+                let s = self.uni.resolve_region(&s);
+                let x = self.uni.fresh();
+                let a = self.uni.fresh();
+                let eb = self.uni.fresh_row();
+                let body_ty = Ty::fun_mult(
+                    Ty::Unit,
+                    Mult::Many,
+                    eb.clone(),
+                    conc_result_ty(&x, &a),
+                );
+                // A literal task body runs exactly once on its thread; an
+                // opaque closure keeps the discipline it was defined with.
+                let lam = matches!(&args[1], ast::Term::Lam(_, _, _));
+                let outer = self
+                    .scope_frames
+                    .iter()
+                    .rev()
+                    .find(|f| f.region == s)
+                    .map(|f| f.outer.clone())
+                    .unwrap_or_default();
+                if lam {
+                    self.oneshot_frames.push(OneshotFrame {
+                        lam: self.lam_depth + 1,
+                        task: true,
+                        scope: s.clone(),
+                        outer,
+                    });
+                }
+                let bcore = self.check(env, &args[1], &body_ty);
+                if lam {
+                    self.oneshot_frames.pop();
+                }
+                let bcore = bcore?;
+                // Spawning makes the body's effects the spawning scope's
+                // responsibility (section 3).
+                self.perform(&EffRow {
+                    labels: vec![EffLabel::with_arg("Async", r.clone())],
+                    tail: RowTail::Closed,
+                })?;
+                self.perform(&eb)?;
+                Ok((
+                    app_spine(
+                        ECore::Prim(PrimOp::Conc(ConcOp::Spawn)),
+                        vec![sarg, bcore],
+                    ),
+                    conc_task_ty(&s, &x, &a),
+                ))
+            }
+            ConcOp::JoinN(_) => {
+                if args.len() < 2 {
+                    return Err(Error::at(
+                        span,
+                        "joinAllOrCancel takes a scope and at least one task handle",
+                    ));
+                }
+                let r = self.fresh_region();
+                self.uni.note_flex_region(&r);
+                let s = self.fresh_region();
+                self.uni.note_flex_region(&s);
+                let mut cores = vec![self.check(env, &args[0], &conc_scope_ty(&r, &s))?];
+                let s = self.uni.resolve_region(&s);
+                let x = self.uni.fresh();
+                let mut parts: Vec<Ty> = Vec::new();
+                for h in &args[1..] {
+                    let t = self.uni.fresh();
+                    cores.push(self.check(env, h, &conc_task_ty(&s, &x, &t))?);
+                    parts.push(t);
+                }
+                let payload = if parts.len() == 1 {
+                    parts.into_iter().next().expect("one handle")
+                } else {
+                    Ty::Tuple(parts)
+                };
+                self.perform(&EffRow {
+                    labels: vec![
+                        EffLabel::with_arg("Async", r.clone()),
+                        EffLabel::with_arg("Cancel", r),
+                        EffLabel::plain("Diverge"),
+                    ],
+                    tail: RowTail::Closed,
+                })?;
+                Ok((
+                    ECore::App(
+                        Box::new(ECore::Prim(PrimOp::Conc(ConcOp::JoinN(cores.len() - 1)))),
+                        cores,
+                    ),
+                    conc_result_ty(&x, &payload),
+                ))
+            }
+            ConcOp::IoWrite | ConcOp::IoRead | ConcOp::IoSleep | ConcOp::PollCancel => {
+                unreachable!("the Io r operations take the ordinary application path")
+            }
+        }
+    }
+
     fn infer(&mut self, env: &mut Env, term: &ast::Term) -> Result<(ECore, Ty)> {
         match term {
             // In inference position a literal keeps the default `Int` type
@@ -167,7 +385,7 @@ impl Checker {
                         // cells cache `Share` values, so the copy always
                         // has structural evidence.
                         if let Ty::Lazy { eff, region, inner } = t {
-                            self.note_use(l, p.span(), &[])?;
+                            self.note_use(l, p.span(), &[], &env.dicts)?;
                             self.new_want(
                                 ClassApp { class: "Copy".into(), args: vec![(*inner).clone()] },
                                 p.span(),
@@ -182,7 +400,7 @@ impl Checker {
                         }
                         let mut path = std::mem::take(&mut self.place_path);
                         path.reverse();
-                        self.note_use(l, p.span(), &path)?;
+                        self.note_use(l, p.span(), &path, &env.dicts)?;
                         return Ok((ECore::Var(l), t));
                     }
                 }
@@ -224,6 +442,12 @@ impl Checker {
                         }
                     }
                 }
+                // Structured concurrency (concurrency specification,
+                // section 2): the one-shot body and scope confinement of
+                // `withScope`, `spawn` and `joinAllOrCancel`.
+                if let Some(v) = self.conc_builtin(env, f) {
+                    return self.infer_conc_app(env, &v, args, *span);
+                }
                 // A constructor application is type-directed even in
                 // inference position (erased evidence arguments never
                 // reach runtime).
@@ -235,10 +459,16 @@ impl Checker {
                 for a in args {
                     ty = self.uni.zonk(&ty);
                     let (arg_core, cod) = match ty {
-                        Ty::Fun(dom, _, eff, cod) => {
+                        Ty::Fun(dom, m, eff, cod) => {
                             self.perform(&eff)?;
                             let erased = matches!(self.uni.zonk(&dom), Ty::Prp(_) | Ty::Sort(_));
                             let c = self.check(env, a, &dom)?;
+                            // A task handle is consumed exactly once by
+                            // its function: a sink that could drop it is
+                            // refused (concurrency specification,
+                            // section 2). Checked after the argument so
+                            // an inferred domain is resolved.
+                            self.check_handle_param(&dom, m, a.span())?;
                             (if erased { None } else { Some(c) }, *cod)
                         }
                         Ty::Pi { var, dom, eff, cod, .. } => {
@@ -786,6 +1016,14 @@ impl Checker {
                         return self.check_borrow_form(env, is_mut, args, *span, expected);
                     }
                 }
+                // Structured concurrency (concurrency specification,
+                // section 2).
+                if let Some(v) = self.conc_builtin(env, f) {
+                    let (core, ty) = self.infer_conc_app(env, &v, args, *span)?;
+                    self.unify_arg(&ty, expected)
+                        .map_err(|m| Error::at(term.span(), m))?;
+                    return Ok(core);
+                }
                 let (core, ty) = self.infer(env, term)?;
                 self.unify_arg(&ty, expected)
                     .map_err(|m| Error::at(term.span(), m))?;
@@ -1111,7 +1349,7 @@ impl Checker {
                                 let (t, _, _) = self.instantiate(&s);
                                 let t = self.uni.zonk(&t);
                                 if matches!(t, Ty::Lazy { .. }) {
-                                    self.note_use(l, p.span(), &[])?;
+                                    self.note_use(l, p.span(), &[], &env.dicts)?;
                                     (ECore::Var(l), t)
                                 } else {
                                     self.infer(env, &args[0])?
@@ -2648,7 +2886,7 @@ impl Checker {
                 // The row's destructure runs on every path that reaches
                 // the row, before its guard.
                 for l in &first.consumed {
-                    self.note_use(*l, ctx_span, &[])?;
+                    self.note_use(*l, ctx_span, &[], &first.env.dicts)?;
                 }
                 // The guard is a Bool expression in the row's scope (all
                 // pattern variables bound); its effects join the enclosing
@@ -2682,7 +2920,7 @@ impl Checker {
                 ));
             }
             for l in &first.consumed {
-                self.note_use(*l, ctx_span, &[])?;
+                self.note_use(*l, ctx_span, &[], &first.env.dicts)?;
             }
             let mut env = first.env.clone();
             return self.check(&mut env, &first.body, expected);

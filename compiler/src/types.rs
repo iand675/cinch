@@ -1143,14 +1143,67 @@ impl Ty {
 /// The default multiplicity of an unannotated binder (ownership and usage
 /// design, section 2): thunks are affine because `force` consumes and
 /// dropping an unforced thunk destroys it (laziness specification,
-/// section 3); everything else is unrestricted in this slice.
+/// section 3); a value whose type mentions a task handle is linear
+/// because dropping a handle would silently detach execution
+/// (concurrency specification, section 2); everything else is
+/// unrestricted in this slice.
 pub fn default_mult(ty: &Ty) -> Mult {
     match ty {
         // A thunk is consumed by `force`; a `Later` observation likewise
         // (the usage-multiplicity rule keeping `Later` from unrestricted
         // thunk semantics).
         Ty::Thunk { .. } | Ty::Later(_) => Mult::Aff,
-        _ => Mult::Many,
+        _ => {
+            if mentions_task(ty) {
+                Mult::One
+            } else {
+                Mult::Many
+            }
+        }
+    }
+}
+
+/// Whether a type mentions a `Task` handle anywhere inside it (so its
+/// binders default to the handle discipline: consumed exactly once by
+/// joining).
+pub fn mentions_task(ty: &Ty) -> bool {
+    match ty {
+        Ty::Adt(n, args) => n == "Task" || args.iter().any(mentions_task),
+        Ty::Tuple(args) => args.iter().any(mentions_task),
+        Ty::Fun(a, _, _, b) | Ty::Pi { dom: a, cod: b, .. } => {
+            mentions_task(a) || mentions_task(b)
+        }
+        Ty::Sigma { dom, cod, .. } => mentions_task(dom) || mentions_task(cod),
+        Ty::Thunk { inner, .. } | Ty::Later(inner) | Ty::Lazy { inner, .. } => {
+            mentions_task(inner)
+        }
+        Ty::Ref(_, i) | Ty::Mut(_, i) => mentions_task(i),
+        Ty::Ptr { pointee, .. } => mentions_task(pointee),
+        Ty::Handler { input, output, .. } => {
+            mentions_task(input) || mentions_task(output)
+        }
+        _ => false,
+    }
+}
+
+/// Whether a type mentions a `Lazy {e} r a` memo cell anywhere inside it.
+/// A memo cell is single-threaded by construction and does not cross its
+/// region's thread (lazy specification, sections 5 and 9).
+pub fn mentions_memo(ty: &Ty) -> bool {
+    match ty {
+        Ty::Lazy { .. } => true,
+        Ty::Adt(_, args) | Ty::Tuple(args) => args.iter().any(mentions_memo),
+        Ty::Fun(a, _, _, b) | Ty::Pi { dom: a, cod: b, .. } => {
+            mentions_memo(a) || mentions_memo(b)
+        }
+        Ty::Sigma { dom, cod, .. } => mentions_memo(dom) || mentions_memo(cod),
+        Ty::Thunk { inner, .. } | Ty::Later(inner) => mentions_memo(inner),
+        Ty::Ref(_, i) | Ty::Mut(_, i) => mentions_memo(i),
+        Ty::Ptr { pointee, .. } => mentions_memo(pointee),
+        Ty::Handler { input, output, .. } => {
+            mentions_memo(input) || mentions_memo(output)
+        }
+        _ => false,
     }
 }
 

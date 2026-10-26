@@ -37,8 +37,8 @@
 
 use crate::core::{
     AbiClass, AbiParam, ArithMode, ArithOp, BitOp, BitScanOp, BytesOp, CAlt, CBranch, CmpOp,
-    ConvMode, Core, CPat, CtorLayout, FClassOp, FieldAccess, FieldShape, FloatBinOp, FloatUnOp,
-    FnDef, ForeignPlan, LocalId, PrimOp, Program, ShiftOp,
+    ConcOp, ConvMode, Core, CPat, CtorLayout, FClassOp, FieldAccess, FieldShape, FloatBinOp,
+    FloatUnOp, FnDef, ForeignPlan, LocalId, PrimOp, Program, ShiftOp,
 };
 use crate::types::Scalar;
 use crate::Result;
@@ -101,6 +101,16 @@ pub fn emit(program: &Program) -> Result<String> {
         "declare i64 @sl_bytes_len(i64)",
         "declare i64 @sl_bytes_get(i64, i64)",
         "declare i64 @sl_bytes_set(i64, i64, i64)",
+        // Structured concurrency and runtime I/O (concurrency
+        // specification sections 2, 4 and 9; `compiler/runtime/src/task.rs`).
+        "declare i64 @sl_scope_open()",
+        "declare i64 @sl_scope_close(i64)",
+        "declare i64 @sl_task_spawn(i64, i64)",
+        "declare i64 @sl_task_join_all_or_cancel(i64, i64, i64, i64)",
+        "declare i64 @sl_task_poll_cancel()",
+        "declare i64 @sl_io_write(i64)",
+        "declare i64 @sl_io_read(i64)",
+        "declare i64 @sl_io_sleep(i64)",
     ] {
         out.push_str(f);
         out.push('\n');
@@ -1074,6 +1084,124 @@ fn prim_body(b: &mut Builder, name: &str, op: PrimOp) {
                         &[args[0].clone(), format!("i64 {i}"), format!("i64 {v}")],
                     );
                     ret(b, "0");
+                }
+            }
+        }
+        Conc(k) => {
+            // Structured concurrency and runtime I/O (concurrency
+            // specification sections 2, 4 and 9): the units wrap the
+            // `sl_*` externs of `compiler/runtime/src/task.rs`. The task
+            // outcome ABI fixes the prelude `Result` tags: `Err` tag 0
+            // (failure), `Ok` tag 1 (success).
+            use ConcOp::*;
+            match k {
+                WithScope => {
+                    let scope = rt_call(b, "sl_scope_open", &[]);
+                    let argv = b.alloca_words(1);
+                    b.store_at(&argv, 0, &scope);
+                    let val = b.reg();
+                    b.line(&format!(
+                        "{val} = call i64 @__apply(i64 %p1, i64 1, ptr {argv})"
+                    ));
+                    let _ = rt_call(b, "sl_scope_close", &[format!("i64 {scope}")]);
+                    ret(b, &val);
+                }
+                Spawn => {
+                    let h = rt_call(b, "sl_task_spawn", &["i64 %p0".to_string(), "i64 %p1".to_string()]);
+                    ret(b, &h);
+                }
+                JoinN(n) => {
+                    let arr = b.alloca_words(n);
+                    for i in 0..n {
+                        b.store_at(&arr, i * 8, &format!("%p{}", i + 1));
+                    }
+                    let out = b.alloca_words(n.max(1));
+                    let arrw = b.reg();
+                    b.line(&format!("{arrw} = ptrtoint ptr {arr} to i64"));
+                    let outw = b.reg();
+                    b.line(&format!("{outw} = ptrtoint ptr {out} to i64"));
+                    let st = rt_call(
+                        b,
+                        "sl_task_join_all_or_cancel",
+                        &[
+                            "i64 %p0".to_string(),
+                            format!("i64 {arrw}"),
+                            format!("i64 {n}"),
+                            format!("i64 {outw}"),
+                        ],
+                    );
+                    let lfail = b.label();
+                    let lok = b.label();
+                    let ldone = b.label();
+                    let is_ok = b.reg();
+                    b.line(&format!("{is_ok} = icmp eq i64 {st}, 0"));
+                    b.line(&format!("br i1 {is_ok}, label %{lok}, label %{lfail}"));
+                    // Failure: `Err e` over the first failure payload.
+                    b.start(&lfail);
+                    let ep = b.load_at(&out, 0);
+                    let eb = b.reg();
+                    b.line(&format!("{eb} = call ptr @malloc(i64 16)"));
+                    b.store_at(&eb, 0, "0");
+                    b.store_at(&eb, 8, &ep);
+                    let ew = b.reg();
+                    b.line(&format!("{ew} = ptrtoint ptr {eb} to i64"));
+                    b.line(&format!("br label %{ldone}"));
+                    // Success: `Ok` over the payloads (a tuple block for a
+                    // multi-task join, tag 0 like `Tuple.{n}`).
+                    b.start(&lok);
+                    let okw = if n == 1 {
+                        let p = b.load_at(&out, 0);
+                        let ok = b.reg();
+                        b.line(&format!("{ok} = call ptr @malloc(i64 16)"));
+                        b.store_at(&ok, 0, "1");
+                        b.store_at(&ok, 8, &p);
+                        ok
+                    } else {
+                        let tup = b.reg();
+                        b.line(&format!(
+                            "{tup} = call ptr @malloc(i64 {})",
+                            8 + 8 * n
+                        ));
+                        b.store_at(&tup, 0, "0");
+                        for i in 0..n {
+                            let p = b.load_at(&out, i * 8);
+                            b.store_at(&tup, (i + 1) * 8, &p);
+                        }
+                        let tupw = b.reg();
+                        b.line(&format!("{tupw} = ptrtoint ptr {tup} to i64"));
+                        let ok = b.reg();
+                        b.line(&format!("{ok} = call ptr @malloc(i64 16)"));
+                        b.store_at(&ok, 0, "1");
+                        b.store_at(&ok, 8, &tupw);
+                        ok
+                    };
+                    let okw2 = b.reg();
+                    b.line(&format!("{okw2} = ptrtoint ptr {okw} to i64"));
+                    b.line(&format!("br label %{ldone}"));
+                    b.start(&ldone);
+                    let res = b.reg();
+                    b.line(&format!("{res} = phi i64 [ {ew}, %{lfail} ], [ {okw2}, %{lok} ]"));
+                    ret(b, &res);
+                }
+                IoWrite => {
+                    let _ = rt_call(b, "sl_io_write", &["i64 %p1".to_string()]);
+                    ret(b, "0");
+                }
+                IoRead => {
+                    let n = rt_call(b, "sl_nat_to_i64", &["i64 %p1".to_string()]);
+                    let r = rt_call(b, "sl_io_read", &[format!("i64 {n}")]);
+                    let none = b.reg();
+                    b.line(&format!("{none} = icmp eq i64 {r}, 0"));
+                    ret_option(b, name, &none, |_| r.clone());
+                }
+                IoSleep => {
+                    let n = rt_call(b, "sl_nat_to_i64", &["i64 %p1".to_string()]);
+                    let _ = rt_call(b, "sl_io_sleep", &[format!("i64 {n}")]);
+                    ret(b, "0");
+                }
+                PollCancel => {
+                    let c = rt_call(b, "sl_task_poll_cancel", &[]);
+                    ret(b, &c);
                 }
             }
         }

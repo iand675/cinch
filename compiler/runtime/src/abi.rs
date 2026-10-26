@@ -62,7 +62,7 @@ fn box_int(v: Int) -> i64 {
     })) as usize as i64
 }
 
-fn box_bytes(v: crate::bytes::Bytes) -> i64 {
+pub(crate) fn box_bytes(v: crate::bytes::Bytes) -> i64 {
     Box::into_raw(Box::new(Boxed {
         kind: KIND_BYTES,
         value: v,
@@ -84,7 +84,7 @@ fn div_zero_exit() -> ! {
 }
 
 /// Map a Rust API error onto its defined runtime fault.
-fn raise(err: Error) -> ! {
+pub(crate) fn raise(err: Error) -> ! {
     if err == Error::DivByZero {
         div_zero_exit();
     }
@@ -118,7 +118,7 @@ unsafe fn as_int<'a>(word: i64) -> &'a Int {
 }
 
 /// Read a `Bytes` word, faulting on null or wrong-kind blocks.
-unsafe fn as_bytes<'a>(word: i64) -> &'a crate::bytes::Bytes {
+pub(crate) unsafe fn as_bytes<'a>(word: i64) -> &'a crate::bytes::Bytes {
     let p = word as *const Boxed<crate::bytes::Bytes>;
     if p.is_null() {
         raise(Error::CorruptValue);
@@ -485,6 +485,125 @@ pub unsafe extern "C" fn sl_bytes_set(word: i64, index: i64, value: i64) -> i64 
         Ok(()) => 0,
         Err(e) => raise(e),
     }
+}
+
+// ------------------------------------------------------------ structured concurrency (P12)
+//
+// The scope word points at a boxed `Arc<crate::task::Scope>` (one
+// reference consumed by `sl_scope_close`); a handle word is an
+// `Arc<TaskState>` reference (never freed twice; see the module docs of
+// `crate::task`). The task outcome and closure ABI conventions are
+// documented in `crate::task`.
+
+/// Open a structured scope: the `withScope` entry (concurrency
+/// specification section 2).
+#[unsafe(no_mangle)]
+pub extern "C" fn sl_scope_open() -> i64 {
+    let scope = std::sync::Arc::new(crate::task::Scope::new());
+    Box::into_raw(Box::new(scope)) as usize as i64
+}
+
+/// Scope exit: cancel every unjoined child, wait for each cleanup
+/// acknowledgment, and release the scope.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn sl_scope_close(scope: i64) -> i64 {
+    let owned = unsafe { Box::from_raw(scope as *mut std::sync::Arc<crate::task::Scope>) };
+    owned.close();
+    drop(owned);
+    0
+}
+
+/// Spawn the body closure as a task of `scope`; returns the task handle.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn sl_task_spawn(scope: i64, closure: i64) -> i64 {
+    let scope = unsafe { &*(scope as *const std::sync::Arc<crate::task::Scope>) };
+    scope.spawn(closure)
+}
+
+/// `joinAllOrCancel` over the `n` handles at `handles`: 0 and the `Ok`
+/// payloads in `out` on success, 1 and the first `Err` payload in
+/// `out[0]` on failure (the first failure cancels the siblings).
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn sl_task_join_all_or_cancel(
+    scope: i64,
+    handles: i64,
+    n: i64,
+    out: i64,
+) -> i64 {
+    if n < 0 {
+        raise(Error::OutOfBounds);
+    }
+    let scope = unsafe { &*(scope as *const std::sync::Arc<crate::task::Scope>) };
+    unsafe {
+        scope.join_all_or_cancel(
+            handles as *const i64,
+            n as usize,
+            out as *mut i64,
+        )
+    }
+}
+
+/// The cancellation observation point (section 4): 1 once cancellation
+/// has been requested for the running task, else 0.
+#[unsafe(no_mangle)]
+pub extern "C" fn sl_task_poll_cancel() -> i64 {
+    i64::from(crate::task::current_task_canceled())
+}
+
+/// Write a `Bytes` word to the runtime's output sink (stdout), flushed so
+/// an observer sees it immediately; returns 0 (the Unit word).
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn sl_io_write(word: i64) -> i64 {
+    use std::io::Write;
+    let buf = unsafe { as_bytes(word) }.as_slice();
+    let mut out = std::io::stdout();
+    if out.write_all(buf).is_err() || out.flush().is_err() {
+        raise(Error::OutOfBounds);
+    }
+    0
+}
+
+/// Read up to `len` bytes from the runtime's input source (stdin): the
+/// `Bytes` word, or 0 when the source is at end of input (`ioRead`'s
+/// `None`). A negative length faults.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn sl_io_read(len: i64) -> i64 {
+    use std::io::Read;
+    if len < 0 {
+        raise(Error::OutOfBounds);
+    }
+    let want = usize::try_from(len).unwrap_or(usize::MAX);
+    let mut buf = vec![0u8; want];
+    let mut filled = 0usize;
+    while filled < want {
+        match std::io::stdin().read(&mut buf[filled..]) {
+            Ok(0) => break,
+            Ok(n) => filled += n,
+            Err(_) => break,
+        }
+    }
+    if filled == 0 {
+        return 0;
+    }
+    buf.truncate(filled);
+    box_bytes(crate::bytes::Bytes::from(buf))
+}
+
+/// Sleep `millis` milliseconds as a suspension point: returns early with
+/// 0 (the Unit word) once cancellation is requested for the running task
+/// (concurrency specification section 4).
+#[unsafe(no_mangle)]
+pub extern "C" fn sl_io_sleep(millis: i64) -> i64 {
+    let mut left = millis.max(0) as u64;
+    while left > 0 {
+        if crate::task::current_task_canceled() {
+            break;
+        }
+        let slice = left.min(1);
+        std::thread::sleep(std::time::Duration::from_millis(slice));
+        left -= slice;
+    }
+    0
 }
 
 #[cfg(test)]

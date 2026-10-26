@@ -137,12 +137,13 @@ needs the checker to consume export tables instead of sources.
 | Real C symbols, `foreign export`, effects, layouts | done (binding contracts with widths/offsets/alignment/convention/symbol identity/roles/ownership in the interface foreign table; closed explicit effect rows with honesty (D68); C fixtures linked through clang; faults exit 71, never unwind; `tests/ffi.rs`) |
 | `opaque type`, `RawPtr`, ownership roles | done (`RawPtr`/`Borrowed`/`Retained`/`Owned`/`Out`/`MaybeNull`, integer-to-pointer rejection, deallocator pairing checked program-wide and recorded (D69), nullability by default non-null (D70); aggregates as const-pointer copies, aggregate results rejected (D66); boundary type grammar (D67)) |
 
-### Concurrency (P12)
+### Concurrency (P12) — concurrency specification
 
 | Requirement | Status |
 | --- | --- |
-| Structured scopes, `spawn`, join/cancel | todo |
-| Task captures with ownership | todo |
+| Structured scopes, `spawn`, join/cancel | done (`withScope`/`spawn`/`joinAllOrCancel` with rigid per-call scope regions (D74), n-ary join with first-failure-cancels and full acknowledgment awaiting (D78), cancellation observed at defined points (D80); `tests/concurrency.rs`) |
+| Task captures with ownership | done (handles are `%1` with no silent detach (D76); captures follow the P5 share-or-transfer discipline (D77): `%1`/`%aff` transfer exactly once including cancellation early-returns, `Ref`/`Copy` share, `Mut`/untransferred `Bytes`/`Lazy` refused) |
+| `Io r` runtime wired to real operations | done (`ioWrite`/`ioRead`/`ioSleep`/`pollCancel` over Rust runtime threads (D81); `Blocking` foreigns run on the task's OS thread, cancellation-blind until return, accounted in the body row and folded into the scope row (D79); one OS thread per task with fork-join happens-before and sequentially consistent cancellation (D80)) |
 
 ### Runtime evolution (P13)
 
@@ -175,7 +176,7 @@ update as the slices land; 07 must reject, the rest must accept):
 | 08-platform-simd | line 6:10 the justification cannot prove the rule's equation (the example matches its own local `scalar`; the supplied theorem is over the library pair; the example's header calls its theorem module "obligations, not supplied proofs") | example-side proof obligation |
 | 09-foreign-codec | line 11:22 `unknown type DecodeError` (example-side: the sketch never declares its error type) | example-side vocabulary |
 | 10-wasm-component | line 9:19 `unknown type BoundaryError` (WIT adapter vocabulary) | P14 |
-| 11-structured-tasks | unknown type `Request` (structured-concurrency vocabulary) | P12 |
+| 11-structured-tasks | accepts (`safelang check` exit 0; its sketch vocabulary `Request`/`LoadError`/`fetch` is provided by the prelude over `ioRead`, D81) | done |
 | 12-runtime-effects | line 14: module parameters (`module ImportConfig (Seq :: ...)`) unsupported | modules follow-up (parameters) |
 
 ## Unplanned requirements (P16)
@@ -594,3 +595,47 @@ wording flags for future decisions).
 - **D73 (P11 intrinsics)**: the intrinsic symbol namespaces stay
   reserved; a non-resolving name there is a retired-intrinsic error,
   never treated as a C symbol.
+- **D74 (P12 surface)**: the structured-concurrency API is builtin
+  values with compiler-known schemes (`withScope`, `spawn`,
+  `joinAllOrCancel`, `ioWrite`/`ioRead`/`ioSleep`/`pollCancel`) and
+  builtin types `Scope r s`/`Task s x a`. `withScope`'s scope region is
+  rigid per call, so handles of distinct scopes never unify.
+- **D75 (P12 task outcome)**: a task body is `Unit ->{e} Result x a`;
+  `spawn` flattens to `Task s x a`; `joinAllOrCancel` returns `Result x
+  (...)`, whose `Err` channel is the bodies' `Err` channel: the first
+  observed failure is returned after every sibling's cleanup is awaited.
+  Cancellation surfaces through the body's own `Err`.
+- **D76 (P12 handle discipline)**: any binder whose type mentions
+  `Task` is `%1` regardless of annotation; application sites refuse a
+  task-mentioning parameter that is not `%1`/flex (closing the
+  polymorphic-sink drop); `withScope`'s result must not mention the
+  scope region; task/scope values cannot be captured by unbounded
+  lambdas.
+- **D77 (P12 captures)**: one-shot frames for task and scope bodies (a
+  capture use counts once per spawn execution). Share-or-transfer:
+  `%1`/`%aff` transfers exactly once (including on cancellation
+  early-returns), `Ref`/`Copy` and shareable dictionaries share, `Mut`
+  is always refused, untransferred `Bytes` and `Lazy` cells refused;
+  live memo-region borrows only when the region predates the scope.
+- **D78 (P12 join)**: `joinAllOrCancel` is n-ary (n >= 1, n-tuple
+  payload); first observed failure cancels the rest and every
+  acknowledgment is awaited (unbounded: `Diverge`); scope exit cancels
+  and joins unjoined children as defense in depth.
+- **D79 (P12 blocking)**: `Blocking`-labeled foreign calls run on the
+  task's dedicated OS thread, are cancellation-blind until they return,
+  and their label is accounted in the body row, folded into the
+  spawning scope's performed row so effect honesty forces the program
+  to carry `Blocking`.
+- **D80 (P12 memory model)**: one OS thread per task; fork-join
+  happens-before at spawn and join; cancellation is a sequentially
+  consistent atomic observed only at defined points (`pollCancel`,
+  `ioSleep`); no other atomics. The P14 Wasm backend must preserve the
+  same permitted observations.
+- **D81 (P12 Io surface and ABI)**: `ioWrite` (stdout, flushed),
+  `ioRead` (stdin, `None` at end of input), `ioSleep` (millisecond
+  slices, early return on cancellation), `pollCancel` (false on the main
+  thread), effect-labeled per P6; the task outcome ABI fixes the
+  prelude `Result` tags (Err 0 / Ok 1) and the apply-stub calling
+  convention. The sketch's `Request`/`LoadError`/`fetch` vocabulary
+  lives in the prelude over `ioRead` (a short read is the `LoadError`
+  case), so acceptance example 11 accepts unchanged.

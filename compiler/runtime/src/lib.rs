@@ -160,6 +160,26 @@
 //!
 //! Every bignum and byte-buffer fault exits through `sl_panic` (71)
 //! except division by zero (72); see `crate::error::Error`.
+//!
+//! Structured concurrency and runtime I/O (concurrency specification
+//! sections 2, 4 and 9; one OS thread per task, fork-join happens-before,
+//! cancellation as a sequentially consistent atomic):
+//!
+//! * `sl_scope_open() -> i64`, `sl_scope_close(scope: i64) -> i64`: the
+//!   structured scope of `withScope`; close cancels and joins unjoined
+//!   children (section 2).
+//! * `sl_task_spawn(scope: i64, closure: i64) -> i64`: run `closure` on a
+//!   task thread, returning its handle. The body runs through the closure
+//!   apply-stub ABI and returns the prelude `Result` word (the task
+//!   outcome ABI of `crate::task`).
+//! * `sl_task_join_all_or_cancel(scope, handles: i64, n: i64, out: i64) -> i64`:
+//!   `joinAllOrCancel`; 0 and the `Ok` payloads in `out`, or 1 and the
+//!   first `Err` payload in `out[0]`.
+//! * `sl_task_poll_cancel() -> i64`: the cancellation observation point
+//!   (section 4).
+//! * `sl_io_write(word: i64) -> i64`, `sl_io_read(len: i64) -> i64`,
+//!   `sl_io_sleep(millis: i64) -> i64`: the `Io r` operations (stdout,
+//!   stdin, and a cancellation-aware suspension point).
 
 pub mod abi;
 pub mod bytes;
@@ -167,6 +187,7 @@ pub mod error;
 mod int;
 mod limbs;
 mod nat;
+pub mod task;
 
 pub use error::{Error, Result};
 pub use int::Int;

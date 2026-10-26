@@ -4,7 +4,9 @@
 -- compiler-known operations are the `safelang.prim.*` (machine scalars)
 -- and `safelang.runtime.*` (mathematical `Nat`/`Int` and `Bytes`)
 -- intrinsics below, which are representation-level and declared through
--- `foreign import`.
+-- `foreign import`, plus the builtin capability values (`newIO`, the
+-- structured-concurrency surface, and the `Io r` operations) whose
+-- polymorphic schemes the compiler knows directly.
 --
 -- The machine scalar types and their operations follow the primitive
 -- types specification. Names follow decision D6 (CONFORMANCE.md): an
@@ -1350,3 +1352,22 @@ module Prelude where
   -- assumption in the artifact manifest (decision D55).
   signature SumProofs where
     scalarToSimd :: forall t w n region. (vectors :: VecU32Target t w) -> (xs :: Ref region (Vec n U32)) -> Eq (scalarSumWrap32 xs) (simdSumWrap32 vectors xs)
+
+  -- Structured concurrency (concurrency specification, section 2): the
+  -- worked vocabulary of the spec's `loadPair` sketch. A `Request` names
+  -- bytes to read from the runtime's input source; `fetch` performs the
+  -- read under the `Io r` capability and reports a short read as a
+  -- `LoadError`. `withScope`, `spawn`, `joinAllOrCancel` and the `Io r`
+  -- operations (`ioWrite`, `ioRead`, `ioSleep`, `pollCancel`) are builtin
+  -- values with compiler-known schemes (like `newIO`), never foreign
+  -- imports.
+  data Request where
+    Request :: Nat -> Request
+
+  data LoadError where
+    LoadError :: Nat -> LoadError
+
+  fetch :: forall r. using (io :: Io r) => Request ->{IO r, Diverge} Result LoadError Bytes
+  fetch (Request n) = case ioRead n of
+    None -> Err (LoadError 1)
+    Some b -> Ok b

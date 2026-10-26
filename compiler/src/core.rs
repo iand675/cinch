@@ -420,6 +420,64 @@ impl BytesOp {
     }
 }
 
+/// The structured-concurrency and runtime I/O operations (concurrency
+/// specification sections 2, 3, 4 and 9). These are builtin values with
+/// compiler-known polymorphic schemes (`Checker::install_concurrency_api`),
+/// not prelude foreign imports: their types mention `Scope`/`Task` region
+/// indices and effect rows. The units wrap the `sl_*` externs of the
+/// runtime crate (`compiler/runtime/src/task.rs`); a task body is invoked
+/// through the closure apply-stub ABI documented in this module's header.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum ConcOp {
+    /// `withScope body`: run `body` with a fresh structured scope, then
+    /// cancel and join every remaining child before returning (section
+    /// 2). Arguments: the `Io r` capability, the scope body closure.
+    WithScope,
+    /// `spawn scope body`: start the body on a task thread of `scope`.
+    /// Arguments: the scope, the body closure.
+    Spawn,
+    /// `joinAllOrCancel scope h1 .. hn`: the documented failure policy
+    /// (section 2). The width is the unit's arity minus one.
+    JoinN(usize),
+    /// `ioWrite bytes`: write to the runtime's output sink.
+    IoWrite,
+    /// `ioRead n`: read up to `n` bytes from the runtime's input source
+    /// (`0` for end of input at the runtime boundary).
+    IoRead,
+    /// `ioSleep millis`: a suspension point that observes cancellation
+    /// (section 4) and returns early once it is requested.
+    IoSleep,
+    /// `pollCancel`: the cancellation observation point of section 4.
+    PollCancel,
+}
+
+impl ConcOp {
+    /// The unit name this operation is emitted under (`safelang.runtime.*`).
+    /// `joinAllOrCancel` units are per-width so each gets its own arity.
+    pub fn symbol(self) -> String {
+        use ConcOp::*;
+        match self {
+            WithScope => "safelang.runtime.withScope".to_string(),
+            Spawn => "safelang.runtime.spawn".to_string(),
+            JoinN(n) => format!("safelang.runtime.joinAllOrCancel{n}"),
+            IoWrite => "safelang.runtime.ioWrite".to_string(),
+            IoRead => "safelang.runtime.ioRead".to_string(),
+            IoSleep => "safelang.runtime.ioSleep".to_string(),
+            PollCancel => "safelang.runtime.pollCancel".to_string(),
+        }
+    }
+
+    /// The unit's argument count: the capability argument of the `Io r`
+    /// operations first, then the operation's own arguments.
+    pub fn arity(self) -> usize {
+        use ConcOp::*;
+        match self {
+            WithScope | Spawn | IoWrite | IoRead | IoSleep | PollCancel => 2,
+            JoinN(n) => n + 1,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum PrimOp {
     /// Mathematical `Nat` operations on boxed bignum words
@@ -484,6 +542,9 @@ pub enum PrimOp {
     /// `u8ToI32`, `checkedU64ToI32`, `saturatingF64ToI32`, `wrappingU32ToU8`
     /// and friends (section 7).
     Conv { from: Scalar, to: Scalar, mode: ConvMode },
+    /// Structured concurrency and runtime I/O (concurrency specification
+    /// sections 2, 4 and 9): builtin values, never foreign imports.
+    Conc(ConcOp),
 }
 
 impl PrimOp {
@@ -557,6 +618,7 @@ impl PrimOp {
             Demand => return "safelang.prim.demand".to_string(),
             CharToU32 => return "safelang.prim.charToU32".to_string(),
             U32ToChar => return "safelang.prim.u32ToChar".to_string(),
+            Conc(k) => return k.symbol(),
             Bound { ty, max } => {
                 format!("{}Bound{}", if max { "max" } else { "min" }, ty.name())
             }
@@ -599,6 +661,7 @@ impl PrimOp {
             Bytes(BytesOp::Set) => 3,
             Neg { .. } | BitNot { .. } | BitScan { .. } | FloatUn { .. } | FClass { .. }
             | CharToU32 | U32ToChar | Conv { .. } | Delay | Force | Demand | NotBool => 1,
+            Conc(k) => k.arity(),
             _ => 2,
         }
     }
@@ -613,6 +676,7 @@ impl PrimOp {
             Neg { mode: ArithMode::Checked, .. } => true,
             Shift { checked: true, .. } => true,
             Conv { mode: ConvMode::Checked, .. } => true,
+            Conc(ConcOp::IoRead) => true,
             _ => false,
         }
     }
@@ -689,6 +753,7 @@ impl PrimOp {
             ),
             CharToU32 => (vec![prim(Scalar::Char)], u32t),
             U32ToChar => (vec![u32t], opt(prim(Scalar::Char))),
+            Conc(_) => unreachable!("concurrency and runtime I/O builtins are not foreign imports"),
             Conv { from, to, mode } => {
                 let res = if mode == ConvMode::Checked { opt(prim(to)) } else { prim(to) };
                 (vec![prim(from)], res)

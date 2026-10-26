@@ -98,6 +98,14 @@ The closure and dictionary ABI is documented in `src/core.rs`.
   `Ref r a`/`Mut r a` borrows with region escape checking and lexical `Mut`
   uniqueness, and thunk force discipline (`%1` exactly once, `%aff` at
   most once; unannotated thunks default `%aff`).
+- **Concurrency** (concurrency specification): structured scopes with
+  `spawn` and linear task handles (dropping cannot silently detach),
+  n-ary `joinAllOrCancel` with first-failure-cancels and full
+  acknowledgment awaiting, cooperative cancellation observed at defined
+  points, task captures under the share-or-transfer discipline,
+  `Blocking` foreigns on dedicated task threads with effect accounting,
+  and the `Io r` runtime wired to real operations (`ioWrite`/`ioRead`/
+  `ioSleep`/`pollCancel`) over the Rust runtime's threads.
 - **FFI** (foreign function interface specification): real `foreign
   import`/`export ccall` with layout-checked binding contracts in the
   interface metadata and honest effect rows; `opaque` types, `RawPtr`
