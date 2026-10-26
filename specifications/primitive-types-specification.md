@@ -157,7 +157,7 @@ For SIMD, the lane element types of target-indexed vectors are exactly these pri
 
 Resolved since draft 0.2: `&&`/`||` are surface control forms (section 6). The compiler elaborates infix `&&`/`||` to `if` at parse time; parenthesized `(&&)`/`(||)` name strict class methods and are different operations.
 
-Resolved since draft 0.3: the `Bits` class (section 11's open decision) is implemented in the prelude: `bitAnd`/`bitOr`/`bitXor`/`bitNot`, wrapping shifts, total rotates, `testBit`/`setBit`/`clearBit`/`complementBit` over a modulo-width mask rule, and the bit inspection family, with instances for all ten machine integer types. `Wrapping`-style wrappers remain open.
+Resolved since draft 0.3: the `Bits` class (section 11's open decision) is implemented in the prelude: `bitAnd`/`bitOr`/`bitXor`/`bitNot`, wrapping shifts, total rotates, `testBit`/`setBit`/`clearBit`/`complementBit` over a modulo-width mask rule, and the bit inspection family, with instances for all ten machine integer types. `Wrapping`-style wrappers remain open. The traditional operator spellings `&`, `|`, `^`, `<<`, `>>` are wrappers over the class with Rust-style precedence (surface grammar local amendments section 5), and `Rem`/`Div` classes with `%`/`/` cover the mathematical `Nat` and `Int` (machine integers keep the checked families per section 8's rule).
 
 # Implementation status
 

@@ -73,7 +73,40 @@ decision record in `compiler/CONFORMANCE.md` where applicable.
   implementation slice: the compiler currently rejects `#[` at the
   lexer.
 
-# 6 Capability supply clauses
+# 6 Bitwise and arithmetic operators
+
+- New operator spellings over the class stack (decision D90/D91):
+  `&`, `|`, `^`, `<<`, `>>` are wrappers over the `Bits` class;
+  `%` and `/` are the `Rem` and `Div` class methods, whose instances
+  cover the mathematical `Nat` and `Int` only (machine integers keep the
+  explicit checked/wrapping/saturating families, primitive types
+  specification sections 4 and 8). Division or remainder by zero is the
+  defined fault (exit 72).
+- Precedence follows the Rust reference table, laid onto the draft's
+  0-9 scale; the new binary operators are left associative like Rust's:
+
+  ```
+  infixl 9 *, /, %
+  infixl 8 +, -
+  infixl 7 <<, >>
+  infixl 6 &
+  infixl 5 ^
+  infixl 4 |
+  infix  3 ==, /=, <, <=, >, >=
+  infixr 2 &&
+  infixr 1 ||
+  ```
+
+  The relative order of the pre-existing operators is unchanged, so no
+  previously valid program re-parses differently.
+- Bitwise NOT has no operator spelling: both candidate symbols are
+  reserved punctuation (`!` and `~`), so `bitNot` remains the spelling.
+- A bare `|` is reserved punctuation (the guard and effect-row
+  separator) but doubles as the operator `|` in operator-name position:
+  fixity declarations, parenthesized operator definitions, and infix
+  application. Elsewhere it keeps its contextual role.
+
+# 7 Capability supply clauses
 
 - The runtime capability supply `with (io = e) in body` (runtime
   capabilities specification) adds `with (...) in` to the grammar: a
@@ -90,7 +123,7 @@ decision record in `compiler/CONFORMANCE.md` where applicable.
   or bind it first. A `with (...)` group without `name = e` bindings is
   rejected by the parser with a supply-binding diagnostic.
 
-# 7 Rejected for now (see compiler/CONFORMANCE.md)
+# 8 Rejected for now (see compiler/CONFORMANCE.md)
 
 Everything else in the draft EBNF parses only to a named rejection:
 `do` bodies and handlers, quotations and macros, `rewrite`/`upgrade`

@@ -704,6 +704,19 @@ wording flags for future decisions).
   justified bodies: the prelude may keep the pure reference or swap to
   `safelang.runtime.utf8*` intrinsics under the same tests (the
   reference-then-accelerate pattern).
+- **D90 (Prel operator precedence)**: surface binary operator
+  precedence follows the Rust reference table on the 0-9 scale
+  (`* / %` 9, `+ -` 8, `<< >>` 7, `&` 6, `^` 5, `|` 4, comparisons 3,
+  `&&` 2, `||` 1); the new operators are left associative like Rust's.
+  The relative order of pre-existing operators is unchanged, so no
+  previously valid program re-parses. `&`, `|`, `^`, `<<`, `>>` are
+  wrappers over the `Bits` class (never new compiler mechanisms);
+  bitwise NOT has no operator spelling (`!` and `~` are reserved).
+- **D91 (Prel Rem/Div)**: `%` and `/` are the `Rem` and `Div` class
+  methods with instances for the mathematical `Nat` and `Int` only;
+  machine integers keep the explicit checked/wrapping/saturating
+  families (primitive types specification sections 4 and 8). Division or
+  remainder by zero takes the defined fault path (exit 72).
 - **P13 deferrals (reported)**: handler-vtable specialization is blocked
   on propagating concrete vtables across function boundaries (dispatch
   sites can live in callees through `do`/`spawn`); explicit `eval` rides
