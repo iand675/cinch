@@ -27,7 +27,7 @@ example catalogue once an implementation exists"):
 | `09-foreign-codec.lang` | `signature` with `opaque type`, erased fields, FFI effects | todo |
 | `10-wasm-component.lang` | WIT adapter, `do` on `Result`, `decide`, component effects | todo |
 | `11-structured-tasks.lang` | `using (io :: Io r)`, `spawn`, scopes, `->{Async r, IO r, Cancel r}` | todo |
-| `12-runtime-effects.lang` | `do` with sequencing providers, module parameters, row-polymorphic effects | todo |
+| `12-runtime-effects.lang` | `do` with sequencing providers, module parameters, row-polymorphic effects | done (accepts end to end) |
 
 ## Feature matrix
 
@@ -178,7 +178,7 @@ update as the slices land; 07 must reject, the rest must accept):
 | 09-foreign-codec | accepts (`safelang check` exit 0; its `DecodeError` comes from the codec adapter vocabulary) | done |
 | 10-wasm-component | accepts (`safelang check` exit 0; `BoundaryError` from the WIT adapter vocabulary) | done |
 | 11-structured-tasks | accepts (`safelang check` exit 0; its sketch vocabulary `Request`/`LoadError`/`fetch` is provided by the prelude over `ioRead`, D81) | done |
-| 12-runtime-effects | line 14: module parameters (`module ImportConfig (Seq :: ...)`) unsupported | modules follow-up (parameters) |
+| 12-runtime-effects | accepts (`safelang check` exit 0; the parameter block `module ImportConfig (Seq :: ResultSequencing ConfigError)` instantiates at import, and the sketch vocabulary `Path`/`Config`/`ConfigError`/`readConfigBytes`/`parseConfig` comes from the prelude over `ioRead` following D81's pattern (D120)) | done |
 
 ## Unplanned requirements (P16)
 
@@ -191,7 +191,7 @@ audit, `compiler/SPEC-MAPPING.md` "Roadmap gaps"):
 | Evidence invalidation over mutable state | flow-sensitive; adjacent to P7 refinements and P13 (A2) |
 | Temporal contracts (safety/liveness/recurrence/stability) | closest to P12; unnamed there (A3) |
 | Cross-compilation (target width/capabilities) | done (P14: `Usize`/`Isize` widths keyed on the target in literal checks, lowering, and the manifest (A4)) |
-| Module parameters and signatures as module arguments | modules spec section 1 (module packaging); example 12 stops here (A5) |
+| Module parameters and signatures as module arguments | done (A5: `module M (p :: T, ...) where` with dictionary and value parameters, import-time instantiation units `import M (args) as N` with computed `unit_id`, instance coherence preserved (implicit resolution unchanged; explicit dictionaries coexist), parameter signatures in `.sliface` with instantiation as representation (D115-D121); example 12 accepts) |
 | Schema generation / database introspection API | done (P11+A6: `SchemaSnapshot`/`Database`/`SchemaRead` over the subprocess capability, `introspectConsistently`, `CodecGenerator.derive`; example 05 accepts with its build inputs) |
 
 ### Language surface DX (P19)
@@ -877,6 +877,41 @@ wording flags for future decisions).
   deny-warnings) with a whole-program summary; per-definition
   attributes may be stricter, never looser. Discarding a `Result`
   without `ignore` is a check error (rule 7 as a language default).
+- **D115 (A5 instantiation)**: instantiation is import-time
+  application with static arguments (`import M (args) as N`): a unit is
+  a distinct compilation unit with computed identity
+  `unit_id = hash(target | parameter signatures | argument identities)`;
+  dictionary arguments pass through the existing instance machinery,
+  so "instantiation is representation" holds (the parameterized
+  module's `iface_hash` is invariant).
+- **D116 (A5 no functor composition)**: an instantiation inside a
+  parameterized module, a parameterized instance used as an argument,
+  and index-position references to a parameterized module's functions
+  are rejected with named errors; forwarding parameters through nested
+  units is full functor machinery and rejection is honest rather than
+  silently wrong.
+- **D117 (A5 parameter kinds)**: capability (`Io`) and `Copy`
+  parameters are rejected (capabilities stay lexical per D21; `Copy` is
+  structural evidence); value parameters require `Copy` evidence
+  because every definition shares them.
+- **D118 (A5 definition scope)**: `stage`/`macro`/`generate`/
+  `rewrite`/`upgrade` declarations in a parameterized module are
+  rejected (their evidence or compile-time code would need the
+  parameters); types, signatures, instances, effects, fixities, and
+  foreign imports are unaffected.
+- **D119 (A5 explicit dictionaries)**: explicit (named) dictionaries
+  coexist for one class; coherence governs default resolution over
+  implicit instances only (two instantiations publishing unifiable
+  implicit copies are rejected as `ambiguous instance`, never merged);
+  module arguments are explicit dictionary selection per the modules
+  spec section 1.
+- **D120 (A5 prelude sketch vocabulary)**: the sequencing chapter's
+  `loadConfig` sketch vocabulary (`Path`, `Config`, `ConfigError`,
+  `readConfigBytes`, `parseConfig`) joins the prelude over `ioRead`,
+  mirroring D81's `fetch` pattern, so example 12 accepts end to end.
+- **D121 (A5 import refs)**: a module's dependency on an interface is
+  a set: import refs are deduplicated in the interface (two applied
+  imports of one module record one dependency).
 - **P13 deferrals (reported)**: handler-vtable specialization is blocked
   on propagating concrete vtables across function boundaries (dispatch
   sites can live in callees through `do`/`spawn`); explicit `eval` rides

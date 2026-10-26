@@ -192,21 +192,16 @@ The closure and dictionary ABI is documented in `src/core.rs`.
 
 Rejected with an explicit error naming the form:
 
-- The `stage` modifier (staging slice) and `Diverge`-effect enforcement on
-  recursive executable definitions (decision D32).
 - A constructor match against a family applied to rigid indices (decision
   D35: the error names the index equation; dispatch through `decide` or
-  computed indices instead).
-- `upgrade`, module parameters (functor-style module arguments), and
-  handler-vtable specialization (runtimes P13's elaboration work).
-- Strings (string literals and string types; `Bytes` buffers and `Char`
-  values are implemented).
+  computed indices instead). This is a design boundary, not a gap.
+- Handler-vtable specialization (the P13 follow-up; blocked on
+  propagating concrete vtables across function boundaries).
 - `~` irrefutable patterns in function argument positions (Haskell's
   `~p`); memo binding bodies support only variable patterns. Symbol
   operators like `~>` remain available.
-- First-class `foreign import` of real C symbols; module parameters and
-  signatures as module arguments; local
-  signatures with `forall`/`using`; recursive `let` bindings.
+- Local signatures with `forall`/`using`; recursive `let` bindings
+  (the P19 guarded `letrec` lands the latter).
 - Superclass bundles: a class constraint does not entail other classes;
   functions state each constraint they use (`using (add :: Add a, mul :: Mul a) => ...`).
 
@@ -251,12 +246,13 @@ compiler/
 
 ## Roadmap
 
-Remaining slices follow the implementation plan's milestones: the
-checked optimizer rules with target profiles and the attribute/weight
-prerequisites, the FFI (real C symbols, opaque types, ABI contracts),
-structured concurrency and a real `Io r` runtime, runtime evolution
-(upgrades, record views, versioned dispatch), and the Wasm component
-profile. Beyond those: the P16 requirements (evidence invalidation,
-temporal contracts, cross-compilation, module parameters, schema
-generation), and the P15 conformance sweep. Each slice should land with
-its positive and negative cases from `examples/`.
+Everything through the Wasm component profile is landed, including
+module parameters (A5) and the schema vocabulary (A6). Remaining: the
+P19 surface DX batch (dash identifiers, minus ergonomics, guarded
+`letrec`, constant-stack tail calls, class-desugared literals with
+compile-time folding, exports/renames, file-type import converters),
+the P20 safety assertion attributes (the JPL rules), P18's `prim`
+declarations with inline target IR, P16's two core requirements
+(evidence invalidation, temporal contracts), and the P15 conformance
+sweep. Each slice lands with its positive and negative cases from
+`examples/`.
