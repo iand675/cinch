@@ -293,6 +293,22 @@ correspondence: one lexeme in expression/pattern, staging `Name`, and
   parked in the class modules and move to `Data.*` homes at the
   prelude split; `Nat` deliberately has no bare Semigroup (Sum/Product
   choose its monoids).
+- **D127 (P25 scaffolding ruling)**: FoldAgent's defunctionalized
+  class shapes (`Foldable t a`, `Traversable t x g h tg hs`) are
+  accepted as NON-CURATED scaffolding: they ship in the `Category`
+  modules with their tests but stay out of the Prelude's curated
+  export surface, and A7 collapses them in place to the constructor-ary
+  shapes before they face users (the `hs`-duplicates-`h` slot exists
+  because `sequence` determines `y` but not `x`, leaving an
+  undetermined dictionary variable). This reconciles D126's refusal of
+  defunctionalization AS THE INTENDED API with keeping the verified
+  semantics tests (first-error short-circuit order, NonEmpty laws);
+  CategoryAgent's Functor/Applicative/Monad stay deferred entirely
+  (their defunctionalization would rewrite generic callers). New gap
+  recorded: effect-row traversal targets have no value-level
+  computation type former (effects exist only on arrows; `Thunk` is a
+  lazy value, not an action) - a `Comp {e} a`-like design question for
+  a later slice.
 - **D125 (P25 base library curation, user-approved 2026-10-26)**:
   pulled in: `Algebra.Group`/`Algebra.Semiring`, `Data.Set` +
   `Data.Hash`/`Data.HashMap` (symbol hashing exploits Sym interning),

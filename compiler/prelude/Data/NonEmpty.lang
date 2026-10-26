@@ -1,0 +1,93 @@
+-- Data.NonEmpty: the non-empty list, head plus tail.
+--
+-- `NonEmpty a` is `a` paired with a `List a`: the free semigroup over
+-- `a`. Every value has at least one element, so `null` is the constant
+-- `False`, `length` is at least 1, and `<>` is total concatenation.
+--
+-- Module header deviation (this slice, 2026-10-26): the base-library
+-- scheme names this module `Data.NonEmpty`, but dotted module names are
+-- unreachable from other modules in the bootstrap checker (imports
+-- register under the import path's last segment; see
+-- Category/Foldable.lang). Header is the single-segment `NonEmpty`;
+-- rename when the dotted-module-name fix lands.
+--
+-- Instance homes: this is the correct home for every instance below
+-- (instances live with their type). The class modules are
+-- Category/Foldable.lang and Category/Traversable.lang (in their
+-- defunctionalized encodings, q.v.) and Algebra/Semigroup.lang.
+--
+-- The traversal instance bodies delegate to the List helpers from
+-- Category.Traversable on the tail: `traverse` applies the effectful
+-- function to the head first, so the first `Err`/`None` short-circuits
+-- before the tail is traversed.
+module NonEmpty where
+
+  import Foldable
+  import Traversable
+  import Semigroup
+
+  infixr 6 <>
+
+  data NonEmpty a where
+    NonEmpty :: a -> List a -> NonEmpty a
+
+  implicit instance Foldable_NonEmpty x :: Foldable (NonEmpty x) x where
+    foldr f z ne = case ne of
+      NonEmpty h t -> f h (foldr f z t)
+    foldl f z ne = case ne of
+      NonEmpty h t -> foldl f (f z h) t
+    to-list ne = case ne of
+      NonEmpty h t -> Cons h (to-list t)
+    null ne = False
+    length ne = case ne of
+      NonEmpty h t -> 1 + length t
+
+  -- The free semigroup: concatenation preserves the leftmost head.
+  -- Associative because list concatenation is; asserted over sample
+  -- values in compiler/tests/lib_foldable.rs.
+  implicit instance Semigroup_NonEmpty x :: Semigroup (NonEmpty x) where
+    (<>) p q = case p of
+      NonEmpty h1 t1 -> case q of
+        NonEmpty h2 t2 -> NonEmpty h1 (t1 <> Cons h2 t2)
+
+  traverse-nonempty-result :: forall x e y. (x -> Result e y) -> NonEmpty x -> Result e (NonEmpty y)
+  traverse-nonempty-result f ne = case ne of
+    NonEmpty h t -> case f h of
+      Err e -> Err e
+      Ok b -> case traverse-list-result f t of
+        Err e -> Err e
+        Ok bs -> Ok (NonEmpty b bs)
+
+  sequence-nonempty-result :: forall e y. NonEmpty (Result e y) -> Result e (NonEmpty y)
+  sequence-nonempty-result ne = case ne of
+    NonEmpty h t -> case h of
+      Err e -> Err e
+      Ok v -> case sequence-list-result t of
+        Err e -> Err e
+        Ok vs -> Ok (NonEmpty v vs)
+
+  implicit instance Traverse_NonEmpty_Result x e y
+    :: Traversable (NonEmpty x) x (Result e y) (Result e (NonEmpty y)) (NonEmpty (Result e y)) (Result e (NonEmpty y)) where
+    traverse f ne = traverse-nonempty-result f ne
+    sequence ne = sequence-nonempty-result ne
+
+  traverse-nonempty-option :: forall x y. (x -> Option y) -> NonEmpty x -> Option (NonEmpty y)
+  traverse-nonempty-option f ne = case ne of
+    NonEmpty h t -> case f h of
+      None -> None
+      Some b -> case traverse-list-option f t of
+        None -> None
+        Some bs -> Some (NonEmpty b bs)
+
+  sequence-nonempty-option :: forall y. NonEmpty (Option y) -> Option (NonEmpty y)
+  sequence-nonempty-option ne = case ne of
+    NonEmpty h t -> case h of
+      None -> None
+      Some v -> case sequence-list-option t of
+        None -> None
+        Some vs -> Some (NonEmpty v vs)
+
+  implicit instance Traverse_NonEmpty_Option x y
+    :: Traversable (NonEmpty x) x (Option y) (Option (NonEmpty y)) (NonEmpty (Option y)) (Option (NonEmpty y)) where
+    traverse f ne = traverse-nonempty-option f ne
+    sequence ne = sequence-nonempty-option ne

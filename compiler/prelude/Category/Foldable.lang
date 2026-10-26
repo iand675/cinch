@@ -1,0 +1,69 @@
+-- Category.Foldable: the fold class over containers.
+--
+-- Module header deviation (this slice, 2026-10-26): the base-library
+-- scheme names this module `Category.Foldable`, but the bootstrap
+-- checker registers imports under the import path's LAST segment
+-- (`imports_of`, check_decls.rs) while a module registers its names
+-- under its full dotted name, and qualified paths deeper than
+-- `Module.Name` are rejected. A dotted module name is therefore
+-- unreachable from any other module today. The header is the
+-- single-segment `Foldable`; rename to `Category.Foldable` when the
+-- import surface gains dotted names. The same applies to the sibling
+-- Category/Data modules of this buildout.
+--
+-- Class shape deviation: the scheme's mathematical class is
+-- `Foldable (t :: Type -> Type)`, but the bootstrap type grammar has no
+-- higher-kinded type application: `t a` with `t` a quantified type
+-- variable is rejected ("cannot apply non-type-constructor"), and class
+-- arguments must be fully applied. The class is therefore
+-- defunctionalized to two parameters: `t` is the fully applied
+-- container type and `a` is its element type. `foldr`, `foldl`,
+-- `to-list`, `null` and `length` have exactly their mathematical
+-- meanings; only the arity of the class head is encoded.
+--
+-- Instance home deviation: instances belong with their type
+-- (`Data.List`, `Data.Option` once the Prelude split lands). The List
+-- and Option types currently live in `Prelude.lang`, which this slice
+-- cannot edit, so their instances live here with the class until the
+-- split moves both. NonEmpty's instances live with NonEmpty in
+-- `Data/NonEmpty.lang`.
+module Foldable where
+
+  signature Foldable t a where
+    foldr :: forall b. (a -> b -> b) -> b -> t -> b
+    foldl :: forall b. (b -> a -> b) -> b -> t -> b
+    to-list :: t -> List a
+    null :: t -> Bool
+    length :: t -> Int
+
+  implicit instance Foldable_List x :: Foldable (List x) x where
+    foldr f z xs = case xs of
+      Nil -> z
+      Cons y ys -> f y (foldr f z ys)
+    foldl f z xs = case xs of
+      Nil -> z
+      Cons y ys -> foldl f (f z y) ys
+    to-list xs = xs
+    null xs = case xs of
+      Nil -> True
+      Cons y ys -> False
+    length xs = case xs of
+      Nil -> 0
+      Cons y ys -> 1 + length ys
+
+  implicit instance Foldable_Option x :: Foldable (Option x) x where
+    foldr f z o = case o of
+      None -> z
+      Some y -> f y z
+    foldl f z o = case o of
+      None -> z
+      Some y -> f z y
+    to-list o = case o of
+      None -> Nil
+      Some y -> Cons y Nil
+    null o = case o of
+      None -> True
+      Some y -> False
+    length o = case o of
+      None -> 0
+      Some y -> 1
