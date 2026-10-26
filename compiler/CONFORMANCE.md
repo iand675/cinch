@@ -399,6 +399,20 @@ correspondence: one lexeme in expression/pattern, staging `Name`, and
   smart-constructor surface with the raw constructor kept out of the
   export list (D143). The same delegation form generalizes to
   sub-kind wrappers (Sorted, NonZero, Ascii).
+- **D151 (P28 refinements, user revision of D150)**: sub-kind types
+  (`NonEmpty`, `Sorted`, `NonZero`, `Ascii`) are REFINEMENTS, not
+  wrappers: a refinement is a decidable predicate over the container's
+  values whose witness is `Prop`-erased (D31), so the runtime
+  representation IS the container (zero cost, no delegation code).
+  Discharge is explicit in the `Dec`/`decide` world (total
+  constructors like `from-list : List a -> Option (NonEmpty a)`, or a
+  `Dec` argument that erases); no SMT and no refinement inference.
+  Instances are the container's own methods, valid exactly when they
+  PRESERVE the refinement (Semigroup for NonEmpty yes; Monoid no);
+  the P18 law layer checks preservation per instance. True newtypes
+  (Sum/Dual/Endo: distinct identities by design) keep the D150
+  delegation form for the rare borrowed-instance case. Full design:
+  `design/refinement-types.md`.
 - **D127 (P25 scaffolding ruling)**: FoldAgent's defunctionalized
   class shapes (`Foldable t a`, `Traversable t x g h tg hs`) are
   accepted as NON-CURATED scaffolding: they ship in the `Category`
