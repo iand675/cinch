@@ -12,8 +12,10 @@
 //! and decided through their `Eq` constraints, with `pure` stated
 //! under an added `Applicative` constraint (decision D152) so a bare
 //! `pure` reaches the class method through that constraint (decision
-//! D153). The containers' `Eq` instances ship with their types in the
-//! prelude split, so the tests declare the ones they need. The law
+//! D153). The containers' `Eq` instances deliberately do not ship with
+//! their types (D119 coherence: a shipped instance would be an
+//! ambiguity with the locally declared ones below), so the tests
+//! declare the ones they need. The law
 //! groups:
 //!   Functor:      identity and composition.
 //!   Applicative:  homomorphism.
