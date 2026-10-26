@@ -180,14 +180,17 @@
 //! * `sl_io_write(word: i64) -> i64`, `sl_io_read(len: i64) -> i64`,
 //!   `sl_io_sleep(millis: i64) -> i64`: the `Io r` operations (stdout,
 //!   stdin, and a cancellation-aware suspension point).
+//! * `sl_coop_*`: the cooperative single-threaded backend of [`coop`] (the Wasm profile's lowering target) mirrors this surface under these names with the same word conventions.
 
 pub mod abi;
 pub mod bytes;
+pub mod coop;
 pub mod error;
 pub mod evolution;
 mod int;
 mod limbs;
 mod nat;
+pub mod string;
 pub mod task;
 
 pub use error::{Error, Result};

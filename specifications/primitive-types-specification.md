@@ -157,6 +157,8 @@ For SIMD, the lane element types of target-indexed vectors are exactly these pri
 
 Resolved since draft 0.2: `&&`/`||` are surface control forms (section 6). The compiler elaborates infix `&&`/`||` to `if` at parse time; parenthesized `(&&)`/`(||)` name strict class methods and are different operations.
 
+Resolved since draft 0.3: the `Bits` class (section 11's open decision) is implemented in the prelude: `bitAnd`/`bitOr`/`bitXor`/`bitNot`, wrapping shifts, total rotates, `testBit`/`setBit`/`clearBit`/`complementBit` over a modulo-width mask rule, and the bit inspection family, with instances for all ten machine integer types. `Wrapping`-style wrappers remain open.
+
 # Implementation status
 
 The compiler in `compiler/` implements this chapter's machine types and families (the `I8`-`I64`, `U8`-`U64`, `F32`, `F64`, `Char`, `Usize`, `Isize` names, the checked/wrapping/saturating families, explicit conversions, and literal range checking), and now has the mathematical `Nat` and `Int` on the bignum runtime with unbounded digit-string literals. `&&`/`||` short-circuit as required by section 10. Deviations still open: machine conversion names (`toInt`, `toNat`, `checkedFromInt`, `checkedFromNat`) are spelled with the machine type suffix (`intToI64` style) until the module slice lets this chapter's dotted spelling land (decision D6 in `compiler/CONFORMANCE.md`), and `Bytes` has no string literal form yet.

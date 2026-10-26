@@ -689,6 +689,21 @@ wording flags for future decisions).
 - **D87 (P13 related)**: `related` is accepted as evidence syntax but
   its proposition type is not yet checked (rides the view-type
   follow-up).
+- **D88 (Prel String naming)**: the runtime text type is `String` (the
+  user's naming call), declared in the prelude as a UTF-8 newtype over
+  `Bytes`. D43's "compile-time-only `String`" deferral is resolved: the
+  staging interpreter's strings are the same type observed at compile
+  time. String literals remain a surface future item; strings are built
+  from `Bytes`, `Char`, and the formatting functions.
+- **D89 (Prel UTF-8 acceleration)**: the prelude `String` library is the
+  REFERENCE SEMANTICS for UTF-8 (validation, decoding, encoding, code
+  point indexing); the Rust runtime carries SIMD-accelerated
+  implementations of the same rules (`sl_utf8_*`, NEON/SSE2 fast paths
+  with naive fallbacks, tested to agree). Acceleration is a
+  representation detail behind the primitive operations chapter's
+  justified bodies: the prelude may keep the pure reference or swap to
+  `safelang.runtime.utf8*` intrinsics under the same tests (the
+  reference-then-accelerate pattern).
 - **P13 deferrals (reported)**: handler-vtable specialization is blocked
   on propagating concrete vtables across function boundaries (dispatch
   sites can live in callees through `do`/`spawn`); explicit `eval` rides
