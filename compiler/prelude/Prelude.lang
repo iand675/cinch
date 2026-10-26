@@ -978,12 +978,20 @@ module Prelude where
   signature Neg a where
     negate :: a -> a
 
-  infixl 6 +, -
-  infixl 7 *
-  infix 4 ==, /=
-  infix 4 <, <=, >, >=
-  infixr 3 &&
-  infixr 2 ||
+  -- Operator precedence follows the Rust reference table (decision D90),
+  -- laid onto the 0-9 scale; every new binary operator is left
+  -- associative like Rust's. The relative order of the existing
+  -- operators is unchanged, so no previously valid program re-parses.
+  infixl 9 *, /, %
+  infixl 8 +, -
+  infixl 7 <<, >>
+  infixl 6 &
+  infixl 5 ^
+  infixl 4 |
+  infix 3 ==, /=
+  infix 3 <, <=, >, >=
+  infixr 2 &&
+  infixr 1 ||
 
   -- These are strict functions in the bootstrap slice; the surface `&&`
   -- and `||` short-circuit once that deviation is corrected (primitive
@@ -1371,3 +1379,513 @@ module Prelude where
   fetch (Request n) = case ioRead n of
     None -> Err (LoadError 1)
     Some b -> Ok b
+
+  -- ---------------------------------------------------------------------------
+  -- Bit manipulation (primitive types specification section 4).
+  --
+  -- The `Bits` class unifies the per-type primitive families so generic
+  -- code can be written over machine integers. All methods are total,
+  -- following the specification: the bitwise operations are total,
+  -- shifts reduce the count modulo the width (the wrapping family), and
+  -- rotates are total. The checked shift family stays as the per-type
+  -- `checkedShlX`/`checkedShrX` primitives. `testBit`/`setBit`/
+  -- `clearBit`/`complementBit` are expressed through the mask rule: bit
+  -- position n means position n modulo the width, consistent with the
+  -- shift rule.
+
+  signature Bits a where
+    bitAnd :: a -> a -> a
+    bitOr :: a -> a -> a
+    bitXor :: a -> a -> a
+    bitNot :: a -> a
+    shiftLeft :: a -> U32 -> a
+    shiftRight :: a -> U32 -> a
+    rotateLeft :: a -> U32 -> a
+    rotateRight :: a -> U32 -> a
+    testBit :: a -> U32 -> Bool
+    setBit :: a -> U32 -> a
+    clearBit :: a -> U32 -> a
+    complementBit :: a -> U32 -> a
+    countOnes :: a -> U32
+    leadingZeros :: a -> U32
+    trailingZeros :: a -> U32
+
+  implicit instance Bits_I8 :: Bits I8 where
+    bitAnd x y = bitAndI8 x y
+    bitOr x y = bitOrI8 x y
+    bitXor x y = bitXorI8 x y
+    bitNot x = bitNotI8 x
+    shiftLeft x n = wrappingShlI8 x n
+    shiftRight x n = wrappingShrI8 x n
+    rotateLeft x n = rotateLeftI8 x n
+    rotateRight x n = rotateRightI8 x n
+    testBit x n = neI8 (bitAndI8 x (wrappingShlI8 1 n)) 0
+    setBit x n = bitOrI8 x (wrappingShlI8 1 n)
+    clearBit x n = bitAndI8 x (bitNotI8 (wrappingShlI8 1 n))
+    complementBit x n = bitXorI8 x (wrappingShlI8 1 n)
+    countOnes x = countOnesI8 x
+    leadingZeros x = leadingZerosI8 x
+    trailingZeros x = trailingZerosI8 x
+
+  implicit instance Bits_I16 :: Bits I16 where
+    bitAnd x y = bitAndI16 x y
+    bitOr x y = bitOrI16 x y
+    bitXor x y = bitXorI16 x y
+    bitNot x = bitNotI16 x
+    shiftLeft x n = wrappingShlI16 x n
+    shiftRight x n = wrappingShrI16 x n
+    rotateLeft x n = rotateLeftI16 x n
+    rotateRight x n = rotateRightI16 x n
+    testBit x n = neI16 (bitAndI16 x (wrappingShlI16 1 n)) 0
+    setBit x n = bitOrI16 x (wrappingShlI16 1 n)
+    clearBit x n = bitAndI16 x (bitNotI16 (wrappingShlI16 1 n))
+    complementBit x n = bitXorI16 x (wrappingShlI16 1 n)
+    countOnes x = countOnesI16 x
+    leadingZeros x = leadingZerosI16 x
+    trailingZeros x = trailingZerosI16 x
+
+  implicit instance Bits_I32 :: Bits I32 where
+    bitAnd x y = bitAndI32 x y
+    bitOr x y = bitOrI32 x y
+    bitXor x y = bitXorI32 x y
+    bitNot x = bitNotI32 x
+    shiftLeft x n = wrappingShlI32 x n
+    shiftRight x n = wrappingShrI32 x n
+    rotateLeft x n = rotateLeftI32 x n
+    rotateRight x n = rotateRightI32 x n
+    testBit x n = neI32 (bitAndI32 x (wrappingShlI32 1 n)) 0
+    setBit x n = bitOrI32 x (wrappingShlI32 1 n)
+    clearBit x n = bitAndI32 x (bitNotI32 (wrappingShlI32 1 n))
+    complementBit x n = bitXorI32 x (wrappingShlI32 1 n)
+    countOnes x = countOnesI32 x
+    leadingZeros x = leadingZerosI32 x
+    trailingZeros x = trailingZerosI32 x
+
+  implicit instance Bits_I64 :: Bits I64 where
+    bitAnd x y = bitAndI64 x y
+    bitOr x y = bitOrI64 x y
+    bitXor x y = bitXorI64 x y
+    bitNot x = bitNotI64 x
+    shiftLeft x n = wrappingShlI64 x n
+    shiftRight x n = wrappingShrI64 x n
+    rotateLeft x n = rotateLeftI64 x n
+    rotateRight x n = rotateRightI64 x n
+    testBit x n = neI64 (bitAndI64 x (wrappingShlI64 1 n)) 0
+    setBit x n = bitOrI64 x (wrappingShlI64 1 n)
+    clearBit x n = bitAndI64 x (bitNotI64 (wrappingShlI64 1 n))
+    complementBit x n = bitXorI64 x (wrappingShlI64 1 n)
+    countOnes x = countOnesI64 x
+    leadingZeros x = leadingZerosI64 x
+    trailingZeros x = trailingZerosI64 x
+
+  implicit instance Bits_U8 :: Bits U8 where
+    bitAnd x y = bitAndU8 x y
+    bitOr x y = bitOrU8 x y
+    bitXor x y = bitXorU8 x y
+    bitNot x = bitNotU8 x
+    shiftLeft x n = wrappingShlU8 x n
+    shiftRight x n = wrappingShrU8 x n
+    rotateLeft x n = rotateLeftU8 x n
+    rotateRight x n = rotateRightU8 x n
+    testBit x n = neU8 (bitAndU8 x (wrappingShlU8 1 n)) 0
+    setBit x n = bitOrU8 x (wrappingShlU8 1 n)
+    clearBit x n = bitAndU8 x (bitNotU8 (wrappingShlU8 1 n))
+    complementBit x n = bitXorU8 x (wrappingShlU8 1 n)
+    countOnes x = countOnesU8 x
+    leadingZeros x = leadingZerosU8 x
+    trailingZeros x = trailingZerosU8 x
+
+  implicit instance Bits_U16 :: Bits U16 where
+    bitAnd x y = bitAndU16 x y
+    bitOr x y = bitOrU16 x y
+    bitXor x y = bitXorU16 x y
+    bitNot x = bitNotU16 x
+    shiftLeft x n = wrappingShlU16 x n
+    shiftRight x n = wrappingShrU16 x n
+    rotateLeft x n = rotateLeftU16 x n
+    rotateRight x n = rotateRightU16 x n
+    testBit x n = neU16 (bitAndU16 x (wrappingShlU16 1 n)) 0
+    setBit x n = bitOrU16 x (wrappingShlU16 1 n)
+    clearBit x n = bitAndU16 x (bitNotU16 (wrappingShlU16 1 n))
+    complementBit x n = bitXorU16 x (wrappingShlU16 1 n)
+    countOnes x = countOnesU16 x
+    leadingZeros x = leadingZerosU16 x
+    trailingZeros x = trailingZerosU16 x
+
+  implicit instance Bits_U32 :: Bits U32 where
+    bitAnd x y = bitAndU32 x y
+    bitOr x y = bitOrU32 x y
+    bitXor x y = bitXorU32 x y
+    bitNot x = bitNotU32 x
+    shiftLeft x n = wrappingShlU32 x n
+    shiftRight x n = wrappingShrU32 x n
+    rotateLeft x n = rotateLeftU32 x n
+    rotateRight x n = rotateRightU32 x n
+    testBit x n = neU32 (bitAndU32 x (wrappingShlU32 1 n)) 0
+    setBit x n = bitOrU32 x (wrappingShlU32 1 n)
+    clearBit x n = bitAndU32 x (bitNotU32 (wrappingShlU32 1 n))
+    complementBit x n = bitXorU32 x (wrappingShlU32 1 n)
+    countOnes x = countOnesU32 x
+    leadingZeros x = leadingZerosU32 x
+    trailingZeros x = trailingZerosU32 x
+
+  implicit instance Bits_U64 :: Bits U64 where
+    bitAnd x y = bitAndU64 x y
+    bitOr x y = bitOrU64 x y
+    bitXor x y = bitXorU64 x y
+    bitNot x = bitNotU64 x
+    shiftLeft x n = wrappingShlU64 x n
+    shiftRight x n = wrappingShrU64 x n
+    rotateLeft x n = rotateLeftU64 x n
+    rotateRight x n = rotateRightU64 x n
+    testBit x n = neU64 (bitAndU64 x (wrappingShlU64 1 n)) 0
+    setBit x n = bitOrU64 x (wrappingShlU64 1 n)
+    clearBit x n = bitAndU64 x (bitNotU64 (wrappingShlU64 1 n))
+    complementBit x n = bitXorU64 x (wrappingShlU64 1 n)
+    countOnes x = countOnesU64 x
+    leadingZeros x = leadingZerosU64 x
+    trailingZeros x = trailingZerosU64 x
+
+  implicit instance Bits_Usize :: Bits Usize where
+    bitAnd x y = bitAndUsize x y
+    bitOr x y = bitOrUsize x y
+    bitXor x y = bitXorUsize x y
+    bitNot x = bitNotUsize x
+    shiftLeft x n = wrappingShlUsize x n
+    shiftRight x n = wrappingShrUsize x n
+    rotateLeft x n = rotateLeftUsize x n
+    rotateRight x n = rotateRightUsize x n
+    testBit x n = neUsize (bitAndUsize x (wrappingShlUsize 1 n)) 0
+    setBit x n = bitOrUsize x (wrappingShlUsize 1 n)
+    clearBit x n = bitAndUsize x (bitNotUsize (wrappingShlUsize 1 n))
+    complementBit x n = bitXorUsize x (wrappingShlUsize 1 n)
+    countOnes x = countOnesUsize x
+    leadingZeros x = leadingZerosUsize x
+    trailingZeros x = trailingZerosUsize x
+
+  implicit instance Bits_Isize :: Bits Isize where
+    bitAnd x y = bitAndIsize x y
+    bitOr x y = bitOrIsize x y
+    bitXor x y = bitXorIsize x y
+    bitNot x = bitNotIsize x
+    shiftLeft x n = wrappingShlIsize x n
+    shiftRight x n = wrappingShrIsize x n
+    rotateLeft x n = rotateLeftIsize x n
+    rotateRight x n = rotateRightIsize x n
+    testBit x n = neIsize (bitAndIsize x (wrappingShlIsize 1 n)) 0
+    setBit x n = bitOrIsize x (wrappingShlIsize 1 n)
+    clearBit x n = bitAndIsize x (bitNotIsize (wrappingShlIsize 1 n))
+    complementBit x n = bitXorIsize x (wrappingShlIsize 1 n)
+    countOnes x = countOnesIsize x
+    leadingZeros x = leadingZerosIsize x
+    trailingZeros x = trailingZerosIsize x
+
+  -- Traditional bitwise operator spellings over the `Bits` class
+  -- (decision D90): wrappers like the weight wrappers, never new
+  -- compiler mechanisms. Bitwise NOT has no operator spelling because
+  -- both candidate symbols are reserved punctuation (`!` and `~`); use
+  -- `bitNot`. Machine integers deliberately get no arithmetic operator
+  -- instances (primitive types specification section 8): `%` and `/`
+  -- below cover the mathematical `Nat` and `Int` only.
+  (&) :: forall a. using (bits :: Bits a) => a -> a -> a
+  (&) x y = bitAnd x y
+
+  (|) :: forall a. using (bits :: Bits a) => a -> a -> a
+  (|) x y = bitOr x y
+
+  (^) :: forall a. using (bits :: Bits a) => a -> a -> a
+  (^) x y = bitXor x y
+
+  (<<) :: forall a. using (bits :: Bits a) => a -> U32 -> a
+  (<<) x n = shiftLeft x n
+
+  (>>) :: forall a. using (bits :: Bits a) => a -> U32 -> a
+  (>>) x n = shiftRight x n
+
+  -- Modulo and division for the mathematical types (decision D91).
+  -- Division or remainder by zero takes the defined fault path (exit
+  -- 72). Machine integers keep the checked family only, per the
+  -- primitive types specification.
+  signature Rem a where
+    (%) :: a -> a -> a
+
+  signature Div a where
+    (/) :: a -> a -> a
+
+  implicit instance Rem_Nat :: Rem Nat where
+    (%) x y = natRem x y
+
+  implicit instance Div_Nat :: Div Nat where
+    (/) x y = natDiv x y
+
+  implicit instance Rem_Int :: Rem Int where
+    (%) x y = intRem x y
+
+  implicit instance Div_Int :: Div Int where
+    (/) x y = intDiv x y
+
+  -- ---------------------------------------------------------------------------
+  -- Runtime strings: UTF-8 over Bytes.
+  --
+  -- `String` is the runtime text type (decision D88). It is distinct
+  -- from the staging interpreter's compile-time string values, which are
+  -- the same type observed at compile time (D43's deferral resolved).
+  -- String literals remain a surface future item; strings are built
+  -- from `Bytes`, `Char`, and the conversions below.
+  --
+  -- The functions here are the REFERENCE SEMANTICS for UTF-8. The
+  -- runtime provides SIMD-accelerated implementations of the same rules
+  -- (`sl_utf8_*` in `compiler/runtime/src/string.rs`), tested to agree
+  -- with this code; the acceleration is a representation detail behind
+  -- the primitive operations chapter's justified bodies (D89).
+
+  data String where
+    String :: Bytes -> String
+
+  stringToBytes :: String -> Bytes
+  stringToBytes s = case s of
+    String b -> b
+
+  -- UTF-8 decoding rules: a lead byte gives the width; continuation
+  -- bytes are 10xxxxxx; overlong encodings, surrogates, and values above
+  -- 0x10FFFF are malformed.
+  utf8Width :: Nat -> Nat
+  utf8Width x =
+    if x < 128 then 1
+    else if x < 192 then 0
+    else if x < 224 then 2
+    else if x < 240 then 3
+    else if x < 248 then 4
+    else 0
+
+  utf8Min :: Nat -> Nat
+  utf8Min w =
+    if w == 2 then 128
+    else if w == 3 then 2048
+    else if w == 4 then 65536
+    else 0
+
+  utf8Cont :: Bytes -> Nat -> Nat -> Nat -> Option Nat
+  utf8Cont b i k cp =
+    if k == 0 then Some cp
+    else
+      let y = bytesGet b i in
+      if y < 128 then None
+      else if y >= 192 then None
+      else utf8Cont b (i + 1) (k - 1) (cp * 64 + (y - 128))
+
+  utf8LeadPayload :: Nat -> Nat -> Nat
+  utf8LeadPayload x w =
+    if w == 2 then x - 192
+    else if w == 3 then x - 224
+    else x - 240
+
+  utf8At :: Bytes -> Nat -> Option (Char, Nat)
+  utf8At b i =
+    if i >= bytesLen b then None
+    else
+      let x = bytesGet b i in
+      let w = utf8Width x in
+      if w == 0 then None
+      else if w == 1 then utf8Char x 1
+      else if i + w > bytesLen b then None
+      else case utf8Cont b (i + 1) (w - 1) (utf8LeadPayload x w) of
+        None -> None
+        Some cp -> if cp < utf8Min w then None else utf8Char cp w
+
+  utf8Char :: Nat -> Nat -> Option (Char, Nat)
+  utf8Char cp w =
+    case u32ToChar (wrappingI64ToU32 (natToI64 cp)) of
+      None -> None
+      Some c -> Some (c, w)
+
+  utf8ValidFrom :: Bytes -> Nat -> Bool
+  utf8ValidFrom b i =
+    if i >= bytesLen b then True
+    else case utf8At b i of
+      None -> False
+      Some p -> case p of
+        (c, w) -> utf8ValidFrom b (i + w)
+
+  stringFromBytes :: Bytes -> Option String
+  stringFromBytes b =
+    if utf8ValidFrom b 0 then Some (String b) else None
+
+  emptyString :: String
+  emptyString = String (bytesNew 0)
+
+  stringByteLength :: String -> Nat
+  stringByteLength s = bytesLen (stringToBytes s)
+
+  -- Length in Unicode scalar values (O(n) scan).
+  stringLengthFrom :: Bytes -> Nat -> Nat -> Nat
+  stringLengthFrom b i n =
+    if i >= bytesLen b then n
+    else case utf8At b i of
+      None -> n
+      Some p -> case p of
+        (c, w) -> stringLengthFrom b (i + w) (n + 1)
+
+  stringLength :: String -> Nat
+  stringLength s = stringLengthFrom (stringToBytes s) 0 0
+
+  -- The scalar value at code point index `n`, by scan (O(n)).
+  stringCharAtFrom :: Bytes -> Nat -> Nat -> Option Char
+  stringCharAtFrom b i n =
+    if i >= bytesLen b then None
+    else case utf8At b i of
+      None -> None
+      Some p -> case p of
+        (c, w) -> if n == 0 then Some c else stringCharAtFrom b (i + w) (n - 1)
+
+  stringCharAt :: String -> Nat -> Option Char
+  stringCharAt s n = stringCharAtFrom (stringToBytes s) 0 n
+
+  -- Encode one scalar value (bytes are raw values; division is the
+  -- `natDiv`/`natRem` function family).
+  utf8EncodeInto :: Bytes -> Nat -> Nat -> Nat
+  utf8EncodeInto b pos cp =
+    if cp < 128 then
+      let u = bytesSet b pos cp in 0
+    else if cp < 2048 then
+      let u = bytesSet b pos (192 + natDiv cp 64) in
+      let v = bytesSet b (pos + 1) (128 + natRem cp 64) in 0
+    else if cp < 65536 then
+      let u = bytesSet b pos (224 + natDiv cp 4096) in
+      let v = bytesSet b (pos + 1) (128 + natRem (natDiv cp 64) 64) in
+      let w = bytesSet b (pos + 2) (128 + natRem cp 64) in 0
+    else
+      let u = bytesSet b pos (240 + natDiv cp 262144) in
+      let v = bytesSet b (pos + 1) (128 + natRem (natDiv cp 4096) 64) in
+      let w = bytesSet b (pos + 2) (128 + natRem (natDiv cp 64) 64) in
+      let x = bytesSet b (pos + 3) (128 + natRem cp 64) in 0
+
+  utf8EncodeWidth :: Nat -> Nat
+  utf8EncodeWidth cp =
+    if cp < 128 then 1
+    else if cp < 2048 then 2
+    else if cp < 65536 then 3
+    else 4
+
+  charString :: Char -> String
+  charString c =
+    let cp = natFromI64 (u32ToI64 (charToU32 c)) in
+    let b = bytesNew (utf8EncodeWidth cp) in
+    let u = utf8EncodeInto b 0 cp in
+    String b
+
+  -- Concatenation (O(n + m) copies).
+  copyBytesInto :: Bytes -> Bytes -> Nat -> Nat -> Nat -> Unit
+  copyBytesInto dst src di si n =
+    if n == 0 then ()
+    else
+      let u = bytesSet dst di (bytesGet src si) in
+      copyBytesInto dst src (di + 1) (si + 1) (n - 1)
+
+  stringConcat :: String -> String -> String
+  stringConcat a b =
+    let x = stringToBytes a in
+    let y = stringToBytes b in
+    let out = bytesNew (bytesLen x + bytesLen y) in
+    let u = copyBytesInto out x 0 0 (bytesLen x) in
+    let v = copyBytesInto out y (bytesLen x) 0 (bytesLen y) in
+    String out
+
+  -- Byte offsets of code point `n`; returns the byte length when `n`
+  -- reaches past the end.
+  stringByteIndexFrom :: Bytes -> Nat -> Nat -> Nat
+  stringByteIndexFrom b i n =
+    if i >= bytesLen b then i
+    else if n == 0 then i
+    else case utf8At b i of
+      None -> i
+      Some p -> case p of
+        (c, w) -> stringByteIndexFrom b (i + w) (n - 1)
+
+  -- The code point range [start, end); indices past the end clamp and a
+  -- reversed range yields the empty string (Nat subtraction faults below
+  -- zero, so the span is guarded).
+  stringSlice :: String -> Nat -> Nat -> String
+  stringSlice s start end =
+    let b = stringToBytes s in
+    let i0 = stringByteIndexFrom b 0 start in
+    let span = if end > start then end - start else 0 in
+    let i1 = stringByteIndexFrom b i0 span in
+    let out = bytesNew (i1 - i0) in
+    let u = copyBytesInto out b 0 i0 (i1 - i0) in
+    String out
+
+  -- Byte-wise comparison; UTF-8 preserves scalar value order under
+  -- byte-wise lexicographic order, so this is also code point order.
+  compareBytesFrom :: Bytes -> Bytes -> Nat -> I64
+  compareBytesFrom a b i =
+    if i >= bytesLen a then
+      (if i >= bytesLen b then 0 else -1)
+    else if i >= bytesLen b then 1
+    else case natCmp (bytesGet a i) (bytesGet b i) of
+      0 -> compareBytesFrom a b (i + 1)
+      c -> c
+
+  stringCompare :: String -> String -> I64
+  stringCompare a b = compareBytesFrom (stringToBytes a) (stringToBytes b) 0
+
+  implicit instance Eq_String :: Eq String where
+    (==) x y = eqI64 (stringCompare x y) 0
+    (/=) x y = neI64 (stringCompare x y) 0
+
+  implicit instance Ord_String :: Ord String where
+    (<) x y = ltI64 (stringCompare x y) 0
+    (<=) x y = leI64 (stringCompare x y) 0
+    (>) x y = gtI64 (stringCompare x y) 0
+    (>=) x y = geI64 (stringCompare x y) 0
+
+  -- Decimal formatting: digits are raw ASCII bytes (48..=57), so no
+  -- character literals are needed.
+  natDigitsInto :: Bytes -> Nat -> Nat -> Nat -> Unit
+  natDigitsInto b pos n k =
+    if k == 0 then ()
+    else
+      let u = bytesSet b pos (48 + natRem (natDiv n (pow10 (k - 1))) 10) in
+      natDigitsInto b (pos + 1) n (k - 1)
+
+  pow10 :: Nat -> Nat
+  pow10 k = if k == 0 then 1 else 10 * pow10 (k - 1)
+
+  natDigitCount :: Nat -> Nat
+  natDigitCount n = if n < 10 then 1 else 1 + natDigitCount (natDiv n 10)
+
+  natToString :: Nat -> String
+  natToString n =
+    let b = bytesNew (natDigitCount n) in
+    let u = natDigitsInto b 0 n (natDigitCount n) in
+    String b
+
+  -- Signed decimal for `Int`, built from bignum division so values
+  -- beyond i64 format correctly; the sign is a raw ASCII 45 byte and
+  -- digits are raw ASCII bytes (48..=57).
+  intDigitCount :: Int -> Nat
+  intDigitCount n = if ltI64 (intCmp n 10) 0 then 1 else 1 + intDigitCount (intDiv n 10)
+
+  intDigitsInto :: Bytes -> Nat -> Int -> Nat -> Unit
+  intDigitsInto b pos n k =
+    if k == 0 then ()
+    else
+      let d = natFromI64 (intToI64 (intRem n 10)) in
+      let u = bytesSet b pos (48 + d) in
+      intDigitsInto b (pos + 1) (intDiv n 10) (k - 1)
+
+  intToString :: Int -> String
+  intToString x =
+    if eqI64 (intCmp x 0) 0 then natToString 0
+    else if ltI64 (intCmp x 0) 0 then
+      let m = intNeg x in
+      let k = intDigitCount m in
+      let b = bytesNew (k + 1) in
+      let u = bytesSet b 0 45 in
+      let v = intDigitsInto b 1 m k in
+      String b
+    else
+      let k = intDigitCount x in
+      let b = bytesNew k in
+      let u = intDigitsInto b 0 x k in
+      String b
