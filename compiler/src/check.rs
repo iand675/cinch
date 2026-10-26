@@ -1544,6 +1544,14 @@ struct Checker {
     /// Rewrite declarations awaiting checking, in source order (modules
     /// and compilation specification section 5).
     pending_rewrites: Vec<(String, ast::RewriteDecl)>,
+    /// Upgrade declarations awaiting checking, in source order (runtime
+    /// evolution specification section 3): the migration field checking
+    /// runs after every module's records and functions are known.
+    pending_upgrades: Vec<(String, ast::UpgradeDecl)>,
+    /// Schema compatibility evidence from checked upgrades, for the
+    /// module's interface (runtime evolution specification section 11),
+    /// keyed by module.
+    upgrade_evidence: Vec<(String, crate::interface::UpgradeEvidence)>,
     /// Checked rewrite rules, in declaration order.
     rewrites: Vec<crate::core::RewriteRule>,
 }
@@ -1701,6 +1709,8 @@ impl Checker {
             layout_recipes: HashMap::new(),
             type_layouts: HashMap::new(),
             pending_rewrites: Vec::new(),
+            pending_upgrades: Vec::new(),
+            upgrade_evidence: Vec::new(),
             rewrites: Vec::new(),
         }
     }

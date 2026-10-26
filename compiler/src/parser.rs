@@ -381,7 +381,7 @@ impl<'a> Parser<'a> {
                 self.bump();
                 self.parse_rewrite(true)
             }
-            Tok::Upgrade => Err(self.err("upgrade declarations are not supported in the bootstrap slice")),
+            Tok::Upgrade => self.parse_upgrade(),
             Tok::QuoteDecls => Err(self.err(
                 "`quoteDecls where ...` is an expression; use `generate do ... emit (quoteDecls where ...)` to emit declarations",
             )),
@@ -474,6 +474,69 @@ impl<'a> Parser<'a> {
             replace_tm: replace_tm.ok_or_else(|| missing("replace"))?,
             require,
             justify: justify.ok_or_else(|| missing("justify"))?,
+            span,
+        }))
+    }
+
+    /// `upgrade Old to New where { migrate = e; [related = e] }` and its
+    /// migration-free record-view form (runtime evolution specification
+    /// sections 2-3). The assignment block maps the reserved component
+    /// names `migrate` and `related` to their terms.
+    fn parse_upgrade(&mut self) -> Result<Decl> {
+        let span = self.expect(&Tok::Upgrade, "`upgrade`")?.span;
+        let old = self.parse_con_path()?;
+        self.expect(&Tok::To, "`to` between the old and new artifacts")?;
+        let new = self.parse_con_path()?;
+        self.expect(&Tok::Where, "`where` opening the upgrade's components")?;
+        let mut migrate: Option<Term> = None;
+        let mut related: Option<Term> = None;
+        let items = self.parse_block_items("the upgrade's components", |p| {
+            let name_span = p.peek().span;
+            let name = match p.peek_tok().clone() {
+                Tok::VarId(s) | Tok::ConId(s) => {
+                    p.bump();
+                    s
+                }
+                t => {
+                    return Err(p.err(format!(
+                        "expected an upgrade component (`migrate` or `related`), found {}",
+                        describe(&t)
+                    )))
+                }
+            };
+            p.expect(&Tok::Equals, "`=` after an upgrade component name")?;
+            let tm = p.parse_term()?;
+            Ok((name, name_span, tm))
+        })?;
+        for (name, name_span, tm) in items {
+            match name.as_str() {
+                "migrate" => {
+                    if migrate.is_some() {
+                        return Err(Error::at(name_span, "duplicate `migrate` component in an upgrade"));
+                    }
+                    migrate = Some(tm);
+                }
+                "related" => {
+                    if related.is_some() {
+                        return Err(Error::at(name_span, "duplicate `related` component in an upgrade"));
+                    }
+                    related = Some(tm);
+                }
+                other => {
+                    return Err(Error::at(
+                        name_span,
+                        format!(
+                            "`{other}` is not an upgrade component; expected `migrate` or `related`"
+                        ),
+                    ))
+                }
+            }
+        }
+        Ok(Decl::Upgrade(UpgradeDecl {
+            old,
+            new,
+            migrate,
+            related,
             span,
         }))
     }
@@ -2374,6 +2437,14 @@ fn resolve_module_decl(d: &mut Decl, fix: &FixityTable) -> Result<()> {
             }
             resolve_term(&mut r.justify, fix)?;
         }
+        Decl::Upgrade(u) => {
+            if let Some(m) = &mut u.migrate {
+                resolve_term(m, fix)?;
+            }
+            if let Some(r) = &mut u.related {
+                resolve_term(r, fix)?;
+            }
+        }
         Decl::Data(data) => {
             for b in &mut data.params {
                 if let Some(ann) = &mut b.ann {
@@ -3311,9 +3382,32 @@ mod tests {
         let e = err("module T where\n  type T = Int\n");
         assert!(e.contains("type aliases are not supported"), "{e}");
         let e = err("module T where\n  upgrade A to B where\n    x = 1\n");
-        assert!(e.contains("upgrade declarations are not supported"), "{e}");
+        assert!(e.contains("`x` is not an upgrade component"), "{e}");
         let e = err("module T where\n  quoteDecls where\n    x :: Int\n    x = 1\n");
         assert!(e.contains("`quoteDecls where ...` is an expression"), "{e}");
+    }
+
+    #[test]
+    fn upgrade_declarations_parse_their_components() {
+        let p = ok("module T where\n  upgrade A to B where\n    migrate = f\n");
+        match &p.module.decls[0] {
+            Decl::Upgrade(u) => {
+                assert_eq!(u.old.segments[0].text, "A");
+                assert_eq!(u.new.segments[0].text, "B");
+                assert!(u.migrate.is_some(), "the migrate component parses");
+                assert!(u.related.is_none());
+            }
+            other => panic!("expected an upgrade declaration, got {other:?}"),
+        }
+        // The migration-free record-view form parses too.
+        let p = ok("module T where\n  upgrade A to B where\n    related = r\n");
+        match &p.module.decls[0] {
+            Decl::Upgrade(u) => {
+                assert!(u.migrate.is_none());
+                assert!(u.related.is_some());
+            }
+            other => panic!("expected an upgrade declaration, got {other:?}"),
+        }
     }
 
     #[test]

@@ -286,6 +286,26 @@ pub struct Assumptions {
     pub declared: Vec<String>,
 }
 
+/// Schema compatibility evidence for one checked `upgrade` (runtime
+/// evolution specification sections 2, 3 and 11): the record evolution
+/// from `old` to `new`, whether a migration checked its field mapping,
+/// the added fields (whose absence under a record view stays
+/// distinguishable from an explicit `None`), and the incompatible
+/// (retyped) fields the migration covers. Recorded in the interface so
+/// the "checked against" chain extends to versioned identities.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct UpgradeEvidence {
+    pub old: String,
+    pub new: String,
+    /// Whether a migration function checked the field mapping (a
+    /// migration-free upgrade is a compatible record view).
+    pub migrated: bool,
+    /// Added fields `(name, rendered type)`.
+    pub added: Vec<(String, String)>,
+    /// Incompatible (retyped) fields the migration covers.
+    pub retyped: Vec<String>,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Iface {
     pub schema: u32,
@@ -300,6 +320,9 @@ pub struct Iface {
     /// Computed layout facts for the module's types (the ABI section's
     /// `layouts` table; part of the contract projection).
     pub layouts: Vec<AbiLayout>,
+    /// Schema compatibility evidence from the module's checked `upgrade`
+    /// declarations (runtime evolution specification section 11).
+    pub upgrades: Vec<UpgradeEvidence>,
 }
 
 impl Iface {
@@ -315,6 +338,7 @@ impl Iface {
             exports: Exports::default(),
             assumptions: Assumptions::default(),
             layouts: Vec::new(),
+            upgrades: Vec::new(),
         }
     }
 
@@ -480,6 +504,35 @@ impl Iface {
         out.push_str(",\n    \"declared\": ");
         json_list(&mut out, &sorted(&self.assumptions.declared));
         out.push_str("\n  },\n");
+
+        // schema compatibility evidence (runtime evolution specification
+        // section 11): the checked upgrade chain, sorted for canonical
+        // identity.
+        out.push_str("  \"upgrades\": ");
+        let mut ups = self.upgrades.clone();
+        ups.sort_by(|a, b| (&a.old, &a.new).cmp(&(&b.old, &b.new)));
+        arr_of(&mut out, 2, &ups, |o, u| {
+            o.push_str("{\"old\": ");
+            json_str(o, &u.old);
+            o.push_str(", \"new\": ");
+            json_str(o, &u.new);
+            o.push_str(", \"migrated\": ");
+            o.push_str(if u.migrated { "true" } else { "false" });
+            o.push_str(", \"added\": ");
+            let mut added = u.added.clone();
+            added.sort();
+            arr_of(o, 0, &added, |o, (n, t)| {
+                o.push_str("{\"name\": ");
+                json_str(o, n);
+                o.push_str(", \"type\": ");
+                json_str(o, t);
+                o.push_str("}");
+            });
+            o.push_str(", \"retyped\": ");
+            json_list(o, &sorted(&u.retyped));
+            o.push_str("}");
+        });
+        out.push_str(",\n");
 
         // abi
         out.push_str("  \"abi\": {\n    \"symbols\": [");
@@ -754,6 +807,37 @@ impl Iface {
                 }
             }
         }
+        // Schema compatibility evidence (runtime evolution specification
+        // section 11); an older document may omit it.
+        let mut upgrades = Vec::new();
+        if let Some(JsonValue::Arr(items)) = obj.get("upgrades") {
+            for item in items {
+                let o = item.as_object().map_err(|_| ParseError("upgrade entry".into()))?;
+                let mut added = Vec::new();
+                if let Some(JsonValue::Arr(ai)) = o.get("added") {
+                    for a in ai {
+                        let ao = a.as_object().map_err(|_| ParseError("upgrade added".into()))?;
+                        added.push((field_str(ao, "name")?, field_str(ao, "type")?));
+                    }
+                }
+                let mut retyped = Vec::new();
+                if let Some(JsonValue::Arr(ri)) = o.get("retyped") {
+                    for r in ri {
+                        retyped.push(r.as_str()?.to_string());
+                    }
+                }
+                upgrades.push(UpgradeEvidence {
+                    old: field_str(o, "old")?,
+                    new: field_str(o, "new")?,
+                    migrated: match o.get("migrated") {
+                        Some(v) => v.as_bool()?,
+                        None => false,
+                    },
+                    added,
+                    retyped,
+                });
+            }
+        }
         Ok(Iface {
             schema: schema as u32,
             language: get("language")?.as_str()?.to_string(),
@@ -769,6 +853,7 @@ impl Iface {
                 declared: as_get("declared")?.as_array()?.iter().map(|v| Ok(v.as_str()?.to_string())).collect::<Result<Vec<_>, ParseError>>()?,
             },
             layouts,
+            upgrades,
         })
     }
 }

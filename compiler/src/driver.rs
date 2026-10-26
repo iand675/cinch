@@ -601,6 +601,37 @@ pub fn check_sources_with(
     Ok(program)
 }
 
+/// [`check_sources`] that also returns the per-module interfaces (the
+/// `.sliface` compatibility evidence and contract projection that the
+/// "checked against" chain reads; runtime evolution specification
+/// section 11).
+pub fn check_sources_ifaces(
+    user_src: &str,
+    user_file: &str,
+) -> Result<(crate::core::Program, Vec<crate::interface::Iface>)> {
+    let empty = FixityTable::new();
+    let prelude = parse_source(PRELUDE_SOURCE, "Prelude.lang", &empty, &HashMap::new())?;
+    let prelude_fixities = prelude
+        .fixities
+        .get("Prelude")
+        .cloned()
+        .unwrap_or_default();
+    let user = parse_source(user_src, user_file, &prelude_fixities, &HashMap::new())?;
+    let mut hashes = HashMap::new();
+    let mut files = HashMap::new();
+    for m in &user.modules {
+        hashes.insert(m.name.text.clone(), String::new());
+        files.insert(m.name.text.clone(), user_file.to_string());
+    }
+    let mut scx = StagingCx::default();
+    scx.fixities = user.fixities.clone();
+    scx.files = files;
+    scx.entry_modules = user.modules.iter().map(|m| m.name.text.clone()).collect();
+    let (program, ifaces, _report) =
+        check::check_program_multi(&prelude.modules[0], &user.modules, &hashes, &scx)?;
+    Ok((program, ifaces))
+}
+
 fn clang() -> String {
     std::env::var("SAFELANG_CLANG").unwrap_or_else(|_| "clang".to_string())
 }

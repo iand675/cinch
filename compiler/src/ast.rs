@@ -629,6 +629,26 @@ pub struct RewriteDecl {
     pub span: Span,
 }
 
+/// `upgrade Old to New where { migrate = e; [related = e] }`: the state
+/// migration evidence for evolving record `Old` into record `New`
+/// (runtime evolution specification section 3). `migrate` is the checked
+/// migration function `Old %1 -> New` (the field mapping it induces is
+/// verified against the two records' field tables). `related` optionally
+/// records the state relation. A block without `migrate` declares a
+/// record view instead: a compatible (additive) evolution admitted
+/// without a migration, where added fields stay distinguishable from
+/// missing fields under the view (runtime evolution section 2).
+#[derive(Clone, Debug)]
+pub struct UpgradeDecl {
+    pub old: ConPath,
+    pub new: ConPath,
+    /// The migration function `Old %1 -> New`, when this is a migration.
+    pub migrate: Option<Term>,
+    /// The state relation evidence, when supplied.
+    pub related: Option<Term>,
+    pub span: Span,
+}
+
 #[derive(Clone, Debug)]
 pub enum Decl {
     Import(Import),
@@ -669,6 +689,14 @@ pub enum Decl {
     /// section 5), or its `target rewrite` form (platform proofs and SIMD
     /// specification section 3).
     Rewrite(RewriteDecl),
+    /// `upgrade Old to New where { migrate = e; [related = e] }`: the
+    /// state migration for evolving record `Old` into record `New`
+    /// (runtime evolution specification section 3). `migrate` is the
+    /// migration function `Old %1 -> New`. A block that omits `migrate`
+    /// is a record view: a compatible (additive) evolution admitted
+    /// without a migration, whose added fields stay distinguishable from
+    /// missing under the view (runtime evolution section 2; core rule).
+    Upgrade(UpgradeDecl),
 }
 
 #[derive(Clone, Debug)]
@@ -893,6 +921,16 @@ pub fn collect_decl_refs(d: &Decl, out: &mut Vec<RefSite>) {
                 collect_term_refs(req, out);
             }
             collect_term_refs(&r.justify, out);
+        }
+        Decl::Upgrade(u) => {
+            out.push(ref_of_path(RefKind::Type, &u.old.segments, u.old.span()));
+            out.push(ref_of_path(RefKind::Type, &u.new.segments, u.new.span()));
+            if let Some(m) = &u.migrate {
+                collect_term_refs(m, out);
+            }
+            if let Some(r) = &u.related {
+                collect_term_refs(r, out);
+            }
         }
         Decl::Signature(s) => {
             for (_, ty) in &s.methods {
@@ -1520,6 +1558,16 @@ pub fn hyg_decl(d: &Decl, cx: &mut HygCx, sc: &mut HygScope) -> Result<Decl> {
             r.justify = hyg_term(&r.justify, cx, sc)?;
             Decl::Rewrite(r)
         }
+        Decl::Upgrade(u) => {
+            let mut u = u.clone();
+            if let Some(m) = &u.migrate {
+                u.migrate = Some(hyg_term(m, cx, sc)?);
+            }
+            if let Some(r) = &u.related {
+                u.related = Some(hyg_term(r, cx, sc)?);
+            }
+            Decl::Upgrade(u)
+        }
         Decl::Generate { span, .. } => {
             return Err(Error::at(
                 *span,
@@ -1803,6 +1851,12 @@ pub fn subst_holes_decl(d: &Decl, vals: &[Term]) -> Decl {
             r.justify = subst_holes(&r.justify, vals);
             Decl::Rewrite(r)
         }
+        Decl::Upgrade(u) => {
+            let mut u = u.clone();
+            u.migrate = u.migrate.as_ref().map(|t| subst_holes(t, vals));
+            u.related = u.related.as_ref().map(|t| subst_holes(t, vals));
+            Decl::Upgrade(u)
+        }
         Decl::Instance(i) => {
             let mut i = i.clone();
             i.methods = i
@@ -1976,6 +2030,14 @@ fn collect_decl_holes(d: &mut Decl, holes: &mut Vec<HoleExpr>) {
                 collect_template_holes(req, holes);
             }
             collect_template_holes(&mut r.justify, holes);
+        }
+        Decl::Upgrade(u) => {
+            if let Some(m) = &mut u.migrate {
+                collect_template_holes(m, holes);
+            }
+            if let Some(r) = &mut u.related {
+                collect_template_holes(r, holes);
+            }
         }
         Decl::Generate { .. } => {}
         Decl::Signature(_) => {}

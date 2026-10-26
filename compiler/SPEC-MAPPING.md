@@ -125,12 +125,12 @@ property holds by construction rather than by a named test.
 
 | # | Anchor | Requirement | Status | Evidence |
 | --- | --- | --- | --- | --- |
-| 76 | evo#1-artifact-identity | Artifact identity authenticated by deployment | N | `upgrade` parse-rejected; P13 |
-| 77 | evo#6-code-version-retention | Old code versions retained while reachable | N | P13 |
-| 78 | evo#7-index-function-meaning | Replacements do not change index functions under checked code | N | P7/P13 |
-| 79 | evo#8-incomplete-update-set | Incomplete update sets rejected; no false inline-update claims | N | P13 |
-| 80 | evo#10-no-resume-old-over-new-state | No resuming old code over new state without authorized transition | N | P13 |
-| 81 | evo#13-target-compat-before-reachable | Instruction-requirement changes established before reachability | N | P10/P13 |
+| 76 | evo#1-artifact-identity | Artifact identity authenticated by deployment | I | versioned identities + `upgrades` chain recorded (D82-D86); "authenticated by deployment" is the deployment mechanism's contract (section 1), outside the compiler |
+| 77 | evo#6-code-version-retention | Old code versions retained while reachable | I | live-frame counts keep retired code resident (`tests/evolution.rs`; `runtime/src/evolution.rs`) |
+| 78 | evo#7-index-function-meaning | Replacements do not change index functions under checked code | P | record-state fields covered (retyped needs migration); dependent index-function stability rides the P7 follow-up |
+| 79 | evo#8-incomplete-update-set | Incomplete update sets rejected; no false inline-update claims | I | `incomplete_update_set_is_rejected_at_activation` (dispatch unchanged) |
+| 80 | evo#10-no-resume-old-over-new-state | No resuming old code over new state without authorized transition | I | `..._never_resume_over_new_state`; authorized reverse transitions tested in `evolution.rs` |
+| 81 | evo#13-target-compat-before-reachable | Instruction-requirement changes established before reachability | I | `instruction_requirement_blocks_reachability` (current version unchanged) |
 
 ## lazy-computation-and-reclamation-specification.md
 
@@ -151,8 +151,8 @@ property holds by construction rather than by a named test.
 | 89 | scjit#3-barriers | Driving stops at effect barriers, opaque boundaries, and rigid indices; never duplicates or drops `%1`/`%aff` values, memo cells, or guards | I | D60 barriers; `linear_value_generalizes_instead_of_duplicating` |
 | 90 | scjit#4-preservation | Residual programs rechecked (types, effect order, usage, sharing, productivity, erasure, capabilities); specialization representation-only | I | D63 recheck; `contract_identity_is_unchanged_by_specialization` |
 | 91 | scjit#5-bounds | Driving terminates via whistle and fuel; bounds are target profile parameters; the report says where specialization stopped | I | D62; `fuel_exhaustion_preserves_behavior` |
-| 92 | scjit#6-jit-invisible | JIT must not appear in types, source, or interface; deoptimization consumption-safe; variant lifecycle via runtime evolution only | N | rides P13 |
-| 93 | scjit#7-eval | `eval : Code a -> a` typed by quotes, never evidence, manifest-recorded, profiles MAY forbid | N | typed quotes exist (P9); `eval` itself rides P13/P14 |
+| 92 | scjit#6-jit-invisible | JIT must not appear in types, source, or interface; deoptimization consumption-safe; variant lifecycle via runtime evolution only | I | variants install/retire through runtime evolution only; consumption-safe deopt with unbalanced-linear-transfer refusal; nothing in types/source/interface (`tests/evolution.rs`) |
+| 93 | scjit#7-eval | `eval : Code a -> a` typed by quotes, never evidence, manifest-recorded, profiles MAY forbid | N | typed quotes exist (P9); `eval` rides P14 (P13 reported it left out) |
 | 94 | scjit#8-reporting | Manifest records specialization config, sites, trust level, code-generation use; no secrets or absolute paths | P | `specialization`, `trust.level`, `target.conditions`, `lowering` in the manifest; stopped-at report entries (code-generation use stays with the P13/P14 `eval` item) |
 | 95 | scjit#9-trust-levels | Per-artifact trust level identified; full recheck is the default; un-recheckable variants discarded | I | D63 (level 2 default; failing candidates discarded) |
 

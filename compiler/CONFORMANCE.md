@@ -145,12 +145,13 @@ needs the checker to consume export tables instead of sources.
 | Task captures with ownership | done (handles are `%1` with no silent detach (D76); captures follow the P5 share-or-transfer discipline (D77): `%1`/`%aff` transfer exactly once including cancellation early-returns, `Ref`/`Copy` share, `Mut`/untransferred `Bytes`/`Lazy` refused) |
 | `Io r` runtime wired to real operations | done (`ioWrite`/`ioRead`/`ioSleep`/`pollCancel` over Rust runtime threads (D81); `Blocking` foreigns run on the task's OS thread, cancellation-blind until return, accounted in the body row and folded into the scope row (D79); one OS thread per task with fork-join happens-before and sequentially consistent cancellation (D80)) |
 
-### Runtime evolution (P13)
+### Runtime evolution (P13) — runtime evolution specification
 
 | Requirement | Status |
 | --- | --- |
-| `upgrade` declarations, migration checking | todo |
-| Versioned dispatch, state migration | todo |
+| `upgrade` declarations, migration checking | done (`upgrade Old to New where { migrate = f, related = r }` (D82/D83); field-change classification with migration required for incompatible changes; a migration-free `upgrade` is a record view recording schema compatibility evidence in the `.sliface` `upgrades` table (D84); `#[repr]` changes alter the interface identity, forcing dependent replacement (D86); `tests/evolution.rs`) |
+| Versioned dispatch, state migration | done (the runtime evolution arena: epochs and activation publishing, code retention with live-frame counts (spec section 6), complete-update-set gating (section 8), no-old-code-over-new-state with authorized reverse transitions (section 10), target compatibility before reachability (section 13); `sl_evo_*` externs, `nm`-verified; D85) |
+| JIT deopt (tracked item) | done (transparent tiering over the same machinery: variants install/retire through runtime evolution only, consumption-safe deopt with the unbalanced-linear-transfer refusal, nothing in types/source/interface; `tests/evolution.rs`) |
 
 ### Wasm and components (P14)
 
@@ -639,3 +640,35 @@ wording flags for future decisions).
   convention. The sketch's `Request`/`LoadError`/`fetch` vocabulary
   lives in the prelude over `ioRead` (a short read is the `LoadError`
   case), so acceptance example 11 accepts unchanged.
+- **D82 (P13 upgrade surface)**: `upgrade Old to New where { migrate =
+  f, related = r }` maps the reserved component names; `migrate` is the
+  checked migration `Old %1 -> New`; migration field checking is
+  field-change classification (kept/added/removed/retyped) with a
+  migration required for incompatible changes and a type match on the
+  migration itself.
+- **D83 (P13 components)**: the migration and `related` components name
+  visible values (Vars); the bootstrap evolves monomorphic records
+  (parameterized-record evolution is a recorded limit).
+- **D84 (P13 record views)**: a migration-free `upgrade` is a record
+  view admitting only additive changes; added optional fields are
+  recorded as missing-able, keeping missing distinct from present-`None`
+  at the schema-evidence level. The value-level `Missing`/`Present`
+  marker needs a partial-record view type former the bootstrap `Option`
+  lacks (follow-up).
+- **D85 (P13 evolution runtime)**: runtime evolution is the one
+  code-retention/dispatch mechanism (supercompilation section 6); state
+  migration advances the representation version and preserves the
+  logical payload; value-level transforms dispatch on
+  `(from_repr, to_repr)` (follow-up).
+- **D86 (P13 repr identity)**: `#[repr]`-level changes are a
+  representation change in the dependency table: they alter the
+  interface identity so stale dependents must be replaced (the existing
+  staleness chain detects it).
+- **D87 (P13 related)**: `related` is accepted as evidence syntax but
+  its proposition type is not yet checked (rides the view-type
+  follow-up).
+- **P13 deferrals (reported)**: handler-vtable specialization is blocked
+  on propagating concrete vtables across function boundaries (dispatch
+  sites can live in callees through `do`/`spawn`); explicit `eval` rides
+  the P14 item; parameterized-record evolution and the value-level
+  missing/present markers are follow-ups named in D83-D85.

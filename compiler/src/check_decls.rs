@@ -3039,6 +3039,12 @@ impl Checker {
                     // `justify` reference the module's names).
                     self.pending_rewrites.push((module.clone(), r.clone()));
                 }
+                ast::Decl::Upgrade(u) => {
+                    // Upgrade declarations are checked after the module's
+                    // records and functions are known (runtime evolution
+                    // specification section 3: migration field checking).
+                    self.pending_upgrades.push((module.clone(), u.clone()));
+                }
             }
         }
 
@@ -4481,6 +4487,177 @@ impl Checker {
             self.check_rewrite(&r)?;
         }
         Ok(())
+    }
+
+    /// Check the pending upgrade declarations (runtime evolution
+    /// specification sections 2-3): migration field checking over the two
+    /// records' field tables, and the compatibility evidence recorded in
+    /// the interface. Checked after every module's records and functions
+    /// are known.
+    fn check_upgrades(&mut self) -> Result<()> {
+        let pending = std::mem::take(&mut self.pending_upgrades);
+        for (module, u) in pending {
+            self.current_module = module.clone();
+            self.visible = vec![module.clone()];
+            if let Some(imports) = self.module_imports.get(&module).cloned() {
+                for i in imports {
+                    if !self.visible.contains(&i) {
+                        self.visible.push(i);
+                    }
+                }
+            }
+            let prelude = self.prelude_module.clone();
+            if !self.visible.contains(&prelude) {
+                self.visible.push(prelude);
+            }
+            self.check_upgrade(&u)?;
+        }
+        Ok(())
+    }
+
+    /// The field names, field types and result arguments of a visible
+    /// `record` type, from its single constructor (the record type name).
+    fn record_fields(&self, name: &str, span: ast::Span) -> Result<(Vec<String>, Vec<Ty>, Vec<Ty>)> {
+        let mut found = None;
+        for v in self.values.get(name).into_iter().flatten() {
+            if !self.visible.contains(&v.module) {
+                continue;
+            }
+            if let ValueKind::Ctor {
+                field_binders,
+                field_tys,
+                res_args,
+                ..
+            } = &v.kind
+            {
+                found = Some((field_binders.clone(), field_tys.clone(), res_args.clone()));
+                break;
+            }
+        }
+        found.ok_or_else(|| {
+            Error::at(span, format!("{name} is not a record type (an upgrade relates two records)"))
+        })
+    }
+
+    /// The type of a simple `migrate`/`related` term: it names a visible
+    /// value, whose scheme is the migration's type (runtime evolution
+    /// specification section 3).
+    fn component_ty(&self, tm: &ast::Term, span: ast::Span, what: &str) -> Result<Ty> {
+        let name = match tm {
+            ast::Term::Var(v) => v.name.text.clone(),
+            _ => {
+                return Err(Error::at(
+                    span,
+                    format!("the {what} component must name a function"),
+                ))
+            }
+        };
+        for v in self.values.get(&name).into_iter().flatten() {
+            if self.visible.contains(&v.module) {
+                return Ok(v.scheme.ty.clone());
+            }
+        }
+        for module in &self.visible {
+            if let Some(s) = self.top_schemes.get(&(module.clone(), name.clone())) {
+                return Ok(s.ty.clone());
+            }
+        }
+        Err(Error::at(span, format!("unknown {what} function {name}")))
+    }
+
+    /// One `upgrade` declaration (runtime evolution specification
+    /// sections 2-3). The migration field checking classifies every field
+    /// of the two records (kept, added, removed, retyped) and enforces:
+    /// a retyped field is an incompatible change and needs a migration; a
+    /// migration's function type is exactly `Old %1 -> New`; a record view
+    /// (no migration) admits only compatible (additive) changes and keeps
+    /// added optional fields distinguishable from missing ones.
+    fn check_upgrade(&mut self, u: &ast::UpgradeDecl) -> Result<()> {
+        let old_name = u.old.segments.last().expect("a con path has a name").text.clone();
+        let new_name = u.new.segments.last().expect("a con path has a name").text.clone();
+        let (old_fields, old_tys, old_res) = self.record_fields(&old_name, u.old.span())?;
+        let (new_fields, new_tys, new_res) = self.record_fields(&new_name, u.new.span())?;
+
+        // Classify each field's change across the evolution (the runtime
+        // evolution section 2 dependency table: inlined bodies and type
+        // equations must remain valid or be replaced).
+        let mut retyped: Vec<String> = Vec::new();
+        let mut added: Vec<(String, Ty)> = Vec::new();
+        for (i, nf) in new_fields.iter().enumerate() {
+            match old_fields.iter().position(|of| of == nf) {
+                Some(j) => {
+                    if old_tys[j] != new_tys[i] {
+                        retyped.push(nf.clone());
+                    }
+                }
+                None => added.push((nf.clone(), new_tys[i].clone())),
+            }
+        }
+
+        match &u.migrate {
+            Some(mig) => {
+                // The migration function is `Old %1 -> New` (section 3):
+                // it establishes the state relation and the checked field
+                // mapping, covering kept, added, removed and retyped
+                // fields alike.
+                let expected = Ty::fun_mult(
+                    Ty::Adt(old_name.clone(), old_res),
+                    Mult::One,
+                    EffRow::pure(),
+                    Ty::Adt(new_name.clone(), new_res),
+                );
+                let actual = self.component_ty(mig, u.span, "migrate")?;
+                if actual != expected {
+                    return Err(Error::at(
+                        u.span,
+                        format!(
+                            "the migration must have type `{expected}`, but it is declared `{actual}` (runtime evolution specification section 3)"
+                        ),
+                    ));
+                }
+                self.record_upgrade_evidence(&old_name, &new_name, true, &added, &retyped);
+            }
+            None => {
+                // A record view: a compatible (additive) evolution
+                // admitted without a migration. A retyped field is an
+                // incompatible change and needs a migration.
+                if let Some(f) = retyped.first() {
+                    return Err(Error::at(
+                        u.span,
+                        format!(
+                            "incompatible field change `{f}` in the evolution of {old_name} to {new_name} needs a migration (runtime evolution specification section 2)"
+                        ),
+                    ));
+                }
+                self.record_upgrade_evidence(&old_name, &new_name, false, &added, &retyped);
+            }
+        }
+        Ok(())
+    }
+
+    /// Record the schema compatibility evidence of one upgrade in the
+    /// module's interface (runtime evolution specification section 11;
+    /// the `.sliface` "checked against" chain extends to versioned
+    /// identities). `added` optional fields stay distinguishable from
+    /// missing fields under the view (core rule).
+    fn record_upgrade_evidence(
+        &mut self,
+        old: &str,
+        new: &str,
+        migrated: bool,
+        added: &[(String, Ty)],
+        retyped: &[String],
+    ) {
+        self.upgrade_evidence.push((
+            self.current_module.clone(),
+            crate::interface::UpgradeEvidence {
+                old: old.to_string(),
+                new: new.to_string(),
+                migrated,
+                added: added.iter().map(|(n, t)| (n.clone(), t.to_string())).collect(),
+                retyped: retyped.to_vec(),
+            },
+        ));
     }
 
     /// Check one rewrite declaration. The justification mechanism
@@ -6555,6 +6732,11 @@ impl Checker {
         }
         iface.assumptions.primitives = prims;
         iface.assumptions.foreign = trusted;
+        for (m, e) in &self.upgrade_evidence {
+            if m == module {
+                iface.upgrades.push(e.clone());
+            }
+        }
         iface
     }
 }
@@ -6625,6 +6807,10 @@ pub fn check_program_multi_diag(
     // Rewrite rules are checked after every module's declarations (their
     // `match`, `replace` and `justify` terms reference them).
     c.check_rewrites()?;
+    // Upgrade declarations are checked after every module's records and
+    // functions (runtime evolution specification section 3: migration
+    // field checking over the two records' field tables).
+    c.check_upgrades()?;
     // Ownership discipline at the boundary: an owned foreign result is
     // released by its matching deallocator (foreign function interface
     // specification section 4).

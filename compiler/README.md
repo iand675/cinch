@@ -98,6 +98,14 @@ The closure and dictionary ABI is documented in `src/core.rs`.
   `Ref r a`/`Mut r a` borrows with region escape checking and lexical `Mut`
   uniqueness, and thunk force discipline (`%1` exactly once, `%aff` at
   most once; unannotated thunks default `%aff`).
+- **Runtime evolution** (runtime evolution specification): `upgrade`
+  declarations with field-change classification and checked migrations,
+  migration-free record views recording schema compatibility evidence in
+  the interface, and the versioned dispatch runtime (code retention with
+  live-frame counts, complete-update-set activation gating, no resuming
+  old code over new state, target compatibility before reachability),
+  with transparent JIT tiering and consumption-safe deopt riding the
+  same machinery.
 - **Concurrency** (concurrency specification): structured scopes with
   `spawn` and linear task handles (dropping cannot silently detach),
   n-ary `joinAllOrCancel` with first-failure-cancels and full
