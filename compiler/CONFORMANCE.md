@@ -215,6 +215,21 @@ and dash-style prelude function names.
 | File-type import converters: extension-keyed compile-time conversion (`import data "config.json" as config`), built-ins json/txt/bytes, plugins as stage modules with provenance (D109) | spec'd |
 | Collection literals fold at compile time to direct construction (macro expansion + stage evaluation + constant emission); runtime class call otherwise; fold boundary reported (D110) | spec'd |
 
+### Safety assertion attributes (P20)
+
+Specified in `specifications/attribute-annotations-specification.md`
+section 10 and `design/safety-assertion-attributes.md`, 2026-10-26, at
+the user's direction: compile-time-verified assertions (tail
+recursion, non-allocation, stack bounds) and the JPL "Power of 10"
+rule mapping (six rules inherent to the language, the rest asserted).
+
+| Requirement | Status |
+| --- | --- |
+| Assertion vocabulary: `#[recursion]`, `#[stack]`, `#[no-alloc]`/`#[alloc "once"]`, `#[max-complexity]`/`#[max-lines]`, `#[assert-min]`, `#[checked-params]`, `#[no-macros]`, `#[no-raw-ptr]`, `#[deny-warnings]` (D111) | spec'd |
+| Verified at the definition; violations name the offending site; satisfied assertions are contract facts in `.sliface`/`iface_hash` like `repr` (D112) | spec'd |
+| `bounded(n)` depth bounds via structural proofs first, conservative call-graph bounds otherwise, report saying which (D113) | spec'd |
+| The `jpl` profile enforcing the whole set at rule numbers, never looser per-definition (D114); Result must-use default | spec'd |
+
 ### Primitive operations and inline target IR (P18)
 
 Specified in
@@ -838,6 +853,30 @@ wording flags for future decisions).
   time and emitted as a constant (reusing the D92 evaluator and the P14
   constant emission), otherwise the runtime class call stands; the fold
   boundary is reported.
+- **D111 (P20 assertion vocabulary)**: safety assertion attributes
+  (`#[recursion "none"|"tail"|"bounded(n)"]`, `#[stack]`, `#[no-alloc]`/
+  `#[alloc "once"]`, `#[max-complexity]`/`#[max-lines]`, `#[assert-min]`,
+  `#[checked-params]`, `#[no-macros]`, `#[no-raw-ptr]`,
+  `#[deny-warnings]`) map the JPL "Power of 10" rules to compile-time
+  checks; six rules are inherent to the language (scoping, usage
+  checking, `Result` as a type, no pointer arithmetic, hygienic bounded
+  macros, no goto).
+- **D112 (P20 assertions are contracts)**: each assertion is verified
+  at the definition (violations name the rule and the offending site)
+  and, when satisfied, recorded in `.sliface` and hashed into
+  `iface_hash` exactly like `repr` facts, so consumers may rely on it
+  across calls; breaking an assertion does not compile.
+- **D113 (P20 depth bounds)**: `bounded(n)` proves depth through the
+  structural recursion machinery first and falls back to conservative
+  call-graph bounds otherwise, with the report saying which was used;
+  bounds that cannot be established are refused, never trusted.
+- **D114 (P20 jpl profile)**: the `jpl` profile (module attribute or
+  target profile) mandates the full set at the JPL rule numbers
+  (complexity 10, lines 60, assert-min 2 on exported functions, no
+  allocation outside initialization, no macros, no raw pointers,
+  deny-warnings) with a whole-program summary; per-definition
+  attributes may be stricter, never looser. Discarding a `Result`
+  without `ignore` is a check error (rule 7 as a language default).
 - **P13 deferrals (reported)**: handler-vtable specialization is blocked
   on propagating concrete vtables across function boundaries (dispatch
   sites can live in callees through `do`/`spawn`); explicit `eval` rides

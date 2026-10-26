@@ -447,11 +447,56 @@ this project treats as the reference. Deliberate differences:
   cross-module inlining decisions (this draft says no: identity is
   contract-only per D9).
 
-# 10 Implementation status
+# 10 Safety assertion attributes
 
-Not implemented. The compiler parses no `#[...]` attributes yet; the
-forms above are rejected at the lexer. The slice order in
-`compiler/CONFORMANCE.md` places the attribute system, weights, and
-inline hints ahead of the optimizer and layout work that consume them.
-The design context for the AST representation of attributes is
-`design/attribute-annotations.md`.
+These attributes are compiler-owned and **verified at the definition**;
+a violation is a compile error naming the attribute, the asserted rule,
+and the offending site. A satisfied assertion is a contract fact: it is
+recorded in the module's interface and hashed into `iface_hash` exactly
+as `repr` facts are (section 4.3), so consumers may rely on it.
+
+| Attribute | Asserts |
+| --- | --- |
+| `#[recursion "none"]` | the definition makes no recursive calls (self or mutual) |
+| `#[recursion "tail"]` | all recursive calls are tail calls in D104's sense (constant stack) |
+| `#[recursion "bounded(n)"]` | call depth is statically at most `n`: structural recursion over `Vec`/`Nat` sizes proves it via the totality machinery; otherwise a conservative call-graph bound applies and the report says which |
+| `#[stack "constant"\|"bounded(n)"]` | stack usage bound; `"constant"` implies tail or non-recursive |
+| `#[no-alloc]` | the body contains no allocation sites (cons, closures, thunks, `Mut`, strings, `Bytes`, foreign aggregates) |
+| `#[alloc "once"]` | at most one allocation site runs per call (initialization pattern) |
+| `#[max-complexity n]` | cyclomatic complexity (branches + 1 over the body) at most `n` |
+| `#[max-lines n]` | body length at most `n` source lines |
+| `#[assert-min n]` | at least `n` explicit runtime `assert`/`decide`-on-runtime-value checks in the body (proof obligations do not count) |
+| `#[checked-params]` | every parameter is validated before first use |
+| `#[no-macros]` | no macro expansion occurred within the definition (checked from expansion provenance) |
+| `#[no-raw-ptr]` | no `RawPtr`/`opaque` in the signature and no foreign pointer operations in the body |
+| `#[deny-warnings]` | warnings in scope are errors (`warn # error` scoped to a module or definition) |
+
+Discarding a `Result`-typed expression without `ignore` is a check
+error (rule 7's return-value discipline as a language default; the
+`must-use` interface rows record it).
+
+The `jpl` profile (`#[profile "jpl"]` on a module, or the `jpl` target
+profile for a program) makes the whole set mandatory at the JPL rule
+numbers (complexity 10, lines 60, `assert-min 2` on exported
+functions, recursion bounded, no-alloc outside initialization, no
+macros, no raw pointers, deny-warnings) and reports a whole-program
+summary. A definition's own attributes may be stricter than the
+profile, never looser.
+
+The rules this vocabulary cannot verify (bounds on non-structural
+recursion) are refused or conservatively bounded with the report
+saying so, never silently trusted. The full rule-by-rule mapping to
+the JPL "Power of 10" is `design/safety-assertion-attributes.md`.
+
+# 11 Implementation status
+
+Implemented (P17 and P20): the attribute system (attachment points,
+compiler vs macro ownership, duplicate handling), weights with
+marginalization and the `3:58:29` case rule, inline hints, `repr`
+layouts with `abi.layouts` hashed into `iface_hash`, and the safety
+assertions of section 10 with their interface facts. Evidence:
+`compiler/tests/attributes.rs` and the safety suite. The design
+context for the AST representation of attributes is
+`design/attribute-annotations.md`; the JPL rule mapping is
+`design/safety-assertion-attributes.md`.
+
