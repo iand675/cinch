@@ -351,6 +351,7 @@ fn write_artifacts(
     program: &crate::core::Program,
     opt: &crate::core::OptReport,
     profile: &crate::core::TargetProfile,
+    wit: &[crate::interface::WitAdapter],
 ) -> Result<()> {
     std::fs::create_dir_all(out_dir)
         .map_err(|e| Error::plain(format!("{}: {e}", out_dir.display())))?;
@@ -448,6 +449,87 @@ fn write_artifacts(
         .collect();
     text.push_str(&conds.join(",\n"));
     if !conds.is_empty() {
+        text.push('\n');
+    }
+    text.push_str("    ]\n  },\n");
+    // The Wasm and components record (WebAssembly and WASI
+    // specification sections 2, 4 and 8): the artifact shape, the
+    // required and available capabilities, the loader's selected feature
+    // profile, the lowerings the build chose, and each generated
+    // component adapter's canonical table.
+    let mut required: Vec<String> = profile.required.clone();
+    if !wit.is_empty() && profile.artifact != crate::core::ArtifactProfile::Native {
+        // A component adapter requires the component model on a Wasm
+        // artifact (the requirement is recorded even when the profile's
+        // capabilities satisfy it).
+        required.push("wasm.component-model".to_string());
+    }
+    let mut lowerings: Vec<String> = vec![format!(
+        "tasks:{}",
+        if profile.artifact == crate::core::ArtifactProfile::Native {
+            "os-thread"
+        } else {
+            "cooperative"
+        }
+    )];
+    for r in &program.rewrites {
+        if r.target
+            && opt
+                .sites
+                .iter()
+                .any(|s| s.kind == format!("rewrite:{}", r.name) && s.stop.is_none())
+        {
+            lowerings.push(format!("rewrite:{}", r.name));
+        }
+    }
+    text.push_str("  \"wasm\": {\n");
+    text.push_str(&format!(
+        "    \"artifact\": \"{}\",\n",
+        profile.artifact.spelling()
+    ));
+    let canon = match wit.first() {
+        Some(a) => a.abi.spelling(),
+        None => "none",
+    };
+    text.push_str(&format!("    \"canonical_abi\": \"{canon}\",\n"));
+    text.push_str(&format!("    \"required\": {:?},\n", required));
+    text.push_str(&format!("    \"available\": {:?},\n", profile.features));
+    text.push_str(&format!(
+        "    \"selected\": {{\"profile\": {:?}, \"features\": {:?}}},\n",
+        profile.name, profile.features
+    ));
+    text.push_str(&format!("    \"lowerings\": {:?},\n", lowerings));
+    text.push_str("    \"adapters\": [\n");
+    let mut adapter_rows: Vec<String> = Vec::new();
+    for a in wit {
+        for b in &a.bindings {
+            let mut row = format!(
+                "{{\"package\": {:?}, \"module\": {:?}, \"name\": {:?}, \"symbol\": {:?}, \"export\": {}, \"core_params\": {:?}, \"core_results\": {:?}",
+                a.package,
+                a.module,
+                b.name,
+                b.symbol,
+                b.export,
+                b.call.core_params.iter().map(|t| t.spelling()).collect::<Vec<_>>(),
+                b.call.core_results.iter().map(|t| t.spelling()).collect::<Vec<_>>()
+            );
+            if let Some(ret) = &b.call.ret {
+                row.push_str(&format!(
+                    ", \"ret_area\": {{\"size\": {}, \"align\": {}, \"cases\": {}}}",
+                    ret.size,
+                    ret.align,
+                    ret.cases.len()
+                ));
+            }
+            if let Some(g) = &b.call.glue_gap {
+                row.push_str(&format!(", \"glue_gap\": {g:?}"));
+            }
+            row.push('}');
+            adapter_rows.push(row);
+        }
+    }
+    text.push_str(&adapter_rows.join(",\n"));
+    if !adapter_rows.is_empty() {
         text.push('\n');
     }
     text.push_str("    ]\n  },\n");
@@ -567,50 +649,225 @@ fn write_artifacts(
     Ok(())
 }
 
+/// One variant of a packaged distribution (WebAssembly and WASI
+/// specification section 8): a separate module with its own required
+/// capabilities and selected lowerings, chosen by the loader before
+/// instantiation.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct VariantPackage {
+    pub name: String,
+    /// Capabilities this variant's artifact requires.
+    pub required: Vec<String>,
+    /// The lowerings the variant selected (fired target rules and the
+    /// task ABI), recorded beside the requirements.
+    pub lowerings: Vec<String>,
+    /// The artifact identity: the hash of its emitted module text.
+    pub ir_hash: String,
+}
+
+/// A packaged distribution: the baseline and feature-specific modules of
+/// one program (WebAssembly and WASI specification section 8).
+#[derive(Clone, Debug, Default)]
+pub struct Distribution {
+    /// In packaging order: the most preferred variant first.
+    pub variants: Vec<VariantPackage>,
+}
+
+impl Distribution {
+    /// The loader's choice before instantiation: the first variant (in
+    /// packaging order) whose requirements the available capabilities
+    /// satisfy. A distribution with no satisfiable variant is refused,
+    /// never silently downgraded.
+    pub fn select<'a>(&'a self, available: &[String]) -> Result<&'a VariantPackage> {
+        self.variants
+            .iter()
+            .find(|v| v.required.iter().all(|r| available.iter().any(|a| a == r)))
+            .ok_or_else(|| {
+                let needed: Vec<&str> =
+                    self.variants.iter().flat_map(|v| v.required.iter().map(|s| s.as_str())).collect();
+                Error::plain(format!(
+                    "no packaged variant is satisfiable: the loader's capabilities cover none of {needed:?}"
+                ))
+            })
+    }
+
+    /// The loader record (section 8: the loader records the selected
+    /// feature profile): the variant table and the selection, as JSON
+    /// for the artifact manifest.
+    pub fn loader_record(&self, selected: &str, available: &[String]) -> String {
+        let mut out = String::new();
+        out.push_str("{\"selected\": ");
+        crate::interface::json_str(&mut out, selected);
+        out.push_str(", \"available\": ");
+        crate::interface::json_list(&mut out, available);
+        out.push_str(", \"variants\": [");
+        for (i, v) in self.variants.iter().enumerate() {
+            if i > 0 {
+                out.push_str(", ");
+            }
+            out.push_str("{\"name\": ");
+            crate::interface::json_str(&mut out, &v.name);
+            out.push_str(", \"required\": ");
+            crate::interface::json_list(&mut out, &v.required);
+            out.push_str(", \"lowerings\": ");
+            crate::interface::json_list(&mut out, &v.lowerings);
+            out.push_str(", \"ir_hash\": ");
+            crate::interface::json_str(&mut out, &v.ir_hash);
+            out.push('}');
+        }
+        out.push_str("]}");
+        out
+    }
+}
+
+/// Package one program as the named variants (WebAssembly and WASI
+/// specification section 8: separate baseline and feature-specific
+/// modules selected before instantiation). Each variant compiles under
+/// its own target profile; the artifact identity is the emitted module's
+/// content hash. Packaging is deterministic: the same sources and
+/// profiles produce the same identities, so a reload reproduces the
+/// loader's choice.
+pub fn package_variants(
+    user_src: &str,
+    user_file: &str,
+    variants: &[(&str, crate::core::TargetProfile)],
+) -> Result<Distribution> {
+    let mut out = Vec::new();
+    for (name, profile) in variants {
+        let program = check_sources_profile(user_src, user_file, profile)?;
+        // The variant's residual program: the same specialization path
+        // the build takes (supercompilation and JIT specification
+        // section 5: the driving bounds are profile parameters).
+        let (program, _opt) = crate::core::optimize(&program, profile)?;
+        let ir = crate::codegen::emit_for(profile, &program)?;
+        let mut required: Vec<String> = profile.required.clone();
+        if profile.artifact != crate::core::ArtifactProfile::Native
+            && wit_for_source(std::path::Path::new(user_file))?.len() > 0
+        {
+            // As in the manifest: a component adapter requires the
+            // component model on a Wasm artifact.
+            required.push("wasm.component-model".to_string());
+        }
+        let mut lowerings: Vec<String> = Vec::new();
+        lowerings.push(format!(
+            "tasks:{}",
+            if profile.artifact == crate::core::ArtifactProfile::Native {
+                "os-thread"
+            } else {
+                "cooperative"
+            }
+        ));
+        out.push(VariantPackage {
+            name: name.to_string(),
+            required,
+            lowerings,
+            ir_hash: crate::interface::content_hash(&ir),
+        });
+    }
+    Ok(Distribution { variants: out })
+}
+
+/// Artifact admission (platform proofs and SIMD specification section
+/// 3): an assumed deployment baseline is enforced when the artifact is
+/// produced, and a generated component adapter requires the component
+/// model on a Wasm artifact profile (the native lowering is the FFI
+/// shim).
+pub fn admit_artifact(
+    profile: &crate::core::TargetProfile,
+    program: &crate::core::Program,
+    adapters: &[crate::interface::WitAdapter],
+) -> Result<()> {
+    for a in adapters {
+        for b in &a.bindings {
+            if b.export && !program.fns.iter().any(|f| f.id.0 == b.impl_unit) {
+                return Err(Error::plain(format!(
+                    "the world exports {} but the program defines no implementation `{}` (WebAssembly and WASI specification section 9)",
+                    b.symbol, b.impl_unit
+                )));
+            }
+        }
+    }
+    let mut required: Vec<String> = profile.required.clone();
+    if !adapters.is_empty()
+        && profile.artifact != crate::core::ArtifactProfile::Native
+        && !profile.features.iter().any(|f| f == "wasm.component-model")
+        && !required.iter().any(|f| f == "wasm.component-model")
+    {
+        required.push("wasm.component-model".to_string());
+    }
+    for f in &required {
+        if !profile.features.iter().any(|x| x == f) {
+            return Err(Error::plain(format!("missing required capability: {f}")));
+        }
+    }
+    Ok(())
+}
+
+/// The generated WIT adapters of the `.wit` files beside a source file
+/// (WebAssembly and WASI specification section 10: the toolchain imports
+/// and exports WIT). Files parse in sorted order; two packages claiming
+/// one vocabulary name are diagnosed when the vocabulary is installed.
+pub fn wit_for_source(file: &Path) -> Result<Vec<crate::interface::WitAdapter>> {
+    let dir = match file.parent() {
+        Some(d) if !d.as_os_str().is_empty() => d.to_path_buf(),
+        _ => return Ok(Vec::new()),
+    };
+    let mut wits: Vec<std::path::PathBuf> = Vec::new();
+    if let Ok(entries) = std::fs::read_dir(&dir) {
+        for e in entries.flatten() {
+            let p = e.path();
+            if p.extension().map(|x| x == "wit").unwrap_or(false) {
+                wits.push(p);
+            }
+        }
+    }
+    wits.sort();
+    let mut out = Vec::new();
+    for w in wits {
+        let text = std::fs::read_to_string(&w)
+            .map_err(|e| Error::plain(format!("{}: {e}", w.display())))?;
+        let pkg = crate::parser::parse_wit(&text).map_err(|e| {
+            Error::plain(format!("{}: {e}", w.display()))
+        })?;
+        out.push(crate::interface::build_wit_adapter(
+            &pkg,
+            crate::interface::CanonicalAbi::Wasi03,
+        )?);
+    }
+    Ok(out)
+}
+
+/// The prelude source with the adapters' generated vocabulary appended
+/// inside the prelude module (the WIT adapter vocabulary is the
+/// prelude's worked vocabulary, like the sketch types of earlier
+/// chapters).
+fn prelude_source_with(adapters: &[crate::interface::WitAdapter]) -> String {
+    let mut src = PRELUDE_SOURCE.to_string();
+    for a in adapters {
+        src.push('\n');
+        src.push_str(&a.vocab);
+    }
+    src
+}
+
 /// Check the prelude plus `user_src`, returning the elaborated program.
 pub fn check_sources(user_src: &str, user_file: &str) -> Result<crate::core::Program> {
     check_sources_with(user_src, user_file, &mut StagingCx::default())
 }
 
-/// [`check_sources`] with an explicit staging context (mode, work
-/// directory, captured inputs) for compile-time I/O.
-pub fn check_sources_with(
+/// [`check_sources`] under an explicit target profile (the `Usize`
+/// width, `eval` admission and feature assumptions key on the target:
+/// primitive types specification section 2, supercompilation and JIT
+/// specification section 7).
+pub fn check_sources_profile(
     user_src: &str,
     user_file: &str,
-    scx: &mut StagingCx,
+    profile: &crate::core::TargetProfile,
 ) -> Result<crate::core::Program> {
+    let adapters = wit_for_source(Path::new(user_file))?;
     let empty = FixityTable::new();
-    let prelude = parse_source(PRELUDE_SOURCE, "Prelude.lang", &empty, &HashMap::new())?;
-    let prelude_fixities = prelude
-        .fixities
-        .get("Prelude")
-        .cloned()
-        .unwrap_or_default();
-    let user = parse_source(user_src, user_file, &prelude_fixities, &HashMap::new())?;
-    let mut hashes = HashMap::new();
-    let mut files = HashMap::new();
-    for m in &user.modules {
-        hashes.insert(m.name.text.clone(), String::new());
-        files.insert(m.name.text.clone(), user_file.to_string());
-    }
-    scx.fixities = user.fixities.clone();
-    scx.files = files;
-    scx.entry_modules = user.modules.iter().map(|m| m.name.text.clone()).collect();
-    let (program, _ifaces, _report) =
-        check::check_program_multi(&prelude.modules[0], &user.modules, &hashes, scx)?;
-    Ok(program)
-}
-
-/// [`check_sources`] that also returns the per-module interfaces (the
-/// `.sliface` compatibility evidence and contract projection that the
-/// "checked against" chain reads; runtime evolution specification
-/// section 11).
-pub fn check_sources_ifaces(
-    user_src: &str,
-    user_file: &str,
-) -> Result<(crate::core::Program, Vec<crate::interface::Iface>)> {
-    let empty = FixityTable::new();
-    let prelude = parse_source(PRELUDE_SOURCE, "Prelude.lang", &empty, &HashMap::new())?;
+    let prelude_src = prelude_source_with(&adapters);
+    let prelude = parse_source(&prelude_src, "Prelude.lang", &empty, &HashMap::new())?;
     let prelude_fixities = prelude
         .fixities
         .get("Prelude")
@@ -627,8 +884,90 @@ pub fn check_sources_ifaces(
     scx.fixities = user.fixities.clone();
     scx.files = files;
     scx.entry_modules = user.modules.iter().map(|m| m.name.text.clone()).collect();
-    let (program, ifaces, _report) =
-        check::check_program_multi(&prelude.modules[0], &user.modules, &hashes, &scx)?;
+    let (program, _ifaces, _report, _) = check::check_program_multi_full(
+        &prelude.modules[0],
+        &user.modules,
+        &hashes,
+        &scx,
+        &adapters,
+        profile,
+    )?;
+    Ok(program)
+}
+
+/// [`check_sources`] with an explicit staging context (mode, work
+/// directory, captured inputs) for compile-time I/O.
+pub fn check_sources_with(
+    user_src: &str,
+    user_file: &str,
+    scx: &mut StagingCx,
+) -> Result<crate::core::Program> {
+    let adapters = wit_for_source(Path::new(user_file))?;
+    let empty = FixityTable::new();
+    let prelude_src = prelude_source_with(&adapters);
+    let prelude = parse_source(&prelude_src, "Prelude.lang", &empty, &HashMap::new())?;
+    let prelude_fixities = prelude
+        .fixities
+        .get("Prelude")
+        .cloned()
+        .unwrap_or_default();
+    let user = parse_source(user_src, user_file, &prelude_fixities, &HashMap::new())?;
+    let mut hashes = HashMap::new();
+    let mut files = HashMap::new();
+    for m in &user.modules {
+        hashes.insert(m.name.text.clone(), String::new());
+        files.insert(m.name.text.clone(), user_file.to_string());
+    }
+    scx.fixities = user.fixities.clone();
+    scx.files = files;
+    scx.entry_modules = user.modules.iter().map(|m| m.name.text.clone()).collect();
+    let (program, _ifaces, _report, _) = check::check_program_multi_full(
+        &prelude.modules[0],
+        &user.modules,
+        &hashes,
+        scx,
+        &adapters,
+        &crate::core::TargetProfile::native(),
+    )?;
+    Ok(program)
+}
+
+/// [`check_sources`] that also returns the per-module interfaces (the
+/// `.sliface` compatibility evidence and contract projection that the
+/// "checked against" chain reads; runtime evolution specification
+/// section 11).
+pub fn check_sources_ifaces(
+    user_src: &str,
+    user_file: &str,
+) -> Result<(crate::core::Program, Vec<crate::interface::Iface>)> {
+    let adapters = wit_for_source(Path::new(user_file))?;
+    let empty = FixityTable::new();
+    let prelude_src = prelude_source_with(&adapters);
+    let prelude = parse_source(&prelude_src, "Prelude.lang", &empty, &HashMap::new())?;
+    let prelude_fixities = prelude
+        .fixities
+        .get("Prelude")
+        .cloned()
+        .unwrap_or_default();
+    let user = parse_source(user_src, user_file, &prelude_fixities, &HashMap::new())?;
+    let mut hashes = HashMap::new();
+    let mut files = HashMap::new();
+    for m in &user.modules {
+        hashes.insert(m.name.text.clone(), String::new());
+        files.insert(m.name.text.clone(), user_file.to_string());
+    }
+    let mut scx = StagingCx::default();
+    scx.fixities = user.fixities.clone();
+    scx.files = files;
+    scx.entry_modules = user.modules.iter().map(|m| m.name.text.clone()).collect();
+    let (program, ifaces, _report, _) = check::check_program_multi_full(
+        &prelude.modules[0],
+        &user.modules,
+        &hashes,
+        &scx,
+        &adapters,
+        &crate::core::TargetProfile::native(),
+    )?;
     Ok((program, ifaces))
 }
 
@@ -643,10 +982,31 @@ fn ensure_runtime() -> Result<std::path::PathBuf> {
     let runtime = manifest_dir.join("runtime");
     let debug = runtime.join("target/debug/libslruntime.a");
     let release = runtime.join("target/release/libslruntime.a");
-    if release.exists() {
+    // Rebuild when any runtime source is newer than the staticlib (a
+    // stale library silently drops the newer `sl_*` entry points).
+    let mut newest_src = std::time::SystemTime::UNIX_EPOCH;
+    let mut stack = vec![runtime.join("src"), runtime.join("Cargo.toml")];
+    while let Some(p) = stack.pop() {
+        if p.is_dir() {
+            if let Ok(entries) = std::fs::read_dir(&p) {
+                for e in entries.flatten() {
+                    stack.push(e.path());
+                }
+            }
+        } else if let Ok(m) = std::fs::metadata(&p).and_then(|m| m.modified()) {
+            newest_src = newest_src.max(m);
+        }
+    }
+    let fresh = |p: &std::path::Path| -> bool {
+        std::fs::metadata(p)
+            .and_then(|m| m.modified())
+            .map(|m| m >= newest_src)
+            .unwrap_or(false)
+    };
+    if fresh(&release) {
         return Ok(release);
     }
-    if debug.exists() {
+    if fresh(&debug) {
         return Ok(debug);
     }
     let status = std::process::Command::new("cargo")
@@ -742,8 +1102,10 @@ pub fn driver_with_profile(
     profile: &crate::core::TargetProfile,
 ) -> Result<i32> {
     let project = load_project(path)?;
+    let adapters = wit_for_source(path)?;
     let empty = FixityTable::new();
-    let prelude = parse_source(PRELUDE_SOURCE, "Prelude.lang", &empty, &HashMap::new())?;
+    let prelude_src = prelude_source_with(&adapters);
+    let prelude = parse_source(&prelude_src, "Prelude.lang", &empty, &HashMap::new())?;
     let prelude_fixities = prelude
         .fixities
         .get("Prelude")
@@ -799,8 +1161,14 @@ pub fn driver_with_profile(
         entry_modules: project.entry_modules.clone(),
         schema_tool: std::env::var("SAFELANG_SCHEMA_TOOL").ok(),
     };
-    let (program, ifaces, report) =
-        check::check_program_multi(&prelude.modules[0], &modules, &hashes, &scx)?;
+    let (program, ifaces, report, _diags) = check::check_program_multi_full(
+        &prelude.modules[0],
+        &modules,
+        &hashes,
+        &scx,
+        &adapters,
+        profile,
+    )?;
     // Metadata boundary checks (design note, section 3).
     crate::interface::verify_chain(&ifaces).map_err(|e| Error::plain(e.to_string()))?;
     crate::interface::check_coherence(&ifaces).map_err(|e| Error::plain(e.to_string()))?;
@@ -808,11 +1176,16 @@ pub fn driver_with_profile(
     // 2-5): every residual program is rechecked before installation, and
     // the report records where specialization stopped.
     let (program, opt) = crate::core::optimize(&program, profile)?;
-    write_artifacts(&out_dir, &entry_stem, &ifaces, &manifest_path, &report, &program, &opt, profile)?;
+    write_artifacts(&out_dir, &entry_stem, &ifaces, &manifest_path, &report, &program, &opt, profile, &adapters)?;
     if mode == Mode::Check {
         return Ok(0);
     }
-    let ir = codegen::emit(&program)?;
+    // Artifact admission (platform proofs and SIMD specification
+    // section 3): `check` is not admission. Producing or running the
+    // artifact enforces the assumed deployment baseline and the world's
+    // implementation obligations.
+    admit_artifact(profile, &program, &adapters)?;
+    let ir = codegen::emit_for(profile, &program)?;
     match mode {
         Mode::Check => unreachable!(),
         Mode::EmitIr => {
@@ -885,7 +1258,7 @@ pub fn run_program_objects(
     objects: &[&str],
 ) -> Result<i32> {
     let (program, _opt) = crate::core::optimize(program, profile)?;
-    let ir = codegen::emit(&program)?;
+    let ir = codegen::emit_for(profile, &program)?;
     let tmp = scratch_dir("test");
     std::fs::create_dir_all(&tmp).map_err(|e| Error::plain(format!("{}: {e}", tmp.display())))?;
     let ir_path = tmp.join("program.ll");
@@ -921,7 +1294,7 @@ pub fn run_program_io(
     input: &[u8],
 ) -> Result<(i32, String)> {
     let (program, _opt) = crate::core::optimize(program, profile)?;
-    let ir = codegen::emit(&program)?;
+    let ir = codegen::emit_for(profile, &program)?;
     let tmp = scratch_dir("test");
     std::fs::create_dir_all(&tmp).map_err(|e| Error::plain(format!("{}: {e}", tmp.display())))?;
     let ir_path = tmp.join("program.ll");

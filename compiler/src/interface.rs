@@ -38,10 +38,14 @@ impl fmt::Display for CoherenceError {
 
 impl std::error::Error for CoherenceError {}
 
-/// Instance coherence across the closed artifact set: two instances for the
-/// same class with the same rendered target are ambiguous (design note,
-/// section 3, rule 4). Full unifiability is re-checked by the compiler with
-/// real type machinery at final link; this is the metadata-level fast path.
+/// Instance coherence across the closed artifact set: two implicitly
+/// resolvable instances for the same class with the same rendered target
+/// are ambiguous (design note, section 3, rule 4). Full unifiability is
+/// re-checked by the compiler with real type machinery at final link; this
+/// is the metadata-level fast path. Explicit dictionaries are selected by
+/// name (module arguments, `using` binders), so several implementations of
+/// one class may coexist and nothing merges them (modules specification
+/// section 1's coherent default resolution).
 pub fn check_coherence(ifaces: &[Iface]) -> Result<(), CoherenceError> {
     // A module can appear more than once in a diamond; check each once.
     let mut by_module: BTreeMap<&str, &Iface> = BTreeMap::new();
@@ -51,6 +55,9 @@ pub fn check_coherence(ifaces: &[Iface]) -> Result<(), CoherenceError> {
     let mut seen: Vec<(&str, &str, &str)> = Vec::new(); // (class, target, owner)
     for f in by_module.values() {
         for inst in &f.exports.instances {
+            if !inst.implicit {
+                continue;
+            }
             for (class, target, owner) in &seen {
                 if *class == inst.class && *target == inst.target {
                     return Err(CoherenceError(format!(
@@ -182,6 +189,27 @@ pub struct InstanceExport {
     pub target: String,
     pub ctx: Vec<String>,
     pub methods: Vec<String>,
+    /// Whether automatic resolution may select this instance (default
+    /// resolution is coherent among the implicit ones; an explicit
+    /// dictionary is selected by name and may coexist with other
+    /// implementations of the same class).
+    pub implicit: bool,
+}
+
+/// One instantiation unit of the module (`import M (args) as N`, module
+/// parameters as module arguments): representation, recorded beside the
+/// layout table and excluded from the contract hash. The unit's identity
+/// is computed from the target's parameter signatures and the argument
+/// identities, so two instantiations at different dictionaries are
+/// distinct units and the target module's contract is unchanged.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct UnitExport {
+    pub name: String,
+    pub target: String,
+    /// The argument identities, in parameter order.
+    pub args: Vec<String>,
+    /// The unit's computed identity.
+    pub unit_id: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -315,6 +343,10 @@ pub struct Iface {
     pub module: String,
     pub source_hash: String,
     pub imports: Vec<IfaceRef>,
+    /// The parameter block's signatures (`x :: T`), the contract
+    /// projection of a parameterized module (module parameters as module
+    /// arguments). A plain module records none.
+    pub params: Vec<String>,
     pub exports: Exports,
     pub assumptions: Assumptions,
     /// Computed layout facts for the module's types (the ABI section's
@@ -323,6 +355,9 @@ pub struct Iface {
     /// Schema compatibility evidence from the module's checked `upgrade`
     /// declarations (runtime evolution specification section 11).
     pub upgrades: Vec<UpgradeEvidence>,
+    /// The module's instantiation units (representation; excluded from
+    /// the contract hash).
+    pub units: Vec<UnitExport>,
 }
 
 impl Iface {
@@ -335,10 +370,12 @@ impl Iface {
             module: module.into(),
             source_hash: source_hash.into(),
             imports: Vec::new(),
+            params: Vec::new(),
             exports: Exports::default(),
             assumptions: Assumptions::default(),
             layouts: Vec::new(),
             upgrades: Vec::new(),
+            units: Vec::new(),
         }
     }
 
@@ -371,6 +408,12 @@ impl Iface {
             }
             out.push_str("  ]");
         }
+        out.push_str(",\n");
+
+        // The parameter block's signatures (module parameters as module
+        // arguments): part of the contract projection.
+        out.push_str("  \"params\": ");
+        json_list(&mut out, &self.params);
         out.push_str(",\n");
 
         // exports
@@ -452,6 +495,8 @@ impl Iface {
             json_list(o, &inst.ctx);
             o.push_str(", \"methods\": ");
             json_list(o, &inst.methods);
+            o.push_str(", \"implicit\": ");
+            o.push_str(if inst.implicit { "true" } else { "false" });
             o.push('}');
         });
         out.push_str(",\n    \"fixities\": ");
@@ -534,6 +579,24 @@ impl Iface {
         });
         out.push_str(",\n");
 
+        // The module's instantiation units (module parameters as module
+        // arguments): representation, excluded from the contract hash.
+        out.push_str("  \"units\": ");
+        let mut units = self.units.clone();
+        units.sort();
+        arr_of(&mut out, 2, &units, |o, u| {
+            o.push_str("{\"name\": ");
+            json_str(o, &u.name);
+            o.push_str(", \"target\": ");
+            json_str(o, &u.target);
+            o.push_str(", \"args\": ");
+            json_list(o, &u.args);
+            o.push_str(", \"unit_id\": ");
+            json_str(o, &u.unit_id);
+            o.push('}');
+        });
+        out.push_str(",\n");
+
         // abi
         out.push_str("  \"abi\": {\n    \"symbols\": [");
         let mut symbols: Vec<String> = self
@@ -592,10 +655,14 @@ impl Iface {
     /// The identity covers the contract, not the inputs: `source_hash` and
     /// `compiler` are excluded so a body-only edit (or a compiler point
     /// release) does not invalidate dependents (design note, section 2.2).
+    /// Instantiation is representation: `units` is likewise excluded, so
+    /// instantiating a module never changes the contract hash of the
+    /// parameterized module (or of its instantiator).
     pub fn iface_hash(&self) -> String {
         let mut contract = self.clone();
         contract.source_hash = String::new();
         contract.compiler = String::new();
+        contract.units.clear();
         fnv1a64(contract.to_json().as_bytes()).to_string()
     }
 
@@ -634,6 +701,14 @@ impl Iface {
                     .as_str()?
                     .to_string(),
             });
+        }
+        // The parameter block's signatures (module parameters as module
+        // arguments); an older document may omit them.
+        let mut params = Vec::new();
+        if let Some(JsonValue::Arr(items)) = obj.get("params") {
+            for v in items {
+                params.push(v.as_str()?.to_string());
+            }
         }
         let exports_obj = get("exports")?.as_object()?;
         let ex_get = |k: &str| -> Result<&JsonValue, ParseError> {
@@ -702,6 +777,12 @@ impl Iface {
                 target: field_str(o, "target")?,
                 ctx: field_list(o, "ctx")?,
                 methods: field_list(o, "methods")?,
+                // A document from before explicit dictionaries records
+                // only implicitly resolvable instances.
+                implicit: match o.get("implicit") {
+                    Some(v) => v.as_bool()?,
+                    None => true,
+                },
             });
         }
         let mut fixities = Vec::new();
@@ -838,6 +919,20 @@ impl Iface {
                 });
             }
         }
+        // The module's instantiation units (module parameters as module
+        // arguments); an older document may omit them.
+        let mut units = Vec::new();
+        if let Some(JsonValue::Arr(items)) = obj.get("units") {
+            for item in items {
+                let o = item.as_object().map_err(|_| ParseError("unit entry".into()))?;
+                units.push(UnitExport {
+                    name: field_str(o, "name")?,
+                    target: field_str(o, "target")?,
+                    args: field_list(o, "args")?,
+                    unit_id: field_str(o, "unit_id")?,
+                });
+            }
+        }
         Ok(Iface {
             schema: schema as u32,
             language: get("language")?.as_str()?.to_string(),
@@ -846,6 +941,7 @@ impl Iface {
             module: get("module")?.as_str()?.to_string(),
             source_hash: get("source_hash")?.as_str()?.to_string(),
             imports,
+            params,
             exports: Exports { values, types, signatures, instances, fixities, foreign },
             assumptions: Assumptions {
                 primitives: as_get("primitives")?.as_array()?.iter().map(|v| Ok(v.as_str()?.to_string())).collect::<Result<Vec<_>, ParseError>>()?,
@@ -854,6 +950,7 @@ impl Iface {
             },
             layouts,
             upgrades,
+            units,
         })
     }
 }
@@ -885,7 +982,7 @@ fn kv_num(out: &mut String, indent: usize, k: &str, v: u64) {
     out.push_str(",\n");
 }
 
-fn json_str(out: &mut String, s: &str) {
+pub(crate) fn json_str(out: &mut String, s: &str) {
     out.push('"');
     for c in s.chars() {
         match c {
@@ -901,7 +998,7 @@ fn json_str(out: &mut String, s: &str) {
     out.push('"');
 }
 
-fn json_list(out: &mut String, items: &[String]) {
+pub(crate) fn json_list(out: &mut String, items: &[String]) {
     out.push('[');
     for (i, s) in items.iter().enumerate() {
         if i > 0 {
@@ -1346,6 +1443,7 @@ mod tests {
             target: "Add Int".into(),
             ctx: vec![],
             methods: vec!["Main.Add_Int.+".into()],
+            implicit: true,
         });
         f.exports.fixities.push(FixityExport {
             op: "+".into(),
@@ -1463,6 +1561,7 @@ mod tests {
             target: "Add Int".into(),
             ctx: vec![],
             methods: vec![],
+            implicit: true,
         });
         assert!(check_coherence(&[f.clone(), g.clone()]).is_err());
         g.exports.instances[0].target = "Add Bool".into();
@@ -1543,4 +1642,1488 @@ mod tests {
         );
         assert!(topo_order(&mods).is_err());
     }
+}
+
+// ============================ WIT: Canonical ABI and generated adapters
+
+/// The Canonical ABI version a generated component adapter implements
+/// (WebAssembly and WASI specification section 1: WASI 0.3 is the
+/// preferred component profile, WASI 0.2 the pinned compatibility
+/// profile whose adapters must preserve their declared behavior).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CanonicalAbi {
+    Wasi03,
+    Wasi02,
+}
+
+impl CanonicalAbi {
+    /// The version spelling recorded in artifacts.
+    pub fn spelling(self) -> &'static str {
+        match self {
+            CanonicalAbi::Wasi03 => "wasi-0.3",
+            CanonicalAbi::Wasi02 => "wasi-0.2",
+        }
+    }
+}
+
+/// One generated raw binding of a WIT function.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct WitBinding {
+    /// The WIT function name (`decode`).
+    pub wit_name: String,
+    /// The raw-layer value name in the `Raw` module (`decode`).
+    pub name: String,
+    /// The canonical import/export symbol (`example:codec@0.1.0/decoder#decode`).
+    pub symbol: String,
+    /// The surface scheme text of the raw binding (documentation and
+    /// manifest; the checked scheme is built from `params`/`result`).
+    pub scheme: String,
+    /// The surface parameters, in order: name, type, and whether the
+    /// parameter is consumed exactly once (a `own<...>` transfer).
+    pub params: Vec<WitParamBind>,
+    /// The surface result type.
+    pub result: SurfaceTy,
+    /// The direction the world declares for the binding's interface:
+    /// an export also emits the canonical trampoline.
+    pub export: bool,
+    /// For exports: the implementation unit the trampoline forwards to.
+    pub impl_unit: String,
+    /// The canonical lowering plan (flattened signature and conversions).
+    pub call: crate::core::CanonCall,
+    /// Whether the glue's value conversions cover this binding's shapes;
+    /// `None` when covered, else the shape the glue refuses.
+    pub glue_gap: Option<String>,
+}
+
+/// One raw binding's surface parameter.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct WitParamBind {
+    pub name: String,
+    pub ty: SurfaceTy,
+    /// Consumed exactly once (an owned handle transfer).
+    pub consume: bool,
+}
+
+/// The surface type of a boundary value (what the generated vocabulary
+/// and the checked binding scheme use).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum SurfaceTy {
+    /// A builtin or vocabulary type by name (`Bool`, `U32`, `Bytes`,
+    /// `DecodeError`).
+    Named(String),
+    /// `Ref region <inner>`: a call-scoped borrow.
+    Borrow(Box<SurfaceTy>),
+    /// `Option t`, `Result e t`, `List t`, `WasiStream t`, `WasiFuture t`.
+    App(String, Vec<SurfaceTy>),
+    /// `(a, b)`.
+    Tuple(Vec<SurfaceTy>),
+}
+
+impl SurfaceTy {
+    /// The surface spelling in a signature.
+    pub fn spelling(&self) -> String {
+        match self {
+            SurfaceTy::Named(n) => n.clone(),
+            SurfaceTy::Borrow(t) => format!("Ref region {}", t.spelling()),
+            SurfaceTy::App(f, args) => {
+                let mut s = f.clone();
+                for a in args {
+                    s.push(' ');
+                    s.push_str(&a.spelling());
+                }
+                s
+            }
+            SurfaceTy::Tuple(ts) => {
+                let parts: Vec<String> = ts.iter().map(|t| t.spelling()).collect();
+                format!("({})", parts.join(", "))
+            }
+        }
+    }
+}
+
+/// One generated vocabulary type declaration (emitted as surface source
+/// into the prelude vocabulary).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct WitTypeDecl {
+    pub wit_name: String,
+    /// The surface name (PascalCase of the kebab WIT name).
+    pub surface: String,
+    /// The generated surface declaration text.
+    pub source: String,
+}
+
+/// The generated component adapter for one WIT package: the vocabulary
+/// types, the raw bindings with their canonical tables, and the
+/// boundary-error vocabulary (the `BoundaryError` shape: `ForeignError`
+/// carries the adapter's single error type, or the opaque
+/// `ForeignFailure` when there is no single one).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct WitAdapter {
+    /// The package identity (`example:codec@0.1.0`).
+    pub package: String,
+    pub abi: CanonicalAbi,
+    /// The raw module name the bindings live under (`Raw`).
+    pub module: String,
+    pub types: Vec<WitTypeDecl>,
+    pub bindings: Vec<WitBinding>,
+    /// The generated vocabulary source (types, boundary errors, stream
+    /// observations) to append to the prelude module.
+    pub vocab: String,
+    /// The `ForeignError` payload type name (`DecodeError` or
+    /// `ForeignFailure`).
+    pub boundary_error_payload: String,
+    /// Stream observation vocabulary is present (the adapter mentions a
+    /// `stream` type).
+    pub streams: bool,
+}
+
+/// PascalCase a kebab-case WIT name (`decode-error` -> `DecodeError`).
+pub fn pascal_case(kebab: &str) -> String {
+    let mut out = String::new();
+    let mut up = true;
+    for c in kebab.chars() {
+        if c == '-' || c == '_' {
+            up = true;
+        } else if up {
+            out.extend(c.to_uppercase());
+            up = false;
+        } else {
+            out.push(c);
+        }
+    }
+    out
+}
+
+/// camelCase a kebab-case WIT name (`too-large` -> `tooLarge`).
+pub fn camel_case(kebab: &str) -> String {
+    let p = pascal_case(kebab);
+    let mut cs = p.chars();
+    match cs.next() {
+        Some(c) => c.to_lowercase().collect::<String>() + cs.as_str(),
+        None => p,
+    }
+}
+
+/// The canonical flattening of a WIT type (the component model's
+/// `flatten_type`, wasm32 pointer width).
+#[derive(Clone)]
+struct CanonCx<'a> {
+    pkg: &'a crate::ast::WitPackage,
+    abi: CanonicalAbi,
+}
+
+/// The discriminant storage size of an `n`-case variant (the canonical
+/// ABI's `discriminant_type`).
+fn disc_size(ncases: usize) -> u64 {
+    let bits = (ncases as f64).log2().ceil() / 8.0;
+    match bits as u64 {
+        0 | 1 => 1,
+        2 => 2,
+        _ => 4,
+    }
+}
+
+/// The canonical ABI's `join` over flat types.
+fn canon_join(a: crate::core::CanonType, b: crate::core::CanonType) -> crate::core::CanonType {
+    use crate::core::CanonType::*;
+    if a == b {
+        return a;
+    }
+    if (a == I32 && b == F32) || (a == F32 && b == I32) {
+        return I32;
+    }
+    I64
+}
+
+impl<'a> CanonCx<'a> {
+    fn resolve(&self, name: &str) -> crate::Result<&'a crate::ast::WitTypeDef> {
+        for i in &self.pkg.interfaces {
+            if let Some(t) = i.items.iter().find_map(|it| match it {
+                crate::ast::WitItem::Type(t) if t.name == name => Some(t),
+                _ => None,
+            }) {
+                return Ok(t);
+            }
+        }
+        Err(crate::Error::plain(format!("WIT: unknown type `{name}`")))
+    }
+
+    /// The safe word representation of a type: whether it crosses as
+    /// words, as a `Bytes` buffer, as a handle, or needs the glue's
+    /// aggregate support (which the bootstrap glue refuses).
+    fn classify(&self, t: &crate::ast::WitType) -> crate::Result<Shape> {
+        use crate::ast::WitType as W;
+        use Shape as S;
+        Ok(match t {
+            W::Bool(_) | W::Char(_) => S::Word { bits: 32, signed: false },
+            W::U8(_) => S::Word { bits: 8, signed: false },
+            W::U16(_) => S::Word { bits: 16, signed: false },
+            W::U32(_) => S::Word { bits: 32, signed: false },
+            W::U64(_) => S::Word { bits: 64, signed: false },
+            W::S8(_) => S::Word { bits: 8, signed: true },
+            W::S16(_) => S::Word { bits: 16, signed: true },
+            W::S32(_) => S::Word { bits: 32, signed: true },
+            W::S64(_) => S::Word { bits: 64, signed: true },
+            W::F32(_) | W::F64(_) => S::Word { bits: 64, signed: false },
+            W::Str(_) => S::Bytes,
+            W::List(e, _) => match &**e {
+                W::U8(_) => S::Bytes,
+                other => S::List(Box::new(self.classify(other)?)),
+            },
+            W::Own(_, _) | W::Borrow(_, _) | W::Stream(_, _) | W::Future(_, _) => S::Handle,
+            W::Option(_, _) | W::Result(_, _, _) | W::Tuple(_, _) => S::Aggregate,
+            W::Named(n, _) => {
+                let d = self.resolve(n)?;
+                match &d.kind {
+                    crate::ast::WitTypeDefKind::Enum(_)
+                    | crate::ast::WitTypeDefKind::Flags(_)
+                    | crate::ast::WitTypeDefKind::Alias(_)
+                        if matches!(d.kind, crate::ast::WitTypeDefKind::Alias(_)) =>
+                    {
+                        match &d.kind {
+                            crate::ast::WitTypeDefKind::Alias(t) => self.classify(t)?,
+                            _ => unreachable!(),
+                        }
+                    }
+                    crate::ast::WitTypeDefKind::Enum(_) => S::Word { bits: 32, signed: false },
+                    crate::ast::WitTypeDefKind::Flags(_) => S::Word { bits: 32, signed: false },
+                    _ => S::Aggregate,
+                }
+            }
+        })
+    }
+
+    /// The canonical alignment of a type (wasm32 pointers).
+    fn align(&self, t: &crate::ast::WitType) -> crate::Result<u64> {
+        use crate::ast::WitType as W;
+        Ok(match t {
+            W::Bool(_) | W::U8(_) | W::S8(_) => 1,
+            W::U16(_) | W::S16(_) => 2,
+            W::U32(_) | W::S32(_) | W::F32(_) | W::Char(_) => 4,
+            W::U64(_) | W::S64(_) | W::F64(_) => 8,
+            W::Str(_) | W::List(_, _) => 4,
+            W::Own(_, _) | W::Borrow(_, _) | W::Stream(_, _) | W::Future(_, _) => 4,
+            W::Option(i, _) => {
+                let d = disc_size(2).max(self.align(i)?);
+                d
+            }
+            W::Result(ok, err, _) => {
+                let mut a = disc_size(2);
+                for p in [ok, err].into_iter().flatten() {
+                    a = a.max(self.align(p)?);
+                }
+                a
+            }
+            W::Tuple(ts, _) => {
+                let mut a = 1;
+                for t in ts {
+                    a = a.max(self.align(t)?);
+                }
+                a
+            }
+            W::Named(n, _) => {
+                let d = self.resolve(n)?;
+                match &d.kind {
+                    crate::ast::WitTypeDefKind::Enum(cases) => disc_size(cases.len()),
+                    crate::ast::WitTypeDefKind::Flags(labels) => match labels.len() {
+                        0..=8 => 1,
+                        9..=16 => 2,
+                        _ => 4,
+                    },
+                    crate::ast::WitTypeDefKind::Record(fields) => {
+                        let mut a = 1;
+                        for f in fields {
+                            a = a.max(self.align(&f.ty)?);
+                        }
+                        a
+                    }
+                    crate::ast::WitTypeDefKind::Variant(cases) => {
+                        let mut a = disc_size(cases.len());
+                        for c in cases {
+                            if let Some(p) = &c.payload {
+                                a = a.max(self.align(p)?);
+                            }
+                        }
+                        a
+                    }
+                    crate::ast::WitTypeDefKind::Union(ts) => {
+                        let mut a = disc_size(ts.len());
+                        for p in ts {
+                            a = a.max(self.align(p)?);
+                        }
+                        a
+                    }
+                    crate::ast::WitTypeDefKind::Alias(t) => self.align(t)?,
+                }
+            }
+        })
+    }
+
+    /// The canonical in-memory size of a type (the ABI's `elem_size`).
+    fn size(&self, t: &crate::ast::WitType) -> crate::Result<u64> {
+        use crate::ast::WitType as W;
+        Ok(match t {
+            W::Bool(_) | W::U8(_) | W::S8(_) => 1,
+            W::U16(_) | W::S16(_) => 2,
+            W::U32(_) | W::S32(_) => 4,
+            W::U64(_) | W::S64(_) => 8,
+            W::F32(_) => 4,
+            W::F64(_) => 8,
+            W::Char(_) => 4,
+            W::Str(_) | W::List(_, _) => 8,
+            W::Own(_, _) | W::Borrow(_, _) | W::Stream(_, _) | W::Future(_, _) => 4,
+            W::Option(i, _) => {
+                let d = disc_size(2);
+                let pa = self.align(i)?;
+                let off = align_to(d, pa);
+                align_to(off + self.size(i)?, self.align(t)?)
+            }
+            W::Result(ok, err, _) => {
+                let d = disc_size(2);
+                let mut pa = 1;
+                let mut mx = 0;
+                for p in [ok, err].into_iter().flatten() {
+                    pa = pa.max(self.align(p)?);
+                    mx = mx.max(self.size(p)?);
+                }
+                let off = align_to(d, pa);
+                align_to(off + mx, self.align(t)?)
+            }
+            W::Tuple(ts, _) => {
+                let mut s = 0;
+                for t in ts {
+                    s = align_to(s, self.align(t)?);
+                    s += self.size(t)?;
+                }
+                align_to(s, self.align(t)?)
+            }
+            W::Named(n, _) => {
+                let d = self.resolve(n)?;
+                match &d.kind {
+                    crate::ast::WitTypeDefKind::Enum(cases) => disc_size(cases.len()),
+                    crate::ast::WitTypeDefKind::Flags(labels) => match labels.len() {
+                        0..=8 => 1,
+                        9..=16 => 2,
+                        _ => 4,
+                    },
+                    crate::ast::WitTypeDefKind::Record(fields) => {
+                        if fields.is_empty() {
+                            return Err(crate::Error::at(
+                                d.span,
+                                "WIT: an empty record has no canonical layout",
+                            ));
+                        }
+                        let mut s = 0;
+                        for f in fields {
+                            s = align_to(s, self.align(&f.ty)?);
+                            s += self.size(&f.ty)?;
+                        }
+                        align_to(s, self.align(t)?)
+                    }
+                    crate::ast::WitTypeDefKind::Variant(cases) => {
+                        let d = disc_size(cases.len());
+                        let mut pa = 1;
+                        let mut mx = 0;
+                        for c in cases {
+                            if let Some(p) = &c.payload {
+                                pa = pa.max(self.align(p)?);
+                                mx = mx.max(self.size(p)?);
+                            }
+                        }
+                        let off = align_to(d, pa);
+                        align_to(off + mx, self.align(t)?)
+                    }
+                    crate::ast::WitTypeDefKind::Union(ts) => {
+                        let d = disc_size(ts.len());
+                        let mut pa = 1;
+                        let mut mx = 0;
+                        for p in ts {
+                            pa = pa.max(self.align(p)?);
+                            mx = mx.max(self.size(p)?);
+                        }
+                        let off = align_to(d, pa);
+                        align_to(off + mx, self.align(t)?)
+                    }
+                    crate::ast::WitTypeDefKind::Alias(t) => self.size(t)?,
+                }
+            }
+        })
+    }
+
+    /// The canonical flat types of one value (the ABI's `flatten_type`).
+    fn flatten(&self, t: &crate::ast::WitType) -> crate::Result<Vec<crate::core::CanonType>> {
+        use crate::ast::WitType as W;
+        use crate::core::CanonType as C;
+        Ok(match t {
+            W::Bool(_) | W::Char(_) => vec![C::I32],
+            W::U8(_) | W::U16(_) | W::U32(_) => vec![C::I32],
+            W::S8(_) | W::S16(_) | W::S32(_) => vec![C::I32],
+            W::U64(_) | W::S64(_) => vec![C::I64],
+            W::F32(_) => vec![C::F32],
+            W::F64(_) => vec![C::F64],
+            W::Str(_) => vec![C::I32, C::I32],
+            W::List(_, _) => vec![C::I32, C::I32],
+            W::Own(_, _) | W::Borrow(_, _) | W::Stream(_, _) | W::Future(_, _) => vec![C::I32],
+            W::Option(i, _) => {
+                let mut flat = self.flatten(i)?;
+                flat.insert(0, C::I32);
+                flat
+            }
+            W::Result(ok, err, _) => {
+                let mut flat: Vec<C> = Vec::new();
+                for p in [ok, err].into_iter().flatten() {
+                    for (i, ft) in self.flatten(p)?.into_iter().enumerate() {
+                        if i < flat.len() {
+                            flat[i] = canon_join(flat[i], ft);
+                        } else {
+                            flat.push(ft);
+                        }
+                    }
+                }
+                flat.insert(0, C::I32);
+                flat
+            }
+            W::Tuple(ts, _) => {
+                let mut flat = Vec::new();
+                for t in ts {
+                    flat.extend(self.flatten(t)?);
+                }
+                flat
+            }
+            W::Named(n, _) => {
+                let d = self.resolve(n)?;
+                match &d.kind {
+                    crate::ast::WitTypeDefKind::Enum(_) => vec![C::I32],
+                    crate::ast::WitTypeDefKind::Flags(_) => vec![C::I32],
+                    crate::ast::WitTypeDefKind::Record(fields) => {
+                        let mut flat = Vec::new();
+                        for f in fields {
+                            flat.extend(self.flatten(&f.ty)?);
+                        }
+                        flat
+                    }
+                    crate::ast::WitTypeDefKind::Variant(cases) => {
+                        let mut flat: Vec<C> = Vec::new();
+                        for c in cases {
+                            if let Some(p) = &c.payload {
+                                for (i, ft) in self.flatten(p)?.into_iter().enumerate() {
+                                    if i < flat.len() {
+                                        flat[i] = canon_join(flat[i], ft);
+                                    } else {
+                                        flat.push(ft);
+                                    }
+                                }
+                            }
+                        }
+                        flat.insert(0, C::I32);
+                        flat
+                    }
+                    crate::ast::WitTypeDefKind::Union(ts) => {
+                        let mut flat: Vec<C> = Vec::new();
+                        for p in ts {
+                            for (i, ft) in self.flatten(p)?.into_iter().enumerate() {
+                                if i < flat.len() {
+                                    flat[i] = canon_join(flat[i], ft);
+                                } else {
+                                    flat.push(ft);
+                                }
+                            }
+                        }
+                        flat.insert(0, C::I32);
+                        flat
+                    }
+                    crate::ast::WitTypeDefKind::Alias(t) => self.flatten(t)?,
+                }
+            }
+        })
+    }
+}
+
+/// The glue's value shapes (the bootstrap adapter glue marshals words,
+/// byte buffers and handles; aggregates need recursive glue the
+/// bootstrap refuses with a diagnostic).
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum Shape {
+    Word { bits: u32, signed: bool },
+    Bytes,
+    Handle,
+    List(Box<Shape>),
+    Aggregate,
+}
+
+fn align_to(x: u64, a: u64) -> u64 {
+    if a == 0 {
+        x
+    } else {
+        (x + a - 1) / a * a
+    }
+}
+
+/// Boundary position of a rendered type: parameters may cross as
+/// borrows, results cross as owned values.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Pos {
+    Param,
+    Out,
+}
+
+impl<'a> CanonCx<'a> {
+    /// The surface type of a boundary value.
+    fn surface(&self, t: &crate::ast::WitType, pos: Pos) -> crate::Result<(SurfaceTy, bool)> {
+        use crate::ast::WitType as W;
+        Ok(match t {
+            W::Bool(_) => (SurfaceTy::Named("Bool".into()), false),
+            W::Char(_) => (SurfaceTy::Named("Char".into()), false),
+            W::U8(_) => (SurfaceTy::Named("U8".into()), false),
+            W::U16(_) => (SurfaceTy::Named("U16".into()), false),
+            W::U32(_) => (SurfaceTy::Named("U32".into()), false),
+            W::U64(_) => (SurfaceTy::Named("U64".into()), false),
+            W::S8(_) => (SurfaceTy::Named("I8".into()), false),
+            W::S16(_) => (SurfaceTy::Named("I16".into()), false),
+            W::S32(_) => (SurfaceTy::Named("I32".into()), false),
+            W::S64(_) => (SurfaceTy::Named("I64".into()), false),
+            W::F32(_) => (SurfaceTy::Named("F32".into()), false),
+            W::F64(_) => (SurfaceTy::Named("F64".into()), false),
+            W::Str(_) => match pos {
+                // The prelude `String` (UTF-8 over `Bytes`): a borrow
+                // crosses as a call-scoped reference.
+                Pos::Param => (
+                    SurfaceTy::Borrow(Box::new(SurfaceTy::Named("String".into()))),
+                    false,
+                ),
+                Pos::Out => (SurfaceTy::Named("String".into()), false),
+            },
+            W::List(e, _) => match &**e {
+                // `list<u8>` is the `Bytes` buffer.
+                W::U8(_) => match pos {
+                    Pos::Param => (
+                        SurfaceTy::Borrow(Box::new(SurfaceTy::Named("Bytes".into()))),
+                        false,
+                    ),
+                    Pos::Out => (SurfaceTy::Named("Bytes".into()), false),
+                },
+                other => {
+                    let (inner, _) = self.surface(other, Pos::Out)?;
+                    let l = SurfaceTy::App("List".into(), vec![inner]);
+                    match pos {
+                        Pos::Param => (SurfaceTy::Borrow(Box::new(l)), false),
+                        Pos::Out => (l, false),
+                    }
+                }
+            },
+            W::Option(i, _) => {
+                let (inner, _) = self.surface(i, Pos::Out)?;
+                (SurfaceTy::App("Option".into(), vec![inner]), false)
+            }
+            W::Result(ok, err, _) => {
+                let (e, _) = match err {
+                    Some(e) => self.surface(e, Pos::Out)?,
+                    None => (SurfaceTy::Named("Unit".into()), false),
+                };
+                let (o, _) = match ok {
+                    Some(o) => self.surface(o, Pos::Out)?,
+                    None => (SurfaceTy::Named("Unit".into()), false),
+                };
+                // The prelude `Result e a` puts the error first.
+                (SurfaceTy::App("Result".into(), vec![e, o]), false)
+            }
+            W::Tuple(ts, _) => {
+                let mut parts = Vec::new();
+                for t in ts {
+                    parts.push(self.surface(t, Pos::Out)?.0);
+                }
+                (SurfaceTy::Tuple(parts), false)
+            }
+            W::Own(n, _) => (SurfaceTy::Named(pascal_case(n)), true),
+            W::Borrow(n, _) => match pos {
+                Pos::Param => (
+                    SurfaceTy::Borrow(Box::new(SurfaceTy::Named(pascal_case(n)))),
+                    false,
+                ),
+                Pos::Out => {
+                    return Err(crate::Error::plain(format!(
+                        "WIT: a borrowed handle (`borrow<{n}>`) cannot cross as a result"
+                    )))
+                }
+            },
+            W::Stream(i, _) => {
+                let (inner, _) = self.surface(i, Pos::Out)?;
+                (SurfaceTy::App("WasiStream".into(), vec![inner]), false)
+            }
+            W::Future(i, _) => {
+                let (inner, _) = self.surface(i, Pos::Out)?;
+                (SurfaceTy::App("WasiFuture".into(), vec![inner]), false)
+            }
+            W::Named(n, _) => {
+                let d = self.resolve(n)?;
+                match &d.kind {
+                    crate::ast::WitTypeDefKind::Alias(inner) => return self.surface(inner, pos),
+                    _ => (SurfaceTy::Named(pascal_case(n)), false),
+                }
+            }
+        })
+    }
+
+    /// The flat conversion steps of one parameter.
+    fn steps(&self, t: &crate::ast::WitType) -> crate::Result<(Vec<crate::core::CanonStep>, Option<String>)> {
+        use crate::ast::WitType as W;
+        use crate::core::{CanonStep, CanonType};
+        let word = |core: CanonType, bits: u32, signed: bool| {
+            (vec![CanonStep::Word { core, bits, signed }], None)
+        };
+        Ok(match t {
+            W::Bool(_) | W::Char(_) => word(CanonType::I32, 32, false),
+            W::U8(_) => word(CanonType::I32, 8, false),
+            W::U16(_) => word(CanonType::I32, 16, false),
+            W::U32(_) => word(CanonType::I32, 32, false),
+            W::U64(_) => word(CanonType::I64, 64, false),
+            W::S8(_) => word(CanonType::I32, 8, true),
+            W::S16(_) => word(CanonType::I32, 16, true),
+            W::S32(_) => word(CanonType::I32, 32, true),
+            W::S64(_) => word(CanonType::I64, 64, true),
+            W::F32(_) => word(CanonType::F32, 32, false),
+            W::F64(_) => word(CanonType::F64, 64, false),
+            W::Str(_) => (vec![CanonStep::Bytes { wrapped: true }], None),
+            W::List(e, _) => match &**e {
+                W::U8(_) => (vec![CanonStep::Bytes { wrapped: false }], None),
+                other => (
+                    Vec::new(),
+                    Some(format!("a `list<{}>` parameter needs element marshalling", wit_spelling(other))),
+                ),
+            },
+            W::Own(_, _) | W::Borrow(_, _) | W::Stream(_, _) | W::Future(_, _) => {
+                (vec![CanonStep::Handle], None)
+            }
+            W::Option(_, _) | W::Result(_, _, _) | W::Tuple(_, _) => {
+                (Vec::new(), Some("an aggregate parameter".to_string()))
+            }
+            W::Named(n, _) => {
+                let d = self.resolve(n)?;
+                match &d.kind {
+                    crate::ast::WitTypeDefKind::Enum(_) => (vec![CanonStep::Tag], None),
+                    crate::ast::WitTypeDefKind::Flags(labels) => (
+                        vec![CanonStep::FlagField {
+                            size: match labels.len() {
+                                0..=8 => 1,
+                                9..=16 => 2,
+                                _ => 4,
+                            },
+                        }],
+                        None,
+                    ),
+                    crate::ast::WitTypeDefKind::Alias(inner) => return self.steps(inner),
+                    _ => (Vec::new(), Some("an aggregate parameter".to_string())),
+                }
+            }
+        })
+    }
+}
+
+/// A WIT type's source spelling for diagnostics.
+fn wit_spelling(t: &crate::ast::WitType) -> String {
+    use crate::ast::WitType as W;
+    match t {
+        W::Bool(_) => "bool".into(),
+        W::U8(_) => "u8".into(),
+        W::U16(_) => "u16".into(),
+        W::U32(_) => "u32".into(),
+        W::U64(_) => "u64".into(),
+        W::S8(_) => "s8".into(),
+        W::S16(_) => "s16".into(),
+        W::S32(_) => "s32".into(),
+        W::S64(_) => "s64".into(),
+        W::F32(_) => "f32".into(),
+        W::F64(_) => "f64".into(),
+        W::Char(_) => "char".into(),
+        W::Str(_) => "string".into(),
+        W::List(e, _) => format!("list<{}>", wit_spelling(e)),
+        W::Option(e, _) => format!("option<{}>", wit_spelling(e)),
+        W::Result(o, e, _) => format!(
+            "result<{}, {}>",
+            o.as_deref().map(wit_spelling).unwrap_or_else(|| "_".into()),
+            e.as_deref().map(wit_spelling).unwrap_or_else(|| "_".into())
+        ),
+        W::Tuple(ts, _) => {
+            let p: Vec<String> = ts.iter().map(wit_spelling).collect();
+            format!("tuple<{}>", p.join(", "))
+        }
+        W::Named(n, _) => n.clone(),
+        W::Own(n, _) => format!("own<{n}>"),
+        W::Borrow(n, _) => format!("borrow<{n}>"),
+        W::Stream(e, _) => format!("stream<{}>", wit_spelling(e)),
+        W::Future(e, _) => format!("future<{}>", wit_spelling(e)),
+    }
+}
+
+impl<'a> CanonCx<'a> {
+    /// The canonical memory shape of a value stored at `base`, and the
+    /// glue gap when the shape needs conversions the bootstrap glue
+    /// refuses.
+    fn shape_at(
+        &self,
+        t: &crate::ast::WitType,
+        base: u64,
+    ) -> crate::Result<(crate::core::CanonShape, Option<String>)> {
+        use crate::ast::WitType as W;
+        use crate::core::CanonShape as S;
+        Ok(match t {
+            W::Bool(_) => (S::Scalar { offset: base, size: 1, signed: false }, None),
+            W::U8(_) => (S::Scalar { offset: base, size: 1, signed: false }, None),
+            W::S8(_) => (S::Scalar { offset: base, size: 1, signed: true }, None),
+            W::U16(_) => (S::Scalar { offset: base, size: 2, signed: false }, None),
+            W::S16(_) => (S::Scalar { offset: base, size: 2, signed: true }, None),
+            W::U32(_) | W::Char(_) | W::F32(_) => {
+                (S::Scalar { offset: base, size: 4, signed: false }, None)
+            }
+            W::S32(_) => (S::Scalar { offset: base, size: 4, signed: true }, None),
+            W::U64(_) | W::F64(_) => (S::Scalar { offset: base, size: 8, signed: false }, None),
+            W::S64(_) => (S::Scalar { offset: base, size: 8, signed: true }, None),
+            W::Str(_) => (S::Bytes { offset: base, wrapped: true }, None),
+            W::List(e, _) => match &**e {
+                W::U8(_) => (S::Bytes { offset: base, wrapped: false }, None),
+                other => (
+                    S::Unit,
+                    Some(format!("a `list<{}>` result needs element marshalling", wit_spelling(other))),
+                ),
+            },
+            W::Own(_, _) | W::Borrow(_, _) | W::Stream(_, _) | W::Future(_, _) => {
+                (S::Handle { offset: base }, None)
+            }
+            W::Option(_, _) | W::Result(_, _, _) | W::Tuple(_, _) => (
+                S::Unit,
+                Some("a nested aggregate payload".to_string()),
+            ),
+            W::Named(n, _) => {
+                let d = self.resolve(n)?;
+                match &d.kind {
+                    crate::ast::WitTypeDefKind::Enum(cases) => (
+                        S::Ctor {
+                            tag: 0,
+                            tag_at: Some((base, disc_size(cases.len()))),
+                            fields: Vec::new(),
+                        },
+                        None,
+                    ),
+                    crate::ast::WitTypeDefKind::Flags(labels) => {
+                        let size = match labels.len() {
+                            0..=8 => 1,
+                            9..=16 => 2,
+                            _ => 4,
+                        };
+                        (
+                            S::Ctor {
+                                tag: 0,
+                                tag_at: None,
+                                fields: vec![S::Scalar {
+                                    offset: base,
+                                    size,
+                                    signed: false,
+                                }],
+                            },
+                            None,
+                        )
+                    }
+                    crate::ast::WitTypeDefKind::Record(fields) => {
+                        let mut off = 0;
+                        let mut shapes = Vec::new();
+                        let mut gap = None;
+                        for f in fields {
+                            off = align_to(off, self.align(&f.ty)?);
+                            let (s, g) = self.shape_at(&f.ty, base + off)?;
+                            gap = gap.or(g);
+                            shapes.push(s);
+                            off += self.size(&f.ty)?;
+                        }
+                        (
+                            S::Ctor { tag: 0, tag_at: None, fields: shapes },
+                            gap,
+                        )
+                    }
+                    crate::ast::WitTypeDefKind::Alias(inner) => return self.shape_at(inner, base),
+                    crate::ast::WitTypeDefKind::Variant(_)
+                    | crate::ast::WitTypeDefKind::Union(_) => (
+                        S::Unit,
+                        Some("a nested variant payload".to_string()),
+                    ),
+                }
+            }
+        })
+    }
+
+    /// The crossing plan of a result type: the return-area layout or the
+    /// single flat shape, plus the glue gap if any.
+    fn ret_plan(
+        &self,
+        t: &crate::ast::WitType,
+    ) -> crate::Result<(
+        Option<crate::core::CanonRet>,
+        Option<crate::core::CanonShape>,
+        Option<String>,
+    )> {
+        use crate::ast::WitType as W;
+        use crate::core::{CanonRet, CanonRetCase, CanonShape};
+        let flat = self.flatten(t)?;
+        if flat.is_empty() {
+            return Ok((None, None, None));
+        }
+        if flat.len() == 1 {
+            let (s, g) = self.shape_at(t, 0)?;
+            return Ok((None, Some(s), g));
+        }
+        let size = self.size(t)?;
+        let align = self.align(t)?;
+        // Variant families cross with a discriminant; other values cross
+        // as their plain layout.
+        let mut cases: Vec<CanonRetCase> = Vec::new();
+        let mut gap = None;
+        match t {
+            W::Option(i, _) => {
+                let pa = self.align(i)?;
+                let off = align_to(disc_size(2), pa);
+                let (s, g) = self.shape_at(i, off)?;
+                gap = gap.or(g);
+                cases.push(CanonRetCase { disc: 0, safe_tag: 0, payload: CanonShape::Unit });
+                cases.push(CanonRetCase { disc: 1, safe_tag: 1, payload: s });
+            }
+            W::Result(ok, err, _) => {
+                let mut pa = 1;
+                for p in [ok, err].into_iter().flatten() {
+                    pa = pa.max(self.align(p)?);
+                }
+                let off = align_to(disc_size(2), pa);
+                let (os, og) = match ok {
+                    Some(p) => self.shape_at(p, off)?,
+                    None => (CanonShape::Unit, None),
+                };
+                let (es, eg) = match err {
+                    Some(p) => self.shape_at(p, off)?,
+                    None => (CanonShape::Unit, None),
+                };
+                gap = gap.or(og).or(eg);
+                // WIT case order is `ok, err`; the prelude `Result` tags
+                // are `Err` 0, `Ok` 1.
+                cases.push(CanonRetCase { disc: 0, safe_tag: 1, payload: os });
+                cases.push(CanonRetCase { disc: 1, safe_tag: 0, payload: es });
+            }
+            W::Named(n, _) => {
+                let d = self.resolve(n)?;
+                match &d.kind {
+                    crate::ast::WitTypeDefKind::Variant(vs) => {
+                        let mut pa = 1;
+                        for c in vs {
+                            if let Some(p) = &c.payload {
+                                pa = pa.max(self.align(p)?);
+                            }
+                        }
+                        let off = align_to(disc_size(vs.len()), pa);
+                        for (i, c) in vs.iter().enumerate() {
+                            let (s, g) = match &c.payload {
+                                Some(p) => self.shape_at(p, off)?,
+                                None => (CanonShape::Unit, None),
+                            };
+                            gap = gap.or(g);
+                            cases.push(CanonRetCase {
+                                disc: i as u64,
+                                safe_tag: i as u64,
+                                payload: s,
+                            });
+                        }
+                    }
+                    crate::ast::WitTypeDefKind::Union(ts) => {
+                        let mut pa = 1;
+                        for p in ts {
+                            pa = pa.max(self.align(p)?);
+                        }
+                        let off = align_to(disc_size(ts.len()), pa);
+                        for (i, p) in ts.iter().enumerate() {
+                            let (s, g) = self.shape_at(p, off)?;
+                            gap = gap.or(g);
+                            cases.push(CanonRetCase {
+                                disc: i as u64,
+                                safe_tag: i as u64,
+                                payload: s,
+                            });
+                        }
+                    }
+                    crate::ast::WitTypeDefKind::Alias(inner) => return self.ret_plan(inner),
+                    _ => {
+                        let (s, g) = self.shape_at(t, 0)?;
+                        return Ok((
+                            Some(CanonRet { size, align, cases: Vec::new(), plain: Some(s) }),
+                            None,
+                            g,
+                        ));
+                    }
+                }
+            }
+            _ => {
+                let (s, g) = self.shape_at(t, 0)?;
+                return Ok((
+                    Some(CanonRet { size, align, cases: Vec::new(), plain: Some(s) }),
+                    None,
+                    g,
+                ));
+            }
+        }
+        Ok((
+            Some(CanonRet { size, align, cases, plain: None }),
+            None,
+            gap,
+        ))
+    }
+}
+
+/// One WIT function's raw binding: the canonical table, the surface
+/// scheme pieces and the glue coverage.
+fn binding_of(
+    cx: &CanonCx,
+    iface: &str,
+    f: &crate::ast::WitFunc,
+    export: bool,
+) -> crate::Result<WitBinding> {
+    use crate::core::CanonType;
+    let name = camel_case(&f.name);
+    let symbol = format!("{}/{iface}#{}", cx.pkg.identity(), f.name);
+    let mut params = Vec::new();
+    let mut steps = Vec::new();
+    let mut core_params: Vec<CanonType> = Vec::new();
+    let mut gap = None;
+    let mut borrows = false;
+    for p in &f.params {
+        let (ty, consume) = cx.surface(&p.ty, Pos::Param)?;
+        if matches!(ty, SurfaceTy::Borrow(_)) {
+            borrows = true;
+        }
+        params.push(WitParamBind { name: camel_case(&p.name), ty, consume });
+        let (st, g) = cx.steps(&p.ty)?;
+        gap = gap.or(g);
+        steps.push(st);
+        core_params.extend(cx.flatten(&p.ty)?);
+    }
+    let (result, _) = match &f.result {
+        Some(t) => cx.surface(t, Pos::Out)?,
+        None => (SurfaceTy::Named("Unit".into()), false),
+    };
+    let mut ret = None;
+    let mut ret_flat = None;
+    let mut core_results = Vec::new();
+    if let Some(t) = &f.result {
+        let flat = cx.flatten(t)?;
+        let (r, rf, g) = cx.ret_plan(t)?;
+        gap = gap.or(g);
+        if flat.len() > 1 {
+            // More than one flattened result crosses through the return
+            // area: its pointer is the call's last core parameter.
+            core_params.push(CanonType::I32);
+            ret = r;
+        } else if flat.len() == 1 {
+            core_results = flat;
+            ret_flat = rf;
+        }
+    }
+    if core_params.len() > 16 {
+        gap = gap.or(Some(
+            "more than 16 flattened parameters (the parameter area crossing is not marshalled yet)"
+                .to_string(),
+        ));
+    }
+    let mut sig = String::new();
+    sig.push_str(&name);
+    sig.push_str(" :: ");
+    if borrows {
+        sig.push_str("forall region. ");
+    }
+    let param_tys: Vec<String> = params
+        .iter()
+        .map(|p| {
+            let mut s = p.ty.spelling();
+            if p.consume {
+                s.push_str(" %1");
+            }
+            s
+        })
+        .collect();
+    if !param_tys.is_empty() {
+        sig.push_str(&param_tys.join(" -> "));
+        sig.push_str(" ");
+    }
+    sig.push_str("->{Foreign Component, Diverge} ");
+    sig.push_str(&result.spelling());
+    Ok(WitBinding {
+        wit_name: f.name.clone(),
+        name,
+        symbol,
+        scheme: sig,
+        params,
+        result,
+        export,
+        impl_unit: format!("{}.{}", pascal_case(iface), camel_case(&f.name)),
+        call: crate::core::CanonCall {
+            core_params,
+            core_results,
+            params: steps,
+            ret,
+            ret_flat,
+            glue_gap: gap.clone(),
+        },
+        glue_gap: gap,
+    })
+}
+
+/// The generated surface source of one vocabulary type, and the
+/// constructor names it claims.
+fn type_decl_source(
+    cx: &CanonCx,
+    d: &crate::ast::WitTypeDef,
+    surface: &str,
+) -> crate::Result<(String, Vec<String>)> {
+    use crate::ast::WitTypeDefKind as K;
+    let mut src = String::new();
+    let mut ctors = Vec::new();
+    match &d.kind {
+        K::Enum(cases) => {
+            src.push_str(&format!("  data {surface} where\n"));
+            for c in cases {
+                let n = pascal_case(&c.name);
+                ctors.push(n.clone());
+                src.push_str(&format!("    {n} :: {surface}\n"));
+            }
+        }
+        K::Variant(cases) => {
+            src.push_str(&format!("  data {surface} where\n"));
+            for c in cases {
+                let n = pascal_case(&c.name);
+                ctors.push(n.clone());
+                let mut arrow = String::new();
+                if let Some(p) = &c.payload {
+                    let ts = match p {
+                        crate::ast::WitType::Tuple(ts, _) => ts.clone(),
+                        other => vec![other.clone()],
+                    };
+                    for t in ts {
+                        let (s, _) = cx.surface(&t, Pos::Out)?;
+                        arrow.push_str(&s.spelling());
+                        arrow.push_str(" -> ");
+                    }
+                }
+                src.push_str(&format!("    {n} :: {arrow}{surface}\n"));
+            }
+        }
+        K::Record(fields) => {
+            src.push_str(&format!("  record {surface} where\n"));
+            for f in fields {
+                let (s, _) = cx.surface(&f.ty, Pos::Out)?;
+                src.push_str(&format!("    {} :: {}\n", camel_case(&f.name), s.spelling()));
+            }
+        }
+        K::Flags(_) => {
+            ctors.push(surface.to_string());
+            src.push_str(&format!(
+                "  data {surface} where\n    {surface} :: U32 -> {surface}\n"
+            ));
+        }
+        K::Union(ts) => {
+            src.push_str(&format!("  data {surface} where\n"));
+            for (i, t) in ts.iter().enumerate() {
+                let n = format!("{surface}Case{i}");
+                ctors.push(n.clone());
+                let (s, _) = cx.surface(t, Pos::Out)?;
+                src.push_str(&format!("    {n} :: {} -> {surface}\n", s.spelling()));
+            }
+        }
+        // `type n = t` resolves away: the vocabulary names the
+        // underlying type (reported; the surface has no type synonyms).
+        K::Alias(_) => {}
+    }
+    Ok((src, ctors))
+}
+
+/// Does this WIT type mention a `stream` or `future` (the adapter then
+/// provides the degraded observation vocabulary)?
+fn mentions_stream(t: &crate::ast::WitType) -> bool {
+    use crate::ast::WitType as W;
+    match t {
+        W::Stream(_, _) | W::Future(_, _) => true,
+        W::List(e, _) | W::Option(e, _) => mentions_stream(e),
+        W::Result(a, b, _) => {
+            a.as_deref().map(mentions_stream).unwrap_or(false)
+                || b.as_deref().map(mentions_stream).unwrap_or(false)
+        }
+        W::Tuple(ts, _) => ts.iter().any(mentions_stream),
+        _ => false,
+    }
+}
+
+/// Walk every type reference of a type.
+fn walk_type_refs(t: &crate::ast::WitType, f: &mut impl FnMut(&str)) {
+    use crate::ast::WitType as W;
+    match t {
+        W::Named(n, _) | W::Own(n, _) | W::Borrow(n, _) => f(n),
+        W::List(e, _) | W::Option(e, _) | W::Stream(e, _) | W::Future(e, _) => walk_type_refs(e, f),
+        W::Result(a, b, _) => {
+            if let Some(a) = a {
+                walk_type_refs(a, f);
+            }
+            if let Some(b) = b {
+                walk_type_refs(b, f);
+            }
+        }
+        W::Tuple(ts, _) => ts.iter().for_each(|t| walk_type_refs(t, f)),
+        _ => {}
+    }
+}
+
+/// Build the generated component adapter for one WIT package
+/// (WebAssembly and WASI specification sections 3 and 4): the vocabulary
+/// types, the raw bindings over the canonical table, and the boundary
+/// error shape.
+pub fn build_wit_adapter(
+    pkg: &crate::ast::WitPackage,
+    abi: CanonicalAbi,
+) -> crate::Result<WitAdapter> {
+    use crate::ast::{WitItem, WitTypeDefKind};
+    let cx = CanonCx { pkg, abi };
+
+    // Every name resolves; value-type dependencies are acyclic.
+    let mut defs: Vec<&crate::ast::WitTypeDef> = Vec::new();
+    let mut resources: Vec<&crate::ast::WitResource> = Vec::new();
+    for i in &pkg.interfaces {
+        for it in &i.items {
+            match it {
+                WitItem::Type(d) => defs.push(d),
+                WitItem::Resource(r) => resources.push(r),
+                WitItem::Func(_) => {}
+            }
+        }
+    }
+    let mut known: Vec<String> = defs.iter().map(|d| d.name.clone()).collect();
+    known.extend(resources.iter().map(|r| r.name.clone()));
+    let mut check_ty = |t: &crate::ast::WitType| -> crate::Result<()> {
+        let mut bad = None;
+        walk_type_refs(t, &mut |n| {
+            if !known.iter().any(|k| k == n) && bad.is_none() {
+                bad = Some(n.to_string());
+            }
+        });
+        match bad {
+            Some(n) => Err(crate::Error::plain(format!("WIT: unknown type `{n}`"))),
+            None => Ok(()),
+        }
+    };
+    for d in &defs {
+        match &d.kind {
+            WitTypeDefKind::Enum(cases) => {
+                if cases.is_empty() {
+                    return Err(crate::Error::at(d.span, "WIT: an enum needs at least one case"));
+                }
+                let mut seen = Vec::new();
+                for c in cases {
+                    if seen.contains(&c.name) {
+                        return Err(crate::Error::at(c.span, format!("WIT: duplicate case `{}`", c.name)));
+                    }
+                    seen.push(c.name.clone());
+                }
+            }
+            WitTypeDefKind::Variant(cases) => {
+                let mut seen = Vec::new();
+                for c in cases {
+                    if seen.contains(&c.name) {
+                        return Err(crate::Error::at(c.span, format!("WIT: duplicate case `{}`", c.name)));
+                    }
+                    seen.push(c.name.clone());
+                    if let Some(p) = &c.payload {
+                        check_ty(p)?;
+                    }
+                }
+            }
+            WitTypeDefKind::Flags(labels) => {
+                if labels.len() > 32 {
+                    return Err(crate::Error::at(
+                        d.span,
+                        "WIT: a flags type has at most 32 labels",
+                    ));
+                }
+            }
+            WitTypeDefKind::Record(fields) => {
+                if fields.is_empty() {
+                    return Err(crate::Error::at(
+                        d.span,
+                        "WIT: an empty record has no canonical layout",
+                    ));
+                }
+                let mut seen = Vec::new();
+                for f in fields {
+                    if seen.contains(&f.name) {
+                        return Err(crate::Error::at(f.span, format!("WIT: duplicate field `{}`", f.name)));
+                    }
+                    seen.push(f.name.clone());
+                    check_ty(&f.ty)?;
+                }
+            }
+            WitTypeDefKind::Union(ts) => {
+                for t in ts {
+                    check_ty(t)?;
+                }
+            }
+            WitTypeDefKind::Alias(t) => check_ty(t)?,
+        }
+    }
+    // Alias cycles are the one recursive value shape WIT admits through
+    // names; a cycle has no layout and is rejected.
+    for d in &defs {
+        let mut chain = vec![d.name.clone()];
+        let mut cur = d.kind.clone();
+        loop {
+            match cur {
+                WitTypeDefKind::Alias(t) => match &t {
+                    crate::ast::WitType::Named(n, _) => {
+                        if chain.contains(n) {
+                            return Err(crate::Error::at(
+                                d.span,
+                                format!("WIT: cyclic type definitions through `{n}`"),
+                            ));
+                        }
+                        chain.push(n.clone());
+                        cur = cx.resolve(n)?.kind.clone();
+                    }
+                    _ => break,
+                },
+                _ => break,
+            }
+        }
+    }
+    for i in &pkg.interfaces {
+        for it in &i.items {
+            match it {
+                WitItem::Func(f) => {
+                    let mut seen = Vec::new();
+                    for p in &f.params {
+                        if seen.contains(&p.name) {
+                            return Err(crate::Error::at(
+                                p.span,
+                                format!("WIT: duplicate parameter `{}`", p.name),
+                            ));
+                        }
+                        seen.push(p.name.clone());
+                        check_ty(&p.ty)?;
+                    }
+                    if let Some(r) = &f.result {
+                        check_ty(r)?;
+                    }
+                }
+                WitItem::Resource(r) => {
+                    for it in &r.items {
+                        if let crate::ast::WitResourceItem::Method { params, result, .. } = it {
+                            for p in params {
+                                check_ty(&p.ty)?;
+                            }
+                            if let Some(r) = result {
+                                check_ty(r)?;
+                            }
+                        }
+                    }
+                }
+                WitItem::Type(_) => {}
+            }
+        }
+    }
+
+    // The vocabulary types, in declaration order.
+    let mut types = Vec::new();
+    let mut type_names: Vec<String> = Vec::new();
+    let mut ctor_names: Vec<String> = Vec::new();
+    let mut type_src = String::new();
+    for d in &defs {
+        let surface = pascal_case(&d.name);
+        if type_names.contains(&surface) {
+            return Err(crate::Error::at(
+                d.span,
+                format!("WIT: two types map to the surface name `{surface}`"),
+            ));
+        }
+        type_names.push(surface.clone());
+        let (src, ctors) = type_decl_source(&cx, d, &surface)?;
+        for c in &ctors {
+            if ctor_names.iter().any(|x| x == c) {
+                return Err(crate::Error::plain(format!(
+                    "WIT: two generated constructors share the name `{c}` (one vocabulary namespace)"
+                )));
+            }
+            ctor_names.push(c.clone());
+        }
+        type_src.push_str(&src);
+        types.push(WitTypeDecl { wit_name: d.name.clone(), surface, source: src });
+    }
+    for r in &resources {
+        let surface = pascal_case(&r.name);
+        if type_names.contains(&surface) {
+            return Err(crate::Error::at(
+                r.span,
+                format!("WIT: two types map to the surface name `{surface}`"),
+            ));
+        }
+        type_names.push(surface.clone());
+        // A resource value is the adapter's `i32` handle-table index
+        // under the exact lifetime rules of the crossing (section 4):
+        // `own` transfers once, `borrow` is call-scoped.
+        let src = format!("  data {surface} where\n    {surface} :: U32 -> {surface}\n");
+        if ctor_names.iter().any(|x| x == &surface) {
+            return Err(crate::Error::plain(format!(
+                "WIT: two generated constructors share the name `{surface}` (one vocabulary namespace)"
+            )));
+        }
+        ctor_names.push(surface.clone());
+        type_src.push_str(&src);
+        types.push(WitTypeDecl { wit_name: r.name.clone(), surface, source: src });
+    }
+
+    // The interfaces a world names (all of them when the package has no
+    // world), with the direction the world declares.
+    let mut selected: Vec<(String, bool)> = Vec::new();
+    for w in &pkg.worlds {
+        for item in w.imports.iter().map(|i| (i, false)).chain(w.exports.iter().map(|e| (e, true))) {
+            let (wi, export) = item;
+            if !pkg.interfaces.iter().any(|i| i.name == wi.iface) {
+                return Err(crate::Error::at(
+                    wi.span,
+                    format!("WIT: the world names an unknown interface `{}`", wi.iface),
+                ));
+            }
+            if selected.iter().any(|(n, _)| *n == wi.iface) {
+                return Err(crate::Error::at(
+                    wi.span,
+                    format!("WIT: interface `{}` is named by more than one world item", wi.iface),
+                ));
+            }
+            selected.push((wi.iface.clone(), export));
+        }
+    }
+    if selected.is_empty() {
+        for i in &pkg.interfaces {
+            selected.push((i.name.clone(), false));
+        }
+    }
+
+    // The raw bindings.
+    let mut bindings = Vec::new();
+    let mut streams = false;
+    for (iname, export) in &selected {
+        let iface = pkg.interface(iname).unwrap();
+        for it in &iface.items {
+            if let WitItem::Func(f) = it {
+                if bindings.iter().any(|b: &WitBinding| b.name == camel_case(&f.name)) {
+                    return Err(crate::Error::at(
+                        f.span,
+                        format!(
+                            "WIT: two functions map to the raw binding `{}`",
+                            camel_case(&f.name)
+                        ),
+                    ));
+                }
+                let mut uses_stream = false;
+                for p in &f.params {
+                    uses_stream |= mentions_stream(&p.ty);
+                }
+                if let Some(r) = &f.result {
+                    uses_stream |= mentions_stream(r);
+                }
+                streams |= uses_stream;
+                bindings.push(binding_of(&cx, iname, f, *export)?);
+            }
+        }
+    }
+    for d in &defs {
+        let mut seen_stream = false;
+        match &d.kind {
+            WitTypeDefKind::Record(fields) => {
+                for f in fields {
+                    seen_stream |= mentions_stream(&f.ty);
+                }
+            }
+            WitTypeDefKind::Variant(cases) => {
+                for c in cases {
+                    if let Some(p) = &c.payload {
+                        seen_stream |= mentions_stream(p);
+                    }
+                }
+            }
+            WitTypeDefKind::Union(ts) => {
+                for t in ts {
+                    seen_stream |= mentions_stream(t);
+                }
+            }
+            WitTypeDefKind::Alias(t) => seen_stream = mentions_stream(t),
+            _ => {}
+        }
+        streams |= seen_stream;
+    }
+
+    // The boundary error shape (the `BoundaryError` vocabulary): the
+    // `ForeignError` payload is the adapter's single error type when
+    // there is exactly one, else the opaque `ForeignFailure`.
+    let mut err_tys: Vec<String> = Vec::new();
+    for b in &bindings {
+        if let SurfaceTy::App(f, args) = &b.result {
+            if f == "Result" && args.len() == 2 {
+                let e = args[0].spelling();
+                if e != "Unit" && !err_tys.contains(&e) {
+                    err_tys.push(e);
+                }
+            }
+        }
+    }
+    let payload = if err_tys.len() == 1 {
+        err_tys[0].clone()
+    } else {
+        "ForeignFailure".to_string()
+    };
+    let mut vocab = type_src;
+    if payload == "ForeignFailure" {
+        for c in ["ForeignFailure"] {
+            if ctor_names.iter().any(|x| x == c) {
+                return Err(crate::Error::plain(format!(
+                    "WIT: two generated constructors share the name `{c}` (one vocabulary namespace)"
+                )));
+            }
+            ctor_names.push(c.to_string());
+        }
+        vocab.push_str("  data ForeignFailure where\n    ForeignFailure :: U32 -> ForeignFailure\n");
+    }
+    for c in ["ForeignError", "ContractViolation"] {
+        if ctor_names.iter().any(|x| x == c) {
+            return Err(crate::Error::plain(format!(
+                "WIT: two generated constructors share the name `{c}` (one vocabulary namespace)"
+            )));
+        }
+        ctor_names.push(c.to_string());
+    }
+    vocab.push_str(&format!(
+        "  data BoundaryError where\n    ForeignError :: {payload} -> BoundaryError\n    ContractViolation :: BoundaryError\n"
+    ));
+    if streams {
+        for c in ["WasiStream", "WasiFuture", "StreamFailed"] {
+            if ctor_names.iter().any(|x| x == c) {
+                return Err(crate::Error::plain(format!(
+                    "WIT: two generated constructors share the name `{c}` (one vocabulary namespace)"
+                )));
+            }
+            ctor_names.push(c.to_string());
+        }
+        vocab.push_str(
+            "  data WasiStream a where\n    WasiStream :: U32 -> WasiStream a\n\
+             \x20 data WasiFuture a where\n    WasiFuture :: U32 -> WasiFuture a\n\
+             \x20 data StreamError where\n    StreamFailed :: StreamError\n",
+        );
+    }
+
+    Ok(WitAdapter {
+        package: pkg.identity(),
+        abi,
+        module: "Raw".to_string(),
+        types,
+        bindings,
+        vocab,
+        boundary_error_payload: payload,
+        streams,
+    })
 }

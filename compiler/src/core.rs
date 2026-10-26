@@ -420,6 +420,46 @@ impl BytesOp {
     }
 }
 
+/// The UTF-8 string operations on `Bytes` buffers (`safelang.runtime.utf8*`;
+/// runtime ABI, `sl_utf8_*` over `compiler/runtime/src/string.rs`). The
+/// surface `String` library is defined over these.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum Utf8Op {
+    /// `utf8Validate :: Bytes -> Bool`: whether the buffer is valid UTF-8.
+    Validate,
+    /// `utf8CountChars :: Bytes -> Nat`: the number of Unicode scalar
+    /// values in a valid buffer (a malformed buffer faults).
+    CountChars,
+    /// `utf8DecodeAt :: Bytes -> Nat -> Option (Char, Nat)`: the scalar
+    /// value at a byte index and the byte width it occupies; `None` at
+    /// end of buffer or a non-boundary index.
+    DecodeAt,
+    /// `utf8Encode :: Char -> Bytes`: the buffer holding one encoded
+    /// scalar value.
+    Encode,
+}
+
+impl Utf8Op {
+    fn name(self) -> &'static str {
+        match self {
+            Utf8Op::Validate => "Validate",
+            Utf8Op::CountChars => "CountChars",
+            Utf8Op::DecodeAt => "DecodeAt",
+            Utf8Op::Encode => "Encode",
+        }
+    }
+
+    /// The runtime extern this operation is emitted against.
+    pub fn extern_name(self) -> &'static str {
+        match self {
+            Utf8Op::Validate => "sl_utf8_validate",
+            Utf8Op::CountChars => "sl_utf8_count_chars",
+            Utf8Op::DecodeAt => "sl_utf8_decode_at",
+            Utf8Op::Encode => "sl_utf8_encode",
+        }
+    }
+}
+
 /// The structured-concurrency and runtime I/O operations (concurrency
 /// specification sections 2, 3, 4 and 9). These are builtin values with
 /// compiler-known polymorphic schemes (`Checker::install_concurrency_api`),
@@ -489,6 +529,9 @@ pub enum PrimOp {
     /// `Bytes` operations on boxed byte buffers
     /// (`safelang.runtime.bytes*`; runtime ABI, `sl_bytes_*`).
     Bytes(BytesOp),
+    /// UTF-8 string operations on boxed byte buffers
+    /// (`safelang.runtime.utf8*`; runtime ABI, `sl_utf8_*`).
+    Utf8(Utf8Op),
     EqBool,
     NeBool,
     NotBool,
@@ -545,9 +588,59 @@ pub enum PrimOp {
     /// Structured concurrency and runtime I/O (concurrency specification
     /// sections 2, 4 and 9): builtin values, never foreign imports.
     Conc(ConcOp),
+    /// `eval q`: evaluate a typed quotation at runtime (supercompilation
+    /// and JIT specification section 7). The quote is typed by its
+    /// `Code a` type when constructed; `eval` carries no capability or
+    /// effect of its own and is never evidence.
+    Eval,
 }
 
 impl PrimOp {
+    /// Resolve `Usize`/`Isize` to the target's concrete word scalar
+    /// (primitive types specification section 2: cross-compilation uses
+    /// the target's width, never the build host's). Unit names and
+    /// semantics then follow the resolved scalar.
+    pub fn resolve_widths(self, usize_bits: u32) -> PrimOp {
+        use PrimOp::*;
+        let s = |t: Scalar| match t {
+            Scalar::Usize => {
+                if usize_bits == 32 {
+                    Scalar::U32
+                } else {
+                    Scalar::U64
+                }
+            }
+            Scalar::Isize => {
+                if usize_bits == 32 {
+                    Scalar::I32
+                } else {
+                    Scalar::I64
+                }
+            }
+            other => other,
+        };
+        match self {
+            Bound { ty, max } => Bound { ty: s(ty), max },
+            Arith { ty, op, mode } => Arith { ty: s(ty), op, mode },
+            Neg { ty, mode } => Neg { ty: s(ty), mode },
+            CheckedDiv { ty } => CheckedDiv { ty: s(ty) },
+            CheckedRem { ty } => CheckedRem { ty: s(ty) },
+            Shift { ty, op, checked } => Shift { ty: s(ty), op, checked },
+            Rotate { ty, right } => Rotate { ty: s(ty), right },
+            Bit { ty, op } => Bit { ty: s(ty), op },
+            BitNot { ty } => BitNot { ty: s(ty) },
+            BitScan { ty, op } => BitScan { ty: s(ty), op },
+            Cmp { ty, op } => Cmp { ty: s(ty), op },
+            Conv { from, to, mode } => Conv { from: s(from), to: s(to), mode },
+            FloatBin { ty, op } => FloatBin { ty: s(ty), op },
+            FloatUn { ty, op } => FloatUn { ty: s(ty), op },
+            FCmp { ty, op } => FCmp { ty: s(ty), op },
+            FClass { ty, op } => FClass { ty: s(ty), op },
+            TotalOrder { ty } => TotalOrder { ty: s(ty) },
+            other => other,
+        }
+    }
+
     /// The intrinsic symbol names recognised on `foreign import ccall`.
     pub fn from_symbol(sym: &str) -> Option<PrimOp> {
         use PrimOp::*;
@@ -574,6 +667,10 @@ impl PrimOp {
                 "bytesLen" => Bytes(BytesOp::Len),
                 "bytesGet" => Bytes(BytesOp::Get),
                 "bytesSet" => Bytes(BytesOp::Set),
+                "utf8Validate" => Utf8(Utf8Op::Validate),
+                "utf8CountChars" => Utf8(Utf8Op::CountChars),
+                "utf8DecodeAt" => Utf8(Utf8Op::DecodeAt),
+                "utf8Encode" => Utf8(Utf8Op::Encode),
                 _ => return None,
             });
         }
@@ -608,6 +705,7 @@ impl PrimOp {
             Nat(op) => return format!("safelang.runtime.nat{}", op.name()),
             Int(op) => return format!("safelang.runtime.int{}", op.name()),
             Bytes(op) => return format!("safelang.runtime.bytes{}", op.name()),
+            Utf8(op) => return format!("safelang.runtime.utf8{}", op.name()),
             EqBool => return "safelang.prim.eqBool".to_string(),
             NeBool => return "safelang.prim.neBool".to_string(),
             NotBool => return "safelang.prim.notBool".to_string(),
@@ -618,6 +716,7 @@ impl PrimOp {
             Demand => return "safelang.prim.demand".to_string(),
             CharToU32 => return "safelang.prim.charToU32".to_string(),
             U32ToChar => return "safelang.prim.u32ToChar".to_string(),
+            Eval => return "safelang.prim.eval".to_string(),
             Conc(k) => return k.symbol(),
             Bound { ty, max } => {
                 format!("{}Bound{}", if max { "max" } else { "min" }, ty.name())
@@ -657,10 +756,11 @@ impl PrimOp {
             Bound { .. } => 0,
             Nat(NatOp::FromI64 | NatOp::ToI64)
             | Int(IntOp::FromI64 | IntOp::ToI64 | IntOp::Neg)
-            | Bytes(BytesOp::New | BytesOp::Len) => 1,
+            | Bytes(BytesOp::New | BytesOp::Len)
+            | Utf8(Utf8Op::Validate | Utf8Op::CountChars | Utf8Op::Encode) => 1,
             Bytes(BytesOp::Set) => 3,
             Neg { .. } | BitNot { .. } | BitScan { .. } | FloatUn { .. } | FClass { .. }
-            | CharToU32 | U32ToChar | Conv { .. } | Delay | Force | Demand | NotBool => 1,
+            | CharToU32 | U32ToChar | Conv { .. } | Delay | Force | Demand | NotBool | Eval => 1,
             Conc(k) => k.arity(),
             _ => 2,
         }
@@ -677,6 +777,7 @@ impl PrimOp {
             Shift { checked: true, .. } => true,
             Conv { mode: ConvMode::Checked, .. } => true,
             Conc(ConcOp::IoRead) => true,
+            Utf8(Utf8Op::DecodeAt) => true,
             _ => false,
         }
     }
@@ -714,10 +815,16 @@ impl PrimOp {
             Bytes(BytesOp::Len) => (vec![Ty::Bytes], Ty::Nat),
             Bytes(BytesOp::Get) => (vec![Ty::Bytes, Ty::Nat], Ty::Nat),
             Bytes(BytesOp::Set) => (vec![Ty::Bytes, Ty::Nat, Ty::Nat], Ty::Unit),
+            Utf8(Utf8Op::Validate) => (vec![Ty::Bytes], Ty::Bool),
+            Utf8(Utf8Op::CountChars) => (vec![Ty::Bytes], Ty::Nat),
+            Utf8(Utf8Op::DecodeAt) => {
+                (vec![Ty::Bytes, Ty::Nat], opt(Ty::Tuple(vec![prim(Scalar::Char), Ty::Nat])))
+            }
+            Utf8(Utf8Op::Encode) => (vec![prim(Scalar::Char)], Ty::Bytes),
             EqBool | NeBool | AndBool | OrBool => (vec![Ty::Bool, Ty::Bool], Ty::Bool),
             NotBool => (vec![Ty::Bool], Ty::Bool),
-            Delay | Force | Demand => {
-                unreachable!("deferral forms are builtin, not foreign imports")
+            Delay | Force | Demand | Eval => {
+                unreachable!("deferral and code-generation forms are builtin, not foreign imports")
             }
             Bound { ty, .. } => (vec![], prim(ty)),
             Arith { ty, mode, .. } => {
@@ -1039,6 +1146,11 @@ pub enum Core {
     Unit,
     /// Local binder (value or dictionary binder).
     Var(LocalId),
+    /// A splice-hole position inside a quotation's retained body: the
+    /// value is the quote block captured at hole `idx`, evaluated where
+    /// the position expects the spliced code's value (supercompilation
+    /// and JIT specification section 7).
+    SpliceVal(usize),
     /// Top-level function used as a value (behaves as its closure).
     Global(GlobalId),
     /// Constructor function used as a value.
@@ -1087,10 +1199,15 @@ pub enum Core {
     /// A typed quotation template under construction (staging): the
     /// template carrying `SpliceHole` placeholders plus the elaborated
     /// splice expressions, evaluated when the quote is constructed
-    /// (modules specification section 7).
+    /// (modules specification section 7). `body` is the retained
+    /// elaboration of the template in closed runtime-side scope: the
+    /// reified program `eval` runs (supercompilation and JIT
+    /// specification section 7); it is `None` for quotes consumed at
+    /// compile time only.
     Quote {
         template: Box<crate::ast::Term>,
         holes: Vec<Core>,
+        body: Option<Box<Core>>,
     },
     /// A `quoteDecls` template under construction (modules specification
     /// section 8: generated declarations are checked under ordinary rules).
@@ -1742,6 +1859,125 @@ pub enum AbiClass {
     Aggregate,
 }
 
+/// The canonical ABI plan of one generated WIT binding (WebAssembly and
+/// WASI specification section 4): the flattened core wasm signature and
+/// the value-conversion steps the adapter performs. The plan is the
+/// canonical table both sides of the boundary agree on; code generation
+/// emits the adapter glue directly from it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CanonCall {
+    /// The flattened core parameter types (the canonical ABI's
+    /// `flatten_functype`, wasm32 pointer width).
+    pub core_params: Vec<CanonType>,
+    /// The core result types; empty when the result crosses through the
+    /// return area (more than one flattened result).
+    pub core_results: Vec<CanonType>,
+    /// Per surface parameter, in order: the flat steps it lowers to.
+    pub params: Vec<Vec<CanonStep>>,
+    /// The return-area plan when the result crosses through memory.
+    pub ret: Option<CanonRet>,
+    /// The payload shape when the result crosses as one core value (the
+    /// value itself is the shape's source; its offsets are ignored).
+    pub ret_flat: Option<CanonShape>,
+    /// The shape the glue refuses (the bootstrap glue marshals scalars,
+    /// byte buffers, handles, enums/flags and single-layer records and
+    /// variants of those), `None` when the glue covers the binding.
+    pub glue_gap: Option<String>,
+}
+
+/// A core wasm value type of the canonical lowering.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CanonType {
+    I32,
+    I64,
+    F32,
+    F64,
+}
+
+impl CanonType {
+    /// The LLVM spelling of the core type.
+    pub fn spelling(self) -> &'static str {
+        match self {
+            CanonType::I32 => "i32",
+            CanonType::I64 => "i64",
+            CanonType::F32 => "f32",
+            CanonType::F64 => "f64",
+        }
+    }
+}
+
+/// One surface parameter's canonical flattening step: how a safe word
+/// becomes (or is recovered from) the flat core values of the call.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CanonStep {
+    /// One core value: a machine scalar, `Bool` or `Char` word (`bits`
+    /// and `signed` are the safe word's width and signedness; the core
+    /// value is `core`).
+    Word { core: CanonType, bits: u32, signed: bool },
+    /// Two core values `(ptr, len)` over a copy of a byte payload
+    /// (`list<u8>` and `string`; the canonical ABI copies, zero-copy
+    /// needs its own sharing arrangement). `wrapped` selects the safe
+    /// representation: the `String` block's field is the `Bytes` word
+    /// when set, else the safe word is the `Bytes` word itself.
+    Bytes { wrapped: bool },
+    /// One `i32`: an opaque resource handle (`own`/`borrow`, `stream`,
+    /// `future`) indexing the adapter's handle table.
+    Handle,
+    /// One `i32`: an enum value's constructor tag (the safe word is its
+    /// block; the discriminant crosses).
+    Tag,
+    /// One `i32`: a `flags` value's packed bits (the safe word is its
+    /// one-field block; the field crosses masked to `size` bytes).
+    FlagField { size: u64 },
+}
+
+/// The safe-word to canonical-memory correspondence of one value in the
+/// return area: how the adapter stores it on the way out and rebuilds
+/// the safe word on the way in. `offset` is relative to the value's
+/// base (the return-area base plus the case payload offset).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CanonShape {
+    /// A machine scalar stored in `size` bytes.
+    Scalar { offset: u64, size: u64, signed: bool },
+    /// A `(ptr, len)` pair (8 bytes) over a byte payload; `wrapped` as
+    /// in [`CanonStep::Bytes`].
+    Bytes { offset: u64, wrapped: bool },
+    /// A resource handle (4 bytes).
+    Handle { offset: u64 },
+    /// An ADT block: `tag` the constructor index, or read from
+    /// `tag_at` `(offset, size)` when the tag comes from memory (an
+    /// enum payload); `fields` are the stored fields in slot order.
+    Ctor { tag: u64, tag_at: Option<(u64, u64)>, fields: Vec<CanonShape> },
+    /// The unit word.
+    Unit,
+}
+
+/// One result case of a return-area crossing.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CanonRetCase {
+    /// The discriminant value stored in the return area (the WIT
+    /// variant's case index).
+    pub disc: u64,
+    /// The safe constructor tag to build (the prelude `Result` order:
+    /// `Err` is 0, `Ok` is 1).
+    pub safe_tag: u64,
+    /// The payload shape inside the case.
+    pub payload: CanonShape,
+}
+
+/// The return-area layout of a result crossing through memory (the
+/// canonical ABI's `store_variant` layout: the discriminant, then the
+/// max-aligned payload area).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CanonRet {
+    pub size: u64,
+    pub align: u64,
+    pub cases: Vec<CanonRetCase>,
+    /// The whole-value shape when the result is not a variant family (a
+    /// record, tuple, string or list crossing through the return area).
+    pub plain: Option<CanonShape>,
+}
+
 /// One foreign parameter or result's binding contract: the widths,
 /// signedness, offsets, alignment, role, nullability and ownership the
 /// binding must specify (foreign function interface specification
@@ -1787,6 +2023,12 @@ pub struct ForeignPlan {
     /// For an `Owned` result: the matching deallocator's external symbol
     /// (section 4); empty when the result is not owned.
     pub deallocator: String,
+    /// The canonical ABI plan of a generated WIT adapter binding
+    /// (WebAssembly and WASI specification section 4): when present, the
+    /// unit marshals through the canonical flattening and the return
+    /// area instead of the C ABI classes, and `symbol` is the canonical
+    /// import/export symbol (`ns:name/interface#func`).
+    pub canon: Option<CanonCall>,
 }
 
 impl ForeignPlan {
@@ -1932,6 +2174,41 @@ pub enum VectorShape {
     Scalable,
 }
 
+/// The artifact shape of a deployment (WebAssembly and WASI
+/// specification section 2): core Wasm, a browser deployment, or a
+/// component artifact, each an independent dimension from the
+/// instruction features it assumes.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ArtifactProfile {
+    /// The bootstrap host target.
+    Native,
+    /// A core Wasm module with explicit imports and exports for
+    /// embedding.
+    CoreWasm,
+    /// A core module plus generated host bindings and an explicit
+    /// browser capability policy.
+    Browser,
+    /// A Component Model artifact: a WIT world, canonical bindings and
+    /// pinned WASI dependencies (the preferred WASI 0.3 profile).
+    WasiComponent,
+    /// Versioned older interfaces and checked or explicitly trusted
+    /// adapters (the pinned WASI 0.2 compatibility profile).
+    Wasi02Compat,
+}
+
+impl ArtifactProfile {
+    /// The spelling recorded in artifacts.
+    pub fn spelling(self) -> &'static str {
+        match self {
+            ArtifactProfile::Native => "native",
+            ArtifactProfile::CoreWasm => "core-wasm",
+            ArtifactProfile::Browser => "browser",
+            ArtifactProfile::WasiComponent => "wasi-component",
+            ArtifactProfile::Wasi02Compat => "wasi-0.2-compat",
+        }
+    }
+}
+
 /// A target profile: the instruction semantics and deployment assumptions
 /// of the artifact, and the driving bounds of specialization (platform
 /// proofs and SIMD specification section 1; supercompilation and JIT
@@ -1957,6 +2234,12 @@ pub struct TargetProfile {
     /// Whether this profile admits runtime code generation (`eval` of a
     /// typed quote; supercompilation section 7: a profile MAY forbid it).
     pub allow_eval: bool,
+    /// The artifact shape (WebAssembly and WASI specification section 2).
+    pub artifact: ArtifactProfile,
+    /// Capabilities the deployment contract assumes (an assumed
+    /// deployment baseline, enforced at artifact admission: platform
+    /// proofs and SIMD specification section 3).
+    pub required: Vec<String>,
 }
 
 impl TargetProfile {
@@ -1972,6 +2255,40 @@ impl TargetProfile {
             fuel: 8,
             measure: 8,
             allow_eval: true,
+            artifact: ArtifactProfile::Native,
+            required: Vec::new(),
+        }
+    }
+
+    /// A wasm32 target (WebAssembly and WASI specification sections 2
+    /// and 8): `Usize`/`Isize` are 32 bits (primitive types
+    /// specification section 2: widths key on the target, never the build
+    /// host), and the artifact shape supplies the component capabilities
+    /// it guarantees.
+    pub fn wasm32(artifact: ArtifactProfile) -> Self {
+        let mut features = Vec::new();
+        match artifact {
+            ArtifactProfile::WasiComponent => {
+                features.push("wasm.component-model".to_string());
+                features.push("wasi.0.3".to_string());
+            }
+            ArtifactProfile::Wasi02Compat => {
+                features.push("wasm.component-model".to_string());
+                features.push("wasi.0.2".to_string());
+            }
+            _ => {}
+        }
+        TargetProfile {
+            name: format!("wasm32-{}", artifact.spelling()),
+            word_size: 32,
+            endian: "little".to_string(),
+            vector_shape: VectorShape::Fixed(4),
+            features,
+            fuel: 8,
+            measure: 8,
+            allow_eval: true,
+            artifact,
+            required: Vec::new(),
         }
     }
 }
@@ -2089,7 +2406,7 @@ pub fn walk_locals(e: &Core, f: &mut impl FnMut(LocalId)) {
     match e {
         Core::Var(l) => f(*l),
         Core::Int(_) | Core::ConstBig { .. } | Core::Bool(_) | Core::Unit | Core::Global(_)
-        | Core::Ctor(_) | Core::Prim(_) | Core::Foreign(_) | Core::Fault | Core::LazyAlloc | Core::SyntaxLit(_)
+        | Core::Ctor(_) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::SyntaxLit(_)
         | Core::StrLit(_) => {}
         Core::DictProj(d, _) | Core::Proj(d, _) | Core::Demand(d) => walk_locals(d, f),
         Core::InstDict(_, args) | Core::App(_, args) => {
@@ -2160,7 +2477,7 @@ fn use_range(e: &Core, l: LocalId) -> (usize, usize) {
             }
         }
         Core::Int(_) | Core::ConstBig { .. } | Core::Bool(_) | Core::Unit | Core::Global(_)
-        | Core::Ctor(_) | Core::Prim(_) | Core::Foreign(_) | Core::Fault | Core::LazyAlloc | Core::SyntaxLit(_)
+        | Core::Ctor(_) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::SyntaxLit(_)
         | Core::StrLit(_) => (0, 0),
         Core::DictProj(d, _) | Core::Proj(d, _) | Core::Demand(d) => use_range(d, l),
         Core::InstDict(_, args) | Core::App(_, args) => {
@@ -2255,7 +2572,7 @@ fn renumber_core(e: &Core, nparams: usize) -> Core {
         match e {
             Core::Var(l) => note(*l, map, next),
             Core::Int(_) | Core::ConstBig { .. } | Core::Bool(_) | Core::Unit | Core::Global(_)
-            | Core::Ctor(_) | Core::Prim(_) | Core::Foreign(_) | Core::Fault | Core::LazyAlloc | Core::SyntaxLit(_)
+            | Core::Ctor(_) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::SyntaxLit(_)
             | Core::StrLit(_) => {}
             Core::DictProj(d, _) | Core::Proj(d, _) | Core::Demand(d) => assign(d, map, next),
             Core::InstDict(_, args) | Core::App(_, args) => {
@@ -2311,6 +2628,7 @@ fn renumber_core(e: &Core, nparams: usize) -> Core {
         let rw = |x: &Core| rewrite(x, map);
         match e {
             Core::Var(l) => Core::Var(*map.get(l).unwrap_or(l)),
+            Core::SpliceVal(i) => Core::SpliceVal(*i),
             Core::Int(v) => Core::Int(*v),
             Core::ConstBig { nat, digits } => Core::ConstBig { nat: *nat, digits: digits.clone() },
             Core::Bool(b) => Core::Bool(*b),
@@ -2365,9 +2683,10 @@ fn renumber_core(e: &Core, nparams: usize) -> Core {
                     })
                     .collect(),
             },
-            Core::Quote { template, holes } => Core::Quote {
+            Core::Quote { template, holes, body } => Core::Quote {
                 template: template.clone(),
                 holes: holes.iter().map(rw).collect(),
+                body: body.as_ref().map(|b| Box::new(rw(b))),
             },
             Core::DeclsQuote { template, holes } => Core::DeclsQuote {
                 template: template.clone(),
@@ -2412,6 +2731,7 @@ fn instantiate(
                     Core::Var(*ren.get(l).unwrap_or(l))
                 }
             }
+            Core::SpliceVal(i) => Core::SpliceVal(*i),
             Core::Int(v) => Core::Int(*v),
             Core::ConstBig { nat, digits } => Core::ConstBig { nat: *nat, digits: digits.clone() },
             Core::Bool(b) => Core::Bool(*b),
@@ -2496,9 +2816,10 @@ fn instantiate(
                     })
                     .collect(),
             },
-            Core::Quote { template, holes: hs } => Core::Quote {
+            Core::Quote { template, holes: hs, body } => Core::Quote {
                 template: template.clone(),
                 holes: hs.iter().map(|h| go(h, holes, binds, ren, next)).collect(),
+                body: body.as_ref().map(|b| Box::new(go(b, holes, binds, ren, next))),
             },
             Core::DeclsQuote { template, holes: hs } => Core::DeclsQuote {
                 template: template.clone(),
@@ -2967,7 +3288,9 @@ fn fold_prim(op: PrimOp, args: &[Core], ctors: &FoldCtors) -> Option<Core> {
 /// Whether a primitive is pure (performed effects are observable order:
 /// the buffer operations mutate, everything else is total computation).
 fn prim_is_pure(op: PrimOp) -> bool {
-    !matches!(op, PrimOp::Bytes(_))
+    // `eval` runs a reified program at runtime: it can fault and its
+    // work is opaque here, so the optimizer must not reorder or drop it.
+    !matches!(op, PrimOp::Bytes(_) | PrimOp::Eval)
 }
 
 /// A term's allocation and demand structure (supercompilation section 3:
@@ -2984,7 +3307,8 @@ fn has_alloc(e: &Core) -> bool {
             | Core::DeclsQuote { .. } => *found = true,
             Core::Prim(PrimOp::Delay) => *found = true,
             Core::Int(_) | Core::ConstBig { .. } | Core::Bool(_) | Core::Unit | Core::Global(_)
-            | Core::Ctor(_) | Core::Prim(_) | Core::Foreign(_) | Core::Fault | Core::SyntaxLit(_) | Core::StrLit(_)
+            | Core::Ctor(_) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_)
+            | Core::Fault | Core::SyntaxLit(_) | Core::StrLit(_)
             | Core::Var(_) => {}
             Core::DictProj(d, _) | Core::Proj(d, _) => go(d, found),
             Core::InstDict(_, args) | Core::App(_, args) | Core::Lam { env: args, .. } => {
@@ -3034,7 +3358,7 @@ fn scan_calls(e: &Core, f: &mut impl FnMut(&GlobalId)) {
     match e {
         Core::Global(g) => f(g),
         Core::Int(_) | Core::ConstBig { .. } | Core::Bool(_) | Core::Unit | Core::Ctor(_)
-        | Core::Prim(_) | Core::Foreign(_) | Core::Fault | Core::LazyAlloc | Core::SyntaxLit(_) | Core::StrLit(_)
+        | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::SyntaxLit(_) | Core::StrLit(_)
         | Core::Var(_) => {}
         Core::DictProj(d, _) | Core::Proj(d, _) | Core::Demand(d) => scan_calls(d, f),
         Core::InstDict(_, args) | Core::App(_, args) => {
@@ -3087,7 +3411,8 @@ fn scan_memo(e: &Core, n: &mut usize) {
     match e {
         Core::LazyAlloc | Core::LazyInit(_, _) | Core::Demand(_) => *n += 1,
         Core::Int(_) | Core::ConstBig { .. } | Core::Bool(_) | Core::Unit | Core::Global(_)
-        | Core::Ctor(_) | Core::Prim(_) | Core::Foreign(_) | Core::Fault | Core::SyntaxLit(_) | Core::StrLit(_)
+        | Core::Ctor(_) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_)
+        | Core::Fault | Core::SyntaxLit(_) | Core::StrLit(_)
         | Core::Var(_) => {}
         Core::DictProj(d, _) | Core::Proj(d, _) => scan_memo(d, n),
         Core::InstDict(_, args) | Core::App(_, args) | Core::Lam { env: args, .. } => {
@@ -3145,7 +3470,7 @@ fn weights_ok(e: &Core) -> bool {
                 }
             }
             Core::Int(_) | Core::ConstBig { .. } | Core::Bool(_) | Core::Unit | Core::Global(_)
-            | Core::Ctor(_) | Core::Prim(_) | Core::Foreign(_) | Core::Fault | Core::LazyAlloc | Core::SyntaxLit(_)
+            | Core::Ctor(_) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::SyntaxLit(_)
             | Core::StrLit(_) | Core::Var(_) => {}
             Core::DictProj(d, _) | Core::Proj(d, _) | Core::Demand(d) => go(d, ok),
             Core::InstDict(_, args) | Core::App(_, args) | Core::Lam { env: args, .. } => {
@@ -3176,7 +3501,7 @@ fn scope_ok(e: &Core, nparams: usize) -> bool {
         match e {
             Core::Var(l) => bound.contains(l),
             Core::Int(_) | Core::ConstBig { .. } | Core::Bool(_) | Core::Unit | Core::Global(_)
-            | Core::Ctor(_) | Core::Prim(_) | Core::Foreign(_) | Core::Fault | Core::LazyAlloc | Core::SyntaxLit(_)
+            | Core::Ctor(_) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::SyntaxLit(_)
             | Core::StrLit(_) => true,
             Core::DictProj(d, _) | Core::Proj(d, _) | Core::Demand(d) => go(d, bound),
             Core::InstDict(_, args) | Core::App(_, args) | Core::Lam { env: args, .. } => {
@@ -3291,7 +3616,8 @@ fn body_impure(e: &Core) -> bool {
                 }
             }
             Core::Int(_) | Core::ConstBig { .. } | Core::Bool(_) | Core::Unit | Core::Global(_)
-            | Core::Ctor(_) | Core::LazyAlloc | Core::SyntaxLit(_) | Core::StrLit(_) | Core::Var(_) => {}
+            | Core::Ctor(_) | Core::SpliceVal(_) | Core::LazyAlloc
+            | Core::SyntaxLit(_) | Core::StrLit(_) | Core::Var(_) => {}
             Core::DictProj(d, _) | Core::Proj(d, _) | Core::Demand(d) => go(d, bad),
             Core::InstDict(_, args) | Core::App(_, args) | Core::Lam { env: args, .. } => {
                 for a in args {
@@ -4071,7 +4397,7 @@ fn child_slots(e: &mut Core) -> Vec<&mut Core> {
     let mut out: Vec<&mut Core> = Vec::new();
     match e {
         Core::Int(_) | Core::ConstBig { .. } | Core::Bool(_) | Core::Unit | Core::Global(_)
-        | Core::Ctor(_) | Core::Prim(_) | Core::Foreign(_) | Core::Fault | Core::LazyAlloc | Core::SyntaxLit(_)
+        | Core::Ctor(_) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::SyntaxLit(_)
         | Core::StrLit(_) | Core::Var(_) => {}
         Core::DictProj(d, _) | Core::Proj(d, _) | Core::Demand(d) => out.push(&mut **d),
         Core::InstDict(_, args) | Core::App(_, args) | Core::Lam { env: args, .. } => {
@@ -4600,7 +4926,7 @@ fn child_slots_imm(e: &Core) -> Vec<&Core> {
     let mut out: Vec<&Core> = Vec::new();
     match e {
         Core::Int(_) | Core::ConstBig { .. } | Core::Bool(_) | Core::Unit | Core::Global(_)
-        | Core::Ctor(_) | Core::Prim(_) | Core::Foreign(_) | Core::Fault | Core::LazyAlloc | Core::SyntaxLit(_)
+        | Core::Ctor(_) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::SyntaxLit(_)
         | Core::StrLit(_) | Core::Var(_) => {}
         Core::DictProj(d, _) | Core::Proj(d, _) | Core::Demand(d) => out.push(&**d),
         Core::InstDict(_, args) | Core::App(_, args) | Core::Lam { env: args, .. } => {

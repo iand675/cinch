@@ -473,6 +473,30 @@ pub struct FixityDecl {
     pub span: Span,
 }
 
+/// One static module argument in `import M (args) as N` (module
+/// parameters as module arguments, A5): a named dictionary or top-level
+/// value, or a literal. Arguments are static, so an instantiation is a
+/// distinct compilation unit with a computed identity rather than a
+/// runtime functor application.
+#[derive(Clone, Debug)]
+pub enum ModuleArg {
+    /// A bare or qualified name: an `instance` (a signature dictionary) or
+    /// a top-level value. `quals` is empty for a bare name.
+    Name { quals: Vec<Name>, name: Name },
+    Int(String, Span),
+    Char(String, Span),
+    Unit(Span),
+}
+
+impl ModuleArg {
+    pub fn span(&self) -> Span {
+        match self {
+            ModuleArg::Name { name, .. } => name.span,
+            ModuleArg::Int(_, s) | ModuleArg::Char(_, s) | ModuleArg::Unit(s) => *s,
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct Import {
     pub path: ConPath,
@@ -481,6 +505,24 @@ pub struct Import {
     /// definitions and macros) become visible to this module's compile-time
     /// code; ordinary names stay invisible (modules specification section 9).
     pub stage: bool,
+    /// Instantiation arguments (`import M (args) as N`, module parameters
+    /// as module arguments): non-empty means this import instantiates the
+    /// parameterized module `path` at these static arguments, producing the
+    /// unit named `alias`. Without arguments an import is the ordinary
+    /// visibility form and `alias` is ignored.
+    pub args: Vec<ModuleArg>,
+    pub span: Span,
+}
+
+/// One typed module parameter (`module M (x :: T, ...) where`, modules
+/// specification section 1): an ordinary binding in the module's scope,
+/// provided at instantiation. A parameter whose type is a `signature`
+/// application is a dictionary (the instantiator's explicit dictionary
+/// selection); any other type is an ordinary value parameter.
+#[derive(Clone, Debug)]
+pub struct ParamDecl {
+    pub name: Name,
+    pub ty: Type,
     pub span: Span,
 }
 
@@ -702,6 +744,10 @@ pub enum Decl {
 #[derive(Clone, Debug)]
 pub struct Module {
     pub name: Name,
+    /// The parameter block of `module M (x :: T, ...) where` (module
+    /// parameters as module arguments): ordinary bindings in the module
+    /// scope, provided at instantiation. Empty for a plain module.
+    pub params: Vec<ParamDecl>,
     pub imports: Vec<Import>,
     pub decls: Vec<Decl>,
     pub span: Span,
@@ -2067,4 +2113,235 @@ fn collect_decl_holes(d: &mut Decl, holes: &mut Vec<HoleExpr>) {
             }
         }
     }
+}
+
+// --------------------------------------------------- WIT: component interfaces
+
+/// A parsed WIT package (WebAssembly and WASI specification section 3):
+/// `package ns:name@version;` with the `interface` and `world` items it
+/// declares. WIT describes shapes and resource interfaces only; the
+/// functional laws of a binding stay in the language's own contracts.
+#[derive(Clone, Debug)]
+pub struct WitPackage {
+    /// `ns:name`, e.g. `example:codec`.
+    pub name: String,
+    /// The `@version` suffix when written.
+    pub version: Option<String>,
+    pub interfaces: Vec<WitInterface>,
+    pub worlds: Vec<WitWorld>,
+    pub span: Span,
+}
+
+impl WitPackage {
+    /// The package identity recorded in artifacts: `ns:name@version`
+    /// with the version spelled `@0` when absent.
+    pub fn identity(&self) -> String {
+        match &self.version {
+            Some(v) => format!("{}@{}", self.name, v),
+            None => format!("{}@0", self.name),
+        }
+    }
+
+    /// The interface named `name`, if the package declares it.
+    pub fn interface(&self, name: &str) -> Option<&WitInterface> {
+        self.interfaces.iter().find(|i| i.name == name)
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct WitInterface {
+    pub name: String,
+    pub items: Vec<WitItem>,
+    pub span: Span,
+}
+
+impl WitInterface {
+    /// The type definitions of the interface, in declaration order.
+    pub fn typedefs(&self) -> impl Iterator<Item = &WitTypeDef> {
+        self.items.iter().filter_map(|i| match i {
+            WitItem::Type(t) => Some(t),
+            _ => None,
+        })
+    }
+
+    /// The functions of the interface, in declaration order.
+    pub fn funcs(&self) -> impl Iterator<Item = &WitFunc> {
+        self.items.iter().filter_map(|i| match i {
+            WitItem::Func(f) => Some(f),
+            _ => None,
+        })
+    }
+
+    /// The resources of the interface, in declaration order.
+    pub fn resources(&self) -> impl Iterator<Item = &WitResource> {
+        self.items.iter().filter_map(|i| match i {
+            WitItem::Resource(r) => Some(r),
+            _ => None,
+        })
+    }
+}
+
+#[derive(Clone, Debug)]
+pub enum WitItem {
+    Type(WitTypeDef),
+    Func(WitFunc),
+    Resource(WitResource),
+}
+
+#[derive(Clone, Debug)]
+pub struct WitTypeDef {
+    pub name: String,
+    pub kind: WitTypeDefKind,
+    pub span: Span,
+}
+
+#[derive(Clone, Debug)]
+pub enum WitTypeDefKind {
+    /// `enum e { a, b }`: payloads are forbidden.
+    Enum(Vec<WitCase>),
+    /// `record r { x: t, ... }`.
+    Record(Vec<WitField>),
+    /// `variant v { a(t), b }`: cases carry optional payloads.
+    Variant(Vec<WitCase>),
+    /// `flags f { a, b }`.
+    Flags(Vec<String>),
+    /// `union u { t1, t2 }`: a variant with positional cases.
+    Union(Vec<WitType>),
+    /// `type n = t`.
+    Alias(WitType),
+}
+
+#[derive(Clone, Debug)]
+pub struct WitCase {
+    pub name: String,
+    pub payload: Option<WitType>,
+    pub span: Span,
+}
+
+#[derive(Clone, Debug)]
+pub struct WitField {
+    pub name: String,
+    pub ty: WitType,
+    pub span: Span,
+}
+
+/// A `resource r { ... }`: an opaque host-owned object whose values cross
+/// the boundary as `own<r>`/`borrow<r>` handles, never as host pointers
+/// (WebAssembly and WASI specification section 4).
+#[derive(Clone, Debug)]
+pub struct WitResource {
+    pub name: String,
+    pub items: Vec<WitResourceItem>,
+    pub span: Span,
+}
+
+#[derive(Clone, Debug)]
+pub enum WitResourceItem {
+    /// `constructor(x: t, ...);`.
+    Constructor { params: Vec<WitParam>, span: Span },
+    /// `m: func(x: t, ...) -> u;`.
+    Method {
+        name: String,
+        params: Vec<WitParam>,
+        result: Option<WitType>,
+        span: Span,
+    },
+}
+
+#[derive(Clone, Debug)]
+pub struct WitFunc {
+    pub name: String,
+    pub params: Vec<WitParam>,
+    pub result: Option<WitType>,
+    pub span: Span,
+}
+
+#[derive(Clone, Debug)]
+pub struct WitParam {
+    pub name: String,
+    pub ty: WitType,
+    pub span: Span,
+}
+
+/// A WIT value type (the interface type grammar).
+#[derive(Clone, Debug)]
+pub enum WitType {
+    Bool(Span),
+    U8(Span),
+    U16(Span),
+    U32(Span),
+    U64(Span),
+    S8(Span),
+    S16(Span),
+    S32(Span),
+    S64(Span),
+    F32(Span),
+    F64(Span),
+    Char(Span),
+    Str(Span),
+    List(Box<WitType>, Span),
+    Option(Box<WitType>, Span),
+    /// `result`, `result<t>`, `result<_, e>`, `result<t, e>`: the ok and
+    /// err payloads, each optional.
+    Result(Option<Box<WitType>>, Option<Box<WitType>>, Span),
+    Tuple(Vec<WitType>, Span),
+    /// A reference to a named type of the package.
+    Named(String, Span),
+    /// `own<r>`: an owned resource handle (ownership transfers).
+    Own(String, Span),
+    /// `borrow<r>`: a borrowed resource handle (scoped, never owned).
+    Borrow(String, Span),
+    /// `stream<t>` (WASI 0.3): an asynchronous source or sink, never a
+    /// productive `Stream a` (WebAssembly and WASI specification
+    /// section 6).
+    Stream(Box<WitType>, Span),
+    /// `future<t>` (WASI 0.3): a fallible asynchronous completion.
+    Future(Box<WitType>, Span),
+}
+
+impl WitType {
+    pub fn span(&self) -> Span {
+        match self {
+            WitType::Bool(s)
+            | WitType::U8(s)
+            | WitType::U16(s)
+            | WitType::U32(s)
+            | WitType::U64(s)
+            | WitType::S8(s)
+            | WitType::S16(s)
+            | WitType::S32(s)
+            | WitType::S64(s)
+            | WitType::F32(s)
+            | WitType::F64(s)
+            | WitType::Char(s)
+            | WitType::Str(s)
+            | WitType::List(_, s)
+            | WitType::Option(_, s)
+            | WitType::Result(_, _, s)
+            | WitType::Tuple(_, s)
+            | WitType::Named(_, s)
+            | WitType::Own(_, s)
+            | WitType::Borrow(_, s)
+            | WitType::Stream(_, s)
+            | WitType::Future(_, s) => *s,
+        }
+    }
+}
+
+/// A `world`: the imports and exports of a component, naming package
+/// interfaces (WebAssembly and WASI specification sections 2 and 5: a
+/// world lists its imports; linking supplies the concrete capabilities).
+#[derive(Clone, Debug)]
+pub struct WitWorld {
+    pub name: String,
+    pub imports: Vec<WitWorldItem>,
+    pub exports: Vec<WitWorldItem>,
+    pub span: Span,
+}
+
+#[derive(Clone, Debug)]
+pub struct WitWorldItem {
+    /// The referenced interface name (`export decoder;`).
+    pub iface: String,
+    pub span: Span,
 }

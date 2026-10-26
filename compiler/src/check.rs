@@ -63,6 +63,10 @@ enum ECore {
     Fault,
     /// Unresolved dictionary, filled before lowering.
     Hole(usize),
+    /// A splice-hole position inside a quotation's retained body: the
+    /// quote block captured at hole `idx` (supercompilation and JIT
+    /// specification section 7).
+    QuoteHole(usize),
     /// Deferred implicit index argument, reified once unification has
     /// solved it ([`Checker::resolve_idx_pends`]).
     IdxPending(usize),
@@ -73,6 +77,9 @@ enum ECore {
     Quote {
         template: Box<crate::ast::Term>,
         holes: Vec<ECore>,
+        /// The retained elaboration of the template in closed
+        /// runtime-side scope: the reified program `eval` runs.
+        body: Box<ECore>,
     },
     /// A `quoteDecls` template under construction (modules specification
     /// section 8).
@@ -131,7 +138,7 @@ fn free_locals(e: &ECore, bound: &mut Vec<LocalId>, out: &mut Vec<LocalId>) {
             }
         }
         ECore::Int(_) | ECore::ConstBig { .. } | ECore::Lit(_) | ECore::Bool(_) | ECore::Unit | ECore::Global(_)
-        | ECore::Ctor(_) | ECore::Prim(_) | ECore::Foreign(_) | ECore::Hole(_) | ECore::IdxPending(_) | ECore::Fault
+        | ECore::Ctor(_) | ECore::Prim(_) | ECore::Foreign(_) | ECore::Hole(_) | ECore::QuoteHole(_) | ECore::IdxPending(_) | ECore::Fault
         | ECore::SyntaxLit(_) | ECore::StrLit(_) => {}
         ECore::Quote { holes, .. } | ECore::DeclsQuote { holes, .. } => {
             for h in holes {
@@ -211,11 +218,20 @@ fn hoist_lambdas(e: &mut ECore, hint: &str, counter: &mut usize, fns: &mut Vec<H
         | ECore::Ctor(_)
         | ECore::Prim(_) | ECore::Foreign(_)
         | ECore::Hole(_)
+        | ECore::QuoteHole(_)
         | ECore::IdxPending(_)
         | ECore::Fault
         | ECore::SyntaxLit(_)
         | ECore::StrLit(_) => {}
-        ECore::Quote { holes, .. } | ECore::DeclsQuote { holes, .. } => {
+        ECore::Quote { holes, body, .. } => {
+            for h in holes {
+                hoist_lambdas(h, hint, counter, fns);
+            }
+            // The retained body is reified program text; its lambdas
+            // hoist like any others (supercompilation section 7).
+            hoist_lambdas(body, hint, counter, fns);
+        }
+        ECore::DeclsQuote { holes, .. } => {
             for h in holes {
                 hoist_lambdas(h, hint, counter, fns);
             }
@@ -297,9 +313,15 @@ fn assign_locals(e: &ECore, map: &mut HashMap<LocalId, LocalId>, next: &mut usiz
     match e {
         ECore::Var(l) => note_local(*l, map, next),
         ECore::Int(_) | ECore::ConstBig { .. } | ECore::Lit(_) | ECore::Bool(_) | ECore::Unit | ECore::Global(_)
-        | ECore::Ctor(_) | ECore::Prim(_) | ECore::Foreign(_) | ECore::Hole(_) | ECore::IdxPending(_) | ECore::Fault
+        | ECore::Ctor(_) | ECore::Prim(_) | ECore::Foreign(_) | ECore::Hole(_) | ECore::QuoteHole(_) | ECore::IdxPending(_) | ECore::Fault
         | ECore::SyntaxLit(_) | ECore::StrLit(_) => {}
-        ECore::Quote { holes, .. } | ECore::DeclsQuote { holes, .. } => {
+        ECore::Quote { holes, body, .. } => {
+            for h in holes {
+                assign_locals(h, map, next);
+            }
+            assign_locals(body, map, next);
+        }
+        ECore::DeclsQuote { holes, .. } => {
             for h in holes {
                 assign_locals(h, map, next);
             }
@@ -371,13 +393,15 @@ fn rewrite_locals(e: &ECore, map: &HashMap<LocalId, LocalId>) -> ECore {
         ECore::Prim(p) => ECore::Prim(*p),
         ECore::Foreign(n) => ECore::Foreign(n.clone()),
         ECore::Hole(h) => ECore::Hole(*h),
+        ECore::QuoteHole(h) => ECore::QuoteHole(*h),
         ECore::IdxPending(i) => ECore::IdxPending(*i),
         ECore::Fault => ECore::Fault,
         ECore::SyntaxLit(toks) => ECore::SyntaxLit(toks.clone()),
         ECore::StrLit(s) => ECore::StrLit(s.clone()),
-        ECore::Quote { template, holes } => ECore::Quote {
+        ECore::Quote { template, holes, body } => ECore::Quote {
             template: template.clone(),
             holes: holes.iter().map(|h| rewrite_locals(h, map)).collect(),
+            body: Box::new(rewrite_locals(body, map)),
         },
         ECore::DeclsQuote { template, holes } => ECore::DeclsQuote {
             template: template.clone(),
@@ -451,9 +475,15 @@ fn resolve_lit_words(e: &mut ECore, lits: &[ECore]) {
         ECore::Lit(i) => *e = lits[*i].clone(),
         ECore::Int(_) | ECore::ConstBig { .. } | ECore::Bool(_) | ECore::Unit | ECore::Var(_)
         | ECore::Global(_)
-        | ECore::Ctor(_) | ECore::Prim(_) | ECore::Foreign(_) | ECore::Hole(_) | ECore::IdxPending(_) | ECore::Fault | ECore::LazyAlloc
+        | ECore::Ctor(_) | ECore::Prim(_) | ECore::Foreign(_) | ECore::Hole(_) | ECore::QuoteHole(_) | ECore::IdxPending(_) | ECore::Fault | ECore::LazyAlloc
         | ECore::SyntaxLit(_) | ECore::StrLit(_) => {}
-        ECore::Quote { holes, .. } | ECore::DeclsQuote { holes, .. } => {
+        ECore::Quote { holes, body, .. } => {
+            for h in holes {
+                resolve_lit_words(h, lits);
+            }
+            resolve_lit_words(body, lits);
+        }
+        ECore::DeclsQuote { holes, .. } => {
             for h in holes {
                 resolve_lit_words(h, lits);
             }
@@ -507,11 +537,18 @@ fn resolve_idx_words(e: &mut ECore, vals: &[ECore]) {
         | ECore::Ctor(_)
         | ECore::Prim(_) | ECore::Foreign(_)
         | ECore::Hole(_)
+        | ECore::QuoteHole(_)
         | ECore::Fault
         | ECore::LazyAlloc
         | ECore::SyntaxLit(_)
         | ECore::StrLit(_) => {}
-        ECore::Quote { holes, .. } | ECore::DeclsQuote { holes, .. } => {
+        ECore::Quote { holes, body, .. } => {
+            for h in holes {
+                resolve_idx_words(h, vals);
+            }
+            resolve_idx_words(body, vals);
+        }
+        ECore::DeclsQuote { holes, .. } => {
             for h in holes {
                 resolve_idx_words(h, vals);
             }
@@ -599,9 +636,11 @@ fn lower(e: &ECore) -> crate::core::Core {
         ECore::Lam { .. } | ECore::Hole(_) | ECore::IdxPending(_) => {
             unreachable!("lambda hoisting and dictionary solving run before lowering")
         }
-        ECore::Quote { template, holes } => crate::core::Core::Quote {
+        ECore::QuoteHole(idx) => crate::core::Core::SpliceVal(*idx),
+        ECore::Quote { template, holes, body } => crate::core::Core::Quote {
             template: template.clone(),
             holes: holes.iter().map(lower).collect(),
+            body: Some(Box::new(lower(body))),
         },
         ECore::DeclsQuote { template, holes } => crate::core::Core::DeclsQuote {
             template: template.clone(),
@@ -759,6 +798,7 @@ struct SigInfo {
     methods: Vec<(String, Scheme)>,
 }
 
+#[derive(Clone)]
 struct InstanceInfo {
     module: String,
     name: String,
@@ -768,6 +808,55 @@ struct InstanceInfo {
     /// The dictionary construction unit for this instance.
     base_id: GlobalId,
     implicit: bool,
+    /// The declared instance of a parameterized module (module parameters
+    /// as module arguments): its dictionary needs the module's parameters,
+    /// so it is never resolved on its own. Each instantiation publishes its
+    /// own copy under the instantiation unit's name.
+    base: bool,
+}
+
+/// One module parameter of a parameterized module (`module M (x :: T)
+/// where`; modules specification section 1), converted against the
+/// module's visible names. A `signature`-typed parameter is a dictionary
+/// binding (`class` is its class application); any other type is an
+/// ordinary value binding.
+#[derive(Clone)]
+pub(crate) struct ModParam {
+    pub name: String,
+    pub ty: Ty,
+    pub class: Option<ClassApp>,
+    /// The parameter's signature rendering for the interface's parameter
+    /// identity record (`x :: T`).
+    pub sig: String,
+}
+
+/// One instantiation unit (`import M (args) as N`, module parameters as
+/// module arguments). The unit's values are wrapper units over the target
+/// module's functions with the static arguments applied (instantiation is
+/// representation; the target's contract is unchanged).
+#[derive(Clone)]
+pub(crate) struct UnitRec {
+    pub owner: String,
+    pub name: String,
+    pub target: String,
+    /// Closed argument code, in parameter order.
+    pub args: Vec<crate::core::Core>,
+    /// Argument identities for the unit's computed identity.
+    pub arg_ids: Vec<String>,
+    /// The unit's computed identity: the target module and its parameter
+    /// signatures over the argument identities, so two instantiations at
+    /// different arguments are distinct units.
+    pub unit_id: String,
+    /// Instances this unit publishes: `(instance name, class, target,
+    /// ctx, implicit)` over the target module's declared instances.
+    pub insts: Vec<UnitInst>,
+}
+
+/// One instance published by an instantiation unit: the target module's
+/// declared instance, constructed at the unit's static arguments.
+#[derive(Clone)]
+pub(crate) struct UnitInst {
+    pub inst_name: String,
 }
 
 struct Want {
@@ -1426,6 +1515,21 @@ struct Checker {
     /// `corec` declarations: definitions whose recursion must be
     /// productive (core language specification section 9).
     corec: std::collections::HashSet<(String, String)>,
+    /// Whether the target profile admits runtime code generation
+    /// (`eval` of a typed quote; supercompilation section 7: a profile
+    /// MAY forbid it).
+    allow_eval: bool,
+    /// The target's `Usize`/`Isize` width in bits (primitive types
+    /// specification section 2: widths key on the target, never the
+    /// build host).
+    usize_bits: u32,
+    /// `eval` use sites (module and function), recorded as build-visible
+    /// assumptions beside the foreign ones (supercompilation section 7).
+    eval_sites: Vec<(String, String)>,
+    /// The generated WIT adapters in scope (WebAssembly and WASI
+    /// specification section 3): their raw bindings are registered as
+    /// foreign plans with canonical ABI glue.
+    wit_adapters: Vec<crate::interface::WitAdapter>,
     /// The logical definition being checked (its references are recorded
     /// for the termination and cycle checks).
     current_logical: Option<(String, String)>,
@@ -1440,6 +1544,33 @@ struct Checker {
     smaller: HashMap<LocalId, LocalId>,
     /// Each module's imported module names (interface metadata).
     module_imports: HashMap<String, Vec<String>>,
+    /// Modules with a parameter block (`module M (x :: T, ...) where`,
+    /// module parameters as module arguments): their values are reached
+    /// only through instantiation units.
+    param_modules: std::collections::HashSet<String>,
+    /// The parameter declarations as parsed, by module; converted by
+    /// [`Checker::finish_module_params`] once every name is collected.
+    mod_param_asts: HashMap<String, Vec<ast::ParamDecl>>,
+    /// Converted module parameters, by module.
+    module_params: HashMap<String, Vec<ModParam>>,
+    /// The definition being checked: its module-parameter locals, in
+    /// declaration order (the leading runtime parameters of every unit of
+    /// a parameterized module), with the parameter's type.
+    cur_mod_params: Vec<(String, LocalId, Ty)>,
+    /// Instantiation declarations (`import M (args) as N`) awaiting their
+    /// owner's body pass, by owner module.
+    unit_decls: Vec<(String, ast::Import)>,
+    /// Processed instantiation units, in declaration order.
+    units: Vec<UnitRec>,
+    /// Declared instantiation unit names (globally unique: they name code
+    /// generation units beside module names).
+    unit_names: std::collections::HashSet<String>,
+    /// Every collected module name, for unit-name collision checks.
+    module_names: std::collections::HashSet<String>,
+    /// Instance dictionary units of parameterized modules' instances, by
+    /// `(module, instance name)`: the wrappers' method forwarding reads
+    /// them at unit emission.
+    param_inst_defs: HashMap<(String, String), crate::core::InstanceDef>,
     /// Each module's own fixity declarations, for its interface.
     module_fixities: Vec<(String, crate::interface::FixityExport)>,
     /// Each module's foreign declarations, for its interface.
@@ -1665,11 +1796,24 @@ impl Checker {
             kind_constraints: RefCell::new(Vec::new()),
             logical: std::collections::HashSet::new(),
             corec: std::collections::HashSet::new(),
+            allow_eval: true,
+            usize_bits: 64,
+            eval_sites: Vec::new(),
+            wit_adapters: Vec::new(),
             current_logical: None,
             pending_refs: Vec::new(),
             logical_refs: HashMap::new(),
             smaller: HashMap::new(),
             module_imports: HashMap::new(),
+            param_modules: std::collections::HashSet::new(),
+            mod_param_asts: HashMap::new(),
+            module_params: HashMap::new(),
+            cur_mod_params: Vec::new(),
+            unit_decls: Vec::new(),
+            units: Vec::new(),
+            unit_names: std::collections::HashSet::new(),
+            module_names: std::collections::HashSet::new(),
+            param_inst_defs: HashMap::new(),
             module_fixities: Vec::new(),
             module_foreign: Vec::new(),
             foreign_plans: Vec::new(),
@@ -2452,7 +2596,13 @@ impl Checker {
                 unreachable!("mathematical literals materialise through literal_const")
             }
             Ty::Prim(s) if s.is_int_like() => {
-                let w = s.width();
+                // `Usize`/`Isize` take their width from the target
+                // profile (primitive types specification section 2: the
+                // target's width, never the build host's).
+                let w = match s {
+                    Scalar::Usize | Scalar::Isize => self.usize_bits,
+                    other => other.width(),
+                };
                 let (lo, hi) = if s.is_signed() {
                     (-(1i128 << (w - 1)), (1i128 << (w - 1)) - 1)
                 } else {
@@ -4248,6 +4398,16 @@ impl Checker {
                 if !self.instance_list[i].implicit && Some(i) != self.self_instance {
                     continue;
                 }
+                // A parameterized module's declared instance needs its
+                // module's parameters: it resolves only inside that module,
+                // where the parameters are the definition's leading
+                // dictionary binders (module parameters as module
+                // arguments). Each instantiation publishes its own copy.
+                if self.instance_list[i].base
+                    && self.instance_list[i].module != self.current_module
+                {
+                    continue;
+                }
                 let inst = &self.instance_list[i];
                 // One-way match: the instance's parameters become fresh
                 // metavariables and the target is unified with the wanted
@@ -4291,12 +4451,19 @@ impl Checker {
                 ),
             )),
             [(idx, sub, trial)] => {
-                let (ctx, base_id) = {
+                let (ctx, base_id, base) = {
                     let inst = &self.instance_list[*idx];
-                    (inst.ctx.clone(), inst.base_id.clone())
+                    (inst.ctx.clone(), inst.base_id.clone(), inst.base)
                 };
                 self.uni = trial.clone();
                 let mut subs = Vec::new();
+                // The module's own instance dictionary closes over the
+                // module's parameters (the definition's leading binders).
+                if base {
+                    for (_, l, _) in &self.cur_mod_params {
+                        subs.push(DictExpr::Binder(*l));
+                    }
+                }
                 for (_, c) in &ctx {
                     let c = Self::subst_class(c, sub);
                     match self.solve(&c, scope, depth + 1, span)? {
@@ -4327,14 +4494,16 @@ impl Checker {
             },
             ECore::Int(_) | ECore::ConstBig { .. } | ECore::Lit(_) | ECore::Bool(_)
             | ECore::Unit | ECore::Var(_) | ECore::Global(_)
-            | ECore::Ctor(_) | ECore::Prim(_) | ECore::Foreign(_) | ECore::IdxPending(_) | ECore::Fault
+            | ECore::Ctor(_) | ECore::Prim(_) | ECore::Foreign(_) | ECore::QuoteHole(_)
+            | ECore::IdxPending(_) | ECore::Fault
             | ECore::SyntaxLit(_) | ECore::StrLit(_) => e.clone(),
-            ECore::Quote { template, holes } => ECore::Quote {
+            ECore::Quote { template, holes, body } => ECore::Quote {
                 template: template.clone(),
                 holes: holes
                     .iter()
                     .map(|h| self.fill_holes(h, sol))
                     .collect::<Result<Vec<_>>>()?,
+                body: Box::new(self.fill_holes(body, sol)?),
             },
             ECore::DeclsQuote { template, holes } => ECore::DeclsQuote {
                 template: template.clone(),
@@ -4404,6 +4573,131 @@ impl Checker {
                     .collect::<Result<Vec<_>>>()?,
             },
         })
+    }
+}
+
+// ------------------------------------------------- module parameters (A5)
+
+impl Checker {
+    /// The code generation unit of a top-level function reference (module
+    /// parameters as module arguments). Inside the parameterized module
+    /// being checked the module's parameter binders apply first (the unit's
+    /// leading runtime parameters); from outside, a parameterized module's
+    /// functions are reached only through instantiation units.
+    fn fn_ref(&self, v: &ValueInfo, span: ast::Span) -> Result<ECore> {
+        if self.param_modules.contains(&v.module) {
+            if v.module != self.current_module {
+                return Err(Error::at(
+                    span,
+                    format!(
+                        "{} belongs to the parameterized module {}; reach it through an instantiation (`import {} (args) as N`)",
+                        v.name, v.module, v.module
+                    ),
+                ));
+            }
+            let mut core = ECore::Global(fn_id(&v.module, &v.name));
+            if !self.cur_mod_params.is_empty() {
+                core = app_spine(
+                    core,
+                    self.cur_mod_params.iter().map(|(_, l, _)| ECore::Var(*l)).collect(),
+                );
+            }
+            return Ok(core);
+        }
+        Ok(ECore::Global(fn_id(&v.module, &v.name)))
+    }
+
+    /// A module parameter used as a term (a capitalized dictionary
+    /// parameter like the example's `Seq` is a constructor-shaped name
+    /// that resolves to the parameter's binder first): the binder local
+    /// and the parameter's type.
+    fn module_param_use(&self, p: &ast::ConPath) -> Option<(LocalId, Ty)> {
+        if p.segments.len() != 1 {
+            return None;
+        }
+        let name = &p.segments[0].text;
+        self.cur_mod_params
+            .iter()
+            .find(|(n, _, _)| n == name)
+            .map(|(_, l, t)| (*l, t.clone()))
+    }
+}
+
+/// The recorded identity of a module argument: an instance dictionary's
+/// construction unit over its sub-dictionaries, or a value's unit or
+/// source rendering. Two instantiations at differently identified
+/// arguments are distinct units.
+fn arg_identity(core: &crate::core::Core, text: &str) -> String {
+    match core {
+        crate::core::Core::InstDict(id, subs) => {
+            let inner: Vec<String> = subs.iter().map(|s| arg_identity(s, "")).collect();
+            format!("dict:{id}({})", inner.join(","))
+        }
+        crate::core::Core::Global(g) => format!("val:{g}"),
+        _ => format!("val:{text}"),
+    }
+}
+
+/// The term spelling of a named module argument: a capitalized name is a
+/// constructor-shaped reference (`Seq`, `Lib.SeqResult`), a lowercase one
+/// an ordinary value reference (`Lib.f`).
+fn module_arg_term(quals: &[ast::Name], name: &ast::Name) -> ast::Term {
+    if name.text.chars().next().map(|c| c.is_uppercase()).unwrap_or(false) {
+        let mut segments = quals.to_vec();
+        segments.push(name.clone());
+        ast::Term::Con(ast::ConPath { segments })
+    } else {
+        ast::Term::Var(ast::VarPath { quals: quals.to_vec(), name: name.clone() })
+    }
+}
+
+/// The term spelling of a literal module argument.
+fn module_arg_lit(arg: &ast::ModuleArg) -> Result<ast::Term> {
+    match arg {
+        ast::ModuleArg::Int(v, s) => Ok(ast::Term::Int(v.clone(), *s)),
+        ast::ModuleArg::Char(c, s) => Ok(ast::Term::Char(c.clone(), *s)),
+        ast::ModuleArg::Unit(s) => Ok(ast::Term::Unit(*s)),
+        ast::ModuleArg::Name { .. } => {
+            unreachable!("a named module argument is spelled as a term")
+        }
+    }
+}
+
+/// The source rendering of a named module argument.
+fn arg_name_text(quals: &[ast::Name], name: &ast::Name) -> String {
+    let mut out: Vec<String> = quals.iter().map(|q| q.text.clone()).collect();
+    out.push(name.text.clone());
+    out.join(".")
+}
+
+/// The source rendering of a module argument, for the unit's identity.
+fn arg_lit_text(arg: &ast::ModuleArg) -> String {
+    match arg {
+        ast::ModuleArg::Int(v, _) => v.clone(),
+        ast::ModuleArg::Char(c, _) => format!("'{c}'"),
+        ast::ModuleArg::Unit(_) => "()".to_string(),
+        ast::ModuleArg::Name { quals, name } => arg_name_text(quals, name),
+    }
+}
+
+/// Optimizer metadata for a wrapper unit: the target's metadata over the
+/// forwarded parameters (the leading module parameters are applied at the
+/// unit, not forwarded).
+fn shifted_meta(meta: &crate::core::FnMeta, k: usize) -> crate::core::FnMeta {
+    let shift = |i: usize| if i >= k { Some(i - k) } else { None };
+    crate::core::FnMeta {
+        linear: meta
+            .linear
+            .iter()
+            .filter_map(|(i, m)| shift(*i).map(|j| (j, *m)))
+            .collect(),
+        pure_arrows: meta.pure_arrows.iter().filter_map(|i| shift(*i)).collect(),
+        dicts: meta
+            .dicts
+            .iter()
+            .filter_map(|(i, c)| shift(*i).map(|j| (j, c.clone())))
+            .collect(),
+        pure: meta.pure,
     }
 }
 

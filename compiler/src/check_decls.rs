@@ -129,7 +129,7 @@ fn builtin_type_name(name: &str) -> bool {
     matches!(
         name,
         "Nat" | "Int" | "Bool" | "Unit" | "Bytes" | "Type" | "Prop"
-            | "Code" | "Syntax" | "Declarations" | "String" | "Secret"
+            | "Code" | "Syntax" | "Declarations" | "Secret"
             | "IoCap" | "FileReadCap" | "FileWriteCap" | "ProcCap"
             | "Scope" | "Task"
             | "RawPtr" | "Borrowed" | "Retained" | "Owned" | "Out" | "MaybeNull"
@@ -479,6 +479,7 @@ impl Checker {
         self.install_index_families();
         self.install_staging_api();
         self.install_concurrency_api();
+        self.install_eval_api();
     }
 
     /// Structured concurrency and runtime I/O (concurrency specification
@@ -728,12 +729,325 @@ impl Checker {
     /// `Declarations`, `String`, `Secret` and the capability tokens are
     /// compile-time-only types: they never appear in target code (decision
     /// D43).
+    /// `eval : Code a -> a` (supercompilation and JIT specification
+    /// section 7): a builtin whose signature carries no capability or
+    /// effect (a quotation is typed when it is constructed). It is never
+    /// evidence: the application checks refuse `spec`/`proof` and erased
+    /// positions, and a target profile may forbid runtime code
+    /// generation entirely (`allow_eval`).
+    fn install_eval_api(&mut self) {
+        let a = crate::types::Ty::Param("a".to_string());
+        let info = ValueInfo {
+            module: "<builtin>".to_string(),
+            name: "eval".to_string(),
+            scheme: Scheme {
+                params: vec!["a".to_string()],
+                idx_params: Vec::new(),
+                val_params: Vec::new(),
+                prop_params: Vec::new(),
+                row_params: Vec::new(),
+                region_params: Vec::new(),
+                ctx: Vec::new(),
+                ty: crate::types::Ty::fun(
+                    crate::types::Ty::Adt("Code".to_string(), vec![a.clone()]),
+                    a,
+                ),
+            },
+            kind: ValueKind::Prim(PrimOp::Eval),
+        };
+        self.values.entry("eval".to_string()).or_default().push(info.clone());
+        self.qualified.insert(("<builtin>".to_string(), "eval".to_string()), info);
+    }
+
+    /// The generated WIT adapter vocabulary (WebAssembly and WASI
+    /// specification sections 3, 4 and 6): each raw binding is a foreign
+    /// plan over the canonical ABI glue registered under the `Raw`
+    /// module's qualified names (a bare function name stays the user's
+    /// to define), and the stream observations are word-level host
+    /// imports carrying section 6's degraded observation type.
+    fn install_wit_api(&mut self, adapters: &[crate::interface::WitAdapter]) -> Result<()> {
+        use crate::core::{AbiClass, AbiParam, ForeignPlan};
+        use crate::interface::SurfaceTy;
+        use crate::types::{EffLabel, EffRow, Mult, RowTail, Ty};
+
+        fn surface_ty(s: &SurfaceTy) -> Ty {
+            match s {
+                SurfaceTy::Named(n) => match n.as_str() {
+                    "Bool" => Ty::Bool,
+                    "Unit" => Ty::Unit,
+                    "Bytes" => Ty::Bytes,
+                    "Nat" => Ty::Nat,
+                    "Int" => Ty::Int,
+                    other => {
+                        for sc in crate::types::Scalar::ALL {
+                            if sc.name() == other {
+                                return Ty::Prim(sc);
+                            }
+                        }
+                        Ty::Adt(other.to_string(), Vec::new())
+                    }
+                },
+                SurfaceTy::Borrow(t) => {
+                    Ty::Ref("region".to_string(), Box::new(surface_ty(t)))
+                }
+                SurfaceTy::App(f, args) => {
+                    Ty::Adt(f.clone(), args.iter().map(surface_ty).collect())
+                }
+                SurfaceTy::Tuple(ts) => Ty::Tuple(ts.iter().map(surface_ty).collect()),
+            }
+        }
+
+        let effects = EffRow {
+            labels: vec![
+                EffLabel::with_arg("Foreign", "Component"),
+                EffLabel::plain("Diverge"),
+            ],
+            tail: RowTail::Closed,
+        };
+        for ad in adapters {
+            self.wit_adapters.push(ad.clone());
+            for b in &ad.bindings {
+                let unit = format!("safelang.wit.{}.{}", ad.module, b.name);
+                let arity = b.params.len();
+                let mut ty = surface_ty(&b.result);
+                for p in b.params.iter().rev() {
+                    let mult = if p.consume { Mult::One } else { Mult::Many };
+                    ty = Ty::fun_mult(surface_ty(&p.ty), mult, effects.clone(), ty);
+                }
+                let borrows = b.params.iter().any(|p| matches!(p.ty, SurfaceTy::Borrow(_)));
+                let mut region_params: Vec<String> = Vec::new();
+                if borrows {
+                    region_params.push("region".to_string());
+                }
+                // The `Foreign <boundary>` label's argument renames like
+                // a region at instantiation (the boundary name is rigid
+                // per signature, flexible per call), matching how user
+                // `foreign import` schemes classify it.
+                region_params.push("Component".to_string());
+                let scheme = Scheme {
+                    params: Vec::new(),
+                    idx_params: Vec::new(),
+                    val_params: Vec::new(),
+                    prop_params: Vec::new(),
+                    row_params: Vec::new(),
+                    region_params,
+                    ctx: Vec::new(),
+                    ty,
+                };
+                let info = ValueInfo {
+                    module: "<builtin>".to_string(),
+                    name: b.name.clone(),
+                    scheme,
+                    kind: ValueKind::Foreign { unit: unit.clone(), arity },
+                };
+                self.qualified.insert((ad.module.clone(), b.name.clone()), info);
+                // The canonical-ABI plan: the call-side raw binding, and
+                // for a world export the trampoline forwarding to the
+                // program's implementation unit.
+                let mut params: Vec<AbiParam> = b
+                    .params
+                    .iter()
+                    .map(|p| AbiParam {
+                        ty: p.ty.spelling(),
+                        class: AbiClass::Ptr,
+                        role: if p.consume { "owned" } else { "borrowed" }.to_string(),
+                        allocator: String::new(),
+                        nullable: false,
+                        width: 8,
+                        align: 8,
+                        signed: false,
+                        tag: 0,
+                        fields: Vec::new(),
+                    })
+                    .collect();
+                let has_ret_ptr = b.call.ret.is_some();
+                if has_ret_ptr {
+                    params.push(AbiParam {
+                        ty: "(return area)".to_string(),
+                        class: AbiClass::Ptr,
+                        role: "out".to_string(),
+                        allocator: String::new(),
+                        nullable: false,
+                        width: 8,
+                        align: 8,
+                        signed: false,
+                        tag: 0,
+                        fields: Vec::new(),
+                    });
+                }
+                let result = AbiParam {
+                    ty: b.result.spelling(),
+                    class: if b.call.core_results.is_empty() && has_ret_ptr {
+                        AbiClass::Unit
+                    } else {
+                        AbiClass::Ptr
+                    },
+                    role: "owned".to_string(),
+                    allocator: String::new(),
+                    nullable: false,
+                    width: 8,
+                    align: 8,
+                    signed: false,
+                    tag: 0,
+                    fields: Vec::new(),
+                };
+                self.foreign_plans.push((
+                    unit.clone(),
+                    ForeignPlan {
+                        symbol: b.symbol.clone(),
+                        export: false,
+                        unit,
+                        convention: "ccall".to_string(),
+                        params: params.clone(),
+                        result: result.clone(),
+                        deallocator: String::new(),
+                        canon: Some(b.call.clone()),
+                    },
+                ));
+                if b.export {
+                    self.foreign_plans.push((
+                        b.impl_unit.clone(),
+                        ForeignPlan {
+                            symbol: b.symbol.clone(),
+                            export: true,
+                            unit: b.impl_unit.clone(),
+                            convention: "ccall".to_string(),
+                            params,
+                            result,
+                            deallocator: String::new(),
+                            canon: Some(b.call.clone()),
+                        },
+                    ));
+                }
+            }
+            if ad.streams {
+                // The degraded observation vocabulary (section 6): a
+                // WASI stream is an asynchronous source or sink and
+                // never a productive `Stream a`; an observation may end,
+                // fail or wait indefinitely (`Diverge`), and data and
+                // completion travel separate channels (the `stream` and
+                // `future` values). The word-level host imports use the
+                // runtime's block convention: the host or embedder shim
+                // produces the safe words.
+                self.install_stream_api()?;
+            }
+        }
+        Ok(())
+    }
+
+    /// The stream observation values of the adapter vocabulary
+    /// (WebAssembly and WASI specification section 6).
+    fn install_stream_api(&mut self) -> Result<()> {
+        use crate::core::{AbiClass, AbiParam, ForeignPlan};
+        use crate::types::{EffLabel, EffRow, RowTail, Ty};
+        let a = Ty::Param("a".to_string());
+        let effects = EffRow {
+            labels: vec![
+                EffLabel::with_arg("Foreign", "Component"),
+                EffLabel::plain("Diverge"),
+            ],
+            tail: RowTail::Closed,
+        };
+        let stream_a = Ty::Adt("WasiStream".to_string(), vec![a.clone()]);
+        let future_a = Ty::Adt("WasiFuture".to_string(), vec![a.clone()]);
+        let stream_err = Ty::Adt("StreamError".to_string(), Vec::new());
+        let opt_a = Ty::Adt("Option".to_string(), vec![a.clone()]);
+        let result_ty = |e: Ty, o: Ty| Ty::Adt("Result".to_string(), vec![e, o]);
+        let entries: Vec<(&str, &str, Ty, usize)> = vec![
+            (
+                "wasiStreamRead",
+                "safelang.wasi.stream-read",
+                Ty::fun_eff(stream_a.clone(), effects.clone(), result_ty(stream_err.clone(), opt_a)),
+                1,
+            ),
+            (
+                "wasiStreamWrite",
+                "safelang.wasi.stream-write",
+                Ty::fun_eff(
+                    stream_a.clone(),
+                    effects.clone(),
+                    Ty::fun_eff(a.clone(), effects.clone(), result_ty(stream_err.clone(), Ty::Unit)),
+                ),
+                2,
+            ),
+            (
+                "wasiFutureWait",
+                "safelang.wasi.future-wait",
+                Ty::fun_eff(future_a, effects, a),
+                1,
+            ),
+        ];
+        for (name, symbol, ty, arity) in entries {
+            let scheme = Scheme {
+                params: vec!["a".to_string()],
+                idx_params: Vec::new(),
+                val_params: Vec::new(),
+                prop_params: Vec::new(),
+                row_params: Vec::new(),
+                // As in [`Checker::install_wit_api`]: the `Foreign`
+                // boundary name renames like a region per call.
+                region_params: vec!["Component".to_string()],
+                ctx: Vec::new(),
+                ty,
+            };
+            let unit = format!("safelang.wit.{name}");
+            let info = ValueInfo {
+                module: "<builtin>".to_string(),
+                name: name.to_string(),
+                scheme,
+                kind: ValueKind::Foreign { unit: unit.clone(), arity },
+            };
+            self.values.entry(name.to_string()).or_default().push(info.clone());
+            self.qualified.insert(("<builtin>".to_string(), name.to_string()), info);
+            let word_param = AbiParam {
+                ty: "handle".to_string(),
+                class: AbiClass::Ptr,
+                role: "borrowed".to_string(),
+                allocator: String::new(),
+                nullable: false,
+                width: 8,
+                align: 8,
+                signed: false,
+                tag: 0,
+                fields: Vec::new(),
+            };
+            let mut params = vec![word_param.clone()];
+            if arity == 2 {
+                params.push(word_param);
+            }
+            self.foreign_plans.push((
+                unit.clone(),
+                ForeignPlan {
+                    symbol: symbol.to_string(),
+                    export: false,
+                    unit,
+                    convention: "ccall".to_string(),
+                    params,
+                    result: AbiParam {
+                        ty: "result word".to_string(),
+                        class: AbiClass::Ptr,
+                        role: "owned".to_string(),
+                        allocator: String::new(),
+                        nullable: false,
+                        width: 8,
+                        align: 8,
+                        signed: false,
+                        tag: 0,
+                        fields: Vec::new(),
+                    },
+                    deallocator: String::new(),
+                    canon: None,
+                },
+            ));
+        }
+        Ok(())
+    }
+
     fn install_staging_api(&mut self) {
         for (n, arity) in [
             ("Code", 1),
             ("Syntax", 0),
             ("Declarations", 0),
-            ("String", 0),
             ("Secret", 0),
             ("IoCap", 0),
             ("FileReadCap", 0),
@@ -1601,10 +1915,36 @@ impl Checker {
     ) -> Result<()> {
         let module = m.name.text.clone();
         self.current_module = module.clone();
+        self.module_names.insert(module.clone());
+        // A parameter block (`module M (x :: T, ...) where`, module
+        // parameters as module arguments): the module's values are reached
+        // only through instantiation units. The parameter types convert
+        // once every name is collected ([`Checker::finish_module_params`]).
+        if !m.params.is_empty() {
+            self.param_modules.insert(module.clone());
+            self.mod_param_asts.insert(module.clone(), m.params.clone());
+        }
+        // An applied import (`import M (args) as N`) instantiates M as the
+        // unit N: M's own names stay out of the unqualified scope (they are
+        // reached through `N`, and a parameterized module's values reject
+        // direct use).
+        let mut applied: Vec<String> = Vec::new();
+        for d in &m.decls {
+            if let ast::Decl::Import(i) = d {
+                if !i.args.is_empty() {
+                    if let Some(name) = i.path.parts().last() {
+                        applied.push(name.to_string());
+                    }
+                }
+            }
+        }
         // Visibility: the module's own names, then its imports, then the
         // prelude (design note: compiled interface metadata, section 3).
         self.visible = vec![module.clone()];
         for i in imports {
+            if applied.contains(i) {
+                continue;
+            }
             if !self.visible.contains(i) {
                 self.visible.push(i.clone());
             }
@@ -1628,7 +1968,10 @@ impl Checker {
         self.visible
             .retain(|v| !stage_imports.contains(v) || *v == module);
         self.module_stage_imports.insert(module.clone(), stage_imports);
-        self.module_imports.insert(module.clone(), imports.to_vec());
+        self.module_imports.insert(
+            module.clone(),
+            imports.iter().filter(|i| !applied.contains(i)).cloned().collect(),
+        );
         let mut schemes: HashMap<String, Scheme> = HashMap::new();
         let mut eqs: Vec<(String, ast::Equation)> = Vec::new();
 
@@ -1643,6 +1986,50 @@ impl Checker {
         }
 
         for (decl_attrs, d) in &flat {
+            // A parameterized module carries its parameters into every
+            // definition, which the compile-time and evidence fragments do
+            // not model in the bootstrap slice (module parameters as
+            // module arguments).
+            if self.param_modules.contains(&module) {
+                match d {
+                    ast::Decl::Generate { span: s, .. } => {
+                        return Err(Error::at(
+                            *s,
+                            "a `generate do` block in a parameterized module is not supported in the bootstrap slice (compile-time code cannot take module parameters)",
+                        ));
+                    }
+                    ast::Decl::Rewrite(r) => {
+                        return Err(Error::at(
+                            r.span,
+                            "a rewrite rule in a parameterized module is not supported in the bootstrap slice (its evidence terms would need the module's parameters)",
+                        ));
+                    }
+                    ast::Decl::Upgrade(u) => {
+                        return Err(Error::at(
+                            u.span,
+                            "an `upgrade` declaration in a parameterized module is not supported in the bootstrap slice (its migration terms would need the module's parameters)",
+                        ));
+                    }
+                    ast::Decl::Import(i) if !i.args.is_empty() => {
+                        return Err(Error::at(
+                            i.span,
+                            "an instantiation inside a parameterized module is not supported in the bootstrap slice (functor composition)",
+                        ));
+                    }
+                    ast::Decl::ValueSig { modifier: Some(m), span: s, .. }
+                    | ast::Decl::Equation {
+                        modifier: Some(m),
+                        eq: ast::Equation { span: s, .. },
+                        ..
+                    } if matches!(m.text.as_str(), "stage" | "macro") => {
+                        return Err(Error::at(
+                            *s,
+                            "compile-time definitions (`stage`/`macro`) in a parameterized module are not supported in the bootstrap slice",
+                        ));
+                    }
+                    _ => {}
+                }
+            }
             // The declarations with per-family effects validate inside
             // their own collection below; the rest take the ordinary
             // declaration position here (attribute annotations
@@ -1668,6 +2055,12 @@ impl Checker {
                                 "module {module} imports {name}, which the driver did not resolve"
                             ),
                         ));
+                    }
+                    // An applied import instantiates the target module as
+                    // a unit of this module (module parameters as module
+                    // arguments); its arguments check in the body pass.
+                    if !i.args.is_empty() {
+                        self.unit_decls.push((module.clone(), i.clone()));
                     }
                 }
                 ast::Decl::Fixity(f) => {
@@ -2072,7 +2465,6 @@ impl Checker {
                                 | "Code"
                                 | "Syntax"
                                 | "Declarations"
-                                | "String"
                                 | "Secret"
                                 | "IoCap"
                                 | "FileReadCap"
@@ -3017,6 +3409,10 @@ impl Checker {
                         target: ClassApp { class: class.clone(), args },
                         base_id,
                         implicit: inst.implicit,
+                        // A parameterized module's instance needs the
+                        // module's parameters; it resolves inside the
+                        // module and is published per instantiation.
+                        base: self.param_modules.contains(&module),
                     });
                     self.instances.entry(class).or_default().push(idx);
                     self.instance_defs_pending.push((module.clone(), inst.clone()));
@@ -3070,6 +3466,25 @@ impl Checker {
         }
         for (name, eq) in eqs {
             self.top_eqs.push((module.clone(), name, eq));
+        }
+        // A module parameter is an ordinary binding of the module scope:
+        // it must not collide with a declaration of the same name (module
+        // parameters as module arguments).
+        for p in &m.params {
+            if self
+                .values
+                .get(&p.name.text)
+                .map(|vs| vs.iter().any(|v| v.module == module))
+                .unwrap_or(false)
+            {
+                return Err(Error::at(
+                    p.span,
+                    format!(
+                        "module parameter {} collides with a declaration of the same name",
+                        p.name.text
+                    ),
+                ));
+            }
         }
         Ok(())
     }
@@ -3234,6 +3649,91 @@ impl Checker {
         }
     }
 
+    /// Convert every parameterized module's parameter types once all
+    /// names are collected (module parameters as module arguments,
+    /// modules specification section 1). The written type's head decides
+    /// the parameter's kind: a `signature` application is a dictionary
+    /// binding, supplied at instantiation by an explicit dictionary (the
+    /// instantiator's explicit dictionary selection); any other type is an
+    /// ordinary value binding, which must carry `Copy` evidence because
+    /// the parameter is shared by every definition of the module
+    /// (ownership and usage design section 3).
+    fn finish_module_params(&mut self) -> Result<()> {
+        let mut modules: Vec<String> = self.mod_param_asts.keys().cloned().collect();
+        modules.sort();
+        for module in modules {
+            let decls = self.mod_param_asts.get(&module).cloned().unwrap_or_default();
+            self.current_module = module.clone();
+            self.visible = vec![module.clone()];
+            if let Some(imports) = self.module_imports.get(&module).cloned() {
+                for i in imports {
+                    if !self.visible.contains(&i) {
+                        self.visible.push(i);
+                    }
+                }
+            }
+            let prelude = self.prelude_module.clone();
+            if !self.visible.contains(&prelude) {
+                self.visible.push(prelude);
+            }
+            let mut out = Vec::new();
+            for p in &decls {
+                let mut head = &p.ty;
+                while let ast::Type::App(f, _, _) = head {
+                    head = f;
+                }
+                let class = match head {
+                    ast::Type::Con(cp, _) if self.lookup_sig(cp).is_ok() => {
+                        let (class, args) = self.class_app_of(&p.ty, &[])?;
+                        let app = ClassApp { class, args };
+                        if app.class == "Io" {
+                            return Err(Error::at(
+                                p.span,
+                                "a runtime capability is lexical evidence (decision D21) and cannot be a module parameter",
+                            ));
+                        }
+                        if app.class == "Copy" {
+                            return Err(Error::at(
+                                p.span,
+                                "`Copy` is structural evidence (ownership and usage design section 3) and cannot be a module parameter",
+                            ));
+                        }
+                        Some(app)
+                    }
+                    _ => None,
+                };
+                let (ty, rendered) = match &class {
+                    Some(app) => {
+                        let r = app.to_string();
+                        (Ty::Adt(app.class.clone(), app.args.clone()), r)
+                    }
+                    None => {
+                        let t = self.conv_type(&p.ty, &[])?;
+                        if !self.copy_structural(&t, &[], &mut Vec::new()) {
+                            return Err(Error::at(
+                                p.span,
+                                format!(
+                                    "a module parameter is shared by every definition of the module, so {} needs `Copy` evidence (ownership and usage design section 3); a signature-typed parameter is a dictionary",
+                                    t
+                                ),
+                            ));
+                        }
+                        let r = t.to_string();
+                        (t, r)
+                    }
+                };
+                out.push(ModParam {
+                    name: p.name.text.clone(),
+                    sig: format!("{} :: {}", p.name.text, rendered),
+                    ty,
+                    class,
+                });
+            }
+            self.module_params.insert(module, out);
+        }
+        Ok(())
+    }
+
     fn check_bodies(&mut self, module: &str, prelude_name: &str) -> Result<()> {
         self.current_module = module.to_string();
         self.visible = vec![module.to_string()];
@@ -3247,6 +3747,13 @@ impl Checker {
         if !self.visible.contains(&prelude_name.to_string()) {
             self.visible.push(prelude_name.to_string());
         }
+
+        // Instantiation declarations (`import M (args) as N`) check their
+        // static arguments and register the unit's values before this
+        // module's bodies reference them (module parameters as module
+        // arguments).
+        self.cur_mod_params.clear();
+        self.process_units(module)?;
 
         // Group this module's equations by name, preserving order.
         let mut names: Vec<String> = Vec::new();
@@ -3428,12 +3935,455 @@ impl Checker {
         self.self_instance = None;
 
         let base_id = fn_id(module, &inst.name.text);
-        self.instance_defs.push(InstanceDef {
+        // A parameterized module's instance dictionary closes over the
+        // module's parameters: they are the construction unit's leading
+        // arguments before the instance's sub-dictionaries (module
+        // parameters as module arguments; instantiation units forward
+        // them at their static arguments).
+        let mparams = self.module_params.get(module).map(|p| p.len()).unwrap_or(0);
+        let def = InstanceDef {
             id: base_id,
             method_count: sig.methods.len(),
-            subdict_count,
+            subdict_count: mparams + subdict_count,
             methods: method_fns,
-        });
+        };
+        if mparams > 0 {
+            self.param_inst_defs
+                .insert((module.to_string(), inst.name.text.clone()), def.clone());
+        }
+        self.instance_defs.push(def);
+        Ok(())
+    }
+
+    // --------------------------------------- instantiation units (A5)
+
+    /// One module argument (module parameters as module arguments): a
+    /// dictionary parameter takes a named `instance` dictionary (the
+    /// instantiator's explicit dictionary selection, modules
+    /// specification section 1); a value parameter takes a static value
+    /// or literal of the parameter's type. Returns the elaborated
+    /// argument and its source rendering (for the unit's identity).
+    fn module_arg(
+        &mut self,
+        arg: &ast::ModuleArg,
+        p: &ModParam,
+    ) -> Result<(ECore, String)> {
+        let span = arg.span();
+        match (&p.class, arg) {
+            (Some(app), ast::ModuleArg::Name { quals, name }) => {
+                let wanted = Ty::Adt(app.class.clone(), app.args.clone());
+                let (core, id) = self.named_instance_arg(quals, name, &wanted, span)?;
+                Ok((core, id))
+            }
+            (Some(_), other) => Err(Error::at(
+                other.span(),
+                format!(
+                    "module parameter {} is a dictionary of signature {}; supply an instance of it by name",
+                    p.name,
+                    p.class.as_ref().map(|c| c.to_string()).unwrap_or_default()
+                ),
+            )),
+            (None, ast::ModuleArg::Name { quals, name }) => {
+                // A dictionary named where a value is wanted gets a
+                // precise error rather than an unknown name.
+                let mut cands = 0;
+                for inst in &self.instance_list {
+                    if inst.name != name.text {
+                        continue;
+                    }
+                    let named = match &quals[..] {
+                        [] => true,
+                        [q] => inst.module == q.text,
+                        _ => false,
+                    };
+                    if named {
+                        cands += 1;
+                    }
+                }
+                if cands > 0 {
+                    return Err(Error::at(
+                        span,
+                        format!(
+                            "instance {} is a dictionary, but module parameter {} is a value of type {}",
+                            name.text, p.name, p.ty
+                        ),
+                    ));
+                }
+                let term = module_arg_term(quals, name);
+                let core = self.check(&mut Env::default(), &term, &p.ty)?;
+                let text = arg_name_text(quals, name);
+                Ok((core, text))
+            }
+            (None, lit) => {
+                let term = module_arg_lit(lit)?;
+                let core = self.check(&mut Env::default(), &term, &p.ty)?;
+                Ok((core, arg_lit_text(lit)))
+            }
+        }
+    }
+
+    /// A named dictionary argument: an `instance` of the parameter's
+    /// signature, selected explicitly by name (any instance, implicit or
+    /// explicit: a module argument is explicit dictionary selection). Its
+    /// target matches the parameter type one-way, exactly as at instance
+    /// resolution, so a wrong-typed instantiation is rejected here.
+    fn named_instance_arg(
+        &mut self,
+        quals: &[ast::Name],
+        name: &ast::Name,
+        wanted: &Ty,
+        span: ast::Span,
+    ) -> Result<(ECore, String)> {
+        let mut cands: Vec<usize> = Vec::new();
+        for (i, inst) in self.instance_list.iter().enumerate() {
+            if inst.name != name.text {
+                continue;
+            }
+            match quals {
+                [] => cands.push(i),
+                [q] if inst.module == q.text => cands.push(i),
+                _ => {}
+            }
+        }
+        let idx = match cands.as_slice() {
+            [] => {
+                return Err(Error::at(
+                    span,
+                    format!(
+                        "unknown instance {} for module argument (the argument is an `instance` of the parameter's signature)",
+                        arg_name_text(quals, name)
+                    ),
+                ))
+            }
+            [one] => *one,
+            _ => {
+                return Err(Error::at(
+                    span,
+                    format!(
+                        "instance {} is declared by several modules; qualify the module argument with its owner",
+                        name.text
+                    ),
+                ))
+            }
+        };
+        if self.instance_list[idx].base {
+            return Err(Error::at(
+                span,
+                format!(
+                    "instance {} belongs to the parameterized module {}; its dictionary needs that module's parameters (functor composition is not supported in the bootstrap slice)",
+                    self.instance_list[idx].name, self.instance_list[idx].module
+                ),
+            ));
+        }
+        let (params, ctx, base_id, target, iname) = {
+            let inst = &self.instance_list[idx];
+            (
+                inst.params.clone(),
+                inst.ctx.clone(),
+                inst.base_id.clone(),
+                inst.target.clone(),
+                inst.name.clone(),
+            )
+        };
+        let mut fresh: HashMap<String, Ty> = HashMap::new();
+        for p in &params {
+            fresh.insert(p.clone(), self.uni.fresh());
+        }
+        let target = Self::subst_class(&target, &fresh);
+        let target_app = Ty::Adt(target.class.clone(), target.args.clone());
+        let mut trial = self.uni.clone();
+        if trial.unify(&target_app, wanted).is_err() {
+            return Err(Error::at(
+                span,
+                format!(
+                    "instance {iname} implements {}, which does not match module parameter type {}",
+                    self.instance_list[idx].target, self.uni.zonk(wanted)
+                ),
+            ));
+        }
+        self.uni = trial;
+        let mut sub: HashMap<String, Ty> = HashMap::new();
+        for p in &params {
+            let t = self.uni.zonk(&fresh[p]);
+            if t == fresh[p] {
+                return Err(Error::at(
+                    span,
+                    format!(
+                        "instance {iname} parameter {p} is not determined by its target (supply a fully applied instance)"
+                    ),
+                ));
+            }
+            sub.insert(p.clone(), t);
+        }
+        let mut subs = Vec::new();
+        for (_, c) in &ctx {
+            let c = Self::subst_class(c, &sub);
+            let id = self.new_want(c.clone(), span, &Env::default());
+            subs.push(ECore::Hole(id));
+        }
+        Ok((ECore::InstDict(base_id, subs), String::new()))
+    }
+
+    /// The instantiation declarations of one module (`import M (args) as
+    /// N`, module parameters as module arguments): check the static
+    /// arguments against the target's parameters, register the unit's
+    /// names as wrapper units over the target's functions, and publish
+    /// the target's declared instances under the unit's name. The unit's
+    /// identity is computed from the target's parameter signatures and
+    /// the argument identities, so two instantiations at different
+    /// dictionaries are distinct units; the target module's own contract
+    /// is unchanged (instantiation is representation).
+    fn process_units(&mut self, module: &str) -> Result<()> {
+        let pending: Vec<ast::Import> = self
+            .unit_decls
+            .iter()
+            .filter(|(m, _)| m == module)
+            .map(|(_, i)| i.clone())
+            .collect();
+        for imp in pending {
+            let span = imp.span;
+            let mut target = imp.path.parts().join(".");
+            if !self.module_names.contains(&target) {
+                if let Some(last) = imp.path.parts().last() {
+                    target = last.to_string();
+                }
+            }
+            let params = self.module_params.get(&target).cloned().ok_or_else(|| {
+                if self.unit_names.contains(&target) {
+                    Error::at(
+                        span,
+                        format!("{target} is an instantiation unit, not a module; units take no parameters"),
+                    )
+                } else if self.module_names.contains(&target) {
+                    Error::at(span, format!("module {target} takes no parameters"))
+                } else {
+                    Error::at(span, format!("unknown module {target}"))
+                }
+            })?;
+            let unit = imp.alias.clone().expect("an applied import names its unit");
+            if self.module_names.contains(&unit.text) || self.unit_names.contains(&unit.text) {
+                return Err(Error::at(
+                    unit.span,
+                    format!(
+                        "instantiation unit {} collides with a module or unit of the same name",
+                        unit.text
+                    ),
+                ));
+            }
+            if imp.args.len() != params.len() {
+                return Err(Error::at(
+                    span,
+                    format!(
+                        "module {target} takes {} module arguments, got {}",
+                        params.len(),
+                        imp.args.len()
+                    ),
+                ));
+            }
+            let mut arg_cores: Vec<ECore> = Vec::new();
+            let mut arg_ids: Vec<String> = Vec::new();
+            let mut arg_texts: Vec<String> = Vec::new();
+            for (arg, p) in imp.args.iter().zip(&params) {
+                let (core, text) = self.module_arg(arg, p)?;
+                arg_cores.push(core);
+                arg_texts.push(text);
+            }
+            let sol = self.solve_wants()?;
+            let mut cores: Vec<crate::core::Core> = Vec::new();
+            for (c, text) in arg_cores.into_iter().zip(&arg_texts) {
+                let c = self.fill_holes(&c, &sol)?;
+                let mut c = c;
+                self.resolve_literals(&mut c)?;
+                self.resolve_idx_pends(&mut c)?;
+                let low = lower(&c);
+                arg_ids.push(arg_identity(&low, text));
+                cores.push(low);
+            }
+            // The unit's values are wrapper units over the target's
+            // functions with the arguments applied; types, constructors
+            // and signatures re-export the target's unchanged (a module
+            // parameter is never a type).
+            let vals: Vec<ValueInfo> = self
+                .values
+                .values()
+                .flatten()
+                .filter(|v| v.module == target)
+                .cloned()
+                .collect();
+            for v in vals {
+                if matches!(v.kind, ValueKind::TopFn) {
+                    let mut u = v.clone();
+                    u.module = unit.text.clone();
+                    self.add_value(u, span)?;
+                } else {
+                    self.qualified.insert((unit.text.clone(), v.name.clone()), v);
+                }
+            }
+            let tys: Vec<TypeKind> = self
+                .types
+                .values()
+                .flatten()
+                .filter(|t| t.module == target)
+                .cloned()
+                .collect();
+            for t in tys {
+                self.qualified_types.insert((unit.text.clone(), t.name.clone()), t);
+            }
+            let sgs: Vec<SigInfo> = self
+                .sigs
+                .values()
+                .flatten()
+                .filter(|s| s.module == target)
+                .cloned()
+                .collect();
+            for s in sgs {
+                self.qualified_sigs.insert((unit.text.clone(), s.name.clone()), s);
+            }
+            // The target's declared instances are published under the
+            // unit's name: each instantiation constructs its own
+            // dictionary at the unit's arguments. Two instantiations
+            // publishing unifiable implicit instances are rejected by the
+            // coherence check; nothing merges them (modules specification
+            // section 1's coherent resolution).
+            let base_insts: Vec<InstanceInfo> = self
+                .instance_list
+                .iter()
+                .filter(|i| i.base && i.module == target)
+                .cloned()
+                .collect();
+            let mut unit_insts = Vec::new();
+            for bi in base_insts {
+                let uid = GlobalId(format!("{}.{}", unit.text, bi.name));
+                let idx = self.instance_list.len();
+                self.instance_list.push(InstanceInfo {
+                    module: unit.text.clone(),
+                    name: bi.name.clone(),
+                    params: bi.params.clone(),
+                    ctx: bi.ctx.clone(),
+                    target: bi.target.clone(),
+                    base_id: uid,
+                    implicit: bi.implicit,
+                    base: false,
+                });
+                self.instances.entry(bi.target.class.clone()).or_default().push(idx);
+                unit_insts.push(UnitInst { inst_name: bi.name.clone() });
+            }
+            let param_sigs: Vec<String> = params.iter().map(|p| p.sig.clone()).collect();
+            let unit_id = crate::interface::content_hash(&format!(
+                "{}|{}|{}",
+                target,
+                param_sigs.join(","),
+                arg_ids.join(",")
+            ));
+            self.units.push(UnitRec {
+                owner: module.to_string(),
+                name: unit.text.clone(),
+                target,
+                args: cores,
+                arg_ids,
+                unit_id,
+                insts: unit_insts,
+            });
+            self.unit_names.insert(unit.text.clone());
+        }
+        Ok(())
+    }
+
+    /// Emit each instantiation unit's wrapper units (module parameters as
+    /// module arguments): the target module's functions with the unit's
+    /// static arguments applied before the forwarded parameters, the
+    /// unit's instance dictionary constructions, and its instance method
+    /// wrappers. Instantiation is representation: the wrappers sit beside
+    /// the target module's unchanged units.
+    fn emit_unit_wrappers(&mut self) -> Result<()> {
+        let units = self.units.clone();
+        let mut wrappers: Vec<FnDef> = Vec::new();
+        for u in &units {
+            let k = self.module_params.get(&u.target).map(|p| p.len()).unwrap_or(0);
+            let names: Vec<String> = self
+                .values
+                .values()
+                .flatten()
+                .filter(|v| v.module == u.target && matches!(v.kind, ValueKind::TopFn))
+                .map(|v| v.name.clone())
+                .collect();
+            for name in names {
+                let gid = fn_id(&u.target, &name);
+                // A logical definition is erased and emits no unit; its
+                // references are erased with it.
+                let Some(fd) = self.fns.iter().find(|f| f.id == gid).cloned() else {
+                    continue;
+                };
+                let n = fd.arity() - k;
+                let mut args = u.args.clone();
+                for i in 0..n {
+                    args.push(crate::core::Core::Var(LocalId(i)));
+                }
+                wrappers.push(FnDef {
+                    id: fn_id(&u.name, &name),
+                    params: (0..n).map(|i| format!("p{i}")).collect(),
+                    body: crate::core::Core::App(Box::new(crate::core::Core::Global(gid)), args),
+                    prim: None,
+                    ctor: None,
+                    hints: crate::core::FnHints::default(),
+                    meta: shifted_meta(&fd.meta, k),
+                });
+            }
+            for ui in &u.insts {
+                let base = self
+                    .param_inst_defs
+                    .get(&(u.target.clone(), ui.inst_name.clone()))
+                    .cloned()
+                    .ok_or_else(|| {
+                        Error::plain(format!(
+                            "internal error: instance {} of {} has no dictionary unit",
+                            ui.inst_name, u.target
+                        ))
+                    })?;
+                let mut methods = Vec::new();
+                for mth in &base.methods {
+                    let fd = self
+                        .fns
+                        .iter()
+                        .find(|f| f.id == *mth)
+                        .cloned()
+                        .ok_or_else(|| {
+                            Error::plain(format!(
+                                "internal error: instance method {} has no unit",
+                                mth.0
+                            ))
+                        })?;
+                    let n = fd.arity() - k;
+                    let prefix = format!("{}.{}.", u.target, ui.inst_name);
+                    let suffix = mth.0.strip_prefix(&prefix).unwrap_or(&mth.0);
+                    let wid = GlobalId(format!("{}.{}.{}", u.name, ui.inst_name, suffix));
+                    let mut args = u.args.clone();
+                    for i in 0..n {
+                        args.push(crate::core::Core::Var(LocalId(i)));
+                    }
+                    wrappers.push(FnDef {
+                        id: wid.clone(),
+                        params: (0..n).map(|i| format!("p{i}")).collect(),
+                        body: crate::core::Core::App(
+                            Box::new(crate::core::Core::Global(mth.clone())),
+                            args,
+                        ),
+                        prim: None,
+                        ctor: None,
+                        hints: crate::core::FnHints::default(),
+                        meta: shifted_meta(&fd.meta, k),
+                    });
+                    methods.push(wid);
+                }
+                self.instance_defs.push(InstanceDef {
+                    id: GlobalId(format!("{}.{}", u.name, ui.inst_name)),
+                    method_count: base.method_count,
+                    subdict_count: base.subdict_count - k,
+                    methods,
+                });
+            }
+        }
+        self.fns.extend(wrappers);
         Ok(())
     }
 
@@ -3975,6 +4925,29 @@ impl Checker {
         // sections 3-4): which parameters are dictionaries, carry a usage
         // multiplicity, or are honest pure callbacks.
         let mut dict_meta: Vec<(LocalId, String)> = Vec::new();
+        // Module parameters are the definition's leading runtime
+        // parameters (module parameters as module arguments): each is an
+        // ordinary binding of the module scope, a dictionary parameter
+        // joins the dictionary scope (a provider-head parameter selects
+        // the module's `do` provider, decision D22), and a value
+        // parameter is shared evidence (`Copy`, checked at declaration).
+        self.cur_mod_params.clear();
+        let mparams = self
+            .module_params
+            .get(&self.current_module)
+            .cloned()
+            .unwrap_or_default();
+        for mp in &mparams {
+            let l = self.fresh_local();
+            if let Some(c) = &mp.class {
+                env.dicts.push((l, c.clone()));
+                dict_meta.push((l, c.class.clone()));
+            }
+            self.bind_local(&mut env, &mp.name, l, Scheme::mono(mp.ty.clone()), None, eqs[0].span)?;
+            self.register_obligation(l, &mp.name, Some(Mult::Many), mp.ty.clone(), eqs[0].span);
+            self.cur_mod_params.push((mp.name.clone(), l, mp.ty.clone()));
+            param_ids.push(l);
+        }
         for (l, c) in extra_dicts {
             env.dicts.push((l, c.clone()));
             dict_meta.push((l, c.class.clone()));
@@ -4299,7 +5272,7 @@ impl Checker {
                                     // Dictionaries and solved index
                                     // arguments are not termination
                                     // candidates.
-                                    ECore::Hole(_) | ECore::IdxPending(_) | ECore::Unit => {}
+                                    ECore::Hole(_) | ECore::QuoteHole(_) | ECore::IdxPending(_) | ECore::Unit => {}
                                     ECore::Var(x) => {
                                         let c = chain(smaller, extra, *x);
                                         let mut ok = false;
@@ -5166,6 +6139,10 @@ impl Checker {
 
     fn finish(mut self, entry_modules: &[String], prelude_name: &str) -> Result<Program> {
         let _ = prelude_name;
+        // Instantiation units emit their wrapper units last (module
+        // parameters as module arguments): the target module's units are
+        // all present by now.
+        self.emit_unit_wrappers()?;
         // `main` may live in any module of the entry file (a source file
         // may declare several modules); a library build has none, and
         // `emit-ir`/`build`/`run` name the requirement at codegen time
@@ -5437,6 +6414,7 @@ impl Checker {
             params: params.clone(),
             result: result.clone(),
             deallocator: String::new(),
+            canon: None,
         };
         let entry = crate::interface::ForeignExport {
             symbol: f.name.text.clone(),
@@ -6548,6 +7526,21 @@ impl Checker {
         let n = self.instance_list.len();
         for a in 0..n {
             for b in (a + 1)..n {
+                // Default resolution stays coherent among the instances
+                // it may select: the implicit ones. Explicit dictionaries
+                // are selected by name (module arguments, `using` binders),
+                // so several meaningful implementations of one class may
+                // coexist and nothing silently merges them. A
+                // parameterized module's declared instance resolves only
+                // inside its module and is published per instantiation, so
+                // it is compared through its published copies, not against
+                // itself (module parameters as module arguments).
+                if self.instance_list[a].base || self.instance_list[b].base {
+                    continue;
+                }
+                if !self.instance_list[a].implicit || !self.instance_list[b].implicit {
+                    continue;
+                }
                 let (class_a, class_b) =
                     (self.instance_list[a].target.class.clone(), self.instance_list[b].target.class.clone());
                 if class_a != class_b {
@@ -6706,6 +7699,7 @@ impl Checker {
                 target: i.target.to_string(),
                 ctx: i.ctx.iter().map(|(n, c)| format!("{n} :: {c}")).collect(),
                 methods: Vec::new(),
+                implicit: i.implicit,
             });
         }
         for (m, f) in &self.module_fixities {
@@ -6730,11 +7724,37 @@ impl Checker {
                 }
             }
         }
+        // `eval` uses are build-visible assumptions in the same table as
+        // the foreign ones (supercompilation and JIT specification
+        // section 7).
+        for (m, site) in &self.eval_sites {
+            if m == module {
+                trusted.push(format!("eval at {site}"));
+            }
+        }
         iface.assumptions.primitives = prims;
         iface.assumptions.foreign = trusted;
         for (m, e) in &self.upgrade_evidence {
             if m == module {
                 iface.upgrades.push(e.clone());
+            }
+        }
+        // Parameter identity is part of the contract projection (module
+        // parameters as module arguments): a parameterized module records
+        // its parameter signatures, and instantiation is representation,
+        // recorded beside the layout table and excluded from the contract
+        // hash (the target module's identity is unchanged by it).
+        if let Some(ps) = self.module_params.get(module) {
+            iface.params = ps.iter().map(|p| p.sig.clone()).collect();
+        }
+        for u in &self.units {
+            if u.owner == module {
+                iface.units.push(crate::interface::UnitExport {
+                    name: u.name.clone(),
+                    target: u.target.clone(),
+                    args: u.arg_ids.clone(),
+                    unit_id: u.unit_id.clone(),
+                });
             }
         }
         iface
@@ -6766,8 +7786,34 @@ pub fn check_program_multi_diag(
     source_hashes: &HashMap<String, String>,
     scx: &StagingCx,
 ) -> Result<(Program, Vec<crate::interface::Iface>, StageReport, Vec<Diagnostic>)> {
+    check_program_multi_full(
+        prelude,
+        modules,
+        source_hashes,
+        scx,
+        &[],
+        &crate::core::TargetProfile::native(),
+    )
+}
+
+/// [`check_program_multi_diag`] with the generated WIT adapters in scope
+/// and the target profile's rules in force (WebAssembly and WASI
+/// specification section 3; supercompilation and JIT specification
+/// section 7: `allow_eval`; primitive types specification section 2: the
+/// `Usize` width keys on the target).
+pub fn check_program_multi_full(
+    prelude: &ast::Module,
+    modules: &[ast::Module],
+    source_hashes: &HashMap<String, String>,
+    scx: &StagingCx,
+    wit: &[crate::interface::WitAdapter],
+    profile: &crate::core::TargetProfile,
+) -> Result<(Program, Vec<crate::interface::Iface>, StageReport, Vec<Diagnostic>)> {
     let mut c = Checker::new();
     c.install_builtins();
+    c.allow_eval = profile.allow_eval;
+    c.usize_bits = profile.word_size;
+    c.install_wit_api(wit)?;
     c.stage_mode = scx.mode;
     c.module_files = scx.files.clone();
     let prelude_name = prelude.name.text.clone();
@@ -6778,6 +7824,9 @@ pub fn check_program_multi_diag(
         let imports = imports_of(m);
         c.collect_module(m, &prelude_name, &imports)?;
     }
+    // Module parameter types convert once every name is collected (module
+    // parameters as module arguments).
+    c.finish_module_params()?;
     // ABI layout facts resolve once every type name is known (attribute
     // annotations specification section 4.3); the packed-borrow rule of
     // section 4.2 reads them during checking.
@@ -6824,6 +7873,9 @@ pub fn check_program_multi_diag(
     let mut emit = |c: &Checker, module: &str, imports: &[String]| {
         let mut refs: Vec<(String, String)> = Vec::new();
         for i in imports {
+            if refs.iter().any(|(m, _)| m == i) {
+                continue;
+            }
             if let Some((_, h)) = built.iter().find(|(m, _)| m == i) {
                 refs.push((i.clone(), h.clone()));
             }
@@ -7479,6 +8531,7 @@ impl Checker {
         // on-demand compilation resolve their names.
         let mut m = ast::Module {
             name: ast::Name::new(module, span),
+            params: Vec::new(),
             imports: Vec::new(),
             decls: decls_out,
             span,
@@ -8437,6 +9490,11 @@ impl Checker {
                     "a foreign import cannot run at compile time (it needs target code and a linked foreign library)",
                 ))
             }
+            Core::SpliceVal(_) => {
+                return Err(Error::plain(
+                    "internal error: a splice position reached the staging interpreter outside its quotation",
+                ))
+            }
             Core::Prim(op) => {
                 let v = Value::PrimFn { op: *op, args: Vec::new() };
                 self.deref_value(cx, v)?
@@ -8572,7 +9630,7 @@ impl Checker {
                     Error::plain("the compile-time computation faulted (a match ran out)")
                 })?
             }
-            Core::Quote { template, holes } => {
+            Core::Quote { template, holes, .. } => {
                 self.construct_quote(cx, template, holes, frame)?
             }
             Core::DeclsQuote { template, holes } => {

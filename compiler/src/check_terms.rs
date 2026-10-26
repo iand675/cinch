@@ -352,7 +352,7 @@ impl Checker {
                 "a splice `$( ... )` is only valid inside a quotation",
             )),
             ast::Term::SpliceHole { idx, span } => match self.hole_tys.get(*idx) {
-                Some(t) => Ok((ECore::Unit, t.clone())),
+                Some(t) => Ok((ECore::QuoteHole(*idx), t.clone())),
                 None => Err(Error::at(
                     *span,
                     "internal error: a template hole outside template elaboration",
@@ -409,6 +409,13 @@ impl Checker {
                 self.value_use(&v, p.span(), env)
             }
             ast::Term::Con(p) => {
+                // A capitalized module parameter (`Seq :: ResultSequencing
+                // ConfigError`) is an ordinary binding of the module scope:
+                // it resolves to its binder before any constructor (module
+                // parameters as module arguments).
+                if let Some((l, ty)) = self.module_param_use(p) {
+                    return Ok((ECore::Var(l), ty));
+                }
                 let v = self.resolve_con(p, p.span())?;
                 self.value_use(&v, p.span(), env)
             }
@@ -1145,11 +1152,16 @@ impl Checker {
         self.perf = save_perf;
         self.compile_time = save_ct;
         self.hole_tys = save_holes;
-        // Type checking of the template is the point: its elaboration is
-        // discarded, because the template stays AST and is checked again
-        // under ordinary rules wherever the code lands.
-        r?;
-        Ok(ECore::Quote { template: Box::new(template), holes: hole_cores })
+        // The template stays AST and is checked again under ordinary
+        // rules wherever the code lands; its elaboration is retained as
+        // the quote's reified body, the program a runtime `eval` runs
+        // (supercompilation and JIT specification section 7).
+        let body = r?;
+        Ok(ECore::Quote {
+            template: Box::new(template),
+            holes: hole_cores,
+            body: Box::new(body),
+        })
     }
 
     /// `quoteDecls where { ... }`: a declaration-group value (modules
@@ -1441,8 +1453,8 @@ impl Checker {
                 // adapt to the other side (primitive types specification,
                 // section 7).
                 let cmp_ty = self.uni.fresh();
-                let lc = self.check(env, &lhs, &cmp_ty)?;
-                let rc = self.check(env, &rhs, &cmp_ty)?;
+                let lc = self.decide_operand(env, &lhs, &cmp_ty)?;
+                let rc = self.decide_operand(env, &rhs, &cmp_ty)?;
                 // Two bare numerals compare at `Nat` (decision D7's
                 // literal defaulting, applied to `decide`).
                 if matches!(self.uni.zonk(&cmp_ty), Ty::Meta(_)) {
@@ -1629,6 +1641,17 @@ impl Checker {
         expected: &Ty,
         span: ast::Span,
     ) -> Result<(ECore, Ty)> {
+        // A capitalized module parameter used bare (`Seq`) is the module
+        // scope's binding, not a constructor (module parameters as module
+        // arguments).
+        if args.is_empty() {
+            if let Some((l, ty)) = self.module_param_use(path) {
+                self.uni
+                    .unify(&ty, expected)
+                    .map_err(|m| Error::at(span, m))?;
+                return Ok((ECore::Var(l), ty));
+            }
+        }
         let v = self.resolve_ctor_for(path, Some(expected), span)?;
         if matches!(&v.kind, ValueKind::Ctor { .. })
             && self
@@ -1644,6 +1667,9 @@ impl Checker {
             ));
         }
         let (tag, arity, field_erased, runtime_arity) = match &v.kind {
+            ValueKind::Prim(PrimOp::Eval) if args.len() == 1 => {
+                return self.infer_eval_app(env, args, span);
+            }
             ValueKind::Ctor { tag, arity, field_erased, runtime_arity, .. } => {
                 (*tag, *arity, field_erased.clone(), *runtime_arity)
             }
@@ -1793,6 +1819,24 @@ impl Checker {
         ))
     }
 
+    /// A named definition referenced from index position: a total
+    /// function's code generation unit. A parameterized module's units
+    /// need their module parameters, which are not index-level arguments,
+    /// so dependent types cannot mention them (module parameters as
+    /// module arguments).
+    fn idx_ref(&self, v: &ValueInfo, span: ast::Span) -> Result<ITerm> {
+        if self.param_modules.contains(&v.module) {
+            return Err(Error::at(
+                span,
+                format!(
+                    "{} belongs to the parameterized module {}; a dependent type cannot mention it (module parameters are not index-level arguments)",
+                    v.name, v.module
+                ),
+            ));
+        }
+        Ok(ITerm::Fn(fn_id(&v.module, &v.name).0))
+    }
+
     /// A term in index position (a value a dependent type mentions):
     /// variables, numerals, mathematical arithmetic, and applications of
     /// named total definitions (the surface shares term syntax between
@@ -1818,16 +1862,16 @@ impl Checker {
                         ITerm::Fn(format!("<builtin>.{}", p.name.text))
                     } else {
                         let v = self.resolve_var(p, p.span())?;
-                        ITerm::Fn(fn_id(&v.module, &v.name).0)
+                        self.idx_ref(&v, p.span())?
                     }
                 } else {
                     let v = self.resolve_var(p, p.span())?;
-                    ITerm::Fn(fn_id(&v.module, &v.name).0)
+                    self.idx_ref(&v, p.span())?
                 }
             }
             ast::Term::Con(p) => {
                 let v = self.resolve_con(p, p.span())?;
-                ITerm::Fn(fn_id(&v.module, &v.name).0)
+                self.idx_ref(&v, p.span())?
             }
             ast::Term::App(f, args, span) => {
                 // In index position `+`, `-` and `*` are mathematical
@@ -1943,7 +1987,7 @@ impl Checker {
                                 if self.logical.contains(&target) {
                                     self.pending_refs.push(target);
                                 }
-                                ECore::Global(fn_id(&v.module, &v.name))
+                                self.fn_ref(&v, p.span())?
                             }
                             _ => ECore::Unit,
                         };
@@ -2026,7 +2070,7 @@ impl Checker {
                                 if self.logical.contains(&target) {
                                     self.pending_refs.push(target);
                                 }
-                                ECore::Global(fn_id(&v.module, &v.name))
+                                self.fn_ref(&v, *span)?
                             }
                             _ => ECore::Unit,
                         };
@@ -2366,9 +2410,115 @@ impl Checker {
         Ok(ECore::Lam { params, body: Box::new(bcore) })
     }
 
+    /// One `decide` operand (core specification section 4): the bare
+    /// index builtins `length` and `toNat` compute their runtime value
+    /// through the matching primitive (`bytesLen` over `Bytes`, the
+    /// bignum conversion from a machine word), so an obligation over
+    /// them gets the same executable comparison as its index reading;
+    /// every other operand checks ordinarily (literal defaulting and all).
+    fn decide_operand(
+        &mut self,
+        env: &mut Env,
+        t: &ast::Term,
+        expected: &Ty,
+    ) -> Result<ECore> {
+        let (bname, barg): (Option<String>, Option<&ast::Term>) = match t {
+            ast::Term::App(f, args, _) if args.len() == 1 => match &**f {
+                ast::Term::Var(p)
+                    if p.quals.is_empty()
+                        && matches!(p.name.text.as_str(), "length" | "toNat") =>
+                {
+                    (Some(p.name.text.clone()), Some(&args[0]))
+                }
+                _ => (None, None),
+            },
+            _ => (None, None),
+        };
+        if let (Some(name), Some(arg)) = (bname, barg) {
+            if name == "length" {
+                let bytes_ty = Ty::Bytes;
+                if let Ok(ac) = self.check(env, arg, &bytes_ty) {
+                    self.uni.unify(expected, &Ty::Nat).map_err(|m| {
+                        Error::at(t.span(), m)
+                    })?;
+                    return Ok(app_spine(
+                        ECore::Prim(PrimOp::Bytes(BytesOp::Len)),
+                        vec![ac],
+                    ));
+                }
+            }
+            if name == "toNat" {
+                let word = self.uni.fresh();
+                let ac = self.check(env, arg, &word)?;
+                let zw = self.uni.zonk(&word);
+                if matches!(zw, Ty::Prim(s) if s.is_int_like()) {
+                    self.uni.unify(expected, &Ty::Nat).map_err(|m| {
+                        Error::at(t.span(), m)
+                    })?;
+                    return Ok(app_spine(
+                        ECore::Prim(PrimOp::Nat(NatOp::FromI64)),
+                        vec![ac],
+                    ));
+                }
+            }
+        }
+        self.check(env, t, expected)
+    }
+
+    /// One `eval` use (supercompilation and JIT specification section
+    /// 7): a target profile may forbid runtime code generation entirely,
+    /// every use is a build-visible assumption recorded beside the
+    /// foreign ones, and a `spec`/`proof` definition (erased evidence)
+    /// may never contain one.
+    fn eval_use(&mut self, span: ast::Span) -> Result<()> {
+        if !self.allow_eval {
+            return Err(Error::at(
+                span,
+                "this target profile forbids runtime code generation (`eval` of a typed quote; supercompilation and JIT specification section 7)",
+            ));
+        }
+        if self.current_logical.is_some() {
+            return Err(Error::at(
+                span,
+                "eval is never evidence: a `spec`/`proof` definition is erased and must not use runtime code generation (supercompilation and JIT specification section 7)",
+            ));
+        }
+        self.eval_sites.push((self.current_module.clone(), format!("{span}")));
+        Ok(())
+    }
+
+    /// `eval q` (supercompilation and JIT specification section 7): the
+    /// quote is typed by its `Code a` type when constructed, so no
+    /// capability or effect belongs in `eval`'s signature. The result is
+    /// executable code's value only: a proposition or sort result is
+    /// evidence and is refused.
+    fn infer_eval_app(
+        &mut self,
+        env: &mut Env,
+        args: &[ast::Term],
+        span: ast::Span,
+    ) -> Result<(ECore, Ty)> {
+        self.eval_use(span)?;
+        let t = self.uni.fresh();
+        let q = self.check(env, &args[0], &Ty::Adt("Code".into(), vec![t.clone()]))?;
+        let zt = self.uni.zonk(&t);
+        if matches!(zt, Ty::Prp(_) | Ty::Sort(_)) {
+            return Err(Error::at(
+                span,
+                "eval is never evidence: a runtime-generated value must not inhabit a proposition or erased position (supercompilation and JIT specification section 7)",
+            ));
+        }
+        Ok((app_spine(ECore::Prim(PrimOp::Eval), vec![q]), zt))
+    }
+
     /// Instantiate a resolved value: dictionary constraints become wants and
     /// methods elaborate to dictionary projection.
     fn value_use(&mut self, v: &ValueInfo, span: ast::Span, env: &mut Env) -> Result<(ECore, Ty)> {
+        // `eval` uses are profile-gated and recorded wherever they
+        // appear (supercompilation and JIT specification section 7).
+        if matches!(v.kind, ValueKind::Prim(PrimOp::Eval)) {
+            self.eval_use(span)?;
+        }
         match &v.kind {
             ValueKind::StageBuiltin(op) => {
                 // The compile-time capability API (`Stage.*`): its values
@@ -2491,7 +2641,8 @@ impl Checker {
             idx_holes.push(ECore::IdxPending(id));
         }
         let core = match &v.kind {
-            ValueKind::TopFn | ValueKind::StageFn | ValueKind::MacroFn => {
+            ValueKind::TopFn => self.fn_ref(v, span)?,
+            ValueKind::StageFn | ValueKind::MacroFn => {
                 ECore::Global(fn_id(&v.module, &v.name))
             }
             ValueKind::StageBuiltin(op) => ECore::Global(op.global_id()),
@@ -5975,7 +6126,8 @@ impl Checker {
             }
         }
         let core = match &v.kind {
-            ValueKind::TopFn | ValueKind::StageFn | ValueKind::MacroFn => {
+            ValueKind::TopFn => self.fn_ref(&v, span)?,
+            ValueKind::StageFn | ValueKind::MacroFn => {
                 ECore::Global(fn_id(&v.module, &v.name))
             }
             ValueKind::Prim(op) => ECore::Prim(*op),

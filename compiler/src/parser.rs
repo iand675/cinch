@@ -252,8 +252,41 @@ impl<'a> Parser<'a> {
     fn parse_module_decl(&mut self) -> Result<Module> {
         let start = self.expect(&Tok::Module, "`module`")?.span;
         let path = self.parse_con_path()?;
+        // `module M (x :: T, sig :: S, ...) where`: the parameter block of
+        // modules specification section 1 (module parameters and
+        // signatures as module arguments). Each parameter is a named
+        // binding of the stated type; a `signature`-typed parameter is a
+        // dictionary supplied at instantiation.
+        let mut params = Vec::new();
         if self.at(&Tok::LParen) {
-            return Err(self.err("module parameters are not supported in the bootstrap slice"));
+            self.bump();
+            loop {
+                let pspan = self.peek().span;
+                let pname = match self.peek_tok().clone() {
+                    Tok::VarId(s) | Tok::ConId(s) if s != "_" => {
+                        self.bump();
+                        Name::new(s, pspan)
+                    }
+                    t => {
+                        return Err(self.err(format!(
+                            "expected a module parameter name, found {}",
+                            describe(&t)
+                        )))
+                    }
+                };
+                self.expect(&Tok::ColonColon, "`::` in a module parameter")?;
+                let ty = self.parse_type()?;
+                if params.iter().any(|p: &ParamDecl| p.name.text == pname.text) {
+                    return Err(Error::at(pspan, format!("duplicate module parameter {}", pname.text)));
+                }
+                params.push(ParamDecl { name: pname, ty, span: pspan });
+                if self.at(&Tok::Comma) {
+                    self.bump();
+                } else {
+                    break;
+                }
+            }
+            self.expect(&Tok::RParen, "`)` closing the module parameter list")?;
         }
         if self.at(&Tok::ColonColon) {
             return Err(self.err("module signatures are not supported in the bootstrap slice"));
@@ -270,7 +303,7 @@ impl<'a> Parser<'a> {
             }
         }
         let name = Name::new(path.parts().join("."), start);
-        Ok(Module { name, imports, decls, span: start })
+        Ok(Module { name, params, imports, decls, span: start })
     }
 
     fn parse_block_items<T>(
@@ -616,6 +649,10 @@ impl<'a> Parser<'a> {
                 self.bump();
                 let op = match self.peek_tok().clone() {
                     Tok::Op(s) => s,
+                    // A bare `|` in operator-name position is the
+                    // operator `|` (surface grammar local amendments
+                    // section 6: the contextual Pipe rule).
+                    Tok::Pipe => "|".to_string(),
                     t => {
                         return Err(self.err(format!(
                             "expected an operator name in parentheses, found {}",
@@ -672,6 +709,23 @@ impl<'a> Parser<'a> {
             }
         }
         let path = self.parse_con_path()?;
+        // `import M (arg, ...) as N`: instantiate the parameterized module
+        // at these static arguments (module parameters as module
+        // arguments). Each instantiation is a distinct unit, so the `as`
+        // alias names it.
+        let mut args = Vec::new();
+        if self.at(&Tok::LParen) {
+            self.bump();
+            loop {
+                args.push(self.parse_module_arg()?);
+                if self.at(&Tok::Comma) {
+                    self.bump();
+                } else {
+                    break;
+                }
+            }
+            self.expect(&Tok::RParen, "`)` closing the module argument list")?;
+        }
         let mut alias = None;
         if self.at(&Tok::As) {
             self.bump();
@@ -689,7 +743,78 @@ impl<'a> Parser<'a> {
                 }
             }
         }
-        Ok(Import { path, alias, stage, span })
+        if !args.is_empty() {
+            if stage {
+                return Err(Error::at(
+                    span,
+                    "`import stage` takes no module arguments: compile-time code of a parameterized module is not supported in the bootstrap slice",
+                ));
+            }
+            if alias.is_none() {
+                return Err(Error::at(
+                    span,
+                    "an applied import names its instantiation unit: `import M (args) as N`",
+                ));
+            }
+        }
+        Ok(Import { path, alias, stage, args, span })
+    }
+
+    /// One module argument: a static name (an `instance` dictionary or a
+    /// top-level value) or a literal (module parameters as module
+    /// arguments; the arguments are static so the instantiation is a
+    /// compilation unit, not a runtime application).
+    fn parse_module_arg(&mut self) -> Result<ModuleArg> {
+        let span = self.peek().span;
+        match self.peek_tok().clone() {
+            Tok::Int(v) => {
+                self.bump();
+                Ok(ModuleArg::Int(v, span))
+            }
+            Tok::Op(s) if s == "-" && matches!(self.peek_tok_at(1), Some(Tok::Int(_))) => {
+                self.bump();
+                match self.peek_tok().clone() {
+                    Tok::Int(v) => {
+                        self.bump();
+                        Ok(ModuleArg::Int(format!("-{v}"), span))
+                    }
+                    _ => unreachable!(),
+                }
+            }
+            Tok::CharLit(c) => {
+                self.bump();
+                Ok(ModuleArg::Char(c, span))
+            }
+            Tok::ConId(_) => {
+                let path = self.parse_con_path()?;
+                let mut quals: Vec<Name> = Vec::new();
+                for p in &path.segments[..path.segments.len().saturating_sub(1)] {
+                    quals.push(p.clone());
+                }
+                let name = path
+                    .segments
+                    .last()
+                    .cloned()
+                    .expect("a con path has a name");
+                Ok(ModuleArg::Name { quals, name })
+            }
+            Tok::VarId(s) if s != "_" => {
+                self.bump();
+                Ok(ModuleArg::Name {
+                    quals: Vec::new(),
+                    name: Name::new(s, span),
+                })
+            }
+            Tok::LParen => {
+                self.bump();
+                self.expect(&Tok::RParen, "`)` for a unit argument")?;
+                Ok(ModuleArg::Unit(span))
+            }
+            t => Err(self.err(format!(
+                "a module argument is a static name or literal, found {}",
+                describe(&t)
+            ))),
+        }
     }
 
     fn parse_signature(&mut self) -> Result<SigDecl> {
@@ -1008,6 +1133,13 @@ impl<'a> Parser<'a> {
                 Tok::Op(s) => {
                     self.bump();
                     ops.push(Name::new(s, op_span));
+                }
+                // The contextual Pipe rule (surface grammar local
+                // amendments section 6): `infixl 4 |` declares the `|`
+                // operator's fixity.
+                Tok::Pipe => {
+                    self.bump();
+                    ops.push(Name::new("|", op_span));
                 }
                 t => {
                     return Err(self.err(format!(
@@ -1394,6 +1526,11 @@ impl<'a> Parser<'a> {
             let span = self.peek().span;
             let is_dollar = match self.peek_tok() {
                 Tok::Op(_) => false,
+                // The contextual Pipe rule (surface grammar local
+                // amendments section 6): infix application of `|`; the
+                // guard and row separators are consumed by their own
+                // positions before a term is parsed.
+                Tok::Pipe => false,
                 Tok::Dollar if !self.at_splice() => true,
                 _ => break,
             };
@@ -1403,6 +1540,7 @@ impl<'a> Parser<'a> {
             } else {
                 match self.bump().tok {
                     Tok::Op(s) => Name::new(s, span),
+                    Tok::Pipe => Name::new("|", span),
                     _ => unreachable!(),
                 }
             };
@@ -1621,11 +1759,14 @@ impl<'a> Parser<'a> {
                     self.bump();
                     return Ok(Term::Unit(span));
                 }
-                if matches!(self.peek_tok(), Tok::Op(_))
+                if (matches!(self.peek_tok(), Tok::Op(_)) || matches!(self.peek_tok(), Tok::Pipe))
                     && matches!(self.peek_tok_at(1), Some(Tok::RParen))
                 {
                     let op = match self.bump().tok {
                         Tok::Op(s) => s,
+                        // The contextual Pipe rule (surface grammar
+                        // local amendments section 6).
+                        Tok::Pipe => "|".to_string(),
                         _ => unreachable!(),
                     };
                     self.bump();
@@ -1992,6 +2133,12 @@ impl<'a> Parser<'a> {
                     let s = s.clone();
                     self.bump();
                     Name::new(s, span)
+                }
+                // The contextual Pipe rule (surface grammar local
+                // amendments section 6).
+                Tok::Pipe => {
+                    self.bump();
+                    Name::new("|", span)
                 }
                 _ => break,
             };
@@ -3589,10 +3736,29 @@ mod tests {
 
     #[test]
     fn not_supported_patterns_and_module_forms() {
-        let e = err("module T (M :: Sig) where\n  f = 1\n");
-        assert!(e.contains("module parameters are not supported"), "{e}");
+        let e = err("module T :: Sig where\n  f = 1\n");
+        assert!(e.contains("module signatures are not supported"), "{e}");
         let e = err("module T where\n  module U where\n    f = 1\n");
         assert!(e.contains("nested module declarations"), "{e}");
+        let e = err("module T where\n  import M (d)\n  f = 1\n");
+        assert!(e.contains("names its instantiation unit"), "{e}");
+    }
+
+    #[test]
+    fn module_parameters_and_instantiations_parse() {
+        // `module M (x :: T, sig :: S) where` (module parameters as module
+        // arguments) and `import M (args) as N` (instantiation).
+        let p = ok("module T (Seq :: ResultSequencing ConfigError, k :: Int) where\n  f = 1\n");
+        let names: Vec<&str> = p.module.params.iter().map(|x| x.name.text.as_str()).collect();
+        assert_eq!(names, vec!["Seq", "k"]);
+        let p = ok("module T where\n  import M (StepUp, 3) as N\n  f = 1\n");
+        let imp = match &p.module.decls[0] {
+            Decl::Import(i) => i.clone(),
+            other => panic!("expected an import, got {other:?}"),
+        };
+        assert_eq!(imp.path.parts(), vec!["M"]);
+        assert_eq!(imp.alias.as_ref().map(|a| a.text.as_str()), Some("N"));
+        assert_eq!(imp.args.len(), 2);
     }
 
     #[test]
@@ -3650,9 +3816,12 @@ mod tests {
             insts.iter().any(|i| !i.methods.is_empty() && i.methods[0].name.text == "=="),
             "expected an Eq instance"
         );
-        assert_eq!(p.fixities.get("+"), Some((Assoc::Left, 6)));
-        assert_eq!(p.fixities.get("=="), Some((Assoc::None, 4)));
-        assert_eq!(p.fixities.get("&&"), Some((Assoc::Right, 3)));
+        // The operator table (surface grammar local amendments section
+        // 6): Rust's relative precedences in the 0..=9 band.
+        assert_eq!(p.fixities.get("+"), Some((Assoc::Left, 8)));
+        assert_eq!(p.fixities.get("*"), Some((Assoc::Left, 9)));
+        assert_eq!(p.fixities.get("=="), Some((Assoc::None, 3)));
+        assert_eq!(p.fixities.get("&&"), Some((Assoc::Right, 2)));
     }
 
     #[test]
@@ -3684,3 +3853,727 @@ mod tests {
     }
 }
 
+
+// -------------------------------------------- WIT: component interface grammar
+
+/// Parse a WIT package (WebAssembly and WASI specification sections 3
+/// and 4): the `package` header with its `interface` and `world` items.
+/// The grammar is the WIT reference's interface subset: type definitions
+/// (`type`, `enum`, `record`, `variant`, `flags`, `union`, `resource`),
+/// `func` declarations and `world` import/export lists. `use` and
+/// `include` are rejected with a diagnostic until a slice needs them.
+pub fn parse_wit(src: &str) -> Result<WitPackage> {
+    let toks = lex_wit(src)?;
+    let mut p = WitParser { toks, pos: 0, src };
+    p.package()
+}
+
+/// One WIT token with its source position.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct WitTok {
+    kind: WitTokKind,
+    line: u32,
+    col: u32,
+    /// Byte offsets into the source, for raw slices (version strings).
+    start: usize,
+    end: usize,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum WitTokKind {
+    /// `[A-Za-z0-9_-]+`, including WIT keywords and kebab-case names.
+    Ident(String),
+    /// A run of decimal digits.
+    Num(String),
+    At,
+    Colon,
+    Eq,
+    Semi,
+    Comma,
+    Dot,
+    LBrace,
+    RBrace,
+    LParen,
+    RParen,
+    Lt,
+    Gt,
+    Arrow,
+}
+
+/// The WIT scanner: ASCII identifiers (kebab-case allowed), the single
+/// reserved punctuation of the grammar, and `//` line comments.
+fn lex_wit(src: &str) -> Result<Vec<WitTok>> {
+    let b = src.as_bytes();
+    let mut out = Vec::new();
+    let (mut i, mut line, mut col) = (0usize, 1u32, 1u32);
+    while i < b.len() {
+        let start = i;
+        let (sl, sc) = (line, col);
+        let c = b[i];
+        let kind = match c {
+            b' ' | b'\t' | b'\r' => {
+                i += 1;
+                col += 1;
+                continue;
+            }
+            b'\n' => {
+                i += 1;
+                line += 1;
+                col = 1;
+                continue;
+            }
+            b'/' if i + 1 < b.len() && b[i + 1] == b'/' => {
+                while i < b.len() && b[i] != b'\n' {
+                    i += 1;
+                }
+                continue;
+            }
+            b'@' => {
+                i += 1;
+                col += 1;
+                WitTokKind::At
+            }
+            b'=' => {
+                i += 1;
+                col += 1;
+                WitTokKind::Eq
+            }
+            b':' => {
+                i += 1;
+                col += 1;
+                WitTokKind::Colon
+            }
+            b';' => {
+                i += 1;
+                col += 1;
+                WitTokKind::Semi
+            }
+            b',' => {
+                i += 1;
+                col += 1;
+                WitTokKind::Comma
+            }
+            b'.' => {
+                i += 1;
+                col += 1;
+                WitTokKind::Dot
+            }
+            b'{' => {
+                i += 1;
+                col += 1;
+                WitTokKind::LBrace
+            }
+            b'}' => {
+                i += 1;
+                col += 1;
+                WitTokKind::RBrace
+            }
+            b'(' => {
+                i += 1;
+                col += 1;
+                WitTokKind::LParen
+            }
+            b')' => {
+                i += 1;
+                col += 1;
+                WitTokKind::RParen
+            }
+            b'<' => {
+                i += 1;
+                col += 1;
+                WitTokKind::Lt
+            }
+            b'>' => {
+                i += 1;
+                col += 1;
+                WitTokKind::Gt
+            }
+            b'-' if i + 1 < b.len() && b[i + 1] == b'>' => {
+                i += 2;
+                col += 2;
+                WitTokKind::Arrow
+            }
+            b'0'..=b'9' => {
+                while i < b.len() && b[i].is_ascii_digit() {
+                    i += 1;
+                    col += 1;
+                }
+                WitTokKind::Num(src[start..i].to_string())
+            }
+            b'a'..=b'z' | b'A'..=b'Z' | b'_' | b'0'..=b'9' => {
+                while i < b.len()
+                    && (b[i].is_ascii_alphanumeric() || b[i] == b'_' || b[i] == b'-')
+                {
+                    i += 1;
+                    col += 1;
+                }
+                WitTokKind::Ident(src[start..i].to_string())
+            }
+            _ => {
+                return Err(Error::at(
+                    Span { line: sl, col: sc },
+                    format!(
+                        "WIT: unexpected character {:?}",
+                        src[i..].chars().next().unwrap_or('?')
+                    ),
+                ))
+            }
+        };
+        out.push(WitTok { kind, line: sl, col: sc, start, end: i });
+    }
+    Ok(out)
+}
+
+struct WitParser<'a> {
+    toks: Vec<WitTok>,
+    pos: usize,
+    src: &'a str,
+}
+
+impl<'a> WitParser<'a> {
+    fn peek(&self) -> Option<&WitTok> {
+        self.toks.get(self.pos)
+    }
+
+    fn span(&self) -> Span {
+        match self.peek() {
+            Some(t) => Span { line: t.line, col: t.col },
+            None => self
+                .toks
+                .last()
+                .map(|t| Span { line: t.line, col: t.col + (t.end - t.start) as u32 })
+                .unwrap_or(Span { line: 1, col: 1 }),
+        }
+    }
+
+    fn err<T>(&self, msg: impl Into<String>) -> Result<T> {
+        Err(Error::at(self.span(), msg))
+    }
+
+    fn bump(&mut self) -> Option<WitTok> {
+        let t = self.toks.get(self.pos).cloned();
+        if t.is_some() {
+            self.pos += 1;
+        }
+        t
+    }
+
+    fn at_ident(&self, kw: &str) -> bool {
+        matches!(self.peek(), Some(t) if t.kind == WitTokKind::Ident(kw.to_string()))
+    }
+
+    fn eat_ident(&mut self, kw: &str) -> bool {
+        if self.at_ident(kw) {
+            self.pos += 1;
+            true
+        } else {
+            false
+        }
+    }
+
+    fn expect_ident(&mut self, kw: &str) -> Result<()> {
+        if self.eat_ident(kw) {
+            Ok(())
+        } else {
+            self.err(format!("WIT: expected `{kw}`, found {}", self.describe()))
+        }
+    }
+
+    fn at_punct(&self, k: &WitTokKind) -> bool {
+        matches!(self.peek(), Some(t) if &t.kind == k)
+    }
+
+    fn eat_punct(&mut self, k: &WitTokKind) -> bool {
+        if self.at_punct(k) {
+            self.pos += 1;
+            true
+        } else {
+            false
+        }
+    }
+
+    fn expect_punct(&mut self, k: &WitTokKind) -> Result<()> {
+        if self.eat_punct(k) {
+            Ok(())
+        } else {
+            self.err(format!("WIT: expected `{}`, found {}", punct_spelling(k), self.describe()))
+        }
+    }
+
+    fn describe(&self) -> String {
+        match self.peek() {
+            None => "end of input".to_string(),
+            Some(t) => match &t.kind {
+                WitTokKind::Ident(s) => format!("`{s}`"),
+                WitTokKind::Num(s) => format!("number `{s}`"),
+                k => format!("`{}`", punct_spelling(k)),
+            },
+        }
+    }
+
+    /// A kebab-case or snake_case name: any identifier, including `_`.
+    fn name(&mut self, what: &str) -> Result<(String, Span)> {
+        let span = self.span();
+        match self.bump() {
+            Some(WitTok { kind: WitTokKind::Ident(n), .. }) => Ok((n, span)),
+            _ => self.err(format!("WIT: expected a {what} name")),
+        }
+    }
+
+    /// `ns:name` with the `@version` suffix when present.
+    fn package(&mut self) -> Result<WitPackage> {
+        let span = self.span();
+        self.expect_ident("package")?;
+        let (ns, _) = self.name("package namespace")?;
+        self.expect_punct(&WitTokKind::Colon)?;
+        let (name, _) = self.name("package")?;
+        let version = if self.eat_punct(&WitTokKind::At) {
+            let t = self.span();
+            let start = match self.peek() {
+                Some(t) => t.start,
+                None => return Err(Error::at(t, "WIT: expected a version after `@`")),
+            };
+            // The version runs to the `;`: digits, dots and a possible
+            // pre-release suffix.
+            let mut end = start;
+            loop {
+                let t = match self.peek() {
+                    Some(t) => t.clone(),
+                    None => break,
+                };
+                match &t.kind {
+                    WitTokKind::Semi => break,
+                    WitTokKind::Num(_) | WitTokKind::Dot | WitTokKind::At => {
+                        end = t.end;
+                        self.pos += 1;
+                    }
+                    WitTokKind::Ident(_)
+                        if t.start == end || self.src[end..t.start].ends_with('-') =>
+                    {
+                        end = t.end;
+                        self.pos += 1;
+                    }
+                    _ => {
+                        return Err(Error::at(
+                            Span { line: t.line, col: t.col },
+                            "WIT: malformed package version",
+                        ))
+                    }
+                }
+            }
+            Some(self.src[start..end].trim_end().to_string())
+        } else {
+            None
+        };
+        self.expect_punct(&WitTokKind::Semi)?;
+        let mut interfaces = Vec::new();
+        let mut worlds = Vec::new();
+        while self.peek().is_some() {
+            if self.at_ident("interface") {
+                interfaces.push(self.interface()?);
+            } else if self.at_ident("world") {
+                worlds.push(self.world()?);
+            } else if self.at_ident("use") || self.at_ident("include") {
+                return self.err(format!(
+                    "WIT: `{}` is not supported in this package subset",
+                    if self.at_ident("use") { "use" } else { "include" }
+                ));
+            } else {
+                return self.err(format!(
+                    "WIT: expected `interface` or `world`, found {}",
+                    self.describe()
+                ));
+            }
+        }
+        Ok(WitPackage {
+            name: format!("{ns}:{name}"),
+            version,
+            interfaces,
+            worlds,
+            span,
+        })
+    }
+
+    fn interface(&mut self) -> Result<WitInterface> {
+        let span = self.span();
+        self.expect_ident("interface")?;
+        let (name, _) = self.name("interface")?;
+        self.expect_punct(&WitTokKind::LBrace)?;
+        let mut items = Vec::new();
+        while !self.at_punct(&WitTokKind::RBrace) {
+            if self.peek().is_none() {
+                return self.err("WIT: unterminated interface body");
+            }
+            items.push(self.item()?);
+        }
+        self.expect_punct(&WitTokKind::RBrace)?;
+        Ok(WitInterface { name, items, span })
+    }
+
+    fn item(&mut self) -> Result<WitItem> {
+        if self.at_ident("type") {
+            self.pos += 1;
+            let (name, span) = self.name("type")?;
+            self.expect_punct(&WitTokKind::Eq)?;
+            let ty = self.ty()?;
+            self.expect_punct(&WitTokKind::Semi)?;
+            return Ok(WitItem::Type(WitTypeDef { name, kind: WitTypeDefKind::Alias(ty), span }));
+        }
+        if self.at_ident("enum") {
+            let td = self.typedef_cases(WitTokKind::Ident("enum".into()), false)?;
+            return Ok(WitItem::Type(td));
+        }
+        if self.at_ident("variant") {
+            let td = self.typedef_cases(WitTokKind::Ident("variant".into()), true)?;
+            return Ok(WitItem::Type(td));
+        }
+        if self.at_ident("flags") {
+            let span = self.span();
+            self.expect_ident("flags")?;
+            let (name, _) = self.name("flags type")?;
+            self.expect_punct(&WitTokKind::LBrace)?;
+            let mut cases = Vec::new();
+            while !self.at_punct(&WitTokKind::RBrace) {
+                let (c, _) = self.name("flag")?;
+                cases.push(c);
+                if !self.eat_punct(&WitTokKind::Comma) {
+                    break;
+                }
+            }
+            self.expect_punct(&WitTokKind::RBrace)?;
+            return Ok(WitItem::Type(WitTypeDef {
+                name,
+                kind: WitTypeDefKind::Flags(cases),
+                span,
+            }));
+        }
+        if self.at_ident("union") {
+            let span = self.span();
+            self.expect_ident("union")?;
+            let (name, _) = self.name("union type")?;
+            self.expect_punct(&WitTokKind::LBrace)?;
+            let mut cases = Vec::new();
+            while !self.at_punct(&WitTokKind::RBrace) {
+                cases.push(self.ty()?);
+                if !self.eat_punct(&WitTokKind::Comma) {
+                    break;
+                }
+            }
+            self.expect_punct(&WitTokKind::RBrace)?;
+            return Ok(WitItem::Type(WitTypeDef {
+                name,
+                kind: WitTypeDefKind::Union(cases),
+                span,
+            }));
+        }
+        if self.at_ident("record") {
+            let span = self.span();
+            self.expect_ident("record")?;
+            let (name, _) = self.name("record type")?;
+            self.expect_punct(&WitTokKind::LBrace)?;
+            let mut fields = Vec::new();
+            while !self.at_punct(&WitTokKind::RBrace) {
+                let (fnm, fspan) = self.name("field")?;
+                self.expect_punct(&WitTokKind::Colon)?;
+                let ty = self.ty()?;
+                fields.push(WitField { name: fnm, ty, span: fspan });
+                if !self.eat_punct(&WitTokKind::Comma) {
+                    break;
+                }
+            }
+            self.expect_punct(&WitTokKind::RBrace)?;
+            return Ok(WitItem::Type(WitTypeDef {
+                name,
+                kind: WitTypeDefKind::Record(fields),
+                span,
+            }));
+        }
+        if self.at_ident("resource") {
+            return Ok(WitItem::Resource(self.resource()?));
+        }
+        // `name: func(x: t, ...) -> u;`
+        let (name, span) = self.name("function")?;
+        self.expect_punct(&WitTokKind::Colon)?;
+        self.expect_ident("func")?;
+        let (params, result) = self.func_sig()?;
+        self.expect_punct(&WitTokKind::Semi)?;
+        Ok(WitItem::Func(WitFunc { name, params, result, span }))
+    }
+
+    /// `enum e { a, b }` or `variant v { a(t), b }`.
+    fn typedef_cases(&mut self, _kw: WitTokKind, payloads: bool) -> Result<WitTypeDef> {
+        let span = self.span();
+        let kw = if payloads { "variant" } else { "enum" };
+        self.expect_ident(kw)?;
+        let (name, _) = self.name("type")?;
+        self.expect_punct(&WitTokKind::LBrace)?;
+        let mut cases = Vec::new();
+        while !self.at_punct(&WitTokKind::RBrace) {
+            let (c, cspan) = self.name("case")?;
+            let payload = if payloads && self.at_punct(&WitTokKind::LParen) {
+                self.pos += 1;
+                let mut tys = Vec::new();
+                while !self.at_punct(&WitTokKind::RParen) {
+                    tys.push(self.ty()?);
+                    if !self.eat_punct(&WitTokKind::Comma) {
+                        break;
+                    }
+                }
+                self.expect_punct(&WitTokKind::RParen)?;
+                match tys.len() {
+                    0 => None,
+                    1 => Some(tys.remove(0)),
+                    _ => Some(WitType::Tuple(tys, cspan)),
+                }
+            } else {
+                None
+            };
+            if !payloads && payload.is_some() {
+                return Err(Error::at(cspan, "WIT: an enum case has no payload"));
+            }
+            cases.push(WitCase { name: c, payload, span: cspan });
+            if !self.eat_punct(&WitTokKind::Comma) {
+                break;
+            }
+        }
+        self.expect_punct(&WitTokKind::RBrace)?;
+        Ok(WitTypeDef {
+            name,
+            kind: if payloads {
+                WitTypeDefKind::Variant(cases)
+            } else {
+                WitTypeDefKind::Enum(cases)
+            },
+            span,
+        })
+    }
+
+    fn resource(&mut self) -> Result<WitResource> {
+        let span = self.span();
+        self.expect_ident("resource")?;
+        let (name, _) = self.name("resource")?;
+        let mut items = Vec::new();
+        if self.eat_punct(&WitTokKind::LBrace) {
+            while !self.at_punct(&WitTokKind::RBrace) {
+                if self.at_ident("constructor") {
+                    let cspan = self.span();
+                    self.pos += 1;
+                    let (params, result) = self.func_sig()?;
+                    if result.is_some() {
+                        return Err(Error::at(cspan, "WIT: a constructor has no result"));
+                    }
+                    self.expect_punct(&WitTokKind::Semi)?;
+                    items.push(WitResourceItem::Constructor { params, span: cspan });
+                    continue;
+                }
+                let is_static = self.eat_ident("static");
+                let (mname, mspan) = self.name("method")?;
+                self.expect_punct(&WitTokKind::Colon)?;
+                self.expect_ident("func")?;
+                let (params, result) = self.func_sig()?;
+                self.expect_punct(&WitTokKind::Semi)?;
+                let _ = is_static;
+                items.push(WitResourceItem::Method { name: mname, params, result, span: mspan });
+            }
+            self.expect_punct(&WitTokKind::RBrace)?;
+        } else {
+            self.expect_punct(&WitTokKind::Semi)?;
+        }
+        Ok(WitResource { name, items, span })
+    }
+
+    /// `(x: t, y: u) -> v`, the parameter and result list of a `func`.
+    fn func_sig(&mut self) -> Result<(Vec<WitParam>, Option<WitType>)> {
+        self.expect_punct(&WitTokKind::LParen)?;
+        let mut params = Vec::new();
+        while !self.at_punct(&WitTokKind::RParen) {
+            let (name, span) = self.name("parameter")?;
+            self.expect_punct(&WitTokKind::Colon)?;
+            let ty = self.ty()?;
+            params.push(WitParam { name, ty, span });
+            if !self.eat_punct(&WitTokKind::Comma) {
+                break;
+            }
+        }
+        self.expect_punct(&WitTokKind::RParen)?;
+        let result = if self.eat_punct(&WitTokKind::Arrow) { Some(self.ty()?) } else { None };
+        Ok((params, result))
+    }
+
+    fn ty(&mut self) -> Result<WitType> {
+        let span = self.span();
+        let t = match self.bump() {
+            Some(WitTok { kind: WitTokKind::Ident(n), .. }) => n,
+            _ => return self.err("WIT: expected a type"),
+        };
+        let simple = match t.as_str() {
+            "bool" => Some(WitType::Bool(span)),
+            "u8" => Some(WitType::U8(span)),
+            "u16" => Some(WitType::U16(span)),
+            "u32" => Some(WitType::U32(span)),
+            "u64" => Some(WitType::U64(span)),
+            "s8" => Some(WitType::S8(span)),
+            "s16" => Some(WitType::S16(span)),
+            "s32" => Some(WitType::S32(span)),
+            "s64" => Some(WitType::S64(span)),
+            "f32" => Some(WitType::F32(span)),
+            "f64" => Some(WitType::F64(span)),
+            "char" => Some(WitType::Char(span)),
+            "string" => Some(WitType::Str(span)),
+            _ => None,
+        };
+        if let Some(ty) = simple {
+            return Ok(ty);
+        }
+        match t.as_str() {
+            "list" | "option" | "stream" | "future" => {
+                self.expect_punct(&WitTokKind::Lt)?;
+                let inner = self.ty()?;
+                self.expect_punct(&WitTokKind::Gt)?;
+                return Ok(match t.as_str() {
+                    "list" => WitType::List(Box::new(inner), span),
+                    "option" => WitType::Option(Box::new(inner), span),
+                    "stream" => WitType::Stream(Box::new(inner), span),
+                    _ => WitType::Future(Box::new(inner), span),
+                });
+            }
+            "own" | "borrow" => {
+                self.expect_punct(&WitTokKind::Lt)?;
+                let (n, _) = self.name("resource")?;
+                self.expect_punct(&WitTokKind::Gt)?;
+                return Ok(if t == "own" {
+                    WitType::Own(n, span)
+                } else {
+                    WitType::Borrow(n, span)
+                });
+            }
+            // `result` and `tuple` also stand alone (`result`, `tuple<>`).
+            "tuple" | "result" => {
+                if !self.eat_punct(&WitTokKind::Lt) {
+                    return Ok(match t.as_str() {
+                        "result" => WitType::Result(None, None, span),
+                        _ => WitType::Tuple(Vec::new(), span),
+                    });
+                }
+                if t == "tuple" {
+                    let mut tys = Vec::new();
+                    while !self.at_punct(&WitTokKind::Gt) {
+                        tys.push(self.ty()?);
+                        if !self.eat_punct(&WitTokKind::Comma) {
+                            break;
+                        }
+                    }
+                    self.expect_punct(&WitTokKind::Gt)?;
+                    return Ok(WitType::Tuple(tys, span));
+                }
+                // `result<t, e>` with `_` for a missing payload.
+                let ok = self.underscore_ty()?;
+                let err = if self.eat_punct(&WitTokKind::Comma) {
+                    self.underscore_ty()?
+                } else {
+                    None
+                };
+                self.expect_punct(&WitTokKind::Gt)?;
+                return Ok(WitType::Result(ok, err, span));
+            }
+            _ => {}
+        }
+        Ok(WitType::Named(t, span))
+    }
+
+    /// A `result` payload slot: `_` or a type.
+    fn underscore_ty(&mut self) -> Result<Option<Box<WitType>>> {
+        if self.at_ident("_") {
+            self.pos += 1;
+            return Ok(None);
+        }
+        Ok(Some(Box::new(self.ty()?)))
+    }
+
+    fn world(&mut self) -> Result<WitWorld> {
+        let span = self.span();
+        self.expect_ident("world")?;
+        let (name, _) = self.name("world")?;
+        self.expect_punct(&WitTokKind::LBrace)?;
+        let (mut imports, mut exports) = (Vec::new(), Vec::new());
+        while !self.at_punct(&WitTokKind::RBrace) {
+            let is_export = if self.eat_ident("export") {
+                true
+            } else if self.eat_ident("import") {
+                false
+            } else {
+                return self.err(format!(
+                    "WIT: expected `import` or `export`, found {}",
+                    self.describe()
+                ));
+            };
+            let (mut path, pspan) = self.name("interface")?;
+            while self.eat_punct(&WitTokKind::Dot) {
+                let (seg, _) = self.name("interface")?;
+                path.push('.');
+                path.push_str(&seg);
+            }
+            // The versioned form `ns:name@version` ends with `;`.
+            if self.eat_punct(&WitTokKind::Colon) {
+                let (seg, _) = self.name("interface")?;
+                path.push(':');
+                path.push_str(&seg);
+                if self.eat_punct(&WitTokKind::At) {
+                    let start = match self.peek() {
+                        Some(t) => t.start,
+                        None => return self.err("WIT: expected a version after `@`"),
+                    };
+                    let mut end = start;
+                    loop {
+                        let t = match self.peek() {
+                            Some(t) => t.clone(),
+                            None => break,
+                        };
+                        match &t.kind {
+                            WitTokKind::Semi => break,
+                            WitTokKind::Num(_) | WitTokKind::Dot | WitTokKind::At => {
+                                end = t.end;
+                                self.pos += 1;
+                            }
+                            WitTokKind::Ident(_) => {
+                                end = t.end;
+                                self.pos += 1;
+                            }
+                            _ => return self.err("WIT: malformed interface version"),
+                        }
+                    }
+                    path.push('@');
+                    path.push_str(self.src[start..end].trim_end());
+                }
+            }
+            self.expect_punct(&WitTokKind::Semi)?;
+            let item = WitWorldItem { iface: path, span: pspan };
+            if is_export {
+                exports.push(item);
+            } else {
+                imports.push(item);
+            }
+        }
+        self.expect_punct(&WitTokKind::RBrace)?;
+        Ok(WitWorld { name, imports, exports, span })
+    }
+}
+
+fn punct_spelling(k: &WitTokKind) -> &'static str {
+    match k {
+        WitTokKind::At => "@",
+        WitTokKind::Colon => ":",
+        WitTokKind::Eq => "=",
+        WitTokKind::Semi => ";",
+        WitTokKind::Comma => ",",
+        WitTokKind::Dot => ".",
+        WitTokKind::LBrace => "{",
+        WitTokKind::RBrace => "}",
+        WitTokKind::LParen => "(",
+        WitTokKind::RParen => ")",
+        WitTokKind::Lt => "<",
+        WitTokKind::Gt => ">",
+        WitTokKind::Arrow => "->",
+        WitTokKind::Ident(_) | WitTokKind::Num(_) => "identifier",
+    }
+}
