@@ -1,0 +1,41 @@
+-- Data.Char: Unicode scalar values.
+--
+-- `Char` is a core runtime type (primitive types specification
+-- section 1): one scalar value. `u32-to-char` rejects values outside
+-- the scalar range (surrogates and above 0x10FFFF) as `None`.
+--
+-- Module scheme (design/base-library.md): the type's home carries its
+-- instance family (the parked-instance deviation of D159 is over).
+module Data.Char where
+
+  import Data.Option
+  import Data.Hash
+
+  export char-to-u32, u32-to-char, eq-char, ne-char, lt-char, le-char, gt-char, ge-char
+
+
+  -- Primitive types specification, section 6: Char values are Unicode
+  -- scalar values, in code point order. `u32-to-char` rejects surrogates
+  -- and values above 0x10FFFF.
+  foreign import ccall "safelang.prim.charToU32" char-to-u32 :: Char -> U32
+  foreign import ccall "safelang.prim.u32ToChar" u32-to-char :: U32 -> Option Char
+  foreign import ccall "safelang.prim.eqChar" eq-char :: Char -> Char -> Bool
+  foreign import ccall "safelang.prim.neChar" ne-char :: Char -> Char -> Bool
+  foreign import ccall "safelang.prim.ltChar" lt-char :: Char -> Char -> Bool
+  foreign import ccall "safelang.prim.leChar" le-char :: Char -> Char -> Bool
+  foreign import ccall "safelang.prim.gtChar" gt-char :: Char -> Char -> Bool
+  foreign import ccall "safelang.prim.geChar" ge-char :: Char -> Char -> Bool
+
+  implicit instance Eq_Char :: Eq Char where
+    (==) x y = eq-char x y
+    (/=) x y = ne-char x y
+
+  implicit instance Ord_Char :: Ord Char where
+    (<) x y = lt-char x y
+    (<=) x y = le-char x y
+    (>) x y = gt-char x y
+    (>=) x y = ge-char x y
+
+  -- The scalar value is the digest (instances live with their type).
+  implicit instance Hash_Char :: Hash Char where
+    hash c = nat-from-i64 (u32-to-i64 (char-to-u32 c))

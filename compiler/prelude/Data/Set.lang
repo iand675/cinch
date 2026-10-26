@@ -1,0 +1,61 @@
+-- Data.Set: the ordered set.
+--
+-- An unbalanced binary search tree over `Ord k`, in the same shape as
+-- Data.Map (decision D105's shape): `set-insert` keeps the left
+-- subtree strictly smaller and the right strictly greater, so a
+-- repeated element keeps one copy. Documented as UNBALANCED: no
+-- rebalancing in the bootstrap, so the operations are O(n) worst
+-- case; a balanced tree is a later family, same surface.
+--
+-- Module scheme (design/base-library.md): the type's home carries its
+-- `FromList` instance (`[a, b, c]` at `Set a` folds `set-insert`).
+module Data.Set where
+
+  export Set, Tip, Bin, set-empty, set-insert, set-member, set-to-list, set-size, set-from-list
+
+  data Set a where
+    Tip :: Set a
+    Bin :: a -> Set a -> Set a -> Set a
+
+  set-empty :: forall a. Set a
+  set-empty = Tip
+
+  set-insert :: forall a. using (ord :: Ord a) => a -> Set a -> Set a
+  set-insert x s = case s of
+    Tip -> Bin x Tip Tip
+    Bin y l r ->
+      if x < y then Bin y (set-insert x l) r
+      else if y < x then Bin y l (set-insert x r)
+      else Bin x l r
+
+  set-member :: forall a. using (ord :: Ord a) => a -> Set a -> Bool
+  set-member x s = case s of
+    Tip -> False
+    Bin y l r ->
+      if x < y then set-member x l
+      else if y < x then set-member x r
+      else True
+
+  -- The elements in ascending order, each exactly once.
+  set-to-list-into :: forall a. Set a -> List a -> List a
+  set-to-list-into s acc = case s of
+    Tip -> acc
+    Bin y l r -> set-to-list-into l (Cons y (set-to-list-into r acc))
+
+  set-to-list :: forall a. Set a -> List a
+  set-to-list s = set-to-list-into s Nil
+
+  set-size :: forall a. Set a -> Nat
+  set-size s = case s of
+    Tip -> 0
+    Bin y l r -> 1 + set-size l + set-size r
+
+  set-from-list :: forall a. using (ord :: Ord a) => List a -> Set a
+  set-from-list xs = case xs of
+    Nil -> Tip
+    Cons y ys -> set-insert y (set-from-list ys)
+
+  -- Collection literals at `Set` (surface grammar local amendments
+  -- section 10).
+  implicit instance FromList_Set a :: using (ord :: Ord a) => FromList (Set a) a where
+    from-list xs = set-from-list xs

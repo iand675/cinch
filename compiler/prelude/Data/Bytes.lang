@@ -1,0 +1,43 @@
+-- Data.Bytes: boxed byte buffers.
+--
+-- `Bytes` is a core runtime type: indices, lengths and byte values
+-- are `Nat` and convert through `sl_nat_to_i64`/`sl_nat_from_i64`.
+-- Every `Bytes` fault (out-of-bounds index, byte value outside
+-- 0..=255, a length outside `i64` range) exits through the panic path
+-- (71).
+--
+-- Module scheme (design/base-library.md): the type's home carries its
+-- `FromList` instance (`[1, 2, 3]` at `Bytes` fills a buffer).
+module Data.Bytes where
+
+  import Data.List
+
+  export bytes-new, bytes-len, bytes-get, bytes-set, bytes-from-list, bytes-fill
+
+
+  -- `nat-cmp`/`int-cmp` return the raw -1/0/1 immediate at `I64`, so
+  -- equality is `eq-i64 (int-cmp a b) 0`. Division and remainder by zero
+  -- fault with the division fault code (exit 72); `nat-sub` below zero and
+  -- every `Bytes` fault below (out-of-bounds index, byte value outside
+  -- 0..=255, a length outside `i64` range) exit through the panic path
+  -- (71).
+
+  -- `Bytes`: boxed byte buffers. Indices, lengths and byte values are
+  -- `Nat` and convert through `sl_nat_to_i64`/`sl_nat_from_i64`.
+  foreign import ccall "safelang.runtime.bytesNew" bytes-new :: Nat -> Bytes
+  foreign import ccall "safelang.runtime.bytesLen" bytes-len :: Bytes -> Nat
+  foreign import ccall "safelang.runtime.bytesGet" bytes-get :: Bytes -> Nat -> Nat
+  foreign import ccall "safelang.runtime.bytesSet" bytes-set :: Bytes -> Nat -> Nat -> Unit
+
+  bytes-from-list :: List Nat -> Bytes
+  bytes-from-list xs = bytes-fill (bytes-new (list-byte-count xs)) 0 xs
+
+  bytes-fill :: Bytes -> Nat -> List Nat -> Bytes
+  bytes-fill b i xs = case xs of
+    Nil -> b
+    Cons y ys ->
+      let u = bytes-set b i y in
+      bytes-fill b (i + 1) ys
+
+  implicit instance FromList_Bytes :: FromList Bytes Nat where
+    from-list xs = bytes-from-list xs

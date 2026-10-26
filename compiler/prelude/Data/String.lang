@@ -1,0 +1,256 @@
+-- Data.String: runtime strings, UTF-8 over Bytes.
+--
+-- `String` is the runtime text type (decision D88). It is distinct
+-- from the staging interpreter's compile-time string values, which
+-- are the same type observed at compile time (D43's deferral
+-- resolved). String literals remain a surface future item; strings
+-- are built from `Bytes`, `Char`, and the conversions below.
+--
+-- The functions here are the REFERENCE SEMANTICS for UTF-8. The
+-- runtime provides SIMD-accelerated implementations of the same rules
+-- (`sl_utf8_*` in `compiler/runtime/src/string.rs`), tested to agree
+-- with this code; the acceleration is a representation detail behind
+-- the primitive operations chapter's justified bodies (D89).
+--
+-- Module scheme (design/base-library.md): the type's home carries its
+-- instance family (the parked-instance deviation of D159 is over).
+module Data.String where
+
+  import Data.Nat
+  import Data.Option
+  import Data.Bytes
+  import Data.Char
+  import Data.Hash
+  import Algebra.Semigroup
+  import Algebra.Monoid
+
+  export String, compare-bytes-from, copy-bytes-into, empty-string, string-byte-index-from, string-byte-length, string-char-at, string-char-at-from, string-compare, string-concat, string-from-bytes, string-length, string-length-from, string-slice, string-to-bytes, utf8-at, utf8-char, utf8-cont, utf8-encode-into, utf8-encode-width, utf8-lead-payload, utf8-min, utf8-valid-from, utf8-width
+
+
+  -- ---------------------------------------------------------------------------
+  -- Runtime strings: UTF-8 over Bytes.
+  --
+  -- `String` is the runtime text type (decision D88). It is distinct
+  -- from the staging interpreter's compile-time string values, which are
+  -- the same type observed at compile time (D43's deferral resolved).
+  -- String literals remain a surface future item; strings are built
+  -- from `Bytes`, `Char`, and the conversions below.
+  --
+  -- The functions here are the REFERENCE SEMANTICS for UTF-8. The
+  -- runtime provides SIMD-accelerated implementations of the same rules
+  -- (`sl_utf8_*` in `compiler/runtime/src/string.rs`), tested to agree
+  -- with this code; the acceleration is a representation detail behind
+  -- the primitive operations chapter's justified bodies (D89).
+
+  data String where
+    String :: Bytes -> String
+
+  string-to-bytes :: String -> Bytes
+  string-to-bytes s = case s of
+    String b -> b
+
+  -- UTF-8 decoding rules: a lead byte gives the width; continuation
+  -- bytes are 10xxxxxx; overlong encodings, surrogates, and values above
+  -- 0x10FFFF are malformed.
+  utf8-width :: Nat -> Nat
+  utf8-width x =
+    if x < 128 then 1
+    else if x < 192 then 0
+    else if x < 224 then 2
+    else if x < 240 then 3
+    else if x < 248 then 4
+    else 0
+
+  utf8-min :: Nat -> Nat
+  utf8-min w =
+    if w == 2 then 128
+    else if w == 3 then 2048
+    else if w == 4 then 65536
+    else 0
+
+  utf8-cont :: Bytes -> Nat -> Nat -> Nat -> Option Nat
+  utf8-cont b i k cp =
+    if k == 0 then Some cp
+    else
+      let y = bytes-get b i in
+      if y < 128 then None
+      else if y >= 192 then None
+      else utf8-cont b (i + 1) (k - 1) (cp * 64 + (y - 128))
+
+  utf8-lead-payload :: Nat -> Nat -> Nat
+  utf8-lead-payload x w =
+    if w == 2 then x - 192
+    else if w == 3 then x - 224
+    else x - 240
+
+  utf8-at :: Bytes -> Nat -> Option (Char, Nat)
+  utf8-at b i =
+    if i >= bytes-len b then None
+    else
+      let x = bytes-get b i in
+      let w = utf8-width x in
+      if w == 0 then None
+      else if w == 1 then utf8-char x 1
+      else if i + w > bytes-len b then None
+      else case utf8-cont b (i + 1) (w - 1) (utf8-lead-payload x w) of
+        None -> None
+        Some cp -> if cp < utf8-min w then None else utf8-char cp w
+
+  utf8-char :: Nat -> Nat -> Option (Char, Nat)
+  utf8-char cp w =
+    case u32-to-char (wrapping-i64-to-u32 (nat-to-i64 cp)) of
+      None -> None
+      Some c -> Some (c, w)
+
+  utf8-valid-from :: Bytes -> Nat -> Bool
+  utf8-valid-from b i =
+    if i >= bytes-len b then True
+    else case utf8-at b i of
+      None -> False
+      Some p -> case p of
+        (c, w) -> utf8-valid-from b (i + w)
+
+  string-from-bytes :: Bytes -> Option String
+  string-from-bytes b =
+    if utf8-valid-from b 0 then Some (String b) else None
+
+  empty-string :: String
+  empty-string = String (bytes-new 0)
+
+  string-byte-length :: String -> Nat
+  string-byte-length s = bytes-len (string-to-bytes s)
+
+  -- Length in Unicode scalar values (O(n) scan).
+  string-length-from :: Bytes -> Nat -> Nat -> Nat
+  string-length-from b i n =
+    if i >= bytes-len b then n
+    else case utf8-at b i of
+      None -> n
+      Some p -> case p of
+        (c, w) -> string-length-from b (i + w) (n + 1)
+
+  string-length :: String -> Nat
+  string-length s = string-length-from (string-to-bytes s) 0 0
+
+  -- The scalar value at code point index `n`, by scan (O(n)).
+  string-char-at-from :: Bytes -> Nat -> Nat -> Option Char
+  string-char-at-from b i n =
+    if i >= bytes-len b then None
+    else case utf8-at b i of
+      None -> None
+      Some p -> case p of
+        (c, w) -> if n == 0 then Some c else string-char-at-from b (i + w) (n - 1)
+
+  string-char-at :: String -> Nat -> Option Char
+  string-char-at s n = string-char-at-from (string-to-bytes s) 0 n
+
+  -- Encode one scalar value (bytes are raw values; division is the
+  -- `nat-div`/`nat-rem` function family).
+  utf8-encode-into :: Bytes -> Nat -> Nat -> Nat
+  utf8-encode-into b pos cp =
+    if cp < 128 then
+      let u = bytes-set b pos cp in 0
+    else if cp < 2048 then
+      let u = bytes-set b pos (192 + nat-div cp 64) in
+      let v = bytes-set b (pos + 1) (128 + nat-rem cp 64) in 0
+    else if cp < 65536 then
+      let u = bytes-set b pos (224 + nat-div cp 4096) in
+      let v = bytes-set b (pos + 1) (128 + nat-rem (nat-div cp 64) 64) in
+      let w = bytes-set b (pos + 2) (128 + nat-rem cp 64) in 0
+    else
+      let u = bytes-set b pos (240 + nat-div cp 262144) in
+      let v = bytes-set b (pos + 1) (128 + nat-rem (nat-div cp 4096) 64) in
+      let w = bytes-set b (pos + 2) (128 + nat-rem (nat-div cp 64) 64) in
+      let x = bytes-set b (pos + 3) (128 + nat-rem cp 64) in 0
+
+  utf8-encode-width :: Nat -> Nat
+  utf8-encode-width cp =
+    if cp < 128 then 1
+    else if cp < 2048 then 2
+    else if cp < 65536 then 3
+    else 4
+
+  -- Concatenation (O(n + m) copies).
+  copy-bytes-into :: Bytes -> Bytes -> Nat -> Nat -> Nat -> Unit
+  copy-bytes-into dst src di si n =
+    if n == 0 then ()
+    else
+      let u = bytes-set dst di (bytes-get src si) in
+      copy-bytes-into dst src (di + 1) (si + 1) (n - 1)
+
+  string-concat :: String -> String -> String
+  string-concat a b =
+    let x = string-to-bytes a in
+    let y = string-to-bytes b in
+    let out = bytes-new (bytes-len x + bytes-len y) in
+    let u = copy-bytes-into out x 0 0 (bytes-len x) in
+    let v = copy-bytes-into out y (bytes-len x) 0 (bytes-len y) in
+    String out
+
+  -- Byte offsets of code point `n`; returns the byte length when `n`
+  -- reaches past the end.
+  string-byte-index-from :: Bytes -> Nat -> Nat -> Nat
+  string-byte-index-from b i n =
+    if i >= bytes-len b then i
+    else if n == 0 then i
+    else case utf8-at b i of
+      None -> i
+      Some p -> case p of
+        (c, w) -> string-byte-index-from b (i + w) (n - 1)
+
+  -- The code point range [start, end); indices past the end clamp and a
+  -- reversed range yields the empty string (Nat subtraction faults below
+  -- zero, so the span is guarded).
+  string-slice :: String -> Nat -> Nat -> String
+  string-slice s start end =
+    let b = string-to-bytes s in
+    let i0 = string-byte-index-from b 0 start in
+    let span = if end > start then end - start else 0 in
+    let i1 = string-byte-index-from b i0 span in
+    let out = bytes-new (i1 - i0) in
+    let u = copy-bytes-into out b 0 i0 (i1 - i0) in
+    String out
+
+  -- Byte-wise comparison; UTF-8 preserves scalar value order under
+  -- byte-wise lexicographic order, so this is also code point order.
+  compare-bytes-from :: Bytes -> Bytes -> Nat -> I64
+  compare-bytes-from a b i =
+    if i >= bytes-len a then
+      (if i >= bytes-len b then 0 else -1)
+    else if i >= bytes-len b then 1
+    else case nat-cmp (bytes-get a i) (bytes-get b i) of
+      0 -> compare-bytes-from a b (i + 1)
+      c -> c
+
+  string-compare :: String -> String -> I64
+  string-compare a b = compare-bytes-from (string-to-bytes a) (string-to-bytes b) 0
+
+  implicit instance Eq_String :: Eq String where
+    (==) x y = eq-i64 (string-compare x y) 0
+    (/=) x y = ne-i64 (string-compare x y) 0
+
+  implicit instance Ord_String :: Ord String where
+    (<) x y = lt-i64 (string-compare x y) 0
+    (<=) x y = le-i64 (string-compare x y) 0
+    (>) x y = gt-i64 (string-compare x y) 0
+    (>=) x y = ge-i64 (string-compare x y) 0
+
+  -- Strings under concatenation over the UTF-8 Bytes backing (moved
+  -- from Algebra.Semigroup at the prelude split; the instance lives
+  -- with its type).
+  implicit instance Semigroup_String :: Semigroup String where
+    (<>) x y = string-concat x y
+
+  -- `empty-string` is the identity (moved from Algebra.Monoid).
+  implicit instance Monoid_String :: Monoid String where
+    mempty = empty-string
+
+  -- A 31-hash over the UTF-8 bytes: equal strings hash alike by
+  -- construction (the `Hash` law; instances live with their type).
+  hash-string-from :: Bytes -> Nat -> Nat -> Nat
+  hash-string-from b i h =
+    if i >= bytes-len b then h
+    else hash-string-from b (i + 1) (nat-add (nat-mul h 31) (bytes-get b i))
+
+  implicit instance Hash_String :: Hash String where
+    hash s = hash-string-from (string-to-bytes s) 0 0

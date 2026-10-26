@@ -1,0 +1,42 @@
+-- Effect.Io: the `Io r` worked vocabulary.
+--
+-- The worked vocabulary of the sequencing chapter's `loadConfig`
+-- sketch (runtime capabilities, effects and sequencing
+-- specification), provided over the runtime's input source like
+-- Effect.Concurrent's `fetch`. A `Path` names bytes to read;
+-- `read-config-bytes` performs the read under the `Io r` capability
+-- and reports a short read as a `ConfigError`. `parse-config` is pure
+-- over the read bytes: the bootstrap's config document is the
+-- payload, and an empty document is not a config.
+module Effect.Io where
+
+  import Data.Result
+  export Path, ConfigError, BadConfig, Config, read-config-bytes, parse-config
+
+
+  -- The worked vocabulary of the sequencing chapter's `loadConfig`
+  -- sketch (runtime capabilities, effects and sequencing specification,
+  -- "Unqualified do through modules and typeclasses"), provided over the
+  -- runtime's input source like `fetch` is above. A `Path` names bytes to
+  -- read; `read-config-bytes` performs the read under the `Io r`
+  -- capability and reports a short read as a `ConfigError`. `parse-config`
+  -- is pure over the read bytes: the bootstrap's config document is the
+  -- payload, and an empty document is not a config.
+  data Path where
+    Path :: Nat -> Path
+
+  data ConfigError where
+    BadConfig :: ConfigError
+
+  data Config where
+    Config :: Bytes -> Config
+
+  read-config-bytes :: forall r. using (io :: Io r) => Path ->{IO r, Diverge} Result ConfigError Bytes
+  read-config-bytes (Path n) = case ioRead n of
+    None -> Err BadConfig
+    Some b -> Ok b
+
+  parse-config :: Bytes -> Result ConfigError Config
+  parse-config b = case bytes-len b of
+    0 -> Err BadConfig
+    _ -> Ok (Config b)

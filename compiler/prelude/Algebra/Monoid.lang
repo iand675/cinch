@@ -23,16 +23,16 @@
 -- the base library scheme puts them with their class module (here).
 -- Every instance lives with its type: the newtypes' Semigroup and
 -- Monoid instances are both here because the newtypes are declared
--- here. The carriers that are existing prelude types (List, Option,
--- Ordering, String) get their cross instances parked in the class
--- module for now (their real homes are the types' Data.* modules after
--- the prelude split, an integration step after the P19 surface slice).
--- Structural instances over functions and tuples live with the class
--- module permanently; the Semigroup halves of those live in
--- Algebra.Semigroup.
+-- here. The carriers that were parked here (List, Option, Ordering,
+-- String) got their instances at the prelude split: they live in the
+-- types' Data.* homes now. Structural instances over functions and
+-- tuples live with the class module permanently; the Semigroup halves
+-- of those live in Algebra.Semigroup. `Dual`'s `Group` instance is
+-- here too (it lives with its type): the opposite group of any group.
 module Algebra.Monoid where
 
   import Algebra.Semigroup
+  import Algebra.Group
 
   infixr 6 <>
 
@@ -83,6 +83,13 @@ module Algebra.Monoid where
   implicit instance Monoid_Dual t :: using (ma :: Monoid t) => Monoid (Dual t) where
     mempty = Dual mempty
 
+  -- The opposite group: `invert (Dual x)` is `Dual (invert x)`. The
+  -- inverse laws hold in the opposite order (instances live with
+  -- their type).
+  implicit instance Group_Dual t :: using (ga :: Group t) => Group (Dual t) where
+    invert x = case x of
+      Dual p -> Dual (invert p)
+
   -- First: the leftmost `Some`, in a wrapper that keeps this choice
   -- apart from Option's own first-some reading (they agree today; the
   -- wrapper makes the intent explicit and leaves Option free).
@@ -124,30 +131,6 @@ module Algebra.Monoid where
 
   implicit instance Monoid_Endo t :: Monoid (Endo t) where
     mempty = Endo (\x -> x)
-
-  -- ------------------------------------------------------------------
-  -- Cross instances of existing prelude types (parked here; see the
-  -- header). Each pairs with its Semigroup instance in
-  -- Algebra.Semigroup.
-
-  -- Lists under append; the empty list is the identity.
-  implicit instance Monoid_List t :: Monoid (List t) where
-    mempty = Nil
-
-  -- Option under first-some; `None` is the identity.
-  implicit instance Monoid_Option t :: Monoid (Option t) where
-    mempty = None
-
-  -- Ordering under lexicographic composition; `EQ` is the identity.
-  implicit instance Monoid_Ordering :: Monoid Ordering where
-    mempty = EQ
-
-  -- Strings under concatenation; the empty string is the identity.
-  -- NOTE: `empty-string` is a prelude function name (decision D106's
-  -- dash spelling). It is the prelude String's designated empty value
-  -- (String (bytes-new 0) under the UTF-8 rules).
-  implicit instance Monoid_String :: Monoid String where
-    mempty = empty-string
 
   -- ------------------------------------------------------------------
   -- Structural instances (functions and tuples), with the class

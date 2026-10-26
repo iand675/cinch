@@ -1,0 +1,77 @@
+-- Data.HashMap: the hash map over `Data.Hash`.
+--
+-- A fixed bucket table: `hash-buckets` buckets (8) in a spine indexed
+-- by `nat-rem (hash k) hash-buckets`, each bucket an association list.
+-- Documented as UNBALANCED and fixed-size: no resizing, so a hash
+-- collision degrades a bucket to a scan; the bootstrap keeps the
+-- structure honest and small (Data.Set's tree is the ordered shape).
+-- Keys need `Hash` and `Eq`: hashing alone cannot decide a collision,
+-- and the `Hash` law (Data.Hash) is what makes the bucket choice
+-- sound.
+--
+-- Module scheme (design/base-library.md): the type's home carries its
+-- `FromMap` instance (`{k => v}` at `HashMap k v`).
+module Data.HashMap where
+
+  import Data.Hash
+
+  export HashMap, hash-map-empty, hash-map-insert, hash-map-lookup, hash-map-from-pairs
+
+  data HashMap k v where
+    HashMap :: List (List (k, v)) -> HashMap k v
+
+  -- The bucket count: a spine of this many association lists (missing
+  -- tail buckets are empty).
+  hash-buckets :: Nat
+  hash-buckets = 8
+
+  bucket-lookup :: forall k v. using (eq :: Eq k) => k -> List (k, v) -> Option v
+  bucket-lookup x b = case b of
+    Nil -> None
+    Cons p ps -> case p of
+      (k2, v2) -> if k2 == x then Some v2 else bucket-lookup x ps
+
+  spine-lookup :: forall k v. using (eq :: Eq k) => Nat -> k -> List (List (k, v)) -> Option v
+  spine-lookup i x s = case s of
+    Nil -> None
+    Cons b bs -> if i == 0 then bucket-lookup x b else spine-lookup (i - 1) x bs
+
+  hash-map-lookup :: forall k v. using (h :: Hash k, eq :: Eq k) => k -> HashMap k v -> Option v
+  hash-map-lookup x m = case m of
+    HashMap s -> spine-lookup (nat-rem (hash x) hash-buckets) x s
+
+  bucket-insert :: forall k v. using (eq :: Eq k) => k -> v -> List (k, v) -> List (k, v)
+  bucket-insert x v b = case b of
+    Nil -> Cons (x, v) Nil
+    Cons p ps -> case p of
+      (k2, v2) -> if k2 == x then Cons (x, v) ps else Cons p (bucket-insert x v ps)
+
+  -- Inserting an equal key replaces the stored value in place (like
+  -- Data.Map's `map-insert`).
+  spine-insert :: forall k v. using (eq :: Eq k) => Nat -> k -> v -> List (List (k, v)) -> List (List (k, v))
+  spine-insert i x v s = case s of
+    Nil -> if i == 0 then Cons (Cons (x, v) Nil) Nil else Cons Nil (spine-insert (i - 1) x v Nil)
+    Cons b bs ->
+      if i == 0 then Cons (bucket-insert x v b) bs
+      else Cons b (spine-insert (i - 1) x v bs)
+
+  hash-map-insert :: forall k v. using (h :: Hash k, eq :: Eq k) => k -> v -> HashMap k v -> HashMap k v
+  hash-map-insert x v m = case m of
+    HashMap s -> HashMap (spine-insert (nat-rem (hash x) hash-buckets) x v s)
+
+  hash-map-empty :: forall k v. HashMap k v
+  hash-map-empty = HashMap Nil
+
+  -- Pairs fold in from the head, so an EARLIER pair wins a repeated
+  -- key (the head is inserted last into the fold of the tail), like
+  -- Data.Map's `map-from-pairs`.
+  hash-map-from-pairs :: forall k v. using (h :: Hash k, eq :: Eq k) => List (k, v) -> HashMap k v
+  hash-map-from-pairs kvs = case kvs of
+    Nil -> HashMap Nil
+    Cons p ps -> case p of
+      (a, b) -> hash-map-insert a b (hash-map-from-pairs ps)
+
+  -- Map literals at `HashMap` (surface grammar local amendments
+  -- section 10).
+  implicit instance FromMap_HashMap k v :: using (h :: Hash k, eq :: Eq k) => FromMap (HashMap k v) k v where
+    from-map kvs = hash-map-from-pairs kvs

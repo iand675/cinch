@@ -1,0 +1,33 @@
+-- Effect.Concurrent: the structured concurrency worked vocabulary.
+--
+-- The worked vocabulary of the concurrency specification's `loadPair`
+-- sketch (section 2). A `Request` names bytes to read from the
+-- runtime's input source; `fetch` performs the read under the `Io r`
+-- capability and reports a short read as a `LoadError`. `withScope`,
+-- `spawn`, `joinAllOrCancel` and the `Io r` operations (`ioWrite`,
+-- `ioRead`, `ioSleep`, `pollCancel`) are builtin values with
+-- compiler-known schemes (like `newIO`), never foreign imports.
+module Effect.Concurrent where
+
+  import Data.Result
+  export Request, LoadError, fetch
+
+
+  -- Structured concurrency (concurrency specification, section 2): the
+  -- worked vocabulary of the spec's `loadPair` sketch. A `Request` names
+  -- bytes to read from the runtime's input source; `fetch` performs the
+  -- read under the `Io r` capability and reports a short read as a
+  -- `LoadError`. `withScope`, `spawn`, `joinAllOrCancel` and the `Io r`
+  -- operations (`ioWrite`, `ioRead`, `ioSleep`, `pollCancel`) are builtin
+  -- values with compiler-known schemes (like `newIO`), never foreign
+  -- imports.
+  data Request where
+    Request :: Nat -> Request
+
+  data LoadError where
+    LoadError :: Nat -> LoadError
+
+  fetch :: forall r. using (io :: Io r) => Request ->{IO r, Diverge} Result LoadError Bytes
+  fetch (Request n) = case ioRead n of
+    None -> Err (LoadError 1)
+    Some b -> Ok b

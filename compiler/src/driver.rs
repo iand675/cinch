@@ -13,9 +13,147 @@ pub enum Mode {
     Run,
 }
 
-/// The prelude is compiled alongside every user module and imported
-/// implicitly.
-pub const PRELUDE_SOURCE: &str = include_str!("../prelude/Prelude.lang");
+/// The prelude facade: the curated re-export surface (the prelude
+/// split's implicit base layer). Its fixity table is the base table
+/// every module parses against.
+pub const PRELUDE_FACADE: &str = include_str!("../prelude/Prelude.lang");
+
+/// The base library's scheme homes (the prelude split), embedded so
+/// every compilation sees them. The list is in dependency order
+/// (imports first) for fixity threading and interface order; the
+/// facade above checks last (it re-exports the family) and its source
+/// parses first (its fixity table is the base table).
+/// The base library's scheme homes whose surfaces the `Prelude` facade
+/// re-exports (the prelude split), in collection order: each module's
+/// eager references (signature types, signature constraint classes)
+/// resolve against modules listed before it. The facade collects after
+/// these (its `export` items read their surfaces) and before
+/// [`PRELUDE_LATE`].
+pub const PRELUDE_EARLY: &[(&str, &str)] = &[
+    ("Relation/Eq.lang", include_str!("../prelude/Relation/Eq.lang")),
+    ("Relation/Ord.lang", include_str!("../prelude/Relation/Ord.lang")),
+    ("Algebra/Arithmetic.lang", include_str!("../prelude/Algebra/Arithmetic.lang")),
+    ("Algebra/Bits.lang", include_str!("../prelude/Algebra/Bits.lang")),
+    ("Function/Combinators.lang", include_str!("../prelude/Function/Combinators.lang")),
+    ("Data/Nat.lang", include_str!("../prelude/Data/Nat.lang")),
+    ("Data/Int.lang", include_str!("../prelude/Data/Int.lang")),
+    ("Data/Option.lang", include_str!("../prelude/Data/Option.lang")),
+    ("Data/Result.lang", include_str!("../prelude/Data/Result.lang")),
+    ("Data/List.lang", include_str!("../prelude/Data/List.lang")),
+    ("Data/Ordering.lang", include_str!("../prelude/Data/Ordering.lang")),
+    ("Data/Char.lang", include_str!("../prelude/Data/Char.lang")),
+    ("Data/Bool.lang", include_str!("../prelude/Data/Bool.lang")),
+    ("Data/Machine.lang", include_str!("../prelude/Data/Machine.lang")),
+    ("Data/Bytes.lang", include_str!("../prelude/Data/Bytes.lang")),
+    ("Data/Map.lang", include_str!("../prelude/Data/Map.lang")),
+    ("Data/String.lang", include_str!("../prelude/Data/String.lang")),
+    ("Data/Json.lang", include_str!("../prelude/Data/Json.lang")),
+    ("Data/Producer.lang", include_str!("../prelude/Data/Producer.lang")),
+    ("Data/Target.lang", include_str!("../prelude/Data/Target.lang")),
+    ("Effect/Sequencing.lang", include_str!("../prelude/Effect/Sequencing.lang")),
+    ("Effect/Concurrent.lang", include_str!("../prelude/Effect/Concurrent.lang")),
+    ("Effect/Io.lang", include_str!("../prelude/Effect/Io.lang")),
+    ("Data/FromList.lang", include_str!("../prelude/Data/FromList.lang")),
+    ("Data/FromMap.lang", include_str!("../prelude/Data/FromMap.lang")),
+    ("Text/Show.lang", include_str!("../prelude/Text/Show.lang")),
+];
+
+/// The rest of the base library family (the class modules and the
+/// newer families), collected after the facade: their eager references
+/// are old-surface names, which the facade's surface provides.
+pub const PRELUDE_LATE: &[(&str, &str)] = &[
+    ("Algebra/Semigroup.lang", include_str!("../prelude/Algebra/Semigroup.lang")),
+    ("Algebra/Group.lang", include_str!("../prelude/Algebra/Group.lang")),
+    ("Algebra/Semiring.lang", include_str!("../prelude/Algebra/Semiring.lang")),
+    ("Algebra/Monoid.lang", include_str!("../prelude/Algebra/Monoid.lang")),
+    ("Category/Functor.lang", include_str!("../prelude/Category/Functor.lang")),
+    ("Category/Applicative.lang", include_str!("../prelude/Category/Applicative.lang")),
+    ("Category/Monad.lang", include_str!("../prelude/Category/Monad.lang")),
+    ("Category/Alternative.lang", include_str!("../prelude/Category/Alternative.lang")),
+    ("Category/Foldable.lang", include_str!("../prelude/Category/Foldable.lang")),
+    ("Category/Traversable.lang", include_str!("../prelude/Category/Traversable.lang")),
+    ("Data/Identity.lang", include_str!("../prelude/Data/Identity.lang")),
+    ("Data/Const.lang", include_str!("../prelude/Data/Const.lang")),
+    ("Data/Compose.lang", include_str!("../prelude/Data/Compose.lang")),
+    ("Data/NonEmpty.lang", include_str!("../prelude/Data/NonEmpty.lang")),
+    ("Data/Set.lang", include_str!("../prelude/Data/Set.lang")),
+    ("Data/Hash.lang", include_str!("../prelude/Data/Hash.lang")),
+    ("Text/Codec.lang", include_str!("../prelude/Text/Codec.lang")),
+    ("Data/HashMap.lang", include_str!("../prelude/Data/HashMap.lang")),
+];
+
+/// Every embedded prelude module name (the family's scheme names and
+/// the facade): imports of these resolve to the embedded sources,
+/// never to a file beside the entry unless an explicit source module
+/// shadows the copy.
+pub fn prelude_module_names() -> Vec<String> {
+    let mut names: Vec<String> = PRELUDE_EARLY
+        .iter()
+        .chain(PRELUDE_LATE.iter())
+        .map(|(path, _)| path.trim_end_matches(".lang").replace('/', "."))
+        .collect();
+    names.push("Prelude".to_string());
+    names
+}
+
+/// The parsed prelude family: the scheme homes in dependency order
+/// with the `Prelude` facade last, every module's fixity table, and
+/// the facade's fixity table (the base table all parsing uses).
+pub struct PreludeSources {
+    pub modules: Vec<crate::ast::Module>,
+    pub fixities: HashMap<String, FixityTable>,
+    pub base: FixityTable,
+}
+
+/// Parse the embedded family with the WIT adapters' generated
+/// vocabulary appended to the facade's source file (the vocabulary
+/// declares inside the facade and joins its export list).
+pub fn parse_prelude(adapters: &[crate::interface::WitAdapter]) -> Result<PreludeSources> {
+    let empty = FixityTable::new();
+    let facade_src = prelude_source_with(adapters);
+    let facade_parsed = parse_source(&facade_src, "Prelude.lang", &empty, &HashMap::new())?;
+    let base = facade_parsed
+        .fixities
+        .get("Prelude")
+        .cloned()
+        .unwrap_or_default();
+    let mut fixities = facade_parsed.fixities.clone();
+    let mut early: Vec<crate::ast::Module> = Vec::new();
+    let mut late: Vec<crate::ast::Module> = Vec::new();
+    let mut tables: HashMap<String, FixityTable> = HashMap::new();
+    let mut parse_into =
+        |src: &str, path: &str, out: &mut Vec<crate::ast::Module>| -> Result<()> {
+            let parsed = parse_source(src, path, &base, &tables)?;
+            for (m, f) in &parsed.fixities {
+                fixities.insert(m.clone(), f.clone());
+                tables.insert(m.clone(), f.clone());
+            }
+            out.extend(parsed.modules);
+            Ok(())
+        };
+    for (path, src) in PRELUDE_EARLY {
+        parse_into(src, path, &mut early)?;
+    }
+    for (path, src) in PRELUDE_LATE {
+        parse_into(src, path, &mut late)?;
+    }
+    // Check order: the facade's export targets first (the facade reads
+    // their surfaces), the facade (the implicit base layer the late
+    // homes resolve old-surface names through), then the late homes.
+    let mut modules = early;
+    modules.extend(
+        facade_parsed
+            .modules
+            .into_iter()
+            .filter(|m| m.name.text == "Prelude"),
+    );
+    modules.append(&mut late);
+    Ok(PreludeSources {
+        modules,
+        fixities,
+        base,
+    })
+}
 
 pub use crate::check::{StageInput, StageMode, StageReport, StagingCx};
 
@@ -194,11 +332,17 @@ fn load_project(entry_path: &Path) -> Result<Project> {
             imports.insert(m.clone(), imps.iter().map(|(n, _)| n.clone()).collect());
         }
         sources.insert(key, src);
+        let prelude_names = prelude_module_names();
         for (_, imps) in &scanned.modules {
             for (imp, _stage) in imps {
-                if imp == "Prelude" || module_file.contains_key(imp) {
+                if module_file.contains_key(imp) {
                     continue;
                 }
+                // A source module beside the entry shadows the embedded
+                // prelude copy of the same name (the implicit base layer
+                // loses to explicit source), so the disk is searched
+                // first; only an unresolved family name falls back to
+                // the embedded sources.
                 let direct = dir.join(format!("{imp}.lang"));
                 if direct.exists() {
                     queue.push(direct);
@@ -212,6 +356,9 @@ fn load_project(entry_path: &Path) -> Result<Project> {
                 match not_loaded.len() {
                     1 => queue.push(not_loaded.into_iter().next().expect("one")),
                     0 => {
+                        if prelude_names.iter().any(|n| n == imp) {
+                            continue;
+                        }
                         return Err(Error::plain(format!(
                             "module {imp} is imported, but {} does not exist and no other source file beside the entry declares `module {imp}`",
                             direct.display()
@@ -887,22 +1034,62 @@ pub fn wit_for_source(file: &Path) -> Result<Vec<crate::interface::WitAdapter>> 
     Ok(out)
 }
 
-/// The prelude source with the adapters' generated vocabulary appended
-/// inside the prelude module (the WIT adapter vocabulary is the
-/// prelude's worked vocabulary, like the sketch types of earlier
-/// chapters).
+/// The facade source with the adapters' generated vocabulary appended
+/// inside the prelude module and named in the facade's export list
+/// (the WIT adapter vocabulary is the prelude's worked vocabulary,
+/// like the sketch types of earlier chapters; the surface rule names
+/// every one of its declarations).
 fn prelude_source_with(adapters: &[crate::interface::WitAdapter]) -> String {
-    let mut src = PRELUDE_SOURCE.to_string();
+    let mut src = PRELUDE_FACADE.to_string();
     for a in adapters {
         src.push('\n');
         src.push_str(&a.vocab);
     }
+    if adapters.is_empty() {
+        return src;
+    }
+    let mut names: Vec<String> = Vec::new();
+    for a in adapters {
+        for n in &a.vocab_names {
+            if !names.contains(n) {
+                names.push(n.clone());
+            }
+        }
+    }
+    src.push_str(&format!("\n  export {}\n", names.join(", ")));
     src
 }
 
 /// Check the prelude plus `user_src`, returning the elaborated program.
 pub fn check_sources(user_src: &str, user_file: &str) -> Result<crate::core::Program> {
     check_sources_with(user_src, user_file, &mut StagingCx::default())
+}
+
+/// The embedded prelude family and one user source parsed against it:
+/// the family's modules in check order (the facade last), the user
+/// source's modules, and the user modules' staging facts.
+fn parse_family_and_user(
+    adapters: &[crate::interface::WitAdapter],
+    user_src: &str,
+    user_file: &str,
+    scx: &mut StagingCx,
+) -> Result<(PreludeSources, crate::parser::ParsedModules, HashMap<String, String>)> {
+    let prelude = parse_prelude(adapters)?;
+    let user = parse_source(user_src, user_file, &prelude.base, &HashMap::new())?;
+    let mut hashes = HashMap::new();
+    let mut files = HashMap::new();
+    let mut fixities = prelude.fixities.clone();
+    for (m, f) in &user.fixities {
+        fixities.insert(m.clone(), f.clone());
+    }
+    for m in &user.modules {
+        hashes.insert(m.name.text.clone(), String::new());
+        files.insert(m.name.text.clone(), user_file.to_string());
+    }
+    scx.fixities = fixities;
+    scx.files = files;
+    scx.entry_modules = user.modules.iter().map(|m| m.name.text.clone()).collect();
+    Ok((prelude, user, hashes))
 }
 
 /// [`check_sources`] under an explicit target profile (the `Usize`
@@ -915,27 +1102,10 @@ pub fn check_sources_profile(
     profile: &crate::core::TargetProfile,
 ) -> Result<crate::core::Program> {
     let adapters = wit_for_source(Path::new(user_file))?;
-    let empty = FixityTable::new();
-    let prelude_src = prelude_source_with(&adapters);
-    let prelude = parse_source(&prelude_src, "Prelude.lang", &empty, &HashMap::new())?;
-    let prelude_fixities = prelude
-        .fixities
-        .get("Prelude")
-        .cloned()
-        .unwrap_or_default();
-    let user = parse_source(user_src, user_file, &prelude_fixities, &HashMap::new())?;
-    let mut hashes = HashMap::new();
-    let mut files = HashMap::new();
-    for m in &user.modules {
-        hashes.insert(m.name.text.clone(), String::new());
-        files.insert(m.name.text.clone(), user_file.to_string());
-    }
     let mut scx = StagingCx::default();
-    scx.fixities = user.fixities.clone();
-    scx.files = files;
-    scx.entry_modules = user.modules.iter().map(|m| m.name.text.clone()).collect();
+    let (prelude, user, hashes) = parse_family_and_user(&adapters, user_src, user_file, &mut scx)?;
     let (program, _ifaces, _report, _) = check::check_program_multi_full(
-        &prelude.modules[0],
+        &prelude.modules,
         &user.modules,
         &hashes,
         &scx,
@@ -953,26 +1123,9 @@ pub fn check_sources_with(
     scx: &mut StagingCx,
 ) -> Result<crate::core::Program> {
     let adapters = wit_for_source(Path::new(user_file))?;
-    let empty = FixityTable::new();
-    let prelude_src = prelude_source_with(&adapters);
-    let prelude = parse_source(&prelude_src, "Prelude.lang", &empty, &HashMap::new())?;
-    let prelude_fixities = prelude
-        .fixities
-        .get("Prelude")
-        .cloned()
-        .unwrap_or_default();
-    let user = parse_source(user_src, user_file, &prelude_fixities, &HashMap::new())?;
-    let mut hashes = HashMap::new();
-    let mut files = HashMap::new();
-    for m in &user.modules {
-        hashes.insert(m.name.text.clone(), String::new());
-        files.insert(m.name.text.clone(), user_file.to_string());
-    }
-    scx.fixities = user.fixities.clone();
-    scx.files = files;
-    scx.entry_modules = user.modules.iter().map(|m| m.name.text.clone()).collect();
+    let (prelude, user, hashes) = parse_family_and_user(&adapters, user_src, user_file, scx)?;
     let (program, _ifaces, _report, _) = check::check_program_multi_full(
-        &prelude.modules[0],
+        &prelude.modules,
         &user.modules,
         &hashes,
         scx,
@@ -991,27 +1144,10 @@ pub fn check_sources_ifaces(
     user_file: &str,
 ) -> Result<(crate::core::Program, Vec<crate::interface::Iface>)> {
     let adapters = wit_for_source(Path::new(user_file))?;
-    let empty = FixityTable::new();
-    let prelude_src = prelude_source_with(&adapters);
-    let prelude = parse_source(&prelude_src, "Prelude.lang", &empty, &HashMap::new())?;
-    let prelude_fixities = prelude
-        .fixities
-        .get("Prelude")
-        .cloned()
-        .unwrap_or_default();
-    let user = parse_source(user_src, user_file, &prelude_fixities, &HashMap::new())?;
-    let mut hashes = HashMap::new();
-    let mut files = HashMap::new();
-    for m in &user.modules {
-        hashes.insert(m.name.text.clone(), String::new());
-        files.insert(m.name.text.clone(), user_file.to_string());
-    }
     let mut scx = StagingCx::default();
-    scx.fixities = user.fixities.clone();
-    scx.files = files;
-    scx.entry_modules = user.modules.iter().map(|m| m.name.text.clone()).collect();
+    let (prelude, user, hashes) = parse_family_and_user(&adapters, user_src, user_file, &mut scx)?;
     let (program, ifaces, _report, _) = check::check_program_multi_full(
-        &prelude.modules[0],
+        &prelude.modules,
         &user.modules,
         &hashes,
         &scx,
@@ -1153,14 +1289,8 @@ pub fn driver_with_profile(
 ) -> Result<i32> {
     let project = load_project(path)?;
     let adapters = wit_for_source(path)?;
-    let empty = FixityTable::new();
-    let prelude_src = prelude_source_with(&adapters);
-    let prelude = parse_source(&prelude_src, "Prelude.lang", &empty, &HashMap::new())?;
-    let prelude_fixities = prelude
-        .fixities
-        .get("Prelude")
-        .cloned()
-        .unwrap_or_default();
+    let prelude = parse_prelude(&adapters)?;
+    let prelude_fixities = prelude.base.clone();
     let mut module_fixities: HashMap<String, FixityTable> = prelude.fixities.clone();
     let mut parsed_by_file: HashMap<String, ParsedModules> = HashMap::new();
     let mut modules: Vec<crate::ast::Module> = Vec::new();
@@ -1212,7 +1342,7 @@ pub fn driver_with_profile(
         schema_tool: std::env::var("SAFELANG_SCHEMA_TOOL").ok(),
     };
     let (program, ifaces, report, _diags) = check::check_program_multi_full(
-        &prelude.modules[0],
+        &prelude.modules,
         &modules,
         &hashes,
         &scx,

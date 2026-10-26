@@ -911,50 +911,73 @@ impl<'a> Parser<'a> {
         let span = self.peek().span;
         if self.at(&Tok::Module) {
             self.bump();
-            return match self.peek_tok().clone() {
-                Tok::ConId(s) => {
-                    self.bump();
-                    Ok(ExportItem::Module(Name::new(s, span)))
+            let mut segments: Vec<String> = Vec::new();
+            loop {
+                match self.peek_tok().clone() {
+                    Tok::ConId(s) => {
+                        self.bump();
+                        segments.push(s);
+                    }
+                    t => {
+                        return Err(self.err(format!(
+                            "expected a module name after `export module`, found {}",
+                            describe(&t)
+                        )))
+                    }
                 }
-                t => Err(self.err(format!(
-                    "expected a module name after `export module`, found {}",
-                    describe(&t)
-                ))),
-            };
-        }
-        let head = match self.peek_tok().clone() {
-            Tok::VarId(s) | Tok::ConId(s) => {
-                self.bump();
-                Name::new(s, span)
+                if self.at(&Tok::Dot) {
+                    self.bump();
+                } else {
+                    break;
+                }
             }
-            t => {
-                return Err(self.err(format!(
+            return Ok(ExportItem::Module(Name::new(segments.join("."), span)));
+        }
+        // An item name is a value or type name, or an operator in
+        // parentheses (`(==)`: the method names of the operator classes
+        // are surface names like any other, decision D2).
+        let item_name = |p: &mut Self| -> Result<Name> {
+            let nspan = p.peek().span;
+            match p.peek_tok().clone() {
+                Tok::VarId(s) | Tok::ConId(s) => {
+                    p.bump();
+                    Ok(Name::new(s, nspan))
+                }
+                Tok::LParen => {
+                    p.bump();
+                    let op = match p.peek_tok().clone() {
+                        Tok::Op(s) => s,
+                        // The contextual Pipe rule (surface grammar
+                        // local amendments section 6): a bare `|` in
+                        // operator-name position is the operator `|`.
+                        Tok::Pipe => "|".to_string(),
+                        t => {
+                            return Err(p.err(format!(
+                                "expected an operator name in parentheses, found {}",
+                                describe(&t)
+                            )))
+                        }
+                    };
+                    p.bump();
+                    p.expect(&Tok::RParen, "`)`")?;
+                    Ok(Name::new(op, nspan))
+                }
+                t => Err(p.err(format!(
                     "expected an exported name, found {}",
                     describe(&t)
-                )))
+                ))),
             }
         };
-        if self.at(&Tok::Dot) {
+        let mut segments = vec![item_name(self)?];
+        while self.at(&Tok::Dot) {
             self.bump();
-            let nspan = self.peek().span;
-            let name = match self.peek_tok().clone() {
-                Tok::VarId(s) | Tok::ConId(s) => {
-                    self.bump();
-                    Name::new(s, nspan)
-                }
-                t => {
-                    return Err(self.err(format!(
-                        "expected a member name after `{}.` in an export item, found {}",
-                        head.text,
-                        describe(&t)
-                    )))
-                }
-            };
-            return Ok(ExportItem::Member(ConPath {
-                segments: vec![head, name],
-            }));
+            segments.push(item_name(self)?);
         }
-        Ok(ExportItem::Name(head))
+        if segments.len() == 1 {
+            Ok(ExportItem::Name(segments.remove(0)))
+        } else {
+            Ok(ExportItem::Member(ConPath { segments }))
+        }
     }
 
     /// One module argument: a static name (an `instance` dictionary or a
@@ -4103,31 +4126,46 @@ mod tests {
 
     #[test]
     fn parses_the_prelude() {
+        // The prelude is the split family: the facade's curated
+        // re-export surface plus the scheme homes carrying the
+        // declarations (the prelude split).
         let p = ok(include_str!("../prelude/Prelude.lang"));
         let m = &p.module;
         assert_eq!(m.name.text, "Prelude");
-        let datas: Vec<&str> = m
+        let exports = m
             .decls
             .iter()
-            .filter_map(|d| match d {
-                Decl::Data(x) => Some(x.name.text.as_str()),
-                _ => None,
-            })
-            .collect();
+            .filter(|d| matches!(d, Decl::Export(_)))
+            .count();
+        assert!(exports >= 20, "expected the curated export surface, got {exports}");
+        let base = p.fixities.clone();
+        let mut datas: Vec<String> = Vec::new();
+        let mut foreigns = 0;
+        let mut insts: Vec<InstDecl> = Vec::new();
+        for (_path, src) in crate::driver::PRELUDE_EARLY
+            .iter()
+            .chain(crate::driver::PRELUDE_LATE.iter())
+        {
+            let toks = crate::lexer::lex(src).expect("lex the family");
+            let toks = crate::layout::layout(toks).expect("lay out the family");
+            let pm = parse_module(&toks, &base).expect("parse should succeed");
+            for d in &pm.module.decls {
+                match d {
+                    Decl::Data(x) => datas.push(x.name.text.clone()),
+                    Decl::Foreign(_) => foreigns += 1,
+                    Decl::Instance(x) => insts.push(x.clone()),
+                    _ => {}
+                }
+            }
+        }
         // The prelude grows with the language; pin the essentials only.
         for required in ["Option", "List", "Ordering"] {
-            assert!(datas.contains(&required), "missing data {required} in {datas:?}");
+            assert!(
+                datas.iter().any(|d| d == required),
+                "missing data {required} in {datas:?}"
+            );
         }
-        let foreigns = m.decls.iter().filter(|d| matches!(d, Decl::Foreign(_))).count();
         assert!(foreigns >= 17, "expected the primitive surface, got {foreigns}");
-        let insts: Vec<&InstDecl> = m
-            .decls
-            .iter()
-            .filter_map(|d| match d {
-                Decl::Instance(x) => Some(x),
-                _ => None,
-            })
-            .collect();
         assert!(insts.len() >= 7, "expected the class instances, got {}", insts.len());
         assert!(insts.iter().all(|i| i.implicit));
         assert!(

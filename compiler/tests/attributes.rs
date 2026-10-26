@@ -6,30 +6,33 @@
 
 use safelang::check::{check_program_multi_diag, Diagnostic, StagingCx};
 use safelang::core::Program;
-use safelang::driver::{check_sources, parse_source, run_source, PRELUDE_SOURCE};
+use safelang::driver::{check_sources, parse_prelude, parse_source, run_source};
 use safelang::interface::Iface;
 use safelang::Result;
 use std::collections::HashMap;
 
-/// Check `src` against the prelude, returning the elaborated program,
-/// the interfaces (prelude first), and the non-fatal diagnostics.
+/// Check `src` against the prelude family, returning the elaborated
+/// program, the interfaces (the family first), and the non-fatal
+/// diagnostics.
 fn check_with_diags(src: &str) -> Result<(Program, Vec<Iface>, Vec<Diagnostic>)> {
-    let empty = safelang::parser::FixityTable::new();
-    let prelude = parse_source(PRELUDE_SOURCE, "Prelude.lang", &empty, &HashMap::new())?;
-    let prelude_fixities = prelude.fixities.get("Prelude").cloned().unwrap_or_default();
-    let user = parse_source(src, "<test>", &prelude_fixities, &HashMap::new())?;
+    let prelude = parse_prelude(&[])?;
+    let user = parse_source(src, "<test>", &prelude.base, &HashMap::new())?;
     let mut hashes = HashMap::new();
     let mut files = HashMap::new();
+    let mut fixities = prelude.fixities.clone();
+    for (m, f) in &user.fixities {
+        fixities.insert(m.clone(), f.clone());
+    }
     for m in &user.modules {
         hashes.insert(m.name.text.clone(), String::new());
         files.insert(m.name.text.clone(), "<test>".to_string());
     }
     let mut scx = StagingCx::default();
-    scx.fixities = user.fixities.clone();
+    scx.fixities = fixities;
     scx.files = files;
     scx.entry_modules = user.modules.iter().map(|m| m.name.text.clone()).collect();
     let (program, ifaces, _report, diags) =
-        check_program_multi_diag(&prelude.modules[0], &user.modules, &hashes, &scx)?;
+        check_program_multi_diag(&prelude.modules, &user.modules, &hashes, &scx)?;
     Ok((program, ifaces, diags))
 }
 

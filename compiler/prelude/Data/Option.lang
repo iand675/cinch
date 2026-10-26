@@ -1,0 +1,111 @@
+-- Data.Option: the optional value: `None` or `Some x`.
+--
+-- Module scheme (design/base-library.md): `Data.*` homes are the
+-- concrete types; every instance lives with its type, so the instance
+-- family for `Option` is here (the parked-instance deviation of D159
+-- is over). The class modules own only their structural instances.
+--
+-- The D22 sequencing provider (`OptionSequencing`) is a property of
+-- the container, so its provider instance is here too: one instance
+-- per provider class keeps `do` selection order-independent (decision
+-- D22; the classes live in Effect.Sequencing).
+module Data.Option where
+
+  import Algebra.Semigroup
+  import Algebra.Monoid
+  import Category.Functor
+  import Category.Applicative
+  import Category.Monad
+  import Category.Alternative
+  import Category.Foldable
+  import Category.Traversable
+
+  export Option, None, Some
+
+  -- The optional value: the primitive signatures mention `Option` for
+  -- checked results and `Ordering` for totalOrder.
+  data Option a where
+    None :: Option a
+    Some :: a -> Option a
+
+  implicit instance SeqOption :: OptionSequencing where
+    pure x = Some x
+    bind o k = case o of
+      None -> None
+      Some x -> k x
+
+  -- Option first-some: the leftmost `Some` wins, `None` is ignored
+  -- (moved from Algebra.Semigroup at the prelude split; the instance
+  -- lives with its type).
+  implicit instance Semigroup_Option t :: Semigroup (Option t) where
+    (<>) x y = case x of
+      None -> y
+      Some _ -> x
+
+  -- `None` is the identity (moved from Algebra.Monoid).
+  implicit instance Monoid_Option t :: Monoid (Option t) where
+    mempty = None
+
+  -- `map` is `Some` under the function; `None` is fixed (moved from
+  -- Category.Functor).
+  implicit instance Functor_Option :: Functor Option where
+    map f o = case o of
+      None -> None
+      Some x -> Some (f x)
+    (<$>) f o = map f o
+
+  -- `pure` is `Some`; application is `None` if either side is (moved
+  -- from Category.Applicative).
+  implicit instance Applicative_Option :: Applicative Option where
+    pure x = Some x
+    (<*>) g ox = case g of
+      None -> None
+      Some f -> case ox of
+        None -> None
+        Some x -> Some (f x)
+    lift-a2 f ox oy = (<*>) (map f ox) oy
+
+  -- The failing case short-circuits: `None >>= k` is `None` (moved
+  -- from Category.Monad).
+  implicit instance Monad_Option :: Monad Option where
+    (>>=) o k = case o of
+      None -> None
+      Some x -> k x
+    join oo = case oo of
+      None -> None
+      Some o -> o
+
+  -- First success wins: `None <|> y` is `y`, `Some x <|> y` keeps `x`
+  -- (moved from Category.Alternative).
+  implicit instance Alternative_Option :: Alternative Option where
+    empty = None
+    (<|>) o1 o2 = case o1 of
+      None -> o2
+      Some x -> Some x
+
+  -- A `Some` is a one-element container; `None` folds as empty (moved
+  -- from Category.Foldable).
+  implicit instance Foldable_Option :: Foldable Option where
+    foldr f z o = case o of
+      None -> z
+      Some y -> f y z
+    foldl f z o = case o of
+      None -> z
+      Some y -> f z y
+    to-list o = case o of
+      None -> Nil
+      Some y -> Cons y Nil
+    null o = case o of
+      None -> True
+      Some y -> False
+    length o = case o of
+      None -> 0
+      Some y -> 1
+
+  -- `None` traverses to `pure None`; `Some` carries one effect (moved
+  -- from Category.Traversable).
+  implicit instance Traversable_Option :: Traversable Option where
+    traverse f o = case o of
+      None -> pure None
+      Some a -> (<*>) (pure (\b -> Some b)) (f a)
+    sequence o = traverse (\x -> x) o

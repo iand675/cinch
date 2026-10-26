@@ -19,10 +19,8 @@
 -- always the FIRST error in traversal order (asserted over sample
 -- values in compiler/tests/lib_foldable.rs).
 --
--- Instance homes. List and Option are Prelude types whose home
--- (compiler/prelude/Prelude.lang) is not split yet, so their instances
--- are parked here with the class until the prelude split moves them to
--- Data.List/Data.Option. NonEmpty's instance lives with its type in
+-- Instance homes. List and Option got theirs at the prelude split
+-- (Data.List/Data.Option). NonEmpty's instance lives with its type in
 -- Data/NonEmpty.lang and reuses the List instance on the tail.
 module Category.Traversable where
 
@@ -31,19 +29,3 @@ module Category.Traversable where
   signature Traversable (t :: Type -> Type) where
     traverse :: forall f a b. using (app :: Applicative f) => (a -> f b) -> t a -> f (t b)
     sequence :: forall f a. using (app :: Applicative f) => t (f a) -> f (t a)
-
-  -- Parked here; see the header (the type's home is Prelude.lang).
-  -- Left-to-right; the whole list rebuilds under one `f`.
-  implicit instance Traversable_List :: Traversable List where
-    traverse f xs = case xs of
-      Nil -> pure Nil
-      Cons y ys -> lift-a2 (\b bs -> Cons b bs) (f y) (traverse f ys)
-    sequence xs = traverse (\x -> x) xs
-
-  -- Parked here; see the header (the type's home is Prelude.lang).
-  -- `None` traverses to `pure None`; `Some` carries one effect.
-  implicit instance Traversable_Option :: Traversable Option where
-    traverse f o = case o of
-      None -> pure None
-      Some a -> (<*>) (pure (\b -> Some b)) (f a)
-    sequence o = traverse (\x -> x) o

@@ -14,10 +14,8 @@
 -- containers. The two mechanisms do not interact.
 --
 -- Instance homes: the function instance is structural and lives here
--- permanently; List, Option and Result are Prelude types (not split
--- yet), so their instances are parked here until the prelude split
--- moves them to their Data.* homes. `append-list` is
--- Category.Applicative's list-append helper for the List family.
+-- permanently; the List, Option and Result instances got theirs at
+-- the prelude split (Data.List/Data.Option/Data.Result).
 module Category.Monad where
 
   import Category.Applicative
@@ -32,33 +30,3 @@ module Category.Monad where
   implicit instance Monad_Function r :: Monad ((->) r) where
     (>>=) fx k r = (k (fx r)) r
     join ffx r = (ffx r) r
-
-  -- Parked here; see the header (the type's home is Prelude.lang).
-  -- Bind is flatMap: every element's continuation result, in order.
-  implicit instance Monad_List :: Monad List where
-    (>>=) xs k = case xs of
-      Nil -> Nil
-      Cons y ys -> append-list (k y) ((>>=) ys k)
-    join xss = case xss of
-      Nil -> Nil
-      Cons ys yss -> append-list ys (join yss)
-
-  -- Parked here; see the header (the type's home is Prelude.lang).
-  -- The failing case short-circuits: `None >>= k` is `None`.
-  implicit instance Monad_Option :: Monad Option where
-    (>>=) o k = case o of
-      None -> None
-      Some x -> k x
-    join oo = case oo of
-      None -> None
-      Some o -> o
-
-  -- Parked here; see the header (the type's home is Prelude.lang).
-  -- The error case short-circuits: `Err e >>= k` is `Err e`.
-  implicit instance Monad_Result e :: Monad (Result e) where
-    (>>=) r k = case r of
-      Err e -> Err e
-      Ok x -> k x
-    join rr = case rr of
-      Err e -> Err e
-      Ok r -> r

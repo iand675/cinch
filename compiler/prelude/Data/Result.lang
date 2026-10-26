@@ -1,0 +1,56 @@
+-- Data.Result: a computation's outcome: `Err e` or `Ok x`.
+--
+-- Module scheme (design/base-library.md): the type's home carries its
+-- instance family (the parked-instance deviation of D159 is over) and
+-- its D22 sequencing provider instance (`ResultSequencing`: `do`
+-- short-circuits on the first `Err`; the class lives in
+-- Effect.Sequencing).
+module Data.Result where
+
+  import Category.Functor
+  import Category.Applicative
+  import Category.Monad
+
+  export Result, Err, Ok
+
+
+  data Result e a where
+    Err :: e -> Result e a
+    Ok :: a -> Result e a
+
+  implicit instance SeqResult e :: ResultSequencing e where
+    pure x = Ok x
+    bind r k = case r of
+      Err err -> Err err
+      Ok x -> k x
+
+  -- The error side is untouched: `map f (Err e)` is `Err e` (moved
+  -- from Category.Functor at the prelude split).
+  implicit instance Functor_Result e :: Functor (Result e) where
+    map f r = case r of
+      Err e -> Err e
+      Ok x -> Ok (f x)
+    (<$>) f r = map f r
+
+  -- `pure` is `Ok`; application propagates the FIRST `Err` (the left
+  -- operand's error wins), which is what makes `traverse` into `Result`
+  -- short-circuit on the first error in traversal order (moved from
+  -- Category.Applicative).
+  implicit instance Applicative_Result e :: Applicative (Result e) where
+    pure x = Ok x
+    (<*>) rf rx = case rf of
+      Err e -> Err e
+      Ok f -> case rx of
+        Err e -> Err e
+        Ok x -> Ok (f x)
+    lift-a2 f rx ry = (<*>) (map f rx) ry
+
+  -- The error case short-circuits: `Err e >>= k` is `Err e` (moved
+  -- from Category.Monad).
+  implicit instance Monad_Result e :: Monad (Result e) where
+    (>>=) r k = case r of
+      Err e -> Err e
+      Ok x -> k x
+    join rr = case rr of
+      Err e -> Err e
+      Ok r -> r

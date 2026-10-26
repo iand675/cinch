@@ -1,0 +1,19 @@
+-- Relation.Ord: value-level ordering.
+--
+-- The `Ord` class of the base library scheme (design/base-library.md).
+-- The order is numeric on the integer types and code point order on
+-- `Char` (primitive types specification section 8); `F32`/`F64` have
+-- no `Eq`/`Ord` instances. A class constraint entails nothing: `Ord`
+-- does not extend `Eq`. Instances live with their type.
+module Relation.Ord where
+
+  infix 3 <, <=, >, >=
+
+  export Ord, (<), (<=), (>), (>=)
+
+
+  signature Ord a where
+    (<) :: a -> a -> Bool
+    (<=) :: a -> a -> Bool
+    (>) :: a -> a -> Bool
+    (>=) :: a -> a -> Bool

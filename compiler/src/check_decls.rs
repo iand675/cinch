@@ -1742,8 +1742,10 @@ impl Checker {
         // block walk as `Vec.getCopy`, producing the step form of
         // modules and compilation specification section 6.
         let step_gid = GlobalId("<builtin>.vecStreamStep".to_string());
-        let done_gid = GlobalId("Prelude.Done".to_string());
-        let yield_gid = GlobalId("Prelude.Yield".to_string());
+        // The step form's constructors live with their type
+        // (Data.Producer after the prelude split).
+        let done_gid = GlobalId("Data.Producer.Done".to_string());
+        let yield_gid = GlobalId("Data.Producer.Yield".to_string());
         let step_walk = crate::core::Core::Case {
             scrut: Box::new(crate::core::Core::Var(LocalId(0))),
             alts: vec![
@@ -3474,34 +3476,13 @@ impl Checker {
                     );
                 }
                 ast::Decl::Instance(inst) => {
-                    let params: Vec<String> = inst.params.iter().map(|p| p.text.clone()).collect();
-                    let mut ctx = Vec::new();
-                    for c in &inst.ctx {
-                        ctx.push(self.conv_class(c, &params)?);
-                    }
-                    let (class, args) = self.class_app_of(&inst.target, &params)?;
-                    if class == "Copy" {
-                        return Err(Error::at(
-                            inst.span,
-                            "Copy is a compiler-known class with structural instances (ownership and usage design, section 3); it has no user instances",
-                        ));
-                    }
-                    let base_id = fn_id(&module, &inst.name.text);
-                    let idx = self.instance_list.len();
-                    self.instance_list.push(InstanceInfo {
-                        module: module.clone(),
-                        name: inst.name.text.clone(),
-                        params,
-                        ctx,
-                        target: ClassApp { class: class.clone(), args },
-                        base_id,
-                        implicit: inst.implicit,
-                        // A parameterized module's instance needs the
-                        // module's parameters; it resolves inside the
-                        // module and is published per instantiation.
-                        base: self.param_modules.contains(&module),
-                    });
-                    self.instances.entry(class).or_default().push(idx);
+                    // The head converts once every module is collected
+                    // (`convert_instance_heads`): a head may name a
+                    // class or a target type in a module collected
+                    // later (the prelude split's family). The bodies
+                    // queue for `check_bodies` as before.
+                    self.pending_instance_heads
+                        .push((module.clone(), inst.clone()));
                     self.instance_defs_pending.push((module.clone(), inst.clone()));
                 }
                 ast::Decl::Attributed { .. } => {
@@ -3917,7 +3898,21 @@ impl Checker {
             .cloned()
             .collect();
         for (m, inst) in pending {
-            self.check_instance(&m, &inst)?;
+            match self.check_instance(&m, &inst) {
+                Ok(()) => {}
+                Err(e) => {
+                    // A family instance whose body the shadowed copy of
+                    // a home cannot satisfy drops instead of failing the
+                    // program (see `shadowed_modules`); anything else
+                    // stays loud.
+                    if self.embedded_modules.contains(&m) && !self.shadowed_modules.is_empty() {
+                        self.instance_defs_pending
+                            .retain(|(mm, i)| !(mm == &m && i.name.text == inst.name.text));
+                        continue;
+                    }
+                    return Err(e);
+                }
+            }
         }
         Ok(())
     }
@@ -5571,19 +5566,27 @@ impl Checker {
     /// a dotted spelling follows the D106 method spelling (`bit-and`),
     /// so it matches the prelude name it presents.
     fn install_presentation_aliases(&mut self) {
-        let aliases: [((&str, &str), (&str, &str)); 9] = [
-            (("U32", "zero"), ("Prelude", "zero-u32")),
-            (("U32", "wrapping-add"), ("Prelude", "wrapping-add-u32")),
-            (("Vec", "stream"), ("Prelude", "vec-stream")),
-            (("Stream", "fold"), ("Prelude", "prod-fold")),
-            (("Stream", "map"), ("Prelude", "prod-map")),
-            (("Scalar", "sum-wrap32"), ("Prelude", "scalar-sum-wrap32")),
-            (("Simd", "sum-wrap32"), ("Prelude", "simd-sum-wrap32")),
-            (("Target", "detect-vec-u32"), ("Prelude", "detect-vec-u32")),
-            (("SumProofs", "scalar-to-simd"), ("Prelude", "scalar-to-simd")),
+        // The dotted presentation spellings of the primitive types
+        // specification (`U32.wrappingAdd` and friends) alias the
+        // prelude surface's flat names; the alias targets the surface's
+        // home definition, so the split's module layout is invisible
+        // here.
+        let aliases: [(&str, &str, &str); 9] = [
+            ("U32", "zero", "zero-u32"),
+            ("U32", "wrapping-add", "wrapping-add-u32"),
+            ("Vec", "stream", "vec-stream"),
+            ("Stream", "fold", "prod-fold"),
+            ("Stream", "map", "prod-map"),
+            ("Scalar", "sum-wrap32", "scalar-sum-wrap32"),
+            ("Simd", "sum-wrap32", "simd-sum-wrap32"),
+            ("Target", "detect-vec-u32", "detect-vec-u32"),
+            ("SumProofs", "scalar-to-simd", "scalar-to-simd"),
         ];
-        for ((qm, qn), (m, n)) in aliases {
-            if let Some(v) = self.qualified.get(&(m.to_string(), n.to_string())).cloned() {
+        for (qm, qn, n) in aliases {
+            let hit = self
+                .surface_def(&self.prelude_module.clone(), n)
+                .and_then(|d| self.qualified.get(&(d.module.clone(), d.name.clone())).cloned());
+            if let Some(v) = hit {
                 self.qualified.insert((qm.to_string(), qn.to_string()), v);
             }
         }
@@ -6466,6 +6469,11 @@ impl Checker {
                     }
                 }
             }
+            // The contract classifies its parameter types against the
+            // recorded layouts in the binding's own scope: the names a
+            // foreign signature mentions are the module's own and its
+            // imports'.
+            self.build_scope(&module, true);
             let (plan, entry) = self.foreign_contract(&module, &f, &s.ty)?;
             self.module_foreign.push((module, entry));
             self.foreign_plans.push((plan.unit.clone(), plan));
@@ -7889,6 +7897,76 @@ impl<'a> JsonParser<'a> {
 }
 
 impl Checker {
+    /// Convert every pending instance head in declaration order (see
+    /// `pending_instance_heads`): the class application and the context
+    /// constraints resolve against the fully collected program, so a
+    /// head may name any class or type of the program. The bodies check
+    /// later, from `instance_defs_pending`.
+    fn convert_instance_heads(&mut self) -> Result<()> {
+        let pending = std::mem::take(&mut self.pending_instance_heads);
+        for (module, inst) in pending {
+            self.build_scope(&module, false);
+            let params: Vec<String> = inst.params.iter().map(|p| p.text.clone()).collect();
+            let mut ctx = Vec::new();
+            for c in &inst.ctx {
+                match self.conv_class(c, &params) {
+                    Ok(x) => ctx.push(x),
+                    Err(e) => {
+                        if self.drop_embedded_head(&module, &inst) {
+                            continue;
+                        }
+                        return Err(e);
+                    }
+                }
+            }
+            let (class, args) = match self.class_app_of(&inst.target, &params) {
+                Ok(x) => x,
+                Err(e) => {
+                    if self.drop_embedded_head(&module, &inst) {
+                        continue;
+                    }
+                    return Err(e);
+                }
+            };
+            if class == "Copy" {
+                return Err(Error::at(
+                    inst.span,
+                    "Copy is a compiler-known class with structural instances (ownership and usage design, section 3); it has no user instances",
+                ));
+            }
+            let base_id = fn_id(&module, &inst.name.text);
+            let idx = self.instance_list.len();
+            self.instance_list.push(InstanceInfo {
+                module: module.clone(),
+                name: inst.name.text.clone(),
+                params,
+                ctx,
+                target: ClassApp { class: class.clone(), args },
+                base_id,
+                implicit: inst.implicit,
+                // A parameterized module's instance needs the module's
+                // parameters; it resolves inside that module and is
+                // published per instantiation.
+                base: self.param_modules.contains(&module),
+            });
+            self.instances.entry(class).or_default().push(idx);
+        }
+        Ok(())
+    }
+
+    /// Drop an embedded family instance whose class home a shadowing
+    /// source module replaced without declaring the class: such a
+    /// program never had the instance (the source module is the
+    /// program's version of that home), so its head and body both go.
+    fn drop_embedded_head(&mut self, module: &str, inst: &ast::InstDecl) -> bool {
+        if !self.embedded_modules.contains(module) {
+            return false;
+        }
+        self.instance_defs_pending
+            .retain(|(m, i)| !(m == module && i.name.text == inst.name.text));
+        true
+    }
+
     /// Instance coherence across the compiled set (design note, section 3,
     /// rule 4): two instances of one class with unifiable targets are
     /// ambiguous. The metadata-level check in `interface.rs` is the fast
@@ -8165,7 +8243,7 @@ impl Checker {
 /// (prelude first), and the staging report (captured inputs and generated
 /// declarations) for the artifact manifest.
 pub fn check_program_multi(
-    prelude: &ast::Module,
+    prelude: &[ast::Module],
     modules: &[ast::Module],
     source_hashes: &HashMap<String, String>,
     scx: &StagingCx,
@@ -8179,7 +8257,7 @@ pub fn check_program_multi(
 /// (the branch weight reports of attribute annotations specification
 /// section 2).
 pub fn check_program_multi_diag(
-    prelude: &ast::Module,
+    prelude: &[ast::Module],
     modules: &[ast::Module],
     source_hashes: &HashMap<String, String>,
     scx: &StagingCx,
@@ -8199,14 +8277,27 @@ pub fn check_program_multi_diag(
 /// specification section 3; supercompilation and JIT specification
 /// section 7: `allow_eval`; primitive types specification section 2: the
 /// `Usize` width keys on the target).
+///
+/// `prelude` is the base-library family in collection order (the scheme
+/// homes of the prelude split; the curated `Prelude` facade among them,
+/// after its export targets): the facade is the implicit base layer
+/// every other module sees. An explicit source module of a family name
+/// shadows the embedded copy (the implicit base layer loses to explicit
+/// source, decision D145's rule extended to module declarations), which
+/// is what keeps the tests that assemble the shipped module sources
+/// checking unchanged. The facade's own name is reserved.
 pub fn check_program_multi_full(
-    prelude: &ast::Module,
+    prelude: &[ast::Module],
     modules: &[ast::Module],
     source_hashes: &HashMap<String, String>,
     scx: &StagingCx,
     wit: &[crate::interface::WitAdapter],
     profile: &crate::core::TargetProfile,
 ) -> Result<(Program, Vec<crate::interface::Iface>, StageReport, Vec<Diagnostic>)> {
+    let Some(facade) = prelude.iter().find(|m| m.name.text == "Prelude") else {
+        return Err(Error::plain("internal error: the prelude family has no facade"));
+    };
+    let prelude_name = facade.name.text.clone();
     let mut c = Checker::new();
     c.install_builtins();
     c.allow_eval = profile.allow_eval;
@@ -8215,14 +8306,62 @@ pub fn check_program_multi_full(
     c.stage_mode = scx.mode;
     c.module_files = scx.files.clone();
     c.fold_scx = Some(scx.clone());
-    let prelude_name = prelude.name.text.clone();
     c.prelude_module = prelude_name.clone();
-    c.collect_module(prelude, &prelude_name, &[])?;
+    let user_names: std::collections::HashSet<&str> =
+        modules.iter().map(|m| m.name.text.as_str()).collect();
+    for m in modules {
+        if m.name.text == prelude_name {
+            return Err(Error::at(
+                m.name.span,
+                format!(
+                    "module {prelude_name} is the reserved prelude facade; a source module cannot take its name"
+                ),
+            ));
+        }
+    }
+    // Collection order: the facade's export targets, then the facade
+    // (the implicit base layer), then source modules that shadow family
+    // homes (their programs' version of the home must exist before the
+    // family members that name its classes), then the late family, then
+    // the remaining source modules.
+    let shadow_set: std::collections::HashSet<&str> = prelude
+        .iter()
+        .filter(|p| user_names.contains(p.name.text.as_str()))
+        .map(|p| p.name.text.as_str())
+        .collect();
+    let facade_at = prelude.iter().position(|p| p.name.text == prelude_name);
+    let mut family: Vec<&ast::Module> = Vec::new();
+    for (i, p) in prelude.iter().enumerate() {
+        if shadow_set.contains(p.name.text.as_str()) {
+            // An explicit source module shadows the embedded copy.
+            c.shadowed_modules.insert(p.name.text.clone());
+            continue;
+        }
+        family.push(p);
+        c.embedded_modules.insert(p.name.text.clone());
+        let imports = imports_of(p);
+        c.collect_module(p, &prelude_name, &imports)?;
+        if Some(i) == facade_at {
+            c.install_presentation_aliases();
+            for m in modules {
+                if shadow_set.contains(m.name.text.as_str()) {
+                    let imports = imports_of(m);
+                    c.collect_module(m, &prelude_name, &imports)?;
+                }
+            }
+        }
+    }
     c.install_presentation_aliases();
     for m in modules {
+        if shadow_set.contains(m.name.text.as_str()) {
+            continue;
+        }
         let imports = imports_of(m);
         c.collect_module(m, &prelude_name, &imports)?;
     }
+    // Instance heads convert once every module is collected: a head
+    // may name a class or type from a module collected later.
+    c.convert_instance_heads()?;
     // Module parameter types convert once every name is collected (module
     // parameters as module arguments).
     c.finish_module_params()?;
@@ -8234,9 +8373,11 @@ pub fn check_program_multi_full(
     // recorded layouts (foreign function interface specification
     // section 2).
     c.build_foreign_contracts()?;
-    // The prelude compiles first: its functions and instances run during
-    // compile-time evaluation.
-    c.check_bodies(&prelude_name, &prelude_name)?;
+    // The prelude family compiles first: its functions and instances run
+    // during compile-time evaluation.
+    for p in &family {
+        c.check_bodies(&p.name.text, &prelude_name)?;
+    }
     // The staging phase (modules specification sections 7-10): compile
     // the compile-time fragment, schedule and run generators, expand macro
     // calls, and collect generated declarations under ordinary rules.
@@ -8251,6 +8392,9 @@ pub fn check_program_multi_full(
             data_imports: Vec::new(),
         }
     };
+    // Generated declarations may declare instances: their heads convert
+    // now that their modules are collected.
+    c.convert_instance_heads()?;
     // Generated declarations may declare types with representations.
     c.compute_layouts()?;
     c.build_foreign_contracts()?;
@@ -8298,11 +8442,16 @@ pub fn check_program_multi_full(
         built.push((module.to_string(), hash));
         ifaces.push(iface);
     };
-    // The prelude has no imports; other modules implicitly import it.
-    emit(&c, &prelude_name, &[]);
+    // The prelude family emits in dependency order (each module's
+    // imports are already built); user modules implicitly import the
+    // facade.
+    for p in &family {
+        let imports = imports_of(p);
+        emit(&c, &p.name.text, &imports);
+    }
     for m in modules {
         let mut imports = imports_of(m);
-        if m.name.text != prelude_name && !imports.contains(&prelude_name) {
+        if !imports.contains(&prelude_name) {
             imports.push(prelude_name.clone());
         }
         emit(&c, &m.name.text, &imports);
@@ -8313,7 +8462,7 @@ pub fn check_program_multi_full(
 }
 
 /// Check a single user module against the implicit prelude and elaborate it.
-pub fn check_program(prelude: &ast::Module, user: &ast::Module) -> Result<Program> {
+pub fn check_program(prelude: &[ast::Module], user: &ast::Module) -> Result<Program> {
     let mut hashes = HashMap::new();
     hashes.insert(user.name.text.clone(), String::new());
     let cx = StagingCx::default();
@@ -8752,25 +8901,29 @@ impl Checker {
         // Builtin values and types (`True`, `Nat`, the `Stage` API) are in
         // scope everywhere.
         visible.push("<builtin>".to_string());
-        let table: &HashMap<String, Vec<ValueInfo>> = match r.kind {
-            ast::RefKind::Value => &self.values,
-            ast::RefKind::Type => {
-                // Type names resolve through the same visibility.
-                for m in &visible {
-                    if let Some(ts) = self.types.get(&r.name) {
-                        if ts.iter().any(|t| &t.module == m) {
-                            return Some((m.clone(), r.name.clone()));
-                        }
-                    }
-                }
-                return None;
-            }
-        };
+        // A visible module resolves the name through its surface (the
+        // prelude facade re-exports the split family's definitions):
+        // the reported pair is the LOCAL spelling `<visible>.<name>`,
+        // which resolves at every site that sees the same visibility
+        // (the quote hygiene's qualified re-spelling relies on it).
         for m in &visible {
-            if let Some(vs) = table.get(&r.name) {
-                if vs.iter().any(|v| &v.module == m) {
-                    return Some((m.clone(), r.name.clone()));
-                }
+            let Some(d) = self.surface_def(m, &r.name) else {
+                continue;
+            };
+            let hit = match r.kind {
+                ast::RefKind::Value => self
+                    .values
+                    .get(&r.name)
+                    .map(|vs| vs.iter().any(|v| v.module == d.module && v.name == d.name))
+                    .unwrap_or(false),
+                ast::RefKind::Type => self
+                    .types
+                    .get(&r.name)
+                    .map(|ts| ts.iter().any(|t| t.module == d.module && t.name == d.name))
+                    .unwrap_or(false),
+            };
+            if hit {
+                return Some((m.clone(), r.name.clone()));
             }
         }
         None
@@ -8908,8 +9061,11 @@ impl Checker {
                 },
                 ast::ExportItem::Member(path) => {
                     let parts = path.parts();
-                    let (qual, name) = (parts[0], parts[1]);
-                    match self.export_target(module, Some(qual), name) {
+                    let (qual, name) = (
+                        parts[..parts.len() - 1].join("."),
+                        parts[parts.len() - 1],
+                    );
+                    match self.export_target(module, Some(&qual), name) {
                         Some(d) => vec![(name.to_string(), d)],
                         None => {
                             return Err(Error::at(
@@ -8920,13 +9076,25 @@ impl Checker {
                     }
                 }
                 ast::ExportItem::Module(q) => {
+                    // A whole import re-exports by the imported
+                    // module's full dotted name (`export module
+                    // Data.List`) or by its qualifier (`export module
+                    // N` for `import M as N`).
                     let view = self
                         .module_views
                         .get(module)
                         .into_iter()
                         .flatten()
-                        .find(|v| !v.applied && v.alias == q.text)
-                        .cloned();
+                        .find(|v| !v.applied && v.target == q.text)
+                        .cloned()
+                        .or_else(|| {
+                            self.module_views
+                                .get(module)
+                                .into_iter()
+                                .flatten()
+                                .find(|v| !v.applied && v.alias == q.text)
+                                .cloned()
+                        });
                     match view {
                         Some(v) => {
                             let mut out = Vec::new();
@@ -9120,7 +9288,6 @@ impl Checker {
                     _ => Ty::Bytes,
                 },
             };
-            let prelude = self.prelude_module.clone();
             let body = match converter {
                 "bytes" => {
                     if self.uni.zonk(&ty) != Ty::Bytes {
@@ -9137,7 +9304,7 @@ impl Checker {
                         )));
                     }
                     app_spine(
-                        ECore::Ctor(fn_id(&prelude, "String")),
+                        ECore::Ctor(self.prelude_ctor_id("String")),
                         vec![ECore::ConstBytes(bytes.clone())],
                     )
                 }
@@ -9187,8 +9354,17 @@ impl Checker {
     /// decoded value at a declared type (scalars, `String`, `List`,
     /// `Option`, and records decoded field by name).
     fn json_const(&mut self, v: &JsonVal, ty: &Ty, span: ast::Span) -> Result<ECore, String> {
-        let prelude = self.prelude_module.clone();
-        let pctor = |n: &str| ECore::Ctor(fn_id(&prelude, n));
+        // The constructors resolve through the prelude surface to their
+        // Data.* homes (see `prelude_ctor_id`); the map is resolved
+        // once so the recursive descent below borrows no checker.
+        let mut ctors: HashMap<String, crate::core::GlobalId> = HashMap::new();
+        for n in [
+            "JNull", "JBool", "JNum", "JFloat", "JStr", "JArr", "JObj", "JArrEnd", "JObjEnd", "Nil",
+            "Cons", "None", "Some",
+        ] {
+            ctors.insert(n.to_string(), self.prelude_ctor_id(n));
+        }
+        let pctor = |n: &str| ECore::Ctor(ctors[n].clone());
         let unit = |n: &str, arg: ECore| -> ECore { app_spine(pctor(n), vec![arg]) };
         if let Ty::Adt(name, args) = ty {
             match (name.as_str(), args.as_slice()) {
@@ -9349,10 +9525,27 @@ impl Checker {
         }
     }
 
+    /// The core id behind a prelude surface name: the facade's `export`
+    /// set names the home definition (the prelude split put every
+    /// constructor in its Data.* home), so the data-import desugarings
+    /// resolve `String`/`Nil`/`Some` through the surface instead of
+    /// assuming a home module. The facade is fixed compiler input, so
+    /// the names below resolve or the compilation failed earlier.
+    fn prelude_ctor_id(&self, name: &str) -> crate::core::GlobalId {
+        let d = self
+            .surface_def(&self.prelude_module, name)
+            .expect("the prelude surface names the desugaring constructors");
+        let v = self
+            .qualified
+            .get(&(d.module.clone(), d.name.clone()))
+            .expect("the prelude surface names the desugaring constructors");
+        fn_id(&v.module, &v.name)
+    }
+
     /// The runtime `String` constant of a compile-time string.
     fn string_const(&mut self, s: &str) -> ECore {
         app_spine(
-            ECore::Ctor(fn_id(&self.prelude_module.clone(), "String")),
+            ECore::Ctor(self.prelude_ctor_id("String")),
             vec![ECore::ConstBytes(s.as_bytes().to_vec())],
         )
     }

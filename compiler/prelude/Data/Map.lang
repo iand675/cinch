@@ -1,0 +1,49 @@
+-- Data.Map: the ordered map.
+--
+-- An unbalanced binary search tree over `Ord k` (decision D105).
+-- `map-insert` keeps the left subtree strictly smaller and the right
+-- strictly greater, so a repeated key replaces the stored value in
+-- place.
+--
+-- Module scheme (design/base-library.md): the type's home carries its
+-- `FromMap` instance (map literals at `Map`).
+module Data.Map where
+
+  import Data.List
+  import Data.Option
+  import Relation.Ord
+  export Map, Tip, Bin, map-insert, map-lookup, map-from-pairs
+
+
+  -- The ordered map: an unbalanced binary search tree over `Ord k`
+  -- (decision D105). `map-insert` keeps the left subtree strictly
+  -- smaller and the right strictly greater, so a repeated key replaces
+  -- the stored value in place.
+  data Map k v where
+    Tip :: Map k v
+    Bin :: k -> v -> Map k v -> Map k v -> Map k v
+
+  map-insert :: forall k v. using (ord :: Ord k) => k -> v -> Map k v -> Map k v
+  map-insert k v m = case m of
+    Tip -> Bin k v Tip Tip
+    Bin k2 v2 l r ->
+      if k < k2 then Bin k2 v2 (map-insert k v l) r
+      else if k2 < k then Bin k2 v2 l (map-insert k v r)
+      else Bin k v l r
+
+  map-lookup :: forall k v. using (ord :: Ord k) => k -> Map k v -> Option v
+  map-lookup k m = case m of
+    Tip -> None
+    Bin k2 v2 l r ->
+      if k < k2 then map-lookup k l
+      else if k2 < k then map-lookup k r
+      else Some v2
+
+  map-from-pairs :: forall k v. using (ord :: Ord k) => List (k, v) -> Map k v
+  map-from-pairs kvs = case kvs of
+    Nil -> Tip
+    Cons p ps -> case p of
+      (a, b) -> map-insert a b (map-from-pairs ps)
+
+  implicit instance FromMap_Map k v :: using (ord :: Ord k) => FromMap (Map k v) k v where
+    from-map kvs = map-from-pairs kvs

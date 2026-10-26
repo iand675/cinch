@@ -1,0 +1,112 @@
+-- Text.Show: rendering values as `String`.
+--
+-- Module scheme (design/base-library.md): `Text.*` is conversion to
+-- and from String/Bytes. The `Show` class is the conversion family's
+-- class; there was no earlier `Show` to move (nothing in `Relation`
+-- or elsewhere carried one), so it lands here in its scheme home,
+-- refined to the bootstrap's minimal shape: `show` renders, with no
+-- `shows`/`showList` zoo.
+--
+-- The concrete conversions below (`nat-to-string`, `int-to-string`,
+-- `char-string`) are the prelude surface's formatting family (their
+-- names are decision D106's dash style and unchanged by the split).
+-- Their digits are raw ASCII bytes (48..=57), so no character
+-- literals are needed.
+--
+-- Instance homes (documented deviation from "instances live with
+-- their type"): the `Show` instances for the primitive carriers live
+-- HERE with the conversion family, not in their Data.* vocabulary
+-- modules. `show`'s result type `String` sits above the bignum and
+-- byte operations in the module order (Data.String's UTF-8 engine
+-- needs the `Nat` operations), so `Show Nat` in Data.Nat would close
+-- an import cycle. `Show` for `Bool`/`Ordering` waits for string
+-- literals (a surface future item): rendering them needs fixed text
+-- and there is no literal spelling for it yet.
+module Text.Show where
+
+  import Data.Nat
+  import Data.Int
+  import Data.Char
+  import Data.Bytes
+  import Data.String
+
+  export Show, show, char-string, nat-digits-into, pow10, nat-digit-count, nat-to-string, int-digit-count, int-digits-into, int-to-string
+
+  signature Show a where
+    show :: a -> String
+
+  -- The decimal rendering agrees with the concrete conversions below
+  -- (the class's law shape: `show` is the rendering; asserted over
+  -- sample values in compiler/tests/prelude_split.rs).
+  implicit instance Show_Nat :: Show Nat where
+    show n = nat-to-string n
+
+  implicit instance Show_Int :: Show Int where
+    show x = int-to-string x
+
+  implicit instance Show_Char :: Show Char where
+    show c = char-string c
+
+  -- The raw text: `String` renders as itself (no quoting in the
+  -- bootstrap).
+  implicit instance Show_String :: Show String where
+    show s = s
+
+
+  char-string :: Char -> String
+  char-string c =
+    let cp = nat-from-i64 (u32-to-i64 (char-to-u32 c)) in
+    let b = bytes-new (utf8-encode-width cp) in
+    let u = utf8-encode-into b 0 cp in
+    String b
+
+  -- Decimal formatting: digits are raw ASCII bytes (48..=57), so no
+  -- character literals are needed.
+  nat-digits-into :: Bytes -> Nat -> Nat -> Nat -> Unit
+  nat-digits-into b pos n k =
+    if k == 0 then ()
+    else
+      let u = bytes-set b pos (48 + nat-rem (nat-div n (pow10 (k - 1))) 10) in
+      nat-digits-into b (pos + 1) n (k - 1)
+
+  pow10 :: Nat -> Nat
+  pow10 k = if k == 0 then 1 else 10 * pow10 (k - 1)
+
+  nat-digit-count :: Nat -> Nat
+  nat-digit-count n = if n < 10 then 1 else 1 + nat-digit-count (nat-div n 10)
+
+  nat-to-string :: Nat -> String
+  nat-to-string n =
+    let b = bytes-new (nat-digit-count n) in
+    let u = nat-digits-into b 0 n (nat-digit-count n) in
+    String b
+
+  -- Signed decimal for `Int`, built from bignum division so values
+  -- beyond i64 format correctly; the sign is a raw ASCII 45 byte and
+  -- digits are raw ASCII bytes (48..=57).
+  int-digit-count :: Int -> Nat
+  int-digit-count n = if lt-i64 (int-cmp n 10) 0 then 1 else 1 + int-digit-count (int-div n 10)
+
+  int-digits-into :: Bytes -> Nat -> Int -> Nat -> Unit
+  int-digits-into b pos n k =
+    if k == 0 then ()
+    else
+      let d = nat-from-i64 (int-to-i64 (int-rem n 10)) in
+      let u = bytes-set b pos (48 + d) in
+      int-digits-into b (pos + 1) (int-div n 10) (k - 1)
+
+  int-to-string :: Int -> String
+  int-to-string x =
+    if eq-i64 (int-cmp x 0) 0 then nat-to-string 0
+    else if lt-i64 (int-cmp x 0) 0 then
+      let m = int-neg x in
+      let k = int-digit-count m in
+      let b = bytes-new (k + 1) in
+      let u = bytes-set b 0 45 in
+      let v = int-digits-into b 1 m k in
+      String b
+    else
+      let k = int-digit-count x in
+      let b = bytes-new k in
+      let u = int-digits-into b 0 x k in
+      String b

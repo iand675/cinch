@@ -1,0 +1,23 @@
+-- Text.Codec: conversion to and from `Bytes`.
+--
+-- Module scheme (design/base-library.md): `Text.Codec` aligns with the
+-- A6 `CodecGenerator.derive` vocabulary (modules specification
+-- section 11): the generated codec pair is `encodeT :: T -> Bytes`
+-- and `decodeT :: Bytes -> Option T`, in a fixed little-endian column
+-- format. The class states that pair once so the generator's output
+-- and hand-written codecs share one vocabulary.
+--
+-- Derived codec instances where expressible: exactly the A6 column
+-- encoders' covered set (decision D65), `I64` as 8 bytes
+-- little-endian (Data.Machine) and `Bool` as one byte (Data.Bool).
+-- REAL needs float bit access and TEXT a length-prefixed copy (D65);
+-- those instances land with their generators. The class law shape is
+-- the round trip: `decode (encode x) == Some x` (asserted over sample
+-- values in compiler/tests/prelude_split.rs).
+module Text.Codec where
+
+  export Codec, encode, decode
+
+  signature Codec a where
+    encode :: a -> Bytes
+    decode :: Bytes -> Option a

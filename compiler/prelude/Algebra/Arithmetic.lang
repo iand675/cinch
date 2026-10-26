@@ -1,0 +1,42 @@
+-- Algebra.Arithmetic: the arithmetic operation classes.
+--
+-- The primitive types specification's arithmetic classes (section 8):
+-- `Add`, `Sub`, `Mul` and `Neg` on the mathematical types, `Div` and
+-- `Rem` for their division. These are operation classes, not the
+-- named algebraic structures of the base library scheme
+-- (design/base-library.md's Algebra.* family is Semigroup, Monoid,
+-- Group, Semiring, Lattice); they group here as the arithmetic
+-- operations kind. Machine scalars get NO arithmetic instances: a
+-- class method has a single result type and cannot express which
+-- overflow family is meant (primitive types specification section 8).
+-- Division or remainder by zero takes the defined fault path (exit
+-- 72). Instances live with their type.
+module Algebra.Arithmetic where
+
+  infixl 9 *, /, %
+  infixl 8 +, -
+
+  export Add, (+), Sub, (-), Mul, (*), Neg, negate, Rem, (%), Div, (/)
+
+
+  signature Add a where
+    (+) :: a -> a -> a
+
+  signature Sub a where
+    (-) :: a -> a -> a
+
+  signature Mul a where
+    (*) :: a -> a -> a
+
+  signature Neg a where
+    negate :: a -> a
+
+  -- Modulo and division for the mathematical types (decision D91).
+  -- Division or remainder by zero takes the defined fault path (exit
+  -- 72). Machine integers keep the checked family only, per the
+  -- primitive types specification.
+  signature Rem a where
+    (%) :: a -> a -> a
+
+  signature Div a where
+    (/) :: a -> a -> a

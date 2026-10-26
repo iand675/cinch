@@ -14,11 +14,9 @@
 -- values for List, Option and NonEmpty.
 --
 -- Instance homes. The ownership rule is "instances live with their
--- type" (design/base-library.md). List and Option are Prelude types
--- whose home (compiler/prelude/Prelude.lang) is not split yet, so
--- their instances are parked here with the class until the prelude
--- split moves them to Data.List/Data.Option. NonEmpty's instance
--- lives with its type in Data/NonEmpty.lang.
+-- type" (design/base-library.md). The List and Option instances got
+-- theirs at the prelude split (Data.List/Data.Option). NonEmpty's
+-- instance lives with its type in Data/NonEmpty.lang.
 module Category.Foldable where
 
   signature Foldable (t :: Type -> Type) where
@@ -27,38 +25,3 @@ module Category.Foldable where
     to-list :: forall a. t a -> List a
     null :: forall a. t a -> Bool
     length :: forall a. t a -> Int
-
-  -- Parked here; see the header (the type's home is Prelude.lang).
-  implicit instance Foldable_List :: Foldable List where
-    foldr f z xs = case xs of
-      Nil -> z
-      Cons y ys -> f y (foldr f z ys)
-    foldl f z xs = case xs of
-      Nil -> z
-      Cons y ys -> foldl f (f z y) ys
-    to-list xs = xs
-    null xs = case xs of
-      Nil -> True
-      Cons y ys -> False
-    length xs = case xs of
-      Nil -> 0
-      Cons y ys -> 1 + length ys
-
-  -- Parked here; see the header (the type's home is Prelude.lang).
-  -- A `Some` is a one-element container; `None` folds as empty.
-  implicit instance Foldable_Option :: Foldable Option where
-    foldr f z o = case o of
-      None -> z
-      Some y -> f y z
-    foldl f z o = case o of
-      None -> z
-      Some y -> f z y
-    to-list o = case o of
-      None -> Nil
-      Some y -> Cons y Nil
-    null o = case o of
-      None -> True
-      Some y -> False
-    length o = case o of
-      None -> 0
-      Some y -> 1

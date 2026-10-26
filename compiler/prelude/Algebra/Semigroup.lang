@@ -16,54 +16,19 @@
 --
 -- Instance homes. The ownership rule is "instances live with their
 -- type; structural instances over functions and tuples live with the
--- class module". The carriers below are existing prelude types whose
--- home module (compiler/prelude/Prelude.lang) this slice does not own,
--- so their cross instances are parked in the class module for now and
--- move to the types' Data.* homes when the prelude split lands (the
--- split is an integration step after the P19 surface slice):
---   List append, Option first-some, Ordering, String concat -> here.
--- Function and tuple instances are structural and here permanently.
--- The instance-carrying newtypes (Sum, Product, Dual, First, Last,
--- Endo) are declared in Algebra.Monoid with both of their instances,
--- because an instance lives with its type and a newtype's home is its
--- class module.
+-- class module". The carriers that were parked here (List, Option,
+-- Ordering, String) got their instances at the prelude split: they
+-- live in the types' Data.* homes now. Function and tuple instances
+-- are structural and here permanently. The instance-carrying newtypes
+-- (Sum, Product, Dual, First, Last, Endo) are declared in
+-- Algebra.Monoid with both of their instances, because an instance
+-- lives with its type and a newtype's home is its class module.
 module Algebra.Semigroup where
 
   infixr 6 <>
 
   signature Semigroup a where
     (<>) :: a -> a -> a
-
-  -- List append: `xs <> ys` is xs followed by ys. Associative because
-  -- list concatenation is; no identity here (that is `Monoid (List a)`,
-  -- Algebra.Monoid).
-  implicit instance Semigroup_List t :: Semigroup (List t) where
-    (<>) xs ys = case xs of
-      Nil -> ys
-      Cons x rest -> Cons x ((<>) rest ys)
-
-  -- Option first-some: the leftmost `Some` wins, `None` is ignored.
-  implicit instance Semigroup_Option t :: Semigroup (Option t) where
-    (<>) x y = case x of
-      None -> y
-      Some _ -> x
-
-  -- Ordering: lexicographic composition of comparisons. This is how
-  -- `compare` results compose (`compare x y <> compare y z` gives
-  -- `compare x z` when the first is not EQ).
-  implicit instance Semigroup_Ordering :: Semigroup Ordering where
-    (<>) x y = case x of
-      LT -> LT
-      EQ -> y
-      GT -> GT
-
-  -- String concatenation over the UTF-8 Bytes backing (Prelude's
-  -- `string-concat`, the O(n + m) copy defined in the string section;
-  -- the dash spelling is decision D106). There is no class-level
-  -- concat for String, so this instance is the one place the name is
-  -- needed.
-  implicit instance Semigroup_String :: Semigroup String where
-    (<>) x y = string-concat x y
 
   -- Structural: pointwise combination of functions into a semigroup.
   -- (t -> u) is a semigroup whenever the result is; the constraint is

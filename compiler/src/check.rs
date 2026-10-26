@@ -1682,6 +1682,24 @@ struct Checker {
     instance_defs: Vec<InstanceDef>,
     /// Instances awaiting body checking, keyed by module.
     instance_defs_pending: Vec<(String, ast::InstDecl)>,
+    /// Instance heads awaiting conversion, in declaration order: an
+    /// instance head names a class and a target type, and both may live
+    /// in modules collected later (the prelude split's family), so the
+    /// heads convert once every module is collected (the pass before
+    /// `finish_module_params` and again after staging).
+    pending_instance_heads: Vec<(String, ast::InstDecl)>,
+    /// The embedded prelude family's collected modules: their instance
+    /// heads drop (with their bodies) when a shadowing source module
+    /// replaced the class's home without declaring the class, because
+    /// such a program never had those instances (the source module IS
+    /// the program's version of that home).
+    embedded_modules: std::collections::HashSet<String>,
+    /// Family modules an explicit source module shadowed: such a
+    /// program's version of a home can lack the names the family's
+    /// instance bodies expect (a stub replacing a class module), and a
+    /// family instance that then fails to check drops instead of
+    /// failing the program (the program never had that instance).
+    shadowed_modules: std::collections::HashSet<String>,
     /// The instance whose method bodies are being checked: visible to
     /// resolution even when it is not `implicit`.
     self_instance: Option<usize>,
@@ -2072,6 +2090,9 @@ impl Checker {
             top_eqs: Vec::new(),
             instance_defs: Vec::new(),
             instance_defs_pending: Vec::new(),
+            pending_instance_heads: Vec::new(),
+            embedded_modules: std::collections::HashSet::new(),
+            shadowed_modules: std::collections::HashSet::new(),
             self_instance: None,
             perf: EffRow::pure(),
             region_counter: 0,

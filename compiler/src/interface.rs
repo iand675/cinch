@@ -1774,6 +1774,11 @@ pub struct WitAdapter {
     /// The generated vocabulary source (types, boundary errors, stream
     /// observations) to append to the prelude module.
     pub vocab: String,
+    /// The vocabulary source's declared names (its types and
+    /// constructors), so the prelude facade can export them (the
+    /// surface rule: a module with `export` declarations exposes
+    /// exactly the named set).
+    pub vocab_names: Vec<String>,
     /// The `ForeignError` payload type name (`DecodeError` or
     /// `ForeignFailure`).
     pub boundary_error_payload: String,
@@ -2936,6 +2941,7 @@ pub fn build_wit_adapter(
     // The vocabulary types, in declaration order.
     let mut types = Vec::new();
     let mut type_names: Vec<String> = Vec::new();
+    let mut declared_types: Vec<String> = Vec::new();
     let mut ctor_names: Vec<String> = Vec::new();
     let mut type_src = String::new();
     for d in &defs {
@@ -2948,6 +2954,9 @@ pub fn build_wit_adapter(
         }
         type_names.push(surface.clone());
         let (src, ctors) = type_decl_source(&cx, d, &surface)?;
+        if !src.is_empty() {
+            declared_types.push(surface.clone());
+        }
         for c in &ctors {
             if ctor_names.iter().any(|x| x == c) {
                 return Err(crate::Error::plain(format!(
@@ -2979,6 +2988,7 @@ pub fn build_wit_adapter(
         }
         ctor_names.push(surface.clone());
         type_src.push_str(&src);
+        declared_types.push(surface.clone());
         types.push(WitTypeDecl { wit_name: r.name.clone(), surface, source: src });
     }
 
@@ -3093,6 +3103,7 @@ pub fn build_wit_adapter(
             ctor_names.push(c.to_string());
         }
         vocab.push_str("  data ForeignFailure where\n    ForeignFailure :: U32 -> ForeignFailure\n");
+        declared_types.push("ForeignFailure".to_string());
     }
     for c in ["ForeignError", "ContractViolation"] {
         if ctor_names.iter().any(|x| x == c) {
@@ -3105,6 +3116,7 @@ pub fn build_wit_adapter(
     vocab.push_str(&format!(
         "  data BoundaryError where\n    ForeignError :: {payload} -> BoundaryError\n    ContractViolation :: BoundaryError\n"
     ));
+    declared_types.push("BoundaryError".to_string());
     if streams {
         for c in ["WasiStream", "WasiFuture", "StreamFailed"] {
             if ctor_names.iter().any(|x| x == c) {
@@ -3119,6 +3131,18 @@ pub fn build_wit_adapter(
              \x20 data WasiFuture a where\n    WasiFuture :: U32 -> WasiFuture a\n\
              \x20 data StreamError where\n    StreamFailed :: StreamError\n",
         );
+        for t in ["WasiStream", "WasiFuture", "StreamError"] {
+            declared_types.push(t.to_string());
+        }
+    }
+
+    // The facade exports exactly the names the vocabulary declares:
+    // its types and its constructors (the surface rule).
+    let mut vocab_names: Vec<String> = Vec::new();
+    for n in declared_types.into_iter().chain(ctor_names.iter().cloned()) {
+        if !vocab_names.contains(&n) {
+            vocab_names.push(n);
+        }
     }
 
     Ok(WitAdapter {
@@ -3128,6 +3152,7 @@ pub fn build_wit_adapter(
         types,
         bindings,
         vocab,
+        vocab_names,
         boundary_error_payload: payload,
         streams,
     })

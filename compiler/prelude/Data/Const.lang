@@ -21,17 +21,20 @@
 -- The functions and the instances: `map-const` is the Functor `map`
 -- body for `Const` (the class name is `map`, decision D152), and the
 -- Functor instance at the bottom is defined through it (instances live
--- with their type). `Const`'s Applicative bodies are not here:
--- `pure`/`<*>` for `Const` combine payloads under `Algebra.Monoid` and
--- `Algebra.Semigroup` constraints, which belong to the prelude split's
--- instance-homes integration along with the containers' `Eq` story;
--- they arrive then, with `Const`'s home. The operator `<$>` is a class
--- method per decision D2 (operators are class methods with per-module
--- fixity declarations), so no per-type operator stand-in is defined
--- here.
+-- with their type). `Const`'s Applicative lands with the prelude
+-- split (D157's waiter is discharged): its `pure` fabricates the
+-- `Monoid` payload and its `<*>` combines payloads under `Semigroup`,
+-- so the instance states both constraints (a class constraint entails
+-- nothing; the standing no-superbundle rule). The operator `<$>` is a
+-- class method per decision D2 (operators are class methods with
+-- per-module fixity declarations), so no per-type operator stand-in is
+-- defined here.
 module Data.Const where
 
   import Category.Functor
+  import Category.Applicative
+  import Algebra.Semigroup
+  import Algebra.Monoid
 
   data Const a b where
     Const :: a -> Const a b
@@ -52,3 +55,15 @@ module Data.Const where
   implicit instance Functor_Const m :: Functor (Const m) where
     map f c = map-const f c
     (<$>) f c = map-const f c
+
+  -- The applicative (D157's waiter is discharged at the prelude
+  -- split): `pure` fabricates the `Monoid` payload and `<*>` combines
+  -- payloads under `Semigroup`. The instance states both constraints
+  -- because a class constraint entails nothing (the standing
+  -- no-superbundle rule). The combination is written in prefix form
+  -- like the other instance bodies (decision D2's per-module fixity
+  -- style keeps `<>` out of this module's parse).
+  implicit instance Applicative_Const m :: using (mb :: Monoid m, sb :: Semigroup m) => Applicative (Const m) where
+    pure x = Const mempty
+    (<*>) cf cg = Const ((<>) (get-const cf) (get-const cg))
+    lift-a2 f cx cy = Const ((<>) (get-const cx) (get-const cy))
