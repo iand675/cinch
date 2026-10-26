@@ -714,7 +714,13 @@ impl Lexer {
     fn lex_symbol(&mut self) -> Tok {
         let mut s = String::new();
         while let Some(c) = self.peek() {
-            if is_symbol_char(c) {
+            // `$` continues an operator run (`<$>` is the Functor
+            // operator, design/base-library.md) but never starts one: a
+            // leading `$` is reserved application, and `$(` opens a
+            // splice.
+            if is_symbol_char(c)
+                || (c == '$' && !s.is_empty() && self.peek_at(1) != Some('('))
+            {
                 // A negative-literal sign never joins a symbol run:
                 // `=-3` is `=` applied to the atom `-3`.
                 if c == '-' && self.at_sign_minus() {

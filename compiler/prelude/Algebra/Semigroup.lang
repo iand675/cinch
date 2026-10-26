@@ -27,11 +27,6 @@
 -- Endo) are declared in Algebra.Monoid with both of their instances,
 -- because an instance lives with its type and a newtype's home is its
 -- class module.
---
--- Instance parameters are named `t`, `u`, ... rather than the class
--- parameter `a`: instance checking substitutes the class parameter
--- into the instance context, and a same-named instance parameter would
--- be captured by that substitution.
 module Semigroup where
 
   infixr 6 <>

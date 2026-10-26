@@ -423,12 +423,14 @@ impl Checker {
             ast::Term::Unit(_) => Ok((ECore::Unit, Ty::Unit)),
             ast::Term::Str(s, span) => {
                 // `String` is a compile-time type in this slice (decision
-                // D43): literals elaborate where compile-time code runs,
-                // and the runtime string type arrives with the FFI slice.
+                // D43): literals elaborate where compile-time code runs.
+                // The runtime `String` type has shipped (built from
+                // `Bytes` through `string-from-bytes`, Prelude.lang);
+                // literal syntax for it is a surface future item.
                 if !self.compile_time {
                     return Err(Error::at(
                         *span,
-                        "string literals are compile-time only in this slice (the runtime `String` type arrives with the FFI slice)",
+                        "string literals are compile-time only (build runtime strings from `Bytes` with `string-from-bytes`; literal syntax for the runtime `String` is a surface future item)",
                     ));
                 }
                 Ok((ECore::StrLit(s.clone()), Ty::Adt("String".into(), Vec::new())))
@@ -496,6 +498,16 @@ impl Checker {
                     }
                 }
                 self.place_path.clear();
+                // The bare-`pure` rule: a bare `pure` reaches the class
+                // method through its constraint when one carries it.
+                if p.quals.is_empty()
+                    && p.name.text == "pure"
+                    && env.lookup(&p.name.text).is_none()
+                {
+                    if let Some(v) = self.constraint_pure(env) {
+                        return self.value_use(&v, p.span(), env);
+                    }
+                }
                 let v = self.resolve_var(p, p.span())?;
                 self.value_use(&v, p.span(), env)
             }
@@ -4257,6 +4269,14 @@ impl Checker {
                 ctx_span,
                 format!("cannot pattern match on a value of abstract type {p}"),
             )),
+            Ty::App(h, _) => Err(Error::at(
+                ctx_span,
+                format!("cannot pattern match on a value of applied abstract type {h}"),
+            )),
+            Ty::Former(f) => Err(Error::at(
+                ctx_span,
+                format!("cannot pattern match on the type former {:?}", f),
+            )),
             Ty::Fun(a, _, _, b) => Err(Error::at(
                 ctx_span,
                 format!("cannot pattern match on a function value ({a} -> {b})"),
@@ -6518,9 +6538,15 @@ impl Checker {
     }
 
     /// Is `name` the selected provider's `pure` form (decision D22)? A
-    /// local or user definition of the same name shadows it.
+    /// local or user definition of the same name shadows it, and a class
+    /// constraint carrying `pure` answers first (the bare-`pure` rule:
+    /// bare uses keep the D22 provider meaning only when no constrained
+    /// method claims the name).
     fn is_provider_pure(&self, env: &Env, name: &str) -> bool {
         if name != "pure" || env.lookup(name).is_some() {
+            return false;
+        }
+        if self.constraint_pure(env).is_some() {
             return false;
         }
         match self.lookup_value(None, name) {
@@ -6535,6 +6561,33 @@ impl Checker {
             },
             Err(_) => true,
         }
+    }
+
+    /// The class method a bare `pure` reaches through its constraint (the
+    /// bare-`pure` rule): the nearest in-scope `using` binder whose class
+    /// is not a sequencing provider and whose method set carries `pure`.
+    /// The provider classes are excluded so `do` keeps its lexically
+    /// selected provider (decision D22).
+    fn constraint_pure(&self, env: &Env) -> Option<ValueInfo> {
+        for (_l, c) in env.dicts.iter().rev() {
+            if SEQ_CLASSES.contains(&c.class.as_str()) {
+                continue;
+            }
+            let Some(sig) = self
+                .sigs
+                .get(&c.class)
+                .and_then(|ss| ss.iter().find(|s| self.def_in_scope(&s.module, &s.name)))
+            else {
+                continue;
+            };
+            if sig.methods.iter().any(|(n, _)| n == "pure") {
+                return self
+                    .qualified
+                    .get(&(sig.module.clone(), "pure".to_string()))
+                    .cloned();
+            }
+        }
+        None
     }
 
     /// Bind a capability name to a value of type `Io r` (decision D21):

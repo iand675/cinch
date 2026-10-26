@@ -9,16 +9,14 @@
 -- fixity is accepted); the imported declaration is the source of
 -- truth.
 --
--- `mempty` spelling. The bootstrap slice requires every class method
--- to have a function type (check: "class method mempty must have a
--- function type in the bootstrap slice"), so the identity is the
--- method `mempty :: Unit -> a`, the prelude's own nullary-method
--- convention (`positiveWidth :: Unit -> Nat`). Call sites write
--- `mempty ()`; when the restriction lifts the argument drops.
+-- `mempty` is the nullary class method `mempty :: a` (the higher-kinded
+-- slice lifted the function-type requirement on class methods): the
+-- dictionary carries the identity value directly, so call sites write
+-- `mempty`.
 --
 -- Laws (asserted over sample values in compiler/tests/lib_algebra.rs):
---   left unit:  mempty () <> x == x
---   right unit: x <> mempty () == x
+--   left unit:  mempty <> x == x
+--   right unit: x <> mempty == x
 -- plus associativity of `<>` from Algebra.Semigroup.
 --
 -- Instance homes. The newtypes below exist only to carry instances, so
@@ -32,10 +30,6 @@
 -- Structural instances over functions and tuples live with the class
 -- module permanently; the Semigroup halves of those live in
 -- Algebra.Semigroup.
---
--- Instance parameters are named `t`, `u`, ... rather than the class
--- parameter `a` (see Algebra.Semigroup: instance context substitution
--- would capture a same-named parameter).
 module Monoid where
 
   import Semigroup
@@ -43,7 +37,7 @@ module Monoid where
   infixr 6 <>
 
   signature Monoid a where
-    mempty :: Unit -> a
+    mempty :: a
 
   -- ------------------------------------------------------------------
   -- The instance-carrying newtypes (design/base-library.md: "the
@@ -62,7 +56,7 @@ module Monoid where
         Sum b -> Sum (a + b)
 
   implicit instance Monoid_Sum :: Monoid Sum where
-    mempty _ = Sum 0
+    mempty = Sum 0
 
   -- Nat under multiplication.
   data Product where
@@ -74,7 +68,7 @@ module Monoid where
         Product b -> Product (a * b)
 
   implicit instance Monoid_Product :: Monoid Product where
-    mempty _ = Product 1
+    mempty = Product 1
 
   -- Dual: composition in the opposite order. `Dual x <> Dual y`
   -- combines y before x, turning any monoid into its opposite.
@@ -87,7 +81,7 @@ module Monoid where
         Dual q -> Dual ((<>) q p)
 
   implicit instance Monoid_Dual t :: using (ma :: Monoid t) => Monoid (Dual t) where
-    mempty _ = Dual (mempty ())
+    mempty = Dual mempty
 
   -- First: the leftmost `Some`, in a wrapper that keeps this choice
   -- apart from Option's own first-some reading (they agree today; the
@@ -102,7 +96,7 @@ module Monoid where
         Some _ -> x
 
   implicit instance Monoid_First t :: Monoid (First t) where
-    mempty _ = First None
+    mempty = First None
 
   -- Last: the rightmost `Some`.
   data Last t where
@@ -115,7 +109,7 @@ module Monoid where
         Some _ -> y
 
   implicit instance Monoid_Last t :: Monoid (Last t) where
-    mempty _ = Last None
+    mempty = Last None
 
   -- Endo: endomorphisms under composition. `Endo f <> Endo g` is
   -- `f` after `g` (like `(.)`), and `mempty` is the identity, so
@@ -129,7 +123,7 @@ module Monoid where
         Endo g -> Endo (\z -> f (g z))
 
   implicit instance Monoid_Endo t :: Monoid (Endo t) where
-    mempty _ = Endo (\x -> x)
+    mempty = Endo (\x -> x)
 
   -- ------------------------------------------------------------------
   -- Cross instances of existing prelude types (parked here; see the
@@ -138,22 +132,22 @@ module Monoid where
 
   -- Lists under append; the empty list is the identity.
   implicit instance Monoid_List t :: Monoid (List t) where
-    mempty _ = Nil
+    mempty = Nil
 
   -- Option under first-some; `None` is the identity.
   implicit instance Monoid_Option t :: Monoid (Option t) where
-    mempty _ = None
+    mempty = None
 
   -- Ordering under lexicographic composition; `EQ` is the identity.
   implicit instance Monoid_Ordering :: Monoid Ordering where
-    mempty _ = EQ
+    mempty = EQ
 
   -- Strings under concatenation; the empty string is the identity.
   -- NOTE: `empty-string` is a prelude function name (decision D106's
   -- dash spelling). It is the prelude String's designated empty value
   -- (String (bytes-new 0) under the UTF-8 rules).
   implicit instance Monoid_String :: Monoid String where
-    mempty _ = empty-string
+    mempty = empty-string
 
   -- ------------------------------------------------------------------
   -- Structural instances (functions and tuples), with the class
@@ -161,10 +155,10 @@ module Monoid where
 
   -- A function into a monoid is a monoid pointwise: the identity is the
   -- function returning the identity. Eta-expanded like the function
-  -- Semigroup above: `mempty () x` is the identity at x.
+  -- Semigroup above: `mempty x` is the identity at x.
   implicit instance Monoid_Function t u :: using (mb :: Monoid u) => Monoid (t -> u) where
-    mempty _ x = mempty ()
+    mempty x = mempty
 
   -- Tuples of monoids are monoids componentwise.
   implicit instance Monoid_Pair t u :: using (ma :: Monoid t, mb :: Monoid u) => Monoid (t, u) where
-    mempty _ = (mempty (), mempty ())
+    mempty = (mempty, mempty)

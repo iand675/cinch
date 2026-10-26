@@ -139,10 +139,11 @@ pub fn parse_modules(
         let mut module = module.clone();
         let mut table = base.clone();
         for imp in &module.imports {
-            let name = imp.path.parts().last().copied().unwrap_or("");
+            // Fixity tables key on the import's full dotted name.
+            let name = imp.path.parts().join(".");
             if let Some(t) = modules.iter().find(|(m, _)| m.name.text == name).map(|(_, o)| o) {
                 table = table.merge(t);
-            } else if let Some(t) = tables.get(name) {
+            } else if let Some(t) = tables.get(&name) {
                 table = table.merge(t);
             }
         }
@@ -1016,11 +1017,7 @@ impl<'a> Parser<'a> {
     fn parse_signature(&mut self) -> Result<SigDecl> {
         let span = self.expect(&Tok::Signature, "`signature`")?.span;
         let name = self.parse_ctor_name("a signature name")?;
-        let params = self
-            .parse_params()?
-            .into_iter()
-            .map(|b| b.name)
-            .collect::<Vec<_>>();
+        let params = self.parse_params()?;
         self.expect(&Tok::Where, "`where`")?;
         let items = self.parse_block_items("the signature block", |p| p.parse_sig_item())?;
         let mut type_members = Vec::new();
@@ -1359,14 +1356,25 @@ impl<'a> Parser<'a> {
     }
 
     /// Parameters of `data`, `record`, `signature` and `instance`:
-    /// `x`, `(x :: T)` or `{x}`. Annotations survive: on `data` and
+    /// `x`, `X`, `(x :: T)` or `{x}`. Annotations survive: on `data` and
     /// `record` parameters they classify type parameters versus index
-    /// values (dependent core kernel design, section 5).
+    /// values (dependent core kernel design, section 5); on `signature`
+    /// parameters they state the kind (`Functor (f :: Type -> Type)`). A
+    /// capitalized bare parameter (`signature Functor F`) is a type
+    /// variable in a constructor's spelling.
     fn parse_params(&mut self) -> Result<Vec<TypeBinder>> {
         let mut binders = Vec::new();
         loop {
             match self.peek_tok() {
                 Tok::VarId(s) if s != "_" => {
+                    let span = self.peek().span;
+                    let name = Name::new(s.clone(), span);
+                    self.bump();
+                    binders.push(TypeBinder { name, ann: None, implicit: false });
+                }
+                Tok::ConId(s) => {
+                    // A capitalized bare parameter (`signature Functor
+                    // F`): a type variable in a constructor's spelling.
                     let span = self.peek().span;
                     let name = Name::new(s.clone(), span);
                     self.bump();
@@ -2544,6 +2552,34 @@ impl<'a> Parser<'a> {
                     self.bump();
                     return Ok(Type::Unit(span));
                 }
+                // Type former atoms: `(->)` (the pure total arrow family)
+                // and the structural tuple formers `(,)`, `(,,)`, ...
+                if self.at(&Tok::Arrow) && matches!(self.peek_tok_at(1), Some(Tok::RParen)) {
+                    self.bump();
+                    self.bump();
+                    return Ok(Type::Con(
+                        ConPath { segments: vec![Name::new("->", span)] },
+                        span,
+                    ));
+                }
+                if self.at(&Tok::Comma) {
+                    let mut commas = 0;
+                    while self.at(&Tok::Comma) {
+                        self.bump();
+                        commas += 1;
+                    }
+                    if self.at(&Tok::RParen) {
+                        self.bump();
+                        let name = format!("({})", ",".repeat(commas));
+                        return Ok(Type::Con(
+                            ConPath { segments: vec![Name::new(name, span)] },
+                            span,
+                        ));
+                    }
+                    return Err(self.err(
+                        "a parenthesized comma list is the tuple type former `(,)`/`(,,)`/...; tuple types are `(T1, T2)`",
+                    ));
+                }
                 if self.is_typed_binder_head_here() {
                     return Err(self.err(
                         "a dependent binder `(x :: A)` is only valid immediately before `->`",
@@ -3418,7 +3454,7 @@ mod tests {
             })
             .expect("signature decl");
         assert_eq!(sig.name.text, "Eq");
-        assert_eq!(sig.params[0].text, "a");
+        assert_eq!(sig.params[0].name.text, "a");
         assert_eq!(sig.methods.len(), 2);
         assert_eq!(sig.methods[1].0.text, "/=");
 

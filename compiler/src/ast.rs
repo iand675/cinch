@@ -586,7 +586,10 @@ pub struct ParamDecl {
 #[derive(Clone, Debug)]
 pub struct SigDecl {
     pub name: Name,
-    pub params: Vec<Name>,
+    /// Class parameters with optional kind binders, as in `signature
+    /// Functor (f :: Type -> Type)` or `signature Functor F` (an
+    /// un-annotated parameter's kind is inferred from the method types).
+    pub params: Vec<TypeBinder>,
     /// Associated type members written inside the signature block:
     /// `opaque type T [params] :: Type` and `record`/`data` members
     /// (modules and compilation specification section 1; the foreign

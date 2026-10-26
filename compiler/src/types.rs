@@ -913,6 +913,38 @@ pub enum Ty {
     /// roles cross the C ABI as `ptr`; the role is contract metadata and
     /// a static discipline, never a runtime difference.
     Ptr { role: PtrRole, pointee: Box<Ty> },
+    /// `f a b ...` where the head is a type parameter, a unification
+    /// variable, or a partially applied type former: a higher-kinded
+    /// application spine (modules and compilation specification section
+    /// 1). Named type constructors keep the flattened `Adt` form;
+    /// [`Ty::apply_spine`] builds these with beta-reduction, so a spine's
+    /// head is never itself a saturated application.
+    App(Box<Ty>, Vec<Ty>),
+    /// A bare type former in prefix form: `(->)` (the pure total arrow
+    /// family) or a structural tuple former `(,)`, `(,,)`, ...
+    Former(Former),
+}
+
+/// A bare type constructor former spellable in prefix position.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Former {
+    /// The pure total arrow family `(->)`: `((->) r) a` is the pure
+    /// total arrow `r -> a` with its default parameter multiplicity and
+    /// a pure row. Effectful arrows are a distinct shape and never arise
+    /// from this former.
+    Arrow,
+    /// The structural tuple former `(,,,...)` of the given arity.
+    Tuple(usize),
+}
+
+impl Former {
+    /// The former's total argument count.
+    pub fn arity(&self) -> usize {
+        match self {
+            Former::Arrow => 2,
+            Former::Tuple(n) => *n,
+        }
+    }
 }
 
 impl Ty {
@@ -939,6 +971,60 @@ impl Ty {
     /// Build `a1 -> a2 -> ... -> res` with unrestricted pure arrows.
     pub fn funs(args: &[Ty], res: Ty) -> Ty {
         args.iter().rev().fold(res, |acc, a| Ty::fun(a.clone(), acc))
+    }
+
+    /// Apply one type-level argument to a head, with beta-reduction:
+    /// named constructors collect the argument into their `Adt` spine, a
+    /// saturated arrow or tuple former collapses to `Fun`/`Tuple`, and
+    /// anything else (a parameter, a metavariable, an unsaturated former)
+    /// becomes an `App` spine. Substituting a constructor application
+    /// for a parameter runs through here, so `f a` with `f := Result e`
+    /// becomes `Result e a` and `f := (->) r` becomes `r -> a`.
+    pub fn apply1(head: Ty, arg: Ty) -> Ty {
+        match head {
+            Ty::Adt(name, mut args) => {
+                args.push(arg);
+                Ty::Adt(name, args)
+            }
+            Ty::App(h, mut args) => {
+                if let Ty::Former(f) = &*h {
+                    let n = f.arity();
+                    args.push(arg);
+                    if args.len() == n {
+                        return Ty::former_apply(*f, args);
+                    }
+                    return Ty::App(h, args);
+                }
+                args.push(arg);
+                Ty::App(h, args)
+            }
+            Ty::Former(f) => {
+                if f.arity() == 1 {
+                    return Ty::former_apply(f, vec![arg]);
+                }
+                Ty::App(Box::new(Ty::Former(f)), vec![arg])
+            }
+            other => Ty::App(Box::new(other), vec![arg]),
+        }
+    }
+
+    /// The saturated image of a type former.
+    fn former_apply(f: Former, args: Vec<Ty>) -> Ty {
+        match f {
+            Former::Arrow => {
+                let mut it = args.into_iter();
+                let a = it.next().expect("arrow argument");
+                let b = it.next().expect("arrow argument");
+                let m = default_mult(&a);
+                Ty::fun_mult(a, m, EffRow::pure(), b)
+            }
+            Former::Tuple(_) => Ty::Tuple(args),
+        }
+    }
+
+    /// Apply a spine of type-level arguments to a head, left to right.
+    pub fn apply_spine(head: Ty, args: impl IntoIterator<Item = Ty>) -> Ty {
+        args.into_iter().fold(head, Ty::apply1)
     }
 
     /// Count the arrows of a function type.
@@ -996,6 +1082,7 @@ impl Ty {
             Ty::Lazy { inner, .. } => inner.mentions_idx(name),
             Ty::Ref(_, inner) | Ty::Mut(_, inner) => inner.mentions_idx(name),
             Ty::Ptr { pointee, .. } => pointee.mentions_idx(name),
+            Ty::App(_, args) => args.iter().any(|a| a.mentions_idx(name)),
             Ty::Handler { input, output, .. } => {
                 input.mentions_idx(name) || output.mentions_idx(name)
             }
@@ -1060,6 +1147,10 @@ impl Ty {
                 eff: eff.clone(),
                 resumption: *resumption,
             },
+            Ty::App(h, args) => Ty::App(
+                Box::new(h.subst_idx(name, by)),
+                args.iter().map(|a| a.subst_idx(name, by)).collect(),
+            ),
             other => other.clone(),
         }
     }
@@ -1089,6 +1180,12 @@ impl Ty {
             Ty::Handler { input, output, .. } => {
                 input.free_idx_metas(out);
                 output.free_idx_metas(out);
+            }
+            Ty::App(h, args) => {
+                h.free_idx_metas(out);
+                for a in args {
+                    a.free_idx_metas(out);
+                }
             }
             _ => {}
         }
@@ -1134,6 +1231,12 @@ impl Ty {
                 input.free_metas(out);
                 eff.free_metas(out);
                 output.free_metas(out);
+            }
+            Ty::App(h, args) => {
+                h.free_metas(out);
+                for a in args {
+                    a.free_metas(out);
+                }
             }
             _ => {}
         }
@@ -1182,6 +1285,7 @@ pub fn mentions_task(ty: &Ty) -> bool {
         Ty::Handler { input, output, .. } => {
             mentions_task(input) || mentions_task(output)
         }
+        Ty::App(h, args) => mentions_task(h) || args.iter().any(mentions_task),
         _ => false,
     }
 }
@@ -1203,6 +1307,7 @@ pub fn mentions_memo(ty: &Ty) -> bool {
         Ty::Handler { input, output, .. } => {
             mentions_memo(input) || mentions_memo(output)
         }
+        Ty::App(h, args) => mentions_memo(h) || args.iter().any(mentions_memo),
         _ => false,
     }
 }
@@ -1240,6 +1345,21 @@ impl fmt::Display for Ty {
                     write!(f, " {a}")?;
                 }
                 Ok(())
+            }
+            Ty::App(h, args) => {
+                write!(f, "({h}")?;
+                for a in args {
+                    write!(f, " {a}")?;
+                }
+                write!(f, ")")
+            }
+            Ty::Former(Former::Arrow) => write!(f, "(->)"),
+            Ty::Former(Former::Tuple(n)) => {
+                write!(f, "(")?;
+                for _ in 0..*n {
+                    write!(f, ",")?;
+                }
+                write!(f, ")")
             }
             Ty::Tuple(items) => {
                 write!(f, "(")?;
@@ -1864,6 +1984,10 @@ impl Unifier {
     pub fn zonk(&self, ty: &Ty) -> Ty {
         match self.shallow(ty) {
             Ty::Adt(t, args) => Ty::Adt(t, args.iter().map(|a| self.zonk(a)).collect()),
+            Ty::App(h, args) => Ty::apply_spine(
+                self.zonk(&h),
+                args.iter().map(|a| self.zonk(a)).collect::<Vec<_>>(),
+            ),
             Ty::Tuple(args) => Ty::Tuple(args.iter().map(|a| self.zonk(a)).collect()),
             Ty::Fun(a, m, e, b) => {
                 Ty::fun_mult(self.zonk(&a), m, self.resolve_row(&e), self.zonk(&b))
@@ -2045,6 +2169,9 @@ impl Unifier {
             Ty::Ptr { pointee, .. } => self.occurs(id, &pointee),
             Ty::Handler { input, output, .. } => {
                 self.occurs(id, &input) || self.occurs(id, &output)
+            }
+            Ty::App(h, args) => {
+                self.occurs(id, &h) || args.iter().any(|a| self.occurs(id, a))
             }
             _ => false,
         }
@@ -2230,6 +2357,106 @@ impl Unifier {
         }
     }
 
+    /// Flatten a type into its application head and arguments: `Adt`
+    /// spines keep their name as an empty-suffix head, `App` spines
+    /// concatenate through resolved metavariable heads, `Fun` and
+    /// `Tuple` decompose onto their type formers (the arrow's
+    /// multiplicity and row are re-checked by unifying the reconstructed
+    /// image), and anything else is a head with no arguments.
+    fn spine(&self, ty: &Ty) -> (Ty, Vec<Ty>) {
+        match self.shallow(ty) {
+            Ty::Adt(n, args) => (Ty::Adt(n, Vec::new()), args),
+            Ty::App(h, args) => {
+                let (head, mut xs) = self.spine(&h);
+                xs.extend(args);
+                (head, xs)
+            }
+            Ty::Fun(a, _, _, b) => {
+                (Ty::Former(Former::Arrow), vec![*a, *b])
+            }
+            Ty::Tuple(items) => (Ty::Former(Former::Tuple(items.len())), items),
+            other => (other, Vec::new()),
+        }
+    }
+
+    /// Unify two application spines (`f a ...` against `g b ...`): a
+    /// metavariable head solves by eta-prefixing the other side, and two
+    /// rigid spines unify head-to-head and argument-to-argument. The
+    /// solved image is re-unified with the original side, so a former's
+    /// beta image (the pure total arrow) still checks multiplicity and
+    /// effect row against the observed shape.
+    fn unify_spines(
+        &mut self,
+        a: &Ty,
+        b: &Ty,
+    ) -> std::result::Result<(), String> {
+        let (h1, xs) = self.spine(a);
+        let (h2, ys) = self.spine(b);
+        // One shared head (the same metavariable, parameter or former)
+        // unifies argument to argument; the eta solves below only apply
+        // to distinct heads.
+        if h1 == h2 {
+            if xs.len() != ys.len() {
+                return Err(format!(
+                    "type mismatch: expected {}, got {}",
+                    self.zonk(a),
+                    self.zonk(b)
+                ));
+            }
+            for (x, y) in xs.iter().zip(ys.iter()) {
+                self.unify(x, y)?;
+            }
+            return Ok(());
+        }
+        let eta = |h: &Ty, prefix: &[Ty], rest: &[Ty]| {
+            Ty::apply_spine(h.clone(), prefix.iter().cloned().chain(rest.iter().cloned()))
+        };
+        if let Ty::Meta(m) = &h1 {
+            if xs.len() <= ys.len() {
+                let k = ys.len() - xs.len();
+                let image = Ty::apply_spine(h2.clone(), ys[..k].to_vec());
+                if self.occurs(*m, &image) {
+                    return Err(format!(
+                        "cannot construct infinite type: {} in {}",
+                        m_display(*m),
+                        self.zonk(&image)
+                    ));
+                }
+                self.subst[m.0] = Some(image.clone());
+                let rebuilt = eta(&image, &[], &xs);
+                return self.unify(&rebuilt, b);
+            }
+        }
+        if let Ty::Meta(m) = &h2 {
+            if ys.len() <= xs.len() {
+                let k = xs.len() - ys.len();
+                let image = Ty::apply_spine(h1.clone(), xs[..k].to_vec());
+                if self.occurs(*m, &image) {
+                    return Err(format!(
+                        "cannot construct infinite type: {} in {}",
+                        m_display(*m),
+                        self.zonk(&image)
+                    ));
+                }
+                self.subst[m.0] = Some(image.clone());
+                let rebuilt = eta(&image, &[], &ys);
+                return self.unify(a, &rebuilt);
+            }
+        }
+        if xs.len() != ys.len() {
+            return Err(format!(
+                "type mismatch: expected {}, got {}",
+                self.zonk(a),
+                self.zonk(b)
+            ));
+        }
+        self.unify(&h1, &h2)?;
+        for (x, y) in xs.iter().zip(ys.iter()) {
+            self.unify(x, y)?;
+        }
+        Ok(())
+    }
+
     pub fn unify(&mut self, a: &Ty, b: &Ty) -> std::result::Result<(), String> {
         let a = self.shallow(a);
         let b = self.shallow(b);
@@ -2392,6 +2619,9 @@ impl Unifier {
                 ))
             }
             _ => {
+                if matches!(a, Ty::App(..)) || matches!(b, Ty::App(..)) {
+                    return self.unify_spines(&a, &b);
+                }
                 if self.conv_eq(&a, &b) {
                     Ok(())
                 } else {
@@ -2535,6 +2765,10 @@ pub fn ty_eq(a: &Ty, b: &Ty) -> bool {
         (Ty::Tuple(xs), Ty::Tuple(ys)) => {
             xs.len() == ys.len() && xs.iter().zip(ys).all(|(x, y)| ty_eq(x, y))
         }
+        (Ty::App(h1, xs), Ty::App(h2, ys)) => {
+            ty_eq(h1, h2) && xs.len() == ys.len() && xs.iter().zip(ys).all(|(x, y)| ty_eq(x, y))
+        }
+        (Ty::Former(f), Ty::Former(g)) => f == g,
         (
             Ty::Fun(..) | Ty::Pi { .. },
             Ty::Fun(..) | Ty::Pi { .. },

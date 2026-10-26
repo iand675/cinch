@@ -2548,7 +2548,20 @@ fn mk_body(b: &mut Builder, info: &InstInfo) {
     b.line(&format!("{p} = call ptr @malloc(i64 {bytes})"));
     b.store_at(&p, 0, &mc.to_string());
     for (i, (method, m_arity)) in info.methods.iter().enumerate() {
-        let w = if info.subdict_count == 0 {
+        let w = if *m_arity == info.subdict_count {
+            // A method with no value parameters stores its computed value
+            // in the dictionary (`mempty :: a` round trip): the call site
+            // projects the word directly instead of applying a closure.
+            let args: Vec<String> =
+                (0..info.subdict_count).map(|j| format!("i64 %p{j}")).collect();
+            let w = b.reg();
+            b.line(&format!(
+                "{w} = call i64 @{}({})",
+                quote(method),
+                args.join(", ")
+            ));
+            w
+        } else if info.subdict_count == 0 {
             let w = b.reg();
             b.line(&format!(
                 "{w} = ptrtoint ptr @{clo} to i64",

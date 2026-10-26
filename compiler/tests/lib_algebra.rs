@@ -1,6 +1,6 @@
 //! Algebra family tests: `Algebra.Semigroup` and `Algebra.Monoid`.
 //!
-//! The consumer-visible semantics of `<>` and `mempty ()` per
+//! The consumer-visible semantics of `<>` and `mempty` per
 //! instance, with the class laws asserted over sample values:
 //! associativity of `<>`, and left/right unit for every `Monoid`
 //! instance. The law checks are exhaustive over their sample sets (all
@@ -159,7 +159,7 @@ fn list_mempty_is_the_identity_for_append() {
         "list-units",
         r#"
   mtList :: List Nat
-  mtList = mempty ()
+  mtList = mempty
 
   leftUnit :: Nat -> Bool
   leftUnit n =
@@ -220,7 +220,7 @@ fn option_mempty_is_the_identity_for_first_some() {
         "option-units",
         r#"
   mtOpt :: Option Nat
-  mtOpt = mempty ()
+  mtOpt = mempty
 
   leftUnit :: Nat -> Bool
   leftUnit n =
@@ -282,7 +282,7 @@ fn ordering_mempty_is_the_identity_for_composition() {
         "ordering-units",
         r#"
   mtOrd :: Ordering
-  mtOrd = mempty ()
+  mtOrd = mempty
 
   leftUnit :: Nat -> Bool
   leftUnit n =
@@ -325,7 +325,7 @@ fn string_concatenation_is_associative_with_empty_string_identity() {
   s3 = nat-to-string 345
 
   mtStr :: String
-  mtStr = mempty ()
+  mtStr = mempty
 
   main :: Int
   main =
@@ -362,8 +362,8 @@ fn sum_newtype_adds_and_obeys_the_laws() {
     if n == 0 then True
     else
       let x = Sum (natByTag (n - 1)) in
-      if nat-cmp (fromSum (mempty () <> x)) (fromSum x) == 0 then
-        if nat-cmp (fromSum (x <> mempty ())) (fromSum x) == 0 then units (n - 1) else False
+      if nat-cmp (fromSum (mempty <> x)) (fromSum x) == 0 then
+        if nat-cmp (fromSum (x <> mempty)) (fromSum x) == 0 then units (n - 1) else False
       else False
 
   main :: Int
@@ -371,7 +371,7 @@ fn sum_newtype_adds_and_obeys_the_laws() {
     let c1 = assoc 27 in
     let c2 = units 3 in
     let c3 = nat-cmp (fromSum (Sum 2 <> Sum 3)) 5 == 0 in
-    let c4 = nat-cmp (fromSum (mempty ())) 0 == 0 in
+    let c4 = nat-cmp (fromSum (mempty)) 0 == 0 in
     if c1 then (if c2 then (if c3 then (if c4 then 0 else 4) else 3) else 2) else 1
 "#,
         0,
@@ -398,8 +398,8 @@ fn product_newtype_multiplies_and_obeys_the_laws() {
     if n == 0 then True
     else
       let x = Product (natByTag (n - 1)) in
-      if nat-cmp (fromProduct (mempty () <> x)) (fromProduct x) == 0 then
-        if nat-cmp (fromProduct (x <> mempty ())) (fromProduct x) == 0 then units (n - 1) else False
+      if nat-cmp (fromProduct (mempty <> x)) (fromProduct x) == 0 then
+        if nat-cmp (fromProduct (x <> mempty)) (fromProduct x) == 0 then units (n - 1) else False
       else False
 
   main :: Int
@@ -407,7 +407,7 @@ fn product_newtype_multiplies_and_obeys_the_laws() {
     let c1 = assoc 27 in
     let c2 = units 3 in
     let c3 = nat-cmp (fromProduct (Product 2 <> Product 3)) 6 == 0 in
-    let c4 = nat-cmp (fromProduct (mempty ())) 1 == 0 in
+    let c4 = nat-cmp (fromProduct (mempty)) 1 == 0 in
     if c1 then (if c2 then (if c3 then (if c4 then 0 else 4) else 3) else 2) else 1
 "#,
         0,
@@ -439,8 +439,8 @@ fn dual_newtype_reverses_composition_and_obeys_the_laws() {
     if n == 0 then True
     else
       let x = Dual (listByTag (n - 1)) in
-      if eqListNat (fromDual (mempty () <> x)) (fromDual x) then
-        if eqListNat (fromDual (x <> mempty ())) (fromDual x) then units (n - 1) else False
+      if eqListNat (fromDual (mempty <> x)) (fromDual x) then
+        if eqListNat (fromDual (x <> mempty)) (fromDual x) then units (n - 1) else False
       else False
 
   main :: Int
@@ -478,8 +478,8 @@ fn first_newtype_keeps_the_leftmost_some_and_obeys_the_laws() {
     if n == 0 then True
     else
       let x = First (optByTag (n - 1)) in
-      if eqOptNat (fromFirst (mempty () <> x)) (fromFirst x) then
-        if eqOptNat (fromFirst (x <> mempty ())) (fromFirst x) then units (n - 1) else False
+      if eqOptNat (fromFirst (mempty <> x)) (fromFirst x) then
+        if eqOptNat (fromFirst (x <> mempty)) (fromFirst x) then units (n - 1) else False
       else False
 
   main :: Int
@@ -488,7 +488,7 @@ fn first_newtype_keeps_the_leftmost_some_and_obeys_the_laws() {
     let c2 = units 3 in
     let c3 = eqOptNat (fromFirst (First (Some 1) <> First (Some 2))) (Some 1) in
     let c4 = eqOptNat (fromFirst (First None <> First (Some 2))) (Some 2) in
-    let c5 = eqOptNat (fromFirst (mempty ())) None in
+    let c5 = eqOptNat (fromFirst (mempty)) None in
     if c1 then (if c2 then (if c3 then (if c4 then (if c5 then 0 else 5) else 4) else 3) else 2) else 1
 "#,
         0,
@@ -515,8 +515,8 @@ fn last_newtype_keeps_the_rightmost_some_and_obeys_the_laws() {
     if n == 0 then True
     else
       let x = Last (optByTag (n - 1)) in
-      if eqOptNat (fromLast (mempty () <> x)) (fromLast x) then
-        if eqOptNat (fromLast (x <> mempty ())) (fromLast x) then units (n - 1) else False
+      if eqOptNat (fromLast (mempty <> x)) (fromLast x) then
+        if eqOptNat (fromLast (x <> mempty)) (fromLast x) then units (n - 1) else False
       else False
 
   main :: Int
@@ -525,7 +525,7 @@ fn last_newtype_keeps_the_rightmost_some_and_obeys_the_laws() {
     let c2 = units 3 in
     let c3 = eqOptNat (fromLast (Last (Some 1) <> Last (Some 2))) (Some 2) in
     let c4 = eqOptNat (fromLast (Last (Some 1) <> Last None)) (Some 1) in
-    let c5 = eqOptNat (fromLast (mempty ())) None in
+    let c5 = eqOptNat (fromLast (mempty)) None in
     if c1 then (if c2 then (if c3 then (if c4 then (if c5 then 0 else 5) else 4) else 3) else 2) else 1
 "#,
         0,
@@ -576,8 +576,8 @@ fn endo_newtype_composes_and_obeys_the_laws() {
     if n == 0 then True
     else
       let x = endoByTag (n - 1) in
-      if endoEq (mempty () <> x) x then
-        if endoEq (x <> mempty ()) x then units (n - 1) else False
+      if endoEq (mempty <> x) x then
+        if endoEq (x <> mempty) x then units (n - 1) else False
       else False
 
   main :: Int
@@ -585,7 +585,7 @@ fn endo_newtype_composes_and_obeys_the_laws() {
     let c1 = assoc 27 in
     let c2 = units 3 in
     let c3 = nat-cmp (applyEndo (Endo step <> Endo double) 5) 11 == 0 in
-    let c4 = nat-cmp (applyEndo (mempty ()) 7) 7 == 0 in
+    let c4 = nat-cmp (applyEndo (mempty) 7) 7 == 0 in
     if c1 then (if c2 then (if c3 then (if c4 then 0 else 4) else 3) else 2) else 1
 "#,
         0,
@@ -666,12 +666,12 @@ fn function_mempty_is_the_pointwise_identity() {
     if n == 0 then True
     else
       let x = fByTag (n - 1) in
-      if fEq (mempty () <> x) x then
-        if fEq (x <> mempty ()) x then units (n - 1) else False
+      if fEq (mempty <> x) x then
+        if fEq (x <> mempty) x then units (n - 1) else False
       else False
 
   fId :: Nat -> List Nat
-  fId = mempty ()
+  fId = mempty
 
   main :: Int
   main =
@@ -712,8 +712,8 @@ fn tuple_semigroup_and_monoid_are_componentwise_and_obeys_the_laws() {
     if n == 0 then True
     else
       let x = pByTag (n - 1) in
-      if pEq (mempty () <> x) x then
-        if pEq (x <> mempty ()) x then units (n - 1) else False
+      if pEq (mempty <> x) x then
+        if pEq (x <> mempty) x then units (n - 1) else False
       else False
 
   main :: Int
@@ -750,7 +750,7 @@ fn modules_load_as_a_multi_file_project() {
     let xs = Cons 1 (Cons 2 Nil) in
     let ys = Cons 3 Nil in
     let c1 = eqListNat ((xs <> ys) <> xs) (xs <> (ys <> xs)) in
-    let c2 = eqListNat (mempty () <> xs) xs in
+    let c2 = eqListNat (mempty <> xs) xs in
     let c3 = nat-cmp (fromSum (Sum 2 <> Sum 3)) 5 == 0 in
     let c4 = nat-cmp (applyEndo (Endo (\n -> n + 1) <> Endo (\n -> n * 2)) 5) 11 == 0 in
     if c1 then (if c2 then (if c3 then (if c4 then 0 else 4) else 3) else 2) else 1

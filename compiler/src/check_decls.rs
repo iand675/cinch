@@ -1505,7 +1505,7 @@ impl Checker {
                     continue;
                 }
                 match k {
-                    ParamKind::Type => type_params.push(p.clone()),
+                    ParamKind::Type | ParamKind::Con(_) => type_params.push(p.clone()),
                     ParamKind::Val(t) => idx_params.push(IxParam::Val(p.clone(), t.clone())),
                     ParamKind::Prop => idx_params.push(IxParam::Prop(p.clone())),
                 }
@@ -1877,14 +1877,17 @@ impl Checker {
         Ok(())
     }
 
-    /// Decompose a class application like `Add (List a)`.
+    /// Decompose a class application like `Add (List a)`, `Functor List`
+    /// or `Functor ((->) r)`: arguments check against the signature's
+    /// parameter kinds, so a class over type constructors takes a
+    /// partially applied type constructor.
     fn class_app_of(&self, ty: &ast::Type, vars: &[String]) -> Result<(String, Vec<Ty>)> {
         let mut args = Vec::new();
         let mut cur = ty;
-        loop {
+        let sig = loop {
             match cur {
                 ast::Type::App(f, a, _) => {
-                    args.push(self.conv_type(a, vars)?);
+                    args.push((**a).clone());
                     cur = f;
                 }
                 ast::Type::Con(p, span) => {
@@ -1901,7 +1904,7 @@ impl Checker {
                             ),
                         ));
                     }
-                    return Ok((sig.name, args));
+                    break sig;
                 }
                 other => {
                     return Err(Error::at(
@@ -1910,7 +1913,12 @@ impl Checker {
                     ));
                 }
             }
+        };
+        let mut tys = Vec::new();
+        for (i, a) in args.iter().enumerate() {
+            tys.push(self.conv_kind(a, vars, sig.param_kinds.get(i))?);
         }
+        Ok((sig.name, tys))
     }
 
     fn collect_module(
@@ -1939,7 +1947,18 @@ impl Checker {
         let mut stage_imports: Vec<String> = Vec::new();
         for d in &m.decls {
             if let ast::Decl::Import(i) = d {
-                let target = i.path.parts().last().copied().unwrap_or("").to_string();
+                // Imports key on the full dotted name (`import
+                // Category.Functor` resolves `module Category.Functor`);
+                // the qualifier defaults to the path's last segment
+                // (`Functor.bump`).
+                let target = i.path.parts().join(".");
+                let short = i
+                    .path
+                    .parts()
+                    .last()
+                    .copied()
+                    .unwrap_or("")
+                    .to_string();
                 if !i.args.is_empty() {
                     applied.push(target.clone());
                     views.push(ImportView {
@@ -1963,7 +1982,7 @@ impl Checker {
                         .alias
                         .as_ref()
                         .map(|a| a.text.clone())
-                        .unwrap_or_else(|| target.clone()),
+                        .unwrap_or_else(|| short.clone()),
                     alias_only: i.alias.is_some() && i.members.is_empty(),
                     members: if i.members.is_empty() {
                         None
@@ -2075,8 +2094,8 @@ impl Checker {
             match d {
                 ast::Decl::Import(i) => {
                     let parts = i.path.parts();
-                    let name = parts.last().copied().unwrap_or("");
-                    if name != prelude_name && !imports.iter().any(|x| x == name) {
+                    let name = parts.join(".");
+                    if name != prelude_name && !imports.iter().any(|x| x == &name) {
                         return Err(Error::at(
                             i.span,
                             format!(
@@ -2578,7 +2597,7 @@ impl Checker {
                                 };
                                 vars.push(b.name.text.clone());
                                 match k {
-                                    ParamKind::Type => {
+                                    ParamKind::Type | ParamKind::Con(_) => {
                                         return Err(Error::at(
                                             b.name.span,
                                             "constructor-local type parameters are not supported in this slice; move the parameter to the family",
@@ -2658,7 +2677,9 @@ impl Checker {
                                 res_args = args.clone();
                                 for (i, (a, k)) in args.iter().zip(&param_kinds).enumerate() {
                                     let expected = match k {
-                                        ParamKind::Type => Ty::Param(params[i].clone()),
+                                        ParamKind::Type | ParamKind::Con(_) => {
+                                            Ty::Param(params[i].clone())
+                                        }
                                         ParamKind::Val(_) => continue,
                                         ParamKind::Prop => {
                                             Ty::Prp(Box::new(PTerm::Var(params[i].clone())))
@@ -2706,7 +2727,7 @@ impl Checker {
                                 continue;
                             }
                             match k {
-                                ParamKind::Type => type_params.push(p.clone()),
+                                ParamKind::Type | ParamKind::Con(_) => type_params.push(p.clone()),
                                 ParamKind::Val(t) => {
                                     idx_params.push(IxParam::Val(p.clone(), t.clone()))
                                 }
@@ -2928,7 +2949,7 @@ impl Checker {
                         .iter()
                         .zip(&param_kinds)
                         .map(|(p, k)| match k {
-                            ParamKind::Type => Ty::Param(p.clone()),
+                            ParamKind::Type | ParamKind::Con(_) => Ty::Param(p.clone()),
                             ParamKind::Val(_) => Ty::Idx(Box::new(ITerm::Var(p.clone()))),
                             ParamKind::Prop => Ty::Prp(Box::new(PTerm::Var(p.clone()))),
                         })
@@ -2942,7 +2963,7 @@ impl Checker {
                             continue;
                         }
                         match k {
-                            ParamKind::Type => type_params.push(p.clone()),
+                            ParamKind::Type | ParamKind::Con(_) => type_params.push(p.clone()),
                             ParamKind::Val(t) => {
                                 idx_params.push(IxParam::Val(p.clone(), t.clone()))
                             }
@@ -3093,7 +3114,7 @@ impl Checker {
                         .iter()
                         .zip(&param_kinds)
                         .map(|(p, k)| match k {
-                            ParamKind::Type => Ty::Param(p.clone()),
+                            ParamKind::Type | ParamKind::Con(_) => Ty::Param(p.clone()),
                             ParamKind::Val(_) => Ty::Idx(Box::new(ITerm::Var(p.clone()))),
                             ParamKind::Prop => Ty::Prp(Box::new(PTerm::Var(p.clone()))),
                         })
@@ -3107,7 +3128,7 @@ impl Checker {
                             continue;
                         }
                         match k {
-                            ParamKind::Type => type_params.push(p.clone()),
+                            ParamKind::Type | ParamKind::Con(_) => type_params.push(p.clone()),
                             ParamKind::Val(t) => {
                                 idx_params.push(IxParam::Val(p.clone(), t.clone()))
                             }
@@ -3181,7 +3202,20 @@ impl Checker {
                     {
                         return Err(Error::at(sig.name.span, format!("duplicate signature {}", sig.name.text)));
                     }
-                    let params: Vec<String> = sig.params.iter().map(|p| p.text.clone()).collect();
+                    let params: Vec<String> =
+                        sig.params.iter().map(|p| p.name.text.clone()).collect();
+                    // Parameter kinds come from their annotations (`f ::
+                    // Type -> Type`) or are inferred from the method
+                    // types' uses (an un-annotated `signature Functor f`
+                    // infers the same kind as the annotated form).
+                    let mut hints: Vec<Option<ParamKind>> = Vec::new();
+                    for b in &sig.params {
+                        hints.push(match &b.ann {
+                            Some(ann) => Some(self.binder_kind(ann, &params)?),
+                            None => None,
+                        });
+                    }
+                    self.kind_constraints.borrow_mut().clear();
                     let mut methods: Vec<(String, Scheme)> = Vec::new();
                     for (idx, (mname, mty)) in sig.methods.iter().enumerate() {
                         // Method schemes quantify over the signature's
@@ -3211,12 +3245,6 @@ impl Checker {
                         let mut vars = params.clone();
                         vars.extend(extra.iter().cloned());
                         let ty = self.conv_type(rest, &vars)?;
-                        if ty.arity() == 0 {
-                            return Err(Error::at(
-                                mname.span,
-                                format!("class method {} must have a function type in the bootstrap slice", mname.text),
-                            ));
-                        }
                         let mut all_params = params.clone();
                         all_params.extend(extra);
                         let mut ctx = vec![(
@@ -3282,10 +3310,21 @@ impl Checker {
                                 .insert((sig.name.text.clone(), mname.text.clone()), info);
                         }
                     }
+                    let notes = self.kind_constraints.borrow().clone();
+                    let mut param_kinds: Vec<ParamKind> = Vec::new();
+                    for (b, hint) in sig.params.iter().zip(&hints) {
+                        param_kinds.push(self.resolve_binder_kind(
+                            &b.name.text,
+                            hint.as_ref(),
+                            &notes,
+                            b.name.span,
+                        )?);
+                    }
                     let info = SigInfo {
                         module: module.clone(),
                         name: sig.name.text.clone(),
-                        params,
+                        params: params.clone(),
+                        param_kinds: param_kinds.clone(),
                         methods,
                     };
                     // A class application is also the dictionary's type:
@@ -3296,7 +3335,7 @@ impl Checker {
                         module: module.clone(),
                         name: sig.name.text.clone(),
                         arity: info.params.len(),
-                        param_kinds: vec![ParamKind::Type; info.params.len()],
+                        param_kinds: info.param_kinds.clone(),
                         ctors: Vec::new(),
                         fields: None,
                         field_erased: Vec::new(), opaque: false,
@@ -3934,11 +3973,13 @@ impl Checker {
             // Method function parameters are the instance's subdicts followed
             // by any extra constraints of the method itself; the class
             // constraint is satisfied by this instance and takes no parameter.
+            // The instance's own context is already stated in the instance's
+            // parameters, so it enters unchanged: substituting the class
+            // parameters into it would capture a same-named instance
+            // parameter (`using (sa :: Semigroup a) => Semigroup (Dual a)`
+            // must keep `sa :: Semigroup a`, not `sa :: Semigroup (Dual a)`).
             let inst_ctx = self.instance_list[self_idx].ctx.clone();
-            let mut ctx: Vec<(String, ClassApp)> = inst_ctx
-                .iter()
-                .map(|(n, app)| (n.clone(), Self::subst_class(app, &map)))
-                .collect();
+            let mut ctx: Vec<(String, ClassApp)> = inst_ctx;
             for (n, c) in mscheme.ctx.iter().skip(1) {
                 ctx.push((n.clone(), Self::subst_class(c, &map)));
             }
@@ -5817,6 +5858,7 @@ impl Checker {
                 ParamKind::Type => 0u8,
                 ParamKind::Val(_) => 1,
                 ParamKind::Prop => 2,
+                ParamKind::Con(_) => 3,
             };
             let mut distinct_axis: Option<u8> = None;
             let mut first_val: Option<ParamKind> = None;
@@ -7609,12 +7651,12 @@ fn render_scheme(s: &Scheme) -> String {
     out
 }
 
-/// A module's declared import names.
+/// A module's declared import names, keyed by their full dotted names.
 fn imports_of(m: &ast::Module) -> Vec<String> {
     m.decls
         .iter()
         .filter_map(|d| match d {
-            ast::Decl::Import(i) => i.path.parts().last().map(|s| s.to_string()),
+            ast::Decl::Import(i) => Some(i.path.parts().join(".")),
             _ => None,
         })
         .collect()

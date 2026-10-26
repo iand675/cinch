@@ -1,7 +1,7 @@
 -- Acceptance fixture for the higher-kinded surface slice: the Category
 -- family exactly as design/base-library.md and the category slice
 -- specify it. Today the file fails at the first type-constructor
--- application (`f a` in fmap's type: "cannot apply non-type-constructor
+-- application (`f a` in map's type: "cannot apply non-type-constructor
 -- f", check.rs `type_app`); after the slice (var-headed type application
 -- with beta-reducing substitution, partially applied type constructors as
 -- class and instance arguments, the `(->)` type former, kind binders for
@@ -16,7 +16,7 @@
 module Category.Functor where
 
   signature Functor (f :: Type -> Type) where
-    fmap :: forall a b. (a -> b) -> f a -> f b
+    map :: forall a b. (a -> b) -> f a -> f b
     (<$>) :: forall a b. (a -> b) -> f a -> f b
 
   infixl 4 <$>
@@ -24,8 +24,8 @@ module Category.Functor where
   -- Structural instances over functions live with the class module (the
   -- module scheme's ownership rule).
   implicit instance Functor_Function r :: Functor ((->) r) where
-    fmap f g = \x -> f (g x)
-    (<$>) f g = \x -> f (g x)
+    map f g x = f (g x)
+    (<$>) f g x = f (g x)
 
 module Category.Applicative where
 
@@ -37,23 +37,21 @@ module Category.Applicative where
   infixl 4 <*>
 
   implicit instance Applicative_Function r :: Applicative ((->) r) where
-    pure x = \_ -> x
-    (<*>) ff fx = \r -> (ff r) (fx r)
-    lift-a2 f fx fy = \r -> f (fx r) (fy r)
+    pure x _ = x
+    (<*>) ff fx r = (ff r) (fx r)
+    lift-a2 f fx fy r = f (fx r) (fy r)
 
 module Category.Monad where
 
   signature Monad (f :: Type -> Type) where
     (>>=) :: forall a b. f a -> (a -> f b) -> f b
     join :: forall a. f (f a) -> f a
-    return :: forall a. a -> f a
 
   infixl 1 >>=
 
   implicit instance Monad_Function r :: Monad ((->) r) where
-    (>>=) fx k = \r -> (k (fx r)) r
-    join ffx = \r -> (ffx r) r
-    return x = \_ -> x
+    (>>=) fx k r = (k (fx r)) r
+    join ffx r = (ffx r) r
 
 module Category.Alternative where
 
@@ -84,38 +82,38 @@ module Category.TypeInstances where
   import Category.Alternative
 
   implicit instance Functor_List :: Functor List where
-    fmap f xs = case xs of
+    map f xs = case xs of
       Nil -> Nil
-      Cons y ys -> Cons (f y) (fmap f ys)
-    (<$>) f xs = fmap f xs
+      Cons y ys -> Cons (f y) (map f ys)
+    (<$>) f xs = map f xs
 
   implicit instance Functor_Option :: Functor Option where
-    fmap f o = case o of
+    map f o = case o of
       None -> None
       Some x -> Some (f x)
-    (<$>) f o = fmap f o
+    (<$>) f o = map f o
 
   implicit instance Functor_Result e :: Functor (Result e) where
-    fmap f r = case r of
+    map f r = case r of
       Err e -> Err e
       Ok x -> Ok (f x)
-    (<$>) f r = fmap f r
+    (<$>) f r = map f r
 
   implicit instance Applicative_List :: Applicative List where
     pure x = Cons x Nil
     (<*>) fs xs = case fs of
       Nil -> Nil
       Cons g gs -> append-list (map-list g xs) ((<*>) gs xs)
-    lift-a2 f xs ys = (<*>) (fmap f xs) ys
+    lift-a2 f xs ys = (<*>) (map f xs) ys
 
   implicit instance Applicative_Option :: Applicative Option where
     pure x = Some x
-    (<*>) of ox = case of of
+    (<*>) g ox = case g of
       None -> None
       Some f -> case ox of
         None -> None
         Some x -> Some (f x)
-    lift-a2 f ox oy = (<*>) (fmap f ox) oy
+    lift-a2 f ox oy = (<*>) (map f ox) oy
 
   implicit instance Applicative_Result e :: Applicative (Result e) where
     pure x = Ok x
@@ -124,7 +122,7 @@ module Category.TypeInstances where
       Ok f -> case rx of
         Err e -> Err e
         Ok x -> Ok (f x)
-    lift-a2 f rx ry = (<*>) (fmap f rx) ry
+    lift-a2 f rx ry = (<*>) (map f rx) ry
 
   implicit instance Monad_List :: Monad List where
     (>>=) xs k = case xs of
@@ -133,7 +131,6 @@ module Category.TypeInstances where
     join xss = case xss of
       Nil -> Nil
       Cons ys yss -> append-list ys (join yss)
-    return x = Cons x Nil
 
   implicit instance Monad_Option :: Monad Option where
     (>>=) o k = case o of
@@ -142,7 +139,6 @@ module Category.TypeInstances where
     join oo = case oo of
       None -> None
       Some o -> o
-    return x = Some x
 
   implicit instance Monad_Result e :: Monad (Result e) where
     (>>=) r k = case r of
@@ -151,7 +147,6 @@ module Category.TypeInstances where
     join rr = case rr of
       Err e -> Err e
       Ok r -> r
-    return x = Ok x
 
   implicit instance Alternative_Option :: Alternative Option where
     empty = None
@@ -185,19 +180,19 @@ module Category.FamilyLaws where
   import Category.Monad
 
   functor-identity :: forall f a. using (fun :: Functor f, eq :: Eq (f a)) => f a -> Bool
-  functor-identity v = fmap (\x -> x) v == v
+  functor-identity v = map (\x -> x) v == v
 
   functor-composition :: forall f a b c. using (fun :: Functor f, eq :: Eq (f c)) => (b -> c) -> (a -> b) -> f a -> Bool
-  functor-composition g f v = fmap g (fmap f v) == fmap (\x -> g (f x)) v
+  functor-composition g f v = map g (map f v) == map (\x -> g (f x)) v
 
   applicative-homomorphism :: forall f a b. using (app :: Applicative f, eq :: Eq (f b)) => (a -> b) -> a -> Bool
   applicative-homomorphism f x = pure (f x) == (<*>) (pure f) (pure x)
 
-  monad-left-identity :: forall f a b. using (mon :: Monad f, eq :: Eq (f b)) => a -> (a -> f b) -> Bool
-  monad-left-identity x k = (>>=) (return x) k == k x
+  monad-left-identity :: forall f a b. using (mon :: Monad f, app :: Applicative f, eq :: Eq (f b)) => a -> (a -> f b) -> Bool
+  monad-left-identity x k = (>>=) (pure x) k == k x
 
-  monad-right-identity :: forall f a. using (mon :: Monad f, eq :: Eq (f a)) => f a -> Bool
-  monad-right-identity v = (>>=) v return == v
+  monad-right-identity :: forall f a. using (mon :: Monad f, app :: Applicative f, eq :: Eq (f a)) => f a -> Bool
+  monad-right-identity v = (>>=) v pure == v
 
   monad-associativity :: forall f a b c. using (mon :: Monad f, eq :: Eq (f c)) => f a -> (a -> f b) -> (b -> f c) -> Bool
   monad-associativity v f g = (>>=) ((>>=) v f) g == (>>=) v (\x -> (>>=) (f x) g)

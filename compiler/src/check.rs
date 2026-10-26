@@ -835,15 +835,44 @@ fn app_spine(head: ECore, args: Vec<ECore>) -> ECore {
     }
 }
 
+/// The type former a parenthesized operator spelling names: `(->)` is
+/// the pure total arrow family, `(,)`/`(,,)`/... the structural tuple
+/// formers (one comma per component minus one).
+fn former_of(name: &str) -> Option<crate::types::Former> {
+    if name == "->" {
+        return Some(crate::types::Former::Arrow);
+    }
+    let inner = name.strip_prefix('(')?.strip_suffix(')')?;
+    if !inner.is_empty() && inner.bytes().all(|b| b == b',') {
+        return Some(crate::types::Former::Tuple(inner.len() + 1));
+    }
+    None
+}
+
 // ---------------------------------------------------------------- info tables
 
 /// A declared parameter's kind: a type parameter, an index value with its
-/// type (`n :: Nat`), or a proposition parameter (`p :: Prop`).
+/// type (`n :: Nat`), a proposition parameter (`p :: Prop`), or a type
+/// constructor parameter of kind `Type -> ... -> Type` (`f :: Type -> Type`).
 #[derive(Clone, Debug, PartialEq)]
 pub enum ParamKind {
     Type,
     Val(Ty),
     Prop,
+    /// `Type -> ... -> Type` with `n >= 1` arrows: a higher-kinded type
+    /// constructor parameter (modules and compilation specification
+    /// section 1).
+    Con(usize),
+}
+
+impl ParamKind {
+    /// How many `Type` arguments this kind still takes.
+    fn arity(&self) -> usize {
+        match self {
+            ParamKind::Con(n) => *n,
+            _ => 0,
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -933,6 +962,9 @@ struct SigInfo {
     module: String,
     name: String,
     params: Vec<String>,
+    /// Each parameter's kind, in declaration order: a class over type
+    /// constructors takes partially applied arguments (`Functor List`).
+    param_kinds: Vec<ParamKind>,
     /// Method name, method scheme; the class constraint is `ctx[0]`.
     methods: Vec<(String, Scheme)>,
 }
@@ -2752,6 +2784,12 @@ impl Checker {
             Ty::Param(p) => scope.iter().any(|(_, c)| {
                 c.class == "Copy" && c.args.iter().any(|a| matches!(a, Ty::Param(q) if q == p))
             }),
+            // A higher-kinded application is duplicable only under an
+            // explicit `Copy` constraint on the applied type itself; a
+            // bare type former is never a value's type.
+            Ty::App(..) | Ty::Former(_) => scope
+                .iter()
+                .any(|(_, c)| c.class == "Copy" && c.args.iter().any(|a| a == ty)),
             Ty::Tuple(items) => items
                 .iter()
                 .all(|i| self.copy_structural(i, scope, seen)),
@@ -3450,7 +3488,8 @@ impl Checker {
                     return Ok(SigInfo {
                         module: "<builtin>".into(),
                         name: name.into(),
-                        params,
+                        params: params.clone(),
+                        param_kinds: vec![ParamKind::Type; params.len()],
                         methods: Vec::new(),
                     });
                 }
@@ -3618,11 +3657,13 @@ impl Checker {
                 ),
             ));
         }
-        let args = c
-            .args
-            .iter()
-            .map(|a| self.conv_type(a, vars))
-            .collect::<Result<Vec<_>>>()?;
+        // Class arguments check against the parameter kinds: `Functor
+        // List` and `Functor ((->) r)` take a partially applied type
+        // constructor, `Eq a` a fully applied one.
+        let mut args = Vec::new();
+        for (i, a) in c.args.iter().enumerate() {
+            args.push(self.conv_kind(a, vars, sig.param_kinds.get(i))?);
+        }
         let mut app = ClassApp { class: sig.name.clone(), args };
         if is_capability_class(&app.class) {
             // A capability's argument is a runtime identity (decision D21).
@@ -3642,9 +3683,105 @@ impl Checker {
     }
 
     fn conv_type(&self, ty: &ast::Type, vars: &[String]) -> Result<Ty> {
-        let t = self.conv_raw(ty, vars)?;
-        self.check_applied(&t, ty.span())?;
+        self.conv_kind(ty, vars, Some(&ParamKind::Type))
+    }
+
+    /// Convert a type against its expected kind. `expect: None` suppresses
+    /// kind notes: an argument slot whose kind is not yet known (an
+    /// unannotated parameter of the type being declared) carries no
+    /// information about the argument's kind.
+    fn conv_kind(
+        &self,
+        ty: &ast::Type,
+        vars: &[String],
+        expect: Option<&ParamKind>,
+    ) -> Result<Ty> {
+        let t = self.conv_raw(ty, vars, expect)?;
+        self.check_kind(&t, expect, ty.span())?;
         Ok(t)
+    }
+
+    /// The kind of a converted type as far as it is known: a named
+    /// constructor's missing argument count (`Result e` is `Type ->
+    /// Type`), a partially applied type former's, or `Type`. A
+    /// parameter's kind is being inferred here, so it matches its
+    /// expected kind by construction.
+    fn check_kind(&self, t: &Ty, expect: Option<&ParamKind>, span: ast::Span) -> Result<()> {
+        let Some(expect) = expect else { return Ok(()) };
+        let kind = match t {
+            Ty::Adt(name, args) => {
+                let info = self.lookup_type(&[name])?;
+                if args.len() > info.arity {
+                    return Err(Error::at(
+                        span,
+                        format!("type {name} expects at most {} arguments, got {}", info.arity, args.len()),
+                    ));
+                }
+                let missing = info.arity - args.len();
+                if missing == 0 {
+                    ParamKind::Type
+                } else {
+                    ParamKind::Con(missing)
+                }
+            }
+            Ty::App(h, args) => {
+                let head_arity = match &**h {
+                    Ty::Former(f) => f.arity(),
+                    _ => return Ok(()),
+                };
+                if args.len() >= head_arity {
+                    return Ok(());
+                }
+                ParamKind::Con(head_arity - args.len())
+            }
+            Ty::Former(f) => ParamKind::Con(f.arity()),
+            Ty::Param(_) | Ty::Meta(_) => return Ok(()),
+            _ => ParamKind::Type,
+        };
+        if kind == *expect {
+            return Ok(());
+        }
+        match (&kind, expect) {
+            (ParamKind::Con(_), ParamKind::Type) => {
+                if let Ty::Adt(name, _) = t {
+                    return Err(Error::at(
+                        span,
+                        format!(
+                            "type {name} must be fully applied (expects {} arguments)",
+                            self.lookup_type(&[name])?.arity
+                        ),
+                    ));
+                }
+                Err(Error::at(
+                    span,
+                    format!("{t} is a type constructor (`Type -> Type`), but a fully applied type is expected here"),
+                ))
+            }
+            (ParamKind::Type, ParamKind::Con(n)) => Err(Error::at(
+                span,
+                format!(
+                    "{t} is a fully applied type, but a type constructor of kind `Type -> {rest}Type` is expected here",
+                    rest = "Type -> ".repeat(n.saturating_sub(1))
+                ),
+            )),
+            _ => Err(Error::at(
+                span,
+                format!("type {t} does not have the kind expected here"),
+            )),
+        }
+    }
+
+    /// Apply one type-level argument with beta-reduction (named
+    /// constructors collect into their spine, a saturated type former
+    /// collapses to its image, and a type parameter becomes a
+    /// higher-kinded application).
+    fn type_app(&self, f: Ty, a: Ty, span: ast::Span) -> Result<Ty> {
+        match &f {
+            Ty::Adt(..) | Ty::Param(..) | Ty::App(..) | Ty::Former(..) | Ty::Meta(..) => {
+                Ok(Ty::apply1(f, a))
+            }
+            other => Err(Error::at(span, format!("cannot apply non-type-constructor {other}"))),
+        }
     }
 
     /// The usage-multiplicity rule keeping `Later` from unrestricted-thunk
@@ -3842,29 +3979,6 @@ impl Checker {
         }
     }
 
-    fn check_applied(&self, t: &Ty, span: ast::Span) -> Result<()> {
-        if let Ty::Adt(name, args) = t {
-            let info = self.lookup_type(&[name])?;
-            if args.len() != info.arity {
-                return Err(Error::at(
-                    span,
-                    format!("type {name} must be fully applied (expects {} arguments)", info.arity),
-                ));
-            }
-        }
-        Ok(())
-    }
-
-    fn type_app(&self, f: Ty, a: Ty, span: ast::Span) -> Result<Ty> {
-        match f {
-            Ty::Adt(name, mut args) => {
-                args.push(a);
-                Ok(Ty::Adt(name, args))
-            }
-            other => Err(Error::at(span, format!("cannot apply non-type-constructor {other}"))),
-        }
-    }
-
     /// Convert an effect row. Label arguments are region names; the tail is
     /// a rigid row variable from the enclosing `forall`.
     fn conv_row(&self, e: &ast::EffectRow, vars: &[String]) -> Result<EffRow> {
@@ -3927,7 +4041,12 @@ impl Checker {
 
     /// Convert a possibly applied type. `Thunk {e} a` and `Lazy {e} r a`
     /// are builtin type constructors taking an effect-row argument first.
-    fn conv_spine(&self, ty: &ast::Type, vars: &[String]) -> Result<Ty> {
+    fn conv_spine(
+        &self,
+        ty: &ast::Type,
+        vars: &[String],
+        expect: Option<&ParamKind>,
+    ) -> Result<Ty> {
         enum Arg {
             Ty(ast::Type),
             Row(ast::EffectRow),
@@ -3971,6 +4090,38 @@ impl Checker {
                 ));
             }
             _ => {}
+        }
+        // Type formers (`(->)`, `(,)`/`(,,)`/...): prefix application of
+        // the pure total arrow family or a structural tuple former
+        // (partially applied, they are class arguments like `Functor
+        // ((->) r)`).
+        let former = match cur {
+            ast::Type::Con(p, _) if p.parts().len() == 1 => former_of(p.parts()[0]),
+            _ => None,
+        };
+        if let Some(former) = former {
+            if args.len() > former.arity() {
+                return Err(Error::at(
+                    head_span,
+                    format!("the type former takes at most {} arguments", former.arity()),
+                ));
+            }
+            let mut result = Ty::Former(former);
+            for a in args {
+                match a {
+                    Arg::Ty(t) => {
+                        let arg = self.conv_type(&t, vars)?;
+                        result = self.type_app(result, arg, head_span)?;
+                    }
+                    Arg::Row(r) => {
+                        return Err(Error::at(
+                            r.span,
+                            "effect rows may only appear as arguments to Thunk and Lazy",
+                        ));
+                    }
+                }
+            }
+            return Ok(result);
         }
         if let ast::Type::Con(p, _) = cur {
             let parts = p.parts();
@@ -4176,9 +4327,56 @@ impl Checker {
                 _ => {}
             }
         }
+        // Var-headed application (`f a`, and `F a` for a capitalized
+        // signature parameter): a higher-kinded application spine
+        // (modules and compilation specification section 1). The head's
+        // kind is inferred from the application count and the expected
+        // result kind.
+        let var_head = match cur {
+            ast::Type::Var(n, _) if vars.contains(&n.text) => Some(n.text.clone()),
+            ast::Type::Con(p, _)
+                if p.parts().len() == 1 && vars.iter().any(|v| v == p.parts()[0]) =>
+            {
+                Some(p.parts()[0].to_string())
+            }
+            _ => None,
+        };
+        if let Some(name) = var_head {
+            self.note_kind(
+                &name,
+                ParamKind::Con(args.len() + expect.map(|k| k.arity()).unwrap_or(0)),
+            );
+            let mut result = Ty::Param(name);
+            for a in args {
+                match a {
+                    Arg::Ty(t) => {
+                        let arg = self.conv_type(&t, vars)?;
+                        if let Ty::Sort(Sort::Type(n)) = &arg {
+                            return Err(Error::at(
+                                t.span(),
+                                format!(
+                                    "the universe `Type {n}` has kind `Type {}`: `Type : Type` is not admitted",
+                                    n + 1
+                                ),
+                            ));
+                        }
+                        result = self.type_app(result, arg, head_span)?;
+                    }
+                    Arg::Row(r) => {
+                        return Err(Error::at(
+                            r.span,
+                            "effect rows may only appear as arguments to Thunk and Lazy",
+                        ));
+                    }
+                }
+            }
+            return Ok(result);
+        }
         // Generic application: arguments convert by the head's parameter
         // kinds, so `Vec n a` reads `n` as an index value and `a` as a
-        // type (dependent core kernel design, section 5).
+        // type (dependent core kernel design, section 5). A type slot
+        // carries no kind information for an un-annotated binder, so its
+        // bare variables are not noted.
         let info = match cur {
             ast::Type::Con(p, span) => {
                 Some(self.lookup_type(&p.parts()).map_err(|_| {
@@ -4187,16 +4385,20 @@ impl Checker {
             }
             _ => None,
         };
-        let mut result = self.conv_raw(cur, vars)?;
+        let mut result = self.conv_raw(cur, vars, None)?;
         for (i, a) in args.into_iter().enumerate() {
             match a {
                 Arg::Ty(t) => {
-                    let arg = match info.as_ref().and_then(|ik| ik.param_kinds.get(i).cloned()) {
+                    let slot = info.as_ref().and_then(|ik| ik.param_kinds.get(i).cloned());
+                    let arg = match &slot {
                         Some(ParamKind::Val(vty)) => {
-                            Ty::Idx(Box::new(self.conv_idx(&t, vars, &vty)?))
+                            Ty::Idx(Box::new(self.conv_idx(&t, vars, vty)?))
                         }
                         Some(ParamKind::Prop) => Ty::Prp(Box::new(self.conv_prop(&t, vars)?)),
-                        _ => self.conv_type(&t, vars)?,
+                        Some(k @ ParamKind::Con(_)) => {
+                            self.conv_kind(&t, vars, Some(k))?
+                        }
+                        _ => self.conv_kind(&t, vars, None)?,
                     };
                     // A universe argument claims `Type : Type`: `Type n`
                     // has kind `Type (n + 1)` (core specification
@@ -4223,7 +4425,12 @@ impl Checker {
         Ok(result)
     }
 
-    fn conv_raw(&self, ty: &ast::Type, vars: &[String]) -> Result<Ty> {
+    fn conv_raw(
+        &self,
+        ty: &ast::Type,
+        vars: &[String],
+        expect: Option<&ParamKind>,
+    ) -> Result<Ty> {
         match ty {
             ast::Type::Con(p, span) => {
                 let parts = p.parts();
@@ -4249,6 +4456,16 @@ impl Checker {
                         "RawPtr, Borrowed, Retained, Owned, Out and MaybeNull must be fully applied (`RawPtr t`, `Owned Alloc t`, ...; foreign function interface specification section 3)",
                     )),
                     [name] => {
+                        // A capitalized parameter name (`signature
+                        // Functor F`): a type variable in a constructor's
+                        // spelling (kind binders for signature
+                        // parameters).
+                        if vars.contains(&name.to_string()) {
+                            if let Some(k) = expect {
+                                self.note_kind(name, k.clone());
+                            }
+                            return Ok(Ty::Param(name.to_string()));
+                        }
                         if let Some(s) = Scalar::parse(name) {
                             return Ok(Ty::Prim(s));
                         }
@@ -4274,13 +4491,17 @@ impl Checker {
             }
             ast::Type::Var(n, _) => {
                 if vars.contains(&n.text) {
-                    self.note_kind(&n.text, ParamKind::Type);
+                    if let Some(k) = expect {
+                        self.note_kind(&n.text, k.clone());
+                    }
                     Ok(Ty::Param(n.text.clone()))
                 } else {
                     Err(Error::at(n.span, format!("unknown type variable {}", n.text)))
                 }
             }
-            ast::Type::App(_, _, _) | ast::Type::AppRow(_, _, _) => self.conv_spine(ty, vars),
+            ast::Type::App(_, _, _) | ast::Type::AppRow(_, _, _) => {
+                self.conv_spine(ty, vars, expect)
+            }
             ast::Type::Fun { arg, mult, eff, res, span } => {
                 let arg_ty = self.conv_type(arg, vars)?;
                 let m = match mult {
@@ -4380,8 +4601,9 @@ impl Checker {
     }
 
     /// What a binder's annotation binds: a universe binds a type
-    /// parameter, `Prop` binds a proposition, and any other annotation is
-    /// the type of an index value (`(n :: Nat)`).
+    /// parameter, `Prop` binds a proposition, `Type -> ... -> Type` binds
+    /// a type constructor parameter of that arity, and any other
+    /// annotation is the type of an index value (`(n :: Nat)`).
     fn binder_kind(&self, ann: &ast::Type, vars: &[String]) -> Result<ParamKind> {
         if let ast::Type::Con(p, _) = ann {
             match p.parts().as_slice() {
@@ -4390,7 +4612,154 @@ impl Checker {
                 _ => {}
             }
         }
+        // `Type -> ... -> Type`: a type constructor kind of `n` arrows.
+        // Only `Type` domains and a `Type` codomain are kinds in this
+        // slice; anything else keeps its index-value reading.
+        let mut n = 0;
+        let mut cur = ann;
+        loop {
+            match cur {
+                ast::Type::Fun { arg, mult, eff, res, .. } if mult.is_none() && eff.is_none() => {
+                    let is_type = |t: &ast::Type| {
+                        matches!(t, ast::Type::Con(p, _) if p.parts().as_slice() == ["Type"])
+                    };
+                    if !is_type(arg) {
+                        break;
+                    }
+                    n += 1;
+                    cur = res;
+                }
+                _ => break,
+            }
+        }
+        if n > 0 {
+            if matches!(cur, ast::Type::Con(p, _) if p.parts().as_slice() == ["Type"]) {
+                return Ok(ParamKind::Con(n));
+            }
+            // An arrow chain ending anywhere else keeps its index-value
+            // reading (`(h :: Int -> Int)` is a value binder).
+        }
         Ok(ParamKind::Val(self.conv_type(ann, vars)?))
+    }
+
+    /// Resolve one binder's kind from its annotation and its recorded
+    /// uses (kind inference for un-annotated binders, and the annotation
+    /// versus inference equality check). `notes` are the conversion's
+    /// kind constraints, keyed by binder name.
+    fn resolve_binder_kind(
+        &self,
+        name: &str,
+        hint: Option<&ParamKind>,
+        notes: &[(String, ParamKind)],
+        span: ast::Span,
+    ) -> Result<ParamKind> {
+        let uses: Vec<ParamKind> = notes
+            .iter()
+            .filter(|(n, _)| n == name)
+            .map(|(_, k)| k.clone())
+            .collect();
+        // A type constructor use is forced by an application site: every
+        // such use must agree on the arity, and it cannot mix with a
+        // plain-type or index use without an annotation.
+        let cons: Vec<usize> = uses
+            .iter()
+            .filter_map(|k| match k {
+                ParamKind::Con(n) => Some(*n),
+                _ => None,
+            })
+            .collect();
+        if let Some(hint) = hint {
+            if let ParamKind::Con(n) = hint {
+                if let Some(m) = cons.iter().find(|m| **m != *n) {
+                    return Err(Error::at(
+                        span,
+                        format!(
+                            "`{name}` is annotated with kind `Type -> {rest}Type` ({n} arrows) but used applied to {m} arguments",
+                            rest = "Type -> ".repeat(n.saturating_sub(1))
+                        ),
+                    ));
+                }
+                if uses.iter().any(|k| matches!(k, ParamKind::Type | ParamKind::Val(_) | ParamKind::Prop))
+                {
+                    return Err(Error::at(
+                        span,
+                        format!(
+                            "`{name}` is annotated as a type constructor but also used as a plain type or value; annotate its uses consistently"
+                        ),
+                    ));
+                }
+                return Ok(hint.clone());
+            }
+            // The classification axis must be consistent: a binder used
+            // both as a type and as an index value needs an annotation.
+            let axis = |k: &ParamKind| match k {
+                ParamKind::Type => 0u8,
+                ParamKind::Val(_) => 1,
+                ParamKind::Prop => 2,
+                ParamKind::Con(_) => 3,
+            };
+            if let Some(k) = uses.iter().find(|k| axis(k) != axis(hint)) {
+                let _ = k;
+                return Err(Error::at(
+                    span,
+                    format!("`{name}` is used both as a type and as an index value; annotate it"),
+                ));
+            }
+            return Ok(hint.clone());
+        }
+        if !cons.is_empty() {
+            if uses.iter().any(|k| !matches!(k, ParamKind::Con(_))) {
+                return Err(Error::at(
+                    span,
+                    format!(
+                        "`{name}` is used both as a type constructor and as a plain type or value; annotate it"
+                    ),
+                ));
+            }
+            if cons.iter().any(|n| *n != cons[0]) {
+                return Err(Error::at(
+                    span,
+                    format!(
+                        "`{name}` is applied to different numbers of arguments; annotate its kind"
+                    ),
+                ));
+            }
+            return Ok(ParamKind::Con(cons[0]));
+        }
+        // The classification axis must be consistent: a binder used both
+        // as a type and as an index value needs an annotation. Several
+        // value uses only fix the axis, not the index type (the
+        // annotation, or the first value use, supplies the type).
+        let axis = |k: &ParamKind| match k {
+            ParamKind::Type => 0u8,
+            ParamKind::Val(_) => 1,
+            ParamKind::Prop => 2,
+            ParamKind::Con(_) => 3,
+        };
+        let mut distinct_axis: Option<u8> = None;
+        let mut ambiguous = false;
+        let mut first_val: Option<ParamKind> = None;
+        for k in &uses {
+            match distinct_axis {
+                None => distinct_axis = Some(axis(k)),
+                Some(prev) if prev != axis(k) => ambiguous = true,
+                _ => {}
+            }
+            if first_val.is_none() && matches!(k, ParamKind::Val(_)) {
+                first_val = Some(k.clone());
+            }
+        }
+        Ok(match distinct_axis {
+            // A mixed-use binder without an annotation keeps its
+            // historic reading: a type parameter (the index unification
+            // absorbs the difference).
+            _ if ambiguous => ParamKind::Type,
+            Some(1) => first_val.unwrap_or(ParamKind::Type),
+            Some(2) => ParamKind::Prop,
+            // An unused binder keeps its historic reading: a type
+            // parameter.
+            _ => ParamKind::Type,
+        })
     }
 
     fn conv_scheme(&self, ty: &ast::Type) -> Result<Scheme> {
@@ -4457,57 +4826,10 @@ impl Checker {
                         if row_params.contains(&name) || region_params.contains(&name) {
                             continue;
                         }
-                        let uses: Vec<ParamKind> = constraints
-                            .iter()
-                            .filter(|(n, _)| *n == name)
-                            .map(|(_, k)| k.clone())
-                            .collect();
-                        // The classification axis must be consistent: a
-                        // binder used both as a type and as an index value
-                        // needs an annotation. Several value uses only fix
-                        // the axis, not the index type (the annotation, or
-                        // the first value use, supplies the type).
-                        let axis = |k: &ParamKind| match k {
-                            ParamKind::Type => 0u8,
-                            ParamKind::Val(_) => 1,
-                            ParamKind::Prop => 2,
-                        };
-                        let mut distinct_axis: Option<u8> = None;
-                        let mut ambiguous = false;
-                        let mut first_val: Option<ParamKind> = None;
-                        for k in &uses {
-                            match distinct_axis {
-                                None => distinct_axis = Some(axis(k)),
-                                Some(prev) if prev != axis(k) => ambiguous = true,
-                                _ => {}
-                            }
-                            if first_val.is_none() && matches!(k, ParamKind::Val(_)) {
-                                first_val = Some(k.clone());
-                            }
-                        }
-                        let kind = match (&hint, distinct_axis) {
-                            (Some(h), Some(a)) if axis(h) != a => {
-                                return Err(Error::at(
-                                    span,
-                                    format!(
-                                        "`{name}` is used both as a type and as an index value; annotate it"
-                                    ),
-                                ))
-                            }
-                            (Some(h), _) => h.clone(),
-                            // A mixed-use binder without an annotation
-                            // keeps its historic reading: a type
-                            // parameter (the index unification absorbs
-                            // the difference).
-                            (None, _) if ambiguous => ParamKind::Type,
-                            (None, Some(1)) => first_val.unwrap_or(ParamKind::Type),
-                            (None, Some(2)) => ParamKind::Prop,
-                            // An unused binder keeps its historic reading:
-                            // a type parameter.
-                            (None, _) => ParamKind::Type,
-                        };
+                        let kind =
+                            self.resolve_binder_kind(&name, hint.as_ref(), &constraints, span)?;
                         match kind {
-                            ParamKind::Type => type_params.push(name),
+                            ParamKind::Type | ParamKind::Con(_) => type_params.push(name),
                             ParamKind::Val(vty) => val_params.push((name, vty)),
                             ParamKind::Prop => prop_params.push(name),
                         }
@@ -4621,6 +4943,19 @@ impl Checker {
                 eff: subst_row(eff, rows, regions),
                 resumption: *resumption,
             },
+            // Var-headed application substitutes with beta-reduction: a
+            // head replaced by a constructor application collects the
+            // arguments into it (`f a` with `f := Result e` is `Result e
+            // a`), and a head replaced by a type former saturates to its
+            // image (`f a` with `f := (->) r` is `r -> a`).
+            Ty::App(h, args) => {
+                let h = Checker::subst_full(h, types, rows, regions);
+                let args: Vec<Ty> = args
+                    .iter()
+                    .map(|a| Checker::subst_full(a, types, rows, regions))
+                    .collect();
+                Ty::apply_spine(h, args)
+            }
             other => other.clone(),
         }
     }
