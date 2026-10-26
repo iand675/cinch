@@ -230,6 +230,40 @@ rule mapping (six rules inherent to the language, the rest asserted).
 | `bounded(n)` depth bounds via structural proofs first, conservative call-graph bounds otherwise, report saying which (D113) | spec'd |
 | The `jpl` profile enforcing the whole set at rule numbers, never looser per-definition (D114); Result must-use default | spec'd |
 
+### Interned symbols (P24)
+
+Specified in `specifications/primitive-types-specification.md`
+section 9 and `specifications/surface-grammar-local-amendments.md`
+section 12, 2026-10-26, at the user's direction: interned symbols as a
+core type with tick literal syntax (the Template Haskell name-quote
+correspondence: one lexeme in expression/pattern, staging `Name`, and
+`''T` type-name contexts).
+
+| Requirement | Status |
+| --- | --- |
+| `Sym`: word-handle interned cell; `intern`/`sym-name`; `Eq` = identity $O(1)$, `Ord` by name (deterministic); no machine-scalar confusion (D122) | spec'd |
+| Tick syntax: `'foo` symbol literals (constants via compile-time interning and the P14 constant emission), `'a'` char precedence rule, `'foo`/`''T` name quotes in staging/macro positions (D123) | spec'd |
+| Type-level symbols (promoted `'foo` for labels/schema names) deferred with the spelling reserved (D124) | spec'd |
+
+- **D122 (P24 Sym)**: `Sym` is a core runtime type: one-word handle to
+  a process-wide interned cell; `intern : String -> Sym`,
+  `sym-name : Sym -> String`; `Eq` is identity ($O(1)$), `Ord` is by
+  name (deterministic across runs, never insertion order); `Show`
+  prints `'foo`; no numeric classes; FFI takes `sym-name`/`Bytes` at
+  the boundary; nothing exposes a cell address as data.
+- **D123 (P24 tick syntax)**: one tick lexeme in three contexts (the
+  Template Haskell name-quote correspondence): `'foo` is a `Sym`
+  literal in expression/pattern position (interned at compile time and
+  emitted as a constant via the P14 path; `intern` of an equal name
+  resolves to the same cell), `'foo` is a value `Name` and `''T` a
+  type `Name` in staging/macro positions (feeding D46's `Name`
+  signature member); char literal precedence is lexical and
+  deterministic: tick, one character, tick means `Char`.
+- **D124 (P24 type-level symbols deferred)**: promoted `'foo` at the
+  type level (labels, schema column names) is deferred with the
+  spelling reserved; the likely first consumer is the A6 schema
+  vocabulary.
+
 ### Primitive operations and inline target IR (P18)
 
 Specified in

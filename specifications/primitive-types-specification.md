@@ -126,9 +126,36 @@ Integer literals are elaborated against their expected type. A literal outside t
 | `Eq` | `Bool`, `Char`, `I8`-`I64`, `U8`-`U64`, `Usize`, `Isize` |
 | `Ord` | The same types as `Eq`, with signed numeric order on `I*`/`Isize`, unsigned on `U*`/`Usize`, `False < True`, code point order on `Char` |
 
-`F32` and `F64` have none of these instances; use section 5's operations. A `Bits` class unifying the bitwise operations is an open decision; until then they are ordinary named functions per type.
+`F32` and `F64` have none of these instances; use section 5's operations. Bitwise operations unify under the prelude `Bits` class (landed with the operator batches); `Wrapping`-style wrappers over the overflow families remain an open decision.
 
-# 9 Foreign, Wasm and SIMD correspondence
+# 9 Interned symbols
+
+`Sym` is a core runtime type: one word, a handle to a process-wide
+interned name cell. It is not a machine scalar (section 2's set
+unchanged): no arithmetic exists on it, and its layout is a word-sized
+handle like `Bytes`/`String` values.
+
+- **Interning**: names intern into cells; two equal names are the same
+  cell, so `Eq` is identity (an $O(1)$ pointer test) and `Eq`/`Ord`
+  coherence requires `Ord` to agree with name equality. `Ord` is
+  lexicographic by name (deterministic across runs and builds; never
+  insertion order). The prelude provides
+  `intern : String -> Sym` and `sym-name : Sym -> String`.
+- **Literals are constants first**: `'foo` interns at compile time and
+  is emitted as a constant (the P14 constant-emission path); `intern`
+  of an equal name at runtime resolves to the same cell (the runtime
+  table is keyed by name). Symbol literal patterns test identity.
+- **Classes**: `Eq`, `Ord`, `Show` (prints `'foo`). No numeric or
+  character classes.
+- **Boundaries**: `Sym` has no C counterpart; FFI code takes
+  `sym-name` (or `Bytes`) at the boundary. Within Wasm components it
+  is a word handle. Symbols are opaque identity: nothing in the
+  language exposes a cell's address as data.
+
+Syntax and contexts are `specifications/
+surface-grammar-local-amendments.md` section 12.
+
+# 10 Foreign, Wasm and SIMD correspondence
 
 The layout table in section 2 is the FFI layout table. The C ABI mappings are `U8` to `uint8_t` through `U64` to `uint64_t`, `I8` to `int8_t` through `I64` to `int64_t`, `F32`/`F64` to `float`/`double` where the target ABI defines them as IEEE 754, and `Bool` to C's `_Bool`. `Char` has no C counterpart; use `U32`. FFI layer names such as `SizeT` and `CInt` in [Foreign function interface specification](foreign-function-interface-specification.md) are mapped to primitives by the target's recorded ABI metadata (commonly `SizeT` = `Usize`, `CInt` = `I32`), never by the generator host's `sizeof`.
 
@@ -136,7 +163,7 @@ For Wasm, `I8`-`I32`, `U8`-`U32` and `Usize`/`Isize` on wasm32 use `i32` operati
 
 For SIMD, the lane element types of target-indexed vectors are exactly these primitives (`Vec n U32` and friends). Vector types themselves are not primitives and are not unboxed scalars. A rewrite between a scalar loop and a vectorized one must respect the arithmetic family: wrapping operations reassociate freely under their modular model, checked operations do not (a regrouping can change which operation overflows), and floating-point reassociation needs its own contract.
 
-# 10 Required rejection cases
+# 11 Required rejection cases
 
 - `x + y` on `I32`, or any use of `Add`/`Sub`/`Mul`/`Neg` on a machine integer type, without an explicit wrapper instance.
 - `x == y` or `x < y` on `F32`/`F64` (no `Eq`/`Ord` instance).
@@ -146,12 +173,13 @@ For SIMD, the lane element types of target-indexed vectors are exactly these pri
 - A `Char` built from a surrogate code point, or a float-to-integer conversion that is allowed to trap or wrap without saying so.
 - Using the build host's `Usize` width in a cross-compiled layout or proof.
 
-# 11 Open decisions
+# 12 Open decisions
 
 - Literal defaulting for unconstrained numeric literals beyond the narrow `Int` rule recorded in section 7 (pending wants only).
 - Whether `I128`/`U128` belong in the core prelude or an extension module, and how targets without hardware support expose them.
+- Type-level symbols: a `Sym` kind with promoted `'foo` literals for row labels, schema column names, and other static tags. The tick grammar already reserves the spelling (amendment section 12); the promotion is deferred until a consumer (likely the A6 schema vocabulary) needs it.
 - Observability of IEEE status flags and the dynamic rounding mode, and the exact contract under which reassociation or contraction is permitted.
-- A `Bits` class (and possibly `Wrapping`-style wrappers) unifying section 4's bit operations and overflow families.
+- A `Bits` class is landed (prelude, decision D90); what remains open is whether `Wrapping`-style wrappers over section 4's overflow families earn their own class.
 - Encoding `Usize`'s width as a target-indexed value that dependent specifications can mention (needed before proofs may compute sizes).
 - Byte order and alignment guarantees of raw memory APIs built on these types.
 

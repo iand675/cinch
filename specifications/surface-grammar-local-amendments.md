@@ -199,7 +199,30 @@ decision record in `compiler/CONFORMANCE.md` where applicable.
   file bytes). A converter failure is a build error naming the file and
   converter.
 
-# 12 Rejected for now (see compiler/CONFORMANCE.md)
+# 12 Tick syntax: symbols and names
+
+The tick lexeme `'` has Template Haskell's correspondence (a name
+quote) and Lisp's (a quoted symbol); it is one spelling in three
+contexts, decided 2026-10-26 at the user's direction.
+
+- **`'foo` in expression or pattern position** is a `Sym` literal
+  (primitive-types specification section 9): interned at compile time,
+  identity-tested in patterns. Dash names work (`'int-digits-into`).
+- **`'foo` in a staging or macro name position** is a value `Name` (the
+  `Name` macro signature member of decision D46); **`''T`** is a type
+  `Name`. These feed `quoteDecls` token trees and macro APIs that want
+  names rather than values.
+- **Char literal precedence**: `'a'` (one character between ticks) is a
+  `Char` literal and wins; `'a` followed by anything else is a symbol;
+  `'foo` is always a symbol. The rule is lexical and deterministic:
+  tick, one character, tick means `Char`.
+- One lexeme, no dual spelling: there is no `:name` keyword form.
+
+The runtime value form of a name is the interned `Sym`; the staging
+form is a `Name`. A macro that reifies a `Name` into a symbol literal
+gets the interned constant for the same spelling.
+
+# 13 Rejected for now (see compiler/CONFORMANCE.md)
 
 Everything else in the draft EBNF parses only to a named rejection:
 `do` bodies and handlers, quotations and macros, `rewrite`/`upgrade`
