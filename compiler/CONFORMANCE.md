@@ -458,6 +458,35 @@ correspondence: one lexeme in expression/pattern, staging `Name`, and
   method's accumulated binders (previously class parameters only,
   which rejected `traverse`'s `using (app :: Applicative f)` naming its
   own `forall f`).
+- **D161-D174 (P25 integration, reported)**: `Data.Machine` groups the
+  machine scalars' vocabulary; `Add/Sub/Mul/Neg/Div/Rem` live in
+  `Algebra.Arithmetic` (operation classes, not structures) with `Bits`
+  in `Algebra.Bits`; `Effect.Concurrent` holds `Request`/`LoadError`/
+  `fetch` and `Effect.Io` the config vocabulary; P10 vocabulary splits
+  into `Data.Producer`/`Data.Target`; `Semiring` is `zero`/`one`/`add`/
+  `mul` (both monoids named on one carrier, so bare `Nat`/`Int` are
+  Semirings where they cannot be Semigroups; no Num tower; machine
+  scalars excluded) with instances in `Data.Nat`/`Data.Int`; `Group` is
+  `invert` (`Group Int` in `Data.Int`, `Group (Dual t)` with its type,
+  structural pairs/functions in `Algebra.Group`; `Nat` excluded,
+  truncated subtraction); `Text.Show` is created fresh (its instances
+  live with the conversion family to avoid an import cycle; `Show
+  Bool`/`Show Ordering` wait for string literals); `Text.Codec` states
+  the A6 `encode`/`decode` pair (D65's covered set, round-trip law);
+  `Data.Set` is a documented unbalanced BST (duplicate insert keeps one
+  copy) and `Data.HashMap` a documented fixed 8-bucket spine (first
+  pair wins); `Sym` is skipped in the split and `Hash Sym` is
+  identity-based, deferred to `Data.Sym`; an explicit source module
+  shadows an embedded family copy (family-instance heads a shadow
+  cannot satisfy drop rather than fail); instance heads convert after
+  all modules are collected (the collection knot); forced export
+  grammar: dotted module/member and parenthesized operator items,
+  `export module X` matching full name or alias; WIT vocab names join
+  the facade's export surface. Compatibility gate held byte-identical
+  at a clean worktree (01/04/06/09/10/11 check; 02/03/05/08/12 fail
+  exactly as at baseline; 07 rejects). Named gap: `tests/prelude_split.rs`
+  unwritten (continuation). Proposed facade trim list recorded in the
+  report (implementation helpers).
 - **D127 (P25 scaffolding ruling)**: FoldAgent's defunctionalized
   class shapes (`Foldable t a`, `Traversable t x g h tg hs`) are
   accepted as NON-CURATED scaffolding: they ship in the `Category`
