@@ -263,6 +263,15 @@ correspondence: one lexeme in expression/pattern, staging `Name`, and
   type level (labels, schema column names) is deferred with the
   spelling reserved; the likely first consumer is the A6 schema
   vocabulary.
+- **D125 (P25 base library curation, user-approved 2026-10-26)**:
+  pulled in: `Algebra.Group`/`Algebra.Semiring`, `Data.Set` +
+  `Data.Hash`/`Data.HashMap` (symbol hashing exploits Sym interning),
+  class law declarations as citable `justify` evidence (riding P18's
+  law/assumption tier), `Text.Show`/`Text.Codec` (A6 alignment).
+  Queued: `Data.Enum` + range syntax to the next surface slice.
+  Held: Profunctor/Category/Kleisli, State/Reader newtypes. Out: the
+  transformer zoo (row effects do it natively), IO-as-a-monad,
+  numeric towers beyond Semiring, lenses.
 
 ### Primitive operations and inline target IR (P18)
 

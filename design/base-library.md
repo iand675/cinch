@@ -60,26 +60,25 @@ style (D106)).
   instances; `traverse` into `Result e` and the effect rows is the
   showcase.
 
-## The brainstorm menu (open to the user)
+## The brainstorm menu (resolved 2026-10-26, user approved)
 
-In or deferred, with the reasoning:
+Pulled in: `Algebra.Group` and `Algebra.Semiring` (the Sum/Product
+newtypes keep the numeric monoids out of any Num tower); `Data.Set`
+plus `Data.Hash`/`Data.HashMap` (Sym interning makes symbol hashing
+trivial); law declarations wired into the rewrite `justify` machinery
+(riding the P18 law/assumption identity tier: a class `law` is citable
+evidence, and instances are checked against their laws); `Text.Show`
+and `Text.Codec` (aligned with the A6 CodecGenerator).
 
-- `Algebra.Group` and `Algebra.Semiring`: natural next; the
-  Sum/Product newtypes give the numeric monoids without a Num tower
-  (the primitive-types spec deliberately avoids one).
-- `Data.Set` (over Ord) and `Data.Hash` + `Data.HashMap` (needs a Hash
-  class; Sym interning makes symbol hashing trivial and hashing ties
-  into the interning design).
-- `Text.Show` and `Text.Codec`: display and codec derivation; aligns
-  with the schema vocabulary (A6).
-- `Data.Enum` and range syntax `[1..10]`: useful, but range syntax is
-  parser work that should ride a later surface slice.
-- Class laws as declared `law` axioms wired into the rewrite `justify`
-  machinery (the P18 law/assumption identity work): the differentiator
-  that makes `<>` associativity citable evidence rather than a comment.
-- Deliberately out: the monad-transformer/mtl zoo (row effects with
-  handlers (P6) do that job natively; Reader/State/Writer appear only
-  as newtypes if Traversable targets want them), IO-as-a-monad
-  (`Io r` is capability-typed and lexical per D21), a numeric tower
-  beyond Semiring (the typed families with explicit conversions are
-  the spec's deliberate choice), lenses (later).
+Queued: `Data.Enum` and range syntax `[1..10]` ride the next surface
+slice (parser work, not bolted onto P19 mid-flight). `Data.NonEmpty`
+is already building with the Traversable family.
+
+Held until a consumer appears: `Category.Profunctor`/`Category.Category`
+/`Kleisli`, `Effect.State`/`Effect.Reader` as newtypes.
+
+Deliberately out (unchanged): the monad-transformer/mtl zoo (row
+effects with handlers (P6) do that job natively), IO-as-a-monad
+(`Io r` is capability-typed and lexical per D21), a numeric tower
+beyond Semiring (the typed families with explicit conversions are the
+spec's deliberate choice), lenses (later).
