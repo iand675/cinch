@@ -208,12 +208,12 @@ and dash-style prelude function names.
 | Dash identifiers and the minus whitespace contract (D102) | done (lexer + ast; whole minus table unit-tested (D128/D129); digits excluded from the right of a glue dash so `x-1` subtracts) |
 | Multi-binding `let` and guarded `letrec` (D103): recursion only under lambda/`~`/`delay`, eager cycles rejected with the fix named | done (fixpoint boxes with black-hole fault 70 (D131-D137); `tests/letrec.rs` 9/9) |
 | Tail recursion in constant stack, self and mutual (D104) | done (loop-header self-jumps + `musttail` mutual groups; 1,000,000-deep proofs; `tail_calls` manifest section with Tarjan SCC marks and fallback reasons (D138-D139); `tests/surface.rs` run-tests) |
-| `[...]`/`{k => v}` literals desugaring to `FromList`/`FromMap`, with the prelude `Map` (D105) | groundwork staged, desugar wiring building (`Term::Map` parses; `ConstBytes` emission (D140); shared `Bytes` in the eval VM (D141); `LitFold` markers (D142); the classes, `Map`, and the fold pass remain) |
+| `[...]`/`{k => v}` literals desugaring to `FromList`/`FromMap`, with the prelude `Map` (D105) | done (`FromList`/`FromMap` classes, `Map` BST, expected-type instance selection, D92 fold pass with `literal_folds` boundary (D142/D147); `tests/surface.rs`) |
 | Dash-style prelude function names (D106) | done (all 911 prelude-declared functions/methods renamed; compiler-side name references moved; builtin surface values and intrinsic symbols unchanged (D130)) |
-| Export declarations and re-exports (`export module X`, `export A.b`); imports private until re-exported (D107) | continuation building (design settled) |
-| Import renaming and selection (`import X as Y`, `import X (a as b)`); duplicate imports error naming both sources (D108) | continuation building (design settled) |
-| File-type import converters: extension-keyed compile-time conversion (`import data "config.json" as config`), built-ins json/txt/bytes, plugins as stage modules with provenance (D109) | continuation building (design settled) |
-| Collection literals fold at compile time to direct construction (macro expansion + stage evaluation + constant emission); runtime class call otherwise; fold boundary reported (D110) | continuation building (fold via D92 into P14 constant emission; boundary recorded as a `StageReport` field in the manifest) |
+| Export declarations and re-exports (`export module X`, `export A.b`); imports private until re-exported (D107) | done (surface is exactly the named set with `export` decls (D143/D146); instances/fixities/foreign table stay module-owned) |
+| Import renaming and selection (`import X as Y`, `import X (a as b)`); duplicate imports error naming both sources (D108) | done (a rename is the name everywhere (D144); duplicate rule over explicit imports (D145)) |
+| File-type import converters: extension-keyed compile-time conversion (`import data "config.json" as config`), built-ins json/txt/bytes, plugins as stage modules with provenance (D109) | done (json/txt/bytes built-ins with budget/depth caps, declared-type decode, `data_imports` provenance (D148/D149); plugin converters deferred: unknown extensions name the built-ins) |
+| Collection literals fold at compile time to direct construction (macro expansion + stage evaluation + constant emission); runtime class call otherwise; fold boundary reported (D110) | done (fold pass in `finish_fn` via the D92 evaluator into P14 constants; boundary in `StageReport.literal_folds` and the manifest; semantics-transparent fallback (D147)) |
 
 ### Safety assertion attributes (P20)
 
@@ -354,6 +354,40 @@ correspondence: one lexeme in expression/pattern, staging `Name`, and
   default to `Map k v`, symmetric with the list default (currently
   they reject naming the unlanded `from-map` class until the wiring
   lands).
+- **D143 (P19 export surface)**: with `export` declarations a
+  module's surface is exactly the named set (own names must be listed);
+  without them, declared names as before. Instances, fixities, and the
+  foreign table stay module-owned (coherence/contract facts, not
+  names).
+- **D144 (P19 renames)**: a rename is the name everywhere (`import X
+  (a as b)` gives bare `b` and `X.b`; `a` is unreachable); selection
+  and alias cannot combine in one import.
+- **D145 (P19 duplicate rule)**: the duplicate-name rule covers
+  explicit imports only; the prelude is the implicit base layer that
+  explicit imports shadow (counting it would paralyze imports once
+  library modules define overlapping names); own names shadow imports
+  silently.
+- **D146 (P19 re-exports)**: `export A.b` re-exports as `b`; `export
+  module A` re-exports everything the module imports from A under its
+  in-scope names.
+- **D147 (P19 fold fallback)**: compile-time folding is
+  semantics-transparent: non-stage-known constructions, evaluation
+  failures (budget, faults, unimplemented prims), and non-reifiable
+  results keep the runtime class call (`folded: false`); only a
+  successful constant reify replaces the call. Loud failure was
+  rejected: the evaluator's completeness must not gate builds of
+  unrelated programs.
+- **D148 (P19 Json family)**: the `Json` import value is a single
+  self-contained family (`JArr`/`JArrEnd`, `JObj`/`JObjEnd`): the
+  positivity discipline rejects nested and mutually recursive shapes,
+  and data declarations convert in declaration order (no forward
+  references).
+- **D149 (P19 converters)**: converter extensions are `json`/`txt`/
+  `bytes` exactly (a file must be named accordingly); plugin
+  converters (stage modules per extension) are deferred and an unknown
+  extension is a build error naming the built-ins; content hashes use
+  the codebase's `content_hash` (consistent with `source_hash`/
+  `StageInput`).
 - **D127 (P25 scaffolding ruling)**: FoldAgent's defunctionalized
   class shapes (`Foldable t a`, `Traversable t x g h tg hs`) are
   accepted as NON-CURATED scaffolding: they ship in the `Category`
