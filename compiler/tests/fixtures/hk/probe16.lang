@@ -1,0 +1,8 @@
+module Main where
+  main :: Int
+  main =
+    let c = ('q' :: Char) in
+    let n = (7 :: Nat) in
+    if c == 'q' then
+      if n == 7 then 0 else 2
+    else 1

@@ -1,0 +1,75 @@
+-- The identity type: the universal visitor that changes nothing. It is
+-- the unit of the category family (the identity functor and the trivial
+-- monad), so its operations below are the reference instance bodies the
+-- Category.* classes will carry.
+--
+-- Module name: the module scheme (design/base-library.md) names this
+-- module `Data.Identity`. The header is the single-segment `Identity`
+-- pending the dotted-module-name fix: the checker keys imports by an
+-- import path's last segment (check_decls.rs `imports_of`), so a
+-- `module Data.Identity` header cannot be imported from anywhere. The
+-- file path is the scheme's; rename the header when the fix lands.
+--
+-- `do` notation and these classes (decision D22): `do` picks its
+-- provider lexically per definition, through a `using` binder with a
+-- DirectSequencing/ResultSequencing/OptionSequencing head (default:
+-- DirectSequencing). A do-provider is a fixed instance choice: exactly
+-- one container per definition, no polymorphism. The Category.*
+-- classes (Functor/Applicative/Monad) abstract over containers for
+-- polymorphic code; their `fmap`/`pure`/`>>=` are ordinary class
+-- methods resolved per use site. The two mechanisms do not interact
+-- and neither is changing: `do` never consults the classes, and a class
+-- constraint never selects a do provider.
+--
+-- Why these are plain functions rather than class instances: the
+-- Category.* classes cannot be declared in the current surface. The
+-- checker rejects type-constructor variables (`f a` for a class
+-- parameter `f` fails with "cannot apply non-type-constructor f"), so
+-- `class Functor f` with `fmap :: (a -> b) -> f a -> f b` and its
+-- instances are unexpressible; the fix is scheduled as a compiler
+-- slice (higher-kinded parameters are a requirement of the modules and
+-- compilation specification, section 1). The functions below are the
+-- instance method bodies (Functor `fmap`, Applicative `pure`/`<*>`/
+-- `lift-a2`, Monad `return`/`>>=`/`join`) held at the type until the
+-- classes land; `Identity`'s instances will be defined through them.
+-- The operators `<$>`, `<*>` and `>>=` are class methods per decision
+-- D2 (operators are class methods with per-module fixity
+-- declarations), so no per-type operator stand-ins are defined here:
+-- the operator names belong to the classes and arrive with them.
+module Identity where
+
+  data Identity a where
+    Identity :: a -> Identity a
+
+  -- Elimination: the wrapped value.
+  run-identity :: forall a. Identity a -> a
+  run-identity v = case v of
+    Identity x -> x
+
+  -- Functor body: map over the wrapped value.
+  map-identity :: forall a b. (a -> b) -> Identity a -> Identity b
+  map-identity f v = case v of
+    Identity x -> Identity (f x)
+
+  -- Applicative body (also the Monad `return` body).
+  pure-identity :: forall a. a -> Identity a
+  pure-identity x = Identity x
+
+  -- Applicative body: apply a wrapped function to a wrapped value.
+  ap-identity :: forall a b. Identity (a -> b) -> Identity a -> Identity b
+  ap-identity vf vx = case vf of
+    Identity f -> map-identity f vx
+
+  -- Applicative body: lift a two-argument function.
+  lift-a2-identity :: forall a b c. (a -> b -> c) -> Identity a -> Identity b -> Identity c
+  lift-a2-identity f vx vy = ap-identity (map-identity f vx) vy
+
+  -- Monad body: sequence a dependent computation.
+  bind-identity :: forall a b. Identity a -> (a -> Identity b) -> Identity b
+  bind-identity v k = case v of
+    Identity x -> k x
+
+  -- Monad body: collapse one layer.
+  join-identity :: forall a. Identity (Identity a) -> Identity a
+  join-identity vv = case vv of
+    Identity v -> v

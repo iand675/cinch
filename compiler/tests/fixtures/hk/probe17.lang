@@ -1,0 +1,3 @@
+module Main where
+  main :: Int
+  main = get-const 3

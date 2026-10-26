@@ -309,6 +309,21 @@ correspondence: one lexeme in expression/pattern, staging `Name`, and
   computation type former (effects exist only on arrows; `Thunk` is a
   lazy value, not an action) - a `Comp {e} a`-like design question for
   a later slice.
+- **P25 progress (reported, Category slice)**: `Data.Identity` and
+  `Data.Const` shipped with their instance method bodies as plain
+  functions (the class shapes stay A7-deferred per D126) and
+  `lib_category.rs` (7 law-group tests green at the time; rerun at
+  integration). The full HK target surface and 17 probes are persisted
+  as `compiler/tests/fixtures/hk` (A7's acceptance fixtures). Open
+  questions recorded for the HK slice: bare `pure` resolution (D22
+  provider methods vs `Category.Applicative.pure`; recommendation:
+  bare uses keep the provider meaning, the class method is reached
+  through its constraint or `Applicative.pure`), tuple instances need
+  partially applied tuple formers, `Alternative (Result e)` is omitted
+  by design (needs a Monoid constraint on `e`, belongs with Monoid),
+  and a stale compiler diagnostic still claims string literals are
+  compile-time only (runtime `String` shipped with the prelude
+  batches).
 - **D125 (P25 base library curation, user-approved 2026-10-26)**:
   pulled in: `Algebra.Group`/`Algebra.Semiring`, `Data.Set` +
   `Data.Hash`/`Data.HashMap` (symbol hashing exploits Sym interning),

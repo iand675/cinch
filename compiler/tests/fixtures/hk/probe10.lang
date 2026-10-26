@@ -1,0 +1,5 @@
+module Main where
+  main :: Int
+  main = case do { x <- (Ok 3 :: Result Int Int); Ok x } of
+    Err e -> 1
+    Ok y -> y

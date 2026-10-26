@@ -1,0 +1,20 @@
+module Identity where
+  data Identity a where
+    Identity :: a -> Identity a
+
+  run-identity :: forall a. Identity a -> a
+  run-identity v = case v of
+    Identity x -> x
+
+  map-identity :: forall a b. (a -> b) -> Identity a -> Identity b
+  map-identity f v = case v of
+    Identity x -> Identity (f x)
+
+module Main where
+  import Identity
+
+  main :: Int
+  main =
+    let v = Identity 7 in
+    let w = map-identity (\x -> x + 1) v in
+    if run-identity w == 8 then 0 else 1

@@ -1,0 +1,5 @@
+module Main where
+  import Category.Functor
+
+  main :: Int
+  main = bump 1

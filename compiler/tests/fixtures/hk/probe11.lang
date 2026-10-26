@@ -1,0 +1,12 @@
+module Main where
+  signature Box a where
+    unbox :: a -> Int
+
+  data Id a where
+    Id :: a -> Id a
+
+  implicit instance Box_Id a :: Box (Id a) where
+    unbox x = 0
+
+  main :: Int
+  main = 0

@@ -1,0 +1,10 @@
+module Main where
+  tryResult :: forall a. using (seq :: ResultSequencing Int) => Int -> Result Int Int
+  tryResult n = do
+    x <- Ok n
+    pure x
+
+  main :: Int
+  main = case tryResult 3 of
+    Err e -> 1
+    Ok y -> y
