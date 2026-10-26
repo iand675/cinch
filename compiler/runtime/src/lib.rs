@@ -65,7 +65,7 @@
 //! | exit code | fault | entry point |
 //! |-----------|-------|-------------|
 //! | 70 | `BlackHole` (e.g. demanding a memo cell mid-evaluation) | [`sl_blackhole`] |
-//! | 71 | generic fault: `sl_panic` and every runtime error except division by zero | [`sl_panic`] |
+//! | 71 | generic fault: `sl_panic` and every runtime error except division by zero and the `BlackHole` fault | [`sl_panic`] |
 //! | 72 | division or remainder by zero | [`sl_fault_div_zero`] |
 //!
 //! Exit code 70 is coupled to the code generator: `compiler/src/codegen.rs`
@@ -75,8 +75,8 @@
 //!
 //! In the safe Rust API ([`Nat`], [`Int`]) the same conditions surface as
 //! [`Error`] values, so tooling and tests observe them without dying. The
-//! extern "C" layer maps [`Error::DivByZero`] onto exit 72 and every other
-//! error onto exit 71.
+//! extern "C" layer maps [`Error::DivByZero`] onto exit 72,
+//! [`Error::BlackHole`] onto exit 70, and every other error onto exit 71.
 //!
 //! # Extern symbols
 //!
@@ -158,6 +158,14 @@
 //!   `value` (0..=255) at `index`, returning 0 (the Unit word) and
 //!   faulting on an out-of-bounds index or a value outside 0..=255.
 //!
+//! Quotation evaluation (supercompilation and JIT specification
+//! section 7; see [`eval`] for the quote block layout):
+//!
+//! * `sl_eval(quote: i64) -> i64`: evaluate the reified quotation in the
+//!   `Code` block `quote` to its value word; a failing evaluation takes
+//!   a defined fault path and produces no value (exit 70 for the quoted
+//!   program's own fault or a black-holed memo cell, 71 otherwise).
+//!
 //! Every bignum and byte-buffer fault exits through `sl_panic` (71)
 //! except division by zero (72); see `crate::error::Error`.
 //!
@@ -186,6 +194,7 @@ pub mod abi;
 pub mod bytes;
 pub mod coop;
 pub mod error;
+pub mod eval;
 pub mod evolution;
 mod int;
 mod limbs;

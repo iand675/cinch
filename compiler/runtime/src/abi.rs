@@ -487,6 +487,38 @@ pub unsafe extern "C" fn sl_bytes_set(word: i64, index: i64, value: i64) -> i64 
     }
 }
 
+/// The data pointer of a `Bytes` word: how buffer contents cross to
+/// pointer-and-length interfaces (the UTF-8 intrinsics and the canonical
+/// ABI glue). The pointer is valid as long as the word lives; words are
+/// never freed (see the module docs).
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn sl_bytes_data(word: i64) -> i64 {
+    unsafe { as_bytes(word) }.as_slice().as_ptr() as usize as i64
+}
+
+/// A fresh `Bytes` word holding a copy of `len` bytes at `ptr` (the
+/// canonical ABI copies its lists and strings; zero-copy needs its own
+/// sharing arrangement). Negative lengths and null pointers with a
+/// positive length fault.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn sl_bytes_from_data(ptr: *const u8, len: i64) -> i64 {
+    if len < 0 {
+        raise(Error::OutOfBounds)
+    }
+    let n = match usize::try_from(len) {
+        Ok(n) => n,
+        Err(_) => raise(Error::OutOfBounds),
+    };
+    let slice: &[u8] = if n == 0 {
+        &[]
+    } else if ptr.is_null() {
+        raise(Error::OutOfBounds)
+    } else {
+        unsafe { std::slice::from_raw_parts(ptr, n) }
+    };
+    box_bytes(crate::bytes::Bytes::from(slice.to_vec()))
+}
+
 // ------------------------------------------------------------ structured concurrency (P12)
 //
 // The scope word points at a boxed `Arc<crate::task::Scope>` (one

@@ -30,19 +30,33 @@ pub enum Error {
     /// range (`Error::OutOfBounds` from [`crate::bytes`]).
     OutOfBounds,
     /// An extern entry point received a null word or a word whose block kind
-    /// does not match the entry point (corrupt generated code or data).
+    /// does not match the entry point (corrupt generated code or data),
+    /// including a quotation block or program stream that is malformed
+    /// ([`crate::eval`]).
     CorruptValue,
+    /// The quoted program raised its own `Fault`, or a memo cell was
+    /// demanded while its evaluation was still running (the `BlackHole`
+    /// fault of [`crate::eval`], the same fault as `sl_blackhole`).
+    BlackHole,
+    /// A quotation is nested deeper than [`crate::eval::MAX_NESTING`]
+    /// units of evaluator recursion (through its expression tree, its
+    /// captured holes, or both); the evaluator refuses it instead of
+    /// exhausting the native stack (resource exhaustion is a named
+    /// failure mode).
+    NestingTooDeep,
 }
 
 impl Error {
     /// Process exit code used when this error surfaces as a runtime fault.
     ///
     /// [`Error::DivByZero`] uses the dedicated division fault code (the same
-    /// code `sl_fault_div_zero` exits with); every other variant exits through
-    /// the `sl_panic` path.
+    /// code `sl_fault_div_zero` exits with) and [`Error::BlackHole`] the
+    /// `BlackHole` code (the same code `sl_blackhole` exits with); every
+    /// other variant exits through the `sl_panic` path.
     pub fn exit_code(self) -> i32 {
         match self {
             Error::DivByZero => crate::abi::EXIT_DIV_ZERO,
+            Error::BlackHole => crate::abi::EXIT_BLACKHOLE,
             _ => crate::abi::EXIT_PANIC,
         }
     }
@@ -58,7 +72,11 @@ impl fmt::Display for Error {
             Error::MalformedDecimal => "malformed decimal numeral",
             Error::BufferTooSmall => "decimal buffer too small",
             Error::OutOfBounds => "byte-buffer index, length, or byte value out of range",
-            Error::CorruptValue => "null or wrong-kind bignum word",
+            Error::CorruptValue => "null or wrong-kind word or corrupt generated data",
+            Error::BlackHole => {
+                "the quoted program faulted or a memo cell was demanded while evaluating"
+            }
+            Error::NestingTooDeep => "quotation nesting exceeds the evaluator's depth bound",
         };
         f.write_str(msg)
     }
@@ -79,14 +97,16 @@ mod tests {
     }
 
     #[test]
-    fn every_other_error_exits_through_the_panic_path() {
+    fn the_remaining_errors_exit_through_the_panic_path() {
         let others = [
             Error::NegativeInput,
             Error::NegativeResult,
             Error::OutOfRange,
             Error::MalformedDecimal,
             Error::BufferTooSmall,
+            Error::OutOfBounds,
             Error::CorruptValue,
+            Error::NestingTooDeep,
         ];
         for e in others {
             assert_eq!(e.exit_code(), 71, "{e:?} must exit through sl_panic");
