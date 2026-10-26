@@ -263,6 +263,23 @@ correspondence: one lexeme in expression/pattern, staging `Name`, and
   type level (labels, schema column names) is deferred with the
   spelling reserved; the likely first consumer is the A6 schema
   vocabulary.
+- **D126 (P25 blocker, A7 higher-kinded types)**: the Category family
+  is blocked on an unimplemented spec requirement: the checker cannot
+  apply type variables (`f a` in a signature), cannot take partially
+  applied type constructors as class/instance arguments (`Functor
+  List`), has no `(->)` former, and has no kind binders for signature
+  parameters. The modules specification section 1 already requires
+  higher-kinded parameters, so the fix is a compiler slice (A7,
+  scheduled behind P19): var-headed application with beta-reducing
+  substitution, partially applied tycons as class arguments, `(->)`,
+  kind binders. The defunctionalized encoding is REFUSED: it violates
+  the D125 scheme (classes over type constructors live in
+  `Category.*`) and would rewrite every generic caller at cutover.
+  Same slice fixes the dotted module-name bug (`imports_of` keys
+  imports by the last path segment while modules register under their
+  full dotted name, so `module Category.Functor` never resolves);
+  single-segment module headers are the accepted temporary deviation.
+  CategoryAgent's probe signatures become the A7 acceptance fixtures.
 - **D125 (P25 base library curation, user-approved 2026-10-26)**:
   pulled in: `Algebra.Group`/`Algebra.Semiring`, `Data.Set` +
   `Data.Hash`/`Data.HashMap` (symbol hashing exploits Sym interning),

@@ -224,8 +224,12 @@ gets the interned constant for the same spelling.
 
 # 13 Rejected for now (see compiler/CONFORMANCE.md)
 
-Everything else in the draft EBNF parses only to a named rejection:
-`do` bodies and handlers, quotations and macros, `rewrite`/`upgrade`
-declarations, type and capability application with `@`, tuples of arity 1
-(none), and dependent types. Each has a roadmap slice and will move from
-this list to an amendment or to the draft grammar as it lands.
+The remaining named rejections are the design refusals: constructor
+matches against families applied to rigid indices (D35), `~`
+irrefutable patterns in function argument positions, superclass
+entailment (a class constraint entails nothing), and the parameterized-
+module composition forms (D116). Everything else the draft EBNF once
+listed here has landed with its own amendment or spec section (handlers
+and `do`, quotations, macros, `rewrite`, `upgrade`, `foreign`,
+concurrency forms); if a form parses to a rejection today, the error
+names it and this list is the place to record why.
