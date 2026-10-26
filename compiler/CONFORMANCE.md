@@ -388,6 +388,17 @@ correspondence: one lexeme in expression/pattern, staging `Name`, and
   extension is a build error naming the built-ins; content hashes use
   the codebase's `content_hash` (consistent with `source_hash`/
   `StageInput`).
+- **D150 (P25 NonEmpty via delegation, user direction)**: the bespoke
+  `Data.NonEmpty` is dropped after A7 for a newtype-style
+  `repr(transparent)` wrapper that delegates instance information to
+  the container by dictionary coercion (zero cost; safe by D86's
+  representation identity). Delegation is opt-in PER CLASS because law
+  transfer is not blanket (Semigroup transfers; Monoid does not, since
+  `mempty` is empty), and the P18 law-axiom layer checks transfer per
+  derived instance. The non-emptiness invariant lives at the
+  smart-constructor surface with the raw constructor kept out of the
+  export list (D143). The same delegation form generalizes to
+  sub-kind wrappers (Sorted, NonZero, Ascii).
 - **D127 (P25 scaffolding ruling)**: FoldAgent's defunctionalized
   class shapes (`Foldable t a`, `Traversable t x g h tg hs`) are
   accepted as NON-CURATED scaffolding: they ship in the `Category`

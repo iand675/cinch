@@ -60,6 +60,29 @@ style (D106)).
   instances; `traverse` into `Result e` and the effect rows is the
   showcase.
 
+## NonEmpty via instance delegation (user direction, 2026-10-26)
+
+The bespoke `Data.NonEmpty` (head+tail with hand-written instances) is
+dropped after A7 in favor of a newtype-style wrapper that delegates
+all instance information to the internal container:
+
+- The wrapper is a `newtype`-as-`repr(transparent)` single-field type
+  over `List`; delegation is dictionary coercion through
+  wrap/unwrap (zero cost, safe by the representation identity that D86
+  pins in the ABI).
+- Delegation is opt-in PER CLASS because law transfer is not blanket:
+  `Semigroup` transfers (append of non-empties stays non-empty),
+  `Monoid` does not (`mempty` is empty). The P18 law-axiom layer
+  checks transfer per derived instance, which is the mechanism's
+  honest gate.
+- The invariant lives at the smart-constructor surface
+  (`from-list`/`singleton`); the raw constructor stays out of the
+  `export` list (D143's surface rule enforces the boundary). Generic
+  behavior is delegated; only the invariant is bespoke.
+
+This generalizes: any "sub-kind of a container" wrapper (NonEmpty,
+Sorted, NonZero, Ascii) uses the same delegation form.
+
 ## The brainstorm menu (resolved 2026-10-26, user approved)
 
 Pulled in: `Algebra.Group` and `Algebra.Semiring` (the Sum/Product
