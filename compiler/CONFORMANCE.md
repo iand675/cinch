@@ -413,6 +413,28 @@ correspondence: one lexeme in expression/pattern, staging `Name`, and
   (Sum/Dual/Endo: distinct identities by design) keep the D150
   delegation form for the rare borrowed-instance case. Full design:
   `design/refinement-types.md`.
+- **D152 (A7 naming, lisp-style per D106)**: the Functor method is
+  `map` (not `fmap`); `Monad` has no `return` method (`return` is
+  handler-clause syntax; Monad is `>>=`/`join` with `pure` on
+  `Applicative`), and the monad laws state `pure` under an added
+  `Applicative f` constraint, which exercises the bare-`pure` rule.
+- **D153 (A7 bare-pure resolution)**: a `pure` carried by an in-scope
+  non-provider class constraint answers a bare `pure` first (reached
+  through the constraint's dictionary); otherwise the D22 provider
+  meaning stands (`is_provider_pure` intercepts; first-registered
+  provider wins); `Applicative.pure` is the qualified spelling. `do`
+  providers are untouched.
+- **D154 (A7 dollar in operators)**: `$` may continue an operator run
+  (`<$>` is spellable) but not start one: a leading `$` stays reserved
+  application and `$(` stays the splice introducer. The grammar's
+  operator terminal is amended accordingly.
+- **D155 (A7 kinds)**: unannotated signature/data parameter kinds
+  infer to the annotated form (shared binder-kind resolution,
+  annotation-vs-inference equality checked); `(->) r` is the pure
+  total arrow (default multiplicity, pure row) with effectful arrows
+  distinct; `(,)`/`(,,)` formers partial-apply structural tuples;
+  record fields keep the full-application rule (`field :: Result e`
+  rejects).
 - **D127 (P25 scaffolding ruling)**: FoldAgent's defunctionalized
   class shapes (`Foldable t a`, `Traversable t x g h tg hs`) are
   accepted as NON-CURATED scaffolding: they ship in the `Category`

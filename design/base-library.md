@@ -50,8 +50,10 @@ style (D106)).
   for List, Option, Ordering, Nat under addition and multiplication
   (via newtypes), String, functions, and tuples.
 - `Category.Functor`/`Category.Applicative`/`Category.Monad`:
-  `fmap`/`<$>`, `pure`/`<*>`, `>>=`/`join`, `Identity`/`Const`/
-  `Compose`, instances for List, Option, Result e, functions. The
+  `map`/`<$>`, `pure`/`<*>`, `>>=`/`join`, `Identity`/`Const`/
+  `Compose`, instances for List, Option, Result e, functions ((->) r).
+  (`map` is the lisp-style name per the D106 direction; `Monad` has no
+  `return` method since `return` is handler syntax.) The
   relationship to the `do` providers (D22) is documented, not
   changed: `do` picks providers lexically; the classes abstract over
   containers.
