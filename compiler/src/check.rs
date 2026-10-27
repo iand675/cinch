@@ -1628,6 +1628,32 @@ fn collect_idx_reads(t: &ITerm, out: &mut Vec<String>) {
     }
 }
 
+/// Whether every occurrence of the binder in an index term sits under
+/// a baked measure (`length`/`toNat`, the compiler's own measure
+/// vocabulary): a measure atom over a non-numeric container reads the
+/// binder's value through the measure, never bare and never through a
+/// source function a shadowing module could lie with.
+fn measure_covers(t: &ITerm, binder: &str) -> bool {
+    match t {
+        ITerm::Var(n) => n != binder,
+        ITerm::Num(_) | ITerm::Fn(_) | ITerm::MVar(_) => true,
+        ITerm::Lam(_, body) => measure_covers(body, binder),
+        ITerm::Bin(_, a, b) => measure_covers(a, binder) && measure_covers(b, binder),
+        ITerm::App(f, args) => {
+            let measured = matches!(
+                &**f,
+                ITerm::Fn(k) if k == "<builtin>.length" || k == "<builtin>.toNat"
+            );
+            args.iter().all(|a| measure_covers(a, binder) || (measured && is_binder(a, binder)))
+                && measure_covers(f, binder)
+        }
+    }
+}
+
+fn is_binder(t: &ITerm, binder: &str) -> bool {
+    matches!(t, ITerm::Var(n) if n == binder)
+}
+
 /// The value variables a proposition reads across all its index terms.
 fn collect_prop_reads(p: &PTerm, out: &mut Vec<String>) {
     match p {
@@ -1636,6 +1662,10 @@ fn collect_prop_reads(p: &PTerm, out: &mut Vec<String>) {
             collect_idx_reads(b, out);
         }
         PTerm::Not(q) => collect_prop_reads(q, out),
+        PTerm::And(a, b) | PTerm::Or(a, b) => {
+            collect_prop_reads(a, out);
+            collect_prop_reads(b, out);
+        }
         PTerm::Pred(_, a) => collect_idx_reads(a, out),
         PTerm::Var(_) | PTerm::MVar(_) => {}
     }
@@ -4600,6 +4630,18 @@ impl Checker {
         let span = ty.span();
         match head {
             ast::Type::Var(op, _) if args.len() == 2 => {
+                if op.text == "&&" || op.text == "||" {
+                    // `p && q` / `p || q` (refinement types design,
+                    // "compound predicates"): the lattice meet and join
+                    // over admissible predicates.
+                    let a = self.conv_prop(args[0], vars)?;
+                    let b = self.conv_prop(args[1], vars)?;
+                    return Ok(if op.text == "&&" {
+                        PTerm::And(Box::new(a), Box::new(b))
+                    } else {
+                        PTerm::Or(Box::new(a), Box::new(b))
+                    });
+                }
                 let cmp = match op.text.as_str() {
                     "<" => IdxCmp::Lt,
                     "<=" => IdxCmp::Le,
@@ -4611,7 +4653,7 @@ impl Checker {
                         return Err(Error::at(
                             span,
                             format!(
-                                "`{}` is not a proposition former (use a comparison, `Eq x y`, or `Not p`)",
+                                "`{}` is not a proposition former (use a comparison, `Eq x y`, `Not p`, or `&&`/`||`)",
                                 op.text
                             ),
                         ))
@@ -4665,15 +4707,20 @@ impl Checker {
     }
 
     /// The admissible predicate forms of a refinement (refinement types
-    /// design: the open question's answer). Admitted: the `Dec`
-    /// propositions over index terms (bounded numeric comparisons and
-    /// index equalities) when the refined container is numeric, the
-    /// structural vocabulary predicates applied to the refined binder's
-    /// value itself, and `Not` over admitted forms. Everything else is
-    /// refused naming the form: quantified propositions, conjunction and
-    /// disjunction (the decidable logic has neither), predicates over
-    /// anything but the container's value, and proposition variables
-    /// (their truth is assumed, never decided).
+    /// design, "compound predicates"). Admitted: the `Dec` propositions
+    /// over index terms (bounded numeric comparisons and index
+    /// equalities) when the refined container is numeric or when the
+    /// binder appears only under a baked measure (`length xs > 100` over
+    /// any container), the structural vocabulary predicates applied to
+    /// the refined binder's value itself, `Not` over admitted forms, and
+    /// `&&`/`||` compounds of admitted forms (conjunction and
+    /// disjunction of decidable propositions are decidable). Everything
+    /// else is refused naming the form: quantified propositions (infinite
+    /// domains need induction, the D113 discipline), predicates over
+    /// anything but the container's value, measures other than the baked
+    /// `length`/`toNat` vocabulary (never source a shadowing module could
+    /// lie with), and proposition variables (their truth is assumed,
+    /// never decided).
     fn check_pred_admissible(
         &self,
         pred: &PTerm,
@@ -4697,18 +4744,31 @@ impl Checker {
                 if a.mentions(binder) || b.mentions(binder) {
                     match base {
                         Ty::Nat | Ty::Int | Ty::Prim(_) => Ok(()),
-                        other => Err(Error::at(
-                            span,
-                            format!(
-                                "a comparison or index equality is an admitted predicate over numeric values (bounded numeric comparisons and index equalities), not over `{other}` (the structural vocabulary decides container values: `NotNull`, `NonZero`, `Ascii`, `Ordered`)"
-                            ),
-                        )),
+                        other => {
+                            // A measure atom over any container: the
+                            // binder may appear only under the baked
+                            // measures (`length xs > 100`).
+                            if measure_covers(a, binder) && measure_covers(b, binder) {
+                                Ok(())
+                            } else {
+                                Err(Error::at(
+                                    span,
+                                    format!(
+                                        "a comparison or index equality is an admitted predicate over numeric values (bounded numeric comparisons and index equalities) or over the baked measures of the binder (`length xs > 100`), not over `{other}` as written (the structural vocabulary decides container values: `NotNull`, `NonZero`, `Ascii`, `Ordered`)"
+                                    ),
+                                ))
+                            }
+                        }
                     }
                 } else {
                     Ok(())
                 }
             }
             PTerm::Not(q) => self.check_pred_admissible(q, binder, base, span),
+            PTerm::And(a, b) | PTerm::Or(a, b) => {
+                self.check_pred_admissible(a, binder, base, span)?;
+                self.check_pred_admissible(b, binder, base, span)
+            }
             PTerm::Var(_) | PTerm::MVar(_) => Err(Error::at(
                 span,
                 "a proposition variable is not a decidable predicate: its truth is assumed, never decided (state the predicate over the refined binder)",

@@ -25,6 +25,14 @@ enum Stuck {
     Timeout,
 }
 
+/// The baked measure shape a `decide` operand computes through the
+/// compiler's own vocabulary (never source a shadowing module could lie
+/// with): a byte buffer's size or a list spine's element count.
+enum MeasureShape {
+    Bytes,
+    List(String),
+}
+
 /// Which construct's local block [`Checker::elab_locals`] is elaborating:
 /// the `local_block` grammar is shared by `let`/`where` and by the `do`
 /// statement's `let` group, with different disciplines.
@@ -77,6 +85,9 @@ fn idx_ground(t: &Ty) -> bool {
             }
             PTerm::Pred(_, a) => matches!(a.normalize(), ITerm::Num(_)),
             PTerm::Not(q) => idx_ground(&Ty::Prp(q)),
+            PTerm::And(a, b) | PTerm::Or(a, b) => {
+                idx_ground(&Ty::Prp(a)) && idx_ground(&Ty::Prp(b))
+            }
         },
         _ => true,
     }
@@ -1794,6 +1805,14 @@ impl Checker {
                 if args.len() != 1 {
                     return Err(Error::at(span, "`decide` takes exactly one proposition"));
                 }
+                // Compound propositions (`P && Q`, `P || Q`, `Not P`):
+                // the components decide through the same machinery and
+                // the tests combine (compound predicates: conjunction
+                // and disjunction of decidable propositions are
+                // decidable).
+                if let Some(core) = self.decide_compound(env, &args[0], span)? {
+                    return Ok(core);
+                }
                 // The structural decidable vocabulary (`NotNull e`,
                 // `NonZero e`, `Ascii e`, `Ordered e`): a named predicate
                 // over one value (refinement types design: refinements'
@@ -2013,6 +2032,141 @@ impl Checker {
         self.note_ev_write_loc(region, span, v_idx);
         // Lower to a write through the borrow's cell that yields `Unit`.
         Ok((ECore::RefSet(m_local, Box::new(v_core)), Ty::Unit))
+    }
+
+    /// A compound proposition under `decide` (`P && Q`, `P || Q`,
+    /// `Not P`; compound predicates: conjunction and disjunction of
+    /// decidable propositions are decidable). Each component decides
+    /// through the same `decide` machinery (a synthesized sub-decision
+    /// per side) and the components' decisions combine; the elaboration
+    /// keeps `decide`'s convention: a static `Yes`/`No` constructor or
+    /// `if test then Yes else No`. `None` when the term is not a
+    /// compound. A negated proposition keeps the runtime refusal (its
+    /// static decision still decides it).
+    fn decide_compound(
+        &mut self,
+        env: &mut Env,
+        t: &ast::Term,
+        span: ast::Span,
+    ) -> Result<Option<(ECore, Ty)>> {
+        enum Comp {
+            Yes,
+            No,
+            Test(Box<ECore>),
+        }
+        fn comp_of(c: ECore) -> Comp {
+            match c {
+                ECore::Ctor(g) if g.0 == "<builtin>.Yes" => Comp::Yes,
+                ECore::Ctor(g) if g.0 == "<builtin>.No" => Comp::No,
+                ECore::If(test, y, n)
+                    if matches!(&*y.body, ECore::Ctor(g) if g.0 == "<builtin>.Yes")
+                        && matches!(&*n.body, ECore::Ctor(g) if g.0 == "<builtin>.No") =>
+                {
+                    Comp::Test(test)
+                }
+                other => Comp::Test(Box::new(other)),
+            }
+        }
+        fn dec_prop(ty: &Ty) -> Result<PTerm> {
+            match ty {
+                Ty::Adt(n, args) if n == "Dec" && args.len() == 1 => match &args[0] {
+                    Ty::Prp(p) => Ok((**p).clone()),
+                    other => Err(Error::plain(format!(
+                        "`decide` produces `Dec p`, not `Dec {other}`"
+                    ))),
+                },
+                other => Err(Error::plain(format!(
+                    "`decide` produces `Dec p`, not `{other}`"
+                ))),
+            }
+        }
+        // One component's decision through the same `decide` machinery.
+        let sub = |a: &ast::Term| {
+            ast::Term::App(
+                Box::new(ast::Term::Var(ast::VarPath {
+                    quals: Vec::new(),
+                    name: ast::Name::new("decide", a.span()),
+                })),
+                vec![a.clone()],
+                a.span(),
+            )
+        };
+        let yes = ECore::Ctor(fn_id("<builtin>", "Yes"));
+        let no = ECore::Ctor(fn_id("<builtin>", "No"));
+        let dec_ty = |p: PTerm| Ty::Adt("Dec".into(), vec![Ty::Prp(Box::new(p))]);
+        match t {
+            ast::Term::App(f, args, _) if args.len() == 2 => {
+                let is_and = match &**f {
+                    ast::Term::Var(p) if p.quals.is_empty() && p.name.text == "&&" => true,
+                    ast::Term::Var(p) if p.quals.is_empty() && p.name.text == "||" => false,
+                    _ => return Ok(None),
+                };
+                let (lc, lty) = self.infer(env, &sub(&args[0]))?;
+                let (rc, rty) = self.infer(env, &sub(&args[1]))?;
+                let lp = dec_prop(&self.uni.zonk(&lty))?;
+                let rp = dec_prop(&self.uni.zonk(&rty))?;
+                let prop = if is_and {
+                    PTerm::And(Box::new(lp), Box::new(rp))
+                } else {
+                    PTerm::Or(Box::new(lp), Box::new(rp))
+                };
+                let dty = dec_ty(prop);
+                let l = comp_of(lc);
+                let r = comp_of(rc);
+                let mk = |test: ECore| {
+                    ECore::If(
+                        Box::new(test),
+                        CBranch::new(yes.clone()),
+                        CBranch::new(no.clone()),
+                    )
+                };
+                let combined = match (&l, &r, is_and) {
+                    (Comp::Yes, Comp::Yes, _) => yes,
+                    (Comp::No, _, true) | (_, Comp::No, true) => no,
+                    (Comp::Yes, _, false) | (_, Comp::Yes, false) => yes,
+                    (Comp::No, Comp::No, _) => no,
+                    (Comp::Test(a), Comp::Test(b), _) => {
+                        let (a, b) = ((**a).clone(), (**b).clone());
+                        if is_and {
+                            mk(ECore::If(
+                                Box::new(a),
+                                CBranch::new(b),
+                                CBranch::new(ECore::Bool(false)),
+                            ))
+                        } else {
+                            mk(ECore::If(
+                                Box::new(a),
+                                CBranch::new(ECore::Bool(true)),
+                                CBranch::new(b),
+                            ))
+                        }
+                    }
+                    (Comp::Test(a), _, _) => mk((**a).clone()),
+                    (_, Comp::Test(b), _) => mk((**b).clone()),
+                };
+                Ok(Some((combined, dty)))
+            }
+            ast::Term::App(f, args, _) if args.len() == 1 => {
+                match &**f {
+                    ast::Term::Con(p) if p.parts() == ["Not"] => {}
+                    _ => return Ok(None),
+                }
+                let (cc, cty) = self.infer(env, &sub(&args[0]))?;
+                let cp = dec_prop(&self.uni.zonk(&cty))?;
+                let dty = dec_ty(PTerm::Not(Box::new(cp)));
+                Ok(Some(match comp_of(cc) {
+                    Comp::Yes => (no, dty),
+                    Comp::No => (yes, dty),
+                    Comp::Test(_) => {
+                        return Err(Error::at(
+                            span,
+                            "obligation status: unsupported: `decide` has no decision procedure for a negated proposition",
+                        ))
+                    }
+                }))
+            }
+            _ => Ok(None),
+        }
     }
 
     /// The shape `decide` accepts: a comparison (`i < n`) or `Eq x y`.
@@ -3072,6 +3226,29 @@ impl Checker {
                 ObligStatus::Disproved => ObligStatus::Checked,
                 other => other,
             },
+            // Conjunction and disjunction of decidable propositions
+            // are decidable (`Dec A` and `Dec B` decide both): both
+            // conjuncts check for `&&`, either disjunct for `||`, and
+            // a refuted side refutes the conjunction (or the whole
+            // disjunction when both sides refute).
+            PTerm::And(a, b) => {
+                match (self.static_obligation(&a)?, self.static_obligation(&b)?) {
+                    (ObligStatus::Disproved, _) | (_, ObligStatus::Disproved) => {
+                        ObligStatus::Disproved
+                    }
+                    (ObligStatus::Checked, ObligStatus::Checked) => ObligStatus::Checked,
+                    (ObligStatus::Timeout, _) | (_, ObligStatus::Timeout) => {
+                        ObligStatus::Timeout
+                    }
+                    _ => ObligStatus::Unresolved,
+                }
+            }
+            PTerm::Or(a, b) => match (self.static_obligation(&a)?, self.static_obligation(&b)?) {
+                (ObligStatus::Checked, _) | (_, ObligStatus::Checked) => ObligStatus::Checked,
+                (ObligStatus::Disproved, ObligStatus::Disproved) => ObligStatus::Disproved,
+                (ObligStatus::Timeout, _) | (_, ObligStatus::Timeout) => ObligStatus::Timeout,
+                _ => ObligStatus::Unresolved,
+            },
             // The structural decidable vocabulary: decided by structural
             // evaluation over constructor forms and numerals (refinement
             // types design: predicates inhabit the decidable logic).
@@ -3473,6 +3650,73 @@ impl Checker {
         Ok(gid)
     }
 
+    /// The scan behind the baked `length` measure: the element count of
+    /// a list spine, a recursive unit over the container's constructor
+    /// forms (`Nil` counts 0 and `Cons` adds one).
+    fn install_length_test(
+        &mut self,
+        type_name: &str,
+        span: ast::Span,
+    ) -> Result<GlobalId> {
+        let shapes = self.ctor_shapes(type_name).unwrap_or_default();
+        let mut empty: Option<usize> = None;
+        let mut cons: Option<usize> = None;
+        for (tag, ra) in shapes {
+            if ra == 0 && empty.is_none() {
+                empty = Some(tag);
+            } else if ra == 2 && cons.is_none() {
+                cons = Some(tag);
+            }
+        }
+        let (Some(nil_tag), Some(cons_tag)) = (empty, cons) else {
+            return Err(Error::at(
+                span,
+                format!(
+                    "`length` measures a list spine (an empty constructor and an element-tail constructor) or a byte buffer, and {type_name} is not that shape (a wrong measure for this value is refused naming the measure)"
+                ),
+            ));
+        };
+        let gid = GlobalId(format!("<builtin>.refine-length-{}", self.fns.len()));
+        // Params: the list word (LocalId 0); the cons binders (1, 2).
+        let recur = Core::App(
+            Box::new(Core::Global(gid.clone())),
+            vec![Core::Var(LocalId(2))],
+        );
+        let succ = Core::App(
+            Box::new(Core::Prim(PrimOp::Nat(NatOp::Add))),
+            vec![
+                Core::ConstBig { nat: true, digits: "1".to_string() },
+                recur,
+            ],
+        );
+        let body = Core::Case {
+            scrut: Box::new(Core::Var(LocalId(0))),
+            alts: vec![
+                CAlt::new(
+                    CPat::Con { tag: nil_tag, fields: Vec::new() },
+                    Core::ConstBig { nat: true, digits: "0".to_string() },
+                ),
+                CAlt::new(
+                    CPat::Con {
+                        tag: cons_tag,
+                        fields: vec![LocalId(1), LocalId(2)],
+                    },
+                    succ,
+                ),
+            ],
+        };
+        self.fns.push(FnDef {
+            id: gid.clone(),
+            params: vec!["xs".to_string()],
+            body,
+            prim: None,
+            ctor: None,
+            hints: crate::core::FnHints::default(),
+            meta: crate::core::FnMeta::default(),
+        });
+        Ok(gid)
+    }
+
     /// Evaluate an index expression on numerals (dependent core kernel
     /// design, section 4: mathematical operations reduce on numerals
     /// only), with a fuel bound so the evaluator always terminates.
@@ -3504,7 +3748,46 @@ impl Checker {
                     _ => Stuck::Stuck,
                 }
             }
+            // The baked measures decide at check time where their
+            // operand is a constructor spine or a numeral (the D92
+            // evaluator's spine walk): `length` counts the elements,
+            // `toNat` is the numeric value itself.
+            ITerm::App(f, args) if args.len() == 1 => match &**f {
+                ITerm::Fn(k) if k == "<builtin>.toNat" => {
+                    self.eval_idx(&self.uni.resolve_idx(&args[0]), fuel - 1)
+                }
+                ITerm::Fn(k) if k == "<builtin>.length" => {
+                    self.eval_idx_len(&self.uni.resolve_idx(&args[0]), fuel)
+                }
+                _ => Stuck::Stuck,
+            },
             _ => Stuck::Stuck,
+        }
+    }
+
+    /// The baked `length` measure over a constructor spine at check
+    /// time: an empty constructor counts 0 and a two-field
+    /// element-tail constructor adds one; anything else is stuck.
+    fn eval_idx_len(&self, t: &ITerm, fuel: u32) -> Stuck {
+        let mut n: i128 = 0;
+        let mut cur = t.normalize();
+        let mut steps = fuel;
+        loop {
+            if steps == 0 {
+                return Stuck::Timeout;
+            }
+            steps -= 1;
+            match self.ctor_form(&cur) {
+                Some((ra, _)) if ra == 0 => return Stuck::Val(n),
+                Some((ra, args)) if ra >= 2 && args.len() >= 2 => {
+                    match n.checked_add(1) {
+                        Some(v) => n = v,
+                        None => return Stuck::Stuck,
+                    }
+                    cur = self.uni.resolve_idx(&args[1]).normalize();
+                }
+                _ => return Stuck::Stuck,
+            }
         }
     }
 
@@ -3739,6 +4022,35 @@ impl Checker {
         Ok(ECore::Lam { params, body: Box::new(bcore) })
     }
 
+    /// The baked measure shape of a `decide` operand read from the
+    /// operand's own type without consuming it (a plain place: the
+    /// baked tests apply to values whose shape the type states). `None`
+    /// hands the operand to the ordinary source path below.
+    fn measure_shape(&mut self, env: &Env, arg: &ast::Term) -> Option<MeasureShape> {
+        let ast::Term::Var(p) = arg else { return None };
+        if !p.quals.is_empty() {
+            return None;
+        }
+        let (_, s) = env.lookup(&p.name.text)?;
+        let (t, _, _) = self.instantiate(&s);
+        match self.uni.zonk(&t) {
+            Ty::Bytes => Some(MeasureShape::Bytes),
+            Ty::Adt(name, _) => {
+                // A list spine: an empty constructor and a two-field
+                // element-tail constructor.
+                let shapes = self.ctor_shapes(&name)?;
+                let nil = shapes.iter().any(|(_, ra)| *ra == 0);
+                let cons = shapes.iter().any(|(_, ra)| *ra == 2);
+                if nil && cons {
+                    Some(MeasureShape::List(name))
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        }
+    }
+
     /// One `decide` operand (core specification section 4): the bare
     /// index builtins `length` and `toNat` compute their runtime value
     /// through the matching primitive (`bytesLen` over `Bytes`, the
@@ -3765,15 +4077,34 @@ impl Checker {
         };
         if let (Some(name), Some(arg)) = (bname, barg) {
             if name == "length" {
-                let bytes_ty = Ty::Bytes;
-                if let Ok(ac) = self.check(env, arg, &bytes_ty) {
-                    self.uni.unify(expected, &Ty::Nat).map_err(|m| {
-                        Error::at(t.span(), m)
-                    })?;
-                    return Ok(app_spine(
-                        ECore::Prim(PrimOp::Bytes(BytesOp::Len)),
-                        vec![ac],
-                    ));
+                // The baked measures (refinement types design: the
+                // runtime `decide` lowering computes the measure from
+                // the compiler's own vocabulary, never from source a
+                // shadowing module could lie with): a byte buffer's
+                // size, a list spine's element count, and for any other
+                // container the ordinary source `length` below.
+                match self.measure_shape(env, arg) {
+                    Some(MeasureShape::Bytes) => {
+                        let bytes_ty = Ty::Bytes;
+                        let ac = self.check(env, arg, &bytes_ty)?;
+                        self.uni.unify(expected, &Ty::Nat).map_err(|m| {
+                            Error::at(t.span(), m)
+                        })?;
+                        return Ok(app_spine(
+                            ECore::Prim(PrimOp::Bytes(BytesOp::Len)),
+                            vec![ac],
+                        ));
+                    }
+                    Some(MeasureShape::List(tname)) => {
+                        let gid = self.install_length_test(&tname, t.span())?;
+                        let want = Ty::Adt(tname, vec![self.uni.fresh()]);
+                        let ac = self.check(env, arg, &want)?;
+                        self.uni.unify(expected, &Ty::Nat).map_err(|m| {
+                            Error::at(t.span(), m)
+                        })?;
+                        return Ok(app_spine(ECore::Global(gid), vec![ac]));
+                    }
+                    None => {}
                 }
             }
             if name == "toNat" {

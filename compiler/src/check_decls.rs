@@ -7091,12 +7091,27 @@ impl Checker {
                 Some(x == y)
             }
             PTerm::Not(q) => Some(!self.pred_value(q, binder, v)?),
+            // Conjunction and disjunction are decidable where both
+            // sides are: `&&` holds when both hold, `||` when either
+            // holds; an undecided side leaves the compound undecided.
+            PTerm::And(a, b) => match (self.pred_value(a, binder, v), self.pred_value(b, binder, v)) {
+                (Some(false), _) | (_, Some(false)) => Some(false),
+                (Some(true), Some(true)) => Some(true),
+                _ => None,
+            },
+            PTerm::Or(a, b) => match (self.pred_value(a, binder, v), self.pred_value(b, binder, v)) {
+                (Some(true), _) | (_, Some(true)) => Some(true),
+                (Some(false), Some(false)) => Some(false),
+                _ => None,
+            },
             PTerm::Var(_) | PTerm::MVar(_) => None,
         }
     }
 
     /// The numeric value of an index term at a sample: the binder's
-    /// value, numerals and numeric arithmetic (anything else is not
+    /// value, numerals and numeric arithmetic, and the baked measures
+    /// (`length` over a list spine or byte buffer, `toNat` over a
+    /// machine word) that comparison atoms admit (anything else is not
     /// decided at a sample).
     fn itern_value(&self, it: &ITerm, binder: &str, v: &Value) -> Option<i128> {
         match it {
@@ -7111,6 +7126,28 @@ impl Checker {
                     IdxOp::Mul => x.checked_mul(y),
                 }
             }
+            ITerm::App(f, args) if args.len() == 1 => {
+                self.itern_measure(f, &args[0], binder, v)
+            }
+            _ => None,
+        }
+    }
+
+    /// One baked measure at a sample: `<builtin>.length` over a list
+    /// spine or byte buffer, `<builtin>.toNat` over a numeric value.
+    fn itern_measure(&self, f: &ITerm, arg: &ITerm, binder: &str, v: &Value) -> Option<i128> {
+        let name = match f.normalize() {
+            ITerm::Fn(k) => k,
+            _ => return None,
+        };
+        // The measure's operand must read the binder's sample value.
+        match arg.normalize() {
+            ITerm::Var(n) if n == binder => {}
+            _ => return None,
+        }
+        match name.as_str() {
+            "<builtin>.length" => value_len(v),
+            "<builtin>.toNat" => value_num(v),
             _ => None,
         }
     }
@@ -18925,6 +18962,30 @@ fn value_num(v: &Value) -> Option<i128> {
     match v {
         Value::Word(w) => Some(*w as i128),
         Value::Big { digits, .. } => digits.parse().ok(),
+        _ => None,
+    }
+}
+
+/// The baked `length` measure at a sample: a list spine's element
+/// count (an `Adt` spine of a two-field `Cons` and a zero-field `Nil`)
+/// or a byte buffer's size.
+fn value_len(v: &Value) -> Option<i128> {
+    match v {
+        Value::Bytes(b) => Some(b.borrow().len() as i128),
+        Value::Adt { .. } => {
+            let mut n: i128 = 0;
+            let mut cur = v;
+            loop {
+                match cur {
+                    Value::Adt { fields, .. } if fields.is_empty() => return Some(n),
+                    Value::Adt { fields, .. } if fields.len() >= 2 => {
+                        n = n.checked_add(1)?;
+                        cur = &fields[1];
+                    }
+                    _ => return None,
+                }
+            }
+        }
         _ => None,
     }
 }

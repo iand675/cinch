@@ -707,13 +707,20 @@ impl fmt::Display for ITerm {
 }
 
 /// A proposition in `Prop` (dependent core kernel design, section 7):
-/// comparisons and equality over index values, negation, and inference
-/// variables for implicit solving.
+/// comparisons and equality over index values, negation, conjunction
+/// and disjunction (the refinement lattice: compound predicates), and
+/// inference variables for implicit solving.
 #[derive(Clone, Debug, PartialEq)]
 pub enum PTerm {
     Cmp(IdxCmp, Box<ITerm>, Box<ITerm>),
     Eq(Box<ITerm>, Box<ITerm>),
     Not(Box<PTerm>),
+    /// `p && q` (refinement types design, "compound predicates"): the
+    /// conjunction of two admissible predicates; the lattice meet.
+    And(Box<PTerm>, Box<PTerm>),
+    /// `p || q` (refinement types design, "compound predicates"): the
+    /// disjunction of two admissible predicates; the lattice join.
+    Or(Box<PTerm>, Box<PTerm>),
     /// A structural decidable predicate of the refinement vocabulary
     /// (refinement types design, "shape"): `NotNull xs`, `NonZero n`,
     /// `Ascii s`, `Ordered xs`. These decide by structural evaluation
@@ -781,6 +788,276 @@ impl fmt::Display for PredFn {
     }
 }
 
+// ------------------------------------------------------------------
+// The implication theory (refinement types design, "narrowings and the
+// implication theory"): a small table-driven decidable procedure over
+// predicates, each row decidable, no SMT. This module is the shared
+// bounded-arithmetic home of the interval-containment machinery (the
+// design note's single home for `bounded(n)` depth bounds and temporal
+// `recur` consumers too; those are not rewired here).
+//
+// The rows, in the order `pred_implies` consults them:
+//   1. syntactic identity (atom-set inclusion over conjunctions:
+//      `p && q implies p` is this row over the flattened conjuncts);
+//   2. interval containment for comparison/measure atoms over one
+//      measure expression (`> 1 && < 9` implies `> 0 && < 10` via
+//      `lo >= lo'` and `hi <= hi'` on integer-normalized bounds);
+//   3. the documented vocabulary rows: `length x > 0` implies
+//      `NotNull x`, a range excluding zero implies `NonZero x`, and a
+//      range disjoint from an atom refutes it (`Not` row);
+//   4. unknown pairs are NOT implied: the cast needs a `Dec`, or
+//      refuses (never claim an implication the table cannot justify).
+
+/// Alpha-canonicalize a predicate: its free variables (the refinement
+/// binder and any index parameters) are renamed to positional names in
+/// first-appearance order, so predicates over differently named binders
+/// compare and imply up to renaming.
+pub fn pred_canon(p: &PTerm) -> PTerm {
+    let mut order: Vec<String> = Vec::new();
+    p.free_vars(&mut order);
+    let mut out = p.clone();
+    for (i, v) in order.iter().enumerate() {
+        out = out.subst(v, &ITerm::Var(format!("$b{i}")));
+    }
+    out
+}
+
+/// Alpha-equivalence of two predicates (the same lattice point under
+/// different binder spellings).
+pub fn pred_alpha_eq(p: &PTerm, q: &PTerm) -> bool {
+    pred_canon(p).eq(&pred_canon(q))
+}
+
+/// The top-level conjuncts of a predicate, with negated comparisons
+/// folded into their positive forms (`Not (x < 5)` is `x >= 5`) so the
+/// interval rows see every bound the predicate carries.
+pub fn pred_conjuncts(p: &PTerm) -> Vec<PTerm> {
+    fn neg_cmp(op: IdxCmp) -> IdxCmp {
+        match op {
+            IdxCmp::Lt => IdxCmp::Ge,
+            IdxCmp::Le => IdxCmp::Gt,
+            IdxCmp::Gt => IdxCmp::Le,
+            IdxCmp::Ge => IdxCmp::Lt,
+            IdxCmp::Eq => IdxCmp::Ne,
+            IdxCmp::Ne => IdxCmp::Eq,
+        }
+    }
+    fn go(p: &PTerm, out: &mut Vec<PTerm>) {
+        match p {
+            PTerm::And(a, b) => {
+                go(a, out);
+                go(b, out);
+            }
+            PTerm::Not(q) => match &**q {
+                PTerm::Cmp(op, a, b) => {
+                    out.push(PTerm::Cmp(neg_cmp(*op), a.clone(), b.clone()))
+                }
+                PTerm::Not(r) => go(r, out),
+                _ => out.push(p.clone()),
+            },
+            _ => out.push(p.clone()),
+        }
+    }
+    let mut out = Vec::new();
+    go(p, &mut out);
+    out
+}
+
+/// Whether `p` implies `q` under the table: sound and decidable, never
+/// complete (an unknown pair is not implied).
+pub fn pred_implies(p: &PTerm, q: &PTerm) -> bool {
+    pred_implies_canon(&pred_canon(p), &pred_canon(q))
+}
+
+fn pred_implies_canon(p: &PTerm, q: &PTerm) -> bool {
+    if p.eq(q) {
+        return true;
+    }
+    match q {
+        PTerm::And(a, b) => {
+            pred_implies_canon(p, a) && pred_implies_canon(p, b)
+        }
+        PTerm::Or(a, b) => pred_implies_canon(p, a) || pred_implies_canon(p, b),
+        _ => match p {
+            PTerm::Or(a, b) => {
+                pred_implies_canon(a, q) && pred_implies_canon(b, q)
+            }
+            _ => atom_implied_by(&pred_conjuncts(p), q),
+        },
+    }
+}
+
+/// A measure expression and its integer-normalized inclusive bounds
+/// (`x > 1` is `x >= 2`; unbounded ends are `None`).
+#[derive(Clone, Copy, Debug)]
+struct Interval {
+    lo: Option<i128>,
+    hi: Option<i128>,
+}
+
+impl Interval {
+    fn top() -> Interval {
+        Interval { lo: None, hi: None }
+    }
+
+    fn meet(self, other: Interval) -> Interval {
+        Interval {
+            lo: match (self.lo, other.lo) {
+                (Some(a), Some(b)) => Some(a.max(b)),
+                (a, None) => a,
+                (None, b) => b,
+            },
+            hi: match (self.hi, other.hi) {
+                (Some(a), Some(b)) => Some(a.min(b)),
+                (a, None) => a,
+                (None, b) => b,
+            },
+        }
+    }
+
+    /// `self` contained in `other` (`lo >= lo'` and `hi <= hi'`).
+    fn contained_in(self, other: Interval) -> bool {
+        let lo_ok = match (self.lo, other.lo) {
+            (Some(a), Some(b)) => a >= b,
+            (Some(_), None) => true,
+            (None, Some(_)) => false,
+            (None, None) => true,
+        };
+        let hi_ok = match (self.hi, other.hi) {
+            (Some(a), Some(b)) => a <= b,
+            (Some(_), None) => true,
+            (None, Some(_)) => false,
+            (None, None) => true,
+        };
+        lo_ok && hi_ok
+    }
+
+    /// Whether the two ranges are provably disjoint.
+    fn disjoint(self, other: Interval) -> bool {
+        match (self.hi, other.lo) {
+            (Some(a), Some(b)) if a < b => true,
+            _ => match (self.lo, other.hi) {
+                (Some(a), Some(b)) if a > b => true,
+                _ => false,
+            },
+        }
+    }
+
+    /// Whether every point of the range is non-zero.
+    fn excludes_zero(self) -> bool {
+        match (self.lo, self.hi) {
+            (Some(lo), _) if lo >= 1 => true,
+            (_, Some(hi)) if hi <= -1 => true,
+            _ => false,
+        }
+    }
+}
+
+/// The numeral value of a bound index term (numerals and arithmetic
+/// over them).
+fn bound_value(t: &ITerm) -> Option<i128> {
+    match t.normalize() {
+        ITerm::Num(d) => d.parse::<i128>().ok(),
+        ITerm::Bin(op, a, b) => {
+            let x = bound_value(&a)?;
+            let y = bound_value(&b)?;
+            match op {
+                IdxOp::Add => x.checked_add(y),
+                IdxOp::Sub => x.checked_sub(y),
+                IdxOp::Mul => x.checked_mul(y),
+            }
+        }
+        _ => None,
+    }
+}
+
+/// One comparison atom read as `(measure, interval)` when one side is a
+/// measure expression and the other an integer bound.
+fn interval_atom(a: &PTerm) -> Option<(ITerm, Interval)> {
+    let (op, l, r) = match a {
+        PTerm::Cmp(op, l, r) => (*op, (**l).clone(), (**r).clone()),
+        _ => return None,
+    };
+    let (measure, bound, op) = match (bound_value(&l), bound_value(&r)) {
+        (Some(_), Some(_)) => return None,
+        (None, Some(_)) => (l, bound_value(&r)?, op),
+        (Some(_), None) => (r, bound_value(&l)?, flip_cmp(op)),
+        (None, None) => return None,
+    };
+    let iv = match op {
+        IdxCmp::Lt => Interval { lo: None, hi: Some(bound - 1) },
+        IdxCmp::Le => Interval { lo: None, hi: Some(bound) },
+        IdxCmp::Gt => Interval { lo: Some(bound + 1), hi: None },
+        IdxCmp::Ge => Interval { lo: Some(bound), hi: None },
+        IdxCmp::Eq => Interval { lo: Some(bound), hi: Some(bound) },
+        IdxCmp::Ne => return None,
+    };
+    Some((measure, iv))
+}
+
+fn flip_cmp(op: IdxCmp) -> IdxCmp {
+    match op {
+        IdxCmp::Lt => IdxCmp::Gt,
+        IdxCmp::Le => IdxCmp::Ge,
+        IdxCmp::Gt => IdxCmp::Lt,
+        IdxCmp::Ge => IdxCmp::Le,
+        IdxCmp::Eq => IdxCmp::Eq,
+        IdxCmp::Ne => IdxCmp::Ne,
+    }
+}
+
+/// The conjuncts' combined interval over one measure expression.
+fn interval_over(conj: &[PTerm], measure: &ITerm) -> Interval {
+    let mut iv = Interval::top();
+    for a in conj {
+        if let Some((m, ai)) = interval_atom(a) {
+            if m.eq(measure) {
+                iv = iv.meet(ai);
+            }
+        }
+    }
+    iv
+}
+
+/// The table rows that justify one atomic consequent from the
+/// hypothesis conjuncts (row 1 is syntactic identity).
+fn atom_implied_by(conj: &[PTerm], qa: &PTerm) -> bool {
+    if conj.iter().any(|pa| pa.eq(qa)) {
+        return true;
+    }
+    match qa {
+        PTerm::Cmp(..) | PTerm::Eq(..) => {
+            // Interval containment (row 2): the conjuncts' range over
+            // the atom's measure sits inside the atom's own range.
+            let Some((m, qi)) = interval_atom(qa) else {
+                return false;
+            };
+            interval_over(conj, &m).contained_in(qi)
+        }
+        PTerm::Not(r) => match &**r {
+            PTerm::Not(s) => atom_implied_by(conj, s),
+            _ => {
+                // Refutation by disjoint ranges (row 3).
+                let Some((m, ri)) = interval_atom(r) else {
+                    return false;
+                };
+                interval_over(conj, &m).disjoint(ri)
+            }
+        },
+        PTerm::Pred(PredFn::NotNull, x) => {
+            // `length x > 0` implies `NotNull x` (row 3).
+            let len_x = ITerm::app_fn("<builtin>.length".to_string(), vec![(**x).clone()]);
+            let iv = interval_over(conj, &len_x);
+            matches!(iv.lo, Some(lo) if lo >= 1)
+        }
+        PTerm::Pred(PredFn::NonZero, x) => {
+            // A range excluding zero implies `NonZero x` (row 3).
+            interval_over(conj, x).excludes_zero()
+        }
+        _ => false,
+    }
+}
+
 impl PTerm {
     pub fn free_vars(&self, out: &mut Vec<String>) {
         match self {
@@ -793,6 +1070,10 @@ impl PTerm {
                 b.free_vars(out);
             }
             PTerm::Not(p) => p.free_vars(out),
+            PTerm::And(a, b) | PTerm::Or(a, b) => {
+                a.free_vars(out);
+                b.free_vars(out);
+            }
             PTerm::Pred(_, a) => {
                 a.free_vars(out);
             }
@@ -824,6 +1105,10 @@ impl PTerm {
                 b.free_mvars(out);
             }
             PTerm::Not(p) => p.free_mvars(out),
+            PTerm::And(a, b) | PTerm::Or(a, b) => {
+                a.free_mvars(out);
+                b.free_mvars(out);
+            }
             PTerm::Pred(_, a) => a.free_mvars(out),
         }
     }
@@ -839,6 +1124,14 @@ impl PTerm {
                 PTerm::Eq(Box::new(a.subst(name, by)), Box::new(b.subst(name, by)))
             }
             PTerm::Not(p) => PTerm::Not(Box::new(p.subst(name, by))),
+            PTerm::And(a, b) => PTerm::And(
+                Box::new(a.subst(name, by)),
+                Box::new(b.subst(name, by)),
+            ),
+            PTerm::Or(a, b) => PTerm::Or(
+                Box::new(a.subst(name, by)),
+                Box::new(b.subst(name, by)),
+            ),
             PTerm::Pred(pf, a) => PTerm::Pred(*pf, Box::new(a.subst(name, by))),
             PTerm::Var(_) | PTerm::MVar(_) => self.clone(),
         }
@@ -853,6 +1146,8 @@ impl PTerm {
             ),
             PTerm::Eq(a, b) => PTerm::Eq(Box::new(a.normalize()), Box::new(b.normalize())),
             PTerm::Not(p) => PTerm::Not(Box::new(p.normalize())),
+            PTerm::And(a, b) => PTerm::And(Box::new(a.normalize()), Box::new(b.normalize())),
+            PTerm::Or(a, b) => PTerm::Or(Box::new(a.normalize()), Box::new(b.normalize())),
             PTerm::Pred(pf, a) => PTerm::Pred(*pf, Box::new(a.normalize())),
             other => other.clone(),
         }
@@ -865,6 +1160,9 @@ impl PTerm {
             }
             (PTerm::Eq(a, b), PTerm::Eq(c, d)) => (*a).eq(&*c) && (*b).eq(&*d),
             (PTerm::Not(a), PTerm::Not(b)) => (*a).eq(&*b),
+            (PTerm::And(a, b), PTerm::And(c, d)) | (PTerm::Or(a, b), PTerm::Or(c, d)) => {
+                (*a).eq(&*c) && (*b).eq(&*d)
+            }
             (PTerm::Pred(pf, a), PTerm::Pred(pf2, b)) => pf == pf2 && (*a).eq(&*b),
             (PTerm::Var(x), PTerm::Var(y)) => x == y,
             (PTerm::MVar(x), PTerm::MVar(y)) => x == y,
@@ -879,6 +1177,8 @@ impl fmt::Display for PTerm {
             PTerm::Cmp(op, a, b) => write!(f, "{a} {op} {b}"),
             PTerm::Eq(a, b) => write!(f, "Eq {a} {b}"),
             PTerm::Not(p) => write!(f, "Not ({p})"),
+            PTerm::And(a, b) => write!(f, "({a} && {b})"),
+            PTerm::Or(a, b) => write!(f, "({a} || {b})"),
             PTerm::Pred(pf, a) => write!(f, "{pf} {a}"),
             PTerm::Var(n) => write!(f, "{n}"),
             PTerm::MVar(m) => write!(f, "?p{m}"),
@@ -2100,6 +2400,10 @@ impl Unifier {
                 self.unify_idx(y, v)
             }
             (PTerm::Not(x), PTerm::Not(y)) => self.unify_prop(x, y),
+            (PTerm::And(x, y), PTerm::And(u, v)) | (PTerm::Or(x, y), PTerm::Or(u, v)) => {
+                self.unify_prop(x, u)?;
+                self.unify_prop(y, v)
+            }
             (PTerm::Pred(pf, x), PTerm::Pred(pf2, y)) if pf == pf2 => self.unify_idx(x, y),
             _ => {
                 if a.eq(&b) {

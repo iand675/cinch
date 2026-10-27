@@ -3803,6 +3803,8 @@ fn type_op_fixity(op: &Name, fix: &FixityTable) -> Result<(i8, Assoc)> {
         "*" => (7, Assoc::Left),
         "+" | "-" => (6, Assoc::Left),
         "<" | "<=" | ">" | ">=" | "==" | "=" | "/=" | "!=" => (4, Assoc::None),
+        "&&" => (3, Assoc::Right),
+        "||" => (2, Assoc::Right),
         "$" => (-1, Assoc::Right),
         _ => {
             return Err(Error::at(
