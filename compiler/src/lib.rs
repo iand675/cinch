@@ -5,6 +5,7 @@
 //!
 //! Scope of this bootstrap slice is documented in `compiler/README.md`.
 
+pub mod analysis;
 pub mod ast;
 pub mod check;
 pub mod codegen;
@@ -14,6 +15,7 @@ pub mod interface;
 pub mod layout;
 pub mod lexer;
 pub mod parser;
+pub mod repl;
 pub mod types;
 
 use std::fmt;

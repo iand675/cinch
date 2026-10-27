@@ -13611,6 +13611,79 @@ pub fn check_program_multi_full(
     wit: &[crate::interface::WitAdapter],
     profile: &crate::core::TargetProfile,
 ) -> Result<(Program, Vec<crate::interface::Iface>, StageReport, Vec<Diagnostic>)> {
+    let (program, ifaces, report, diags, _) =
+        check_program_multi_full_probe(prelude, modules, source_hashes, scx, wit, profile, None)?;
+    Ok((program, ifaces, report, diags))
+}
+
+/// A probe expression for [`check_program_multi_full_probe`]: the REPL's
+/// `:type` and expression evaluation (P21), evaluated in `module`'s scope
+/// against the checked program.
+pub struct ProbeTerm<'a> {
+    /// The module whose scope resolves the expression (the REPL session
+    /// module).
+    pub module: String,
+    /// The expression to infer and evaluate.
+    pub term: &'a ast::Term,
+}
+
+/// The probe's answer: the inferred scheme and, when the D92 evaluator
+/// can run the elaborated code, its value. A probe failure never fails
+/// the checked program; it is reported here.
+pub struct ProbeResult {
+    /// The inferred scheme and its rendering (`render_scheme`), when the
+    /// expression elaborates. The scheme's `ctx` holds the constraints no
+    /// instance discharges.
+    pub scheme: Option<(crate::types::Scheme, String)>,
+    /// The D92 evaluator's value, when the elaborated code runs.
+    pub value: Option<crate::core::Value>,
+    /// Why the value is absent (the evaluator cannot run this code, or
+    /// its constraints are unresolved).
+    pub eval_error: Option<String>,
+    /// Why the scheme is absent: the expression does not elaborate.
+    pub error: Option<crate::Error>,
+}
+
+/// [`check_program_multi_full`] with an optional probe (P21: the REPL is
+/// backed by the same analysis the language server drives): after every
+/// module's declarations are checked, the probe expression elaborates in
+/// the named module's scope and evaluates through the D92 evaluator (the
+/// staging interpreter), so the session's definitions are available to it.
+pub fn check_program_multi_full_probe(
+    prelude: &[ast::Module],
+    modules: &[ast::Module],
+    source_hashes: &HashMap<String, String>,
+    scx: &StagingCx,
+    wit: &[crate::interface::WitAdapter],
+    profile: &crate::core::TargetProfile,
+    probe: Option<&ProbeTerm<'_>>,
+) -> Result<(
+    Program,
+    Vec<crate::interface::Iface>,
+    StageReport,
+    Vec<Diagnostic>,
+    Option<ProbeResult>,
+)> {
+    check_program_multi_full_impl(prelude, modules, source_hashes, scx, wit, profile, probe)
+}
+
+/// [`check_program_multi_full_probe`]'s body; the plain entry delegates
+/// with no probe.
+fn check_program_multi_full_impl(
+    prelude: &[ast::Module],
+    modules: &[ast::Module],
+    source_hashes: &HashMap<String, String>,
+    scx: &StagingCx,
+    wit: &[crate::interface::WitAdapter],
+    profile: &crate::core::TargetProfile,
+    probe: Option<&ProbeTerm<'_>>,
+) -> Result<(
+    Program,
+    Vec<crate::interface::Iface>,
+    StageReport,
+    Vec<Diagnostic>,
+    Option<ProbeResult>,
+)> {
     let Some(facade) = prelude.iter().find(|m| m.name.text == "Prelude") else {
         return Err(Error::plain("internal error: the prelude family has no facade"));
     };
@@ -13808,6 +13881,13 @@ pub fn check_program_multi_full(
         emit(&c, &m.name.text, &imports);
     }
     let diags = std::mem::take(&mut c.diags);
+    // P21's probe (the REPL is backed by the analysis layer): evaluate
+    // the session's expression now that every module's code exists, just
+    // before the checker folds into the finished program.
+    let probe_out = match probe {
+        Some(p) => Some(c.probe_term(scx, p)),
+        None => None,
+    };
     let mut program = c.finish(&scx.entry_modules, &prelude_name)?;
     // P20: the group-level safety claims verify over the finished
     // program's D104 groups; the report says which proof method
@@ -13816,7 +13896,7 @@ pub fn check_program_multi_full(
     // The verified rows re-state as the LLVM contract surface's facts
     // on their definitions (design/llvm-contract-attributes.md).
     contract_facts(&safety_records, &mut program);
-    Ok((program, ifaces, report, diags))
+    Ok((program, ifaces, report, diags, probe_out))
 }
 
 /// Check a single user module against the implicit prelude and elaborate it.
@@ -17926,5 +18006,208 @@ fn prim_abi_shape(ty: &Ty, usize_bits: u32) -> crate::core::PrimAbiTy {
         Ty::Prim(s) => PrimAbiTy::Int { bits: s.width(), signed: s.is_signed() },
         // `Bool` crosses as its `i8` value bits.
         _ => PrimAbiTy::Int { bits: 8, signed: false },
+    }
+}
+
+// ------------------------------------------------------------ P21: the REPL probe
+
+impl Checker {
+    /// [`solve_wants`] for the probe: the wants no instance discharges
+    /// return residual (the probe's scheme states them as its context)
+    /// instead of failing the build.
+    fn solve_wants_residual(
+        &mut self,
+        wants: Vec<Want>,
+    ) -> Result<(HashMap<usize, DictExpr>, Vec<Want>)> {
+        let mut solutions = HashMap::new();
+        let mut pending: Vec<usize> = (0..wants.len()).collect();
+        loop {
+            let mut progress = false;
+            let mut next = Vec::new();
+            for &i in &pending {
+                match self.solve(&wants[i].class, &wants[i].scope, 0, wants[i].span)? {
+                    Solved(d) => {
+                        solutions.insert(wants[i].id, d);
+                        progress = true;
+                    }
+                    Ambiguous => next.push(i),
+                }
+            }
+            pending = next;
+            if pending.is_empty() {
+                return Ok((solutions, Vec::new()));
+            }
+            if !progress {
+                // The same literal defaulting as [`solve_wants`]
+                // (decision D7), then whatever remains is residual.
+                let lit_metas = self.literal_metas();
+                let mut defaulted = false;
+                for &i in &pending {
+                    let wanted_z = self.uni.zonk_class(&wants[i].class);
+                    for a in &wanted_z.args {
+                        for m in self.uni.free_metas(a) {
+                            if lit_metas.contains(&m) {
+                                let ty = match m {
+                                    EitherMeta::Type(id) => Ty::Meta(id),
+                                    EitherMeta::Row(_) => continue,
+                                };
+                                self.uni.unify(&ty, &Ty::Int).unwrap_or_else(|_| {
+                                    panic!("literal defaulting to Int must succeed")
+                                });
+                                defaulted = true;
+                            }
+                        }
+                    }
+                    if defaulted {
+                        break;
+                    }
+                }
+                if defaulted {
+                    continue;
+                }
+                let mut residual: Vec<Want> = Vec::new();
+                for (i, w) in wants.into_iter().enumerate() {
+                    if pending.contains(&i) {
+                        residual.push(w);
+                    }
+                }
+                return Ok((solutions, residual));
+            }
+        }
+    }
+
+    /// P21: infer, elaborate and evaluate one closed expression in
+    /// `p.module`'s scope through the D92 evaluator (the staging
+    /// interpreter the literal fold runs), against the checked program's
+    /// code. Runs after every module's declarations are checked, so all
+    /// of the session's definitions are available to interpretation.
+    /// Probe failures are reported in the result, never as check errors.
+    fn probe_term(&mut self, scx: &StagingCx, p: &ProbeTerm<'_>) -> ProbeResult {
+        match self.probe_infer(scx, p) {
+            Ok(r) => r,
+            Err(e) => ProbeResult {
+                scheme: None,
+                value: None,
+                eval_error: None,
+                error: Some(e),
+            },
+        }
+    }
+
+    fn probe_infer(&mut self, scx: &StagingCx, p: &ProbeTerm<'_>) -> Result<ProbeResult> {
+        // The REPL is a compile-time context: its expressions elaborate
+        // where the D92 evaluator runs them.
+        self.set_scope(&p.module);
+        self.compile_time = true;
+        self.pending_refs.clear();
+        self.reset_usage();
+        self.smaller.clear();
+        let want_base = self.want_counter;
+        let mut env = Env::default();
+        let (ecore, ty) = self.infer(&mut env, p.term)?;
+        // The probe's constraint wants, isolated from anything earlier
+        // phases left pending.
+        let (probe_wants, rest): (Vec<Want>, Vec<Want>) = std::mem::take(&mut self.wants)
+            .into_iter()
+            .partition(|w| w.id >= want_base);
+        self.wants = rest;
+        let (sol, residual) = self.solve_wants_residual(probe_wants)?;
+        // The scheme: generalized like a let binding (the value
+        // restriction), with the residual constraints as its context,
+        // rendered against the same quantified names.
+        let zonked = self.uni.zonk(&ty);
+        let scheme = if is_syntactic_value(p.term) {
+            let env_metas = env_free_metas(&self.uni, &env);
+            let lit_metas = self.literal_metas();
+            let mine = self.uni.free_metas(&zonked);
+            let quantify: Vec<EitherMeta> = mine
+                .into_iter()
+                .filter(|m| !env_metas.contains(m) && !lit_metas.contains(m))
+                .collect();
+            let (ty2, tps, rps) = self.uni.generalize(&zonked, &quantify);
+            let mut ctx = Vec::new();
+            for (i, w) in residual.iter().enumerate() {
+                let class = self.uni.zonk_class(&w.class);
+                let args = class
+                    .args
+                    .iter()
+                    .map(|a| self.uni.generalize(a, &quantify).0)
+                    .collect();
+                ctx.push((format!("c{i}"), ClassApp { class: class.class, args }));
+            }
+            crate::types::Scheme {
+                params: tps,
+                idx_params: Vec::new(),
+                val_params: Vec::new(),
+                prop_params: Vec::new(),
+                row_params: rps,
+                region_params: Vec::new(),
+                ctx,
+                ty: ty2,
+            }
+        } else {
+            crate::types::Scheme::mono(zonked)
+        };
+        let scheme_text = render_scheme(&scheme);
+        let mut out = ProbeResult {
+            scheme: Some((scheme, scheme_text)),
+            value: None,
+            eval_error: None,
+            error: None,
+        };
+        if !residual.is_empty() {
+            out.eval_error = Some(format!(
+                "the expression's constraints are unresolved in this scope ({})",
+                residual
+                    .iter()
+                    .map(|w| self.uni.zonk_class(&w.class).to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ));
+            return Ok(out);
+        }
+        // Elaborate to code exactly like a definition body (dictionary
+        // solving, literal resolution, the collection fold, lambda
+        // hoisting) and run it through the evaluator.
+        let id = GlobalId(format!("{}.probe", p.module));
+        let mut body = self.fill_holes(&ecore, &sol)?;
+        let lits = self.resolved_literals()?;
+        let vals = self.resolved_idx_args()?;
+        resolve_lit_words(&mut body, &lits);
+        resolve_idx_words(&mut body, &vals);
+        self.fold_pass(&mut body, &id.0.clone(), true);
+        let mut hoisted = Vec::new();
+        hoist_lambdas(&mut body, &id.0, &mut self.lam_counter, &mut hoisted);
+        let before = self.fns.len();
+        self.fns.push(finalize_fn(
+            id.clone(),
+            Vec::new(),
+            body,
+            None,
+            None,
+            crate::core::FnHints::default(),
+            crate::core::FnMeta::default(),
+        ));
+        for h in hoisted {
+            self.fns.push(finalize_fn(
+                h.id,
+                h.params,
+                h.body,
+                None,
+                None,
+                crate::core::FnHints::default(),
+                crate::core::FnMeta::default(),
+            ));
+        }
+        let mut cx = StageCx::new(scx);
+        let mut frame: Vec<Value> = Vec::new();
+        let r = self.eval_core(&mut cx, &crate::core::Core::Global(id), &mut frame);
+        // The probe's units are not part of the checked program.
+        self.fns.truncate(before);
+        match r {
+            Ok(v) => out.value = Some(v),
+            Err(e) => out.eval_error = Some(e.to_string()),
+        }
+        Ok(out)
     }
 }
