@@ -145,6 +145,37 @@ The feature is therefore explicitness at boundaries, in two layers:
 The keep-set form (`weaken xs to {A, C}`) duplicates ascription and is
 left out unless API practice shows a need.
 
+## Instance heads at refinements (user direction, 2026-10-27)
+
+Instance declarations admit refinements in their heads, which both
+covers specialized methods and makes the transfer rule a library
+instance instead of compiler machinery:
+
+- Specialized methods at refined heads (`instance Semigroup (refined
+  Sorted (List Nat))` with `(<>) = merge` - the container's append
+  does not preserve sortedness, so rep-identity transfer cannot
+  produce it).
+- The general transfer is the predicate-parametric instance
+  `instance Semigroup (refined p (List a)) using (Semigroup (List a),
+  Preserves (<>) p)`, where `Preserves` is a built-in constraint the
+  law layer discharges (decidable where the D258 table and the
+  preservation checks decide; `not checked` at the honest tier
+  otherwise).
+- **Resolution is most-specific along the implication lattice**: at
+  `refined r`, candidates are instances whose head predicate `r`
+  implies (the value weakens to the head); the strongest head wins.
+  The generic `Preserves` instance sits at the lattice top and is
+  overridden by specificity alone. Two instances at INCOMPARABLE
+  heads matching a common refinement have no winner: a coherence
+  error naming both heads and the ambiguous refinement (D119
+  extended).
+- Applicability follows predicate implication, never method totality
+  (merge is total on unsorted lists; its instance must not apply
+  there or the laws would lie).
+- Spelling of `Preserves` in instance contexts (method-named vs the
+  `Signature.law` identity spelling) is the implementing slice's
+  call.
+
 ## Compound predicates (user direction, 2026-10-27; revision of D249's
 conjunction refusal)
 

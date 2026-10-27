@@ -907,6 +907,19 @@ correspondence: one lexeme in expression/pattern, staging `Name`, and
   the error). Zero runtime cost; genuinely irreversible (restoring an
   atom needs a fresh `narrow`/`Dec`). The keep-set form is deferred
   pending API practice.
+- **D260 (P28 instance heads at refinements, user direction)**:
+  instance declarations admit refinements in their heads. Specialized
+  methods at refined heads exist (Sorted's `Semigroup` is merge, not
+  the container's append), and the general transfer rule becomes a
+  library instance (`instance Semigroup (refined p (List a)) using
+  (Semigroup (List a), Preserves (<>) p)`) with `Preserves` a built-in
+  constraint the law layer discharges. Resolution is most-specific
+  along the implication lattice (candidates: heads `r` implies;
+  strongest wins; the generic `Preserves` instance sits at the top and
+  is overridden by specificity); incomparable heads matching a common
+  refinement are a coherence error naming both (D119 extended).
+  Applicability follows predicate implication, never method totality.
+  The `Preserves` context spelling is the implementing slice's call.
 - **D127 (P25 scaffolding ruling)**: FoldAgent's defunctionalized
   class shapes (`Foldable t a`, `Traversable t x g h tg hs`) are
   accepted as NON-CURATED scaffolding: they ship in the `Category`
