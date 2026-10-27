@@ -64,11 +64,12 @@ impl FixityTable {
     }
 }
 
-/// One parsed signature block item: an associated type member or a
-/// method signature.
+/// One parsed signature block item: an associated type member, a
+/// method signature, or a class law declaration.
 enum SigItem {
     Member(Decl),
     Method((Name, Type)),
+    Law((Name, Type)),
 }
 
 /// The declared name of a signature's type member.
@@ -167,6 +168,7 @@ fn describe(tok: &Tok) -> String {
         Tok::FloatLit(_) => "a float literal".into(),
         Tok::StrLit(_) => "a string literal".into(),
         Tok::CharLit(_) => "a character literal".into(),
+        Tok::Fragment(_) => "an inline target-IR fragment".into(),
         Tok::Tilde => "`~`".into(),
         other => format!("{other:?}"),
     }
@@ -422,6 +424,7 @@ impl<'a> Parser<'a> {
                 Err(self.err("type aliases are not supported in the bootstrap slice (`opaque type T :: Type` declares an abstract foreign resource)"))
             }
             Tok::Rewrite => self.parse_rewrite(false),
+            Tok::Prim => self.parse_prim(),
             Tok::Target => {
                 self.bump();
                 self.parse_rewrite(true)
@@ -522,6 +525,152 @@ impl<'a> Parser<'a> {
             justify: justify.ok_or_else(|| missing("justify"))?,
             span,
         }))
+    }
+
+    /// `prim name :: type where { target_body ... }` and its bodies
+    /// `family { fragment } [when cond] [justify e] [uses ...] [immarg
+    /// ...]` (primitive operations and inline target IR specification
+    /// section 2). The fragment is captured verbatim by the lexer (one
+    /// `Fragment` token between real braces); the clause keywords are
+    /// contextual except `justify`, a reserved word like the rewrite
+    /// clause's.
+    fn parse_prim(&mut self) -> Result<Decl> {
+        let span = self.expect(&Tok::Prim, "`prim`")?.span;
+        let name = self.parse_value_name()?;
+        self.expect(&Tok::ColonColon, "`::` after the prim's name")?;
+        let ty = self.parse_type()?;
+        self.expect(&Tok::Where, "`where` opening the prim's target-IR bodies")?;
+        let bodies =
+            self.parse_block_items("the prim's target-IR bodies", |p| p.parse_prim_body())?;
+        if bodies.is_empty() {
+            return Err(Error::at(
+                span,
+                "a prim declaration needs at least one target-IR body",
+            ));
+        }
+        Ok(Decl::Prim(PrimDecl { name, ty, bodies, span }))
+    }
+
+    /// One target-IR body: `family { fragment }` followed by its
+    /// clauses in any order, each at most once.
+    fn parse_prim_body(&mut self) -> Result<PrimBody> {
+        let span = self.peek().span;
+        let family = match self.peek_tok().clone() {
+            Tok::VarId(s) => {
+                self.bump();
+                Name::new(s, span)
+            }
+            t => {
+                return Err(self.err(format!(
+                    "expected a target-IR family name (`llvm`, `wasm`, `asm`, `clr` or `jvm`), found {}",
+                    describe(&t)
+                )))
+            }
+        };
+        self.expect(&Tok::LBrace, "`{` opening the body's inline fragment")?;
+        let (fragment, fragment_span) = match self.peek_tok().clone() {
+            Tok::Fragment(text) => {
+                let sp = self.peek().span;
+                self.bump();
+                (text, sp)
+            }
+            t => {
+                return Err(self.err(format!(
+                    "expected the body's inline fragment, found {}",
+                    describe(&t)
+                )))
+            }
+        };
+        self.expect(&Tok::RBrace, "`}` closing the body's inline fragment")?;
+        let mut when: Option<Term> = None;
+        let mut justify: Option<Term> = None;
+        let mut uses: Vec<PrimUse> = Vec::new();
+        let mut immarg: Vec<(u64, Span)> = Vec::new();
+        loop {
+            let cspan = self.peek().span;
+            let slot = match self.peek_tok() {
+                Tok::VarId(s) if s == "when" => 0,
+                Tok::Justify => 1,
+                Tok::VarId(s) if s == "uses" => 2,
+                Tok::VarId(s) if s == "immarg" => 3,
+                _ => break,
+            };
+            self.bump();
+            let dup = |name: &str| {
+                Error::at(cspan, format!("duplicate `{name}` clause in a target-IR body"))
+            };
+            match slot {
+                0 => {
+                    if when.is_some() {
+                        return Err(dup("when"));
+                    }
+                    when = Some(self.parse_term()?);
+                }
+                1 => {
+                    if justify.is_some() {
+                        return Err(dup("justify"));
+                    }
+                    justify = Some(self.parse_term()?);
+                }
+                2 => {
+                    if !uses.is_empty() {
+                        return Err(dup("uses"));
+                    }
+                    loop {
+                        let uspan = self.peek().span;
+                        self.expect(&Tok::LParen, "`(` opening a `uses` entry")?;
+                        let uname = self.parse_value_name()?;
+                        self.expect(&Tok::ColonColon, "`::` in a `uses` entry")?;
+                        let uty = self.parse_type()?;
+                        self.expect(&Tok::RParen, "`)` closing the `uses` entry")?;
+                        uses.push(PrimUse { name: uname, ty: uty, span: uspan });
+                        if self.at(&Tok::Comma) {
+                            self.bump();
+                        } else {
+                            break;
+                        }
+                    }
+                }
+                _ => {
+                    if !immarg.is_empty() {
+                        return Err(dup("immarg"));
+                    }
+                    loop {
+                        let ispan = self.peek().span;
+                        match self.peek_tok().clone() {
+                            Tok::Int(v) => {
+                                self.bump();
+                                let n = v.parse::<u64>().map_err(|_| {
+                                    Error::at(ispan, "an `immarg` index is a non-negative integer")
+                                })?;
+                                immarg.push((n, ispan));
+                            }
+                            t => {
+                                return Err(self.err(format!(
+                                    "expected an immediate parameter index, found {}",
+                                    describe(&t)
+                                )))
+                            }
+                        }
+                        if self.at(&Tok::Comma) {
+                            self.bump();
+                        } else {
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        Ok(PrimBody {
+            family,
+            fragment,
+            fragment_span,
+            when,
+            justify,
+            uses,
+            immarg,
+            span,
+        })
     }
 
     /// `upgrade Old to New where { migrate = e; [related = e] }` and its
@@ -1198,6 +1347,7 @@ impl<'a> Parser<'a> {
         let mut type_members = Vec::new();
         let mut member_decls = Vec::new();
         let mut methods = Vec::new();
+        let mut laws = Vec::new();
         for it in items {
             match it {
                 SigItem::Member(d) => {
@@ -1205,22 +1355,32 @@ impl<'a> Parser<'a> {
                     member_decls.push(d);
                 }
                 SigItem::Method(m) => methods.push(m),
+                SigItem::Law(l) => laws.push(l),
             }
         }
-        Ok(SigDecl { name, params, type_members, member_decls, methods, span })
+        Ok(SigDecl { name, params, type_members, member_decls, methods, laws, span })
     }
 
     /// One signature block item: an associated type member (`opaque type`
-    /// or `record`) or a method signature (modules and compilation
+    /// or `record`), a method signature (modules and compilation
     /// specification section 1; foreign function interface specification
-    /// section 2). Members are spliced ahead of the signature so its
-    /// method types resolve them (decision D65).
+    /// section 2), or a class `law` declaration (primitive operations and
+    /// inline target IR specification section 5). Members are spliced
+    /// ahead of the signature so its method types resolve them (decision
+    /// D65).
     fn parse_sig_item(&mut self) -> Result<SigItem> {
         if self.at(&Tok::Opaque) {
             return Ok(SigItem::Member(Decl::OpaqueType(self.parse_opaque_type()?)));
         }
         if self.at(&Tok::Record) {
             return Ok(SigItem::Member(Decl::Record(self.parse_record()?)));
+        }
+        if self.at(&Tok::Law) {
+            self.expect(&Tok::Law, "`law`")?;
+            let name = self.parse_value_name()?;
+            self.expect(&Tok::ColonColon, "`::`")?;
+            let ty = self.parse_type()?;
+            return Ok(SigItem::Law((name, ty)));
         }
         Ok(SigItem::Method(self.parse_method_signature()?))
     }
@@ -3016,6 +3176,20 @@ fn resolve_module_decl(d: &mut Decl, fix: &FixityTable) -> Result<()> {
             }
         }
         Decl::ValueSig { ty, .. } => resolve_type(ty, fix)?,
+        Decl::Prim(p) => {
+            resolve_type(&mut p.ty, fix)?;
+            for b in &mut p.bodies {
+                if let Some(w) = &mut b.when {
+                    resolve_term(w, fix)?;
+                }
+                if let Some(j) = &mut b.justify {
+                    resolve_term(j, fix)?;
+                }
+                for u in &mut b.uses {
+                    resolve_type(&mut u.ty, fix)?;
+                }
+            }
+        }
         Decl::OpaqueType(o) => resolve_type(&mut o.kind, fix)?,
         Decl::Rewrite(r) => {
             for b in &mut r.binders {
@@ -3080,6 +3254,9 @@ fn resolve_module_decl(d: &mut Decl, fix: &FixityTable) -> Result<()> {
         }
         Decl::Signature(sig) => {
             for (_, ty) in &mut sig.methods {
+                resolve_type(ty, fix)?;
+            }
+            for (_, ty) in &mut sig.laws {
                 resolve_type(ty, fix)?;
             }
         }

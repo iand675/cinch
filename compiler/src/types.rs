@@ -496,7 +496,15 @@ impl ITerm {
 
     /// A named application: `f a b`.
     pub fn app_fn(head: impl Into<String>, args: Vec<ITerm>) -> ITerm {
-        ITerm::App(Box::new(ITerm::Fn(head.into())), args)
+        // A nullary reference is the bare head: `App(f, [])` and `f`
+        // denote the same index value (a `law` equation over a nullary
+        // method like `mempty` must unify with a term's plain
+        // reference).
+        if args.is_empty() {
+            ITerm::Fn(head.into())
+        } else {
+            ITerm::App(Box::new(ITerm::Fn(head.into())), args)
+        }
     }
 
     /// Free value names, in first-appearance order.

@@ -29,6 +29,12 @@ module Algebra.Semigroup where
 
   signature Semigroup a where
     (<>) :: a -> a -> a
+    -- The class law (primitive operations and inline target IR
+    -- specification section 5): association. Instances are checked
+    -- against it sample-wise where the law machinery can decide it, and
+    -- `rewrite` justifications may cite it by identity
+    -- (`Semigroup.assoc`).
+    law assoc :: (x :: a) -> (y :: a) -> (z :: a) -> Eq ((x <> y) <> z) (x <> (y <> z))
 
   -- Structural: pointwise combination of functions into a semigroup.
   -- (t -> u) is a semigroup whenever the result is; the constraint is

@@ -2875,7 +2875,7 @@ impl Checker {
             idx_holes.push(ECore::IdxPending(id));
         }
         let core = match &v.kind {
-            ValueKind::TopFn => self.fn_ref(v, span)?,
+            ValueKind::TopFn | ValueKind::PrimDecl { .. } => self.fn_ref(v, span)?,
             ValueKind::StageFn | ValueKind::MacroFn => {
                 ECore::Global(fn_id(&v.module, &v.name))
             }
@@ -2888,6 +2888,15 @@ impl Checker {
                 // the method is projected from.
                 let dict = holes.remove(0);
                 ECore::DictProj(Box::new(dict), *idx)
+            }
+            ValueKind::Law => {
+                return Err(Error::at(
+                    span,
+                    format!(
+                        "a class law is erased evidence (primitive operations and inline target IR specification section 5); `{}` never becomes runtime code",
+                        v.name
+                    ),
+                ))
             }
             ValueKind::BoolLit(_) | ValueKind::EffectOp { .. } | ValueKind::ProofCtor => {
                 unreachable!()
@@ -6872,7 +6881,7 @@ impl Checker {
             }
         }
         let core = match &v.kind {
-            ValueKind::TopFn => self.fn_ref(&v, span)?,
+            ValueKind::TopFn | ValueKind::PrimDecl { .. } => self.fn_ref(&v, span)?,
             ValueKind::StageFn | ValueKind::MacroFn => {
                 ECore::Global(fn_id(&v.module, &v.name))
             }
@@ -6886,6 +6895,7 @@ impl Checker {
             ValueKind::StageBuiltin(_)
             | ValueKind::BoolLit(_)
             | ValueKind::EffectOp { .. }
+            | ValueKind::Law
             | ValueKind::ProofCtor => {
                 return Err(Error::at(span, "this value takes no capability supplies"))
             }

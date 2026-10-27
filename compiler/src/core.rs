@@ -1816,6 +1816,12 @@ pub struct FnMeta {
     pub dicts: Vec<(usize, String)>,
     /// Whether the definition's own effect rows are all empty.
     pub pure: bool,
+    /// The unit is a `prim` declaration's synthesized unit (primitive
+    /// operations and inline target IR specification section 2): its
+    /// content is inline target code (the fragment in [`Program`'s prim
+    /// table]), never core, so unfolding treats the unit as a leaf like
+    /// a foreign import (section 7).
+    pub prim_body: bool,
     /// The LLVM contract surface's facts about the definition (the
     /// effect-derived function attributes, the usage-derived parameter
     /// attributes, and the P20 assertions code generation re-states).
@@ -1832,6 +1838,7 @@ impl Default for FnMeta {
             pure_arrows: Vec::new(),
             dicts: Vec::new(),
             pure: true,
+            prim_body: false,
             contract: FnContract::default(),
         }
     }
@@ -2210,6 +2217,15 @@ pub struct Program {
     /// Foreign binding contracts, keyed by unit name (foreign function
     /// interface specification section 2).
     pub foreigns: std::collections::BTreeMap<String, ForeignPlan>,
+    /// Checked `prim` declarations in declaration order (primitive
+    /// operations and inline target IR specification sections 2-8):
+    /// their bodies, tier, selection and identity, for the artifact
+    /// manifest.
+    pub prims: Vec<PrimPlan>,
+    /// Class law check rows in check order (primitive operations and
+    /// inline target IR specification section 5), for the manifest's
+    /// honest reporting.
+    pub laws: Vec<LawRow>,
 }
 
 /// A checked rewrite rule. `pattern` is the elaborated form of the rule's
@@ -2265,6 +2281,102 @@ pub enum RequireCond {
     Never,
     /// Not statically decidable at the match site: refused there.
     Unknown,
+}
+
+/// A `prim` declaration's tier (primitive operations and inline target
+/// IR specification section 5): every body justified makes the prim
+/// `Justified` (the contract is the signature plus the law identity and
+/// bodies are representation), otherwise the prim is `Assumed` (the
+/// body content is contract: editing it stales dependents).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum PrimTier {
+    Justified,
+    Assumed,
+}
+
+/// One checked target-IR body of a `prim` (primitive operations and
+/// inline target IR specification sections 2-4): the verbatim fragment
+/// with its family, capability condition, immediate parameters, `uses`
+/// contracts and containment validation result.
+#[derive(Clone, Debug)]
+pub struct PrimBodyPlan {
+    /// The target-IR family (`llvm`, `asm`, `wasm`).
+    pub family: String,
+    /// The inline fragment, verbatim.
+    pub fragment: String,
+    /// The `when` condition's capability name (`None`: the baseline
+    /// body).
+    pub when: Option<String>,
+    /// Immediate parameter indices (`immarg`).
+    pub immarg: Vec<u64>,
+    /// The `uses` contracts: external symbol and its declared type.
+    pub uses: Vec<(String, String)>,
+    /// Justification identities this body cites (the tier is per-`prim`:
+    /// the weakest body governs).
+    pub assumptions: Vec<String>,
+    /// The containment validation result (specification section 4).
+    pub validation: String,
+}
+
+/// A `prim` ABI scalar (primitive operations and inline target IR
+/// specification section 4's declared ABI): the bridge shape between
+/// the canonical word convention and the inline fragment's parameters.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum PrimAbiTy {
+    /// An integer or character scalar at `bits` width.
+    Int { bits: u32, signed: bool },
+    F32,
+    F64,
+}
+
+/// A checked `prim` (primitive operations and inline target IR
+/// specification section 8): the report and artifact manifest record,
+/// per prim, the selected body's family and condition, its tier, its
+/// `uses` list and its validation result; selection never enters the
+/// compiled interface's contract projection (section 6).
+#[derive(Clone, Debug)]
+pub struct PrimPlan {
+    /// The synthesized unit name (`Module.name`).
+    pub unit: String,
+    pub module: String,
+    pub name: String,
+    /// The rendered declared signature.
+    pub ty: String,
+    /// The canonical word arity.
+    pub arity: usize,
+    /// The declared ABI's argument and result shapes (the fragment's).
+    pub args: Vec<PrimAbiTy>,
+    pub res: PrimAbiTy,
+    /// The declared effect row is empty (the body is pure computation).
+    pub pure: bool,
+    pub tier: PrimTier,
+    /// The law identities the contract is stated over (the justified
+    /// tier's contract identity).
+    pub laws: Vec<String>,
+    /// The selected body's index into `bodies`, and why (section 6).
+    pub selected: usize,
+    pub selected_why: String,
+    /// Per-family implementation units: the family and its body's index
+    /// (the family's matching conditional body or its baseline), for the
+    /// emission path's synthesized implementation units.
+    pub family_units: Vec<(String, usize)>,
+    pub bodies: Vec<PrimBodyPlan>,
+    /// The artifact identity: the signature plus the law identities for
+    /// a justified prim; the body content hash for an assumed one.
+    pub identity: String,
+}
+
+/// One instance's law check row for the artifact manifest (primitive
+/// operations and inline target IR specification section 5): what the
+/// sample-wise check decided, honestly (`checked` over the samples it
+/// ran, or `not checked` at the law machinery's boundary).
+#[derive(Clone, Debug)]
+pub struct LawRow {
+    pub instance: String,
+    pub class: String,
+    pub law: String,
+    /// `checked (N samples)` or `not checked (reason)`.
+    pub status: String,
 }
 
 // ============================== the tail-call report (D104) ==============================
@@ -4927,7 +5039,7 @@ impl Driver<'_> {
             return None;
         }
         let f = self.defs.get(&g.0)?.clone();
-        if f.prim.is_some() || f.ctor.is_some() || args.len() != f.params.len() {
+        if f.prim.is_some() || f.ctor.is_some() || f.meta.prim_body || args.len() != f.params.len() {
             return None;
         }
         if self.stack.iter().any(|s| s == &g.0) {

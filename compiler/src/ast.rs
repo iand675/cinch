@@ -600,6 +600,11 @@ pub struct SigDecl {
     /// The member declarations to splice (emptied by the splice).
     pub member_decls: Vec<Decl>,
     pub methods: Vec<(Name, Type)>,
+    /// `law name :: prop` members (primitive operations and inline
+    /// target IR specification section 5): class laws stating the
+    /// equations instances are checked against, citable as `justify`
+    /// evidence by identity.
+    pub laws: Vec<(Name, Type)>,
     pub span: Span,
 }
 
@@ -682,6 +687,58 @@ pub struct ForeignDecl {
     pub symbol: String,
     pub name: Name,
     pub ty: Type,
+    pub span: Span,
+}
+
+/// One `uses` entry of a `prim` body (primitive operations and inline
+/// target IR specification section 4): a full foreign binding contract
+/// for a symbol the inline fragment may reference, recorded like a
+/// foreign import.
+#[derive(Clone, Debug)]
+pub struct PrimUse {
+    pub name: Name,
+    pub ty: Type,
+    pub span: Span,
+}
+
+/// One target-IR body of a `prim` declaration (primitive operations
+/// and inline target IR specification section 2): `family { fragment }
+/// [when cond] [justify e] [uses ...] [immarg ...]`. The fragment is
+/// the family's raw text payload, kept verbatim for round-tripping and
+/// provenance; `immarg` lists the parameter indices (from 0) the body
+/// requires as compile-time immediates (`llvm-contract-attributes.md`:
+/// shift amounts, SIMD lane indices).
+#[derive(Clone, Debug)]
+pub struct PrimBody {
+    /// The target-IR family: `llvm`, `wasm`, `asm`, `clr`, `jvm`, or a
+    /// user family name (rejected when unregistered).
+    pub family: Name,
+    /// The family's inline fragment, verbatim.
+    pub fragment: String,
+    /// The fragment's own span (the open brace's).
+    pub fragment_span: Span,
+    /// `when cond`: the capability condition scoping the body. `None`
+    /// is the baseline body.
+    pub when: Option<Term>,
+    /// `justify e`: evidence that the body implements the declared
+    /// type's mathematical meaning (specification section 5).
+    pub justify: Option<Term>,
+    /// `uses ...`: the external symbols the fragment may reference.
+    pub uses: Vec<PrimUse>,
+    /// `immarg ...`: immediate parameter indices with their spans.
+    pub immarg: Vec<(u64, Span)>,
+    pub span: Span,
+}
+
+/// `prim name :: type where { target_body ... }` (primitive operations
+/// and inline target IR specification section 2): a primitive
+/// operation with inline target-IR bodies. A `prim` name is a
+/// module-level value like any other.
+#[derive(Clone, Debug)]
+pub struct PrimDecl {
+    pub name: Name,
+    pub ty: Type,
+    pub bodies: Vec<PrimBody>,
     pub span: Span,
 }
 
@@ -856,6 +913,10 @@ pub enum Decl {
     },
     Equation { modifier: Option<Name>, eq: Equation },
     Foreign(ForeignDecl),
+    /// `prim name :: type where { target_body ... }` (primitive
+    /// operations and inline target IR specification section 2): a
+    /// primitive operation with inline target-IR bodies.
+    Prim(PrimDecl),
     /// `opaque type T [params] :: Type` (foreign function interface
     /// specification section 2).
     OpaqueType(OpaqueTypeDecl),
@@ -1141,6 +1202,23 @@ pub fn collect_decl_refs(d: &Decl, out: &mut Vec<RefSite>) {
         Decl::Signature(s) => {
             for (_, ty) in &s.methods {
                 collect_type_refs(ty, out);
+            }
+            for (_, ty) in &s.laws {
+                collect_type_refs(ty, out);
+            }
+        }
+        Decl::Prim(p) => {
+            collect_type_refs(&p.ty, out);
+            for b in &p.bodies {
+                if let Some(w) = &b.when {
+                    collect_term_refs(w, out);
+                }
+                if let Some(j) = &b.justify {
+                    collect_term_refs(j, out);
+                }
+                for u in &b.uses {
+                    collect_type_refs(&u.ty, out);
+                }
             }
         }
         Decl::Instance(i) => {
@@ -1815,7 +1893,31 @@ pub fn hyg_decl(d: &Decl, cx: &mut HygCx, sc: &mut HygScope) -> Result<Decl> {
                 methods.push((Name::new(f, n.span), ty));
             }
             s.methods = methods;
+            let mut laws = Vec::new();
+            for (n, ty) in &s.laws {
+                let ty = hyg_type(ty, cx, sc)?;
+                let f = fresh_name(cx, &n.text);
+                sc.values.push((n.text.clone(), f.clone()));
+                laws.push((Name::new(f, n.span), ty));
+            }
+            s.laws = laws;
             Decl::Signature(s)
+        }
+        Decl::Prim(p) => {
+            let mut p = p.clone();
+            p.ty = hyg_type(&p.ty, cx, sc)?;
+            for b in &mut p.bodies {
+                if let Some(w) = &b.when {
+                    b.when = Some(hyg_term(w, cx, sc)?);
+                }
+                if let Some(j) = &b.justify {
+                    b.justify = Some(hyg_term(j, cx, sc)?);
+                }
+                for u in &mut b.uses {
+                    u.ty = hyg_type(&u.ty, cx, sc)?;
+                }
+            }
+            Decl::Prim(p)
         }
         Decl::Instance(i) => {
             let mut i = i.clone();
@@ -2101,6 +2203,14 @@ pub fn subst_holes_decl(d: &Decl, vals: &[Term]) -> Decl {
             u.related = u.related.as_ref().map(|t| subst_holes(t, vals));
             Decl::Upgrade(u)
         }
+        Decl::Prim(p) => {
+            let mut p = p.clone();
+            for b in &mut p.bodies {
+                b.when = b.when.as_ref().map(|t| subst_holes(t, vals));
+                b.justify = b.justify.as_ref().map(|t| subst_holes(t, vals));
+            }
+            Decl::Prim(p)
+        }
         Decl::Contract(c) => {
             let mut c = c.clone();
             for cl in &mut c.clauses {
@@ -2330,6 +2440,16 @@ fn collect_decl_holes(d: &mut Decl, holes: &mut Vec<HoleExpr>) {
             }
         }
         Decl::Data(_) | Decl::Record(_) | Decl::Codata(_) | Decl::Effect(_) => {}
+        Decl::Prim(p) => {
+            for b in &mut p.bodies {
+                if let Some(w) = &mut b.when {
+                    collect_template_holes(w, holes);
+                }
+                if let Some(j) = &mut b.justify {
+                    collect_template_holes(j, holes);
+                }
+            }
+        }
         Decl::Equation { eq, .. } => {
             collect_template_holes(&mut eq.body, holes);
             for l in &mut eq.locals {

@@ -1,0 +1,20 @@
+-- The `prim` acceptance bodies (primitive operations and inline target
+-- IR specification sections 2-3): one prim with an `llvm` body and an
+-- `asm` body, each carrying an immediate parameter (`immarg`). The
+-- `asm` fragment is an inline-asm template (`$0` is the return operand,
+-- `$1 ...` the arguments) and is emitted as `llvm.sideeffect` inline
+-- asm; the `llvm` fragment is the function body verbatim.
+module Main where
+
+  prim add2 :: U32 -> U32 -> U32 where
+    llvm {
+      %s = add i32 %0, %1
+      ret i32 %s
+    } immarg 1
+    asm {
+      nop
+    } immarg 1
+
+  main :: Int
+  main =
+    if add2 40 2 == 42 then 0 else 1

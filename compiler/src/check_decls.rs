@@ -2504,6 +2504,80 @@ impl Checker {
                             .push((module.clone(), f.clone(), s, set.foreign_abi));
                     }
                 }
+                ast::Decl::Prim(p) => {
+                    // Hint attributes apply to the synthesized unit
+                    // (primitive operations and inline target IR
+                    // specification section 7); semantic attributes do
+                    // not apply (the ABI comes from the declared type
+                    // and the family contract).
+                    let set = self.validate_attr_site(decl_attrs, AttrSite::FnDecl)?;
+                    // The intrinsic namespaces stay reserved (D73): a
+                    // `prim` must not claim an intrinsic family's name
+                    // (primitive operations and inline target IR
+                    // specification section 7).
+                    let unit = fn_id(&module, &p.name.text).0;
+                    self.record_fn_hints(&unit, set.inline, set.fn_cold, p.span)?;
+                    if unit.starts_with("safelang.prim.") || unit.starts_with("safelang.runtime.") {
+                        return Err(Error::at(
+                            p.name.span,
+                            format!(
+                                "the intrinsic namespaces are reserved (decision D73): a `prim` must not claim the intrinsic name {} (primitive operations and inline target IR specification section 7)",
+                                unit
+                            ),
+                        ));
+                    }
+                    let s = self.conv_scheme(&p.ty)?;
+                    if !s.params.is_empty() || !s.ctx.is_empty() {
+                        return Err(Error::at(
+                            p.span,
+                            "a prim cannot be polymorphic or constrained (primitive operations and inline target IR specification section 2)",
+                        ));
+                    }
+                    // Signature discipline: the bodies receive exactly
+                    // the declared arguments in the declared ABI and
+                    // return the declared result shape (foreign function
+                    // interface specification section 2: widths,
+                    // signedness, convention).
+                    let (arg_tys, _) = self.check_prim_envelope(p, &s.ty)?;
+                    let mut immarg: Vec<usize> = Vec::new();
+                    for b in &p.bodies {
+                        let mut seen: Vec<usize> = Vec::new();
+                        for (n, sp) in &b.immarg {
+                            let n = *n as usize;
+                            if n >= arg_tys.len() {
+                                return Err(Error::at(
+                                    *sp,
+                                    format!(
+                                        "`immarg` index {} is not a parameter of this prim (it takes {})",
+                                        n,
+                                        arg_tys.len()
+                                    ),
+                                ));
+                            }
+                            if seen.contains(&n) {
+                                return Err(Error::at(
+                                    *sp,
+                                    format!("duplicate `immarg` index {}", n),
+                                ));
+                            }
+                            seen.push(n);
+                            if !immarg.contains(&n) {
+                                immarg.push(n);
+                            }
+                        }
+                    }
+                    let arity = arity_of_arrows(&s.ty);
+                    self.add_value(
+                        ValueInfo {
+                            module: module.clone(),
+                            name: p.name.text.clone(),
+                            scheme: s.clone(),
+                            kind: ValueKind::PrimDecl { unit, arity, immarg },
+                        },
+                        p.span,
+                    )?;
+                    self.pending_prims.push((module.clone(), p.clone(), s));
+                }
                 ast::Decl::OpaqueType(o) => {
                     let _set = self.validate_attr_site(decl_attrs, AttrSite::TypeDecl)?;
                     // The kind is `Type` in this slice (foreign function
@@ -3373,6 +3447,90 @@ impl Checker {
                                 .insert((sig.name.text.clone(), mname.text.clone()), info);
                         }
                     }
+                    // `law` members (primitive operations and inline
+                    // target IR specification section 5): each states
+                    // an equation over the class's methods, citable as
+                    // `justify` evidence by its `Signature.law` identity
+                    // and checked sample-wise against every instance.
+                    let mut laws: Vec<(String, Scheme)> = Vec::new();
+                    for (lname, lty) in &sig.laws {
+                        let mut extra: Vec<String> = Vec::new();
+                        let mut rest = lty;
+                        loop {
+                            match rest {
+                                ast::Type::Forall(binders, body, _) => {
+                                    for b in binders {
+                                        extra.push(b.name.text.clone());
+                                    }
+                                    rest = body;
+                                }
+                                ast::Type::Using(_, _, uspan) => {
+                                    return Err(Error::at(
+                                        *uspan,
+                                        "a class law states its equation over the class's methods; `using` constraints are not supported on laws in the bootstrap slice",
+                                    ))
+                                }
+                                _ => break,
+                            }
+                        }
+                        let mut vars = params.clone();
+                        vars.extend(extra.iter().cloned());
+                        let ty = self.conv_type(rest, &vars)?;
+                        // The law's conclusion is a proposition: an `Eq`
+                        // equation (a bare proposition type is accepted
+                        // too; it states no equation to check).
+                        let mut conclusion = self.uni.zonk(&ty);
+                        loop {
+                            match conclusion {
+                                Ty::Fun(_, _, _, c) | Ty::Pi { cod: c, .. } => conclusion = *c,
+                                Ty::Prp(_) => break,
+                                other => {
+                                    return Err(Error::at(
+                                        lname.span,
+                                        format!(
+                                            "a class law states a proposition (an `Eq` equation over the class's methods), but `{lname}` concludes with {other}",
+                                            lname = lname.text
+                                        ),
+                                    ))
+                                }
+                            }
+                        }
+                        let mut row_params: Vec<String> = Vec::new();
+                        let mut region_params: Vec<String> = Vec::new();
+                        collect_row_names(&ty, &mut row_params, &mut region_params);
+                        let ty = crate::types::regionize(&ty, &region_params);
+                        let mut all_params = params.clone();
+                        all_params.extend(extra);
+                        let type_params: Vec<String> = all_params
+                            .into_iter()
+                            .filter(|p| !row_params.contains(p) && !region_params.contains(p))
+                            .collect();
+                        let scheme = Scheme {
+                            params: type_params,
+                            idx_params: Vec::new(),
+                            val_params: Vec::new(),
+                            prop_params: Vec::new(),
+                            row_params,
+                            region_params,
+                            ctx: Vec::new(),
+                            ty,
+                        };
+                        let info = ValueInfo {
+                            module: module.clone(),
+                            name: lname.text.clone(),
+                            scheme: scheme.clone(),
+                            kind: ValueKind::Law,
+                        };
+                        // A law is cited by identity (`Semigroup.assoc`)
+                        // and never by bare name: it registers only
+                        // under its `Signature.law` spelling, so law
+                        // names stay out of the value namespace
+                        // (primitive operations and inline target IR
+                        // specification section 5).
+                        self.qualified
+                            .insert((sig.name.text.clone(), lname.text.clone()), info);
+                        laws.push((lname.text.clone(), scheme));
+                    }
                     let notes = self.kind_constraints.borrow().clone();
                     let mut param_kinds: Vec<ParamKind> = Vec::new();
                     for (b, hint) in sig.params.iter().zip(&hints) {
@@ -3389,6 +3547,7 @@ impl Checker {
                         params: params.clone(),
                         param_kinds: param_kinds.clone(),
                         methods,
+                        laws,
                     };
                     // A class application is also the dictionary's type:
                     // `(vectors :: VecU32Target t w)` names the class as
@@ -4118,6 +4277,31 @@ impl Checker {
             }
         }
         self.self_instance = None;
+
+        // Class laws (primitive operations and inline target IR
+        // specification section 5): this instance owes its class's laws,
+        // checked sample-wise after every module's bodies are known.
+        if !sig.laws.is_empty() {
+            let subdicts: Vec<(String, Vec<Ty>)> = self.instance_list[self_idx]
+                .ctx
+                .iter()
+                .map(|(_, c)| (c.class.clone(), c.args.clone()))
+                .collect();
+            for (law_name, law_scheme) in &sig.laws {
+                self.law_obligations.push(LawObligation {
+                    instance: inst.name.text.clone(),
+                    module: module.to_string(),
+                    class: class.clone(),
+                    law: law_name.clone(),
+                    scheme: law_scheme.clone(),
+                    class_params: sig.params.clone(),
+                    class_args: args.clone(),
+                    method_units: method_fns.clone(),
+                    subdicts: subdicts.clone(),
+                    span: inst.span,
+                });
+            }
+        }
 
         let base_id = fn_id(module, &inst.name.text);
         // A parameterized module's instance dictionary closes over the
@@ -5800,6 +5984,769 @@ impl Checker {
         Ok(())
     }
 
+    /// Check every `prim` declaration in source order (primitive
+    /// operations and inline target IR specification sections 5-8).
+    /// Each body's `when` condition lowers against the target profile's
+    /// capability evidence, its `justify` evidence checks against the
+    /// prim's own equation, the tier follows (the weakest body governs
+    /// the contract), and one body is selected per the artifact
+    /// (selection is recorded in the manifest, never in the contract
+    /// projection). The synthesized unit joins the program as a leaf.
+    fn check_prims(&mut self) -> Result<()> {
+        let pending = std::mem::take(&mut self.pending_prims);
+        for (module, p, s) in pending {
+            self.current_module = module.clone();
+            self.visible = vec![module.clone()];
+            if let Some(imports) = self.module_imports.get(&module).cloned() {
+                for i in imports {
+                    if !self.visible.contains(&i) {
+                        self.visible.push(i);
+                    }
+                }
+            }
+            let prelude = self.prelude_module.clone();
+            if !self.visible.contains(&prelude) {
+                self.visible.push(prelude);
+            }
+            let unit = fn_id(&module, &p.name.text).0;
+            let arity = arity_of_arrows(&s.ty);
+            let (arg_tys, res_ty) = self.check_prim_envelope(&p, &s.ty)?;
+            let pure = !prim_effectful(&s.ty);
+            let mut bodies: Vec<crate::core::PrimBodyPlan> = Vec::new();
+            let mut laws: Vec<String> = Vec::new();
+            let mut all_justified = true;
+            for b in &p.bodies {
+                let (validation, uses) =
+                    self.validate_prim_body(&module, &p, b, &arg_tys, &res_ty, pure)?;
+                let when = match &b.when {
+                    Some(w) => Some(self.lower_available(w)?),
+                    None => None,
+                };
+                let assumptions = match &b.justify {
+                    Some(j) => self.check_prim_justify(j, &unit, arity, b.span)?,
+                    None => {
+                        all_justified = false;
+                        Vec::new()
+                    }
+                };
+                for a in &assumptions {
+                    if !laws.contains(a) {
+                        laws.push(a.clone());
+                    }
+                }
+                bodies.push(crate::core::PrimBodyPlan {
+                    family: b.family.text.clone(),
+                    fragment: b.fragment.clone(),
+                    when,
+                    immarg: b.immarg.iter().map(|(n, _)| *n).collect(),
+                    uses,
+                    assumptions,
+                    validation,
+                });
+            }
+            // Selection (section 6): a body applies when its family
+            // lowers through this build's emission path and its `when`
+            // condition holds in the target profile. The single matching
+            // conditional body is the specific one; the baseline (no
+            // `when`) is the fallback. Two bodies with overlapping
+            // conditions in one family are the first-match ambiguity and
+            // an error. Selection is fixed at compile time per artifact.
+            let mut selected: Option<(usize, String)> = None;
+            let mut family_units: Vec<(String, usize)> = Vec::new();
+            for fam in ["llvm", "asm"] {
+                let mut matched: Vec<usize> = Vec::new();
+                let mut baseline: Option<usize> = None;
+                for (i, bd) in bodies.iter().enumerate() {
+                    if bd.family != fam {
+                        continue;
+                    }
+                    match &bd.when {
+                        Some(cap) if self.target_caps.contains(cap) => matched.push(i),
+                        None => {
+                            if baseline.is_some() {
+                                return Err(Error::at(
+                                    p.span,
+                                    format!(
+                                        "two baseline `{fam}` bodies overlap (primitive operations and inline target IR specification section 6: two bodies with overlapping conditions in one family are an error)"
+                                    ),
+                                ));
+                            }
+                            baseline = Some(i);
+                        }
+                        _ => {}
+                    }
+                }
+                if matched.len() > 1 {
+                    return Err(Error::at(
+                        p.span,
+                        format!(
+                            "overlapping `when` conditions in family `{fam}`: {} bodies match this target profile (primitive operations and inline target IR specification section 6)",
+                            matched.len()
+                        ),
+                    ));
+                }
+                let pick = match (matched.first(), baseline) {
+                    (Some(i), _) => Some((
+                        *i,
+                        format!("the `{fam}` body's `when Available {}` condition holds in the target profile", bodies[*i].when.as_deref().unwrap_or("")),
+                    )),
+                    (None, Some(i)) => Some((
+                        i,
+                        format!("the baseline `{fam}` body (the fallback when no `when` condition matches)"),
+                    )),
+                    (None, None) => None,
+                };
+                if let Some((i, why)) = pick {
+                    family_units.push((fam.to_string(), i));
+                    if selected.is_none() {
+                        selected = Some((i, why));
+                    }
+                }
+            }
+            let (selected, selected_why) = match selected {
+                Some(x) => x,
+                None => {
+                    let conds: Vec<&str> =
+                        bodies.iter().filter_map(|b| b.when.as_deref()).collect();
+                    if !conds.is_empty() {
+                        return Err(Error::at(
+                            p.span,
+                            format!(
+                                "no body applies: the `when` conditions name the capability/capabilities {} which the target profile does not provide (primitive operations and inline target IR specification section 6: reject the missing capability)",
+                                conds.join(", ")
+                            ),
+                        ));
+                    }
+                    return Err(Error::at(
+                        p.span,
+                        format!(
+                            "this build cannot emit a body for `{}`: it declares only {} bodies, and the artifact's emission families are `llvm` and `asm` (primitive operations and inline target IR specification section 3)",
+                            p.name.text,
+                            bodies.iter().map(|b| b.family.as_str()).collect::<Vec<_>>().join(", ")
+                        ),
+                    ));
+                }
+            };
+            // The tier and the identity rules (section 5): a justified
+            // prim's contract is its signature plus the law identity and
+            // bodies are representation; an assumed prim's body content
+            // is contract, so editing it stales dependents.
+            let tier = if all_justified {
+                crate::core::PrimTier::Justified
+            } else {
+                crate::core::PrimTier::Assumed
+            };
+            let identity = match tier {
+                crate::core::PrimTier::Justified => {
+                    format!("prim:{unit}:{}:laws[{}]", render_scheme(&s), laws.join(","))
+                }
+                crate::core::PrimTier::Assumed => {
+                    let mut body_text = String::new();
+                    for b in &bodies {
+                        body_text.push_str(&b.family);
+                        body_text.push('\n');
+                        body_text.push_str(b.when.as_deref().unwrap_or(""));
+                        body_text.push('\n');
+                        body_text.push_str(&b.fragment);
+                        body_text.push_str(&format!("{:?}", b.uses));
+                        body_text.push_str(&format!("{:?}", b.immarg));
+                    }
+                    format!("prim:{unit}#{}", crate::interface::content_hash(&body_text))
+                }
+            };
+            let plan = crate::core::PrimPlan {
+                unit: unit.clone(),
+                module: module.clone(),
+                name: p.name.text.clone(),
+                ty: render_scheme(&s),
+                arity,
+                args: arg_tys
+                    .iter()
+                    .map(|t| prim_abi_shape(t, self.usize_bits))
+                    .collect(),
+                res: prim_abi_shape(&res_ty, self.usize_bits),
+                pure,
+                tier,
+                laws,
+                selected,
+                selected_why,
+                family_units,
+                bodies,
+                identity,
+            };
+            // The synthesized unit is a leaf like a foreign import: its
+            // content is the inline target fragment (section 7).
+            let mut meta = crate::core::FnMeta::default();
+            meta.prim_body = true;
+            meta.pure = pure;
+            self.fns.push(crate::core::FnDef {
+                id: crate::core::GlobalId(unit.clone()),
+                params: (0..arity).map(|i| format!("p{i}")).collect(),
+                body: crate::core::Core::Unit,
+                prim: None,
+                ctor: None,
+                hints: self.fn_hints.get(&unit).cloned().unwrap_or_default(),
+                meta,
+            });
+            self.prims.push(plan);
+        }
+        Ok(())
+    }
+
+    /// A `prim` body's `justify` evidence (primitive operations and
+    /// inline target IR specification section 5): the evidence states
+    /// `Eq (<prim> x1 ... xn) meaning` over the prim's own argument
+    /// binders, exactly the shape a law method of a `signature` (or a
+    /// `law` member) declares (decision D55's checked obligation). The
+    /// law identity is the assumption; declared `proof`/`spec` code is
+    /// kernel evidence and records nothing. Returns the identities.
+    fn check_prim_justify(
+        &mut self,
+        tm: &ast::Term,
+        unit: &str,
+        arity: usize,
+        span: ast::Span,
+    ) -> Result<Vec<String>> {
+        let shape_err = |detail: &str| {
+            Error::at(
+                span,
+                format!(
+                    "a prim body's justification states `Eq ({unit} x1 ... xn) meaning` over the prim's own arguments (primitive operations and inline target IR specification section 5): {detail}"
+                ),
+            )
+        };
+        let head: &ast::Term = match tm {
+            ast::Term::App(f, _, _) => f,
+            other => other,
+        };
+        let p = match head {
+            ast::Term::Var(p) => p,
+            other => {
+                return Err(Error::at(
+                    other.span(),
+                    "a prim body's justification is a law method of a `signature` (or a declared `proof`) stating the prim's equation (primitive operations and inline target IR specification section 5)",
+                ))
+            }
+        };
+        let v = self.resolve_var(p, p.span())?;
+        let (ty, _, _) = self.instantiate(&v.scheme);
+        let mut vars: Vec<String> = Vec::new();
+        let mut cur = self.uni.zonk(&ty);
+        loop {
+            match cur {
+                Ty::Pi { var, cod, .. } => {
+                    vars.push(var);
+                    cur = self.uni.zonk(&cod);
+                }
+                Ty::Fun(_, _, _, c) => {
+                    return Err(shape_err(
+                        "the justification quantifies its arguments by name (`(x :: T) -> ...`)",
+                    ))
+                }
+                _ => break,
+            }
+        }
+        if vars.len() != arity {
+            return Err(shape_err(&format!(
+                "the evidence states {} arguments, but the prim takes {}",
+                vars.len(),
+                arity
+            )));
+        }
+        let lhs = match self.uni.zonk(&cur) {
+            Ty::Prp(p) => match *p {
+                PTerm::Eq(l, _) => l,
+                _ => return Err(shape_err("the conclusion is an `Eq` equation")),
+            },
+            other => {
+                return Err(shape_err(&format!(
+                    "the evidence concludes with a proposition, not {other}"
+                )))
+            }
+        };
+        let expected = if arity == 0 {
+            ITerm::Fn(unit.to_string())
+        } else {
+            ITerm::App(
+                Box::new(ITerm::Fn(unit.to_string())),
+                vars.iter().map(|v| ITerm::Var(v.clone())).collect(),
+            )
+        };
+        if *lhs != expected {
+            return Err(shape_err(&format!(
+                "the equation is about `{}`, not the prim's own application",
+                lhs
+            )));
+        }
+        Ok(match v.kind {
+            ValueKind::Method { .. } | ValueKind::Law => {
+                vec![format!("{}.{}", v.module, v.name)]
+            }
+            _ => Vec::new(),
+        })
+    }
+
+    /// Check every instance against its class's laws, sample-wise where
+    /// the machinery can decide it (primitive operations and inline
+    /// target IR specification section 5). The law machinery's honest
+    /// boundary: a law over samplable carriers whose equations evaluate
+    /// is checked at its samples; anything else is reported as not
+    /// checked, never claimed as verified.
+    fn check_laws(&mut self) -> Result<()> {
+        // The law machinery resolves classes and dictionaries across the
+        // whole program: every collected module is visible here.
+        self.visible = self.module_names.iter().cloned().collect();
+        let obligations = std::mem::take(&mut self.law_obligations);
+        for ob in obligations {
+            self.check_law_samples(&ob)?;
+        }
+        Ok(())
+    }
+
+    /// One instance's sample-wise law check (primitive operations and
+    /// inline target IR specification section 5).
+    fn check_law_samples(&mut self, ob: &LawObligation) -> Result<()> {
+        let scope = format!("{}.{}", ob.module, ob.instance);
+        let mut row = |status: String| crate::core::LawRow {
+            instance: scope.clone(),
+            class: ob.class.clone(),
+            law: ob.law.clone(),
+            status,
+        };
+        if self
+            .module_params
+            .get(&ob.module)
+            .map(|p| !p.is_empty())
+            .unwrap_or(false)
+        {
+            self.law_rows
+                .push(row("not checked (the instance closes over module parameters)".to_string()));
+            return Ok(());
+        }
+        // The law at the instance's type arguments.
+        let mut map: HashMap<String, Ty> = HashMap::new();
+        for (i, p) in ob.class_params.iter().enumerate() {
+            if let Some(a) = ob.class_args.get(i) {
+                map.insert(p.clone(), a.clone());
+            }
+        }
+        let mut cur = Self::subst_ty(&ob.scheme.ty, &map);
+        let mut binders: Vec<(String, Ty)> = Vec::new();
+        loop {
+            match cur {
+                Ty::Pi { var, dom, cod, .. } => {
+                    binders.push((var, *dom));
+                    cur = *cod;
+                }
+                Ty::Fun(_, _, _, c) => {
+                    self.law_rows.push(row(
+                        "not checked (the law's binders must be named: `(x :: T) -> ...`)"
+                            .to_string(),
+                    ));
+                    return Ok(());
+                }
+                _ => break,
+            }
+        }
+        let (lhs, rhs) = match cur {
+            Ty::Prp(p) => match *p {
+                PTerm::Eq(l, r) => (l, r),
+                _ => {
+                    self.law_rows
+                        .push(row("not checked (the law states no `Eq` equation)".to_string()));
+                    return Ok(());
+                }
+            },
+            _ => {
+                self.law_rows
+                    .push(row("not checked (the law states no `Eq` equation)".to_string()));
+                return Ok(());
+            }
+        };
+        // Samples of the law's binders, where each type is samplable.
+        let mut sample_sets: Vec<Vec<Value>> = Vec::new();
+        for (name, dom) in &binders {
+            let samples = self.law_samples(dom, 2);
+            if samples.is_empty() {
+                self.law_rows.push(row(format!(
+                    "not checked (no samples for the law binder `{name} :: {dom}`)"
+                )));
+                return Ok(());
+            }
+            sample_sets.push(samples);
+        }
+        // The instance's method units as an index-term head table, with
+        // their sub-dictionary values (the equations mention methods by
+        // their declared heads and pass no dictionaries).
+        let mut methods: HashMap<String, (crate::core::GlobalId, Vec<Value>)> = HashMap::new();
+        if self
+            .law_collect_methods(ob, 0, &mut methods, &mut Vec::new())?
+            .is_none()
+        {
+            self.law_rows
+                .push(row("not checked (the instance's dictionaries do not resolve)".to_string()));
+            return Ok(());
+        }
+        let scx = self.fold_scx.clone().unwrap_or_default();
+        let mut cx = StageCx::new(&scx);
+        // Every ordered sample assignment (the cross product, capped).
+        let mut assignments: Vec<HashMap<String, Value>> = vec![HashMap::new()];
+        for ((name, _), samples) in binders.iter().zip(&sample_sets) {
+            let mut next = Vec::new();
+            for a in &assignments {
+                for s in samples {
+                    let mut a2 = a.clone();
+                    a2.insert(name.clone(), s.clone());
+                    next.push(a2);
+                }
+            }
+            assignments = next;
+            if assignments.len() > 256 {
+                assignments.truncate(256);
+            }
+        }
+        let mut checked = 0usize;
+        for frame in &assignments {
+            let l = self.eval_law_idx(&mut cx, &lhs, frame, &methods);
+            let r = self.eval_law_idx(&mut cx, &rhs, frame, &methods);
+            let (l, r) = match (l, r) {
+                (Ok(l), Ok(r)) => (l, r),
+                (Err(e), _) | (_, Err(e)) => {
+                    self.law_rows.push(row(format!(
+                        "not checked (the samples did not evaluate: {e})"
+                    )));
+                    return Ok(());
+                }
+            };
+            match law_value_eq(&l, &r) {
+                LawCmp::Equal => checked += 1,
+                LawCmp::Opaque => {
+                    self.law_rows.push(row(
+                        "not checked (a sample produced a value the law machinery cannot compare)"
+                            .to_string(),
+                    ));
+                    return Ok(());
+                }
+                LawCmp::NotEqual => {
+                    let mut sample_text = String::new();
+                    for (name, _) in &binders {
+                        if !sample_text.is_empty() {
+                            sample_text.push_str(", ");
+                        }
+                        sample_text.push_str(&format!(
+                            "{name} = {}",
+                            law_value_render(&frame[name])
+                        ));
+                    }
+                    return Err(Error::at(
+                        ob.span,
+                        format!(
+                            "instance `{}` breaks class law `{}.{}` at sample values ({}): left `{}`, right `{}` (primitive operations and inline target IR specification section 5)",
+                            scope,
+                            ob.class,
+                            ob.law,
+                            sample_text,
+                            law_value_render(&l),
+                            law_value_render(&r)
+                        ),
+                    ));
+                }
+            }
+        }
+        self.law_rows.push(row(format!("checked ({checked} samples)")));
+        Ok(())
+    }
+
+    /// Collect the method head table for one law check: the instance's
+    /// own class methods (and its sub-dictionaries' methods), mapped
+    /// from their declared index-term heads to the instance's method
+    /// units and sub-dictionary values. `None` when a dictionary does
+    /// not resolve: the honest boundary.
+    fn law_collect_methods(
+        &self,
+        ob: &LawObligation,
+        depth: u8,
+        out: &mut HashMap<String, (crate::core::GlobalId, Vec<Value>)>,
+        seen: &mut Vec<String>,
+    ) -> Result<Option<Value>> {
+        if depth > 4 {
+            return Ok(None);
+        }
+        let sigs = match self.sigs.get(&ob.class) {
+            Some(ss) => ss,
+            None => return Ok(None),
+        };
+        let sig = match sigs
+            .iter()
+            .find(|s| self.def_in_scope(&s.module, &s.name))
+        {
+            Some(s) => s.clone(),
+            None => return Ok(None),
+        };
+        let scope_key = format!(
+            "{}[{}]",
+            ob.class,
+            ob.class_args
+                .iter()
+                .map(|t| t.to_string())
+                .collect::<Vec<_>>()
+                .join(",")
+        );
+        if seen.contains(&scope_key) {
+            return Ok(None);
+        }
+        seen.push(scope_key);
+        // The instance's sub-dictionaries resolve to concrete instances
+        // and contribute their own methods and dictionary values.
+        let mut subs: Vec<Value> = Vec::new();
+        for (sc, sargs) in &ob.subdicts {
+            let Some(idx) = self.unique_instance_for(sc, sargs) else {
+                return Ok(None);
+            };
+            let info = self.instance_list[idx].clone();
+            let def = match self
+                .instance_defs
+                .iter()
+                .find(|d| d.id == fn_id(&info.module, &info.name))
+            {
+                Some(d) => d.clone(),
+                None => return Ok(None),
+            };
+            let sub_ob = LawObligation {
+                instance: info.name.clone(),
+                module: info.module.clone(),
+                class: sc.clone(),
+                law: String::new(),
+                scheme: ob.scheme.clone(),
+                class_params: Vec::new(),
+                class_args: sargs.clone(),
+                method_units: def.methods.clone(),
+                subdicts: info
+                    .ctx
+                    .iter()
+                    .map(|(_, c)| (c.class.clone(), c.args.clone()))
+                    .collect(),
+                span: ob.span,
+            };
+            let Some(d) = self.law_collect_methods(&sub_ob, depth + 1, out, seen)? else {
+                return Ok(None);
+            };
+            subs.push(d);
+        }
+        // The instance's own methods, over its sub-dictionaries.
+        for (mi, (mname, _)) in sig.methods.iter().enumerate() {
+            let Some(gid) = ob.method_units.get(mi) else {
+                return Ok(None);
+            };
+            out.insert(fn_id(&sig.module, mname).0, (gid.clone(), subs.clone()));
+        }
+        let closes = ob
+            .method_units
+            .iter()
+            .map(|gid| Value::Clos {
+                fn_id: gid.clone(),
+                env: Vec::new(),
+                args: subs.clone(),
+                arity: usize::MAX,
+            })
+            .collect();
+        Ok(Some(Value::Dict { methods: closes }))
+    }
+
+    /// The unique instance a class application resolves to (the
+    /// coherence rule: no two instances of a class unify, so at most one
+    /// matches; a parameter matches any argument).
+    fn unique_instance_for(&self, class: &str, args: &[Ty]) -> Option<usize> {
+        let idxs = self.instances.get(class)?;
+        let mut found = None;
+        for &i in idxs {
+            let info = &self.instance_list[i];
+            if info.base {
+                continue;
+            }
+            if info.target.class != class || info.target.args.len() != args.len() {
+                continue;
+            }
+            if info
+                .target
+                .args
+                .iter()
+                .zip(args)
+                .all(|(p, a)| ty_match(p, a))
+            {
+                if found.is_some() {
+                    return None;
+                }
+                found = Some(i);
+            }
+        }
+        found
+    }
+
+    /// Evaluate one side of a law equation at its sample assignment
+    /// (primitive operations and inline target IR specification section
+    /// 5): index values reduce through the staging evaluator over the
+    /// instance's real method code.
+    fn eval_law_idx(
+        &mut self,
+        cx: &mut StageCx,
+        t: &ITerm,
+        frame: &HashMap<String, Value>,
+        methods: &HashMap<String, (crate::core::GlobalId, Vec<Value>)>,
+    ) -> Result<Value> {
+        Ok(match t {
+            ITerm::Num(d) => match d.parse::<i64>() {
+                Ok(v) => Value::Word(v),
+                Err(_) => Value::Big {
+                    nat: !d.starts_with('-'),
+                    digits: d.clone(),
+                },
+            },
+            ITerm::Var(v) => frame.get(v).cloned().ok_or_else(|| {
+                Error::plain(format!("internal error: unbound law binder {v}"))
+            })?,
+            ITerm::Bin(op, a, b) => {
+                let x = self.eval_law_idx(cx, a, frame, methods)?;
+                let y = self.eval_law_idx(cx, b, frame, methods)?;
+                let (Value::Word(x), Value::Word(y)) = (&x, &y) else {
+                    return Err(Error::plain(
+                        "a law's index arithmetic sample did not reduce to a word",
+                    ));
+                };
+                let (r, overflow) = match op {
+                    IdxOp::Add => x.overflowing_add(*y),
+                    IdxOp::Sub => x.overflowing_sub(*y),
+                    IdxOp::Mul => x.overflowing_mul(*y),
+                };
+                if overflow {
+                    return Err(Error::plain(
+                        "a law's index arithmetic sample overflowed (not decided)",
+                    ));
+                }
+                Value::Word(r)
+            }
+            ITerm::Fn(k) => {
+                if let Some((gid, subs)) = methods.get(k) {
+                    self.eval_fn(cx, gid, subs.clone())?
+                } else {
+                    self.global_value(cx, k)?
+                }
+            }
+            ITerm::App(f, args) => {
+                let fv = self.eval_law_idx(cx, f, frame, methods)?;
+                let mut vals = Vec::new();
+                for a in args {
+                    vals.push(self.eval_law_idx(cx, a, frame, methods)?);
+                }
+                self.apply_value(cx, fv, vals)?
+            }
+            ITerm::MVar(_) => {
+                return Err(Error::plain(
+                    "internal error: unsolved variable in a law equation",
+                ))
+            }
+        })
+    }
+
+    /// Sample values of one law binder type (primitive operations and
+    /// inline target IR specification section 5's sample-wise rule):
+    /// machine scalars at their boundaries, `Bool` exhaustively, `Nat`
+    /// and `Int` at small values, data types over their constructors'
+    /// sample fields, and an unknown carrier at two default words. A
+    /// type the machinery cannot sample yields no samples: the honest
+    /// boundary.
+    fn law_samples(&self, ty: &Ty, depth: u8) -> Vec<Value> {
+        match ty {
+            Ty::Prim(s) => scalar_samples(s),
+            Ty::Bool => vec![Value::Bool(false), Value::Bool(true)],
+            Ty::Nat | Ty::Int => vec![Value::Word(0), Value::Word(1), Value::Word(2)],
+            Ty::Param(_) => vec![Value::Word(0), Value::Word(1)],
+            Ty::Adt(name, args) => {
+                if depth == 0 {
+                    return Vec::new();
+                }
+                let Some(tks) = self.types.get(name) else {
+                    return Vec::new();
+                };
+                let Some(tk) = tks.first() else {
+                    return Vec::new();
+                };
+                let mut out: Vec<Value> = Vec::new();
+                for (cname, tag) in &tk.ctors {
+                    let Some(vs) = self.values.get(cname) else {
+                        continue;
+                    };
+                    let Some(v) = vs
+                        .iter()
+                        .find(|v| matches!(v.kind, ValueKind::Ctor { .. }))
+                    else {
+                        continue;
+                    };
+                    let ValueKind::Ctor {
+                        field_tys,
+                        field_erased,
+                        ty_params,
+                        ..
+                    } = &v.kind
+                    else {
+                        continue;
+                    };
+                    let mut map: HashMap<String, Ty> = HashMap::new();
+                    for (i, p) in ty_params.iter().enumerate() {
+                        if let Some(a) = args.get(i) {
+                            map.insert(p.clone(), a.clone());
+                        }
+                    }
+                    let mut field_sets: Vec<Vec<Value>> = Vec::new();
+                    let mut ok = true;
+                    for (ft, er) in field_tys.iter().zip(field_erased.iter()) {
+                        if *er {
+                            continue;
+                        }
+                        let ft = Self::subst_ty(ft, &map);
+                        let samples = self.law_samples(&ft, depth - 1);
+                        if samples.is_empty() {
+                            ok = false;
+                            break;
+                        }
+                        field_sets.push(samples.into_iter().take(2).collect());
+                    }
+                    if !ok {
+                        continue;
+                    }
+                    let mut combos: Vec<Vec<Value>> = vec![Vec::new()];
+                    for fs in &field_sets {
+                        let mut next = Vec::new();
+                        for c in &combos {
+                            for f in fs {
+                                let mut c2 = c.clone();
+                                c2.push(f.clone());
+                                next.push(c2);
+                            }
+                        }
+                        combos = next;
+                        if combos.len() > 3 {
+                            combos.truncate(3);
+                        }
+                    }
+                    for fields in combos {
+                        out.push(Value::Adt {
+                            ctor: fn_id(&tk.module, cname).0,
+                            tag: *tag,
+                            fields,
+                        });
+                    }
+                    if out.len() >= 4 {
+                        break;
+                    }
+                }
+                out.truncate(4);
+                out
+            }
+            _ => Vec::new(),
+        }
+    }
+
     /// The field names, field types and result arguments of a visible
     /// `record` type, from its single constructor (the record type name).
     fn record_fields(&self, name: &str, span: ast::Span) -> Result<(Vec<String>, Vec<Ty>, Vec<Ty>)> {
@@ -6154,7 +7101,7 @@ impl Checker {
             head = f;
         }
         match head {
-            ECore::Global(_) | ECore::Ctor(_) | ECore::Prim(_) => {}
+            ECore::Global(_) | ECore::Ctor(_) | ECore::Prim(_) | ECore::DictProj(_, _) => {}
             _ => {
                 return Err(Error::at(
                     r.match_tm.span(),
@@ -6386,7 +7333,7 @@ impl Checker {
         };
         if let ast::Term::Var(p) = head {
             if let Ok(v) = self.resolve_var(p, p.span()) {
-                if matches!(v.kind, ValueKind::Method { .. }) {
+                if matches!(v.kind, ValueKind::Method { .. } | ValueKind::Law) {
                     return self.check_law_justify(env, tm, &v, eq, span);
                 }
             }
@@ -6543,7 +7490,442 @@ impl Checker {
             rewrites: self.rewrites,
             plans,
             foreigns,
+            prims: self.prims,
+            laws: self.law_rows,
         })
+    }
+
+    /// The `prim` signature envelope (primitive operations and inline
+    /// target IR specification section 2): a monomorphic function type
+    /// with closed, explicit effect rows (exactly the foreign chapter's
+    /// rule for imports), whose arguments and result are machine
+    /// scalars: an inline body receives exactly the declared arguments
+    /// in the declared ABI and returns the declared result shape
+    /// (foreign function interface specification section 2: widths,
+    /// signedness, convention).
+    fn check_prim_envelope(&self, p: &ast::PrimDecl, ty: &Ty) -> Result<(Vec<Ty>, Ty)> {
+        let mut args: Vec<Ty> = Vec::new();
+        let mut rows: Vec<&EffRow> = Vec::new();
+        let mut cur = ty;
+        loop {
+            match cur {
+                Ty::Fun(d, _, e, b) | Ty::Pi { dom: d, eff: e, cod: b, .. } => {
+                    rows.push(e);
+                    args.push((**d).clone());
+                    cur = b;
+                }
+                _ => break,
+            }
+        }
+        for r in &rows {
+            if !matches!(r.tail, crate::types::RowTail::Closed) {
+                return Err(Error::at(
+                    p.span,
+                    "a prim's effect rows are closed and explicit (primitive operations and inline target IR specification section 2)",
+                ));
+            }
+        }
+        for a in &args {
+            if !is_prim_abi_ty(a) {
+                return Err(Error::at(
+                    p.span,
+                    format!(
+                        "a prim body receives its arguments as machine scalars in the declared ABI (foreign function interface specification section 2), not {a}"
+                    ),
+                ));
+            }
+        }
+        let res = cur.clone();
+        if !is_prim_abi_ty(&res) {
+            return Err(Error::at(
+                p.span,
+                format!(
+                    "a prim body returns the declared result shape: a machine scalar (foreign function interface specification section 2), not {res}"
+                ),
+            ));
+        }
+        Ok((args, res))
+    }
+
+    /// The LLVM type spelling of a prim ABI scalar (the family's
+    /// fragment grammar speaks these widths).
+    fn prim_abi_word(&self, ty: &Ty) -> Result<String> {
+        use crate::types::Scalar;
+        Ok(match ty {
+            Ty::Prim(Scalar::I8) | Ty::Prim(Scalar::U8) => "i8".into(),
+            Ty::Prim(Scalar::I16) | Ty::Prim(Scalar::U16) => "i16".into(),
+            Ty::Prim(Scalar::I32) | Ty::Prim(Scalar::U32) | Ty::Prim(Scalar::Char) => "i32".into(),
+            Ty::Prim(Scalar::I64) | Ty::Prim(Scalar::U64) => "i64".into(),
+            Ty::Prim(Scalar::F32) => "float".into(),
+            Ty::Prim(Scalar::F64) => "double".into(),
+            Ty::Prim(Scalar::Usize) | Ty::Prim(Scalar::Isize) => format!("i{}", self.usize_bits),
+            Ty::Bool => "i8".into(),
+            other => {
+                return Err(Error::plain(format!(
+                    "internal error: {other} is not a prim ABI type"
+                )))
+            }
+        })
+    }
+
+    /// One target-IR body (primitive operations and inline target IR
+    /// specification sections 3-4): the family must be registered and
+    /// emittable, `uses` entries are full foreign binding contracts, and
+    /// the fragment passes its family's containment validation. An
+    /// inline body is trusted code, so validation is about containment,
+    /// never about proving semantics. Returns the validation result the
+    /// manifest records (section 8).
+    fn validate_prim_body(
+        &mut self,
+        module: &str,
+        p: &ast::PrimDecl,
+        b: &ast::PrimBody,
+        arg_tys: &[Ty],
+        res_ty: &Ty,
+        pure: bool,
+    ) -> Result<(String, Vec<(String, String)>)> {
+        let family = b.family.text.as_str();
+        match family {
+            "llvm" | "asm" | "wasm" => {}
+            "clr" | "jvm" => {
+                return Err(Error::at(
+                    b.family.span,
+                    format!(
+                        "the `{family}` target-IR family is reserved: its fragment grammar lands with its backend (primitive operations and inline target IR specification section 3)"
+                    ),
+                ))
+            }
+            other => {
+                return Err(Error::at(
+                    b.family.span,
+                    format!(
+                        "unknown target-IR family `{other}`: the registered families are `llvm`, `wasm`, `asm`, `clr` and `jvm` (primitive operations and inline target IR specification section 3)"
+                    ),
+                ))
+            }
+        }
+        // `uses` entries are full foreign binding contracts (section 4),
+        // recorded like foreign imports; the reserved intrinsic
+        // namespaces stay reserved for them too (decision D73).
+        let mut use_names: Vec<String> = Vec::new();
+        let mut use_renders: Vec<(String, String)> = Vec::new();
+        for u in &b.uses {
+            let us = self.conv_scheme(&u.ty)?;
+            if !us.params.is_empty() || !us.ctx.is_empty() {
+                return Err(Error::at(
+                    u.span,
+                    "a `uses` entry is a foreign binding contract: monomorphic and unconstrained (foreign function interface specification section 2)",
+                ));
+            }
+            if u.name.text.starts_with("safelang.prim.")
+                || u.name.text.starts_with("safelang.runtime.")
+            {
+                return Err(Error::at(
+                    u.name.span,
+                    format!(
+                        "the intrinsic namespaces are reserved (decision D73): `uses` must not name the intrinsic {} (primitive operations and inline target IR specification section 7)",
+                        u.name.text
+                    ),
+                ));
+            }
+            use_names.push(u.name.text.clone());
+            use_renders.push((u.name.text.clone(), render_scheme(&us)));
+            self.module_foreign.push((
+                module.to_string(),
+                crate::interface::ForeignExport {
+                    symbol: u.name.text.clone(),
+                    abi: "ccall".to_string(),
+                    external: u.name.text.clone(),
+                    ty: render_scheme(&us),
+                    effects: String::new(),
+                    notes: format!("prim `{}` `uses` contract", p.name.text),
+                    kind: "prim-use".to_string(),
+                    params: Vec::new(),
+                    result: crate::interface::ForeignParam {
+                        ty: String::new(),
+                        class: "unit".to_string(),
+                        role: "value".to_string(),
+                        allocator: String::new(),
+                        nullable: false,
+                        width: 0,
+                        align: 1,
+                        signed: false,
+                        offsets: Vec::new(),
+                    },
+                    deallocator: String::new(),
+                },
+            ));
+        }
+        // The `when` condition is the platform chapter's capability
+        // evidence (`Available X`), scoped exactly like `target
+        // rewrite`'s `require` (decision D59's rule).
+        if let Some(w) = &b.when {
+            self.lower_available(w)?;
+        }
+        let validation = match family {
+            "llvm" => self.contain_llvm(p, b, arg_tys, res_ty, &use_names, pure)?,
+            "asm" => self.contain_asm(b, &use_names)?,
+            _ => {
+                "wasm fragment accepted structurally; this build has no wasm body emitter (specification section 3: a `wasm` body is selected only for a wasm artifact)"
+                    .to_string()
+            }
+        };
+        Ok((validation, use_renders))
+    }
+
+    /// A body's `when` condition (primitive operations and inline target
+    /// IR specification section 2): `Available X` over a capability name
+    /// of the platform chapter's evidence. Returns the capability name.
+    fn lower_available(&self, t: &ast::Term) -> Result<String> {
+        let bad = |span: ast::Span| {
+            Error::at(
+                span,
+                "a `when` condition is `Available <capability>` over the target profile's capability evidence (primitive operations and inline target IR specification section 2; platform proofs and SIMD specification section 3)",
+            )
+        };
+        let (head, arg, span) = match t {
+            ast::Term::App(f, args, span) => match (&**f, args.as_slice()) {
+                (h, [a]) => (h, a, *span),
+                _ => return Err(bad(*span)),
+            },
+            other => return Err(bad(other.span())),
+        };
+        let head_last = match head {
+            ast::Term::Var(p) => p.name.text.clone(),
+            ast::Term::Con(p) => p.parts().last().copied().unwrap_or("").to_string(),
+            other => return Err(bad(other.span())),
+        };
+        if head_last != "Available" {
+            return Err(bad(span));
+        }
+        let cap = match arg {
+            ast::Term::Var(p) if p.quals.is_empty() => p.name.text.clone(),
+            ast::Term::Con(p) => p.parts().join("."),
+            other => return Err(bad(other.span())),
+        };
+        if !self.sigs.contains_key(&cap) {
+            return Err(Error::at(
+                span,
+                format!(
+                    "unknown capability `{cap}`: a `when` condition names a `signature` of the target profile's capability evidence (platform proofs and SIMD specification section 3)"
+                ),
+            ));
+        }
+        Ok(cap)
+    }
+
+    /// Containment validation of an `llvm` fragment (primitive
+    /// operations and inline target IR specification section 4):
+    /// signature discipline (no extra parameters or results), no escape
+    /// (no jumps; calls and symbol references only to `uses` entries and
+    /// target intrinsics), no unwind, the declared effect row is the
+    /// body's entire permitted effect, and the family grammar (one
+    /// straight-line function body of real instructions).
+    fn contain_llvm(
+        &self,
+        p: &ast::PrimDecl,
+        b: &ast::PrimBody,
+        arg_tys: &[Ty],
+        res_ty: &Ty,
+        uses: &[String],
+        pure: bool,
+    ) -> Result<String> {
+        let frag = b.fragment.trim();
+        if frag.is_empty() {
+            return Err(Error::at(
+                b.fragment_span,
+                "containment (grammar): the body's fragment is empty (primitive operations and inline target IR specification section 4)",
+            ));
+        }
+        let res_word = self.prim_abi_word(res_ty)?;
+        let _ = arg_tys;
+        for raw in frag.lines() {
+            let line = strip_llvm_comment(raw).trim().to_string();
+            if line.is_empty() {
+                continue;
+            }
+            let at = |msg: String| Error::at(b.fragment_span, msg);
+            // Module-level entities are not function-body IR: an inline
+            // body declares no parameters or results (section 4's
+            // signature discipline).
+            let head_word = line.split_whitespace().next().unwrap_or("");
+            match head_word {
+                "define" | "declare" => {
+                    return Err(at(format!(
+                        "containment (signature discipline): the body declares extra parameters or results (`{head_word}` in an inline fragment; specification section 4)"
+                    )))
+                }
+                "module" | "target" | "source_filename" | "attributes" => {
+                    return Err(at(format!(
+                        "containment (grammar): `{head_word}` is module-level IR, not one function body (specification section 4)"
+                    )))
+                }
+                _ => {}
+            }
+            if line.starts_with('@') || (line.starts_with('!') && line.contains(" = ")) {
+                return Err(at(
+                    "containment (grammar): a fragment is one function body, not a global or metadata definition (specification section 4)"
+                        .to_string(),
+                ));
+            }
+            if line.ends_with(':') {
+                return Err(at(
+                    "containment (no-escape): a body is straight-line; a label introduces a jump target (specification section 4: the body contains no jumps)"
+                        .to_string(),
+                ));
+            }
+            // The instruction: an optional result binding, then the
+            // opcode (the family grammar's structural face).
+            let mut stmt = line.as_str();
+            if stmt.starts_with('%') {
+                match stmt.find('=') {
+                    Some(i) => stmt = stmt[i + 1..].trim_start(),
+                    None => {
+                        return Err(at(
+                            "containment (grammar): a result binding needs `=` (specification section 4)"
+                                .to_string(),
+                        ))
+                    }
+                }
+            }
+            let op = stmt
+                .split(|c: char| c.is_whitespace() || c == '(')
+                .next()
+                .unwrap_or("");
+            match op {
+                "br" | "switch" | "indirectbr" => {
+                    return Err(at(format!(
+                        "containment (no-escape): `{op}` is a jump (specification section 4: the body contains no jumps)"
+                    )))
+                }
+                "invoke" | "callbr" | "resume" | "catchswitch" | "catchpad" | "cleanuppad"
+                | "cleanupret" | "catchret" | "landingpad" => {
+                    return Err(at(format!(
+                        "containment (no-unwind): `{op}` may raise or unwind out of the body (specification section 4)"
+                    )))
+                }
+                "unreachable" => {
+                    return Err(at(
+                        "containment (no fault paths): `unreachable` is a fault path beyond a declared failure mode (specification section 4)"
+                            .to_string(),
+                    ))
+                }
+                "ret" => {
+                    let word = stmt.split_whitespace().nth(1).unwrap_or("");
+                    if word != res_word {
+                        return Err(at(format!(
+                            "containment (signature discipline): `ret {word}` does not return the declared result shape ({res_word}; specification section 4)"
+                        )));
+                    }
+                }
+                _ => {}
+            }
+            if !LLVM_OPCODES.contains(&op) {
+                return Err(at(format!(
+                    "containment (grammar): `{op}` is not an LLVM instruction (specification section 4: each fragment parses under its family's grammar)"
+                )));
+            }
+            // Determinism of effects: the declared effect row is the
+            // body's entire permitted effect (section 4).
+            if pure {
+                let effectful = matches!(op, "store" | "atomicrmw" | "cmpxchg" | "fence")
+                    || stmt.split_whitespace().any(|w| w == "volatile");
+                if effectful {
+                    return Err(at(format!(
+                        "containment (determinism of effects): `{op}` is an effect the declared pure effect row does not account for (specification section 4)"
+                    )));
+                }
+            }
+            // Symbol references and calls (section 4's no-escape): only
+            // `uses` entries and target intrinsics are callable, and an
+            // indirect call is never allowed.
+            let is_call = op == "call";
+            let mut saw_symbol = false;
+            for sym in llvm_symbols(&line) {
+                saw_symbol = true;
+                let err = |what: &str, rule: &str| {
+                    at(format!(
+                        "containment ({rule}): `@{sym}` is {what} (specification section 4)"
+                    ))
+                };
+                if sym.starts_with("llvm.") {
+                    continue;
+                }
+                if uses.iter().any(|u| u == &sym) {
+                    if pure && is_call {
+                        return Err(err(
+                            "a call the declared pure effect row does not account for",
+                            "determinism of effects",
+                        ));
+                    }
+                    continue;
+                }
+                if sym.starts_with("sl_") || sym.starts_with("safelang.") {
+                    return Err(err(
+                        "a runtime call (task operations and runtime calls are not permitted in a body)",
+                        "no-escape",
+                    ));
+                }
+                if ALLOCATION_SYMS.contains(&sym.as_str()) {
+                    return Err(err("allocation (a body allocates nothing)", "no allocation"));
+                }
+                if IO_SYMS.contains(&sym.as_str()) {
+                    return Err(err("I/O (a body performs no I/O)", "no I/O"));
+                }
+                return Err(err("outside the body's `uses` list", "no-escape"));
+            }
+            if is_call && !line.contains(" asm ") && !saw_symbol {
+                return Err(at(
+                    "containment (no-escape): a call through a local value is an indirect call (a body calls only its `uses` symbols; specification section 4)"
+                        .to_string(),
+                ));
+            }
+            if is_call && line.contains(" asm ") && pure && stmt.contains("sideeffect") {
+                return Err(at(
+                    "containment (determinism of effects): `asm sideeffect` is an effect the declared pure effect row does not account for (specification section 4)"
+                        .to_string(),
+                ));
+            }
+        }
+        Ok("containment validated: signature discipline, no-escape, no-unwind, declared effects, llvm grammar (clang assembles the fragment at emission)".to_string())
+    }
+
+    /// Containment validation of an `asm` fragment (primitive operations
+    /// and inline target IR specification section 4): structural only,
+    /// no round-trip check. Fault paths, syscalls and runtime references
+    /// are the violations this family can see; the fragment is attached
+    /// with `llvm.sideeffect` at emission so DCE cannot drop it
+    /// (`design/llvm-contract-attributes.md`).
+    fn contain_asm(&self, b: &ast::PrimBody, uses: &[String]) -> Result<String> {
+        let frag = b.fragment.trim();
+        if frag.is_empty() {
+            return Err(Error::at(
+                b.fragment_span,
+                "containment (grammar): the body's fragment is empty (primitive operations and inline target IR specification section 4)",
+            ));
+        }
+        for raw in frag.lines() {
+            let at = |msg: String| Error::at(b.fragment_span, msg);
+            for w in raw.split(|c: char| c.is_whitespace() || c == ',') {
+                let w = w.trim_matches(|c: char| c == ':' || c == '(' || c == ')');
+                if matches!(
+                    w,
+                    "syscall" | "svc" | "int" | "udf" | "brk" | "hlt" | "ud2" | "trap"
+                ) {
+                    return Err(at(format!(
+                        "containment (no fault paths): `{w}` is a fault or syscall beyond a declared failure mode (specification section 4)"
+                    )));
+                }
+                if (w.starts_with("sl_") || w.starts_with("safelang."))
+                    && !uses.iter().any(|u| u == w)
+                {
+                    return Err(at(format!(
+                        "containment (no-escape): `{w}` is a runtime call outside the body's `uses` list (specification section 4)"
+                    )));
+                }
+            }
+        }
+        Ok("containment validated structurally (no round-trip check); the fragment is emitted as `llvm.sideeffect` inline asm".to_string())
     }
 
     /// The foreign envelope (foreign function interface specification
@@ -11935,7 +13317,7 @@ impl Checker {
         for (local, d) in &surface {
             if let Some(v) = self.qualified.get(&(d.module.clone(), d.name.clone())) {
                 match &v.kind {
-                    ValueKind::TopFn | ValueKind::Prim(_) => {
+                    ValueKind::TopFn | ValueKind::Prim(_) | ValueKind::PrimDecl { .. } => {
                         iface.exports.values.push(ValueExport {
                             name: local.clone(),
                             scheme: render_scheme(&v.scheme),
@@ -12078,6 +13460,28 @@ impl Checker {
                 });
             }
         }
+        // `prim` declarations (primitive operations and inline target
+        // IR specification section 5): a justified prim's contract is
+        // its signature plus the law identity (bodies are
+        // representation: replacing a body never stales dependents); an
+        // assumed prim's body content is contract (editing it stales
+        // dependents). Selection is representation and never enters the
+        // contract projection (section 6).
+        for p in &self.prims {
+            if p.module != module {
+                continue;
+            }
+            match p.tier {
+                crate::core::PrimTier::Justified => {
+                    for l in &p.laws {
+                        iface.assumptions.declared.push(l.clone());
+                    }
+                }
+                crate::core::PrimTier::Assumed => {
+                    iface.assumptions.primitives.push(p.identity.clone());
+                }
+            }
+        }
         for i in &self.instance_list {
             if i.module != module {
                 continue;
@@ -12215,6 +13619,18 @@ pub fn check_program_multi_full(
     c.install_builtins();
     c.allow_eval = profile.allow_eval;
     c.usize_bits = profile.word_size;
+    // Capability evidence of the target profile (primitive operations
+    // and inline target IR specification section 6): a `prim` body's
+    // `Available X` condition holds where `X` is listed.
+    c.target_caps = {
+        let mut caps = profile.required.clone();
+        for f in &profile.features {
+            if !caps.contains(f) {
+                caps.push(f.clone());
+            }
+        }
+        caps
+    };
     // P20: the `jpl` target profile makes the safety assertion set
     // mandatory for the user's program (decision D114); the prelude
     // family is the standard library, not flight code.
@@ -12322,6 +13738,12 @@ pub fn check_program_multi_full(
         c.check_bodies(&m.name.text, &prelude_name)?;
     }
     c.check_instance_coherence()?;
+    // `prim` bodies and class laws are checked after every module's
+    // declarations (primitive operations and inline target IR
+    // specification sections 5-6: justification, tiering and body
+    // selection need the whole program's names and the target profile).
+    c.check_prims()?;
+    c.check_laws()?;
     // Rewrite rules are checked after every module's declarations (their
     // `match`, `replace` and `justify` terms reference them).
     c.check_rewrites()?;
@@ -16216,4 +17638,293 @@ fn pure_arrow_ty(t: &Ty) -> bool {
     let mut saw = false;
     let ok = go(t, &mut saw);
     saw && ok
+}
+
+// ==================== `prim` inline-body containment (P18) ====================
+
+/// The LLVM instruction vocabulary an `llvm` fragment may use
+/// (primitive operations and inline target IR specification section 4's
+/// family grammar: one straight-line function body).
+const LLVM_OPCODES: &[&str] = &[
+    "add", "sub", "mul", "udiv", "sdiv", "urem", "srem", "shl", "lshr", "ashr", "and", "or", "xor",
+    "fadd", "fsub", "fmul", "fdiv", "frem", "fneg", "icmp", "fcmp", "select", "freeze", "trunc",
+    "zext", "sext", "fptrunc", "fpext", "fptoui", "fptosi", "uitofp", "sitofp", "ptrtoint",
+    "inttoptr", "bitcast", "addrspacecast", "extractvalue", "insertvalue", "extractelement",
+    "insertelement", "shufflevector", "alloca", "load", "store", "fence", "cmpxchg", "atomicrmw",
+    "getelementptr", "ret", "br", "switch", "indirectbr", "invoke", "call", "callbr", "resume",
+    "unreachable", "va_arg", "landingpad", "catchpad", "cleanuppad", "catchswitch", "catchret",
+    "cleanupret", "phi",
+];
+
+/// Allocation is forbidden in a `prim` body outright (section 4: no
+/// allocation), so even a `uses` contract may not authorize these.
+const ALLOCATION_SYMS: &[&str] = &[
+    "malloc",
+    "calloc",
+    "realloc",
+    "free",
+    "aligned_alloc",
+    "posix_memalign",
+    "strdup",
+    "strndup",
+];
+
+/// I/O is forbidden in a `prim` body outright (section 4: no I/O).
+const IO_SYMS: &[&str] = &[
+    "printf", "fprintf", "sprintf", "snprintf", "puts", "putchar", "fwrite", "fread", "write",
+    "read", "open", "close", "exit", "abort", "_exit", "perror", "scanf", "fscanf", "sscanf",
+];
+
+/// Is this type a prim ABI scalar (the declared ABI's widths)?
+fn is_prim_abi_ty(ty: &Ty) -> bool {
+    matches!(ty, Ty::Prim(_) | Ty::Bool)
+}
+
+/// The declared effect row of a `prim` type is the body's entire
+/// permitted effect (section 4's determinism of effects): anything the
+/// fragment performs beyond pure computation must be visible in it.
+fn prim_effectful(ty: &Ty) -> bool {
+    let mut cur = ty;
+    loop {
+        match cur {
+            Ty::Fun(_, _, e, b) | Ty::Pi { eff: e, cod: b, .. } => {
+                if !e.is_pure() {
+                    return true;
+                }
+                cur = b;
+            }
+            _ => return false,
+        }
+    }
+}
+
+/// One LLVM text line without its `;` comment (the fragment is kept
+/// verbatim; comments hide nothing from containment).
+fn strip_llvm_comment(line: &str) -> String {
+    let mut out = String::new();
+    let mut in_str = false;
+    let mut cs = line.chars();
+    while let Some(c) = cs.next() {
+        match c {
+            '"' => {
+                in_str = !in_str;
+                out.push(c);
+            }
+            '\\' if in_str => {
+                out.push(c);
+                if let Some(n) = cs.next() {
+                    out.push(n);
+                }
+            }
+            ';' if !in_str => break,
+            _ => out.push(c),
+        }
+    }
+    out
+}
+
+/// Every `@symbol` reference in one LLVM text line (`@"..."` quoted or
+/// bare), left to right.
+fn llvm_symbols(line: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let cs: Vec<char> = line.chars().collect();
+    let mut i = 0;
+    while i < cs.len() {
+        if cs[i] == '@' {
+            i += 1;
+            if cs.get(i) == Some(&'"') {
+                i += 1;
+                let mut s = String::new();
+                while i < cs.len() && cs[i] != '"' {
+                    if cs[i] == '\\' && i + 1 < cs.len() {
+                        i += 1;
+                    }
+                    s.push(cs[i]);
+                    i += 1;
+                }
+                i += 1;
+                out.push(s);
+            } else {
+                let mut s = String::new();
+                while i < cs.len()
+                    && (cs[i].is_ascii_alphanumeric() || matches!(cs[i], '.' | '_' | '$' | '-'))
+                {
+                    s.push(cs[i]);
+                    i += 1;
+                }
+                if !s.is_empty() {
+                    out.push(s);
+                }
+            }
+        } else {
+            i += 1;
+        }
+    }
+    out
+}
+
+/// Structural instance matching for law checks: a type parameter
+/// matches any argument (the coherence rule guarantees at most one
+/// instance matches).
+fn ty_match(pattern: &Ty, concrete: &Ty) -> bool {
+    match (pattern, concrete) {
+        (Ty::Param(_), _) | (_, Ty::Param(_)) => true,
+        (Ty::Prim(a), Ty::Prim(b)) => a == b,
+        (Ty::Bool, Ty::Bool) | (Ty::Nat, Ty::Nat) | (Ty::Int, Ty::Int) | (Ty::Bytes, Ty::Bytes) => true,
+        (Ty::Adt(a, x), Ty::Adt(b, y)) => {
+            a == b
+                && x.len() == y.len()
+                && x.iter().zip(y).all(|(p, c)| ty_match(p, c))
+        }
+        (Ty::Tuple(x), Ty::Tuple(y)) => {
+            x.len() == y.len() && x.iter().zip(y).all(|(p, c)| ty_match(p, c))
+        }
+        (Ty::Fun(a1, _, _, b1), Ty::Fun(a2, _, _, b2))
+        | (Ty::Pi { dom: a1, cod: b1, .. }, Ty::Pi { dom: a2, cod: b2, .. }) => {
+            ty_match(a1, a2) && ty_match(b1, b2)
+        }
+        (Ty::App(h1, x), Ty::App(h2, y)) => {
+            ty_match(h1, h2) && x.len() == y.len() && x.iter().zip(y).all(|(p, c)| ty_match(p, c))
+        }
+        _ => false,
+    }
+}
+
+/// The sample-wise law comparison: values compare structurally, and a
+/// value the machinery cannot compare (a closure, a dictionary, a
+/// secret) is honestly opaque, never a law failure.
+enum LawCmp {
+    Equal,
+    NotEqual,
+    Opaque,
+}
+
+fn law_value_eq(a: &Value, b: &Value) -> LawCmp {
+    use crate::core::Value::*;
+    match (a, b) {
+        (Word(x), Word(y)) => {
+            if x == y {
+                LawCmp::Equal
+            } else {
+                LawCmp::NotEqual
+            }
+        }
+        (Big { nat: n1, digits: d1 }, Big { nat: n2, digits: d2 }) => {
+            if n1 == n2 && d1 == d2 {
+                LawCmp::Equal
+            } else {
+                LawCmp::NotEqual
+            }
+        }
+        (Word(x), Big { nat, digits }) | (Big { nat, digits }, Word(x)) => {
+            let xn = *x >= 0;
+            let xd = x.abs().to_string();
+            if *nat == xn && digits.trim_start_matches('0') == xd.trim_start_matches('0') {
+                LawCmp::Equal
+            } else {
+                LawCmp::NotEqual
+            }
+        }
+        (Bool(x), Bool(y)) => {
+            if x == y {
+                LawCmp::Equal
+            } else {
+                LawCmp::NotEqual
+            }
+        }
+        (Unit, Unit) => LawCmp::Equal,
+        (Str(x), Str(y)) => {
+            if x == y {
+                LawCmp::Equal
+            } else {
+                LawCmp::NotEqual
+            }
+        }
+        (Bytes(x), Bytes(y)) => {
+            if *x.borrow() == *y.borrow() {
+                LawCmp::Equal
+            } else {
+                LawCmp::NotEqual
+            }
+        }
+        (Adt { tag: t1, fields: f1, .. }, Adt { tag: t2, fields: f2, .. }) => {
+            if t1 != t2 || f1.len() != f2.len() {
+                return LawCmp::NotEqual;
+            }
+            let mut op = LawCmp::Equal;
+            for (x, y) in f1.iter().zip(f2.iter()) {
+                match law_value_eq(x, y) {
+                    LawCmp::NotEqual => return LawCmp::NotEqual,
+                    LawCmp::Opaque => op = LawCmp::Opaque,
+                    LawCmp::Equal => {}
+                }
+            }
+            op
+        }
+        (CtorFn { tag: t1, args: a1, .. }, CtorFn { tag: t2, args: a2, .. })
+            if a1.is_empty() && a2.is_empty() =>
+        {
+            if t1 == t2 {
+                LawCmp::Equal
+            } else {
+                LawCmp::NotEqual
+            }
+        }
+        _ => LawCmp::Opaque,
+    }
+}
+
+/// The rendering of one sampled value in a law report.
+fn law_value_render(v: &Value) -> String {
+    match v {
+        Value::Word(n) => n.to_string(),
+        Value::Big { digits, .. } => digits.clone(),
+        Value::Bool(b) => b.to_string(),
+        Value::Unit => "()".to_string(),
+        Value::Str(s) => format!("{s:?}"),
+        Value::Bytes(b) => format!("{:?}", b.borrow()),
+        Value::Adt { tag, fields, .. } => {
+            let fs: Vec<String> = fields.iter().map(law_value_render).collect();
+            format!("<adt {tag} {}>", fs.join(", "))
+        }
+        other => format!("{other:?}"),
+    }
+}
+
+/// Sample values of one machine scalar at its boundaries (the law
+/// machinery's sample sets; floats are not sampled: NaN compares equal
+/// to nothing).
+fn scalar_samples(s: &crate::types::Scalar) -> Vec<Value> {
+    use crate::types::Scalar::*;
+    let w = |n: i64| Value::Word(n);
+    match s {
+        U8 => vec![w(0), w(1), w(255)],
+        I8 => vec![w(-128), w(-1), w(0), w(127)],
+        U16 => vec![w(0), w(1), w(65535)],
+        I16 => vec![w(-32768), w(0), w(32767)],
+        U32 => vec![w(0), w(1), w(4294967295)],
+        I32 => vec![w(-2147483648), w(0), w(2147483647)],
+        U64 => vec![w(0), w(1), w(-1)],
+        I64 => vec![w(-1), w(0), w(1), w(i64::MIN)],
+        Usize | Isize => vec![w(0), w(1), w(-1)],
+        Char => vec![w(0), w(65), w(0x10FFFF)],
+        F32 | F64 => Vec::new(),
+    }
+}
+
+/// The declared ABI shape of one prim scalar (the inline fragment's
+/// widths; primitive operations and inline target IR specification
+/// section 4).
+fn prim_abi_shape(ty: &Ty, usize_bits: u32) -> crate::core::PrimAbiTy {
+    use crate::core::PrimAbiTy;
+    use crate::types::Scalar;
+    match ty {
+        Ty::Prim(Scalar::F32) => PrimAbiTy::F32,
+        Ty::Prim(Scalar::F64) => PrimAbiTy::F64,
+        Ty::Prim(Scalar::Usize) => PrimAbiTy::Int { bits: usize_bits, signed: false },
+        Ty::Prim(Scalar::Isize) => PrimAbiTy::Int { bits: usize_bits, signed: true },
+        Ty::Prim(s) => PrimAbiTy::Int { bits: s.width(), signed: s.is_signed() },
+        // `Bool` crosses as its `i8` value bits.
+        _ => PrimAbiTy::Int { bits: 8, signed: false },
+    }
 }

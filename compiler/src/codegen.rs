@@ -38,7 +38,8 @@
 use crate::core::{
     AbiClass, AbiParam, ArithMode, ArithOp, BitOp, BitScanOp, BytesOp, CAlt, CBranch, CmpOp,
     ConcOp, ConvMode, Core, CPat, CtorLayout, FClassOp, FieldAccess, FieldShape, FloatBinOp,
-    FloatUnOp, FnDef, ForeignPlan, LocalId, PrimOp, Program, ShiftOp, Utf8Op,
+    FloatUnOp, FnDef, ForeignPlan, LocalId, PrimAbiTy, PrimPlan, PrimOp, Program, ShiftOp,
+    Utf8Op,
 };
 use crate::types::Scalar;
 use crate::Result;
@@ -51,6 +52,10 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 struct LowerCx {
     usize_bits: u32,
     coop_tasks: bool,
+    /// The artifact is the build host's own native shape: `asm` bodies
+    /// lower for it (primitive operations and inline target IR
+    /// specification section 3).
+    native: bool,
 }
 
 /// Emit one LLVM module for the program at the build host's target.
@@ -67,6 +72,7 @@ pub fn emit_for(profile: &crate::core::TargetProfile, program: &Program) -> Resu
     let cx = LowerCx {
         usize_bits: profile.word_size,
         coop_tasks: profile.artifact != crate::core::ArtifactProfile::Native,
+        native: profile.artifact == crate::core::ArtifactProfile::Native,
     };
     let reg = Registry::build(program)?;
     // A program with `foreign export` entries may be linked as a library
@@ -164,6 +170,10 @@ pub fn emit_for(profile: &crate::core::TargetProfile, program: &Program) -> Resu
         // The contract restatements of the LLVM contract surface
         // (design/llvm-contract-attributes.md item 4).
         "declare void @llvm.assume(i1)",
+        // The sideeffect marker keeping a `prim` `asm` body alive
+        // (primitive operations and inline target IR specification
+        // section 3; design/llvm-contract-attributes.md).
+        "declare void @llvm.sideeffect()",
     ] {
         out.push_str(f);
         out.push('\n');
@@ -270,7 +280,15 @@ pub fn emit_for(profile: &crate::core::TargetProfile, program: &Program) -> Resu
                 )?);
             }
             (None, None) => {
-                units.push(build_unit(&cx, &reg, &f.id.0, f.arity(), UnitBody::Fn(f))?);
+                if f.meta.prim_body {
+                    // A `prim` declaration's synthesized unit: its
+                    // content is the inline target fragment (primitive
+                    // operations and inline target IR specification
+                    // section 2).
+                    prim_decl_units(&mut units, &cx, &reg, program, f)?;
+                } else {
+                    units.push(build_unit(&cx, &reg, &f.id.0, f.arity(), UnitBody::Fn(f))?);
+                }
             }
         }
     }
@@ -964,11 +982,18 @@ fn classify_units(units: &[EmittedUnit]) -> HashMap<String, UnitClass> {
 /// attribute group.
 fn assemble_unit(out: &mut String, u: &EmittedUnit, group: Option<String>) {
     out.push_str(&u.globals);
-    out.push_str(&u.header);
+    // The function attribute group precedes metadata attachments on the
+    // `define` line (`define ... #4 !immarg !0 {`).
+    let (head, meta) = match (group.is_some(), u.header.split_once(" !")) {
+        (true, Some((h, m))) => (h.to_string(), format!(" !{m}")),
+        _ => (u.header.clone(), String::new()),
+    };
+    out.push_str(&head);
     if let Some(group) = group {
         out.push(' ');
         out.push_str(&group);
     }
+    out.push_str(&meta);
     out.push_str(" {\nentry:\n");
     out.push_str(&u.allocas);
     out.push_str(&u.code);
@@ -4421,6 +4446,8 @@ mod tests {
             main: Some(gid("program.main")),
             plans: Default::default(),
             foreigns: Default::default(),
+            prims: Vec::new(),
+            laws: Vec::new(),
         }
     }
 
@@ -6152,4 +6179,266 @@ fn canon_export_entry(out: &mut String, plan: &ForeignPlan, reg: &Registry) -> R
     }
     out.push_str(&b.finish(&header));
     Ok(())
+}
+
+// ==================== `prim` inline-body units (P18) ====================
+
+/// The LLVM type of one prim ABI scalar (the inline fragment's widths).
+fn abi_word(t: &PrimAbiTy) -> String {
+    match t {
+        PrimAbiTy::Int { bits, .. } => format!("i{bits}"),
+        PrimAbiTy::F32 => "float".to_string(),
+        PrimAbiTy::F64 => "double".to_string(),
+    }
+}
+
+/// The inline-asm constraint letter of one prim ABI scalar.
+fn asm_constraint(t: &PrimAbiTy) -> char {
+    match t {
+        PrimAbiTy::Int { .. } => 'r',
+        PrimAbiTy::F32 | PrimAbiTy::F64 => 'f',
+    }
+}
+
+/// The LLVM string literal contents of an `asm` fragment: quotes,
+/// backslashes and line structure escape to hex bytes so the template
+/// survives verbatim.
+fn asm_escape(frag: &str) -> String {
+    let mut out = String::new();
+    for byte in frag.bytes() {
+        match byte {
+            b'"' => out.push_str("\\22"),
+            b'\\' => out.push_str("\\5C"),
+            b'\n' => out.push_str("\\0A"),
+            b'\t' => out.push_str("\\09"),
+            0x20..=0x7E => out.push(byte as char),
+            _ => out.push_str(&format!("\\{byte:02X}")),
+        }
+    }
+    out
+}
+
+/// One `prim` declaration's units (primitive operations and inline
+/// target IR specification sections 2-3): one implementation unit per
+/// applicable family body (the `llvm` fragment splices verbatim into
+/// its function body; the `asm` fragment is inline asm carrying
+/// `llvm.sideeffect` so DCE cannot drop it), and the canonical word
+/// unit bridging the closure ABI to the selected body's declared ABI.
+/// Selection is fixed at compile time per artifact (section 6).
+fn prim_decl_units(
+    units: &mut Vec<EmittedUnit>,
+    cx: &LowerCx,
+    reg: &Registry,
+    program: &Program,
+    f: &FnDef,
+) -> Result<()> {
+    let plan = program
+        .prims
+        .iter()
+        .find(|p| p.unit == f.id.0)
+        .ok_or_else(|| {
+            crate::Error::plain(format!("internal error: no prim plan for unit {}", f.id))
+        })?;
+    let mut impl_names: Vec<String> = Vec::new();
+    for (fam, bi) in &plan.family_units {
+        let asm = fam == "asm";
+        if asm && !cx.native {
+            // An `asm` body is native assembly for the declared target:
+            // it lowers for the native artifact only.
+            continue;
+        }
+        impl_names.push(format!("{}.{}", plan.unit, fam));
+        units.push(prim_impl_unit(reg, plan, *bi, asm)?);
+    }
+    units.push(prim_wrapper_unit(cx, reg, plan, f, &impl_names)?);
+    Ok(())
+}
+
+/// One `prim` body's implementation unit: the fragment receives
+/// exactly the declared arguments in the declared ABI (parameters
+/// `%0 ...`, section 4's signature discipline) and returns the declared
+/// result shape. The `immarg` contract rides the unit as function
+/// metadata naming the immediate parameters: LLVM admits the `immarg`
+/// parameter attribute only on intrinsics, and the checker enforces the
+/// constant arguments (`design/llvm-contract-attributes.md`).
+fn prim_impl_unit(
+    reg: &Registry,
+    plan: &PrimPlan,
+    idx: usize,
+    asm: bool,
+) -> Result<EmittedUnit> {
+    let body = &plan.bodies[idx];
+    let name = format!("{}.{}", plan.unit, body.family);
+    let params: Vec<String> = plan
+        .args
+        .iter()
+        .enumerate()
+        .map(|(i, t)| format!("{} %{}", abi_word(t), i))
+        .collect();
+    let ret_ty = abi_word(&plan.res);
+    let mut header = format!("define {ret_ty} @{}({})", quote(&name), params.join(", "));
+    if !body.immarg.is_empty() {
+        let list: Vec<String> = body.immarg.iter().map(|n| format!("i32 {n}")).collect();
+        let md = reg.meta_node(format!("!{{{}}}", list.join(", ")));
+        header.push_str(&format!(" !immarg {md}"));
+    }
+    let code = if asm {
+        // The asm fragment is an inline-asm template: `$0` is the
+        // return operand and `$1 ...` the declared arguments. The call
+        // carries `llvm.sideeffect` so DCE cannot drop it
+        // (design/llvm-contract-attributes.md).
+        let mut constraints = String::from("=");
+        constraints.push(asm_constraint(&plan.res));
+        for a in &plan.args {
+            constraints.push(',');
+            constraints.push(asm_constraint(a));
+        }
+        let args: Vec<String> = plan
+            .args
+            .iter()
+            .enumerate()
+            .map(|(i, t)| format!("{} %{}", abi_word(t), i))
+            .collect();
+        let mut code = String::from("  call void @llvm.sideeffect()\n");
+        code.push_str(&format!(
+            "  %v = call {ret_ty} asm sideeffect \"{}\", \"{}\"({})\n",
+            asm_escape(body.fragment.trim()),
+            constraints,
+            args.join(", ")
+        ));
+        code.push_str(&format!("  ret {ret_ty} %v\n"));
+        code
+    } else {
+        format!("{}\n", body.fragment.trim_end())
+    };
+    let scan_units: BTreeSet<String> = reg.arity.keys().cloned().collect();
+    let scan = scan_body(&code, &scan_units);
+    Ok(EmittedUnit {
+        name,
+        hints: crate::core::FnHints::default(),
+        globals: String::new(),
+        header,
+        allocas: String::new(),
+        code,
+        stub: String::new(),
+        clo: String::new(),
+        scan,
+        // An `asm` fragment is opaque target code: it claims nothing.
+        lang: UnitLang {
+            pure: plan.pure && !asm,
+            def: true,
+            ..UnitLang::default()
+        },
+    })
+}
+
+/// The canonical word unit of a `prim`: the closure ABI bridged to the
+/// selected body's implementation (the intrinsic units' bridge
+/// convention: truncate the word in, canonicalize the result out).
+fn prim_wrapper_unit(
+    _cx: &LowerCx,
+    reg: &Registry,
+    plan: &PrimPlan,
+    f: &FnDef,
+    impl_names: &[String],
+) -> Result<EmittedUnit> {
+    let name = &plan.unit;
+    let sel = &plan.bodies[plan.selected];
+    let impl_name = format!("{}.{}", name, sel.family);
+    if !impl_names.iter().any(|n| n == &impl_name) {
+        return err(format!(
+            "this build cannot emit the selected `{}` body of prim `{}` (an `asm` body lowers only for a native artifact; primitive operations and inline target IR specification section 3)",
+            sel.family, name
+        ));
+    }
+    let mut b = Builder::new();
+    let mut args: Vec<String> = Vec::new();
+    for (i, t) in plan.args.iter().enumerate() {
+        let v = prim_arg_bridge(&mut b, t, &format!("%p{i}"));
+        args.push(format!("{} {v}", abi_word(t)));
+    }
+    let ret_ty = abi_word(&plan.res);
+    let v = b.reg();
+    b.line(&format!(
+        "{v} = call {ret_ty} @{}({})",
+        quote(&impl_name),
+        args.join(", ")
+    ));
+    let r = prim_res_bridge(&mut b, &plan.res, &v);
+    ret(&mut b, &r);
+    let mut scan_units: BTreeSet<String> = reg.arity.keys().cloned().collect();
+    scan_units.insert(impl_name.clone());
+    let scan = scan_body(&format!("{}{}", b.allocas, b.code), &scan_units);
+    Ok(EmittedUnit {
+        name: name.clone(),
+        hints: f.hints.clone(),
+        globals: String::new(),
+        header: fn_header(name, plan.arity, None, &vec![true; plan.arity]),
+        allocas: b.allocas,
+        code: b.code,
+        stub: stub_def(name, plan.arity),
+        clo: clo_def(name, plan.arity),
+        scan,
+        lang: UnitLang {
+            pure: plan.pure,
+            def: true,
+            ..UnitLang::default()
+        },
+    })
+}
+
+/// The canonical word to one fragment parameter.
+fn prim_arg_bridge(b: &mut Builder, t: &PrimAbiTy, word: &str) -> String {
+    match t {
+        PrimAbiTy::Int { bits, .. } => {
+            if *bits == 64 {
+                word.to_string()
+            } else {
+                let r = b.reg();
+                b.line(&format!("{r} = trunc i64 {word} to i{bits}"));
+                r
+            }
+        }
+        PrimAbiTy::F32 => {
+            let i = b.reg();
+            b.line(&format!("{i} = trunc i64 {word} to i32"));
+            let f = b.reg();
+            b.line(&format!("{f} = bitcast i32 {i} to float"));
+            f
+        }
+        PrimAbiTy::F64 => {
+            let f = b.reg();
+            b.line(&format!("{f} = bitcast i64 {word} to double"));
+            f
+        }
+    }
+}
+
+/// The fragment's result to the canonical word (the declared type's
+/// word form: sign-extended signed widths, zero-extended unsigned).
+fn prim_res_bridge(b: &mut Builder, t: &PrimAbiTy, v: &str) -> String {
+    match t {
+        PrimAbiTy::Int { bits, signed } => {
+            if *bits == 64 {
+                v.to_string()
+            } else {
+                let r = b.reg();
+                let inst = if *signed { "sext" } else { "zext" };
+                b.line(&format!("{r} = {inst} i{bits} {v} to i64"));
+                r
+            }
+        }
+        PrimAbiTy::F32 => {
+            let i = b.reg();
+            b.line(&format!("{i} = bitcast float {v} to i32"));
+            let w = b.reg();
+            b.line(&format!("{w} = zext i32 {i} to i64"));
+            w
+        }
+        PrimAbiTy::F64 => {
+            let w = b.reg();
+            b.line(&format!("{w} = bitcast double {v} to i64"));
+            w
+        }
+    }
 }

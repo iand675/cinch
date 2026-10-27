@@ -139,6 +139,13 @@ pub enum Tok {
     Replace,
     Require,
     Upgrade,
+    /// `prim` (primitive operations and inline target IR specification
+    /// section 2): a primitive operation with inline target-IR bodies.
+    Prim,
+    /// `law` (primitive operations and inline target IR specification
+    /// section 5): a class law declaration, citable as `justify`
+    /// evidence by identity.
+    Law,
     /// `contract` (core specification section 10): a temporal contract
     /// declaration.
     Contract,
@@ -192,6 +199,15 @@ pub enum Tok {
     /// specification, section 1). `args` is the raw argument text: the
     /// parentheses content, or the `= literal` tail of the named form.
     Attr { name: String, args: Option<String> },
+
+    /// The verbatim inner text of a `prim` body's inline target-IR
+    /// fragment (primitive operations and inline target IR
+    /// specification section 2): the lexer captures the balanced `{
+    /// ... }` region as raw text so fragment grammars (LLVM IR, native
+    /// assembly) never pass through the surface tokenizer. The token
+    /// sits between its real `LBrace` and `RBrace` tokens so the layout
+    /// pass still sees balanced braces.
+    Fragment(String),
 
     LParen,
     RParen,
@@ -275,6 +291,8 @@ fn keyword(w: &str) -> Option<Tok> {
         "handle" => Handle,
         "with" => With,
         "rewrite" => Rewrite,
+        "prim" => Prim,
+        "law" => Law,
         "target" => Target,
         "justify" => Justify,
         "match" => MatchKw,
@@ -347,11 +365,26 @@ struct Lexer {
     col: u32,
     /// True while only spaces have been seen on the current line.
     leading: bool,
+    /// The innermost `prim` declaration being scanned: the `prim`
+    /// keyword's column and whether its `where` has been seen. Inline
+    /// fragments capture raw only inside a prim body block.
+    prim: Option<(u32, bool)>,
+    /// The last scanned word (`llvm`, a record constructor, ...), so a
+    /// `family { fragment }` body opener can be recognized.
+    last_word: Option<String>,
 }
 
 impl Lexer {
     fn new(src: &str) -> Self {
-        Lexer { cs: src.chars().collect(), i: 0, line: 1, col: 1, leading: true }
+        Lexer {
+            cs: src.chars().collect(),
+            i: 0,
+            line: 1,
+            col: 1,
+            leading: true,
+            prim: None,
+            last_word: None,
+        }
     }
 
     fn span(&self) -> Span {
@@ -397,10 +430,24 @@ impl Lexer {
         loop {
             self.skip_blank()?;
             let span = self.span();
+            let at_line_start = self.leading;
             let Some(c) = self.peek() else {
                 out.push(Token { tok: Tok::Eof, span, virtual_: false });
                 return Ok(out);
             };
+            // A `prim` body's inline fragment: a registered target-IR
+            // family name's `{` opens a raw capture (primitive
+            // operations and inline target IR specification section 2;
+            // the attribute chapter's `#[...]` raw arguments show the
+            // pattern for foreign token content).
+            if c == '{' && self.at_prim_fragment() {
+                let (open, text, close) = self.lex_fragment(span)?;
+                out.push(Token { tok: Tok::LBrace, span: open, virtual_: false });
+                out.push(Token { tok: Tok::Fragment(text), span: open, virtual_: false });
+                out.push(Token { tok: Tok::RBrace, span: close, virtual_: false });
+                self.last_word = None;
+                continue;
+            }
             // `$(` is the splice opener, but the layout pass must see `(`
             // as its own delimiter (it shields layout and balances `)`):
             // emit `Dollar` + `LParen` sharing one span, and the parser
@@ -410,6 +457,7 @@ impl Lexer {
             if c == '$' && self.peek_at(1) == Some('(') {
                 self.bump();
                 self.bump();
+                self.note(&Tok::Dollar, span, at_line_start);
                 out.push(Token { tok: Tok::Dollar, span, virtual_: false });
                 out.push(Token { tok: Tok::LParen, span, virtual_: false });
                 continue;
@@ -419,11 +467,92 @@ impl Lexer {
                 // `letrec` is the `let` keyword with a recursion marker
                 // (`$(` precedent: two tokens sharing one span). The pair
                 // keeps `let`'s layout block opening at the first binding.
+                self.note(&tok, span, at_line_start);
                 out.push(Token { tok: Tok::Letrec, span, virtual_: false });
                 out.push(Token { tok: Tok::Let, span, virtual_: false });
                 continue;
             }
+            self.note(&tok, span, at_line_start);
             out.push(Token { tok, span, virtual_: false });
+        }
+    }
+
+    /// Track the `prim` declaration context (for raw fragment capture)
+    /// and the last word (the fragment's family name).
+    fn note(&mut self, tok: &Tok, span: Span, at_line_start: bool) {
+        match tok {
+            Tok::VarId(w) | Tok::ConId(w) => self.last_word = Some(w.clone()),
+            _ => self.last_word = None,
+        }
+        if matches!(tok, Tok::Prim) {
+            self.prim = Some((span.col, false));
+            return;
+        }
+        if let Some((prim_col, seen_where)) = &mut self.prim {
+            if matches!(tok, Tok::Where) {
+                *seen_where = true;
+            }
+            // The body block ends at the next token on the `prim`
+            // keyword's own (or an outer) indentation level.
+            if at_line_start && span.col <= *prim_col {
+                self.prim = None;
+            }
+        }
+    }
+
+    /// A `prim` body's fragment opens here: a registered target-IR
+    /// family name followed by `{` inside the body block.
+    fn at_prim_fragment(&self) -> bool {
+        let Some((_, seen_where)) = self.prim else { return false };
+        seen_where
+            && matches!(
+                self.last_word.as_deref(),
+                Some("llvm" | "wasm" | "asm" | "clr" | "jvm")
+            )
+    }
+
+    /// Capture a `prim` body's fragment verbatim: the balanced `{
+    /// ... }` region after the family name, nesting counted and
+    /// `"..."` string literals skipped (a brace inside a string does
+    /// not count). Returns the open brace's span, the inner text and
+    /// the close brace's span.
+    fn lex_fragment(&mut self, open: Span) -> Result<(Span, String, Span)> {
+        self.bump(); // the opening brace
+        let text_start = self.i;
+        let mut depth = 1usize;
+        let mut in_str = false;
+        loop {
+            match self.peek() {
+                None => return Err(Error::at(open, "unterminated `prim` body fragment")),
+                Some('"') if in_str => {
+                    in_str = false;
+                    self.bump();
+                }
+                Some('\\') if in_str => {
+                    self.bump();
+                    self.bump();
+                }
+                Some('"') => {
+                    in_str = true;
+                    self.bump();
+                }
+                Some('{') if !in_str => {
+                    depth += 1;
+                    self.bump();
+                }
+                Some('}') if !in_str => {
+                    let close = self.span();
+                    self.bump();
+                    depth -= 1;
+                    if depth == 0 {
+                        let text: String = self.cs[text_start..self.i - 1].iter().collect();
+                        return Ok((open, text, close));
+                    }
+                }
+                Some(_) => {
+                    self.bump();
+                }
+            }
         }
     }
 

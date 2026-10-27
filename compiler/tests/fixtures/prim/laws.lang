@@ -1,0 +1,22 @@
+-- The law-abiding instance fixture (primitive operations and inline
+-- target IR specification section 5): a concrete carrier whose `<>`
+-- obeys `Semigroup.assoc`, checked sample-wise over the carrier's
+-- samples.
+module LawLib where
+
+  import Algebra.Semigroup
+
+  infixr 6 <>
+
+  data Box where
+    Box :: U32 -> Box
+
+  implicit instance Semigroup_Box :: Semigroup Box where
+    (<>) x y = case x of
+      Box a -> case y of
+        Box b -> Box (wrapping-add-u32 a b)
+
+  main :: Int
+  main =
+    case Box 1 <> Box 2 of
+      Box n -> if n == 3 then 0 else 1

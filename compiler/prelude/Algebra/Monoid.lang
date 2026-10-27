@@ -38,6 +38,13 @@ module Algebra.Monoid where
 
   signature Monoid a where
     mempty :: a
+    -- The class laws (primitive operations and inline target IR
+    -- specification section 5): `mempty` is a left and right unit of
+    -- `<>` (Algebra.Semigroup's method; a class constraint entails
+    -- nothing, so the law names the operator it uses). Citable by
+    -- identity as `Monoid.left-unit` and `Monoid.right-unit`.
+    law left-unit :: (x :: a) -> Eq (mempty <> x) x
+    law right-unit :: (x :: a) -> Eq (x <> mempty) x
 
   -- ------------------------------------------------------------------
   -- The instance-carrying newtypes (design/base-library.md: "the

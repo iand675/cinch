@@ -4,7 +4,7 @@
 -- combinators over plain functions.
 module Function.Combinators where
 
-  export identity, const
+  export identity, const, compose
 
 
   identity :: forall a. a -> a
@@ -12,3 +12,10 @@ module Function.Combinators where
 
   const :: forall a b. a -> b -> a
   const x y = x
+
+  -- `compose h g` applies `g` then `h` (the functor composition law's
+  -- named composition: a law equation states total function
+  -- applications, never a lambda; primitive operations and inline
+  -- target IR specification section 5).
+  compose :: forall a b c. (b -> c) -> (a -> b) -> a -> c
+  compose h g x = h (g x)

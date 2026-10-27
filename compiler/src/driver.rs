@@ -555,6 +555,58 @@ fn write_artifacts(
     text.push_str(&format!("    \"foreign\": {:?},\n", foreign));
     text.push_str(&format!("    \"declared\": {:?}\n", declared));
     text.push_str("  },\n");
+    // `prim` declarations (primitive operations and inline target IR
+    // specification section 8): per prim the selected body's family and
+    // condition, its tier, its `uses` list and its validation result.
+    // Selection is manifest-only: it never enters the contract
+    // projection (section 6).
+    text.push_str("  \"prims\": [\n");
+    for (i, p) in program.prims.iter().enumerate() {
+        let body = &p.bodies[p.selected];
+        let uses: Vec<String> = body
+            .uses
+            .iter()
+            .map(|(n, t)| format!("{n} :: {t}"))
+            .collect();
+        let validations: Vec<String> = p
+            .bodies
+            .iter()
+            .map(|b| format!("{}: {}", b.family, b.validation))
+            .collect();
+        text.push_str(&format!(
+            "    {{\"name\": \"{}\", \"module\": \"{}\", \"tier\": \"{}\", \"family\": \"{}\", \"condition\": {}, \"why\": \"{}\", \"uses\": {:?}, \"immarg\": {:?}, \"validation\": {:?}, \"identity\": \"{}\"}}",
+            p.name,
+            p.module,
+            match p.tier {
+                crate::core::PrimTier::Justified => "justified",
+                crate::core::PrimTier::Assumed => "assumed",
+            },
+            body.family,
+            match &body.when {
+                Some(c) => format!("\"Available {c}\""),
+                None => "null".to_string(),
+            },
+            p.selected_why,
+            uses,
+            body.immarg,
+            validations,
+            p.identity
+        ));
+        text.push_str(if i + 1 < program.prims.len() { ",\n" } else { "\n" });
+    }
+    text.push_str("  ],\n");
+    // The class law check rows (section 5): what the sample-wise check
+    // decided, honestly (`checked` over its samples or `not checked` at
+    // the law machinery's boundary).
+    text.push_str("  \"laws\": [\n");
+    for (i, l) in program.laws.iter().enumerate() {
+        text.push_str(&format!(
+            "    {{\"instance\": \"{}\", \"class\": \"{}\", \"law\": \"{}\", \"status\": \"{}\"}}",
+            l.instance, l.class, l.law, l.status
+        ));
+        text.push_str(if i + 1 < program.laws.len() { ",\n" } else { "\n" });
+    }
+    text.push_str("  ],\n");
     // The target profile and the conditions the target rules discharged
     // (platform proofs and SIMD specification sections 1-3; modules and
     // compilation specification section 13: target conditions are

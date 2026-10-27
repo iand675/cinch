@@ -1,0 +1,371 @@
+//! `prim` declarations with inline target-IR bodies (primitive
+//! operations and inline target IR specification sections 2-8): the
+//! per-family bodies compile, containment validation names its
+//! violations, the `clr`/`jvm` slots are reserved, and capability-scoped
+//! body selection is recorded in the artifact manifest only (never in
+//! the contract projection). Evidence is IR observation and manifest
+//! observation (design/llvm-contract-attributes.md), never wiring
+//! tests.
+
+use safelang::check::StageMode;
+use safelang::core::TargetProfile;
+use safelang::driver::{check_sources, check_sources_profile, driver_with_profile, run_source, Mode};
+use std::path::PathBuf;
+
+/// The `prim` acceptance fixture: one prim with `llvm` and `asm` bodies
+/// carrying immediate parameters.
+const BODIES: &str = include_str!("fixtures/prim/bodies.lang");
+
+/// The emitted LLVM IR of one checked source (every IR test carries a
+/// `main`, which code generation requires).
+fn ir_of(name: &str, src: &str) -> String {
+    let program =
+        check_sources(src, "<test>").unwrap_or_else(|e| panic!("{name}: check failed: {e}"));
+    safelang::codegen::emit(&program).unwrap_or_else(|e| panic!("{name}: emit failed: {e}"))
+}
+
+/// The one line of `ir` defining one unit (`define ...`).
+fn define_of(ir: &str, unit: &str) -> String {
+    let quoted = format!("@\"{unit}\"(");
+    ir.lines()
+        .find(|l| l.starts_with("define ") && l.contains(&quoted))
+        .unwrap_or_else(|| panic!("{unit}: no define in {ir}"))
+        .to_string()
+}
+
+/// The body of one unit's define (its lines between `{` and `}`).
+fn body_of(ir: &str, unit: &str) -> String {
+    let quoted = format!("@\"{unit}\"(");
+    let mut lines = ir.lines();
+    while let Some(l) = lines.next() {
+        if l.starts_with("define ") && l.contains(&quoted) {
+            let mut body = String::new();
+            for l in lines.by_ref() {
+                if l == "}" {
+                    return body;
+                }
+                body.push_str(l);
+                body.push('\n');
+            }
+        }
+    }
+    panic!("{unit}: no body in {ir}")
+}
+
+/// Assert that checking the program fails with a message containing
+/// `needle`.
+fn expect_err(name: &str, src: &str, needle: &str) {
+    match check_sources(src, name) {
+        Ok(_) => panic!("{name}: expected an error containing {needle:?}, but the program checked"),
+        Err(e) => {
+            let msg = e.to_string();
+            assert!(
+                msg.contains(needle),
+                "{name}: error {msg:?} does not contain {needle:?}"
+            );
+        }
+    }
+}
+
+/// Write one source to a fresh temporary project and return its
+/// directory.
+fn write_project(name: &str, src: &str) -> PathBuf {
+    let dir = std::env::temp_dir().join(format!(
+        "safelang-prim-{}-{name}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("temp project");
+    std::fs::write(dir.join("Main.lang"), src).expect("write Main.lang");
+    dir
+}
+
+/// The artifact manifest of one checked source under `profile`.
+fn manifest_of(name: &str, src: &str, profile: &TargetProfile) -> String {
+    let dir = write_project(name, src);
+    driver_with_profile(Mode::Check, StageMode::Refresh, &dir.join("Main.lang"), None, profile)
+        .unwrap_or_else(|e| panic!("{name}: check run failed: {e}"));
+    std::fs::read_to_string(dir.join("build/Main.manifest.json"))
+        .unwrap_or_else(|e| panic!("{name}: manifest missing: {e}"))
+}
+
+// ------------------------------------- the bodies check and compile
+
+#[test]
+fn prim_with_llvm_and_asm_bodies_checks_and_compiles() {
+    // The fixture checks, compiles and runs: the `llvm` body is the
+    // artifact's selected body.
+    let code = run_source(BODIES).expect("the prim compiles and runs");
+    assert_eq!(code, 0);
+
+    // IR observation: the immediate parameter carries `immarg` on the
+    // unit it belongs to (LLVM admits the `immarg` parameter attribute
+    // only on intrinsics, so the contract rides the unit as `!immarg`
+    // metadata naming the immediate parameters; design/
+    // llvm-contract-attributes.md).
+    let ir = ir_of("bodies", BODIES);
+    let llvm_define = define_of(&ir, "Main.add2.llvm");
+    assert!(llvm_define.contains("immarg"), "{llvm_define}");
+    assert!(body_of(&ir, "Main.add2.llvm").contains("add i32"), "{ir}");
+
+    // The `asm` body carries `llvm.sideeffect`: the marker call keeping
+    // it alive and the `sideeffect` inline-asm flag on the fragment.
+    let asm_define = define_of(&ir, "Main.add2.asm");
+    assert!(asm_define.contains("immarg"), "{asm_define}");
+    let asm_body = body_of(&ir, "Main.add2.asm");
+    assert!(asm_body.contains("llvm.sideeffect"), "{asm_body}");
+    assert!(asm_body.contains("asm sideeffect"), "{asm_body}");
+}
+
+#[test]
+fn intrinsic_families_migrate_onto_prim_bodies() {
+    // The intrinsic migration path (section 7): an operation the closed
+    // `PrimOp` set lowers by hand (`checkedAddI64` becomes
+    // `llvm.sadd.with.overflow.i64`) is expressible as a `prim` with the
+    // same inline body, so the intrinsic families move onto `prim`
+    // declarations without a foreign call surface.
+    let src = r#"
+module Main where
+  prim addWrap :: I64 -> I64 -> I64 where
+    llvm {
+      %o = call { i64, i1 } @llvm.sadd.with.overflow.i64(i64 %0, i64 %1)
+      %v = extractvalue { i64, i1 } %o, 0
+      ret i64 %v
+    }
+
+  main :: Int
+  main =
+    if addWrap 40 2 == 42 then 0 else 1
+"#;
+    let code = run_source(src).expect("the prim reproduces the intrinsic's inline lowering");
+    assert_eq!(code, 0);
+}
+
+// --------------------------------------------- containment validation
+
+#[test]
+fn escaping_body_fails_containment_naming_no_escape() {
+    expect_err(
+        "escape",
+        r#"
+module Main where
+  prim leak :: U32 -> U32 where
+    llvm {
+      %v = call i32 @sneaky(i32 %0)
+      ret i32 %v
+    }
+
+  main :: Int
+  main = 0
+"#,
+        "no-escape",
+    );
+}
+
+#[test]
+fn extra_parameters_fail_containment_naming_signature_discipline() {
+    expect_err(
+        "extra-params",
+        r#"
+module Main where
+  prim wide :: U32 -> U32 where
+    llvm {
+      define i32 @extra(i32 %x, i32 %y) {
+        %s = add i32 %x, %y
+        ret i32 %s
+      }
+      ret i32 %0
+    }
+
+  main :: Int
+  main = 0
+"#,
+        "signature discipline",
+    );
+}
+
+#[test]
+fn unwinding_body_fails_containment_naming_no_unwind() {
+    expect_err(
+        "unwind",
+        r#"
+module Main where
+  prim raises :: U32 -> U32 where
+    llvm {
+      %v = invoke i32 @f(i32 %0) to label %ok unwind label %bad
+      ret i32 %v
+    }
+
+  main :: Int
+  main = 0
+"#,
+        "no-unwind",
+    );
+}
+
+#[test]
+fn effectful_body_fails_containment_naming_effects() {
+    expect_err(
+        "effects",
+        r#"
+module Main where
+  prim writes :: U32 -> U32 where
+    llvm {
+      store i32 %0, ptr %1
+      ret i32 %0
+    }
+
+  main :: Int
+  main = 0
+"#,
+        "determinism of effects",
+    );
+}
+
+// ------------------------------------------------- reserved families
+
+#[test]
+fn clr_and_jvm_body_slots_are_reserved() {
+    expect_err(
+        "clr",
+        r#"
+module Main where
+  prim net :: U32 -> U32 where
+    clr {
+      ldarg.0
+    }
+
+  main :: Int
+  main = 0
+"#,
+        "reserved",
+    );
+    expect_err(
+        "jvm",
+        r#"
+module Main where
+  prim jit :: U32 -> U32 where
+    jvm {
+      iload 1
+    }
+
+  main :: Int
+  main = 0
+"#,
+        "reserved",
+    );
+}
+
+// -------------------------------------- capability-scoped selection
+
+#[test]
+fn capability_scoped_selection_is_manifest_only() {
+    // Two `llvm` bodies distinguished only by their `when` condition:
+    // the same contract, different instruction shapes. Which one runs
+    // is selection: fixed per artifact, recorded in the manifest, and
+    // never observable from the source.
+    let src = r#"
+module Main where
+  prim pick :: U32 -> U32 where
+    llvm {
+      %s = add i32 1, %0
+      ret i32 %s
+    } when Available VecU32Target
+    llvm {
+      %s = add i32 %0, 1
+      ret i32 %s
+    }
+
+  main :: Int
+  main =
+    if pick 41 == 42 then 0 else 1
+"#;
+
+    // The baseline rule: without the capability the baseline body is
+    // the fallback, and the manifest names it.
+    let baseline = manifest_of("pick-baseline", src, &TargetProfile::native());
+    assert!(baseline.contains("\"condition\": null"), "{baseline}");
+    assert!(baseline.contains("baseline"), "{baseline}");
+    assert!(baseline.contains("\"family\": \"llvm\""), "{baseline}");
+
+    // With the capability evidence the conditional body is selected,
+    // and the manifest names the capability and why.
+    let mut capped = TargetProfile::native();
+    capped.required.push("VecU32Target".to_string());
+    let cap = manifest_of("pick-cap", src, &capped);
+    assert!(cap.contains("Available VecU32Target"), "{cap}");
+    assert!(cap.contains("condition holds in the target profile"), "{cap}");
+
+    // The two artifacts' IR shows the different bodies, while a source
+    // probe cannot observe which body was chosen: both programs compute
+    // the same result.
+    let ir0 = ir_of("pick-baseline", src);
+    assert!(body_of(&ir0, "Main.pick.llvm").contains("add i32 %0, 1"), "{ir0}");
+    let ir1_program =
+        check_sources_profile(src, "pick-cap", &capped).expect("the capped artifact checks");
+    let ir1 = safelang::codegen::emit(&ir1_program).expect("emit");
+    assert!(body_of(&ir1, "Main.pick.llvm").contains("add i32 1, %0"), "{ir1}");
+    assert_eq!(run_source(src).expect("baseline run"), 0);
+
+    // Selection is representation: the contract projection carries no
+    // family and no condition.
+    let dir = write_project("pick-iface", src);
+    driver_with_profile(Mode::Check, StageMode::Refresh, &dir.join("Main.lang"), None, &capped)
+        .expect("check run");
+    let iface =
+        std::fs::read_to_string(dir.join("build/Main.sliface")).expect("interface");
+    assert!(!iface.contains("Available"), "{iface}");
+    assert!(!iface.contains("VecU32Target"), "{iface}");
+}
+
+// ------------------------------------------- the tier identity rules
+
+#[test]
+fn justified_prim_records_its_law_identity() {
+    // A body justified by a law method: the contract is the signature
+    // plus the law identity (section 5), recorded in the manifest's
+    // declared assumptions.
+    let src = r#"
+module Main where
+  prim twice :: U32 -> U32 where
+    llvm {
+      %s = add i32 %0, %0
+      ret i32 %s
+    } justify TwiceLaws.twiceLaw
+
+  signature TwiceLaws where
+    law twiceLaw :: (x :: U32) -> Eq (twice x) (wrapping-add-u32 x x)
+
+  main :: Int
+  main =
+    if twice 21 == 42 then 0 else 1
+"#;
+    let code = run_source(src).expect("the justified prim compiles and runs");
+    assert_eq!(code, 0);
+    let m = manifest_of("tier-justified", src, &TargetProfile::native());
+    assert!(m.contains("\"tier\": \"justified\""), "{m}");
+    assert!(m.contains("Main.twiceLaw"), "{m}");
+}
+
+#[test]
+fn assumed_prim_identity_is_the_body_hash() {
+    // Without justification the body content is contract (section 5):
+    // the assumed prim's identity is a body hash, recorded in the
+    // assumption manifest and tagged with its selected family.
+    let src = r#"
+module Main where
+  prim addB :: U32 -> U32 -> U32 where
+    llvm {
+      %s = add i32 %0, %1
+      ret i32 %s
+    }
+
+  main :: Int
+  main =
+    if addB 40 2 == 42 then 0 else 1
+"#;
+    let m = manifest_of("tier-assumed", src, &TargetProfile::native());
+    assert!(m.contains("\"tier\": \"assumed\""), "{m}");
+    assert!(m.contains("prim:Main.addB#"), "{m}");
+    assert!(m.contains("\"family\": \"llvm\""), "{m}");
+}

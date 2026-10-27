@@ -899,12 +899,23 @@ impl ParamKind {
 enum ValueKind {
     TopFn,
     Prim(PrimOp),
+    /// A user `prim` declaration (primitive operations and inline target
+    /// IR specification section 2): its synthesized unit, parameter
+    /// count and immediate (`immarg`) parameter indices. Calls reference
+    /// the unit like an ordinary function; the inline body is target
+    /// code and the unit is a leaf.
+    PrimDecl { unit: String, arity: usize, immarg: Vec<usize> },
     /// A real `foreign import ccall` binding: its synthesized marshalling
     /// wrapper unit and parameter count (foreign function interface
     /// specification section 2).
     Foreign { unit: String, arity: usize },
     /// Class method at position `idx` of its signature.
     Method { idx: usize },
+    /// A `law` declaration on a `signature` (primitive operations and
+    /// inline target IR specification section 5): citable `justify`
+    /// evidence stating the equation instances are checked against. No
+    /// instance supplies its body; it is erased evidence.
+    Law,
     /// An effect operation (`effect L where op :: ...`): dispatches
     /// through the handler record of the enclosing `handle`.
     EffectOp {
@@ -987,6 +998,9 @@ struct SigInfo {
     param_kinds: Vec<ParamKind>,
     /// Method name, method scheme; the class constraint is `ctx[0]`.
     methods: Vec<(String, Scheme)>,
+    /// `law` members (primitive operations and inline target IR
+    /// specification section 5): name and stated equation scheme.
+    laws: Vec<(String, Scheme)>,
 }
 
 #[derive(Clone)]
@@ -1753,6 +1767,33 @@ pub(crate) struct LayoutRecipe {
     pub span: ast::Span,
 }
 
+/// One instance's obligation to satisfy a class law (primitive
+/// operations and inline target IR specification section 5): the
+/// instance's method units and type arguments beside the law's stated
+/// equation. The checker evaluates the equation at sample values of the
+/// law's binders where the machinery can decide it, and reports the
+/// honest boundary where it cannot.
+struct LawObligation {
+    /// The instance's name (its declaration name).
+    instance: String,
+    module: String,
+    class: String,
+    law: String,
+    /// The law's stated scheme (quantified over the class parameters and
+    /// the law's own binders).
+    scheme: Scheme,
+    /// The class parameter names, positional against `class_args`.
+    class_params: Vec<String>,
+    /// The instance's type arguments for the class parameters.
+    class_args: Vec<Ty>,
+    /// The instance's method units, parallel to the class's method order.
+    method_units: Vec<crate::core::GlobalId>,
+    /// The instance's `using` constraints as (class, args) targets for
+    /// its sub-dictionaries.
+    subdicts: Vec<(String, Vec<Ty>)>,
+    span: ast::Span,
+}
+
 struct Checker {
     uni: Unifier,
     values: HashMap<String, Vec<ValueInfo>>,
@@ -2055,6 +2096,25 @@ struct Checker {
     /// Rewrite declarations awaiting checking, in source order (modules
     /// and compilation specification section 5).
     pending_rewrites: Vec<(String, ast::RewriteDecl)>,
+    /// `prim` declarations awaiting their deferred pass (primitive
+    /// operations and inline target IR specification sections 2-6):
+    /// capability conditions, justifications and body selection need
+    /// the whole program's names and the target profile.
+    pending_prims: Vec<(String, ast::PrimDecl, Scheme)>,
+    /// Checked `prim` plans in declaration order (core specification
+    /// section 11's manifest).
+    prims: Vec<crate::core::PrimPlan>,
+    /// The target profile's capability evidence: a body's `Available X`
+    /// condition holds where `X` is listed (platform proofs and SIMD
+    /// specification section 3).
+    target_caps: Vec<String>,
+    /// Class law obligations collected per instance, checked sample-wise
+    /// after every module's bodies (primitive operations and inline
+    /// target IR specification section 5).
+    law_obligations: Vec<LawObligation>,
+    /// The class law check rows for the artifact manifest: the honest
+    /// record of what the sample-wise check decided.
+    law_rows: Vec<crate::core::LawRow>,
     /// Upgrade declarations awaiting checking, in source order (runtime
     /// evolution specification section 3): the migration field checking
     /// runs after every module's records and functions are known.
@@ -2350,6 +2410,11 @@ impl Checker {
             jpl_target: false,
             jpl_user_modules: HashSet::new(),
             pending_rewrites: Vec::new(),
+            pending_prims: Vec::new(),
+            prims: Vec::new(),
+            target_caps: Vec::new(),
+            law_obligations: Vec::new(),
+            law_rows: Vec::new(),
             pending_upgrades: Vec::new(),
             upgrade_evidence: Vec::new(),
             rewrites: Vec::new(),
@@ -3910,6 +3975,7 @@ impl Checker {
                         params: params.clone(),
                         param_kinds: vec![ParamKind::Type; params.len()],
                         methods: Vec::new(),
+                        laws: Vec::new(),
                     });
                 }
                 self.sigs
@@ -4255,10 +4321,12 @@ impl Checker {
             ast::Type::Var(n, _) => {
                 if args.is_empty() {
                     if !vars.contains(&n.text) {
-                        return Err(Error::at(
-                            n.span,
-                            format!("unknown index variable {}", n.text),
-                        ));
+                        // A bare named total definition is an index
+                        // value too: a nullary method (`mempty`) or a
+                        // named helper a law's equation mentions
+                        // (primitive operations and inline target IR
+                        // specification section 5).
+                        return self.idx_app(&n.text, &args, vars, kind, n.span);
                     }
                     self.note_kind(&n.text, ParamKind::Val(kind.clone()));
                     return Ok(ITerm::Var(n.text.clone()));
@@ -6036,6 +6104,7 @@ fn shifted_meta(meta: &crate::core::FnMeta, k: usize) -> crate::core::FnMeta {
             .filter_map(|(i, c)| shift(*i).map(|j| (j, c.clone())))
             .collect(),
         pure: meta.pure,
+        prim_body: meta.prim_body,
         contract: crate::core::FnContract {
             params: meta.contract.params.iter().skip(k).cloned().collect(),
             ..meta.contract.clone()

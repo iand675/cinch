@@ -28,9 +28,20 @@
 -- Data.List/Data.Option/Data.Result now.
 module Category.Functor where
 
+  import Function.Combinators
+
   signature Functor (f :: Type -> Type) where
     map :: forall a b. (a -> b) -> f a -> f b
     (<$>) :: forall a b. (a -> b) -> f a -> f b
+    -- The class laws (primitive operations and inline target IR
+    -- specification section 5): mapping the identity function is the
+    -- identity (a law equation states total function applications, so
+    -- the identity is the named `Function.Combinators.identity`, never
+    -- a lambda). Citable by identity as `Functor.map-identity`; the
+    -- composition law names two functions and lives at the law
+    -- machinery's un-samplable boundary (functions are not samples).
+    law map-identity :: forall a. (x :: f a) -> Eq (map identity x) x
+    law map-compose :: forall a b c. (g :: a -> b) -> (h :: b -> c) -> (x :: f a) -> Eq (map h (map g x)) (map (compose h g) x)
 
   infixl 4 <$>
 
