@@ -53,7 +53,7 @@ The bisimulation outline compares heads and then guarded tails. A full implement
 
 # Schema generation
 
-The schema example scopes a compile-time database connection, captures introspection input, and passes the snapshot to a generator. No connection is attempted by this documentation package. The secret name is illustrative and contains no value.
+The schema example scopes a compile-time database connection, captures introspection input, and passes the snapshot to a generator. No connection is attempted by this documentation package. The secret name is illustrative and contains no value. The check's build inputs are the `SCHEMA_DATABASE_URL` name present in the build environment and `SAFELANG_SCHEMA_TOOL` naming an introspection tool; `examples/source/schema-tool.sh` records a fixed snapshot so the example checks without a database.
 
 Expected mode behavior: refresh obtains and records input; replay uses recorded input; live explicitly contacts the database. Generated declarations require checking. Runtime bindings require a compatible schema and a policy maintaining the facts they rely on.
 
@@ -123,18 +123,30 @@ module VectorFilter where
   filter :: forall a n region. using (copy :: Copy a) =>
             (a -> Bool) -> Ref region (Vec n a)
             -> Sigma (m :: Nat). Vec m a
-  filter predicate xs = case xs of
-    Nil -> (0, Nil)
-    Cons x rest ->
-      let keep = predicate (copyOut x)
-          packed = filter predicate rest
+  filter predicate xs = filterFrom predicate xs 0
+
+  -- Matching Nil/Cons against `Vec n a` at a rigid `n` is refused (D35:
+  -- this slice does not refine rigid indices), so the walk dispatches
+  -- through `decide` and reads elements at computed indices with
+  -- checked bounds. The output length builds at computed indices too.
+  filterFrom :: forall a n region. using (copy :: Copy a) =>
+                (a -> Bool) -> Ref region (Vec n a) -> Nat
+                -> Sigma (m :: Nat). Vec m a
+  filterFrom predicate xs i = case decide (i < n) of
+    No _ -> (0, Nil)
+    Yes bound ->
+      let elem = Vec.getCopy xs (Fin i bound)
+          keep = predicate elem
+          packed = filterFrom predicate xs (i + 1)
       in case packed of
         (m, tail) -> if keep
-          then (m + 1, Cons (copyOut x) tail)
+          then (m + 1, Cons elem tail)
           else (m, tail)
 
-  -- Strict let preserves source predicate order.
-  -- Borrow matching yields references; copyOut requires Copy evidence.
+  -- Strict let preserves source predicate order: the decision at index
+  -- i is recorded before the walk continues to i + 1.
+  -- Vec.getCopy copies the element out of the borrow and requires Copy
+  -- evidence.
   -- Prove by induction: m <= n and exact predicate-selected subsequence.
   -- The result retains the witness m, not just an erased proof of existence.
 ```
@@ -205,6 +217,10 @@ module Billing where
   -- Generator effects are checked against compile-time capabilities.
   -- Refresh captures input, replay uses it, live explicitly contacts a database.
   -- Generated bindings are checked; runtime use needs schema compatibility.
+  -- Build inputs: SCHEMA_DATABASE_URL present in the build environment
+  -- (referenced by name only) and SAFELANG_SCHEMA_TOOL naming the
+  -- introspection tool; examples/source/schema-tool.sh supplies a
+  -- recorded snapshot so this checks without a live database.
 ```
 
 ## Counter upgrade
@@ -265,22 +281,29 @@ module Rejections where
 -- Surface 0.2. Target APIs and theorem module are obligations, not supplied proofs.
 module PlatformSum where
   scalar :: forall n region. Ref region (Vec n U32) -> U32
-  scalar xs = Stream.fold U32.zero U32.wrappingAdd (Vec.stream xs)
+  scalar xs = Stream.fold U32.zero U32.wrapping-add (Vec.stream xs)
+
+  -- The instruction law (platform section 5), stated over this module's
+  -- own scalar model so the rewrite's justification proves the rule's
+  -- equation. Like the target APIs it is an obligation, not a supplied
+  -- proof: citing it records the assumption in the artifact manifest.
+  signature SumProofs where
+    scalar-to-simd :: forall t w n region. (vectors :: VecU32Target t w) -> (xs :: Ref region (Vec n U32)) -> Eq (scalar xs) (simd-sum-wrap32 vectors xs)
 
   target rewrite sumWrap32Vector
     forall t w n region (xs :: Ref region (Vec n U32)).
     using (vectors :: VecU32Target t w) where
     match scalar xs
-    replace Simd.sumWrap32 vectors xs
+    replace Simd.sum-wrap32 vectors xs
     require Available vectors
-    justify SumProofs.scalarToSimd vectors xs
+    justify SumProofs.scalar-to-simd vectors xs
 
   dispatched :: forall n region. Ref region (Vec n U32) -> U32
-  dispatched xs = case Target.detectVecU32 () of
-    Some available -> Simd.sumWrap32 available xs
+  dispatched xs = case Target.detect-vec-u32 () of
+    Some available -> Simd.sum-wrap32 available xs
     None -> scalar xs
 
-  -- detectVecU32 reads runtime-established metadata in this proposed pure API.
+  -- detect-vec-u32 reads runtime-established metadata in this proposed pure API.
   -- Bounds, tails, modular arithmetic, intrinsic semantics and target availability
   -- are required proof obligations. Floating-point reassociation needs other laws.
   -- Wasm can require separate variants selected before module instantiation.
@@ -396,8 +419,8 @@ module ImportConfig (Seq :: ResultSequencing ConfigError) where
                 Path ->{IO r, Async r, Cancel r, Diverge}
                   Result ConfigError Config
   loadConfig path = do
-    bytes <- readConfigBytes path
-    config <- parseConfig bytes
+    bytes <- read-config-bytes path
+    config <- parse-config bytes
     pure config
 
   -- Same do spelling, explicitly selected Result composition.

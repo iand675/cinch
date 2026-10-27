@@ -17,8 +17,8 @@ module ImportConfig (Seq :: ResultSequencing ConfigError) where
                 Path ->{IO r, Async r, Cancel r, Diverge}
                   Result ConfigError Config
   loadConfig path = do
-    bytes <- readConfigBytes path
-    config <- parseConfig bytes
+    bytes <- read-config-bytes path
+    config <- parse-config bytes
     pure config
 
   -- Same do spelling, explicitly selected Result composition.

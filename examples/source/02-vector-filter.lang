@@ -3,17 +3,29 @@ module VectorFilter where
   filter :: forall a n region. using (copy :: Copy a) =>
             (a -> Bool) -> Ref region (Vec n a)
             -> Sigma (m :: Nat). Vec m a
-  filter predicate xs = case xs of
-    Nil -> (0, Nil)
-    Cons x rest ->
-      let keep = predicate (copyOut x)
-          packed = filter predicate rest
+  filter predicate xs = filterFrom predicate xs 0
+
+  -- Matching Nil/Cons against `Vec n a` at a rigid `n` is refused (D35:
+  -- this slice does not refine rigid indices), so the walk dispatches
+  -- through `decide` and reads elements at computed indices with
+  -- checked bounds. The output length builds at computed indices too.
+  filterFrom :: forall a n region. using (copy :: Copy a) =>
+                (a -> Bool) -> Ref region (Vec n a) -> Nat
+                -> Sigma (m :: Nat). Vec m a
+  filterFrom predicate xs i = case decide (i < n) of
+    No _ -> (0, Nil)
+    Yes bound ->
+      let elem = Vec.getCopy xs (Fin i bound)
+          keep = predicate elem
+          packed = filterFrom predicate xs (i + 1)
       in case packed of
         (m, tail) -> if keep
-          then (m + 1, Cons (copyOut x) tail)
+          then (m + 1, Cons elem tail)
           else (m, tail)
 
-  -- Strict let preserves source predicate order.
-  -- Borrow matching yields references; copyOut requires Copy evidence.
+  -- Strict let preserves source predicate order: the decision at index
+  -- i is recorded before the walk continues to i + 1.
+  -- Vec.getCopy copies the element out of the borrow and requires Copy
+  -- evidence.
   -- Prove by induction: m <= n and exact predicate-selected subsequence.
   -- The result retains the witness m, not just an erased proof of existence.
