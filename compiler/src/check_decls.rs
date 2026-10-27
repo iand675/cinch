@@ -5610,6 +5610,9 @@ impl Checker {
         meta: crate::core::FnMeta,
     ) -> Result<()> {
         let sol = self.solve_wants()?;
+        // Evidence invalidation over mutable state: regions unify during
+        // constraint solving, so the deferred staleness check runs here.
+        self.check_ev_uses()?;
         body = self.fill_holes(&body, &sol)?;
         let mut recs: Vec<(GlobalId, ECore)> = Vec::new();
         for (mid, core) in std::mem::take(&mut self.pending_rec) {
@@ -13486,6 +13489,11 @@ impl Checker {
                 let r = self.eval_core(cx, body, frame);
                 restore_local(frame, l.0, saved);
                 r?
+            }
+            Core::RefSet(l, v) => {
+                let val = self.eval_core(cx, v, frame)?;
+                set_local(frame, l.0, val);
+                Value::Unit
             }
             Core::If(c, t, f) => {
                 if word_of(&self.eval_core(cx, c, frame)?, "a condition")? != 0 {

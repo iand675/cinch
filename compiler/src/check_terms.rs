@@ -93,10 +93,10 @@ impl Checker {
     }
 
     /// Is `name` an unshadowed builtin form (`delay`, `force`, `demand`,
-    /// `copyOut`, `borrow`, `mutBorrow`, `ignore`)? A user definition of
-    /// the same name shadows the builtin (decision D2).
+    /// `copyOut`, `borrow`, `mutBorrow`, `refSet`, `ignore`)? A user
+    /// definition of the same name shadows the builtin (decision D2).
     fn is_builtin_form(&self, env: &Env, name: &str) -> bool {
-        matches!(name, "delay" | "force" | "demand" | "copyOut" | "borrow" | "mutBorrow" | "decide" | "ignore")
+        matches!(name, "delay" | "force" | "demand" | "copyOut" | "borrow" | "mutBorrow" | "refSet" | "decide" | "ignore")
             && env.lookup(name).is_none()
             && self.lookup_value(None, name).is_err()
     }
@@ -566,6 +566,11 @@ impl Checker {
                     return self.ctor_app(env, p, args, &fresh, *span);
                 }
                 let (mut core, mut ty) = self.infer(env, f)?;
+                // A callee that writes memory at an unknown target (a
+                // foreign call, `eval`, a mutating `Bytes` primitive) is an
+                // opaque write that invalidates all mutable-location
+                // evidence (evidence invalidation over mutable state).
+                self.note_opaque_write_from(&core, *span);
                 for a in args {
                     ty = self.uni.zonk(&ty);
                     let (arg_core, cod) = match ty {
@@ -573,6 +578,10 @@ impl Checker {
                             self.perform(&eff)?;
                             let erased = matches!(self.uni.zonk(&dom), Ty::Prp(_) | Ty::Sort(_));
                             let c = self.check(env, a, &dom)?;
+                            // Record writes after the argument, so the
+                            // domain's region has unified with the passed
+                            // borrow's region.
+                            self.note_call_arg_writes(&dom, &eff, *span);
                             // A task handle is consumed exactly once by
                             // its function: a sink that could drop it is
                             // refused (concurrency specification,
@@ -585,6 +594,7 @@ impl Checker {
                             self.perform(&eff)?;
                             let erased = matches!(self.uni.zonk(&dom), Ty::Prp(_) | Ty::Sort(_));
                             let c = self.check(env, a, &dom)?;
+                            self.note_call_arg_writes(&dom, &eff, *span);
                             let subst = self.idx_of_term(a, env).map_err(|e| {
                                 Error::at(
                                     a.span(),
@@ -1440,6 +1450,12 @@ impl Checker {
         args: &[ast::Term],
         span: ast::Span,
     ) -> Result<(ECore, Ty)> {
+        // `refSet m v` is the one builtin with two arguments (a write
+        // through an exclusive borrow), so it dispatches before the
+        // single-argument spine below.
+        if name == "refSet" {
+            return self.infer_refset_app(env, args, span);
+        }
         if args.len() != 1 {
             return Err(Error::at(
                 span,
@@ -1698,6 +1714,55 @@ impl Checker {
             }
             _ => unreachable!(),
         }
+    }
+
+    /// `refSet m v`: write `v` through the exclusive `Mut` borrow `m`,
+    /// mutating the borrowed location (evidence invalidation over mutable
+    /// state). The write invalidates every evidence item about that
+    /// location derived before it. It lowers to a store of `v` into the
+    /// borrow's slot, so later reads of `m` observe the new value.
+    fn infer_refset_app(
+        &mut self,
+        env: &mut Env,
+        args: &[ast::Term],
+        span: ast::Span,
+    ) -> Result<(ECore, Ty)> {
+        if args.len() != 2 {
+            return Err(Error::at(
+                span,
+                "`refSet` takes a `Mut` borrow and a value: `refSet m v` writes the borrowed location",
+            ));
+        }
+        let (m_core, m_ty) = self.infer(env, &args[0])?;
+        let m_ty = self.uni.zonk(&m_ty);
+        let (region, inner) = match &m_ty {
+            Ty::Mut(r, inner) => (r.clone(), (**inner).clone()),
+            other => {
+                return Err(Error::at(
+                    args[0].span(),
+                    format!(
+                        "`refSet` writes through an exclusive `Mut` borrow, but this is {other} (a `Ref` borrow is read-only; use `mutBorrow` for a writable location)"
+                    ),
+                ))
+            }
+        };
+        let v_core = self.check(env, &args[1], &inner)?;
+        // The write targets the borrow's held cell, so it must be a bound
+        // place (a variable) whose slot the store updates.
+        let m_local = match m_core {
+            ECore::Var(l) => l,
+            _ => {
+                return Err(Error::at(
+                    args[0].span(),
+                    "`refSet` writes through a bound `Mut` borrow (a variable naming the location)",
+                ))
+            }
+        };
+        // Record the mutation so evidence about `region` derived earlier
+        // goes stale at this point.
+        self.note_ev_write_loc(region, span);
+        // Lower to a write through the borrow's cell that yields `Unit`.
+        Ok((ECore::RefSet(m_local, Box::new(v_core)), Ty::Unit))
     }
 
     /// The shape `decide` accepts: a comparison (`i < n`) or `Eq x y`.
@@ -2023,6 +2088,19 @@ impl Checker {
                 self.idx_ref(&v, p.span())?
             }
             ast::Term::App(f, args, span) => {
+                // A borrow read (`copyOut m`) in index position is a live
+                // reading of the borrowed location: a proposition over it
+                // is a refinement guarantee about that location, valid
+                // until the location is written (evidence invalidation
+                // over mutable state).
+                if let ast::Term::Var(p) = &**f {
+                    if p.quals.is_empty()
+                        && matches!(p.name.text.as_str(), "copyOut" | "borrow" | "mutBorrow")
+                        && args.len() == 1
+                    {
+                        return self.idx_of_term(&args[0], env);
+                    }
+                }
                 // In index position `+`, `-` and `*` are mathematical
                 // arithmetic, never class methods (decision D29).
                 if let ast::Term::Var(p) = &**f {
@@ -2090,7 +2168,7 @@ impl Checker {
             )),
             ast::Term::Var(p) => {
                 if p.quals.is_empty() {
-                    if let Some((_, s)) = env.lookup(&p.name.text) {
+                    if let Some((l, s)) = env.lookup(&p.name.text) {
                         let (t, _, _) = self.instantiate(&s);
                         let t = self.uni.zonk(&t);
                         return match t {
@@ -2104,6 +2182,10 @@ impl Checker {
                                         ),
                                     )
                                 })?;
+                                // Evidence invalidation over mutable
+                                // state: record the use; staleness is
+                                // checked after regions unify.
+                                self.record_ev_use(l, &q, env, term.span());
                                 Ok(ECore::Unit)
                             }
                             other => Err(Error::at(
@@ -7205,7 +7287,7 @@ fn rec_walk(
             rec_walk(v, guard, owner, by_local, edges);
             rec_walk(body, guard, owner, by_local, edges);
         }
-        ECore::BoxInit(_, v) | ECore::LazyInit(_, v) => {
+        ECore::BoxInit(_, v) | ECore::LazyInit(_, v) | ECore::RefSet(_, v) => {
             rec_walk(v, guard, owner, by_local, edges)
         }
         ECore::If(c, t, f) => {
@@ -7279,7 +7361,9 @@ fn rec_collect_refs(e: &ECore, by_local: &HashMap<LocalId, usize>, out: &mut Vec
             rec_collect_refs(v, by_local, out);
             rec_collect_refs(body, by_local, out);
         }
-        ECore::BoxInit(_, v) | ECore::LazyInit(_, v) => rec_collect_refs(v, by_local, out),
+        ECore::BoxInit(_, v) | ECore::LazyInit(_, v) | ECore::RefSet(_, v) => {
+            rec_collect_refs(v, by_local, out)
+        }
         ECore::If(c, t, f) => {
             rec_collect_refs(c, by_local, out);
             rec_collect_refs(&t.body, by_local, out);
@@ -7377,7 +7461,9 @@ fn subst_rec_refs(e: &mut ECore, subs: &HashMap<LocalId, RecSub>) {
             subst_rec_refs(v, subs);
             subst_rec_refs(body, subs);
         }
-        ECore::BoxInit(_, v) | ECore::LazyInit(_, v) => subst_rec_refs(v, subs),
+        ECore::BoxInit(_, v) | ECore::LazyInit(_, v) | ECore::RefSet(_, v) => {
+            subst_rec_refs(v, subs)
+        }
         ECore::If(c, t, f) => {
             subst_rec_refs(c, subs);
             subst_rec_refs(&mut t.body, subs);

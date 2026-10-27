@@ -77,6 +77,10 @@ enum ECore {
     /// Read a fixpoint box: a use of a recursive `letrec` value inside a
     /// thunk, resolved when the thunk runs.
     BoxGet(Box<ECore>),
+    /// Write through a `Mut` borrow (evidence invalidation over mutable
+    /// state): store `val` into the cell the exclusive borrow `local`
+    /// names, yielding `Unit`. Lowers to [`crate::core::Core::RefSet`].
+    RefSet(LocalId, Box<ECore>),
     /// The runtime fault path (exit 70): emitted when a match falls through
     /// with pattern coverage unprovable.
     Fault,
@@ -208,6 +212,12 @@ fn free_locals(e: &ECore, bound: &mut Vec<LocalId>, out: &mut Vec<LocalId>) {
             }
             free_locals(v, bound, out);
         }
+        ECore::RefSet(l, v) => {
+            if !bound.contains(l) && !out.contains(l) {
+                out.push(*l);
+            }
+            free_locals(v, bound, out);
+        }
         ECore::BoxGet(v) => free_locals(v, bound, out),
         ECore::Case { scrut, alts } => {
             free_locals(scrut, bound, out);
@@ -289,6 +299,7 @@ fn hoist_lambdas(e: &mut ECore, hint: &str, counter: &mut usize, fns: &mut Vec<H
         ECore::LazyInit(_, t) => hoist_lambdas(t, hint, counter, fns),
         ECore::BoxAlloc => {}
         ECore::BoxInit(_, v) => hoist_lambdas(v, hint, counter, fns),
+        ECore::RefSet(_, v) => hoist_lambdas(v, hint, counter, fns),
         ECore::BoxGet(v) => hoist_lambdas(v, hint, counter, fns),
         ECore::Case { scrut, alts } => {
             hoist_lambdas(scrut, hint, counter, fns);
@@ -396,6 +407,10 @@ fn assign_locals(e: &ECore, map: &mut HashMap<LocalId, LocalId>, next: &mut usiz
             note_local(*l, map, next);
             assign_locals(v, map, next);
         }
+        ECore::RefSet(l, v) => {
+            note_local(*l, map, next);
+            assign_locals(v, map, next);
+        }
         ECore::BoxGet(v) => assign_locals(v, map, next),
         ECore::Case { scrut, alts } => {
             assign_locals(scrut, map, next);
@@ -492,6 +507,7 @@ fn rewrite_locals(e: &ECore, map: &HashMap<LocalId, LocalId>) -> ECore {
         }
         ECore::BoxAlloc => ECore::BoxAlloc,
         ECore::BoxInit(l, v) => ECore::BoxInit(m(l), Box::new(rewrite_locals(v, map))),
+        ECore::RefSet(l, v) => ECore::RefSet(m(l), Box::new(rewrite_locals(v, map))),
         ECore::BoxGet(v) => ECore::BoxGet(Box::new(rewrite_locals(v, map))),
         ECore::Case { scrut, alts } => ECore::Case {
             scrut: Box::new(rewrite_locals(scrut, map)),
@@ -562,6 +578,7 @@ fn resolve_lit_words(e: &mut ECore, lits: &[ECore]) {
         }
         ECore::LazyInit(_, t) => resolve_lit_words(t, lits),
         ECore::BoxInit(_, v) => resolve_lit_words(v, lits),
+        ECore::RefSet(_, v) => resolve_lit_words(v, lits),
         ECore::BoxGet(v) => resolve_lit_words(v, lits),
         ECore::Case { scrut, alts } => {
             resolve_lit_words(scrut, lits);
@@ -631,6 +648,7 @@ fn resolve_idx_words(e: &mut ECore, vals: &[ECore]) {
         }
         ECore::LazyInit(_, t) => resolve_idx_words(t, vals),
         ECore::BoxInit(_, v) => resolve_idx_words(v, vals),
+        ECore::RefSet(_, v) => resolve_idx_words(v, vals),
         ECore::BoxGet(v) => resolve_idx_words(v, vals),
         ECore::Case { scrut, alts } => {
             resolve_idx_words(scrut, vals);
@@ -699,6 +717,7 @@ fn fold_blocked(e: &ECore) -> bool {
         | ECore::LazyInit(_, _)
         | ECore::BoxAlloc
         | ECore::BoxInit(_, _)
+        | ECore::RefSet(_, _)
         | ECore::BoxGet(_)
         | ECore::Quote { .. }
         | ECore::DeclsQuote { .. } => true,
@@ -810,6 +829,7 @@ fn lower(e: &ECore) -> crate::core::Core {
         ECore::BoxInit(l, v) => {
             crate::core::Core::BoxInit(*l, Box::new(lower(v)))
         }
+        ECore::RefSet(l, v) => crate::core::Core::RefSet(*l, Box::new(lower(v))),
         ECore::BoxGet(v) => crate::core::Core::BoxGet(Box::new(lower(v))),
         ECore::Case { scrut, alts } => crate::core::Core::Case {
             scrut: Box::new(lower(scrut)),
@@ -1499,6 +1519,69 @@ fn escape_regions(ty: &Ty, out: &mut Vec<String>) {
     }
 }
 
+/// The value variables a proposition's index terms read (evidence
+/// invalidation over mutable state): collecting them lets the checker
+/// classify an evidence item as reading a mutable location's contents.
+fn collect_idx_reads(t: &ITerm, out: &mut Vec<String>) {
+    match t {
+        ITerm::Var(n) => {
+            if !out.iter().any(|x| x == n) {
+                out.push(n.clone());
+            }
+        }
+        ITerm::App(f, args) => {
+            collect_idx_reads(f, out);
+            for a in args {
+                collect_idx_reads(a, out);
+            }
+        }
+        ITerm::Bin(_, a, b) => {
+            collect_idx_reads(a, out);
+            collect_idx_reads(b, out);
+        }
+        ITerm::Num(_) | ITerm::Fn(_) | ITerm::MVar(_) => {}
+    }
+}
+
+/// The value variables a proposition reads across all its index terms.
+fn collect_prop_reads(p: &PTerm, out: &mut Vec<String>) {
+    match p {
+        PTerm::Cmp(_, a, b) | PTerm::Eq(a, b) => {
+            collect_idx_reads(a, out);
+            collect_idx_reads(b, out);
+        }
+        PTerm::Not(q) => collect_prop_reads(q, out),
+        PTerm::Var(_) | PTerm::MVar(_) => {}
+    }
+}
+
+/// Whether an effect label's head denotes an effect that can mutate a
+/// region's state (the effect-row reading of "can write"). Concurrency
+/// control, memo `Eval`, termination and foreign-component labels do not
+/// write a borrow's location; every other head is conservatively treated
+/// as able to write the region it names.
+fn write_effect_head(head: &str) -> bool {
+    !matches!(
+        head,
+        "Async" | "Cancel" | "Eval" | "Diverge" | "Fail" | "ThreadAffine" | "Foreign" | "Blocking"
+    )
+}
+
+/// Whether a callee's core form writes memory at an unknown target (a
+/// foreign call, `eval`, or a mutating `Bytes` primitive). Such a write is
+/// opaque: it conservatively invalidates every mutable-location evidence
+/// item (a `RawPtr`/FFI write target carries no tracked evidence).
+fn callee_writes_opaque(core: &ECore) -> bool {
+    match core {
+        ECore::Foreign(_) => true,
+        ECore::Prim(crate::core::PrimOp::Eval) => true,
+        ECore::Prim(crate::core::PrimOp::Bytes(op)) => {
+            !matches!(op, crate::core::BytesOp::Len | crate::core::BytesOp::Get)
+        }
+        _ => false,
+    }
+}
+
 /// Every region name a type mentions, including runtime identities and
 /// structured-scope regions (`Io r`, `Scope r s`, `Task s x a`) that
 /// [`escape_regions`] deliberately skips. Used for task-handle and scope
@@ -1927,6 +2010,21 @@ struct Checker {
     upgrade_evidence: Vec<(String, crate::interface::UpgradeEvidence)>,
     /// Checked rewrite rules, in declaration order.
     rewrites: Vec<crate::core::RewriteRule>,
+    /// Evidence invalidation over mutable state (core specification
+    /// section 5): the ordered log of writes to mutable locations within
+    /// the definition being checked. Each entry is the written location
+    /// (a `Mut` borrow's region) or `None` for an opaque write (an FFI /
+    /// `RawPtr` write or `eval`), with the write's span for errors.
+    ev_writes: Vec<(Option<String>, ast::Span)>,
+    /// Evidence derivation points: a `Prop`-typed local to the write-log
+    /// length at its derivation and the derivation span (the site an
+    /// invalidation error names).
+    ev_derivs: HashMap<LocalId, (usize, ast::Span)>,
+    /// Evidence uses recorded during elaboration (a stale check is deferred
+    /// until regions unify, since a call's effect-row region may only
+    /// resolve during constraint solving). Each is the evidence local, the
+    /// mutable locations its statement reads, and the use span.
+    ev_uses: Vec<(LocalId, Vec<String>, ast::Span)>,
 }
 
 /// A `generate do` block collected for compile-time execution (staging).
@@ -2194,6 +2292,9 @@ impl Checker {
             pending_upgrades: Vec::new(),
             upgrade_evidence: Vec::new(),
             rewrites: Vec::new(),
+            ev_writes: Vec::new(),
+            ev_derivs: HashMap::new(),
+            ev_uses: Vec::new(),
         }
     }
 
@@ -2268,6 +2369,9 @@ impl Checker {
     fn reset_usage(&mut self) {
         self.uses.clear();
         self.obligations.clear();
+        self.ev_writes.clear();
+        self.ev_derivs.clear();
+        self.ev_uses.clear();
         self.lam_depth = 0;
         self.memo_depth = 0;
         self.active_regions.clear();
@@ -2316,8 +2420,142 @@ impl Checker {
         if !self.obligations.contains_key(&l) {
             self.register_obligation(l, name, mult, scheme.ty.clone(), span);
         }
+        // Evidence invalidation over mutable state: a `Prop`-typed binder
+        // is an evidence item. Record where it was derived (the write-log
+        // length right now) so a later write to a location it reads can
+        // name this derivation site when the item goes stale.
+        if matches!(self.uni.zonk(&scheme.ty), Ty::Prp(_)) {
+            self.ev_derivs.insert(l, (self.ev_writes.len(), span));
+        }
         env.locals.push((name.to_string(), l, scheme));
         Ok(())
+    }
+
+    /// The mutable locations an evidence item's statement reads (evidence
+    /// invalidation over mutable state): the regions of `Mut` and `Ref`
+    /// borrows named by the proposition's index terms, split by borrow
+    /// kind so `Ref`-sourced (read-only) evidence is never invalidated.
+    fn ev_footprint(&self, q: &PTerm, env: &Env) -> (Vec<String>, Vec<String>) {
+        let mut vars = Vec::new();
+        collect_prop_reads(q, &mut vars);
+        let mut muts = Vec::new();
+        let mut refs = Vec::new();
+        for v in vars {
+            if let Some((_, s)) = env.lookup(&v) {
+                match self.uni.zonk(&s.ty) {
+                    Ty::Mut(r, _) => {
+                        if !muts.contains(&r) {
+                            muts.push(r);
+                        }
+                    }
+                    Ty::Ref(r, _) => {
+                        if !refs.contains(&r) {
+                            refs.push(r);
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+        (muts, refs)
+    }
+
+    /// Record a write to a mutable location (the `Mut` borrow's region),
+    /// or an opaque write when `loc` is `None`.
+    fn note_ev_write(&mut self, loc: Option<String>, span: ast::Span) {
+        self.ev_writes.push((loc, span));
+    }
+
+    /// Record a write through a `Mut` borrow of region `loc`.
+    fn note_ev_write_loc(&mut self, loc: String, span: ast::Span) {
+        self.ev_writes.push((Some(loc), span));
+    }
+
+    /// Record an opaque write (FFI / `RawPtr` write or `eval`): its target
+    /// is unknown, so it conservatively invalidates every mutable-location
+    /// evidence item derived before it.
+    fn note_ev_write_opaque(&mut self, span: ast::Span) {
+        self.ev_writes.push((None, span));
+    }
+
+    /// Record an evidence use for a deferred staleness check. The check
+    /// runs after constraint solving (which unifies regions), since a
+    /// call's effect-row region may only resolve there. Only `Mut`-sourced
+    /// evidence (reads a mutable location) can go stale; `Ref`-sourced and
+    /// immutable evidence never do.
+    fn record_ev_use(&mut self, l: LocalId, prop: &PTerm, env: &Env, use_span: ast::Span) {
+        if !self.ev_derivs.contains_key(&l) {
+            return;
+        }
+        let (muts, _refs) = self.ev_footprint(prop, env);
+        if muts.is_empty() {
+            return;
+        }
+        self.ev_uses.push((l, muts, use_span));
+    }
+
+    /// Check every recorded evidence use for staleness (evidence
+    /// invalidation over mutable state), now that regions have unified.
+    /// A use whose evidence a later write invalidated is rejected, naming
+    /// the derivation site and the invalidating mutation.
+    fn check_ev_uses(&mut self) -> Result<()> {
+        let uses = std::mem::take(&mut self.ev_uses);
+        for (l, muts, use_span) in uses {
+            let Some(&(deriv_len, deriv_span)) = self.ev_derivs.get(&l) else {
+                continue;
+            };
+            for (loc, wspan) in &self.ev_writes[deriv_len..] {
+                let hits = match loc {
+                    None => true,
+                    Some(r) => {
+                        let r = self.uni.resolve_region(r);
+                        muts.iter().any(|m| self.uni.resolve_region(m) == r)
+                    }
+                };
+                if hits {
+                    let where_ = muts.join(", ");
+                    return Err(Error::at(
+                        use_span,
+                        format!(
+                            "stale evidence: evidence about the contents of `{where_}` derived at {deriv_span} is invalidated by the write at {wspan}"
+                        ),
+                    ));
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Record the writes a call can perform (evidence invalidation over
+    /// mutable state): a `Mut` argument hands the callee an exclusive
+    /// borrow it may write, and the effect-row reading of "can write" is a
+    /// write-capable label naming a region, or an open row that may write
+    /// anything.
+    fn note_call_arg_writes(&mut self, dom: &Ty, eff: &EffRow, span: ast::Span) {
+        if let Ty::Mut(r, _) = self.uni.zonk(dom) {
+            self.ev_writes.push((Some(r), span));
+        }
+        let resolved = self.uni.resolve_row(eff);
+        for l in &resolved.labels {
+            if let Some(a) = &l.arg {
+                if write_effect_head(&l.head) {
+                    self.ev_writes.push((Some(a.clone()), span));
+                }
+            }
+        }
+        if !matches!(resolved.tail, RowTail::Closed) {
+            self.ev_writes.push((None, span));
+        }
+    }
+
+    /// Record an opaque write performed by a callee whose write target is
+    /// unknown (a foreign call, `eval`, or a mutating `Bytes` primitive):
+    /// conservatively it invalidates every mutable-location evidence item
+    /// derived before it.
+    fn note_opaque_write_from(&mut self, callee: &ECore, span: ast::Span) {
+        if callee_writes_opaque(callee) {
+            self.ev_writes.push((None, span));
+        }
     }
 
     /// Register a binder's usage obligation (first registration for a
@@ -3133,6 +3371,7 @@ impl Checker {
             }
             ECore::LazyInit(_, t) => self.fold_pass(t, unit, fold),
             ECore::BoxInit(_, v) => self.fold_pass(v, unit, fold),
+            ECore::RefSet(_, v) => self.fold_pass(v, unit, fold),
             ECore::BoxGet(v) => self.fold_pass(v, unit, fold),
             ECore::Case { scrut, alts } => {
                 self.fold_pass(scrut, unit, fold);
@@ -5483,6 +5722,7 @@ impl Checker {
             ECore::BoxInit(l, v) => {
                 ECore::BoxInit(*l, Box::new(self.fill_holes(v, sol)?))
             }
+            ECore::RefSet(l, v) => ECore::RefSet(*l, Box::new(self.fill_holes(v, sol)?)),
             ECore::BoxGet(v) => ECore::BoxGet(Box::new(self.fill_holes(v, sol)?)),
             ECore::Quote { template, holes, body } => ECore::Quote {
                 template: template.clone(),

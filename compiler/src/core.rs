@@ -1209,6 +1209,14 @@ pub enum Core {
     BoxInit(LocalId, Box<Core>),
     /// Read a fixpoint box at use time.
     BoxGet(Box<Core>),
+    /// Write through a `Mut` borrow: evaluate `val`, store it into the
+    /// mutable cell the exclusive borrow `local` names, and yield `Unit`.
+    /// This is the mutation that invalidates evidence about the location
+    /// (evidence invalidation over mutable state). It is a memory write to
+    /// `local`'s slot, so the optimizer treats it as opaque and never
+    /// reorders or propagates a read of `local` across it; later reads of
+    /// `local` observe the new value.
+    RefSet(LocalId, Box<Core>),
     /// The runtime fault path: exit 70 through `__safelang_blackhole`,
     /// reached when a match falls through with pattern coverage unprovable.
     Fault,
@@ -2383,6 +2391,7 @@ pub fn tail_report(program: &Program) -> Vec<TailGroup> {
                 all_calls(body, fns, insts, foreigns, out);
             }
             Core::BoxInit(_, v) => all_calls(v, fns, insts, foreigns, out),
+            Core::RefSet(_, v) => all_calls(v, fns, insts, foreigns, out),
             Core::LazyInit(_, t) => all_calls(t, fns, insts, foreigns, out),
             Core::If(c, t, fe) => {
                 all_calls(c, fns, insts, foreigns, out);
@@ -2661,7 +2670,7 @@ fn calls_walk(
             calls_walk(v, false, fns, insts, foreigns, callees, out);
             calls_walk(body, tail, fns, insts, foreigns, callees, out);
         }
-        Core::BoxInit(_, v) | Core::LazyInit(_, v) => {
+        Core::BoxInit(_, v) | Core::LazyInit(_, v) | Core::RefSet(_, v) => {
             calls_walk(v, false, fns, insts, foreigns, callees, out)
         }
         Core::If(c, t, fe) => {
@@ -2985,6 +2994,10 @@ pub fn walk_locals(e: &Core, f: &mut impl FnMut(LocalId)) {
             f(*l);
             walk_locals(v, f);
         }
+        Core::RefSet(l, v) => {
+            f(*l);
+            walk_locals(v, f);
+        }
         Core::BoxGet(v) => walk_locals(v, f),
         Core::If(c, t, fe) => {
             walk_locals(c, f);
@@ -3066,6 +3079,13 @@ fn use_range(e: &Core, l: LocalId) -> (usize, usize) {
             }
         }
         Core::BoxInit(x, v) => {
+            if *x == l {
+                (0, 0)
+            } else {
+                use_range(v, l)
+            }
+        }
+        Core::RefSet(x, v) => {
             if *x == l {
                 (0, 0)
             } else {
@@ -3164,6 +3184,10 @@ fn renumber_core(e: &Core, nparams: usize) -> Core {
                 note(*l, map, next);
                 assign(v, map, next);
             }
+            Core::RefSet(l, v) => {
+                note(*l, map, next);
+                assign(v, map, next);
+            }
             Core::BoxGet(v) => assign(v, map, next),
             Core::If(c, t, fe) => {
                 assign(c, map, next);
@@ -3230,6 +3254,9 @@ fn renumber_core(e: &Core, nparams: usize) -> Core {
             }
             Core::BoxInit(l, v) => {
                 Core::BoxInit(*map.get(l).unwrap_or(l), Box::new(rw(v)))
+            }
+            Core::RefSet(l, v) => {
+                Core::RefSet(*map.get(l).unwrap_or(l), Box::new(rw(v)))
             }
             Core::BoxGet(v) => Core::BoxGet(Box::new(rw(v))),
             Core::If(c, t, fe) => Core::If(
@@ -3355,6 +3382,12 @@ fn instantiate(
                 let v = go(v, holes, binds, ren, next);
                 ren.remove(l);
                 Core::BoxInit(nl, Box::new(v))
+            }
+            Core::RefSet(l, v) => {
+                let nl = fresh(*l, ren, next);
+                let v = go(v, holes, binds, ren, next);
+                ren.remove(l);
+                Core::RefSet(nl, Box::new(v))
             }
             Core::BoxGet(v) => Core::BoxGet(Box::new(go(v, holes, binds, ren, next))),
             Core::If(c, t, fe) => Core::If(
@@ -3888,6 +3921,7 @@ fn has_alloc(e: &Core) -> bool {
         }
         match e {
             Core::LazyAlloc | Core::LazyInit(_, _) | Core::BoxAlloc | Core::BoxInit(_, _)
+            | Core::RefSet(_, _)
             | Core::BoxGet(_) | Core::Demand(_) | Core::Quote { .. }
             | Core::DeclsQuote { .. } => *found = true,
             Core::Prim(PrimOp::Delay) => *found = true,
@@ -3968,6 +4002,7 @@ fn scan_calls(e: &Core, f: &mut impl FnMut(&GlobalId)) {
         }
         Core::LazyInit(_, t) => scan_calls(t, f),
         Core::BoxInit(_, v) => scan_calls(v, f),
+        Core::RefSet(_, v) => scan_calls(v, f),
         Core::BoxGet(v) => scan_calls(v, f),
         Core::If(c, t, fe) => {
             scan_calls(c, f);
@@ -3999,6 +4034,7 @@ fn memo_count(e: &Core) -> usize {
 fn scan_memo(e: &Core, n: &mut usize) {
     match e {
         Core::LazyAlloc | Core::LazyInit(_, _) | Core::BoxAlloc | Core::BoxInit(_, _)
+        | Core::RefSet(_, _)
         | Core::BoxGet(_) | Core::Demand(_) => *n += 1,
         Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::Bool(_) | Core::Unit | Core::Global(_)
         | Core::Ctor(_) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_)
@@ -4066,6 +4102,7 @@ fn weights_ok(e: &Core) -> bool {
                 go(d, ok)
             }
             Core::BoxInit(_, v) => go(v, ok),
+            Core::RefSet(_, v) => go(v, ok),
             Core::InstDict(_, args) | Core::App(_, args) | Core::Lam { env: args, .. } => {
                 for a in args {
                     go(a, ok);
@@ -4100,6 +4137,12 @@ fn scope_ok(e: &Core, nparams: usize) -> bool {
                 go(d, bound)
             }
             Core::BoxInit(l, v) => {
+                bound.insert(*l);
+                let ok = go(v, bound);
+                bound.remove(l);
+                ok
+            }
+            Core::RefSet(l, v) => {
                 bound.insert(*l);
                 let ok = go(v, bound);
                 bound.remove(l);
@@ -4211,6 +4254,10 @@ fn body_impure(e: &Core) -> bool {
             // A real foreign call is opaque and effectful by contract
             // (foreign function interface specification section 4).
             Core::Foreign(_) => *bad = true,
+            // A `RefSet` write is an opaque mutation of the borrow's
+            // cell: the optimizer must not reorder, drop, or duplicate
+            // it, so it is impure like a foreign call.
+            Core::RefSet(_, _) => *bad = true,
             Core::Prim(op) => {
                 if !prim_is_pure(*op) {
                     *bad = true;
@@ -5007,6 +5054,7 @@ fn child_slots(e: &mut Core) -> Vec<&mut Core> {
             out.push(&mut **d)
         }
         Core::BoxInit(_, v) => out.push(&mut **v),
+        Core::RefSet(_, v) => out.push(&mut **v),
         Core::InstDict(_, args) | Core::App(_, args) | Core::Lam { env: args, .. } => {
             for a in args {
                 out.push(a);
@@ -5539,6 +5587,7 @@ fn child_slots_imm(e: &Core) -> Vec<&Core> {
             out.push(&**d)
         }
         Core::BoxInit(_, v) => out.push(&**v),
+        Core::RefSet(_, v) => out.push(&**v),
         Core::InstDict(_, args) | Core::App(_, args) | Core::Lam { env: args, .. } => {
             for a in args {
                 out.push(a);

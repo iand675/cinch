@@ -3522,6 +3522,7 @@ fn collect_prims(e: &Core, out: &mut BTreeSet<PrimOp>) {
         }
         Core::LazyInit(_, t) => collect_prims(t, out),
         Core::BoxInit(_, v) => collect_prims(v, out),
+        Core::RefSet(_, v) => collect_prims(v, out),
         Core::BoxGet(v) => collect_prims(v, out),
         Core::Case { scrut, alts } => {
             collect_prims(scrut, out);
@@ -3567,6 +3568,10 @@ fn collect_binders(e: &Core, out: &mut Vec<LocalId>) {
         Core::LazyInit(_, t) => collect_binders(t, out),
         Core::BoxAlloc => {}
         Core::BoxInit(l, v) => {
+            out.push(*l);
+            collect_binders(v, out);
+        }
+        Core::RefSet(l, v) => {
             out.push(*l);
             collect_binders(v, out);
         }
@@ -3948,6 +3953,15 @@ impl CoreEmitter<'_, '_> {
                 let p = self.b.reg();
                 self.b.line(&format!("{p} = inttoptr i64 {cw} to ptr"));
                 self.b.store_at(&p, 8, &tv);
+                Ok("0".to_string())
+            }
+            Core::RefSet(l, v) => {
+                if !self.bound.contains(l) {
+                    return err(format!("ref set for unknown local {}", l.0));
+                }
+                let v = self.emit_expr(v)?;
+                let slot = self.slot(*l);
+                self.b.line(&format!("store i64 {v}, ptr {slot}"));
                 Ok("0".to_string())
             }
             Core::Case { scrut, alts } => match self.emit_case(scrut, alts, false)? {
@@ -5250,6 +5264,14 @@ fn reify(out: &mut Vec<QWord>, e: &Core, reg: &Registry) -> Result<()> {
             q_imm(out, x.0 as u64);
             reify(out, v, reg)?;
             reify(out, body, reg)?;
+        }
+        // A `RefSet` write is a `Let` with the unit body: store the
+        // value into the borrow's slot and yield `Unit`.
+        Core::RefSet(l, v) => {
+            q_imm(out, quote_op::LET);
+            q_imm(out, l.0 as u64);
+            reify(out, v, reg)?;
+            q_imm(out, quote_op::UNIT);
         }
         Core::If(c, t, f) => {
             q_imm(out, quote_op::IF);
