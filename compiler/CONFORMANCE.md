@@ -189,7 +189,7 @@ audit, `compiler/SPEC-MAPPING.md` "Roadmap gaps"):
 | --- | --- |
 | Positivity discipline for inductive definitions | done (P7: strict positivity for all `data`; negative and nested occurrences rejected) |
 | Evidence invalidation over mutable state | done (A2/`de0780c`, D192-D197: flow-sensitive; Mut-region footprints, write triggers, deferred staleness; `tests/evidence_invalidation.rs` 12/12) |
-| Temporal contracts (safety/liveness/recurrence/stability) | closest to P12; unnamed there (A3) |
+| Temporal contracts (safety/liveness/recurrence/stability) | done (A3/`b25a1a8`, D198-D205: `contract` declarations with `always`/`eventually`/`recur`/`stable`; inductive safety and footprint stability from the D192 write log; bounded liveness from the P12 scope guarantees; bounded recurrence from the structural-depth proof; undecidable cases refused by name; facts in `.sliface`/manifest) |
 | Cross-compilation (target width/capabilities) | done (P14: `Usize`/`Isize` widths keyed on the target in literal checks, lowering, and the manifest (A4)) |
 | Module parameters and signatures as module arguments | done (A5: `module M (p :: T, ...) where` with dictionary and value parameters, import-time instantiation units `import M (args) as N` with computed `unit_id`, instance coherence preserved (implicit resolution unchanged; explicit dictionaries coexist), parameter signatures in `.sliface` with instantiation as representation (D115-D121); example 12 accepts) |
 | Schema generation / database introspection API | done (P11+A6: `SchemaSnapshot`/`Database`/`SchemaRead` over the subprocess capability, `introspectConsistently`, `CodecGenerator.derive`; example 05 accepts with its build inputs) |
@@ -602,6 +602,34 @@ correspondence: one lexeme in expression/pattern, staging `Name`, and
   write) and immutable evidence never invalidates; `RawPtr` targets
   carry no evidence at all and `RawPtr`/FFI writes are opaque mutation
   (the conservative rule).
+- **D198-D205 (P16 temporal contracts, reported)**: `contract`
+  declarations are top-level, naming a definition of their own module,
+  with formulas as specification notation over the definition's
+  pattern parameters (no call-graph refs; one reserved word added);
+  `always (P)` is an inductive invariant over the definition's
+  per-step transitions, where the transitions ARE the D192 write log,
+  establishment is stated (`assume = (P)`, checked equal), each step
+  must leave `P` true (post-state decision, syntactic
+  self-preservation, or inductive discharge), falsifying writes are
+  rejected naming the step, and undecidable steps are refused;
+  `stable (P)` is the dual of evidence invalidation (no write trigger
+  touches the footprint; a touching write kills it naming the rule);
+  `eventually (Q)` verifies only the finite P12 obligations
+  (`joined`/`cleanup` from the `withScope` guarantee) and refuses
+  open-ended claims, with liveness contracts stating assumptions
+  (concurrency spec section 10); `recur (P)` is bounded by the D113
+  structural-depth proof (the call-graph ladder is refused as a bound)
+  and witnessed by a re-establishing step on every recursive cycle
+  (call-by-value walk with AND-join at branches and fresh segments at
+  lambdas; staging-construct recursion refused); a call's potential
+  write discharges its step only from the definition's own recursion
+  passing `P`'s variables unchanged (no cross-definition discharge);
+  evidence-backed post-state matching was designed and REJECTED as
+  unsound (the prop language is name-based; shadowing would break
+  evidence matching); contract facts are `.sliface` `contracts` rows
+  hashed into `iface_hash` (pinned both ways), stated assumptions join
+  `assumptions.declared`, and the manifest `temporal` section records
+  each contract's verification result.
 - **D127 (P25 scaffolding ruling)**: FoldAgent's defunctionalized
   class shapes (`Foldable t a`, `Traversable t x g h tg hs`) are
   accepted as NON-CURATED scaffolding: they ship in the `Category`
