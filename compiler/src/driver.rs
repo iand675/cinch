@@ -780,6 +780,20 @@ fn write_artifacts(
         None => text.push_str("    \"jpl\": null\n"),
     }
     text.push_str("  },\n");
+    // The verified temporal contracts (core specification section 10):
+    // per contract, the definition it names, the kind and formula, the
+    // verification result (which argument discharged it), and the stated
+    // assumptions (a liveness claim relies on the runtime policies it
+    // names). Definition names, never paths.
+    text.push_str("  \"temporal\": {\n    \"contracts\": [\n");
+    for (i, t) in report.temporal.iter().enumerate() {
+        text.push_str(&format!(
+            "      {{\"definition\": {:?}, \"contract\": {:?}, \"kind\": {:?}, \"formula\": {:?}, \"result\": {:?}, \"assumptions\": {:?}}}",
+            t.definition, t.contract, t.kind, t.formula, t.result, t.assumptions
+        ));
+        text.push_str(if i + 1 < report.temporal.len() { ",\n" } else { "\n" });
+    }
+    text.push_str("    ]\n  },\n");
     // Trust level (supercompilation and JIT specification section 9:
     // full recheck is the default) and the checked-versus-trusted
     // lowering split (platform proofs and SIMD specification section 8).

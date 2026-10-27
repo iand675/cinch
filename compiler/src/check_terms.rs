@@ -581,7 +581,7 @@ impl Checker {
                             // Record writes after the argument, so the
                             // domain's region has unified with the passed
                             // borrow's region.
-                            self.note_call_arg_writes(&dom, &eff, *span);
+                            self.note_call_arg_writes(env, args, &dom, &eff, *span, &core);
                             // A task handle is consumed exactly once by
                             // its function: a sink that could drop it is
                             // refused (concurrency specification,
@@ -594,7 +594,7 @@ impl Checker {
                             self.perform(&eff)?;
                             let erased = matches!(self.uni.zonk(&dom), Ty::Prp(_) | Ty::Sort(_));
                             let c = self.check(env, a, &dom)?;
-                            self.note_call_arg_writes(&dom, &eff, *span);
+                            self.note_call_arg_writes(env, args, &dom, &eff, *span, &core);
                             let subst = self.idx_of_term(a, env).map_err(|e| {
                                 Error::at(
                                     a.span(),
@@ -1759,8 +1759,11 @@ impl Checker {
             }
         };
         // Record the mutation so evidence about `region` derived earlier
-        // goes stale at this point.
-        self.note_ev_write_loc(region, span);
+        // goes stale at this point. The written value's index shape is
+        // the temporal contracts' post-step state (core specification
+        // section 10).
+        let v_idx = self.idx_of_term(&args[1], env).ok();
+        self.note_ev_write_loc(region, span, v_idx);
         // Lower to a write through the borrow's cell that yields `Unit`.
         Ok((ECore::RefSet(m_local, Box::new(v_core)), Ty::Unit))
     }

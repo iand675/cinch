@@ -1084,6 +1084,26 @@ struct IdxPend {
     span: ast::Span,
 }
 
+/// One write step recorded while elaborating a definition (evidence
+/// invalidation over mutable state, core specification section 5; the
+/// temporal contracts' per-step transitions, core specification section
+/// 10). `loc` is the written location (a `Mut` borrow's region) or
+/// `None` for an opaque write (an FFI / `RawPtr` write or `eval`). A
+/// direct `refSet` records the written value's index shape; a call's
+/// potential write records the callee and the call's index arguments,
+/// so a self-recursive call can discharge its step by the inductive
+/// hypothesis.
+#[derive(Clone, Debug)]
+pub(crate) struct EvWrite {
+    pub loc: Option<String>,
+    pub span: ast::Span,
+    /// The written value's index shape at a direct `refSet` step.
+    pub value: Option<ITerm>,
+    /// The callee's identity and its index arguments at a call's
+    /// potential write.
+    pub call: Option<(GlobalId, Vec<Option<ITerm>>)>,
+}
+
 #[derive(Clone, Default)]
 struct Env {
     locals: Vec<(String, LocalId, Scheme)>,
@@ -1582,6 +1602,27 @@ fn callee_writes_opaque(core: &ECore) -> bool {
     }
 }
 
+/// A call's discharge step (core specification section 10): the callee's
+/// identity and the call's index arguments, when the callee is a named
+/// definition. A temporal contract's own recursion discharges its step by
+/// the inductive hypothesis; anything else has no contract to discharge
+/// against.
+fn call_step(
+    checker: &Checker,
+    callee: &ECore,
+    env: &Env,
+    args: &[ast::Term],
+) -> Option<(GlobalId, Vec<Option<ITerm>>)> {
+    let ECore::Global(g) = callee else {
+        return None;
+    };
+    let idxs = args
+        .iter()
+        .map(|a| checker.idx_of_term(a, env).ok())
+        .collect();
+    Some((g.clone(), idxs))
+}
+
 /// Every region name a type mentions, including runtime identities and
 /// structured-scope regions (`Io r`, `Scope r s`, `Task s x a`) that
 /// [`escape_regions`] deliberately skips. Used for task-handle and scope
@@ -1997,6 +2038,20 @@ struct Checker {
     /// P20: the user modules (the profiled program; the prelude family
     /// is not flight code).
     jpl_user_modules: HashSet<String>,
+    /// Temporal contracts awaiting the named definition's elaboration
+    /// (core specification section 10), keyed by `Module.name`: collected
+    /// at declaration time and verified with the definition.
+    pending_contracts: HashMap<(String, String), Vec<ast::ContractDecl>>,
+    /// The verified temporal contract facts per definition, for the
+    /// interface's contract rows (like the P20 assertion facts).
+    contract_facts: HashMap<String, Vec<crate::interface::ContractFact>>,
+    /// The verified temporal contract rows for the artifact manifest
+    /// (core specification section 10).
+    temporal_rows: Vec<TemporalRow>,
+    /// The temporal contracts pending on the definition being elaborated:
+    /// prepared before its body checks (the parameter scope) and verified
+    /// after constraint solving (the write log's regions resolve there).
+    cur_temporal: Option<TemporalPending>,
     /// Rewrite declarations awaiting checking, in source order (modules
     /// and compilation specification section 5).
     pending_rewrites: Vec<(String, ast::RewriteDecl)>,
@@ -2015,7 +2070,9 @@ struct Checker {
     /// the definition being checked. Each entry is the written location
     /// (a `Mut` borrow's region) or `None` for an opaque write (an FFI /
     /// `RawPtr` write or `eval`), with the write's span for errors.
-    ev_writes: Vec<(Option<String>, ast::Span)>,
+    /// Temporal contracts read the same log as the per-step transition
+    /// record (core specification section 10).
+    ev_writes: Vec<EvWrite>,
     /// Evidence derivation points: a `Prop`-typed local to the write-log
     /// length at its derivation and the derivation span (the site an
     /// invalidation error names).
@@ -2284,6 +2341,10 @@ impl Checker {
             module_safety: HashMap::new(),
             safety_records: Vec::new(),
             safety_facts: HashMap::new(),
+            pending_contracts: HashMap::new(),
+            contract_facts: HashMap::new(),
+            temporal_rows: Vec::new(),
+            cur_temporal: None,
             cur_runtime_decides: Vec::new(),
             cur_def_deny: false,
             jpl_target: false,
@@ -2372,6 +2433,7 @@ impl Checker {
         self.ev_writes.clear();
         self.ev_derivs.clear();
         self.ev_uses.clear();
+        self.cur_temporal = None;
         self.lam_depth = 0;
         self.memo_depth = 0;
         self.active_regions.clear();
@@ -2463,19 +2525,37 @@ impl Checker {
     /// Record a write to a mutable location (the `Mut` borrow's region),
     /// or an opaque write when `loc` is `None`.
     fn note_ev_write(&mut self, loc: Option<String>, span: ast::Span) {
-        self.ev_writes.push((loc, span));
+        self.ev_writes.push(EvWrite {
+            loc,
+            span,
+            value: None,
+            call: None,
+        });
     }
 
-    /// Record a write through a `Mut` borrow of region `loc`.
-    fn note_ev_write_loc(&mut self, loc: String, span: ast::Span) {
-        self.ev_writes.push((Some(loc), span));
+    /// Record a direct write through a `Mut` borrow of region `loc`. The
+    /// written value's index shape (`None` when the value has no index
+    /// reading) feeds the temporal contracts' per-step obligations
+    /// (core specification section 10).
+    fn note_ev_write_loc(&mut self, loc: String, span: ast::Span, value: Option<ITerm>) {
+        self.ev_writes.push(EvWrite {
+            loc: Some(loc),
+            span,
+            value,
+            call: None,
+        });
     }
 
     /// Record an opaque write (FFI / `RawPtr` write or `eval`): its target
     /// is unknown, so it conservatively invalidates every mutable-location
     /// evidence item derived before it.
     fn note_ev_write_opaque(&mut self, span: ast::Span) {
-        self.ev_writes.push((None, span));
+        self.ev_writes.push(EvWrite {
+            loc: None,
+            span,
+            value: None,
+            call: None,
+        });
     }
 
     /// Record an evidence use for a deferred staleness check. The check
@@ -2504,8 +2584,8 @@ impl Checker {
             let Some(&(deriv_len, deriv_span)) = self.ev_derivs.get(&l) else {
                 continue;
             };
-            for (loc, wspan) in &self.ev_writes[deriv_len..] {
-                let hits = match loc {
+            for w in &self.ev_writes[deriv_len..] {
+                let hits = match &w.loc {
                     None => true,
                     Some(r) => {
                         let r = self.uni.resolve_region(r);
@@ -2517,7 +2597,8 @@ impl Checker {
                     return Err(Error::at(
                         use_span,
                         format!(
-                            "stale evidence: evidence about the contents of `{where_}` derived at {deriv_span} is invalidated by the write at {wspan}"
+                            "stale evidence: evidence about the contents of `{where_}` derived at {deriv_span} is invalidated by the write at {}",
+                            w.span
                         ),
                     ));
                 }
@@ -2530,21 +2611,46 @@ impl Checker {
     /// mutable state): a `Mut` argument hands the callee an exclusive
     /// borrow it may write, and the effect-row reading of "can write" is a
     /// write-capable label naming a region, or an open row that may write
-    /// anything.
-    fn note_call_arg_writes(&mut self, dom: &Ty, eff: &EffRow, span: ast::Span) {
+    /// anything. Each step records the callee and the call's index
+    /// arguments (the temporal contracts' per-step obligations: a
+    /// self-recursive call discharges its step by the inductive
+    /// hypothesis, core specification section 10).
+    fn note_call_arg_writes(
+        &mut self,
+        env: &Env,
+        args: &[ast::Term],
+        dom: &Ty,
+        eff: &EffRow,
+        span: ast::Span,
+        callee: &ECore,
+    ) {
+        // The steps this call can perform, computed before any push.
+        let mut targets: Vec<Option<String>> = Vec::new();
         if let Ty::Mut(r, _) = self.uni.zonk(dom) {
-            self.ev_writes.push((Some(r), span));
+            targets.push(Some(r));
         }
         let resolved = self.uni.resolve_row(eff);
         for l in &resolved.labels {
             if let Some(a) = &l.arg {
                 if write_effect_head(&l.head) {
-                    self.ev_writes.push((Some(a.clone()), span));
+                    targets.push(Some(a.clone()));
                 }
             }
         }
         if !matches!(resolved.tail, RowTail::Closed) {
-            self.ev_writes.push((None, span));
+            targets.push(None);
+        }
+        if targets.is_empty() {
+            return;
+        }
+        let call = call_step(self, callee, env, args);
+        for loc in targets {
+            self.ev_writes.push(EvWrite {
+                loc,
+                span,
+                value: None,
+                call: call.clone(),
+            });
         }
     }
 
@@ -2554,7 +2660,12 @@ impl Checker {
     /// derived before it.
     fn note_opaque_write_from(&mut self, callee: &ECore, span: ast::Span) {
         if callee_writes_opaque(callee) {
-            self.ev_writes.push((None, span));
+            self.ev_writes.push(EvWrite {
+                loc: None,
+                span,
+                value: None,
+                call: None,
+            });
         }
     }
 

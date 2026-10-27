@@ -310,6 +310,27 @@ pub struct AssertionFact {
     pub facts: Vec<String>,
 }
 
+/// One definition's verified temporal contract (core specification
+/// section 10): the contract's kind and formula as verified at the
+/// definition, and the assumptions it states. Contract facts land in the
+/// interface exactly like the `repr` and assertion facts, hashed into
+/// `iface_hash`, so a consumer may rely on the contract across a call
+/// without re-deriving it.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct ContractFact {
+    /// The exported value's name.
+    pub name: String,
+    /// The temporal kind (`"safety"`, `"liveness"`, `"recurrence"`,
+    /// `"stability"`).
+    pub kind: String,
+    /// The formula (`"always (copyOut m < 5)"`, `"eventually (joined)"`,
+    /// ...).
+    pub formula: String,
+    /// The stated assumptions (`"assume (copyOut m < 5)"`,
+    /// `"assume \"scheduler-fair\""`), sorted.
+    pub assumptions: Vec<String>,
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Exports {
     pub values: Vec<ValueExport>,
@@ -372,6 +393,10 @@ pub struct Iface {
     /// contract facts recorded exactly like `repr` facts and hashed into
     /// `iface_hash`.
     pub assertions: Vec<AssertionFact>,
+    /// The temporal contracts verified at each exported definition
+    /// (core specification section 10): contract facts recorded exactly
+    /// like `repr` facts and hashed into `iface_hash`.
+    pub contracts: Vec<ContractFact>,
     /// The exported values whose result type is `Result`: the
     /// `must-use` rows of the return-value discipline (attribute
     /// annotations specification section 10; decision D114's rule 7
@@ -400,6 +425,7 @@ impl Iface {
             assumptions: Assumptions::default(),
             layouts: Vec::new(),
             assertions: Vec::new(),
+            contracts: Vec::new(),
             must_use: Vec::new(),
             upgrades: Vec::new(),
             units: Vec::new(),
@@ -687,6 +713,23 @@ impl Iface {
             json_str(o, &a.name);
             o.push_str(", \"facts\": ");
             json_list(o, &sorted(&a.facts));
+            o.push('}');
+        });
+        // The temporal contracts (core specification section 10):
+        // contract facts exactly like the assertion rows above, hashed
+        // into `iface_hash`.
+        out.push_str(",\n  \"contracts\": ");
+        let mut contracts = self.contracts.clone();
+        contracts.sort();
+        arr_of(&mut out, 2, &contracts, |o, c| {
+            o.push_str("{\"name\": ");
+            json_str(o, &c.name);
+            o.push_str(", \"kind\": ");
+            json_str(o, &c.kind);
+            o.push_str(", \"formula\": ");
+            json_str(o, &c.formula);
+            o.push_str(", \"assumptions\": ");
+            json_list(o, &sorted(&c.assumptions));
             o.push('}');
         });
         // The `must-use` rows of the return-value discipline (decision
@@ -998,6 +1041,20 @@ impl Iface {
                 must_use.push(item.as_str()?.to_string());
             }
         }
+        // The temporal contracts (core specification section 10); an
+        // older document may omit them.
+        let mut contracts = Vec::new();
+        if let Some(JsonValue::Arr(items)) = obj.get("contracts") {
+            for item in items {
+                let o = item.as_object().map_err(|_| ParseError("contract entry".into()))?;
+                contracts.push(ContractFact {
+                    name: field_str(o, "name")?,
+                    kind: field_str(o, "kind")?,
+                    formula: field_str(o, "formula")?,
+                    assumptions: field_list(o, "assumptions")?,
+                });
+            }
+        }
         Ok(Iface {
             schema: schema as u32,
             language: get("language")?.as_str()?.to_string(),
@@ -1015,6 +1072,7 @@ impl Iface {
             },
             layouts,
             assertions,
+            contracts,
             must_use,
             upgrades,
             units,

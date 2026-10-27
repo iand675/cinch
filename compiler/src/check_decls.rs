@@ -2084,6 +2084,12 @@ impl Checker {
                             "an `upgrade` declaration in a parameterized module is not supported in the bootstrap slice (its migration terms would need the module's parameters)",
                         ));
                     }
+                    ast::Decl::Contract(c) => {
+                        return Err(Error::at(
+                            c.span,
+                            "a `contract` declaration in a parameterized module is not supported in the bootstrap slice (its formulas would need the module's parameters)",
+                        ));
+                    }
                     ast::Decl::Import(i) if !i.args.is_empty() => {
                         return Err(Error::at(
                             i.span,
@@ -3555,6 +3561,16 @@ impl Checker {
                     // records and functions are known (runtime evolution
                     // specification section 3: migration field checking).
                     self.pending_upgrades.push((module.clone(), u.clone()));
+                }
+                ast::Decl::Contract(c) => {
+                    // Temporal contracts (core specification section 10)
+                    // attach to a definition of their own module: each is
+                    // verified with the named definition's elaboration
+                    // (its per-step write log and recursion).
+                    self.pending_contracts
+                        .entry((module.clone(), c.target.text.clone()))
+                        .or_default()
+                        .push(c.clone());
                 }
             }
         }
@@ -5418,6 +5434,10 @@ impl Checker {
                 logical,
                 eqs[0].span,
             )?;
+            // Temporal contracts (core specification section 10) verify
+            // with the definition: their parameter scope is prepared
+            // here, the per-step checks run after constraint solving.
+            self.prepare_temporal(&module, name, eqs, &sig_tys)?;
         }
         if logical {
             // The logical fragment is total, pure and erased (core
@@ -5613,6 +5633,9 @@ impl Checker {
         // Evidence invalidation over mutable state: regions unify during
         // constraint solving, so the deferred staleness check runs here.
         self.check_ev_uses()?;
+        // Temporal contracts (core specification section 10): the
+        // per-step obligations read the same resolved write log.
+        self.check_temporal(&id)?;
         body = self.fill_holes(&body, &sol)?;
         let mut recs: Vec<(GlobalId, ECore)> = Vec::new();
         for (mid, core) in std::mem::take(&mut self.pending_rec) {
@@ -7936,6 +7959,11 @@ pub(crate) struct BodyFacts {
     /// Self references in value position (a recursive use that is not a
     /// static call).
     pub self_refs: Vec<ast::Span>,
+    /// Structured-concurrency sites in the body (concurrency
+    /// specification section 2): `withScope`, `spawn` and
+    /// `joinAllOrCancel` call sites. The temporal liveness claims read
+    /// them as their subject (core specification section 10).
+    pub conc_sites: Vec<(String, ast::Span)>,
     /// Macro expansion provenance inside the definition (checked from
     /// P9's expansion provenance).
     pub macro_site: Option<ast::Span>,
@@ -8137,6 +8165,12 @@ impl<'a> FactWalk<'a> {
                     eq: self.eq,
                 });
             } else {
+                match name {
+                    "withScope" => self.facts.conc_sites.push(("scope".to_string(), span)),
+                    "spawn" => self.facts.conc_sites.push(("spawn".to_string(), span)),
+                    "joinAllOrCancel" => self.facts.conc_sites.push(("join".to_string(), span)),
+                    _ => {}
+                }
                 if name == "mutBorrow" {
                     // The `Mut` introduction is an allocation site
                     // (attribute annotations specification section 10:
@@ -9366,6 +9400,1154 @@ impl Checker {
         }
         Ok(())
     }
+}
+
+// ============ temporal contracts (core specification section 10) ============
+
+/// One verified temporal contract's manifest row (core specification
+/// section 10): the definition and contract it attaches to, the kind and
+/// formula, the verification result (which argument discharged it), and
+/// the stated assumptions. Definition names, never paths.
+#[derive(Clone, Debug)]
+pub struct TemporalRow {
+    /// The definition (`Module.name`).
+    pub definition: String,
+    /// The contract's name.
+    pub contract: String,
+    /// The temporal kind (`safety`, `liveness`, `recurrence`, `stability`).
+    pub kind: String,
+    /// The formula (`always (copyOut m < 5)`, `eventually (joined)`, ...).
+    pub formula: String,
+    /// The verification result (the proof method or discharge).
+    pub result: String,
+    /// The stated assumptions (the `assume` clauses).
+    pub assumptions: Vec<String>,
+}
+
+/// The temporal contracts pending verification on the definition being
+/// elaborated (core specification section 10): prepared before its body
+/// checks (the parameter scope the formulas name) and verified after
+/// constraint solving (the per-step write log's regions resolve there).
+struct TemporalPending {
+    module: String,
+    name: String,
+    /// The definition's global identity (the call discharge's self-check).
+    id: GlobalId,
+    contracts: Vec<ast::ContractDecl>,
+    /// The definition's equations (the recurrence claim's cycle walk).
+    eqs: Vec<ast::Equation>,
+    /// The definition's parameter domains, in position order (the
+    /// structural recursion proof reads them).
+    doms: Vec<Ty>,
+    /// The parameters the formulas may name: pattern name and domain
+    /// type, in position order.
+    params: Vec<(String, Ty)>,
+    def_span: ast::Span,
+}
+
+/// A temporal formula's source rendering (the contract facts spell a
+/// contract as written): comparisons and equality infix, arithmetic and
+/// applications prefix, everything else structural.
+fn render_formula_term(t: &ast::Term) -> String {
+    fn arg(t: &ast::Term) -> String {
+        match t {
+            ast::Term::Var(_) | ast::Term::Con(_) | ast::Term::Int(..) => render_formula_term(t),
+            // A prefix application binds tighter than the operators.
+            ast::Term::App(f, _, _)
+                if matches!(&**f, ast::Term::Var(p)
+                    if p.quals.is_empty()
+                        && !matches!(
+                            p.name.text.as_str(),
+                            "<" | "<=" | ">" | ">=" | "==" | "=" | "/=" | "!=" | "+" | "-" | "*"
+                        )) =>
+            {
+                render_formula_term(t)
+            }
+            other => format!("({})", render_formula_term(other)),
+        }
+    }
+    match t {
+        ast::Term::Var(p) => {
+            if p.quals.is_empty() {
+                p.name.text.clone()
+            } else {
+                let mut s = p.quals.iter().map(|q| q.text.clone()).collect::<Vec<_>>().join(".");
+                s.push('.');
+                s.push_str(&p.name.text);
+                s
+            }
+        }
+        ast::Term::Con(p) => p.parts().join("."),
+        ast::Term::Int(v, _) => v.clone(),
+        ast::Term::Neg(e, _) => format!("-{}", arg(e)),
+        ast::Term::Ann(e, _, _) => render_formula_term(e),
+        ast::Term::App(f, args, _) => {
+            if let ast::Term::Var(p) = &**f {
+                if p.quals.is_empty()
+                    && matches!(
+                        p.name.text.as_str(),
+                        "<" | "<=" | ">" | ">=" | "==" | "=" | "/=" | "!=" | "+" | "-" | "*"
+                    )
+                    && args.len() == 2
+                {
+                    return format!(
+                        "{} {} {}",
+                        arg(&args[0]),
+                        p.name.text,
+                        arg(&args[1])
+                    );
+                }
+            }
+            let mut s = render_formula_term(f);
+            for a in args {
+                s.push(' ');
+                s.push_str(&arg(a));
+            }
+            s
+        }
+        other => format!("{other:?}"),
+    }
+}
+
+impl Checker {
+    /// Prepare the temporal contracts named on this definition (core
+    /// specification section 10) before its body checks. The formulas'
+    /// scope is the definition's parameters: the pattern variables of its
+    /// equations, the same name at the same position in every equation a
+    /// formula names (the dependent-parameter discipline).
+    fn prepare_temporal(
+        &mut self,
+        module: &str,
+        name: &str,
+        eqs: &[ast::Equation],
+        sig_tys: &[Ty],
+    ) -> Result<()> {
+        let key = (module.to_string(), name.to_string());
+        let Some(contracts) = self.pending_contracts.remove(&key) else {
+            self.cur_temporal = None;
+            return Ok(());
+        };
+        let n_pats = eqs[0].pats.len();
+        let mut params: Vec<(String, Ty)> = Vec::new();
+        for (i, pat) in eqs[0].pats.iter().enumerate() {
+            if let ast::Pat::Var(n0, _) = pat {
+                params.push((n0.text.clone(), sig_tys[i].clone()));
+            }
+        }
+        // Every name the contracts mention must be a parameter named the
+        // same way in every equation (the values a step writes render
+        // under the equation's own names).
+        let mut mentioned: Vec<String> = Vec::new();
+        for c in &contracts {
+            for cl in &c.clauses {
+                match cl {
+                    ast::ContractClause::Formula { body, .. }
+                    | ast::ContractClause::AssumeProp { body } => {
+                        let mut refs = Vec::new();
+                        ast::collect_term_refs(body, &mut refs);
+                        for r in refs {
+                            if r.quals.is_empty() && !mentioned.contains(&r.name) {
+                                mentioned.push(r.name.clone());
+                            }
+                        }
+                    }
+                    ast::ContractClause::AssumeNamed { .. } => {}
+                }
+            }
+        }
+        for (i, pat) in eqs[0].pats.iter().enumerate() {
+            let ast::Pat::Var(n0, _) = pat else {
+                continue;
+            };
+            if !mentioned.contains(&n0.text) {
+                continue;
+            }
+            for e in eqs {
+                match e.pats.get(i) {
+                    Some(ast::Pat::Var(n, _)) if n.text == n0.text => {}
+                    _ => {
+                        return Err(Error::at(
+                            e.span,
+                            format!(
+                                "temporal contract: `{}` is named by a contract on `{name}`, so its position {i} must be a variable pattern with the same name in every equation (the equation at {} names it differently)",
+                                n0.text, e.span
+                            ),
+                        ));
+                    }
+                }
+            }
+        }
+        let mut doms: Vec<Ty> = sig_tys[..n_pats].to_vec();
+        doms.iter_mut().for_each(|t| *t = self.uni.zonk(t));
+        self.cur_temporal = Some(TemporalPending {
+            module: module.to_string(),
+            name: name.to_string(),
+            id: fn_id(module, name),
+            contracts,
+            eqs: eqs.to_vec(),
+            doms,
+            params,
+            def_span: eqs[0].span,
+        });
+        Ok(())
+    }
+
+    /// Verify the temporal contracts pending on the definition just
+    /// elaborated (core specification section 10), now that the per-step
+    /// write log's regions have resolved. A contract is verified where
+    /// its claim is decidable and refused by name where it is not: never
+    /// silently unchecked.
+    fn check_temporal(&mut self, id: &GlobalId) -> Result<()> {
+        let Some(pending) = self.cur_temporal.take() else {
+            return Ok(());
+        };
+        debug_assert_eq!(&pending.id, id);
+        for i in 0..pending.contracts.len() {
+            self.check_one_temporal(&pending, i)?;
+        }
+        Ok(())
+    }
+
+    /// One contract's verification: the formula's index reading over the
+    /// definition's parameters, then the kind's check.
+    fn check_one_temporal(&mut self, pending: &TemporalPending, at: usize) -> Result<()> {
+        let contract = &pending.contracts[at];
+        // The parameters' scope for the formulas (the values' types come
+        // from the signature).
+        let mut env = Env::default();
+        for (n, t) in &pending.params {
+            let l = self.fresh_local();
+            env.locals.push((n.clone(), l, Scheme::mono(t.clone())));
+        }
+        let mut formula: Option<&ast::Term> = None;
+        let mut assumed: Vec<PTerm> = Vec::new();
+        let mut assumption_rows: Vec<String> = Vec::new();
+        for cl in &contract.clauses {
+            match cl {
+                ast::ContractClause::Formula { body, .. } => formula = Some(body),
+                ast::ContractClause::AssumeProp { body } => {
+                    let p = self.temporal_prop(&env, body, contract)?;
+                    assumption_rows.push(format!("assume ({})", render_formula_term(body)));
+                    assumed.push(p);
+                }
+                ast::ContractClause::AssumeNamed { text, .. } => {
+                    assumption_rows.push(format!("assume \"{text}\""));
+                }
+            }
+        }
+        let fterm = formula.expect("the parser requires one formula per contract");
+        let display = format!("{}.{}", pending.module, pending.name);
+        if contract.kind == ast::ContractKind::Liveness {
+            // A liveness claim names a finite obligation (`joined`,
+            // `cleanup`) or is refused: it is not a state proposition.
+            return self.check_temporal_liveness(
+                pending,
+                contract,
+                fterm,
+                &format!("{} ({})", contract.kind.operator(), render_formula_term(fterm)),
+                &assumption_rows,
+                &display,
+            );
+        }
+        let prop = self.temporal_prop(&env, fterm, contract)?;
+        let formula = format!("{} ({})", contract.kind.operator(), render_formula_term(fterm));
+        match contract.kind {
+            ast::ContractKind::Safety => self.check_temporal_safety(
+                pending,
+                contract,
+                &env,
+                &prop,
+                &formula,
+                &assumed,
+                &assumption_rows,
+                &display,
+            ),
+            ast::ContractKind::Stability => self.check_temporal_stability(
+                pending,
+                contract,
+                &env,
+                &prop,
+                &formula,
+                &assumption_rows,
+                &display,
+            ),
+            ast::ContractKind::Recurrence => self.check_temporal_recurrence(
+                pending,
+                contract,
+                &env,
+                &prop,
+                &formula,
+                &assumption_rows,
+                &display,
+            ),
+            ast::ContractKind::Liveness => unreachable!("handled above"),
+        }
+    }
+
+    /// A temporal formula's index reading (core specification section
+    /// 10): the proposition `P` of `always (P)` and friends, over the
+    /// definition's parameters.
+    fn temporal_prop(
+        &self,
+        env: &Env,
+        term: &ast::Term,
+        contract: &ast::ContractDecl,
+    ) -> Result<PTerm> {
+        let wrap = |e: Error| {
+            Error::at(
+                term.span(),
+                format!(
+                    "temporal contract `{}`: the formula states a comparison proposition (`a < b`, `Eq a b`, ...): {}",
+                    contract.name.text, e.message
+                ),
+            )
+        };
+        let is_eq = matches!(term, ast::Term::App(f, _, _)
+            if matches!(&**f, ast::Term::Con(p) if p.parts() == ["Eq"]));
+        let (cmp, lhs, rhs) = self.decide_shape(term).map_err(wrap)?;
+        let li = self.idx_of_term(&lhs, env).map_err(wrap)?;
+        let ri = self.idx_of_term(&rhs, env).map_err(wrap)?;
+        Ok(if is_eq {
+            PTerm::Eq(Box::new(li), Box::new(ri))
+        } else {
+            PTerm::Cmp(cmp, Box::new(li), Box::new(ri))
+        })
+    }
+
+    /// The state locations a temporal formula reads (the footprint of
+    /// evidence invalidation over mutable state): `Mut`-sourced facts
+    /// need the write discipline, `Ref`-sourced facts survive every
+    /// transition by borrow exclusivity (core specification section 5).
+    /// Regions resolve at check time.
+    fn temporal_footprint(&self, prop: &PTerm, env: &Env) -> (Vec<String>, Vec<String>) {
+        let (muts, refs) = self.ev_footprint(prop, env);
+        let resolve = |rs: Vec<String>| {
+            let mut out: Vec<String> = rs
+                .iter()
+                .map(|r| self.uni.resolve_region(r))
+                .collect::<Vec<_>>();
+            out.sort();
+            out.dedup();
+            out
+        };
+        (resolve(muts), resolve(refs))
+    }
+
+    /// The parameter name a written region is the borrow of (P5
+    /// exclusivity gives at most one).
+    fn temporal_subject(&self, pending: &TemporalPending, region: &str) -> Option<String> {
+        let r = self.uni.resolve_region(region);
+        for (n, t) in &pending.params {
+            if let Ty::Mut(pr, _) = self.uni.zonk(t) {
+                if self.uni.resolve_region(&pr) == r {
+                    return Some(n.clone());
+                }
+            }
+        }
+        None
+    }
+
+    /// The inductive discharge of a call step (core specification section
+    /// 10): a call to the definition itself that passes the invariant's
+    /// variables through unchanged re-establishes exactly this invariant
+    /// after it (the callee's contract is this contract).
+    fn temporal_discharge(
+        &self,
+        pending: &TemporalPending,
+        prop: &PTerm,
+        callee: &GlobalId,
+        args: &[Option<ITerm>],
+    ) -> bool {
+        if callee != &pending.id {
+            return false;
+        }
+        let mut fv = Vec::new();
+        prop.free_vars(&mut fv);
+        for v in &fv {
+            let Some(i) = pending.params.iter().position(|(n, _)| n == v) else {
+                return false;
+            };
+            match args.get(i) {
+                Some(Some(ITerm::Var(x))) if x == v => {}
+                _ => return false,
+            }
+        }
+        true
+    }
+
+    /// Record one verified contract as its interface fact and manifest
+    /// row (the P20 contract-facts precedent).
+    fn record_temporal_fact(
+        &mut self,
+        pending: &TemporalPending,
+        contract: &ast::ContractDecl,
+        formula: &str,
+        result: String,
+        assumptions: &[String],
+    ) {
+        let fact = crate::interface::ContractFact {
+            name: pending.name.clone(),
+            kind: contract.kind.keyword().to_string(),
+            formula: formula.to_string(),
+            assumptions: assumptions.to_vec(),
+        };
+        self.contract_facts
+            .entry(pending.id.0.clone())
+            .or_default()
+            .push(fact);
+        self.temporal_rows.push(TemporalRow {
+            definition: format!("{}.{}", pending.module, pending.name),
+            contract: contract.name.text.clone(),
+            kind: contract.kind.keyword().to_string(),
+            formula: formula.to_string(),
+            result,
+            assumptions: assumptions.to_vec(),
+        });
+    }
+
+    /// `safety`: `always (P)` holds at every step of the definition's
+    /// transitions (core specification section 10). The inductive
+    /// invariant checks its initial state (the stated establishment) and
+    /// every transition of the per-step write log: a step must leave P
+    /// true (decided, self-preserving, or discharged by the definition's
+    /// own recursion); a step that falsifies P is rejected naming the
+    /// step; a step the checker cannot decide is refused, never trusted.
+    #[allow(clippy::too_many_arguments)]
+    fn check_temporal_safety(
+        &mut self,
+        pending: &TemporalPending,
+        contract: &ast::ContractDecl,
+        env: &Env,
+        prop: &PTerm,
+        formula: &str,
+        assumed: &[PTerm],
+        assumption_rows: &[String],
+        display: &str,
+    ) -> Result<()> {
+        let contract_name = &contract.name.text;
+        let (muts, refs) = self.temporal_footprint(prop, env);
+        if muts.is_empty() && refs.is_empty() {
+            return Err(Error::at(
+                contract.span,
+                format!(
+                    "temporal safety: the formula `{formula}` of the contract `{contract_name}` reads no borrowed state of `{display}`: an `always` claim is over the state transitions of core specification section 10 (name a `Mut` or `Ref` parameter)"
+                ),
+            ));
+        }
+        // The initial state (core specification section 10: an invariant
+        // proof checks the initial state and each transition): the
+        // contract states it as its establishment.
+        if !assumed.iter().any(|a| PTerm::eq(a, prop)) {
+            return Err(Error::at(
+                contract.span,
+                format!(
+                    "temporal safety: the contract `{contract_name}` on `{display}` has no establishment for `{formula}`: state the entry condition `assume = ({})` (core specification section 10: an inductive invariant checks its initial state)",
+                    render_formula_term_of(formula)
+                ),
+            ));
+        }
+        if muts.is_empty() {
+            // The invariant reads only read-only borrows: P5 exclusivity
+            // lets no transition touch it.
+            self.record_temporal_fact(
+                pending,
+                contract,
+                formula,
+                "verified (the invariant reads only read-only borrow state: no transition of the definition can falsify it)".to_string(),
+                assumption_rows,
+            );
+            return Ok(());
+        }
+        let mut steps = 0u64;
+        let mut discharged = 0u64;
+        for w in &self.ev_writes {
+            let hits = match &w.loc {
+                None => true,
+                Some(r) => {
+                    let rr = self.uni.resolve_region(r);
+                    muts.iter().any(|m| self.uni.resolve_region(m) == rr)
+                }
+            };
+            if !hits {
+                continue;
+            }
+            steps += 1;
+            let refused = |q: String| {
+                Error::at(
+                    w.span,
+                    format!(
+                        "temporal safety: refused: the step at {span} {q}, and an obligation that cannot be established is refused, never trusted (core specification section 10)",
+                        span = w.span
+                    ),
+                )
+            };
+            if w.loc.is_none() {
+                return Err(refused(
+                    "is an opaque write (an FFI / `RawPtr` write or `eval`) whose post-state is unknown".to_string(),
+                ));
+            }
+            let subject = self
+                .temporal_subject(pending, w.loc.as_ref().expect("checked above"));
+            if let Some(v) = &w.value {
+                let Some(subj) = subject else {
+                    return Err(refused(
+                        "writes state the invariant reads, but the written location names no parameter of the contract".to_string(),
+                    ));
+                };
+                let q = prop.subst(&subj, v);
+                match self.static_obligation(&q)? {
+                    ObligStatus::Checked => continue,
+                    ObligStatus::Disproved => {
+                        return Err(Error::at(
+                            w.span,
+                            format!(
+                                "temporal safety: the contract `{contract_name}` on `{display}` is falsified by the step at {}: the write leaves the state `{q}` false, so `{formula}` fails at this transition (core specification section 10)",
+                                w.span
+                            ),
+                        ))
+                    }
+                    _ => {
+                        if PTerm::eq(&q, prop) {
+                            // The write restores the same state: the
+                            // invariant is preserved.
+                            continue;
+                        }
+                        return Err(refused(format!(
+                            "leaves the state `{q}`, which the checker cannot decide"
+                        )));
+                    }
+                }
+            }
+            if let Some((callee, args)) = &w.call {
+                if self.temporal_discharge(pending, prop, callee, args) {
+                    discharged += 1;
+                    continue;
+                }
+                return Err(refused(
+                    "is a call that may write the invariant's state and no contract discharges it (the checker discharges a step only from the definition's own recursion)".to_string(),
+                ));
+            }
+            return Err(refused(
+                "writes the invariant's state with no decidable post-state".to_string(),
+            ));
+        }
+        self.record_temporal_fact(
+            pending,
+            contract,
+            formula,
+            format!(
+                "verified (the invariant holds at every step: {steps} transition(s) of the state, {discharged} discharged by the inductive step)"
+            ),
+            assumption_rows,
+        );
+        Ok(())
+    }
+
+    /// `stability`: `stable (P)` survives the definition's transitions
+    /// (core specification section 10: the dual of evidence invalidation).
+    /// A fact survives exactly when no write touches its footprint (the
+    /// evidence-invalidation rule of core specification section 5); a
+    /// touching write kills it naming the step.
+    fn check_temporal_stability(
+        &mut self,
+        pending: &TemporalPending,
+        contract: &ast::ContractDecl,
+        env: &Env,
+        prop: &PTerm,
+        formula: &str,
+        assumption_rows: &[String],
+        display: &str,
+    ) -> Result<()> {
+        let contract_name = &contract.name.text;
+        let (muts, refs) = self.temporal_footprint(prop, env);
+        if muts.is_empty() && refs.is_empty() {
+            return Err(Error::at(
+                contract.span,
+                format!(
+                    "temporal stability: the formula `{formula}` of the contract `{contract_name}` reads no borrowed state of `{display}`: a stability claim is over a borrowed state's footprint (core specification section 10)"
+                ),
+            ));
+        }
+        if muts.is_empty() {
+            // Immutable or read-only-borrow facts: nothing a transition
+            // does can invalidate them (core specification section 5).
+            self.record_temporal_fact(
+                pending,
+                contract,
+                formula,
+                if refs.is_empty() {
+                    "verified (the fact reads no mutable state: no transition can invalidate it)".to_string()
+                } else {
+                    "verified (the fact reads only read-only borrow state: borrow exclusivity keeps it)".to_string()
+                },
+                assumption_rows,
+            );
+            return Ok(());
+        }
+        for w in &self.ev_writes {
+            let hits = match &w.loc {
+                None => true,
+                Some(r) => {
+                    let rr = self.uni.resolve_region(r);
+                    muts.iter().any(|m| self.uni.resolve_region(m) == rr)
+                }
+            };
+            if hits {
+                return Err(Error::at(
+                    w.span,
+                    format!(
+                        "temporal stability: the contract `{contract_name}` on `{display}` dies at the step at {}: {} touches the footprint of `{formula}`, so the fact would be invalidated there (evidence invalidation over mutable state; core specification sections 5 and 10)",
+                        w.span,
+                        if w.loc.is_none() { "an opaque write" } else { "the write" }
+                    ),
+                ));
+            }
+        }
+        self.record_temporal_fact(
+            pending,
+            contract,
+            formula,
+            format!(
+                "verified (no write touches the fact's footprint across the definition's {} transition(s))",
+                self.ev_writes.len()
+            ),
+            assumption_rows,
+        );
+        Ok(())
+    }
+
+    /// `liveness`: `eventually (Q)` (core specification section 10). The
+    /// honest scope is the finite structured-concurrency obligations: a
+    /// join completes and a spawn's cleanup runs within the `withScope`
+    /// bound (the P12 guarantees, concurrency specification section 2).
+    /// An open-ended eventual claim is refused by name: it needs a
+    /// well-founded progress argument and stated fairness assumptions.
+    fn check_temporal_liveness(
+        &mut self,
+        pending: &TemporalPending,
+        contract: &ast::ContractDecl,
+        fterm: &ast::Term,
+        formula: &str,
+        assumption_rows: &[String],
+        display: &str,
+    ) -> Result<()> {
+        let contract_name = &contract.name.text;
+        let claim = match fterm {
+            ast::Term::Var(p) if p.quals.is_empty() && p.name.text == "joined" => Some("joined"),
+            ast::Term::Var(p) if p.quals.is_empty() && p.name.text == "cleanup" => Some("cleanup"),
+            _ => None,
+        };
+        let Some(claim) = claim else {
+            return Err(Error::at(
+                contract.span,
+                format!(
+                    "temporal liveness: refused: the contract `{contract_name}` on `{display}` claims `{formula}`, an unbounded eventual claim: it needs a well-founded progress argument and stated fairness assumptions, which this checker does not derive (core specification section 10): refused, never trusted. The finite structured-concurrency obligations `eventually = (joined)` and `eventually = (cleanup)` verify within their scope"
+                ),
+            ));
+        };
+        if assumption_rows.is_empty() {
+            return Err(Error::at(
+                contract.span,
+                format!(
+                    "temporal liveness: the contract `{contract_name}` on `{display}` states no assumption: a liveness claim relies on the runtime's scheduling and cancellation policies and must state them (concurrency specification section 10; core specification section 10: temporal contracts state their assumptions when relied upon)"
+                ),
+            ));
+        }
+        let marks = self.foreign_marks();
+        let facts = collect_body_facts(&pending.module, &pending.name, &pending.eqs, &marks);
+        let has = |k: &str| facts.conc_sites.iter().any(|(k2, _)| k2 == k);
+        if !has("scope") || !has("spawn") {
+            return Err(Error::at(
+                contract.span,
+                format!(
+                    "temporal liveness: the contract `{contract_name}` on `{display}` has no subject: the bounded claim `{formula}` needs a structured `withScope` spawn/join in the definition (concurrency specification section 2)"
+                ),
+            ));
+        }
+        if claim == "joined" && !has("join") {
+            return Err(Error::at(
+                contract.span,
+                format!(
+                    "temporal liveness: the contract `{contract_name}` on `{display}` finds no join: the claim `{formula}` needs a `joinAllOrCancel` in the definition's structured scope (concurrency specification section 2)"
+                ),
+            ));
+        }
+        let result = if claim == "joined" {
+            "verified from the P12 structured-scope guarantee: every spawned handle is joined before the scope exits, so the join completes within the scope's bound (concurrency specification section 2)".to_string()
+        } else {
+            "verified from the P12 structured-scope guarantee: the scope's exit runs its spawned tasks' cleanup through the join/cancel discipline (concurrency specification section 2)".to_string()
+        };
+        self.record_temporal_fact(pending, contract, formula, result, assumption_rows);
+        Ok(())
+    }
+
+    /// `recurrence`: `recur (P)` at every cycle of the definition's
+    /// recursion (core specification section 10). The bound is the
+    /// structural recursion (the D113 structural depth proof); the
+    /// witness is a step re-establishing P on every cycle, found by a
+    /// walk along evaluation order. A recursion with no structural bound
+    /// is refused by name; an unwitnessed cycle is rejected naming the
+    /// recursive call.
+    fn check_temporal_recurrence(
+        &mut self,
+        pending: &TemporalPending,
+        contract: &ast::ContractDecl,
+        env: &Env,
+        prop: &PTerm,
+        formula: &str,
+        assumption_rows: &[String],
+        display: &str,
+    ) -> Result<()> {
+        let contract_name = &contract.name.text;
+        let (muts, _refs) = self.temporal_footprint(prop, env);
+        if muts.is_empty() {
+            return Err(Error::at(
+                contract.span,
+                format!(
+                    "temporal recurrence: the formula `{formula}` of the contract `{contract_name}` reads no mutable state of `{display}`: a recurrence claim is over a `Mut` location its cycles re-establish (core specification section 10)"
+                ),
+            ));
+        }
+        let marks = self.foreign_marks();
+        let facts = collect_body_facts(&pending.module, &pending.name, &pending.eqs, &marks);
+        if facts.self_calls.is_empty() {
+            return Err(Error::at(
+                contract.span,
+                format!(
+                    "temporal recurrence: the contract `{contract_name}` on `{display}` has no cycle: the definition does not recurse (core specification section 10: a recurrence claim is over the cycles of a recursion)"
+                ),
+            ));
+        }
+        let Some((report, _)) = structural_proof_for(
+            &pending.eqs,
+            &pending.doms,
+            &facts,
+            pending.def_span,
+        ) else {
+            let reason = if !facts.self_refs.is_empty() {
+                "a bare recursive reference carries no descent"
+            } else if facts.self_calls.iter().any(|c| c.closure) {
+                "a recursive call in a hoisted closure has no static descent"
+            } else {
+                "no argument decreases structurally"
+            };
+            return Err(Error::at(
+                contract.span,
+                format!(
+                    "temporal recurrence: refused: the recursion of `{display}` has no structural depth bound ({reason}), and a recurrence claim's bound comes from structural recursion (core specification sections 8 and 10): refused, never trusted"
+                ),
+            ));
+        };
+        // The steps that re-establish the claim's state: a write to the
+        // footprint whose post-state is P (decided or restored).
+        let mut establishes: Vec<ast::Span> = Vec::new();
+        for w in &self.ev_writes {
+            let Some(loc) = &w.loc else { continue };
+            let rr = self.uni.resolve_region(loc);
+            if !muts.iter().any(|m| self.uni.resolve_region(m) == rr) {
+                continue;
+            }
+            let (Some(v), Some(subj)) = (&w.value, self.temporal_subject(pending, loc)) else {
+                continue;
+            };
+            let q = prop.subst(&subj, v);
+            if PTerm::eq(&q, prop) || self.static_obligation(&q)? == ObligStatus::Checked {
+                establishes.push(w.span);
+            }
+        }
+        let calls: Vec<ast::Span> = facts.self_calls.iter().map(|c| c.span).collect();
+        for e in &pending.eqs {
+            self.recur_walk(&e.body, false, &calls, &establishes, contract_name, formula, display)?;
+        }
+        self.record_temporal_fact(
+            pending,
+            contract,
+            formula,
+            format!(
+                "verified (the state recurs at every cycle of the structural recursion: {report})"
+            ),
+            assumption_rows,
+        );
+        Ok(())
+    }
+
+    /// The recurrence claim's cycle walk (core specification section 10):
+    /// every recursive call closes a cycle on which the claim's state must
+    /// be re-established. The walk threads `established` in evaluation
+    /// order (call by value); a branch joins its arms conservatively (a
+    /// call after the branch needs the witness on every path), a lambda
+    /// or local function body starts fresh (its calls run on their own
+    /// cycles), and a recursive call resets the flag (each segment
+    /// between calls re-establishes the state).
+    fn recur_walk(
+        &self,
+        t: &ast::Term,
+        established: bool,
+        calls: &[ast::Span],
+        establishes: &[ast::Span],
+        contract_name: &str,
+        formula: &str,
+        display: &str,
+    ) -> Result<bool> {
+        let mut flag = established;
+        match t {
+            ast::Term::Int(..)
+            | ast::Term::Str(..)
+            | ast::Term::Char(..)
+            | ast::Term::Unit(_)
+            | ast::Term::Hole(_)
+            | ast::Term::SpliceHole { .. }
+            | ast::Term::SeqOp(..) => {}
+            ast::Term::Var(_) | ast::Term::Con(_) => {}
+            ast::Term::Neg(e, _) | ast::Term::Ann(e, _, _) | ast::Term::Proj(e, _, _) => {
+                flag = self.recur_walk(e, flag, calls, establishes, contract_name, formula, display)?;
+            }
+            ast::Term::App(f, args, _) => {
+                flag = self.recur_walk(f, flag, calls, establishes, contract_name, formula, display)?;
+                for a in args {
+                    flag = self.recur_walk(a, flag, calls, establishes, contract_name, formula, display)?;
+                }
+                if let ast::Term::Var(p) = &**f {
+                    if calls.contains(&p.span()) {
+                        if !flag {
+                            return Err(Error::at(
+                                p.span(),
+                                format!(
+                                    "temporal recurrence: the contract `{contract_name}` on `{display}` is not witnessed at the recursive call at {}: no step of the cycle re-establishes `{formula}` (core specification section 10: a state recurs at every cycle)",
+                                    p.span()
+                                ),
+                            ));
+                        }
+                        flag = false;
+                    }
+                }
+            }
+            ast::Term::Infix(ts, _, _) | ast::Term::Tuple(ts, _) | ast::Term::List(ts, _) => {
+                for x in ts {
+                    flag = self.recur_walk(x, flag, calls, establishes, contract_name, formula, display)?;
+                }
+            }
+            ast::Term::Map(kvs, _) => {
+                for (k, v) in kvs {
+                    flag = self.recur_walk(k, flag, calls, establishes, contract_name, formula, display)?;
+                    flag = self.recur_walk(v, flag, calls, establishes, contract_name, formula, display)?;
+                }
+            }
+            ast::Term::Record(_, fields, _) => {
+                for (_, e) in fields {
+                    flag = self.recur_walk(e, flag, calls, establishes, contract_name, formula, display)?;
+                }
+            }
+            ast::Term::If { cond, then, els, .. } => {
+                flag = self.recur_walk(cond, flag, calls, establishes, contract_name, formula, display)?;
+                let a = self.recur_walk(then, flag, calls, establishes, contract_name, formula, display)?;
+                let b = self.recur_walk(els, flag, calls, establishes, contract_name, formula, display)?;
+                flag = a && b;
+            }
+            ast::Term::Case(s, alts, _) => {
+                flag = self.recur_walk(s, flag, calls, establishes, contract_name, formula, display)?;
+                let mut join = true;
+                for alt in alts {
+                    let mut arm = flag;
+                    if let Some(g) = &alt.guard {
+                        arm = self.recur_walk(g, arm, calls, establishes, contract_name, formula, display)?;
+                    }
+                    arm = self.recur_walk(&alt.body, arm, calls, establishes, contract_name, formula, display)?;
+                    join = join && arm;
+                }
+                flag = join;
+            }
+            ast::Term::Lam(_, body, _) => {
+                // The body runs on its own cycles: a fresh segment.
+                let _ = self.recur_walk(body, false, calls, establishes, contract_name, formula, display)?;
+            }
+            ast::Term::Let(decls, body, _) => {
+                for d in decls {
+                    flag = self.recur_walk_local(d, flag, calls, establishes, contract_name, formula, display)?;
+                }
+                flag = self.recur_walk(body, flag, calls, establishes, contract_name, formula, display)?;
+            }
+            ast::Term::Letrec(decls, body, _) => {
+                for d in decls {
+                    // Fixpoint boxes evaluate when forced or called:
+                    // their bodies run on their own cycles.
+                    if let ast::LocalDecl::Eq { body, .. }
+                    | ast::LocalDecl::Bind { body, .. }
+                    | ast::LocalDecl::Lazy { body, .. } = d
+                    {
+                        let _ = self.recur_walk(body, false, calls, establishes, contract_name, formula, display)?;
+                    }
+                }
+                flag = self.recur_walk(body, flag, calls, establishes, contract_name, formula, display)?;
+            }
+            ast::Term::Do(stmts, _) => {
+                for s in stmts {
+                    match s {
+                        ast::DoStmt::Bind { term, .. } | ast::DoStmt::Expr { term, .. } => {
+                            flag = self.recur_walk(term, flag, calls, establishes, contract_name, formula, display)?;
+                        }
+                        ast::DoStmt::Let { decl, .. } => {
+                            flag = self.recur_walk_local(decl, flag, calls, establishes, contract_name, formula, display)?;
+                        }
+                    }
+                }
+            }
+            ast::Term::Handle(e, h, _) => {
+                flag = self.recur_walk(e, flag, calls, establishes, contract_name, formula, display)?;
+                // The handler value is a construct, not this cycle's
+                // control flow: its clause bodies run on their own.
+                let _ = self.recur_walk(h, false, calls, establishes, contract_name, formula, display)?;
+            }
+            ast::Term::Handler(h) => {
+                let _ = self.recur_walk(&h.ret_body, false, calls, establishes, contract_name, formula, display)?;
+                for c in &h.clauses {
+                    let _ = self.recur_walk(&c.body, false, calls, establishes, contract_name, formula, display)?;
+                }
+            }
+            ast::Term::With { value, body, .. } => {
+                flag = self.recur_walk(value, flag, calls, establishes, contract_name, formula, display)?;
+                flag = self.recur_walk(body, flag, calls, establishes, contract_name, formula, display)?;
+            }
+            ast::Term::CapApply { head, supplies, .. } => {
+                flag = self.recur_walk(head, flag, calls, establishes, contract_name, formula, display)?;
+                for (_, e) in supplies {
+                    flag = self.recur_walk(e, flag, calls, establishes, contract_name, formula, display)?;
+                }
+            }
+            ast::Term::CpsWrap(e, _) => {
+                flag = self.recur_walk(e, flag, calls, establishes, contract_name, formula, display)?;
+            }
+            // Staging forms are not ordinary control flow: a recursive
+            // call under one is refused rather than trusted.
+            ast::Term::Quote { span, .. }
+            | ast::Term::QuoteDecls { span, .. }
+            | ast::Term::Splice { span, .. }
+            | ast::Term::MacroCall { span, .. } => {
+                if self.term_has_span_in(t, calls) {
+                    return Err(Error::at(
+                        *span,
+                        format!(
+                            "temporal recurrence: refused: a recursive call of `{}` sits inside a staging construct, where the cycle walk does not reach: refused, never trusted (core specification section 10)",
+                            contract_name
+                        ),
+                    ));
+                }
+            }
+        }
+        if establishes.contains(&t.span()) {
+            flag = true;
+        }
+        Ok(flag)
+    }
+
+    /// The recurrence walk over one `let` binding: an eager binding runs
+    /// in sequence, a lazy or function binding on its own cycles.
+    fn recur_walk_local(
+        &self,
+        d: &ast::LocalDecl,
+        established: bool,
+        calls: &[ast::Span],
+        establishes: &[ast::Span],
+        contract_name: &str,
+        formula: &str,
+        display: &str,
+    ) -> Result<bool> {
+        match d {
+            ast::LocalDecl::Bind { body, .. } => {
+                self.recur_walk(body, established, calls, establishes, contract_name, formula, display)
+            }
+            ast::LocalDecl::Eq { pats, body, .. } if pats.is_empty() => {
+                // A value binding: the body runs now.
+                self.recur_walk(body, established, calls, establishes, contract_name, formula, display)
+            }
+            ast::LocalDecl::Eq { body, .. } | ast::LocalDecl::Lazy { body, .. } => {
+                let _ = self.recur_walk(body, false, calls, establishes, contract_name, formula, display)?;
+                Ok(established)
+            }
+            ast::LocalDecl::Sig { .. } => Ok(established),
+        }
+    }
+
+    /// Does any subterm of `t` carry one of the given spans?
+    fn term_has_span_in(&self, t: &ast::Term, spans: &[ast::Span]) -> bool {
+        let mut found = false;
+        let mut check = |s: &ast::Span| {
+            if spans.contains(s) {
+                found = true;
+            }
+        };
+        self.for_each_span(t, &mut check);
+        found
+    }
+
+    /// Visit every span of a term (the staging-construction guard).
+    fn for_each_span(&self, t: &ast::Term, f: &mut dyn FnMut(&ast::Span)) {
+        match t {
+            ast::Term::Var(p) => f(&p.span()),
+            ast::Term::Con(p) => f(&p.span()),
+            ast::Term::Int(_, s)
+            | ast::Term::Str(_, s)
+            | ast::Term::Char(_, s)
+            | ast::Term::Unit(s)
+            | ast::Term::Hole(s)
+            | ast::Term::SeqOp(_, s)
+            | ast::Term::SpliceHole { span: s, .. }
+            | ast::Term::Neg(_, s)
+            | ast::Term::CpsWrap(_, s) => f(s),
+            ast::Term::App(g, args, s) => {
+                f(s);
+                self.for_each_span(g, f);
+                for a in args {
+                    self.for_each_span(a, f);
+                }
+            }
+            ast::Term::Lam(_, b, s) | ast::Term::Quote { body: b, span: s, .. } => {
+                f(s);
+                self.for_each_span(b, f);
+            }
+            ast::Term::Let(ds, b, s) | ast::Term::Letrec(ds, b, s) => {
+                f(s);
+                for d in ds {
+                    if let ast::LocalDecl::Eq { body, .. }
+                    | ast::LocalDecl::Bind { body, .. }
+                    | ast::LocalDecl::Lazy { body, .. } = d
+                    {
+                        self.for_each_span(body, f);
+                    }
+                }
+                self.for_each_span(b, f);
+            }
+            ast::Term::If { cond, then, els, .. } => {
+                self.for_each_span(cond, f);
+                self.for_each_span(then, f);
+                self.for_each_span(els, f);
+            }
+            ast::Term::Case(g, alts, s) => {
+                f(s);
+                self.for_each_span(g, f);
+                for a in alts {
+                    self.for_each_span(&a.body, f);
+                }
+            }
+            ast::Term::Ann(e, _, _) | ast::Term::Proj(e, _, _) => self.for_each_span(e, f),
+            ast::Term::Infix(ts, _, s) | ast::Term::Tuple(ts, s) | ast::Term::List(ts, s) => {
+                f(s);
+                for x in ts {
+                    self.for_each_span(x, f);
+                }
+            }
+            ast::Term::Map(kvs, s) => {
+                f(s);
+                for (k, v) in kvs {
+                    self.for_each_span(k, f);
+                    self.for_each_span(v, f);
+                }
+            }
+            ast::Term::Record(p, fields, s) => {
+                f(s);
+                f(&p.span());
+                for (_, e) in fields {
+                    self.for_each_span(e, f);
+                }
+            }
+            ast::Term::Do(stmts, s) => {
+                f(s);
+                for st in stmts {
+                    match st {
+                        ast::DoStmt::Bind { term, .. } | ast::DoStmt::Expr { term, .. } => {
+                            self.for_each_span(term, f)
+                        }
+                        ast::DoStmt::Let { decl, .. } => {
+                            if let ast::LocalDecl::Eq { body, .. }
+                            | ast::LocalDecl::Bind { body, .. }
+                            | ast::LocalDecl::Lazy { body, .. } = decl
+                            {
+                                self.for_each_span(body, f);
+                            }
+                        }
+                    }
+                }
+            }
+            ast::Term::Handle(e, h, s) => {
+                f(s);
+                self.for_each_span(e, f);
+                self.for_each_span(h, f);
+            }
+            ast::Term::Handler(h) => {
+                self.for_each_span(&h.ret_body, f);
+                for c in &h.clauses {
+                    self.for_each_span(&c.body, f);
+                }
+            }
+            ast::Term::With { value, body, .. } => {
+                self.for_each_span(value, f);
+                self.for_each_span(body, f);
+            }
+            ast::Term::CapApply { head, supplies, .. } => {
+                self.for_each_span(head, f);
+                for (_, e) in supplies {
+                    self.for_each_span(e, f);
+                }
+            }
+            ast::Term::QuoteDecls { decls, span } => {
+                f(span);
+                for d in decls {
+                    self.for_each_span_decl(d, f);
+                }
+            }
+            ast::Term::Splice { body, span } => {
+                f(span);
+                self.for_each_span(body, f);
+            }
+            ast::Term::MacroCall { span, .. } => {
+                f(span);
+            }
+        }
+    }
+
+    /// Visit every span of a staged declaration (the staging guard).
+    fn for_each_span_decl(&self, d: &ast::Decl, f: &mut dyn FnMut(&ast::Span)) {
+        match d {
+            ast::Decl::Contract(c) => {
+                f(&c.span);
+                for cl in &c.clauses {
+                    match cl {
+                        ast::ContractClause::Formula { body, .. }
+                        | ast::ContractClause::AssumeProp { body } => self.for_each_span(body, f),
+                        ast::ContractClause::AssumeNamed { span, .. } => f(span),
+                    }
+                }
+            }
+            ast::Decl::Attributed { inner, .. } => self.for_each_span_decl(inner, f),
+            _ => {}
+        }
+    }
+
+    /// A temporal contract must name a definition of its own module
+    /// (core specification section 10): the leftovers of the collection
+    /// table name none the checker elaborates.
+    fn check_unconsumed_contracts(&self) -> Result<()> {
+        for ((module, target), contracts) in &self.pending_contracts {
+            let c = &contracts[0];
+            return Err(Error::at(
+                c.span,
+                format!(
+                    "the temporal contract `{}` names no definition `{module}.{target}`: a contract attaches to a definition of its own module that the checker elaborates (core specification section 10)",
+                    c.name.text
+                ),
+            ));
+        }
+        Ok(())
+    }
+}
+
+/// The formula term of a rendered `always (...)` formula (the
+/// establishment error spells the entry condition with it).
+fn render_formula_term_of(formula: &str) -> &str {
+    formula
+        .split_once(" (")
+        .and_then(|(_, rest)| rest.strip_suffix(')'))
+        .unwrap_or(formula)
 }
 
 /// Re-state the verified P20 assertion rows as the LLVM contract
@@ -10774,6 +11956,32 @@ impl Checker {
                                 facts: facts.clone(),
                             });
                         }
+                        // The temporal contracts verified on the
+                        // definition (core specification section 10):
+                        // contract facts exactly like the assertion rows
+                        // above, hashed into `iface_hash`; their stated
+                        // assumptions join the declared-assumptions table
+                        // (core specification section 11: the acceptance
+                        // manifest identifies what claimed guarantees
+                        // rely on).
+                        if let Some(facts) =
+                            self.contract_facts.get(&fn_id(&d.module, &d.name).0)
+                        {
+                            for f in facts {
+                                iface.contracts.push(crate::interface::ContractFact {
+                                    name: local.clone(),
+                                    kind: f.kind.clone(),
+                                    formula: f.formula.clone(),
+                                    assumptions: f.assumptions.clone(),
+                                });
+                                for a in &f.assumptions {
+                                    iface.assumptions.declared.push(format!(
+                                        "temporal {} on {}.{}: {a}",
+                                        f.kind, d.module, d.name
+                                    ));
+                                }
+                            }
+                        }
                         // The `must-use` rows of the return-value
                         // discipline (decision D114's rule 7 default): a
                         // `Result`-returning value is discarded only
@@ -11101,6 +12309,7 @@ pub fn check_program_multi_full(
             literal_folds: Vec::new(),
             data_imports: Vec::new(),
             safety: SafetyReport::default(),
+            temporal: Vec::new(),
         }
     };
     // Generated declarations may declare instances: their heads convert
@@ -11120,6 +12329,10 @@ pub fn check_program_multi_full(
     // functions (runtime evolution specification section 3: migration
     // field checking over the two records' field tables).
     c.check_upgrades()?;
+    // Temporal contracts (core specification section 10) verify with
+    // their definitions; anything the collection table still holds names
+    // no definition the checker elaborates.
+    c.check_unconsumed_contracts()?;
     // Ownership discipline at the boundary: an owned foreign result is
     // released by its matching deallocator (foreign function interface
     // specification section 4).
@@ -11128,6 +12341,7 @@ pub fn check_program_multi_full(
     // amendments section 10) accumulates through every unit's check.
     report.literal_folds = std::mem::take(&mut c.literal_folds);
     report.data_imports = std::mem::take(&mut c.data_imports);
+    report.temporal = std::mem::take(&mut c.temporal_rows);
     if modules.is_empty() {
         return Err(Error::plain("no modules to check"));
     }
@@ -11253,6 +12467,10 @@ pub struct StageReport {
     /// `bounded(n)` claim (decision D113), and the `jpl` profile's
     /// whole-program summary (decision D114).
     pub safety: SafetyReport,
+    /// The verified temporal contracts (core specification section 10):
+    /// each contract's kind, formula, verification result and stated
+    /// assumptions.
+    pub temporal: Vec<TemporalRow>,
 }
 
 /// The compile-time evaluation context: everything the interpreter needs
@@ -11406,6 +12624,7 @@ impl Checker {
             literal_folds: Vec::new(),
             data_imports: Vec::new(),
             safety: SafetyReport::default(),
+            temporal: Vec::new(),
         })
     }
 

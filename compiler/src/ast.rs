@@ -751,6 +751,81 @@ pub struct UpgradeDecl {
     pub span: Span,
 }
 
+/// The temporal kind a contract claims (core specification section 10:
+/// the language distinguishes safety, liveness, recurrence and
+/// stability).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ContractKind {
+    /// `safety`: something bad never happens. `always (P)`: the
+    /// invariant P holds at every step of the definition's transitions.
+    Safety,
+    /// `liveness`: something good eventually happens. `eventually (Q)`.
+    Liveness,
+    /// `recurrence`: a state recurs. `recur (P)`: P is re-established at
+    /// every cycle of the definition's recursion.
+    Recurrence,
+    /// `stability`: a fact once true stays true. `stable (P)`: P
+    /// survives the definition's transitions.
+    Stability,
+}
+
+impl ContractKind {
+    /// The kind's keyword, as written.
+    pub fn keyword(self) -> &'static str {
+        match self {
+            ContractKind::Safety => "safety",
+            ContractKind::Liveness => "liveness",
+            ContractKind::Recurrence => "recurrence",
+            ContractKind::Stability => "stability",
+        }
+    }
+
+    /// The formula operator the kind states (the notation of core
+    /// specification section 10: `always (P)`, `eventually (Q)`, and
+    /// the recurrence and stability spellings).
+    pub fn operator(self) -> &'static str {
+        match self {
+            ContractKind::Safety => "always",
+            ContractKind::Liveness => "eventually",
+            ContractKind::Recurrence => "recur",
+            ContractKind::Stability => "stable",
+        }
+    }
+}
+
+/// One clause of a `contract` declaration's block (core specification
+/// section 10): the temporal formula (its operator matching the
+/// contract's kind), and the stated assumptions temporal contracts must
+/// carry when they rely on the environment.
+#[derive(Clone, Debug)]
+pub enum ContractClause {
+    /// The temporal formula: `<operator> = (P)`.
+    Formula { op: Name, body: Term },
+    /// `assume = (P)`: a stated assumed fact (a safety contract's
+    /// establishment is one).
+    AssumeProp { body: Term },
+    /// `assume = "text"`: a stated environmental assumption (scheduler,
+    /// dependency, crash, network, fairness).
+    AssumeNamed { text: String, span: Span },
+}
+
+/// `contract <kind> <name> for <def> where { ... }`: a temporal contract
+/// over a definition (core specification section 10). The contract
+/// claims one temporal formula about the named definition's state
+/// transitions and states the assumptions it relies upon; it is
+/// verified with the definition's elaboration where decidable and
+/// refused by name where not.
+#[derive(Clone, Debug)]
+pub struct ContractDecl {
+    pub kind: ContractKind,
+    /// The contract's own name (the report and manifest name it).
+    pub name: Name,
+    /// The definition the contract names, in the contract's module.
+    pub target: Name,
+    pub clauses: Vec<ContractClause>,
+    pub span: Span,
+}
+
 #[derive(Clone, Debug)]
 pub enum Decl {
     Import(Import),
@@ -804,6 +879,10 @@ pub enum Decl {
     /// without a migration, whose added fields stay distinguishable from
     /// missing under the view (runtime evolution section 2; core rule).
     Upgrade(UpgradeDecl),
+    /// `contract <kind> <name> for <def> where { ... }`: a temporal
+    /// contract over a definition (core specification section 10), one
+    /// of safety, liveness, recurrence or stability.
+    Contract(ContractDecl),
 }
 
 #[derive(Clone, Debug)]
@@ -1007,7 +1086,10 @@ pub fn splice_sig_members(decls: Vec<Decl>) -> Vec<Decl> {
     out
 }
 
-/// Every top-level name a declaration references.
+/// Every top-level name a declaration references. A temporal contract's
+/// formula is specification notation over the named definition's
+/// parameters (core specification section 10): erased, so it adds no
+/// call-graph reference.
 pub fn collect_decl_refs(d: &Decl, out: &mut Vec<RefSite>) {
     match d {
         Decl::Import(_)
@@ -1015,7 +1097,8 @@ pub fn collect_decl_refs(d: &Decl, out: &mut Vec<RefSite>) {
         | Decl::Export(_)
         | Decl::Fixity(_)
         | Decl::OpaqueType(_)
-        | Decl::Foreign(_) => {}
+        | Decl::Foreign(_)
+        | Decl::Contract(_) => {}
         Decl::Attributed { inner, .. } => collect_decl_refs(inner, out),
         Decl::Generate { stmts, .. } => {
             for s in stmts {
@@ -1705,6 +1788,17 @@ pub fn hyg_decl(d: &Decl, cx: &mut HygCx, sc: &mut HygScope) -> Result<Decl> {
             }
             Decl::Upgrade(u)
         }
+        Decl::Contract(c) => {
+            let mut c = c.clone();
+            for cl in &mut c.clauses {
+                match cl {
+                    ContractClause::Formula { body, .. }
+                    | ContractClause::AssumeProp { body } => *body = hyg_term(body, cx, sc)?,
+                    ContractClause::AssumeNamed { .. } => {}
+                }
+            }
+            Decl::Contract(c)
+        }
         Decl::Generate { span, .. } => {
             return Err(Error::at(
                 *span,
@@ -2007,6 +2101,17 @@ pub fn subst_holes_decl(d: &Decl, vals: &[Term]) -> Decl {
             u.related = u.related.as_ref().map(|t| subst_holes(t, vals));
             Decl::Upgrade(u)
         }
+        Decl::Contract(c) => {
+            let mut c = c.clone();
+            for cl in &mut c.clauses {
+                match cl {
+                    ContractClause::Formula { body, .. }
+                    | ContractClause::AssumeProp { body } => *body = subst_holes(body, vals),
+                    ContractClause::AssumeNamed { .. } => {}
+                }
+            }
+            Decl::Contract(c)
+        }
         Decl::Instance(i) => {
             let mut i = i.clone();
             i.methods = i
@@ -2198,6 +2303,15 @@ fn collect_decl_holes(d: &mut Decl, holes: &mut Vec<HoleExpr>) {
             }
             if let Some(r) = &mut u.related {
                 collect_template_holes(r, holes);
+            }
+        }
+        Decl::Contract(c) => {
+            for cl in &mut c.clauses {
+                match cl {
+                    ContractClause::Formula { body, .. }
+                    | ContractClause::AssumeProp { body } => collect_template_holes(body, holes),
+                    ContractClause::AssumeNamed { .. } => {}
+                }
             }
         }
         Decl::Generate { .. } => {}

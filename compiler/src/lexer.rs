@@ -139,6 +139,9 @@ pub enum Tok {
     Replace,
     Require,
     Upgrade,
+    /// `contract` (core specification section 10): a temporal contract
+    /// declaration.
+    Contract,
     To,
     Generate,
     QuoteDecls,
@@ -278,6 +281,7 @@ fn keyword(w: &str) -> Option<Tok> {
         "replace" => Replace,
         "require" => Require,
         "upgrade" => Upgrade,
+        "contract" => Contract,
         "to" => To,
         "generate" => Generate,
         "quoteDecls" => QuoteDecls,

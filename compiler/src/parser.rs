@@ -427,6 +427,7 @@ impl<'a> Parser<'a> {
                 self.parse_rewrite(true)
             }
             Tok::Upgrade => self.parse_upgrade(),
+            Tok::Contract => self.parse_contract(),
             Tok::QuoteDecls => Err(self.err(
                 "`quoteDecls where ...` is an expression; use `generate do ... emit (quoteDecls where ...)` to emit declarations",
             )),
@@ -584,6 +585,153 @@ impl<'a> Parser<'a> {
             related,
             span,
         }))
+    }
+
+    /// `contract <kind> <name> for <def> where { <op> = (P); assume = (P)
+    /// | "text"; ... }`: a temporal contract over a definition (core
+    /// specification section 10). The kinds are `safety`, `liveness`,
+    /// `recurrence` and `stability`; each states exactly one formula,
+    /// whose operator matches the kind (`always`, `eventually`, `recur`,
+    /// `stable`), plus the assumptions it relies upon (`assume`). The
+    /// clause vocabulary is contextual, not reserved.
+    fn parse_contract(&mut self) -> Result<Decl> {
+        let span = self.expect(&Tok::Contract, "`contract`")?.span;
+        let kind_span = self.peek().span;
+        let kind = match self.peek_tok().clone() {
+            Tok::VarId(s) => match s.as_str() {
+                "safety" => ContractKind::Safety,
+                "liveness" => ContractKind::Liveness,
+                "recurrence" => ContractKind::Recurrence,
+                "stability" => ContractKind::Stability,
+                other => {
+                    return Err(Error::at(
+                        kind_span,
+                        format!(
+                            "`{other}` is not a temporal contract kind; expected `safety`, `liveness`, `recurrence` or `stability` (core specification section 10)"
+                        ),
+                    ))
+                }
+            },
+            t => {
+                return Err(self.err(format!(
+                    "expected a temporal contract kind (`safety`, `liveness`, `recurrence` or `stability`), found {}",
+                    describe(&t)
+                )))
+            }
+        };
+        self.bump();
+        let name = self.parse_value_name()?;
+        // The `for` of `contract ... for <def>` (contextual).
+        match self.peek_tok().clone() {
+            Tok::VarId(s) if s == "for" => {
+                self.bump();
+            }
+            t => {
+                return Err(self.err(format!(
+                    "expected `for` naming the contract's definition, found {}",
+                    describe(&t)
+                )))
+            }
+        }
+        let target = self.parse_value_name()?;
+        self.expect(&Tok::Where, "`where` opening the contract's clauses")?;
+        let mut formula: Option<ContractClause> = None;
+        let mut assumes: Vec<ContractClause> = Vec::new();
+        let items = self.parse_block_items("the contract's clauses", |p| {
+            let name_span = p.peek().span;
+            let name = match p.peek_tok().clone() {
+                Tok::VarId(s) => {
+                    p.bump();
+                    s
+                }
+                t => {
+                    return Err(p.err(format!(
+                        "expected a contract clause (`always`, `eventually`, `recur`, `stable` or `assume`), found {}",
+                        describe(&t)
+                    )))
+                }
+            };
+            p.expect(&Tok::Equals, "`=` after a contract clause name")?;
+            match name.as_str() {
+                "always" | "eventually" | "recur" | "stable" => {
+                    let body = p.parse_paren_term("the contract's formula")?;
+                    Ok(ContractClause::Formula {
+                        op: Name::new(name, name_span),
+                        body,
+                    })
+                }
+                "assume" => match p.peek_tok().clone() {
+                    Tok::StrLit(text) => {
+                        let s = p.peek().span;
+                        p.bump();
+                        Ok(ContractClause::AssumeNamed { text, span: s })
+                    }
+                    _ => Ok(ContractClause::AssumeProp {
+                        body: p.parse_paren_term("an assumed fact")?,
+                    }),
+                },
+                other => Err(Error::at(
+                    name_span,
+                    format!(
+                        "`{other}` is not a contract clause; expected `always`, `eventually`, `recur`, `stable` or `assume` (core specification section 10)"
+                    ),
+                )),
+            }
+        })?;
+        for item in items {
+            match item {
+                ContractClause::Formula { ref op, .. } if formula.is_some() => {
+                    return Err(Error::at(
+                        op.span,
+                        format!(
+                            "duplicate `{}` formula: a temporal contract states exactly one formula (core specification section 10)",
+                            op.text
+                        ),
+                    ))
+                }
+                f @ ContractClause::Formula { .. } => formula = Some(f),
+                assume => assumes.push(assume),
+            }
+        }
+        let Some(ContractClause::Formula { ref op, .. }) = formula else {
+            return Err(Error::at(
+                span,
+                format!(
+                    "a `{}` temporal contract states its formula: `{} = (P)` (core specification section 10)",
+                    kind.keyword(),
+                    kind.operator()
+                ),
+            ));
+        };
+        if op.text != kind.operator() {
+            return Err(Error::at(
+                op.span,
+                format!(
+                    "a `{}` temporal contract states `{} = (P)`, not `{} = (...)` (core specification section 10: the language distinguishes safety, liveness, recurrence and stability)",
+                    kind.keyword(),
+                    kind.operator(),
+                    op.text
+                ),
+            ));
+        }
+        let mut clauses = Vec::new();
+        clauses.extend(formula);
+        clauses.append(&mut assumes);
+        Ok(Decl::Contract(ContractDecl {
+            kind,
+            name,
+            target,
+            clauses,
+            span,
+        }))
+    }
+
+    /// A parenthesized term clause (`= (e)`).
+    fn parse_paren_term(&mut self, what: &str) -> Result<Term> {
+        self.expect(&Tok::LParen, &format!("`(` opening {what}"))?;
+        let t = self.parse_term()?;
+        self.expect(&Tok::RParen, &format!("`)` closing {what}"))?;
+        Ok(t)
     }
 
     fn parse_sig_or_equation(&mut self) -> Result<Decl> {
@@ -2893,6 +3041,15 @@ fn resolve_module_decl(d: &mut Decl, fix: &FixityTable) -> Result<()> {
             }
             if let Some(r) = &mut u.related {
                 resolve_term(r, fix)?;
+            }
+        }
+        Decl::Contract(c) => {
+            for cl in &mut c.clauses {
+                match cl {
+                    ContractClause::Formula { body, .. }
+                    | ContractClause::AssumeProp { body } => resolve_term(body, fix)?,
+                    ContractClause::AssumeNamed { .. } => {}
+                }
             }
         }
         Decl::Data(data) => {
