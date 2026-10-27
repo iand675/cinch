@@ -3022,6 +3022,32 @@ impl<'a> Parser<'a> {
     fn parse_type_atom(&mut self) -> Result<Type> {
         let span = self.peek().span;
         match self.peek_tok().clone() {
+            Tok::Backslash => {
+                // `\x -> t` in an index position: a lambda over index
+                // values (`List.map (\x -> f (g x)) xs`); several binders
+                // nest.
+                self.bump();
+                let mut binders: Vec<Name> = Vec::new();
+                while let Tok::VarId(v) = self.peek_tok().clone() {
+                    if v == "_" {
+                        break;
+                    }
+                    let s = self.peek().span;
+                    self.bump();
+                    binders.push(Name::new(v, s));
+                }
+                if binders.is_empty() {
+                    return Err(self.err(
+                        "an index-level lambda needs at least one binder (`\\x -> ...`)",
+                    ));
+                }
+                self.expect(&Tok::Arrow, "`->` in the index-level lambda")?;
+                let mut body = self.parse_type()?;
+                for n in binders.into_iter().rev() {
+                    body = Type::Lam(n, Box::new(body), span);
+                }
+                Ok(body)
+            }
             Tok::ConId(_) => {
                 let mut path = self.parse_con_path()?;
                 if self.at(&Tok::Dot) {
@@ -3852,6 +3878,7 @@ fn resolve_type_chain(
 fn resolve_type(t: &mut Type, fix: &FixityTable) -> Result<()> {
     match t {
         Type::Con(_, _) | Type::Var(_, _) | Type::Unit(_) | Type::Num(_, _) => {}
+        Type::Lam(_, b, _) => resolve_type(b, fix)?,
         Type::App(f, a, _) => {
             resolve_type(f, fix)?;
             resolve_type(a, fix)?;

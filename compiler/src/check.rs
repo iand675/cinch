@@ -1615,6 +1615,15 @@ fn collect_idx_reads(t: &ITerm, out: &mut Vec<String>) {
             collect_idx_reads(a, out);
             collect_idx_reads(b, out);
         }
+        ITerm::Lam(x, body) => {
+            let mut inner = Vec::new();
+            collect_idx_reads(body, &mut inner);
+            for v in inner {
+                if v != *x && !out.iter().any(|x| x == &v) {
+                    out.push(v);
+                }
+            }
+        }
         ITerm::Num(_) | ITerm::Fn(_) | ITerm::MVar(_) => {}
     }
 }
@@ -3718,6 +3727,12 @@ impl Checker {
     ) -> Result<ECore> {
         Ok(match self.uni.resolve_idx(it) {
             ITerm::Num(d) => ECore::ConstBig { nat, digits: d },
+            ITerm::Lam(_, _) => {
+                return Err(Error::at(
+                    span,
+                    "an index-level lambda has no runtime value at this call site",
+                ))
+            }
             ITerm::Var(n) => match names.get(&n) {
                 Some(l) => ECore::Var(*l),
                 None => {
@@ -4476,6 +4491,15 @@ impl Checker {
                         Box::new(self.conv_idx(args[1], vars, kind)?),
                     ));
                 }
+                if vars.contains(&n.text) {
+                    // An index variable applied to index arguments
+                    // (`f (g x)` inside a lifting function).
+                    let mut out = Vec::new();
+                    for a in args {
+                        out.push(self.conv_idx(a, vars, kind)?);
+                    }
+                    return Ok(ITerm::App(Box::new(ITerm::Var(n.text.clone())), out));
+                }
                 self.idx_app(&n.text, &args, vars, kind, n.span)
             }
             ast::Type::Con(p, cspan) => {
@@ -4488,6 +4512,23 @@ impl Checker {
                 }
                 let name = parts.join(".");
                 self.idx_app(&name, &args, vars, kind, *cspan)
+            }
+            ast::Type::Lam(n, body, _) => {
+                // `\x -> t` in index position: a lambda over index
+                // values (its binder binds the body's index variables).
+                let mut inner = vars.to_vec();
+                inner.push(n.text.clone());
+                let b = self.conv_idx(body, &inner, kind)?;
+                let lam = ITerm::Lam(n.text.clone(), Box::new(b));
+                if args.is_empty() {
+                    Ok(lam)
+                } else {
+                    let mut out = Vec::new();
+                    for a in args {
+                        out.push(self.conv_idx(a, vars, kind)?);
+                    }
+                    Ok(ITerm::App(Box::new(lam), out))
+                }
             }
             other => Err(Error::at(
                 other.span(),
@@ -4513,7 +4554,16 @@ impl Checker {
         let head = if matches!(name, "toNat" | "length") {
             format!("<builtin>.{name}")
         } else {
-            match self.lookup_value(None, name) {
+            // A qualified name resolves through the same qualifier
+            // machinery as term position (`List.map` is `Data.List`'s
+            // `map` through the import's short qualifier).
+            let found = self.lookup_value(None, name).or_else(|e| {
+                match name.rsplit_once('.') {
+                    Some((qual, base)) => self.lookup_value(Some(qual), base),
+                    None => Err(e),
+                }
+            });
+            match found {
                 Ok(v) => fn_id(&v.module, &v.name).0,
                 Err(_) => {
                     return Err(Error::at(
@@ -5266,6 +5316,10 @@ impl Checker {
         expect: Option<&ParamKind>,
     ) -> Result<Ty> {
         match ty {
+            ast::Type::Lam(_, _, span) => Err(Error::at(
+                *span,
+                "an index-level lambda (`\\x -> ...`) is a value in an index position, not a type",
+            )),
             ast::Type::Con(p, span) => {
                 let parts = p.parts();
                 match parts.as_slice() {

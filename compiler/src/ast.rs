@@ -103,6 +103,9 @@ pub enum Type {
     DepFun(Name, Box<Type>, Option<Name>, Option<EffectRow>, Box<Type>, Span),
     /// Dependent pair `Sigma (n :: A). B`.
     Sigma(Name, Box<Type>, Box<Type>, Span),
+    /// `\x -> t` in an index position: an index-level function value
+    /// (`List.map (\x -> f (g x)) xs`), a lambda over index values.
+    Lam(Name, Box<Type>, Span),
     /// Unit type `()`.
     Unit(Span),
     /// Tuple type `(T1, ..., Tn)`, n >= 2. This extends the draft EBNF type
@@ -129,6 +132,7 @@ impl Type {
             | Type::Using(_, _, s)
             | Type::DepFun(_, _, _, _, _, s)
             | Type::Sigma(_, _, _, s)
+            | Type::Lam(_, _, s)
             | Type::Unit(s)
             | Type::Tuple(_, s)
             | Type::Infix(_, _, s)
@@ -1354,6 +1358,7 @@ pub fn collect_type_refs(t: &Type, out: &mut Vec<RefSite>) {
             collect_type_refs(res, out);
         }
         Type::Forall(_, b, _) => collect_type_refs(b, out),
+        Type::Lam(_, b, _) => collect_type_refs(b, out),
         Type::Using(cs, b, _) => {
             for c in cs {
                 for a in &c.args {
@@ -1553,6 +1558,16 @@ fn hyg_type(t: &Type, cx: &mut HygCx, sc: &mut HygScope) -> Result<Type> {
             Type::App(Box::new(hyg_type(a, cx, sc)?), Box::new(hyg_type(b, cx, sc)?), *s)
         }
         Type::AppRow(a, r, s) => Type::AppRow(Box::new(hyg_type(a, cx, sc)?), r.clone(), *s),
+        Type::Lam(n, b, s) => {
+            // An index lambda's binder binds its body's index variables
+            // (they spell as `Type::Var`), so it renames like a template
+            // binder.
+            let f = fresh_name(cx, &n.text);
+            sc.types.push((n.text.clone(), f.clone()));
+            let b = hyg_type(b, cx, sc)?;
+            sc.types.pop();
+            Type::Lam(Name::new(f, n.span), Box::new(b), *s)
+        }
         Type::Fun { arg, mult, eff, res, span } => Type::Fun {
             arg: Box::new(hyg_type(arg, cx, sc)?),
             mult: mult.clone(),

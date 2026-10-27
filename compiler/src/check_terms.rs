@@ -2394,6 +2394,36 @@ impl Checker {
                     self.idx_ref(&v, p.span())?
                 }
             }
+            ast::Term::Lam(pats, body, _) => {
+                // `\x -> e` in index position: a lifting function (an
+                // index-level lambda whose binders bind its body's index
+                // variables).
+                let mut env2 = env.clone();
+                let mut names: Vec<String> = Vec::new();
+                for p in pats {
+                    match p {
+                        ast::Pat::Var(n, _) => {
+                            names.push(n.text.clone());
+                            env2.locals.push((
+                                n.text.clone(),
+                                crate::core::LocalId(usize::MAX),
+                                Scheme::mono(Ty::Unit),
+                            ));
+                        }
+                        other => {
+                            return Err(Error::at(
+                                other.span(),
+                                "an index-level lambda binds plain names (`\\x -> ...`)",
+                            ))
+                        }
+                    }
+                }
+                let mut it = self.idx_of_term(body, &env2)?;
+                for n in names.into_iter().rev() {
+                    it = ITerm::Lam(n, Box::new(it));
+                }
+                it
+            }
             ast::Term::Con(p) => {
                 let v = self.resolve_con(p, p.span())?;
                 self.idx_ref(&v, p.span())?
@@ -2484,7 +2514,7 @@ impl Checker {
                         let t = self.uni.zonk(&t);
                         return match t {
                             Ty::Prp(q) => {
-                                self.uni.unify_prop(&q, prop).map_err(|m| {
+                                self.unify_prop_reduced(&q, prop).map_err(|m| {
                                     Error::at(
                                         term.span(),
                                         format!(
@@ -2514,7 +2544,7 @@ impl Checker {
                 let t = self.uni.zonk(&t);
                 match t {
                     Ty::Prp(q) => {
-                        self.uni.unify_prop(&q, prop).map_err(|m| {
+                        self.unify_prop_reduced(&q, prop).map_err(|m| {
                             Error::at(
                                 term.span(),
                                 format!("{m}: `{}` is evidence of `{q}`, not of `{prop}`", v.name),
@@ -2551,7 +2581,7 @@ impl Checker {
                     other => {
                         return Err(Error::at(
                             other.span(),
-                            "a proof term is `refl`, `congr e`, or the name of evidence",
+                            "a proof term is `refl`, `congr [f] e`, a `case` on the induction variable, or the name of evidence",
                         ))
                     }
                 };
@@ -2560,20 +2590,78 @@ impl Checker {
                 } else if p.quals.is_empty() {
                     return Err(Error::at(
                         *span,
-                        "a proof term is `refl`, `congr e`, or the name of evidence",
+                        "a proof term is `refl`, `congr [f] e`, a `case` on the induction variable, or the name of evidence",
                     ));
                 } else {
                     self.resolve_var(p, p.span())?
                 };
+                // `congr F e`: the lifting function is an explicit index
+                // term (e.g. `\ys -> Cons (f (g x)) ys`) and the evidence
+                // argument follows it. The one-argument form `congr e`
+                // keeps the lifting function implicit.
+                if matches!(v.kind, ValueKind::ProofCtor)
+                    && v.name == "congr"
+                    && args.len() == 2
+                {
+                    let f_it = self.idx_of_term(&args[0], env)?;
+                    let a = self.uni.fresh_idx_term();
+                    let b = self.uni.fresh_idx_term();
+                    self.check_proof(
+                        env,
+                        &args[1],
+                        &PTerm::Eq(Box::new(a.clone()), Box::new(b.clone())),
+                    )?;
+                    let q = PTerm::Eq(
+                        Box::new(self.reduce_idx(&ITerm::App(
+                            Box::new(f_it.clone()),
+                            vec![a],
+                        ))),
+                        Box::new(self.reduce_idx(&ITerm::App(Box::new(f_it), vec![b]))),
+                    );
+                    return match self.unify_prop_reduced(&q, prop) {
+                        Ok(()) => Ok(ECore::Unit),
+                        Err(m) => Err(Error::at(
+                            *span,
+                            format!(
+                                "{m}: `congr` with this lifting function proves `{}`, not `{prop}`",
+                                self.reduce_prop(&q)
+                            ),
+                        )),
+                    };
+                }
                 let (mut ty, _, _) = self.instantiate(&v.scheme);
                 let mut arg_cores: Vec<ECore> = Vec::new();
                 for a in args {
                     let z = self.uni.zonk(&ty);
-                    let (dom, cod) = match z {
-                        Ty::Fun(d, _, _, c) => (d, c),
+                    match z {
+                        Ty::Fun(d, _, _, c) => {
+                            let d = self.uni.zonk(&d);
+                            match d {
+                                Ty::Prp(q) => {
+                                    arg_cores.push(self.check_proof(env, a, &q)?);
+                                }
+                                other => {
+                                    return Err(Error::at(
+                                        a.span(),
+                                        format!(
+                                            "an evidence argument states a proposition, but this one has type {other}"
+                                        ),
+                                    ))
+                                }
+                            }
+                            ty = *c;
+                        }
                         Ty::Pi { var, dom: d, cod: c, .. } => {
+                            // A dependent binder's argument is the index
+                            // value it stands for (a proof former's value
+                            // parameter); it states evidence only when
+                            // the binder itself does.
                             let subst = self.idx_of_term(a, env)?;
-                            (d, Box::new(c.subst_idx(&var, &subst)))
+                            let d = self.uni.zonk(&d);
+                            if let Ty::Prp(q) = d {
+                                arg_cores.push(self.check_proof(env, a, &q)?);
+                            }
+                            ty = c.subst_idx(&var, &subst);
                         }
                         other => {
                             return Err(Error::at(
@@ -2581,26 +2669,11 @@ impl Checker {
                                 format!("too many evidence arguments ({other} is not a function)"),
                             ))
                         }
-                    };
-                    let d = self.uni.zonk(&dom);
-                    match d {
-                        Ty::Prp(q) => {
-                            arg_cores.push(self.check_proof(env, a, &q)?);
-                        }
-                        other => {
-                            return Err(Error::at(
-                                a.span(),
-                                format!(
-                                    "an evidence argument states a proposition, but this one has type {other}"
-                                ),
-                            ))
-                        }
                     }
-                    ty = *cod;
                 }
                 match self.uni.zonk(&ty) {
                     Ty::Prp(q) => {
-                        self.uni.unify_prop(&q, prop).map_err(|m| {
+                        self.unify_prop_reduced(&q, prop).map_err(|m| {
                             Error::at(*span, format!("{m}: this term proves `{q}`, not `{prop}`"))
                         })?;
                         // The reference stays visible to the termination
@@ -2628,11 +2701,329 @@ impl Checker {
                     )),
                 }
             }
+            ast::Term::Case(scrut, alts, span) => {
+                // Structural induction: a proof case-analyzes the index
+                // variable it inducts on, and each branch proves the goal
+                // refined at its pattern's constructor form.
+                let scrut_name = match &**scrut {
+                    ast::Term::Var(p) if p.quals.is_empty() => p.name.text.clone(),
+                    other => {
+                        return Err(Error::at(
+                            other.span(),
+                            "a proof's `case` scrutinee is the index variable it inducts on",
+                        ))
+                    }
+                };
+                let _ = span;
+                let mut fresh = 0;
+                for alt in alts {
+                    if let Some(g) = &alt.guard {
+                        return Err(Error::at(
+                            g.span(),
+                            "a proof's `case` alternative takes no guard",
+                        ));
+                    }
+                    let (form, bound) = self.pat_idx_form(&alt.pat, &mut fresh)?;
+                    let refined = prop.subst(&scrut_name, &form);
+                    let mut env2 = env.clone();
+                    for n in &bound {
+                        env2.locals.push((
+                            n.clone(),
+                            crate::core::LocalId(usize::MAX),
+                            Scheme::mono(Ty::Unit),
+                        ));
+                    }
+                    self.check_proof(&mut env2, &alt.body, &refined)?;
+                }
+                Ok(ECore::Unit)
+            }
             other => Err(Error::at(
                 other.span(),
-                "a proof term is `refl`, `congr e`, or the name of evidence",
+                "a proof term is `refl`, `congr [f] e`, a `case` on the induction variable, or the name of evidence",
             )),
         }
+    }
+
+    /// Proof-goal matching with named-helper reduction: the proof layer
+    /// may unfold named total definitions (delta) and reduce `case` on
+    /// constructor forms (iota) to bridge `Eq` goals, beyond the D28
+    /// conversion ordinary types use (which never unfolds user
+    /// definitions).
+    fn unify_prop_reduced(&mut self, q: &PTerm, prop: &PTerm) -> std::result::Result<(), String> {
+        let q = self.reduce_prop(q);
+        let p = self.reduce_prop(prop);
+        self.uni.unify_prop(&q, &p)
+    }
+
+    fn reduce_prop(&self, p: &PTerm) -> PTerm {
+        match self.uni.resolve_prop(p) {
+            PTerm::Cmp(op, a, b) => PTerm::Cmp(
+                op,
+                Box::new(self.reduce_idx(&a)),
+                Box::new(self.reduce_idx(&b)),
+            ),
+            PTerm::Eq(a, b) => {
+                PTerm::Eq(Box::new(self.reduce_idx(&a)), Box::new(self.reduce_idx(&b)))
+            }
+            PTerm::Not(q) => PTerm::Not(Box::new(self.reduce_prop(&q))),
+            PTerm::Pred(pf, a) => PTerm::Pred(pf, Box::new(self.reduce_idx(&a))),
+            other => other,
+        }
+    }
+
+    /// The named-helper reduction of one index term, bounded by fuel so
+    /// reduction terminates by construction.
+    fn reduce_idx(&self, t: &ITerm) -> ITerm {
+        self.reduce_idx_fuel(t, 64)
+    }
+
+    fn reduce_idx_fuel(&self, t: &ITerm, fuel: u32) -> ITerm {
+        let t = self.uni.resolve_idx(t).normalize();
+        if fuel == 0 {
+            return t;
+        }
+        match t {
+            ITerm::App(f, args) => {
+                let args: Vec<ITerm> =
+                    args.iter().map(|a| self.reduce_idx_fuel(a, fuel - 1)).collect();
+                if let ITerm::Fn(k) = &*f {
+                    if let Some(r) = self.unfold_helper(k, &args, fuel - 1) {
+                        return r;
+                    }
+                }
+                let f = self.reduce_idx_fuel(&f, fuel - 1);
+                ITerm::App(Box::new(f), args)
+            }
+            ITerm::Lam(x, body) => {
+                ITerm::Lam(x, Box::new(self.reduce_idx_fuel(&body, fuel - 1)))
+            }
+            ITerm::Bin(op, a, b) => ITerm::Bin(
+                op,
+                Box::new(self.reduce_idx_fuel(&a, fuel - 1)),
+                Box::new(self.reduce_idx_fuel(&b, fuel - 1)),
+            ),
+            other => other,
+        }
+    }
+
+    /// One delta step: the named helper's equation clauses over the
+    /// reduced arguments (first-order match), the matched body
+    /// interpreted over index terms.
+    fn unfold_helper(&self, gid: &str, args: &[ITerm], fuel: u32) -> Option<ITerm> {
+        if fuel == 0 {
+            return None;
+        }
+        for (m, n, eq) in &self.top_eqs {
+            if fn_id(m, n).0 != gid {
+                continue;
+            }
+            let mut bind = HashMap::new();
+            if !self.match_idx_pats(&eq.pats, args, &mut bind) {
+                continue;
+            }
+            if let Some(r) = self.reduce_eq_body(&eq.body, &bind, fuel) {
+                return Some(r);
+            }
+        }
+        None
+    }
+
+    /// First-order match of an equation's patterns against index-term
+    /// arguments.
+    fn match_idx_pats(
+        &self,
+        pats: &[ast::Pat],
+        args: &[ITerm],
+        bind: &mut HashMap<String, ITerm>,
+    ) -> bool {
+        if pats.len() != args.len() {
+            return false;
+        }
+        for (p, a) in pats.iter().zip(args.iter()) {
+            match p {
+                ast::Pat::Var(n, _) => {
+                    bind.insert(n.text.clone(), a.clone());
+                }
+                ast::Pat::Wild(_) => {}
+                ast::Pat::Int(d, _) => {
+                    if !matches!(a, ITerm::Num(x) if x == d) {
+                        return false;
+                    }
+                }
+                ast::Pat::Con(path, subpats, _) => {
+                    let v = match self.resolve_con(path, path.span()) {
+                        Ok(v) => v,
+                        Err(_) => return false,
+                    };
+                    let gid = fn_id(&v.module, &v.name).0;
+                    let (head, cargs) = match self.idx_ctor(a) {
+                        Some(x) => x,
+                        None => return false,
+                    };
+                    if head != gid || cargs.len() != subpats.len() {
+                        return false;
+                    }
+                    if !self.match_idx_pats(subpats, &cargs, bind) {
+                        return false;
+                    }
+                }
+                _ => return false,
+            }
+        }
+        true
+    }
+
+    /// The constructor form of an index value: its code generation unit
+    /// and arguments (`Cons h t`'s shape), or `None` for values that are
+    /// not constructor applications.
+    fn idx_ctor(&self, t: &ITerm) -> Option<(String, Vec<ITerm>)> {
+        let (head, args): (String, Vec<ITerm>) = match t {
+            ITerm::Fn(k) => (k.clone(), Vec::new()),
+            ITerm::App(f, args) => match &**f {
+                ITerm::Fn(k) => (k.clone(), args.clone()),
+                _ => return None,
+            },
+            _ => return None,
+        };
+        let (m, n) = head.rsplit_once('.')?;
+        for v in self.values.get(n)? {
+            if v.module == m {
+                if matches!(v.kind, ValueKind::Ctor { .. }) {
+                    return Some((head, args));
+                }
+            }
+        }
+        None
+    }
+
+    /// Interpret a named helper's equation body over index terms
+    /// (constructor-form matching, case iota, and beta); `None` is an
+    /// unreducible position and the application stays stuck.
+    fn reduce_eq_body(
+        &self,
+        t: &ast::Term,
+        bind: &HashMap<String, ITerm>,
+        fuel: u32,
+    ) -> Option<ITerm> {
+        if fuel == 0 {
+            return None;
+        }
+        Some(match t {
+            ast::Term::Int(d, _) => ITerm::Num(d.clone()),
+            ast::Term::Ann(e, _, _) => return self.reduce_eq_body(e, bind, fuel - 1),
+            ast::Term::Var(p) => {
+                match (p.quals.is_empty(), bind.get(&p.name.text)) {
+                    (true, Some(it)) => it.clone(),
+                    _ => {
+                        if let Ok(v) = self.resolve_var(p, p.span()) {
+                            ITerm::Fn(fn_id(&v.module, &v.name).0)
+                        } else {
+                            ITerm::Var(p.name.text.clone())
+                        }
+                    }
+                }
+            }
+            ast::Term::Con(p) => {
+                let v = self.resolve_con(p, p.span()).ok()?;
+                ITerm::Fn(fn_id(&v.module, &v.name).0)
+            }
+            ast::Term::Lam(pats, body, _) => {
+                let mut bind2 = bind.clone();
+                let mut names = Vec::new();
+                for p in pats {
+                    match p {
+                        ast::Pat::Var(n, _) => {
+                            names.push(n.text.clone());
+                            bind2.insert(n.text.clone(), ITerm::Var(n.text.clone()));
+                        }
+                        _ => return None,
+                    }
+                }
+                let mut it = self.reduce_eq_body(body, &bind2, fuel - 1)?;
+                for n in names.into_iter().rev() {
+                    it = ITerm::Lam(n, Box::new(it));
+                }
+                it
+            }
+            ast::Term::App(f, args, _) => {
+                // In index position `+`, `-` and `*` are mathematical
+                // arithmetic, never class methods (decision D29).
+                if let ast::Term::Var(p) = &**f {
+                    if p.quals.is_empty() {
+                        let opc = match p.name.text.as_str() {
+                            "+" => Some(IdxOp::Add),
+                            "-" => Some(IdxOp::Sub),
+                            "*" => Some(IdxOp::Mul),
+                            _ => None,
+                        };
+                        if let (Some(opc), 2) = (opc, args.len()) {
+                            let a = self.reduce_eq_body(&args[0], bind, fuel - 1)?;
+                            let b = self.reduce_eq_body(&args[1], bind, fuel - 1)?;
+                            return Some(ITerm::Bin(opc, Box::new(a), Box::new(b)));
+                        }
+                    }
+                }
+                let head = self.reduce_eq_body(f, bind, fuel - 1)?;
+                let mut out = Vec::new();
+                for a in args {
+                    out.push(self.reduce_eq_body(a, bind, fuel - 1)?);
+                }
+                if let ITerm::Fn(k) = &head {
+                    if let Some(r) = self.unfold_helper(k, &out, fuel - 1) {
+                        return Some(r);
+                    }
+                }
+                // Beta and iota fold into the reduct (a bound function
+                // position applies to the interpreted arguments).
+                ITerm::App(Box::new(head), out).normalize()
+            }
+            ast::Term::Case(scrut, alts, _) => {
+                let s = self.reduce_eq_body(scrut, bind, fuel - 1)?;
+                for alt in alts {
+                    if alt.guard.is_some() {
+                        return None;
+                    }
+                    let mut bind2 = bind.clone();
+                    if self.match_idx_pats(std::slice::from_ref(&alt.pat), &[s.clone()], &mut bind2)
+                    {
+                        return self.reduce_eq_body(&alt.body, &bind2, fuel - 1);
+                    }
+                }
+                return None;
+            }
+            _ => return None,
+        })
+    }
+
+    /// The constructor form a proof's `case` pattern stands for (the
+    /// goal refinement's index term) and the pattern names it binds.
+    fn pat_idx_form(&self, p: &ast::Pat, fresh: &mut usize) -> Result<(ITerm, Vec<String>)> {
+        Ok(match p {
+            ast::Pat::Var(n, _) => (ITerm::Var(n.text.clone()), vec![n.text.clone()]),
+            ast::Pat::Wild(_) => {
+                *fresh += 1;
+                (ITerm::Var(format!("$wild{fresh}")), Vec::new())
+            }
+            ast::Pat::Int(d, _) => (ITerm::Num(d.clone()), Vec::new()),
+            ast::Pat::Con(path, subpats, _) => {
+                let v = self.resolve_con(path, path.span())?;
+                let gid = fn_id(&v.module, &v.name).0;
+                let mut out = Vec::new();
+                let mut bound = Vec::new();
+                for sp in subpats {
+                    let (it, b) = self.pat_idx_form(sp, fresh)?;
+                    out.push(it);
+                    bound.extend(b);
+                }
+                (ITerm::app_fn(gid, out), bound)
+            }
+            other => {
+                return Err(Error::at(
+                    other.span(),
+                    "a proof's `case` pattern is a constructor, variable, literal, or wildcard pattern",
+                ))
+            }
+        })
     }
 
     /// The status of a proof obligation (core specification section 4):

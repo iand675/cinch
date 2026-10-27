@@ -484,6 +484,9 @@ pub enum ITerm {
     /// A named total definition used as a function value (the head of an
     /// index-level application).
     Fn(String),
+    /// `\x -> body`, an index-level lambda (a lifting function like
+    /// `congr`'s, or a type-position lambda).
+    Lam(String, Box<ITerm>),
     App(Box<ITerm>, Vec<ITerm>),
     Bin(IdxOp, Box<ITerm>, Box<ITerm>),
     MVar(usize),
@@ -516,6 +519,15 @@ impl ITerm {
                 }
             }
             ITerm::Num(_) | ITerm::Fn(_) | ITerm::MVar(_) => {}
+            ITerm::Lam(x, body) => {
+                let mut inner = Vec::new();
+                body.free_vars(&mut inner);
+                for v in inner {
+                    if v != *x && !out.contains(&v) {
+                        out.push(v);
+                    }
+                }
+            }
             ITerm::App(f, args) => {
                 f.free_vars(out);
                 for a in args {
@@ -543,6 +555,7 @@ impl ITerm {
                 }
             }
             ITerm::Var(_) | ITerm::Num(_) | ITerm::Fn(_) => {}
+            ITerm::Lam(_, body) => body.free_mvars(out),
             ITerm::App(f, args) => {
                 f.free_mvars(out);
                 for a in args {
@@ -556,11 +569,29 @@ impl ITerm {
         }
     }
 
-    /// Substitute a value name (beta at the index level).
+    /// Substitute a value name (beta at the index level): capture
+    /// avoiding under lambdas (a shadowed binder stops the walk; a
+    /// binder the substitution would capture renames apart).
     pub fn subst(&self, name: &str, by: &ITerm) -> ITerm {
         match self {
             ITerm::Var(n) if n == name => by.clone(),
             ITerm::Var(_) | ITerm::Num(_) | ITerm::Fn(_) | ITerm::MVar(_) => self.clone(),
+            ITerm::Lam(x, body) if x == name => self.clone(),
+            ITerm::Lam(x, body) => {
+                let mut body = (**body).clone();
+                if by.mentions(x) {
+                    let mut fresh = format!("{x}$sub");
+                    let mut n = 0;
+                    while body.mentions(&fresh) || by.mentions(&fresh) {
+                        n += 1;
+                        fresh = format!("{x}$sub{n}");
+                    }
+                    body = body.subst(x, &ITerm::Var(fresh.clone()));
+                    ITerm::Lam(fresh, Box::new(body.subst(name, by)))
+                } else {
+                    ITerm::Lam(x.clone(), Box::new(body.subst(name, by)))
+                }
+            }
             ITerm::App(f, args) => ITerm::App(
                 Box::new(f.subst(name, by)),
                 args.iter().map(|a| a.subst(name, by)).collect(),
@@ -574,12 +605,22 @@ impl ITerm {
     }
 
     /// Fold arithmetic on numerals (iota, dependent core kernel design
-    /// section 4: mathematical operations reduce on numerals only).
+    /// section 4: mathematical operations reduce on numerals only) and
+    /// beta-reduce lambda applications. Bounded by fuel, so reduction
+    /// terminates by construction: a redex past the bound stays
+    /// unreduced and compares syntactically.
     pub fn normalize(&self) -> ITerm {
+        self.normalize_fuel(64)
+    }
+
+    fn normalize_fuel(&self, fuel: u32) -> ITerm {
+        if fuel == 0 {
+            return self.clone();
+        }
         match self {
             ITerm::Bin(op, a, b) => {
-                let a = a.normalize();
-                let b = b.normalize();
+                let a = a.normalize_fuel(fuel - 1);
+                let b = b.normalize_fuel(fuel - 1);
                 let (x, y) = match (&a, &b) {
                     (ITerm::Num(x), ITerm::Num(y)) => {
                         let (Ok(x), Ok(y)) = (x.parse::<i128>(), y.parse::<i128>()) else {
@@ -599,24 +640,41 @@ impl ITerm {
                 };
                 ITerm::Bin(*op, Box::new(x), Box::new(y))
             }
-            ITerm::App(f, args) => ITerm::App(
-                Box::new(f.normalize()),
-                args.iter().map(|a| a.normalize()).collect(),
-            ),
+            ITerm::App(f, args) => {
+                let f = f.normalize_fuel(fuel - 1);
+                let args: Vec<ITerm> = args.iter().map(|a| a.normalize_fuel(fuel - 1)).collect();
+                match f {
+                    ITerm::Lam(x, body) if !args.is_empty() => {
+                        let (first, rest) = args.split_first().expect("nonempty");
+                        let reduced = body.subst(&x, first);
+                        if rest.is_empty() {
+                            reduced.normalize_fuel(fuel - 1)
+                        } else {
+                            ITerm::App(Box::new(reduced), rest.to_vec()).normalize_fuel(fuel - 1)
+                        }
+                    }
+                    f => ITerm::App(Box::new(f), args),
+                }
+            }
+            ITerm::Lam(x, body) => ITerm::Lam(x.clone(), Box::new(body.normalize_fuel(fuel - 1))),
             other => other.clone(),
         }
     }
 
     /// Definitional equality of index terms: beta (substitution happens at
-    /// elaboration), iota on numerals, and syntactic equality elsewhere.
-    /// Stuck terms compare syntactically; conversion never unfolds user
-    /// definitions (decision D28).
+    /// elaboration), iota on numerals, alpha for lambdas, and syntactic
+    /// equality elsewhere. Stuck terms compare syntactically; conversion
+    /// never unfolds user definitions (decision D28).
     pub fn eq(&self, other: &ITerm) -> bool {
         match (self.normalize(), other.normalize()) {
             (ITerm::Var(x), ITerm::Var(y)) => x == y,
             (ITerm::Num(x), ITerm::Num(y)) => x == y,
             (ITerm::Fn(x), ITerm::Fn(y)) => x == y,
             (ITerm::MVar(x), ITerm::MVar(y)) => x == y,
+            (ITerm::Lam(x, b), ITerm::Lam(y, c)) => {
+                let fresh = ITerm::Var("$alpha".to_string());
+                b.subst(&x, &fresh).eq(&c.subst(&y, &fresh))
+            }
             (ITerm::App(f, xs), ITerm::App(g, ys)) => {
                 f.eq(&g) && xs.len() == ys.len() && xs.iter().zip(ys.iter()).all(|(x, y)| x.eq(y))
             }
@@ -635,6 +693,7 @@ impl fmt::Display for ITerm {
             ITerm::Num(n) => write!(f, "{n}"),
             ITerm::Fn(n) => write!(f, "{n}"),
             ITerm::MVar(m) => write!(f, "?i{m}"),
+            ITerm::Lam(x, body) => write!(f, "(\\{x} -> {body})"),
             ITerm::App(head, args) => {
                 write!(f, "({head}")?;
                 for a in args {
@@ -802,11 +861,11 @@ impl PTerm {
     pub fn eq(&self, other: &PTerm) -> bool {
         match (self.normalize(), other.normalize()) {
             (PTerm::Cmp(op, a, b), PTerm::Cmp(op2, c, d)) => {
-                op == op2 && a.eq(&c) && b.eq(&d)
+                op == op2 && (*a).eq(&*c) && (*b).eq(&*d)
             }
-            (PTerm::Eq(a, b), PTerm::Eq(c, d)) => a.eq(&c) && b.eq(&d),
-            (PTerm::Not(a), PTerm::Not(b)) => a.eq(&b),
-            (PTerm::Pred(pf, a), PTerm::Pred(pf2, b)) => pf == pf2 && a.eq(&b),
+            (PTerm::Eq(a, b), PTerm::Eq(c, d)) => (*a).eq(&*c) && (*b).eq(&*d),
+            (PTerm::Not(a), PTerm::Not(b)) => (*a).eq(&*b),
+            (PTerm::Pred(pf, a), PTerm::Pred(pf2, b)) => pf == pf2 && (*a).eq(&*b),
             (PTerm::Var(x), PTerm::Var(y)) => x == y,
             (PTerm::MVar(x), PTerm::MVar(y)) => x == y,
             _ => false,
@@ -1784,6 +1843,14 @@ impl Unifier {
         let id = self.prop_subst.len();
         self.prop_subst.push(None);
         Ty::Prp(Box::new(PTerm::MVar(id)))
+    }
+
+    /// A fresh index-value metavariable (the bare term form).
+    pub fn fresh_idx_term(&mut self) -> ITerm {
+        match self.fresh_idx() {
+            Ty::Idx(i) => *i,
+            other => panic!("fresh_idx returned {other}"),
+        }
     }
 
     pub fn fresh_row(&mut self) -> EffRow {

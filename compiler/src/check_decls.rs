@@ -7303,6 +7303,11 @@ impl Checker {
                     "internal error: unsolved variable in a law equation",
                 ))
             }
+            ITerm::Lam(_, _) => {
+                return Err(Error::plain(
+                    "an index-level lambda is not a law argument (the law layer samples values, not functions)",
+                ))
+            }
         })
     }
 
