@@ -953,6 +953,13 @@ pub enum Decl {
         span: Span,
     },
     Equation { modifier: Option<Name>, eq: Equation },
+    /// A declaration whose name is computed: `$( e ) :: ty` and
+    /// `$( e ) pats = body` inside a `quoteDecls` template (D46 name
+    /// splices). The name-producing term is a template hole; at splice
+    /// time its `Name`/`Sym`/name-quote value names `inner`, whose own
+    /// name slot is a placeholder until then. Outside a template a name
+    /// splice is refused.
+    NameSpliced { name_tm: Box<Term>, inner: Box<Decl> },
     Foreign(ForeignDecl),
     /// `prim name :: type where { target_body ... }` (primitive
     /// operations and inline target IR specification section 2): a
@@ -1216,6 +1223,10 @@ pub fn collect_decl_refs(d: &Decl, out: &mut Vec<RefSite>) {
         | Decl::Foreign(_)
         | Decl::Contract(_) => {}
         Decl::Attributed { inner, .. } => collect_decl_refs(inner, out),
+        Decl::NameSpliced { name_tm, inner } => {
+            collect_term_refs(name_tm, out);
+            collect_decl_refs(inner, out);
+        }
         Decl::Generate { stmts, .. } => {
             for s in stmts {
                 match s {
@@ -2124,6 +2135,14 @@ pub fn hyg_decl(d: &Decl, cx: &mut HygCx, sc: &mut HygScope) -> Result<Decl> {
             modifier: modifier.clone(),
             eq: hyg_equation(eq, cx, sc)?,
         },
+        // The name slot is the generated declaration's chosen name: it
+        // binds at the insertion site as written (the splice is caller
+        // syntax and keeps its identity), and the inner declaration's
+        // binders rename as usual.
+        Decl::NameSpliced { name_tm, inner } => Decl::NameSpliced {
+            name_tm: name_tm.clone(),
+            inner: Box::new(hyg_decl(inner, cx, sc)?),
+        },
     })
 }
 
@@ -2307,6 +2326,10 @@ pub fn subst_holes_decl(d: &Decl, vals: &[Term]) -> Decl {
             attrs: attrs.clone(),
             inner: Box::new(subst_holes_decl(inner, vals)),
         },
+        Decl::NameSpliced { name_tm, inner } => Decl::NameSpliced {
+            name_tm: Box::new(subst_holes(name_tm, vals)),
+            inner: Box::new(subst_holes_decl(inner, vals)),
+        },
         Decl::Rewrite(r) => {
             let mut r = r.clone();
             r.match_tm = subst_holes(&r.match_tm, vals);
@@ -2365,10 +2388,13 @@ pub fn subst_holes_decl(d: &Decl, vals: &[Term]) -> Decl {
 
 /// A template hole's source: a `$( e )` splice body or a macro invocation
 /// `m!( ... )`. Both produce code or syntax that fills the hole when the
-/// quotation is constructed.
+/// quotation is constructed. The `Name` form is a name-position splice's
+/// body (a declaration's name slot; D46), whose `Name`/`Sym`/name-quote
+/// value names the generated declaration.
 #[derive(Clone, Debug)]
 pub enum HoleExpr {
     Term(Box<Term>),
+    Name(Box<Term>),
     Macro { path: VarPath, args: TokenTree, span: Span },
 }
 
@@ -2531,6 +2557,21 @@ fn collect_decl_holes(d: &mut Decl, holes: &mut Vec<HoleExpr>) {
         | Decl::Refine(_)
         | Decl::ValueSig { .. } => {}
         Decl::Attributed { inner, .. } => collect_decl_holes(inner, holes),
+        Decl::NameSpliced { name_tm, inner } => {
+            // A name-position splice's body is a compile-time expression
+            // like any splice body: it becomes one `Name` hole and the
+            // slot becomes its `SpliceHole` marker (the inner
+            // declaration's term holes collect after it).
+            match &mut **name_tm {
+                Term::Splice { body, span } => {
+                    let idx = holes.len();
+                    holes.push(HoleExpr::Name(body.clone()));
+                    **name_tm = Term::SpliceHole { idx, span: *span };
+                }
+                _ => {}
+            }
+            collect_decl_holes(inner, holes);
+        }
         Decl::Rewrite(r) => {
             collect_template_holes(&mut r.match_tm, holes);
             collect_template_holes(&mut r.replace_tm, holes);

@@ -442,7 +442,8 @@ impl<'a> Parser<'a> {
             Tok::Module => {
                 Err(self.err("nested module declarations are not supported in the bootstrap slice"))
             }
-            Tok::VarId(_) | Tok::LParen => self.parse_sig_or_equation(),
+            Tok::VarId(_) | Tok::LParen | Tok::DollarParen => self.parse_sig_or_equation(),
+            Tok::Dollar if self.at_splice() => self.parse_sig_or_equation(),
             t if modifier_name(&t).is_some() => self.parse_sig_or_equation(),
             t => Err(self.err(format!("expected a declaration, found {}", describe(&t)))),
         }
@@ -908,7 +909,17 @@ impl<'a> Parser<'a> {
 
     fn parse_sig_or_equation(&mut self) -> Result<Decl> {
         let modifier = self.parse_modifier()?;
-        let name = self.parse_value_name()?;
+        // A `quoteDecls` name position may splice the declaration's name
+        // (`$( e ) :: ty`, `$( e ) pats = body`; D46 name splices).
+        let name_tm = if self.at(&Tok::DollarParen) || (self.at(&Tok::Dollar) && self.at_splice()) {
+            Some(self.parse_splice_term()?)
+        } else {
+            None
+        };
+        let name = match &name_tm {
+            Some(t) => Name::new("", t.span()),
+            None => self.parse_value_name()?,
+        };
         // A macro signature may declare its owned attribute names: `macro
         // name attributes (codec, table) :: ty` (attribute annotations
         // specification section 6).
@@ -946,7 +957,11 @@ impl<'a> Parser<'a> {
             self.bump();
             let ty = self.parse_type()?;
             let span = name.span;
-            Ok(Decl::ValueSig { name, modifier, owned_attrs, ty, span })
+            let decl = Decl::ValueSig { name, modifier, owned_attrs, ty, span };
+            Ok(match name_tm {
+                Some(t) => Decl::NameSpliced { name_tm: Box::new(t), inner: Box::new(decl) },
+                None => decl,
+            })
         } else {
             if !owned_attrs.is_empty() {
                 return Err(self.err(
@@ -954,7 +969,29 @@ impl<'a> Parser<'a> {
                 ));
             }
             let eq = self.parse_equation_rest(name, true)?;
-            Ok(Decl::Equation { modifier, eq })
+            let decl = Decl::Equation { modifier, eq };
+            Ok(match name_tm {
+                Some(t) => Decl::NameSpliced { name_tm: Box::new(t), inner: Box::new(decl) },
+                None => decl,
+            })
+        }
+    }
+
+    /// `$( e )` in a declaration's name position: the splice body that
+    /// names the generated declaration at splice time.
+    fn parse_splice_term(&mut self) -> Result<Term> {
+        let span = self.peek().span;
+        if self.at(&Tok::DollarParen) {
+            self.bump();
+            let body = self.parse_term()?;
+            self.expect(&Tok::RParen, "`)` closing the splice")?;
+            Ok(Term::Splice { body: Box::new(body), span })
+        } else {
+            self.bump();
+            self.bump();
+            let body = self.parse_term()?;
+            self.expect(&Tok::RParen, "`)` closing the splice")?;
+            Ok(Term::Splice { body: Box::new(body), span })
         }
     }
 
@@ -3295,6 +3332,10 @@ fn resolve_module(m: &mut Module, fix: &FixityTable) -> Result<()> {
 /// declaration resolution).
 fn resolve_module_decl(d: &mut Decl, fix: &FixityTable) -> Result<()> {
     match d {
+        Decl::NameSpliced { name_tm, inner } => {
+            resolve_term(name_tm, fix)?;
+            resolve_module_decl(inner, fix)?;
+        }
         Decl::Equation { eq, .. } => resolve_equation(eq, fix)?,
         Decl::Instance(inst) => {
             resolve_type(&mut inst.target, fix)?;

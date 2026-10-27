@@ -1414,9 +1414,15 @@ impl Checker {
         let mut template = decls.to_vec();
         let mut holes: Vec<ast::HoleExpr> = Vec::new();
         ast::collect_decl_template_holes(&mut template, &mut holes);
+        let name_holes = holes
+            .iter()
+            .enumerate()
+            .filter(|(_, h)| matches!(h, ast::HoleExpr::Name(_)))
+            .map(|(i, _)| i)
+            .collect();
         let (hole_cores, _) = self.elaborate_holes(env, &holes)?;
         Ok((
-            ECore::DeclsQuote { template, holes: hole_cores },
+            ECore::DeclsQuote { template, holes: hole_cores, name_holes },
             Ty::Adt("Declarations".into(), Vec::new()),
         ))
     }
@@ -1453,22 +1459,52 @@ impl Checker {
                 let (core, ty) = r?;
                 (core, ty, t.span())
             }
+            ast::HoleExpr::Name(t) => {
+                // A name-position splice (D46): its value names the
+                // generated declaration, so a `Name`, `Sym` or name
+                // quote reifies to a name at splice time.
+                let save = self.compile_time;
+                self.compile_time = true;
+                let r = self.infer(env, t);
+                self.compile_time = save;
+                let (core, ty) = r?;
+                let ty = self.uni.zonk(&ty);
+                match &ty {
+                    Ty::Adt(name, args) if (name == "Name" && args.is_empty()) => {}
+                    Ty::Sym => {}
+                    Ty::Adt(name, args) if name == "Syntax" && args.is_empty() => {}
+                    other => {
+                        return Err(Error::at(
+                            t.span(),
+                            format!(
+                                "a name splice must produce a `Name`, `Sym` or `Syntax`, but this one produces {other}"
+                            ),
+                        ))
+                    }
+                }
+                return Ok((core, ty));
+            }
             ast::HoleExpr::Macro { path, args, span } => {
                 let (core, ty) = self.macro_call_value(env, path, args, *span)?;
                 (core, ty, *span)
             }
         };
         let ty = self.uni.zonk(&ty);
-        match ty {
+        match &ty {
             Ty::Adt(name, args) if name == "Code" && args.len() == 1 => Ok((core, args[0].clone())),
             Ty::Adt(name, args) if name == "Syntax" && args.is_empty() => {
                 let fresh = self.uni.fresh();
                 Ok((core, fresh))
             }
+            // Splice-time reification (D233, extended by D46): a `Sym`
+            // reifies to a symbol constant and a `Name` to a reference
+            // to the named binding, both checked where the code lands.
+            Ty::Sym => Ok((core, ty)),
+            Ty::Adt(name, args) if name == "Name" && args.is_empty() => Ok((core, ty)),
             other => Err(Error::at(
                 span,
                 format!(
-                    "a splice or macro invocation in a template must produce `Code t` or `Syntax`, but this one produces {other}"
+                    "a splice or macro invocation in a template must produce `Code t`, `Syntax`, `Name` or `Sym`, but this one produces {other}"
                 ),
             )),
         }
@@ -1514,28 +1550,49 @@ impl Checker {
             }
             let _ = want;
         }
-        let (mut ty, ctx, val_args) = self.instantiate(&v.scheme);
+        let (ty, ctx, val_args) = self.instantiate(&v.scheme);
         if !ctx.is_empty() || !val_args.is_empty() {
             return Err(Error::at(
                 span,
                 "a macro cannot be polymorphic or constrained in this slice",
             ));
         }
+        // The invocation applies one argument per token-tree group: the
+        // result type is what remains after that many arrows. A `Name`
+        // parameter reifies its group's name lexeme at call time (the
+        // `sym-to-name` reification, D46).
         let mut arg_cores = Vec::new();
+        let mut rest = self.uni.zonk(&ty);
         for g in &groups {
+            let dom = match &rest {
+                Ty::Fun(d, _, _, b) => {
+                    let d = (**d).clone();
+                    rest = self.uni.zonk(b);
+                    d
+                }
+                Ty::Pi { dom, cod, .. } => {
+                    let d = (**dom).clone();
+                    rest = self.uni.zonk(cod);
+                    d
+                }
+                other => {
+                    rest = other.clone();
+                    Ty::Unit
+                }
+            };
+            if let Ty::Adt(n, args) = &dom {
+                if n == "Name" && args.is_empty() {
+                    let nm = name_of_group(&g.tokens, span)?;
+                    arg_cores.push(app_spine(
+                        ECore::Global(crate::core::StageOp::SymToName.global_id()),
+                        vec![ECore::ConstSym(nm)],
+                    ));
+                    continue;
+                }
+            }
             arg_cores.push(ECore::SyntaxLit(g.tokens.clone()));
         }
-        // The invocation applies one argument per token-tree group: the
-        // result type is what remains after that many arrows.
-        ty = self.uni.zonk(&ty);
-        for _ in &groups {
-            ty = self.uni.zonk(&ty);
-            ty = match ty {
-                Ty::Fun(_, _, _, b) => *b,
-                Ty::Pi { cod, .. } => *cod,
-                other => other,
-            };
-        }
+        let ty = rest;
         let id = GlobalId(format!("{}.{}", v.module, v.name));
         Ok((app_spine(ECore::Global(id), arg_cores), ty))
     }

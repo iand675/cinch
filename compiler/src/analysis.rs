@@ -1736,6 +1736,7 @@ pub fn render_value(ty: &Ty, v: &Value) -> String {
         Value::Unit => "()".to_string(),
         Value::Bytes(b) => format!("<bytes {}>", b.borrow().len()),
         Value::Sym(s) => format!("'{s}"),
+        Value::Name(s) => format!("'{s}"),
         Value::Str(s) => format!("{:?}", s),
         Value::Adt { ctor, fields, .. } => {
             let name = ctor.rsplit('.').next().unwrap_or(ctor).to_string();

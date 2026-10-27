@@ -1294,10 +1294,13 @@ pub enum Core {
         body: Option<Box<Core>>,
     },
     /// A `quoteDecls` template under construction (modules specification
-    /// section 8: generated declarations are checked under ordinary rules).
+    /// section 8: generated declarations are checked under ordinary
+    /// rules). `name_holes` marks the holes that fill declaration name
+    /// slots (D46 name splices).
     DeclsQuote {
         template: Vec<crate::ast::Decl>,
         holes: Vec<Core>,
+        name_holes: Vec<usize>,
     },
     /// A macro argument's raw token tree: a `Syntax` value.
     SyntaxLit(Vec<crate::lexer::Token>),
@@ -1358,6 +1361,11 @@ pub enum StageOp {
     StrAppend,
     /// `Stage.strLen s`.
     StrLen,
+    /// `name-to-sym nm`: reify a `Name` as the interned `Sym` of its
+    /// spelling (the `Name`/`Sym` correspondence, D123).
+    NameToSym,
+    /// `sym-to-name s`: reify a `Sym` as the `Name` of its spelling.
+    SymToName,
 }
 
 impl StageOp {
@@ -1384,6 +1392,8 @@ impl StageOp {
             "natStr" => NatStr,
             "strAppend" => StrAppend,
             "strLen" => StrLen,
+            "name-to-sym" => NameToSym,
+            "sym-to-name" => SymToName,
             _ => return None,
         })
     }
@@ -1411,6 +1421,8 @@ impl StageOp {
             NatStr => "natStr",
             StrAppend => "strAppend",
             StrLen => "strLen",
+            NameToSym => "name-to-sym",
+            SymToName => "sym-to-name",
         };
         GlobalId(format!("<builtin>.Stage.{n}"))
     }
@@ -1467,8 +1479,8 @@ pub struct SchemaColumn {
 /// A compile-time value (staging evaluation): the value domain of the
 /// interpreter that runs `stage` definitions, macros and `generate` blocks
 /// during compilation. Compile-time-only types (`Code`, `Syntax`,
-/// `Declarations`, `String`, `Secret`, capabilities) never reach target
-/// code.
+/// `Declarations`, `Name`, `String`, `Secret`, capabilities) never reach
+/// target code.
 #[derive(Clone, Debug)]
 pub enum Value {
     /// Machine scalar and `Char` words.
@@ -1485,6 +1497,10 @@ pub enum Value {
     /// cell (compile-time identity is name identity: the interpreter
     /// never exposes a cell address as data).
     Sym(String),
+    /// A reified name (the `Name` signature member): the spelling of a
+    /// declaration, value or type name as compile-time data (a name
+    /// quote, or the `sym-to-name` reification of a `Sym`).
+    Name(String),
     Bool(bool),
     Unit,
     /// Boxed ADT or record: tag plus runtime fields. `ctor` is the
@@ -3481,9 +3497,10 @@ fn renumber_core(e: &Core, nparams: usize) -> Core {
                 holes: holes.iter().map(rw).collect(),
                 body: body.as_ref().map(|b| Box::new(rw(b))),
             },
-            Core::DeclsQuote { template, holes } => Core::DeclsQuote {
+            Core::DeclsQuote { template, holes, name_holes } => Core::DeclsQuote {
                 template: template.clone(),
                 holes: holes.iter().map(rw).collect(),
+                name_holes: name_holes.clone(),
             },
         }
     }
@@ -3630,9 +3647,10 @@ fn instantiate(
                 holes: hs.iter().map(|h| go(h, holes, binds, ren, next)).collect(),
                 body: body.as_ref().map(|b| Box::new(go(b, holes, binds, ren, next))),
             },
-            Core::DeclsQuote { template, holes: hs } => Core::DeclsQuote {
+            Core::DeclsQuote { template, holes: hs, name_holes } => Core::DeclsQuote {
                 template: template.clone(),
                 holes: hs.iter().map(|h| go(h, holes, binds, ren, next)).collect(),
+                name_holes: name_holes.clone(),
             },
         }
     }

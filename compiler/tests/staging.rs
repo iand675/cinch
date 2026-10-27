@@ -128,6 +128,77 @@ fn macro_helper_resolves_at_definition_site() {
     assert_eq!(code, 101);
 }
 
+// ------------------------------------------------------- D46: `Name` members
+
+/// A name splice names the generated declaration: the macro's `Syntax`
+/// argument carries a tick name quote, and its `quoteDecls` name slot
+/// reifies it at splice time (D233's splice-time reification, extended
+/// by D46). The hygiene discipline is observable around it: the
+/// spliced name binds at the insertion site as written (`main` sees
+/// `result`), and the template's `let y` binder renames apart, so the
+/// spliced `y` keeps the caller's binding (no capture): 1 + 1000.
+#[test]
+fn name_splice_names_the_generated_declaration() {
+    let code = run(
+        "module Main where\n\
+         \x20 y :: Int\n\
+         \x20 y = 1000\n\
+         \x20 macro named :: Syntax -> Syntax -> Declarations\n\
+         \x20 macro named nm bump = quoteDecls where\n\
+         \x20   $(nm) :: Int\n\
+         \x20   $(nm) = let y = 1 in y + $(bump)\n\
+         \x20 generate do\n\
+         \x20   emit (named!('result, y))\n\
+         \x20 main :: Int\n\
+         \x20 main = if result == 1001 && y == 1000 then 0 else 1\n",
+    )
+    .expect("a name splice names the generated declaration");
+    assert_eq!(code, 0);
+}
+
+/// The `Name` signature member and the `Name`/`Sym` reification: a
+/// macro quotes a name (`'answer` at the call), takes and returns `Name`
+/// values through `name-to-sym`/`sym-to-name`, names its generated
+/// declarations with the round-tripped spelling, and a term-position
+/// name splice reifies to a reference to the named binding.
+#[test]
+fn macro_name_members_and_sym_reification_round_trip() {
+    let code = run(
+        "module Main where\n\
+         \x20 macro reName :: Name -> Name\n\
+         \x20 macro reName nm = sym-to-name (name-to-sym nm)\n\
+         \x20 macro roundTrip :: Name -> Declarations\n\
+         \x20 macro roundTrip nm = quoteDecls where\n\
+         \x20   $(reName!(answer)) :: Sym\n\
+         \x20   $(reName!(answer)) = $(name-to-sym nm)\n\
+         \x20   echo :: Sym\n\
+         \x20   echo = $(nm)\n\
+         \x20 generate do\n\
+         \x20   emit (roundTrip!('answer))\n\
+         \x20 main :: Int\n\
+         \x20 main = if answer == 'answer && echo == 'answer then 0 else 1\n",
+    )
+    .expect("Name members and the reification round trip compile and run");
+    assert_eq!(code, 0);
+}
+
+/// A name splice names a generated declaration: outside a `quoteDecls`
+/// template there is nothing to generate, so it is refused by name.
+#[test]
+fn name_splice_outside_a_template_is_refused() {
+    let err = run_err(
+        "module Main where\n\
+         \x20 $(x) :: Int\n\
+         \x20 $(x) = 1\n\
+         \x20 main :: Int\n\
+         \x20 main = 0\n",
+    );
+    assert!(
+        err.contains("only meaningful inside a `quoteDecls` template"),
+        "{err}"
+    );
+}
+
 // -------------------------------------------------------------- provenance
 
 /// Expansion provenance survives into error spans: a generated body that

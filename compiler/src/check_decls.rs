@@ -129,7 +129,7 @@ fn builtin_type_name(name: &str) -> bool {
     matches!(
         name,
         "Nat" | "Int" | "Bool" | "Unit" | "Bytes" | "Sym" | "Type" | "Prop"
-            | "Code" | "Syntax" | "Declarations" | "Secret"
+            | "Code" | "Syntax" | "Declarations" | "Name" | "Secret"
             | "IoCap" | "FileReadCap" | "FileWriteCap" | "ProcCap"
             | "Scope" | "Task"
             | "RawPtr" | "Borrowed" | "Retained" | "Owned" | "Out" | "MaybeNull"
@@ -1086,6 +1086,7 @@ impl Checker {
             ("Code", 1),
             ("Syntax", 0),
             ("Declarations", 0),
+            ("Name", 0),
             ("Secret", 0),
             ("IoCap", 0),
             ("FileReadCap", 0),
@@ -1266,6 +1267,21 @@ impl Checker {
                 EffRow::pure(),
                 adt("Code", vec![Ty::Bool]),
             ),
+        );
+        // The `Name`/`Sym` reification (D123's name-quote
+        // correspondence): a reified name and an interned symbol of the
+        // same spelling convert back and forth.
+        self.install_stage_value(
+            "name-to-sym",
+            StageOp::NameToSym,
+            Vec::new(),
+            Ty::fun_mult(adt("Name", Vec::new()), Mult::Many, EffRow::pure(), Ty::Sym),
+        );
+        self.install_stage_value(
+            "sym-to-name",
+            StageOp::SymToName,
+            Vec::new(),
+            Ty::fun_mult(Ty::Sym, Mult::Many, EffRow::pure(), adt("Name", Vec::new())),
         );
         self.install_stage_value(
             "strNat",
@@ -2139,6 +2155,12 @@ impl Checker {
                 }
             }
             match d {
+                ast::Decl::NameSpliced { name_tm, .. } => {
+                    return Err(Error::at(
+                        name_tm.span(),
+                        "a name splice (`$( e )`) names a generated declaration and is only meaningful inside a `quoteDecls` template",
+                    ));
+                }
                 ast::Decl::Import(i) => {
                     let parts = i.path.parts();
                     let name = parts.join(".");
@@ -2668,6 +2690,7 @@ impl Checker {
                                 | "Code"
                                 | "Syntax"
                                 | "Declarations"
+                                | "Name"
                                 | "Secret"
                                 | "IoCap"
                                 | "FileReadCap"
@@ -2986,6 +3009,7 @@ impl Checker {
                                 | "Code"
                                 | "Syntax"
                                 | "Declarations"
+                                | "Name"
                                 | "Secret"
                                 | "IoCap"
                                 | "FileReadCap"
@@ -16151,8 +16175,32 @@ impl Checker {
             }
         }
         let id = fn_id(&v.module, &v.name);
+        // Each parameter takes one token-tree group. A `Name` parameter
+        // (D46) reifies its group's name lexeme to a `Name` value at
+        // call time; every other parameter takes the group as `Syntax`.
+        let mut doms: Vec<Ty> = Vec::new();
+        let mut t = self.uni.zonk(&v.scheme.ty);
+        for _ in 0..groups.len() {
+            match t {
+                Ty::Fun(dom, _, _, cod) => {
+                    doms.push((*dom).clone());
+                    t = *cod;
+                }
+                Ty::Pi { dom, cod, .. } => {
+                    doms.push((*dom).clone());
+                    t = *cod;
+                }
+                _ => break,
+            }
+        }
         let mut vals = Vec::new();
-        for g in &groups {
+        for (i, g) in groups.iter().enumerate() {
+            if let Some(Ty::Adt(n, args)) = doms.get(i) {
+                if n == "Name" && args.is_empty() {
+                    vals.push(crate::core::Value::Name(name_of_group(&g.tokens, span)?));
+                    continue;
+                }
+            }
             vals.push(crate::core::Value::Syntax {
                 tokens: g.tokens.clone(),
                 origin: module.to_string(),
@@ -16178,11 +16226,12 @@ impl Checker {
             crate::core::Value::Code(_) => Ty::Adt("Code".into(), vec![self.uni.fresh()]),
             crate::core::Value::Decls(_) => Ty::Adt("Declarations".into(), Vec::new()),
             crate::core::Value::Syntax { .. } => Ty::Adt("Syntax".into(), Vec::new()),
+            crate::core::Value::Name(_) => Ty::Adt("Name".into(), Vec::new()),
             other => {
                 return Err(Error::at(
                     span,
                     format!(
-                        "a macro must produce `Code`, `Declarations` or `Syntax`, but `{}` produced {}",
+                        "a macro must produce `Code`, `Declarations`, `Syntax` or `Name`, but `{}` produced {}",
                         v.name,
                         value_kind_name(other)
                     ),
@@ -16190,6 +16239,98 @@ impl Checker {
             }
         };
         Ok((value, ty))
+    }
+}
+
+/// A `Name` argument's spelling: the group's single name lexeme, a tick
+/// name quote (`'foo`/`''T`) or a bare name (the Template Haskell
+/// name-quote correspondence, D123).
+pub(crate) fn name_of_group(tokens: &[crate::lexer::Token], span: ast::Span) -> Result<String> {
+    use crate::lexer::Tok;
+    let names: Vec<&str> = tokens
+        .iter()
+        .filter(|t| !t.virtual_)
+        .filter_map(|t| match &t.tok {
+            Tok::SymLit(s) | Tok::TypeNameLit(s) | Tok::VarId(s) | Tok::ConId(s) => Some(s.as_str()),
+            _ => None,
+        })
+        .collect();
+    let mut non_names = tokens
+        .iter()
+        .filter(|t| !t.virtual_)
+        .filter(|t| !matches!(t.tok, Tok::SymLit(_) | Tok::TypeNameLit(_) | Tok::VarId(_) | Tok::ConId(_)));
+    match (names.as_slice(), non_names.next()) {
+        ([name], None) => Ok((*name).to_string()),
+        _ => Err(Error::at(
+            span,
+            "a `Name` argument is a single name: a tick name quote (`'foo`) or a bare name",
+        )),
+    }
+}
+
+/// The spelling a reified name hole stands for (D46): the name term a
+/// `Name`/`Sym` value or name quote reifies to.
+fn name_of_term(t: &ast::Term) -> Result<String> {
+    match t {
+        ast::Term::Var(p) => Ok(p.name.text.clone()),
+        ast::Term::Con(p) => Ok(p
+            .segments
+            .last()
+            .map(|s| s.text.clone())
+            .unwrap_or_default()),
+        ast::Term::Sym(s, _) => Ok(s.clone()),
+        other => Err(Error::at(
+            other.span(),
+            "a name splice must name one declaration: a `Name`, `Sym` or name quote",
+        )),
+    }
+}
+
+/// The spelling a name hole's value stands for (D46).
+fn name_of_value(v: &crate::core::Value, span: ast::Span) -> Result<String> {
+    match v {
+        crate::core::Value::Name(s) | crate::core::Value::Sym(s) => Ok(s.clone()),
+        crate::core::Value::Syntax { tokens, .. } => name_of_group(tokens, span),
+        other => Err(Error::at(
+            span,
+            format!(
+                "a name splice must name one declaration, found {}",
+                value_kind_name(other)
+            ),
+        )),
+    }
+}
+
+/// Fill a template declaration's name splices (D46): each `$( e )` name
+/// slot takes the spelling its hole reified to. A post-substitution
+/// nested quotation carries its reified name term directly.
+fn splice_decl_names(d: &mut ast::Decl, terms: &[ast::Term]) -> Result<()> {
+    match d {
+        ast::Decl::Attributed { inner, .. } => splice_decl_names(inner, terms),
+        ast::Decl::NameSpliced { name_tm, inner } => {
+            let text = match &**name_tm {
+                ast::Term::SpliceHole { idx, .. } => match terms.get(*idx) {
+                    Some(t) => name_of_term(t)?,
+                    None => return Err(Error::plain("a name splice has no value")),
+                },
+                other => name_of_term(other)?,
+            };
+            let span = name_tm.span();
+            let mut decl = (**inner).clone();
+            match &mut decl {
+                ast::Decl::ValueSig { name, .. } => *name = ast::Name::new(text, span),
+                ast::Decl::Equation { eq, .. } => eq.name = ast::Name::new(text, span),
+                _ => {
+                    return Err(Error::at(
+                        span,
+                        "a name splice names a value declaration (`name :: ty` or an equation)",
+                    ))
+                }
+            }
+            *d = decl;
+            Ok(())
+        }
+        _ => Ok(()),
     }
 }
 
@@ -16212,6 +16353,7 @@ fn value_kind_name(v: &crate::core::Value) -> &'static str {
         Code(_) => "code",
         Decls(_) => "declarations",
         Syntax { .. } => "syntax",
+        Name(_) => "a name",
         Str(_) => "a `String`",
         Secret { .. } => "a secret",
         Db(_) => "a database introspection result",
@@ -17034,8 +17176,8 @@ impl Checker {
             Core::Quote { template, holes, .. } => {
                 self.construct_quote(cx, template, holes, frame)?
             }
-            Core::DeclsQuote { template, holes } => {
-                self.construct_decls(cx, template, holes, frame)?
+            Core::DeclsQuote { template, holes, name_holes } => {
+                self.construct_decls(cx, template, holes, name_holes, frame)?
             }
             Core::SyntaxLit(tokens) => Value::Syntax {
                 tokens: tokens.clone(),
@@ -17793,6 +17935,30 @@ impl Checker {
                 }
                 Ok(big_value(b, true))
             }
+            StageOp::NameToSym => {
+                let name = match &args[0] {
+                    Value::Name(n) => n.clone(),
+                    other => {
+                        return Err(Error::plain(format!(
+                            "`name-to-sym` takes a `Name`, found {}",
+                            value_kind_name(other)
+                        )))
+                    }
+                };
+                Ok(Value::Sym(name))
+            }
+            StageOp::SymToName => {
+                let s = match &args[0] {
+                    Value::Sym(n) => n.clone(),
+                    other => {
+                        return Err(Error::plain(format!(
+                            "`sym-to-name` takes a `Sym`, found {}",
+                            value_kind_name(other)
+                        )))
+                    }
+                };
+                Ok(Value::Name(s))
+            }
             StageOp::NatStr => {
                 let b = big_of(&args[0], "`Nat`")?;
                 Ok(Value::Str(b.to_dec()))
@@ -18279,7 +18445,7 @@ impl Checker {
         let renamed = self.hygienic_term(cx, template, &[])?;
         let mut out = renamed;
         self.stamp_generated(cx, &mut out);
-        let terms = self.hole_terms(cx, &vals)?;
+        let terms = self.hole_terms(cx, &vals, &[])?;
         let mut out = ast::subst_holes(&out, &terms);
         let module = cx.origin.clone();
         self.expand_macros_in_term(cx, &module, &mut out)?;
@@ -18293,12 +18459,21 @@ impl Checker {
         cx: &mut StageCx,
         template: &[ast::Decl],
         holes: &[crate::core::Core],
+        name_holes: &[usize],
         frame: &mut Vec<Value>,
     ) -> Result<Value> {
         let vals = self.eval_holes(cx, holes, frame)?;
+        let terms = self.hole_terms(cx, &vals, name_holes)?;
+        // Name splices resolve first (D46): a declaration's computed
+        // name lands before the template's own names are collected, so
+        // sibling references and hygiene see it like a written name.
+        let mut template: Vec<ast::Decl> = template.to_vec();
+        for d in &mut template {
+            splice_decl_names(d, &terms)?;
+        }
         let mut own_values = Vec::new();
         let mut own_types = Vec::new();
-        for d in template {
+        for d in &template {
             match d {
                 ast::Decl::ValueSig { name, .. } | ast::Decl::Equation { eq: ast::Equation { name, .. }, .. } => {
                     own_values.push(name.text.clone())
@@ -18315,7 +18490,7 @@ impl Checker {
             }
         }
         let mut decls = Vec::new();
-        for d in template {
+        for d in &template {
             let mut d = d.clone();
             self.hygienic_decl(cx, &mut d, &own_values, &own_types)?;
             decls.push(d);
@@ -18324,7 +18499,6 @@ impl Checker {
         for d in &mut decls {
             stamp_decl_spans(d, &site);
         }
-        let terms = self.hole_terms(cx, &vals)?;
         let mut decls: Vec<ast::Decl> =
             decls.iter().map(|d| ast::subst_holes_decl(d, &terms)).collect();
         let module = cx.origin.clone();
@@ -18347,10 +18521,25 @@ impl Checker {
         Ok(vals)
     }
 
-    /// The spliced syntax of each hole, parsed where it belongs.
-    fn hole_terms(&mut self, cx: &mut StageCx, vals: &[Value]) -> Result<Vec<ast::Term>> {
+    /// The spliced syntax of each hole, parsed where it belongs. A name
+    /// hole (D46) reifies to the name term its value stands for.
+    fn hole_terms(
+        &mut self,
+        cx: &mut StageCx,
+        vals: &[Value],
+        name_holes: &[usize],
+    ) -> Result<Vec<ast::Term>> {
         let mut terms = Vec::new();
-        for v in vals {
+        for (i, v) in vals.iter().enumerate() {
+            let span = cx.call.unwrap_or(ast::Span { line: 0, col: 0 });
+            if name_holes.contains(&i) {
+                let text = name_of_value(v, span)?;
+                terms.push(ast::Term::Var(ast::VarPath {
+                    quals: Vec::new(),
+                    name: ast::Name::new(text, span),
+                }));
+                continue;
+            }
             match v {
                 Value::Code(t) => terms.push(t.clone()),
                 Value::Syntax { tokens, origin } => {
@@ -18361,9 +18550,17 @@ impl Checker {
                         .unwrap_or_default();
                     terms.push(crate::parser::parse_term_tokens(tokens, &fix)?);
                 }
+                // Splice-time reification (D233, extended by D46): a
+                // `Sym` value becomes a symbol constant, a `Name` a
+                // reference to the named binding.
+                Value::Sym(s) => terms.push(ast::Term::Sym(s.clone(), span)),
+                Value::Name(n) => terms.push(ast::Term::Var(ast::VarPath {
+                    quals: Vec::new(),
+                    name: ast::Name::new(n.clone(), span),
+                })),
                 other => {
                     return Err(Error::plain(format!(
-                        "a template hole takes code or syntax, found {}",
+                        "a template hole takes code, syntax, a name or a symbol, found {}",
                         value_kind_name(other)
                     )))
                 }
@@ -18489,7 +18686,7 @@ fn stage_op_arity(op: StageOp) -> usize {
         WriteFile | Run => 3,
         WithDatabase => 4,
         Secret | Emit | StrNat | NatStr | StrLen | QuoteNat | QuoteInt | QuoteBool | Introspect
-        | CodecDerive => 1,
+        | CodecDerive | NameToSym | SymToName => 1,
         ReadSchema => 0,
     }
 }

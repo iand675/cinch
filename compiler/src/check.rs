@@ -108,10 +108,12 @@ enum ECore {
         body: Box<ECore>,
     },
     /// A `quoteDecls` template under construction (modules specification
-    /// section 8).
+    /// section 8). `name_holes` marks the holes that fill declaration
+    /// name slots (D46 name splices).
     DeclsQuote {
         template: Vec<crate::ast::Decl>,
         holes: Vec<ECore>,
+        name_holes: Vec<usize>,
     },
     /// A macro argument's raw token tree (`Syntax` values).
     SyntaxLit(Vec<crate::lexer::Token>),
@@ -466,9 +468,10 @@ fn rewrite_locals(e: &ECore, map: &HashMap<LocalId, LocalId>) -> ECore {
             holes: holes.iter().map(|h| rewrite_locals(h, map)).collect(),
             body: Box::new(rewrite_locals(body, map)),
         },
-        ECore::DeclsQuote { template, holes } => ECore::DeclsQuote {
+        ECore::DeclsQuote { template, holes, name_holes } => ECore::DeclsQuote {
             template: template.clone(),
             holes: holes.iter().map(|h| rewrite_locals(h, map)).collect(),
+            name_holes: name_holes.clone(),
         },
         ECore::DictProj(d, i) => ECore::DictProj(Box::new(rewrite_locals(d, map)), *i),
         ECore::Proj(d, i) => ECore::Proj(Box::new(rewrite_locals(d, map)), i.clone()),
@@ -801,9 +804,10 @@ fn lower(e: &ECore) -> crate::core::Core {
             holes: holes.iter().map(lower).collect(),
             body: Some(Box::new(lower(body))),
         },
-        ECore::DeclsQuote { template, holes } => crate::core::Core::DeclsQuote {
+        ECore::DeclsQuote { template, holes, name_holes } => crate::core::Core::DeclsQuote {
             template: template.clone(),
             holes: holes.iter().map(lower).collect(),
+            name_holes: name_holes.clone(),
         },
         ECore::SyntaxLit(toks) => crate::core::Core::SyntaxLit(toks.clone()),
         ECore::StrLit(s) => crate::core::Core::StrLit(s.clone()),
@@ -6255,12 +6259,13 @@ impl Checker {
                     .collect::<Result<Vec<_>>>()?,
                 body: Box::new(self.fill_holes(body, sol)?),
             },
-            ECore::DeclsQuote { template, holes } => ECore::DeclsQuote {
+            ECore::DeclsQuote { template, holes, name_holes } => ECore::DeclsQuote {
                 template: template.clone(),
                 holes: holes
                     .iter()
                     .map(|h| self.fill_holes(h, sol))
                     .collect::<Result<Vec<_>>>()?,
+                name_holes: name_holes.clone(),
             },
             ECore::DictProj(d, i) => {
                 ECore::DictProj(Box::new(self.fill_holes(d, sol)?), *i)
