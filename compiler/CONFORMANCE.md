@@ -630,6 +630,39 @@ correspondence: one lexeme in expression/pattern, staging `Name`, and
   hashed into `iface_hash` (pinned both ways), stated assumptions join
   `assumptions.declared`, and the manifest `temporal` section records
   each contract's verification result.
+- **D206-D212 (P18, reported)**: `prim name :: type where` with
+  per-family inline bodies (`family { fragment } [when cond] [justify
+  e] [uses ...] [immarg ...]`), fragments captured verbatim by the
+  lexer so fragment grammars never pass through the surface tokenizer;
+  `llvm` fragments splice into their implementation unit, `asm`
+  fragments are inline-asm templates (`$0` return, `$1...` args,
+  constraints `r`/`f`) carrying `llvm.sideeffect`, `wasm` is
+  registered but unemittable here, `clr`/`jvm` reject as reserved;
+  containment validation names its violations (signature discipline,
+  no-escape uses allowlist, no-unwind, determinism of effects,
+  grammar); `immarg` is a per-body clause emitted as `!immarg !N`
+  function metadata (LLVM admits the parameter attribute only on
+  intrinsics); per-family implementation units bridge the closure ABI
+  to the fragment's declared ABI; the prim ABI is machine-scalar
+  arguments/result with closed effect rows (a pure row forbids stores,
+  atomics, volatile, `uses` calls); capability selection orders `llvm`
+  then `asm`, compiles every applicable body so each family's contract
+  is observed, and is manifest-only (a source probe cannot observe the
+  choice; `tests/prim.rs` proves it under two profiles); justified
+  prims carry law identity in their contract and assumed prims carry
+  `prim:unit#<bodyhash>` (body edits stale dependents via
+  `iface_hash`); intrinsic-family lowering migrates onto prim bodies
+  with the namespaces staying reserved (D73); `law` members register
+  only under their `Signature.law` spelling (bare names stay out of
+  the value namespace), law equations use named total functions
+  (`Function.Combinators.compose` added), instances are checked
+  sample-wise by evaluating real method code through the staging
+  interpreter (scalars at bounds, `Bool` exhaustive, `Nat`/`Int`
+  small, data over constructor samples; closures/dictionaries/floats
+  and evaluation failures report `not checked`, never false failures),
+  law-breaking instances reject naming the law, and undischarged
+  citations record their identity in `assumptions.declared` with the
+  manifest `laws` rows reporting each instance's honest status.
 - **D127 (P25 scaffolding ruling)**: FoldAgent's defunctionalized
   class shapes (`Foldable t a`, `Traversable t x g h tg hs`) are
   accepted as NON-CURATED scaffolding: they ship in the `Category`
