@@ -239,9 +239,56 @@ law and bodies may vary per target without staling dependents.
 
 # 11 Implementation status
 
-Not implemented. The design note `design/inline-target-ir.md` is the
-implementation reference. The implementation rides roadmap phase P18,
-after P14 clears the code generator's ownership; the intrinsic
-families already lower to inline target instructions today (section 1),
-so the phase is the externalization and the multi-family machinery,
-not a new lowering strategy.
+Implemented (P18, `887d568`, `tests/prim.rs` 10/10 and `tests/laws.rs`
+4/4): `prim` declarations with per-family inline bodies (llvm/asm;
+wasm registered; clr/jvm reserved), verbatim fragment capture,
+containment validation naming its violation classes, capability-scoped
+selection recorded manifest-only, justify/assumed tiers with law and
+assumption identity (`prim:unit#<bodyhash>`), the intrinsic-family
+migration path, and class `law` declarations as citable justify axioms
+with sample-wise instance checking. The design note
+`design/inline-target-ir.md` remains the implementation reference.
+Section 12's effect-purity treatment and the `unsafe` keyword are the
+queued continuation (2026-10-27, user direction).
+
+# 12 Effect purity and unsafe
+
+A prim's effect row decides its treatment, exactly as for ordinary
+functions (2026-10-27, user direction):
+
+- A prim with an **empty effect row is proven pure by containment**:
+  its fragment carries no stores, atomics, volatile accesses, or
+  `uses` calls (section 4), so its calls do not invalidate evidence,
+  do not defeat `memory(none)`/`nofree` in the code-generation scan,
+  and may be `speculatable`.
+- A prim whose row carries `Io` or a write effect is effectful per its
+  row: its calls take part in evidence invalidation and the attribute
+  scan exactly like any function with that row.
+- **`unsafe`** marks a body whose behavior containment cannot verify
+  (`asm` templates, `uses` into opaque code). The declared row is
+  TRUSTED rather than verified, and the trust is recorded: the
+  `prim:unit#<bodyhash>` assumption identity (body edits stale
+  dependents through `iface_hash`) and the manifest trust rows. An
+  `unsafe` prim claiming purity is a visible assumption in
+  `assumptions.declared`, never an invisible claim; scan-gated
+  attributes (`willreturn`, `nofree`) remain gated on the body scan
+  (trust is recorded, the claim is not free).
+
+Nothing is silently trusted: a prim's behavior is either verified by
+containment or declared under `unsafe` and recorded as an assumption.
+
+# 13 Platform-gated bodies
+
+Body conditions gain platform predicates keyed on the target
+profile's triple: `when arch x86_64`, `when arch aarch64`,
+`when arch wasm32`, and other architecture names. The selection rules are
+unchanged: the matching conditional wins, an unconditional body is the
+baseline fallback, overlapping conditions in one family error, and a
+conditional-only prim whose conditions do not match rejects naming the
+missing platform. Selection remains manifest-only, with the platform
+recorded in the body row's reason. The canonical shape is a portable
+`llvm` baseline plus per-architecture `asm` bodies (for example
+`popcnt` on x86_64 versus `cnt` on aarch64). Architecture names come
+from the target profile's triple, the same target identity that keys
+cross-compilation widths. `os` and pointer-width predicates may follow
+if a consumer needs them.

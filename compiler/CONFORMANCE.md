@@ -663,6 +663,27 @@ correspondence: one lexeme in expression/pattern, staging `Name`, and
   law-breaking instances reject naming the law, and undischarged
   citations record their identity in `assumptions.declared` with the
   manifest `laws` rows reporting each instance's honest status.
+- **D213 (P18 effect purity and `unsafe`, user direction)**: a prim's
+  effect row decides its treatment: an empty row means proven pure by
+  containment (no evidence invalidation, no attribute-scan defeat,
+  possibly `speculatable`); `Io`/write rows mean effectful per the row.
+  `unsafe` marks bodies containment cannot verify (`asm` templates,
+  `uses` into opaque code): the declared row is trusted rather than
+  verified and the trust is recorded as an assumption with the
+  `prim:unit#<bodyhash>` identity and manifest trust rows (an unsafe
+  prim claiming purity is a visible assumption, never an invisible
+  claim; scan-gated attributes stay scan-gated). Implementation queued
+  behind the tooling slice; spec section 12.
+- **D214 (P18 platform-gated bodies, user direction)**: body
+  conditions gain `when arch <name>` predicates keyed on the target
+  profile's triple (x86_64, aarch64, wasm32, ...), with the selection
+  rules unchanged (matching conditional wins; unconditional body is
+  the baseline; overlapping conditions error; no-match rejects naming
+  the platform; manifest-only with the platform in the body row's
+  reason). The canonical shape is a portable `llvm` baseline plus
+  per-arch `asm` bodies (popcnt vs cnt). `os`/pointer-width predicates
+  deferred to a consumer. Spec section 13; folded into the running P18
+  continuation.
 - **D127 (P25 scaffolding ruling)**: FoldAgent's defunctionalized
   class shapes (`Foldable t a`, `Traversable t x g h tg hs`) are
   accepted as NON-CURATED scaffolding: they ship in the `Category`
