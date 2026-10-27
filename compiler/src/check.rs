@@ -2108,6 +2108,11 @@ struct Checker {
     /// condition holds where `X` is listed (platform proofs and SIMD
     /// specification section 3).
     target_caps: Vec<String>,
+    /// The target profile's arch (the target triple's first component):
+    /// a body's `when arch <name>` platform condition holds where the
+    /// names agree (primitive operations and inline target IR
+    /// specification section 13).
+    target_arch: String,
     /// Class law obligations collected per instance, checked sample-wise
     /// after every module's bodies (primitive operations and inline
     /// target IR specification section 5).
@@ -2413,6 +2418,7 @@ impl Checker {
             pending_prims: Vec::new(),
             prims: Vec::new(),
             target_caps: Vec::new(),
+            target_arch: String::new(),
             law_obligations: Vec::new(),
             law_rows: Vec::new(),
             pending_upgrades: Vec::new(),
@@ -2696,10 +2702,16 @@ impl Checker {
         }
         let resolved = self.uni.resolve_row(eff);
         for l in &resolved.labels {
-            if let Some(a) = &l.arg {
-                if write_effect_head(&l.head) {
-                    targets.push(Some(a.clone()));
-                }
+            if !write_effect_head(&l.head) {
+                continue;
+            }
+            match &l.arg {
+                // A write-capable label naming a region writes there; one
+                // naming none may write anything (the effect-row reading
+                // of "can write", evidence invalidation over mutable
+                // state).
+                Some(a) => targets.push(Some(a.clone())),
+                None => targets.push(None),
             }
         }
         if !matches!(resolved.tail, RowTail::Closed) {

@@ -369,3 +369,254 @@ module Main where
     assert!(m.contains("prim:Main.addB#"), "{m}");
     assert!(m.contains("\"family\": \"llvm\""), "{m}");
 }
+
+/// The text of one unit's function attribute group (empty when the unit
+/// carries no group).
+fn attrs_of(ir: &str, unit: &str) -> String {
+    let define = define_of(ir, unit);
+    let Some((_, tail)) = define.split_once(" #") else {
+        return String::new();
+    };
+    let n = tail
+        .split_whitespace()
+        .next()
+        .expect("an attribute group number");
+    let head = format!("attributes #{n} = {{ ");
+    ir.lines()
+        .find_map(|l| l.strip_prefix(&head).and_then(|r| r.strip_suffix(" }")))
+        .unwrap_or_else(|| panic!("{unit}: attribute group #{n} missing in {ir}"))
+        .to_string()
+}
+
+/// One checked source's manifest under an explicit profile.
+fn manifest_profile(name: &str, src: &str, profile: &TargetProfile) -> String {
+    manifest_of(name, src, profile)
+}
+
+// ---------------------------------- section 12: effect rows and unsafe
+
+#[test]
+fn pure_prim_calls_leave_evidence_intact_and_carry_memory_none() {
+    // A prim with an empty effect row is proven pure by containment:
+    // its calls leave mutable-location evidence intact, and a caller
+    // through it keeps `memory(none)`.
+    let src = r#"
+module Main where
+  prim bump :: U32 -> U32 where
+    llvm {
+      %s = add i32 %0, 1
+      ret i32 %s
+    }
+
+  caller :: U32 -> U32
+  caller x = bump x
+
+  prog :: forall region. Mut region Nat -> Option (Fin 5)
+  prog m =
+    case decide (copyOut m < 5) of
+      Yes bound ->
+        let u = caller 7 in
+        Some (Fin (copyOut m) bound)
+      No _ -> None
+
+  main :: Int
+  main = 0
+"#;
+    check_sources(src, "pure-prim-evidence").expect("a pure prim call leaves evidence intact");
+    let ir = ir_of("pure-prim-evidence", src);
+    assert!(attrs_of(&ir, "Main.caller").contains("memory(none)"), "{ir}");
+}
+
+#[test]
+fn effectful_prim_calls_invalidate_per_row() {
+    // A prim whose row carries `Io` is effectful per its row, exactly
+    // like any function with that row: its call invalidates
+    // mutable-location evidence.
+    expect_err(
+        "io-prim",
+        r#"
+module Main where
+  prim churn :: I64 ->{IO} I64 where
+    llvm {
+      ret i64 %0
+    }
+
+  prog :: forall region. Mut region Nat ->{IO} Option (Fin 5)
+  prog m =
+    case decide (copyOut m < 5) of
+      Yes bound ->
+        let u = churn 7 in
+        Some (Fin (copyOut m) bound)
+      No _ -> None
+
+  main :: Int
+  main = 0
+"#,
+        "stale evidence",
+    );
+}
+
+#[test]
+fn unsafe_pure_prim_records_its_assumption_and_stays_scan_gated() {
+    // An `unsafe` body's declared row is trusted, not verified: the
+    // trust is a visible assumption (the per-body identity), and the
+    // scan-gated attributes stay gated (trust is recorded, the claim is
+    // not free).
+    let src = r#"
+module Main where
+  prim tick :: U32 -> U32 where
+    unsafe asm {
+      nop
+    }
+
+  main :: Int
+  main = 0
+"#;
+    let m = manifest_of("unsafe-trust", src, &TargetProfile::native());
+    assert!(m.contains("\"trust\": [") && m.contains("trusted not verified"), "{m}");
+    assert!(m.contains("prim:Main.tick#"), "{m}");
+    let i = m
+        .find("\"declared\": [")
+        .unwrap_or_else(|| panic!("declared assumptions: {m}"));
+    let declared = &m[i..m[i..].find(']').map(|j| i + j).unwrap_or(m.len())];
+    assert!(declared.contains("prim:Main.tick#"), "{declared}");
+    let ir = ir_of("unsafe-trust", src);
+    let attrs = attrs_of(&ir, "Main.tick.asm");
+    assert!(!attrs.contains("willreturn") && !attrs.contains("nofree"), "{attrs}");
+}
+
+#[test]
+fn containment_rejects_a_pure_row_with_stores_even_unsafe() {
+    // Visible effects are rejected even under `unsafe`: trust covers
+    // only what containment cannot see.
+    expect_err(
+        "unsafe-stores",
+        r#"
+module Main where
+  prim writes :: U32 -> U32 where
+    unsafe llvm {
+      store i32 %0, ptr %1
+      ret i32 %0
+    }
+
+  main :: Int
+  main = 0
+"#,
+        "determinism of effects",
+    );
+}
+
+#[test]
+fn unverifiable_bodies_without_unsafe_are_rejected() {
+    // Nothing is silently trusted: an `asm` template declares its row
+    // under `unsafe` or it does not compile.
+    expect_err(
+        "asm-trust-required",
+        r#"
+module Main where
+  prim silent :: U32 -> U32 where
+    asm {
+      nop
+    }
+
+  main :: Int
+  main = 0
+"#,
+        "mark it `unsafe`",
+    );
+}
+
+// --------------------------------------- section 13: platform gating
+
+#[test]
+fn platform_gated_asm_bodies_select_per_arch() {
+    // The canonical shape: a portable `llvm` baseline beside per-arch
+    // `asm` bodies. Selection is manifest-only with the platform in the
+    // body row's reason; a source probe cannot observe the choice.
+    let src = r#"
+module Main where
+  prim pop :: U32 -> U32 where
+    unsafe asm {
+      popcnt
+    } when arch x86_64
+    unsafe asm {
+      cnt
+    } when arch aarch64
+    llvm {
+      ret i32 %0
+    }
+
+  main :: Int
+  main =
+    if pop 3 == 0 then 0 else 0
+"#;
+    let mut x86 = TargetProfile::native();
+    x86.triple = "x86_64-unknown-linux-gnu".to_string();
+    let mut arm = TargetProfile::native();
+    arm.triple = "aarch64-unknown-linux-gnu".to_string();
+    let mut other = TargetProfile::native();
+    other.triple = "riscv64-unknown-linux-gnu".to_string();
+
+    // x86_64: the matching `asm` body wins, and the manifest names the
+    // platform.
+    let mx = manifest_profile("pop-x86", src, &x86);
+    assert!(mx.contains("arch x86_64"), "{mx}");
+    assert!(mx.contains("condition holds in the target profile"), "{mx}");
+    let irx = {
+        let p = check_sources_profile(src, "pop-x86", &x86).expect("x86 checks");
+        safelang::codegen::emit(&p).expect("emit")
+    };
+    assert!(body_of(&irx, "Main.pop.asm").contains("popcnt"), "{irx}");
+    assert!(!irx.contains("cnt\\0A") && !body_of(&irx, "Main.pop.asm").contains(" cnt"), "{irx}");
+
+    // aarch64: the other conditional wins.
+    let ma = manifest_profile("pop-arm", src, &arm);
+    assert!(ma.contains("arch aarch64"), "{ma}");
+    let ira = {
+        let p = check_sources_profile(src, "pop-arm", &arm).expect("arm checks");
+        safelang::codegen::emit(&p).expect("emit")
+    };
+    assert!(body_of(&ira, "Main.pop.asm").contains("cnt"), "{ira}");
+    assert!(!body_of(&ira, "Main.pop.asm").contains("popcnt"), "{ira}");
+
+    // A third platform: no condition matches, so the portable `llvm`
+    // baseline is the fallback and no `asm` unit is emitted.
+    let mo = manifest_profile("pop-other", src, &other);
+    assert!(mo.contains("baseline"), "{mo}");
+    assert!(!mo.contains("arch x86_64\\\""), "{mo}");
+    let iro = {
+        let p = check_sources_profile(src, "pop-other", &other).expect("other checks");
+        safelang::codegen::emit(&p).expect("emit")
+    };
+    assert!(body_of(&iro, "Main.pop.llvm").contains("ret i32"), "{iro}");
+    assert!(!iro.contains("Main.pop.asm"), "{iro}");
+
+    // Selection is representation: the contract projection carries no
+    // platform, and the program's behavior does not depend on the body
+    // chosen.
+    let dir = write_project("pop-iface", src);
+    driver_with_profile(Mode::Check, StageMode::Refresh, &dir.join("Main.lang"), None, &x86)
+        .expect("check run");
+    let iface = std::fs::read_to_string(dir.join("build/Main.sliface")).expect("interface");
+    assert!(!iface.contains("x86_64") && !iface.contains("arch "), "{iface}");
+}
+
+#[test]
+fn conditional_only_prims_reject_naming_the_missing_platform() {
+    // The reject-or-select rule (section 13): a conditional-only prim
+    // whose conditions do not match rejects, naming the platform.
+    expect_err(
+        "pop-missing",
+        r#"
+module Main where
+  prim pop :: U32 -> U32 where
+    unsafe asm {
+      popcnt
+    } when arch x86_64
+
+  main :: Int
+  main = 0
+"#,
+        "arch x86_64",
+    );
+}

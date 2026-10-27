@@ -727,6 +727,12 @@ pub struct PrimBody {
     pub uses: Vec<PrimUse>,
     /// `immarg ...`: immediate parameter indices with their spans.
     pub immarg: Vec<(u64, Span)>,
+    /// `unsafe`: containment cannot verify this body's effects (an asm
+    /// template, a body calling through `uses` into opaque code), so its
+    /// declared effect row is trusted, not verified, and the trust is
+    /// recorded as an assumption (primitive operations and inline
+    /// target IR specification section 4).
+    pub unverified: bool,
     pub span: Span,
 }
 

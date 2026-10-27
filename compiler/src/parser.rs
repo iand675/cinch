@@ -424,7 +424,11 @@ impl<'a> Parser<'a> {
                 Err(self.err("type aliases are not supported in the bootstrap slice (`opaque type T :: Type` declares an abstract foreign resource)"))
             }
             Tok::Rewrite => self.parse_rewrite(false),
-            Tok::Prim => self.parse_prim(),
+            Tok::Prim => self.parse_prim(false),
+            Tok::VarId(s) if s == "unsafe" && matches!(self.peek_tok_at(1), Some(Tok::Prim)) => {
+                self.bump();
+                self.parse_prim(true)
+            }
             Tok::Target => {
                 self.bump();
                 self.parse_rewrite(true)
@@ -534,14 +538,24 @@ impl<'a> Parser<'a> {
     /// `Fragment` token between real braces); the clause keywords are
     /// contextual except `justify`, a reserved word like the rewrite
     /// clause's.
-    fn parse_prim(&mut self) -> Result<Decl> {
+    fn parse_prim(&mut self, all_unsafe: bool) -> Result<Decl> {
         let span = self.expect(&Tok::Prim, "`prim`")?.span;
         let name = self.parse_value_name()?;
         self.expect(&Tok::ColonColon, "`::` after the prim's name")?;
         let ty = self.parse_type()?;
         self.expect(&Tok::Where, "`where` opening the prim's target-IR bodies")?;
-        let bodies =
+        let mut bodies =
             self.parse_block_items("the prim's target-IR bodies", |p| p.parse_prim_body())?;
+        // `unsafe prim ...` marks every body (the per-body `unsafe`
+        // spelling marks one): containment cannot verify a body so
+        // marked, and its declared row is trusted, not verified
+        // (primitive operations and inline target IR specification
+        // section 4).
+        if all_unsafe {
+            for b in &mut bodies {
+                b.unverified = true;
+            }
+        }
         if bodies.is_empty() {
             return Err(Error::at(
                 span,
@@ -555,6 +569,13 @@ impl<'a> Parser<'a> {
     /// clauses in any order, each at most once.
     fn parse_prim_body(&mut self) -> Result<PrimBody> {
         let span = self.peek().span;
+        let unverified = match self.peek_tok() {
+            Tok::VarId(s) if s == "unsafe" => {
+                self.bump();
+                true
+            }
+            _ => false,
+        };
         let family = match self.peek_tok().clone() {
             Tok::VarId(s) => {
                 self.bump();
@@ -669,6 +690,7 @@ impl<'a> Parser<'a> {
             justify,
             uses,
             immarg,
+            unverified,
             span,
         })
     }

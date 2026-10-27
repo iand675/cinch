@@ -6013,13 +6013,14 @@ impl Checker {
             let (arg_tys, res_ty) = self.check_prim_envelope(&p, &s.ty)?;
             let pure = !prim_effectful(&s.ty);
             let mut bodies: Vec<crate::core::PrimBodyPlan> = Vec::new();
+            let mut conds: Vec<Option<WhenCond>> = Vec::new();
             let mut laws: Vec<String> = Vec::new();
             let mut all_justified = true;
             for b in &p.bodies {
                 let (validation, uses) =
                     self.validate_prim_body(&module, &p, b, &arg_tys, &res_ty, pure)?;
-                let when = match &b.when {
-                    Some(w) => Some(self.lower_available(w)?),
+                let cond = match &b.when {
+                    Some(w) => Some(self.lower_when(w)?),
                     None => None,
                 };
                 let assumptions = match &b.justify {
@@ -6034,13 +6035,38 @@ impl Checker {
                         laws.push(a.clone());
                     }
                 }
+                // The `unsafe` trust (section 4): a body containment
+                // cannot verify has its declared row trusted, not
+                // verified, and the trust is a recorded assumption with
+                // a per-body identity (body edits stale dependents).
+                let trusted = b.unverified;
+                let trust_id = if trusted {
+                    format!(
+                        "prim:{unit}#{}",
+                        crate::interface::content_hash(&format!(
+                            "{}\n{}\n{}\n{:?}\n{:?}",
+                            b.family.text,
+                            cond.as_ref().map(|c| c.render()).unwrap_or_default(),
+                            b.fragment,
+                            b.uses.iter().map(|u| u.name.text.clone()).collect::<Vec<_>>(),
+                            b.immarg.iter().map(|(n, _)| *n).collect::<Vec<_>>()
+                        ))
+                    )
+                } else {
+                    String::new()
+                };
+                conds.push(cond);
                 bodies.push(crate::core::PrimBodyPlan {
                     family: b.family.text.clone(),
                     fragment: b.fragment.clone(),
-                    when,
+                    when: b.when.as_ref().map(|_| {
+                        conds.last().unwrap().as_ref().unwrap().render()
+                    }),
                     immarg: b.immarg.iter().map(|(n, _)| *n).collect(),
                     uses,
                     assumptions,
+                    trusted,
+                    trust_id,
                     validation,
                 });
             }
@@ -6051,8 +6077,18 @@ impl Checker {
             // `when`) is the fallback. Two bodies with overlapping
             // conditions in one family are the first-match ambiguity and
             // an error. Selection is fixed at compile time per artifact.
-            let mut selected: Option<(usize, String)> = None;
+            // Selection (section 6, with section 13's platform
+            // predicates): a body applies when its `when` condition holds
+            // in the target profile (capability evidence or the target
+            // triple's arch) and its family lowers through this build's
+            // emission path. A matching conditional body is the specific
+            // one and wins; the baseline (no `when`) is the fallback when
+            // no condition matches (the canonical portable baseline
+            // beside specific bodies). Two bodies with overlapping
+            // conditions in one family are the first-match ambiguity and
+            // an error. Selection is fixed at compile time per artifact.
             let mut family_units: Vec<(String, usize)> = Vec::new();
+            let mut picks: Vec<(&str, Option<usize>, Option<usize>)> = Vec::new();
             for fam in ["llvm", "asm"] {
                 let mut matched: Vec<usize> = Vec::new();
                 let mut baseline: Option<usize> = None;
@@ -6060,8 +6096,10 @@ impl Checker {
                     if bd.family != fam {
                         continue;
                     }
-                    match &bd.when {
-                        Some(cap) if self.target_caps.contains(cap) => matched.push(i),
+                    match &conds[i] {
+                        Some(c) if c.holds(&self.target_caps, &self.target_arch) => {
+                            matched.push(i)
+                        }
                         None => {
                             if baseline.is_some() {
                                 return Err(Error::at(
@@ -6085,35 +6123,45 @@ impl Checker {
                         ),
                     ));
                 }
-                let pick = match (matched.first(), baseline) {
-                    (Some(i), _) => Some((
-                        *i,
-                        format!("the `{fam}` body's `when Available {}` condition holds in the target profile", bodies[*i].when.as_deref().unwrap_or("")),
-                    )),
-                    (None, Some(i)) => Some((
-                        i,
-                        format!("the baseline `{fam}` body (the fallback when no `when` condition matches)"),
-                    )),
-                    (None, None) => None,
-                };
-                if let Some((i, why)) = pick {
+                let m = matched.first().copied();
+                if let Some(i) = m.or(baseline) {
                     family_units.push((fam.to_string(), i));
-                    if selected.is_none() {
-                        selected = Some((i, why));
+                }
+                picks.push((fam, m, baseline));
+            }
+            let mut selected: Option<(usize, String)> = None;
+            for (fam, m, _) in &picks {
+                if let Some(i) = m {
+                    let render = conds[*i].as_ref().map(|c| c.render()).unwrap_or_default();
+                    selected = Some((
+                        *i,
+                        format!("the `{fam}` body's `when {render}` condition holds in the target profile"),
+                    ));
+                    break;
+                }
+            }
+            if selected.is_none() {
+                for (fam, _, baseline) in &picks {
+                    if let Some(i) = baseline {
+                        selected = Some((
+                            *i,
+                            format!("the baseline `{fam}` body (the fallback when no `when` condition matches)"),
+                        ));
+                        break;
                     }
                 }
             }
             let (selected, selected_why) = match selected {
                 Some(x) => x,
                 None => {
-                    let conds: Vec<&str> =
-                        bodies.iter().filter_map(|b| b.when.as_deref()).collect();
-                    if !conds.is_empty() {
+                    let names: Vec<String> =
+                        conds.iter().flatten().map(|c| c.render()).collect();
+                    if !names.is_empty() {
                         return Err(Error::at(
                             p.span,
                             format!(
-                                "no body applies: the `when` conditions name the capability/capabilities {} which the target profile does not provide (primitive operations and inline target IR specification section 6: reject the missing capability)",
-                                conds.join(", ")
+                                "no body applies: the `when` conditions name the capability/platform {} which the target profile does not provide (primitive operations and inline target IR specification sections 6 and 13: reject the missing capability or platform)",
+                                names.join(", ")
                             ),
                         ));
                     }
@@ -7660,10 +7708,33 @@ impl Checker {
         // evidence (`Available X`), scoped exactly like `target
         // rewrite`'s `require` (decision D59's rule).
         if let Some(w) = &b.when {
-            self.lower_available(w)?;
+            self.lower_when(w)?;
+        }
+        // The `unsafe` trust rule (section 12): a body containment
+        // cannot verify (an `asm` template, a `wasm` fragment, calls
+        // through `uses` into opaque code) declares its row under
+        // `unsafe`, and the trust is recorded; nothing is silently
+        // trusted.
+        if matches!(family, "asm" | "wasm") && !b.unverified {
+            return Err(Error::at(
+                b.span,
+                format!(
+                    "containment cannot verify a `{family}` body's effects (primitive operations and inline target IR specification section 12): mark it `unsafe` to trust its declared effect row, and the trust is recorded as an assumption"
+                ),
+            ));
         }
         let validation = match family {
-            "llvm" => self.contain_llvm(p, b, arg_tys, res_ty, &use_names, pure)?,
+            "llvm" => {
+                let (v, opaque_calls) =
+                    self.contain_llvm(p, b, arg_tys, res_ty, &use_names, pure)?;
+                if opaque_calls && !b.unverified {
+                    return Err(Error::at(
+                        b.span,
+                        "containment cannot verify the effects of a call through `uses` into opaque code (primitive operations and inline target IR specification section 12): mark the body `unsafe` to trust its declared effect row, and the trust is recorded as an assumption",
+                    ));
+                }
+                v
+            }
             "asm" => self.contain_asm(b, &use_names)?,
             _ => {
                 "wasm fragment accepted structurally; this build has no wasm body emitter (specification section 3: a `wasm` body is selected only for a wasm artifact)"
@@ -7674,13 +7745,14 @@ impl Checker {
     }
 
     /// A body's `when` condition (primitive operations and inline target
-    /// IR specification section 2): `Available X` over a capability name
-    /// of the platform chapter's evidence. Returns the capability name.
-    fn lower_available(&self, t: &ast::Term) -> Result<String> {
+    /// IR specification sections 2 and 13): `Available X` over a
+    /// capability name of the platform chapter's evidence, or the
+    /// platform predicate `arch <name>` keyed on the target triple.
+    fn lower_when(&self, t: &ast::Term) -> Result<WhenCond> {
         let bad = |span: ast::Span| {
             Error::at(
                 span,
-                "a `when` condition is `Available <capability>` over the target profile's capability evidence (primitive operations and inline target IR specification section 2; platform proofs and SIMD specification section 3)",
+                "a `when` condition is `Available <capability>` over the target profile's capability evidence, or the platform predicate `arch <name>` over its triple (primitive operations and inline target IR specification sections 2 and 13; platform proofs and SIMD specification section 3)",
             )
         };
         let (head, arg, span) = match t {
@@ -7695,23 +7767,26 @@ impl Checker {
             ast::Term::Con(p) => p.parts().last().copied().unwrap_or("").to_string(),
             other => return Err(bad(other.span())),
         };
-        if head_last != "Available" {
-            return Err(bad(span));
-        }
-        let cap = match arg {
+        let name = match arg {
             ast::Term::Var(p) if p.quals.is_empty() => p.name.text.clone(),
             ast::Term::Con(p) => p.parts().join("."),
             other => return Err(bad(other.span())),
         };
-        if !self.sigs.contains_key(&cap) {
-            return Err(Error::at(
-                span,
-                format!(
-                    "unknown capability `{cap}`: a `when` condition names a `signature` of the target profile's capability evidence (platform proofs and SIMD specification section 3)"
-                ),
-            ));
+        match head_last.as_str() {
+            "Available" => {
+                if !self.sigs.contains_key(&name) {
+                    return Err(Error::at(
+                        span,
+                        format!(
+                            "unknown capability `{name}`: a `when` condition names a `signature` of the target profile's capability evidence (platform proofs and SIMD specification section 3)"
+                        ),
+                    ));
+                }
+                Ok(WhenCond::Capability(name))
+            }
+            "arch" => Ok(WhenCond::Arch(name)),
+            _ => Err(bad(span)),
         }
-        Ok(cap)
     }
 
     /// Containment validation of an `llvm` fragment (primitive
@@ -7729,7 +7804,8 @@ impl Checker {
         res_ty: &Ty,
         uses: &[String],
         pure: bool,
-    ) -> Result<String> {
+    ) -> Result<(String, bool)> {
+        let mut opaque_calls = false;
         let frag = b.fragment.trim();
         if frag.is_empty() {
             return Err(Error::at(
@@ -7852,11 +7928,12 @@ impl Checker {
                     continue;
                 }
                 if uses.iter().any(|u| u == &sym) {
-                    if pure && is_call {
-                        return Err(err(
-                            "a call the declared pure effect row does not account for",
-                            "determinism of effects",
-                        ));
+                    // A call through `uses` into opaque code: its
+                    // effects are outside containment's reach, so the
+                    // body's row is declared under `unsafe` and trusted
+                    // (section 12). Visible effects are rejected below.
+                    if is_call {
+                        opaque_calls = true;
                     }
                     continue;
                 }
@@ -7880,14 +7957,16 @@ impl Checker {
                         .to_string(),
                 ));
             }
-            if is_call && line.contains(" asm ") && pure && stmt.contains("sideeffect") {
-                return Err(at(
-                    "containment (determinism of effects): `asm sideeffect` is an effect the declared pure effect row does not account for (specification section 4)"
-                        .to_string(),
-                ));
+            if is_call && line.contains(" asm ") {
+                // An inline-asm call is opaque code (section 12).
+                opaque_calls = true;
             }
         }
-        Ok("containment validated: signature discipline, no-escape, no-unwind, declared effects, llvm grammar (clang assembles the fragment at emission)".to_string())
+        Ok((
+            "containment validated: signature discipline, no-escape, no-unwind, declared effects, llvm grammar (clang assembles the fragment at emission)"
+                .to_string(),
+            opaque_calls,
+        ))
     }
 
     /// Containment validation of an `asm` fragment (primitive operations
@@ -13481,6 +13560,14 @@ impl Checker {
                     iface.assumptions.primitives.push(p.identity.clone());
                 }
             }
+            // The `unsafe` trust (section 12): a trusted body's declared
+            // row is a recorded assumption with a per-body identity, so
+            // body edits stale dependents through `iface_hash`.
+            for b in &p.bodies {
+                if b.trusted {
+                    iface.assumptions.declared.push(b.trust_id.clone());
+                }
+            }
         }
         for i in &self.instance_list {
             if i.module != module {
@@ -13704,6 +13791,12 @@ fn check_program_multi_full_impl(
         }
         caps
     };
+    c.target_arch = profile
+        .triple
+        .split('-')
+        .next()
+        .unwrap_or_default()
+        .to_string();
     // P20: the `jpl` target profile makes the safety assertion set
     // mandatory for the user's program (decision D114); the prelude
     // family is the standard library, not flight code.
@@ -17754,6 +17847,33 @@ const IO_SYMS: &[&str] = &[
     "printf", "fprintf", "sprintf", "snprintf", "puts", "putchar", "fwrite", "fread", "write",
     "read", "open", "close", "exit", "abort", "_exit", "perror", "scanf", "fscanf", "sscanf",
 ];
+
+/// A `prim` body's `when` condition (primitive operations and inline
+/// target IR specification sections 2 and 13): the platform chapter's
+/// capability evidence (`Available X`), or a platform predicate keyed on
+/// the target profile's triple (`arch <name>`).
+enum WhenCond {
+    Capability(String),
+    Arch(String),
+}
+
+impl WhenCond {
+    fn render(&self) -> String {
+        match self {
+            WhenCond::Capability(c) => format!("Available {c}"),
+            WhenCond::Arch(a) => format!("arch {a}"),
+        }
+    }
+
+    /// Does the condition hold in the target profile (its capability
+    /// evidence and its arch)?
+    fn holds(&self, caps: &[String], arch: &str) -> bool {
+        match self {
+            WhenCond::Capability(c) => caps.iter().any(|x| x == c),
+            WhenCond::Arch(a) => a == arch,
+        }
+    }
+}
 
 /// Is this type a prim ABI scalar (the declared ABI's widths)?
 fn is_prim_abi_ty(ty: &Ty) -> bool {

@@ -3,7 +3,9 @@
 -- `asm` body, each carrying an immediate parameter (`immarg`). The
 -- `asm` fragment is an inline-asm template (`$0` is the return operand,
 -- `$1 ...` the arguments) and is emitted as `llvm.sideeffect` inline
--- asm; the `llvm` fragment is the function body verbatim.
+-- asm; the `llvm` fragment is the function body verbatim. An `asm`
+-- template is opaque code (section 12): it declares its row under
+-- `unsafe`, and the trust is recorded as an assumption.
 module Main where
 
   prim add2 :: U32 -> U32 -> U32 where
@@ -11,7 +13,7 @@ module Main where
       %s = add i32 %0, %1
       ret i32 %s
     } immarg 1
-    asm {
+    unsafe asm {
       nop
     } immarg 1
 

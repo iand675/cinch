@@ -573,8 +573,23 @@ fn write_artifacts(
             .iter()
             .map(|b| format!("{}: {}", b.family, b.validation))
             .collect();
+        // The manifest trust rows (primitive operations and inline
+        // target IR specification section 12): each `unsafe` body's
+        // declared row is trusted, not verified, with its per-body
+        // assumption identity.
+        let trust: Vec<String> = p
+            .bodies
+            .iter()
+            .filter(|b| b.trusted)
+            .map(|b| {
+                format!(
+                    "{}: declared under `unsafe`, trusted not verified ({})",
+                    b.family, b.trust_id
+                )
+            })
+            .collect();
         text.push_str(&format!(
-            "    {{\"name\": \"{}\", \"module\": \"{}\", \"tier\": \"{}\", \"family\": \"{}\", \"condition\": {}, \"why\": \"{}\", \"uses\": {:?}, \"immarg\": {:?}, \"validation\": {:?}, \"identity\": \"{}\"}}",
+            "    {{\"name\": \"{}\", \"module\": \"{}\", \"tier\": \"{}\", \"family\": \"{}\", \"condition\": {}, \"why\": \"{}\", \"uses\": {:?}, \"immarg\": {:?}, \"validation\": {:?}, \"trust\": {:?}, \"identity\": \"{}\"}}",
             p.name,
             p.module,
             match p.tier {
@@ -583,13 +598,14 @@ fn write_artifacts(
             },
             body.family,
             match &body.when {
-                Some(c) => format!("\"Available {c}\""),
+                Some(c) => format!("\"{c}\""),
                 None => "null".to_string(),
             },
             p.selected_why,
             uses,
             body.immarg,
             validations,
+            trust,
             p.identity
         ));
         text.push_str(if i + 1 < program.prims.len() { ",\n" } else { "\n" });

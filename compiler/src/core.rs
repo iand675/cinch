@@ -2314,6 +2314,14 @@ pub struct PrimBodyPlan {
     /// Justification identities this body cites (the tier is per-`prim`:
     /// the weakest body governs).
     pub assumptions: Vec<String>,
+    /// The body is marked `unsafe`: containment cannot verify its
+    /// effects, so its declared row is trusted, not verified, and the
+    /// trust is recorded as an assumption with this per-body identity
+    /// (primitive operations and inline target IR specification
+    /// section 4).
+    pub trusted: bool,
+    /// The per-body trust identity (`prim:unit#bodyhash`) when trusted.
+    pub trust_id: String,
     /// The containment validation result (specification section 4).
     pub validation: String,
 }
@@ -2866,6 +2874,11 @@ impl ArtifactProfile {
 #[derive(Clone, Debug)]
 pub struct TargetProfile {
     pub name: String,
+    /// The target triple (the identity cross-compilation keys on; the
+    /// `when arch <name>` platform predicates match its arch component,
+    /// primitive operations and inline target IR specification
+    /// section 13).
+    pub triple: String,
     /// Pointer and word width in bits (`Usize`/`Isize` width).
     pub word_size: u32,
     /// `"little"` or `"big"`.
@@ -2900,6 +2913,7 @@ impl TargetProfile {
     pub fn native() -> Self {
         TargetProfile {
             name: "native64".to_string(),
+            triple: format!("{}-unknown-unknown", std::env::consts::ARCH),
             word_size: 64,
             endian: "little".to_string(),
             vector_shape: VectorShape::Fixed(8),
@@ -2933,6 +2947,7 @@ impl TargetProfile {
         }
         TargetProfile {
             name: format!("wasm32-{}", artifact.spelling()),
+            triple: "wasm32-unknown-unknown".to_string(),
             word_size: 32,
             endian: "little".to_string(),
             vector_shape: VectorShape::Fixed(4),
