@@ -14,6 +14,7 @@ pub mod driver;
 pub mod interface;
 pub mod layout;
 pub mod lexer;
+pub mod lsp;
 pub mod parser;
 pub mod repl;
 pub mod types;

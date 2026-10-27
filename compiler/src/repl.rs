@@ -203,7 +203,13 @@ impl Repl {
             match self.synthesize(name, eq) {
                 Ok(sig) => synth.push(sig),
                 Err(e) => {
-                    return ReplOutcome::Output(render_error(&e, block, (1, 1)));
+                    // The parse wrapped the block one line down and four
+                    // columns in (the module header and body indent).
+                    let at = (
+                        eq.span.line.saturating_sub(1),
+                        eq.span.col.saturating_sub(4),
+                    );
+                    return ReplOutcome::Output(render_error(&e, block, at));
                 }
             }
         }

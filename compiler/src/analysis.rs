@@ -489,11 +489,11 @@ impl Analysis {
                 Err(e) => {
                     self.diags
                         .insert(file.clone(), vec![self.error_diag(file, &e)]);
-                    self.scan_state(file, &text, Vec::new());
+                    self.scan_state(file, Vec::new());
                     continue;
                 }
             };
-            self.scan_state(file, &text, scanned);
+            self.scan_state(file, scanned);
         }
         // 2. The dirty set: the changed modules and their dependents,
         //    walking the import edges the `.sliface` chain records.
@@ -765,7 +765,7 @@ impl Analysis {
     }
 
     /// Update the scan-level state of one file.
-    fn scan_state(&mut self, file: &str, text: &str, scanned: Vec<(String, Vec<String>)>) {
+    fn scan_state(&mut self, file: &str, scanned: Vec<(String, Vec<String>)>) {
         let old: Vec<String> = self
             .modules
             .iter()
@@ -791,7 +791,6 @@ impl Analysis {
                 .filter(|(_, m)| m.file == file)
                 .map(|(n, m)| (n.clone(), m.imports.clone()))
                 .collect();
-            let _ = text;
         }
     }
 
@@ -1341,7 +1340,11 @@ impl Analysis {
             return Vec::new();
         };
         let mut out = Vec::new();
+        let mut seen: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
         for d in &st.defs {
+            if !seen.insert(d.name.clone()) {
+                continue;
+            }
             let text = self
                 .scheme_of(module, &d.name, d.kind)
                 .unwrap_or_else(|| d.kind.label().to_string());
@@ -1414,14 +1417,13 @@ fn topo_slice(analysis: &Analysis, slice: &BTreeSet<String>) -> Vec<String> {
 /// Parse one banded file.
 fn parse_file(
     banded: &str,
-    file: &str,
+    _file: &str,
     base: &FixityTable,
     tables: &HashMap<String, FixityTable>,
 ) -> Result<ParsedModules, Error> {
     let tokens = lexer::lex(banded)?;
     let tokens = crate::layout::layout(tokens)?;
     let parsed = parser::parse_modules(&tokens, base, tables)?;
-    let _ = file;
     Ok(parsed)
 }
 
@@ -1497,9 +1499,7 @@ fn index_defs(
 ) {
     let add = |name: &ast::Name, kind: SymKind, defs: &mut Vec<Def>| {
         let (line, col) = conv(name.span);
-        if !defs.iter().any(|d| d.name == name.text && d.kind == kind) {
-            defs.push(Def { name: name.text.clone(), kind, line, col });
-        }
+        defs.push(Def { name: name.text.clone(), kind, line, col });
     };
     match d {
         Decl::ValueSig { name, ty, .. } => {
