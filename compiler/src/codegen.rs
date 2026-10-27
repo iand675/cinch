@@ -438,10 +438,13 @@ impl Registry {
             MemClass::Read => attrs.push("memory(read)".to_string()),
             MemClass::ReadWrite => attrs.push("memory(readwrite)".to_string()),
         }
-        if class.willreturn {
+        // `willreturn` and `nofree` restate what the scan proved; a
+        // checked definition restates them only under its P20 and
+        // totality rows (the plan note: `willreturn` is never guessed).
+        if class.willreturn && (!lang.def || lang.returns) {
             attrs.push("willreturn".to_string());
         }
-        if class.nofree {
+        if class.nofree && (!lang.def || lang.no_alloc) {
             attrs.push("nofree".to_string());
         }
         if attrs.is_empty() {
@@ -543,18 +546,20 @@ impl Registry {
             }
         }
         // The `!range`/`range` facts: primitive units by their result
-        // type, definitions by their checked result range (the plan
-        // note's item 3).
+        // type, primitive aliases by their intrinsic's, and checked
+        // definitions by their result range (the plan note's item 3).
         for op in &reg.prims {
             if let Some(r) = prim_sig(*op).and_then(|(_, t)| t.value_range()) {
                 reg.ranges.insert(op.symbol(), r);
             }
         }
         for f in &p.fns {
-            if f.prim.is_none() {
-                if let Some(r) = f.meta.contract.result_range {
-                    reg.ranges.insert(f.id.0.clone(), r);
-                }
+            let r = match f.prim {
+                Some(op) => prim_sig(op).and_then(|(_, t)| t.value_range()),
+                None => f.meta.contract.result_range,
+            };
+            if let Some(r) = r {
+                reg.ranges.insert(f.id.0.clone(), r);
             }
         }
         // The named by-value layout types (`byval`/`sret` pointees).
@@ -657,17 +662,21 @@ enum MemClass {
 
 /// One unit's classification after the call-graph fixed point: the
 /// function attributes of the LLVM contract surface, each one claimed
-/// only where the language facts and the body scan agree.
+/// only where the language facts and the body scan agree. The scan
+/// properties are what the lowered body proves; the language rows gate
+/// which definitions restate them (a fact the analysis cannot state is
+/// never guessed).
 #[derive(Clone, Copy, Debug)]
 struct UnitClass {
     mem: MemClass,
     /// `speculatable`: no effects and no undefined behavior (no fault
     /// path, no poison source, no opaque call).
     speculatable: bool,
-    /// `willreturn`: the totality/`bounded` machinery proved return and
-    /// every call it makes returns.
+    /// `willreturn`: every path returns (no fault path, no opaque call,
+    /// no teardown) and every call it makes returns.
     willreturn: bool,
-    /// `nofree`: P20's `#[no-alloc]` row and no teardown call.
+    /// `nofree`: nothing in the body (or its callees) can deallocate
+    /// (the scan cannot see through an opaque call).
     nofree: bool,
 }
 
@@ -677,6 +686,11 @@ struct UnitLang {
     /// The definition's effect rows are empty and its body calls no
     /// foreign symbol (the plan's gate for `memory(none) speculatable`).
     pure: bool,
+    /// The unit is a checked definition: the P20 and totality rows
+    /// below gate its `nofree`/`willreturn` claims. The builtin
+    /// vocabulary (primitives, constructors, instances) claims them on
+    /// the body scan alone.
+    def: bool,
     /// P20's `#[no-alloc]` row (decision D112).
     no_alloc: bool,
     /// The totality/`bounded` machinery proved return.
@@ -791,34 +805,21 @@ fn scan_body(text: &str, units: &BTreeSet<String>) -> UnitScan {
     let mut local: HashSet<String> = HashSet::new();
     for line in text.lines() {
         let line = line.trim();
-        if let Some((lhs, _)) = line.split_once(" = ") {
+        // A result register: allocas and the addresses derived from
+        // them are the unit's own memory. An assigning call still
+        // classifies below: a missed call would over-claim every
+        // contract attribute the scan feeds.
+        if let Some((lhs, rest)) = line.split_once(" = ") {
             let lhs = lhs.trim();
-            if line.contains("= alloca ") {
+            let rest = rest.trim_start();
+            if rest.starts_with("alloca ") {
                 local.insert(lhs.to_string());
-            } else if line.contains("= getelementptr ") {
+            } else if rest.starts_with("getelementptr ") {
                 if let Some(base) = mem_operand(line) {
                     if local.contains(&base) {
                         local.insert(lhs.to_string());
                     }
                 }
-            }
-            continue;
-        }
-        if line.contains("load ") && line.contains(", ptr ") {
-            if let Some(op) = mem_operand(line) {
-                if !local.contains(&op) {
-                    scan.reads = true;
-                }
-            } else {
-                scan.reads = true;
-            }
-        } else if line.starts_with("store ") {
-            if let Some(op) = mem_operand(line) {
-                if !local.contains(&op) {
-                    scan.writes = true;
-                }
-            } else {
-                scan.writes = true;
             }
         }
         if line.contains("call ") {
@@ -851,6 +852,23 @@ fn scan_body(text: &str, units: &BTreeSet<String>) -> UnitScan {
                 scan.externs = true;
             }
             continue;
+        }
+        if line.contains("load ") && line.contains(", ptr ") {
+            if let Some(op) = mem_operand(line) {
+                if !local.contains(&op) {
+                    scan.reads = true;
+                }
+            } else {
+                scan.reads = true;
+            }
+        } else if line.starts_with("store ") {
+            if let Some(op) = mem_operand(line) {
+                if !local.contains(&op) {
+                    scan.writes = true;
+                }
+            } else {
+                scan.writes = true;
+            }
         }
         if line == "unreachable" {
             scan.faults = true;
@@ -885,7 +903,8 @@ fn scan_body(text: &str, units: &BTreeSet<String>) -> UnitScan {
 
 /// The call-graph fixed point over the built units: every claim is
 /// transitive through direct calls, and `willreturn` excludes only the
-/// unit's own recursion, which its totality/`bounded` evidence covers.
+/// unit's own recursion (the rows gate which definitions restate the
+/// scan's facts at claim time).
 fn classify_units(units: &[EmittedUnit]) -> HashMap<String, UnitClass> {
     let mut out: HashMap<String, UnitClass> = HashMap::new();
     for u in units {
@@ -902,8 +921,14 @@ fn classify_units(units: &[EmittedUnit]) -> HashMap<String, UnitClass> {
             UnitClass {
                 mem,
                 speculatable: clean && !u.scan.frees,
-                willreturn: u.lang.returns && clean && !u.scan.frees,
-                nofree: u.lang.no_alloc && !u.scan.frees && !u.scan.faults,
+                willreturn: clean && !u.scan.frees,
+                // The scan cannot see through an opaque call, and a
+                // fault path's `noreturn` never frees observably: only
+                // a body free of both can claim `nofree`.
+                nofree: !u.scan.frees
+                    && !u.scan.faults
+                    && !u.scan.externs
+                    && !u.scan.indirect,
             },
         );
     }
@@ -1012,6 +1037,7 @@ fn build_unit(
         UnitBody::Foreign(plan) => foreign_import_body(&mut b, cx, reg, plan)?,
         UnitBody::Fn(f) => {
             hints = f.hints;
+            lang.def = true;
             lang.pure = f.meta.pure;
             lang.no_alloc = f.meta.contract.no_alloc;
             lang.returns = f.meta.contract.returns;
@@ -2901,9 +2927,14 @@ fn ffi_fault_block(b: &mut Builder, fault: &str) {
     b.line("unreachable");
 }
 
-/// The `byval(<layout>)`/`sret(<layout>)` spelling of one by-value
-/// aggregate crossing (the plan note's item 6): the platform's
-/// by-value struct ABI, spelled for LLVM rather than guessed.
+/// The native spelling of one by-value aggregate crossing (the plan
+/// note's item 6): `sret(<layout>)` for the result-out buffer, and
+/// `byref(<layout>)` for the parameter's call-scoped copy. LLVM's
+/// `byval` is not that spelling on every platform: it can mean a
+/// machine convention (a stack-passed copy) that does not match the C
+/// side's by-value aggregates, while `byref` states the pointee type
+/// and the pointer's validity without changing the passing convention
+/// (the tests/llvm_contract.rs round trip against real C).
 fn byvalue_attr(p: &AbiParam, reg: &Registry, result: bool) -> String {
     if !p.by_value {
         return String::new();
@@ -2915,7 +2946,7 @@ fn byvalue_attr(p: &AbiParam, reg: &Registry, result: bool) -> String {
     if result {
         format!("sret(%{name}) align {}", p.align)
     } else {
-        format!("byval(%{name}) align {}", p.align)
+        format!("byref(%{name}) align {}", p.align)
     }
 }
 
