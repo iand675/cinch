@@ -704,6 +704,27 @@ correspondence: one lexeme in expression/pattern, staging `Name`, and
   per-arch `asm` bodies (popcnt vs cnt). `os`/pointer-width predicates
   deferred to a consumer. Spec section 13; folded into the running P18
   continuation.
+- **D221-D227 (P18 continuation, reported)**: `unsafe` is a per-body
+  prefix (`unsafe <family> { ... }`) with `unsafe prim ... where` sugar
+  folding into bodies at parse, recognized contextually so `unsafe`
+  stays usable as an identifier; trust identity hashes the individual
+  body's content (family, condition, fragment, `uses`, `immarg`) so
+  editing that body stales dependents, and EVERY `unsafe` body records
+  trust since a non-pure row is also an unverifiable upper-bound claim;
+  unverifiable surfaces (asm/wasm templates, `uses`/inline-asm calls
+  into opaque code) REQUIRE `unsafe` regardless of the row while
+  containment-visible violations (stores/atomics/volatile under a pure
+  row) reject even under `unsafe`; `TargetProfile.triple` is the arch
+  identity and `when arch` matches its first component exactly (codegen
+  triple emission unchanged); selection precedence became
+  cross-family conditional-first then family-order baselines (the
+  canonical per-arch shape needs an `asm` conditional to beat an
+  `llvm` baseline), per-family overlap errors unchanged; the manifest
+  `condition` field prints the rendered predicate verbatim (it
+  previously mislabeled everything `Available`); and an observation
+  locking prior behavior: prim calls were already off the D194
+  opaque-write list (they elaborate to plain unit calls) and the pure-
+  prim evidence test now pins the row treatment as the whole story.
 - **D127 (P25 scaffolding ruling)**: FoldAgent's defunctionalized
   class shapes (`Foldable t a`, `Traversable t x g h tg hs`) are
   accepted as NON-CURATED scaffolding: they ship in the `Category`
