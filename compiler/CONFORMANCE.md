@@ -251,6 +251,21 @@ attribute present where proven and absent where unproven (catching
 over-claiming too), including a real clang-compiled C round trip at
 the aggregate boundary. Suite: 524 compiler + 107 runtime.
 
+### Editor tooling (P23)
+
+Committed `e9d9496` (`tooling/` only), 2026-10-27 by
+`EditorToolingSlice`: the tree-sitter grammar (an all-external scanner
+ported from `lexer.rs`/`layout.rs`; generated parser gitignored so the
+corpus cannot pass against a stale parser), 88 corpus assertions
+(minus table, dash names, ticks, prim/contract forms, every layout
+case), vim/emacs/sublime/zed/vscode-cursor integrations with
+spec-reserved keywords verbatim, and `check-grammar-drift.sh`
+(regenerate + test, nonzero on divergence). Mid-run the grammar parsed
+all 59 real `.lang` files with zero ERROR nodes. The LSP is invoked
+through `tooling/lsp-driver/` (`LspServer::run` over stdio; the
+`safelang lsp` subcommand does not exist yet and the wrapper
+auto-switches if it lands - tracked). Decisions D238-D244.
+
 ### Interned symbols (P24)
 
 Specified in `specifications/primitive-types-specification.md`
@@ -262,8 +277,8 @@ correspondence: one lexeme in expression/pattern, staging `Name`, and
 
 | Requirement | Status |
 | --- | --- |
-| `Sym`: word-handle interned cell; `intern`/`sym-name`; `Eq` = identity $O(1)$, `Ord` by name (deterministic); no machine-scalar confusion (D122) | spec'd |
-| Tick syntax: `'foo` symbol literals (constants via compile-time interning and the P14 constant emission), `'a'` char precedence rule, `'foo`/`''T` name quotes in staging/macro positions (D123) | spec'd |
+| `Sym`: word-handle interned cell; `intern`/`sym-name`; `Eq` = identity $O(1)$, `Ord` by name (deterministic); no machine-scalar confusion (D122) | done (builtin core type; kind-tagged leaked cells; four `nm`-verified externs; `Data.Sym` home; `tests/sym.rs` 10/10 (D232-D237)) |
+| Tick syntax: `'foo` symbol literals (constants via compile-time interning and the P14 constant emission), `'a'` char precedence rule, `'foo`/`''T` name quotes in staging/macro positions (D123) | done (literal char rule taken literally (D233/D234); name lexemes survive macro token trees and splice-time reification works; the full D46 `Name` member is tracked separately) |
 | Type-level symbols (promoted `'foo` for labels/schema names) deferred with the spelling reserved (D124) | done (the spelling is reserved and enforced (D234); promotion itself stays deferred pending a consumer (A6)) |
 
 - **D122 (P24 Sym)**: `Sym` is a core runtime type: one-word handle to
@@ -770,6 +785,29 @@ correspondence: one lexeme in expression/pattern, staging `Name`, and
   macro tokens and splice-time reification works; finishing it needs a
   `Name` type and signature member, name splices with hygiene renaming,
   and reification builtins).
+- **D238-D244 (P23 editor tooling, reported)**: the tree-sitter
+  grammar is `grammar.js` plus an all-external terminal scanner that
+  is a straight port of `lexer.rs`/`layout.rs` (regex tokens cannot
+  express the context rules), with generated parser output gitignored
+  so corpus assertions cannot pass against a stale parser; infix
+  chains parse through the documented fixity table as precedence
+  layers (equal-precedence clashing-assoc pairs only appear
+  parenthesized in valid programs, so sub-level order is unobservable
+  on valid input; unknown operators sit in one flat layer above `$`);
+  `unsafe` and attributes resolve by one-token lookahead (kept usable
+  as identifiers per D221); prim fragments, token trees, and attribute
+  arguments capture verbatim like the lexer; the "must indent farther"
+  rule mirrors by refusing the block so the parse errors; `in` after a
+  `with (...)` paren binds as the supply's `in`; Sym names follow
+  identifier spelling (apostrophes included) with the char rule as the
+  only tie. Documented accepted divergences: tabs in indentation are
+  whitespace in the grammar (the compiler rejects), `#[` name adjacency
+  is not enforced, do-let groups follow the EBNF (the bootstrap binds
+  one value). The LSP wiring finding: `safelang lsp` does not exist as
+  a subcommand (the driver offers `check`/`emit-ir`/`build`/`run`), so
+  `tooling/lsp-driver/` is a cargo bin invoking `LspServer::run` over
+  stdio verbatim, with the editor wrapper auto-switching to `safelang
+  lsp` if the subcommand ever lands (tracked).
 - **D127 (P25 scaffolding ruling)**: FoldAgent's defunctionalized
   class shapes (`Foldable t a`, `Traversable t x g h tg hs`) are
   accepted as NON-CURATED scaffolding: they ship in the `Category`
