@@ -168,17 +168,17 @@ update as the slices land; 07 must reject, the rest must accept):
 | Program | First rejection | Owning slice |
 | --- | --- | --- |
 | 01-bounded-index | accepts (`safelang check` exit 0; `run` needs a `main` per D20) | done |
-| 02-vector-filter | line 7: `Nil` against `Vec n a` needs rigid-index refinement (D35) | P7 limit (D35) |
-| 03-map-fusion | line 6:36 `expected a type, found Backslash` (index terms lack lambda; even then its `refl` at `Nil` is unprovable under D28's no-delta conversion; needs a proof over named helpers or an assumed law) | P7 limit + example-side proof |
+| 02-vector-filter | accepts (`safelang check` exit 0; refactored to `decide`/computed-index dispatch per D35 (D231)) | done |
+| 03-map-fusion | line 6:36 `expected a type, found Backslash` (needs index/type-position lambdas, proof reduction beyond D28, and a `List.map` name; the assumed-law shortcut would replace its induction teaching (D230)) | language work (tracked) |
 | 04-productive-stream | accepts (`safelang check` exit 0) | done |
 | 05-schema-generator | accepts with its declared build inputs (`SCHEMA_DATABASE_URL` + a schema tool via `SAFELANG_SCHEMA_TOOL`); without them stops at the correct secret refusal (D45) | done (A6) |
 | 06-counter-upgrade | accepts (`safelang check` exit 0) | done |
 | 07-rejected-programs | rejected at parse (correct) | must stay rejected |
-| 08-platform-simd | line 6:10 the justification cannot prove the rule's equation (the example matches its own local `scalar`; the supplied theorem is over the library pair; the example's header calls its theorem module "obligations, not supplied proofs") | example-side proof obligation |
+| 08-platform-simd | accepts (`safelang check` exit 0; its own theorem module states the instruction law as an obligation and `justify` cites it (D228)) | done |
 | 09-foreign-codec | accepts (`safelang check` exit 0; its `DecodeError` comes from the codec adapter vocabulary) | done |
 | 10-wasm-component | accepts (`safelang check` exit 0; `BoundaryError` from the WIT adapter vocabulary) | done |
 | 11-structured-tasks | accepts (`safelang check` exit 0; its sketch vocabulary `Request`/`LoadError`/`fetch` is provided by the prelude over `ioRead`, D81) | done |
-| 12-runtime-effects | accepts (`safelang check` exit 0; the parameter block `module ImportConfig (Seq :: ResultSequencing ConfigError)` instantiates at import, and the sketch vocabulary `Path`/`Config`/`ConfigError`/`readConfigBytes`/`parseConfig` comes from the prelude over `ioRead` following D81's pattern (D120)) | done |
+| 12-runtime-effects | accepts (`safelang check` exit 0; the parameter block instantiates at import (D115-D121) and the sketch vocabulary comes from the prelude over `ioRead` in dash spellings (D120/D228 sweep)) | done |
 
 ## Unplanned requirements (P16)
 
@@ -725,6 +725,28 @@ correspondence: one lexeme in expression/pattern, staging `Name`, and
   locking prior behavior: prim calls were already off the D194
   opaque-write list (they elaborate to plain unit calls) and the pure-
   prim evidence test now pins the row treatment as the whole story.
+- **D228-D231 (P15 examples sweep, reported)**: a discharged
+  example-side `proof` is not expressible today (`refl` cannot bridge
+  under no-delta conversion (D28); the proof grammar is exactly
+  `refl`/`congr e`/evidence-name with no transitivity or elimination;
+  `congr`'s function argument is an index term), so example 08 states
+  its instruction law in its own theorem module as an obligation and
+  cites it with `justify` - preserving the "obligations, not supplied
+  proofs" teaching; the alternative (match + prelude law citation) was
+  probed green but rejected because it moves the rule off the
+  example's own scalar model. Example 05's build inputs are now
+  example-side (`schema-tool.sh` stub; `SCHEMA_DATABASE_URL` referenced
+  by name with the value only in the tool's environment;
+  `SAFELANG_SCHEMA_TOOL=./schema-tool.sh` resolves against the stage
+  workdir); refresh and replay both exit 0 and the D45 refusal stands
+  without the secret. Example 02 is refactored to `decide`-dispatched
+  filtering (the D35 boundary taught in its comment; predicate and
+  output order preserved by recording the decision before recursion;
+  witness and computed-index output verified). Example 03's gate is
+  recorded as language work: index/type-position lambdas, proof
+  reduction beyond D28, and a `List.map` name resolution; the
+  assumed-law shortcut would replace its structural-induction teaching,
+  so it stays rejected until the language work lands.
 - **D127 (P25 scaffolding ruling)**: FoldAgent's defunctionalized
   class shapes (`Foldable t a`, `Traversable t x g h tg hs`) are
   accepted as NON-CURATED scaffolding: they ship in the `Category`
