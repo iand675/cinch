@@ -301,9 +301,10 @@ impl Attribute {
 #[derive(Clone, Debug)]
 pub enum DoStmt {
     Bind { pat: Pat, term: Term, span: Span },
-    /// `let decls`: a pure local binding ("`let` remains pure and strict
-    /// in either interpretation").
-    Let { decl: LocalDecl, span: Span },
+    /// `let` with a whole local block: one pure binding group ("`let`
+    /// remains pure and strict in either interpretation"; the surface
+    /// EBNF `do_statement = "let", local_block`).
+    Let { decls: Vec<LocalDecl>, span: Span },
     Expr { term: Term, span: Span },
 }
 
@@ -1108,7 +1109,11 @@ pub fn collect_term_refs(t: &Term, out: &mut Vec<RefSite>) {
                     DoStmt::Bind { term, .. } | DoStmt::Expr { term, .. } => {
                         collect_term_refs(term, out)
                     }
-                    DoStmt::Let { decl, .. } => collect_local_refs(decl, out),
+                    DoStmt::Let { decls, .. } => {
+                        for decl in decls {
+                            collect_local_refs(decl, out)
+                        }
+                    }
                 }
             }
         }
@@ -1205,7 +1210,11 @@ pub fn collect_decl_refs(d: &Decl, out: &mut Vec<RefSite>) {
                     DoStmt::Bind { term, .. } | DoStmt::Expr { term, .. } => {
                         collect_term_refs(term, out)
                     }
-                    DoStmt::Let { decl, .. } => collect_local_refs(decl, out),
+                    DoStmt::Let { decls, .. } => {
+                        for decl in decls {
+                            collect_local_refs(decl, out)
+                        }
+                    }
                 }
             }
         }
@@ -1645,7 +1654,13 @@ fn hyg_do_stmt(s: &DoStmt, cx: &mut HygCx, sc: &mut HygScope) -> Result<DoStmt> 
             let pat = hyg_pat(pat, cx, sc)?;
             DoStmt::Bind { pat, term, span: *span }
         }
-        DoStmt::Let { decl, span } => DoStmt::Let { decl: hyg_local(decl, cx, sc)?, span: *span },
+        DoStmt::Let { decls, span } => DoStmt::Let {
+            decls: decls
+                .iter()
+                .map(|d| hyg_local(d, cx, sc))
+                .collect::<Result<Vec<_>>>()?,
+            span: *span,
+        },
         DoStmt::Expr { term, span } => DoStmt::Expr { term: hyg_term(term, cx, sc)?, span: *span },
     })
 }
@@ -2169,8 +2184,8 @@ pub fn subst_holes(t: &Term, vals: &[Term]) -> Term {
                         term: subst_holes(term, vals),
                         span: *span,
                     },
-                    DoStmt::Let { decl, span } => DoStmt::Let {
-                        decl: subst_holes_local(decl, vals),
+                    DoStmt::Let { decls, span } => DoStmt::Let {
+                        decls: decls.iter().map(|d| subst_holes_local(d, vals)).collect(),
                         span: *span,
                     },
                     DoStmt::Expr { term, span } => DoStmt::Expr {
@@ -2422,12 +2437,18 @@ pub fn collect_template_holes(t: &mut Term, holes: &mut Vec<HoleExpr>) {
                     DoStmt::Bind { term, .. } | DoStmt::Expr { term, .. } => {
                         collect_template_holes(term, holes)
                     }
-                    DoStmt::Let { decl, .. } => match decl {
-                        LocalDecl::Eq { body, .. }
-                        | LocalDecl::Bind { body, .. }
-                        | LocalDecl::Lazy { body, .. } => collect_template_holes(body, holes),
-                        LocalDecl::Sig { .. } => {}
-                    },
+                    DoStmt::Let { decls, .. } => {
+                        for decl in decls {
+                            match decl {
+                                LocalDecl::Eq { body, .. }
+                                | LocalDecl::Bind { body, .. }
+                                | LocalDecl::Lazy { body, .. } => {
+                                    collect_template_holes(body, holes)
+                                }
+                                LocalDecl::Sig { .. } => {}
+                            }
+                        }
+                    }
                 }
             }
         }

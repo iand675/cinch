@@ -469,6 +469,107 @@ module Main where
 }
 
 #[test]
+fn do_let_binds_a_whole_local_block_group() {
+    // The surface EBNF `do_statement = "let", local_block`: one `let`
+    // statement binds a whole group (the binding-group form of the
+    // surface grammar local amendments section 9), and later members see
+    // earlier ones as if the group were nested single `let`s.
+    expect_ok(
+        "do-let-group",
+        r#"
+module Main where
+  main :: Int
+  main = do
+    let x = 3
+        y = x + 4
+    z <- pure y
+    pure z
+"#,
+        7,
+    );
+    // The explicit-brace local block takes the whole local grammar: a
+    // signature, a local function equation, and a value bound from them.
+    expect_ok(
+        "do-let-group-grammar",
+        r#"
+module Main where
+  main :: Int
+  main = do
+    let { inc :: Int -> Int; inc n = n + 1; v = inc 40 }
+    pure v
+"#,
+        41,
+    );
+    // A `~` memo binding is a group member too; its body is deferred to
+    // `demand` (laziness and reclamation specification section 5).
+    expect_ok(
+        "do-let-group-memo",
+        r#"
+module Main where
+  main :: Int
+  main = do
+    let ~ y = 40
+    z <- pure (copyOut (demand y) + 1)
+    pure z
+"#,
+        41,
+    );
+    // One group never binds the same name twice: a second binding is a
+    // mistake, not a shadow of the first.
+    expect_err(
+        "do-let-group-duplicate",
+        r#"
+module Main where
+  main :: Int
+  main = do
+    let x = 1
+        x = 2
+    pure x
+"#,
+        "duplicate binding `x` in the `let` group",
+    );
+    // Every strict member keeps the pure discipline: a `let` statement
+    // does not sequence effects in either interpretation.
+    expect_err(
+        "do-let-group-impure",
+        r#"
+module Main where
+  effect Poke where
+    poke :: Unit ->{Poke} Int
+
+  main :: Int
+  main = do
+    let a = 1
+        b = poke ()
+    pure b
+"#,
+        "must be pure",
+    );
+    // Under a handled computation only simple value bindings sequence
+    // (decision D24): a local function in the group rejects.
+    expect_err(
+        "do-let-group-handled",
+        r#"
+module Main where
+  effect Poke where
+    poke :: Unit ->{Poke} Int
+
+  handled :: Int -> Int
+  handled n = handle (do
+      let f x = x + 1
+      y <- poke ()
+      pure (f (n + y))) with (handler Poke where
+    return x -> x
+    poke u resume k -> k 4)
+
+  main :: Int
+  main = handled 1
+"#,
+        "local functions and memo bindings under a handled computation",
+    );
+}
+
+#[test]
 fn do_blocks_short_circuit_through_the_result_provider() {
     expect_ok(
         "do-result",

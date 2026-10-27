@@ -2658,22 +2658,19 @@ impl<'a> Parser<'a> {
         Ok(TokenTree { tokens, span: start })
     }
 
+    /// One `do` statement: a `let` binding group (`let` plus its whole
+    /// local block, the surface EBNF `do_statement = "let", local_block`),
+    /// `pat <- term`, or a bare `term`.
     fn parse_do_stmt(&mut self) -> Result<DoStmt> {
         let span = self.peek().span;
-        // `let decl`: a pure local binding. The layout pass closes the
-        // `let`'s implicit block with a virtual `}` before the next
-        // statement; a real `}` belongs to the enclosing block.
+        // `let` plus a local block: one binding group of pure locals. The
+        // layout pass opens an implicit block after `let` and closes it
+        // with a virtual `}` at the statement boundary; an explicit `{`
+        // block parses verbatim.
         if self.at(&Tok::Let) {
             self.bump();
-            // The layout pass opens an implicit block after `let`.
-            if self.at(&Tok::LBrace) && self.peek().virtual_ {
-                self.bump();
-            }
-            let decl = self.parse_local_decl()?;
-            if self.at(&Tok::RBrace) && self.peek().virtual_ {
-                self.bump();
-            }
-            return Ok(DoStmt::Let { decl, span });
+            let decls = self.parse_block_items("the local block", |p| p.parse_local_decl())?;
+            return Ok(DoStmt::Let { decls, span });
         }
         // `pat <- term` without consuming on failure: a statement that is
         // not a binding parses as a plain expression.
@@ -3382,12 +3379,16 @@ fn resolve_module_decl(d: &mut Decl, fix: &FixityTable) -> Result<()> {
                     DoStmt::Bind { term, .. } | DoStmt::Expr { term, .. } => {
                         resolve_term(term, fix)?
                     }
-                    DoStmt::Let { decl, .. } => match decl {
-                        LocalDecl::Eq { body, .. }
-                        | LocalDecl::Bind { body, .. }
-                        | LocalDecl::Lazy { body, .. } => resolve_term(body, fix)?,
-                        LocalDecl::Sig { ty, .. } => resolve_type(ty, fix)?,
-                    },
+                    DoStmt::Let { decls, .. } => {
+                        for decl in decls {
+                            match decl {
+                                LocalDecl::Eq { body, .. }
+                                | LocalDecl::Bind { body, .. }
+                                | LocalDecl::Lazy { body, .. } => resolve_term(body, fix)?,
+                                LocalDecl::Sig { ty, .. } => resolve_type(ty, fix)?,
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -3478,12 +3479,16 @@ fn resolve_term(t: &mut Term, fix: &FixityTable) -> Result<()> {
                     DoStmt::Bind { term, .. } | DoStmt::Expr { term, .. } => {
                         resolve_term(term, fix)?
                     }
-                    DoStmt::Let { decl, .. } => match decl {
-                        LocalDecl::Eq { body, .. }
-                        | LocalDecl::Bind { body, .. }
-                        | LocalDecl::Lazy { body, .. } => resolve_term(body, fix)?,
-                        LocalDecl::Sig { ty, .. } => resolve_type(ty, fix)?,
-                    },
+                    DoStmt::Let { decls, .. } => {
+                        for decl in decls {
+                            match decl {
+                                LocalDecl::Eq { body, .. }
+                                | LocalDecl::Bind { body, .. }
+                                | LocalDecl::Lazy { body, .. } => resolve_term(body, fix)?,
+                                LocalDecl::Sig { ty, .. } => resolve_type(ty, fix)?,
+                            }
+                        }
+                    }
                 }
             }
         }

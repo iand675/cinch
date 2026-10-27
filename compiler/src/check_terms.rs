@@ -25,6 +25,27 @@ enum Stuck {
     Timeout,
 }
 
+/// Which construct's local block [`Checker::elab_locals`] is elaborating:
+/// the `local_block` grammar is shared by `let`/`where` and by the `do`
+/// statement's `let` group, with different disciplines.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum LocalForm {
+    /// `let b1; ...; bn in e` and `where` blocks (surface grammar local
+    /// amendments section 9): the group replaces nested single `let`s.
+    Plain,
+    /// A `let` statement in `do` (the surface EBNF `do_statement =
+    /// "let", local_block`): every strict binding is pure and strict in
+    /// either interpretation (its interpretation does not sequence
+    /// effects), one group never binds a name twice, and under a handled
+    /// computation only simple value bindings sequence (decision D24's
+    /// rule for deferred bodies).
+    DoStmt {
+        /// Whether the block sits under a handled computation (the CPS
+        /// elaboration is active).
+        handled: bool,
+    },
+}
+
 /// A constructor's fields and result with the matched type's arguments
 /// substituted in.
 struct CtorParts {
@@ -644,7 +665,7 @@ impl Checker {
             }
             ast::Term::Let(decls, body, span) => {
                 let mut env2 = env.clone();
-                let (binds, group) = self.elab_locals(&mut env2, decls)?;
+                let (binds, group) = self.elab_locals(&mut env2, decls, LocalForm::Plain)?;
                 let (bcore, bty) = self.infer(&mut env2, body)?;
                 if let Some(g) = &group {
                     self.discharge_group(g, &bty, *span)?;
@@ -1060,7 +1081,7 @@ impl Checker {
             }
             ast::Term::Let(decls, body, span) => {
                 let mut env2 = env.clone();
-                let (binds, group) = self.elab_locals(&mut env2, decls)?;
+                let (binds, group) = self.elab_locals(&mut env2, decls, LocalForm::Plain)?;
                 let bcore = self.check(&mut env2, body, expected)?;
                 if let Some(g) = &group {
                     self.discharge_group(g, expected, *span)?;
@@ -3449,11 +3470,105 @@ impl Checker {
 
     // ------------------------------------------------------------ local declarations
 
+    /// Elaborate one strict local binding body. In a `do` statement's
+    /// `let` group the body must be pure: the statement's interpretation
+    /// does not sequence effects (the sequencing spec's `do` rules), so
+    /// its value is computed strictly and out of band.
+    fn elab_local_strict(
+        &mut self,
+        env: &mut Env,
+        body: &ast::Term,
+        dspan: ast::Span,
+        sig: Option<Ty>,
+        form: LocalForm,
+    ) -> Result<(ECore, Ty)> {
+        match form {
+            LocalForm::Plain => match sig {
+                Some(t) => Ok((self.check(env, body, &t)?, t)),
+                None => self.infer(env, body),
+            },
+            LocalForm::DoStmt { .. } => {
+                let saved = self.enter_perf();
+                let checked = match sig {
+                    Some(t) => self.check(env, body, &t).map(|c| (c, t)),
+                    None => self.infer(env, body),
+                };
+                let performed = self.exit_perf(saved);
+                let (core, ty) = checked?;
+                self.uni
+                    .unify_rows(&performed, &EffRow::pure())
+                    .map_err(|_| {
+                        Error::at(
+                            dspan,
+                            "a `let` statement in `do` must be pure (its interpretation does not sequence effects)",
+                        )
+                    })?;
+                Ok((core, ty))
+            }
+        }
+    }
+
     fn elab_locals(
         &mut self,
         env: &mut Env,
         decls: &[ast::LocalDecl],
+        form: LocalForm,
     ) -> Result<(Vec<(LocalId, ECore)>, Option<MemoGroup>)> {
+        // A `do` statement's `let` group: one group never binds the same
+        // name twice (it replaces nested single `let`s; a second binding
+        // of one name in the group is a mistake, not a shadow), and
+        // under a handled computation only simple value bindings
+        // sequence (decision D24).
+        if let LocalForm::DoStmt { handled } = form {
+            let mut seen: HashSet<String> = HashSet::new();
+            for d in decls {
+                let mut names: Vec<(String, ast::Span)> = Vec::new();
+                match d {
+                    ast::LocalDecl::Sig { .. } => {}
+                    ast::LocalDecl::Eq { name, pats, span, .. } => {
+                        if handled && !pats.is_empty() {
+                            return Err(Error::at(
+                                *span,
+                                "local functions and memo bindings under a handled computation are not supported in the bootstrap slice",
+                            ));
+                        }
+                        names.push((name.text.clone(), name.span));
+                    }
+                    ast::LocalDecl::Bind { pat, span, .. } => {
+                        if handled
+                            && !matches!(pat, ast::Pat::Var(..) | ast::Pat::Wild(..))
+                        {
+                            return Err(Error::at(
+                                *span,
+                                "destructuring `let` bindings under a handled computation are not supported in the bootstrap slice",
+                            ));
+                        }
+                        let mut ns = Vec::new();
+                        collect_pat_names(pat, &mut ns);
+                        names.extend(ns.into_iter().map(|n| (n, pat.span())));
+                    }
+                    ast::LocalDecl::Lazy { pat, span, .. } => {
+                        if handled {
+                            return Err(Error::at(
+                                *span,
+                                "local functions and memo bindings under a handled computation are not supported in the bootstrap slice",
+                            ));
+                        }
+                        let mut ns = Vec::new();
+                        collect_pat_names(pat, &mut ns);
+                        names.extend(ns.into_iter().map(|n| (n, pat.span())));
+                    }
+                }
+                for (n, s) in names {
+                    if n != "_" && !seen.insert(n.clone()) {
+                        return Err(Error::at(
+                            s,
+                            format!("duplicate binding `{n}` in the `let` group"),
+                        ));
+                    }
+                }
+            }
+        }
         // Signatures first.
         let mut sigs: HashMap<String, Ty> = HashMap::new();
         for d in decls {
@@ -3547,10 +3662,13 @@ impl Checker {
                     }
                     let l = self.fresh_local();
                     let (core, ty, is_value) = if pats.is_empty() {
-                        let (core, ty) = match sigs.get(&name.text).cloned() {
-                            Some(t) => (self.check(env, body, &t)?, t),
-                            None => self.infer(env, body)?,
-                        };
+                        let (core, ty) = self.elab_local_strict(
+                            env,
+                            body,
+                            *span,
+                            sigs.get(&name.text).cloned(),
+                            form,
+                        )?;
                         (core, ty, is_syntactic_value(body))
                     } else {
                         // A local function is a lambda; `check_lam` enforces
@@ -3570,7 +3688,7 @@ impl Checker {
                     out.push((l, core));
                 }
                 ast::LocalDecl::Bind { pat, body, span } => {
-                    let (bc, bt) = self.infer(env, body)?;
+                    let (bc, bt) = self.elab_local_strict(env, body, *span, None, form)?;
                     let l = self.fresh_local();
                     match pat {
                         ast::Pat::Var(n, _) => {
@@ -3584,6 +3702,12 @@ impl Checker {
                             // value.
                             if !is_ignore_discard(body) {
                                 self.check_must_use_discard(&bt, *span)?;
+                            }
+                            if matches!(form, LocalForm::DoStmt { .. }) {
+                                // The discarded value keeps its
+                                // multiplicity obligation (a linear value
+                                // is never dropped silently).
+                                self.register_obligation(l, "_", None, bt, *span);
                             }
                         }
                         ast::Pat::Unit(_)
@@ -5880,12 +6004,18 @@ impl Checker {
                             ast::DoStmt::Bind { term, .. } | ast::DoStmt::Expr { term, .. } => {
                                 walk(chk, term, found)
                             }
-                            ast::DoStmt::Let { decl, .. } => match decl {
-                                ast::LocalDecl::Sig { .. } => {}
-                                ast::LocalDecl::Eq { body, .. }
-                                | ast::LocalDecl::Bind { body, .. }
-                                | ast::LocalDecl::Lazy { body, .. } => walk(chk, body, found),
-                            },
+                            ast::DoStmt::Let { decls, .. } => {
+                                for decl in decls {
+                                    match decl {
+                                        ast::LocalDecl::Sig { .. } => {}
+                                        ast::LocalDecl::Eq { body, .. }
+                                        | ast::LocalDecl::Bind { body, .. }
+                                        | ast::LocalDecl::Lazy { body, .. } => {
+                                            walk(chk, body, found)
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -6706,56 +6836,24 @@ impl Checker {
         let (pat, stmt, sspan) = match &init[0] {
             ast::DoStmt::Bind { pat, term, span } => (Some(pat), term, *span),
             ast::DoStmt::Expr { term, span } => (None, term, *span),
-            ast::DoStmt::Let { decl, span: lspan } => {
-                // `let x = value` binds a pure value strictly, in either
-                // interpretation (the sequencing spec's `do` rules).
-                let (name, body, bspan) = match decl {
-                    ast::LocalDecl::Bind { pat: ast::Pat::Var(n, _), body, span } => {
-                        (Some(n.text.clone()), body, *span)
-                    }
-                    ast::LocalDecl::Bind { pat: ast::Pat::Wild(_), body, span } => {
-                        (None, body, *span)
-                    }
-                    ast::LocalDecl::Eq { name, pats, body, span } if pats.is_empty() => {
-                        (Some(name.text.clone()), body, *span)
-                    }
-                    _ => {
-                        return Err(Error::at(
-                            *lspan,
-                            "a `let` statement in `do` binds one pure value in the bootstrap slice",
-                        ))
-                    }
-                };
-                let ty = self.uni.fresh();
-                let saved = self.enter_perf();
-                let vcore = self.check(env, body, &ty);
-                let performed = self.exit_perf(saved);
-                let vcore = vcore?;
-                self.uni
-                    .unify_rows(&performed, &EffRow::pure())
-                    .map_err(|_| {
-                        Error::at(
-                            bspan,
-                            "a `let` statement in `do` must be pure (its interpretation does not sequence effects)",
-                        )
-                    })?;
-                let l = self.fresh_local();
+            ast::DoStmt::Let { decls, span: lspan } => {
+                // `let` plus its local block binds one pure group
+                // strictly, in either interpretation (the sequencing
+                // spec's `do` rules; the surface EBNF `do_statement =
+                // "let", local_block`).
                 let mut env2 = env.clone();
-                match &name {
-                    Some(n) => {
-                        self.bind_local(&mut env2, n, l, Scheme::mono(ty), None, bspan)?
-                    }
-                    None => {
-                        // The `Result` must-use default (decision D114's
-                        // rule 7): `let _ = e` discards the value.
-                        if !is_ignore_discard(body) {
-                            self.check_must_use_discard(&ty, bspan)?;
-                        }
-                        self.register_obligation(l, "_", None, ty, bspan)
-                    }
-                }
+                let (binds, group) = self.elab_locals(
+                    &mut env2,
+                    decls,
+                    LocalForm::DoStmt {
+                        handled: kv.is_some(),
+                    },
+                )?;
                 let rest_code = self.elab_do(&mut env2, rest, shape, kv, span)?;
-                return Ok(wrap_lets(vec![(l, vcore)], rest_code));
+                if let Some(g) = &group {
+                    self.discharge_group(g, shape, *lspan)?;
+                }
+                return Ok(wrap_lets(binds, rest_code));
             }
         };
         // Refutable patterns need a typed failure operation; the direct,

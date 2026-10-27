@@ -339,12 +339,16 @@ fn for_each_subterm(t: &ast::Term, f: &mut dyn FnMut(&ast::Term)) {
                     ast::DoStmt::Bind { term, .. } | ast::DoStmt::Expr { term, .. } => {
                         for_each_subterm(term, f)
                     }
-                    ast::DoStmt::Let { decl, .. } => match decl {
-                        ast::LocalDecl::Sig { .. } => {}
-                        ast::LocalDecl::Eq { body, .. }
-                        | ast::LocalDecl::Bind { body, .. }
-                        | ast::LocalDecl::Lazy { body, .. } => for_each_subterm(body, f),
-                    },
+                    ast::DoStmt::Let { decls, .. } => {
+                        for decl in decls {
+                            match decl {
+                                ast::LocalDecl::Sig { .. } => {}
+                                ast::LocalDecl::Eq { body, .. }
+                                | ast::LocalDecl::Bind { body, .. }
+                                | ast::LocalDecl::Lazy { body, .. } => for_each_subterm(body, f),
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -5516,20 +5520,24 @@ impl Checker {
                             pat_names(pat, &mut bound2);
                             self.walk_guard(term, pos, group, mode, &mut bound2)?;
                         }
-                        ast::DoStmt::Let { decl, .. } => match decl {
-                            ast::LocalDecl::Sig { .. } => {}
-                            ast::LocalDecl::Eq { name: n, body: b, .. } => {
-                                let mut bound2 = bound.clone();
-                                bound2.push(n.text.clone());
-                                self.walk_guard(b, pos, group, mode, &mut bound2)?;
+                        ast::DoStmt::Let { decls, .. } => {
+                            for decl in decls {
+                                match decl {
+                                    ast::LocalDecl::Sig { .. } => {}
+                                    ast::LocalDecl::Eq { name: n, body: b, .. } => {
+                                        let mut bound2 = bound.clone();
+                                        bound2.push(n.text.clone());
+                                        self.walk_guard(b, pos, group, mode, &mut bound2)?;
+                                    }
+                                    ast::LocalDecl::Bind { pat, body: b, .. }
+                                    | ast::LocalDecl::Lazy { pat, body: b, .. } => {
+                                        let mut bound2 = bound.clone();
+                                        pat_names(pat, &mut bound2);
+                                        self.walk_guard(b, pos, group, mode, &mut bound2)?;
+                                    }
+                                }
                             }
-                            ast::LocalDecl::Bind { pat, body: b, .. }
-                            | ast::LocalDecl::Lazy { pat, body: b, .. } => {
-                                let mut bound2 = bound.clone();
-                                pat_names(pat, &mut bound2);
-                                self.walk_guard(b, pos, group, mode, &mut bound2)?;
-                            }
-                        },
+                        }
                         ast::DoStmt::Expr { term, .. } => {
                             self.walk_guard(term, pos, group, mode, bound)?
                         }
@@ -10509,9 +10517,7 @@ impl<'a> FactWalk<'a> {
                             self.walk_term(term);
                             self.bind_pat(pat, None);
                         }
-                        ast::DoStmt::Let { decl, .. } => {
-                            self.walk_decls(std::slice::from_ref(decl), false)
-                        }
+                        ast::DoStmt::Let { decls, .. } => self.walk_decls(decls, false),
                         ast::DoStmt::Expr { term, .. } => self.walk_term(term),
                     }
                     self.closure = saved_closure;
@@ -12336,8 +12342,10 @@ impl Checker {
                         ast::DoStmt::Bind { term, .. } | ast::DoStmt::Expr { term, .. } => {
                             flag = self.recur_walk(term, flag, calls, establishes, contract_name, formula, display)?;
                         }
-                        ast::DoStmt::Let { decl, .. } => {
-                            flag = self.recur_walk_local(decl, flag, calls, establishes, contract_name, formula, display)?;
+                        ast::DoStmt::Let { decls, .. } => {
+                            for decl in decls {
+                                flag = self.recur_walk_local(decl, flag, calls, establishes, contract_name, formula, display)?;
+                            }
                         }
                     }
                 }
@@ -12507,12 +12515,14 @@ impl Checker {
                         ast::DoStmt::Bind { term, .. } | ast::DoStmt::Expr { term, .. } => {
                             self.for_each_span(term, f)
                         }
-                        ast::DoStmt::Let { decl, .. } => {
-                            if let ast::LocalDecl::Eq { body, .. }
-                            | ast::LocalDecl::Bind { body, .. }
-                            | ast::LocalDecl::Lazy { body, .. } = decl
-                            {
-                                self.for_each_span(body, f);
+                        ast::DoStmt::Let { decls, .. } => {
+                            for decl in decls {
+                                if let ast::LocalDecl::Eq { body, .. }
+                                | ast::LocalDecl::Bind { body, .. }
+                                | ast::LocalDecl::Lazy { body, .. } = decl
+                                {
+                                    self.for_each_span(body, f);
+                                }
                             }
                         }
                     }
@@ -14890,14 +14900,18 @@ impl Checker {
                             ast::DoStmt::Bind { term, .. } | ast::DoStmt::Expr { term, .. } => {
                                 ast::collect_term_refs(term, &mut out)
                             }
-                            ast::DoStmt::Let { decl, .. } => match decl {
-                                ast::LocalDecl::Eq { body, .. }
-                                | ast::LocalDecl::Bind { body, .. }
-                                | ast::LocalDecl::Lazy { body, .. } => {
-                                    ast::collect_term_refs(body, &mut out)
+                            ast::DoStmt::Let { decls, .. } => {
+                                for decl in decls {
+                                    match decl {
+                                        ast::LocalDecl::Eq { body, .. }
+                                        | ast::LocalDecl::Bind { body, .. }
+                                        | ast::LocalDecl::Lazy { body, .. } => {
+                                            ast::collect_term_refs(body, &mut out)
+                                        }
+                                        ast::LocalDecl::Sig { .. } => {}
+                                    }
                                 }
-                                ast::LocalDecl::Sig { .. } => {}
-                            },
+                            }
                         }
                     }
                 }
@@ -15948,8 +15962,10 @@ impl Checker {
                         ast::DoStmt::Bind { term, .. } | ast::DoStmt::Expr { term, .. } => {
                             self.expand_macros_in_term(cx, module, term)?;
                         }
-                        ast::DoStmt::Let { decl, .. } => {
-                            self.expand_macros_in_local(cx, module, decl)?;
+                        ast::DoStmt::Let { decls, .. } => {
+                            for decl in decls {
+                                self.expand_macros_in_local(cx, module, decl)?;
+                            }
                         }
                     }
                 }
@@ -16039,8 +16055,10 @@ impl Checker {
                         ast::DoStmt::Bind { term, .. } | ast::DoStmt::Expr { term, .. } => {
                             self.expand_macros_in_term(cx, module, term)?;
                         }
-                        ast::DoStmt::Let { decl, .. } => {
-                            self.expand_macros_in_local(cx, module, decl)?;
+                        ast::DoStmt::Let { decls, .. } => {
+                            for decl in decls {
+                                self.expand_macros_in_local(cx, module, decl)?;
+                            }
                         }
                     }
                 }
@@ -16219,12 +16237,14 @@ fn term_has_macro_call(t: &ast::Term) -> bool {
                         ast::DoStmt::Bind { term, .. } | ast::DoStmt::Expr { term, .. } => {
                             walk(term, found)
                         }
-                        ast::DoStmt::Let { decl, .. } => {
-                            if let ast::LocalDecl::Eq { body, .. }
-                            | ast::LocalDecl::Bind { body, .. }
-                            | ast::LocalDecl::Lazy { body, .. } = decl
-                            {
-                                walk(body, found);
+                        ast::DoStmt::Let { decls, .. } => {
+                            for decl in decls {
+                                if let ast::LocalDecl::Eq { body, .. }
+                                | ast::LocalDecl::Bind { body, .. }
+                                | ast::LocalDecl::Lazy { body, .. } = decl
+                                {
+                                    walk(body, found);
+                                }
                             }
                         }
                     }
@@ -16302,13 +16322,16 @@ fn collect_unit_binders(key: &UnitKey, checker: &Checker, out: &mut Vec<String>)
             for stmt in &checker.generate_blocks[*i].stmts {
                 match stmt {
                     ast::DoStmt::Bind { pat, .. } => push_pat(pat, out),
-                    ast::DoStmt::Let { decl, .. } => match decl {
-                        ast::LocalDecl::Sig { name, .. } => out.push(name.text.clone()),
-                        ast::LocalDecl::Eq { name, .. } => out.push(name.text.clone()),
-                        ast::LocalDecl::Bind { pat, .. } | ast::LocalDecl::Lazy { pat, .. } => {
-                            push_pat(pat, out)
+                    ast::DoStmt::Let { decls, .. } => {
+                        for decl in decls {
+                            match decl {
+                                ast::LocalDecl::Sig { name, .. } => out.push(name.text.clone()),
+                                ast::LocalDecl::Eq { name, .. } => out.push(name.text.clone()),
+                                ast::LocalDecl::Bind { pat, .. }
+                                | ast::LocalDecl::Lazy { pat, .. } => push_pat(pat, out),
+                            }
                         }
-                    },
+                    }
                     ast::DoStmt::Expr { .. } => {}
                 }
             }
