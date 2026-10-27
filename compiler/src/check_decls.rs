@@ -328,6 +328,13 @@ fn for_each_subterm(t: &ast::Term, f: &mut dyn FnMut(&ast::Term)) {
                 for_each_subterm(v, f);
             }
         }
+        ast::Term::Range(start, step, end, _) => {
+            for_each_subterm(start, f);
+            if let Some(x) = step {
+                for_each_subterm(x, f);
+            }
+            for_each_subterm(end, f);
+        }
         ast::Term::Record(_, fields, _) => {
             for (_, x) in fields {
                 for_each_subterm(x, f);
@@ -5493,6 +5500,13 @@ impl Checker {
                     self.walk_guard(v, pos, group, mode, bound)?;
                 }
             }
+            ast::Term::Range(start, step, end, _) => {
+                self.walk_guard(start, pos, group, mode, bound)?;
+                if let Some(x) = step {
+                    self.walk_guard(x, pos, group, mode, bound)?;
+                }
+                self.walk_guard(end, pos, group, mode, bound)?;
+            }
             ast::Term::Record(path, fields, _) => {
                 // A codata observation's value runs at observation time:
                 // it is a fresh closure, and a `Later`-typed one is the
@@ -10482,6 +10496,19 @@ impl<'a> FactWalk<'a> {
                     self.walk_child(v);
                 }
             }
+            ast::Term::Range(start, step, end, s) => {
+                self.note_span(*s);
+                self.facts.alloc_sites.push(AllocRec {
+                    what: "a range construction (a `Bytes` buffer or cons cells)".to_string(),
+                    span: *s,
+                    closure: self.closure,
+                });
+                self.walk_child(start);
+                if let Some(x) = step {
+                    self.walk_child(x);
+                }
+                self.walk_child(end);
+            }
             ast::Term::Record(path, fields, s) => {
                 self.note_span(*s);
                 self.facts.alloc_sites.push(AllocRec {
@@ -12289,6 +12316,13 @@ impl Checker {
                     flag = self.recur_walk(v, flag, calls, establishes, contract_name, formula, display)?;
                 }
             }
+            ast::Term::Range(start, step, end, _) => {
+                flag = self.recur_walk(start, flag, calls, establishes, contract_name, formula, display)?;
+                if let Some(x) = step {
+                    flag = self.recur_walk(x, flag, calls, establishes, contract_name, formula, display)?;
+                }
+                flag = self.recur_walk(end, flag, calls, establishes, contract_name, formula, display)?;
+            }
             ast::Term::Record(_, fields, _) => {
                 for (_, e) in fields {
                     flag = self.recur_walk(e, flag, calls, establishes, contract_name, formula, display)?;
@@ -12500,6 +12534,14 @@ impl Checker {
                     self.for_each_span(k, f);
                     self.for_each_span(v, f);
                 }
+            }
+            ast::Term::Range(start, step, end, s) => {
+                f(s);
+                self.for_each_span(start, f);
+                if let Some(x) = step {
+                    self.for_each_span(x, f);
+                }
+                self.for_each_span(end, f);
             }
             ast::Term::Record(p, fields, s) => {
                 f(s);
@@ -15950,6 +15992,14 @@ impl Checker {
                 }
                 Ok(())
             }
+            ast::Term::Range(start, step, end, _) => {
+                self.expand_macros_in_term(cx, module, start)?;
+                if let Some(x) = step {
+                    self.expand_macros_in_term(cx, module, x)?;
+                }
+                self.expand_macros_in_term(cx, module, end)?;
+                Ok(())
+            }
             ast::Term::Record(_, fields, _) => {
                 for (_, e) in fields {
                     self.expand_macros_in_term(cx, module, e)?;
@@ -16226,6 +16276,13 @@ fn term_has_macro_call(t: &ast::Term) -> bool {
                     walk(v, found);
                 }
             }
+            ast::Term::Range(start, step, end, _) => {
+                walk(start, found);
+                if let Some(x) = step {
+                    walk(x, found);
+                }
+                walk(end, found);
+            }
             ast::Term::Record(_, fields, _) => {
                 for (_, e) in fields {
                     walk(e, found);
@@ -16427,6 +16484,14 @@ fn stamp_term_spans(t: &mut ast::Term, site: &crate::lexer::ExpSite) {
                 stamp_term_spans(k, site);
                 stamp_term_spans(v, site);
             }
+        }
+        ast::Term::Range(start, step, end, s) => {
+            stamp(s);
+            stamp_term_spans(start, site);
+            if let Some(x) = step {
+                stamp_term_spans(x, site);
+            }
+            stamp_term_spans(end, site);
         }
         ast::Term::Record(_, fields, s) => {
             stamp(s);

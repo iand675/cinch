@@ -38,6 +38,7 @@ module Prelude where
   import Data.Option
   import Data.Result
   import Data.List
+  import Data.Enum
   import Data.Ordering
   import Data.Nat
   import Data.Int
@@ -83,6 +84,7 @@ module Prelude where
   export module Data.Option
   export module Data.Result
   export module Data.List
+  export module Data.Enum
   export module Data.Ordering
   export module Data.Nat
   export module Data.Int

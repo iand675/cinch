@@ -88,3 +88,12 @@ module Data.Int where
     hash x =
       if x < 0 then nat-from-i64 (int-to-i64 (int-neg x))
       else nat-from-i64 (int-to-i64 x)
+
+  -- The enumeration of mathematical integers (Data.Enum): total in
+  -- both directions, codes consecutive (instances live with their
+  -- type).
+  implicit instance Enum_Int :: Enum Int where
+    succ n = int-add n 1
+    pred n = int-sub n 1
+    to-enum n = n
+    from-enum n = n

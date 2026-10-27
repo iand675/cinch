@@ -70,3 +70,13 @@ module Data.Nat where
   -- live with their type).
   implicit instance Hash_Nat :: Hash Nat where
     hash n = n
+
+  -- The enumeration of natural numbers (Data.Enum): codes are the
+  -- values, and the bounded ends fault the way `Nat` already does
+  -- (`pred` below zero, `to-enum` of a negative; instances live with
+  -- their type).
+  implicit instance Enum_Nat :: Enum Nat where
+    succ n = nat-add n 1
+    pred n = nat-sub n 1
+    to-enum n = nat-from-i64 (int-to-i64 n)
+    from-enum n = int-from-i64 (nat-to-i64 n)

@@ -398,6 +398,10 @@ pub enum Term {
     /// `{k1 => v1, ...}`, the map literal (surface grammar local
     /// amendments section 10); empty is the empty map.
     Map(Vec<(Term, Term)>, Span),
+    /// `[e1..e3]` and `[e1, e2 .. e3]`, the range literal: an
+    /// enumeration from `e1` (stepping to `e2`, default step one) to
+    /// `e3` inclusive, through the `Enum` class (Data.Enum).
+    Range(Box<Term>, Option<Box<Term>>, Box<Term>, Span),
     /// `e.x`, field projection.
     Proj(Box<Term>, Name, Span),
     /// `R { x = e, ... }`, record construction with named fields.
@@ -459,6 +463,7 @@ impl Term {
             | Term::Tuple(_, s)
             | Term::List(_, s)
             | Term::Map(_, s)
+            | Term::Range(_, _, _, s)
             | Term::Proj(_, _, s)
             | Term::Record(_, _, s)
             | Term::Do(_, s)
@@ -1095,6 +1100,13 @@ pub fn collect_term_refs(t: &Term, out: &mut Vec<RefSite>) {
                 collect_term_refs(k, out);
                 collect_term_refs(v, out);
             }
+        }
+        Term::Range(start, step, end, _) => {
+            collect_term_refs(start, out);
+            if let Some(s) = step {
+                collect_term_refs(s, out);
+            }
+            collect_term_refs(end, out);
         }
         Term::Proj(e, _, _) => collect_term_refs(e, out),
         Term::Record(p, fields, _) => {
@@ -1767,6 +1779,15 @@ pub fn hyg_term(t: &Term, cx: &mut HygCx, sc: &mut HygScope) -> Result<Term> {
             }
             Term::Map(out, *s)
         }
+        Term::Range(start, step, end, s) => Term::Range(
+            Box::new(hyg_term(start, cx, sc)?),
+            match step {
+                Some(x) => Some(Box::new(hyg_term(x, cx, sc)?)),
+                None => None,
+            },
+            Box::new(hyg_term(end, cx, sc)?),
+            *s,
+        ),
         Term::Proj(e, n, s) => Term::Proj(Box::new(hyg_term(e, cx, sc)?), n.clone(), *s),
         Term::Record(p, fields, s) => {
             let p = qualify_con(cx, p, *s)?;
@@ -2169,6 +2190,12 @@ pub fn subst_holes(t: &Term, vals: &[Term]) -> Term {
                 .collect(),
             *s,
         ),
+        Term::Range(start, step, end, s) => Term::Range(
+            Box::new(subst_holes(start, vals)),
+            step.as_ref().map(|x| Box::new(subst_holes(x, vals))),
+            Box::new(subst_holes(end, vals)),
+            *s,
+        ),
         Term::Proj(e, n, s) => Term::Proj(Box::new(subst_holes(e, vals)), n.clone(), *s),
         Term::Record(p, fields, s) => Term::Record(
             p.clone(),
@@ -2424,6 +2451,13 @@ pub fn collect_template_holes(t: &mut Term, holes: &mut Vec<HoleExpr>) {
                 collect_template_holes(k, holes);
                 collect_template_holes(v, holes);
             }
+        }
+        Term::Range(start, step, end, _) => {
+            collect_template_holes(start, holes);
+            if let Some(x) = step {
+                collect_template_holes(x, holes);
+            }
+            collect_template_holes(end, holes);
         }
         Term::Proj(e, _, _) => collect_template_holes(e, holes),
         Term::Record(_, fields, _) => {

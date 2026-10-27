@@ -1162,6 +1162,21 @@ module Main where
 
 #[test]
 fn jpl_profile_rejects_each_rule_and_never_looser() {
+    // The rule cases include a legal 61-nested-`let` program whose
+    // elaboration depth needs more stack than a default test thread
+    // provides in the debug build (the shipped driver elaborates on the
+    // main thread); run the cases on a wide-stack thread.
+    std::thread::Builder::new()
+        .stack_size(16 * 1024 * 1024)
+        .spawn(jpl_rule_cases)
+        .expect("spawn the jpl rule cases")
+        .join()
+        .expect("the jpl rule cases");
+}
+
+/// The `jpl` profile's per-rule rejection cases (wide stack; see the
+/// test above).
+fn jpl_rule_cases() {
     // Rule 4: complexity 10.
     expect_err_jpl(
         "jpl-complexity",

@@ -196,6 +196,10 @@ pub enum Tok {
     Bang,
     At,
     Dot,
+    /// Bare `..`, the range-literal separator (reserved punctuation;
+    /// `1..10` lexes as one integer, `..`, one integer since a float
+    /// needs a digit after its dot).
+    DotDot,
     Equals,
     Pipe,
     Dollar,
@@ -620,6 +624,11 @@ impl Lexer {
 
     fn scan_token(&mut self, c: char, span: Span) -> Result<Tok> {
         match c {
+            '.' if self.peek_at(1) == Some('.') => {
+                self.bump();
+                self.bump();
+                Ok(Tok::DotDot)
+            }
             '(' | ')' | ']' | '{' | '}' | ',' | ';' | '.' => {
                 self.bump();
                 Ok(match c {

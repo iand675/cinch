@@ -172,6 +172,7 @@ fn describe(tok: &Tok) -> String {
         Tok::TypeNameLit(s) => format!("type name `''{s}`"),
         Tok::Fragment(_) => "an inline target-IR fragment".into(),
         Tok::Tilde => "`~`".into(),
+        Tok::DotDot => "`..`".into(),
         other => format!("{other:?}"),
     }
 }
@@ -2467,6 +2468,30 @@ impl<'a> Parser<'a> {
                         }
                     }
                 }
+                if self.at(&Tok::DotDot) {
+                    // `[e1..e3]` and `[e1, e2 .. e3]`: the range form
+                    // of the surface range literal.
+                    self.bump();
+                    let end = self.parse_term()?;
+                    self.expect(&Tok::RBracket, "`]` closing the range")?;
+                    let mut it = items.into_iter();
+                    let start = match it.next() {
+                        Some(s) => s,
+                        None => return Err(self.err("a range literal needs a start")),
+                    };
+                    let step = it.next();
+                    if it.next().is_some() {
+                        return Err(self.err(
+                            "a range literal is `[e1..e3]` or `[e1, e2 .. e3]`",
+                        ));
+                    }
+                    return Ok(Term::Range(
+                        Box::new(start),
+                        step.map(Box::new),
+                        Box::new(end),
+                        span,
+                    ));
+                }
                 self.expect(&Tok::RBracket, "`]` closing the list")?;
                 Ok(Term::List(items, span))
             }
@@ -3466,6 +3491,13 @@ fn resolve_term(t: &mut Term, fix: &FixityTable) -> Result<()> {
             for x in items {
                 resolve_term(x, fix)?;
             }
+        }
+        Term::Range(start, step, end, _) => {
+            resolve_term(start, fix)?;
+            if let Some(x) = step {
+                resolve_term(x, fix)?;
+            }
+            resolve_term(end, fix)?;
         }
         Term::Proj(e, _, _) => resolve_term(e, fix)?,
         Term::Record(_, fields, _) => {

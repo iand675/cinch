@@ -432,6 +432,84 @@ impl Checker {
         ))
     }
 
+    /// A range literal (the surface range form `[e1..e2]` / `[e1, e2
+    /// .. e3]`): `from-list (enum-from-to e1 e2)` or `from-list
+    /// (enum-from-then-to e1 e2 e3)` at the expected type's `FromList c
+    /// e` instance, the enumeration stepping through the `Enum` class
+    /// (Data.Enum). `expected` is the check position's container type;
+    /// in inference position the container is a fresh type the instance
+    /// solve defaults to `List` (decision D142). Like every collection
+    /// construction the call is a `LitFold` boundary: the fold pass
+    /// reifies a stage-known construction to a constant value, and the
+    /// marker lowers to the runtime class calls otherwise.
+    fn elab_range(
+        &mut self,
+        env: &mut Env,
+        start: &ast::Term,
+        step: Option<&ast::Term>,
+        end: &ast::Term,
+        expected: Option<&Ty>,
+        span: ast::Span,
+    ) -> Result<(ECore, Ty)> {
+        let prelude = self.prelude_module.clone();
+        let method = if step.is_some() {
+            "enum-from-then-to"
+        } else {
+            "enum-from-to"
+        };
+        let einfo = self
+            .lookup_value(Some(&prelude), method)
+            .map_err(|e| Error::at(span, e.message))?;
+        let (ecore, ety) = self.value_use(&einfo, span, env)?;
+        let a = self.uni.fresh();
+        let sc = self.check(env, start, &a)?;
+        let stc = match step {
+            Some(t) => Some(self.check(env, t, &a)?),
+            None => None,
+        };
+        let ec = self.check(env, end, &a)?;
+        let list_ty = Ty::Adt("List".into(), vec![a.clone()]);
+        let doms: Vec<Ty> = if step.is_some() {
+            vec![a.clone(), a.clone(), a.clone()]
+        } else {
+            vec![a.clone(), a.clone()]
+        };
+        self.uni
+            .unify(&ety, &Ty::funs(&doms, list_ty.clone()))
+            .map_err(|m| Error::at(span, m))?;
+        let mut args = vec![sc];
+        args.extend(stc);
+        args.push(ec);
+        // The P19 expected-type boundary: `from-list` at the expected
+        // type's `FromList c e` instance.
+        let minfo = self
+            .lookup_value(Some(&prelude), "from-list")
+            .map_err(|e| Error::at(span, e.message))?;
+        let (mcore, mty) = self.value_use(&minfo, span, env)?;
+        let result = match expected {
+            Some(t) => t.clone(),
+            None => self.uni.fresh(),
+        };
+        let want = Ty::funs(&[list_ty], result.clone());
+        self.uni
+            .unify(&mty, &want)
+            .map_err(|m| Error::at(span, m))?;
+        let idx = self.literal_folds.len();
+        self.literal_folds.push(LitFold {
+            unit: String::new(),
+            site: format!("{}:{}", span.line, span.col),
+            kind: "range".to_string(),
+            folded: false,
+        });
+        Ok((
+            ECore::LitFold {
+                idx,
+                body: Box::new(app_spine(mcore, vec![app_spine(ecore, args)])),
+            },
+            result,
+        ))
+    }
+
     fn infer(&mut self, env: &mut Env, term: &ast::Term) -> Result<(ECore, Ty)> {
         match term {
             // In inference position a literal keeps the default `Int` type
@@ -745,6 +823,9 @@ impl Checker {
                     .flat_map(|(k, v)| [k.clone(), v.clone()])
                     .collect();
                 self.elab_collection(env, &flat, true, None, *span)
+            }
+            ast::Term::Range(start, step, end, span) => {
+                self.elab_range(env, start, step.as_deref(), end, None, *span)
             }
             ast::Term::Proj(e, field, span) => {
                 // `x.f.g` is a record-projection place rooted at a
@@ -1112,6 +1193,11 @@ impl Checker {
                     .flat_map(|(k, v)| [k.clone(), v.clone()])
                     .collect();
                 let (core, _) = self.elab_collection(env, &flat, true, Some(expected), *span)?;
+                Ok(core)
+            }
+            ast::Term::Range(start, step, end, span) => {
+                let (core, _) =
+                    self.elab_range(env, start, step.as_deref(), end, Some(expected), *span)?;
                 Ok(core)
             }
             ast::Term::Int(v, span) => self.lit_check(expected, v, *span),
@@ -5993,6 +6079,13 @@ impl Checker {
                         walk(chk, v, found);
                     }
                 }
+                ast::Term::Range(start, step, end, _) => {
+                    walk(chk, start, found);
+                    if let Some(x) = step {
+                        walk(chk, x, found);
+                    }
+                    walk(chk, end, found);
+                }
                 ast::Term::Record(_, fields, _) => {
                     for (_, x) in fields {
                         walk(chk, x, found);
@@ -6147,6 +6240,7 @@ impl Checker {
             | ast::Term::Tuple(_, _)
             | ast::Term::List(_, _)
             | ast::Term::Map(_, _)
+            | ast::Term::Range(_, _, _, _)
             | ast::Term::Record(_, _, _)
             | ast::Term::Proj(_, _, _)
             | ast::Term::CapApply { .. }
@@ -7571,6 +7665,12 @@ fn immediate_subterms(t: &ast::Term) -> Vec<ast::Term> {
         ast::Term::Map(kvs, _) => {
             kvs.iter().flat_map(|(k, v)| [k.clone(), v.clone()]).collect()
         }
+        ast::Term::Range(start, step, end, _) => {
+            let mut v = vec![(**start).clone()];
+            v.extend(step.iter().map(|x| (**x).clone()));
+            v.push((**end).clone());
+            v
+        }
         ast::Term::Record(_, fields, _) => {
             fields.iter().map(|(_, x)| x.clone()).collect()
         }
@@ -7606,6 +7706,15 @@ fn replace_subterms(t: &ast::Term, names: &[String]) -> ast::Term {
             names.chunks(2).map(|c| (mk(&c[0]), mk(&c[1]))).collect(),
             *s,
         ),
+        ast::Term::Range(_, step, _, s) => {
+            let start = Box::new(mk(&names[0]));
+            let (step, end) = if step.is_some() {
+                (Some(Box::new(mk(&names[1]))), mk(&names[2]))
+            } else {
+                (None, mk(&names[1]))
+            };
+            ast::Term::Range(start, step, Box::new(end), *s)
+        }
         ast::Term::Record(p, fields, s) => ast::Term::Record(
             p.clone(),
             fields

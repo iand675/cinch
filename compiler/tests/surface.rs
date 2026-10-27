@@ -148,6 +148,85 @@ fn map_literal_defaults_and_wrong_instance_are_reported() {
     assert!(err.contains("no instance for FromList"), "{err}");
 }
 
+// ---------------------------------------- the range literal (Data.Enum)
+
+#[test]
+fn range_literals_desugar_through_the_enum_class() {
+    // `[e1..e2]` is the step-one enumeration and `[e1, e2 .. e3]` the
+    // stepped one, both inclusive, through the `Enum` class: exact
+    // sequences over `Int`, a descending step, the empty descending
+    // case, and the `Nat` instance.
+    let dir = write_project(&[(
+        "Main.lang",
+        "module Main where\n\
+         \x20 xs :: List Int\n\
+         \x20 xs = [1..10]\n\
+         \x20 ns :: List Nat\n\
+         \x20 ns = [2..4]\n\
+         \x20 stepped :: Int -> Int -> Int -> List Int\n\
+         \x20 stepped a b z = [a, b .. z]\n\
+         \x20 same :: List Int -> List Int -> Bool\n\
+         \x20 same a b = case a of\n\
+         \x20   Nil -> (case b of Nil -> True; Cons _ _ -> False)\n\
+         \x20   Cons x xr -> (case b of\n\
+         \x20     Nil -> False\n\
+         \x20     Cons y yr -> if x == y then same xr yr else False)\n\
+         \x20 main :: Int\n\
+         \x20 main =\n\
+         \x20   if same xs [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] then\n\
+         \x20     (if same (stepped 1 4 10) [1, 4, 7, 10] then\n\
+         \x20       (if same (stepped 10 8 0) [10, 8, 6, 4, 2, 0] then\n\
+         \x20         (if length ns == 3 && same [3..1] [] then 0 else 4)\n\
+         \x20       else 3)\n\
+         \x20     else 2)\n\
+         \x20   else 1\n",
+    )]);
+    assert_eq!(run_entry(&dir, "Main.lang").expect("run"), 0);
+}
+
+#[test]
+fn range_literal_folds_when_stage_known() {
+    // Constant endpoints fold through the D92 evaluator to a constant
+    // value (the boundary records it); runtime endpoints keep the class
+    // calls (surface grammar local amendments section 10's rule).
+    let dir = write_project(&[(
+        "Main.lang",
+        "module Main where\n\
+         \x20 xs :: List Int\n\
+         \x20 xs = [1..3]\n\
+         \x20 pick :: Int -> List Int\n\
+         \x20 pick n = [n..n + 2]\n\
+         \x20 main :: Int\n\
+         \x20 main = if length xs == 3 && length (pick 7) == 3 then 0 else 1\n",
+    )]);
+    assert_eq!(run_entry(&dir, "Main.lang").expect("run"), 0);
+    let folds = literal_folds(&dir);
+    assert_eq!(
+        folds,
+        vec![("range".to_string(), true), ("range".to_string(), false)],
+        "the constant range folds and the runtime one does not"
+    );
+}
+
+#[test]
+fn range_without_an_enum_instance_is_reported() {
+    // A range at a type with no `Enum` instance names the missing
+    // instance (the wrong-instance negative of the class desugar).
+    let dir = write_project(&[(
+        "Main.lang",
+        "module Main where\n\
+         \x20 data Toggle where\n\
+         \x20   Off :: Toggle\n\
+         \x20   On :: Toggle\n\
+         \x20 bad :: List Toggle\n\
+         \x20 bad = [Off..On]\n\
+         \x20 main :: Int\n\
+         \x20 main = 0\n",
+    )]);
+    let err = check_entry(&dir, "Main.lang").expect_err("wrong instance");
+    assert!(err.contains("no instance for Enum"), "{err}");
+}
+
 // ---------------------------------------- D107: exports and re-exports
 
 #[test]

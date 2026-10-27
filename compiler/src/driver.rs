@@ -40,6 +40,10 @@ pub const PRELUDE_EARLY: &[(&str, &str)] = &[
     ("Data/Option.lang", include_str!("../prelude/Data/Option.lang")),
     ("Data/Result.lang", include_str!("../prelude/Data/Result.lang")),
     ("Data/List.lang", include_str!("../prelude/Data/List.lang")),
+    // The enumeration class behind the range literals collects after
+    // `Data.List` (its `List` type); its instances live with their
+    // types in `Data.Nat`/`Data.Int`.
+    ("Data/Enum.lang", include_str!("../prelude/Data/Enum.lang")),
     ("Data/Ordering.lang", include_str!("../prelude/Data/Ordering.lang")),
     ("Data/Char.lang", include_str!("../prelude/Data/Char.lang")),
     ("Data/Bool.lang", include_str!("../prelude/Data/Bool.lang")),
