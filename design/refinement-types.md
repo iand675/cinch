@@ -121,6 +121,30 @@ table is also the home of bounded arithmetic for `bounded(n)` depth
 bounds and temporal `recur` (D113/D202) - one bounded-arithmetic
 machinery, not three.
 
+## Partial weakening and `forget` (user direction, 2026-10-27)
+
+Dropping SOME conjuncts is semantically already weakening to an
+intermediate lattice point (`A && B && C implies A && C`), free and
+implicit; instance availability is monotone under it (weaker
+predicates preserve more easily, so forgetting cannot lose methods).
+The feature is therefore explicitness at boundaries, in two layers:
+
+1. **Type ascription is the everyday form** (no new syntax): `let ys :
+   refined (A && C) = xs` means keep A and C, and implicit weakening
+   fires at the annotation.
+2. **`forget` names what is given up**:
+   `forget B from xs` / `forget [B, C] from xs`, typing to the
+   conjunction minus the named atoms. It operates on TOP-LEVEL
+   conjuncts only (the atom-set representation); structural drops
+   inside disjunctions or comparisons use explicit ascription.
+   Forgetting an atom that is not there is an error naming it. Zero
+   runtime cost (same word; the dropped evidence is simply no longer
+   required), and genuinely irreversible: restoring the atom needs a
+   fresh `narrow`/`Dec`.
+
+The keep-set form (`weaken xs to {A, C}`) duplicates ascription and is
+left out unless API practice shows a need.
+
 ## Compound predicates (user direction, 2026-10-27; revision of D249's
 conjunction refusal)
 

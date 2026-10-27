@@ -897,6 +897,16 @@ correspondence: one lexeme in expression/pattern, staging `Name`, and
   results flow down the lattice for free (D257). The interval table is
   the shared home of bounded arithmetic for `bounded(n)`/`recur`
   (D113/D202).
+- **D259 (P28 partial weakening, user direction)**: dropping some
+  conjuncts is weakening to an intermediate lattice point (already
+  implicit; instance availability is monotone under it - forgetting
+  cannot lose methods). Explicitness takes two layers: type ascription
+  is the everyday form (no new syntax), and `forget B from xs` /
+  `forget [B, C] from xs` names what is given up (top-level conjuncts
+  only; structural drops use ascription; dropping an absent atom names
+  the error). Zero runtime cost; genuinely irreversible (restoring an
+  atom needs a fresh `narrow`/`Dec`). The keep-set form is deferred
+  pending API practice.
 - **D127 (P25 scaffolding ruling)**: FoldAgent's defunctionalized
   class shapes (`Foldable t a`, `Traversable t x g h tg hs`) are
   accepted as NON-CURATED scaffolding: they ship in the `Category`
