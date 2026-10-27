@@ -264,7 +264,7 @@ correspondence: one lexeme in expression/pattern, staging `Name`, and
 | --- | --- |
 | `Sym`: word-handle interned cell; `intern`/`sym-name`; `Eq` = identity $O(1)$, `Ord` by name (deterministic); no machine-scalar confusion (D122) | spec'd |
 | Tick syntax: `'foo` symbol literals (constants via compile-time interning and the P14 constant emission), `'a'` char precedence rule, `'foo`/`''T` name quotes in staging/macro positions (D123) | spec'd |
-| Type-level symbols (promoted `'foo` for labels/schema names) deferred with the spelling reserved (D124) | spec'd |
+| Type-level symbols (promoted `'foo` for labels/schema names) deferred with the spelling reserved (D124) | done (the spelling is reserved and enforced (D234); promotion itself stays deferred pending a consumer (A6)) |
 
 - **D122 (P24 Sym)**: `Sym` is a core runtime type: one-word handle to
   a process-wide interned cell; `intern : String -> Sym`,
@@ -747,6 +747,29 @@ correspondence: one lexeme in expression/pattern, staging `Name`, and
   reduction beyond D28, and a `List.map` name resolution; the
   assumed-law shortcut would replace its structural-induction teaching,
   so it stays rejected until the language work lands.
+- **D232-D237 (P24, reported)**: `Sym` is a builtin core type name
+  (like `Bytes`) with `Data.Sym` as its API/instance home and exactly
+  `Eq`/`Ord`/`Show` (no structural `Copy`); the lexical rule is taken
+  literally (the char probe runs first, so `'''` is `Char '\''`; a tick
+  name is the identifier after the tick with dash glue and primes as
+  ident chars, so `'foo'` names `foo'`; names start with a letter or
+  underscore); type-position `'foo`/`''T` reject naming D124 and
+  `''T` in expression/pattern position rejects naming its staging-only
+  role; runtime cells are kind-tagged (`KIND_SYM`), leaked and never
+  freed, `Eq` is the pointer test with kind validation, `Ord` compares
+  name bytes, `sl_sym_intern` rejects non-UTF-8 names so `sym-name` is
+  total, and the extern surface is exactly four `nm`-verified ops;
+  compile-time `Value::Sym` interns by name (identity is name identity;
+  no cell address is observable) with `sym*` prims constant-folding;
+  and a latent emit-header bug was fixed (`@sl_bytes_data` was called
+  but never declared, so any program whose IR used the byte-span
+  crossing failed to assemble). The D46 `Name` member is UNIMPLEMENTED
+  and its exact gap is recorded: macro signatures admit only
+  `Syntax`/`Code`/`Declarations`, `quoteDecls` names cannot be spliced,
+  and no `Name`-to-symbol reification exists (tick lexemes survive as
+  macro tokens and splice-time reification works; finishing it needs a
+  `Name` type and signature member, name splices with hygiene renaming,
+  and reification builtins).
 - **D127 (P25 scaffolding ruling)**: FoldAgent's defunctionalized
   class shapes (`Foldable t a`, `Traversable t x g h tg hs`) are
   accepted as NON-CURATED scaffolding: they ship in the `Category`
