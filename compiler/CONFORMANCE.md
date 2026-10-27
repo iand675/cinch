@@ -674,6 +674,26 @@ correspondence: one lexeme in expression/pattern, staging `Name`, and
   prim claiming purity is a visible assumption, never an invisible
   claim; scan-gated attributes stay scan-gated). Implementation queued
   behind the tooling slice; spec section 12.
+- **D215-D220 (P21+P22 tooling, reported)**: one shared analysis
+  layer (`analysis.rs`) drives both front ends (the REPL is backed by
+  the language server exactly as directed); checker spans carry no
+  file, so each file parses behind a fixed line band and attribution is
+  unbanded at the output boundary (real source text is hashed, not the
+  banded text); the REPL probe finishes exactly like a definition body
+  (full pipeline, then the staging interpreter on a truncated temporary
+  unit) with evaluation SKIPPED, not faked, when constraints stay
+  residual (residual wants become the scheme's `using` context);
+  signature discipline: lone signatures hold pending their equation,
+  bare equations get synthesized signatures via probing `\pats ->
+  body`, bailing to "state its signature" when the rendered scheme
+  carries generated names (display forms are not re-parseable source);
+  `:reload` forces a recheck while unchanged updates are no-ops;
+  incremental reporting is honest (`rechecked` is the whole check
+  slice including unchanged name-resolution dependencies, `kept` is
+  cached reuse, `chain_ok` re-verifies the merged chain); the LSP is
+  hand-rolled JSON-RPC (zero-dependency workspace) with full document
+  sync, one-character diagnostic ranges, and URIs rooted at the client
+  root while all other output is workspace-relative.
 - **D214 (P18 platform-gated bodies, user direction)**: body
   conditions gain `when arch <name>` predicates keyed on the target
   profile's triple (x86_64, aarch64, wasm32, ...), with the selection
