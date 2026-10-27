@@ -176,3 +176,39 @@ module Main where
     )
     .unwrap_or_else(|e| panic!("letrec-lambda: a lambda-guarded cycle must check: {e}"));
 }
+
+#[test]
+fn nested_let_depth_limit_is_a_named_diagnostic() {
+    // Nested `let` elaboration is bounded by the checker's let-nesting
+    // depth limit: a nesting past it gets the named depth-limit
+    // diagnostic, never a stack overflow and never a silent pass. The
+    // limit is the hardening; these probes run on a wide stack (as the
+    // JPL rule cases do) so what is tested is the limit, not the
+    // thread's edge. The boundary is pinned: 128 nested `let`s still
+    // check and run, 129 refuses.
+    let deep = |levels: usize| {
+        let mut body = format!("if a{levels} == {} then 0 else 1", levels - 1);
+        for i in (1..=levels).rev() {
+            let rhs =
+                if i == 1 { "0".to_string() } else { format!("a{} + 1", i - 1) };
+            body = format!("let a{i} = {rhs} in {body}");
+        }
+        format!("module Main where\n  main :: Int\n  main = {body}\n")
+    };
+    let at_limit = deep(128);
+    let past_limit = deep(129);
+    std::thread::Builder::new()
+        .stack_size(64 << 20)
+        .spawn(move || {
+            expect_ok("let-depth-at-limit", &at_limit, 0);
+            let e = check_sources(&past_limit, "<test>").expect_err("past the limit");
+            let msg = e.to_string();
+            assert!(
+                msg.contains("let nesting depth limit (128) exceeded"),
+                "the depth-limit diagnostic names its limit: {msg}"
+            );
+        })
+        .expect("spawn the let-depth probes")
+        .join()
+        .expect("the let-depth probes");
+}

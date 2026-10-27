@@ -3499,6 +3499,12 @@ fn resolve_term(t: &mut Term, fix: &FixityTable) -> Result<()> {
             }
             resolve_term(end, fix)?;
         }
+        Term::Map(kvs, _) => {
+            for (k, v) in kvs {
+                resolve_term(k, fix)?;
+                resolve_term(v, fix)?;
+            }
+        }
         Term::Proj(e, _, _) => resolve_term(e, fix)?,
         Term::Record(_, fields, _) => {
             for (_, x) in fields {

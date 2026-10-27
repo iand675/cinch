@@ -1239,6 +1239,13 @@ struct HandlerExtent {
 /// Compiler-known sequencing provider class heads.
 const SEQ_CLASSES: [&str; 3] = ["DirectSequencing", "ResultSequencing", "OptionSequencing"];
 
+/// The maximum `let`/`letrec` nesting the elaborator recurses into.
+/// A deeper nesting gets the named let-nesting depth-limit diagnostic
+/// (`in_let`) instead of a stack overflow or a silent pass: the limit
+/// is the hardening, wide test stacks remain how deep-but-legal
+/// programs run.
+const LET_DEPTH_LIMIT: usize = 128;
+
 /// The selected sequencing provider of the definition being checked
 /// (`design/effects-capabilities-sequencing.md` section 5): the nearest
 /// explicit `using` binder with a provider class head, or the direct
@@ -2041,6 +2048,9 @@ struct Checker {
     lam_depth: usize,
     /// Lazy-position nesting: memo cell bodies.
     memo_depth: usize,
+    /// `let`/`letrec` nesting being elaborated, bounded by
+    /// [`LET_DEPTH_LIMIT`] (`in_let`).
+    let_depth: usize,
     /// Memo-group regions currently in scope (region escape checking).
     active_regions: Vec<String>,
     /// One-shot frames: task bodies and `withScope` bodies being
@@ -2440,6 +2450,7 @@ impl Checker {
             obligations: HashMap::new(),
             lam_depth: 0,
             memo_depth: 0,
+            let_depth: 0,
             active_regions: Vec::new(),
             oneshot_frames: Vec::new(),
             scope_frames: Vec::new(),
@@ -2576,6 +2587,7 @@ impl Checker {
         self.cur_temporal = None;
         self.lam_depth = 0;
         self.memo_depth = 0;
+        self.let_depth = 0;
         self.active_regions.clear();
         self.oneshot_frames.clear();
         self.scope_frames.clear();
@@ -3031,6 +3043,30 @@ impl Checker {
             }
         }
         Ok(())
+    }
+
+    /// Elaborate one `let`/`letrec` nesting level deeper (`f` runs the
+    /// whole nested elaboration): past [`LET_DEPTH_LIMIT`] the named
+    /// let-nesting depth-limit diagnostic fires at the offending
+    /// binding's span instead of the recursion consuming stack.
+    fn in_let<T>(
+        &mut self,
+        span: ast::Span,
+        f: impl FnOnce(&mut Self) -> Result<T>,
+    ) -> Result<T> {
+        self.let_depth += 1;
+        let out = if self.let_depth > LET_DEPTH_LIMIT {
+            Err(Error::at(
+                span,
+                format!(
+                    "let nesting depth limit ({LET_DEPTH_LIMIT}) exceeded: at most {LET_DEPTH_LIMIT} nested `let`/`letrec` bodies elaborate; deeper nesting is refused rather than risking the elaborator's stack"
+                ),
+            ))
+        } else {
+            f(self)
+        };
+        self.let_depth -= 1;
+        out
     }
 
     /// Run `f` with an isolated use accumulator: one arm of a branch. Each

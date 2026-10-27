@@ -741,24 +741,24 @@ impl Checker {
                 let core = self.check_lam(env, term, &t)?;
                 Ok((core, t))
             }
-            ast::Term::Let(decls, body, span) => {
+            ast::Term::Let(decls, body, span) => self.in_let(*span, |s| {
                 let mut env2 = env.clone();
-                let (binds, group) = self.elab_locals(&mut env2, decls, LocalForm::Plain)?;
-                let (bcore, bty) = self.infer(&mut env2, body)?;
+                let (binds, group) = s.elab_locals(&mut env2, decls, LocalForm::Plain)?;
+                let (bcore, bty) = s.infer(&mut env2, body)?;
                 if let Some(g) = &group {
-                    self.discharge_group(g, &bty, *span)?;
+                    s.discharge_group(g, &bty, *span)?;
                 }
                 Ok((wrap_lets(binds, bcore), bty))
-            }
-            ast::Term::Letrec(decls, body, span) => {
+            }),
+            ast::Term::Letrec(decls, body, span) => self.in_let(*span, |s| {
                 let mut env2 = env.clone();
-                let (binds, group) = self.elab_letrec(&mut env2, decls)?;
-                let (bcore, bty) = self.infer(&mut env2, body)?;
+                let (binds, group) = s.elab_letrec(&mut env2, decls)?;
+                let (bcore, bty) = s.infer(&mut env2, body)?;
                 if let Some(g) = &group {
-                    self.discharge_group(g, &bty, *span)?;
+                    s.discharge_group(g, &bty, *span)?;
                 }
                 Ok((wrap_lets(binds, bcore), bty))
-            }
+            }),
             ast::Term::If { cond, then, els, cond_attrs, then_attrs, else_attrs, span } => {
                 let (tw, fw) =
                     self.if_weights(cond_attrs, then_attrs, else_attrs, *span)?;
@@ -1160,24 +1160,24 @@ impl Checker {
                     CBranch::weighted(fw, ecore),
                 ))
             }
-            ast::Term::Let(decls, body, span) => {
+            ast::Term::Let(decls, body, span) => self.in_let(*span, |s| {
                 let mut env2 = env.clone();
-                let (binds, group) = self.elab_locals(&mut env2, decls, LocalForm::Plain)?;
-                let bcore = self.check(&mut env2, body, expected)?;
+                let (binds, group) = s.elab_locals(&mut env2, decls, LocalForm::Plain)?;
+                let bcore = s.check(&mut env2, body, expected)?;
                 if let Some(g) = &group {
-                    self.discharge_group(g, expected, *span)?;
+                    s.discharge_group(g, expected, *span)?;
                 }
                 Ok(wrap_lets(binds, bcore))
-            }
-            ast::Term::Letrec(decls, body, span) => {
+            }),
+            ast::Term::Letrec(decls, body, span) => self.in_let(*span, |s| {
                 let mut env2 = env.clone();
-                let (binds, group) = self.elab_letrec(&mut env2, decls)?;
-                let bcore = self.check(&mut env2, body, expected)?;
+                let (binds, group) = s.elab_letrec(&mut env2, decls)?;
+                let bcore = s.check(&mut env2, body, expected)?;
                 if let Some(g) = &group {
-                    self.discharge_group(g, expected, *span)?;
+                    s.discharge_group(g, expected, *span)?;
                 }
                 Ok(wrap_lets(binds, bcore))
-            }
+            }),
             ast::Term::Case(scrut, alts, span) => {
                 let (scrut_core, scrut_ty) = self.infer(env, scrut)?;
                 let scrut_ty = self.uni.zonk(&scrut_ty);
@@ -6191,9 +6191,11 @@ impl Checker {
                 )
             }
             ast::Term::Case(scrut, alts, span) => self.cps_case(env, scrut, alts, kv, *span),
-            ast::Term::Let(decls, body, span) => self.cps_let(env, decls, body, kv, *span),
+            ast::Term::Let(decls, body, span) => {
+                self.in_let(*span, |s| s.cps_let(env, decls, body, kv, *span))
+            }
             ast::Term::Letrec(decls, body, span) => {
-                self.cps_letrec(env, decls, body, kv, *span)
+                self.in_let(*span, |s| s.cps_letrec(env, decls, body, kv, *span))
             }
             ast::Term::Do(stmts, span) => {
                 let shape = self.result_shape(env, *span)?;

@@ -148,6 +148,28 @@ fn map_literal_defaults_and_wrong_instance_are_reported() {
     assert!(err.contains("no instance for FromList"), "{err}");
 }
 
+#[test]
+fn map_literal_keys_and_values_resolve_infix_chains() {
+    // An infix chain in a map key or value resolves in place through
+    // the `resolve_term` map arm (as the range literal does); before
+    // the arm existed the chain reached the checker unresolved.
+    let dir = write_project(&[(
+        "Main.lang",
+        "module Main where\n\
+         \x20 m :: Map Nat Nat\n\
+         \x20 m = {1 + 2 => 3}\n\
+         \x20 bump :: Nat -> Map Nat Nat\n\
+         \x20 bump n = {n + 1 => n}\n\
+         \x20 main :: Int\n\
+         \x20 main = case map-lookup 3 m of\n\
+         \x20   None -> 1\n\
+         \x20   Some v -> case map-lookup 8 (bump 7) of\n\
+         \x20     None -> 2\n\
+         \x20     Some w -> if v == 3 && w == 7 then 0 else 3\n",
+    )]);
+    assert_eq!(run_entry(&dir, "Main.lang").expect("run"), 0);
+}
+
 // ---------------------------------------- the range literal (Data.Enum)
 
 #[test]
