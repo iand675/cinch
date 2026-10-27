@@ -827,6 +827,30 @@ correspondence: one lexeme in expression/pattern, staging `Name`, and
   groups (the grammar follows the normative EBNF `do_statement = "let",
   local_block`; the BOOTSTRAP compiler binds one value per do `let` -
   the compiler holds the gap there).
+- **D248-D255 (P28 refinements, reported)**: the surface spelling is
+  `type R p = refine (x :: T) with P` (binder `::` or `:`; `refine`
+  contextual; aliases refuse naming the form); predicate admissibility
+  is a closed structural vocabulary (`NotNull`/`NonZero`/`Ascii`/
+  `Ordered` over admitted operand shapes) plus the existing `Dec`
+  propositions over numeric containers, with quantifiers, and/or,
+  proposition variables, non-binder operands, non-numeric comparisons,
+  and `Ordered` over generic element types refused by name; the
+  witness `R x w` mirrors `Fin` (the slot takes a `Dec` discharge that
+  must decide and erases, or `Yes`-extracted evidence with D192
+  staleness applying at the use); preservation law identity is
+  `<Refinement>.preserve-<method>` in the same honest manifest tier as
+  class laws; runtime `decide` on vocabulary predicates lowers to
+  baked tests (constructor-tag cases and synthesized
+  `<builtin>.refine-*` units), never to source a shadowing module
+  could lie with; static discharge folds constructor/numeral forms
+  literally written (no value-equation substitution through
+  `let`/match, so runtime discharge is the path for opaque values) and
+  refinements have no constructor patterns (match via `unrefine`);
+  instance transfer is rep-identity (the container's methods at the
+  container's types, the dictionary presenting refined types); and the
+  honest boundaries are reported per instance (nested refined results
+  and `Monoid`'s unit laws citing an uncarrried `Semigroup.<>` report
+  `not checked` - a pre-existing law-machinery gap now visible).
 - **D127 (P25 scaffolding ruling)**: FoldAgent's defunctionalized
   class shapes (`Foldable t a`, `Traversable t x g h tg hs`) are
   accepted as NON-CURATED scaffolding: they ship in the `Category`
@@ -867,6 +891,26 @@ correspondence: one lexeme in expression/pattern, staging `Name`, and
   Held: Profunctor/Category/Kleisli, State/Reader newtypes. Out: the
   transformer zoo (row effects do it natively), IO-as-a-monad,
   numeric towers beyond Semiring, lenses.
+
+### Refinement types (P28)
+
+Implemented `dfc653d` (2026-10-27, `RefinementSlice`, D248-D255):
+`type R p = refine (x :: T) with P` registers a nominal type whose
+runtime representation IS the container (witness `Prop`-erased per
+D31); a `Fin`-shaped transparent constructor `R x w` takes a `Dec`
+discharge (erased) or `Yes`-extracted evidence; `unrefine` is the
+identity projection (explicit, no silent subtyping); discharge lives
+entirely in the `Dec`/`decide` world (forged and stale witnesses
+refused, the latter via the D192 rule); instance transfer is
+rep-identity (the container's methods, dictionary presenting refined
+types) with preservation checked by the P18 law layer under
+`<Refinement>.preserve-<method>` identities (`Semigroup (NonEmpty a)`
+checked; `Monoid (NonEmpty a)` rejected naming `NonEmpty.preserve-mempty`).
+The four refinements ship: `Data.NonEmpty` rewritten (bespoke type
+gone), `Data.Sorted` (Semigroup = merge), `Data.NonZero`, `Data.Ascii`.
+`tests/refinements.rs` 16/16 includes the IR erasure proof (projection
+body is a bare `ret`; construction byte-identical to the container's);
+`lib_foldable.rs` migrated 9/9. Suite 35 binaries + 111 runtime.
 
 ### Primitive operations and inline target IR (P18)
 
