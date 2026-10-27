@@ -1808,6 +1808,10 @@ pub struct FnMeta {
     pub dicts: Vec<(usize, String)>,
     /// Whether the definition's own effect rows are all empty.
     pub pure: bool,
+    /// The LLVM contract surface's facts about the definition (the
+    /// effect-derived function attributes, the usage-derived parameter
+    /// attributes, and the P20 assertions code generation re-states).
+    pub contract: FnContract,
 }
 
 impl Default for FnMeta {
@@ -1820,8 +1824,57 @@ impl Default for FnMeta {
             pure_arrows: Vec::new(),
             dicts: Vec::new(),
             pure: true,
+            contract: FnContract::default(),
         }
     }
+}
+
+/// One parameter's contract facts for the LLVM contract surface (the
+/// `noundef`, `nonnull`, `align` and `dereferenceable` parameter
+/// attributes and operand bundles). The facts describe the parameter's
+/// value word and, for pointer-shaped parameters, the pointee the role
+/// asserts.
+#[derive(Clone, Debug, Default)]
+pub struct ParamContract {
+    /// The parameter's type is a machine scalar, `Bool` or `Char`: the
+    /// word is never undef or poison (`noundef`).
+    pub noundef: bool,
+    /// The parameter's pointer role is non-null (only `MaybeNull` may be
+    /// null; foreign function interface specification decision D70).
+    pub nonnull: bool,
+    /// The alignment the pointer role asserts of its pointee (`align`;
+    /// 0 asserts none, as for `RawPtr`).
+    pub pointee_align: u64,
+    /// The size the pointer role asserts of its pointee
+    /// (`dereferenceable`; 0 asserts none).
+    pub pointee_size: u64,
+}
+
+/// One definition's facts for the LLVM contract surface (the plan note
+/// `design/llvm-contract-attributes.md`): what the analyses proved so
+/// code generation can spell it in LLVM's own vocabulary. Everything is
+/// proof-derived; a fact the analyses did not establish stays `false` or
+/// `None` and the attribute is omitted rather than guessed.
+#[derive(Clone, Debug, Default)]
+pub struct FnContract {
+    /// The result value's range `[lo, hi)` as canonical words when the
+    /// result type is bounded (`U8` and friends, `Bool`, `Fin n`):
+    /// `!range` metadata on calls and the `range` attribute on the
+    /// definition's return value.
+    pub result_range: Option<(i64, i64)>,
+    /// Per-parameter facts, parallel to [`FnDef::params`].
+    pub params: Vec<ParamContract>,
+    /// P20's `#[no-alloc]` verified at the definition (its D112 row):
+    /// the unit allocates nothing, so it frees nothing (`nofree`).
+    pub no_alloc: bool,
+    /// The totality or `bounded` machinery proved the definition
+    /// returns (a verified `#[recursion("bounded(n)")]` or
+    /// `#[recursion("none")]` row): `willreturn`, never guessed.
+    pub returns: bool,
+    /// P20's `#[checked-params]` verified at the definition: every
+    /// parameter is validated before first use, so the parameter
+    /// contracts restate as `llvm.assume` operand bundles.
+    pub checked_params: bool,
 }
 
 /// A record field projection's lowering plan: the runtime field slot,
@@ -1852,17 +1905,25 @@ pub struct FieldAccess {
     /// Byte size (the recorded layout size).
     pub size: u64,
     pub shape: FieldShape,
+    /// The field type's value range `[lo, hi)` as value words when its
+    /// type bounds them (`Ty::value_range`): the `!range` fact of a
+    /// typed load (the plan note's item 3).
+    pub range: Option<(i64, i64)>,
 }
 
 /// The stored shape of a boundary-layout field.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum FieldShape {
-    /// A machine scalar stored in `size` bytes: `signed` selects sign
+    /// A machine scalar stored in `size` bytes (including `Bool` and
+    /// `Unit` at their recorded widths): `signed` selects sign
     /// extension into the value word; floats and `Char` are unsigned bit
     /// patterns (the word holds `F32` bits zero-extended, `F64` bits).
     Scalar { size: u64, signed: bool },
     /// A boxed or pointer word: 8 bytes holding the value word directly.
-    Word,
+    /// `align` is the alignment the field's type asserts of the stored
+    /// pointer (0 asserts none, as for `RawPtr`): the `!align` metadata
+    /// of the LLVM contract surface.
+    Word { align: u64 },
     /// A nested boundary-layout aggregate stored inline: its payload is
     /// `size` bytes of `fields`, boxed out (with `tag`) when projected.
     Inline { size: u64, tag: usize, fields: Vec<FieldAccess> },
@@ -2034,6 +2095,18 @@ pub struct AbiParam {
     pub width: u64,
     pub align: u64,
     pub signed: bool,
+    /// For pointer roles: the alignment the role asserts of its pointee
+    /// (0 asserts none, as for `RawPtr` and opaque handles). This is the
+    /// `align` parameter attribute and the `align` operand bundle.
+    pub pointee_align: u64,
+    /// The native by-value spelling of the crossing (the plan note
+    /// `design/llvm-contract-attributes.md`): an aggregate parameter
+    /// crosses `byval(<layout>)` and an aggregate result crosses
+    /// `sret(<layout>)` (the platform's by-value struct ABI, spelled for
+    /// LLVM rather than guessed). Without it an aggregate parameter
+    /// crosses as D66's const-pointer to a call-scoped copy and an
+    /// aggregate result is rejected.
+    pub by_value: bool,
     /// For aggregates: the constructor tag of the boxed block built on
     /// the way in (the C-layout field plan is `fields`).
     pub tag: u64,

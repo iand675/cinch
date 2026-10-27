@@ -157,7 +157,13 @@ pub fn emit_for(profile: &crate::core::TargetProfile, program: &Program) -> Resu
         // and JIT specification section 7).
         "declare i64 @sl_eval(i64)",
         // The defined fault path used by primitive contract violations.
-        "declare void @sl_panic(ptr, i64)",
+        // It never returns (`noreturn`): every call site is followed by
+        // `unreachable`, so a fault marks its successor dead (the plan
+        // note's fault audit).
+        "declare void @sl_panic(ptr, i64) noreturn",
+        // The contract restatements of the LLVM contract surface
+        // (design/llvm-contract-attributes.md item 4).
+        "declare void @llvm.assume(i1)",
     ] {
         out.push_str(f);
         out.push('\n');
@@ -196,8 +202,10 @@ pub fn emit_for(profile: &crate::core::TargetProfile, program: &Program) -> Resu
     out.push_str(MEMO_HELPERS);
 
     // Real foreign bindings (foreign function interface specification
-    // section 2): the C symbol declarations, one marshalling wrapper per
-    // import, and one C-callable entry per export.
+    // section 2): the C symbol declarations (over the named by-value
+    // layout types where an aggregate crosses `byval`/`sret`), one
+    // marshalling wrapper per import, and one C-callable entry per
+    // export.
     if !program.foreigns.is_empty() {
         out.push_str("declare void @llvm.memset.p0.i64(ptr, i8, i64, i1)\n");
         out.push_str(&format!(
@@ -205,23 +213,28 @@ pub fn emit_for(profile: &crate::core::TargetProfile, program: &Program) -> Resu
             FFI_NULL_MSG.len(),
             FFI_NULL_MSG
         ));
+        for (w, name) in &reg.layout_types {
+            out.push_str(&format!("%\"{name}\" = type [{w} x i8]\n"));
+        }
         for plan in program.foreigns.values() {
             if !plan.export {
-                out.push_str(&foreign_declare(plan));
+                out.push_str(&foreign_declare(plan, &reg));
             }
         }
         out.push('\n');
     }
 
+    // The units are built and scanned first, attributed under the
+    // call-graph classification second, and assembled last: the
+    // effect/usage-derived attributes are transitive through calls
+    // (design/llvm-contract-attributes.md).
+    let mut units: Vec<EmittedUnit> = Vec::new();
     for op in &reg.prims {
-        let op = *op;
-        emit_unit(&mut out, &cx, &reg, &op.symbol(), op.arity(), UnitBody::Prim(op))?;
+        units.push(build_unit(&cx, &reg, &op.symbol(), op.arity(), UnitBody::Prim(*op))?);
     }
     for (name, plan) in &reg.foreigns {
-        if plan.export {
-            export_entry(&mut out, plan, &reg, &cx)?;
-        } else {
-            emit_unit(&mut out, &cx, &reg, name, plan.arity(), UnitBody::Foreign(plan))?;
+        if !plan.export {
+            units.push(build_unit(&cx, &reg, name, plan.arity(), UnitBody::Foreign(plan))?);
         }
     }
     for f in &program.fns {
@@ -238,7 +251,7 @@ pub fn emit_for(profile: &crate::core::TargetProfile, program: &Program) -> Resu
                         op.arity()
                     ));
                 }
-                emit_unit(&mut out, &cx, &reg, &f.id.0, f.arity(), UnitBody::Prim(op))?;
+                units.push(build_unit(&cx, &reg, &f.id.0, f.arity(), UnitBody::Prim(op))?);
             }
             (None, Some((tag, fields))) => {
                 if f.arity() != fields {
@@ -248,9 +261,17 @@ pub fn emit_for(profile: &crate::core::TargetProfile, program: &Program) -> Resu
                         f.arity()
                     ));
                 }
-                emit_unit(&mut out, &cx, &reg, &f.id.0, f.arity(), UnitBody::Ctor(tag, fields))?;
+                units.push(build_unit(
+                    &cx,
+                    &reg,
+                    &f.id.0,
+                    f.arity(),
+                    UnitBody::Ctor(tag, fields),
+                )?);
             }
-            (None, None) => emit_unit(&mut out, &cx, &reg, &f.id.0, f.arity(), UnitBody::Fn(f))?,
+            (None, None) => {
+                units.push(build_unit(&cx, &reg, &f.id.0, f.arity(), UnitBody::Fn(f))?);
+            }
         }
     }
     for inst in &program.instances {
@@ -259,7 +280,19 @@ pub fn emit_for(profile: &crate::core::TargetProfile, program: &Program) -> Resu
             .get(&inst.id.0)
             .expect("instance registered in Registry::build");
         let name = format!("{}.mk", inst.id.0);
-        emit_unit(&mut out, &cx, &reg, &name, inst.subdict_count, UnitBody::Mk(info))?;
+        units.push(build_unit(&cx, &reg, &name, inst.subdict_count, UnitBody::Mk(info))?);
+    }
+    let classes = classify_units(&units);
+    for u in &units {
+        let group = reg.attr_group(u.hints, &u.lang, &classes[&u.name]);
+        assemble_unit(&mut out, u, group);
+    }
+    // The C-callable entries (foreign function interface specification
+    // section 2).
+    for plan in reg.foreigns.values() {
+        if plan.export {
+            export_entry(&mut out, plan, &reg, &cx)?;
+        }
     }
 
     if let Some(main_exit) = main_exit {
@@ -345,6 +378,14 @@ struct Registry {
     /// Function attribute groups by content (attribute annotations
     /// specification section 5).
     attr_groups: RefCell<Vec<(String, usize)>>,
+    /// Result value ranges by unit name (`!range`/`range` facts; the
+    /// plan note's item 3), from the primitive signatures and the
+    /// checked definitions' result types.
+    ranges: HashMap<String, (i64, i64)>,
+    /// The named by-value layout types of the aggregate boundary
+    /// (`%__sl_layout_N = type [W x i8]`), keyed by width: the `byval`
+    /// and `sret` spellings need a pointee type.
+    layout_types: BTreeMap<u64, String>,
 }
 
 impl Registry {
@@ -364,18 +405,44 @@ impl Registry {
         self.meta_node(format!("!{{!\"branch_weights\", {}}}", list.join(", ")))
     }
 
-    /// The `#N` function attribute group for one hint set, registered
-    /// once per distinct group.
-    fn attr_group(&self, hints: crate::core::FnHints) -> Option<String> {
-        let mut attrs: Vec<&str> = Vec::new();
+    /// The `#N` function attribute group for one unit: its hint set and
+    /// its LLVM contract attributes, registered once per distinct
+    /// group. Every contract attribute is claimed only where the
+    /// classification proved it (design/llvm-contract-attributes.md).
+    fn attr_group(
+        &self,
+        hints: crate::core::FnHints,
+        lang: &UnitLang,
+        class: &UnitClass,
+    ) -> Option<String> {
+        let mut attrs: Vec<String> = Vec::new();
         match hints.inline {
-            Some(crate::core::InlineHint::Inline) => attrs.push("inlinehint"),
-            Some(crate::core::InlineHint::Always) => attrs.push("alwaysinline"),
-            Some(crate::core::InlineHint::Never) => attrs.push("noinline"),
+            Some(crate::core::InlineHint::Inline) => attrs.push("inlinehint".to_string()),
+            Some(crate::core::InlineHint::Always) => attrs.push("alwaysinline".to_string()),
+            Some(crate::core::InlineHint::Never) => attrs.push("noinline".to_string()),
             None => {}
         }
         if hints.cold {
-            attrs.push("cold");
+            attrs.push("cold".to_string());
+        }
+        match class.mem {
+            MemClass::None => {
+                attrs.push("memory(none)".to_string());
+                // `speculatable` needs the effect-derived purity too:
+                // no effects besides the result and no undefined
+                // behavior, on every input.
+                if lang.pure && class.speculatable {
+                    attrs.push("speculatable".to_string());
+                }
+            }
+            MemClass::Read => attrs.push("memory(read)".to_string()),
+            MemClass::ReadWrite => attrs.push("memory(readwrite)".to_string()),
+        }
+        if class.willreturn {
+            attrs.push("willreturn".to_string());
+        }
+        if class.nofree {
+            attrs.push("nofree".to_string());
         }
         if attrs.is_empty() {
             return None;
@@ -475,6 +542,33 @@ impl Registry {
                 reg.add_unit(name, plan.arity())?;
             }
         }
+        // The `!range`/`range` facts: primitive units by their result
+        // type, definitions by their checked result range (the plan
+        // note's item 3).
+        for op in &reg.prims {
+            if let Some(r) = prim_sig(*op).and_then(|(_, t)| t.value_range()) {
+                reg.ranges.insert(op.symbol(), r);
+            }
+        }
+        for f in &p.fns {
+            if f.prim.is_none() {
+                if let Some(r) = f.meta.contract.result_range {
+                    reg.ranges.insert(f.id.0.clone(), r);
+                }
+            }
+        }
+        // The named by-value layout types (`byval`/`sret` pointees).
+        let mut widths: BTreeSet<u64> = BTreeSet::new();
+        for plan in p.foreigns.values() {
+            for a in plan.params.iter().chain(std::iter::once(&plan.result)) {
+                if matches!(a.class, AbiClass::Aggregate) {
+                    widths.insert(a.width);
+                }
+            }
+        }
+        for (i, w) in widths.into_iter().enumerate() {
+            reg.layout_types.insert(w, format!("__sl_layout_{i}"));
+        }
 
         // Every unit emits four global names; all of them must be distinct
         // and must not collide with the runtime helpers.
@@ -522,68 +616,454 @@ enum UnitBody<'a> {
     Foreign(&'a crate::core::ForeignPlan),
 }
 
-fn emit_unit(
-    out: &mut String,
+/// What one unit's lowered body does, scanned from the emitted
+/// instructions (design/llvm-contract-attributes.md: an attribute the
+/// scan cannot support is omitted, never guessed).
+#[derive(Clone, Debug, Default)]
+struct UnitScan {
+    /// A load of memory that is not the unit's own stack slot.
+    reads: bool,
+    /// A store to non-local memory, an allocation or a memory copy.
+    writes: bool,
+    /// A call to the fault path (`sl_panic`, `__safelang_blackhole`,
+    /// `exit`).
+    faults: bool,
+    /// An instruction that can produce poison for some inputs
+    /// (division, an unmasked shift, float-to-integer narrowing).
+    poison: bool,
+    /// A call that may free memory allocated before the call (scope
+    /// teardown, task joins).
+    frees: bool,
+    /// An indirect application (`__apply`, `__safelang_demand`): the
+    /// callee is unknown.
+    indirect: bool,
+    /// An extern symbol the scan cannot see through.
+    externs: bool,
+    /// The module units this body calls directly.
+    callees: BTreeSet<String>,
+}
+
+/// The memory class of one unit (the `memory(...)` function attribute).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
+enum MemClass {
+    /// No memory access outside the unit's own stack slots.
+    #[default]
+    None,
+    /// Reads memory, writes none.
+    Read,
+    /// May write memory (the conservative class).
+    ReadWrite,
+}
+
+/// One unit's classification after the call-graph fixed point: the
+/// function attributes of the LLVM contract surface, each one claimed
+/// only where the language facts and the body scan agree.
+#[derive(Clone, Copy, Debug)]
+struct UnitClass {
+    mem: MemClass,
+    /// `speculatable`: no effects and no undefined behavior (no fault
+    /// path, no poison source, no opaque call).
+    speculatable: bool,
+    /// `willreturn`: the totality/`bounded` machinery proved return and
+    /// every call it makes returns.
+    willreturn: bool,
+    /// `nofree`: P20's `#[no-alloc]` row and no teardown call.
+    nofree: bool,
+}
+
+/// The language-level facts gating one unit's contract attributes.
+#[derive(Clone, Copy, Debug, Default)]
+struct UnitLang {
+    /// The definition's effect rows are empty and its body calls no
+    /// foreign symbol (the plan's gate for `memory(none) speculatable`).
+    pure: bool,
+    /// P20's `#[no-alloc]` row (decision D112).
+    no_alloc: bool,
+    /// The totality/`bounded` machinery proved return.
+    returns: bool,
+    /// P20's `#[checked-params]` row.
+    checked_params: bool,
+}
+
+/// One unit's emitted pieces and the facts its attributes rest on.
+/// Units are built first and attributed after, so a unit's attribute
+/// group can honor its callees' classification.
+struct EmittedUnit {
+    name: String,
+    /// The hint attributes of the unit's definition (erasable).
+    hints: crate::core::FnHints,
+    /// Private constants this unit needs, emitted before its define.
+    globals: String,
+    /// The `define` header without its function attribute group.
+    header: String,
+    allocas: String,
+    code: String,
+    stub: String,
+    clo: String,
+    scan: UnitScan,
+    lang: UnitLang,
+}
+
+/// What one call target does to memory, for the unit scan.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Callee {
+    /// A module unit: classified through the call-graph fixed point.
+    Unit,
+    /// An LLVM intrinsic that touches no memory.
+    Pure,
+    /// An allocation (`malloc`).
+    Alloc,
+    /// A memory copy or fill (`memcpy`, `memset`).
+    Copy,
+    /// The fault path: never returns.
+    Fault,
+    /// A teardown call that may free memory allocated before it.
+    Free,
+    /// A runtime extern the scan cannot see through.
+    Extern,
+    /// An indirect application.
+    Indirect,
+}
+
+/// Classify one call target by its symbol (the unit names decide
+/// module units; everything else is a runtime symbol).
+fn classify_callee(sym: &str, units: &BTreeSet<String>) -> Callee {
+    if units.contains(sym) {
+        return Callee::Unit;
+    }
+    match sym {
+        "malloc" => Callee::Alloc,
+        "memcpy" => Callee::Copy,
+        "__apply" | "__safelang_demand" => Callee::Indirect,
+        "exit" | "sl_panic" | "__safelang_blackhole" => Callee::Fault,
+        "sl_scope_close" | "sl_coop_scope_close" | "sl_task_join_all_or_cancel"
+        | "sl_coop_task_join_all_or_cancel" => Callee::Free,
+        s if s.starts_with("llvm.mem") => Callee::Copy,
+        s if s.starts_with("llvm.") => Callee::Pure,
+        _ => Callee::Extern,
+    }
+}
+
+/// A primitive's declared signature, where it has one: the deferral and
+/// code-generation forms (`delay`/`force`/`demand`/`eval` and the
+/// concurrency builtins) are builtin values, not foreign imports, and
+/// carry no boundary signature.
+fn prim_sig(op: PrimOp) -> Option<(Vec<crate::types::Ty>, crate::types::Ty)> {
+    use PrimOp::*;
+    if matches!(op, Delay | Force | Demand | Eval | Conc(_)) {
+        return None;
+    }
+    Some(op.sig())
+}
+
+/// The memory operand of a `load`/`store` line (the first `ptr %reg`
+/// or `ptr @global` field after the opcode).
+fn mem_operand(line: &str) -> Option<String> {
+    let rest = line.split_once(", ")?.1;
+    for f in rest.split(", ") {
+        if f.starts_with("ptr %") || f.starts_with("ptr @") {
+            return Some(f[4..].to_string());
+        }
+    }
+    None
+}
+
+/// The callee symbol of a `call` line.
+fn callee_symbol(line: &str) -> Option<String> {
+    let i = line.find("call ")?;
+    let rest = &line[i + "call ".len()..];
+    let at = rest.find('@')?;
+    let rest = &rest[at + 1..];
+    if let Some(q) = rest.strip_prefix('"') {
+        let end = q.find('"')?;
+        return Some(q[..end].to_string());
+    }
+    let end = rest.find('(')?;
+    Some(rest[..end].to_string())
+}
+
+/// Scan one unit's lowered body (its `alloca` block and its code) for
+/// the facts its contract attributes rest on.
+fn scan_body(text: &str, units: &BTreeSet<String>) -> UnitScan {
+    let mut scan = UnitScan::default();
+    // Stack slots and the addresses derived from them are the unit's
+    // own memory: accesses to them are not memory effects.
+    let mut local: HashSet<String> = HashSet::new();
+    for line in text.lines() {
+        let line = line.trim();
+        if let Some((lhs, _)) = line.split_once(" = ") {
+            let lhs = lhs.trim();
+            if line.contains("= alloca ") {
+                local.insert(lhs.to_string());
+            } else if line.contains("= getelementptr ") {
+                if let Some(base) = mem_operand(line) {
+                    if local.contains(&base) {
+                        local.insert(lhs.to_string());
+                    }
+                }
+            }
+            continue;
+        }
+        if line.contains("load ") && line.contains(", ptr ") {
+            if let Some(op) = mem_operand(line) {
+                if !local.contains(&op) {
+                    scan.reads = true;
+                }
+            } else {
+                scan.reads = true;
+            }
+        } else if line.starts_with("store ") {
+            if let Some(op) = mem_operand(line) {
+                if !local.contains(&op) {
+                    scan.writes = true;
+                }
+            } else {
+                scan.writes = true;
+            }
+        }
+        if line.contains("call ") {
+            if let Some(sym) = callee_symbol(line) {
+                match classify_callee(&sym, units) {
+                    Callee::Unit => {
+                        scan.callees.insert(sym);
+                    }
+                    Callee::Pure => {}
+                    Callee::Alloc | Callee::Copy => scan.writes = true,
+                    Callee::Fault => {
+                        scan.writes = true;
+                        scan.faults = true;
+                    }
+                    Callee::Free => {
+                        scan.writes = true;
+                        scan.frees = true;
+                    }
+                    Callee::Extern => {
+                        scan.writes = true;
+                        scan.externs = true;
+                    }
+                    Callee::Indirect => {
+                        scan.writes = true;
+                        scan.indirect = true;
+                    }
+                }
+            } else {
+                scan.writes = true;
+                scan.externs = true;
+            }
+            continue;
+        }
+        if line == "unreachable" {
+            scan.faults = true;
+            continue;
+        }
+        let poison_op = [
+            "= sdiv ",
+            "= udiv ",
+            "= srem ",
+            "= urem ",
+            "= fptosi",
+            "= fptoui",
+        ]
+        .iter()
+        .any(|p| line.contains(p));
+        let shift = ["= shl ", "= lshr ", "= ashr "]
+            .iter()
+            .any(|p| line.contains(p));
+        let variable_shift = shift
+            && line
+                .rsplit_once(", ")
+                .map(|(_, amt)| {
+                    !(amt.starts_with('-') || amt.chars().next().is_some_and(|c| c.is_ascii_digit()))
+                })
+                .unwrap_or(true);
+        if poison_op || variable_shift {
+            scan.poison = true;
+        }
+    }
+    scan
+}
+
+/// The call-graph fixed point over the built units: every claim is
+/// transitive through direct calls, and `willreturn` excludes only the
+/// unit's own recursion, which its totality/`bounded` evidence covers.
+fn classify_units(units: &[EmittedUnit]) -> HashMap<String, UnitClass> {
+    let mut out: HashMap<String, UnitClass> = HashMap::new();
+    for u in units {
+        let mem = if u.scan.writes {
+            MemClass::ReadWrite
+        } else if u.scan.reads {
+            MemClass::Read
+        } else {
+            MemClass::None
+        };
+        let clean = !u.scan.faults && !u.scan.poison && !u.scan.indirect && !u.scan.externs;
+        out.insert(
+            u.name.clone(),
+            UnitClass {
+                mem,
+                speculatable: clean && !u.scan.frees,
+                willreturn: u.lang.returns && clean && !u.scan.frees,
+                nofree: u.lang.no_alloc && !u.scan.frees && !u.scan.faults,
+            },
+        );
+    }
+    loop {
+        let mut changed = false;
+        for u in units {
+            let mut c = out[&u.name];
+            for g in &u.scan.callees {
+                let Some(gc) = out.get(g) else {
+                    continue;
+                };
+                c.mem = c.mem.max(gc.mem);
+                c.speculatable = c.speculatable && gc.speculatable;
+                c.willreturn = c.willreturn && (g == &u.name || gc.willreturn);
+                c.nofree = c.nofree && gc.nofree;
+            }
+            if c.mem != out[&u.name].mem
+                || c.speculatable != out[&u.name].speculatable
+                || c.willreturn != out[&u.name].willreturn
+                || c.nofree != out[&u.name].nofree
+            {
+                out.insert(u.name.clone(), c);
+                changed = true;
+            }
+        }
+        if !changed {
+            return out;
+        }
+    }
+}
+
+/// Assemble one unit's text from its built pieces under the given
+/// attribute group.
+fn assemble_unit(out: &mut String, u: &EmittedUnit, group: Option<String>) {
+    out.push_str(&u.globals);
+    out.push_str(&u.header);
+    if let Some(group) = group {
+        out.push(' ');
+        out.push_str(&group);
+    }
+    out.push_str(" {\nentry:\n");
+    out.push_str(&u.allocas);
+    out.push_str(&u.code);
+    out.push_str("}\n\n");
+    out.push_str(&u.stub);
+    out.push_str(&u.clo);
+}
+
+/// Build one unit's pieces and the scan of its body (phase one of the
+/// emission: the attributes wait for the call-graph classification).
+fn build_unit(
     cx: &LowerCx,
     reg: &Registry,
     name: &str,
     arity: usize,
     body: UnitBody,
-) -> Result<()> {
-    let mut header = fn_header(name, arity);
+) -> Result<EmittedUnit> {
     let mut b = Builder::new();
-    if let UnitBody::Fn(f) = &body {
-        // Hint attributes lower to LLVM function attributes (attribute
-        // annotations specification section 5).
-        if let Some(group) = reg.attr_group(f.hints) {
-            header.push(' ');
-            header.push_str(&group);
-        }
-    }
-    match body {
+    let mut globals = String::new();
+    let mut hints = crate::core::FnHints::default();
+    let mut lang = UnitLang {
+        pure: true,
+        ..UnitLang::default()
+    };
+    let mut ret_range: Option<(i64, i64)> = None;
+    let mut noundef_params: Vec<bool> = Vec::new();
+    match &body {
         UnitBody::Prim(op) => {
             // A primitive that returns `Option` or `Ordering` boxes its
             // results as the prelude ADTs do: zero-field constructors are
             // static tag blocks (`None` tag 0; `LT`/`EQ`/`GT` tags 0/1/2),
             // `Some` is a fresh `{ tag; value }` block (tag 1).
             if op.returns_option() {
-                out.push_str(&format!(
+                globals.push_str(&format!(
                     "@{blk} = internal constant [1 x i64] [i64 0]\n\n",
                     blk = quote(&format!("{name}.blk"))
                 ));
             }
             if op.returns_ordering() {
                 for (suf, tag) in [(".lt", 0), (".eq", 1), (".gt", 2)] {
-                    out.push_str(&format!(
+                    globals.push_str(&format!(
                         "@{blk} = internal constant [1 x i64] [i64 {tag}]\n\n",
                         blk = quote(&format!("{name}{suf}"))
                     ));
                 }
             }
-            prim_body(&mut b, cx, name, op);
+            ret_range = reg.ranges.get(name).copied();
+            if let Some((ptys, _)) = prim_sig(*op) {
+                noundef_params = ptys
+                    .iter()
+                    .map(|t| matches!(t, crate::types::Ty::Prim(_) | crate::types::Ty::Bool))
+                    .collect();
+            }
+            prim_body(&mut b, cx, name, *op);
         }
         UnitBody::Ctor(tag, fields) => {
-            if fields == 0 {
-                out.push_str(&format!(
+            if *fields == 0 {
+                globals.push_str(&format!(
                     "@{blk} = internal constant [1 x i64] [i64 {tag}]\n\n",
                     blk = quote(&format!("{name}.blk"))
                 ));
             }
-            ctor_body(&mut b, name, tag, fields, reg.plans.get(name));
+            ctor_body(&mut b, reg, name, *tag, *fields, reg.plans.get(name));
         }
         UnitBody::Mk(info) => mk_body(&mut b, info),
-        UnitBody::Foreign(plan) => foreign_import_body(&mut b, cx, plan)?,
-        UnitBody::Fn(f) => core_body(&mut b, reg, f)?,
+        UnitBody::Foreign(plan) => foreign_import_body(&mut b, cx, reg, plan)?,
+        UnitBody::Fn(f) => {
+            hints = f.hints;
+            lang.pure = f.meta.pure;
+            lang.no_alloc = f.meta.contract.no_alloc;
+            lang.returns = f.meta.contract.returns;
+            lang.checked_params = f.meta.contract.checked_params;
+            ret_range = f.meta.contract.result_range;
+            noundef_params = f.meta.contract.params.iter().map(|p| p.noundef).collect();
+            core_body(&mut b, reg, f)?;
+        }
     }
-    out.push_str(&b.finish(&header));
-    out.push_str(&stub_def(name, arity));
-    out.push_str(&clo_def(name, arity));
-    Ok(())
+    let header = fn_header(name, arity, ret_range, &noundef_params);
+    let units: BTreeSet<String> = reg.arity.keys().cloned().collect();
+    let scan = scan_body(&format!("{}{}", b.allocas, b.code), &units);
+    Ok(EmittedUnit {
+        name: name.to_string(),
+        hints,
+        globals: {
+            globals.push_str(&b.globals);
+            globals
+        },
+        header,
+        allocas: b.allocas,
+        code: b.code,
+        stub: stub_def(name, arity),
+        clo: clo_def(name, arity),
+        scan,
+        lang,
+    })
 }
 
-fn fn_header(name: &str, arity: usize) -> String {
-    let params: Vec<String> = (0..arity).map(|i| format!("i64 %p{i}")).collect();
-    format!("define i64 @{}({})", quote(name), params.join(", "))
+fn fn_header(
+    name: &str,
+    arity: usize,
+    ret_range: Option<(i64, i64)>,
+    noundef_params: &[bool],
+) -> String {
+    let params: Vec<String> = (0..arity)
+        .map(|i| {
+            if noundef_params.get(i).copied().unwrap_or(false) {
+                format!("i64 noundef %p{i}")
+            } else {
+                format!("i64 %p{i}")
+            }
+        })
+        .collect();
+    let ret = match ret_range {
+        // The `range` return attribute states the result's value-word
+        // range (the plan note's item 3): never the empty range `[a, a)`
+        // the verifier rejects.
+        Some((lo, hi)) if lo < hi => format!("range(i64 {lo}, {hi}) i64"),
+        _ => "i64".to_string(),
+    };
+    format!("define {ret} @{}({})", quote(name), params.join(", "))
 }
 
 fn clo_def(name: &str, arity: usize) -> String {
@@ -690,9 +1170,9 @@ fn stub_def(name: &str, arity: usize) -> String {
 /// hole: the defined `BlackHole` runtime fault (exit 70), never undefined
 /// behavior.
 const MEMO_HELPERS: &str = r#"
-declare void @exit(i32)
+declare void @exit(i32) noreturn
 
-define void @"__safelang_blackhole"() {
+define void @"__safelang_blackhole"() noreturn {
 entry:
   call void @exit(i32 70)
   unreachable
@@ -815,11 +1295,12 @@ impl Builder {
     }
 
     /// A byte buffer alloca (call-scoped C-layout copies at the foreign
-    /// boundary).
-    fn alloca_bytes(&mut self, n: u64) -> String {
+    /// boundary), aligned to the recorded layout's alignment so the C
+    /// side reads the copy at its natural alignment.
+    fn alloca_bytes(&mut self, n: u64, align: u64) -> String {
         let r = self.reg();
         self.allocas
-            .push_str(&format!("  {r} = alloca [{n} x i8]\n"));
+            .push_str(&format!("  {r} = alloca [{n} x i8], align {align}\n"));
         r
     }
 
@@ -983,6 +1464,49 @@ fn fcst(s: Scalar, v: f64) -> String {
     } else {
         f64c(v)
     }
+}
+
+/// Freeze one untrusted value read at a boundary (foreign results,
+/// pointers and buffer data; the plan note's poison containment): the
+/// value is defined from here on, so a poison bit pattern from foreign
+/// input cannot leak into otherwise-safe code. `bits` is the loaded
+/// width (`freeze` spells its operand's type).
+fn freeze_at(b: &mut Builder, v: &str, bits: u32) -> String {
+    let r = b.reg();
+    b.line(&format!("{r} = freeze i{bits} {v}"));
+    r
+}
+
+/// Freeze one untrusted canonical word (boundary words are `i64`).
+fn freeze_word(b: &mut Builder, v: &str) -> String {
+    freeze_at(b, v, 64)
+}
+
+/// The `!range` metadata for one canonical word range `[lo, hi)` as
+/// `i64` words (the `!range`/`range` facts of the plan note).
+fn range_meta_i64(reg: &Registry, lo: i64, hi: i64) -> String {
+    reg.meta_node(format!("!{{i64 {lo}, i64 {hi}}}"))
+}
+
+/// The `!range` metadata of one typed load: the field's value-word
+/// range (`FieldAccess::range`) spelled in the loaded width, when the
+/// width can state it. A full-width span cannot be spelled (`[a, a)`
+/// is the empty range LLVM rejects), so such a load stays bare: the
+/// type's own claim is already the load's type (the plan note's item 3:
+/// a fact the analysis cannot state is never guessed).
+fn load_range_meta(reg: &Registry, bits: u32, range: Option<(i64, i64)>) -> Option<String> {
+    if bits == 0 || bits > 64 {
+        return None;
+    }
+    let (lo, hi) = range?;
+    let ty = format!("i{bits}");
+    let width = 1i128 << bits;
+    let span = hi as i128 - lo as i128;
+    let spellable = lo as i128 >= -(1i128 << (bits - 1)) && hi as i128 <= width - 1;
+    if span <= 0 || span >= width || !spellable {
+        return None;
+    }
+    Some(reg.meta_node(format!("!{{{ty} {lo}, {ty} {hi}}}")))
 }
 
 /// The defined fault path (exit 71 through `sl_panic`) when `bad` is
@@ -1277,6 +1801,10 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, name: &str, op: PrimOp) {
                 BytesOp::Get => {
                     let i = rt_call(b, "sl_nat_to_i64", &[args[1].clone()]);
                     let v = rt_call(b, k.extern_name(), &[args[0].clone(), format!("i64 {i}")]);
+                    // `Bytes` data is untrusted (foreign spans wrap into
+                    // buffers): the byte freezes before it can branch
+                    // or compare (the plan note's poison containment).
+                    let v = freeze_word(b, &v);
                     let r = rt_call(b, "sl_nat_from_i64", &[format!("i64 {v}")]);
                     ret(b, &r);
                 }
@@ -2049,6 +2577,7 @@ fn conv_body(b: &mut Builder, name: &str, from: Scalar, to: Scalar, mode: ConvMo
 
 fn ctor_body(
     b: &mut Builder,
+    reg: &Registry,
     name: &str,
     tag: usize,
     fields: usize,
@@ -2074,7 +2603,7 @@ fn ctor_body(
         b.store_at(&p, 0, &tag.to_string());
         let payload = b.gep(&p, 8);
         for (i, fa) in plan.fields.iter().enumerate() {
-            store_field_word(b, &payload, fa, &format!("%p{i}"));
+            store_field_word(b, reg, &payload, fa, &format!("%p{i}"));
         }
         let w = b.reg();
         b.line(&format!("{w} = ptrtoint ptr {p} to i64"));
@@ -2176,19 +2705,68 @@ fn c_to_word(b: &mut Builder, s: Scalar, v: &str) -> String {
     }
 }
 
+/// Load one stored field's raw value at `base + off`: a scalar at its
+/// stored width, a word in one piece. The load states the field type's
+/// `!range` (typed loads) and `!align` (borrow loads) facts where they
+/// are statable (the plan note's items 2-3), and an untrusted value
+/// freezes before it can branch or compare (the plan note's poison
+/// containment).
+fn load_stored_value(
+    b: &mut Builder,
+    reg: &Registry,
+    base: &str,
+    off: u64,
+    fa: &FieldAccess,
+    freeze: bool,
+) -> String {
+    let p = b.gep(base, off as usize);
+    match &fa.shape {
+        FieldShape::Scalar { size, .. } => {
+            let bits = (size * 8) as u32;
+            let rng = match load_range_meta(reg, bits, fa.range) {
+                Some(r) => format!(", !range {r}"),
+                None => String::new(),
+            };
+            let v = b.reg();
+            b.line(&format!("{v} = load i{bits}, ptr {p}, align 1{rng}"));
+            if freeze {
+                freeze_at(b, &v, bits)
+            } else {
+                v
+            }
+        }
+        FieldShape::Word { align } => {
+            let al = if *align > 1 {
+                format!(", !align {}", reg.meta_node(format!("!{{i64 {align}}}")))
+            } else {
+                String::new()
+            };
+            let v = b.reg();
+            b.line(&format!("{v} = load ptr, ptr {p}, align 1{al}"));
+            let w = b.reg();
+            b.line(&format!("{w} = ptrtoint ptr {v} to i64"));
+            if freeze {
+                freeze_word(b, &w)
+            } else {
+                w
+            }
+        }
+        FieldShape::Inline { .. } => {
+            unreachable!("a nested aggregate boxes out before its fields load")
+        }
+    }
+}
+
 /// Load one stored field's value word from a block payload at the
 /// field's recorded offset (attribute annotations specification
-/// section 4.3).
-fn load_field_word(b: &mut Builder, payload: &str, fa: &FieldAccess) -> String {
+/// section 4.3). A scalar load carries the `!range` fact of its type
+/// where the loaded width can state it; a pointer word carries the
+/// `!align` fact its type asserts (the plan note's items 2-3).
+fn load_field_word(b: &mut Builder, reg: &Registry, payload: &str, fa: &FieldAccess) -> String {
     match &fa.shape {
         FieldShape::Scalar { size: 0, .. } => "0".to_string(),
         FieldShape::Scalar { size, signed } => {
-            let p = b.gep(payload, fa.offset as usize);
-            let v = b.reg();
-            b.line(&format!(
-                "{v} = load i{}, ptr {p}, align 1",
-                size * 8
-            ));
+            let v = load_stored_value(b, reg, payload, fa.offset, fa, false);
             if *size == 8 {
                 v
             } else {
@@ -2198,12 +2776,7 @@ fn load_field_word(b: &mut Builder, payload: &str, fa: &FieldAccess) -> String {
                 w
             }
         }
-        FieldShape::Word => {
-            let p = b.gep(payload, fa.offset as usize);
-            let v = b.reg();
-            b.line(&format!("{v} = load i64, ptr {p}, align 1"));
-            v
-        }
+        FieldShape::Word { .. } => load_stored_value(b, reg, payload, fa.offset, fa, false),
         FieldShape::Inline { size, tag, fields } => {
             // Box the inline payload out into a fresh block.
             let blk = b.reg();
@@ -2212,7 +2785,7 @@ fn load_field_word(b: &mut Builder, payload: &str, fa: &FieldAccess) -> String {
             let dst = b.gep(&blk, 8);
             let src = b.gep(payload, fa.offset as usize);
             for f in fields {
-                copy_field_exact(b, &dst, 0, &src, 0, f);
+                copy_field_exact(b, reg, &dst, 0, &src, 0, f, false);
             }
             let w = b.reg();
             b.line(&format!("{w} = ptrtoint ptr {blk} to i64"));
@@ -2223,7 +2796,13 @@ fn load_field_word(b: &mut Builder, payload: &str, fa: &FieldAccess) -> String {
 
 /// Store one value word into a block payload field at its recorded
 /// offset.
-fn store_field_word(b: &mut Builder, payload: &str, fa: &FieldAccess, val: &str) {
+fn store_field_word(
+    b: &mut Builder,
+    reg: &Registry,
+    payload: &str,
+    fa: &FieldAccess,
+    val: &str,
+) {
     match &fa.shape {
         FieldShape::Scalar { size: 0, .. } => {}
         FieldShape::Scalar { size, .. } => {
@@ -2236,7 +2815,7 @@ fn store_field_word(b: &mut Builder, payload: &str, fa: &FieldAccess, val: &str)
                 b.line(&format!("store i{} {v}, ptr {p}, align 1", size * 8));
             }
         }
-        FieldShape::Word => {
+        FieldShape::Word { .. } => {
             let p = b.gep(payload, fa.offset as usize);
             b.line(&format!("store i64 {val}, ptr {p}, align 1"));
         }
@@ -2247,7 +2826,7 @@ fn store_field_word(b: &mut Builder, payload: &str, fa: &FieldAccess, val: &str)
             let src = b.gep(&blk, 8);
             let dst = b.gep(payload, fa.offset as usize);
             for f in fields {
-                copy_field_exact(b, &dst, 0, &src, 0, f);
+                copy_field_exact(b, reg, &dst, 0, &src, 0, f, false);
             }
         }
     }
@@ -2257,28 +2836,45 @@ fn store_field_word(b: &mut Builder, payload: &str, fa: &FieldAccess, val: &str)
 /// C-layout buffer, byte-exact at the recorded offsets and sizes:
 /// padding is never read or written, so a packed field marshals without
 /// padding reads (attribute annotations specification section 4.2).
+/// `freeze` marks an untrusted source (a foreign buffer): the loaded
+/// bytes freeze before they enter the safe side (the plan note's poison
+/// containment).
 fn copy_field_exact(
     b: &mut Builder,
+    reg: &Registry,
     dst: &str,
     dst_off: u64,
     src: &str,
     src_off: u64,
     fa: &FieldAccess,
+    freeze: bool,
 ) {
     let size = match &fa.shape {
         FieldShape::Scalar { size: 0, .. } => return,
         FieldShape::Scalar { size, .. } => *size,
-        FieldShape::Word => 8,
+        FieldShape::Word { .. } => {
+            let w = load_stored_value(b, reg, src, src_off + fa.offset, fa, freeze);
+            let dp = b.gep(dst, (dst_off + fa.offset) as usize);
+            b.line(&format!("store i64 {w}, ptr {dp}, align 1"));
+            return;
+        }
         FieldShape::Inline { fields, .. } => {
             for f in fields {
-                copy_field_exact(b, dst, dst_off + fa.offset, src, src_off + fa.offset, f);
+                copy_field_exact(
+                    b,
+                    reg,
+                    dst,
+                    dst_off + fa.offset,
+                    src,
+                    src_off + fa.offset,
+                    f,
+                    freeze,
+                );
             }
             return;
         }
     };
-    let sp = b.gep(src, (src_off + fa.offset) as usize);
-    let v = b.reg();
-    b.line(&format!("{v} = load i{}, ptr {sp}, align 1", size * 8));
+    let v = load_stored_value(b, reg, src, src_off + fa.offset, fa, freeze);
     let dp = b.gep(dst, (dst_off + fa.offset) as usize);
     b.line(&format!("store i{} {v}, ptr {dp}, align 1", size * 8));
 }
@@ -2305,8 +2901,70 @@ fn ffi_fault_block(b: &mut Builder, fault: &str) {
     b.line("unreachable");
 }
 
+/// The `byval(<layout>)`/`sret(<layout>)` spelling of one by-value
+/// aggregate crossing (the plan note's item 6): the platform's
+/// by-value struct ABI, spelled for LLVM rather than guessed.
+fn byvalue_attr(p: &AbiParam, reg: &Registry, result: bool) -> String {
+    if !p.by_value {
+        return String::new();
+    }
+    let name = reg
+        .layout_types
+        .get(&p.width)
+        .expect("the aggregate's layout type is registered");
+    if result {
+        format!("sret(%{name}) align {}", p.align)
+    } else {
+        format!("byval(%{name}) align {}", p.align)
+    }
+}
+
+/// One parameter's declaration attributes at the C boundary (the plan
+/// note's usage-derived parameter attributes): `captures(none)` for the
+/// call-scoped borrow (P5 non-escape: a retained or raw pointer may
+/// escape and is not claimed), `nonnull` for the non-null contract
+/// (P11's default), `align` from the role's pointee assertion or the
+/// aggregate's recorded layout, and `noundef` for scalars. At an export
+/// entry (`export`) the pointer side is untrusted: its nullness stays a
+/// checked fault, never a `nonnull` promise.
+fn param_attrs(p: &AbiParam, export: bool) -> String {
+    let mut attrs: Vec<String> = Vec::new();
+    match &p.class {
+        AbiClass::Unit => {}
+        AbiClass::Scalar(_) => {
+            if !export {
+                attrs.push("noundef".to_string());
+            }
+        }
+        AbiClass::Ptr => {
+            if p.role == "borrowed" {
+                attrs.push("captures(none)".to_string());
+            }
+            if !p.nullable && !export {
+                attrs.push("nonnull".to_string());
+            }
+            if p.pointee_align > 1 {
+                attrs.push(format!("align {}", p.pointee_align));
+            }
+        }
+        AbiClass::Aggregate => {
+            if !p.nullable && !export {
+                attrs.push("nonnull".to_string());
+            }
+            if p.align > 1 {
+                attrs.push(format!("align {}", p.align));
+            }
+        }
+    }
+    if attrs.is_empty() {
+        String::new()
+    } else {
+        format!(" {}", attrs.join(" "))
+    }
+}
+
 /// The `declare` for one imported foreign symbol.
-fn foreign_declare(plan: &ForeignPlan) -> String {
+fn foreign_declare(plan: &ForeignPlan, reg: &Registry) -> String {
     if let Some(call) = &plan.canon {
         // The canonical ABI's core signature (WebAssembly and WASI
         // specification section 4).
@@ -2317,13 +2975,26 @@ fn foreign_declare(plan: &ForeignPlan) -> String {
             params.join(", ")
         );
     }
-    let params: Vec<&str> = plan
-        .params
-        .iter()
-        .filter(|p| !matches!(p.class, AbiClass::Unit))
-        .map(abi_llvm_ty)
-        .collect();
-    let ret = abi_llvm_ty(&plan.result);
+    let mut params: Vec<String> = Vec::new();
+    // A by-value aggregate result crosses first, through the
+    // platform's result-out buffer (`sret`).
+    if matches!(plan.result.class, AbiClass::Aggregate) {
+        params.push(format!("ptr {}", byvalue_attr(&plan.result, reg, true)));
+    }
+    for p in plan.params.iter().filter(|p| !matches!(p.class, AbiClass::Unit)) {
+        let byval = byvalue_attr(p, reg, false);
+        let kind = if byval.is_empty() {
+            "ptr".to_string()
+        } else {
+            format!("ptr {byval}")
+        };
+        params.push(format!("{kind}{}", param_attrs(p, false)));
+    }
+    let ret = if matches!(plan.result.class, AbiClass::Aggregate) {
+        "void".to_string()
+    } else {
+        abi_llvm_ty(&plan.result).to_string()
+    };
     format!(
         "declare {ret} @{}({})\n",
         quote(&plan.symbol),
@@ -2331,10 +3002,52 @@ fn foreign_declare(plan: &ForeignPlan) -> String {
     )
 }
 
+/// Restate one boundary buffer's recorded layout as an `llvm.assume`
+/// with operand bundles (the plan note's item 4): the `repr` facts of
+/// attribute annotations specification section 4.3, machine-readably.
+fn assume_layout(b: &mut Builder, ptr: &str, align: u64, size: u64) {
+    let mut bundles: Vec<String> = Vec::new();
+    if align > 1 {
+        bundles.push(format!("\"align\"(ptr {ptr}, i64 {align})"));
+    }
+    if size > 0 {
+        bundles.push(format!("\"dereferenceable\"(ptr {ptr}, i64 {size})"));
+    }
+    if bundles.is_empty() {
+        return;
+    }
+    b.line(&format!(
+        "call void @llvm.assume(i1 true) [ {} ]",
+        bundles.join(", ")
+    ));
+}
+
+/// The checked boundary pointer's facts as an `llvm.assume`: the
+/// non-null contract (foreign function interface specification
+/// decision D70) and the role's pointee alignment, after the boundary
+/// check has faulted on a violation.
+fn assume_ptr(b: &mut Builder, ptr: &str, p: &AbiParam) {
+    let mut bundles: Vec<String> = vec![format!("\"nonnull\"(ptr {ptr})")];
+    if p.pointee_align > 1 {
+        bundles.push(format!("\"align\"(ptr {ptr}, i64 {})", p.pointee_align));
+    }
+    b.line(&format!(
+        "call void @llvm.assume(i1 true) [ {} ]",
+        bundles.join(", ")
+    ));
+}
+
 /// The synthesized wrapper for one foreign import: convert the canonical
 /// value words to the C ABI shape, call the symbol, and convert the
 /// result back (foreign function interface specification section 2).
-fn foreign_import_body(b: &mut Builder, cx: &LowerCx, plan: &ForeignPlan) -> Result<()> {
+/// Every word read back at the boundary freezes before it can branch or
+/// compare (the plan note's poison containment).
+fn foreign_import_body(
+    b: &mut Builder,
+    cx: &LowerCx,
+    reg: &Registry,
+    plan: &ForeignPlan,
+) -> Result<()> {
     if plan.canon.is_some() {
         // A component adapter's canonical ABI is defined over wasm32
         // core values (WebAssembly and WASI specification section 4):
@@ -2349,13 +3062,17 @@ fn foreign_import_body(b: &mut Builder, cx: &LowerCx, plan: &ForeignPlan) -> Res
     }
     let fault = b.label();
     let mut any_check = false;
-    let mut tys: Vec<&str> = Vec::new();
+    let mut tys: Vec<String> = Vec::new();
     let mut args: Vec<String> = Vec::new();
     for (i, p) in plan.params.iter().enumerate() {
         match &p.class {
             AbiClass::Unit => {}
             AbiClass::Scalar(s) => {
-                tys.push(abi_llvm_ty(p));
+                tys.push(format!(
+                    "{}{}",
+                    abi_llvm_ty(p),
+                    param_attrs(p, false)
+                ));
                 args.push(word_to_c(b, *s, &format!("%p{i}")));
             }
             AbiClass::Ptr => {
@@ -2364,24 +3081,33 @@ fn foreign_import_body(b: &mut Builder, cx: &LowerCx, plan: &ForeignPlan) -> Res
                 if !p.nullable {
                     check_non_null(b, &v, &fault);
                     any_check = true;
+                    assume_ptr(b, &v, p);
                 }
-                tys.push("ptr");
+                tys.push(format!("ptr{}", param_attrs(p, false)));
                 args.push(v);
             }
             AbiClass::Aggregate => {
-                // A call-scoped C-layout copy of the block payload.
-                let buf = b.alloca_bytes(p.width);
+                // A call-scoped C-layout copy of the block payload,
+                // laid out and aligned as the recorded layout says.
+                let buf = b.alloca_bytes(p.width, p.align.max(1));
                 b.line(&format!(
                     "call void @llvm.memset.p0.i64(ptr {buf}, i8 0, i64 {}, i1 false)",
                     p.width
                 ));
+                assume_layout(b, &buf, p.align, p.width);
                 let blk = b.reg();
                 b.line(&format!("{blk} = inttoptr i64 %p{i} to ptr"));
                 let payload = b.gep(&blk, 8);
                 for fa in &p.fields {
-                    copy_field_exact(b, &buf, 0, &payload, 0, fa);
+                    copy_field_exact(b, reg, &buf, 0, &payload, 0, fa, false);
                 }
-                tys.push("ptr");
+                let byval = byvalue_attr(p, reg, false);
+                let spelled = if byval.is_empty() {
+                    format!("ptr{}", param_attrs(p, false))
+                } else {
+                    format!("ptr {byval}{}", param_attrs(p, false))
+                };
+                tys.push(spelled);
                 args.push(buf);
             }
         }
@@ -2409,6 +3135,7 @@ fn foreign_import_body(b: &mut Builder, cx: &LowerCx, plan: &ForeignPlan) -> Res
                 call_args.join(", ")
             ));
             let w = c_to_word(b, *s, &r);
+            let w = freeze_word(b, &w);
             b.line(&format!("ret i64 {w}"));
         }
         AbiClass::Ptr => {
@@ -2421,15 +3148,39 @@ fn foreign_import_body(b: &mut Builder, cx: &LowerCx, plan: &ForeignPlan) -> Res
             if !plan.result.nullable {
                 check_non_null(b, &r, &fault);
                 any_check = true;
+                assume_ptr(b, &r, &plan.result);
             }
             let w = b.reg();
             b.line(&format!("{w} = ptrtoint ptr {r} to i64"));
+            let w = freeze_word(b, &w);
             b.line(&format!("ret i64 {w}"));
         }
         AbiClass::Aggregate => {
-            return err(
-                "internal error: a foreign result cannot be an aggregate (rejected at check time)",
-            );
+            // The by-value result crosses through the platform's
+            // result-out buffer (`sret`); the C-layout bytes box into a
+            // boundary-layout block on the way in.
+            let sret = byvalue_attr(&plan.result, reg, true);
+            let buf = b.alloca_bytes(plan.result.width, plan.result.align.max(1));
+            let mut full = vec![format!("ptr {sret} {buf}")];
+            full.extend(call_args);
+            b.line(&format!(
+                "call void @{}({})",
+                quote(&plan.symbol),
+                full.join(", ")
+            ));
+            let blk = b.reg();
+            b.line(&format!(
+                "{blk} = call ptr @malloc(i64 {})",
+                8 + plan.result.width
+            ));
+            b.store_at(&blk, 0, &plan.result.tag.to_string());
+            let payload = b.gep(&blk, 8);
+            for fa in &plan.result.fields {
+                copy_field_exact(b, reg, &payload, 0, &buf, 0, fa, true);
+            }
+            let w = b.reg();
+            b.line(&format!("{w} = ptrtoint ptr {blk} to i64"));
+            ret(b, &w);
         }
     }
     if any_check {
@@ -2458,35 +3209,61 @@ fn export_entry(out: &mut String, plan: &ForeignPlan, reg: &Registry, cx: &Lower
     let mut any_check = false;
     let mut params: Vec<String> = Vec::new();
     let mut words: Vec<String> = Vec::new();
+    // A by-value aggregate result crosses first, through the C
+    // caller's result-out buffer (`sret`).
+    let sret = matches!(plan.result.class, AbiClass::Aggregate);
+    if sret {
+        params.push(format!(
+            "ptr {} %sret",
+            byvalue_attr(&plan.result, reg, true)
+        ));
+    }
     for (i, p) in plan.params.iter().enumerate() {
         let n = format!("%c{i}");
         match &p.class {
             AbiClass::Unit => {}
             AbiClass::Scalar(s) => {
-                params.push(format!("{} {n}", abi_llvm_ty(p)));
-                words.push(c_to_word(&mut b, *s, &n));
+                params.push(format!("{} {n}{}", abi_llvm_ty(p), param_attrs(p, true)));
+                // The C side's argument is foreign input (an `undef`
+                // C register would otherwise leak into safe code): the
+                // word freezes before it can branch or compare.
+                let w = c_to_word(&mut b, *s, &n);
+                words.push(freeze_word(&mut b, &w));
             }
             AbiClass::Ptr => {
-                params.push(format!("ptr {n}"));
+                params.push(format!("ptr {n}{}", param_attrs(p, true)));
                 if !p.nullable {
+                    // The pointer side is untrusted: a null crossing is
+                    // the checked fault, never a `nonnull` promise.
                     check_non_null(&mut b, &n, &fault);
                     any_check = true;
+                    assume_ptr(&mut b, &n, p);
                 }
                 let w = b.reg();
                 b.line(&format!("{w} = ptrtoint ptr {n} to i64"));
+                let w = freeze_word(&mut b, &w);
                 words.push(w);
             }
             AbiClass::Aggregate => {
                 // The C side passes a pointer to a C-layout struct: box
                 // it into a boundary-layout block at the recorded
-                // offsets.
-                params.push(format!("ptr {n}"));
+                // offsets. The bytes are untrusted and freeze on the
+                // way in.
+                let byval = byvalue_attr(p, reg, false);
+                params.push(if byval.is_empty() {
+                    format!("ptr {n}{}", param_attrs(p, true))
+                } else {
+                    format!("ptr {byval} {n}{}", param_attrs(p, true))
+                });
                 let blk = b.reg();
-                b.line(&format!("{blk} = call ptr @malloc(i64 {})", 8 + p.width));
+                b.line(&format!(
+                    "{blk} = call ptr @malloc(i64 {})",
+                    8 + p.width
+                ));
                 b.store_at(&blk, 0, &p.tag.to_string());
                 let payload = b.gep(&blk, 8);
                 for fa in &p.fields {
-                    copy_field_exact(&mut b, &payload, 0, &n, 0, fa);
+                    copy_field_exact(&mut b, reg, &payload, 0, &n, 0, fa, true);
                 }
                 let w = b.reg();
                 b.line(&format!("{w} = ptrtoint ptr {blk} to i64"));
@@ -2504,9 +3281,14 @@ fn export_entry(out: &mut String, plan: &ForeignPlan, reg: &Registry, cx: &Lower
             .collect::<Vec<_>>()
             .join(", ")
     ));
+    let ret_ty = if sret {
+        "void".to_string()
+    } else {
+        abi_llvm_ty(&plan.result).to_string()
+    };
     let header = format!(
         "define {} @{}({})",
-        abi_llvm_ty(&plan.result),
+        ret_ty,
         quote(&plan.symbol),
         params.join(", ")
     );
@@ -2526,9 +3308,15 @@ fn export_entry(out: &mut String, plan: &ForeignPlan, reg: &Registry, cx: &Lower
             b.line(&format!("ret ptr {p}"));
         }
         AbiClass::Aggregate => {
-            return err(
-                "internal error: a foreign result cannot be an aggregate (rejected at check time)",
-            );
+            // The result-out buffer: copy the boxed result's C-layout
+            // bytes into the caller's `sret` slot.
+            let blk = b.reg();
+            b.line(&format!("{blk} = inttoptr i64 {r} to ptr"));
+            let payload = b.gep(&blk, 8);
+            for fa in &plan.result.fields {
+                copy_field_exact(&mut b, reg, "%sret", 0, &payload, 0, fa, false);
+            }
+            b.line("ret void");
         }
     }
     if any_check {
@@ -2610,6 +3398,41 @@ fn core_body(b: &mut Builder, reg: &Registry, f: &FnDef) -> Result<()> {
     for i in 0..f.arity() {
         let slot = e.slot(LocalId(i));
         e.b.line(&format!("store i64 %p{i}, ptr {slot}"));
+    }
+    // P20's `#[checked-params]` row re-states as `llvm.assume` operand
+    // bundles at the entry (design/llvm-contract-attributes.md item 4):
+    // a validated parameter is a defined value, and a pointer
+    // parameter's role contract (`nonnull`, `align`,
+    // `dereferenceable`) holds. Without the row there is no assume.
+    if f.meta.contract.checked_params {
+        for (i, p) in f.meta.contract.params.iter().enumerate() {
+            if p.noundef {
+                e.b.line(&format!(
+                    "call void @llvm.assume(i1 true) [ \"noundef\"(i64 %p{i}) ]"
+                ));
+            }
+            if p.nonnull || p.pointee_align > 1 || p.pointee_size > 0 {
+                let v = e.b.reg();
+                e.b.line(&format!("{v} = inttoptr i64 %p{i} to ptr"));
+                let mut bundles: Vec<String> = Vec::new();
+                if p.nonnull {
+                    bundles.push(format!("\"nonnull\"(ptr {v})"));
+                }
+                if p.pointee_align > 1 {
+                    bundles.push(format!("\"align\"(ptr {v}, i64 {})", p.pointee_align));
+                }
+                if p.pointee_size > 0 {
+                    bundles.push(format!(
+                        "\"dereferenceable\"(ptr {v}, i64 {})",
+                        p.pointee_size
+                    ));
+                }
+                e.b.line(&format!(
+                    "call void @llvm.assume(i1 true) [ {} ]",
+                    bundles.join(", ")
+                ));
+            }
+        }
     }
     // Tail recursion runs in constant stack (surface grammar local
     // amendments section 9; decision D104): the body runs under a loop
@@ -2900,7 +3723,7 @@ impl CoreEmitter<'_, '_> {
                     // recorded offset in the payload (attribute
                     // annotations specification section 4.3).
                     let payload = self.b.gep(&p, 8);
-                    Ok(load_field_word(&mut self.b, &payload, fa))
+                    Ok(load_field_word(&mut self.b, self.reg, &payload, fa))
                 } else {
                     let r = self.b.load_at(&p, (1 + idx.slot) * 8);
                     Ok(r)
@@ -3114,9 +3937,17 @@ impl CoreEmitter<'_, '_> {
                     let v = self.emit_expr(a)?;
                     vals.push(format!("i64 {v}"));
                 }
+                // The result's `!range` fact where the callee's type
+                // states one (the plan note's item 3).
+                let rng = match self.reg.ranges.get(&unit) {
+                    Some(&(lo, hi)) if lo < hi => {
+                        format!(", !range {}", range_meta_i64(self.reg, lo, hi))
+                    }
+                    _ => String::new(),
+                };
                 let r = self.b.reg();
                 self.b.line(&format!(
-                    "{r} = call i64 @{}({})",
+                    "{r} = call i64 @{}({}){rng}",
                     quote(&unit),
                     vals.join(", ")
                 ));
@@ -4485,7 +5316,7 @@ fn reify(out: &mut Vec<QWord>, e: &Core, reg: &Registry) -> Result<()> {
                     q_imm(out, f.slot as u64);
                 }
                 Some(fa) => match &fa.shape {
-                    crate::core::FieldShape::Word => {
+                    crate::core::FieldShape::Word { .. } => {
                         q_imm(out, 2);
                         q_imm(out, fa.offset);
                     }
@@ -4874,7 +5705,6 @@ fn canon_lower_shape(
 /// section 4): lower the safe words through the canonical flattening,
 /// call the import symbol, and lift the result from the return area.
 fn canon_import_body(b: &mut Builder, plan: &ForeignPlan) -> Result<()> {
-    use crate::core::CanonRetCase;
     let call = plan
         .canon
         .as_ref()
@@ -4895,7 +5725,8 @@ fn canon_import_body(b: &mut Builder, plan: &ForeignPlan) -> Result<()> {
     }
     let retbuf = if call.ret.is_some() {
         let size = call.ret.as_ref().map(|r| r.size).unwrap_or(0);
-        let p = b.alloca_bytes(size);
+        let align = call.ret.as_ref().map(|r| r.align).unwrap_or(1).max(1);
+        let p = b.alloca_bytes(size, align);
         b.line(&format!(
             "call void @llvm.memset.p0.i64(ptr {p}, i8 0, i64 {size}, i1 false)"
         ));
@@ -5170,7 +6001,7 @@ fn canon_export_entry(out: &mut String, plan: &ForeignPlan, reg: &Registry) -> R
         };
         words.push(w);
     }
-    let ret_area = call.ret.as_ref().map(|r| (b.alloca_bytes(r.size), r));
+    let ret_area = call.ret.as_ref().map(|r| (b.alloca_bytes(r.size, r.align.max(1)), r));
     if let Some((buf, r)) = &ret_area {
         b.line(&format!(
             "call void @llvm.memset.p0.i64(ptr {buf}, i8 0, i64 {}, i1 false)",

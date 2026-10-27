@@ -1802,7 +1802,7 @@ struct Checker {
     /// Real foreign bindings awaiting contract construction (their
     /// classification reads the ABI layout table, computed after the
     /// declaration pass).
-    pending_foreign: Vec<(String, crate::ast::ForeignDecl, Scheme)>,
+    pending_foreign: Vec<(String, crate::ast::ForeignDecl, Scheme, ForeignAbi)>,
     /// Use counts accumulated for the definition being checked.
     uses: HashMap<LocalId, UseNode>,
     /// Usage obligations of the definition's binders.
@@ -3418,6 +3418,7 @@ impl Checker {
             offset: f.offset,
             size: f.size,
             shape: self.field_shape(field_ty, f.size),
+            range: field_ty.value_range(),
         })
     }
 
@@ -3425,8 +3426,14 @@ impl Checker {
     /// scalars fill their recorded width; everything boxed (including
     /// pointer roles and opaque handles) is one word; a nested
     /// boundary-layout aggregate is stored inline at the recorded size.
+    /// A pointer field records the alignment its role asserts of the
+    /// pointee (the `!align` fact of the LLVM contract surface).
     pub(crate) fn field_shape(&self, ty: &Ty, size: u64) -> FieldShape {
         match ty {
+            // `Unit` and `Bool` fill their recorded scalar width (the
+            // primitive types specification section 2 table: 0 and 1
+            // bytes).
+            Ty::Unit | Ty::Bool => FieldShape::Scalar { size, signed: false },
             Ty::Prim(s) => {
                 let float = matches!(s, Scalar::F32 | Scalar::F64);
                 FieldShape::Scalar {
@@ -3438,10 +3445,21 @@ impl Checker {
                 if let Some(nested) = self.inline_layout(n) {
                     nested
                 } else {
-                    FieldShape::Word
+                    FieldShape::Word { align: 0 }
                 }
             }
-            _ => FieldShape::Word,
+            Ty::Ptr { role, pointee } => {
+                let align = if matches!(
+                    role,
+                    crate::types::PtrRole::Raw | crate::types::PtrRole::Out
+                ) {
+                    0
+                } else {
+                    self.pointee_layout(pointee).map(|(a, _)| a).unwrap_or(0)
+                };
+                FieldShape::Word { align }
+            }
+            _ => FieldShape::Word { align: 0 },
         }
     }
 
@@ -3472,6 +3490,7 @@ impl Checker {
                 offset: f.offset,
                 size: f.size,
                 shape: self.field_shape(t, f.size),
+                range: t.value_range(),
             });
             slot += 1;
         }
@@ -5666,6 +5685,10 @@ fn shifted_meta(meta: &crate::core::FnMeta, k: usize) -> crate::core::FnMeta {
             .filter_map(|(i, c)| shift(*i).map(|j| (j, c.clone())))
             .collect(),
         pure: meta.pure,
+        contract: crate::core::FnContract {
+            params: meta.contract.params.iter().skip(k).cloned().collect(),
+            ..meta.contract.clone()
+        },
     }
 }
 

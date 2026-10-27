@@ -206,14 +206,24 @@ fn codec_field_name(name: &str) -> bool {
     chars.all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '\'')
 }
 
-/// The interface's record of one parameter's binding contract.
-fn iface_param(p: &crate::core::AbiParam) -> crate::interface::ForeignParam {
+/// The interface's record of one parameter's binding contract. A
+/// by-value aggregate crossing is recorded by its native spelling
+/// (`byval` parameters, the `sret` result), part of the contract
+/// projection (attribute annotations specification section 1.3).
+fn iface_param(p: &crate::core::AbiParam, result: bool) -> crate::interface::ForeignParam {
     crate::interface::ForeignParam {
         ty: p.ty.clone(),
         class: match p.class {
             crate::core::AbiClass::Unit => "unit",
             crate::core::AbiClass::Scalar(_) => "scalar",
             crate::core::AbiClass::Ptr => "ptr",
+            crate::core::AbiClass::Aggregate if p.by_value => {
+                if result {
+                    "sret"
+                } else {
+                    "byval"
+                }
+            }
             crate::core::AbiClass::Aggregate => "aggregate",
         }
         .to_string(),
@@ -862,6 +872,8 @@ impl Checker {
                         width: 8,
                         align: 8,
                         signed: false,
+                        pointee_align: 0,
+                        by_value: false,
                         tag: 0,
                         fields: Vec::new(),
                     })
@@ -877,6 +889,8 @@ impl Checker {
                         width: 8,
                         align: 8,
                         signed: false,
+                        pointee_align: 0,
+                        by_value: false,
                         tag: 0,
                         fields: Vec::new(),
                     });
@@ -894,6 +908,8 @@ impl Checker {
                     width: 8,
                     align: 8,
                     signed: false,
+                    pointee_align: 0,
+                    by_value: false,
                     tag: 0,
                     fields: Vec::new(),
                 };
@@ -1014,6 +1030,8 @@ impl Checker {
                 width: 8,
                 align: 8,
                 signed: false,
+                pointee_align: 0,
+                by_value: false,
                 tag: 0,
                 fields: Vec::new(),
             };
@@ -1038,6 +1056,8 @@ impl Checker {
                         width: 8,
                         align: 8,
                         signed: false,
+                        pointee_align: 0,
+                        by_value: false,
                         tag: 0,
                         fields: Vec::new(),
                     },
@@ -2093,7 +2113,8 @@ impl Checker {
                 | ast::Decl::Record(..)
                 | ast::Decl::Codata(..)
                 | ast::Decl::ValueSig { .. }
-                | ast::Decl::Equation { .. } => {}
+                | ast::Decl::Equation { .. }
+                | ast::Decl::Foreign(..) => {}
                 _ => {
                     self.validate_attr_site(decl_attrs, AttrSite::Decl)?;
                 }
@@ -2356,6 +2377,7 @@ impl Checker {
                     eqs.push((eq.name.text.clone(), eq.clone()));
                 }
                 ast::Decl::Foreign(f) => {
+                    let set = self.validate_attr_site(decl_attrs, AttrSite::ForeignDecl)?;
                     if f.abi != "ccall" {
                         return Err(Error::at(
                             f.span,
@@ -2365,6 +2387,12 @@ impl Checker {
                     if let Some(op) = PrimOp::from_symbol(&f.symbol) {
                         // Compiler intrinsics have known signatures
                         // (decision D6).
+                        if set.foreign_abi != ForeignAbi::default() {
+                            return Err(Error::at(
+                                f.span,
+                                "`#[byval]` and `#[sret]` spell an aggregate boundary; a compiler intrinsic marshals no aggregate",
+                            ));
+                        }
                         if !f.is_import {
                             return Err(Error::at(f.span, "a compiler intrinsic cannot be exported"));
                         }
@@ -2467,7 +2495,7 @@ impl Checker {
                         // classification both wait for the deferred
                         // contract build (`build_foreign_contracts`).
                         self.pending_foreign
-                            .push((module.clone(), f.clone(), s));
+                            .push((module.clone(), f.clone(), s, set.foreign_abi));
                     }
                 }
                 ast::Decl::OpaqueType(o) => {
@@ -3719,6 +3747,33 @@ impl Checker {
                         return Err(Error::at(a.span, site.placement_error("safety")));
                     }
                     out.safety.fill_from(a)?;
+                }
+                // The by-value aggregate ABI spelling at a foreign
+                // boundary (design/llvm-contract-attributes.md item 6).
+                "byval" | "sret" => {
+                    if site != AttrSite::ForeignDecl {
+                        return Err(Error::at(a.span, site.placement_error(&name)));
+                    }
+                    if !arg_text(args).is_empty() {
+                        return Err(Error::at(
+                            a.span,
+                            format!("`#[{name}]` takes no arguments"),
+                        ));
+                    }
+                    let slot = if name == "byval" {
+                        &mut out.foreign_abi.byval
+                    } else {
+                        &mut out.foreign_abi.sret
+                    };
+                    if *slot {
+                        return Err(Error::at(
+                            a.span,
+                            format!(
+                                "one declaration carries one `#[{name}]` attribute (attribute annotations specification section 1.3)"
+                            ),
+                        ));
+                    }
+                    *slot = true;
                 }
                 "profile" => {
                     return Err(Error::at(
@@ -5337,11 +5392,23 @@ impl Checker {
         // P20: the safety assertions are verified at the definition
         // (attribute annotations specification section 10; decision
         // D112): a violation is a compile error naming the attribute,
-        // the rule, and the offending site.
+        // the rule, and the offending site. The signature's value facts
+        // (the `!range`/`noundef`/`nonnull`/`align` of the LLVM
+        // contract surface) come from the types themselves.
         {
             let module = self.current_module.clone();
             let mut sig_tys: Vec<Ty> = doms_safety.iter().map(|t| self.uni.zonk(t)).collect();
             sig_tys.push(self.uni.zonk(&rest));
+            meta.contract.result_range = sig_tys.last().and_then(|t| t.value_range());
+            let mut pcs = vec![crate::core::ParamContract::default(); param_ids.len()];
+            for (i, l) in value_params.iter().enumerate() {
+                if let Some(pos) = param_ids.iter().position(|p| p == l) {
+                    if let Some(t) = sig_tys.get(i) {
+                        pcs[pos] = self.param_contract(t);
+                    }
+                }
+            }
+            meta.contract.params = pcs;
             self.verify_definition_safety(
                 &id.0,
                 &module,
@@ -6504,7 +6571,7 @@ impl Checker {
     /// layout is known (the classification reads the recorded ABI table).
     fn build_foreign_contracts(&mut self) -> Result<()> {
         let pending = std::mem::take(&mut self.pending_foreign);
-        for (module, f, s) in pending {
+        for (module, f, s, foreign_abi) in pending {
             if !f.is_import {
                 // A foreign export wraps an existing SafeLang function
                 // under a C-callable entry; its type is exactly the
@@ -6538,7 +6605,7 @@ impl Checker {
             // foreign signature mentions are the module's own and its
             // imports'.
             self.build_scope(&module, true);
-            let (plan, entry) = self.foreign_contract(&module, &f, &s.ty)?;
+            let (plan, entry) = self.foreign_contract(&module, &f, &s.ty, foreign_abi)?;
             self.module_foreign.push((module, entry));
             self.foreign_plans.push((plan.unit.clone(), plan));
         }
@@ -6556,6 +6623,7 @@ impl Checker {
         module: &str,
         f: &ast::ForeignDecl,
         ty: &Ty,
+        foreign_abi: ForeignAbi,
     ) -> Result<(crate::core::ForeignPlan, crate::interface::ForeignExport)> {
         use crate::core::{AbiClass, ForeignPlan};
         // Peel the arrow spine: parameters, per-arrow effect rows, result.
@@ -6610,16 +6678,44 @@ impl Checker {
         for a in &arg_tys {
             params.push(self.abi_param(a).map_err(|e| Error::at(f.span, e.message))?);
         }
-        let result = self
+        let mut result = self
             .abi_param(cur)
             .map_err(|e| Error::at(f.span, e.message))?;
+        // The by-value aggregate ABI spelling (the plan note
+        // `design/llvm-contract-attributes.md` item 6): `#[byval]`
+        // spells aggregate parameters as the platform's by-value copy,
+        // `#[sret]` the aggregate result as the platform's result-out
+        // buffer. Without them D66's spelling applies: aggregate
+        // parameters cross as const-pointers to call-scoped copies and
+        // an aggregate result is rejected instead of guessed.
+        if foreign_abi.byval {
+            if !params.iter().any(|p| matches!(p.class, AbiClass::Aggregate)) {
+                return Err(Error::at(
+                    f.span,
+                    "`#[byval]` spells aggregate parameters crossing by value; this binding marshals no aggregate parameter",
+                ));
+            }
+            for p in &mut params {
+                if matches!(p.class, AbiClass::Aggregate) {
+                    p.by_value = true;
+                }
+            }
+        }
         if matches!(result.class, AbiClass::Aggregate) {
+            if !foreign_abi.sret {
+                return Err(Error::at(
+                    f.span,
+                    format!(
+                        "a foreign result cannot be an aggregate: `{}` follows the platform's by-value struct ABI, which this slice does not guess (foreign function interface specification section 2: reject unsupported layouts); return through an `Out` cell or an `Owned` pointer, or spell the by-value crossing `#[sret]`",
+                        result.ty
+                    ),
+                ));
+            }
+            result.by_value = true;
+        } else if foreign_abi.sret {
             return Err(Error::at(
                 f.span,
-                format!(
-                    "a foreign result cannot be an aggregate: `{}` follows the platform's by-value struct ABI, which this slice does not guess (foreign function interface specification section 2: reject unsupported layouts); return through an `Out` cell or an `Owned` pointer",
-                    result.ty
-                ),
+                "`#[sret]` spells an aggregate result crossing by value; this binding's result is not an aggregate",
             ));
         }
         let unit = if f.is_import {
@@ -6662,11 +6758,71 @@ impl Checker {
                 "foreign export".to_string()
             },
             kind: if f.is_import { "import" } else { "export" }.to_string(),
-            params: params.iter().map(iface_param).collect(),
-            result: iface_param(&result),
+            params: params.iter().map(|p| iface_param(p, false)).collect(),
+            result: iface_param(&result, true),
             deallocator: String::new(),
         };
         Ok((plan, entry))
+    }
+
+    /// A pointer role's pointee contract: the alignment and size the
+    /// role asserts of the memory it points at (`None` asserts nothing,
+    /// as for `RawPtr`, opaque handles and types without a recorded
+    /// layout). The facts feed the LLVM contract surface's `align`,
+    /// `dereferenceable` and `!align` claims.
+    fn pointee_layout(&self, pointee: &Ty) -> Option<(u64, u64)> {
+        match pointee {
+            Ty::Prim(s) => Some((s.align(), s.size())),
+            Ty::Ptr { pointee, .. } => self.pointee_layout(pointee),
+            Ty::Adt(n, _) => {
+                let info = self.lookup_type(&[n]).ok()?;
+                if info.opaque {
+                    return None;
+                }
+                let layout =
+                    self.type_layouts.get(&(info.module.clone(), info.name.clone()))?;
+                if layout.repr == "uniform-word" {
+                    return None;
+                }
+                Some((layout.align, layout.size))
+            }
+            _ => None,
+        }
+    }
+
+    /// One parameter's LLVM contract facts (the plan note's
+    /// usage-derived parameter attributes): `noundef` for scalar words,
+    /// and for pointer-shaped parameters the `nonnull`, `align` and
+    /// `dereferenceable` the role asserts of its pointee. A `RawPtr`
+    /// asserts nothing of its pointee; a borrow asserts its pointee's
+    /// validity and alignment (attribute annotations specification
+    /// section 4.2: a reference asserts alignment).
+    fn param_contract(&self, t: &Ty) -> crate::core::ParamContract {
+        let mut c = crate::core::ParamContract::default();
+        match t {
+            Ty::Prim(_) | Ty::Bool => c.noundef = true,
+            Ty::Ptr { role, pointee } => {
+                c.nonnull = !matches!(role, crate::types::PtrRole::MaybeNull);
+                if !matches!(
+                    role,
+                    crate::types::PtrRole::Raw | crate::types::PtrRole::Out
+                ) {
+                    if let Some((a, s)) = self.pointee_layout(pointee) {
+                        c.pointee_align = a;
+                        c.pointee_size = s;
+                    }
+                }
+            }
+            Ty::Ref(_, a) | Ty::Mut(_, a) => {
+                c.nonnull = true;
+                if let Some((al, sz)) = self.pointee_layout(a) {
+                    c.pointee_align = al;
+                    c.pointee_size = sz;
+                }
+            }
+            _ => {}
+        }
+        c
     }
 
     /// One parameter or result's C ABI class and binding contract
@@ -6682,6 +6838,8 @@ impl Checker {
             width: 0,
             align: 1,
             signed: false,
+            pointee_align: 0,
+            by_value: false,
             tag: 0,
             fields: Vec::new(),
         };
@@ -6712,6 +6870,19 @@ impl Checker {
                         "maybe-null".to_string()
                     }
                 };
+                // The role's assertion over its pointee (the LLVM
+                // contract surface's `align` and `dereferenceable`):
+                // a borrow asserts its pointee's alignment and size, a
+                // `RawPtr` asserts nothing ("not claimed to be valid,
+                // aligned, or owned"), and an opaque handle is opaque.
+                if !matches!(
+                    role,
+                    crate::types::PtrRole::Raw | crate::types::PtrRole::Out
+                ) {
+                    if let Some((a, _)) = self.pointee_layout(pointee) {
+                        p.pointee_align = a;
+                    }
+                }
                 if matches!(role, crate::types::PtrRole::Out) {
                     // The out-parameter rule (section 4): the cell is one
                     // caller-owned word, zeroed before the call and read
@@ -6809,6 +6980,7 @@ impl Checker {
                         offset: f.offset,
                         size: f.size,
                         shape: self.field_shape(fty, f.size),
+                        range: fty.value_range(),
                     });
                     slot += 1;
                 }
@@ -6915,6 +7087,7 @@ impl Checker {
                         offset: f.offset,
                         size: f.size,
                         shape: self.field_shape(fty, f.size),
+                        range: fty.value_range(),
                     });
                     slot += 1;
                 }
@@ -6952,6 +7125,8 @@ pub(crate) enum AttrSite {
     TypeDecl,
     /// A function declaration: a value signature or a top-level equation.
     FnDecl,
+    /// A `foreign` import or export declaration.
+    ForeignDecl,
     /// Any other declaration.
     Decl,
     /// A data constructor declaration.
@@ -6987,6 +7162,7 @@ impl AttrSite {
                 "`#[inline]` is a hint on a function declaration (attribute annotations specification section 5)".to_string()
             }
             "safety" => "`#[recursion]`, `#[stack]`, `#[no-alloc]`, `#[alloc]`, `#[max-complexity]`, `#[max-lines]`, `#[assert-min]`, `#[checked-params]`, `#[no-macros]`, `#[no-raw-ptr]` and `#[deny-warnings]` attach to a function definition (a signature or a top-level equation; attribute annotations specification section 10)".to_string(),
+            "byval" | "sret" => "`#[byval]` and `#[sret]` attach to a `foreign` import or export declaration (the by-value aggregate ABI spelling of design/llvm-contract-attributes.md)".to_string(),
             "repr" => match self {
                 AttrSite::FnDecl | AttrSite::Decl | AttrSite::Ctor => {
                     "`#[repr(...)]` attaches to a `data` or `record` declaration (attribute annotations specification section 4.1)".to_string()
@@ -6996,6 +7172,18 @@ impl AttrSite {
             other => format!("`#[{other}]` is not admitted at this position (attribute annotations specification section 1.1)"),
         }
     }
+}
+
+/// The by-value aggregate ABI spelling one foreign declaration selects
+/// (`#[byval]` and `#[sret]`: design/llvm-contract-attributes.md item 6,
+/// the native spelling of the const-pointer-in/results-out aggregate
+/// ABI).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) struct ForeignAbi {
+    /// `#[byval]`: the aggregate parameters cross by value.
+    pub byval: bool,
+    /// `#[sret]`: the aggregate result crosses by value.
+    pub sret: bool,
 }
 
 /// What one attachment position's attribute list carries (attribute
@@ -7012,6 +7200,8 @@ pub(crate) struct AttrSet {
     /// The P20 safety assertions (attribute annotations specification
     /// section 10), verified at the definition.
     pub safety: SafetySet,
+    /// The by-value aggregate ABI spelling at a foreign declaration.
+    pub foreign_abi: ForeignAbi,
 }
 
 /// The raw argument text of one attribute: the parenthesized list, or
@@ -9175,6 +9365,41 @@ impl Checker {
     }
 }
 
+/// Re-state the verified P20 assertion rows as the LLVM contract
+/// surface's facts on the definitions they belong to (the plan note
+/// `design/llvm-contract-attributes.md`; decision D112's rows are the
+/// input). The rows reach this point only after the group verification
+/// accepted them, so a fact is recorded exactly when it is proved.
+fn contract_facts(records: &[SafetyRecord], program: &mut Program) {
+    for rec in records {
+        let subs = format!("{}.", rec.key);
+        for f in program.fns.iter_mut() {
+            if f.id.0 != rec.key && !f.id.0.starts_with(&subs) {
+                continue;
+            }
+            for fact in &rec.fact_strings {
+                match fact.as_str() {
+                    "no-alloc" => f.meta.contract.no_alloc = true,
+                    "checked-params" if f.id.0 == rec.key => {
+                        f.meta.contract.checked_params = true
+                    }
+                    other
+                        if f.id.0 == rec.key
+                            && (other.starts_with("recursion=bounded(")
+                                || other == "recursion=none") =>
+                    {
+                        // The totality/`bounded` machinery proved the
+                        // self-call chains are finite (`willreturn` is
+                        // never guessed).
+                        f.meta.contract.returns = true
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+}
+
 /// Verify the group-level safety claims against the checked program's
 /// D104 tail-call groups (attribute annotations specification section
 /// 10; decisions D112-D114): `#[recursion]` and `#[stack]` cover self
@@ -10944,11 +11169,14 @@ pub fn check_program_multi_full(
         emit(&c, &m.name.text, &imports);
     }
     let diags = std::mem::take(&mut c.diags);
-    let program = c.finish(&scx.entry_modules, &prelude_name)?;
+    let mut program = c.finish(&scx.entry_modules, &prelude_name)?;
     // P20: the group-level safety claims verify over the finished
     // program's D104 groups; the report says which proof method
     // established each `bounded(n)` bound (decision D113).
     report.safety = verify_safety_groups(&safety_records, &program)?;
+    // The verified rows re-state as the LLVM contract surface's facts
+    // on their definitions (design/llvm-contract-attributes.md).
+    contract_facts(&safety_records, &mut program);
     Ok((program, ifaces, report, diags))
 }
 

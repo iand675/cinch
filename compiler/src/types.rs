@@ -948,6 +948,31 @@ impl Former {
 }
 
 impl Ty {
+    /// The value range `[lo, hi)` of canonical `i64` words this type's
+    /// values occupy, when the type statically bounds them (`Bool` and
+    /// the primitive scalars narrower than the word). `None` when the
+    /// words span the `i64` space (`Int`, `Nat`, `U64`) or the value is
+    /// boxed (`Fin n` included: a `Fin` word is its constructor-block
+    /// pointer, not the bounded index, so no range covers it): a range
+    /// the analysis cannot state is never guessed (the `!range`/`range`
+    /// facts of `design/llvm-contract-attributes.md`).
+    pub fn value_range(&self) -> Option<(i64, i64)> {
+        match self {
+            Ty::Bool => Some((0, 2)),
+            Ty::Prim(s) => match s {
+                Scalar::U8 => Some((0, 256)),
+                Scalar::U16 => Some((0, 65536)),
+                Scalar::U32 => Some((0, 4294967296)),
+                Scalar::I8 => Some((-128, 128)),
+                Scalar::I16 => Some((-32768, 32768)),
+                Scalar::I32 => Some((-2147483648, 2147483648)),
+                Scalar::Char => Some((0, 0x110000)),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
     /// A pure arrow `a -> b` with an unrestricted parameter.
     pub fn fun(a: Ty, b: Ty) -> Ty {
         Ty::Fun(Box::new(a), Mult::Many, EffRow::pure(), Box::new(b))
