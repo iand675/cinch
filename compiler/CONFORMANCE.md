@@ -230,6 +230,27 @@ rule mapping (six rules inherent to the language, the rest asserted).
 | `bounded(n)` depth bounds via structural proofs first, conservative call-graph bounds otherwise, report saying which (D113) | done (structural named-size proofs vs the literal ladder (D182/D183); numeric-over-structural refused and pinned as a negative) |
 | The `jpl` profile enforcing the whole set at rule numbers, never looser per-definition (D114); Result must-use default | done (module attribute + `TargetProfile::jpl()`; whole-program summary; `let _ = e` rejects rule 7, `ignore` passes) |
 
+### LLVM contract surface (P27)
+
+Specified in `design/llvm-contract-attributes.md`, 2026-10-26 at the
+user's direction (what else like `musttail` to adopt from LLVM): the
+pattern is translation - SafeLang's analyses already prove most of
+LLVM's attribute vocabulary. Implemented 2026-10-27 by
+`LlvmContractSlice`/`-2` (recovered from a provider interruption).
+
+| Requirement | Status |
+| --- | --- |
+| Effect-derived function attributes (`memory(none) speculatable`, `memory(read/readwrite)`, `nofree`, proven-only `willreturn`) | done (scan-proven and transitive; restated under P20/totality rows for checked definitions (D189)) |
+| Usage-derived parameter attributes (`captures(none)`/`nonnull`/`noundef`/`align`, `!range`, `!align`) | done (presence/absence pairs; `Fin`/full-width ranges refused as unsound (D187)) |
+| `llvm.assume` with operand bundles from P20 assertions and repr facts | done (no `range` bundle exists in this LLVM; ranges via the return attribute + `!range` (D188)) |
+| `freeze` at untrusted boundaries; `noreturn` + `unreachable` fault audit | done (every untrusted ingress; all fault paths audited) |
+| Aggregate FFI spelling | done as `byref(%__sl_layout_N)` + `sret`, NOT `byval` (disassembly proof: `byval` segfaults against C struct-by-value; `byref` preserves the C convention (D190)); `immarg`/`llvm.sideeffect` noted for P18 |
+
+Evidence: `tests/llvm_contract.rs` 14/14 IR-observation tests, each
+attribute present where proven and absent where unproven (catching
+over-claiming too), including a real clang-compiled C round trip at
+the aggregate boundary. Suite: 524 compiler + 107 runtime.
+
 ### Interned symbols (P24)
 
 Specified in `specifications/primitive-types-specification.md`
@@ -538,6 +559,30 @@ correspondence: one lexeme in expression/pattern, staging `Name`, and
   site), while a runtime `decide` operand validates the parameters it
   examines (`checked-params`); `SafetyReport` carries structured rows
   and the `jpl` assertion count is the verified rows.
+- **D187-D191 (P27, reported)**: `value_range` states `!range` only
+  for `Bool` and the narrow primitive scalars - `Fin` values are
+  constructor-block pointers at runtime so a range claim on the word
+  would be unsound, and full-width spans (`U8` as `i8`, `U32` loads)
+  are unstatable (`[a, a)` is the empty range the verifier rejects);
+  the by-value aggregate parameter is spelled `byref(%__sl_layout_N)`,
+  not `byval` (disassembly against clang-compiled C proves `byval`
+  lowers to a stack-passed copy that segfaults against a C function
+  taking `struct S` by value, while the C ABI passes a pointer to the
+  caller's copy; `byref` states validity without changing the
+  convention and the run test proves callee copy isolation; `sret` is
+  clang's own spelling; per-target spelling is the cross-compilation
+  follow-up); `llvm.assume` has no `range` operand bundle in this
+  LLVM (accepted: align/cold/dereferenceable/
+  dereferenceable_or_null/ignore/nonnull/noundef/separate_storage),
+  so range facts use the `range` return attribute and `!range`
+  metadata; `willreturn`/`nofree` are scan-proven and transitive
+  (checked definitions restate them only under their P20/totality
+  rows; `nofree` requires no opaque call in body or callees since an
+  opaque call may deallocate); the interrupted flight's body scan had
+  skipped assigning calls (effectful units claimed `memory(none)`) -
+  the honest unit scan now classifies every call, load, store, and
+  poison source, alongside two IR-spelling fixes (`freeze` width,
+  `!align` node shape).
 - **D127 (P25 scaffolding ruling)**: FoldAgent's defunctionalized
   class shapes (`Foldable t a`, `Traversable t x g h tg hs`) are
   accepted as NON-CURATED scaffolding: they ship in the `Category`
