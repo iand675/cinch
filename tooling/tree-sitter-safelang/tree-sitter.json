@@ -1,0 +1,27 @@
+{
+  "grammars": [
+    {
+      "name": "safelang",
+      "camelcase": "SafeLang",
+      "scope": "source.safelang",
+      "path": ".",
+      "file-types": [
+        "lang"
+      ]
+    }
+  ],
+  "metadata": {
+    "version": "0.1.0",
+    "license": "UNLICENSED",
+    "description": "Tree-sitter grammar for the SafeLang surface syntax (draft 0.2 plus local amendments)",
+    "authors": [
+      {
+        "name": "SafeLang design repository"
+      }
+    ],
+    "links": {
+      "repository": "https://github.com/mercurytechnologies/designing-a-safe-language"
+    }
+  },
+  "bindings": {}
+}

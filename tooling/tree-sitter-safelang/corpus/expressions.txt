@@ -1,0 +1,640 @@
+==========================================
+expressions: application binds tighter than infix
+==========================================
+module M where
+  f = g x y + h z
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (equation
+          (identifier)
+          (equals)
+          (application
+            (variable
+              (identifier))
+            (variable
+              (identifier))
+            (variable
+              (identifier)))
+          (op_plus)
+          (application
+            (variable
+              (identifier))
+            (variable
+              (identifier))))))))
+
+==========================================
+expressions: lambda with several patterns
+==========================================
+module M where
+  f = \x y -> x + y
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (equation
+          (identifier)
+          (equals)
+          (lambda
+            (backslash)
+            (identifier)
+            (identifier)
+            (arrow)
+            (application
+              (variable
+                (identifier)))
+            (op_plus)
+            (application
+              (variable
+                (identifier)))))))))
+
+==========================================
+expressions: if, case, do, and let in one term
+==========================================
+module M where
+  f = do
+    x <- get
+    let y = x + 1
+    pure (if y == 0 then case y of
+      0 -> 1
+      _ -> 2
+     else y)
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (equation
+          (identifier)
+          (equals)
+          (do_expression
+            (kw_do)
+            (do_block
+              (do_statement
+                (identifier)
+                (larrow)
+                (application
+                  (variable
+                    (identifier))))
+              (do_statement
+                (kw_let)
+                (local_block
+                  (local_declaration
+                    (pattern_binding
+                      (identifier)
+                      (equals)
+                      (application
+                        (variable
+                          (identifier)))
+                      (op_plus)
+                      (application
+                        (int_literal))))))
+              (do_statement
+                (application
+                  (variable
+                    (identifier))
+                  (parenthesized_expression
+                    (lparen)
+                    (if_expression
+                      (kw_if)
+                      (application
+                        (variable
+                          (identifier)))
+                      (op_eqeq)
+                      (application
+                        (int_literal))
+                      (kw_then)
+                      (case_expression
+                        (kw_case)
+                        (application
+                          (variable
+                            (identifier)))
+                        (kw_of)
+                        (alternative_block
+                          (alternative
+                            (int_literal)
+                            (arrow)
+                            (application
+                              (int_literal)))
+                          (alternative
+                            (wildcard)
+                            (arrow)
+                            (application
+                              (int_literal)))))
+                      (kw_else)
+                      (application
+                        (variable
+                          (identifier))))
+                    (rparen)))))))))))
+
+==========================================
+expressions: patterns with constructor, record, as, list, tuple
+==========================================
+module M where
+  f p = case p of
+    Cons x xs -> x
+    Point { x = a, y = b } -> a
+    z @ (Some _) -> z
+    [q, r] -> q
+    (s, t) -> s
+    -3 -> 0
+    _ -> 1
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (equation
+          (identifier)
+          (identifier)
+          (equals)
+          (case_expression
+            (kw_case)
+            (application
+              (variable
+                (identifier)))
+            (kw_of)
+            (alternative_block
+              (alternative
+                (constructor_pattern
+                  (constructor_path
+                    (constructor))
+                  (identifier)
+                  (identifier))
+                (arrow)
+                (application
+                  (variable
+                    (identifier))))
+              (alternative
+                (record_pattern
+                  (constructor_path
+                    (constructor))
+                  (lbrace)
+                  (identifier)
+                  (equals)
+                  (variable
+                    (identifier))
+                  (comma)
+                  (identifier)
+                  (equals)
+                  (variable
+                    (identifier))
+                  (rbrace))
+                (arrow)
+                (application
+                  (variable
+                    (identifier))))
+              (alternative
+                (as_pattern
+                  (identifier)
+                  (at)
+                  (parenthesized_pattern
+                    (lparen)
+                    (constructor_pattern
+                      (constructor_path
+                        (constructor))
+                      (wildcard))
+                    (rparen)))
+                (arrow)
+                (application
+                  (variable
+                    (identifier))))
+              (alternative
+                (list_pattern
+                  (lbracket)
+                  (identifier)
+                  (comma)
+                  (identifier)
+                  (rbracket))
+                (arrow)
+                (application
+                  (variable
+                    (identifier))))
+              (alternative
+                (tuple_pattern
+                  (lparen)
+                  (identifier)
+                  (comma)
+                  (identifier)
+                  (rparen))
+                (arrow)
+                (application
+                  (variable
+                    (identifier))))
+              (alternative
+                (int_literal)
+                (arrow)
+                (application
+                  (int_literal)))
+              (alternative
+                (wildcard)
+                (arrow)
+                (application
+                  (int_literal))))))))))
+
+==========================================
+expressions: record construction and projection
+==========================================
+module M where
+  f = Point { x = 1, y = 2 }.x
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (equation
+          (identifier)
+          (equals)
+          (application
+            (record_construction
+              (constructor_path
+                (constructor))
+              (lbrace)
+              (assignment
+                (identifier)
+                (equals)
+                (application
+                  (int_literal)))
+              (comma)
+              (assignment
+                (identifier)
+                (equals)
+                (application
+                  (int_literal)))
+              (rbrace))
+            (projection
+              (dot)
+              (identifier))))))))
+
+==========================================
+expressions: map and list literals
+==========================================
+module M where
+  f = {k => v, k2 => v2}
+  g = [1, 2, 3]
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (equation
+          (identifier)
+          (equals)
+          (application
+            (map_literal
+              (lbrace)
+              (application
+                (variable
+                  (identifier)))
+              (darrow)
+              (application
+                (variable
+                  (identifier)))
+              (comma)
+              (application
+                (variable
+                  (identifier)))
+              (darrow)
+              (application
+                (variable
+                  (identifier)))
+              (rbrace)))))
+      (declaration
+        (equation
+          (identifier)
+          (equals)
+          (application
+            (list_literal
+              (lbracket)
+              (application
+                (int_literal))
+              (comma)
+              (application
+                (int_literal))
+              (comma)
+              (application
+                (int_literal))
+              (rbracket))))))))
+
+==========================================
+expressions: a where block after an equation
+==========================================
+module M where
+  f x = y where
+    y = x + 1
+    z = y + 1
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (equation
+          (identifier)
+          (identifier)
+          (equals)
+          (application
+            (variable
+              (identifier)))
+          (kw_where)
+          (local_block
+            (local_declaration
+              (pattern_binding
+                (identifier)
+                (equals)
+                (application
+                  (variable
+                    (identifier)))
+                (op_plus)
+                (application
+                  (int_literal))))
+            (local_declaration
+              (equation
+                (identifier)
+                (equals)
+                (application
+                  (variable
+                    (identifier)))
+                (op_plus)
+                (application
+                  (int_literal))))))))))
+
+==========================================
+types: arrow formers, tuples, application, effect rows
+==========================================
+module M where
+  f :: (->) Int Int
+  g :: (,) Int Int
+  h :: (Int, Bool)
+  i :: Vec n a
+  j :: a ->{IO r} b
+  k :: a ->{|e} b
+  l :: Thunk {e} a
+  m :: (x :: Nat) -> Vec n a
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (value_signature
+          (identifier)
+          (colon_colon)
+          (arrow_former
+            (lparen)
+            (arrow)
+            (rparen))
+          (constructor_path
+            (constructor))
+          (constructor_path
+            (constructor))))
+      (declaration
+        (value_signature
+          (identifier)
+          (colon_colon)
+          (tuple_former
+            (lparen)
+            (comma)
+            (rparen))
+          (constructor_path
+            (constructor))
+          (constructor_path
+            (constructor))))
+      (declaration
+        (value_signature
+          (identifier)
+          (colon_colon)
+          (tuple_type
+            (lparen)
+            (constructor_path
+              (constructor))
+            (comma)
+            (constructor_path
+              (constructor))
+            (rparen))))
+      (declaration
+        (value_signature
+          (identifier)
+          (colon_colon)
+          (constructor_path
+            (constructor))
+          (type_variable
+            (identifier))
+          (type_variable
+            (identifier))))
+      (declaration
+        (value_signature
+          (identifier)
+          (colon_colon)
+          (type_variable
+            (identifier))
+          (arrow_head
+            (arrow)
+            (effect_row
+              (lbrace)
+              (effect_label
+                (constructor_path
+                  (constructor))
+                (identifier))
+              (rbrace)))
+          (type_variable
+            (identifier))))
+      (declaration
+        (value_signature
+          (identifier)
+          (colon_colon)
+          (type_variable
+            (identifier))
+          (arrow_head
+            (arrow)
+            (effect_row
+              (lbrace)
+              (pipe)
+              (identifier)
+              (rbrace)))
+          (type_variable
+            (identifier))))
+      (declaration
+        (value_signature
+          (identifier)
+          (colon_colon)
+          (constructor_path
+            (constructor))
+          (effect_row
+            (lbrace)
+            (identifier)
+            (rbrace))
+          (type_variable
+            (identifier))))
+      (declaration
+        (value_signature
+          (identifier)
+          (colon_colon)
+          (typed_binder
+            (lparen)
+            (identifier)
+            (colon_colon)
+            (constructor_path
+              (constructor))
+            (rparen))
+          (arrow_head
+            (arrow))
+          (constructor_path
+            (constructor))
+          (type_variable
+            (identifier))
+          (type_variable
+            (identifier)))))))
+
+==========================================
+types: computed index and infix constraints
+==========================================
+module M where
+  f :: Vec (n + 1) a -> Nat
+  g :: using (copy :: Copy a) => Ref r a -> a
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (value_signature
+          (identifier)
+          (colon_colon)
+          (constructor_path
+            (constructor))
+          (parenthesized_type
+            (lparen)
+            (type_variable
+              (identifier))
+            (op_plus)
+            (int_literal)
+            (rparen))
+          (type_variable
+            (identifier))
+          (arrow_head
+            (arrow))
+          (constructor_path
+            (constructor))))
+      (declaration
+        (value_signature
+          (identifier)
+          (colon_colon)
+          (using_type
+            (using_clause
+              (kw_using)
+              (lparen)
+              (constraint
+                (identifier)
+                (colon_colon)
+                (constructor_path
+                  (constructor))
+                (type_variable
+                  (identifier)))
+              (rparen))
+            (darrow)
+            (constructor_path
+              (constructor))
+            (type_variable
+              (identifier))
+            (type_variable
+              (identifier))
+            (arrow_head
+              (arrow))
+            (type_variable
+              (identifier))))))))
+
+==========================================
+lambdas bind looser than nothing: body is a whole term
+==========================================
+module M where
+  f = \x -> let y = x in y + 1
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (equation
+          (identifier)
+          (equals)
+          (lambda
+            (backslash)
+            (identifier)
+            (arrow)
+            (let_expression
+              (kw_let)
+              (local_block
+                (local_declaration
+                  (pattern_binding
+                    (identifier)
+                    (equals)
+                    (application
+                      (variable
+                        (identifier))))))
+              (kw_in)
+              (application
+                (variable
+                  (identifier)))
+              (op_plus)
+              (application
+                (int_literal)))))))))

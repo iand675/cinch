@@ -1,0 +1,183 @@
+==========================================
+tick: one character between ticks is a Char and wins
+==========================================
+module M where
+  f = 'a'
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (equation
+          (identifier)
+          (equals)
+          (application
+            (char_literal)))))))
+
+==========================================
+tick: an escape between ticks is a Char
+==========================================
+module M where
+  f = '\n'
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (equation
+          (identifier)
+          (equals)
+          (application
+            (char_literal)))))))
+
+==========================================
+tick: a word after the tick is a Sym literal
+==========================================
+module M where
+  f = 'foo
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (equation
+          (identifier)
+          (equals)
+          (application
+            (symbol_literal)))))))
+
+==========================================
+tick: char literal wins even before more word characters
+==========================================
+module M where
+  f = 'a' bc
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (equation
+          (identifier)
+          (equals)
+          (application
+            (char_literal)
+            (variable
+              (identifier))))))))
+
+==========================================
+tick: two ticks and a capital is a type Name
+==========================================
+module M where
+  f = ''T
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (equation
+          (identifier)
+          (equals)
+          (application
+            (type_name_literal)))))))
+
+==========================================
+tick: symbols work in patterns
+==========================================
+module M where
+  f x = case x of
+    'foo -> 1
+    _ -> 2
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (equation
+          (identifier)
+          (identifier)
+          (equals)
+          (case_expression
+            (kw_case)
+            (application
+              (variable
+                (identifier)))
+            (kw_of)
+            (alternative_block
+              (alternative
+                (symbol_literal)
+                (arrow)
+                (application
+                  (int_literal)))
+              (alternative
+                (wildcard)
+                (arrow)
+                (application
+                  (int_literal))))))))))
+
+==========================================
+tick: chars and symbols in one list
+==========================================
+module M where
+  f = ['a', 'b, 'c']
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (equation
+          (identifier)
+          (equals)
+          (application
+            (list_literal
+              (lbracket)
+              (application
+                (char_literal))
+              (comma)
+              (application
+                (symbol_literal))
+              (comma)
+              (application
+                (char_literal))
+              (rbracket))))))))

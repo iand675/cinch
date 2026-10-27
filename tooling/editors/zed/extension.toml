@@ -1,0 +1,10 @@
+id = "safelang"
+name = "SafeLang"
+version = "0.1.0"
+schema_version = 1
+description = "SafeLang surface syntax (draft 0.2 plus local amendments)"
+authors = ["SafeLang design repository"]
+[grammars.safelang]
+name = "safelang"
+language_name = "SafeLang"
+path = "../../tree-sitter-safelang"

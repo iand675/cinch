@@ -1,0 +1,1084 @@
+==========================================
+prim: target-IR bodies with fragments captured raw
+==========================================
+module M where
+  prim add-one :: Int -> Int where
+    llvm {
+      %1 = add i64 %0, 1
+      ret i64 %1
+    }
+    asm {
+      "add $1, $0, #1"
+    }
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (prim_declaration
+          (kw_prim)
+          (identifier)
+          (colon_colon)
+          (constructor_path
+            (constructor))
+          (arrow_head
+            (arrow))
+          (constructor_path
+            (constructor))
+          (kw_where)
+          (prim_body_block
+            (prim_body
+              (target_family
+                (kw_llvm))
+              (prim_fragment))
+            (prim_body
+              (target_family
+                (kw_asm))
+              (prim_fragment))))))))
+
+==========================================
+prim: per-body unsafe, when arch, uses and immarg
+==========================================
+module M where
+  prim popcount :: Int -> Int where
+    unsafe asm {
+      "cnt $0, $0"
+    } when arch aarch64 uses (helper :: Int -> Int) immarg 0, 1
+    llvm {
+      %1 = call i64 @llvm.ctpop.i64(i64 %0)
+      ret i64 %1
+    }
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (prim_declaration
+          (kw_prim)
+          (identifier)
+          (colon_colon)
+          (constructor_path
+            (constructor))
+          (arrow_head
+            (arrow))
+          (constructor_path
+            (constructor))
+          (kw_where)
+          (prim_body_block
+            (prim_body
+              (kw_unsafe)
+              (target_family
+                (kw_asm))
+              (prim_fragment)
+              (kw_when)
+              (application
+                (variable
+                  (identifier))
+                (variable
+                  (identifier)))
+              (prim_uses
+                (kw_uses)
+                (lparen)
+                (identifier)
+                (colon_colon)
+                (constructor_path
+                  (constructor))
+                (arrow_head
+                  (arrow))
+                (constructor_path
+                  (constructor))
+                (rparen))
+              (prim_immarg
+                (kw_immarg)
+                (int_literal)
+                (comma)
+                (int_literal)))
+            (prim_body
+              (target_family
+                (kw_llvm))
+              (prim_fragment))))))))
+
+==========================================
+prim: the unsafe prim sugar marks every body
+==========================================
+module M where
+  unsafe prim f :: Int -> Int where
+           llvm {
+             ret i64 0
+           }
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (prim_declaration
+          (kw_unsafe)
+          (kw_prim)
+          (identifier)
+          (colon_colon)
+          (constructor_path
+            (constructor))
+          (arrow_head
+            (arrow))
+          (constructor_path
+            (constructor))
+          (kw_where)
+          (prim_body_block
+            (prim_body
+              (target_family
+                (kw_llvm))
+              (prim_fragment))))))))
+
+==========================================
+contract: a safety contract states always
+==========================================
+module M where
+  contract safety noOverflow for add where
+    always = (holds (add x y) (leq 0 (add x y)))
+    assume = "addition is monotone"
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (contract_declaration
+          (kw_contract)
+          (contract_kind
+            (kw_safety))
+          (identifier)
+          (kw_for)
+          (identifier)
+          (kw_where)
+          (contract_clause_block
+            (contract_clause
+              (kw_always)
+              (equals)
+              (parenthesized_term
+                (lparen)
+                (application
+                  (variable
+                    (identifier))
+                  (parenthesized_expression
+                    (lparen)
+                    (application
+                      (variable
+                        (identifier))
+                      (variable
+                        (identifier))
+                      (variable
+                        (identifier)))
+                    (rparen))
+                  (parenthesized_expression
+                    (lparen)
+                    (application
+                      (variable
+                        (identifier))
+                      (int_literal)
+                      (parenthesized_expression
+                        (lparen)
+                        (application
+                          (variable
+                            (identifier))
+                          (variable
+                            (identifier))
+                          (variable
+                            (identifier)))
+                        (rparen)))
+                    (rparen)))
+                (rparen)))
+            (contract_clause
+              (kw_assume)
+              (equals)
+              (string_literal))))))))
+
+==========================================
+contract: a liveness contract states eventually
+==========================================
+module M where
+  contract liveness drained for pump where
+    eventually = (joined p)
+    assume = (holds (started p))
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (contract_declaration
+          (kw_contract)
+          (contract_kind
+            (kw_liveness))
+          (identifier)
+          (kw_for)
+          (identifier)
+          (kw_where)
+          (contract_clause_block
+            (contract_clause
+              (kw_eventually)
+              (equals)
+              (parenthesized_term
+                (lparen)
+                (application
+                  (variable
+                    (identifier))
+                  (variable
+                    (identifier)))
+                (rparen)))
+            (contract_clause
+              (kw_assume)
+              (equals)
+              (parenthesized_term
+                (lparen)
+                (application
+                  (variable
+                    (identifier))
+                  (parenthesized_expression
+                    (lparen)
+                    (application
+                      (variable
+                        (identifier))
+                      (variable
+                        (identifier)))
+                    (rparen)))
+                (rparen)))))))))
+
+==========================================
+attributes: bare, with args, and the named form
+==========================================
+#[jpl]
+module M where
+  #[recursion("tail")]
+  f :: Int -> Int
+  #[max-complexity = 5]
+  f x = x
+
+---
+
+(source_file
+  (module_declaration
+    (attr_open)
+    (attr_name)
+    (rbracket)
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (value_signature
+          (attr_open)
+          (attr_name)
+          (attr_args)
+          (rbracket)
+          (identifier)
+          (colon_colon)
+          (constructor_path
+            (constructor))
+          (arrow_head
+            (arrow))
+          (constructor_path
+            (constructor))))
+      (declaration
+        (equation
+          (attr_open)
+          (attr_name)
+          (attr_args)
+          (rbracket)
+          (identifier)
+          (identifier)
+          (equals)
+          (application
+            (variable
+              (identifier))))))))
+
+==========================================
+attributes: prefix a case alternative and its guard
+==========================================
+module M where
+  f = case x of
+    #[important]
+    A | #[checked] p -> 1
+    _ -> 2
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (equation
+          (identifier)
+          (equals)
+          (case_expression
+            (kw_case)
+            (application
+              (variable
+                (identifier)))
+            (kw_of)
+            (alternative_block
+              (alternative
+                (attr_open)
+                (attr_name)
+                (rbracket)
+                (constructor_path
+                  (constructor))
+                (pipe)
+                (attr_open)
+                (attr_name)
+                (rbracket)
+                (application
+                  (variable
+                    (identifier)))
+                (arrow)
+                (application
+                  (int_literal)))
+              (alternative
+                (wildcard)
+                (arrow)
+                (application
+                  (int_literal))))))))))
+
+==========================================
+attributes: prefix if branches
+==========================================
+module M where
+  f = if #[cond] a then #[t] b else #[e] c
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (equation
+          (identifier)
+          (equals)
+          (if_expression
+            (kw_if)
+            (attr_open)
+            (attr_name)
+            (rbracket)
+            (application
+              (variable
+                (identifier)))
+            (kw_then)
+            (attr_open)
+            (attr_name)
+            (rbracket)
+            (application
+              (variable
+                (identifier)))
+            (kw_else)
+            (attr_open)
+            (attr_name)
+            (rbracket)
+            (application
+              (variable
+                (identifier)))))))))
+
+==========================================
+imports: renaming, selection, applied, and data converters
+==========================================
+module M where
+  import Foo as F
+  import Data.Option (map as option-map, isNone)
+  import Config (cfg) as C
+  import data "config.json" as config
+  import stage Gen
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (import_declaration
+          (kw_import)
+          (module_path
+            (constructor))
+          (kw_as)
+          (constructor)))
+      (declaration
+        (import_declaration
+          (kw_import)
+          (module_path
+            (constructor)
+            (dot)
+            (constructor))
+          (import_clause
+            (lparen)
+            (import_item
+              (identifier)
+              (kw_as)
+              (identifier))
+            (comma)
+            (import_item
+              (identifier))
+            (rparen))))
+      (declaration
+        (import_declaration
+          (kw_import)
+          (module_path
+            (constructor))
+          (import_clause
+            (lparen)
+            (import_item
+              (identifier))
+            (rparen))
+          (kw_as)
+          (constructor)))
+      (declaration
+        (import_data_declaration
+          (kw_import)
+          (kw_data)
+          (string_literal)
+          (kw_as)
+          (identifier)))
+      (declaration
+        (import_declaration
+          (kw_import)
+          (kw_stage)
+          (module_path
+            (constructor)))))))
+
+==========================================
+exports: names, members, operators, whole modules
+==========================================
+module M where
+  export Config.parse, module Data, (==), MyType
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (export_declaration
+          (kw_export)
+          (export_item
+            (constructor)
+            (dot)
+            (identifier))
+          (comma)
+          (export_item
+            (kw_module)
+            (module_path
+              (constructor)))
+          (comma)
+          (export_item
+            (lparen)
+            (op_eqeq)
+            (rparen))
+          (comma)
+          (export_item
+            (constructor)))))))
+
+==========================================
+data, record, and effect declarations
+==========================================
+module M where
+  data Vec (n :: Nat) (a :: Type) where
+    Nil :: Vec 0 a
+    Cons :: forall n. a -> Vec n a -> Vec (n + 1) a
+
+  record Point where
+    x :: Int
+    erased y :: Int
+
+  effect State (r :: Region) where
+    get :: Int
+    put :: Int -> Unit
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (data_declaration
+          (kw_data)
+          (constructor)
+          (typed_binder
+            (lparen)
+            (identifier)
+            (colon_colon)
+            (constructor_path
+              (constructor))
+            (rparen))
+          (typed_binder
+            (lparen)
+            (identifier)
+            (colon_colon)
+            (constructor_path
+              (constructor))
+            (rparen))
+          (kw_where)
+          (constructor_block
+            (constructor_declaration
+              (constructor)
+              (colon_colon)
+              (constructor_path
+                (constructor))
+              (int_literal)
+              (type_variable
+                (identifier)))
+            (constructor_declaration
+              (constructor)
+              (colon_colon)
+              (forall_type
+                (kw_forall)
+                (identifier)
+                (dot)
+                (type_variable
+                  (identifier))
+                (arrow_head
+                  (arrow))
+                (constructor_path
+                  (constructor))
+                (type_variable
+                  (identifier))
+                (type_variable
+                  (identifier))
+                (arrow_head
+                  (arrow))
+                (constructor_path
+                  (constructor))
+                (parenthesized_type
+                  (lparen)
+                  (type_variable
+                    (identifier))
+                  (op_plus)
+                  (int_literal)
+                  (rparen))
+                (type_variable
+                  (identifier)))))))
+      (declaration
+        (record_declaration
+          (kw_record)
+          (constructor)
+          (kw_where)
+          (field_block
+            (field_declaration
+              (identifier)
+              (colon_colon)
+              (constructor_path
+                (constructor)))
+            (field_declaration
+              (kw_erased)
+              (identifier)
+              (colon_colon)
+              (constructor_path
+                (constructor))))))
+      (declaration
+        (effect_declaration
+          (kw_effect)
+          (constructor)
+          (lparen)
+          (identifier)
+          (colon_colon)
+          (constructor)
+          (rparen)
+          (kw_where)
+          (operation_block
+            (operation_declaration
+              (identifier)
+              (colon_colon)
+              (constructor_path
+                (constructor)))
+            (operation_declaration
+              (identifier)
+              (colon_colon)
+              (constructor_path
+                (constructor))
+              (arrow_head
+                (arrow))
+              (constructor_path
+                (constructor)))))))))
+
+==========================================
+signature with opaque type, law, and methods
+==========================================
+module M where
+  signature Eq a where
+    opaque type Repr :: Type
+    law refl :: Eq a
+    (==) :: a -> a -> Bool
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (signature_declaration
+          (kw_signature)
+          (constructor)
+          (identifier)
+          (kw_where)
+          (signature_block
+            (signature_item
+              (opaque_type_declaration
+                (kw_opaque)
+                (kw_type)
+                (constructor)
+                (colon_colon)
+                (constructor_path
+                  (constructor))))
+            (signature_item
+              (law_declaration
+                (kw_law)
+                (identifier)
+                (colon_colon)
+                (constructor_path
+                  (constructor))
+                (type_variable
+                  (identifier))))
+            (signature_item
+              (method_signature
+                (lparen)
+                (op_eqeq)
+                (rparen)
+                (colon_colon)
+                (type_variable
+                  (identifier))
+                (arrow_head
+                  (arrow))
+                (type_variable
+                  (identifier))
+                (arrow_head
+                  (arrow))
+                (constructor_path
+                  (constructor))))))))))
+
+==========================================
+instance with a using context and method equations
+==========================================
+module M where
+  implicit instance EqInt :: using (c :: Eq a) => Eq a where
+    eq x y = x
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (instance_declaration
+          (kw_implicit)
+          (kw_instance)
+          (constructor)
+          (colon_colon)
+          (using_type
+            (using_clause
+              (kw_using)
+              (lparen)
+              (constraint
+                (identifier)
+                (colon_colon)
+                (constructor_path
+                  (constructor))
+                (type_variable
+                  (identifier)))
+              (rparen))
+            (darrow)
+            (constructor_path
+              (constructor))
+            (type_variable
+              (identifier)))
+          (kw_where)
+          (instance_block
+            (equation
+              (identifier)
+              (identifier)
+              (identifier)
+              (equals)
+              (application
+                (variable
+                  (identifier))))))))))
+
+==========================================
+rewrite with match, replace, require, justify
+==========================================
+module M where
+  rewrite fuse forall (f :: Int -> Int). where
+    match map f (map g xs)
+    replace map (compose f g) xs
+    require (holds true)
+    justify refl
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (rewrite_declaration
+          (kw_rewrite)
+          (identifier)
+          (kw_forall)
+          (typed_binder
+            (lparen)
+            (identifier)
+            (colon_colon)
+            (constructor_path
+              (constructor))
+            (arrow_head
+              (arrow))
+            (constructor_path
+              (constructor))
+            (rparen))
+          (dot)
+          (kw_where)
+          (rewrite_block
+            (rewrite_clause
+              (kw_match)
+              (application
+                (variable
+                  (identifier))
+                (variable
+                  (identifier))
+                (parenthesized_expression
+                  (lparen)
+                  (application
+                    (variable
+                      (identifier))
+                    (variable
+                      (identifier))
+                    (variable
+                      (identifier)))
+                  (rparen))))
+            (rewrite_clause
+              (kw_replace)
+              (application
+                (variable
+                  (identifier))
+                (parenthesized_expression
+                  (lparen)
+                  (application
+                    (variable
+                      (identifier))
+                    (variable
+                      (identifier))
+                    (variable
+                      (identifier)))
+                  (rparen))
+                (variable
+                  (identifier))))
+            (rewrite_clause
+              (kw_require)
+              (application
+                (parenthesized_expression
+                  (lparen)
+                  (application
+                    (variable
+                      (identifier))
+                    (variable
+                      (identifier)))
+                  (rparen))))
+            (rewrite_clause
+              (kw_justify)
+              (application
+                (variable
+                  (identifier))))))))))
+
+==========================================
+upgrade with migrate and related
+==========================================
+module M where
+  upgrade Old to New where
+    migrate = convert
+    related = keep
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (upgrade_declaration
+          (kw_upgrade)
+          (module_path
+            (constructor))
+          (kw_to)
+          (module_path
+            (constructor))
+          (kw_where)
+          (assignment_block
+            (assignment
+              (identifier)
+              (equals)
+              (application
+                (variable
+                  (identifier))))
+            (assignment
+              (identifier)
+              (equals)
+              (application
+                (variable
+                  (identifier))))))))))
+
+==========================================
+foreign import and fixity declarations
+==========================================
+module M where
+  foreign import ccall "sl_write" ioWrite :: Int -> Unit
+  infixl 9 *, /, %
+  infixr 6 <>
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (foreign_declaration
+          (kw_foreign)
+          (kw_import)
+          (kw_ccall)
+          (string_literal)
+          (identifier)
+          (colon_colon)
+          (constructor_path
+            (constructor))
+          (arrow_head
+            (arrow))
+          (constructor_path
+            (constructor))))
+      (declaration
+        (fixity_declaration
+          (kw_infixl)
+          (int_literal)
+          (op_star)
+          (comma)
+          (op_slash)
+          (comma)
+          (op_percent)))
+      (declaration
+        (fixity_declaration
+          (kw_infixr)
+          (int_literal)
+          (op_ltgt))))))
+
+==========================================
+handlers and generate do
+==========================================
+module M where
+  h = handler State where
+    return x -> x
+    get resume k -> k 0
+    put v resume k -> k unit
+
+  generate do
+    let x = 1
+    emit (quoteDecls where
+      f = 2)
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (equation
+          (identifier)
+          (equals)
+          (application
+            (handler_expression
+              (kw_handler)
+              (constructor_path
+                (constructor))
+              (kw_where)
+              (handler_block
+                (handler_clause
+                  (kw_return)
+                  (identifier)
+                  (arrow)
+                  (application
+                    (variable
+                      (identifier))))
+                (handler_clause
+                  (identifier)
+                  (kw_resume)
+                  (identifier)
+                  (arrow)
+                  (application
+                    (variable
+                      (identifier))
+                    (int_literal)))
+                (handler_clause
+                  (identifier)
+                  (identifier)
+                  (kw_resume)
+                  (identifier)
+                  (arrow)
+                  (application
+                    (variable
+                      (identifier))
+                    (variable
+                      (identifier)))))))))
+      (declaration
+        (generate_declaration
+          (kw_generate)
+          (kw_do)
+          (do_block
+            (do_statement
+              (kw_let)
+              (local_block
+                (local_declaration
+                  (pattern_binding
+                    (identifier)
+                    (equals)
+                    (application
+                      (int_literal))))))
+            (do_statement
+              (application
+                (variable
+                  (identifier))
+                (parenthesized_expression
+                  (lparen)
+                  (application
+                    (quote_decls
+                      (kw_quotedecls)
+                      (kw_where)
+                      (declaration_block
+                        (declaration
+                          (equation
+                            (identifier)
+                            (equals)
+                            (application
+                              (int_literal)))))))
+                  (rparen))))))))))
+
+==========================================
+macro invocation with token trees
+==========================================
+module M where
+  f = my-macro!(a + b, {c: [d]})
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (equation
+          (identifier)
+          (equals)
+          (application
+            (macro_invocation
+              (variable
+                (identifier))
+              (bang)
+              (token_tree))))))))
+
+==========================================
+quotations and splices
+==========================================
+module M where
+  f = [| g $(h x) |]
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (equation
+          (identifier)
+          (equals)
+          (application
+            (quotation
+              (lquote)
+              (application
+                (variable
+                  (identifier))
+                (splice
+                  (splice_open)
+                  (application
+                    (variable
+                      (identifier))
+                    (variable
+                      (identifier)))
+                  (rparen)))
+              (rquote))))))))

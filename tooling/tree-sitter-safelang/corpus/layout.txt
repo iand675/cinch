@@ -1,0 +1,605 @@
+==========================================
+layout: equal indentation separates items
+==========================================
+module M where
+  a = 1
+  b = 2
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (equation
+          (identifier)
+          (equals)
+          (application
+            (int_literal))))
+      (declaration
+        (equation
+          (identifier)
+          (equals)
+          (application
+            (int_literal)))))))
+
+==========================================
+layout: greater indentation continues the item
+==========================================
+module M where
+  a = 1
+    + 2
+  b = 3
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (equation
+          (identifier)
+          (equals)
+          (application
+            (int_literal))
+          (op_plus)
+          (application
+            (int_literal))))
+      (declaration
+        (equation
+          (identifier)
+          (equals)
+          (application
+            (int_literal)))))))
+
+==========================================
+layout: nested blocks close on outdent
+==========================================
+module M where
+  f = case x of
+    A -> case y of
+      B -> 1
+      C -> 2
+    D -> 3
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (equation
+          (identifier)
+          (equals)
+          (case_expression
+            (kw_case)
+            (application
+              (variable
+                (identifier)))
+            (kw_of)
+            (alternative_block
+              (alternative
+                (constructor_path
+                  (constructor))
+                (arrow)
+                (case_expression
+                  (kw_case)
+                  (application
+                    (variable
+                      (identifier)))
+                  (kw_of)
+                  (alternative_block
+                    (alternative
+                      (constructor_path
+                        (constructor))
+                      (arrow)
+                      (application
+                        (int_literal)))
+                    (alternative
+                      (constructor_path
+                        (constructor))
+                      (arrow)
+                      (application
+                        (int_literal))))))
+              (alternative
+                (constructor_path
+                  (constructor))
+                (arrow)
+                (application
+                  (int_literal))))))))))
+
+==========================================
+layout: in closes a let block on one line
+==========================================
+module M where
+  f = let x = 1 in x
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (equation
+          (identifier)
+          (equals)
+          (let_expression
+            (kw_let)
+            (local_block
+              (local_declaration
+                (pattern_binding
+                  (identifier)
+                  (equals)
+                  (application
+                    (int_literal)))))
+            (kw_in)
+            (application
+              (variable
+                (identifier)))))))))
+
+==========================================
+layout: in closes a let block across lines
+==========================================
+module M where
+  f = let x = 1
+          y = 2
+      in x
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (equation
+          (identifier)
+          (equals)
+          (let_expression
+            (kw_let)
+            (local_block
+              (local_declaration
+                (pattern_binding
+                  (identifier)
+                  (equals)
+                  (application
+                    (int_literal))))
+              (local_declaration
+                (pattern_binding
+                  (identifier)
+                  (equals)
+                  (application
+                    (int_literal)))))
+            (kw_in)
+            (application
+              (variable
+                (identifier)))))))))
+
+==========================================
+layout: in closes nested blocks above the let
+==========================================
+module M where
+  f = let x = case y of
+            A -> 1
+      in x
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (equation
+          (identifier)
+          (equals)
+          (let_expression
+            (kw_let)
+            (local_block
+              (local_declaration
+                (pattern_binding
+                  (identifier)
+                  (equals)
+                  (case_expression
+                    (kw_case)
+                    (application
+                      (variable
+                        (identifier)))
+                    (kw_of)
+                    (alternative_block
+                      (alternative
+                        (constructor_path
+                          (constructor))
+                        (arrow)
+                        (application
+                          (int_literal))))))))
+            (kw_in)
+            (application
+              (variable
+                (identifier)))))))))
+
+==========================================
+layout: explicit braces supply the block verbatim
+==========================================
+module M where {
+  a = 1; b = 2 }
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (lbrace)
+      (declaration
+        (equation
+          (identifier)
+          (equals)
+          (application
+            (int_literal))))
+      (semicolon)
+      (declaration
+        (equation
+          (identifier)
+          (equals)
+          (application
+            (int_literal))))
+      (rbrace))))
+
+==========================================
+layout: explicit delimiters shield enclosing layout
+==========================================
+module M where
+  f = (g
+  h)
+  i = 2
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (equation
+          (identifier)
+          (equals)
+          (application
+            (parenthesized_expression
+              (lparen)
+              (application
+                (variable
+                  (identifier))
+                (variable
+                  (identifier)))
+              (rparen)))))
+      (declaration
+        (equation
+          (identifier)
+          (equals)
+          (application
+            (int_literal)))))))
+
+==========================================
+layout: a closing delimiter closes inner implicit blocks
+==========================================
+module M where
+  f = g (case x of
+    A -> 1)
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (equation
+          (identifier)
+          (equals)
+          (application
+            (variable
+              (identifier))
+            (parenthesized_expression
+              (lparen)
+              (case_expression
+                (kw_case)
+                (application
+                  (variable
+                    (identifier)))
+                (kw_of)
+                (alternative_block
+                  (alternative
+                    (constructor_path
+                      (constructor))
+                    (arrow)
+                    (application
+                      (int_literal)))))
+              (rparen))))))))
+
+==========================================
+layout: a do block with a let statement closes by indentation
+==========================================
+module M where
+  f = do
+    let x = 1
+    g x
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (equation
+          (identifier)
+          (equals)
+          (do_expression
+            (kw_do)
+            (do_block
+              (do_statement
+                (kw_let)
+                (local_block
+                  (local_declaration
+                    (pattern_binding
+                      (identifier)
+                      (equals)
+                      (application
+                        (int_literal))))))
+              (do_statement
+                (application
+                  (variable
+                    (identifier))
+                  (variable
+                    (identifier)))))))))))
+
+==========================================
+layout: end of file closes all implicit blocks
+==========================================
+module M where
+  f = case x of
+    A -> 1
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (equation
+          (identifier)
+          (equals)
+          (case_expression
+            (kw_case)
+            (application
+              (variable
+                (identifier)))
+            (kw_of)
+            (alternative_block
+              (alternative
+                (constructor_path
+                  (constructor))
+                (arrow)
+                (application
+                  (int_literal))))))))))
+
+==========================================
+layout: empty block after where
+==========================================
+module M where
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block)))
+
+==========================================
+layout: a with supply closes itself with in
+==========================================
+module M where
+  f = with (io = 1) in x
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (equation
+          (identifier)
+          (equals)
+          (with_expression
+            (kw_with)
+            (lparen)
+            (assignment
+              (identifier)
+              (equals)
+              (application
+                (int_literal)))
+            (rparen)
+            (kw_in)
+            (application
+              (variable
+                (identifier)))))))))
+
+==========================================
+layout: a supply in interleaves with a let in
+==========================================
+module M where
+  f = let x = with (io = 1) in x in y
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (equation
+          (identifier)
+          (equals)
+          (let_expression
+            (kw_let)
+            (local_block
+              (local_declaration
+                (pattern_binding
+                  (identifier)
+                  (equals)
+                  (with_expression
+                    (kw_with)
+                    (lparen)
+                    (assignment
+                      (identifier)
+                      (equals)
+                      (application
+                        (int_literal)))
+                    (rparen)
+                    (kw_in)
+                    (application
+                      (variable
+                        (identifier)))))))
+            (kw_in)
+            (application
+              (variable
+                (identifier)))))))))
+
+==========================================
+layout: nested supply clauses match in order
+==========================================
+module M where
+  f = with (io = 1, j = with (k = 2) in g) in h
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (equation
+          (identifier)
+          (equals)
+          (with_expression
+            (kw_with)
+            (lparen)
+            (assignment
+              (identifier)
+              (equals)
+              (application
+                (int_literal)))
+            (comma)
+            (assignment
+              (identifier)
+              (equals)
+              (with_expression
+                (kw_with)
+                (lparen)
+                (assignment
+                  (identifier)
+                  (equals)
+                  (application
+                    (int_literal)))
+                (rparen)
+                (kw_in)
+                (application
+                  (variable
+                    (identifier)))))
+            (rparen)
+            (kw_in)
+            (application
+              (variable
+                (identifier)))))))))
+
+==========================================
+layout: a handler operand with h does not take the lets in
+==========================================
+module M where
+  f = let x = handle e with h in x
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (equation
+          (identifier)
+          (equals)
+          (let_expression
+            (kw_let)
+            (local_block
+              (local_declaration
+                (pattern_binding
+                  (identifier)
+                  (equals)
+                  (handle_expression
+                    (kw_handle)
+                    (application
+                      (variable
+                        (identifier)))
+                    (kw_with)
+                    (application
+                      (variable
+                        (identifier)))))))
+            (kw_in)
+            (application
+              (variable
+                (identifier)))))))))

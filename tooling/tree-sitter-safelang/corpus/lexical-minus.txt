@@ -1,0 +1,617 @@
+==========================================
+minus table: dash glue identifiers
+==========================================
+module M where
+  f = int-digits-into x-y x_1-y X-y
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (equation
+          (identifier)
+          (equals)
+          (application
+            (variable
+              (identifier))
+            (variable
+              (identifier))
+            (variable
+              (identifier))
+            (constructor_path
+              (constructor))))))))
+
+==========================================
+minus table: digits never glue (x-1 subtracts)
+==========================================
+module M where
+  f = x-1 g = 1-2
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (equation
+          (identifier)
+          (equals)
+          (application
+            (variable
+              (identifier)))
+          (op_minus)
+          (application
+            (int_literal))))
+      (declaration
+        (equation
+          (identifier)
+          (equals)
+          (application
+            (int_literal))
+          (op_minus)
+          (application
+            (int_literal)))))))
+
+==========================================
+minus table: negative literals are atoms
+==========================================
+module M where
+  f = f -42
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (equation
+          (identifier)
+          (equals)
+          (application
+            (variable
+              (identifier))
+            (int_literal)))))))
+
+==========================================
+minus table: signed literal after equals
+==========================================
+module M where
+  x = -3
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (equation
+          (identifier)
+          (equals)
+          (application
+            (int_literal)))))))
+
+==========================================
+minus table: signed literal in parens
+==========================================
+module M where
+  x = (-42)
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (equation
+          (identifier)
+          (equals)
+          (application
+            (parenthesized_expression
+              (lparen)
+              (application
+                (int_literal))
+              (rparen))))))))
+
+==========================================
+minus table: spaced minus subtracts
+==========================================
+module M where
+  x = a - 1
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (equation
+          (identifier)
+          (equals)
+          (application
+            (variable
+              (identifier)))
+          (op_minus)
+          (application
+            (int_literal)))))))
+
+==========================================
+minus table: tight-left before digits subtracts
+==========================================
+module M where
+  x = a-1
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (equation
+          (identifier)
+          (equals)
+          (application
+            (variable
+              (identifier)))
+          (op_minus)
+          (application
+            (int_literal)))))))
+
+==========================================
+minus table: after a closing paren the minus is the operator
+==========================================
+module M where
+  x = f ()-1
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (equation
+          (identifier)
+          (equals)
+          (application
+            (variable
+              (identifier))
+            (unit
+              (lparen)
+              (rparen)))
+          (op_minus)
+          (application
+            (int_literal)))))))
+
+==========================================
+minus table: after a closing bracket the minus is the operator
+==========================================
+module M where
+  x = f [1]-1
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (equation
+          (identifier)
+          (equals)
+          (application
+            (variable
+              (identifier))
+            (list_literal
+              (lbracket)
+              (application
+                (int_literal))
+              (rbracket)))
+          (op_minus)
+          (application
+            (int_literal)))))))
+
+==========================================
+minus table: after a closing brace the minus is the operator
+==========================================
+module M where
+  x = {k => v}-1
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (equation
+          (identifier)
+          (equals)
+          (application
+            (map_literal
+              (lbrace)
+              (application
+                (variable
+                  (identifier)))
+              (darrow)
+              (application
+                (variable
+                  (identifier)))
+              (rbrace)))
+          (op_minus)
+          (application
+            (int_literal)))))))
+
+==========================================
+minus table: after a string the minus is the operator
+==========================================
+module M where
+  x = f "a"-1
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (equation
+          (identifier)
+          (equals)
+          (application
+            (variable
+              (identifier))
+            (string_literal))
+          (op_minus)
+          (application
+            (int_literal)))))))
+
+==========================================
+minus table: after a char the minus is the operator
+==========================================
+module M where
+  x = f 'a'-1
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (equation
+          (identifier)
+          (equals)
+          (application
+            (variable
+              (identifier))
+            (char_literal))
+          (op_minus)
+          (application
+            (int_literal)))))))
+
+==========================================
+minus table: after an open paren the sign applies
+==========================================
+module M where
+  x = (-3)
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (equation
+          (identifier)
+          (equals)
+          (application
+            (parenthesized_expression
+              (lparen)
+              (application
+                (int_literal))
+              (rparen))))))))
+
+==========================================
+minus table: after a comma the sign applies
+==========================================
+module M where
+  x = (-3, -4)
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (equation
+          (identifier)
+          (equals)
+          (application
+            (tuple_expression
+              (lparen)
+              (application
+                (int_literal))
+              (comma)
+              (application
+                (int_literal))
+              (rparen))))))))
+
+==========================================
+minus table: a signed literal never joins a symbol run
+==========================================
+module M where
+  x =-3
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (equation
+          (identifier)
+          (equals)
+          (application
+            (int_literal)))))))
+
+==========================================
+minus table: comment recognition wins over minus
+==========================================
+module M where
+  x = a -- 3
+  y = b
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (equation
+          (identifier)
+          (equals)
+          (application
+            (variable
+              (identifier)))))
+      (declaration
+        (equation
+          (identifier)
+          (equals)
+          (application
+            (variable
+              (identifier))))))))
+
+==========================================
+minus table: a line comment splits x--3
+==========================================
+module M where
+  x = y--3
+
+---
+
+
+
+==========================================
+minus table: prefix minus negates one postfixed term
+==========================================
+module M where
+  f = -g x
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (equation
+          (identifier)
+          (equals)
+          (application
+            (op_minus)
+            (variable
+              (identifier))
+            (variable
+              (identifier))))))))
+
+==========================================
+minus table: spaced minus before digits is still subtraction
+==========================================
+module M where
+  f = a - 42
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (equation
+          (identifier)
+          (equals)
+          (application
+            (variable
+              (identifier)))
+          (op_minus)
+          (application
+            (int_literal)))))))
+
+==========================================
+numbers: decimal, hex, underscores
+==========================================
+module M where
+  f = 10 0x1F 1_000
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (equation
+          (identifier)
+          (equals)
+          (application
+            (int_literal)
+            (int_literal)
+            (int_literal)))))))
+
+==========================================
+numbers: float needs a digit after the dot
+==========================================
+module M where
+  f = 1.5e-3 g = 1.foo
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (equation
+          (identifier)
+          (equals)
+          (application
+            (float_literal))))
+      (declaration
+        (equation
+          (identifier)
+          (equals)
+          (application
+            (int_literal)
+            (projection
+              (dot)
+              (identifier))))))))
+
+==========================================
+dash names: prelude-style names glue
+==========================================
+module M where
+  nat-to-string :: Int -> String
+  nat-to-string x = x
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (value_signature
+          (identifier)
+          (colon_colon)
+          (constructor_path
+            (constructor))
+          (arrow_head
+            (arrow))
+          (constructor_path
+            (constructor))))
+      (declaration
+        (equation
+          (identifier)
+          (identifier)
+          (equals)
+          (application
+            (variable
+              (identifier))))))))
+
+==========================================
+dash names: dash name as a symbol literal
+==========================================
+module M where
+  f = 'int-digits-into
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (equation
+          (identifier)
+          (equals)
+          (application
+            (symbol_literal)))))))

@@ -1,0 +1,21 @@
+name = "SafeLang"
+grammar = "safelang"
+
+path_suffixes = ["lang"]
+line_comment = "--"
+block_comment = ["{-", "-}"]
+
+[auto_indent]
+increase_indent_pattern = "(where|of|do|let|letrec)\\s*$"
+decrease_indent_pattern = "^\\s*(in|else)\\b"
+
+[brackets]
+pairs = [
+  { open = "(", close = ")" },
+  { open = "[", close = "]" },
+  { open = "{", close = "}" },
+  { open = "[|", close = "|]" },
+]
+
+[autocomplete]
+always_on_words = ["module", "where", "data", "record", "signature", "instance", "let", "in", "case", "of", "do", "if", "then", "else"]

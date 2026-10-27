@@ -1,0 +1,465 @@
+==========================================
+operators: the prelude table parses by documented precedence
+==========================================
+module M where
+  f = a + b * c
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (equation
+          (identifier)
+          (equals)
+          (application
+            (variable
+              (identifier)))
+          (op_plus)
+          (application
+            (variable
+              (identifier)))
+          (op_star)
+          (application
+            (variable
+              (identifier))))))))
+
+==========================================
+operators: right-assoc booleans
+==========================================
+module M where
+  f = a && b || c
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (equation
+          (identifier)
+          (equals)
+          (application
+            (variable
+              (identifier)))
+          (op_andand)
+          (application
+            (variable
+              (identifier)))
+          (op_barbar)
+          (application
+            (variable
+              (identifier))))))))
+
+==========================================
+operators: comparisons are their own layer
+==========================================
+module M where
+  f = a + b == c + d
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (equation
+          (identifier)
+          (equals)
+          (application
+            (variable
+              (identifier)))
+          (op_plus)
+          (application
+            (variable
+              (identifier)))
+          (op_eqeq)
+          (application
+            (variable
+              (identifier)))
+          (op_plus)
+          (application
+            (variable
+              (identifier))))))))
+
+==========================================
+operators: dollar is application below all infix
+==========================================
+module M where
+  f = g $ h $ i
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (equation
+          (identifier)
+          (equals)
+          (application
+            (variable
+              (identifier)))
+          (dollar)
+          (application
+            (variable
+              (identifier)))
+          (dollar)
+          (application
+            (variable
+              (identifier))))))))
+
+==========================================
+operators: dollar may continue a run but not start one
+==========================================
+module M where
+  f = a <$> b
+  g = a <$>$ b
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (equation
+          (identifier)
+          (equals)
+          (application
+            (variable
+              (identifier)))
+          (op_stargt)
+          (application
+            (variable
+              (identifier)))))
+      (declaration
+        (equation
+          (identifier)
+          (equals)
+          (application
+            (variable
+              (identifier)))
+          (operator)
+          (application
+            (variable
+              (identifier))))))))
+
+==========================================
+operators: dollar paren is a splice, not a run
+==========================================
+module M where
+  f = g +$(h)
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (equation
+          (identifier)
+          (equals)
+          (application
+            (variable
+              (identifier)))
+          (op_plus)
+          (application
+            (splice
+              (splice_open)
+              (application
+                (variable
+                  (identifier)))
+              (rparen))))))))
+
+==========================================
+operators: base library run operators stay whole
+==========================================
+module M where
+  f = a >>= b <> c <*> d <|> e
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (equation
+          (identifier)
+          (equals)
+          (application
+            (variable
+              (identifier)))
+          (op_bind)
+          (application
+            (variable
+              (identifier)))
+          (op_ltgt)
+          (application
+            (variable
+              (identifier)))
+          (op_ltstar)
+          (application
+            (variable
+              (identifier)))
+          (op_ltbar)
+          (application
+            (variable
+              (identifier))))))))
+
+==========================================
+operators: generic runs parse in one layer
+==========================================
+module M where
+  f = a <!> b <+> c
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (equation
+          (identifier)
+          (equals)
+          (application
+            (variable
+              (identifier)))
+          (operator)
+          (application
+            (variable
+              (identifier)))
+          (operator)
+          (application
+            (variable
+              (identifier))))))))
+
+==========================================
+operators: equal-precedence table runs chain
+==========================================
+module M where
+  f = a - b + c / d % e
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (equation
+          (identifier)
+          (equals)
+          (application
+            (variable
+              (identifier)))
+          (op_minus)
+          (application
+            (variable
+              (identifier)))
+          (op_plus)
+          (application
+            (variable
+              (identifier)))
+          (op_slash)
+          (application
+            (variable
+              (identifier)))
+          (op_percent)
+          (application
+            (variable
+              (identifier))))))))
+
+==========================================
+operators: tilde runs are operators, bare tilde is reserved
+==========================================
+module M where
+  x = a ~> b
+  y = let ~ z = 1 in z
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (equation
+          (identifier)
+          (equals)
+          (application
+            (variable
+              (identifier)))
+          (operator)
+          (application
+            (variable
+              (identifier)))))
+      (declaration
+        (equation
+          (identifier)
+          (equals)
+          (let_expression
+            (kw_let)
+            (local_block
+              (local_declaration
+                (memo_binding
+                  (tilde)
+                  (identifier)
+                  (equals)
+                  (application
+                    (int_literal)))))
+            (kw_in)
+            (application
+              (variable
+                (identifier)))))))))
+
+==========================================
+operators: multiplicities are reserved, %affix is not
+==========================================
+module M where
+  f :: a %1 -> a %aff -> a %many -> a
+  f = g %affix
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (value_signature
+          (identifier)
+          (colon_colon)
+          (type_variable
+            (identifier))
+          (mult_one)
+          (arrow_head
+            (arrow))
+          (type_variable
+            (identifier))
+          (mult_aff)
+          (arrow_head
+            (arrow))
+          (type_variable
+            (identifier))
+          (mult_many)
+          (arrow_head
+            (arrow))
+          (type_variable
+            (identifier))))
+      (declaration
+        (equation
+          (identifier)
+          (equals)
+          (application
+            (variable
+              (identifier)))
+          (op_percent)
+          (application
+            (variable
+              (identifier))))))))
+
+==========================================
+operators: bare pipe is the operator in operator position
+==========================================
+module M where
+  infixl 4 |
+  (|) = g
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (fixity_declaration
+          (kw_infixl)
+          (int_literal)
+          (pipe)))
+      (declaration
+        (equation
+          (lparen)
+          (pipe)
+          (rparen)
+          (equals)
+          (application
+            (variable
+              (identifier))))))))
+
+==========================================
+operators: parenthesized operator names
+==========================================
+module M where
+  (<$>) :: Int
+  (<$>) = 1
+
+---
+
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (value_signature
+          (lparen)
+          (op_stargt)
+          (rparen)
+          (colon_colon)
+          (constructor_path
+            (constructor))))
+      (declaration
+        (equation
+          (lparen)
+          (op_stargt)
+          (rparen)
+          (equals)
+          (application
+            (int_literal)))))))
