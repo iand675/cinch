@@ -246,13 +246,24 @@ compiler/
 
 ## Roadmap
 
-Everything through the Wasm component profile is landed, including
-module parameters (A5) and the schema vocabulary (A6). Remaining: the
-P19 surface DX batch (dash identifiers, minus ergonomics, guarded
-`letrec`, constant-stack tail calls, class-desugared literals with
-compile-time folding, exports/renames, file-type import converters),
-the P20 safety assertion attributes (the JPL rules), P18's `prim`
-declarations with inline target IR, P16's two core requirements
-(evidence invalidation, temporal contracts), and the P15 conformance
-sweep. Each slice lands with its positive and negative cases from
-`examples/`.
+Everything through P28 (refinement types) is landed, including the
+P19 surface DX batch, the P20 safety assertions, P18's `prim`
+declarations with inline target IR, P16's core requirements, and the
+P21-P24 tooling (REPL, language server, tree-sitter/editor
+integrations, interned symbols). Remaining before close: the P15
+conformance sweep (SPEC-MAPPING upkeep, the approved D175 facade
+trim, example 03's gate), the P28 lattice continuation (D256-D261:
+compound predicates, predicate-level instances, narrowings,
+`forget`, refinement obligations in `using` contexts), D46 `Name`
+completion, and `Data.Enum` + range syntax.
+
+Scheduled later: **P29, Blaze-style uber-fast recompilation**
+(design/incremental-recompilation.md): REAPER-style on-demand
+dependency graphs, an INCR-style persistent session with
+function-level recompilation and type-checking confined to the
+reachability closure of changed contracts, and LINK-style object
+caching on declaration-level hashes. The compiler's content-addressed
+artifacts, contract-only `iface_hash`, and `.sliface` dependency chain
+are the starting advantages; the acceptance is latency (unchanged
+rebuild cost grows with graph traversal only) and a cache that is
+advisory, never load-bearing.
