@@ -317,27 +317,35 @@ static Marks marks;
 /* Replay buffer: the scanner cannot rewind to a token's final mark, but
    the layout lookahead (and the contextual word decisions) must read
    from there. Everything consumed past the last mark lands here and is
-   replayed first; a rewind resets the read position. */
-static char replay[64];
+   replayed first; the buffer is reset at every mark (the last mark is
+   the only position ever rewound to). Overflow past the buffer is
+   dropped: no token type consumes more than a handful of characters
+   past its final mark (the tentative rejects), and every long capture
+   marks at its end. */
+#define MAX_REPLAY 64
+static char replay[MAX_REPLAY];
 static unsigned r_len, r_pos;
-static bool replaying; /* the lookahead is replaying the overflow */
 
 static void r_rewind(void) { r_pos = 0; }
 
 /* The character at the scan position: replay first, then the lexer. */
 static char peekc(TSLexer *lexer) {
   if (r_pos < r_len) return replay[r_pos];
-  return peekc(lexer);
+  return (char)lexer->lookahead;
 }
 
 static bool at_eof(TSLexer *lexer) { return peekc(lexer) == 0; }
 
 /* Mark the current position as a legal token end (the last mark wins;
    marks never move backwards). Everything consumed since the mark is
-   tentative lookahead and is replayed rather than lost. */
+   tentative lookahead and is replayed rather than lost, so the buffer
+   restarts at every mark: only the overflow past the final mark is
+   ever rewound over. */
 static void mark(Scanner *s, TSLexer *lexer) {
   if (!marks.on) return;
   lexer->mark_end(lexer);
+  r_len = 0;
+  r_pos = 0;
   marks.prev_char = s->prev_char;
   marks.line = s->cur_line;
   marks.col = s->cur_col;
@@ -345,8 +353,19 @@ static void mark(Scanner *s, TSLexer *lexer) {
 }
 
 static void take(Scanner *s, TSLexer *lexer, bool skip) {
-  char c = peekc(lexer);
-  lexer->advance(lexer, skip);
+  char c;
+  if (r_pos < r_len) {
+    /* Replaying overflow past the mark: already consumed physically,
+       so the lexer is not advanced again. */
+    c = replay[r_pos++];
+  } else {
+    c = (char)lexer->lookahead;
+    lexer->advance(lexer, skip);
+    if (marks.on && r_len < MAX_REPLAY) replay[r_len++] = c;
+    /* Normal scanning reads at the buffer end; only the layout
+       lookahead rewinds `r_pos`. */
+    r_pos = r_len;
+  }
   if (c == '\n') {
     s->cur_line++;
     s->cur_col = 1;
@@ -500,6 +519,7 @@ static int operator_symbol(const char *run) {
 void *tree_sitter_safelang_external_scanner_create(void) {
   Scanner *s = (Scanner *)calloc(1, sizeof(Scanner));
   s->cur_line = 1;
+  s->cur_col = 1;
   s->line_leading = true;
   return s;
 }
@@ -522,6 +542,7 @@ void tree_sitter_safelang_external_scanner_deserialize(void *payload,
   Scanner *s = (Scanner *)payload;
   memset(s, 0, sizeof(Scanner));
   s->cur_line = 1;
+  s->cur_col = 1;
   s->line_leading = true;
   if (length == sizeof(Scanner)) memcpy(s, buffer, sizeof(Scanner));
 }
@@ -870,6 +891,9 @@ static bool scan_attr_args(Scanner *s, TSLexer *lexer) {
     return false;
   }
   if (peekc(lexer) == '=') {
+    /* At least the `=` is consumed and marked, so the token is never
+       zero width. */
+    if (at_eof(lexer)) return false;
     while (peekc(lexer) != ']' && !at_eof(lexer)) {
       take(s, lexer, false);
       mark(s, lexer);
@@ -1528,7 +1552,10 @@ static void classify_next(Scanner *s, TSLexer *lexer, TokenClass *out,
            peekc(lexer) == '\n' || peekc(lexer) == '\r') {
       take(&tmp, lexer, false);
     }
-    *tok_col = (uint32_t)lexer->get_column(lexer) + 1;
+    /* The tracked column is the truth here: during replay the lexer
+       cursor sits past the mark and `get_column` would report the
+       overflow position. */
+    *tok_col = tmp.cur_col;
     *tok_line = tmp.cur_line;
     if (at_eof(lexer)) {
       out->kind = KIND_EOF;
@@ -1553,7 +1580,6 @@ bool tree_sitter_safelang_external_scanner_scan(void *payload, TSLexer *lexer,
                                                const bool *valid_symbols) {
   Scanner *s = (Scanner *)payload;
   Scanner snapshot = *s;
-  replaying = false;
 
   r_len = 0;
   r_pos = 0;

@@ -450,7 +450,20 @@ module M where
 
 ---
 
-
+(source_file
+  (module_declaration
+    (kw_module)
+    (module_path
+      (constructor))
+    (kw_where)
+    (declaration_block
+      (declaration
+        (equation
+          (identifier)
+          (equals)
+          (application
+            (variable
+              (identifier))))))))
 
 ==========================================
 minus table: prefix minus negates one postfixed term

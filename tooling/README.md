@@ -21,7 +21,11 @@ D198-D205, D221-D227 where the specs understate).
   `editors/vscode`: the integrations.
 - `lsp-driver/`: a two-file cargo binary that runs the compiler's
   language server over stdio (see below).
-- `check-grammar-drift.sh`: the drift check.
+- `check-grammar-drift.sh`: the drift check (regenerates the parser and
+  runs the corpus assertions).
+- `check-real-files-parse.sh`: parses every real `.lang` file under
+  `compiler/prelude/` and `examples/source/` and requires zero ERROR
+  nodes (the whole-file property net for the scanner).
 
 ## Drift check (CI)
 
@@ -93,18 +97,27 @@ overrides the command either way.
   a `#[` whose name does not immediately follow on the same line is
   accepted (the compiler rejects it). Both are noted here rather than
   faked.
+- In `do` blocks the `let` statement is `let` plus a whole
+  `local_block`, per the surface EBNF `do_statement`, so one `let`
+  group may bind several declarations. The bootstrap compiler parses a
+  single local declaration per do `let` statement; the EBNF is
+  normative here, so the grammar follows it and closing the gap is the
+  compiler's work.
 - Sym literal names follow identifier spelling (apostrophes included),
   so the tick rule "tick, one character, tick is a Char and wins" is
   what disambiguates `'a'` from the symbol `'a'`.
 
 ## Known gaps (honest)
 
-- The corpus was last fully green (88/88 asserting trees generated, 87
-  passing) during development; a later scanner change around the
-  layout lookahead needs one more `tooling/check-grammar-drift.sh` run
-  before this is called green. The grammar itself parsed all 59 real
-  `.lang` files in the repository (the whole prelude plus every
-  example) with zero ERROR nodes at that point.
+- The corpus is green end to end: `tooling/check-grammar-drift.sh`
+  regenerates the parser and passes all 88 assertions in seconds, and
+  `tooling/check-real-files-parse.sh` parses every `.lang` under
+  `compiler/prelude/` and `examples/source/` (58 files today, plus the
+  two `examples/compiler/` files) with zero ERROR nodes. The one corpus
+  case that ever failed without a scanner fault ("minus table: a line
+  comment splits x--3") had lost its expected tree and was restored
+  from the asserted behavior (`y--3` lexes as identifier `y` plus line
+  comment `--3`).
 - `npx tree-sitter-cli` is the documented fallback when the CLI is not
   on PATH; it was not exercised here (the nix-profile `tree-sitter`
   0.26.11 is what ran).
