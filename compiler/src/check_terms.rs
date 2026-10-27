@@ -438,6 +438,12 @@ impl Checker {
             ast::Term::Char(s, span) => {
                 Ok((ECore::Int(char_literal_word(s, *span)?), Ty::Prim(Scalar::Char)))
             }
+            ast::Term::Sym(v, _) => {
+                // `'name` interns at compile time and elaborates to the
+                // constant of the same cell every equal spelling takes
+                // (primitive types specification section 9).
+                Ok((ECore::ConstSym(v.clone()), Ty::Sym))
+            }
             ast::Term::Quote { body, span } => self.infer_quote(env, body, *span),
             ast::Term::QuoteDecls { decls, span } => self.infer_quote_decls(env, decls, *span),
             ast::Term::Splice { span, .. } => Err(Error::at(
@@ -3848,14 +3854,16 @@ impl Checker {
                 }
                 self.consume_column(rows, cols, types, expected, ctx_span, covered)
             }
-            Ty::Int | Ty::Nat | Ty::Prim(_) => {
+            Ty::Int | Ty::Nat | Ty::Prim(_) | Ty::Sym => {
                 // Integer literal patterns: a literal matches when the
                 // column equals it; rows fall through in source order.
                 // Machine scalars compare canonical words with `eqI64`
                 // (every value has a canonical `i64` word, primitive types
                 // specification, section 2, so word equality is value
                 // equality); mathematical `Nat`/`Int` compare through the
-                // runtime's `natCmp`/`intCmp` immediate. The comparison is
+                // runtime's `natCmp`/`intCmp` immediate. `Sym` literal
+                // patterns test identity (the interned cell; primitive
+                // types specification section 9). The comparison is
                 // built here in the match compiler, so it can move to the
                 // primitive table later.
                 let mut literals: Vec<(String, ECore)> = Vec::new();
@@ -3884,7 +3892,16 @@ impl Checker {
                             a.pats = r.pats[1..].to_vec();
                             defaults.push(a);
                         }
-                        ast::Pat::Int(v, _) => {
+                        ast::Pat::Int(v, _) | ast::Pat::Sym(v, _) => {
+                            // A `Sym` column takes `Sym` literals and
+                            // every other column integer literals; the
+                            // wrong shape is a type error, not a test.
+                            if matches!(p0, ast::Pat::Sym(..)) != matches!(inner_ty, Ty::Sym) {
+                                return Err(Error::at(
+                                    p0.span(),
+                                    format!("pattern does not match type {inner_ty}"),
+                                ));
+                            }
                             let node = self.literal_const(&inner_ty, v, p0.span())?;
                             if !literals.iter().any(|(x, _)| x == v) {
                                 literals.push((v.clone(), node));
@@ -5252,7 +5269,7 @@ impl Checker {
                 ast::Term::Con(_)
                 | ast::Term::Int(_, _)
                 | ast::Term::Str(_, _)
-                | ast::Term::Char(_, _)
+                | ast::Term::Char(_, _) | ast::Term::Sym(_, _)
                 | ast::Term::Unit(_)
                 | ast::Term::Hole(_)
                 | ast::Term::SpliceHole { .. }
@@ -5465,7 +5482,7 @@ impl Checker {
             | ast::Term::Con(_)
             | ast::Term::Int(_, _)
             | ast::Term::Str(_, _)
-            | ast::Term::Char(_, _)
+            | ast::Term::Char(_, _) | ast::Term::Sym(_, _)
             | ast::Term::Unit(_)
             | ast::Term::Hole(_)
             | ast::Term::SpliceHole { .. }
@@ -7017,7 +7034,7 @@ fn check_row_binders(pats: &[ast::Pat]) -> Result<()> {
                     walk(a, seen)?;
                 }
             }
-            ast::Pat::Wild(_) | ast::Pat::Unit(_) | ast::Pat::Int(_, _) => {}
+            ast::Pat::Wild(_) | ast::Pat::Unit(_) | ast::Pat::Int(_, _) | ast::Pat::Sym(_, _) => {}
         }
         Ok(())
     }
@@ -7147,6 +7164,8 @@ fn float_exact_digits(mag: &str, p: u32, emax: i32) -> bool {
 /// Machine scalars compare canonical words with `eqI64` (word equality is
 /// value equality); mathematical `Nat`/`Int` compare through the runtime's
 /// `natCmp`/`intCmp` immediate (primitive types specification, section 7).
+/// `Sym` literals test identity through `symEq` (the interned cell;
+/// section 9).
 fn literal_eq_cond(ty: &Ty, col: ECore, lit: ECore) -> ECore {
     let i64eq = |a: ECore, b: ECore| {
         app_spine(
@@ -7163,6 +7182,7 @@ fn literal_eq_cond(ty: &Ty, col: ECore, lit: ECore) -> ECore {
             app_spine(ECore::Prim(PrimOp::Nat(NatOp::Cmp)), vec![col, lit]),
             ECore::Int(0),
         ),
+        Ty::Sym => app_spine(ECore::Prim(PrimOp::Sym(SymOp::Eq)), vec![col, lit]),
         _ => i64eq(col, lit),
     }
 }
@@ -7250,7 +7270,7 @@ fn rec_walk(
             }
         }
         ECore::Int(_)
-        | ECore::ConstBig { .. } | ECore::ConstBytes(_)
+        | ECore::ConstBig { .. } | ECore::ConstBytes(_) | ECore::ConstSym(_)
         | ECore::Lit(_)
         | ECore::Bool(_)
         | ECore::Unit
@@ -7328,7 +7348,7 @@ fn rec_collect_refs(e: &ECore, by_local: &HashMap<LocalId, usize>, out: &mut Vec
             }
         }
         ECore::Int(_)
-        | ECore::ConstBig { .. } | ECore::ConstBytes(_)
+        | ECore::ConstBig { .. } | ECore::ConstBytes(_) | ECore::ConstSym(_)
         | ECore::Lit(_)
         | ECore::Bool(_)
         | ECore::Unit
@@ -7428,7 +7448,7 @@ fn subst_rec_refs(e: &mut ECore, subs: &HashMap<LocalId, RecSub>) {
             None => {}
         },
         ECore::Int(_)
-        | ECore::ConstBig { .. } | ECore::ConstBytes(_)
+        | ECore::ConstBig { .. } | ECore::ConstBytes(_) | ECore::ConstSym(_)
         | ECore::Lit(_)
         | ECore::Bool(_)
         | ECore::Unit

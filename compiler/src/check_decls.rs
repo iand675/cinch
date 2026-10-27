@@ -128,7 +128,7 @@ fn builtin_type_name(name: &str) -> bool {
     }
     matches!(
         name,
-        "Nat" | "Int" | "Bool" | "Unit" | "Bytes" | "Type" | "Prop"
+        "Nat" | "Int" | "Bool" | "Unit" | "Bytes" | "Sym" | "Type" | "Prop"
             | "Code" | "Syntax" | "Declarations" | "Secret"
             | "IoCap" | "FileReadCap" | "FileWriteCap" | "ProcCap"
             | "Scope" | "Task"
@@ -262,7 +262,7 @@ fn pat_names(p: &ast::Pat, out: &mut Vec<String>) {
                 pat_names(a, out);
             }
         }
-        ast::Pat::Wild(_) | ast::Pat::Unit(_) | ast::Pat::Int(_, _) => {}
+        ast::Pat::Wild(_) | ast::Pat::Unit(_) | ast::Pat::Int(_, _) | ast::Pat::Sym(_, _) => {}
     }
 }
 
@@ -274,7 +274,7 @@ fn for_each_subterm(t: &ast::Term, f: &mut dyn FnMut(&ast::Term)) {
         | ast::Term::Con(_)
         | ast::Term::Int(_, _)
         | ast::Term::Str(_, _)
-        | ast::Term::Char(_, _)
+        | ast::Term::Char(_, _) | ast::Term::Sym(_, _)
         | ast::Term::Unit(_)
         | ast::Term::Hole(_)
         | ast::Term::SpliceHole { .. }
@@ -415,7 +415,7 @@ enum GuardMode {
 
 impl Checker {
     fn install_builtins(&mut self) {
-        for n in ["Nat", "Int", "Bool", "Unit", "Bytes"] {
+        for n in ["Nat", "Int", "Bool", "Unit", "Bytes", "Sym"] {
             self.types.entry(n.to_string()).or_default().push(TypeKind {
                 module: "<builtin>".into(),
                 name: n.into(),
@@ -2650,6 +2650,7 @@ impl Checker {
                                 | "Bool"
                                 | "Unit"
                                 | "Bytes"
+                                | "Sym"
                                 | "Code"
                                 | "Syntax"
                                 | "Declarations"
@@ -3169,7 +3170,7 @@ impl Checker {
                     if Scalar::parse(&rec.name.text).is_some()
                         || matches!(
                             rec.name.text.as_str(),
-                            "Nat" | "Int" | "Bool" | "Unit" | "Bytes"
+                            "Nat" | "Int" | "Bool" | "Unit" | "Bytes" | "Sym"
                                 | "Thunk" | "Lazy" | "Later" | "Ref" | "Mut" | "Io"
                                 | "Type" | "Prop"
                         )
@@ -5077,7 +5078,7 @@ impl Checker {
             ast::Term::Con(_)
             | ast::Term::Int(_, _)
             | ast::Term::Str(_, _)
-            | ast::Term::Char(_, _)
+            | ast::Term::Char(_, _) | ast::Term::Sym(_, _)
             | ast::Term::Unit(_)
             | ast::Term::Hole(_)
             | ast::Term::SpliceHole { .. }
@@ -9717,7 +9718,8 @@ impl<'a> FactWalk<'a> {
                     closure: self.closure,
                 });
             }
-            ast::Term::Int(..) | ast::Term::Char(..) | ast::Term::Unit(_) | ast::Term::Hole(_)
+            ast::Term::Int(..) | ast::Term::Char(..) | ast::Term::Sym(..) | ast::Term::Unit(_)
+            | ast::Term::Hole(_)
             | ast::Term::SpliceHole { .. } | ast::Term::SeqOp(..) => {}
             ast::Term::Str(_, s) => {
                 self.note_span(*s);
@@ -11655,6 +11657,7 @@ impl Checker {
             ast::Term::Int(..)
             | ast::Term::Str(..)
             | ast::Term::Char(..)
+            | ast::Term::Sym(..)
             | ast::Term::Unit(_)
             | ast::Term::Hole(_)
             | ast::Term::SpliceHole { .. }
@@ -11848,7 +11851,7 @@ impl Checker {
             ast::Term::Con(p) => f(&p.span()),
             ast::Term::Int(_, s)
             | ast::Term::Str(_, s)
-            | ast::Term::Char(_, s)
+            | ast::Term::Char(_, s) | ast::Term::Sym(_, s)
             | ast::Term::Unit(s)
             | ast::Term::Hole(s)
             | ast::Term::SeqOp(_, s)
@@ -15398,7 +15401,7 @@ impl Checker {
             | ast::Term::Con(_)
             | ast::Term::Int(_, _)
             | ast::Term::Str(_, _)
-            | ast::Term::Char(_, _)
+            | ast::Term::Char(_, _) | ast::Term::Sym(_, _)
             | ast::Term::Unit(_)
             | ast::Term::Hole(_)
             | ast::Term::SpliceHole { .. }
@@ -15544,6 +15547,7 @@ fn value_kind_name(v: &crate::core::Value) -> &'static str {
         Big { nat: true, .. } => "a `Nat`",
         Big { nat: false, .. } => "an `Int`",
         Bytes(_) => "a `Bytes` buffer",
+        Sym(_) => "an interned symbol",
         Bool(_) => "a `Bool`",
         Unit => "Unit",
         Adt { .. } => "a data value",
@@ -15665,7 +15669,7 @@ fn term_has_macro_call(t: &ast::Term) -> bool {
             | ast::Term::Con(_)
             | ast::Term::Int(_, _)
             | ast::Term::Str(_, _)
-            | ast::Term::Char(_, _)
+            | ast::Term::Char(_, _) | ast::Term::Sym(_, _)
             | ast::Term::Unit(_)
             | ast::Term::Hole(_)
             | ast::Term::SpliceHole { .. }
@@ -15763,7 +15767,7 @@ fn stamp_term_spans(t: &mut ast::Term, site: &crate::lexer::ExpSite) {
         }
         ast::Term::Int(_, s)
         | ast::Term::Str(_, s)
-        | ast::Term::Char(_, s)
+        | ast::Term::Char(_, s) | ast::Term::Sym(_, s)
         | ast::Term::Unit(s)
         | ast::Term::Hole(s)
         | ast::Term::SpliceHole { span: s, .. }
@@ -16189,6 +16193,7 @@ impl Checker {
             Core::ConstBytes(b) => Value::Bytes(std::rc::Rc::new(std::cell::RefCell::new(
                 b.clone(),
             ))),
+            Core::ConstSym(s) => Value::Sym(s.clone()),
             Core::Bool(b) => Value::Bool(*b),
             Core::Unit => Value::Unit,
             Core::Var(l) => frame.get(l.0).cloned().ok_or_else(|| {
@@ -16860,6 +16865,53 @@ impl Checker {
                         };
                         *slot = byte;
                         Value::Unit
+                    }
+                })
+            }
+            PrimOp::Sym(sop) => {
+                use crate::core::SymOp;
+                fn sym_of(v: &Value) -> Result<&String> {
+                    match v {
+                        Value::Sym(s) => Ok(s),
+                        other => Err(Error::plain(format!(
+                            "expected an interned symbol at compile time, found {}",
+                            value_kind_name(other)
+                        ))),
+                    }
+                }
+                Ok(match sop {
+                    SymOp::Intern => {
+                        let Value::Bytes(b) = &args[0] else {
+                            return Err(Error::plain(format!(
+                                "expected a `Bytes` name at compile time, found {}",
+                                value_kind_name(&args[0])
+                            )));
+                        };
+                        let s = std::str::from_utf8(&b.borrow())
+                            .map_err(|_| {
+                                Error::plain(
+                                    "`symIntern` on a name that is not UTF-8 faults at compile time (the runtime fault path is exit 71)",
+                                )
+                            })?
+                            .to_string();
+                        // The table is keyed by name: the value stands
+                        // for the one interned cell of the spelling.
+                        Value::Sym(s)
+                    }
+                    SymOp::Name => {
+                        let s = sym_of(&args[0])?;
+                        Value::Bytes(std::rc::Rc::new(std::cell::RefCell::new(
+                            s.as_bytes().to_vec(),
+                        )))
+                    }
+                    SymOp::Eq => Value::Bool(sym_of(&args[0])? == sym_of(&args[1])?),
+                    SymOp::Cmp => {
+                        let o = sym_of(&args[0])?.as_bytes().cmp(sym_of(&args[1])?.as_bytes());
+                        Value::Word(match o {
+                            std::cmp::Ordering::Less => -1,
+                            std::cmp::Ordering::Equal => 0,
+                            std::cmp::Ordering::Greater => 1,
+                        })
                     }
                 })
             }
@@ -17970,7 +18022,8 @@ fn ty_match(pattern: &Ty, concrete: &Ty) -> bool {
     match (pattern, concrete) {
         (Ty::Param(_), _) | (_, Ty::Param(_)) => true,
         (Ty::Prim(a), Ty::Prim(b)) => a == b,
-        (Ty::Bool, Ty::Bool) | (Ty::Nat, Ty::Nat) | (Ty::Int, Ty::Int) | (Ty::Bytes, Ty::Bytes) => true,
+        (Ty::Bool, Ty::Bool) | (Ty::Nat, Ty::Nat) | (Ty::Int, Ty::Int) | (Ty::Bytes, Ty::Bytes)
+        | (Ty::Sym, Ty::Sym) => true,
         (Ty::Adt(a, x), Ty::Adt(b, y)) => {
             a == b
                 && x.len() == y.len()

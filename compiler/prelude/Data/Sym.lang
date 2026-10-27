@@ -1,0 +1,62 @@
+-- Data.Sym: interned symbols.
+--
+-- `Sym` is a core runtime type (primitive types specification section
+-- 9): one word, a handle to a process-wide interned name cell. Two
+-- equal names are the same cell, so `Eq` is identity (an O(1) pointer
+-- test) and `Ord` is lexicographic by name (deterministic across runs;
+-- never insertion order). `Show` prints `'foo`. Nothing here exposes a
+-- cell address as data: the foreign boundary takes `sym-name` (or
+-- `Bytes`), and the type has no C counterpart.
+--
+-- Literals are constants first: `'foo` interns at compile time and is
+-- emitted as a constant (the P14 constant-emission path), and `intern`
+-- of an equal name at runtime resolves to the same cell (the runtime
+-- table is keyed by name). Symbol literal patterns test identity.
+--
+-- Module scheme (design/base-library.md): the type's home carries its
+-- instance family (the `Eq`, `Ord` and `Show` instances over the
+-- runtime cells).
+module Data.Sym where
+
+  import Data.String
+  import Text.Show
+
+  export intern, sym-name
+
+
+  -- The runtime cells (`compiler/runtime/src/sym.rs`): the intrinsic
+  -- layer speaks `Bytes` and the raw -1/0/1 comparison immediate (the
+  -- `natCmp` convention); the surface conversions below are the
+  -- section 9 signatures.
+  foreign import ccall "safelang.runtime.symIntern" sym-intern-bytes :: Bytes -> Sym
+  foreign import ccall "safelang.runtime.symName" sym-name-bytes :: Sym -> Bytes
+  foreign import ccall "safelang.runtime.symEq" sym-eq :: Sym -> Sym -> Bool
+  foreign import ccall "safelang.runtime.symCmp" sym-cmp :: Sym -> Sym -> I64
+
+  -- The prelude surface of section 9.
+  intern :: String -> Sym
+  intern s = sym-intern-bytes (string-to-bytes s)
+
+  sym-name :: Sym -> String
+  sym-name s = String (sym-name-bytes s)
+
+  -- `Eq` is identity: the same interned cell (section 9).
+  implicit instance Eq_Sym :: Eq Sym where
+    (==) x y = sym-eq x y
+    (/=) x y = not (sym-eq x y)
+
+  -- `Ord` is lexicographic by name: `symCmp`'s immediate against 0
+  -- (the `natCmp`/`intCmp` reading), never the cell addresses.
+  implicit instance Ord_Sym :: Ord Sym where
+    (<) x y = lt-i64 (sym-cmp x y) 0
+    (<=) x y = le-i64 (sym-cmp x y) 0
+    (>) x y = gt-i64 (sym-cmp x y) 0
+    (>=) x y = ge-i64 (sym-cmp x y) 0
+
+  -- `Show` prints `'foo` (section 9): the tick is the raw ASCII 39
+  -- byte, the name renders as itself.
+  implicit instance Show_Sym :: Show Sym where
+    show s =
+      let b = bytes-new 1 in
+      let u = bytes-set b 0 39 in
+      string-concat (String b) (sym-name s)

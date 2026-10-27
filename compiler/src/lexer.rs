@@ -103,6 +103,15 @@ pub enum Tok {
     FloatLit(String),
     StrLit(String),
     CharLit(String),
+    /// `'name`: the tick lexeme's symbol form (surface grammar local
+    /// amendments section 12). In expression or pattern position it is a
+    /// `Sym` literal; in a staging or macro name position it is the value
+    /// `Name` of the spelling. The name is the identifier spelling after
+    /// the tick (`lex_word`'s shape, dashes included).
+    SymLit(String),
+    /// `''T`: the tick lexeme's type-name form, the type `Name` of a
+    /// staging or macro name position (section 12).
+    TypeNameLit(String),
 
     // Reserved words.
     Module,
@@ -659,7 +668,7 @@ impl Lexer {
             }
             '-' => self.lex_minus(),
             '"' => self.lex_string(),
-            '\'' => self.lex_char(span),
+            '\'' => self.lex_tick(span),
             c if c.is_ascii_digit() => self.lex_number(span),
             c if c.is_ascii_alphabetic() || c == '_' => Ok(self.lex_word()),
             c if is_symbol_char(c) => Ok(self.lex_symbol()),
@@ -885,28 +894,7 @@ impl Lexer {
     }
 
     fn lex_word(&mut self) -> Tok {
-        let mut w = String::new();
-        loop {
-            match self.peek() {
-                Some(c) if is_ident_char(c) => {
-                    w.push(c);
-                    self.bump();
-                }
-                // A `-` tight on both sides between identifier characters
-                // is identifier glue (`int-digits-into`); the right side
-                // must not be a digit (`x-1` is subtraction).
-                Some('-')
-                    if self
-                        .peek_at(1)
-                        .map(is_dash_glue_char)
-                        .unwrap_or(false) =>
-                {
-                    w.push('-');
-                    self.bump();
-                }
-                _ => break,
-            }
-        }
+        let w = self.scan_ident();
         if let Some(kw) = keyword(&w) {
             return kw;
         }
@@ -1019,26 +1007,95 @@ impl Lexer {
         }
     }
 
-    fn lex_char(&mut self, span: Span) -> Result<Tok> {
-        self.bump(); // opening quote
+    /// The tick lexeme (surface grammar local amendments section 12):
+    /// one spelling in three contexts. Char literal precedence is
+    /// lexical and deterministic: tick, one character, tick means
+    /// `Char`; `'name` is the symbol form (a `Sym` literal in expression
+    /// or pattern position, a value `Name` in a staging or macro name
+    /// position); `''T` is the type `Name` form.
+    fn lex_tick(&mut self, span: Span) -> Result<Tok> {
+        // `'c'` (one character, or one escape, between ticks) is a
+        // `Char` literal and wins. The probe backtracks into the name
+        // forms when the closing tick is not there (`'a` followed by
+        // anything else is a symbol).
+        let save = (self.i, self.line, self.col, self.leading);
+        self.bump(); // opening tick
         let c = match self.peek() {
-            None | Some('\n') | Some('\r') | Some('\'') => {
-                return Err(Error::at(span, "malformed character literal"));
-            }
+            None | Some('\n') | Some('\r') => None,
             Some('\\') => {
                 self.bump();
-                self.lex_escape(span)?
+                // A backslash can only open a character literal's
+                // escape, so a malformed escape is a character-literal
+                // error, never a name.
+                let c = self.lex_escape(span)?;
+                if self.peek() == Some('\'') {
+                    self.bump();
+                    return Ok(Tok::CharLit(c.to_string()));
+                }
+                return Err(Error::at(span, "unterminated character literal"));
             }
             Some(c) => {
                 self.bump();
-                c
+                Some(c)
             }
         };
-        if self.peek() != Some('\'') {
-            return Err(Error::at(span, "unterminated character literal"));
+        if let Some(c) = c {
+            if self.peek() == Some('\'') {
+                self.bump();
+                return Ok(Tok::CharLit(c.to_string()));
+            }
         }
-        self.bump();
-        Ok(Tok::CharLit(c.to_string()))
+        // Not a character literal: restore and scan the name forms.
+        self.i = save.0;
+        self.line = save.1;
+        self.col = save.2;
+        self.leading = save.3;
+        self.bump(); // opening tick
+        let ticked = self.peek() == Some('\'');
+        if ticked {
+            self.bump();
+        }
+        if !self
+            .peek()
+            .map(|c| c.is_ascii_alphabetic() || c == '_')
+            .unwrap_or(false)
+        {
+            return Err(Error::at(
+                span,
+                "a tick literal needs an identifier name: `'name` is a symbol (or `''T` a type name) and `'c'` a character",
+            ));
+        }
+        let name = self.scan_ident();
+        Ok(if ticked {
+            Tok::TypeNameLit(name)
+        } else {
+            Tok::SymLit(name)
+        })
+    }
+
+    /// The identifier spelling at the cursor (`lex_word`'s shape:
+    /// ident characters with dash glue), without the keyword lookup.
+    fn scan_ident(&mut self) -> String {
+        let mut w = String::new();
+        loop {
+            match self.peek() {
+                Some(c) if is_ident_char(c) => {
+                    w.push(c);
+                    self.bump();
+                }
+                Some('-')
+                    if self
+                        .peek_at(1)
+                        .map(is_dash_glue_char)
+                        .unwrap_or(false) =>
+                {
+                    w.push('-');
+                    self.bump();
+                }
+                _ => break,
+            }
+        }
+        w
     }
 
     fn lex_escape(&mut self, span: Span) -> Result<char> {

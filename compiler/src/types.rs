@@ -850,6 +850,10 @@ pub enum Ty {
     Unit,
     /// `Bytes`: a boxed byte buffer word.
     Bytes,
+    /// `Sym`: a one-word handle to a process-wide interned name cell
+    /// (primitive types specification, section 9). Not a machine scalar:
+    /// `Eq` is identity, `Ord` is lexicographic by name.
+    Sym,
     /// A machine scalar primitive (`I32`, `U8`, `F64`, `Char`, ...).
     Prim(Scalar),
     /// Rigid type parameter bound by a `forall`.
@@ -1368,6 +1372,7 @@ impl fmt::Display for Ty {
             Ty::Bool => write!(f, "Bool"),
             Ty::Unit => write!(f, "Unit"),
             Ty::Bytes => write!(f, "Bytes"),
+            Ty::Sym => write!(f, "Sym"),
             Ty::Prim(s) => write!(f, "{s}"),
             Ty::Param(p) => write!(f, "{p}"),
             Ty::Region(r) => write!(f, "{r}"),
@@ -2495,7 +2500,7 @@ impl Unifier {
         let b = self.shallow(b);
         match (&a, &b) {
             (Ty::Int, Ty::Int) | (Ty::Nat, Ty::Nat) | (Ty::Bytes, Ty::Bytes) | (Ty::Bool, Ty::Bool)
-            | (Ty::Unit, Ty::Unit) => Ok(()),
+            | (Ty::Sym, Ty::Sym) | (Ty::Unit, Ty::Unit) => Ok(()),
             (Ty::Prim(a), Ty::Prim(b)) if a == b => Ok(()),
             (Ty::Param(x), Ty::Param(y)) if x == y => Ok(()),
             (Ty::Meta(m), t) | (t, Ty::Meta(m)) => {

@@ -26,6 +26,11 @@ pub enum Error {
     MalformedDecimal,
     /// The output buffer is too small to hold the decimal digits.
     BufferTooSmall,
+    /// A symbol name that is not valid UTF-8 reached `sl_sym_intern`
+    /// (primitive types specification section 9: `intern` takes a
+    /// `String`, so every interned name is valid UTF-8 and `sym-name` is
+    /// total).
+    MalformedName,
     /// A byte-buffer index, length, or byte value was outside its allowed
     /// range (`Error::OutOfBounds` from [`crate::bytes`]).
     OutOfBounds,
@@ -71,6 +76,7 @@ impl fmt::Display for Error {
             Error::OutOfRange => "value does not fit in i64",
             Error::MalformedDecimal => "malformed decimal numeral",
             Error::BufferTooSmall => "decimal buffer too small",
+            Error::MalformedName => "symbol name is not valid UTF-8",
             Error::OutOfBounds => "byte-buffer index, length, or byte value out of range",
             Error::CorruptValue => "null or wrong-kind word or corrupt generated data",
             Error::BlackHole => {

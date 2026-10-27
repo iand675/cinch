@@ -39,7 +39,7 @@ use crate::core::{
     AbiClass, AbiParam, ArithMode, ArithOp, BitOp, BitScanOp, BytesOp, CAlt, CBranch, CmpOp,
     ConcOp, ConvMode, Core, CPat, CtorLayout, FClassOp, FieldAccess, FieldShape, FloatBinOp,
     FloatUnOp, FnDef, ForeignPlan, LocalId, PrimAbiTy, PrimPlan, PrimOp, Program, ShiftOp,
-    Utf8Op,
+    SymOp, Utf8Op,
 };
 use crate::types::Scalar;
 use crate::Result;
@@ -141,6 +141,17 @@ pub fn emit_for(profile: &crate::core::TargetProfile, program: &Program) -> Resu
         // `Bytes` emission (the P14 constant-emission path) and the
         // canonical ABI glue both materialise buffers through it.
         "declare i64 @sl_bytes_from_data(i64, i64)",
+        // The data pointer of a `Bytes` word (the pointer-length
+        // crossing of `compiler/runtime/src/abi.rs`): the UTF-8 and
+        // symbol intrinsics read buffer contents through it.
+        "declare i64 @sl_bytes_data(i64)",
+        // The interned symbol table (`compiler/runtime/src/sym.rs`):
+        // cells in and out as words, names over the pointer-length
+        // crossing above.
+        "declare i64 @sl_sym_intern(i64, i64)",
+        "declare i64 @sl_sym_name(i64)",
+        "declare i64 @sl_sym_eq(i64, i64)",
+        "declare i64 @sl_sym_cmp(i64, i64)",
         // Structured concurrency and runtime I/O (concurrency
         // specification sections 2, 4 and 9; `compiler/runtime/src/task.rs`).
         "declare i64 @sl_scope_open()",
@@ -1871,6 +1882,37 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, name: &str, op: PrimOp) {
                 }
             }
         }
+        Sym(k) => {
+            // The intern table (`compiler/runtime/src/sym.rs`) takes a
+            // pointer-length name span, like the UTF-8 runtime; the units
+            // pass the `Bytes` payload through `sl_bytes_data`/
+            // `sl_bytes_len` and hands cells back as words.
+            use SymOp::*;
+            match k {
+                Intern => {
+                    let ptr = rt_call(b, "sl_bytes_data", &["i64 %p0".to_string()]);
+                    let len = rt_call(b, "sl_bytes_len", &["i64 %p0".to_string()]);
+                    let r = rt_call(
+                        b,
+                        k.extern_name(),
+                        &[format!("i64 {ptr}"), format!("i64 {len}")],
+                    );
+                    ret(b, &r);
+                }
+                Name => {
+                    let r = rt_call(b, k.extern_name(), &["i64 %p0".to_string()]);
+                    ret(b, &r);
+                }
+                Eq | Cmp => {
+                    // `symEq` is the identity pointer test (0 or 1);
+                    // `symCmp` is the raw -1/0/1 of the name order.
+                    let args: Vec<String> =
+                        (0..op.arity()).map(|i| format!("i64 %p{i}")).collect();
+                    let r = rt_call(b, k.extern_name(), &args);
+                    ret(b, &r);
+                }
+            }
+        }
         Conc(k) => {
             // Structured concurrency and runtime I/O (concurrency
             // specification sections 2, 4 and 9): the units wrap the
@@ -3505,7 +3547,7 @@ fn core_body(b: &mut Builder, reg: &Registry, f: &FnDef) -> Result<()> {
 /// The primitive operations mentioned in a body.
 fn collect_prims(e: &Core, out: &mut BTreeSet<PrimOp>) {
     match e {
-        Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::Bool(_) | Core::Unit | Core::Var(_)
+        Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Var(_)
         | Core::Global(_)
         | Core::Ctor(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc
         | Core::BoxAlloc
@@ -3561,7 +3603,7 @@ fn collect_prims(e: &Core, out: &mut BTreeSet<PrimOp>) {
 fn collect_binders(e: &Core, out: &mut Vec<LocalId>) {
     match e {
         Core::Int(_)
-        | Core::ConstBig { .. } | Core::ConstBytes(_)
+        | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstSym(_)
         | Core::Bool(_)
         | Core::Unit
         | Core::Var(_)
@@ -3703,6 +3745,30 @@ impl CoreEmitter<'_, '_> {
                 "internal error: a compile-time value reached code generation (staging values never enter target code)",
             )),
             Core::Int(i) => Ok(i.to_string()),
+            Core::ConstSym(sym) => {
+                // A constant `Sym`: the name is a private constant and
+                // the runtime's intern table materialises the cell from
+                // it (the P14 constant-emission path). The table is keyed
+                // by name, so `intern` of an equal name resolves to this
+                // same cell (primitive types specification section 9).
+                let unit = self.unit.clone();
+                let cname = self.b.dec_name(&unit);
+                self.b.global(format!(
+                    "@{} = private constant [{} x i8] c\"{}\"",
+                    quote(&cname),
+                    sym.len(),
+                    c_string_bytes(sym.as_bytes())
+                ));
+                let p = self.b.reg();
+                self.b
+                    .line(&format!("{p} = ptrtoint ptr @{} to i64", quote(&cname)));
+                let r = self.b.reg();
+                self.b.line(&format!(
+                    "{r} = call i64 @sl_sym_intern(i64 {p}, i64 {})",
+                    sym.len()
+                ));
+                Ok(r)
+            }
             Core::ConstBytes(buf) => {
                 // A constant `Bytes` buffer: the contents are a private
                 // constant and the runtime materialises a fresh buffer
@@ -5474,7 +5540,7 @@ fn reify(out: &mut Vec<QWord>, e: &Core, reg: &Registry) -> Result<()> {
                  (a nested quotation is not reified yet)",
             )
         }
-        Core::ConstBytes(_) => {
+        Core::ConstBytes(_) | Core::ConstSym(_) => {
             return err(
                 "a constant `Bytes` buffer is not reified into a quotation body yet \
                  (the literal fold leaves class calls inside quotation bodies)",

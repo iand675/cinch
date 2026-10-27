@@ -157,6 +157,23 @@
 //! * `sl_bytes_set(word: i64, index: i64, value: i64) -> i64`: write
 //!   `value` (0..=255) at `index`, returning 0 (the Unit word) and
 //!   faulting on an out-of-bounds index or a value outside 0..=255.
+//! * `sl_bytes_data(word: i64) -> i64`, `sl_bytes_from_data(ptr: *const
+//!   u8, len: i64) -> i64`: the pointer-length crossing for buffer
+//!   contents (the UTF-8 and symbol intrinsics and the canonical ABI
+//!   glue).
+//!
+//! Interned symbols (primitive types specification section 9; see
+//! [`sym`] for the cell discipline):
+//!
+//! * `sl_sym_intern(ptr: *const u8, len: i64) -> i64`: the cell for the
+//!   `len` bytes at `ptr`; the table is keyed by name, so an equal name
+//!   resolves to the same cell (and to a tick literal's cell).
+//! * `sl_sym_name(word: i64) -> i64`: a fresh `Bytes` word holding the
+//!   cell's name.
+//! * `sl_sym_eq(a: i64, b: i64) -> i64`: identity, 0 or 1 (an O(1)
+//!   pointer test).
+//! * `sl_sym_cmp(a: i64, b: i64) -> i64`: -1, 0 or 1 of the
+//!   lexicographic name order (never the cell addresses).
 //!
 //! Quotation evaluation (supercompilation and JIT specification
 //! section 7; see [`eval`] for the quote block layout):
@@ -200,6 +217,7 @@ mod int;
 mod limbs;
 mod nat;
 pub mod string;
+pub mod sym;
 pub mod task;
 
 pub use error::{Error, Result};

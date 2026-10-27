@@ -145,6 +145,10 @@ pub enum Pat {
     /// Integer literal: the decimal digit string, with a leading `-` when
     /// prefix negation folded into it.
     Int(String, Span),
+    /// `'name` in pattern position: matches the interned `Sym` constant
+    /// of the spelling by identity (primitive types specification
+    /// section 9).
+    Sym(String, Span),
     /// `C p1 ... pn`, with `args` empty for a bare constructor.
     Con(ConPath, Vec<Pat>, Span),
     /// `x@p`.
@@ -163,7 +167,7 @@ impl Pat {
             Pat::Var(_, s)
             | Pat::Wild(s)
             | Pat::Unit(s)
-            | Pat::Int(_, s)
+            | Pat::Int(_, s) | Pat::Sym(_, s)
             | Pat::Con(_, _, s)
             | Pat::As(_, _, s)
             | Pat::Tuple(_, s)
@@ -347,6 +351,9 @@ pub enum Term {
     Int(String, Span),
     Str(String, Span),
     Char(String, Span),
+    /// `'name` in expression position: the interned `Sym` constant of
+    /// the spelling (primitive types specification section 9).
+    Sym(String, Span),
     Unit(Span),
     Hole(Span),
     /// Left-associated curried application of a nonempty argument spine.
@@ -436,7 +443,7 @@ impl Term {
             Term::Con(p) => p.span(),
             Term::Int(_, s)
             | Term::Str(_, s)
-            | Term::Char(_, s)
+            | Term::Char(_, s) | Term::Sym(_, s)
             | Term::Unit(s)
             | Term::Hole(s)
             | Term::App(_, _, s)
@@ -1018,7 +1025,7 @@ pub fn collect_term_refs(t: &Term, out: &mut Vec<RefSite>) {
         Term::Con(p) => out.push(ref_of_path(RefKind::Value, &p.segments, p.span())),
         Term::Int(_, _)
         | Term::Str(_, _)
-        | Term::Char(_, _)
+        | Term::Char(_, _) | Term::Sym(_, _)
         | Term::Unit(_)
         | Term::Hole(_)
         | Term::SeqOp(_, _)
@@ -1429,6 +1436,7 @@ fn hyg_pat(p: &Pat, cx: &mut HygCx, sc: &mut HygScope) -> Result<Pat> {
         Pat::Wild(s) => Pat::Wild(*s),
         Pat::Unit(s) => Pat::Unit(*s),
         Pat::Int(v, s) => Pat::Int(v.clone(), *s),
+        Pat::Sym(v, s) => Pat::Sym(v.clone(), *s),
         Pat::Con(path, pats, s) => {
             let path = qualify_con(cx, path, *s)?;
             let mut out = Vec::new();
@@ -1629,6 +1637,7 @@ pub fn hyg_term(t: &Term, cx: &mut HygCx, sc: &mut HygScope) -> Result<Term> {
         Term::Int(v, s) => Term::Int(v.clone(), *s),
         Term::Str(v, s) => Term::Str(v.clone(), *s),
         Term::Char(v, s) => Term::Char(v.clone(), *s),
+        Term::Sym(v, s) => Term::Sym(v.clone(), *s),
         Term::Unit(s) => Term::Unit(*s),
         Term::Hole(s) => Term::Hole(*s),
         Term::SpliceHole { idx, span } => Term::SpliceHole { idx: *idx, span: *span },
@@ -2026,7 +2035,7 @@ pub fn hyg_decl(d: &Decl, cx: &mut HygCx, sc: &mut HygScope) -> Result<Decl> {
 pub fn subst_holes(t: &Term, vals: &[Term]) -> Term {
     match t {
         Term::SpliceHole { idx, .. } => vals[*idx].clone(),
-        Term::Var(_) | Term::Con(_) | Term::Int(_, _) | Term::Str(_, _) | Term::Char(_, _)
+        Term::Var(_) | Term::Con(_) | Term::Int(_, _) | Term::Str(_, _) | Term::Char(_, _) | Term::Sym(_, _)
         | Term::Unit(_) | Term::Hole(_) | Term::SeqOp(_, _) => t.clone(),
         Term::App(f, args, s) => Term::App(
             Box::new(subst_holes(f, vals)),
@@ -2271,7 +2280,7 @@ pub fn collect_template_holes(t: &mut Term, holes: &mut Vec<HoleExpr>) {
         | Term::Con(_)
         | Term::Int(_, _)
         | Term::Str(_, _)
-        | Term::Char(_, _)
+        | Term::Char(_, _) | Term::Sym(_, _)
         | Term::Unit(_)
         | Term::Hole(_)
         | Term::SeqOp(_, _)

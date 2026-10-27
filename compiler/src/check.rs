@@ -8,7 +8,7 @@
 //! Operators are ordinary value names, so `x + y` is just a method call.
 
 use crate::ast;
-use crate::core::{BytesOp, CAlt, CBranch, CPat, CmpOp, ConcOp, FieldAccess, FieldShape, FnDef, GlobalId, InstanceDef, IntOp, LocalId, NatOp, PrimOp, Program, ProjField};
+use crate::core::{BytesOp, CAlt, CBranch, CPat, CmpOp, ConcOp, FieldAccess, FieldShape, FnDef, GlobalId, InstanceDef, IntOp, LocalId, NatOp, PrimOp, Program, ProjField, SymOp};
 use crate::types::{ClassApp, EffLabel, EffRow, EitherMeta, IxParam, ITerm, IdxCmp, IdxOp, Mult, PTerm, PtrRole, RowTail, Scalar, Scheme, Sort, Ty, Unifier, c_abi_scalar, collect_row_names, default_mult};
 use crate::{Error, Result};
 use SolveOutcome::{Solved, Ambiguous};
@@ -27,6 +27,9 @@ enum ECore {
     /// A constant `Bytes` buffer (the compile-time fold of a collection
     /// literal; [`crate::core::Core::ConstBytes`] is its target form).
     ConstBytes(Vec<u8>),
+    /// A constant `Sym`: the interned name of a tick literal
+    /// ([`crate::core::Core::ConstSym`] is its target form).
+    ConstSym(String),
     /// A collection literal's class desugar awaiting its compile-time
     /// fold (surface grammar local amendments section 10): `body` is the
     /// elaborated `from-list`/`from-map` call and `idx` indexes
@@ -161,7 +164,7 @@ fn free_locals(e: &ECore, bound: &mut Vec<LocalId>, out: &mut Vec<LocalId>) {
                 out.push(*l);
             }
         }
-        ECore::Int(_) | ECore::ConstBig { .. } | ECore::ConstBytes(_) | ECore::Lit(_) | ECore::Bool(_) | ECore::Unit | ECore::Global(_)
+        ECore::Int(_) | ECore::ConstBig { .. } | ECore::ConstBytes(_) | ECore::ConstSym(_) | ECore::Lit(_) | ECore::Bool(_) | ECore::Unit | ECore::Global(_)
         | ECore::Ctor(_) | ECore::Prim(_) | ECore::Foreign(_) | ECore::Hole(_) | ECore::QuoteHole(_) | ECore::IdxPending(_) | ECore::Fault
         | ECore::SyntaxLit(_) | ECore::StrLit(_) => {}
         ECore::Quote { holes, .. } | ECore::DeclsQuote { holes, .. } => {
@@ -248,7 +251,7 @@ fn hoist_lambdas(e: &mut ECore, hint: &str, counter: &mut usize, fns: &mut Vec<H
     match e {
         ECore::LitFold { body, .. } => hoist_lambdas(body, hint, counter, fns),
         ECore::Int(_)
-        | ECore::ConstBig { .. } | ECore::ConstBytes(_)
+        | ECore::ConstBig { .. } | ECore::ConstBytes(_) | ECore::ConstSym(_)
         | ECore::Lit(_)
         | ECore::Bool(_)
         | ECore::Unit
@@ -356,7 +359,7 @@ fn assign_locals(e: &ECore, map: &mut HashMap<LocalId, LocalId>, next: &mut usiz
     match e {
         ECore::LitFold { body, .. } => assign_locals(body, map, next),
         ECore::Var(l) => note_local(*l, map, next),
-        ECore::Int(_) | ECore::ConstBig { .. } | ECore::ConstBytes(_) | ECore::Lit(_) | ECore::Bool(_) | ECore::Unit | ECore::Global(_)
+        ECore::Int(_) | ECore::ConstBig { .. } | ECore::ConstBytes(_) | ECore::ConstSym(_) | ECore::Lit(_) | ECore::Bool(_) | ECore::Unit | ECore::Global(_)
         | ECore::Ctor(_) | ECore::Prim(_) | ECore::Foreign(_) | ECore::Hole(_) | ECore::QuoteHole(_) | ECore::IdxPending(_) | ECore::Fault
         | ECore::SyntaxLit(_) | ECore::StrLit(_) => {}
         ECore::Quote { holes, body, .. } => {
@@ -444,6 +447,7 @@ fn rewrite_locals(e: &ECore, map: &HashMap<LocalId, LocalId>) -> ECore {
             digits: digits.clone(),
         },
         ECore::ConstBytes(b) => ECore::ConstBytes(b.clone()),
+        ECore::ConstSym(s) => ECore::ConstSym(s.clone()),
         ECore::Lit(i) => ECore::Lit(*i),
         ECore::Bool(b) => ECore::Bool(*b),
         ECore::Unit => ECore::Unit,
@@ -537,7 +541,7 @@ fn resolve_lit_words(e: &mut ECore, lits: &[ECore]) {
     match e {
         ECore::LitFold { body, .. } => resolve_lit_words(body, lits),
         ECore::Lit(i) => *e = lits[*i].clone(),
-        ECore::Int(_) | ECore::ConstBig { .. } | ECore::ConstBytes(_) | ECore::Bool(_) | ECore::Unit | ECore::Var(_)
+        ECore::Int(_) | ECore::ConstBig { .. } | ECore::ConstBytes(_) | ECore::ConstSym(_) | ECore::Bool(_) | ECore::Unit | ECore::Var(_)
         | ECore::Global(_)
         | ECore::Ctor(_) | ECore::Prim(_) | ECore::Foreign(_) | ECore::Hole(_) | ECore::QuoteHole(_) | ECore::IdxPending(_) | ECore::Fault | ECore::LazyAlloc | ECore::BoxAlloc
         | ECore::SyntaxLit(_) | ECore::StrLit(_) => {}
@@ -596,7 +600,7 @@ fn resolve_idx_words(e: &mut ECore, vals: &[ECore]) {
         ECore::LitFold { body, .. } => resolve_idx_words(body, vals),
         ECore::IdxPending(i) => *e = vals[*i].clone(),
         ECore::Int(_)
-        | ECore::ConstBig { .. } | ECore::ConstBytes(_)
+        | ECore::ConstBig { .. } | ECore::ConstBytes(_) | ECore::ConstSym(_)
         | ECore::Lit(_)
         | ECore::Bool(_)
         | ECore::Unit
@@ -673,6 +677,7 @@ fn reify_value(v: &crate::core::Value) -> Option<ECore> {
             digits: digits.clone(),
         },
         Value::Bytes(b) => ECore::ConstBytes(b.borrow().clone()),
+        Value::Sym(s) => ECore::ConstSym(s.clone()),
         Value::Bool(b) => ECore::Bool(*b),
         Value::Unit => ECore::Unit,
         Value::Adt { ctor, fields, .. } => {
@@ -697,7 +702,7 @@ fn fold_blocked(e: &ECore) -> bool {
     match e {
         ECore::Int(_)
         | ECore::ConstBig { .. }
-        | ECore::ConstBytes(_)
+        | ECore::ConstBytes(_) | ECore::ConstSym(_)
         | ECore::Bool(_)
         | ECore::Unit
         | ECore::Var(_)
@@ -767,6 +772,7 @@ fn lower(e: &ECore) -> crate::core::Core {
             digits: digits.clone(),
         },
         ECore::ConstBytes(b) => crate::core::Core::ConstBytes(b.clone()),
+        ECore::ConstSym(s) => crate::core::Core::ConstSym(s.clone()),
         ECore::LitFold { body, .. } => lower(body),
         ECore::Lit(_) => {
             unreachable!("deferred literals are resolved before lowering")
@@ -3238,6 +3244,10 @@ impl Checker {
         match ty {
             Ty::Int | Ty::Nat | Ty::Bool | Ty::Unit | Ty::Prim(_) | Ty::Ref(_, _) => true,
             Ty::Bytes | Ty::Meta(_) | Ty::Mut(_, _) | Ty::Thunk { .. } | Ty::Lazy { .. } => false,
+            // `Sym` is a handle to runtime-owned interned state; the
+            // specification grants it `Eq`/`Ord`/`Show` only (primitive
+            // types specification section 9), never `Copy`.
+            Ty::Sym => false,
             // An owned boundary pointer transfers ownership exactly once
             // (foreign function interface specification section 3), so it
             // is not duplicable; raw and borrow roles are plain addresses
@@ -3336,9 +3346,10 @@ impl Checker {
 
     /// The constant of literal `digits` at type `ty`. `Nat` and `Int` are
     /// mathematical: the digits become a boxed bignum materialised through
-    /// the runtime, and a `Nat` literal must not be negative. Every other
-    /// type range-checks to a canonical `i64` word (section 7: out-of-range
-    /// literals are compile errors).
+    /// the runtime, and a `Nat` literal must not be negative. `Sym` names
+    /// the interned cell of the spelling (primitive types specification
+    /// section 9). Every other type range-checks to a canonical `i64` word
+    /// (section 7: out-of-range literals are compile errors).
     fn literal_const(&self, ty: &Ty, digits: &str, span: ast::Span) -> Result<ECore> {
         match ty {
             Ty::Nat => {
@@ -3351,6 +3362,7 @@ impl Checker {
                 Ok(ECore::ConstBig { nat: true, digits: digits.to_string() })
             }
             Ty::Int => Ok(ECore::ConstBig { nat: false, digits: digits.to_string() }),
+            Ty::Sym => Ok(ECore::ConstSym(digits.to_string())),
             t => Ok(ECore::Int(self.literal_word(t, digits, span)?)),
         }
     }
@@ -3505,7 +3517,7 @@ impl Checker {
             }
             ECore::Int(_)
             | ECore::ConstBig { .. }
-            | ECore::ConstBytes(_)
+            | ECore::ConstBytes(_) | ECore::ConstSym(_)
             | ECore::Lit(_)
             | ECore::Bool(_)
             | ECore::Unit
@@ -4939,6 +4951,7 @@ impl Checker {
                     ["Bool"] => Ok(Ty::Bool),
                     ["Unit"] => Ok(Ty::Unit),
                     ["Bytes"] => Ok(Ty::Bytes),
+                    ["Sym"] => Ok(Ty::Sym),
                     // Universes (dependent core kernel design, section 2):
                     // `Type` is `Type 0`, and `Type : Type 1`, so
                     // `Type : Type` is never admitted.
@@ -5904,7 +5917,7 @@ impl Checker {
                 Some(d) => dict_expr_ecore(d),
                 None => return Err(Error::plain("internal error: unsolved dictionary hole")),
             },
-            ECore::Int(_) | ECore::ConstBig { .. } | ECore::ConstBytes(_) | ECore::Lit(_) | ECore::Bool(_)
+            ECore::Int(_) | ECore::ConstBig { .. } | ECore::ConstBytes(_) | ECore::ConstSym(_) | ECore::Lit(_) | ECore::Bool(_)
             | ECore::Unit | ECore::Var(_) | ECore::Global(_)
             | ECore::Ctor(_) | ECore::Prim(_) | ECore::Foreign(_) | ECore::QuoteHole(_)
             | ECore::IdxPending(_) | ECore::Fault

@@ -380,7 +380,20 @@ fn facade_export_list_is_the_checked_surface() {
         "the surface enumeration looks empty: {} names",
         checked.len()
     );
-    for name in ["nat-add", "Cons", "==", "pure", "map", "char-string", "fetch", "String"] {
+    for name in [
+        "nat-add",
+        "Cons",
+        "==",
+        "pure",
+        "map",
+        "char-string",
+        "fetch",
+        "String",
+        // The deliberate P24 addition (primitive types specification
+        // section 9 puts both in the prelude).
+        "intern",
+        "sym-name",
+    ] {
         assert!(checked.contains(name), "the pre-split surface should contain {name}");
     }
     for name in ["invert", "show", "hash", "encode", "decode", "add", "zero", "set-insert"] {

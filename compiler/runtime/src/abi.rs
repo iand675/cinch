@@ -35,6 +35,10 @@ pub const KIND_INT: i64 = 2;
 /// Block kind tag: a `Bytes` buffer.
 pub const KIND_BYTES: i64 = 3;
 
+/// Block kind tag: a `Sym` interned name cell (primitive types
+/// specification section 9).
+pub const KIND_SYM: i64 = 4;
+
 /// Heap block behind a bignum word.
 ///
 /// `kind` is the first machine word so a corrupt word faults instead of
@@ -67,6 +71,28 @@ pub(crate) fn box_bytes(v: crate::bytes::Bytes) -> i64 {
         kind: KIND_BYTES,
         value: v,
     })) as usize as i64
+}
+
+/// Box one interned name cell (the cell is handed out once per name and
+/// never freed, so its word is the name's identity).
+pub(crate) fn box_sym(v: crate::sym::SymCell) -> i64 {
+    Box::into_raw(Box::new(Boxed {
+        kind: KIND_SYM,
+        value: v,
+    })) as usize as i64
+}
+
+/// Read a `Sym` word, faulting on null or wrong-kind blocks.
+pub(crate) unsafe fn as_sym<'a>(word: i64) -> &'a crate::sym::SymCell {
+    let p = word as *const Boxed<crate::sym::SymCell>;
+    if p.is_null() {
+        raise(Error::CorruptValue);
+    }
+    let b = unsafe { &*p };
+    if b.kind != KIND_SYM {
+        raise(Error::CorruptValue);
+    }
+    &b.value
 }
 
 /// Fault through the `sl_panic` path: write `msg` to stderr and exit 71.

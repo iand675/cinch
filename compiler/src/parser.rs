@@ -168,6 +168,8 @@ fn describe(tok: &Tok) -> String {
         Tok::FloatLit(_) => "a float literal".into(),
         Tok::StrLit(_) => "a string literal".into(),
         Tok::CharLit(_) => "a character literal".into(),
+        Tok::SymLit(s) => format!("symbol `'{s}`"),
+        Tok::TypeNameLit(s) => format!("type name `''{s}`"),
         Tok::Fragment(_) => "an inline target-IR fragment".into(),
         Tok::Tilde => "`~`".into(),
         other => format!("{other:?}"),
@@ -1828,6 +1830,7 @@ impl<'a> Parser<'a> {
             | Tok::Int(_)
             | Tok::StrLit(_)
             | Tok::CharLit(_)
+            | Tok::SymLit(_)
             | Tok::Underscore => {
                 // `VarId` reaches here only as the wildcard binder `_`
                 // (`let _ = e`: the purposeful discard of the
@@ -1873,7 +1876,8 @@ impl<'a> Parser<'a> {
         matches!(
             self.peek_tok(),
             Tok::VarId(_) | Tok::ConId(_) | Tok::Int(_) | Tok::StrLit(_) | Tok::CharLit(_)
-                | Tok::LParen | Tok::LBracket | Tok::Underscore | Tok::Tilde
+                | Tok::SymLit(_) | Tok::TypeNameLit(_) | Tok::LParen | Tok::LBracket
+                | Tok::Underscore | Tok::Tilde
         ) || matches!(self.peek_tok(), Tok::Op(s) if s == "-")
     }
 
@@ -1969,6 +1973,13 @@ impl<'a> Parser<'a> {
                 self.bump();
                 Ok(Pat::Int(v, span))
             }
+            Tok::SymLit(s) => {
+                // `'name` in pattern position: the interned `Sym`
+                // constant, identity-tested (surface grammar local
+                // amendments section 12).
+                self.bump();
+                Ok(Pat::Sym(s, span))
+            }
             Tok::ConId(_) => {
                 let path = self.parse_con_path()?;
                 if self.at(&Tok::LBrace) {
@@ -2015,6 +2026,9 @@ impl<'a> Parser<'a> {
             Tok::StrLit(_) | Tok::CharLit(_) | Tok::FloatLit(_) => Err(self.err(
                 "string, character and float literal patterns are not supported in the bootstrap slice",
             )),
+            Tok::TypeNameLit(s) => Err(self.err(format!(
+                "the type name quote `''{s}` belongs to a staging or macro name position (surface grammar local amendments section 12)"
+            ))),
             Tok::Tilde => Err(self.err(
                 "irrefutable (`~`) patterns are not supported in the bootstrap slice",
             )),
@@ -2034,6 +2048,8 @@ impl<'a> Parser<'a> {
                     | Tok::FloatLit(_)
                     | Tok::StrLit(_)
                     | Tok::CharLit(_)
+                    | Tok::SymLit(_)
+                    | Tok::TypeNameLit(_)
                     | Tok::LParen
                     | Tok::LBracket
                     | Tok::LQuote
@@ -2321,6 +2337,15 @@ impl<'a> Parser<'a> {
                 self.bump();
                 Ok(Term::Char(s, span))
             }
+            Tok::SymLit(s) => {
+                // `'name` in expression position: the interned `Sym`
+                // constant (surface grammar local amendments section 12).
+                self.bump();
+                Ok(Term::Sym(s, span))
+            }
+            Tok::TypeNameLit(s) => Err(self.err(format!(
+                "the type name quote `''{s}` belongs to a staging or macro name position (surface grammar local amendments section 12); type-level symbols are deferred (the spelling is reserved)"
+            ))),
             Tok::FloatLit(_) => Err(self.err(
                 "float literals are not supported in the bootstrap slice (there is no AST node for them)",
             )),
@@ -2912,6 +2937,12 @@ impl<'a> Parser<'a> {
                 self.bump();
                 Ok(Type::Num(s, span))
             }
+            Tok::SymLit(s) => Err(self.err(format!(
+                "the symbol `'{s}` is not a type: type-level symbols are deferred (the `'` spelling is reserved at the type level)"
+            ))),
+            Tok::TypeNameLit(s) => Err(self.err(format!(
+                "the type name quote `''{s}` belongs to a staging or macro name position (surface grammar local amendments section 12); type-level symbols are deferred (the spelling is reserved)"
+            ))),
             Tok::LParen => {
                 self.bump();
                 if self.at(&Tok::RParen) {

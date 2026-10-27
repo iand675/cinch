@@ -56,6 +56,10 @@ pub const PRELUDE_EARLY: &[(&str, &str)] = &[
     ("Data/FromList.lang", include_str!("../prelude/Data/FromList.lang")),
     ("Data/FromMap.lang", include_str!("../prelude/Data/FromMap.lang")),
     ("Text/Show.lang", include_str!("../prelude/Text/Show.lang")),
+    // `Data.Sym` collects after `Text.Show` (its `Show` instance) and
+    // `Data.String` (its name conversions); the facade collects after
+    // the whole family.
+    ("Data/Sym.lang", include_str!("../prelude/Data/Sym.lang")),
 ];
 
 /// The rest of the base library family (the class modules and the

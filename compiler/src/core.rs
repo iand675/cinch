@@ -460,6 +460,46 @@ impl Utf8Op {
     }
 }
 
+/// Interned symbol operations (`safelang.runtime.sym*`; runtime ABI,
+/// `sl_sym_*` over `compiler/runtime/src/sym.rs`). `Sym` is a one-word
+/// handle to a process-wide interned name cell (primitive types
+/// specification section 9): `Eq` is the identity pointer test and
+/// `Cmp` orders by the name's bytes (never by cell address), so the
+/// order is deterministic across runs.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum SymOp {
+    /// `symIntern :: Bytes -> Sym`: the cell for the buffer's name.
+    Intern,
+    /// `symName :: Sym -> Bytes`: a fresh buffer holding the name.
+    Name,
+    /// `symEq :: Sym -> Sym -> Bool`: identity (the same cell).
+    Eq,
+    /// `symCmp :: Sym -> Sym -> I64`: the raw -1, 0 or 1 of the
+    /// lexicographic name order (`natCmp`'s convention).
+    Cmp,
+}
+
+impl SymOp {
+    fn name(self) -> &'static str {
+        match self {
+            SymOp::Intern => "Intern",
+            SymOp::Name => "Name",
+            SymOp::Eq => "Eq",
+            SymOp::Cmp => "Cmp",
+        }
+    }
+
+    /// The runtime extern this operation is emitted against.
+    pub fn extern_name(self) -> &'static str {
+        match self {
+            SymOp::Intern => "sl_sym_intern",
+            SymOp::Name => "sl_sym_name",
+            SymOp::Eq => "sl_sym_eq",
+            SymOp::Cmp => "sl_sym_cmp",
+        }
+    }
+}
+
 /// The structured-concurrency and runtime I/O operations (concurrency
 /// specification sections 2, 3, 4 and 9). These are builtin values with
 /// compiler-known polymorphic schemes (`Checker::install_concurrency_api`),
@@ -532,6 +572,9 @@ pub enum PrimOp {
     /// UTF-8 string operations on boxed byte buffers
     /// (`safelang.runtime.utf8*`; runtime ABI, `sl_utf8_*`).
     Utf8(Utf8Op),
+    /// Interned symbol operations on name-cell handles
+    /// (`safelang.runtime.sym*`; runtime ABI, `sl_sym_*`).
+    Sym(SymOp),
     EqBool,
     NeBool,
     NotBool,
@@ -671,6 +714,10 @@ impl PrimOp {
                 "utf8CountChars" => Utf8(Utf8Op::CountChars),
                 "utf8DecodeAt" => Utf8(Utf8Op::DecodeAt),
                 "utf8Encode" => Utf8(Utf8Op::Encode),
+                "symIntern" => Sym(SymOp::Intern),
+                "symName" => Sym(SymOp::Name),
+                "symEq" => Sym(SymOp::Eq),
+                "symCmp" => Sym(SymOp::Cmp),
                 _ => return None,
             });
         }
@@ -706,6 +753,7 @@ impl PrimOp {
             Int(op) => return format!("safelang.runtime.int{}", op.name()),
             Bytes(op) => return format!("safelang.runtime.bytes{}", op.name()),
             Utf8(op) => return format!("safelang.runtime.utf8{}", op.name()),
+            Sym(op) => return format!("safelang.runtime.sym{}", op.name()),
             EqBool => return "safelang.prim.eqBool".to_string(),
             NeBool => return "safelang.prim.neBool".to_string(),
             NotBool => return "safelang.prim.notBool".to_string(),
@@ -759,6 +807,7 @@ impl PrimOp {
             | Bytes(BytesOp::New | BytesOp::Len)
             | Utf8(Utf8Op::Validate | Utf8Op::CountChars | Utf8Op::Encode) => 1,
             Bytes(BytesOp::Set) => 3,
+            Sym(SymOp::Intern | SymOp::Name) => 1,
             Neg { .. } | BitNot { .. } | BitScan { .. } | FloatUn { .. } | FClass { .. }
             | CharToU32 | U32ToChar | Conv { .. } | Delay | Force | Demand | NotBool | Eval => 1,
             Conc(k) => k.arity(),
@@ -821,6 +870,10 @@ impl PrimOp {
                 (vec![Ty::Bytes, Ty::Nat], opt(Ty::Tuple(vec![prim(Scalar::Char), Ty::Nat])))
             }
             Utf8(Utf8Op::Encode) => (vec![prim(Scalar::Char)], Ty::Bytes),
+            Sym(SymOp::Intern) => (vec![Ty::Bytes], Ty::Sym),
+            Sym(SymOp::Name) => (vec![Ty::Sym], Ty::Bytes),
+            Sym(SymOp::Eq) => (vec![Ty::Sym, Ty::Sym], Ty::Bool),
+            Sym(SymOp::Cmp) => (vec![Ty::Sym, Ty::Sym], i64t),
             EqBool | NeBool | AndBool | OrBool => (vec![Ty::Bool, Ty::Bool], Ty::Bool),
             NotBool => (vec![Ty::Bool], Ty::Bool),
             Delay | Force | Demand | Eval => {
@@ -1148,6 +1201,13 @@ pub enum Core {
     /// buffer through `sl_bytes_from_data` (the P14 constant-emission
     /// path).
     ConstBytes(Vec<u8>),
+    /// Constant `Sym`: the interned name of a tick literal (primitive
+    /// types specification section 9). Code generation emits the name as
+    /// a private constant and materialises the cell through
+    /// `sl_sym_intern` (the P14 constant-emission path); the runtime
+    /// table is keyed by name, so `intern` of an equal name resolves to
+    /// this same cell.
+    ConstSym(String),
     Bool(bool),
     Unit,
     /// Local binder (value or dictionary binder).
@@ -1421,6 +1481,10 @@ pub enum Value {
     /// [`Core::ConstBytes`] is its target form). The buffer is shared
     /// and mutated in place, like the runtime's `Bytes` words.
     Bytes(std::rc::Rc<std::cell::RefCell<Vec<u8>>>),
+    /// An interned symbol: the name stands for the process-wide interned
+    /// cell (compile-time identity is name identity: the interpreter
+    /// never exposes a cell address as data).
+    Sym(String),
     Bool(bool),
     Unit,
     /// Boxed ADT or record: tag plus runtime fields. `ctor` is the
@@ -2467,7 +2531,7 @@ pub fn tail_report(program: &Program) -> Vec<TailGroup> {
         out: &mut Vec<String>,
     ) {
         match e {
-            Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::Bool(_) | Core::Unit | Core::Var(_)
+            Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Var(_)
             | Core::Global(_) | Core::Ctor(_) | Core::Prim(_) | Core::Foreign(_)
             | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc
             | Core::SyntaxLit(_) | Core::StrLit(_) => {}
@@ -2745,7 +2809,7 @@ fn calls_walk(
     out: &mut Vec<CallSite>,
 ) {
     match e {
-        Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::Bool(_) | Core::Unit
+        Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstSym(_) | Core::Bool(_) | Core::Unit
         | Core::Var(_) | Core::Global(_) | Core::Ctor(_) | Core::Prim(_) | Core::Foreign(_)
         | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc
         | Core::SyntaxLit(_) | Core::StrLit(_) => {}
@@ -3091,7 +3155,7 @@ fn max_local(e: &Core) -> usize {
 pub fn walk_locals(e: &Core, f: &mut impl FnMut(LocalId)) {
     match e {
         Core::Var(l) => f(*l),
-        Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::Bool(_) | Core::Unit | Core::Global(_)
+        Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(_)
         | Core::Ctor(_) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(_)
         | Core::StrLit(_) => {}
         Core::DictProj(d, _) | Core::Proj(d, _) | Core::Demand(d) => walk_locals(d, f),
@@ -3171,7 +3235,7 @@ fn use_range(e: &Core, l: LocalId) -> (usize, usize) {
                 (0, 0)
             }
         }
-        Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::Bool(_) | Core::Unit | Core::Global(_)
+        Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(_)
         | Core::Ctor(_) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(_)
         | Core::StrLit(_) => (0, 0),
         Core::DictProj(d, _) | Core::Proj(d, _) | Core::Demand(d) => use_range(d, l),
@@ -3281,7 +3345,7 @@ fn renumber_core(e: &Core, nparams: usize) -> Core {
         };
         match e {
             Core::Var(l) => note(*l, map, next),
-            Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::Bool(_) | Core::Unit | Core::Global(_)
+            Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(_)
             | Core::Ctor(_) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(_)
             | Core::StrLit(_) => {}
             Core::DictProj(d, _) | Core::Proj(d, _) | Core::Demand(d) => assign(d, map, next),
@@ -3351,6 +3415,7 @@ fn renumber_core(e: &Core, nparams: usize) -> Core {
             Core::Int(v) => Core::Int(*v),
             Core::ConstBig { nat, digits } => Core::ConstBig { nat: *nat, digits: digits.clone() },
             Core::ConstBytes(b) => Core::ConstBytes(b.clone()),
+            Core::ConstSym(s) => Core::ConstSym(s.clone()),
             Core::Bool(b) => Core::Bool(*b),
             Core::Unit => Core::Unit,
             Core::Global(g) => Core::Global(g.clone()),
@@ -3463,6 +3528,7 @@ fn instantiate(
             Core::Int(v) => Core::Int(*v),
             Core::ConstBig { nat, digits } => Core::ConstBig { nat: *nat, digits: digits.clone() },
             Core::ConstBytes(b) => Core::ConstBytes(b.clone()),
+            Core::ConstSym(s) => Core::ConstSym(s.clone()),
             Core::Bool(b) => Core::Bool(*b),
             Core::Unit => Core::Unit,
             Core::Global(g) => Core::Global(g.clone()),
@@ -3743,6 +3809,39 @@ fn opt_value(ctors: &FoldCtors, v: Option<Core>) -> Option<Core> {
     }
 }
 
+/// Fold a symbol primitive on known constant arguments: the interned
+/// constants fold by name (equal names are equal cells), so the fold
+/// agrees with the runtime table's identity (primitive types
+/// specification section 9). An argument that is not a constant is not
+/// folded and keeps its runtime call.
+fn fold_sym(op: SymOp, args: &[Core]) -> Option<Core> {
+    fn name(a: &Core) -> Option<&str> {
+        match a {
+            Core::ConstSym(s) => Some(s.as_str()),
+            _ => None,
+        }
+    }
+    match op {
+        SymOp::Intern => match &args[0] {
+            Core::ConstBytes(b) => {
+                let s = std::str::from_utf8(b).ok()?;
+                Some(Core::ConstSym(s.to_string()))
+            }
+            _ => None,
+        },
+        SymOp::Name => Some(Core::ConstBytes(name(&args[0])?.as_bytes().to_vec())),
+        SymOp::Eq => Some(Core::Bool(name(&args[0])? == name(&args[1])?)),
+        SymOp::Cmp => {
+            let o = name(&args[0])?.as_bytes().cmp(name(&args[1])?.as_bytes());
+            Some(Core::Int(match o {
+                std::cmp::Ordering::Less => -1,
+                std::cmp::Ordering::Equal => 0,
+                std::cmp::Ordering::Greater => 1,
+            }))
+        }
+    }
+}
+
 /// Fold a primitive application on known arguments (supercompilation and
 /// JIT specification section 2: constant folding of pure total
 /// primitives, with the defined fault behavior for out-of-domain results:
@@ -3750,6 +3849,9 @@ fn opt_value(ctors: &FoldCtors, v: Option<Core>) -> Option<Core> {
 /// faults is never silently dropped).
 fn fold_prim(op: PrimOp, args: &[Core], ctors: &FoldCtors) -> Option<Core> {
     use self::big::Big;
+    if let PrimOp::Sym(sop) = op {
+        return fold_sym(sop, args);
+    }
     let words: Vec<i64> = args
         .iter()
         .map(|a| match a {
@@ -4052,7 +4154,7 @@ fn has_alloc(e: &Core) -> bool {
             | Core::BoxGet(_) | Core::Demand(_) | Core::Quote { .. }
             | Core::DeclsQuote { .. } => *found = true,
             Core::Prim(PrimOp::Delay) => *found = true,
-            Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::Bool(_) | Core::Unit | Core::Global(_)
+            Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(_)
             | Core::Ctor(_) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_)
             | Core::Fault | Core::SyntaxLit(_) | Core::StrLit(_)
             | Core::Var(_) => {}
@@ -4105,7 +4207,7 @@ struct OptCx {
 fn scan_calls(e: &Core, f: &mut impl FnMut(&GlobalId)) {
     match e {
         Core::Global(g) => f(g),
-        Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::Bool(_) | Core::Unit | Core::Ctor(_)
+        Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Ctor(_)
         | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(_) | Core::StrLit(_)
         | Core::Var(_) => {}
         Core::DictProj(d, _) | Core::Proj(d, _) | Core::Demand(d) => scan_calls(d, f),
@@ -4163,7 +4265,7 @@ fn scan_memo(e: &Core, n: &mut usize) {
         Core::LazyAlloc | Core::LazyInit(_, _) | Core::BoxAlloc | Core::BoxInit(_, _)
         | Core::RefSet(_, _)
         | Core::BoxGet(_) | Core::Demand(_) => *n += 1,
-        Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::Bool(_) | Core::Unit | Core::Global(_)
+        Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(_)
         | Core::Ctor(_) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_)
         | Core::Fault | Core::SyntaxLit(_) | Core::StrLit(_)
         | Core::Var(_) => {}
@@ -4222,7 +4324,7 @@ fn weights_ok(e: &Core) -> bool {
                     go(&a.body, ok);
                 }
             }
-            Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::Bool(_) | Core::Unit | Core::Global(_)
+            Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(_)
             | Core::Ctor(_) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(_)
             | Core::StrLit(_) | Core::Var(_) => {}
             Core::DictProj(d, _) | Core::Proj(d, _) | Core::Demand(d) | Core::BoxGet(d) => {
@@ -4257,7 +4359,7 @@ fn scope_ok(e: &Core, nparams: usize) -> bool {
     fn go(e: &Core, bound: &mut std::collections::HashSet<LocalId>) -> bool {
         match e {
             Core::Var(l) => bound.contains(l),
-            Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::Bool(_) | Core::Unit | Core::Global(_)
+            Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(_)
             | Core::Ctor(_) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(_)
             | Core::StrLit(_) => true,
             Core::DictProj(d, _) | Core::Proj(d, _) | Core::Demand(d) | Core::BoxGet(d) => {
@@ -4390,7 +4492,7 @@ fn body_impure(e: &Core) -> bool {
                     *bad = true;
                 }
             }
-            Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::Bool(_) | Core::Unit | Core::Global(_)
+            Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(_)
             | Core::Ctor(_) | Core::SpliceVal(_) | Core::LazyAlloc | Core::BoxAlloc
             | Core::SyntaxLit(_) | Core::StrLit(_) | Core::Var(_) => {}
             Core::DictProj(d, _) | Core::Proj(d, _) | Core::Demand(d) | Core::BoxGet(d) => {
@@ -5087,7 +5189,7 @@ impl Driver<'_> {
             }
             let atom = matches!(
                 arg,
-                Core::Var(_) | Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::Bool(_)
+                Core::Var(_) | Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstSym(_) | Core::Bool(_)
                     | Core::Unit | Core::Global(_) | Core::Ctor(_) | Core::Prim(_) | Core::Foreign(_)
             );
             if atom {
@@ -5174,7 +5276,7 @@ fn drop_dead(
 fn child_slots(e: &mut Core) -> Vec<&mut Core> {
     let mut out: Vec<&mut Core> = Vec::new();
     match e {
-        Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::Bool(_) | Core::Unit | Core::Global(_)
+        Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(_)
         | Core::Ctor(_) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(_)
         | Core::StrLit(_) | Core::Var(_) => {}
         Core::DictProj(d, _) | Core::Proj(d, _) | Core::Demand(d) | Core::BoxGet(d) => {
@@ -5707,7 +5809,7 @@ fn size_of(e: &Core) -> usize {
 fn child_slots_imm(e: &Core) -> Vec<&Core> {
     let mut out: Vec<&Core> = Vec::new();
     match e {
-        Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::Bool(_) | Core::Unit | Core::Global(_)
+        Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(_)
         | Core::Ctor(_) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(_)
         | Core::StrLit(_) | Core::Var(_) => {}
         Core::DictProj(d, _) | Core::Proj(d, _) | Core::Demand(d) | Core::BoxGet(d) => {

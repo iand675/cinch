@@ -11,7 +11,10 @@
 -- `export module X` re-exports of the homes' own curated surfaces and
 -- `export A.b` items for the `Text.Show` conversions. Curation
 -- trimming is deliberately NOT done here; a trim proposal is a
--- separate step.
+-- separate step. One addition is deliberate: `Data.Sym`'s `intern` and
+-- `sym-name` (interned symbols, primitive types specification section
+-- 9) extend the surface, since that specification puts both in the
+-- prelude.
 --
 -- The negative space is real: a name this list does not name is
 -- unreachable through `Prelude` (reach it with an explicit `import`
@@ -58,6 +61,7 @@ module Prelude where
   import Data.Producer
   import Data.Target
   import Text.Show
+  import Data.Sym
   import Prelude.Generated
 
 
@@ -101,6 +105,7 @@ module Prelude where
   export module Effect.Io
   export module Data.Producer
   export module Data.Target
+  export module Data.Sym
   export module Prelude.Generated
 
   -- The `Text.Show` surface is curated per name: the old surface's
