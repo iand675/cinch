@@ -9,6 +9,7 @@ usage:
   safelang emit-ir <file.lang> [-o <out.ll>]
   safelang build <file.lang> [-o <out>]
   safelang run <file.lang>            compile and run; exit code is the program's
+  safelang lsp                        run the language server over stdio
 ";
 
 fn main() {
@@ -18,6 +19,20 @@ fn main() {
         Some("emit-ir") => (Mode::EmitIr, &args[1..]),
         Some("build") => (Mode::Build, &args[1..]),
         Some("run") => (Mode::Run, &args[1..]),
+        Some("lsp") => {
+            // The language server over stdio (LSP's standard transport):
+            // the same `LspServer` the REPL analysis layer and the
+            // tooling driver share, driven by framed JSON-RPC on
+            // stdin/stdout.
+            let stdin = std::io::stdin();
+            let stdout = std::io::stdout();
+            let mut server = safelang::lsp::LspServer::new();
+            if let Err(e) = server.run(std::io::BufReader::new(stdin.lock()), stdout.lock()) {
+                eprintln!("safelang: {e}");
+                exit(1);
+            }
+            exit(0);
+        }
         _ => {
             eprint!("{USAGE}");
             exit(2);

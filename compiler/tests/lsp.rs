@@ -564,3 +564,74 @@ fn walk_strings(v: &Json, key_path: &[String]) {
         _ => {}
     }
 }
+
+/// `safelang lsp` runs the server: the subcommand's real process speaks
+/// the handshake over its stdio in the harness's framing shape
+/// (initialize, initialized, shutdown, exit) and exits zero.
+#[test]
+fn the_lsp_subcommand_runs_the_server_over_stdio() {
+    use safelang::lsp::read_frame;
+    use std::process::{Command, Stdio};
+
+    let mut child = Command::new(env!("CARGO_BIN_EXE_safelang"))
+        .arg("lsp")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("spawn safelang lsp");
+    let request = |id: f64, method: &str| {
+        Json::obj(vec![
+            ("jsonrpc", Json::Str("2.0".to_string())),
+            ("id", Json::Num(id)),
+            ("method", Json::Str(method.to_string())),
+            ("params", Json::Null),
+        ])
+        .to_text()
+    };
+    let notify = |method: &str| {
+        Json::obj(vec![
+            ("jsonrpc", Json::Str("2.0".to_string())),
+            ("method", Json::Str(method.to_string())),
+            ("params", Json::Null),
+        ])
+        .to_text()
+    };
+    {
+        let stdin = child.stdin.as_mut().expect("child stdin");
+        let init = Json::obj(vec![
+            ("jsonrpc", Json::Str("2.0".to_string())),
+            ("id", Json::Num(1.0)),
+            ("method", Json::Str("initialize".to_string())),
+            ("params", Json::obj(vec![
+                ("processId", Json::Null),
+                ("rootUri", Json::Str("file:///project".to_string())),
+            ])),
+        ])
+        .to_text();
+        for body in [
+            init,
+            notify("initialized"),
+            request(2.0, "shutdown"),
+            notify("exit"),
+        ] {
+            stdin.write_all(&frame(&body)).expect("write to safelang lsp");
+        }
+        stdin.flush().expect("flush safelang lsp stdin");
+    }
+    drop(child.stdin.take());
+    let mut reader = BufReader::new(child.stdout.take().expect("child stdout"));
+    let mut msgs = Vec::new();
+    while let Some(body) = read_frame(&mut reader).expect("frame from safelang lsp") {
+        msgs.push(parse_json(&body).expect("json from safelang lsp"));
+    }
+    let status = child.wait().expect("wait for safelang lsp");
+    assert!(status.success(), "safelang lsp exits zero: {status:?}");
+    let response = |id: f64| {
+        msgs.iter()
+            .find(|m| m.get("id").and_then(|i| i.as_num()) == Some(id))
+            .unwrap_or_else(|| panic!("no response to request {id}: {msgs:?}"))
+    };
+    assert!(response(1.0).get("result").is_some(), "{msgs:?}");
+    assert!(response(2.0).get("result").is_some(), "{msgs:?}");
+}
