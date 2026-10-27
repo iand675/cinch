@@ -14,7 +14,7 @@ assertion attributes.
 
 ## The rule mapping
 
-| JPL rule | Status in SafeLang | Mechanism |
+| JPL rule | Status in Cinch | Mechanism |
 | --- | --- | --- |
 | 1. Simple control flow; no goto/setjmp; recursion bounded | attribute | no `goto` exists; `#[recursion "none"\|"tail"\|"bounded(n)"]` asserts per definition (see below); `corec` productivity already bounds corecursion |
 | 2. Every loop has a fixed upper bound | attribute + types | loops are recursion: `#[recursion "bounded(n)"]` asserts a static depth bound (structural recursion over `Vec`/`Nat` sizes proves it via the totality machinery; otherwise the bound is checked conservatively and the report says how); tail-recursive iteration is bounded by its `Nat`/`Fin` arguments (the bounded-counter pattern) |
@@ -42,7 +42,7 @@ Semantics (D111-D114):
   asserts, and the offending site (a tail-position violation names the
   call; an allocation violation names the constructor).
 - Verified assertions are **part of the contract**: recorded in
-  `.sliface` and hashed into `iface_hash` exactly like `repr` facts
+  `.cinchif` and hashed into `iface_hash` exactly like `repr` facts
   (P17), so consumers may rely on `#[no-alloc]` across a call without
   re-deriving it. A definition that stops satisfying its assertion does
   not compile; an interface change is an interface change.
@@ -63,7 +63,7 @@ Semantics (D111-D114):
 
 The dangerous rules of flight software are the ones about behavior the
 language cannot see (pointer arithmetic, unbounded loops, hidden
-allocation). SafeLang removes the first category by construction and
+allocation). Cinch removes the first category by construction and
 makes the second and third *visible and assertable*: the assertions
 compile-time-verified, contract-hashed, and profile-enforced. What
 remains genuinely unverifiable (arbitrary numeric bounds on

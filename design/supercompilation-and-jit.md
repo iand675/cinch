@@ -1,7 +1,7 @@
 # Supercompilation and JIT systems
 
 Design study for whole-program specialization (offline supercompilation)
-and runtime specialization (JIT) over the SafeLang core. Status: the
+and runtime specialization (JIT) over the Cinch core. Status: the
 normative rules are now `specifications/supercompilation-and-jit-specification.md`;
 this note is the implementation reference, and the implementation items
 ride the existing phases (section 9), tracked in
@@ -106,11 +106,11 @@ checkable by rerunning existing machinery:
 | Codata productivity preserved | the P8 guard check |
 | Erasure preserved (no evidence reaches runtime) | the erasure pass |
 | Capability requirements unchanged or narrowed | `Io`-head solving (D21) |
-| Contract identity unchanged | `.sliface` contract projection (D4): specialization is representation-only |
+| Contract identity unchanged | `.cinchif` contract projection (D4): specialization is representation-only |
 
 The last row is the interface rule: a specialized variant of a module
 has the same contract hash as its generic form. Specialization MUST NOT
-change what a dependent observes, so `.sliface` identity excludes
+change what a dependent observes, so `.cinchif` identity excludes
 specialization state while the artifact manifest records it (section 8).
 
 ## 5 Trust model
@@ -210,7 +210,7 @@ the deployment boundary, not per-function signatures.
 - Secrets and absolute paths MUST NOT appear in residual code or
   reports (the stage I/O rule of modules section 10 applies equally to
   runtime-generated code).
-- A specialized variant's `.sliface` is byte-identical to its generic
+- A specialized variant's `.cinchif` is byte-identical to its generic
   form's (section 4), so specialization never stales dependents.
 
 ## 9 Relationship to the roadmap

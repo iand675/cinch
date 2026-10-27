@@ -23,7 +23,7 @@ identified explicitly; unresolved items are listed in Open decisions.
 The compiler today carries a closed set of primitive operations
 (`checkedAddI64`, `bytesGet`, and the rest) known to the compiler by
 name, declared in the prelude as `foreign import ccall
-"safelang.prim.*"`, and lowered by the code generator to inline target
+"cinch.prim.*"`, and lowered by the code generator to inline target
 instructions (for example `checkedAddI64` lowers to
 `llvm.sadd.with.overflow.i64`; no call is emitted). Two limits follow:
 the set can only grow by editing the compiler, and each operation's
@@ -163,8 +163,8 @@ the contract), and the report says so.
 
 # 7 Relationship to existing machinery
 
-- **The intrinsic namespaces stay reserved** (`safelang.prim.*`,
-  `safelang.runtime.*`, decision D73). The existing intrinsic
+- **The intrinsic namespaces stay reserved** (`cinch.prim.*`,
+  `cinch.runtime.*`, decision D73). The existing intrinsic
   declarations elaborate to compiler-provided `prim` definitions; a
   user `prim` MUST NOT claim those names. Migration of the intrinsic
   set to `prim` declarations in the prelude is an implementation

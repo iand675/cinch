@@ -1,6 +1,6 @@
 # Dependent core kernel design
 
-Design note for the SafeLang toolchain, roadmap slice P7 in
+Design note for the Cinch toolchain, roadmap slice P7 in
 `compiler/CONFORMANCE.md`. Companion to the core language specification,
 which states obligations; this note fixes the kernel shape and its mapping
 onto the existing pipeline.

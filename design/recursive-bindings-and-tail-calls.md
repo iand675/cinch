@@ -102,5 +102,5 @@ All prelude FUNCTION names move to dash style (`nat-to-string`,
 spelling with `bitAnd` as a transitional alias if needed). Type and
 class names stay PascalCase (`String`, `Bits`, `FromList`). This
 supersedes the D6/D64 spelling notes for the prelude's own API; the
-intrinsic symbol names (`safelang.prim.*`) stay as they are (they are
+intrinsic symbol names (`cinch.prim.*`) stay as they are (they are
 symbol identity, not surface API).

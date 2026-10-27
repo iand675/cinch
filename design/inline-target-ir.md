@@ -9,7 +9,7 @@ dashes.
 ## 1 What exists today (the thing being externalized)
 
 `core.rs` has a closed `PrimOp` enum: `from_symbol`/`symbol` map
-`"safelang.prim.checkedAddI64"` to a variant, `arity()`/`sig()` give the
+`"cinch.prim.checkedAddI64"` to a variant, `arity()`/`sig()` give the
 type, and `codegen.rs` lowers each variant to inline target
 instructions (checked arithmetic becomes
 `llvm.<sign><op>.with.overflow.iN`, bytes ops become loads/stores, and
@@ -70,7 +70,7 @@ unchanged.
 - Phase 1 (this phase): `PrimOp` stays; `prim` declarations compile to
   the same unit shape. The intrinsic namespaces stay reserved (D73).
 - Phase 2 (optional, Open decision): rewrite the prelude's
-  `foreign import ccall "safelang.prim.*"` declarations as `prim`
+  `foreign import ccall "cinch.prim.*"` declarations as `prim`
   declarations with `llvm` bodies reproducing today's lowering, then
   delete the `PrimOp` variants one family at a time. The compiler's
   set becomes literally the user's set; `PrimOp` shrinks to whatever
@@ -98,7 +98,7 @@ unchanged.
   authoritative at emission, both reported).
 - How `uses` contracts interact with the interface foreign table
   (this design: they are recorded as foreign dependencies of the prim,
-  so a prim's ABI surface is fully visible in `.sliface`).
+  so a prim's ABI surface is fully visible in `.cinchif`).
 - Whether prim bodies may contain `select`/`phi`-style control flow
   (this design: structured straight-line plus the family's own branch
   forms; no back-edges, so prim bodies stay total-by-construction).

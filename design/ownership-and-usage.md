@@ -1,6 +1,6 @@
 # Ownership, usage and regions design
 
-Design note for the SafeLang toolchain, roadmap slice P5 in
+Design note for the Cinch toolchain, roadmap slice P5 in
 `compiler/CONFORMANCE.md`. Companion to the core language specification
 (sections 3, 7) and the laziness and reclamation specification, which state
 obligations; this note fixes the checking discipline.

@@ -1,6 +1,6 @@
 # Compiled interface metadata
 
-Design note for the SafeLang toolchain. Companion to
+Design note for the Cinch toolchain. Companion to
 [Modules and compilation specification](../specifications/modules-and-compilation-specification.md);
 where that chapter states obligations, this note fixes the mechanism.
 
@@ -30,14 +30,14 @@ Each compiled module produces a pair:
 
 ```
 build/<Module>.o         native object (LLVM IR compiled by clang)
-build/<Module>.sliface   compiled interface metadata
+build/<Module>.cinchif   compiled interface metadata
 ```
 
-and the toolchain additionally links the Rust runtime `libslruntime.a`
+and the toolchain additionally links the Rust runtime `libcinchruntime.a`
 (runtime is Rust; see `compiler/runtime/src/lib.rs` for the runtime ABI
 reference).
 
-`.sliface` is canonical JSON: UTF-8, keys in the fixed order below, one
+`.cinchif` is canonical JSON: UTF-8, keys in the fixed order below, one
 canonical spelling for every type and row, no timestamps. Its content hash is
 the module's **interface identity** (`iface_hash`); rebuilds that change
 nothing observable produce the same identity.
@@ -47,7 +47,7 @@ nothing observable produce the same identity.
 ```text
 schema          interface format version (integer)
 language        language draft this artifact conforms to
-runtime_abi     runtime ABI version (must match libslruntime.a)
+runtime_abi     runtime ABI version (must match libcinchruntime.a)
 compiler        compiler version that produced it
 module          module name
 source_hash     hash of the canonical source text
@@ -64,7 +64,7 @@ exports
   foreign       [{ symbol, abi, external, type, effects, notes }] (FFI
                 contracts; see the FFI specification for their obligations)
 assumptions
-  primitives    [ "safelang.prim.*" ] used by this module's code
+  primitives    [ "cinch.prim.*" ] used by this module's code
   foreign       external symbols relied on (the trusted boundary entries)
   declared      trusted assumptions named by policy, if any
 abi
@@ -94,7 +94,7 @@ trusted kernel of the artifact; everything else is checked against them.
 # 3 Consumption rules
 
 1. **Importers read interfaces, not sources.** The driver compiles each
-   module to `.o` + `.sliface`; checking a module loads the `.sliface` of
+   module to `.o` + `.cinchif`; checking a module loads the `.cinchif` of
    every import (recursively through `imports` for transitive names).
 2. **Name visibility** follows the language rules: a module's own names,
    then imported modules' exports (unqualified and `M.x` qualified).
@@ -111,7 +111,7 @@ trusted kernel of the artifact; everything else is checked against them.
    `"<module>.<instance>.mk"` construction units; importers reference the
    symbol recorded in `abi.symbols` rather than recomputing names.
 6. **Linking** produces one binary from the module objects plus
-   `libslruntime.a`. The final artifact records the union of
+   `libcinchruntime.a`. The final artifact records the union of
    `assumptions` across its modules and the `runtime_abi` it linked against
    (an artifact manifest, per core specification section 11).
 

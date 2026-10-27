@@ -16,14 +16,14 @@ changes cost far less than relinking. Goals: no build cache as single
 point of failure, and unchanged recompilation latency as codebases
 grow.
 
-## Why SafeLang is unusually well positioned
+## Why Cinch is unusually well positioned
 
 - Artifacts are already content-addressed: every unit's identity is a
   content hash, `iface_hash` is a contract-only hash (D9), and a
   dependency is an interface (D3), so a body-only edit already should
-  not stale dependents through the hash chain. `.sliface` is
+  not stale dependents through the hash chain. `.cinchif` is
   declaration-level by construction (LINK's model needs no rework).
-- The `.sliface` dependency chain is already the incremental unit:
+- The `.cinchif` dependency chain is already the incremental unit:
   the LSP reports `rechecked`/`kept`/`chain_ok` over exactly it
   (D220).
 - Durable code identity exists (D126/D127 unit identity, A5's
@@ -38,7 +38,7 @@ grow.
 1. **REAPER-equivalent**: on-demand construction of a whole-program
    item graph (units, classes, instances, refinements, contracts) with
    edges labeled by kind (type/contract vs body) and direction. The
-   `.sliface` chain plus the P20/P28 contract facts are the labels;
+   `.cinchif` chain plus the P20/P28 contract facts are the labels;
    P20's assertions and law identities are node attributes.
 2. **INCR-equivalent**: a persistent compiler session that recompiles
    changed functions only and type-checks the reachability closure of

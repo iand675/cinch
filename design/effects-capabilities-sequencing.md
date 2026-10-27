@@ -1,6 +1,6 @@
 # Effects, capabilities and sequencing design
 
-Design note for the SafeLang toolchain, roadmap slice P6 in
+Design note for the Cinch toolchain, roadmap slice P6 in
 `compiler/CONFORMANCE.md`. Companion to the runtime capabilities, effects
 and sequencing specification, which fixes the three independent choices
 (effect rows, lexical capabilities, sequencing modules); this note fixes the
@@ -113,7 +113,7 @@ global.
   dictionary application.
 - `core.rs`/`codegen.rs`: handler records (dict of closures), one-shot
   resumption closures, `do` bind as ordinary calls.
-- Runtime (`slruntime`): `Runtime.newIO`, a fault policy for unhandled
+- Runtime (`cinchruntime`): `Runtime.newIO`, a fault policy for unhandled
   effects (an unhandled operation is a defined `BlackHole`-class fault with
   its own exit code), and the identity allocation for `r`.
 

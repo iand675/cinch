@@ -1,8 +1,8 @@
 # Standard library expansion and the bootstrap program (P30-P35)
 
 Roadmap plan, 2026-10-27 (user direction). The framing is the
-bootstrap test: every family is ranked by what a SafeLang compiler
-written in SafeLang needs. No em dashes.
+bootstrap test: every family is ranked by what a Cinch compiler
+written in Cinch needs. No em dashes.
 
 ## The families and where they land
 
@@ -17,7 +17,7 @@ written in SafeLang needs. No em dashes.
 2. **JSON (P31)** - aeson territory, and half-built already: the
    `Json` family exists (D148), `Text.Codec` has `encode`/`decode`,
    A6 has `CodecGenerator.derive`. Work: a real parser and printer,
-   **canonical JSON** (manifests and `.sliface` round-trips must be
+   **canonical JSON** (manifests and `.cinchif` round-trips must be
    deterministic), `JsonCodec` instances aligned with `Text.Codec`,
    schema alignment with the A6 vocabulary. FIRST priority: everything
    above us is JSON (manifests, schemas, trace payloads).
@@ -43,8 +43,8 @@ written in SafeLang needs. No em dashes.
    (spawn/exec for driving clang and lld, env, args, exit codes,
    pipes - bootstrapping depends on this).
 6. **Bootstrap milestones (P35)** - the acceptance ladder:
-   (1) a SafeLang program parses the language's own grammar (P30),
-   (2) reads and writes a manifest `.sliface`-canonically (P31),
+   (1) a Cinch program parses the language's own grammar (P30),
+   (2) reads and writes a manifest `.cinchif`-canonically (P31),
    (3) type-checks a fragment (the checker port),
    (4) emits LLVM IR text (the codegen port),
    (5) drives clang via process spawn (P34),
@@ -56,9 +56,9 @@ written in SafeLang needs. No em dashes.
   level; fnv1a is not enough for cross-machine identity; P29's
   caching depends on it).
 - CLI argument parsing (the driver port).
-- Canonical serialization round-trips for `.sliface`/manifests (part
+- Canonical serialization round-trips for `.cinchif`/manifests (part
   of P31).
-- A SafeLang test runner (the bootstrap needs to run its own tests).
+- A Cinch test runner (the bootstrap needs to run its own tests).
 - Real `Set`/`HashMap` implementations (the current HashMap is a
   documented 8-bucket bootstrap).
 
@@ -69,7 +69,7 @@ Every family lands in the scheme's homes (`Data.`/`Text.`/`Effect.`/
 established capability rules (capabilities lexical, constraints entail
 nothing, refusals named). The bootstrap milestones are the program's
 definition of done for this roadmap: each milestone is a runnable
-SafeLang artifact, not a claim.
+Cinch artifact, not a claim.
 
 ## Sequencing
 

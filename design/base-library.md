@@ -40,7 +40,7 @@ Ownership rules:
 `Prelude` becomes the re-export facade (D107's `export module X` and
 `export A.b`), with an explicit curation list. The split itself is an
 integration step after the P19 surface slice lands (it owns
-`compiler/prelude/Prelude.lang` and is renaming functions to dash
+`compiler/prelude/Prelude.cinch` and is renaming functions to dash
 style (D106)).
 
 ## The buildout (dispatched)

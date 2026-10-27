@@ -1,6 +1,6 @@
 # Codata and guardedness design
 
-Design note for the SafeLang toolchain, roadmap slice P8 in
+Design note for the Cinch toolchain, roadmap slice P8 in
 `compiler/CONFORMANCE.md`. Companion to the core language specification
 (section 9) and the laziness and reclamation specification.
 

@@ -5,8 +5,11 @@ syntax is the draft 0.2 grammar in
 [`specifications/surface-syntax-and-grammar.md`](../specifications/surface-syntax-and-grammar.md);
 the static and dynamic goals are
 [`specifications/core-language-specification.md`](../specifications/core-language-specification.md).
-The language has no final name yet; `safelang` and the `.lang` extension are
-placeholders.
+The language is named **Cinch** (rebranded from the SafeLang working
+name on 2026-10-27). The prose rename is applied; the identifier sweep
+(`safelang` -> `cinch` CLI and namespaces, `.lang` -> `.cinch`,
+`.sliface` -> `.cinchif`, `sl_*` -> `cinch_*` externs) lands as one
+atomic change with the code rename.
 
 This is a bootstrap slice: a small, honest subset implemented end to end
 (source text to native executable) so the design can be exercised and

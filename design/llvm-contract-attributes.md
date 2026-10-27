@@ -1,7 +1,7 @@
 # LLVM contract attributes: adopting the rest of the vocabulary
 
 Plan note (2026-10-26, user question: what else like `musttail` should
-we adopt from LLVM). The pattern: SafeLang's type/effect/ownership
+we adopt from LLVM). The pattern: Cinch's type/effect/ownership
 analyses already prove most of what LLVM's attribute vocabulary
 asserts, so adoption is translation, not new analysis. No em dashes.
 

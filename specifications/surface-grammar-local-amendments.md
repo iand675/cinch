@@ -140,7 +140,7 @@ decision record in `compiler/CONFORMANCE.md` where applicable.
   `Neg` class method, not only literals.
 - Prelude function names use dash style (`nat-to-string`,
   `int-digits-into`); type and class names stay capitalized. Intrinsic
-  symbol names (`safelang.prim.*`) are symbol identity, not surface
+  symbol names (`cinch.prim.*`) are symbol identity, not surface
   API, and are unchanged.
 
 # 9 Binding groups and recursion
