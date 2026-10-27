@@ -851,6 +851,19 @@ correspondence: one lexeme in expression/pattern, staging `Name`, and
   honest boundaries are reported per instance (nested refined results
   and `Monoid`'s unit laws citing an uncarrried `Semigroup.<>` report
   `not checked` - a pre-existing law-machinery gap now visible).
+- **D256 (P28 compound predicates, user direction; revises D249's
+  conjunction refusal)**: the predicate grammar gains `&&`/`||` over
+  admissible predicates (conjunction/disjunction of decidable
+  propositions is decidable; quantifiers remain refused per D113) and
+  comparison atoms admit total expressions closed over the binder
+  (`length xs > 100 && length xs <= 200 && Ascii xs`), with the
+  runtime `decide` lowering computing measures under the baked-test
+  rule (never source a shadowing module could lie with). Instance
+  transfer checks preservation PER CONJUNCT (failures name the
+  conjunct; disjunction uses the conservative per-disjunct check or
+  reports `not checked`). The witness stays a single erased `Dec` of
+  the whole predicate. Implementation queued behind the language-tail
+  slice (shared `check`/`parser`).
 - **D127 (P25 scaffolding ruling)**: FoldAgent's defunctionalized
   class shapes (`Foldable t a`, `Traversable t x g h tg hs`) are
   accepted as NON-CURATED scaffolding: they ship in the `Category`

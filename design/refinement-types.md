@@ -51,6 +51,45 @@ code to recover the type that was always the same. No em dashes.
 
 ## Open questions for the implementing slice
 
+(All three were decided by `RefinementSlice` (D248-D255): the headline
+`refine (x :: T) with p` spelling; the predicate grammar is a closed
+structural vocabulary plus `Dec` propositions with explicit refusals;
+unification is explicit projection (`unrefine`), no silent subtyping.)
+
+## Compound predicates (user direction, 2026-10-27; revision of D249's
+conjunction refusal)
+
+The single-predicate form is extended to conjunctions and
+disjunctions, and comparison atoms admit total expressions over the
+binder:
+
+```
+type SizedAscii = refine (xs :: List Char) with
+  length xs > 100 && length xs <= 200 && Ascii xs
+```
+
+- The predicate grammar becomes: the closed structural vocabulary
+  (`NotNull`/`NonZero`/`Ascii`/`Ordered`) plus `Dec` atoms (bounded
+  numeric comparisons, index equalities, `Not`) with `&&` and `||` as
+  new connectives. Conjunction and disjunction of decidable
+  propositions are decidable (`Dec A` and `Dec B` decide both); what
+  stays REFUSED is quantifiers (infinite domains need induction - the
+  D113 discipline) and any predicate that is not total and closed over
+  the binder.
+- Comparison atoms admit total expressions over the binder
+  (`length xs > 100`): the runtime `decide` lowering computes the
+  measure (synthesized unit or the D92 evaluator) and compares, under
+  the same rule as the vocabulary predicates: baked tests, never
+  source a shadowing module could lie with.
+- Instance transfer generalizes per-conjunct: a method must preserve
+  EVERY conjunct; the preservation law identity checks each and a
+  failure names the conjunct. For disjunction, the conservative
+  sufficient check preserves each disjunct; the sample-wise law tier
+  reports `not checked` when undecided.
+- The witness stays a single erased `Dec` of the whole predicate
+  (the conjunction's `Dec` is built by cases), so the representation
+  story is unchanged: the refined value is the container.
+
 - The refinement surface spelling (`refine (xs : T) with p` vs
   annotation-style `T where p` vs a `Refine` former).
 - Which predicate forms are admissible beyond `Dec` propositions
@@ -58,3 +97,9 @@ code to recover the type that was always the same. No em dashes.
 - Whether refinement types participate in unification as their base
   type (subtyping/implicit coercion) or require explicit projection;
   conservative first answer: explicit, no silent subtyping.
+
+(All three resolved by the implementing slice (D248-D255): the
+headline `refine` form; the closed vocabulary plus `Dec` propositions
+with named refusals; explicit projection (`unrefine`), no silent
+subtyping. The open question is the compound-predicates section
+above, D256.)
