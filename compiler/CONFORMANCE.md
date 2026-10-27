@@ -864,6 +864,25 @@ correspondence: one lexeme in expression/pattern, staging `Name`, and
   reports `not checked`). The witness stays a single erased `Dec` of
   the whole predicate. Implementation queued behind the language-tail
   slice (shared `check`/`parser`).
+- **D257 (P28 composability, user revision of D254's per-nominal
+  transfer)**: refinements are a PREDICATE-INDEXED family, not
+  nominal types with per-type instances. (1) The transfer rule is
+  general - the container's method is available at `refined p` when it
+  preserves `p` (coherence improves: one rep-identity dictionary per
+  class-and-container, unique by construction); (2) the family carries
+  a decidable implication preorder with implicit weakening along
+  atom-set inclusion (`refined (p && q)` flows to `refined p`;
+  syntactic, no SMT) and explicit `Dec`-carrying casts beyond it,
+  while `unrefine` stays the explicit forgetful arrow; (3) `&&`/`||`
+  are meet/join so compound refinements inherit instances
+  automatically; (4) method outputs carry derived predicates
+  (`post p q`, checked by the law layer; preservation is the closure
+  special case; a method with no sound postcondition has no instance).
+  Nominal names are readability sugar. Refusals unchanged: no
+  inference, no SMT, discharge always explicit. Implementation rides
+  the P28 continuation (replacing the per-conjunct plan of D256 with
+  predicate-level rules plus per-conjunct preservation as the
+  postcondition check).
 - **D127 (P25 scaffolding ruling)**: FoldAgent's defunctionalized
   class shapes (`Foldable t a`, `Traversable t x g h tg hs`) are
   accepted as NON-CURATED scaffolding: they ship in the `Category`

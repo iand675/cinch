@@ -56,6 +56,41 @@ code to recover the type that was always the same. No em dashes.
 structural vocabulary plus `Dec` propositions with explicit refusals;
 unification is explicit projection (`unrefine`), no silent subtyping.)
 
+## Composability: instances live on the predicate (user direction,
+## 2026-10-27; supersedes the per-nominal transfer of D254)
+
+The nominal reading (each `refine` declaration mints a type with its
+own transferred instances) is not composable: `Sorted && NonEmpty` is
+a separate type needing its own transfer, and generic code cannot
+quantify over "any refinement whose predicate the method preserves."
+The corrected shape:
+
+1. **Predicate-level instances**: the transfer rule is general - for
+   any `refined p`, the container's class method is available when it
+   preserves `p`. Coherence is BETTER than the nominal reading: by
+   rep-identity there is exactly one dictionary per (class,
+   container), unique by construction.
+2. **Weakening along a decidable implication lattice**: `refined p ->
+   refined q` when `p` implies `q`; implication between conjunctions
+   of atoms is decidable by atom-set inclusion (a syntactic check, no
+   SMT), so implicit weakening along that lattice is admitted;
+   semantic implication needs an explicit `Dec`-carrying cast.
+   `unrefine` remains the explicit forgetful arrow to the base type
+   (a different direction, never conflated).
+3. **Meets and joins**: `&&`/`||` (D256) are the lattice operations;
+   `refined (p && q)` is the intersection and instances follow from
+   rule 1 automatically.
+4. **Method outputs carry derived predicates**: `<> : refined p ->
+   refined q -> refined (post p q)` with the law layer checking the
+   postcondition; preservation is the closure special case `post p p
+   = p`, and a method with no sound postcondition simply has no
+   instance (append has no `Sorted` instance).
+
+Nominal names (`NonEmpty`, `Sorted`) are named predicates for
+readability, nothing more. The refusal line is unchanged: no
+inference, no SMT; weakening only where implication is decidable;
+discharge always explicit.
+
 ## Compound predicates (user direction, 2026-10-27; revision of D249's
 conjunction refusal)
 
