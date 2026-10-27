@@ -169,7 +169,7 @@ update as the slices land; 07 must reject, the rest must accept):
 | --- | --- | --- |
 | 01-bounded-index | accepts (`safelang check` exit 0; `run` needs a `main` per D20) | done |
 | 02-vector-filter | accepts (`safelang check` exit 0; refactored to `decide`/computed-index dispatch per D35 (D231)) | done |
-| 03-map-fusion | line 6:36 `expected a type, found Backslash` (needs index/type-position lambdas, proof reduction beyond D28, and a `List.map` name; the assumed-law shortcut would replace its induction teaching (D230)) | language work (tracked) |
+| 03-map-fusion | accepts (`safelang check` exit 0; index lambdas + named-helper proof reduction + structural-induction `case` landed (D230/D270); the example carries its own `mapFusion` proof and cites it in `justify`) | done |
 | 04-productive-stream | accepts (`safelang check` exit 0) | done |
 | 05-schema-generator | accepts with its declared build inputs (`SCHEMA_DATABASE_URL` + a schema tool via `SAFELANG_SCHEMA_TOOL`); without them stops at the correct secret refusal (D45) | done (A6) |
 | 06-counter-upgrade | accepts (`safelang check` exit 0) | done |
@@ -951,6 +951,28 @@ correspondence: one lexeme in expression/pattern, staging `Name`, and
   chain inside a map literal reaches the checker unresolved), and the
   debug build's nested-let elaboration depth sits at the 2 MB test
   thread edge (a depth-limit diagnostic is the real hardening).
+- **D268-D270 (language tail continuation, reported)**: nested
+  `let`/`letrec` elaboration carries a named depth limit (128; the
+  diagnostic fires at the 129th, 61 and 128 run on the main thread,
+  wide stacks remain for deeper-but-legal programs) and
+  `resolve_term` resolves infix chains inside map literals; `Name` is
+  a compile-time builtin type and macro signature member with
+  hygienic name splices in `quoteDecls` name positions (the chosen
+  name binds at the insertion site as written while template binders
+  rename apart) and `name-to-sym`/`sym-to-name` reification (tick
+  quotes and bare names in `Name` arguments; holes accept `Name`,
+  `Sym`, and single-name `Syntax`; one splice-reification story);
+  example 03's gate is cleared by index/type-position lambdas
+  (`Type::Lam` with capture-avoiding substitution and fuel-bounded
+  beta), `List.map`-style qualified names in index position, proof
+  reduction as named-helper reduction (delta on program equations
+  plus case iota, fuel 64, proof-goal matching only; D28 conversion
+  unchanged), structural-induction `case` in proofs (the goal refines
+  per branch at the pattern's constructor form), `congr`'s lifting
+  function explicit as an index term, and evidence formers taking
+  value binders. The example carries its real proof with one `import
+  Data.List` line (Main applied); the assumed-law shortcut stayed
+  refused. **The acceptance catalogue is 12/12 as-intended.**
 - **D127 (P25 scaffolding ruling)**: FoldAgent's defunctionalized
   class shapes (`Foldable t a`, `Traversable t x g h tg hs`) are
   accepted as NON-CURATED scaffolding: they ship in the `Category`
