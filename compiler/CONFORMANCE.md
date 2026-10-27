@@ -932,6 +932,25 @@ correspondence: one lexeme in expression/pattern, staging `Name`, and
   obligations are predicates over the method's arguments/outputs.
   Resolution and coherence follow D260 with constraint sets ordered by
   the implication lattice. Constraints entail nothing (standing rule).
+- **D262-D267 (language tail, reported)**: `safelang lsp` dispatches
+  to `LspServer::run` over stdio (the tooling wrapper's auto-switch
+  now fires; its header note is stale); do-let binds a whole local
+  block group (`do_statement = "let", local_block`) through the shared
+  elaboration, never binding a name twice (the letrec rule) while
+  `let ... in` keeps its replace-nested-singles shadowing, with only
+  simple value bindings sequencing under CPS elaboration (D24's
+  message for parameterized/`~`, `cps_let`'s for destructuring);
+  `Data.Enum` + range syntax `[e1..e2]`/`[e1, e2 .. e3]` desugaring to
+  `from-list (enum-from-to ...)` at the expected `FromList` instance
+  with `LitFold` kind `"range"` folding stage-known ranges (inclusive
+  endpoints; step `e2 - e1` in code space; zero or runaway step is
+  EMPTY, terminating where Haskell diverges; `Enum` codes are
+  consecutive; bounded instances fault at their edges; `Enum Char`
+  deferred on its conversion story). Two findings deferred to the
+  continuation: `resolve_term`'s catch-all skips `Term::Map` (an infix
+  chain inside a map literal reaches the checker unresolved), and the
+  debug build's nested-let elaboration depth sits at the 2 MB test
+  thread edge (a depth-limit diagnostic is the real hardening).
 - **D127 (P25 scaffolding ruling)**: FoldAgent's defunctionalized
   class shapes (`Foldable t a`, `Traversable t x g h tg hs`) are
   accepted as NON-CURATED scaffolding: they ship in the `Category`

@@ -148,6 +148,7 @@ effect_row = "{", [ effect_label, { ",", effect_label } ],
 effect_label = con_path, { atomic_term } ;
 annotation = dollar_expr, [ "::", term ] ;
 dollar_expr = infix_expr, [ "$", term ] ;
+range_literal = "[", term, [ ",", term ], "..", term, "]" ;
 infix_expr = application, { operator, application } ;
 application = prefix, { postfix } ;
 prefix = { "-" }, postfix ;
