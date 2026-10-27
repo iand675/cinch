@@ -920,6 +920,18 @@ correspondence: one lexeme in expression/pattern, staging `Name`, and
   refinement are a coherence error naming both (D119 extended).
   Applicability follows predicate implication, never method totality.
   The `Preserves` context spelling is the implementing slice's call.
+- **D261 (P28 constraint reading, user correction of D260)**: the
+  primary form is Haskell-style contexts - refinement predicates are
+  obligations in `using` contexts on instances AND signatures
+  (`instance Semigroup (List Nat) using (Sorted ...)`,
+  `merge : ... using (Sorted xs, Sorted ys)`), with caller-side
+  discharge through the `Dec` evidence path (D192 staleness applies).
+  `refined p T` heads are sugar for a head plus its predicate
+  obligation (inter-derivable; the constraint form is more general).
+  D260's `Preserves` constraint class is unnecessary: preservation
+  obligations are predicates over the method's arguments/outputs.
+  Resolution and coherence follow D260 with constraint sets ordered by
+  the implication lattice. Constraints entail nothing (standing rule).
 - **D127 (P25 scaffolding ruling)**: FoldAgent's defunctionalized
   class shapes (`Foldable t a`, `Traversable t x g h tg hs`) are
   accepted as NON-CURATED scaffolding: they ship in the `Category`

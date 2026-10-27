@@ -145,7 +145,34 @@ The feature is therefore explicitness at boundaries, in two layers:
 The keep-set form (`weaken xs to {A, C}`) duplicates ascription and is
 left out unless API practice shows a need.
 
-## Instance heads at refinements (user direction, 2026-10-27)
+## Instance heads at refinements (user direction, 2026-10-27;
+## revised to the constraint reading same day)
+
+The primary form is the Haskell-style CONTEXT reading: refinement
+predicates are obligations in `using` contexts, on instances and
+signatures alike (`instance Semigroup (List Nat) using (Sorted ...)` -
+the user's `instance (Sorted list) => Semigroup ...`). The head form
+`Semigroup (refined Sorted (List Nat))` is sugar for a head plus its
+predicate obligation; the two are inter-derivable and the constraint
+form is more general:
+
+- Signatures carry refinement obligations
+  (`merge : ... using (Sorted xs, Sorted ys)`), the caller discharging
+  them through the `Dec` evidence path with D192 staleness applying.
+- The D260 `Preserves` constraint class is unnecessary: preservation
+  obligations are written in the predicate language over the method's
+  arguments and outputs, so the generic transfer instance is an
+  ordinary constraint-parameterized instance.
+- Constraint-parameterized instances resolve by supplying evidence at
+  the use site (static where the D258 table decides, runtime `Dec`
+  otherwise); most-specific resolution orders constraint sets by the
+  same implication lattice; incomparable sets matching a common use
+  are the coherence error.
+- Constraints entail nothing (the standing rule): a `Sorted`
+  obligation is explicit and separate.
+
+Below is the earlier head-form framing, kept for the resolution and
+coherence rules which are unchanged.
 
 Instance declarations admit refinements in their heads, which both
 covers specialized methods and makes the transfer rule a library
