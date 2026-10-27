@@ -807,7 +807,26 @@ correspondence: one lexeme in expression/pattern, staging `Name`, and
   a subcommand (the driver offers `check`/`emit-ir`/`build`/`run`), so
   `tooling/lsp-driver/` is a cargo bin invoking `LspServer::run` over
   stdio verbatim, with the editor wrapper auto-switching to `safelang
-  lsp` if the subcommand ever lands (tracked).
+  `lsp` if the subcommand ever lands (tracked).
+- **D245-D247 (P23 recovery, reported)**: the CPU loop was `peekc`
+  tail-calling itself when the replay buffer ran dry (an unconditional
+  jump on the first peek of every parse); the fix COMPLETES the replay
+  design rather than reverting it (one-token lookahead for contextual
+  `unsafe`/attributes and the layout machine's virtual tokens must
+  classify within one scan call, and the scanner cannot rewind past
+  `mark_end`, so a post-mark overflow buffer is the minimal correct
+  mechanism), with `take` recording past-mark characters, `mark`
+  resetting the buffer, and layout columns tracked internally (the
+  lexer cursor sits past the mark during replay); the 87th corpus case
+  was a corrupted fixture (lost expected tree), restored not weakened;
+  and the real-files property is now enforced by
+  `check-real-files-parse.sh` (60 `.lang` files repo-wide, zero
+  ERROR/MISSING nodes; the prior "59" was a stale count). Residual
+  documented divergences: tabs in indentation (compiler hard-errors;
+  tree-sitter cannot express it), `#[` name adjacency, and do-let
+  groups (the grammar follows the normative EBNF `do_statement = "let",
+  local_block`; the BOOTSTRAP compiler binds one value per do `let` -
+  the compiler holds the gap there).
 - **D127 (P25 scaffolding ruling)**: FoldAgent's defunctionalized
   class shapes (`Foldable t a`, `Traversable t x g h tg hs`) are
   accepted as NON-CURATED scaffolding: they ship in the `Category`
