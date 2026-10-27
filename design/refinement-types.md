@@ -91,6 +91,36 @@ readability, nothing more. The refusal line is unchanged: no
 inference, no SMT; weakening only where implication is decidable;
 discharge always explicit.
 
+## Narrowings and the implication theory (user direction,
+## 2026-10-27)
+
+Atom-set inclusion is too weak for useful implication: `> 1 && < 9`
+implies `> 0 && < 10` by interval containment, not inclusion. The
+implication procedure becomes a small **table-driven theory**, each
+row decidable, no SMT:
+
+- comparison/measure atoms relate by interval containment
+  (`lo >= lo'` and `hi <= hi'`); the same machinery covers length
+  bounds, byte ranges, enum ranges;
+- vocabulary rows document structural implications (`length xs > 0`
+  implies `NotNull xs`; `Ascii` implies byte-range facts);
+- `p && q implies p` stays syntactic;
+- unknown pairs are NOT implied: the cast needs a `Dec`, or refuses.
+
+**Weakening is implicit and free** (the same word; every `refined p`
+value is a `refined q` value when `p` implies `q`). **Strengthening
+(narrowing) is always checked**: a `narrow` cast carries a `Dec` of
+the stronger predicate, discharged statically where foldable or at
+runtime through the same evidence machinery; silent flow up the
+lattice is exactly the forged-witness hole the D192/D249 rules close.
+
+Instances and values flow down the lattice for free (D257): a value at
+`>1 && <9` weakens to `>0 && <10` keeping every instance; method
+results at `post p q` weaken the same way. The interval-containment
+table is also the home of bounded arithmetic for `bounded(n)` depth
+bounds and temporal `recur` (D113/D202) - one bounded-arithmetic
+machinery, not three.
+
 ## Compound predicates (user direction, 2026-10-27; revision of D249's
 conjunction refusal)
 

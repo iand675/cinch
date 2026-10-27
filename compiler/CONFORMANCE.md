@@ -883,6 +883,20 @@ correspondence: one lexeme in expression/pattern, staging `Name`, and
   the P28 continuation (replacing the per-conjunct plan of D256 with
   predicate-level rules plus per-conjunct preservation as the
   postcondition check).
+- **D258 (P28 narrowings, user direction)**: the implication
+  procedure generalizes from atom-set inclusion to a table-driven
+  theory: interval containment for comparison/measure atoms
+  (`> 1 && < 9` implies `> 0 && < 10` via `lo >= lo'`, `hi <= hi'`),
+  documented vocabulary rows (`length xs > 0` implies `NotNull xs`),
+  syntactic `p && q implies p`, and unknown pairs NOT implied (the
+  cast needs a `Dec`, or refuses). Weakening remains implicit and
+  free (the same word); **strengthening is always checked** - a
+  `narrow` cast carries a `Dec` of the stronger predicate (statically
+  folded or runtime-discharged); silent upward flow is the
+  forged-witness hole the D192/D249 rules close. Instances and method
+  results flow down the lattice for free (D257). The interval table is
+  the shared home of bounded arithmetic for `bounded(n)`/`recur`
+  (D113/D202).
 - **D127 (P25 scaffolding ruling)**: FoldAgent's defunctionalized
   class shapes (`Foldable t a`, `Traversable t x g h tg hs`) are
   accepted as NON-CURATED scaffolding: they ship in the `Category`
