@@ -1,5 +1,6 @@
 -- Surface 0.2. Pure finite reusable lists and total callbacks.
 module PureMapFusion where
+  import Data.List
   proof mapFusion :: (f :: Int -> Int) -> (g :: Int -> Int)
                   -> (xs :: List Int)
                   -> Eq (List.map f (List.map g xs))
