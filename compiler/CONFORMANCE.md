@@ -188,7 +188,7 @@ audit, `compiler/SPEC-MAPPING.md` "Roadmap gaps"):
 | Requirement | Note |
 | --- | --- |
 | Positivity discipline for inductive definitions | done (P7: strict positivity for all `data`; negative and nested occurrences rejected) |
-| Evidence invalidation over mutable state | flow-sensitive; adjacent to P7 refinements and P13 (A2) |
+| Evidence invalidation over mutable state | done (A2/`de0780c`, D192-D197: flow-sensitive; Mut-region footprints, write triggers, deferred staleness; `tests/evidence_invalidation.rs` 12/12) |
 | Temporal contracts (safety/liveness/recurrence/stability) | closest to P12; unnamed there (A3) |
 | Cross-compilation (target width/capabilities) | done (P14: `Usize`/`Isize` widths keyed on the target in literal checks, lowering, and the manifest (A4)) |
 | Module parameters and signatures as module arguments | done (A5: `module M (p :: T, ...) where` with dictionary and value parameters, import-time instantiation units `import M (args) as N` with computed `unit_id`, instance coherence preserved (implicit resolution unchanged; explicit dictionaries coexist), parameter signatures in `.sliface` with instantiation as representation (D115-D121); example 12 accepts) |
@@ -583,6 +583,25 @@ correspondence: one lexeme in expression/pattern, staging `Name`, and
   the honest unit scan now classifies every call, load, store, and
   poison source, alongside two IR-spelling fixes (`freeze` width,
   `!align` node shape).
+- **D192-D197 (P16 evidence invalidation, reported)**: a Prop-typed
+  evidence item whose statement reads a `Mut` borrow carries that
+  region as its footprint and any write to the region invalidates it
+  (stale uses are check errors naming both the derivation and the
+  invalidating site); `refSet m v` is a new builtin write through an
+  exclusive borrow, lowering to `Core::RefSet`, an opaque write the
+  optimizer may not reorder or propagate across; the write triggers
+  are `refSet`, calls passing a `Mut` argument, calls whose effect row
+  names the region with a write-capable head (the effect-row reading
+  of "can write"), and opaque writes (FFI/foreign, eval, mutating
+  `Bytes` primitives) which conservatively invalidate all
+  `Mut`-sourced evidence; use sites (`Fin` bound fields, erased `Prop`
+  params) record deferred uses checked after constraint solving (an
+  effect-row region may only resolve there; regions compare via
+  region resolution); `Ref`-sourced evidence survives its region (a
+  `Ref` is read-only and P5 exclusivity forbids a coexisting `Mut`
+  write) and immutable evidence never invalidates; `RawPtr` targets
+  carry no evidence at all and `RawPtr`/FFI writes are opaque mutation
+  (the conservative rule).
 - **D127 (P25 scaffolding ruling)**: FoldAgent's defunctionalized
   class shapes (`Foldable t a`, `Traversable t x g h tg hs`) are
   accepted as NON-CURATED scaffolding: they ship in the `Category`
