@@ -8,8 +8,8 @@
 //! Operators are ordinary value names, so `x + y` is just a method call.
 
 use crate::ast;
-use crate::core::{BytesOp, CAlt, CBranch, CPat, CmpOp, ConcOp, FieldAccess, FieldShape, FnDef, GlobalId, InstanceDef, IntOp, LocalId, NatOp, PrimOp, Program, ProjField, SymOp};
-use crate::types::{ClassApp, EffLabel, EffRow, EitherMeta, IxParam, ITerm, IdxCmp, IdxOp, Mult, PTerm, PtrRole, RowTail, Scalar, Scheme, Sort, Ty, Unifier, c_abi_scalar, collect_row_names, default_mult};
+use crate::core::{ArithMode, ArithOp, BytesOp, CAlt, CBranch, CPat, CmpOp, ConcOp, Core, FieldAccess, FieldShape, FnDef, GlobalId, InstanceDef, IntOp, LocalId, NatOp, PrimOp, Program, ProjField, SymOp};
+use crate::types::{ClassApp, EffLabel, EffRow, EitherMeta, IxParam, ITerm, IdxCmp, IdxOp, Mult, PTerm, PredFn, PtrRole, RowTail, Scalar, Scheme, Sort, Ty, Unifier, c_abi_scalar, collect_row_names, default_mult};
 use crate::{Error, Result};
 use SolveOutcome::{Solved, Ambiguous};
 use std::cell::RefCell;
@@ -935,7 +935,9 @@ enum ValueKind {
     /// family's parameter names (positional against the type's
     /// arguments), constructor-local index binders, and the result's
     /// arguments (`Vec 0 a`'s `0`, `Vec (k + 1) a`'s `k + 1`) with the
-    /// parameters still as placeholders.
+    /// parameters still as placeholders. A refinement's transparent
+    /// constructor carries `refine`: its runtime form is its container
+    /// value (the witness field erases and no block is allocated).
     Ctor {
         tag: usize,
         /// Pattern arity: every declared field.
@@ -950,6 +952,10 @@ enum ValueKind {
         ty_params: Vec<String>,
         local_idx: Vec<IxParam>,
         res_args: Vec<Ty>,
+        /// `Some(refinement type name)` for a refinement's transparent
+        /// constructor (refinement types design: the runtime
+        /// representation IS the container).
+        refine: Option<String>,
     },
     BoolLit(bool),
     /// An erased evidence constructor (`refl`, `congr`): it constructs a
@@ -974,6 +980,21 @@ struct ValueInfo {
 }
 
 #[derive(Clone)]
+struct RefineInfo {
+    /// The container type with the refinement's parameters as `Ty::Param`
+    /// placeholders (substituted per application).
+    base: Ty,
+    /// The refined binder (`refine (xs : T) with p`'s `xs`): the name the
+    /// predicate mentions and the transparent constructor binds.
+    binder: String,
+    /// The decidable predicate over the binder's value.
+    pred: PTerm,
+    /// The refinement's parameter names, positional against the type's
+    /// arguments.
+    params: Vec<String>,
+}
+
+#[derive(Clone)]
 struct TypeKind {
     module: String,
     name: String,
@@ -992,6 +1013,10 @@ struct TypeKind {
     /// An `opaque type` (foreign function interface specification
     /// section 2): abstract, no constructors, no layout projection.
     opaque: bool,
+    /// A refinement (refinement types design): the container, the
+    /// refined binder and its decidable predicate. The type's runtime
+    /// representation IS the container's.
+    refine: Option<RefineInfo>,
 }
 
 #[derive(Clone)]
@@ -1591,6 +1616,7 @@ fn collect_prop_reads(p: &PTerm, out: &mut Vec<String>) {
             collect_idx_reads(b, out);
         }
         PTerm::Not(q) => collect_prop_reads(q, out),
+        PTerm::Pred(_, a) => collect_idx_reads(a, out),
         PTerm::Var(_) | PTerm::MVar(_) => {}
     }
 }
@@ -1797,6 +1823,39 @@ struct LawObligation {
     /// The instance's `using` constraints as (class, args) targets for
     /// its sub-dictionaries.
     subdicts: Vec<(String, Vec<Ty>)>,
+    span: ast::Span,
+}
+
+/// One instance method's preservation obligation (refinement types
+/// design: the container's instances transfer to the refinement exactly
+/// when their methods PRESERVE the predicate, checked sample-wise by the
+/// P18 law layer). A method whose result is the refined carrier must map
+/// refined samples to refined values; the honest boundary reports `not
+/// checked` where the machinery cannot decide it.
+struct PresObligation {
+    /// The instance's name and home (the manifest row's scope).
+    instance: String,
+    module: String,
+    class: String,
+    /// The method name (the preservation law's identity:
+    /// `{refine}.preserve-{method}`).
+    method: String,
+    /// The method's unit.
+    method_gid: crate::core::GlobalId,
+    /// The refinement whose predicate the method must preserve.
+    refine: String,
+    /// The method's argument types (the preservation samples).
+    arg_tys: Vec<Ty>,
+    /// The instance's `using` constraints as (class, args) targets for
+    /// its sub-dictionaries.
+    subdicts: Vec<(String, Vec<Ty>)>,
+    /// The class arguments (the dictionary resolution's targets).
+    class_args: Vec<Ty>,
+    /// The instance's method units, parallel to the class's method order.
+    method_units: Vec<crate::core::GlobalId>,
+    /// The refined result sits inside another type former (`f (R b)`):
+    /// preservation is not decided through the former.
+    nested: bool,
     span: ast::Span,
 }
 
@@ -2123,6 +2182,9 @@ struct Checker {
     /// after every module's bodies (primitive operations and inline
     /// target IR specification section 5).
     law_obligations: Vec<LawObligation>,
+    /// Instance methods' preservation obligations over refinements
+    /// (checked sample-wise beside the class laws).
+    pres_obligations: Vec<PresObligation>,
     /// The class law check rows for the artifact manifest: the honest
     /// record of what the sample-wise check decided.
     law_rows: Vec<crate::core::LawRow>,
@@ -2426,6 +2488,7 @@ impl Checker {
             target_caps: Vec::new(),
             target_arch: String::new(),
             law_obligations: Vec::new(),
+            pres_obligations: Vec::new(),
             law_rows: Vec::new(),
             pending_upgrades: Vec::new(),
             upgrade_evidence: Vec::new(),
@@ -4428,7 +4491,8 @@ impl Checker {
     }
 
     /// Convert a proposition: a comparison over index values, `Eq x y`,
-    /// `Not p`, or a bound proposition variable.
+    /// `Not p`, a decidable predicate of the refinement vocabulary, or a
+    /// bound proposition variable.
     fn conv_prop(&self, ty: &ast::Type, vars: &[String]) -> Result<PTerm> {
         let mut args: Vec<&ast::Type> = Vec::new();
         let mut cur = ty;
@@ -4480,13 +4544,232 @@ impl Checker {
             ast::Type::Con(p, _) if p.parts() == ["Not"] && args.len() == 1 => {
                 Ok(PTerm::Not(Box::new(self.conv_prop(args[0], vars)?)))
             }
+            ast::Type::Con(p, _) if args.len() == 1 => {
+                // The refinement vocabulary's structural decidable
+                // predicates (refinement types design, "shape"): a named
+                // predicate over one index value (`NotNull xs`,
+                // `NonZero n`, `Ascii s`, `Ordered xs`). The predicate's
+                // operand shapes are checked where the predicate is used
+                // (a refinement declaration or a `decide`).
+                let name = p.parts().join(".");
+                let pf = PredFn::lookup(&name).ok_or_else(|| {
+                    Error::at(
+                        span,
+                        format!(
+                            "`{name}` is not a proposition former (use a comparison, `Eq x y`, `Not p`, or a decidable predicate: `NotNull`, `NonZero`, `Ascii`, `Ordered`)"
+                        ),
+                    )
+                })?;
+                let unit = Ty::Nat;
+                let operand = self.conv_idx(args[0], vars, &unit)?;
+                Ok(PTerm::Pred(pf, Box::new(operand)))
+            }
             ast::Type::Var(n, _) if args.is_empty() && vars.contains(&n.text) => {
                 Ok(PTerm::Var(n.text.clone()))
             }
             other => Err(Error::at(
                 other.span(),
-                "expected a proposition: a comparison (`i < n`), `Eq x y`, `Not p`, or a proposition variable",
+                "expected a proposition: a comparison (`i < n`), `Eq x y`, `Not p`, a decidable predicate (`NotNull`, `NonZero`, `Ascii`, `Ordered`), or a proposition variable",
             )),
+        }
+    }
+
+    /// The admissible predicate forms of a refinement (refinement types
+    /// design: the open question's answer). Admitted: the `Dec`
+    /// propositions over index terms (bounded numeric comparisons and
+    /// index equalities) when the refined container is numeric, the
+    /// structural vocabulary predicates applied to the refined binder's
+    /// value itself, and `Not` over admitted forms. Everything else is
+    /// refused naming the form: quantified propositions, conjunction and
+    /// disjunction (the decidable logic has neither), predicates over
+    /// anything but the container's value, and proposition variables
+    /// (their truth is assumed, never decided).
+    fn check_pred_admissible(
+        &self,
+        pred: &PTerm,
+        binder: &str,
+        base: &Ty,
+        span: ast::Span,
+    ) -> Result<()> {
+        match pred {
+            PTerm::Pred(pf, operand) => {
+                if !matches!(&**operand, ITerm::Var(n) if n == binder) {
+                    return Err(Error::at(
+                        span,
+                        format!(
+                            "`{pf}` applies to the refined binder `{binder}`'s value; a predicate over anything else is refused (the decidable vocabulary speaks about the container's values)"
+                        ),
+                    ));
+                }
+                self.check_pred_operand(*pf, base, span)
+            }
+            PTerm::Cmp(_, a, b) | PTerm::Eq(a, b) => {
+                if a.mentions(binder) || b.mentions(binder) {
+                    match base {
+                        Ty::Nat | Ty::Int | Ty::Prim(_) => Ok(()),
+                        other => Err(Error::at(
+                            span,
+                            format!(
+                                "a comparison or index equality is an admitted predicate over numeric values (bounded numeric comparisons and index equalities), not over `{other}` (the structural vocabulary decides container values: `NotNull`, `NonZero`, `Ascii`, `Ordered`)"
+                            ),
+                        )),
+                    }
+                } else {
+                    Ok(())
+                }
+            }
+            PTerm::Not(q) => self.check_pred_admissible(q, binder, base, span),
+            PTerm::Var(_) | PTerm::MVar(_) => Err(Error::at(
+                span,
+                "a proposition variable is not a decidable predicate: its truth is assumed, never decided (state the predicate over the refined binder)",
+            )),
+        }
+    }
+
+    /// The operand shapes one structural-vocabulary predicate decides
+    /// over (a wrong predicate is refused naming it and its admissible
+    /// operand).
+    fn check_pred_operand(&self, pf: PredFn, base: &Ty, span: ast::Span) -> Result<()> {
+        let ok = match pf {
+            PredFn::NotNull | PredFn::Ordered => {
+                // A list-shaped container: constructors that distinguish
+                // the empty form (no runtime fields) from non-empty
+                // forms. `Ordered` further needs numeric elements.
+                let Ty::Adt(name, args) = base else {
+                    return Err(Error::at(
+                        span,
+                        format!(
+                            "`{pf}` decides {}, not `{base}` (a wrong predicate for this refinement's container is refused naming the predicate)",
+                            pf.operand_note()
+                        ),
+                    ));
+                };
+                let shape_ok = self
+                    .types
+                    .get(name)
+                    .map(|tks| {
+                        tks.iter().any(|tk| {
+                            let mut empties = 0usize;
+                            let mut non_empties = 0usize;
+                            for (cname, _) in &tk.ctors {
+                                let ra = self
+                                    .qualified
+                                    .get(&(tk.module.clone(), cname.clone()))
+                                    .and_then(|v| match &v.kind {
+                                        ValueKind::Ctor { runtime_arity, .. } => Some(*runtime_arity),
+                                        _ => None,
+                                    })
+                                    .unwrap_or(1);
+                                if ra == 0 {
+                                    empties += 1;
+                                } else {
+                                    non_empties += 1;
+                                }
+                            }
+                            empties >= 1 && non_empties >= 1
+                        })
+                    })
+                    .unwrap_or(false);
+                let elems_ok = match pf {
+                    PredFn::Ordered => matches!(
+                        args.first(),
+                        Some(Ty::Nat)
+                    ),
+                    _ => true,
+                };
+                shape_ok && elems_ok
+            }
+            PredFn::NonZero => {
+                matches!(base, Ty::Nat | Ty::Int)
+                    || matches!(base, Ty::Prim(s) if s.is_int_like())
+            }
+            PredFn::Ascii => {
+                matches!(base, Ty::Bytes)
+                    || matches!(base, Ty::Adt(name, _) if name == "String")
+            }
+        };
+        if ok {
+            Ok(())
+        } else {
+            Err(Error::at(
+                span,
+                format!(
+                    "`{pf}` decides {}, not `{base}` (a wrong predicate for this refinement's container is refused naming the predicate)",
+                    pf.operand_note()
+                ),
+            ))
+        }
+    }
+
+    /// The container instance of a refinement application (`NonEmpty x`'s
+    /// base is `List x`): the declared container with the application's
+    /// arguments substituted for the refinement's parameters. A partial
+    /// application (the higher-kinded `NonEmpty` former) yields the
+    /// container former. `None` for non-refinements.
+    fn refine_base(&self, t: &Ty) -> Option<Ty> {
+        let Ty::Adt(name, args) = t else {
+            return None;
+        };
+        let tk = self
+            .types
+            .get(name)?
+            .iter()
+            .find(|t| t.refine.is_some())?;
+        let r = tk.refine.as_ref()?;
+        let mut map: HashMap<String, Ty> = HashMap::new();
+        for (i, p) in r.params.iter().enumerate() {
+            if let Some(a) = args.get(i) {
+                map.insert(p.clone(), a.clone());
+            }
+        }
+        let base = Self::subst_ty(&r.base, &map);
+        if args.len() < r.params.len() {
+            // The former: the container with the still-open parameters
+            // dropped from its application spine.
+            if let Ty::Adt(n, as_) = base {
+                let mut as_ = as_;
+                while as_.len() > args.len() {
+                    as_.pop();
+                }
+                return Some(Ty::Adt(n, as_));
+            }
+        }
+        Some(base)
+    }
+
+    /// The first refinement type name a type mentions (anywhere in its
+    /// structure), for the preservation obligation's result scan.
+    fn ty_refine_mention(&self, t: &Ty) -> Option<String> {
+        if let Ty::Adt(n, args) = t {
+            if self
+                .types
+                .get(n)
+                .map(|ts| ts.iter().any(|tk| tk.refine.is_some()))
+                .unwrap_or(false)
+            {
+                return Some(n.clone());
+            }
+            return args.iter().find_map(|a| self.ty_refine_mention(a));
+        }
+        match t {
+            Ty::App(h, args) => self
+                .ty_refine_mention(h)
+                .or_else(|| args.iter().find_map(|a| self.ty_refine_mention(a))),
+            Ty::Tuple(args) => args.iter().find_map(|a| self.ty_refine_mention(a)),
+            Ty::Fun(a, _, _, b) | Ty::Pi { dom: a, cod: b, .. } => {
+                self.ty_refine_mention(a).or_else(|| self.ty_refine_mention(b))
+            }
+            Ty::Sigma { dom, cod, .. } => self
+                .ty_refine_mention(dom)
+                .or_else(|| self.ty_refine_mention(cod)),
+            Ty::Thunk { inner, .. } | Ty::Later(inner) | Ty::Lazy { inner, .. } => {
+                self.ty_refine_mention(inner)
+            }
+            Ty::Ref(_, i) | Ty::Mut(_, i) => self.ty_refine_mention(i),
+            Ty::Handler { input, output, .. } => self
+                .ty_refine_mention(input)
+                .or_else(|| self.ty_refine_mention(output)),
+            _ => None,
         }
     }
 

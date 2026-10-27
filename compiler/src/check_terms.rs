@@ -54,6 +54,7 @@ fn idx_ground(t: &Ty) -> bool {
             PTerm::Cmp(_, a, b) | PTerm::Eq(a, b) => {
                 matches!(a.normalize(), ITerm::Num(_)) && matches!(b.normalize(), ITerm::Num(_))
             }
+            PTerm::Pred(_, a) => matches!(a.normalize(), ITerm::Num(_)),
             PTerm::Not(q) => idx_ground(&Ty::Prp(q)),
         },
         _ => true,
@@ -96,7 +97,7 @@ impl Checker {
     /// `copyOut`, `borrow`, `mutBorrow`, `refSet`, `ignore`)? A user
     /// definition of the same name shadows the builtin (decision D2).
     fn is_builtin_form(&self, env: &Env, name: &str) -> bool {
-        matches!(name, "delay" | "force" | "demand" | "copyOut" | "borrow" | "mutBorrow" | "refSet" | "decide" | "ignore")
+        matches!(name, "delay" | "force" | "demand" | "copyOut" | "borrow" | "mutBorrow" | "refSet" | "decide" | "ignore" | "unrefine")
             && env.lookup(name).is_none()
             && self.lookup_value(None, name).is_err()
     }
@@ -1560,6 +1561,22 @@ impl Checker {
                     )),
                 }
             }
+            "unrefine" => {
+                // `unrefine e`: a refinement's free projection (refinement
+                // types design: the container IS the value, so the
+                // projection is the identity function at runtime).
+                let (core, ty) = self.infer(env, &args[0])?;
+                let ty = self.uni.zonk(&ty);
+                let base = self.refine_base(&ty).ok_or_else(|| {
+                    Error::at(
+                        args[0].span(),
+                        format!(
+                            "`unrefine` projects a refinement to its container, but this is {ty} (a refinement value IS its container value)"
+                        ),
+                    )
+                })?;
+                Ok((core, base))
+            }
             "copyOut" => {
                 // Copy a value out of a borrow (or duplicate a `Copy`
                 // value): explicit copying requires `Copy` evidence and
@@ -1612,6 +1629,66 @@ impl Checker {
                 // the failing outcomes is a proof.
                 if args.len() != 1 {
                     return Err(Error::at(span, "`decide` takes exactly one proposition"));
+                }
+                // The structural decidable vocabulary (`NotNull e`,
+                // `NonZero e`, `Ascii e`, `Ordered e`): a named predicate
+                // over one value (refinement types design: refinements'
+                // discharge lives in this `Dec`/`decide` world).
+                let pred_shape = match &args[0] {
+                    ast::Term::App(f, pargs, _) if pargs.len() == 1 => {
+                        let head = match &**f {
+                            ast::Term::Con(p) => Some(p.parts().join(".")),
+                            ast::Term::Var(p) if p.quals.is_empty() => {
+                                Some(p.name.text.clone())
+                            }
+                            _ => None,
+                        };
+                        head.and_then(|h| PredFn::lookup(&h))
+                            .map(|pf| (pf, &pargs[0] as &ast::Term))
+                    }
+                    _ => None,
+                };
+                if let Some((pf, operand)) = pred_shape {
+                    let (oc, oty) = self.infer(env, operand)?;
+                    let oty = self.uni.zonk(&oty);
+                    self.check_pred_operand(pf, &oty, operand.span())?;
+                    let oi = self.idx_of_term(operand, env)?;
+                    let prop = PTerm::Pred(pf, Box::new(oi));
+                    let dec_ty =
+                        Ty::Adt("Dec".into(), vec![Ty::Prp(Box::new(prop.clone()))]);
+                    let yes = ECore::Ctor(fn_id("<builtin>", "Yes"));
+                    let no = ECore::Ctor(fn_id("<builtin>", "No"));
+                    match self.static_obligation(&prop)? {
+                        ObligStatus::Checked => return Ok((yes, dec_ty)),
+                        ObligStatus::Disproved => return Ok((no, dec_ty)),
+                        ObligStatus::Timeout => {
+                            return Err(Error::at(
+                                span,
+                                format!(
+                                    "obligation status: timeout: deciding `{prop}` ran out of reduction steps"
+                                ),
+                            ))
+                        }
+                        ObligStatus::Unsupported => {
+                            return Err(Error::at(
+                                span,
+                                format!(
+                                    "obligation status: unsupported: there is no decision procedure for `{prop}`"
+                                ),
+                            ))
+                        }
+                        ObligStatus::Unresolved => {}
+                    }
+                    // The runtime test of the predicate's decision
+                    // procedure: compiled from the compiler's own
+                    // vocabulary, never from source a shadowing module
+                    // could lie with.
+                    self.cur_runtime_decides.push(span);
+                    let test = self.pred_runtime_test(pf, &oty, oc, operand.span())?;
+                    return Ok((
+                        ECore::If(Box::new(test), CBranch::new(yes), CBranch::new(no)),
+                        dec_ty,
+                    ));
                 }
                 let is_eq = matches!(&args[0], ast::Term::App(f, _, _) if matches!(&**f, ast::Term::Con(p) if p.parts() == ["Eq"]));
                 let (cmp, lhs, rhs) = self.decide_shape(&args[0])?;
@@ -1889,12 +1966,12 @@ impl Checker {
                 ),
             ));
         }
-        let (tag, arity, field_erased, runtime_arity) = match &v.kind {
+        let (tag, arity, field_erased, runtime_arity, ctor_refine) = match &v.kind {
             ValueKind::Prim(PrimOp::Eval) if args.len() == 1 => {
                 return self.infer_eval_app(env, args, span);
             }
-            ValueKind::Ctor { tag, arity, field_erased, runtime_arity, .. } => {
-                (*tag, *arity, field_erased.clone(), *runtime_arity)
+            ValueKind::Ctor { tag, arity, field_erased, runtime_arity, refine, .. } => {
+                (*tag, *arity, field_erased.clone(), *runtime_arity, refine.clone())
             }
             _ => {
                 // Not a constructor: ordinary application.
@@ -2012,7 +2089,62 @@ impl Checker {
         for (i, a) in args.iter().enumerate() {
             let (mid, dom, mult, eff) = &fields[i];
             self.perform(eff)?;
-            let ac = self.check(env, a, dom)?;
+            let decide_shaped = matches!(a, ast::Term::App(f, dargs, _)
+                if dargs.len() == 1
+                    && matches!(&**f, ast::Term::Var(p)
+                        if p.quals.is_empty() && p.name.text == "decide"));
+            let ac = if ctor_refine.is_some() && i + 1 == arity && decide_shaped {
+                // The refinement constructor's `Dec` discharge (refinement
+                // types design: direct construction takes a `Dec`
+                // argument that erases). The discharge must decide
+                // `Checked` at this construction: a forged or undecidable
+                // discharge is refused naming it.
+                let dom = self.uni.zonk(dom);
+                let dec_ty = match &dom {
+                    Ty::Prp(p) => Ty::Adt("Dec".into(), vec![Ty::Prp(p.clone())]),
+                    other => {
+                        return Err(Error::at(
+                            a.span(),
+                            format!(
+                                "the refinement's witness is a proposition, not {other}"
+                            ),
+                        ))
+                    }
+                };
+                let c = self.check(env, a, &dec_ty)?;
+                if let Ty::Prp(p) = &dom {
+                    match self.static_obligation(p)? {
+                        ObligStatus::Checked => {}
+                        ObligStatus::Disproved => {
+                            return Err(Error::at(
+                                a.span(),
+                                format!(
+                                    "the discharge `{p}` is disproved: no refined value can be constructed here (a failed check must not produce evidence)"
+                                ),
+                            ))
+                        }
+                        ObligStatus::Timeout => {
+                            return Err(Error::at(
+                                a.span(),
+                                format!(
+                                    "the discharge `{p}` ran out of reduction steps at this construction (none of these outcomes is a proof)"
+                                ),
+                            ))
+                        }
+                        ObligStatus::Unsupported | ObligStatus::Unresolved => {
+                            return Err(Error::at(
+                                a.span(),
+                                format!(
+                                    "the discharge `{p}` is not decided at this construction: discharge it in the `Dec`/`decide` world (`case decide ({p}) of Yes w -> ...`) and pass the witness, or use the total constructor"
+                                ),
+                            ))
+                        }
+                    }
+                }
+                c
+            } else {
+                self.check(env, a, dom)?
+            };
             if let Some(m) = mid {
                 let it = self.idx_of_term(a, env).map_err(|e| {
                     Error::at(
@@ -2036,6 +2168,12 @@ impl Checker {
             }
         }
         debug_assert_eq!(kept.len(), runtime_arity);
+        if ctor_refine.is_some() {
+            // The refinement's transparent constructor (refinement types
+            // design: the runtime representation IS the container): the
+            // value is its container value, with no wrapper allocation.
+            return Ok((kept.into_iter().next().expect("the container value"), result));
+        }
         Ok((
             app_spine(ECore::Ctor(fn_id(&v.module, &v.name)), kept),
             result,
@@ -2379,9 +2517,405 @@ impl Checker {
                 ObligStatus::Disproved => ObligStatus::Checked,
                 other => other,
             },
+            // The structural decidable vocabulary: decided by structural
+            // evaluation over constructor forms and numerals (refinement
+            // types design: predicates inhabit the decidable logic).
+            PTerm::Pred(pf, a) => self.pred_obligation(pf, &a)?,
             // A proposition variable has no decision procedure.
             PTerm::Var(_) | PTerm::MVar(_) => ObligStatus::Unsupported,
         })
+    }
+
+    /// The constructor form of an index value: the resolved constructor's
+    /// runtime arity and its arguments (`Cons h t`'s shape), or `None`
+    /// for values that are not constructor applications.
+    fn ctor_form(&self, t: &ITerm) -> Option<(usize, Vec<ITerm>)> {
+        let (head, args): (&str, Vec<ITerm>) = match t {
+            ITerm::Fn(k) => (k, Vec::new()),
+            ITerm::App(f, args) => match &**f {
+                ITerm::Fn(k) => (k, args.clone()),
+                _ => return None,
+            },
+            _ => return None,
+        };
+        let (m, n) = head.rsplit_once('.')?;
+        for v in self.values.get(n)? {
+            if v.module == m {
+                if let ValueKind::Ctor { runtime_arity, .. } = &v.kind {
+                    return Some((*runtime_arity, args));
+                }
+            }
+        }
+        None
+    }
+
+    /// The static decision of one structural-vocabulary predicate
+    /// (refinement types design: `NotNull`/`NonZero`/`Ascii`/`Ordered`
+    /// decide over constructor forms and numerals at check time).
+    fn pred_obligation(&self, pf: PredFn, it: &ITerm) -> Result<ObligStatus> {
+        let it = self.uni.resolve_idx(it).normalize();
+        Ok(match pf {
+            PredFn::NonZero => match self.eval_idx(&it, 32) {
+                Stuck::Val(v) => {
+                    if v != 0 {
+                        ObligStatus::Checked
+                    } else {
+                        ObligStatus::Disproved
+                    }
+                }
+                Stuck::Timeout => ObligStatus::Timeout,
+                Stuck::Stuck => ObligStatus::Unresolved,
+            },
+            PredFn::NotNull => match self.ctor_form(&it) {
+                Some((runtime_arity, _)) => {
+                    if runtime_arity == 0 {
+                        ObligStatus::Disproved
+                    } else {
+                        ObligStatus::Checked
+                    }
+                }
+                None => ObligStatus::Unresolved,
+            },
+            PredFn::Ordered => {
+                // Walk the list's constructor spine, collecting the
+                // numeric elements; the predicate holds exactly when
+                // every adjacent pair is non-decreasing.
+                let mut cur = it;
+                let mut elems: Vec<i128> = Vec::new();
+                let mut status = ObligStatus::Checked;
+                loop {
+                    match self.ctor_form(&cur) {
+                        Some((runtime_arity, _)) if runtime_arity == 0 => break,
+                        Some((runtime_arity, args)) if runtime_arity >= 2 && args.len() >= 2 => {
+                            match self.eval_idx(&args[0], 32) {
+                                Stuck::Val(v) => elems.push(v),
+                                Stuck::Timeout => {
+                                    status = ObligStatus::Timeout;
+                                    break;
+                                }
+                                Stuck::Stuck => {
+                                    status = ObligStatus::Unresolved;
+                                    break;
+                                }
+                            }
+                            cur = self.uni.resolve_idx(&args[1]).normalize();
+                        }
+                        _ => {
+                            status = ObligStatus::Unresolved;
+                            break;
+                        }
+                    }
+                }
+                if matches!(status, ObligStatus::Checked)
+                    && elems.windows(2).any(|w| w[0] > w[1])
+                {
+                    status = ObligStatus::Disproved;
+                }
+                status
+            }
+            // No text literal exists in index position: `Ascii` decides
+            // at runtime (`decide`) and over law samples only.
+            PredFn::Ascii => ObligStatus::Unresolved,
+        })
+    }
+
+    /// One type's constructors as `(tag, runtime arity)` pairs (the
+    /// first in-scope registration of the name, the law sampler's rule).
+    fn ctor_shapes(&self, name: &str) -> Option<Vec<(usize, usize)>> {
+        let tk = self.types.get(name)?.first()?;
+        let mut out = Vec::new();
+        for (cname, tag) in &tk.ctors {
+            let ra = self
+                .qualified
+                .get(&(tk.module.clone(), cname.clone()))
+                .and_then(|v| match &v.kind {
+                    ValueKind::Ctor { runtime_arity, .. } => Some(*runtime_arity),
+                    _ => None,
+                })
+                .unwrap_or(1);
+            out.push((*tag, ra));
+        }
+        Some(out)
+    }
+
+    /// The runtime decision test of one structural-vocabulary predicate
+    /// (refinement types design). The tests are compiled from the
+    /// compiler's own vocabulary: their semantics are baked, never read
+    /// from source a shadowing module could lie with.
+    fn pred_runtime_test(
+        &mut self,
+        pf: PredFn,
+        oty: &Ty,
+        operand: ECore,
+        span: ast::Span,
+    ) -> Result<ECore> {
+        Ok(match pf {
+            PredFn::NonZero => {
+                // `x /= 0`: the numeric comparison test, exactly the
+                // `decide (x /= 0)` lowering (the zero is a boxed word
+                // wherever the operand is).
+                let imm = match oty {
+                    Ty::Nat => ECore::App(
+                        Box::new(ECore::Prim(PrimOp::Nat(NatOp::Cmp))),
+                        vec![
+                            operand,
+                            ECore::ConstBig { nat: true, digits: "0".to_string() },
+                        ],
+                    ),
+                    Ty::Int => ECore::App(
+                        Box::new(ECore::Prim(PrimOp::Int(IntOp::Cmp))),
+                        vec![
+                            operand,
+                            ECore::ConstBig { nat: false, digits: "0".to_string() },
+                        ],
+                    ),
+                    Ty::Prim(s) if s.is_int_like() => {
+                        return Ok(ECore::App(
+                            Box::new(ECore::Prim(PrimOp::Cmp {
+                                ty: *s,
+                                op: CmpOp::Ne,
+                            })),
+                            vec![operand, ECore::Int(0)],
+                        ))
+                    }
+                    other => {
+                        return Err(Error::at(
+                            span,
+                            format!(
+                                "`NonZero` decides numeric values, not `{other}` (a wrong predicate for this value is refused naming the predicate)"
+                            ),
+                        ))
+                    }
+                };
+                ECore::App(
+                    Box::new(ECore::Prim(PrimOp::Cmp {
+                        ty: Scalar::I64,
+                        op: CmpOp::Ne,
+                    })),
+                    vec![imm, ECore::Int(0)],
+                )
+            }
+            PredFn::NotNull => {
+                // The constructor test: the empty (nullary) constructor
+                // refutes the predicate, every other form proves it.
+                let Ty::Adt(name, _) = oty else {
+                    return Err(Error::at(
+                        span,
+                        format!(
+                            "`NotNull` decides list-shaped values, not `{oty}` (a wrong predicate for this value is refused naming the predicate)"
+                        ),
+                    ));
+                };
+                let shapes = self.ctor_shapes(name).unwrap_or_default();
+                let alts = shapes
+                    .into_iter()
+                    .map(|(tag, ra)| {
+                        CAlt::new(
+                            CPat::Con { tag, fields: Vec::new() },
+                            ECore::Bool(ra != 0),
+                        )
+                    })
+                    .collect();
+                ECore::Case {
+                    scrut: Box::new(operand),
+                    alts,
+                }
+            }
+            PredFn::Ascii => {
+                // The byte scan over the text's bytes (`String` projects
+                // its `Bytes` backing field).
+                let bytes = match oty {
+                    Ty::Bytes => operand,
+                    Ty::Adt(name, _) if name == "String" => ECore::Proj(
+                        Box::new(operand),
+                        ProjField { slot: 0, access: None },
+                    ),
+                    other => {
+                        return Err(Error::at(
+                            span,
+                            format!(
+                                "`Ascii` decides text values (`String`), not `{other}` (a wrong predicate for this value is refused naming the predicate)"
+                            ),
+                        ))
+                    }
+                };
+                let gid = self.install_ascii_test();
+                ECore::App(
+                    Box::new(ECore::Global(gid)),
+                    vec![
+                        bytes,
+                        ECore::ConstBig { nat: true, digits: "0".to_string() },
+                    ],
+                )
+            }
+            PredFn::Ordered => {
+                // The adjacent-pair scan over the list's constructor
+                // spine (elements compare as `Nat` words).
+                let Ty::Adt(name, _) = oty else {
+                    return Err(Error::at(
+                        span,
+                        format!(
+                            "`Ordered` decides lists of numerics, not `{oty}` (a wrong predicate for this value is refused naming the predicate)"
+                        ),
+                    ));
+                };
+                let gid = self.install_ordered_test(name, span)?;
+                ECore::App(Box::new(ECore::Global(gid)), vec![operand])
+            }
+        })
+    }
+
+    /// The scan behind `decide (Ascii s)`: `all (< 128) (bytes of s)`,
+    /// as a recursive unit over the byte words (the `Bytes` prim ABI
+    /// speaks boxed `Nat` indices and byte values).
+    fn install_ascii_test(&mut self) -> GlobalId {
+        let gid = GlobalId(format!("<builtin>.refine-ascii-{}", self.fns.len()));
+        // Params: the bytes word, the boxed `Nat` index.
+        let b = Core::Var(LocalId(0));
+        let i = Core::Var(LocalId(1));
+        let len = Core::App(
+            Box::new(Core::Prim(PrimOp::Bytes(BytesOp::Len))),
+            vec![b.clone()],
+        );
+        let end_cmp = Core::App(
+            Box::new(Core::Prim(PrimOp::Nat(NatOp::Cmp))),
+            vec![i.clone(), len],
+        );
+        let at_end = Core::App(
+            Box::new(Core::Prim(PrimOp::Cmp { ty: Scalar::I64, op: CmpOp::Ge })),
+            vec![end_cmp, Core::Int(0)],
+        );
+        let byte = Core::App(
+            Box::new(Core::Prim(PrimOp::Bytes(BytesOp::Get))),
+            vec![b.clone(), i.clone()],
+        );
+        let ascii_cmp = Core::App(
+            Box::new(Core::Prim(PrimOp::Nat(NatOp::Cmp))),
+            vec![byte, Core::ConstBig { nat: true, digits: "128".to_string() }],
+        );
+        let ascii = Core::App(
+            Box::new(Core::Prim(PrimOp::Cmp { ty: Scalar::I64, op: CmpOp::Lt })),
+            vec![ascii_cmp, Core::Int(0)],
+        );
+        let next = Core::App(
+            Box::new(Core::Prim(PrimOp::Nat(NatOp::Add))),
+            vec![i, Core::ConstBig { nat: true, digits: "1".to_string() }],
+        );
+        let recur = Core::App(
+            Box::new(Core::Global(gid.clone())),
+            vec![b, next],
+        );
+        let body = Core::If(
+            Box::new(at_end),
+            CBranch::new(Core::Bool(true)),
+            CBranch::new(Core::If(
+                Box::new(ascii),
+                CBranch::new(recur),
+                CBranch::new(Core::Bool(false)),
+            )),
+        );
+        self.fns.push(FnDef {
+            id: gid.clone(),
+            params: vec!["b".to_string(), "i".to_string()],
+            body,
+            prim: None,
+            ctor: None,
+            hints: crate::core::FnHints::default(),
+            meta: crate::core::FnMeta::default(),
+        });
+        gid
+    }
+
+    /// The scan behind `decide (Ordered xs)`: every adjacent pair of
+    /// `Nat` elements is non-decreasing, as a recursive unit over the
+    /// list's constructor spine.
+    fn install_ordered_test(
+        &mut self,
+        type_name: &str,
+        span: ast::Span,
+    ) -> Result<GlobalId> {
+        let shapes = self.ctor_shapes(type_name).unwrap_or_default();
+        let mut empty: Option<usize> = None;
+        let mut cons: Option<usize> = None;
+        for (tag, ra) in shapes {
+            if ra == 0 && empty.is_none() {
+                empty = Some(tag);
+            } else if ra == 2 && cons.is_none() {
+                cons = Some(tag);
+            }
+        }
+        let (Some(nil_tag), Some(cons_tag)) = (empty, cons) else {
+            return Err(Error::at(
+                span,
+                format!(
+                    "`Ordered` decides lists of numerics (an empty constructor and an element-tail constructor), and {type_name} is not that shape (a wrong predicate for this value is refused naming the predicate)"
+                ),
+            ));
+        };
+        let gid = GlobalId(format!("<builtin>.refine-ordered-{}", self.fns.len()));
+        // Params: the list word (LocalId 0). Inner binders: head and
+        // tail of the outer cons (1, 2), head and tail of the inner
+        // cons (3, 4).
+        let elem_cmp = Core::App(
+            Box::new(Core::Prim(PrimOp::Cmp { ty: Scalar::I64, op: CmpOp::Le })),
+            vec![
+                Core::App(
+                    Box::new(Core::Prim(PrimOp::Nat(NatOp::Cmp))),
+                    vec![Core::Var(LocalId(1)), Core::Var(LocalId(3))],
+                ),
+                Core::Int(0),
+            ],
+        );
+        let recur = Core::App(
+            Box::new(Core::Global(gid.clone())),
+            vec![Core::Var(LocalId(2))],
+        );
+        let inner = Core::Case {
+            scrut: Box::new(Core::Var(LocalId(2))),
+            alts: vec![
+                CAlt::new(
+                    CPat::Con { tag: nil_tag, fields: Vec::new() },
+                    Core::Bool(true),
+                ),
+                CAlt::new(
+                    CPat::Con {
+                        tag: cons_tag,
+                        fields: vec![LocalId(3), LocalId(4)],
+                    },
+                    Core::If(
+                        Box::new(elem_cmp),
+                        CBranch::new(recur),
+                        CBranch::new(Core::Bool(false)),
+                    ),
+                ),
+            ],
+        };
+        let body = Core::Case {
+            scrut: Box::new(Core::Var(LocalId(0))),
+            alts: vec![
+                CAlt::new(
+                    CPat::Con { tag: nil_tag, fields: Vec::new() },
+                    Core::Bool(true),
+                ),
+                CAlt::new(
+                    CPat::Con {
+                        tag: cons_tag,
+                        fields: vec![LocalId(1), LocalId(2)],
+                    },
+                    inner,
+                ),
+            ],
+        };
+        self.fns.push(FnDef {
+            id: gid.clone(),
+            params: vec!["xs".to_string()],
+            body,
+            prim: None,
+            ctor: None,
+            hints: crate::core::FnHints::default(),
+            meta: crate::core::FnMeta::default(),
+        });
+        Ok(gid)
     }
 
     /// Evaluate an index expression on numerals (dependent core kernel
@@ -4762,6 +5296,15 @@ impl Checker {
     /// constructor was silently matched against a same-position tag of the
     /// scrutinee's type (review P0).
     fn ctor_for_type(&self, info: &TypeKind, p: &ast::ConPath, span: ast::Span) -> Result<ValueInfo> {
+        if info.refine.is_some() {
+            return Err(Error::at(
+                span,
+                format!(
+                    "{} is a refinement's transparent constructor: it has no constructor patterns (project with `unrefine` and match the container's constructors)",
+                    p.parts().join(".")
+                ),
+            ));
+        }
         if self
             .codata_types
             .contains(&(info.module.clone(), info.name.clone()))

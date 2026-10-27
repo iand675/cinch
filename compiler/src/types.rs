@@ -655,8 +655,71 @@ pub enum PTerm {
     Cmp(IdxCmp, Box<ITerm>, Box<ITerm>),
     Eq(Box<ITerm>, Box<ITerm>),
     Not(Box<PTerm>),
+    /// A structural decidable predicate of the refinement vocabulary
+    /// (refinement types design, "shape"): `NotNull xs`, `NonZero n`,
+    /// `Ascii s`, `Ordered xs`. These decide by structural evaluation
+    /// over constructor forms at check time, over sample values in the
+    /// law layer, and by their runtime tests under `decide`.
+    Pred(PredFn, Box<ITerm>),
     Var(String),
     MVar(usize),
+}
+
+/// The closed decidable predicate vocabulary over container values
+/// (refinement types design: predicates inhabit the decidable logic;
+/// no SMT and no refinement inference). Each predicate is admissible
+/// over specific operand shapes only, checked where a refinement or a
+/// `decide` names it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum PredFn {
+    /// A list-shaped value is not its empty constructor (`List`).
+    NotNull,
+    /// A numeric value is not zero (`Nat`/`Int` and machine integers).
+    NonZero,
+    /// Every byte of a text value is below 128 (`String`).
+    Ascii,
+    /// A list of numerics is in non-decreasing order (`List Nat`).
+    Ordered,
+}
+
+impl PredFn {
+    /// The surface spelling.
+    pub fn name(&self) -> &'static str {
+        match self {
+            PredFn::NotNull => "NotNull",
+            PredFn::NonZero => "NonZero",
+            PredFn::Ascii => "Ascii",
+            PredFn::Ordered => "Ordered",
+        }
+    }
+
+    /// Resolve a name in proposition position to the vocabulary.
+    pub fn lookup(name: &str) -> Option<PredFn> {
+        match name {
+            "NotNull" => Some(PredFn::NotNull),
+            "NonZero" => Some(PredFn::NonZero),
+            "Ascii" => Some(PredFn::Ascii),
+            "Ordered" => Some(PredFn::Ordered),
+            _ => None,
+        }
+    }
+
+    /// The operand shapes this predicate decides over, for the error
+    /// that refuses a wrong predicate naming it.
+    pub fn operand_note(&self) -> &'static str {
+        match self {
+            PredFn::NotNull => "list-shaped values (`List`)",
+            PredFn::NonZero => "numeric values (`Nat`, `Int`, machine integers)",
+            PredFn::Ascii => "text values (`String`)",
+            PredFn::Ordered => "lists of numerics (`List Nat`)",
+        }
+    }
+}
+
+impl fmt::Display for PredFn {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.name())
+    }
 }
 
 impl PTerm {
@@ -671,6 +734,9 @@ impl PTerm {
                 b.free_vars(out);
             }
             PTerm::Not(p) => p.free_vars(out),
+            PTerm::Pred(_, a) => {
+                a.free_vars(out);
+            }
             PTerm::Var(n) => {
                 if !out.contains(n) {
                     out.push(n.clone());
@@ -699,6 +765,7 @@ impl PTerm {
                 b.free_mvars(out);
             }
             PTerm::Not(p) => p.free_mvars(out),
+            PTerm::Pred(_, a) => a.free_mvars(out),
         }
     }
 
@@ -713,6 +780,7 @@ impl PTerm {
                 PTerm::Eq(Box::new(a.subst(name, by)), Box::new(b.subst(name, by)))
             }
             PTerm::Not(p) => PTerm::Not(Box::new(p.subst(name, by))),
+            PTerm::Pred(pf, a) => PTerm::Pred(*pf, Box::new(a.subst(name, by))),
             PTerm::Var(_) | PTerm::MVar(_) => self.clone(),
         }
     }
@@ -726,6 +794,7 @@ impl PTerm {
             ),
             PTerm::Eq(a, b) => PTerm::Eq(Box::new(a.normalize()), Box::new(b.normalize())),
             PTerm::Not(p) => PTerm::Not(Box::new(p.normalize())),
+            PTerm::Pred(pf, a) => PTerm::Pred(*pf, Box::new(a.normalize())),
             other => other.clone(),
         }
     }
@@ -737,6 +806,7 @@ impl PTerm {
             }
             (PTerm::Eq(a, b), PTerm::Eq(c, d)) => a.eq(&c) && b.eq(&d),
             (PTerm::Not(a), PTerm::Not(b)) => a.eq(&b),
+            (PTerm::Pred(pf, a), PTerm::Pred(pf2, b)) => pf == pf2 && a.eq(&b),
             (PTerm::Var(x), PTerm::Var(y)) => x == y,
             (PTerm::MVar(x), PTerm::MVar(y)) => x == y,
             _ => false,
@@ -750,6 +820,7 @@ impl fmt::Display for PTerm {
             PTerm::Cmp(op, a, b) => write!(f, "{a} {op} {b}"),
             PTerm::Eq(a, b) => write!(f, "Eq {a} {b}"),
             PTerm::Not(p) => write!(f, "Not ({p})"),
+            PTerm::Pred(pf, a) => write!(f, "{pf} {a}"),
             PTerm::Var(n) => write!(f, "{n}"),
             PTerm::MVar(m) => write!(f, "?p{m}"),
         }
@@ -1816,6 +1887,7 @@ impl Unifier {
                 PTerm::Eq(Box::new(self.resolve_idx(a)), Box::new(self.resolve_idx(b)))
             }
             PTerm::Not(q) => PTerm::Not(Box::new(self.resolve_prop(q))),
+            PTerm::Pred(pf, a) => PTerm::Pred(*pf, Box::new(self.resolve_idx(a))),
             other => other.clone(),
         }
     }
@@ -1961,6 +2033,7 @@ impl Unifier {
                 self.unify_idx(y, v)
             }
             (PTerm::Not(x), PTerm::Not(y)) => self.unify_prop(x, y),
+            (PTerm::Pred(pf, x), PTerm::Pred(pf2, y)) if pf == pf2 => self.unify_idx(x, y),
             _ => {
                 if a.eq(&b) {
                     Ok(())

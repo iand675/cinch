@@ -1,7 +1,8 @@
 //! Foldable/Traversable/NonEmpty consumer semantics: the fold and
-//! traversal classes over List, Option and NonEmpty, the free semigroup
-//! instance, and the showcase behavior of `traverse` into `Result`
-//! (short-circuiting on the FIRST error) and into `Option`.
+//! traversal classes over List, Option and NonEmpty, the refinement's
+//! free semigroup instance (the container's own `<>` over `List`), and
+//! the showcase behavior of `traverse` into `Result` (short-circuiting
+//! on the FIRST error) and into `Option`.
 //!
 //! Each test compiles a real multi-file project: the prelude modules
 //! under test (Category/Foldable.lang, Category/Traversable.lang,
@@ -132,6 +133,10 @@ fn foldable_option_semantics_and_laws() {
 
 #[test]
 fn foldable_nonempty_semantics_and_laws() {
+    // The refinement's `Foldable` transfer reads the refined value as
+    // the list it is: the container's own folds over the transfer
+    // (checks are top-level because a `case` in a `let` binder's
+    // right-hand side must indent past the binder's column).
     expect_ok(
         "foldable-nonempty",
         "module Main where\n\
@@ -145,24 +150,49 @@ fn foldable_nonempty_semantics_and_laws() {
          \x20   Cons x xs -> case b of\n\
          \x20     Nil -> False\n\
          \x20     Cons y ys -> if x == y then same xs ys else False\n\
+         \x20 check1 :: Int\n\
+         \x20 check1 = case non-empty (Cons (1 :: Int) (Cons 2 (Cons 3 Nil))) of\n\
+         \x20   None -> 1\n\
+         \x20   Some ne -> if foldr (\\x acc -> x + acc) 0 ne == 6 then 0 else 1\n\
+         \x20 check2 :: Int\n\
+         \x20 check2 = case non-empty (Cons (1 :: Int) (Cons 2 (Cons 3 Nil))) of\n\
+         \x20   None -> 2\n\
+         \x20   Some ne -> if foldl (\\acc x -> acc + x) 0 ne == 6 then 0 else 2\n\
+         \x20 check3 :: Int\n\
+         \x20 check3 = case non-empty (Cons (1 :: Int) (Cons 2 (Cons 3 Nil))) of\n\
+         \x20   None -> 4\n\
+         \x20   Some ne -> if same (to-list ne) (Cons 1 (Cons 2 (Cons 3 Nil))) then 0 else 4\n\
+         \x20 check4 :: Int\n\
+         \x20 check4 = case non-empty (Cons (1 :: Int) (Cons 2 (Cons 3 Nil))) of\n\
+         \x20   None -> 8\n\
+         \x20   Some ne -> if length ne == 3 then 0 else 8\n\
+         \x20 check5 :: Int\n\
+         \x20 check5 = case non-empty (Cons (1 :: Int) (Cons 2 (Cons 3 Nil))) of\n\
+         \x20   None -> 16\n\
+         \x20   Some ne -> if null ne == False then 0 else 16\n\
+         \x20 check6 :: Int\n\
+         \x20 check6 = case non-empty (Cons (1 :: Int) (Cons 2 (Cons 3 Nil))) of\n\
+         \x20   None -> 32\n\
+         \x20   Some ne -> if same (foldr (\\v acc -> Cons v acc) Nil (to-list ne)) (to-list ne) then 0 else 32\n\
+         \x20 check7 :: Int\n\
+         \x20 check7 = case non-empty (Cons (7 :: Int) Nil) of\n\
+         \x20   None -> 64\n\
+         \x20   Some one -> if same (to-list one) (Cons 7 Nil) then 0 else 64\n\
+         \x20 check8 :: Int\n\
+         \x20 check8 = case non-empty (Cons (7 :: Int) Nil) of\n\
+         \x20   None -> 128\n\
+         \x20   Some one -> if length one == 1 then 0 else 128\n\
          \x20 main :: Int\n\
-         \x20 main =\n\
-         \x20   let ne = NonEmpty (1 :: Int) (Cons 2 (Cons 3 Nil)) in\n\
-         \x20   let one = NonEmpty (7 :: Int) Nil in\n\
-         \x20   let c1 = if foldr (\\x acc -> x + acc) 0 ne == 6 then 0 else 1 in\n\
-         \x20   let c2 = if foldl (\\acc x -> acc + x) 0 ne == 6 then 0 else 2 in\n\
-         \x20   let c3 = if same (to-list ne) (Cons 1 (Cons 2 (Cons 3 Nil))) then 0 else 4 in\n\
-         \x20   let c4 = if length ne == 3 then 0 else 8 in\n\
-         \x20   let c5 = if null ne == False then 0 else 16 in\n\
-         \x20   let c6 = if same (foldr (\\v acc -> Cons v acc) Nil (to-list ne)) (to-list ne) then 0 else 32 in\n\
-         \x20   let c7 = if same (to-list one) (Cons 7 Nil) then 0 else 64 in\n\
-         \x20   let c8 = if length one == 1 then 0 else 128 in\n\
-         \x20   c1 + c2 + c3 + c4 + c5 + c6 + c7 + c8\n",
+         \x20 main = check1 + check2 + check3 + check4 + check5 + check6 + check7 + check8\n",
     );
 }
 
 #[test]
 fn semigroup_nonempty_associativity_and_concatenation() {
+    // The refinement's `Semigroup` transfer is the container's own `<>`
+    // (list append): concatenation as list append on the elements,
+    // associative over samples (the P18 law layer checks both in
+    // compiler/tests/refinements.rs).
     expect_ok(
         "semigroup-nonempty",
         "module Main where\n\
@@ -182,16 +212,34 @@ fn semigroup_nonempty_associativity_and_concatenation() {
          \x20 append a b = case a of\n\
          \x20   Nil -> b\n\
          \x20   Cons x xs -> Cons x (append xs b)\n\
+         \x20 check1 :: Int\n\
+         \x20 check1 = case non-empty (Cons (1 :: Int) (Cons 2 Nil)) of\n\
+         \x20   None -> 1\n\
+         \x20   Some a -> case non-empty (Cons (3 :: Int) Nil) of\n\
+         \x20     None -> 1\n\
+         \x20     Some b -> if same (to-list (a <> b)) (append (to-list a) (to-list b)) then 0 else 1\n\
+         \x20 check2 :: Int\n\
+         \x20 check2 = case non-empty (Cons (1 :: Int) (Cons 2 Nil)) of\n\
+         \x20   None -> 2\n\
+         \x20   Some a -> case non-empty (Cons (3 :: Int) Nil) of\n\
+         \x20     None -> 2\n\
+         \x20     Some b -> case non-empty (Cons (4 :: Int) (Cons 5 Nil)) of\n\
+         \x20       None -> 2\n\
+         \x20       Some c -> if same (to-list ((a <> b) <> c)) (to-list (a <> (b <> c))) then 0 else 2\n\
+         \x20 check3 :: Int\n\
+         \x20 check3 = case non-empty (Cons (1 :: Int) (Cons 2 Nil)) of\n\
+         \x20   None -> 4\n\
+         \x20   Some a -> case non-empty (Cons (3 :: Int) Nil) of\n\
+         \x20     None -> 4\n\
+         \x20     Some b -> if same (to-list (a <> b)) (Cons 1 (Cons 2 (Cons 3 Nil))) then 0 else 4\n\
+         \x20 check4 :: Int\n\
+         \x20 check4 = case non-empty (Cons (1 :: Int) (Cons 2 Nil)) of\n\
+         \x20   None -> 8\n\
+         \x20   Some a -> case non-empty (Cons (3 :: Int) Nil) of\n\
+         \x20     None -> 8\n\
+         \x20     Some b -> if same (to-list (b <> a)) (Cons 3 (Cons 1 (Cons 2 Nil))) then 0 else 8\n\
          \x20 main :: Int\n\
-         \x20 main =\n\
-         \x20   let a = NonEmpty (1 :: Int) (Cons 2 Nil) in\n\
-         \x20   let b = NonEmpty (3 :: Int) Nil in\n\
-         \x20   let c = NonEmpty (4 :: Int) (Cons 5 Nil) in\n\
-         \x20   let c1 = if same (to-list (a <> b)) (append (to-list a) (to-list b)) then 0 else 1 in\n\
-         \x20   let c2 = if same (to-list ((a <> b) <> c)) (to-list (a <> (b <> c))) then 0 else 2 in\n\
-         \x20   let c3 = if same (to-list (a <> b)) (Cons 1 (Cons 2 (Cons 3 Nil))) then 0 else 4 in\n\
-         \x20   let c4 = if same (to-list (b <> a)) (Cons 3 (Cons 1 (Cons 2 Nil))) then 0 else 8 in\n\
-         \x20   c1 + c2 + c3 + c4\n",
+         \x20 main = check1 + check2 + check3 + check4\n",
     );
 }
 
@@ -333,6 +381,9 @@ fn traverse_option_container_into_result_and_option() {
 
 #[test]
 fn traverse_nonempty_into_result_and_option() {
+    // The refinement's `Traversable` transfer is the container's own
+    // traversal (first-error short-circuit in traversal order), its
+    // refined result observed as the list it is.
     expect_ok(
         "traverse-nonempty",
         "module Main where\n\
@@ -352,27 +403,27 @@ fn traverse_nonempty_into_result_and_option() {
          \x20 not-two :: Int -> Option Int\n\
          \x20 not-two x = if x == 2 then None else Some x\n\
          \x20 check-a :: Int\n\
-         \x20 check-a =\n\
-         \x20   let ne = NonEmpty (1 :: Int) (Cons 3 (Cons 5 Nil)) in\n\
-         \x20   case (traverse half ne :: Result Int (NonEmpty Int)) of\n\
+         \x20 check-a = case non-empty (Cons (1 :: Int) (Cons 3 (Cons 5 Nil))) of\n\
+         \x20   None -> 1\n\
+         \x20   Some ne -> case (traverse half ne :: Result Int (NonEmpty Int)) of\n\
          \x20     Err e -> 1\n\
          \x20     Ok v -> if same (to-list v) (to-list ne) then 0 else 1\n\
          \x20 check-b :: Int\n\
-         \x20 check-b =\n\
-         \x20   let tail-bad = NonEmpty (1 :: Int) (Cons 2 (Cons 4 Nil)) in\n\
-         \x20   case (traverse half tail-bad :: Result Int (NonEmpty Int)) of\n\
+         \x20 check-b = case non-empty (Cons (1 :: Int) (Cons 2 (Cons 4 Nil))) of\n\
+         \x20   None -> 2\n\
+         \x20   Some tail-bad -> case (traverse half tail-bad :: Result Int (NonEmpty Int)) of\n\
          \x20     Err e -> if e == 2 then 0 else 2\n\
          \x20     Ok v -> 2\n\
          \x20 check-c :: Int\n\
-         \x20 check-c =\n\
-         \x20   let head-bad = NonEmpty (2 :: Int) (Cons 4 Nil) in\n\
-         \x20   case (traverse half head-bad :: Result Int (NonEmpty Int)) of\n\
+         \x20 check-c = case non-empty (Cons (2 :: Int) (Cons 4 Nil)) of\n\
+         \x20   None -> 4\n\
+         \x20   Some head-bad -> case (traverse half head-bad :: Result Int (NonEmpty Int)) of\n\
          \x20     Err e -> if e == 2 then 0 else 4\n\
          \x20     Ok v -> 4\n\
          \x20 check-d :: Int\n\
-         \x20 check-d =\n\
-         \x20   let ne = NonEmpty (1 :: Int) (Cons 3 (Cons 5 Nil)) in\n\
-         \x20   case (traverse not-two ne :: Option (NonEmpty Int)) of\n\
+         \x20 check-d = case non-empty (Cons (1 :: Int) (Cons 3 (Cons 5 Nil))) of\n\
+         \x20   None -> 8\n\
+         \x20   Some ne -> case (traverse not-two ne :: Option (NonEmpty Int)) of\n\
          \x20     None -> 8\n\
          \x20     Some w -> if same (to-list w) (to-list ne) then 0 else 8\n\
          \x20 main :: Int\n\
@@ -409,13 +460,17 @@ fn sequence_short_circuits_on_first_error() {
          \x20   None -> 0\n\
          \x20   Some vs -> 4\n\
          \x20 check-d :: Int\n\
-         \x20 check-d = case (sequence (NonEmpty (Ok (1 :: Int)) (Cons (Err (7 :: Int)) (Cons (Err (9 :: Int)) Nil))) :: Result Int (NonEmpty Int)) of\n\
-         \x20   Err e -> if e == 7 then 0 else 8\n\
-         \x20   Ok v -> 8\n\
+         \x20 check-d = case non-empty (Cons (Ok (1 :: Int)) (Cons (Err (7 :: Int)) (Cons (Err (9 :: Int)) Nil))) of\n\
+         \x20   None -> 8\n\
+         \x20   Some ne -> case (sequence ne :: Result Int (NonEmpty Int)) of\n\
+         \x20     Err e -> if e == 7 then 0 else 8\n\
+         \x20     Ok v -> 8\n\
          \x20 check-e :: Int\n\
-         \x20 check-e = case (sequence (NonEmpty (Ok (1 :: Int)) (Cons (Ok (2 :: Int)) Nil)) :: Result Int (NonEmpty Int)) of\n\
-         \x20   Err e -> 16\n\
-         \x20   Ok v -> if same (to-list v) (Cons 1 (Cons 2 Nil)) then 0 else 16\n\
+         \x20 check-e = case non-empty (Cons (Ok (1 :: Int)) (Cons (Ok (2 :: Int)) Nil)) of\n\
+         \x20   None -> 16\n\
+         \x20   Some ne -> case (sequence ne :: Result Int (NonEmpty Int)) of\n\
+         \x20     Err e -> 16\n\
+         \x20     Ok v -> if same (to-list v) (Cons 1 (Cons 2 Nil)) then 0 else 16\n\
          \x20 main :: Int\n\
          \x20 main = check-a + check-b + check-c + check-d + check-e\n",
     );

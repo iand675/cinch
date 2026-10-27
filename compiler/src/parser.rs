@@ -422,9 +422,7 @@ impl<'a> Parser<'a> {
             Tok::Effect => Ok(Decl::Effect(self.parse_effect_decl()?)),
             Tok::Generate => self.parse_generate(),
             Tok::Opaque => Ok(Decl::OpaqueType(self.parse_opaque_type()?)),
-            Tok::TypeKw => {
-                Err(self.err("type aliases are not supported in the bootstrap slice (`opaque type T :: Type` declares an abstract foreign resource)"))
-            }
+            Tok::TypeKw => Ok(Decl::Refine(self.parse_refine()?)),
             Tok::Rewrite => self.parse_rewrite(false),
             Tok::Prim => self.parse_prim(false),
             Tok::VarId(s) if s == "unsafe" && matches!(self.peek_tok_at(1), Some(Tok::Prim)) => {
@@ -1412,6 +1410,60 @@ impl<'a> Parser<'a> {
     /// `opaque type T [params] :: Type` (foreign function interface
     /// specification section 2): an abstract foreign resource with no
     /// constructors and no layout projection.
+    /// `type R params = refine (x :: T) with p` (refinement types
+    /// design): the refinement `R` of the container `T` by the decidable
+    /// predicate `p` over the refined binder `x`. The binder takes the
+    /// dependent binder's `::` or the design note's `:`.
+    fn parse_refine(&mut self) -> Result<RefineDecl> {
+        let span = self.expect(&Tok::TypeKw, "`type`")?.span;
+        let name = self.parse_ctor_name("a refinement name")?;
+        let params = self.parse_params()?;
+        if self.at(&Tok::ColonColon) {
+            return Err(self.err(
+                "kind signatures on refinement declarations are not supported in the bootstrap slice",
+            ));
+        }
+        self.expect(&Tok::Equals, "`=`")?;
+        match self.peek_tok().clone() {
+            Tok::VarId(s) if s == "refine" => {
+                self.bump();
+            }
+            t => {
+                return Err(self.err(format!(
+                    "expected `refine (x :: T) with p` (a `type` declaration is a refinement; `opaque type T :: Type` declares an abstract foreign resource), found {}",
+                    describe(&t)
+                )))
+            }
+        }
+        self.expect(&Tok::LParen, "the refined binder `(x :: T)`")?;
+        let binder = match self.peek_tok().clone() {
+            Tok::VarId(s) if s != "_" => {
+                let span = self.peek().span;
+                self.bump();
+                Name::new(s, span)
+            }
+            t => {
+                return Err(self.err(format!(
+                    "expected the refined binder's name, found {}",
+                    describe(&t)
+                )))
+            }
+        };
+        let colon = self.at(&Tok::ColonColon)
+            || matches!(self.peek_tok(), Tok::Op(s) if s == ":");
+        if !colon {
+            return Err(self.err(
+                "expected `::` between the refined binder and its container type",
+            ));
+        }
+        self.bump();
+        let base = self.parse_type()?;
+        self.expect(&Tok::RParen, "`)` after the refined binder")?;
+        self.expect(&Tok::With, "`with` before the refinement's predicate")?;
+        let pred = self.parse_type()?;
+        Ok(RefineDecl { name, params, binder, base, pred, span })
+    }
+
     fn parse_opaque_type(&mut self) -> Result<OpaqueTypeDecl> {
         let span = self.expect(&Tok::Opaque, "`opaque`")?.span;
         self.expect(&Tok::TypeKw, "`type` after `opaque`")?;
@@ -3244,6 +3296,15 @@ fn resolve_module_decl(d: &mut Decl, fix: &FixityTable) -> Result<()> {
             }
         }
         Decl::OpaqueType(o) => resolve_type(&mut o.kind, fix)?,
+        Decl::Refine(r) => {
+            for b in &mut r.params {
+                if let Some(ann) = &mut b.ann {
+                    resolve_type(ann, fix)?;
+                }
+            }
+            resolve_type(&mut r.base, fix)?;
+            resolve_type(&mut r.pred, fix)?;
+        }
         Decl::Rewrite(r) => {
             for b in &mut r.binders {
                 if let Some(ann) = &mut b.ann {
@@ -4217,7 +4278,7 @@ mod tests {
         let e = err("module T where\n  effect E (r :: Type) where\n    op :: Int\n");
         assert!(e.contains("effect parameters are region identities"), "{e}");
         let e = err("module T where\n  type T = Int\n");
-        assert!(e.contains("type aliases are not supported"), "{e}");
+        assert!(e.contains("a `type` declaration is a refinement"), "{e}");
         let e = err("module T where\n  upgrade A to B where\n    x = 1\n");
         assert!(e.contains("`x` is not an upgrade component"), "{e}");
         let e = err("module T where\n  quoteDecls where\n    x :: Int\n    x = 1\n");

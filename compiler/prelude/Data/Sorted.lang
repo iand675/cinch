@@ -1,0 +1,45 @@
+-- Data.Sorted: the sorted list as a refinement (refinement types
+-- design; decision D151).
+--
+-- `type Sorted = refine (xs :: List Nat) with Ordered xs`: `Sorted` IS
+-- `List Nat` at runtime (the witness is `Prop`-erased, decision D31).
+-- The predicate form: `Ordered` decides lists of numerics (the
+-- ordering relation over an abstract element type is refused naming the
+-- predicate: the `Dec` world decides numerics, not dictionaries).
+--
+-- The total constructor `to-sorted` discharges at runtime through the
+-- `Dec`/`decide` world and returns `Option`; the transparent
+-- constructor `Sorted xs w` takes the list and its witness (a `Dec
+-- (Ordered xs)` discharge that erases, or `Yes` evidence).
+--
+-- The instance below is the sorted MERGE, not list append: append of
+-- two sorted lists is not sorted in general, so the container's `<>`
+-- does NOT transfer (the preservation law rejects it naming
+-- `Sorted.preserve-<>`; asserted in compiler/tests/refinements.rs,
+-- together with the deliberately non-preserving reverse-append).
+module Data.Sorted where
+
+  import Algebra.Semigroup
+
+  infixr 6 <>
+
+  type Sorted = refine (xs :: List Nat) with Ordered xs
+
+  -- The total constructor (refinement types design: the total API).
+  to-sorted :: List Nat -> Option Sorted
+  to-sorted xs = case decide (Ordered xs) of
+    Yes w -> Some (Sorted xs w)
+    No _ -> None
+
+  -- The sorted merge: the output of merging sorted lists is sorted
+  -- (preservation), and merge is associative (`Semigroup.assoc`);
+  -- both checked sample-wise by the law layer.
+  merge :: List Nat -> List Nat -> List Nat
+  merge a b = case a of
+    Nil -> b
+    Cons x xs -> case b of
+      Nil -> a
+      Cons y ys -> if x <= y then Cons x (merge xs b) else Cons y (merge a ys)
+
+  implicit instance Semigroup_Sorted :: Semigroup Sorted where
+    (<>) p q = merge p q

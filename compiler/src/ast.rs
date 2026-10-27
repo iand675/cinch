@@ -767,6 +767,28 @@ pub struct OpaqueTypeDecl {
     pub span: Span,
 }
 
+/// `type R params = refine (x :: T) with p` (refinement types design):
+/// the refinement `R` of the container `T` by the decidable predicate
+/// `p` over the refined binder `x`. The runtime representation IS the
+/// container: the witness is `Prop`-erased (D31), construction
+/// discharges `p` explicitly in the `Dec`/`decide` world, and the
+/// container's instances transfer exactly when their methods preserve
+/// `p` (checked by the P18 law layer).
+#[derive(Clone, Debug)]
+pub struct RefineDecl {
+    pub name: Name,
+    /// The refinement's type parameters (`type NonEmpty a = ...`'s `a`).
+    pub params: Vec<TypeBinder>,
+    /// The refined binder (`refine (xs :: List a) with NotNull xs`'s
+    /// `xs`): the value the predicate speaks about.
+    pub binder: Name,
+    /// The container type.
+    pub base: Type,
+    /// The decidable predicate over the binder.
+    pub pred: Type,
+    pub span: Span,
+}
+
 /// `effect L params where { op :: ty, ... }`: a user-declared effect whose
 /// operations are ordinary functions performing the label (design section
 /// 2). `params` holds the effect's region parameter, if any.
@@ -930,6 +952,9 @@ pub enum Decl {
     /// operations and inline target IR specification section 2): a
     /// primitive operation with inline target-IR bodies.
     Prim(PrimDecl),
+    /// `type R params = refine (x :: T) with p` (refinement types
+    /// design): a refinement of a container by a decidable predicate.
+    Refine(RefineDecl),
     /// `opaque type T [params] :: Type` (foreign function interface
     /// specification section 2).
     OpaqueType(OpaqueTypeDecl),
@@ -1252,6 +1277,15 @@ pub fn collect_decl_refs(d: &Decl, out: &mut Vec<RefSite>) {
             for c in &data.ctors {
                 collect_type_refs(&c.ty, out);
             }
+        }
+        Decl::Refine(r) => {
+            for b in &r.params {
+                if let Some(ann) = &b.ann {
+                    collect_type_refs(ann, out);
+                }
+            }
+            collect_type_refs(&r.base, out);
+            collect_type_refs(&r.pred, out);
         }
         Decl::Record(r) | Decl::Codata(r) => {
             for f in &r.fields {
@@ -1970,6 +2004,33 @@ pub fn hyg_decl(d: &Decl, cx: &mut HygCx, sc: &mut HygScope) -> Result<Decl> {
             data.params = params;
             Decl::Data(data)
         }
+        Decl::Refine(r) => {
+            let mut r = r.clone();
+            let mut params = Vec::new();
+            for b in &r.params {
+                let mut b = b.clone();
+                if let Some(ann) = &b.ann {
+                    b.ann = Some(hyg_type(ann, cx, sc)?);
+                }
+                let f = fresh_name(cx, &b.name.text);
+                sc.types.push((b.name.text.clone(), f.clone()));
+                b.name = Name::new(f, b.name.span);
+                params.push(b);
+            }
+            // The refined binder is an index-position name of the
+            // predicate: renamed with the type scope.
+            let bf = fresh_name(cx, &r.binder.text);
+            sc.types.push((r.binder.text.clone(), bf.clone()));
+            r.binder = Name::new(bf, r.binder.span);
+            r.base = hyg_type(&r.base, cx, sc)?;
+            r.pred = hyg_type(&r.pred, cx, sc)?;
+            sc.types.pop();
+            for _ in &params {
+                sc.types.pop();
+            }
+            r.params = params;
+            Decl::Refine(r)
+        }
         Decl::Record(r) | Decl::Codata(r) => {
             let is_codata = matches!(d, Decl::Codata(_));
             let mut r = r.clone();
@@ -2198,7 +2259,7 @@ pub fn subst_holes_decl(d: &Decl, vals: &[Term]) -> Decl {
         Decl::Import(_) | Decl::ImportData(_) | Decl::Export(_) | Decl::Fixity(_)
         | Decl::Foreign(_) | Decl::OpaqueType(_)
         | Decl::Signature(_)
-        | Decl::Data(_) | Decl::Record(_) | Decl::Codata(_) | Decl::Effect(_)
+        | Decl::Data(_) | Decl::Refine(_) | Decl::Record(_) | Decl::Codata(_) | Decl::Effect(_)
         | Decl::ValueSig { .. } | Decl::Generate { .. } => d.clone(),
         Decl::Attributed { attrs, inner } => Decl::Attributed {
             attrs: attrs.clone(),
@@ -2412,6 +2473,7 @@ fn collect_decl_holes(d: &mut Decl, holes: &mut Vec<HoleExpr>) {
         | Decl::Fixity(_)
         | Decl::Foreign(_)
         | Decl::OpaqueType(_)
+        | Decl::Refine(_)
         | Decl::ValueSig { .. } => {}
         Decl::Attributed { inner, .. } => collect_decl_holes(inner, holes),
         Decl::Rewrite(r) => {

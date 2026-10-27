@@ -423,7 +423,7 @@ impl Checker {
                 param_kinds: Vec::new(),
                 ctors: Vec::new(),
                 fields: None,
-                field_erased: Vec::new(), opaque: false,
+                field_erased: Vec::new(), opaque: false, refine: None,
             });
         }
         // `Io r`: runtime capability evidence for identity `r` (design
@@ -436,7 +436,7 @@ impl Checker {
             param_kinds: vec![ParamKind::Type],
             ctors: Vec::new(),
             fields: None,
-            field_erased: Vec::new(), opaque: false,
+            field_erased: Vec::new(), opaque: false, refine: None,
         });
         // Machine scalars are primitives of the language, not user types
         // (primitive types specification, section 2).
@@ -448,7 +448,7 @@ impl Checker {
                 param_kinds: Vec::new(),
                 ctors: Vec::new(),
                 fields: None,
-                field_erased: Vec::new(), opaque: false,
+                field_erased: Vec::new(), opaque: false, refine: None,
             });
         }
         for (n, b) in [("True", true), ("False", false)] {
@@ -518,6 +518,7 @@ impl Checker {
                 fields: None,
                 field_erased: Vec::new(),
                 opaque: false,
+                refine: None,
             });
         }
         let unit = Ty::Unit;
@@ -1094,7 +1095,7 @@ impl Checker {
                 },
                 ctors: Vec::new(),
                 fields: None,
-                field_erased: Vec::new(), opaque: false,
+                field_erased: Vec::new(), opaque: false, refine: None,
             });
         }
         let adt = |name: &str, args: Vec<Ty>| Ty::Adt(name.to_string(), args);
@@ -1566,6 +1567,7 @@ impl Checker {
                         ty_params: params.iter().map(|(n, _)| n.clone()).collect(),
                         local_idx,
                         res_args,
+                        refine: None,
                     },
                 },
                 ast::Span { line: 0, col: 0 },
@@ -1589,7 +1591,7 @@ impl Checker {
             param_kinds,
             ctors: ctor_names,
             fields: None,
-            field_erased: Vec::new(), opaque: false,
+            field_erased: Vec::new(), opaque: false, refine: None,
         });
     }
 
@@ -2635,6 +2637,7 @@ impl Checker {
                         fields: None,
                         field_erased: Vec::new(),
                         opaque: true,
+                        refine: None,
                     };
                     self.types.entry(o.name.text.clone()).or_default().push(tk.clone());
                     self.qualified_types
@@ -2699,7 +2702,7 @@ impl Checker {
                         param_kinds: param_kinds.clone(),
                         ctors: Vec::new(),
                         fields: None,
-                        field_erased: Vec::new(), opaque: false,
+                        field_erased: Vec::new(), opaque: false, refine: None,
                     });
                     for (tag, c) in data.ctors.iter().enumerate() {
                         self.validate_attr_site(&c.attrs, AttrSite::Ctor)?;
@@ -2902,6 +2905,7 @@ impl Checker {
                                     ty_params: params.clone(),
                                     local_idx,
                                     res_args,
+                                    refine: None,
                                 },
                             },
                             c.name.span,
@@ -2953,6 +2957,205 @@ impl Checker {
                         .and_then(|ts| ts.iter_mut().find(|t| t.module == module))
                         .expect("type registered above");
                     entry.ctors = ctors;
+                }
+                ast::Decl::Refine(r) => {
+                    // `type R params = refine (x :: T) with p` (refinement
+                    // types design): the runtime representation IS the
+                    // container; the witness is `Prop`-erased (D31).
+                    let _set = self.validate_attr_site(decl_attrs, AttrSite::TypeDecl)?;
+                    if Scalar::parse(&r.name.text).is_some()
+                        || matches!(
+                            r.name.text.as_str(),
+                            "Nat"
+                                | "Int"
+                                | "Bool"
+                                | "Unit"
+                                | "Bytes"
+                                | "Sym"
+                                | "Code"
+                                | "Syntax"
+                                | "Declarations"
+                                | "Secret"
+                                | "IoCap"
+                                | "FileReadCap"
+                                | "FileWriteCap"
+                                | "ProcCap"
+                        )
+                    {
+                        return Err(Error::at(
+                            r.name.span,
+                            format!("{} is a builtin primitive type and cannot be redefined", r.name.text),
+                        ));
+                    }
+                    if self
+                        .types
+                        .get(&r.name.text)
+                        .map(|l| l.iter().any(|t| t.module == module))
+                        .unwrap_or(false)
+                    {
+                        return Err(Error::at(r.name.span, format!("duplicate type {}", r.name.text)));
+                    }
+                    let mut params: Vec<String> = Vec::new();
+                    let mut param_kinds: Vec<ParamKind> = Vec::new();
+                    for b in &r.params {
+                        let k = match &b.ann {
+                            Some(ann) => self.binder_kind(ann, &params)?,
+                            None => ParamKind::Type,
+                        };
+                        if !matches!(k, ParamKind::Type | ParamKind::Con(_)) {
+                            return Err(Error::at(
+                                b.name.span,
+                                "a refinement's parameters are type parameters (the container states any index parameters)",
+                            ));
+                        }
+                        params.push(b.name.text.clone());
+                        param_kinds.push(k);
+                    }
+                    self.kind_constraints.borrow_mut().clear();
+                    let base = self.conv_type(&r.base, &params)?;
+                    if !matches!(
+                        self.uni.zonk(&base),
+                        Ty::Adt(..)
+                            | Ty::Int
+                            | Ty::Nat
+                            | Ty::Bool
+                            | Ty::Unit
+                            | Ty::Bytes
+                            | Ty::Sym
+                            | Ty::Prim(_)
+                    ) {
+                        return Err(Error::at(
+                            r.base.span(),
+                            format!(
+                                "a refinement's container is a named type (the runtime representation IS the container), not {base}"
+                            ),
+                        ));
+                    }
+                    let mut vars = params.clone();
+                    if vars.contains(&r.binder.text) {
+                        return Err(Error::at(
+                            r.binder.span,
+                            format!("duplicate binder {}", r.binder.text),
+                        ));
+                    }
+                    vars.push(r.binder.text.clone());
+                    let pred = self.conv_prop(&r.pred, &vars)?;
+                    if !pred.mentions(&r.binder.text) {
+                        return Err(Error::at(
+                            r.pred.span(),
+                            format!(
+                                "a refinement's predicate must mention the refined binder `{}`",
+                                r.binder.text
+                            ),
+                        ));
+                    }
+                    self.check_pred_admissible(&pred, &r.binder.text, &self.uni.zonk(&base), r.pred.span())?;
+                    // Register the type before its transparent
+                    // constructor (whose scheme mentions the type).
+                    self.types.entry(r.name.text.clone()).or_default().push(TypeKind {
+                        module: module.clone(),
+                        name: r.name.text.clone(),
+                        arity: params.len(),
+                        param_kinds: param_kinds.clone(),
+                        ctors: Vec::new(),
+                        fields: None,
+                        field_erased: Vec::new(),
+                        opaque: false,
+                        refine: Some(RefineInfo {
+                            base: base.clone(),
+                            binder: r.binder.text.clone(),
+                            pred: pred.clone(),
+                            params: params.clone(),
+                        }),
+                    });
+                    // The transparent constructor, exactly `Fin`-shaped:
+                    // `R x w` takes the refined binder's value and the
+                    // erased witness `w :: p`, and its runtime form is the
+                    // container value itself (no block, no wrapper).
+                    let res_args: Vec<Ty> = params
+                        .iter()
+                        .zip(&param_kinds)
+                        .map(|(p, k)| match k {
+                            ParamKind::Type | ParamKind::Con(_) => Ty::Param(p.clone()),
+                            _ => unreachable!("refinement parameters are types"),
+                        })
+                        .collect();
+                    let field_tys: Vec<Ty> = vec![
+                        base.clone(),
+                        Ty::Prp(Box::new(pred.clone())),
+                    ];
+                    let field_binders: Vec<String> =
+                        vec![r.binder.text.clone(), "$w".to_string()];
+                    let field_erased: Vec<bool> = vec![false, true];
+                    let runtime_arity = 1;
+                    let mut type_params: Vec<String> = Vec::new();
+                    let mut idx_params: Vec<IxParam> = Vec::new();
+                    for (p, k) in params.iter().zip(&param_kinds) {
+                        if !field_tys.iter().any(|t| ty_mentions(t, p)) {
+                            continue;
+                        }
+                        match k {
+                            ParamKind::Type | ParamKind::Con(_) => type_params.push(p.clone()),
+                            ParamKind::Val(t) => {
+                                idx_params.push(IxParam::Val(p.clone(), t.clone()))
+                            }
+                            ParamKind::Prop => idx_params.push(IxParam::Prop(p.clone())),
+                        }
+                    }
+                    let mut scheme_ty =
+                        Ty::Adt(r.name.text.clone(), res_args.clone());
+                    for (i, (b, t)) in field_binders.iter().zip(&field_tys).enumerate().rev() {
+                        let rest = scheme_ty;
+                        let m = default_mult(t);
+                        scheme_ty = if rest.mentions_idx(b) {
+                            let _ = i;
+                            Ty::pi(b.clone(), t.clone(), m, EffRow::pure(), rest)
+                        } else {
+                            Ty::fun_mult(t.clone(), m, EffRow::pure(), rest)
+                        };
+                    }
+                    let scheme = Scheme {
+                        params: type_params,
+                        idx_params,
+                        val_params: Vec::new(),
+                        prop_params: Vec::new(),
+                        row_params: Vec::new(),
+                        region_params: Vec::new(),
+                        ctx: Vec::new(),
+                        ty: scheme_ty,
+                    };
+                    self.add_value(
+                        ValueInfo {
+                            module: module.clone(),
+                            name: r.name.text.clone(),
+                            scheme,
+                            kind: ValueKind::Ctor {
+                                tag: 0,
+                                arity: field_tys.len(),
+                                runtime_arity,
+                                field_tys,
+                                field_erased,
+                                field_binders,
+                                ty_params: params.clone(),
+                                local_idx: Vec::new(),
+                                res_args,
+                                refine: Some(r.name.text.clone()),
+                            },
+                        },
+                        r.name.span,
+                    )?;
+                    // The constructor's unit is the identity on the
+                    // container value (the erased witness keeps it from
+                    // being a block builder).
+                    self.fns.push(FnDef {
+                        id: fn_id(&module, &r.name.text),
+                        params: vec![r.binder.text.clone()],
+                        body: crate::core::Core::Var(LocalId(0)),
+                        prim: None,
+                        ctor: None,
+                        hints: crate::core::FnHints::default(),
+                        meta: crate::core::FnMeta::default(),
+                    });
                 }
                 ast::Decl::Record(rec) => {
                     let set = self.validate_attr_site(decl_attrs, AttrSite::TypeDecl)?;
@@ -3020,7 +3223,7 @@ impl Checker {
                         param_kinds: param_kinds.clone(),
                         ctors: Vec::new(),
                         fields: Some(field_names.clone()),
-                        field_erased: field_erased.clone(), opaque: false,
+                        field_erased: field_erased.clone(), opaque: false, refine: None,
                     });
                     // A record's fields see the parameters and the earlier
                     // fields: `erased bound :: length bytes <= limit`
@@ -3138,6 +3341,7 @@ impl Checker {
                                 ty_params: params.clone(),
                                 local_idx: Vec::new(),
                                 res_args,
+                                refine: None,
                             },
                         },
                         rec.name.span,
@@ -3228,7 +3432,7 @@ impl Checker {
                         param_kinds: param_kinds.clone(),
                         ctors: Vec::new(),
                         fields: Some(obs_names.clone()),
-                        field_erased: Vec::new(), opaque: false,
+                        field_erased: Vec::new(), opaque: false, refine: None,
                     });
                     let mut vars = params.clone();
                     let mut obs_tys = Vec::new();
@@ -3304,6 +3508,7 @@ impl Checker {
                                 ty_params: params.clone(),
                                 local_idx: Vec::new(),
                                 res_args,
+                                refine: None,
                             },
                         },
                         rec.name.span,
@@ -3561,7 +3766,7 @@ impl Checker {
                         param_kinds: info.param_kinds.clone(),
                         ctors: Vec::new(),
                         fields: None,
-                        field_erased: Vec::new(), opaque: false,
+                        field_erased: Vec::new(), opaque: false, refine: None,
                     };
                     self.types.entry(sig.name.text.clone()).or_default().push(tk.clone());
                     self.qualified_types
@@ -4209,8 +4414,24 @@ impl Checker {
         self.self_instance = Some(self_idx);
 
         let subdict_count = inst.ctx.len();
+        // Refinement transfer (refinement types design): an instance over
+        // a refinement is the container's own methods, elaborated at the
+        // container's method types (the representations coincide), valid
+        // exactly when the methods preserve the predicate.
+        let mut base_args: Vec<Ty> = Vec::new();
+        let mut transfer = false;
+        for a in &args {
+            match self.refine_base(a) {
+                Some(b) => {
+                    transfer = true;
+                    base_args.push(b);
+                }
+                None => base_args.push(a.clone()),
+            }
+        }
         let mut method_fns = Vec::new();
         let mut seen: Vec<String> = Vec::new();
+        let mut pres_methods: Vec<(String, GlobalId, Ty)> = Vec::new();
         for (mname, mscheme) in sig.methods.clone() {
             let eqs: Vec<ast::Equation> = inst
                 .methods
@@ -4226,7 +4447,8 @@ impl Checker {
             }
             // Substitute the class parameters with the instance's type
             // arguments; the method's own quantifiers become fresh rigid
-            // parameters.
+            // parameters. A refinement carrier substitutes its container
+            // for the body's elaboration (the transfer rule).
             let mut map = HashMap::new();
             let mut extra: Vec<String> = Vec::new();
             for p in &mscheme.params {
@@ -4241,6 +4463,32 @@ impl Checker {
                 }
             }
             let ty = Self::subst_ty(&mscheme.ty, &map);
+            if transfer {
+                pres_methods.push((mname.clone(), GlobalId(format!("{module}.{}.{}", inst.name.text, mname)), ty.clone()));
+            }
+            // The body checks at the container's method type (the
+            // transfer rule); the dictionary presents the refined one
+            // (the rep-identity is the point: no delegation code, no
+            // wrapper). Fresh rigid parameters for the base elaboration,
+            // so the refined and base types never share metavariables,
+            // and one map for the body's type and context alike.
+            let body_map: HashMap<String, Ty> = if transfer {
+                let mut bmap = HashMap::new();
+                for p in &mscheme.params {
+                    match sig.params.iter().position(|s| s == p) {
+                        Some(i) => {
+                            bmap.insert(p.clone(), base_args[i].clone());
+                        }
+                        None => {
+                            bmap.insert(p.clone(), Ty::Param(self.fresh_param(p)));
+                        }
+                    }
+                }
+                bmap
+            } else {
+                map.clone()
+            };
+            let body_ty = Self::subst_ty(&mscheme.ty, &body_map);
             // Method function parameters are the instance's subdicts followed
             // by any extra constraints of the method itself; the class
             // constraint is satisfied by this instance and takes no parameter.
@@ -4248,11 +4496,11 @@ impl Checker {
             // parameters, so it enters unchanged: substituting the class
             // parameters into it would capture a same-named instance
             // parameter (`using (sa :: Semigroup a) => Semigroup (Dual a)`
-            // must keep `sa :: Semigroup a`, not `sa :: Semigroup (Dual a)`).
+            // must keep `sa :: Semigroup a`, not `Semigroup (Dual a)`).
             let inst_ctx = self.instance_list[self_idx].ctx.clone();
             let mut ctx: Vec<(String, ClassApp)> = inst_ctx;
             for (n, c) in mscheme.ctx.iter().skip(1) {
-                ctx.push((n.clone(), Self::subst_class(c, &map)));
+                ctx.push((n.clone(), Self::subst_class(c, &body_map)));
             }
             let gid = GlobalId(format!("{module}.{}.{}", inst.name.text, mname));
             let scheme = Scheme {
@@ -4263,7 +4511,7 @@ impl Checker {
                 row_params: mscheme.row_params.clone(),
                 region_params: mscheme.region_params.clone(),
                 ctx,
-                ty,
+                ty: body_ty,
             };
             self.check_equations(&mname, &gid, &scheme, &eqs, Vec::new())?;
             method_fns.push(gid);
@@ -4299,6 +4547,53 @@ impl Checker {
                     class_args: args.clone(),
                     method_units: method_fns.clone(),
                     subdicts: subdicts.clone(),
+                    span: inst.span,
+                });
+            }
+        }
+
+        // Preservation (refinement types design): the transfer's
+        // validity condition, checked sample-wise beside the class laws.
+        if transfer {
+            let subdicts: Vec<(String, Vec<Ty>)> = self.instance_list[self_idx]
+                .ctx
+                .iter()
+                .map(|(_, c)| (c.class.clone(), c.args.clone()))
+                .collect();
+            for (mname, gid, mty) in pres_methods {
+                let mut arg_tys: Vec<Ty> = Vec::new();
+                let mut cur = mty;
+                let result = loop {
+                    match self.uni.zonk(&cur) {
+                        Ty::Fun(a, _, _, b) => {
+                            arg_tys.push(*a);
+                            cur = *b;
+                        }
+                        Ty::Pi { dom, cod, .. } => {
+                            arg_tys.push(*dom);
+                            cur = *cod;
+                        }
+                        other => break other,
+                    }
+                };
+                let Some(refine) = self.ty_refine_mention(&result) else {
+                    // The method produces no refined value: nothing to
+                    // preserve (inputs are refined by their types).
+                    continue;
+                };
+                let direct = matches!(&result, Ty::Adt(n, _) if *n == refine);
+                self.pres_obligations.push(PresObligation {
+                    instance: inst.name.text.clone(),
+                    module: module.to_string(),
+                    class: class.clone(),
+                    method: mname,
+                    method_gid: gid,
+                    refine,
+                    arg_tys,
+                    subdicts: subdicts.clone(),
+                    class_args: args.clone(),
+                    method_units: method_fns.clone(),
+                    nested: !direct,
                     span: inst.span,
                 });
             }
@@ -6349,6 +6644,13 @@ impl Checker {
         for ob in obligations {
             self.check_law_samples(&ob)?;
         }
+        // Preservation of refinement transfers (refinement types design):
+        // the transfer's validity condition, checked sample-wise in the
+        // same honest tier as the class laws.
+        let pres = std::mem::take(&mut self.pres_obligations);
+        for ob in &pres {
+            self.check_preservation(ob)?;
+        }
         Ok(())
     }
 
@@ -6504,6 +6806,267 @@ impl Checker {
         }
         self.law_rows.push(row(format!("checked ({checked} samples)")));
         Ok(())
+    }
+
+    /// One instance method's preservation check over refinement samples
+    /// (refinement types design: the transfer's validity condition, in
+    /// the P18 law layer's honest tier). The method must map refined
+    /// sample values to values satisfying the refinement's predicate; a
+    /// failure rejects the instance naming the preservation law, and a
+    /// case the machinery cannot decide reports `not checked`.
+    fn check_preservation(&mut self, ob: &PresObligation) -> Result<()> {
+        let scope = format!("{}.{}", ob.module, ob.instance);
+        let law_name = format!("{}.preserve-{}", ob.refine, ob.method);
+        let mut row = |status: String| crate::core::LawRow {
+            instance: scope.clone(),
+            class: ob.class.clone(),
+            law: law_name.clone(),
+            status,
+        };
+        if ob.nested {
+            self.law_rows.push(row(
+                "not checked (a refined result inside another type former is not checked)"
+                    .to_string(),
+            ));
+            return Ok(());
+        }
+        if self
+            .module_params
+            .get(&ob.module)
+            .map(|p| !p.is_empty())
+            .unwrap_or(false)
+        {
+            self.law_rows
+                .push(row("not checked (the instance closes over module parameters)".to_string()));
+            return Ok(());
+        }
+        // The refinement's predicate and binder.
+        let refine_info = self
+            .types
+            .get(&ob.refine)
+            .and_then(|ts| ts.iter().find(|t| t.refine.is_some()))
+            .and_then(|t| t.refine.clone());
+        let Some(r) = refine_info else {
+            self.law_rows.push(row(
+                "not checked (the refinement's predicate is not registered)".to_string(),
+            ));
+            return Ok(());
+        };
+        // Samples of each method argument, where each type is samplable.
+        let mut sample_sets: Vec<Vec<Value>> = Vec::new();
+        for aty in &ob.arg_tys {
+            let samples = self.law_samples(aty, 2);
+            if samples.is_empty() {
+                self.law_rows.push(row(format!(
+                    "not checked (no samples for the method argument `{aty}`)"
+                )));
+                return Ok(());
+            }
+            sample_sets.push(samples);
+        }
+        // The method's dictionaries resolve exactly like the law
+        // checker's (the same honest boundary).
+        let dummy = LawObligation {
+            instance: ob.instance.clone(),
+            module: ob.module.clone(),
+            class: ob.class.clone(),
+            law: String::new(),
+            scheme: Scheme::mono(Ty::Unit),
+            class_params: Vec::new(),
+            class_args: ob.class_args.clone(),
+            method_units: ob.method_units.clone(),
+            subdicts: ob.subdicts.clone(),
+            span: ob.span,
+        };
+        let mut methods: HashMap<String, (crate::core::GlobalId, Vec<Value>)> = HashMap::new();
+        if self
+            .law_collect_methods(&dummy, 0, &mut methods, &mut Vec::new())?
+            .is_none()
+        {
+            self.law_rows
+                .push(row("not checked (the instance's dictionaries do not resolve)".to_string()));
+            return Ok(());
+        }
+        let Some(sig) = self
+            .sigs
+            .get(&ob.class)
+            .and_then(|ss| ss.iter().find(|s| self.def_in_scope(&s.module, &s.name)))
+            .cloned()
+        else {
+            self.law_rows
+                .push(row("not checked (the instance's class does not resolve)".to_string()));
+            return Ok(());
+        };
+        let head = fn_id(&sig.module, &ob.method).0;
+        // Every ordered sample assignment (the cross product, capped),
+        // named positionally for the method application's equation.
+        let mut assignments: Vec<HashMap<String, Value>> = vec![HashMap::new()];
+        for (i, samples) in sample_sets.iter().enumerate() {
+            let mut next = Vec::new();
+            for a in &assignments {
+                for s in samples {
+                    let mut a2 = a.clone();
+                    a2.insert(format!("$a{i}"), s.clone());
+                    next.push(a2);
+                }
+            }
+            assignments = next;
+            if assignments.len() > 256 {
+                assignments.truncate(256);
+            }
+        }
+        let scx = self.fold_scx.clone().unwrap_or_default();
+        let mut cx = StageCx::new(&scx);
+        let mut checked = 0usize;
+        for frame in &assignments {
+            // The method applied to this sample assignment, evaluated
+            // through the staging interpreter over the instance's real
+            // method code.
+            let mut t = ITerm::Fn(head.clone());
+            for i in 0..ob.arg_tys.len() {
+                t = ITerm::App(Box::new(t), vec![ITerm::Var(format!("$a{i}"))]);
+            }
+            let value = match self.eval_law_idx(&mut cx, &t, frame, &methods) {
+                Ok(v) => v,
+                Err(e) => {
+                    self.law_rows.push(row(format!(
+                        "not checked (the samples did not evaluate: {e})"
+                    )));
+                    return Ok(());
+                }
+            };
+            match self.pred_value(&r.pred, &r.binder, &value) {
+                Some(true) => checked += 1,
+                Some(false) => {
+                    let mut sample_text = String::new();
+                    for i in 0..ob.arg_tys.len() {
+                        if !sample_text.is_empty() {
+                            sample_text.push_str(", ");
+                        }
+                        sample_text.push_str(&format!(
+                            "$a{i} = {}",
+                            law_value_render(&frame[&format!("$a{i}")])
+                        ));
+                    }
+                    return Err(Error::at(
+                        ob.span,
+                        format!(
+                            "instance `{}` breaks preservation law `{}` at sample values ({}): `{}` produced `{}`, which does not satisfy `{}` (refinement types design: a container's methods transfer exactly when they preserve the refinement)",
+                            scope,
+                            law_name,
+                            sample_text,
+                            ob.method,
+                            law_value_render(&value),
+                            r.pred
+                        ),
+                    ));
+                }
+                None => {
+                    self.law_rows.push(row(
+                        "not checked (the samples' preservation is not decided)".to_string(),
+                    ));
+                    return Ok(());
+                }
+            }
+        }
+        self.law_rows.push(row(format!("checked ({checked} samples)")));
+        Ok(())
+    }
+
+    /// The predicate's truth at a sample value (the preservation check's
+    /// and the refinement sampler's decision procedure over values):
+    /// `None` where the machinery cannot decide it.
+    fn pred_value(&self, pred: &PTerm, binder: &str, v: &Value) -> Option<bool> {
+        match pred {
+            PTerm::Pred(PredFn::NotNull, _) => match v {
+                // The empty form is the nullary constructor; every other
+                // constructor carries the elements.
+                Value::Adt { fields, .. } => Some(!fields.is_empty()),
+                _ => None,
+            },
+            PTerm::Pred(PredFn::NonZero, it) => {
+                let n = self.itern_value(it, binder, v)?;
+                Some(n != 0)
+            }
+            PTerm::Pred(PredFn::Ascii, _) => {
+                let bytes = match v {
+                    Value::Adt { fields, .. } => match fields.as_slice() {
+                        [Value::Bytes(b)] => b.clone(),
+                        _ => return None,
+                    },
+                    Value::Bytes(b) => b.clone(),
+                    _ => return None,
+                };
+                let ok = bytes.borrow().iter().all(|&b| b < 128);
+                Some(ok)
+            }
+            PTerm::Pred(PredFn::Ordered, _) => {
+                // The adjacent-pair walk over the list's constructor
+                // spine (elements compare numerically).
+                let mut cur = v;
+                let mut prev: Option<i128> = None;
+                loop {
+                    match cur {
+                        Value::Adt { fields, .. } => {
+                            if fields.is_empty() {
+                                return Some(true);
+                            }
+                            if fields.len() < 2 {
+                                return None;
+                            }
+                            let head = value_num(&fields[0])?;
+                            if let Some(p) = prev {
+                                if p > head {
+                                    return Some(false);
+                                }
+                            }
+                            prev = Some(head);
+                            cur = &fields[1];
+                        }
+                        _ => return None,
+                    }
+                }
+            }
+            PTerm::Cmp(op, a, b) => {
+                let x = self.itern_value(a, binder, v)?;
+                let y = self.itern_value(b, binder, v)?;
+                Some(match op {
+                    IdxCmp::Eq => x == y,
+                    IdxCmp::Ne => x != y,
+                    IdxCmp::Lt => x < y,
+                    IdxCmp::Le => x <= y,
+                    IdxCmp::Gt => x > y,
+                    IdxCmp::Ge => x >= y,
+                })
+            }
+            PTerm::Eq(a, b) => {
+                let x = self.itern_value(a, binder, v)?;
+                let y = self.itern_value(b, binder, v)?;
+                Some(x == y)
+            }
+            PTerm::Not(q) => Some(!self.pred_value(q, binder, v)?),
+            PTerm::Var(_) | PTerm::MVar(_) => None,
+        }
+    }
+
+    /// The numeric value of an index term at a sample: the binder's
+    /// value, numerals and numeric arithmetic (anything else is not
+    /// decided at a sample).
+    fn itern_value(&self, it: &ITerm, binder: &str, v: &Value) -> Option<i128> {
+        match it {
+            ITerm::Var(n) if n == binder => value_num(v),
+            ITerm::Num(d) => d.parse().ok(),
+            ITerm::Bin(op, a, b) => {
+                let x = self.itern_value(a, binder, v)?;
+                let y = self.itern_value(b, binder, v)?;
+                match op {
+                    IdxOp::Add => x.checked_add(y),
+                    IdxOp::Sub => x.checked_sub(y),
+                    IdxOp::Mul => x.checked_mul(y),
+                }
+            }
+            _ => None,
+        }
     }
 
     /// Collect the method head table for one law check: the instance's
@@ -6710,6 +7273,11 @@ impl Checker {
             Ty::Bool => vec![Value::Bool(false), Value::Bool(true)],
             Ty::Nat | Ty::Int => vec![Value::Word(0), Value::Word(1), Value::Word(2)],
             Ty::Param(_) => vec![Value::Word(0), Value::Word(1)],
+            Ty::Bytes => vec![
+                Value::Bytes(std::rc::Rc::new(std::cell::RefCell::new(Vec::new()))),
+                Value::Bytes(std::rc::Rc::new(std::cell::RefCell::new(vec![65, 66]))),
+                Value::Bytes(std::rc::Rc::new(std::cell::RefCell::new(vec![200]))),
+            ],
             Ty::Adt(name, args) => {
                 if depth == 0 {
                     return Vec::new();
@@ -6720,6 +7288,24 @@ impl Checker {
                 let Some(tk) = tks.first() else {
                     return Vec::new();
                 };
+                if let Some(r) = &tk.refine {
+                    // A refinement's samples are the container's samples
+                    // its predicate decides true (refinement types
+                    // design: sample-wise checking runs over refined
+                    // values).
+                    let mut map: HashMap<String, Ty> = HashMap::new();
+                    for (i, p) in r.params.iter().enumerate() {
+                        if let Some(a) = args.get(i) {
+                            map.insert(p.clone(), a.clone());
+                        }
+                    }
+                    let base = Self::subst_ty(&r.base, &map);
+                    return self
+                        .law_samples(&base, depth)
+                        .into_iter()
+                        .filter(|s| self.pred_value(&r.pred, &r.binder, s) == Some(true))
+                        .collect();
+                }
                 let mut out: Vec<Value> = Vec::new();
                 for (cname, tag) in &tk.ctors {
                     let Some(vs) = self.values.get(cname) else {
@@ -18040,6 +18626,16 @@ fn ty_match(pattern: &Ty, concrete: &Ty) -> bool {
             ty_match(h1, h2) && x.len() == y.len() && x.iter().zip(y).all(|(p, c)| ty_match(p, c))
         }
         _ => false,
+    }
+}
+
+/// The numeric value of a sample (machine word or bignum): the
+/// preservation predicates' element comparison over samples.
+fn value_num(v: &Value) -> Option<i128> {
+    match v {
+        Value::Word(w) => Some(*w as i128),
+        Value::Big { digits, .. } => digits.parse().ok(),
+        _ => None,
     }
 }
 

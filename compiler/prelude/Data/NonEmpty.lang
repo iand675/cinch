@@ -1,25 +1,30 @@
--- Data.NonEmpty: the non-empty list, head plus tail.
+-- Data.NonEmpty: the non-empty list as a refinement (refinement types
+-- design; decision D151: `NonEmpty` is a decidable predicate over
+-- `List`, not a wrapper).
 --
--- `NonEmpty a` is `a` paired with a `List a`: the free semigroup over
--- `a`. Every value has at least one element, so `null` is the constant
--- `False`, `length` is at least 1, and `<>` is total concatenation.
+-- `type NonEmpty a = refine (xs :: List a) with NotNull xs`: `NonEmpty`
+-- IS `List a` at runtime (the witness is `Prop`-erased, decision D31),
+-- so `unrefine` projects at zero cost and no delegation code exists.
+-- The transparent constructor `NonEmpty xs w` takes the list and its
+-- witness: a `Dec (NotNull xs)` discharge that erases, or the `Yes`
+-- evidence of a `decide`.
 --
--- Instance homes: this is the correct home for every instance below
--- (instances live with their type). The class modules are
--- Category/Foldable.lang, Category/Traversable.lang and
--- Algebra/Semigroup.lang.
+-- The total constructor `non-empty` discharges at runtime through the
+-- `Dec`/`decide` world and returns `Option` (the total API of the
+-- design note). Forging is impossible: a witness is checked evidence,
+-- and evidence about mutable state dies with the write (the D192
+-- invalidation rule).
 --
--- The traversal instance is written against the effect's Applicative
--- dictionary like every Traversable instance: `traverse` applies the
--- effectful function to the head first and then the tail through the
--- List instance, so for the left-biased effects (`Result`, `Option`)
--- the FIRST error in traversal order is the one returned (asserted in
--- compiler/tests/lib_foldable.rs).
+-- Instances are the container's own methods (the transfer rule),
+-- checked sample-wise by the P18 law layer exactly when they preserve
+-- the predicate: `Semigroup` transfers (append of non-empties is
+-- non-empty), `Monoid` cannot (its identity is empty; both asserted in
+-- compiler/tests/refinements.rs). The traversals preserve
+-- non-emptiness too, though through the applicative they report `not
+-- checked` at samples (the honest law boundary).
 --
--- Status: this module is replaced wholesale by a refinement in the
--- P28 phase (decision D151: `NonEmpty` is a decidable predicate over
--- `List`, witness `Prop`-erased), so it carries exactly the shape its
--- current tests need and nothing more.
+-- Status: this module is the P28 refinement of the bespoke `NonEmpty`
+-- data type it replaces (decision D151).
 module Data.NonEmpty where
 
   import Category.Foldable
@@ -29,29 +34,33 @@ module Data.NonEmpty where
 
   infixr 6 <>
 
-  data NonEmpty a where
-    NonEmpty :: a -> List a -> NonEmpty a
+  type NonEmpty a = refine (xs :: List a) with NotNull xs
 
-  implicit instance Foldable_NonEmpty :: Foldable NonEmpty where
-    foldr f z ne = case ne of
-      NonEmpty h t -> f h (foldr f z t)
-    foldl f z ne = case ne of
-      NonEmpty h t -> foldl f (f z h) t
-    to-list ne = case ne of
-      NonEmpty h t -> Cons h (to-list t)
-    null ne = False
-    length ne = case ne of
-      NonEmpty h t -> 1 + length t
+  -- The total constructor (refinement types design: the total API):
+  -- the runtime decision lives in the `Dec`/`decide` world and its
+  -- witness erases into the transparent constructor.
+  non-empty :: forall a. List a -> Option (NonEmpty a)
+  non-empty xs = case decide (NotNull xs) of
+    Yes w -> Some (NonEmpty xs w)
+    No _ -> None
 
-  -- The free semigroup: concatenation preserves the leftmost head.
-  -- Associative because list concatenation is; asserted over sample
-  -- values in compiler/tests/lib_foldable.rs.
+  -- The free semigroup: the container's own `<>` (list append),
+  -- preserved (append of non-empties is non-empty), associative by
+  -- `Semigroup.assoc`; both checked sample-wise in the law layer.
   implicit instance Semigroup_NonEmpty x :: Semigroup (NonEmpty x) where
-    (<>) p q = case p of
-      NonEmpty h1 t1 -> case q of
-        NonEmpty h2 t2 -> NonEmpty h1 (t1 <> Cons h2 t2)
+    (<>) p q = (<>) p q
 
+  -- The container's own folds (the transfer rule): they read the
+  -- refined value as the list it is.
+  implicit instance Foldable_NonEmpty :: Foldable NonEmpty where
+    foldr f z ne = foldr f z ne
+    foldl f z ne = foldl f z ne
+    to-list ne = to-list ne
+    null ne = null ne
+    length ne = length ne
+
+  -- The container's own traversal: `traverse` on the list it is,
+  -- yielding the refined shape (the representation is the list).
   implicit instance Traversable_NonEmpty :: Traversable NonEmpty where
-    traverse f ne = case ne of
-      NonEmpty h t -> lift-a2 (\b bs -> NonEmpty b bs) (f h) (traverse f t)
-    sequence ne = traverse (\x -> x) ne
+    traverse f ne = traverse f ne
+    sequence ne = sequence ne

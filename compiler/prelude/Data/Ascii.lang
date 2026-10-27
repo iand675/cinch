@@ -1,0 +1,35 @@
+-- Data.Ascii: the ASCII string as a refinement (refinement types
+-- design; decision D151).
+--
+-- `type Ascii = refine (s :: String) with Ascii s`: `Ascii` IS `String`
+-- at runtime (the witness is `Prop`-erased, decision D31). The
+-- predicate `Ascii` decides text values (`String`, and `Bytes` for the
+-- buffer-level twin); over anything else it is refused naming the
+-- predicate. `String` wraps its `Bytes` backing (decision D88), so the
+-- decision procedure reads the bytes directly.
+--
+-- The total constructor `to-ascii` discharges at runtime through the
+-- `Dec`/`decide` world and returns `Option`; the transparent
+-- constructor `Ascii s w` takes the string and its witness.
+--
+-- The instance below is the container's own `<>` (string
+-- concatenation, the transfer rule): the concatenation of ASCII
+-- strings is ASCII (preserved), and concatenation is associative;
+-- both checked sample-wise by the law layer.
+module Data.Ascii where
+
+  import Data.String
+  import Algebra.Semigroup
+
+  infixr 6 <>
+
+  type Ascii = refine (s :: String) with Ascii s
+
+  -- The total constructor (refinement types design: the total API).
+  to-ascii :: String -> Option Ascii
+  to-ascii s = case decide (Ascii s) of
+    Yes w -> Some (Ascii s w)
+    No _ -> None
+
+  implicit instance Semigroup_Ascii :: Semigroup Ascii where
+    (<>) p q = (<>) p q

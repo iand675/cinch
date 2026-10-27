@@ -1,0 +1,48 @@
+-- Data.NonZero: the non-zero integer as a refinement (refinement types
+-- design; decision D151).
+--
+-- `type NonZero = refine (n :: Int) with NonZero n`: `NonZero` IS `Int`
+-- at runtime (the witness is `Prop`-erased, decision D31). The
+-- predicate `NonZero` decides numeric values (`Nat`, `Int`, machine
+-- integers); over any other container it is refused naming the
+-- predicate.
+--
+-- The total constructor `non-zero` discharges at runtime through the
+-- `Dec`/`decide` world and returns `Option`; the transparent
+-- constructor `NonZero n w` takes the integer and its witness.
+--
+-- The instances below are the multiplicative ones, written at the
+-- container's types (the transfer rule): the product of non-zeros is
+-- non-zero (preserved) and 1 is non-zero, so unlike `Monoid (NonEmpty
+-- a)` (whose identity is empty) `Monoid NonZero` exists. The unit laws
+-- state over `Semigroup.<>`, which the Monoid instance does not carry,
+-- so they report `not checked` honestly (the P18 law boundary);
+-- asserted in compiler/tests/refinements.rs.
+module Data.NonZero where
+
+  import Algebra.Semigroup
+  import Algebra.Monoid
+
+  infixr 6 <>
+
+  type NonZero = refine (n :: Int) with NonZero n
+
+  -- The total constructor (refinement types design: the total API).
+  non-zero :: Int -> Option NonZero
+  non-zero n = case decide (NonZero n) of
+    Yes w -> Some (NonZero n w)
+    No _ -> None
+
+  -- The multiplicative semigroup on non-zero integers: preserved
+  -- (a non-zero product of non-zeros), associative (both checked
+  -- sample-wise by the law layer). Integer addition does NOT preserve
+  -- non-zerohood and its transfer is rejected by the preservation law
+  -- (asserted in compiler/tests/refinements.rs).
+  implicit instance Semigroup_NonZero :: Semigroup NonZero where
+    (<>) p q = p * q
+
+  -- The multiplicative identity is 1: non-zero, so the transfer
+  -- preserves the refinement (the contrast with `Monoid (NonEmpty a)`,
+  -- whose identity violates non-emptiness).
+  implicit instance Monoid_NonZero :: Monoid NonZero where
+    mempty = 1
