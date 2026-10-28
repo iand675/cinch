@@ -532,19 +532,25 @@ impl Checker {
                 Ty::Int,
             )),
             ast::Term::Unit(_) => Ok((ECore::Unit, Ty::Unit)),
-            ast::Term::Str(s, span) => {
-                // `String` is a compile-time type in this slice (decision
-                // D43): literals elaborate where compile-time code runs.
-                // The runtime `String` type has shipped (built from
-                // `Bytes` through `string-from-bytes`, Prelude.cinch);
-                // literal syntax for it is a surface future item.
-                if !self.compile_time {
-                    return Err(Error::at(
-                        *span,
-                        "string literals are compile-time only (build runtime strings from `Bytes` with `string-from-bytes`; literal syntax for the runtime `String` is a surface future item)",
+            ast::Term::Str(s, _span) => {
+                // A runtime `String` literal (D43's deferral closed):
+                // constant UTF-8 data over the D89 representation, the
+                // same constant form the `import data` converters bind
+                // (`String` wraps a `Bytes` buffer and the literal's
+                // decoded bytes are the private constant). Each
+                // evaluation constructs a fresh buffer (the `Bytes` word
+                // is mutable in place), so the literal allocates where
+                // it runs and the `#[no-alloc]`/`jpl` alloc-site fact
+                // names it. In compile-time position the staging
+                // interpreter keeps its own string values (decision
+                // D88), whose escapes the lexer decoded the same way.
+                if self.compile_time {
+                    return Ok((
+                        ECore::StrLit(s.clone()),
+                        Ty::Adt("String".into(), Vec::new()),
                     ));
                 }
-                Ok((ECore::StrLit(s.clone()), Ty::Adt("String".into(), Vec::new())))
+                Ok((self.string_const(s), Ty::Adt("String".into(), Vec::new())))
             }
             ast::Term::Char(s, span) => {
                 Ok((ECore::Int(char_literal_word(s, *span)?), Ty::Prim(Scalar::Char)))

@@ -16396,7 +16396,9 @@ impl Checker {
         fn_id(&v.module, &v.name)
     }
 
-    /// The runtime `String` constant of a compile-time string.
+    /// The runtime `String` constant of a string's decoded bytes: a
+    /// runtime literal's elaboration (`check_terms`) and a compile-time
+    /// string's reified constant share this form.
     fn string_const(&mut self, s: &str) -> ECore {
         app_spine(
             ECore::Ctor(self.prelude_ctor_id("String")),

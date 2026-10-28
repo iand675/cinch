@@ -608,8 +608,28 @@ module Main where
             &["`#[no-alloc]` on Main.", "no-allocation rule (JPL rule 3)", site],
         );
     }
-    // A string literal allocates wherever the surface admits one: the
-    // compile-time body of a `stage` definition the generator compiles.
+    // A string literal allocates wherever the surface admits one: its
+    // constant data materialises a fresh `Bytes` buffer per evaluation
+    // (the D89 buffer is mutable in place, so the literal cannot share
+    // one), in an ordinary term and in the compile-time body of a
+    // `stage` definition the generator compiles alike.
+    expect_err(
+        "no-alloc-string-runtime",
+        r#"
+module Main where
+  #[no-alloc]
+  greet :: String
+  greet = "hello"
+
+  main :: Int
+  main = 0
+"#,
+        &[
+            "`#[no-alloc]` on Main.greet",
+            "no-allocation rule (JPL rule 3)",
+            "a string literal is constructed here",
+        ],
+    );
     expect_err(
         "no-alloc-string",
         r#"

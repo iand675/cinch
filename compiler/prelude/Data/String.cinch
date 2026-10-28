@@ -3,8 +3,11 @@
 -- `String` is the runtime text type (decision D88). It is distinct
 -- from the staging interpreter's compile-time string values, which
 -- are the same type observed at compile time (D43's deferral
--- resolved). String literals remain a surface future item; strings
--- are built from `Bytes`, `Char`, and the conversions below.
+-- resolved). A `"..."` literal in a term is a runtime `String`: the
+-- lexer's decoded bytes as constant data over the representation
+-- below (each evaluation constructs a fresh `Bytes` buffer, so a
+-- literal allocates where it runs). Strings are also built from
+-- `Bytes`, `Char`, and the conversions below.
 --
 -- The functions here are the REFERENCE SEMANTICS for UTF-8. The
 -- runtime provides SIMD-accelerated implementations of the same rules
@@ -33,8 +36,11 @@ module Data.String where
   -- `String` is the runtime text type (decision D88). It is distinct
   -- from the staging interpreter's compile-time string values, which are
   -- the same type observed at compile time (D43's deferral resolved).
-  -- String literals remain a surface future item; strings are built
-  -- from `Bytes`, `Char`, and the conversions below.
+  -- A `"..."` literal in a term is a runtime `String`: the lexer's
+  -- decoded bytes as constant data over the representation below (each
+  -- evaluation constructs a fresh `Bytes` buffer, so a literal allocates
+  -- where it runs). Strings are also built from `Bytes`, `Char`, and
+  -- the conversions below.
   --
   -- The functions here are the REFERENCE SEMANTICS for UTF-8. The
   -- runtime provides SIMD-accelerated implementations of the same rules

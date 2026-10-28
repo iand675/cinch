@@ -19,9 +19,8 @@
 -- modules. `show`'s result type `String` sits above the bignum and
 -- byte operations in the module order (Data.String's UTF-8 engine
 -- needs the `Nat` operations), so `Show Nat` in Data.Nat would close
--- an import cycle. `Show` for `Bool`/`Ordering` waits for string
--- literals (a surface future item): rendering them needs fixed text
--- and there is no literal spelling for it yet.
+-- an import cycle. `Show` for `Bool`/`Ordering` renders their fixed
+-- text through string literals, which ordinary terms now carry.
 module Text.Show where
 
   import Data.Nat
@@ -29,6 +28,7 @@ module Text.Show where
   import Data.Char
   import Data.Bytes
   import Data.String
+  import Data.Ordering
 
   export Show, show, char-string, nat-digits-into, pow10, nat-digit-count, nat-to-string, int-digit-count, int-digits-into, int-to-string
 
@@ -51,6 +51,17 @@ module Text.Show where
   -- bootstrap).
   implicit instance Show_String :: Show String where
     show s = s
+
+  -- The fixed text: each renders as its literal constructor spelling
+  -- (probed in compiler/tests/string_literals.rs).
+  implicit instance Show_Bool :: Show Bool where
+    show b = if b then "True" else "False"
+
+  implicit instance Show_Ordering :: Show Ordering where
+    show o = case o of
+      LT -> "LT"
+      EQ -> "EQ"
+      GT -> "GT"
 
 
   char-string :: Char -> String
