@@ -270,9 +270,10 @@ pub fn item_id(kind: ItemKind, module: &str, name: &str) -> String {
     format!("{}:{module}.{name}", kind.tag())
 }
 
-/// Render a contract fact node's id.
-pub fn contract_id(module: &str, owner: &str, fact: &str) -> String {
-    format!("k:{module}.{owner}#{fact}")
+/// Render a contract fact node's id (the owner is already
+/// module-qualified).
+pub fn contract_id(owner: &str, fact: &str) -> String {
+    format!("k:{owner}#{fact}")
 }
 
 /// The kind encoded in a rendered item id.
@@ -656,6 +657,10 @@ pub struct LinkReport {
     /// The cache disagreed with the fresh emission and was repaired
     /// (every unit re-placed); the artifact still matches the emission.
     pub repaired: bool,
+    /// The program has no `main` and no foreign exports (a library):
+    /// there is no linked artifact to cache, and the artifact set is the
+    /// interfaces plus the manifest.
+    pub skipped: bool,
 }
 
 /// Real timings for one rebuild (milliseconds, wall clock).
@@ -682,7 +687,9 @@ pub struct SessionReport {
     pub retyped: Vec<String>,
     /// Declarations not touched at all.
     pub kept: Vec<String>,
-    /// The user modules the checker ran over.
+    /// The user modules the checker ran over. The embedded prelude
+    /// family is the implicit base layer of every slice run and is
+    /// never listed here (it is hash-stable and never a change source).
     pub typed_modules: Vec<String>,
     /// The classified changes this rebuild responded to.
     pub changes: Vec<(String, ChangeKind)>,
@@ -1023,21 +1030,34 @@ impl Session {
 
         // 5. Merge the checked state into the canonical program, then
         //    run the whole-program passes (optimize, emit) exactly as a
-        //    cold build would.
+        //    cold build would. A library program (no `main`, no foreign
+        //    exports) has no linked artifact: its artifact set is the
+        //    interfaces plus the manifest (the driver's `check` mode).
         let t_opt = std::time::Instant::now();
         let merged = self.merged_program()?;
+        let can_emit =
+            merged.main.is_some() || merged.foreigns.values().any(|p| p.export);
         let (opt_program, opt) = crate::core::optimize(&merged, &self.profile)?;
         timings.optimize_ms = since_ms(t_opt);
-        let t_emit = std::time::Instant::now();
-        let ir = crate::codegen::emit_for(&self.profile, &opt_program)?;
-        timings.emit_ms = since_ms(t_emit);
+        if can_emit {
+            let t_emit = std::time::Instant::now();
+            let ir = crate::codegen::emit_for(&self.profile, &opt_program)?;
+            timings.emit_ms = since_ms(t_emit);
 
-        // 6. LINK: the declaration-keyed object cache assembles the
-        //    artifact and re-places only changed units.
-        let t_link = std::time::Instant::now();
-        let link = self.link_units(&ir)?;
-        timings.link_ms = since_ms(t_link);
-        report.link = link;
+            // 6. LINK: the declaration-keyed object cache assembles the
+            //    artifact and re-places only changed units.
+            let t_link = std::time::Instant::now();
+            let link = self.link_units(&ir)?;
+            timings.link_ms = since_ms(t_link);
+            report.link = link;
+            let ir_path = self.out_dir.join(format!("{}.ll", self.entry_stem));
+            std::fs::write(&ir_path, &ir)
+                .map_err(|e| Error::plain(format!("{}: {e}", ir_path.display())))?;
+            self.ir = Some(ir);
+        } else {
+            report.link.skipped = true;
+            self.ir = None;
+        }
 
         // 7. Artifacts: interfaces, manifest, and the linked IR.
         let ifaces = self.merged_ifaces();
@@ -1054,10 +1074,6 @@ impl Session {
             &self.profile,
             &self.wit,
         )?;
-        let ir_path = self.out_dir.join(format!("{}.ll", self.entry_stem));
-        std::fs::write(&ir_path, &ir)
-            .map_err(|e| Error::plain(format!("{}: {e}", ir_path.display())))?;
-        self.ir = Some(ir);
         report.chain_ok = self.chain_ok();
 
         // 8. Kept and retyped: everything else, split by whether the
@@ -1078,7 +1094,11 @@ impl Session {
                 }
             }
         }
-        report.typed_modules = checked.iter().cloned().collect();
+        report.typed_modules = checked
+            .iter()
+            .filter(|m| self.order.contains(*m))
+            .cloned()
+            .collect();
         timings.total_ms = since_ms(t_total);
         report.timings = timings;
         self.write_rebuild_manifest(&report)?;
@@ -1369,7 +1389,11 @@ impl Session {
                 &self.all_modules,
             );
             self.layouts.laws = segment_ids(
-                &program.laws.iter().map(|l| l.instance.clone()).collect::<Vec<_>>(),
+                &program
+                    .laws
+                    .iter()
+                    .map(|l| format!("{}#{}", l.instance, l.law))
+                    .collect::<Vec<_>>(),
                 &self.all_modules,
             );
             self.layouts.rewrites = segment_ids(
@@ -1524,7 +1548,10 @@ impl Session {
         self.layouts.fns = segment_ids(&fns_ids, &self.all_modules);
         let inst_ids: Vec<String> = instances.iter().map(|i| i.id.0.clone()).collect();
         self.layouts.instances = segment_ids(&inst_ids, &self.all_modules);
-        let law_ids: Vec<String> = laws.iter().map(|l| l.instance.clone()).collect();
+        let law_ids: Vec<String> = laws
+            .iter()
+            .map(|l| format!("{}#{}", l.instance, l.law))
+            .collect();
         self.layouts.laws = segment_ids(&law_ids, &self.all_modules);
         let rew_ids: Vec<String> = rewrites
             .iter()
@@ -1923,7 +1950,7 @@ impl Session {
                 let body = self.body_rows_for(m, &id, &self.states.get(m).map(|s| s.fns.clone()).unwrap_or_default());
                 let facts = contract_facts_of(&iface, &id);
                 for (ix, fact) in facts.iter().enumerate() {
-                    let cid = contract_id(m, name_of_id(&id), &format!("f{ix}"));
+                    let cid = contract_id(name_of_id(&id), &format!("f{ix}"));
                     let s = fact.clone();
                     g.insert_item(Item {
                         id: cid.clone(),
@@ -1952,6 +1979,20 @@ impl Session {
                 });
                 // The item's surface is part of its module's surface.
                 g.insert_edge(&module_id, &id, EdgeKind::Surface);
+                // A constructor unit's code and identity come from its
+                // type declaration: a type change reaches the ctor and
+                // through it every body that constructs it.
+                if kind == ItemKind::Type {
+                    for t in &iface.exports.types {
+                        if item_id(ItemKind::Type, m, &t.name) != id {
+                            continue;
+                        }
+                        for c in &t.ctors {
+                            let ctor_id = item_id(ItemKind::Value, m, &c.name);
+                            g.insert_edge(&ctor_id, &id, EdgeKind::Surface);
+                        }
+                    }
+                }
             }
             // Module import edges (the `.cinchif` chain's spine).
             let imports = state.imports.clone();
@@ -2040,6 +2081,24 @@ impl Session {
                     item_id(ItemKind::Class, m, &s.name),
                     ItemKind::Class,
                 ));
+                // A method call is a reference to the class's method and
+                // to every instance that could discharge it (over-
+                // approximate: resolution is the checker's job, the
+                // graph only bounds the dirty set from above).
+                for meth in &s.methods {
+                    out.entry(meth.name.clone()).or_default().push((
+                        item_id(ItemKind::Class, m, &s.name),
+                        ItemKind::Class,
+                    ));
+                    for i in &iface.exports.instances {
+                        if i.class == s.name {
+                            out.entry(meth.name.clone()).or_default().push((
+                                item_id(ItemKind::Instance, m, &i.id),
+                                ItemKind::Instance,
+                            ));
+                        }
+                    }
+                }
             }
             for i in &iface.exports.instances {
                 out.entry(i.id.clone()).or_default().push((
@@ -2210,7 +2269,9 @@ fn resolve_ref(
         match (want_type, k) {
             (true, ItemKind::Type) | (true, ItemKind::Class) => true,
             (true, _) => false,
-            (false, ItemKind::Type) | (false, ItemKind::Class) => false,
+            (false, ItemKind::Type) => false,
+            // A value reference may name a class method (the class and
+            // its instances) as well as a value or instance.
             (false, _) => true,
         }
     };
@@ -2270,7 +2331,9 @@ impl Identifiable for InstanceDef {
 
 impl Identifiable for LawRow {
     fn ident(&self) -> String {
-        self.instance.clone()
+        // Several rows share an instance (one per law): the row's
+        // identity is the pair.
+        format!("{}#{}", self.instance, self.law)
     }
 }
 
@@ -2305,6 +2368,57 @@ struct SplitIr {
     preamble: String,
     units: Vec<(String, String)>,
     tail: String,
+}
+
+/// The name in one top-level IR item: the quoted or bare identifier
+/// after `@`, with `quote()`'s `\XX` hex escapes decoded. Quoted names
+/// may contain operator characters (`Data.Nat.Eq_Nat.==`), so the name
+/// ends at the closing quote, never at the first `=` or `(`.
+fn ir_symbol(chunk: &str) -> (u8, String) {
+    if chunk.starts_with("define ") {
+        let Some(at) = chunk.find('@') else {
+            return (1, String::new());
+        };
+        (1, decode_ir_name(&chunk[at + 1..]))
+    } else if chunk.starts_with('@') {
+        (2, decode_ir_name(&chunk[1..]))
+    } else {
+        (0, String::new())
+    }
+}
+
+fn decode_ir_name(rest: &str) -> String {
+    let bytes = rest.as_bytes();
+    if bytes.first() != Some(&b'"') {
+        return rest
+            .split(['(', ' ', '='])
+            .next()
+            .unwrap_or_default()
+            .to_string();
+    }
+    let mut out: Vec<u8> = Vec::new();
+    let mut i = 1;
+    while i < bytes.len() {
+        match bytes[i] {
+            b'"' => break,
+            b'\\' => {
+                let hex = |b: u8| -> u8 {
+                    (b as char).to_digit(16).unwrap_or(0) as u8
+                };
+                if i + 2 < bytes.len() {
+                    out.push((hex(bytes[i + 1]) << 4) | hex(bytes[i + 2]));
+                    i += 3;
+                } else {
+                    i += 1;
+                }
+            }
+            b => {
+                out.push(b);
+                i += 1;
+            }
+        }
+    }
+    String::from_utf8_lossy(&out).to_string()
 }
 
 /// Split one emission into its units. The split is validated by exact
@@ -2344,36 +2458,7 @@ fn split_ir(ir: &str) -> Result<SplitIr> {
     for (k, &s) in starts.iter().enumerate() {
         let e = starts.get(k + 1).copied().unwrap_or(ir.len());
         let text = &ir[s..e];
-        let (kind, symbol) = if text.starts_with("define ") {
-            let sym = text
-                .lines()
-                .next()
-                .unwrap_or_default()
-                .split('@')
-                .nth(1)
-                .unwrap_or_default()
-                .split(['(', ' '])
-                .next()
-                .unwrap_or_default()
-                .trim_matches('"')
-                .to_string();
-            (1u8, sym)
-        } else if text.starts_with('@') {
-            let sym = text
-                .lines()
-                .next()
-                .unwrap_or_default()
-                .split('=')
-                .next()
-                .unwrap_or_default()
-                .trim()
-                .trim_start_matches('@')
-                .trim_matches('"')
-                .to_string();
-            (2u8, sym)
-        } else {
-            (0u8, String::new())
-        };
+        let (kind, symbol) = ir_symbol(text);
         chunks.push(Chunk {
             start: s,
             end: e,
