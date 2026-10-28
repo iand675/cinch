@@ -244,8 +244,12 @@ pub fn emit_for(profile: &crate::core::TargetProfile, program: &Program) -> Resu
         for (w, name) in &reg.layout_types {
             out.push_str(&format!("%\"{name}\" = type [{w} x i8]\n"));
         }
+        // One declaration per external symbol: two modules may import
+        // the same C symbol (the platform homes share the word-buffer
+        // bridge), and a repeated `declare` is a redefinition.
+        let mut declared: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
         for plan in program.foreigns.values() {
-            if !plan.export {
+            if !plan.export && declared.insert(plan.symbol.clone()) {
                 out.push_str(&foreign_declare(plan, &reg));
             }
         }

@@ -1,0 +1,47 @@
+-- Data.Path: filesystem paths (P34, the platform layer).
+--
+-- A `Path` names filesystem bytes: the text of a POSIX path, carried
+-- whole (no canonicalization, no separator rewriting). This replaces
+-- the placeholder `Path :: Nat -> Path` that Effect.Io carried (an
+-- index into the runtime's input source): a real path names BYTES ON
+-- DISK, and the platform homes (Effect.Fs, Effect.Process) hand its
+-- text to the OS as UTF-8 bytes across the foreign boundary.
+--
+-- Named refusals (boundaries this module deliberately does not
+-- cross):
+--   path canonicalization: `path-join` concatenates with one `/` and
+--     never resolves `.`/`..` or symlinks (the OS does that at the
+--     call, and the error vocabulary reports what it found);
+--   Windows separators: the bootstrap's platform layer is POSIX (`/`
+--     is the only separator);
+--   non-UTF-8 path text: the carrier is `String` (UTF-8), so the
+--     platform layer's byte crossing is UTF-8 bytes.
+--
+-- Module scheme (design/base-library.md): `Data.*` is data types; the
+-- path's home carries its conversions and its join.
+module Data.Path where
+
+  import Data.String
+
+  export Path, path-from-string, path-to-string, path-join
+
+
+  -- The path text (POSIX; UTF-8 at the boundary).
+  data Path where
+    Path :: String -> Path
+
+  -- A path from its text.
+  path-from-string :: String -> Path
+  path-from-string s = Path s
+
+  -- The path's text.
+  path-to-string :: Path -> String
+  path-to-string p = case p of
+    Path s -> s
+
+  -- The path `a/b`: exactly one `/` between the two texts (no
+  -- separator collapsing; see the refusals above).
+  path-join :: Path -> Path -> Path
+  path-join a b = case a of
+    Path x -> case b of
+      Path y -> Path (string-concat x (string-concat "/" y))

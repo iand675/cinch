@@ -220,6 +220,14 @@
 //!   `cinch_io_sleep(millis: i64) -> i64`: the `Io r` operations (stdout,
 //!   stdin, and a cancellation-aware suspension point).
 //! * `cinch_coop_*`: the cooperative single-threaded backend of [`coop`] (the Wasm profile's lowering target) mirrors this surface under these names with the same word conventions.
+//!
+//! The platform layer (P34; `compiler/runtime/src/platform.rs`), the
+//! `cinch_buf_*`/`cinch_clock_*`/`cinch_fs_*`/`cinch_proc_*` externs
+//! behind the prelude's `Effect.Clock`/`Effect.Fs`/`Effect.Process`
+//! homes: word buffers that carry path and content bytes across the
+//! scalar foreign boundary, the runtime-capability clocks, the
+//! filesystem operations and the subprocess operations over real
+//! pipes.
 
 pub mod abi;
 pub mod bytes;
@@ -230,6 +238,7 @@ pub mod evolution;
 mod int;
 mod limbs;
 mod nat;
+pub mod platform;
 pub mod string;
 pub mod sym;
 pub mod task;

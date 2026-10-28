@@ -1,0 +1,192 @@
+-- Effect.Process: subprocesses over real pipes (P34, the platform
+-- layer: the shape that drives `clang` and `lld`).
+--
+-- A `Command` names a program, its arguments and its environment
+-- additions; `process-run` runs it with the given input on its stdin,
+-- captures its stdout and reports its exit code, all under the `Io r`
+-- capability in the mold of the runtime's `Io r` operations (decision
+-- D45: subprocesses run at runtime through the capability, never
+-- ambient at compile time; a `stage` body reaches a subprocess only
+-- through staging's own recorded `StageProcess` capability, and this
+-- home has no staging path). Failures are NAMED `ProcessError` values
+-- in a `Result` (the house style), never faults.
+--
+-- The boundary words (`compiler/runtime/src/platform.rs`, the
+-- `cinch_proc_*`/`cinch_buf_*` externs) are the plain `foreign import
+-- ccall` machinery (machine scalars); paths, arguments and output
+-- cross through runtime word buffers one byte at a time (see
+-- Effect.Fs's bridge).
+--
+-- Named refusals (boundaries this module deliberately does not
+-- cross):
+--   streaming a live child: `process-run` is one shot (run, drain the
+--     stdout pipe to its end, reap); a long-lived child with a
+--     backpressured pipe needs the handle API this slice does not
+--     ship;
+--   stderr capture: the child inherits this process's stderr (only
+--     stdout is captured);
+--   killing by signal: the exit code is the child's own (a signal
+--     death reports 128 + the signal number, the shell convention);
+--   a stdin payload larger than the pipe buffer while the child does
+--     not read: the write blocks (the worked drivers consume theirs).
+--
+-- Module scheme (design/base-library.md): `Effect.*` is the effect
+-- system's vocabulary.
+module Effect.Process where
+
+  import Algebra.Arithmetic
+  import Data.Bytes
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Path
+  import Data.Result
+  import Data.String
+  import Relation.Eq
+
+  export ProcessError, ProcessNotFound, ProcessPermissionDenied, ProcessInvalidArgument, ProcessIoError
+  export Command, command, command-with-env
+  export process-run
+
+
+  -- What went wrong before the child's own exit code could exist.
+  data ProcessError where
+    ProcessNotFound :: ProcessError
+    ProcessPermissionDenied :: ProcessError
+    ProcessInvalidArgument :: ProcessError
+    ProcessIoError :: ProcessError
+
+  -- A program with its arguments and its environment additions
+  -- (`KEY=VALUE` pairs, added to this process's own environment).
+  data Command where
+    Command :: Path -> List String -> List (String, String) -> Command
+
+  -- A command without environment additions.
+  command :: Path -> List String -> Command
+  command prog args = Command prog args Nil
+
+  -- A command with environment additions.
+  command-with-env :: Path -> List String -> List (String, String) -> Command
+  command-with-env prog args env = Command prog args env
+
+  -- The word-buffer bridge (private; see Effect.Fs's header).
+  foreign import ccall "cinch_buf_new" buf-new :: forall r. Unit ->{IO r} I64
+  foreign import ccall "cinch_buf_free" buf-free :: forall r. I64 ->{IO r} I64
+  foreign import ccall "cinch_buf_push" buf-push :: forall r. I64 -> I64 ->{IO r} I64
+  foreign import ccall "cinch_buf_len" buf-len :: forall r. I64 ->{IO r} I64
+  foreign import ccall "cinch_buf_get" buf-get :: forall r. I64 -> I64 ->{IO r} I64
+
+  -- The subprocess words.
+  foreign import ccall "cinch_proc_new" raw-proc-new :: forall r. I64 ->{IO r} I64
+  foreign import ccall "cinch_proc_arg" raw-proc-arg :: forall r. I64 -> I64 ->{IO r} I64
+  foreign import ccall "cinch_proc_env" raw-proc-env :: forall r. I64 -> I64 ->{IO r} I64
+  foreign import ccall "cinch_proc_stdin" raw-proc-stdin :: forall r. I64 -> I64 ->{IO r} I64
+  foreign import ccall "cinch_proc_run" raw-proc-run :: forall r. I64 ->{IO r} I64
+  foreign import ccall "cinch_proc_read_out" raw-proc-read-out :: forall r. I64 -> I64 ->{IO r} I64
+  foreign import ccall "cinch_proc_wait" raw-proc-wait :: forall r. I64 ->{IO r} I64
+  foreign import ccall "cinch_proc_free" raw-proc-free :: forall r. I64 ->{IO r} I64
+
+  buf-from-bytes :: forall r. Bytes ->{IO r} I64
+  buf-from-bytes b = buf-fill (buf-new ()) b 0 (bytes-len b)
+
+  buf-fill :: forall r. I64 -> Bytes -> Nat -> Nat ->{IO r} I64
+  buf-fill h b i n = case i == n of
+    True -> h
+    False -> case buf-push h (nat-to-i64 (bytes-get b i)) of
+      _ -> buf-fill h b (i + 1) n
+
+  buf-to-bytes :: forall r. I64 ->{IO r} Bytes
+  buf-to-bytes h = case buf-len h of
+    n -> buf-copy (bytes-new (nat-from-i64 n)) h 0 (nat-from-i64 n)
+
+  buf-copy :: forall r. Bytes -> I64 -> Nat -> Nat ->{IO r} Bytes
+  buf-copy b h i n = case i == n of
+    True -> b
+    False -> case bytes-set b i (nat-from-i64 (buf-get h (nat-to-i64 i))) of
+      _ -> buf-copy b h (i + 1) n
+
+  path-buf :: forall r. Path ->{IO r} I64
+  path-buf p = buf-from-bytes (string-to-bytes (path-to-string p))
+
+  -- The negated error code as the named vocabulary.
+  proc-error-code :: I64 -> ProcessError
+  proc-error-code c = case c of
+    -1 -> ProcessNotFound
+    -2 -> ProcessPermissionDenied
+    -6 -> ProcessInvalidArgument
+    _ -> ProcessIoError
+
+  -- Run `cmd` with `input` on its stdin: the child's exit code and
+  -- its captured stdout (raw bytes), or the named error.
+  process-run :: forall r. using (io :: Io r) => Command -> String ->{IO r, Diverge} Result ProcessError (Nat, Bytes)
+  process-run cmd input = case cmd of
+    Command prog args env ->
+      let ph = path-buf prog in
+      case raw-proc-new ph of
+        h -> case buf-free ph of
+          _ -> case gt-i64 h 0 of
+            True -> process-started h args env input
+            False -> Err (proc-error-code h)
+
+  process-started :: forall r. using (io :: Io r) => I64 -> List String -> List (String, String) -> String ->{IO r, Diverge} Result ProcessError (Nat, Bytes)
+  process-started h args env input = case add-args h args of
+    0 -> case add-env h env of
+      0 -> let ib = buf-from-bytes (string-to-bytes input) in
+        case raw-proc-stdin h ib of
+          0 -> case buf-free ib of
+            _ -> case raw-proc-run h of
+              0 -> process-collect h
+              c -> process-fail h c
+          c -> case buf-free ib of
+            _ -> process-fail h c
+      c -> process-fail h c
+    c -> process-fail h c
+
+  -- Free the handle and report the negated code.
+  process-fail :: forall r. using (io :: Io r) => I64 -> I64 ->{IO r} Result ProcessError (Nat, Bytes)
+  process-fail h c = case raw-proc-free h of
+    _ -> Err (proc-error-code c)
+
+  -- Drain the stdout pipe to its end, reap the child and release the
+  -- handle (the one-shot shape).
+  process-collect :: forall r. using (io :: Io r) => I64 ->{IO r, Diverge} Result ProcessError (Nat, Bytes)
+  process-collect h =
+    let out = buf-new () in
+    case raw-proc-read-out h out of
+      n -> case ge-i64 n 0 of
+        True -> case raw-proc-wait h of
+          e -> case ge-i64 e 0 of
+            True -> case buf-to-bytes out of
+              bs -> case raw-proc-free h of
+                _ -> case buf-free out of
+                  _ -> Ok (nat-from-i64 e, bs)
+            False -> case buf-free out of
+              _ -> process-fail h e
+        False -> case buf-free out of
+          _ -> process-fail h n
+
+  -- The arguments as repeated words (the first failure stops the
+  -- setup and reports).
+  add-args :: forall r. I64 -> List String ->{IO r} I64
+  add-args h args = case args of
+    Nil -> 0
+    Cons a more ->
+      let ab = buf-from-bytes (string-to-bytes a) in
+      case raw-proc-arg h ab of
+        0 -> case buf-free ab of
+          _ -> add-args h more
+        c -> case buf-free ab of
+          _ -> c
+
+  -- The environment additions as `KEY=VALUE` words.
+  add-env :: forall r. I64 -> List (String, String) ->{IO r} I64
+  add-env h kvs = case kvs of
+    Nil -> 0
+    Cons kv rest -> case kv of
+      (k, v) ->
+        let eb = buf-from-bytes (string-to-bytes (string-concat k (string-concat "=" v))) in
+        case raw-proc-env h eb of
+          0 -> case buf-free eb of
+            _ -> add-env h rest
+          c -> case buf-free eb of
+            _ -> c

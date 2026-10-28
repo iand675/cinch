@@ -1,0 +1,240 @@
+-- Effect.Fs: the filesystem capability (P34, the platform layer).
+--
+-- The operations read, write, list, stat and atomically rename
+-- filesystem bytes, under the `Io r` capability in the mold of the
+-- runtime's `Io r` operations (decision D45: the filesystem is
+-- consulted at runtime through the capability, never ambient at
+-- compile time; a `stage` body cannot reach it, see Effect.Clock's
+-- header). Paths are `Data.Path` values; content is `Bytes`; every
+-- failure is a NAMED `FsError` value in a `Result` (the house style:
+-- `Text.Parse`'s named vocabulary shape), never a fault.
+--
+-- The boundary words (`compiler/runtime/src/platform.rs`, the
+-- `cinch_fs_*`/`cinch_buf_*` externs) are the plain `foreign import
+-- ccall` machinery: machine scalars only, so paths and content cross
+-- through runtime word buffers, filled and drained one byte at a time
+-- below. The error codes those words return map one for one onto the
+-- named constructors (`NotFound` ... `IoError`).
+--
+-- Named refusals (boundaries this module deliberately does not
+-- cross):
+--   non-atomic write: `fs-write` creates or truncates and is NOT
+--     atomic; atomic replacement is write-then-`fs-rename` (the probe
+--     in compiler/tests/platform.rs exercises exactly that);
+--   partial reads: `fs-read` reads the whole file or fails (there is
+--     no streaming reader in the bootstrap slice);
+--   permissions beyond the OS's own: the error vocabulary reports
+--     what the OS said and nothing is widened;
+--   recursive listing or deletion: `fs-list` names one directory's
+--     entries (sorted ascending for determinism), and nothing removes
+--     files;
+--   symlinks: the OS resolves them at the call (`fs-metadata` reports
+--     the target's kind).
+--
+-- Module scheme (design/base-library.md): `Effect.*` is the effect
+-- system's vocabulary.
+module Effect.Fs where
+
+  import Algebra.Arithmetic
+  import Data.Bytes
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Path
+  import Data.Result
+  import Data.String
+  import Relation.Eq
+  import Relation.Ord
+
+  export FsError, NotFound, PermissionDenied, AlreadyExists, NotADirectory, IsADirectory, InvalidName, IoError
+  export FileKind, FileIsFile, FileIsDirectory, FileIsOther
+  export FileMeta, file-meta-kind, file-meta-size
+  export fs-read, fs-write, fs-list, fs-metadata, fs-rename
+
+
+  -- What went wrong, named (the `std::io::ErrorKind` vocabulary the
+  -- runtime maps its codes from).
+  data FsError where
+    NotFound :: FsError
+    PermissionDenied :: FsError
+    AlreadyExists :: FsError
+    NotADirectory :: FsError
+    IsADirectory :: FsError
+    InvalidName :: FsError
+    IoError :: FsError
+
+  -- What a path names.
+  data FileKind where
+    FileIsFile :: FileKind
+    FileIsDirectory :: FileKind
+    FileIsOther :: FileKind
+
+  -- A file's metadata: its kind and its size in bytes.
+  data FileMeta where
+    FileMeta :: FileKind -> Nat -> FileMeta
+
+  file-meta-kind :: FileMeta -> FileKind
+  file-meta-kind m = case m of
+    FileMeta k _ -> k
+
+  file-meta-size :: FileMeta -> Nat
+  file-meta-size m = case m of
+    FileMeta _ n -> n
+
+  -- The word-buffer bridge (private: the platform ABI's shape, not
+  -- the filesystem's vocabulary). All words are `I64` machine words;
+  -- a negative result is the negated error code.
+  foreign import ccall "cinch_buf_new" buf-new :: forall r. Unit ->{IO r} I64
+  foreign import ccall "cinch_buf_free" buf-free :: forall r. I64 ->{IO r} I64
+  foreign import ccall "cinch_buf_push" buf-push :: forall r. I64 -> I64 ->{IO r} I64
+  foreign import ccall "cinch_buf_len" buf-len :: forall r. I64 ->{IO r} I64
+  foreign import ccall "cinch_buf_get" buf-get :: forall r. I64 -> I64 ->{IO r} I64
+
+  -- The filesystem words.
+  foreign import ccall "cinch_fs_read" raw-fs-read :: forall r. I64 -> I64 ->{IO r} I64
+  foreign import ccall "cinch_fs_write" raw-fs-write :: forall r. I64 -> I64 ->{IO r} I64
+  foreign import ccall "cinch_fs_rename" raw-fs-rename :: forall r. I64 -> I64 ->{IO r} I64
+  foreign import ccall "cinch_fs_meta_kind" raw-fs-meta-kind :: forall r. I64 ->{IO r} I64
+  foreign import ccall "cinch_fs_meta_size" raw-fs-meta-size :: forall r. I64 ->{IO r} I64
+  foreign import ccall "cinch_fs_dir_open" raw-fs-dir-open :: forall r. I64 ->{IO r} I64
+  foreign import ccall "cinch_fs_dir_next" raw-fs-dir-next :: forall r. I64 -> I64 ->{IO r} I64
+  foreign import ccall "cinch_fs_dir_close" raw-fs-dir-close :: forall r. I64 ->{IO r} I64
+
+  -- Fill a fresh word buffer from a `Bytes` value (byte at a time:
+  -- the boundary is machine scalars).
+  buf-from-bytes :: forall r. Bytes ->{IO r} I64
+  buf-from-bytes b = buf-fill (buf-new ()) b 0 (bytes-len b)
+
+  buf-fill :: forall r. I64 -> Bytes -> Nat -> Nat ->{IO r} I64
+  buf-fill h b i n = case i == n of
+    True -> h
+    False -> case buf-push h (nat-to-i64 (bytes-get b i)) of
+      _ -> buf-fill h b (i + 1) n
+
+  -- A word buffer's contents as a fresh `Bytes` value.
+  buf-to-bytes :: forall r. I64 ->{IO r} Bytes
+  buf-to-bytes h = case buf-len h of
+    n -> buf-copy (bytes-new (nat-from-i64 n)) h 0 (nat-from-i64 n)
+
+  buf-copy :: forall r. Bytes -> I64 -> Nat -> Nat ->{IO r} Bytes
+  buf-copy b h i n = case i == n of
+    True -> b
+    False -> case bytes-set b i (nat-from-i64 (buf-get h (nat-to-i64 i))) of
+      _ -> buf-copy b h (i + 1) n
+
+  -- A path's bytes as a fresh word buffer.
+  path-buf :: forall r. Path ->{IO r} I64
+  path-buf p = buf-from-bytes (string-to-bytes (path-to-string p))
+
+  -- The negated error code as the named vocabulary.
+  fs-error-code :: I64 -> FsError
+  fs-error-code c = case c of
+    -1 -> NotFound
+    -2 -> PermissionDenied
+    -3 -> AlreadyExists
+    -4 -> NotADirectory
+    -5 -> IsADirectory
+    -6 -> InvalidName
+    _ -> IoError
+
+  -- The whole file at `p`, or the named error (missing paths report
+  -- `NotFound`).
+  fs-read :: forall r. using (io :: Io r) => Path ->{IO r} Result FsError Bytes
+  fs-read p =
+    let ph = path-buf p in
+    let out = buf-new () in
+    case raw-fs-read ph out of
+      0 -> case buf-to-bytes out of
+        bs -> case buf-free ph of
+          _ -> case buf-free out of
+            _ -> Ok bs
+      c -> case buf-free ph of
+        _ -> case buf-free out of
+          _ -> Err (fs-error-code c)
+
+  -- Write `content` to `p`, creating or truncating it (NOT atomic;
+  -- atomic replacement is `fs-rename`).
+  fs-write :: forall r. using (io :: Io r) => Path -> Bytes ->{IO r} Result FsError Unit
+  fs-write p content =
+    let ph = path-buf p in
+    let dh = buf-from-bytes content in
+    case raw-fs-write ph dh of
+      0 -> case buf-free ph of
+        _ -> case buf-free dh of
+          _ -> Ok ()
+      c -> case buf-free ph of
+        _ -> case buf-free dh of
+          _ -> Err (fs-error-code c)
+
+  -- Atomically rename `from` to `to` (POSIX `rename`: the target sees
+  -- the whole old or the whole new content, never a partial).
+  fs-rename :: forall r. using (io :: Io r) => Path -> Path ->{IO r} Result FsError Unit
+  fs-rename src dst =
+    let fh = path-buf src in
+    let th = path-buf dst in
+    case raw-fs-rename fh th of
+      0 -> case buf-free fh of
+        _ -> case buf-free th of
+          _ -> Ok ()
+      c -> case buf-free fh of
+        _ -> case buf-free th of
+          _ -> Err (fs-error-code c)
+
+  -- The kind and size of what `p` names.
+  fs-metadata :: forall r. using (io :: Io r) => Path ->{IO r} Result FsError FileMeta
+  fs-metadata p =
+    let ph = path-buf p in
+    case raw-fs-meta-kind ph of
+      k -> case fs-kind k of
+        Some kind -> case raw-fs-meta-size ph of
+          s -> case ge-i64 s 0 of
+            True -> case buf-free ph of
+              _ -> Ok (FileMeta kind (nat-from-i64 s))
+            False -> case buf-free ph of
+              _ -> Err (fs-error-code s)
+        None -> case buf-free ph of
+          _ -> Err (fs-error-code k)
+
+  fs-kind :: I64 -> Option FileKind
+  fs-kind k = case k of
+    0 -> Some FileIsFile
+    1 -> Some FileIsDirectory
+    2 -> Some FileIsOther
+    _ -> None
+
+  -- The names in the directory `p`, sorted ascending (the OS listing
+  -- order is not specified; the sorted listing is this home's
+  -- observable order).
+  fs-list :: forall r. using (io :: Io r) => Path ->{IO r} Result FsError (List String)
+  fs-list p =
+    let ph = path-buf p in
+    case raw-fs-dir-open ph of
+      dh -> case gt-i64 dh 0 of
+        True -> case buf-free ph of
+          _ -> dir-names dh (buf-new ()) Nil
+        False -> case buf-free ph of
+          _ -> Err (fs-error-code dh)
+
+  dir-names :: forall r. I64 -> I64 -> List String ->{IO r} Result FsError (List String)
+  dir-names dh out acc = case raw-fs-dir-next dh out of
+    1 -> case buf-to-bytes out of
+      bs -> case string-from-bytes bs of
+        Some s -> dir-names dh out (insert-name s acc)
+        None -> case raw-fs-dir-close dh of
+          _ -> case buf-free out of
+            _ -> Err InvalidName
+    0 -> case raw-fs-dir-close dh of
+      _ -> case buf-free out of
+        _ -> Ok acc
+    c -> case raw-fs-dir-close dh of
+      _ -> case buf-free out of
+        _ -> Err (fs-error-code c)
+
+  -- Insertion into the ascending listing.
+  insert-name :: String -> List String -> List String
+  insert-name x xs = case xs of
+    Nil -> Cons x Nil
+    Cons y ys -> case x <= y of
+      True -> Cons x (Cons y ys)
+      False -> Cons y (insert-name x ys)

@@ -62,8 +62,12 @@ pub const PRELUDE_EARLY: &[(&str, &str)] = &[
     ("Data/Json.cinch", include_str!("../prelude/Data/Json.cinch")),
     ("Data/Producer.cinch", include_str!("../prelude/Data/Producer.cinch")),
     ("Data/Target.cinch", include_str!("../prelude/Data/Target.cinch")),
+    ("Data/Path.cinch", include_str!("../prelude/Data/Path.cinch")),
     ("Effect/Sequencing.cinch", include_str!("../prelude/Effect/Sequencing.cinch")),
     ("Effect/Concurrent.cinch", include_str!("../prelude/Effect/Concurrent.cinch")),
+    ("Effect/Clock.cinch", include_str!("../prelude/Effect/Clock.cinch")),
+    ("Effect/Fs.cinch", include_str!("../prelude/Effect/Fs.cinch")),
+    ("Effect/Process.cinch", include_str!("../prelude/Effect/Process.cinch")),
     ("Effect/Io.cinch", include_str!("../prelude/Effect/Io.cinch")),
     ("Data/FromList.cinch", include_str!("../prelude/Data/FromList.cinch")),
     ("Data/FromMap.cinch", include_str!("../prelude/Data/FromMap.cinch")),
@@ -99,6 +103,11 @@ pub const PRELUDE_LATE: &[(&str, &str)] = &[
     ("Data/Hash.cinch", include_str!("../prelude/Data/Hash.cinch")),
     ("Text/Codec.cinch", include_str!("../prelude/Text/Codec.cinch")),
     ("Data/HashMap.cinch", include_str!("../prelude/Data/HashMap.cinch")),
+    // The observability family (P32): `Effect.Trace` imports
+    // `Effect.Log`, and `Text.Otlp` imports `Effect.Trace`.
+    ("Effect/Log.cinch", include_str!("../prelude/Effect/Log.cinch")),
+    ("Effect/Trace.cinch", include_str!("../prelude/Effect/Trace.cinch")),
+    ("Text/Otlp.cinch", include_str!("../prelude/Text/Otlp.cinch")),
 ];
 
 /// Every embedded prelude module name (the family's scheme names and
