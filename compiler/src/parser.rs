@@ -2997,27 +2997,70 @@ impl<'a> Parser<'a> {
         Ok(Type::Using(cs, Box::new(body), span))
     }
 
-    /// The comma-separated `name :: Class args` items of a `using (...)`
-    /// clause (the `(` has been consumed).
-    fn parse_constraint_items(&mut self) -> Result<Vec<Constraint>> {
+    /// The comma-separated items of a `using (...)` clause (the `(` has
+    /// been consumed): `name :: Class args` class constraints,
+    /// refinement obligations (a decidable predicate over the carrier
+    /// values: `Ordered xs`, `length xs > 1`, `Sorted xs`), and the
+    /// generic transfer's `Preserves (<>) p` obligation (refinement
+    /// types design, "instance heads at refinements").
+    fn parse_constraint_items(&mut self) -> Result<Vec<Oblig>> {
         let mut cs = Vec::new();
         loop {
             let c_span = self.peek().span;
-            let name = match self.peek_tok().clone() {
-                Tok::VarId(s) if s != "_" => {
-                    self.bump();
-                    Name::new(s, c_span)
-                }
-                t => {
-                    return Err(self.err(format!(
-                        "expected a constraint name, found {}",
-                        describe(&t)
-                    )))
-                }
-            };
-            self.expect(&Tok::ColonColon, "`::` in the constraint")?;
-            let ty = self.parse_type_app()?;
-            cs.push(decompose_constraint(name, ty, c_span)?);
+            // `Preserves (<>) p`: the preservation obligation names its
+            // method in parentheses.
+            if matches!(self.peek_tok(), Tok::VarId(s) if s == "Preserves")
+                && matches!(self.peek_tok_at(1), Some(Tok::LParen))
+            {
+                self.bump();
+                self.expect(&Tok::LParen, "`(` after `Preserves`")?;
+                let method = match self.peek_tok().clone() {
+                    Tok::Op(s) => {
+                        self.bump();
+                        Name::new(s, c_span)
+                    }
+                    Tok::VarId(s) => {
+                        self.bump();
+                        Name::new(s, c_span)
+                    }
+                    Tok::Pipe => {
+                        self.bump();
+                        Name::new("|", c_span)
+                    }
+                    t => {
+                        return Err(self.err(format!(
+                            "expected the preserved method's name, found {}",
+                            describe(&t)
+                        )))
+                    }
+                };
+                self.expect(&Tok::RParen, "`)` after the preserved method")?;
+                let pred = self.parse_infix_type()?;
+                cs.push(Oblig::Preserves { method, pred, span: c_span });
+            } else if matches!(self.peek_tok(), Tok::VarId(_))
+                && matches!(self.peek_tok_at(1), Some(Tok::ColonColon))
+            {
+                let name = match self.peek_tok().clone() {
+                    Tok::VarId(s) if s != "_" => {
+                        self.bump();
+                        Name::new(s, c_span)
+                    }
+                    t => {
+                        return Err(self.err(format!(
+                            "expected a constraint name, found {}",
+                            describe(&t)
+                        )))
+                    }
+                };
+                self.expect(&Tok::ColonColon, "`::` in the constraint")?;
+                let ty = self.parse_type_app()?;
+                cs.push(Oblig::Class(decompose_constraint(name, ty, c_span)?));
+            } else {
+                // A refinement obligation: a decidable predicate over
+                // the carrier values.
+                let pred = self.parse_infix_type()?;
+                cs.push(Oblig::Pred(pred));
+            }
             if self.at(&Tok::Comma) {
                 self.bump();
             } else {
@@ -3468,8 +3511,14 @@ fn resolve_module_decl(d: &mut Decl, fix: &FixityTable) -> Result<()> {
                 }
             }
             for c in &mut r.ctx {
-                for a in &mut c.args {
-                    resolve_type(a, fix)?;
+                match c {
+                    Oblig::Class(c) => {
+                        for a in &mut c.args {
+                            resolve_type(a, fix)?;
+                        }
+                    }
+                    Oblig::Pred(t) => resolve_type(t, fix)?,
+                    Oblig::Preserves { pred, .. } => resolve_type(pred, fix)?,
                 }
             }
             resolve_term(&mut r.match_tm, fix)?;
@@ -3978,8 +4027,14 @@ fn resolve_type(t: &mut Type, fix: &FixityTable) -> Result<()> {
         }
         Type::Using(cs, body, _) => {
             for c in cs {
-                for a in &mut c.args {
-                    resolve_type(a, fix)?;
+                match c {
+                    Oblig::Class(c) => {
+                        for a in &mut c.args {
+                            resolve_type(a, fix)?;
+                        }
+                    }
+                    Oblig::Pred(t) => resolve_type(t, fix)?,
+                    Oblig::Preserves { pred, .. } => resolve_type(pred, fix)?,
                 }
             }
             resolve_type(body, fix)?;
@@ -4145,8 +4200,13 @@ mod tests {
         assert_eq!(inst.name.text, "EqInt");
         assert_eq!(inst.params.len(), 1);
         assert_eq!(inst.ctx.len(), 1);
-        assert_eq!(inst.ctx[0].name.text, "c");
-        assert_eq!(inst.ctx[0].class.parts(), vec!["Eq"]);
+        match &inst.ctx[0] {
+            Oblig::Class(c) => {
+                assert_eq!(c.name.text, "c");
+                assert_eq!(c.class.parts(), vec!["Eq"]);
+            }
+            other => panic!("expected a class constraint, got {other:?}"),
+        }
         assert!(matches!(inst.target, Type::App(_, _, _)));
         assert_eq!(inst.methods.len(), 1);
 
@@ -4438,9 +4498,14 @@ mod tests {
         match sig_ty(m, "sigD") {
             Type::Using(cs, body, _) => {
                 assert_eq!(cs.len(), 1);
-                assert_eq!(cs[0].name.text, "d");
-                assert_eq!(cs[0].class.parts(), vec!["Show"]);
-                assert_eq!(cs[0].args.len(), 1);
+                match &cs[0] {
+                    Oblig::Class(c) => {
+                        assert_eq!(c.name.text, "d");
+                        assert_eq!(c.class.parts(), vec!["Show"]);
+                        assert_eq!(c.args.len(), 1);
+                    }
+                    other => panic!("expected a class constraint, got {other:?}"),
+                }
                 assert!(matches!(body.as_ref(), Type::Fun { .. }));
             }
             other => panic!("expected a using type, got {other:?}"),

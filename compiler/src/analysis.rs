@@ -14,7 +14,7 @@
 //! are workspace-relative; nothing here ever renders an absolute path
 //! (the standing manifest rule).
 
-use crate::ast::{self, Decl, RefKind};
+use crate::ast::{self, Decl, Oblig, RefKind};
 use crate::core::Value;
 use crate::interface::{self, Iface};
 use crate::lexer::{self, Span, Tok};
@@ -1649,7 +1649,15 @@ pub fn render_ast_type(t: &ast::Type) -> String {
         Type::Using(ctx, body, _) => format!(
             "using ({}) => {}",
             ctx.iter()
-                .map(|c| format!("{} :: {}", c.name.text, c.class.parts().join(".")))
+                .map(|c| match c {
+                    Oblig::Class(c) => {
+                        format!("{} :: {}", c.name.text, c.class.parts().join("."))
+                    }
+                    Oblig::Pred(t) => render_ast_type(t),
+                    Oblig::Preserves { method, pred, .. } => {
+                        format!("Preserves ({}) {}", method.text, render_ast_type(pred))
+                    }
+                })
                 .collect::<Vec<_>>()
                 .join(", "),
             render_ast_type(body)

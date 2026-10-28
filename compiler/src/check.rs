@@ -9,7 +9,7 @@
 
 use crate::ast;
 use crate::core::{ArithMode, ArithOp, BytesOp, CAlt, CBranch, CPat, CmpOp, ConcOp, Core, FieldAccess, FieldShape, FnDef, GlobalId, InstanceDef, IntOp, LocalId, NatOp, PrimOp, Program, ProjField, SymOp};
-use crate::types::{ClassApp, EffLabel, EffRow, EitherMeta, IxParam, ITerm, IdxCmp, IdxOp, Mult, PTerm, PredFn, PtrRole, RowTail, Scalar, Scheme, Sort, Ty, Unifier, c_abi_scalar, collect_row_names, default_mult, pred_alpha_eq, pred_conjuncts, pred_implies};
+use crate::types::{ClassApp, EffLabel, EffRow, EitherMeta, IxParam, ITerm, IdxCmp, IdxOp, Mult, PTerm, PredFn, PropOblig, PtrRole, RowTail, Scalar, Scheme, Sort, Ty, Unifier, c_abi_scalar, collect_row_names, default_mult, pred_alpha_eq, pred_binder, pred_conjuncts, pred_implies};
 use crate::{Error, Result};
 use SolveOutcome::{Solved, Ambiguous};
 use std::cell::RefCell;
@@ -1013,6 +1013,103 @@ pub struct RefineView {
     pub pred: PTerm,
 }
 
+/// One converted `using (...)` item (refinement types design,
+/// "instance heads at refinements"): a class constraint (a dictionary
+/// binder) or a refinement obligation the caller discharges through the
+/// `Dec` evidence path.
+#[derive(Clone)]
+pub(crate) enum ConvOblig {
+    Class(String, ClassApp),
+    Prop(PropOblig),
+}
+
+/// One `using (...)` item on an instance: a dictionary constraint (a
+/// sub-dictionary of the instance's construction) or a refinement
+/// obligation (its per-argument predicates and the generic transfer's
+/// `Preserves` validity condition).
+#[derive(Clone)]
+pub(crate) enum InstCtx {
+    Dict(String, ClassApp),
+    Oblig(PropOblig),
+}
+
+impl InstCtx {
+    /// The dictionary items of one instance context (the sub-dictionaries
+    /// of its construction unit).
+    pub(crate) fn dicts(ctx: &[InstCtx]) -> Vec<(String, ClassApp)> {
+        ctx.iter()
+            .filter_map(|c| match c {
+                InstCtx::Dict(n, app) => Some((n.clone(), app.clone())),
+                InstCtx::Oblig(_) => None,
+            })
+            .collect()
+    }
+}
+
+/// One instance candidate in lattice-aware resolution (refinement types
+/// design, "instance heads at refinements"): the trial-matched instance
+/// with the head condition it states at the want (the predicate whose
+/// values its methods serve; `None` is the trivial condition of a plain
+/// head) and whether the head's predicate came from a predicate
+/// parameter (the generic transfer: the least specific head).
+struct MatchCand {
+    idx: usize,
+    sub: HashMap<String, Ty>,
+    trial: Unifier,
+    cond: Option<PTerm>,
+    generic_head: bool,
+}
+
+/// One application whose selected instance carries per-argument
+/// refinement obligations (refinement types design, "instance heads at
+/// refinements"): the arguments and the `Prop`-typed evidence in scope
+/// at the call, recorded for the discharge after instance resolution
+/// (the `Dec` evidence path; D192 staleness applies).
+struct PropCall {
+    /// The method call's dictionary want.
+    want: usize,
+    /// The arguments in order: their values (where a named value stands
+    /// for the argument), their types, and their spans.
+    args: Vec<(Option<ITerm>, Ty, ast::Span)>,
+    /// The evidence in scope at the call: name, proposition, local, its
+    /// mutable footprint, and its derivation span.
+    evidence: Vec<(String, PTerm, LocalId, Vec<String>, ast::Span)>,
+    span: ast::Span,
+}
+
+/// One refinement transfer recorded at a resolved want (refinement
+/// types design, "composability"): the instance serving a refined point
+/// owes the point's preservation check (the closure `post p p = p`) and
+/// its preservation and postcondition rows in the law layer's honest
+/// tier.
+struct TransferOblig {
+    /// The row identity: the rep-identity dictionary's owner when the
+    /// transfer is the generic rule (its same-class sub-dictionary
+    /// resolves to the container instance), the selected instance
+    /// otherwise.
+    container: String,
+    module: String,
+    instance: String,
+    class: String,
+    /// The method owing the point's preservation (its result is the
+    /// point's carrier, or a refined result inside another former at
+    /// the honest boundary).
+    method: String,
+    nested: bool,
+    class_params: Vec<String>,
+    class_args: Vec<Ty>,
+    /// The wanted lattice point (the refined class argument), its
+    /// predicate, binder and container.
+    point: Ty,
+    pred: PTerm,
+    binder: String,
+    base: Ty,
+    /// The instance's sub-dictionary constraints (class and arguments),
+    /// for the law machinery's dictionary resolution.
+    subdicts: Vec<(String, Vec<Ty>)>,
+    span: ast::Span,
+}
+
 #[derive(Clone)]
 struct TypeKind {
     module: String,
@@ -1058,7 +1155,7 @@ struct InstanceInfo {
     module: String,
     name: String,
     params: Vec<String>,
-    ctx: Vec<(String, ClassApp)>,
+    ctx: Vec<InstCtx>,
     target: ClassApp,
     /// The dictionary construction unit for this instance.
     base_id: GlobalId,
@@ -2283,6 +2380,18 @@ struct Checker {
     /// resolve during constraint solving). Each is the evidence local, the
     /// mutable locations its statement reads, and the use span.
     ev_uses: Vec<(LocalId, Vec<String>, ast::Span)>,
+    /// Refinement transfers recorded at resolved wants (refinement types
+    /// design, "composability"): checked in the law layer after every
+    /// module's bodies are known.
+    transfer_obligs: Vec<TransferOblig>,
+    /// The (dictionary, point, method) keys already recorded: one check
+    /// per transfer however many uses resolve to it.
+    transfer_seen: HashSet<(String, String, String)>,
+    /// Method and function applications whose instance or signature
+    /// carries refinement obligations: the arguments and the evidence in
+    /// scope at the call, for the discharge after resolution (the `Dec`
+    /// evidence path).
+    prop_calls: Vec<PropCall>,
 }
 
 /// A `generate do` block collected for compile-time execution (staging).
@@ -2565,6 +2674,9 @@ impl Checker {
             ev_writes: Vec::new(),
             ev_derivs: HashMap::new(),
             ev_uses: Vec::new(),
+            transfer_obligs: Vec::new(),
+            transfer_seen: HashSet::new(),
+            prop_calls: Vec::new(),
         }
     }
 
@@ -4316,6 +4428,25 @@ impl Checker {
 
     // ------------------------------------------------------------ type conversion
 
+    /// One converted `using (...)` item: a class constraint (a
+    /// dictionary the instance or caller supplies) or a refinement
+    /// obligation (refinement types design, "instance heads at
+    /// refinements": the caller discharges it through the `Dec`
+    /// evidence path).
+    fn conv_oblig(&self, o: &ast::Oblig, vars: &[String]) -> Result<ConvOblig> {
+        Ok(match o {
+            ast::Oblig::Class(c) => {
+                let (n, app) = self.conv_class(c, vars)?;
+                ConvOblig::Class(n, app)
+            }
+            ast::Oblig::Pred(t) => ConvOblig::Prop(PropOblig::Pred(self.conv_pred_former(t, vars)?)),
+            ast::Oblig::Preserves { method, pred, .. } => ConvOblig::Prop(PropOblig::Preserves {
+                method: method.text.clone(),
+                pred: self.conv_pred_former(pred, vars)?,
+            }),
+        })
+    }
+
     fn conv_class(&self, c: &ast::Constraint, vars: &[String]) -> Result<(String, ClassApp)> {
         let sig = self.lookup_sig(&c.class)?;
         if sig.params.len() != c.args.len() {
@@ -5934,6 +6065,7 @@ impl Checker {
         self.kind_constraints.borrow_mut().clear();
         let mut params: Vec<String> = Vec::new();
         let mut ctx: Vec<(String, ClassApp)> = Vec::new();
+        let mut obligs: Vec<PropOblig> = Vec::new();
         // `forall` binders in order, with their kind hints.
         let mut binders: Vec<(String, Option<ParamKind>, ast::Span)> = Vec::new();
         let mut rest = ty;
@@ -5955,13 +6087,52 @@ impl Checker {
                 }
                 ast::Type::Using(cs, body, _) => {
                     for c in cs {
-                        let (name, class) = self.conv_class(c, &params)?;
-                        ctx.push((name, class));
+                        match self.conv_oblig(c, &params)? {
+                            ConvOblig::Class(name, class) => ctx.push((name, class)),
+                            ConvOblig::Prop(PropOblig::Preserves { .. }) => {
+                                return Err(Error::at(
+                                    c.span(),
+                                    "`Preserves` is the generic transfer's obligation on an instance; a signature's `using` context states per-argument predicates (`Ordered xs`) or class constraints",
+                                ))
+                            }
+                            ConvOblig::Prop(o) => obligs.push(o),
+                        }
                     }
                     rest = body;
                 }
                 other => {
                     let t = self.conv_type(other, &params)?;
+                    // A signature's refinement obligations name the
+                    // signature's dependent arguments (`using (Sorted xs,
+                    // Sorted ys)` over `(xs :: T) -> (ys :: T) -> ...`):
+                    // the caller discharges one per named argument (the
+                    // `Dec` evidence path).
+                    let mut arg_binders: Vec<String> = Vec::new();
+                    let mut cur = &t;
+                    loop {
+                        match cur {
+                            Ty::Pi { var, cod, .. } => {
+                                arg_binders.push(var.clone());
+                                cur = cod;
+                            }
+                            Ty::Fun(_, _, _, cod) => cur = cod,
+                            _ => break,
+                        }
+                    }
+                    for o in &obligs {
+                        if let PropOblig::Pred(p) = o {
+                            let mut fv = Vec::new();
+                            p.free_vars(&mut fv);
+                            for v in fv {
+                                if !arg_binders.contains(&v) {
+                                    return Err(Error::plain(format!(
+                                        "a signature's refinement obligation names its arguments, but `{v}` is not one of the signature's dependent binders ({})",
+                                        arg_binders.join(", ")
+                                    )));
+                                }
+                            }
+                        }
+                    }
                     // Names used in tail position are row variables; names
                     // used in region position are region variables; the rest
                     // are classified by how they are used (an un-annotated
@@ -6010,6 +6181,7 @@ impl Checker {
                         row_params,
                         region_params,
                         ctx,
+                        obligs,
                         ty: t,
                     });
                 }
@@ -6469,7 +6641,7 @@ impl Checker {
         }
         let wanted_z = self.uni.zonk_class(wanted);
         let wanted_app = Ty::Adt(class.clone(), wanted_z.args.clone());
-        let mut matches: Vec<(usize, HashMap<String, Ty>, Unifier)> = Vec::new();
+        let mut matches: Vec<MatchCand> = Vec::new();
         if let Some(idxs) = self.instances.get(&class).cloned() {
             for i in idxs {
                 if !self.instance_list[i].implicit && Some(i) != self.self_instance {
@@ -6492,42 +6664,152 @@ impl Checker {
                 // fails leaves no bindings. A wanted metavariable is
                 // determined by the unique matching instance, which is what
                 // fixes literal types (primitive types specification,
-                // section 7).
+                // section 7). Predicate parameters (`refined p T`'s `p`)
+                // become proposition metavariables and bind by proposition
+                // unification in the lattice match.
+                let prop_params = Self::prop_param_names(&inst.params, &inst.target);
                 let mut fresh: HashMap<String, Ty> = HashMap::new();
                 for p in &inst.params {
-                    fresh.insert(p.clone(), self.uni.fresh());
+                    fresh.insert(
+                        p.clone(),
+                        if prop_params.contains(p) {
+                            self.uni.fresh_prop()
+                        } else {
+                            self.uni.fresh()
+                        },
+                    );
                 }
                 let target = Self::subst_class(&inst.target, &fresh);
                 let mut trial = self.uni.clone();
                 let target_app = Ty::Adt(class.clone(), target.args.clone());
-                if trial.unify(&target_app, &wanted_app).is_ok() {
-                    let mut sub = HashMap::new();
-                    for p in &inst.params {
-                        let t = trial.zonk(&fresh[p]);
-                        if t == fresh[p] {
-                            return Err(Error::at(
-                                span,
-                                format!(
-                                    "instance {} parameter {} is not determined by its target",
-                                    inst.name, p
-                                ),
-                            ));
-                        }
-                        sub.insert(p.clone(), t);
-                    }
-                    matches.push((i, sub, trial));
+                // Structural matching first (the ordinary case), then the
+                // refinement lattice: a head at `refined h` serves every
+                // want whose predicate implies `h` (the value weakens to
+                // the head), and a plain head serves refined wants (the
+                // container's methods at the point).
+                let matched = trial.unify(&target_app, &wanted_app).is_ok()
+                    || self.lattice_match(&target.args, &wanted_z.args, &mut trial);
+                if !matched {
+                    continue;
                 }
+                let mut sub = HashMap::new();
+                for p in &inst.params {
+                    let t = trial.zonk(&fresh[p]);
+                    if t == fresh[p] {
+                        return Err(Error::at(
+                            span,
+                            format!(
+                                "instance {} parameter {} is not determined by its target",
+                                inst.name, p
+                            ),
+                        ));
+                    }
+                    sub.insert(p.clone(), t);
+                }
+                let mut cond = self.head_cond(&target.args, &trial);
+                for item in &inst.ctx {
+                    if let InstCtx::Oblig(PropOblig::Pred(p)) = item {
+                        // A constraint-form instance's applicability
+                        // condition is its obligation set (ordered by the
+                        // same implication lattice).
+                        let p = Checker::subst_pt(p, &sub);
+                        let p = trial.resolve_prop(&p);
+                        cond = Some(match cond {
+                            None => p,
+                            Some(q) => PTerm::And(Box::new(q), Box::new(p)),
+                        });
+                    }
+                }
+                matches.push(MatchCand {
+                    idx: i,
+                    sub,
+                    trial,
+                    cond,
+                    generic_head: !prop_params.is_empty(),
+                });
             }
         }
-        match matches.as_slice() {
-            [] => Err(Error::at(
+        if matches.is_empty() {
+            return Err(Error::at(
                 span,
                 format!(
                     "no instance for {wanted_z}{}",
                     undetermined_hint(&self.uni, &wanted_z)
                 ),
-            )),
-            [(idx, sub, trial)] => {
+            ));
+        }
+        // Most-specific lattice resolution (refinement types design,
+        // "instance heads at refinements"): among the candidates whose
+        // heads the want matches, the strongest head condition wins (the
+        // implication lattice); a predicate-parameterized head (the
+        // generic transfer) loses a tie to a stated head. Incomparable
+        // strongest candidates have no winner: the coherence error.
+        let stronger = |a: &Option<PTerm>, b: &Option<PTerm>| {
+            Self::cond_implies(a, b) && !Self::cond_implies(b, a)
+        };
+        let maximal: Vec<usize> = (0..matches.len())
+            .filter(|&c| {
+                !(0..matches.len()).any(|o| o != c && stronger(&matches[o].cond, &matches[c].cond))
+            })
+            .collect();
+        // The maximal candidates group into strength-equivalence classes
+        // (mutually implying head conditions); classes are pairwise
+        // incomparable.
+        let mut classes: Vec<Vec<usize>> = Vec::new();
+        for &c in &maximal {
+            match classes
+                .iter_mut()
+                .find(|cl| Self::cond_implies(&matches[c].cond, &matches[cl[0]].cond))
+            {
+                Some(cl) => cl.push(c),
+                None => classes.push(vec![c]),
+            }
+        }
+        let ground = self.uni.free_metas(&wanted_app).is_empty();
+        let ambiguous = if classes.len() > 1 {
+            if !ground {
+                return Ok(Ambiguous);
+            }
+            // Incomparable strongest heads at a common refinement: no
+            // winner (the coherence rule, D119 extended).
+            let a = &self.instance_list[matches[classes[0][0]].idx];
+            let b = &self.instance_list[matches[classes[1][0]].idx];
+            let point = wanted_z
+                .args
+                .iter()
+                .find_map(|t| self.refine_view(t))
+                .map(|v| v.pred.to_string())
+                .unwrap_or_else(|| wanted_z.to_string());
+            return Err(Error::at(
+                span,
+                format!(
+                    "coherence: instances `{}` (head {}) and `{}` (head {}) are incomparable constrained instances, and both match this refinement ({point}) (the coherence rule: a use at a common refinement needs one most-specific instance; state one head with a predicate implying the other)",
+                    a.name, a.target, b.name, b.target
+                ),
+            ));
+        } else {
+            // One strongest class: a stated head beats the generic
+            // transfer (most-specific, like typeclass instance selection);
+            // unresolved ties defer to the fixpoint like any
+            // underdetermined want.
+            let class = &classes[0];
+            let stated: Vec<usize> = class
+                .iter()
+                .copied()
+                .filter(|&c| !matches[c].generic_head)
+                .collect();
+            match stated.as_slice() {
+                [only] => Some(*only),
+                [] if class.len() == 1 => Some(class[0]),
+                _ => None,
+            }
+        };
+        let pick = match ambiguous {
+            Some(p) => p,
+            None => return Ok(Ambiguous),
+        };
+        let cand = &matches[pick];
+        let (idx, sub, trial) = (cand.idx, cand.sub.clone(), cand.trial.clone());
                 // A unique match that leaves an instance parameter bound
                 // only to an undetermined literal defers to literal
                 // defaulting (decision D7): `[1]` with no other constraint
@@ -6540,7 +6822,7 @@ impl Checker {
                     return Ok(Ambiguous);
                 }
                 let (ctx, base_id, base) = {
-                    let inst = &self.instance_list[*idx];
+                    let inst = &self.instance_list[idx];
                     (inst.ctx.clone(), inst.base_id.clone(), inst.base)
                 };
                 self.uni = trial.clone();
@@ -6552,10 +6834,31 @@ impl Checker {
                         subs.push(DictExpr::Binder(*l));
                     }
                 }
-                for (_, c) in &ctx {
-                    let c = Self::subst_class(c, sub);
+                let mut obligs: Vec<PropOblig> = Vec::new();
+                let mut container: Option<GlobalId> = None;
+                let mut subdicts: Vec<(String, Vec<Ty>)> = Vec::new();
+                for item in &ctx {
+                    let c = match item {
+                        InstCtx::Dict(_, c) => Self::subst_class(c, &sub),
+                        InstCtx::Oblig(o) => {
+                            obligs.push(Self::subst_oblig(o, &sub));
+                            continue;
+                        }
+                    };
                     match self.solve(&c, scope, depth + 1, span)? {
-                        Solved(d) => subs.push(d),
+                        Solved(d) => {
+                            // The generic transfer's rep-identity
+                            // dictionary is the container's: the same-class
+                            // sub-dictionary names its owner for the law
+                            // rows.
+                            if container.is_none() && c.class == class {
+                                if let DictExpr::Instance(id, _) = &d {
+                                    container = Some(id.clone());
+                                }
+                            }
+                            subdicts.push((c.class.clone(), c.args.clone()));
+                            subs.push(d);
+                        }
                         Ambiguous => {
                             let cz = self.uni.zonk_class(&c);
                             return Err(Error::at(
@@ -6568,10 +6871,225 @@ impl Checker {
                         }
                     }
                 }
+                let inst_info = self.instance_list[idx].clone();
+                self.record_transfer(&inst_info, &obligs, container, wanted, &subdicts, span)?;
                 Ok(Solved(DictExpr::Instance(base_id, subs)))
+    }
+
+    /// The instance parameters a target states as proposition variables
+    /// (`refined p T`'s `p`): they bind by proposition unification, not
+    /// as type metavariables.
+    fn prop_param_names(params: &[String], target: &ClassApp) -> Vec<String> {
+        fn walk(t: &Ty, out: &mut Vec<String>) {
+            match t {
+                Ty::Prp(p) => {
+                    let mut fv = Vec::new();
+                    p.free_vars(&mut fv);
+                    out.extend(fv);
+                }
+                Ty::Adt(_, args) | Ty::Tuple(args) => {
+                    for a in args {
+                        walk(a, out);
+                    }
+                }
+                Ty::App(h, args) => {
+                    walk(h, out);
+                    for a in args {
+                        walk(a, out);
+                    }
+                }
+                Ty::Fun(a, _, _, b) | Ty::Pi { dom: a, cod: b, .. } => {
+                    walk(a, out);
+                    walk(b, out);
+                }
+                _ => {}
             }
-            _ => Ok(Ambiguous),
         }
+        let mut names = Vec::new();
+        for a in &target.args {
+            walk(a, &mut names);
+        }
+        names.retain(|n| params.contains(n));
+        names.sort();
+        names.dedup();
+        names
+    }
+
+    /// Refinement-lattice matching of one instance head against the
+    /// wanted (refinement types design, "instance heads at
+    /// refinements"): refined arguments match when their containers
+    /// unify and the wanted's predicate implies the head's (the value
+    /// weakens to the head) or the head's predicate is a parameter
+    /// binding the wanted's; a plain head serves refined wants (the
+    /// transfer rule) but never the reverse (an instance at `Sorted`
+    /// must not apply to unsorted lists).
+    fn lattice_match(&self, head: &[Ty], want: &[Ty], trial: &mut Unifier) -> bool {
+        if head.len() != want.len() {
+            return false;
+        }
+        for (h, w) in head.iter().zip(want) {
+            let hr = self.refine_view(h);
+            let wr = self.refine_view(w);
+            match (&hr, &wr) {
+                (Some(hv), Some(wv)) => {
+                    if let (Some(a), Some(b)) = (&hv.base, &wv.base) {
+                        if trial.unify(a, b).is_err() {
+                            return false;
+                        }
+                    }
+                    if trial.unify_prop(&hv.pred, &wv.pred).is_ok() {
+                        continue;
+                    }
+                    if !pred_implies(&wv.pred, &hv.pred) {
+                        return false;
+                    }
+                }
+                (Some(_), None) => return false,
+                (None, Some(wv)) => {
+                    // A plain head at a refined want: the container's
+                    // own methods at the point (the transfer rule). The
+                    // head's type is the want's container.
+                    let wbase = wv.base.as_ref().unwrap_or(w);
+                    if trial.unify(h, wbase).is_err() {
+                        return false;
+                    }
+                }
+                (None, None) => {
+                    if trial.unify(h, w).is_err() {
+                        return false;
+                    }
+                }
+            }
+        }
+        true
+    }
+
+    /// The head condition a matched target states at the want: the
+    /// conjunction of its refined arguments' predicates (`None` is the
+    /// trivial condition of a plain head).
+    fn head_cond(&self, args: &[Ty], trial: &Unifier) -> Option<PTerm> {
+        let mut out: Option<PTerm> = None;
+        for a in args {
+            if let Some(rv) = self.refine_view(a) {
+                let p = trial.resolve_prop(&rv.pred);
+                out = Some(match out {
+                    None => p,
+                    Some(q) => PTerm::And(Box::new(q), Box::new(p)),
+                });
+            }
+        }
+        out
+    }
+
+    /// Whether condition `a` implies condition `b` (the trivial
+    /// condition is implied by everything and implies only itself).
+    fn cond_implies(a: &Option<PTerm>, b: &Option<PTerm>) -> bool {
+        match (a, b) {
+            (None, None) => true,
+            (Some(_), None) => true,
+            (None, Some(_)) => false,
+            (Some(x), Some(y)) => pred_implies(x, y),
+        }
+    }
+
+    /// Substitute an instance's refinement obligations through the
+    /// match's parameter substitution.
+    fn subst_oblig(o: &PropOblig, sub: &HashMap<String, Ty>) -> PropOblig {
+        match o {
+            PropOblig::Pred(p) => PropOblig::Pred(Checker::subst_pt(p, sub)),
+            PropOblig::Preserves { method, pred } => PropOblig::Preserves {
+                method: method.clone(),
+                pred: Checker::subst_pt(pred, sub),
+            },
+        }
+    }
+
+    /// Record the transfer obligations of one resolved want (refinement
+    /// types design, "composability"): at a refined point the serving
+    /// instance owes the point's preservation check and its preservation
+    /// and postcondition rows (the closure `post p p = p`, checked in
+    /// the P18 law layer's honest tier). The generic transfer's
+    /// `Preserves` obligation is the same check stated as its validity
+    /// condition.
+    fn record_transfer(
+        &mut self,
+        inst: &InstanceInfo,
+        obligs: &[PropOblig],
+        container: Option<GlobalId>,
+        wanted: &ClassApp,
+        subdicts: &[(String, Vec<Ty>)],
+        span: ast::Span,
+    ) -> Result<()> {
+        let Some(sig) = self
+            .sigs
+            .get(&wanted.class)
+            .and_then(|ss| ss.iter().find(|s| self.def_in_scope(&s.module, &s.name)))
+            .cloned()
+        else {
+            return Ok(());
+        };
+        let scope = match &container {
+            Some(g) => g.0.clone(),
+            None => format!("{}.{}", inst.module, inst.name),
+        };
+        for arg in &wanted.args {
+            let Some(rv) = self.refine_view(arg) else {
+                continue;
+            };
+            let Some(base) = rv.base.clone() else {
+                continue;
+            };
+            let binder = pred_binder(&rv.pred);
+            let mut map: HashMap<String, Ty> = HashMap::new();
+            for (i, p) in sig.params.iter().enumerate() {
+                if let Some(a) = wanted.args.get(i) {
+                    map.insert(p.clone(), a.clone());
+                }
+            }
+            // A method owes the point's preservation exactly when its
+            // result is the point's carrier (`<>` and `mempty` do;
+            // `foldr` does not); a refined result inside another former
+            // stays at the honest boundary.
+            for (mname, mscheme) in &sig.methods {
+                let ty = Self::subst_ty(&mscheme.ty, &map);
+                let mut res = ty;
+                let res = loop {
+                    match res {
+                        Ty::Fun(_, _, _, cod) | Ty::Pi { cod, .. } => res = *cod,
+                        other => break other,
+                    }
+                };
+                let direct = self.uni.conv_eq(&res, arg);
+                let nested = !direct && self.ty_refine_mention(&res).is_some();
+                if !direct && !nested {
+                    continue;
+                }
+                // One check per (dictionary, point, method): the same
+                // transfer resolved at several uses checks once.
+                let key = (scope.clone(), rv.pred.to_string(), mname.clone());
+                if !self.transfer_seen.insert(key) {
+                    continue;
+                }
+                let _ = &obligs;
+                self.transfer_obligs.push(TransferOblig {
+                    container: scope.clone(),
+                    module: inst.module.clone(),
+                    instance: inst.name.clone(),
+                    class: wanted.class.clone(),
+                    method: mname.clone(),
+                    nested,
+                    class_params: sig.params.clone(),
+                    class_args: wanted.args.clone(),
+                    point: arg.clone(),
+                    pred: rv.pred.clone(),
+                    binder: binder.clone(),
+                    base: base.clone(),
+                    subdicts: subdicts.to_vec(),
+                    span,
+                });
+            }
+        }
+        Ok(())
     }
 
     fn fill_holes(&mut self, e: &ECore, sol: &HashMap<usize, DictExpr>) -> Result<ECore> {

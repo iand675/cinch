@@ -76,6 +76,28 @@ pub struct Constraint {
     pub span: Span,
 }
 
+/// One item of a `using (...)` clause (refinement types design,
+/// "instance heads at refinements"): a class constraint (`x :: Cls t`),
+/// a refinement obligation (a decidable predicate over the carrier
+/// values: `Ordered xs`, `length xs > 1`, `Sorted xs`), or the generic
+/// transfer's preservation obligation (`Preserves (<>) p`).
+#[derive(Clone, Debug)]
+pub enum Oblig {
+    Class(Constraint),
+    Pred(Type),
+    Preserves { method: Name, pred: Type, span: Span },
+}
+
+impl Oblig {
+    pub fn span(&self) -> Span {
+        match self {
+            Oblig::Class(c) => c.span,
+            Oblig::Pred(t) => t.span(),
+            Oblig::Preserves { span, .. } => *span,
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub enum Type {
     /// `Int`, `Bool`, `T`, `M.T`.
@@ -97,7 +119,7 @@ pub enum Type {
     /// `forall a b. t`.
     Forall(Vec<TypeBinder>, Box<Type>, Span),
     /// `using (...) => t`.
-    Using(Vec<Constraint>, Box<Type>, Span),
+    Using(Vec<Oblig>, Box<Type>, Span),
     /// Dependent function `(x :: A) -> B` with optional multiplicity and
     /// effect row.
     DepFun(Name, Box<Type>, Option<Name>, Option<EffectRow>, Box<Type>, Span),
@@ -665,7 +687,7 @@ pub struct InstDecl {
     pub name: Name,
     /// Type parameters, as in `instance Add_T a :: ...`.
     pub params: Vec<Name>,
-    pub ctx: Vec<Constraint>,
+    pub ctx: Vec<Oblig>,
     pub target: Type,
     pub methods: Vec<Equation>,
     pub span: Span,
@@ -846,7 +868,7 @@ pub struct RewriteDecl {
     pub name: Name,
     pub binders: Vec<TypeBinder>,
     /// `using (...)` context: the evidence the rule's template may use.
-    pub ctx: Vec<Constraint>,
+    pub ctx: Vec<Oblig>,
     pub match_tm: Term,
     pub replace_tm: Term,
     pub require: Option<Term>,
@@ -1278,8 +1300,14 @@ pub fn collect_decl_refs(d: &Decl, out: &mut Vec<RefSite>) {
                 }
             }
             for c in &r.ctx {
-                for a in &c.args {
-                    collect_type_refs(a, out);
+                match c {
+                    Oblig::Class(c) => {
+                        for a in &c.args {
+                            collect_type_refs(a, out);
+                        }
+                    }
+                    Oblig::Pred(t) => collect_type_refs(t, out),
+                    Oblig::Preserves { pred, .. } => collect_type_refs(pred, out),
                 }
             }
             collect_term_refs(&r.match_tm, out);
@@ -1324,8 +1352,14 @@ pub fn collect_decl_refs(d: &Decl, out: &mut Vec<RefSite>) {
         Decl::Instance(i) => {
             collect_type_refs(&i.target, out);
             for c in &i.ctx {
-                for a in &c.args {
-                    collect_type_refs(a, out);
+                match c {
+                    Oblig::Class(c) => {
+                        for a in &c.args {
+                            collect_type_refs(a, out);
+                        }
+                    }
+                    Oblig::Pred(t) => collect_type_refs(t, out),
+                    Oblig::Preserves { pred, .. } => collect_type_refs(pred, out),
                 }
             }
             for m in &i.methods {
@@ -1387,8 +1421,14 @@ pub fn collect_type_refs(t: &Type, out: &mut Vec<RefSite>) {
         Type::Lam(_, b, _) => collect_type_refs(b, out),
         Type::Using(cs, b, _) => {
             for c in cs {
-                for a in &c.args {
-                    collect_type_refs(a, out);
+                match c {
+                    Oblig::Class(c) => {
+                        for a in &c.args {
+                            collect_type_refs(a, out);
+                        }
+                    }
+                    Oblig::Pred(t) => collect_type_refs(t, out),
+                    Oblig::Preserves { pred, .. } => collect_type_refs(pred, out),
                 }
             }
             collect_type_refs(b, out);
@@ -1620,11 +1660,20 @@ fn hyg_type(t: &Type, cx: &mut HygCx, sc: &mut HygScope) -> Result<Type> {
         Type::Using(cs, body, s) => {
             let mut out = Vec::new();
             for c in cs {
-                let mut c = c.clone();
-                for a in &mut c.args {
-                    *a = hyg_type(a, cx, sc)?;
-                }
-                out.push(c);
+                out.push(match c.clone() {
+                    Oblig::Class(mut c) => {
+                        for a in &mut c.args {
+                            *a = hyg_type(a, cx, sc)?;
+                        }
+                        Oblig::Class(c)
+                    }
+                    Oblig::Pred(t) => Oblig::Pred(hyg_type(&t, cx, sc)?),
+                    Oblig::Preserves { method, pred, span } => Oblig::Preserves {
+                        method,
+                        pred: hyg_type(&pred, cx, sc)?,
+                        span,
+                    },
+                });
             }
             Type::Using(out, Box::new(hyg_type(body, cx, sc)?), *s)
         }
@@ -1994,8 +2043,14 @@ pub fn hyg_decl(d: &Decl, cx: &mut HygCx, sc: &mut HygScope) -> Result<Decl> {
                 }
             }
             for c in &mut r.ctx {
-                for a in &mut c.args {
-                    *a = hyg_type(a, cx, sc)?;
+                match c {
+                    Oblig::Class(c) => {
+                        for a in &mut c.args {
+                            *a = hyg_type(a, cx, sc)?;
+                        }
+                    }
+                    Oblig::Pred(t) => *t = hyg_type(t, cx, sc)?,
+                    Oblig::Preserves { pred, .. } => *pred = hyg_type(pred, cx, sc)?,
                 }
             }
             r.match_tm = hyg_term(&r.match_tm, cx, sc)?;

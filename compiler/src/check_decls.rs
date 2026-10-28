@@ -484,6 +484,7 @@ impl Checker {
             module: "<builtin>".into(),
             name: "newIO".into(),
             scheme: Scheme {
+            obligs: Vec::new(),
                 params: Vec::new(),
                 idx_params: Vec::new(),
                 val_params: Vec::new(),
@@ -579,6 +580,7 @@ impl Checker {
             self,
             "withScope",
             Scheme {
+            obligs: Vec::new(),
                 params: vec!["a".to_string()],
                 idx_params: Vec::new(),
                 val_params: Vec::new(),
@@ -610,6 +612,7 @@ impl Checker {
             self,
             "spawn",
             Scheme {
+            obligs: Vec::new(),
                 params: vec!["x".to_string(), "a".to_string()],
                 idx_params: Vec::new(),
                 val_params: Vec::new(),
@@ -644,6 +647,7 @@ impl Checker {
             self,
             "joinAllOrCancel",
             Scheme {
+            obligs: Vec::new(),
                 params: vec!["x".to_string(), "v".to_string(), "w".to_string()],
                 idx_params: Vec::new(),
                 val_params: Vec::new(),
@@ -679,6 +683,7 @@ impl Checker {
             self,
             "ioWrite",
             Scheme {
+            obligs: Vec::new(),
                 params: Vec::new(),
                 idx_params: Vec::new(),
                 val_params: Vec::new(),
@@ -699,6 +704,7 @@ impl Checker {
             self,
             "ioRead",
             Scheme {
+            obligs: Vec::new(),
                 params: Vec::new(),
                 idx_params: Vec::new(),
                 val_params: Vec::new(),
@@ -719,6 +725,7 @@ impl Checker {
             self,
             "ioSleep",
             Scheme {
+            obligs: Vec::new(),
                 params: Vec::new(),
                 idx_params: Vec::new(),
                 val_params: Vec::new(),
@@ -739,6 +746,7 @@ impl Checker {
             self,
             "pollCancel",
             Scheme {
+            obligs: Vec::new(),
                 params: Vec::new(),
                 idx_params: Vec::new(),
                 val_params: Vec::new(),
@@ -774,6 +782,7 @@ impl Checker {
             module: "<builtin>".to_string(),
             name: "eval".to_string(),
             scheme: Scheme {
+            obligs: Vec::new(),
                 params: vec!["a".to_string()],
                 idx_params: Vec::new(),
                 val_params: Vec::new(),
@@ -858,6 +867,7 @@ impl Checker {
                 // `foreign import` schemes classify it.
                 region_params.push("Component".to_string());
                 let scheme = Scheme {
+            obligs: Vec::new(),
                     params: Vec::new(),
                     idx_params: Vec::new(),
                     val_params: Vec::new(),
@@ -1018,6 +1028,7 @@ impl Checker {
         ];
         for (name, symbol, ty, arity) in entries {
             let scheme = Scheme {
+            obligs: Vec::new(),
                 params: vec!["a".to_string()],
                 idx_params: Vec::new(),
                 val_params: Vec::new(),
@@ -1371,6 +1382,7 @@ impl Checker {
             module: "<builtin>".into(),
             name: "derive".into(),
             scheme: Scheme {
+            obligs: Vec::new(),
                 params: Vec::new(),
                 idx_params: Vec::new(),
                 val_params: Vec::new(),
@@ -1408,6 +1420,7 @@ impl Checker {
         ty: Ty,
     ) {
         let scheme = Scheme {
+            obligs: Vec::new(),
             params,
             idx_params: Vec::new(),
             val_params: Vec::new(),
@@ -1574,6 +1587,7 @@ impl Checker {
                 };
             }
             let scheme = Scheme {
+            obligs: Vec::new(),
                 params: type_params,
                 idx_params,
                 val_params: Vec::new(),
@@ -1682,6 +1696,7 @@ impl Checker {
             module: "<builtin>".to_string(),
             name: "getCopy".to_string(),
             scheme: Scheme {
+            obligs: Vec::new(),
                 params: vec!["a".to_string()],
                 idx_params: vec![IxParam::Val("n".to_string(), Ty::Nat)],
                 val_params: Vec::new(),
@@ -1835,6 +1850,7 @@ impl Checker {
             module: "<builtin>".to_string(),
             name: "vecStreamStep".to_string(),
             scheme: Scheme {
+            obligs: Vec::new(),
                 params: vec!["a".to_string()],
                 idx_params: vec![IxParam::Val("n".to_string(), Ty::Nat)],
                 val_params: Vec::new(),
@@ -1865,6 +1881,7 @@ impl Checker {
             module: "<builtin>".to_string(),
             name: "refl".to_string(),
             scheme: Scheme {
+            obligs: Vec::new(),
                 params: Vec::new(),
                 idx_params: vec![IxParam::Val("x".to_string(), Ty::Nat)],
                 val_params: Vec::new(),
@@ -1885,6 +1902,7 @@ impl Checker {
             module: "<builtin>".to_string(),
             name: "congr".to_string(),
             scheme: Scheme {
+            obligs: Vec::new(),
                 params: Vec::new(),
                 idx_params: vec![
                     IxParam::Val("f".to_string(), Ty::Nat),
@@ -2920,6 +2938,7 @@ impl Checker {
                             };
                         }
                         let scheme = Scheme {
+            obligs: Vec::new(),
                             params: type_params,
                             idx_params,
                             val_params: Vec::new(),
@@ -3155,6 +3174,7 @@ impl Checker {
                         };
                     }
                     let scheme = Scheme {
+            obligs: Vec::new(),
                         params: type_params,
                         idx_params,
                         val_params: Vec::new(),
@@ -3355,6 +3375,7 @@ impl Checker {
                         };
                     }
                     let scheme = Scheme {
+            obligs: Vec::new(),
                         params: type_params,
                         idx_params,
                         val_params: Vec::new(),
@@ -3521,6 +3542,7 @@ impl Checker {
                         };
                     }
                     let scheme = Scheme {
+            obligs: Vec::new(),
                         params: type_params,
                         idx_params,
                         val_params: Vec::new(),
@@ -3617,8 +3639,15 @@ impl Checker {
                                     let mut cvars = params.clone();
                                     cvars.extend(extra.iter().cloned());
                                     for c in cs {
-                                        let (n, app) = self.conv_class(c, &cvars)?;
-                                        own_ctx.push((n, app));
+                                        match self.conv_oblig(c, &cvars)? {
+                                            ConvOblig::Class(n, app) => own_ctx.push((n, app)),
+                                            ConvOblig::Prop(_) => {
+                                                return Err(Error::at(
+                                                    c.span(),
+                                                    "a class method's `using` context takes class constraints; refinement obligations live on the instance (they restrict its applicability) or on a value's signature",
+                                                ))
+                                            }
+                                        }
                                     }
                                     rest = body;
                                 }
@@ -3653,6 +3682,7 @@ impl Checker {
                         methods.push((
                             mname.text.clone(),
                             Scheme {
+            obligs: Vec::new(),
                                 params: type_params,
                                 idx_params: Vec::new(),
                                 val_params: Vec::new(),
@@ -3752,6 +3782,7 @@ impl Checker {
                             .filter(|p| !row_params.contains(p) && !region_params.contains(p))
                             .collect();
                         let scheme = Scheme {
+            obligs: Vec::new(),
                             params: type_params,
                             idx_params: Vec::new(),
                             val_params: Vec::new(),
@@ -3902,6 +3933,7 @@ impl Checker {
                             .filter(|p| !row_params.contains(p) && !region_params.contains(p))
                             .collect();
                         let scheme = Scheme {
+            obligs: Vec::new(),
                             params: type_params,
                             idx_params: Vec::new(),
                             val_params: Vec::new(),
@@ -4453,7 +4485,11 @@ impl Checker {
             .unwrap();
         self.self_instance = Some(self_idx);
 
-        let subdict_count = inst.ctx.len();
+        let subdict_count = inst
+            .ctx
+            .iter()
+            .filter(|c| matches!(c, ast::Oblig::Class(_)))
+            .count();
         // Refinement transfer (refinement types design): an instance over
         // a refinement is the container's own methods, elaborated at the
         // container's method types (the representations coincide), valid
@@ -4537,13 +4573,14 @@ impl Checker {
             // parameters into it would capture a same-named instance
             // parameter (`using (sa :: Semigroup a) => Semigroup (Dual a)`
             // must keep `sa :: Semigroup a`, not `Semigroup (Dual a)`).
-            let inst_ctx = self.instance_list[self_idx].ctx.clone();
+            let inst_ctx = InstCtx::dicts(&self.instance_list[self_idx].ctx);
             let mut ctx: Vec<(String, ClassApp)> = inst_ctx;
             for (n, c) in mscheme.ctx.iter().skip(1) {
                 ctx.push((n.clone(), Self::subst_class(c, &body_map)));
             }
             let gid = GlobalId(format!("{module}.{}.{}", inst.name.text, mname));
             let scheme = Scheme {
+            obligs: Vec::new(),
                 params: extra,
                 idx_params: Vec::new(),
                 val_params: Vec::new(),
@@ -4571,11 +4608,11 @@ impl Checker {
         // specification section 5): this instance owes its class's laws,
         // checked sample-wise after every module's bodies are known.
         if !sig.laws.is_empty() {
-            let subdicts: Vec<(String, Vec<Ty>)> = self.instance_list[self_idx]
-                .ctx
-                .iter()
-                .map(|(_, c)| (c.class.clone(), c.args.clone()))
-                .collect();
+            let subdicts: Vec<(String, Vec<Ty>)> =
+                InstCtx::dicts(&self.instance_list[self_idx].ctx)
+                    .into_iter()
+                    .map(|(_, c)| (c.class.clone(), c.args.clone()))
+                    .collect();
             for (law_name, law_scheme) in &sig.laws {
                 self.law_obligations.push(LawObligation {
                     instance: inst.name.text.clone(),
@@ -4595,11 +4632,11 @@ impl Checker {
         // Preservation (refinement types design): the transfer's
         // validity condition, checked sample-wise beside the class laws.
         if transfer {
-            let subdicts: Vec<(String, Vec<Ty>)> = self.instance_list[self_idx]
-                .ctx
-                .iter()
-                .map(|(_, c)| (c.class.clone(), c.args.clone()))
-                .collect();
+            let subdicts: Vec<(String, Vec<Ty>)> =
+                InstCtx::dicts(&self.instance_list[self_idx].ctx)
+                    .into_iter()
+                    .map(|(_, c)| (c.class.clone(), c.args.clone()))
+                    .collect();
             for (mname, gid, mty) in pres_methods {
                 let mut arg_tys: Vec<Ty> = Vec::new();
                 let mut cur = mty;
@@ -4821,9 +4858,10 @@ impl Checker {
             sub.insert(p.clone(), t);
         }
         let mut subs = Vec::new();
-        for (_, c) in &ctx {
+        for (n, c) in &InstCtx::dicts(&ctx) {
             let c = Self::subst_class(c, &sub);
             let id = self.new_want(c.clone(), span, &Env::default());
+            let _ = n;
             subs.push(ECore::Hole(id));
         }
         Ok((ECore::InstDict(base_id, subs), String::new()))
@@ -7031,6 +7069,404 @@ impl Checker {
         Ok(())
     }
 
+    /// Every recorded refinement transfer's checks (refinement types
+    /// design, "composability"): the point's preservation and
+    /// postcondition rows in the law layer's honest tier, beside the
+    /// declared instances' own rows.
+    fn check_transfers(&mut self) -> Result<()> {
+        let transfers = std::mem::take(&mut self.transfer_obligs);
+        for ob in &transfers {
+            self.check_transfer(ob)?;
+        }
+        Ok(())
+    }
+
+    /// One manifest row, deduplicated by its identity: one report per
+    /// (dictionary, law) however the transfer was reached.
+    fn push_row(rows: &mut Vec<crate::core::LawRow>, row: crate::core::LawRow) {
+        if rows
+            .iter()
+            .any(|r| r.instance == row.instance && r.law == row.law)
+        {
+            return;
+        }
+        rows.push(row);
+    }
+
+    /// One refinement transfer's preservation and postcondition check
+    /// (refinement types design, "composability"): the method must map
+    /// point values to point values (the closure `post p p = p`), per
+    /// conjunct with the failing conjunct named. The small-sample tier
+    /// and the bound-corner witnesses decide what they can; the rest is
+    /// reported `not checked`, never claimed as verified.
+    fn check_transfer(&mut self, ob: &TransferOblig) -> Result<()> {
+        let point_name = self.point_name(&ob.point, &ob.pred);
+        let law_name = format!("{}.preserve-{}", point_name, ob.method);
+        let post_name = format!("{}.post-{}", point_name, ob.method);
+        let scope = ob.container.clone();
+        let class = ob.class.clone();
+        let method = ob.method.clone();
+        let pred_text = ob.pred.to_string();
+        let row = |law: &str, status: String| crate::core::LawRow {
+            instance: scope.clone(),
+            class: class.clone(),
+            law: law.to_string(),
+            status,
+        };
+        let mut bail = |rows: &mut Vec<crate::core::LawRow>, reason: String| {
+            Self::push_row(rows, row(&law_name, format!("not checked ({reason})")));
+            Self::push_row(
+                rows,
+                row(&post_name, format!("derived: {pred_text}; not checked ({reason})")),
+            );
+        };
+        if ob.nested {
+            bail(
+                &mut self.law_rows,
+                "a refined result inside another type former is not checked".to_string(),
+            );
+            return Ok(());
+        }
+        if self
+            .module_params
+            .get(&ob.module)
+            .map(|p| !p.is_empty())
+            .unwrap_or(false)
+        {
+            bail(
+                &mut self.law_rows,
+                "the instance closes over module parameters".to_string(),
+            );
+            return Ok(());
+        }
+        let sig = self
+            .sigs
+            .get(&ob.class)
+            .and_then(|ss| ss.iter().find(|s| self.def_in_scope(&s.module, &s.name)))
+            .cloned();
+        let Some(sig) = sig else {
+            bail(
+                &mut self.law_rows,
+                "the instance's class does not resolve".to_string(),
+            );
+            return Ok(());
+        };
+        let def = self
+            .instance_defs
+            .iter()
+            .find(|d| d.id == fn_id(&ob.module, &ob.instance))
+            .cloned();
+        let Some(def) = def else {
+            bail(
+                &mut self.law_rows,
+                "the instance's dictionaries do not resolve".to_string(),
+            );
+            return Ok(());
+        };
+        // The method's dictionaries resolve exactly like the law
+        // checker's (the same honest boundary).
+        let dummy = LawObligation {
+            instance: ob.instance.clone(),
+            module: ob.module.clone(),
+            class: ob.class.clone(),
+            law: String::new(),
+            scheme: Scheme::mono(Ty::Unit),
+            class_params: ob.class_params.clone(),
+            class_args: ob.class_args.clone(),
+            method_units: def.methods.clone(),
+            subdicts: ob.subdicts.clone(),
+            span: ob.span,
+        };
+        let mut methods: HashMap<String, (crate::core::GlobalId, Vec<Value>)> = HashMap::new();
+        if self
+            .law_collect_methods(&dummy, 0, &mut methods, &mut Vec::new())?
+            .is_none()
+        {
+            bail(
+                &mut self.law_rows,
+                "the instance's dictionaries do not resolve".to_string(),
+            );
+            return Ok(());
+        }
+        // The method's arguments at the point.
+        let mut map: HashMap<String, Ty> = HashMap::new();
+        for (i, p) in ob.class_params.iter().enumerate() {
+            if let Some(a) = ob.class_args.get(i) {
+                map.insert(p.clone(), a.clone());
+            }
+        }
+        let mscheme = sig.methods.iter().find(|(m, _)| *m == ob.method).cloned();
+        let Some((_, mscheme)) = mscheme else {
+            bail(
+                &mut self.law_rows,
+                "the instance's method does not resolve".to_string(),
+            );
+            return Ok(());
+        };
+        let mut arg_tys: Vec<Ty> = Vec::new();
+        let mut cur = Self::subst_ty(&mscheme.ty, &map);
+        loop {
+            match self.uni.zonk(&cur) {
+                Ty::Fun(a, _, _, b) => {
+                    arg_tys.push(*a);
+                    cur = *b;
+                }
+                Ty::Pi { dom, cod, .. } => {
+                    arg_tys.push(*dom);
+                    cur = *cod;
+                }
+                other => break other,
+            }
+        }
+        // Samples of each argument: the point's own samples plus the
+        // bound-corner witnesses.
+        let witnesses = self.transfer_witnesses(&ob.pred, &ob.binder, &ob.base);
+        let mut sample_sets: Vec<Vec<Value>> = Vec::new();
+        for aty in &arg_tys {
+            let mut samples = self.law_samples(aty, 2);
+            for w in &witnesses {
+                samples.push(w.clone());
+            }
+            if samples.is_empty() {
+                bail(
+                    &mut self.law_rows,
+                    format!("no samples for the method argument `{aty}`"),
+                );
+                return Ok(());
+            }
+            sample_sets.push(samples);
+        }
+        // The method applied to each sample assignment, evaluated
+        // through the staging interpreter over the instance's real
+        // method code.
+        let mut assignments: Vec<HashMap<String, Value>> = vec![HashMap::new()];
+        for (i, samples) in sample_sets.iter().enumerate() {
+            let mut next = Vec::new();
+            for a in &assignments {
+                for s in samples {
+                    let mut a2 = a.clone();
+                    a2.insert(format!("$a{i}"), s.clone());
+                    next.push(a2);
+                }
+            }
+            assignments = next;
+            if assignments.len() > 256 {
+                assignments.truncate(256);
+            }
+        }
+        let head = fn_id(&sig.module, &ob.method).0;
+        let scx = self.fold_scx.clone().unwrap_or_default();
+        let mut cx = StageCx::new(&scx);
+        let conj = pred_conjuncts(&ob.pred);
+        let mut checked = 0usize;
+        for frame in &assignments {
+            let mut t = ITerm::Fn(head.clone());
+            for i in 0..arg_tys.len() {
+                t = ITerm::App(Box::new(t), vec![ITerm::Var(format!("$a{i}"))]);
+            }
+            let value = match self.eval_law_idx(&mut cx, &t, frame, &methods) {
+                Ok(v) => v,
+                Err(e) => {
+                    bail(
+                        &mut self.law_rows,
+                        format!("the samples did not evaluate: {e}"),
+                    );
+                    return Ok(());
+                }
+            };
+            // Preservation is per conjunct (compound predicates design):
+            // a failure names the conjunct that does not survive.
+            let mut failing: Option<PTerm> = None;
+            let mut undecided = false;
+            for c in &conj {
+                match self.pred_value(c, &ob.binder, &value) {
+                    Some(true) => {}
+                    Some(false) => {
+                        failing = Some(c.clone());
+                        break;
+                    }
+                    None => {
+                        undecided = true;
+                        break;
+                    }
+                }
+            }
+            if let Some(c) = failing {
+                let mut sample_text = String::new();
+                for i in 0..arg_tys.len() {
+                    if !sample_text.is_empty() {
+                        sample_text.push_str(", ");
+                    }
+                    sample_text.push_str(&format!(
+                        "$a{i} = {}",
+                        law_value_render(&frame[&format!("$a{i}")])
+                    ));
+                }
+                return Err(Error::at(
+                    ob.span,
+                    format!(
+                        "instance `{scope}` breaks preservation law `{law_name}` at sample values ({sample_text}): `{method}` produced `{}`, which does not satisfy `{c}` (refinement types design: a container's methods transfer exactly when they preserve the refinement)",
+                        law_value_render(&value)
+                    ),
+                ));
+            }
+            if undecided {
+                bail(
+                    &mut self.law_rows,
+                    "the samples' preservation is not decided".to_string(),
+                );
+                return Ok(());
+            }
+            checked += 1;
+        }
+        Self::push_row(
+            &mut self.law_rows,
+            row(&law_name, format!("checked ({checked} samples)")),
+        );
+        Self::push_row(
+            &mut self.law_rows,
+            row(
+                &post_name,
+                format!("derived: {pred_text}; checked ({checked} samples)"),
+            ),
+        );
+        Ok(())
+    }
+
+    /// The lattice point's name for the law rows (nominal names are
+    /// named predicates for readability): a named refinement is its
+    /// name, an anonymous point takes the named refinement stating the
+    /// same predicate, and a nameless point is its predicate.
+    fn point_name(&self, point: &Ty, pred: &PTerm) -> String {
+        if let Ty::Adt(name, _) = point {
+            if self
+                .types
+                .get(name)
+                .map(|ts| ts.iter().any(|t| t.refine.is_some()))
+                .unwrap_or(false)
+            {
+                return name.clone();
+            }
+        }
+        let mut names: Vec<String> = self.types.keys().cloned().collect();
+        names.sort();
+        for n in names {
+            let Some(tk) = self
+                .types
+                .get(&n)
+                .and_then(|ts| ts.iter().find(|t| t.refine.is_some()))
+            else {
+                continue;
+            };
+            let Some(r) = &tk.refine else {
+                continue;
+            };
+            if pred_alpha_eq(&r.pred, pred) {
+                return n;
+            }
+        }
+        pred.to_string()
+    }
+
+    /// The preservation check's witness inputs (the compound predicates
+    /// design's per-conjunct rule): values at the point's bound corners,
+    /// where a length-growing method is most likely to break a bounded
+    /// conjunct (`length xs <= 200` breaks at 200 + 200). A witness is
+    /// kept only when it really inhabits the point.
+    fn transfer_witnesses(&self, pred: &PTerm, binder: &str, base: &Ty) -> Vec<Value> {
+        let numeric = matches!(base, Ty::Nat | Ty::Int | Ty::Prim(_));
+        let (lo, hi) = if numeric {
+            crate::types::pred_measure_bounds(pred, &ITerm::Var(binder.to_string()))
+        } else {
+            let len = ITerm::app_fn(
+                "<builtin>.length".to_string(),
+                vec![ITerm::Var(binder.to_string())],
+            );
+            crate::types::pred_measure_bounds(pred, &len)
+        };
+        let mut mags: Vec<i128> = Vec::new();
+        if let Some(l) = lo {
+            mags.push(l);
+            mags.push(l + 1);
+        }
+        if let Some(h) = hi {
+            mags.push(h);
+            if h > 0 {
+                mags.push(h - 1);
+            }
+        }
+        if let (Some(l), Some(h)) = (lo, hi) {
+            if l < h {
+                mags.push((l + h) / 2);
+            }
+        }
+        mags.extend([1, 2, 3]);
+        let mut out: Vec<Value> = Vec::new();
+        let mut seen: Vec<i128> = Vec::new();
+        for n in mags {
+            if n < 0 || seen.contains(&n) {
+                continue;
+            }
+            if let Some(l) = lo {
+                if n < l {
+                    continue;
+                }
+            }
+            if let Some(h) = hi {
+                if n > h {
+                    continue;
+                }
+            }
+            seen.push(n);
+            if numeric {
+                let v = Value::Word(n as i64);
+                if self.pred_value(pred, binder, &v) == Some(true) {
+                    out.push(v);
+                }
+            } else {
+                for v in self.list_of_len(base, n as usize) {
+                    if self.pred_value(pred, binder, &v) == Some(true) {
+                        out.push(v);
+                    }
+                }
+            }
+        }
+        out
+    }
+
+    /// List-shaped witness values of one length over the base's own
+    /// sample constructors (each distinct sample head): uniform
+    /// elements stay non-decreasing, and a sub-128 head stays ASCII.
+    fn list_of_len(&self, base: &Ty, len: usize) -> Vec<Value> {
+        let samples = self.law_samples(base, 2);
+        let Some(nil) = samples
+            .iter()
+            .find(|s| matches!(s, Value::Adt { fields, .. } if fields.is_empty()))
+            .cloned()
+        else {
+            return Vec::new();
+        };
+        let mut out = Vec::new();
+        for s in &samples {
+            let Value::Adt { ctor, tag, fields } = s else {
+                continue;
+            };
+            if fields.len() < 2 {
+                continue;
+            }
+            let mut v = nil.clone();
+            for _ in 0..len {
+                v = Value::Adt {
+                    ctor: ctor.clone(),
+                    tag: *tag,
+                    fields: vec![fields[0].clone(), v],
+                };
+            }
+            out.push(v);
+        }
+        out
+    }
+
     /// The predicate's truth at a sample value (the preservation check's
     /// and the refinement sampler's decision procedure over values):
     /// `None` where the machinery cannot decide it.
@@ -7252,9 +7688,8 @@ impl Checker {
                 class_params: Vec::new(),
                 class_args: sargs.clone(),
                 method_units: def.methods.clone(),
-                subdicts: info
-                    .ctx
-                    .iter()
+                subdicts: InstCtx::dicts(&info.ctx)
+                    .into_iter()
                     .map(|(_, c)| (c.class.clone(), c.args.clone()))
                     .collect(),
                 span: ob.span,
@@ -7674,10 +8109,12 @@ impl Checker {
             names.push(b.name.text.clone());
         }
         for c in &r.ctx {
-            if names.contains(&c.name.text) {
-                return Err(Error::at(c.span, "duplicate rewrite binder"));
+            if let ast::Oblig::Class(k) = c {
+                if names.contains(&k.name.text) {
+                    return Err(Error::at(k.span, "duplicate rewrite binder"));
+                }
+                names.push(k.name.text.clone());
             }
-            names.push(c.name.text.clone());
         }
         // Binder hints from their annotations, and the class constraints
         // of the `using` clause, record how each bare binder is used.
@@ -7692,7 +8129,15 @@ impl Checker {
         let mut ctx: Vec<(String, ClassApp)> = Vec::new();
         let mut ctx_tys: Vec<Ty> = Vec::new();
         for c in &r.ctx {
-            let (n, app) = self.conv_class(c, &names)?;
+            let (n, app) = match self.conv_oblig(c, &names)? {
+                ConvOblig::Class(n, app) => (n, app),
+                ConvOblig::Prop(_) => {
+                    return Err(Error::at(
+                        c.span(),
+                        "a rewrite's `using` context states the class constraints its template may use; refinement obligations live on instances and signatures",
+                    ))
+                }
+            };
             ctx_tys.extend(app.args.iter().cloned());
             ctx.push((n, app));
         }
@@ -8940,6 +9385,7 @@ impl Checker {
             abi: "ccall".to_string(),
             external: f.symbol.clone(),
             ty: render_scheme(&Scheme {
+            obligs: Vec::new(),
                 params: Vec::new(),
                 idx_params: Vec::new(),
                 val_params: Vec::new(),
@@ -13995,10 +14441,11 @@ impl Checker {
         for (module, inst) in pending {
             self.build_scope(&module, false);
             let params: Vec<String> = inst.params.iter().map(|p| p.text.clone()).collect();
-            let mut ctx = Vec::new();
+            let mut ctx: Vec<InstCtx> = Vec::new();
             for c in &inst.ctx {
-                match self.conv_class(c, &params) {
-                    Ok(x) => ctx.push(x),
+                match self.conv_oblig(c, &params) {
+                    Ok(ConvOblig::Class(n, app)) => ctx.push(InstCtx::Dict(n, app)),
+                    Ok(ConvOblig::Prop(o)) => ctx.push(InstCtx::Oblig(o)),
                     Err(e) => {
                         if self.drop_embedded_head(&module, &inst) {
                             continue;
@@ -14021,6 +14468,29 @@ impl Checker {
                     inst.span,
                     "Copy is a compiler-known class with structural instances (ownership and usage design, section 3); it has no user instances",
                 ));
+            }
+            // A `Preserves` obligation names one of the class's methods
+            // (the generic transfer's validity condition).
+            for item in &ctx {
+                if let InstCtx::Oblig(PropOblig::Preserves { method, .. }) = item {
+                    let known = self
+                        .sigs
+                        .get(&class)
+                        .map(|ss| {
+                            ss.iter().any(|s| {
+                                s.methods.iter().any(|(m, _)| m == method)
+                            })
+                        })
+                        .unwrap_or(false);
+                    if !known {
+                        return Err(Error::at(
+                            inst.span,
+                            format!(
+                                "`Preserves ({method})` names a method of {class}, but the class has no such method"
+                            ),
+                        ));
+                    }
+                }
             }
             let base_id = fn_id(&module, &inst.name.text);
             let idx = self.instance_list.len();
@@ -14345,7 +14815,17 @@ impl Checker {
                 id: i.base_id.0.clone(),
                 class: i.target.class.clone(),
                 target: i.target.to_string(),
-                ctx: i.ctx.iter().map(|(n, c)| format!("{n} :: {c}")).collect(),
+                ctx: i
+                    .ctx
+                    .iter()
+                    .map(|item| match item {
+                        InstCtx::Dict(n, c) => format!("{n} :: {c}"),
+                        InstCtx::Oblig(PropOblig::Pred(p)) => p.to_string(),
+                        InstCtx::Oblig(PropOblig::Preserves { method, pred }) => {
+                            format!("Preserves ({method}) {pred}")
+                        }
+                    })
+                    .collect(),
                 methods: Vec::new(),
                 implicit: i.implicit,
             });
@@ -19338,6 +19818,7 @@ impl Checker {
                 ctx.push((format!("c{i}"), ClassApp { class: class.class, args }));
             }
             crate::types::Scheme {
+            obligs: Vec::new(),
                 params: tps,
                 idx_params: Vec::new(),
                 val_params: Vec::new(),

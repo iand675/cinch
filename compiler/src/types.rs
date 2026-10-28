@@ -691,10 +691,22 @@ impl fmt::Display for ITerm {
         match self {
             ITerm::Var(n) => write!(f, "{n}"),
             ITerm::Num(n) => write!(f, "{n}"),
-            ITerm::Fn(n) => write!(f, "{n}"),
+            ITerm::Fn(n) => {
+                // The baked measure vocabulary reads as its spelling
+                // (`length xs > 100`, never `<builtin>.length xs > 100`).
+                let n = n.strip_prefix("<builtin>.").unwrap_or(n);
+                write!(f, "{n}")
+            }
             ITerm::MVar(m) => write!(f, "?i{m}"),
             ITerm::Lam(x, body) => write!(f, "(\\{x} -> {body})"),
             ITerm::App(head, args) => {
+                if matches!(&**head, ITerm::Fn(n) if n.starts_with("<builtin>.")) {
+                    write!(f, "{head}")?;
+                    for a in args {
+                        write!(f, " {a}")?;
+                    }
+                    return Ok(());
+                }
                 write!(f, "({head}")?;
                 for a in args {
                     write!(f, " {a}")?;
@@ -861,6 +873,25 @@ pub fn pred_conjuncts(p: &PTerm) -> Vec<PTerm> {
     let mut out = Vec::new();
     go(p, &mut out);
     out
+}
+
+/// A predicate's binder: the first free name it states its truth over
+/// (a named refinement's or the `refined` former's implicit binder
+/// keeps `$it`).
+pub fn pred_binder(p: &PTerm) -> String {
+    let mut fv = Vec::new();
+    p.free_vars(&mut fv);
+    fv.into_iter().next().unwrap_or_else(|| "$it".to_string())
+}
+
+/// The integer interval a predicate states over one measure expression
+/// of its binder (`length xs > 100 && length xs <= 200` gives
+/// `(101, 200)` over `length xs`; a boundless end is `None`): the
+/// preservation check's witness-tier corners.
+pub fn pred_measure_bounds(p: &PTerm, measure: &ITerm) -> (Option<i128>, Option<i128>) {
+    let conj = pred_conjuncts(p);
+    let iv = interval_over(&conj, measure);
+    (iv.lo, iv.hi)
 }
 
 /// Whether `p` implies `q` under the table: sound and decidable, never
@@ -1913,6 +1944,20 @@ impl IxParam {
     }
 }
 
+/// A refinement obligation of a `using` context (refinement types
+/// design, "instance heads at refinements"): either a decidable
+/// predicate over the carrier values (`Ordered xs`, `Sorted xs`) or the
+/// generic transfer's preservation obligation (`Preserves (<>) p`).
+#[derive(Clone, Debug, PartialEq)]
+pub enum PropOblig {
+    /// Every carrier-typed argument must establish the predicate (the
+    /// binder is the predicate's own: the obligation names no argument).
+    Pred(PTerm),
+    /// The generic transfer's validity condition: the named method must
+    /// preserve the predicate (the closure `post p p` implies `p`).
+    Preserves { method: String, pred: PTerm },
+}
+
 /// A polymorphic scheme. `params`, `row_params` and `region_params` are the
 /// quantified type, row and region variables; `ctx` holds `using`
 /// constraints. `val_params` are implicit value arguments (a
@@ -1931,6 +1976,9 @@ pub struct Scheme {
     pub row_params: Vec<String>,
     pub region_params: Vec<String>,
     pub ctx: Vec<(String, ClassApp)>,
+    /// Refinement obligations of the signature's `using` context (the
+    /// caller discharges them through the `Dec` evidence path).
+    pub obligs: Vec<PropOblig>,
     pub ty: Ty,
 }
 
@@ -1944,6 +1992,7 @@ impl Scheme {
             row_params: Vec::new(),
             region_params: Vec::new(),
             ctx: Vec::new(),
+            obligs: Vec::new(),
             ty,
         }
     }

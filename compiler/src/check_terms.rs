@@ -5486,6 +5486,7 @@ impl Checker {
         }
         let (ty2, tps, rps) = self.uni.generalize(ty, &quantify);
         Scheme {
+            obligs: Vec::new(),
             params: tps,
             idx_params: Vec::new(),
             val_params: Vec::new(),
