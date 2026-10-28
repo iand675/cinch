@@ -1168,6 +1168,41 @@ correspondence: one lexeme in expression/pattern, staging `Name`, and
   follows the constructor's privacy (pinned), and the two
   `tests/refinements.rs` fixtures that used it moved to
   `string-from-bytes`.
+- **D309-D314 (P31 JSON and canonical serialization, reported)**:
+  `Text.Json` parses and prints RFC 8259 JSON over the P30
+  combinator toolkit (toolkit error bundles render JSON errors with
+  the caret gutter) but **not through `Text.Lex`**: the escape
+  vocabularies are mutually exclusive and `Text.Lex` folds numeric
+  spellings (`007`/`0x1f` could not be refused), so the parser is
+  character-level in the combinator shape; moving it onto the
+  literal `Text.Parse.Parser` needs `Text.Lex` to export its `LTok`
+  constructor (D308 privacy blocks it; flagged, no change now)
+  (D309). The canonical form sorts object keys (stable tie order),
+  formats integers decimal and floats in the runtime's shortest
+  round-trip scientific spelling (`2.5` renders `2.5e0`), refuses
+  duplicate keys at parse, and renders a non-finite `JFloat` as
+  `null` (aeson's choice) - the one non-round-tripping rendering,
+  JSON's domain being finite numbers (D310); ill-formed spines print
+  as one trailing item/entry so the printer is total (D311);
+  combinator names mirror `Text.Parse` exactly with import
+  qualification disambiguating collisions (probe-verified) (D312).
+  The runtime gains the `TextOp` intrinsic family
+  `cinch.runtime.text*`: `cinch_text_sha256` (FIPS 180-4),
+  `cinch_text_f64_to_decimal` (shortest round trip) and
+  `cinch_text_f64_from_decimal` (correctly rounded, defined
+  `MalformedDecimal` fault), nm-verified (D313); the foreign imports
+  and the `JsonCodec I64`/`Bool` instances are parked in `Text.Json`
+  pending their D159 homes (`Data.Machine`/`Data.Bytes`/`Data.Bool`)
+  and `Text.Json`/`Text.Args` stay ordinary importable modules
+  beside the entry (the P30 pattern, not base layer). **The goldens
+  caught a real `Text.Show` bug (D314)**: `int-digits-into` wrote
+  digits least-significant-first (`int-to-string 42` rendered
+  `"24"`), hidden until now because the existing pins asserted only
+  `show x == int-to-string x` self-consistency; fixed (digits at
+  `pos + k - 1`), pinned at real digit strings, and `Text.Json`'s
+  parallel `int-text` workaround retired. The lesson recorded: pins
+  must assert real outputs, never agreement between two
+  implementations of the same claim.
 - **D295-D296 (P29 incremental recompilation, reported)**: the
   `incremental` driver module delivers all three Blaze equivalents -
   `ItemGraph` (REAPER: lazily built, kinded `Surface`/`Body` edges

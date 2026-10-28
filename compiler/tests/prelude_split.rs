@@ -514,6 +514,28 @@ fn private_ctors_are_unreachable_through_an_import() {
 }
 
 #[test]
+fn int_to_string_renders_digits_most_significant_first() {
+    // The P31 JSON goldens caught `int-to-string 42` rendering "24"
+    // (least-significant-first digits). The earlier pins asserted
+    // only `show x == int-to-string x` (self-consistency), which
+    // agreed while both were wrong; these are real digit strings.
+    expect_exit(
+        "int-digits",
+        "module Main where\n\
+         \x20 import Text.Show\n\
+         \x20 main :: Int\n\
+         \x20 main =\n\
+         \x20   if int-to-string (42 :: Int) == \"42\" then\n\
+         \x20     (if int-to-string (0 - 7) == \"-7\" then\n\
+         \x20       (if int-to-string (1000000 :: Int) == \"1000000\" then\n\
+         \x20         (if int-to-string (0 - 1000000) == \"-1000000\" then\n\
+         \x20           (if nat-to-string 42 == \"42\" then 0 else 5) else 4) else 3) else 2)\n\
+         \x20     else 1\n",
+        0,
+    );
+}
+
+#[test]
 fn curated_names_are_unreachable_through_prelude() {
     // The negative space is real (the facade's header): `invert`,
     // `show` and `hash` belong to families the facade does not
