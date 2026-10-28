@@ -1240,6 +1240,30 @@ correspondence: one lexeme in expression/pattern, staging `Name`, and
   bar's honest judgment: levels and fields are ceremony-free; the
   one wart is a mid-body span needing `end-span` (tail spans need
   nothing).
+- **D322-D326 (quality chores, reported)**: the D302 top-level eager
+  cycle is fixed as the **named refusal** ("top-level value X is part
+  of an eager reference cycle; wrap its reference in a lambda or use
+  letrec"), raised at check time over the local guardedness rule's
+  exact discipline (same suspension positions, same walk stage,
+  reach-over-all-edges so the eager-call cycle `x = f 1; f n = x`
+  catches too) - the reproduction first showed the SIGSEGV (exit
+  139) the refusal replaces (D322); the diagnostic names the
+  referenced binding that closes the cycle at the owner's equation
+  span (self-cycles name themselves) (D323); the rule covers ordinary
+  top-level values only - instance methods, staged units and erased
+  `spec`/`proof` definitions keep their own discipline - and a latent
+  cycle in an unused value now refuses unconditionally (D324). The
+  local rule's blind spots are inherited and named honestly:
+  immediate beta-redexes and indirect-call cycles remain runtime
+  nontermination. `expect-eof` is a non-consuming idempotent guard
+  (empty stream or `TEOF` head succeeds; only `expect-tok` consumes
+  `TEOF`) composing with any runner while `run-parser-pure` keeps its
+  implicit whole-input default (D325), and the row-122 gap is closed
+  with `tests/tail_calls.rs`: self and mutual tail recursion at
+  1,000,001 calls with `tail_report` asserted `marked`, plus the
+  overflow control at the same depth without tail calls (D326);
+  `SPEC-MAPPING` row 122's evidence re-grounded (an editorial touch
+  outside the fence, accepted).
 - **D295-D296 (P29 incremental recompilation, reported)**: the
   `incremental` driver module delivers all three Blaze equivalents -
   `ItemGraph` (REAPER: lazily built, kinded `Surface`/`Body` edges
