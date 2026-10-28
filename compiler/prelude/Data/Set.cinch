@@ -1,11 +1,34 @@
 -- Data.Set: the ordered set.
 --
--- An unbalanced binary search tree over `Ord k`, in the same shape as
--- Data.Map (decision D105's shape): `set-insert` keeps the left
--- subtree strictly smaller and the right strictly greater, so a
--- repeated element keeps one copy. Documented as UNBALANCED: no
--- rebalancing in the bootstrap, so the operations are O(n) worst
--- case; a balanced tree is a later family, same surface.
+-- A height-augmented AVL tree over `Ord a`: `set-insert` keeps the
+-- left subtree strictly smaller and the right strictly greater (so a
+-- repeated element keeps one copy) and rebalances on the way out, so
+-- the operations are O(log n) and the tree is never deeper than
+-- ~1.44 log2(n). The earlier family was the documented UNBALANCED
+-- bootstrap BST (decision D105's shape, "a balanced tree is a later
+-- family, same surface"): this is that later family, and the
+-- observable semantics are exactly as before (a repeated element
+-- keeps one copy, insert/lookup round trip, `set-to-list` lists the
+-- tree's elements in ascending order, each exactly once).
+--
+-- The node carries its cached height (`Bin h x l r`): the balanced
+-- family needs O(1) balance metadata, so the bootstrap's three-field
+-- node grows its height field (an observable shape change, reported
+-- with P34; the operations' semantics are unchanged and no test
+-- constructs a node by hand). A hand-built `Bin` tree is still a
+-- correct search tree for every operation (`set-member`,
+-- `set-to-list`, `set-size` never read heights), and `set-insert`
+-- repairs the heights along the path it rebuilds; heights a hand-built
+-- node lies about may cost it a rebalance, never correctness.
+--
+-- Named refusals (boundaries this module deliberately does not
+-- cross):
+--   deletion: the family ships no `set-delete` (nothing needs it in
+--     the bootstrap; it lands with its own probe);
+--   `set-union`: the family ships none (the union law is asserted
+--     test-locally in compiler/tests/prelude_split.rs);
+--   a size-augmented node: the node carries the height (AVL), so
+--     `set-size` stays the O(n) walk it has always been.
 --
 -- Module scheme (design/base-library.md): the type's home carries its
 -- `FromList` instance (`[a, b, c]` at `Set a` folds `set-insert`).
@@ -13,25 +36,71 @@ module Data.Set where
 
   export Set, Tip, Bin, set-empty, set-insert, set-member, set-to-list, set-size, set-from-list
 
+  -- The ordered set: a height-augmented AVL tree over `Ord a`.
   data Set a where
     Tip :: Set a
-    Bin :: a -> Set a -> Set a -> Set a
+    Bin :: Nat -> a -> Set a -> Set a -> Set a
 
   set-empty :: forall a. Set a
   set-empty = Tip
 
+  -- A node's cached height (leaves are height 0).
+  set-height :: forall a. Set a -> Nat
+  set-height s = case s of
+    Tip -> 0
+    Bin h _ _ _ -> h
+
+  -- The node with its height computed from the subtrees: every
+  -- rebuild on the insert path goes through here, so heights stay
+  -- honest over the shapes `set-insert` builds.
+  bin :: forall a. a -> Set a -> Set a -> Set a
+  bin x l r = case set-height l < set-height r of
+    True -> Bin (1 + set-height r) x l r
+    False -> Bin (1 + set-height l) x l r
+
+  -- Rebalance a node whose subtrees' heights differ by at most two
+  -- after an insertion (the AVL fixup: a single rotation for the
+  -- outer case, a double rotation for the inner one).
+  balance :: forall a. a -> Set a -> Set a -> Set a
+  balance x l r =
+    let hl = set-height l in
+    let hr = set-height r in
+    if hr + 1 < hl then rotate-right x l r
+    else if hl + 1 < hr then rotate-left x l r
+    else bin x l r
+
+  -- The left-heavy case.
+  rotate-right :: forall a. a -> Set a -> Set a -> Set a
+  rotate-right x l r = case l of
+    Tip -> bin x l r
+    Bin _ y ll lr -> case set-height lr <= set-height ll of
+      True -> bin y ll (bin x lr r)
+      False -> case lr of
+        Tip -> bin x l r
+        Bin _ z lrl lrr -> bin z (bin y ll lrl) (bin x lrr r)
+
+  -- The right-heavy case (symmetric).
+  rotate-left :: forall a. a -> Set a -> Set a -> Set a
+  rotate-left x l r = case r of
+    Tip -> bin x l r
+    Bin _ y rl rr -> case set-height rl >= set-height rr of
+      True -> bin y (bin x l rl) rr
+      False -> case rl of
+        Tip -> bin x l r
+        Bin _ z rll rrr -> bin z (bin x l rll) (bin y rrr rr)
+
   set-insert :: forall a. using (ord :: Ord a) => a -> Set a -> Set a
   set-insert x s = case s of
-    Tip -> Bin x Tip Tip
-    Bin y l r ->
-      if x < y then Bin y (set-insert x l) r
-      else if y < x then Bin y l (set-insert x r)
-      else Bin x l r
+    Tip -> bin x Tip Tip
+    Bin _ y l r ->
+      if x < y then balance y (set-insert x l) r
+      else if y < x then balance y l (set-insert x r)
+      else bin x l r
 
   set-member :: forall a. using (ord :: Ord a) => a -> Set a -> Bool
   set-member x s = case s of
     Tip -> False
-    Bin y l r ->
+    Bin _ y l r ->
       if x < y then set-member x l
       else if y < x then set-member x r
       else True
@@ -40,7 +109,7 @@ module Data.Set where
   set-to-list-into :: forall a. Set a -> List a -> List a
   set-to-list-into s acc = case s of
     Tip -> acc
-    Bin y l r -> set-to-list-into l (Cons y (set-to-list-into r acc))
+    Bin _ y l r -> set-to-list-into l (Cons y (set-to-list-into r acc))
 
   set-to-list :: forall a. Set a -> List a
   set-to-list s = set-to-list-into s Nil
@@ -48,7 +117,7 @@ module Data.Set where
   set-size :: forall a. Set a -> Nat
   set-size s = case s of
     Tip -> 0
-    Bin y l r -> 1 + set-size l + set-size r
+    Bin _ _ l r -> 1 + set-size l + set-size r
 
   set-from-list :: forall a. using (ord :: Ord a) => List a -> Set a
   set-from-list xs = case xs of

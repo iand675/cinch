@@ -103,11 +103,6 @@ pub const PRELUDE_LATE: &[(&str, &str)] = &[
     ("Data/Hash.cinch", include_str!("../prelude/Data/Hash.cinch")),
     ("Text/Codec.cinch", include_str!("../prelude/Text/Codec.cinch")),
     ("Data/HashMap.cinch", include_str!("../prelude/Data/HashMap.cinch")),
-    // The observability family (P32): `Effect.Trace` imports
-    // `Effect.Log`, and `Text.Otlp` imports `Effect.Trace`.
-    ("Effect/Log.cinch", include_str!("../prelude/Effect/Log.cinch")),
-    ("Effect/Trace.cinch", include_str!("../prelude/Effect/Trace.cinch")),
-    ("Text/Otlp.cinch", include_str!("../prelude/Text/Otlp.cinch")),
 ];
 
 /// Every embedded prelude module name (the family's scheme names and

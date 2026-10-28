@@ -1,13 +1,34 @@
 -- Data.HashMap: the hash map over `Data.Hash`.
 --
--- A fixed bucket table: `hash-buckets` buckets (8) in a spine indexed
--- by `nat-rem (hash k) hash-buckets`, each bucket an association list.
--- Documented as UNBALANCED and fixed-size: no resizing, so a hash
--- collision degrades a bucket to a scan; the bootstrap keeps the
--- structure honest and small (Data.Set's tree is the ordered shape).
--- Keys need `Hash` and `Eq`: hashing alone cannot decide a collision,
--- and the `Hash` law (Data.Hash) is what makes the bucket choice
--- sound.
+-- A tree-indexed bucket table: the key's hash digest indexes a
+-- height-augmented AVL spine (Data.Set's balanced shape), and each
+-- spine node holds the association list of the keys that hash to that
+-- digest. A hash collision degrades the bucket to a scan without
+-- losing either key, exactly as the bootstrap's fixed 8-bucket table
+-- documented; what grows is the index: the spine rebalances as new
+-- digests arrive, so the operations are O(log d) plus the bucket scan
+-- for d distinct digests (the earlier family was the documented
+-- fixed-size stub: "no resizing", now replaced). Keys need `Hash` and
+-- `Eq`: hashing alone cannot decide a collision, and the `Hash` law
+-- (Data.Hash) is what makes the bucket choice sound.
+--
+-- The map wraps its private spine (`HashMap :: Spine k v -> HashMap k
+-- v`): the bootstrap's one-field node over a bucket-list spine grows
+-- the balanced index behind the same constructor name (an observable
+-- shape change, reported with P34; every operation's semantics is
+-- unchanged and no test constructs a map by hand).
+--
+-- Named refusals (boundaries this module deliberately does not
+-- cross):
+--   deletion: the family ships no `hash-map-delete`;
+--   bucket-order observation: the buckets' entry order is an
+--     implementation detail (insertion order within a bucket), and
+--     nothing lists the entries;
+--   a fixed bucket count: the digest, not `rem` of a constant, is the
+--     index (there is no `hash-buckets`);
+--   adversarial digests: the `Hash` law is the caller's contract (the
+--     spine balances whatever digests arrive; only bucket scans
+--     degrade).
 --
 -- Module scheme (design/base-library.md): the type's home carries its
 -- `FromMap` instance (`{k => v}` at `HashMap k v`).
@@ -17,57 +38,105 @@ module Data.HashMap where
 
   export HashMap, hash-map-empty, hash-map-insert, hash-map-lookup, hash-map-from-pairs
 
+  -- The private bucket spine: a height-augmented AVL tree over
+  -- digests (`SBin height digest bucket left right`).
+  data Spine k v where
+    STip :: Spine k v
+    SBin :: Nat -> Nat -> List (k, v) -> Spine k v -> Spine k v -> Spine k v
+
   data HashMap k v where
-    HashMap :: List (List (k, v)) -> HashMap k v
+    HashMap :: Spine k v -> HashMap k v
 
-  -- The bucket count: a spine of this many association lists (missing
-  -- tail buckets are empty).
-  hash-buckets :: Nat
-  hash-buckets = 8
-
+  -- One digest's bucket: an association list scanned with `Eq` (a
+  -- hash collision degrades the bucket to a scan).
   bucket-lookup :: forall k v. using (eq :: Eq k) => k -> List (k, v) -> Option v
   bucket-lookup x b = case b of
     Nil -> None
     Cons p ps -> case p of
       (k2, v2) -> if k2 == x then Some v2 else bucket-lookup x ps
 
-  spine-lookup :: forall k v. using (eq :: Eq k) => Nat -> k -> List (List (k, v)) -> Option v
-  spine-lookup i x s = case s of
-    Nil -> None
-    Cons b bs -> if i == 0 then bucket-lookup x b else spine-lookup (i - 1) x bs
-
-  hash-map-lookup :: forall k v. using (h :: Hash k, eq :: Eq k) => k -> HashMap k v -> Option v
-  hash-map-lookup x m = case m of
-    HashMap s -> spine-lookup (nat-rem (hash x) hash-buckets) x s
-
+  -- Inserting an equal key replaces the stored value in place (like
+  -- Data.Map's `map-insert`).
   bucket-insert :: forall k v. using (eq :: Eq k) => k -> v -> List (k, v) -> List (k, v)
   bucket-insert x v b = case b of
     Nil -> Cons (x, v) Nil
     Cons p ps -> case p of
       (k2, v2) -> if k2 == x then Cons (x, v) ps else Cons p (bucket-insert x v ps)
 
-  -- Inserting an equal key replaces the stored value in place (like
-  -- Data.Map's `map-insert`).
-  spine-insert :: forall k v. using (eq :: Eq k) => Nat -> k -> v -> List (List (k, v)) -> List (List (k, v))
-  spine-insert i x v s = case s of
-    Nil -> if i == 0 then Cons (Cons (x, v) Nil) Nil else Cons Nil (spine-insert (i - 1) x v Nil)
-    Cons b bs ->
-      if i == 0 then Cons (bucket-insert x v b) bs
-      else Cons b (spine-insert (i - 1) x v bs)
+  -- The spine's cached height (leaves are height 0).
+  spine-height :: forall k v. Spine k v -> Nat
+  spine-height s = case s of
+    STip -> 0
+    SBin h _ _ _ _ -> h
+
+  -- The node with its height computed from the subtrees (the AVL
+  -- invariant maintenance of Data.Set's `bin`).
+  sbin :: forall k v. Nat -> List (k, v) -> Spine k v -> Spine k v -> Spine k v
+  sbin d b l r = case spine-height l < spine-height r of
+    True -> SBin (1 + spine-height r) d b l r
+    False -> SBin (1 + spine-height l) d b l r
+
+  spine-balance :: forall k v. Nat -> List (k, v) -> Spine k v -> Spine k v -> Spine k v
+  spine-balance d b l r =
+    let hl = spine-height l in
+    let hr = spine-height r in
+    if hr + 1 < hl then spine-rotate-right d b l r
+    else if hl + 1 < hr then spine-rotate-left d b l r
+    else sbin d b l r
+
+  spine-rotate-right :: forall k v. Nat -> List (k, v) -> Spine k v -> Spine k v -> Spine k v
+  spine-rotate-right d b l r = case l of
+    STip -> sbin d b l r
+    SBin _ d2 b2 ll lr -> case spine-height lr <= spine-height ll of
+      True -> sbin d2 b2 ll (sbin d b lr r)
+      False -> case lr of
+        STip -> sbin d b l r
+        SBin _ d3 b3 lrl lrr -> sbin d3 b3 (sbin d2 b2 ll lrl) (sbin d b lrr r)
+
+  spine-rotate-left :: forall k v. Nat -> List (k, v) -> Spine k v -> Spine k v -> Spine k v
+  spine-rotate-left d b l r = case r of
+    STip -> sbin d b l r
+    SBin _ d2 b2 rl rr -> case spine-height rl >= spine-height rr of
+      True -> sbin d2 b2 (sbin d b l rl) rr
+      False -> case rl of
+        STip -> sbin d b l r
+        SBin _ d3 b3 rll rrr -> sbin d3 b3 (sbin d b l rll) (sbin d2 b2 rrr rr)
+
+  spine-lookup :: forall k v. Nat -> Spine k v -> Option (List (k, v))
+  spine-lookup d s = case s of
+    STip -> None
+    SBin _ d2 b l r ->
+      if d < d2 then spine-lookup d l
+      else if d2 < d then spine-lookup d r
+      else Some b
+
+  spine-insert :: forall k v. using (eq :: Eq k) => Nat -> k -> v -> Spine k v -> Spine k v
+  spine-insert d x v s = case s of
+    STip -> sbin d (Cons (x, v) Nil) STip STip
+    SBin _ d2 b l r ->
+      if d < d2 then spine-balance d2 b (spine-insert d x v l) r
+      else if d2 < d then spine-balance d2 b l (spine-insert d x v r)
+      else sbin d2 (bucket-insert x v b) l r
+
+  hash-map-empty :: forall k v. HashMap k v
+  hash-map-empty = HashMap STip
+
+  hash-map-lookup :: forall k v. using (h :: Hash k, eq :: Eq k) => k -> HashMap k v -> Option v
+  hash-map-lookup x m = case m of
+    HashMap s -> case spine-lookup (hash x) s of
+      None -> None
+      Some b -> bucket-lookup x b
 
   hash-map-insert :: forall k v. using (h :: Hash k, eq :: Eq k) => k -> v -> HashMap k v -> HashMap k v
   hash-map-insert x v m = case m of
-    HashMap s -> HashMap (spine-insert (nat-rem (hash x) hash-buckets) x v s)
-
-  hash-map-empty :: forall k v. HashMap k v
-  hash-map-empty = HashMap Nil
+    HashMap s -> HashMap (spine-insert (hash x) x v s)
 
   -- Pairs fold in from the head, so an EARLIER pair wins a repeated
   -- key (the head is inserted last into the fold of the tail), like
   -- Data.Map's `map-from-pairs`.
   hash-map-from-pairs :: forall k v. using (h :: Hash k, eq :: Eq k) => List (k, v) -> HashMap k v
   hash-map-from-pairs kvs = case kvs of
-    Nil -> HashMap Nil
+    Nil -> hash-map-empty
     Cons p ps -> case p of
       (a, b) -> hash-map-insert a b (hash-map-from-pairs ps)
 
