@@ -1281,6 +1281,46 @@ correspondence: one lexeme in expression/pattern, staging `Name`, and
   Stream shape is P33's); the note is
   `design/comp-computation-type.md` (options weighed: core form and
   rows-on-container both rejected with reasons).
+- **D328-D336 (P34 platform layer, reported)**: `Set` is a
+  height-carrying AVL (`Bin` node shape change reported, observable
+  semantics unchanged) and `HashMap` a private height-augmented AVL
+  spine keyed by hash digest with collision buckets (D328-D329);
+  `Effect.Io`'s `Path` placeholder is replaced by `Data.Path`'s real
+  type re-exported under the facade name and `read-config-bytes`
+  becomes a real file read (D330); the clock/fs/process ops take
+  `using (io :: Io r)` and perform `IO r` - a distinct `Clock r`/
+  `Fs r` capability class is unimplementable today because the
+  `with`/`@{}` supply and `is_capability_class` are hardcoded to
+  `Io` in `check.rs`/`check_terms.rs` (the exact need recorded;
+  tracked) (D331); `Effect.Clock.timeout` states its worked row
+  literally (`Unit ->{IO r, Cancel r} a`) because row-polymorphic
+  generalization is blocked by the `unify_rows` bug (D337) (D332);
+  `codegen.rs` emits one `declare` per external symbol (duplicate
+  declares were a clang redefinition error) (D333); the D45
+  determinism pin is that no staging path exists for the clock -
+  a foreign import cannot run at compile time (D334); and the Fs
+  semantics are recorded (`fs-list` sorts ascending; `fs-write` is
+  non-atomic with rename as the atomic op; word buffers cross the
+  scalar-only FFI one byte at a time) (D335-D336). The P32 fold-in
+  measurement lands with D337.
+- **D337 (two compiler-side findings, PlatformSlice + ObsSlice
+  measured)**: (a) `types.rs::unify_rows`'s `(Meta(m), _)` arm binds
+  the metavariable to the other side's tail with EMPTY labels,
+  dropping the opposite side's - a definition whose performed row
+  carries a rigid tail (`forall ... ef.`) silently loses its labels
+  (`{Async r, Cancel r, IO r, Diverge | ef}` unified against
+  `{Diverge | ef}`); unclaimed by any fence, tracked as a bug fix
+  (the fix unblocks `Effect.Clock.timeout` generalization). (b) The
+  checker's per-expression elaboration recursion sits near the 2 MB
+  test-thread stack at the prelude baseline: embedding three more
+  modules (the P32 trio) tips tests over (passes at 3 MB; ObsSlice
+  measured it as cumulative checked-program size, its own flat
+  110-decl control overflowing too). The P32 modules stay UNEMBEDDED
+  per D321 (consistent); the corollaries are recorded honestly:
+  user programs must stay shallow per definition today, and the
+  options are a harness stack raise (`.cargo/config.toml [env]`) or
+  a generalized depth-limit diagnostic (D268's nested-let rule).
+  Tracked.
 - **D295-D296 (P29 incremental recompilation, reported)**: the
   `incremental` driver module delivers all three Blaze equivalents -
   `ItemGraph` (REAPER: lazily built, kinded `Surface`/`Body` edges
