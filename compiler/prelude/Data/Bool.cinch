@@ -74,6 +74,15 @@ module Data.Bool where
         else None
       else None
 
+  -- The A6 JSON column codec for booleans (decision D65's covered
+  -- set): `JsonCodec`'s round-trip law (`decode-json (encode-json x)`
+  -- is `Ok x`).
+  implicit instance JsonCodec_Bool :: JsonCodec Bool where
+    encode-json b = JBool b
+    decode-json j = case j of
+      JBool b -> Ok b
+      _ -> Err (TypeMismatch "boolean")
+
   -- Two buckets (instances live with their type).
   implicit instance Hash_Bool :: Hash Bool where
     hash b = if b then 1 else 0

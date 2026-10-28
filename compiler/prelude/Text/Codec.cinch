@@ -1,4 +1,4 @@
--- Text.Codec: conversion to and from `Bytes`.
+-- Text.Codec: conversion to and from `Bytes` and `Json`.
 --
 -- Module scheme (design/base-library.md): `Text.Codec` aligns with the
 -- A6 `CodecGenerator.derive` vocabulary (modules specification
@@ -14,10 +14,38 @@
 -- those instances land with their generators. The class law shape is
 -- the round trip: `decode (encode x) == Some x` (asserted over sample
 -- values in compiler/tests/prelude_split.rs).
+--
+-- `JsonCodec` is the JSON-value column beside it (P31): the same law
+-- shape over the `Json` family, with a named decode error instead of
+-- `Option` (a JSON column carries a shape to report). Its instances
+-- live with their types (Data.Machine's `JsonCodec I64`, Data.Bool's
+-- `JsonCodec Bool`, and `Text.Json`'s identity column), and the
+-- error vocabulary sits with the class, like `Text.Parse`'s
+-- `ParseError` sits with its parsers.
 module Text.Codec where
 
+  import Data.Json
+  import Data.Result
+
   export Codec, encode, decode
+  export JsonCodec, encode-json, decode-json
+  export JsonDecodeError, TypeMismatch, OutOfRange, json-error-message
 
   signature Codec a where
     encode :: a -> Bytes
     decode :: Bytes -> Option a
+
+  -- The named decode errors: a wrong shape (the expected column kind)
+  -- and a value outside the column's range.
+  data JsonDecodeError where
+    TypeMismatch :: String -> JsonDecodeError
+    OutOfRange :: String -> JsonDecodeError
+
+  json-error-message :: JsonDecodeError -> String
+  json-error-message e = case e of
+    TypeMismatch expected -> string-concat "expected " expected
+    OutOfRange what -> string-concat "out of range: " what
+
+  signature JsonCodec a where
+    encode-json :: a -> Json
+    decode-json :: Json -> Result JsonDecodeError a

@@ -320,11 +320,12 @@ fn json_parser_reports_unexpected_and_expecting() {
 /// the identity on the corpus, and the second print is byte
 /// identical to the first.
 const ROUND_TRIP_PROBE: &str = r#"module Main where
-  import Text.Json (parse-json, print-json, canonical-json, json-eq, f64-from-decimal)
+  import Text.Json (parse-json, print-json, canonical-json, json-eq)
   import Text.Parse (ParseOutcome, Parsed, Failed)
   import Data.Bytes
   import Data.Json
   import Data.Int
+  import Data.Machine
   import Data.Nat
   import Data.String
 
@@ -407,7 +408,7 @@ const ROUND_TRIP_PROBE: &str = r#"module Main where
 /// numbers, fixed whitespace, byte-identical repeats, the fixed-point
 /// property, and the non-finite rendering.
 const CANONICAL_PROBE: &str = r#"module Main where
-  import Text.Json (parse-json, print-json, canonical-json, f64-from-decimal)
+  import Text.Json (parse-json, print-json, canonical-json)
   import Text.Parse (ParseOutcome, Parsed, Failed)
   import Data.Bytes
   import Data.Json
@@ -515,7 +516,8 @@ const CANONICAL_PROBE: &str = r#"module Main where
 /// `decode-json (encode-json x)` is `Ok x` over decision D65's
 /// covered set (`I64`, `Bool`), with the named decode errors.
 const CODEC_PROBE: &str = r#"module Main where
-  import Text.Json (JsonCodec, encode-json, decode-json, JsonDecodeError, json-error-message, json-eq, f64-from-decimal)
+  import Text.Json (json-eq)
+  import Text.Codec (JsonCodec, encode-json, decode-json, JsonDecodeError, json-error-message)
   import Data.Bytes
   import Data.Json
   import Data.Int

@@ -72,6 +72,7 @@ module Text.Json where
   import Text.Lex (Span, span-start, bytes-slice)
   import Text.Parse (ErrorItem, ITok, ILabel, IEnd, ParseError, EUnexpected, EFail,
     error-span, ParseErrorBundle, Bundle, ParseOutcome, Parsed, Failed)
+  import Text.Codec
   import Text.Show
   import Data.Bool
   import Data.Bytes
@@ -95,12 +96,6 @@ module Text.Json where
   -- Printing, canonicalization, content identity.
   export print-json, canonical-json, canonical-bytes, canonical-hash, digest-hex
   export json-eq
-  -- The P31 runtime text primitives (their prelude surface until they
-  -- move to the type homes `Data.Machine`/`Data.Bytes`).
-  export sha256-bytes, f64-to-decimal, f64-from-decimal
-  -- JsonCodec: `Text.Codec`'s round-trip law over the A6 vocabulary.
-  export JsonDecodeError, TypeMismatch, OutOfRange, json-error-message
-  export JsonCodec, encode-json, decode-json
 
 
   -- ---------------------------------------------------------------------------
@@ -946,46 +941,12 @@ module Text.Json where
 
 
   -- ---------------------------------------------------------------------------
-  -- JsonCodec: `Text.Codec`'s law shape (`decode (encode x)` is the
-  -- round trip) over the A6 schema vocabulary (decision D65's covered
-  -- set: `INTEGER`/`I64` and `BOOLEAN`/`Bool`; `REAL` and `TEXT`
-  -- report explicitly at generation time and are named boundaries
-  -- here). `decode` returns `Result` with a named error, unlike
-  -- `Text.Codec`'s `Option`: a JSON column carries a shape to report.
+  -- JsonCodec's identity column (the class and its decode-error
+  -- vocabulary live in `Text.Codec`; the `I64`/`Bool` instances live
+  -- with their types in `Data.Machine`/`Data.Bool`). A `Json` round
+  -- trips as itself.
   -- ---------------------------------------------------------------------------
 
-  data JsonDecodeError where
-    TypeMismatch :: String -> JsonDecodeError
-    OutOfRange :: String -> JsonDecodeError
-
-  json-error-message :: JsonDecodeError -> String
-  json-error-message e = case e of
-    TypeMismatch expected -> string-concat "expected " expected
-    OutOfRange what -> string-concat "out of range: " what
-
-  signature JsonCodec a where
-    encode-json :: a -> Json
-    decode-json :: Json -> Result JsonDecodeError a
-
-  -- The law (the `Text.Codec` header's shape, asserted over sample
-  -- values in compiler/tests/json.rs): `decode-json (encode-json x)`
-  -- is `Ok x`.
-  implicit instance JsonCodec_Bool :: JsonCodec Bool where
-    encode-json b = JBool b
-    decode-json j = case j of
-      JBool b -> Ok b
-      _ -> Err (TypeMismatch "boolean")
-
-  implicit instance JsonCodec_I64 :: JsonCodec I64 where
-    encode-json x = JNum (int-from-i64 x)
-    decode-json j = case j of
-      JNum n ->
-        if lt-i64 (int-cmp n (int-from-i64 (min-bound-i64))) 0 then Err (OutOfRange "I64")
-        else if lt-i64 0 (int-cmp n (int-from-i64 (max-bound-i64))) then Err (OutOfRange "I64")
-        else Ok (int-to-i64 n)
-      _ -> Err (TypeMismatch "integer")
-
-  -- The identity column: a `Json` round trips as itself.
   implicit instance JsonCodec_Json :: JsonCodec Json where
     encode-json j = j
     decode-json j = Ok j
