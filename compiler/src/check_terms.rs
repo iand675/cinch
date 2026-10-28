@@ -9501,6 +9501,84 @@ fn rec_collect_refs(e: &ECore, by_local: &HashMap<LocalId, usize>, out: &mut Vec
     }
 }
 
+/// The top-level counterpart of [`rec_walk`] (the D302 check): every
+/// use of a top-level name in one recorded binding's body is an
+/// `(owner index, referenced, guarded)` edge, where `guard` counts the
+/// suspension positions entered exactly as the guarded-letrec rule
+/// counts them (lambda bodies and `delay` arguments). The owner is the
+/// recorded binding's index into the checker's `top_binds`.
+fn top_rec_walk(e: &ECore, guard: i32, owner: usize, edges: &mut Vec<(usize, GlobalId, bool)>) {
+    match e {
+        ECore::LitFold { body, .. } => top_rec_walk(body, guard, owner, edges),
+        ECore::Global(g) => edges.push((owner, g.clone(), guard >= 1)),
+        ECore::Var(_)
+        | ECore::Int(_)
+        | ECore::ConstBig { .. } | ECore::ConstBytes(_) | ECore::ConstString { .. } | ECore::ConstSym(_)
+        | ECore::Lit(_)
+        | ECore::Bool(_)
+        | ECore::Unit
+        | ECore::Ctor(_)
+        | ECore::Prim(_)
+        | ECore::Foreign(_)
+        | ECore::Hole(_)
+        | ECore::QuoteHole(_)
+        | ECore::IdxPending(_)
+        | ECore::Fault
+        | ECore::LazyAlloc
+        | ECore::BoxAlloc
+        | ECore::SyntaxLit(_)
+        | ECore::StrLit(_) => {}
+        ECore::Quote { holes, body, .. } => {
+            for h in holes {
+                top_rec_walk(h, guard, owner, edges);
+            }
+            top_rec_walk(body, guard, owner, edges);
+        }
+        ECore::DeclsQuote { holes, .. } => {
+            for h in holes {
+                top_rec_walk(h, guard, owner, edges);
+            }
+        }
+        ECore::DictProj(d, _) | ECore::Proj(d, _) | ECore::Demand(d) | ECore::BoxGet(d) => {
+            top_rec_walk(d, guard, owner, edges);
+        }
+        ECore::App(f, args) => {
+            top_rec_walk(f, guard, owner, edges);
+            // A `delay`'s argument is one of the suspension positions.
+            let bump = if matches!(**f, ECore::Prim(PrimOp::Delay)) { 1 } else { 0 };
+            for a in args {
+                top_rec_walk(a, guard + bump, owner, edges);
+            }
+        }
+        ECore::InstDict(_, args) | ECore::MkClos { env: args, .. } => {
+            for a in args {
+                top_rec_walk(a, guard, owner, edges);
+            }
+        }
+        // A lambda body is a suspension position; a `~` memo body is one
+        // because its thunk is a lambda.
+        ECore::Lam { body, .. } => top_rec_walk(body, guard + 1, owner, edges),
+        ECore::Let(_, v, body) => {
+            top_rec_walk(v, guard, owner, edges);
+            top_rec_walk(body, guard, owner, edges);
+        }
+        ECore::BoxInit(_, v) | ECore::LazyInit(_, v) | ECore::RefSet(_, v) => {
+            top_rec_walk(v, guard, owner, edges)
+        }
+        ECore::If(c, t, f) => {
+            top_rec_walk(c, guard, owner, edges);
+            top_rec_walk(&t.body, guard, owner, edges);
+            top_rec_walk(&f.body, guard, owner, edges);
+        }
+        ECore::Case { scrut, alts } => {
+            top_rec_walk(scrut, guard, owner, edges);
+            for alt in alts {
+                top_rec_walk(&alt.body, guard, owner, edges);
+            }
+        }
+    }
+}
+
 /// Rewrite one member's core: function uses become direct calls into the
 /// member's code generation unit (or closures over it), recursive value
 /// uses read the value's fixpoint box at use time.

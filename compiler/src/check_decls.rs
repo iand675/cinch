@@ -4391,7 +4391,12 @@ impl Checker {
                 .cloned()
                 .unwrap();
             let id = fn_id(module, &name);
-            self.check_equations(&name, &id, &scheme, &eqs, Vec::new())?;
+            // An ordinary top-level definition is a top-level value
+            // binding for the eager-reference-cycle check (D302).
+            self.record_top_value = true;
+            let r = self.check_equations(&name, &id, &scheme, &eqs, Vec::new());
+            self.record_top_value = false;
+            r?;
         }
 
         // Mutually recursive logical definitions would let a looping
@@ -5171,6 +5176,91 @@ impl Checker {
         Ok(())
     }
 
+    /// Record one top-level binding for the eager-reference-cycle check
+    /// (D302): its body's reference edges, walked with the guarded-letrec
+    /// discipline (a function's body sits under its parameter lambda, so
+    /// its uses are guarded; a value's body runs eagerly). The walk is
+    /// over the elaborated core beside the local rule's own, so both
+    /// disciplines count the same suspension positions.
+    fn collect_top_bind(
+        &mut self,
+        id: &GlobalId,
+        name: &str,
+        span: ast::Span,
+        is_value: bool,
+        body: &ECore,
+    ) {
+        let owner = self.top_binds.len();
+        self.top_binds.push((id.clone(), name.to_string(), span, is_value));
+        top_rec_walk(body, if is_value { 0 } else { 1 }, owner, &mut self.top_edges);
+    }
+
+    /// The guarded-letrec rule over the top-level bindings (the compiler
+    /// defect recorded at D302): the `letrec` fixpoint discipline does
+    /// not reach top-level value bindings, so an eager reference cycle
+    /// among them re-enters its own thunk at run time and crashes the
+    /// compiled binary (signal-killed). The cycle is refused at check
+    /// time instead, naming the referenced value and the fix. An
+    /// unguarded edge (owner, referenced) is eager; it closes a cycle
+    /// when the referenced binding can reach the owner over the group's
+    /// edges, which covers the eager call into a sibling's body exactly
+    /// as the local rule's reachability does.
+    fn check_top_value_cycles(&self) -> Result<()> {
+        /// Whether `to` is reachable from `from` over the edge graph.
+        fn reaches(adj: &[Vec<usize>], from: usize, to: usize) -> bool {
+            let mut seen = vec![false; adj.len()];
+            let mut stack = vec![from];
+            seen[from] = true;
+            while let Some(k) = stack.pop() {
+                if k == to {
+                    return true;
+                }
+                for &n in &adj[k] {
+                    if !seen[n] {
+                        seen[n] = true;
+                        stack.push(n);
+                    }
+                }
+            }
+            false
+        }
+        let mut index: HashMap<&GlobalId, usize> = HashMap::new();
+        for (i, (id, _, _, _)) in self.top_binds.iter().enumerate() {
+            index.entry(id).or_insert(i);
+        }
+        let mut adj: Vec<Vec<usize>> = vec![Vec::new(); self.top_binds.len()];
+        for (o, r, _) in &self.top_edges {
+            if let Some(&ri) = index.get(r) {
+                if !adj[*o].contains(&ri) {
+                    adj[*o].push(ri);
+                }
+            }
+        }
+        let mut flagged: HashSet<(usize, usize)> = HashSet::new();
+        for (o, r, guarded) in &self.top_edges {
+            if *guarded {
+                continue;
+            }
+            let (oi, Some(&ri)) = (o, index.get(r)) else {
+                continue;
+            };
+            if !flagged.insert((*oi, ri)) {
+                continue;
+            }
+            if *oi == ri || reaches(&adj, ri, *oi) {
+                let span = self.top_binds[*oi].2;
+                let name = &self.top_binds[ri].1;
+                return Err(Error::at(
+                    span,
+                    format!(
+                        "top-level value {name} is part of an eager reference cycle; wrap its reference in a lambda or use letrec"
+                    ),
+                ));
+            }
+        }
+        Ok(())
+    }
+
     // ------------------------------------------------------------ productivity (P8)
 
     /// The mutually recursive group of `name` among this module's
@@ -5684,6 +5774,10 @@ impl Checker {
         eqs: &[ast::Equation],
         extra_dicts: Vec<(LocalId, ClassApp)>,
     ) -> Result<()> {
+        // The top-level recording marker belongs to this entry alone:
+        // a nested check (a staged unit compiled on demand) is not a
+        // top-level value binding of its own.
+        let record_top = std::mem::take(&mut self.record_top_value);
         self.check_productivity(name, scheme, eqs)?;
         let logical = self
             .logical
@@ -6037,6 +6131,15 @@ impl Checker {
         }
         self.pending_refs.clear();
         self.current_logical = None;
+        if record_top {
+            self.collect_top_bind(
+                id,
+                name,
+                eqs[0].span,
+                param_ids.is_empty() && n_pats == 0,
+                &body,
+            );
+        }
         self.finish_fn(id.clone(), param_ids, body, None, None, false, meta)
     }
 
@@ -15200,6 +15303,11 @@ fn check_program_multi_full_impl(
     for m in modules {
         c.check_bodies(&m.name.text, &prelude_name)?;
     }
+    // The guarded-letrec rule over the top-level value bindings (the
+    // D302 compiler defect): an eager reference cycle among them would
+    // re-enter its own thunk and crash the compiled binary at run time,
+    // so it refuses here with the named diagnostic instead.
+    c.check_top_value_cycles()?;
     c.check_instance_coherence()?;
     // `prim` bodies and class laws are checked after every module's
     // declarations (primitive operations and inline target IR

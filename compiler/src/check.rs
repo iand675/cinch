@@ -2184,6 +2184,20 @@ struct Checker {
     /// Each logical definition's logical references, for the mutual
     /// recursion check (a looping function must not inhabit a `Prop`).
     logical_refs: HashMap<(String, String), Vec<(String, String)>>,
+    /// Top-level bindings recorded for the eager-reference-cycle check
+    /// (the guarded-letrec rule extended to the top level, where the
+    /// `letrec` fixpoint discipline does not reach): `(unit id, name,
+    /// definition span, is a value)` in check order.
+    top_binds: Vec<(GlobalId, String, ast::Span, bool)>,
+    /// The reference edges `(owner index, referenced, guarded)` each
+    /// recorded binding's body walk found (guard counts the suspension
+    /// positions entered: lambda bodies and `delay` arguments).
+    top_edges: Vec<(usize, GlobalId, bool)>,
+    /// Set while a top-level definition's equations are checked: only
+    /// `check_bodies`' ordinary definitions are top-level values (the
+    /// instance methods and staged units checked through the same entry
+    /// are not).
+    record_top_value: bool,
     /// The pattern parameters of the definition being checked and the
     /// subcomponent relation its pattern matching established, for the
     /// structural termination check of logical definitions.
@@ -2635,6 +2649,9 @@ impl Checker {
             current_logical: None,
             pending_refs: Vec::new(),
             logical_refs: HashMap::new(),
+            top_binds: Vec::new(),
+            top_edges: Vec::new(),
+            record_top_value: false,
             smaller: HashMap::new(),
             module_imports: HashMap::new(),
             param_modules: std::collections::HashSet::new(),
