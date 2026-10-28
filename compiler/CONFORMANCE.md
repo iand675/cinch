@@ -1203,6 +1203,19 @@ correspondence: one lexeme in expression/pattern, staging `Name`, and
   parallel `int-text` workaround retired. The lesson recorded: pins
   must assert real outputs, never agreement between two
   implementations of the same claim.
+- **D315 (D159 home moves, reported)**: the text primitives live at
+  the type homes (`sha256-bytes` in `Data.Bytes`, the F64 decimal
+  pair in `Data.Machine`) and the `JsonCodec` instances live with
+  their types (`Data.Machine`, `Data.Bool`). The move forced one
+  judgment call: the `JsonCodec` class and its error vocabulary
+  (`JsonDecodeError`/`TypeMismatch`/`OutOfRange`/`json-error-message`)
+  moved from `Text.Json` to `Text.Codec`, because the type homes
+  cannot import `Text.Json` (import cycle: `Text.Json` needs
+  `Data.Machine`) and `Text.Codec` is the scheme's codec-class home
+  - matching `ParseError` sitting with `Text.Parse`. Corollary, a
+  recorded instances-with-their-type exception: `JsonCodec_Json`
+  stays in `Text.Json` (moving it to `Data.Json` would cycle
+  `Data.Json` <-> `Text.Codec`).
 - **D295-D296 (P29 incremental recompilation, reported)**: the
   `incremental` driver module delivers all three Blaze equivalents -
   `ItemGraph` (REAPER: lazily built, kinded `Surface`/`Body` edges
