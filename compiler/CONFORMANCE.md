@@ -1107,6 +1107,35 @@ correspondence: one lexeme in expression/pattern, staging `Name`, and
   `tests/params.rs::value_parameter_is_an_ordinary_binding` failed
   once under full parallel load and was green in four subsequent
   runs (params.rs untouched for months).
+- **D302-D306 (P30 parsing toolkit, reported)**: `Text.Lex` is an
+  in-language lexer + layout pass whose canonical token rendering is
+  a live no-drift contract against `cinch::lexer`/`cinch::layout`
+  (named refusals: attributes, `prim` fragments, tick name forms),
+  and `Text.Parse` is the megaparsec-shaped combinator suite
+  (consumed/empty distinction, `attempt-p`, `label-p`, spans via
+  `spanned-p`, typed `Parse` effect with aborting `parse-fail` and
+  resumable `parse-note`, recovery handlers as ordinary functions on
+  the typed error per the D23 boundary (D304), and
+  `ParseErrorBundle`/`render-bundle` with source gutter and caret
+  (D303)). The bootstrap grammar test parses the declarative surface
+  and expressions of real examples end to end over the toolkit, with
+  the unproductions as named refusals (foreign/rewrite/upgrade/
+  generate declarations, record+codata, refinement forms, module
+  parameters, macro/quote/splice, `do`, `handle`, range literals,
+  memo bindings, fixity resolution - closing this list is what the
+  P35 full-grammar milestone still owes). **Compiler defect
+  recorded (D302)**: eager mutual recursion between top-level VALUES
+  crashes the binary (signal-killed; surfaced as exit 1) - the
+  letrec fixpoint discipline does not reach top-level value
+  bindings; the toolkit's workaround is lazy `MkParser` wrapping and
+  the desired diagnostic is "top-level value X is part of an eager
+  reference cycle; wrap its reference in a lambda or use letrec"
+  (tracked). The refusals test exercises parse-error rendering
+  (the grammar template already pins named refusals) (D305); the
+  harness generates Cinch sources line by line (D306). The
+  `text [...]` char-list constructions (173 sites) became string
+  literals per the user's ask, and the `text` helper is retired in
+  favor of `pack`/`unpack` (D301).
 - **D295-D296 (P29 incremental recompilation, reported)**: the
   `incremental` driver module delivers all three Blaze equivalents -
   `ItemGraph` (REAPER: lazily built, kinded `Surface`/`Body` edges
