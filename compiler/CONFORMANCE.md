@@ -1136,6 +1136,13 @@ correspondence: one lexeme in expression/pattern, staging `Name`, and
   `text [...]` char-list constructions (173 sites) became string
   literals per the user's ask, and the `text` helper is retired in
   favor of `pack`/`unpack` (D301).
+- **D307 (P30 API finding)**: `run-parser-pure` always appends
+  `expect-eof` after the user parser, so whole-input enforcement is
+  the runner's default (kept: it is the safe default for real
+  grammars) but `expect-eof` cannot be used as a standalone parser -
+  it runs twice and the second fails because it consumes rather than
+  guards. The decided fix (queued): `expect-eof` becomes a
+  non-consuming idempotent guard, pinned by a test.
 - **D295-D296 (P29 incremental recompilation, reported)**: the
   `incremental` driver module delivers all three Blaze equivalents -
   `ItemGraph` (REAPER: lazily built, kinded `Surface`/`Body` edges
