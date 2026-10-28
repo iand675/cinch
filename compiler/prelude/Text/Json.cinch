@@ -818,13 +818,45 @@ module Text.Json where
   write-value sorted v = case v of
     JNull -> "null"
     JBool b -> if b then "true" else "false"
-    JNum n -> int-to-string n
+    JNum n -> int-text n
     JFloat f -> write-float f
     JStr s -> write-string s
     JArr h t -> string-concat "[" (write-array-items sorted h t)
     JObj k x t -> string-concat "{" (write-object-body sorted (entries-of (JObj k x t)))
     JArrEnd -> "[]"
     JObjEnd -> "{}"
+
+  -- Canonical decimal for `Int` (signed; leading digit first).
+  -- Reported finding: `Text.Show.int-to-string` writes digits least
+  -- significant first (`int-to-string 42` renders `"24"`), so this
+  -- module formats its own integers until that fix lands (store each
+  -- digit at `pos + k - 1`, mirroring `nat-digits-into`).
+  int-text :: Int -> String
+  int-text x =
+    if eq-i64 (int-cmp x 0) 0 then "0"
+    else if lt-i64 (int-cmp x 0) 0 then
+      let m = int-neg x in
+      let k = int-text-count m in
+      let b = bytes-new (k + 1) in
+      let u = bytes-set b 0 45 in
+      let v = int-text-digits b 1 m k in
+      case string-from-bytes b of Some s -> s; None -> empty-string
+    else
+      let k = int-text-count x in
+      let b = bytes-new k in
+      let u = int-text-digits b 0 x k in
+      case string-from-bytes b of Some s -> s; None -> empty-string
+
+  int-text-count :: Int -> Nat
+  int-text-count n = if lt-i64 (int-cmp n 10) 0 then 1 else 1 + int-text-count (int-div n 10)
+
+  int-text-digits :: Bytes -> Nat -> Int -> Nat -> Unit
+  int-text-digits b pos n k =
+    if nat-cmp k 0 == 0 then ()
+    else
+      let d = nat-from-i64 (int-to-i64 (int-rem n 10)) in
+      let u = bytes-set b (pos + k - 1) (48 + d) in
+      int-text-digits b pos (int-div n 10) (k - 1)
 
   write-float :: F64 -> String
   write-float f =

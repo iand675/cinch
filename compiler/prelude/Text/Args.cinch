@@ -1,0 +1,232 @@
+-- Text.Args: CLI argument parsing over an argv-shaped `List String`.
+--
+-- Module scheme (design/base-library.md): `Text.*` is conversion to
+-- and from String/Bytes; this is the driver port's argument reader (a
+-- small `Text.Args`-shape module, P31): named options and positional
+-- values out of `argv`, with named errors.
+--
+-- The argv grammar (after the program name):
+--
+--   `--name`         a flag occurrence (`FlagSpec`)
+--   `--name value`   a value occurrence (`ValueSpec`)
+--   `--name=value`   the same, spelled inline
+--   `--`             the end of options; every later word is a value
+--   bare word        a positional value
+--
+-- A `Required`-wrapped spec must occur (a missing one is
+-- `MissingRequired`); every other spec is optional. Occurrences keep
+-- argv order (an option may repeat). `render-argv` renders an `Args`
+-- back through the `--name=value` spelling, so the round trip
+-- `parse-args specs (render-argv a) == Ok a` holds for well-formed
+-- `a` (asserted over sample argvs in compiler/tests/json.rs).
+--
+-- Named refusals (unproductions this module deliberately does not
+-- implement; each is a named boundary, never a silent gap):
+--   short-option clusters (`-abc`) and `-o value` single-dash forms:
+--     long options only (the Cinch driver spells `--output`);
+--   option-argument syntax beyond `--name=value` and `--name value`;
+--   `--name=` with an empty value: the value is the empty string
+--     (an occurrence, not a refusal).
+module Text.Args where
+
+  import Data.Bool
+  import Data.Char
+  import Data.List
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+
+  export ArgSpec, FlagSpec, ValueSpec, Required
+  export OptVal, opt-name, opt-value
+  export Args, args-options, args-values
+  export ArgsError, UnknownOption, MissingValue, UnexpectedValue, MissingRequired
+  export parse-args, render-args-error, render-argv
+
+
+  -- One option's spec: a flag (no value), a value option, or a
+  -- required wrapper around either.
+  data ArgSpec where
+    FlagSpec :: String -> ArgSpec
+    ValueSpec :: String -> ArgSpec
+    Required :: ArgSpec -> ArgSpec
+
+  -- One option occurrence: its name and its value (a flag's value is
+  -- `None`).
+  data OptVal where
+    OptVal :: String -> Option String -> OptVal
+
+  opt-name :: OptVal -> String
+  opt-name o = case o of
+    OptVal n v -> n
+
+  opt-value :: OptVal -> Option String
+  opt-value o = case o of
+    OptVal n v -> v
+
+  -- The parse result: the option occurrences in argv order and the
+  -- positional values in argv order.
+  data Args where
+    Args :: List OptVal -> List String -> Args
+
+  args-options :: Args -> List OptVal
+  args-options a = case a of
+    Args opts vals -> opts
+
+  args-values :: Args -> List String
+  args-values a = case a of
+    Args opts vals -> vals
+
+  -- The named errors: an option the specs do not know, a value option
+  -- without its value, a value on a flag, a required spec that did
+  -- not occur.
+  data ArgsError where
+    UnknownOption :: String -> ArgsError
+    MissingValue :: String -> ArgsError
+    UnexpectedValue :: String -> ArgsError
+    MissingRequired :: String -> ArgsError
+
+  render-args-error :: ArgsError -> String
+  render-args-error e = case e of
+    UnknownOption name -> string-concat "unknown option --" name
+    MissingValue name -> string-concat "missing value for --" name
+    UnexpectedValue name -> string-concat "unexpected value for --" name
+    MissingRequired name -> string-concat "missing required argument --" name
+
+  spec-name :: ArgSpec -> String
+  spec-name s = case s of
+    FlagSpec n -> n
+    ValueSpec n -> n
+    Required inner -> spec-name inner
+
+  spec-takes-value :: ArgSpec -> Bool
+  spec-takes-value s = case s of
+    FlagSpec n -> False
+    ValueSpec n -> True
+    Required inner -> spec-takes-value inner
+
+  spec-required :: ArgSpec -> Bool
+  spec-required s = case s of
+    FlagSpec n -> False
+    ValueSpec n -> False
+    Required inner -> True
+
+  find-spec :: List ArgSpec -> String -> Option ArgSpec
+  find-spec specs name = case specs of
+    Nil -> None
+    Cons s rest -> if string-compare (spec-name s) name == 0 then Some s else find-spec rest name
+
+  -- The argv walk: options and values accumulate in order; `--` ends
+  -- the options.
+  parse-args :: List ArgSpec -> List String -> Result ArgsError Args
+  parse-args specs argv = case walk-args specs argv Nil Nil False of
+    Err e -> Err e
+    Ok args -> case check-required specs args of
+      Err e -> Err e
+      Ok u -> Ok args
+
+  walk-args :: List ArgSpec -> List String -> List OptVal -> List String -> Bool -> Result ArgsError Args
+  walk-args specs argv opts vals done = case argv of
+    Nil -> Ok (Args (rev-opts opts) (rev-vals vals))
+    Cons w rest ->
+      if done then walk-args specs rest opts (Cons w vals) True
+      else if is-option-end w then walk-args specs rest opts vals True
+      else if is-option-word w then walk-option specs w rest opts vals
+      else walk-args specs rest opts (Cons w vals) False
+
+  walk-option :: List ArgSpec -> String -> List String -> List OptVal -> List String -> Result ArgsError Args
+  walk-option specs w rest opts vals = case split-option w of
+    (name, value) -> case find-spec specs name of
+      None -> Err (UnknownOption name)
+      Some sp ->
+        if spec-takes-value sp then case value of
+          Some v -> walk-args specs rest (Cons (OptVal name (Some v)) opts) vals False
+          None -> case rest of
+            Nil -> Err (MissingValue name)
+            Cons v rest2 -> walk-args specs rest2 (Cons (OptVal name (Some v)) opts) vals False
+        else case value of
+          Some v -> Err (UnexpectedValue name)
+          None -> walk-args specs rest (Cons (OptVal name None) opts) vals False
+
+  -- A word of at least two dashes and a name (`--` alone is the
+  -- option end, not an option word).
+  is-option-word :: String -> Bool
+  is-option-word w =
+    string-length w > 2 && string-compare (string-slice w 0 2) "--" == 0
+
+  is-option-end :: String -> Bool
+  is-option-end w = string-compare w "--" == 0
+
+  -- The name and the inline value of `--name=value` (the value is
+  -- `None` without an `=`).
+  split-option :: String -> (String, Option String)
+  split-option w =
+    let len = string-length w in
+    case index-of-char w 2 '=' of
+      None -> (string-slice w 2 len, None)
+      Some i -> (string-slice w 2 i, Some (string-slice w (i + 1) len))
+
+  index-of-char :: String -> Nat -> Char -> Option Nat
+  index-of-char w i c =
+    if nat-cmp i (string-length w) == 0 then None
+    else case string-char-at w i of
+      None -> None
+      Some ch -> if eq-char ch c then Some i else index-of-char w (i + 1) c
+
+  -- Every required spec has its occurrence.
+  check-required :: List ArgSpec -> Args -> Result ArgsError Unit
+  check-required specs args = case specs of
+    Nil -> Ok ()
+    Cons s rest ->
+      if spec-required s then
+        if occurs (spec-name s) (spec-takes-value s) (args-options args) then check-required rest args
+        else Err (MissingRequired (spec-name s))
+      else check-required rest args
+
+  occurs :: String -> Bool -> List OptVal -> Bool
+  occurs name takes opts = case opts of
+    Nil -> False
+    Cons o rest -> case o of
+      OptVal n v ->
+        if string-compare n name /= 0 then occurs name takes rest
+        else if takes then case v of
+          Some x -> True
+          None -> occurs name takes rest
+        else True
+
+  -- The canonical argv of one parse: `--name=value` per value
+  -- occurrence, `--name` per flag, then the positional values.
+  render-argv :: Args -> List String
+  render-argv a = strs-append (render-opts (args-options a)) (args-values a)
+
+  strs-append :: List String -> List String -> List String
+  strs-append xs ys = case xs of
+    Nil -> ys
+    Cons z zs -> Cons z (strs-append zs ys)
+
+  render-opts :: List OptVal -> List String
+  render-opts opts = case opts of
+    Nil -> Nil
+    Cons o rest -> case o of
+      OptVal n v -> Cons (render-one n v) (render-opts rest)
+
+  render-one :: String -> Option String -> String
+  render-one n v = case v of
+    None -> string-concat "--" n
+    Some x -> string-concat "--" (string-concat n (string-concat "=" x))
+
+  rev-opts :: List OptVal -> List OptVal
+  rev-opts xs = rev-opts-acc xs Nil
+
+  rev-opts-acc :: List OptVal -> List OptVal -> List OptVal
+  rev-opts-acc xs acc = case xs of
+    Nil -> acc
+    Cons y ys -> rev-opts-acc ys (Cons y acc)
+
+  rev-vals :: List String -> List String
+  rev-vals xs = rev-vals-acc xs Nil
+
+  rev-vals-acc :: List String -> List String -> List String
+  rev-vals-acc xs acc = case xs of
+    Nil -> acc
+    Cons y ys -> rev-vals-acc ys (Cons y acc)
