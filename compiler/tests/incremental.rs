@@ -278,6 +278,15 @@ fn body_change_rechecks_only_its_declaration() {
         set(&["v:Base.bump-count".to_string()]),
         "body change: {report:?}"
     );
+    // The driver's own rebuild manifest carries the same rows (assert
+    // via the report/manifest, not timing).
+    let manifest = std::fs::read_to_string(dir.join("build").join("Main.rebuild.json"))
+        .expect("rebuild manifest");
+    assert!(
+        manifest.contains("\"rechecked\": [\"v:Base.bump-count\"]"),
+        "{manifest}"
+    );
+    assert!(manifest.contains("\"verified\": true"), "{manifest}");
     assert_eq!(
         set(&report.typed_modules),
         set(&["Base".to_string()]),
