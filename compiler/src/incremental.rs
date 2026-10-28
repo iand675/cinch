@@ -1001,12 +1001,13 @@ impl Session {
             if slice.iter().all(|m| checked.contains(m)) {
                 break;
             }
-            let (parse_ms, check_ms, loose_drift) = self.check_slice(&slice, &mut checked, &mut changes)?;
+            let (parse_ms, check_ms, drift) = self.check_slice(&slice, &mut checked, &mut changes)?;
             t_parse += parse_ms;
             t_check += check_ms;
-            if loose_drift && !full {
-                // A new owner-less unit appeared (a fresh builtin
-                // demand): the layout cannot place it. Full recheck.
+            if drift && !full {
+                // The merge cannot be proven faithful (a fresh
+                // owner-less unit, or captured staging inputs): full
+                // recheck.
                 full = true;
                 continue;
             }
@@ -1313,6 +1314,9 @@ impl Session {
                 temp_by.entry(m).or_default().push(t.clone());
             }
         }
+        // Staging inputs have no per-module merge story: any captured
+        // input forces the caller back to a full rebuild (drift below).
+        let mut drift = !report.inputs.is_empty();
         if !report.inputs.is_empty() {
             self.staging_inputs = report.inputs.clone();
         }
@@ -1415,10 +1419,9 @@ impl Session {
         }
         // A loose (owner-less) unit the layout has never seen cannot be
         // placed by the merge: report drift so the caller falls back.
-        let mut loose_drift = false;
         for f in &loose {
             if !self.layouts.fns.iter().any(|s| s.ids.contains(&f.id.0)) {
-                loose_drift = true;
+                drift = true;
             }
         }
         if !loose.is_empty() {
@@ -1434,7 +1437,7 @@ impl Session {
                 }
             }
         }
-        Ok((parse_ms, check_ms, loose_drift))
+        Ok((parse_ms, check_ms, drift))
     }
 
     /// Classify one module's per-item changes: added, removed, surface
