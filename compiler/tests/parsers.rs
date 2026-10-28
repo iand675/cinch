@@ -1505,3 +1505,200 @@ fn parse_refusals_named() {
     }
     expect_exit("refusals-named", &program, 0);
 }
+
+// ----------------------------------------------------------------
+// expect-eof: the non-consuming idempotent guard (D307).
+// ----------------------------------------------------------------
+
+/// `expect-eof` is a GUARD, never a consumer (the API finding recorded
+/// at D307: the old token-consuming form ran twice under
+/// `run-parser-pure`, whose implicit whole-input `expect-eof` is
+/// appended after the user parser, and the second run failed). Both
+/// behaviors are pinned: standalone use beside the runner's own guard
+/// (1), and non-consumption/idempotence (two guards at one position
+/// both succeed, 2). Plus the surrounding contracts: the guard's
+/// failure on remaining input is empty so `or-else` backtracks past it
+/// (3), the failure names "end of input" (4), and the runner's
+/// whole-input default is kept (5).
+#[test]
+fn expect_eof_is_a_non_consuming_guard() {
+    let mut program = program_header();
+    for line in [
+        "  check-sub :: String -> String -> Bool",
+        "  check-sub hay needle = has-sub (string-to-bytes hay) (string-to-bytes needle) 0",
+        "",
+        "  has-sub :: Bytes -> Bytes -> Nat -> Bool",
+        "  has-sub hay needle i =",
+        "    if i + bytes-len needle > bytes-len hay then False",
+        "    else if eq-bytes-at hay needle i 0 then True",
+        "    else has-sub hay needle (i + 1)",
+        "",
+        "  eq-bytes-at :: Bytes -> Bytes -> Nat -> Nat -> Bool",
+        "  eq-bytes-at hay needle i j =",
+        "    if nat-cmp j (bytes-len needle) == 0 then True",
+        "    else if i + j >= bytes-len hay then False",
+        "    else if nat-cmp (bytes-get hay (i + j)) (bytes-get needle j) == 0 then eq-bytes-at hay needle i (j + 1)",
+        "    else False",
+        "",
+        "  main :: Int",
+        "  main = standalone-eof",
+        "",
+        "  -- (1) A user parser ending in `expect-eof` parses under the",
+        "  -- runner, whose appended whole-input guard runs the guard a",
+        "  -- second time.",
+        "  standalone-eof :: Int",
+        "  standalone-eof =",
+        "    case run-parser (\"standalone\") (bytes-from-list [120]) (parse-bind satisfy-var (\\w -> parse-bind expect-eof (\\_ -> parse-pure w))) of",
+        "      Parsed x soft -> guard-twice",
+        "      Failed b -> 1",
+        "",
+        "  -- (2) The guard consumes nothing: a second `expect-eof` at the",
+        "  -- same position still sees the end of input and succeeds.",
+        "  guard-twice :: Int",
+        "  guard-twice =",
+        "    case run-parser (\"guard-twice\") (bytes-new 0) (parse-bind expect-eof (\\_ -> parse-bind expect-eof (\\_ -> parse-pure ()))) of",
+        "      Parsed x soft -> backtrack-guard",
+        "      Failed b -> 2",
+        "",
+        "  -- (3) The guard's failure on remaining input is empty, so",
+        "  -- `or-else` backtracks past it to the alternative.",
+        "  backtrack-guard :: Int",
+        "  backtrack-guard =",
+        "    case run-parser (\"backtrack\") (bytes-from-list [120]) (or-else (parse-bind expect-eof (\\_ -> fail-p (\"guarded\"))) (parse-fmap (\\w -> w) satisfy-var)) of",
+        "      Parsed x soft -> eof-named",
+        "      Failed b -> 3",
+        "",
+        "  -- (4) The guard failing names the end of input in the bundle.",
+        "  eof-named :: Int",
+        "  eof-named =",
+        "    case run-parser (\"named\") (bytes-from-list [120, 32, 121]) (parse-bind satisfy-var (\\_ -> expect-eof)) of",
+        "      Parsed x soft -> 4",
+        "      Failed b -> if check-sub (render-bundle b) (\"end of input\") then whole-input else 5",
+        "",
+        "  -- (5) The runner's whole-input default is kept: a parser with",
+        "  -- no `expect-eof` of its own still refuses trailing input.",
+        "  whole-input :: Int",
+        "  whole-input =",
+        "    case run-parser (\"whole\") (bytes-from-list [120, 32, 121]) satisfy-var of",
+        "      Parsed x soft -> 6",
+        "      Failed b -> 0",
+    ] {
+        program.push_str(line);
+        program.push('\n');
+    }
+    expect_exit("expect-eof-guard", &program, 0);
+}
+
+// ----------------------------------------------------------------
+// Top-level value bindings: the eager-reference-cycle refusal (D302).
+// ----------------------------------------------------------------
+
+/// A `Main` that must compile and run through the driver's own path.
+fn expect_src_exit(name: &str, src: &str, expected: i32) {
+    match cinch::driver::run_source(src) {
+        Ok(code) => assert_eq!(code, expected, "{name}: expected exit {expected}, got {code}"),
+        Err(e) => panic!("{name}: compilation failed: {e}"),
+    }
+}
+
+/// A `Main` that must be refused at check time, with `needle` in the
+/// diagnostic.
+fn expect_src_err(name: &str, src: &str, needle: &str) {
+    match cinch::driver::check_sources(src, "<test>") {
+        Ok(_) => panic!("{name}: expected an error containing {needle:?}, but the program checked"),
+        Err(e) => {
+            let msg = e.to_string();
+            assert!(
+                msg.contains(needle),
+                "{name}: error {msg:?} does not contain {needle:?}"
+            );
+        }
+    }
+}
+
+/// The D302 compiler defect (recorded with the P30 toolkit report):
+/// eager mutual recursion between top-level VALUES crashed the compiled
+/// binary (signal-killed) because the `letrec` fixpoint discipline does
+/// not reach top-level value bindings. The discipline now reaches them
+/// as the guarded-letrec rule: an eager reference cycle refuses at
+/// check time with the named diagnostic. The working lazy case is
+/// pinned beside it: mutual recursion whose references sit under a
+/// lambda (the toolkit's `MkParser` wrapping workaround) runs as ever.
+#[test]
+fn top_level_lazy_value_recursion_runs() {
+    expect_src_exit(
+        "top-lazy-mutual",
+        r#"
+module Main where
+  va :: Int -> Int
+  va = \n -> if n == 0 then 0 else vb (n - 1)
+  vb :: Int -> Int
+  vb = \n -> if n == 0 then 1 else va (n - 1)
+  main :: Int
+  main = if va 4 == 0 then (if vb 5 == 0 then (if vb 4 == 1 then 0 else 1) else 1) else 1
+"#,
+        0,
+    );
+    // An eager reference in an acyclic group stays ordinary: the
+    // values' thunks make the order free (`a` may be written first).
+    expect_src_exit(
+        "top-acyclic-forward",
+        r#"
+module Main where
+  a :: Int
+  a = b + 1
+  b :: Int
+  b = 5
+  main :: Int
+  main = if a == 6 then 0 else 1
+"#,
+        0,
+    );
+}
+
+/// The diagnostic: an eager self reference and eager mutual recursion
+/// between top-level values refuse at check time, naming the referenced
+/// value and the fix (the wording wanted at D302), never crashing the
+/// binary.
+#[test]
+fn top_level_eager_value_cycle_is_a_named_diagnostic() {
+    expect_src_err(
+        "top-eager-self",
+        r#"
+module Main where
+  a :: Int
+  a = a + 1
+  main :: Int
+  main = a
+"#,
+        "top-level value a is part of an eager reference cycle; wrap its reference in a lambda or use letrec",
+    );
+    expect_src_err(
+        "top-eager-mutual",
+        r#"
+module Main where
+  a :: Int
+  a = b + 1
+  b :: Int
+  b = a + 1
+  main :: Int
+  main = a
+"#,
+        "top-level value b is part of an eager reference cycle; wrap its reference in a lambda or use letrec",
+    );
+    // The cycle through an eager call is the same defect: the callee's
+    // body runs while the value's initializer runs.
+    expect_src_err(
+        "top-eager-call",
+        r#"
+module Main where
+  x :: Int
+  x = f 1
+  f :: Int -> Int
+  f n = x
+  main :: Int
+  main = x
+"#,
+        "is part of an eager reference cycle; wrap its reference in a lambda or use letrec",
+    );
+}

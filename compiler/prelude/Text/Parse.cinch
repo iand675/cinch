@@ -435,10 +435,23 @@ module Text.Parse where
     TChar n -> Some n
     _ -> None) (Cons (ILabel ("character")) Nil)
 
+  -- The end-of-input guard (megaparsec's `eof`): succeeds WITHOUT
+  -- consuming when the input is at end (the stream is empty or headed
+  -- by the lex pass's `TEOF` marker), and fails empty otherwise. A
+  -- guard, never a consumer: it is idempotent (running it twice
+  -- succeeds twice) and stands alone in a user parser even though
+  -- `run-parser-pure` appends its own whole-input `expect-eof` (the
+  -- API finding recorded at D307: the old token-consuming form ran
+  -- twice under the runner and the second run failed).
   expect-eof :: Parser Unit
-  expect-eof = token-p (\k -> case k of
-    TEOF -> Some ()
-    _ -> None) (Cons IEnd Nil)
+  expect-eof = MkParser (\s0 -> case s0 of
+    PState toks n last soft -> case toks of
+      Nil -> ROk False () s0 Nil
+      Cons lt rest -> case lt-token lt of
+        TEOF -> ROk False () s0 Nil
+        _ -> RErr False
+          (EUnexpected (lt-span lt) (Some (ITok (lt-token lt))) (Cons IEnd Nil))
+          soft)
 
   -- The explicit failure (megaparsec's `fail`): a fancy error at the
   -- current position.
