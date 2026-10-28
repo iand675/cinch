@@ -191,4 +191,72 @@ Resolved since draft 0.3: the `Bits` class (section 11's open decision) is imple
 
 The compiler in `compiler/` implements this chapter's machine types and families (the `I8`-`I64`, `U8`-`U64`, `F32`, `F64`, `Char`, `Usize`, `Isize` names, the checked/wrapping/saturating families, explicit conversions, and literal range checking), and now has the mathematical `Nat` and `Int` on the bignum runtime with unbounded digit-string literals. `&&`/`||` short-circuit as required by section 10. Deviations still open: machine conversion names (`toInt`, `toNat`, `checkedFromInt`, `checkedFromNat`) are spelled with the machine type suffix (`intToI64` style) until the module slice lets this chapter's dotted spelling land (decision D6 in `compiler/CONFORMANCE.md`), and `Bytes` has no string literal form yet.
 
+# Amendments
+
+Dated notes recording landed decisions (`compiler/CONFORMANCE.md`,
+D-numbers) that amend or interpret this chapter's normative text.
+2026-10-28, P15 conformance sweep.
+
+- **Literals and minus folding (D7, D10), 2026-10-28.** This amends
+  section 7: integer literals are canonical decimal digit strings end
+  to end (hex folds at lex, a prefix minus folds into the string);
+  machine types range-check from the string, `Nat` rejects negatives,
+  and `Nat`/`Int` lower to bignum constants with an `i64` fast path.
+  Float literal exactness is the odd-part rule (odd part fits the
+  significand and the binary exponent is in range). An ambiguous
+  literal want defaults to the mathematical `Int` only when pending
+  literal wants are the only thing blocking resolution; there is no
+  defaulting to `I64` or `F64`.
+- **`Copy` as the sharing class (D16), 2026-10-28.** This amends
+  sections 3 and 8: the sharing class is spelled `Copy` (`Share` is an
+  alias), with structural instances (scalars, `Nat`/`Int`/`Bool`/`Unit`,
+  products/ADTs of `Copy` parts coinductively, `Ref r a`), not user-
+  extensible. `Bytes`, functions, thunks, cells, and `Mut` are not
+  `Copy`. Evidence is structural or from a `using (copy :: Copy a)`
+  binder; `copyOut` is the only implicit-copy site plus memo bare-use.
+- **Comparison derivation (D11), 2026-10-28.** `natCmp`/`intCmp` return
+  the raw -1/0/1 immediate typed at `I64`; `Eq`/`Ord` instances derive
+  as `eqI64 (intCmp x y) 0` style and compare the immediate against
+  zero with the `I64` prims. This amends section 8's instance table.
+- **`String` and `Bytes` (D13, D88-D89), 2026-10-28.** The runtime text
+  type is `String`, a UTF-8 newtype over `Bytes` declared in the
+  prelude; strings are built from `Bytes`, `Char`, and the formatting
+  functions (string literals remain a surface future item). The prelude
+  `String` library is the REFERENCE SEMANTICS for UTF-8 (validation,
+  decoding, encoding, code point indexing); the Rust runtime carries
+  SIMD-accelerated implementations of the same rules (`cinch_utf8_*`)
+  tested to agree: acceleration is a representation detail behind
+  justified prim bodies (reference-then-accelerate). `Bytes` language
+  signatures are `Nat`-typed with the machine-word conversion inside
+  the intrinsic units (D13).
+- **Operator spellings and the class stack (D2, D90-D91), 2026-10-28.**
+  Operators are class methods (bare `~` is reserved for memo bindings).
+  `&`, `|`, `^`, `<<`, `>>` wrap the `Bits` class; `%` and `/` are the
+  `Rem` and `Div` methods with instances for the mathematical `Nat`
+  and `Int` only (machine integers keep the explicit families);
+  bitwise NOT has no operator spelling; division or remainder by zero
+  takes the defined fault path (exit 72). Precedence and associativity:
+  surface grammar local amendments section 6.
+- **Interned symbols (D122-D124, D232-D237), 2026-10-28.** This amends
+  section 9: `Sym` is a builtin core type with kind-tagged, leaked
+  interned cells (`KIND_SYM`); `Eq` is the pointer test with kind
+  validation, `Ord` compares name bytes; `cinch_sym_intern` rejects
+  non-UTF-8 names so `sym-name` is total and the extern surface is
+  exactly four `nm`-verified `cinch_sym_*` ops. `'foo` literals intern
+  at compile time and emit as constants; the char-precedence rule is
+  lexical (`'''` is `Char '\''`; a tick name is the identifier after
+  the tick with dash glue and primes as ident chars). Type-position
+  promotion of `'foo` is deferred with the spelling reserved (D124).
+  Syntax: surface grammar local amendments section 12.
+- **Layout correspondence naming (D6), 2026-10-28.** This amends
+  section 10's naming: machine-type operations are prelude names of the
+  form `<op><Type>` (`wrappingAddU32`, `u8ToI32`) bound from
+  `foreign import ccall "cinch.prim.*"`; this chapter's dotted
+  spellings (`U32.wrappingAdd`) are a presentation form, and the
+  section-2 layout table is the FFI layout table (the cross-reference
+  the SPEC-MAPPING wording flag records).
+- **Cinch naming (D278-D281), 2026-10-28.** The language is Cinch:
+  sources `.cinch`, interfaces `.cinchif`, runtime externs `cinch_*`;
+  artifact names in this chapter read with those names.
+
 [Documentation overview](../overview.md)

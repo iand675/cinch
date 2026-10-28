@@ -184,3 +184,121 @@ Task captures, borrows across suspension and thread transfer require ownership e
 # Current syntax and sequencing
 
 The draft 0.2 surface uses layout, equations and unqualified `do`. See [Surface syntax and grammar](surface-syntax-and-grammar.md) and [Runtime capabilities, effects and sequencing](runtime-capabilities-effects-and-sequencing.md) for formal syntax, runtime arguments, effect-polymorphic calls and sequencing-module selection.
+
+# Amendments
+
+Dated notes recording landed decisions (`compiler/CONFORMANCE.md`,
+D-numbers) that amend or interpret this chapter's normative text.
+2026-10-28, P15 conformance sweep.
+
+- **Fault path and evaluation order (D8), 2026-10-28.** A match that
+  runs out at runtime takes the defined fault path (exit 70), never a
+  zero word. Record construction evaluates fields in source order
+  (this chapter's left-to-right rule) while constructor arguments stay
+  in declaration order.
+- **Dependent core landed (D27-D35), 2026-10-28.** Universes are
+  stratified (`Type 0 : Type 1 : ...`, `Prop : Type 0`); `Type : Type`
+  is never admitted. Definitional equality is beta at elaboration, iota
+  on numerals, alpha for Pi/Sigma, and proof irrelevance (proofs erase
+  to unit); user definitions never unfold in conversion (D28, general
+  delta reduction deferred; named-helper reduction for proof goals is a
+  separate checked mechanism, D268-D270). Un-annotated `forall` binders
+  classify by use; index-position `+ - *` are mathematical with
+  `toNat`/`length` as the builtin total vocabulary (D29). `Vec`/`Fin`/
+  `Dec` are builtin families with the indexed-declaration mechanism
+  general (D30). Erasure: `Prp`/`Sort` fields and parameters take no
+  runtime slot, family indices are not stored in blocks, `Sigma`
+  retains its witness (D31). Totality: structural termination, purity
+  and mutual acyclicity hold for `spec`/`proof`; requiring `Diverge` on
+  recursive executable definitions is deferred (D32, a named boundary).
+  Coverage solves index equations: refuted arms reject as impossible,
+  stuck rigid-index matches reject naming the equation (D33, D35), and
+  type-level operators have reserved fixities (D34).
+- **Ownership and usage rules (D15-D19), 2026-10-28.** Unannotated
+  binders default `%many`, `Thunk`-typed binders `%aff` (D15). The
+  sharing class is `Copy` (`Share` alias), structural and not
+  user-extensible; `Bytes`, functions, thunks, cells, and `Mut` are not
+  `Copy`; `copyOut` is the only implicit-copy site plus memo bare-use
+  (D16). Disjoint projection places fuse into one consumption of the
+  root (D17). Lambda/thunk bodies count captures as unbounded, memo
+  bodies at most once (D18). Borrows are check-level; `demand` returns
+  `Ref r a`; `Mut` uniqueness is lexical (D19).
+- **Evidence invalidation (D192-D197), 2026-10-28.** This amends
+  section 5 (and section 7's dependency clause): a Prop-typed evidence
+  item whose statement reads a `Mut` borrow carries that region as its
+  footprint, and any write to the region invalidates it. Write triggers
+  are `refSet m v` (a new builtin lowering to `Core::RefSet`, opaque to
+  the optimizer), calls passing a `Mut` argument, calls whose effect
+  row names the region with a write-capable head, and opaque writes
+  (FFI/foreign, eval, mutating `Bytes` primitives) which
+  conservatively invalidate all `Mut`-sourced evidence. Stale uses are
+  check errors naming both the derivation and the invalidating site;
+  use sites record deferred uses checked after constraint solving.
+  `Ref`-sourced evidence survives its region (read-only; P5 exclusivity
+  forbids a coexisting `Mut` write), immutable evidence never
+  invalidates, and `RawPtr` targets carry no evidence at all.
+  Ownership moves and mutations therefore never leave live types or
+  executable witnesses on invalid state. Evidence:
+  `tests/evidence_invalidation.rs`.
+- **Temporal contracts (D198-D205), 2026-10-28.** This amends section
+  10: `contract` declarations are top-level, naming a definition of
+  their own module, with formulas over the definition's pattern
+  parameters. `always (P)` is an inductive invariant over the
+  definition's per-step transitions (the D192 write log), with stated
+  establishment (`assume = (P)`, checked equal); falsifying writes are
+  rejected naming the step and undecidable steps are refused. `stable
+  (P)` is the dual of evidence invalidation (no write trigger touches
+  the footprint). `eventually (Q)` verifies only the finite structured-
+  concurrency obligations (`joined`/`cleanup`) and refuses open-ended
+  claims, with liveness contracts stating their scheduler/crash/
+  fairness assumptions. `recur (P)` is bounded by the structural-depth
+  proof and witnessed by a re-establishing step on every recursive
+  cycle. Contract facts are `.cinchif` `contracts` rows hashed into
+  `iface_hash`, stated assumptions join `assumptions.declared`, and the
+  manifest `temporal` section records each verification result.
+  Evidence: `tests/temporal.rs`.
+- **Refinement types (D151, D248-D261, D271-D277, D282-D287),
+  2026-10-28.** This amends section 5's refinement surface. Sub-kind
+  types (`NonEmpty`, `Sorted`, `NonZero`, `Ascii`) are refinements:
+  `type R p = refine (x :: T) with P` registers a predicate-indexed
+  family whose runtime representation IS the container and whose
+  witness is `Prop`-erased. Discharge is explicit in the `Dec`/`decide`
+  world (a total constructor or a `Dec` argument that erases); forged
+  and stale witnesses are refused (staleness via the D192 rule). The
+  family carries a decidable implication preorder with implicit
+  weakening along atom-set inclusion and table-driven narrowings
+  (interval containment, measure vocabulary rows), checked strengthening
+  via `narrow` (a `Dec` of the stronger predicate), explicit `forget`
+  for top-level conjuncts, and `unrefine` as the forgetful arrow.
+  Instances transfer by representation identity: the container's
+  methods at the container's types, valid exactly when they preserve
+  the refinement, with preservation/postcondition obligations checked
+  by the law layer (`Preserves (` op `)` as the constraint spelling;
+  `post p p = p` rows). Instance heads may carry refinements (or the
+  inter-derivable Haskell-style `using` obligations); resolution is
+  most specific along the implication lattice with coherence errors
+  naming incomparable heads (D119 extended). No inference, no SMT;
+  compound predicates admit `&&`/`||` over decidable propositions.
+  Evidence: `tests/refinements.rs`, `tests/lattice.rs`.
+- **Codata and productivity (D37-D41), 2026-10-28.** This amends
+  section 9: a codata type is a record of delayed observations,
+  constructed only by the observed form `C { obs = e }`, boxed like ADTs
+  (one closure word per observation; `Prp`/`Sort` observations erase);
+  pattern matching on codata is refused and codata values are never
+  `Copy` (D37). Guardedness is decided on the elaborated core: a
+  `corec` body must build its codata type at every step and every
+  recursive call must sit under `delay` flowing to a `Later`-typed
+  observation, violations naming the unguarded call (D38). Productivity
+  is certified only by `corec`; a codata-producing definition with an
+  unguarded call reflects the loss in its type (`Diverge` on the last
+  arrow), so an unrestricted filter never presents as a productive
+  stream (D39). `delay` building a `Later` must have an empty performed
+  row (D40), and `\() -> e` accepts the unit pattern as the guard
+  spelling (D41). Recorded design divergences: streams in the prelude
+  are deferred and `bisim` is out of scope; D32's boundary is unchanged
+  (a pure-typed diverging helper can fake productivity through a
+  guard).
+- **Cinch naming (D278-D281), 2026-10-28.** The language is Cinch:
+  `.cinch` sources, `.cinchif` compiled interfaces, `cinch_*` runtime
+  externs, `cinchruntime` staticlib. Artifact names in this chapter
+  read with those names.

@@ -204,5 +204,80 @@ string = ? double-quoted UTF-8 text with defined escapes; no raw newline ? ;
 character = ? one Unicode scalar or escape in single quotes ? ;
 ```
 
+# Amendments
+
+Dated notes recording landed decisions (`compiler/CONFORMANCE.md`,
+D-numbers) that amend or interpret this chapter's normative grammar.
+2026-10-28, P15 conformance sweep. Tuple types were recorded earlier
+(D1) in [Surface grammar local amendments](surface-grammar-local-amendments.md)
+section 1.
+
+- **Dash identifiers and the minus contract (D102, D128-D129; naming
+  D106/D130), 2026-10-28.** `var_id` admits dashes: a `-` tight between
+  identifier characters is glue (`int-digits-into`), and a glue dash
+  requires a non-digit identifier character to its right, so digits do
+  not continue an identifier and `x-1`/`1-2` subtract while
+  `int-digits-into` glues. A `-` tight only to following digits (start,
+  whitespace, or a non-closing delimiter before; digits after) signs a
+  negative literal, so `f -42` applies to `-42`; after `)`, `]`, `}`,
+  `"`, `'`, or an identifier character it is the operator. Any other
+  `-` is the binary minus, and prefix `-` in a prefix position negates
+  any expression through `Neg`. Prelude function names use dash style;
+  type and class names stay capitalized; intrinsic symbol names are
+  symbol identity and unchanged; dotted method parts follow the dash
+  spelling (`U32.wrapping-add`).
+- **`range_literal` (D262-D267), 2026-10-28.** `[e1..e2]` and
+  `[e1, e2 .. e3]` desugar to `from-list (enum-from-to ...)` at the
+  expected `FromList` instance of the `Data.Enum` classes. Endpoints are
+  inclusive; the step is `e2 - e1` in code space; a zero or runaway step
+  yields the empty list where Haskell would diverge; `Enum` codes are
+  consecutive and bounded instances fault at their edges. `Enum Char` is
+  deferred on its conversion story. Stage-known ranges fold to constants
+  (`LitFold` kind "range") under the compile-time fold boundary
+  (D110/D147):
+  `tests/surface.rs::range_literals_desugar_through_the_enum_class`,
+  `::range_literal_folds_when_stage_known`.
+- **`do` `let` groups (D24 as amended by D262-D267), 2026-10-28.**
+  `do_statement = "let", local_block` binds one local block group
+  through the shared `let`-group elaboration (the letrec rule never
+  binds a name twice), while `let ... in` keeps its replace-nested-
+  singles shadowing. Only simple value bindings sequence under CPS
+  elaboration: parameterized and `~` bindings keep D24's error message
+  and destructuring binds keep the `cps_let` one.
+- **Operator runs and fixity (D90, D154), 2026-10-28.** `$` may continue
+  an operator run (`<$>` is spellable) but not start one: a leading `$`
+  stays reserved application and `$(` stays the splice introducer.
+  Binary operator precedence follows the Rust reference table on this
+  chapter's 0-9 scale (`* / %` 9, `+ -` 8, `<< >>` 7, `&` 6, `^` 5,
+  `|` 4, comparisons 3 non-associative, `&&` 2, `||` 1), the new
+  operators are left associative, and the relative order of
+  pre-existing operators is unchanged.
+- **`letrec` and tail calls (D103-D104, D131-D139), 2026-10-28.** `let`
+  binds groups (`;`-separated, `where` declaration grammar);
+  `letrec` admits recursion only under a lambda, a `~` memo body, or a
+  `delay`, and eager cycles reject naming the variable and the missing
+  guard. Self and mutual tail calls run in constant stack (loop-header
+  jumps and tail-marked calls); a group that cannot be tail-marked
+  falls back and the compiler report says so.
+- **Collection and map literals (D105, D110, D142, D147), 2026-10-28.**
+  `[a, b, c]` desugars to `from-list` at the expected `FromList c e`
+  instance (default `List`), `{k => v}` to `from-map` at `FromMap m k v`
+  (default `Map`); stage-known constructions fold to emitted constants
+  and the fold boundary is reported, with a semantics-transparent
+  runtime fallback.
+- **Exports, renames, and file converters (D107-D109, D143-D149),
+  2026-10-28.** `export name, ...`/`export module X`/`export A.b`
+  define the surface exactly (imports private until re-exported);
+  `import X as Y` and `import X (a as b)` rename/select with the
+  duplicate-name rule over explicit imports; `import data "f.ext" as x`
+  converts at compile time (built-in `json`/`txt`/`bytes` converters
+  with provenance and content hashes in the manifest; unknown
+  extensions are build errors naming the built-ins).
+- **Cinch naming (D278-D281), 2026-10-28.** The language is Cinch:
+  source files are `.cinch`, compiled interfaces `.cinchif`, runtime
+  externs `cinch_*`, the staticlib `cinchruntime`, and the reserved
+  namespaces `cinch.prim.*`/`cinch.runtime.*`. Artifact names in this
+  chapter read with those names.
+
 [Documentation overview](../overview.md)
 

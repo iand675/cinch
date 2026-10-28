@@ -292,3 +292,68 @@ recorded in the body row's reason. The canonical shape is a portable
 from the target profile's triple, the same target identity that keys
 cross-compilation widths. `os` and pointer-width predicates may follow
 if a consumer needs them.
+
+# Amendments
+
+Dated notes recording landed decisions (`compiler/CONFORMANCE.md`,
+D-numbers) that amend or interpret this chapter's normative text.
+2026-10-28, P15 conformance sweep.
+
+- **Landed P18 machinery (D206-D212), 2026-10-28.** Fragments are
+  captured verbatim by the lexer so family grammars never pass through
+  the surface tokenizer; `asm` fragments are inline-asm templates (`$0`
+  return, `$1...` args, constraints `r`/`f`) carrying
+  `llvm.sideeffect`, `wasm` is registered but unemittable here, and
+  `clr`/`jvm` reject as reserved. `immarg` is a per-body clause emitted
+  as `!immarg !N` function metadata. The prim ABI is machine-scalar
+  arguments/result with closed effect rows, and per-family
+  implementation units bridge the closure ABI to the fragment ABI.
+  Selection orders `llvm` then `asm` bodies and compiles every
+  applicable body so each family's contract is observed. Assumed prims
+  carry `prim:unit#<bodyhash>` (body edits stale dependents through
+  `iface_hash`); `law` members register only under their
+  `Signature.law` spelling and instances are checked sample-wise
+  through the staging interpreter, with floats and evaluation failures
+  reporting `not checked` rather than false failures. Intrinsic-family
+  lowering migrated onto prim bodies with the namespaces staying
+  reserved (D73). Evidence: `tests/prim.rs`, `tests/laws.rs`.
+- **Effect-row purity and `unsafe` (D213), 2026-10-28.** A prim's
+  effect row decides its treatment: an empty row means proven pure by
+  containment (no evidence invalidation, no attribute-scan defeat,
+  possibly `speculatable`); `Io`/write rows mean effectful per the row.
+  `unsafe` marks bodies containment cannot verify (`asm` templates,
+  `uses` into opaque code): the declared row is trusted rather than
+  verified and the trust is recorded as an assumption with the
+  `prim:unit#<bodyhash>` identity and manifest trust rows. An unsafe
+  prim claiming purity is a visible assumption, never an invisible
+  claim, and scan-gated attributes stay scan-gated. This amends
+  section 12 (its user-direction text predates the decision record).
+- **`unsafe` body discipline and selection precedence (D221-D227),
+  2026-10-28.** `unsafe` is a per-body prefix (`unsafe <family> { ... }`)
+  with `unsafe prim ... where` sugar folding into bodies at parse,
+  recognized contextually so `unsafe` stays usable as an identifier.
+  Trust identity hashes the individual body's content (family,
+  condition, fragment, `uses`, `immarg`), and EVERY `unsafe` body
+  records trust since a non-pure row is also an unverifiable upper-bound
+  claim. Unverifiable surfaces REQUIRE `unsafe` regardless of the row,
+  while containment-visible violations (stores/atomics/volatile under a
+  pure row) reject even under `unsafe`
+  (`tests/prim.rs::containment_rejects_a_pure_row_with_stores_even_unsafe`,
+  `::unverifiable_bodies_without_unsafe_are_rejected`,
+  `::unsafe_pure_prim_records_its_assumption_and_stays_scan_gated`).
+  Selection precedence is cross-family conditional-first then
+  family-order baselines; `TargetProfile.triple` is the arch identity
+  and `when arch` matches its first component exactly; the manifest
+  `condition` field prints the rendered predicate verbatim. Prim calls
+  are not on the evidence-invalidation opaque-write list (they
+  elaborate to plain unit calls), and the pure-prim evidence test pins
+  the row treatment as the whole story.
+- **Platform-gated bodies (D214), 2026-10-28.** Section 13's
+  user-direction text is decision D214: `when arch <name>` predicates
+  keyed on the target profile's triple with the canonical portable
+  `llvm` baseline plus per-arch `asm` bodies, selection manifest-only
+  with the platform in the body row's reason.
+- **Cinch naming (D278-D281), 2026-10-28.** The reserved intrinsic
+  namespaces are `cinch.prim.*` and `cinch.runtime.*`, runtime externs
+  are `cinch_*` symbols, and sources are `.cinch`; names in this
+  chapter read with those spellings.

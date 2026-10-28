@@ -192,3 +192,113 @@ Module artifacts record foreign implementations and assumptions, target features
 # Current syntax and sequencing
 
 The draft 0.2 surface uses layout, equations and unqualified `do`. See [Surface syntax and grammar](surface-syntax-and-grammar.md) and [Runtime capabilities, effects and sequencing](runtime-capabilities-effects-and-sequencing.md) for formal syntax, runtime arguments, effect-polymorphic calls and sequencing-module selection.
+
+# Amendments
+
+Dated notes recording landed decisions (`compiler/CONFORMANCE.md`,
+D-numbers) that amend or interpret this chapter's normative text.
+2026-10-28, P15 conformance sweep.
+
+- **Compiled interface metadata (D4, D9, D121), 2026-10-28.** This
+  amends section 4: the compiled interface is a canonical JSON
+  `.cinchif` artifact per module (exports, instances for coherence,
+  fixities, foreign contracts, assumptions manifest, ABI symbol table,
+  and landed fact rows: contracts (D198-D205), assertions/must-use
+  (D112), law rows (D285-D287), upgrade evidence), identity by content
+  hash with imported interfaces recorded as the checked-against chain.
+  `iface_hash` covers the contract only, excluding `source_hash` and
+  `compiler` (D9). Interface dependencies are a set: import refs are
+  deduplicated (D121).
+- **Module files and export surface (D42, D107-D108, D143-D146),
+  2026-10-28.** A source file may contain any number of `module`
+  blocks (the one-module-per-file rule is superseded); with `export`
+  declarations a module's surface is exactly the named set and imports
+  are private until re-exported (`export module X` bulk, `export A.b`
+  named); `import X as Y` and `import X (a as b, c)` rename/select
+  with the duplicate-name rule over explicit imports (the prelude is
+  the implicit base layer; own names shadow imports). Instances,
+  fixities, and the foreign table stay module-owned facts, not names.
+- **Staging, macros, and compile-time I/O (D43-D48), 2026-10-28.**
+  This amends sections 7-10: `Code t` is closed code and compile-time-
+  only types (`Code`, `Syntax`, `Declarations`, `String`, `Secret`,
+  capability tokens) never reach target code (D43). Compile-time
+  evaluation interprets the elaborated core under an 8M-step budget
+  with lazy/memo/`Bytes`/float/`Option`-returning prims refused.
+  Capabilities determine permitted targets (`IoCap` root refined by
+  `withReadFiles`/`withWriteFiles`/`withProcess`), builtin stage effect
+  labels record occurrence, and callbacks are effect-row-polymorphic
+  (D45). Build identity is the manifest `staging` section plus
+  `build/<entry>.stage.snap` captured contents with refresh/replay/live
+  modes; replay rejects missing or hash-incompatible inputs; secrets
+  record names only and cannot be embedded; failed stages kill spawned
+  children and are never retried. Macros are compile-time functions
+  over token trees with capture-avoiding renaming plus definition-site
+  qualification and per-node expansion provenance in spans (D46); the
+  staging graph schedules units over statically-apparent emits with
+  rendered cycle chains (D47); attributes in staging follow D48
+  (unknown names outside `meta` need a macro declaration; `repr` is
+  rejected, not ignored; macro-emitted attributes revalidate).
+- **Module parameters and signatures as module arguments (D115-D121),
+  2026-10-28.** This amends section 1: `module M (p :: T, ...) where`
+  declares dictionary and value parameters, and instantiation is
+  import-time application with static arguments (`import M (args) as
+  N`), each instantiation a distinct compilation unit with computed
+  identity `unit_id = hash(target | parameter signatures | argument
+  identities)`. Instantiation is representation: the parameterized
+  module's `iface_hash` is invariant and dictionary arguments pass
+  through the ordinary instance machinery. Composition forms are
+  rejected with named errors (an instantiation inside a parameterized
+  module, a parameterized instance as an argument, index-position
+  references): forwarding parameters would be full functor machinery
+  (D116). Capability (`Io`) and `Copy` parameters are rejected; value
+  parameters require `Copy` (D117). `stage`/`macro`/`generate`/
+  `rewrite`/`upgrade` declarations in a parameterized module are
+  rejected (D118). Explicit (named) dictionaries coexist for one
+  class; coherence governs implicit resolution only (two instantiations
+  publishing unifiable implicit copies reject as `ambiguous instance`),
+  and module arguments are this chapter's explicit dictionary selection
+  (D119).
+- **Schema generation (D72), 2026-10-28.** This amends section 11:
+  `SchemaSnapshot`/`Database`/`SchemaRead` are compile-time-only and
+  introspection runs over the subprocess capability (the credential
+  travels in the tool environment and never enters captured inputs);
+  `introspectConsistently` checks the document and records
+  dialect/collation/extensions/nullability, provider identity, and a
+  content hash; `CodecGenerator.derive` emits per-table records plus
+  `encode`/`decode` as ordinary checked declarations. Codec columns
+  cover `INTEGER` and `BOOLEAN`; `REAL`/`TEXT` report explicitly at
+  generation time.
+- **Rewrite justification and fusion (D55-D57, D60), 2026-10-28.**
+  This amends sections 5-6: `justify e` accepts kernel evidence
+  (`refl`, `congr`, `decide` extractions, declared `proof`/`spec`
+  functions) or a law method of a `signature`, with type-preservation
+  and resource side conditions; bare-variable and erased/universe-type
+  equations are rejected as defeq-changing (D56); effectful rules are
+  rejected (pure `Eq` evidence does not authorize reordering) and
+  pure-hole callbacks are body-scanned at fire time (D57). Pull-based
+  producer fusion composes callbacks at the same per-element positions
+  preserving effect order; barriers are memo/thunk allocation and, for
+  eager pipelines under the `mapMap` law, callback purity; case folds
+  let-bind constructor fields (D60).
+- **Trust boundary reporting (D63), 2026-10-28.** This amends section
+  12: the manifest records `trust.level` (level 2, full recheck, the
+  default) and a `lowering` checked/trusted split, so compiler-pass
+  trust is disclosed rather than implied.
+- **Target specialization (D58-D59), 2026-10-28.** This amends section
+  13: target profiles and vector shapes are marker types
+  (`VecU32Target t w`, `CapAvailable t w`) and `Available v` is the
+  validity-scope evidence (lexical region + thread, never cached); a
+  `target rewrite` fires only where the firing unit carries a matching
+  capability parameter, `Target.detectVecU32` is a replaceable dispatch
+  boundary, and target conditions are discharged and preserved in the
+  manifest (`target.conditions`).
+- **Entry point (D12, D20, D65), 2026-10-28.** `Program.main` is
+  `Option`: `check` accepts library modules without `main`, while
+  `emit-ir`/`build`/`run` require `main :: Int` or `main :: Unit ->{e}
+  Int` (D65); `foreign export` programs may be linked as libraries with
+  the C side supplying `main`. The checker synthesizes a
+  `"<module>.main.exit"` adapter calling `cinch_int_to_i64` on `main`'s
+  bignum result so the C `main` stays on raw words (D12).
+- **Cinch naming (D278-D281), 2026-10-28.** The language is Cinch:
+  sources are `.cinch`, compiled interfaces `.cinchif`, runtime externs
+  `cinch_*`; artifact names in this chapter read with those names.
