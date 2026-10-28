@@ -2166,6 +2166,11 @@ impl<'a> Parser<'a> {
             )),
             Tok::If => self.parse_if(),
             Tok::Case => self.parse_case(),
+            // `forget p from e` and `narrow e to T with w` (the
+            // refinement lattice) are contextual forms at term start:
+            // `forget`/`from`/`narrow` stay ordinary names elsewhere.
+            Tok::VarId(s) if s == "forget" => self.parse_forget(),
+            Tok::VarId(s) if s == "narrow" => self.parse_narrow(),
             Tok::Do => self.parse_do(),
             Tok::Handle => self.parse_handle(),
             Tok::With => self.parse_with(),
@@ -2180,6 +2185,65 @@ impl<'a> Parser<'a> {
             )),
             _ => self.parse_annotation(),
         }
+    }
+
+    /// `forget p from e` / `forget [p1, p2] from e` (refinement types
+    /// design, "partial weakening"): the value at its refinement's
+    /// predicate minus the named top-level conjuncts.
+    fn parse_forget(&mut self) -> Result<Term> {
+        let span = self.peek().span;
+        self.bump();
+        let mut atoms: Vec<Type> = Vec::new();
+        if self.at(&Tok::LBracket) {
+            self.bump();
+            loop {
+                atoms.push(self.parse_type()?);
+                if self.at(&Tok::Comma) {
+                    self.bump();
+                } else {
+                    break;
+                }
+            }
+            self.expect(&Tok::RBracket, "`]` after the forgotten predicates")?;
+        } else {
+            atoms.push(self.parse_type()?);
+        }
+        match self.peek_tok() {
+            Tok::VarId(s) if s == "from" => {
+                self.bump();
+            }
+            t => {
+                return Err(self.err(format!(
+                    "expected `from` between the forgotten predicates and the value, found {}",
+                    describe(&t)
+                )))
+            }
+        }
+        let value = self.parse_term()?;
+        Ok(Term::Forget { atoms, value: Box::new(value), span })
+    }
+
+    /// `narrow e to T with w` (refinement types design, "narrowings"):
+    /// the checked strengthening cast, carrying its `Dec` (a missing
+    /// `with w` is refused by the checker naming the evidence it needs).
+    fn parse_narrow(&mut self) -> Result<Term> {
+        let span = self.peek().span;
+        self.bump();
+        let value = self.parse_term()?;
+        self.expect(&Tok::To, "`to` between the value and the stronger refinement")?;
+        let target = self.parse_type()?;
+        let witness = if self.at(&Tok::With) {
+            self.bump();
+            self.parse_term()?
+        } else {
+            Term::Hole(span)
+        };
+        Ok(Term::Narrow {
+            value: Box::new(value),
+            target,
+            witness: Box::new(witness),
+            span,
+        })
     }
 
     /// `dollar_expr [ "::" type ]`.
@@ -3016,7 +3080,10 @@ impl<'a> Parser<'a> {
     }
 
     fn starts_type_atom(&self) -> bool {
-        matches!(self.peek_tok(), Tok::VarId(_) | Tok::ConId(_) | Tok::LParen | Tok::Int(_))
+        // `from` in `forget p from e` is the contextual form's
+        // separator, never a juxtaposed type atom.
+        !matches!(self.peek_tok(), Tok::VarId(s) if s == "from")
+            && matches!(self.peek_tok(), Tok::VarId(_) | Tok::ConId(_) | Tok::LParen | Tok::Int(_))
     }
 
     fn parse_type_atom(&mut self) -> Result<Type> {
@@ -3552,6 +3619,17 @@ fn resolve_term(t: &mut Term, fix: &FixityTable) -> Result<()> {
         Term::Ann(e, ty, _) => {
             resolve_term(e, fix)?;
             resolve_type(ty, fix)?;
+        }
+        Term::Forget { atoms, value, .. } => {
+            for a in atoms {
+                resolve_type(a, fix)?;
+            }
+            resolve_term(value, fix)?;
+        }
+        Term::Narrow { value, target, witness, .. } => {
+            resolve_term(value, fix)?;
+            resolve_type(target, fix)?;
+            resolve_term(witness, fix)?;
         }
         Term::Neg(e, _) => resolve_term(e, fix)?,
         Term::Tuple(items, _) | Term::List(items, _) => {

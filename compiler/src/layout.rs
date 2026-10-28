@@ -30,9 +30,13 @@ enum Frame {
     /// marks blocks that `in` may close.
     Implicit { col: u32, is_let: bool },
     /// An explicit `(`, `[` or `{` shielding enclosing layout. The flag
-    /// marks the `(` of a capability supply clause `with (...)`, whose
-    /// closing `)` arms the supply `in` (see `supply_close_pending`).
-    Delim(Delim, bool),
+    /// marks the `(` of a capability supply clause `with (...)`: 1 while
+    /// the group is open, 2 once it binds names (`x = e` at its top
+    /// level), whose closing `)` arms the supply `in` (see
+    /// `supply_close_pending`). A parenthesized expression after `with`
+    /// (the `narrow` cast's evidence) is not a supply and keeps the
+    /// surrounding `let` block's `in`.
+    Delim(Delim, u8),
 }
 
 fn virtual_tok(tok: Tok, span: Span) -> Token {
@@ -74,7 +78,7 @@ pub fn layout(tokens: Vec<Token>) -> Result<Vec<Token>> {
             } else if tok.tok == Tok::LBrace {
                 // An explicit `{` supplies the block verbatim.
                 out.push(tok);
-                stack.push(Frame::Delim(Delim::Brace, false));
+                stack.push(Frame::Delim(Delim::Brace, 0));
                 prev = Some(span);
                 continue;
             } else {
@@ -121,7 +125,7 @@ pub fn layout(tokens: Vec<Token>) -> Result<Vec<Token>> {
                 if got != want {
                     return Err(Error::at(span, "mismatched closing delimiter"));
                 }
-                if was_with_group {
+                if was_with_group == 2 {
                     // The next token, if `in`, is the supply clause's own.
                     supply_close_pending = true;
                 }
@@ -175,6 +179,17 @@ pub fn layout(tokens: Vec<Token>) -> Result<Vec<Token>> {
             Tok::With => {
                 with_paren_pending = true;
             }
+            Tok::Equals => {
+                // A capability supply `with (x = e)` binds names at the
+                // group's top level, which confirms the group as a
+                // supply (an ordinary parenthesized expression keeps
+                // its `let` block's `in`).
+                if let Some(Frame::Delim(_, m)) = stack.last_mut() {
+                    if *m == 1 {
+                        *m = 2;
+                    }
+                }
+            }
             _ => {}
         }
 
@@ -217,7 +232,7 @@ pub fn layout(tokens: Vec<Token>) -> Result<Vec<Token>> {
                 Some(Tok::LBracket) => Delim::Bracket,
                 _ => Delim::Brace,
             };
-            stack.push(Frame::Delim(d, with_group_open));
+            stack.push(Frame::Delim(d, if with_group_open { 1 } else { 0 }));
         }
         prev = Some(span);
     }

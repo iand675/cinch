@@ -9,7 +9,7 @@
 
 use crate::ast;
 use crate::core::{ArithMode, ArithOp, BytesOp, CAlt, CBranch, CPat, CmpOp, ConcOp, Core, FieldAccess, FieldShape, FnDef, GlobalId, InstanceDef, IntOp, LocalId, NatOp, PrimOp, Program, ProjField, SymOp};
-use crate::types::{ClassApp, EffLabel, EffRow, EitherMeta, IxParam, ITerm, IdxCmp, IdxOp, Mult, PTerm, PredFn, PtrRole, RowTail, Scalar, Scheme, Sort, Ty, Unifier, c_abi_scalar, collect_row_names, default_mult};
+use crate::types::{ClassApp, EffLabel, EffRow, EitherMeta, IxParam, ITerm, IdxCmp, IdxOp, Mult, PTerm, PredFn, PtrRole, RowTail, Scalar, Scheme, Sort, Ty, Unifier, c_abi_scalar, collect_row_names, default_mult, pred_alpha_eq, pred_conjuncts, pred_implies};
 use crate::{Error, Result};
 use SolveOutcome::{Solved, Ambiguous};
 use std::cell::RefCell;
@@ -996,6 +996,21 @@ struct RefineInfo {
     /// The refinement's parameter names, positional against the type's
     /// arguments.
     params: Vec<String>,
+}
+
+/// One lattice point of the refinement family (refinement types design,
+/// "narrowings and the implication theory"): the container, the
+/// predicate over the refined binder, and whether the container is
+/// stated (an anonymous `refined P` in an ascription may leave it to the
+/// ascribed value). Named refinements (`SizedAscii`) and anonymous
+/// points (`refined P T`) are the same family: nominal names are named
+/// predicates for readability, nothing more.
+#[derive(Clone)]
+pub struct RefineView {
+    /// The container type (the runtime representation).
+    pub base: Option<Ty>,
+    /// The predicate over the binder's value.
+    pub pred: PTerm,
 }
 
 #[derive(Clone)]
@@ -4366,6 +4381,12 @@ impl Checker {
     fn check_kind(&self, t: &Ty, expect: Option<&ParamKind>, span: ast::Span) -> Result<()> {
         let Some(expect) = expect else { return Ok(()) };
         let kind = match t {
+            Ty::Adt(name, args) if name == "refined" => {
+                // The lattice former: `refined P T` and (in an
+                // ascription) `refined P` are full types.
+                let _ = args;
+                ParamKind::Type
+            }
             Ty::Adt(name, args) => {
                 let info = self.lookup_type(&[name])?;
                 if args.len() > info.arity {
@@ -4776,10 +4797,46 @@ impl Checker {
         }
     }
 
+    /// A list-shaped container: constructors that distinguish the empty
+    /// form (no runtime fields) from a non-empty (element-tail) form.
+    fn list_shaped(&self, name: &str) -> bool {
+        self.types
+            .get(name)
+            .map(|tks| {
+                tks.iter().any(|tk| {
+                    let mut empties = 0usize;
+                    let mut non_empties = 0usize;
+                    for (cname, _) in &tk.ctors {
+                        let ra = self
+                            .qualified
+                            .get(&(tk.module.clone(), cname.clone()))
+                            .and_then(|v| match &v.kind {
+                                ValueKind::Ctor { runtime_arity, .. } => Some(*runtime_arity),
+                                _ => None,
+                            })
+                            .unwrap_or(1);
+                        if ra == 0 {
+                            empties += 1;
+                        } else {
+                            non_empties += 1;
+                        }
+                    }
+                    empties >= 1 && non_empties >= 1
+                })
+            })
+            .unwrap_or(false)
+    }
+
     /// The operand shapes one structural-vocabulary predicate decides
     /// over (a wrong predicate is refused naming it and its admissible
-    /// operand).
+    /// operand). A refined value reads as its container (the runtime
+    /// representation IS the container).
     fn check_pred_operand(&self, pf: PredFn, base: &Ty, span: ast::Span) -> Result<()> {
+        let base = self
+            .refine_view(base)
+            .and_then(|v| v.base)
+            .unwrap_or_else(|| base.clone());
+        let base = &base;
         let ok = match pf {
             PredFn::NotNull | PredFn::Ordered => {
                 // A list-shaped container: constructors that distinguish
@@ -4794,32 +4851,7 @@ impl Checker {
                         ),
                     ));
                 };
-                let shape_ok = self
-                    .types
-                    .get(name)
-                    .map(|tks| {
-                        tks.iter().any(|tk| {
-                            let mut empties = 0usize;
-                            let mut non_empties = 0usize;
-                            for (cname, _) in &tk.ctors {
-                                let ra = self
-                                    .qualified
-                                    .get(&(tk.module.clone(), cname.clone()))
-                                    .and_then(|v| match &v.kind {
-                                        ValueKind::Ctor { runtime_arity, .. } => Some(*runtime_arity),
-                                        _ => None,
-                                    })
-                                    .unwrap_or(1);
-                                if ra == 0 {
-                                    empties += 1;
-                                } else {
-                                    non_empties += 1;
-                                }
-                            }
-                            empties >= 1 && non_empties >= 1
-                        })
-                    })
-                    .unwrap_or(false);
+                let shape_ok = self.list_shaped(name);
                 let elems_ok = match pf {
                     PredFn::Ordered => matches!(
                         args.first(),
@@ -4833,10 +4865,17 @@ impl Checker {
                 matches!(base, Ty::Nat | Ty::Int)
                     || matches!(base, Ty::Prim(s) if s.is_int_like())
             }
-            PredFn::Ascii => {
-                matches!(base, Ty::Bytes)
-                    || matches!(base, Ty::Adt(name, _) if name == "String")
-            }
+            PredFn::Ascii => match base {
+                Ty::Bytes => true,
+                Ty::Adt(name, _) if name == "String" => true,
+                // A list of chars: every char is below 128 (the
+                // byte-range fact `Ascii` implies).
+                Ty::Adt(name, args) => {
+                    matches!(args.first(), Some(Ty::Prim(s)) if *s == Scalar::Char)
+                        && self.list_shaped(name)
+                }
+                _ => false,
+            },
         };
         if ok {
             Ok(())
@@ -4851,15 +4890,172 @@ impl Checker {
         }
     }
 
+    /// One type's lattice point in the refinement family, whether named
+    /// (`SizedAscii`) or anonymous (`refined P T` / `refined P`):
+    /// `None` for non-refinements.
+    fn refine_view(&self, t: &Ty) -> Option<RefineView> {
+        match t {
+            Ty::Adt(name, args) if name == "refined" => match args.as_slice() {
+                [Ty::Prp(p)] => Some(RefineView { base: None, pred: (**p).clone() }),
+                [Ty::Prp(p), base] => Some(RefineView {
+                    base: Some(base.clone()),
+                    pred: (**p).clone(),
+                }),
+                _ => None,
+            },
+            Ty::Adt(name, args) => {
+                let tk = self.types.get(name)?.iter().find(|t| t.refine.is_some())?;
+                let r = tk.refine.as_ref()?;
+                let mut map: HashMap<String, Ty> = HashMap::new();
+                for (i, p) in r.params.iter().enumerate() {
+                    if let Some(a) = args.get(i) {
+                        map.insert(p.clone(), a.clone());
+                    }
+                }
+                Some(RefineView {
+                    base: Some(Self::subst_ty(&r.base, &map)),
+                    pred: Checker::subst_pt(&r.pred, &map),
+                })
+            }
+            _ => None,
+        }
+    }
+
+    /// `refined P T` (the anonymous lattice point of `T` by `P`), and
+    /// `refined P` where the container is left to the ascription (the
+    /// everyday form of partial weakening, refinement types design).
+    fn conv_refine_former(
+        &self,
+        args: &[&ast::Type],
+        vars: &[String],
+        span: ast::Span,
+    ) -> Result<Ty> {
+        let pred = match args.first() {
+            Some(p) => self.conv_pred_former(p, vars)?,
+            None => {
+                return Err(Error::at(
+                    span,
+                    "the `refined` former takes a predicate and its container (`refined (Ascii) (List Char)`); the container may be omitted in an ascription",
+                ))
+            }
+        };
+        if args.len() > 2 {
+            return Err(Error::at(
+                span,
+                "the `refined` former takes a predicate and at most one container (`refined P T`)",
+            ));
+        }
+        let mut out = vec![Ty::Prp(Box::new(pred))];
+        if let Some(t) = args.get(1) {
+            out.push(self.conv_type(t, vars)?);
+        }
+        Ok(Ty::Adt("refined".to_string(), out))
+    }
+
+    /// The predicate former's grammar (the `refined` type former's `P`):
+    /// a named predicate of the closed vocabulary or of a named
+    /// refinement (`refined Ascii`, `refined Sorted`) is the predicate
+    /// over the implicit binder, and a compound predicate binds its free
+    /// names (`refined (length xs > 100 && Ascii xs)` binds `xs`).
+    fn conv_pred_former(&self, ty: &ast::Type, vars: &[String]) -> Result<PTerm> {
+        let mut args: Vec<&ast::Type> = Vec::new();
+        let mut cur = ty;
+        loop {
+            match cur {
+                ast::Type::App(f, a, _) => {
+                    args.push(a);
+                    cur = f;
+                }
+                _ => break,
+            }
+        }
+        args.reverse();
+        if args.is_empty() {
+            if let ast::Type::Con(p, span) = cur {
+                let name = p.parts().join(".");
+                if let Some(pf) = PredFn::lookup(&name) {
+                    return Ok(PTerm::Pred(pf, Box::new(ITerm::Var("$it".to_string()))));
+                }
+                // A named refinement's predicate (`refined Sorted`):
+                // nominal names are named predicates for readability.
+                let info = self.lookup_type(&p.parts()).ok();
+                if let Some(tk) =
+                    info.and_then(|i| self.types.get(&i.name)?.iter().find(|t| t.refine.is_some()).cloned())
+                {
+                    let r = tk.refine.expect("refine is some");
+                    return Ok(Checker::subst_pt(
+                        &r.pred,
+                        &HashMap::from([(
+                            r.binder.clone(),
+                            Ty::Idx(Box::new(ITerm::Var("$it".to_string()))),
+                        )]),
+                    ));
+                }
+                return Err(Error::at(
+                    *span,
+                    format!(
+                        "`{name}` is not a predicate of the `refined` former (use the closed vocabulary `NotNull`, `NonZero`, `Ascii`, `Ordered`, a named refinement, or a predicate over the binder)"
+                    ),
+                ));
+            }
+        }
+        // A predicate over the binder: its free names are the binder
+        // (the former closes the predicate over its value).
+        let mut binders = Vec::new();
+        self.pred_binder_names(ty, &mut binders);
+        let mut vs = vars.to_vec();
+        for b in binders {
+            if !vs.contains(&b) {
+                vs.push(b);
+            }
+        }
+        self.conv_prop(ty, &vs)
+    }
+
+    /// The names a predicate's index expressions introduce (anything
+    /// that is not the built-in measure vocabulary or a resolvable
+    /// value): the `refined` former's implicit binder.
+    fn pred_binder_names(&self, ty: &ast::Type, out: &mut Vec<String>) {
+        let mut cur = ty;
+        loop {
+            match cur {
+                ast::Type::App(f, a, _) => {
+                    self.pred_binder_names(a, out);
+                    cur = f;
+                }
+                _ => break,
+            }
+        }
+        if let ast::Type::Var(n, _) = cur {
+            let name = &n.text;
+            if name == "length" || name == "toNat" {
+                return;
+            }
+            if self.lookup_value(None, name).is_ok() {
+                return;
+            }
+            if !out.contains(name) {
+                out.push(name.clone());
+            }
+        }
+    }
+
     /// The container instance of a refinement application (`NonEmpty x`'s
     /// base is `List x`): the declared container with the application's
     /// arguments substituted for the refinement's parameters. A partial
     /// application (the higher-kinded `NonEmpty` former) yields the
-    /// container former. `None` for non-refinements.
+    /// container former. An anonymous `refined P T` yields `T`.
+    /// `None` for non-refinements.
     fn refine_base(&self, t: &Ty) -> Option<Ty> {
         let Ty::Adt(name, args) = t else {
             return None;
         };
+        if name == "refined" {
+            return match args.as_slice() {
+                [_, base] => Some(base.clone()),
+                _ => None,
+            };
+        }
         let tk = self
             .types
             .get(name)?
@@ -5024,8 +5220,31 @@ impl Checker {
             Some("<" | "<=" | ">" | ">=" | "==" | "=" | "/=" | "!=") => {
                 return Ok(Ty::Prp(Box::new(self.conv_prop(ty, vars)?)));
             }
-            Some("Eq" | "Not") => {
+            Some("Eq" | "Not" | "&&" | "||") => {
                 return Ok(Ty::Prp(Box::new(self.conv_prop(ty, vars)?)));
+            }
+            Some("NotNull" | "NonZero" | "Ascii" | "Ordered") if args.len() == 1 => {
+                return Ok(Ty::Prp(Box::new(self.conv_prop(ty, vars)?)));
+            }
+            Some("refined") => {
+                // `refined P T` (and `refined P` where the container is
+                // left to the ascription): the refinement lattice's
+                // anonymous point, the refinement of `T` by `P` over the
+                // predicate's binder (refinement types design,
+                // "instance heads at refinements").
+                let mut pargs: Vec<&ast::Type> = Vec::new();
+                for a in &args {
+                    match a {
+                        Arg::Ty(t) => pargs.push(t),
+                        Arg::Row(_) => {
+                            return Err(Error::at(
+                                head_span,
+                                "`refined` takes a predicate and its container, not an effect row",
+                            ))
+                        }
+                    }
+                }
+                return self.conv_refine_former(&pargs, vars, head_span);
             }
             Some("+" | "-" | "*") => {
                 return Err(Error::at(
@@ -5947,6 +6166,17 @@ impl Checker {
                 Box::new(Checker::subst_it(b, map)),
             ),
             PTerm::Not(q) => PTerm::Not(Box::new(Checker::subst_pt(q, map))),
+            PTerm::And(a, b) => PTerm::And(
+                Box::new(Checker::subst_pt(a, map)),
+                Box::new(Checker::subst_pt(b, map)),
+            ),
+            PTerm::Or(a, b) => PTerm::Or(
+                Box::new(Checker::subst_pt(a, map)),
+                Box::new(Checker::subst_pt(b, map)),
+            ),
+            PTerm::Pred(pf, a) => {
+                PTerm::Pred(*pf, Box::new(Checker::subst_it(a, map)))
+            }
             other => other.clone(),
         }
     }

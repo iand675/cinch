@@ -776,7 +776,7 @@ impl PredFn {
         match self {
             PredFn::NotNull => "list-shaped values (`List`)",
             PredFn::NonZero => "numeric values (`Nat`, `Int`, machine integers)",
-            PredFn::Ascii => "text values (`String`)",
+            PredFn::Ascii => "text values (`String`) and lists of chars (`List Char`)",
             PredFn::Ordered => "lists of numerics (`List Nat`)",
         }
     }
@@ -2254,6 +2254,14 @@ impl Unifier {
                 PTerm::Eq(Box::new(self.resolve_idx(a)), Box::new(self.resolve_idx(b)))
             }
             PTerm::Not(q) => PTerm::Not(Box::new(self.resolve_prop(q))),
+            PTerm::And(a, b) => PTerm::And(
+                Box::new(self.resolve_prop(a)),
+                Box::new(self.resolve_prop(b)),
+            ),
+            PTerm::Or(a, b) => PTerm::Or(
+                Box::new(self.resolve_prop(a)),
+                Box::new(self.resolve_prop(b)),
+            ),
             PTerm::Pred(pf, a) => PTerm::Pred(*pf, Box::new(self.resolve_idx(a))),
             other => other.clone(),
         }
@@ -2277,6 +2285,9 @@ impl Unifier {
                 self.idx_occurs_any(id, &a) || self.idx_occurs_any(id, &b)
             }
             PTerm::Not(q) => self.prop_occurs(id, &q),
+            PTerm::And(a, b) | PTerm::Or(a, b) => {
+                self.prop_occurs(id, &a) || self.prop_occurs(id, &b)
+            }
             _ => false,
         }
     }

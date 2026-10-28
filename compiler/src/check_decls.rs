@@ -317,6 +317,11 @@ fn for_each_subterm(t: &ast::Term, f: &mut dyn FnMut(&ast::Term)) {
             }
         }
         ast::Term::Ann(e, _, _) | ast::Term::Proj(e, _, _) => for_each_subterm(e, f),
+        ast::Term::Forget { value, .. } => for_each_subterm(value, f),
+        ast::Term::Narrow { value, witness, .. } => {
+            for_each_subterm(value, f);
+            for_each_subterm(witness, f);
+        }
         ast::Term::Infix(items, _, _) | ast::Term::Tuple(items, _) | ast::Term::List(items, _) => {
             for x in items {
                 for_each_subterm(x, f);
@@ -5503,6 +5508,13 @@ impl Checker {
             ast::Term::Ann(e, _, _) | ast::Term::Neg(e, _) | ast::Term::Proj(e, _, _) => {
                 self.walk_guard(e, pos, group, mode, bound)?
             }
+            ast::Term::Forget { value, .. } => {
+                self.walk_guard(value, pos, group, mode, bound)?
+            }
+            ast::Term::Narrow { value, witness, .. } => {
+                self.walk_guard(value, pos, group, mode, bound)?;
+                self.walk_guard(witness, pos, group, mode, bound)?
+            }
             ast::Term::Infix(terms, ops, _) => {
                 for o in ops {
                     if !bound.contains(&o.text) {
@@ -7035,16 +7047,40 @@ impl Checker {
                 Some(n != 0)
             }
             PTerm::Pred(PredFn::Ascii, _) => {
-                let bytes = match v {
-                    Value::Adt { fields, .. } => match fields.as_slice() {
-                        [Value::Bytes(b)] => b.clone(),
-                        _ => return None,
-                    },
-                    Value::Bytes(b) => b.clone(),
-                    _ => return None,
-                };
-                let ok = bytes.borrow().iter().all(|&b| b < 128);
-                Some(ok)
+                match v {
+                    // A list of chars: every element is below 128 (the
+                    // byte-range fact `Ascii` implies).
+                    Value::Adt { fields, .. } if fields.is_empty() || fields.len() >= 2 => {
+                        let mut cur = v;
+                        loop {
+                            match cur {
+                                Value::Adt { fields, .. } if fields.is_empty() => {
+                                    return Some(true)
+                                }
+                                Value::Adt { fields, .. } if fields.len() >= 2 => {
+                                    let n = value_num(&fields[0])?;
+                                    if !(0..128).contains(&n) {
+                                        return Some(false);
+                                    }
+                                    cur = &fields[1];
+                                }
+                                _ => return None,
+                            }
+                        }
+                    }
+                    _ => {
+                        let bytes = match v {
+                            Value::Adt { fields, .. } => match fields.as_slice() {
+                                [Value::Bytes(b)] => b.clone(),
+                                _ => return None,
+                            },
+                            Value::Bytes(b) => b.clone(),
+                            _ => return None,
+                        };
+                        let ok = bytes.borrow().iter().all(|&b| b < 128);
+                        Some(ok)
+                    }
+                }
             }
             PTerm::Pred(PredFn::Ordered, _) => {
                 // The adjacent-pair walk over the list's constructor
@@ -10514,6 +10550,19 @@ impl<'a> FactWalk<'a> {
                 self.walk_term(e);
                 self.tail = saved;
             }
+            ast::Term::Forget { value, .. } => {
+                let saved = self.tail;
+                self.walk_term(value);
+                self.tail = saved;
+            }
+            ast::Term::Narrow { value, witness, .. } => {
+                let saved = self.tail;
+                self.walk_term(value);
+                self.tail = saved;
+                let saved = self.tail;
+                self.walk_term(witness);
+                self.tail = saved;
+            }
             ast::Term::Infix(terms, ops, _) => {
                 for t in terms {
                     self.walk_child(t);
@@ -12351,6 +12400,13 @@ impl Checker {
             ast::Term::Neg(e, _) | ast::Term::Ann(e, _, _) | ast::Term::Proj(e, _, _) => {
                 flag = self.recur_walk(e, flag, calls, establishes, contract_name, formula, display)?;
             }
+            ast::Term::Forget { value, .. } => {
+                flag = self.recur_walk(value, flag, calls, establishes, contract_name, formula, display)?;
+            }
+            ast::Term::Narrow { value, witness, .. } => {
+                flag = self.recur_walk(value, flag, calls, establishes, contract_name, formula, display)?;
+                flag = self.recur_walk(witness, flag, calls, establishes, contract_name, formula, display)?;
+            }
             ast::Term::App(f, args, _) => {
                 flag = self.recur_walk(f, flag, calls, establishes, contract_name, formula, display)?;
                 for a in args {
@@ -12588,6 +12644,11 @@ impl Checker {
                 }
             }
             ast::Term::Ann(e, _, _) | ast::Term::Proj(e, _, _) => self.for_each_span(e, f),
+            ast::Term::Forget { value, .. } => self.for_each_span(value, f),
+            ast::Term::Narrow { value, witness, .. } => {
+                self.for_each_span(value, f);
+                self.for_each_span(witness, f);
+            }
             ast::Term::Infix(ts, _, s) | ast::Term::Tuple(ts, s) | ast::Term::List(ts, s) => {
                 f(s);
                 for x in ts {
@@ -16024,6 +16085,13 @@ impl Checker {
             | ast::Term::CpsWrap(body, _)
             | ast::Term::Quote { body, .. }
             | ast::Term::Splice { body, .. } => self.expand_macros_in_term(cx, module, body),
+            ast::Term::Forget { value, .. } => {
+                self.expand_macros_in_term(cx, module, value)
+            }
+            ast::Term::Narrow { value, witness, .. } => {
+                self.expand_macros_in_term(cx, module, value)?;
+                self.expand_macros_in_term(cx, module, witness)
+            }
             ast::Term::Let(decls, body, _) | ast::Term::Letrec(decls, body, _) => {
                 for d in decls {
                     self.expand_macros_in_local(cx, module, d)?;
@@ -16427,6 +16495,11 @@ fn term_has_macro_call(t: &ast::Term) -> bool {
             | ast::Term::CpsWrap(b, _)
             | ast::Term::Quote { body: b, .. }
             | ast::Term::Splice { body: b, .. } => walk(b, found),
+            ast::Term::Forget { value, .. } => walk(value, found),
+            ast::Term::Narrow { value, witness, .. } => {
+                walk(value, found);
+                walk(witness, found);
+            }
             ast::Term::Let(decls, b, _) | ast::Term::Letrec(decls, b, _) => {
                 for d in decls {
                     match d {
@@ -16639,6 +16712,15 @@ fn stamp_term_spans(t: &mut ast::Term, site: &crate::lexer::ExpSite) {
         | ast::Term::CpsWrap(body, s) => {
             stamp(s);
             stamp_term_spans(body, site);
+        }
+        ast::Term::Forget { value, span: s, .. } => {
+            stamp(s);
+            stamp_term_spans(value, site);
+        }
+        ast::Term::Narrow { value, witness, span: s, .. } => {
+            stamp(s);
+            stamp_term_spans(value, site);
+            stamp_term_spans(witness, site);
         }
         ast::Term::If { cond: a, then: b, els: c, span: s, .. } => {
             stamp(s);

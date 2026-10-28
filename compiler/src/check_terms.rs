@@ -798,6 +798,181 @@ impl Checker {
                 let core = self.check(env, e, &t)?;
                 Ok((core, t))
             }
+            ast::Term::Forget { atoms, value, span } => {
+                // Partial weakening (refinement types design): the
+                // value's refinement predicate minus the named
+                // top-level conjuncts, at zero runtime cost (the same
+                // word; the dropped evidence is simply no longer
+                // required).
+                let (core, vty) = self.infer(env, value)?;
+                let vty = self.uni.zonk(&vty);
+                let view = self.refine_view(&vty).ok_or_else(|| {
+                    Error::at(
+                        *span,
+                        format!(
+                            "`forget` gives up conjuncts of a refinement's predicate, but this is {vty} (a plain container carries no predicate; `unrefine` projects a refined value to its container)"
+                        ),
+                    )
+                })?;
+                let conj = pred_conjuncts(&view.pred);
+                let mut keep: Vec<bool> = vec![true; conj.len()];
+                for a in atoms {
+                    let named = self.conv_pred_former(a, &[])?;
+                    for nc in pred_conjuncts(&named) {
+                        let mut found = false;
+                        for (i, c) in conj.iter().enumerate() {
+                            if keep[i] && pred_alpha_eq(c, &nc) {
+                                keep[i] = false;
+                                found = true;
+                                break;
+                            }
+                        }
+                        if !found {
+                            return Err(Error::at(
+                                *span,
+                                format!(
+                                    "`forget` gives up `{nc}`, which is not a top-level conjunct of `{}` (it operates on top-level conjuncts only; a structural drop inside a disjunction or a comparison goes through an ascription)",
+                                    view.pred
+                                ),
+                            ));
+                        }
+                    }
+                }
+                let rest: Vec<PTerm> = conj
+                    .iter()
+                    .enumerate()
+                    .filter(|(i, _)| keep[*i])
+                    .map(|(_, c)| c.clone())
+                    .collect();
+                if rest.is_empty() {
+                    return Err(Error::at(
+                        *span,
+                        "`forget` keeps at least one conjunct (forgetting every conjunct reaches the container: `unrefine` is the explicit forgetful arrow, a different direction never conflated with weakening)",
+                    ));
+                }
+                let mut it = rest.into_iter();
+                let mut pred = it.next().expect("nonempty");
+                for c in it {
+                    pred = PTerm::And(Box::new(pred), Box::new(c));
+                }
+                let mut args = vec![Ty::Prp(Box::new(pred))];
+                if let Some(b) = view.base {
+                    args.push(b);
+                }
+                Ok((core, Ty::Adt("refined".to_string(), args)))
+            }
+            ast::Term::Narrow { value, target, witness, span } => {
+                // The checked strengthening cast (refinement types
+                // design, "narrowings"): always checked, carrying a
+                // `Dec` of the stronger predicate through the same
+                // evidence path as the transparent constructor (a
+                // forged or stale witness is refused exactly so).
+                let (core, vty) = self.infer(env, value)?;
+                let vty = self.uni.zonk(&vty);
+                let t = self.conv_type(target, &[])?;
+                let tv = self.refine_view(&t).ok_or_else(|| {
+                    Error::at(
+                        target.span(),
+                        format!(
+                            "`narrow` strengthens to a refinement (`refined P T` or a named refinement), but this is {t} (the transparent constructor builds a refined value from its container)"
+                        ),
+                    )
+                })?;
+                let sv = self.refine_view(&vty).ok_or_else(|| {
+                    Error::at(
+                        value.span(),
+                        format!(
+                            "`narrow` moves along the refinement lattice, but this value is at the plain container {vty} (the transparent constructor builds a refined value from its container; weakening along the lattice is implicit)"
+                        ),
+                    )
+                })?;
+                // The target keeps every fact the value carries:
+                // `narrow` never forgets (dropping goes through
+                // `forget` or an ascription).
+                if !pred_implies(&tv.pred, &sv.pred) {
+                    return Err(Error::at(
+                        *span,
+                        format!(
+                            "`narrow` strengthens along the lattice: the target's `{}` must imply the value's `{}` (the stronger point keeps every fact the value carries); drop conjuncts with `forget` or an ascription",
+                            tv.pred, sv.pred
+                        ),
+                    ));
+                }
+                if let (Some(a), Some(b)) = (&sv.base, &tv.base) {
+                    self.uni
+                        .unify(a, b)
+                        .map_err(|m| Error::at(*span, format!("`narrow`: {m}")))?;
+                }
+                // The stronger predicate speaks about the value (the
+                // transparent constructor's rule): the witness is
+                // evidence about the value's own index.
+                let idx = self.idx_of_term(value, env).map_err(|e| {
+                    Error::at(
+                        value.span(),
+                        format!(
+                            "`narrow`'s value must be expressible as an index value (the stronger predicate speaks about it): {}",
+                            e.message
+                        ),
+                    )
+                })?;
+                let mut target_pred = tv.pred.clone();
+                let mut frees = Vec::new();
+                target_pred.free_vars(&mut frees);
+                for v in frees {
+                    target_pred = target_pred.subst(&v, &idx);
+                }
+                if matches!(&**witness, ast::Term::Hole(_)) {
+                    return Err(Error::at(
+                        *span,
+                        format!(
+                            "`narrow` carries a `Dec` of the stronger predicate `{}` (pass it with `with w`: discharged statically where the implication table decides, or through the `Dec`/`decide` evidence path); weakening to a weaker point is implicit and needs no evidence",
+                            target_pred
+                        ),
+                    ));
+                }
+                let prop = Ty::Prp(Box::new(target_pred.clone()));
+                let decide_shaped = matches!(&**witness, ast::Term::App(f, dargs, _)
+                    if dargs.len() == 1
+                        && matches!(&**f, ast::Term::Var(p)
+                            if p.quals.is_empty() && p.name.text == "decide"));
+                if decide_shaped {
+                    let dec_ty = Ty::Adt("Dec".into(), vec![prop]);
+                    self.check(env, witness, &dec_ty)?;
+                    match self.static_obligation(&target_pred)? {
+                        ObligStatus::Checked => {}
+                        ObligStatus::Disproved => {
+                            return Err(Error::at(
+                                witness.span(),
+                                format!(
+                                    "the discharge `{}` is disproved: no refined value can be constructed here (a failed check must not produce evidence)",
+                                    target_pred
+                                ),
+                            ))
+                        }
+                        ObligStatus::Timeout => {
+                            return Err(Error::at(
+                                witness.span(),
+                                format!(
+                                    "the discharge `{}` ran out of reduction steps at this construction (none of these outcomes is a proof)",
+                                    target_pred
+                                ),
+                            ))
+                        }
+                        ObligStatus::Unsupported | ObligStatus::Unresolved => {
+                            return Err(Error::at(
+                                witness.span(),
+                                format!(
+                                    "the discharge `{}` is not decided at this construction: discharge it in the `Dec`/`decide` world (`case decide ({}) of Yes w -> ...`) and pass the witness",
+                                    target_pred, target_pred
+                                ),
+                            ))
+                        }
+                    }
+                } else {
+                    self.check(env, witness, &prop)?;
+                }
+                Ok((core, t))
+            }
             ast::Term::Infix(_, _, span) => Err(Error::at(
                 *span,
                 "internal error: unresolved infix chain reached the checker",
@@ -2095,14 +2270,18 @@ impl Checker {
         let no = ECore::Ctor(fn_id("<builtin>", "No"));
         let dec_ty = |p: PTerm| Ty::Adt("Dec".into(), vec![Ty::Prp(Box::new(p))]);
         match t {
-            ast::Term::App(f, args, _) if args.len() == 2 => {
-                let is_and = match &**f {
-                    ast::Term::Var(p) if p.quals.is_empty() && p.name.text == "&&" => true,
-                    ast::Term::Var(p) if p.quals.is_empty() && p.name.text == "||" => false,
+            // `P && Q` and `P || Q` are the short-circuiting `if`
+            // forms the surface reduces them to (primitive types
+            // specification section 10): the components decide
+            // through the same machinery.
+            ast::Term::If { cond, then, els, .. } => {
+                let (is_and, la, ra) = match (&**els, &**then) {
+                    (ast::Term::Con(p), q) if p.parts() == ["False"] => (true, &**cond, q),
+                    (q, ast::Term::Con(p)) if p.parts() == ["True"] => (false, &**cond, q),
                     _ => return Ok(None),
                 };
-                let (lc, lty) = self.infer(env, &sub(&args[0]))?;
-                let (rc, rty) = self.infer(env, &sub(&args[1]))?;
+                let (lc, lty) = self.infer(env, &sub(la))?;
+                let (rc, rty) = self.infer(env, &sub(ra))?;
                 let lp = dec_prop(&self.uni.zonk(&lty))?;
                 let rp = dec_prop(&self.uni.zonk(&rty))?;
                 let prop = if is_and {
@@ -2523,6 +2702,11 @@ impl Checker {
     fn idx_of_term(&self, t: &ast::Term, env: &Env) -> Result<ITerm> {
         Ok(match t {
             ast::Term::Int(d, _) => ITerm::Num(d.clone()),
+            // A char literal in index position is its code point (the
+            // `Char` scalar's word).
+            ast::Term::Char(s, span) => {
+                ITerm::Num(char_literal_word(s, *span)?.to_string())
+            }
             ast::Term::Ann(e, _, _) => return self.idx_of_term(e, env),
             ast::Term::Neg(inner, span) => match neg_fold(inner) {
                 Some(v) => ITerm::Num(v),
@@ -2587,10 +2771,12 @@ impl Checker {
                 // reading of the borrowed location: a proposition over it
                 // is a refinement guarantee about that location, valid
                 // until the location is written (evidence invalidation
-                // over mutable state).
+                // over mutable state). `unrefine e` in index position is
+                // the value itself (the refinement's runtime
+                // representation IS its container).
                 if let ast::Term::Var(p) = &**f {
                     if p.quals.is_empty()
-                        && matches!(p.name.text.as_str(), "copyOut" | "borrow" | "mutBorrow")
+                        && matches!(p.name.text.as_str(), "copyOut" | "borrow" | "mutBorrow" | "unrefine")
                         && args.len() == 1
                     {
                         return self.idx_of_term(&args[0], env);
@@ -3345,9 +3531,47 @@ impl Checker {
                 }
                 status
             }
-            // No text literal exists in index position: `Ascii` decides
-            // at runtime (`decide`) and over law samples only.
-            PredFn::Ascii => ObligStatus::Unresolved,
+            // A list of chars decides structurally over its constructor
+            // spine (every element below 128); no text literal exists in
+            // index position, so a non-spine operand decides at runtime
+            // (`decide`) and over law samples only.
+            PredFn::Ascii => {
+                if self.ctor_form(&it).is_none() {
+                    ObligStatus::Unresolved
+                } else {
+                    let mut cur = it.clone();
+                    let mut status = ObligStatus::Checked;
+                    loop {
+                        match self.ctor_form(&cur) {
+                            Some((ra, _)) if ra == 0 => break,
+                            Some((ra, args)) if ra >= 2 && args.len() >= 2 => {
+                                match self.eval_idx(&args[0], 32) {
+                                    Stuck::Val(v) => {
+                                        if !(0..128).contains(&v) {
+                                            status = ObligStatus::Disproved;
+                                            break;
+                                        }
+                                    }
+                                    Stuck::Timeout => {
+                                        status = ObligStatus::Timeout;
+                                        break;
+                                    }
+                                    Stuck::Stuck => {
+                                        status = ObligStatus::Unresolved;
+                                        break;
+                                    }
+                                }
+                                cur = self.uni.resolve_idx(&args[1]).normalize();
+                            }
+                            _ => {
+                                status = ObligStatus::Unresolved;
+                                break;
+                            }
+                        }
+                    }
+                    status
+                }
+            }
         })
     }
 
@@ -3381,6 +3605,13 @@ impl Checker {
         operand: ECore,
         span: ast::Span,
     ) -> Result<ECore> {
+        // A refined value reads as its container (the runtime
+        // representation IS the container).
+        let oty_owned = self
+            .refine_view(oty)
+            .and_then(|v| v.base)
+            .unwrap_or_else(|| oty.clone());
+        let oty = &oty_owned;
         Ok(match pf {
             PredFn::NonZero => {
                 // `x /= 0`: the numeric comparison test, exactly the
@@ -3454,8 +3685,23 @@ impl Checker {
                 }
             }
             PredFn::Ascii => {
-                // The byte scan over the text's bytes (`String` projects
-                // its `Bytes` backing field).
+                // The char scan over a list spine, or the byte scan
+                // over the text's bytes (`String` projects its `Bytes`
+                // backing field).
+                let list = match oty {
+                    Ty::Adt(name, args)
+                        if name != "String"
+                            && self.list_shaped(name) =>
+                    {
+                        let _ = args;
+                        Some(name.clone())
+                    }
+                    _ => None,
+                };
+                if let Some(name) = list {
+                    let gid = self.install_ascii_char_test(&name, span)?;
+                    return Ok(ECore::App(Box::new(ECore::Global(gid)), vec![operand]));
+                }
                 let bytes = match oty {
                     Ty::Bytes => operand,
                     Ty::Adt(name, _) if name == "String" => ECore::Proj(
@@ -3466,7 +3712,7 @@ impl Checker {
                         return Err(Error::at(
                             span,
                             format!(
-                                "`Ascii` decides text values (`String`), not `{other}` (a wrong predicate for this value is refused naming the predicate)"
+                                "`Ascii` decides text values (`String`) and lists of chars, not `{other}` (a wrong predicate for this value is refused naming the predicate)"
                             ),
                         ))
                     }
@@ -3556,6 +3802,78 @@ impl Checker {
             meta: crate::core::FnMeta::default(),
         });
         gid
+    }
+
+    /// The scan behind `decide (Ascii xs)` over a list of chars: every
+    /// element's code point is below 128, a recursive unit over the
+    /// list's constructor spine (a baked test).
+    fn install_ascii_char_test(
+        &mut self,
+        type_name: &str,
+        span: ast::Span,
+    ) -> Result<GlobalId> {
+        let shapes = self.ctor_shapes(type_name).unwrap_or_default();
+        let mut empty: Option<usize> = None;
+        let mut cons: Option<usize> = None;
+        for (tag, ra) in shapes {
+            if ra == 0 && empty.is_none() {
+                empty = Some(tag);
+            } else if ra == 2 && cons.is_none() {
+                cons = Some(tag);
+            }
+        }
+        let (Some(nil_tag), Some(cons_tag)) = (empty, cons) else {
+            return Err(Error::at(
+                span,
+                format!(
+                    "`Ascii` decides a list of chars (an empty constructor and an element-tail constructor), and {type_name} is not that shape (a wrong predicate for this value is refused naming the predicate)"
+                ),
+            ));
+        };
+        let gid = GlobalId(format!("<builtin>.refine-ascii-chars-{}", self.fns.len()));
+        // Params: the list word (LocalId 0). Inner binders: head and
+        // tail of the cons (1, 2).
+        let elem_ok = Core::App(
+            Box::new(Core::Prim(PrimOp::Cmp {
+                ty: Scalar::Char,
+                op: CmpOp::Lt,
+            })),
+            vec![Core::Var(LocalId(1)), Core::Int(128)],
+        );
+        let recur = Core::App(
+            Box::new(Core::Global(gid.clone())),
+            vec![Core::Var(LocalId(2))],
+        );
+        let body = Core::Case {
+            scrut: Box::new(Core::Var(LocalId(0))),
+            alts: vec![
+                CAlt::new(
+                    CPat::Con { tag: nil_tag, fields: Vec::new() },
+                    Core::Bool(true),
+                ),
+                CAlt::new(
+                    CPat::Con {
+                        tag: cons_tag,
+                        fields: vec![LocalId(1), LocalId(2)],
+                    },
+                    Core::If(
+                        Box::new(elem_ok),
+                        CBranch::new(recur),
+                        CBranch::new(Core::Bool(false)),
+                    ),
+                ),
+            ],
+        };
+        self.fns.push(FnDef {
+            id: gid.clone(),
+            params: vec!["xs".to_string()],
+            body,
+            prim: None,
+            ctor: None,
+            hints: crate::core::FnHints::default(),
+            meta: crate::core::FnMeta::default(),
+        });
+        Ok(gid)
     }
 
     /// The scan behind `decide (Ordered xs)`: every adjacent pair of
@@ -4027,13 +4345,32 @@ impl Checker {
     /// baked tests apply to values whose shape the type states). `None`
     /// hands the operand to the ordinary source path below.
     fn measure_shape(&mut self, env: &Env, arg: &ast::Term) -> Option<MeasureShape> {
+        // `unrefine e` and borrow reads are the value itself at
+        // runtime (the refinement's runtime representation IS its
+        // container), so the measure reads their operand's shape.
+        let mut arg = arg;
+        while let ast::Term::App(f, args, _) = arg {
+            if args.len() == 1
+                && matches!(&**f, ast::Term::Var(p)
+                    if p.quals.is_empty()
+                        && matches!(p.name.text.as_str(), "copyOut" | "borrow" | "mutBorrow" | "unrefine"))
+            {
+                arg = &args[0];
+            } else {
+                break;
+            }
+        }
         let ast::Term::Var(p) = arg else { return None };
         if !p.quals.is_empty() {
             return None;
         }
         let (_, s) = env.lookup(&p.name.text)?;
         let (t, _, _) = self.instantiate(&s);
-        match self.uni.zonk(&t) {
+        let t = self.uni.zonk(&t);
+        // A refined value measures as its container (the runtime
+        // representation IS the container).
+        let t = self.refine_view(&t).and_then(|v| v.base).unwrap_or(t);
+        match t {
             Ty::Bytes => Some(MeasureShape::Bytes),
             Ty::Adt(name, _) => {
                 // A list spine: an empty constructor and a two-field
@@ -4086,7 +4423,15 @@ impl Checker {
                 match self.measure_shape(env, arg) {
                     Some(MeasureShape::Bytes) => {
                         let bytes_ty = Ty::Bytes;
-                        let ac = self.check(env, arg, &bytes_ty)?;
+                        let (ac, aty) = self.infer(env, arg)?;
+                        let aty = self.uni.zonk(&aty);
+                        let shape = self
+                            .refine_view(&aty)
+                            .and_then(|v| v.base)
+                            .unwrap_or(aty);
+                        self.uni.unify(&shape, &bytes_ty).map_err(|m| {
+                            Error::at(t.span(), m)
+                        })?;
                         self.uni.unify(expected, &Ty::Nat).map_err(|m| {
                             Error::at(t.span(), m)
                         })?;
@@ -4098,7 +4443,17 @@ impl Checker {
                     Some(MeasureShape::List(tname)) => {
                         let gid = self.install_length_test(&tname, t.span())?;
                         let want = Ty::Adt(tname, vec![self.uni.fresh()]);
-                        let ac = self.check(env, arg, &want)?;
+                        let (ac, aty) = self.infer(env, arg)?;
+                        let aty = self.uni.zonk(&aty);
+                        // A refined value measures as its container (the
+                        // runtime representation IS the container).
+                        let shape = self
+                            .refine_view(&aty)
+                            .and_then(|v| v.base)
+                            .unwrap_or(aty);
+                        self.uni.unify(&shape, &want).map_err(|m| {
+                            Error::at(t.span(), m)
+                        })?;
                         self.uni.unify(expected, &Ty::Nat).map_err(|m| {
                             Error::at(t.span(), m)
                         })?;
@@ -6842,6 +7197,11 @@ impl Checker {
                     }
                 }
                 ast::Term::Ann(e, _, _) | ast::Term::Proj(e, _, _) => walk(chk, e, found),
+                ast::Term::Forget { value, .. } => walk(chk, value, found),
+                ast::Term::Narrow { value, witness, .. } => {
+                    walk(chk, value, found);
+                    walk(chk, witness, found);
+                }
                 ast::Term::Infix(ts, _, _) => {
                     for x in ts {
                         walk(chk, x, found);
@@ -7025,6 +7385,8 @@ impl Checker {
             | ast::Term::Record(_, _, _)
             | ast::Term::Proj(_, _, _)
             | ast::Term::CapApply { .. }
+            | ast::Term::Forget { .. }
+            | ast::Term::Narrow { .. }
             | ast::Term::Infix(_, _, _) => self.cps_rebuild(env, term, kv),
             ast::Term::Var(_)
             | ast::Term::Con(_)
@@ -7103,6 +7465,27 @@ impl Checker {
     /// pair unifies exactly, so borrowed data is never claimed as owned
     /// and allocator identities never convert.
     fn unify_arg(&mut self, inferred: &Ty, expected: &Ty) -> std::result::Result<(), String> {
+        // Weakening along the refinement lattice (refinement types
+        // design, "narrowings and the implication theory"): a `refined
+        // p` value IS a `refined q` value whenever the table derives `p
+        // implies q`, at zero cost (the same word). The reverse
+        // direction is never implicit: strengthening goes through
+        // `narrow` with a `Dec`.
+        if let (Some(iv), Some(ev)) = (self.refine_view(inferred), self.refine_view(expected)) {
+            let base_ok = match (&iv.base, &ev.base) {
+                (Some(a), Some(b)) => self.uni.conv_eq(a, b),
+                _ => true,
+            };
+            if base_ok {
+                if pred_implies(&iv.pred, &ev.pred) {
+                    return Ok(());
+                }
+                return Err(format!(
+                    "a `{}` value does not flow to `{}`: the implication table cannot derive `{}` implies `{}` (weakening is implicit and free where implication is decidable; strengthen with `narrow` and a `Dec`, or weaken by ascription to a point the table derives)",
+                    inferred, expected, iv.pred, ev.pred
+                ));
+            }
+        }
         if let (
             Ty::Ptr { role: ar, pointee: ap },
             Ty::Ptr { role: pr, pointee: pp },
@@ -8442,6 +8825,10 @@ impl Checker {
 fn immediate_subterms(t: &ast::Term) -> Vec<ast::Term> {
     match t {
         ast::Term::Ann(e, _, _) | ast::Term::Proj(e, _, _) => vec![(**e).clone()],
+        ast::Term::Forget { value, .. } => vec![(**value).clone()],
+        ast::Term::Narrow { value, witness, .. } => {
+            vec![(**value).clone(), (**witness).clone()]
+        }
         ast::Term::Tuple(items, _) | ast::Term::List(items, _) => items.clone(),
         ast::Term::Map(kvs, _) => {
             kvs.iter().flat_map(|(k, v)| [k.clone(), v.clone()]).collect()
@@ -8478,6 +8865,17 @@ fn replace_subterms(t: &ast::Term, names: &[String]) -> ast::Term {
         ast::Term::Ann(_, ty, s) => {
             ast::Term::Ann(Box::new(mk(&names[0])), ty.clone(), *s)
         }
+        ast::Term::Forget { atoms, span: s, .. } => ast::Term::Forget {
+            atoms: atoms.clone(),
+            value: Box::new(mk(&names[0])),
+            span: *s,
+        },
+        ast::Term::Narrow { target, span: s, .. } => ast::Term::Narrow {
+            value: Box::new(mk(&names[0])),
+            target: target.clone(),
+            witness: Box::new(mk(&names[1])),
+            span: *s,
+        },
         ast::Term::Proj(_, f, s) => {
             ast::Term::Proj(Box::new(mk(&names[0])), f.clone(), *s)
         }

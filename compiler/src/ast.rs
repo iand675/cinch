@@ -443,6 +443,25 @@ pub enum Term {
     /// A template hole standing for a spliced value (elaboration of
     /// quotations; never produced by the parser).
     SpliceHole { idx: usize, span: Span },
+    /// `forget p from e` / `forget [p1, p2] from e` (refinement types
+    /// design, "partial weakening"): the value at its refinement's
+    /// predicate minus the named top-level conjuncts, at zero runtime
+    /// cost (the dropped evidence is simply no longer required).
+    Forget {
+        /// The named conjuncts being given up (a predicate or a list).
+        atoms: Vec<Type>,
+        value: Box<Term>,
+        span: Span,
+    },
+    /// `narrow e to T with w` (refinement types design, "narrowings"):
+    /// the checked strengthening cast along the refinement lattice,
+    /// carrying a `Dec` of the stronger predicate.
+    Narrow {
+        value: Box<Term>,
+        target: Type,
+        witness: Box<Term>,
+        span: Span,
+    },
 }
 
 impl Term {
@@ -464,6 +483,8 @@ impl Term {
             | Term::Ann(_, _, s)
             | Term::Infix(_, _, s)
             | Term::Neg(_, s)
+            | Term::Forget { span: s, .. }
+            | Term::Narrow { span: s, .. }
             | Term::Tuple(_, s)
             | Term::List(_, s)
             | Term::Map(_, s)
@@ -1095,6 +1116,11 @@ pub fn collect_term_refs(t: &Term, out: &mut Vec<RefSite>) {
             }
         }
         Term::Ann(e, _, _) => collect_term_refs(e, out),
+        Term::Forget { value, .. } => collect_term_refs(value, out),
+        Term::Narrow { value, witness, .. } => {
+            collect_term_refs(value, out);
+            collect_term_refs(witness, out);
+        }
         Term::Infix(ts, _, _) => {
             for x in ts {
                 collect_term_refs(x, out);
@@ -1776,6 +1802,20 @@ pub fn hyg_term(t: &Term, cx: &mut HygCx, sc: &mut HygScope) -> Result<Term> {
             Term::Case(Box::new(scrut), out, *s)
         }
         Term::Ann(e, ty, s) => Term::Ann(Box::new(hyg_term(e, cx, sc)?), hyg_type(ty, cx, sc)?, *s),
+        Term::Forget { atoms, value, span } => Term::Forget {
+            atoms: atoms
+                .iter()
+                .map(|t| hyg_type(t, cx, sc))
+                .collect::<Result<Vec<_>>>()?,
+            value: Box::new(hyg_term(value, cx, sc)?),
+            span: *span,
+        },
+        Term::Narrow { value, target, witness, span } => Term::Narrow {
+            value: Box::new(hyg_term(value, cx, sc)?),
+            target: hyg_type(target, cx, sc)?,
+            witness: Box::new(hyg_term(witness, cx, sc)?),
+            span: *span,
+        },
         Term::Infix(ts, ops, s) => {
             let mut out = Vec::new();
             for x in ts {
@@ -2212,6 +2252,17 @@ pub fn subst_holes(t: &Term, vals: &[Term]) -> Term {
             *s,
         ),
         Term::Ann(e, ty, s) => Term::Ann(Box::new(subst_holes(e, vals)), ty.clone(), *s),
+        Term::Forget { atoms, value, span } => Term::Forget {
+            atoms: atoms.clone(),
+            value: Box::new(subst_holes(value, vals)),
+            span: *span,
+        },
+        Term::Narrow { value, target, witness, span } => Term::Narrow {
+            value: Box::new(subst_holes(value, vals)),
+            target: target.clone(),
+            witness: Box::new(subst_holes(witness, vals)),
+            span: *span,
+        },
         Term::Infix(ts, ops, s) => {
             Term::Infix(ts.iter().map(|x| subst_holes(x, vals)).collect(), ops.clone(), *s)
         }
@@ -2476,6 +2527,11 @@ pub fn collect_template_holes(t: &mut Term, holes: &mut Vec<HoleExpr>) {
             }
         }
         Term::Ann(e, _, _) => collect_template_holes(e, holes),
+        Term::Forget { value, .. } => collect_template_holes(value, holes),
+        Term::Narrow { value, witness, .. } => {
+            collect_template_holes(value, holes);
+            collect_template_holes(witness, holes);
+        }
         Term::Infix(ts, _, _) => {
             for x in ts {
                 collect_template_holes(x, holes);
