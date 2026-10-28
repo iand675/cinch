@@ -6747,6 +6747,10 @@ impl Checker {
         for ob in &pres {
             self.check_preservation(ob)?;
         }
+        // Refinement transfers resolved at uses (refinement types
+        // design, "composability"): the point's preservation and
+        // postcondition rows beside the declared instances' rows.
+        self.check_transfers()?;
         Ok(())
     }
 
@@ -7034,6 +7038,13 @@ impl Checker {
             match self.pred_value(&r.pred, &r.binder, &value) {
                 Some(true) => checked += 1,
                 Some(false) => {
+                    // Preservation is per conjunct (compound predicates
+                    // design): the failure names the conjunct that does
+                    // not survive.
+                    let failing = pred_conjuncts(&r.pred)
+                        .into_iter()
+                        .find(|c| self.pred_value(c, &r.binder, &value) == Some(false))
+                        .unwrap_or_else(|| r.pred.clone());
                     let mut sample_text = String::new();
                     for i in 0..ob.arg_tys.len() {
                         if !sample_text.is_empty() {
@@ -7053,7 +7064,7 @@ impl Checker {
                             sample_text,
                             ob.method,
                             law_value_render(&value),
-                            r.pred
+                            failing
                         ),
                     ));
                 }
@@ -7215,7 +7226,7 @@ impl Checker {
                     arg_tys.push(*dom);
                     cur = *cod;
                 }
-                other => break other,
+                _ => break,
             }
         }
         // Samples of each argument: the point's own samples plus the
@@ -7837,6 +7848,21 @@ impl Checker {
                 Value::Bytes(std::rc::Rc::new(std::cell::RefCell::new(vec![65, 66]))),
                 Value::Bytes(std::rc::Rc::new(std::cell::RefCell::new(vec![200]))),
             ],
+            Ty::Adt(name, args) if name == "refined" => {
+                // An anonymous lattice point (the `refined P T` former):
+                // the container's samples its predicate decides true,
+                // the same rule as a named refinement's.
+                match args.as_slice() {
+                    [Ty::Prp(p), base] => {
+                        let binder = pred_binder(p);
+                        self.law_samples(base, depth)
+                            .into_iter()
+                            .filter(|s| self.pred_value(p, &binder, s) == Some(true))
+                            .collect()
+                    }
+                    _ => Vec::new(),
+                }
+            }
             Ty::Adt(name, args) => {
                 if depth == 0 {
                     return Vec::new();

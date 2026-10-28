@@ -682,12 +682,30 @@ impl Checker {
                     let fresh = self.uni.fresh();
                     return self.ctor_app(env, p, args, &fresh, *span);
                 }
+                // A `using` context's refinement obligations discharge
+                // at the call's arguments (refinement types design,
+                // "instance heads at refinements"): a signature's own
+                // obligations now, an instance's after resolution.
+                let callee_obligs = match &**f {
+                    ast::Term::Var(p) if p.quals.is_empty() => match env.lookup(&p.name.text) {
+                        Some((_, s)) => s.obligs.clone(),
+                        None => self
+                            .resolve_var(p, p.span())
+                            .map(|v| v.scheme.obligs.clone())
+                            .unwrap_or_default(),
+                    },
+                    _ => Vec::new(),
+                };
+                self.app_callee_depth += 1;
                 let (mut core, mut ty) = self.infer(env, f)?;
+                self.app_callee_depth -= 1;
                 // A callee that writes memory at an unknown target (a
                 // foreign call, `eval`, a mutating `Bytes` primitive) is an
                 // opaque write that invalidates all mutable-location
                 // evidence (evidence invalidation over mutable state).
                 self.note_opaque_write_from(&core, *span);
+                let mut call_args: Vec<(Option<ITerm>, Ty, ast::Span)> = Vec::new();
+                let mut call_binders: Vec<(String, ITerm, Ty)> = Vec::new();
                 for a in args {
                     ty = self.uni.zonk(&ty);
                     let (arg_core, cod) = match ty {
@@ -695,6 +713,11 @@ impl Checker {
                             self.perform(&eff)?;
                             let erased = matches!(self.uni.zonk(&dom), Ty::Prp(_) | Ty::Sort(_));
                             let c = self.check(env, a, &dom)?;
+                            call_args.push((
+                                self.idx_of_term(a, env).ok(),
+                                self.uni.zonk(&dom),
+                                a.span(),
+                            ));
                             // Record writes after the argument, so the
                             // domain's region has unified with the passed
                             // borrow's region.
@@ -721,6 +744,8 @@ impl Checker {
                                     ),
                                 )
                             })?;
+                            call_args.push((Some(subst.clone()), self.uni.zonk(&dom), a.span()));
+                            call_binders.push((var.clone(), subst.clone(), self.uni.zonk(&dom)));
                             (if erased { None } else { Some(c) }, cod.subst_idx(&var, &subst))
                         }
                         Ty::Meta(_) => {
@@ -744,6 +769,53 @@ impl Checker {
                         core = app_spine(core, vec![c]);
                     }
                     ty = cod;
+                }
+                // A signature's refinement obligations discharge at the
+                // call (the `Dec` evidence path); a method call's
+                // instance obligations record for the discharge after
+                // resolution.
+                if !callee_obligs.is_empty() {
+                    for o in &callee_obligs {
+                        let crate::types::PropOblig::Pred(p) = o else {
+                            continue;
+                        };
+                        let mut fv = Vec::new();
+                        p.free_vars(&mut fv);
+                        let mut inst = p.clone();
+                        for v in &fv {
+                            match call_binders.iter().find(|(b, _, _)| b == v) {
+                                Some((_, it, _)) => inst = inst.subst(v, it),
+                                None => {
+                                    return Err(Error::at(
+                                        *span,
+                                        format!(
+                                            "the refinement obligation `{p}` must be discharged at this call: apply this function to all of its arguments here (an obligation-bearing function must be fully applied)"
+                                        ),
+                                    ))
+                                }
+                            }
+                        }
+                        let static_ok = call_binders.iter().any(|(b, _, ty)| {
+                            fv.contains(b) && self.static_discharge(ty, &inst)
+                        });
+                        if static_ok {
+                            continue;
+                        }
+                        let ev = self.evidence_in(env);
+                        self.discharge_oblig(&ev, &inst, *span)?;
+                    }
+                }
+                if let Some(want) = callee_want(&core) {
+                    self.prop_calls.push(PropCall {
+                        want,
+                        args: call_args,
+                        evidence: self.evidence_in(env),
+                        residual_fun: matches!(
+                            self.uni.zonk(&ty),
+                            Ty::Fun(..) | Ty::Pi { .. } | Ty::Meta(_)
+                        ),
+                        span: *span,
+                    });
                 }
                 Ok((core, ty))
             }
@@ -4605,6 +4677,18 @@ impl Checker {
             _ => {}
         }
         let (ty, ctx, val_args) = self.instantiate(&v.scheme);
+        // A function whose `using` context states refinement
+        // obligations constrains its callers: it must be applied
+        // directly (the obligations discharge at its call's arguments).
+        if !v.scheme.obligs.is_empty() && self.app_callee_depth == 0 {
+            return Err(Error::at(
+                span,
+                format!(
+                    "{} must be applied directly: its `using` context states refinement obligations, which discharge at its call's arguments",
+                    v.name
+                ),
+            ));
+        }
         // A `spec`/`proof` definition is erased ghost code: another
         // logical definition may reference it (the termination and cycle
         // checks see those references), but computational code may not
@@ -4666,8 +4750,15 @@ impl Checker {
             ValueKind::Ctor { .. } => ECore::Ctor(fn_id(&v.module, &v.name)),
             ValueKind::Method { idx, .. } => {
                 // The class constraint is `ctx[0]`: it becomes the dictionary
-                // the method is projected from.
+                // the method is projected from. It is a method call's
+                // want: its instance's refinement obligations discharge
+                // at the call's arguments.
                 let dict = holes.remove(0);
+                if let ECore::Hole(want) = &dict {
+                    if let Some(w) = self.wants.iter_mut().find(|w| w.id == *want) {
+                        w.method = true;
+                    }
+                }
                 ECore::DictProj(Box::new(dict), *idx)
             }
             ValueKind::Law => {
@@ -9004,6 +9095,20 @@ fn type_name_str(t: &Ty) -> &str {
     match t {
         Ty::Adt(n, _) => n,
         _ => "",
+    }
+}
+
+/// The method call's dictionary want behind an elaborated callee: the
+/// want's hole under the method projection (possibly applied to the
+/// instance's implicit arguments).
+fn callee_want(core: &ECore) -> Option<usize> {
+    match core {
+        ECore::Hole(id) => Some(*id),
+        ECore::DictProj(h, _) => callee_want(h),
+        ECore::App(f, args) => {
+            callee_want(f).or_else(|| args.iter().find_map(callee_want))
+        }
+        _ => None,
     }
 }
 

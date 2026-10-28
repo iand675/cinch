@@ -1071,9 +1071,12 @@ struct PropCall {
     /// The arguments in order: their values (where a named value stands
     /// for the argument), their types, and their spans.
     args: Vec<(Option<ITerm>, Ty, ast::Span)>,
-    /// The evidence in scope at the call: name, proposition, local, its
-    /// mutable footprint, and its derivation span.
-    evidence: Vec<(String, PTerm, LocalId, Vec<String>, ast::Span)>,
+    /// The evidence in scope at the call: name, proposition, local and
+    /// its mutable footprint.
+    evidence: Vec<(String, PTerm, LocalId, Vec<String>)>,
+    /// The application leaves a function (the method is not fully
+    /// applied: its obligations cannot discharge at this call).
+    residual_fun: bool,
     span: ast::Span,
 }
 
@@ -1216,6 +1219,9 @@ struct Want {
     class: ClassApp,
     span: ast::Span,
     scope: Vec<(LocalId, ClassApp)>,
+    /// A method call's dictionary want (its instance's per-argument
+    /// refinement obligations discharge at the call's arguments).
+    method: bool,
 }
 
 /// A deferred integer literal (primitive types specification, section 7):
@@ -2392,6 +2398,10 @@ struct Checker {
     /// scope at the call, for the discharge after resolution (the `Dec`
     /// evidence path).
     prop_calls: Vec<PropCall>,
+    /// Nonzero while elaborating an application's callee: an
+    /// obligation-bearing value is legal exactly there (its obligations
+    /// discharge at its call's arguments).
+    app_callee_depth: usize,
 }
 
 /// A `generate do` block collected for compile-time execution (staging).
@@ -2677,6 +2687,7 @@ impl Checker {
             transfer_obligs: Vec::new(),
             transfer_seen: HashSet::new(),
             prop_calls: Vec::new(),
+            app_callee_depth: 0,
         }
     }
 
@@ -2894,6 +2905,70 @@ impl Checker {
             return;
         }
         self.ev_uses.push((l, muts, use_span));
+    }
+
+    /// The `Prop`-typed binders in scope at a call (the `Dec` evidence
+    /// path): name, proposition, local and mutable footprint.
+    fn evidence_in(&self, env: &Env) -> Vec<(String, PTerm, LocalId, Vec<String>)> {
+        let mut out = Vec::new();
+        for (name, local, scheme) in &env.locals {
+            let t = self.uni.zonk(&scheme.ty);
+            let Ty::Prp(q) = t else {
+                continue;
+            };
+            let q = self.uni.resolve_prop(&q);
+            let (muts, _) = self.ev_footprint(&q, env);
+            out.push((name.clone(), q, *local, muts));
+        }
+        out
+    }
+
+    /// Discharge one refinement obligation at a call (refinement types
+    /// design, "instance heads at refinements"): the caller supplies
+    /// `Dec` evidence in scope (the `Dec`/`decide` path; D192 staleness
+    /// applies). A binder that establishes a different fact is refused
+    /// as forged evidence; no binder is refused naming the obligation
+    /// and its discharge path.
+    fn discharge_oblig(
+        &mut self,
+        evidence: &[(String, PTerm, LocalId, Vec<String>)],
+        obl: &PTerm,
+        span: ast::Span,
+    ) -> Result<()> {
+        let mut ov: Vec<String> = Vec::new();
+        obl.free_vars(&mut ov);
+        let mut forged: Option<(String, PTerm)> = None;
+        for (name, q, local, muts) in evidence {
+            let mut qv: Vec<String> = Vec::new();
+            q.free_vars(&mut qv);
+            // Entailment over exactly this argument's names: evidence
+            // about another argument proves nothing here.
+            if qv.iter().all(|v| ov.contains(v)) && pred_implies(q, obl) {
+                // Evidence invalidation over mutable state: record the
+                // use; staleness is checked after regions unify.
+                if self.ev_derivs.contains_key(local) && !muts.is_empty() {
+                    self.ev_uses.push((*local, muts.clone(), span));
+                }
+                return Ok(());
+            }
+            if qv.iter().any(|v| ov.contains(v)) {
+                forged = Some((name.clone(), q.clone()));
+            }
+        }
+        if let Some((name, q)) = forged {
+            return Err(Error::at(
+                span,
+                format!(
+                    "`{name}` is evidence of `{q}`, not of `{obl}` (forged evidence is refused: the `Dec`/`decide` world establishes evidence, and it must state this obligation)"
+                ),
+            ));
+        }
+        Err(Error::at(
+            span,
+            format!(
+                "the obligation `{obl}` needs `Dec` evidence at this call (discharge it in the `Dec`/`decide` world: `case decide ({obl}) of Yes w -> ...`, or pass an argument whose refinement implies it): no evidence for `{obl}` is in scope here"
+            ),
+        ))
     }
 
     /// Check every recorded evidence use for staleness (evidence
@@ -6481,6 +6556,7 @@ impl Checker {
             class,
             span,
             scope: env.dicts.clone(),
+            method: false,
         });
         id
     }
@@ -6506,6 +6582,10 @@ impl Checker {
             }
             pending = next;
             if pending.is_empty() {
+                // The recorded method applications' refinement
+                // obligations discharge now that their wants resolved
+                // to instances (the `Dec` evidence path).
+                self.discharge_prop_calls(&wants, &solutions)?;
                 return Ok(solutions);
             }
             if !progress {
@@ -7001,6 +7081,151 @@ impl Checker {
                 method: method.clone(),
                 pred: Checker::subst_pt(pred, sub),
             },
+        }
+    }
+
+    /// Discharge the recorded method applications' per-argument
+    /// refinement obligations now that every want resolved (refinement
+    /// types design, "instance heads at refinements"): statically where
+    /// an argument's refinement implies the obligation, through the
+    /// caller's `Dec` evidence otherwise. A method call whose call form
+    /// did not record its arguments is refused: the obligations of an
+    /// instance are the caller's to establish.
+    fn discharge_prop_calls(
+        &mut self,
+        wants: &[Want],
+        solutions: &HashMap<usize, DictExpr>,
+    ) -> Result<()> {
+        let calls = std::mem::take(&mut self.prop_calls);
+        let mut seen: HashSet<usize> = HashSet::new();
+        for call in calls {
+            seen.insert(call.want);
+            let Some(sol) = solutions.get(&call.want) else {
+                continue;
+            };
+            let DictExpr::Instance(base_id, _) = sol else {
+                // A dictionary supplied by a `using` binder: the
+                // obligations ride on the binder's constraint (its
+                // supplier's callers establish them).
+                continue;
+            };
+            let Some(inst) = self
+                .instance_list
+                .iter()
+                .find(|i| i.base_id == *base_id)
+                .cloned()
+            else {
+                continue;
+            };
+            let obligs: Vec<PTerm> = inst
+                .ctx
+                .iter()
+                .filter_map(|i| match i {
+                    InstCtx::Oblig(PropOblig::Pred(p)) => Some(p.clone()),
+                    _ => None,
+                })
+                .collect();
+            if obligs.is_empty() {
+                continue;
+            }
+            if call.residual_fun {
+                return Err(Error::at(
+                    call.span,
+                    format!(
+                        "the methods of instance `{}` carry refinement obligations ({}): apply the method to all of its arguments here (its obligations discharge at its call's arguments)",
+                        inst.name,
+                        obligs.iter().map(|p| p.to_string()).collect::<Vec<_>>().join(", ")
+                    ),
+                ));
+            }
+            // The obligations apply to every argument of the carrier.
+            let carrier = wants
+                .iter()
+                .find(|w| w.id == call.want)
+                .map(|w| self.uni.zonk_class(&w.class))
+                .and_then(|c| c.args.into_iter().next());
+            for p in &obligs {
+                let binder = pred_binder(p);
+                for (value, ty, aspan) in &call.args {
+                    if let Some(carrier) = &carrier {
+                        if !self.is_carrier_arg(ty, carrier) {
+                            continue;
+                        }
+                    }
+                    let Some(v) = value else {
+                        return Err(Error::at(
+                            *aspan,
+                            format!(
+                                "an obligation-bearing call's argument must be a named value to discharge its obligation `{p}`"
+                            ),
+                        ));
+                    };
+                    let obl = p.subst(&binder, v);
+                    if self.static_discharge(ty, &obl) {
+                        continue;
+                    }
+                    let evidence = call.evidence.clone();
+                    self.discharge_oblig(&evidence, &obl, call.span)?;
+                }
+            }
+        }
+        // A method call whose call form recorded no arguments (an
+        // effect-dispatch call): the obligations cannot discharge.
+        for w in wants {
+            if !w.method || seen.contains(&w.id) {
+                continue;
+            }
+            let Some(DictExpr::Instance(base_id, _)) = solutions.get(&w.id) else {
+                continue;
+            };
+            let Some(inst) = self
+                .instance_list
+                .iter()
+                .find(|i| i.base_id == *base_id)
+                .cloned()
+            else {
+                continue;
+            };
+            let obligs: Vec<PTerm> = inst
+                .ctx
+                .iter()
+                .filter_map(|i| match i {
+                    InstCtx::Oblig(PropOblig::Pred(p)) => Some(p.clone()),
+                    _ => None,
+                })
+                .collect();
+            if obligs.is_empty() {
+                continue;
+            }
+            return Err(Error::at(
+                w.span,
+                format!(
+                    "the methods of instance `{}` carry refinement obligations ({}): this call form is not supported for them (obligations discharge at a direct application's arguments)",
+                    inst.name,
+                    obligs.iter().map(|p| p.to_string()).collect::<Vec<_>>().join(", ")
+                ),
+            ));
+        }
+        Ok(())
+    }
+
+    /// Whether an argument is of the instance's carrier (an instance's
+    /// refinement obligations apply to the values its methods combine).
+    fn is_carrier_arg(&self, ty: &Ty, carrier: &Ty) -> bool {
+        if self.uni.conv_eq(ty, carrier) {
+            return true;
+        }
+        let tb = self.refine_base(ty).unwrap_or_else(|| ty.clone());
+        let cb = self.refine_base(carrier).unwrap_or_else(|| carrier.clone());
+        self.uni.conv_eq(&tb, &cb)
+    }
+
+    /// The static discharge route (the implication table): an argument
+    /// whose refinement implies the obligation owes no evidence.
+    fn static_discharge(&self, ty: &Ty, obl: &PTerm) -> bool {
+        match self.refine_view(ty) {
+            Some(rv) => pred_implies(&rv.pred, obl),
+            None => false,
         }
     }
 
