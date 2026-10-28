@@ -973,6 +973,38 @@ correspondence: one lexeme in expression/pattern, staging `Name`, and
   value binders. The example carries its real proof with one `import
   Data.List` line (Main applied); the assumed-law shortcut stayed
   refused. **The acceptance catalogue is 12/12 as-intended.**
+- **D271-D277 (lattice predicates and movement, reported)**: the
+  predicate grammar admits `&&`/`||` and comparison atoms whose
+  binder occurrences pass only through the baked measures (`length`,
+  `toNat`) and arithmetic (a bare comparison over a non-numeric
+  container is refused naming the measure form); the implication
+  table is sound and deliberately incomplete (alpha-canonical
+  identity, normalized inclusive-interval containment, And/Or
+  intro/elim, the length and non-zero vocabulary rows,
+  range-disjointness refutation; unknown pairs not implied) and lives
+  in `types.rs` as the shared bounded-arithmetic home (`bounded(n)`/
+  `recur` consumers not yet rewired); lattice weakening fires in
+  `unify_arg` (same container plus derived implication means the same
+  word; failure names both predicates and points at `narrow`); the
+  `refined P T` former states its container and a named refinement at
+  the same (container, predicate) is one lattice point;
+  `forget` operates on top-level conjuncts up to binder renaming and
+  refuses dropping the last conjunct (that direction is `unrefine`);
+  `narrow` requires the target predicate to imply the value's (it
+  never forgets), accepts a bare `decide` only when static, and takes
+  case-bound `Yes` evidence otherwise; `decide` keeps refusing runtime
+  negated propositions while a statically decided `Not P` works.
+- **D278-D281 (Cinch rebrand sweep, reported)**: the exported example
+  corpus is content-frozen under the rename (pure `git mv`, hash
+  columns byte-identical; the `SAFELANG_SCHEMA_TOOL` comment residual
+  in 05 flips at the SHA256SUMS re-pin); SHA256SUMS hash values were
+  untouched and five entries plus three docs were already stale
+  before the sweep (content evolved after the export pin) - a re-pin
+  with a README evolution note is queued at P15; the zero-hit rule
+  renamed the unrelated `u.lang` field to `lang_facts` (type name
+  kept); and `render_ast_type` lacked the `Type::Lam` arm the tail
+  slice's index lambdas needed - the user's 4-line fix is restored
+  verbatim as its own commit (`4b7b5df`) and the stash dropped.
 - **D127 (P25 scaffolding ruling)**: FoldAgent's defunctionalized
   class shapes (`Foldable t a`, `Traversable t x g h tg hs`) are
   accepted as NON-CURATED scaffolding: they ship in the `Category`
