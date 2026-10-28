@@ -219,13 +219,20 @@ D-numbers) that amend or interpret this chapter's normative text.
   as `eqI64 (intCmp x y) 0` style and compare the immediate against
   zero with the `I64` prims. This amends section 8's instance table.
 - **`String` and `Bytes` (D13, D88-D89), 2026-10-28.** The runtime text
-  type is `String`, a UTF-8 newtype over `Bytes` declared in the
-  prelude; strings are built from `Bytes`, `Char`, and the formatting
-  functions. 2026-10-28 (D291-D294): string literals are no longer a
-  surface future item - a `"..."` literal in an ordinary term checks
-  as the runtime `String` (constant `Bytes` payload, fresh per
-  evaluation, escapes per the surface grammar) and allocates
-  (the JPL no-allocation fact fires on it). The prelude
+  type is `String`, an immutable UTF-8 newtype over `Bytes` declared
+  in the prelude (the backing never escapes mutably); strings are
+  built from `Bytes`, `Char`, and the formatting functions.
+  2026-10-28 (D291-D294, revised D297-D301): a `"..."` literal in an
+  ordinary term checks as the runtime `String` with the escapes per
+  the surface grammar, as ONE shared read-only data-section constant
+  per site - zero construction, zero allocation. Strings are
+  immutable values: no API exposes the backing mutably
+  (`string-to-bytes` copies out, `string-from-bytes` copies in), the
+  constructor is module-private (`StrBuf`), and mutation exists only
+  on plain `Bytes`; the `Bytes` payload is `repr(C) { len; data }`
+  with read-only `KIND_BYTES_STATIC` buffers faulting `ReadOnly` (71)
+  on `set`. `pack :: List Char -> String` / `unpack :: String ->
+  List Char` live at `Data.String`. The prelude
   `String` library is the REFERENCE SEMANTICS for UTF-8 (validation,
   decoding, encoding, code point indexing); the Rust runtime carries
   SIMD-accelerated implementations of the same rules (`cinch_utf8_*`)

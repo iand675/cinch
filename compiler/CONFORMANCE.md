@@ -73,7 +73,7 @@ needs the checker to consume export tables instead of sources.
 | --- | --- |
 | Rust runtime crate (`cinchruntime` staticlib + rlib) linked into artifacts; fault policy (`BlackHole` 70, panic 71, div-zero 72) | done (60 tests; `compiler/runtime/`; all `cinch_*` externs `#[unsafe(no_mangle)]`) |
 | Mathematical `Nat`/`Int` (bignum) | done (language types on the bignum runtime, unbounded digit-string literals, `Eq`/`Ord`/`Add`/`Sub`/`Mul`, `Neg` for `Int`, truncating `Nat` subtraction, `main :: Int` exit adapter) |
-| `Bytes`, string foundations | done for `Bytes` (`new`/`len`/`get`/`set`, bounds faults at 71); runtime string literals landed (D291-D294: the literal elaborates to the runtime `String` constructor over a constant `Bytes` payload, fresh per evaluation - a static shared buffer is unsound against the mutable D89 buffer; escapes bind to the lexer; the JPL no-allocation fact fires on literals) |
+| `Bytes`, string foundations | done (`new`/`len`/`get`/`set`, bounds faults at 71; the `Boxed<Bytes>` payload is `repr(C) { len; data }` with read-only `KIND_BYTES_STATIC` buffers faulting `ReadOnly` at 71 (D300)); strings are IMMUTABLE values (D297: `string-to-bytes`/`string-from-bytes` copy, mutation lives only on plain `Bytes`; the `StrBuf` constructor is module-private, D298) with `"..."` literals as shared read-only data-section constants (D299: zero construction, zero allocation; `#[no-alloc]`/`jpl` accept literals); `pack`/`unpack` at `Data.String` (D301) |
 
 ### Ownership, multiplicities, regions (P5) — core spec sections 7 and 3
 
@@ -507,7 +507,7 @@ correspondence: one lexeme in expression/pattern, staging `Name`, and
   structural pairs/functions in `Algebra.Group`; `Nat` excluded,
   truncated subtraction); `Text.Show` is created fresh (its instances
   live with the conversion family to avoid an import cycle; `Show
-  Bool`/`Show Ordering` wait for string literals); `Text.Codec` states
+  Bool`/`Show Ordering` landed with string literals (D291)); `Text.Codec` states
   the A6 `encode`/`decode` pair (D65's covered set, round-trip law);
   `Data.Set` is a documented unbalanced BST (duplicate insert keeps one
   copy) and `Data.HashMap` a documented fixed 8-bucket spine (first
@@ -1066,7 +1066,72 @@ correspondence: one lexeme in expression/pattern, staging `Name`, and
   entry ("a stale compiler diagnostic still claims string literals
   are compile-time only") is RESOLVED; the only remaining
   "compile-time only" diagnostic is the `Stage.*` builtin-value
-  refusal, which is correct.
+  refusal, which is correct. (The representation half - per-use
+  construction, literal allocation, distinct buffers - is SUPERSEDED
+  by D297-D301 below; the escape-set, pattern-refusal, and staging
+  decisions remain as written.)
+- **D297-D301 (string immutability revision, user-driven; supersedes
+  the D291-D294 representation)**: **strings are immutable values**
+  (the user: "shouldn't constant strings live in the data section and
+  be immutable? I'm a little concerned about string mutation in place
+  being a thing"). `Data.String` states the contract: no API exposes
+  the backing mutably (`string-to-bytes` copies out,
+  `string-from-bytes` copies in; a unique-consume fast path is future
+  work), mutation exists only on plain `Bytes` (D297). The
+  representation constructor is renamed `StrBuf` and is
+  module-private - the ctor and its pattern were the last
+  mutable-backing exposures, so both construction and destructuring
+  leave the surface; consumers use the conversions (D298). A `"..."`
+  literal is ONE shared read-only data-section constant per site
+  (`ConstString`; zero construction, zero allocation; `Eq` may
+  pointer-compare as a semantics-transparent fast path; sharing is
+  unobservable under immutability) (D299); **the JPL rule flips
+  honestly**: a literal is NOT an allocation, `#[no-alloc]`/`jpl`
+  accept literals (the safety needle is now positive:
+  "verified (0 allocation site(s))"), and the alloc fact fires only
+  at genuine construction. The `Bytes` ABI is re-specced (D300):
+  `repr(C) { len; data }` payload replacing the Rust `Vec<u8>`
+  header (the old comments admitted it was a stdlib implementation
+  detail), new block kind `KIND_BYTES_STATIC` (5) for read-only
+  buffers, and `bytes-set` on one takes a new defined `ReadOnly`
+  fault (71) instead of writing constant data; the reified quotation
+  format gains opcode 19 `CONST_BYTES` (eight bytes per word, little
+  endian), literals in quote bodies encoding as `CTOR` over it with
+  the evaluator materializing fresh heap buffers per run. `pack ::
+  List Char -> String` / `unpack :: String -> List Char` land at
+  `Data.String` in Haskell's terminology (the user's naming call;
+  `Text.Lex`'s old `text` helper is retired in its favor) (D301).
+  The mutation-freshness probe is reversed into an immutability pin
+  (two evaluations share one object; no path can observe mutation).
+  One observed-once flake recorded honestly:
+  `tests/params.rs::value_parameter_is_an_ordinary_binding` failed
+  once under full parallel load and was green in four subsequent
+  runs (params.rs untouched for months).
+- **D295-D296 (P29 incremental recompilation, reported)**: the
+  `incremental` driver module delivers all three Blaze equivalents -
+  `ItemGraph` (REAPER: lazily built, kinded `Surface`/`Body` edges
+  from `.cinchif` export tables and contract-fact nodes, body edges
+  over-approximate so the dirty set can only overshoot),
+  `Session` (INCR: two-phase span-free change classification over
+  surface/body hashes; body-only changes recheck one declaration,
+  surface/contract changes recheck the dependents' closure with a
+  surprise contract flip widening to fixpoint, bounded at 8 rounds;
+  `SessionReport` + a deterministic `build/<entry>.rebuild.json`),
+  and `link_units` (LINK: emission split into declaration-keyed
+  objects (`decl_hash` index), re-placing only changed units,
+  self-repairing on any drift - the cache is advisory by
+  construction, pinned by byte-identity after deletion). Measured
+  (debug, 50-module prelude embedded in every check): cold ~1.7 s,
+  warm/unchanged ~16 ms with ZERO checker runs (the acceptance
+  "graph traversal only" row holds), one-change rechecks one module
+  and re-places 2 of 937 units - wall time stays near cold because
+  the optimizer/emitter are whole-program passes outside the
+  incremental machinery (named honestly as the bottleneck for a
+  future declaration-level slice). The module registers as a
+  `driver.rs` child via `#[path]` for `super::` reach with zero
+  visibility widening (D295); the dirty rule is a conservative
+  superset: surface/contract changes cascade over both edge kinds,
+  body-only changes never propagate (D296).
 - **D127 (P25 scaffolding ruling)**: FoldAgent's defunctionalized
   class shapes (`Foldable t a`, `Traversable t x g h tg hs`) are
   accepted as NON-CURATED scaffolding: they ship in the `Category`
