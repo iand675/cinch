@@ -73,7 +73,7 @@ needs the checker to consume export tables instead of sources.
 | --- | --- |
 | Rust runtime crate (`cinchruntime` staticlib + rlib) linked into artifacts; fault policy (`BlackHole` 70, panic 71, div-zero 72) | done (60 tests; `compiler/runtime/`; all `cinch_*` externs `#[unsafe(no_mangle)]`) |
 | Mathematical `Nat`/`Int` (bignum) | done (language types on the bignum runtime, unbounded digit-string literals, `Eq`/`Ord`/`Add`/`Sub`/`Mul`, `Neg` for `Int`, truncating `Nat` subtraction, `main :: Int` exit adapter) |
-| `Bytes`, string foundations | done for `Bytes` (`new`/`len`/`get`/`set`, bounds faults at 71); string literals stay rejected until the staging or FFI slice gives them semantics |
+| `Bytes`, string foundations | done for `Bytes` (`new`/`len`/`get`/`set`, bounds faults at 71); runtime string literals landed (D291-D294: the literal elaborates to the runtime `String` constructor over a constant `Bytes` payload, fresh per evaluation - a static shared buffer is unsound against the mutable D89 buffer; escapes bind to the lexer; the JPL no-allocation fact fires on literals) |
 
 ### Ownership, multiplicities, regions (P5) — core spec sections 7 and 3
 
@@ -1046,6 +1046,27 @@ correspondence: one lexeme in expression/pattern, staging `Name`, and
   (vocabulary) and platform section 8 (checked-lowering facts) with
   `byref`/`sret` cross-referenced in the FFI note; and the Cinch
   naming note (D278-D281) is recorded on all 15 spec pages.
+- **D291-D294 (runtime string literals, reported; the user's ask)**:
+  a string literal in an ordinary term checks as the runtime `String`
+  (the D43 deferral is closed): the literal elaborates to the
+  `String` constructor over a constant `Bytes` payload (constant
+  data, per-use construction - the exact form `string_const` and the
+  `import data` converters bind); **the literal allocates** because a
+  static shared buffer is unsound (the D89 buffer is mutable in
+  place and `string-to-bytes` shares it), so the JPL no-allocation
+  fact ("a string literal is constructed here") fires, pinned
+  both ways plus a mutation-freshness probe (two evaluations never
+  share a buffer); escapes bind to the lexer's decoding exactly
+  (`\\`, `\"`, `\'`, `\n`, `\r`, `\t`, `\u{HEX}`; raw newline/EOF
+  rejected; the surface grammar lists the identical set - no spec
+  gap) and constants fold through D92 with a `LitFold` boundary for
+  literal-string collections; string literal PATTERNS remain the
+  parser's named refusal (pinned boundary). `Show Bool`/`Show
+  Ordering` landed on the strength of it. The D124-cluster drift
+  entry ("a stale compiler diagnostic still claims string literals
+  are compile-time only") is RESOLVED; the only remaining
+  "compile-time only" diagnostic is the `Stage.*` builtin-value
+  refusal, which is correct.
 - **D127 (P25 scaffolding ruling)**: FoldAgent's defunctionalized
   class shapes (`Foldable t a`, `Traversable t x g h tg hs`) are
   accepted as NON-CURATED scaffolding: they ship in the `Category`

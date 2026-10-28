@@ -221,7 +221,11 @@ D-numbers) that amend or interpret this chapter's normative text.
 - **`String` and `Bytes` (D13, D88-D89), 2026-10-28.** The runtime text
   type is `String`, a UTF-8 newtype over `Bytes` declared in the
   prelude; strings are built from `Bytes`, `Char`, and the formatting
-  functions (string literals remain a surface future item). The prelude
+  functions. 2026-10-28 (D291-D294): string literals are no longer a
+  surface future item - a `"..."` literal in an ordinary term checks
+  as the runtime `String` (constant `Bytes` payload, fresh per
+  evaluation, escapes per the surface grammar) and allocates
+  (the JPL no-allocation fact fires on it). The prelude
   `String` library is the REFERENCE SEMANTICS for UTF-8 (validation,
   decoding, encoding, code point indexing); the Rust runtime carries
   SIMD-accelerated implementations of the same rules (`cinch_utf8_*`)
