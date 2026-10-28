@@ -1216,6 +1216,30 @@ correspondence: one lexeme in expression/pattern, staging `Name`, and
   recorded instances-with-their-type exception: `JsonCodec_Json`
   stays in `Text.Json` (moving it to `Data.Json` would cycle
   `Data.Json` <-> `Text.Codec`).
+- **D316-D321 (P32 observability, reported)**: `Log r` (the `log` +
+  `metric` point signals, `LogLevel`, `MetricKind`, structured `Json`
+  record shapes and field builders) and `Trace r` (`span`/`end-span`,
+  `TraceContext r` indexed by the runtime identity) are effect
+  families in the `Io r` mold (D316); spans are lexical scopes as
+  bracket pairs plus tail scopes needing no close, the close riding
+  the one-shot resumption chain as a marker split by `span-scope`
+  (D317) - a body-taking `span` cannot carry handled ops in its body
+  under D23 (lambda bodies never dispatch) and is deferred to
+  call-dispatched handling; collecting handlers cons records onto
+  the resumption chain with stacked handlers merging through their
+  prompts, the record shapes being the export contract (D318);
+  `TraceContext r` rides `forall r.` signatures beside `Io r`
+  (D319); the OTLP/JSON envelope groups resources/scope for logs,
+  metrics and spans, stamps trace id/flags from the context, parents
+  roots at the ingressed span id, and deliberately carries **no
+  `timeUnixNano`** - the P34 clock owns time and the shape invents
+  none (D320). Integration ruled (D321): `Effect.Log`/`Effect.Trace`/
+  `Text.Otlp` stay ordinary importable modules beside the entry (the
+  P30 pattern) - no facade re-export and no embedded-prelude entry -
+  keeping the facade pin's exact surface contract intact. The DX
+  bar's honest judgment: levels and fields are ceremony-free; the
+  one wart is a mid-body span needing `end-span` (tail spans need
+  nothing).
 - **D295-D296 (P29 incremental recompilation, reported)**: the
   `incremental` driver module delivers all three Blaze equivalents -
   `ItemGraph` (REAPER: lazily built, kinded `Surface`/`Body` edges
