@@ -205,7 +205,7 @@ property holds by construction rather than by a named test.
 
 | # | Anchor | Requirement | Status | Evidence |
 | --- | --- | --- | --- | --- |
-| 122 | surf#9-tail-constant-stack | Tail recursion MUST run in constant stack (self and mutual); unmarkable groups fall back with the report saying so | I | loop-header self jumps + `musttail` mutual groups (D104, D138-D139; `core.rs::tail_report`, `codegen.rs` loop header); `tail_calls` manifest section with Tarjan SCC marks and fallback reasons (`driver.rs`); tail marking exercised by `tests/safety.rs::recursion_tail_covers_self_and_mutual_groups` |
+| 122 | surf#9-tail-constant-stack | Tail recursion MUST run in constant stack (self and mutual); unmarkable groups fall back with the report saying so | I | loop-header self jumps + `musttail` mutual groups (D104, D138-D139; `core.rs::tail_report`, `codegen.rs` loop header); `tail_calls` manifest section with Tarjan SCC marks and fallback reasons (`driver.rs`); tail marking exercised by `tests/safety.rs::recursion_tail_covers_self_and_mutual_groups`; the constant-stack run itself pinned at 1,000,001 calls deep (self and mutual, marks asserted `marked`) with the no-tail overflow control by `tests/tail_calls.rs` |
 
 ## Roadmap gaps (unplanned requirements)
 
