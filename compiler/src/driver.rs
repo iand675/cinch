@@ -5,6 +5,14 @@ use crate::{check, codegen, layout, lexer, Error, Result};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
+/// P29: Blaze-style incremental recompilation (the REAPER item graph,
+/// the INCR persistent session, and the LINK object cache). Declared
+/// here, as a child of the driver, so the session reaches the driver's
+/// internals (`load_project`, `write_artifacts`) through `super::`
+/// without widening their visibility.
+#[path = "incremental.rs"]
+pub mod incremental;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Mode {
     Check,
