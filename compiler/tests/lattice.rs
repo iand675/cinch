@@ -471,3 +471,419 @@ module Main where
 "#,
     );
 }
+
+// ============================ instance half: the acceptance matrix ============================
+//
+// Predicate-level transfer with preservation postconditions, the
+// generic `Preserves` transfer against the specialized `Sorted`/merge
+// instance (most-specific resolution), the coherence rule for
+// incomparable heads, `using` obligations discharged through the `Dec`
+// evidence path, and the manifest's law/postcondition rows round-tripped
+// through `.cinchif`.
+
+/// The generic transfer instance of the design's shape: the container's
+/// `<>` at any point whose predicate it preserves (`Preserves (<>) p`).
+const GENERIC_TRANSFER: &str = r#"
+  implicit instance Semigroup_Refined p a :: using (sb :: Semigroup (List a), Preserves (<>) p) => Semigroup (refined p (List a)) where
+    (<>) x y = (<>) x y
+"#;
+
+#[test]
+fn transfer_rejects_sized_ascii_naming_the_conjunct() {
+    // `Semigroup (List Char)` at `refined SizedAscii`: append grows
+    // length, so the preservation law rejects the transfer naming the
+    // `<= 200` conjunct (the compound predicates design: a failure
+    // names the conjunct that does not survive).
+    expect_err(
+        "transfer-sized-ascii",
+        r#"
+module Main where
+  import Algebra.Semigroup
+
+  infixr 6 <>
+
+  type SizedAscii = refine (xs :: List Char) with length xs > 100 && length xs <= 200 && Ascii xs
+
+  combine :: SizedAscii -> SizedAscii -> SizedAscii
+  combine a b = a <> b
+
+  main :: Int
+  main = 0
+"#,
+        &["SizedAscii.preserve-<>", "length xs <= 200"],
+    );
+}
+
+#[test]
+fn transfer_accepts_non_empty_with_preservation_evidence() {
+    // `Semigroup (List Char)` at `refined NonEmpty`: append of
+    // non-empties is non-empty, so the transfer is accepted and the
+    // manifest carries its preservation row and its postcondition row.
+    let m = manifest_of(
+        "transfer-nonempty",
+        r#"
+module Main where
+  import Algebra.Semigroup
+  import Data.NonEmpty
+
+  infixr 6 <>
+
+  combine :: NonEmpty Char -> NonEmpty Char -> NonEmpty Char
+  combine a b = a <> b
+
+  main :: Int
+  main = 0
+"#,
+    );
+    let pres = m
+        .find("NonEmpty.preserve-<>")
+        .unwrap_or_else(|| panic!("the preservation row is in the manifest: {m}"));
+    let row = &m[pres.saturating_sub(200)..((pres + 300).min(m.len()))];
+    assert!(row.contains("checked ("), "{row}");
+    let post = m
+        .find("NonEmpty.post-<>")
+        .unwrap_or_else(|| panic!("the postcondition row is in the manifest: {m}"));
+    let row = &m[post.saturating_sub(200)..((post + 300).min(m.len()))];
+    assert!(row.contains("derived:"), "{row}");
+}
+
+#[test]
+fn generic_preserves_transfer_works_where_the_method_preserves() {
+    // The generic `Preserves` transfer at a point whose predicate the
+    // method preserves (`Ascii` survives concatenation): accepted.
+    expect_checks(
+        "generic-ascii",
+        &format!(
+            r#"
+module Main where
+  import Algebra.Semigroup
+
+  infixr 6 <>
+{GENERIC_TRANSFER}
+
+  combine :: refined (Ascii) (List Char) -> refined (Ascii) (List Char) -> refined (Ascii) (List Char)
+  combine a b = a <> b
+
+  main :: Int
+  main = 0
+"#
+        ),
+    );
+}
+
+#[test]
+fn specialized_sorted_merge_wins_by_most_specific_resolution() {
+    // At the `Sorted` lattice top both candidates exist (the generic
+    // transfer and the specialized `Sorted`/merge instance): the
+    // specialized one is selected (merge of sorted lists stays sorted;
+    // append would not), law-checked beside its preservation row.
+    expect_run(
+        "sorted-merge-wins",
+        &format!(
+            r#"
+module Main where
+  import Algebra.Semigroup
+  import Data.Sorted
+
+  infixr 6 <>
+{GENERIC_TRANSFER}
+
+  main :: Int
+  main = case to-sorted (Cons 1 (Cons 2 Nil)) of
+    None -> 1
+    Some a -> case to-sorted (Cons 0 (Cons 3 Nil)) of
+      None -> 2
+      Some b -> case to-sorted (unrefine (a <> b)) of
+        None -> 3
+        Some _ -> 0
+"#
+        ),
+        0,
+    );
+    // The probe that both candidates exist: without the specialized
+    // instance the generic candidate serves the point and its `Preserves`
+    // obligation rejects (append does not preserve `Ordered xs`).
+    let sorted = include_str!("../prelude/Data/Sorted.cinch");
+    let sorted_no_instance: String = sorted
+        .lines()
+        .filter(|l| {
+            !l.contains("Semigroup_Sorted") && !l.contains("(<>) p q = merge p q")
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    let dir = write_project_files(
+        "sorted-generic-only",
+        &[
+            ("Sorted.cinch", &sorted_no_instance),
+            (
+                "Main.cinch",
+                &format!(
+                    r#"
+module Main where
+  import Algebra.Semigroup
+  import Data.Sorted
+
+  infixr 6 <>
+{GENERIC_TRANSFER}
+
+  combine :: Sorted -> Sorted -> Sorted
+  combine a b = a <> b
+
+  main :: Int
+  main = 0
+"#
+                ),
+            ),
+        ],
+    );
+    match cinch::driver::driver(Mode::Check, &dir.join("Main.cinch"), None) {
+        Ok(_) => panic!(
+            "sorted-generic-only: expected the generic candidate to reject, but the program checked"
+        ),
+        Err(e) => {
+            let msg = e.to_string();
+            assert!(
+                msg.contains("Sorted.preserve-<>") && msg.contains("Ordered xs"),
+                "sorted-generic-only: error {msg:?} names the preservation law and the conjunct"
+            );
+        }
+    }
+}
+
+#[test]
+fn incomparable_heads_at_a_common_refinement_are_a_coherence_error() {
+    // The coherence rule (D119 extended): two instances at
+    // incomparable heads both match a common refinement, so a use there
+    // has no most-specific instance and rejects naming both heads.
+    expect_err(
+        "coherence-two-heads",
+        r#"
+module Main where
+  signature Combiner a where
+    combine :: a -> a -> a
+
+  implicit instance Combiner_Long :: Combiner (refined (length xs > 1) (List Char)) where
+    combine a b = a
+
+  implicit instance Combiner_Ascii :: Combiner (refined (Ascii xs) (List Char)) where
+    combine a b = b
+
+  use-it :: refined (length xs > 1 && Ascii xs) (List Char) -> refined (length xs > 1 && Ascii xs) (List Char)
+  use-it v = combine v v
+
+  main :: Int
+  main = 0
+"#,
+        &["Combiner_Long", "Combiner_Ascii", "incomparable"],
+    );
+}
+
+#[test]
+fn using_obligations_discharge_through_the_dec_evidence_path() {
+    // An instance with `using (Sorted ...)` is callable when the caller
+    // supplies `Dec` evidence in scope.
+    expect_checks(
+        "oblig-with-evidence",
+        r#"
+module Main where
+  import Data.Sorted
+
+  signature Combiner a where
+    combine :: a -> a -> a
+
+  merge :: List Nat -> List Nat -> List Nat
+  merge a b = case a of
+    Nil -> b
+    Cons x xs -> case b of
+      Nil -> a
+      Cons y ys -> if x <= y then Cons x (merge xs b) else Cons y (merge a ys)
+
+  implicit instance Combiner_Merge :: using (Sorted xs) => Combiner (List Nat) where
+    combine a b = merge a b
+
+  use-it :: List Nat -> List Nat -> List Nat
+  use-it a b = case decide (Ordered a) of
+    Yes wa -> case decide (Ordered b) of
+      Yes wb -> combine a b
+      No _ -> a
+    No _ -> b
+
+  main :: Int
+  main = 0
+"#,
+    );
+    // A caller without the evidence gets the refusal naming the
+    // obligation and its `Dec` discharge path.
+    expect_err(
+        "oblig-without-evidence",
+        r#"
+module Main where
+  import Data.Sorted
+
+  signature Combiner a where
+    combine :: a -> a -> a
+
+  merge :: List Nat -> List Nat -> List Nat
+  merge a b = case a of
+    Nil -> b
+    Cons x xs -> case b of
+      Nil -> a
+      Cons y ys -> if x <= y then Cons x (merge xs b) else Cons y (merge a ys)
+
+  implicit instance Combiner_Merge :: using (Sorted xs) => Combiner (List Nat) where
+    combine a b = merge a b
+
+  use-it :: List Nat -> List Nat -> List Nat
+  use-it a b = combine a b
+
+  main :: Int
+  main = 0
+"#,
+        &["needs `Dec` evidence", "Ordered a"],
+    );
+    // Forged evidence (a binder establishing another fact) is refused
+    // naming both propositions.
+    expect_err(
+        "oblig-forged-evidence",
+        r#"
+module Main where
+  import Data.Sorted
+
+  signature Combiner a where
+    combine :: a -> a -> a
+
+  merge :: List Nat -> List Nat -> List Nat
+  merge a b = case a of
+    Nil -> b
+    Cons x xs -> case b of
+      Nil -> a
+      Cons y ys -> if x <= y then Cons x (merge xs b) else Cons y (merge a ys)
+
+  implicit instance Combiner_Merge :: using (Sorted xs) => Combiner (List Nat) where
+    combine a b = merge a b
+
+  use-it :: List Nat -> List Nat -> List Nat
+  use-it a b = case decide (NotNull a) of
+    Yes w -> case decide (Ordered b) of
+      Yes wb -> combine a b
+      No _ -> a
+    No _ -> b
+
+  main :: Int
+  main = 0
+"#,
+        &["is evidence of", "NotNull a", "Ordered a"],
+    );
+}
+
+#[test]
+fn signature_obligations_constrain_callers_identically() {
+    // A signature's `using (Sorted xs, Sorted ys)` obligations bind its
+    // dependent arguments and constrain callers exactly like the
+    // instance form: callable with evidence, refused without it.
+    expect_checks(
+        "sig-oblig-with-evidence",
+        r#"
+module Main where
+  import Data.Sorted
+
+  merge :: List Nat -> List Nat -> List Nat
+  merge a b = case a of
+    Nil -> b
+    Cons x xs -> case b of
+      Nil -> a
+      Cons y ys -> if x <= y then Cons x (merge xs b) else Cons y (merge a ys)
+
+  merge2 :: using (Sorted xs, Sorted ys) => (xs :: List Nat) -> (ys :: List Nat) -> List Nat
+  merge2 xs ys = merge xs ys
+
+  use-it :: List Nat -> List Nat -> List Nat
+  use-it a b = case decide (Ordered a) of
+    Yes wa -> case decide (Ordered b) of
+      Yes wb -> merge2 a b
+      No _ -> a
+    No _ -> b
+
+  main :: Int
+  main = 0
+"#,
+    );
+    expect_err(
+        "sig-oblig-without-evidence",
+        r#"
+module Main where
+  import Data.Sorted
+
+  merge :: List Nat -> List Nat -> List Nat
+  merge a b = case a of
+    Nil -> b
+    Cons x xs -> case b of
+      Nil -> a
+      Cons y ys -> if x <= y then Cons x (merge xs b) else Cons y (merge a ys)
+
+  merge2 :: using (Sorted xs, Sorted ys) => (xs :: List Nat) -> (ys :: List Nat) -> List Nat
+  merge2 xs ys = merge xs ys
+
+  use-it :: List Nat -> List Nat -> List Nat
+  use-it a b = merge2 a b
+
+  main :: Int
+  main = 0
+"#,
+        &["needs `Dec` evidence", "Ordered a"],
+    );
+}
+
+#[test]
+fn postcondition_rows_round_trip_through_the_interface() {
+    // The manifest's postcondition rows are present and round-tripped
+    // through `.cinchif` (the content identity story stays intact: the
+    // canonical document re-parses to itself with the same hash).
+    let dir = write_project(
+        "post-rows",
+        r#"
+module Main where
+  import Algebra.Semigroup
+  import Data.NonEmpty
+
+  infixr 6 <>
+
+  combine :: NonEmpty Char -> NonEmpty Char -> NonEmpty Char
+  combine a b = a <> b
+
+  main :: Int
+  main = 0
+"#,
+    );
+    driver_with_profile(
+        Mode::Check,
+        StageMode::Refresh,
+        &dir.join("Main.cinch"),
+        None,
+        &TargetProfile::native(),
+    )
+    .unwrap_or_else(|e| panic!("post-rows: check run failed: {e}"));
+    let manifest = std::fs::read_to_string(dir.join("build/Main.manifest.json"))
+        .unwrap_or_else(|e| panic!("post-rows: manifest missing: {e}"));
+    assert!(
+        manifest.contains("NonEmpty.post-<>") && manifest.contains("derived:"),
+        "the manifest carries the postcondition row: {manifest}"
+    );
+    let text = std::fs::read_to_string(dir.join("build/Data.NonEmpty.cinchif"))
+        .unwrap_or_else(|e| panic!("post-rows: interface missing: {e}"));
+    assert!(
+        text.contains("NonEmpty.post-<>"),
+        "the interface carries the postcondition row: {text}"
+    );
+    let iface = cinch::interface::Iface::from_json(&text)
+        .unwrap_or_else(|e| panic!("post-rows: interface does not parse: {e}"));
+    let canon = iface.to_json();
+    assert_eq!(canon, text, "the interface document is canonical");
+    let again = cinch::interface::Iface::from_json(&canon)
+        .unwrap_or_else(|e| panic!("post-rows: canonical interface does not re-parse: {e}"));
+    assert_eq!(
+        iface.iface_hash(),
+        again.iface_hash(),
+        "the content identity survives the round-trip"
+    );
+}
