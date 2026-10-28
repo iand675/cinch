@@ -1,0 +1,1389 @@
+-- Text.Lex: token-level lexing and the layout pass.
+--
+-- Module scheme (design/base-library.md): `Text.*` is text processing
+-- over String/Bytes. This module is the tokenization half of the P30
+-- parsing toolkit (`Text.Parse` is the combinator half): it turns
+-- UTF-8 source bytes into the located token stream the surface
+-- grammar's EBNF consumes, WITH the deterministic layout pass already
+-- applied ("the EBNF consumes explicit `{`, `;` and `}` tokens after a
+-- deterministic layout pass", surface syntax and grammar, Layout and
+-- lexing).
+--
+-- No drift from the layout spec is the design rule here. Every rule
+-- this scanner implements cites the sentence it follows, and the
+-- behavior is pinned token for token against the bootstrap compiler's
+-- own lexer and layout pass (`compiler/src/lexer.rs`,
+-- `compiler/src/layout.rs`) in `compiler/tests/parsers.rs`: the
+-- toolkit's token stream must agree with the compiler's on the shared
+-- corpus (kind, spelling, line, column, virtual flag), so a spec
+-- change that reaches the compiler cannot silently leave this module
+-- behind. Where the two could disagree, this module follows the
+-- compiler.
+--
+-- The lexical classes follow "Layout and lexing" and the local
+-- amendments: identifiers with dash glue where a `-` is tight on both
+-- sides between identifier characters, digits not continuing a name
+-- (amendment section 8); a `-` tight only to what follows signing a
+-- negative literal unless the previous character ends an expression
+-- (amendment section 8); reserved punctuation matched longest first
+-- (`::`, `->`, `<-`, `=>`, `[|`, `|]`, `$(`, the multiplicities, and
+-- the bare reserved symbols `!`, `@`, `.`, `..`, `=`, `|`, `$`, `\`,
+-- `~`); comment recognition taking priority over symbol identifiers;
+-- `$` continuing an operator run (`<$>`) but never starting one;
+-- strings supporting `\\`, `\"`, `\'`, `\n`, `\r`, `\t`, `\u{HEX}`
+-- with a valid scalar; tabs rejected in indentation; line endings
+-- normalizing to LF.
+--
+-- Named refusals (unproductions this module deliberately does not
+-- lex; each is an error naming itself, never a silent drift):
+--   `#[...]` attribute annotations (amendment section 5) need the
+--     attribute family's raw argument capture;
+--   `prim` declarations (primitive operations and inline target IR
+--     specification section 2) whose bodies capture raw `{ ... }`
+--     fragment regions the token grammar never sees;
+--   the tick name forms `'name` and `''T` (amendment section 12): only
+--     the `Char` literal form `'c'` is lexed here, since the name
+--     forms feed quoteDecls token trees and macro APIs outside this
+--     toolkit's scope.
+module Text.Lex where
+
+  import Data.Bool
+  import Data.Bytes
+  import Data.Char
+  import Data.List
+  import Data.Nat
+  import Data.Option
+  import Data.String
+  import Text.Show
+
+  export Span, span-start, span-end, span-line, span-col
+  export Token, TVar, TCon, TOp, TInt, TFloat, TStr, TChar, TWord, TPunct, TEOF
+  export LToken, lt-span, lt-virtual, lt-token
+  export LexErrorKind, TabInIndentation, UnterminatedComment, UnterminatedString,
+    UnterminatedChar, BadEscape, MalformedNumber, UnexpectedChar, MalformedTick,
+    LayoutTooShallow, MismatchedDelimiter, UnclosedDelimiter, InWithoutLet,
+    InCrossesDelimiter, RefusedAttr, RefusedPrim, RefusedTickName
+  export LexError, lex-error-span, lex-error-kind, lex-error-message
+  export Lexed, LexedTokens, LexedFail
+  export eq-token, token-kind-name, render-token, text, chars-bytes, bytes-slice
+  export lex-source, lex-tokens, layout-tokens
+
+
+  -- ---------------------------------------------------------------------------
+  -- Small text helpers.
+  -- ---------------------------------------------------------------------------
+
+  -- A fixed ASCII message from char literals (string literals remain
+  -- compile-time only, Data.String): each char encodes through
+  -- `char-string` (Text.Show's conversion).
+  text :: List Char -> String
+  text cs = case cs of
+    Nil -> empty-string
+    Cons c rest -> string-concat (char-string c) (text rest)
+
+  -- The byte range [i, j) of a buffer as a fresh copy.
+  bytes-slice :: Bytes -> Nat -> Nat -> Bytes
+  bytes-slice b i j =
+    let out = bytes-new (j - i) in
+    let u = copy-bytes-into out b 0 i (j - i) in
+    out
+
+  char-width :: Char -> Nat
+  char-width c = utf8-encode-width (nat-from-i64 (u32-to-i64 (char-to-u32 c)))
+
+  chars-width :: List Char -> Nat
+  chars-width cs = case cs of
+    Nil -> 0
+    Cons c rest -> char-width c + chars-width rest
+
+  chars-into :: Bytes -> Nat -> List Char -> Unit
+  chars-into b pos cs = case cs of
+    Nil -> ()
+    Cons c rest ->
+      let u = utf8-encode-into b pos (nat-from-i64 (u32-to-i64 (char-to-u32 c))) in
+      chars-into b (pos + char-width c) rest
+
+  chars-bytes :: List Char -> Bytes
+  chars-bytes cs =
+    let b = bytes-new (chars-width cs) in
+    let u = chars-into b 0 cs in
+    b
+
+  -- ---------------------------------------------------------------------------
+  -- Spans, tokens, located tokens.
+  -- ---------------------------------------------------------------------------
+
+  -- A source span: byte offsets [start, end) and the start position as
+  -- line and character column (the compiler's `Span` shape).
+  data Span where
+    Span :: Nat -> Nat -> Nat -> Nat -> Span
+
+  span-start :: Span -> Nat
+  span-start s = case s of
+    Span a b l c -> a
+
+  span-end :: Span -> Nat
+  span-end s = case s of
+    Span a b l c -> b
+
+  span-line :: Span -> Nat
+  span-line s = case s of
+    Span a b l c -> l
+
+  span-col :: Span -> Nat
+  span-col s = case s of
+    Span a b l c -> c
+
+  -- One token of the surface grammar's tokenization: the lexical
+  -- classes of "Layout and lexing" after the local amendments. The
+  -- spelling payloads are the canonical forms the compiler's lexer
+  -- records: `TInt` is the canonical decimal digit string (hex folded,
+  -- underscores dropped, leading zeros stripped, a leading `-` for a
+  -- signed literal), `TFloat` the scanned decimal text, `TStr` the
+  -- decoded UTF-8 content, `TChar` the decoded scalar.
+  data Token where
+    TVar :: String -> Token
+    TCon :: String -> Token
+    TOp :: String -> Token
+    TInt :: String -> Token
+    TFloat :: String -> Token
+    TStr :: Bytes -> Token
+    TChar :: Nat -> Token
+    TWord :: String -> Token
+    TPunct :: String -> Token
+    TEOF :: Token
+
+  -- A token with its span; the flag marks `{`, `;`, `}` inserted by
+  -- the layout pass (the compiler's `Token.virtual_`).
+  data LToken where
+    LTok :: Span -> Bool -> Token -> LToken
+
+  lt-span :: LToken -> Span
+  lt-span t = case t of
+    LTok s v k -> s
+
+  lt-virtual :: LToken -> Bool
+  lt-virtual t = case t of
+    LTok s v k -> v
+
+  lt-token :: LToken -> Token
+  lt-token t = case t of
+    LTok s v k -> k
+
+  bytes-eq :: Bytes -> Bytes -> Nat -> Bool
+  bytes-eq x y i =
+    if nat-cmp i (bytes-len x) == 0 then True
+    else if nat-cmp (bytes-get x i) (bytes-get y i) == 0 then bytes-eq x y (i + 1)
+    else False
+
+  -- Token equality over the kind and its spelling: `Text.Parse`'s
+  -- token matchers compare with this.
+  eq-token :: Token -> Token -> Bool
+  eq-token a b = case a of
+    TVar x -> case b of
+      TVar y -> string-compare x y == 0
+      _ -> False
+    TCon x -> case b of
+      TCon y -> string-compare x y == 0
+      _ -> False
+    TOp x -> case b of
+      TOp y -> string-compare x y == 0
+      _ -> False
+    TInt x -> case b of
+      TInt y -> string-compare x y == 0
+      _ -> False
+    TFloat x -> case b of
+      TFloat y -> string-compare x y == 0
+      _ -> False
+    TStr x -> case b of
+      TStr y -> nat-cmp (bytes-len x) (bytes-len y) == 0 && bytes-eq x y 0
+      _ -> False
+    TChar x -> case b of
+      TChar y -> nat-cmp x y == 0
+      _ -> False
+    TWord x -> case b of
+      TWord y -> string-compare x y == 0
+      _ -> False
+    TPunct x -> case b of
+      TPunct y -> string-compare x y == 0
+      _ -> False
+    TEOF -> case b of
+      TEOF -> True
+      _ -> False
+
+  token-kind-name :: Token -> String
+  token-kind-name t = case t of
+    TVar _ -> text ['v', 'a', 'r']
+    TCon _ -> text ['c', 'o', 'n']
+    TOp _ -> text ['o', 'p']
+    TInt _ -> text ['i', 'n', 't']
+    TFloat _ -> text ['f', 'l', 'o', 'a', 't']
+    TStr _ -> text ['s', 't', 'r']
+    TChar _ -> text ['c', 'h', 'a', 'r']
+    TWord _ -> text ['k', 'w']
+    TPunct _ -> text ['p', 'u', 'n', 'c', 't']
+    TEOF -> text ['e', 'o', 'f']
+
+  token-spelling :: Token -> String
+  token-spelling t = case t of
+    TVar s -> s
+    TCon s -> s
+    TOp s -> s
+    TInt s -> s
+    TFloat s -> s
+    TStr b -> String b
+    TChar n -> nat-to-string n
+    TWord s -> s
+    TPunct s -> s
+    TEOF -> empty-string
+
+  -- The canonical rendering the drift tests compare against the
+  -- compiler's lexer: `kind:spelling@line:col`, with `!v` marking a
+  -- layout-inserted token. A spelling's `\` and newline characters
+  -- render as the two-character escapes `\\` and `\n`, so one token
+  -- is always one line of the rendering (the drift tests split on
+  -- lines); a `TChar` renders its scalar's UTF-8 text (the compiler
+  -- records the decoded char).
+  render-token :: LToken -> String
+  render-token t = case t of
+    LTok s v k ->
+      let base = string-concat (token-kind-name k)
+            (string-concat (text [':'])
+              (string-concat (render-spelling k)
+                (string-concat (text ['@'])
+                  (string-concat (nat-to-string (span-line s))
+                    (string-concat (text [':']) (nat-to-string (span-col s))))))) in
+      if v then string-concat base (text ['!', 'v']) else base
+
+  render-spelling :: Token -> String
+  render-spelling k = case k of
+    TChar n -> case u32-to-char (wrapping-i64-to-u32 (nat-to-i64 n)) of
+      None -> empty-string
+      Some c -> render-escaped (string-to-bytes (char-string c)) 0
+    _ -> render-escaped (string-to-bytes (token-spelling k)) 0
+
+  render-escaped :: Bytes -> Nat -> String
+  render-escaped b i =
+    if nat-cmp i (bytes-len b) == 0 then empty-string
+    else case utf8-at b i of
+      None -> empty-string
+      Some p -> case p of
+        (c, w) ->
+          let piece = if eq-char c '\n' then text ['\\', 'n']
+                else if eq-char c '\\' then text ['\\', '\\']
+                else char-string c in
+          string-concat piece (render-escaped b (i + w))
+
+  -- ---------------------------------------------------------------------------
+  -- Lex errors.
+  -- ---------------------------------------------------------------------------
+
+  -- Every rejection this module can produce. The layout kinds carry
+  -- the columns the compiler's diagnostics name; the refusal kinds are
+  -- the named unproductions of the module header.
+  data LexErrorKind where
+    TabInIndentation :: LexErrorKind
+    UnterminatedComment :: LexErrorKind
+    UnterminatedString :: LexErrorKind
+    UnterminatedChar :: LexErrorKind
+    BadEscape :: LexErrorKind
+    MalformedNumber :: LexErrorKind
+    UnexpectedChar :: LexErrorKind
+    MalformedTick :: LexErrorKind
+    LayoutTooShallow :: Nat -> LexErrorKind
+    MismatchedDelimiter :: LexErrorKind
+    UnclosedDelimiter :: LexErrorKind
+    InWithoutLet :: LexErrorKind
+    InCrossesDelimiter :: LexErrorKind
+    RefusedAttr :: LexErrorKind
+    RefusedPrim :: LexErrorKind
+    RefusedTickName :: LexErrorKind
+
+  data LexError where
+    LexError :: Span -> LexErrorKind -> LexError
+
+  lex-error-span :: LexError -> Span
+  lex-error-span e = case e of
+    LexError s k -> s
+
+  lex-error-kind :: LexError -> LexErrorKind
+  lex-error-kind e = case e of
+    LexError s k -> k
+
+  lex-error-message :: LexErrorKind -> String
+  lex-error-message k = case k of
+    TabInIndentation -> text ['t', 'a', 'b', 's', ' ', 'a', 'r', 'e', ' ', 'r', 'e', 'j', 'e', 'c', 't', 'e', 'd', ' ', 'i', 'n', ' ', 'i', 'n', 'd', 'e', 'n', 't', 'a', 't', 'i', 'o', 'n']
+    UnterminatedComment -> text ['u', 'n', 't', 'e', 'r', 'm', 'i', 'n', 'a', 't', 'e', 'd', ' ', 'b', 'l', 'o', 'c', 'k', ' ', 'c', 'o', 'm', 'm', 'e', 'n', 't']
+    UnterminatedString -> text ['u', 'n', 't', 'e', 'r', 'm', 'i', 'n', 'a', 't', 'e', 'd', ' ', 's', 't', 'r', 'i', 'n', 'g', ' ', 'l', 'i', 't', 'e', 'r', 'a', 'l']
+    UnterminatedChar -> text ['u', 'n', 't', 'e', 'r', 'm', 'i', 'n', 'a', 't', 'e', 'd', ' ', 'c', 'h', 'a', 'r', 'a', 'c', 't', 'e', 'r', ' ', 'l', 'i', 't', 'e', 'r', 'a', 'l']
+    BadEscape -> text ['u', 'n', 'k', 'n', 'o', 'w', 'n', ' ', 'e', 's', 'c', 'a', 'p', 'e', ' ', 's', 'e', 'q', 'u', 'e', 'n', 'c', 'e']
+    MalformedNumber -> text ['m', 'a', 'l', 'f', 'o', 'r', 'm', 'e', 'd', ' ', 'n', 'u', 'm', 'b', 'e', 'r', ' ', 'l', 'i', 't', 'e', 'r', 'a', 'l']
+    UnexpectedChar -> text ['u', 'n', 'e', 'x', 'p', 'e', 'c', 't', 'e', 'd', ' ', 'c', 'h', 'a', 'r', 'a', 'c', 't', 'e', 'r']
+    MalformedTick -> text ['m', 'a', 'l', 'f', 'o', 'r', 'm', 'e', 'd', ' ', 't', 'i', 'c', 'k', ' ', 'l', 'i', 't', 'e', 'r', 'a', 'l']
+    LayoutTooShallow col -> string-concat
+      (text ['l', 'a', 'y', 'o', 'u', 't', ' ', 'b', 'l', 'o', 'c', 'k', ' ', 'm', 'u', 's', 't', ' ', 'i', 'n', 'd', 'e', 'n', 't', ' ', 'f', 'a', 'r', 't', 'h', 'e', 'r', ' ', 't', 'h', 'a', 'n', ' ', 'i', 't', 's', ' ', 'e', 'n', 'c', 'l', 'o', 's', 'i', 'n', 'g', ' ', 'b', 'l', 'o', 'c', 'k', ' ', 'a', 't', ' ', 'c', 'o', 'l', 'u', 'm', 'n', ' '])
+      (nat-to-string col)
+    MismatchedDelimiter -> text ['m', 'i', 's', 'm', 'a', 't', 'c', 'h', 'e', 'd', ' ', 'c', 'l', 'o', 's', 'i', 'n', 'g', ' ', 'd', 'e', 'l', 'i', 'm', 'i', 't', 'e', 'r']
+    UnclosedDelimiter -> text ['u', 'n', 'c', 'l', 'o', 's', 'e', 'd', ' ', 'd', 'e', 'l', 'i', 'm', 'i', 't', 'e', 'r']
+    InWithoutLet -> text ['`', 'i', 'n', '`', ' ', 'h', 'a', 's', ' ', 'n', 'o', ' ', 'm', 'a', 't', 'c', 'h', 'i', 'n', 'g', ' ', 'i', 'm', 'p', 'l', 'i', 'c', 'i', 't', ' ', '`', 'l', 'e', 't', '`', ' ', 'b', 'l', 'o', 'c', 'k']
+    InCrossesDelimiter -> text ['`', 'i', 'n', '`', ' ', 'm', 'u', 's', 't', ' ', 'n', 'o', 't', ' ', 'c', 'r', 'o', 's', 's', ' ', 'a', 'n', ' ', 'u', 'n', 'm', 'a', 't', 'c', 'h', 'e', 'd', ' ', 'e', 'x', 'p', 'l', 'i', 'c', 'i', 't', ' ', 'd', 'e', 'l', 'i', 'm', 'i', 't', 'e', 'r']
+    RefusedAttr -> text ['r', 'e', 'f', 'u', 's', 'e', 'd', ':', ' ', '`', '#', '[', ']', '`', ' ', 'a', 't', 't', 'r', 'i', 'b', 'u', 't', 'e', ' ', 'a', 'n', 'n', 'o', 't', 'a', 't', 'i', 'o', 'n', 's', ' ', 'a', 'r', 'e', ' ', 'n', 'o', 't', ' ', 'i', 'n', ' ', 't', 'h', 'e', ' ', 'l', 'e', 'x', 'i', 'n', 'g', ' ', 't', 'o', 'o', 'l', 'k', 'i', 't', '\'', 's', ' ', 'p', 'r', 'o', 'd', 'u', 'c', 't', 'i', 'o', 'n', ' ', 's', 'e', 't']
+    RefusedPrim -> text ['r', 'e', 'f', 'u', 's', 'e', 'd', ':', ' ', '`', 'p', 'r', 'i', 'm', '`', ' ', 'i', 'n', 'l', 'i', 'n', 'e', ' ', 't', 'a', 'r', 'g', 'e', 't', '-', 'I', 'R', ' ', 'f', 'r', 'a', 'g', 'm', 'e', 'n', 't', 's', ' ', 'a', 'r', 'e', ' ', 'n', 'o', 't', ' ', 'i', 'n', ' ', 't', 'h', 'e', ' ', 'l', 'e', 'x', 'i', 'n', 'g', ' ', 't', 'o', 'o', 'l', 'k', 'i', 't', '\'', 's', ' ', 'p', 'r', 'o', 'd', 'u', 'c', 't', 'i', 'o', 'n', ' ', 's', 'e', 't']
+    RefusedTickName -> text ['r', 'e', 'f', 'u', 's', 'e', 'd', ':', ' ', 't', 'h', 'e', ' ', 't', 'i', 'c', 'k', ' ', 'n', 'a', 'm', 'e', ' ', 'f', 'o', 'r', 'm', 's', ' ', '`', '\'', 'n', 'a', 'm', 'e', '`', ' ', 'a', 'n', 'd', ' ', '`', '\'', '\'', 'T', '`', ' ', 'a', 'r', 'e', ' ', 'n', 'o', 't', ' ', 'i', 'n', ' ', 't', 'h', 'e', ' ', 'l', 'e', 'x', 'i', 'n', 'g', ' ', 't', 'o', 'o', 'l', 'k', 'i', 't', '\'', 's', ' ', 'p', 'r', 'o', 'd', 'u', 'c', 't', 'i', 'o', 'n', ' ', 's', 'e', 't']
+
+  data Lexed where
+    LexedTokens :: List LToken -> Lexed
+    LexedFail :: Span -> LexErrorKind -> Lexed
+
+  -- ---------------------------------------------------------------------------
+  -- The scanner.
+  -- ---------------------------------------------------------------------------
+
+  -- Scan state: source bytes, byte offset, line, character column,
+  -- the leading-whitespace flag (only whitespace seen on this line,
+  -- the tab rule's guard) and the previously consumed character (the
+  -- signed-literal rule reads the character before the `-`, as the
+  -- compiler reads `cs[i-1]`).
+  data Scan where
+    Scan :: Bytes -> Nat -> Nat -> Nat -> Bool -> Option Char -> Scan
+
+  scan-src :: Scan -> Bytes
+  scan-src s = case s of
+    Scan b i l c ld p -> b
+
+  scan-off :: Scan -> Nat
+  scan-off s = case s of
+    Scan b i l c ld p -> i
+
+  scan-prev :: Scan -> Option Char
+  scan-prev s = case s of
+    Scan b i l c ld p -> p
+
+  scan-leading :: Scan -> Bool
+  scan-leading s = case s of
+    Scan b i l c ld p -> ld
+
+  scan-span :: Scan -> Span
+  scan-span s = case s of
+    Scan b i l c ld p -> Span i i l c
+
+  -- The character at the cursor and its byte width.
+  peek-pair :: Scan -> Option (Char, Nat)
+  peek-pair s = utf8-at (scan-src s) (scan-off s)
+
+  peek-char :: Scan -> Option Char
+  peek-char s = case peek-pair s of
+    None -> None
+    Some p -> case p of
+      (c, w) -> Some c
+
+  -- The n-th character ahead of the cursor (0 is the cursor), the
+  -- compiler's `peek_at`.
+  peek-at :: Scan -> Nat -> Option Char
+  peek-at s n = case peek-pair s of
+    None -> None
+    Some p -> case p of
+      (c, w) -> if n == 0 then Some c else peek-at (skip-char s) (n - 1)
+
+  -- Consume one character with the compiler's `bump` transitions: LF
+  -- starts a new line; CR starts one only when not followed by LF;
+  -- any other character advances the column and ends the leading
+  -- whitespace run unless it is whitespace itself.
+  skip-char :: Scan -> Scan
+  skip-char s = case s of
+    Scan b i l c ld p -> case utf8-at b i of
+      None -> s
+      Some pr -> case pr of
+        (ch, w) ->
+          if eq-char ch '\n' then Scan b (i + w) (l + 1) 1 True (Some ch)
+          else if eq-char ch '\r' then
+            case utf8-at b (i + w) of
+              None -> Scan b (i + w) (l + 1) 1 True (Some ch)
+              Some p2 -> case p2 of
+                (c2, w2) ->
+                  if eq-char c2 '\n' then Scan b (i + w) l c ld (Some ch)
+                  else Scan b (i + w) (l + 1) 1 True (Some ch)
+          else Scan b (i + w) l (c + 1) (ld && is-ws-char ch) (Some ch)
+
+  is-ws-char :: Char -> Bool
+  is-ws-char ch =
+    eq-char ch ' ' || eq-char ch '\t' || eq-char ch '\n' || eq-char ch '\r'
+
+  is-digit-char :: Char -> Bool
+  is-digit-char c =
+    eq-char c '0' || eq-char c '1' || eq-char c '2' || eq-char c '3' || eq-char c '4'
+    || eq-char c '5' || eq-char c '6' || eq-char c '7' || eq-char c '8' || eq-char c '9'
+
+  is-alpha-char :: Char -> Bool
+  is-alpha-char c =
+    eq-char c 'a' || eq-char c 'b' || eq-char c 'c' || eq-char c 'd' || eq-char c 'e'
+    || eq-char c 'f' || eq-char c 'g' || eq-char c 'h' || eq-char c 'i' || eq-char c 'j'
+    || eq-char c 'k' || eq-char c 'l' || eq-char c 'm' || eq-char c 'n' || eq-char c 'o'
+    || eq-char c 'p' || eq-char c 'q' || eq-char c 'r' || eq-char c 's' || eq-char c 't'
+    || eq-char c 'u' || eq-char c 'v' || eq-char c 'w' || eq-char c 'x' || eq-char c 'y'
+    || eq-char c 'z'
+    || eq-char c 'A' || eq-char c 'B' || eq-char c 'C' || eq-char c 'D' || eq-char c 'E'
+    || eq-char c 'F' || eq-char c 'G' || eq-char c 'H' || eq-char c 'I' || eq-char c 'J'
+    || eq-char c 'K' || eq-char c 'L' || eq-char c 'M' || eq-char c 'N' || eq-char c 'O'
+    || eq-char c 'P' || eq-char c 'Q' || eq-char c 'R' || eq-char c 'S' || eq-char c 'T'
+    || eq-char c 'U' || eq-char c 'V' || eq-char c 'W' || eq-char c 'X' || eq-char c 'Y'
+    || eq-char c 'Z'
+
+  is-upper-char :: Char -> Bool
+  is-upper-char c =
+    eq-char c 'A' || eq-char c 'B' || eq-char c 'C' || eq-char c 'D' || eq-char c 'E'
+    || eq-char c 'F' || eq-char c 'G' || eq-char c 'H' || eq-char c 'I' || eq-char c 'J'
+    || eq-char c 'K' || eq-char c 'L' || eq-char c 'M' || eq-char c 'N' || eq-char c 'O'
+    || eq-char c 'P' || eq-char c 'Q' || eq-char c 'R' || eq-char c 'S' || eq-char c 'T'
+    || eq-char c 'U' || eq-char c 'V' || eq-char c 'W' || eq-char c 'X' || eq-char c 'Y'
+    || eq-char c 'Z'
+
+  is-hex-char :: Char -> Bool
+  is-hex-char c =
+    is-digit-char c
+    || eq-char c 'a' || eq-char c 'b' || eq-char c 'c' || eq-char c 'd' || eq-char c 'e' || eq-char c 'f'
+    || eq-char c 'A' || eq-char c 'B' || eq-char c 'C' || eq-char c 'D' || eq-char c 'E' || eq-char c 'F'
+
+  hex-value :: Char -> Nat
+  hex-value c =
+    if is-digit-char c then nat-from-i64 (u32-to-i64 (char-to-u32 c)) - 48
+    else if eq-char c 'a' || eq-char c 'b' || eq-char c 'c' || eq-char c 'd' || eq-char c 'e' || eq-char c 'f' then
+      nat-from-i64 (u32-to-i64 (char-to-u32 c)) - 87
+    else nat-from-i64 (u32-to-i64 (char-to-u32 c)) - 55
+
+  digit-value :: Char -> Nat
+  digit-value c = nat-from-i64 (u32-to-i64 (char-to-u32 c)) - 48
+
+  -- Identifier characters (`lex_word`'s set): ASCII alphanumeric, `_`,
+  -- `'`.
+  is-ident-char :: Char -> Bool
+  is-ident-char c = is-alpha-char c || is-digit-char c || eq-char c '_' || eq-char c '\''
+
+  -- The characters a dash may glue onto inside a word (amendment
+  -- section 8: digits do not continue an identifier across a dash).
+  is-dash-glue-char :: Char -> Bool
+  is-dash-glue-char c = is-alpha-char c || eq-char c '_' || eq-char c '\''
+
+  -- Characters that end an expression and keep a following `-` in
+  -- operator position (amendment section 8).
+  is-expr-end-char :: Char -> Bool
+  is-expr-end-char c =
+    eq-char c ')' || eq-char c ']' || eq-char c '}' || eq-char c '"' || eq-char c '\''
+
+  -- Symbol identifier characters, excluding reserved `$`, `\` and `.`.
+  is-symbol-char :: Char -> Bool
+  is-symbol-char c =
+    eq-char c '!' || eq-char c '#' || eq-char c '%' || eq-char c '&' || eq-char c '*'
+    || eq-char c '+' || eq-char c '/' || eq-char c '<' || eq-char c '=' || eq-char c '>'
+    || eq-char c '?' || eq-char c '@' || eq-char c '^' || eq-char c '|' || eq-char c '~'
+    || eq-char c ':' || eq-char c '-'
+
+  -- Is the `-` at the cursor the sign of a negative literal? It must
+  -- be tight to following digits and tight to nothing that could end
+  -- an expression before it (the compiler's `at_sign_minus`).
+  at-sign-minus :: Scan -> Bool
+  at-sign-minus s = case peek-at s 1 of
+    None -> False
+    Some c -> if is-digit-char c then prev-allows-sign s else False
+
+  prev-allows-sign :: Scan -> Bool
+  prev-allows-sign s = case scan-prev s of
+    None -> True
+    Some p -> if is-ident-char p || is-expr-end-char p then False else True
+
+  -- ---------------------------------------------------------------------------
+  -- Whitespace and comments (the compiler's `skip_blank`).
+  -- ---------------------------------------------------------------------------
+
+  data ResultScan where
+    SROk :: Scan -> ResultScan
+    SRErr :: Span -> LexErrorKind -> ResultScan
+
+  skip-blank :: Scan -> ResultScan
+  skip-blank s = case peek-char s of
+    None -> SROk s
+    Some c ->
+      if eq-char c ' ' then skip-blank (skip-char s)
+      else if eq-char c '\t' then
+        if scan-leading s then SRErr (scan-span s) TabInIndentation
+        else skip-blank (skip-char s)
+      else if eq-char c '\n' || eq-char c '\r' then skip-blank (skip-char s)
+      else if eq-char c '-' then
+        case peek-at s 1 of
+          Some d | eq-char d '-' -> skip-blank (skip-line-comment (skip-char (skip-char s)))
+          _ -> SROk s
+      else if eq-char c '{' then
+        case peek-at s 1 of
+          Some d | eq-char d '-' ->
+            case skip-block-comment (skip-char (skip-char s)) 1 of
+              SRErr sp k -> SRErr sp k
+              SROk s2 -> skip-blank s2
+          _ -> SROk s
+      else SROk s
+
+  skip-line-comment :: Scan -> Scan
+  skip-line-comment s = case peek-char s of
+    None -> s
+    Some c -> if eq-char c '\n' || eq-char c '\r' then s else skip-line-comment (skip-char s)
+
+  skip-block-comment :: Scan -> Nat -> ResultScan
+  skip-block-comment s depth = case peek-char s of
+    None -> SRErr (scan-span s) UnterminatedComment
+    Some c ->
+      if eq-char c '-' then
+        case peek-at s 1 of
+          Some d | eq-char d '}' ->
+            if depth == 1 then SROk (skip-char (skip-char s))
+            else skip-block-comment (skip-char (skip-char s)) (depth - 1)
+          _ -> skip-block-comment (skip-char s) depth
+      else if eq-char c '{' then
+        case peek-at s 1 of
+          Some d | eq-char d '-' -> skip-block-comment (skip-char (skip-char s)) (depth + 1)
+          _ -> skip-block-comment (skip-char s) depth
+      else skip-block-comment (skip-char s) depth
+
+  -- ---------------------------------------------------------------------------
+  -- Word forms, numbers, strings, chars.
+  -- ---------------------------------------------------------------------------
+
+  data PairScan where
+    Pair :: Scan -> List Char -> PairScan
+
+  data NumScan where
+    NumScan :: Scan -> Nat -> List Char -> NumScan
+
+  data HexScan where
+    HS :: Scan -> Nat -> Bool -> HexScan
+
+  data TokenStep where
+    Tok1 :: Scan -> Token -> TokenStep
+    Tok2 :: Scan -> Token -> Token -> TokenStep
+    ErrAt :: Span -> LexErrorKind -> TokenStep
+
+  -- The identifier spelling at the cursor (`lex_word`'s shape: ident
+  -- characters with dash glue), without the keyword lookup.
+  scan-ident :: Scan -> PairScan
+  scan-ident s = scan-ident-acc s Nil
+
+  scan-ident-acc :: Scan -> List Char -> PairScan
+  scan-ident-acc s acc = case peek-char s of
+    None -> Pair s (rev-chars acc)
+    Some c ->
+      if is-ident-char c then scan-ident-acc (skip-char s) (Cons c acc)
+      else if eq-char c '-' then
+        case peek-at s 1 of
+          Some d | is-dash-glue-char d -> scan-ident-acc (skip-char s) (Cons '-' acc)
+          _ -> Pair s (rev-chars acc)
+      else Pair s (rev-chars acc)
+
+  rev-chars :: List Char -> List Char
+  rev-chars xs = rev-acc xs Nil
+
+  rev-acc :: List Char -> List Char -> List Char
+  rev-acc xs acc = case xs of
+    Nil -> acc
+    Cons y ys -> rev-acc ys (Cons y acc)
+
+  -- The reserved word table: every quoted alphabetic terminal of the
+  -- EBNF plus the amendment keywords. `letrec` scans as the pair the
+  -- compiler emits (`letrec` then `let`, sharing one span).
+  keyword-token :: String -> Option Token
+  keyword-token w =
+    if string-compare w (text ['m', 'o', 'd', 'u', 'l', 'e']) == 0 then Some (TWord w)
+    else if string-compare w (text ['w', 'h', 'e', 'r', 'e']) == 0 then Some (TWord w)
+    else if string-compare w (text ['d', 'a', 't', 'a']) == 0 then Some (TWord w)
+    else if string-compare w (text ['r', 'e', 'c', 'o', 'r', 'd']) == 0 then Some (TWord w)
+    else if string-compare w (text ['c', 'o', 'd', 'a', 't', 'a']) == 0 then Some (TWord w)
+    else if string-compare w (text ['e', 'f', 'f', 'e', 'c', 't']) == 0 then Some (TWord w)
+    else if string-compare w (text ['s', 'i', 'g', 'n', 'a', 't', 'u', 'r', 'e']) == 0 then Some (TWord w)
+    else if string-compare w (text ['i', 'n', 's', 't', 'a', 'n', 'c', 'e']) == 0 then Some (TWord w)
+    else if string-compare w (text ['i', 'm', 'p', 'l', 'i', 'c', 'i', 't']) == 0 then Some (TWord w)
+    else if string-compare w (text ['i', 'm', 'p', 'o', 'r', 't']) == 0 then Some (TWord w)
+    else if string-compare w (text ['a', 's']) == 0 then Some (TWord w)
+    else if string-compare w (text ['t', 'y', 'p', 'e']) == 0 then Some (TWord w)
+    else if string-compare w (text ['o', 'p', 'a', 'q', 'u', 'e']) == 0 then Some (TWord w)
+    else if string-compare w (text ['f', 'o', 'r', 'a', 'l', 'l']) == 0 then Some (TWord w)
+    else if string-compare w (text ['S', 'i', 'g', 'm', 'a']) == 0 then Some (TWord w)
+    else if string-compare w (text ['u', 's', 'i', 'n', 'g']) == 0 then Some (TWord w)
+    else if string-compare w (text ['i', 'n']) == 0 then Some (TWord w)
+    else if string-compare w (text ['l', 'e', 't']) == 0 then Some (TWord w)
+    else if string-compare w (text ['l', 'e', 't', 'r', 'e', 'c']) == 0 then Some (TWord w)
+    else if string-compare w (text ['i', 'f']) == 0 then Some (TWord w)
+    else if string-compare w (text ['t', 'h', 'e', 'n']) == 0 then Some (TWord w)
+    else if string-compare w (text ['e', 'l', 's', 'e']) == 0 then Some (TWord w)
+    else if string-compare w (text ['c', 'a', 's', 'e']) == 0 then Some (TWord w)
+    else if string-compare w (text ['o', 'f']) == 0 then Some (TWord w)
+    else if string-compare w (text ['d', 'o']) == 0 then Some (TWord w)
+    else if string-compare w (text ['h', 'a', 'n', 'd', 'l', 'e']) == 0 then Some (TWord w)
+    else if string-compare w (text ['w', 'i', 't', 'h']) == 0 then Some (TWord w)
+    else if string-compare w (text ['r', 'e', 'w', 'r', 'i', 't', 'e']) == 0 then Some (TWord w)
+    else if string-compare w (text ['p', 'r', 'i', 'm']) == 0 then Some (TWord w)
+    else if string-compare w (text ['l', 'a', 'w']) == 0 then Some (TWord w)
+    else if string-compare w (text ['t', 'a', 'r', 'g', 'e', 't']) == 0 then Some (TWord w)
+    else if string-compare w (text ['j', 'u', 's', 't', 'i', 'f', 'y']) == 0 then Some (TWord w)
+    else if string-compare w (text ['m', 'a', 't', 'c', 'h']) == 0 then Some (TWord w)
+    else if string-compare w (text ['r', 'e', 'p', 'l', 'a', 'c', 'e']) == 0 then Some (TWord w)
+    else if string-compare w (text ['r', 'e', 'q', 'u', 'i', 'r', 'e']) == 0 then Some (TWord w)
+    else if string-compare w (text ['u', 'p', 'g', 'r', 'a', 'd', 'e']) == 0 then Some (TWord w)
+    else if string-compare w (text ['c', 'o', 'n', 't', 'r', 'a', 'c', 't']) == 0 then Some (TWord w)
+    else if string-compare w (text ['t', 'o']) == 0 then Some (TWord w)
+    else if string-compare w (text ['g', 'e', 'n', 'e', 'r', 'a', 't', 'e']) == 0 then Some (TWord w)
+    else if string-compare w (text ['q', 'u', 'o', 't', 'e', 'D', 'e', 'c', 'l', 's']) == 0 then Some (TWord w)
+    else if string-compare w (text ['f', 'o', 'r', 'e', 'i', 'g', 'n']) == 0 then Some (TWord w)
+    else if string-compare w (text ['e', 'x', 'p', 'o', 'r', 't']) == 0 then Some (TWord w)
+    else if string-compare w (text ['c', 'c', 'a', 'l', 'l']) == 0 then Some (TWord w)
+    else if string-compare w (text ['c', 'o', 'm', 'p', 'o', 'n', 'e', 'n', 't']) == 0 then Some (TWord w)
+    else if string-compare w (text ['p', 'r', 'o', 'o', 'f']) == 0 then Some (TWord w)
+    else if string-compare w (text ['s', 'p', 'e', 'c']) == 0 then Some (TWord w)
+    else if string-compare w (text ['s', 't', 'a', 'g', 'e']) == 0 then Some (TWord w)
+    else if string-compare w (text ['c', 'o', 'r', 'e', 'c']) == 0 then Some (TWord w)
+    else if string-compare w (text ['m', 'a', 'c', 'r', 'o']) == 0 then Some (TWord w)
+    else if string-compare w (text ['i', 'n', 'f', 'i', 'x']) == 0 then Some (TWord w)
+    else if string-compare w (text ['i', 'n', 'f', 'i', 'x', 'l']) == 0 then Some (TWord w)
+    else if string-compare w (text ['i', 'n', 'f', 'i', 'x', 'r']) == 0 then Some (TWord w)
+    else if string-compare w (text ['e', 'r', 'a', 's', 'e', 'd']) == 0 then Some (TWord w)
+    else if string-compare w (text ['o', 'w', 'n']) == 0 then Some (TWord w)
+    else if string-compare w (text ['r', 'e', 't', 'u', 'r', 'n']) == 0 then Some (TWord w)
+    else if string-compare w (text ['r', 'e', 's', 'u', 'm', 'e']) == 0 then Some (TWord w)
+    else None
+
+  -- The word at the cursor: a reserved word, the `prim` refusal, or a
+  -- var/con identifier. `letrec` scans as the pair the compiler emits
+  -- (`letrec` then `let`, sharing one span).
+  lex-word :: Scan -> TokenStep
+  lex-word s = case scan-ident s of
+    Pair s2 cs ->
+      let str = String (chars-bytes cs) in
+      if string-compare str (text ['p', 'r', 'i', 'm']) == 0 then ErrAt (scan-span s) RefusedPrim
+      else if string-compare str (text ['l', 'e', 't', 'r', 'e', 'c']) == 0 then
+        Tok2 s2 (TWord str) (TWord (text ['l', 'e', 't']))
+      else case keyword-token str of
+        Some t -> Tok1 s2 t
+        None ->
+          case cs of
+            Nil -> ErrAt (scan-span s) UnexpectedChar
+            Cons c rest ->
+              if is-upper-char c then Tok1 s2 (TCon str) else Tok1 s2 (TVar str)
+
+  -- Reserved punctuation from a symbol run: the multi-character forms
+  -- and the bare reserved symbols. Anything else is an operator.
+  symbol-token :: String -> Token
+  symbol-token s =
+    if string-compare s (text [':', ':']) == 0 then TPunct s
+    else if string-compare s (text ['-', '>']) == 0 then TPunct s
+    else if string-compare s (text ['<', '-']) == 0 then TPunct s
+    else if string-compare s (text ['=', '>']) == 0 then TPunct s
+    else if string-compare s (text ['!']) == 0 then TPunct s
+    else if string-compare s (text ['@']) == 0 then TPunct s
+    else if string-compare s (text ['=']) == 0 then TPunct s
+    else if string-compare s (text ['|']) == 0 then TPunct s
+    else if string-compare s (text ['~']) == 0 then TPunct s
+    else TOp s
+
+  is-nil-chars :: List Char -> Bool
+  is-nil-chars xs = case xs of
+    Nil -> True
+    Cons y ys -> False
+
+  is-dollar-paren :: Scan -> Bool
+  is-dollar-paren s = case peek-at s 1 of
+    Some c | eq-char c '(' -> True
+    _ -> False
+
+  -- A symbol run (`lex_symbol`): maximal munch over symbol
+  -- characters, `$` continuing but never starting a run, and a
+  -- negative-literal sign never joining (`=-3` is `=` applied to the
+  -- atom `-3`).
+  lex-symbol :: Scan -> TokenStep
+  lex-symbol s = case lex-symbol-acc s Nil of
+    Pair s2 cs -> Tok1 s2 (symbol-token (String (chars-bytes cs)))
+
+  lex-symbol-acc :: Scan -> List Char -> PairScan
+  lex-symbol-acc s acc = case peek-char s of
+    None -> Pair s (rev-chars acc)
+    Some c ->
+      let continues = is-symbol-char c ||
+            (eq-char c '$' && not (is-nil-chars acc) && not (is-dollar-paren s)) in
+      if not continues then Pair s (rev-chars acc)
+      else if eq-char c '-' && at-sign-minus s then Pair s (rev-chars acc)
+      else lex-symbol-acc (skip-char s) (Cons c acc)
+
+  -- `%0`, `%1`, `%aff`, `%many` are reserved multiplicities; any
+  -- other symbol run starting with `%` is an ordinary operator.
+  lex-multiplicity :: Scan -> Option TokenStep
+  lex-multiplicity s =
+    let boundary n = case peek-at s n of
+          None -> True
+          Some c -> not (is-ident-char c) in
+    case peek-at s 1 of
+      Some c | eq-char c '0' && boundary 2 -> Some (Tok1 (skip-char (skip-char s)) (TPunct (text ['%', '0'])))
+      Some c | eq-char c '1' && boundary 2 -> Some (Tok1 (skip-char (skip-char s)) (TPunct (text ['%', '1'])))
+      Some c | eq-char c 'a' ->
+        case peek-at s 2 of
+          Some d | eq-char d 'f' ->
+            case peek-at s 3 of
+              Some e | eq-char e 'f' && boundary 4 ->
+                Some (Tok1 (skip-n-chars s 4) (TPunct (text ['%', 'a', 'f', 'f'])))
+              _ -> None
+          _ -> None
+      Some c | eq-char c 'm' ->
+        case peek-at s 2 of
+          Some d | eq-char d 'a' ->
+            case peek-at s 3 of
+              Some e | eq-char e 'n' ->
+                case peek-at s 4 of
+                  Some f | eq-char f 'y' && boundary 5 ->
+                    Some (Tok1 (skip-n-chars s 5) (TPunct (text ['%', 'm', 'a', 'n', 'y'])))
+                  _ -> None
+              _ -> None
+          _ -> None
+      _ -> None
+
+  skip-n-chars :: Scan -> Nat -> Scan
+  skip-n-chars s n = if n == 0 then s else skip-n-chars (skip-char s) (n - 1)
+
+  -- Integer and float literals (`lex_number`): hexadecimal folds to
+  -- the canonical decimal digit string; a float needs `.` immediately
+  -- followed by a digit; underscores are dropped from the scanned
+  -- text, and the float text keeps its scanned digits (no
+  -- canonicalization).
+  lex-number :: Scan -> TokenStep
+  lex-number s =
+    if is-zero-x s then
+      case scan-hex-digits (skip-char (skip-char s)) 0 False of
+        HS s3 digits any ->
+          if any then Tok1 s3 (TInt (nat-to-string digits))
+          else ErrAt (scan-span s) MalformedNumber
+    else case scan-dec-digits s 0 Nil of
+      NumScan s2 n rev ->
+        case scan-float-frac s2 rev of
+          None -> Tok1 s2 (TInt (nat-to-string n))
+          Some p -> case p of
+            Pair s3 cs -> Tok1 s3 (TFloat (String (chars-bytes cs)))
+
+  is-zero-x :: Scan -> Bool
+  is-zero-x s = case peek-char s of
+    Some c | eq-char c '0' ->
+      case peek-at s 1 of
+        Some d | eq-char d 'x' -> True
+        Some d | eq-char d 'X' -> True
+        _ -> False
+    _ -> False
+
+  -- Hex digits with underscores skipped; the value folds into a Nat.
+  scan-hex-digits :: Scan -> Nat -> Bool -> HexScan
+  scan-hex-digits s acc any = case peek-char s of
+    None -> HS s acc any
+    Some c ->
+      if is-hex-char c then scan-hex-digits (skip-char s) (acc * 16 + hex-value c) True
+      else if eq-char c '_' then scan-hex-digits (skip-char s) acc any
+      else HS s acc any
+
+  -- Decimal digits with underscores skipped: the value folds into a
+  -- Nat and the digit text accumulates reversed (underscores dropped).
+  scan-dec-digits :: Scan -> Nat -> List Char -> NumScan
+  scan-dec-digits s acc rev = case peek-char s of
+    None -> NumScan s acc rev
+    Some c ->
+      if is-digit-char c then
+        scan-dec-digits (skip-char s) (acc * 10 + digit-value c) (Cons c rev)
+      else if eq-char c '_' then scan-dec-digits (skip-char s) acc rev
+      else NumScan s acc rev
+
+  -- The float fraction and exponent when present: `.` immediately
+  -- followed by a digit. The scanned text keeps the digits, the dot
+  -- and the exponent spelled out (underscores dropped).
+  scan-float-frac :: Scan -> List Char -> Option PairScan
+  scan-float-frac s rev = case peek-char s of
+    Some c | eq-char c '.' ->
+      case peek-at s 1 of
+        Some d | is-digit-char d ->
+          case scan-decimals-rev (skip-char s) (Cons '.' rev) of
+            Pair s2 cs ->
+              case peek-char s2 of
+                Some e | eq-char e 'e' || eq-char e 'E' ->
+                  case peek-at s2 1 of
+                    Some f | eq-char f '+' || eq-char f '-' ->
+                      case scan-decimals-rev (skip-char (skip-char s2)) (Cons f (Cons e cs)) of
+                        Pair s3 cs2 -> Some (Pair s3 (rev-chars cs2))
+                    _ ->
+                      case scan-decimals-rev (skip-char s2) (Cons e cs) of
+                        Pair s3 cs2 -> Some (Pair s3 (rev-chars cs2))
+                _ -> Some (Pair s2 (rev-chars cs))
+        _ -> None
+    _ -> None
+
+  scan-decimals-rev :: Scan -> List Char -> PairScan
+  scan-decimals-rev s acc = case peek-char s of
+    None -> Pair s acc
+    Some c ->
+      if is-digit-char c then scan-decimals-rev (skip-char s) (Cons c acc)
+      else if eq-char c '_' then scan-decimals-rev (skip-char s) acc
+      else Pair s acc
+
+  -- Escape sequences in strings and chars: `\\`, `\"`, `\'`, `\n`,
+  -- `\r`, `\t`, `\u{HEX}` with a valid scalar.
+  data ResultChar where
+    CROk :: Scan -> Char -> ResultChar
+    CRErr :: Span -> LexErrorKind -> ResultChar
+
+  lex-escape :: Scan -> ResultChar
+  lex-escape s = case peek-char s of
+    None -> CRErr (scan-span s) BadEscape
+    Some c ->
+      let s2 = skip-char s in
+      if eq-char c '\\' then CROk s2 '\\'
+      else if eq-char c '"' then CROk s2 '"'
+      else if eq-char c '\'' then CROk s2 '\''
+      else if eq-char c 'n' then CROk s2 '\n'
+      else if eq-char c 'r' then CROk s2 '\r'
+      else if eq-char c 't' then CROk s2 '\t'
+      else if eq-char c 'u' then
+        case peek-char s2 of
+          Some d | eq-char d '{' -> lex-escape-hex (skip-char s2) 0
+          _ -> CRErr (scan-span s) BadEscape
+      else CRErr (scan-span s) BadEscape
+
+  lex-escape-hex :: Scan -> Nat -> ResultChar
+  lex-escape-hex s acc = case peek-char s of
+    None -> CRErr (scan-span s) BadEscape
+    Some c ->
+      if eq-char c '}' then
+        case u32-to-char (wrapping-i64-to-u32 (nat-to-i64 acc)) of
+          None -> CRErr (scan-span s) BadEscape
+          Some ch -> CROk (skip-char s) ch
+      else if is-hex-char c then lex-escape-hex (skip-char s) (acc * 16 + hex-value c)
+      else CRErr (scan-span s) BadEscape
+
+  -- String literals: decoded UTF-8 content, no raw newline inside.
+  data ResultStr where
+    OkS :: Scan -> List Char -> ResultStr
+    ErrS :: Span -> LexErrorKind -> ResultStr
+
+  lex-string :: Scan -> TokenStep
+  lex-string s = case lex-string-acc (skip-char s) Nil of
+    ErrS sp k -> ErrAt sp k
+    OkS s2 cs -> Tok1 s2 (TStr (chars-bytes cs))
+
+  lex-string-acc :: Scan -> List Char -> ResultStr
+  lex-string-acc s acc = case peek-char s of
+    None -> ErrS (scan-span s) UnterminatedString
+    Some c ->
+      if eq-char c '"' then OkS (skip-char s) (rev-chars acc)
+      else if eq-char c '\n' || eq-char c '\r' then ErrS (scan-span s) UnterminatedString
+      else if eq-char c '\\' then
+        case lex-escape (skip-char s) of
+          CRErr sp k -> ErrS sp k
+          CROk s2 ch -> lex-string-acc s2 (Cons ch acc)
+      else lex-string-acc (skip-char s) (Cons c acc)
+
+  -- The tick lexeme (amendment section 12): `'c'` is a `Char`
+  -- literal and wins; the name forms `'name` and `''T` are the named
+  -- refusal.
+  lex-tick :: Scan -> TokenStep
+  lex-tick s =
+    case peek-at s 1 of
+      None -> ErrAt (scan-span s) MalformedTick
+      Some c ->
+        if eq-char c '\\' then
+          case lex-escape (skip-char (skip-char s)) of
+            CRErr sp k -> ErrAt sp k
+            CROk s2 ch ->
+              case peek-char s2 of
+                Some d | eq-char d '\'' ->
+                  Tok1 (skip-char s2) (TChar (nat-from-i64 (u32-to-i64 (char-to-u32 ch))))
+                _ -> ErrAt (scan-span s) UnterminatedChar
+        else if eq-char c '\n' || eq-char c '\r' then ErrAt (scan-span s) MalformedTick
+        else
+          case peek-char (skip-char (skip-char s)) of
+            Some d | eq-char d '\'' ->
+              Tok1 (skip-char (skip-char (skip-char s)))
+                (TChar (nat-from-i64 (u32-to-i64 (char-to-u32 c))))
+            _ -> ErrAt (scan-span s) RefusedTickName
+
+  -- ---------------------------------------------------------------------------
+  -- The scan loop (the compiler's `run`).
+  -- ---------------------------------------------------------------------------
+
+  lex-tokens :: Bytes -> Lexed
+  lex-tokens b = scan-all (Scan b 0 1 1 True None) Nil
+
+  -- A token's span runs from its first byte to the scanner position
+  -- after its last.
+  span-end-at :: Span -> Scan -> Span
+  span-end-at sp s = case sp of
+    Span a b l c -> Span a (scan-off s) l c
+
+  -- The `$(` pair and `prim` inline fragments are the only multi-
+  -- token scans; `prim` is refused at its keyword above, so the pair
+  -- is the whole special case.
+  scan-all :: Scan -> List LToken -> Lexed
+  scan-all s acc = case skip-blank s of
+    SRErr sp k -> LexedFail sp k
+    SROk s2 ->
+      let sp0 = scan-span s2 in
+      case peek-char s2 of
+        None -> LexedTokens (rev-toks (Cons (LTok sp0 False TEOF) acc))
+        Some c ->
+          if eq-char c '$' && is-dollar-paren s2 then
+            let s3 = skip-char (skip-char s2) in
+            let sp1 = span-end-at sp0 s3 in
+            scan-all s3 (Cons (LTok sp1 False (TPunct (text ['('])))
+              (Cons (LTok sp1 False (TPunct (text ['$']))) acc))
+          else case scan-token s2 sp0 of
+            ErrAt sp k -> LexedFail sp k
+            Tok1 s3 t -> scan-all s3 (Cons (LTok (span-end-at sp0 s3) False t) acc)
+            Tok2 s3 t1 t2 ->
+              let sp1 = span-end-at sp0 s3 in
+              scan-all s3 (Cons (LTok sp1 False t2) (Cons (LTok sp1 False t1) acc))
+
+  rev-toks :: List LToken -> List LToken
+  rev-toks xs = rev-toks-acc xs Nil
+
+  rev-toks-acc :: List LToken -> List LToken -> List LToken
+  rev-toks-acc xs acc = case xs of
+    Nil -> acc
+    Cons y ys -> rev-toks-acc ys (Cons y acc)
+
+  -- scan_token: the dispatch order is the compiler's exactly.
+  scan-token :: Scan -> Span -> TokenStep
+  scan-token s sp0 =
+    case peek-char s of
+      None -> Tok1 s TEOF
+      Some c ->
+        if eq-char c '.' then
+          case peek-at s 1 of
+            Some d | eq-char d '.' -> Tok1 (skip-char (skip-char s)) (TPunct (text ['.', '.']))
+            _ -> Tok1 (skip-char s) (TPunct (text ['.']))
+        else if eq-char c '(' then Tok1 (skip-char s) (TPunct (text ['(']))
+        else if eq-char c ')' then Tok1 (skip-char s) (TPunct (text [')']))
+        else if eq-char c ']' then Tok1 (skip-char s) (TPunct (text [']']))
+        else if eq-char c '{' then Tok1 (skip-char s) (TPunct (text ['{']))
+        else if eq-char c '}' then Tok1 (skip-char s) (TPunct (text ['}']))
+        else if eq-char c ',' then Tok1 (skip-char s) (TPunct (text [',']))
+        else if eq-char c ';' then Tok1 (skip-char s) (TPunct (text [';']))
+        else if eq-char c '[' then
+          case peek-at s 1 of
+            Some d | eq-char d '|' -> Tok1 (skip-char (skip-char s)) (TPunct (text ['[', '|']))
+            _ -> Tok1 (skip-char s) (TPunct (text ['[']))
+        else if eq-char c '|' then
+          case peek-at s 1 of
+            Some d | eq-char d ']' -> Tok1 (skip-char (skip-char s)) (TPunct (text ['|', ']']))
+            _ -> lex-symbol s
+        else if eq-char c '#' then
+          case peek-at s 1 of
+            Some d | eq-char d '[' -> ErrAt sp0 RefusedAttr
+            _ -> lex-symbol s
+        else if eq-char c '%' then
+          case lex-multiplicity s of
+            Some step -> step
+            None -> lex-symbol s
+        else if eq-char c '$' then Tok1 (skip-char s) (TPunct (text ['$']))
+        else if eq-char c '\\' then Tok1 (skip-char s) (TPunct (text ['\\']))
+        else if eq-char c '-' then lex-minus s
+        else if eq-char c '"' then lex-string s
+        else if eq-char c '\'' then lex-tick s
+        else if is-digit-char c then lex-number s
+        else if is-alpha-char c || eq-char c '_' then lex-word s
+        else if is-symbol-char c then lex-symbol s
+        else ErrAt sp0 UnexpectedChar
+
+  -- `-` tight only to what follows signs a negative literal; any
+  -- other `-` is the operator (amendment section 8).
+  lex-minus :: Scan -> TokenStep
+  lex-minus s =
+    if at-sign-minus s then
+      case lex-number (skip-char s) of
+        Tok1 s2 t -> Tok1 s2 (signed-token t)
+        other -> other
+    else lex-symbol s
+
+  signed-token :: Token -> Token
+  signed-token t = case t of
+    TInt v -> TInt (string-concat (text ['-']) v)
+    TFloat v -> TFloat (string-concat (text ['-']) v)
+    _ -> t
+
+  -- lex-tokens over a source `String`'s bytes.
+  lex-source :: Bytes -> Lexed
+  lex-source b = case lex-tokens b of
+    LexedFail sp k -> LexedFail sp k
+    LexedTokens toks -> layout-tokens toks
+
+  -- ---------------------------------------------------------------------------
+  -- The layout pass (the compiler's `layout`).
+  --
+  -- "The EBNF consumes explicit `{`, `;` and `}` tokens after a
+  -- deterministic layout pass. `where`, `of`, `do` and `let` introduce
+  -- a layout block unless followed by an explicit `{`. The next
+  -- non-comment token starts the block at its column. At a later
+  -- logical line start, equal indentation inserts `;`, lower
+  -- indentation closes nested implicit blocks, and greater indentation
+  -- continues the current item. The first item receives no inserted
+  -- separator. An implicit block must indent farther than its
+  -- enclosing implicit block. An explicit delimiter shields enclosing
+  -- layout while it is open; layout blocks begun inside it still use
+  -- their own indentation. Closing `)`, `]` or an explicit `}` first
+  -- closes implicit blocks opened inside that delimiter. End of file
+  -- closes remaining implicit blocks. `in` closes the nearest
+  -- applicable implicit `let` block and any nested implicit blocks;
+  -- it must not cross an unmatched explicit delimiter. A `let`
+  -- statement in `do` has no `in` and closes by indentation."
+  -- (surface syntax and grammar, Layout and lexing; the `with (...)`
+  -- supply clause of amendment section 7 closes its own `in`).
+  -- ---------------------------------------------------------------------------
+
+  data DelimKind where
+    DParen :: DelimKind
+    DBracket :: DelimKind
+    DBrace :: DelimKind
+
+  eq-delim :: DelimKind -> DelimKind -> Bool
+  eq-delim a b = case a of
+    DParen -> case b of
+      DParen -> True
+      _ -> False
+    DBracket -> case b of
+      DBracket -> True
+      _ -> False
+    DBrace -> case b of
+      DBrace -> True
+      _ -> False
+
+  -- An implicit block (its column and whether `in` may close it) or
+  -- an explicit delimiter shielding enclosing layout. The flag marks
+  -- the `(` of a capability supply clause `with (...)`: 1 while open,
+  -- 2 once it binds names (amendment section 7).
+  data Frame where
+    FImplicit :: Nat -> Bool -> Frame
+    FDelim :: DelimKind -> Nat -> Frame
+
+  is-implicit :: Frame -> Bool
+  is-implicit f = case f of
+    FImplicit col islet -> True
+    FDelim k m -> False
+
+  frame-col :: Frame -> Nat
+  frame-col f = case f of
+    FImplicit col islet -> col
+    FDelim k m -> 0
+
+  frame-is-let :: Frame -> Bool
+  frame-is-let f = case f of
+    FImplicit col islet -> islet
+    FDelim k m -> False
+
+  frame-flag :: Frame -> Nat
+  frame-flag f = case f of
+    FImplicit col islet -> 0
+    FDelim k m -> m
+
+  -- Layout state: the reversed output, the frame stack (head on
+  -- top), the previous token's span, the pending block opener
+  -- (requested by `where`, `of`, `do` or `let`; the flag records a
+  -- `let` context), and the two `with (...)` supply-clause flags.
+  data Lay where
+    Lay :: List LToken -> List Frame -> Option Span -> Option Span -> Bool -> Bool -> Bool -> Lay
+    -- fields: out, stack, prev, pending-span, pending-is-let, with-paren-pending,
+    -- supply-close-pending
+
+  layout-tokens :: List LToken -> Lexed
+  layout-tokens toks = layout-run toks (Lay Nil Nil None None False False False)
+
+  virtual-tok :: Span -> Token -> LToken
+  virtual-tok sp t = LTok sp True t
+
+  lay-out :: Lay -> List LToken
+  lay-out lay = case lay of
+    Lay o s p ps pi wp sc -> o
+
+  lay-stack :: Lay -> List Frame
+  lay-stack lay = case lay of
+    Lay o s p ps pi wp sc -> s
+
+  lay-prev :: Lay -> Option Span
+  lay-prev lay = case lay of
+    Lay o s p ps pi wp sc -> p
+
+  push-tok :: LToken -> Lay -> Lay
+  push-tok t lay = case lay of
+    Lay o s p ps pi wp sc -> Lay (Cons t o) s p ps pi wp sc
+
+  push-frame :: Lay -> Frame -> Lay
+  push-frame lay f = case lay of
+    Lay o s p ps pi wp sc -> Lay o (Cons f s) p ps pi wp sc
+
+  pop-frame :: Lay -> Lay
+  pop-frame lay = case lay of
+    Lay o s p ps pi wp sc -> Lay o (tail-frames s) p ps pi wp sc
+
+  tail-frames :: List Frame -> List Frame
+  tail-frames fs = case fs of
+    Cons f rest -> rest
+    Nil -> Nil
+
+  set-pend :: Lay -> Span -> Bool -> Lay
+  set-pend lay sp pi = case lay of
+    Lay o s p old oi wp sc -> Lay o s p (Some sp) pi wp sc
+
+  clear-pend :: Lay -> Lay
+  clear-pend lay = case lay of
+    Lay o s p ps pi wp sc -> Lay o s p None False wp sc
+
+  set-prev :: Lay -> Span -> Lay
+  set-prev lay sp = case lay of
+    Lay o s old ps pi wp sc -> Lay o s (Some sp) ps pi wp sc
+
+  set-with :: Lay -> Bool -> Lay
+  set-with lay b = case lay of
+    Lay o s p ps pi old sc -> Lay o s p ps pi b sc
+
+  set-supply :: Lay -> Bool -> Lay
+  set-supply lay b = case lay of
+    Lay o s p ps pi wp old -> Lay o s p ps pi wp b
+
+  is-eof :: Token -> Bool
+  is-eof k = case k of
+    TEOF -> True
+    _ -> False
+
+  is-tok-punct :: Token -> String -> Bool
+  is-tok-punct k sp = case k of
+    TPunct s -> string-compare s sp == 0
+    _ -> False
+
+  is-tok-word :: Token -> String -> Bool
+  is-tok-word k sp = case k of
+    TWord s -> string-compare s sp == 0
+    _ -> False
+
+  is-open-brace :: Token -> Bool
+  is-open-brace k = is-tok-punct k (text ['{'])
+
+  is-open-paren :: Token -> Bool
+  is-open-paren k = is-tok-punct k (text ['('])
+
+  is-open-delim :: Token -> Bool
+  is-open-delim k =
+    is-tok-punct k (text ['(']) || is-tok-punct k (text ['[']) || is-tok-punct k (text ['{'])
+
+  delim-of :: Token -> DelimKind
+  delim-of k =
+    if is-tok-punct k (text ['(']) then DParen
+    else if is-tok-punct k (text ['[']) then DBracket
+    else DBrace
+
+  is-closer :: Token -> Bool
+  is-closer k =
+    is-tok-punct k (text [')']) || is-tok-punct k (text [']']) || is-tok-punct k (text ['}'])
+
+  closer-delim :: Token -> DelimKind
+  closer-delim k =
+    if is-tok-punct k (text [')']) then DParen
+    else if is-tok-punct k (text [']']) then DBracket
+    else DBrace
+
+  is-in-tok :: Token -> Bool
+  is-in-tok k = is-tok-word k (text ['i', 'n'])
+
+  is-with-tok :: Token -> Bool
+  is-with-tok k = is-tok-word k (text ['w', 'i', 't', 'h'])
+
+  is-equals-tok :: Token -> Bool
+  is-equals-tok k = is-tok-punct k (text ['='])
+
+  is-opener :: Token -> Bool
+  is-opener k =
+    is-tok-word k (text ['w', 'h', 'e', 'r', 'e'])
+    || is-tok-word k (text ['o', 'f'])
+    || is-tok-word k (text ['d', 'o'])
+    || is-tok-word k (text ['l', 'e', 't'])
+
+  is-let-tok :: Token -> Bool
+  is-let-tok k = is-tok-word k (text ['l', 'e', 't'])
+
+  -- The per-token loop. `check` says whether this token is eligible
+  -- for the line-start `;`/`}` logic (the first item of a block is
+  -- not).
+  layout-run :: List LToken -> Lay -> Lexed
+  layout-run toks lay = case toks of
+    -- Without an end-of-input token the pass ends as the compiler's
+    -- does: unclosed implicit blocks stay open and the stream passes
+    -- through (end of input is what closes them).
+    Nil -> LexedTokens (rev-toks (lay-out lay))
+    Cons tok rest -> layout-step rest tok lay
+
+  layout-step :: List LToken -> LToken -> Lay -> Lexed
+  layout-step rest tok lay =
+    let sp-tok = lt-span tok in
+    let kind = lt-token tok in
+    case lay of
+      Lay o s p ps pi wp sc ->
+        let with-group-open = wp && is-open-paren kind in
+        let supply-in = sc in
+        let base = Lay o s p ps pi False False in
+        case ps of
+          None -> layout-cont rest tok base True with-group-open supply-in
+          Some psp ->
+            if is-eof kind then
+              let l1 = push-tok (virtual-tok sp-tok (TPunct (text ['}'])))
+                    (push-tok (virtual-tok sp-tok (TPunct (text ['{']))) (clear-pend base)) in
+              layout-cont rest tok l1 True with-group-open supply-in
+            else if is-open-brace kind then
+              let l1 = push-tok tok (push-frame (clear-pend base) (FDelim DBrace 0)) in
+              layout-run rest (set-prev l1 sp-tok)
+            else if shallow-top s sp-tok then
+              LexedFail sp-tok (LayoutTooShallow (frame-col (top-frame s)))
+            else
+              let l1 = push-tok (virtual-tok sp-tok (TPunct (text ['{'])))
+                    (push-frame (clear-pend base) (FImplicit (span-col sp-tok) pi)) in
+              layout-cont rest tok l1 False with-group-open supply-in
+
+  top-frame :: List Frame -> Frame
+  top-frame fs = case fs of
+    Cons f rest -> f
+    Nil -> FImplicit 0 False
+
+  shallow-top :: List Frame -> Span -> Bool
+  shallow-top stack sp = case stack of
+    Cons f fs -> is-implicit f && le-i64 (nat-cmp (span-col sp) (frame-col f)) 0
+    Nil -> False
+
+  -- The tail of the per-token logic after the pending-block handling:
+  -- the special token kinds, then the line-start logic, then the
+  -- opener bookkeeping.
+  layout-cont :: List LToken -> LToken -> Lay -> Bool -> Bool -> Bool -> Lexed
+  layout-cont rest tok lay check with-group-open supply-in =
+    let sp-tok = lt-span tok in
+    let kind = lt-token tok in
+    if is-eof kind then
+      let closed = close-all-implicit lay sp-tok in
+      LexedTokens (rev-toks (lay-out (push-tok tok closed)))
+    else if is-closer kind then
+      let l1 = close-all-implicit lay sp-tok in
+      case lay-stack l1 of
+        Cons f fs ->
+          if is-implicit f then LexedFail sp-tok MismatchedDelimiter
+          else if not (eq-delim (frame-delim f) (closer-delim kind)) then
+            LexedFail sp-tok MismatchedDelimiter
+          else if frame-flag f == 2 then
+            layout-run rest
+              (set-prev (set-supply (push-tok tok (pop-frame l1)) True) sp-tok)
+          else layout-run rest (set-prev (push-tok tok (pop-frame l1)) sp-tok)
+        Nil -> LexedFail sp-tok MismatchedDelimiter
+    else if is-in-tok kind && supply-in then
+      layout-run rest (set-prev (push-tok tok lay) sp-tok)
+    else if is-in-tok kind then
+      case find-let-frame (lay-stack lay) of
+        None -> LexedFail sp-tok (in-error-kind (has-delim (lay-stack lay)))
+        Some let-at ->
+          let l1 = pop-to-let lay let-at sp-tok in
+          layout-run rest (set-prev (push-tok tok l1) sp-tok)
+    else
+      let l1 = mark-tok lay kind in
+      let l2 = if check then line-start l1 sp-tok else l1 in
+      let l3 = push-tok tok l2 in
+      if is-opener kind then
+        layout-run rest (set-prev (set-pend l3 sp-tok (is-let-tok kind)) sp-tok)
+      else if is-open-delim kind then
+        layout-run rest
+          (set-prev (push-frame l3 (FDelim (delim-of kind) (if with-group-open then 1 else 0))) sp-tok)
+      else layout-run rest (set-prev l3 sp-tok)
+
+  -- `with` arms a supply-clause paren; `=` at a supply group's top
+  -- level confirms it (amendment section 7).
+  mark-tok :: Lay -> Token -> Lay
+  mark-tok lay kind =
+    if is-with-tok kind then set-with lay True
+    else if is-equals-tok kind then mark-supply-bind lay
+    else lay
+
+  frame-delim :: Frame -> DelimKind
+  frame-delim f = case f of
+    FImplicit col islet -> DBrace
+    FDelim k m -> k
+
+  has-delim :: List Frame -> Bool
+  has-delim fs = case fs of
+    Nil -> False
+    Cons f rest -> if is-implicit f then has-delim rest else True
+
+  in-error-kind :: Bool -> LexErrorKind
+  in-error-kind crossed = if crossed then InCrossesDelimiter else InWithoutLet
+
+  -- `in` closes the nearest implicit `let` block plus any nested
+  -- implicit blocks, without crossing an explicit delimiter.
+  find-let-frame :: List Frame -> Option Nat
+  find-let-frame fs = find-let-frame-at fs 0
+
+  find-let-frame-at :: List Frame -> Nat -> Option Nat
+  find-let-frame-at fs i = case fs of
+    Nil -> None
+    Cons f rest ->
+      if is-implicit f then
+        if frame-is-let f then Some i else find-let-frame-at rest (i + 1)
+      else None
+
+  -- `in` closes the nearest implicit `let` block plus any nested
+  -- implicit blocks, without crossing an explicit delimiter. The
+  -- frame index counts from the top of the stack; the frames to close
+  -- are the ones down to and including it.
+  pop-to-let :: Lay -> Nat -> Span -> Lay
+  pop-to-let lay let-at sp =
+    pop-n-frames lay (list-len (lay-stack lay) - (let-at + 1)) sp
+
+  pop-n-frames :: Lay -> Nat -> Span -> Lay
+  pop-n-frames lay n sp =
+    if le-i64 (nat-cmp (list-len (lay-stack lay)) n) 0 then lay
+    else pop-n-frames (push-tok (virtual-tok sp (TPunct (text ['}']))) (pop-frame lay)) n sp
+
+  list-len :: List Frame -> Nat
+  list-len xs = case xs of
+    Nil -> 0
+    Cons y ys -> 1 + list-len ys
+
+  close-all-implicit :: Lay -> Span -> Lay
+  close-all-implicit lay sp = case lay-stack lay of
+    Cons f fs ->
+      if is-implicit f then
+        close-all-implicit (push-tok (virtual-tok sp (TPunct (text ['}']))) (pop-frame lay)) sp
+      else lay
+    Nil -> lay
+
+  -- The line-start logic: close implicit blocks the token outdents
+  -- past, then separate equal indentation.
+  line-start :: Lay -> Span -> Lay
+  line-start lay sp =
+    case lay-prev lay of
+      None -> lay
+      Some p ->
+        if nat-cmp (span-line sp) (span-line p) == 0 then lay
+        else
+          let l1 = close-outdented lay sp in
+          case lay-stack l1 of
+            Cons f fs ->
+              if is-implicit f && nat-cmp (span-col sp) (frame-col f) == 0 then
+                push-tok (virtual-tok sp (TPunct (text [';']))) l1
+              else l1
+            Nil -> l1
+
+  close-outdented :: Lay -> Span -> Lay
+  close-outdented lay sp = case lay-stack lay of
+    Cons f fs ->
+      if is-implicit f && lt-i64 (nat-cmp (span-col sp) (frame-col f)) 0 then
+        close-outdented (push-tok (virtual-tok sp (TPunct (text ['}']))) (pop-frame lay)) sp
+      else lay
+    Nil -> lay
+
+  -- A capability supply `with (x = e)` binds names at the group's top
+  -- level, which confirms the group as a supply (amendment section 7).
+  mark-supply-bind :: Lay -> Lay
+  mark-supply-bind lay = case lay-stack lay of
+    Cons f fs ->
+      if is-implicit f then lay
+      else if frame-flag f == 1 then
+        case lay of
+          Lay o s p ps pi wp sc ->
+            Lay o (Cons (FDelim (frame-delim f) 2) fs) p ps pi wp sc
+      else lay
+    Nil -> lay
