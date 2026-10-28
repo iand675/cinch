@@ -1005,6 +1005,34 @@ correspondence: one lexeme in expression/pattern, staging `Name`, and
   kept); and `render_ast_type` lacked the `Type::Lam` arm the tail
   slice's index lambdas needed - the user's 4-line fix is restored
   verbatim as its own commit (`4b7b5df`) and the stash dropped.
+- **D282-D284 (lattice instance half, reported)**: `using`
+  obligations on instances are per carrier argument (the binder is
+  the predicate's own) while signature obligations bind the
+  signature's dependent argument names; resolution matches heads by
+  predicate implication with the strongest condition (head
+  predicates folded with the constraint set) winning, stated heads
+  beating generic on ties, incomparable maxima at a ground want
+  rejecting as a coherence error naming both heads and the point, and
+  underdetermined wants still deferring as `Ambiguous`; the transfer
+  validity check runs per (point, method) at every refined want, law
+  rows key to the container instance when the winner carries
+  `Preserves` (rep-identity dictionary), and post rows record the
+  `post p p = p` closure case (the general p != q postcondition is
+  out of scope).
+- **D285-D287 (instance-half acceptance fixes, reported)**:
+  `Preserves (` op `)` is the constraint spelling and a named
+  refinement in proposition position reads as its predicate
+  everywhere; transfer obligations record only after zonking (a want
+  left as a metavariable records nothing) and the law tier runs on a
+  512 MiB scoped thread stack because bound-corner witnesses
+  evaluate the real method over 200-element lists; `.cinchif`
+  carries law rows (`Iface.laws`, `LawFact`) hashed into `iface_hash`
+  with rows living in the dictionary-owning module, and signature
+  obligations normalize to positional binders at conversion
+  (substituted by position at the call; partial application
+  refused). **P28-2 complete: `tests/lattice.rs` 17/17** (9
+  predicate/movement + 8 instance acceptance; the probes caught 9
+  real bugs before passing).
 - **D127 (P25 scaffolding ruling)**: FoldAgent's defunctionalized
   class shapes (`Foldable t a`, `Traversable t x g h tg hs`) are
   accepted as NON-CURATED scaffolding: they ship in the `Category`
