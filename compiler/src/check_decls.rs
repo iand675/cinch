@@ -14745,13 +14745,24 @@ impl Checker {
                             let fields = field_tys
                                 .iter()
                                 .map(|f| Checker::subst_ty(f, &map).to_string())
-                                .collect();
-                            ctors.push(CtorExport {
-                                name: cname.clone(),
-                                tag: *tag as u64,
-                                fields,
-                                erased: field_erased.clone(),
-                            });
+                                .collect::<Vec<_>>();
+                            // A constructor is surface exactly when it
+                            // is a named entry of the export set
+                            // (D143's rule), recorded under its
+                            // exported spelling. Unnamed constructors
+                            // (module-private like `StrBuf`, D298)
+                            // must not leak through the export table
+                            // to importing modules.
+                            for (ctor_local, _) in surface.iter().filter(|(_, s)| {
+                                s.module == d.module && s.name == *cname
+                            }) {
+                                ctors.push(CtorExport {
+                                    name: ctor_local.clone(),
+                                    tag: *tag as u64,
+                                    fields: fields.clone(),
+                                    erased: field_erased.clone(),
+                                });
+                            }
                         }
                     }
                 }

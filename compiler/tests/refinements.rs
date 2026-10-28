@@ -637,9 +637,11 @@ module Main where
     Some z -> if unrefine z == 0 - 3 then 0 else 32
 
   check4 :: Int
-  check4 = case to-ascii (String (bytes-from-list (Cons 65 (Cons 66 Nil)))) of
-    None -> 64
-    Some a -> if string-length (unrefine a) == 2 then 0 else 128
+  check4 = case string-from-bytes (bytes-from-list (Cons 65 (Cons 66 Nil))) of
+    None -> 512
+    Some s -> case to-ascii s of
+      None -> 64
+      Some a -> if string-length (unrefine a) == 2 then 0 else 128
 
   main :: Int
   main = check1 + check2 + check3 + check4
@@ -673,9 +675,11 @@ module Main where
     Some _ -> 4
 
   check4 :: Int
-  check4 = case to-ascii (String (bytes-from-list (Cons 195 (Cons 169 Nil)))) of
-    None -> 0
-    Some _ -> 8
+  check4 = case string-from-bytes (bytes-from-list (Cons 195 (Cons 169 Nil))) of
+    None -> 1024
+    Some s -> case to-ascii s of
+      None -> 0
+      Some _ -> 8
 
   main :: Int
   main = check1 + check2 + check3 + check4

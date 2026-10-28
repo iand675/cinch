@@ -2511,6 +2511,20 @@ impl Checker {
                 if qualified_ok && info.ctors.iter().any(|(n, _)| n == last) {
                     if let Some(v) = self.qualified.get(&(info.module.clone(), last.to_string())) {
                         if matches!(v.kind, ValueKind::Ctor { .. }) {
+                            // Surface gate (D143/D298/D308): a
+                            // module-private constructor never crosses
+                            // an import, in term or pattern position.
+                            if v.module != self.current_module
+                                && self.surface_def(&v.module, last).is_none()
+                            {
+                                return Err(Error::at(
+                                    span,
+                                    format!(
+                                        "constructor {} is not exported by {}",
+                                        last, v.module
+                                    ),
+                                ));
+                            }
                             let mut v = v.clone();
                             v.name = last.to_string();
                             return Ok(v);
@@ -6780,6 +6794,22 @@ impl Checker {
             if info.ctors.iter().any(|(n, _)| n == last) {
                 if let Ok(v) = self.ctor_of_type(info, last) {
                     if matches!(v.kind, ValueKind::Ctor { .. }) {
+                        // The constructor must also be surface from
+                        // here (D143's named-set rule, D298): a
+                        // module-private constructor like `StrBuf` is
+                        // visible to its own module's patterns but
+                        // never through an import.
+                        if v.module != self.current_module
+                            && self.surface_def(&v.module, last).is_none()
+                        {
+                            return Err(Error::at(
+                                span,
+                                format!(
+                                    "constructor {} is not exported by {}",
+                                    last, v.module
+                                ),
+                            ));
+                        }
                         let mut v = v;
                         v.name = last.to_string();
                         return Ok(v);

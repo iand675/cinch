@@ -453,6 +453,67 @@ fn every_facade_surface_name_resolves_through_prelude() {
 }
 
 #[test]
+fn private_ctors_are_unreachable_through_an_import() {
+    // D298/D308's surface rule: `Data.String`'s representation
+    // constructor `StrBuf` is module-private, so an import cannot
+    // reach it in pattern or term position; the type stays fully
+    // usable through its conversions (the round trips live in
+    // tests/string_literals.rs).
+    let pat = "module Main where\n\
+         \x20 import Data.String\n\
+         \x20 leak :: String -> Nat\n\
+         \x20 leak s = case s of\n\
+         \x20   StrBuf b -> 1\n\
+         \x20 main :: Int\n\
+         \x20 main = 0\n";
+    match check_sources(pat, "<test>") {
+        Ok(_) => panic!("StrBuf pattern: expected a not-exported refusal"),
+        Err(e) => {
+            let msg = e.to_string();
+            assert!(
+                msg.contains("not exported") && msg.contains("StrBuf"),
+                "StrBuf pattern: expected the named refusal, got {msg}"
+            );
+        }
+    }
+    let term = "module Main where\n\
+         \x20 import Data.String\n\
+         \x20 leak :: Bytes -> String\n\
+         \x20 leak b = StrBuf b\n\
+         \x20 main :: Int\n\
+         \x20 main = 0\n";
+    match check_sources(term, "<test>") {
+        Ok(_) => panic!("StrBuf term: expected a not-exported refusal"),
+        Err(e) => {
+            let msg = e.to_string();
+            assert!(
+                msg.contains("not exported") && msg.contains("StrBuf"),
+                "StrBuf term: expected the named refusal, got {msg}"
+            );
+        }
+    }
+    // The single-constructor type-name alias is construction too
+    // (D308): `String b` must not reach the private constructor
+    // through the type's exported name.
+    let alias = "module Main where\n\
+         \x20 import Data.String\n\
+         \x20 leak :: Bytes -> String\n\
+         \x20 leak b = String b\n\
+         \x20 main :: Int\n\
+         \x20 main = 0\n";
+    match check_sources(alias, "<test>") {
+        Ok(_) => panic!("String alias: expected a refusal"),
+        Err(e) => {
+            let msg = e.to_string();
+            assert!(
+                msg.contains("String"),
+                "String alias: expected a named refusal, got {msg}"
+            );
+        }
+    }
+}
+
+#[test]
 fn curated_names_are_unreachable_through_prelude() {
     // The negative space is real (the facade's header): `invert`,
     // `show` and `hash` belong to families the facade does not

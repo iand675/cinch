@@ -1143,6 +1143,31 @@ correspondence: one lexeme in expression/pattern, staging `Name`, and
   it runs twice and the second fails because it consumes rather than
   guards. The decided fix (queued): `expect-eof` becomes a
   non-consuming idempotent guard, pinned by a test.
+- **D308 (export-surface ctor leak, gate-found and fixed)**: the
+  facade pin (`facade_export_list_is_the_checked_surface`) failed at
+  the integration gate because module-private constructors leaked
+  through three layers: `module_iface` recorded every constructor of
+  an exported type in the `.cinchif` export table regardless of the
+  named set (renamed ctor exports also recorded the definition
+  spelling), and both type-directed fast paths -
+  `ctor_for_type` (pattern position) and `resolve_ctor_for` (term
+  position) - resolved constructors against the scrutinee type's
+  full registry with no surface check, so `import Data.String` could
+  construct and match `StrBuf` (probe-proven before the fix). Now:
+  the export record carries exactly the named constructors under
+  their exported spellings, both fast paths gate on surface
+  visibility, and the refusal is named ("constructor `StrBuf` is not
+  exported by `Data.String`") in both positions. Pinned by
+  `private_ctors_are_unreachable_through_an_import` (both
+  positions). Known honest quirk: a type with hidden constructors
+  can be matched only through its visible constructors plus a
+  wildcard; a coverage error may name an unmatchable constructor.
+  The gate also exposed that the single-constructor type-name alias
+  (`String b` constructing the sole constructor) had survived the
+  StrBuf rename as cross-module surface - it is construction and
+  follows the constructor's privacy (pinned), and the two
+  `tests/refinements.rs` fixtures that used it moved to
+  `string-from-bytes`.
 - **D295-D296 (P29 incremental recompilation, reported)**: the
   `incremental` driver module delivers all three Blaze equivalents -
   `ItemGraph` (REAPER: lazily built, kinded `Surface`/`Body` edges
