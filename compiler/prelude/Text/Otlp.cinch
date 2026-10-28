@@ -1,0 +1,326 @@
+-- Text.Otlp: the observability wire formats (the P32
+-- structured/OTLP/W3C story).
+--
+-- Module scheme (design/base-library.md): `Text.*` is conversion to and
+-- from String/Bytes. This module is the P32 wire layer over the
+-- `Effect.Log`/`Effect.Trace` record shapes and `Text.Json`'s canonical
+-- printer:
+--
+--   * the W3C `traceparent` header parsed and formatted around
+--     `Effect.Trace`'s `TraceContext` (trace context recommendation,
+--     section 3.2: `version-traceid-spanid-flags`, lowercase
+--     hexadecimal, `ff` version forbidden, zero trace/span ids
+--     forbidden, version `00` exactly the four fields and later
+--     versions parsed through their first 55 characters);
+--   * the OTLP/JSON export envelope (`otlp-export`) built over
+--     `Text.Json`: the collected records (log, metric and nested span
+--     records) become `resourceLogs`/`resourceMetrics`/
+--     `resourceSpans` in the protobuf-JSON mapping shape (JSON only;
+--     the protobuf binary encoding is a named boundary, not this
+--     module's job).
+--
+-- EXPORT ASSIGNMENT (reported): the trace context supplies the trace
+-- id, the parent span id and the trace flags; the export walk assigns
+-- each span a span id (the visit index zero-padded to 16 decimal
+-- digits, which is valid lowercase hex) and nests children under their
+-- parent, so logs and metrics inside a scope carry the enclosing span
+-- id. Times (`timeUnixNano`) are deliberately absent: the P34
+-- platform layer owns the clock and the export shape does not invent
+-- one.
+module Text.Otlp where
+
+  import Effect.Log
+  import Effect.Trace
+  import Data.Bool
+  import Data.Bytes (bytes-get, bytes-len)
+  import Data.Int (int-from-i64)
+  import Data.Json
+  import Data.List
+  import Data.Nat
+  import Data.Option
+  import Data.String
+  import Text.Show (nat-to-string, int-to-string)
+  import Algebra.Semigroup
+
+  infixr 6 <>
+
+  export parse-traceparent, format-traceparent
+  export otlp-export, any-value, attributes
+
+
+  -- ------------------------------------------------------------------
+  -- W3C traceparent (the header grammar: version-traceid-spanid-flags)
+  -- ------------------------------------------------------------------
+
+  -- Parse a `traceparent` header into the trace context of some
+  -- identity `r`. Refused (as `None`) unless the header is exactly the
+  -- section 3.2 grammar: 55 lowercase-hex characters in four
+  -- dash-delimited fields (a later version may carry trailing fields,
+  -- which are ignored), version not `ff`, version `00` with no
+  -- trailing data, and neither id all zeros.
+  parse-traceparent :: forall r. String -> Option (TraceContext r)
+  parse-traceparent s = case string-to-bytes s of
+    b ->
+      if bytes-len b < 55 then None
+      else if not (dash-at b 2 && dash-at b 35 && dash-at b 52) then None
+      else case hex2-val b 0 of
+        None -> None
+        Some v ->
+          if nat-cmp v 255 == 0 then None
+          else if nat-cmp v 0 == 0 && not (bytes-len b == 55) then None
+          else case hex2-val b 53 of
+            None -> None
+            Some f ->
+              if id-valid b 3 32 && id-valid b 36 16 then
+                Some (TraceContext v (string-slice s 3 35) (string-slice s 36 52) f)
+              else None
+
+  -- Format the context back to its `traceparent` header: parse and
+  -- format round trip exactly (the header is canonical lowercase).
+  format-traceparent :: forall r. TraceContext r -> String
+  format-traceparent ctx = case ctx of
+    TraceContext v trace-id span-id f ->
+      string-concat (hex2 v)
+        (string-concat "-" (string-concat trace-id
+          (string-concat "-" (string-concat span-id
+            (string-concat "-" (hex2 f))))))
+
+  dash-at :: Bytes -> Nat -> Bool
+  dash-at b i = nat-cmp (bytes-get b i) 45 == 0
+
+  -- One lowercase-hex digit's value; `None` for anything else
+  -- (uppercase is not the grammar).
+  hex-digit-val :: Nat -> Option Nat
+  hex-digit-val c =
+    if c >= 48 && c <= 57 then Some (c - 48)
+    else if c >= 97 && c <= 102 then Some (c - 87)
+    else None
+
+  hex2-val :: Bytes -> Nat -> Option Nat
+  hex2-val b i = case hex-digit-val (bytes-get b i) of
+    None -> None
+    Some hi -> case hex-digit-val (bytes-get b (i + 1)) of
+      None -> None
+      Some lo -> Some (hi * 16 + lo)
+
+  -- An id field: `len` lowercase-hex digits, not all zeros.
+  id-valid :: Bytes -> Nat -> Nat -> Bool
+  id-valid b start len = id-scan b start (start + len) False
+
+  id-scan :: Bytes -> Nat -> Nat -> Bool -> Bool
+  id-scan b i end nonzero =
+    if i >= end then nonzero
+    else case hex-digit-val (bytes-get b i) of
+      None -> False
+      Some d -> id-scan b (i + 1) end (nonzero || d > 0)
+
+  hex2 :: Nat -> String
+  hex2 n = string-concat (hex-char (nat-div n 16)) (hex-char (nat-rem n 16))
+
+  hex-char :: Nat -> String
+  hex-char d =
+    if d < 10 then nat-to-string d
+    else string-slice "abcdef" (d - 10) d
+
+  -- ------------------------------------------------------------------
+  -- The OTLP/JSON export envelope (protobuf-JSON mapping, JSON only)
+  -- ------------------------------------------------------------------
+
+  -- The envelope over the collected records: `resourceLogs` carries
+  -- the log records, `resourceMetrics` the metric records and
+  -- `resourceSpans` the span trees (flattened with parent links). The
+  -- trace context stamps every signal: its trace id, the parent span
+  -- id of the roots (the incoming span) and the span's trace flags.
+  otlp-export :: forall r. TraceContext r -> Json -> List Json -> Json
+  otlp-export ctx resource recs = case ctx of
+    TraceContext _ _ parent _ -> case collect ctx parent 1 recs of
+      Signals logs metrics spans _ ->
+        fields [
+          ("resourceLogs", arr [scope-group "scopeLogs" "logRecords" "Effect.Log" logs resource]),
+          ("resourceMetrics", arr [scope-group "scopeMetrics" "metrics" "Effect.Log" metrics resource]),
+          ("resourceSpans", arr [scope-group "scopeSpans" "spans" "Effect.Trace" spans resource])]
+
+  scope-group :: String -> String -> String -> List Json -> Json -> Json
+  scope-group group-key signal-key scope-name signals resource =
+    fields [
+      ("resource", fields [("attributes", attributes resource)]),
+      (group-key, arr [fields [("scope", fields [("name", str scope-name)]),
+        (signal-key, arr signals)]])]
+
+  -- The export walk over one level of collected records, in visit
+  -- order: logs and metrics are lifted to their signals (carrying the
+  -- enclosing span id), a span record recurses into its children
+  -- between its own span id and the next index. Scope-end markers are
+  -- skipped.
+  data Signals where
+    Signals :: List Json -> List Json -> List Json -> Nat -> Signals
+
+  collect :: forall r. TraceContext r -> String -> Nat -> List Json -> Signals
+  collect ctx parent next recs = case recs of
+    Nil -> Signals Nil Nil Nil next
+    Cons r rest ->
+      if is-end-mark r then collect ctx parent next rest
+      else case obj-lookup "children" r of
+        Some _ ->
+          let me = pad16 next in
+          case collect ctx me (next + 1) (obj-children r) of
+            Signals inner-logs inner-metrics inner-spans n1 ->
+              case collect ctx parent n1 rest of
+                Signals logs metrics spans n2 ->
+                  Signals (inner-logs <> logs) (inner-metrics <> metrics)
+                    (Cons (span-json ctx me parent r) (inner-spans <> spans)) n2
+        None -> case obj-lookup "metric" r of
+          Some _ -> case collect ctx parent next rest of
+            Signals logs metrics spans n1 ->
+              Signals logs (Cons (metric-json r) metrics) spans n1
+          None -> case collect ctx parent next rest of
+            Signals logs metrics spans n1 ->
+              Signals (Cons (log-json ctx parent r) logs) metrics spans n1
+
+  -- The span id of the visit order: the index zero-padded to 16
+  -- decimal digits (valid lowercase hex at the pinned widths).
+  pad16 :: Nat -> String
+  pad16 n = pad-to 16 (nat-to-string n)
+
+  pad-to :: Nat -> String -> String
+  pad-to width s = if string-length s >= width then s else pad-to width (string-concat "0" s)
+
+  is-end-mark :: Json -> Bool
+  is-end-mark r = case obj-lookup "span-end" r of
+    Some _ -> True
+    None -> False
+
+  span-json :: forall r. TraceContext r -> String -> String -> Json -> Json
+  span-json ctx me parent r = case ctx of
+    TraceContext _ trace-id _ f ->
+      fields [
+        ("traceId", str trace-id),
+        ("spanId", str me),
+        ("parentSpanId", str parent),
+        ("name", str (obj-str "name" r)),
+        ("flags", nat-json f),
+        ("attributes", attributes (obj-val "fields" r))]
+
+  log-json :: forall r. TraceContext r -> String -> Json -> Json
+  log-json ctx parent r = case ctx of
+    TraceContext _ trace-id _ _ ->
+      fields [
+        ("severityNumber", nat-json (severity-number (obj-str "level" r))),
+        ("severityText", str (severity-text (obj-str "level" r))),
+        ("body", fields [("stringValue", str (obj-str "message" r))]),
+        ("attributes", attributes (obj-val "fields" r)),
+        ("traceId", str trace-id),
+        ("spanId", str parent)]
+
+  metric-json :: Json -> Json
+  metric-json r =
+    let name = str (obj-str "name" r) in
+    let value = obj-int "value" r in
+    let points = arr [fields [("asInt", str (int-to-string value)),
+      ("attributes", attributes (obj-val "fields" r))]] in
+    let kind = obj-str "metric" r in
+    if string-compare kind "counter" == 0 then
+      fields [("name", name),
+        ("sum", fields [("aggregationTemporality", num 2), ("isMonotonic", flag True),
+          ("dataPoints", points)])]
+    else if string-compare kind "gauge" == 0 then
+      fields [("name", name), ("gauge", fields [("dataPoints", points)])]
+    else
+      fields [("name", name),
+        ("histogram", fields [("aggregationTemporality", num 2),
+          ("dataPoints", arr [fields [("count", str "1"), ("sum", num value),
+            ("explicitBounds", arr Nil), ("bucketCounts", arr [str "1"]),
+            ("attributes", attributes (obj-val "fields" r))]])])]
+
+  -- The OpenTelemetry severity ranges (logs data model): DEBUG 5,
+  -- INFO 9, WARN 13, ERROR 17.
+  severity-number :: String -> Nat
+  severity-number level =
+    if string-compare level "debug" == 0 then 5
+    else if string-compare level "info" == 0 then 9
+    else if string-compare level "warn" == 0 then 13
+    else 17
+
+  severity-text :: String -> String
+  severity-text level =
+    if string-compare level "debug" == 0 then "DEBUG"
+    else if string-compare level "info" == 0 then "INFO"
+    else if string-compare level "warn" == 0 then "WARN"
+    else "ERROR"
+
+  -- ------------------------------------------------------------------
+  -- Json to OTLP values
+  -- ------------------------------------------------------------------
+
+  -- A record's fields as OTLP attributes: `[{"key": ..., "value":
+  -- <AnyValue>}, ...]` in object-spine order.
+  attributes :: Json -> Json
+  attributes o = arr (attribute-entries o)
+
+  attribute-entries :: Json -> List Json
+  attribute-entries o = case o of
+    JObj k v rest ->
+      Cons (fields [("key", str k), ("value", any-value v)]) (attribute-entries rest)
+    _ -> Nil
+
+  -- One `Json` value as an OTLP `AnyValue` (the protobuf-JSON
+  -- mapping): strings, int64-as-string, doubles, bools, arrays as
+  -- `arrayValue`, objects as `kvlistValue`, `JNull` as the empty
+  -- value.
+  any-value :: Json -> Json
+  any-value v = case v of
+    JNull -> JObjEnd
+    JBool b -> fields [("boolValue", flag b)]
+    JNum n -> fields [("intValue", str (int-to-string n))]
+    JFloat f -> fields [("doubleValue", JFloat f)]
+    JStr s -> fields [("stringValue", str s)]
+    JArrEnd -> array-of Nil
+    JArr x xs -> array-of (arr-items (JArr x xs))
+    JObjEnd -> kvlist-of Nil
+    JObj k x rest -> kvlist-of (attribute-entries (JObj k x rest))
+
+  array-of :: List Json -> Json
+  array-of items = fields [("arrayValue", fields [("values", arr items)])]
+
+  kvlist-of :: List Json -> Json
+  kvlist-of items = fields [("kvlistValue", fields [("values", arr items)])]
+
+  -- ------------------------------------------------------------------
+  -- Record shape access (the Effect.Log/Effect.Trace shapes)
+  -- ------------------------------------------------------------------
+
+  obj-lookup :: String -> Json -> Option Json
+  obj-lookup key o = case o of
+    JObj k v rest ->
+      if string-compare key k == 0 then Some v else obj-lookup key rest
+    _ -> None
+
+  obj-val :: String -> Json -> Json
+  obj-val key o = case obj-lookup key o of
+    Some v -> v
+    None -> JNull
+
+  obj-str :: String -> Json -> String
+  obj-str key o = case obj-lookup key o of
+    Some v -> case v of
+      JStr s -> s
+      _ -> ""
+    None -> ""
+
+  obj-int :: String -> Json -> Int
+  obj-int key o = case obj-lookup key o of
+    Some v -> case v of
+      JNum n -> n
+      _ -> 0
+    None -> 0
+
+  obj-children :: Json -> List Json
+  obj-children o = arr-items (obj-val "children" o)
+
+  arr-items :: Json -> List Json
+  arr-items a = case a of
+    JArr x xs -> Cons x (arr-items xs)
+    _ -> Nil
+
+  nat-json :: Nat -> Json
+  nat-json n = num (int-from-i64 (nat-to-i64 n))

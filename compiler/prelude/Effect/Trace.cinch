@@ -1,0 +1,109 @@
+-- Effect.Trace: the `Trace r` scope vocabulary (the P32 observability
+-- rows): spans as lexical scopes, and the W3C trace context carried by
+-- the runtime identity `r`.
+--
+-- Module scheme (design/base-library.md): `Effect.*` is the effect
+-- system's vocabulary; this family is the scope signals beside
+-- `Effect.Log`'s point signals. `span`/`end-span` are ordinary
+-- operations in the `Io r` mold (D21/D81): `{Trace r}` on the row of
+-- `forall r.` signatures, interpreted by a handler, refused at
+-- `main`'s boundary when unhandled.
+--
+-- SPANS AS LEXICAL SCOPES (reported): `span name fields` opens the
+-- scope and `end-span name` closes it, so a scope is the lexical
+-- region between the two statements (a bracketed block of the
+-- computation, named at both ends). A `span` whose scope runs to the
+-- end of the handled computation needs no close (the tail scope), so
+-- nested spans read innermost-last with no ceremony. The collecting
+-- handler gets this shape for free: the close marker rides the
+-- resumption chain (`end-marker`), and `span-scope` wraps exactly the
+-- records up to the matching close (or, with no matching close, the
+-- whole tail) in the span record. This is the `withScope` shape of the
+-- roadmap under the bootstrap handler calculus (D23): dispatch is
+-- lexical to the handled computation's own expression, so a
+-- body-taking `span` could not carry handled operations in its body;
+-- the bracket pair is the honest lexical scope until call-dispatched
+-- handling lands.
+--
+-- THE TRACE CONTEXT (reported): the W3C traceparent fields (version,
+-- trace-id, span-id, trace flags) indexed by the runtime identity
+-- (`TraceContext r`): a context is built for one `r` and every
+-- function that carries it quantifies the same `r`, so the context
+-- travels with the identity the `{Log r}`/`{Trace r}` rows name. The
+-- header text conversion lives in `Text.Otlp` (the wire formats).
+module Effect.Trace where
+
+  import Data.Json
+  import Data.List
+  import Data.String
+  import Effect.Log (arr)
+  export span, end-span
+  export TraceContext
+  export span-record, end-marker, span-scope
+
+
+  -- The `Trace r` family (the scope signals). `span name fields` opens
+  -- the scope `name`; `end-span name` closes the innermost open scope
+  -- of that name (the name rides the close marker, so a collector can
+  -- match the bracket pair).
+  effect Trace (r :: Region) where
+    span :: String -> Json ->{Trace r} Unit
+    end-span :: String ->{Trace r} Unit
+
+  -- The W3C trace context of runtime identity `r` (trace context
+  -- recommendation, section 3.2): the traceparent header's fields,
+  -- version (`0`-`255`, `255` is the forbidden `ff`), the 32
+  -- lowercase-hex trace id, the 16 lowercase-hex parent span id and
+  -- the trace flags (`0`-`255`), all indexed by the identity the
+  -- context propagates through.
+  data TraceContext r where
+    TraceContext :: Nat -> String -> String -> Nat -> TraceContext r
+
+  -- A span record: `{"name": ..., "fields": ..., "children": [...]}`,
+  -- where children are the collected records of the scope (log,
+  -- metric and nested span records).
+  span-record :: String -> Json -> List Json -> Json
+  span-record name payload children =
+    JObj "name" (JStr name)
+      (JObj "fields" payload
+        (JObj "children" (arr children) JObjEnd))
+
+  -- The scope-end marker a collecting handler's `end-span` clause
+  -- conses onto the resumption chain; `span-scope` consumes it. The
+  -- name is the scope being closed (the bracket pair's check).
+  end-marker :: String -> Json
+  end-marker name = JObj "span-end" (JStr name) JObjEnd
+
+  -- The collecting handler's `span` clause body: wrap `scope` (the
+  -- resumption's records) in the span record, children ending at the
+  -- matching close marker (or the tail when the scope is unclosed).
+  span-scope :: String -> Json -> List Json -> List Json
+  span-scope name payload scope = case split-at-end name scope Nil of
+    (children, rest) -> Cons (span-record name payload children) rest
+
+  -- The first matching close marker splits the scope from the rest.
+  split-at-end :: String -> List Json -> List Json -> (List Json, List Json)
+  split-at-end name scope acc = case scope of
+    Nil -> (reverse acc, Nil)
+    Cons x rest ->
+      if is-end-marker name x then (reverse acc, rest)
+      else split-at-end name rest (Cons x acc)
+
+  is-end-marker :: String -> Json -> Bool
+  is-end-marker name m = case m of
+    JObj key val tail -> case tail of
+      JObjEnd -> case val of
+        JStr n ->
+          if string-compare key "span-end" == 0 then string-compare n name == 0
+          else False
+        _ -> False
+      _ -> False
+    _ -> False
+
+  reverse :: List Json -> List Json
+  reverse xs = reverse-acc xs Nil
+
+  reverse-acc :: List Json -> List Json -> List Json
+  reverse-acc xs acc = case xs of
+    Nil -> acc
+    Cons y ys -> reverse-acc ys (Cons y acc)
