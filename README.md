@@ -17,14 +17,20 @@ documentation export's pre-rendered `*.html` pages were removed on
 2026-10-25 in favor of that rendering; `manifest.json` and `SHA256SUMS`
 remain as the record of what the export contained. The language was
 renamed to Cinch on 2026-10-27, so the recorded file names follow the
-new `.cinch`/`.cinchif` spelling while the recorded hash values still
-pin the exported bytes.
+new `.cinch`/`.cinchif` spelling. `SHA256SUMS` was re-pinned on
+2026-10-28 to the bytes actually in the tree, because the example
+sources are not frozen: 02, 03, 05, 08, and 12 were rewritten to their
+as-intended form as the compiler grew the language features their
+proofs and pipelines need (the examples sweep, `cbd276e`, `2fa5c75`)
+and 05's build-input comment followed the rename. The original export
+hashes live in git history; `source-data/pages.json` keeps the
+verbatim original page text regardless.
 
 ## Export contents
 
 - **27 documentation pages**, in Markdown (the export's standalone HTML
   renderings were removed on 2026-10-25; see above).
-- **12 `.cinch` source files and one WIT interface**, extracted verbatim from the current example catalogue. The final runtime-effects filename is an export label for its named code block.
+- **12 `.cinch` source files and one WIT interface**, extracted from the example catalogue; five evolved afterward (see the re-pin note above) and seven remain byte-exact to the export. The final runtime-effects filename is an export label for its named code block.
 - Historical [design conversation](context/design-conversation.md), with 25 visible messages; no message content was omitted by the reader.
 - `source-data/pages.json` retains the exact original Markdown and ordered block text, plus source URLs, page IDs, update times, and revision numbers.
 - `manifest.json` maps pages and example files to their sources. `SHA256SUMS` verifies every other archive file.

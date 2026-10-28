@@ -16,6 +16,6 @@ module Billing where
   -- Refresh captures input, replay uses it, live explicitly contacts a database.
   -- Generated bindings are checked; runtime use needs schema compatibility.
   -- Build inputs: SCHEMA_DATABASE_URL present in the build environment
-  -- (referenced by name only) and SAFELANG_SCHEMA_TOOL naming the
+  -- (referenced by name only) and CINCH_SCHEMA_TOOL naming the
   -- introspection tool; examples/source/schema-tool.sh supplies a
   -- recorded snapshot so this checks without a live database.
