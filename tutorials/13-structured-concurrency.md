@@ -50,7 +50,7 @@ Test cancellation at suspension points and explore schedules to find counterexam
 
 During hot replacement, drain or migrate the scope's children, mailboxes, callbacks and pending host operations as well as the module's visible state. A quiescent exported function stack alone is insufficient.
 
-See `examples/11-structured-tasks.lang` and the concurrency specification for scheduler capabilities, atomics, supervision and upgrade rules.
+See `examples/11-structured-tasks.cinch` and the concurrency specification for scheduler capabilities, atomics, supervision and upgrade rules.
 
 [Documentation overview](../overview.md)
 

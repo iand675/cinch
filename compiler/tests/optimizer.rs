@@ -6,8 +6,8 @@
 //! specialization report, and the artifact manifest's trust level and
 //! target conditions.
 
-use safelang::core::{optimize, OptReport, Program, TargetProfile};
-use safelang::driver::{check_sources, driver, run_source_profile, Mode};
+use cinch::core::{optimize, OptReport, Program, TargetProfile};
+use cinch::driver::{check_sources, driver, run_source_profile, Mode};
 use std::path::{Path, PathBuf};
 
 fn checked(name: &str, src: &str) -> Program {
@@ -22,7 +22,7 @@ fn opt_of(name: &str, src: &str, profile: &TargetProfile) -> (Program, OptReport
 /// The optimized program's LLVM IR (every IR test carries a `main`).
 fn ir_of(name: &str, src: &str, profile: &TargetProfile) -> String {
     let (program, _report) = opt_of(name, src, profile);
-    safelang::codegen::emit(&program).unwrap_or_else(|e| panic!("{name}: emit failed: {e}"))
+    cinch::codegen::emit(&program).unwrap_or_else(|e| panic!("{name}: emit failed: {e}"))
 }
 
 fn run(name: &str, src: &str, profile: &TargetProfile) -> i32 {
@@ -591,7 +591,7 @@ module Fuel where
 
 fn write_project(files: &[(&str, &str)]) -> PathBuf {
     let dir = std::env::temp_dir().join(format!(
-        "safelang_opttest_{}_{}",
+        "cinch_opttest_{}_{}",
         std::process::id(),
         files.as_ptr() as usize
     ));
@@ -606,7 +606,7 @@ fn write_project(files: &[(&str, &str)]) -> PathBuf {
 #[test]
 fn manifest_records_trust_level_and_target_conditions() {
     let dir = write_project(&[(
-        "Main.lang",
+        "Main.cinch",
         &format!(
             r#"
 module Main where
@@ -616,7 +616,7 @@ module Main where
 "#
         ),
     )]);
-    driver(Mode::Run, &dir.join("Main.lang"), None).expect("project run");
+    driver(Mode::Run, &dir.join("Main.cinch"), None).expect("project run");
     let manifest =
         std::fs::read_to_string(dir.join("build/Main.manifest.json")).expect("manifest");
     assert!(manifest.contains("\"trust\""), "{manifest}");
@@ -660,7 +660,7 @@ fn scalable_profile_does_not_pin_a_width() {
     // must not assume an observed length stays fixed (platform section
     // 6).
     let dir = write_project(&[(
-        "Main.lang",
+        "Main.cinch",
         &format!(
             r#"
 module Main where
@@ -671,13 +671,13 @@ module Main where
         ),
     )]);
     let profile = TargetProfile {
-        vector_shape: safelang::core::VectorShape::Scalable,
+        vector_shape: cinch::core::VectorShape::Scalable,
         ..TargetProfile::native()
     };
-    safelang::driver::driver_with_profile(
+    cinch::driver::driver_with_profile(
         Mode::Run,
-        safelang::driver::StageMode::Refresh,
-        &dir.join("Main.lang"),
+        cinch::driver::StageMode::Refresh,
+        &dir.join("Main.cinch"),
         None,
         &profile,
     )
@@ -695,9 +695,9 @@ fn example_08_probe_is_past_rewrite() {
     // target declaration parses and checks through its binders, context,
     // pattern, template and condition.
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../examples/source/08-platform-simd.lang");
+        .join("../examples/source/08-platform-simd.cinch");
     let src = std::fs::read_to_string(&path).expect("example 08");
-    match check_sources(&src, "08-platform-simd.lang") {
+    match check_sources(&src, "08-platform-simd.cinch") {
         Ok(_) => {}
         Err(e) => {
             let msg = e.to_string();

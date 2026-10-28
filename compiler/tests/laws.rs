@@ -6,14 +6,14 @@
 //! identity (`Semigroup.assoc`), with the undischarged law identity
 //! recorded in the artifact manifest's declared assumptions.
 
-use safelang::check::StageMode;
-use safelang::core::TargetProfile;
-use safelang::driver::{check_sources, driver_with_profile};
+use cinch::check::StageMode;
+use cinch::core::TargetProfile;
+use cinch::driver::{check_sources, driver_with_profile};
 use std::path::PathBuf;
 
 /// The law-abiding instance fixture: a concrete carrier whose `<>`
 /// obeys `Semigroup.assoc`.
-const LAWS: &str = include_str!("fixtures/prim/laws.lang");
+const LAWS: &str = include_str!("fixtures/prim/laws.cinch");
 
 /// Assert that checking the program fails with a message containing
 /// `needle`.
@@ -33,10 +33,10 @@ fn expect_err(name: &str, src: &str, needle: &str) {
 /// Write one source to a fresh temporary project and return its
 /// directory.
 fn write_project(name: &str, src: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("safelang-laws-{}-{name}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("cinch-laws-{}-{name}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).expect("temp project");
-    std::fs::write(dir.join("Main.lang"), src).expect("write Main.lang");
+    std::fs::write(dir.join("Main.cinch"), src).expect("write Main.cinch");
     dir
 }
 
@@ -46,7 +46,7 @@ fn manifest_of(name: &str, src: &str) -> String {
     driver_with_profile(
         Mode::Check,
         StageMode::Refresh,
-        &dir.join("Main.lang"),
+        &dir.join("Main.cinch"),
         None,
         &TargetProfile::native(),
     )
@@ -55,7 +55,7 @@ fn manifest_of(name: &str, src: &str) -> String {
         .unwrap_or_else(|e| panic!("{name}: manifest missing: {e}"))
 }
 
-use safelang::driver::Mode;
+use cinch::driver::Mode;
 
 // ------------------------------------- the shipped classes' equations
 

@@ -6,7 +6,7 @@
 //!
 //! Every task is one logical execution context driven by a cooperative
 //! scheduler on the caller's thread (`crate::task` is the OS-thread
-//! backend for the same source contract). A task body is a SafeLang
+//! backend for the same source contract). A task body is a Cinch
 //! closure applied to the Unit word through the closure apply-stub ABI
 //! (`compiler/src/core.rs`: the closure record is `{ code; arity; nfilled;
 //! saved[0..] }` and `code` has signature `i64 (ptr self, i64 argc, ptr
@@ -31,9 +31,9 @@
 //!   spawn order. Everything the parent did before the spawn is visible
 //!   to the body when it starts (the fork half of fork-join).
 //! * A body, once started, runs to completion. The only handoff points
-//!   are the suspension points: `sl_coop_task_poll_cancel`,
-//!   `sl_coop_io_sleep`, and a body waiting inside
-//!   `sl_coop_task_join_all_or_cancel` or the close path.
+//!   are the suspension points: `cinch_coop_task_poll_cancel`,
+//!   `cinch_coop_io_sleep`, and a body waiting inside
+//!   `cinch_coop_task_join_all_or_cancel` or the close path.
 //! * At a suspension point the running body yields to the scheduler,
 //!   which drains the ready queue: each queued task is taken in FIFO
 //!   order and run to completion (its own suspension points recursively
@@ -66,26 +66,26 @@
 //! * Awaiting a body that is suspended on the call stack (joining one's
 //!   own handle, an ancestor's, or a sibling suspended below) can never
 //!   complete. Structured concurrency joins children only, so this is a
-//!   caller bug; it faults through the generic `sl_panic` path (exit 71)
+//!   caller bug; it faults through the generic `cinch_panic` path (exit 71)
 //!   instead of spinning forever.
 //!
 //! # Cancellation
 //!
 //! A request is a per-task flag (the single-threaded counterpart of the
 //! thread backend's sequentially consistent atomic) and is observed ONLY
-//! at the two cancellation observation points, `sl_coop_task_poll_cancel`
-//! and `sl_coop_io_sleep`, and by nothing else (D80). A body that never
+//! at the two cancellation observation points, `cinch_coop_task_poll_cancel`
+//! and `cinch_coop_io_sleep`, and by nothing else (D80). A body that never
 //! reaches a poll point runs to completion unaffected by any request,
 //! and its outcome is its own `Result` word: the scheduler never
 //! fabricates a cancellation outcome. A body that polls observes the
 //! request at the poll point itself: the call first yields (so a request
 //! made while it yields is observed at that same point) and then reports
-//! the flag. `sl_coop_io_sleep` ends early at its observation point when
+//! the flag. `cinch_coop_io_sleep` ends early at its observation point when
 //! a request is pending and otherwise completes the requested duration
 //! in logical time: this backend has no clock and the memory model
 //! exposes no observation of duration, so the millisecond argument is
 //! accepted for ABI parity while the call yields once and returns the
-//! Unit word 0, exactly what `sl_io_sleep` returns in the thread model.
+//! Unit word 0, exactly what `cinch_io_sleep` returns in the thread model.
 //!
 //! # Cooperative lowering for Wasm
 //!
@@ -102,8 +102,8 @@
 //! # Reclamation
 //!
 //! Scope, task and handle records follow the runtime's leak-by-design
-//! policy (`sl_free` is a no-op until reclamation lands): a scope word is
-//! freed at its one consumption point (`sl_coop_scope_close`) and handle
+//! policy (`cinch_free` is a no-op until reclamation lands): a scope word is
+//! freed at its one consumption point (`cinch_coop_scope_close`) and handle
 //! words carry one leaked reference. A handle word is never freed twice.
 
 use std::cell::{Cell, RefCell};
@@ -413,8 +413,8 @@ fn await_all(awaited: &[Arc<CoopTaskState>]) {
 /// concurrency joins children only, so this is a caller bug; fault
 /// through the generic path (exit 71) instead of hanging.
 fn no_progress_fault() -> ! {
-    const MSG: &[u8] = b"slruntime: cooperative scheduler deadlock: awaiting a task that is suspended on the call stack";
-    unsafe { crate::abi::sl_panic(MSG.as_ptr(), MSG.len()) }
+    const MSG: &[u8] = b"cinchruntime: cooperative scheduler deadlock: awaiting a task that is suspended on the call stack";
+    unsafe { crate::abi::cinch_panic(MSG.as_ptr(), MSG.len()) }
 }
 
 /// Cancellation of the running task (section 4): false on the root
@@ -443,7 +443,7 @@ pub fn poll_cancel() -> bool {
 /// The `ioSleep` suspension point (section 4). The duration completes in
 /// logical time: the call yields to the scheduler once and returns the
 /// Unit word 0, ending early at this observation point when a request is
-/// pending (`_millis` is accepted for ABI parity with `sl_io_sleep`).
+/// pending (`_millis` is accepted for ABI parity with `cinch_io_sleep`).
 pub fn io_sleep(_millis: i64) -> i64 {
     drain();
     if current_task_canceled() {
@@ -460,16 +460,16 @@ fn drain() {
 
 // -------------------------------------------- cooperative structured concurrency (P14)
 //
-// The same word conventions as the `sl_*` surface of `crate::abi`: the
+// The same word conventions as the `cinch_*` surface of `crate::abi`: the
 // scope word points at a boxed `Arc<CoopScope>` (one reference consumed
-// by `sl_coop_scope_close`); a handle word is an `Arc<CoopTaskState>`
+// by `cinch_coop_scope_close`); a handle word is an `Arc<CoopTaskState>`
 // reference (never freed twice; see the module docs). The task outcome
 // and closure ABI conventions are `crate::task`'s.
 
 /// Open a structured scope: the `withScope` entry (concurrency
 /// specification section 2).
 #[unsafe(no_mangle)]
-pub extern "C" fn sl_coop_scope_open() -> i64 {
+pub extern "C" fn cinch_coop_scope_open() -> i64 {
     let scope = Arc::new(CoopScope::new());
     Box::into_raw(Box::new(scope)) as usize as i64
 }
@@ -477,7 +477,7 @@ pub extern "C" fn sl_coop_scope_open() -> i64 {
 /// Scope exit: cancel every unjoined child, wait for each cleanup
 /// acknowledgment, and release the scope.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn sl_coop_scope_close(scope: i64) -> i64 {
+pub unsafe extern "C" fn cinch_coop_scope_close(scope: i64) -> i64 {
     let owned = unsafe { Box::from_raw(scope as *mut Arc<CoopScope>) };
     owned.close();
     drop(owned);
@@ -486,7 +486,7 @@ pub unsafe extern "C" fn sl_coop_scope_close(scope: i64) -> i64 {
 
 /// Spawn the body closure as a task of `scope`; returns the task handle.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn sl_coop_task_spawn(scope: i64, closure: i64) -> i64 {
+pub unsafe extern "C" fn cinch_coop_task_spawn(scope: i64, closure: i64) -> i64 {
     let scope = unsafe { &*(scope as *const Arc<CoopScope>) };
     scope.spawn(closure)
 }
@@ -495,7 +495,7 @@ pub unsafe extern "C" fn sl_coop_task_spawn(scope: i64, closure: i64) -> i64 {
 /// payloads in `out` on success, 1 and the first `Err` payload in
 /// `out[0]` on failure (the first failure cancels the siblings).
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn sl_coop_task_join_all_or_cancel(
+pub unsafe extern "C" fn cinch_coop_task_join_all_or_cancel(
     scope: i64,
     handles: i64,
     n: i64,
@@ -511,7 +511,7 @@ pub unsafe extern "C" fn sl_coop_task_join_all_or_cancel(
 /// The cancellation observation point (section 4): 1 once cancellation
 /// has been requested for the running task, else 0.
 #[unsafe(no_mangle)]
-pub extern "C" fn sl_coop_task_poll_cancel() -> i64 {
+pub extern "C" fn cinch_coop_task_poll_cancel() -> i64 {
     i64::from(poll_cancel())
 }
 
@@ -519,6 +519,6 @@ pub extern "C" fn sl_coop_task_poll_cancel() -> i64 {
 /// 0 (the Unit word) once cancellation is requested for the running task
 /// (concurrency specification section 4).
 #[unsafe(no_mangle)]
-pub extern "C" fn sl_coop_io_sleep(millis: i64) -> i64 {
+pub extern "C" fn cinch_coop_io_sleep(millis: i64) -> i64 {
     io_sleep(millis)
 }

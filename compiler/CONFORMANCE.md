@@ -16,18 +16,18 @@ example catalogue once an implementation exists"):
 
 | Example | Needs | Status |
 | --- | --- | --- |
-| `01-bounded-index.lang` | `Nat`, `Fin`, `Vec`, `Option`, `decide`, dependent results | todo |
-| `02-vector-filter.lang` | `Sigma`, `Vec`, dependent pattern matching, `Copy` | todo |
-| `03-map-fusion.lang` | `proof`, `refl`, `congr`, `Eq`, `rewrite ... justify` | todo |
-| `04-productive-stream.lang` | `codata`, `Later`, `corec`, guarded `delay` | todo |
-| `05-schema-generator.lang` | `stage`, `generate do`, `import stage`, compile-time capabilities | todo |
-| `06-counter-upgrade.lang` | `record`, `%1` multiplicities, `upgrade`/migration evidence | todo |
-| `07-rejected-programs.lang` | each listed rejection must be diagnosed | todo |
-| `08-platform-simd.lang` | `U32.wrappingAdd`, `Ref`/`Vec`, `target rewrite`, capability dispatch | todo |
-| `09-foreign-codec.lang` | `signature` with `opaque type`, erased fields, FFI effects | todo |
-| `10-wasm-component.lang` | WIT adapter, `do` on `Result`, `decide`, component effects | todo |
-| `11-structured-tasks.lang` | `using (io :: Io r)`, `spawn`, scopes, `->{Async r, IO r, Cancel r}` | todo |
-| `12-runtime-effects.lang` | `do` with sequencing providers, module parameters, row-polymorphic effects | done (accepts end to end) |
+| `01-bounded-index.cinch` | `Nat`, `Fin`, `Vec`, `Option`, `decide`, dependent results | todo |
+| `02-vector-filter.cinch` | `Sigma`, `Vec`, dependent pattern matching, `Copy` | todo |
+| `03-map-fusion.cinch` | `proof`, `refl`, `congr`, `Eq`, `rewrite ... justify` | todo |
+| `04-productive-stream.cinch` | `codata`, `Later`, `corec`, guarded `delay` | todo |
+| `05-schema-generator.cinch` | `stage`, `generate do`, `import stage`, compile-time capabilities | todo |
+| `06-counter-upgrade.cinch` | `record`, `%1` multiplicities, `upgrade`/migration evidence | todo |
+| `07-rejected-programs.cinch` | each listed rejection must be diagnosed | todo |
+| `08-platform-simd.cinch` | `U32.wrappingAdd`, `Ref`/`Vec`, `target rewrite`, capability dispatch | todo |
+| `09-foreign-codec.cinch` | `signature` with `opaque type`, erased fields, FFI effects | todo |
+| `10-wasm-component.cinch` | WIT adapter, `do` on `Result`, `decide`, component effects | todo |
+| `11-structured-tasks.cinch` | `using (io :: Io r)`, `spawn`, scopes, `->{Async r, IO r, Cancel r}` | todo |
+| `12-runtime-effects.cinch` | `do` with sequencing providers, module parameters, row-polymorphic effects | done (accepts end to end) |
 
 ## Feature matrix
 
@@ -58,20 +58,20 @@ example catalogue once an implementation exists"):
 | Requirement (modules and compilation spec) | Status |
 | --- | --- |
 | Multi-file `import` resolution | done (file-stem module rule, dependency order, imported fixities, cycle and missing-file diagnostics) |
-| Compiled interface metadata artifacts | done (`.sliface` canonical JSON with content identity, emitted per module into `build/`, parsed back in tests) |
+| Compiled interface metadata artifacts | done (`.cinchif` canonical JSON with content identity, emitted per module into `build/`, parsed back in tests) |
 | Cross-module instance coherence and fixity export | done (unifiability check in the checker plus the metadata fast path; fixity/type/signature/instance exports; cross-module instances resolve) |
 | Artifact manifests (assumptions, trusted components) | done (`<entry>.manifest.json` with module identities, union assumptions, `runtime_abi`; per-module `Assumptions` carry the primitive axioms) |
 
 Caveat recorded: the whole project is compiled as one program (one IR, one
 link) from the union of sources; compiling a single module against prebuilt
-`.sliface` files without its dependencies' sources is the next step and
+`.cinchif` files without its dependencies' sources is the next step and
 needs the checker to consume export tables instead of sources.
 
 ### Runtime library (P4)
 
 | Requirement | Status |
 | --- | --- |
-| Rust runtime crate (`slruntime` staticlib + rlib) linked into artifacts; fault policy (`BlackHole` 70, panic 71, div-zero 72) | done (60 tests; `compiler/runtime/`; all `sl_*` externs `#[unsafe(no_mangle)]`) |
+| Rust runtime crate (`cinchruntime` staticlib + rlib) linked into artifacts; fault policy (`BlackHole` 70, panic 71, div-zero 72) | done (60 tests; `compiler/runtime/`; all `cinch_*` externs `#[unsafe(no_mangle)]`) |
 | Mathematical `Nat`/`Int` (bignum) | done (language types on the bignum runtime, unbounded digit-string literals, `Eq`/`Ord`/`Add`/`Sub`/`Mul`, `Neg` for `Int`, truncating `Nat` subtraction, `main :: Int` exit adapter) |
 | `Bytes`, string foundations | done for `Bytes` (`new`/`len`/`get`/`set`, bounds faults at 71); string literals stay rejected until the staging or FFI slice gives them semantics |
 
@@ -133,7 +133,7 @@ needs the checker to consume export tables instead of sources.
 
 | Requirement | Status |
 | --- | --- |
-| `foreign import ccall` intrinsics (`safelang.prim.*`) | done (namespaces reserved; retired names rejected as retired intrinsics, D73) |
+| `foreign import ccall` intrinsics (`cinch.prim.*`) | done (namespaces reserved; retired names rejected as retired intrinsics, D73) |
 | Real C symbols, `foreign export`, effects, layouts | done (binding contracts with widths/offsets/alignment/convention/symbol identity/roles/ownership in the interface foreign table; closed explicit effect rows with honesty (D68); C fixtures linked through clang; faults exit 71, never unwind; `tests/ffi.rs`) |
 | `opaque type`, `RawPtr`, ownership roles | done (`RawPtr`/`Borrowed`/`Retained`/`Owned`/`Out`/`MaybeNull`, integer-to-pointer rejection, deallocator pairing checked program-wide and recorded (D69), nullability by default non-null (D70); aggregates as const-pointer copies, aggregate results rejected (D66); boundary type grammar (D67)) |
 
@@ -149,8 +149,8 @@ needs the checker to consume export tables instead of sources.
 
 | Requirement | Status |
 | --- | --- |
-| `upgrade` declarations, migration checking | done (`upgrade Old to New where { migrate = f, related = r }` (D82/D83); field-change classification with migration required for incompatible changes; a migration-free `upgrade` is a record view recording schema compatibility evidence in the `.sliface` `upgrades` table (D84); `#[repr]` changes alter the interface identity, forcing dependent replacement (D86); `tests/evolution.rs`) |
-| Versioned dispatch, state migration | done (the runtime evolution arena: epochs and activation publishing, code retention with live-frame counts (spec section 6), complete-update-set gating (section 8), no-old-code-over-new-state with authorized reverse transitions (section 10), target compatibility before reachability (section 13); `sl_evo_*` externs, `nm`-verified; D85) |
+| `upgrade` declarations, migration checking | done (`upgrade Old to New where { migrate = f, related = r }` (D82/D83); field-change classification with migration required for incompatible changes; a migration-free `upgrade` is a record view recording schema compatibility evidence in the `.cinchif` `upgrades` table (D84); `#[repr]` changes alter the interface identity, forcing dependent replacement (D86); `tests/evolution.rs`) |
+| Versioned dispatch, state migration | done (the runtime evolution arena: epochs and activation publishing, code retention with live-frame counts (spec section 6), complete-update-set gating (section 8), no-old-code-over-new-state with authorized reverse transitions (section 10), target compatibility before reachability (section 13); `cinch_evo_*` externs, `nm`-verified; D85) |
 | JIT deopt (tracked item) | done (transparent tiering over the same machinery: variants install/retire through runtime evolution only, consumption-safe deopt with the unbalanced-linear-transfer refusal, nothing in types/source/interface; `tests/evolution.rs`) |
 
 ### Wasm and components (P14) — webassembly and wasi specification
@@ -162,23 +162,23 @@ needs the checker to consume export tables instead of sources.
 
 ### Acceptance catalogue (P15)
 
-Snapshot 2026-10-25 (`safelang check examples/source/*.lang`, entry rows
+Snapshot 2026-10-25 (`cinch check examples/source/*.cinch`, entry rows
 update as the slices land; 07 must reject, the rest must accept):
 
 | Program | First rejection | Owning slice |
 | --- | --- | --- |
-| 01-bounded-index | accepts (`safelang check` exit 0; `run` needs a `main` per D20) | done |
-| 02-vector-filter | accepts (`safelang check` exit 0; refactored to `decide`/computed-index dispatch per D35 (D231)) | done |
-| 03-map-fusion | accepts (`safelang check` exit 0; index lambdas + named-helper proof reduction + structural-induction `case` landed (D230/D270); the example carries its own `mapFusion` proof and cites it in `justify`) | done |
-| 04-productive-stream | accepts (`safelang check` exit 0) | done |
-| 05-schema-generator | accepts with its declared build inputs (`SCHEMA_DATABASE_URL` + a schema tool via `SAFELANG_SCHEMA_TOOL`); without them stops at the correct secret refusal (D45) | done (A6) |
-| 06-counter-upgrade | accepts (`safelang check` exit 0) | done |
+| 01-bounded-index | accepts (`cinch check` exit 0; `run` needs a `main` per D20) | done |
+| 02-vector-filter | accepts (`cinch check` exit 0; refactored to `decide`/computed-index dispatch per D35 (D231)) | done |
+| 03-map-fusion | accepts (`cinch check` exit 0; index lambdas + named-helper proof reduction + structural-induction `case` landed (D230/D270); the example carries its own `mapFusion` proof and cites it in `justify`) | done |
+| 04-productive-stream | accepts (`cinch check` exit 0) | done |
+| 05-schema-generator | accepts with its declared build inputs (`SCHEMA_DATABASE_URL` + a schema tool via `CINCH_SCHEMA_TOOL`); without them stops at the correct secret refusal (D45) | done (A6) |
+| 06-counter-upgrade | accepts (`cinch check` exit 0) | done |
 | 07-rejected-programs | rejected at parse (correct) | must stay rejected |
-| 08-platform-simd | accepts (`safelang check` exit 0; its own theorem module states the instruction law as an obligation and `justify` cites it (D228)) | done |
-| 09-foreign-codec | accepts (`safelang check` exit 0; its `DecodeError` comes from the codec adapter vocabulary) | done |
-| 10-wasm-component | accepts (`safelang check` exit 0; `BoundaryError` from the WIT adapter vocabulary) | done |
-| 11-structured-tasks | accepts (`safelang check` exit 0; its sketch vocabulary `Request`/`LoadError`/`fetch` is provided by the prelude over `ioRead`, D81) | done |
-| 12-runtime-effects | accepts (`safelang check` exit 0; the parameter block instantiates at import (D115-D121) and the sketch vocabulary comes from the prelude over `ioRead` in dash spellings (D120/D228 sweep)) | done |
+| 08-platform-simd | accepts (`cinch check` exit 0; its own theorem module states the instruction law as an obligation and `justify` cites it (D228)) | done |
+| 09-foreign-codec | accepts (`cinch check` exit 0; its `DecodeError` comes from the codec adapter vocabulary) | done |
+| 10-wasm-component | accepts (`cinch check` exit 0; `BoundaryError` from the WIT adapter vocabulary) | done |
+| 11-structured-tasks | accepts (`cinch check` exit 0; its sketch vocabulary `Request`/`LoadError`/`fetch` is provided by the prelude over `ioRead`, D81) | done |
+| 12-runtime-effects | accepts (`cinch check` exit 0; the parameter block instantiates at import (D115-D121) and the sketch vocabulary comes from the prelude over `ioRead` in dash spellings (D120/D228 sweep)) | done |
 
 ## Unplanned requirements (P16)
 
@@ -189,9 +189,9 @@ audit, `compiler/SPEC-MAPPING.md` "Roadmap gaps"):
 | --- | --- |
 | Positivity discipline for inductive definitions | done (P7: strict positivity for all `data`; negative and nested occurrences rejected) |
 | Evidence invalidation over mutable state | done (A2/`de0780c`, D192-D197: flow-sensitive; Mut-region footprints, write triggers, deferred staleness; `tests/evidence_invalidation.rs` 12/12) |
-| Temporal contracts (safety/liveness/recurrence/stability) | done (A3/`b25a1a8`, D198-D205: `contract` declarations with `always`/`eventually`/`recur`/`stable`; inductive safety and footprint stability from the D192 write log; bounded liveness from the P12 scope guarantees; bounded recurrence from the structural-depth proof; undecidable cases refused by name; facts in `.sliface`/manifest) |
+| Temporal contracts (safety/liveness/recurrence/stability) | done (A3/`b25a1a8`, D198-D205: `contract` declarations with `always`/`eventually`/`recur`/`stable`; inductive safety and footprint stability from the D192 write log; bounded liveness from the P12 scope guarantees; bounded recurrence from the structural-depth proof; undecidable cases refused by name; facts in `.cinchif`/manifest) |
 | Cross-compilation (target width/capabilities) | done (P14: `Usize`/`Isize` widths keyed on the target in literal checks, lowering, and the manifest (A4)) |
-| Module parameters and signatures as module arguments | done (A5: `module M (p :: T, ...) where` with dictionary and value parameters, import-time instantiation units `import M (args) as N` with computed `unit_id`, instance coherence preserved (implicit resolution unchanged; explicit dictionaries coexist), parameter signatures in `.sliface` with instantiation as representation (D115-D121); example 12 accepts) |
+| Module parameters and signatures as module arguments | done (A5: `module M (p :: T, ...) where` with dictionary and value parameters, import-time instantiation units `import M (args) as N` with computed `unit_id`, instance coherence preserved (implicit resolution unchanged; explicit dictionaries coexist), parameter signatures in `.cinchif` with instantiation as representation (D115-D121); example 12 accepts) |
 | Schema generation / database introspection API | done (P11+A6: `SchemaSnapshot`/`Database`/`SchemaRead` over the subprocess capability, `introspectConsistently`, `CodecGenerator.derive`; example 05 accepts with its build inputs) |
 
 ### Language surface DX (P19)
@@ -226,7 +226,7 @@ rule mapping (six rules inherent to the language, the rest asserted).
 | Requirement | Status |
 | --- | --- |
 | Assertion vocabulary: `#[recursion]`, `#[stack]`, `#[no-alloc]`/`#[alloc "once"]`, `#[max-complexity]`/`#[max-lines]`, `#[assert-min]`, `#[checked-params]`, `#[no-macros]`, `#[no-raw-ptr]`, `#[deny-warnings]` (D111) | done (full vocabulary; hyphenated names and parenthesized arguments (`#[recursion("tail")]`) per D184; `tests/safety.rs` 24/24) |
-| Verified at the definition; violations name the offending site; satisfied assertions are contract facts in `.sliface`/`iface_hash` like `repr` (D112) | done (`assertions`/`must_use` rows; identity pinned both ways; manifest `"safety"` section) |
+| Verified at the definition; violations name the offending site; satisfied assertions are contract facts in `.cinchif`/`iface_hash` like `repr` (D112) | done (`assertions`/`must_use` rows; identity pinned both ways; manifest `"safety"` section) |
 | `bounded(n)` depth bounds via structural proofs first, conservative call-graph bounds otherwise, report saying which (D113) | done (structural named-size proofs vs the literal ladder (D182/D183); numeric-over-structural refused and pinned as a negative) |
 | The `jpl` profile enforcing the whole set at rule numbers, never looser per-definition (D114); Result must-use default | done (module attribute + `TargetProfile::jpl()`; whole-program summary; `let _ = e` rejects rule 7, `ignore` passes) |
 
@@ -234,7 +234,7 @@ rule mapping (six rules inherent to the language, the rest asserted).
 
 Specified in `design/llvm-contract-attributes.md`, 2026-10-26 at the
 user's direction (what else like `musttail` to adopt from LLVM): the
-pattern is translation - SafeLang's analyses already prove most of
+pattern is translation - Cinch's analyses already prove most of
 LLVM's attribute vocabulary. Implemented 2026-10-27 by
 `LlvmContractSlice`/`-2` (recovered from a provider interruption).
 
@@ -261,9 +261,9 @@ corpus cannot pass against a stale parser), 88 corpus assertions
 case), vim/emacs/sublime/zed/vscode-cursor integrations with
 spec-reserved keywords verbatim, and `check-grammar-drift.sh`
 (regenerate + test, nonzero on divergence). Mid-run the grammar parsed
-all 59 real `.lang` files with zero ERROR nodes. The LSP is invoked
+all 59 real `.cinch` files with zero ERROR nodes. The LSP is invoked
 through `tooling/lsp-driver/` (`LspServer::run` over stdio; the
-`safelang lsp` subcommand does not exist yet and the wrapper
+`cinch lsp` subcommand does not exist yet and the wrapper
 auto-switches if it lands - tracked). Decisions D238-D244.
 
 ### Interned symbols (P24)
@@ -378,7 +378,7 @@ correspondence: one lexeme in expression/pattern, staging `Name`, and
 - **D139 (P19 uniform loop header)**: every function body runs under
   the loop header (one extra block per unit) so the self-jump path is
   uniform; non-recursive units get no special casing.
-- **D140 (P19 bytes constant declare)**: `sl_bytes_from_data` is
+- **D140 (P19 bytes constant declare)**: `cinch_bytes_from_data` is
   declared `(i64, i64)`; every call site passes the pointer as an i64
   word and the native ABI passes it identically (it was previously
   called undeclared, which clang rejects).
@@ -485,7 +485,7 @@ correspondence: one lexeme in expression/pattern, staging `Name`, and
   dictionary resolution is ambiguous. Check-only law statements keep
   the two-argument shape.
 - **D159 (A7 instance placement)**: instance families for
-  `Prelude.lang` types are parked in the class modules with the
+  `Prelude.cinch` types are parked in the class modules with the
   deviation stated in each header (they move to `Data.*` homes at the
   prelude split); `((->) r)` instances are structural and permanent;
   `Data.Compose` ships as type plus `get-compose` only.
@@ -530,7 +530,7 @@ correspondence: one lexeme in expression/pattern, staging `Name`, and
   `copy-bytes-into`/`compare-bytes-from`/`string-length-from`/
   `string-char-at-from`/`string-byte-index-from`, `prod-fold-go`/
   `prod-take-step`) leave the curated facade: every one is behind a
-  public wrapper, no `.lang` source anywhere references them, and
+  public wrapper, no `.cinch` source anywhere references them, and
   family-internal cross-module users import the homes directly. The
   facade surface is pinned at 1016 names by `tests/prelude_split.rs`
   (export list equals the checked surface name for name; every name
@@ -542,7 +542,7 @@ correspondence: one lexeme in expression/pattern, staging `Name`, and
   `history://SafetySlice`)**: the full assertion vocabulary with its
   argument grammar and placement rules verifies at the definition with
   offending-site errors (D111/D112 live); satisfied assertions become
-  contract facts as `assertions` + `must_use` rows in `.sliface` and
+  contract facts as `assertions` + `must_use` rows in `.cinchif` and
   `iface_hash` (the `repr` precedent); recursion/stack group
   verification reuses D104's `core::tail_report` plus a `core::calls_to`
   scan; `bounded(x)` proves structural depth first
@@ -641,7 +641,7 @@ correspondence: one lexeme in expression/pattern, staging `Name`, and
   passing `P`'s variables unchanged (no cross-definition discharge);
   evidence-backed post-state matching was designed and REJECTED as
   unsound (the prop language is name-based; shadowing would break
-  evidence matching); contract facts are `.sliface` `contracts` rows
+  evidence matching); contract facts are `.cinchif` `contracts` rows
   hashed into `iface_hash` (pinned both ways), stated assumptions join
   `assumptions.declared`, and the manifest `temporal` section records
   each contract's verification result.
@@ -752,7 +752,7 @@ correspondence: one lexeme in expression/pattern, staging `Name`, and
   example's own scalar model. Example 05's build inputs are now
   example-side (`schema-tool.sh` stub; `SCHEMA_DATABASE_URL` referenced
   by name with the value only in the tool's environment;
-  `SAFELANG_SCHEMA_TOOL=./schema-tool.sh` resolves against the stage
+  `CINCH_SCHEMA_TOOL=./schema-tool.sh` resolves against the stage
   workdir); refresh and replay both exit 0 and the D45 refusal stands
   without the secret. Example 02 is refactored to `decide`-dispatched
   filtering (the D35 boundary taught in its comment; predicate and
@@ -772,11 +772,11 @@ correspondence: one lexeme in expression/pattern, staging `Name`, and
   `''T` in expression/pattern position rejects naming its staging-only
   role; runtime cells are kind-tagged (`KIND_SYM`), leaked and never
   freed, `Eq` is the pointer test with kind validation, `Ord` compares
-  name bytes, `sl_sym_intern` rejects non-UTF-8 names so `sym-name` is
+  name bytes, `cinch_sym_intern` rejects non-UTF-8 names so `sym-name` is
   total, and the extern surface is exactly four `nm`-verified ops;
   compile-time `Value::Sym` interns by name (identity is name identity;
   no cell address is observable) with `sym*` prims constant-folding;
-  and a latent emit-header bug was fixed (`@sl_bytes_data` was called
+  and a latent emit-header bug was fixed (`@cinch_bytes_data` was called
   but never declared, so any program whose IR used the byte-span
   crossing failed to assemble). The D46 `Name` member is UNIMPLEMENTED
   and its exact gap is recorded: macro signatures admit only
@@ -803,10 +803,10 @@ correspondence: one lexeme in expression/pattern, staging `Name`, and
   only tie. Documented accepted divergences: tabs in indentation are
   whitespace in the grammar (the compiler rejects), `#[` name adjacency
   is not enforced, do-let groups follow the EBNF (the bootstrap binds
-  one value). The LSP wiring finding: `safelang lsp` does not exist as
+  one value). The LSP wiring finding: `cinch lsp` does not exist as
   a subcommand (the driver offers `check`/`emit-ir`/`build`/`run`), so
   `tooling/lsp-driver/` is a cargo bin invoking `LspServer::run` over
-  stdio verbatim, with the editor wrapper auto-switching to `safelang
+  stdio verbatim, with the editor wrapper auto-switching to `cinch
   `lsp` if the subcommand ever lands (tracked).
 - **D245-D247 (P23 recovery, reported)**: the CPU loop was `peekc`
   tail-calling itself when the replay buffer ran dry (an unconditional
@@ -820,7 +820,7 @@ correspondence: one lexeme in expression/pattern, staging `Name`, and
   lexer cursor sits past the mark during replay); the 87th corpus case
   was a corrupted fixture (lost expected tree), restored not weakened;
   and the real-files property is now enforced by
-  `check-real-files-parse.sh` (60 `.lang` files repo-wide, zero
+  `check-real-files-parse.sh` (60 `.cinch` files repo-wide, zero
   ERROR/MISSING nodes; the prior "59" was a stale count). Residual
   documented divergences: tabs in indentation (compiler hard-errors;
   tree-sitter cannot express it), `#[` name adjacency, and do-let
@@ -932,7 +932,7 @@ correspondence: one lexeme in expression/pattern, staging `Name`, and
   obligations are predicates over the method's arguments/outputs.
   Resolution and coherence follow D260 with constraint sets ordered by
   the implication lattice. Constraints entail nothing (standing rule).
-- **D262-D267 (language tail, reported)**: `safelang lsp` dispatches
+- **D262-D267 (language tail, reported)**: `cinch lsp` dispatches
   to `LspServer::run` over stdio (the tooling wrapper's auto-switch
   now fires; its header note is stale); do-let binds a whole local
   block group (`do_statement = "let", local_block`) through the shared
@@ -1107,17 +1107,17 @@ wording flags for future decisions).
   effect honesty is checked by row unification; body effects ride the last
   arrow of a curried definition.
 - **D4 (P3 design)**: compiled interface metadata is a canonical JSON
-  `.sliface` artifact per module (exports, instances for coherence, fixities,
+  `.cinchif` artifact per module (exports, instances for coherence, fixities,
   foreign contracts, assumptions manifest, ABI symbol table), identity by
   content hash, imported interfaces recorded as the "checked against" chain.
   See `../design/compiled-interface-metadata.md`.
-- **D5 (P4)**: the runtime is a Rust crate (`compiler/runtime`, `slruntime`
+- **D5 (P4)**: the runtime is a Rust crate (`compiler/runtime`, `cinchruntime`
   staticlib + rlib, std-only) linked with generated objects; not C. The
   runtime ABI reference lives in its `src/lib.rs` module docs and is cited by
   interface metadata (`runtime_abi`).
 - **D6 (P2)**: machine-type operations are prelude names of the form
   `<op><Type>` (`wrappingAddU32`, `checkedAddI32`, `u8ToI32`, ...) bound
-  directly from `foreign import ccall "safelang.prim.*"`; the primitive
+  directly from `foreign import ccall "cinch.prim.*"`; the primitive
   spec's dotted `U32.wrappingAdd` spelling is a presentation form for the
   module slice to provide.
 - **D7 (P2)**: `reverseBits`/`swapBytes` return `t` (a 64-bit reversal does
@@ -1136,7 +1136,7 @@ wording flags for future decisions).
   to end (hex folds at lex, a prefix minus folds into the string); machine
   types range-check from the string, `Nat` rejects negatives, and `Nat`/
   `Int` lower to `Core::ConstBig` with an `i64` fast path and
-  `sl_nat_from_decimal`/`sl_int_from_decimal` otherwise. Float literal
+  `cinch_nat_from_decimal`/`cinch_int_from_decimal` otherwise. Float literal
   exactness is the odd-part rule (odd part fits the significand and the
   binary exponent is in range). The wrapping-64 bootstrap `Int` is gone.
 - **D11 (P4)**: `natCmp`/`intCmp` return the raw -1/0/1 immediate typed at
@@ -1144,7 +1144,7 @@ wording flags for future decisions).
   instances derive as `eqI64 (intCmp x y) 0` style and compare the
   immediate against zero with the `I64` prims.
 - **D12 (P4)**: the checker synthesizes a `"<module>.main.exit"` adapter
-  calling `sl_int_to_i64` on `main`'s bignum result and `Program.main`
+  calling `cinch_int_to_i64` on `main`'s bignum result and `Program.main`
   targets it, so the C `main` stays on raw words and hand-built codegen
   programs keep working.
 - **D13 (P4)**: `Bytes` language signatures are `Nat`-typed with the
@@ -1290,7 +1290,7 @@ wording flags for future decisions).
   pure-typed diverging helper can fake productivity through a guard).
 - **D42 (P9 multi-module files)**: a source file may contain any number
   of `module` blocks. Imports resolve to a same-file module first, then
-  `<Name>.lang`, then a unique `module Name` beside the entry file
+  `<Name>.cinch`, then a unique `module Name` beside the entry file
   (ambiguity is an error). `main` must be unique among the entry file's
   modules. The P3 one-module-per-file rule is superseded.
 - **D43 (P9 staging core)**: `Code t` is closed code (no local capture;
@@ -1538,11 +1538,11 @@ wording flags for future decisions).
 - **D89 (Prel UTF-8 acceleration)**: the prelude `String` library is the
   REFERENCE SEMANTICS for UTF-8 (validation, decoding, encoding, code
   point indexing); the Rust runtime carries SIMD-accelerated
-  implementations of the same rules (`sl_utf8_*`, NEON/SSE2 fast paths
+  implementations of the same rules (`cinch_utf8_*`, NEON/SSE2 fast paths
   with naive fallbacks, tested to agree). Acceleration is a
   representation detail behind the primitive operations chapter's
   justified bodies: the prelude may keep the pure reference or swap to
-  `safelang.runtime.utf8*` intrinsics under the same tests (the
+  `cinch.runtime.utf8*` intrinsics under the same tests (the
   reference-then-accelerate pattern).
 - **D90 (Prel operator precedence)**: surface binary operator
   precedence follows the Rust reference table on the 0-9 scale
@@ -1579,7 +1579,7 @@ wording flags for future decisions).
   `WasiStream`/`WasiFuture` with `Diverge` observation rows, never the
   productive codata `Stream`.
 - **D96 (P14 admission split)**: `check` is not artifact admission:
-  `safelang check` accepts programs while `admit_artifact` enforces the
+  `cinch check` accepts programs while `admit_artifact` enforces the
   assumed baseline and the `wasm.component-model` requirement for
   adapters on Wasm profiles (native lowers through the FFI shim).
 - **D97 (P14 foreign label args)**: synthesized schemes quantify the
@@ -1613,7 +1613,7 @@ wording flags for future decisions).
   by re-packaging.
 - **D101 (P14 stale runtime libraries)**: `ensure_runtime` treats a
   staticlib older than any runtime source as absent and rebuilds; a
-  stale `libslruntime.a` silently drops newer `sl_*` entry points (the
+  stale `libcinchruntime.a` silently drops newer `cinch_*` entry points (the
   root cause of the eval link failure).
 - **D102 (P19 dashes and minus)**: dash identifiers are written tight
   (`-` between identifier characters is glue; digits do not continue an
@@ -1667,7 +1667,7 @@ wording flags for future decisions).
   macros, no goto).
 - **D112 (P20 assertions are contracts)**: each assertion is verified
   at the definition (violations name the rule and the offending site)
-  and, when satisfied, recorded in `.sliface` and hashed into
+  and, when satisfied, recorded in `.cinchif` and hashed into
   `iface_hash` exactly like `repr` facts, so consumers may rely on it
   across calls; breaking an assertion does not compile.
 - **D113 (P20 depth bounds)**: `bounded(n)` proves depth through the

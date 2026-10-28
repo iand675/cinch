@@ -28,10 +28,10 @@ module Data.Sym where
   -- layer speaks `Bytes` and the raw -1/0/1 comparison immediate (the
   -- `natCmp` convention); the surface conversions below are the
   -- section 9 signatures.
-  foreign import ccall "safelang.runtime.symIntern" sym-intern-bytes :: Bytes -> Sym
-  foreign import ccall "safelang.runtime.symName" sym-name-bytes :: Sym -> Bytes
-  foreign import ccall "safelang.runtime.symEq" sym-eq :: Sym -> Sym -> Bool
-  foreign import ccall "safelang.runtime.symCmp" sym-cmp :: Sym -> Sym -> I64
+  foreign import ccall "cinch.runtime.symIntern" sym-intern-bytes :: Bytes -> Sym
+  foreign import ccall "cinch.runtime.symName" sym-name-bytes :: Sym -> Bytes
+  foreign import ccall "cinch.runtime.symEq" sym-eq :: Sym -> Sym -> Bool
+  foreign import ccall "cinch.runtime.symCmp" sym-cmp :: Sym -> Sym -> I64
 
   -- The prelude surface of section 9.
   intern :: String -> Sym

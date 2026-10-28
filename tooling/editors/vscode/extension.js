@@ -1,32 +1,31 @@
-// SafeLang VS Code / Cursor extension: language registration plus LSP
+// Cinch VS Code / Cursor extension: language registration plus LSP
 // hookup.
 //
-// The server command: the compiler binary has no `lsp` subcommand today
-// (compiler/src/main.rs: check/emit-ir/build/run). The real server is
-// `safelang::lsp::LspServer::run` over stdio (Content-Length framed
+// The server command: `cinch lsp` dispatches to
+// `cinch::lsp::LspServer::run` over stdio (Content-Length framed
 // JSON-RPC), exactly the invocation exercised by compiler/tests/lsp.rs.
-// The default command therefore runs this repository's driver crate
-// (tooling/lsp-driver), which is that invocation verbatim. When
-// `safelang lsp` lands in the binary, set `safelang.lsp.command` to it
-// (or change DEFAULT_COMMAND below).
+// The default command is this repository's driver crate
+// (tooling/lsp-driver), the same invocation in a standalone binary;
+// bin/cinch-lsp prefers `cinch lsp` when the binary is on PATH. Set
+// `cinch.lsp.command` (or change DEFAULT_COMMAND below) to override.
 
 const { workspace, ExtensionContext } = require('vscode');
 const { LanguageClient } = require('vscode-languageclient/node');
 const path = require('path');
 
-const DEFAULT_COMMAND = path.join(__dirname, 'bin', 'safelang-lsp');
+const DEFAULT_COMMAND = path.join(__dirname, 'bin', 'cinch-lsp');
 
 let client;
 
 function activate(context) {
-  const config = workspace.getConfiguration('safelang');
+  const config = workspace.getConfiguration('cinch');
   const command = config.get('lsp.command') || DEFAULT_COMMAND;
 
   client = new LanguageClient(
-    'safelang',
-    'SafeLang Language Server',
+    'cinch',
+    'Cinch Language Server',
     { command: command },
-    { documentSelector: [{ scheme: 'file', language: 'safelang' }] },
+    { documentSelector: [{ scheme: 'file', language: 'cinch' }] },
   );
   client.start();
   context.subscriptions.push({ dispose: () => client && client.stop() });

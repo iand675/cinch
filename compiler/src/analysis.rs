@@ -2,7 +2,7 @@
 //! end for the REPL and the language server.
 //!
 //! Both front ends drive [`Analysis`]: it holds the workspace's
-//! documents, keeps the per-module `.sliface` chain (the "checked
+//! documents, keeps the per-module `.cinchif` chain (the "checked
 //! against" chain of `interface.rs`), rechecks a changed file and its
 //! dependents only, and answers the editor questions (hover, definition,
 //! completion, semantic tokens) from the checked and parsed modules.
@@ -105,15 +105,15 @@ pub struct SemToken {
 #[derive(Clone, Debug, Default)]
 pub struct UpdateReport {
     /// User modules re-elaborated: the changed modules, their dependents
-    /// (the `.sliface` chain), and the unchanged dependencies the
+    /// (the `.cinchif` chain), and the unchanged dependencies the
     /// whole-program checker needs to resolve their names.
     pub rechecked: Vec<String>,
-    /// User modules whose cached `.sliface` and diagnostics were reused;
+    /// User modules whose cached `.cinchif` and diagnostics were reused;
     /// their sources were not rechecked in this update.
     pub kept: Vec<String>,
     /// The diagnostics this update produced (whole workspace).
     pub diagnostics: Vec<Diag>,
-    /// Whether the merged `.sliface` "checked against" chain verifies.
+    /// Whether the merged `.cinchif` "checked against" chain verifies.
     pub chain_ok: bool,
 }
 
@@ -189,7 +189,7 @@ pub struct Analysis {
     root: std::path::PathBuf,
     files: BTreeMap<String, FileState>,
     modules: BTreeMap<String, ModuleState>,
-    /// The `.sliface` chain: one checked interface per module.
+    /// The `.cinchif` chain: one checked interface per module.
     ifaces: BTreeMap<String, Iface>,
     diags: BTreeMap<String, Vec<Diag>>,
     /// File to line band base; spans of the file carry `base - 1` extra
@@ -312,7 +312,7 @@ impl Analysis {
                     if self.module_file(imp).is_some() {
                         continue;
                     }
-                    let direct = dir.join(format!("{imp}.lang"));
+                    let direct = dir.join(format!("{imp}.cinch"));
                     if direct.exists() {
                         queue.push(direct);
                         continue;
@@ -325,7 +325,7 @@ impl Analysis {
                     if let Ok(entries) = std::fs::read_dir(&dir) {
                         for e in entries.flatten() {
                             let p = e.path();
-                            if p.extension().map(|x| x == "lang").unwrap_or(false) {
+                            if p.extension().map(|x| x == "cinch").unwrap_or(false) {
                                 if let Ok(t) = std::fs::read_to_string(&p) {
                                     if let Ok(ms) = self.scan(&self.rel_path(&p), &t) {
                                         if ms.iter().any(|(m, _)| m == imp) {
@@ -433,7 +433,7 @@ impl Analysis {
     // ------------------------------------------------------- update
 
     /// Recompute after document changes: recheck the changed files and
-    /// their dependents via the `.sliface` chain, keep everything else.
+    /// their dependents via the `.cinchif` chain, keep everything else.
     pub fn update(&mut self) -> UpdateReport {
         self.update_impl(None).0
     }
@@ -496,7 +496,7 @@ impl Analysis {
             self.scan_state(file, scanned);
         }
         // 2. The dirty set: the changed modules and their dependents,
-        //    walking the import edges the `.sliface` chain records.
+        //    walking the import edges the `.cinchif` chain records.
         let mut dirty: BTreeSet<String> = BTreeSet::new();
         for file in &changed {
             if let Some(f) = self.files.get(file) {
@@ -641,7 +641,7 @@ impl Analysis {
             entry_modules: modules.iter().map(|m| m.name.text.clone()).collect(),
             schema_tool: None,
         };
-        let adapters = driver::wit_for_source(&self.root.join("_.lang")).unwrap_or_default();
+        let adapters = driver::wit_for_source(&self.root.join("_.cinch")).unwrap_or_default();
         // The probe expression, parsed in its module's fixity context.
         let had_probe = probe.is_some();
         let probe_term = probe.and_then(|(module, input)| {
@@ -794,7 +794,7 @@ impl Analysis {
         }
     }
 
-    /// Does the merged `.sliface` "checked against" chain verify?
+    /// Does the merged `.cinchif` "checked against" chain verify?
     fn chain_ok(&self) -> bool {
         let ifaces: Vec<&Iface> = self.ifaces.values().collect();
         let mut by_module: BTreeMap<&str, &Iface> = BTreeMap::new();
@@ -861,7 +861,7 @@ impl Analysis {
 
     fn ensure_prelude(&mut self) -> &driver::PreludeSources {
         if self.prelude.is_none() {
-            let adapters = driver::wit_for_source(&self.root.join("_.lang")).unwrap_or_default();
+            let adapters = driver::wit_for_source(&self.root.join("_.cinch")).unwrap_or_default();
             let p = driver::parse_prelude(&adapters).expect("the embedded prelude parses");
             let mut index: BTreeMap<String, ModuleState> = BTreeMap::new();
             for m in &p.modules {
@@ -1071,13 +1071,13 @@ impl Analysis {
         let (rkind, quals, name) = match &site {
             Site::Def(name, kind) => {
                 let text = self.scheme_of(&module, name, *kind)?;
-                return Some(format!("```safelang\n{name} :: {text}\n```"));
+                return Some(format!("```cinch\n{name} :: {text}\n```"));
             }
             Site::Ref(kind, quals, name) => (*kind, quals.clone(), name.clone()),
         };
         let (owner, kind, _) = self.resolve(&module, rkind, &quals, &name)?;
         let text = self.scheme_of(&owner, &name, kind)?;
-        Some(format!("```safelang\n{name} :: {text}\n```"))
+        Some(format!("```cinch\n{name} :: {text}\n```"))
     }
 
     /// Go to a name's definition: `(file, line, col)` in workspace
@@ -1480,14 +1480,14 @@ fn index_module(file: &str, base: u64, modu: &ast::Module) -> ModuleState {
 /// definition lands in the family's real files, still relative).
 fn prelude_file_of(module: &str) -> String {
     if module == "Prelude" {
-        return "prelude/Prelude.lang".to_string();
+        return "prelude/Prelude.cinch".to_string();
     }
     for (path, _) in driver::PRELUDE_EARLY.iter().chain(driver::PRELUDE_LATE.iter()) {
-        if path.trim_end_matches(".lang").replace('/', ".") == module {
+        if path.trim_end_matches(".cinch").replace('/', ".") == module {
             return format!("prelude/{path}");
         }
     }
-    format!("prelude/{}.lang", module.replace('.', "/"))
+    format!("prelude/{}.cinch", module.replace('.', "/"))
 }
 
 /// Record the definition sites of one declaration.

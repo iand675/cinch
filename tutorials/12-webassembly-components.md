@@ -51,7 +51,7 @@ Ship a portable module and a SIMD-enabled variant when host support differs. Cho
 
 Hot replacement happens through runtime-managed dispatch and resource migration. An old component resource cannot be reinterpreted as a handle owned by a new instance. Drain, translate, or retain it according to the upgrade package, including outstanding async operations.
 
-The accompanying files are `examples/10-wasm-component.lang` and `examples/codec.wit`. See the WebAssembly and WASI specification for the full backend requirements.
+The accompanying files are `examples/10-wasm-component.cinch` and `examples/codec.wit`. See the WebAssembly and WASI specification for the full backend requirements.
 
 [Documentation overview](../overview.md)
 

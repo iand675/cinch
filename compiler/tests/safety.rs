@@ -7,16 +7,16 @@
 //! reports its summary, the manifest records the assertions summary,
 //! and the `Result` must-use default holds.
 
-use safelang::check::{
+use cinch::check::{
     check_program_multi_full, Diagnostic, JplSummary, SafetyReport, StagingCx,
 };
-use safelang::core::{Program, TargetProfile};
-use safelang::driver::{
+use cinch::core::{Program, TargetProfile};
+use cinch::driver::{
     check_sources, check_sources_ifaces, driver_with_profile, parse_prelude, parse_source,
     run_source, Mode, StageMode,
 };
-use safelang::interface::Iface;
-use safelang::Result;
+use cinch::interface::Iface;
+use cinch::Result;
 use std::collections::HashMap;
 use std::path::PathBuf;
 
@@ -119,7 +119,7 @@ fn write_project(files: &[(&str, &str)]) -> PathBuf {
     use std::sync::atomic::{AtomicU64, Ordering};
     static COUNTER: AtomicU64 = AtomicU64::new(0);
     let n = COUNTER.fetch_add(1, Ordering::Relaxed);
-    let dir = std::env::temp_dir().join(format!("safelang_safety_{}_{}", std::process::id(), n));
+    let dir = std::env::temp_dir().join(format!("cinch_safety_{}_{}", std::process::id(), n));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).expect("temp project dir");
     for (name, src) in files {
@@ -1383,7 +1383,7 @@ module Main where
 #[test]
 fn manifest_records_the_safety_summary_without_paths() {
     let dir = write_project(&[(
-        "Main.lang",
+        "Main.cinch",
         r#"
 module Main where
   #[recursion("bounded(xs)")]
@@ -1408,7 +1408,7 @@ module Main where
     driver_with_profile(
         Mode::Check,
         StageMode::Refresh,
-        &dir.join("Main.lang"),
+        &dir.join("Main.cinch"),
         None,
         &TargetProfile::jpl(),
     )

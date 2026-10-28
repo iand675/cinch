@@ -9,11 +9,11 @@
 //! Every program is the real prelude module sources plus a `Main`
 //! module, compiled and run through the same driver the CLI uses.
 
-use safelang::driver::{driver, run_source, Mode};
+use cinch::driver::{driver, run_source, Mode};
 use std::path::PathBuf;
 
-const SEMIGROUP: &str = include_str!("../prelude/Algebra/Semigroup.lang");
-const MONOID: &str = include_str!("../prelude/Algebra/Monoid.lang");
+const SEMIGROUP: &str = include_str!("../prelude/Algebra/Semigroup.cinch");
+const MONOID: &str = include_str!("../prelude/Algebra/Monoid.cinch");
 
 /// Helpers shared by the law programs: structural equality on the
 /// sample carriers (List and Option of Nat, Ordering), the newtype
@@ -732,18 +732,18 @@ fn tuple_semigroup_and_monoid_are_componentwise_and_obeys_the_laws() {
 
 #[test]
 fn modules_load_as_a_multi_file_project() {
-    // The real `compiler/prelude/Algebra/*.lang` files, consumed the
+    // The real `compiler/prelude/Algebra/*.cinch` files, consumed the
     // way a project consumes them: `import Algebra.Semigroup` /
     // `import Algebra.Monoid` resolved from beside the entry file
     // (decision D42).
     let dir: PathBuf = std::env::temp_dir().join(format!(
-        "safelang_algebra_proj_{}",
+        "cinch_algebra_proj_{}",
         std::process::id()
     ));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).expect("temp project dir");
-    std::fs::write(dir.join("Semigroup.lang"), SEMIGROUP).expect("write Semigroup");
-    std::fs::write(dir.join("Monoid.lang"), MONOID).expect("write Monoid");
+    std::fs::write(dir.join("Semigroup.cinch"), SEMIGROUP).expect("write Semigroup");
+    std::fs::write(dir.join("Monoid.cinch"), MONOID).expect("write Monoid");
     let main = main_module(
         r#"
   main :: Int
@@ -757,7 +757,7 @@ fn modules_load_as_a_multi_file_project() {
     if c1 then (if c2 then (if c3 then (if c4 then 0 else 4) else 3) else 2) else 1
 "#,
     );
-    std::fs::write(dir.join("Main.lang"), main).expect("write Main");
-    let code = driver(Mode::Run, &dir.join("Main.lang"), None).expect("multi-file run");
+    std::fs::write(dir.join("Main.cinch"), main).expect("write Main");
+    let code = driver(Mode::Run, &dir.join("Main.cinch"), None).expect("multi-file run");
     assert_eq!(code, 0);
 }

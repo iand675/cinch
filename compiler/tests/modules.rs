@@ -2,12 +2,12 @@
 //! These tests drive the real CLI pipeline (project loading, per-module
 //! interfaces, chain and coherence checks, linking with the Rust runtime).
 
-use safelang::driver::{driver, Mode};
+use cinch::driver::{driver, Mode};
 use std::path::{Path, PathBuf};
 
 fn write_project(files: &[(&str, &str)]) -> PathBuf {
     let dir = std::env::temp_dir().join(format!(
-        "safelang_modtest_{}_{}",
+        "cinch_modtest_{}_{}",
         std::process::id(),
         files.as_ptr() as usize
     ));
@@ -33,7 +33,7 @@ fn check_entry(dir: &Path, entry: &str) -> Result<(), String> {
 fn multi_file_module_links_and_runs() {
     let dir = write_project(&[
         (
-            "Lib.lang",
+            "Lib.cinch",
             "module Lib where\n\
              \x20 double :: Int -> Int\n\
              \x20 double x = x + x\n\
@@ -44,20 +44,20 @@ fn multi_file_module_links_and_runs() {
              \x20   W n -> double n\n",
         ),
         (
-            "Main.lang",
+            "Main.cinch",
             "module Main where\n\
              \x20 import Lib\n\
              \x20 main :: Int\n\
              \x20 main = if Lib.unwrap (Lib.W 21) == 42 then 0 else 1\n",
         ),
     ]);
-    let code = run_entry(&dir, "Main.lang").expect("multi-file run");
+    let code = run_entry(&dir, "Main.cinch").expect("multi-file run");
     assert_eq!(code, 0);
     // Per-module interfaces and the artifact manifest are written.
-    for f in ["build/Lib.sliface", "build/Main.sliface", "build/Main.manifest.json"] {
+    for f in ["build/Lib.cinchif", "build/Main.cinchif", "build/Main.manifest.json"] {
         assert!(dir.join(f).exists(), "missing artifact {f}");
     }
-    let lib_iface = std::fs::read_to_string(dir.join("build/Lib.sliface")).expect("iface");
+    let lib_iface = std::fs::read_to_string(dir.join("build/Lib.cinchif")).expect("iface");
     assert!(lib_iface.contains("\"module\": \"Lib\""), "{lib_iface}");
     assert!(lib_iface.contains("Lib.double"), "{lib_iface}");
     let manifest = std::fs::read_to_string(dir.join("build/Main.manifest.json")).expect("manifest");
@@ -69,21 +69,21 @@ fn multi_file_module_links_and_runs() {
 fn imported_fixity_is_visible() {
     let dir = write_project(&[
         (
-            "Ops.lang",
+            "Ops.cinch",
             "module Ops where\n\
              \x20 infixl 5 <+>\n\
              \x20 (<+>) :: Int -> Int -> Int\n\
              \x20 (<+>) a b = a * 10 + b\n",
         ),
         (
-            "Main.lang",
+            "Main.cinch",
             "module Main where\n\
              \x20 import Ops\n\
              \x20 main :: Int\n\
              \x20 main = if 1 <+> 2 == 12 then 0 else 1\n",
         ),
     ]);
-    let code = run_entry(&dir, "Main.lang").expect("fixity run");
+    let code = run_entry(&dir, "Main.cinch").expect("fixity run");
     assert_eq!(code, 0);
 }
 
@@ -91,7 +91,7 @@ fn imported_fixity_is_visible() {
 fn instance_coherence_across_modules() {
     let dir = write_project(&[
         (
-            "A.lang",
+            "A.cinch",
             "module A where\n\
              \x20 data T where\n\
              \x20   T :: Int -> T\n\
@@ -100,7 +100,7 @@ fn instance_coherence_across_modules() {
              \x20   (/=) x y = False\n",
         ),
         (
-            "B.lang",
+            "B.cinch",
             "module B where\n\
              \x20 import A\n\
              \x20 implicit instance Eq_T_B :: Eq T where\n\
@@ -108,7 +108,7 @@ fn instance_coherence_across_modules() {
              \x20   (/=) x y = True\n",
         ),
         (
-            "Main.lang",
+            "Main.cinch",
             "module Main where\n\
              \x20 import A\n\
              \x20 import B\n\
@@ -116,7 +116,7 @@ fn instance_coherence_across_modules() {
              \x20 main = if A.T 1 == A.T 2 then 0 else 1\n",
         ),
     ]);
-    let err = check_entry(&dir, "Main.lang").expect_err("coherence");
+    let err = check_entry(&dir, "Main.cinch").expect_err("coherence");
     assert!(err.contains("ambiguous instance"), "{err}");
 }
 
@@ -124,41 +124,41 @@ fn instance_coherence_across_modules() {
 fn import_cycle_is_rejected() {
     let dir = write_project(&[
         (
-            "A.lang",
+            "A.cinch",
             "module A where\n\
              \x20 import B\n\
              \x20 f :: Int -> Int\n\
              \x20 f x = x\n",
         ),
         (
-            "B.lang",
+            "B.cinch",
             "module B where\n\
              \x20 import A\n\
              \x20 g :: Int -> Int\n\
              \x20 g x = x\n",
         ),
         (
-            "Main.lang",
+            "Main.cinch",
             "module Main where\n\
              \x20 import A\n\
              \x20 main :: Int\n\
              \x20 main = A.f 1\n",
         ),
     ]);
-    let err = check_entry(&dir, "Main.lang").expect_err("cycle");
+    let err = check_entry(&dir, "Main.cinch").expect_err("cycle");
     assert!(err.contains("cycle"), "{err}");
 }
 
 #[test]
 fn missing_import_file_is_named() {
     let dir = write_project(&[(
-        "Main.lang",
+        "Main.cinch",
         "module Main where\n\
          \x20 import Ghost\n\
          \x20 main :: Int\n\
          \x20 main = 0\n",
     )]);
-    let err = check_entry(&dir, "Main.lang").expect_err("missing");
+    let err = check_entry(&dir, "Main.cinch").expect_err("missing");
     assert!(err.contains("Ghost"), "{err}");
 }
 
@@ -166,56 +166,56 @@ fn missing_import_file_is_named() {
 fn imported_module_is_resolved_by_declaration() {
     // The staging slice supersedes the file-stem rule (decision D42):
     // `import X` resolves to a module of an already loaded file, then to
-    // `X.lang`, then to a unique `module X` beside the entry. `Lib.lang`
+    // `X.cinch`, then to a unique `module X` beside the entry. `Lib.cinch`
     // declaring only `Wrong` provides no `Lib`, and `import Wrong` finds
     // it through the directory scan.
     let dir = write_project(&[
         (
-            "Lib.lang",
+            "Lib.cinch",
             "module Wrong where\n\
              \x20 f :: Int -> Int\n\
              \x20 f x = x\n",
         ),
         (
-            "Main.lang",
+            "Main.cinch",
             "module Main where\n\
              \x20 import Lib\n\
              \x20 main :: Int\n\
              \x20 main = Lib.f 1\n",
         ),
     ]);
-    let err = check_entry(&dir, "Main.lang").expect_err("no module Lib");
+    let err = check_entry(&dir, "Main.cinch").expect_err("no module Lib");
     assert!(err.contains("Lib"), "{err}");
     let dir = write_project(&[
         (
-            "Lib.lang",
+            "Lib.cinch",
             "module Wrong where\n\
              \x20 f :: Int -> Int\n\
              \x20 f x = x\n",
         ),
         (
-            "Main.lang",
+            "Main.cinch",
             "module Main where\n\
              \x20 import Wrong\n\
              \x20 main :: Int\n\
              \x20 main = Wrong.f 1\n",
         ),
     ]);
-    let code = run_entry(&dir, "Main.lang").expect("directory-scan resolution");
+    let code = run_entry(&dir, "Main.cinch").expect("directory-scan resolution");
     assert_eq!(code, 1);
 }
 
 #[test]
 fn entry_module_name_is_free() {
-    // The examples are `fib.lang` declaring `module Main`; the entry is not
+    // The examples are `fib.cinch` declaring `module Main`; the entry is not
     // resolved by name, so its declared module may differ from its stem.
     let dir = write_project(&[(
-        "smoke.lang",
+        "smoke.cinch",
         "module Main where\n\
          \x20 main :: Int\n\
          \x20 main = 7\n",
     )]);
-    let code = run_entry(&dir, "smoke.lang").expect("free entry name");
+    let code = run_entry(&dir, "smoke.cinch").expect("free entry name");
     assert_eq!(code, 7);
 }
 
@@ -225,7 +225,7 @@ fn multi_module_file_links_and_runs() {
     // source file may declare several modules, and they reference each
     // other across the blocks.
     let dir = write_project(&[(
-        "Main.lang",
+        "Main.cinch",
         "module Lib where\n\
          \x20 double :: Int -> Int\n\
          \x20 double x = x + x\n\
@@ -235,9 +235,9 @@ fn multi_module_file_links_and_runs() {
          \x20 main :: Int\n\
          \x20 main = if Lib.double 21 == 42 then 0 else 1\n",
     )]);
-    let code = run_entry(&dir, "Main.lang").expect("multi-module file run");
+    let code = run_entry(&dir, "Main.cinch").expect("multi-module file run");
     assert_eq!(code, 0);
-    for f in ["build/Lib.sliface", "build/Main.sliface"] {
+    for f in ["build/Lib.cinchif", "build/Main.cinchif"] {
         assert!(dir.join(f).exists(), "missing artifact {f}");
     }
     let manifest = std::fs::read_to_string(dir.join("build/Main.manifest.json")).expect("manifest");
@@ -250,7 +250,7 @@ fn imported_instance_is_used_by_the_importer() {
     // The instance lives in Lib; Main resolves `==` on Lib's type through it.
     let dir = write_project(&[
         (
-            "Lib.lang",
+            "Lib.cinch",
             "module Lib where\n\
              \x20 data Token where\n\
              \x20   Tok :: I64 -> Token\n\
@@ -261,33 +261,33 @@ fn imported_instance_is_used_by_the_importer() {
              \x20   (/=) a b = case a of\n\
              \x20     Tok x -> case b of\n\
              \x20       Tok y -> primNeI64 x y\n\
-             \x20 foreign import ccall \"safelang.prim.eqI64\" primEqI64 :: I64 -> I64 -> Bool\n\
-             \x20 foreign import ccall \"safelang.prim.neI64\" primNeI64 :: I64 -> I64 -> Bool\n",
+             \x20 foreign import ccall \"cinch.prim.eqI64\" primEqI64 :: I64 -> I64 -> Bool\n\
+             \x20 foreign import ccall \"cinch.prim.neI64\" primNeI64 :: I64 -> I64 -> Bool\n",
         ),
         (
-            "Main.lang",
+            "Main.cinch",
             "module Main where\n\
              \x20 import Lib\n\
              \x20 main :: Int\n\
              \x20 main = if Lib.Tok 5 == Lib.Tok 5 then 0 else 1\n",
         ),
     ]);
-    let code = run_entry(&dir, "Main.lang").expect("cross-module instance");
+    let code = run_entry(&dir, "Main.cinch").expect("cross-module instance");
     assert_eq!(code, 0);
 }
 
 #[test]
 fn interface_round_trips_through_disk() {
-    // The written .sliface must parse back and keep its identity.
+    // The written .cinchif must parse back and keep its identity.
     let dir = write_project(&[(
-        "Main.lang",
+        "Main.cinch",
         "module Main where\n\
          \x20 main :: Int\n\
          \x20 main = 0\n",
     )]);
-    check_entry(&dir, "Main.lang").expect("check");
-    let text = std::fs::read_to_string(dir.join("build/Main.sliface")).expect("iface");
-    let iface = safelang::interface::Iface::from_json(&text).expect("parse written iface");
+    check_entry(&dir, "Main.cinch").expect("check");
+    let text = std::fs::read_to_string(dir.join("build/Main.cinchif")).expect("iface");
+    let iface = cinch::interface::Iface::from_json(&text).expect("parse written iface");
     assert_eq!(iface.module, "Main");
     assert!(iface.exports.values.iter().any(|v| v.name == "main"));
 }

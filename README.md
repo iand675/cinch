@@ -15,13 +15,16 @@ turns each Markdown file in the repository (overview, specifications,
 tutorials, design, examples, context) into a page. The original
 documentation export's pre-rendered `*.html` pages were removed on
 2026-10-25 in favor of that rendering; `manifest.json` and `SHA256SUMS`
-remain as the record of what the export contained.
+remain as the record of what the export contained. The language was
+renamed to Cinch on 2026-10-27, so the recorded file names follow the
+new `.cinch`/`.cinchif` spelling while the recorded hash values still
+pin the exported bytes.
 
 ## Export contents
 
 - **27 documentation pages**, in Markdown (the export's standalone HTML
   renderings were removed on 2026-10-25; see above).
-- **12 `.lang` source files and one WIT interface**, extracted verbatim from the current example catalogue. The final runtime-effects filename is an export label for its named code block.
+- **12 `.cinch` source files and one WIT interface**, extracted verbatim from the current example catalogue. The final runtime-effects filename is an export label for its named code block.
 - Historical [design conversation](context/design-conversation.md), with 25 visible messages; no message content was omitted by the reader.
 - `source-data/pages.json` retains the exact original Markdown and ordered block text, plus source URLs, page IDs, update times, and revision numbers.
 - `manifest.json` maps pages and example files to their sources. `SHA256SUMS` verifies every other archive file.
@@ -76,19 +79,19 @@ This is draft language-design documentation, not an implemented or compiler-test
 
 ## Individual source examples
 
-- [01-bounded-index.lang](examples/source/01-bounded-index.lang)
-- [02-vector-filter.lang](examples/source/02-vector-filter.lang)
-- [03-map-fusion.lang](examples/source/03-map-fusion.lang)
-- [04-productive-stream.lang](examples/source/04-productive-stream.lang)
-- [05-schema-generator.lang](examples/source/05-schema-generator.lang)
-- [06-counter-upgrade.lang](examples/source/06-counter-upgrade.lang)
-- [07-rejected-programs.lang](examples/source/07-rejected-programs.lang)
-- [08-platform-simd.lang](examples/source/08-platform-simd.lang)
-- [09-foreign-codec.lang](examples/source/09-foreign-codec.lang)
-- [10-wasm-component.lang](examples/source/10-wasm-component.lang)
-- [11-structured-tasks.lang](examples/source/11-structured-tasks.lang)
+- [01-bounded-index.cinch](examples/source/01-bounded-index.cinch)
+- [02-vector-filter.cinch](examples/source/02-vector-filter.cinch)
+- [03-map-fusion.cinch](examples/source/03-map-fusion.cinch)
+- [04-productive-stream.cinch](examples/source/04-productive-stream.cinch)
+- [05-schema-generator.cinch](examples/source/05-schema-generator.cinch)
+- [06-counter-upgrade.cinch](examples/source/06-counter-upgrade.cinch)
+- [07-rejected-programs.cinch](examples/source/07-rejected-programs.cinch)
+- [08-platform-simd.cinch](examples/source/08-platform-simd.cinch)
+- [09-foreign-codec.cinch](examples/source/09-foreign-codec.cinch)
+- [10-wasm-component.cinch](examples/source/10-wasm-component.cinch)
+- [11-structured-tasks.cinch](examples/source/11-structured-tasks.cinch)
 - [codec.wit](examples/source/codec.wit)
-- [12-runtime-effects.lang](examples/source/12-runtime-effects.lang)
+- [12-runtime-effects.cinch](examples/source/12-runtime-effects.cinch)
 
 ## Original collection
 
@@ -101,7 +104,7 @@ Pages authored locally in this repository after the 2026-10-22 export. They are 
 - [Primitive types specification](specifications/primitive-types-specification.md) · draft 0.1: the unboxed machine scalars (`Bool`, `Char`, `I8`-`I64`, `U8`-`U64`, `F32`, `F64`, `Usize`, `Isize`), their explicit checked, wrapping and saturating operations, conversions, and their FFI, Wasm and SIMD correspondence.
 - [Lazy computation and reclamation specification](specifications/lazy-computation-and-reclamation-specification.md) · draft 0.1: explicit laziness without a garbage collector. Affine thunks (`Thunk {e} a`, force consumes), region memo cells (`Lazy r a`, call-by-need within a region), and duplicable thunks (`%many`, recompute), with effects, erasure, concurrency and upgrade obligations.
 - [Surface grammar local amendments](specifications/surface-grammar-local-amendments.md) · draft 0.1: the deltas between the draft 0.2 EBNF and what the implementation adopted (tuple types, `~` memo bindings, effect-row type arguments, record forms).
-- [Compiled interface metadata](design/compiled-interface-metadata.md) · design note: how compiled modules share interface metadata (`.sliface` artifacts, instance coherence, ABI symbol tables, assumption manifests, the Rust runtime link model).
+- [Compiled interface metadata](design/compiled-interface-metadata.md) · design note: how compiled modules share interface metadata (`.cinchif` artifacts, instance coherence, ABI symbol tables, assumption manifests, the Rust runtime link model).
 - [Dependent core kernel design](design/dependent-core-kernel.md) · design note: universes, Pi/Sigma, conversion, indexed families, erasure and totality for the dependent core (P7).
 - [Ownership, usage and regions design](design/ownership-and-usage.md) · design note: `%0`/`%1`/`%aff`/`%many` usage checking, `Share`, `Ref`/`Mut` regions and escape rules (P5).
 - [Effects, capabilities and sequencing design](design/effects-capabilities-sequencing.md) · design note: handler calculus, `do` with sequencing modules, lexical capabilities and runtime identity (P6).

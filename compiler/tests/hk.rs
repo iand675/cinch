@@ -5,9 +5,9 @@
 //! context, and the nullary class method round trip.
 //!
 //! The committed fixtures under `fixtures/hk/` are the acceptance:
-//! `hk_surface_fixture.lang` is the `Category.FamilyLaws` polymorphic
+//! `hk_surface_fixture.cinch` is the `Category.FamilyLaws` polymorphic
 //! law statements over the shipped class surface (it CHECKS),
-//! `lib_category_check.lang` is the shipped family end to end (it
+//! `lib_category_check.cinch` is the shipped family end to end (it
 //! RUNS). Since the D127 collapse both fixtures reference the SHIPPED
 //! modules (compiler/prelude/**, assembled below) instead of carrying
 //! inline class copies, so what they check is the surface users get.
@@ -21,7 +21,7 @@
 //! name is unknown). `shipped_category_functor_imports_across_files`
 //! is the dotted-name probe over the real modules.
 
-use safelang::driver::{check_sources, driver, run_source, Mode};
+use cinch::driver::{check_sources, driver, run_source, Mode};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -30,39 +30,39 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 /// instances, and the remaining library modules (their dotted headers
 /// and instances check in the same program).
 const SHIPPED: &str = concat!(
-    include_str!("../prelude/Algebra/Semigroup.lang"),
-    include_str!("../prelude/Algebra/Monoid.lang"),
-    include_str!("../prelude/Category/Functor.lang"),
-    include_str!("../prelude/Category/Applicative.lang"),
-    include_str!("../prelude/Category/Monad.lang"),
-    include_str!("../prelude/Category/Alternative.lang"),
-    include_str!("../prelude/Category/Foldable.lang"),
-    include_str!("../prelude/Category/Traversable.lang"),
-    include_str!("../prelude/Data/Compose.lang"),
-    include_str!("../prelude/Data/Identity.lang"),
-    include_str!("../prelude/Data/Const.lang"),
-    include_str!("../prelude/Data/NonEmpty.lang"),
+    include_str!("../prelude/Algebra/Semigroup.cinch"),
+    include_str!("../prelude/Algebra/Monoid.cinch"),
+    include_str!("../prelude/Category/Functor.cinch"),
+    include_str!("../prelude/Category/Applicative.cinch"),
+    include_str!("../prelude/Category/Monad.cinch"),
+    include_str!("../prelude/Category/Alternative.cinch"),
+    include_str!("../prelude/Category/Foldable.cinch"),
+    include_str!("../prelude/Category/Traversable.cinch"),
+    include_str!("../prelude/Data/Compose.cinch"),
+    include_str!("../prelude/Data/Identity.cinch"),
+    include_str!("../prelude/Data/Const.cinch"),
+    include_str!("../prelude/Data/NonEmpty.cinch"),
 );
-const HK_SURFACE: &str = include_str!("fixtures/hk/hk_surface_fixture.lang");
-const LIB_CATEGORY_CHECK: &str = include_str!("fixtures/hk/lib_category_check.lang");
-const PROBE1: &str = include_str!("fixtures/hk/probe1.lang");
-const PROBE2: &str = include_str!("fixtures/hk/probe2.lang");
-const PROBE3: &str = include_str!("fixtures/hk/probe3.lang");
-const PROBE4: &str = include_str!("fixtures/hk/probe4.lang");
-const PROBE5: &str = include_str!("fixtures/hk/probe5.lang");
-const PROBE6: &str = include_str!("fixtures/hk/probe6.lang");
-const PROBE7: &str = include_str!("fixtures/hk/probe7.lang");
-const PROBE8: &str = include_str!("fixtures/hk/probe8.lang");
-const PROBE9: &str = include_str!("fixtures/hk/probe9.lang");
-const PROBE10: &str = include_str!("fixtures/hk/probe10.lang");
-const PROBE11: &str = include_str!("fixtures/hk/probe11.lang");
-const PROBE13: &str = include_str!("fixtures/hk/probe13.lang");
-const PROBE14: &str = include_str!("fixtures/hk/probe14.lang");
-const PROBE15: &str = include_str!("fixtures/hk/probe15.lang");
-const PROBE16: &str = include_str!("fixtures/hk/probe16.lang");
-const PROBE17: &str = include_str!("fixtures/hk/probe17.lang");
-const MULTI_FUNCTOR: &str = include_str!("fixtures/hk/multi/Functor.lang");
-const MULTI_MAIN: &str = include_str!("fixtures/hk/multi/Main.lang");
+const HK_SURFACE: &str = include_str!("fixtures/hk/hk_surface_fixture.cinch");
+const LIB_CATEGORY_CHECK: &str = include_str!("fixtures/hk/lib_category_check.cinch");
+const PROBE1: &str = include_str!("fixtures/hk/probe1.cinch");
+const PROBE2: &str = include_str!("fixtures/hk/probe2.cinch");
+const PROBE3: &str = include_str!("fixtures/hk/probe3.cinch");
+const PROBE4: &str = include_str!("fixtures/hk/probe4.cinch");
+const PROBE5: &str = include_str!("fixtures/hk/probe5.cinch");
+const PROBE6: &str = include_str!("fixtures/hk/probe6.cinch");
+const PROBE7: &str = include_str!("fixtures/hk/probe7.cinch");
+const PROBE8: &str = include_str!("fixtures/hk/probe8.cinch");
+const PROBE9: &str = include_str!("fixtures/hk/probe9.cinch");
+const PROBE10: &str = include_str!("fixtures/hk/probe10.cinch");
+const PROBE11: &str = include_str!("fixtures/hk/probe11.cinch");
+const PROBE13: &str = include_str!("fixtures/hk/probe13.cinch");
+const PROBE14: &str = include_str!("fixtures/hk/probe14.cinch");
+const PROBE15: &str = include_str!("fixtures/hk/probe15.cinch");
+const PROBE16: &str = include_str!("fixtures/hk/probe16.cinch");
+const PROBE17: &str = include_str!("fixtures/hk/probe17.cinch");
+const MULTI_FUNCTOR: &str = include_str!("fixtures/hk/multi/Functor.cinch");
+const MULTI_MAIN: &str = include_str!("fixtures/hk/multi/Main.cinch");
 
 fn expect_ok(name: &str, src: &str) {
     if let Err(e) = check_sources(src, name) {
@@ -85,7 +85,7 @@ fn expect_reject(name: &str, needle: &str, src: &str) {
 
 #[test]
 fn hk_surface_fixture_checks() {
-    expect_ok("hk_surface_fixture.lang", &format!("{SHIPPED}\n{HK_SURFACE}"));
+    expect_ok("hk_surface_fixture.cinch", &format!("{SHIPPED}\n{HK_SURFACE}"));
 }
 
 #[test]
@@ -102,20 +102,20 @@ fn shipped_category_functor_imports_across_files() {
     // files beside it resolves, checks and runs.
     static N: AtomicUsize = AtomicUsize::new(0);
     let dir: PathBuf = std::env::temp_dir().join(format!(
-        "safelang_hkshipped_{}_{}",
+        "cinch_hkshipped_{}_{}",
         std::process::id(),
         N.fetch_add(1, Ordering::SeqCst)
     ));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).expect("temp project dir");
     std::fs::write(
-        dir.join("Functor.lang"),
-        include_str!("../prelude/Category/Functor.lang"),
+        dir.join("Functor.cinch"),
+        include_str!("../prelude/Category/Functor.cinch"),
     )
     .expect("write Functor");
     std::fs::write(
-        dir.join("Applicative.lang"),
-        include_str!("../prelude/Category/Applicative.lang"),
+        dir.join("Applicative.cinch"),
+        include_str!("../prelude/Category/Applicative.cinch"),
     )
     .expect("write Applicative");
     let main = "module Main where\n\
@@ -125,8 +125,8 @@ fn shipped_category_functor_imports_across_files() {
          \x20 main = case map (\\x -> x + 1) (Some (1 :: Int)) of\n\
          \x20   None -> 1\n\
          \x20   Some n -> if n == 2 then 0 else 2\n";
-    std::fs::write(dir.join("Main.lang"), main).expect("write Main");
-    let code = match driver(Mode::Run, &dir.join("Main.lang"), None) {
+    std::fs::write(dir.join("Main.cinch"), main).expect("write Main");
+    let code = match driver(Mode::Run, &dir.join("Main.cinch"), None) {
         Ok(code) => code,
         Err(e) => panic!("shipped multi-file: compilation failed: {e}"),
     };
@@ -137,105 +137,105 @@ fn shipped_category_functor_imports_across_files() {
 
 #[test]
 fn probe1_class_method_var_headed_application() {
-    expect_ok("probe1.lang", PROBE1);
+    expect_ok("probe1.cinch", PROBE1);
 }
 
 #[test]
 fn probe2_ctor_field_var_headed_application() {
-    expect_ok("probe2.lang", PROBE2);
+    expect_ok("probe2.cinch", PROBE2);
 }
 
 #[test]
 fn probe5_capitalized_sig_param() {
-    expect_ok("probe5.lang", PROBE5);
+    expect_ok("probe5.cinch", PROBE5);
 }
 
 #[test]
 fn probe6_kind_annotated_data_params() {
-    expect_ok("probe6.lang", PROBE6);
+    expect_ok("probe6.cinch", PROBE6);
 }
 
 // Control probes: green before and after.
 
 #[test]
 fn probe3_applied_class_arg_control() {
-    expect_ok("probe3.lang", PROBE3);
+    expect_ok("probe3.cinch", PROBE3);
 }
 
 #[test]
 fn probe4_function_typed_methods_control() {
-    expect_ok("probe4.lang", PROBE4);
+    expect_ok("probe4.cinch", PROBE4);
 }
 
 #[test]
 fn probe9_single_segment_import_control() {
-    expect_ok("probe9.lang", PROBE9);
+    expect_ok("probe9.cinch", PROBE9);
 }
 
 #[test]
 fn probe11_instance_params_control() {
-    expect_ok("probe11.lang", PROBE11);
+    expect_ok("probe11.cinch", PROBE11);
 }
 
 #[test]
 fn probe13_do_with_provider_control() {
-    expect_ok("probe13.lang", PROBE13);
+    expect_ok("probe13.cinch", PROBE13);
 }
 
 #[test]
 fn probe15_module_type_ctor_names_control() {
-    expect_ok("probe15.lang", PROBE15);
+    expect_ok("probe15.cinch", PROBE15);
 }
 
 #[test]
 fn probe16_char_nat_literals_control() {
-    expect_ok("probe16.lang", PROBE16);
+    expect_ok("probe16.cinch", PROBE16);
 }
 
 #[test]
 fn probe10_do_parses_probe_type_error_stays() {
     // The probe's documented form: `do` parses (the block reached the
     // type checker); the probe author's own type error remains.
-    expect_reject("probe10.lang", "type mismatch", PROBE10);
+    expect_reject("probe10.cinch", "type mismatch", PROBE10);
 }
 
 // Documented rejection forms.
 
 #[test]
 fn probe7_instance_head_variable_must_be_declared() {
-    expect_reject("probe7.lang", "unknown type variable a", PROBE7);
+    expect_reject("probe7.cinch", "unknown type variable a", PROBE7);
 }
 
 #[test]
 fn probe17_unimported_name_stays_unknown() {
-    expect_reject("probe17.lang", "unknown name get-const", PROBE17);
+    expect_reject("probe17.cinch", "unknown name get-const", PROBE17);
 }
 
 // Dotted module names: the imports key on the full dotted name.
 
 #[test]
 fn probe8_dotted_import_single_file() {
-    expect_ok("probe8.lang", PROBE8);
+    expect_ok("probe8.cinch", PROBE8);
 }
 
 #[test]
 fn probe14_dotted_import_aliased() {
-    expect_ok("probe14.lang", PROBE14);
+    expect_ok("probe14.cinch", PROBE14);
 }
 
 #[test]
 fn probe12_dotted_import_multi_file() {
     static N: AtomicUsize = AtomicUsize::new(0);
     let dir: PathBuf = std::env::temp_dir().join(format!(
-        "safelang_hkmulti_{}_{}",
+        "cinch_hkmulti_{}_{}",
         std::process::id(),
         N.fetch_add(1, Ordering::SeqCst)
     ));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).expect("temp project dir");
-    std::fs::write(dir.join("Functor.lang"), MULTI_FUNCTOR).expect("write module");
-    std::fs::write(dir.join("Main.lang"), MULTI_MAIN).expect("write module");
-    let code = match driver(Mode::Check, &dir.join("Main.lang"), None) {
+    std::fs::write(dir.join("Functor.cinch"), MULTI_FUNCTOR).expect("write module");
+    std::fs::write(dir.join("Main.cinch"), MULTI_MAIN).expect("write module");
+    let code = match driver(Mode::Check, &dir.join("Main.cinch"), None) {
         Ok(code) => code,
         Err(e) => panic!("probe12 (multi/): compilation failed: {e}"),
     };
@@ -251,7 +251,7 @@ fn var_headed_beta_reduction() {
     // arguments), and the instance body checks against the reduced
     // type.
     expect_ok(
-        "hk-beta.lang",
+        "hk-beta.cinch",
         "module Main where\n\
          \x20 signature Twice (f :: Type -> Type) where\n\
          \x20   tm :: forall a. f (f a) -> f a\n\
@@ -286,7 +286,7 @@ fn kind_inference_matches_annotation() {
     // `K1 (f :: Type -> Type)` and the un-annotated `K2 f` infer the
     // same kind from the same method shape.
     expect_ok(
-        "hk-kinds.lang",
+        "hk-kinds.cinch",
         "module Main where\n\
          \x20 signature K1 (f :: Type -> Type) where\n\
          \x20   m1 :: forall a. f a -> Int\n\
@@ -324,7 +324,7 @@ fn capture_avoiding_instance_context() {
          \x20 main :: Int\n\
          \x20 main = case comb (Dual (1 :: Int)) (Dual 2) of\n\
          \x20   Dual n -> if n == 3 then 0 else 1\n";
-    expect_ok("hk-capture.lang", src);
+    expect_ok("hk-capture.cinch", src);
     let code = run_source(src).expect("capture program compiles");
     assert_eq!(code, 0, "capture program exit code");
 }
@@ -340,7 +340,7 @@ fn nullary_method_round_trip() {
          \x20   pick = 7\n\
          \x20 main :: Int\n\
          \x20 main = if pick == (7 :: Int) then 0 else 1\n";
-    expect_ok("hk-nullary.lang", src);
+    expect_ok("hk-nullary.cinch", src);
     let code = run_source(src).expect("nullary program compiles");
     assert_eq!(code, 0, "nullary program exit code");
 }

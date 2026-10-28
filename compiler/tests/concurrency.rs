@@ -5,10 +5,10 @@
 //! (concurrency specification sections 2, 3, 4 and 6, and the runtime
 //! capabilities, effects and sequencing spec).
 
-use safelang::driver::{check_sources, run_source_io, run_source_objects};
+use cinch::driver::{check_sources, run_source_io, run_source_objects};
 
 fn expect_ok(name: &str, src: &str, expected: i32) {
-    match safelang::driver::run_source(src) {
+    match cinch::driver::run_source(src) {
         Ok(code) => assert_eq!(code, expected, "{name}: expected exit {expected}, got {code}"),
         Err(e) => panic!("{name}: compilation failed: {e}"),
     }
@@ -47,7 +47,7 @@ fn c_fixture(name: &str, src: &str) -> String {
     let c_path = dir.join(format!("{name}.c"));
     let o_path = dir.join(format!("{name}.o"));
     std::fs::write(&c_path, src).expect("write fixture");
-    let clang = std::env::var("SAFELANG_CLANG").unwrap_or_else(|_| "clang".to_string());
+    let clang = std::env::var("CINCH_CLANG").unwrap_or_else(|_| "clang".to_string());
     let status = std::process::Command::new(&clang)
         .arg("-c")
         .arg(&c_path)
@@ -450,9 +450,9 @@ module Main where
 fn example_11_structured_tasks_accepts() {
     let src = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../examples/source/11-structured-tasks.lang"
+        "/../examples/source/11-structured-tasks.cinch"
     ));
-    match check_sources(src, "11-structured-tasks.lang") {
+    match check_sources(src, "11-structured-tasks.cinch") {
         Ok(_) => {}
         Err(e) => panic!("11-structured-tasks: rejected: {e}"),
     }

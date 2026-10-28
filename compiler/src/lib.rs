@@ -1,4 +1,4 @@
-//! SafeLang bootstrap compiler.
+//! Cinch bootstrap compiler.
 //!
 //! Pipeline: source -> [`lexer`] -> [`layout`] -> [`parser`] -> [`check`] ->
 //! [`core`] -> [`codegen`] (LLVM IR text) -> clang (native binary).

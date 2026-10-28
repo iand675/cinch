@@ -1,17 +1,17 @@
-//! The LLVM contract surface (P27): SafeLang's analyses spelled in
+//! The LLVM contract surface (P27): Cinch's analyses spelled in
 //! LLVM's own vocabulary (design/llvm-contract-attributes.md). Every
 //! test observes the emitted IR: the contract appears where the
 //! analysis proves the fact and is absent where it does not (the plan
 //! note's evidence style: never wiring tests).
 
-use safelang::driver::{check_sources, run_source_objects};
+use cinch::driver::{check_sources, run_source_objects};
 
 /// The emitted LLVM IR of one checked source (every IR test carries a
 /// `main`, which code generation requires).
 fn ir_of(name: &str, src: &str) -> String {
     let program =
         check_sources(src, "<test>").unwrap_or_else(|e| panic!("{name}: check failed: {e}"));
-    safelang::codegen::emit(&program).unwrap_or_else(|e| panic!("{name}: emit failed: {e}"))
+    cinch::codegen::emit(&program).unwrap_or_else(|e| panic!("{name}: emit failed: {e}"))
 }
 
 /// The one line of `ir` defining one unit (`define ...`).
@@ -493,7 +493,7 @@ module Main where
     );
     // `Bytes` data read at the boundary freezes before its conversion.
     assert!(
-        body_of(&ir, "safelang.runtime.bytesGet").contains("freeze i64"),
+        body_of(&ir, "cinch.runtime.bytesGet").contains("freeze i64"),
         "a Bytes data read must freeze\n{ir}"
     );
     // The safe side's own words are trusted: no freeze is claimed.
@@ -518,19 +518,19 @@ module Main where
 "#,
     );
     assert!(
-        declare_of(&ir, "sl_panic").contains(" noreturn")
+        declare_of(&ir, "cinch_panic").contains(" noreturn")
             && declare_of(&ir, "exit").contains(" noreturn"),
         "the fault vocabulary is noreturn\n{ir}"
     );
     assert!(
-        define_of(&ir, "__safelang_blackhole").contains(" noreturn"),
+        define_of(&ir, "__cinch_blackhole").contains(" noreturn"),
         "the BlackHole fault is noreturn\n{ir}"
     );
     // The audit: every fault call marks its successor dead.
     let lines: Vec<&str> = ir.lines().collect();
     for (i, line) in lines.iter().enumerate() {
-        let faults = line.contains("call void @sl_panic(")
-            || line.contains("call void @\"__safelang_blackhole\"(")
+        let faults = line.contains("call void @cinch_panic(")
+            || line.contains("call void @\"__cinch_blackhole\"(")
             || line.contains("call void @exit(");
         if !faults {
             continue;
@@ -631,7 +631,7 @@ struct Big mk_big(long a) { struct Big p; p.a = a; p.b = a + 1; p.c = a + 2; ret
     )
     .expect("write fixture");
     drop(f);
-    let clang = std::env::var("SAFELANG_CLANG").unwrap_or_else(|_| "clang".to_string());
+    let clang = std::env::var("CINCH_CLANG").unwrap_or_else(|_| "clang".to_string());
     let status = std::process::Command::new(&clang)
         .arg("-c")
         .arg(&c_path)
@@ -731,7 +731,7 @@ module Main where
         r#"
 module Main where
   #[byval]
-  foreign import ccall "safelang.prim.eqU8" eqU8 :: U8 -> U8 -> Bool
+  foreign import ccall "cinch.prim.eqU8" eqU8 :: U8 -> U8 -> Bool
 
   main :: Int
   main = 0

@@ -26,7 +26,7 @@ pub enum Error {
     MalformedDecimal,
     /// The output buffer is too small to hold the decimal digits.
     BufferTooSmall,
-    /// A symbol name that is not valid UTF-8 reached `sl_sym_intern`
+    /// A symbol name that is not valid UTF-8 reached `cinch_sym_intern`
     /// (primitive types specification section 9: `intern` takes a
     /// `String`, so every interned name is valid UTF-8 and `sym-name` is
     /// total).
@@ -41,7 +41,7 @@ pub enum Error {
     CorruptValue,
     /// The quoted program raised its own `Fault`, or a memo cell was
     /// demanded while its evaluation was still running (the `BlackHole`
-    /// fault of [`crate::eval`], the same fault as `sl_blackhole`).
+    /// fault of [`crate::eval`], the same fault as `cinch_blackhole`).
     BlackHole,
     /// A quotation is nested deeper than [`crate::eval::MAX_NESTING`]
     /// units of evaluator recursion (through its expression tree, its
@@ -55,9 +55,9 @@ impl Error {
     /// Process exit code used when this error surfaces as a runtime fault.
     ///
     /// [`Error::DivByZero`] uses the dedicated division fault code (the same
-    /// code `sl_fault_div_zero` exits with) and [`Error::BlackHole`] the
-    /// `BlackHole` code (the same code `sl_blackhole` exits with); every
-    /// other variant exits through the `sl_panic` path.
+    /// code `cinch_fault_div_zero` exits with) and [`Error::BlackHole`] the
+    /// `BlackHole` code (the same code `cinch_blackhole` exits with); every
+    /// other variant exits through the `cinch_panic` path.
     pub fn exit_code(self) -> i32 {
         match self {
             Error::DivByZero => crate::abi::EXIT_DIV_ZERO,
@@ -115,7 +115,7 @@ mod tests {
             Error::NestingTooDeep,
         ];
         for e in others {
-            assert_eq!(e.exit_code(), 71, "{e:?} must exit through sl_panic");
+            assert_eq!(e.exit_code(), 71, "{e:?} must exit through cinch_panic");
         }
     }
 

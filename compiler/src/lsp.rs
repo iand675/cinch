@@ -384,7 +384,7 @@ impl LspServer {
     }
 
     /// The recheck reports, in order (which modules each update
-    /// rechecked and which cached `.sliface` entries it kept).
+    /// rechecked and which cached `.cinchif` entries it kept).
     pub fn reports(&self) -> &[UpdateReport] {
         &self.reports
     }
@@ -629,7 +629,7 @@ fn initialize_result() -> Json {
         (
             "serverInfo",
             Json::obj(vec![
-                ("name", Json::Str("safelang".to_string())),
+                ("name", Json::Str("cinch".to_string())),
                 ("version", Json::Str(env!("CARGO_PKG_VERSION").to_string())),
             ]),
         ),
@@ -684,7 +684,7 @@ fn diagnostics_notification(uri: &str, diags: &[Diag]) -> String {
                     ),
                 ),
                 ("message", Json::Str(d.message.clone())),
-                ("source", Json::Str("safelang".to_string())),
+                ("source", Json::Str("cinch".to_string())),
             ])
         })
         .collect();

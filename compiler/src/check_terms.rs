@@ -536,7 +536,7 @@ impl Checker {
                 // `String` is a compile-time type in this slice (decision
                 // D43): literals elaborate where compile-time code runs.
                 // The runtime `String` type has shipped (built from
-                // `Bytes` through `string-from-bytes`, Prelude.lang);
+                // `Bytes` through `string-from-bytes`, Prelude.cinch);
                 // literal syntax for it is a surface future item.
                 if !self.compile_time {
                     return Err(Error::at(

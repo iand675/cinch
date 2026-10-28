@@ -24,14 +24,14 @@ module Data.Nat where
 
   -- The mathematical `Nat` and `Int` (primitive types specification,
   -- section 1): boxed bignums, distinct from every machine scalar.
-  foreign import ccall "safelang.runtime.natAdd" nat-add :: Nat -> Nat -> Nat
-  foreign import ccall "safelang.runtime.natSub" nat-sub :: Nat -> Nat -> Nat
-  foreign import ccall "safelang.runtime.natMul" nat-mul :: Nat -> Nat -> Nat
-  foreign import ccall "safelang.runtime.natDiv" nat-div :: Nat -> Nat -> Nat
-  foreign import ccall "safelang.runtime.natRem" nat-rem :: Nat -> Nat -> Nat
-  foreign import ccall "safelang.runtime.natCmp" nat-cmp :: Nat -> Nat -> I64
-  foreign import ccall "safelang.runtime.natFromI64" nat-from-i64 :: I64 -> Nat
-  foreign import ccall "safelang.runtime.natToI64" nat-to-i64 :: Nat -> I64
+  foreign import ccall "cinch.runtime.natAdd" nat-add :: Nat -> Nat -> Nat
+  foreign import ccall "cinch.runtime.natSub" nat-sub :: Nat -> Nat -> Nat
+  foreign import ccall "cinch.runtime.natMul" nat-mul :: Nat -> Nat -> Nat
+  foreign import ccall "cinch.runtime.natDiv" nat-div :: Nat -> Nat -> Nat
+  foreign import ccall "cinch.runtime.natRem" nat-rem :: Nat -> Nat -> Nat
+  foreign import ccall "cinch.runtime.natCmp" nat-cmp :: Nat -> Nat -> I64
+  foreign import ccall "cinch.runtime.natFromI64" nat-from-i64 :: I64 -> Nat
+  foreign import ccall "cinch.runtime.natToI64" nat-to-i64 :: Nat -> I64
 
   implicit instance Eq_Nat :: Eq Nat where
     (==) x y = eq-i64 (nat-cmp x y) 0

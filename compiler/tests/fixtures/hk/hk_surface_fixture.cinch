@@ -6,8 +6,8 @@
 -- inline copies of the class surface (Category.Functor,
 -- Category.Applicative, Category.Monad, Category.Alternative,
 -- Data.Compose) and the instance families (Category.TypeInstances).
--- Those ARE the shipped modules now (compiler/prelude/Category/*.lang,
--- compiler/prelude/Data/{Compose,Identity,Const}.lang), so the copies
+-- Those ARE the shipped modules now (compiler/prelude/Category/*.cinch,
+-- compiler/prelude/Data/{Compose,Identity,Const}.cinch), so the copies
 -- are gone and compiler/tests/hk.rs assembles this file with the
 -- shipped modules. What remains here is what only exists as an
 -- acceptance artifact: the law statements quantified over the

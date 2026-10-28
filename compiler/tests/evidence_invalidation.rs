@@ -8,7 +8,7 @@
 //! `RawPtr`/FFI writes are opaque mutation (the conservative rule). See
 //! the core specification, sections 3-5.
 
-use safelang::driver::{check_sources, run_source};
+use cinch::driver::{check_sources, run_source};
 
 /// A program that must type-check (evidence used before any invalidating
 /// mutation, or re-derived after one).

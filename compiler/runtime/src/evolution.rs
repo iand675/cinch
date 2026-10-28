@@ -31,7 +31,7 @@
 //!   every value the specialized frame held under a `%1`/`%aff`
 //!   obligation transfers to the fallback frame exactly once.
 //!
-//! The word-level `sl_evo_*` entry points (below) are what generated code
+//! The word-level `cinch_evo_*` entry points (below) are what generated code
 //! calls; they wrap the safe API and use the runtime's fault convention
 //! for conditions that have no recovery value at the ABI (a corrupt
 //! handle), returning negative status codes for every condition a program
@@ -63,7 +63,7 @@ pub type Result<T, E = EvoError> = std::result::Result<T, E>;
 /// The reason an evolution operation was refused (runtime evolution
 /// specification section 11: a rejection identifies the failing
 /// dimension). Every variant maps to a distinct negative status code at
-/// the `sl_evo_*` ABI so a program can branch on the failing dimension.
+/// the `cinch_evo_*` ABI so a program can branch on the failing dimension.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum EvoError {
     /// A handle named no live object.
@@ -89,7 +89,7 @@ pub enum EvoError {
 }
 
 impl EvoError {
-    /// The negative status code returned at the `sl_evo_*` ABI.
+    /// The negative status code returned at the `cinch_evo_*` ABI.
     pub fn code(self) -> i64 {
         match self {
             EvoError::NoHandle => -1,
@@ -881,7 +881,7 @@ macro_rules! ok {
 
 /// Create a module instance. Returns its handle.
 #[unsafe(no_mangle)]
-pub extern "C" fn sl_evo_module_new(_name: i64) -> i64 {
+pub extern "C" fn cinch_evo_module_new(_name: i64) -> i64 {
     module_new("m")
 }
 
@@ -889,7 +889,7 @@ pub extern "C" fn sl_evo_module_new(_name: i64) -> i64 {
 /// bitmask for the word ABI: bit 0 is feature `"f0"`, bit 1 `"f1"`, and
 /// so on. Returns the version id.
 #[unsafe(no_mangle)]
-pub extern "C" fn sl_evo_version_new(module: i64, state_repr: i64, requires_mask: i64) -> i64 {
+pub extern "C" fn cinch_evo_version_new(module: i64, state_repr: i64, requires_mask: i64) -> i64 {
     let mut feats: Vec<String> = Vec::new();
     for bit in 0..8 {
         if requires_mask & (1 << bit) != 0 {
@@ -902,7 +902,7 @@ pub extern "C" fn sl_evo_version_new(module: i64, state_repr: i64, requires_mask
 
 /// Set target feature availability. `feature` is `0..=7` for `"f0".."f7"`.
 #[unsafe(no_mangle)]
-pub extern "C" fn sl_evo_feature_avail(feature: i64, available: i64) -> i64 {
+pub extern "C" fn cinch_evo_feature_avail(feature: i64, available: i64) -> i64 {
     if !(0..8).contains(&feature) {
         return EvoError::InvalidUpdate.code();
     }
@@ -912,27 +912,27 @@ pub extern "C" fn sl_evo_feature_avail(feature: i64, available: i64) -> i64 {
 
 /// Begin an update. Returns the update handle.
 #[unsafe(no_mangle)]
-pub extern "C" fn sl_evo_update_begin(module: i64, target: i64) -> i64 {
+pub extern "C" fn cinch_evo_update_begin(module: i64, target: i64) -> i64 {
     ok!(update_begin(module, target))
 }
 
 /// Add a replacement artifact for a changed symbol.
 #[unsafe(no_mangle)]
-pub extern "C" fn sl_evo_add_replacement(update: i64, symbol: i64, replacement: i64) -> i64 {
+pub extern "C" fn cinch_evo_add_replacement(update: i64, symbol: i64, replacement: i64) -> i64 {
     ok!(update_add_replacement(update, symbol, replacement));
     0
 }
 
 /// Add an inlined dependent whose copy must be replaced too.
 #[unsafe(no_mangle)]
-pub extern "C" fn sl_evo_add_dependent(update: i64, dependent: i64) -> i64 {
+pub extern "C" fn cinch_evo_add_dependent(update: i64, dependent: i64) -> i64 {
     ok!(update_add_dependent(update, dependent));
     0
 }
 
 /// Require a target feature (`0..=7`) for the target artifact.
 #[unsafe(no_mangle)]
-pub extern "C" fn sl_evo_require_feature(update: i64, feature: i64) -> i64 {
+pub extern "C" fn cinch_evo_require_feature(update: i64, feature: i64) -> i64 {
     if !(0..8).contains(&feature) {
         return EvoError::InvalidUpdate.code();
     }
@@ -943,14 +943,14 @@ pub extern "C" fn sl_evo_require_feature(update: i64, feature: i64) -> i64 {
 /// Attach the state migration `(from_repr, to_repr)`; `reverse != 0`
 /// authorizes the reverse transition.
 #[unsafe(no_mangle)]
-pub extern "C" fn sl_evo_set_migration(update: i64, from_repr: i64, to_repr: i64, reverse: i64) -> i64 {
+pub extern "C" fn cinch_evo_set_migration(update: i64, from_repr: i64, to_repr: i64, reverse: i64) -> i64 {
     ok!(update_set_migration(update, from_repr, to_repr, reverse != 0));
     0
 }
 
 /// Assert the update set is complete (`changed` + `dependents`).
 #[unsafe(no_mangle)]
-pub extern "C" fn sl_evo_mark_complete(update: i64, changed: i64, dependents: i64) -> i64 {
+pub extern "C" fn cinch_evo_mark_complete(update: i64, changed: i64, dependents: i64) -> i64 {
     ok!(update_mark_complete(update, changed, dependents));
     0
 }
@@ -958,129 +958,129 @@ pub extern "C" fn sl_evo_mark_complete(update: i64, changed: i64, dependents: i6
 /// Activate a pending update. Returns the new dispatch epoch, or a
 /// negative status code.
 #[unsafe(no_mangle)]
-pub extern "C" fn sl_evo_activate(update: i64) -> i64 {
+pub extern "C" fn cinch_evo_activate(update: i64) -> i64 {
     ok!(activate(update))
 }
 
 /// Seed a module's state (`repr`, `payload`).
 #[unsafe(no_mangle)]
-pub extern "C" fn sl_evo_state_seed(module: i64, repr: i64, payload: i64) -> i64 {
+pub extern "C" fn cinch_evo_state_seed(module: i64, repr: i64, payload: i64) -> i64 {
     ok!(state_seed(module, repr, payload));
     0
 }
 
 /// A module's current state representation version.
 #[unsafe(no_mangle)]
-pub extern "C" fn sl_evo_state_repr(module: i64) -> i64 {
+pub extern "C" fn cinch_evo_state_repr(module: i64) -> i64 {
     state_repr(module)
 }
 
 /// A module's current state payload (the observable migrated value).
 #[unsafe(no_mangle)]
-pub extern "C" fn sl_evo_state_payload(module: i64) -> i64 {
+pub extern "C" fn cinch_evo_state_payload(module: i64) -> i64 {
     state_payload(module)
 }
 
 /// A module's current dispatch version.
 #[unsafe(no_mangle)]
-pub extern "C" fn sl_evo_current_version(module: i64) -> i64 {
+pub extern "C" fn cinch_evo_current_version(module: i64) -> i64 {
     current_version(module)
 }
 
 /// A module's current dispatch epoch.
 #[unsafe(no_mangle)]
-pub extern "C" fn sl_evo_epoch(module: i64) -> i64 {
+pub extern "C" fn cinch_evo_epoch(module: i64) -> i64 {
     epoch(module)
 }
 
 /// Admit a frame under the current code version. Returns the frame
 /// handle.
 #[unsafe(no_mangle)]
-pub extern "C" fn sl_evo_frame_enter(module: i64) -> i64 {
+pub extern "C" fn cinch_evo_frame_enter(module: i64) -> i64 {
     ok!(frame_enter(module))
 }
 
 /// Release a frame.
 #[unsafe(no_mangle)]
-pub extern "C" fn sl_evo_frame_exit(frame: i64) -> i64 {
+pub extern "C" fn cinch_evo_frame_exit(frame: i64) -> i64 {
     ok!(frame_exit(frame));
     0
 }
 
 /// The code version a frame was admitted under.
 #[unsafe(no_mangle)]
-pub extern "C" fn sl_evo_frame_version(frame: i64) -> i64 {
+pub extern "C" fn cinch_evo_frame_version(frame: i64) -> i64 {
     frame_version(frame)
 }
 
 /// Resume a frame over a state representation. Returns 0 or a negative
 /// status code (section 10).
 #[unsafe(no_mangle)]
-pub extern "C" fn sl_evo_frame_resume(frame: i64, over_repr: i64) -> i64 {
+pub extern "C" fn cinch_evo_frame_resume(frame: i64, over_repr: i64) -> i64 {
     ok!(frame_resume(frame, over_repr));
     0
 }
 
 /// Live frames that can still enter a code version.
 #[unsafe(no_mangle)]
-pub extern "C" fn sl_evo_version_live(version: i64) -> i64 {
+pub extern "C" fn cinch_evo_version_live(version: i64) -> i64 {
     version_live(version)
 }
 
 /// Whether a code version is retired (1) or not (0).
 #[unsafe(no_mangle)]
-pub extern "C" fn sl_evo_version_retired(version: i64) -> i64 {
+pub extern "C" fn cinch_evo_version_retired(version: i64) -> i64 {
     version_retired(version) as i64
 }
 
 /// Whether a code version is still resident (1) or dropped (0).
 #[unsafe(no_mangle)]
-pub extern "C" fn sl_evo_version_resident(version: i64) -> i64 {
+pub extern "C" fn cinch_evo_version_resident(version: i64) -> i64 {
     version_resident(version) as i64
 }
 
 /// Drop a retired code version once nothing can enter it. Returns 1 if
 /// dropped, or a negative status code (section 6).
 #[unsafe(no_mangle)]
-pub extern "C" fn sl_evo_version_try_drop(module: i64, version: i64) -> i64 {
+pub extern "C" fn cinch_evo_version_try_drop(module: i64, version: i64) -> i64 {
     ok!(version_try_drop(module, version)) as i64
 }
 
 /// Install a specialization variant (supercompilation section 6).
 /// Returns the variant handle.
 #[unsafe(no_mangle)]
-pub extern "C" fn sl_evo_variant_install(module: i64, generic: i64, specialized: i64, guard: i64) -> i64 {
+pub extern "C" fn cinch_evo_variant_install(module: i64, generic: i64, specialized: i64, guard: i64) -> i64 {
     ok!(variant_install(module, generic, specialized, guard))
 }
 
 /// Enter a specialized variant's frame. Returns the frame handle.
 #[unsafe(no_mangle)]
-pub extern "C" fn sl_evo_variant_enter(variant: i64) -> i64 {
+pub extern "C" fn cinch_evo_variant_enter(variant: i64) -> i64 {
     ok!(variant_enter(variant))
 }
 
 /// Retire a variant. Returns 0 or a negative status code.
 #[unsafe(no_mangle)]
-pub extern "C" fn sl_evo_variant_retire(variant: i64) -> i64 {
+pub extern "C" fn cinch_evo_variant_retire(variant: i64) -> i64 {
     ok!(variant_retire(variant));
     0
 }
 
 /// Whether a variant is retired (1) or not (0).
 #[unsafe(no_mangle)]
-pub extern "C" fn sl_evo_variant_retired(variant: i64) -> i64 {
+pub extern "C" fn cinch_evo_variant_retired(variant: i64) -> i64 {
     variant_retired(variant) as i64
 }
 
 /// Whether a variant's specialized code version is still resident (1).
 #[unsafe(no_mangle)]
-pub extern "C" fn sl_evo_variant_resident(variant: i64) -> i64 {
+pub extern "C" fn cinch_evo_variant_resident(variant: i64) -> i64 {
     variant_resident(variant) as i64
 }
 
 /// Observe a guard. Returns 0 while it holds, or `UnsafeDeopt`'s code.
 #[unsafe(no_mangle)]
-pub extern "C" fn sl_evo_variant_check_guard(variant: i64, observed: i64) -> i64 {
+pub extern "C" fn cinch_evo_variant_check_guard(variant: i64, observed: i64) -> i64 {
     ok!(variant_check_guard(variant, observed));
     0
 }
@@ -1089,7 +1089,7 @@ pub extern "C" fn sl_evo_variant_check_guard(variant: i64, observed: i64) -> i64
 /// consumption-safely. `held_linear` is the count of `%1`/`%aff`
 /// obligations transferred. Returns 0 or a negative status code.
 #[unsafe(no_mangle)]
-pub extern "C" fn sl_evo_deopt(frame: i64, held_linear: i64) -> i64 {
+pub extern "C" fn cinch_evo_deopt(frame: i64, held_linear: i64) -> i64 {
     ok!(deopt(frame, held_linear));
     0
 }

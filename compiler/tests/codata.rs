@@ -3,7 +3,7 @@
 //! checking, and the productivity-loss rule for unrestricted filtering
 //! (core language specification section 9; codata and guardedness design).
 
-use safelang::driver::{check_sources, run_source};
+use cinch::driver::{check_sources, run_source};
 
 fn expect_ok(name: &str, src: &str, expected: i32) {
     match run_source(src) {
@@ -435,8 +435,8 @@ module Main where
 
 #[test]
 fn acceptance_example_04_productive_stream_checks() {
-    let src = include_str!("../../examples/source/04-productive-stream.lang");
-    if let Err(e) = check_sources(src, "04-productive-stream.lang") {
+    let src = include_str!("../../examples/source/04-productive-stream.cinch");
+    if let Err(e) = check_sources(src, "04-productive-stream.cinch") {
         panic!("example 04 must check end to end: {e}");
     }
 }

@@ -1,7 +1,7 @@
 -- Data.Bytes: boxed byte buffers.
 --
 -- `Bytes` is a core runtime type: indices, lengths and byte values
--- are `Nat` and convert through `sl_nat_to_i64`/`sl_nat_from_i64`.
+-- are `Nat` and convert through `cinch_nat_to_i64`/`cinch_nat_from_i64`.
 -- Every `Bytes` fault (out-of-bounds index, byte value outside
 -- 0..=255, a length outside `i64` range) exits through the panic path
 -- (71).
@@ -23,11 +23,11 @@ module Data.Bytes where
   -- (71).
 
   -- `Bytes`: boxed byte buffers. Indices, lengths and byte values are
-  -- `Nat` and convert through `sl_nat_to_i64`/`sl_nat_from_i64`.
-  foreign import ccall "safelang.runtime.bytesNew" bytes-new :: Nat -> Bytes
-  foreign import ccall "safelang.runtime.bytesLen" bytes-len :: Bytes -> Nat
-  foreign import ccall "safelang.runtime.bytesGet" bytes-get :: Bytes -> Nat -> Nat
-  foreign import ccall "safelang.runtime.bytesSet" bytes-set :: Bytes -> Nat -> Nat -> Unit
+  -- `Nat` and convert through `cinch_nat_to_i64`/`cinch_nat_from_i64`.
+  foreign import ccall "cinch.runtime.bytesNew" bytes-new :: Nat -> Bytes
+  foreign import ccall "cinch.runtime.bytesLen" bytes-len :: Bytes -> Nat
+  foreign import ccall "cinch.runtime.bytesGet" bytes-get :: Bytes -> Nat -> Nat
+  foreign import ccall "cinch.runtime.bytesSet" bytes-set :: Bytes -> Nat -> Nat -> Unit
 
   bytes-from-list :: List Nat -> Bytes
   bytes-from-list xs = bytes-fill (bytes-new (list-byte-count xs)) 0 xs

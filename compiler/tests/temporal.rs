@@ -18,17 +18,17 @@
 //!   recursion is refused and an unwitnessed cycle is rejected naming the
 //!   recursive call.
 //!
-//! The verified contracts are contract facts in `.sliface`/`iface_hash`
+//! The verified contracts are contract facts in `.cinchif`/`iface_hash`
 //! (identity pinned both ways, the P20 precedent) and rows in the
 //! artifact manifest with their stated assumptions.
 
-use safelang::check::{check_program_multi_full, StagingCx};
-use safelang::core::TargetProfile;
-use safelang::driver::{
+use cinch::check::{check_program_multi_full, StagingCx};
+use cinch::core::TargetProfile;
+use cinch::driver::{
     check_sources, check_sources_ifaces, driver_with_profile, parse_prelude, parse_source,
     Mode, StageMode,
 };
-use safelang::interface::{ContractFact, Iface};
+use cinch::interface::{ContractFact, Iface};
 use std::collections::HashMap;
 use std::path::PathBuf;
 
@@ -544,7 +544,7 @@ fn contract_facts_hash_both_ways() {
 #[test]
 fn manifest_records_the_temporal_contracts_with_assumptions() {
     let dir = write_project(&[(
-        "Main.lang",
+        "Main.cinch",
         r#"
 module Main where
   countdown :: forall region. Mut region Nat -> Int -> Nat
@@ -577,7 +577,7 @@ module Main where
     driver_with_profile(
         Mode::Check,
         StageMode::Refresh,
-        &dir.join("Main.lang"),
+        &dir.join("Main.cinch"),
         None,
         &TargetProfile::native(),
     )

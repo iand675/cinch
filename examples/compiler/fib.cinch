@@ -1,5 +1,5 @@
 -- Example for the bootstrap compiler: recursion, class-method operators.
--- `safelang run examples/compiler/fib.lang` exits 0 when fib 10 == 55.
+-- `cinch run examples/compiler/fib.cinch` exits 0 when fib 10 == 55.
 module Main where
   fib :: Int -> Int
   fib n = if n == 0 then 0 else if n == 1 then 1 else fib (n - 1) + fib (n - 2)

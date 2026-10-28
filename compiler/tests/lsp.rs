@@ -4,10 +4,10 @@
 //! (`Content-Length` framed JSON-RPC, exactly as a client would speak
 //! it): initialize, didOpen/didChange diagnostics with correct spans,
 //! hover, definition across files, completion, semantic tokens, the
-//! incremental recheck report over the `.sliface` chain, and the
+//! incremental recheck report over the `.cinchif` chain, and the
 //! no-absolute-paths rule.
 
-use safelang::lsp::{frame, parse_json, Json, LspServer, TOKEN_TYPES};
+use cinch::lsp::{frame, parse_json, Json, LspServer, TOKEN_TYPES};
 use std::collections::VecDeque;
 use std::io::{BufReader, Read, Write};
 use std::sync::{Arc, Condvar, Mutex};
@@ -219,7 +219,7 @@ fn did_open(client: &mut Client, uri: &str, text: &str) {
             "textDocument",
             Json::obj(vec![
                 ("uri", Json::Str(uri.to_string())),
-                ("languageId", Json::Str("safelang".to_string())),
+                ("languageId", Json::Str("cinch".to_string())),
                 ("version", Json::Num(1.0)),
                 ("text", Json::Str(text.to_string())),
             ]),
@@ -276,18 +276,18 @@ const B_BAD: &str =
 #[test]
 fn open_and_change_produce_diagnostics_with_correct_spans() {
     let (mut client, handle) = start("file:///project");
-    did_open(&mut client, "file:///project/A.lang", A_SRC);
+    did_open(&mut client, "file:///project/A.cinch", A_SRC);
     // Read the initial publishes (no errors anywhere).
-    let note = client.wait_note(|m| published_uri(m).ends_with("A.lang"));
+    let note = client.wait_note(|m| published_uri(m).ends_with("A.cinch"));
     assert!(published_diagnostics(&note).is_empty(), "{note:?}");
-    did_open(&mut client, "file:///project/B.lang", B_SRC);
-    let note = client.wait_note(|m| published_uri(m).ends_with("B.lang"));
+    did_open(&mut client, "file:///project/B.cinch", B_SRC);
+    let note = client.wait_note(|m| published_uri(m).ends_with("B.cinch"));
     assert!(published_diagnostics(&note).is_empty(), "{note:?}");
     // A change introduces a type error at `True` (line 5, col 9 of the
     // source: 1-based), reported on B with that span.
-    did_change(&mut client, "file:///project/B.lang", B_BAD);
+    did_change(&mut client, "file:///project/B.cinch", B_BAD);
     let note = client.wait_note(|m| {
-        published_uri(m).ends_with("B.lang") && !published_diagnostics(m).is_empty()
+        published_uri(m).ends_with("B.cinch") && !published_diagnostics(m).is_empty()
     });
     let diags = published_diagnostics(&note);
     assert_eq!(diags.len(), 1, "{diags:?}");
@@ -313,13 +313,13 @@ fn open_and_change_produce_diagnostics_with_correct_spans() {
 #[test]
 fn hover_shows_a_scheme() {
     let (mut client, handle) = start("file:///project");
-    did_open(&mut client, "file:///project/A.lang", A_SRC);
-    did_open(&mut client, "file:///project/B.lang", B_SRC);
+    did_open(&mut client, "file:///project/A.cinch", A_SRC);
+    did_open(&mut client, "file:///project/B.cinch", B_SRC);
     // `double` in `g = double 21` (1-based 7:7; 0-based 6:6).
     let resp = client.request(
         "textDocument/hover",
         Json::obj(vec![
-            ("textDocument", doc("file:///project/B.lang")),
+            ("textDocument", doc("file:///project/B.cinch")),
             ("position", position(6, 6)),
         ]),
     );
@@ -337,12 +337,12 @@ fn hover_shows_a_scheme() {
 #[test]
 fn definition_crosses_files() {
     let (mut client, handle) = start("file:///project");
-    did_open(&mut client, "file:///project/A.lang", A_SRC);
-    did_open(&mut client, "file:///project/B.lang", B_SRC);
+    did_open(&mut client, "file:///project/A.cinch", A_SRC);
+    did_open(&mut client, "file:///project/B.cinch", B_SRC);
     let resp = client.request(
         "textDocument/definition",
         Json::obj(vec![
-            ("textDocument", doc("file:///project/B.lang")),
+            ("textDocument", doc("file:///project/B.cinch")),
             ("position", position(6, 6)),
         ]),
     );
@@ -351,7 +351,7 @@ fn definition_crosses_files() {
         .and_then(|r| r.get("uri"))
         .and_then(|u| u.as_str())
         .unwrap_or("");
-    assert_eq!(uri, "file:///project/A.lang", "{resp:?}");
+    assert_eq!(uri, "file:///project/A.cinch", "{resp:?}");
     let start = resp
         .get("result")
         .and_then(|r| r.get("range"))
@@ -371,13 +371,13 @@ fn definition_crosses_files() {
 #[test]
 fn completions_offer_imported_and_prelude_names() {
     let (mut client, handle) = start("file:///project");
-    did_open(&mut client, "file:///project/A.lang", A_SRC);
-    did_open(&mut client, "file:///project/B.lang", B_SRC);
+    did_open(&mut client, "file:///project/A.cinch", A_SRC);
+    did_open(&mut client, "file:///project/B.cinch", B_SRC);
     // Inside `g = double 21`, completing `d` (0-based 6:8).
     let resp = client.request(
         "textDocument/completion",
         Json::obj(vec![
-            ("textDocument", doc("file:///project/B.lang")),
+            ("textDocument", doc("file:///project/B.cinch")),
             ("position", position(6, 8)),
         ]),
     );
@@ -395,7 +395,7 @@ fn completions_offer_imported_and_prelude_names() {
     let resp = client.request(
         "textDocument/completion",
         Json::obj(vec![
-            ("textDocument", doc("file:///project/B.lang")),
+            ("textDocument", doc("file:///project/B.cinch")),
             ("position", position(6, 2)),
         ]),
     );
@@ -415,10 +415,10 @@ fn completions_offer_imported_and_prelude_names() {
 #[test]
 fn semantic_tokens_are_delta_encoded() {
     let (mut client, handle) = start("file:///project");
-    did_open(&mut client, "file:///project/A.lang", A_SRC);
+    did_open(&mut client, "file:///project/A.cinch", A_SRC);
     let resp = client.request(
         "textDocument/semanticTokens/full",
-        Json::obj(vec![("textDocument", doc("file:///project/A.lang"))]),
+        Json::obj(vec![("textDocument", doc("file:///project/A.cinch"))]),
     );
     let data: Vec<f64> = resp
         .get("result")
@@ -457,34 +457,34 @@ fn a_change_rechecks_the_file_and_its_dependents_only() {
     let (mut client, handle) = start("file:///project");
     // A is independent of D: B imports A, C imports B, D imports
     // nothing.
-    did_open(&mut client, "file:///project/A.lang", A_SRC);
+    did_open(&mut client, "file:///project/A.cinch", A_SRC);
     did_open(
         &mut client,
-        "file:///project/B.lang",
+        "file:///project/B.cinch",
         "\nmodule B where\n  import A\n  f :: Int -> Int\n  f x = double x\n",
     );
     did_open(
         &mut client,
-        "file:///project/C.lang",
+        "file:///project/C.cinch",
         "\nmodule C where\n  import B\n  h :: Int -> Int\n  h x = f x\n",
     );
     did_open(
         &mut client,
-        "file:///project/D.lang",
+        "file:///project/D.cinch",
         "\nmodule D where\n  k :: Int\n  k = 1\n",
     );
     did_change(
         &mut client,
-        "file:///project/A.lang",
+        "file:///project/A.cinch",
         "\nmodule A where\n  double :: Int -> Int\n  double n = n + n + 0\n",
     );
     // Drain the publishes, then read the recheck report off the server.
-    let note = client.wait_note(|m| published_uri(m).ends_with("D.lang"));
+    let note = client.wait_note(|m| published_uri(m).ends_with("D.cinch"));
     assert!(published_diagnostics(&note).is_empty(), "{note:?}");
     let server = shutdown(&mut client, handle);
     let report = server.reports().last().expect("a report");
     // The change rechecked A and its dependents B and C via the
-    // `.sliface` chain, and kept D's cached interface: not the whole
+    // `.cinchif` chain, and kept D's cached interface: not the whole
     // project.
     assert_eq!(report.rechecked, vec!["A", "B", "C"], "{report:?}");
     assert_eq!(report.kept, vec!["D"], "{report:?}");
@@ -494,32 +494,32 @@ fn a_change_rechecks_the_file_and_its_dependents_only() {
 #[test]
 fn no_output_carries_an_absolute_path() {
     let (mut client, handle) = start("file:///project");
-    did_open(&mut client, "file:///project/A.lang", A_SRC);
-    did_open(&mut client, "file:///project/B.lang", B_BAD);
+    did_open(&mut client, "file:///project/A.cinch", A_SRC);
+    did_open(&mut client, "file:///project/B.cinch", B_BAD);
     client.request(
         "textDocument/hover",
         Json::obj(vec![
-            ("textDocument", doc("file:///project/B.lang")),
+            ("textDocument", doc("file:///project/B.cinch")),
             ("position", position(6, 6)),
         ]),
     );
     client.request(
         "textDocument/definition",
         Json::obj(vec![
-            ("textDocument", doc("file:///project/B.lang")),
+            ("textDocument", doc("file:///project/B.cinch")),
             ("position", position(6, 6)),
         ]),
     );
     client.request(
         "textDocument/completion",
         Json::obj(vec![
-            ("textDocument", doc("file:///project/B.lang")),
+            ("textDocument", doc("file:///project/B.cinch")),
             ("position", position(6, 8)),
         ]),
     );
     client.request(
         "textDocument/semanticTokens/full",
-        Json::obj(vec![("textDocument", doc("file:///project/B.lang"))]),
+        Json::obj(vec![("textDocument", doc("file:///project/B.cinch"))]),
     );
     let _server = shutdown(&mut client, handle);
     // Every message the server sent: strings outside `uri` fields carry
@@ -565,21 +565,21 @@ fn walk_strings(v: &Json, key_path: &[String]) {
     }
 }
 
-/// `safelang lsp` runs the server: the subcommand's real process speaks
+/// `cinch lsp` runs the server: the subcommand's real process speaks
 /// the handshake over its stdio in the harness's framing shape
 /// (initialize, initialized, shutdown, exit) and exits zero.
 #[test]
 fn the_lsp_subcommand_runs_the_server_over_stdio() {
-    use safelang::lsp::read_frame;
+    use cinch::lsp::read_frame;
     use std::process::{Command, Stdio};
 
-    let mut child = Command::new(env!("CARGO_BIN_EXE_safelang"))
+    let mut child = Command::new(env!("CARGO_BIN_EXE_cinch"))
         .arg("lsp")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .expect("spawn safelang lsp");
+        .expect("spawn cinch lsp");
     let request = |id: f64, method: &str| {
         Json::obj(vec![
             ("jsonrpc", Json::Str("2.0".to_string())),
@@ -615,18 +615,18 @@ fn the_lsp_subcommand_runs_the_server_over_stdio() {
             request(2.0, "shutdown"),
             notify("exit"),
         ] {
-            stdin.write_all(&frame(&body)).expect("write to safelang lsp");
+            stdin.write_all(&frame(&body)).expect("write to cinch lsp");
         }
-        stdin.flush().expect("flush safelang lsp stdin");
+        stdin.flush().expect("flush cinch lsp stdin");
     }
     drop(child.stdin.take());
     let mut reader = BufReader::new(child.stdout.take().expect("child stdout"));
     let mut msgs = Vec::new();
-    while let Some(body) = read_frame(&mut reader).expect("frame from safelang lsp") {
-        msgs.push(parse_json(&body).expect("json from safelang lsp"));
+    while let Some(body) = read_frame(&mut reader).expect("frame from cinch lsp") {
+        msgs.push(parse_json(&body).expect("json from cinch lsp"));
     }
-    let status = child.wait().expect("wait for safelang lsp");
-    assert!(status.success(), "safelang lsp exits zero: {status:?}");
+    let status = child.wait().expect("wait for cinch lsp");
+    assert!(status.success(), "cinch lsp exits zero: {status:?}");
     let response = |id: f64| {
         msgs.iter()
             .find(|m| m.get("id").and_then(|i| i.as_num()) == Some(id))

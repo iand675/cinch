@@ -5,8 +5,8 @@
 //! on the FIRST error) and into `Option`.
 //!
 //! Each test compiles a real multi-file project: the prelude modules
-//! under test (Category/Foldable.lang, Category/Traversable.lang,
-//! Data/NonEmpty.lang) plus Algebra/Semigroup.lang and the
+//! under test (Category/Foldable.cinch, Category/Traversable.cinch,
+//! Data/NonEmpty.cinch) plus Algebra/Semigroup.cinch and the
 //! Category.Functor/Category.Applicative class modules the instances
 //! build on, driven through the CLI pipeline like modules.rs. The
 //! classes are the constructor-ary ones (`Foldable (t :: Type ->
@@ -30,21 +30,21 @@
 //! binder's right-hand side must indent past the binder's column under
 //! the layout rules.
 
-use safelang::driver::{driver, Mode};
+use cinch::driver::{driver, Mode};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-const FOLDABLE: &str = include_str!("../prelude/Category/Foldable.lang");
-const TRAVERSABLE: &str = include_str!("../prelude/Category/Traversable.lang");
-const FUNCTOR: &str = include_str!("../prelude/Category/Functor.lang");
-const APPLICATIVE: &str = include_str!("../prelude/Category/Applicative.lang");
-const NONEMPTY: &str = include_str!("../prelude/Data/NonEmpty.lang");
-const SEMIGROUP: &str = include_str!("../prelude/Algebra/Semigroup.lang");
+const FOLDABLE: &str = include_str!("../prelude/Category/Foldable.cinch");
+const TRAVERSABLE: &str = include_str!("../prelude/Category/Traversable.cinch");
+const FUNCTOR: &str = include_str!("../prelude/Category/Functor.cinch");
+const APPLICATIVE: &str = include_str!("../prelude/Category/Applicative.cinch");
+const NONEMPTY: &str = include_str!("../prelude/Data/NonEmpty.cinch");
+const SEMIGROUP: &str = include_str!("../prelude/Algebra/Semigroup.cinch");
 
 fn run_main(name: &str, main_src: &str) -> i32 {
     static N: AtomicUsize = AtomicUsize::new(0);
     let dir: PathBuf = std::env::temp_dir().join(format!(
-        "safelang_foldtest_{}_{}_{}",
+        "cinch_foldtest_{}_{}_{}",
         std::process::id(),
         N.fetch_add(1, Ordering::SeqCst),
         name
@@ -52,17 +52,17 @@ fn run_main(name: &str, main_src: &str) -> i32 {
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).expect("temp project dir");
     for (file, src) in [
-        ("Foldable.lang", FOLDABLE),
-        ("Traversable.lang", TRAVERSABLE),
-        ("Functor.lang", FUNCTOR),
-        ("Applicative.lang", APPLICATIVE),
-        ("NonEmpty.lang", NONEMPTY),
-        ("Semigroup.lang", SEMIGROUP),
-        ("Main.lang", main_src),
+        ("Foldable.cinch", FOLDABLE),
+        ("Traversable.cinch", TRAVERSABLE),
+        ("Functor.cinch", FUNCTOR),
+        ("Applicative.cinch", APPLICATIVE),
+        ("NonEmpty.cinch", NONEMPTY),
+        ("Semigroup.cinch", SEMIGROUP),
+        ("Main.cinch", main_src),
     ] {
         std::fs::write(dir.join(file), src).expect("write module");
     }
-    match driver(Mode::Run, &dir.join("Main.lang"), None) {
+    match driver(Mode::Run, &dir.join("Main.cinch"), None) {
         Ok(code) => code,
         Err(e) => panic!("{name}: compilation failed: {e}"),
     }

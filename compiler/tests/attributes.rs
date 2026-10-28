@@ -4,11 +4,11 @@
 //! computed layout facts (attribute annotations specification sections
 //! 1-5, 7).
 
-use safelang::check::{check_program_multi_diag, Diagnostic, StagingCx};
-use safelang::core::Program;
-use safelang::driver::{check_sources, parse_prelude, parse_source, run_source};
-use safelang::interface::Iface;
-use safelang::Result;
+use cinch::check::{check_program_multi_diag, Diagnostic, StagingCx};
+use cinch::core::Program;
+use cinch::driver::{check_sources, parse_prelude, parse_source, run_source};
+use cinch::interface::Iface;
+use cinch::Result;
 use std::collections::HashMap;
 
 /// Check `src` against the prelude family, returning the elaborated
@@ -61,7 +61,7 @@ fn expect_err(name: &str, src: &str, needle: &str) {
 fn ir_of(name: &str, src: &str) -> String {
     let program =
         check_sources(src, "<test>").unwrap_or_else(|e| panic!("{name}: check failed: {e}"));
-    safelang::codegen::emit(&program).unwrap_or_else(|e| panic!("{name}: emit failed: {e}"))
+    cinch::codegen::emit(&program).unwrap_or_else(|e| panic!("{name}: emit failed: {e}"))
 }
 
 /// The checked interface of a single-module source (main-less is fine).
@@ -383,7 +383,7 @@ module Main where
     assert_eq!(reported.len(), 1, "expected one report, got {diags:?}");
     assert!(!reported[0].informational, "the drop report is a warning");
     // All weights of the decision point are dropped: none reach LLVM.
-    let ir = safelang::codegen::emit(&program).expect("emit");
+    let ir = cinch::codegen::emit(&program).expect("emit");
     assert!(
         !ir.contains("branch_weights"),
         "partial annotation must drop ALL weights of the decision point:\n{ir}"
@@ -437,7 +437,7 @@ module Main where
     assert_eq!(reported.len(), 1, "expected one report, got {diags:?}");
     assert!(reported[0].informational, "the inflation report is informational");
     // The weights remain usable per decision point.
-    let ir = safelang::codegen::emit(&program).expect("emit");
+    let ir = cinch::codegen::emit(&program).expect("emit");
     assert!(ir.contains("branch_weights"), "the weights must survive:\n{ir}");
 }
 

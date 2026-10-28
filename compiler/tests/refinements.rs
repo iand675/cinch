@@ -12,9 +12,9 @@
 //! constructors (`NonEmpty` replacing the bespoke type, `Sorted`,
 //! `NonZero`, `Ascii`).
 
-use safelang::check::StageMode;
-use safelang::core::TargetProfile;
-use safelang::driver::{check_sources, driver_with_profile, run_source, Mode};
+use cinch::check::StageMode;
+use cinch::core::TargetProfile;
+use cinch::driver::{check_sources, driver_with_profile, run_source, Mode};
 use std::path::PathBuf;
 
 /// Assert that checking the program fails with errors containing every
@@ -54,7 +54,7 @@ fn expect_run(name: &str, src: &str, expected: i32) {
 fn ir_of(name: &str, src: &str) -> String {
     let program =
         check_sources(src, "<test>").unwrap_or_else(|e| panic!("{name}: check failed: {e}"));
-    safelang::codegen::emit(&program).unwrap_or_else(|e| panic!("{name}: emit failed: {e}"))
+    cinch::codegen::emit(&program).unwrap_or_else(|e| panic!("{name}: emit failed: {e}"))
 }
 
 /// The body of one unit's define (its lines between `{` and `}`).
@@ -81,7 +81,7 @@ fn body_of(ir: &str, unit: &str) -> String {
 /// to a fresh temporary project and return its directory.
 fn write_project_files(name: &str, files: &[(&str, &str)]) -> PathBuf {
     let dir = std::env::temp_dir().join(format!(
-        "safelang-refinements-{}-{name}",
+        "cinch-refinements-{}-{name}",
         std::process::id()
     ));
     let _ = std::fs::remove_dir_all(&dir);
@@ -95,7 +95,7 @@ fn write_project_files(name: &str, files: &[(&str, &str)]) -> PathBuf {
 /// Write one source to a fresh temporary project and return its
 /// directory.
 fn write_project(name: &str, src: &str) -> PathBuf {
-    write_project_files(name, &[("Main.lang", src)])
+    write_project_files(name, &[("Main.cinch", src)])
 }
 
 /// The artifact manifest of one checked source (the law rows and their
@@ -105,7 +105,7 @@ fn manifest_of(name: &str, src: &str) -> String {
     driver_with_profile(
         Mode::Check,
         StageMode::Refresh,
-        &dir.join("Main.lang"),
+        &dir.join("Main.cinch"),
         None,
         &TargetProfile::native(),
     )
@@ -498,7 +498,7 @@ fn sorted_reverse_append_is_rejected_naming_the_preservation_law() {
     // preservation refutes it). The prelude's own `Semigroup Sorted`
     // (the merge) is shadowed out of the project so the reverse
     // instance is the only one over the carrier (the coherence rule).
-    let sorted = include_str!("../prelude/Data/Sorted.lang");
+    let sorted = include_str!("../prelude/Data/Sorted.cinch");
     let sorted_no_instance: String = sorted
         .lines()
         .filter(|l| {
@@ -509,9 +509,9 @@ fn sorted_reverse_append_is_rejected_naming_the_preservation_law() {
     let dir = write_project_files(
         "sorted-reverse",
         &[
-            ("Sorted.lang", &sorted_no_instance),
+            ("Sorted.cinch", &sorted_no_instance),
             (
-                "Main.lang",
+                "Main.cinch",
                 r#"
 module Main where
   import Data.Sorted
@@ -528,9 +528,9 @@ module Main where
             ),
         ],
     );
-    match safelang::driver::driver(
+    match cinch::driver::driver(
         Mode::Check,
-        &dir.join("Main.lang"),
+        &dir.join("Main.cinch"),
         None,
     ) {
         Ok(_) => panic!("sorted-reverse: expected a preservation rejection, but the program checked"),

@@ -35,11 +35,11 @@
 //! explicit imports of their homes, since the curated facade names
 //! only the pre-split surface.
 
-use safelang::driver::{
+use cinch::driver::{
     check_sources, check_sources_ifaces, driver, run_source, Mode, PRELUDE_EARLY, PRELUDE_FACADE,
     PRELUDE_LATE,
 };
-use safelang::interface::Iface;
+use cinch::interface::Iface;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
@@ -56,7 +56,7 @@ fn expect_exit(name: &str, src: &str, expected: i32) {
 
 fn write_project(files: &[(&str, &str)]) -> PathBuf {
     let dir = std::env::temp_dir().join(format!(
-        "safelang_prelude_split_{}_{}",
+        "cinch_prelude_split_{}_{}",
         std::process::id(),
         files.as_ptr() as usize
     ));
@@ -123,7 +123,7 @@ fn home_sources() -> BTreeMap<String, &'static str> {
     PRELUDE_EARLY
         .iter()
         .chain(PRELUDE_LATE.iter())
-        .map(|(path, src)| (path.trim_end_matches(".lang").replace('/', "."), *src))
+        .map(|(path, src)| (path.trim_end_matches(".cinch").replace('/', "."), *src))
         .collect()
 }
 
@@ -514,7 +514,7 @@ fn home_imports_resolve_across_files() {
     // Text.Codec`, ...) and the entry consumes its results.
     let dir = write_project(&[
         (
-            "Lib.lang",
+            "Lib.cinch",
             "module Lib where\n\
              \x20 import Data.List\n\
              \x20 import Algebra.Group\n\
@@ -550,7 +550,7 @@ fn home_imports_resolve_across_files() {
              \x20 lib-map-list = map (\\x -> x + 1) (Cons 1 (Cons 2 Nil))\n",
         ),
         (
-            "Main.lang",
+            "Main.cinch",
             "module Main where\n\
              \x20 import Lib\n\
              \n\
@@ -591,8 +591,8 @@ fn home_imports_resolve_across_files() {
              \x20   else 1\n",
         ),
     ]);
-    check_entry(&dir, "Main.lang").expect("the multi-file project checks");
-    let code = run_entry(&dir, "Main.lang").expect("the multi-file project runs");
+    check_entry(&dir, "Main.cinch").expect("the multi-file project checks");
+    let code = run_entry(&dir, "Main.cinch").expect("the multi-file project runs");
     assert_eq!(code, 0, "home imports across files should run clean");
 }
 

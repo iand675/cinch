@@ -77,8 +77,8 @@
 //!   under- and over-application behave exactly as the generated apply
 //!   stubs define.
 //! * A memo cell is `{ state; thunk; value }` (24 zeroed bytes, as
-//!   `sl_alloc` allocates). `DEMAND` runs the same state machine as the
-//!   generated `__safelang_demand` helper (`MEMO_HELPERS` in
+//!   `cinch_alloc` allocates). `DEMAND` runs the same state machine as the
+//!   generated `__cinch_demand` helper (`MEMO_HELPERS` in
 //!   `compiler/src/codegen.rs`): state 0 stores 1, applies the thunk to
 //!   one Unit word (0), stores the value and stores state 2; state 2
 //!   returns the stored value; any other state (including 1, a cell
@@ -86,14 +86,14 @@
 //!
 //! # Faults and exit codes
 //!
-//! Every failure of [`run`] is an [`Error`]; `sl_eval` maps it onto the
+//! Every failure of [`run`] is an [`Error`]; `cinch_eval` maps it onto the
 //! defined fault paths and a failing evaluation therefore produces no
 //! value:
 //!
-//! | `Error` | when | `sl_eval` exit code |
+//! | `Error` | when | `cinch_eval` exit code |
 //! |---------|------|---------------------|
-//! | [`Error::BlackHole`] | the program's `FAULT` opcode, or a memo cell demanded mid-evaluation | 70 (the `BlackHole` fault, `sl_blackhole`) |
-//! | [`Error::CorruptValue`] | malformed contents: bad kind word, null or short program, truncated or unknown opcode stream, out-of-range local or hole index, non-block word where a block is required, trailing words | 71 (`sl_panic`, message naming eval) |
+//! | [`Error::BlackHole`] | the program's `FAULT` opcode, or a memo cell demanded mid-evaluation | 70 (the `BlackHole` fault, `cinch_blackhole`) |
+//! | [`Error::CorruptValue`] | malformed contents: bad kind word, null or short program, truncated or unknown opcode stream, out-of-range local or hole index, non-block word where a block is required, trailing words | 71 (`cinch_panic`, message naming eval) |
 //! | [`Error::MalformedDecimal`] | a `BIG` constant's digit bytes are not a numeral | 71 |
 //! | [`Error::NestingTooDeep`] | nesting past [`MAX_NESTING`] | 71 |
 //!
@@ -664,7 +664,7 @@ impl<'a> Dec<'a> {
     /// `[nat, ndigits, digits...]`: unpack the digit bytes and build the
     /// bignum word through the crate's own nat/int machinery. The bytes
     /// are parsed once through `from_decimal` so a malformed numeral is
-    /// an `Err`, and once more through the `sl_*_decimal` entry point,
+    /// an `Err`, and once more through the `cinch_*_decimal` entry point,
     /// which then cannot fail, to obtain the word in the runtime's own
     /// block layout.
     fn big(&mut self) -> Result<Node> {
@@ -693,10 +693,10 @@ impl<'a> Dec<'a> {
         }
         let word = if nat == 1 {
             crate::Nat::from_decimal(&digits)?;
-            unsafe { crate::abi::sl_nat_from_decimal(digits.as_ptr(), digits.len()) }
+            unsafe { crate::abi::cinch_nat_from_decimal(digits.as_ptr(), digits.len()) }
         } else {
             crate::Int::from_decimal(&digits)?;
-            unsafe { crate::abi::sl_int_from_decimal(digits.as_ptr(), digits.len()) }
+            unsafe { crate::abi::cinch_int_from_decimal(digits.as_ptr(), digits.len()) }
         };
         Ok(Node::Big(word))
     }
@@ -748,10 +748,10 @@ fn eval(node: &Node, env: &mut [i64], holes: &[i64]) -> Result<i64> {
             eval_proj(value, *mode, *slot, *offset, *size, *signed, env, holes)
         }
         // The program's own fault is the `BlackHole` fault path (exit 70
-        // at `sl_eval`), the same fault the generated
-        // `__safelang_blackhole` takes.
+        // at `cinch_eval`), the same fault the generated
+        // `__cinch_blackhole` takes.
         Node::Fault => Err(Error::BlackHole),
-        Node::LazyAlloc => Ok(unsafe { crate::abi::sl_alloc(24) }),
+        Node::LazyAlloc => Ok(unsafe { crate::abi::cinch_alloc(24) }),
         Node::LazyInit(i, thunk) => eval_lazy_init(*i, thunk, env, holes),
         Node::Demand(cell) => eval_demand(cell, env, holes),
     }
@@ -830,7 +830,7 @@ fn eval_lam(
         saved.push(eval(e, env, holes)?);
     }
     let words = 3 + saved.len();
-    let clo = unsafe { crate::abi::sl_alloc((words * 8) as i64) };
+    let clo = unsafe { crate::abi::cinch_alloc((words * 8) as i64) };
     let p = block_ptr(clo)?;
     unsafe {
         word_set(p, 0, stub);
@@ -849,7 +849,7 @@ fn eval_ctor(tag: i64, fields: &[Node], env: &mut [i64], holes: &[i64]) -> Resul
         vals.push(eval(f, env, holes)?);
     }
     let words = 1 + vals.len();
-    let block = unsafe { crate::abi::sl_alloc((words * 8) as i64) };
+    let block = unsafe { crate::abi::cinch_alloc((words * 8) as i64) };
     let p = block_ptr(block)?;
     unsafe {
         word_set(p, 0, tag);
@@ -904,7 +904,7 @@ fn eval_lazy_init(slot: u32, thunk: &Node, env: &mut [i64], holes: &[i64]) -> Re
 fn eval_demand(cell: &Node, env: &mut [i64], holes: &[i64]) -> Result<i64> {
     let w = eval(cell, env, holes)?;
     let p = block_ptr(w)?;
-    // The state machine of the generated `__safelang_demand` helper
+    // The state machine of the generated `__cinch_demand` helper
     // (`MEMO_HELPERS` in `compiler/src/codegen.rs`).
     match unsafe { word_at(p, 0) } {
         0 => {
@@ -929,7 +929,7 @@ fn eval_demand(cell: &Node, env: &mut [i64], holes: &[i64]) -> Result<i64> {
 // ------------------------------------------------------------ the entry points
 
 /// Evaluate the reified quotation in the `Code` block `quote` to its
-/// value word (the safe Rust API of [`sl_eval`]).
+/// value word (the safe Rust API of [`cinch_eval`]).
 ///
 /// The quote block and its whole program stream are validated and
 /// decoded before anything is evaluated; malformed contents are an
@@ -1004,19 +1004,19 @@ fn count(word: i64, min: u64, max: u64) -> Result<usize> {
 /// This is the `extern "C"` face of [`run`], with the crate's word
 /// conventions (see the crate docs). A failing evaluation produces no
 /// value: the quoted program's own fault and a black-holed memo cell
-/// take the `BlackHole` path ([`crate::abi::sl_blackhole`], exit 70),
-/// every other failure takes the `sl_panic` path (exit 71) with a
+/// take the `BlackHole` path ([`crate::abi::cinch_blackhole`], exit 70),
+/// every other failure takes the `cinch_panic` path (exit 71) with a
 /// message naming eval. A bogus non-null `quote` word is a caller bug
 /// and faults like any invalid pointer dereference; every corrupt
 /// quotation this evaluator can name is a defined fault instead.
 #[unsafe(no_mangle)]
-pub extern "C" fn sl_eval(quote: i64) -> i64 {
+pub extern "C" fn cinch_eval(quote: i64) -> i64 {
     match run(quote) {
         Ok(v) => v,
-        Err(Error::BlackHole) => crate::abi::sl_blackhole(),
+        Err(Error::BlackHole) => crate::abi::cinch_blackhole(),
         Err(e) => {
-            let msg = format!("sl_eval: {e}");
-            unsafe { crate::abi::sl_panic(msg.as_ptr(), msg.len()) }
+            let msg = format!("cinch_eval: {e}");
+            unsafe { crate::abi::cinch_panic(msg.as_ptr(), msg.len()) }
         }
     }
 }

@@ -3,12 +3,12 @@
 version = 4
 
 [[package]]
-name = "safelang"
+name = "cinch"
 version = "0.1.0"
 
 [[package]]
-name = "safelang-lsp"
+name = "cinch-lsp"
 version = "0.1.0"
 dependencies = [
- "safelang",
+ "cinch",
 ]

@@ -1,4 +1,4 @@
-// SafeLang tree-sitter grammar.
+// Cinch tree-sitter grammar.
 //
 // Normative authorities (see ../../specifications/ and ../../compiler/CONFORMANCE.md):
 //   - specifications/surface-syntax-and-grammar.md (draft 0.2 EBNF)
@@ -81,7 +81,7 @@ function infixNonassoc($, precedence, ops, operand) {
   );
 }
 
-// The documented fixity table (prelude/Prelude.lang and the base library).
+// The documented fixity table (prelude/Prelude.cinch and the base library).
 // Higher numbers bind tighter.
 const PREC = {
   mul: 90, // infixl 9 *, /, %
@@ -102,7 +102,7 @@ const PREC = {
 };
 
 module.exports = grammar({
-  name: 'safelang',
+  name: 'cinch',
 
   externals: ($) => [
     // Comments are trivia (hidden, in extras).

@@ -1,7 +1,7 @@
-//! Runtime support library for generated SafeLang code.
+//! Runtime support library for generated Cinch code.
 //!
-//! `slruntime` is linked into every compiled SafeLang artifact (the driver
-//! links `libslruntime.a` against the generated LLVM IR objects). It is
+//! `cinchruntime` is linked into every compiled Cinch artifact (the driver
+//! links `libcinchruntime.a` against the generated LLVM IR objects). It is
 //! written in Rust with no third-party dependencies and builds both as a
 //! `staticlib` (for linking) and as an `rlib` (so compiler-side tooling can
 //! use the same value semantics, for example to evaluate literals at
@@ -12,7 +12,7 @@
 //!
 //! # Word representation
 //!
-//! Every SafeLang value is one 64-bit machine word (`i64` at the ABI),
+//! Every Cinch value is one 64-bit machine word (`i64` at the ABI),
 //! matching `compiler/src/core.rs`:
 //!
 //! * `Int` (the 64-bit machine integer of the surface prelude): the `i64`
@@ -21,7 +21,7 @@
 //! * ADT values: `ptrtoint` of a heap block `{ i64 tag; i64 field0; ... }`
 //!   with `tag` the constructor index in declaration order (the compiler's
 //!   convention; this runtime only allocates such blocks through
-//!   [`sl_alloc`]).
+//!   [`cinch_alloc`]).
 //! * Function values and dictionaries: `ptrtoint` of their closure or
 //!   record blocks (see `compiler/src/core.rs`).
 //! * `Nat` and `Int` (the unbounded numbers): `ptrtoint` of a bignum heap
@@ -35,7 +35,7 @@
 //! # Heap layouts
 //!
 //! Bignum blocks are allocated by this runtime and are opaque to generated
-//! code. A word produced by a `sl_nat_*` or `sl_int_*` entry point points at
+//! code. A word produced by a `cinch_nat_*` or `cinch_int_*` entry point points at
 //! a block with the following layout (offsets in bytes):
 //!
 //! | offset | size | field |
@@ -51,9 +51,9 @@
 //! header inside the payload is a standard library implementation detail;
 //! generated code MUST treat the block as opaque and only pass the word
 //! back to this runtime. Words are immutable and may be shared; they are
-//! never freed (see [`sl_free`]).
+//! never freed (see [`cinch_free`]).
 //!
-//! Blocks allocated through [`sl_alloc`] are zero-filled byte blocks of a
+//! Blocks allocated through [`cinch_alloc`] are zero-filled byte blocks of a
 //! whole number of 64-bit words, for the compiler's `{ i64 tag; ... }`
 //! convention.
 //!
@@ -64,12 +64,12 @@
 //!
 //! | exit code | fault | entry point |
 //! |-----------|-------|-------------|
-//! | 70 | `BlackHole` (e.g. demanding a memo cell mid-evaluation) | [`sl_blackhole`] |
-//! | 71 | generic fault: `sl_panic` and every runtime error except division by zero and the `BlackHole` fault | [`sl_panic`] |
-//! | 72 | division or remainder by zero | [`sl_fault_div_zero`] |
+//! | 70 | `BlackHole` (e.g. demanding a memo cell mid-evaluation) | [`cinch_blackhole`] |
+//! | 71 | generic fault: `cinch_panic` and every runtime error except division by zero and the `BlackHole` fault | [`cinch_panic`] |
+//! | 72 | division or remainder by zero | [`cinch_fault_div_zero`] |
 //!
 //! Exit code 70 is coupled to the code generator: `compiler/src/codegen.rs`
-//! emits `__safelang_blackhole` calling `exit(i32 70)` directly. Both call
+//! emits `__cinch_blackhole` calling `exit(i32 70)` directly. Both call
 //! sites are the same defined fault and MUST use the same code; the
 //! constant lives in [`abi::EXIT_BLACKHOLE`].
 //!
@@ -88,76 +88,76 @@
 //!
 //! Faults:
 //!
-//! * `sl_blackhole() -> !`: the `BlackHole` fault, exit 70.
-//! * `sl_panic(msg: *const u8, len: usize) -> !`: write the message to
+//! * `cinch_blackhole() -> !`: the `BlackHole` fault, exit 70.
+//! * `cinch_panic(msg: *const u8, len: usize) -> !`: write the message to
 //!   stderr and exit 71. A null pointer or zero length writes nothing.
-//! * `sl_fault_div_zero() -> !`: division fault, exit 72.
+//! * `cinch_fault_div_zero() -> !`: division fault, exit 72.
 //!
 //! Allocation (sizes are byte counts):
 //!
-//! * `sl_alloc(size: i64) -> i64`: allocate `size` zero-filled bytes
+//! * `cinch_alloc(size: i64) -> i64`: allocate `size` zero-filled bytes
 //!   (rounded up to a whole number of 64-bit words, minimum one word) and
 //!   return the block as a word. Negative sizes, size overflow, and
-//!   allocation failure fault through `sl_panic`.
-//! * `sl_free(word: i64)`: currently a no-op; blocks are leaked by design
+//!   allocation failure fault through `cinch_panic`.
+//! * `cinch_free(word: i64)`: currently a no-op; blocks are leaked by design
 //!   until reclamation lands. The symbol exists so generated code can
 //!   already emit balanced allocation and deallocation.
 //!
 //! `Nat` (unbounded natural numbers; negative input or results fault):
 //!
-//! * `sl_nat_from_i64(v: i64) -> i64`: box a machine integer, faulting on
+//! * `cinch_nat_from_i64(v: i64) -> i64`: box a machine integer, faulting on
 //!   negative `v`.
-//! * `sl_nat_to_i64(word: i64) -> i64`: value as a machine integer,
+//! * `cinch_nat_to_i64(word: i64) -> i64`: value as a machine integer,
 //!   faulting when out of `i64` range.
-//! * `sl_nat_fits_i64(word: i64) -> i64`: 1 or 0.
-//! * `sl_nat_add(a: i64, b: i64) -> i64`, `sl_nat_mul(a, b) -> i64`:
+//! * `cinch_nat_fits_i64(word: i64) -> i64`: 1 or 0.
+//! * `cinch_nat_add(a: i64, b: i64) -> i64`, `cinch_nat_mul(a, b) -> i64`:
 //!   exact arithmetic.
-//! * `sl_nat_sub(a: i64, b: i64) -> i64`: exact difference, faulting on
+//! * `cinch_nat_sub(a: i64, b: i64) -> i64`: exact difference, faulting on
 //!   negative result (defined fault, not wrapping).
-//! * `sl_nat_div(a: i64, b: i64) -> i64`: the quotient of `a / b`;
-//!   the remainder is `sl_nat_rem(a, b) -> i64`. Both fault on division by
+//! * `cinch_nat_div(a: i64, b: i64) -> i64`: the quotient of `a / b`;
+//!   the remainder is `cinch_nat_rem(a, b) -> i64`. Both fault on division by
 //!   zero.
-//! * `sl_nat_cmp(a: i64, b: i64) -> i64`: -1, 0 or 1.
-//! * `sl_nat_from_decimal(ptr: *const u8, len: usize) -> i64`: parse ASCII
+//! * `cinch_nat_cmp(a: i64, b: i64) -> i64`: -1, 0 or 1.
+//! * `cinch_nat_from_decimal(ptr: *const u8, len: usize) -> i64`: parse ASCII
 //!   digits (`[0-9]+`, leading zeros allowed) into a word, faulting on
 //!   malformed input.
-//! * `sl_nat_to_decimal(word: i64, buf: *mut u8, cap: usize) -> usize`:
+//! * `cinch_nat_to_decimal(word: i64, buf: *mut u8, cap: usize) -> usize`:
 //!   write the ASCII digits into `buf`, returning the length written, and
 //!   fault when `cap` is too small (leaving the buffer untouched). Use
-//!   `sl_nat_decimal_len(word: i64) -> usize` to size the buffer.
+//!   `cinch_nat_decimal_len(word: i64) -> usize` to size the buffer.
 //!
 //! `Int` (unbounded integers):
 //!
-//! * `sl_int_from_i64(v: i64) -> i64`: box a machine integer.
-//! * `sl_int_to_i64(word: i64) -> i64`: value as a machine integer,
+//! * `cinch_int_from_i64(v: i64) -> i64`: box a machine integer.
+//! * `cinch_int_to_i64(word: i64) -> i64`: value as a machine integer,
 //!   faulting when out of `i64` range.
-//! * `sl_int_fits_i64(word: i64) -> i64`: 1 or 0.
-//! * `sl_int_add(a: i64, b: i64) -> i64`, `sl_int_sub(a, b) -> i64`,
-//!   `sl_int_mul(a, b) -> i64`, `sl_int_neg(a) -> i64`: exact arithmetic.
-//! * `sl_int_div(a: i64, b: i64) -> i64`, `sl_int_rem(a, b) -> i64`:
+//! * `cinch_int_fits_i64(word: i64) -> i64`: 1 or 0.
+//! * `cinch_int_add(a: i64, b: i64) -> i64`, `cinch_int_sub(a, b) -> i64`,
+//!   `cinch_int_mul(a, b) -> i64`, `cinch_int_neg(a) -> i64`: exact arithmetic.
+//! * `cinch_int_div(a: i64, b: i64) -> i64`, `cinch_int_rem(a, b) -> i64`:
 //!   division truncated toward zero with the remainder taking the sign of
 //!   the dividend (Rust `/` and `%` semantics on the underlying values),
 //!   faulting on division by zero.
-//! * `sl_int_cmp(a: i64, b: i64) -> i64`: -1, 0 or 1.
-//! * `sl_int_from_decimal(ptr: *const u8, len: usize) -> i64`: parse an
+//! * `cinch_int_cmp(a: i64, b: i64) -> i64`: -1, 0 or 1.
+//! * `cinch_int_from_decimal(ptr: *const u8, len: usize) -> i64`: parse an
 //!   optionally signed ASCII numeral (`[+-]?[0-9]+`, leading zeros
 //!   allowed, `-0` is zero) into a word, faulting on malformed input.
-//! * `sl_int_to_decimal(word: i64, buf: *mut u8, cap: usize) -> usize`:
+//! * `cinch_int_to_decimal(word: i64, buf: *mut u8, cap: usize) -> usize`:
 //!   write the ASCII representation (sign included) into `buf`, returning
 //!   the length written, and fault when `cap` is too small. Use
-//!   `sl_int_decimal_len(word: i64) -> usize` to size the buffer.
+//!   `cinch_int_decimal_len(word: i64) -> usize` to size the buffer.
 //!
 //! `Bytes` (byte buffers; the foundation for the FFI and string slices):
 //!
-//! * `sl_bytes_new(len: i64) -> i64`: a zeroed buffer block, faulting on
+//! * `cinch_bytes_new(len: i64) -> i64`: a zeroed buffer block, faulting on
 //!   negative length.
-//! * `sl_bytes_len(word: i64) -> i64`: the length in bytes.
-//! * `sl_bytes_get(word: i64, index: i64) -> i64`: the byte (0..=255) at
+//! * `cinch_bytes_len(word: i64) -> i64`: the length in bytes.
+//! * `cinch_bytes_get(word: i64, index: i64) -> i64`: the byte (0..=255) at
 //!   `index`, faulting out of bounds.
-//! * `sl_bytes_set(word: i64, index: i64, value: i64) -> i64`: write
+//! * `cinch_bytes_set(word: i64, index: i64, value: i64) -> i64`: write
 //!   `value` (0..=255) at `index`, returning 0 (the Unit word) and
 //!   faulting on an out-of-bounds index or a value outside 0..=255.
-//! * `sl_bytes_data(word: i64) -> i64`, `sl_bytes_from_data(ptr: *const
+//! * `cinch_bytes_data(word: i64) -> i64`, `cinch_bytes_from_data(ptr: *const
 //!   u8, len: i64) -> i64`: the pointer-length crossing for buffer
 //!   contents (the UTF-8 and symbol intrinsics and the canonical ABI
 //!   glue).
@@ -165,47 +165,47 @@
 //! Interned symbols (primitive types specification section 9; see
 //! [`sym`] for the cell discipline):
 //!
-//! * `sl_sym_intern(ptr: *const u8, len: i64) -> i64`: the cell for the
+//! * `cinch_sym_intern(ptr: *const u8, len: i64) -> i64`: the cell for the
 //!   `len` bytes at `ptr`; the table is keyed by name, so an equal name
 //!   resolves to the same cell (and to a tick literal's cell).
-//! * `sl_sym_name(word: i64) -> i64`: a fresh `Bytes` word holding the
+//! * `cinch_sym_name(word: i64) -> i64`: a fresh `Bytes` word holding the
 //!   cell's name.
-//! * `sl_sym_eq(a: i64, b: i64) -> i64`: identity, 0 or 1 (an O(1)
+//! * `cinch_sym_eq(a: i64, b: i64) -> i64`: identity, 0 or 1 (an O(1)
 //!   pointer test).
-//! * `sl_sym_cmp(a: i64, b: i64) -> i64`: -1, 0 or 1 of the
+//! * `cinch_sym_cmp(a: i64, b: i64) -> i64`: -1, 0 or 1 of the
 //!   lexicographic name order (never the cell addresses).
 //!
 //! Quotation evaluation (supercompilation and JIT specification
 //! section 7; see [`eval`] for the quote block layout):
 //!
-//! * `sl_eval(quote: i64) -> i64`: evaluate the reified quotation in the
+//! * `cinch_eval(quote: i64) -> i64`: evaluate the reified quotation in the
 //!   `Code` block `quote` to its value word; a failing evaluation takes
 //!   a defined fault path and produces no value (exit 70 for the quoted
 //!   program's own fault or a black-holed memo cell, 71 otherwise).
 //!
-//! Every bignum and byte-buffer fault exits through `sl_panic` (71)
+//! Every bignum and byte-buffer fault exits through `cinch_panic` (71)
 //! except division by zero (72); see `crate::error::Error`.
 //!
 //! Structured concurrency and runtime I/O (concurrency specification
 //! sections 2, 4 and 9; one OS thread per task, fork-join happens-before,
 //! cancellation as a sequentially consistent atomic):
 //!
-//! * `sl_scope_open() -> i64`, `sl_scope_close(scope: i64) -> i64`: the
+//! * `cinch_scope_open() -> i64`, `cinch_scope_close(scope: i64) -> i64`: the
 //!   structured scope of `withScope`; close cancels and joins unjoined
 //!   children (section 2).
-//! * `sl_task_spawn(scope: i64, closure: i64) -> i64`: run `closure` on a
+//! * `cinch_task_spawn(scope: i64, closure: i64) -> i64`: run `closure` on a
 //!   task thread, returning its handle. The body runs through the closure
 //!   apply-stub ABI and returns the prelude `Result` word (the task
 //!   outcome ABI of `crate::task`).
-//! * `sl_task_join_all_or_cancel(scope, handles: i64, n: i64, out: i64) -> i64`:
+//! * `cinch_task_join_all_or_cancel(scope, handles: i64, n: i64, out: i64) -> i64`:
 //!   `joinAllOrCancel`; 0 and the `Ok` payloads in `out`, or 1 and the
 //!   first `Err` payload in `out[0]`.
-//! * `sl_task_poll_cancel() -> i64`: the cancellation observation point
+//! * `cinch_task_poll_cancel() -> i64`: the cancellation observation point
 //!   (section 4).
-//! * `sl_io_write(word: i64) -> i64`, `sl_io_read(len: i64) -> i64`,
-//!   `sl_io_sleep(millis: i64) -> i64`: the `Io r` operations (stdout,
+//! * `cinch_io_write(word: i64) -> i64`, `cinch_io_read(len: i64) -> i64`,
+//!   `cinch_io_sleep(millis: i64) -> i64`: the `Io r` operations (stdout,
 //!   stdin, and a cancellation-aware suspension point).
-//! * `sl_coop_*`: the cooperative single-threaded backend of [`coop`] (the Wasm profile's lowering target) mirrors this surface under these names with the same word conventions.
+//! * `cinch_coop_*`: the cooperative single-threaded backend of [`coop`] (the Wasm profile's lowering target) mirrors this surface under these names with the same word conventions.
 
 pub mod abi;
 pub mod bytes;

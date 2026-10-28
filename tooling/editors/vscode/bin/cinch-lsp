@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# Launch the Cinch language server over stdio.
+#
+# This is the real LSP invocation: `cinch::lsp::LspServer::run` over
+# stdio with Content-Length framed JSON-RPC (see compiler/src/lsp.rs and
+# compiler/tests/lsp.rs). `cinch lsp` runs exactly that in the compiler
+# binary, so this execs it when the binary is on PATH; otherwise it
+# builds and runs the standalone driver crate in tooling/lsp-driver.
+# Inside the devenv shell `cargo` and `rustc` are provided.
+set -euo pipefail
+
+root="$(cd "$(dirname "$0")/../../.." && pwd)"
+driver="$root/tooling/lsp-driver"
+
+if command -v cinch >/dev/null 2>&1; then
+  exec cinch lsp
+fi
+
+cargo run --quiet --manifest-path "$driver/Cargo.toml" --release -- "$@"

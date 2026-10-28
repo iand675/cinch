@@ -1,16 +1,16 @@
 [package]
-name = "safelang"
+name = "cinch"
 version = "0.1.0"
 edition = "2021"
 description = "Bootstrap compiler for the safe language design, draft 0.2 surface"
 license = "UNLICENSED"
 
 [lib]
-name = "safelang"
+name = "cinch"
 path = "src/lib.rs"
 
 [[bin]]
-name = "safelang"
+name = "cinch"
 path = "src/main.rs"
 
 [dependencies]

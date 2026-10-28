@@ -1,6 +1,6 @@
-# SafeLang editor tooling
+# Cinch editor tooling
 
-Tree-sitter grammar and editor integrations for the SafeLang surface
+Tree-sitter grammar and editor integrations for the Cinch surface
 syntax. The normative authorities are
 `specifications/surface-syntax-and-grammar.md` (draft 0.2 EBNF),
 `specifications/surface-grammar-local-amendments.md` (sections 1-13),
@@ -9,10 +9,10 @@ D198-D205, D221-D227 where the specs understate).
 
 ## Layout
 
-- `tree-sitter-safelang/`: the grammar (`grammar.js`) and the external
+- `tree-sitter-cinch/`: the grammar (`grammar.js`) and the external
   scanner (`src/scanner.c`), a port of `compiler/src/lexer.rs` and
   `compiler/src/layout.rs`.
-- `tree-sitter-safelang/corpus/`: parse-tree assertions for the tricky
+- `tree-sitter-cinch/corpus/`: parse-tree assertions for the tricky
   cases (the minus table, dash names, tick disambiguation, operator
   runs like `<$>`/`>>=`/`<>`, attributes, prim/contract forms, layout).
   `test/corpus` is a symlink so `tree-sitter test` finds them; the
@@ -23,7 +23,7 @@ D198-D205, D221-D227 where the specs understate).
   language server over stdio (see below).
 - `check-grammar-drift.sh`: the drift check (regenerates the parser and
   runs the corpus assertions).
-- `check-real-files-parse.sh`: parses every real `.lang` file under
+- `check-real-files-parse.sh`: parses every real `.cinch` file under
   `compiler/prelude/` and `examples/source/` and requires zero ERROR
   nodes (the whole-file property net for the scanner).
 
@@ -45,20 +45,20 @@ assertions cannot pass against a stale parser.
 
 ## Language server wiring
 
-The compiler binary has no `lsp` subcommand today
-(`compiler/src/main.rs` offers `check`/`emit-ir`/`build`/`run`). The
-server is `safelang::lsp::LspServer::run` over stdio (Content-Length
-framed JSON-RPC), exactly the invocation exercised by
-`compiler/tests/lsp.rs`. `lsp-driver/` is that invocation verbatim:
+`cinch lsp` dispatches to `cinch::lsp::LspServer::run` over stdio
+(Content-Length framed JSON-RPC), exactly the invocation exercised by
+`compiler/tests/lsp.rs`, so editors can exec the compiler binary
+directly. `lsp-driver/` is the same invocation in a standalone two-file
+driver:
 
 ```sh
 cargo run --manifest-path tooling/lsp-driver/Cargo.toml --release
 ```
 
-The VS Code/Cursor extension's launcher (`editors/vscode/bin/safelang-lsp`)
-builds and execs the driver, and prefers `safelang lsp` automatically
-once that subcommand exists; the `safelang.lsp.command` setting
-overrides the command either way.
+The VS Code/Cursor extension's launcher (`editors/vscode/bin/cinch-lsp`)
+execs `cinch lsp` when the binary is on PATH and otherwise builds and
+runs the driver; the `cinch.lsp.command` setting overrides the command
+either way.
 
 ## Scanner and grammar decisions (unnumbered)
 
@@ -111,7 +111,7 @@ overrides the command either way.
 
 - The corpus is green end to end: `tooling/check-grammar-drift.sh`
   regenerates the parser and passes all 88 assertions in seconds, and
-  `tooling/check-real-files-parse.sh` parses every `.lang` under
+  `tooling/check-real-files-parse.sh` parses every `.cinch` under
   `compiler/prelude/` and `examples/source/` (58 files today, plus the
   two `examples/compiler/` files) with zero ERROR nodes. The one corpus
   case that ever failed without a scanner fault ("minus table: a line

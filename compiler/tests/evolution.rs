@@ -9,11 +9,11 @@
 //! (complete update sets, code retention with live frames, no old code
 //! over new state, target compatibility before reachability, and
 //! transparent tiering with consumption-safe deoptimization) are driven
-//! end to end through compiled programs calling the `sl_evo_*` entry
+//! end to end through compiled programs calling the `cinch_evo_*` entry
 //! points of the runtime's `evolution` module.
 
-use safelang::driver::{check_sources, check_sources_ifaces, run_source};
-use safelang::interface::Iface;
+use cinch::driver::{check_sources, check_sources_ifaces, run_source};
+use cinch::interface::Iface;
 
 fn expect_ok(name: &str, src: &str, expected: i32) {
     match run_source(src) {
@@ -209,7 +209,7 @@ fn repr_change_forces_dependent_replacement() {
     // the old layout must be replaced. The layout is part of the
     // interface's contract projection, so a repr change alters the
     // interface identity and a dependent checked against the old identity
-    // is stale (the `.sliface` "checked against" chain extends to
+    // is stale (the `.cinchif` "checked against" chain extends to
     // versioned identities).
     let a = iface_of(
         r#"
@@ -246,32 +246,32 @@ module Main where
 
 // --------------------------------------- runtime: versioned dispatch (item 3)
 
-/// The `sl_evo_*` binding contracts a runtime test program uses. Each
+/// The `cinch_evo_*` binding contracts a runtime test program uses. Each
 /// takes and returns `I64` words over the runtime's `Global` state.
 const EVO_DECLS: &str = r#"
-  foreign import ccall "sl_evo_module_new" evoNew :: I64 ->{Global, IO} I64
-  foreign import ccall "sl_evo_version_new" evoVer :: I64 -> I64 -> I64 ->{Global, IO} I64
-  foreign import ccall "sl_evo_current_version" evoCur :: I64 ->{Global, IO} I64
-  foreign import ccall "sl_evo_update_begin" evoBeg :: I64 -> I64 ->{Global, IO} I64
-  foreign import ccall "sl_evo_add_replacement" evoAdd :: I64 -> I64 -> I64 ->{Global, IO} I64
-  foreign import ccall "sl_evo_mark_complete" evoCmp :: I64 -> I64 -> I64 ->{Global, IO} I64
-  foreign import ccall "sl_evo_set_migration" evoMig :: I64 -> I64 -> I64 -> I64 ->{Global, IO} I64
-  foreign import ccall "sl_evo_activate" evoAct :: I64 ->{Global, IO} I64
-  foreign import ccall "sl_evo_feature_avail" evoFeat :: I64 -> I64 ->{Global, IO} I64
-  foreign import ccall "sl_evo_frame_enter" evoEnt :: I64 ->{Global, IO} I64
-  foreign import ccall "sl_evo_frame_exit" evoExt :: I64 ->{Global, IO} I64
-  foreign import ccall "sl_evo_frame_version" evoFVer :: I64 ->{Global, IO} I64
-  foreign import ccall "sl_evo_frame_resume" evoFRes :: I64 -> I64 ->{Global, IO} I64
-  foreign import ccall "sl_evo_version_live" evoLive :: I64 ->{Global, IO} I64
-  foreign import ccall "sl_evo_version_retired" evoRetd :: I64 ->{Global, IO} I64
-  foreign import ccall "sl_evo_version_resident" evoRes :: I64 ->{Global, IO} I64
-  foreign import ccall "sl_evo_version_try_drop" evoDrop :: I64 -> I64 ->{Global, IO} I64
-  foreign import ccall "sl_evo_variant_install" evoVInst :: I64 -> I64 -> I64 -> I64 ->{Global, IO} I64
-  foreign import ccall "sl_evo_variant_enter" evoVEnt :: I64 ->{Global, IO} I64
-  foreign import ccall "sl_evo_variant_retire" evoVRet :: I64 ->{Global, IO} I64
-  foreign import ccall "sl_evo_variant_retired" evoVRetd :: I64 ->{Global, IO} I64
-  foreign import ccall "sl_evo_variant_resident" evoVRes :: I64 ->{Global, IO} I64
-  foreign import ccall "sl_evo_deopt" evoDeopt :: I64 -> I64 ->{Global, IO} I64
+  foreign import ccall "cinch_evo_module_new" evoNew :: I64 ->{Global, IO} I64
+  foreign import ccall "cinch_evo_version_new" evoVer :: I64 -> I64 -> I64 ->{Global, IO} I64
+  foreign import ccall "cinch_evo_current_version" evoCur :: I64 ->{Global, IO} I64
+  foreign import ccall "cinch_evo_update_begin" evoBeg :: I64 -> I64 ->{Global, IO} I64
+  foreign import ccall "cinch_evo_add_replacement" evoAdd :: I64 -> I64 -> I64 ->{Global, IO} I64
+  foreign import ccall "cinch_evo_mark_complete" evoCmp :: I64 -> I64 -> I64 ->{Global, IO} I64
+  foreign import ccall "cinch_evo_set_migration" evoMig :: I64 -> I64 -> I64 -> I64 ->{Global, IO} I64
+  foreign import ccall "cinch_evo_activate" evoAct :: I64 ->{Global, IO} I64
+  foreign import ccall "cinch_evo_feature_avail" evoFeat :: I64 -> I64 ->{Global, IO} I64
+  foreign import ccall "cinch_evo_frame_enter" evoEnt :: I64 ->{Global, IO} I64
+  foreign import ccall "cinch_evo_frame_exit" evoExt :: I64 ->{Global, IO} I64
+  foreign import ccall "cinch_evo_frame_version" evoFVer :: I64 ->{Global, IO} I64
+  foreign import ccall "cinch_evo_frame_resume" evoFRes :: I64 -> I64 ->{Global, IO} I64
+  foreign import ccall "cinch_evo_version_live" evoLive :: I64 ->{Global, IO} I64
+  foreign import ccall "cinch_evo_version_retired" evoRetd :: I64 ->{Global, IO} I64
+  foreign import ccall "cinch_evo_version_resident" evoRes :: I64 ->{Global, IO} I64
+  foreign import ccall "cinch_evo_version_try_drop" evoDrop :: I64 -> I64 ->{Global, IO} I64
+  foreign import ccall "cinch_evo_variant_install" evoVInst :: I64 -> I64 -> I64 -> I64 ->{Global, IO} I64
+  foreign import ccall "cinch_evo_variant_enter" evoVEnt :: I64 ->{Global, IO} I64
+  foreign import ccall "cinch_evo_variant_retire" evoVRet :: I64 ->{Global, IO} I64
+  foreign import ccall "cinch_evo_variant_retired" evoVRetd :: I64 ->{Global, IO} I64
+  foreign import ccall "cinch_evo_variant_resident" evoVRes :: I64 ->{Global, IO} I64
+  foreign import ccall "cinch_evo_deopt" evoDeopt :: I64 -> I64 ->{Global, IO} I64
 "#;
 
 /// Run one runtime test body: a `main` whose result is its exit code.
@@ -411,7 +411,7 @@ fn deopt_refuses_an_unbalanced_linear_transfer() {
     );
 }
 
-/// The `.sliface` of a single-module program: the compatibility evidence
+/// The `.cinchif` of a single-module program: the compatibility evidence
 /// and contract projection the "checked against" chain reads.
 fn iface_of(src: &str) -> Iface {
     let (_program, ifaces) = check_sources_ifaces(src, "<test>").expect("the program checks");

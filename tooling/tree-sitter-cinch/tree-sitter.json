@@ -1,22 +1,22 @@
 {
   "grammars": [
     {
-      "name": "safelang",
-      "camelcase": "SafeLang",
-      "scope": "source.safelang",
+      "name": "cinch",
+      "camelcase": "Cinch",
+      "scope": "source.cinch",
       "path": ".",
       "file-types": [
-        "lang"
+        "cinch"
       ]
     }
   ],
   "metadata": {
     "version": "0.1.0",
     "license": "UNLICENSED",
-    "description": "Tree-sitter grammar for the SafeLang surface syntax (draft 0.2 plus local amendments)",
+    "description": "Tree-sitter grammar for the Cinch surface syntax (draft 0.2 plus local amendments)",
     "authors": [
       {
-        "name": "SafeLang design repository"
+        "name": "Cinch design repository"
       }
     ],
     "links": {

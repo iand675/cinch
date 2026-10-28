@@ -1,7 +1,7 @@
 //! End-to-end tests: compile real programs through the full pipeline
 //! (lex, layout, parse, check, LLVM IR, clang link) and assert exit codes.
 
-use safelang::driver::{check_sources, run_source};
+use cinch::driver::{check_sources, run_source};
 
 fn expect_ok(name: &str, src: &str, expected: i32) {
     match run_source(src) {
@@ -922,7 +922,7 @@ fn surface_and_or_short_circuit() {
 #[test]
 fn library_modules_check_without_an_entry_point() {
     // A module without `main` is a library: `check` accepts it (this is
-    // how examples/source/06-counter-upgrade.lang, a pure module, must
+    // how examples/source/06-counter-upgrade.cinch, a pure module, must
     // behave), while running it names the requirement.
     check_sources(
         "module Counter where\n\

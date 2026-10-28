@@ -3,7 +3,7 @@
 //! runtime capabilities (`using (io :: Io r)`, `with` supplies, `@{...}`)
 //! and `do` notation over the direct, `Result` and `Option` providers.
 
-use safelang::driver::{check_sources, run_source};
+use cinch::driver::{check_sources, run_source};
 
 fn expect_ok(name: &str, src: &str, expected: i32) {
     match run_source(src) {

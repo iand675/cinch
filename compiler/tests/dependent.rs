@@ -4,7 +4,7 @@
 //! obligation statuses, totality of the logical fragment, and the
 //! positivity discipline (roadmap gap A1).
 
-use safelang::driver::{check_sources, run_source};
+use cinch::driver::{check_sources, run_source};
 
 fn expect_ok(name: &str, src: &str, expected: i32) {
     match run_source(src) {
@@ -304,7 +304,7 @@ module Main where
 
 #[test]
 fn acceptance_probe_01_bounded_index_runs() {
-    // examples/source/01-bounded-index.lang checks unchanged; this is the
+    // examples/source/01-bounded-index.cinch checks unchanged; this is the
     // same program with a `main` exercising it end to end (the example is
     // a library module, and `run` needs `main :: Int` per decision D20).
     expect_ok(

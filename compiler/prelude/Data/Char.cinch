@@ -17,14 +17,14 @@ module Data.Char where
   -- Primitive types specification, section 6: Char values are Unicode
   -- scalar values, in code point order. `u32-to-char` rejects surrogates
   -- and values above 0x10FFFF.
-  foreign import ccall "safelang.prim.charToU32" char-to-u32 :: Char -> U32
-  foreign import ccall "safelang.prim.u32ToChar" u32-to-char :: U32 -> Option Char
-  foreign import ccall "safelang.prim.eqChar" eq-char :: Char -> Char -> Bool
-  foreign import ccall "safelang.prim.neChar" ne-char :: Char -> Char -> Bool
-  foreign import ccall "safelang.prim.ltChar" lt-char :: Char -> Char -> Bool
-  foreign import ccall "safelang.prim.leChar" le-char :: Char -> Char -> Bool
-  foreign import ccall "safelang.prim.gtChar" gt-char :: Char -> Char -> Bool
-  foreign import ccall "safelang.prim.geChar" ge-char :: Char -> Char -> Bool
+  foreign import ccall "cinch.prim.charToU32" char-to-u32 :: Char -> U32
+  foreign import ccall "cinch.prim.u32ToChar" u32-to-char :: U32 -> Option Char
+  foreign import ccall "cinch.prim.eqChar" eq-char :: Char -> Char -> Bool
+  foreign import ccall "cinch.prim.neChar" ne-char :: Char -> Char -> Bool
+  foreign import ccall "cinch.prim.ltChar" lt-char :: Char -> Char -> Bool
+  foreign import ccall "cinch.prim.leChar" le-char :: Char -> Char -> Bool
+  foreign import ccall "cinch.prim.gtChar" gt-char :: Char -> Char -> Bool
+  foreign import ccall "cinch.prim.geChar" ge-char :: Char -> Char -> Bool
 
   implicit instance Eq_Char :: Eq Char where
     (==) x y = eq-char x y

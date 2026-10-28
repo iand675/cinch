@@ -3,7 +3,7 @@
 //! capabilities, stage scheduling, and multi-module source files
 //! (modules and compilation specification sections 7-10).
 
-use safelang::driver::{driver_with, run_source_with, Mode, StageMode, StagingCx};
+use cinch::driver::{driver_with, run_source_with, Mode, StageMode, StagingCx};
 use std::path::PathBuf;
 
 fn run(src: &str) -> Result<i32, String> {
@@ -19,7 +19,7 @@ fn write_project(files: &[(&str, &str)]) -> PathBuf {
     static COUNTER: AtomicU64 = AtomicU64::new(0);
     let n = COUNTER.fetch_add(1, Ordering::Relaxed);
     let dir = std::env::temp_dir().join(format!(
-        "safelang_staging_{}_{}",
+        "cinch_staging_{}_{}",
         std::process::id(),
         n
     ));
@@ -237,7 +237,7 @@ fn generate_file_capability_feeds_the_program() {
     let dir = write_project(&[
         ("input.txt", "42\n"),
         (
-            "Main.lang",
+            "Main.cinch",
             "module Main where\n\
              \x20 generate do\n\
              \x20   n <- snapshot \"inputs\" (\\io ->\n\
@@ -249,7 +249,7 @@ fn generate_file_capability_feeds_the_program() {
              \x20 main = int-from-i64 (nat-to-i64 answer)\n",
         ),
     ]);
-    let code = driver_with(Mode::Run, StageMode::Refresh, &dir.join("Main.lang"), None)
+    let code = driver_with(Mode::Run, StageMode::Refresh, &dir.join("Main.cinch"), None)
         .expect("file capability run");
     assert_eq!(code, 42);
     // The build identity records the captured input (modules
@@ -269,7 +269,7 @@ fn stage_replay_uses_captured_inputs() {
     let dir = write_project(&[
         ("input.txt", "42\n"),
         (
-            "Main.lang",
+            "Main.cinch",
             "module Main where\n\
              \x20 generate do\n\
              \x20   n <- snapshot \"inputs\" (\\io ->\n\
@@ -281,14 +281,14 @@ fn stage_replay_uses_captured_inputs() {
              \x20 main = int-from-i64 (nat-to-i64 answer)\n",
         ),
     ]);
-    driver_with(Mode::Check, StageMode::Refresh, &dir.join("Main.lang"), None).expect("refresh");
+    driver_with(Mode::Check, StageMode::Refresh, &dir.join("Main.cinch"), None).expect("refresh");
     std::fs::remove_file(dir.join("input.txt")).expect("remove input");
-    let code = driver_with(Mode::Run, StageMode::Replay, &dir.join("Main.lang"), None)
+    let code = driver_with(Mode::Run, StageMode::Replay, &dir.join("Main.cinch"), None)
         .expect("replay from the snapshot");
     assert_eq!(code, 42);
     // Without any snapshot, replay names the missing input.
     let dir = write_project(&[(
-        "Main.lang",
+        "Main.cinch",
         "module Main where\n\
          \x20 generate do\n\
          \x20   n <- snapshot \"inputs\" (\\io ->\n\
@@ -299,7 +299,7 @@ fn stage_replay_uses_captured_inputs() {
          \x20 main :: Int\n\
          \x20 main = int-from-i64 (nat-to-i64 answer)\n",
     )]);
-    let err = driver_with(Mode::Check, StageMode::Replay, &dir.join("Main.lang"), None)
+    let err = driver_with(Mode::Check, StageMode::Replay, &dir.join("Main.cinch"), None)
         .expect_err("no captured input");
     let err = err.to_string();
     assert!(err.contains("no captured input"), "{err}");
@@ -311,7 +311,7 @@ fn stage_replay_uses_captured_inputs() {
 #[test]
 fn generate_subprocess_capability_runs_a_tool() {
     let dir = write_project(&[(
-        "Main.lang",
+        "Main.cinch",
         "module Main where\n\
          \x20 generate do\n\
          \x20   out <- snapshot \"tools\" (\\io ->\n\
@@ -322,7 +322,7 @@ fn generate_subprocess_capability_runs_a_tool() {
          \x20 main :: Int\n\
          \x20 main = int-from-i64 (nat-to-i64 answer)\n",
     )]);
-    let code = driver_with(Mode::Run, StageMode::Refresh, &dir.join("Main.lang"), None)
+    let code = driver_with(Mode::Run, StageMode::Refresh, &dir.join("Main.cinch"), None)
         .expect("subprocess capability run");
     // `/bin/echo hi` writes `hi\n`.
     assert_eq!(code, 3);
@@ -332,11 +332,11 @@ fn generate_subprocess_capability_runs_a_tool() {
 /// to text is rejected and the message stays redacted.
 #[test]
 fn secret_cannot_be_embedded() {
-    std::env::set_var("SAFELANG_TEST_SECRET_42", "999999");
+    std::env::set_var("CINCH_TEST_SECRET_42", "999999");
     let err = run_err(
         "module Main where\n\
          \x20 generate do\n\
-         \x20   s <- secret \"SAFELANG_TEST_SECRET_42\"\n\
+         \x20   s <- secret \"CINCH_TEST_SECRET_42\"\n\
          \x20   emit (quoteDecls where\n\
          \x20     answer :: Nat\n\
          \x20     answer = $(quoteNat (strNat s)))\n\
@@ -438,7 +438,7 @@ fn multi_module_staging_crosses_modules() {
 /// `Stage.withDatabase` delegation runs) and return its path.
 fn schema_tool(name: &str, doc: &str) -> String {
     let dir =
-        std::env::temp_dir().join(format!("safelang_schema_{}_{}", std::process::id(), name));
+        std::env::temp_dir().join(format!("cinch_schema_{}_{}", std::process::id(), name));
     std::fs::create_dir_all(&dir).expect("schema tool dir");
     let path = dir.join("introspect.sh");
     std::fs::write(&path, format!("#!/bin/sh\ncat <<'JSON'\n{doc}\nJSON\n")).expect("write tool");
@@ -456,7 +456,7 @@ fn schema_tool(name: &str, doc: &str) -> String {
 const A6_PROGRAM: &str = r#"module Main where
   generate do
     snapshot <- Stage.snapshot "billing-schema" (\io ->
-      Stage.withDatabase io (secret "SL_TEST_A6_DSN") ReadSchema
+      Stage.withDatabase io (secret "CINCH_TEST_A6_DSN") ReadSchema
         (\db -> introspectConsistently db))
     emit (CodecGenerator.derive snapshot)
   main :: Int
@@ -472,7 +472,7 @@ const A6_PROGRAM: &str = r#"module Main where
 /// ordinary declarations and round-trip a row at runtime.
 #[test]
 fn generate_with_database_introspection_derives_codecs() {
-    std::env::set_var("SL_TEST_A6_DSN", "postgres://test");
+    std::env::set_var("CINCH_TEST_A6_DSN", "postgres://test");
     let tool = schema_tool(
         "derive",
         r#"{"dialect": "postgresql", "collation": "en_US.UTF-8", "snapshot": "0/16B3748", "tables": [{"name": "billing_events", "columns": [{"name": "id", "type": "INTEGER", "nullable": false}, {"name": "active", "type": "BOOLEAN", "nullable": false}]}]}"#,
@@ -488,7 +488,7 @@ fn generate_with_database_introspection_derives_codecs() {
 /// section 11).
 #[test]
 fn introspect_consistently_rejects_an_inconsistent_document() {
-    std::env::set_var("SL_TEST_A6_DSN", "postgres://test");
+    std::env::set_var("CINCH_TEST_A6_DSN", "postgres://test");
     let tool = schema_tool(
         "dup",
         r#"{"tables": [{"name": "t", "columns": []}, {"name": "t", "columns": []}]}"#,
@@ -506,7 +506,7 @@ fn introspect_consistently_rejects_an_inconsistent_document() {
 /// generator's coverage gap is explicit.
 #[test]
 fn schema_column_types_and_codec_coverage_are_explicit() {
-    std::env::set_var("SL_TEST_A6_DSN", "postgres://test");
+    std::env::set_var("CINCH_TEST_A6_DSN", "postgres://test");
     let tool = schema_tool(
         "bogus",
         r#"{"tables": [{"name": "t", "columns": [{"name": "c", "type": "JSONB"}]}]}"#,
@@ -532,7 +532,7 @@ fn schema_column_types_and_codec_coverage_are_explicit() {
 /// the delegation rather than inventing a network stack (decision D65).
 #[test]
 fn with_database_needs_a_configured_introspection_tool() {
-    std::env::set_var("SL_TEST_A6_DSN", "postgres://test");
+    std::env::set_var("CINCH_TEST_A6_DSN", "postgres://test");
     let mut scx = StagingCx::default();
     let err = run_source_with(A6_PROGRAM, &mut scx).expect_err("no tool configured");
     let err = err.to_string();
@@ -545,14 +545,14 @@ fn with_database_needs_a_configured_introspection_tool() {
 /// capture.
 #[test]
 fn stage_replay_uses_the_captured_schema() {
-    use safelang::check::StageInput;
-    std::env::set_var("SL_TEST_A6_DSN", "postgres://test");
+    use cinch::check::StageInput;
+    std::env::set_var("CINCH_TEST_A6_DSN", "postgres://test");
     let tool = schema_tool(
         "replay",
         r#"{"tables": [{"name": "billing_events", "columns": [{"name": "id", "type": "INTEGER"}, {"name": "active", "type": "INTEGER"}]}]}"#,
     );
     let captured = r#"{"snapshot": "0/16B3748", "tables": [{"name": "billing_events", "columns": [{"name": "id", "type": "INTEGER", "nullable": false}, {"name": "active", "type": "BOOLEAN", "nullable": false}]}]}"#;
-    let key = format!("{tool}  env:SL_TEST_A6_DSN");
+    let key = format!("{tool}  env:CINCH_TEST_A6_DSN");
     let mut scx = StagingCx::default();
     scx.mode = StageMode::Replay;
     scx.schema_tool = Some(tool);
@@ -560,7 +560,7 @@ fn stage_replay_uses_the_captured_schema() {
         snapshot: "billing-schema".to_string(),
         kind: "subprocess".to_string(),
         name: key,
-        hash: safelang::interface::content_hash(captured),
+        hash: cinch::interface::content_hash(captured),
         captured: captured.to_string(),
         live: false,
     }];
@@ -573,18 +573,18 @@ fn stage_replay_uses_the_captured_schema() {
 /// section 10).
 #[test]
 fn schema_build_identity_records_the_tool_not_the_credential() {
-    std::env::set_var("SL_TEST_A6_DSN", "postgres://supersecret");
+    std::env::set_var("CINCH_TEST_A6_DSN", "postgres://supersecret");
     let tool = schema_tool(
         "identity",
         r#"{"tables": [{"name": "billing_events", "columns": [{"name": "id", "type": "INTEGER"}, {"name": "active", "type": "BOOLEAN"}]}]}"#,
     );
-    std::env::set_var("SAFELANG_SCHEMA_TOOL", &tool);
-    let dir = write_project(&[("Main.lang", A6_PROGRAM)]);
-    let code = driver_with(Mode::Run, StageMode::Refresh, &dir.join("Main.lang"), None)
+    std::env::set_var("CINCH_SCHEMA_TOOL", &tool);
+    let dir = write_project(&[("Main.cinch", A6_PROGRAM)]);
+    let code = driver_with(Mode::Run, StageMode::Refresh, &dir.join("Main.cinch"), None)
         .expect("schema introspection run");
     assert_eq!(code, 0);
     let manifest =
         std::fs::read_to_string(dir.join("build/Main.manifest.json")).expect("manifest");
-    assert!(manifest.contains("env:SL_TEST_A6_DSN"), "{manifest}");
+    assert!(manifest.contains("env:CINCH_TEST_A6_DSN"), "{manifest}");
     assert!(!manifest.contains("supersecret"), "the credential leaked: {manifest}");
 }

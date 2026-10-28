@@ -1,15 +1,15 @@
 [package]
-name = "safelang-lsp"
+name = "cinch-lsp"
 version = "0.1.0"
 edition = "2021"
-description = "Run the SafeLang language server over stdio (LspServer::run)"
+description = "Run the Cinch language server over stdio (LspServer::run)"
 license = "UNLICENSED"
 
 # Deliberately standalone (no workspace): a two-file driver around the
-# safelang library's hand-rolled LSP (compiler/src/lsp.rs).
+# cinch library's hand-rolled LSP (compiler/src/lsp.rs).
 [[bin]]
-name = "safelang-lsp"
+name = "cinch-lsp"
 path = "src/main.rs"
 
 [dependencies]
-safelang = { path = "../../compiler" }
+cinch = { path = "../../compiler" }

@@ -4781,7 +4781,7 @@ mod tests {
         // The prelude is the split family: the facade's curated
         // re-export surface plus the scheme homes carrying the
         // declarations (the prelude split).
-        let p = ok(include_str!("../prelude/Prelude.lang"));
+        let p = ok(include_str!("../prelude/Prelude.cinch"));
         let m = &p.module;
         assert_eq!(m.name.text, "Prelude");
         let exports = m

@@ -4,7 +4,7 @@
 //! multi-line continuation, spanned errors, and completion over the
 //! session's and the prelude's names.
 
-use safelang::repl::{Repl, ReplOutcome};
+use cinch::repl::{Repl, ReplOutcome};
 
 fn out(r: ReplOutcome) -> String {
     match r {
@@ -59,20 +59,20 @@ fn type_kind_and_browse_outputs() {
 
 #[test]
 fn load_and_reload_a_multi_file_project() {
-    let dir = std::env::temp_dir().join(format!("safelang-repl-load-{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("cinch-repl-load-{}", std::process::id()));
     std::fs::create_dir_all(&dir).expect("temp dir");
     std::fs::write(
-        dir.join("Util.lang"),
+        dir.join("Util.cinch"),
         "\nmodule Util where\n  double :: Int -> Int\n  double n = n + n\n",
     )
-    .expect("Util.lang");
+    .expect("Util.cinch");
     std::fs::write(
-        dir.join("Main.lang"),
+        dir.join("Main.cinch"),
         "\nmodule Main where\n  import Util\n  quad :: Int -> Int\n  quad n = double (double n)\n",
     )
-    .expect("Main.lang");
+    .expect("Main.cinch");
     let mut repl = Repl::with_root(std::env::temp_dir());
-    let loaded = out(repl.eval(&format!(":load {}", dir.join("Main.lang").display())));
+    let loaded = out(repl.eval(&format!(":load {}", dir.join("Main.cinch").display())));
     assert!(loaded.contains("loaded"), "{loaded}");
     assert!(loaded.contains("rechecked Util"), "{loaded}");
     assert!(loaded.contains("rechecked Main"), "{loaded}");

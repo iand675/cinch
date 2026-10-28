@@ -1,8 +1,8 @@
 //! Category-family library tests: the real `Functor`/`Applicative`/
-//! `Monad`/`Alternative` classes (compiler/prelude/Category/*.lang)
+//! `Monad`/`Alternative` classes (compiler/prelude/Category/*.cinch)
 //! with the shipped instance families (List, Option, Result e,
 //! `((->) r)`), the `Identity` and `Const` universal visitors
-//! (compiler/prelude/Data/Identity.lang, Data/Const.lang), and the law
+//! (compiler/prelude/Data/Identity.cinch, Data/Const.cinch), and the law
 //! groups the classes must satisfy, checked over sample values.
 //!
 //! Each test compiles a real multi-file project: the class modules,
@@ -26,16 +26,16 @@
 //! and the `((->) r)` family runs the same groups pointwise (there is
 //! no `Eq` of functions).
 
-use safelang::driver::{driver, Mode};
+use cinch::driver::{driver, Mode};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-const FUNCTOR: &str = include_str!("../prelude/Category/Functor.lang");
-const APPLICATIVE: &str = include_str!("../prelude/Category/Applicative.lang");
-const MONAD: &str = include_str!("../prelude/Category/Monad.lang");
-const ALTERNATIVE: &str = include_str!("../prelude/Category/Alternative.lang");
-const IDENTITY: &str = include_str!("../prelude/Data/Identity.lang");
-const CONST: &str = include_str!("../prelude/Data/Const.lang");
+const FUNCTOR: &str = include_str!("../prelude/Category/Functor.cinch");
+const APPLICATIVE: &str = include_str!("../prelude/Category/Applicative.cinch");
+const MONAD: &str = include_str!("../prelude/Category/Monad.cinch");
+const ALTERNATIVE: &str = include_str!("../prelude/Category/Alternative.cinch");
+const IDENTITY: &str = include_str!("../prelude/Data/Identity.cinch");
+const CONST: &str = include_str!("../prelude/Data/Const.cinch");
 
 /// The shared `Main` prefix: the imports, the structural equality
 /// helpers and `Eq` instances the law statements need, and the law
@@ -135,7 +135,7 @@ const PREFIX: &str = r#"module Main where
 fn compile(name: &str, main_src: &str, mode: Mode) -> Result<i32, String> {
     static N: AtomicUsize = AtomicUsize::new(0);
     let dir: PathBuf = std::env::temp_dir().join(format!(
-        "safelang_cattest_{}_{}_{}",
+        "cinch_cattest_{}_{}_{}",
         std::process::id(),
         N.fetch_add(1, Ordering::SeqCst),
         name
@@ -143,17 +143,17 @@ fn compile(name: &str, main_src: &str, mode: Mode) -> Result<i32, String> {
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).expect("temp project dir");
     for (file, src) in [
-        ("Functor.lang", FUNCTOR),
-        ("Applicative.lang", APPLICATIVE),
-        ("Monad.lang", MONAD),
-        ("Alternative.lang", ALTERNATIVE),
-        ("Identity.lang", IDENTITY),
-        ("Const.lang", CONST),
-        ("Main.lang", main_src),
+        ("Functor.cinch", FUNCTOR),
+        ("Applicative.cinch", APPLICATIVE),
+        ("Monad.cinch", MONAD),
+        ("Alternative.cinch", ALTERNATIVE),
+        ("Identity.cinch", IDENTITY),
+        ("Const.cinch", CONST),
+        ("Main.cinch", main_src),
     ] {
         std::fs::write(dir.join(file), src).expect("write module");
     }
-    driver(mode, &dir.join("Main.lang"), None).map_err(|e| e.to_string())
+    driver(mode, &dir.join("Main.cinch"), None).map_err(|e| e.to_string())
 }
 
 fn source(body: &str) -> String {

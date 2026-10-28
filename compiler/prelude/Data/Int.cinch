@@ -18,15 +18,15 @@ module Data.Int where
 
   export int-add, int-sub, int-mul, int-div, int-rem, int-neg, int-cmp, int-from-i64, int-to-i64
 
-  foreign import ccall "safelang.runtime.intAdd" int-add :: Int -> Int -> Int
-  foreign import ccall "safelang.runtime.intSub" int-sub :: Int -> Int -> Int
-  foreign import ccall "safelang.runtime.intMul" int-mul :: Int -> Int -> Int
-  foreign import ccall "safelang.runtime.intDiv" int-div :: Int -> Int -> Int
-  foreign import ccall "safelang.runtime.intRem" int-rem :: Int -> Int -> Int
-  foreign import ccall "safelang.runtime.intNeg" int-neg :: Int -> Int
-  foreign import ccall "safelang.runtime.intCmp" int-cmp :: Int -> Int -> I64
-  foreign import ccall "safelang.runtime.intFromI64" int-from-i64 :: I64 -> Int
-  foreign import ccall "safelang.runtime.intToI64" int-to-i64 :: Int -> I64
+  foreign import ccall "cinch.runtime.intAdd" int-add :: Int -> Int -> Int
+  foreign import ccall "cinch.runtime.intSub" int-sub :: Int -> Int -> Int
+  foreign import ccall "cinch.runtime.intMul" int-mul :: Int -> Int -> Int
+  foreign import ccall "cinch.runtime.intDiv" int-div :: Int -> Int -> Int
+  foreign import ccall "cinch.runtime.intRem" int-rem :: Int -> Int -> Int
+  foreign import ccall "cinch.runtime.intNeg" int-neg :: Int -> Int
+  foreign import ccall "cinch.runtime.intCmp" int-cmp :: Int -> Int -> I64
+  foreign import ccall "cinch.runtime.intFromI64" int-from-i64 :: I64 -> Int
+  foreign import ccall "cinch.runtime.intToI64" int-to-i64 :: Int -> I64
 
   -- Primitive types specification, section 8: class instances. Eq and
   -- Ord cover Bool, Char, the mathematical Nat and Int, every machine

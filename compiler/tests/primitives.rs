@@ -3,7 +3,7 @@
 //! explicit conversions and literal range checking
 //! (`specifications/primitive-types-specification.md`).
 
-use safelang::driver::{check_sources, run_source};
+use cinch::driver::{check_sources, run_source};
 
 /// Compile, run and assert the exit code.
 fn run_ok(name: &str, src: &str, expected: i32) {
@@ -776,9 +776,9 @@ module Main where
 
 #[test]
 fn cli_smoke_several_prim_families() {
-    let dir = std::env::temp_dir().join(format!("safelang-prim-smoke-{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("cinch-prim-smoke-{}", std::process::id()));
     std::fs::create_dir_all(&dir).expect("create scratch dir");
-    let file = dir.join("smoke.lang");
+    let file = dir.join("smoke.cinch");
     std::fs::write(
         &file,
         r#"
@@ -801,11 +801,11 @@ module Main where
 "#,
     )
     .expect("write smoke source");
-    let status = std::process::Command::new(env!("CARGO_BIN_EXE_safelang"))
+    let status = std::process::Command::new(env!("CARGO_BIN_EXE_cinch"))
         .arg("run")
         .arg(&file)
         .status()
-        .expect("run the safelang CLI");
+        .expect("run the cinch CLI");
     let _ = std::fs::remove_dir_all(&dir);
     assert_eq!(status.code(), Some(23), "cli smoke: expected exit 23");
 }
@@ -1100,21 +1100,21 @@ fn retired_int_family_no_longer_resolves() {
         "retired-addInt",
         r#"
 module Main where
-  foreign import ccall "safelang.prim.addInt" f :: Int -> Int -> Int
+  foreign import ccall "cinch.prim.addInt" f :: Int -> Int -> Int
   main :: Int
   main = 0
 "#,
-        "not a safelang intrinsic",
+        "not a cinch intrinsic",
     );
     expect_err(
         "retired-eqInt",
         r#"
 module Main where
-  foreign import ccall "safelang.prim.eqInt" f :: Int -> Int -> Bool
+  foreign import ccall "cinch.prim.eqInt" f :: Int -> Int -> Bool
   main :: Int
   main = 0
 "#,
-        "not a safelang intrinsic",
+        "not a cinch intrinsic",
     );
     // The machine case is the P2 family; the mathematical case is the
     // runtime family.

@@ -1,7 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
-  "name": "SafeLang",
-  "scopeName": "source.safelang",
+  "name": "Cinch",
+  "scopeName": "source.cinch",
   "fileTypes": ["lang"],
   "patterns": [
     { "include": "#comments" },
@@ -15,9 +15,9 @@
   "repository": {
     "comments": {
       "patterns": [
-        { "name": "comment.line.double-dash.safelang", "match": "--.*$" },
+        { "name": "comment.line.double-dash.cinch", "match": "--.*$" },
         {
-          "name": "comment.block.safelang",
+          "name": "comment.block.cinch",
           "begin": "\\{-",
           "end": "-\\}",
           "patterns": [{ "include": "#comments" }]
@@ -27,12 +27,12 @@
     "strings": {
       "patterns": [
         {
-          "name": "string.quoted.double.safelang",
+          "name": "string.quoted.double.cinch",
           "begin": "\"",
           "end": "\"",
           "patterns": [
             {
-              "name": "constant.character.escape.safelang",
+              "name": "constant.character.escape.cinch",
               "match": "\\\\[\\\\\"'nrt]|\\\\u\\{[0-9A-Fa-f]+\\}"
             }
           ]
@@ -42,62 +42,62 @@
     "literals": {
       "patterns": [
         {
-          "name": "constant.character.safelang",
+          "name": "constant.character.cinch",
           "match": "'([^'\\\\]|\\\\[\\\\\"'nrt]|\\\\u\\{[0-9A-Fa-f]+\\})'"
         },
-        { "name": "entity.name.type.safelang", "match": "''[A-Z][A-Za-z0-9_']*" },
+        { "name": "entity.name.type.cinch", "match": "''[A-Z][A-Za-z0-9_']*" },
         {
-          "name": "constant.other.symbol.safelang",
+          "name": "constant.other.symbol.cinch",
           "match": "'[A-Za-z_][A-Za-z0-9_']*(?:-[A-Za-z_'][A-Za-z0-9_']*)*"
         },
         {
-          "name": "constant.numeric.safelang",
+          "name": "constant.numeric.cinch",
           "match": "-?\\d[\\d_]*(?:\\.\\d[\\d_]*)?(?:[eE][+-]?\\d+)?"
         },
-        { "name": "constant.numeric.hex.safelang", "match": "-?0[xX][0-9A-Fa-f_]+" }
+        { "name": "constant.numeric.hex.cinch", "match": "-?0[xX][0-9A-Fa-f_]+" }
       ]
     },
     "attributes": {
       "patterns": [
         {
-          "name": "meta.annotation.safelang",
+          "name": "meta.annotation.cinch",
           "begin": "#\\[[A-Za-z_][A-Za-z0-9_.-]*",
           "end": "\\]",
-          "beginCaptures": { "0": { "name": "entity.other.attribute-name.safelang" } }
+          "beginCaptures": { "0": { "name": "entity.other.attribute-name.cinch" } }
         }
       ]
     },
     "keywords": {
       "patterns": [
         {
-          "name": "keyword.control.import.safelang",
+          "name": "keyword.control.import.cinch",
           "match": "\\b(module|import|export|as)\\b"
         },
         {
-          "name": "storage.type.declaration.safelang",
+          "name": "storage.type.declaration.cinch",
           "match": "\\b(data|record|codata|effect|signature|instance|implicit|opaque|type|foreign|ccall|component|prim|law|contract|rewrite|target|upgrade|generate|infix|infixl|infixr|proof|spec|stage|corec|macro)\\b"
         },
         {
-          "name": "keyword.other.safelang",
+          "name": "keyword.other.cinch",
           "match": "\\b(forall|Sigma|using|in|let|letrec|where|of)\\b"
         },
         {
-          "name": "keyword.control.conditional.safelang",
+          "name": "keyword.control.conditional.cinch",
           "match": "\\b(if|then|else|case)\\b"
         },
-        { "name": "keyword.control.loop.safelang", "match": "\\b(do)\\b" },
+        { "name": "keyword.control.loop.cinch", "match": "\\b(do)\\b" },
         {
-          "name": "keyword.control.safelang",
+          "name": "keyword.control.cinch",
           "match": "\\b(handle|with|match|replace|require|justify|to)\\b"
         },
         {
-          "name": "keyword.other.contract.safelang",
+          "name": "keyword.other.contract.cinch",
           "match": "\\b(safety|liveness|recurrence|stability|always|eventually|recur|stable|assume)\\b"
         },
-        { "name": "storage.modifier.safelang", "match": "\\b(erased|own)\\b" },
-        { "name": "keyword.control.flow.safelang", "match": "\\b(return|resume)\\b" },
+        { "name": "storage.modifier.cinch", "match": "\\b(erased|own)\\b" },
+        { "name": "keyword.control.flow.cinch", "match": "\\b(return|resume)\\b" },
         {
-          "name": "variable.other.contextual.safelang",
+          "name": "variable.other.contextual.cinch",
           "match": "\\b(handler|unsafe|when|uses|immarg|for|migrate|related|attributes|replaceable|specialized|llvm|wasm|asm|clr|jvm)\\b"
         }
       ]
@@ -105,17 +105,17 @@
     "operators": {
       "patterns": [
         {
-          "name": "keyword.operator.safelang",
+          "name": "keyword.operator.cinch",
           "match": "[!#%&*+/<=>?@^|~:-]+|\\$[!#%&*+/<=>?@^|~:$-]+"
         },
-        { "name": "punctuation.separator.safelang", "match": "[()\\[\\]{},;\\\\]" }
+        { "name": "punctuation.separator.cinch", "match": "[()\\[\\]{},;\\\\]" }
       ]
     },
     "identifiers": {
       "patterns": [
-        { "name": "entity.name.type.safelang", "match": "\\b[A-Z][A-Za-z0-9_']*\\b" },
+        { "name": "entity.name.type.cinch", "match": "\\b[A-Z][A-Za-z0-9_']*\\b" },
         {
-          "name": "variable.other.safelang",
+          "name": "variable.other.cinch",
           "match": "\\b[a-z_][A-Za-z0-9_']*(?:-[A-Za-z_'][A-Za-z0-9_']*)*\\b"
         }
       ]

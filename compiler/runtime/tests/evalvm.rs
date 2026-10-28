@@ -8,9 +8,9 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Mutex;
 
-use slruntime::abi::{sl_int_to_i64, sl_nat_to_i64};
-use slruntime::eval::{run, KIND_CODE, MAX_NESTING};
-use slruntime::Error;
+use cinchruntime::abi::{cinch_int_to_i64, cinch_nat_to_i64};
+use cinchruntime::eval::{run, KIND_CODE, MAX_NESTING};
+use cinchruntime::Error;
 
 // The opcode words, mirroring `quote_op` in `compiler/src/codegen.rs`.
 const INT: i64 = 1;
@@ -326,7 +326,7 @@ static INNER_ERR: Mutex<Option<Error>> = Mutex::new(None);
 
 /// The self-demanding thunk: it re-enters the evaluator with the quoted
 /// demand of its own cell, as a hoisted lambda body would call the
-/// generated `__safelang_demand`.
+/// generated `__cinch_demand`.
 unsafe extern "C" fn stub_self_demand(self_word: i64, _argc: i64, _argv: *mut i64) -> i64 {
     SELF_CALLS.fetch_add(1, Ordering::SeqCst);
     let cell = unsafe { *(self_word as *const i64).add(3) };
@@ -365,7 +365,7 @@ fn fault_opcode_takes_the_black_hole_fault() {
 
 #[test]
 fn exit_codes_match_the_fault_table() {
-    // sl_eval exits 70 for BlackHole and 71 for a failing evaluation.
+    // cinch_eval exits 70 for BlackHole and 71 for a failing evaluation.
     assert_eq!(Error::BlackHole.exit_code(), 70);
     assert_eq!(Error::CorruptValue.exit_code(), 71);
     assert_eq!(Error::MalformedDecimal.exit_code(), 71);
@@ -477,11 +477,11 @@ fn non_block_words_where_a_block_is_required_are_errors() {
 #[test]
 fn big_constants_parse_their_decimal_digits() {
     let nat = run(quote_block(&big_program(1, "12345678901"), &[])).expect("a Nat word");
-    assert_eq!(unsafe { sl_nat_to_i64(nat) }, 12345678901);
+    assert_eq!(unsafe { cinch_nat_to_i64(nat) }, 12345678901);
     let neg = run(quote_block(&big_program(0, "-128"), &[])).expect("an Int word");
-    assert_eq!(unsafe { sl_int_to_i64(neg) }, -128);
+    assert_eq!(unsafe { cinch_int_to_i64(neg) }, -128);
     let zero = run(quote_block(&big_program(1, "000"), &[])).expect("a Nat word");
-    assert_eq!(unsafe { sl_nat_to_i64(zero) }, 0);
+    assert_eq!(unsafe { cinch_nat_to_i64(zero) }, 0);
 }
 
 #[test]

@@ -1,7 +1,7 @@
 //! UTF-8 primitives behind the language-level `String` type.
 //!
 //! These are the accelerated implementations of the pure Prelude
-//! reference semantics (`Prelude.lang`'s `String` library): the fast
+//! reference semantics (`Prelude.cinch`'s `String` library): the fast
 //! paths must agree with the reference on every input, which the tests
 //! in `tests/string.rs` check directly against naive implementations.
 //!
@@ -16,7 +16,7 @@ use crate::error::{Error, Result};
 /// Validate a UTF-8 buffer: 1 = valid, 0 = malformed. Never faults on
 /// malformed content.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn sl_utf8_validate(ptr: *const u8, len: i64) -> i64 {
+pub unsafe extern "C" fn cinch_utf8_validate(ptr: *const u8, len: i64) -> i64 {
     match unsafe { bytes_slice(ptr, len) } {
         Ok(b) => i64::from(validate(b)),
         Err(_) => 0,
@@ -26,7 +26,7 @@ pub unsafe extern "C" fn sl_utf8_validate(ptr: *const u8, len: i64) -> i64 {
 /// Count Unicode scalar values in a valid UTF-8 buffer, or -1 when the
 /// buffer is malformed (the count is undefined then).
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn sl_utf8_count_chars(ptr: *const u8, len: i64) -> i64 {
+pub unsafe extern "C" fn cinch_utf8_count_chars(ptr: *const u8, len: i64) -> i64 {
     match unsafe { bytes_slice(ptr, len) } {
         Ok(b) => match count_chars(b) {
             Some(n) => n as i64,
@@ -40,7 +40,7 @@ pub unsafe extern "C" fn sl_utf8_count_chars(ptr: *const u8, len: i64) -> i64 {
 /// Returns `codepoint + width * 2^32` (width 1..=4), or -1 when the
 /// index is out of range or the encoding is malformed at that index.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn sl_utf8_decode_at(ptr: *const u8, len: i64, index: i64) -> i64 {
+pub unsafe extern "C" fn cinch_utf8_decode_at(ptr: *const u8, len: i64, index: i64) -> i64 {
     let Ok(b) = (unsafe { bytes_slice(ptr, len) }) else {
         return -1;
     };
@@ -59,7 +59,7 @@ pub unsafe extern "C" fn sl_utf8_decode_at(ptr: *const u8, len: i64, index: i64)
 /// not a scalar value (surrogates and above 0x10FFFF) or `cap` is too
 /// small.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn sl_utf8_encode(cp: i64, out: *mut u8, cap: i64) -> i64 {
+pub unsafe extern "C" fn cinch_utf8_encode(cp: i64, out: *mut u8, cap: i64) -> i64 {
     if cp < 0 || cp > 0x10FFFF || (0xD800..=0xDFFF).contains(&cp) {
         return -1;
     }
@@ -69,8 +69,8 @@ pub unsafe extern "C" fn sl_utf8_encode(cp: i64, out: *mut u8, cap: i64) -> i64 
     let buf = if cap == 0 {
         &mut [][..]
     } else if out.is_null() {
-        let msg = b"sl_utf8_encode: null output buffer";
-        unsafe { crate::abi::sl_panic(msg.as_ptr(), msg.len()) }
+        let msg = b"cinch_utf8_encode: null output buffer";
+        unsafe { crate::abi::cinch_panic(msg.as_ptr(), msg.len()) }
     } else {
         unsafe { std::slice::from_raw_parts_mut(out, cap as usize) }
     };

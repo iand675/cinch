@@ -7,23 +7,23 @@ Exported: 2026-10-22T18:59:36Z
 
 [Documentation overview](../overview.md)
 
-The accompanying files include twelve `.lang` files in provisional language notation. There is no executable compiler, and the files have not been typechecked. They specify intended behavior and rejection criteria. Some files contain complete small algorithms under the proposed prelude; others are explicitly labeled API or proof-package sketches.
+The accompanying files include twelve `.cinch` files in provisional language notation. There is no executable compiler, and the files have not been typechecked. They specify intended behavior and rejection criteria. Some files contain complete small algorithms under the proposed prelude; others are explicitly labeled API or proof-package sketches.
 
 # Files and assumptions
 
 | File | Scope | Required environment |
 | --- | --- | --- |
-| `01-bounded-index.lang` | Runtime bounds decision and safe element access | `Nat`, `Fin`, `Vec`, `Option`, comparison decision procedure, borrowed access |
-| `02-vector-filter.lang` | Recursive finite filter with dependent output length | Vector constructors, copying elements, total pure predicate |
-| `03-map-fusion.lang` | Inductive proof and associated rewrite | Immutable finite `List`, total `map`, equality, `congr` |
-| `04-productive-stream.lang` | Guarded infinite producer and mapping | A sound `Later` discipline and coinductive observations |
-| `05-schema-generator.lang` | Compile-time database generator API | Stage I/O, snapshots, secret handles, declaration generator |
-| `06-counter-upgrade.lang` | Concrete state migration and operation models | Natural arithmetic, consuming ownership, upgrade coordinator for deployment |
-| `07-rejected-programs.lang` | Independent expected rejection cases | The rules identified by each case |
-| `08-platform-simd.lang` | Target-specific wrapping reduction and dispatch | Instruction semantics, capability detection, memory proofs, and checked lowering |
-| `09-foreign-codec.lang` | Foreign wrapper contract | Explicit native assumptions or isolation profile |
-| `10-wasm-component.lang` and `codec.wit` | Checked component adapter | WIT bindings, host failure policy, runtime bound check |
-| `11-structured-tasks.lang` | Scoped concurrent requests | Task outcome, cancellation and cleanup contracts |
+| `01-bounded-index.cinch` | Runtime bounds decision and safe element access | `Nat`, `Fin`, `Vec`, `Option`, comparison decision procedure, borrowed access |
+| `02-vector-filter.cinch` | Recursive finite filter with dependent output length | Vector constructors, copying elements, total pure predicate |
+| `03-map-fusion.cinch` | Inductive proof and associated rewrite | Immutable finite `List`, total `map`, equality, `congr` |
+| `04-productive-stream.cinch` | Guarded infinite producer and mapping | A sound `Later` discipline and coinductive observations |
+| `05-schema-generator.cinch` | Compile-time database generator API | Stage I/O, snapshots, secret handles, declaration generator |
+| `06-counter-upgrade.cinch` | Concrete state migration and operation models | Natural arithmetic, consuming ownership, upgrade coordinator for deployment |
+| `07-rejected-programs.cinch` | Independent expected rejection cases | The rules identified by each case |
+| `08-platform-simd.cinch` | Target-specific wrapping reduction and dispatch | Instruction semantics, capability detection, memory proofs, and checked lowering |
+| `09-foreign-codec.cinch` | Foreign wrapper contract | Explicit native assumptions or isolation profile |
+| `10-wasm-component.cinch` and `codec.wit` | Checked component adapter | WIT bindings, host failure policy, runtime bound check |
+| `11-structured-tasks.cinch` | Scoped concurrent requests | Task outcome, cancellation and cleanup contracts |
 
 `Copy` permits intentional element duplication. Mathematical `Int` and `Nat` do not silently use wrapping machine arithmetic. Proof constructors are logical primitives or checked library lemmas. Named generator and runtime services describe required library contracts rather than pretend implementations.
 
@@ -53,7 +53,7 @@ The bisimulation outline compares heads and then guarded tails. A full implement
 
 # Schema generation
 
-The schema example scopes a compile-time database connection, captures introspection input, and passes the snapshot to a generator. No connection is attempted by this documentation package. The secret name is illustrative and contains no value. The check's build inputs are the `SCHEMA_DATABASE_URL` name present in the build environment and `SAFELANG_SCHEMA_TOOL` naming an introspection tool; `examples/source/schema-tool.sh` records a fixed snapshot so the example checks without a database.
+The schema example scopes a compile-time database connection, captures introspection input, and passes the snapshot to a generator. No connection is attempted by this documentation package. The secret name is illustrative and contains no value. The check's build inputs are the `SCHEMA_DATABASE_URL` name present in the build environment and `CINCH_SCHEMA_TOOL` naming an introspection tool; `examples/source/schema-tool.sh` records a fixed snapshot so the example checks without a database.
 
 Expected mode behavior: refresh obtains and records input; replay uses recorded input; live explicitly contacts the database. Generated declarations require checking. Runtime bindings require a compatible schema and a policy maintaining the facts they rely on.
 
@@ -218,7 +218,7 @@ module Billing where
   -- Refresh captures input, replay uses it, live explicitly contacts a database.
   -- Generated bindings are checked; runtime use needs schema compatibility.
   -- Build inputs: SCHEMA_DATABASE_URL present in the build environment
-  -- (referenced by name only) and SAFELANG_SCHEMA_TOOL naming the
+  -- (referenced by name only) and CINCH_SCHEMA_TOOL naming the
   -- introspection tool; examples/source/schema-tool.sh supplies a
   -- recorded snapshot so this checks without a live database.
 ```
@@ -309,7 +309,7 @@ module PlatformSum where
   -- Wasm can require separate variants selected before module instantiation.
 ```
 
-## 09-foreign-codec.lang
+## 09-foreign-codec.cinch
 
 ```haskell
 module ForeignCodecContract where
@@ -332,7 +332,7 @@ module ForeignCodecContract where
   -- Cancellation must not free buffers or unload callbacks before acknowledgment.
 ```
 
-## 10-wasm-component.lang
+## 10-wasm-component.cinch
 
 ```haskell
 -- Surface 0.2. Adapter sketch for codec.wit; host failure policy is explicit.
@@ -357,7 +357,7 @@ module CheckedComponentClient where
   -- Instance resource identity and trap policy survive adapter generation.
 ```
 
-## 11-structured-tasks.lang
+## 11-structured-tasks.cinch
 
 ```haskell
 -- Surface 0.2. Ordinary functions; no async/await function category.

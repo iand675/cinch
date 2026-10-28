@@ -1,4 +1,4 @@
-//! Compiled interface metadata: the `.sliface` artifact a compiled module
+//! Compiled interface metadata: the `.cinchif` artifact a compiled module
 //! publishes for its importers.
 //!
 //! Design: `design/compiled-interface-metadata.md`. The artifact is
@@ -225,7 +225,7 @@ pub struct FixityExport {
 /// structure offsets and alignment, ownership of returned allocations).
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ForeignParam {
-    /// The SafeLang type as written.
+    /// The Cinch type as written.
     pub ty: String,
     /// `unit`, `scalar`, `ptr`, or `aggregate`.
     pub class: String,
@@ -1612,7 +1612,7 @@ mod tests {
             },
             deallocator: String::new(),
         });
-        f.assumptions.primitives = vec!["safelang.prim.addInt".into()];
+        f.assumptions.primitives = vec!["cinch.prim.addInt".into()];
         f.assumptions.foreign = vec!["codec_open".into()];
         f
     }

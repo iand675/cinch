@@ -55,7 +55,7 @@ pub struct LocalId(pub usize);
 // specification (sections 4, 5, 6 and 7). Names follow decision D6: an
 // operation is a prelude-level name of the form `<op><Type>`
 // (`wrappingAddU32`) or `<src>To<dst>` for conversions, bound directly from
-// `foreign import ccall "safelang.prim.*"`.
+// `foreign import ccall "cinch.prim.*"`.
 
 /// Integer arithmetic operations (primitive types specification, section 4).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -284,7 +284,7 @@ impl ConvMode {
     }
 }
 
-/// Mathematical `Nat` operations (`safelang.runtime.nat*`). Words are
+/// Mathematical `Nat` operations (`cinch.runtime.nat*`). Words are
 /// boxed bignums (the runtime blocks); `Div`/`Rem` fault on a zero divisor
 /// and `Sub` faults when the result would be negative (the inductive `Nat`
 /// subtraction is truncated to exactness: it faults, it does not clamp).
@@ -320,19 +320,19 @@ impl NatOp {
     /// The runtime extern this operation is emitted against.
     pub fn extern_name(self) -> &'static str {
         match self {
-            NatOp::Add => "sl_nat_add",
-            NatOp::Sub => "sl_nat_sub",
-            NatOp::Mul => "sl_nat_mul",
-            NatOp::Div => "sl_nat_div",
-            NatOp::Rem => "sl_nat_rem",
-            NatOp::Cmp => "sl_nat_cmp",
-            NatOp::FromI64 => "sl_nat_from_i64",
-            NatOp::ToI64 => "sl_nat_to_i64",
+            NatOp::Add => "cinch_nat_add",
+            NatOp::Sub => "cinch_nat_sub",
+            NatOp::Mul => "cinch_nat_mul",
+            NatOp::Div => "cinch_nat_div",
+            NatOp::Rem => "cinch_nat_rem",
+            NatOp::Cmp => "cinch_nat_cmp",
+            NatOp::FromI64 => "cinch_nat_from_i64",
+            NatOp::ToI64 => "cinch_nat_to_i64",
         }
     }
 }
 
-/// Mathematical `Int` operations (`safelang.runtime.int*`). Words are
+/// Mathematical `Int` operations (`cinch.runtime.int*`). Words are
 /// boxed bignums (sign-magnitude); `Div`/`Rem` truncate toward zero and
 /// fault on a zero divisor.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -369,22 +369,22 @@ impl IntOp {
     /// The runtime extern this operation is emitted against.
     pub fn extern_name(self) -> &'static str {
         match self {
-            IntOp::Add => "sl_int_add",
-            IntOp::Sub => "sl_int_sub",
-            IntOp::Mul => "sl_int_mul",
-            IntOp::Div => "sl_int_div",
-            IntOp::Rem => "sl_int_rem",
-            IntOp::Neg => "sl_int_neg",
-            IntOp::Cmp => "sl_int_cmp",
-            IntOp::FromI64 => "sl_int_from_i64",
-            IntOp::ToI64 => "sl_int_to_i64",
+            IntOp::Add => "cinch_int_add",
+            IntOp::Sub => "cinch_int_sub",
+            IntOp::Mul => "cinch_int_mul",
+            IntOp::Div => "cinch_int_div",
+            IntOp::Rem => "cinch_int_rem",
+            IntOp::Neg => "cinch_int_neg",
+            IntOp::Cmp => "cinch_int_cmp",
+            IntOp::FromI64 => "cinch_int_from_i64",
+            IntOp::ToI64 => "cinch_int_to_i64",
         }
     }
 }
 
-/// `Bytes` operations (`safelang.runtime.bytes*`). The runtime externs
+/// `Bytes` operations (`cinch.runtime.bytes*`). The runtime externs
 /// take and return machine `i64` counts, indices and byte values; the
-/// intrinsic units convert through `sl_nat_to_i64`/`sl_nat_from_i64` (a
+/// intrinsic units convert through `cinch_nat_to_i64`/`cinch_nat_from_i64` (a
 /// `Nat` outside `i64` range faults, exit 71), and out-of-bounds indices
 /// and values outside `0..=255` fault (exit 71).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -412,16 +412,16 @@ impl BytesOp {
     /// The runtime extern this operation is emitted against.
     pub fn extern_name(self) -> &'static str {
         match self {
-            BytesOp::New => "sl_bytes_new",
-            BytesOp::Len => "sl_bytes_len",
-            BytesOp::Get => "sl_bytes_get",
-            BytesOp::Set => "sl_bytes_set",
+            BytesOp::New => "cinch_bytes_new",
+            BytesOp::Len => "cinch_bytes_len",
+            BytesOp::Get => "cinch_bytes_get",
+            BytesOp::Set => "cinch_bytes_set",
         }
     }
 }
 
-/// The UTF-8 string operations on `Bytes` buffers (`safelang.runtime.utf8*`;
-/// runtime ABI, `sl_utf8_*` over `compiler/runtime/src/string.rs`). The
+/// The UTF-8 string operations on `Bytes` buffers (`cinch.runtime.utf8*`;
+/// runtime ABI, `cinch_utf8_*` over `compiler/runtime/src/string.rs`). The
 /// surface `String` library is defined over these.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Utf8Op {
@@ -452,16 +452,16 @@ impl Utf8Op {
     /// The runtime extern this operation is emitted against.
     pub fn extern_name(self) -> &'static str {
         match self {
-            Utf8Op::Validate => "sl_utf8_validate",
-            Utf8Op::CountChars => "sl_utf8_count_chars",
-            Utf8Op::DecodeAt => "sl_utf8_decode_at",
-            Utf8Op::Encode => "sl_utf8_encode",
+            Utf8Op::Validate => "cinch_utf8_validate",
+            Utf8Op::CountChars => "cinch_utf8_count_chars",
+            Utf8Op::DecodeAt => "cinch_utf8_decode_at",
+            Utf8Op::Encode => "cinch_utf8_encode",
         }
     }
 }
 
-/// Interned symbol operations (`safelang.runtime.sym*`; runtime ABI,
-/// `sl_sym_*` over `compiler/runtime/src/sym.rs`). `Sym` is a one-word
+/// Interned symbol operations (`cinch.runtime.sym*`; runtime ABI,
+/// `cinch_sym_*` over `compiler/runtime/src/sym.rs`). `Sym` is a one-word
 /// handle to a process-wide interned name cell (primitive types
 /// specification section 9): `Eq` is the identity pointer test and
 /// `Cmp` orders by the name's bytes (never by cell address), so the
@@ -492,10 +492,10 @@ impl SymOp {
     /// The runtime extern this operation is emitted against.
     pub fn extern_name(self) -> &'static str {
         match self {
-            SymOp::Intern => "sl_sym_intern",
-            SymOp::Name => "sl_sym_name",
-            SymOp::Eq => "sl_sym_eq",
-            SymOp::Cmp => "sl_sym_cmp",
+            SymOp::Intern => "cinch_sym_intern",
+            SymOp::Name => "cinch_sym_name",
+            SymOp::Eq => "cinch_sym_eq",
+            SymOp::Cmp => "cinch_sym_cmp",
         }
     }
 }
@@ -504,7 +504,7 @@ impl SymOp {
 /// specification sections 2, 3, 4 and 9). These are builtin values with
 /// compiler-known polymorphic schemes (`Checker::install_concurrency_api`),
 /// not prelude foreign imports: their types mention `Scope`/`Task` region
-/// indices and effect rows. The units wrap the `sl_*` externs of the
+/// indices and effect rows. The units wrap the `cinch_*` externs of the
 /// runtime crate (`compiler/runtime/src/task.rs`); a task body is invoked
 /// through the closure apply-stub ABI documented in this module's header.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -532,18 +532,18 @@ pub enum ConcOp {
 }
 
 impl ConcOp {
-    /// The unit name this operation is emitted under (`safelang.runtime.*`).
+    /// The unit name this operation is emitted under (`cinch.runtime.*`).
     /// `joinAllOrCancel` units are per-width so each gets its own arity.
     pub fn symbol(self) -> String {
         use ConcOp::*;
         match self {
-            WithScope => "safelang.runtime.withScope".to_string(),
-            Spawn => "safelang.runtime.spawn".to_string(),
-            JoinN(n) => format!("safelang.runtime.joinAllOrCancel{n}"),
-            IoWrite => "safelang.runtime.ioWrite".to_string(),
-            IoRead => "safelang.runtime.ioRead".to_string(),
-            IoSleep => "safelang.runtime.ioSleep".to_string(),
-            PollCancel => "safelang.runtime.pollCancel".to_string(),
+            WithScope => "cinch.runtime.withScope".to_string(),
+            Spawn => "cinch.runtime.spawn".to_string(),
+            JoinN(n) => format!("cinch.runtime.joinAllOrCancel{n}"),
+            IoWrite => "cinch.runtime.ioWrite".to_string(),
+            IoRead => "cinch.runtime.ioRead".to_string(),
+            IoSleep => "cinch.runtime.ioSleep".to_string(),
+            PollCancel => "cinch.runtime.pollCancel".to_string(),
         }
     }
 
@@ -561,19 +561,19 @@ impl ConcOp {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum PrimOp {
     /// Mathematical `Nat` operations on boxed bignum words
-    /// (`safelang.runtime.nat*`; runtime ABI, `sl_nat_*`).
+    /// (`cinch.runtime.nat*`; runtime ABI, `cinch_nat_*`).
     Nat(NatOp),
     /// Mathematical `Int` operations on boxed bignum words
-    /// (`safelang.runtime.int*`; runtime ABI, `sl_int_*`).
+    /// (`cinch.runtime.int*`; runtime ABI, `cinch_int_*`).
     Int(IntOp),
     /// `Bytes` operations on boxed byte buffers
-    /// (`safelang.runtime.bytes*`; runtime ABI, `sl_bytes_*`).
+    /// (`cinch.runtime.bytes*`; runtime ABI, `cinch_bytes_*`).
     Bytes(BytesOp),
     /// UTF-8 string operations on boxed byte buffers
-    /// (`safelang.runtime.utf8*`; runtime ABI, `sl_utf8_*`).
+    /// (`cinch.runtime.utf8*`; runtime ABI, `cinch_utf8_*`).
     Utf8(Utf8Op),
     /// Interned symbol operations on name-cell handles
-    /// (`safelang.runtime.sym*`; runtime ABI, `sl_sym_*`).
+    /// (`cinch.runtime.sym*`; runtime ABI, `cinch_sym_*`).
     Sym(SymOp),
     EqBool,
     NeBool,
@@ -687,7 +687,7 @@ impl PrimOp {
     /// The intrinsic symbol names recognised on `foreign import ccall`.
     pub fn from_symbol(sym: &str) -> Option<PrimOp> {
         use PrimOp::*;
-        if let Some(name) = sym.strip_prefix("safelang.runtime.") {
+        if let Some(name) = sym.strip_prefix("cinch.runtime.") {
             return Some(match name {
                 "natAdd" => Nat(NatOp::Add),
                 "natSub" => Nat(NatOp::Sub),
@@ -721,7 +721,7 @@ impl PrimOp {
                 _ => return None,
             });
         }
-        let name = sym.strip_prefix("safelang.prim.")?;
+        let name = sym.strip_prefix("cinch.prim.")?;
         Some(match name {
             "eqBool" => EqBool,
             "neBool" => NeBool,
@@ -744,27 +744,27 @@ impl PrimOp {
     }
 
     /// The unit name this operation is emitted under (and the
-    /// `safelang.prim.*`/`safelang.runtime.*` foreign symbol it is bound
+    /// `cinch.prim.*`/`cinch.runtime.*` foreign symbol it is bound
     /// by).
     pub fn symbol(self) -> String {
         use PrimOp::*;
         let n = match self {
-            Nat(op) => return format!("safelang.runtime.nat{}", op.name()),
-            Int(op) => return format!("safelang.runtime.int{}", op.name()),
-            Bytes(op) => return format!("safelang.runtime.bytes{}", op.name()),
-            Utf8(op) => return format!("safelang.runtime.utf8{}", op.name()),
-            Sym(op) => return format!("safelang.runtime.sym{}", op.name()),
-            EqBool => return "safelang.prim.eqBool".to_string(),
-            NeBool => return "safelang.prim.neBool".to_string(),
-            NotBool => return "safelang.prim.notBool".to_string(),
-            AndBool => return "safelang.prim.andBool".to_string(),
-            OrBool => return "safelang.prim.orBool".to_string(),
-            Delay => return "safelang.prim.delay".to_string(),
-            Force => return "safelang.prim.force".to_string(),
-            Demand => return "safelang.prim.demand".to_string(),
-            CharToU32 => return "safelang.prim.charToU32".to_string(),
-            U32ToChar => return "safelang.prim.u32ToChar".to_string(),
-            Eval => return "safelang.prim.eval".to_string(),
+            Nat(op) => return format!("cinch.runtime.nat{}", op.name()),
+            Int(op) => return format!("cinch.runtime.int{}", op.name()),
+            Bytes(op) => return format!("cinch.runtime.bytes{}", op.name()),
+            Utf8(op) => return format!("cinch.runtime.utf8{}", op.name()),
+            Sym(op) => return format!("cinch.runtime.sym{}", op.name()),
+            EqBool => return "cinch.prim.eqBool".to_string(),
+            NeBool => return "cinch.prim.neBool".to_string(),
+            NotBool => return "cinch.prim.notBool".to_string(),
+            AndBool => return "cinch.prim.andBool".to_string(),
+            OrBool => return "cinch.prim.orBool".to_string(),
+            Delay => return "cinch.prim.delay".to_string(),
+            Force => return "cinch.prim.force".to_string(),
+            Demand => return "cinch.prim.demand".to_string(),
+            CharToU32 => return "cinch.prim.charToU32".to_string(),
+            U32ToChar => return "cinch.prim.u32ToChar".to_string(),
+            Eval => return "cinch.prim.eval".to_string(),
             Conc(k) => return k.symbol(),
             Bound { ty, max } => {
                 format!("{}Bound{}", if max { "max" } else { "min" }, ty.name())
@@ -795,7 +795,7 @@ impl PrimOp {
             TotalOrder { ty } => format!("totalOrder{}", ty.name()),
             Conv { from, to, mode } => conv_name(from, to, mode),
         };
-        format!("safelang.prim.{n}")
+        format!("cinch.prim.{n}")
     }
 
     pub fn arity(self) -> usize {
@@ -1191,20 +1191,20 @@ pub enum Core {
     /// Mathematical `Nat`/`Int` constant, carried as a decimal digit
     /// string with an optional leading `-` (`nat` selects the `Nat`
     /// runtime). Code generation materialises it through
-    /// `sl_nat_from_decimal`/`sl_int_from_decimal` over a private constant
-    /// string, with an `sl_nat_from_i64`/`sl_int_from_i64` fast path when
+    /// `cinch_nat_from_decimal`/`cinch_int_from_decimal` over a private constant
+    /// string, with an `cinch_nat_from_i64`/`cinch_int_from_i64` fast path when
     /// the value fits an `i64`.
     ConstBig { nat: bool, digits: String },
     /// Constant `Bytes` (the compile-time fold of a collection literal
     /// and the file converters' `txt`/`bytes` payloads). Code generation
     /// emits the contents as a private constant and materialises a fresh
-    /// buffer through `sl_bytes_from_data` (the P14 constant-emission
+    /// buffer through `cinch_bytes_from_data` (the P14 constant-emission
     /// path).
     ConstBytes(Vec<u8>),
     /// Constant `Sym`: the interned name of a tick literal (primitive
     /// types specification section 9). Code generation emits the name as
     /// a private constant and materialises the cell through
-    /// `sl_sym_intern` (the P14 constant-emission path); the runtime
+    /// `cinch_sym_intern` (the P14 constant-emission path); the runtime
     /// table is keyed by name, so `intern` of an equal name resolves to
     /// this same cell.
     ConstSym(String),
@@ -1277,7 +1277,7 @@ pub enum Core {
     /// reorders or propagates a read of `local` across it; later reads of
     /// `local` observe the new value.
     RefSet(LocalId, Box<Core>),
-    /// The runtime fault path: exit 70 through `__safelang_blackhole`,
+    /// The runtime fault path: exit 70 through `__cinch_blackhole`,
     /// reached when a match falls through with pattern coverage unprovable.
     Fault,
     /// A typed quotation template under construction (staging): the
@@ -2175,7 +2175,7 @@ pub struct CanonRet {
 /// section 2).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AbiParam {
-    /// The SafeLang type as written (contract text).
+    /// The Cinch type as written (contract text).
     pub ty: String,
     pub class: AbiClass,
     /// The ownership role: `value`, `raw`, `borrowed`, `retained`,
@@ -2246,7 +2246,7 @@ pub struct FnDef {
     /// Parameter names for diagnostics only.
     pub params: Vec<String>,
     pub body: Core,
-    /// Non-null for `foreign import ccall "safelang.prim.*"` functions; the
+    /// Non-null for `foreign import ccall "cinch.prim.*"` functions; the
     /// body is ignored and the primitive is emitted instead.
     pub prim: Option<PrimOp>,
     /// For constructors: `(tag, field_count)`; the body is generated as
@@ -5934,29 +5934,29 @@ mod tests {
     /// integer is never total.
     #[test]
     fn conversion_family_validation() {
-        let ok = PrimOp::from_symbol("safelang.prim.u8ToI32");
+        let ok = PrimOp::from_symbol("cinch.prim.u8ToI32");
         assert_eq!(
             ok,
             Some(PrimOp::Conv { from: Scalar::U8, to: Scalar::I32, mode: ConvMode::Total })
         );
-        assert!(PrimOp::from_symbol("safelang.prim.checkedU8ToI64").is_some());
-        assert!(PrimOp::from_symbol("safelang.prim.saturatingF64ToI32").is_some());
-        assert!(PrimOp::from_symbol("safelang.prim.wrappingU64ToU32").is_some());
-        assert!(PrimOp::from_symbol("safelang.prim.i64ToF64").is_some());
-        assert!(PrimOp::from_symbol("safelang.prim.f32ToF64").is_some());
-        assert!(PrimOp::from_symbol("safelang.prim.f64ToF32").is_some());
+        assert!(PrimOp::from_symbol("cinch.prim.checkedU8ToI64").is_some());
+        assert!(PrimOp::from_symbol("cinch.prim.saturatingF64ToI32").is_some());
+        assert!(PrimOp::from_symbol("cinch.prim.wrappingU64ToU32").is_some());
+        assert!(PrimOp::from_symbol("cinch.prim.i64ToF64").is_some());
+        assert!(PrimOp::from_symbol("cinch.prim.f32ToF64").is_some());
+        assert!(PrimOp::from_symbol("cinch.prim.f64ToF32").is_some());
         // No total form where values are lost, and none at all from a
         // float to an integer without a family.
-        assert!(PrimOp::from_symbol("safelang.prim.i32ToU8").is_none());
-        assert!(PrimOp::from_symbol("safelang.prim.u8ToI8").is_none());
-        assert!(PrimOp::from_symbol("safelang.prim.f64ToI32").is_none());
+        assert!(PrimOp::from_symbol("cinch.prim.i32ToU8").is_none());
+        assert!(PrimOp::from_symbol("cinch.prim.u8ToI8").is_none());
+        assert!(PrimOp::from_symbol("cinch.prim.f64ToI32").is_none());
         // Wrapping is integer-to-integer only.
-        assert!(PrimOp::from_symbol("safelang.prim.wrappingF64ToI32").is_none());
+        assert!(PrimOp::from_symbol("cinch.prim.wrappingF64ToI32").is_none());
         // Conversions never touch Char: `charToU32` and `u32ToChar` are
         // their own names.
-        assert!(PrimOp::from_symbol("safelang.prim.charToU32").is_some());
-        assert!(PrimOp::from_symbol("safelang.prim.u32ToChar").is_some());
-        assert!(PrimOp::from_symbol("safelang.prim.checkedU32ToChar").is_none());
+        assert!(PrimOp::from_symbol("cinch.prim.charToU32").is_some());
+        assert!(PrimOp::from_symbol("cinch.prim.u32ToChar").is_some());
+        assert!(PrimOp::from_symbol("cinch.prim.checkedU32ToChar").is_none());
     }
 
     /// The declared primitive types (primitive types specification,
@@ -5986,9 +5986,9 @@ mod tests {
         assert_eq!(res, Ty::Adt("Option".into(), vec![Ty::Prim(Scalar::Char)]));
     }
 
-    /// The legacy wrapping-64 `safelang.prim.*Int` family is retired: its
+    /// The legacy wrapping-64 `cinch.prim.*Int` family is retired: its
     /// symbols no longer resolve (the machine case is the P2 `*I64` and
-    /// `*I8`-`*U64` families, the mathematical case is `safelang.runtime.*`).
+    /// `*I8`-`*U64` families, the mathematical case is `cinch.runtime.*`).
     #[test]
     fn retired_int_family_does_not_resolve() {
         for name in [
@@ -5996,8 +5996,8 @@ mod tests {
             "leInt", "gtInt", "geInt",
         ] {
             assert!(
-                PrimOp::from_symbol(&format!("safelang.prim.{name}")).is_none(),
-                "safelang.prim.{name} must no longer resolve"
+                PrimOp::from_symbol(&format!("cinch.prim.{name}")).is_none(),
+                "cinch.prim.{name} must no longer resolve"
             );
         }
     }

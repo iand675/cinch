@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Drift check for the SafeLang tree-sitter grammar.
+# Drift check for the Cinch tree-sitter grammar.
 #
 # Regenerates the parser from grammar.js and runs the corpus tests in
-# tooling/tree-sitter-safelang/corpus/ (the parse-tree assertions are
+# tooling/tree-sitter-cinch/corpus/ (the parse-tree assertions are
 # the drift net for the lexical rules: the minus table, dash names, the
 # tick Char-vs-Symbol rule, `$` operator runs, attributes, and the
 # prim/contract forms). Any divergence from the asserted trees exits
@@ -17,7 +17,7 @@
 set -euo pipefail
 
 root="$(cd "$(dirname "$0")" && pwd)"
-grammar="$root/tree-sitter-safelang"
+grammar="$root/tree-sitter-cinch"
 
 TREE_SITTER="${TREE_SITTER:-tree-sitter}"
 if ! command -v "$TREE_SITTER" >/dev/null 2>&1; then

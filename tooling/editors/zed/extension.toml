@@ -1,10 +1,10 @@
-id = "safelang"
-name = "SafeLang"
+id = "cinch"
+name = "Cinch"
 version = "0.1.0"
 schema_version = 1
-description = "SafeLang surface syntax (draft 0.2 plus local amendments)"
-authors = ["SafeLang design repository"]
-[grammars.safelang]
-name = "safelang"
-language_name = "SafeLang"
-path = "../../tree-sitter-safelang"
+description = "Cinch surface syntax (draft 0.2 plus local amendments)"
+authors = ["Cinch design repository"]
+[grammars.cinch]
+name = "cinch"
+language_name = "Cinch"
+path = "../../tree-sitter-cinch"

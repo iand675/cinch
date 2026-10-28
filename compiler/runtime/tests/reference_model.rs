@@ -7,7 +7,7 @@
 //! cross-checked against the standard library's `Display` before it is used
 //! as an oracle elsewhere.
 
-use slruntime::{Error, Int, Nat};
+use cinchruntime::{Error, Int, Nat};
 
 // ---------------------------------------------------------------------------
 // Deterministic pseudo-randomness
@@ -307,43 +307,43 @@ fn to_decimal_cap_boundary_on_random_values() {
 #[test]
 fn extern_word_api_arithmetic_and_conversion() {
     unsafe {
-        let a = slruntime::abi::sl_int_from_i64(i64::MIN);
-        let one = slruntime::abi::sl_int_from_i64(1);
-        assert_eq!(slruntime::abi::sl_int_to_i64(a), i64::MIN);
+        let a = cinchruntime::abi::cinch_int_from_i64(i64::MIN);
+        let one = cinchruntime::abi::cinch_int_from_i64(1);
+        assert_eq!(cinchruntime::abi::cinch_int_to_i64(a), i64::MIN);
         assert_eq!(
-            slruntime::abi::sl_int_to_i64(slruntime::abi::sl_int_add(a, one)),
+            cinchruntime::abi::cinch_int_to_i64(cinchruntime::abi::cinch_int_add(a, one)),
             i64::MIN + 1
         );
         // i64::MIN - 1 does not fit: the word is produced fine but the
         // conversion reports the range error (as an exit fault at the
         // extern layer, so only the fits predicate is safe to probe).
-        let under = slruntime::abi::sl_int_sub(a, one);
-        assert_eq!(slruntime::abi::sl_int_fits_i64(under), 0);
-        assert_eq!(slruntime::abi::sl_int_cmp(a, under), 1);
+        let under = cinchruntime::abi::cinch_int_sub(a, one);
+        assert_eq!(cinchruntime::abi::cinch_int_fits_i64(under), 0);
+        assert_eq!(cinchruntime::abi::cinch_int_cmp(a, under), 1);
     }
 }
 
 #[test]
 fn extern_word_api_nat_boundaries_and_decimal() {
     unsafe {
-        let max = slruntime::abi::sl_nat_from_i64(i64::MAX);
-        assert_eq!(slruntime::abi::sl_nat_fits_i64(max), 1);
-        let one = slruntime::abi::sl_nat_from_i64(1);
-        let over = slruntime::abi::sl_nat_add(max, one);
-        assert_eq!(slruntime::abi::sl_nat_fits_i64(over), 0);
+        let max = cinchruntime::abi::cinch_nat_from_i64(i64::MAX);
+        assert_eq!(cinchruntime::abi::cinch_nat_fits_i64(max), 1);
+        let one = cinchruntime::abi::cinch_nat_from_i64(1);
+        let over = cinchruntime::abi::cinch_nat_add(max, one);
+        assert_eq!(cinchruntime::abi::cinch_nat_fits_i64(over), 0);
 
         // Decimal round trip through the extern entry points.
         let text = b"340282366920938463463374607431768211455"; // 2^128 - 1
-        let w = slruntime::abi::sl_nat_from_decimal(text.as_ptr(), text.len());
-        assert_eq!(slruntime::abi::sl_nat_decimal_len(w), text.len());
+        let w = cinchruntime::abi::cinch_nat_from_decimal(text.as_ptr(), text.len());
+        assert_eq!(cinchruntime::abi::cinch_nat_decimal_len(w), text.len());
         let mut buf = [0u8; 64];
-        let n = slruntime::abi::sl_nat_to_decimal(w, buf.as_mut_ptr(), buf.len());
+        let n = cinchruntime::abi::cinch_nat_to_decimal(w, buf.as_mut_ptr(), buf.len());
         assert_eq!(&buf[..n], text);
 
         // Comparison words.
-        assert_eq!(slruntime::abi::sl_nat_cmp(one, max), -1);
-        assert_eq!(slruntime::abi::sl_nat_cmp(max, one), 1);
-        assert_eq!(slruntime::abi::sl_nat_cmp(max, max), 0);
+        assert_eq!(cinchruntime::abi::cinch_nat_cmp(one, max), -1);
+        assert_eq!(cinchruntime::abi::cinch_nat_cmp(max, one), 1);
+        assert_eq!(cinchruntime::abi::cinch_nat_cmp(max, max), 0);
     }
 }
 
@@ -360,11 +360,11 @@ fn extern_word_api_fault_codes_are_the_documented_ones() {
 fn extern_alloc_zero_fills_blocks() {
     unsafe {
         for size in [1i64, 7, 8, 9, 4096] {
-            let p = slruntime::abi::sl_alloc(size);
+            let p = cinchruntime::abi::cinch_alloc(size);
             assert_ne!(p, 0);
             let bytes = std::slice::from_raw_parts(p as *const u8, size as usize);
             assert!(bytes.iter().all(|&b| b == 0), "size {size}");
-            slruntime::abi::sl_free(p);
+            cinchruntime::abi::cinch_free(p);
         }
     }
 }

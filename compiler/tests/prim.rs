@@ -7,21 +7,21 @@
 //! observation (design/llvm-contract-attributes.md), never wiring
 //! tests.
 
-use safelang::check::StageMode;
-use safelang::core::TargetProfile;
-use safelang::driver::{check_sources, check_sources_profile, driver_with_profile, run_source, Mode};
+use cinch::check::StageMode;
+use cinch::core::TargetProfile;
+use cinch::driver::{check_sources, check_sources_profile, driver_with_profile, run_source, Mode};
 use std::path::PathBuf;
 
 /// The `prim` acceptance fixture: one prim with `llvm` and `asm` bodies
 /// carrying immediate parameters.
-const BODIES: &str = include_str!("fixtures/prim/bodies.lang");
+const BODIES: &str = include_str!("fixtures/prim/bodies.cinch");
 
 /// The emitted LLVM IR of one checked source (every IR test carries a
 /// `main`, which code generation requires).
 fn ir_of(name: &str, src: &str) -> String {
     let program =
         check_sources(src, "<test>").unwrap_or_else(|e| panic!("{name}: check failed: {e}"));
-    safelang::codegen::emit(&program).unwrap_or_else(|e| panic!("{name}: emit failed: {e}"))
+    cinch::codegen::emit(&program).unwrap_or_else(|e| panic!("{name}: emit failed: {e}"))
 }
 
 /// The one line of `ir` defining one unit (`define ...`).
@@ -71,19 +71,19 @@ fn expect_err(name: &str, src: &str, needle: &str) {
 /// directory.
 fn write_project(name: &str, src: &str) -> PathBuf {
     let dir = std::env::temp_dir().join(format!(
-        "safelang-prim-{}-{name}",
+        "cinch-prim-{}-{name}",
         std::process::id()
     ));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).expect("temp project");
-    std::fs::write(dir.join("Main.lang"), src).expect("write Main.lang");
+    std::fs::write(dir.join("Main.cinch"), src).expect("write Main.cinch");
     dir
 }
 
 /// The artifact manifest of one checked source under `profile`.
 fn manifest_of(name: &str, src: &str, profile: &TargetProfile) -> String {
     let dir = write_project(name, src);
-    driver_with_profile(Mode::Check, StageMode::Refresh, &dir.join("Main.lang"), None, profile)
+    driver_with_profile(Mode::Check, StageMode::Refresh, &dir.join("Main.cinch"), None, profile)
         .unwrap_or_else(|e| panic!("{name}: check run failed: {e}"));
     std::fs::read_to_string(dir.join("build/Main.manifest.json"))
         .unwrap_or_else(|e| panic!("{name}: manifest missing: {e}"))
@@ -303,17 +303,17 @@ module Main where
     assert!(body_of(&ir0, "Main.pick.llvm").contains("add i32 %0, 1"), "{ir0}");
     let ir1_program =
         check_sources_profile(src, "pick-cap", &capped).expect("the capped artifact checks");
-    let ir1 = safelang::codegen::emit(&ir1_program).expect("emit");
+    let ir1 = cinch::codegen::emit(&ir1_program).expect("emit");
     assert!(body_of(&ir1, "Main.pick.llvm").contains("add i32 1, %0"), "{ir1}");
     assert_eq!(run_source(src).expect("baseline run"), 0);
 
     // Selection is representation: the contract projection carries no
     // family and no condition.
     let dir = write_project("pick-iface", src);
-    driver_with_profile(Mode::Check, StageMode::Refresh, &dir.join("Main.lang"), None, &capped)
+    driver_with_profile(Mode::Check, StageMode::Refresh, &dir.join("Main.cinch"), None, &capped)
         .expect("check run");
     let iface =
-        std::fs::read_to_string(dir.join("build/Main.sliface")).expect("interface");
+        std::fs::read_to_string(dir.join("build/Main.cinchif")).expect("interface");
     assert!(!iface.contains("Available"), "{iface}");
     assert!(!iface.contains("VecU32Target"), "{iface}");
 }
@@ -564,7 +564,7 @@ module Main where
     assert!(mx.contains("condition holds in the target profile"), "{mx}");
     let irx = {
         let p = check_sources_profile(src, "pop-x86", &x86).expect("x86 checks");
-        safelang::codegen::emit(&p).expect("emit")
+        cinch::codegen::emit(&p).expect("emit")
     };
     assert!(body_of(&irx, "Main.pop.asm").contains("popcnt"), "{irx}");
     assert!(!irx.contains("cnt\\0A") && !body_of(&irx, "Main.pop.asm").contains(" cnt"), "{irx}");
@@ -574,7 +574,7 @@ module Main where
     assert!(ma.contains("arch aarch64"), "{ma}");
     let ira = {
         let p = check_sources_profile(src, "pop-arm", &arm).expect("arm checks");
-        safelang::codegen::emit(&p).expect("emit")
+        cinch::codegen::emit(&p).expect("emit")
     };
     assert!(body_of(&ira, "Main.pop.asm").contains("cnt"), "{ira}");
     assert!(!body_of(&ira, "Main.pop.asm").contains("popcnt"), "{ira}");
@@ -586,7 +586,7 @@ module Main where
     assert!(!mo.contains("arch x86_64\\\""), "{mo}");
     let iro = {
         let p = check_sources_profile(src, "pop-other", &other).expect("other checks");
-        safelang::codegen::emit(&p).expect("emit")
+        cinch::codegen::emit(&p).expect("emit")
     };
     assert!(body_of(&iro, "Main.pop.llvm").contains("ret i32"), "{iro}");
     assert!(!iro.contains("Main.pop.asm"), "{iro}");
@@ -595,9 +595,9 @@ module Main where
     // platform, and the program's behavior does not depend on the body
     // chosen.
     let dir = write_project("pop-iface", src);
-    driver_with_profile(Mode::Check, StageMode::Refresh, &dir.join("Main.lang"), None, &x86)
+    driver_with_profile(Mode::Check, StageMode::Refresh, &dir.join("Main.cinch"), None, &x86)
         .expect("check run");
-    let iface = std::fs::read_to_string(dir.join("build/Main.sliface")).expect("interface");
+    let iface = std::fs::read_to_string(dir.join("build/Main.cinchif")).expect("interface");
     assert!(!iface.contains("x86_64") && !iface.contains("arch "), "{iface}");
 }
 

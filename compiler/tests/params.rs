@@ -1,15 +1,15 @@
 //! Module parameters and signatures as module arguments (modules
 //! specification section 1; the A5 row of the P16 table): parameter
 //! blocks with signature-typed and value-typed parameters, instantiation
-//! with dictionary-passing semantics, parameter identity in `.sliface`,
+//! with dictionary-passing semantics, parameter identity in `.cinchif`,
 //! and intact instance coherence. These tests drive the real CLI pipeline.
 
-use safelang::driver::{driver, Mode};
+use cinch::driver::{driver, Mode};
 use std::path::{Path, PathBuf};
 
 fn write_project(files: &[(&str, &str)]) -> PathBuf {
     let dir = std::env::temp_dir().join(format!(
-        "safelang_paramtest_{}_{}",
+        "cinch_paramtest_{}_{}",
         std::process::id(),
         files.as_ptr() as usize
     ));
@@ -52,10 +52,10 @@ fn two_instantiations_observe_different_dictionaries() {
     // `Tally` takes its stepping dictionary as a module argument; the two
     // units observe different dictionaries and compute differently.
     let dir = write_project(&[
-        ("Api.lang", API),
-        ("Tally.lang", TALLY),
+        ("Api.cinch", API),
+        ("Tally.cinch", TALLY),
         (
-            "Main.lang",
+            "Main.cinch",
             "module Main where\n\
              \x20 import Api\n\
              \x20 import Tally (StepUp) as Up\n\
@@ -64,7 +64,7 @@ fn two_instantiations_observe_different_dictionaries() {
              \x20 main = if Up.bump 1 == 2 && Down.bump 1 == 0 then 0 else 1\n",
         ),
     ]);
-    let code = run_entry(&dir, "Main.lang").expect("two instantiations run");
+    let code = run_entry(&dir, "Main.cinch").expect("two instantiations run");
     assert_eq!(code, 0);
 }
 
@@ -76,7 +76,7 @@ fn signature_passed_as_a_parameter_sequences_through_it() {
     // both the Ok flow and the Err short-circuit of `ResultSequencing`.
     let dir = write_project(&[
         (
-            "Lib.lang",
+            "Lib.cinch",
             "module Lib where\n\
              \x20 data ConfigError where\n\
              \x20   Bad :: ConfigError\n\
@@ -90,7 +90,7 @@ fn signature_passed_as_a_parameter_sequences_through_it() {
              \x20   Err _ -> 0\n",
         ),
         (
-            "ImportConfig.lang",
+            "ImportConfig.cinch",
             "module ImportConfig (Seq :: ResultSequencing ConfigError) where\n\
              \x20 import Lib\n\
              \x20 load :: Int -> Result ConfigError Int\n\
@@ -100,7 +100,7 @@ fn signature_passed_as_a_parameter_sequences_through_it() {
              \x20   pure w\n",
         ),
         (
-            "Main.lang",
+            "Main.cinch",
             "module Main where\n\
              \x20 import Lib\n\
              \x20 import ImportConfig (SeqResult) as IC\n\
@@ -108,7 +108,7 @@ fn signature_passed_as_a_parameter_sequences_through_it() {
              \x20 main = if fromOk (IC.load 2) == 103 && fromOk (IC.load 0) == 0 then 0 else 1\n",
         ),
     ]);
-    let code = run_entry(&dir, "Main.lang").expect("sequencing parameter run");
+    let code = run_entry(&dir, "Main.cinch").expect("sequencing parameter run");
     assert_eq!(code, 0);
 }
 
@@ -118,19 +118,19 @@ fn value_parameter_is_an_ordinary_binding() {
     // scope, supplied as a static value or literal at instantiation.
     let dir = write_project(&[
         (
-            "Lib.lang",
+            "Lib.cinch",
             "module Lib where\n\
              \x20 base :: Int\n\
              \x20 base = 41\n",
         ),
         (
-            "AddK.lang",
+            "AddK.cinch",
             "module AddK (k :: Int) where\n\
              \x20 bump :: Int -> Int\n\
              \x20 bump x = x + k\n",
         ),
         (
-            "Main.lang",
+            "Main.cinch",
             "module Main where\n\
              \x20 import Lib\n\
              \x20 import AddK (base) as ByName\n\
@@ -139,7 +139,7 @@ fn value_parameter_is_an_ordinary_binding() {
              \x20 main = if ByName.bump 1 == 42 && ByLit.bump 1 == 2 then 0 else 1\n",
         ),
     ]);
-    let code = run_entry(&dir, "Main.lang").expect("value parameter run");
+    let code = run_entry(&dir, "Main.cinch").expect("value parameter run");
     assert_eq!(code, 0);
 }
 
@@ -147,45 +147,45 @@ fn value_parameter_is_an_ordinary_binding() {
 fn wrong_typed_instantiation_is_rejected() {
     // A dictionary of the wrong signature.
     let dir = write_project(&[
-        ("Api.lang", API),
-        ("Tally.lang", TALLY),
+        ("Api.cinch", API),
+        ("Tally.cinch", TALLY),
         (
-            "Main.lang",
+            "Main.cinch",
             "module Main where\n\
              \x20 import Tally (SeqDirect) as X\n\
              \x20 main :: Int\n\
              \x20 main = 0\n",
         ),
     ]);
-    let err = check_entry(&dir, "Main.lang").expect_err("wrong signature");
+    let err = check_entry(&dir, "Main.cinch").expect_err("wrong signature");
     assert!(err.contains("does not match module parameter type"), "{err}");
 
     // A literal where the parameter is a dictionary.
     let dir = write_project(&[
-        ("Api.lang", API),
-        ("Tally.lang", TALLY),
+        ("Api.cinch", API),
+        ("Tally.cinch", TALLY),
         (
-            "Main.lang",
+            "Main.cinch",
             "module Main where\n\
              \x20 import Tally (42) as X\n\
              \x20 main :: Int\n\
              \x20 main = 0\n",
         ),
     ]);
-    let err = check_entry(&dir, "Main.lang").expect_err("literal dictionary");
+    let err = check_entry(&dir, "Main.cinch").expect_err("literal dictionary");
     assert!(err.contains("is a dictionary"), "{err}");
 
     // An instance named where a value is wanted.
     let dir = write_project(&[
-        ("Api.lang", API),
+        ("Api.cinch", API),
         (
-            "AddK.lang",
+            "AddK.cinch",
             "module AddK (k :: Int) where\n\
              \x20 bump :: Int -> Int\n\
              \x20 bump x = x + k\n",
         ),
         (
-            "Main.lang",
+            "Main.cinch",
             "module Main where\n\
              \x20 import Api\n\
              \x20 import AddK (StepUp) as X\n\
@@ -193,50 +193,50 @@ fn wrong_typed_instantiation_is_rejected() {
              \x20 main = 0\n",
         ),
     ]);
-    let err = check_entry(&dir, "Main.lang").expect_err("dictionary value");
+    let err = check_entry(&dir, "Main.cinch").expect_err("dictionary value");
     assert!(err.contains("is a dictionary, but module parameter"), "{err}");
 
     // The wrong number of arguments.
     let dir = write_project(&[
-        ("Api.lang", API),
-        ("Tally.lang", TALLY),
+        ("Api.cinch", API),
+        ("Tally.cinch", TALLY),
         (
-            "Main.lang",
+            "Main.cinch",
             "module Main where\n\
              \x20 import Tally (StepUp, StepDown) as X\n\
              \x20 main :: Int\n\
              \x20 main = 0\n",
         ),
     ]);
-    let err = check_entry(&dir, "Main.lang").expect_err("arity");
+    let err = check_entry(&dir, "Main.cinch").expect_err("arity");
     assert!(err.contains("takes 1 module arguments, got 2"), "{err}");
 
     // An unknown dictionary name.
     let dir = write_project(&[
-        ("Api.lang", API),
-        ("Tally.lang", TALLY),
+        ("Api.cinch", API),
+        ("Tally.cinch", TALLY),
         (
-            "Main.lang",
+            "Main.cinch",
             "module Main where\n\
              \x20 import Tally (NoSuchInstance) as X\n\
              \x20 main :: Int\n\
              \x20 main = 0\n",
         ),
     ]);
-    let err = check_entry(&dir, "Main.lang").expect_err("unknown instance");
+    let err = check_entry(&dir, "Main.cinch").expect_err("unknown instance");
     assert!(err.contains("unknown instance NoSuchInstance"), "{err}");
 }
 
 #[test]
 fn parameter_identity_is_recorded_and_instantiation_is_representation() {
-    // With instantiations: `Tally.sliface` records the parameter
-    // signatures (contract projection), `Main.sliface` records the units
+    // With instantiations: `Tally.cinchif` records the parameter
+    // signatures (contract projection), `Main.cinchif` records the units
     // with distinct computed identities (representation).
     let with_units = write_project(&[
-        ("Api.lang", API),
-        ("Tally.lang", TALLY),
+        ("Api.cinch", API),
+        ("Tally.cinch", TALLY),
         (
-            "Main.lang",
+            "Main.cinch",
             "module Main where\n\
              \x20 import Api\n\
              \x20 import Tally (StepUp) as Up\n\
@@ -245,14 +245,14 @@ fn parameter_identity_is_recorded_and_instantiation_is_representation() {
              \x20 main = if Up.bump 1 == 2 && Down.bump 1 == 0 then 0 else 1\n",
         ),
     ]);
-    check_entry(&with_units, "Main.lang").expect("check with units");
+    check_entry(&with_units, "Main.cinch").expect("check with units");
     let tally_text =
-        std::fs::read_to_string(with_units.join("build/Tally.sliface")).expect("Tally iface");
-    let tally = safelang::interface::Iface::from_json(&tally_text).expect("parse Tally iface");
+        std::fs::read_to_string(with_units.join("build/Tally.cinchif")).expect("Tally iface");
+    let tally = cinch::interface::Iface::from_json(&tally_text).expect("parse Tally iface");
     assert_eq!(tally.params, vec!["S :: Stepper".to_string()], "{tally_text}");
     let main_text =
-        std::fs::read_to_string(with_units.join("build/Main.sliface")).expect("Main iface");
-    let main = safelang::interface::Iface::from_json(&main_text).expect("parse Main iface");
+        std::fs::read_to_string(with_units.join("build/Main.cinchif")).expect("Main iface");
+    let main = cinch::interface::Iface::from_json(&main_text).expect("parse Main iface");
     assert_eq!(main.units.len(), 2, "{main_text}");
     let names: Vec<&str> = main.units.iter().map(|u| u.name.as_str()).collect();
     assert!(names.contains(&"Up") && names.contains(&"Down"), "{names:?}");
@@ -267,10 +267,10 @@ fn parameter_identity_is_recorded_and_instantiation_is_representation() {
     // Without instantiations: the parameterized module's contract hash is
     // unchanged (instantiation is representation, not contract).
     let without_units = write_project(&[
-        ("Api.lang", API),
-        ("Tally.lang", TALLY),
+        ("Api.cinch", API),
+        ("Tally.cinch", TALLY),
         (
-            "Main.lang",
+            "Main.cinch",
             "module Main where\n\
              \x20 import Api\n\
              \x20 import Tally\n\
@@ -278,11 +278,11 @@ fn parameter_identity_is_recorded_and_instantiation_is_representation() {
              \x20 main = 0\n",
         ),
     ]);
-    check_entry(&without_units, "Main.lang").expect("check without units");
+    check_entry(&without_units, "Main.cinch").expect("check without units");
     let tally2_text =
-        std::fs::read_to_string(without_units.join("build/Tally.sliface")).expect("Tally iface 2");
+        std::fs::read_to_string(without_units.join("build/Tally.cinchif")).expect("Tally iface 2");
     let tally2 =
-        safelang::interface::Iface::from_json(&tally2_text).expect("parse Tally iface 2");
+        cinch::interface::Iface::from_json(&tally2_text).expect("parse Tally iface 2");
     assert_eq!(
         tally.iface_hash(),
         tally2.iface_hash(),
@@ -292,10 +292,10 @@ fn parameter_identity_is_recorded_and_instantiation_is_representation() {
     // The instantiator's own contract is likewise unchanged by which
     // units it declares (the units are representation).
     let one_unit = write_project(&[
-        ("Api.lang", API),
-        ("Tally.lang", TALLY),
+        ("Api.cinch", API),
+        ("Tally.cinch", TALLY),
         (
-            "Main.lang",
+            "Main.cinch",
             "module Main where\n\
              \x20 import Api\n\
              \x20 import Tally (StepUp) as Up\n\
@@ -303,10 +303,10 @@ fn parameter_identity_is_recorded_and_instantiation_is_representation() {
              \x20 main = 0\n",
         ),
     ]);
-    check_entry(&one_unit, "Main.lang").expect("check one unit");
+    check_entry(&one_unit, "Main.cinch").expect("check one unit");
     let main1_text =
-        std::fs::read_to_string(one_unit.join("build/Main.sliface")).expect("Main iface 1");
-    let main1 = safelang::interface::Iface::from_json(&main1_text).expect("parse Main iface 1");
+        std::fs::read_to_string(one_unit.join("build/Main.cinchif")).expect("Main iface 1");
+    let main1 = cinch::interface::Iface::from_json(&main1_text).expect("parse Main iface 1");
     assert_eq!(main.units.len(), 2);
     assert_eq!(main1.units.len(), 1);
     assert_eq!(
@@ -321,10 +321,10 @@ fn direct_use_of_a_parameterized_module_is_rejected() {
     // A parameterized module's functions are reached through an
     // instantiation unit, never directly.
     let dir = write_project(&[
-        ("Api.lang", API),
-        ("Tally.lang", TALLY),
+        ("Api.cinch", API),
+        ("Tally.cinch", TALLY),
         (
-            "Main.lang",
+            "Main.cinch",
             "module Main where\n\
              \x20 import Api\n\
              \x20 import Tally\n\
@@ -332,7 +332,7 @@ fn direct_use_of_a_parameterized_module_is_rejected() {
              \x20 main = Tally.bump 1\n",
         ),
     ]);
-    let err = check_entry(&dir, "Main.lang").expect_err("direct use");
+    let err = check_entry(&dir, "Main.cinch").expect_err("direct use");
     assert!(err.contains("reach it through an instantiation"), "{err}");
 }
 
@@ -354,10 +354,10 @@ fn instances_from_two_instantiations_do_not_merge() {
         \x20 implicit instance LocalTag :: Tag where\n\
         \x20   tag x = 3\n";
     let dir = write_project(&[
-        ("Api.lang", api),
-        ("Pub.lang", pub_mod),
+        ("Api.cinch", api),
+        ("Pub.cinch", pub_mod),
         (
-            "Main.lang",
+            "Main.cinch",
             "module Main where\n\
              \x20 import Api\n\
              \x20 import Pub (TagA) as A\n\
@@ -366,16 +366,16 @@ fn instances_from_two_instantiations_do_not_merge() {
              \x20 main = if tag 0 == 3 then 0 else 1\n",
         ),
     ]);
-    let err = check_entry(&dir, "Main.lang").expect_err("two published instances");
+    let err = check_entry(&dir, "Main.cinch").expect_err("two published instances");
     assert!(err.contains("ambiguous instance"), "{err}");
 
     // One instantiation publishes one instance: coherent, and the use
     // site resolves through it.
     let dir = write_project(&[
-        ("Api.lang", api),
-        ("Pub.lang", pub_mod),
+        ("Api.cinch", api),
+        ("Pub.cinch", pub_mod),
         (
-            "Main.lang",
+            "Main.cinch",
             "module Main where\n\
              \x20 import Api\n\
              \x20 import Pub (TagA) as A\n\
@@ -383,6 +383,6 @@ fn instances_from_two_instantiations_do_not_merge() {
              \x20 main = if tag 0 == 3 then 0 else 1\n",
         ),
     ]);
-    let code = run_entry(&dir, "Main.lang").expect("one published instance");
+    let code = run_entry(&dir, "Main.cinch").expect("one published instance");
     assert_eq!(code, 0);
 }

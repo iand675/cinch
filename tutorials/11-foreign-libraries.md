@@ -45,7 +45,7 @@ Callbacks need a stable trampoline and a registration resource. Closing that res
 
 Would changing the result type to `Result<DecodeError, Bytes>` remove the need to trust the native library's memory behavior? No: weakening the result contract removes a length theorem, not the pointer and lifetime obligations. To reduce that trust, change the implementation evidence or isolation boundary.
 
-See the foreign interface specification for layouts, callbacks, unwinding, linkage and deployment policy. The source example is `examples/09-foreign-codec.lang`.
+See the foreign interface specification for layouts, callbacks, unwinding, linkage and deployment policy. The source example is `examples/09-foreign-codec.cinch`.
 
 [Documentation overview](../overview.md)
 

@@ -16,7 +16,7 @@ pub enum Mode {
 /// The prelude facade: the curated re-export surface (the prelude
 /// split's implicit base layer). Its fixity table is the base table
 /// every module parses against.
-pub const PRELUDE_FACADE: &str = include_str!("../prelude/Prelude.lang");
+pub const PRELUDE_FACADE: &str = include_str!("../prelude/Prelude.cinch");
 
 /// The base library's scheme homes (the prelude split), embedded so
 /// every compilation sees them. The list is in dependency order
@@ -30,67 +30,67 @@ pub const PRELUDE_FACADE: &str = include_str!("../prelude/Prelude.lang");
 /// these (its `export` items read their surfaces) and before
 /// [`PRELUDE_LATE`].
 pub const PRELUDE_EARLY: &[(&str, &str)] = &[
-    ("Relation/Eq.lang", include_str!("../prelude/Relation/Eq.lang")),
-    ("Relation/Ord.lang", include_str!("../prelude/Relation/Ord.lang")),
-    ("Algebra/Arithmetic.lang", include_str!("../prelude/Algebra/Arithmetic.lang")),
-    ("Algebra/Bits.lang", include_str!("../prelude/Algebra/Bits.lang")),
-    ("Function/Combinators.lang", include_str!("../prelude/Function/Combinators.lang")),
-    ("Data/Nat.lang", include_str!("../prelude/Data/Nat.lang")),
-    ("Data/Int.lang", include_str!("../prelude/Data/Int.lang")),
-    ("Data/Option.lang", include_str!("../prelude/Data/Option.lang")),
-    ("Data/Result.lang", include_str!("../prelude/Data/Result.lang")),
-    ("Data/List.lang", include_str!("../prelude/Data/List.lang")),
+    ("Relation/Eq.cinch", include_str!("../prelude/Relation/Eq.cinch")),
+    ("Relation/Ord.cinch", include_str!("../prelude/Relation/Ord.cinch")),
+    ("Algebra/Arithmetic.cinch", include_str!("../prelude/Algebra/Arithmetic.cinch")),
+    ("Algebra/Bits.cinch", include_str!("../prelude/Algebra/Bits.cinch")),
+    ("Function/Combinators.cinch", include_str!("../prelude/Function/Combinators.cinch")),
+    ("Data/Nat.cinch", include_str!("../prelude/Data/Nat.cinch")),
+    ("Data/Int.cinch", include_str!("../prelude/Data/Int.cinch")),
+    ("Data/Option.cinch", include_str!("../prelude/Data/Option.cinch")),
+    ("Data/Result.cinch", include_str!("../prelude/Data/Result.cinch")),
+    ("Data/List.cinch", include_str!("../prelude/Data/List.cinch")),
     // The enumeration class behind the range literals collects after
     // `Data.List` (its `List` type); its instances live with their
     // types in `Data.Nat`/`Data.Int`.
-    ("Data/Enum.lang", include_str!("../prelude/Data/Enum.lang")),
-    ("Data/Ordering.lang", include_str!("../prelude/Data/Ordering.lang")),
-    ("Data/Char.lang", include_str!("../prelude/Data/Char.lang")),
-    ("Data/Bool.lang", include_str!("../prelude/Data/Bool.lang")),
-    ("Data/Machine.lang", include_str!("../prelude/Data/Machine.lang")),
-    ("Data/Bytes.lang", include_str!("../prelude/Data/Bytes.lang")),
-    ("Data/Map.lang", include_str!("../prelude/Data/Map.lang")),
-    ("Data/String.lang", include_str!("../prelude/Data/String.lang")),
-    ("Data/Json.lang", include_str!("../prelude/Data/Json.lang")),
-    ("Data/Producer.lang", include_str!("../prelude/Data/Producer.lang")),
-    ("Data/Target.lang", include_str!("../prelude/Data/Target.lang")),
-    ("Effect/Sequencing.lang", include_str!("../prelude/Effect/Sequencing.lang")),
-    ("Effect/Concurrent.lang", include_str!("../prelude/Effect/Concurrent.lang")),
-    ("Effect/Io.lang", include_str!("../prelude/Effect/Io.lang")),
-    ("Data/FromList.lang", include_str!("../prelude/Data/FromList.lang")),
-    ("Data/FromMap.lang", include_str!("../prelude/Data/FromMap.lang")),
-    ("Text/Show.lang", include_str!("../prelude/Text/Show.lang")),
+    ("Data/Enum.cinch", include_str!("../prelude/Data/Enum.cinch")),
+    ("Data/Ordering.cinch", include_str!("../prelude/Data/Ordering.cinch")),
+    ("Data/Char.cinch", include_str!("../prelude/Data/Char.cinch")),
+    ("Data/Bool.cinch", include_str!("../prelude/Data/Bool.cinch")),
+    ("Data/Machine.cinch", include_str!("../prelude/Data/Machine.cinch")),
+    ("Data/Bytes.cinch", include_str!("../prelude/Data/Bytes.cinch")),
+    ("Data/Map.cinch", include_str!("../prelude/Data/Map.cinch")),
+    ("Data/String.cinch", include_str!("../prelude/Data/String.cinch")),
+    ("Data/Json.cinch", include_str!("../prelude/Data/Json.cinch")),
+    ("Data/Producer.cinch", include_str!("../prelude/Data/Producer.cinch")),
+    ("Data/Target.cinch", include_str!("../prelude/Data/Target.cinch")),
+    ("Effect/Sequencing.cinch", include_str!("../prelude/Effect/Sequencing.cinch")),
+    ("Effect/Concurrent.cinch", include_str!("../prelude/Effect/Concurrent.cinch")),
+    ("Effect/Io.cinch", include_str!("../prelude/Effect/Io.cinch")),
+    ("Data/FromList.cinch", include_str!("../prelude/Data/FromList.cinch")),
+    ("Data/FromMap.cinch", include_str!("../prelude/Data/FromMap.cinch")),
+    ("Text/Show.cinch", include_str!("../prelude/Text/Show.cinch")),
     // `Data.Sym` collects after `Text.Show` (its `Show` instance) and
     // `Data.String` (its name conversions); the facade collects after
     // the whole family.
-    ("Data/Sym.lang", include_str!("../prelude/Data/Sym.lang")),
+    ("Data/Sym.cinch", include_str!("../prelude/Data/Sym.cinch")),
 ];
 
 /// The rest of the base library family (the class modules and the
 /// newer families), collected after the facade: their eager references
 /// are old-surface names, which the facade's surface provides.
 pub const PRELUDE_LATE: &[(&str, &str)] = &[
-    ("Algebra/Semigroup.lang", include_str!("../prelude/Algebra/Semigroup.lang")),
-    ("Algebra/Group.lang", include_str!("../prelude/Algebra/Group.lang")),
-    ("Algebra/Semiring.lang", include_str!("../prelude/Algebra/Semiring.lang")),
-    ("Algebra/Monoid.lang", include_str!("../prelude/Algebra/Monoid.lang")),
-    ("Category/Functor.lang", include_str!("../prelude/Category/Functor.lang")),
-    ("Category/Applicative.lang", include_str!("../prelude/Category/Applicative.lang")),
-    ("Category/Monad.lang", include_str!("../prelude/Category/Monad.lang")),
-    ("Category/Alternative.lang", include_str!("../prelude/Category/Alternative.lang")),
-    ("Category/Foldable.lang", include_str!("../prelude/Category/Foldable.lang")),
-    ("Category/Traversable.lang", include_str!("../prelude/Category/Traversable.lang")),
-    ("Data/Identity.lang", include_str!("../prelude/Data/Identity.lang")),
-    ("Data/Const.lang", include_str!("../prelude/Data/Const.lang")),
-    ("Data/Compose.lang", include_str!("../prelude/Data/Compose.lang")),
-    ("Data/NonEmpty.lang", include_str!("../prelude/Data/NonEmpty.lang")),
-    ("Data/Sorted.lang", include_str!("../prelude/Data/Sorted.lang")),
-    ("Data/NonZero.lang", include_str!("../prelude/Data/NonZero.lang")),
-    ("Data/Ascii.lang", include_str!("../prelude/Data/Ascii.lang")),
-    ("Data/Set.lang", include_str!("../prelude/Data/Set.lang")),
-    ("Data/Hash.lang", include_str!("../prelude/Data/Hash.lang")),
-    ("Text/Codec.lang", include_str!("../prelude/Text/Codec.lang")),
-    ("Data/HashMap.lang", include_str!("../prelude/Data/HashMap.lang")),
+    ("Algebra/Semigroup.cinch", include_str!("../prelude/Algebra/Semigroup.cinch")),
+    ("Algebra/Group.cinch", include_str!("../prelude/Algebra/Group.cinch")),
+    ("Algebra/Semiring.cinch", include_str!("../prelude/Algebra/Semiring.cinch")),
+    ("Algebra/Monoid.cinch", include_str!("../prelude/Algebra/Monoid.cinch")),
+    ("Category/Functor.cinch", include_str!("../prelude/Category/Functor.cinch")),
+    ("Category/Applicative.cinch", include_str!("../prelude/Category/Applicative.cinch")),
+    ("Category/Monad.cinch", include_str!("../prelude/Category/Monad.cinch")),
+    ("Category/Alternative.cinch", include_str!("../prelude/Category/Alternative.cinch")),
+    ("Category/Foldable.cinch", include_str!("../prelude/Category/Foldable.cinch")),
+    ("Category/Traversable.cinch", include_str!("../prelude/Category/Traversable.cinch")),
+    ("Data/Identity.cinch", include_str!("../prelude/Data/Identity.cinch")),
+    ("Data/Const.cinch", include_str!("../prelude/Data/Const.cinch")),
+    ("Data/Compose.cinch", include_str!("../prelude/Data/Compose.cinch")),
+    ("Data/NonEmpty.cinch", include_str!("../prelude/Data/NonEmpty.cinch")),
+    ("Data/Sorted.cinch", include_str!("../prelude/Data/Sorted.cinch")),
+    ("Data/NonZero.cinch", include_str!("../prelude/Data/NonZero.cinch")),
+    ("Data/Ascii.cinch", include_str!("../prelude/Data/Ascii.cinch")),
+    ("Data/Set.cinch", include_str!("../prelude/Data/Set.cinch")),
+    ("Data/Hash.cinch", include_str!("../prelude/Data/Hash.cinch")),
+    ("Text/Codec.cinch", include_str!("../prelude/Text/Codec.cinch")),
+    ("Data/HashMap.cinch", include_str!("../prelude/Data/HashMap.cinch")),
 ];
 
 /// Every embedded prelude module name (the family's scheme names and
@@ -101,7 +101,7 @@ pub fn prelude_module_names() -> Vec<String> {
     let mut names: Vec<String> = PRELUDE_EARLY
         .iter()
         .chain(PRELUDE_LATE.iter())
-        .map(|(path, _)| path.trim_end_matches(".lang").replace('/', "."))
+        .map(|(path, _)| path.trim_end_matches(".cinch").replace('/', "."))
         .collect();
     names.push("Prelude".to_string());
     names
@@ -122,7 +122,7 @@ pub struct PreludeSources {
 pub fn parse_prelude(adapters: &[crate::interface::WitAdapter]) -> Result<PreludeSources> {
     let empty = FixityTable::new();
     let facade_src = prelude_source_with(adapters);
-    let facade_parsed = parse_source(&facade_src, "Prelude.lang", &empty, &HashMap::new())?;
+    let facade_parsed = parse_source(&facade_src, "Prelude.cinch", &empty, &HashMap::new())?;
     let base = facade_parsed
         .fixities
         .get("Prelude")
@@ -275,7 +275,7 @@ struct Project {
 }
 
 /// Every `module X` declaration beside `dir`, for import resolution when
-/// `X.lang` does not exist (decision D42).
+/// `X.cinch` does not exist (decision D42).
 fn index_dir_modules(dir: &Path) -> Result<HashMap<String, Vec<PathBuf>>> {
     let mut index: HashMap<String, Vec<PathBuf>> = HashMap::new();
     let entries = match std::fs::read_dir(dir) {
@@ -284,7 +284,7 @@ fn index_dir_modules(dir: &Path) -> Result<HashMap<String, Vec<PathBuf>>> {
     };
     for entry in entries.flatten() {
         let path = entry.path();
-        if path.extension().and_then(|s| s.to_str()) != Some("lang") {
+        if path.extension().and_then(|s| s.to_str()) != Some("cinch") {
             continue;
         }
         let Ok(src) = std::fs::read_to_string(&path) else {
@@ -303,7 +303,7 @@ fn index_dir_modules(dir: &Path) -> Result<HashMap<String, Vec<PathBuf>>> {
 /// Load the entry file and every module it imports, transitively. A source
 /// file may declare any number of modules (the staging slice supersedes the
 /// one-module-per-file rule); `import X` resolves to a module of an already
-/// loaded file, then to `X.lang`, then to a unique `module X` beside the
+/// loaded file, then to `X.cinch`, then to a unique `module X` beside the
 /// entry (decision D42).
 fn load_project(entry_path: &Path) -> Result<Project> {
     let dir = entry_path.parent().map(|p| p.to_path_buf()).unwrap_or_default();
@@ -354,7 +354,7 @@ fn load_project(entry_path: &Path) -> Result<Project> {
                 // loses to explicit source), so the disk is searched
                 // first; only an unresolved family name falls back to
                 // the embedded sources.
-                let direct = dir.join(format!("{imp}.lang"));
+                let direct = dir.join(format!("{imp}.cinch"));
                 if direct.exists() {
                     queue.push(direct);
                     continue;
@@ -522,7 +522,7 @@ fn write_artifacts(
     std::fs::create_dir_all(out_dir)
         .map_err(|e| Error::plain(format!("{}: {e}", out_dir.display())))?;
     for iface in ifaces {
-        let p = out_dir.join(format!("{}.sliface", iface.module));
+        let p = out_dir.join(format!("{}.cinchif", iface.module));
         std::fs::write(&p, iface.to_json())
             .map_err(|e| Error::plain(format!("{}: {e}", p.display())))?;
     }
@@ -1254,7 +1254,7 @@ pub fn check_sources_with(
 }
 
 /// [`check_sources`] that also returns the per-module interfaces (the
-/// `.sliface` compatibility evidence and contract projection that the
+/// `.cinchif` compatibility evidence and contract projection that the
 /// "checked against" chain reads; runtime evolution specification
 /// section 11).
 pub fn check_sources_ifaces(
@@ -1276,7 +1276,7 @@ pub fn check_sources_ifaces(
 }
 
 fn clang() -> String {
-    std::env::var("SAFELANG_CLANG").unwrap_or_else(|_| "clang".to_string())
+    std::env::var("CINCH_CLANG").unwrap_or_else(|_| "clang".to_string())
 }
 
 /// Build the Rust runtime staticlib if needed and return its path. The
@@ -1284,10 +1284,10 @@ fn clang() -> String {
 fn ensure_runtime() -> Result<std::path::PathBuf> {
     let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let runtime = manifest_dir.join("runtime");
-    let debug = runtime.join("target/debug/libslruntime.a");
-    let release = runtime.join("target/release/libslruntime.a");
+    let debug = runtime.join("target/debug/libcinchruntime.a");
+    let release = runtime.join("target/release/libcinchruntime.a");
     // Rebuild when any runtime source is newer than the staticlib (a
-    // stale library silently drops the newer `sl_*` entry points).
+    // stale library silently drops the newer `cinch_*` entry points).
     let mut newest_src = std::time::SystemTime::UNIX_EPOCH;
     let mut stack = vec![runtime.join("src"), runtime.join("Cargo.toml")];
     while let Some(p) = stack.pop() {
@@ -1319,12 +1319,12 @@ fn ensure_runtime() -> Result<std::path::PathBuf> {
         .status()
         .map_err(|e| Error::plain(format!("failed to build the runtime crate: {e}")))?;
     if !status.success() {
-        return Err(Error::plain("building compiler/runtime (slruntime) failed"));
+        return Err(Error::plain("building compiler/runtime (cinchruntime) failed"));
     }
     if debug.exists() {
         Ok(debug)
     } else {
-        Err(Error::plain("libslruntime.a not found after building the runtime"))
+        Err(Error::plain("libcinchruntime.a not found after building the runtime"))
     }
 }
 
@@ -1366,16 +1366,16 @@ fn scratch_dir(tag: &str) -> std::path::PathBuf {
     static COUNTER: AtomicU64 = AtomicU64::new(0);
     let n = COUNTER.fetch_add(1, Ordering::Relaxed);
     let pid = std::process::id();
-    std::env::temp_dir().join(format!("safelang-{tag}-{pid}-{n}"))
+    std::env::temp_dir().join(format!("cinch-{tag}-{pid}-{n}"))
 }
 
 /// Compile `path` according to `mode`. `out` names the output file for
 /// `EmitIr` and `Build`; `Run` executes the produced binary and returns its
 /// exit code in `Ok`. The compile-time I/O mode comes from
-/// `SAFELANG_STAGE_MODE` (`refresh`, `replay`, or `live`; default
+/// `CINCH_STAGE_MODE` (`refresh`, `replay`, or `live`; default
 /// `refresh`).
 pub fn driver(mode: Mode, path: &Path, out: Option<&Path>) -> Result<i32> {
-    let stage_mode = match std::env::var("SAFELANG_STAGE_MODE").as_deref() {
+    let stage_mode = match std::env::var("CINCH_STAGE_MODE").as_deref() {
         Ok("replay") => StageMode::Replay,
         Ok("live") => StageMode::Live,
         _ => StageMode::Refresh,
@@ -1457,7 +1457,7 @@ pub fn driver_with_profile(
         mode: stage_mode,
         workdir: dir.clone(),
         entry_modules: project.entry_modules.clone(),
-        schema_tool: std::env::var("SAFELANG_SCHEMA_TOOL").ok(),
+        schema_tool: std::env::var("CINCH_SCHEMA_TOOL").ok(),
     };
     let (program, ifaces, report, _diags) = check::check_program_multi_full(
         &prelude.modules,

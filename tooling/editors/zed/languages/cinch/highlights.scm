@@ -1,5 +1,5 @@
-; SafeLang highlight query for Zed (tree-sitter).
-; Node names come from tooling/tree-sitter-safelang/grammar.js; keyword
+; Cinch highlight query for Zed (tree-sitter).
+; Node names come from tooling/tree-sitter-cinch/grammar.js; keyword
 ; spellings are the reserved words of the surface grammar.
 
 (kw_module) @keyword

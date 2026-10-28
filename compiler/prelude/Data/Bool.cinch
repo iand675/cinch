@@ -1,6 +1,6 @@
 -- Data.Bool: the booleans and their strict operations.
 --
--- `Bool` is a core runtime type; the `safelang.prim.*Bool` foreign
+-- `Bool` is a core runtime type; the `cinch.prim.*Bool` foreign
 -- imports are the machine operations. `&&` and `||` are strict
 -- functions in the bootstrap slice; the surface short-circuiting form
 -- lands with the effects correction (primitive types specification
@@ -20,11 +20,11 @@ module Data.Bool where
   export prim-eq-bool, prim-ne-bool, prim-not-bool, prim-and-bool, prim-or-bool, not, and, or, xor, (&&), (||)
 
 
-  foreign import ccall "safelang.prim.eqBool" prim-eq-bool :: Bool -> Bool -> Bool
-  foreign import ccall "safelang.prim.neBool" prim-ne-bool :: Bool -> Bool -> Bool
-  foreign import ccall "safelang.prim.notBool" prim-not-bool :: Bool -> Bool
-  foreign import ccall "safelang.prim.andBool" prim-and-bool :: Bool -> Bool -> Bool
-  foreign import ccall "safelang.prim.orBool" prim-or-bool :: Bool -> Bool -> Bool
+  foreign import ccall "cinch.prim.eqBool" prim-eq-bool :: Bool -> Bool -> Bool
+  foreign import ccall "cinch.prim.neBool" prim-ne-bool :: Bool -> Bool -> Bool
+  foreign import ccall "cinch.prim.notBool" prim-not-bool :: Bool -> Bool
+  foreign import ccall "cinch.prim.andBool" prim-and-bool :: Bool -> Bool -> Bool
+  foreign import ccall "cinch.prim.orBool" prim-or-bool :: Bool -> Bool -> Bool
 
   -- These are strict functions in the bootstrap slice; the surface `&&`
   -- and `||` short-circuit once that deviation is corrected (primitive

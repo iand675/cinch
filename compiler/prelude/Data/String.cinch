@@ -8,7 +8,7 @@
 --
 -- The functions here are the REFERENCE SEMANTICS for UTF-8. The
 -- runtime provides SIMD-accelerated implementations of the same rules
--- (`sl_utf8_*` in `compiler/runtime/src/string.rs`), tested to agree
+-- (`cinch_utf8_*` in `compiler/runtime/src/string.rs`), tested to agree
 -- with this code; the acceleration is a representation detail behind
 -- the primitive operations chapter's justified bodies (D89).
 --
@@ -38,7 +38,7 @@ module Data.String where
   --
   -- The functions here are the REFERENCE SEMANTICS for UTF-8. The
   -- runtime provides SIMD-accelerated implementations of the same rules
-  -- (`sl_utf8_*` in `compiler/runtime/src/string.rs`), tested to agree
+  -- (`cinch_utf8_*` in `compiler/runtime/src/string.rs`), tested to agree
   -- with this code; the acceleration is a representation detail behind
   -- the primitive operations chapter's justified bodies (D89).
 

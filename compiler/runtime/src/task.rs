@@ -11,12 +11,12 @@
 //! task body, and everything the body does happens-before the join that
 //! observes its completion (section 6; see the module docs of `crate`).
 //! The cancellation token is a sequentially consistent atomic, so a
-//! request is observed at the next poll point (`sl_task_poll_cancel`,
-//! `sl_io_sleep`) without a data race.
+//! request is observed at the next poll point (`cinch_task_poll_cancel`,
+//! `cinch_io_sleep`) without a data race.
 //!
 //! # Task outcome ABI
 //!
-//! A task body is a SafeLang closure applied to the Unit word through the
+//! A task body is a Cinch closure applied to the Unit word through the
 //! closure apply-stub ABI (`compiler/src/core.rs`: the closure record is
 //! `{ code; arity; nfilled; saved[0..] }` and `code` has signature
 //! `i64 (ptr self, i64 argc, ptr argv)`). The body returns the prelude
@@ -29,7 +29,7 @@
 //! # Reclamation
 //!
 //! Scope, task and handle records follow the runtime's leak-by-design
-//! policy (`sl_free` is a no-op until reclamation lands): they are freed
+//! policy (`cinch_free` is a no-op until reclamation lands): they are freed
 //! at their consumption point where that is exactly known, and leaked
 //! otherwise. A handle word is never freed twice.
 
@@ -38,7 +38,7 @@ use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
 
 /// The prelude `Result` constructor tag of `Ok` (declaration order in
-/// `compiler/prelude/Prelude.lang`).
+/// `compiler/prelude/Prelude.cinch`).
 pub const TASK_OK_TAG: i64 = 1;
 
 /// The prelude `Result` constructor tag of `Err`.
@@ -48,13 +48,13 @@ pub const TASK_ERR_TAG: i64 = 0;
 const UNIT_WORD: i64 = 0;
 
 /// Task thread stack size: the same order as a process main stack, so
-/// ordinary recursive SafeLang code behaves the same inside a task.
+/// ordinary recursive Cinch code behaves the same inside a task.
 const TASK_STACK_BYTES: usize = 8 << 20;
 
 /// The closure apply-stub ABI (see `compiler/src/core.rs`).
 type ApplyStub = unsafe extern "C" fn(i64, i64, *mut i64) -> i64;
 
-/// Apply a SafeLang closure to one argument through its apply stub.
+/// Apply a Cinch closure to one argument through its apply stub.
 ///
 /// # Safety
 ///
@@ -150,7 +150,7 @@ impl Scope {
                 }
                 scope.cv.notify_all();
             })
-            .unwrap_or_else(|e| panic!("slruntime: task spawn failed: {e}"));
+            .unwrap_or_else(|e| panic!("cinchruntime: task spawn failed: {e}"));
         handle
     }
 

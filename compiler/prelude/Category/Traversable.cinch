@@ -21,7 +21,7 @@
 --
 -- Instance homes. List and Option got theirs at the prelude split
 -- (Data.List/Data.Option). NonEmpty's instance lives with its type in
--- Data/NonEmpty.lang and reuses the List instance on the tail.
+-- Data/NonEmpty.cinch and reuses the List instance on the tail.
 module Category.Traversable where
 
   import Category.Applicative

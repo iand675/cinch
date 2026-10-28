@@ -4,12 +4,12 @@
 //! (section 11), and the file-type converters (section 11). These tests
 //! drive the real CLI pipeline over temp multi-file projects.
 
-use safelang::driver::{driver, Mode};
+use cinch::driver::{driver, Mode};
 use std::path::{Path, PathBuf};
 
 fn write_project(files: &[(&str, &str)]) -> PathBuf {
     let dir = std::env::temp_dir().join(format!(
-        "safelang_surfacetest_{}_{}",
+        "cinch_surfacetest_{}_{}",
         std::process::id(),
         files.as_ptr() as usize
     ));
@@ -59,7 +59,7 @@ fn manifest_has(dir: &Path, needle: &str) -> bool {
 }
 
 fn iface_value_names(dir: &Path, module: &str) -> Vec<String> {
-    let text = std::fs::read_to_string(dir.join(format!("build/{module}.sliface")))
+    let text = std::fs::read_to_string(dir.join(format!("build/{module}.cinchif")))
         .expect("interface");
     let mut out = Vec::new();
     let mut rest = text.as_str();
@@ -79,7 +79,7 @@ fn list_literal_folds_to_a_constant_and_a_runtime_call_stays() {
     // All-constant elements fold (the boundary records it); an element
     // that is a runtime value keeps its `from-list` call.
     let dir = write_project(&[(
-        "Main.lang",
+        "Main.cinch",
         "module Main where\n\
          \x20 xs :: List Nat\n\
          \x20 xs = [1, 2, 3]\n\
@@ -88,7 +88,7 @@ fn list_literal_folds_to_a_constant_and_a_runtime_call_stays() {
          \x20 main :: Int\n\
          \x20 main = if length xs == 3 && length (pick 7) == 2 then 0 else 1\n",
     )]);
-    assert_eq!(run_entry(&dir, "Main.lang").expect("run"), 0);
+    assert_eq!(run_entry(&dir, "Main.cinch").expect("run"), 0);
     let folds = literal_folds(&dir);
     assert_eq!(
         folds,
@@ -100,7 +100,7 @@ fn list_literal_folds_to_a_constant_and_a_runtime_call_stays() {
 #[test]
 fn bytes_literal_folds_and_map_literal_round_trips() {
     let dir = write_project(&[(
-        "Main.lang",
+        "Main.cinch",
         "module Main where\n\
          \x20 buf :: Bytes\n\
          \x20 buf = [1, 2, 3]\n\
@@ -111,7 +111,7 @@ fn bytes_literal_folds_and_map_literal_round_trips() {
          \x20   None -> 1\n\
          \x20   Some v -> if v == 20 && bytes-len buf == 3 then 0 else 2\n",
     )]);
-    assert_eq!(run_entry(&dir, "Main.lang").expect("run"), 0);
+    assert_eq!(run_entry(&dir, "Main.cinch").expect("run"), 0);
     let folds = literal_folds(&dir);
     assert!(
         folds.iter().any(|(k, f)| k == "list" && *f),
@@ -127,24 +127,24 @@ fn bytes_literal_folds_and_map_literal_round_trips() {
 fn map_literal_defaults_and_wrong_instance_are_reported() {
     // An unconstrained `{k => v}` defaults to `Map` (decision D142).
     let dir = write_project(&[(
-        "Main.lang",
+        "Main.cinch",
         "module Main where\n\
          \x20 main :: Int\n\
          \x20 main = let m = {1 => 42} in case map-lookup 1 m of\n\
          \x20   None -> 1\n\
          \x20   Some v -> if v == 42 then 0 else 2\n",
     )]);
-    assert_eq!(run_entry(&dir, "Main.lang").expect("run"), 0);
+    assert_eq!(run_entry(&dir, "Main.cinch").expect("run"), 0);
     // A list literal at `Map` has no `FromList` instance.
     let dir = write_project(&[(
-        "Main.lang",
+        "Main.cinch",
         "module Main where\n\
          \x20 bad :: Map Nat Nat\n\
          \x20 bad = [1, 2]\n\
          \x20 main :: Int\n\
          \x20 main = 0\n",
     )]);
-    let err = check_entry(&dir, "Main.lang").expect_err("wrong instance");
+    let err = check_entry(&dir, "Main.cinch").expect_err("wrong instance");
     assert!(err.contains("no instance for FromList"), "{err}");
 }
 
@@ -154,7 +154,7 @@ fn map_literal_keys_and_values_resolve_infix_chains() {
     // the `resolve_term` map arm (as the range literal does); before
     // the arm existed the chain reached the checker unresolved.
     let dir = write_project(&[(
-        "Main.lang",
+        "Main.cinch",
         "module Main where\n\
          \x20 m :: Map Nat Nat\n\
          \x20 m = {1 + 2 => 3}\n\
@@ -167,7 +167,7 @@ fn map_literal_keys_and_values_resolve_infix_chains() {
          \x20     None -> 2\n\
          \x20     Some w -> if v == 3 && w == 7 then 0 else 3\n",
     )]);
-    assert_eq!(run_entry(&dir, "Main.lang").expect("run"), 0);
+    assert_eq!(run_entry(&dir, "Main.cinch").expect("run"), 0);
 }
 
 // ---------------------------------------- the range literal (Data.Enum)
@@ -179,7 +179,7 @@ fn range_literals_desugar_through_the_enum_class() {
     // sequences over `Int`, a descending step, the empty descending
     // case, and the `Nat` instance.
     let dir = write_project(&[(
-        "Main.lang",
+        "Main.cinch",
         "module Main where\n\
          \x20 xs :: List Int\n\
          \x20 xs = [1..10]\n\
@@ -203,7 +203,7 @@ fn range_literals_desugar_through_the_enum_class() {
          \x20     else 2)\n\
          \x20   else 1\n",
     )]);
-    assert_eq!(run_entry(&dir, "Main.lang").expect("run"), 0);
+    assert_eq!(run_entry(&dir, "Main.cinch").expect("run"), 0);
 }
 
 #[test]
@@ -212,7 +212,7 @@ fn range_literal_folds_when_stage_known() {
     // value (the boundary records it); runtime endpoints keep the class
     // calls (surface grammar local amendments section 10's rule).
     let dir = write_project(&[(
-        "Main.lang",
+        "Main.cinch",
         "module Main where\n\
          \x20 xs :: List Int\n\
          \x20 xs = [1..3]\n\
@@ -221,7 +221,7 @@ fn range_literal_folds_when_stage_known() {
          \x20 main :: Int\n\
          \x20 main = if length xs == 3 && length (pick 7) == 3 then 0 else 1\n",
     )]);
-    assert_eq!(run_entry(&dir, "Main.lang").expect("run"), 0);
+    assert_eq!(run_entry(&dir, "Main.cinch").expect("run"), 0);
     let folds = literal_folds(&dir);
     assert_eq!(
         folds,
@@ -235,7 +235,7 @@ fn range_without_an_enum_instance_is_reported() {
     // A range at a type with no `Enum` instance names the missing
     // instance (the wrong-instance negative of the class desugar).
     let dir = write_project(&[(
-        "Main.lang",
+        "Main.cinch",
         "module Main where\n\
          \x20 data Toggle where\n\
          \x20   Off :: Toggle\n\
@@ -245,7 +245,7 @@ fn range_without_an_enum_instance_is_reported() {
          \x20 main :: Int\n\
          \x20 main = 0\n",
     )]);
-    let err = check_entry(&dir, "Main.lang").expect_err("wrong instance");
+    let err = check_entry(&dir, "Main.cinch").expect_err("wrong instance");
     assert!(err.contains("no instance for Enum"), "{err}");
 }
 
@@ -256,7 +256,7 @@ fn export_list_is_the_surface_and_re_exports_ride_it() {
     // With `export` declarations the surface is exactly the listed names.
     let dir = write_project(&[
         (
-            "Conf.lang",
+            "Conf.cinch",
             "module Conf where\n\
              \x20 export mine\n\
              \x20 mine :: Int\n\
@@ -265,21 +265,21 @@ fn export_list_is_the_surface_and_re_exports_ride_it() {
              \x20 secret = 2\n",
         ),
         (
-            "Main.lang",
+            "Main.cinch",
             "module Main where\n\
              \x20 import Conf (mine)\n\
              \x20 main :: Int\n\
              \x20 main = if mine == 1 then 0 else 1\n",
         ),
     ]);
-    assert_eq!(run_entry(&dir, "Main.lang").expect("run"), 0);
+    assert_eq!(run_entry(&dir, "Main.cinch").expect("run"), 0);
     let names = iface_value_names(&dir, "Conf");
     assert!(names.contains(&"mine".to_string()), "{names:?}");
     assert!(!names.contains(&"secret".to_string()), "{names:?}");
     // An unexported name is not importable.
     let dir = write_project(&[
         (
-            "Conf.lang",
+            "Conf.cinch",
             "module Conf where\n\
              \x20 export mine\n\
              \x20 mine :: Int\n\
@@ -288,20 +288,20 @@ fn export_list_is_the_surface_and_re_exports_ride_it() {
              \x20 secret = 2\n",
         ),
         (
-            "Main.lang",
+            "Main.cinch",
             "module Main where\n\
              \x20 import Conf (secret)\n\
              \x20 main :: Int\n\
              \x20 main = secret\n",
         ),
     ]);
-    let err = check_entry(&dir, "Main.lang").expect_err("hidden member");
+    let err = check_entry(&dir, "Main.cinch").expect_err("hidden member");
     assert!(err.contains("has no member `secret`"), "{err}");
     // `export module X` re-exports everything imported from X, and the
     // exporting module's own listed name with it.
     let dir = write_project(&[
         (
-            "Lib.lang",
+            "Lib.cinch",
             "module Lib where\n\
              \x20 pub :: Int\n\
              \x20 pub = 1\n\
@@ -309,7 +309,7 @@ fn export_list_is_the_surface_and_re_exports_ride_it() {
              \x20 hidden = 2\n",
         ),
         (
-            "Conf.lang",
+            "Conf.cinch",
             "module Conf where\n\
              \x20 export module Lib, mine\n\
              \x20 import Lib\n\
@@ -317,14 +317,14 @@ fn export_list_is_the_surface_and_re_exports_ride_it() {
              \x20 mine = pub + 10\n",
         ),
         (
-            "Main.lang",
+            "Main.cinch",
             "module Main where\n\
              \x20 import Conf (mine, pub, hidden)\n\
              \x20 main :: Int\n\
              \x20 main = if mine == 11 && pub == 1 && hidden == 2 then 0 else 1\n",
         ),
     ]);
-    assert_eq!(run_entry(&dir, "Main.lang").expect("run"), 0);
+    assert_eq!(run_entry(&dir, "Main.cinch").expect("run"), 0);
     let names = iface_value_names(&dir, "Conf");
     assert!(names.contains(&"mine".to_string()), "{names:?}");
     assert!(names.contains(&"pub".to_string()), "{names:?}");
@@ -335,26 +335,26 @@ fn export_list_is_the_surface_and_re_exports_ride_it() {
 fn named_re_export_is_reachable_by_its_exported_name() {
     let dir = write_project(&[
         (
-            "Lib.lang",
+            "Lib.cinch",
             "module Lib where\n\
              \x20 parse :: Int -> Int\n\
              \x20 parse x = x + 1\n",
         ),
         (
-            "Conf.lang",
+            "Conf.cinch",
             "module Conf where\n\
              \x20 export Lib.parse\n\
              \x20 import Lib\n",
         ),
         (
-            "Main.lang",
+            "Main.cinch",
             "module Main where\n\
              \x20 import Conf (parse)\n\
              \x20 main :: Int\n\
              \x20 main = if parse 1 == 2 then 0 else 1\n",
         ),
     ]);
-    assert_eq!(run_entry(&dir, "Main.lang").expect("run"), 0);
+    assert_eq!(run_entry(&dir, "Main.cinch").expect("run"), 0);
 }
 
 // ---------------------------------------- D108: import renaming/selection
@@ -363,37 +363,37 @@ fn named_re_export_is_reachable_by_its_exported_name() {
 fn import_alias_hides_bare_names_and_renames_the_qualifier() {
     let dir = write_project(&[
         (
-            "Lib.lang",
+            "Lib.cinch",
             "module Lib where\n\
              \x20 greet :: Int -> Int\n\
              \x20 greet x = x + 1\n",
         ),
         (
-            "Main.lang",
+            "Main.cinch",
             "module Main where\n\
              \x20 import Lib as L\n\
              \x20 main :: Int\n\
              \x20 main = if L.greet 1 == 2 then 0 else 1\n",
         ),
     ]);
-    assert_eq!(run_entry(&dir, "Main.lang").expect("run"), 0);
+    assert_eq!(run_entry(&dir, "Main.cinch").expect("run"), 0);
     // The bare name is not in scope.
     let dir = write_project(&[
         (
-            "Lib.lang",
+            "Lib.cinch",
             "module Lib where\n\
              \x20 greet :: Int -> Int\n\
              \x20 greet x = x + 1\n",
         ),
         (
-            "Main.lang",
+            "Main.cinch",
             "module Main where\n\
              \x20 import Lib as L\n\
              \x20 main :: Int\n\
              \x20 main = greet 1\n",
         ),
     ]);
-    let err = check_entry(&dir, "Main.lang").expect_err("bare name hidden");
+    let err = check_entry(&dir, "Main.cinch").expect_err("bare name hidden");
     assert!(err.contains("unknown name greet"), "{err}");
 }
 
@@ -401,7 +401,7 @@ fn import_alias_hides_bare_names_and_renames_the_qualifier() {
 fn member_selection_renames_and_hides_the_unselected() {
     let dir = write_project(&[
         (
-            "Lib.lang",
+            "Lib.cinch",
             "module Lib where\n\
              \x20 one :: Int\n\
              \x20 one = 1\n\
@@ -409,31 +409,31 @@ fn member_selection_renames_and_hides_the_unselected() {
              \x20 two = 2\n",
         ),
         (
-            "Main.lang",
+            "Main.cinch",
             "module Main where\n\
              \x20 import Lib (one as uno, two)\n\
              \x20 main :: Int\n\
              \x20 main = if uno + two == 3 then 0 else 1\n",
         ),
     ]);
-    assert_eq!(run_entry(&dir, "Main.lang").expect("run"), 0);
+    assert_eq!(run_entry(&dir, "Main.cinch").expect("run"), 0);
     // The unrenamed spelling of the renamed member is not in scope.
     let dir = write_project(&[
         (
-            "Lib.lang",
+            "Lib.cinch",
             "module Lib where\n\
              \x20 one :: Int\n\
              \x20 one = 1\n",
         ),
         (
-            "Main.lang",
+            "Main.cinch",
             "module Main where\n\
              \x20 import Lib (one as uno)\n\
              \x20 main :: Int\n\
              \x20 main = one\n",
         ),
     ]);
-    let err = check_entry(&dir, "Main.lang").expect_err("renamed member");
+    let err = check_entry(&dir, "Main.cinch").expect_err("renamed member");
     assert!(err.contains("unknown name one"), "{err}");
 }
 
@@ -441,19 +441,19 @@ fn member_selection_renames_and_hides_the_unselected() {
 fn duplicate_unrenamed_imported_names_error_names_both_sources() {
     let dir = write_project(&[
         (
-            "A.lang",
+            "A.cinch",
             "module A where\n\
              \x20 shared :: Int\n\
              \x20 shared = 1\n",
         ),
         (
-            "B.lang",
+            "B.cinch",
             "module B where\n\
              \x20 shared :: Int\n\
              \x20 shared = 2\n",
         ),
         (
-            "Main.lang",
+            "Main.cinch",
             "module Main where\n\
              \x20 import A\n\
              \x20 import B\n\
@@ -461,7 +461,7 @@ fn duplicate_unrenamed_imported_names_error_names_both_sources() {
              \x20 main = shared\n",
         ),
     ]);
-    let err = check_entry(&dir, "Main.lang").expect_err("duplicate names");
+    let err = check_entry(&dir, "Main.cinch").expect_err("duplicate names");
     assert!(
         err.contains("imported from both A and B"),
         "the error names both sources: {err}"
@@ -469,19 +469,19 @@ fn duplicate_unrenamed_imported_names_error_names_both_sources() {
     // Renaming one import is the fix.
     let dir = write_project(&[
         (
-            "A.lang",
+            "A.cinch",
             "module A where\n\
              \x20 shared :: Int\n\
              \x20 shared = 1\n",
         ),
         (
-            "B.lang",
+            "B.cinch",
             "module B where\n\
              \x20 shared :: Int\n\
              \x20 shared = 2\n",
         ),
         (
-            "Main.lang",
+            "Main.cinch",
             "module Main where\n\
              \x20 import A\n\
              \x20 import B (shared as theirs)\n\
@@ -489,7 +489,7 @@ fn duplicate_unrenamed_imported_names_error_names_both_sources() {
              \x20 main = if shared + theirs == 3 then 0 else 1\n",
         ),
     ]);
-    assert_eq!(run_entry(&dir, "Main.lang").expect("run"), 0);
+    assert_eq!(run_entry(&dir, "Main.cinch").expect("run"), 0);
 }
 
 // ---------------------------------------- D109: file-type converters
@@ -501,7 +501,7 @@ fn json_txt_and_bytes_converters_bind_and_record_provenance() {
         ("note.txt", "hello"),
         ("blob.bytes", "\x01\x02\x03"),
         (
-            "Main.lang",
+            "Main.cinch",
             "module Main where\n\
              \x20 import data \"config.json\" as config\n\
              \x20 import data \"note.txt\" as note\n\
@@ -530,7 +530,7 @@ fn json_txt_and_bytes_converters_bind_and_record_provenance() {
              \x20   JArrEnd -> 9)\n",
         ),
     ]);
-    assert_eq!(run_entry(&dir, "Main.lang").expect("run"), 0);
+    assert_eq!(run_entry(&dir, "Main.cinch").expect("run"), 0);
     // Provenance: converter identity and file content hash per binding.
     assert!(manifest_has(&dir, "\"converter\": \"json\""), "json provenance");
     assert!(manifest_has(&dir, "\"converter\": \"txt\""), "txt provenance");
@@ -544,7 +544,7 @@ fn json_decodes_a_declared_record_type() {
     let dir = write_project(&[
         ("config.json", "{\"port\": 8080, \"debug\": true}"),
         (
-            "Main.lang",
+            "Main.cinch",
             "module Main where\n\
              \x20 record Config where\n\
              \x20   port :: Nat\n\
@@ -556,7 +556,7 @@ fn json_decodes_a_declared_record_type() {
              \x20   Config { port = p, debug = b } -> if p == 8080 && b then 0 else 1\n",
         ),
     ]);
-    assert_eq!(run_entry(&dir, "Main.lang").expect("run"), 0);
+    assert_eq!(run_entry(&dir, "Main.cinch").expect("run"), 0);
 }
 
 #[test]
@@ -564,14 +564,14 @@ fn converter_failures_name_the_file_and_the_converter() {
     let dir = write_project(&[
         ("config.json", "{not json"),
         (
-            "Main.lang",
+            "Main.cinch",
             "module Main where\n\
              \x20 import data \"config.json\" as config\n\
              \x20 main :: Int\n\
              \x20 main = 0\n",
         ),
     ]);
-    let err = check_entry(&dir, "Main.lang").expect_err("bad json");
+    let err = check_entry(&dir, "Main.cinch").expect_err("bad json");
     assert!(
         err.contains("`json` converter") && err.contains("config.json"),
         "the error names the file and the converter: {err}"
@@ -579,13 +579,13 @@ fn converter_failures_name_the_file_and_the_converter() {
     let dir = write_project(&[
         ("thing.qoi", "x"),
         (
-            "Main.lang",
+            "Main.cinch",
             "module Main where\n\
              \x20 import data \"thing.qoi\" as thing\n\
              \x20 main :: Int\n\
              \x20 main = 0\n",
         ),
     ]);
-    let err = check_entry(&dir, "Main.lang").expect_err("unknown extension");
+    let err = check_entry(&dir, "Main.cinch").expect_err("unknown extension");
     assert!(err.contains("no converter"), "{err}");
 }

@@ -1,5 +1,5 @@
 /*
- * SafeLang external scanner: a faithful port of compiler/src/lexer.rs
+ * Cinch external scanner: a faithful port of compiler/src/lexer.rs
  * and compiler/src/layout.rs.
  *
  * Every terminal is produced here, because the lexical rules are
@@ -516,7 +516,7 @@ static int operator_symbol(const char *run) {
 
 /* ------------------------------------------------------------- state */
 
-void *tree_sitter_safelang_external_scanner_create(void) {
+void *tree_sitter_cinch_external_scanner_create(void) {
   Scanner *s = (Scanner *)calloc(1, sizeof(Scanner));
   s->cur_line = 1;
   s->cur_col = 1;
@@ -524,11 +524,11 @@ void *tree_sitter_safelang_external_scanner_create(void) {
   return s;
 }
 
-void tree_sitter_safelang_external_scanner_destroy(void *payload) {
+void tree_sitter_cinch_external_scanner_destroy(void *payload) {
   free(payload);
 }
 
-unsigned tree_sitter_safelang_external_scanner_serialize(void *payload,
+unsigned tree_sitter_cinch_external_scanner_serialize(void *payload,
                                                         char *buffer) {
   Scanner *s = (Scanner *)payload;
   if (sizeof(Scanner) > TREE_SITTER_SERIALIZATION_BUFFER_SIZE) return 0;
@@ -536,7 +536,7 @@ unsigned tree_sitter_safelang_external_scanner_serialize(void *payload,
   return (unsigned)sizeof(Scanner);
 }
 
-void tree_sitter_safelang_external_scanner_deserialize(void *payload,
+void tree_sitter_cinch_external_scanner_deserialize(void *payload,
                                                       const char *buffer,
                                                       unsigned length) {
   Scanner *s = (Scanner *)payload;
@@ -1576,7 +1576,7 @@ static void classify_next(Scanner *s, TSLexer *lexer, TokenClass *out,
 
 /* ----------------------------------------------------------------- scan */
 
-bool tree_sitter_safelang_external_scanner_scan(void *payload, TSLexer *lexer,
+bool tree_sitter_cinch_external_scanner_scan(void *payload, TSLexer *lexer,
                                                const bool *valid_symbols) {
   Scanner *s = (Scanner *)payload;
   Scanner snapshot = *s;

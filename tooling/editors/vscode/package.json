@@ -1,39 +1,39 @@
 {
-  "name": "safelang",
-  "displayName": "SafeLang",
-  "description": "SafeLang surface syntax (draft 0.2 plus local amendments) with LSP hookup",
+  "name": "cinch",
+  "displayName": "Cinch",
+  "description": "Cinch surface syntax (draft 0.2 plus local amendments) with LSP hookup",
   "version": "0.1.0",
-  "publisher": "safelang-design-repo",
+  "publisher": "cinch-design-repo",
   "license": "UNLICENSED",
   "engines": { "vscode": "^1.75.0" },
   "categories": ["Programming Languages"],
   "main": "./extension.js",
-  "activationEvents": ["onLanguage:safelang"],
+  "activationEvents": ["onLanguage:cinch"],
   "contributes": {
     "languages": [
       {
-        "id": "safelang",
-        "aliases": ["SafeLang", "safelang"],
-        "extensions": [".lang"],
+        "id": "cinch",
+        "aliases": ["Cinch", "cinch"],
+        "extensions": [".cinch"],
         "configuration": "./language-configuration.json"
       }
     ],
     "grammars": [
       {
-        "language": "safelang",
-        "scopeName": "source.safelang",
-        "path": "./syntaxes/safelang.tmLanguage.json"
+        "language": "cinch",
+        "scopeName": "source.cinch",
+        "path": "./syntaxes/cinch.tmLanguage.json"
       }
     ],
     "configuration": {
-      "title": "SafeLang",
+      "title": "Cinch",
       "properties": {
-        "safelang.lsp.command": {
+        "cinch.lsp.command": {
           "type": "string",
           "default": "",
-          "markdownDescription": "Command that runs the SafeLang language server over stdio. Empty uses this extension's launcher, which drives `safelang::lsp::LspServer::run` via `tooling/lsp-driver` (the compiler binary has no `lsp` subcommand today). Set to `safelang lsp` once that subcommand lands."
+          "markdownDescription": "Command that runs the Cinch language server over stdio. Empty uses this extension's launcher, which drives `cinch::lsp::LspServer::run` via `tooling/lsp-driver` (the compiler binary has no `lsp` subcommand today). Set to `cinch lsp` once that subcommand lands."
         },
-        "safelang.lsp.trace": {
+        "cinch.lsp.trace": {
           "type": "string",
           "enum": ["off", "messages", "verbose"],
           "default": "off"

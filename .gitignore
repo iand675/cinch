@@ -16,7 +16,7 @@ dist/
 .direnv/
 .envrc.local
 
-# Generated compiler artifacts (rebuilt by `safelang build`/`run`)
+# Generated compiler artifacts (rebuilt by `cinch build`/`run`)
 examples/compiler/build/
 examples/source/build/
 

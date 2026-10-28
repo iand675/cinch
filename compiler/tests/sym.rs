@@ -13,8 +13,8 @@
 //! `Syntax` token trees, whose name lexemes reify to the interned
 //! constant).
 
-use safelang::driver::{check_sources, run_source};
-use safelang::lexer::{lex, Tok};
+use cinch::driver::{check_sources, run_source};
+use cinch::lexer::{lex, Tok};
 
 /// Compile, run and assert the exit code.
 fn run_ok(name: &str, src: &str, expected: i32) {
@@ -44,7 +44,7 @@ fn expect_err(name: &str, src: &str, needle: &str) {
 fn ir_of(name: &str, src: &str) -> String {
     let program =
         check_sources(src, "<test>").unwrap_or_else(|e| panic!("{name}: check failed: {e}"));
-    safelang::codegen::emit(&program).unwrap_or_else(|e| panic!("{name}: emit failed: {e}"))
+    cinch::codegen::emit(&program).unwrap_or_else(|e| panic!("{name}: emit failed: {e}"))
 }
 
 /// The token kinds of one source (the lexical rules are observable
@@ -225,11 +225,11 @@ module Main where
         "the name `foo` should be emitted as a constant (the P14 constant-emission path):\n{ir}"
     );
     assert!(
-        ir.contains("call i64 @sl_sym_intern("),
+        ir.contains("call i64 @cinch_sym_intern("),
         "the cell should be materialised through the runtime intern table:\n{ir}"
     );
     assert!(
-        ir.contains("@\"safelang.runtime.symEq\"("),
+        ir.contains("@\"cinch.runtime.symEq\"("),
         "the identity pattern test should be the `symEq` unit:\n{ir}"
     );
 }

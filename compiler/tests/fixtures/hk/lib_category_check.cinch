@@ -5,7 +5,7 @@
 --
 -- Simplification (the D127 collapse): this fixture previously carried
 -- inline copies of Data.Identity and Data.Const. Those are the shipped
--- modules now (compiler/prelude/Data/{Identity,Const}.lang, carrying
+-- modules now (compiler/prelude/Data/{Identity,Const}.cinch, carrying
 -- their class instances), so the copies are gone and compiler/tests/hk.rs
 -- assembles this file with the shipped modules. The law bodies below
 -- call the real class methods (`map`, `pure`, `<*>`, `lift-a2`, `>>=`,

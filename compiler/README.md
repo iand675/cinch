@@ -1,15 +1,16 @@
-# SafeLang bootstrap compiler
+# Cinch bootstrap compiler
 
 A first compiler for the language designed in this repository. The surface
 syntax is the draft 0.2 grammar in
 [`specifications/surface-syntax-and-grammar.md`](../specifications/surface-syntax-and-grammar.md);
 the static and dynamic goals are
 [`specifications/core-language-specification.md`](../specifications/core-language-specification.md).
-The language is named **Cinch** (rebranded from the SafeLang working
-name on 2026-10-27). The prose rename is applied; the identifier sweep
-(`safelang` -> `cinch` CLI and namespaces, `.lang` -> `.cinch`,
-`.sliface` -> `.cinchif`, `sl_*` -> `cinch_*` externs) lands as one
-atomic change with the code rename.
+The language is named **Cinch** (renamed from its working name on
+2026-10-27; the prose and identifier sweeps landed together). Every
+identifier carries the name: the `cinch` CLI and crate, the reserved
+`cinch.prim.*`/`cinch.runtime.*` namespaces, `.cinch` sources,
+`.cinchif` compiled interfaces, `cinch_*` runtime externs, the
+`cinchruntime` staticlib, and the `CINCH_*` environment variables.
 
 This is a bootstrap slice: a small, honest subset implemented end to end
 (source text to native executable) so the design can be exercised and
@@ -23,14 +24,14 @@ Everything runs inside [devenv](https://devenv.sh) (nix):
 
 ```sh
 devenv shell        # rustc, cargo, clang, llvm
-safelang check examples/compiler/fib.lang
-safelang run examples/compiler/fib.lang
-safelang emit-ir examples/compiler/fib.lang -o fib.ll
-safelang build examples/compiler/fib.lang -o fib
-safelang-test       # cargo test
+cinch check examples/compiler/fib.cinch
+cinch run examples/compiler/fib.cinch
+cinch emit-ir examples/compiler/fib.cinch -o fib.ll
+cinch build examples/compiler/fib.cinch -o fib
+cinch-test       # cargo test
 ```
 
-`SAFELANG_CLANG` selects the clang used for codegen and linking (devenv sets
+`CINCH_CLANG` selects the clang used for codegen and linking (devenv sets
 it to the nix clang).
 
 ## Pipeline
@@ -77,7 +78,7 @@ The closure and dictionary ABI is documented in `src/core.rs`.
   methods elaborate to dictionary projection and application, with real
   dictionary passing at runtime. Operators (`+`, `==`, ...) are ordinary
   method names with declared fixities; the compiler has no builtin
-  operators. The prelude is ordinary source (`prelude/Prelude.lang`) layered
+  operators. The prelude is ordinary source (`prelude/Prelude.cinch`) layered
   as `Eq`, `Ord`, `Add`, `Sub`, `Mul`, `Neg`, with `Nat`/`Int`, machine
   scalar and `Bool` instances and generic helpers (`map`, `foldr`,
   `sumList`, ...).
@@ -211,7 +212,7 @@ Rejected with an explicit error naming the form:
 Semantics notes for the slice:
 
 - `Int` and `Nat` are mathematical (bignum-backed via the Rust
-  `slruntime`); machine types are separate and explicit (primitive types
+  `cinchruntime`); machine types are separate and explicit (primitive types
   specification). Division/remainder by zero faults (exit 72); `Nat`
   subtraction below zero and `Bytes` bounds faults exit 71.
 - Top-level functions are monomorphic in their runtime code only in the
@@ -232,7 +233,7 @@ Semantics notes for the slice:
 ```
 compiler/
   Cargo.toml
-  prelude/Prelude.lang     the class stack and generic helpers, in-language
+  prelude/Prelude.cinch     the class stack and generic helpers, in-language
   src/
     lexer.rs               tokens and lexical rules
     layout.rs              indentation to { ; }
@@ -266,7 +267,7 @@ dependency graphs, an INCR-style persistent session with
 function-level recompilation and type-checking confined to the
 reachability closure of changed contracts, and LINK-style object
 caching on declaration-level hashes. The compiler's content-addressed
-artifacts, contract-only `iface_hash`, and `.sliface` dependency chain
+artifacts, contract-only `iface_hash`, and `.cinchif` dependency chain
 are the starting advantages; the acceptance is latency (unchanged
 rebuild cost grows with graph traversal only) and a cache that is
 advisory, never load-bearing.

@@ -3,7 +3,7 @@
 //! `Ref`/`Mut` borrows with region escape checking, and the thunk
 //! multiplicity discipline. See `../design/ownership-and-usage.md`.
 
-use safelang::driver::{check_sources, run_source};
+use cinch::driver::{check_sources, run_source};
 
 fn expect_ok(name: &str, src: &str, expected: i32) {
     match run_source(src) {
@@ -194,7 +194,7 @@ module Main where
 
 #[test]
 fn copy_class_from_the_vector_filter_shape_works() {
-    // The shape of examples/source/02-vector-filter.lang with plain types:
+    // The shape of examples/source/02-vector-filter.cinch with plain types:
     // borrow matching yields references, `copyOut` copies out of a borrow
     // with `Copy` evidence, and the recursive call reuses the predicate
     // and the tail borrow.
@@ -400,7 +400,7 @@ module Main where
 
 #[test]
 fn linear_record_disjoint_projections_split_once() {
-    // The shape of examples/source/06-counter-upgrade.lang: `c.base` and
+    // The shape of examples/source/06-counter-upgrade.cinch: `c.base` and
     // `c.delta` are disjoint places of the record, one split of a `%1`
     // value (ownership and usage design, section 2).
     expect_ok(

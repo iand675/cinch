@@ -78,7 +78,7 @@ pub fn cmp(a: &SymCell, b: &SymCell) -> i64 {
 /// pointers with a positive length fault; a name that is not UTF-8
 /// faults.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn sl_sym_intern(ptr: *const u8, len: i64) -> i64 {
+pub unsafe extern "C" fn cinch_sym_intern(ptr: *const u8, len: i64) -> i64 {
     if len < 0 {
         abi::raise(Error::OutOfBounds);
     }
@@ -103,7 +103,7 @@ pub unsafe extern "C" fn sl_sym_intern(ptr: *const u8, len: i64) -> i64 {
 /// Bytes`). The name is copied into the buffer, so the cell stays
 /// immutable behind the language's `Bytes` mutation.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn sl_sym_name(word: i64) -> i64 {
+pub unsafe extern "C" fn cinch_sym_name(word: i64) -> i64 {
     let cell = unsafe { abi::as_sym(word) };
     abi::box_bytes(crate::bytes::Bytes::from(cell.name().to_vec()))
 }
@@ -111,14 +111,14 @@ pub unsafe extern "C" fn sl_sym_name(word: i64) -> i64 {
 /// Identity (0 or 1): `symEq`, the O(1) pointer test over interned
 /// cells.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn sl_sym_eq(a: i64, b: i64) -> i64 {
+pub unsafe extern "C" fn cinch_sym_eq(a: i64, b: i64) -> i64 {
     let (ca, cb) = unsafe { (abi::as_sym(a), abi::as_sym(b)) };
     i64::from(eq(ca, cb))
 }
 
 /// The raw -1, 0 or 1 of the lexicographic name order (`symCmp`).
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn sl_sym_cmp(a: i64, b: i64) -> i64 {
+pub unsafe extern "C" fn cinch_sym_cmp(a: i64, b: i64) -> i64 {
     let (ca, cb) = unsafe { (abi::as_sym(a), abi::as_sym(b)) };
     cmp(ca, cb)
 }

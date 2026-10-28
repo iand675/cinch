@@ -15,9 +15,9 @@
 //! incomparable constrained instances, and law/postcondition rows in
 //! the manifest.
 
-use safelang::check::StageMode;
-use safelang::core::TargetProfile;
-use safelang::driver::{check_sources, driver_with_profile, run_source, Mode};
+use cinch::check::StageMode;
+use cinch::core::TargetProfile;
+use cinch::driver::{check_sources, driver_with_profile, run_source, Mode};
 use std::path::PathBuf;
 
 /// Assert that checking the program fails with errors containing every
@@ -56,7 +56,7 @@ fn expect_run(name: &str, src: &str, expected: i32) {
 /// to a fresh temporary project and return its directory.
 fn write_project_files(name: &str, files: &[(&str, &str)]) -> PathBuf {
     let dir = std::env::temp_dir().join(format!(
-        "safelang-lattice-{}-{name}",
+        "cinch-lattice-{}-{name}",
         std::process::id()
     ));
     let _ = std::fs::remove_dir_all(&dir);
@@ -70,7 +70,7 @@ fn write_project_files(name: &str, files: &[(&str, &str)]) -> PathBuf {
 /// Write one source to a fresh temporary project and return its
 /// directory.
 fn write_project(name: &str, src: &str) -> PathBuf {
-    write_project_files(name, &[("Main.lang", src)])
+    write_project_files(name, &[("Main.cinch", src)])
 }
 
 /// The artifact manifest of one checked source (the law rows and their
@@ -80,7 +80,7 @@ fn manifest_of(name: &str, src: &str) -> String {
     driver_with_profile(
         Mode::Check,
         StageMode::Refresh,
-        &dir.join("Main.lang"),
+        &dir.join("Main.cinch"),
         None,
         &TargetProfile::native(),
     )

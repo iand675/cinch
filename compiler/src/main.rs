@@ -1,15 +1,15 @@
-use safelang::driver::{driver, Mode};
+use cinch::driver::{driver, Mode};
 use std::process::exit;
 
 const USAGE: &str = "\
-safelang: bootstrap compiler for the safe language design
+cinch: bootstrap compiler for the safe language design
 
 usage:
-  safelang check <file.lang>          typecheck only
-  safelang emit-ir <file.lang> [-o <out.ll>]
-  safelang build <file.lang> [-o <out>]
-  safelang run <file.lang>            compile and run; exit code is the program's
-  safelang lsp                        run the language server over stdio
+  cinch check <file.cinch>          typecheck only
+  cinch emit-ir <file.cinch> [-o <out.ll>]
+  cinch build <file.cinch> [-o <out>]
+  cinch run <file.cinch>            compile and run; exit code is the program's
+  cinch lsp                        run the language server over stdio
 ";
 
 fn main() {
@@ -26,9 +26,9 @@ fn main() {
             // stdin/stdout.
             let stdin = std::io::stdin();
             let stdout = std::io::stdout();
-            let mut server = safelang::lsp::LspServer::new();
+            let mut server = cinch::lsp::LspServer::new();
             if let Err(e) = server.run(std::io::BufReader::new(stdin.lock()), stdout.lock()) {
-                eprintln!("safelang: {e}");
+                eprintln!("cinch: {e}");
                 exit(1);
             }
             exit(0);
@@ -48,14 +48,14 @@ fn main() {
                 match rest.get(i) {
                     Some(o) => out = Some(o),
                     None => {
-                        eprintln!("safelang: -o needs a path");
+                        eprintln!("cinch: -o needs a path");
                         exit(2);
                     }
                 }
             }
             f if file.is_none() => file = Some(f),
             other => {
-                eprintln!("safelang: unexpected argument {other}");
+                eprintln!("cinch: unexpected argument {other}");
                 exit(2);
             }
         }
@@ -68,7 +68,7 @@ fn main() {
     match driver(mode, std::path::Path::new(file), out.map(std::path::Path::new)) {
         Ok(code) => exit(code),
         Err(e) => {
-            eprintln!("safelang: {e}");
+            eprintln!("cinch: {e}");
             exit(1);
         }
     }

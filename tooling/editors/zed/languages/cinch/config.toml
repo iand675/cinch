@@ -1,5 +1,5 @@
-name = "SafeLang"
-grammar = "safelang"
+name = "Cinch"
+grammar = "cinch"
 
 path_suffixes = ["lang"]
 line_comment = "--"

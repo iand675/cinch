@@ -16,7 +16,7 @@
 -- Instance homes. The ownership rule is "instances live with their
 -- type" (design/base-library.md). The List and Option instances got
 -- theirs at the prelude split (Data.List/Data.Option). NonEmpty's
--- instance lives with its type in Data/NonEmpty.lang.
+-- instance lives with its type in Data/NonEmpty.cinch.
 module Category.Foldable where
 
   signature Foldable (t :: Type -> Type) where

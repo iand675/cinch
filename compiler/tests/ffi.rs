@@ -3,8 +3,8 @@
 //! the no-unwind rule (foreign function interface specification
 //! sections 2-4; attribute annotations specification section 4).
 
-use safelang::driver::{check_sources, run_source_objects};
-use safelang::core::TargetProfile;
+use cinch::driver::{check_sources, run_source_objects};
+use cinch::core::TargetProfile;
 
 /// Compile a C fixture to an object file and return its path.
 fn c_fixture(name: &str, src: &str) -> String {
@@ -13,7 +13,7 @@ fn c_fixture(name: &str, src: &str) -> String {
     let c_path = dir.join(format!("{name}.c"));
     let o_path = dir.join(format!("{name}.o"));
     std::fs::write(&c_path, src).expect("write fixture");
-    let clang = std::env::var("SAFELANG_CLANG").unwrap_or_else(|_| "clang".to_string());
+    let clang = std::env::var("CINCH_CLANG").unwrap_or_else(|_| "clang".to_string());
     let status = std::process::Command::new(&clang)
         .arg("-c")
         .arg(&c_path)
@@ -224,7 +224,7 @@ module Main where
         "<test>",
     )
     .expect("check");
-    let ir = safelang::codegen::emit(&program).expect("emit");
+    let ir = cinch::codegen::emit(&program).expect("emit");
     let start = ir.find("define i64 @\"Main.takeP\"(").expect("wrapper unit");
     let end = ir[start..].find("\n}\n").expect("wrapper end") + start;
     let wrapper = &ir[start..end];
@@ -239,7 +239,7 @@ module Main where
 
 #[test]
 fn repr_c_field_access_uses_the_recorded_offsets() {
-    // Values constructed in SafeLang land at their C offsets: the fixture
+    // Values constructed in Cinch land at their C offsets: the fixture
     // reads `a` at offsetof 0 and `b` at offsetof 4 of a repr(C) struct.
     let o = c_fixture(
         "cp",

@@ -2,7 +2,7 @@
 // ------------------------------------------------------------ collection and programs
 
 /// Expected type of a compiler primitive, used to validate `foreign import`
-/// declarations of `safelang.prim.*` and `safelang.runtime.*` intrinsics.
+/// declarations of `cinch.prim.*` and `cinch.runtime.*` intrinsics.
 fn prim_scheme(op: PrimOp) -> Scheme {
     let (args, res) = op.sig();
     Scheme::mono(Ty::funs(&args, res))
@@ -840,7 +840,7 @@ impl Checker {
         for ad in adapters {
             self.wit_adapters.push(ad.clone());
             for b in &ad.bindings {
-                let unit = format!("safelang.wit.{}.{}", ad.module, b.name);
+                let unit = format!("cinch.wit.{}.{}", ad.module, b.name);
                 let arity = b.params.len();
                 let mut ty = surface_ty(&b.result);
                 for p in b.params.iter().rev() {
@@ -995,13 +995,13 @@ impl Checker {
         let entries: Vec<(&str, &str, Ty, usize)> = vec![
             (
                 "wasiStreamRead",
-                "safelang.wasi.stream-read",
+                "cinch.wasi.stream-read",
                 Ty::fun_eff(stream_a.clone(), effects.clone(), result_ty(stream_err.clone(), opt_a)),
                 1,
             ),
             (
                 "wasiStreamWrite",
-                "safelang.wasi.stream-write",
+                "cinch.wasi.stream-write",
                 Ty::fun_eff(
                     stream_a.clone(),
                     effects.clone(),
@@ -1011,7 +1011,7 @@ impl Checker {
             ),
             (
                 "wasiFutureWait",
-                "safelang.wasi.future-wait",
+                "cinch.wasi.future-wait",
                 Ty::fun_eff(future_a, effects, a),
                 1,
             ),
@@ -1029,7 +1029,7 @@ impl Checker {
                 ctx: Vec::new(),
                 ty,
             };
-            let unit = format!("safelang.wit.{name}");
+            let unit = format!("cinch.wit.{name}");
             let info = ValueInfo {
                 module: "<builtin>".to_string(),
                 name: name.to_string(),
@@ -2477,7 +2477,7 @@ impl Checker {
                                 external: f.symbol.clone(),
                                 ty: rendered,
                                 effects: String::new(),
-                                notes: "safelang intrinsic".to_string(),
+                                notes: "cinch intrinsic".to_string(),
                                 kind: "intrinsic".to_string(),
                                 params: Vec::new(),
                                 result: crate::interface::ForeignParam {
@@ -2496,17 +2496,17 @@ impl Checker {
                         ));
                     } else {
                         // The intrinsic namespaces are reserved: a
-                        // `safelang.prim.*`/`safelang.runtime.*` symbol
+                        // `cinch.prim.*`/`cinch.runtime.*` symbol
                         // that does not resolve names a retired or
                         // unknown intrinsic, not a C symbol (those names
                         // are not C identifiers anyway).
-                        if f.symbol.starts_with("safelang.prim.")
-                            || f.symbol.starts_with("safelang.runtime.")
+                        if f.symbol.starts_with("cinch.prim.")
+                            || f.symbol.starts_with("cinch.runtime.")
                         {
                             return Err(Error::at(
                                 f.span,
                                 format!(
-                                    "foreign symbol {} is not a safelang intrinsic; only safelang.prim.* and safelang.runtime.* intrinsics are supported in the bootstrap slice",
+                                    "foreign symbol {} is not a cinch intrinsic; only cinch.prim.* and cinch.runtime.* intrinsics are supported in the bootstrap slice",
                                     f.symbol
                                 ),
                             ));
@@ -2557,7 +2557,7 @@ impl Checker {
                     // specification section 7).
                     let unit = fn_id(&module, &p.name.text).0;
                     self.record_fn_hints(&unit, set.inline, set.fn_cold, p.span)?;
-                    if unit.starts_with("safelang.prim.") || unit.starts_with("safelang.runtime.") {
+                    if unit.starts_with("cinch.prim.") || unit.starts_with("cinch.runtime.") {
                         return Err(Error::at(
                             p.name.span,
                             format!(
@@ -7628,7 +7628,7 @@ impl Checker {
 
     /// Record the schema compatibility evidence of one upgrade in the
     /// module's interface (runtime evolution specification section 11;
-    /// the `.sliface` "checked against" chain extends to versioned
+    /// the `.cinchif` "checked against" chain extends to versioned
     /// identities). `added` optional fields stay distinguishable from
     /// missing fields under the view (core rule).
     fn record_upgrade_evidence(
@@ -8213,7 +8213,7 @@ impl Checker {
             // result is a boxed bignum while the C `main` truncates its
             // unit's word to `i32`, so the checker synthesizes
             // `"<module>.main.exit"`, whose body converts the `main`
-            // unit's result to a machine `i64` through `sl_int_to_i64`,
+            // unit's result to a machine `i64` through `cinch_int_to_i64`,
             // and `Program.main` points at it. An effectful `main` is
             // applied to its `Unit` argument first.
             let user_module = main_info.module.clone();
@@ -8376,8 +8376,8 @@ impl Checker {
                     "a `uses` entry is a foreign binding contract: monomorphic and unconstrained (foreign function interface specification section 2)",
                 ));
             }
-            if u.name.text.starts_with("safelang.prim.")
-                || u.name.text.starts_with("safelang.runtime.")
+            if u.name.text.starts_with("cinch.prim.")
+                || u.name.text.starts_with("cinch.runtime.")
             {
                 return Err(Error::at(
                     u.name.span,
@@ -8648,7 +8648,7 @@ impl Checker {
                     }
                     continue;
                 }
-                if sym.starts_with("sl_") || sym.starts_with("safelang.") {
+                if sym.starts_with("cinch_") || sym.starts_with("cinch.") {
                     return Err(err(
                         "a runtime call (task operations and runtime calls are not permitted in a body)",
                         "no-escape",
@@ -8706,7 +8706,7 @@ impl Checker {
                         "containment (no fault paths): `{w}` is a fault or syscall beyond a declared failure mode (specification section 4)"
                     )));
                 }
-                if (w.starts_with("sl_") || w.starts_with("safelang."))
+                if (w.starts_with("cinch_") || w.starts_with("cinch."))
                     && !uses.iter().any(|u| u == w)
                 {
                     return Err(at(format!(
@@ -8771,7 +8771,7 @@ impl Checker {
         let pending = std::mem::take(&mut self.pending_foreign);
         for (module, f, s, foreign_abi) in pending {
             if !f.is_import {
-                // A foreign export wraps an existing SafeLang function
+                // A foreign export wraps an existing Cinch function
                 // under a C-callable entry; its type is exactly the
                 // target's (foreign function interface specification
                 // section 2).
@@ -9657,7 +9657,7 @@ fn repr_item_error(t: &str) -> String {
 // attribute is compiler-owned and verified at the definition: a
 // violation is a compile error naming the attribute, the asserted rule,
 // and the offending site. A satisfied assertion is a contract fact
-// (recorded in `.sliface`, hashed into `iface_hash` exactly like `repr`
+// (recorded in `.cinchif`, hashed into `iface_hash` exactly like `repr`
 // facts).
 
 /// The `bounded(x)` argument: a natural number literal (the depth bound
@@ -14120,7 +14120,7 @@ impl Checker {
         Ok(())
     }
 
-    /// Build one module's `.sliface` content (design note, section 2).
+    /// Build one module's `.cinchif` content (design note, section 2).
     fn module_iface(
         &self,
         module: &str,
@@ -17719,7 +17719,7 @@ impl Checker {
             PrimOp::Bytes(bop) => {
                 use crate::core::BytesOp;
                 // The `Bytes` primitives speak `Nat` words (the intrinsic
-                // units convert through `sl_nat_to_i64` and back), so the
+                // units convert through `cinch_nat_to_i64` and back), so the
                 // compile-time values are `Nat` words too.
                 fn bytes_word(v: &Value, what: &str) -> Result<i64> {
                     let b = big_of(v, what)?;

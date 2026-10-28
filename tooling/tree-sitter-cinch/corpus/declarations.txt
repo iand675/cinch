@@ -886,7 +886,7 @@ module M where
 foreign import and fixity declarations
 ==========================================
 module M where
-  foreign import ccall "sl_write" ioWrite :: Int -> Unit
+  foreign import ccall "cinch_write" ioWrite :: Int -> Unit
   infixl 9 *, /, %
   infixr 6 <>
 

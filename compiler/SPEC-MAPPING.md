@@ -82,13 +82,13 @@ property holds by construction rather than by a named test.
 
 | # | Anchor | Requirement | Status | Evidence |
 | --- | --- | --- | --- | --- |
-| 48 | mod#1-module-packaging | Modules package types, values, ops, associated families, laws, generators | I | multi-module files (D42), generators exported via `import stage`, manifest `staging.generated`, module parameters/signatures as module arguments with instantiation units and parameter identity in `.sliface` (A5, D115-D121); per-instance associated type families remain the D71 gap (row 52) |
+| 48 | mod#1-module-packaging | Modules package types, values, ops, associated families, laws, generators | I | multi-module files (D42), generators exported via `import stage`, manifest `staging.generated`, module parameters/signatures as module arguments with instantiation units and parameter identity in `.cinchif` (A5, D115-D121); per-instance associated type families remain the D71 gap (row 52) |
 | 49 | mod#1-abstraction-restricts-reflection | Abstraction restricts code and reflection equally | N | no reflection; P9 |
 | 50 | mod#1-coherent-resolution | Coherent default instances; explicit dictionary selection available | I | cross-module coherence (`interface.rs::coherence_rejects_duplicate_instances`, `tests/modules.rs::instance_coherence_across_modules`); explicit dictionary selection via named module arguments and explicit instances (D119); two instantiations publishing unifiable implicit copies rejected as `ambiguous instance` |
 | 51 | mod#1-abstract-type-equality | Functor rules define abstract-type equality | N | no functors/opaque identity; P7/P9 |
 | 52 | mod#2-assoc-types-not-semantics | Associated types not mistaken for shared semantics | N | no associated families; P9 |
 | 53 | mod#3-associativity-evidence | Associativity evidence tied to the exact dictionary | N | no law modules; P7 |
-| 54 | mod#4-compiled-interface-contents | Compiled interface carries signatures, identities, equations, effects, contracts, laws | P | `.sliface` has exports/instances/fixities/foreign/assumptions (no law identities); `interface.rs::round_trips`, `::hash_is_content_identity` |
+| 54 | mod#4-compiled-interface-contents | Compiled interface carries signatures, identities, equations, effects, contracts, laws | P | `.cinchif` has exports/instances/fixities/foreign/assumptions (no law identities); `interface.rs::round_trips`, `::hash_is_content_identity` |
 | 55 | mod#4-dependency-kinds | Dependency kinds distinguished (interface/logical/impl/representation/generated/optimization) | P | interface deps + staleness chain (`::chain_detects_stale_metadata`, `::topo_order_respects_imports_and_detects_cycles`); finer kinds arrive with their features |
 | 56 | mod#5-rewrite-rules | Rewrite declarations, sound substitution, bounded termination | I | `rewrite`/`target rewrite` + `justify` (D55-D57: kernel evidence or law methods, effectful rules rejected, defeq guard); `tests/optimizer.rs` |
 | 57 | mod#6-fusion-preserves-observation | Fusion preserves observation model incl. divergence/effect order | I | `map_fusion_preserves_values_and_effect_order`, `blocked_fusion_names_the_blocker` (D60) |
@@ -140,7 +140,7 @@ property holds by construction rather than by a named test.
 | 83 | lazy#4-no-silent-many-to-memo | No silent `%many` thunk to shared memo conversion | I | distinct type forms (`types.rs` `Mult::Many` vs `Ty::Lazy`); structural |
 | 84 | lazy#5-cached-type-duplicable | Cached type `a` is duplicable (`Share`) | I | memo bare-use requires `Copy` via `copyOut` (D16/D19); `tests/ownership.rs` copy-coherence tests |
 | 85 | lazy#6-eval-r-rule | A memo region's cells never contain `Eval r` | I | row lacks-constraints (`check_terms.rs` memo groups); `tests/integration.rs::memo_group_black_hole_is_rejected`, `::memo_group_mutual_demand_is_rejected` |
-| 86 | lazy#6-blackhole-fault | `BlackHole` fault as defense in depth | I | `runtime/src/abi.rs::sl_blackhole` (70) |
+| 86 | lazy#6-blackhole-fault | `BlackHole` fault as defense in depth | I | `runtime/src/abi.rs::cinch_blackhole` (70) |
 | 87 | lazy#9-rejection-cases | The nine required rejection cases | P | demand cycles, double-force, thunk discipline enforced (`tests/ownership.rs`); thread-shared memo refused (`tests/concurrency.rs::a_thread_shared_memo_cell_is_rejected`); `%1` consumption holds on cancellation early-returns (D77); forced-dependent-erased-proof waits for P7 |
 
 ## supercompilation-and-jit-specification.md

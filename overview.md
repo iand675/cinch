@@ -167,7 +167,7 @@ Structured scopes bound task lifetimes. Bounded channels transfer ownership and 
 | Review abstraction and compilation | Modules and compilation specification |
 | Review hot swapping | Runtime evolution specification |
 | Learn the proposed notation | Tutorials 1 through 14 in order |
-| Review concrete acceptance cases | Example catalogue and the accompanying `.lang` files |
+| Review concrete acceptance cases | Example catalogue and the accompanying `.cinch` files |
 | Review external libraries | Foreign function interface specification |
 | Review Wasm deployment | WebAssembly and WASI specification |
 | Review concurrent execution | Concurrency specification |
