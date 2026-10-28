@@ -3008,24 +3008,49 @@ impl<'a> Parser<'a> {
         loop {
             let c_span = self.peek().span;
             // `Preserves (<>) p`: the preservation obligation names its
-            // method in parentheses.
-            if matches!(self.peek_tok(), Tok::VarId(s) if s == "Preserves")
-                && matches!(self.peek_tok_at(1), Some(Tok::LParen))
-            {
+            // method in parentheses (the name is upper-case: a `ConId`).
+            let is_preserves = match self.peek_tok().clone() {
+                Tok::VarId(s) | Tok::ConId(s) => s == "Preserves",
+                _ => false,
+            };
+            if is_preserves {
                 self.bump();
-                self.expect(&Tok::LParen, "`(` after `Preserves`")?;
+                // The preserved method's spelling: `(<>)`, `(<>)` as
+                // `(` op `)`, or a bare name.
                 let method = match self.peek_tok().clone() {
                     Tok::Op(s) => {
                         self.bump();
+                        let bare = s
+                            .strip_prefix('(')
+                            .and_then(|s| s.strip_suffix(')'))
+                            .unwrap_or(&s)
+                            .to_string();
+                        Name::new(bare, c_span)
+                    }
+                    Tok::LParen => {
+                        self.bump();
+                        let s = match self.peek_tok().clone() {
+                            Tok::Op(s) | Tok::VarId(s) => {
+                                self.bump();
+                                s
+                            }
+                            Tok::Pipe => {
+                                self.bump();
+                                "|".to_string()
+                            }
+                            t => {
+                                return Err(self.err(format!(
+                                    "expected the preserved method's name, found {}",
+                                    describe(&t)
+                                )))
+                            }
+                        };
+                        self.expect(&Tok::RParen, "`)` after the preserved method")?;
                         Name::new(s, c_span)
                     }
                     Tok::VarId(s) => {
                         self.bump();
                         Name::new(s, c_span)
-                    }
-                    Tok::Pipe => {
-                        self.bump();
-                        Name::new("|", c_span)
                     }
                     t => {
                         return Err(self.err(format!(
@@ -3034,7 +3059,6 @@ impl<'a> Parser<'a> {
                         )))
                     }
                 };
-                self.expect(&Tok::RParen, "`)` after the preserved method")?;
                 let pred = self.parse_infix_type()?;
                 cs.push(Oblig::Preserves { method, pred, span: c_span });
             } else if matches!(self.peek_tok(), Tok::VarId(_))

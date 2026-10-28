@@ -705,7 +705,6 @@ impl Checker {
                 // evidence (evidence invalidation over mutable state).
                 self.note_opaque_write_from(&core, *span);
                 let mut call_args: Vec<(Option<ITerm>, Ty, ast::Span)> = Vec::new();
-                let mut call_binders: Vec<(String, ITerm, Ty)> = Vec::new();
                 for a in args {
                     ty = self.uni.zonk(&ty);
                     let (arg_core, cod) = match ty {
@@ -745,7 +744,6 @@ impl Checker {
                                 )
                             })?;
                             call_args.push((Some(subst.clone()), self.uni.zonk(&dom), a.span()));
-                            call_binders.push((var.clone(), subst.clone(), self.uni.zonk(&dom)));
                             (if erased { None } else { Some(c) }, cod.subst_idx(&var, &subst))
                         }
                         Ty::Meta(_) => {
@@ -779,24 +777,44 @@ impl Checker {
                         let crate::types::PropOblig::Pred(p) = o else {
                             continue;
                         };
+                        // The positional binder `$a{i}` names the i-th
+                        // argument of the call.
                         let mut fv = Vec::new();
                         p.free_vars(&mut fv);
                         let mut inst = p.clone();
+                        let mut bound = true;
+                        let mut idxs: Vec<usize> = Vec::new();
                         for v in &fv {
-                            match call_binders.iter().find(|(b, _, _)| b == v) {
-                                Some((_, it, _)) => inst = inst.subst(v, it),
-                                None => {
-                                    return Err(Error::at(
+                            let idx = v
+                                .strip_prefix("$a")
+                                .and_then(|i| i.parse::<usize>().ok())
+                                .ok_or_else(|| {
+                                    Error::at(
                                         *span,
                                         format!(
-                                            "the refinement obligation `{p}` must be discharged at this call: apply this function to all of its arguments here (an obligation-bearing function must be fully applied)"
+                                            "the refinement obligation `{p}` names no argument of this function"
                                         ),
-                                    ))
-                                }
+                                    )
+                                })?;
+                            idxs.push(idx);
+                            match call_args.get(idx).and_then(|(it, _, _)| it.clone()) {
+                                Some(it) => inst = inst.subst(v, &it),
+                                None => bound = false,
                             }
                         }
-                        let static_ok = call_binders.iter().any(|(b, _, ty)| {
-                            fv.contains(b) && self.static_discharge(ty, &inst)
+                        if !bound {
+                            return Err(Error::at(
+                                *span,
+                                format!(
+                                    "the refinement obligation `{p}` must be discharged at this call: apply this function to all of its arguments here (an obligation-bearing function must be fully applied)"
+                                ),
+                            ));
+                        }
+                        let static_ok = idxs.iter().any(|idx| {
+                            call_args
+                                .get(*idx)
+                                .map(|(_, ty, _)| self.static_discharge(ty, &inst))
+                                .unwrap_or(false)
                         });
                         if static_ok {
                             continue;

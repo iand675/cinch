@@ -14911,6 +14911,21 @@ impl Checker {
                 });
             }
         }
+        // The law and preservation check rows of this module's
+        // instances (refinement types design, "composability"): contract
+        // facts hashed into `iface_hash`, exactly like the assertion
+        // rows.
+        let prefix = format!("{module}.");
+        for l in &self.law_rows {
+            if l.instance.starts_with(&prefix) {
+                iface.laws.push(crate::interface::LawFact {
+                    instance: l.instance.clone(),
+                    class: l.class.clone(),
+                    law: l.law.clone(),
+                    status: l.status.clone(),
+                });
+            }
+        }
         iface
     }
 }
@@ -15183,7 +15198,26 @@ fn check_program_multi_full_impl(
     // specification sections 5-6: justification, tiering and body
     // selection need the whole program's names and the target profile).
     c.check_prims()?;
-    c.check_laws()?;
+    // The law tier evaluates the instances' real method code over
+    // sample values whose shapes follow the predicate's bounds (a
+    // preservation witness at `length xs <= 200` is a 200-element
+    // list): the interpreter's per-call frames size the stack it runs
+    // on, not the default one.
+    let law = std::thread::scope(|s| {
+        std::thread::Builder::new()
+            .stack_size(512 * 1024 * 1024)
+            .spawn_scoped(s, || c.check_laws())
+            .expect("the law layer's thread")
+            .join()
+    });
+    match law {
+        Ok(r) => r?,
+        Err(_) => {
+            return Err(Error::plain(
+                "internal error: the law layer's sample evaluation panicked",
+            ))
+        }
+    }
     // Rewrite rules are checked after every module's declarations (their
     // `match`, `replace` and `justify` terms reference them).
     c.check_rewrites()?;

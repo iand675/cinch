@@ -4911,17 +4911,42 @@ impl Checker {
                 // operand shapes are checked where the predicate is used
                 // (a refinement declaration or a `decide`).
                 let name = p.parts().join(".");
-                let pf = PredFn::lookup(&name).ok_or_else(|| {
-                    Error::at(
-                        span,
-                        format!(
-                            "`{name}` is not a proposition former (use a comparison, `Eq x y`, `Not p`, or a decidable predicate: `NotNull`, `NonZero`, `Ascii`, `Ordered`)"
-                        ),
-                    )
-                })?;
-                let unit = Ty::Nat;
-                let operand = self.conv_idx(args[0], vars, &unit)?;
-                Ok(PTerm::Pred(pf, Box::new(operand)))
+                let pf = PredFn::lookup(&name);
+                if let Some(pf) = pf {
+                    let unit = Ty::Nat;
+                    let operand = self.conv_idx(args[0], vars, &unit)?;
+                    return Ok(PTerm::Pred(pf, Box::new(operand)));
+                }
+                // A named refinement's predicate applied to a value
+                // (`Sorted xs`, `NonEmpty xs`): nominal names are named
+                // predicates for readability, nothing more.
+                let info = self.lookup_type(&p.parts()).ok();
+                let tk = info.and_then(|i| {
+                    self.types
+                        .get(&i.name)?
+                        .iter()
+                        .find(|t| t.refine.is_some())
+                        .cloned()
+                });
+                if let Some(r) = tk.and_then(|t| t.refine) {
+                    if r.params.is_empty() {
+                        let unit = Ty::Nat;
+                        let operand = self.conv_idx(args[0], vars, &unit)?;
+                        return Ok(Checker::subst_pt(
+                            &r.pred,
+                            &HashMap::from([(
+                                r.binder.clone(),
+                                Ty::Idx(Box::new(operand)),
+                            )]),
+                        ));
+                    }
+                }
+                Err(Error::at(
+                    span,
+                    format!(
+                        "`{name}` is not a proposition former (use a comparison, `Eq x y`, `Not p`, a decidable predicate: `NotNull`, `NonZero`, `Ascii`, `Ordered`, or a named refinement over one value)"
+                    ),
+                ))
             }
             ast::Type::Var(n, _) if args.is_empty() && vars.contains(&n.text) => {
                 Ok(PTerm::Var(n.text.clone()))
@@ -6181,16 +6206,19 @@ impl Checker {
                     // signature's dependent arguments (`using (Sorted xs,
                     // Sorted ys)` over `(xs :: T) -> (ys :: T) -> ...`):
                     // the caller discharges one per named argument (the
-                    // `Dec` evidence path).
+                    // `Dec` evidence path). The names normalize to
+                    // positional binders (`$a{i}` names the i-th
+                    // argument), because a non-dependent chain collapses
+                    // to `Fun` and takes its names with it.
                     let mut arg_binders: Vec<String> = Vec::new();
-                    let mut cur = &t;
+                    let mut cur_ast = rest;
                     loop {
-                        match cur {
-                            Ty::Pi { var, cod, .. } => {
-                                arg_binders.push(var.clone());
-                                cur = cod;
+                        match cur_ast {
+                            ast::Type::DepFun(name, _, _, _, res, _) => {
+                                arg_binders.push(name.text.clone());
+                                cur_ast = res;
                             }
-                            Ty::Fun(_, _, _, cod) => cur = cod,
+                            ast::Type::Fun { res, .. } => cur_ast = res,
                             _ => break,
                         }
                     }
@@ -6205,6 +6233,13 @@ impl Checker {
                                         arg_binders.join(", ")
                                     )));
                                 }
+                            }
+                        }
+                    }
+                    for o in &mut obligs {
+                        if let PropOblig::Pred(p) = o {
+                            for (i, b) in arg_binders.iter().enumerate() {
+                                *p = p.subst(b, &ITerm::Var(format!("$a{i}")));
                             }
                         }
                     }
@@ -7253,6 +7288,7 @@ impl Checker {
         else {
             return Ok(());
         };
+        let wanted = self.uni.zonk_class(wanted);
         let scope = match &container {
             Some(g) => g.0.clone(),
             None => format!("{}.{}", inst.module, inst.name),

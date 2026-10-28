@@ -350,6 +350,19 @@ pub struct Assumptions {
     pub declared: Vec<String>,
 }
 
+/// One law and preservation check row of the artifact manifest,
+/// carried into the interface (refinement types design, "composability":
+/// a transfer's law and postcondition rows are contract facts of the
+/// module, hashed into `iface_hash` like the assertion rows).
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct LawFact {
+    pub instance: String,
+    pub class: String,
+    pub law: String,
+    /// `checked (N samples)` or `not checked (reason)`.
+    pub status: String,
+}
+
 /// Schema compatibility evidence for one checked `upgrade` (runtime
 /// evolution specification sections 2, 3 and 11): the record evolution
 /// from `old` to `new`, whether a migration checked its field mapping,
@@ -402,6 +415,9 @@ pub struct Iface {
     /// annotations specification section 10; decision D114's rule 7
     /// default). A consumer discards one only through `ignore`.
     pub must_use: Vec<String>,
+    /// The law and preservation check rows of the module's instances
+    /// (contract facts hashed into `iface_hash`).
+    pub laws: Vec<LawFact>,
     /// Schema compatibility evidence from the module's checked `upgrade`
     /// declarations (runtime evolution specification section 11).
     pub upgrades: Vec<UpgradeEvidence>,
@@ -427,6 +443,7 @@ impl Iface {
             assertions: Vec::new(),
             contracts: Vec::new(),
             must_use: Vec::new(),
+            laws: Vec::new(),
             upgrades: Vec::new(),
             units: Vec::new(),
         }
@@ -736,6 +753,22 @@ impl Iface {
         // D114's rule 7 default): the exported `Result`-returning values.
         out.push_str(",\n  \"must_use\": ");
         json_list(&mut out, &sorted(&self.must_use));
+        // The law and preservation check rows of the module's instances
+        // (contract facts hashed into `iface_hash`).
+        out.push_str(",\n  \"laws\": ");
+        let mut laws = self.laws.clone();
+        laws.sort();
+        arr_of(&mut out, 2, &laws, |o, l| {
+            o.push_str("{\"instance\": ");
+            json_str(o, &l.instance);
+            o.push_str(", \"class\": ");
+            json_str(o, &l.class);
+            o.push_str(", \"law\": ");
+            json_str(o, &l.law);
+            o.push_str(", \"status\": ");
+            json_str(o, &l.status);
+            o.push('}');
+        });
         out.push_str("\n}\n");
         out
     }
@@ -1041,6 +1074,25 @@ impl Iface {
                 must_use.push(item.as_str()?.to_string());
             }
         }
+        let mut laws = Vec::new();
+        if let Some(JsonValue::Arr(items)) = obj.get("laws") {
+            for item in items {
+                let o = item
+                    .as_object()
+                    .map_err(|_| ParseError("law entry".into()))?;
+                let field = |k: &str| -> Result<String, ParseError> {
+                    o.get(k)
+                        .ok_or_else(|| ParseError(format!("law entry missing {k}")))
+                        .and_then(|v| Ok(v.as_str()?.to_string()))
+                };
+                laws.push(LawFact {
+                    instance: field("instance")?,
+                    class: field("class")?,
+                    law: field("law")?,
+                    status: field("status")?,
+                });
+            }
+        }
         // The temporal contracts (core specification section 10); an
         // older document may omit them.
         let mut contracts = Vec::new();
@@ -1074,6 +1126,7 @@ impl Iface {
             assertions,
             contracts,
             must_use,
+            laws,
             upgrades,
             units,
         })
