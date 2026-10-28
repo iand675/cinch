@@ -65,7 +65,7 @@ module Text.Lex where
     InCrossesDelimiter, RefusedAttr, RefusedPrim, RefusedTickName
   export LexError, lex-error-span, lex-error-kind, lex-error-message
   export Lexed, LexedTokens, LexedFail
-  export eq-token, token-kind-name, render-token, text, chars-bytes, bytes-slice
+  export eq-token, token-kind-name, render-token, chars-bytes, bytes-slice
   export lex-source, lex-tokens, layout-tokens
 
 
@@ -73,13 +73,8 @@ module Text.Lex where
   -- Small text helpers.
   -- ---------------------------------------------------------------------------
 
-  -- A fixed ASCII message from char literals (string literals remain
-  -- compile-time only, Data.String): each char encodes through
-  -- `char-string` (Text.Show's conversion).
-  text :: List Char -> String
-  text cs = case cs of
-    Nil -> empty-string
-    Cons c rest -> string-concat (char-string c) (text rest)
+  -- `pack` is provided by Data.String (the type home); this module
+  -- imports it for its char-list-to-String conversions.
 
   -- The byte range [i, j) of a buffer as a fresh copy.
   bytes-slice :: Bytes -> Nat -> Nat -> Bytes
@@ -213,16 +208,16 @@ module Text.Lex where
 
   token-kind-name :: Token -> String
   token-kind-name t = case t of
-    TVar _ -> text ['v', 'a', 'r']
-    TCon _ -> text ['c', 'o', 'n']
-    TOp _ -> text ['o', 'p']
-    TInt _ -> text ['i', 'n', 't']
-    TFloat _ -> text ['f', 'l', 'o', 'a', 't']
-    TStr _ -> text ['s', 't', 'r']
-    TChar _ -> text ['c', 'h', 'a', 'r']
-    TWord _ -> text ['k', 'w']
-    TPunct _ -> text ['p', 'u', 'n', 'c', 't']
-    TEOF -> text ['e', 'o', 'f']
+    TVar _ -> "var"
+    TCon _ -> "con"
+    TOp _ -> "op"
+    TInt _ -> "int"
+    TFloat _ -> "float"
+    TStr _ -> "str"
+    TChar _ -> "char"
+    TWord _ -> "kw"
+    TPunct _ -> "punct"
+    TEOF -> "eof"
 
   token-spelling :: Token -> String
   token-spelling t = case t of
@@ -231,7 +226,7 @@ module Text.Lex where
     TOp s -> s
     TInt s -> s
     TFloat s -> s
-    TStr b -> String b
+    TStr b -> case string-from-bytes b of Some s -> s; None -> empty-string
     TChar n -> nat-to-string n
     TWord s -> s
     TPunct s -> s
@@ -248,12 +243,12 @@ module Text.Lex where
   render-token t = case t of
     LTok s v k ->
       let base = string-concat (token-kind-name k)
-            (string-concat (text [':'])
+            (string-concat (":")
               (string-concat (render-spelling k)
-                (string-concat (text ['@'])
+                (string-concat ("@")
                   (string-concat (nat-to-string (span-line s))
-                    (string-concat (text [':']) (nat-to-string (span-col s))))))) in
-      if v then string-concat base (text ['!', 'v']) else base
+                    (string-concat (":") (nat-to-string (span-col s))))))) in
+      if v then string-concat base ("!v") else base
 
   render-spelling :: Token -> String
   render-spelling k = case k of
@@ -269,8 +264,8 @@ module Text.Lex where
       None -> empty-string
       Some p -> case p of
         (c, w) ->
-          let piece = if eq-char c '\n' then text ['\\', 'n']
-                else if eq-char c '\\' then text ['\\', '\\']
+          let piece = if eq-char c '\n' then "\\n"
+                else if eq-char c '\\' then "\\\\"
                 else char-string c in
           string-concat piece (render-escaped b (i + w))
 
@@ -312,24 +307,24 @@ module Text.Lex where
 
   lex-error-message :: LexErrorKind -> String
   lex-error-message k = case k of
-    TabInIndentation -> text ['t', 'a', 'b', 's', ' ', 'a', 'r', 'e', ' ', 'r', 'e', 'j', 'e', 'c', 't', 'e', 'd', ' ', 'i', 'n', ' ', 'i', 'n', 'd', 'e', 'n', 't', 'a', 't', 'i', 'o', 'n']
-    UnterminatedComment -> text ['u', 'n', 't', 'e', 'r', 'm', 'i', 'n', 'a', 't', 'e', 'd', ' ', 'b', 'l', 'o', 'c', 'k', ' ', 'c', 'o', 'm', 'm', 'e', 'n', 't']
-    UnterminatedString -> text ['u', 'n', 't', 'e', 'r', 'm', 'i', 'n', 'a', 't', 'e', 'd', ' ', 's', 't', 'r', 'i', 'n', 'g', ' ', 'l', 'i', 't', 'e', 'r', 'a', 'l']
-    UnterminatedChar -> text ['u', 'n', 't', 'e', 'r', 'm', 'i', 'n', 'a', 't', 'e', 'd', ' ', 'c', 'h', 'a', 'r', 'a', 'c', 't', 'e', 'r', ' ', 'l', 'i', 't', 'e', 'r', 'a', 'l']
-    BadEscape -> text ['u', 'n', 'k', 'n', 'o', 'w', 'n', ' ', 'e', 's', 'c', 'a', 'p', 'e', ' ', 's', 'e', 'q', 'u', 'e', 'n', 'c', 'e']
-    MalformedNumber -> text ['m', 'a', 'l', 'f', 'o', 'r', 'm', 'e', 'd', ' ', 'n', 'u', 'm', 'b', 'e', 'r', ' ', 'l', 'i', 't', 'e', 'r', 'a', 'l']
-    UnexpectedChar -> text ['u', 'n', 'e', 'x', 'p', 'e', 'c', 't', 'e', 'd', ' ', 'c', 'h', 'a', 'r', 'a', 'c', 't', 'e', 'r']
-    MalformedTick -> text ['m', 'a', 'l', 'f', 'o', 'r', 'm', 'e', 'd', ' ', 't', 'i', 'c', 'k', ' ', 'l', 'i', 't', 'e', 'r', 'a', 'l']
+    TabInIndentation -> "tabs are rejected in indentation"
+    UnterminatedComment -> "unterminated block comment"
+    UnterminatedString -> "unterminated string literal"
+    UnterminatedChar -> "unterminated character literal"
+    BadEscape -> "unknown escape sequence"
+    MalformedNumber -> "malformed number literal"
+    UnexpectedChar -> "unexpected character"
+    MalformedTick -> "malformed tick literal"
     LayoutTooShallow col -> string-concat
-      (text ['l', 'a', 'y', 'o', 'u', 't', ' ', 'b', 'l', 'o', 'c', 'k', ' ', 'm', 'u', 's', 't', ' ', 'i', 'n', 'd', 'e', 'n', 't', ' ', 'f', 'a', 'r', 't', 'h', 'e', 'r', ' ', 't', 'h', 'a', 'n', ' ', 'i', 't', 's', ' ', 'e', 'n', 'c', 'l', 'o', 's', 'i', 'n', 'g', ' ', 'b', 'l', 'o', 'c', 'k', ' ', 'a', 't', ' ', 'c', 'o', 'l', 'u', 'm', 'n', ' '])
+      ("layout block must indent farther than its enclosing block at column ")
       (nat-to-string col)
-    MismatchedDelimiter -> text ['m', 'i', 's', 'm', 'a', 't', 'c', 'h', 'e', 'd', ' ', 'c', 'l', 'o', 's', 'i', 'n', 'g', ' ', 'd', 'e', 'l', 'i', 'm', 'i', 't', 'e', 'r']
-    UnclosedDelimiter -> text ['u', 'n', 'c', 'l', 'o', 's', 'e', 'd', ' ', 'd', 'e', 'l', 'i', 'm', 'i', 't', 'e', 'r']
-    InWithoutLet -> text ['`', 'i', 'n', '`', ' ', 'h', 'a', 's', ' ', 'n', 'o', ' ', 'm', 'a', 't', 'c', 'h', 'i', 'n', 'g', ' ', 'i', 'm', 'p', 'l', 'i', 'c', 'i', 't', ' ', '`', 'l', 'e', 't', '`', ' ', 'b', 'l', 'o', 'c', 'k']
-    InCrossesDelimiter -> text ['`', 'i', 'n', '`', ' ', 'm', 'u', 's', 't', ' ', 'n', 'o', 't', ' ', 'c', 'r', 'o', 's', 's', ' ', 'a', 'n', ' ', 'u', 'n', 'm', 'a', 't', 'c', 'h', 'e', 'd', ' ', 'e', 'x', 'p', 'l', 'i', 'c', 'i', 't', ' ', 'd', 'e', 'l', 'i', 'm', 'i', 't', 'e', 'r']
-    RefusedAttr -> text ['r', 'e', 'f', 'u', 's', 'e', 'd', ':', ' ', '`', '#', '[', ']', '`', ' ', 'a', 't', 't', 'r', 'i', 'b', 'u', 't', 'e', ' ', 'a', 'n', 'n', 'o', 't', 'a', 't', 'i', 'o', 'n', 's', ' ', 'a', 'r', 'e', ' ', 'n', 'o', 't', ' ', 'i', 'n', ' ', 't', 'h', 'e', ' ', 'l', 'e', 'x', 'i', 'n', 'g', ' ', 't', 'o', 'o', 'l', 'k', 'i', 't', '\'', 's', ' ', 'p', 'r', 'o', 'd', 'u', 'c', 't', 'i', 'o', 'n', ' ', 's', 'e', 't']
-    RefusedPrim -> text ['r', 'e', 'f', 'u', 's', 'e', 'd', ':', ' ', '`', 'p', 'r', 'i', 'm', '`', ' ', 'i', 'n', 'l', 'i', 'n', 'e', ' ', 't', 'a', 'r', 'g', 'e', 't', '-', 'I', 'R', ' ', 'f', 'r', 'a', 'g', 'm', 'e', 'n', 't', 's', ' ', 'a', 'r', 'e', ' ', 'n', 'o', 't', ' ', 'i', 'n', ' ', 't', 'h', 'e', ' ', 'l', 'e', 'x', 'i', 'n', 'g', ' ', 't', 'o', 'o', 'l', 'k', 'i', 't', '\'', 's', ' ', 'p', 'r', 'o', 'd', 'u', 'c', 't', 'i', 'o', 'n', ' ', 's', 'e', 't']
-    RefusedTickName -> text ['r', 'e', 'f', 'u', 's', 'e', 'd', ':', ' ', 't', 'h', 'e', ' ', 't', 'i', 'c', 'k', ' ', 'n', 'a', 'm', 'e', ' ', 'f', 'o', 'r', 'm', 's', ' ', '`', '\'', 'n', 'a', 'm', 'e', '`', ' ', 'a', 'n', 'd', ' ', '`', '\'', '\'', 'T', '`', ' ', 'a', 'r', 'e', ' ', 'n', 'o', 't', ' ', 'i', 'n', ' ', 't', 'h', 'e', ' ', 'l', 'e', 'x', 'i', 'n', 'g', ' ', 't', 'o', 'o', 'l', 'k', 'i', 't', '\'', 's', ' ', 'p', 'r', 'o', 'd', 'u', 'c', 't', 'i', 'o', 'n', ' ', 's', 'e', 't']
+    MismatchedDelimiter -> "mismatched closing delimiter"
+    UnclosedDelimiter -> "unclosed delimiter"
+    InWithoutLet -> "`in` has no matching implicit `let` block"
+    InCrossesDelimiter -> "`in` must not cross an unmatched explicit delimiter"
+    RefusedAttr -> "refused: attribute annotations are not in the lexing toolkit's production set"
+    RefusedPrim -> "refused: `prim` inline target-IR fragments are not in the lexing toolkit's production set"
+    RefusedTickName -> "refused: the tick name forms `'name` and `''T` are not in the lexing toolkit's production set"
 
   data Lexed where
     LexedTokens :: List LToken -> Lexed
@@ -589,62 +584,62 @@ module Text.Lex where
   -- compiler emits (`letrec` then `let`, sharing one span).
   keyword-token :: String -> Option Token
   keyword-token w =
-    if string-compare w (text ['m', 'o', 'd', 'u', 'l', 'e']) == 0 then Some (TWord w)
-    else if string-compare w (text ['w', 'h', 'e', 'r', 'e']) == 0 then Some (TWord w)
-    else if string-compare w (text ['d', 'a', 't', 'a']) == 0 then Some (TWord w)
-    else if string-compare w (text ['r', 'e', 'c', 'o', 'r', 'd']) == 0 then Some (TWord w)
-    else if string-compare w (text ['c', 'o', 'd', 'a', 't', 'a']) == 0 then Some (TWord w)
-    else if string-compare w (text ['e', 'f', 'f', 'e', 'c', 't']) == 0 then Some (TWord w)
-    else if string-compare w (text ['s', 'i', 'g', 'n', 'a', 't', 'u', 'r', 'e']) == 0 then Some (TWord w)
-    else if string-compare w (text ['i', 'n', 's', 't', 'a', 'n', 'c', 'e']) == 0 then Some (TWord w)
-    else if string-compare w (text ['i', 'm', 'p', 'l', 'i', 'c', 'i', 't']) == 0 then Some (TWord w)
-    else if string-compare w (text ['i', 'm', 'p', 'o', 'r', 't']) == 0 then Some (TWord w)
-    else if string-compare w (text ['a', 's']) == 0 then Some (TWord w)
-    else if string-compare w (text ['t', 'y', 'p', 'e']) == 0 then Some (TWord w)
-    else if string-compare w (text ['o', 'p', 'a', 'q', 'u', 'e']) == 0 then Some (TWord w)
-    else if string-compare w (text ['f', 'o', 'r', 'a', 'l', 'l']) == 0 then Some (TWord w)
-    else if string-compare w (text ['S', 'i', 'g', 'm', 'a']) == 0 then Some (TWord w)
-    else if string-compare w (text ['u', 's', 'i', 'n', 'g']) == 0 then Some (TWord w)
-    else if string-compare w (text ['i', 'n']) == 0 then Some (TWord w)
-    else if string-compare w (text ['l', 'e', 't']) == 0 then Some (TWord w)
-    else if string-compare w (text ['l', 'e', 't', 'r', 'e', 'c']) == 0 then Some (TWord w)
-    else if string-compare w (text ['i', 'f']) == 0 then Some (TWord w)
-    else if string-compare w (text ['t', 'h', 'e', 'n']) == 0 then Some (TWord w)
-    else if string-compare w (text ['e', 'l', 's', 'e']) == 0 then Some (TWord w)
-    else if string-compare w (text ['c', 'a', 's', 'e']) == 0 then Some (TWord w)
-    else if string-compare w (text ['o', 'f']) == 0 then Some (TWord w)
-    else if string-compare w (text ['d', 'o']) == 0 then Some (TWord w)
-    else if string-compare w (text ['h', 'a', 'n', 'd', 'l', 'e']) == 0 then Some (TWord w)
-    else if string-compare w (text ['w', 'i', 't', 'h']) == 0 then Some (TWord w)
-    else if string-compare w (text ['r', 'e', 'w', 'r', 'i', 't', 'e']) == 0 then Some (TWord w)
-    else if string-compare w (text ['p', 'r', 'i', 'm']) == 0 then Some (TWord w)
-    else if string-compare w (text ['l', 'a', 'w']) == 0 then Some (TWord w)
-    else if string-compare w (text ['t', 'a', 'r', 'g', 'e', 't']) == 0 then Some (TWord w)
-    else if string-compare w (text ['j', 'u', 's', 't', 'i', 'f', 'y']) == 0 then Some (TWord w)
-    else if string-compare w (text ['m', 'a', 't', 'c', 'h']) == 0 then Some (TWord w)
-    else if string-compare w (text ['r', 'e', 'p', 'l', 'a', 'c', 'e']) == 0 then Some (TWord w)
-    else if string-compare w (text ['r', 'e', 'q', 'u', 'i', 'r', 'e']) == 0 then Some (TWord w)
-    else if string-compare w (text ['u', 'p', 'g', 'r', 'a', 'd', 'e']) == 0 then Some (TWord w)
-    else if string-compare w (text ['c', 'o', 'n', 't', 'r', 'a', 'c', 't']) == 0 then Some (TWord w)
-    else if string-compare w (text ['t', 'o']) == 0 then Some (TWord w)
-    else if string-compare w (text ['g', 'e', 'n', 'e', 'r', 'a', 't', 'e']) == 0 then Some (TWord w)
-    else if string-compare w (text ['q', 'u', 'o', 't', 'e', 'D', 'e', 'c', 'l', 's']) == 0 then Some (TWord w)
-    else if string-compare w (text ['f', 'o', 'r', 'e', 'i', 'g', 'n']) == 0 then Some (TWord w)
-    else if string-compare w (text ['e', 'x', 'p', 'o', 'r', 't']) == 0 then Some (TWord w)
-    else if string-compare w (text ['c', 'c', 'a', 'l', 'l']) == 0 then Some (TWord w)
-    else if string-compare w (text ['c', 'o', 'm', 'p', 'o', 'n', 'e', 'n', 't']) == 0 then Some (TWord w)
-    else if string-compare w (text ['p', 'r', 'o', 'o', 'f']) == 0 then Some (TWord w)
-    else if string-compare w (text ['s', 'p', 'e', 'c']) == 0 then Some (TWord w)
-    else if string-compare w (text ['s', 't', 'a', 'g', 'e']) == 0 then Some (TWord w)
-    else if string-compare w (text ['c', 'o', 'r', 'e', 'c']) == 0 then Some (TWord w)
-    else if string-compare w (text ['m', 'a', 'c', 'r', 'o']) == 0 then Some (TWord w)
-    else if string-compare w (text ['i', 'n', 'f', 'i', 'x']) == 0 then Some (TWord w)
-    else if string-compare w (text ['i', 'n', 'f', 'i', 'x', 'l']) == 0 then Some (TWord w)
-    else if string-compare w (text ['i', 'n', 'f', 'i', 'x', 'r']) == 0 then Some (TWord w)
-    else if string-compare w (text ['e', 'r', 'a', 's', 'e', 'd']) == 0 then Some (TWord w)
-    else if string-compare w (text ['o', 'w', 'n']) == 0 then Some (TWord w)
-    else if string-compare w (text ['r', 'e', 't', 'u', 'r', 'n']) == 0 then Some (TWord w)
-    else if string-compare w (text ['r', 'e', 's', 'u', 'm', 'e']) == 0 then Some (TWord w)
+    if string-compare w ("module") == 0 then Some (TWord w)
+    else if string-compare w ("where") == 0 then Some (TWord w)
+    else if string-compare w ("data") == 0 then Some (TWord w)
+    else if string-compare w ("record") == 0 then Some (TWord w)
+    else if string-compare w ("codata") == 0 then Some (TWord w)
+    else if string-compare w ("effect") == 0 then Some (TWord w)
+    else if string-compare w ("signature") == 0 then Some (TWord w)
+    else if string-compare w ("instance") == 0 then Some (TWord w)
+    else if string-compare w ("implicit") == 0 then Some (TWord w)
+    else if string-compare w ("import") == 0 then Some (TWord w)
+    else if string-compare w ("as") == 0 then Some (TWord w)
+    else if string-compare w ("type") == 0 then Some (TWord w)
+    else if string-compare w ("opaque") == 0 then Some (TWord w)
+    else if string-compare w ("forall") == 0 then Some (TWord w)
+    else if string-compare w ("Sigma") == 0 then Some (TWord w)
+    else if string-compare w ("using") == 0 then Some (TWord w)
+    else if string-compare w ("in") == 0 then Some (TWord w)
+    else if string-compare w ("let") == 0 then Some (TWord w)
+    else if string-compare w ("letrec") == 0 then Some (TWord w)
+    else if string-compare w ("if") == 0 then Some (TWord w)
+    else if string-compare w ("then") == 0 then Some (TWord w)
+    else if string-compare w ("else") == 0 then Some (TWord w)
+    else if string-compare w ("case") == 0 then Some (TWord w)
+    else if string-compare w ("of") == 0 then Some (TWord w)
+    else if string-compare w ("do") == 0 then Some (TWord w)
+    else if string-compare w ("handle") == 0 then Some (TWord w)
+    else if string-compare w ("with") == 0 then Some (TWord w)
+    else if string-compare w ("rewrite") == 0 then Some (TWord w)
+    else if string-compare w ("prim") == 0 then Some (TWord w)
+    else if string-compare w ("law") == 0 then Some (TWord w)
+    else if string-compare w ("target") == 0 then Some (TWord w)
+    else if string-compare w ("justify") == 0 then Some (TWord w)
+    else if string-compare w ("match") == 0 then Some (TWord w)
+    else if string-compare w ("replace") == 0 then Some (TWord w)
+    else if string-compare w ("require") == 0 then Some (TWord w)
+    else if string-compare w ("upgrade") == 0 then Some (TWord w)
+    else if string-compare w ("contract") == 0 then Some (TWord w)
+    else if string-compare w ("to") == 0 then Some (TWord w)
+    else if string-compare w ("generate") == 0 then Some (TWord w)
+    else if string-compare w ("quoteDecls") == 0 then Some (TWord w)
+    else if string-compare w ("foreign") == 0 then Some (TWord w)
+    else if string-compare w ("export") == 0 then Some (TWord w)
+    else if string-compare w ("ccall") == 0 then Some (TWord w)
+    else if string-compare w ("component") == 0 then Some (TWord w)
+    else if string-compare w ("proof") == 0 then Some (TWord w)
+    else if string-compare w ("spec") == 0 then Some (TWord w)
+    else if string-compare w ("stage") == 0 then Some (TWord w)
+    else if string-compare w ("corec") == 0 then Some (TWord w)
+    else if string-compare w ("macro") == 0 then Some (TWord w)
+    else if string-compare w ("infix") == 0 then Some (TWord w)
+    else if string-compare w ("infixl") == 0 then Some (TWord w)
+    else if string-compare w ("infixr") == 0 then Some (TWord w)
+    else if string-compare w ("erased") == 0 then Some (TWord w)
+    else if string-compare w ("own") == 0 then Some (TWord w)
+    else if string-compare w ("return") == 0 then Some (TWord w)
+    else if string-compare w ("resume") == 0 then Some (TWord w)
     else None
 
   -- The word at the cursor: a reserved word, the `prim` refusal, or a
@@ -653,10 +648,10 @@ module Text.Lex where
   lex-word :: Scan -> TokenStep
   lex-word s = case scan-ident s of
     Pair s2 cs ->
-      let str = String (chars-bytes cs) in
-      if string-compare str (text ['p', 'r', 'i', 'm']) == 0 then ErrAt (scan-span s) RefusedPrim
-      else if string-compare str (text ['l', 'e', 't', 'r', 'e', 'c']) == 0 then
-        Tok2 s2 (TWord str) (TWord (text ['l', 'e', 't']))
+      let str = case string-from-bytes (chars-bytes cs) of Some s -> s; None -> empty-string in
+      if string-compare str ("prim") == 0 then ErrAt (scan-span s) RefusedPrim
+      else if string-compare str ("letrec") == 0 then
+        Tok2 s2 (TWord str) (TWord ("let"))
       else case keyword-token str of
         Some t -> Tok1 s2 t
         None ->
@@ -669,15 +664,15 @@ module Text.Lex where
   -- and the bare reserved symbols. Anything else is an operator.
   symbol-token :: String -> Token
   symbol-token s =
-    if string-compare s (text [':', ':']) == 0 then TPunct s
-    else if string-compare s (text ['-', '>']) == 0 then TPunct s
-    else if string-compare s (text ['<', '-']) == 0 then TPunct s
-    else if string-compare s (text ['=', '>']) == 0 then TPunct s
-    else if string-compare s (text ['!']) == 0 then TPunct s
-    else if string-compare s (text ['@']) == 0 then TPunct s
-    else if string-compare s (text ['=']) == 0 then TPunct s
-    else if string-compare s (text ['|']) == 0 then TPunct s
-    else if string-compare s (text ['~']) == 0 then TPunct s
+    if string-compare s ("::") == 0 then TPunct s
+    else if string-compare s ("->") == 0 then TPunct s
+    else if string-compare s ("<-") == 0 then TPunct s
+    else if string-compare s ("=>") == 0 then TPunct s
+    else if string-compare s ("!") == 0 then TPunct s
+    else if string-compare s ("@") == 0 then TPunct s
+    else if string-compare s ("=") == 0 then TPunct s
+    else if string-compare s ("|") == 0 then TPunct s
+    else if string-compare s ("~") == 0 then TPunct s
     else TOp s
 
   is-nil-chars :: List Char -> Bool
@@ -696,7 +691,7 @@ module Text.Lex where
   -- atom `-3`).
   lex-symbol :: Scan -> TokenStep
   lex-symbol s = case lex-symbol-acc s Nil of
-    Pair s2 cs -> Tok1 s2 (symbol-token (String (chars-bytes cs)))
+    Pair s2 cs -> Tok1 s2 (symbol-token (case string-from-bytes (chars-bytes cs) of Some s -> s; None -> empty-string))
 
   lex-symbol-acc :: Scan -> List Char -> PairScan
   lex-symbol-acc s acc = case peek-char s of
@@ -716,14 +711,14 @@ module Text.Lex where
           None -> True
           Some c -> not (is-ident-char c) in
     case peek-at s 1 of
-      Some c | eq-char c '0' && boundary 2 -> Some (Tok1 (skip-char (skip-char s)) (TPunct (text ['%', '0'])))
-      Some c | eq-char c '1' && boundary 2 -> Some (Tok1 (skip-char (skip-char s)) (TPunct (text ['%', '1'])))
+      Some c | eq-char c '0' && boundary 2 -> Some (Tok1 (skip-char (skip-char s)) (TPunct ("%0")))
+      Some c | eq-char c '1' && boundary 2 -> Some (Tok1 (skip-char (skip-char s)) (TPunct ("%1")))
       Some c | eq-char c 'a' ->
         case peek-at s 2 of
           Some d | eq-char d 'f' ->
             case peek-at s 3 of
               Some e | eq-char e 'f' && boundary 4 ->
-                Some (Tok1 (skip-n-chars s 4) (TPunct (text ['%', 'a', 'f', 'f'])))
+                Some (Tok1 (skip-n-chars s 4) (TPunct ("%aff")))
               _ -> None
           _ -> None
       Some c | eq-char c 'm' ->
@@ -733,7 +728,7 @@ module Text.Lex where
               Some e | eq-char e 'n' ->
                 case peek-at s 4 of
                   Some f | eq-char f 'y' && boundary 5 ->
-                    Some (Tok1 (skip-n-chars s 5) (TPunct (text ['%', 'm', 'a', 'n', 'y'])))
+                    Some (Tok1 (skip-n-chars s 5) (TPunct ("%many")))
                   _ -> None
               _ -> None
           _ -> None
@@ -759,7 +754,7 @@ module Text.Lex where
         case scan-float-frac s2 rev of
           None -> Tok1 s2 (TInt (nat-to-string n))
           Some p -> case p of
-            Pair s3 cs -> Tok1 s3 (TFloat (String (chars-bytes cs)))
+            Pair s3 cs -> Tok1 s3 (TFloat (case string-from-bytes (chars-bytes cs) of Some s -> s; None -> empty-string))
 
   is-zero-x :: Scan -> Bool
   is-zero-x s = case peek-char s of
@@ -928,8 +923,8 @@ module Text.Lex where
           if eq-char c '$' && is-dollar-paren s2 then
             let s3 = skip-char (skip-char s2) in
             let sp1 = span-end-at sp0 s3 in
-            scan-all s3 (Cons (LTok sp1 False (TPunct (text ['('])))
-              (Cons (LTok sp1 False (TPunct (text ['$']))) acc))
+            scan-all s3 (Cons (LTok sp1 False (TPunct ("(")))
+              (Cons (LTok sp1 False (TPunct ("$"))) acc))
           else case scan-token s2 sp0 of
             ErrAt sp k -> LexedFail sp k
             Tok1 s3 t -> scan-all s3 (Cons (LTok (span-end-at sp0 s3) False t) acc)
@@ -953,22 +948,22 @@ module Text.Lex where
       Some c ->
         if eq-char c '.' then
           case peek-at s 1 of
-            Some d | eq-char d '.' -> Tok1 (skip-char (skip-char s)) (TPunct (text ['.', '.']))
-            _ -> Tok1 (skip-char s) (TPunct (text ['.']))
-        else if eq-char c '(' then Tok1 (skip-char s) (TPunct (text ['(']))
-        else if eq-char c ')' then Tok1 (skip-char s) (TPunct (text [')']))
-        else if eq-char c ']' then Tok1 (skip-char s) (TPunct (text [']']))
-        else if eq-char c '{' then Tok1 (skip-char s) (TPunct (text ['{']))
-        else if eq-char c '}' then Tok1 (skip-char s) (TPunct (text ['}']))
-        else if eq-char c ',' then Tok1 (skip-char s) (TPunct (text [',']))
-        else if eq-char c ';' then Tok1 (skip-char s) (TPunct (text [';']))
+            Some d | eq-char d '.' -> Tok1 (skip-char (skip-char s)) (TPunct (".."))
+            _ -> Tok1 (skip-char s) (TPunct ("."))
+        else if eq-char c '(' then Tok1 (skip-char s) (TPunct ("("))
+        else if eq-char c ')' then Tok1 (skip-char s) (TPunct (")"))
+        else if eq-char c ']' then Tok1 (skip-char s) (TPunct ("]"))
+        else if eq-char c '{' then Tok1 (skip-char s) (TPunct ("{"))
+        else if eq-char c '}' then Tok1 (skip-char s) (TPunct ("}"))
+        else if eq-char c ',' then Tok1 (skip-char s) (TPunct (","))
+        else if eq-char c ';' then Tok1 (skip-char s) (TPunct (";"))
         else if eq-char c '[' then
           case peek-at s 1 of
-            Some d | eq-char d '|' -> Tok1 (skip-char (skip-char s)) (TPunct (text ['[', '|']))
-            _ -> Tok1 (skip-char s) (TPunct (text ['[']))
+            Some d | eq-char d '|' -> Tok1 (skip-char (skip-char s)) (TPunct ("[|"))
+            _ -> Tok1 (skip-char s) (TPunct ("["))
         else if eq-char c '|' then
           case peek-at s 1 of
-            Some d | eq-char d ']' -> Tok1 (skip-char (skip-char s)) (TPunct (text ['|', ']']))
+            Some d | eq-char d ']' -> Tok1 (skip-char (skip-char s)) (TPunct ("|]"))
             _ -> lex-symbol s
         else if eq-char c '#' then
           case peek-at s 1 of
@@ -978,8 +973,8 @@ module Text.Lex where
           case lex-multiplicity s of
             Some step -> step
             None -> lex-symbol s
-        else if eq-char c '$' then Tok1 (skip-char s) (TPunct (text ['$']))
-        else if eq-char c '\\' then Tok1 (skip-char s) (TPunct (text ['\\']))
+        else if eq-char c '$' then Tok1 (skip-char s) (TPunct ("$"))
+        else if eq-char c '\\' then Tok1 (skip-char s) (TPunct ("\\"))
         else if eq-char c '-' then lex-minus s
         else if eq-char c '"' then lex-string s
         else if eq-char c '\'' then lex-tick s
@@ -1000,8 +995,8 @@ module Text.Lex where
 
   signed-token :: Token -> Token
   signed-token t = case t of
-    TInt v -> TInt (string-concat (text ['-']) v)
-    TFloat v -> TFloat (string-concat (text ['-']) v)
+    TInt v -> TInt (string-concat ("-") v)
+    TFloat v -> TFloat (string-concat ("-") v)
     _ -> t
 
   -- lex-tokens over a source `String`'s bytes.
@@ -1158,49 +1153,49 @@ module Text.Lex where
     _ -> False
 
   is-open-brace :: Token -> Bool
-  is-open-brace k = is-tok-punct k (text ['{'])
+  is-open-brace k = is-tok-punct k ("{")
 
   is-open-paren :: Token -> Bool
-  is-open-paren k = is-tok-punct k (text ['('])
+  is-open-paren k = is-tok-punct k ("(")
 
   is-open-delim :: Token -> Bool
   is-open-delim k =
-    is-tok-punct k (text ['(']) || is-tok-punct k (text ['[']) || is-tok-punct k (text ['{'])
+    is-tok-punct k ("(") || is-tok-punct k ("[") || is-tok-punct k ("{")
 
   delim-of :: Token -> DelimKind
   delim-of k =
-    if is-tok-punct k (text ['(']) then DParen
-    else if is-tok-punct k (text ['[']) then DBracket
+    if is-tok-punct k ("(") then DParen
+    else if is-tok-punct k ("[") then DBracket
     else DBrace
 
   is-closer :: Token -> Bool
   is-closer k =
-    is-tok-punct k (text [')']) || is-tok-punct k (text [']']) || is-tok-punct k (text ['}'])
+    is-tok-punct k (")") || is-tok-punct k ("]") || is-tok-punct k ("}")
 
   closer-delim :: Token -> DelimKind
   closer-delim k =
-    if is-tok-punct k (text [')']) then DParen
-    else if is-tok-punct k (text [']']) then DBracket
+    if is-tok-punct k (")") then DParen
+    else if is-tok-punct k ("]") then DBracket
     else DBrace
 
   is-in-tok :: Token -> Bool
-  is-in-tok k = is-tok-word k (text ['i', 'n'])
+  is-in-tok k = is-tok-word k ("in")
 
   is-with-tok :: Token -> Bool
-  is-with-tok k = is-tok-word k (text ['w', 'i', 't', 'h'])
+  is-with-tok k = is-tok-word k ("with")
 
   is-equals-tok :: Token -> Bool
-  is-equals-tok k = is-tok-punct k (text ['='])
+  is-equals-tok k = is-tok-punct k ("=")
 
   is-opener :: Token -> Bool
   is-opener k =
-    is-tok-word k (text ['w', 'h', 'e', 'r', 'e'])
-    || is-tok-word k (text ['o', 'f'])
-    || is-tok-word k (text ['d', 'o'])
-    || is-tok-word k (text ['l', 'e', 't'])
+    is-tok-word k ("where")
+    || is-tok-word k ("of")
+    || is-tok-word k ("do")
+    || is-tok-word k ("let")
 
   is-let-tok :: Token -> Bool
-  is-let-tok k = is-tok-word k (text ['l', 'e', 't'])
+  is-let-tok k = is-tok-word k ("let")
 
   -- The per-token loop. `check` says whether this token is eligible
   -- for the line-start `;`/`}` logic (the first item of a block is
@@ -1226,8 +1221,8 @@ module Text.Lex where
           None -> layout-cont rest tok base True with-group-open supply-in
           Some psp ->
             if is-eof kind then
-              let l1 = push-tok (virtual-tok sp-tok (TPunct (text ['}'])))
-                    (push-tok (virtual-tok sp-tok (TPunct (text ['{']))) (clear-pend base)) in
+              let l1 = push-tok (virtual-tok sp-tok (TPunct ("}")))
+                    (push-tok (virtual-tok sp-tok (TPunct ("{"))) (clear-pend base)) in
               layout-cont rest tok l1 True with-group-open supply-in
             else if is-open-brace kind then
               let l1 = push-tok tok (push-frame (clear-pend base) (FDelim DBrace 0)) in
@@ -1235,7 +1230,7 @@ module Text.Lex where
             else if shallow-top s sp-tok then
               LexedFail sp-tok (LayoutTooShallow (frame-col (top-frame s)))
             else
-              let l1 = push-tok (virtual-tok sp-tok (TPunct (text ['{'])))
+              let l1 = push-tok (virtual-tok sp-tok (TPunct ("{")))
                     (push-frame (clear-pend base) (FImplicit (span-col sp-tok) pi)) in
               layout-cont rest tok l1 False with-group-open supply-in
 
@@ -1335,7 +1330,7 @@ module Text.Lex where
   pop-n-frames :: Lay -> Nat -> Span -> Lay
   pop-n-frames lay n sp =
     if le-i64 (nat-cmp (list-len (lay-stack lay)) n) 0 then lay
-    else pop-n-frames (push-tok (virtual-tok sp (TPunct (text ['}']))) (pop-frame lay)) n sp
+    else pop-n-frames (push-tok (virtual-tok sp (TPunct ("}"))) (pop-frame lay)) n sp
 
   list-len :: List Frame -> Nat
   list-len xs = case xs of
@@ -1346,7 +1341,7 @@ module Text.Lex where
   close-all-implicit lay sp = case lay-stack lay of
     Cons f fs ->
       if is-implicit f then
-        close-all-implicit (push-tok (virtual-tok sp (TPunct (text ['}']))) (pop-frame lay)) sp
+        close-all-implicit (push-tok (virtual-tok sp (TPunct ("}"))) (pop-frame lay)) sp
       else lay
     Nil -> lay
 
@@ -1363,7 +1358,7 @@ module Text.Lex where
           case lay-stack l1 of
             Cons f fs ->
               if is-implicit f && nat-cmp (span-col sp) (frame-col f) == 0 then
-                push-tok (virtual-tok sp (TPunct (text [';']))) l1
+                push-tok (virtual-tok sp (TPunct (";"))) l1
               else l1
             Nil -> l1
 
@@ -1371,7 +1366,7 @@ module Text.Lex where
   close-outdented lay sp = case lay-stack lay of
     Cons f fs ->
       if is-implicit f && lt-i64 (nat-cmp (span-col sp) (frame-col f)) 0 then
-        close-outdented (push-tok (virtual-tok sp (TPunct (text ['}']))) (pop-frame lay)) sp
+        close-outdented (push-tok (virtual-tok sp (TPunct ("}"))) (pop-frame lay)) sp
       else lay
     Nil -> lay
 

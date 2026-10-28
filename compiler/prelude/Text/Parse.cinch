@@ -133,18 +133,18 @@ module Text.Parse where
   render-item it = case it of
     ITok t -> token-describe t
     ILabel s -> s
-    IEnd -> text ['e', 'n', 'd', ' ', 'o', 'f', ' ', 'i', 'n', 'p', 'u', 't']
+    IEnd -> "end of input"
 
   -- A token's spelling for error lines (no position).
   token-describe :: Token -> String
   token-describe t = case t of
-    TEOF -> text ['e', 'n', 'd', ' ', 'o', 'f', ' ', 'i', 'n', 'p', 'u', 't']
+    TEOF -> "end of input"
     TVar s -> s
     TCon s -> s
     TOp s -> s
     TInt s -> s
     TFloat s -> s
-    TStr b -> String b
+    TStr b -> case string-from-bytes b of Some s -> s; None -> empty-string
     TChar n -> case u32-to-char (wrapping-i64-to-u32 (nat-to-i64 n)) of
       None -> empty-string
       Some c -> char-string c
@@ -156,10 +156,10 @@ module Text.Parse where
     Nil -> empty-string
     Cons y ys -> case ys of
       Nil -> render-item y
-      _ -> string-concat (render-item y) (string-concat (text [',', ' ']) (join-items ys))
+      _ -> string-concat (render-item y) (string-concat (", ") (join-items ys))
 
   spaces :: Nat -> String
-  spaces n = if n == 0 then empty-string else string-concat (text [' ']) (spaces (n - 1))
+  spaces n = if n == 0 then empty-string else string-concat (" ") (spaces (n - 1))
 
   -- The source line containing a byte offset: its start offset and
   -- its text (without the line ending).
@@ -182,7 +182,7 @@ module Text.Parse where
   render-error name b e = case e of
     EFail s m ->
       string-concat (header name s)
-        (string-concat m (text ['\n']))
+        (string-concat m ("\n"))
     EUnexpected s u xs ->
       let ln = span-line s in
       let col = span-col s in
@@ -191,35 +191,35 @@ module Text.Parse where
       let gutter = nat-to-string ln in
       let pad = spaces (nat-digit-count ln) in
       let caret = string-concat pad
-            (string-concat (text [' ', '|', ' '])
-              (string-concat (spaces (if nat-cmp col 0 == 0 then 0 else col - 1)) (text ['^']))) in
-      let body = string-concat (text [' ', ' ', '|', '\n'])
+            (string-concat (" | ")
+              (string-concat (spaces (if nat-cmp col 0 == 0 then 0 else col - 1)) ("^"))) in
+      let body = string-concat ("  |\n")
             (string-concat gutter
-              (string-concat (text [' ', '|', ' '])
-                (string-concat (String (bytes-slice b ls le))
-                  (string-concat (text ['\n'])
-                    (string-concat caret (text ['\n'])))))) in
-      let unexp = string-concat (text ['u', 'n', 'e', 'x', 'p', 'e', 'c', 't', 'e', 'd', ':', ' '])
+              (string-concat (" | ")
+                (string-concat (case string-from-bytes (bytes-slice b ls le) of Some s -> s; None -> empty-string)
+                  (string-concat ("\n")
+                    (string-concat caret ("\n")))))) in
+      let unexp = string-concat ("unexpected: ")
             (string-concat (case u of
-                None -> text ['n', 'o', 't', 'h', 'i', 'n', 'g']
+                None -> "nothing"
                 Some it -> render-item it)
-              (text ['\n'])) in
+              ("\n")) in
       let exp-line = case xs of
             Nil -> empty-string
             _ -> string-concat
-              (text ['e', 'x', 'p', 'e', 'c', 't', 'i', 'n', 'g', ':', ' '])
-              (string-concat (join-items xs) (text ['\n'])) in
+              ("expecting: ")
+              (string-concat (join-items xs) ("\n")) in
       string-concat (header name s)
         (string-concat body (string-concat unexp exp-line))
 
   header :: String -> Span -> String
   header name s =
     string-concat name
-      (string-concat (text [':'])
+      (string-concat (":")
         (string-concat (nat-to-string (span-line s))
-          (string-concat (text [':'])
+          (string-concat (":")
             (string-concat (nat-to-string (span-col s))
-              (string-concat (text [':']) (text ['\n']))))))
+              (string-concat (":") ("\n"))))))
 
   -- The bundle's rendering: every error, megaparsec-style, in order.
   render-bundle :: ParseErrorBundle -> String
@@ -232,7 +232,7 @@ module Text.Parse where
     Cons e rest -> case rest of
       Nil -> render-error name src e
       _ -> string-concat (render-error name src e)
-            (string-concat (text ['\n']) (render-errors name src rest))
+            (string-concat ("\n") (render-errors name src rest))
 
   -- Merging two errors at the same position unions their expected
   -- sets (megaparsec's `TrivialError` semigroup); the later position
@@ -347,7 +347,7 @@ module Text.Parse where
 
   choice-p :: forall a. List (Parser a) -> Parser a
   choice-p ps = case ps of
-    Nil -> fail-p (text ['n', 'o', ' ', 'a', 'l', 't', 'e', 'r', 'n', 'a', 't', 'i', 'v', 'e'])
+    Nil -> fail-p ("no alternative")
     Cons p rest -> case rest of
       Nil -> p
       _ -> or-else p (choice-p rest)
@@ -408,32 +408,32 @@ module Text.Parse where
   satisfy-var :: Parser String
   satisfy-var = token-p (\k -> case k of
     TVar s -> Some s
-    _ -> None) (Cons (ILabel (text ['n', 'a', 'm', 'e'])) Nil)
+    _ -> None) (Cons (ILabel ("name")) Nil)
 
   satisfy-con :: Parser String
   satisfy-con = token-p (\k -> case k of
     TCon s -> Some s
-    _ -> None) (Cons (ILabel (text ['c', 'o', 'n', 's', 't', 'r', 'u', 'c', 't', 'o', 'r'])) Nil)
+    _ -> None) (Cons (ILabel ("constructor")) Nil)
 
   satisfy-int :: Parser String
   satisfy-int = token-p (\k -> case k of
     TInt s -> Some s
-    _ -> None) (Cons (ILabel (text ['i', 'n', 't', 'e', 'g', 'e', 'r'])) Nil)
+    _ -> None) (Cons (ILabel ("integer")) Nil)
 
   satisfy-float :: Parser String
   satisfy-float = token-p (\k -> case k of
     TFloat s -> Some s
-    _ -> None) (Cons (ILabel (text ['f', 'l', 'o', 'a', 't'])) Nil)
+    _ -> None) (Cons (ILabel ("float")) Nil)
 
   satisfy-str :: Parser Bytes
   satisfy-str = token-p (\k -> case k of
     TStr b -> Some b
-    _ -> None) (Cons (ILabel (text ['s', 't', 'r', 'i', 'n', 'g'])) Nil)
+    _ -> None) (Cons (ILabel ("string")) Nil)
 
   satisfy-char :: Parser Nat
   satisfy-char = token-p (\k -> case k of
     TChar n -> Some n
-    _ -> None) (Cons (ILabel (text ['c', 'h', 'a', 'r', 'a', 'c', 't', 'e', 'r'])) Nil)
+    _ -> None) (Cons (ILabel ("character")) Nil)
 
   expect-eof :: Parser Unit
   expect-eof = token-p (\k -> case k of
@@ -591,7 +591,7 @@ module Text.Parse where
   first-error :: ParseErrorBundle -> ParseError
   first-error b = case bundle-errors b of
     Cons e rest -> e
-    Nil -> EFail (Span 0 0 1 1) (text ['e', 'm', 'p', 't', 'y', ' ', 'b', 'u', 'n', 'd', 'l', 'e'])
+    Nil -> EFail (Span 0 0 1 1) ("empty bundle")
 
   -- The errors after the hard one (the recovered ones).
   bundle-rest :: ParseErrorBundle -> List ParseError
