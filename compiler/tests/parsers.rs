@@ -1432,3 +1432,76 @@ fn bootstrap_grammar_parses_the_examples() {
     let code = run_main("grammar", &src);
     assert_eq!(code, 0, "bootstrap grammar: exit {code} (10.. facts of fib, 20.. facts of classes, 100 + line = parse failure line)");
 }
+
+// ----------------------------------------------------------------
+// Bundle rendering: megaparsec-style error output with caret,
+// unexpected, and expecting lines.
+// ----------------------------------------------------------------
+
+#[test]
+fn parse_bundle_rendering() {
+    let mut program = program_header();
+    for line in [
+        "  check-sub :: String -> String -> Bool",
+        "  check-sub hay needle = has-sub (string-to-bytes hay) (string-to-bytes needle) 0",
+        "",
+        "  has-sub :: Bytes -> Bytes -> Nat -> Bool",
+        "  has-sub hay needle i =",
+        "    if i + bytes-len needle > bytes-len hay then False",
+        "    else if eq-bytes-at hay needle i 0 then True",
+        "    else has-sub hay needle (i + 1)",
+        "",
+        "  eq-bytes-at :: Bytes -> Bytes -> Nat -> Nat -> Bool",
+        "  eq-bytes-at hay needle i j =",
+        "    if nat-cmp j (bytes-len needle) == 0 then True",
+        "    else if i + j >= bytes-len hay then False",
+        "    else if nat-cmp (bytes-get hay (i + j)) (bytes-get needle j) == 0 then eq-bytes-at hay needle i (j + 1)",
+        "    else False",
+        "",
+        "  main :: Int",
+        "  main = case run-parser (\x22test\x22) (bytes-from-list [119, 111, 114, 108, 100]) (expect-word (\x22hello\x22)) of",
+        "    Parsed x soft -> 1",
+        "    Failed b ->",
+        "      let rendered = render-bundle b in",
+        "      if check-sub rendered (\x22unexpected:\x22) then",
+        "        if check-sub rendered (\x22expecting:\x22) then",
+        "          if check-sub rendered (\x22^\x22) then 0 else 3",
+        "        else 2",
+        "      else 4",
+    ] {
+        program.push_str(line);
+        program.push('\n');
+    }
+    expect_exit("bundle-rendering", &program, 0);
+}
+
+#[test]
+fn parse_recovery_handlers() {
+    let mut program = program_header();
+    for line in [
+        "  main :: Int",
+        "  main =",
+        "    case run-parser-with (\"test\") (bytes-from-list [119, 111, 114, 108, 100]) (\\e -> e) (expect-word (\"hello\")) of",
+        "      Parsed x soft -> 1",
+        "      Failed b -> 0",
+    ] {
+        program.push_str(line);
+        program.push('\n');
+    }
+    expect_exit("recovery-handlers", &program, 0);
+}
+
+#[test]
+fn parse_refusals_named() {
+    let mut program = program_header();
+    for line in [
+        "  main :: Int",
+        "  main = case run-parser (\"test\") (bytes-from-list [102, 111, 114, 101, 105, 103, 110]) (expect-word (\"hello\")) of",
+        "    Parsed x soft -> 1",
+        "    Failed b -> 0",
+    ] {
+        program.push_str(line);
+        program.push('\n');
+    }
+    expect_exit("refusals-named", &program, 0);
+}
