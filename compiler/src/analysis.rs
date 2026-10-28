@@ -1618,6 +1618,10 @@ pub fn render_ast_type(t: &ast::Type) -> String {
         Type::AppRow(f, row, _) => {
             format!("{} {{{}}}", render_ast_type(f), render_effect_row(row))
         }
+        Type::Lam(n, b, _) => {
+            let b = render_ast_type(b);
+            format!("\\{} -> {}", n.text, b)
+        }
         Type::Fun { arg, mult, eff, res, .. } => {
             let m = match mult {
                 Some(n) => format!("{} ", n.text),
