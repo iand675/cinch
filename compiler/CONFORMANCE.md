@@ -1264,6 +1264,23 @@ correspondence: one lexeme in expression/pattern, staging `Name`, and
   overflow control at the same depth without tail calls (D326);
   `SPEC-MAPPING` row 122's evidence re-grounded (an editorial touch
   outside the fence, accepted).
+- **D327 (Comp {e} a settled, Main design)**: the value-level
+  computation type former is a **library newtype over effectful unit
+  closures** - `newtype Comp (e :: Effect) a = MkComp (Unit ->{e} a)`
+  with `suspend`/`run` (`Effect/Comp.cinch` home, D159 placement) -
+  not a core form and not rows-on-the-container. The row parameter
+  rides the existing effect-row type arguments (`Request {e}`'s
+  machinery); running a `Comp` is ordinary application so the D24
+  dispatch discipline holds unchanged (`Comp` values are lambda
+  bodies in a box: latent, freely stored and shared as data);
+  `handle (run c) with h` is the ordinary handler shape and
+  row-polymorphic signatures apply unchanged; `Comp` gets no
+  compiler-magic `Monad` - any instance is ordinary library code.
+  Refusals kept: no implicit sequencing (data until `run`), no new
+  effect-row subtyping. P33's Stream yields `Comp` steps (exact
+  Stream shape is P33's); the note is
+  `design/comp-computation-type.md` (options weighed: core form and
+  rows-on-container both rejected with reasons).
 - **D295-D296 (P29 incremental recompilation, reported)**: the
   `incremental` driver module delivers all three Blaze equivalents -
   `ItemGraph` (REAPER: lazily built, kinded `Surface`/`Body` edges
