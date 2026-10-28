@@ -4,10 +4,17 @@
 -- from the staging interpreter's compile-time string values, which
 -- are the same type observed at compile time (D43's deferral
 -- resolved). A `"..."` literal in a term is a runtime `String`: the
--- lexer's decoded bytes as constant data over the representation
--- below (each evaluation constructs a fresh `Bytes` buffer, so a
--- literal allocates where it runs). Strings are also built from
--- `Bytes`, `Char`, and the conversions below.
+-- lexer's decoded bytes in one shared read-only data-section constant
+-- (immutability makes the sharing semantics-transparent: every
+-- evaluation references the same object and nothing allocates).
+--
+-- THE IMMUTABILITY CONTRACT: a `String` never changes and no API ever
+-- exposes its backing mutably. Conversions copy on the way in
+-- (`string-from-bytes`) and on the way out (`string-to-bytes`);
+-- mutation exists only on plain `Bytes`. The representation
+-- constructor is module-private, so once a buffer is wrapped no alias
+-- can mutate it; a literal's backing is the read-only constant
+-- itself, where a mutation attempt takes the defined runtime fault.
 --
 -- The functions here are the REFERENCE SEMANTICS for UTF-8. The
 -- runtime provides SIMD-accelerated implementations of the same rules
@@ -21,13 +28,14 @@ module Data.String where
 
   import Data.Nat
   import Data.Option
+  import Data.List
   import Data.Bytes
   import Data.Char
   import Data.Hash
   import Algebra.Semigroup
   import Algebra.Monoid
 
-  export String, compare-bytes-from, copy-bytes-into, empty-string, string-byte-index-from, string-byte-length, string-char-at, string-char-at-from, string-compare, string-concat, string-from-bytes, string-length, string-length-from, string-slice, string-to-bytes, utf8-at, utf8-char, utf8-cont, utf8-encode-into, utf8-encode-width, utf8-lead-payload, utf8-min, utf8-valid-from, utf8-width
+  export String, compare-bytes-from, copy-bytes-into, empty-string, pack, string-byte-index-from, string-byte-length, string-char-at, string-char-at-from, string-compare, string-concat, string-from-bytes, string-length, string-length-from, string-slice, string-to-bytes, unpack, utf8-at, utf8-char, utf8-cont, utf8-encode-into, utf8-encode-width, utf8-lead-payload, utf8-min, utf8-valid-from, utf8-width
 
 
   -- ---------------------------------------------------------------------------
@@ -37,10 +45,14 @@ module Data.String where
   -- from the staging interpreter's compile-time string values, which are
   -- the same type observed at compile time (D43's deferral resolved).
   -- A `"..."` literal in a term is a runtime `String`: the lexer's
-  -- decoded bytes as constant data over the representation below (each
-  -- evaluation constructs a fresh `Bytes` buffer, so a literal allocates
-  -- where it runs). Strings are also built from `Bytes`, `Char`, and
-  -- the conversions below.
+  -- decoded bytes in one shared read-only data-section constant (the
+  -- sharing is semantics-transparent: every evaluation references the
+  -- same object and nothing allocates).
+  --
+  -- THE IMMUTABILITY CONTRACT (the rules below implement it): a
+  -- `String` never changes and no API ever exposes its backing mutably.
+  -- Conversions copy on the way in (`string-from-bytes`) and on the way
+  -- out (`string-to-bytes`); mutation exists only on plain `Bytes`.
   --
   -- The functions here are the REFERENCE SEMANTICS for UTF-8. The
   -- runtime provides SIMD-accelerated implementations of the same rules
@@ -48,12 +60,31 @@ module Data.String where
   -- with this code; the acceleration is a representation detail behind
   -- the primitive operations chapter's justified bodies (D89).
 
+  -- The representation constructor: module-private (the immutability
+  -- contract: no API hands out a string's backing). A `StrBuf` wraps a
+  -- buffer that is either fresh (`bytes-new` filled here) or a copy,
+  -- never one a caller retains.
   data String where
-    String :: Bytes -> String
+    StrBuf :: Bytes -> String
 
+  -- The backing buffer, for read-only internal use only (NOT
+  -- exported): the functions below read it in place and never hand it
+  -- out.
+  string-bytes-raw :: String -> Bytes
+  string-bytes-raw s = case s of
+    StrBuf b -> b
+
+  -- A private copy of a buffer (the wrap/copy discipline).
+  bytes-copy :: Bytes -> Bytes
+  bytes-copy b =
+    let out = bytes-new (bytes-len b) in
+    let u = copy-bytes-into out b 0 0 (bytes-len b) in
+    out
+
+  -- A copy of the backing (the conversion out copies: the caller may
+  -- mutate its copy freely and the `String` never changes).
   string-to-bytes :: String -> Bytes
-  string-to-bytes s = case s of
-    String b -> b
+  string-to-bytes s = bytes-copy (string-bytes-raw s)
 
   -- UTF-8 decoding rules: a lead byte gives the width; continuation
   -- bytes are 10xxxxxx; overlong encodings, surrogates, and values above
@@ -118,13 +149,15 @@ module Data.String where
 
   string-from-bytes :: Bytes -> Option String
   string-from-bytes b =
-    if utf8-valid-from b 0 then Some (String b) else None
+    -- The conversion in copies (the wrap/copy discipline): after
+    -- wrapping, no alias of the caller's buffer can mutate the string.
+    if utf8-valid-from b 0 then Some (StrBuf (bytes-copy b)) else None
 
   empty-string :: String
-  empty-string = String (bytes-new 0)
+  empty-string = StrBuf (bytes-new 0)
 
   string-byte-length :: String -> Nat
-  string-byte-length s = bytes-len (string-to-bytes s)
+  string-byte-length s = bytes-len (string-bytes-raw s)
 
   -- Length in Unicode scalar values (O(n) scan).
   string-length-from :: Bytes -> Nat -> Nat -> Nat
@@ -136,7 +169,7 @@ module Data.String where
         (c, w) -> string-length-from b (i + w) (n + 1)
 
   string-length :: String -> Nat
-  string-length s = string-length-from (string-to-bytes s) 0 0
+  string-length s = string-length-from (string-bytes-raw s) 0 0
 
   -- The scalar value at code point index `n`, by scan (O(n)).
   string-char-at-from :: Bytes -> Nat -> Nat -> Option Char
@@ -148,7 +181,7 @@ module Data.String where
         (c, w) -> if n == 0 then Some c else string-char-at-from b (i + w) (n - 1)
 
   string-char-at :: String -> Nat -> Option Char
-  string-char-at s n = string-char-at-from (string-to-bytes s) 0 n
+  string-char-at s n = string-char-at-from (string-bytes-raw s) 0 n
 
   -- Encode one scalar value (bytes are raw values; division is the
   -- `nat-div`/`nat-rem` function family).
@@ -186,12 +219,12 @@ module Data.String where
 
   string-concat :: String -> String -> String
   string-concat a b =
-    let x = string-to-bytes a in
-    let y = string-to-bytes b in
+    let x = string-bytes-raw a in
+    let y = string-bytes-raw b in
     let out = bytes-new (bytes-len x + bytes-len y) in
     let u = copy-bytes-into out x 0 0 (bytes-len x) in
     let v = copy-bytes-into out y (bytes-len x) 0 (bytes-len y) in
-    String out
+    StrBuf out
 
   -- Byte offsets of code point `n`; returns the byte length when `n`
   -- reaches past the end.
@@ -215,7 +248,43 @@ module Data.String where
     let i1 = string-byte-index-from b i0 span in
     let out = bytes-new (i1 - i0) in
     let u = copy-bytes-into out b 0 i0 (i1 - i0) in
-    String out
+    StrBuf out
+
+  -- Haskell's `Data.String` pair: `pack` is the `List Char` view of a
+  -- string, `unpack` its inverse (new conversions: no `String`/`List
+  -- Char` pair existed before). `pack` constructs a fresh string (the
+  -- wrap/copy discipline: the buffer is fresh and never aliased).
+  pack :: List Char -> String
+  pack cs =
+    let b = bytes-new (pack-width cs 0) in
+    let u = pack-into b 0 cs in
+    StrBuf b
+
+  unpack :: String -> List Char
+  unpack s = unpack-from s 0 (string-length s)
+
+  -- The scalar value of a character (the encoding family above).
+  char-code :: Char -> Nat
+  char-code c = nat-from-i64 (u32-to-i64 (char-to-u32 c))
+
+  pack-width :: List Char -> Nat -> Nat
+  pack-width cs acc = case cs of
+    Nil -> acc
+    Cons c rest -> pack-width rest (acc + utf8-encode-width (char-code c))
+
+  pack-into :: Bytes -> Nat -> List Char -> Unit
+  pack-into b pos cs = case cs of
+    Nil -> ()
+    Cons c rest ->
+      let u = utf8-encode-into b pos (char-code c) in
+      pack-into b (pos + utf8-encode-width (char-code c)) rest
+
+  unpack-from :: String -> Nat -> Nat -> List Char
+  unpack-from s i n =
+    if i >= n then Nil
+    else case string-char-at s i of
+      None -> Nil
+      Some c -> Cons c (unpack-from s (i + 1) n)
 
   -- Byte-wise comparison; UTF-8 preserves scalar value order under
   -- byte-wise lexicographic order, so this is also code point order.
@@ -259,4 +328,4 @@ module Data.String where
     else hash-string-from b (i + 1) (nat-add (nat-mul h 31) (bytes-get b i))
 
   implicit instance Hash_String :: Hash String where
-    hash s = hash-string-from (string-to-bytes s) 0 0
+    hash s = hash-string-from (string-bytes-raw s) 0 0

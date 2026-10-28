@@ -60,6 +60,7 @@
 //! | 16 | `LAZY_INIT` | `[cell-local, thunk]` | store the thunk into the cell; the value is the unit word |
 //! | 17 | `DEMAND` | `[cell]` | run the memo cell's state machine |
 //! | 18 | `UNITREF` | `[clo]` | a unit's closure word as a value |
+//! | 19 | `CONST_BYTES` | `[len, words...]` | a constant byte buffer: `len` data bytes packed eight per word little endian; each evaluation boxes a fresh heap buffer (a compiled string literal's shared data-section constant is the compiled form, never this stream) |
 //!
 //! # Value conventions
 //!
@@ -216,6 +217,9 @@ mod op {
     pub const DEMAND: u64 = 17;
     /// `[clo]`: a unit's closure word as a value.
     pub const UNITREF: u64 = 18;
+    /// `[len, words...]`: a constant byte buffer, its data bytes packed
+    /// eight per word little endian.
+    pub const CONST_BYTES: u64 = 19;
 }
 
 // ------------------------------------------------------------ decoded tree
@@ -243,6 +247,9 @@ enum Node {
     LazyInit(u32, Box<Node>),
     Demand(Box<Node>),
     UnitRef(i64),
+    /// A `CONST_BYTES` constant's data; each evaluation boxes a fresh
+    /// heap buffer from it.
+    Bytes(Vec<u8>),
 }
 
 /// One `CASE` constructor alternative: its field binders (dense
@@ -479,6 +486,7 @@ impl<'a> Dec<'a> {
             op::LAZY_INIT => self.expr_lazy_init(),
             op::DEMAND => self.expr_demand(),
             op::UNITREF => Ok(Node::UnitRef(self.word()? as i64)),
+            op::CONST_BYTES => self.expr_const_bytes(),
             _ => Err(Error::CorruptValue),
         }
     }
@@ -700,6 +708,27 @@ impl<'a> Dec<'a> {
         };
         Ok(Node::Big(word))
     }
+
+    /// A `CONST_BYTES` constant: `len` data bytes packed eight per word
+    /// little endian (the padding bytes of the last word are zero, as
+    /// the encoder leaves them).
+    fn expr_const_bytes(&mut self) -> Result<Node> {
+        let nd = usize::try_from(self.word()?).map_err(|_| Error::CorruptValue)?;
+        let nwords = nd.checked_add(7).ok_or(Error::CorruptValue)? / 8;
+        let ws = self.tail(nwords)?;
+        let mut data: Vec<u8> = Vec::with_capacity(nd);
+        for w in ws {
+            for i in 0..8 {
+                let byte = ((w >> (8 * i)) & 0xFF) as u8;
+                if data.len() < nd {
+                    data.push(byte);
+                } else if byte != 0 {
+                    return Err(Error::CorruptValue);
+                }
+            }
+        }
+        Ok(Node::Bytes(data))
+    }
 }
 
 // ------------------------------------------------------------ the evaluator
@@ -754,6 +783,12 @@ fn eval(node: &Node, env: &mut [i64], holes: &[i64]) -> Result<i64> {
         Node::LazyAlloc => Ok(unsafe { crate::abi::cinch_alloc(24) }),
         Node::LazyInit(i, thunk) => eval_lazy_init(*i, thunk, env, holes),
         Node::Demand(cell) => eval_demand(cell, env, holes),
+        // A constant buffer materialises fresh per evaluation (words are
+        // never freed; the compiled literal is a shared read-only
+        // constant instead).
+        Node::Bytes(data) => Ok(crate::abi::box_bytes(crate::bytes::Bytes::from(
+            data.clone(),
+        ))),
     }
 }
 

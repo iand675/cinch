@@ -534,16 +534,16 @@ impl Checker {
             ast::Term::Unit(_) => Ok((ECore::Unit, Ty::Unit)),
             ast::Term::Str(s, _span) => {
                 // A runtime `String` literal (D43's deferral closed):
-                // constant UTF-8 data over the D89 representation, the
-                // same constant form the `import data` converters bind
-                // (`String` wraps a `Bytes` buffer and the literal's
-                // decoded bytes are the private constant). Each
-                // evaluation constructs a fresh buffer (the `Bytes` word
-                // is mutable in place), so the literal allocates where
-                // it runs and the `#[no-alloc]`/`jpl` alloc-site fact
-                // names it. In compile-time position the staging
-                // interpreter keeps its own string values (decision
-                // D88), whose escapes the lexer decoded the same way.
+                // a shared read-only data-section constant over the D89
+                // representation, the same constant form the `import
+                // data` converters bind. `String` is immutable, so the
+                // shared object is semantics-transparent: every
+                // evaluation references the one constant (no
+                // construction, no allocation), and the `#[no-alloc]`/
+                // `jpl` alloc-site fact stays silent for literals. In
+                // compile-time position the staging interpreter keeps
+                // its own string values (decision D88), whose escapes
+                // the lexer decoded the same way.
                 if self.compile_time {
                     return Ok((
                         ECore::StrLit(s.clone()),
@@ -9329,7 +9329,7 @@ fn rec_walk(
             }
         }
         ECore::Int(_)
-        | ECore::ConstBig { .. } | ECore::ConstBytes(_) | ECore::ConstSym(_)
+        | ECore::ConstBig { .. } | ECore::ConstBytes(_) | ECore::ConstString { .. } | ECore::ConstSym(_)
         | ECore::Lit(_)
         | ECore::Bool(_)
         | ECore::Unit
@@ -9407,7 +9407,7 @@ fn rec_collect_refs(e: &ECore, by_local: &HashMap<LocalId, usize>, out: &mut Vec
             }
         }
         ECore::Int(_)
-        | ECore::ConstBig { .. } | ECore::ConstBytes(_) | ECore::ConstSym(_)
+        | ECore::ConstBig { .. } | ECore::ConstBytes(_) | ECore::ConstString { .. } | ECore::ConstSym(_)
         | ECore::Lit(_)
         | ECore::Bool(_)
         | ECore::Unit
@@ -9507,7 +9507,7 @@ fn subst_rec_refs(e: &mut ECore, subs: &HashMap<LocalId, RecSub>) {
             None => {}
         },
         ECore::Int(_)
-        | ECore::ConstBig { .. } | ECore::ConstBytes(_) | ECore::ConstSym(_)
+        | ECore::ConstBig { .. } | ECore::ConstBytes(_) | ECore::ConstString { .. } | ECore::ConstSym(_)
         | ECore::Lit(_)
         | ECore::Bool(_)
         | ECore::Unit

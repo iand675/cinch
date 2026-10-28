@@ -64,12 +64,21 @@ module Text.Show where
       GT -> "GT"
 
 
+  -- Wrap a freshly built buffer as a `String`: the safe conversion in
+  -- copies (the buffer is ASCII by construction, so the `None` case is
+  -- unreachable; the copy keeps the string immutability contract: no
+  -- alias of the wrapped buffer survives).
+  wrap-bytes :: Bytes -> String
+  wrap-bytes b = case string-from-bytes b of
+    Some s -> s
+    None -> empty-string
+
   char-string :: Char -> String
   char-string c =
     let cp = nat-from-i64 (u32-to-i64 (char-to-u32 c)) in
     let b = bytes-new (utf8-encode-width cp) in
     let u = utf8-encode-into b 0 cp in
-    String b
+    wrap-bytes b
 
   -- Decimal formatting: digits are raw ASCII bytes (48..=57), so no
   -- character literals are needed.
@@ -90,7 +99,7 @@ module Text.Show where
   nat-to-string n =
     let b = bytes-new (nat-digit-count n) in
     let u = nat-digits-into b 0 n (nat-digit-count n) in
-    String b
+    wrap-bytes b
 
   -- Signed decimal for `Int`, built from bignum division so values
   -- beyond i64 format correctly; the sign is a raw ASCII 45 byte and
@@ -115,9 +124,9 @@ module Text.Show where
       let b = bytes-new (k + 1) in
       let u = bytes-set b 0 45 in
       let v = int-digits-into b 1 m k in
-      String b
+      wrap-bytes b
     else
       let k = int-digit-count x in
       let b = bytes-new k in
       let u = int-digits-into b 0 x k in
-      String b
+      wrap-bytes b

@@ -411,6 +411,9 @@ struct Registry {
     /// plan note's item 3), from the primitive signatures and the
     /// checked definitions' result types.
     ranges: HashMap<String, (i64, i64)>,
+    /// Constructor units' `(tag, fields)` by unit name (the block words
+    /// `ctor_body` writes; a string constant emits the same shape).
+    ctors: HashMap<String, (usize, usize)>,
     /// The named by-value layout types of the aggregate boundary
     /// (`%__sl_layout_N = type [W x i8]`), keyed by width: the `byval`
     /// and `sret` spellings need a pointee type.
@@ -555,6 +558,9 @@ impl Registry {
         // Only the primitives the program mentions get synthesized units.
         for f in &p.fns {
             collect_prims(&f.body, &mut reg.prims);
+            if let Some(spec) = f.ctor {
+                reg.ctors.insert(f.id.0.clone(), spec);
+            }
         }
         let used: Vec<(String, usize)> = reg
             .prims
@@ -3547,7 +3553,7 @@ fn core_body(b: &mut Builder, reg: &Registry, f: &FnDef) -> Result<()> {
 /// The primitive operations mentioned in a body.
 fn collect_prims(e: &Core, out: &mut BTreeSet<PrimOp>) {
     match e {
-        Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Var(_)
+        Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Var(_)
         | Core::Global(_)
         | Core::Ctor(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc
         | Core::BoxAlloc
@@ -3603,7 +3609,7 @@ fn collect_prims(e: &Core, out: &mut BTreeSet<PrimOp>) {
 fn collect_binders(e: &Core, out: &mut Vec<LocalId>) {
     match e {
         Core::Int(_)
-        | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstSym(_)
+        | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_)
         | Core::Bool(_)
         | Core::Unit
         | Core::Var(_)
@@ -3817,6 +3823,51 @@ impl CoreEmitter<'_, '_> {
                     "{r} = call i64 @{from_dec}(ptr @{}, i64 {len})",
                     quote(&name)
                 ));
+                Ok(r)
+            }
+            Core::ConstString { ctor, bytes } => {
+                // The runtime `String` constant (a string literal's
+                // value): ONE shared read-only data-section object, the
+                // representation constructor's block wrapping a static
+                // buffer, referenced directly (no construction, no
+                // allocation). `String` is immutable and its backing is
+                // never handed out mutably, so the shared object is
+                // semantics-transparent. The object is
+                // `{ tag; bytes_word; kind; len; data_word; data... }`:
+                // words 0-1 are the `StrBuf` block (`ctor_body`'s
+                // `{ tag; field0 }`), words 2-4 the `Boxed<Bytes>`
+                // buffer block (`{ kind; Bytes { len; data } }`, the
+                // runtime's `repr(C)` pair), the data bytes inline. The
+                // buffer kind is the runtime ABI's `KIND_BYTES_STATIC`
+                // (5): a mutation attempt takes the defined read-only
+                // fault instead of writing to constant data.
+                let (tag, fields) = self.reg.ctors.get(&ctor.0).copied().ok_or_else(|| {
+                    crate::Error::plain(format!("unknown constructor {ctor}"))
+                })?;
+                if fields != 1 {
+                    return err(format!(
+                        "the string constant's constructor {ctor} takes {fields} fields, expected 1"
+                    ));
+                }
+                let unit = self.unit.clone();
+                let name = self.b.dec_name(&unit);
+                let qname = quote(&name);
+                let ty = format!("{{ i64, ptr, i64, i64, ptr, [{} x i8] }}", bytes.len());
+                let buf_word =
+                    format!("ptr getelementptr inbounds ({ty}, ptr @{qname}, i64 0, i32 2)");
+                let data_word =
+                    format!("ptr getelementptr inbounds ({ty}, ptr @{qname}, i64 0, i32 5, i64 0)");
+                let data = if bytes.is_empty() {
+                    "[0 x i8] zeroinitializer".to_string()
+                } else {
+                    format!("[{} x i8] c\"{}\"", bytes.len(), c_string_bytes(bytes))
+                };
+                self.b.global(format!(
+                    "@{qname} = internal constant {ty} {{ i64 {tag}, {buf_word}, i64 5, i64 {}, {data_word}, {data} }}",
+                    bytes.len(),
+                ));
+                let r = self.b.reg();
+                self.b.line(&format!("{r} = ptrtoint ptr @{qname} to i64"));
                 Ok(r)
             }
             Core::Bool(b) => Ok(if *b { "1" } else { "0" }.to_string()),
@@ -5283,6 +5334,10 @@ mod quote_op {
     pub const DEMAND: u64 = 17;
     /// `[clo]`: a unit's closure word as a value.
     pub const UNITREF: u64 = 18;
+    /// `[len, words...]`: a constant byte buffer, its data bytes packed
+    /// eight per word little endian (the runtime evaluator boxes a
+    /// fresh heap buffer per run).
+    pub const CONST_BYTES: u64 = 19;
 }
 
 /// One reified word: an immediate, or the relocated closure word of a
@@ -5539,6 +5594,34 @@ fn reify(out: &mut Vec<QWord>, e: &Core, reg: &Registry) -> Result<()> {
                 "a quotation body cannot contain staging values \
                  (a nested quotation is not reified yet)",
             )
+        }
+        Core::ConstString { ctor, bytes } => {
+            // The constant's stream form: the representation
+            // constructor's block over a constant buffer. The evaluator
+            // materialises a fresh heap buffer per run (the compiled
+            // literal is the shared data-section constant instead).
+            let (tag, fields) = reg
+                .ctors
+                .get(&ctor.0)
+                .copied()
+                .ok_or_else(|| crate::Error::plain(format!("unknown constructor {ctor}")))?;
+            if fields != 1 {
+                return err(format!(
+                    "the string constant's constructor {ctor} takes {fields} fields, expected 1"
+                ));
+            }
+            q_imm(out, quote_op::CTOR);
+            q_imm(out, tag as u64);
+            q_imm(out, 1);
+            q_imm(out, quote_op::CONST_BYTES);
+            q_imm(out, bytes.len() as u64);
+            for chunk in bytes.chunks(8) {
+                let mut w: u64 = 0;
+                for (i, &b) in chunk.iter().enumerate() {
+                    w |= u64::from(b) << (8 * i);
+                }
+                q_imm(out, w);
+            }
         }
         Core::ConstBytes(_) | Core::ConstSym(_) => {
             return err(

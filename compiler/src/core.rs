@@ -1201,6 +1201,16 @@ pub enum Core {
     /// buffer through `cinch_bytes_from_data` (the P14 constant-emission
     /// path).
     ConstBytes(Vec<u8>),
+    /// The runtime `String` constant (a string literal's value): a
+    /// shared read-only data-section object over the D89
+    /// representation, `ctor`'s block wrapping a constant buffer.
+    /// `String` is immutable, so the shared object is
+    /// semantics-transparent: code generation emits one private
+    /// constant (the block header and the bytes) that every evaluation
+    /// references directly (no construction, no allocation). `ctor` is
+    /// the representation constructor's unit (`Data.String`'s
+    /// `StrBuf`).
+    ConstString { ctor: GlobalId, bytes: Vec<u8> },
     /// Constant `Sym`: the interned name of a tick literal (primitive
     /// types specification section 9). Code generation emits the name as
     /// a private constant and materialises the cell through
@@ -2547,7 +2557,7 @@ pub fn tail_report(program: &Program) -> Vec<TailGroup> {
         out: &mut Vec<String>,
     ) {
         match e {
-            Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Var(_)
+            Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Var(_)
             | Core::Global(_) | Core::Ctor(_) | Core::Prim(_) | Core::Foreign(_)
             | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc
             | Core::SyntaxLit(_) | Core::StrLit(_) => {}
@@ -2825,7 +2835,7 @@ fn calls_walk(
     out: &mut Vec<CallSite>,
 ) {
     match e {
-        Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstSym(_) | Core::Bool(_) | Core::Unit
+        Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit
         | Core::Var(_) | Core::Global(_) | Core::Ctor(_) | Core::Prim(_) | Core::Foreign(_)
         | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc
         | Core::SyntaxLit(_) | Core::StrLit(_) => {}
@@ -3108,6 +3118,9 @@ fn core_eq(a: &Core, b: &Core) -> bool {
             n1 == n2 && d1 == d2
         }
         (Core::ConstBytes(x), Core::ConstBytes(y)) => x == y,
+        (Core::ConstString { ctor: c1, bytes: b1 }, Core::ConstString { ctor: c2, bytes: b2 }) => {
+            c1 == c2 && b1 == b2
+        }
         (Core::Bool(x), Core::Bool(y)) => x == y,
         (Core::Unit, Core::Unit) | (Core::Fault, Core::Fault) | (Core::LazyAlloc, Core::LazyAlloc) => true,
         (Core::Var(x), Core::Var(y)) => x == y,
@@ -3171,7 +3184,7 @@ fn max_local(e: &Core) -> usize {
 pub fn walk_locals(e: &Core, f: &mut impl FnMut(LocalId)) {
     match e {
         Core::Var(l) => f(*l),
-        Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(_)
+        Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(_)
         | Core::Ctor(_) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(_)
         | Core::StrLit(_) => {}
         Core::DictProj(d, _) | Core::Proj(d, _) | Core::Demand(d) => walk_locals(d, f),
@@ -3251,7 +3264,7 @@ fn use_range(e: &Core, l: LocalId) -> (usize, usize) {
                 (0, 0)
             }
         }
-        Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(_)
+        Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(_)
         | Core::Ctor(_) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(_)
         | Core::StrLit(_) => (0, 0),
         Core::DictProj(d, _) | Core::Proj(d, _) | Core::Demand(d) => use_range(d, l),
@@ -3361,7 +3374,7 @@ fn renumber_core(e: &Core, nparams: usize) -> Core {
         };
         match e {
             Core::Var(l) => note(*l, map, next),
-            Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(_)
+            Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(_)
             | Core::Ctor(_) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(_)
             | Core::StrLit(_) => {}
             Core::DictProj(d, _) | Core::Proj(d, _) | Core::Demand(d) => assign(d, map, next),
@@ -3431,6 +3444,10 @@ fn renumber_core(e: &Core, nparams: usize) -> Core {
             Core::Int(v) => Core::Int(*v),
             Core::ConstBig { nat, digits } => Core::ConstBig { nat: *nat, digits: digits.clone() },
             Core::ConstBytes(b) => Core::ConstBytes(b.clone()),
+            Core::ConstString { ctor, bytes } => Core::ConstString {
+                ctor: ctor.clone(),
+                bytes: bytes.clone(),
+            },
             Core::ConstSym(s) => Core::ConstSym(s.clone()),
             Core::Bool(b) => Core::Bool(*b),
             Core::Unit => Core::Unit,
@@ -3545,6 +3562,10 @@ fn instantiate(
             Core::Int(v) => Core::Int(*v),
             Core::ConstBig { nat, digits } => Core::ConstBig { nat: *nat, digits: digits.clone() },
             Core::ConstBytes(b) => Core::ConstBytes(b.clone()),
+            Core::ConstString { ctor, bytes } => Core::ConstString {
+                ctor: ctor.clone(),
+                bytes: bytes.clone(),
+            },
             Core::ConstSym(s) => Core::ConstSym(s.clone()),
             Core::Bool(b) => Core::Bool(*b),
             Core::Unit => Core::Unit,
@@ -3683,6 +3704,9 @@ fn match_pat(
             n1 == n2 && d1 == d2
         }
         (Core::ConstBytes(x), Core::ConstBytes(y)) => x == y,
+        (Core::ConstString { ctor: c1, bytes: b1 }, Core::ConstString { ctor: c2, bytes: b2 }) => {
+            c1 == c2 && b1 == b2
+        }
         (Core::Bool(x), Core::Bool(y)) => x == y,
         (Core::Unit, Core::Unit) | (Core::Fault, Core::Fault) | (Core::LazyAlloc, Core::LazyAlloc) => {
             true
@@ -4172,7 +4196,7 @@ fn has_alloc(e: &Core) -> bool {
             | Core::BoxGet(_) | Core::Demand(_) | Core::Quote { .. }
             | Core::DeclsQuote { .. } => *found = true,
             Core::Prim(PrimOp::Delay) => *found = true,
-            Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(_)
+            Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(_)
             | Core::Ctor(_) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_)
             | Core::Fault | Core::SyntaxLit(_) | Core::StrLit(_)
             | Core::Var(_) => {}
@@ -4225,7 +4249,7 @@ struct OptCx {
 fn scan_calls(e: &Core, f: &mut impl FnMut(&GlobalId)) {
     match e {
         Core::Global(g) => f(g),
-        Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Ctor(_)
+        Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Ctor(_)
         | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(_) | Core::StrLit(_)
         | Core::Var(_) => {}
         Core::DictProj(d, _) | Core::Proj(d, _) | Core::Demand(d) => scan_calls(d, f),
@@ -4283,7 +4307,7 @@ fn scan_memo(e: &Core, n: &mut usize) {
         Core::LazyAlloc | Core::LazyInit(_, _) | Core::BoxAlloc | Core::BoxInit(_, _)
         | Core::RefSet(_, _)
         | Core::BoxGet(_) | Core::Demand(_) => *n += 1,
-        Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(_)
+        Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(_)
         | Core::Ctor(_) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_)
         | Core::Fault | Core::SyntaxLit(_) | Core::StrLit(_)
         | Core::Var(_) => {}
@@ -4342,7 +4366,7 @@ fn weights_ok(e: &Core) -> bool {
                     go(&a.body, ok);
                 }
             }
-            Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(_)
+            Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(_)
             | Core::Ctor(_) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(_)
             | Core::StrLit(_) | Core::Var(_) => {}
             Core::DictProj(d, _) | Core::Proj(d, _) | Core::Demand(d) | Core::BoxGet(d) => {
@@ -4377,7 +4401,7 @@ fn scope_ok(e: &Core, nparams: usize) -> bool {
     fn go(e: &Core, bound: &mut std::collections::HashSet<LocalId>) -> bool {
         match e {
             Core::Var(l) => bound.contains(l),
-            Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(_)
+            Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(_)
             | Core::Ctor(_) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(_)
             | Core::StrLit(_) => true,
             Core::DictProj(d, _) | Core::Proj(d, _) | Core::Demand(d) | Core::BoxGet(d) => {
@@ -4510,7 +4534,7 @@ fn body_impure(e: &Core) -> bool {
                     *bad = true;
                 }
             }
-            Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(_)
+            Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(_)
             | Core::Ctor(_) | Core::SpliceVal(_) | Core::LazyAlloc | Core::BoxAlloc
             | Core::SyntaxLit(_) | Core::StrLit(_) | Core::Var(_) => {}
             Core::DictProj(d, _) | Core::Proj(d, _) | Core::Demand(d) | Core::BoxGet(d) => {
@@ -5207,7 +5231,7 @@ impl Driver<'_> {
             }
             let atom = matches!(
                 arg,
-                Core::Var(_) | Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstSym(_) | Core::Bool(_)
+                Core::Var(_) | Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_)
                     | Core::Unit | Core::Global(_) | Core::Ctor(_) | Core::Prim(_) | Core::Foreign(_)
             );
             if atom {
@@ -5294,7 +5318,7 @@ fn drop_dead(
 fn child_slots(e: &mut Core) -> Vec<&mut Core> {
     let mut out: Vec<&mut Core> = Vec::new();
     match e {
-        Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(_)
+        Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(_)
         | Core::Ctor(_) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(_)
         | Core::StrLit(_) | Core::Var(_) => {}
         Core::DictProj(d, _) | Core::Proj(d, _) | Core::Demand(d) | Core::BoxGet(d) => {
@@ -5827,7 +5851,7 @@ fn size_of(e: &Core) -> usize {
 fn child_slots_imm(e: &Core) -> Vec<&Core> {
     let mut out: Vec<&Core> = Vec::new();
     match e {
-        Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(_)
+        Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(_)
         | Core::Ctor(_) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(_)
         | Core::StrLit(_) | Core::Var(_) => {}
         Core::DictProj(d, _) | Core::Proj(d, _) | Core::Demand(d) | Core::BoxGet(d) => {

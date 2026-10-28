@@ -1,27 +1,34 @@
-//! Runtime string literals (D43's deferral closed): a `"..."` literal
-//! in an ordinary term is the runtime `String`, constant UTF-8 data
-//! over the D89 representation (`String` wraps a `Bytes` buffer and
-//! the literal's decoded bytes are the private constant, the same
-//! constant form the `import data` converters bind).
+//! Runtime string literals (D43's deferral closed) and string
+//! immutability: a `"..."` literal in an ordinary term is the runtime
+//! `String`, one shared read-only data-section constant over the
+//! immutable `String` representation.
 //!
 //! Decisions this suite pins (unnumbered, filed alongside the closing
 //! slices):
 //!
+//! - `String` is IMMUTABLE: no API ever exposes its backing mutably.
+//!   `string-to-bytes` copies out, `string-from-bytes` copies in, the
+//!   representation constructor is module-private, and mutation
+//!   exists only on plain `Bytes` (the prelude `Data.String` states
+//!   the contract).
+//! - A literal is a TRUE data-section constant: the block header and
+//!   the bytes in one shared private constant, referenced directly
+//!   (zero construction, zero allocation; the emit-ir smoke shows the
+//!   constant). Immutability makes the sharing semantics-transparent.
+//! - The JPL rule flips honestly: a literal is NOT an allocation, so
+//!   `#[no-alloc]`/`jpl` functions may use literals; the alloc-site
+//!   fact fires only where construction genuinely allocates.
 //! - Literal syntax reuses the lexer's escape decoding exactly (`\\`,
 //!   `\"`, `\'`, `\n`, `\r`, `\t`, `\u{...}`), and the runtime bytes
 //!   are that decoded string in UTF-8.
-//! - The literal is a constant: it elaborates directly to the
-//!   constant form, so the D92 evaluator runs it and a `LitFold`
-//!   boundary over literal strings folds like any other constant.
-//! - Each evaluation constructs a fresh `Bytes` buffer (the D89 buffer
-//!   is mutable in place and `String` shares it, so no static sharing),
-//!   so the literal allocates where it runs: the `#[no-alloc]`/`jpl`
-//!   alloc-site fact names it. This is the honest treatment, not a
-//!   static constant exemption.
-//! - Staging strings are unchanged: in compile-time position the
-//!   literal keeps the staging interpreter's string value.
-//! - `Show Bool`/`Show Ordering` render their fixed text through
-//!   literals (the prelude waits that this closes).
+//! - The literal is a constant: the D92 evaluator runs it and a
+//!   `LitFold` boundary over literal strings folds like any other
+//!   constant.
+//! - Staging strings are unchanged (compile-time position keeps the
+//!   staging interpreter's string values).
+//! - `pack :: List Char -> String` / `unpack :: String -> List Char`
+//!   (Haskell's `Data.String` pair) live in the type's home;
+//!   `Show Bool`/`Show Ordering` render through literals.
 
 use cinch::check::{check_program_multi_full, StagingCx};
 use cinch::core::TargetProfile;
@@ -51,23 +58,8 @@ fn expect_err(name: &str, src: &str, needles: &[&str]) {
     }
 }
 
-fn expect_err_jpl(name: &str, src: &str, needles: &[&str]) {
-    match check_report_profile(src, &TargetProfile::jpl()) {
-        Ok(_) => panic!("{name}: expected an error containing {needles:?}, but the program checked"),
-        Err(e) => {
-            let msg = e.to_string();
-            for n in needles {
-                assert!(msg.contains(n), "{name}: error {msg:?} does not contain {n:?}");
-            }
-        }
-    }
-}
-
 /// The staging report of a checked source under `profile`.
-fn check_report_profile(
-    src: &str,
-    profile: &TargetProfile,
-) -> Result<cinch::check::StageReport> {
+fn check_report_profile(src: &str, profile: &TargetProfile) -> Result<cinch::check::StageReport> {
     let prelude = parse_prelude(&[])?;
     let user = parse_source(src, "<test>", &prelude.base, &HashMap::new())?;
     let mut hashes = HashMap::new();
@@ -111,7 +103,7 @@ fn write_project(files: &[(&str, &str)]) -> PathBuf {
 
 /// `"hello"` has type `String`: the ascription checks and the
 /// concatenation and length probes run end to end. A literal is not a
-/// `Bytes` value (the buffer lives behind `string-to-bytes`).
+/// `Bytes` value (the buffer is behind the copying `string-to-bytes`).
 #[test]
 fn literal_has_string_type_and_round_trips() {
     expect_ok(
@@ -260,15 +252,14 @@ fn lexer_rejections_match_the_lexer() {
     );
 }
 
-// ------------------------------------------------------- equality and patterns
+// ------------------------------------------------------- equality and opacity
 
-/// Literal equality (`Eq String` over `string-compare`) and literal
-/// pattern use where the type supports it: the `String` constructor
-/// pattern over a literal scrutinee. A literal PATTERN stays the
-/// parser's named refusal in the bootstrap slice (the boundary this
-/// pins).
+/// Literal equality stays byte semantics (`Eq String`/`Ord String` over
+/// `string-compare`). The type is OPAQUE: the representation
+/// constructor is module-private (immutability), and a literal pattern
+/// stays the parser's named refusal in the bootstrap slice.
 #[test]
-fn literal_equality_and_pattern_use() {
+fn literal_equality_stays_byte_semantics() {
     expect_ok(
         "equality",
         r#"
@@ -284,12 +275,8 @@ module Main where
       else 3
     else 1
 
-  pattern-probe :: Int
-  pattern-probe = case "hi" of
-    String b -> if bytes-len b == 2 then 0 else 2
-
   main :: Int
-  main = eq-probe + pattern-probe
+  main = eq-probe
 "#,
         0,
     );
@@ -297,6 +284,11 @@ module Main where
         "literal-patterns-are-a-named-refusal",
         "module Main where\n  f :: String -> Int\n  f s = case s of\n    \"a\" -> 0\n    _ -> 1\n  main :: Int\n  main = 0\n",
         &["literal patterns are not supported in the bootstrap slice"],
+    );
+    expect_err(
+        "the-representation-constructor-is-private",
+        "module Main where\n  f :: String -> Int\n  f s = case s of\n    String b -> 1\n  main :: Int\n  main = 0\n",
+        &["String"],
     );
 }
 
@@ -319,11 +311,10 @@ module Main where
 
   probe-fresh :: Int
   probe-fresh = case names of
-    Cons x rest -> case x of
-      String b ->
-        if bytes-len b == 1 then
-          if length rest == 1 then 0 else 2
-        else 1
+    Cons x rest ->
+      if string-byte-length x == 1 then
+        if length rest == 1 then 0 else 2
+      else 1
     Nil -> 3
 
   probe-runtime :: Int
@@ -374,31 +365,45 @@ module Main where
 
 // ----------------------------------------------------------- JPL no-allocation
 
-/// The chosen rule, pinned: the literal is constant data whose
-/// evaluation constructs a fresh `Bytes` buffer, so it allocates where
-/// it runs and the alloc-site fact fires under `#[no-alloc]` and under
-/// the `jpl` profile (it is NOT a static constant exempt from rule 3).
+/// The chosen rule, pinned: a string literal is a shared read-only
+/// constant (no construction), so it is NOT an allocation. A
+/// `#[no-alloc]` function may use literals in ordinary terms (and in
+/// staging terms), and the `jpl` profile's rule 3 reports zero
+/// allocation sites; the alloc-site fact fires only where construction
+/// genuinely allocates (e.g. `string-from-bytes`'s copy).
 #[test]
 fn jpl_no_allocation_treatment_pinned() {
-    expect_err(
-        "no-alloc-runtime-literal",
+    let report = check_report_profile(
         r#"
 module Main where
   #[no-alloc]
   greet :: String
   greet = "hello"
 
+  #[no-alloc]
+  shout :: String -> String
+  shout s = string-concat s "!"
+
   main :: Int
   main = 0
 "#,
-        &[
-            "`#[no-alloc]` on Main.greet",
-            "no-allocation rule (JPL rule 3)",
-            "a string literal is constructed here",
-        ],
-    );
-    expect_err_jpl(
-        "jpl-runtime-literal",
+        &TargetProfile::native(),
+    )
+    .expect("no-alloc accepts literals");
+    for def in ["Main.greet", "Main.shout"] {
+        let row = report
+            .safety
+            .assertions
+            .iter()
+            .find(|a| a.definition == def && a.attribute == "no-alloc")
+            .unwrap_or_else(|| panic!("no no-alloc row for {def}: {:?}", report.safety.assertions));
+        assert!(
+            row.result.contains("verified (0 allocation site(s)"),
+            "{def}: {:?}",
+            row.result
+        );
+    }
+    let jpl = check_report_profile(
         r#"
 module Main where
   pick :: Int -> String -> String
@@ -408,37 +413,101 @@ module Main where
       No _ -> s
     No _ -> s
 "#,
-        &[
-            "the `jpl` profile admits no allocation outside initialization",
-            "a string literal is constructed here",
-            "no allocation site may run per call",
-        ],
+        &TargetProfile::jpl(),
+    )
+    .expect("the jpl profile accepts literals (rule 3: no allocation)");
+    let row = jpl
+        .safety
+        .assertions
+        .iter()
+        .find(|a| a.definition == "Main.pick" && a.attribute == "jpl alloc=none")
+        .expect("the jpl alloc row");
+    assert!(
+        row.result.contains("verified (0 allocation site(s)"),
+        "{:?}",
+        row.result
     );
 }
 
-/// The construction is per evaluation: two calls over the same literal
-/// site get distinct `Bytes` buffers, so a mutation through one never
-/// leaks into the other (the rule's semantic half: no static sharing).
+// -------------------------------------------------------------- immutability
+
+/// The immutability contract, pinned both ways: mutation through the
+/// copied-out `Bytes` is never observed through the `String`
+/// (`string-to-bytes` copies), and a buffer wrapped by
+/// `string-from-bytes` can be mutated afterwards without changing the
+/// string (the conversion copies in).
 #[test]
-fn literal_evaluation_constructs_a_fresh_buffer() {
+fn string_backing_is_never_mutable_through_the_api() {
     expect_ok(
-        "fresh-per-evaluation",
+        "copy-discipline",
         r#"
 module Main where
-  poke-or-read :: Nat -> Nat
-  poke-or-read n = case "ab" of
-    String b ->
-      if n == 0 then
-        let u = bytes-set b 0 120 in 0
-      else bytes-get b 0
+  copy-out :: Int
+  copy-out =
+    let s = "ab" in
+    let b = string-to-bytes s in
+    let u = bytes-set b 0 120 in
+    if string-compare s "ab" == 0 then
+      if bytes-get (string-to-bytes s) 0 == 97 then 0 else 2
+    else 1
+
+  copy-in :: Int
+  copy-in =
+    let b = bytes-new 2 in
+    let u1 = bytes-set b 0 97 in
+    let u2 = bytes-set b 1 98 in
+    case string-from-bytes b of
+      None -> 5
+      Some s ->
+        let u3 = bytes-set b 0 120 in
+        if string-compare s "ab" == 0 then 0 else 3
 
   main :: Int
-  main =
-    let x = poke-or-read 0 in
-    let y = poke-or-read 1 in
-    if x == 0 then
-      if y == 97 then 0 else 2
+  main = copy-out + copy-in
+"#,
+        0,
+    );
+}
+
+// --------------------------------------------------------------- pack/unpack
+
+/// `pack :: List Char -> String` and `unpack :: String -> List Char`
+/// (Haskell's `Data.String` pair, in the type's home): content, both
+/// round trips, and the multi-byte case.
+#[test]
+fn pack_unpack_round_trip() {
+    expect_ok(
+        "pack-unpack",
+        r#"
+module Main where
+  pack-probe :: Int
+  pack-probe =
+    if string-compare (pack (Cons 'h' (Cons '\u{A1}' Nil))) "h\u{A1}" == 0 then
+      if string-byte-length (pack (Cons '\u{1F600}' Nil)) == 4 then
+        if string-byte-length (pack Nil) == 0 then 0 else 3
+      else 2
     else 1
+
+  unpack-probe :: Int
+  unpack-probe = case unpack "h\u{A1}" of
+    Cons a rest -> case rest of
+      Cons b rest2 -> case rest2 of
+        Nil ->
+          if eq-u32 (char-to-u32 a) 104 then
+            if eq-u32 (char-to-u32 b) 161 then 0 else 3
+          else 2
+        Cons _ _ -> 4
+      Nil -> 5
+    Nil -> 1
+
+  round-trip :: Int
+  round-trip =
+    if string-compare (pack (unpack "h\u{A1}\u{1F600}")) "h\u{A1}\u{1F600}" == 0 then
+      if string-length (pack (unpack "h\u{A1}\u{1F600}")) == 3 then 0 else 2
+    else 1
+
+  main :: Int
+  main = pack-probe + unpack-probe + round-trip
 "#,
         0,
     );
@@ -446,8 +515,8 @@ module Main where
 
 // --------------------------------------------------------------- Show family
 
-/// `Show Bool` and `Show Ordering` are unblocked: the fixed text
-/// renders through literals.
+/// `Show Bool` and `Show Ordering` render their fixed text through
+/// literals.
 #[test]
 fn show_renders_bool_and_ordering() {
     expect_ok(
@@ -474,20 +543,26 @@ module Main where
 
 // ----------------------------------------------------------------- IR smoke
 
-/// `emit-ir` a program using a literal and run it: the literal bytes
-/// are a private constant and the runtime materialises them through
-/// the constant path, over a `Bytes` round-trip probe.
+/// `emit-ir` a program whose literal site runs twice and run it: the
+/// literal object is a shared read-only constant (the block header and
+/// the bytes) referenced directly (no materialisation call), over a
+/// `Bytes` round-trip probe. The literal site compiles to one constant
+/// in its unit and every evaluation references it; inlining copies
+/// sites like any constant, and the sharing is unobservable precisely
+/// because `String` is immutable (the mutation probes pin that
+/// separately).
 #[test]
-fn emit_ir_materialises_constant_data_and_the_program_runs() {
+fn emit_ir_references_the_constant_directly() {
     let dir = write_project(&[(
         "Main.cinch",
         "module Main where\n\
-         \x20 greeting :: String\n\
-         \x20 greeting = \"hello\"\n\
+         \x20 greet :: Nat -> String\n\
+         \x20 greet n = \"hello\"\n\
          \x20 main :: Int\n\
          \x20 main =\n\
-         \x20   let b = string-to-bytes greeting in\n\
-         \x20   if bytes-len b == 5 then\n\
+         \x20   let a = string-to-bytes (greet 0) in\n\
+         \x20   let b = string-to-bytes (greet 1) in\n\
+         \x20   if bytes-len a + bytes-len b == 10 then\n\
          \x20     if bytes-get b 4 == 111 then 0 else 2\n\
          \x20   else 1\n",
     )]);
@@ -500,13 +575,34 @@ fn emit_ir_materialises_constant_data_and_the_program_runs() {
     )
     .expect("emit-ir");
     let ir = std::fs::read_to_string(&ir_path).expect("ir text");
-    assert!(
-        ir.contains("cinch_bytes_from_data"),
-        "the literal materialises through the constant path"
+    let lit_lines: Vec<&str> = ir.lines().filter(|l| l.contains("c\"hello\"")).collect();
+    assert!(!lit_lines.is_empty(), "the literal emits a constant");
+    // The site compiles to one shared constant in its unit (a second
+    // evaluation of the site never constructs another).
+    let site_lines: Vec<&str> = lit_lines
+        .iter()
+        .copied()
+        .filter(|l| l.contains("Main.greet"))
+        .collect();
+    assert_eq!(
+        site_lines.len(),
+        1,
+        "one constant for the literal site: {site_lines:?}"
     );
+    for l in &lit_lines {
+        assert!(
+            l.contains("internal constant { i64, ptr, i64, i64, ptr,"),
+            "the constant is the composite object (block header + bytes): {l}"
+        );
+        assert!(!l.contains("cinch_bytes_from_data"), "no materialisation: {l}");
+    }
+    let name = site_lines[0]
+        .split_once(' ')
+        .map(|(n, _)| n.trim_start_matches('@').to_string())
+        .expect("constant name");
     assert!(
-        ir.contains("c\"hello\""),
-        "the literal bytes are a private constant"
+        ir.contains(&format!("ptrtoint ptr @{name} to i64")),
+        "the constant is referenced directly"
     );
     let code = driver_with(Mode::Run, StageMode::Refresh, &dir.join("Main.cinch"), None)
         .expect("run");

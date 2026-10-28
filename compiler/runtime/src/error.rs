@@ -34,6 +34,10 @@ pub enum Error {
     /// A byte-buffer index, length, or byte value was outside its allowed
     /// range (`Error::OutOfBounds` from [`crate::bytes`]).
     OutOfBounds,
+    /// A write reached a read-only buffer (a string literal's constant
+    /// data-section backing): the runtime takes the defined fault
+    /// instead of writing to constant data.
+    ReadOnly,
     /// An extern entry point received a null word or a word whose block kind
     /// does not match the entry point (corrupt generated code or data),
     /// including a quotation block or program stream that is malformed
@@ -78,6 +82,7 @@ impl fmt::Display for Error {
             Error::BufferTooSmall => "decimal buffer too small",
             Error::MalformedName => "symbol name is not valid UTF-8",
             Error::OutOfBounds => "byte-buffer index, length, or byte value out of range",
+            Error::ReadOnly => "a read-only buffer cannot be mutated",
             Error::CorruptValue => "null or wrong-kind word or corrupt generated data",
             Error::BlackHole => {
                 "the quoted program faulted or a memo cell was demanded while evaluating"

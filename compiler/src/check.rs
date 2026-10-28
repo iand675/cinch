@@ -27,6 +27,13 @@ enum ECore {
     /// A constant `Bytes` buffer (the compile-time fold of a collection
     /// literal; [`crate::core::Core::ConstBytes`] is its target form).
     ConstBytes(Vec<u8>),
+    /// The runtime `String` constant (a string literal's value; the
+    /// shared read-only data-section object of
+    /// [`crate::core::Core::ConstString`], whose `ctor` this carries).
+    ConstString {
+        ctor: crate::core::GlobalId,
+        bytes: Vec<u8>,
+    },
     /// A constant `Sym`: the interned name of a tick literal
     /// ([`crate::core::Core::ConstSym`] is its target form).
     ConstSym(String),
@@ -166,7 +173,7 @@ fn free_locals(e: &ECore, bound: &mut Vec<LocalId>, out: &mut Vec<LocalId>) {
                 out.push(*l);
             }
         }
-        ECore::Int(_) | ECore::ConstBig { .. } | ECore::ConstBytes(_) | ECore::ConstSym(_) | ECore::Lit(_) | ECore::Bool(_) | ECore::Unit | ECore::Global(_)
+        ECore::Int(_) | ECore::ConstBig { .. } | ECore::ConstBytes(_) | ECore::ConstString { .. } | ECore::ConstSym(_) | ECore::Lit(_) | ECore::Bool(_) | ECore::Unit | ECore::Global(_)
         | ECore::Ctor(_) | ECore::Prim(_) | ECore::Foreign(_) | ECore::Hole(_) | ECore::QuoteHole(_) | ECore::IdxPending(_) | ECore::Fault
         | ECore::SyntaxLit(_) | ECore::StrLit(_) => {}
         ECore::Quote { holes, .. } | ECore::DeclsQuote { holes, .. } => {
@@ -253,7 +260,7 @@ fn hoist_lambdas(e: &mut ECore, hint: &str, counter: &mut usize, fns: &mut Vec<H
     match e {
         ECore::LitFold { body, .. } => hoist_lambdas(body, hint, counter, fns),
         ECore::Int(_)
-        | ECore::ConstBig { .. } | ECore::ConstBytes(_) | ECore::ConstSym(_)
+        | ECore::ConstBig { .. } | ECore::ConstBytes(_) | ECore::ConstString { .. } | ECore::ConstSym(_)
         | ECore::Lit(_)
         | ECore::Bool(_)
         | ECore::Unit
@@ -361,7 +368,7 @@ fn assign_locals(e: &ECore, map: &mut HashMap<LocalId, LocalId>, next: &mut usiz
     match e {
         ECore::LitFold { body, .. } => assign_locals(body, map, next),
         ECore::Var(l) => note_local(*l, map, next),
-        ECore::Int(_) | ECore::ConstBig { .. } | ECore::ConstBytes(_) | ECore::ConstSym(_) | ECore::Lit(_) | ECore::Bool(_) | ECore::Unit | ECore::Global(_)
+        ECore::Int(_) | ECore::ConstBig { .. } | ECore::ConstBytes(_) | ECore::ConstString { .. } | ECore::ConstSym(_) | ECore::Lit(_) | ECore::Bool(_) | ECore::Unit | ECore::Global(_)
         | ECore::Ctor(_) | ECore::Prim(_) | ECore::Foreign(_) | ECore::Hole(_) | ECore::QuoteHole(_) | ECore::IdxPending(_) | ECore::Fault
         | ECore::SyntaxLit(_) | ECore::StrLit(_) => {}
         ECore::Quote { holes, body, .. } => {
@@ -449,6 +456,10 @@ fn rewrite_locals(e: &ECore, map: &HashMap<LocalId, LocalId>) -> ECore {
             digits: digits.clone(),
         },
         ECore::ConstBytes(b) => ECore::ConstBytes(b.clone()),
+        ECore::ConstString { ctor, bytes } => ECore::ConstString {
+            ctor: ctor.clone(),
+            bytes: bytes.clone(),
+        },
         ECore::ConstSym(s) => ECore::ConstSym(s.clone()),
         ECore::Lit(i) => ECore::Lit(*i),
         ECore::Bool(b) => ECore::Bool(*b),
@@ -544,7 +555,7 @@ fn resolve_lit_words(e: &mut ECore, lits: &[ECore]) {
     match e {
         ECore::LitFold { body, .. } => resolve_lit_words(body, lits),
         ECore::Lit(i) => *e = lits[*i].clone(),
-        ECore::Int(_) | ECore::ConstBig { .. } | ECore::ConstBytes(_) | ECore::ConstSym(_) | ECore::Bool(_) | ECore::Unit | ECore::Var(_)
+        ECore::Int(_) | ECore::ConstBig { .. } | ECore::ConstBytes(_) | ECore::ConstString { .. } | ECore::ConstSym(_) | ECore::Bool(_) | ECore::Unit | ECore::Var(_)
         | ECore::Global(_)
         | ECore::Ctor(_) | ECore::Prim(_) | ECore::Foreign(_) | ECore::Hole(_) | ECore::QuoteHole(_) | ECore::IdxPending(_) | ECore::Fault | ECore::LazyAlloc | ECore::BoxAlloc
         | ECore::SyntaxLit(_) | ECore::StrLit(_) => {}
@@ -603,7 +614,7 @@ fn resolve_idx_words(e: &mut ECore, vals: &[ECore]) {
         ECore::LitFold { body, .. } => resolve_idx_words(body, vals),
         ECore::IdxPending(i) => *e = vals[*i].clone(),
         ECore::Int(_)
-        | ECore::ConstBig { .. } | ECore::ConstBytes(_) | ECore::ConstSym(_)
+        | ECore::ConstBig { .. } | ECore::ConstBytes(_) | ECore::ConstString { .. } | ECore::ConstSym(_)
         | ECore::Lit(_)
         | ECore::Bool(_)
         | ECore::Unit
@@ -670,8 +681,11 @@ fn resolve_idx_words(e: &mut ECore, vals: &[ECore]) {
 /// emission forms; surface grammar local amendments section 10). Only
 /// first-order constants have a constant form: closures, quotations,
 /// compile-time-only values, and stage-synthesized structures do not
-/// reify, and their constructions keep their runtime class calls.
-fn reify_value(v: &crate::core::Value) -> Option<ECore> {
+/// reify, and their constructions keep their runtime class calls. An
+/// immutable `String` value (the `string_ctor` representation) reifies
+/// to the shared constant: its content is its identity, so a computed
+/// string folds to the same constant form a literal takes.
+fn reify_value(v: &crate::core::Value, string_ctor: &str) -> Option<ECore> {
     use crate::core::Value;
     Some(match v {
         Value::Word(w) => ECore::Int(*w),
@@ -687,9 +701,18 @@ fn reify_value(v: &crate::core::Value) -> Option<ECore> {
             if ctor.is_empty() {
                 return None;
             }
+            if ctor == string_ctor {
+                return match fields.as_slice() {
+                    [Value::Bytes(b)] => Some(ECore::ConstString {
+                        ctor: GlobalId(ctor.clone()),
+                        bytes: b.borrow().clone(),
+                    }),
+                    _ => None,
+                };
+            }
             let mut core = ECore::Ctor(GlobalId(ctor.clone()));
             for f in fields {
-                core = app_spine(core, vec![reify_value(f)?]);
+                core = app_spine(core, vec![reify_value(f, string_ctor)?]);
             }
             core
         }
@@ -705,7 +728,7 @@ fn fold_blocked(e: &ECore) -> bool {
     match e {
         ECore::Int(_)
         | ECore::ConstBig { .. }
-        | ECore::ConstBytes(_) | ECore::ConstSym(_)
+        | ECore::ConstBytes(_) | ECore::ConstString { .. } | ECore::ConstSym(_)
         | ECore::Bool(_)
         | ECore::Unit
         | ECore::Var(_)
@@ -775,6 +798,10 @@ fn lower(e: &ECore) -> crate::core::Core {
             digits: digits.clone(),
         },
         ECore::ConstBytes(b) => crate::core::Core::ConstBytes(b.clone()),
+        ECore::ConstString { ctor, bytes } => crate::core::Core::ConstString {
+            ctor: ctor.clone(),
+            bytes: bytes.clone(),
+        },
         ECore::ConstSym(s) => crate::core::Core::ConstSym(s.clone()),
         ECore::LitFold { body, .. } => lower(body),
         ECore::Lit(_) => {
@@ -3861,7 +3888,7 @@ impl Checker {
             }
             ECore::Int(_)
             | ECore::ConstBig { .. }
-            | ECore::ConstBytes(_) | ECore::ConstSym(_)
+            | ECore::ConstBytes(_) | ECore::ConstString { .. } | ECore::ConstSym(_)
             | ECore::Lit(_)
             | ECore::Bool(_)
             | ECore::Unit
@@ -3944,7 +3971,8 @@ impl Checker {
         // exceeds the fold's budget) computes at runtime, exactly as it
         // would without the fold.
         let v = self.eval_core(&mut cx, &core, &mut frame).ok()?;
-        reify_value(&v)
+        let string_ctor = self.string_ctor_id().0;
+        reify_value(&v, &string_ctor)
     }
 
     /// An index term as runtime code (core specification section 3:
@@ -7363,7 +7391,7 @@ impl Checker {
                 Some(d) => dict_expr_ecore(d),
                 None => return Err(Error::plain("internal error: unsolved dictionary hole")),
             },
-            ECore::Int(_) | ECore::ConstBig { .. } | ECore::ConstBytes(_) | ECore::ConstSym(_) | ECore::Lit(_) | ECore::Bool(_)
+            ECore::Int(_) | ECore::ConstBig { .. } | ECore::ConstBytes(_) | ECore::ConstString { .. } | ECore::ConstSym(_) | ECore::Lit(_) | ECore::Bool(_)
             | ECore::Unit | ECore::Var(_) | ECore::Global(_)
             | ECore::Ctor(_) | ECore::Prim(_) | ECore::Foreign(_) | ECore::QuoteHole(_)
             | ECore::IdxPending(_) | ECore::Fault

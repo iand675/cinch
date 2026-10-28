@@ -38,7 +38,13 @@ module Data.Sym where
   intern s = sym-intern-bytes (string-to-bytes s)
 
   sym-name :: Sym -> String
-  sym-name s = String (sym-name-bytes s)
+  -- The runtime hands out a fresh buffer per call and the name is
+  -- valid UTF-8 (`intern` takes a `String`), so the `None` case is
+  -- unreachable; the safe conversion in copies (the string
+  -- immutability contract: the representation constructor is private).
+  sym-name s = case string-from-bytes (sym-name-bytes s) of
+    Some n -> n
+    None -> empty-string
 
   -- `Eq` is identity: the same interned cell (section 9).
   implicit instance Eq_Sym :: Eq Sym where
@@ -53,10 +59,7 @@ module Data.Sym where
     (>) x y = gt-i64 (sym-cmp x y) 0
     (>=) x y = ge-i64 (sym-cmp x y) 0
 
-  -- `Show` prints `'foo` (section 9): the tick is the raw ASCII 39
-  -- byte, the name renders as itself.
+  -- `Show` prints `'foo` (section 9): the tick is `char-string '\''`
+  -- (raw ASCII 39), the name renders as itself.
   implicit instance Show_Sym :: Show Sym where
-    show s =
-      let b = bytes-new 1 in
-      let u = bytes-set b 0 39 in
-      string-concat (String b) (sym-name s)
+    show s = string-concat (char-string '\'') (sym-name s)

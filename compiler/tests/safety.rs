@@ -608,49 +608,44 @@ module Main where
             &["`#[no-alloc]` on Main.", "no-allocation rule (JPL rule 3)", site],
         );
     }
-    // A string literal allocates wherever the surface admits one: its
-    // constant data materialises a fresh `Bytes` buffer per evaluation
-    // (the D89 buffer is mutable in place, so the literal cannot share
-    // one), in an ordinary term and in the compile-time body of a
-    // `stage` definition the generator compiles alike.
-    expect_err(
-        "no-alloc-string-runtime",
+    // A string literal is NOT an allocation: its data lives in the
+    // data section as one shared read-only constant every evaluation
+    // references directly (no construction), so a `#[no-alloc]`
+    // function may use literals in an ordinary term and in the
+    // compile-time body of a `stage` definition the generator compiles
+    // alike (the treatment is pinned in
+    // compiler/tests/string_literals.rs).
+    let report = check_report(
         r#"
 module Main where
   #[no-alloc]
   greet :: String
   greet = "hello"
 
-  main :: Int
-  main = 0
-"#,
-        &[
-            "`#[no-alloc]` on Main.greet",
-            "no-allocation rule (JPL rule 3)",
-            "a string literal is constructed here",
-        ],
-    );
-    expect_err(
-        "no-alloc-string",
-        r#"
-module Main where
   #[no-alloc]
-  stage greet :: Nat -> Nat
-  stage greet n = strNat "hello"
+  stage echo :: Nat -> Nat
+  stage echo n = strNat "42"
 
   generate do
     emit (quoteDecls where
       answer :: Nat
-      answer = $(quoteNat (greet 1)))
+      answer = $(quoteNat (echo 1)))
 
   main :: Int
   main = int-from-i64 (nat-to-i64 answer)
 "#,
-        &[
-            "`#[no-alloc]` on Main.greet",
-            "no-allocation rule (JPL rule 3)",
-            "a string literal is constructed here",
-        ],
+    );
+    assert_row(
+        &report,
+        "Main.greet",
+        "no-alloc",
+        "verified (0 allocation site(s)",
+    );
+    assert_row(
+        &report,
+        "Main.echo",
+        "no-alloc",
+        "verified (0 allocation site(s)",
     );
 }
 

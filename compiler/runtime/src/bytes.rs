@@ -1,17 +1,27 @@
 //! Byte buffers backing the language-level `Bytes` type.
 //!
-//! A buffer is an owned, zero-initialized, fixed-length `Vec<u8>` boxed in
-//! a runtime block behind an `i64` word, like the bignums. Indexing is
-//! bounds-checked; out-of-range indices, negative lengths, and byte values
-//! outside `0..=255` are [`Error::OutOfBounds`], never undefined
-//! behaviour. This is the foundation the FFI and string slices build on.
+//! A buffer is a fixed-length byte region behind an `i64` word: the
+//! runtime block is `Boxed<Bytes>` (`compiler/runtime/src/abi.rs`) and
+//! this payload is a stable `#[repr(C)]` pair of length and data
+//! pointer, so a read-only data-section buffer (a string literal's
+//! constant backing) is the same block shape generated code can emit
+//! directly. The region is owned (heap buffers are allocated here and
+//! never freed, matching the word model) or read-only constant data
+//! (the `KIND_BYTES_STATIC` block kind: mutation attempts fault instead
+//! of writing). Indexing is bounds-checked; out-of-range indices,
+//! negative lengths, and byte values outside `0..=255` are
+//! [`Error::OutOfBounds`], never undefined behaviour. This is the
+//! foundation the FFI and string slices build on.
 
 use crate::error::{Error, Result};
+use std::fmt;
 
-/// An owned, mutable byte buffer.
-#[derive(Clone, Debug, PartialEq, Eq)]
+/// An owned, mutable byte buffer (or a read-only constant one behind
+/// the same word model).
+#[repr(C)]
 pub struct Bytes {
-    buf: Vec<u8>,
+    len: i64,
+    data: *mut u8,
 }
 
 impl Bytes {
@@ -21,45 +31,80 @@ impl Bytes {
             return Err(Error::OutOfBounds);
         }
         let len = usize::try_from(len).map_err(|_| Error::OutOfBounds)?;
-        Ok(Bytes {
-            buf: vec![0u8; len],
-        })
+        Ok(Bytes::from(vec![0u8; len]))
     }
 
     /// The buffer length in bytes (always representable in an `i64`).
     pub fn len(&self) -> i64 {
-        self.buf.len() as i64
+        self.len
     }
 
     /// Whether the buffer is empty.
     pub fn is_empty(&self) -> bool {
-        self.buf.is_empty()
+        self.len == 0
     }
 
     /// The byte at `index` (0..=255).
     pub fn get(&self, index: i64) -> Result<i64> {
         let i = usize::try_from(index).map_err(|_| Error::OutOfBounds)?;
-        self.buf.get(i).map(|&b| i64::from(b)).ok_or(Error::OutOfBounds)
+        if i >= self.len as usize {
+            return Err(Error::OutOfBounds);
+        }
+        Ok(i64::from(unsafe { *self.data.add(i) }))
     }
 
     /// Write `value` (0..=255) at `index`.
+    ///
+    /// The caller (`abi::as_bytes_mut`) hands out a mutable borrow only
+    /// for heap buffers; a read-only constant buffer (a string
+    /// literal's backing) faults before reaching here.
     pub fn set(&mut self, index: i64, value: i64) -> Result<()> {
         let i = usize::try_from(index).map_err(|_| Error::OutOfBounds)?;
         let v = u8::try_from(value).map_err(|_| Error::OutOfBounds)?;
-        let slot = self.buf.get_mut(i).ok_or(Error::OutOfBounds)?;
-        *slot = v;
+        if i >= self.len as usize {
+            return Err(Error::OutOfBounds);
+        }
+        unsafe { *self.data.add(i) = v };
         Ok(())
     }
 
     /// Borrow the contents.
     pub fn as_slice(&self) -> &[u8] {
-        &self.buf
+        if self.len == 0 {
+            return &[];
+        }
+        unsafe { std::slice::from_raw_parts(self.data, self.len as usize) }
     }
 }
 
 impl From<Vec<u8>> for Bytes {
-    fn from(buf: Vec<u8>) -> Bytes {
-        Bytes { buf }
+    /// Take ownership of the vector's region (the word model leaks it:
+    /// words are never freed). The vector is shrunk to its length so
+    /// `len` and the region agree exactly.
+    fn from(mut buf: Vec<u8>) -> Bytes {
+        buf.shrink_to_fit();
+        let len = buf.len() as i64;
+        let data = if buf.is_empty() {
+            std::ptr::NonNull::<u8>::dangling().as_ptr()
+        } else {
+            Box::into_raw(buf.into_boxed_slice()) as *mut u8
+        };
+        Bytes { len, data }
+    }
+}
+
+impl PartialEq for Bytes {
+    /// Byte semantics: equal contents, whatever the backing.
+    fn eq(&self, other: &Bytes) -> bool {
+        self.as_slice() == other.as_slice()
+    }
+}
+
+impl Eq for Bytes {}
+
+impl fmt::Debug for Bytes {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_tuple("Bytes").field(&self.as_slice()).finish()
     }
 }
 

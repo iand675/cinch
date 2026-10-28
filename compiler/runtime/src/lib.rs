@@ -156,7 +156,9 @@
 //!   `index`, faulting out of bounds.
 //! * `cinch_bytes_set(word: i64, index: i64, value: i64) -> i64`: write
 //!   `value` (0..=255) at `index`, returning 0 (the Unit word) and
-//!   faulting on an out-of-bounds index or a value outside 0..=255.
+//!   faulting on an out-of-bounds index or a value outside 0..=255. A
+//!   read-only data-section buffer (a string literal's backing) takes
+//!   the defined read-only fault instead of a write.
 //! * `cinch_bytes_data(word: i64) -> i64`, `cinch_bytes_from_data(ptr: *const
 //!   u8, len: i64) -> i64`: the pointer-length crossing for buffer
 //!   contents (the UTF-8 and symbol intrinsics and the canonical ABI

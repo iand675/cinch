@@ -39,13 +39,21 @@ pub const KIND_BYTES: i64 = 3;
 /// specification section 9).
 pub const KIND_SYM: i64 = 4;
 
+/// Block kind tag: a read-only `Bytes` buffer whose data lives in the
+/// data section (a string literal's constant backing). The payload is
+/// the same [`crate::bytes::Bytes`]; mutation attempts fault (a defined
+/// fault, never a write) instead of touching constant data.
+pub const KIND_BYTES_STATIC: i64 = 5;
+
 /// Heap block behind a bignum word.
 ///
 /// `kind` is the first machine word so a corrupt word faults instead of
-/// being misinterpreted; the payload follows. The payload is a Rust `Nat`
-/// or `Int` value whose internal `Vec<u32>` header is a standard library
-/// implementation detail: generated code treats the whole block as opaque
-/// and only passes the word back to this runtime.
+/// being misinterpreted; the payload follows. The [`crate::bytes::Bytes`]
+/// payload is a stable `#[repr(C)]` length-and-pointer pair (read-only
+/// data-section buffers are the same shape, `KIND_BYTES_STATIC`); the
+/// `Nat`/`Int` payloads are Rust values whose internal `Vec<u32>` header
+/// is a standard library implementation detail: generated code treats
+/// those blocks as opaque and only passes the word back to this runtime.
 #[repr(C)]
 struct Boxed<T> {
     kind: i64,
@@ -143,14 +151,17 @@ unsafe fn as_int<'a>(word: i64) -> &'a Int {
     &b.value
 }
 
-/// Read a `Bytes` word, faulting on null or wrong-kind blocks.
+/// Read a `Bytes` word, faulting on null or wrong-kind blocks. Both
+/// buffer kinds read: heap buffers (`KIND_BYTES`) and read-only
+/// data-section buffers (`KIND_BYTES_STATIC`, a string literal's
+/// backing).
 pub(crate) unsafe fn as_bytes<'a>(word: i64) -> &'a crate::bytes::Bytes {
     let p = word as *const Boxed<crate::bytes::Bytes>;
     if p.is_null() {
         raise(Error::CorruptValue);
     }
     let b = unsafe { &*p };
-    if b.kind != KIND_BYTES {
+    if b.kind != KIND_BYTES && b.kind != KIND_BYTES_STATIC {
         raise(Error::CorruptValue);
     }
     &b.value
@@ -159,6 +170,9 @@ pub(crate) unsafe fn as_bytes<'a>(word: i64) -> &'a crate::bytes::Bytes {
 /// Read a `Bytes` word for mutation. Buffer writes are part of the
 /// language-level `bytesSet` contract, so this is a deliberate mutable
 /// borrow at the extern boundary; generated code sequences the writes.
+/// A read-only data-section buffer (`KIND_BYTES_STATIC`, a string
+/// literal's backing) takes the defined read-only fault instead of a
+/// write to constant data.
 unsafe fn as_bytes_mut<'a>(word: i64) -> &'a mut crate::bytes::Bytes {
     let p = word as *mut Boxed<crate::bytes::Bytes>;
     if p.is_null() {
@@ -166,6 +180,9 @@ unsafe fn as_bytes_mut<'a>(word: i64) -> &'a mut crate::bytes::Bytes {
     }
     let b = unsafe { &mut *p };
     if b.kind != KIND_BYTES {
+        if b.kind == KIND_BYTES_STATIC {
+            raise(Error::ReadOnly);
+        }
         raise(Error::CorruptValue);
     }
     &mut b.value

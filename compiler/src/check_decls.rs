@@ -10904,12 +10904,9 @@ impl<'a> FactWalk<'a> {
             | ast::Term::Hole(_)
             | ast::Term::SpliceHole { .. } | ast::Term::SeqOp(..) => {}
             ast::Term::Str(_, s) => {
+                // A string literal is a shared read-only constant (no
+                // allocation), so it is not an allocation site.
                 self.note_span(*s);
-                self.facts.alloc_sites.push(AllocRec {
-                    what: "a string literal".to_string(),
-                    span: *s,
-                    closure: self.closure,
-                });
             }
             ast::Term::App(f, args, _) => {
                 // The application head is the call; its arguments run
@@ -16157,10 +16154,10 @@ impl Checker {
                             "the `txt` converter produces a String value, not {ty}"
                         )));
                     }
-                    app_spine(
-                        ECore::Ctor(self.prelude_ctor_id("String")),
-                        vec![ECore::ConstBytes(bytes.clone())],
-                    )
+                    ECore::ConstString {
+                        ctor: self.string_ctor_id(),
+                        bytes: bytes.clone(),
+                    }
                 }
                 _ => {
                     let v = parse_json(&bytes).map_err(fail)?;
@@ -16396,14 +16393,32 @@ impl Checker {
         fn_id(&v.module, &v.name)
     }
 
+    /// The runtime `String` representation constructor (`StrBuf`, one
+    /// field over a `Bytes` buffer): a string constant's value form
+    /// names it, so the evaluator and code generation build the exact
+    /// block the `String` patterns match. The constructor is
+    /// module-private (the string immutability contract: no API hands
+    /// out a string's backing); its home is fixed compiler input (the
+    /// prelude split put it in `Data.String`).
+    fn string_ctor_id(&self) -> crate::core::GlobalId {
+        let key = ("Data.String".to_string(), "StrBuf".to_string());
+        assert!(
+            self.qualified.contains_key(&key),
+            "the prelude declares the string representation constructor"
+        );
+        fn_id(&key.0, &key.1)
+    }
+
     /// The runtime `String` constant of a string's decoded bytes: a
     /// runtime literal's elaboration (`check_terms`) and a compile-time
-    /// string's reified constant share this form.
+    /// string's reified constant share this form (the shared read-only
+    /// data-section object; `String` is immutable, so sharing is
+    /// semantics-transparent).
     fn string_const(&mut self, s: &str) -> ECore {
-        app_spine(
-            ECore::Ctor(self.prelude_ctor_id("String")),
-            vec![ECore::ConstBytes(s.as_bytes().to_vec())],
-        )
+        ECore::ConstString {
+            ctor: self.string_ctor_id(),
+            bytes: s.as_bytes().to_vec(),
+        }
     }
 
     fn set_scope(&mut self, module: &str) {
@@ -17675,6 +17690,15 @@ impl Checker {
             Core::ConstBytes(b) => Value::Bytes(std::rc::Rc::new(std::cell::RefCell::new(
                 b.clone(),
             ))),
+            Core::ConstString { ctor, bytes } => {
+                // The representation constructor applied to a buffer
+                // word: the same `Value` shape a constructor call
+                // produces, so the `String` patterns match it.
+                let cv = self.global_value(cx, &ctor.0)?;
+                let buf =
+                    std::rc::Rc::new(std::cell::RefCell::new(bytes.clone()));
+                self.apply_value(cx, cv, vec![Value::Bytes(buf)])?
+            }
             Core::ConstSym(s) => Value::Sym(s.clone()),
             Core::Bool(b) => Value::Bool(*b),
             Core::Unit => Value::Unit,
