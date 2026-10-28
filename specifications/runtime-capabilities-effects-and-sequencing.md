@@ -108,4 +108,56 @@ Hot replacement checks runtime identity, handler contract, continuation represen
 
 Required next formal results are effect preservation under handler lowering, safe one-shot continuation ownership, coherent dictionary elaboration, the indexed sequencing bridge, and a correspondence between runtime protocols and temporal models. Grammar checking alone establishes none of these.
 
+# Amendments
+
+Dated notes recording landed decisions (`compiler/CONFORMANCE.md`,
+D-numbers) that amend or interpret this chapter's normative text.
+2026-10-28, P15 conformance sweep.
+
+- **Row-typed effects (D3), 2026-10-28.** Effect rows are row-typed
+  (labels, tails, lacks constraints) and effect honesty is checked by
+  row unification; a curried definition's body effects ride the last
+  arrow.
+- **Capabilities vs class constraints (D21), 2026-10-28.** This
+  resolves the wording ambiguity in "Runtime parameters and implicit
+  passing": a `using (x :: C ...)` binder is a runtime capability iff
+  its class head is the builtin `Io` head over a runtime identity `r`;
+  everything else is a compile-time class constraint. `Io` wants solve
+  ONLY from lexical providers (nearest `using`/`with` binding or
+  explicit `@{...}`; no instances, no global state), `with (io = e) in`
+  checks `e` against `Io r` with `r` pinned by the body, and `@{...}`
+  names capability parameters only.
+- **`do` providers and `pure` (D22, D152-D153), 2026-10-28.** Provider
+  selection is the definition's `using` binder with a compiler-known
+  provider head (`DirectSequencing`, `ResultSequencing e`,
+  `OptionSequencing`, each with `pure`/`bind` class methods and
+  implicit instances); the default is direct and two active providers
+  in one scope are ambiguous at `do`/`pure` use. `pure`/`bind` remain
+  class methods: `Monad` has no `return` (that word is handler-clause
+  syntax), `pure` lives on `Applicative`, and a bare `pure` is answered
+  first by an in-scope non-provider class constraint before the D22
+  provider meaning (`Applicative.pure` is the qualified spelling).
+- **Handlers and resumptions (D23, D26), 2026-10-28.** Handlers are
+  vtables of clause closures over delimited one-shot continuations
+  (CPS elaboration); operation dispatch is lexical to the handled
+  computation's own expression, and an operation reached through a call
+  is rejected at `handle` ("performed through a called computation";
+  call-dispatched handling needs answer-passing elaboration and is a
+  named deferral). Unhandled operations are rejected at check time by
+  effect honesty (runtime fallback: fault path, exit 70). `resume k` is
+  one-shot (`%aff`); when the continuation consumes a `%1` capture,
+  inline handlers' `resume k` binders promote to `%1` so the capture is
+  consumed exactly once.
+- **`do` binding forms (D24 as amended by D262-D267, D25),
+  2026-10-28.** `let` in `do` binds one whole local block group
+  through the shared elaboration (the 2026-10-27 language-tail
+  amendment of D24's single-value shape): only simple value bindings
+  sequence under CPS, parameterized/`~` bindings keep D24's error and
+  destructuring keeps the `cps_let` one. Refutable `x <- e` binds are
+  rejected: the three bootstrap providers have no typed failure
+  operation (D25).
+- **Cinch naming (D278-D281), 2026-10-28.** The language is Cinch:
+  sources `.cinch`, interfaces `.cinchif`, runtime externs `cinch_*`;
+  artifact names in this chapter read with those names.
+
 [Documentation overview](../overview.md)

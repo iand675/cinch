@@ -153,3 +153,40 @@ An update that changes instruction requirements MUST establish availability befo
 Quiescence includes registered callbacks, in-flight host operations, child tasks, queued messages and foreign handle destructors. A cancellation request alone does not release their ownership or code-version dependencies. The old artifact remains resident until those dependencies are migrated or discharged.
 
 Wasm resources retain their owning instance identity. Replacement uses checked handle translation, draining or version coexistence; copying linear memory or reusing raw resource integers is insufficient. Concurrent snapshots need synchronization or commit-time revalidation, and old and new code sharing state need a joint invariant. See [Concurrency specification](concurrency-specification.md) and [WebAssembly and WASI specification](webassembly-and-wasi-specification.md).
+
+# Amendments
+
+Dated notes recording landed decisions (`compiler/CONFORMANCE.md`,
+D-numbers) that amend or interpret this chapter's normative text.
+2026-10-28, P15 conformance sweep.
+
+- **Upgrade surface (D82-D87), 2026-10-28.** This amends sections 1
+  and 3: `upgrade Old to New where { migrate = f, related = r }` maps
+  the reserved component names; `migrate` is the checked migration
+  `Old %1 -> New` and migration field checking is field-change
+  classification (kept/added/removed/retyped) with a migration required
+  for incompatible changes and a type match on the migration itself
+  (D82). The migration and `related` components name visible values;
+  the bootstrap evolves monomorphic records only (D83, a named limit).
+  A migration-free `upgrade` is a record view admitting only additive
+  changes; added optional fields are recorded as missing-able, keeping
+  missing distinct from present-`None` at the schema-evidence level
+  (the value-level `Missing`/`Present` marker needs a partial-record
+  view type former the bootstrap `Option` lacks, a named follow-up)
+  (D84). `related` is accepted as evidence syntax but its proposition
+  type is not yet checked (D87, riding that follow-up).
+- **Evolution runtime and representation identity (D85-D86),
+  2026-10-28.** This amends sections 6 and 8: runtime evolution is the
+  one code-retention/dispatch mechanism (the supercompilation chapter's
+  rule), and value-level transforms dispatch on `(from_repr, to_repr)`
+  (named follow-up) (D85). `#[repr]`-level changes are a representation
+  change: they alter the interface identity so stale dependents must be
+  replaced, which the existing staleness chain detects (D86).
+- **JIT variants (supercompilation section 6), 2026-10-28.** Installing
+  or retiring a specialized variant follows this chapter only: old code
+  versions are retained while live frames can enter them, update sets
+  complete before activation, and new instruction requirements are
+  established before reachability (D92-D101 machinery).
+- **Cinch naming (D278-D281), 2026-10-28.** The language is Cinch:
+  sources `.cinch`, interfaces `.cinchif`, runtime externs `cinch_*`;
+  artifact names in this chapter read with those names.

@@ -114,3 +114,44 @@ Upgrading a target module or rewrite law may require replacing dependent special
 # Wasm validation and feature selection
 
 For Wasm, feature dispatch may need to occur before module instantiation. Unsupported SIMD instructions can invalidate an entire module even when their branch would not execute. Package separate baseline and specialized variants when required, detect supported features and select a valid variant before loading. The proof manifest must match the selected module and target semantics; relaxed SIMD requires its own semantic relation. See [WebAssembly and WASI specification](webassembly-and-wasi-specification.md).
+
+# Amendments
+
+Dated notes recording landed decisions (`compiler/CONFORMANCE.md`,
+D-numbers) that amend or interpret this chapter's normative text.
+2026-10-28, P15 conformance sweep.
+
+- **Target model and capability evidence (D58-D59), 2026-10-28.** This
+  amends sections 2-3: target profiles and vector shapes are marker
+  types (`VecU32Target t w`, `CapAvailable t w`) and `Available v` is
+  the operational evidence of this chapter's validity scope (lexical
+  region + thread; no cached evidence). A `target rewrite` fires only
+  where the firing unit carries a matching capability parameter, and
+  `Target.detectVecU32` is a replaceable dispatch boundary (never
+  folded).
+- **Admission split (D96, D99), 2026-10-28.** `cinch check` is not
+  artifact admission: `admit_artifact` enforces the assumed deployment
+  baseline this chapter requires, and world-export implementation
+  obligations (a `world` export without its implementation is
+  rejected). The canonical ABI is the wasm32 shape (i32 pointer slots,
+  canonical memory layout), so adapter glue emits for Wasm artifact
+  profiles only and native canonical emission refuses with a named
+  diagnostic (D99 revises D96's FFI-shim remark: there is no native
+  canonical lowering).
+- **LLVM contract facts (D187-D191), 2026-10-28.** This amends section
+  8's checked-lowering facts: `!range` is stated only for `Bool` and
+  the narrow primitive scalars (`Fin` values are constructor-block
+  pointers and full-width spans are unstatable, both refused as
+  unsound); `llvm.assume` has no `range` operand bundle in this LLVM,
+  so range facts use the `range` return attribute and `!range`
+  metadata; `willreturn`/`nofree` are scan-proven and transitive
+  (checked definitions restate them only under their P20/totality rows)
+  and the unit scan classifies every call, load, store, and poison
+  source so effectful units never claim `memory(none)`. Aggregate
+  parameter spelling: `byref`/`sret`, see the FFI chapter's amendment.
+- **Cross-compilation widths (A4, closed P14), 2026-10-28.** `Usize`/
+  `Isize` widths and capability checks key on the target profile, never
+  the generator host (rows 27-28 of `compiler/SPEC-MAPPING.md`).
+- **Cinch naming (D278-D281), 2026-10-28.** The language is Cinch:
+  sources `.cinch`, interfaces `.cinchif`, runtime externs `cinch_*`;
+  artifact names in this chapter read with those names.

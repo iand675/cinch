@@ -136,4 +136,35 @@ Demanding a cell while it is evaluating is a black hole. Two rules rule it out: 
 
 The bootstrap compiler in `compiler/` implements this chapter's runtime shape: `Thunk` as a closure over `Unit` (`delay`, `force`), `~ name = term` memo bindings with one memo group per block, demand-on-use elaboration, and the `Eval r` black-hole rule of section 6 enforced statically through row lacks constraints (cell bodies may not perform their group's label). Not yet implemented there: the multiplicity discipline of section 3, region escape checking, `Ref r a` (the bootstrap `demand` returns the value), and the `Share` class, so a `Lazy {e} r a` value can outlive its region in the bootstrap, which is the same lifetime-checking gap the rest of the bootstrap has. The `BlackHole` runtime fault exists as defense in depth.
 
+# Amendments
+
+Dated notes recording landed decisions (`compiler/CONFORMANCE.md`,
+D-numbers) that amend or interpret this chapter's normative text.
+2026-10-28, P15 conformance sweep.
+
+- **`Later` is a usage-multiplicity rule (D36), 2026-10-28.** This
+  amends section 2: `Later a` is a distinct type former that never
+  unifies with `Thunk`; a `Later` binder lives at `%1`/`%aff` only
+  (default `%aff`) and `force` consumes it; `%many` is rejected as
+  unrestricted-thunk semantics. Kinding: `Later` takes exactly one
+  type argument and no effect row.
+- **Usage defaults and sharing (D15-D19), 2026-10-28.** This amends
+  sections 3-5: `Thunk`-typed binders default `%aff` while unannotated
+  binders default `%many` (D15); memo bare-use requires the cached type
+  to be `Copy`, discharged through `copyOut` (D16/D19), and `demand`
+  returns `Ref r a` so the cached value is never silently duplicated;
+  lambda/thunk bodies count uses as unbounded and memo bodies at most
+  once (D18). The bootstrap's multiplicity/region gaps named in this
+  chapter's implementation status are closed for the `Copy`/`Ref`
+  story by these rules (the runtime shape was already present).
+- **Black-hole runtime and memo groups (D131-D137), 2026-10-28.** The
+  runtime `BlackHole` fault (exit 70) backs the `Eval r` lacks rule of
+  section 6 as defense in depth (`runtime/src/abi.rs::cinch_blackhole`);
+  `letrec` fixpoint boxes use the same fault for an early read of an
+  unevaluated knot, and the compile-time evaluator refuses fixpoint
+  boxes with a named error (D136).
+- **Cinch naming (D278-D281), 2026-10-28.** The language is Cinch:
+  sources `.cinch`, interfaces `.cinchif`, runtime externs `cinch_*`;
+  artifact names in this chapter read with those names.
+
 [Documentation overview](../overview.md)

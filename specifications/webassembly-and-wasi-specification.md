@@ -104,4 +104,53 @@ Acceptance cases include a core pure function, a capability-scoped file operatio
 
 No Wasm compiler or runtime implementation has been built by this documentation task. These are conformance requirements for the planned toolchain.
 
+# Amendments
+
+Dated notes recording landed decisions (`compiler/CONFORMANCE.md`,
+D-numbers) that amend or interpret this chapter's normative text.
+2026-10-28, P15 conformance sweep. The paragraph above predates the
+P14 implementation (the wasm32 pipeline, adapters, and runtime glue
+are landed; `tests/wasm.rs`).
+
+- **Admission and packaging identity (D96, D99-D101), 2026-10-28.**
+  This amends section 2: `admit_artifact` (not `cinch check`) enforces
+  the assumed baseline and the `wasm.component-model` requirement for
+  adapters on Wasm profiles. A packaged variant's identity is the
+  content hash of its emitted module produced through the same
+  optimization path as a build, so profile parameters are part of the
+  artifact's meaning and the loader record is deterministic and
+  re-loadable by re-packaging. `ensure_runtime` treats a staticlib
+  older than any runtime source as absent and rebuilds (a stale
+  `libcinchruntime.a` silently drops newer `cinch_*` entry points).
+- **Representation and canonical glue (D93-D94, D99), 2026-10-28.**
+  This amends sections 3-4: every WIT function gets a call-side
+  `Raw.<func>` binding and a world `export` additionally emits the
+  canonical trampoline forwarding to the implementation unit (checked
+  at admission). Canonical tables are computed for all shapes and the
+  runtime glue marshals scalars, byte buffers, handles, enums/flags,
+  and single-layer records/variants of those; nested aggregate
+  payloads, non-`u8` element lists, and more than 16 flat parameters
+  refuse at emission with the shape named (honest boundary, no stubs)
+  while their canonical tables are still computed and recorded. The
+  canonical ABI is the wasm32 shape (i32 pointer slots, canonical
+  memory layout).
+- **Streams and `eval` (D92, D95), 2026-10-28.** This amends section
+  6: `stream`/`future` cross as word-level host imports over the
+  runtime block convention (full canonical stream interop is a named
+  boundary), and WASI streams are typed `WasiStream`/`WasiFuture` with
+  `Diverge` observation rows, never the productive codata `Stream`.
+  Explicit `eval : Code a -> a` runs a build-time-reified program on
+  the runtime evaluator (the compiler's encoder and the runtime's
+  decoder are one documented format) rather than embedding the compiler
+  as a library: this is the only realistic lowering for wasm32 guests.
+- **Foreign label args and decide operands (D97-D98), 2026-10-28.**
+  Synthesized schemes quantify the `Foreign <boundary>` name like user
+  `foreign import` schemes; the index builtins `length`/`toNat` compute
+  their runtime test values through `bytesLen`/`natFromI64`, matching
+  their index reading.
+- **Cinch naming (D278-D281), 2026-10-28.** The language is Cinch:
+  sources `.cinch`, interfaces `.cinchif`, runtime externs `cinch_*`,
+  staticlib `cinchruntime`; artifact names in this chapter read with
+  those names.
+
 [Documentation overview](../overview.md)

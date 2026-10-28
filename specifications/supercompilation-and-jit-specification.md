@@ -286,3 +286,52 @@ the implementation items ride the roadmap phases P10 (offline
 supercompiler), P13 (JIT deoptimization and code retention), P14
 (baseline/specialized variant packaging), and P17 (the PGO loop through
 branch weights and inline hints) in `compiler/CONFORMANCE.md`.
+
+# Amendments
+
+Dated notes recording landed decisions (`compiler/CONFORMANCE.md`,
+D-numbers) that amend or interpret this chapter's normative text.
+2026-10-28, P15 conformance sweep.
+
+- **Driving, fusion, and weights (D60-D61), 2026-10-28.** This amends
+  sections 2-3: pull-based producer fusion composes callbacks at the
+  same per-element positions, preserving effect order even for
+  effectful callbacks; barriers are memo/thunk allocation (demand
+  reordering) and, for eager pipelines under the `mapMap` law, callback
+  purity; case folds let-bind constructor fields, preserving strict
+  evaluation order (D60). Weight reconciliation under compiled shapes
+  (default alternatives expanded per constructor with scrutinee synonym
+  `let`s): inner alternatives outside the default set are conditioned
+  away unrescaled, then the rescale formula and GCD run; dead-
+  alternative removal is negation conditioning; case-push duplicates
+  decisions keeping weights (D61).
+- **Driving bounds (D62), 2026-10-28.** This amends section 5: fuel
+  charges every transformation (zero fuel means the generic form, the
+  behavior baseline); the whistle is recursion repetition plus 8x
+  measure growth; bounds are `TargetProfile` fields and land in the
+  manifest.
+- **Trust level (D63), 2026-10-28.** This amends section 9: level 2
+  (full recheck) per artifact with the recheck covering core
+  structure/scoping, `%1`/`%aff` usage equality, memo/demand counts,
+  weight all-or-nothing, and contract identity; a failing candidate is
+  discarded. Type/effect-order preservation is by construction (core
+  carries no types) and is disclosed in `lowering.trusted`.
+- **`eval` mechanism (D92), 2026-10-28.** This amends section 7's
+  opening claim ("runs the compiler as a library"): `eval` runs a
+  build-time-reified program on the runtime evaluator (the compiler's
+  encoder and `runtime/src/eval.rs` decoder are one documented format)
+  rather than embedding the compiler as a library. The section 7
+  contract holds unchanged (typed by quotes, never evidence,
+  manifest-recorded in `assumptions.foreign`, profiles MAY forbid it),
+  and this is the only realistic lowering for wasm32 guests.
+- **Implementation status correction (2026-10-28).** Section 12's
+  "Not implemented" predates the P10 landing: the offline driver,
+  fusion, bounds, weight reconciliation and the level-2 recheck are
+  implemented (D60-D63; `tests/optimizer.rs`). The remaining named
+  barriers: handler-vtable specialization is blocked on propagating
+  concrete vtables across function boundaries (dispatch sites can live
+  in callees through `do`/`spawn`), and named index-specialization
+  sites are folded via `Vec` chains and ground `decide` instead.
+- **Cinch naming (D278-D281), 2026-10-28.** The language is Cinch:
+  sources `.cinch`, interfaces `.cinchif`, runtime externs `cinch_*`;
+  artifact names in this chapter read with those names.

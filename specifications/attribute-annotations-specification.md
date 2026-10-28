@@ -503,3 +503,66 @@ context for the AST representation of attributes is
 `design/attribute-annotations.md`; the JPL rule mapping is
 `design/safety-assertion-attributes.md`.
 
+# Amendments
+
+Dated notes recording landed decisions (`compiler/CONFORMANCE.md`,
+D-numbers) that amend or interpret this chapter's normative text.
+2026-10-28, P15 conformance sweep.
+
+- **Weights, placement, and reports (D49-D54), 2026-10-28.** This
+  amends sections 1-2: the `if` condition position is a pair form
+  (`if #[w] c then t else e` weights the true branch `w` and completes
+  the pair with reference base 1, so `if #[likely] c` is the
+  conventional 2000:1 pair); attributes before `then`/`else` annotate
+  their branch directly under the one-branch rule, an explicit
+  else-side weight overrides the pair's implicit 1, and annotating the
+  true side twice is an error (D49). A guard's weight annotates its
+  pass outcome with fallthrough completed by the base 1 (D50).
+  Type-position attributes parse at record field types and merge with
+  the field-declaration position (D51). `repr` scope: `repr(C)`/
+  `align`/`packed` reject on multi-constructor `data` (`repr(uN)`
+  covers enums), `transparent` is exclusive, conflicts reject, and a
+  fixed-discriminant `data` records the discriminant as an interface
+  fact keeping the uniform-word representation (D52). Duplicates are
+  errors except macro-owned names; one weight-family attribute per
+  alternative, one inline hint per function, one `#[cold]` (D53).
+  `incomplete-branch-weights` is a warn-and-drop warning and
+  `incoherent-weights` informational (weights kept), both non-fatal
+  (D54).
+- **Transformation rules (D61), 2026-10-28.** This amends section 2.4:
+  over compiled shapes (default alternatives expanded per constructor
+  with scrutinee synonym `let`s) inner alternatives outside the default
+  set are conditioned away unrescaled, then the rescale formula and GCD
+  run; dead-alternative removal is negation conditioning; case-push
+  duplicates decisions keeping weights. Evidence:
+  `tests/optimizer.rs::weights_survive_optimization`.
+- **Safety assertions (D111-D114, D176-D186), 2026-10-28.** This
+  amends section 10: the vocabulary is landed with hyphenated names and
+  parenthesized arguments (`#[recursion("tail")]`) and the `let _ = e`
+  discard form; assertions verify at the definition (violations name
+  rule and site) and satisfied assertions are contract facts
+  (`assertions`/`must_use` rows hashed into `iface_hash` exactly like
+  `repr`); `bounded(n)` proves structural depth first
+  (`decrease_bound` size-index detection), falls back to the literal
+  ladder with the report saying which, and refuses what it cannot
+  bound (numeric-over-structural claims are deliberately refused and
+  pinned as negatives); the `jpl` profile exists as module attribute and
+  `TargetProfile::jpl()` with a whole-program summary, per-definition
+  attributes stricter only, and discarding a `Result` without `ignore`
+  is a check error. Evidence: `tests/safety.rs`.
+- **LLVM contract attributes (D187-D191), 2026-10-28.** Beyond
+  section 5's erasable hints, code generation emits effect-derived
+  function attributes (`memory(none) speculatable`,
+  `memory(read/readwrite)`, `nofree`, proven-only `willreturn`) and
+  usage-derived parameter attributes (`captures(none)`/`nonnull`/
+  `noundef`/`align`, `!range`, `!align`) as presence/absence pairs,
+  each attribute present where proven and absent where unproven;
+  `llvm.assume` carries operand bundles from assertions and repr facts
+  (no `range` bundle exists in this LLVM; ranges use the return
+  attribute and `!range` metadata); `freeze` guards every untrusted
+  ingress and all fault paths are audited (`noreturn`/`unreachable`).
+  Evidence: `tests/llvm_contract.rs`.
+- **Cinch naming (D278-D281), 2026-10-28.** The language is Cinch:
+  sources `.cinch`, interfaces `.cinchif`, runtime externs `cinch_*`;
+  artifact names in this chapter read with those names.
+

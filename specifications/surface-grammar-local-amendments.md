@@ -233,3 +233,48 @@ listed here has landed with its own amendment or spec section (handlers
 and `do`, quotations, macros, `rewrite`, `upgrade`, `foreign`,
 concurrency forms); if a form parses to a rejection today, the error
 names it and this list is the place to record why.
+
+# 14 Decision provenance and later amendments (2026-10-28)
+
+Dated provenance for the sections above (decisions in
+`compiler/CONFORMANCE.md`), plus decision clusters this page had not
+yet recorded. The dash identifier/minus contract (D102, D128-D129) and
+`range_literal` (D262-D267) carry their dated notes on
+[Surface syntax and grammar](surface-syntax-and-grammar.md) because
+they amend its normative EBNF.
+
+- Section 1 records D1 (tuple types) and the lazy chapter's type
+  arguments (D2 carry-forward); section 2 the `~` memo binding (D15-D19
+  usage rules); section 3 record forms (D8 evaluation order);
+  section 4 the reserved-word list (D2/D102). Sections 5 and 10's
+  attribute syntax ride the attribute chapter (D48-D54). Section 6 is
+  D90-D91 (2026-10-26); section 7 is D21-D22 (2026-10-24); sections
+  8-11 are P19 (D102-D110, D128-D149, 2026-10-26); section 12 is
+  D123/D232-D237 (2026-10-26/27); section 13 names D35 and D116.
+- **`do` `let` groups (D24 as amended by D262-D267), 2026-10-28.**
+  `do_statement = "let", local_block` binds one whole local block
+  group (never binding a name twice, the letrec rule) through the
+  shared elaboration: only simple value bindings sequence under CPS,
+  with D24's error for parameterized/`~` bindings and the `cps_let`
+  error for destructuring. `let ... in` keeps its
+  replace-nested-singles shadowing.
+- **`Name` type and reification (D268-D270), 2026-10-28.** `Name` is a
+  compile-time builtin type and macro signature member: hygienic name
+  splices in `quoteDecls` name positions (the chosen name binds at the
+  insertion site as written while template binders rename apart) and
+  `name-to-sym`/`sym-to-name` reification (tick quotes and bare names
+  in `Name` arguments; holes accept `Name`, `Sym`, and single-name
+  `Syntax`). This completes section 12's staging half.
+- **Nested `let` depth limit (D268), 2026-10-28.** Nested `let`/
+  `letrec` elaboration carries a named depth limit of 128; the
+  diagnostic fires at the 129th.
+- **Contextual `unsafe` (D221, D238-D239), 2026-10-28.** `unsafe` is
+  recognized contextually and stays usable as an identifier (the prim
+  chapter's per-body prefix); the tree-sitter grammar resolves `unsafe`
+  and attributes by one-token lookahead to match. Accepted grammar
+  divergences recorded by the tooling slice: tabs in indentation are
+  whitespace in the grammar (the compiler rejects), `#[` name adjacency
+  is not enforced, and do-let groups follow the normative EBNF here.
+- **Cinch naming (D278-D281), 2026-10-28.** The language is Cinch:
+  sources `.cinch`, interfaces `.cinchif`, runtime externs `cinch_*`;
+  section 8's intrinsic symbols are `cinch.prim.*`.

@@ -117,3 +117,54 @@ Required rejection cases include borrowed state escaping its scope, unsafely sha
 # Current syntax and sequencing
 
 The draft 0.2 surface uses layout, equations and unqualified `do`. See [Surface syntax and grammar](surface-syntax-and-grammar.md) and [Runtime capabilities, effects and sequencing](runtime-capabilities-effects-and-sequencing.md) for formal syntax, runtime arguments, effect-polymorphic calls and sequencing-module selection.
+
+# Amendments
+
+Dated notes recording landed decisions (`compiler/CONFORMANCE.md`,
+D-numbers) that amend or interpret this chapter's normative text.
+2026-10-28, P15 conformance sweep.
+
+- **Structured concurrency surface (D74-D79), 2026-10-28.** This
+  amends sections 2-4: the API is builtin values with compiler-known
+  schemes (`withScope`, `spawn`, `joinAllOrCancel`, `ioWrite`/`ioRead`/
+  `ioSleep`/`pollCancel`) and builtin types `Scope r s`/`Task s x a`;
+  `withScope`'s scope region is rigid per call so handles of distinct
+  scopes never unify (D74). A task body is `Unit ->{e} Result x a`;
+  `joinAllOrCancel` returns the bodies' `Err` channel: the first
+  observed failure is returned after every sibling's cleanup is
+  awaited, and cancellation surfaces through the body's own `Err`
+  (D75). Any binder whose type mentions `Task` is `%1` regardless of
+  annotation; application sites refuse a task-mentioning parameter
+  that is not `%1`/flex; `withScope`'s result must not mention the
+  scope region; task/scope values cannot be captured by unbounded
+  lambdas (D76). Task and scope bodies use one-shot frames: `%1`/`%aff`
+  transfers exactly once including on cancellation early-returns,
+  `Ref`/`Copy` and shareable dictionaries share, `Mut` is always
+  refused, and untransferred `Bytes`/`Lazy` cells are refused (D77).
+  `joinAllOrCancel` is n-ary (n >= 1) and scope exit cancels and joins
+  unjoined children as defense in depth (D78). `Blocking`-labeled
+  foreign calls run on the task's dedicated OS thread, are
+  cancellation-blind until they return, and fold their label into the
+  spawning scope's performed row so effect honesty forces the program
+  to carry `Blocking` (D79).
+- **Memory model (D80), 2026-10-28.** This amends section 6: one OS
+  thread per task; fork-join happens-before at spawn and join;
+  cancellation is a sequentially consistent atomic observed only at
+  defined points (`pollCancel`, `ioSleep`); no other atomics. The Wasm
+  cooperative backend preserves the same permitted observations.
+- **Io surface and task ABI (D81), 2026-10-28.** `ioWrite` (stdout,
+  flushed), `ioRead` (stdin, `None` at end of input), `ioSleep`
+  (millisecond slices, early return on cancellation) and `pollCancel`
+  (false on the main thread) are effect-labeled per the P6 rules; the
+  task outcome ABI fixes the prelude `Result` tags (Err 0 / Ok 1) and
+  the apply-stub calling convention. The sketch's `Request`/
+  `LoadError`/`fetch` vocabulary lives in the prelude over `ioRead` (a
+  short read is the `LoadError` case).
+- **Temporal obligations (D198-D205), 2026-10-28.** This chapter's
+  section 10 is the assumption source for temporal contracts: bounded
+  `eventually` claims verify only the finite scope obligations
+  (`joined`/`cleanup`) established here, and a liveness contract states
+  its scheduler/crash/fairness assumptions before it may rely on them.
+- **Cinch naming (D278-D281), 2026-10-28.** The language is Cinch:
+  sources `.cinch`, interfaces `.cinchif`, runtime externs `cinch_*`;
+  artifact names in this chapter read with those names.

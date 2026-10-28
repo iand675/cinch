@@ -99,4 +99,55 @@ Required rejection cases include wrong deallocation, a callback outliving its en
 
 The [Rustonomicon FFI chapter](https://doc.rust-lang.org/nomicon/ffi.html) is a practical reference for native boundary concerns. This specification defines its own dependent contracts and upgrade obligations; it does not claim that importing an existing library verifies it.
 
+# Amendments
+
+Dated notes recording landed decisions (`compiler/CONFORMANCE.md`,
+D-numbers) that amend or interpret this chapter's normative text.
+2026-10-28, P15 conformance sweep.
+
+- **Boundary grammar and aggregates (D66-D67), 2026-10-28.** This
+  amends section 2: scalars, `Unit` (void; parameters elided), pointer
+  roles, opaque handles, and `repr(C)`/`packed`/`transparent`
+  aggregates cross the boundary; boxed ADTs, uniform-word records,
+  fixed-discriminant data, closures, dependent pairs, and proofs are
+  rejected naming the recorded layout. Aggregate parameters cross as
+  const-pointers to call-scoped C-layout copies and aggregate results
+  are rejected (use `Out` cells or `Owned` pointers) rather than
+  guessing the platform by-value struct ABI (D66). `Out` cells are one
+  word. The LLVM spelling of the aggregate parameter is
+  `byref(%__sl_layout_N)` with `sret` results, never `byval`:
+  disassembly against clang-compiled C proves `byval` segfaults where
+  the C ABI passes a pointer to the caller's copy (D190).
+- **Effect honesty (D68, D97), 2026-10-28.** This amends section 4:
+  foreign rows are closed and explicit; an import's result arrow names
+  at least one accounted label (`Foreign <boundary>`, `IO`, `Global`,
+  `Blocking`, `Diverge`, `Fail`, `Reentrant`, `ThreadAffine`), and
+  `Foreign` boundaries unify rigidly. Synthesized schemes quantify the
+  `Foreign <boundary>` name like user `foreign import` schemes (it
+  renames per call).
+- **Pointer roles, ownership, nullability (D69-D70), 2026-10-28.**
+  This amends section 3: roles are `RawPtr`/`Borrowed`/`Retained`/
+  `Owned` plus `Out`/`MaybeNull`; `Owned` is linear and only weakens to
+  borrow/raw; every `Owned A` result requires a matching consuming
+  foreign (same allocator), recorded as the contract's `deallocator`
+  symbol and checked program-wide. Roles never arise from integer
+  casts (they come only from foreign results). Pointers are non-null by
+  default with `MaybeNull` marking nullable; a contract violation takes
+  the fault path (71); zero-length buffers cross as non-null dangling
+  pointers per the C convention, recorded in the contract.
+- **Signature members and intrinsics (D71, D73), 2026-10-28.** This
+  amends sections 2 and 7: `opaque type`/`record` members in a
+  `signature` desugar ahead of the signature (module-scope,
+  order-dependent); per-instance associated types remain a named gap.
+  The intrinsic symbol namespaces stay reserved (`cinch.prim.*`,
+  `cinch.runtime.*`): a non-resolving name there is a retired-intrinsic
+  error, never treated as a C symbol.
+- **Foreign entry rule (D65), 2026-10-28.** `foreign export` programs
+  may be linked as libraries with the C side supplying `main` (see the
+  modules chapter's entry-point amendment).
+- **Cinch naming (D278-D281), 2026-10-28.** The language is Cinch:
+  runtime externs are `cinch_*` symbols (`nm`-verified), the staticlib
+  is `cinchruntime`, sources are `.cinch`; artifact names in this
+  chapter read with those names.
+
 [Documentation overview](../overview.md)
