@@ -500,6 +500,43 @@ impl SymOp {
     }
 }
 
+/// Text conversion and content identity (`cinch.runtime.text*`; runtime
+/// ABI, `cinch_text_*` over `compiler/runtime/src/text.rs`). The P31
+/// canonical form's primitives: a SHA-256-strength deterministic hash
+/// and the fixed decimal formatting and parsing of `F64` (a language
+/// with no float formatting cannot round-trip `JFloat` without them).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum TextOp {
+    /// `textSha256 :: Bytes -> Bytes`: the SHA-256 digest of a buffer
+    /// as a fresh 32-byte buffer (content identity).
+    Sha256,
+    /// `textF64ToDecimal :: F64 -> Bytes`: one float's shortest
+    /// round-trip decimal text (the canonical number formatting).
+    F64ToDecimal,
+    /// `textF64FromDecimal :: Bytes -> F64`: the float one decimal
+    /// spelling stands for (correctly rounded).
+    F64FromDecimal,
+}
+
+impl TextOp {
+    fn name(self) -> &'static str {
+        match self {
+            TextOp::Sha256 => "Sha256",
+            TextOp::F64ToDecimal => "F64ToDecimal",
+            TextOp::F64FromDecimal => "F64FromDecimal",
+        }
+    }
+
+    /// The runtime extern this operation is emitted against.
+    pub fn extern_name(self) -> &'static str {
+        match self {
+            TextOp::Sha256 => "cinch_text_sha256",
+            TextOp::F64ToDecimal => "cinch_text_f64_to_decimal",
+            TextOp::F64FromDecimal => "cinch_text_f64_from_decimal",
+        }
+    }
+}
+
 /// The structured-concurrency and runtime I/O operations (concurrency
 /// specification sections 2, 3, 4 and 9). These are builtin values with
 /// compiler-known polymorphic schemes (`Checker::install_concurrency_api`),
@@ -575,6 +612,9 @@ pub enum PrimOp {
     /// Interned symbol operations on name-cell handles
     /// (`cinch.runtime.sym*`; runtime ABI, `cinch_sym_*`).
     Sym(SymOp),
+    /// Text conversion and content identity on buffers and floats
+    /// (`cinch.runtime.text*`; runtime ABI, `cinch_text_*`).
+    Text(TextOp),
     EqBool,
     NeBool,
     NotBool,
@@ -718,6 +758,9 @@ impl PrimOp {
                 "symName" => Sym(SymOp::Name),
                 "symEq" => Sym(SymOp::Eq),
                 "symCmp" => Sym(SymOp::Cmp),
+                "textSha256" => Text(TextOp::Sha256),
+                "textF64ToDecimal" => Text(TextOp::F64ToDecimal),
+                "textF64FromDecimal" => Text(TextOp::F64FromDecimal),
                 _ => return None,
             });
         }
@@ -754,6 +797,7 @@ impl PrimOp {
             Bytes(op) => return format!("cinch.runtime.bytes{}", op.name()),
             Utf8(op) => return format!("cinch.runtime.utf8{}", op.name()),
             Sym(op) => return format!("cinch.runtime.sym{}", op.name()),
+            Text(op) => return format!("cinch.runtime.text{}", op.name()),
             EqBool => return "cinch.prim.eqBool".to_string(),
             NeBool => return "cinch.prim.neBool".to_string(),
             NotBool => return "cinch.prim.notBool".to_string(),
@@ -805,7 +849,8 @@ impl PrimOp {
             Nat(NatOp::FromI64 | NatOp::ToI64)
             | Int(IntOp::FromI64 | IntOp::ToI64 | IntOp::Neg)
             | Bytes(BytesOp::New | BytesOp::Len)
-            | Utf8(Utf8Op::Validate | Utf8Op::CountChars | Utf8Op::Encode) => 1,
+            | Utf8(Utf8Op::Validate | Utf8Op::CountChars | Utf8Op::Encode)
+            | Text(_) => 1,
             Bytes(BytesOp::Set) => 3,
             Sym(SymOp::Intern | SymOp::Name) => 1,
             Neg { .. } | BitNot { .. } | BitScan { .. } | FloatUn { .. } | FClass { .. }
@@ -874,6 +919,9 @@ impl PrimOp {
             Sym(SymOp::Name) => (vec![Ty::Sym], Ty::Bytes),
             Sym(SymOp::Eq) => (vec![Ty::Sym, Ty::Sym], Ty::Bool),
             Sym(SymOp::Cmp) => (vec![Ty::Sym, Ty::Sym], i64t),
+            Text(TextOp::Sha256) => (vec![Ty::Bytes], Ty::Bytes),
+            Text(TextOp::F64ToDecimal) => (vec![prim(Scalar::F64)], Ty::Bytes),
+            Text(TextOp::F64FromDecimal) => (vec![Ty::Bytes], prim(Scalar::F64)),
             EqBool | NeBool | AndBool | OrBool => (vec![Ty::Bool, Ty::Bool], Ty::Bool),
             NotBool => (vec![Ty::Bool], Ty::Bool),
             Delay | Force | Demand | Eval => {

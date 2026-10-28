@@ -177,6 +177,18 @@
 //! * `cinch_sym_cmp(a: i64, b: i64) -> i64`: -1, 0 or 1 of the
 //!   lexicographic name order (never the cell addresses).
 //!
+//! Text conversion and content identity (JSON and canonical
+//! serialization; see [`text`]):
+//!
+//! * `cinch_text_sha256(word: i64) -> i64`: the SHA-256 digest (FIPS
+//!   180-4) of the buffer in `word`, as a fresh 32-byte `Bytes` word.
+//! * `cinch_text_f64_to_decimal(v: f64) -> i64`: one float's shortest
+//!   round-trip decimal text (`{:e}` scientific form) as a fresh
+//!   `Bytes` word.
+//! * `cinch_text_f64_from_decimal(word: i64) -> f64`: the float one
+//!   decimal spelling stands for (correctly rounded), faulting on a
+//!   spelling that is not a decimal number.
+//!
 //! Quotation evaluation (supercompilation and JIT specification
 //! section 7; see [`eval`] for the quote block layout):
 //!
@@ -221,6 +233,7 @@ mod nat;
 pub mod string;
 pub mod sym;
 pub mod task;
+pub mod text;
 
 pub use error::{Error, Result};
 pub use int::Int;

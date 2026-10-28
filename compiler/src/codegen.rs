@@ -39,7 +39,7 @@ use crate::core::{
     AbiClass, AbiParam, ArithMode, ArithOp, BitOp, BitScanOp, BytesOp, CAlt, CBranch, CmpOp,
     ConcOp, ConvMode, Core, CPat, CtorLayout, FClassOp, FieldAccess, FieldShape, FloatBinOp,
     FloatUnOp, FnDef, ForeignPlan, LocalId, PrimAbiTy, PrimPlan, PrimOp, Program, ShiftOp,
-    SymOp, Utf8Op,
+    SymOp, TextOp, Utf8Op,
 };
 use crate::types::Scalar;
 use crate::Result;
@@ -152,6 +152,13 @@ pub fn emit_for(profile: &crate::core::TargetProfile, program: &Program) -> Resu
         "declare i64 @cinch_sym_name(i64)",
         "declare i64 @cinch_sym_eq(i64, i64)",
         "declare i64 @cinch_sym_cmp(i64, i64)",
+        // Text conversion and content identity (`compiler/runtime/src/text.rs`):
+        // SHA-256 at content-addressing strength and the fixed decimal
+        // formatting and parsing of `F64` (JSON and canonical
+        // serialization).
+        "declare i64 @cinch_text_sha256(i64)",
+        "declare i64 @cinch_text_f64_to_decimal(double)",
+        "declare double @cinch_text_f64_from_decimal(i64)",
         // Structured concurrency and runtime I/O (concurrency
         // specification sections 2, 4 and 9; `compiler/runtime/src/task.rs`).
         "declare i64 @cinch_scope_open()",
@@ -1916,6 +1923,30 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, name: &str, op: PrimOp) {
                         (0..op.arity()).map(|i| format!("i64 %p{i}")).collect();
                     let r = rt_call(b, k.extern_name(), &args);
                     ret(b, &r);
+                }
+            }
+        }
+        Text(k) => {
+            // Text conversion and content identity
+            // (`compiler/runtime/src/text.rs`): the buffer conversions
+            // cross as words, the float conversions bitcast through the
+            // canonical word like the other `F64` primals.
+            use TextOp::*;
+            match k {
+                Sha256 => {
+                    let r = rt_call(b, k.extern_name(), &["i64 %p0".to_string()]);
+                    ret(b, &r);
+                }
+                F64ToDecimal => {
+                    let f = word_to_float(b, Scalar::F64, "%p0");
+                    let r = rt_call(b, k.extern_name(), &[format!("double {f}")]);
+                    ret(b, &r);
+                }
+                F64FromDecimal => {
+                    let r = b.reg();
+                    b.line(&format!("{r} = call double @{}(i64 %p0)", k.extern_name()));
+                    let w = float_to_word(b, Scalar::F64, &r);
+                    ret(b, &w);
                 }
             }
         }
