@@ -1,0 +1,407 @@
+-- Text.Scan: the literal-string scanning and formatting utilities
+-- (the Ruby String surface, redesigned where our principles say so).
+--
+-- SCANNING (the subject-last argument order throughout: the needle,
+-- separator or pattern names what happens, the subject is last):
+--   `string-index-of` / `string-contains` / `string-starts-with` /
+--   `string-ends-with` over scalar indices; `string-split-on` (an
+--   empty separator splits into single scalars, Ruby's `split("")`);
+--   `string-join`; `string-lines` (splits at LF; a single trailing
+--   empty line is dropped) and `string-words` (ASCII whitespace
+--   runs).
+--
+-- FORMATTING: `format` is the template interpolation (`{}` consumes
+--   the next argument in order, `{{` and `}}` are literal braces;
+--   this replaces sprintf-style `%` formatting on purpose: the
+--   arguments' types do the rendering through `Text.Show`).
+--   `string-pad-left` / `string-pad-right` / `string-center` pad to
+--   a scalar width with spaces; `string-strip` / `string-lstrip` /
+--   `string-rstrip` / `string-chomp` / `string-chop` trim; the case
+--   family maps ASCII letters only. The regex-driven scanning family
+--   (scan, split, replace) rides the engine in `Text.Regex`.
+--
+-- UNICODE SCOPE, named honestly at the UTF-8 layers' boundary:
+-- every operation here is scalar-value aware (indices are scalar
+-- indices, lengths are scalar counts, slices cut at scalar
+-- boundaries). What is NOT here: canonical normalization
+-- (NFC/NFD/NFKC/NFKD) and grapheme clusters (the UTF-8 machinery
+-- carries no Unicode character database), Unicode or locale-aware
+-- case mapping (`string-upcase-ascii` and friends map A-Z/a-z only
+-- and leave every other scalar untouched), and non-ASCII whitespace
+-- classes. `string-normalize-newlines` is the one normalization
+-- provided: CRLF and lone CR line endings fold to LF.
+module Text.Scan where
+
+  import Data.Nat
+  import Data.List
+  import Data.Option
+  import Data.Result
+  import Data.Char
+  import Data.Bool
+  import Data.Bytes
+  import Data.String
+  import Data.Machine
+  import Text.Show
+
+  export string-index-of, string-contains, string-starts-with, string-ends-with
+  export string-split-on, string-join, string-lines, string-words
+  export string-strip, string-lstrip, string-rstrip, string-chomp, string-chop
+  export string-upcase-ascii, string-downcase-ascii, string-capitalize-ascii
+  export string-pad-left, string-pad-right, string-center
+  export string-normalize-newlines
+  export format, FormatError, MissingFormatArgument, UnusedFormatArgument, UnmatchedFormatBrace, render-format-error
+
+
+  -- -----------------------------------------------------------------
+  -- Private plumbing over code point lists (this module never needs
+  -- character literals: every character is its scalar value).
+  -- -----------------------------------------------------------------
+
+  rev-list :: forall a. List a -> List a
+  rev-list xs = rev-acc xs Nil
+
+  rev-acc :: forall a. List a -> List a -> List a
+  rev-acc xs acc = case xs of
+    Nil -> acc
+    Cons y ys -> rev-acc ys (Cons y acc)
+
+  list-count :: forall a. List a -> Nat
+  list-count xs = case xs of
+    Nil -> 0
+    Cons _ ys -> 1 + list-count ys
+
+  list-empty :: forall a. List a -> Bool
+  list-empty xs = case xs of
+    Nil -> True
+    Cons _ _ -> False
+
+  drop-n :: forall a. Nat -> List a -> List a
+  drop-n n xs =
+    if n == 0 then xs
+    else case xs of
+      Nil -> Nil
+      Cons _ rest -> drop-n (n - 1) rest
+
+  concat-strings :: List String -> String
+  concat-strings xs = case xs of
+    Nil -> empty-string
+    Cons y ys -> string-concat y (concat-strings ys)
+
+  code-of :: Char -> Nat
+  code-of c = nat-from-i64 (u32-to-i64 (char-to-u32 c))
+
+  string-codes :: String -> List Nat
+  string-codes s = codes-of (unpack s)
+
+  codes-of :: List Char -> List Nat
+  codes-of cs = case cs of
+    Nil -> Nil
+    Cons c rest -> Cons (code-of c) (codes-of rest)
+
+  pack-codes :: List Nat -> String
+  pack-codes cs = pack (codes-chars cs)
+
+  codes-chars :: List Nat -> List Char
+  codes-chars cs = case cs of
+    Nil -> Nil
+    Cons c rest -> case u32-to-char (wrapping-i64-to-u32 (nat-to-i64 c)) of
+      None -> codes-chars rest
+      Some ch -> Cons ch (codes-chars rest)
+
+  one-code :: Nat -> String
+  one-code c = pack-codes (Cons c Nil)
+
+  map-codes :: (Nat -> Nat) -> List Nat -> List Nat
+  map-codes f cs = case cs of
+    Nil -> Nil
+    Cons c rest -> Cons (f c) (map-codes f rest)
+
+  list-prefix-of :: List Nat -> List Nat -> Bool
+  list-prefix-of pre hay = case pre of
+    Nil -> True
+    Cons p prest -> case hay of
+      Nil -> False
+      Cons h hrest -> if p == h then list-prefix-of prest hrest else False
+
+  is-ws-code :: Nat -> Bool
+  is-ws-code c =
+    if c == 32 then True
+    else if c == 9 then True
+    else if c == 10 then True
+    else if c == 13 then True
+    else if c == 12 then True
+    else c == 11
+
+  -- A run of spaces (built over Bytes; the subject never aliases
+  -- it).
+  spaces :: Nat -> String
+  spaces n =
+    let buf = bytes-new n in
+    let u = fill-run buf 0 n 32 in
+    case string-from-bytes buf of
+      None -> empty-string
+      Some t -> t
+
+  fill-run :: Bytes -> Nat -> Nat -> Nat -> Unit
+  fill-run buf i n v =
+    if i >= n then ()
+    else
+      let u = bytes-set buf i v in
+      fill-run buf (i + 1) n v
+
+  -- -----------------------------------------------------------------
+  -- Scanning (subject last).
+  -- -----------------------------------------------------------------
+
+  -- The scalar index where `needle` first occurs in `s` (an empty
+  -- needle occurs at 0).
+  string-index-of :: String -> String -> Option Nat
+  string-index-of needle s = index-of-at (string-codes needle) (string-codes s) 0
+
+  index-of-at :: List Nat -> List Nat -> Nat -> Option Nat
+  index-of-at needle hay idx =
+    if list-prefix-of needle hay then Some idx
+    else case hay of
+      Nil -> None
+      Cons _ rest -> index-of-at needle rest (idx + 1)
+
+  string-contains :: String -> String -> Bool
+  string-contains needle s = case string-index-of needle s of
+    None -> False
+    Some _ -> True
+
+  string-starts-with :: String -> String -> Bool
+  string-starts-with pre s = list-prefix-of (string-codes pre) (string-codes s)
+
+  string-ends-with :: String -> String -> Bool
+  string-ends-with suf s = list-prefix-of (rev-list (string-codes suf)) (rev-list (string-codes s))
+
+  -- Split at every occurrence of the separator (the separators are
+  -- removed). Trailing empty pieces are dropped (Ruby's default) and
+  -- an empty separator splits into single-scalar strings (Ruby's
+  -- `split("")`).
+  string-split-on :: String -> String -> List String
+  string-split-on sep s =
+    let sep-cs = string-codes sep in
+    if list-empty sep-cs then map-singletons (string-codes s)
+    else drop-trailing-empty (map-pieces (split-loop sep-cs (string-codes s) Nil Nil))
+
+  map-singletons :: List Nat -> List String
+  map-singletons cs = case cs of
+    Nil -> Nil
+    Cons c rest -> Cons (one-code c) (map-singletons rest)
+
+  map-pieces :: List (List Nat) -> List String
+  map-pieces ps = case ps of
+    Nil -> Nil
+    Cons p rest -> Cons (pack-codes p) (map-pieces rest)
+
+  split-loop :: List Nat -> List Nat -> List Nat -> List (List Nat) -> List (List Nat)
+  split-loop sep hay piece acc = case hay of
+    Nil -> rev-list (Cons (rev-list piece) acc)
+    Cons c rest ->
+      if list-prefix-of sep hay then split-loop sep (drop-n (list-count sep) hay) Nil (Cons (rev-list piece) acc)
+      else split-loop sep rest (Cons c piece) acc
+
+  drop-trailing-empty :: List String -> List String
+  drop-trailing-empty xs = rev-list (drop-empty-head (rev-list xs))
+
+  drop-empty-head :: List String -> List String
+  drop-empty-head xs = case xs of
+    Nil -> Nil
+    Cons y ys -> if string-byte-length y == 0 then drop-empty-head ys else xs
+
+  -- Join with a separator between every pair.
+  string-join :: String -> List String -> String
+  string-join sep items = concat-strings (join-each sep items)
+
+  join-each :: String -> List String -> List String
+  join-each sep items = case items of
+    Nil -> Nil
+    Cons y ys -> case ys of
+      Nil -> Cons y Nil
+      _ -> Cons y (Cons sep (join-each sep ys))
+
+  -- The lines of a string: the segments between LF scalars, with one
+  -- trailing empty segment dropped when the string ends in LF (an
+  -- empty string has no lines).
+  string-lines :: String -> List String
+  string-lines s =
+    let cs = string-codes s in
+    if list-empty cs then Nil
+    else drop-one-trailing-empty (map-pieces (split-loop (Cons 10 Nil) cs Nil Nil))
+
+  drop-one-trailing-empty :: List String -> List String
+  drop-one-trailing-empty xs = case rev-list xs of
+    Nil -> Nil
+    Cons y ys -> if string-byte-length y == 0 then rev-list ys else xs
+
+  -- The whitespace-separated words (ASCII whitespace runs delimit).
+  string-words :: String -> List String
+  string-words s = map-pieces (words-loop (string-codes s) Nil Nil)
+
+  words-loop :: List Nat -> List Nat -> List (List Nat) -> List (List Nat)
+  words-loop hay piece acc = case hay of
+    Nil -> if list-empty piece then rev-list acc else rev-list (Cons (rev-list piece) acc)
+    Cons c rest ->
+      if is-ws-code c then
+        if list-empty piece then words-loop rest Nil acc
+        else words-loop rest Nil (Cons (rev-list piece) acc)
+      else words-loop rest (Cons c piece) acc
+
+  -- -----------------------------------------------------------------
+  -- Trimming and case (ASCII).
+  -- -----------------------------------------------------------------
+
+  string-strip :: String -> String
+  string-strip s = string-lstrip (string-rstrip s)
+
+  string-lstrip :: String -> String
+  string-lstrip s = pack-codes (drop-ws (string-codes s))
+
+  string-rstrip :: String -> String
+  string-rstrip s = pack-codes (rev-list (drop-ws (rev-list (string-codes s))))
+
+  drop-ws :: List Nat -> List Nat
+  drop-ws cs = case cs of
+    Nil -> Nil
+    Cons c rest -> if is-ws-code c then drop-ws rest else cs
+
+  -- Drop one trailing line ending: LF, CRLF or CR.
+  string-chomp :: String -> String
+  string-chomp s = case rev-list (string-codes s) of
+    Nil -> s
+    Cons c rest ->
+      if c == 10 then pack-codes (rev-list (chomp-cr rest))
+      else if c == 13 then pack-codes (rev-list rest)
+      else s
+
+  chomp-cr :: List Nat -> List Nat
+  chomp-cr cs = case cs of
+    Nil -> Nil
+    Cons c rest -> if c == 13 then rest else cs
+
+  -- Drop the last scalar.
+  string-chop :: String -> String
+  string-chop s = case rev-list (string-codes s) of
+    Nil -> s
+    Cons _ rest -> pack-codes (rev-list rest)
+
+  -- ASCII case mapping only (the honest boundary: no Unicode case
+  -- data exists in the UTF-8 layers).
+  string-upcase-ascii :: String -> String
+  string-upcase-ascii s = pack-codes (map-codes ascii-up (string-codes s))
+
+  string-downcase-ascii :: String -> String
+  string-downcase-ascii s = pack-codes (map-codes ascii-down (string-codes s))
+
+  string-capitalize-ascii :: String -> String
+  string-capitalize-ascii s = case string-codes s of
+    Nil -> s
+    Cons c rest -> pack-codes (Cons (ascii-up c) (map-codes ascii-down rest))
+
+  ascii-up :: Nat -> Nat
+  ascii-up c = if c >= 97 && c <= 122 then c - 32 else c
+
+  ascii-down :: Nat -> Nat
+  ascii-down c = if c >= 65 && c <= 90 then c + 32 else c
+
+  -- -----------------------------------------------------------------
+  -- Padding (scalar widths, spaces).
+  -- -----------------------------------------------------------------
+
+  string-pad-left :: Nat -> String -> String
+  string-pad-left w s =
+    let n = string-length s in
+    if n >= w then s else string-concat (spaces (w - n)) s
+
+  string-pad-right :: Nat -> String -> String
+  string-pad-right w s =
+    let n = string-length s in
+    if n >= w then s else string-concat s (spaces (w - n))
+
+  -- Center in `w` scalars; the extra space of an odd pad goes right.
+  string-center :: Nat -> String -> String
+  string-center w s =
+    let n = string-length s in
+    if n >= w then s
+    else
+      let total = w - n in
+      let left = nat-div total 2 in
+      let right = total - left in
+      string-concat (spaces left) (string-concat s (spaces right))
+
+  -- -----------------------------------------------------------------
+  -- Line-ending normalization (the one normalization the UTF-8
+  -- layers permit: CRLF and lone CR fold to LF).
+  -- -----------------------------------------------------------------
+
+  string-normalize-newlines :: String -> String
+  string-normalize-newlines s = pack-codes (nl-loop (string-codes s) Nil)
+
+  nl-loop :: List Nat -> List Nat -> List Nat
+  nl-loop cs acc = case cs of
+    Nil -> rev-list acc
+    Cons c rest ->
+      if c == 13 then nl-cr rest acc
+      else nl-loop rest (Cons c acc)
+
+  nl-cr :: List Nat -> List Nat -> List Nat
+  nl-cr rest acc = case rest of
+    Nil -> rev-list (Cons 10 acc)
+    Cons d rest2 ->
+      if d == 10 then nl-loop rest2 (Cons 10 acc)
+      else nl-loop rest (Cons 10 acc)
+
+  -- -----------------------------------------------------------------
+  -- `format`: template interpolation over `{}` holes (the sprintf
+  -- replacement; the arguments render themselves at their own
+  -- types).
+  -- -----------------------------------------------------------------
+
+  data FormatError where
+    MissingFormatArgument :: Nat -> FormatError
+    UnusedFormatArgument :: Nat -> FormatError
+    UnmatchedFormatBrace :: Nat -> FormatError
+
+  render-format-error :: FormatError -> String
+  render-format-error e = case e of
+    MissingFormatArgument n -> string-concat "missing-format-argument: the template has more {} holes than arguments (hole " (string-concat (nat-to-string n) ")")
+    UnusedFormatArgument n -> string-concat "unused-format-argument: " (string-concat (nat-to-string n) " argument(s) were never consumed by a {} hole")
+    UnmatchedFormatBrace n -> string-concat "unmatched-format-brace: a lone { or } at template offset " (nat-to-string n)
+
+  format :: String -> List String -> Result FormatError String
+  format tmpl args = fmt-loop (string-codes tmpl) 0 args 0 Nil
+
+  fmt-loop :: List Nat -> Nat -> List String -> Nat -> List String -> Result FormatError String
+  fmt-loop cs pos args used acc = case cs of
+    Nil ->
+      if list-empty args then Ok (concat-strings (rev-list acc))
+      else Err (UnusedFormatArgument used)
+    Cons c rest ->
+      if c == 123 then fmt-open rest pos args used acc
+      else if c == 125 then fmt-close rest pos args used acc
+      else fmt-loop rest (pos + 1) args used (Cons (one-code c) acc)
+
+  -- `{` is only a hole as `{}`; `{{` is a literal brace; anything
+  -- else around a brace is an unmatched-brace refusal.
+  fmt-open :: List Nat -> Nat -> List String -> Nat -> List String -> Result FormatError String
+  fmt-open rest pos args used acc = case rest of
+    Nil -> Err (UnmatchedFormatBrace pos)
+    Cons d rest2 ->
+      if d == 123 then fmt-loop rest2 (pos + 2) args used (Cons (one-code 123) acc)
+      else fmt-hole d rest2 pos args used acc
+
+  fmt-hole :: Nat -> List Nat -> Nat -> List String -> Nat -> List String -> Result FormatError String
+  fmt-hole d rest2 pos args used acc = case args of
+    Nil -> if d == 125 then Err (MissingFormatArgument used) else Err (UnmatchedFormatBrace pos)
+    Cons a args2 ->
+      if d == 125 then fmt-loop rest2 (pos + 2) args2 (used + 1) (Cons a acc)
+      else Err (UnmatchedFormatBrace pos)
+
+  fmt-close :: List Nat -> Nat -> List String -> Nat -> List String -> Result FormatError String
+  fmt-close rest pos args used acc = case rest of
+    Nil -> Err (UnmatchedFormatBrace pos)
+    Cons d rest2 ->
+      if d == 125 then fmt-loop rest2 (pos + 2) args used (Cons (one-code 125) acc)
+      else Err (UnmatchedFormatBrace pos)
