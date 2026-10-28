@@ -457,6 +457,49 @@ fn deleting_the_cache_reproduces_byte_identical_artifacts() {
     }
 }
 
+#[test]
+fn library_projects_check_without_a_linked_artifact() {
+    // A named library from the repository: `examples/source/
+    // 02-vector-filter.cinch` has no `main`, so the artifact set is the
+    // interfaces and the manifest (the driver's `check` mode) and the
+    // link stage reports itself skipped.
+    let example = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../examples/source/02-vector-filter.cinch");
+    let src = std::fs::read_to_string(&example).expect("read 02-vector-filter.cinch");
+    let dir = write_project(&[("VectorFilter.cinch", &src)]);
+    let (mut session, cold) =
+        Session::open(&dir.join("VectorFilter.cinch")).unwrap_or_else(|e| panic!("open: {e}"));
+    assert!(cold.link.skipped, "{cold:?}");
+    assert!(!cold.rechecked.is_empty(), "{cold:?}");
+    let edit = src.replace("(i + 1)", "(i + 2)");
+    assert_ne!(src, edit, "the edit is real");
+    session.set_source(&key(&dir, "VectorFilter.cinch"), &edit);
+    let one = session.rebuild_edits().expect("library rebuild");
+    assert!(one.link.skipped, "{one:?}");
+    assert_eq!(one.rechecked.len(), 1, "{one:?}");
+    assert!(
+        one.rechecked[0].starts_with("v:VectorFilter.filterFrom"),
+        "{one:?}"
+    );
+    assert!(one.chain_ok, "{one:?}");
+    assert!(
+        dir.join("build").join("VectorFilter.manifest.json").exists(),
+        "the manifest is an artifact of a library build too"
+    );
+    // The advisory rule holds for libraries as well: a cold rebuild
+    // after cache deletion reproduces the artifacts byte for byte.
+    let incremental = artifact_bytes(&dir);
+    drop(session);
+    std::fs::write(dir.join("VectorFilter.cinch"), &edit).expect("write edit");
+    // The object cache exists only when there is a linked artifact; a
+    // missing cache trivially costs time, never correctness.
+    let _ = std::fs::remove_dir_all(dir.join("build").join("incr"));
+    let (_session2, _cold2) = Session::open(&dir.join("VectorFilter.cinch"))
+        .unwrap_or_else(|e| panic!("reopen: {e}"));
+    let rebuilt = artifact_bytes(&dir);
+    assert_eq!(incremental, rebuilt, "library artifacts are cache-independent");
+}
+
 // ---------------------------------------------------------- latency: measured
 
 fn measure(label: &str, dir: &Path, edit_file: &str, edit_text: &str) {
