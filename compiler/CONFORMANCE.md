@@ -1033,6 +1033,19 @@ correspondence: one lexeme in expression/pattern, staging `Name`, and
   refused). **P28-2 complete: `tests/lattice.rs` 17/17** (9
   predicate/movement + 8 instance acceptance; the probes caught 9
   real bugs before passing).
+- **D288-D290 (P15 doc sweep, reported)**: the SPEC-MAPPING matrix is
+  complete at 127 rows (I=103, P=15, N=8, CV=1) with every evidence
+  pointer verified to exist and every P naming its exact gap (the
+  P19 "1M-deep tail-call proofs" row cites only persisted evidence:
+  `core.rs::tail_report`, the codegen loop header, the `tail_calls`
+  manifest, `tests/safety.rs::recursion_tail_covers_self_and_mutual_
+  groups` - the runtime depth proof is not a named test and a
+  follow-up is queued); refinements carry their own amendment section
+  on the core-language page; the P27 LLVM cluster (design-only, no
+  spec page) has its notes split between attribute-annotations
+  (vocabulary) and platform section 8 (checked-lowering facts) with
+  `byref`/`sret` cross-referenced in the FFI note; and the Cinch
+  naming note (D278-D281) is recorded on all 15 spec pages.
 - **D127 (P25 scaffolding ruling)**: FoldAgent's defunctionalized
   class shapes (`Foldable t a`, `Traversable t x g h tg hs`) are
   accepted as NON-CURATED scaffolding: they ship in the `Category`
