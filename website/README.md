@@ -26,7 +26,7 @@ The devenv shell provides Node 24 and npm from nixpkgs. Astro 7 requires Node 22
 - maps fence languages the highlighter does not know (`ebnf`) to plain text;
 - renders the Markdown with the site's Markdown pipeline.
 
-Fenced code blocks are never rewritten. Adding a chapter means adding the `.md` file and, if it should appear in the navigation, an entry in the `sidebar` array in `astro.config.mjs`.
+Fenced code blocks are never rewritten. Adding a chapter means adding the `.md` file: the loader gives it a page and `astro.config.mjs` builds the sidebar from the same directories and headings, so nothing else needs editing.
 
 ## Deployment
 

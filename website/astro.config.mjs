@@ -1,6 +1,33 @@
 // @ts-check
+import { readdirSync, readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
+
+const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
+
+/**
+ * Navigation is derived from the Markdown itself, so a new chapter shows up
+ * without editing this file. The page title is the leading `# heading`, the
+ * same rule the content loader uses. Filename order is reading order: tutorial
+ * filenames are zero-padded, so plain sorting gives 1 through 14.
+ *
+ * @param {string} dir
+ * @returns {{ label: string, link: string }[]}
+ */
+function pagesIn(dir) {
+  return readdirSync(path.join(REPO_ROOT, dir))
+    .filter((name) => name.endsWith('.md'))
+    .sort()
+    .map((name) => {
+      const relPath = dir ? `${dir}/${name}` : name;
+      const source = readFileSync(path.join(REPO_ROOT, relPath), 'utf8');
+      const title = /^#\s+(.+)$/m.exec(source)?.[1]?.trim() ?? path.basename(name, '.md');
+      const link = relPath === 'overview.md' ? '/' : `/${relPath.replace(/\.md$/, '')}/`;
+      return { label: title, link };
+    });
+}
 
 export default defineConfig({
   // Placeholder for canonical URLs and the sitemap; set the real origin on deploy.
@@ -21,68 +48,11 @@ export default defineConfig({
       tableOfContents: { minHeadingLevel: 2, maxHeadingLevel: 3 },
       sidebar: [
         { label: 'Overview', link: '/' },
-        {
-          label: 'Specifications',
-          items: [
-            { label: 'Core language', link: '/specifications/core-language-specification/' },
-            { label: 'Primitive types', link: '/specifications/primitive-types-specification/' },
-            { label: 'Surface syntax and grammar', link: '/specifications/surface-syntax-and-grammar/' },
-            { label: 'Surface grammar local amendments', link: '/specifications/surface-grammar-local-amendments/' },
-            { label: 'Modules and compilation', link: '/specifications/modules-and-compilation-specification/' },
-            { label: 'Runtime capabilities, effects and sequencing', link: '/specifications/runtime-capabilities-effects-and-sequencing/' },
-            { label: 'Concurrency', link: '/specifications/concurrency-specification/' },
-            { label: 'Lazy computation and reclamation', link: '/specifications/lazy-computation-and-reclamation-specification/' },
-            { label: 'Platform proofs and SIMD', link: '/specifications/platform-proofs-and-simd-specification/' },
-            { label: 'Foreign function interface', link: '/specifications/foreign-function-interface-specification/' },
-            { label: 'WebAssembly and WASI', link: '/specifications/webassembly-and-wasi-specification/' },
-            { label: 'Runtime evolution', link: '/specifications/runtime-evolution-specification/' },
-            { label: 'Attribute annotations and branch weights', link: '/specifications/attribute-annotations-specification/' },
-            { label: 'Supercompilation and JIT', link: '/specifications/supercompilation-and-jit-specification/' },
-            { label: 'Primitive operations and inline target IR', link: '/specifications/primitive-operations-and-inline-target-ir-specification/' },
-          ],
-        },
-        {
-          label: 'Tutorials',
-          items: [
-            { label: '1. Values and dependent types', link: '/tutorials/01-values-and-dependent-types/' },
-            { label: '2. Proofs and runtime checks', link: '/tutorials/02-proofs-and-runtime-checks/' },
-            { label: '3. Ownership and effects', link: '/tutorials/03-ownership-and-effects/' },
-            { label: '4. Modules and laws', link: '/tutorials/04-modules-and-laws/' },
-            { label: '5. Streams and coinduction', link: '/tutorials/05-streams-and-coinduction/' },
-            { label: '6. Processes and temporal contracts', link: '/tutorials/06-processes-and-temporal-contracts/' },
-            { label: '7. Rewrites and stream fusion', link: '/tutorials/07-rewrites-and-stream-fusion/' },
-            { label: '8. Staging and schema generation', link: '/tutorials/08-staging-and-schema-generation/' },
-            { label: '9. Compatible hot upgrades', link: '/tutorials/09-compatible-hot-upgrades/' },
-            { label: '10. Platform specific SIMD', link: '/tutorials/10-platform-specific-simd/' },
-            { label: '11. Foreign libraries', link: '/tutorials/11-foreign-libraries/' },
-            { label: '12. WebAssembly components', link: '/tutorials/12-webassembly-components/' },
-            { label: '13. Structured concurrency', link: '/tutorials/13-structured-concurrency/' },
-            { label: '14. Haskell-like syntax, effects and runtime selection', link: '/tutorials/14-haskell-like-syntax-effects-and-runtime-selection/' },
-          ],
-        },
-        {
-          label: 'Design and references',
-          items: [
-            { label: 'Open decisions and implementation plan', link: '/design/open-decisions-and-implementation-plan/' },
-            { label: 'References and related work', link: '/design/references-and-related-work/' },
-            { label: 'Design conversation (historical record)', link: '/context/design-conversation/' },
-            {
-              label: 'Slice design notes',
-              items: [
-                { label: 'Attribute annotations', link: '/design/attribute-annotations/' },
-                { label: 'Codata and guardedness', link: '/design/codata-guardedness/' },
-                { label: 'Compiled interface metadata', link: '/design/compiled-interface-metadata/' },
-                { label: 'Dependent core kernel', link: '/design/dependent-core-kernel/' },
-                { label: 'Effects, capabilities, sequencing', link: '/design/effects-capabilities-sequencing/' },
-                { label: 'Ownership and usage', link: '/design/ownership-and-usage/' },
-              ],
-            },
-          ],
-        },
-        {
-          label: 'Examples',
-          items: [{ label: 'Example catalogue', link: '/examples/catalogue/' }],
-        },
+        { label: 'Specifications', items: pagesIn('specifications') },
+        { label: 'Tutorials', items: pagesIn('tutorials') },
+        { label: 'Design', items: pagesIn('design') },
+        { label: 'Examples', items: pagesIn('examples') },
+        { label: 'Background', items: pagesIn('context') },
       ],
     }),
   ],
