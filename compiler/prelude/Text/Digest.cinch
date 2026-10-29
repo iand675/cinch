@@ -1,0 +1,170 @@
+-- Text.Digest: content identity and message authentication over the
+-- runtime's digest primitives.
+--
+-- Module scheme (design/base-library.md): `Text.*` is conversion to and
+-- from String/Bytes; this module is the Digest half of the Ruby surface
+-- curated in design/stdlib-parity-ruby.md (the crypto/digest bullet:
+-- `Digest` first, then `HMAC`), the P34 platform layer's
+-- content-integrity family.
+--
+-- THE BOUNDARY: this module BINDS the runtime's content-integrity
+-- primitives, it does not implement them. The algorithms are the
+-- runtime's responsibility, and their vectors are pinned in
+-- `compiler/runtime/src/text.rs`'s tests and in
+-- `compiler/tests/runtime_prims.rs`; nothing here re-derives a digest in
+-- language. The four intrinsics below are the plain `foreign import
+-- ccall "cinch.runtime.<unit>"` machinery around the `cinch.runtime.text*`
+-- externs, exactly as `Effect.Fs` declares its own. `sha256-bytes` is
+-- reached through the same selector as the rest (it is declared in
+-- `Data.Bytes`, the type's home, for the P31 content-addressing use).
+--
+-- THE CARRIER SPLIT (decision D88): the input is a `Bytes` (or a
+-- `String`, encoded to UTF-8 and then digested); the digest is a fresh
+-- `Bytes` of the algorithm's own width (`digest-length` names it), and
+-- `digest-hex` renders that buffer as lower-case hex text, a `String`,
+-- two characters per byte. So the types carry the whole distinction and
+-- no duplicate spellings are needed.
+--
+-- IDENTITY versus AUTHENTICATION (the module's central line): the plain
+-- digests are CONTENT IDENTITY. A `digest-bytes` result says which bytes
+-- these are and nothing else; anyone can produce the bytes that hash to
+-- any digest, so it is not evidence that the content is authentic, nor
+-- that a sender knows a secret. HMAC-SHA-256 is AUTHENTICATION: given a
+-- shared key it attests that the message came from a holder of the key
+-- (RFC 2104), and it is the only primitive here that involves a key
+-- (`hmac-sha256`, `hmac-sha256-hex`, separate from the selector). SHA-1
+-- and MD5 are LEGACY IDENTITY ONLY: they exist to recognize bytes that
+-- some other system already names, never to authenticate (both have
+-- practical collisions), so no HMAC is offered over them and a caller
+-- reaching for one of them in a security position is at the wrong door.
+--
+-- LAW SHAPE (the selectors and the renderer; the algorithms themselves
+-- are the runtime's, per the boundary above):
+--   digest-string d s == digest-bytes d (string-to-bytes s)
+--   string-byte-length (digest-hex d b) == 2 * digest-length d
+--   digest-hex d b == bytes-hex (digest-bytes d b)
+--   digest-bytes d1 b /= digest-bytes d2 b for d1 /= d2 on the same b
+-- and every hex character is in `0`..`9`/`a`..`f` (lower case:
+-- `digest-hex` is the canonical rendering, and two spellings of one
+-- digest never arise here).
+--
+-- Named refusals (boundaries this module deliberately does not cross):
+--   implementing an algorithm: the module names the runtime's output,
+--     and a caller who needs a digest of a stream rather than a buffer
+--     sizes the buffer first (there is no streaming digest in the
+--     bootstrap slice);
+--   secret hygiene beyond the buffer: the key crosses as an ordinary
+--     `Bytes` value and nothing here zeroes it after use;
+--   authentication over SHA-1 or MD5: refused by omission (no
+--     `hmac-sha1`/`hmac-md5`), because identity-only algorithms are not
+--     authentication;
+--   uppercase or truncated hex: `digest-hex` is lower-case and the full
+--     width, always.
+module Text.Digest where
+
+  import Data.Bool
+  import Data.Bytes
+  import Data.Char
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.String
+  import Relation.Eq
+  import Relation.Ord
+
+  export Digest, DigestSha256, DigestSha512, DigestSha1, DigestMd5
+  export digest-bytes, digest-string, digest-hex
+  export digest-name, digest-length
+  export hmac-sha256, hmac-sha256-hex
+
+
+  -- Which algorithm computes the digest. The selector is live: two
+  -- different values disagree on the same input (digest-bytes is the
+  -- algorithm's own output, the module does not normalize it).
+  data Digest where
+    DigestSha256 :: Digest
+    DigestSha512 :: Digest
+    DigestSha1 :: Digest
+    DigestMd5 :: Digest
+
+  -- The runtime's digest words (compiler/runtime/src/text.rs). SHA-256
+  -- is declared in `Data.Bytes` (its P31 content-addressing home) and
+  -- reached through the same selector below. Each returns a fresh buffer
+  -- of the algorithm's width.
+  foreign import ccall "cinch.runtime.textSha512" sha512-bytes :: Bytes -> Bytes
+  foreign import ccall "cinch.runtime.textSha1" sha1-bytes :: Bytes -> Bytes
+  foreign import ccall "cinch.runtime.textMd5" md5-bytes :: Bytes -> Bytes
+  foreign import ccall "cinch.runtime.textHmacSha256" hmac-sha256-bytes :: Bytes -> Bytes -> Bytes
+
+  -- The digest of `b` under the named algorithm: content identity, the
+  -- algorithm's own output width (see `digest-length`).
+  digest-bytes :: Digest -> Bytes -> Bytes
+  digest-bytes d b = case d of
+    DigestSha256 -> sha256-bytes b
+    DigestSha512 -> sha512-bytes b
+    DigestSha1 -> sha1-bytes b
+    DigestMd5 -> md5-bytes b
+
+  -- The digest of `s`' UTF-8 encoding (the encode-then-digest law).
+  digest-string :: Digest -> String -> Bytes
+  digest-string d s = digest-bytes d (string-to-bytes s)
+
+  -- The digest of `b` as lower-case hex, two characters per byte (2N
+  -- characters for an N-byte digest).
+  digest-hex :: Digest -> Bytes -> String
+  digest-hex d b = bytes-hex (digest-bytes d b)
+
+  -- The algorithm's conventional name (`"sha256"` ...), the accessor a
+  -- report or filename keys on.
+  digest-name :: Digest -> String
+  digest-name d = case d of
+    DigestSha256 -> "sha256"
+    DigestSha512 -> "sha512"
+    DigestSha1 -> "sha1"
+    DigestMd5 -> "md5"
+
+  -- The digest's width in bytes: the length of `digest-bytes`' result
+  -- (so `2 * digest-length d` is the length of `digest-hex`'s).
+  digest-length :: Digest -> Nat
+  digest-length d = case d of
+    DigestSha256 -> 32
+    DigestSha512 -> 64
+    DigestSha1 -> 20
+    DigestMd5 -> 16
+
+  -- HMAC-SHA-256 (RFC 2104) over `message` under `key`: AUTHENTICATION,
+  -- distinct from the plain digests above. The key's bytes are the
+  -- secret; the result is a 32-byte buffer.
+  hmac-sha256 :: Bytes -> Bytes -> Bytes
+  hmac-sha256 key message = hmac-sha256-bytes key message
+
+  -- The HMAC-SHA-256 tag as lower-case hex (the same rendering as
+  -- `digest-hex`, 64 characters).
+  hmac-sha256-hex :: Bytes -> Bytes -> String
+  hmac-sha256-hex key message = bytes-hex (hmac-sha256 key message)
+
+  -- The canonical rendering: lower-case, two characters per byte
+  -- (private: `digest-hex` and `hmac-sha256-hex` are the surface).
+  bytes-hex :: Bytes -> String
+  bytes-hex b = pack (bytes-hex-from b 0)
+
+  bytes-hex-from :: Bytes -> Nat -> List Char
+  bytes-hex-from b i =
+    if i >= bytes-len b then Nil
+    else chars-append (byte-hex (bytes-get b i)) (bytes-hex-from b (i + 1))
+
+  byte-hex :: Nat -> List Char
+  byte-hex x = Cons (hex-low (nat-div x 16)) (Cons (hex-low (nat-rem x 16)) Nil)
+
+  hex-low :: Nat -> Char
+  hex-low d = if d <= 9 then char-of (48 + d) else char-of (87 + d)
+
+  char-of :: Nat -> Char
+  char-of n = case u32-to-char (wrapping-i64-to-u32 (nat-to-i64 n)) of
+    Some x -> x
+    None -> '?'
+
+  chars-append :: List Char -> List Char -> List Char
+  chars-append a b = case a of
+    Nil -> b
+    Cons c rest -> Cons c (chars-append rest b)
