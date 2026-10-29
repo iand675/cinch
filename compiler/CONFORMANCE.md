@@ -2055,6 +2055,32 @@ so the embedding sweep stays its own decision.
   module cannot be located from the message alone (the family member
   case may legitimately have no file, but a project copy does).
 
+- **D387 (a data type cannot nest itself, and the spine convention that
+  answers it)**: `data TypeExpr where TApp :: Span -> TypeExpr -> List
+  TypeExpr -> TypeExpr` is refused with
+  "TypeExpr occurs nested inside another type constructor in field `$f2`
+  of constructor TApp; the positivity discipline only allows direct
+  recursive occurrences (positivity-preserving nesting is not supported
+  in this slice)". The declaration itself is fine; what is refused is the
+  DECLARED type appearing as an argument of another type constructor in
+  one of its own constructors. A sequence of a type that is not the one
+  being declared is unaffected, so `DFun :: Span -> String -> List (List
+  Pat, Expr) -> Decl` and `ELam :: Span -> List Pat -> Expr -> Expr` are
+  legal. The established answer, already used by `Data.Json`
+  (`JArr`/`JArrEnd`) and now the convention for the bootstrap ladder's
+  tree: sequences of a recursive type are IN-TYPE SPINES with an end
+  marker (`TArg`/`TArgsEnd`, `PArg`/`PArgsEnd`, `EArg`/`EArgsEnd`,
+  `EBinding`/`EBindingsEnd`, `EAlt`/`EAltsEnd`, `DDecl`/`DDeclsEnd`),
+  with a builder per element kind (`type-arg-spine`, `pat-spine`,
+  `expr-spine`, `binding-spine`, `alt-spine`, `decl-spine`) so a parser
+  builds one from the `List` it has, and a walker per kind
+  (`type-args-of`, `pats-of`, `exprs-of`, `bindings-of`, `alts-of`,
+  `decls-of`) so a consumer reads the `List` back and then has the whole
+  list vocabulary. A walker applied to a node that is not a spine yields
+  the empty list, so a malformed spine cannot fault a consumer. Found by
+  building `bootstrap/Bootstrap.Ast.cinch`, where the first draft used
+  `List X` and did not compile.
+
 ### Refinement types (P28)
 
 Implemented `dfc653d` (2026-10-27, `RefinementSlice`, D248-D255):
