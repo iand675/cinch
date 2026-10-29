@@ -173,7 +173,7 @@ data List a where
   Nil  :: List a
   Cons :: a -> List a -> List a
 
-represent List Bool as BitList where
+implicit instance Bits :: Represent (List Bool) BitList where
   Nil       = bit-list-empty
   Cons b bs = bit-list-cons b bs
   view xs   = case bit-list-uncons xs of
@@ -225,11 +225,21 @@ User direction (2026-10-29): representations use the same `implicit`
 keyword as instances, and code can choose a representation in context.
 
 ```
-implicit represent List Bool as BitList where ...   -- the coherent default
-represent dense :: List Bool as ByteList where ...  -- named, never implicit
+implicit instance Bits :: Represent (List Bool) BitList where ...  -- the coherent default
+instance Dense :: Represent (List Bool) ByteList where ...         -- named, chosen with via
 ```
 
-- **Coherence is instance coherence.** An `implicit represent` is eligible
+A representation is an instance of the compiler-known class
+`Represent t c` (source type `t`, carrier `c`), whose methods are one
+builder per constructor of `t` plus `view`, and whose laws are the
+isomorphism of section 7. Making it an instance keeps the declaration form
+uniform (`Name :: Head`, where `::` means "is evidence of", as in
+`implicit instance Show_Nat :: Show Nat`) and makes coherence and the orphan
+rule the instance machinery itself, not a copy of it. No `represent`
+keyword exists.
+
+- **Coherence is instance coherence.** An `implicit instance` of
+  `Represent` is eligible
   for implicit resolution. Two implicit representations whose heads unify
   reject as `ambiguous representation`, under the same orphan rule as
   instances (D119). Named representations coexist freely, because every use
@@ -240,19 +250,19 @@ represent dense :: List Bool as ByteList where ...  -- named, never implicit
   `BitList` cannot be read by code compiled against `ByteList`, so the
   representation a value was built with must be visible wherever the value
   flows. A representation therefore indexes its type: `List Bool` (the
-  implicit representation) and `List Bool via dense` (spelling open) are
+  implicit representation) and `List Bool via Dense` are
   different types for unification. They are transparent at the source:
   constructors, patterns and every generic function work on both through
   the views.
 - **Choosing in context**, three ways:
-  - a type annotation: `xs :: List Bool via dense`. Inference propagates it,
+  - a type annotation: `xs :: List Bool via Dense`. Inference propagates it,
     so `[True, False]` checked against that type builds a `ByteList`;
-  - a scoped default, `with (represent List Bool = dense) in e`, mirroring
+  - a scoped default, `with (List Bool via Dense) in e`, mirroring
     `with (io = ...) in`: inside `e`, `List Bool` constructions with no other
-    constraint infer `via dense`;
-  - a function that requires one: `popcount :: List Bool via bits -> Nat`,
+    constraint infer `via Dense`;
+  - a function that requires one: `popcount :: List Bool via Bits -> Nat`,
     which then takes a fast path without the view.
-- **Crossing representations is explicit.** A value of `List Bool via dense`
+- **Crossing representations is explicit.** A value of `List Bool via Dense`
   passed where `List Bool` is expected is a type error naming both
   representations, not a hidden O(n) conversion (the core language's
   "potentially expensive copies SHOULD be explicit"). A generated
@@ -314,9 +324,9 @@ index bounds by linear arithmetic, glue by congruence closure).
 - Decided (2026-10-29): multi-word layouts are demand-driven, boxed at
   expanding edges (section 4); representations follow instance coherence
   with `implicit`, and are chosen in context (section 6.1).
-- Spelling of a named representation in a type (`List Bool via dense`
-  proposed) and of the scoped default (`with (represent List Bool = dense)
-  in` proposed).
+- Decided (2026-10-29): representations are instances of `Represent t c`
+  (`implicit instance Bits :: Represent (List Bool) BitList`); selection is
+  `via` in types and `with (List Bool via Dense) in` for a scoped default.
 - Spelling of value types: a `repr` attribute (proposed), a declaration form
   (`value data`), or OxCaml's `#` syntax.
 - Spelling of specialized

@@ -2172,9 +2172,11 @@ so the embedding sweep stays its own decision.
   hand-written specialized bodies are instantiation-keyed rewrites (D55);
   representation instances give a generic type an ad hoc representation,
   transparently (views plus a proven isomorphism), with instance coherence
-  (user decision: `implicit represent` is the coherent default, named
-  representations coexist and are chosen in context by a type index such
-  as `List Bool via dense`, a scoped `with` default, or a signature;
+  (user decision: a representation is an instance of the compiler-known
+  class `Represent t c`, so `implicit instance Bits :: Represent (List Bool)
+  BitList` is the coherent default and named instances coexist, chosen in
+  context by `List Bool via Dense` in a type, a scoped
+  `with (List Bool via Dense) in`, or a signature;
   crossing representations is an explicit conversion, never a hidden copy),
   and `vector<bool>`'s and Rust specialization's lessons as rules. `design/layouts-and-specialization.md`.
 - **D394 (one justification rule for every alternative implementation;
