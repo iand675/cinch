@@ -39,7 +39,7 @@ use crate::core::{
     AbiClass, AbiParam, ArithMode, ArithOp, BitOp, BitScanOp, BytesOp, CAlt, CBranch, CmpOp,
     ConcOp, ConvMode, Core, CPat, CtorLayout, FClassOp, FieldAccess, FieldShape, FloatBinOp,
     FloatUnOp, FnDef, ForeignPlan, LocalId, NetOp, PlatformOp, PrimAbiTy, PrimPlan, PrimOp,
-    ProcOp, Program, ShiftOp, SymOp, TextOp, Utf8Op,
+    ProcOp, Program, PtyOp, ShiftOp, SymOp, TextOp, Utf8Op,
 };
 use crate::types::Scalar;
 use crate::Result;
@@ -187,6 +187,16 @@ pub fn emit_for(profile: &crate::core::TargetProfile, program: &Program) -> Resu
         "declare i64 @cinch_process_read(i64, i64, i64)",
         "declare i64 @cinch_process_wait(i64)",
         "declare i64 @cinch_process_close(i64)",
+        // The pseudo-terminal family (`compiler/runtime/src/pty.rs`): a
+        // child on a POSIX pseudo-terminal pair, read and written through the
+        // master, with the window size controllable.
+        "declare i64 @cinch_pty_open()",
+        "declare i64 @cinch_pty_spawn(i64, i64, i64, i64, i64)",
+        "declare i64 @cinch_pty_read(i64, i64)",
+        "declare i64 @cinch_pty_write(i64, i64)",
+        "declare i64 @cinch_pty_wait(i64)",
+        "declare i64 @cinch_pty_close(i64)",
+        "declare i64 @cinch_pty_resize(i64, i64, i64)",
         // Structured concurrency and runtime I/O (concurrency
         // specification sections 2, 4 and 9; `compiler/runtime/src/task.rs`).
         "declare i64 @cinch_scope_open()",
@@ -2150,6 +2160,79 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, name: &str, op: PrimOp) {
                 }
                 CloseStdin | Close => {
                     let r = rt_call(b, k.extern_name(), &raw_args(1));
+                    let w = freeze_word(b, &r);
+                    ret_result(b, &w, |_| "0".to_string());
+                }
+            }
+        }
+        Pty(k) => {
+            // The pseudo-terminal units (`compiler/runtime/src/pty.rs`):
+            // the program text, the NUL-separated argument and
+            // environment words and the payloads cross as `Bytes` words,
+            // the handles and the window size as machine scalars, and the
+            // boundary word becomes the prelude `Result` through
+            // `ret_result`.
+            use PtyOp::*;
+            let raw_args = |n: usize| -> Vec<String> {
+                (0..n).map(|i| format!("i64 %p{i}")).collect()
+            };
+            match k {
+                Open => {
+                    // The `Unit` argument is the prelude's arity spelling
+                    // only; the extern takes no arguments (as `fsTempDir`).
+                    let r = rt_call(b, k.extern_name(), &[]);
+                    let w = freeze_word(b, &r);
+                    ret_result(b, &w, |_| w.clone());
+                }
+                Spawn => {
+                    let r = rt_call(b, k.extern_name(), &raw_args(5));
+                    let w = freeze_word(b, &r);
+                    ret_result(b, &w, |_| w.clone());
+                }
+                Write => {
+                    let r = rt_call(b, k.extern_name(), &raw_args(2));
+                    let w = freeze_word(b, &r);
+                    ret_result(b, &w, |b| {
+                        rt_call(b, "cinch_nat_from_i64", &[format!("i64 {w}")])
+                    });
+                }
+                Read => {
+                    // `(handle, max)`: the `Nat` cap crosses as an `i64`.
+                    let max = rt_call(b, "cinch_nat_to_i64", &["i64 %p1".to_string()]);
+                    let r = rt_call(
+                        b,
+                        k.extern_name(),
+                        &["i64 %p0".to_string(), format!("i64 {max}")],
+                    );
+                    let w = freeze_word(b, &r);
+                    ret_result(b, &w, |_| w.clone());
+                }
+                Wait => {
+                    let r = rt_call(b, k.extern_name(), &raw_args(1));
+                    let w = freeze_word(b, &r);
+                    ret_result(b, &w, |b| {
+                        rt_call(b, "cinch_nat_from_i64", &[format!("i64 {w}")])
+                    });
+                }
+                Close => {
+                    let r = rt_call(b, k.extern_name(), &raw_args(1));
+                    let w = freeze_word(b, &r);
+                    ret_result(b, &w, |_| "0".to_string());
+                }
+                Resize => {
+                    // `(handle, cols, rows)`: the two `Nat` sizes cross as
+                    // `i64`.
+                    let cols = rt_call(b, "cinch_nat_to_i64", &["i64 %p1".to_string()]);
+                    let rows = rt_call(b, "cinch_nat_to_i64", &["i64 %p2".to_string()]);
+                    let r = rt_call(
+                        b,
+                        k.extern_name(),
+                        &[
+                            "i64 %p0".to_string(),
+                            format!("i64 {cols}"),
+                            format!("i64 {rows}"),
+                        ],
+                    );
                     let w = freeze_word(b, &r);
                     ret_result(b, &w, |_| "0".to_string());
                 }
@@ -4830,7 +4913,8 @@ mod tests {
         assert_eq!(run("core_prim_arithmetic_chain", &main_prog(vec![], body)), 9);
     }
 
-    /// The net and piped-child units (`PrimOp::Net`/`PrimOp::Proc`):
+    /// The net, piped-child and pseudo-terminal units
+    /// (`PrimOp::Net`/`PrimOp::Proc`/`PrimOp::Pty`):
     /// every one of them checks its handle or its arguments at the
     /// boundary and answers the named error code as the prelude
     /// `Result`'s `Err` (tag 0) over the POSITIVE code, which the
@@ -4898,6 +4982,36 @@ mod tests {
             ),
             ("process-wait", PrimOp::Proc(ProcOp::Wait), vec![n(4242)], 6),
             ("process-close", PrimOp::Proc(ProcOp::Close), vec![n(4242)], 6),
+            // The pseudo-terminal units (`PrimOp::Pty`): an invented
+            // handle is the named argument error on every operation, and
+            // the same `ret_result` lowering presents it.
+            (
+                "pty-spawn",
+                PrimOp::Pty(PtyOp::Spawn),
+                vec![
+                    n(4242),
+                    bytes("/nonexistent/cinch-program"),
+                    bytes(""),
+                    bytes(""),
+                    bytes(""),
+                ],
+                6,
+            ),
+            ("pty-read", PrimOp::Pty(PtyOp::Read), vec![n(4242), cnat("16")], 6),
+            (
+                "pty-write",
+                PrimOp::Pty(PtyOp::Write),
+                vec![n(4242), bytes("x")],
+                6,
+            ),
+            ("pty-wait", PrimOp::Pty(PtyOp::Wait), vec![n(4242)], 6),
+            ("pty-close", PrimOp::Pty(PtyOp::Close), vec![n(4242)], 6),
+            (
+                "pty-resize",
+                PrimOp::Pty(PtyOp::Resize),
+                vec![n(4242), cnat("70000"), cnat("24")],
+                6,
+            ),
         ];
         for (name, op, args, expected) in cases {
             let body = Core::Proj(

@@ -42,8 +42,9 @@
 --     unreaped child does;
 --   a stdin payload larger than the pipe buffer while the child does
 --     not read: the write blocks (the worked drivers consume theirs);
---   no pseudo-terminal: a child's stdio are pipes, never a terminal
---     (the parity catalog's `PTY` shape is not this slice's);
+--   no pseudo-terminal: a child's stdio here are pipes, never a
+--     terminal; the terminal-backed child is its own home, `Effect.Pty`
+--     (`pty-spawn` and its siblings);
 --   an empty argument is not expressible: the argument list crosses
 --     NUL-separated, so an empty word between separators is refused
 --     (`ProcessInvalidArgument`) rather than dropped.

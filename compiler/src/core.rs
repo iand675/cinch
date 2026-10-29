@@ -721,6 +721,73 @@ impl ProcOp {
     }
 }
 
+/// The pseudo-terminal externs (`cinch.runtime.pty*`; runtime ABI,
+/// `cinch_pty_*` over `compiler/runtime/src/pty.rs`): a child on a
+/// terminal, the `Open3`/`PTY` shape that the piped-child ABI left as
+/// the refusal D367 (`Effect.Pty`'s header names it). The terminal is
+/// allocated by the POSIX calls (`posix_openpt`, `grantpt`,
+/// `unlockpt`; no extra library on either platform), the child is an
+/// ordinary `Command` whose stdin, stdout and stderr are the slave
+/// end, and a handle owns the master, the slave until the child has
+/// it, and the child itself. The
+/// result convention is [`NetOp`]'s: the boundary's raw word, negative
+/// as the negated code of the shared vocabulary.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum PtyOp {
+    /// `ptyOpen :: Unit -> Result I64 I64`: allocate a pseudo-terminal
+    /// pair; the payload is the terminal handle.
+    Open,
+    /// `ptySpawn :: I64 -> Bytes -> Bytes -> Bytes -> Bytes -> Result I64
+    /// I64`: the handle, the program, its NUL-separated arguments, the
+    /// working directory (empty inherits) and the NUL-separated
+    /// `KEY=VALUE` environment additions (empty inherits); the payload
+    /// is the same handle once the child holds the slave.
+    Spawn,
+    /// `ptyRead :: I64 -> Nat -> Result I64 Bytes`: up to `max` bytes of
+    /// the terminal master.
+    Read,
+    /// `ptyWrite :: I64 -> Bytes -> Result I64 Nat`: the byte count
+    /// written.
+    Write,
+    /// `ptyWait :: I64 -> Result I64 Nat`: the child's exit code
+    /// (128 + the signal number for a signal death, the shell
+    /// convention).
+    Wait,
+    /// `ptyClose :: I64 -> Result I64 Unit`: the handle is gone
+    /// afterwards, and a child no wait reaped is killed and reaped.
+    Close,
+    /// `ptyResize :: I64 -> Nat -> Nat -> Result I64 Unit`: set the
+    /// terminal window to `cols` columns by `rows` rows.
+    Resize,
+}
+
+impl PtyOp {
+    fn name(self) -> &'static str {
+        match self {
+            PtyOp::Open => "Open",
+            PtyOp::Spawn => "Spawn",
+            PtyOp::Read => "Read",
+            PtyOp::Write => "Write",
+            PtyOp::Wait => "Wait",
+            PtyOp::Close => "Close",
+            PtyOp::Resize => "Resize",
+        }
+    }
+
+    /// The runtime extern this operation is emitted against.
+    pub fn extern_name(self) -> &'static str {
+        match self {
+            PtyOp::Open => "cinch_pty_open",
+            PtyOp::Spawn => "cinch_pty_spawn",
+            PtyOp::Read => "cinch_pty_read",
+            PtyOp::Write => "cinch_pty_write",
+            PtyOp::Wait => "cinch_pty_wait",
+            PtyOp::Close => "cinch_pty_close",
+            PtyOp::Resize => "cinch_pty_resize",
+        }
+    }
+}
+
 /// The structured-concurrency and runtime I/O operations (concurrency
 /// specification sections 2, 3, 4 and 9). These are builtin values with
 /// compiler-known polymorphic schemes (`Checker::install_concurrency_api`),
@@ -808,6 +875,9 @@ pub enum PrimOp {
     /// The live piped child (`cinch.runtime.process*`; runtime ABI,
     /// `cinch_process_*`).
     Proc(ProcOp),
+    /// The pseudo-terminal child (`cinch.runtime.pty*`; runtime ABI,
+    /// `cinch_pty_*`).
+    Pty(PtyOp),
     EqBool,
     NeBool,
     NotBool,
@@ -974,6 +1044,13 @@ impl PrimOp {
                 "processRead" => Proc(ProcOp::Read),
                 "processWait" => Proc(ProcOp::Wait),
                 "processClose" => Proc(ProcOp::Close),
+                "ptyOpen" => Pty(PtyOp::Open),
+                "ptySpawn" => Pty(PtyOp::Spawn),
+                "ptyRead" => Pty(PtyOp::Read),
+                "ptyWrite" => Pty(PtyOp::Write),
+                "ptyWait" => Pty(PtyOp::Wait),
+                "ptyClose" => Pty(PtyOp::Close),
+                "ptyResize" => Pty(PtyOp::Resize),
                 _ => return None,
             });
         }
@@ -1014,6 +1091,7 @@ impl PrimOp {
             Platform(op) => return format!("cinch.runtime.{}", op.name()),
             Net(op) => return format!("cinch.runtime.net{}", op.name()),
             Proc(op) => return format!("cinch.runtime.process{}", op.name()),
+            Pty(op) => return format!("cinch.runtime.pty{}", op.name()),
             EqBool => return "cinch.prim.eqBool".to_string(),
             NeBool => return "cinch.prim.neBool".to_string(),
             NotBool => return "cinch.prim.notBool".to_string(),
@@ -1071,7 +1149,7 @@ impl PrimOp {
                     | TextOp::F64ToDecimal | TextOp::F64FromDecimal,
             )
             | Platform(PlatformOp::RandomBytes | PlatformOp::FsTempDir) => 1,
-            Net(_) | Proc(_) => self.sig().0.len(),
+            Net(_) | Proc(_) | Pty(_) => self.sig().0.len(),
             Bytes(BytesOp::Set) => 3,
             Sym(SymOp::Intern | SymOp::Name) => 1,
             Neg { .. } | BitNot { .. } | BitScan { .. } | FloatUn { .. } | FClass { .. }
@@ -1170,6 +1248,20 @@ impl PrimOp {
             Proc(ProcOp::Read) => (vec![i64t.clone(), i64t.clone(), Ty::Nat], res(Ty::Bytes)),
             Proc(ProcOp::Wait) => (vec![i64t.clone()], res(Ty::Nat)),
             Proc(ProcOp::Close) => (vec![i64t.clone()], res(Ty::Unit)),
+            // The pseudo-terminal units follow the same boundary
+            // convention: `Result` over the raw word. The open takes a
+            // `Unit` argument so its declared arity matches the prelude's
+            // `Unit -> Result ...` spelling (as `fsTempDir` does).
+            Pty(PtyOp::Open) => (vec![Ty::Unit], res(i64t.clone())),
+            Pty(PtyOp::Spawn) => (
+                vec![i64t.clone(), Ty::Bytes, Ty::Bytes, Ty::Bytes, Ty::Bytes],
+                res(i64t.clone()),
+            ),
+            Pty(PtyOp::Read) => (vec![i64t.clone(), Ty::Nat], res(Ty::Bytes)),
+            Pty(PtyOp::Write) => (vec![i64t.clone(), Ty::Bytes], res(Ty::Nat)),
+            Pty(PtyOp::Wait) => (vec![i64t.clone()], res(Ty::Nat)),
+            Pty(PtyOp::Close) => (vec![i64t.clone()], res(Ty::Unit)),
+            Pty(PtyOp::Resize) => (vec![i64t.clone(), Ty::Nat, Ty::Nat], res(Ty::Unit)),
             EqBool | NeBool | AndBool | OrBool => (vec![Ty::Bool, Ty::Bool], Ty::Bool),
             NotBool => (vec![Ty::Bool], Ty::Bool),
             Delay | Force | Demand | Eval => {
@@ -6250,6 +6342,13 @@ mod tests {
             PrimOp::Proc(ProcOp::Read),
             PrimOp::Proc(ProcOp::Wait),
             PrimOp::Proc(ProcOp::Close),
+            PrimOp::Pty(PtyOp::Open),
+            PrimOp::Pty(PtyOp::Spawn),
+            PrimOp::Pty(PtyOp::Read),
+            PrimOp::Pty(PtyOp::Write),
+            PrimOp::Pty(PtyOp::Wait),
+            PrimOp::Pty(PtyOp::Close),
+            PrimOp::Pty(PtyOp::Resize),
         ];
         for op in ops {
             let sym = op.symbol();

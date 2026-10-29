@@ -700,8 +700,10 @@ fn pipes() -> std::sync::MutexGuard<'static, BTreeMap<i64, PipedChild>> {
 /// negated error code for an entry with no bytes: the encoding cannot
 /// express an empty argument, so one is refused rather than dropped. A
 /// single trailing separator adds no word (the last word of
-/// `-c\0echo hi\0` is `echo hi`).
-unsafe fn nul_words(word: i64) -> std::result::Result<Vec<std::ffi::OsString>, i64> {
+/// `-c\0echo hi\0` is `echo hi`). `crate::pty`'s spawn shares it (one
+/// NUL-separated argument encoding spans the process and terminal
+/// families).
+pub(crate) unsafe fn nul_words(word: i64) -> std::result::Result<Vec<std::ffi::OsString>, i64> {
     use std::os::unix::ffi::OsStringExt;
     let bytes = unsafe { crate::abi::as_bytes(word) }.as_slice();
     if bytes.is_empty() {
@@ -725,7 +727,10 @@ unsafe fn nul_words(word: i64) -> std::result::Result<Vec<std::ffi::OsString>, i
 /// separates; a value may contain one): `Err` is the negated error code
 /// for an entry without a separator or with an empty key. An empty word
 /// adds nothing, so the child inherits this process's environment.
-unsafe fn env_words(word: i64) -> std::result::Result<Vec<(std::ffi::OsString, std::ffi::OsString)>, i64> {
+/// `crate::pty`'s spawn shares it.
+pub(crate) unsafe fn env_words(
+    word: i64,
+) -> std::result::Result<Vec<(std::ffi::OsString, std::ffi::OsString)>, i64> {
     use std::os::unix::ffi::OsStringExt;
     let bytes = unsafe { crate::abi::as_bytes(word) }.as_slice();
     if bytes.is_empty() {

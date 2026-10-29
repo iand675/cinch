@@ -1,0 +1,251 @@
+-- Effect.Pty: pseudo-terminal children (the `Open3`/`PTY` shape).
+--
+-- A pseudo-terminal is a terminal device pair: the parent reads and
+-- writes the MASTER end and the child's stdin, stdout and stderr are the
+-- SLAVE end. `pty-open` allocates the pair, `pty-spawn` starts a program
+-- with the slave as all three of its standard streams, and the caller
+-- drives the master with `pty-read` and `pty-write`, waits with
+-- `pty-wait`, sizes the window with `pty-resize`, and releases the
+-- handle with `pty-close`. This is the `Open3`/`PTY` shape of
+-- design/stdlib-parity-ruby.md under P34's Process capability, the
+-- refusal D367 that the piped-child ABI (`Effect.Process`) recorded
+-- because the runtime had no pseudo-terminal support.
+--
+-- The operations run under the `Io r` capability (decision D45's
+-- determinism rule: a terminal is consulted when a program with the
+-- capability calls it, never ambient at compile time). Every failure is
+-- a NAMED `PtyError` value in a `Result` (the house style), never a
+-- fault: the boundary's raw word carries the shared platform error codes
+-- (`compiler/runtime/src/platform.rs`), which `pty-error-code` maps one
+-- for one.
+--
+-- The boundary words themselves are the `cinch.runtime.pty*` units
+-- (machine scalars and `Bytes`; see the runtime module's header for the
+-- return-code convention). Those units are pure at the boundary, as
+-- every `cinch.runtime.*` intrinsic is (a primitive's declared type is
+-- its `sig()`, which carries no effect row); this module's wrappers are
+-- where the `IO r` discipline lives, exactly as the primitive-type home
+-- wraps `bytesNew`.
+--
+-- THE LAW SHAPE (what the slice's tests pin):
+--   1. round trip: bytes written to the master reach the child's stdin,
+--      and what the child writes to its stdout or stderr is what
+--      `pty-read` answers. The terminal's line discipline echoes the
+--      input and may interleave it with the child's own output, so a
+--      caller matches on the substring's presence, never an exact
+--      buffer;
+--   2. the handle is single-use on close: every operation after
+--      `pty-close` is `Err PtyInvalidArgument`, and so is a handle the
+--      caller invented;
+--   3. the slave is consumed once: a handle whose child already holds
+--      the slave refuses a second spawn (`PtyInvalidArgument`);
+--   4. refusal is a value: a program that does not exist answers `Err`
+--      (the documented code), never a fault;
+--   5. the child's exit code is its own, or 128 + the signal number for
+--      a signal death (the shell convention).
+--
+-- Named refusals (boundaries this module deliberately does not cross):
+--   no terminal emulation beyond the pseudo-terminal itself: no
+--     escape-sequence interpretation and no screen buffer;
+--   no job control: the terminal's line discipline and process groups
+--     are the platform's;
+--   no session or detach manipulation: no `setsid`, no `TIOCNOTTY`;
+--   no Windows: `openpty` is POSIX;
+--   one read, not a filled length: `pty-read` returns what one platform
+--     call produced, never a loop to fill the requested size.
+--
+-- Module scheme (design/base-library.md): `Effect.*` is the effect
+-- system's vocabulary.
+module Effect.Pty where
+
+  import Algebra.Arithmetic
+  import Data.Bytes
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Path
+  import Data.Result
+  import Data.String
+  import Relation.Eq
+
+  export PtyError, PtyNotFound, PtyPermissionDenied, PtyInvalidArgument, PtyIoError
+  export Pty, pty-handle
+  export PtyCommand, pty-command, pty-command-with-env
+  export pty-open, pty-spawn, pty-write, pty-read, pty-wait, pty-close, pty-resize
+
+
+  -- What went wrong before the child's own exit code could exist. The
+  -- constructors correspond one for one to the platform layer's shared
+  -- codes.
+  data PtyError where
+    PtyNotFound :: PtyError
+    PtyPermissionDenied :: PtyError
+    PtyInvalidArgument :: PtyError
+    PtyIoError :: PtyError
+
+  -- A live pseudo-terminal, as the runtime's handle word. The handle
+  -- owns the master end and the child; the slave end belongs to the
+  -- child once a spawn consumed it.
+  data Pty where
+    Pty :: Nat -> Pty
+
+  -- The handle word of a terminal, for the layers above this one.
+  pty-handle :: Pty -> Nat
+  pty-handle p = case p of
+    Pty h -> h
+
+  -- A program with its arguments and its environment additions
+  -- (`KEY=VALUE` pairs, added to this process's own environment).
+  data PtyCommand where
+    PtyCommand :: Path -> List String -> List (String, String) -> PtyCommand
+
+  -- A command without environment additions.
+  pty-command :: Path -> List String -> PtyCommand
+  pty-command prog args = PtyCommand prog args Nil
+
+  -- A command with environment additions.
+  pty-command-with-env :: Path -> List String -> List (String, String) -> PtyCommand
+  pty-command-with-env prog args env = PtyCommand prog args env
+
+  -- The pseudo-terminal words (`compiler/runtime/src/pty.rs`). The
+  -- program text, the NUL-separated argument and environment words and
+  -- every payload cross as `Bytes`, and each result is the boundary word
+  -- as a `Result` whose `Err` payload is the named code's own number
+  -- (the POSITIVE code, as the net and piped-child units carry it).
+  foreign import ccall "cinch.runtime.ptyOpen" raw-pty-open :: Unit -> Result I64 I64
+  foreign import ccall "cinch.runtime.ptySpawn" raw-pty-spawn :: I64 -> Bytes -> Bytes -> Bytes -> Bytes -> Result I64 I64
+  foreign import ccall "cinch.runtime.ptyWrite" raw-pty-write :: I64 -> Bytes -> Result I64 Nat
+  foreign import ccall "cinch.runtime.ptyRead" raw-pty-read :: I64 -> Nat -> Result I64 Bytes
+  foreign import ccall "cinch.runtime.ptyWait" raw-pty-wait :: I64 -> Result I64 Nat
+  foreign import ccall "cinch.runtime.ptyClose" raw-pty-close :: I64 -> Result I64 Unit
+  foreign import ccall "cinch.runtime.ptyResize" raw-pty-resize :: I64 -> Nat -> Nat -> Result I64 Unit
+
+  -- The boundary code as the named vocabulary. The `Err` payload is the
+  -- POSITIVE code (only the sign differs from the one-shot process
+  -- words, and the pty units carry the positive one).
+  pty-error-code :: I64 -> PtyError
+  pty-error-code c = case c of
+    1 -> PtyNotFound
+    2 -> PtyPermissionDenied
+    6 -> PtyInvalidArgument
+    _ -> PtyIoError
+
+  -- Open a pseudo-terminal pair: the master and slave ends in a handle,
+  -- or the named error. The slave belongs to the handle until a spawn
+  -- hands it to the child.
+  pty-open :: forall r. using (io :: Io r) => Unit ->{IO r} Result PtyError Pty
+  pty-open u = case raw-pty-open u of
+    Err c -> Err (pty-error-code c)
+    Ok h -> Ok (Pty (nat-from-i64 h))
+
+  -- Start `cmd` on the terminal `p`, running in `dir` (`None` inherits
+  -- this process's own directory): the same handle with the child beside
+  -- its master, or the named error. The child's stdin, stdout and stderr
+  -- are all the slave end, so it is a terminal session. A handle whose
+  -- child already holds the slave refuses a second spawn; on a spawn
+  -- failure the handle is closed rather than left live with a consumed
+  -- slave.
+  pty-spawn :: forall r. using (io :: Io r) => Pty -> Option Path -> PtyCommand ->{IO r} Result PtyError Pty
+  pty-spawn p dir cmd = case p of
+    Pty h -> case cmd of
+      PtyCommand prog args env ->
+        let program = string-to-bytes (path-to-string prog) in
+        let argument-words = nul-words args in
+        let directory = dir-bytes dir in
+        let env-words = nul-words (key-value-words env) in
+        case raw-pty-spawn (nat-to-i64 h) program argument-words directory env-words of
+          Err c -> pty-spawn-fail p c
+          Ok h2 -> Ok (Pty (nat-from-i64 h2))
+
+  -- Free the handle and report the negated code (the spawn failed after
+  -- the slave left the handle).
+  pty-spawn-fail :: forall r. using (io :: Io r) => Pty -> I64 ->{IO r} Result PtyError Pty
+  pty-spawn-fail p c = case p of
+    Pty h -> case raw-pty-close (nat-to-i64 h) of
+      _ -> Err (pty-error-code c)
+
+  -- Write `bs` to the terminal's master (the child reads it on its
+  -- stdin): the byte count (the whole buffer goes), or the named error.
+  pty-write :: forall r. using (io :: Io r) => Pty -> Bytes ->{IO r} Result PtyError Nat
+  pty-write p bs = case p of
+    Pty h -> case raw-pty-write (nat-to-i64 h) bs of
+      Err c -> Err (pty-error-code c)
+      Ok n -> Ok n
+
+  -- Read up to `max` bytes of the terminal's master (what the child
+  -- wrote to its stdout or stderr, plus the terminal's echo of the
+  -- input): `Ok` of what one platform call produced, or the named error.
+  pty-read :: forall r. using (io :: Io r) => Pty -> Nat ->{IO r} Result PtyError Bytes
+  pty-read p max = case p of
+    Pty h -> case raw-pty-read (nat-to-i64 h) max of
+      Err c -> Err (pty-error-code c)
+      Ok b -> Ok b
+
+  -- Wait for the child: its exit code (128 + the signal number for a
+  -- signal death, the shell convention), or the named error. A second
+  -- wait answers the same code.
+  pty-wait :: forall r. using (io :: Io r) => Pty ->{IO r} Result PtyError Nat
+  pty-wait p = case p of
+    Pty h -> case raw-pty-wait (nat-to-i64 h) of
+      Err c -> Err (pty-error-code c)
+      Ok code -> Ok code
+
+  -- Close the terminal: a child no wait reaped is killed and reaped
+  -- first, and the handle is gone afterwards (a second close is the
+  -- named error).
+  pty-close :: forall r. using (io :: Io r) => Pty ->{IO r} Result PtyError Unit
+  pty-close p = case p of
+    Pty h -> case raw-pty-close (nat-to-i64 h) of
+      Err c -> Err (pty-error-code c)
+      Ok u -> Ok u
+
+  -- Set the terminal's window size to `cols` columns by `rows` rows:
+  -- the unit, or the named error.
+  pty-resize :: forall r. using (io :: Io r) => Pty -> Nat -> Nat ->{IO r} Result PtyError Unit
+  pty-resize p cols rows = case p of
+    Pty h -> case raw-pty-resize (nat-to-i64 h) cols rows of
+      Err c -> Err (pty-error-code c)
+      Ok u -> Ok u
+
+  -- The working directory as its byte path (the empty buffer is the
+  -- boundary's "inherit this process's directory").
+  dir-bytes :: Option Path -> Bytes
+  dir-bytes dir = case dir of
+    None -> bytes-new 0
+    Some p -> string-to-bytes (path-to-string p)
+
+  -- The environment additions as `KEY=VALUE` words.
+  key-value-words :: List (String, String) -> List String
+  key-value-words kvs = case kvs of
+    Nil -> Nil
+    Cons kv rest -> case kv of
+      (k, v) -> Cons (string-concat k (string-concat "=" v)) (key-value-words rest)
+
+  -- A list of words as one NUL-separated `Bytes` buffer (the encoding
+  -- the runtime's `cinch_pty_spawn` documents: one word per
+  -- NUL-separated run of bytes, one trailing separator adding no word,
+  -- and an empty word refused there).
+  nul-words :: List String -> Bytes
+  nul-words xs = fill-words (bytes-new (words-size xs)) 0 xs
+
+  words-size :: List String -> Nat
+  words-size xs = case xs of
+    Nil -> 0
+    Cons s rest -> string-byte-length s + 1 + words-size rest
+
+  fill-words :: Bytes -> Nat -> List String -> Bytes
+  fill-words b i xs = case xs of
+    Nil -> b
+    Cons s rest -> fill-words b (put-word b i s) rest
+
+  -- One word's bytes plus its NUL separator; the next index.
+  put-word :: Bytes -> Nat -> String -> Nat
+  put-word b i s = put-bytes b i (string-to-bytes s) 0
+
+  put-bytes :: Bytes -> Nat -> Bytes -> Nat -> Nat
+  put-bytes b i src j = case j == bytes-len src of
+    True -> case bytes-set b i 0 of
+      _ -> i + 1
+    False -> case bytes-set b i (bytes-get src j) of
+      _ -> put-bytes b (i + 1) src (j + 1)

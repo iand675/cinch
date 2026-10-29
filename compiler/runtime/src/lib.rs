@@ -239,6 +239,13 @@
 //! of the platform layer's shared vocabulary; the compiler-side units
 //! (`PrimOp::Net`/`PrimOp::Proc`) present those words as the prelude
 //! `Result`.
+//!
+//! The pseudo-terminal layer (`compiler/runtime/src/pty.rs`, the
+//! `Open3`/`PTY` shape of the standard library's process family): the
+//! `cinch_pty_*` externs over a POSIX pseudo-terminal pair, with the
+//! child spawned by `std::process::Command` over the slave end and the
+//! master end read, written and controlled through the handle
+//! (`PrimOp::Pty` presents the same `Result` convention).
 
 pub mod abi;
 pub mod bytes;
@@ -251,6 +258,7 @@ mod limbs;
 mod nat;
 pub mod net;
 pub mod platform;
+pub mod pty;
 pub mod string;
 pub mod sym;
 pub mod task;
