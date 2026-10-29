@@ -15154,6 +15154,38 @@ pub fn check_program_multi_full_probe(
     check_program_multi_full_impl(prelude, modules, source_hashes, scx, wit, profile, probe)
 }
 
+/// Name the module a collect or check failure happened in.
+///
+/// A `Span` carries only a line and a column (`lexer::Span`), so a failure in
+/// a module other than the entry reports a bare position with nothing saying
+/// which of the program's modules raised it: the ladder's parser hit exactly
+/// that, with six project modules in one compile and an error reading
+/// `812:13: ...`. The entry's own parse errors already carry their file
+/// (the parser formats it into the message), and this gives collect and check
+/// failures the same courtesy. The file comes from the driver's module-to-path
+/// map; an unknown module falls back to its own name, which is still better
+/// than nothing. The suffix leaves the span intact, so the language server's
+/// diagnostics keep their machine-readable position.
+fn in_module(file: &str, e: Error) -> Error {
+    if e.message.contains(" (in ") {
+        return e;
+    }
+    Error { span: e.span, message: format!("{} (in {})", e.message, file) }
+}
+
+/// [`in_module`] resolved against the checker's module-to-file map.
+fn in_named_module(
+    files: &std::collections::HashMap<String, String>,
+    module: &str,
+    e: Error,
+) -> Error {
+    let where_ = match files.get(module) {
+        Some(file) => file.clone(),
+        None => module.to_string(),
+    };
+    in_module(&where_, e)
+}
+
 /// [`check_program_multi_full_probe`]'s body; the plain entry delegates
 /// with no probe.
 fn check_program_multi_full_impl(
@@ -15240,13 +15272,15 @@ fn check_program_multi_full_impl(
         family.push(p);
         c.embedded_modules.insert(p.name.text.clone());
         let imports = imports_of(p);
-        c.collect_module(p, &prelude_name, &imports)?;
+        c.collect_module(p, &prelude_name, &imports)
+            .map_err(|e| in_named_module(&c.module_files, &p.name.text, e))?;
         if Some(i) == facade_at {
             c.install_presentation_aliases();
             for m in modules {
                 if shadow_set.contains(m.name.text.as_str()) {
                     let imports = imports_of(m);
-                    c.collect_module(m, &prelude_name, &imports)?;
+                    c.collect_module(m, &prelude_name, &imports)
+                        .map_err(|e| in_named_module(&c.module_files, &m.name.text, e))?;
                 }
             }
         }
@@ -15257,7 +15291,8 @@ fn check_program_multi_full_impl(
             continue;
         }
         let imports = imports_of(m);
-        c.collect_module(m, &prelude_name, &imports)?;
+        c.collect_module(m, &prelude_name, &imports)
+            .map_err(|e| in_named_module(&c.module_files, &m.name.text, e))?;
     }
     // Instance heads convert once every module is collected: a head
     // may name a class or type from a module collected later.
@@ -15276,7 +15311,8 @@ fn check_program_multi_full_impl(
     // The prelude family compiles first: its functions and instances run
     // during compile-time evaluation.
     for p in &family {
-        c.check_bodies(&p.name.text, &prelude_name)?;
+        c.check_bodies(&p.name.text, &prelude_name)
+            .map_err(|e| in_named_module(&c.module_files, &p.name.text, e))?;
     }
     // The staging phase (modules specification sections 7-10): compile
     // the compile-time fragment, schedule and run generators, expand macro
@@ -15301,7 +15337,8 @@ fn check_program_multi_full_impl(
     c.compute_layouts()?;
     c.build_foreign_contracts()?;
     for m in modules {
-        c.check_bodies(&m.name.text, &prelude_name)?;
+        c.check_bodies(&m.name.text, &prelude_name)
+            .map_err(|e| in_named_module(&c.module_files, &m.name.text, e))?;
     }
     // The guarded-letrec rule over the top-level value bindings (the
     // D302 compiler defect): an eager reference cycle among them would

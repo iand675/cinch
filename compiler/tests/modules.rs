@@ -291,3 +291,41 @@ fn interface_round_trips_through_disk() {
     assert_eq!(iface.module, "Main");
     assert!(iface.exports.values.iter().any(|v| v.name == "main"));
 }
+
+#[test]
+fn a_failure_in_a_sibling_module_names_its_file() {
+    // A `Span` carries only a line and a column (`lexer::Span`), so before the
+    // checker attached a module's file to its failure, a collect or check
+    // error in a module other than the entry reported a bare position: with
+    // six ladder modules in one compile, `812:13: constructor POk expects 2
+    // field patterns, got 1` gave no way to tell which module raised it.
+    let dir = write_project(&[
+        (
+            "Lib.cinch",
+            "module Lib where\n\
+             \x20 broken :: Int -> Int\n\
+             \x20 broken x = x + missing-name\n",
+        ),
+        (
+            "Main.cinch",
+            "module Main where\n\
+             \x20 import Lib\n\
+             \x20 main :: Int\n\
+             \x20 main = Lib.broken 1\n",
+        ),
+    ]);
+    let err = check_entry(&dir, "Main.cinch").expect_err("the sibling module is broken");
+    assert!(
+        err.contains("(in "),
+        "the failure does not name the module it happened in: {err}"
+    );
+    assert!(
+        err.contains("Lib.cinch"),
+        "the failure does not name the failing module: {err}"
+    );
+    assert!(
+        !err.contains("Main.cinch"),
+        "the failure blames the entry instead of the failing module: {err}"
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}
