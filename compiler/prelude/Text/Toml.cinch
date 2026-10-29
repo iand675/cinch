@@ -77,7 +77,12 @@ module Text.Toml where
   import Data.Result
   import Data.Bool
   import Data.Machine
+  import Text.Scan
   import Text.Show
+
+  import Algebra.Semigroup
+
+  infixr 6 <>
 
   export TomlError, TomlSyntax, TomlDuplicateKey, TomlDateTime, TomlNotRepresentable
   export toml-parse, toml-print
@@ -123,39 +128,17 @@ module Text.Toml where
 
 
   -- ---------------------------------------------------------------------------
-  -- List plumbing (local; the module does not depend on Text.Scan).
+  -- List plumbing. The shared helpers of Data.List carry the generic
+  -- shapes: `is-empty` for the emptiness test, `reverse` for reversal,
+  -- `<>` for append and `replicate` for the repeated prepend. Only the
+  -- `Json` spine construction is this module's own.
   -- ---------------------------------------------------------------------------
-
-  list-null :: forall a. List a -> Bool
-  list-null xs = case xs of
-    Nil -> True
-    Cons _ _ -> False
-
-  list-rev :: forall a. List a -> List a
-  list-rev xs = list-rev-acc xs Nil
-
-  list-rev-acc :: forall a. List a -> List a -> List a
-  list-rev-acc xs acc = case xs of
-    Nil -> acc
-    Cons y ys -> list-rev-acc ys (Cons y acc)
-
-  list-append :: forall a. List a -> List a -> List a
-  list-append xs ys = case xs of
-    Nil -> ys
-    Cons z zs -> Cons z (list-append zs ys)
-
-  append-one :: forall a. List a -> a -> List a
-  append-one xs x = list-append xs (Cons x Nil)
 
   -- A `Json` array from a list of values (the `JArr` spine).
   build-arr :: List Json -> Json
   build-arr xs = case xs of
     Nil -> JArrEnd
     Cons y ys -> JArr y (build-arr ys)
-
-  prepend-char-n :: Char -> Nat -> List Char -> List Char
-  prepend-char-n c n acc =
-    if nat-eq n 0 then acc else prepend-char-n c (n - 1) (Cons c acc)
 
 
   -- ---------------------------------------------------------------------------
@@ -190,16 +173,6 @@ module Text.Toml where
 
   is-space-tab :: Nat -> Bool
   is-space-tab c = nat-eq c 32 || nat-eq c 9
-
-  char-code :: Char -> Nat
-  char-code c = nat-from-i64 (u32-to-i64 (char-to-u32 c))
-
-  -- The scalar value as a `Char` (used for the raw-quote characters so
-  -- no apostrophe literal is needed).
-  char-of :: Nat -> Char
-  char-of n = case u32-to-char (wrapping-i64-to-u32 (nat-to-i64 n)) of
-    Some c -> c
-    None -> '"'
 
 
   -- ---------------------------------------------------------------------------
@@ -359,8 +332,8 @@ module Text.Toml where
 
   finish-bare-key :: St -> St -> List Nat -> Result TomlError (String, St)
   finish-bare-key start s acc =
-    if list-null acc then Err (TomlSyntax (st-line start) "expected a key")
-    else Ok (bytes-to-string (bytes-from-list (list-rev acc)), s)
+    if is-empty acc then Err (TomlSyntax (st-line start) "expected a key")
+    else Ok (bytes-to-string (bytes-from-list (reverse acc)), s)
 
   bytes-to-string :: Bytes -> String
   bytes-to-string b = case string-from-bytes b of
@@ -386,8 +359,8 @@ module Text.Toml where
   p-key-rest acc = p-bind p-skip-spaces (\_ -> p-bind p-peek (\m -> case m of
     Some c -> if nat-eq c 46 then p-bind p-consume (\_ ->
         p-bind p-skip-spaces (\_ -> p-bind p-simple-key (\k -> p-key-rest (Cons k acc))))
-      else p-pure (list-rev acc)
-    None -> p-pure (list-rev acc)))
+      else p-pure (reverse acc)
+    None -> p-pure (reverse acc)))
 
 
   -- ---------------------------------------------------------------------------
@@ -407,7 +380,7 @@ module Text.Toml where
   scan-basic-body :: St -> List Char -> Result TomlError (String, St)
   scan-basic-body s acc = case peek-b s of
     Some c ->
-      if nat-eq c 34 then Ok (pack (list-rev acc), advance1 s)
+      if nat-eq c 34 then Ok (pack (reverse acc), advance1 s)
       else if nat-eq c 92 then scan-basic-escape (advance1 s) acc
       else if nat-eq c 10 then Err (TomlSyntax (st-line s) "newline in a single-line string")
       else if nat-eq c 13 then Err (TomlSyntax (st-line s) "newline in a single-line string")
@@ -448,7 +421,7 @@ module Text.Toml where
   scan-hex-scalar s n = case scan-hex-digits s n 0 of
     Err e -> Err e
     Ok r -> case r of
-      (cp, s1) -> case u32-to-char (wrapping-i64-to-u32 (nat-to-i64 cp)) of
+      (cp, s1) -> case char-from-code cp of
         None -> Err (TomlSyntax (st-line s1) "escape is not a Unicode scalar value")
         Some ch -> Ok (ch, s1)
 
@@ -493,9 +466,9 @@ module Text.Toml where
     case r of
       (q, s1) ->
         if nat-ge q 3 then
-          if nat-le q 5 then Ok (pack (list-rev (prepend-char-n '"' (q - 3) acc)), s1)
+          if nat-le q 5 then Ok (pack (reverse (replicate (q - 3) '"' <> acc)), s1)
           else Err (TomlSyntax (st-line s) "too many quotation marks at the end of a multi-line string")
-        else scan-ml-basic-body s1 (prepend-char-n '"' q acc)
+        else scan-ml-basic-body s1 (replicate q '"' <> acc)
 
   count-quotes :: St -> Nat -> (Nat, St)
   count-quotes s n = case peek-b s of
@@ -537,7 +510,7 @@ module Text.Toml where
   scan-literal-body :: St -> List Char -> Result TomlError (String, St)
   scan-literal-body s acc = case peek-b s of
     Some c ->
-      if nat-eq c 39 then Ok (pack (list-rev acc), advance1 s)
+      if nat-eq c 39 then Ok (pack (reverse acc), advance1 s)
       else if nat-eq c 10 then Err (TomlSyntax (st-line s) "newline in a single-line string")
       else if nat-eq c 13 then Err (TomlSyntax (st-line s) "newline in a single-line string")
       else if nat-lt c 32 && nat_eq_false c 9 then Err (TomlSyntax (st-line s) "control character in a string")
@@ -555,9 +528,9 @@ module Text.Toml where
         case r of
           (q, s1) ->
             if nat-ge q 3 then
-              if nat-le q 5 then Ok (pack (list-rev (prepend-char-n (char-of 39) (q - 3) acc)), s1)
+              if nat-le q 5 then Ok (pack (reverse (replicate (q - 3) (case char-from-code 39 of Some x -> x; None -> '"') <> acc)), s1)
               else Err (TomlSyntax (st-line s) "too many quotation marks at the end of a multi-line string")
-            else scan-ml-literal s1 (prepend-char-n (char-of 39) q acc)
+            else scan-ml-literal s1 (replicate q (case char-from-code 39 of Some x -> x; None -> '"') <> acc)
       else if nat-eq c 10 then scan-ml-literal (advance1 s) (Cons '\n' acc)
       else if nat-eq c 13 then scan-ml-literal (advance1 s) acc
       else if nat-lt c 32 && nat_eq_false c 9 then Err (TomlSyntax (st-line s) "control character in a string")
@@ -623,7 +596,7 @@ module Text.Toml where
   set-in-entries k segs value node = case node of
     NEntry k2 child tail ->
       if string-compare k2 k == 0 then
-        if list-null segs then Err (TomlDuplicateKey k)
+        if is-empty segs then Err (TomlDuplicateKey k)
         else case child of
           NVal _ -> Err (TomlDuplicateKey k)
           _ -> and-then (set-at segs value child) (\c2 -> Ok (NEntry k2 c2 tail))
@@ -670,7 +643,7 @@ module Text.Toml where
   ensure-entries k segs node = case node of
     NEntry k2 child tail ->
       if string-compare k2 k == 0 then
-        if list-null segs then
+        if is-empty segs then
           case child of
             NEntry _ _ _ -> Ok (NEntry k2 child tail)
             NEntryEnd -> Ok (NEntry k2 child tail)
@@ -735,7 +708,7 @@ module Text.Toml where
   append-entries k segs node = case node of
     NEntry k2 child tail ->
       if string-compare k2 k == 0 then
-        if list-null segs then
+        if is-empty segs then
           case child of
             NList _ _ -> Ok (NEntry k2 (aot-append child NEntryEnd) tail, aot-count child)
             NListEnd -> Ok (NEntry k2 (NList NEntryEnd NListEnd) tail, 0)
@@ -882,7 +855,7 @@ module Text.Toml where
         (case collect-digits (advance1 s) Nil 0 False of
           Err e -> Err e
           Ok r -> case r of
-            (fds, s1) -> if list-null fds then Err (TomlSyntax (st-line s1) "expected digits after the decimal point")
+            (fds, s1) -> if is-empty fds then Err (TomlSyntax (st-line s1) "expected digits after the decimal point")
               else number-maybe-exp s1 sg ids fds True)
       else number-maybe-exp s sg ids Nil False
     None -> number-maybe-exp s sg ids Nil False
@@ -895,7 +868,7 @@ module Text.Toml where
            (esg, s2) -> case collect-digits s2 Nil 0 False of
              Err e -> Err e
              Ok r -> case r of
-               (eds, s3) -> if list-null eds then Err (TomlSyntax (st-line s2) "expected digits in the exponent")
+               (eds, s3) -> if is-empty eds then Err (TomlSyntax (st-line s2) "expected digits in the exponent")
                  else number-done s3 sg ids fds True esg eds)
       else number-done s sg ids fds isfrac 0 Nil
     None -> number-done s sg ids fds isfrac 0 Nil
@@ -935,8 +908,8 @@ module Text.Toml where
     else case collect-radix base s Nil 0 False of
       Err e -> Err e
       Ok r -> case r of
-        (ds, s1) -> if list-null ds then Err (TomlSyntax (st-line s) "expected digits after the base prefix")
-          else Ok (JNum (radix-to-int base (list-rev ds) (int-from-i64 0)), s1)
+        (ds, s1) -> if is-empty ds then Err (TomlSyntax (st-line s) "expected digits after the base prefix")
+          else Ok (JNum (radix-to-int base (reverse ds) (int-from-i64 0)), s1)
 
   collect-radix :: Nat -> St -> List Nat -> Nat -> Bool -> Result TomlError (List Nat, St)
   collect-radix base s acc count prev = case peek-b s of
@@ -968,7 +941,7 @@ module Text.Toml where
 
   int-from-digits :: Nat -> List Nat -> Int
   int-from-digits sg ids =
-    let mag = digits-to-int (list-rev ids) (int-from-i64 0) in
+    let mag = digits-to-int (reverse ids) (int-from-i64 0) in
     if nat-eq sg 2 then int-neg mag else mag
 
   digits-to-int :: List Nat -> Int -> Int
@@ -980,10 +953,10 @@ module Text.Toml where
   -- integer digits, optional `.` fraction, optional exponent.
   float-codes :: Nat -> List Nat -> List Nat -> Nat -> List Nat -> List Nat
   float-codes sg ids fds esg eds =
-    list-append (sign-code sg)
-      (list-append (list-rev ids)
-        (list-append (if list-null fds then Nil else Cons 46 (list-rev fds))
-          (if list-null eds then Nil else Cons 101 (list-append (sign-code esg) (list-rev eds)))))
+    (sign-code sg)
+      <> ((reverse ids)
+        <> ((if is-empty fds then Nil else Cons 46 (reverse fds))
+          <> (if is-empty eds then Nil else Cons 101 ((sign-code esg) <> (reverse eds)))))
 
   sign-code :: Nat -> List Nat
   sign-code sg = if nat-eq sg 2 then Cons 45 Nil else Nil
@@ -1028,7 +1001,7 @@ module Text.Toml where
   scan-array-items s acc =
     let s0 = skip-array-ws s in
     case peek-b s0 of
-      Some c -> if nat-eq c 93 then Ok (build-arr (list-rev acc), advance1 s0)
+      Some c -> if nat-eq c 93 then Ok (build-arr (reverse acc), advance1 s0)
         else scan-array-value s0 acc
       None -> Err (TomlSyntax (st-line s0) "unterminated array")
 
@@ -1039,7 +1012,7 @@ module Text.Toml where
       (v, s1) ->
         let s2 = skip-array-ws s1 in
         case peek-b s2 of
-          Some c -> if nat-eq c 93 then Ok (build-arr (list-rev (Cons v acc)), advance1 s2)
+          Some c -> if nat-eq c 93 then Ok (build-arr (reverse (Cons v acc)), advance1 s2)
             else if nat-eq c 44 then scan-array-items (advance1 s2) (Cons v acc)
             else Err (TomlSyntax (st-line s2) "expected , or ] in an array")
           None -> Err (TomlSyntax (st-line s2) "unterminated array")
@@ -1121,7 +1094,7 @@ module Text.Toml where
               (let s3 = skip-line-trailing (advance-n s2 2) in
                let path = map SKey keys in
                and-then (append-elt path root) (\r2 -> case r2 of
-                 (root2, i) -> parse-doc (append-one path (SIdx i)) root2 s3))
+                 (root2, i) -> parse-doc (path <> Cons (SIdx i) Nil) root2 s3))
             else Err (TomlSyntax (st-line s2) "expected ]] after an array-of-tables header")
           None -> Err (TomlSyntax (st-line s2) "unterminated table header")
 
@@ -1139,7 +1112,7 @@ module Text.Toml where
                  Ok rv -> case rv of
                    (v, s4) ->
                      let s5 = skip-line-trailing s4 in
-                     let path = list-append cur (map SKey keys) in
+                     let path = cur <> map SKey keys in
                      and-then (set-at path (NVal v) root) (\root2 -> parse-doc cur root2 s5))
             else Err (TomlSyntax (st-line s2) "expected = after a key")
           None -> Err (TomlSyntax (st-line s2) "unterminated key-value")
@@ -1163,11 +1136,7 @@ module Text.Toml where
     _ -> Err (TomlNotRepresentable "the document root must be a table")
 
   join-lines :: List String -> String
-  join-lines ls = case ls of
-    Nil -> empty-string
-    Cons x xs -> case xs of
-      Nil -> x
-      _ -> string-concat x (string-concat "\n" (join-lines xs))
+  join-lines ls = string-join "\n" ls
 
   emit-entries :: List String -> Json -> Result TomlError (List String)
   emit-entries path v = case v of
@@ -1180,7 +1149,7 @@ module Text.Toml where
     and-then (emit-values (filter-values es)) (\l1 ->
       and-then (emit-tables path (filter-tables es)) (\l2 ->
         and-then (emit-aots path (filter-aots es)) (\l3 ->
-          Ok (list-append l1 (list-append l2 l3)))))
+          Ok (l1 <> (l2 <> l3)))))
 
   entries-of :: Json -> List (String, Json)
   entries-of t = case t of
@@ -1243,26 +1212,26 @@ module Text.Toml where
     Nil -> Ok Nil
     Cons e rest -> case e of
       (k, v) ->
-        let p2 = append-one path k in
+        let p2 = path <> Cons k Nil in
         and-then (emit-entries p2 v) (\body ->
           and-then (emit-tables path rest) (\more ->
-            Ok (Cons (header-line "[" "]" p2) (list-append body more))))
+            Ok (Cons (header-line "[" "]" p2) (body <> more))))
 
   emit-aots :: List String -> List (String, Json) -> Result TomlError (List String)
   emit-aots path es = case es of
     Nil -> Ok Nil
     Cons e rest -> case e of
       (k, v) ->
-        let p2 = append-one path k in
+        let p2 = path <> Cons k Nil in
         and-then (emit-aot-elements p2 (arr-elements v)) (\block ->
-          and-then (emit-aots path rest) (\more -> Ok (list-append block more)))
+          and-then (emit-aots path rest) (\more -> Ok (block <> more)))
 
   emit-aot-elements :: List String -> List Json -> Result TomlError (List String)
   emit-aot-elements p es = case es of
     Nil -> Ok Nil
     Cons el rest -> and-then (emit-entries p el) (\body ->
       and-then (emit-aot-elements p rest) (\more ->
-        Ok (Cons (header-line "[[" "]]" p) (list-append body more))))
+        Ok (Cons (header-line "[[" "]]" p) (body <> more))))
 
   arr-elements :: Json -> List Json
   arr-elements v = case v of
@@ -1325,7 +1294,7 @@ module Text.Toml where
   -- basic-string key.
   enc-key :: String -> String
   enc-key k =
-    if list-null (unpack k) then write-basic-string k
+    if is-empty (unpack k) then write-basic-string k
     else if all-bare-chars (unpack k) then k
     else write-basic-string k
 

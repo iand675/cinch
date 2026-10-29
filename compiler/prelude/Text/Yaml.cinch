@@ -421,19 +421,6 @@ module Text.Yaml where
     else if eq-i64 (string-compare (string-slice s 0 (string-length pat)) pat) 0 then True
     else contains-text (string-slice s 1 (string-length s)) pat
 
-  rev-list :: forall a. List a -> List a
-  rev-list xs = rev-acc xs Nil
-
-  rev-acc :: forall a. List a -> List a -> List a
-  rev-acc xs acc = case xs of
-    Nil -> acc
-    Cons y ys -> rev-acc ys (Cons y acc)
-
-  list-empty :: forall a. List a -> Bool
-  list-empty xs = case xs of
-    Nil -> True
-    Cons y ys -> False
-
   member-text :: List String -> String -> Bool
   member-text xs t = case xs of
     Nil -> False
@@ -539,8 +526,8 @@ module Text.Yaml where
     Some b -> if b == 39 then
         case y-peek-n s 1 of
           Some c -> if c == 39 then scan-single-body (y-advance-to s (y-off s + 2)) (Cons '\'' acc)
-            else Ok (pack (rev-list acc), y-advance1 s)
-          None -> Ok (pack (rev-list acc), y-advance1 s)
+            else Ok (pack (reverse acc), y-advance1 s)
+          None -> Ok (pack (reverse acc), y-advance1 s)
       else if b == 10 || b == 13 then y-err s YamlSyntaxError "a quoted scalar closes on its line"
       else case utf8-at (y-src s) (y-off s) of
         Some p -> case p of
@@ -555,7 +542,7 @@ module Text.Yaml where
   scan-double-body :: YState -> List Char -> Result YamlError (String, YState)
   scan-double-body s acc = case y-peek s of
     None -> y-err s YamlSyntaxError "an unterminated double-quoted scalar"
-    Some b -> if b == 34 then Ok (pack (rev-list acc), y-advance1 s)
+    Some b -> if b == 34 then Ok (pack (reverse acc), y-advance1 s)
       else if b == 10 || b == 13 then y-err s YamlSyntaxError "a quoted scalar closes on its line"
       else if b == 92 then scan-double-escape (y-advance1 s) acc
       else case utf8-at (y-src s) (y-off s) of
@@ -595,7 +582,7 @@ module Text.Yaml where
   scan-hex-escape s k acc = case scan-hex-digits s k 0 of
     Err e -> Err e
     Ok p -> case p of
-      (cp, s1) -> case u32-to-char (wrapping-i64-to-u32 (nat-to-i64 cp)) of
+      (cp, s1) -> case char-from-code cp of
         Some c -> scan-double-body s1 (Cons c acc)
         None -> y-err s YamlSyntaxError "an escape is not a Unicode scalar value"
 
@@ -682,13 +669,13 @@ module Text.Yaml where
   -- so the trailing ones stay distinguishable for the chomping rule.
   bs-collect :: YState -> Nat -> List BsLine -> Nat -> Result YamlError (BsBody, YState)
   bs-collect s bind acc pending =
-    if y-at-eof s then Ok (BsBody (rev-list acc) pending, s)
+    if y-at-eof s then Ok (BsBody (reverse acc) pending, s)
     else case y-indent-spaces s of
       (n, s1) -> if y-at-eol s1 then bs-collect (y-next-line s) bind acc (pending + 1)
         else if n >= bind then
           let line = bs-line-text (y-src s) (y-off s + bind) (y-line-end s) in
           bs-collect (y-next-line s) bind (Cons (BsLine line (n > bind)) (flush-blanks pending acc)) 0
-        else Ok (BsBody (rev-list acc) pending, s)
+        else Ok (BsBody (reverse acc) pending, s)
 
   flush-blanks :: Nat -> List BsLine -> List BsLine
   flush-blanks n acc = if n == 0 then acc else flush-blanks (n - 1) (Cons (BsLine empty-string False) acc)
@@ -706,7 +693,7 @@ module Text.Yaml where
     -- The Nat branch leads: an unconstrained literal in a `let`-bound
     -- `if` elaborates as `Int` (D10), so `then 0 else 1 + pending` would
     -- fix the whole `if` at `Int` and reject the `Nat` sum.
-    let trailing = if not (list-empty lines) then 1 + pending else 0 in
+    let trailing = if not (is-empty lines) then 1 + pending else 0 in
     apply-chomp chomp body trailing
 
   bs-literal :: List BsLine -> String
@@ -730,18 +717,15 @@ module Text.Yaml where
       BsLine text more ->
         if string-length text == 0 then fold-go rest acc started (pending + 1) prev-normal
         else if started then
-          let sep = if pending == 0 then (if prev-normal && not more then " " else "\n") else repeat-nl pending in
+          let sep = if pending == 0 then (if prev-normal && not more then " " else "\n") else string-repeat pending "\n" in
           fold-go rest (string-concat acc (string-concat sep text)) True 0 (not more)
-        else fold-go rest (string-concat (repeat-nl pending) text) True 0 (not more)
-
-  repeat-nl :: Nat -> String
-  repeat-nl n = if n == 0 then empty-string else string-concat "\n" (repeat-nl (n - 1))
+        else fold-go rest (string-concat (string-repeat pending "\n") text) True 0 (not more)
 
   apply-chomp :: BsChomp -> String -> Nat -> String
   apply-chomp chomp body trailing = case chomp of
     ChompStrip -> body
     ChompClip -> if trailing == 0 then body else string-concat body "\n"
-    ChompKeep -> string-concat body (repeat-nl trailing)
+    ChompKeep -> string-concat body (string-repeat trailing "\n")
 
 
   -- ---------------------------------------------------------------------------
@@ -806,14 +790,14 @@ module Text.Yaml where
   flow-seq-rest :: YState -> List YNode -> Result YamlError (YNode, YState)
   flow-seq-rest s acc = case y-peek s of
     None -> y-err s YamlSyntaxError "an unterminated flow sequence"
-    Some b -> if b == 93 then Ok (build-seq (rev-list acc), y-advance1 s)
+    Some b -> if b == 93 then Ok (build-seq (reverse acc), y-advance1 s)
       else if b == 44 then flow-seq-after-comma (y-skip-flow-ws (y-advance1 s)) acc
       else y-err s YamlSyntaxError "expected ',' or ']' in a flow sequence"
 
   flow-seq-after-comma :: YState -> List YNode -> Result YamlError (YNode, YState)
   flow-seq-after-comma s acc = case y-peek s of
     None -> y-err s YamlSyntaxError "an unterminated flow sequence"
-    Some b -> if b == 93 then Ok (build-seq (rev-list acc), y-advance1 s) else parse-flow-seq-items s acc
+    Some b -> if b == 93 then Ok (build-seq (reverse acc), y-advance1 s) else parse-flow-seq-items s acc
 
   parse-flow-map :: YState -> Result YamlError (YNode, YState)
   parse-flow-map s =
@@ -835,14 +819,14 @@ module Text.Yaml where
   flow-map-rest :: YState -> List (String, YNode) -> List String -> Result YamlError (YNode, YState)
   flow-map-rest s acc keys = case y-peek s of
     None -> y-err s YamlSyntaxError "an unterminated flow mapping"
-    Some b -> if b == 125 then Ok (build-map (rev-list acc), y-advance1 s)
+    Some b -> if b == 125 then Ok (build-map (reverse acc), y-advance1 s)
       else if b == 44 then flow-map-after-comma (y-skip-flow-ws (y-advance1 s)) acc keys
       else y-err s YamlSyntaxError "expected ',' or '}' in a flow mapping"
 
   flow-map-after-comma :: YState -> List (String, YNode) -> List String -> Result YamlError (YNode, YState)
   flow-map-after-comma s acc keys = case y-peek s of
     None -> y-err s YamlSyntaxError "an unterminated flow mapping"
-    Some b -> if b == 125 then Ok (build-map (rev-list acc), y-advance1 s) else parse-flow-map-items s acc keys
+    Some b -> if b == 125 then Ok (build-map (reverse acc), y-advance1 s) else parse-flow-map-items s acc keys
 
   parse-flow-entry :: YState -> Result YamlError ((String, YNode), YState)
   parse-flow-entry s = case parse-flow-key s of
@@ -1157,17 +1141,17 @@ module Text.Yaml where
   parse-seq-more s0 ind acc = case y-skip-blank-lines (y-next-line-from s0) of
     Err e -> Err e
     Ok s ->
-      if y-at-eof s then Ok (build-seq (rev-list acc), s)
+      if y-at-eof s then Ok (build-seq (reverse acc), s)
       else case y-line-indent s of
         Err e -> Err e
         Ok p -> case p of
-          (ind2, s1) -> if ind2 < ind then Ok (build-seq (rev-list acc), s)
+          (ind2, s1) -> if ind2 < ind then Ok (build-seq (reverse acc), s)
             else if ind2 > ind then y-err s1 YamlIndentationError "a block item is indented past its parent's column"
             else if y-at-seq-start s1 then case parse-seq-item (y-skip-spaces (y-advance1 s1)) ind of
               Err e -> Err e
               Ok q -> case q of
                 (v, s2) -> parse-seq-more s2 ind (Cons v acc)
-            else Ok (build-seq (rev-list acc), s)
+            else Ok (build-seq (reverse acc), s)
 
   parse-seq-item :: YState -> Nat -> Result YamlError (YNode, YState)
   parse-seq-item s ind =
@@ -1189,14 +1173,14 @@ module Text.Yaml where
   parse-map-more s0 ind acc keys = case y-skip-blank-lines (y-next-line-from s0) of
     Err e -> Err e
     Ok s ->
-      if y-at-eof s then Ok (build-map (rev-list acc), s)
+      if y-at-eof s then Ok (build-map (reverse acc), s)
       else case y-line-indent s of
         Err e -> Err e
         Ok p -> case p of
-          (ind2, s1) -> if ind2 < ind then Ok (build-map (rev-list acc), s)
+          (ind2, s1) -> if ind2 < ind then Ok (build-map (reverse acc), s)
             else if ind2 > ind then y-err s1 YamlIndentationError "a block item is indented past its parent's column"
-            else if y-at-doc-marker s1 then Ok (build-map (rev-list acc), s)
-            else if y-at-doc-end s1 then Ok (build-map (rev-list acc), s)
+            else if y-at-doc-marker s1 then Ok (build-map (reverse acc), s)
+            else if y-at-doc-end s1 then Ok (build-map (reverse acc), s)
             else case parse-map-entry s1 ind of
               Err e -> Err e
               Ok q -> case q of
@@ -1382,7 +1366,7 @@ module Text.Yaml where
   -- as one trailing item, so the resolver is total like the printer.
   resolve-seq :: List YAnchor -> List String -> YNode -> List Json -> Result YamlError (Json, List YAnchor)
   resolve-seq env ip spine acc = case spine of
-    YSeqEnd -> Ok (build-arr (rev-list acc), env)
+    YSeqEnd -> Ok (build-arr (reverse acc), env)
     YSeqCons item rest -> case resolve-node env ip item of
       Err e -> Err e
       Ok p -> case p of
@@ -1390,11 +1374,11 @@ module Text.Yaml where
     other -> case resolve-node env ip other of
       Err e -> Err e
       Ok p -> case p of
-        (v, env2) -> Ok (build-arr (rev-list (Cons v acc)), env2)
+        (v, env2) -> Ok (build-arr (reverse (Cons v acc)), env2)
 
   resolve-map :: List YAnchor -> List String -> YNode -> List (String, Json) -> Result YamlError (Json, List YAnchor)
   resolve-map env ip spine acc = case spine of
-    YMapEnd -> Ok (build-obj (rev-list acc), env)
+    YMapEnd -> Ok (build-obj (reverse acc), env)
     YMapCons k v rest -> case resolve-node env ip v of
       Err e -> Err e
       Ok p -> case p of
@@ -1402,7 +1386,7 @@ module Text.Yaml where
     other -> case resolve-node env ip other of
       Err e -> Err e
       Ok p -> case p of
-        (rv, env2) -> Ok (build-obj (rev-list (Cons (empty-string, rv) acc)), env2)
+        (rv, env2) -> Ok (build-obj (reverse (Cons (empty-string, rv) acc)), env2)
 
   lookup-anchor :: List YAnchor -> String -> Option Json
   lookup-anchor env name = case env of
@@ -1496,11 +1480,8 @@ module Text.Yaml where
   fold-digits t i acc =
     if i >= string-length t then acc
     else case string-char-at t i of
-      Some c -> fold-digits t (i + 1) (int-add (int-mul acc (int-from-i64 10)) (int-from-i64 (nat-to-i64 (char-code-nat c - 48))))
+      Some c -> fold-digits t (i + 1) (int-add (int-mul acc (int-from-i64 10)) (int-from-i64 (nat-to-i64 (char-code c - 48))))
       None -> acc
-
-  char-code-nat :: Char -> Nat
-  char-code-nat c = nat-from-i64 (u32-to-i64 (char-to-u32 c))
 
   -- The core schema's float: a digit run with a fraction or an
   -- exponent. Scanned as a small state machine over
@@ -1592,7 +1573,7 @@ module Text.Yaml where
     Cons p rest -> case p of
       (k, v) ->
         let line = string-concat (pad ind) (string-concat (write-text k) (string-concat ":" (write-value-block (ind + 2) v))) in
-        if list-empty rest then line else string-concat line (string-concat "\n" (write-map ind rest))
+        if is-empty rest then line else string-concat line (string-concat "\n" (write-map ind rest))
 
   write-seq :: Nat -> Json -> Json -> String
   write-seq ind h t = string-concat (write-seq-item ind h) (write-seq-tail ind t)
@@ -1660,7 +1641,7 @@ module Text.Yaml where
       && not (control-char c)
 
   control-char :: Char -> Bool
-  control-char c = char-code-nat c < 32 || char-code-nat c == 127
+  control-char c = char-code c < 32 || char-code c == 127
 
   quote-text :: String -> String
   quote-text s = string-concat "\"" (string-concat (quote-chars s 0) "\"")
@@ -1679,7 +1660,7 @@ module Text.Yaml where
     else if c == '\n' then "\\n"
     else if c == '\t' then "\\t"
     else if c == '\r' then "\\r"
-    else if control-char c then string-concat "\\x" (hex2 (char-code-nat c))
+    else if control-char c then string-concat "\\x" (hex2 (char-code c))
     else char-string c
 
   hex2 :: Nat -> String

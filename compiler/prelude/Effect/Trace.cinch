@@ -99,11 +99,3 @@ module Effect.Trace where
         _ -> False
       _ -> False
     _ -> False
-
-  reverse :: List Json -> List Json
-  reverse xs = reverse-acc xs Nil
-
-  reverse-acc :: List Json -> List Json -> List Json
-  reverse-acc xs acc = case xs of
-    Nil -> acc
-    Cons y ys -> reverse-acc ys (Cons y acc)

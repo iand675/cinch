@@ -206,7 +206,7 @@ module Data.Time where
     let cs = unpack s in
     case index-of-char 'T' cs 0 of
       None -> Err NotATime
-      Some k -> after-date (string-slice s 0 k) (drop-n (k + 1) cs)
+      Some k -> after-date (string-slice s 0 k) (drop (k + 1) cs)
 
   after-date :: String -> List Char -> Result TimeParseError Time
   after-date text cs =
@@ -219,8 +219,10 @@ module Data.Time where
   from-time-chars :: List Char -> Result TimeParseError (Nat, Nat, Nat, Nat)
   from-time-chars cs = case drop-trailing-z cs of
     Cons h1 (Cons h2 (Cons c1 (Cons m1 (Cons m2 (Cons c2 (Cons s1 (Cons s2 rest)))))))
-      | c1 == ':' && c2 == ':' && is-digit-char h1 && is-digit-char h2 && is-digit-char m1 && is-digit-char m2 && is-digit-char s1 && is-digit-char s2 ->
-        time-tail (two-digits h1 h2) (two-digits m1 m2) (two-digits s1 s2) rest
+      | c1 == ':' && c2 == ':' ->
+        case hms-of h1 h2 m1 m2 s1 s2 of
+          Some (h, mi, se) -> time-tail h mi se rest
+          None -> Err NotATime
     _ -> Err NotATime
 
   time-tail :: Nat -> Nat -> Nat -> List Char -> Result TimeParseError (Nat, Nat, Nat, Nat)
@@ -346,17 +348,13 @@ module Data.Time where
       Some s -> s
 
   -- The literal reader works over scalar values (`unpack`), the same
-  -- view `Text.Lex` and `Text.Scan` use.
-  code-of :: Char -> Nat
-  code-of c = nat-from-i64 (u32-to-i64 (char-to-u32 c))
-
-  is-digit-char :: Char -> Bool
-  is-digit-char c = c >= '0' && c <= '9'
+  -- view `Text.Lex` and `Text.Scan` use; the digit test is
+  -- `Data.Char`'s `is-ascii-digit`.
 
   all-digits :: List Char -> Bool
   all-digits cs = case cs of
     Nil -> True
-    Cons c rest -> is-digit-char c && all-digits rest
+    Cons c rest -> is-ascii-digit c && all-digits rest
 
   digits-value :: List Char -> Nat
   digits-value ds = digits-value-acc ds 0
@@ -364,41 +362,46 @@ module Data.Time where
   digits-value-acc :: List Char -> Nat -> Nat
   digits-value-acc ds acc = case ds of
     Nil -> acc
-    Cons c rest -> digits-value-acc rest (nat-add (nat-mul acc 10) (nat-sub (code-of c) 48))
+    Cons c rest -> digits-value-acc rest (nat-add (nat-mul acc 10) (nat-sub (char-code c) 48))
 
-  two-digits :: Char -> Char -> Nat
-  two-digits a b = nat-add (nat-mul (nat-sub (code-of a) 48) 10) (nat-sub (code-of b) 48)
+  -- The value of a two-digit field, or `None` when either character is
+  -- not an ASCII digit (`Data.Char`'s `digit-value` is the only digit
+  -- reader here, and the caller's guard has gone into the `case`).
+  two-digits :: Char -> Char -> Option Nat
+  two-digits a b = case digit-value a of
+    Some x -> case digit-value b of
+      Some y -> Some (nat-add (nat-mul x 10) y)
+      None -> None
+    None -> None
 
-  list-length :: forall a. List a -> Nat
-  list-length xs = case xs of
-    Nil -> 0
-    Cons _ rest -> 1 + list-length rest
+  -- The three two-digit fields of the time literal, left to right, or
+  -- `None` when any of the six characters is not an ASCII digit (the
+  -- field-level `case` `two-digits` would otherwise repeat three deep).
+  hms-of :: Char -> Char -> Char -> Char -> Char -> Char -> Option (Nat, Nat, Nat)
+  hms-of h1 h2 m1 m2 s1 s2 = case two-digits h1 h2 of
+    None -> None
+    Some h -> case two-digits m1 m2 of
+      None -> None
+      Some mi -> case two-digits s1 s2 of
+        None -> None
+        Some se -> Some (h, mi, se)
 
+  -- Searches for the first occurrence of a character, from `i`. The
+  -- shape is generic over the element (an `Eq`-constrained search over
+  -- a `List`), so a shared home ought to carry it, but the base layer
+  -- states none (`Data.List` carries `nth`, a positional read, not a
+  -- search); this is reported as a candidate shared helper rather than
+  -- placed here.
   index-of-char :: Char -> List Char -> Nat -> Option Nat
   index-of-char c cs i = case cs of
     Nil -> None
     Cons x rest -> if x == c then Some i else index-of-char c rest (i + 1)
-
-  drop-n :: Nat -> List Char -> List Char
-  drop-n n cs =
-    if n == 0 then cs
-    else case cs of
-      Nil -> Nil
-      Cons _ rest -> drop-n (n - 1) rest
 
   -- RFC 3339's UTC designator is accepted and never emitted; it can
   -- only be the last scalar, so one trailing `Z` is dropped. The
   -- comparison is a guard, not a literal pattern (the bootstrap slice
   -- admits integer literal patterns only).
   drop-trailing-z :: List Char -> List Char
-  drop-trailing-z cs = case rev-list cs of
-    Cons c rest | c == 'Z' -> rev-list rest
+  drop-trailing-z cs = case reverse cs of
+    Cons c rest | c == 'Z' -> reverse rest
     _ -> cs
-
-  rev-list :: forall a. List a -> List a
-  rev-list xs = rev-acc xs Nil
-
-  rev-acc :: forall a. List a -> List a -> List a
-  rev-acc xs acc = case xs of
-    Nil -> acc
-    Cons y ys -> rev-acc ys (Cons y acc)

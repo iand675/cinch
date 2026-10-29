@@ -31,11 +31,14 @@
 -- sweep; these are the operations that cost no I/O.
 module Data.Path where
 
+  import Algebra.Semigroup
   import Data.Char
   import Data.List
   import Data.Nat
   import Data.Option
   import Data.String
+
+  infixr 6 <>
 
   export Path, path-from-string, path-to-string, path-join
   export path-basename, path-dirname, path-extname, path-stem
@@ -91,37 +94,6 @@ module Data.Path where
       Nil -> False
       Cons y yr -> if eq-char x y then eq-chars xr yr else False
 
-  -- Reverse a character list into the accumulator.
-  reverse-chars :: List Char -> List Char -> List Char
-  reverse-chars cs acc = case cs of
-    Nil -> acc
-    Cons c rest -> reverse-chars rest (Cons c acc)
-
-  -- The number of characters (code points).
-  char-count :: List Char -> Nat
-  char-count cs = case cs of
-    Nil -> 0
-    Cons c rest -> 1 + char-count rest
-
-  drop-chars :: Nat -> List Char -> List Char
-  drop-chars k cs = case k == 0 of
-    True -> cs
-    False -> case cs of
-      Nil -> Nil
-      Cons c rest -> drop-chars (k - 1) rest
-
-  take-chars :: Nat -> List Char -> List Char
-  take-chars k cs = case k == 0 of
-    True -> Nil
-    False -> case cs of
-      Nil -> Nil
-      Cons c rest -> Cons c (take-chars (k - 1) rest)
-
-  append-chars :: List Char -> List Char -> List Char
-  append-chars a b = case a of
-    Nil -> b
-    Cons c rest -> Cons c (append-chars rest b)
-
   -- Every character is a separator (and the list is non-empty): the
   -- all-separator path, whose basename and dirname are `/`.
   only-slashes :: List Char -> Bool
@@ -146,7 +118,7 @@ module Data.Path where
       False -> cs
 
   drop-trailing-slashes :: List Char -> List Char
-  drop-trailing-slashes cs = reverse-chars (drop-leading-slashes (reverse-chars cs Nil)) Nil
+  drop-trailing-slashes cs = reverse (drop-leading-slashes (reverse cs))
 
   take-until-slash :: List Char -> List Char
   take-until-slash cs = case cs of
@@ -171,7 +143,7 @@ module Data.Path where
     Nil -> Nil
     Cons c rest -> case only-slashes cs of
       True -> Cons slash-char Nil
-      False -> reverse-chars (take-until-slash (reverse-chars (drop-trailing-slashes cs) Nil)) Nil
+      False -> reverse (take-until-slash (reverse (drop-trailing-slashes cs)))
 
   -- `path-dirname`: everything before the final component, with
   -- trailing separators dropped first. A path with no separator is
@@ -181,9 +153,9 @@ module Data.Path where
     Nil -> Cons dot-char Nil
     Cons c rest -> case only-slashes cs of
       True -> Cons slash-char Nil
-      False -> case drop-through-first-slash (reverse-chars (drop-trailing-slashes cs) Nil) of
+      False -> case drop-through-first-slash (reverse (drop-trailing-slashes cs)) of
         None -> Cons dot-char Nil
-        Some back -> case reverse-chars back Nil of
+        Some back -> case reverse back of
           Nil -> Cons slash-char Nil
           prefix -> prefix
 
@@ -209,14 +181,14 @@ module Data.Path where
     None -> Nil
     Some i -> case i == 0 of
       True -> Nil
-      False -> drop-chars i b
+      False -> drop i b
 
   path-extname :: Path -> String
   path-extname p = pack (extname-chars (basename-chars (unpack (path-to-string p))))
 
   -- `path-stem`: the basename without its extension.
   stem-chars :: List Char -> List Char
-  stem-chars b = take-chars (char-count b - char-count (extname-chars b)) b
+  stem-chars b = take (list-length b - list-length (extname-chars b)) b
 
   path-stem :: Path -> String
   path-stem p = pack (stem-chars (basename-chars (unpack (path-to-string p))))
@@ -240,12 +212,7 @@ module Data.Path where
   finish-segment :: List Char -> List (List Char) -> List (List Char)
   finish-segment cur acc = case cur of
     Nil -> acc
-    Cons c rest -> Cons (reverse-chars cur Nil) acc
-
-  reverse-segments :: List (List Char) -> List (List Char) -> List (List Char)
-  reverse-segments xs acc = case xs of
-    Nil -> acc
-    Cons y ys -> reverse-segments ys (Cons y acc)
+    Cons _ _ -> Cons (reverse cur) acc
 
   dot-segment :: List Char
   dot-segment = Cons dot-char Nil
@@ -259,7 +226,7 @@ module Data.Path where
   -- dropped in an absolute one (nothing exists above `/`).
   normalize-components :: Bool -> List (List Char) -> List (List Char) -> List (List Char)
   normalize-components absolute comps acc = case comps of
-    Nil -> reverse-segments acc Nil
+    Nil -> reverse acc
     Cons seg rest -> case eq-chars seg dot-segment of
       True -> normalize-components absolute rest acc
       False -> case eq-chars seg dotdot-segment of
@@ -280,7 +247,7 @@ module Data.Path where
 
   -- A string's components in path order, `..` resolved.
   resolve-path :: Bool -> String -> List (List Char)
-  resolve-path absolute s = normalize-components absolute (reverse-segments (split-segments Nil (unpack s) Nil) Nil) Nil
+  resolve-path absolute s = normalize-components absolute (reverse (split-segments Nil (unpack s) Nil)) Nil
 
   -- Join the resolved components: an absolute path is prefixed with
   -- `/` (and is `/` with none); a relative path with none is `.`.
@@ -296,7 +263,7 @@ module Data.Path where
   join-head :: List Char -> List (List Char) -> List Char
   join-head s rest = case rest of
     Nil -> s
-    Cons t more -> append-chars s (Cons slash-char (join-head t more))
+    Cons t more -> s <> Cons slash-char (join-head t more)
 
   -- `path-normalize`: LEXICAL cleanup (text in, text out; no disk call
   -- and no symlink resolution). Split on `/`, drop empty and `.`
@@ -317,28 +284,13 @@ module Data.Path where
         True -> strip-common xr yr
         False -> (xs, ys)
 
-  seg-count :: List (List Char) -> Nat
-  seg-count xs = case xs of
-    Nil -> 0
-    Cons x rest -> 1 + seg-count rest
-
-  dot-dots :: Nat -> List (List Char)
-  dot-dots n = case n == 0 of
-    True -> Nil
-    False -> Cons dotdot-segment (dot-dots (n - 1))
-
   join-forward :: List (List Char) -> List Char
   join-forward segs = case segs of
     Nil -> Nil
     Cons s rest -> join-head s rest
 
-  append-segments :: List (List Char) -> List (List Char) -> List (List Char)
-  append-segments a b = case a of
-    Nil -> b
-    Cons x xs -> Cons x (append-segments xs b)
-
   relative-chars :: List (List Char) -> List (List Char) -> List Char
-  relative-chars dots trem = case append-segments dots trem of
+  relative-chars dots trem = case dots <> trem of
     Nil -> Cons dot-char Nil
     segs -> join-forward segs
 
@@ -356,4 +308,4 @@ module Data.Path where
     case path-is-absolute nt == path-is-absolute nb of
       False -> nt
       True -> case strip-common (resolve-path (path-is-absolute nt) (path-to-string nt)) (resolve-path (path-is-absolute nb) (path-to-string nb)) of
-        (trem, brem) -> Path (pack (relative-chars (dot-dots (seg-count brem)) trem))
+        (trem, brem) -> Path (pack (relative-chars (replicate (list-length brem) dotdot-segment) trem))

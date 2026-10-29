@@ -35,6 +35,7 @@ use cinch::driver::{driver, Mode};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
+const SCAN: &str = include_str!("../prelude/Text/Scan.cinch");
 const SHELLWORDS: &str = include_str!("../prelude/Text/Shellwords.cinch");
 
 fn run_main(name: &str, main_src: &str) -> i32 {
@@ -48,6 +49,7 @@ fn run_main(name: &str, main_src: &str) -> i32 {
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).expect("temp project dir");
     for (file, src) in [
+        ("Text.Scan.cinch", SCAN),
         ("Text.Shellwords.cinch", SHELLWORDS),
         ("Main.cinch", main_src),
     ] {

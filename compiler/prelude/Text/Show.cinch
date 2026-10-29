@@ -75,7 +75,7 @@ module Text.Show where
 
   char-string :: Char -> String
   char-string c =
-    let cp = nat-from-i64 (u32-to-i64 (char-to-u32 c)) in
+    let cp = char-code c in
     let b = bytes-new (utf8-encode-width cp) in
     let u = utf8-encode-into b 0 cp in
     wrap-bytes b

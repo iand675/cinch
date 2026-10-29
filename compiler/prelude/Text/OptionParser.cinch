@@ -77,6 +77,7 @@ module Text.OptionParser where
   import Data.Option
   import Data.Result
   import Data.String
+  import Text.Scan
   import Text.Show
 
   export OptionSpec, OptSpec, Converter, ConvString, ConvInt, ConvFloat, ConvFlag
@@ -250,7 +251,7 @@ module Text.OptionParser where
   -- `ps` the positionals in reverse; `done` is set by `--`.
   walk :: List OptionSpec -> List String -> List (String, OptionValue) -> List String -> Bool -> Result OptionParseError ParsedOptions
   walk specs argv bs ps done = case argv of
-    Nil -> Ok (ParsedOptions (finish-bindings bs) (rev-strings ps))
+    Nil -> Ok (ParsedOptions (finish-bindings bs) (reverse ps))
     Cons w rest ->
       if done then walk specs rest bs (Cons w ps) True
       else if string-compare w "--" == 0 then walk specs rest bs ps True
@@ -310,7 +311,7 @@ module Text.OptionParser where
         Nil -> Err (UnknownOption (string-concat "--" name))
         Cons first more -> case more of
           Nil -> Ok first
-          Cons _ _ -> Err (AmbiguousOption name (long-names (rev-specs (Cons first more) Nil)))
+          Cons _ _ -> Err (AmbiguousOption name (long-names (reverse (Cons first more))))
 
   exact-spec :: List OptionSpec -> String -> Option OptionSpec
   exact-spec specs name = case specs of
@@ -412,7 +413,7 @@ module Text.OptionParser where
   -- of each name there (its LAST occurrence in argv) and reversing gives
   -- the bindings in last-occurrence order with last-value-wins.
   finish-bindings :: List (String, OptionValue) -> List (String, OptionValue)
-  finish-bindings bs = rev-bindings (dedupe bs Nil)
+  finish-bindings bs = reverse (dedupe bs Nil)
 
   dedupe :: List (String, OptionValue) -> List String -> List (String, OptionValue)
   dedupe bs seen = case bs of
@@ -424,27 +425,6 @@ module Text.OptionParser where
   mem-string n xs = case xs of
     Nil -> False
     Cons y ys -> if string-compare y n == 0 then True else mem-string n ys
-
-  rev-bindings :: List (String, OptionValue) -> List (String, OptionValue)
-  rev-bindings bs = rev-bindings-acc bs Nil
-
-  rev-bindings-acc :: List (String, OptionValue) -> List (String, OptionValue) -> List (String, OptionValue)
-  rev-bindings-acc bs acc = case bs of
-    Nil -> acc
-    Cons p rest -> rev-bindings-acc rest (Cons p acc)
-
-  rev-strings :: List String -> List String
-  rev-strings xs = rev-strings-acc xs Nil
-
-  rev-strings-acc :: List String -> List String -> List String
-  rev-strings-acc xs acc = case xs of
-    Nil -> acc
-    Cons y ys -> rev-strings-acc ys (Cons y acc)
-
-  rev-specs :: List OptionSpec -> List OptionSpec -> List OptionSpec
-  rev-specs xs acc = case xs of
-    Nil -> acc
-    Cons y ys -> rev-specs ys (Cons y acc)
 
   long-names :: List OptionSpec -> List String
   long-names specs = case specs of
@@ -536,10 +516,7 @@ module Text.OptionParser where
   digit-at :: String -> Nat -> Option Nat
   digit-at s i = case string-char-at s i of
     None -> None
-    Some c -> digit-code (nat-from-i64 (u32-to-i64 (char-to-u32 c)))
-
-  digit-code :: Nat -> Option Nat
-  digit-code k = if k >= 48 && k <= 57 then Some (k - 48) else None
+    Some c -> digit-value c
 
 
   -- -----------------------------------------------------------------
@@ -588,31 +565,10 @@ module Text.OptionParser where
   pad-right :: Nat -> String -> String
   pad-right w s =
     let n = string-length s in
-    if n >= w then s else string-concat s (spaces (w - n))
-
-  spaces :: Nat -> String
-  spaces n =
-    let b = bytes-new n in
-    let u = fill-spaces b 0 n in
-    case string-from-bytes b of
-      None -> empty-string
-      Some s -> s
-
-  fill-spaces :: Bytes -> Nat -> Nat -> Unit
-  fill-spaces b i n =
-    if i >= n then ()
-    else let u = bytes-set b i 32 in fill-spaces b (i + 1) n
+    if n >= w then s else string-concat s (string-repeat (w - n) " ")
 
   join-lines :: List String -> String
-  join-lines xs = case xs of
-    Nil -> empty-string
-    Cons y ys -> case ys of
-      Nil -> y
-      Cons _ _ -> string-concat y (string-concat "\n" (join-lines ys))
+  join-lines xs = string-join "\n" xs
 
   join-commas :: List String -> String
-  join-commas xs = case xs of
-    Nil -> empty-string
-    Cons y ys -> case ys of
-      Nil -> y
-      Cons _ _ -> string-concat y (string-concat ", " (join-commas ys))
+  join-commas xs = string-join ", " xs

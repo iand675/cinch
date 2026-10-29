@@ -117,11 +117,6 @@ module Text.Base64 where
   urlsafe-char v =
     if v == 62 then 45 else if v == 63 then 95 else encode-value v
 
-  -- The scalar value of a character (the encoding family in
-  -- Data.String).
-  char-code :: Char -> Nat
-  char-code c = nat-from-i64 (u32-to-i64 (char-to-u32 c))
-
   is-pad :: Char -> Bool
   is-pad c = char-code c == 61
 
@@ -195,7 +190,7 @@ module Text.Base64 where
   decode-with :: (Nat -> Option Nat) -> String -> Result Base64Error Bytes
   decode-with val s =
     let cs = unpack s in
-    let n = list-count cs in
+    let n = list-length cs in
     if nat-rem n 4 /= 0 then Err (InvalidBase64Length n)
     else
       let p = trailing-pads cs in
@@ -204,7 +199,7 @@ module Text.Base64 where
 
   -- The number of `=` scalars at the end (the caller bounds it at 2).
   trailing-pads :: List Char -> Nat
-  trailing-pads cs = count-pads (rev-list cs)
+  trailing-pads cs = count-pads (reverse cs)
 
   count-pads :: List Char -> Nat
   count-pads cs = case cs of
@@ -224,12 +219,12 @@ module Text.Base64 where
       if is-pad a then Err InvalidBase64Padding
       else if is-pad b then Err InvalidBase64Padding
       else if is-pad d then
-        if not (list-empty rest) then Err InvalidBase64Padding
+        if not (is-empty rest) then Err InvalidBase64Padding
         else if is-pad c then (decode-one val out oi a b)
         else (decode-two val out oi a b c)
       else if is-pad c then Err InvalidBase64Padding
       else decode-three val out oi a b c d rest
-    _ -> Err (InvalidBase64Length (list-count cs))
+    _ -> Err (InvalidBase64Length (list-length cs))
 
   -- Two data characters and two pads: one byte.
   decode-one :: (Nat -> Option Nat) -> Bytes -> Nat -> Char -> Char -> Result Base64Error Bytes
@@ -284,7 +279,7 @@ module Text.Base64 where
   base64-decode-lenient :: String -> Bytes
   base64-decode-lenient s =
     let vs = alphabet-values (unpack s) in
-    let out = bytes-new (lenient-length (list-count vs)) in
+    let out = bytes-new (lenient-length (list-length vs)) in
     let u = lenient-fill out 0 vs in
     out
 
@@ -322,24 +317,3 @@ module Text.Base64 where
       let u = bytes-set out oi (nat-add (nat-mul v0 4) (nat-div v1 16)) in ()
     _ -> ()
 
-  -- -----------------------------------------------------------------
-  -- Private list plumbing (code-point lists, the Text.Scan shape).
-  -- -----------------------------------------------------------------
-
-  list-count :: forall a. List a -> Nat
-  list-count xs = case xs of
-    Nil -> 0
-    Cons _ ys -> 1 + list-count ys
-
-  list-empty :: forall a. List a -> Bool
-  list-empty xs = case xs of
-    Nil -> True
-    Cons _ _ -> False
-
-  rev-list :: forall a. List a -> List a
-  rev-list xs = rev-acc xs Nil
-
-  rev-acc :: forall a. List a -> List a -> List a
-  rev-acc xs acc = case xs of
-    Nil -> acc
-    Cons y ys -> rev-acc ys (Cons y acc)

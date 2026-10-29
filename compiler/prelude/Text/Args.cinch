@@ -37,6 +37,10 @@ module Text.Args where
   import Data.Result
   import Data.String
 
+  import Algebra.Semigroup
+
+  infixr 6 <>
+
   export ArgSpec, FlagSpec, ValueSpec, Required
   export OptVal, opt-name, opt-value
   export Args, args-options, args-values
@@ -127,7 +131,7 @@ module Text.Args where
 
   walk-args :: List ArgSpec -> List String -> List OptVal -> List String -> Bool -> Result ArgsError Args
   walk-args specs argv opts vals done = case argv of
-    Nil -> Ok (Args (rev-opts opts) (rev-vals vals))
+    Nil -> Ok (Args (reverse opts) (reverse vals))
     Cons w rest ->
       if done then walk-args specs rest opts (Cons w vals) True
       else if is-option-end w then walk-args specs rest opts vals True
@@ -197,12 +201,7 @@ module Text.Args where
   -- The canonical argv of one parse: `--name=value` per value
   -- occurrence, `--name` per flag, then the positional values.
   render-argv :: Args -> List String
-  render-argv a = strs-append (render-opts (args-options a)) (args-values a)
-
-  strs-append :: List String -> List String -> List String
-  strs-append xs ys = case xs of
-    Nil -> ys
-    Cons z zs -> Cons z (strs-append zs ys)
+  render-argv a = (render-opts (args-options a)) <> (args-values a)
 
   render-opts :: List OptVal -> List String
   render-opts opts = case opts of
@@ -215,18 +214,4 @@ module Text.Args where
     None -> string-concat "--" n
     Some x -> string-concat "--" (string-concat n (string-concat "=" x))
 
-  rev-opts :: List OptVal -> List OptVal
-  rev-opts xs = rev-opts-acc xs Nil
 
-  rev-opts-acc :: List OptVal -> List OptVal -> List OptVal
-  rev-opts-acc xs acc = case xs of
-    Nil -> acc
-    Cons y ys -> rev-opts-acc ys (Cons y acc)
-
-  rev-vals :: List String -> List String
-  rev-vals xs = rev-vals-acc xs Nil
-
-  rev-vals-acc :: List String -> List String -> List String
-  rev-vals-acc xs acc = case xs of
-    Nil -> acc
-    Cons y ys -> rev-vals-acc ys (Cons y acc)

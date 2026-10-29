@@ -81,10 +81,8 @@ module Text.Csv where
   import Text.Parse (ParseError, EFail, Bundle, render-bundle)
   import Text.Show (int-to-string)
   import Data.Bool
-  import Data.Char (char-to-u32, eq-char)
-  import Data.List (List, Nil, Cons, map, length)
-  import Data.Machine (u32-to-i64)
-  import Data.Nat (nat-from-i64)
+  import Data.Char (char-code, eq-char)
+  import Data.List (List, Nil, Cons, map, length, reverse)
   import Data.Option (Option, None, Some)
   import Data.Result (Result, Ok, Err)
   import Data.String (String, empty-string, pack, string-concat, string-to-bytes, unpack, utf8-encode-width)
@@ -186,7 +184,7 @@ module Text.Csv where
   -- One scalar's width in UTF-8, so the byte offset a span reports
   -- stays exact for non-ASCII text.
   char-width :: Char -> Nat
-  char-width ch = utf8-encode-width (nat-from-i64 (u32-to-i64 (char-to-u32 ch)))
+  char-width ch = utf8-encode-width (char-code ch)
 
   -- Step past the head, advancing line and column with it. Every call
   -- site has just read the head with `scan-char`; the `Nil` arm is the
@@ -261,11 +259,11 @@ module Text.Csv where
       Err e -> Err e
       Ok f -> case f of
         (field, stop2, s2) -> scan-row-rest start stop2 s2 (Cons field acc)
-    StopLf -> Ok (MkRow (row-ended start (scan-take s)) (rev-list acc), scan-take s)
+    StopLf -> Ok (MkRow (row-ended start (scan-take s)) (reverse acc), scan-take s)
     StopCr -> case scan-crlf s of
       Err e -> Err e
-      Ok s2 -> Ok (MkRow (row-ended start s2) (rev-list acc), s2)
-    StopEof -> Ok (MkRow (row-ended start s) (rev-list acc), s)
+      Ok s2 -> Ok (MkRow (row-ended start s2) (reverse acc), s2)
+    StopEof -> Ok (MkRow (row-ended start s) (reverse acc), s)
 
   -- The LF after a CR: the CRLF terminator, refused when the LF is
   -- absent (the terminator is LF or CRLF, never a bare CR).
@@ -284,7 +282,7 @@ module Text.Csv where
   -- caller reports the arity at the row's span).
   key-rows :: List String -> List CsvRow -> List (List (String, String)) -> Result CsvError (List (List (String, String)))
   key-rows headers rows acc = case rows of
-    Nil -> Ok (rev-list acc)
+    Nil -> Ok (reverse acc)
     Cons r rest -> case key-row headers (row-fields r) of
       None -> Err (CsvRowArity (row-span r) (length headers) (length (row-fields r)))
       Some keyed -> key-rows headers rest (Cons keyed acc)
@@ -354,15 +352,7 @@ module Text.Csv where
       else scan-bare (scan-take s) (Cons ch acc)
 
   finish-field :: List Char -> String
-  finish-field acc = pack (rev-list acc)
-
-  rev-list :: forall a. List a -> List a
-  rev-list xs = rev-acc xs Nil
-
-  rev-acc :: forall a. List a -> List a -> List a
-  rev-acc xs acc = case xs of
-    Nil -> acc
-    Cons y ys -> rev-acc ys (Cons y acc)
+  finish-field acc = pack (reverse acc)
 
 
   -- ---------------------------------------------------------------------------
@@ -397,7 +387,7 @@ module Text.Csv where
   quoted-form :: List Char -> Option String
   quoted-form cs = case walk-chars cs False Nil of
     (needs, acc) ->
-      if needs then Some (string-concat "\"" (string-concat (pack (rev-list acc)) "\""))
+      if needs then Some (string-concat "\"" (string-concat (pack (reverse acc)) "\""))
       else None
 
   walk-chars :: List Char -> Bool -> List Char -> (Bool, List Char)

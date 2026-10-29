@@ -64,6 +64,7 @@ module Text.Shellwords where
   import Data.Option
   import Data.Result
   import Data.String
+  import Text.Scan
 
   export ShellwordsError, UnterminatedSingleQuote, UnterminatedDoubleQuote
   export shellwords-split, shellwords-escape, shellwords-join
@@ -99,10 +100,10 @@ module Text.Shellwords where
 
   split-loop :: List Char -> List Char -> Bool -> List String -> Result ShellwordsError (List String)
   split-loop input word started acc = case input of
-    Nil -> Ok (rev-strings (finish started word acc))
+    Nil -> Ok (reverse (finish started word acc))
     Cons c rest ->
       if space-char c then
-        if started then split-loop rest Nil False (Cons (pack (rev-chars word)) acc)
+        if started then split-loop rest Nil False (Cons (pack (reverse word)) acc)
         else split-loop rest Nil False acc
       else if eq-char c '\'' then case sq-loop rest word of
         Err e -> Err e
@@ -120,7 +121,7 @@ module Text.Shellwords where
   -- The word list with the in-progress word appended when one started.
   finish :: Bool -> List Char -> List String -> List String
   finish started word acc =
-    if started then Cons (pack (rev-chars word)) acc else acc
+    if started then Cons (pack (reverse word)) acc else acc
 
   -- Single-quoted content: everything up to the closing quote is
   -- literal, including whitespace, backslashes and newlines.
@@ -218,28 +219,4 @@ module Text.Shellwords where
   shellwords-join xs = join-words (map shellwords-escape xs)
 
   join-words :: List String -> String
-  join-words xs = case xs of
-    Nil -> empty-string
-    Cons y ys -> case ys of
-      Nil -> y
-      _ -> string-concat y (string-concat " " (join-words ys))
-
-  -- -----------------------------------------------------------------
-  -- Private list helpers.
-  -- -----------------------------------------------------------------
-
-  rev-chars :: List Char -> List Char
-  rev-chars cs = rev-chars-acc cs Nil
-
-  rev-chars-acc :: List Char -> List Char -> List Char
-  rev-chars-acc cs acc = case cs of
-    Nil -> acc
-    Cons c rest -> rev-chars-acc rest (Cons c acc)
-
-  rev-strings :: List String -> List String
-  rev-strings xs = rev-strings-acc xs Nil
-
-  rev-strings-acc :: List String -> List String -> List String
-  rev-strings-acc xs acc = case xs of
-    Nil -> acc
-    Cons y ys -> rev-strings-acc ys (Cons y acc)
+  join-words xs = string-join " " xs

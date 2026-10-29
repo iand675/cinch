@@ -68,7 +68,6 @@ module Data.BigDecimal where
   import Data.Int
   import Data.Nat
   import Data.List
-  import Data.Bytes
   import Data.String
   import Data.Char
   import Data.Option
@@ -345,7 +344,7 @@ module Data.BigDecimal where
   render-unsigned m e =
     let digits = int-to-string m in
     if e < 0 then insert-point digits (int-to-nat (int-neg e))
-    else string-concat digits (zeros (int-to-nat e))
+    else string-concat digits (string-repeat (int-to-nat e) "0")
 
   -- The point sits `k` digits from the right (zero-padded when `k`
   -- reaches past the digit run); `k == 0` never gets here, since the
@@ -353,25 +352,10 @@ module Data.BigDecimal where
   insert-point :: String -> Nat -> String
   insert-point digits k =
     let d = string-byte-length digits in
-    if k >= d then string-concat "0." (string-concat (zeros (k - d)) digits)
+    if k >= d then string-concat "0." (string-concat (string-repeat (k - d) "0") digits)
     else
       let cut = d - k in
       string-concat (string-slice digits 0 cut) (string-concat "." (string-slice digits cut d))
-
-  zeros :: Nat -> String
-  zeros n =
-    let b = bytes-new n in
-    let u = fill-zeros b 0 in
-    case string-from-bytes b of
-      None -> empty-string
-      Some s -> s
-
-  fill-zeros :: Bytes -> Nat -> Unit
-  fill-zeros b i =
-    if i >= bytes-len b then ()
-    else
-      let u = bytes-set b i 48 in
-      fill-zeros b (i + 1)
 
   -- The one conversion to a binary float: the exact decimal text,
   -- read by the runtime's correctly-rounded decimal parser. Nothing
@@ -398,14 +382,14 @@ module Data.BigDecimal where
 
   from-int-part :: String -> Bool -> List Nat -> List Nat -> Result BigDecimalError BigDecimal
   from-int-part s neg ints rest = case rest of
-    Nil -> if is-empty-list ints then Err (MalformedLiteral s) else Ok (literal neg ints Nil)
+    Nil -> if is-empty ints then Err (MalformedLiteral s) else Ok (literal neg ints Nil)
     Cons d rest2 ->
       if d == 46 then from-fraction s neg ints (span-digits rest2) (drop-digits rest2)
       else Err (MalformedLiteral s)
 
   from-fraction :: String -> Bool -> List Nat -> List Nat -> List Nat -> Result BigDecimalError BigDecimal
   from-fraction s neg ints fracs rest =
-    if is-empty-list fracs then Err (MalformedLiteral s)
+    if is-empty fracs then Err (MalformedLiteral s)
     else case rest of
       Nil -> Ok (literal neg ints fracs)
       Cons _ _ -> Err (MalformedLiteral s)
@@ -444,22 +428,7 @@ module Data.BigDecimal where
     Cons c rest -> digits-value-acc rest (int-add (int-mul acc 10) (nat-to-int (c - 48)))
 
   codes-of :: String -> List Nat
-  codes-of s = char-codes (unpack s)
-
-  char-codes :: List Char -> List Nat
-  char-codes cs = case cs of
-    Nil -> Nil
-    Cons c rest -> Cons (nat-from-i64 (u32-to-i64 (char-to-u32 c))) (char-codes rest)
-
-  is-empty-list :: forall a. List a -> Bool
-  is-empty-list xs = case xs of
-    Nil -> True
-    Cons _ _ -> False
-
-  list-length :: forall a. List a -> Nat
-  list-length xs = case xs of
-    Nil -> 0
-    Cons _ rest -> 1 + list-length rest
+  codes-of s = map char-code (unpack s)
 
   -- `Nat` to `Int` through the shared bit pattern. Every call site
   -- here converts a digit count, a precision or an exponent magnitude,

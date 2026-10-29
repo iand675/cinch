@@ -251,7 +251,9 @@ module Data.Date where
 
   from-month :: Bool -> List Char -> List Char -> Result DateParseError Date
   from-month neg ys cs = case cs of
-    Cons a (Cons b rest) | is-digit-char a && is-digit-char b -> from-day-sep neg ys (two-digits a b) rest
+    Cons a (Cons b rest) -> case two-digits a b of
+      Some m -> from-day-sep neg ys m rest
+      None -> Err NotADate
     _ -> Err NotADate
 
   from-day-sep :: Bool -> List Char -> Nat -> List Char -> Result DateParseError Date
@@ -261,7 +263,9 @@ module Data.Date where
 
   from-day :: Bool -> List Char -> Nat -> List Char -> Result DateParseError Date
   from-day neg ys m cs = case cs of
-    Cons a (Cons b Nil) | is-digit-char a && is-digit-char b -> build-date neg ys m (two-digits a b)
+    Cons a (Cons b Nil) -> case two-digits a b of
+      Some d -> build-date neg ys m d
+      None -> Err NotADate
     _ -> Err NotADate
 
   build-date :: Bool -> List Char -> Nat -> Nat -> Result DateParseError Date
@@ -345,24 +349,19 @@ module Data.Date where
       Some s -> s
 
   -- The literal reader works over scalar values (`unpack`), the same
-  -- view `Text.Lex` and `Text.Scan` use; the character literals below
-  -- are the separators and the sign.
-  code-of :: Char -> Nat
-  code-of c = nat-from-i64 (u32-to-i64 (char-to-u32 c))
-
-  is-digit-char :: Char -> Bool
-  is-digit-char c = c >= '0' && c <= '9'
+  -- view `Text.Lex` and `Text.Scan` use; the digit test is
+  -- `Data.Char`'s `is-ascii-digit`.
 
   -- The leading digit run of a prefix and everything after it.
   span-digits :: List Char -> List Char
   span-digits cs = case cs of
     Nil -> Nil
-    Cons c rest -> if is-digit-char c then Cons c (span-digits rest) else Nil
+    Cons c rest -> if is-ascii-digit c then Cons c (span-digits rest) else Nil
 
   drop-digits :: List Char -> List Char
   drop-digits cs = case cs of
     Nil -> Nil
-    Cons c rest -> if is-digit-char c then drop-digits rest else cs
+    Cons c rest -> if is-ascii-digit c then drop-digits rest else cs
 
   -- The value of a digit run (empty is zero), most significant first.
   digits-value :: List Char -> Nat
@@ -371,12 +370,14 @@ module Data.Date where
   digits-value-acc :: List Char -> Nat -> Nat
   digits-value-acc ds acc = case ds of
     Nil -> acc
-    Cons c rest -> digits-value-acc rest (nat-add (nat-mul acc 10) (nat-sub (code-of c) 48))
+    Cons c rest -> digits-value-acc rest (nat-add (nat-mul acc 10) (nat-sub (char-code c) 48))
 
-  two-digits :: Char -> Char -> Nat
-  two-digits a b = nat-add (nat-mul (nat-sub (code-of a) 48) 10) (nat-sub (code-of b) 48)
-
-  list-length :: forall a. List a -> Nat
-  list-length xs = case xs of
-    Nil -> 0
-    Cons _ rest -> 1 + list-length rest
+  -- The value of a two-digit field, or `None` when either character is
+  -- not an ASCII digit (`Data.Char`'s `digit-value` is the only digit
+  -- reader here, and the callers' guard has gone into the `case`).
+  two-digits :: Char -> Char -> Option Nat
+  two-digits a b = case digit-value a of
+    Some x -> case digit-value b of
+      Some y -> Some (nat-add (nat-mul x 10) y)
+      None -> None
+    None -> None

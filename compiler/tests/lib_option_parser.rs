@@ -31,6 +31,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 const OPTION_PARSER: &str = include_str!("../prelude/Text/OptionParser.cinch");
 const ARGS: &str = include_str!("../prelude/Text/Args.cinch");
+const SCAN_SRC: &str = include_str!("../prelude/Text/Scan.cinch");
 
 /// The shared option specification: a string option with a short name, an
 /// integer and a float converter, two presence flags (so the present-flag
@@ -172,6 +173,7 @@ fn drive(entry: &Path) -> i32 {
 fn run_main(name: &str, main_src: &str, with_args: bool) -> i32 {
     let dir = project_dir(name);
     std::fs::write(dir.join("Text.OptionParser.cinch"), OPTION_PARSER).expect("write module");
+    std::fs::write(dir.join("Text.Scan.cinch"), SCAN_SRC).expect("write Text.Scan");
     if with_args {
         std::fs::write(dir.join("Text.Args.cinch"), ARGS).expect("write Text.Args");
     }

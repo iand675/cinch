@@ -30,6 +30,7 @@ const LOG_SRC: &str = include_str!("../prelude/Effect/Log.cinch");
 const TRACE_SRC: &str = include_str!("../prelude/Effect/Trace.cinch");
 const OTLP_SRC: &str = include_str!("../prelude/Text/Otlp.cinch");
 const LEX_SRC: &str = include_str!("../prelude/Text/Lex.cinch");
+const SCAN_SRC: &str = include_str!("../prelude/Text/Scan.cinch");
 const PARSE_SRC: &str = include_str!("../prelude/Text/Parse.cinch");
 const JSON_SRC: &str = include_str!("../prelude/Text/Json.cinch");
 
@@ -50,11 +51,12 @@ fn write_project(name: &str, files: &[(&str, &str)]) -> PathBuf {
     ));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).expect("temp project dir");
-    let modules: [(&str, &str); 6] = [
+    let modules: [(&str, &str); 7] = [
         ("Effect.Log.cinch", LOG_SRC),
         ("Effect.Trace.cinch", TRACE_SRC),
         ("Text.Otlp.cinch", OTLP_SRC),
         ("Text.Lex.cinch", LEX_SRC),
+        ("Text.Scan.cinch", SCAN_SRC),
         ("Text.Parse.cinch", PARSE_SRC),
         ("Text.Json.cinch", JSON_SRC),
     ];

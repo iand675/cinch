@@ -45,6 +45,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 const CSV: &str = include_str!("../prelude/Text/Csv.cinch");
+const SCAN: &str = include_str!("../prelude/Text/Scan.cinch");
 const PARSE: &str = include_str!("../prelude/Text/Parse.cinch");
 const LEX: &str = include_str!("../prelude/Text/Lex.cinch");
 
@@ -157,6 +158,7 @@ fn run_main(name: &str, main_src: &str) -> i32 {
     std::fs::create_dir_all(&dir).expect("temp project dir");
     for (file, src) in [
         ("Text.Csv.cinch", CSV),
+        ("Text.Scan.cinch", SCAN),
         ("Text.Parse.cinch", PARSE),
         ("Text.Lex.cinch", LEX),
         ("Main.cinch", main_src),

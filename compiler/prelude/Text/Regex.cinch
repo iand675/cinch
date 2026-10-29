@@ -81,6 +81,10 @@ module Text.Regex where
   import Data.Machine
   import Text.Show
 
+  import Algebra.Semigroup
+
+  infixr 6 <>
+
   export Regex, parse-regex, regex-escape
   export Match, match-start, match-end, match-text, match-group, match-group-count
   export regex-match, regex-match-counted, regex-search-from
@@ -91,35 +95,12 @@ module Text.Regex where
 
 
   -- -----------------------------------------------------------------
-  -- Small private helpers (the curated surface keeps Data.List's
-  -- names; the plumbing below is this module's own).
+  -- Small private helpers. The generic list and scalar shapes come from
+  -- their homes: `reverse`, `<>`, `list-length`, `nth` and `replicate`
+  -- (Data.List), `char-code` (Data.Char). `is-none` and
+  -- `concat-strings` stay here (this module sits under `Text.Scan` in
+  -- the import graph).
   -- -----------------------------------------------------------------
-
-  rev-list :: forall a. List a -> List a
-  rev-list xs = rev-acc xs Nil
-
-  rev-acc :: forall a. List a -> List a -> List a
-  rev-acc xs acc = case xs of
-    Nil -> acc
-    Cons y ys -> rev-acc ys (Cons y acc)
-
-  list-cat :: forall a. List a -> List a -> List a
-  list-cat xs ys = case xs of
-    Nil -> ys
-    Cons z zs -> Cons z (list-cat zs ys)
-
-  list-count :: forall a. List a -> Nat
-  list-count xs = case xs of
-    Nil -> 0
-    Cons _ ys -> 1 + list-count ys
-
-  list-nth :: forall a. List a -> Nat -> Option a
-  list-nth xs n = case xs of
-    Nil -> None
-    Cons y ys -> if n == 0 then Some y else list-nth ys (n - 1)
-
-  list-replicate :: forall a. Nat -> a -> List a
-  list-replicate n v = if n == 0 then Nil else Cons v (list-replicate (n - 1) v)
 
   is-none :: forall a. Option a -> Bool
   is-none o = case o of
@@ -131,12 +112,6 @@ module Text.Regex where
     Nil -> empty-string
     Cons y ys -> string-concat y (concat-strings ys)
 
-  -- The scalar value of a character (Data.String's private helper,
-  -- restated here: this module works in code points throughout so
-  -- the parser needs no character literals).
-  code-of :: Char -> Nat
-  code-of c = nat-from-i64 (u32-to-i64 (char-to-u32 c))
-
   -- String helpers over the byte backing.
   string-codes :: String -> List Nat
   string-codes s = codes-of (unpack s)
@@ -144,7 +119,7 @@ module Text.Regex where
   codes-of :: List Char -> List Nat
   codes-of cs = case cs of
     Nil -> Nil
-    Cons c rest -> Cons (code-of c) (codes-of rest)
+    Cons c rest -> Cons (char-code c) (codes-of rest)
 
   is-alnum-code :: Nat -> Bool
   is-alnum-code c =
@@ -587,7 +562,7 @@ module Text.Regex where
       case parse-class-items cs1 Nil True of
         Err e -> Err e
         Ok p -> case p of
-          ClassStep ranges cs2 -> Ok (ParseStep (AstClass (rev-list ranges) neg) cs2 g)
+          ClassStep ranges cs2 -> Ok (ParseStep (AstClass (reverse ranges) neg) cs2 g)
 
   parse-class-items :: Cursor -> List (Nat, Nat) -> Bool -> Result RegexError ClassStep
   parse-class-items cs acc first = case cursor-peek cs of
@@ -628,7 +603,7 @@ module Text.Regex where
   parse-class-atom-lit cs acc = parse-class-items (cursor-pop cs) (Cons (93, 93) acc) False
 
   shorthand-pre :: List (Nat, Nat) -> List (Nat, Nat) -> List (Nat, Nat)
-  shorthand-pre rs acc = list-cat (rev-list rs) acc
+  shorthand-pre rs acc = (reverse rs) <> acc
 
   parse-class-atom :: Cursor -> Result RegexError ClassAtom
   parse-class-atom cs = case cursor-peek cs of
@@ -712,7 +687,7 @@ module Text.Regex where
     AstEmpty -> 0
     AstLit _ -> 1
     AstAny -> 1
-    AstClass rs _ -> sat-add 1 (list-count rs)
+    AstClass rs _ -> sat-add 1 (list-length rs)
     AstCat a b -> sat-add (prog-size a) (prog-size b)
     AstAlt a b -> sat-add (sat-add (prog-size a) (prog-size b)) 2
     AstGroup _ a -> sat-add (prog-size a) 2
@@ -731,30 +706,30 @@ module Text.Regex where
     AstEmpty -> Nil
     AstLit cp -> Cons (IChar cp) Nil
     AstAny -> Cons IAny Nil
-    AstClass rs neg -> Cons (IClass (list-count rs) neg) (emit-ranges rs)
-    AstCat a b -> list-cat (emit a) (emit b)
+    AstClass rs neg -> Cons (IClass (list-length rs) neg) (emit-ranges rs)
+    AstCat a b -> (emit a) <> (emit b)
     AstAlt a b ->
       let xs = emit a in
       let ys = emit b in
-      let la = list-count xs in
-      let lb = list-count ys in
-      Cons (ISplit 1 (int-of (la + 2))) (list-cat xs (Cons (IJump (int-of (lb + 1))) ys))
+      let la = list-length xs in
+      let lb = list-length ys in
+      Cons (ISplit 1 (int-of (la + 2))) (xs <> (Cons (IJump (int-of (lb + 1))) ys))
     AstGroup k body ->
       let xs = emit body in
-      Cons (ISave (2 * k)) (list-cat xs (Cons (ISave (2 * k + 1)) Nil))
+      Cons (ISave (2 * k)) (xs <> (Cons (ISave (2 * k + 1)) Nil))
     AstStart -> Cons (IAss 0) Nil
     AstEnd -> Cons (IAss 1) Nil
     AstWord -> Cons (IAss 2) Nil
     AstNotWord -> Cons (IAss 3) Nil
     AstRepeat mn mx greedy body ->
       let xs = emit body in
-      let lb = list-count xs in
+      let lb = list-length xs in
       let pre = copies-of xs mn in
       case mx of
-        None -> list-cat pre (star-of xs lb greedy)
+        None -> pre <> (star-of xs lb greedy)
         Some m ->
           if m == mn then pre
-          else list-cat pre (opt-nest xs lb (m - mn) greedy)
+          else pre <> (opt-nest xs lb (m - mn) greedy)
 
   emit-ranges :: List (Nat, Nat) -> List Instr
   emit-ranges rs = case rs of
@@ -763,23 +738,23 @@ module Text.Regex where
       (lo, hi) -> Cons (IRange lo hi) (emit-ranges rest)
 
   copies-of :: List Instr -> Nat -> List Instr
-  copies-of xs n = if n == 0 then Nil else list-cat xs (copies-of xs (n - 1))
+  copies-of xs n = if n == 0 then Nil else xs <> (copies-of xs (n - 1))
 
   -- `x*` as a loop: split prefers the body; the lazy form flips the
   -- preference. Layout: [split, body, jump-back].
   star-of :: List Instr -> Nat -> Bool -> List Instr
   star-of xs lb greedy =
     let back = IJump (int-neg (int-of (lb + 1))) in
-    if greedy then Cons (ISplit 1 (int-of (lb + 2))) (list-cat xs (Cons back Nil))
-    else Cons (ISplit (int-of (lb + 2)) 1) (list-cat xs (Cons back Nil))
+    if greedy then Cons (ISplit 1 (int-of (lb + 2))) (xs <> (Cons back Nil))
+    else Cons (ISplit (int-of (lb + 2)) 1) (xs <> (Cons back Nil))
 
   -- `x{0,k}` as k nested optionals: (x (x ...)?)?.
   opt-nest :: List Instr -> Nat -> Nat -> Bool -> List Instr
   opt-nest xs lb k greedy =
     if k == 0 then Nil
     else
-      let inner = list-cat xs (opt-nest xs lb (k - 1) greedy) in
-      let li = list-count inner in
+      let inner = xs <> (opt-nest xs lb (k - 1) greedy) in
+      let li = list-length inner in
       if greedy then Cons (ISplit 1 (int-of (li + 1))) inner
       else Cons (ISplit (int-of (li + 1)) 1) inner
 
@@ -816,7 +791,7 @@ module Text.Regex where
 
   encode-program :: List Instr -> Bytes
   encode-program instrs =
-    let buf = bytes-new (list-count instrs * 16) in
+    let buf = bytes-new (list-length instrs * 16) in
     let u = encode-into buf 0 instrs in
     buf
 
@@ -922,13 +897,13 @@ module Text.Regex where
 
   match-group :: Match -> Nat -> Option String
   match-group m k = case m of
-    Match _ _ gs -> case list-nth gs k of
+    Match _ _ gs -> case nth k gs of
       None -> None
       Some g -> g
 
   match-group-count :: Match -> Nat
   match-group-count m = case m of
-    Match _ _ gs -> list-count gs
+    Match _ _ gs -> list-length gs
 
   -- Compile a pattern. The parser is strict about quantifier
   -- position: `{` right after an atom MUST be a valid quantifier
@@ -946,8 +921,8 @@ module Text.Regex where
           let total = sat-add (prog-size node) 3 in
           if total >= size-cap then Err (ProgramTooLarge total)
           else
-            let instrs = Cons (ISave 0) (list-cat (emit node) (Cons (ISave 1) (Cons IMatch Nil))) in
-            Ok (Regex (Prog (encode-program instrs) (list-count instrs)) g)
+            let instrs = Cons (ISave 0) ((emit node) <> (Cons (ISave 1) (Cons IMatch Nil))) in
+            Ok (Regex (Prog (encode-program instrs) (list-length instrs)) g)
 
   -- Escape the regex metacharacters in a literal string, so the
   -- result matches exactly that string (Ruby's Regexp.escape).
@@ -958,15 +933,17 @@ module Text.Regex where
   escape-each cs = case cs of
     Nil -> Nil
     Cons c rest ->
-      if is-meta-code (code-of c) then Cons (pack (Cons (code-of-char 92) (Cons c Nil))) (escape-each rest)
+      if is-meta-code (char-code c) then Cons (pack (Cons (code-of-char 92) (Cons c Nil))) (escape-each rest)
       else Cons (pack (Cons c Nil)) (escape-each rest)
 
-  -- A `\` character (built from its code point: no character
-  -- literals needed in this module).
+  -- A scalar value as a `Char` (`char-from-code` with the module's
+  -- fallback, so the escape and template-walk code stays total and this
+  -- module keeps to code points rather than character literals; used for
+  -- the `\` and `$` code points).
   code-of-char :: Nat -> Char
-  code-of-char n = case u32-to-char (wrapping-i64-to-u32 (nat-to-i64 n)) of
-    None -> code-of-char 63
+  code-of-char n = case char-from-code n of
     Some c -> c
+    None -> code-of-char 63
 
   is-meta-code :: Nat -> Bool
   is-meta-code c =
@@ -1006,7 +983,7 @@ module Text.Regex where
       run-iter re subj pos prev 1114112 1114112 0 matched clist visited steps
     Some t -> case t of
       (ch, w) ->
-        let cur = code-of ch in
+        let cur = char-code ch in
         let next = scalar-at subj (pos + w) in
         run-iter re subj pos prev cur next w matched clist visited steps
 
@@ -1016,7 +993,7 @@ module Text.Regex where
   scalar-at subj p = case utf8-at subj p of
     None -> 1114112
     Some t -> case t of
-      (ch, _) -> code-of ch
+      (ch, _) -> char-code ch
 
   run-iter :: Regex -> Bytes -> Nat -> Nat -> Nat -> Nat -> Nat -> Option (List Nat) -> List (Nat, List Nat) -> Bytes -> Nat -> (Option (List Nat), Nat)
   run-iter re subj pos prev cur next w matched clist visited steps =
@@ -1026,7 +1003,7 @@ module Text.Regex where
     -- were expanded last iteration, so earlier starts dominate it.
     case start-outputs re subj pos prev cur visited of
       (start, steps1) ->
-        let clist2 = if is-none matched then append-at-end clist start else clist in
+        let clist2 = if is-none matched then clist <> start else clist in
         let steps2 = steps + steps1 in
         case step-loop re subj pos cur next w clist2 Nil matched visited steps2 of
           (nlist, matched2, steps3) ->
@@ -1040,11 +1017,10 @@ module Text.Regex where
   start-outputs :: Regex -> Bytes -> Nat -> Nat -> Nat -> Bytes -> (List (Nat, List Nat), Nat)
   start-outputs re subj pos prev cur visited =
     let g = group-count-of re in
-    case expand re subj pos prev cur (Cons (0, list-replicate (2 * (g + 1)) 4294967295) Nil) Nil visited 0 of
-      (acc, st) -> (rev-list acc, st)
+    case expand re subj pos prev cur (Cons (0, replicate (2 * (g + 1)) 4294967295) Nil) Nil visited 0 of
+      (acc, st) -> (reverse acc, st)
 
-  append-at-end :: forall a. List a -> List a -> List a
-  append-at-end xs ys = list-cat xs ys
+
 
   group-count-of :: Regex -> Nat
   group-count-of re = case re of
@@ -1056,11 +1032,11 @@ module Text.Regex where
   -- processed keep running and may override the record later.
   step-loop :: Regex -> Bytes -> Nat -> Nat -> Nat -> Nat -> List (Nat, List Nat) -> List (Nat, List Nat) -> Option (List Nat) -> Bytes -> Nat -> (List (Nat, List Nat), Option (List Nat), Nat)
   step-loop re subj pos cur next w clist acc matched visited steps = case clist of
-    Nil -> (rev-list acc, matched, steps)
+    Nil -> (reverse acc, matched, steps)
     Cons th rest -> case th of
       (pc, caps) ->
         let op = fetch-op re pc in
-        if op == op-match then (rev-list acc, Some caps, steps + 1)
+        if op == op-match then (reverse acc, Some caps, steps + 1)
         else if op == op-char then
           if cur == 1114112 then step-loop re subj pos cur next w rest acc matched visited (steps + 1)
           else if fetch-a re pc == cur then
@@ -1162,7 +1138,7 @@ module Text.Regex where
     else case utf8-at subj i of
       None -> prev
       Some t -> case t of
-        (ch, w) -> prev-walk subj (i + w) (code-of ch) p
+        (ch, w) -> prev-walk subj (i + w) (char-code ch) p
 
   next-scalar :: Bytes -> Nat -> Nat
   next-scalar subj p = case utf8-at subj p of
@@ -1181,7 +1157,7 @@ module Text.Regex where
 
   -- A capture slot read (the unset sentinel for a missing slot).
   caps-at :: List Nat -> Nat -> Nat
-  caps-at caps idx = case list-nth caps idx of
+  caps-at caps idx = case nth idx caps of
     None -> 4294967295
     Some v -> v
 
@@ -1293,11 +1269,11 @@ module Text.Regex where
 
   split-pieces :: Bytes -> List Match -> Nat -> List String -> List String
   split-pieces subj ms c acc = case ms of
-    Nil -> rev-list (Cons (bytes-text subj c (bytes-len subj)) acc)
+    Nil -> reverse (Cons (bytes-text subj c (bytes-len subj)) acc)
     Cons m rest -> split-pieces subj rest (match-end m) (Cons (bytes-text subj c (match-start m)) acc)
 
   drop-trailing-empty :: List String -> List String
-  drop-trailing-empty xs = rev-list (drop-empty-head (rev-list xs))
+  drop-trailing-empty xs = reverse (drop-empty-head (reverse xs))
 
   drop-empty-head :: List String -> List String
   drop-empty-head xs = case xs of
@@ -1306,7 +1282,7 @@ module Text.Regex where
 
   -- Count the matches (the scan's length).
   regex-count :: Regex -> String -> Nat
-  regex-count re s = list-count (regex-scan re s)
+  regex-count re s = list-length (regex-scan re s)
 
   -- Replace every match with `f` applied to it (the text between
   -- matches is copied through unchanged).
@@ -1324,7 +1300,7 @@ module Text.Regex where
 
   replace-pieces :: Bytes -> List Match -> (Match -> String) -> Nat -> List String -> List String
   replace-pieces subj ms f c acc = case ms of
-    Nil -> rev-list (Cons (bytes-text subj c (bytes-len subj)) acc)
+    Nil -> reverse (Cons (bytes-text subj c (bytes-len subj)) acc)
     Cons m rest ->
       replace-pieces subj rest f (match-end m) (Cons (f m) (Cons (bytes-text subj c (match-start m)) acc))
 
@@ -1347,11 +1323,11 @@ module Text.Regex where
 
   parse-template :: List Char -> List Tpl -> List Tpl
   parse-template cs acc = case cs of
-    Nil -> rev-list acc
+    Nil -> reverse acc
     Cons c rest ->
       if not (eq-char c (code-of-char 36)) then parse-template rest (Cons (TplLit (pack (Cons c Nil))) acc)
       else case rest of
-        Nil -> rev-list (Cons (TplLit (pack (Cons c Nil))) acc)
+        Nil -> reverse (Cons (TplLit (pack (Cons c Nil))) acc)
         Cons d rest2 ->
           if eq-char d (code-of-char 36) then parse-template rest2 (Cons (TplLit (pack (Cons d Nil))) acc)
           else
@@ -1364,7 +1340,7 @@ module Text.Regex where
   template-digits cs n seen = case cs of
     Nil -> (n, cs, seen)
     Cons c rest ->
-      let d = code-of c in
+      let d = char-code c in
       if d >= 48 && d <= 57 then template-digits rest (n * 10 + (d - 48)) True
       else (n, cs, seen)
 

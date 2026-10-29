@@ -222,7 +222,7 @@ module Effect.Test where
   -- return the report. The progress lines are what a caller watches
   -- while the suite runs; `render-report` is the summary after it.
   run-suite :: forall r. using (io :: Io r) => List TestCase ->{IO r} Report
-  run-suite cases = Report (rev-outcomes (run-cases cases Nil))
+  run-suite cases = Report (reverse (run-cases cases Nil))
 
   run-cases :: forall r. using (io :: Io r) => List TestCase -> List CaseOutcome ->{IO r} List CaseOutcome
   run-cases cases acc = case cases of
@@ -313,11 +313,3 @@ module Effect.Test where
   all-ok os = case os of
     Nil -> True
     Cons o rest -> outcome-ok o && all-ok rest
-
-  rev-outcomes :: List CaseOutcome -> List CaseOutcome
-  rev-outcomes os = rev-into os Nil
-
-  rev-into :: List CaseOutcome -> List CaseOutcome -> List CaseOutcome
-  rev-into os acc = case os of
-    Nil -> acc
-    Cons o rest -> rev-into rest (Cons o acc)

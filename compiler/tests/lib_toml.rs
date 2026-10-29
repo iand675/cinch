@@ -20,6 +20,9 @@ use cinch::driver::{driver, Mode};
 use std::path::PathBuf;
 
 const TOML_SRC: &str = include_str!("../prelude/Text/Toml.cinch");
+// `Text.Toml` now joins its lines through `Text.Scan`'s `string-join`,
+// so the toolkit has to be beside it (its own imports are embedded).
+const SCAN_SRC: &str = include_str!("../prelude/Text/Scan.cinch");
 
 /// The `Main` header: the imports, structural `Json` equality (order
 /// sensitive; NaN equals NaN for the round-trip law), the `Json`
@@ -89,6 +92,7 @@ fn run_main(name: &str, body: &str) -> i32 {
     std::fs::create_dir_all(&dir).expect("temp project dir");
     let src = format!("{HEADER}{body}");
     std::fs::write(dir.join("Toml.cinch"), TOML_SRC).expect("write Text.Toml");
+    std::fs::write(dir.join("Text.Scan.cinch"), SCAN_SRC).expect("write Text.Scan");
     std::fs::write(dir.join("main.cinch"), src).expect("write Main");
     let entry = dir.join("main.cinch");
     std::thread::Builder::new()

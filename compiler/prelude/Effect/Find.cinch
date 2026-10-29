@@ -94,7 +94,7 @@ module Effect.Find where
     _ -> False
 
   -- The entry joins the accumulator when the filter keeps it (the
-  -- accumulator is reversed, see `reverse-paths`).
+  -- accumulator grows head-first, so `collect` reverses it once).
   add-entry :: (FileKind -> Bool) -> FileKind -> Path -> List Path -> List Path
   add-entry keep k p acc = case keep k of
     True -> Cons p acc
@@ -133,22 +133,14 @@ module Effect.Find where
       Broken e -> Broken e
 
   -- Only a completed or a stopped walk has a result; a failure keeps
-  -- nothing (the header's partial-results refusal).
+  -- nothing (the header's partial-results refusal). The accumulator
+  -- grows head-first, so the result is one `reverse` here, never an
+  -- append per entry.
   collect :: forall r. using (io :: Io r) => (FileKind -> Bool) -> (Path -> Step) -> Path ->{IO r} Result FsError (List Path)
   collect keep decide root = case walk keep decide root Nil of
-    Exhausted acc -> Ok (reverse-paths acc)
-    Stopped acc -> Ok (reverse-paths acc)
+    Exhausted acc -> Ok (reverse acc)
+    Stopped acc -> Ok (reverse acc)
     Broken e -> Err e
-
-  -- The accumulator grows head-first, so the result is one reversal
-  -- here (never an append per entry).
-  reverse-paths :: List Path -> List Path
-  reverse-paths xs = reverse-onto xs Nil
-
-  reverse-onto :: List Path -> List Path -> List Path
-  reverse-onto xs acc = case xs of
-    Nil -> acc
-    Cons y ys -> reverse-onto ys (Cons y acc)
 
   -- The subtree beneath `root`, pre-order, reporting the paths the
   -- visitor's decisions leave in the walk (see the header for the

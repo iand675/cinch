@@ -14,6 +14,7 @@
 -- rule (decision D145).
 module Data.List where
 
+  import Data.Option
   import Algebra.Arithmetic
   import Algebra.Semigroup
   import Algebra.Monoid
@@ -25,6 +26,7 @@ module Data.List where
   import Category.Traversable
 
   export List, Nil, Cons, map, foldr, length, sum-list, list-byte-count
+  export reverse, take, drop, nth, replicate, list-length, is-empty
 
 
   data List a where
@@ -46,6 +48,63 @@ module Data.List where
     Nil -> 0
     Cons y ys -> 1 + length ys
 
+  -- The same count as a `Nat`, for the indexing and sizing arithmetic
+  -- that works in `Nat` (`take`/`drop`/`nth` below, offsets, widths).
+  -- `length` stays `Int` because the prelude surface has always
+  -- returned `Int` there.
+  list-length :: forall a. List a -> Nat
+  list-length xs = case xs of
+    Nil -> 0
+    Cons _ ys -> 1 + list-length ys
+
+  -- Reversal (the accumulator is the reverse built so far, so the walk
+  -- is linear; `reverse-into` is the private twin every accumulator
+  -- walk here shares).
+  reverse :: forall a. List a -> List a
+  reverse xs = reverse-into xs Nil
+
+  reverse-into :: forall a. List a -> List a -> List a
+  reverse-into xs acc = case xs of
+    Nil -> acc
+    Cons y ys -> reverse-into ys (Cons y acc)
+
+  -- The first `n` elements (fewer when the list is shorter).
+  take :: forall a. Nat -> List a -> List a
+  take n xs = case n == 0 of
+    True -> Nil
+    False -> case xs of
+      Nil -> Nil
+      Cons y ys -> Cons y (take (n - 1) ys)
+
+  -- Everything but the first `n` elements.
+  drop :: forall a. Nat -> List a -> List a
+  drop n xs = case n == 0 of
+    True -> xs
+    False -> case xs of
+      Nil -> Nil
+      Cons _ ys -> drop (n - 1) ys
+
+  -- The element at index `n` (`None` past the end).
+  nth :: forall a. Nat -> List a -> Option a
+  nth n xs = case n == 0 of
+    True -> case xs of
+      Nil -> None
+      Cons y _ -> Some y
+    False -> case xs of
+      Nil -> None
+      Cons _ ys -> nth (n - 1) ys
+
+  -- `x` repeated `n` times.
+  replicate :: forall a. Nat -> a -> List a
+  replicate n x = case n == 0 of
+    True -> Nil
+    False -> Cons x (replicate (n - 1) x)
+
+  is-empty :: forall a. List a -> Bool
+  is-empty xs = case xs of
+    Nil -> True
+    Cons _ _ -> False
+
   sum-list :: forall a. using (add :: Add a) => a -> List a -> a
   sum-list z xs = foldr (\x acc -> x + acc) z xs
 
@@ -53,9 +112,7 @@ module Data.List where
   -- values in order. A value that does not fit a byte faults in
   -- `bytes-set`, like every out-of-range byte write.
   list-byte-count :: List Nat -> Nat
-  list-byte-count xs = case xs of
-    Nil -> 0
-    Cons y ys -> 1 + list-byte-count ys
+  list-byte-count xs = list-length xs
 
   implicit instance FromList_List e :: FromList (List e) e where
     from-list xs = xs

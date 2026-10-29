@@ -104,16 +104,20 @@ module Data.Matrix where
   one-f64 = i64-to-f64 1
 
 
-  list-count :: forall a. List a -> Nat
-  list-count xs = case xs of
-    Nil -> 0
-    Cons y ys -> 1 + list-count ys
-
+  -- Delete the element at index `j` (the minor rebuild drops column
+  -- `j` from every row). Not `Data.List`'s `drop`: `drop j` removes the
+  -- first `j` elements, this keeps the element before `j` and removes
+  -- `j` itself, so it stays local.
   drop-at :: forall a. Nat -> List a -> List a
   drop-at j xs = case xs of
     Nil -> Nil
     Cons y ys -> if j == 0 then ys else Cons y (drop-at (j - 1) ys)
 
+  -- The row-major transposition trio (the first cell of every row, the
+  -- tail of every row, and the transpose itself). Generic over the
+  -- element like the `Data.List` plumbing, but the base layer states
+  -- no `transpose`/`head`/`tail` of its own, so they live here until a
+  -- shared home exists.
   map-head :: forall a. List (List a) -> List a
   map-head xss = case xss of
     Nil -> Nil
@@ -158,16 +162,16 @@ module Data.Matrix where
   matrix :: List (List F64) -> Result MatrixError Matrix
   matrix xss = case xss of
     Nil -> Ok (MkMatrix 0 0 Nil)
-    Cons first rest -> case check-widths (list-count first) 1 rest of
+    Cons first rest -> case check-widths (list-length first) 1 rest of
       Some e -> Err e
-      None -> Ok (MkMatrix (1 + list-count rest) (list-count first) xss)
+      None -> Ok (MkMatrix (1 + list-length rest) (list-length first) xss)
 
   check-widths :: Nat -> Nat -> List (List F64) -> Option MatrixError
   check-widths w idx xss = case xss of
     Nil -> None
     Cons r rs ->
-      if list-count r == w then check-widths w (idx + 1) rs
-      else Some (RaggedRows idx w (list-count r))
+      if list-length r == w then check-widths w (idx + 1) rs
+      else Some (RaggedRows idx w (list-length r))
 
 
   -- The cell, or a named `IndexOutOfRange`. Both indices are
@@ -245,8 +249,8 @@ module Data.Matrix where
 
   mul-vector :: Matrix -> List F64 -> Result MatrixError (List F64)
   mul-vector m v =
-    if cols m == list-count v then Ok (row-times-vector (matrix-rows m) v)
-    else Err (VectorMismatch (cols m) (list-count v))
+    if cols m == list-length v then Ok (row-times-vector (matrix-rows m) v)
+    else Err (VectorMismatch (cols m) (list-length v))
 
 
   transpose :: Matrix -> Matrix
@@ -353,11 +357,8 @@ module Data.Matrix where
     Some s -> s
     None -> empty-string
 
-  space-run :: Nat -> String
-  space-run n = if n == 0 then empty-string else string-concat " " (space-run (n - 1))
-
   pad-column :: Nat -> String -> String
-  pad-column w s = if string-length s >= w then s else string-concat (space-run (w - string-length s)) s
+  pad-column w s = if string-length s >= w then s else string-concat (string-repeat (w - string-length s) " ") s
 
   column-max :: List String -> Nat
   column-max xs = case xs of

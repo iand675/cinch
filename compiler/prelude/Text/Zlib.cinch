@@ -82,6 +82,10 @@ module Text.Zlib where
   import Data.Bytes
   import Data.Machine
 
+  import Algebra.Semigroup
+
+  infixr 6 <>
+
   export ZlibError, BadHeader, BadChecksum, InvalidCode, TruncatedStream
   export inflate, deflate, adler32, crc32
 
@@ -101,56 +105,11 @@ module Text.Zlib where
     TruncatedStream :: ZlibError
 
   -- ---------------------------------------------------------------------
-  -- List plumbing (the curated `Data.List` surface is the type and its
-  -- folds; a decoder wants positional access, reversal and repeats).
+  -- List plumbing. The decoder's positional access, reversal, slicing and
+  -- repeats are Data.List's (`nth`, `reverse`, `take`, `drop`,
+  -- `replicate`) and append is the `Semigroup`'s `<>`; nothing bespoke is
+  -- kept here.
   -- ---------------------------------------------------------------------
-
-  list-nth :: forall a. Nat -> List a -> Option a
-  list-nth n xs = case n == 0 of
-    True -> case xs of
-      Nil -> None
-      Cons y ys -> Some y
-    False -> case xs of
-      Nil -> None
-      Cons y ys -> list-nth (n - 1) ys
-
-  rev-list :: forall a. List a -> List a
-  rev-list xs = rev-acc xs Nil
-
-  rev-acc :: forall a. List a -> List a -> List a
-  rev-acc xs acc = case xs of
-    Nil -> acc
-    Cons y ys -> rev-acc ys (Cons y acc)
-
-  take-n :: forall a. Nat -> List a -> List a
-  take-n n xs = case n == 0 of
-    True -> Nil
-    False -> case xs of
-      Nil -> Nil
-      Cons y ys -> Cons y (take-n (n - 1) ys)
-
-  drop-n :: forall a. Nat -> List a -> List a
-  drop-n n xs = case n == 0 of
-    True -> xs
-    False -> case xs of
-      Nil -> Nil
-      Cons y ys -> drop-n (n - 1) ys
-
-  list-append :: forall a. List a -> List a -> List a
-  list-append xs ys = case xs of
-    Nil -> ys
-    Cons z zs -> Cons z (list-append zs ys)
-
-  -- `v` pushed `n` times (the repeat codes' expansion).
-  push-n :: Nat -> Nat -> List Nat -> List Nat
-  push-n n v xs = case n == 0 of
-    True -> xs
-    False -> push-n (n - 1) v (Cons v xs)
-
-  repeat-n :: Nat -> Nat -> List Nat
-  repeat-n n v = case n == 0 of
-    True -> Nil
-    False -> Cons v (repeat-n (n - 1) v)
 
   -- ---------------------------------------------------------------------
   -- Byte plumbing. Both directions copy into buffers this module owns;
@@ -351,7 +310,7 @@ module Text.Zlib where
   step-level :: Bits -> Level -> List Level -> Nat -> Result ZlibError (Bits, Nat)
   step-level b lv rest code = case lv of
     Level cnt first syms -> case code < first + cnt of
-      True -> case list-nth (code - first) syms of
+      True -> case nth (code - first) syms of
         None -> Err InvalidCode
         Some sym -> Ok (b, sym)
       False -> huff-walk b rest code
@@ -389,9 +348,9 @@ module Text.Zlib where
     False -> pair-nth dist-base dist-extra c
 
   pair-nth :: List Nat -> List Nat -> Nat -> Option (Nat, Nat)
-  pair-nth bs es k = case list-nth k bs of
+  pair-nth bs es k = case nth k bs of
     None -> None
-    Some b -> case list-nth k es of
+    Some b -> case nth k es of
       None -> None
       Some e -> Some (b, e)
 
@@ -653,13 +612,13 @@ module Text.Zlib where
                   let cltab = table-build (cl-slot-lens (cl-pairs cl-order vals)) in
                   case lens-read b4 cltab (hlit + hdist) 0 None Nil of
                     Err e -> Err e
-                    Ok (b5, lens) -> Ok (Tables (St b5 (st-sink st)) (table-build (take-n hlit lens)) (table-build (drop-n hlit lens)))
+                    Ok (b5, lens) -> Ok (Tables (St b5 (st-sink st)) (table-build (take hlit lens)) (table-build (drop hlit lens)))
 
   -- The code-length alphabet's own lengths: `n` three-bit values in
   -- the transmitted order above; the symbols after them stay zero.
   cl-read :: Bits -> Nat -> List Nat -> Result ZlibError (Bits, List Nat)
   cl-read b n acc = case n == 0 of
-    True -> Ok (b, rev-list acc)
+    True -> Ok (b, reverse acc)
     False -> case bits-read b 3 of
       Err e -> Err e
       Ok (b1, v) -> cl-read b1 (n - 1) (Cons v acc)
@@ -695,14 +654,14 @@ module Text.Zlib where
   -- with no previous length, is InvalidCode.
   lens-read :: Bits -> Table -> Nat -> Nat -> Option Nat -> List Nat -> Result ZlibError (Bits, List Nat)
   lens-read b cltab n k prev acc = case k == n of
-    True -> Ok (b, rev-list acc)
+    True -> Ok (b, reverse acc)
     False -> case huff-decode b cltab of
       Err e -> Err e
       Ok (b1, sym) -> case cl-expand b1 sym prev of
         Err e -> Err e
         Ok (b2, len, reps) -> case k + reps > n of
           True -> Err InvalidCode
-          False -> lens-read b2 cltab n (k + reps) (Some len) (push-n reps len acc)
+          False -> lens-read b2 cltab n (k + reps) (Some len) (replicate reps len <> acc)
 
   -- One code-length symbol expanded into the length it contributes and
   -- how many times; `prev` is None until a literal length has been
@@ -737,13 +696,13 @@ module Text.Zlib where
   -- ---------------------------------------------------------------------
 
   fixed-lit-lens :: List Nat
-  fixed-lit-lens = list-append (repeat-n 144 8) (list-append (repeat-n 112 9) (list-append (repeat-n 24 7) (repeat-n 8 8)))
+  fixed-lit-lens = (replicate 144 8) <> ((replicate 112 9) <> ((replicate 24 7) <> (replicate 8 8)))
 
   fixed-lit-table :: Table
   fixed-lit-table = table-build fixed-lit-lens
 
   fixed-dist-table :: Table
-  fixed-dist-table = table-build (repeat-n 32 5)
+  fixed-dist-table = table-build (replicate 32 5)
 
   -- ---------------------------------------------------------------------
   -- Encoding. Stored blocks only (see the header): the encoder's

@@ -63,6 +63,10 @@ module Text.Uri where
   import Data.String
   import Data.IpAddr
 
+  import Algebra.Semigroup
+
+  infixr 6 <>
+
   export Uri, MkUri
   export uri-parse, uri-to-string, uri-normalize, uri-resolve
   export uri-scheme, uri-userinfo, uri-host, uri-port, uri-path, uri-query, uri-fragment
@@ -135,80 +139,28 @@ module Text.Uri where
 
 
   -- -----------------------------------------------------------------
-  -- Private list and character plumbing (the module keeps its own; the
-  -- shared helpers of Data.String and Text.Scan are not on the implicit
-  -- surface).
+  -- Character plumbing. The list helpers (`reverse`, `<>`, `is-empty`,
+  -- `drop`) come from Data.List and the scalar conversions (`char-code`,
+  -- `char-from-code`) plus the ASCII digit and hex-digit tests and
+  -- values (`is-ascii-digit`, `digit-value`, `is-ascii-hex-digit`,
+  -- `hex-digit-value`) from Data.Char; only the module's own case folds
+  -- and the `Nat`-to-`Char` hex printer live here.
   -- -----------------------------------------------------------------
 
-  chars-rev :: List Char -> List Char
-  chars-rev cs = chars-rev-acc cs Nil
-
-  chars-rev-acc :: List Char -> List Char -> List Char
-  chars-rev-acc cs acc = case cs of
-    Nil -> acc
-    Cons c rest -> chars-rev-acc rest (Cons c acc)
-
-  chars-append :: List Char -> List Char -> List Char
-  chars-append a b = case a of
-    Nil -> b
-    Cons c rest -> Cons c (chars-append rest b)
-
-  rev-nats :: List Nat -> List Nat
-  rev-nats xs = rev-nats-acc xs Nil
-
-  rev-nats-acc :: List Nat -> List Nat -> List Nat
-  rev-nats-acc xs acc = case xs of
-    Nil -> acc
-    Cons x rest -> rev-nats-acc rest (Cons x acc)
-
-  list-empty :: forall a. List a -> Bool
-  list-empty xs = case xs of
-    Nil -> True
-    Cons _ _ -> False
-
-  list-drop :: forall a. Nat -> List a -> List a
-  list-drop n xs =
-    if n == 0 then xs
-    else case xs of
-      Nil -> Nil
-      Cons _ ys -> list-drop (n - 1) ys
-
-  char-nat :: Char -> Nat
-  char-nat c = nat-from-i64 (u32-to-i64 (char-to-u32 c))
-
-  char-of :: Nat -> Char
-  char-of n = case u32-to-char (wrapping-i64-to-u32 (nat-to-i64 n)) of
-    Some x -> x
-    None -> '?'
-
-  is-digit :: Char -> Bool
-  is-digit c = let n = char-nat c in (n >= 48) && (n <= 57)
-
-  digit-of :: Char -> Nat
-  digit-of c = char-nat c - 48
-
-  is-hex :: Char -> Bool
-  is-hex c =
-    let n = char-nat c in
-    is-digit c || ((n >= 97) && (n <= 102)) || ((n >= 65) && (n <= 70))
-
-  hex-of :: Char -> Nat
-  hex-of c =
-    let n = char-nat c in
-    if n <= 57 then n - 48 else if n >= 97 then n - 87 else n - 55
-
   hex-up :: Nat -> Char
-  hex-up d = if d <= 9 then char-of (48 + d) else char-of (55 + d)
+  hex-up d =
+    if d <= 9 then (case char-from-code (48 + d) of Some x -> x; None -> '?')
+    else (case char-from-code (55 + d) of Some x -> x; None -> '?')
 
   is-alpha :: Char -> Bool
   is-alpha c =
-    let n = char-nat c in ((n >= 65) && (n <= 90)) || ((n >= 97) && (n <= 122))
+    let n = char-code c in ((n >= 65) && (n <= 90)) || ((n >= 97) && (n <= 122))
 
   ascii-lower :: Char -> Char
-  ascii-lower c = let n = char-nat c in if (n >= 65) && (n <= 90) then char-of (n + 32) else c
+  ascii-lower c = let n = char-code c in if (n >= 65) && (n <= 90) then (case char-from-code (n + 32) of Some x -> x; None -> '?') else c
 
   ascii-upper :: Char -> Char
-  ascii-upper c = let n = char-nat c in if (n >= 97) && (n <= 122) then char-of (n - 32) else c
+  ascii-upper c = let n = char-code c in if (n >= 97) && (n <= 122) then (case char-from-code (n - 32) of Some x -> x; None -> '?') else c
 
   map-chars :: (Char -> Char) -> List Char -> List Char
   map-chars f cs = case cs of
@@ -247,14 +199,14 @@ module Text.Uri where
 
   take-until-acc :: Char -> List Char -> List Char -> List Char
   take-until-acc sep cs acc = case cs of
-    Nil -> chars-rev acc
-    Cons c rest -> if eq-char c sep then chars-rev acc else take-until-acc sep rest (Cons c acc)
+    Nil -> reverse acc
+    Cons c rest -> if eq-char c sep then reverse acc else take-until-acc sep rest (Cons c acc)
 
   -- The chars from the first `sep` onward (the separator included).
   drop-until :: Char -> List Char -> List Char
   drop-until sep cs = case cs of
     Nil -> Nil
-    Cons c _ -> if eq-char c sep then cs else drop-until sep (list-drop 1 cs)
+    Cons c _ -> if eq-char c sep then cs else drop-until sep (drop 1 cs)
 
 
   -- -----------------------------------------------------------------
@@ -290,21 +242,21 @@ module Text.Uri where
 
   enc-chars :: List Char -> List Char -> List Char
   enc-chars cs acc = case cs of
-    Nil -> chars-rev acc
-    Cons c rest -> enc-chars rest (enc-bytes (utf8-bytes (char-nat c)) acc)
+    Nil -> reverse acc
+    Cons c rest -> enc-chars rest (enc-bytes (utf8-bytes (char-code c)) acc)
 
   -- Prepend one byte's encoding to a reversed accumulator.
   enc-bytes :: List Nat -> List Char -> List Char
   enc-bytes bs acc = case bs of
     Nil -> acc
     Cons b rest ->
-      if unreserved b then enc-bytes rest (Cons (char-of b) acc)
+      if unreserved b then enc-bytes rest (Cons (case char-from-code b of Some x -> x; None -> '?') acc)
       else enc-bytes rest (Cons (hex-up (nat-rem b 16)) (Cons (hex-up (nat-div b 16)) (Cons '%' acc)))
 
   uri-decode :: String -> Result UriError String
   uri-decode s = case dec-bytes (unpack s) Nil of
     None -> Err BadPercentEscape
-    Some rev-bytes -> case string-from-bytes (bytes-from-list (rev-nats rev-bytes)) of
+    Some rev-bytes -> case string-from-bytes (bytes-from-list (reverse rev-bytes)) of
       None -> Err BadUtf8
       Some out -> Ok out
 
@@ -318,16 +270,14 @@ module Text.Uri where
             None -> None
             Some b -> dec-bytes r (Cons b acc)
           _ -> None
-      else dec-bytes rest (prepend-rev (utf8-bytes (char-nat c)) acc)
-
-  prepend-rev :: List Nat -> List Nat -> List Nat
-  prepend-rev xs acc = case xs of
-    Nil -> acc
-    Cons x rest -> prepend-rev rest (Cons x acc)
+      else dec-bytes rest (reverse (utf8-bytes (char-code c)) <> acc)
 
   hex-pair :: Char -> Char -> Option Nat
-  hex-pair h1 h2 =
-    if is-hex h1 && is-hex h2 then Some (hex-of h1 * 16 + hex-of h2) else None
+  hex-pair h1 h2 = case hex-digit-value h1 of
+    None -> None
+    Some n1 -> case hex-digit-value h2 of
+      None -> None
+      Some n2 -> Some (n1 * 16 + n2)
 
 
   -- -----------------------------------------------------------------
@@ -346,7 +296,7 @@ module Text.Uri where
     Cons c rest ->
       if eq-char c '%' then
         case rest of
-          Cons h1 (Cons h2 r) -> if is-hex h1 && is-hex h2 then valid-pct r else False
+          Cons h1 (Cons h2 r) -> if is-ascii-hex-digit h1 && is-ascii-hex-digit h2 then valid-pct r else False
           _ -> False
       else valid-pct rest
 
@@ -357,18 +307,18 @@ module Text.Uri where
 
   break-first-acc :: Char -> List Char -> List Char -> (List Char, Option (List Char))
   break-first-acc sep cs pre = case cs of
-    Nil -> (chars-rev pre, None)
+    Nil -> (reverse pre, None)
     Cons c rest ->
-      if eq-char c sep then (chars-rev pre, Some rest)
+      if eq-char c sep then (reverse pre, Some rest)
       else break-first-acc sep rest (Cons c pre)
 
   -- The part before the LAST `sep` and the part after it (`None` before
   -- when it is absent), for userinfo's `@`.
   break-last :: Char -> List Char -> (Option (List Char), List Char)
-  break-last sep cs = case break-first sep (chars-rev cs) of
+  break-last sep cs = case break-first sep (reverse cs) of
     (trailing-rev, leading-rev) -> case leading-rev of
       None -> (None, cs)
-      Some pre -> (Some (chars-rev pre), chars-rev trailing-rev)
+      Some pre -> (Some (reverse pre), reverse trailing-rev)
 
   -- The authority text after an initial `//` (if present) and the path
   -- that follows it.
@@ -389,9 +339,9 @@ module Text.Uri where
 
   span-scheme-acc :: List Char -> List Char -> (List Char, List Char)
   span-scheme-acc cs pre = case cs of
-    Nil -> (chars-rev pre, Nil)
+    Nil -> (reverse pre, Nil)
     Cons c rest ->
-      if (eq-char c ':') || (eq-char c '/') then (chars-rev pre, cs)
+      if (eq-char c ':') || (eq-char c '/') then (reverse pre, cs)
       else span-scheme-acc rest (Cons c pre)
 
   valid-scheme :: List Char -> Bool
@@ -403,7 +353,7 @@ module Text.Uri where
   all-scheme-chars cs = case cs of
     Nil -> True
     Cons c rest ->
-      if is-alpha c || is-digit c || eq-char c '+' || eq-char c '-' || eq-char c '.' then all-scheme-chars rest
+      if is-alpha c || is-ascii-digit c || eq-char c '+' || eq-char c '-' || eq-char c '.' then all-scheme-chars rest
       else False
 
   -- `scheme "+" hier-part`: a scheme is recognised only when a `:`
@@ -420,21 +370,23 @@ module Text.Uri where
   all-digits :: List Char -> Bool
   all-digits cs = case cs of
     Nil -> True
-    Cons c rest -> if is-digit c then all-digits rest else False
+    Cons c rest -> if is-ascii-digit c then all-digits rest else False
 
   digits-fold :: List Char -> Nat -> Nat
   digits-fold cs acc = case cs of
     Nil -> acc
-    Cons c rest -> digits-fold rest (acc * 10 + digit-of c)
+    Cons c rest -> case digit-value c of
+      Some d -> digits-fold rest (acc * 10 + d)
+      None -> acc
 
   port-value :: List Char -> Option Nat
   port-value cs =
-    if list-empty cs then None
+    if is-empty cs then None
     else if all-digits cs then Some (digits-fold cs 0)
     else None
 
   bracketed :: List Char -> List Char
-  bracketed inner = Cons '[' (chars-append inner (Cons ']' Nil))
+  bracketed inner = Cons '[' (inner <> Cons ']' Nil)
 
   -- The host and its port: a bracketed IPv6 literal (`[...]`, validated
   -- through `Data.IpAddr`), or a registered name/IPv4 stopped at the
@@ -606,16 +558,16 @@ module Text.Uri where
     Nil -> False
 
   ends-with-bracket :: List Char -> Bool
-  ends-with-bracket cs = case chars-rev cs of
+  ends-with-bracket cs = case reverse cs of
     Cons c _ -> eq-char c ']'
     Nil -> False
 
   strip-brackets :: List Char -> List Char
   strip-brackets cs = case cs of
     Nil -> Nil
-    Cons _ rest -> case chars-rev rest of
+    Cons _ rest -> case reverse rest of
       Nil -> Nil
-      Cons _ inner-rev -> chars-rev inner-rev
+      Cons _ inner-rev -> reverse inner-rev
 
   -- The address a host names, when it names one: a bracketed literal is
   -- an IPv6 address, a bare host that parses as IPv4 is one, and any
@@ -709,12 +661,12 @@ module Text.Uri where
 
   rem-dots :: List Char -> List Char -> List Char
   rem-dots input out =
-    if list-empty input then out
-    else if prefix-of (unpack "../") input then rem-dots (list-drop 3 input) out
-    else if prefix-of (unpack "./") input then rem-dots (list-drop 2 input) out
-    else if prefix-of (unpack "/./") input then rem-dots (Cons '/' (list-drop 3 input)) out
+    if is-empty input then out
+    else if prefix-of (unpack "../") input then rem-dots (drop 3 input) out
+    else if prefix-of (unpack "./") input then rem-dots (drop 2 input) out
+    else if prefix-of (unpack "/./") input then rem-dots (Cons '/' (drop 3 input)) out
     else if same-chars input (unpack "/.") then rem-dots (Cons '/' Nil) out
-    else if prefix-of (unpack "/../") input then rem-dots (Cons '/' (list-drop 4 input)) (before-last-slash out)
+    else if prefix-of (unpack "/../") input then rem-dots (Cons '/' (drop 4 input)) (before-last-slash out)
     else if same-chars input (unpack "/..") then rem-dots (Cons '/' Nil) (before-last-slash out)
     else if same-chars input (unpack ".") then out
     else if same-chars input (unpack "..") then out
@@ -729,16 +681,16 @@ module Text.Uri where
     Cons c rest ->
       if eq-char c '/' then
         let seg = Cons '/' (take-until '/' rest) in
-        rem-dots (drop-until '/' rest) (chars-append out seg)
+        rem-dots (drop-until '/' rest) (out <> seg)
       else
         let seg = take-until '/' input in
-        rem-dots (drop-until '/' input) (chars-append out seg)
+        rem-dots (drop-until '/' input) (out <> seg)
 
   -- The path through its last `/` (the base's directory).
   path-dir :: String -> String
-  path-dir s = pack (chars-rev (drop-until '/' (chars-rev (unpack s))))
+  path-dir s = pack (reverse (drop-until '/' (reverse (unpack s))))
 
   -- The output with its last segment and that segment's `/` removed
   -- (section 5.2.4's "remove the last segment").
   before-last-slash :: List Char -> List Char
-  before-last-slash cs = chars-rev (list-drop 1 (drop-until '/' (chars-rev cs)))
+  before-last-slash cs = reverse (drop 1 (drop-until '/' (reverse cs)))

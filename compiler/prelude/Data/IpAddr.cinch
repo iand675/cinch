@@ -45,12 +45,15 @@ module Data.IpAddr where
 
   import Relation.Eq
   import Relation.Ord
+  import Algebra.Semigroup
   import Data.Nat
   import Data.Option
   import Data.List
   import Data.Bytes
   import Data.Bool
   import Data.Char
+
+  infixr 6 <>
 
   export IpFamily, Ipv4Family, Ipv6Family
   export Ipv4, ipv4-parse, ipv4-from-octets, ipv4-to-string, ipv4-bytes
@@ -82,74 +85,24 @@ module Data.IpAddr where
 
 
   -- -----------------------------------------------------------------
-  -- Private list and character plumbing (the module keeps its own;
-  -- the shared helpers of Data.String and Text.Scan are not on the
-  -- implicit surface, and each family's home keeps its own copies).
+  -- The decimal and hexadecimal character classification the two text
+  -- grammars share. The generic list and character helpers (`reverse`,
+  -- `take`, `drop`, `list-length`, `is-empty`, `replicate`,
+  -- `char-from-code`, and list append through `<>`) come from their
+  -- base homes in Data.List and Data.Char, as do the ASCII digit and
+  -- hex-digit test/value pairs (`is-ascii-digit`, `digit-value`,
+  -- `is-ascii-hex-digit`, `hex-digit-value`); the `Option` combinators
+  -- below are this module's.
   -- -----------------------------------------------------------------
 
-  chars-rev :: forall a. List a -> List a
-  chars-rev cs = chars-rev-acc cs Nil
-
-  chars-rev-acc :: forall a. List a -> List a -> List a
-  chars-rev-acc cs acc = case cs of
-    Nil -> acc
-    Cons c rest -> chars-rev-acc rest (Cons c acc)
-
-  chars-append :: List Char -> List Char -> List Char
-  chars-append a b = case a of
-    Nil -> b
-    Cons c rest -> Cons c (chars-append rest b)
-
-  list-empty :: forall a. List a -> Bool
-  list-empty xs = case xs of
-    Nil -> True
-    Cons _ _ -> False
-
-  list-count :: forall a. List a -> Nat
-  list-count xs = case xs of
-    Nil -> 0
-    Cons _ ys -> 1 + list-count ys
-
-  list-take :: forall a. Nat -> List a -> List a
-  list-take n xs =
-    if n == 0 then Nil
-    else case xs of
-      Nil -> Nil
-      Cons y ys -> Cons y (list-take (n - 1) ys)
-
-  list-drop :: forall a. Nat -> List a -> List a
-  list-drop n xs =
-    if n == 0 then xs
-    else case xs of
-      Nil -> Nil
-      Cons _ ys -> list-drop (n - 1) ys
-
-  char-nat :: Char -> Nat
-  char-nat c = nat-from-i64 (u32-to-i64 (char-to-u32 c))
-
-  char-of :: Nat -> Char
-  char-of n = case u32-to-char (wrapping-i64-to-u32 (nat-to-i64 n)) of
-    Some x -> x
-    None -> '?'
-
-  is-digit :: Char -> Bool
-  is-digit c = let n = char-nat c in (n >= 48) && (n <= 57)
-
-  digit-of :: Char -> Nat
-  digit-of c = char-nat c - 48
-
-  is-hex :: Char -> Bool
-  is-hex c =
-    let n = char-nat c in
-    is-digit c || ((n >= 97) && (n <= 102)) || ((n >= 65) && (n <= 70))
-
-  hex-of :: Char -> Nat
-  hex-of c =
-    let n = char-nat c in
-    if n <= 57 then n - 48 else if n >= 97 then n - 87 else n - 55
-
+  -- The scalar of a single lower-case hex digit; out-of-range values
+  -- fall back to `?` (the writer only ever passes 0..=15).
   hex-low :: Nat -> Char
-  hex-low d = if d <= 9 then char-of (48 + d) else char-of (87 + d)
+  hex-low d =
+    let n = if d <= 9 then 48 + d else 87 + d in
+    case char-from-code n of
+      Some c -> c
+      None -> '?'
 
   -- Split at every `sep`, keeping empty pieces: a trailing separator
   -- yields a trailing empty piece, so the piece count is exact and a
@@ -159,9 +112,9 @@ module Data.IpAddr where
 
   split-on-acc :: Char -> List Char -> List Char -> List (List Char) -> List (List Char)
   split-on-acc sep cs piece acc = case cs of
-    Nil -> chars-rev (Cons (chars-rev piece) acc)
+    Nil -> reverse (Cons (reverse piece) acc)
     Cons c rest ->
-      if eq-char c sep then split-on-acc sep rest Nil (Cons (chars-rev piece) acc)
+      if eq-char c sep then split-on-acc sep rest Nil (Cons (reverse piece) acc)
       else split-on-acc sep rest (Cons c piece) acc
 
   -- Combine four checked components under a constructor (the octets of
@@ -186,11 +139,6 @@ module Data.IpAddr where
         None -> None
         Some vs -> Some (Cons v vs)
 
-  nat-append :: List Nat -> List Nat -> List Nat
-  nat-append a b = case a of
-    Nil -> b
-    Cons x rest -> Cons x (nat-append rest b)
-
 
   -- -----------------------------------------------------------------
   -- IPv4.
@@ -200,20 +148,22 @@ module Data.IpAddr where
   -- (RFC 3986 `dec-octet`; see the refusals in the header).
   leading-zero :: List Char -> Bool
   leading-zero cs = case cs of
-    Cons c rest -> eq-char c '0' && not (list-empty rest)
+    Cons c rest -> eq-char c '0' && not (is-empty rest)
     Nil -> False
 
   decimal-digits :: List Char -> Nat -> Option Nat
   decimal-digits cs acc = case cs of
     Nil -> Some acc
     Cons c rest ->
-      if is-digit c then decimal-digits rest (acc * 10 + digit-of c) else None
+      case digit-value c of
+        Some n -> decimal-digits rest (acc * 10 + n)
+        None -> None
 
   octet-value :: List Char -> Option Nat
   octet-value cs =
-    if list-empty cs then None
+    if is-empty cs then None
     else if leading-zero cs then None
-    else if list-count cs > 3 then None
+    else if list-length cs > 3 then None
     else case decimal-digits cs 0 of
       None -> None
       Some v -> if v <= 255 then Some v else None
@@ -276,7 +226,7 @@ module Data.IpAddr where
       if eq-char c ':' then
         case rest of
           Cons c2 rest2 ->
-            if eq-char c2 ':' then Some (chars-rev pre, rest2)
+            if eq-char c2 ':' then Some (reverse pre, rest2)
             else find-dc-acc rest2 (Cons c2 (Cons c pre))
           Nil -> None
       else find-dc-acc rest (Cons c pre)
@@ -295,48 +245,48 @@ module Data.IpAddr where
   all-hex :: List Char -> Bool
   all-hex cs = case cs of
     Nil -> True
-    Cons c rest -> if is-hex c then all-hex rest else False
+    Cons c rest -> if is-ascii-hex-digit c then all-hex rest else False
 
-  hex-digits :: List Char -> Nat -> Nat
+  hex-digits :: List Char -> Nat -> Option Nat
   hex-digits cs acc = case cs of
-    Nil -> acc
-    Cons c rest -> hex-digits rest (acc * 16 + hex-of c)
+    Nil -> Some acc
+    Cons c rest ->
+      case hex-digit-value c of
+        Some n -> hex-digits rest (acc * 16 + n)
+        None -> None
 
   -- One `h16` group: one to four hex digits (empty pieces and overly
   -- long groups are refused).
   hex-group :: List Char -> Option Nat
   hex-group cs =
-    if list-empty cs then None
-    else if list-count cs > 4 then None
-    else if all-hex cs then Some (hex-digits cs 0)
+    if is-empty cs then None
+    else if list-length cs > 4 then None
+    else if all-hex cs then hex-digits cs 0
     else None
 
   -- A side of a `::` split: empty means zero groups, otherwise every
   -- colon-separated piece must be a valid group.
   hex-groups :: List Char -> Option (List Nat)
   hex-groups cs =
-    if list-empty cs then Some Nil
+    if is-empty cs then Some Nil
     else sequence-opt (map hex-group (split-on ':' cs))
 
   -- The uncompressed form: exactly eight non-empty groups.
   parse-full-groups :: List (List Char) -> Option Ipv6
   parse-full-groups pieces =
-    if list-count pieces == 8 then
+    if list-length pieces == 8 then
       case sequence-opt (map hex-group pieces) of
         None -> None
         Some gs -> Some (MkIpv6 gs)
     else None
 
-  zeros :: Nat -> List Nat
-  zeros k = if k == 0 then Nil else Cons 0 (zeros (k - 1))
-
   -- The compressed form: the two sides together leave at least one
   -- group to `::`, so at most seven explicit groups.
   pad-groups :: List Nat -> List Nat -> Option Ipv6
   pad-groups ls rs =
-    let n = list-count ls + list-count rs in
+    let n = list-length ls + list-length rs in
     if n > 7 then None
-    else Some (MkIpv6 (nat-append ls (nat-append (zeros (8 - n)) rs)))
+    else Some (MkIpv6 (ls <> (replicate (8 - n) 0 <> rs)))
 
   ipv6-parse :: String -> Option Ipv6
   ipv6-parse s = case find-double-colon (unpack s) of
@@ -353,7 +303,7 @@ module Data.IpAddr where
   -- The smart constructor: exactly eight groups, each 0..=65535.
   ipv6-from-groups :: List Nat -> Option Ipv6
   ipv6-from-groups gs =
-    if list-count gs == 8 && all-groups-ok gs then Some (MkIpv6 gs) else None
+    if list-length gs == 8 && all-groups-ok gs then Some (MkIpv6 gs) else None
 
   all-groups-ok :: List Nat -> Bool
   all-groups-ok gs = case gs of
@@ -390,7 +340,7 @@ module Data.IpAddr where
   render-group-chars :: Nat -> List Char
   render-group-chars g =
     if g == 0 then Nil
-    else chars-append (render-group-chars (nat-div g 16)) (Cons (hex-low (nat-rem g 16)) Nil)
+    else render-group-chars (nat-div g 16) <> Cons (hex-low (nat-rem g 16)) Nil
 
   join-groups :: List Nat -> String
   join-groups gs = pack (join-groups-chars gs)
@@ -399,7 +349,7 @@ module Data.IpAddr where
   join-groups-chars gs = case gs of
     Nil -> Nil
     Cons g Nil -> unpack (render-group g)
-    Cons g rest -> chars-append (unpack (render-group g)) (Cons ':' (join-groups-chars rest))
+    Cons g rest -> unpack (render-group g) <> Cons ':' (join-groups-chars rest)
 
   -- Canonical rendering: lower-case hex, the chosen zero run spelled
   -- `::`, at most one `::` per address.
@@ -412,14 +362,14 @@ module Data.IpAddr where
 
   render-run :: List Nat -> Nat -> Nat -> String
   render-run gs start len =
-    let head-groups = list-take start gs in
-    let tail-groups = list-drop (start + len) gs in
+    let head-groups = take start gs in
+    let tail-groups = drop (start + len) gs in
     let head-str = join-groups head-groups in
     let tail-str = join-groups tail-groups in
     if start == 0 then
-      if list-empty tail-groups then "::" else string-concat "::" tail-str
+      if is-empty tail-groups then "::" else string-concat "::" tail-str
     else
-      if list-empty tail-groups then string-concat head-str "::"
+      if is-empty tail-groups then string-concat head-str "::"
       else string-concat head-str (string-concat "::" tail-str)
 
   ipv6-bytes :: Ipv6 -> Bytes

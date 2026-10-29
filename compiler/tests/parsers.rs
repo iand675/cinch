@@ -21,6 +21,7 @@ use cinch::driver::{driver, Mode};
 use std::path::PathBuf;
 
 const LEX_SRC: &str = include_str!("../prelude/Text/Lex.cinch");
+const SCAN_SRC: &str = include_str!("../prelude/Text/Scan.cinch");
 const PARSE_SRC: &str = include_str!("../prelude/Text/Parse.cinch");
 
 // ----------------------------------------------------------------
@@ -233,6 +234,7 @@ fn write_project(name: &str, main: &str) -> PathBuf {
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).expect("temp project dir");
     std::fs::write(dir.join("Text.Lex.cinch"), LEX_SRC).expect("write Text.Lex");
+    std::fs::write(dir.join("Text.Scan.cinch"), SCAN_SRC).expect("write Text.Scan");
     std::fs::write(dir.join("Text.Parse.cinch"), PARSE_SRC).expect("write Text.Parse");
     std::fs::write(dir.join("main.cinch"), main).expect("write main");
     dir

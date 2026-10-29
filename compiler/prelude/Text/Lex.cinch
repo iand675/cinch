@@ -84,7 +84,7 @@ module Text.Lex where
     out
 
   char-width :: Char -> Nat
-  char-width c = utf8-encode-width (nat-from-i64 (u32-to-i64 (char-to-u32 c)))
+  char-width c = utf8-encode-width (char-code c)
 
   chars-width :: List Char -> Nat
   chars-width cs = case cs of
@@ -95,7 +95,7 @@ module Text.Lex where
   chars-into b pos cs = case cs of
     Nil -> ()
     Cons c rest ->
-      let u = utf8-encode-into b pos (nat-from-i64 (u32-to-i64 (char-to-u32 c))) in
+      let u = utf8-encode-into b pos (char-code c) in
       chars-into b (pos + char-width c) rest
 
   chars-bytes :: List Char -> Bytes
@@ -252,7 +252,7 @@ module Text.Lex where
 
   render-spelling :: Token -> String
   render-spelling k = case k of
-    TChar n -> case u32-to-char (wrapping-i64-to-u32 (nat-to-i64 n)) of
+    TChar n -> case char-from-code n of
       None -> empty-string
       Some c -> render-escaped (string-to-bytes (char-string c)) 0
     _ -> render-escaped (string-to-bytes (token-spelling k)) 0
@@ -404,11 +404,6 @@ module Text.Lex where
   is-ws-char ch =
     eq-char ch ' ' || eq-char ch '\t' || eq-char ch '\n' || eq-char ch '\r'
 
-  is-digit-char :: Char -> Bool
-  is-digit-char c =
-    eq-char c '0' || eq-char c '1' || eq-char c '2' || eq-char c '3' || eq-char c '4'
-    || eq-char c '5' || eq-char c '6' || eq-char c '7' || eq-char c '8' || eq-char c '9'
-
   is-alpha-char :: Char -> Bool
   is-alpha-char c =
     eq-char c 'a' || eq-char c 'b' || eq-char c 'c' || eq-char c 'd' || eq-char c 'e'
@@ -433,26 +428,10 @@ module Text.Lex where
     || eq-char c 'U' || eq-char c 'V' || eq-char c 'W' || eq-char c 'X' || eq-char c 'Y'
     || eq-char c 'Z'
 
-  is-hex-char :: Char -> Bool
-  is-hex-char c =
-    is-digit-char c
-    || eq-char c 'a' || eq-char c 'b' || eq-char c 'c' || eq-char c 'd' || eq-char c 'e' || eq-char c 'f'
-    || eq-char c 'A' || eq-char c 'B' || eq-char c 'C' || eq-char c 'D' || eq-char c 'E' || eq-char c 'F'
-
-  hex-value :: Char -> Nat
-  hex-value c =
-    if is-digit-char c then nat-from-i64 (u32-to-i64 (char-to-u32 c)) - 48
-    else if eq-char c 'a' || eq-char c 'b' || eq-char c 'c' || eq-char c 'd' || eq-char c 'e' || eq-char c 'f' then
-      nat-from-i64 (u32-to-i64 (char-to-u32 c)) - 87
-    else nat-from-i64 (u32-to-i64 (char-to-u32 c)) - 55
-
-  digit-value :: Char -> Nat
-  digit-value c = nat-from-i64 (u32-to-i64 (char-to-u32 c)) - 48
-
   -- Identifier characters (`lex_word`'s set): ASCII alphanumeric, `_`,
   -- `'`.
   is-ident-char :: Char -> Bool
-  is-ident-char c = is-alpha-char c || is-digit-char c || eq-char c '_' || eq-char c '\''
+  is-ident-char c = is-alpha-char c || is-ascii-digit c || eq-char c '_' || eq-char c '\''
 
   -- The characters a dash may glue onto inside a word (amendment
   -- section 8: digits do not continue an identifier across a dash).
@@ -479,7 +458,7 @@ module Text.Lex where
   at-sign-minus :: Scan -> Bool
   at-sign-minus s = case peek-at s 1 of
     None -> False
-    Some c -> if is-digit-char c then prev-allows-sign s else False
+    Some c -> if is-ascii-digit c then prev-allows-sign s else False
 
   prev-allows-sign :: Scan -> Bool
   prev-allows-sign s = case scan-prev s of
@@ -562,22 +541,14 @@ module Text.Lex where
 
   scan-ident-acc :: Scan -> List Char -> PairScan
   scan-ident-acc s acc = case peek-char s of
-    None -> Pair s (rev-chars acc)
+    None -> Pair s (reverse acc)
     Some c ->
       if is-ident-char c then scan-ident-acc (skip-char s) (Cons c acc)
       else if eq-char c '-' then
         case peek-at s 1 of
           Some d | is-dash-glue-char d -> scan-ident-acc (skip-char s) (Cons '-' acc)
-          _ -> Pair s (rev-chars acc)
-      else Pair s (rev-chars acc)
-
-  rev-chars :: List Char -> List Char
-  rev-chars xs = rev-acc xs Nil
-
-  rev-acc :: List Char -> List Char -> List Char
-  rev-acc xs acc = case xs of
-    Nil -> acc
-    Cons y ys -> rev-acc ys (Cons y acc)
+          _ -> Pair s (reverse acc)
+      else Pair s (reverse acc)
 
   -- The reserved word table: every quoted alphabetic terminal of the
   -- EBNF plus the amendment keywords. `letrec` scans as the pair the
@@ -695,12 +666,12 @@ module Text.Lex where
 
   lex-symbol-acc :: Scan -> List Char -> PairScan
   lex-symbol-acc s acc = case peek-char s of
-    None -> Pair s (rev-chars acc)
+    None -> Pair s (reverse acc)
     Some c ->
       let continues = is-symbol-char c ||
             (eq-char c '$' && not (is-nil-chars acc) && not (is-dollar-paren s)) in
-      if not continues then Pair s (rev-chars acc)
-      else if eq-char c '-' && at-sign-minus s then Pair s (rev-chars acc)
+      if not continues then Pair s (reverse acc)
+      else if eq-char c '-' && at-sign-minus s then Pair s (reverse acc)
       else lex-symbol-acc (skip-char s) (Cons c acc)
 
   -- `%0`, `%1`, `%aff`, `%many` are reserved multiplicities; any
@@ -770,9 +741,11 @@ module Text.Lex where
   scan-hex-digits s acc any = case peek-char s of
     None -> HS s acc any
     Some c ->
-      if is-hex-char c then scan-hex-digits (skip-char s) (acc * 16 + hex-value c) True
-      else if eq-char c '_' then scan-hex-digits (skip-char s) acc any
-      else HS s acc any
+      case hex-digit-value c of
+        Some n -> scan-hex-digits (skip-char s) (acc * 16 + n) True
+        None ->
+          if eq-char c '_' then scan-hex-digits (skip-char s) acc any
+          else HS s acc any
 
   -- Decimal digits with underscores skipped: the value folds into a
   -- Nat and the digit text accumulates reversed (underscores dropped).
@@ -780,10 +753,11 @@ module Text.Lex where
   scan-dec-digits s acc rev = case peek-char s of
     None -> NumScan s acc rev
     Some c ->
-      if is-digit-char c then
-        scan-dec-digits (skip-char s) (acc * 10 + digit-value c) (Cons c rev)
-      else if eq-char c '_' then scan-dec-digits (skip-char s) acc rev
-      else NumScan s acc rev
+      case digit-value c of
+        Some n -> scan-dec-digits (skip-char s) (acc * 10 + n) (Cons c rev)
+        None ->
+          if eq-char c '_' then scan-dec-digits (skip-char s) acc rev
+          else NumScan s acc rev
 
   -- The float fraction and exponent when present: `.` immediately
   -- followed by a digit. The scanned text keeps the digits, the dot
@@ -792,7 +766,7 @@ module Text.Lex where
   scan-float-frac s rev = case peek-char s of
     Some c | eq-char c '.' ->
       case peek-at s 1 of
-        Some d | is-digit-char d ->
+        Some d | is-ascii-digit d ->
           case scan-decimals-rev (skip-char s) (Cons '.' rev) of
             Pair s2 cs ->
               case peek-char s2 of
@@ -800,11 +774,11 @@ module Text.Lex where
                   case peek-at s2 1 of
                     Some f | eq-char f '+' || eq-char f '-' ->
                       case scan-decimals-rev (skip-char (skip-char s2)) (Cons f (Cons e cs)) of
-                        Pair s3 cs2 -> Some (Pair s3 (rev-chars cs2))
+                        Pair s3 cs2 -> Some (Pair s3 (reverse cs2))
                     _ ->
                       case scan-decimals-rev (skip-char s2) (Cons e cs) of
-                        Pair s3 cs2 -> Some (Pair s3 (rev-chars cs2))
-                _ -> Some (Pair s2 (rev-chars cs))
+                        Pair s3 cs2 -> Some (Pair s3 (reverse cs2))
+                _ -> Some (Pair s2 (reverse cs))
         _ -> None
     _ -> None
 
@@ -812,7 +786,7 @@ module Text.Lex where
   scan-decimals-rev s acc = case peek-char s of
     None -> Pair s acc
     Some c ->
-      if is-digit-char c then scan-decimals-rev (skip-char s) (Cons c acc)
+      if is-ascii-digit c then scan-decimals-rev (skip-char s) (Cons c acc)
       else if eq-char c '_' then scan-decimals-rev (skip-char s) acc
       else Pair s acc
 
@@ -844,11 +818,12 @@ module Text.Lex where
     None -> CRErr (scan-span s) BadEscape
     Some c ->
       if eq-char c '}' then
-        case u32-to-char (wrapping-i64-to-u32 (nat-to-i64 acc)) of
+        case char-from-code acc of
           None -> CRErr (scan-span s) BadEscape
           Some ch -> CROk (skip-char s) ch
-      else if is-hex-char c then lex-escape-hex (skip-char s) (acc * 16 + hex-value c)
-      else CRErr (scan-span s) BadEscape
+      else case hex-digit-value c of
+        Some n -> lex-escape-hex (skip-char s) (acc * 16 + n)
+        None -> CRErr (scan-span s) BadEscape
 
   -- String literals: decoded UTF-8 content, no raw newline inside.
   data ResultStr where
@@ -864,7 +839,7 @@ module Text.Lex where
   lex-string-acc s acc = case peek-char s of
     None -> ErrS (scan-span s) UnterminatedString
     Some c ->
-      if eq-char c '"' then OkS (skip-char s) (rev-chars acc)
+      if eq-char c '"' then OkS (skip-char s) (reverse acc)
       else if eq-char c '\n' || eq-char c '\r' then ErrS (scan-span s) UnterminatedString
       else if eq-char c '\\' then
         case lex-escape (skip-char s) of
@@ -886,14 +861,14 @@ module Text.Lex where
             CROk s2 ch ->
               case peek-char s2 of
                 Some d | eq-char d '\'' ->
-                  Tok1 (skip-char s2) (TChar (nat-from-i64 (u32-to-i64 (char-to-u32 ch))))
+                  Tok1 (skip-char s2) (TChar (char-code ch))
                 _ -> ErrAt (scan-span s) UnterminatedChar
         else if eq-char c '\n' || eq-char c '\r' then ErrAt (scan-span s) MalformedTick
         else
           case peek-char (skip-char (skip-char s)) of
             Some d | eq-char d '\'' ->
               Tok1 (skip-char (skip-char (skip-char s)))
-                (TChar (nat-from-i64 (u32-to-i64 (char-to-u32 c))))
+                (TChar (char-code c))
             _ -> ErrAt (scan-span s) RefusedTickName
 
   -- ---------------------------------------------------------------------------
@@ -918,7 +893,7 @@ module Text.Lex where
     SROk s2 ->
       let sp0 = scan-span s2 in
       case peek-char s2 of
-        None -> LexedTokens (rev-toks (Cons (LTok sp0 False TEOF) acc))
+        None -> LexedTokens (reverse (Cons (LTok sp0 False TEOF) acc))
         Some c ->
           if eq-char c '$' && is-dollar-paren s2 then
             let s3 = skip-char (skip-char s2) in
@@ -931,14 +906,6 @@ module Text.Lex where
             Tok2 s3 t1 t2 ->
               let sp1 = span-end-at sp0 s3 in
               scan-all s3 (Cons (LTok sp1 False t2) (Cons (LTok sp1 False t1) acc))
-
-  rev-toks :: List LToken -> List LToken
-  rev-toks xs = rev-toks-acc xs Nil
-
-  rev-toks-acc :: List LToken -> List LToken -> List LToken
-  rev-toks-acc xs acc = case xs of
-    Nil -> acc
-    Cons y ys -> rev-toks-acc ys (Cons y acc)
 
   -- scan_token: the dispatch order is the compiler's exactly.
   scan-token :: Scan -> Span -> TokenStep
@@ -978,7 +945,7 @@ module Text.Lex where
         else if eq-char c '-' then lex-minus s
         else if eq-char c '"' then lex-string s
         else if eq-char c '\'' then lex-tick s
-        else if is-digit-char c then lex-number s
+        else if is-ascii-digit c then lex-number s
         else if is-alpha-char c || eq-char c '_' then lex-word s
         else if is-symbol-char c then lex-symbol s
         else ErrAt sp0 UnexpectedChar
@@ -1205,7 +1172,7 @@ module Text.Lex where
     -- Without an end-of-input token the pass ends as the compiler's
     -- does: unclosed implicit blocks stay open and the stream passes
     -- through (end of input is what closes them).
-    Nil -> LexedTokens (rev-toks (lay-out lay))
+    Nil -> LexedTokens (reverse (lay-out lay))
     Cons tok rest -> layout-step rest tok lay
 
   layout-step :: List LToken -> LToken -> Lay -> Lexed
@@ -1253,7 +1220,7 @@ module Text.Lex where
     let kind = lt-token tok in
     if is-eof kind then
       let closed = close-all-implicit lay sp-tok in
-      LexedTokens (rev-toks (lay-out (push-tok tok closed)))
+      LexedTokens (reverse (lay-out (push-tok tok closed)))
     else if is-closer kind then
       let l1 = close-all-implicit lay sp-tok in
       case lay-stack l1 of

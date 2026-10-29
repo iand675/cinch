@@ -61,6 +61,7 @@ module Text.Parse where
   import Data.Nat
   import Data.Option
   import Data.String
+  import Text.Scan
   import Text.Show
 
   export ErrorItem, ITok, ILabel, IEnd
@@ -145,21 +146,14 @@ module Text.Parse where
     TInt s -> s
     TFloat s -> s
     TStr b -> case string-from-bytes b of Some s -> s; None -> empty-string
-    TChar n -> case u32-to-char (wrapping-i64-to-u32 (nat-to-i64 n)) of
+    TChar n -> case char-from-code n of
       None -> empty-string
       Some c -> char-string c
     TWord s -> s
     TPunct s -> s
 
   join-items :: List ErrorItem -> String
-  join-items xs = case xs of
-    Nil -> empty-string
-    Cons y ys -> case ys of
-      Nil -> render-item y
-      _ -> string-concat (render-item y) (string-concat (", ") (join-items ys))
-
-  spaces :: Nat -> String
-  spaces n = if n == 0 then empty-string else string-concat (" ") (spaces (n - 1))
+  join-items xs = string-join ", " (map render-item xs)
 
   -- The source line containing a byte offset: its start offset and
   -- its text (without the line ending).
@@ -189,10 +183,10 @@ module Text.Parse where
       let ls = line-start-at b (span-start s) in
       let le = line-end-at b (span-start s) in
       let gutter = nat-to-string ln in
-      let pad = spaces (nat-digit-count ln) in
+      let pad = string-repeat (nat-digit-count ln) " " in
       let caret = string-concat pad
             (string-concat (" | ")
-              (string-concat (spaces (if nat-cmp col 0 == 0 then 0 else col - 1)) ("^"))) in
+              (string-concat (string-repeat (if nat-cmp col 0 == 0 then 0 else col - 1) " ") ("^"))) in
       let body = string-concat ("  |\n")
             (string-concat gutter
               (string-concat (" | ")
@@ -486,19 +480,11 @@ module Text.Parse where
 
   many-run :: forall a. Parser a -> PState -> List a -> Reply (List a)
   many-run p s0 acc = case run-parser-fn p s0 of
-    RErr False e soft -> ROk False (rev-vals acc) s0 Nil
+    RErr False e soft -> ROk False (reverse acc) s0 Nil
     RErr True e soft -> RErr True e soft
     ROk c x s1 e ->
       if c then many-run p s1 (Cons x acc)
-      else ROk False (rev-vals acc) s0 Nil
-
-  rev-vals :: forall a. List a -> List a
-  rev-vals xs = rev-vals-acc xs Nil
-
-  rev-vals-acc :: forall a. List a -> List a -> List a
-  rev-vals-acc xs acc = case xs of
-    Nil -> acc
-    Cons y ys -> rev-vals-acc ys (Cons y acc)
+      else ROk False (reverse acc) s0 Nil
 
   some-p :: forall a. Parser a -> Parser (List a)
   some-p p = parse-bind p (\x -> parse-fmap (\xs -> Cons x xs) (many-p p))

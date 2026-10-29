@@ -52,43 +52,11 @@ module Text.Scan where
   export format, FormatError, MissingFormatArgument, UnusedFormatArgument, UnmatchedFormatBrace, render-format-error
 
 
-  -- -----------------------------------------------------------------
-  -- Private plumbing over code point lists (this module never needs
-  -- character literals: every character is its scalar value).
-  -- -----------------------------------------------------------------
-
-  rev-list :: forall a. List a -> List a
-  rev-list xs = rev-acc xs Nil
-
-  rev-acc :: forall a. List a -> List a -> List a
-  rev-acc xs acc = case xs of
-    Nil -> acc
-    Cons y ys -> rev-acc ys (Cons y acc)
-
-  list-count :: forall a. List a -> Nat
-  list-count xs = case xs of
-    Nil -> 0
-    Cons _ ys -> 1 + list-count ys
-
-  list-empty :: forall a. List a -> Bool
-  list-empty xs = case xs of
-    Nil -> True
-    Cons _ _ -> False
-
-  drop-n :: forall a. Nat -> List a -> List a
-  drop-n n xs =
-    if n == 0 then xs
-    else case xs of
-      Nil -> Nil
-      Cons _ rest -> drop-n (n - 1) rest
-
-  concat-strings :: List String -> String
-  concat-strings xs = case xs of
-    Nil -> empty-string
-    Cons y ys -> string-concat y (concat-strings ys)
-
-  code-of :: Char -> Nat
-  code-of c = nat-from-i64 (u32-to-i64 (char-to-u32 c))
+  -- Plumbing over code point lists (this module never needs character
+  -- literals: every character is its scalar value). Nothing structural
+  -- is kept here: `reverse`, `list-length`, `is-empty` and `drop` come
+  -- from Data.List, `char-code` from Data.Char, `string-concat-all`
+  -- from Data.String.
 
   string-codes :: String -> List Nat
   string-codes s = codes-of (unpack s)
@@ -96,7 +64,7 @@ module Text.Scan where
   codes-of :: List Char -> List Nat
   codes-of cs = case cs of
     Nil -> Nil
-    Cons c rest -> Cons (code-of c) (codes-of rest)
+    Cons c rest -> Cons (char-code c) (codes-of rest)
 
   pack-codes :: List Nat -> String
   pack-codes cs = pack (codes-chars cs)
@@ -174,7 +142,7 @@ module Text.Scan where
   string-starts-with pre s = list-prefix-of (string-codes pre) (string-codes s)
 
   string-ends-with :: String -> String -> Bool
-  string-ends-with suf s = list-prefix-of (rev-list (string-codes suf)) (rev-list (string-codes s))
+  string-ends-with suf s = list-prefix-of (reverse (string-codes suf)) (reverse (string-codes s))
 
   -- Split at every occurrence of the separator (the separators are
   -- removed). Trailing empty pieces are dropped (Ruby's default) and
@@ -183,7 +151,7 @@ module Text.Scan where
   string-split-on :: String -> String -> List String
   string-split-on sep s =
     let sep-cs = string-codes sep in
-    if list-empty sep-cs then map-singletons (string-codes s)
+    if is-empty sep-cs then map-singletons (string-codes s)
     else drop-trailing-empty (map-pieces (split-loop sep-cs (string-codes s) Nil Nil))
 
   map-singletons :: List Nat -> List String
@@ -198,13 +166,13 @@ module Text.Scan where
 
   split-loop :: List Nat -> List Nat -> List Nat -> List (List Nat) -> List (List Nat)
   split-loop sep hay piece acc = case hay of
-    Nil -> rev-list (Cons (rev-list piece) acc)
+    Nil -> reverse (Cons (reverse piece) acc)
     Cons c rest ->
-      if list-prefix-of sep hay then split-loop sep (drop-n (list-count sep) hay) Nil (Cons (rev-list piece) acc)
+      if list-prefix-of sep hay then split-loop sep (drop (list-length sep) hay) Nil (Cons (reverse piece) acc)
       else split-loop sep rest (Cons c piece) acc
 
   drop-trailing-empty :: List String -> List String
-  drop-trailing-empty xs = rev-list (drop-empty-head (rev-list xs))
+  drop-trailing-empty xs = reverse (drop-empty-head (reverse xs))
 
   drop-empty-head :: List String -> List String
   drop-empty-head xs = case xs of
@@ -213,7 +181,7 @@ module Text.Scan where
 
   -- Join with a separator between every pair.
   string-join :: String -> List String -> String
-  string-join sep items = concat-strings (join-each sep items)
+  string-join sep items = string-concat-all (join-each sep items)
 
   join-each :: String -> List String -> List String
   join-each sep items = case items of
@@ -228,13 +196,13 @@ module Text.Scan where
   string-lines :: String -> List String
   string-lines s =
     let cs = string-codes s in
-    if list-empty cs then Nil
+    if is-empty cs then Nil
     else drop-one-trailing-empty (map-pieces (split-loop (Cons 10 Nil) cs Nil Nil))
 
   drop-one-trailing-empty :: List String -> List String
-  drop-one-trailing-empty xs = case rev-list xs of
+  drop-one-trailing-empty xs = case reverse xs of
     Nil -> Nil
-    Cons y ys -> if string-byte-length y == 0 then rev-list ys else xs
+    Cons y ys -> if string-byte-length y == 0 then reverse ys else xs
 
   -- The whitespace-separated words (ASCII whitespace runs delimit).
   string-words :: String -> List String
@@ -242,11 +210,11 @@ module Text.Scan where
 
   words-loop :: List Nat -> List Nat -> List (List Nat) -> List (List Nat)
   words-loop hay piece acc = case hay of
-    Nil -> if list-empty piece then rev-list acc else rev-list (Cons (rev-list piece) acc)
+    Nil -> if is-empty piece then reverse acc else reverse (Cons (reverse piece) acc)
     Cons c rest ->
       if is-ws-code c then
-        if list-empty piece then words-loop rest Nil acc
-        else words-loop rest Nil (Cons (rev-list piece) acc)
+        if is-empty piece then words-loop rest Nil acc
+        else words-loop rest Nil (Cons (reverse piece) acc)
       else words-loop rest (Cons c piece) acc
 
   -- -----------------------------------------------------------------
@@ -260,7 +228,7 @@ module Text.Scan where
   string-lstrip s = pack-codes (drop-ws (string-codes s))
 
   string-rstrip :: String -> String
-  string-rstrip s = pack-codes (rev-list (drop-ws (rev-list (string-codes s))))
+  string-rstrip s = pack-codes (reverse (drop-ws (reverse (string-codes s))))
 
   drop-ws :: List Nat -> List Nat
   drop-ws cs = case cs of
@@ -269,11 +237,11 @@ module Text.Scan where
 
   -- Drop one trailing line ending: LF, CRLF or CR.
   string-chomp :: String -> String
-  string-chomp s = case rev-list (string-codes s) of
+  string-chomp s = case reverse (string-codes s) of
     Nil -> s
     Cons c rest ->
-      if c == 10 then pack-codes (rev-list (chomp-cr rest))
-      else if c == 13 then pack-codes (rev-list rest)
+      if c == 10 then pack-codes (reverse (chomp-cr rest))
+      else if c == 13 then pack-codes (reverse rest)
       else s
 
   chomp-cr :: List Nat -> List Nat
@@ -283,9 +251,9 @@ module Text.Scan where
 
   -- Drop the last scalar.
   string-chop :: String -> String
-  string-chop s = case rev-list (string-codes s) of
+  string-chop s = case reverse (string-codes s) of
     Nil -> s
-    Cons _ rest -> pack-codes (rev-list rest)
+    Cons _ rest -> pack-codes (reverse rest)
 
   -- ASCII case mapping only (the honest boundary: no Unicode case
   -- data exists in the UTF-8 layers).
@@ -341,14 +309,14 @@ module Text.Scan where
 
   nl-loop :: List Nat -> List Nat -> List Nat
   nl-loop cs acc = case cs of
-    Nil -> rev-list acc
+    Nil -> reverse acc
     Cons c rest ->
       if c == 13 then nl-cr rest acc
       else nl-loop rest (Cons c acc)
 
   nl-cr :: List Nat -> List Nat -> List Nat
   nl-cr rest acc = case rest of
-    Nil -> rev-list (Cons 10 acc)
+    Nil -> reverse (Cons 10 acc)
     Cons d rest2 ->
       if d == 10 then nl-loop rest2 (Cons 10 acc)
       else nl-loop rest (Cons 10 acc)
@@ -376,7 +344,7 @@ module Text.Scan where
   fmt-loop :: List Nat -> Nat -> List String -> Nat -> List String -> Result FormatError String
   fmt-loop cs pos args used acc = case cs of
     Nil ->
-      if list-empty args then Ok (concat-strings (rev-list acc))
+      if is-empty args then Ok (string-concat-all (reverse acc))
       else Err (UnusedFormatArgument used)
     Cons c rest ->
       if c == 123 then fmt-open rest pos args used acc

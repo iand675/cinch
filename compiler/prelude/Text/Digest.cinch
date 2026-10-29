@@ -72,6 +72,10 @@ module Text.Digest where
   import Relation.Eq
   import Relation.Ord
 
+  import Algebra.Semigroup
+
+  infixr 6 <>
+
   export Digest, DigestSha256, DigestSha512, DigestSha1, DigestMd5
   export digest-bytes, digest-string, digest-hex
   export digest-name, digest-length
@@ -151,20 +155,12 @@ module Text.Digest where
   bytes-hex-from :: Bytes -> Nat -> List Char
   bytes-hex-from b i =
     if i >= bytes-len b then Nil
-    else chars-append (byte-hex (bytes-get b i)) (bytes-hex-from b (i + 1))
+    else (byte-hex (bytes-get b i)) <> (bytes-hex-from b (i + 1))
 
   byte-hex :: Nat -> List Char
   byte-hex x = Cons (hex-low (nat-div x 16)) (Cons (hex-low (nat-rem x 16)) Nil)
 
   hex-low :: Nat -> Char
-  hex-low d = if d <= 9 then char-of (48 + d) else char-of (87 + d)
-
-  char-of :: Nat -> Char
-  char-of n = case u32-to-char (wrapping-i64-to-u32 (nat-to-i64 n)) of
-    Some x -> x
-    None -> '?'
-
-  chars-append :: List Char -> List Char -> List Char
-  chars-append a b = case a of
-    Nil -> b
-    Cons c rest -> Cons c (chars-append rest b)
+  hex-low d =
+    if d <= 9 then (case char-from-code (48 + d) of Some x -> x; None -> '?')
+    else (case char-from-code (87 + d) of Some x -> x; None -> '?')

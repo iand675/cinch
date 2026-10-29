@@ -259,11 +259,11 @@ module Text.Json where
 
   many-run :: forall a. JParser a -> JState -> List a -> JReply (List a)
   many-run p s0 acc = case run-jparser-fn p s0 of
-    JErr False e -> JOk False (j-reverse acc) s0 Nil
+    JErr False e -> JOk False (reverse acc) s0 Nil
     JErr True e -> JErr True e
     JOk c x s1 e ->
       if c then many-run p s1 (Cons x acc)
-      else JOk False (j-reverse acc) s0 Nil
+      else JOk False (reverse acc) s0 Nil
 
   some-p :: forall a. JParser a -> JParser (List a)
   some-p p = parse-bind p (\x -> parse-fmap (\xs -> Cons x xs) (many-p p))
@@ -314,14 +314,6 @@ module Text.Json where
   merge-item-list xs ys = case xs of
     Nil -> ys
     Cons z zs -> Cons z (merge-item-list zs ys)
-
-  j-reverse :: forall a. List a -> List a
-  j-reverse xs = j-reverse-acc xs Nil
-
-  j-reverse-acc :: forall a. List a -> List a -> List a
-  j-reverse-acc xs acc = case xs of
-    Nil -> acc
-    Cons y ys -> j-reverse-acc ys (Cons y acc)
 
   -- ---------------------------------------------------------------------------
   -- Cursor primitives.
@@ -379,7 +371,7 @@ module Text.Json where
   byte-char-string :: Nat -> String
   byte-char-string b =
     if nat-cmp b 32 >= 0 && nat-cmp b 127 < 0 then
-      case u32-to-char (wrapping-i64-to-u32 (nat-to-i64 b)) of
+      case char-from-code b of
         Some c -> char-string c
         None -> empty-string
     else string-concat "\\u{" (string-concat (nat-to-string b) "}")
@@ -460,7 +452,7 @@ module Text.Json where
       let s2 = skip-ws s1 in
       case peek-byte s2 of
         Some b ->
-          if nat-cmp b 125 == 0 then scan-object-close (j-reverse (Cons entry acc)) s2
+          if nat-cmp b 125 == 0 then scan-object-close (reverse (Cons entry acc)) s2
           else if nat-cmp b 44 == 0 then scan-object-rest (skip-ws (advance1 s2)) (Cons entry acc)
           else JErr True (EUnexpected (pos-span s2) (Some (byte-item b)) (Cons (ILabel ",") (label-items "}")))
         None -> JErr True (EUnexpected (pos-span s2) (Some IEnd) (Cons (ILabel ",") (label-items "}")))
@@ -527,7 +519,7 @@ module Text.Json where
       let s2 = skip-ws s1 in
       case peek-byte s2 of
         Some b ->
-          if nat-cmp b 93 == 0 then JOk True (build-arr (j-reverse (Cons v acc))) (advance1 s2) Nil
+          if nat-cmp b 93 == 0 then JOk True (build-arr (reverse (Cons v acc))) (advance1 s2) Nil
           else if nat-cmp b 44 == 0 then scan-array-rest (skip-ws (advance1 s2)) (Cons v acc)
           else JErr True (EUnexpected (pos-span s2) (Some (byte-item b)) (Cons (ILabel ",") (label-items "]")))
         None -> JErr True (EUnexpected (pos-span s2) (Some IEnd) (Cons (ILabel ",") (label-items "]")))
@@ -575,7 +567,7 @@ module Text.Json where
   scan-string-body s acc = case peek-byte s of
     None -> JErr True (EUnexpected (pos-span s) (Some IEnd) (label-items "string"))
     Some b ->
-      if nat-cmp b 34 == 0 then JOk True (pack (j-reverse acc)) (advance1 s) Nil
+      if nat-cmp b 34 == 0 then JOk True (pack (reverse acc)) (advance1 s) Nil
       else if nat-cmp b 92 == 0 then scan-string-escape (advance1 s) acc
       else if nat-cmp b 32 < 0 then
         JErr True (EUnexpected (pos-span s) (Some (byte-item b)) (label-items "string character"))
@@ -628,7 +620,7 @@ module Text.Json where
         else JErr True (EFail (pos-span s3) "unpaired high surrogate in a string escape")
 
   push-scalar :: Nat -> JState -> List Char -> JReply String
-  push-scalar cp s acc = case u32-to-char (wrapping-i64-to-u32 (nat-to-i64 cp)) of
+  push-scalar cp s acc = case char-from-code cp of
     Some c -> scan-string-body s (Cons c acc)
     None -> JErr True (EFail (pos-span s) "a string escape is not a Unicode scalar value")
 
