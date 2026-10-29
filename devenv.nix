@@ -10,8 +10,6 @@
   # Astro toolchain for the documentation site in website/.
   languages.javascript = {
     enable = true;
-    # Astro 7 needs Node 22.23 or newer; the nixpkgs default 22.x is older.
-    package = pkgs.nodejs_24;
     npm.enable = true;
   };
 

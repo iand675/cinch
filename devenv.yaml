@@ -1,3 +1,5 @@
 inputs:
+  # Upstream unstable. The cachix/nixpkgs fork this used to track stopped
+  # updating in August 2025 and left the shell on rust 1.88 and node 22.17.
   nixpkgs:
-    url: github:cachix/nixpkgs/nixpkgs-unstable
+    url: github:NixOS/nixpkgs/nixpkgs-unstable

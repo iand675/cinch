@@ -13,7 +13,7 @@ npm run preview  # serve the build
 npm run check    # astro check (TypeScript and content types)
 ```
 
-Node 22.23 or newer is required by Astro 7. `website/.node-version` pins it for fnm and asdf.
+The devenv shell provides Node 24 and npm from nixpkgs. Astro 7 requires Node 22.23 or newer; `website/.node-version` pins 24.21.0 for fnm and asdf when working outside devenv.
 
 ## How the pages are produced
 
