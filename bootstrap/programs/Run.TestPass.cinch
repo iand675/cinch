@@ -1,0 +1,30 @@
+-- Run.TestPass: the P35 test runner's all-passing driver program, the
+-- second program compiler/tests/bootstrap_test_runner.rs builds and
+-- runs. Its suite is entirely passing, so its exit code must be 0 and
+-- its report must show a zero failure count.
+--
+-- A Rust test builds and runs this file through cinch::driver.
+
+module Main where
+
+  import Bootstrap.Test
+  import Data.Path (Path, path-from-string)
+  import Effect.Fs (fs-write)
+
+  -- An all-passing suite: every check holds, so every code is 0.
+  pass-suite :: Suite
+  pass-suite = Suite "bootstrap.test.pass"
+    (check-spine (Cons ("one-plus-one", if (1 :: Int) + 1 == 2 then 0 else 1)
+      (Cons ("list-length", if length (Cons (1 :: Int) (Cons (2 :: Int) Nil)) == 2 then 0 else 2) Nil)))
+
+  report-path :: Path
+  report-path = path-from-string "bootstrap-test-report.txt"
+
+  -- Run the suite, write the rendered report, and answer the failure
+  -- count, which is 0 here.
+  main :: Unit ->{IO r} Int
+  main u = with (io = newIO ()) in
+    let result = run-suite pass-suite in
+    case fs-write report-path (string-to-bytes (render-result result)) of
+      Err e -> 255
+      Ok _ -> result-failed result

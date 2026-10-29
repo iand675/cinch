@@ -1,0 +1,44 @@
+-- Run.Test: the P35 test runner's own driver program, the ladder's
+-- prerequisite made runnable (bootstrap/README.md: a rung is a
+-- runnable artifact, not a claim). It declares a hard-coded suite of
+-- five checks (three passing, two failing with distinct codes), runs
+-- it through Bootstrap.Test.run-suite, writes the rendered report to
+-- bootstrap-test-report.txt in the working directory through
+-- Effect.Fs, and returns the failure count as its exit code (0 only
+-- when nothing failed, the convention every harness in this repo
+-- uses).
+--
+-- A Rust test builds and runs this file through cinch::driver;
+-- tooling/run-bootstrap-ladder.sh runs it by hand.
+
+module Main where
+
+  import Bootstrap.Test
+  import Data.Path (Path, path-from-string)
+  import Effect.Fs (fs-write)
+
+  -- The hard-coded suite: five named checks. A check is 0 when it
+  -- holds and its own code when it does not. The first three pass;
+  -- the last two fail with the distinct codes 41 and 42.
+  example-suite :: Suite
+  example-suite = Suite "bootstrap.test.example"
+    (check-spine (Cons ("one-plus-one", if (1 :: Int) + 1 == 2 then 0 else 1)
+      (Cons ("list-length", if length (Cons (1 :: Int) (Cons (2 :: Int) Nil)) == 2 then 0 else 2)
+        (Cons ("string-compare", if string-compare "ok" "ok" == 0 then 0 else 3)
+          (Cons ("away-by-one", if (2 :: Int) + 2 == 5 then 0 else 41)
+            (Cons ("different-names", if string-compare "left" "right" == 0 then 0 else 42) Nil))))))
+
+  -- The report path: relative, so the program writes beside wherever
+  -- it is run.
+  report-path :: Path
+  report-path = path-from-string "bootstrap-test-report.txt"
+
+  -- Run the suite, write the rendered report, and answer the failure
+  -- count (the exit code). A write that failed is reported as 255, so
+  -- a failed report is never mistaken for a passing run.
+  main :: Unit ->{IO r} Int
+  main u = with (io = newIO ()) in
+    let result = run-suite example-suite in
+    case fs-write report-path (string-to-bytes (render-result result)) of
+      Err e -> 255
+      Ok _ -> result-failed result

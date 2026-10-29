@@ -1,0 +1,173 @@
+-- Bootstrap.Test: the bootstrap's own test runner, the P35 prerequisite the ladder cannot be trusted without. A rung is a runnable artifact, and this module is what lets a rung run its own checks in Cinch rather than in a Rust assertion beside it.
+--
+-- A SUITE is a name and a spine of named checks. A check is a value of type `Int`: 0 means the check passed, and any other number is the failing check's own code, the convention every harness in this repo uses (a program accumulates its answer in the exit code, one distinct number per failed check).
+--
+-- The spine is an in-type spine with an end marker, the convention `Bootstrap.Ast` and `Data.Json` follow (a Cinch data type cannot nest itself inside another type constructor, so a sequence of a recursive type is a cons spine ended by a marker; a parser builds a spine from the list it has and a consumer takes the list back). `check-spine`/`checks-of` are the pair for the suite's checks, `failure-spine`/`failures-of` for the failing names a run collects, so both types stay positive.
+--
+-- `run-suite` is PURE: it walks the checks, counts the passes and the failures, and collects the failing checks' names in run order into a `Result`. `render-result` turns a `Result` into the text a rung writes: one line per failure, rendered through `Bootstrap.Report`'s `render-diagnostic` so it reads in the compiler's own `rung:line:col: message` shape, then a summary line `passed N, failed M`.
+--
+-- The runner has no effect of its own. The only effectful step is the program's report write, which holds the `Io r` capability through `Effect.Fs` (see `bootstrap/programs/Run.Test.cinch`).
+--
+-- See bootstrap/README.md for the ladder and the discipline these artifacts follow.
+
+module Bootstrap.Test where
+
+  import Data.List
+  import Data.String
+  import Text.Lex (Span)
+  import Text.Show (int-to-string)
+  import Bootstrap.Report (MkDiagnostic, render-diagnostic)
+
+  -- The result type is named `Result`, the surface the ladder's tests
+  -- name, but it is deliberately NOT exported: the prelude already
+  -- carries `Data.Result`'s `Result`, and a program that imports this
+  -- module unqualified would otherwise have its own `Result` (and its
+  -- `Ok`/`Err`) shadowed by this module's, which the checker refuses at
+  -- the first `Err`/`Ok` pattern. Importers reach a result through the
+  -- accessors and `render-result`, never by naming the type, so the
+  -- name stays a private detail and the public surface stays clean.
+  export Check, CheckCons, CheckEnd, check-spine, checks-of
+  export Suite, suite-name, suite-checks
+  export Failure, FailureCons, FailureEnd, failure-spine, failures-of
+  export run-suite
+  export result-passed, result-failed, result-failures
+  export render-result
+
+  -- ------------------------------------------------------------------
+  -- The suite: a name and a spine of named checks.
+  -- ------------------------------------------------------------------
+
+  -- The checks of a suite, in run order, as an in-type spine with an
+  -- end marker (the `Bootstrap.Ast` convention, so the type stays
+  -- positive). `CheckCons` is one named check's code and the rest;
+  -- `CheckEnd` is the marker a well formed spine ends with.
+  data Check where
+    CheckCons :: String -> Int -> Check -> Check
+    CheckEnd :: Check
+
+  -- Build a check spine from the list a caller already has.
+  check-spine :: List (String, Int) -> Check
+  check-spine xs = case xs of
+    Nil -> CheckEnd
+    Cons x rest -> case x of
+      (name, code) -> CheckCons name code (check-spine rest)
+
+  -- Take the list back from a check spine. A malformed spine (one
+  -- that does not end in `CheckEnd`) yields the empty list rather
+  -- than faulting, as `Bootstrap.Ast`'s walkers do.
+  checks-of :: Check -> List (String, Int)
+  checks-of c = case c of
+    CheckEnd -> Nil
+    CheckCons name code rest -> Cons (name, code) (checks-of rest)
+
+  -- A suite: its name and its checks.
+  data Suite where
+    Suite :: String -> Check -> Suite
+
+  suite-name :: Suite -> String
+  suite-name s = case s of
+    Suite name checks -> name
+
+  suite-checks :: Suite -> Check
+  suite-checks s = case s of
+    Suite name checks -> checks
+
+  -- ------------------------------------------------------------------
+  -- The result: the counts and the failing names.
+  -- ------------------------------------------------------------------
+
+  -- The failing checks' names, in run order, as an in-type spine
+  -- with an end marker (the same convention, so this type too stays
+  -- positive).
+  data Failure where
+    FailureCons :: String -> Failure -> Failure
+    FailureEnd :: Failure
+
+  failure-spine :: List String -> Failure
+  failure-spine xs = case xs of
+    Nil -> FailureEnd
+    Cons x rest -> FailureCons x (failure-spine rest)
+
+  failures-of :: Failure -> List String
+  failures-of f = case f of
+    FailureEnd -> Nil
+    FailureCons x rest -> Cons x (failures-of rest)
+
+  -- A run of a suite: the passed count, the failed count, and the
+  -- failing checks' names in run order.
+  data Result where
+    MkResult :: Int -> Int -> Failure -> Result
+
+  result-passed :: Result -> Int
+  result-passed r = case r of
+    MkResult passed failed names -> passed
+
+  result-failed :: Result -> Int
+  result-failed r = case r of
+    MkResult passed failed names -> failed
+
+  result-failures :: Result -> Failure
+  result-failures r = case r of
+    MkResult passed failed names -> names
+
+  -- ------------------------------------------------------------------
+  -- Running a suite.
+  -- ------------------------------------------------------------------
+
+  -- Run every check of a suite and answer the result. A check is 0
+  -- when it passed and its own code when it did not, so the walk
+  -- counts zeroes as passes and everything else as a failure,
+  -- collecting the failing names in run order.
+  run-suite :: Suite -> Result
+  run-suite s = case s of
+    Suite name checks -> tally checks 0 0 Nil
+
+  -- The walk: passed, failed, and the failing names collected
+  -- backwards (prepended, so the tail is the latest), reversed to run
+  -- order at the end marker.
+  tally :: Check -> Int -> Int -> List String -> Result
+  tally c passed failed names = case c of
+    CheckEnd -> MkResult passed failed (failure-spine (reverse names))
+    CheckCons name code rest -> case code == 0 of
+      True -> tally rest (passed + 1) failed names
+      False -> tally rest passed (failed + 1) (Cons name names)
+
+  -- ------------------------------------------------------------------
+  -- Rendering the result.
+  -- ------------------------------------------------------------------
+
+  -- A synthesized span for the failure lines: the bootstrap's checks
+  -- carry no source position, so every failure line is reported at
+  -- the same place, `1:1`.
+  failure-span :: Span
+  failure-span = Span 0 0 1 1
+
+  -- One failure line: `bootstrap.test:1:1: check failed: <name>`, the
+  -- compiler's own diagnostic shape, so a failure reads wherever the
+  -- ladder renders it.
+  render-failure :: String -> String
+  render-failure name =
+    string-concat
+      (render-diagnostic (MkDiagnostic "bootstrap.test" failure-span (string-concat "check failed: " name)))
+      "\n"
+
+  render-failures :: List String -> String
+  render-failures names = case names of
+    Nil -> empty-string
+    Cons name rest -> string-concat (render-failure name) (render-failures rest)
+
+  -- The summary line: `passed N, failed M`, newline terminated like
+  -- the failure lines.
+  summary-line :: Int -> Int -> String
+  summary-line passed failed =
+    string-concat "passed "
+      (string-concat (int-to-string passed)
+        (string-concat ", failed "
+          (string-concat (int-to-string failed) "\n")))
+
+  -- The whole report: one line per failure, then the summary line.
+  -- A run with no failures is the summary line alone.
+  render-result :: Result -> String
+  render-result r = case r of
+    MkResult passed failed names ->
+      string-concat (render-failures (failures-of names)) (summary-line passed failed)
