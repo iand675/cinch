@@ -1,0 +1,1710 @@
+-- Text.Yaml: the YAML safe data subset: text to `Json` values and back.
+--
+-- Module scheme (design/base-library.md): `Text.*` is conversion to and
+-- from String/Bytes, and this module is the P37 serialization family's
+-- YAML member (design/stdlib-parity-ruby.md: Ruby's YAML loads are the
+-- classic arbitrary-object-deserialization CVE, so the port is a
+-- REDESIGN, not a translation). It speaks the JSON family's value
+-- vocabulary (`Data.Json`'s `Json`, decision D148) so the codec family
+-- has one shape: `yaml-parse :: String -> Result YamlError Json` and
+-- `yaml-print :: Json -> String`. Like `Text.Json`/`Text.Args` it is an
+-- ordinary importable module beside the entry, not a base-layer module
+-- (the P30/P31 pattern, D309). Unlike them it imports the embedded
+-- family's homes only (no `Text.Lex`/`Text.Parse`), so it can itself be
+-- embedded without dragging a source module in behind it.
+--
+-- THE SAFE SUBSET LAW. A general YAML loader's expressive power is TYPE
+-- CONSTRUCTION: a tag names a class and the loader instantiates it
+-- (`!ruby/object`, `!!python/object/apply`), which is arbitrary
+-- behaviour and arbitrary data flowing from an untrusted document into
+-- the process. The safe subset is exactly the value forms the `Json`
+-- family can hold, and the law this module must satisfy is: a document
+-- parses to a finite tree of `Json` nodes, scalars typed only as
+-- integer, float, boolean, null or string, with no node referring to
+-- another, so parsing cannot construct an object, cannot invoke
+-- anything, and cannot produce a cyclic or shared structure. An alias
+-- resolves to a COPY of the anchored node (the safe form: the document's
+-- text expands into data and no reference is materialized), and an alias
+-- that reaches its own anchor is refused rather than expanded forever.
+-- Alias expansion costs what the produced value costs; there is no
+-- separate expansion budget, and the classic self-referential blowup is
+-- the refused cycle, not a memory cliff.
+--
+-- THE ROUND-TRIP LAW. `yaml-print` is total, and `yaml-parse` accepts
+-- its output: `yaml-parse (yaml-print v)` is `Ok v` for every value
+-- whose spine is well formed (`JObj`/`JArr` cons spines ended by
+-- `JObjEnd`/`JArrEnd`), whose floats are finite, and whose strings are
+-- UTF-8. Two renderings carry the round trip on the printer's side:
+-- a string that would re-read as a number, a boolean, null or an
+-- indicator-led token is quoted, so its type survives; a non-finite
+-- float renders `null` (Text.Json's choice, D310), the one rendering
+-- that is not a round trip, and the law covers the finite domain.
+-- Printing is block style (indentation carries the structure the parser
+-- reads), with no trailing newline.
+--
+-- THE KEY LAW. A mapping key is its TEXT: `Json` carries `String` keys
+-- (D148), so a plain key is not typed (`1:` and `"1":` are the same
+-- key, as they are in the JSON data model), and a non-scalar key has no
+-- representation at all and is refused.
+--
+-- NAMED REFUSALS (each is a named error kind with the offending text in
+-- its message, never a silent misread):
+--   tags of any kind: `!!` and custom `!tag` are refused before the
+--     node behind them is read, because a tag's only job is to select a
+--     constructed type (YamlUnsupportedTag);
+--   object-constructing tags: `!ruby/object` and the runtime-namespace
+--     families (`ruby/`, `python/`, `perl/`, `java/`, `php/`,
+--     `dotnet/`, `golang/`, `lua/`) get their own kind, because the
+--     deserialization CVE this port exists to close is exactly this
+--     form (YamlObjectTag);
+--   merge keys `<<`: not implemented, so a plain `<<` key is refused
+--     rather than kept as an ordinary key (YamlMergeKey);
+--   multi-document streams: one document per call; a second `---` is
+--     refused (YamlMultiDocument);
+--   directives (`%YAML`, `%TAG`): refused, since a directive's whole
+--     purpose is to change how tags resolve (YamlDirective);
+--   non-scalar and explicit (`?`) mapping keys (YamlComplexKey);
+--   duplicate keys in one mapping, refused like Text.Json because
+--     canonical identity needs unique names (YamlDuplicateKey);
+--   scalars outside the safe typing: the `.inf`/`.nan` spellings the
+--     core schema types as non-finite floats, which the finite `JFloat`
+--     domain cannot carry (YamlUnsupportedScalar);
+--   an alias with no earlier anchor (YamlUndefinedAlias), and an alias
+--     that reaches its own anchor (YamlAliasCycle).
+--
+-- BOUNDARIES (forms deliberately narrowed, each a named syntax error
+-- rather than a guess): multi-line plain and quoted scalars (a scalar
+-- closes on its line, which also refuses a folded flow scalar); tabs in
+-- indentation; a block collection starting on its mapping key's line;
+-- a block collection starting on the `---` marker line; a flow mapping
+-- key containing a `:` (a plain flow key ends at its first `:`, so the
+-- 1.1-style `{a:1}` reads as `a` -> `1`, while `{http://x: 1}` is a
+-- named syntax error rather than a silent split); sexagesimal and
+-- `0x`/`0o`/`_` separated numeric spellings (the core schema has no
+-- such forms, so they stay strings).
+--
+-- The intermediate parse tree (anchors, aliases, block-scalar lines)
+-- and every constructor of it are module-private (D143's surface rule,
+-- D308's constructor privacy): the surface is `YamlError` plus the two
+-- functions.
+module Text.Yaml where
+
+  import Data.Bool
+  import Data.Bytes
+  import Data.Char
+  import Data.Int
+  import Data.Json
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+  import Text.Show
+
+  export YamlError, YamlErrorKind
+  export YamlSyntaxError, YamlIndentationError, YamlUnsupportedTag, YamlObjectTag
+  export YamlMergeKey, YamlMultiDocument, YamlUndefinedAlias, YamlAliasCycle
+  export YamlDirective, YamlComplexKey, YamlDuplicateKey, YamlUnsupportedScalar
+  export yaml-error-kind, yaml-error-line, yaml-error-column, yaml-error-message
+  export render-yaml-error
+  export yaml-parse, yaml-print
+
+
+  -- ---------------------------------------------------------------------------
+  -- The error vocabulary: a named kind, the position, and the text the
+  -- refusal is about.
+  -- ---------------------------------------------------------------------------
+
+  data YamlErrorKind where
+    YamlSyntaxError :: YamlErrorKind
+    YamlIndentationError :: YamlErrorKind
+    YamlUnsupportedTag :: YamlErrorKind
+    YamlObjectTag :: YamlErrorKind
+    YamlMergeKey :: YamlErrorKind
+    YamlMultiDocument :: YamlErrorKind
+    YamlUndefinedAlias :: YamlErrorKind
+    YamlAliasCycle :: YamlErrorKind
+    YamlDirective :: YamlErrorKind
+    YamlComplexKey :: YamlErrorKind
+    YamlDuplicateKey :: YamlErrorKind
+    YamlUnsupportedScalar :: YamlErrorKind
+
+  data YamlError where
+    YamlError :: YamlErrorKind -> Nat -> Nat -> String -> YamlError
+
+  yaml-error-kind :: YamlError -> YamlErrorKind
+  yaml-error-kind e = case e of
+    YamlError k l c m -> k
+
+  yaml-error-line :: YamlError -> Nat
+  yaml-error-line e = case e of
+    YamlError k l c m -> l
+
+  yaml-error-column :: YamlError -> Nat
+  yaml-error-column e = case e of
+    YamlError k l c m -> c
+
+  yaml-error-message :: YamlError -> String
+  yaml-error-message e = case e of
+    YamlError k l c m -> m
+
+  -- The kind's stable label, the refusal's name in the rendered text.
+  yaml-error-label :: YamlErrorKind -> String
+  yaml-error-label k = case k of
+    YamlSyntaxError -> "syntax-error"
+    YamlIndentationError -> "indentation-error"
+    YamlUnsupportedTag -> "unsupported-tag"
+    YamlObjectTag -> "object-tag"
+    YamlMergeKey -> "merge-key"
+    YamlMultiDocument -> "multi-document"
+    YamlUndefinedAlias -> "undefined-alias"
+    YamlAliasCycle -> "alias-cycle"
+    YamlDirective -> "directive"
+    YamlComplexKey -> "complex-key"
+    YamlDuplicateKey -> "duplicate-key"
+    YamlUnsupportedScalar -> "unsupported-scalar"
+
+  render-yaml-error :: YamlError -> String
+  render-yaml-error e = case e of
+    YamlError k l c m ->
+      string-concat "yaml: line " (string-concat (nat-to-string l)
+        (string-concat ", column " (string-concat (nat-to-string c)
+          (string-concat ": " (string-concat (yaml-error-label k)
+            (string-concat ": " m))))))
+
+  -- Equality by the kind's index (the message and position are not part
+  -- of the identity a caller compares kinds with).
+  yaml-kind-index :: YamlErrorKind -> Nat
+  yaml-kind-index k = case k of
+    YamlSyntaxError -> 0
+    YamlIndentationError -> 1
+    YamlUnsupportedTag -> 2
+    YamlObjectTag -> 3
+    YamlMergeKey -> 4
+    YamlMultiDocument -> 5
+    YamlUndefinedAlias -> 6
+    YamlAliasCycle -> 7
+    YamlDirective -> 8
+    YamlComplexKey -> 9
+    YamlDuplicateKey -> 10
+    YamlUnsupportedScalar -> 11
+
+  implicit instance Eq_YamlErrorKind :: Eq YamlErrorKind where
+    (==) a b = yaml-kind-index a == yaml-kind-index b
+    (/=) a b = not (yaml-kind-index a == yaml-kind-index b)
+
+
+  -- ---------------------------------------------------------------------------
+  -- The cursor: the document's bytes, the offset, and the position (a
+  -- UTF-8 continuation byte does not advance the column, so columns
+  -- count scalars like the compiler's spans).
+  -- ---------------------------------------------------------------------------
+
+  data YState where
+    YState :: Bytes -> Nat -> Nat -> Nat -> YState
+
+  y-src :: YState -> Bytes
+  y-src s = case s of
+    YState b o l c -> b
+
+  y-off :: YState -> Nat
+  y-off s = case s of
+    YState b o l c -> o
+
+  y-line :: YState -> Nat
+  y-line s = case s of
+    YState b o l c -> l
+
+  y-col :: YState -> Nat
+  y-col s = case s of
+    YState b o l c -> c
+
+  -- The byte at an absolute offset, when it exists.
+  y-at :: YState -> Nat -> Option Nat
+  y-at s i = if i >= bytes-len (y-src s) then None else Some (bytes-get (y-src s) i)
+
+  y-peek :: YState -> Option Nat
+  y-peek s = y-at s (y-off s)
+
+  y-peek-n :: YState -> Nat -> Option Nat
+  y-peek-n s n = y-at s (y-off s + n)
+
+  y-at-eof :: YState -> Bool
+  y-at-eof s = y-off s >= bytes-len (y-src s)
+
+  -- Moving one scalar forward, position included.
+  y-advance1 :: YState -> YState
+  y-advance1 s = case s of
+    YState b o l c ->
+      let byte = bytes-get b o in
+      if byte == 10 then YState b (o + 1) (l + 1) 1
+      else if byte >= 128 && byte < 192 then YState b (o + 1) l c
+      else YState b (o + 1) l (c + 1)
+
+  y-advance-to :: YState -> Nat -> YState
+  y-advance-to s goal =
+    if y-off s >= goal || y-at-eof s then s else y-advance-to (y-advance1 s) goal
+
+  -- The offset of the current line's '\n' (or the buffer's end).
+  y-line-end :: YState -> Nat
+  y-line-end s = scan-eol (y-src s) (y-off s)
+
+  scan-eol :: Bytes -> Nat -> Nat
+  scan-eol b i =
+    if i >= bytes-len b then i
+    else if bytes-get b i == 10 then i
+    else scan-eol b (i + 1)
+
+  y-next-line :: YState -> YState
+  y-next-line s =
+    let e = y-line-end s in
+    if e >= bytes-len (y-src s) then y-advance-to s (bytes-len (y-src s)) else y-advance-to s (e + 1)
+
+  y-at-line-start :: YState -> Bool
+  y-at-line-start s =
+    if y-off s == 0 then True
+    else case y-at s (y-off s - 1) of
+      Some b -> b == 10
+      None -> False
+
+  -- The start of the next line when the cursor is not already at one: an
+  -- entry can end mid-line (a scalar) or at a line start (a nested block
+  -- or a block scalar), and the block loops read line indentation, which
+  -- is only defined from a line start.
+  y-next-line-from :: YState -> YState
+  y-next-line-from s = if y-at-line-start s then s else y-next-line s
+
+  y-at-eol :: YState -> Bool
+  y-at-eol s = case y-peek s of
+    None -> True
+    Some b -> b == 10 || b == 13
+
+  y-at-eol-or-comment :: YState -> Bool
+  y-at-eol-or-comment s = case y-peek s of
+    None -> True
+    Some b -> b == 10 || b == 13 || b == 35
+
+  -- The byte after the current one is a space, a tab, a line break or
+  -- the end (the "indicator followed by a break" test).
+  y-space-after :: YState -> Bool
+  y-space-after s = case y-peek-n s 1 of
+    None -> True
+    Some c -> c == 32 || c == 9 || c == 10 || c == 13
+
+  y-skip-spaces :: YState -> YState
+  y-skip-spaces s = case y-peek s of
+    Some b -> if b == 32 || b == 9 then y-skip-spaces (y-advance1 s) else s
+    None -> s
+
+  y-skip-to-line-end :: YState -> YState
+  y-skip-to-line-end s = y-advance-to s (y-line-end s)
+
+  -- The leading space run of a line (block-scalar content may hold tabs
+  -- after its indentation, so this one does not refuse them).
+  y-indent-spaces :: YState -> (Nat, YState)
+  y-indent-spaces s = case y-peek s of
+    Some b -> if b == 32 then case y-indent-spaces (y-advance1 s) of
+        (n, s1) -> (n + 1, s1)
+      else (0, s)
+    None -> (0, s)
+
+  -- A line's indentation, refusing a tab (YAML forbids tab indentation).
+  y-line-indent :: YState -> Result YamlError (Nat, YState)
+  y-line-indent s = case y-indent-spaces s of
+    (n, s1) -> case y-peek s1 of
+      Some b -> if b == 9 then y-err s1 YamlIndentationError "tab in indentation" else Ok (n, s1)
+      None -> Ok (n, s1)
+
+  y-line-blank-or-comment :: YState -> Result YamlError Bool
+  y-line-blank-or-comment s = case y-line-indent s of
+    Err e -> Err e
+    Ok p -> case p of
+      (n, s1) -> case y-peek s1 of
+        None -> Ok True
+        Some b -> if b == 10 || b == 13 then Ok True
+          else if b == 35 then Ok True
+          else Ok False
+
+  -- Skip the blank and comment-only lines from a line start, landing on
+  -- the next line that carries content (or the end of the input).
+  y-skip-blank-lines :: YState -> Result YamlError YState
+  y-skip-blank-lines s =
+    if y-at-eof s then Ok s
+    else case y-line-blank-or-comment s of
+      Err e -> Err e
+      Ok blank -> if blank then y-skip-blank-lines (y-next-line s) else Ok s
+
+  -- The end of a node on a line: trailing spaces and an optional
+  -- comment, then the break.
+  y-finish-line :: YState -> Result YamlError YState
+  y-finish-line s =
+    let s1 = y-skip-spaces s in
+    case y-peek s1 of
+      None -> Ok s1
+      Some b -> if b == 10 || b == 13 then Ok s1
+        else if b == 35 then Ok (y-skip-to-line-end s1)
+        else y-err s1 YamlSyntaxError "trailing content after a node on the same line"
+
+  y-err :: forall a. YState -> YamlErrorKind -> String -> Result YamlError a
+  y-err s k m = Err (YamlError k (y-line s) (y-col s) m)
+
+
+  -- ---------------------------------------------------------------------------
+  -- Text over byte ranges. A `String`'s backing is valid UTF-8 (the
+  -- Data.String immutability contract), and every range here cuts at a
+  -- byte a scalar boundary cannot fall inside, so the `Option` is always
+  -- `Some`; it is matched rather than assumed because the primitive is
+  -- `Option`.
+  -- ---------------------------------------------------------------------------
+
+  -- The byte range [i, j) as a fresh copy. `Text.Lex` exports the same
+  -- helper, but that module is not part of the embedded family (D309),
+  -- and importing it would make this module unembeddable in turn: the
+  -- whole module imports the embedded homes only.
+  byte-range :: Bytes -> Nat -> Nat -> Bytes
+  byte-range b i j =
+    let out = bytes-new (j - i) in
+    let u = copy-bytes-into out b 0 i (j - i) in
+    out
+
+  text-range :: Bytes -> Nat -> Nat -> String
+  text-range b i j = case string-from-bytes (byte-range b i j) of
+    Some t -> t
+    None -> empty-string
+
+  trim-trailing-space :: Bytes -> Nat -> Nat -> Nat
+  trim-trailing-space b i j =
+    if j <= i then i
+    else
+      let c = bytes-get b (j - 1) in
+      if c == 32 || c == 9 then trim-trailing-space b i (j - 1) else j
+
+  -- `#` at a position where a comment may begin: not the scalar's first
+  -- byte, and preceded by a space or a tab. A guarded helper rather than
+  -- `&&` on a lookback, because `&&` is a strict function here (Data.Bool)
+  -- and would read the byte before the buffer's start.
+  comment-begins :: Bytes -> Nat -> Nat -> Bool
+  comment-begins b start i =
+    if i == start then False
+    else if bytes-get b (i - 1) == 32 then True
+    else bytes-get b (i - 1) == 9
+
+  -- The end of a run of non-space bytes (the tag, anchor and directive
+  -- token scanners).
+  token-end :: Bytes -> Nat -> Nat
+  token-end b i =
+    if i >= bytes-len b then i
+    else
+      let c = bytes-get b i in
+      if c == 32 || c == 9 || c == 10 || c == 13 || c == 44 || c == 91 || c == 93 || c == 123 || c == 125 || c == 35 then i
+      else token-end b (i + 1)
+
+  -- The end of a token that stops at a flow indicator as well.
+  name-end :: Bytes -> Nat -> Nat
+  name-end b i =
+    if i >= bytes-len b then i
+    else
+      let c = bytes-get b i in
+      if c == 32 || c == 9 || c == 10 || c == 13 || c == 44 || c == 91 || c == 93 || c == 123 || c == 125 || c == 35 then i
+      else name-end b (i + 1)
+
+  starts-with-text :: String -> String -> Bool
+  starts-with-text s p =
+    if string-length s < string-length p then False
+    else eq-i64 (string-compare (string-slice s 0 (string-length p)) p) 0
+
+  contains-text :: String -> String -> Bool
+  contains-text s pat =
+    if string-length pat == 0 then True
+    else if string-length s < string-length pat then False
+    else if eq-i64 (string-compare (string-slice s 0 (string-length pat)) pat) 0 then True
+    else contains-text (string-slice s 1 (string-length s)) pat
+
+  rev-list :: forall a. List a -> List a
+  rev-list xs = rev-acc xs Nil
+
+  rev-acc :: forall a. List a -> List a -> List a
+  rev-acc xs acc = case xs of
+    Nil -> acc
+    Cons y ys -> rev-acc ys (Cons y acc)
+
+  list-empty :: forall a. List a -> Bool
+  list-empty xs = case xs of
+    Nil -> True
+    Cons y ys -> False
+
+  member-text :: List String -> String -> Bool
+  member-text xs t = case xs of
+    Nil -> False
+    Cons y ys -> if eq-i64 (string-compare y t) 0 then True else member-text ys t
+
+
+  -- ---------------------------------------------------------------------------
+  -- The parse tree. Scalars stay untyped until resolution: `YPlain` is
+  -- typed by the core schema's scalar rules, `YText` (quoted and block
+  -- scalars) is always a string.
+  -- ---------------------------------------------------------------------------
+
+  -- The recursive arms are cons spines (`YSeqCons`/`YMapCons` ended by
+  -- `YSeqEnd`/`YMapEnd`), for the reason `Data.Json` gives for the same
+  -- shape: the positivity discipline admits only direct recursive
+  -- occurrences, so a payload cannot be a `List YNode`.
+  data YNode where
+    YPlain :: String -> YNode
+    YText :: String -> YNode
+    YSeqCons :: YNode -> YNode -> YNode
+    YSeqEnd :: YNode
+    YMapCons :: String -> YNode -> YNode -> YNode
+    YMapEnd :: YNode
+    YAnchoredNode :: String -> YNode -> YNode
+    YAliasNode :: String -> Nat -> Nat -> YNode
+
+  -- A mapping entry on its way through the parser is a
+  -- `(key, value-node)` pair; once resolved it is a `(key, Json)` pair
+  -- (no type of its own, the tuple is the pair). The two never mix: the
+  -- parser's accumulators carry the first, the resolver and the printer
+  -- the second.
+  data YKey where
+    YKey :: String -> Bool -> YKey
+
+  data BsChomp where
+    ChompClip :: BsChomp
+    ChompStrip :: BsChomp
+    ChompKeep :: BsChomp
+
+  data BsHead where
+    BsHead :: BsChomp -> Nat -> BsHead
+
+  data BsLine where
+    BsLine :: String -> Bool -> BsLine
+
+  data BsBody where
+    BsBody :: List BsLine -> Nat -> BsBody
+
+  data YAnchor where
+    YAnchor :: String -> Json -> YAnchor
+
+  -- A parsed list of items (or entries) as the spine the value carries.
+  build-seq :: List YNode -> YNode
+  build-seq xs = case xs of
+    Nil -> YSeqEnd
+    Cons v rest -> YSeqCons v (build-seq rest)
+
+  build-map :: List (String, YNode) -> YNode
+  build-map ps = case ps of
+    Nil -> YMapEnd
+    Cons p rest -> case p of
+      (k, v) -> YMapCons k v (build-map rest)
+
+
+  -- ---------------------------------------------------------------------------
+  -- Tags: refused by name before the node behind them is read.
+  -- ---------------------------------------------------------------------------
+
+  y-refuse-tag :: forall a. YState -> Result YamlError a
+  y-refuse-tag s =
+    let stop = token-end (y-src s) (y-off s + 1) in
+    let text = text-range (y-src s) (y-off s) stop in
+    if tag-constructs-object text then y-err s YamlObjectTag (string-concat "object-constructing tag " text)
+    else y-err s YamlUnsupportedTag (string-concat "tag " text)
+
+  -- The runtime namespaces whose loaders instantiate types: exactly the
+  -- tags the safe subset exists to refuse.
+  tag-constructs-object :: String -> Bool
+  tag-constructs-object t = case strip-bangs t of
+    body -> starts-with-text body "ruby/" || starts-with-text body "python/" || starts-with-text body "perl/"
+      || starts-with-text body "java/" || starts-with-text body "php/" || starts-with-text body "dotnet/"
+      || starts-with-text body "golang/" || starts-with-text body "lua/"
+
+  strip-bangs :: String -> String
+  strip-bangs t = case string-char-at t 0 of
+    Some c -> if c == '!' then strip-bangs (string-slice t 1 (string-length t)) else t
+    None -> t
+
+
+  -- ---------------------------------------------------------------------------
+  -- Quoted scalars. A quoted scalar closes on its line (the named
+  -- boundary): a folded quoted scalar is refused rather than guessed.
+  -- ---------------------------------------------------------------------------
+
+  scan-single :: YState -> Result YamlError (String, YState)
+  scan-single s = case y-peek s of
+    Some b -> if b == 39 then scan-single-body (y-advance1 s) Nil else y-err s YamlSyntaxError "expected a single-quoted scalar"
+    None -> y-err s YamlSyntaxError "expected a single-quoted scalar"
+
+  scan-single-body :: YState -> List Char -> Result YamlError (String, YState)
+  scan-single-body s acc = case y-peek s of
+    None -> y-err s YamlSyntaxError "an unterminated single-quoted scalar"
+    Some b -> if b == 39 then
+        case y-peek-n s 1 of
+          Some c -> if c == 39 then scan-single-body (y-advance-to s (y-off s + 2)) (Cons '\'' acc)
+            else Ok (pack (rev-list acc), y-advance1 s)
+          None -> Ok (pack (rev-list acc), y-advance1 s)
+      else if b == 10 || b == 13 then y-err s YamlSyntaxError "a quoted scalar closes on its line"
+      else case utf8-at (y-src s) (y-off s) of
+        Some p -> case p of
+          (c, w) -> scan-single-body (y-advance-to s (y-off s + w)) (Cons c acc)
+        None -> y-err s YamlSyntaxError "invalid UTF-8 in a scalar"
+
+  scan-double :: YState -> Result YamlError (String, YState)
+  scan-double s = case y-peek s of
+    Some b -> if b == 34 then scan-double-body (y-advance1 s) Nil else y-err s YamlSyntaxError "expected a double-quoted scalar"
+    None -> y-err s YamlSyntaxError "expected a double-quoted scalar"
+
+  scan-double-body :: YState -> List Char -> Result YamlError (String, YState)
+  scan-double-body s acc = case y-peek s of
+    None -> y-err s YamlSyntaxError "an unterminated double-quoted scalar"
+    Some b -> if b == 34 then Ok (pack (rev-list acc), y-advance1 s)
+      else if b == 10 || b == 13 then y-err s YamlSyntaxError "a quoted scalar closes on its line"
+      else if b == 92 then scan-double-escape (y-advance1 s) acc
+      else case utf8-at (y-src s) (y-off s) of
+        Some p -> case p of
+          (c, w) -> scan-double-body (y-advance-to s (y-off s + w)) (Cons c acc)
+        None -> y-err s YamlSyntaxError "invalid UTF-8 in a scalar"
+
+  scan-double-escape :: YState -> List Char -> Result YamlError (String, YState)
+  scan-double-escape s acc = case y-peek s of
+    None -> y-err s YamlSyntaxError "an unterminated escape"
+    Some b ->
+      if b == 48 then scan-double-body (y-advance1 s) (Cons '\u{0}' acc)
+      else if b == 97 then scan-double-body (y-advance1 s) (Cons '\u{7}' acc)
+      else if b == 98 then scan-double-body (y-advance1 s) (Cons '\u{8}' acc)
+      else if b == 116 then scan-double-body (y-advance1 s) (Cons '\t' acc)
+      else if b == 110 then scan-double-body (y-advance1 s) (Cons '\n' acc)
+      else if b == 118 then scan-double-body (y-advance1 s) (Cons '\u{B}' acc)
+      else if b == 102 then scan-double-body (y-advance1 s) (Cons '\u{C}' acc)
+      else if b == 114 then scan-double-body (y-advance1 s) (Cons '\r' acc)
+      else if b == 101 then scan-double-body (y-advance1 s) (Cons '\u{1B}' acc)
+      else if b == 32 then scan-double-body (y-advance1 s) (Cons ' ' acc)
+      else if b == 34 then scan-double-body (y-advance1 s) (Cons '"' acc)
+      else if b == 47 then scan-double-body (y-advance1 s) (Cons '/' acc)
+      else if b == 92 then scan-double-body (y-advance1 s) (Cons '\\' acc)
+      else if b == 78 then scan-double-body (y-advance1 s) (Cons '\u{85}' acc)
+      else if b == 95 then scan-double-body (y-advance1 s) (Cons '\u{A0}' acc)
+      else if b == 76 then scan-double-body (y-advance1 s) (Cons '\u{2028}' acc)
+      else if b == 80 then scan-double-body (y-advance1 s) (Cons '\u{2029}' acc)
+      else if b == 120 then scan-hex-escape (y-advance1 s) 2 acc
+      else if b == 117 then scan-hex-escape (y-advance1 s) 4 acc
+      else if b == 85 then scan-hex-escape (y-advance1 s) 8 acc
+      else y-err s YamlSyntaxError "unknown escape in a double-quoted scalar"
+
+  -- `\xHH`, `\uHHHH`, `\UHHHHHHHH`: `k` hex digits, then the scalar
+  -- value they spell.
+  scan-hex-escape :: YState -> Nat -> List Char -> Result YamlError (String, YState)
+  scan-hex-escape s k acc = case scan-hex-digits s k 0 of
+    Err e -> Err e
+    Ok p -> case p of
+      (cp, s1) -> case u32-to-char (wrapping-i64-to-u32 (nat-to-i64 cp)) of
+        Some c -> scan-double-body s1 (Cons c acc)
+        None -> y-err s YamlSyntaxError "an escape is not a Unicode scalar value"
+
+  scan-hex-digits :: YState -> Nat -> Nat -> Result YamlError (Nat, YState)
+  scan-hex-digits s k acc =
+    if k == 0 then Ok (acc, s)
+    else case y-peek s of
+      None -> y-err s YamlSyntaxError "an escape needs its hex digits"
+      Some b -> if is-hex-byte b then scan-hex-digits (y-advance1 s) (k - 1) (acc * 16 + hex-byte-value b)
+        else y-err s YamlSyntaxError "an escape needs its hex digits"
+
+  is-hex-byte :: Nat -> Bool
+  is-hex-byte b =
+    (b >= 48 && b < 58) || (b >= 65 && b < 71) || (b >= 97 && b < 103)
+
+  hex-byte-value :: Nat -> Nat
+  hex-byte-value b =
+    if b < 58 then b - 48
+    else if b < 71 then b - 55
+    else b - 87
+
+  parse-single-quoted :: YState -> Result YamlError (YNode, YState)
+  parse-single-quoted s = case scan-single s of
+    Err e -> Err e
+    Ok p -> case p of
+      (t, s1) -> Ok (YText t, s1)
+
+  parse-double-quoted :: YState -> Result YamlError (YNode, YState)
+  parse-double-quoted s = case scan-double s of
+    Err e -> Err e
+    Ok p -> case p of
+      (t, s1) -> Ok (YText t, s1)
+
+
+  -- ---------------------------------------------------------------------------
+  -- Block scalars: `|` literal and `>` folded, with the chomping
+  -- indicators (`-` strip, `+` keep, absent clip) and an explicit
+  -- indentation digit. The content is a string, never typed.
+  -- ---------------------------------------------------------------------------
+
+  parse-block-scalar :: YState -> Nat -> Result YamlError (YNode, YState)
+  parse-block-scalar s ind = case y-peek s of
+    None -> y-err s YamlSyntaxError "a block scalar needs an indicator"
+    Some b ->
+      let folded = b == 62 in
+      case bs-scan (y-advance1 s) ChompClip False 0 of
+        Err e -> Err e
+        Ok p -> case p of
+          (head, s1) -> case head of
+            BsHead chomp explicit -> case y-finish-line s1 of
+              Err e -> Err e
+              Ok s2 -> case bs-content (y-next-line s2) ind explicit of
+                Err e -> Err e
+                Ok q -> case q of
+                  (body, s3) -> case body of
+                    BsBody lines pending -> Ok (YText (bs-render folded chomp lines pending), s3)
+
+  bs-scan :: YState -> BsChomp -> Bool -> Nat -> Result YamlError (BsHead, YState)
+  bs-scan s chomp has-chomp indent = case y-peek s of
+    None -> Ok (BsHead chomp indent, s)
+    Some b ->
+      if b == 43 && not has-chomp then bs-scan (y-advance1 s) ChompKeep True indent
+      else if b == 45 && not has-chomp then bs-scan (y-advance1 s) ChompStrip True indent
+      else if b >= 49 && b < 58 && indent == 0 then bs-scan (y-advance1 s) chomp has-chomp (b - 48)
+      else Ok (BsHead chomp indent, s)
+
+  bs-content :: YState -> Nat -> Nat -> Result YamlError (BsBody, YState)
+  bs-content s ind explicit =
+    let block-ind = if explicit == 0 then bs-detect-indent s ind else ind + explicit in
+    bs-collect s block-ind Nil 0
+
+  -- The block's indentation: the explicit digit relative to the parent,
+  -- otherwise the first non-empty content line's indentation.
+  bs-detect-indent :: YState -> Nat -> Nat
+  bs-detect-indent s parent =
+    if y-at-eof s then parent + 1
+    else case y-indent-spaces s of
+      (n, s1) -> if y-at-eol s1 then bs-detect-indent (y-next-line s) parent
+        else if n > parent then n
+        else parent + 1
+
+  -- Content lines plus the trailing blank-line count. A blank line is
+  -- held back until a later content line claims it (an internal blank),
+  -- so the trailing ones stay distinguishable for the chomping rule.
+  bs-collect :: YState -> Nat -> List BsLine -> Nat -> Result YamlError (BsBody, YState)
+  bs-collect s bind acc pending =
+    if y-at-eof s then Ok (BsBody (rev-list acc) pending, s)
+    else case y-indent-spaces s of
+      (n, s1) -> if y-at-eol s1 then bs-collect (y-next-line s) bind acc (pending + 1)
+        else if n >= bind then
+          let line = bs-line-text (y-src s) (y-off s + bind) (y-line-end s) in
+          bs-collect (y-next-line s) bind (Cons (BsLine line (n > bind)) (flush-blanks pending acc)) 0
+        else Ok (BsBody (rev-list acc) pending, s)
+
+  flush-blanks :: Nat -> List BsLine -> List BsLine
+  flush-blanks n acc = if n == 0 then acc else flush-blanks (n - 1) (Cons (BsLine empty-string False) acc)
+
+  bs-line-text :: Bytes -> Nat -> Nat -> String
+  bs-line-text b i j =
+    if j > i then
+      let c = bytes-get b (j - 1) in
+      if c == 13 then text-range b i (j - 1) else text-range b i j
+    else text-range b i j
+
+  bs-render :: Bool -> BsChomp -> List BsLine -> Nat -> String
+  bs-render folded chomp lines pending =
+    let body = if folded then bs-fold lines else bs-literal lines in
+    -- The Nat branch leads: an unconstrained literal in a `let`-bound
+    -- `if` elaborates as `Int` (D10), so `then 0 else 1 + pending` would
+    -- fix the whole `if` at `Int` and reject the `Nat` sum.
+    let trailing = if not (list-empty lines) then 1 + pending else 0 in
+    apply-chomp chomp body trailing
+
+  bs-literal :: List BsLine -> String
+  bs-literal lines = case lines of
+    Nil -> empty-string
+    Cons l rest -> case l of
+      BsLine text more -> case rest of
+        Nil -> text
+        _ -> string-concat text (string-concat "\n" (bs-literal rest))
+
+  -- Folded: a single break between two normal lines folds to a space,
+  -- n breaks to n - 1 newlines, and a break next to a more-indented line
+  -- is kept (the spec's folding rule).
+  bs-fold :: List BsLine -> String
+  bs-fold lines = fold-go lines empty-string False 0 True
+
+  fold-go :: List BsLine -> String -> Bool -> Nat -> Bool -> String
+  fold-go lines acc started pending prev-normal = case lines of
+    Nil -> acc
+    Cons l rest -> case l of
+      BsLine text more ->
+        if string-length text == 0 then fold-go rest acc started (pending + 1) prev-normal
+        else if started then
+          let sep = if pending == 0 then (if prev-normal && not more then " " else "\n") else repeat-nl pending in
+          fold-go rest (string-concat acc (string-concat sep text)) True 0 (not more)
+        else fold-go rest (string-concat (repeat-nl pending) text) True 0 (not more)
+
+  repeat-nl :: Nat -> String
+  repeat-nl n = if n == 0 then empty-string else string-concat "\n" (repeat-nl (n - 1))
+
+  apply-chomp :: BsChomp -> String -> Nat -> String
+  apply-chomp chomp body trailing = case chomp of
+    ChompStrip -> body
+    ChompClip -> if trailing == 0 then body else string-concat body "\n"
+    ChompKeep -> string-concat body (repeat-nl trailing)
+
+
+  -- ---------------------------------------------------------------------------
+  -- Flow collections: `[a, b]` and `{a: b}`, nested, with comments and
+  -- line breaks between the tokens. A trailing comma is accepted (the
+  -- spec's flow form). A plain flow KEY ends at its first `:`, so the
+  -- 1.1-style `{a:1}` reads as `a` -> `1` (a key containing a colon must
+  -- be quoted); a plain flow VALUE ends at a `:` only when a space or a
+  -- flow indicator follows.
+  -- ---------------------------------------------------------------------------
+
+  y-skip-flow-ws :: YState -> YState
+  y-skip-flow-ws s = case y-peek s of
+    None -> s
+    Some b -> if b == 32 || b == 9 || b == 10 || b == 13 then y-skip-flow-ws (y-advance1 s)
+      else if b == 35 && y-comment-start s then y-skip-flow-ws (y-skip-to-line-end s)
+      else s
+
+  -- A `#` may start a comment only after whitespace (or at the start).
+  y-comment-start :: YState -> Bool
+  y-comment-start s =
+    if y-off s == 0 then True
+    else case y-at s (y-off s - 1) of
+      Some b -> b == 32 || b == 9 || b == 10 || b == 13
+      None -> False
+
+  parse-flow :: YState -> Result YamlError (YNode, YState)
+  parse-flow s = case y-peek s of
+    Some b -> if b == 91 then parse-flow-seq (y-advance1 s)
+      else if b == 123 then parse-flow-map (y-advance1 s)
+      else y-err s YamlSyntaxError "a flow collection starts with '[' or '{'"
+    None -> y-err s YamlSyntaxError "a flow collection starts with '[' or '{'"
+
+  parse-flow-node :: YState -> Result YamlError (YNode, YState)
+  parse-flow-node s0 =
+    let s = y-skip-flow-ws s0 in
+    case y-peek s of
+      None -> y-err s YamlSyntaxError "expected a flow node, found the end of the document"
+      Some b -> if b == 91 then parse-flow-seq (y-advance1 s)
+        else if b == 123 then parse-flow-map (y-advance1 s)
+        else if b == 33 then y-refuse-tag s
+        else if b == 38 then parse-anchor-flow s
+        else if b == 42 then parse-alias s
+        else if b == 39 then parse-single-quoted s
+        else if b == 34 then parse-double-quoted s
+        else if b == 44 || b == 93 || b == 125 then y-err s YamlSyntaxError "expected a flow node"
+        else parse-flow-plain s
+
+  parse-flow-seq :: YState -> Result YamlError (YNode, YState)
+  parse-flow-seq s =
+    let s1 = y-skip-flow-ws s in
+    case y-peek s1 of
+      None -> y-err s1 YamlSyntaxError "an unterminated flow sequence"
+      Some b -> if b == 93 then Ok (YSeqEnd, y-advance1 s1) else parse-flow-seq-items s1 Nil
+
+  parse-flow-seq-items :: YState -> List YNode -> Result YamlError (YNode, YState)
+  parse-flow-seq-items s acc = case parse-flow-node s of
+    Err e -> Err e
+    Ok p -> case p of
+      (v, s1) -> flow-seq-rest (y-skip-flow-ws s1) (Cons v acc)
+
+  flow-seq-rest :: YState -> List YNode -> Result YamlError (YNode, YState)
+  flow-seq-rest s acc = case y-peek s of
+    None -> y-err s YamlSyntaxError "an unterminated flow sequence"
+    Some b -> if b == 93 then Ok (build-seq (rev-list acc), y-advance1 s)
+      else if b == 44 then flow-seq-after-comma (y-skip-flow-ws (y-advance1 s)) acc
+      else y-err s YamlSyntaxError "expected ',' or ']' in a flow sequence"
+
+  flow-seq-after-comma :: YState -> List YNode -> Result YamlError (YNode, YState)
+  flow-seq-after-comma s acc = case y-peek s of
+    None -> y-err s YamlSyntaxError "an unterminated flow sequence"
+    Some b -> if b == 93 then Ok (build-seq (rev-list acc), y-advance1 s) else parse-flow-seq-items s acc
+
+  parse-flow-map :: YState -> Result YamlError (YNode, YState)
+  parse-flow-map s =
+    let s1 = y-skip-flow-ws s in
+    case y-peek s1 of
+      None -> y-err s1 YamlSyntaxError "an unterminated flow mapping"
+      Some b -> if b == 125 then Ok (YMapEnd, y-advance1 s1) else parse-flow-map-items s1 Nil Nil
+
+  parse-flow-map-items :: YState -> List (String, YNode) -> List String -> Result YamlError (YNode, YState)
+  parse-flow-map-items s acc keys = case parse-flow-entry s of
+    Err e -> Err e
+    Ok p -> case p of
+      (entry, s1) -> case entry of
+        (key, value) ->
+          if member-text keys key then
+            Err (YamlError YamlDuplicateKey (y-line s) (y-col s) (string-concat "duplicate mapping key " key))
+          else flow-map-rest (y-skip-flow-ws s1) (Cons (key, value) acc) (Cons key keys)
+
+  flow-map-rest :: YState -> List (String, YNode) -> List String -> Result YamlError (YNode, YState)
+  flow-map-rest s acc keys = case y-peek s of
+    None -> y-err s YamlSyntaxError "an unterminated flow mapping"
+    Some b -> if b == 125 then Ok (build-map (rev-list acc), y-advance1 s)
+      else if b == 44 then flow-map-after-comma (y-skip-flow-ws (y-advance1 s)) acc keys
+      else y-err s YamlSyntaxError "expected ',' or '}' in a flow mapping"
+
+  flow-map-after-comma :: YState -> List (String, YNode) -> List String -> Result YamlError (YNode, YState)
+  flow-map-after-comma s acc keys = case y-peek s of
+    None -> y-err s YamlSyntaxError "an unterminated flow mapping"
+    Some b -> if b == 125 then Ok (build-map (rev-list acc), y-advance1 s) else parse-flow-map-items s acc keys
+
+  parse-flow-entry :: YState -> Result YamlError ((String, YNode), YState)
+  parse-flow-entry s = case parse-flow-key s of
+    Err e -> Err e
+    Ok p -> case p of
+      (key, s1) -> flow-entry-value key (y-skip-flow-ws s1)
+
+  -- `{a: 1}` and `{a}` (an implicit null value, the spec's flow form).
+  flow-entry-value :: String -> YState -> Result YamlError ((String, YNode), YState)
+  flow-entry-value key s = case y-peek s of
+    None -> y-err s YamlSyntaxError "an unterminated flow mapping"
+    Some b -> if b == 58 then flow-entry-colon key (y-skip-flow-ws (y-advance1 s))
+      else if b == 44 || b == 125 then Ok ((key, YPlain empty-string), s)
+      else y-err s YamlSyntaxError "expected ':' after a flow mapping key"
+
+  flow-entry-colon :: String -> YState -> Result YamlError ((String, YNode), YState)
+  flow-entry-colon key s = case y-peek s of
+    None -> y-err s YamlSyntaxError "an unterminated flow mapping"
+    Some b -> if b == 44 || b == 125 then Ok ((key, YPlain empty-string), s)
+      else case parse-flow-node s of
+        Err e -> Err e
+        Ok p -> case p of
+          (v, s1) -> Ok ((key, v), s1)
+
+  parse-flow-key :: YState -> Result YamlError (String, YState)
+  parse-flow-key s = case y-peek s of
+    None -> y-err s YamlSyntaxError "a flow mapping entry needs a key"
+    Some b -> if b == 39 then scan-single s
+      else if b == 34 then scan-double s
+      else if b == 91 || b == 123 then y-err s YamlComplexKey "a flow mapping key must be a scalar"
+      else if b == 33 then y-refuse-tag s
+      else if b == 38 || b == 42 then y-err s YamlComplexKey "an anchored or aliased flow key is not in the safe subset"
+      else if b == 63 && y-space-after s then y-err s YamlComplexKey "explicit '?' keys are not in the safe subset"
+      else scan-flow-key-plain s
+
+  scan-flow-key-plain :: YState -> Result YamlError (String, YState)
+  scan-flow-key-plain s =
+    let stop = flow-key-end (y-src s) (y-off s) (y-off s) (y-off s) in
+    if stop == y-off s then y-err s YamlSyntaxError "expected a scalar"
+    else Ok (text-range (y-src s) (y-off s) stop, y-advance-to s stop)
+
+  flow-key-end :: Bytes -> Nat -> Nat -> Nat -> Nat
+  flow-key-end b start i last =
+    if i >= bytes-len b then last
+    else
+      let c = bytes-get b i in
+      if c == 10 || c == 13 then last
+      else if c == 44 || c == 91 || c == 93 || c == 123 || c == 125 || c == 58 then last
+      else if c == 35 then (if comment-begins b start i then last else flow-key-end b start (i + 1) (i + 1))
+      else if c == 32 || c == 9 then flow-key-end b start (i + 1) last
+      else flow-key-end b start (i + 1) (i + 1)
+
+  parse-flow-plain :: YState -> Result YamlError (YNode, YState)
+  parse-flow-plain s = case scan-flow-plain s of
+    Err e -> Err e
+    Ok p -> case p of
+      (t, s1) -> Ok (YPlain t, s1)
+
+  scan-flow-plain :: YState -> Result YamlError (String, YState)
+  scan-flow-plain s =
+    let stop = flow-plain-end (y-src s) (y-off s) (y-off s) (y-off s) in
+    if stop == y-off s then y-err s YamlSyntaxError "expected a scalar"
+    else
+      let text = text-range (y-src s) (y-off s) stop in
+      if non-finite-text text then y-err s YamlUnsupportedScalar (string-concat "scalar " text)
+      else Ok (text, y-advance-to s stop)
+
+  flow-plain-end :: Bytes -> Nat -> Nat -> Nat -> Nat
+  flow-plain-end b start i last =
+    if i >= bytes-len b then last
+    else
+      let c = bytes-get b i in
+      if c == 10 || c == 13 then last
+      else if c == 44 || c == 91 || c == 93 || c == 123 || c == 125 then last
+      else if c == 35 then (if comment-begins b start i then last else flow-plain-end b start (i + 1) (i + 1))
+      else if c == 58 && flow-colon-ends b i then last
+      else if c == 32 || c == 9 then flow-plain-end b start (i + 1) last
+      else flow-plain-end b start (i + 1) (i + 1)
+
+  flow-colon-ends :: Bytes -> Nat -> Bool
+  flow-colon-ends b i =
+    if i + 1 >= bytes-len b then True
+    else
+      let c = bytes-get b (i + 1) in
+      c == 32 || c == 9 || c == 10 || c == 13 || c == 44 || c == 93 || c == 125
+
+
+  -- ---------------------------------------------------------------------------
+  -- Anchors and aliases.
+  -- ---------------------------------------------------------------------------
+
+  scan-anchor-name :: YState -> Result YamlError (String, YState)
+  scan-anchor-name s = case y-peek s of
+    None -> y-err s YamlSyntaxError "an anchor needs a name"
+    Some b -> if b == 38 then
+        let s1 = y-advance1 s in
+        let stop = name-end (y-src s1) (y-off s1) in
+        if stop == y-off s1 then y-err s1 YamlSyntaxError "an anchor needs a name"
+        else Ok (text-range (y-src s1) (y-off s1) stop, y-advance-to s1 stop)
+      else y-err s YamlSyntaxError "an anchor needs a name"
+
+  parse-alias :: YState -> Result YamlError (YNode, YState)
+  parse-alias s = case y-peek s of
+    None -> y-err s YamlSyntaxError "an alias needs a name"
+    Some b -> if b == 42 then
+        let s1 = y-advance1 s in
+        let stop = name-end (y-src s1) (y-off s1) in
+        if stop == y-off s1 then y-err s1 YamlSyntaxError "an alias needs a name"
+        else Ok (YAliasNode (text-range (y-src s1) (y-off s1) stop) (y-line s) (y-col s), y-advance-to s1 stop)
+      else y-err s YamlSyntaxError "an alias needs a name"
+
+  -- In a value position: the anchored node is the rest of the line, or
+  -- the following block when the line ends after the anchor.
+  parse-anchor-value :: YState -> Nat -> Result YamlError (YNode, YState)
+  parse-anchor-value s ind = case scan-anchor-name s of
+    Err e -> Err e
+    Ok p -> case p of
+      (name, s1) -> if y-at-eol-or-comment s1 then anchored-block name (y-next-line s1) (ind + 1)
+        else parse-anchored-inline name (y-skip-spaces s1) ind
+
+  anchored-block :: String -> YState -> Nat -> Result YamlError (YNode, YState)
+  anchored-block name s min-ind = case parse-block-node s min-ind of
+    Err e -> Err e
+    Ok p -> case p of
+      (v, s1) -> Ok (YAnchoredNode name v, s1)
+
+  parse-anchored-inline :: String -> YState -> Nat -> Result YamlError (YNode, YState)
+  parse-anchored-inline name s ind = case parse-inline-value s ind of
+    Err e -> Err e
+    Ok p -> case p of
+      (v, s1) -> Ok (YAnchoredNode name v, s1)
+
+  -- In a sequence-item position: the anchored node may be a block
+  -- collection on the same line (`- &b c: 1`).
+  parse-anchor-item :: YState -> Nat -> Result YamlError (YNode, YState)
+  parse-anchor-item s ind = case scan-anchor-name s of
+    Err e -> Err e
+    Ok p -> case p of
+      (name, s1) -> if y-at-eol-or-comment s1 then anchored-block name (y-next-line s1) (ind + 1)
+        else case parse-item-node (y-skip-spaces s1) ind of
+          Err e -> Err e
+          Ok q -> case q of
+            (v, s2) -> Ok (YAnchoredNode name v, s2)
+
+  parse-anchor-flow :: YState -> Result YamlError (YNode, YState)
+  parse-anchor-flow s = case scan-anchor-name s of
+    Err e -> Err e
+    Ok p -> case p of
+      (name, s1) -> case parse-flow-node s1 of
+        Err e -> Err e
+        Ok q -> case q of
+          (v, s2) -> Ok (YAnchoredNode name v, s2)
+
+
+  -- ---------------------------------------------------------------------------
+  -- Nodes in block context.
+  -- ---------------------------------------------------------------------------
+
+  -- A node that owns whole lines, starting from a line start: a block
+  -- sequence, a block mapping, or one inline node on its line. An empty
+  -- node (a lower-indented line, or the end of the input) is null.
+  parse-block-node :: YState -> Nat -> Result YamlError (YNode, YState)
+  parse-block-node s0 min-ind = case y-skip-blank-lines s0 of
+    Err e -> Err e
+    Ok s ->
+      if y-at-eof s then Ok (YPlain empty-string, s)
+      else case y-line-indent s of
+        Err e -> Err e
+        Ok p -> case p of
+          (ind, s1) -> if ind < min-ind then Ok (YPlain empty-string, s)
+            else if y-at-seq-start s1 then parse-seq s1 ind
+            else case y-find-colon s1 of
+              Some i -> parse-map s1 ind
+              None -> parse-line-node s1 ind
+
+  y-at-seq-start :: YState -> Bool
+  y-at-seq-start s = case y-peek s of
+    Some b -> if b == 45 then (case y-peek-n s 1 of
+        None -> True
+        Some c -> c == 32 || c == 9 || c == 10 || c == 13)
+      else False
+    None -> False
+
+  -- A node whose content begins mid-line (after `key:` or `- `), with
+  -- `ind` the column its continuation lines belong to. A block
+  -- collection may not start on this line.
+  parse-inline-value :: YState -> Nat -> Result YamlError (YNode, YState)
+  parse-inline-value s ind = case y-peek s of
+    None -> Ok (YPlain empty-string, s)
+    Some b -> if y-at-seq-start s then y-err s YamlSyntaxError "a block sequence cannot start on the mapping key's line"
+      else case y-find-colon s of
+        Some i -> y-err s YamlSyntaxError "a block mapping cannot start on the mapping key's line"
+        None -> parse-line-node s ind
+
+  -- A sequence item's content: a nested block collection may start on
+  -- the dash's line (`- a: 1`, `- - 1`).
+  parse-item-node :: YState -> Nat -> Result YamlError (YNode, YState)
+  parse-item-node s ind = case y-peek s of
+    None -> Ok (YPlain empty-string, s)
+    Some b -> if y-at-seq-start s then parse-seq s (y-col s - 1)
+      else if b == 38 then parse-anchor-item s ind
+      else case y-find-colon s of
+        Some i -> parse-map s (y-col s - 1)
+        None -> parse-line-node s ind
+
+  -- One inline node with the line's remainder checked (the block-scalar
+  -- path leaves the cursor at the next line's start and skips the
+  -- check).
+  parse-line-node :: YState -> Nat -> Result YamlError (YNode, YState)
+  parse-line-node s ind = case parse-inline-node s ind of
+    Err e -> Err e
+    Ok p -> case p of
+      (v, s1) -> if y-at-line-start s1 then Ok (v, s1)
+        else case y-finish-line s1 of
+          Err e -> Err e
+          Ok s2 -> Ok (v, s2)
+
+  parse-inline-node :: YState -> Nat -> Result YamlError (YNode, YState)
+  parse-inline-node s ind = case y-peek s of
+    None -> Ok (YPlain empty-string, s)
+    Some b -> if b == 33 then y-refuse-tag s
+      else if b == 38 then parse-anchor-value s ind
+      else if b == 42 then parse-alias s
+      else if b == 124 || b == 62 then parse-block-scalar s ind
+      else if b == 91 || b == 123 then parse-flow s
+      else if b == 39 then parse-single-quoted s
+      else if b == 34 then parse-double-quoted s
+      else parse-plain-scalar s
+
+  parse-plain-scalar :: YState -> Result YamlError (YNode, YState)
+  parse-plain-scalar s =
+    let stop = plain-end (y-src s) (y-off s) (y-off s) (y-off s) in
+    let text = text-range (y-src s) (y-off s) stop in
+    if non-finite-text text then y-err s YamlUnsupportedScalar (string-concat "scalar " text)
+    else Ok (YPlain text, y-advance-to s stop)
+
+  -- The end of a plain scalar on its line: trailing spaces drop, a ` #`
+  -- begins a comment, the break ends it (the named boundary).
+  plain-end :: Bytes -> Nat -> Nat -> Nat -> Nat
+  plain-end b start i last =
+    if i >= bytes-len b then last
+    else
+      let c = bytes-get b i in
+      if c == 10 || c == 13 then last
+      else if c == 35 then (if comment-begins b start i then last else plain-end b start (i + 1) (i + 1))
+      else if c == 32 || c == 9 then plain-end b start (i + 1) last
+      else plain-end b start (i + 1) (i + 1)
+
+  -- The `:` that ends a mapping key at depth 0 of the line, skipping
+  -- quotes and flow brackets and stopping at a comment.
+  y-find-colon :: YState -> Option Nat
+  y-find-colon s = colon-scan (y-src s) (y-off s) (y-off s) 0
+
+  colon-scan :: Bytes -> Nat -> Nat -> Nat -> Option Nat
+  colon-scan b start i depth =
+    if i >= bytes-len b then None
+    else
+      let c = bytes-get b i in
+      if c == 10 || c == 13 then None
+      else if c == 35 then (if comment-begins b start i then None else colon-scan b start (i + 1) depth)
+      else if c == 39 then colon-scan b start (skip-single b i) depth
+      else if c == 34 then colon-scan b start (skip-double b i) depth
+      else if c == 91 || c == 123 then colon-scan b start (i + 1) (depth + 1)
+      else if c == 93 || c == 125 then colon-scan b start (i + 1) (if depth > 0 then depth - 1 else 0)
+      else if c == 58 && depth == 0 && colon-ends-key b i then Some i
+      else colon-scan b start (i + 1) depth
+
+  colon-ends-key :: Bytes -> Nat -> Bool
+  colon-ends-key b i =
+    if i + 1 >= bytes-len b then True
+    else
+      let c = bytes-get b (i + 1) in
+      c == 32 || c == 9 || c == 10 || c == 13
+
+  skip-single :: Bytes -> Nat -> Nat
+  skip-single b j = skip-single-body b (j + 1)
+
+  skip-single-body :: Bytes -> Nat -> Nat
+  skip-single-body b j =
+    if j >= bytes-len b then j
+    else
+      let c = bytes-get b j in
+      if c == 10 || c == 13 then j
+      else if c == 39 then (if j + 1 < bytes-len b then (if bytes-get b (j + 1) == 39 then skip-single-body b (j + 2) else j + 1) else j + 1)
+      else skip-single-body b (j + 1)
+
+  skip-double :: Bytes -> Nat -> Nat
+  skip-double b j = skip-double-body b (j + 1)
+
+  skip-double-body :: Bytes -> Nat -> Nat
+  skip-double-body b j =
+    if j >= bytes-len b then j
+    else
+      let c = bytes-get b j in
+      if c == 10 || c == 13 then j
+      else if c == 34 then j + 1
+      else if c == 92 then skip-double-body b (j + 2)
+      else skip-double-body b (j + 1)
+
+  -- A block sequence whose first entry's `-` is at `s`, with `ind` the
+  -- entries' column (0-based). The first entry is parsed from `s`
+  -- without an indentation test, because a sequence nested in a sequence
+  -- entry begins mid-line (`- - 1`); the following entries are matched
+  -- against `ind` from their line starts.
+  parse-seq :: YState -> Nat -> Result YamlError (YNode, YState)
+  parse-seq s ind = case parse-seq-item (y-skip-spaces (y-advance1 s)) ind of
+    Err e -> Err e
+    Ok p -> case p of
+      (v, s1) -> parse-seq-more s1 ind (Cons v Nil)
+
+  parse-seq-more :: YState -> Nat -> List YNode -> Result YamlError (YNode, YState)
+  parse-seq-more s0 ind acc = case y-skip-blank-lines (y-next-line-from s0) of
+    Err e -> Err e
+    Ok s ->
+      if y-at-eof s then Ok (build-seq (rev-list acc), s)
+      else case y-line-indent s of
+        Err e -> Err e
+        Ok p -> case p of
+          (ind2, s1) -> if ind2 < ind then Ok (build-seq (rev-list acc), s)
+            else if ind2 > ind then y-err s1 YamlIndentationError "a block item is indented past its parent's column"
+            else if y-at-seq-start s1 then case parse-seq-item (y-skip-spaces (y-advance1 s1)) ind of
+              Err e -> Err e
+              Ok q -> case q of
+                (v, s2) -> parse-seq-more s2 ind (Cons v acc)
+            else Ok (build-seq (rev-list acc), s)
+
+  parse-seq-item :: YState -> Nat -> Result YamlError (YNode, YState)
+  parse-seq-item s ind =
+    if y-at-eol-or-comment s then parse-block-node (y-next-line s) (ind + 1)
+    else parse-item-node s ind
+
+  -- A block mapping whose first key is at `s`, with `ind` the keys'
+  -- column (0-based) and the key texts kept for the duplicate check. The
+  -- first-entry rule is `parse-seq`'s (`- a: 1` starts a mapping
+  -- mid-line).
+  parse-map :: YState -> Nat -> Result YamlError (YNode, YState)
+  parse-map s ind = case parse-map-entry s ind of
+    Err e -> Err e
+    Ok q -> case q of
+      (entry, s1) -> case entry of
+        (key, value) -> parse-map-more s1 ind (Cons (key, value) Nil) (Cons key Nil)
+
+  parse-map-more :: YState -> Nat -> List (String, YNode) -> List String -> Result YamlError (YNode, YState)
+  parse-map-more s0 ind acc keys = case y-skip-blank-lines (y-next-line-from s0) of
+    Err e -> Err e
+    Ok s ->
+      if y-at-eof s then Ok (build-map (rev-list acc), s)
+      else case y-line-indent s of
+        Err e -> Err e
+        Ok p -> case p of
+          (ind2, s1) -> if ind2 < ind then Ok (build-map (rev-list acc), s)
+            else if ind2 > ind then y-err s1 YamlIndentationError "a block item is indented past its parent's column"
+            else if y-at-doc-marker s1 then Ok (build-map (rev-list acc), s)
+            else if y-at-doc-end s1 then Ok (build-map (rev-list acc), s)
+            else case parse-map-entry s1 ind of
+              Err e -> Err e
+              Ok q -> case q of
+                (entry, s2) -> case entry of
+                  (key, value) ->
+                    if member-text keys key then
+                      Err (YamlError YamlDuplicateKey (y-line s1) (y-col s1) (string-concat "duplicate mapping key " key))
+                    else parse-map-more s2 ind (Cons (key, value) acc) (Cons key keys)
+
+  parse-map-entry :: YState -> Nat -> Result YamlError ((String, YNode), YState)
+  parse-map-entry s ind = case parse-key s of
+    Err e -> Err e
+    Ok p -> case p of
+      (key, s1) -> case key of
+        YKey text plain -> if plain && eq-i64 (string-compare text "<<") 0 then
+            Err (YamlError YamlMergeKey (y-line s) (y-col s) "merge key << is not implemented")
+          else case y-peek s1 of
+            None -> y-err s1 YamlSyntaxError "a mapping key must be followed by ':'"
+            Some b -> if b == 58 then parse-map-value text (y-skip-spaces (y-advance1 s1)) ind
+              else y-err s1 YamlSyntaxError "a mapping key must be followed by ':'"
+
+  parse-map-value :: String -> YState -> Nat -> Result YamlError ((String, YNode), YState)
+  parse-map-value key s ind =
+    if y-at-eol-or-comment s then case parse-block-node (y-next-line s) (ind + 1) of
+        Err e -> Err e
+        Ok p -> case p of
+          (v, s1) -> Ok ((key, v), s1)
+    else case parse-inline-value s ind of
+      Err e -> Err e
+      Ok p -> case p of
+        (v, s1) -> Ok ((key, v), s1)
+
+  -- A key is a scalar; its text is the key (the key law in the header).
+  parse-key :: YState -> Result YamlError (YKey, YState)
+  parse-key s = case y-peek s of
+    None -> y-err s YamlSyntaxError "a mapping entry needs a key"
+    Some b -> if b == 39 then case scan-single s of
+        Err e -> Err e
+        Ok p -> case p of
+          (t, s1) -> Ok (YKey t False, s1)
+      else if b == 34 then case scan-double s of
+        Err e -> Err e
+        Ok p -> case p of
+          (t, s1) -> Ok (YKey t False, s1)
+      else if b == 33 then y-refuse-tag s
+      else if b == 91 || b == 123 then y-err s YamlComplexKey "a mapping key must be a scalar"
+      else if b == 63 && y-space-after s then y-err s YamlComplexKey "explicit '?' keys are not in the safe subset"
+      else if b == 38 then y-err s YamlComplexKey "an anchored key is not in the safe subset"
+      else if b == 42 then y-err s YamlComplexKey "an aliased key is not in the safe subset"
+      else if b == 124 || b == 62 then y-err s YamlComplexKey "a block scalar key is not in the safe subset"
+      else parse-plain-key s
+
+  parse-plain-key :: YState -> Result YamlError (YKey, YState)
+  parse-plain-key s = case y-find-colon s of
+    None -> y-err s YamlSyntaxError "a mapping entry needs a ':' after its key"
+    Some colon ->
+      let stop = trim-trailing-space (y-src s) (y-off s) colon in
+      if stop == y-off s then y-err s YamlComplexKey "an empty mapping key is not in the safe subset"
+      else Ok (YKey (text-range (y-src s) (y-off s) stop) True, y-advance-to s colon)
+
+
+  -- ---------------------------------------------------------------------------
+  -- The document: one document per call, with the optional `---` start
+  -- and `...` end markers.
+  -- ---------------------------------------------------------------------------
+
+  parse-document :: Bytes -> Result YamlError (YNode, YState)
+  parse-document src = case y-skip-blank-lines (YState src 0 1 1) of
+    Err e -> Err e
+    Ok s ->
+      if y-at-eof s then Ok (YPlain empty-string, s)
+      else if y-at-directive s then y-err s YamlDirective (string-concat "directive " (token-range s))
+      else if y-at-doc-marker s then parse-after-marker (y-advance-to s (y-off s + 3))
+      else parse-rooted s
+
+  parse-rooted :: YState -> Result YamlError (YNode, YState)
+  parse-rooted s = case parse-block-node s 0 of
+    Err e -> Err e
+    Ok p -> case p of
+      (node, s1) -> case parse-trailer s1 of
+        Err e -> Err e
+        Ok u -> Ok (node, s1)
+
+  parse-after-marker :: YState -> Result YamlError (YNode, YState)
+  parse-after-marker s =
+    let s1 = y-skip-spaces s in
+    if y-at-eol-or-comment s1 then parse-rooted (y-next-line s1)
+    else if y-at-seq-start s1 then y-err s1 YamlSyntaxError "a block collection cannot start on the --- marker line"
+    else case y-find-colon s1 of
+      Some i -> y-err s1 YamlSyntaxError "a block collection cannot start on the --- marker line"
+      None -> case parse-line-node s1 0 of
+        Err e -> Err e
+        Ok p -> case p of
+          (node, s2) -> case parse-trailer s2 of
+            Err e -> Err e
+            Ok u -> Ok (node, s2)
+
+  parse-trailer :: YState -> Result YamlError Unit
+  parse-trailer s = case y-skip-blank-lines s of
+    Err e -> Err e
+    Ok s1 ->
+      if y-at-eof s1 then Ok ()
+      else if y-at-doc-marker s1 then y-err s1 YamlMultiDocument "a second --- document marker begins another document"
+      else if y-at-doc-end s1 then parse-after-end (y-advance-to s1 (y-off s1 + 3))
+      else y-err s1 YamlSyntaxError "content after the root node (a plain scalar cannot continue on another line)"
+
+  parse-after-end :: YState -> Result YamlError Unit
+  parse-after-end s = case y-skip-blank-lines s of
+    Err e -> Err e
+    Ok s1 ->
+      if y-at-eof s1 then Ok ()
+      else if y-at-doc-marker s1 then y-err s1 YamlMultiDocument "a second --- document marker begins another document"
+      else y-err s1 YamlSyntaxError "content after the ... document end marker"
+
+  y-at-directive :: YState -> Bool
+  y-at-directive s = if y-col s == 1 then y-at-percent s else False
+
+  y-at-percent :: YState -> Bool
+  y-at-percent s = case y-peek s of
+    Some b -> b == 37
+    None -> False
+
+  y-at-doc-marker :: YState -> Bool
+  y-at-doc-marker s = if y-col s == 1 then y-dash-run s 3 else False
+
+  y-at-doc-end :: YState -> Bool
+  y-at-doc-end s = if y-col s == 1 then y-dot-run s 3 else False
+
+  y-dash-run :: YState -> Nat -> Bool
+  y-dash-run s n =
+    if n == 0 then y-marker-end s
+    else case y-peek s of
+      Some b -> if b == 45 then y-dash-run (y-advance1 s) (n - 1) else False
+      None -> False
+
+  y-dot-run :: YState -> Nat -> Bool
+  y-dot-run s n =
+    if n == 0 then y-marker-end s
+    else case y-peek s of
+      Some b -> if b == 46 then y-dot-run (y-advance1 s) (n - 1) else False
+      None -> False
+
+  -- The end of a document marker: a space or tab (the marker may carry
+  -- its node on the same line, `--- foo`), a break, a comment, or the
+  -- end of the input. Requiring a break here would silently read
+  -- `--- a: 1` as a mapping whose key is `--- a`.
+  y-marker-end :: YState -> Bool
+  y-marker-end s = case y-peek s of
+    None -> True
+    Some b -> b == 32 || b == 9 || b == 10 || b == 13 || b == 35
+
+  token-range :: YState -> String
+  token-range s = text-range (y-src s) (y-off s) (token-end (y-src s) (y-off s))
+
+
+  -- ---------------------------------------------------------------------------
+  -- Resolution: the parse tree to `Json`, with the anchor environment
+  -- threaded in document order (an anchor binds after its node is
+  -- resolved, so an alias inside it is the refused cycle) and the
+  -- in-progress names carried for that refusal.
+  -- ---------------------------------------------------------------------------
+
+  resolve-node :: List YAnchor -> List String -> YNode -> Result YamlError (Json, List YAnchor)
+  resolve-node env ip node = case node of
+    YPlain text -> Ok (typed-scalar text, env)
+    YText text -> Ok (JStr text, env)
+    YSeqEnd -> Ok (JArrEnd, env)
+    YSeqCons _ _ -> resolve-seq env ip node Nil
+    YMapEnd -> Ok (JObjEnd, env)
+    YMapCons _ _ _ -> resolve-map env ip node Nil
+    YAnchoredNode name inner -> case resolve-node env (Cons name ip) inner of
+      Err e -> Err e
+      Ok p -> case p of
+        (v, env2) -> Ok (v, Cons (YAnchor name v) env2)
+    YAliasNode name line col -> if member-text ip name then
+        Err (YamlError YamlAliasCycle line col (string-concat "the alias reaches its own anchor " name))
+      else case lookup-anchor env name of
+        None -> Err (YamlError YamlUndefinedAlias line col (string-concat "no anchor named " name))
+        Some v -> Ok (copy-json v, env)
+
+  -- The sequence spine walk. The last arm covers a malformed spine (a
+  -- tail outside the family, which the parser never builds): it resolves
+  -- as one trailing item, so the resolver is total like the printer.
+  resolve-seq :: List YAnchor -> List String -> YNode -> List Json -> Result YamlError (Json, List YAnchor)
+  resolve-seq env ip spine acc = case spine of
+    YSeqEnd -> Ok (build-arr (rev-list acc), env)
+    YSeqCons item rest -> case resolve-node env ip item of
+      Err e -> Err e
+      Ok p -> case p of
+        (v, env2) -> resolve-seq env2 ip rest (Cons v acc)
+    other -> case resolve-node env ip other of
+      Err e -> Err e
+      Ok p -> case p of
+        (v, env2) -> Ok (build-arr (rev-list (Cons v acc)), env2)
+
+  resolve-map :: List YAnchor -> List String -> YNode -> List (String, Json) -> Result YamlError (Json, List YAnchor)
+  resolve-map env ip spine acc = case spine of
+    YMapEnd -> Ok (build-obj (rev-list acc), env)
+    YMapCons k v rest -> case resolve-node env ip v of
+      Err e -> Err e
+      Ok p -> case p of
+        (rv, env2) -> resolve-map env2 ip rest (Cons (k, rv) acc)
+    other -> case resolve-node env ip other of
+      Err e -> Err e
+      Ok p -> case p of
+        (rv, env2) -> Ok (build-obj (rev-list (Cons (empty-string, rv) acc)), env2)
+
+  lookup-anchor :: List YAnchor -> String -> Option Json
+  lookup-anchor env name = case env of
+    Nil -> None
+    Cons a rest -> case a of
+      YAnchor n v -> if eq-i64 (string-compare n name) 0 then Some v else lookup-anchor rest name
+
+  build-arr :: List Json -> Json
+  build-arr xs = case xs of
+    Nil -> JArrEnd
+    Cons v rest -> JArr v (build-arr rest)
+
+  build-obj :: List (String, Json) -> Json
+  build-obj ps = case ps of
+    Nil -> JObjEnd
+    Cons p rest -> case p of
+      (k, v) -> JObj k v (build-obj rest)
+
+  -- The safe form of an alias: a fresh spine for the copy, so no two
+  -- positions in the produced value share a node. `Json` is immutable,
+  -- so sharing would not be observable anyway; the copy is what makes
+  -- the "no reference is materialized" claim a construction fact rather
+  -- than a convention.
+  copy-json :: Json -> Json
+  copy-json v = case v of
+    JNull -> JNull
+    JBool b -> JBool b
+    JNum n -> JNum n
+    JFloat f -> JFloat f
+    JStr s -> JStr s
+    JArr h t -> JArr (copy-json h) (copy-json t)
+    JObj k x t -> JObj k (copy-json x) (copy-json t)
+    JArrEnd -> JArrEnd
+    JObjEnd -> JObjEnd
+
+
+  -- ---------------------------------------------------------------------------
+  -- Scalar typing: the 1.2 core schema's set, nothing more (an empty
+  -- node is null; a plain spelling that is none of the forms is a
+  -- string).
+  -- ---------------------------------------------------------------------------
+
+  typed-scalar :: String -> Json
+  typed-scalar t =
+    if string-length t == 0 then JNull
+    else if is-null-text t then JNull
+    else case bool-text t of
+      Some b -> JBool b
+      None -> if is-int-text t then JNum (int-of-text t)
+        else if is-float-text t then JFloat (f64-from-decimal (string-to-bytes t))
+        else JStr t
+
+  is-null-text :: String -> Bool
+  is-null-text t = eq-i64 (string-compare t "null") 0 || eq-i64 (string-compare t "Null") 0
+    || eq-i64 (string-compare t "NULL") 0 || eq-i64 (string-compare t "~") 0
+
+  bool-text :: String -> Option Bool
+  bool-text t =
+    if eq-i64 (string-compare t "true") 0 || eq-i64 (string-compare t "True") 0 || eq-i64 (string-compare t "TRUE") 0 then Some True
+    else if eq-i64 (string-compare t "false") 0 || eq-i64 (string-compare t "False") 0 || eq-i64 (string-compare t "FALSE") 0 then Some False
+    else None
+
+  -- `[-+]?[0-9]+`.
+  is-int-text :: String -> Bool
+  is-int-text t = is-digits-only (sign-body t)
+
+  is-digits-only :: String -> Bool
+  is-digits-only t = if string-length t == 0 then False else digits-from t 0
+
+  digits-from :: String -> Nat -> Bool
+  digits-from t i =
+    if i >= string-length t then True
+    else case string-char-at t i of
+      Some c -> if c >= '0' && c <= '9' then digits-from t (i + 1) else False
+      None -> False
+
+  sign-body :: String -> String
+  sign-body t = case string-char-at t 0 of
+    Some c -> if c == '-' || c == '+' then string-slice t 1 (string-length t) else t
+    None -> t
+
+  int-of-text :: String -> Int
+  int-of-text t = case string-char-at t 0 of
+    Some c -> if c == '-' then int-neg (fold-digits (string-slice t 1 (string-length t)) 0 (int-from-i64 0))
+      else if c == '+' then fold-digits (string-slice t 1 (string-length t)) 0 (int-from-i64 0)
+      else fold-digits t 0 (int-from-i64 0)
+    None -> int-from-i64 0
+
+  -- Called only on a digit-only spelling (the `is-int-text` guard).
+  fold-digits :: String -> Nat -> Int -> Int
+  fold-digits t i acc =
+    if i >= string-length t then acc
+    else case string-char-at t i of
+      Some c -> fold-digits t (i + 1) (int-add (int-mul acc (int-from-i64 10)) (int-from-i64 (nat-to-i64 (char-code-nat c - 48))))
+      None -> acc
+
+  char-code-nat :: Char -> Nat
+  char-code-nat c = nat-from-i64 (u32-to-i64 (char-to-u32 c))
+
+  -- The core schema's float: a digit run with a fraction or an
+  -- exponent. Scanned as a small state machine over
+  -- `[+-]? (digits ['.' digits?] | '.' digits) ([eE][+-]? digits)?`.
+  is-float-text :: String -> Bool
+  is-float-text t = float-go (sign-body t) 0 0
+
+  float-go :: String -> Nat -> Nat -> Bool
+  float-go t i s =
+    if i >= string-length t then float-end s
+    else case string-char-at t i of
+      Some c -> if c >= '0' && c <= '9' then
+          if s == 0 || s == 1 then float-go t (i + 1) 1
+          else if s == 2 || s == 3 then float-go t (i + 1) 3
+          else if s == 4 || s == 5 then float-go t (i + 1) 5
+          else if s == 6 then float-go t (i + 1) 5
+          else if s == 7 then float-go t (i + 1) 3
+          else False
+        else if c == '.' then (if s == 0 || s == 1 then float-go t (i + 1) 2 else False)
+        else if c == 'e' || c == 'E' then (if s == 1 || s == 2 || s == 3 then float-go t (i + 1) 4 else False)
+        else if c == '+' || c == '-' then (if s == 4 then float-go t (i + 1) 6 else False)
+        else False
+      None -> False
+
+  -- States: 0 start, 1 integer digits, 2 after `.` with integer digits,
+  -- 3 fraction digits, 4 after `e`, 5 exponent digits, 6 after the
+  -- exponent's sign, 7 after `.` with no integer digits. Accepting at
+  -- the end: a `.` was seen (2, 3) or the exponent has digits (5).
+  float-end :: Nat -> Bool
+  float-end s = s == 2 || s == 3 || s == 5
+
+  -- `.inf`/`.nan` and their case variants: the core schema types them
+  -- as non-finite floats, which the finite `JFloat` domain cannot carry.
+  non-finite-text :: String -> Bool
+  non-finite-text t = case sign-body t of
+    body -> eq-i64 (string-compare body ".inf") 0 || eq-i64 (string-compare body ".Inf") 0
+      || eq-i64 (string-compare body ".INF") 0 || eq-i64 (string-compare body ".nan") 0
+      || eq-i64 (string-compare body ".NaN") 0 || eq-i64 (string-compare body ".NAN") 0
+
+
+  -- ---------------------------------------------------------------------------
+  -- Printing: block style, indentation carries the structure. Total
+  -- (the header's law), so an ill-formed spine prints as one trailing
+  -- item or entry under the empty key, like Text.Json's printer.
+  -- ---------------------------------------------------------------------------
+
+  yaml-print :: Json -> String
+  yaml-print v = case v of
+    JArr h t -> write-seq 0 h t
+    JObj k x t -> write-map 0 (Cons (k, x) (pairs-of t))
+    JArrEnd -> "[]"
+    JObjEnd -> "{}"
+    other -> write-scalar other
+
+  -- The collection arms are this total function's definition; the block
+  -- printer routes collections through `write-value-block`, which lays
+  -- them out as nested blocks.
+  write-scalar :: Json -> String
+  write-scalar v = case v of
+    JNull -> "null"
+    JBool b -> if b then "true" else "false"
+    JNum n -> int-to-string n
+    JFloat f -> write-float f
+    JStr s -> write-text s
+    JArr h t -> write-seq 0 h t
+    JObj k x t -> write-map 0 (Cons (k, x) (pairs-of t))
+    JArrEnd -> "[]"
+    JObjEnd -> "{}"
+
+  -- A value in block context: inline for a scalar, a nested block
+  -- (indented to `ind`) for a collection.
+  write-value-block :: Nat -> Json -> String
+  write-value-block ind v = case v of
+    JArr h t -> string-concat "\n" (write-seq ind h t)
+    JObj k x t -> string-concat "\n" (write-map ind (Cons (k, x) (pairs-of t)))
+    JArrEnd -> " []"
+    JObjEnd -> " {}"
+    other -> string-concat " " (write-scalar other)
+
+  pairs-of :: Json -> List (String, Json)
+  pairs-of t = case t of
+    JObj k v rest -> Cons (k, v) (pairs-of rest)
+    JObjEnd -> Nil
+    other -> Cons (empty-string, other) Nil
+
+  write-map :: Nat -> List (String, Json) -> String
+  write-map ind pairs = case pairs of
+    Nil -> "{}"
+    Cons p rest -> case p of
+      (k, v) ->
+        let line = string-concat (pad ind) (string-concat (write-text k) (string-concat ":" (write-value-block (ind + 2) v))) in
+        if list-empty rest then line else string-concat line (string-concat "\n" (write-map ind rest))
+
+  write-seq :: Nat -> Json -> Json -> String
+  write-seq ind h t = string-concat (write-seq-item ind h) (write-seq-tail ind t)
+
+  write-seq-tail :: Nat -> Json -> String
+  write-seq-tail ind t = case t of
+    JArr h2 t2 -> string-concat "\n" (write-seq ind h2 t2)
+    JArrEnd -> empty-string
+    other -> string-concat "\n" (write-seq-item ind other)
+
+  write-seq-item :: Nat -> Json -> String
+  write-seq-item ind v = string-concat (pad ind) (string-concat "-" (write-value-block (ind + 2) v))
+
+  pad :: Nat -> String
+  pad n = if n == 0 then empty-string else string-concat " " (pad (n - 1))
+
+  write-float :: F64 -> String
+  write-float f =
+    if is-na-nf64 f || is-infinite-f64 f then "null"
+    else case string-from-bytes (f64-to-decimal f) of
+      Some s -> s
+      None -> "null"
+
+  -- A string is written plain when reading it back yields the same
+  -- string: it must not be empty, must not read as null/a boolean/a
+  -- number, and must carry no indicator (leading, embedded or trailing)
+  -- that changes how the line reads.
+  write-text :: String -> String
+  write-text s = if plain-safe s then s else quote-text s
+
+  plain-safe :: String -> Bool
+  plain-safe s =
+    if string-length s == 0 then False
+    else if is-null-text s then False
+    else case bool-text s of
+      Some b -> False
+      None -> if is-int-text s then False
+        else if is-float-text s then False
+        else if non-finite-text s then False
+        else case string-char-at s 0 of
+          Some c -> if plain-indicator c then False
+            else case string-char-at s (string-length s - 1) of
+              Some c2 -> if c2 == ' ' || c2 == ':' then False
+                else plain-body-ok s 0 && not (contains-text s ": ")
+              None -> False
+          None -> False
+
+  plain-indicator :: Char -> Bool
+  plain-indicator c =
+    c == '-' || c == '?' || c == ':' || c == ',' || c == '[' || c == ']' || c == '{' || c == '}'
+      || c == '#' || c == '&' || c == '*' || c == '!' || c == '|' || c == '>' || c == '\'' || c == '"'
+      || c == '%' || c == '@' || c == '`' || c == ' '
+
+  plain-body-ok :: String -> Nat -> Bool
+  plain-body-ok s i =
+    if i >= string-length s then True
+    else case string-char-at s i of
+      Some c -> if plain-body-char c then plain-body-ok s (i + 1) else False
+      None -> False
+
+  plain-body-char :: Char -> Bool
+  plain-body-char c =
+    not (c == ',' || c == '[' || c == ']' || c == '{' || c == '}' || c == '#' || c == '&' || c == '*'
+      || c == '!' || c == '|' || c == '>' || c == '\'' || c == '"' || c == '%' || c == '@' || c == '`')
+      && not (control-char c)
+
+  control-char :: Char -> Bool
+  control-char c = char-code-nat c < 32 || char-code-nat c == 127
+
+  quote-text :: String -> String
+  quote-text s = string-concat "\"" (string-concat (quote-chars s 0) "\"")
+
+  quote-chars :: String -> Nat -> String
+  quote-chars s i =
+    if i >= string-length s then empty-string
+    else case string-char-at s i of
+      Some c -> string-concat (quote-char c) (quote-chars s (i + 1))
+      None -> empty-string
+
+  quote-char :: Char -> String
+  quote-char c =
+    if c == '"' then "\\\""
+    else if c == '\\' then "\\\\"
+    else if c == '\n' then "\\n"
+    else if c == '\t' then "\\t"
+    else if c == '\r' then "\\r"
+    else if control-char c then string-concat "\\x" (hex2 (char-code-nat c))
+    else char-string c
+
+  hex2 :: Nat -> String
+  hex2 n = string-concat (hex-digit-of (nat-div n 16)) (hex-digit-of (nat-rem n 16))
+
+  hex-digit-of :: Nat -> String
+  hex-digit-of n =
+    if n < 10 then nat-to-string n
+    else if n == 10 then "a"
+    else if n == 11 then "b"
+    else if n == 12 then "c"
+    else if n == 13 then "d"
+    else if n == 14 then "e"
+    else "f"
+
+
+  -- ---------------------------------------------------------------------------
+  -- The two surface functions.
+  -- ---------------------------------------------------------------------------
+
+  yaml-parse :: String -> Result YamlError Json
+  yaml-parse text = case parse-document (string-to-bytes text) of
+    Err e -> Err e
+    Ok p -> case p of
+      (node, s1) -> case resolve-node Nil Nil node of
+        Err e -> Err e
+        Ok q -> case q of
+          (v, env) -> Ok v
