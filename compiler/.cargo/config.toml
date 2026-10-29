@@ -1,0 +1,12 @@
+# Cargo runs the test binaries with a larger default thread stack.
+#
+# The checker elaborates the whole embedded prelude family for every
+# program a test compiles, and its recursion depth grows with the
+# family. On the 2 MiB default a test thread aborts mid-check, which
+# reports as every test in the binary failing with no panic text, so the
+# failure reads like a code break rather than a stack limit. Individual
+# harnesses that hit it first now compile on an explicit 64 MiB thread
+# (tests/json.rs, tests/lib_base64.rs, tests/lib_bigdecimal.rs); this
+# setting gives the rest of the suite the same headroom.
+[env]
+RUST_MIN_STACK = "67108864"
