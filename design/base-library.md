@@ -36,6 +36,13 @@ Ownership rules:
 3. A class constraint does not entail other classes (the standing
    no-superbundle rule): functions state every constraint they use, so
    `Algebra.Monoid` imports `Algebra.Semigroup` explicitly.
+4. A home that writes an operator infix declares that operator's fixity
+   in its own module (`infixr 6 <>` beside the `import
+   Algebra.Semigroup`). Within the embedded family the import supplies
+   the operator's NAME and the module must supply the fixity, because
+   the family is parsed in two passes and an early home cannot see a
+   late home's table (D381). Outside the family the import alone
+   suffices: the fixity travels with the compiled interface (D360).
 
 `Prelude` becomes the re-export facade (D107's `export module X` and
 `export A.b`), with an explicit curation list. The split itself is an
@@ -84,6 +91,31 @@ all instance information to the internal container:
 
 This generalizes: any "sub-kind of a container" wrapper (NonEmpty,
 Sorted, NonZero, Ascii) uses the same delegation form.
+
+## Shared generic vocabulary (user direction, 2026-10-29)
+
+The `Data.*` homes are the only place a generic operation over their
+type is written. A module that walks a container uses the home's
+polymorphic operation; it does not re-derive a type-specific copy
+(`reverse-nats`, `rev-chars`, `list-reverse`, `j-reverse` were all one
+function, and the port wave had grown a dozen of them).
+
+`Data.List` carries: `reverse`, `take`, `drop`, `nth`
+(`Option`-returning), `replicate`, `list-length` (`Nat`, beside the
+`Int` `length` the prelude surface has always had), `is-empty`, plus
+the pre-existing `map`/`foldr`/`sum-list` and append as `<>`.
+`Data.Char` carries `char-code` (scalar as `Nat`) and `char-from-code`
+(partial, exactly as `u32-to-char` is). `Data.String` carries
+`string-concat-all` and `string-repeat`. All three are members of the
+embedded family, so every module reaches them with no import; the
+curated facade re-exports them by the ordinary `export module` route.
+
+Two consequences worth stating, because both were live traps:
+the names shadow cleanly (a module may still define its own `reverse`,
+and local definitions win), so this is an additive change to the
+prelude surface, not a breaking one; and a conversion written as
+`nat-from-i64 (u32-to-i64 (char-to-u32 c))` is `char-code`, never a new
+private `code-of`.
 
 ## The brainstorm menu (resolved 2026-10-26, user approved)
 

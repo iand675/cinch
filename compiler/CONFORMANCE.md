@@ -1406,13 +1406,13 @@ so the embedding sweep stays its own decision.
 | P38 numerics: Rational, BigDecimal, Complex, Matrix | done |
 | P38 civil time: Date, Time | done |
 | P39 crypto and compression: Digest, HMAC, entropy, Zlib | done |
-| P40 OS sweep: Pathname (in `Data.Path`), FileUtils, Find, Tempfile, piped child | done, PTY refused |
+| P40 OS sweep: Pathname (in `Data.Path`), FileUtils, Find, Tempfile, piped child, PTY | done |
 | P40 tooling: OptionParser, Benchmark, Coverage, test runner | done |
-| P40 networking: Socket, name resolution, URI, IPAddr | done; `Net::HTTP` todo |
+| P40 networking: Socket, name resolution (in `Effect.Resolv`), URI, IPAddr, HTTP/1.1 (in `Effect.Http`) | done |
 | Subsumed (ERB, Struct, Fiber, Logger, IRB, Fiddle, Singleton, Observer) | mapped, not ported |
 | Refused (Marshal, ObjectSpace and eval-style reflection, Drb) | refused with reasons in the curation |
-| PTY / pseudo-terminal | refused: no runtime support (D367) |
-| `Net::HTTP` and the DNS home | todo: the HTTP layer over `Effect.Net` |
+| PTY / pseudo-terminal | done: `Effect.Pty` lands the D367 refusal's own slice (D377) |
+| `Net::HTTP` and the DNS home | done: `Effect.Http` (D373) and `Effect.Resolv` (D370) |
 
 - **D338-D340 (the wave lands, reported)**: 25 new prelude modules
   and 22 new test targets, each family verified by compiling and
@@ -1822,6 +1822,152 @@ so the embedding sweep stays its own decision.
   `law` and `prim` are never binder names, and a failure there is a
   parse error reported BEFORE any type checking, which reads like a
   compiler crash.
+- **D370 (Effect.Resolv, reported)**: name resolution is a capability
+  home over `Effect.Net`'s `net-resolve` intrinsic, with no runtime
+  extern and no compiler edit: the boundary answers one `<ip>:<port>`
+  line per resolved address and this home parses each line into a
+  `Data.IpAddr` address paired with its port, so a caller holds
+  addresses rather than the resolver's text. `resolve host port`
+  answers `List (IpAddr, Nat)` in the resolver's own order, and the
+  same name resolves the way the platform resolves it (the hosts file
+  and search domains are the platform's policy, neither reimplemented
+  nor bypassed). Refusals are values: `ResolvNotFound`,
+  `ResolvPermissionDenied`, `ResolvInvalidArgument`, `ResolvIoError`,
+  `ResolvMalformedAnswer`. Address records only (no MX/TXT/NS, which
+  would be a hand-rolled UDP client and its own slice), no caching or
+  TTL, forward lookups only, no ordering guarantee.
+- **D371 (resolver answers are parsed, not passed through,
+  reported)**: the boundary's text never reaches a caller: each answer
+  is a `(IpAddr, Nat)` pair with a family, a rendering and a byte
+  view, and the port is the port the caller named (see D370 above;
+  the round trip `ip-parse (ip-to-string a) == Some a` is
+  `Data.IpAddr`'s, D347).
+- **D372 (the resolution refusal vocabulary is the platform's,
+  reported)**: the five `ResolvError` constructors above are exactly
+  the distinguishable failures `cinch_net_resolve` reports; nothing
+  finer is claimed, because the boundary carries no `errno`
+  (the same honesty rule D363 applied to `SignalError`).
+- **D373 (Effect.Http, reported)**: an HTTP/1.1 client is an
+  `Effect.*` capability home over `Effect.Net`'s plain TCP sockets,
+  with no runtime externs and no compiler edit. One connection per
+  request: the request is rendered to bytes, written with `net-write`,
+  the client sends `Connection: close`, and the reply is read to end
+  of stream and only then parsed as bytes (one code path for every
+  framing). The URL parser is `Text.Uri`'s, reused rather than
+  re-written.
+- **D374 (body framing from the headers, in RFC order, reported)**:
+  `Transfer-Encoding: chunked` wins over `Content-Length`, as the RFC
+  requires (hex size line, chunk, CRLF, a terminating zero chunk whose
+  trailer is not parsed); otherwise a decimal `Content-Length` reads
+  exactly that many bytes; otherwise the body is everything that
+  arrived, bounded by the request's maximum (`HttpBodyTooLarge` past
+  it). A `Content-Length` or chunk longer than what arrived is
+  `HttpTruncatedBody`, and a malformed framing line is
+  `HttpBadHeaderLine` (the framing grammar shares the head section's
+  error).
+- **D375 (the HTTP error vocabulary wraps the socket layer,
+  reported)**: nine named constructors, and the socket layer's own
+  vocabulary survives as `HttpNetworkError`'s payload rather than
+  being flattened into a string. A 4xx or 5xx is a RESPONSE, never an
+  `Err`: the status is data and the caller decides what it means.
+- **D376 (the HTTP refusals, named, reported)**: `https` is refused by
+  name (`HttpNoTls`), because the runtime has no TLS and a plaintext
+  fallback would be a security bug, never attempted; also refused by
+  name: redirect following (3xx stays data), keep-alive and pooling,
+  cookies, proxies, HTTP/2, and automatic gzip (`Text.Zlib`'s
+  `inflate` is the caller's). A caller-supplied request
+  `Content-Length` is not consulted (the client computes it), and no
+  chunked request body is sent.
+- **D377 (Effect.Pty landed, lifts D367, reported)**: the
+  pseudo-terminal child exists as its own home. `pty-open` allocates
+  the pair, `pty-spawn` starts an ordinary child with the slave as its
+  stdin, stdout and stderr, and the master is read, written, resized
+  (`TIOCSWINSZ`) and closed; a handle owns the master, the slave until
+  the child has it, and the child. The law is substring presence and
+  the exit status (`128 + signal`), never an exact buffer, because the
+  terminal echoes and may interleave. Refusals: no emulation beyond
+  the terminal, no job control, no session or detach, no Windows.
+- **D378 (the PTY pair is allocated by the POSIX calls, not
+  `openpty`, reported)**: the module uses
+  `posix_openpt`/`grantpt`/`unlockpt`/`ptsname_r` and opens the slave
+  path itself. libc `openpty` sits in libutil on Linux (glibc before
+  2.34), and the extern block's
+  `#[cfg_attr(target_os = "linux", link(name = "util"))]` cannot work:
+  link attributes on a Rust extern block do not travel into a
+  staticlib as linker flags, so nothing would ever add `-lutil` to the
+  driver's link line, while adding `-lutil` to every Linux link would
+  break programs that never touch a terminal. The POSIX calls are in
+  the C library on both platforms, so no extra library and no driver
+  flag are needed. The seven `cinch.runtime.pty*` units
+  (`compiler/runtime/src/pty.rs`) follow the net and piped-child
+  convention: `Bytes` and scalars, the negative word as the negated
+  shared code, presented as the prelude `Result`.
+- **D379 (the shared generic vocabulary, user direction)**: a generic
+  operation over a type belongs to that type's home module and is
+  written once; a consumer module never re-derives a type-specific
+  copy. `reverse-nats`, `rev-chars`, `j-reverse`, `list-reverse` and
+  `chars-rev` were one function, and the port wave had grown about a
+  dozen of each. `Data.List` now carries `reverse`, `take`, `drop`,
+  `nth` (`Option`-returning), `replicate`, `list-length` (`Nat`,
+  beside the `Int` `length` the surface has always had) and
+  `is-empty`; `Data.Char` carries `char-code`, `char-from-code`,
+  `is-ascii-digit`, `digit-value`, `hex-digit-value` and
+  `is-ascii-hex-digit`; `Data.String` carries `string-concat-all` and
+  `string-repeat`; `Text.Scan` keeps the String-level toolkit
+  (`string-join`, the padding family). The additions are surface
+  additions, not breaking changes: a local definition still shadows a
+  prelude name (verified: a program that declares its own `length` or
+  `reverse` checks unchanged), and the facade re-exports the new names
+  by the ordinary `export module` route, so
+  `facade_export_list_is_the_checked_surface` and the probe table in
+  `compiler/tests/prelude_split.rs` cover them without an edit.
+- **D380 (the consumer sweep, reported)**: `Text.*`, `Data.*` and
+  `Effect.*` were swept in three slices: 33 private helpers deleted
+  across 25 modules, every call site moved to the shared name,
+  `list-append`/`chars-append`-shaped helpers replaced by `<>`, and the
+  now-false "each family's home keeps its own copies" comments
+  rewritten. Deliberately kept and reported: `Data.Path`'s `eq-chars`
+  (no `Eq (List Char)` in the base layer, D368), `Data.Matrix`'s
+  `drop-at` (it deletes the element at an index, which is NOT `drop`:
+  the sweep's first attempt proved it by failing
+  `determinant_hand_computed_identity_and_singular`), `Text.Regex`'s
+  `concat-strings` (the module must not import `Text.Scan`, which
+  would be an import cycle) and `Text.Regex`'s `code-of-char` (its
+  fallback is self-referential). New `import Text.Scan` in
+  `Text.Parse`, `Text.Toml`, `Text.OptionParser` and
+  `Text.Shellwords` for `string-join`, which required
+  `Text.Scan.cinch` in the source lists of the harnesses that ship
+  those modules (`json`, `parsers`, `lib_csv`, `lib_toml`,
+  `lib_option_parser`, `lib_shellwords`, `observability`).
+- **D381 (compiler finding: an imported fixity does not reach a
+  module of the embedded family, tracked)**: writing an operator
+  infix inside a prelude module needs BOTH the operator in scope and
+  a fixity declared in that module. `import Algebra.Semigroup` alone
+  fails with `no fixity declared for the operator <>` and the local
+  `infixr 6 <>` alone fails with `unknown name <>`; two slices
+  reproduced both arms independently while sweeping. This is the
+  asymmetry D360 left: the fixity travels with a compiled interface
+  into a project consumer (and with the prelude's base table into user
+  code), but a family module parsed as part of the embedded prelude
+  does not fold an imported module's fixity table. The existing homes
+  already declare it per-module (`Data.Ascii`, `Data.NonEmpty`,
+  `Data.Sorted`, `Data.NonZero`, `Effect.Coverage`, `Text.Otlp`), so
+  the sweep added the same two lines to the eight modules that gained
+  a `<>`; no counterexample exists in the tree (every module that
+  writes `<>` infix declares it). The mechanism, read off
+  `parse_prelude` in `compiler/src/driver.rs`: the embedded family is
+  parsed in two passes for check order, `PRELUDE_EARLY` (the scheme
+  homes the facade re-exports) and then `PRELUDE_LATE` (the class
+  modules and the newer families), and each module is parsed with the
+  facade's base table plus the tables of the modules parsed BEFORE it.
+  `Algebra.Semigroup` is late and `Data.Path` is early, so at `Path`'s
+  parse its importer's table does not exist yet. Two candidate fixes,
+  both tracked beside D366: pre-harvest every family module's `infix`
+  declarations before the ordered parse (a fixity pre-pass, since
+  fixities are syntactic and name-independent), or move the operator
+  homes ahead of their users in `PRELUDE_EARLY` and let the facade
+  collect the later ones. The authoring rule stands either way, so
+  this is a consistency fix, not a blocker.
 
 ### Refinement types (P28)
 

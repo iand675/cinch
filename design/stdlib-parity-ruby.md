@@ -24,9 +24,9 @@ refusals). P36's engine landed earlier.
 | `CSV`, `StringIO`, `Base64`, `Shellwords` | done (D348, D346, D351, D352) |
 | Numeric: `BigDecimal`, `Rational`, `Complex`, `Matrix` | done (D342-D344) |
 | Serialization: `JSON`, `CSV`, `TOML`, YAML safe subset | done (`Text.Json` earlier; D348, D349, D350) |
-| OS/process: `Open3` shape, `Signal` | done as the piped child (D363) and the lossy delivery vocabulary (D357); PTY refused (D367) |
+| OS/process: `Open3` shape, `Signal`, `PTY` | done as the piped child (D363), the lossy delivery vocabulary (D357) and the terminal-backed child (D377, lifting D367) |
 | Time: `Date`/`Time`/`DateTime` | done (D345) |
-| Networking: `Net::HTTP`, `Socket`, `URI`, `IPAddr`, `Resolv` | `Socket` (D363), `URI` and `IPAddr` (D347), resolution over `net-resolve` (D363); `Net::HTTP` and a DNS home remain |
+| Networking: `Net::HTTP`, `Socket`, `URI`, `IPAddr`, `Resolv` | done: `Socket` (D363), `URI` and `IPAddr` (D347), the DNS home (D370-D372), the HTTP/1.1 client (D373-D376) |
 | Crypto: `Digest`, `SecureRandom`, `HMAC` | done (D356, D357) |
 | Tooling: `OptionParser`, `Benchmark`, `Coverage`, `Minitest`-shaped runner | done (D353, D361, D362) |
 | Compression: `Zlib` | done (D354, D355) |
@@ -106,7 +106,12 @@ bootstrap discipline: any family milestone marked for bootstrapping
 
 Delivered 2026-10-29: every family above is in the scheme homes with
 a law-shaped test target, importable rather than embedded (the check
-budget is the constraint). Left open: `Net::HTTP` and a DNS home on
-`cinch_net_resolve`'s lines, a pseudo-terminal child (refused, D367),
-and the base-layer `Eq (List Char)` instance the path family spells
-out by hand (D368).
+budget is the constraint). The last three items landed after the wave:
+`Effect.Resolv` (D370-D372) as the DNS home, `Effect.Http` (D373-D376)
+as the HTTP/1.1 client over `Effect.Net`, and `Effect.Pty`
+(D377-D378) as the pseudo-terminal child that lifts D367's refusal.
+Left open: the base-layer `Eq (List Char)` instance the path family
+spells out by hand (D368), and the shared operation homes the sweeps
+reported but the wave did not place (`all`/`any`, `nth-or`,
+`delete-at`, `transpose`, `find-index`, `Data.Bytes`'s hex rendering
+and an append, `Data.Option`'s `is-none`).
