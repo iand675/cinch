@@ -1,0 +1,360 @@
+-- The maps prerequisite's driver: the artifact behind P35's "real
+-- HashMap/Set" line, and the runnable half of
+-- compiler/tests/lib_hashmap_real.rs.
+--
+-- It is a real program over the EMBEDDED prelude (`Data.HashMap` ships
+-- in cinch-base.cinchpkg), so it needs no toolkit: run it by hand with
+-- the compiler's own driver,
+--
+--   cd compiler && cargo run -q --bin cinch -- run ../bootstrap/programs/Run.Maps.cinch
+--
+-- and the exit code is the verdict: 0 when every check passed,
+-- otherwise a bitmask naming the failures (check k contributes bit
+-- 2^(k-1), so a nonzero status is read off the FAILED report line). The
+-- report lines and the measured spans all go to stdout.
+--
+-- What it pins, over the keys the prelude hashes today and over a key
+-- type this file declares for itself:
+--   Nat keys    4000 and 32000 of them, one at a time, each looked back
+--               up by its key and answered with its value (`Hash Nat` is
+--               the identity, so every key is its own digest);
+--   repeated    a key inserted twice keeps the LAST value
+--               (`hash-map-insert`), a key twice in `hash-map-from-pairs`
+--               keeps the FIRST, and keys never inserted are absent;
+--   String     "Aa" and "BB" really do share one digest under the
+--               shipped 31-hash, so the map must separate them by `Eq`
+--               alone: the inserted key answers and the other is absent;
+--   collisions 256 distinct strings of 16 characters, built by swapping
+--               "Aa" for "BB" block by block, all share ONE digest (the
+--               block swap cancels in the 31-hash), so a single bucket
+--               holds 256 entries and every one of them is still found,
+--               and deleting all 256 leaves the empty map;
+--   Label      a key type declared HERE, with its own `Eq` and a
+--               deliberately degenerate `Hash` (every label shares
+--               digest 0), 300 of them: all found, a label never
+--               inserted is absent, and deleting all 300 leaves the
+--               empty map. This is the boundary the module's header
+--               names (adversarial digests: only the bucket scan
+--               degrades, correctness never does).
+--
+-- The timed spans are the program's own monotonic clock: two phases of
+-- distinct-digest Nat keys (4000 and 32000) plus the two collision
+-- batches. The Rust test asserts them as data: 8x the keys must stay far
+-- under the 64x a quadratic index would cost, and the collision batches
+-- must still answer correctly at the cost of their bucket scan. Every
+-- heavy value is bound in a local `let` (a top-level pure value is
+-- re-evaluated at each use, so a repeated use would pay for the map
+-- again).
+
+module Main where
+
+  import Data.Hash
+  import Data.HashMap
+  import Effect.Clock
+
+  -- ------------------------------------------------------------------
+  -- Nat keys: the shipped `Hash Nat` is the identity
+  -- ------------------------------------------------------------------
+
+  fill-nat :: Nat -> HashMap Nat Nat -> HashMap Nat Nat
+  fill-nat n m = case n == 0 of
+    True -> m
+    False -> fill-nat (n - 1) (hash-map-insert n (n * 2) m)
+
+  look-all-nat :: Nat -> HashMap Nat Nat -> Bool
+  look-all-nat n m = case n == 0 of
+    True -> True
+    False -> case hash-map-lookup n m of
+      None -> False
+      Some v -> if v == n * 2 then look-all-nat (n - 1) m else False
+
+  -- Keys lo+1 .. n must all be absent (the map holds only 1 .. lo).
+  absent-above :: Nat -> Nat -> HashMap Nat Nat -> Bool
+  absent-above lo n m = case lo < n of
+    True -> case hash-map-lookup n m of
+      None -> absent-above lo (n - 1) m
+      Some _ -> False
+    False -> True
+
+  delete-all-nat :: Nat -> HashMap Nat Nat -> HashMap Nat Nat
+  delete-all-nat n m = case n == 0 of
+    True -> m
+    False -> delete-all-nat (n - 1) (hash-map-delete n m)
+
+  -- ------------------------------------------------------------------
+  -- Repeated keys and absence
+  -- ------------------------------------------------------------------
+
+  overwrite-ok :: Bool
+  overwrite-ok =
+    case hash-map-lookup 7 (hash-map-insert 7 99 (hash-map-insert 7 5 (hash-map-empty :: HashMap Nat Nat))) of
+      None -> False
+      Some v -> v == 99
+
+  from-pairs-ok :: Bool
+  from-pairs-ok =
+    case hash-map-lookup 7 (hash-map-from-pairs (Cons (7, 1) (Cons (7, 2) Nil))) of
+      None -> False
+      Some v -> v == 1
+
+  -- ------------------------------------------------------------------
+  -- String keys: one digest, two keys
+  -- ------------------------------------------------------------------
+
+  -- The premise the collision checks rest on: the shipped 31-hash maps
+  -- "Aa" and "BB" to the same digest. A different String hash would make
+  -- the collision checks vacuous, so the program asserts the premise.
+  string-hash-collides :: Bool
+  string-hash-collides = hash "Aa" == hash "BB"
+
+  same-digest-present :: Bool
+  same-digest-present =
+    case hash-map-lookup "Aa" (hash-map-insert "Aa" 1 (hash-map-empty :: HashMap String Nat)) of
+      None -> False
+      Some v -> v == 1
+
+  -- The other key of the colliding pair was never inserted, so it must
+  -- be absent even though its digest is in the map: `Eq` decides, not
+  -- the digest.
+  same-digest-absent :: Bool
+  same-digest-absent =
+    case hash-map-lookup "BB" (hash-map-insert "Aa" 1 (hash-map-empty :: HashMap String Nat)) of
+      None -> True
+      Some _ -> False
+
+  same-digest-ok :: Bool
+  same-digest-ok = case string-hash-collides of
+    False -> False
+    True -> case same-digest-present of
+      False -> False
+      True -> same-digest-absent
+
+  -- ------------------------------------------------------------------
+  -- 256 colliding strings in one bucket
+  -- ------------------------------------------------------------------
+
+  -- Each step appends "Aa" and "BB" to every string so far: both appends
+  -- move the 31-hash by the same amount, so every string in the result
+  -- shares one digest with every other.
+  append-collision :: List String -> List String -> List String
+  append-collision xs out = case xs of
+    Nil -> out
+    Cons s rest ->
+      append-collision rest (Cons (string-concat s "Aa") (Cons (string-concat s "BB") out))
+
+  collide-strings :: Nat -> List String -> List String
+  collide-strings k acc = case k == 0 of
+    True -> acc
+    False -> collide-strings (k - 1) (append-collision acc Nil)
+
+  same-digest :: List String -> Bool
+  same-digest xs = case xs of
+    Nil -> True
+    Cons s rest -> all-digest rest (hash s)
+
+  all-digest :: List String -> Nat -> Bool
+  all-digest xs d = case xs of
+    Nil -> True
+    Cons s rest -> if hash s == d then all-digest rest d else False
+
+  insert-strings :: List String -> HashMap String Nat -> HashMap String Nat
+  insert-strings xs m = case xs of
+    Nil -> m
+    Cons s rest -> insert-strings rest (hash-map-insert s (string-length s) m)
+
+  look-strings :: List String -> HashMap String Nat -> Bool
+  look-strings xs m = case xs of
+    Nil -> True
+    Cons s rest -> case hash-map-lookup s m of
+      None -> False
+      Some v -> if v == string-length s then look-strings rest m else False
+
+  delete-strings :: List String -> HashMap String Nat -> HashMap String Nat
+  delete-strings xs m = case xs of
+    Nil -> m
+    Cons s rest -> delete-strings rest (hash-map-delete s m)
+
+  -- ------------------------------------------------------------------
+  -- A key type declared here: its own Eq, a degenerate Hash
+  -- ------------------------------------------------------------------
+
+  data Label where
+    MkLabel :: String -> Label
+
+  label-name :: Label -> String
+  label-name l = case l of
+    MkLabel s -> s
+
+  label-eq :: Label -> Label -> Bool
+  label-eq a b = string-compare (label-name a) (label-name b) == 0
+
+  label-at :: Nat -> Label
+  label-at n = MkLabel (string-concat "label-" (nat-to-string n))
+
+  implicit instance Eq-Label :: Eq Label where
+    (==) a b = label-eq a b
+    (/=) a b = label-eq a b == False
+
+  -- Every label shares digest 0: lawful (`x == y` implies `hash x ==
+  -- hash y` holds trivially) and the adversarial end of the module's
+  -- documented boundary, one bucket for the whole map.
+  implicit instance Hash-Label :: Hash Label where
+    hash l = 0
+
+  fill-labels :: Nat -> HashMap Label Nat -> HashMap Label Nat
+  fill-labels n m = case n == 0 of
+    True -> m
+    False -> fill-labels (n - 1) (hash-map-insert (label-at n) n m)
+
+  look-labels :: Nat -> HashMap Label Nat -> Bool
+  look-labels n m = case n == 0 of
+    True -> True
+    False -> case hash-map-lookup (label-at n) m of
+      None -> False
+      Some v -> if v == n then look-labels (n - 1) m else False
+
+  delete-labels :: Nat -> HashMap Label Nat -> HashMap Label Nat
+  delete-labels n m = case n == 0 of
+    True -> m
+    False -> delete-labels (n - 1) (hash-map-delete (label-at n) m)
+
+  label-absent-ok :: HashMap Label Nat -> Bool
+  label-absent-ok m = case hash-map-lookup (label-at 301) m of
+    None -> True
+    Some _ -> False
+
+  -- ------------------------------------------------------------------
+  -- Measured spans (the program's own monotonic clock)
+  -- ------------------------------------------------------------------
+
+  -- `phase` builds a map of `n` distinct-digest keys, looks every key
+  -- back up, prints both spans, and hands the map back (the caller reads
+  -- the map's size and its own all-keys-found result from it, so the map
+  -- is built once).
+  phase :: forall r. using (io :: Io r) => String -> Nat ->{IO r} HashMap Nat Nat
+  phase label n =
+    let t0 = clock-monotonic-ns () in
+    let m = fill-nat n hash-map-empty in
+    let t1 = clock-monotonic-ns () in
+    let ok = look-all-nat n m in
+    let t2 = clock-monotonic-ns () in
+    let ins = duration-millis (monotonic-elapsed t0 t1) in
+    let lk = duration-millis (monotonic-elapsed t1 t2) in
+    let size = hash-map-size m in
+    case ioWrite (string-to-bytes (phase-line label n ins lk ok size)) of
+      _ -> m
+
+  phase-line :: String -> Nat -> Nat -> Nat -> Bool -> Nat -> String
+  phase-line label n ins lk ok size =
+    let a = string-concat label " n=" in
+    let b = string-concat (nat-to-string n) " insert-ms=" in
+    let c = string-concat (nat-to-string ins) " lookup-ms=" in
+    let d = string-concat (nat-to-string lk) " size=" in
+    let e = string-concat (nat-to-string size) " ok=" in
+    let f = string-concat (if ok then "yes" else "no") "\n" in
+    string-concat a (string-concat b (string-concat c (string-concat d (string-concat e f))))
+
+  collide-line :: Nat -> Nat -> Nat -> Nat -> Nat -> String
+  collide-line keys build ins lk del =
+    let a = string-concat "collide keys=" (string-concat (nat-to-string keys) " build-ms=") in
+    let b = string-concat (nat-to-string build) " insert-ms=" in
+    let c = string-concat (nat-to-string ins) " lookup-ms=" in
+    let d = string-concat (nat-to-string lk) " delete-ms=" in
+    let e = string-concat (nat-to-string del) "\n" in
+    string-concat a (string-concat b (string-concat c (string-concat d e)))
+
+  label-line :: Nat -> Nat -> Nat -> Nat -> String
+  label-line keys ins lk del =
+    let a = string-concat "label keys=" (string-concat (nat-to-string keys) " insert-ms=") in
+    let b = string-concat (nat-to-string ins) " lookup-ms=" in
+    let c = string-concat (nat-to-string lk) " delete-ms=" in
+    let d = string-concat (nat-to-string del) "\n" in
+    string-concat a (string-concat b (string-concat c d))
+
+  wide-line :: Nat -> String
+  wide-line del = string-concat "wide-delete-ms=" (string-concat (nat-to-string del) "\n")
+
+  -- ------------------------------------------------------------------
+  -- The verdict
+  -- ------------------------------------------------------------------
+
+  outcome :: Bool -> String
+  outcome ok = case ok of
+    True -> "=ok\n"
+    False -> "=FAILED\n"
+
+  report-lines :: List (String, Bool) -> String
+  report-lines fs = case fs of
+    Nil -> ""
+    Cons f rest -> case f of
+      (name, ok) -> string-concat name (string-concat (outcome ok) (report-lines rest))
+
+  -- Check k contributes bit 2^(k-1), so a nonzero exit status names the
+  -- failed checks.
+  bits :: List (String, Bool) -> Int
+  bits fs = bits-from 1 fs
+
+  bits-from :: Int -> List (String, Bool) -> Int
+  bits-from bit fs = case fs of
+    Nil -> 0
+    Cons f rest -> case f of
+      (x, ok) -> case ok of
+        True -> bits-from (bit * 2) rest
+        False -> bit + bits-from (bit * 2) rest
+
+  -- Every heavy map is built here, once, in a local binding: the two
+  -- phases' maps arrive built (they are the scale evidence), and the
+  -- collision batches and their containers are local, so no use of a
+  -- fact rebuilds a map.
+  finish :: forall r. using (io :: Io r) => HashMap Nat Nat -> HashMap Nat Nat ->{IO r} Int
+  finish m4 m32 =
+    let zero = clock-monotonic-ns () in
+    let wide-empty = delete-all-nat 32000 m32 in
+    let one = clock-monotonic-ns () in
+    let cs = collide-strings 8 (Cons "" Nil) in
+    let two = clock-monotonic-ns () in
+    let cmap = insert-strings cs hash-map-empty in
+    let three = clock-monotonic-ns () in
+    let cok = look-strings cs cmap in
+    let four = clock-monotonic-ns () in
+    let cempty = delete-strings cs cmap in
+    let five = clock-monotonic-ns () in
+    let lmap = fill-labels 300 hash-map-empty in
+    let six = clock-monotonic-ns () in
+    let lok = look-labels 300 lmap in
+    let seven = clock-monotonic-ns () in
+    let lempty = delete-labels 300 lmap in
+    let eight = clock-monotonic-ns () in
+    -- One binding per fact, and one per measured span: a `let` value that
+    -- starts on a following line and closes every paren on it ends the
+    -- binding there, and the `in` then has no block. Everything below is
+    -- a single line, which is the shape this compiler's layout accepts.
+    let f-scale-small = ("scale-4000", look-all-nat 4000 m4 && hash-map-size m4 == 4000) in
+    let f-scale-wide = ("scale-32000", look-all-nat 32000 m32 && hash-map-size m32 == 32000) in
+    let f-absent = ("absences", absent-above 32000 32400 m32 && absent-above 0 100 (hash-map-empty :: HashMap Nat Nat)) in
+    let f-overwrite = ("overwrite-and-from-pairs", overwrite-ok && from-pairs-ok) in
+    let f-digest = ("same-digest-key-separated", same-digest-ok) in
+    let f-collide = ("collide-256-one-digest", list-length cs == 256 && same-digest cs && hash-map-size cmap == 256 && cok) in
+    let f-delete = ("delete-all-empties", hash-map-is-empty cempty && hash-map-size cempty == 0 && hash-map-is-empty wide-empty && hash-map-size wide-empty == 0) in
+    let f-label = ("declared-key-type", lok && hash-map-size lmap == 300 && label-absent-ok lmap && hash-map-is-empty lempty && hash-map-size lempty == 0) in
+    let report-half = Cons f-collide (Cons f-delete (Cons f-label Nil)) in
+    let report = Cons f-scale-small (Cons f-scale-wide (Cons f-absent (Cons f-overwrite (Cons f-digest report-half)))) in
+    let wide-span = wide-line (duration-millis (monotonic-elapsed zero one)) in
+    let build-span = duration-millis (monotonic-elapsed zero two) in
+    let ins-span = duration-millis (monotonic-elapsed two three) in
+    let look-span = duration-millis (monotonic-elapsed three four) in
+    let clash-span = duration-millis (monotonic-elapsed four five) in
+    let label-ins = duration-millis (monotonic-elapsed five six) in
+    let label-look = duration-millis (monotonic-elapsed six seven) in
+    let label-del = duration-millis (monotonic-elapsed seven eight) in
+    let collide-span = collide-line 256 build-span ins-span look-span clash-span in
+    let label-span = label-line 300 label-ins label-look label-del in
+    let spans = string-concat wide-span (string-concat collide-span (string-concat label-span (report-lines report))) in
+    case ioWrite (string-to-bytes spans) of
+      _ -> bits report
+
+  main :: Unit ->{IO r} Int
+  main u = with (io = newIO ()) in
+    case phase "phase-4000" 4000 of
+      m4 -> case phase "phase-32000" 32000 of
+        m32 -> finish m4 m32

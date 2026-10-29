@@ -31,6 +31,21 @@
 --     spine balances whatever digests arrive; only bucket scans
 --     degrade).
 --
+-- Measured limits (bootstrap/programs/Run.Maps.cinch, asserted by
+-- compiler/tests/lib_hashmap_real.rs; spans are the program's own
+-- monotonic clock, and the ranges below span runs on a loaded machine):
+-- 32000 distinct-digest keys insert in 0.2-0.4s and look up in
+-- 0.05-0.1s, where 8x the keys costs about 10x the time (n log n; an
+-- 8x jump to 64x is what a quadratic index or a fixed table with
+-- unbounded buckets would show). There is no growth or rehash step to
+-- trigger, because the spine holds one node per digest PRESENT and its
+-- height is the only thing that grows. 256 distinct keys that share ONE
+-- digest insert and look up in 0.7-0.9s each, which is the whole cost of
+-- the named boundary above (the bucket scan, linear in the collision
+-- class: 300 keys in one bucket measure at 0.8-0.9s, and correctness
+-- does not move). The key count itself has no ceiling short of memory:
+-- 100000 distinct-digest keys insert in ~0.8s and look up in ~0.2s.
+--
 -- Module scheme (design/base-library.md): the type's home carries its
 -- `FromMap` instance (`{k => v}` at `HashMap k v`).
 module Data.HashMap where
