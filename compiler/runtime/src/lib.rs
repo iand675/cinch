@@ -228,6 +228,17 @@
 //! scalar foreign boundary, the runtime-capability clocks, the
 //! filesystem operations and the subprocess operations over real
 //! pipes.
+//!
+//! The networking and piped-child layers (P40's networking family;
+//! `compiler/runtime/src/net.rs` and the piped section of
+//! `compiler/runtime/src/platform.rs`): the `cinch_net_*` socket and
+//! name-resolution externs over live sockets in a handle table, and the
+//! `cinch_process_*` live-child externs (separately readable stdout and
+//! stderr, writable stdin, a handle table). Both take `Bytes` words
+//! (`crate::abi`) for text and payload and answer the negated error code
+//! of the platform layer's shared vocabulary; the compiler-side units
+//! (`PrimOp::Net`/`PrimOp::Proc`) present those words as the prelude
+//! `Result`.
 
 pub mod abi;
 pub mod bytes;
@@ -238,6 +249,7 @@ pub mod evolution;
 mod int;
 mod limbs;
 mod nat;
+pub mod net;
 pub mod platform;
 pub mod string;
 pub mod sym;

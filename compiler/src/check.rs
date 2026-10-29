@@ -1839,6 +1839,9 @@ fn callee_writes_opaque(core: &ECore) -> bool {
         ECore::Prim(crate::core::PrimOp::Bytes(op)) => {
             !matches!(op, crate::core::BytesOp::Len | crate::core::BytesOp::Get)
         }
+        // The platform ops mutate the filesystem and the process table:
+        // conservatively an opaque write.
+        ECore::Prim(crate::core::PrimOp::Platform(_)) => true,
         _ => false,
     }
 }

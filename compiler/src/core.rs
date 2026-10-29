@@ -510,6 +510,19 @@ pub enum TextOp {
     /// `textSha256 :: Bytes -> Bytes`: the SHA-256 digest of a buffer
     /// as a fresh 32-byte buffer (content identity).
     Sha256,
+    /// `textSha512 :: Bytes -> Bytes`: the SHA-512 digest (FIPS 180-4)
+    /// as a fresh 64-byte buffer.
+    Sha512,
+    /// `textSha1 :: Bytes -> Bytes`: the SHA-1 digest (FIPS 180-1) as a
+    /// fresh 20-byte buffer (legacy content identity).
+    Sha1,
+    /// `textMd5 :: Bytes -> Bytes`: the MD5 digest (RFC 1321) as a
+    /// fresh 16-byte buffer (legacy content identity).
+    Md5,
+    /// `textHmacSha256 :: Bytes -> Bytes -> Bytes`: HMAC-SHA-256
+    /// (RFC 2104) of the message under the key as a fresh 32-byte
+    /// buffer.
+    HmacSha256,
     /// `textF64ToDecimal :: F64 -> Bytes`: one float's shortest
     /// round-trip decimal text (the canonical number formatting).
     F64ToDecimal,
@@ -522,6 +535,10 @@ impl TextOp {
     fn name(self) -> &'static str {
         match self {
             TextOp::Sha256 => "Sha256",
+            TextOp::Sha512 => "Sha512",
+            TextOp::Sha1 => "Sha1",
+            TextOp::Md5 => "Md5",
+            TextOp::HmacSha256 => "HmacSha256",
             TextOp::F64ToDecimal => "F64ToDecimal",
             TextOp::F64FromDecimal => "F64FromDecimal",
         }
@@ -531,8 +548,175 @@ impl TextOp {
     pub fn extern_name(self) -> &'static str {
         match self {
             TextOp::Sha256 => "cinch_text_sha256",
+            TextOp::Sha512 => "cinch_text_sha512",
+            TextOp::Sha1 => "cinch_text_sha1",
+            TextOp::Md5 => "cinch_text_md5",
+            TextOp::HmacSha256 => "cinch_text_hmac_sha256",
             TextOp::F64ToDecimal => "cinch_text_f64_to_decimal",
             TextOp::F64FromDecimal => "cinch_text_f64_from_decimal",
+        }
+    }
+}
+
+/// The platform externs beyond the clock/fs-read/process homes
+/// (`cinch.runtime.*`; runtime ABI, `cinch_fs_*`/`cinch_random_bytes`/
+/// `cinch_signal_send` over `compiler/runtime/src/platform.rs`): the
+/// mutating filesystem operations, OS entropy and signal delivery the
+/// standard library's `Dir`/`FileUtils`/`SecureRandom`/`Process` round
+/// needs. Every op that reports a failure returns the raw word (0 or a
+/// negated error code, or -1 from `kill`), which the prelude maps to its
+/// named vocabulary.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum PlatformOp {
+    /// `randomBytes :: Nat -> Bytes`: `n` bytes from the OS entropy
+    /// source as a fresh buffer.
+    RandomBytes,
+    /// `fsMkdir :: Bytes -> Bool -> I64`: create a directory, or the
+    /// whole chain when the flag is true (`mkdir -p`).
+    FsMkdir,
+    /// `fsRemove :: Bytes -> Bool -> I64`: remove a file, a directory,
+    /// or a subtree when the flag is true.
+    FsRemove,
+    /// `fsTempDir :: Unit -> Bytes`: the platform temp directory as a
+    /// `Bytes` path.
+    FsTempDir,
+    /// `signalSend :: I64 -> I64 -> I64`: POSIX `kill`; the raw result.
+    SignalSend,
+}
+
+impl PlatformOp {
+    fn name(self) -> &'static str {
+        match self {
+            PlatformOp::RandomBytes => "randomBytes",
+            PlatformOp::FsMkdir => "fsMkdir",
+            PlatformOp::FsRemove => "fsRemove",
+            PlatformOp::FsTempDir => "fsTempDir",
+            PlatformOp::SignalSend => "signalSend",
+        }
+    }
+
+    /// The runtime extern this operation is emitted against.
+    pub fn extern_name(self) -> &'static str {
+        match self {
+            PlatformOp::RandomBytes => "cinch_random_bytes",
+            PlatformOp::FsMkdir => "cinch_fs_mkdir",
+            PlatformOp::FsRemove => "cinch_fs_remove",
+            PlatformOp::FsTempDir => "cinch_fs_temp_dir",
+            PlatformOp::SignalSend => "cinch_signal_send",
+        }
+    }
+}
+
+/// The networking externs (`cinch.runtime.net*`; runtime ABI,
+/// `cinch_net_*` over `compiler/runtime/src/net.rs`): TCP sockets and
+/// name resolution, the `Socket`/`Resolv` round of the standard
+/// library's networking family. A socket is a live handle word, its
+/// payloads are `Bytes` words, and every result is the prelude `Result`
+/// over the boundary's raw word: a NEGATIVE word is the negated code of
+/// the platform layer's shared vocabulary (the `Err` payload is the
+/// POSITIVE code the prelude maps to its named constructors) and a
+/// non-negative one is the success word. The units present that
+/// `Result` because a socket read's success value is a fresh `Bytes`
+/// buffer, which a single raw word could not distinguish from a
+/// failure.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum NetOp {
+    /// `netTcpConnect :: Bytes -> I64 -> Result I64 I64`: connect to
+    /// UTF-8 host text at a port; the payload is the socket handle.
+    TcpConnect,
+    /// `netRead :: I64 -> Nat -> Result I64 Bytes`: up to `max` bytes of
+    /// the socket (empty at the end of the stream).
+    Read,
+    /// `netWrite :: I64 -> Bytes -> Result I64 Nat`: the byte count
+    /// written.
+    Write,
+    /// `netClose :: I64 -> Result I64 Unit`: close the socket (the
+    /// handle is gone afterwards).
+    Close,
+    /// `netResolve :: Bytes -> I64 -> Result I64 Bytes`: UTF-8 host text
+    /// at a port as one `<ip>:<port>` line per resolved address.
+    Resolve,
+}
+
+impl NetOp {
+    fn name(self) -> &'static str {
+        match self {
+            NetOp::TcpConnect => "TcpConnect",
+            NetOp::Read => "Read",
+            NetOp::Write => "Write",
+            NetOp::Close => "Close",
+            NetOp::Resolve => "Resolve",
+        }
+    }
+
+    /// The runtime extern this operation is emitted against.
+    pub fn extern_name(self) -> &'static str {
+        match self {
+            NetOp::TcpConnect => "cinch_net_tcp_connect",
+            NetOp::Read => "cinch_net_read",
+            NetOp::Write => "cinch_net_write",
+            NetOp::Close => "cinch_net_close",
+            NetOp::Resolve => "cinch_net_resolve",
+        }
+    }
+}
+
+/// The piped-child externs (`cinch.runtime.process*`; runtime ABI,
+/// `cinch_process_*` over the piped section of
+/// `compiler/runtime/src/platform.rs`): a LIVE child with separately
+/// readable stdout and stderr and writable stdin, which the one-shot
+/// `cinch_proc_*` set cannot express (`Effect.Process`'s header names
+/// that gap as a refusal this ABI lifts). The result convention is
+/// [`NetOp`]'s: the boundary's raw word, negative as the negated code of
+/// the shared vocabulary.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum ProcOp {
+    /// `processSpawn :: Bytes -> Bytes -> Bytes -> Bytes -> Result I64
+    /// I64`: the program, its NUL-separated arguments, the working
+    /// directory (empty inherits) and the NUL-separated `KEY=VALUE`
+    /// environment additions (empty inherits); the payload is the child
+    /// handle.
+    Spawn,
+    /// `processWriteStdin :: I64 -> Bytes -> Result I64 Nat`: the byte
+    /// count written to the child's stdin.
+    WriteStdin,
+    /// `processCloseStdin :: I64 -> Result I64 Unit`: the child's end of
+    /// input.
+    CloseStdin,
+    /// `processRead :: I64 -> I64 -> Nat -> Result I64 Bytes`: up to
+    /// `max` bytes of one output pipe (0 stdout, 1 stderr; empty at that
+    /// pipe's end).
+    Read,
+    /// `processWait :: I64 -> Result I64 Nat`: the child's exit code
+    /// (128 + the signal number for a signal death, the shell
+    /// convention).
+    Wait,
+    /// `processClose :: I64 -> Result I64 Unit`: the handle is gone
+    /// afterwards, and a child no wait reaped is killed and reaped.
+    Close,
+}
+
+impl ProcOp {
+    fn name(self) -> &'static str {
+        match self {
+            ProcOp::Spawn => "Spawn",
+            ProcOp::WriteStdin => "WriteStdin",
+            ProcOp::CloseStdin => "CloseStdin",
+            ProcOp::Read => "Read",
+            ProcOp::Wait => "Wait",
+            ProcOp::Close => "Close",
+        }
+    }
+
+    /// The runtime extern this operation is emitted against.
+    pub fn extern_name(self) -> &'static str {
+        match self {
+            ProcOp::Spawn => "cinch_process_spawn",
+            ProcOp::WriteStdin => "cinch_process_write_stdin",
+            ProcOp::CloseStdin => "cinch_process_close_stdin",
+            ProcOp::Read => "cinch_process_read",
+            ProcOp::Wait => "cinch_process_wait",
+            ProcOp::Close => "cinch_process_close",
         }
     }
 }
@@ -615,6 +799,15 @@ pub enum PrimOp {
     /// Text conversion and content identity on buffers and floats
     /// (`cinch.runtime.text*`; runtime ABI, `cinch_text_*`).
     Text(TextOp),
+    /// Platform operations beyond the clock/fs-read/process homes
+    /// (`cinch.runtime.*`; runtime ABI, `cinch_fs_*` and friends).
+    Platform(PlatformOp),
+    /// TCP sockets and name resolution (`cinch.runtime.net*`; runtime
+    /// ABI, `cinch_net_*`).
+    Net(NetOp),
+    /// The live piped child (`cinch.runtime.process*`; runtime ABI,
+    /// `cinch_process_*`).
+    Proc(ProcOp),
     EqBool,
     NeBool,
     NotBool,
@@ -759,8 +952,28 @@ impl PrimOp {
                 "symEq" => Sym(SymOp::Eq),
                 "symCmp" => Sym(SymOp::Cmp),
                 "textSha256" => Text(TextOp::Sha256),
+                "textSha512" => Text(TextOp::Sha512),
+                "textSha1" => Text(TextOp::Sha1),
+                "textMd5" => Text(TextOp::Md5),
+                "textHmacSha256" => Text(TextOp::HmacSha256),
                 "textF64ToDecimal" => Text(TextOp::F64ToDecimal),
                 "textF64FromDecimal" => Text(TextOp::F64FromDecimal),
+                "randomBytes" => Platform(PlatformOp::RandomBytes),
+                "fsMkdir" => Platform(PlatformOp::FsMkdir),
+                "fsRemove" => Platform(PlatformOp::FsRemove),
+                "fsTempDir" => Platform(PlatformOp::FsTempDir),
+                "signalSend" => Platform(PlatformOp::SignalSend),
+                "netTcpConnect" => Net(NetOp::TcpConnect),
+                "netRead" => Net(NetOp::Read),
+                "netWrite" => Net(NetOp::Write),
+                "netClose" => Net(NetOp::Close),
+                "netResolve" => Net(NetOp::Resolve),
+                "processSpawn" => Proc(ProcOp::Spawn),
+                "processWriteStdin" => Proc(ProcOp::WriteStdin),
+                "processCloseStdin" => Proc(ProcOp::CloseStdin),
+                "processRead" => Proc(ProcOp::Read),
+                "processWait" => Proc(ProcOp::Wait),
+                "processClose" => Proc(ProcOp::Close),
                 _ => return None,
             });
         }
@@ -798,6 +1011,9 @@ impl PrimOp {
             Utf8(op) => return format!("cinch.runtime.utf8{}", op.name()),
             Sym(op) => return format!("cinch.runtime.sym{}", op.name()),
             Text(op) => return format!("cinch.runtime.text{}", op.name()),
+            Platform(op) => return format!("cinch.runtime.{}", op.name()),
+            Net(op) => return format!("cinch.runtime.net{}", op.name()),
+            Proc(op) => return format!("cinch.runtime.process{}", op.name()),
             EqBool => return "cinch.prim.eqBool".to_string(),
             NeBool => return "cinch.prim.neBool".to_string(),
             NotBool => return "cinch.prim.notBool".to_string(),
@@ -850,7 +1066,12 @@ impl PrimOp {
             | Int(IntOp::FromI64 | IntOp::ToI64 | IntOp::Neg)
             | Bytes(BytesOp::New | BytesOp::Len)
             | Utf8(Utf8Op::Validate | Utf8Op::CountChars | Utf8Op::Encode)
-            | Text(_) => 1,
+            | Text(
+                TextOp::Sha256 | TextOp::Sha512 | TextOp::Sha1 | TextOp::Md5
+                    | TextOp::F64ToDecimal | TextOp::F64FromDecimal,
+            )
+            | Platform(PlatformOp::RandomBytes | PlatformOp::FsTempDir) => 1,
+            Net(_) | Proc(_) => self.sig().0.len(),
             Bytes(BytesOp::Set) => 3,
             Sym(SymOp::Intern | SymOp::Name) => 1,
             Neg { .. } | BitNot { .. } | BitScan { .. } | FloatUn { .. } | FClass { .. }
@@ -889,6 +1110,11 @@ impl PrimOp {
         let opt = |t: Ty| Ty::Adt("Option".to_string(), vec![t]);
         let u32t = prim(Scalar::U32);
         let i64t = prim(Scalar::I64);
+        // The net and piped-child units present their boundary word as
+        // the prelude `Result`: `Err` (tag 0) over the POSITIVE named
+        // error code when that word is negative, `Ok` (tag 1) over the
+        // success payload otherwise.
+        let res = |t: Ty| Ty::Adt("Result".to_string(), vec![i64t.clone(), t]);
         match self {
             Nat(NatOp::Add | NatOp::Sub | NatOp::Mul | NatOp::Div | NatOp::Rem) => {
                 (vec![Ty::Nat, Ty::Nat], Ty::Nat)
@@ -920,8 +1146,30 @@ impl PrimOp {
             Sym(SymOp::Eq) => (vec![Ty::Sym, Ty::Sym], Ty::Bool),
             Sym(SymOp::Cmp) => (vec![Ty::Sym, Ty::Sym], i64t),
             Text(TextOp::Sha256) => (vec![Ty::Bytes], Ty::Bytes),
+            Text(TextOp::Sha512 | TextOp::Sha1 | TextOp::Md5) => (vec![Ty::Bytes], Ty::Bytes),
+            Text(TextOp::HmacSha256) => (vec![Ty::Bytes, Ty::Bytes], Ty::Bytes),
             Text(TextOp::F64ToDecimal) => (vec![prim(Scalar::F64)], Ty::Bytes),
             Text(TextOp::F64FromDecimal) => (vec![Ty::Bytes], prim(Scalar::F64)),
+            Platform(PlatformOp::RandomBytes) => (vec![Ty::Nat], Ty::Bytes),
+            Platform(PlatformOp::FsMkdir | PlatformOp::FsRemove) => {
+                (vec![Ty::Bytes, Ty::Bool], i64t)
+            }
+            Platform(PlatformOp::FsTempDir) => (vec![Ty::Unit], Ty::Bytes),
+            Platform(PlatformOp::SignalSend) => (vec![i64t.clone(), i64t.clone()], i64t),
+            Net(NetOp::TcpConnect) => (vec![Ty::Bytes, i64t.clone()], res(i64t.clone())),
+            Net(NetOp::Read) => (vec![i64t.clone(), Ty::Nat], res(Ty::Bytes)),
+            Net(NetOp::Write) => (vec![i64t.clone(), Ty::Bytes], res(Ty::Nat)),
+            Net(NetOp::Close) => (vec![i64t.clone()], res(Ty::Unit)),
+            Net(NetOp::Resolve) => (vec![Ty::Bytes, i64t.clone()], res(Ty::Bytes)),
+            Proc(ProcOp::Spawn) => (
+                vec![Ty::Bytes, Ty::Bytes, Ty::Bytes, Ty::Bytes],
+                res(i64t.clone()),
+            ),
+            Proc(ProcOp::WriteStdin) => (vec![i64t.clone(), Ty::Bytes], res(Ty::Nat)),
+            Proc(ProcOp::CloseStdin) => (vec![i64t.clone()], res(Ty::Unit)),
+            Proc(ProcOp::Read) => (vec![i64t.clone(), i64t.clone(), Ty::Nat], res(Ty::Bytes)),
+            Proc(ProcOp::Wait) => (vec![i64t.clone()], res(Ty::Nat)),
+            Proc(ProcOp::Close) => (vec![i64t.clone()], res(Ty::Unit)),
             EqBool | NeBool | AndBool | OrBool => (vec![Ty::Bool, Ty::Bool], Ty::Bool),
             NotBool => (vec![Ty::Bool], Ty::Bool),
             Delay | Force | Demand | Eval => {
@@ -4226,7 +4474,9 @@ fn fold_prim(op: PrimOp, args: &[Core], ctors: &FoldCtors) -> Option<Core> {
 fn prim_is_pure(op: PrimOp) -> bool {
     // `eval` runs a reified program at runtime: it can fault and its
     // work is opaque here, so the optimizer must not reorder or drop it.
-    !matches!(op, PrimOp::Bytes(_) | PrimOp::Eval)
+    // The platform ops mutate the filesystem, consume entropy and
+    // deliver signals, so they are effects too.
+    !matches!(op, PrimOp::Bytes(_) | PrimOp::Eval | PrimOp::Platform(_))
 }
 
 /// A term's allocation and demand structure (supercompilation section 3:
@@ -5989,6 +6239,17 @@ mod tests {
             PrimOp::Conv { from: Scalar::F64, to: Scalar::I32, mode: ConvMode::Saturating },
             PrimOp::Conv { from: Scalar::I32, to: Scalar::U8, mode: ConvMode::Wrapping },
             PrimOp::Conv { from: Scalar::F32, to: Scalar::F64, mode: ConvMode::Total },
+            PrimOp::Net(NetOp::TcpConnect),
+            PrimOp::Net(NetOp::Read),
+            PrimOp::Net(NetOp::Write),
+            PrimOp::Net(NetOp::Close),
+            PrimOp::Net(NetOp::Resolve),
+            PrimOp::Proc(ProcOp::Spawn),
+            PrimOp::Proc(ProcOp::WriteStdin),
+            PrimOp::Proc(ProcOp::CloseStdin),
+            PrimOp::Proc(ProcOp::Read),
+            PrimOp::Proc(ProcOp::Wait),
+            PrimOp::Proc(ProcOp::Close),
         ];
         for op in ops {
             let sym = op.symbol();

@@ -38,8 +38,8 @@
 use crate::core::{
     AbiClass, AbiParam, ArithMode, ArithOp, BitOp, BitScanOp, BytesOp, CAlt, CBranch, CmpOp,
     ConcOp, ConvMode, Core, CPat, CtorLayout, FClassOp, FieldAccess, FieldShape, FloatBinOp,
-    FloatUnOp, FnDef, ForeignPlan, LocalId, PrimAbiTy, PrimPlan, PrimOp, Program, ShiftOp,
-    SymOp, TextOp, Utf8Op,
+    FloatUnOp, FnDef, ForeignPlan, LocalId, NetOp, PlatformOp, PrimAbiTy, PrimPlan, PrimOp,
+    ProcOp, Program, ShiftOp, SymOp, TextOp, Utf8Op,
 };
 use crate::types::Scalar;
 use crate::Result;
@@ -157,8 +157,36 @@ pub fn emit_for(profile: &crate::core::TargetProfile, program: &Program) -> Resu
         // formatting and parsing of `F64` (JSON and canonical
         // serialization).
         "declare i64 @cinch_text_sha256(i64)",
+        "declare i64 @cinch_text_sha512(i64)",
+        "declare i64 @cinch_text_sha1(i64)",
+        "declare i64 @cinch_text_md5(i64)",
+        "declare i64 @cinch_text_hmac_sha256(i64, i64)",
         "declare i64 @cinch_text_f64_to_decimal(double)",
         "declare double @cinch_text_f64_from_decimal(i64)",
+        // The platform operations beyond the clock/fs-read/process homes
+        // (`compiler/runtime/src/platform.rs`): the mutating filesystem,
+        // OS entropy and signal delivery.
+        "declare i64 @cinch_random_bytes(i64)",
+        "declare i64 @cinch_fs_mkdir(i64, i64)",
+        "declare i64 @cinch_fs_remove(i64, i64)",
+        "declare i64 @cinch_fs_temp_dir()",
+        "declare i64 @cinch_signal_send(i64, i64)",
+        // The networking family (`compiler/runtime/src/net.rs`): TCP
+        // sockets by handle and platform name resolution.
+        "declare i64 @cinch_net_tcp_connect(i64, i64)",
+        "declare i64 @cinch_net_read(i64, i64)",
+        "declare i64 @cinch_net_write(i64, i64)",
+        "declare i64 @cinch_net_close(i64)",
+        "declare i64 @cinch_net_resolve(i64, i64)",
+        // The live piped child (the piped section of
+        // `compiler/runtime/src/platform.rs`): separately readable
+        // stdout and stderr, writable stdin.
+        "declare i64 @cinch_process_spawn(i64, i64, i64, i64)",
+        "declare i64 @cinch_process_write_stdin(i64, i64)",
+        "declare i64 @cinch_process_close_stdin(i64)",
+        "declare i64 @cinch_process_read(i64, i64, i64)",
+        "declare i64 @cinch_process_wait(i64)",
+        "declare i64 @cinch_process_close(i64)",
         // Structured concurrency and runtime I/O (concurrency
         // specification sections 2, 4 and 9; `compiler/runtime/src/task.rs`).
         "declare i64 @cinch_scope_open()",
@@ -1644,6 +1672,43 @@ fn ret(b: &mut Builder, v: &str) {
     b.line(&format!("ret i64 {v}"));
 }
 
+/// Return the prelude `Result` a boundary word stands for: a NEGATIVE
+/// word is `Err` (tag 0) over its POSITIVE named error code, a
+/// non-negative one is `Ok` (tag 1) over the value the caller maps from
+/// it (the prelude `Result` tags, the same convention `crate::task`'s
+/// outcome ABI documents). The platform's net and piped-child externs
+/// answer one word for both outcomes (`crate::platform`'s return-code
+/// convention), so their units present that word as this `Result`: a
+/// socket read's success value is a fresh `Bytes` buffer, which a single
+/// raw word at the language level could not tell apart from a failure
+/// code.
+fn ret_result(b: &mut Builder, raw: &str, ok: impl FnOnce(&mut Builder) -> String) {
+    let neg = b.reg();
+    b.line(&format!("{neg} = icmp slt i64 {raw}, 0"));
+    let lerr = b.label();
+    let lok = b.label();
+    b.line(&format!("br i1 {neg}, label %{lerr}, label %{lok}"));
+    b.start(&lerr);
+    let code = b.reg();
+    b.line(&format!("{code} = sub i64 0, {raw}"));
+    let ep = b.reg();
+    b.line(&format!("{ep} = call ptr @malloc(i64 16)"));
+    b.store_at(&ep, 0, "0");
+    b.store_at(&ep, 8, &code);
+    let ew = b.reg();
+    b.line(&format!("{ew} = ptrtoint ptr {ep} to i64"));
+    b.line(&format!("ret i64 {ew}"));
+    b.start(&lok);
+    let v = ok(b);
+    let op = b.reg();
+    b.line(&format!("{op} = call ptr @malloc(i64 16)"));
+    b.store_at(&op, 0, "1");
+    b.store_at(&op, 8, &v);
+    let ow = b.reg();
+    b.line(&format!("{ow} = ptrtoint ptr {op} to i64"));
+    b.line(&format!("ret i64 {ow}"));
+}
+
 /// `llvm.<s|u><op>.with.overflow.iN` for the arithmetic families.
 fn overflow_intrinsic(signed: bool, op: ArithOp, s: Scalar) -> String {
     let sign = if signed { "s" } else { "u" };
@@ -1937,8 +2002,16 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, name: &str, op: PrimOp) {
             // canonical word like the other `F64` primals.
             use TextOp::*;
             match k {
-                Sha256 => {
+                Sha256 | Sha512 | Sha1 | Md5 => {
                     let r = rt_call(b, k.extern_name(), &["i64 %p0".to_string()]);
+                    ret(b, &r);
+                }
+                HmacSha256 => {
+                    let r = rt_call(
+                        b,
+                        k.extern_name(),
+                        &["i64 %p0".to_string(), "i64 %p1".to_string()],
+                    );
                     ret(b, &r);
                 }
                 F64ToDecimal => {
@@ -1951,6 +2024,134 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, name: &str, op: PrimOp) {
                     b.line(&format!("{r} = call double @{}(i64 %p0)", k.extern_name()));
                     let w = float_to_word(b, Scalar::F64, &r);
                     ret(b, &w);
+                }
+            }
+        }
+        Platform(k) => {
+            // The platform operations (`compiler/runtime/src/platform.rs`):
+            // the `Nat` count crosses as an `i64` (like the `Bytes`
+            // counts), the paths and results cross as words, and the
+            // flags are `Bool` immediates.
+            use PlatformOp::*;
+            match k {
+                RandomBytes => {
+                    let n = rt_call(b, "cinch_nat_to_i64", &["i64 %p0".to_string()]);
+                    let r = rt_call(b, k.extern_name(), &[format!("i64 {n}")]);
+                    ret(b, &r);
+                }
+                FsMkdir | FsRemove | SignalSend => {
+                    let r = rt_call(
+                        b,
+                        k.extern_name(),
+                        &["i64 %p0".to_string(), "i64 %p1".to_string()],
+                    );
+                    ret(b, &r);
+                }
+                FsTempDir => {
+                    let r = rt_call(b, k.extern_name(), &[]);
+                    ret(b, &r);
+                }
+            }
+        }
+        Net(k) => {
+            // The networking units (`compiler/runtime/src/net.rs`): host
+            // text and payloads cross as `Bytes` words, ports and
+            // handles as machine scalars, and the boundary word becomes
+            // the prelude `Result` through `ret_result`.
+            use NetOp::*;
+            match k {
+                TcpConnect | Resolve => {
+                    let r = rt_call(
+                        b,
+                        k.extern_name(),
+                        &["i64 %p0".to_string(), "i64 %p1".to_string()],
+                    );
+                    let w = freeze_word(b, &r);
+                    ret_result(b, &w, |_| w.clone());
+                }
+                Write => {
+                    // `(handle, data)`: the byte count is a `Nat`.
+                    let r = rt_call(
+                        b,
+                        k.extern_name(),
+                        &["i64 %p0".to_string(), "i64 %p1".to_string()],
+                    );
+                    let w = freeze_word(b, &r);
+                    ret_result(b, &w, |b| {
+                        rt_call(b, "cinch_nat_from_i64", &[format!("i64 {w}")])
+                    });
+                }
+                Read => {
+                    // `(handle, max)`: the `Nat` cap crosses as an `i64`
+                    // (like the `Bytes` counts).
+                    let max = rt_call(b, "cinch_nat_to_i64", &["i64 %p1".to_string()]);
+                    let r = rt_call(
+                        b,
+                        k.extern_name(),
+                        &["i64 %p0".to_string(), format!("i64 {max}")],
+                    );
+                    let w = freeze_word(b, &r);
+                    ret_result(b, &w, |_| w.clone());
+                }
+                Close => {
+                    let r = rt_call(b, k.extern_name(), &["i64 %p0".to_string()]);
+                    let w = freeze_word(b, &r);
+                    // `Ok` over the Unit word.
+                    ret_result(b, &w, |_| "0".to_string());
+                }
+            }
+        }
+        Proc(k) => {
+            // The piped-child units (the piped section of
+            // `compiler/runtime/src/platform.rs`): the program text, the
+            // NUL-separated argument and environment words and the
+            // payloads cross as `Bytes` words, the handles and the pipe
+            // selector as machine scalars, and the boundary word becomes
+            // the prelude `Result` through `ret_result`.
+            use ProcOp::*;
+            let raw_args = |n: usize| -> Vec<String> {
+                (0..n).map(|i| format!("i64 %p{i}")).collect()
+            };
+            match k {
+                Spawn => {
+                    let r = rt_call(b, k.extern_name(), &raw_args(4));
+                    let w = freeze_word(b, &r);
+                    ret_result(b, &w, |_| w.clone());
+                }
+                WriteStdin => {
+                    let r = rt_call(b, k.extern_name(), &raw_args(2));
+                    let w = freeze_word(b, &r);
+                    ret_result(b, &w, |b| {
+                        rt_call(b, "cinch_nat_from_i64", &[format!("i64 {w}")])
+                    });
+                }
+                Read => {
+                    // `(handle, which, max)`: the `Nat` cap crosses as an
+                    // `i64`.
+                    let max = rt_call(b, "cinch_nat_to_i64", &["i64 %p2".to_string()]);
+                    let r = rt_call(
+                        b,
+                        k.extern_name(),
+                        &[
+                            "i64 %p0".to_string(),
+                            "i64 %p1".to_string(),
+                            format!("i64 {max}"),
+                        ],
+                    );
+                    let w = freeze_word(b, &r);
+                    ret_result(b, &w, |_| w.clone());
+                }
+                Wait => {
+                    let r = rt_call(b, k.extern_name(), &raw_args(1));
+                    let w = freeze_word(b, &r);
+                    ret_result(b, &w, |b| {
+                        rt_call(b, "cinch_nat_from_i64", &[format!("i64 {w}")])
+                    });
+                }
+                CloseStdin | Close => {
+                    let r = rt_call(b, k.extern_name(), &raw_args(1));
+                    let w = freeze_word(b, &r);
+                    ret_result(b, &w, |_| "0".to_string());
                 }
             }
         }
@@ -4627,6 +4828,85 @@ mod tests {
             ],
         );
         assert_eq!(run("core_prim_arithmetic_chain", &main_prog(vec![], body)), 9);
+    }
+
+    /// The net and piped-child units (`PrimOp::Net`/`PrimOp::Proc`):
+    /// every one of them checks its handle or its arguments at the
+    /// boundary and answers the named error code as the prelude
+    /// `Result`'s `Err` (tag 0) over the POSITIVE code, which the
+    /// payload projection here reads back (slot 0 is the constructor
+    /// tag). None of these cases needs a socket or a child: a handle no
+    /// `cinch_net_tcp_connect`/`cinch_process_spawn` handed out, a port
+    /// outside the `u16` range, and a program that does not exist are
+    /// exactly the boundary's own checks, so this pins the lowering
+    /// (`ret_result`) and those checks together, with no prelude in the
+    /// way.
+    #[test]
+    fn net_and_process_prims_answer_the_named_error_as_result() {
+        let bytes = |s: &str| Core::ConstBytes(s.as_bytes().to_vec());
+        let cases: Vec<(&str, PrimOp, Vec<Core>, i32)> = vec![
+            (
+                "net-tcp-connect",
+                PrimOp::Net(NetOp::TcpConnect),
+                vec![bytes("127.0.0.1"), n(70000)],
+                // `InvalidArgument`.
+                6,
+            ),
+            ("net-read", PrimOp::Net(NetOp::Read), vec![n(4242), cnat("16")], 6),
+            (
+                "net-write",
+                PrimOp::Net(NetOp::Write),
+                vec![n(4242), bytes("x")],
+                6,
+            ),
+            ("net-close", PrimOp::Net(NetOp::Close), vec![n(4242)], 6),
+            (
+                "net-resolve",
+                PrimOp::Net(NetOp::Resolve),
+                vec![bytes("localhost"), n(-1)],
+                6,
+            ),
+            (
+                "process-spawn",
+                PrimOp::Proc(ProcOp::Spawn),
+                vec![
+                    bytes("/nonexistent/cinch-program"),
+                    bytes(""),
+                    bytes(""),
+                    bytes(""),
+                ],
+                // `NotFound`.
+                1,
+            ),
+            (
+                "process-write-stdin",
+                PrimOp::Proc(ProcOp::WriteStdin),
+                vec![n(4242), bytes("x")],
+                6,
+            ),
+            (
+                "process-close-stdin",
+                PrimOp::Proc(ProcOp::CloseStdin),
+                vec![n(4242)],
+                6,
+            ),
+            (
+                "process-read",
+                PrimOp::Proc(ProcOp::Read),
+                vec![n(4242), n(0), cnat("16")],
+                6,
+            ),
+            ("process-wait", PrimOp::Proc(ProcOp::Wait), vec![n(4242)], 6),
+            ("process-close", PrimOp::Proc(ProcOp::Close), vec![n(4242)], 6),
+        ];
+        for (name, op, args, expected) in cases {
+            let body = Core::Proj(
+                Box::new(app(p(op), args)),
+                crate::core::ProjField::slot(0),
+            );
+            let code = run(&format!("net_proc_err_{name}"), &main_prog(vec![], body));
+            assert_eq!(code, expected, "{name}: the Err payload became the exit code");
+        }
     }
 
     #[test]

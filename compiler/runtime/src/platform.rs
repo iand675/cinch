@@ -37,12 +37,36 @@
 //!   i64`, `cinch_fs_dir_open(path) -> i64`, `cinch_fs_dir_next(dir,
 //!   out) -> i64`, `cinch_fs_dir_close(dir) -> i64`: the filesystem
 //!   operations (`fs-rename` is the atomic one).
+//! * `cinch_fs_mkdir(path, parents) -> i64` (one directory, or the
+//!   whole chain when `parents` is nonzero, matching `mkdir -p`),
+//!   `cinch_fs_remove(path, recursive) -> i64` (a file, a directory, or
+//!   a subtree; a symlink removes the link, never its target) and
+//!   `cinch_fs_temp_dir() -> i64` (the platform temp directory as a
+//!   `Bytes` path): the mutating filesystem operations the standard
+//!   library's `Dir`/`FileUtils` round needs.
+//! * `cinch_random_bytes(n) -> i64`: `n` bytes from the OS entropy
+//!   source as a fresh `Bytes` (`/dev/urandom`; the runtime carries no
+//!   external crate).
+//! * `cinch_signal_send(pid, sig) -> i64`: POSIX `kill` (the raw
+//!   result: 0, or -1 on failure, which the Cinch side maps to a named
+//!   error).
 //! * `cinch_proc_new(prog) -> i64`, `cinch_proc_arg(proc, arg) ->
 //!   i64`, `cinch_proc_env(proc, kv) -> i64`, `cinch_proc_stdin(proc,
 //!   data) -> i64`, `cinch_proc_run(proc) -> i64`,
 //!   `cinch_proc_read_out(proc, out) -> i64`, `cinch_proc_wait(proc)
 //!   -> i64`, `cinch_proc_free(proc) -> i64`: the subprocess
 //!   operations over real pipes (the `clang`/`lld` driver shape).
+//! * `cinch_process_spawn(command, args, cwd, env) -> i64`,
+//!   `cinch_process_write_stdin(child, data) -> i64`,
+//!   `cinch_process_close_stdin(child) -> i64`,
+//!   `cinch_process_read(child, which, max) -> i64`,
+//!   `cinch_process_wait(child) -> i64`, `cinch_process_close(child)
+//!   -> i64`: the LIVE child of the piped-process ABI (separately
+//!   readable stdout and stderr, writable stdin, a handle table), which
+//!   the one-shot set above cannot express. Its text and payload
+//!   arguments cross as `Bytes` words (`crate::abi`) rather than
+//!   through the word buffers of the one-shot set: a long-lived child
+//!   is a language-level value stream, not a byte-at-a-time bridge.
 //!
 //! The exports are `#[unsafe(no_mangle)]` `cinch_*` externs verified
 //! with `nm` by the tests below (the standing runtime rule).
@@ -57,16 +81,19 @@ use std::time::Instant;
 
 /// The named error codes a negative result carries, negated. The
 /// prelude maps them to its named error constructors one for one.
-const NOT_FOUND: i64 = 1;
-const PERMISSION_DENIED: i64 = 2;
-const ALREADY_EXISTS: i64 = 3;
-const NOT_A_DIRECTORY: i64 = 4;
-const IS_A_DIRECTORY: i64 = 5;
-const INVALID_ARGUMENT: i64 = 6;
-const IO_ERROR: i64 = 7;
+/// `crate::net` reads them from here: one vocabulary spans the
+/// platform's externs, so a socket failure and a filesystem failure
+/// name the same codes.
+pub(crate) const NOT_FOUND: i64 = 1;
+pub(crate) const PERMISSION_DENIED: i64 = 2;
+pub(crate) const ALREADY_EXISTS: i64 = 3;
+pub(crate) const NOT_A_DIRECTORY: i64 = 4;
+pub(crate) const IS_A_DIRECTORY: i64 = 5;
+pub(crate) const INVALID_ARGUMENT: i64 = 6;
+pub(crate) const IO_ERROR: i64 = 7;
 
 /// Map a failed `std::io` operation to the named code.
-fn io_code(e: &std::io::Error) -> i64 {
+pub(crate) fn io_code(e: &std::io::Error) -> i64 {
     use std::io::ErrorKind::*;
     match e.kind() {
         NotFound => NOT_FOUND,
@@ -312,6 +339,112 @@ pub unsafe extern "C" fn cinch_fs_dir_close(dir: i64) -> i64 {
     0
 }
 
+/// The path a `Bytes` word names (the intrinsic boundary: a boxed
+/// `Bytes` block, `textSha256`'s shape, not a word-buffer handle).
+unsafe fn bytes_path(word: i64) -> std::path::PathBuf {
+    use std::os::unix::ffi::OsStringExt;
+    let b = unsafe { crate::abi::as_bytes(word) };
+    std::path::PathBuf::from(std::ffi::OsString::from_vec(b.as_slice().to_vec()))
+}
+
+/// Create the directory at `path`, or the whole missing chain when
+/// `parents` is nonzero (`mkdir -p`: an existing directory is success):
+/// 0, or the negated error code. Without `parents` a missing parent or
+/// an existing `path` is the error the OS reports (`AlreadyExists`).
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn cinch_fs_mkdir(path: i64, parents: i64) -> i64 {
+    let p = unsafe { bytes_path(path) };
+    let r = if parents != 0 {
+        std::fs::create_dir_all(&p)
+    } else {
+        std::fs::create_dir(&p)
+    };
+    match r {
+        Ok(()) => 0,
+        Err(e) => -io_code(&e),
+    }
+}
+
+/// Remove what `path` names: a regular file or a symlink, or (when
+/// `recursive` is nonzero) a whole directory subtree: 0, or the negated
+/// error code. A missing path is the error `NotFound`. The removal
+/// resolves the kind through `symlink_metadata` and removes a symlink
+/// itself, so a link is NEVER followed to remove its target, and the
+/// recursive path (`remove_dir_all`) does not follow the links it walks
+/// either.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn cinch_fs_remove(path: i64, recursive: i64) -> i64 {
+    let p = unsafe { bytes_path(path) };
+    let meta = match std::fs::symlink_metadata(&p) {
+        Ok(m) => m,
+        Err(e) => return -io_code(&e),
+    };
+    let r = if meta.file_type().is_dir() {
+        if recursive != 0 {
+            std::fs::remove_dir_all(&p)
+        } else {
+            std::fs::remove_dir(&p)
+        }
+    } else {
+        std::fs::remove_file(&p)
+    };
+    match r {
+        Ok(()) => 0,
+        Err(e) => -io_code(&e),
+    }
+}
+
+/// The platform temp directory as a fresh `Bytes` path (`std::env::
+/// temp_dir`'s choice: `$TMPDIR`, else `/tmp`). The Cinch side composes
+/// unique names under it; the path is not created here.
+#[unsafe(no_mangle)]
+pub extern "C" fn cinch_fs_temp_dir() -> i64 {
+    use std::os::unix::ffi::OsStrExt;
+    let bytes = std::env::temp_dir().as_os_str().as_bytes().to_vec();
+    crate::abi::box_bytes(crate::bytes::Bytes::from(bytes))
+}
+
+// ---------------------------------------------------------------------------
+// Entropy
+// ---------------------------------------------------------------------------
+
+/// `n` bytes from the OS entropy source as a fresh `Bytes` buffer, or
+/// the negated error code for a negative `n` or a failed read. The
+/// source is `/dev/urandom` (a character device that never blocks once
+/// seeded; the runtime carries no external crate).
+#[unsafe(no_mangle)]
+pub extern "C" fn cinch_random_bytes(n: i64) -> i64 {
+    use std::io::Read;
+    let Ok(len) = usize::try_from(n) else {
+        return -INVALID_ARGUMENT;
+    };
+    let mut buf = vec![0u8; len];
+    match std::fs::File::open("/dev/urandom").and_then(|mut f| f.read_exact(&mut buf)) {
+        Ok(()) => crate::abi::box_bytes(crate::bytes::Bytes::from(buf)),
+        Err(e) => -io_code(&e),
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Signals
+// ---------------------------------------------------------------------------
+
+unsafe extern "C" {
+    /// POSIX `kill(2)` (the signal numbers are the platform's).
+    fn kill(pid: i32, sig: i32) -> i32;
+}
+
+/// Send signal `sig` (a POSIX signal number) to process `pid`: the raw
+/// `kill` result (0, or -1 on failure), which the Cinch side maps to its
+/// named error. A `pid` outside the `i32` range is `InvalidArgument`.
+#[unsafe(no_mangle)]
+pub extern "C" fn cinch_signal_send(pid: i64, sig: i64) -> i64 {
+    let (Ok(pid), Ok(sig)) = (i32::try_from(pid), i32::try_from(sig)) else {
+        return -INVALID_ARGUMENT;
+    };
+    i64::from(unsafe { kill(pid, sig) })
+}
+
 // ---------------------------------------------------------------------------
 // Processes
 // ---------------------------------------------------------------------------
@@ -476,9 +609,31 @@ pub unsafe extern "C" fn cinch_proc_read_out(h: i64, out: i64) -> i64 {
     o.len() as i64
 }
 
-/// Wait for the subprocess and report its exit code (0..=255; a
-/// signal death reports 128 + the signal number), or the negated
-/// error code when it was never run.
+/// A reaped child's exit code, the shell convention: the child's own
+/// exit status, or 128 + the signal number when a signal killed it (the
+/// raw signal case: there is no exit status to report then). Both the
+/// one-shot `cinch_proc_wait` and the piped ABI's `cinch_process_wait`
+/// report through this, so one convention spans the two.
+pub(crate) fn exit_code(status: &std::process::ExitStatus) -> i64 {
+    match status.code() {
+        Some(code) => i64::from(code),
+        None => {
+            #[cfg(unix)]
+            {
+                use std::os::unix::process::ExitStatusExt;
+                128 + i64::from(status.signal().unwrap_or(0))
+            }
+            #[cfg(not(unix))]
+            {
+                128
+            }
+        }
+    }
+}
+
+/// Wait for the subprocess and report its exit code through
+/// [`exit_code`] (0..=255; a signal death reports 128 + the signal
+/// number), or the negated error code when it was never run.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_proc_wait(h: i64) -> i64 {
     let Some(p) = (unsafe { proc(h) }) else {
@@ -488,20 +643,7 @@ pub unsafe extern "C" fn cinch_proc_wait(h: i64) -> i64 {
         return -INVALID_ARGUMENT;
     };
     match child.wait() {
-        Ok(status) => match status.code() {
-            Some(code) => i64::from(code),
-            None => {
-                #[cfg(unix)]
-                {
-                    use std::os::unix::process::ExitStatusExt;
-                    128 + i64::from(status.signal().unwrap_or(0))
-                }
-                #[cfg(not(unix))]
-                {
-                    128
-                }
-            }
-        },
+        Ok(status) => exit_code(&status),
         Err(e) => -io_code(&e),
     }
 }
@@ -520,6 +662,290 @@ pub unsafe extern "C" fn cinch_proc_free(h: i64) -> i64 {
     }
     drop(p);
     0
+}
+
+// ---------------------------------------------------------------------------
+// Piped children (the live-child ABI)
+// ---------------------------------------------------------------------------
+
+/// A live child of the piped-process ABI: the child itself, the three
+/// stdio pipes the caller reads and writes, and the exit code once a
+/// `cinch_process_wait` has reaped it.
+struct PipedChild {
+    child: std::process::Child,
+    stdin: Option<std::process::ChildStdin>,
+    stdout: Option<std::process::ChildStdout>,
+    stderr: Option<std::process::ChildStderr>,
+    status: Option<i64>,
+}
+
+/// The live piped children, by handle word.
+static PIPES: LazyLock<std::sync::Mutex<BTreeMap<i64, PipedChild>>> =
+    LazyLock::new(|| std::sync::Mutex::new(BTreeMap::new()));
+
+/// The next child handle word. Handles are handed out once and never
+/// reused, so a stale handle is invalid rather than another child's.
+static PIPES_NEXT: std::sync::atomic::AtomicI64 = std::sync::atomic::AtomicI64::new(1);
+
+/// The child table: one lock over the entries (the invariant is
+/// per-entry, so a poisoned lock is recovered). A blocking pipe
+/// operation of one child holds it, so the operations of one child are
+/// sequenced against each other and against another child's; the
+/// language-side capability is what sequences a caller's own use.
+fn pipes() -> std::sync::MutexGuard<'static, BTreeMap<i64, PipedChild>> {
+    PIPES.lock().unwrap_or_else(|e| e.into_inner())
+}
+
+/// A `Bytes` word's NUL-separated words as OS strings. `Err` is the
+/// negated error code for an entry with no bytes: the encoding cannot
+/// express an empty argument, so one is refused rather than dropped. A
+/// single trailing separator adds no word (the last word of
+/// `-c\0echo hi\0` is `echo hi`).
+unsafe fn nul_words(word: i64) -> std::result::Result<Vec<std::ffi::OsString>, i64> {
+    use std::os::unix::ffi::OsStringExt;
+    let bytes = unsafe { crate::abi::as_bytes(word) }.as_slice();
+    if bytes.is_empty() {
+        return Ok(Vec::new());
+    }
+    let mut parts: Vec<&[u8]> = bytes.split(|&b| b == 0).collect();
+    if parts.last().is_some_and(|p| p.is_empty()) {
+        parts.pop();
+    }
+    let mut out = Vec::new();
+    for p in parts {
+        if p.is_empty() {
+            return Err(-INVALID_ARGUMENT);
+        }
+        out.push(std::ffi::OsString::from_vec(p.to_vec()));
+    }
+    Ok(out)
+}
+
+/// A `Bytes` word's NUL-separated `KEY=VALUE` entries (the FIRST `=`
+/// separates; a value may contain one): `Err` is the negated error code
+/// for an entry without a separator or with an empty key. An empty word
+/// adds nothing, so the child inherits this process's environment.
+unsafe fn env_words(word: i64) -> std::result::Result<Vec<(std::ffi::OsString, std::ffi::OsString)>, i64> {
+    use std::os::unix::ffi::OsStringExt;
+    let bytes = unsafe { crate::abi::as_bytes(word) }.as_slice();
+    if bytes.is_empty() {
+        return Ok(Vec::new());
+    }
+    let mut parts: Vec<&[u8]> = bytes.split(|&b| b == 0).collect();
+    if parts.last().is_some_and(|p| p.is_empty()) {
+        parts.pop();
+    }
+    let mut out = Vec::new();
+    for p in parts {
+        let Some(eq) = p.iter().position(|&b| b == b'=') else {
+            return Err(-INVALID_ARGUMENT);
+        };
+        if eq == 0 {
+            return Err(-INVALID_ARGUMENT);
+        }
+        out.push((
+            std::ffi::OsString::from_vec(p[..eq].to_vec()),
+            std::ffi::OsString::from_vec(p[eq + 1..].to_vec()),
+        ));
+    }
+    Ok(out)
+}
+
+/// Spawn the program `command` (a `Bytes` word of its path, raw OS
+/// bytes) with `args` (a `Bytes` word of NUL-separated argument words,
+/// empty for none) running in the directory `cwd` (a `Bytes` path; empty
+/// inherits this process's own directory) with the environment
+/// additions `env` (a `Bytes` word of NUL-separated `KEY=VALUE` entries;
+/// empty inherits): a child handle word, or the negated error code
+/// (`NotFound` for a program that does not exist, `InvalidArgument` for
+/// an argument list or environment the encoding cannot carry).
+///
+/// The three stdio pipes belong to the child handle: its stdout and
+/// stderr are read separately (`cinch_process_read`) and its stdin is
+/// written (`cinch_process_write_stdin`, then
+/// `cinch_process_close_stdin` for the end of input). The child does
+/// NOT inherit this process's stdout or stderr, which is what the
+/// one-shot set above cannot do.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn cinch_process_spawn(command: i64, args: i64, cwd: i64, env: i64) -> i64 {
+    use std::os::unix::ffi::OsStringExt;
+    let command = unsafe { crate::abi::as_bytes(command) }.as_slice();
+    if command.is_empty() {
+        return -INVALID_ARGUMENT;
+    }
+    let args = match unsafe { nul_words(args) } {
+        Ok(w) => w,
+        Err(code) => return code,
+    };
+    let env = match unsafe { env_words(env) } {
+        Ok(w) => w,
+        Err(code) => return code,
+    };
+    let cwd = unsafe { crate::abi::as_bytes(cwd) }.as_slice();
+    let mut cmd = std::process::Command::new(std::ffi::OsString::from_vec(command.to_vec()));
+    cmd.args(args);
+    if !cwd.is_empty() {
+        cmd.current_dir(std::path::PathBuf::from(std::ffi::OsString::from_vec(cwd.to_vec())));
+    }
+    for (k, v) in env {
+        cmd.env(k, v);
+    }
+    cmd.stdin(std::process::Stdio::piped());
+    cmd.stdout(std::process::Stdio::piped());
+    cmd.stderr(std::process::Stdio::piped());
+    match cmd.spawn() {
+        Ok(mut child) => {
+            let stdin = child.stdin.take();
+            let stdout = child.stdout.take();
+            let stderr = child.stderr.take();
+            let h = PIPES_NEXT.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            pipes().insert(
+                h,
+                PipedChild {
+                    child,
+                    stdin,
+                    stdout,
+                    stderr,
+                    status: None,
+                },
+            );
+            h
+        }
+        Err(e) => -io_code(&e),
+    }
+}
+
+/// Write a `Bytes` word to the child's stdin: the byte count (the whole
+/// buffer is written, and the call blocks until it is), or the negated
+/// error code for a handle that is not live, a stdin the caller already
+/// closed, or a pipe failure. The stdin pipe leaves the table for the
+/// write (one writer at a time, and the lock is not held across the
+/// blocking call); a handle closed underneath the write drops it, which
+/// closes the pipe. The peer-closed `SIGPIPE` hazard is `crate::net`'s
+/// note.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn cinch_process_write_stdin(h: i64, data: i64) -> i64 {
+    use std::io::Write;
+    let data = unsafe { crate::abi::as_bytes(data) }.as_slice();
+    let Some(mut stdin) = pipes().get_mut(&h).and_then(|p| p.stdin.take()) else {
+        return -INVALID_ARGUMENT;
+    };
+    let r = stdin.write_all(data);
+    if let Some(p) = pipes().get_mut(&h) {
+        p.stdin = Some(stdin);
+    }
+    match r {
+        Ok(()) => i64::try_from(data.len()).unwrap_or(i64::MAX),
+        Err(e) => -io_code(&e),
+    }
+}
+
+/// Close the child's stdin, which is how the child sees the end of its
+/// input: 0, or the negated error code for a handle that is not live.
+/// Closing twice is 0: the caller's intent (a closed stdin) still holds.
+#[unsafe(no_mangle)]
+pub extern "C" fn cinch_process_close_stdin(h: i64) -> i64 {
+    let mut table = pipes();
+    let Some(p) = table.get_mut(&h) else {
+        return -INVALID_ARGUMENT;
+    };
+    p.stdin = None;
+    0
+}
+
+/// Read the next bytes of one of the child's output pipes into a fresh
+/// `Bytes` word: `which` is 0 for the child's stdout and 1 for its
+/// stderr, and the result is what one platform call produced (at most
+/// `max` bytes, empty at the end of that pipe), or the negated error
+/// code for a handle or a `which` that is not live. An output pipe the
+/// caller already took to its end keeps answering empty (the pipe is at
+/// its end, which is not an error), and `max` is both the allocation
+/// and the read cap.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn cinch_process_read(h: i64, which: i64, max: i64) -> i64 {
+    use std::io::Read;
+    let Ok(max) = usize::try_from(max) else {
+        return -INVALID_ARGUMENT;
+    };
+    if max == 0 || !matches!(which, 0 | 1) {
+        return -INVALID_ARGUMENT;
+    }
+    let mut table = pipes();
+    let Some(p) = table.get_mut(&h) else {
+        return -INVALID_ARGUMENT;
+    };
+    let mut buf = vec![0u8; max];
+    let r = if which == 0 {
+        match p.stdout.as_mut() {
+            Some(s) => s.read(&mut buf),
+            None => return -INVALID_ARGUMENT,
+        }
+    } else {
+        match p.stderr.as_mut() {
+            Some(s) => s.read(&mut buf),
+            None => return -INVALID_ARGUMENT,
+        }
+    };
+    match r {
+        Ok(n) => {
+            buf.truncate(n);
+            crate::abi::box_bytes(crate::bytes::Bytes::from(buf))
+        }
+        Err(e) => -io_code(&e),
+    }
+}
+
+/// Wait for the child and report its exit code through [`exit_code`]
+/// (0..=255; a signal death reports 128 + the signal number, the raw
+/// signal case): the code is remembered, so a second wait answers the
+/// same one, and a handle that is not live is `InvalidArgument`. The
+/// wait blocks, so a caller drains the output pipes it needs before it
+/// waits (a child writing into a full pipe nobody reads is the caller's
+/// deadlock, the refusal `Effect.Process`'s header names).
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn cinch_process_wait(h: i64) -> i64 {
+    let mut table = pipes();
+    let Some(p) = table.get_mut(&h) else {
+        return -INVALID_ARGUMENT;
+    };
+    if let Some(code) = p.status {
+        return code;
+    }
+    match p.child.wait() {
+        Ok(status) => {
+            let code = exit_code(&status);
+            p.status = Some(code);
+            code
+        }
+        Err(e) => -io_code(&e),
+    }
+}
+
+/// Close a child: the handle's entry goes away and a child no wait has
+/// reaped is killed and reaped first (no zombies left behind). Returns
+/// 0, or the negated error code for a handle that is not live; closing
+/// twice is the second case, an error rather than a no-op (the handle
+/// word is gone).
+#[unsafe(no_mangle)]
+pub extern "C" fn cinch_process_close(h: i64) -> i64 {
+    match pipes().remove(&h) {
+        Some(mut p) => {
+            if p.status.is_none() {
+                let _ = p.child.kill();
+                let _ = p.child.wait();
+            }
+            0
+        }
+        None => -INVALID_ARGUMENT,
+    }
+}
+
+/// A live piped child's pid, for the crate's own probe of the raw
+/// signal case (the language side signals through `cinch_signal_send`
+/// with a pid it obtained some other way).
+#[cfg(test)]
+pub(crate) fn piped_child_pid(h: i64) -> Option<i32> {
+    pipes().get(&h).map(|p| p.child.id() as i32)
 }
 
 #[cfg(test)]
@@ -588,6 +1014,11 @@ mod tests {
             "cinch_fs_dir_open",
             "cinch_fs_dir_next",
             "cinch_fs_dir_close",
+            "cinch_fs_mkdir",
+            "cinch_fs_remove",
+            "cinch_fs_temp_dir",
+            "cinch_random_bytes",
+            "cinch_signal_send",
             "cinch_proc_new",
             "cinch_proc_arg",
             "cinch_proc_env",
@@ -596,6 +1027,12 @@ mod tests {
             "cinch_proc_read_out",
             "cinch_proc_wait",
             "cinch_proc_free",
+            "cinch_process_spawn",
+            "cinch_process_write_stdin",
+            "cinch_process_close_stdin",
+            "cinch_process_read",
+            "cinch_process_wait",
+            "cinch_process_close",
         ];
         for archive in &candidates {
             let out = std::process::Command::new("nm")
@@ -702,6 +1139,74 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    /// The mutating filesystem operations, the entropy source and the
+    /// signal bridge over a real scratch directory.
+    #[test]
+    fn fs_mutations_entropy_and_signal_round_trip() {
+        use std::os::unix::ffi::OsStrExt;
+        let dir = std::env::temp_dir().join(format!("cinch_platform_mut_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("scratch dir");
+        // The intrinsics take `Bytes` words (boxed buffers), the shape
+        // `cinch_text_sha256` uses, not word-buffer handles.
+        let bytes_word = |s: &str| -> i64 {
+            crate::abi::box_bytes(crate::bytes::Bytes::from(s.as_bytes().to_vec()))
+        };
+        let j = |p: &std::path::Path| p.to_string_lossy().into_owned();
+        // mkdir, then the directory exists; a second non-recursive mkdir
+        // on it is `AlreadyExists`.
+        let one = dir.join("one");
+        assert_eq!(unsafe { cinch_fs_mkdir(bytes_word(&j(&one)), 0) }, 0);
+        assert!(one.is_dir());
+        assert_eq!(unsafe { cinch_fs_mkdir(bytes_word(&j(&one)), 0) }, -ALREADY_EXISTS);
+        // `mkdir -p` builds the whole chain and is idempotent.
+        let deep = dir.join("a/b/c");
+        assert_eq!(unsafe { cinch_fs_mkdir(bytes_word(&j(&deep)), 1) }, 0);
+        assert!(deep.is_dir());
+        assert_eq!(unsafe { cinch_fs_mkdir(bytes_word(&j(&deep)), 1) }, 0);
+        // Remove a file.
+        let file = dir.join("a/b/c/f.txt");
+        std::fs::write(&file, b"x").expect("write");
+        assert_eq!(unsafe { cinch_fs_remove(bytes_word(&j(&file)), 0) }, 0);
+        assert!(!file.exists());
+        // Remove a subtree.
+        let sub = dir.join("a/b");
+        assert_eq!(unsafe { cinch_fs_remove(bytes_word(&j(&sub)), 1) }, 0);
+        assert!(!sub.exists());
+        // A missing path is `NotFound`.
+        assert_eq!(unsafe { cinch_fs_remove(bytes_word(&j(&dir.join("nope"))), 0) }, -NOT_FOUND);
+        // A symlink removes the link, never its target.
+        let target = dir.join("target.txt");
+        std::fs::write(&target, b"kept").expect("write target");
+        let link = dir.join("link.txt");
+        std::os::unix::fs::symlink(&target, &link).expect("symlink");
+        assert_eq!(unsafe { cinch_fs_remove(bytes_word(&j(&link)), 0) }, 0);
+        assert!(!link.exists());
+        assert!(target.exists(), "the symlink target survives");
+        // The temp directory is a non-empty existing directory path.
+        let td = cinch_fs_temp_dir();
+        assert!(td > 0);
+        let n = unsafe { crate::abi::cinch_bytes_len(td) };
+        assert!(n > 0);
+        let mut path = Vec::new();
+        for i in 0..n {
+            path.push(unsafe { crate::abi::cinch_bytes_get(td, i) } as u8);
+        }
+        assert!(std::path::Path::new(std::ffi::OsStr::from_bytes(&path)).is_dir());
+        // Entropy: the requested length, and two draws differ.
+        let r1 = cinch_random_bytes(16);
+        let r2 = cinch_random_bytes(16);
+        assert!(r1 > 0 && r2 > 0);
+        assert_eq!(unsafe { crate::abi::cinch_bytes_len(r1) }, 16);
+        let differs = (0..16).any(|i| unsafe { crate::abi::cinch_bytes_get(r1, i) }
+            != unsafe { crate::abi::cinch_bytes_get(r2, i) });
+        assert!(differs, "two 16-byte entropy reads are equal");
+        assert!(cinch_random_bytes(-1) < 0);
+        // Signal 0 to this process: the existence check succeeds.
+        assert_eq!(cinch_signal_send(i64::from(std::process::id()), 0), 0);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     /// A real subprocess: args on the command line, env in its
     /// environment, stdin and stdout over pipes, exit code through the
     /// wait.
@@ -755,5 +1260,137 @@ mod tests {
         assert_eq!(unsafe { cinch_proc_free(p) }, 0);
         unsafe { cinch_buf_free(sh) };
         unsafe { cinch_buf_free(out) };
+    }
+}
+
+/// The piped-process ABI's own behavior (the standing export rule is
+/// the `nm` list in the module above, which names these six externs
+/// beside the one-shot ones).
+#[cfg(test)]
+mod pipe_tests {
+    use super::*;
+
+    /// One `Bytes` word holding `s`'s bytes.
+    fn bytes_of(s: &str) -> i64 {
+        crate::abi::box_bytes(crate::bytes::Bytes::from(s.as_bytes().to_vec()))
+    }
+
+    /// A `Bytes` word's content as text.
+    fn text_of(word: i64) -> String {
+        String::from_utf8(unsafe { crate::abi::as_bytes(word) }.as_slice().to_vec())
+            .expect("utf-8")
+    }
+
+    /// One output pipe's content, read to its end (the loop is what
+    /// makes the probe independent of how the child's writes were
+    /// chunked).
+    fn read_all(h: i64, which: i64) -> String {
+        let mut out = String::new();
+        loop {
+            let b = unsafe { cinch_process_read(h, which, 4096) };
+            assert!(b > 0, "read {which}: {b}");
+            let chunk = text_of(b);
+            if chunk.is_empty() {
+                return out;
+            }
+            out.push_str(&chunk);
+        }
+    }
+
+    /// A live child behind three separate pipes: the environment
+    /// addition and the working directory arrive (the child writes a
+    /// file beside its cwd), stdin feeds it, stdout and stderr are read
+    /// apart and each reaches its end as an empty read, the exit code
+    /// comes through a repeated wait, and a closed handle is the named
+    /// error.
+    #[test]
+    fn piped_child_streams_round_trip() {
+        let dir = std::env::temp_dir().join(format!("cinch_pipe_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("scratch dir");
+        let h = unsafe {
+            cinch_process_spawn(
+                bytes_of("/bin/sh"),
+                bytes_of("-c\0echo \"$PROBE\"; cat; echo err >&2; echo here > cwd-check.txt"),
+                bytes_of(&dir.display().to_string()),
+                bytes_of("PROBE=visible"),
+            )
+        };
+        assert!(h > 0, "spawn: {h}");
+        assert_eq!(unsafe { cinch_process_write_stdin(h, bytes_of("payload\n")) }, 8);
+        assert_eq!(cinch_process_close_stdin(h), 0);
+        // Closing twice keeps the caller's intent (a closed stdin).
+        assert_eq!(cinch_process_close_stdin(h), 0);
+        assert_eq!(read_all(h, 0), "visible\npayload\n");
+        assert_eq!(read_all(h, 1), "err\n");
+        // Both pipes are at their end, which is an empty read, not an
+        // error.
+        let eof = unsafe { cinch_process_read(h, 0, 4096) };
+        assert!(eof > 0, "eof read: {eof}");
+        assert_eq!(unsafe { crate::abi::cinch_bytes_len(eof) }, 0);
+        assert_eq!(unsafe { cinch_process_wait(h) }, 0);
+        assert_eq!(unsafe { cinch_process_wait(h) }, 0);
+        assert_eq!(
+            std::fs::read_to_string(dir.join("cwd-check.txt")).expect("the child's file"),
+            "here\n"
+        );
+        assert_eq!(cinch_process_close(h), 0);
+        assert_eq!(unsafe { cinch_process_read(h, 1, 4096) }, -INVALID_ARGUMENT);
+        assert_eq!(cinch_process_close(h), -INVALID_ARGUMENT);
+        // A program that does not exist is the named error, not a
+        // panic.
+        assert_eq!(
+            unsafe {
+                cinch_process_spawn(
+                    bytes_of("/nonexistent/cinch-program"),
+                    bytes_of(""),
+                    bytes_of(""),
+                    bytes_of(""),
+                )
+            },
+            -NOT_FOUND
+        );
+        // An argument list the encoding cannot carry (an empty word
+        // between separators) is refused.
+        assert_eq!(
+            unsafe {
+                cinch_process_spawn(
+                    bytes_of("/bin/sh"),
+                    bytes_of("a\0\0b"),
+                    bytes_of(""),
+                    bytes_of(""),
+                )
+            },
+            -INVALID_ARGUMENT
+        );
+        // An environment entry with no separator is refused.
+        assert_eq!(
+            unsafe {
+                cinch_process_spawn(
+                    bytes_of("/bin/sh"),
+                    bytes_of(""),
+                    bytes_of(""),
+                    bytes_of("NOVALUE"),
+                )
+            },
+            -INVALID_ARGUMENT
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A killed child's wait reports the raw signal case (128 + the
+    /// signal number, the shell convention), and a `which` outside the
+    /// two output pipes is the named argument error.
+    #[test]
+    fn piped_child_signal_death_and_bad_selector() {
+        let h = unsafe {
+            cinch_process_spawn(bytes_of("/bin/cat"), bytes_of(""), bytes_of(""), bytes_of(""))
+        };
+        assert!(h > 0, "spawn: {h}");
+        assert_eq!(unsafe { cinch_process_read(h, 2, 16) }, -INVALID_ARGUMENT);
+        let pid = piped_child_pid(h).expect("the live child's pid");
+        assert_eq!(cinch_signal_send(i64::from(pid), 9), 0);
+        assert_eq!(unsafe { cinch_process_wait(h) }, 137);
+        assert_eq!(cinch_process_close(h), 0);
     }
 }
