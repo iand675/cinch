@@ -6855,19 +6855,31 @@ impl Checker {
                 if !matched {
                     continue;
                 }
+                // A candidate whose target leaves an instance parameter
+                // bound only to an UNDETERMINED metavariable is not
+                // applicable to THIS want; it is not a malformed
+                // instance. `Eq (Down a)` structurally matches a want
+                // `Eq ?x` (from an unannotated literal, say) by binding
+                // `?x := Down ?a`, which determines nothing, and the
+                // wanted type is meant to come from the context (literal
+                // defaulting, D7) rather than from an instance chosen
+                // here. Skipping the candidate lets a later candidate or
+                // the deferral below handle the want; erroring here
+                // aborted the whole obligation as soon as any instance
+                // with a parameter sat earlier in the family than the
+                // nullary instance that used to answer it.
                 let mut sub = HashMap::new();
+                let mut determined = true;
                 for p in &inst.params {
                     let t = trial.zonk(&fresh[p]);
                     if t == fresh[p] {
-                        return Err(Error::at(
-                            span,
-                            format!(
-                                "instance {} parameter {} is not determined by its target",
-                                inst.name, p
-                            ),
-                        ));
+                        determined = false;
+                        break;
                     }
                     sub.insert(p.clone(), t);
+                }
+                if !determined {
+                    continue;
                 }
                 let mut cond = self.head_cond(&target.args, &trial);
                 for item in &inst.ctx {
