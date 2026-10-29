@@ -2198,6 +2198,15 @@ so the embedding sweep stays its own decision.
   rewriting, congruence closure, rings, AC normalization, induction, SMT
   bridges and separation logic. `design/verified-primitives.md`,
   `design/proof-automation.md`.
+- **D396 (cycles are region-scoped, so reclamation is leak-free; decided by
+  the user, 2026-10-29)**: the only heap cycles are `letrec` value knots
+  and `~` memo groups. Memo groups get the lazy specification's own rule
+  enforced (`Lazy {e} r a` does not outlive `r`, which the bootstrap does
+  not yet check for cells), so every group is torn down at region exit. A
+  recursive value knot is region-scoped the same way: torn down at its
+  scope's exit, and an escaping knot is a compile error from the existing
+  escape checker. This replaces the earlier proposals to leak unproven
+  groups and escaping knots. `design/reclamation.md` section 12.
 
 ### Refinement types (P28)
 

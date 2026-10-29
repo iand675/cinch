@@ -390,7 +390,11 @@ drift. Where S1 differs from the plan above:
 - The stats line gains `header-blocks`, `header-bytes`, `immortal` (blocks
   allocated with `rc = 0`, i.e. interned `Sym` cells; static blocks are
   never allocated and are not counted) and `freed` (calls of `cinch_free`
-  that deallocated). `live` and the sticky count stay with S3.
+  that deallocated). `live` stays with S3.
+- Every field position and width is a named `*_SHIFT`/`*_BITS` constant
+  in `block_kinds.rs` and every encoder and decoder uses them, so a
+  different count width (for example 40 bits) is a change to that file
+  alone. No sticky overflow state was built.
 
 **Later, optional.** Moving the constructor tag and runtime `kind` into the
 header saves one word per block, as Lean does. It shifts every field offset
@@ -836,7 +840,7 @@ above):
 Revised 2026-10-29 after the user's objection to proposed leaks: the
 language is GC-free AND leak-free by construction. No proposal below leaks.
 
-3. **Escaping cyclic `letrec` values.** Proposed (revised): a recursive value
+3. **Escaping cyclic `letrec` values.** DECIDED by the user (2026-10-29): a recursive value
    knot is region-scoped exactly like a `~` memo cell. It lives in the
    region of the scope that creates it, is torn down at that scope's exit,
    and may not escape (the escape checker that already enforces `Ref r a`
@@ -847,7 +851,7 @@ language is GC-free AND leak-free by construction. No proposal below leaks.
    loop leaked without bound. How many existing programs return a knot is
    unmeasured; S8 measures it over the prelude, examples and bootstrap
    before the rule lands.
-4. **Memo groups.** Proposed (revised): enforce the lazy specification's own
+4. **Memo groups.** DECIDED by the user (2026-10-29): enforce the lazy specification's own
    rule (`Lazy {e} r a` does not outlive `r`, lines 73-74) in the checker,
    which the bootstrap does not yet do for cells. Every group is then torn
    down at region exit, with no escape analysis needed and no leak and no
