@@ -1297,13 +1297,38 @@ fn clang() -> String {
     std::env::var("CINCH_CLANG").unwrap_or_else(|_| "clang".to_string())
 }
 
-/// Build the Rust runtime staticlib if needed and return its path. The
-/// runtime is Rust (design decision D5); generated code links against it.
+/// The advisory lock guarding the runtime staticlib: held exclusively
+/// while the archive is rebuilt, shared while a link reads it. Cargo
+/// replaces `libcinchruntime.a` in place, so without it two `cinch`
+/// processes (parallel test binaries, sibling builds) race a rebuild
+/// against a link and clang reads a truncated archive, failing with no
+/// diagnostic of its own.
+fn runtime_lock(shared: bool) -> Option<std::fs::File> {
+    let runtime = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("runtime");
+    let dir = runtime.join("target");
+    std::fs::create_dir_all(&dir).ok()?;
+    let file = std::fs::OpenOptions::new()
+        .create(true)
+        .truncate(false)
+        .read(true)
+        .write(true)
+        .open(dir.join(".cinch-runtime.lock"))
+        .ok()?;
+    let held = if shared { file.lock_shared() } else { file.lock() };
+    // A filesystem without advisory locking still builds and links, just
+    // without the cross-process guarantee.
+    held.ok()?;
+    Some(file)
+}
+
 fn ensure_runtime() -> Result<std::path::PathBuf> {
     let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let runtime = manifest_dir.join("runtime");
     let debug = runtime.join("target/debug/libcinchruntime.a");
     let release = runtime.join("target/release/libcinchruntime.a");
+    // The rebuild holds the lock; a concurrent link waits rather than
+    // reading a half-written archive.
+    let _guard = runtime_lock(false);
     // Rebuild when any runtime source is newer than the staticlib (a
     // stale library silently drops the newer `cinch_*` entry points).
     let mut newest_src = std::time::SystemTime::UNIX_EPOCH;
@@ -1355,6 +1380,9 @@ fn link(ir_path: &Path, out: &Path) -> Result<()> {
 /// checks the compatible symbols).
 fn link_with(ir_path: &Path, out: &Path, objects: &[&str]) -> Result<()> {
     let runtime = ensure_runtime()?;
+    // Shared, so a concurrent rebuild of the archive waits for this link
+    // instead of truncating the file under clang.
+    let _guard = runtime_lock(true);
     let mut cmd = std::process::Command::new(clang());
     cmd.arg(ir_path);
     for o in objects {
@@ -1365,14 +1393,24 @@ fn link_with(ir_path: &Path, out: &Path, objects: &[&str]) -> Result<()> {
     if cfg!(target_os = "linux") {
         cmd.args(["-ldl", "-lpthread", "-lm"]);
     }
-    let status = cmd
-        .status()
+    let output = cmd
+        .output()
         .map_err(|e| Error::plain(format!("failed to run {}: {e}", clang())))?;
-    if !status.success() {
+    if !output.status.success() {
+        // clang's own diagnostic is the whole story of a link failure
+        // (an undefined symbol, a missing object); without it the error
+        // reads as a truncated sentence.
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let detail = stderr.trim();
         return Err(Error::plain(format!(
-            "{} failed to link {}",
+            "{} failed to link {}{}",
             clang(),
-            ir_path.display()
+            ir_path.display(),
+            if detail.is_empty() {
+                String::new()
+            } else {
+                format!(": {detail}")
+            }
         )));
     }
     Ok(())
