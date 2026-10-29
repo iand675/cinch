@@ -1,0 +1,673 @@
+-- Effect.Http: an HTTP/1.1 client over the Effect.Net socket capability.
+--
+-- The last item of the networking sweep in design/stdlib-parity-ruby.md
+-- ("Net::HTTP, Socket, URI, IPAddr, Resolv/DNS"): a port of Ruby's
+-- Net::HTTP as a request/response value pair sent and read over the
+-- Effect.Net capability's plain TCP sockets. There are no runtime
+-- externs here and no compiler changes: the whole request is rendered to
+-- bytes, written with `net-write`, and the whole reply is read back with
+-- `net-read` to end of stream, then parsed as bytes.
+--
+-- Module scheme (design/base-library.md): `Effect.*` is the effect
+-- system's vocabulary, and an HTTP client is a runtime capability over
+-- sockets. The URL parser is Text.Uri's `uri-parse`, reused rather than
+-- re-written (D-family: one parser per grammar). Identifiers are
+-- kebab-case per D106.
+--
+-- THE LAW SHAPE (what this slice's tests pin, compiler/tests/lib_http.rs):
+--   1. a 200 with `Content-Length` reads its body whole, and the code,
+--      reason phrase and headers survive the round trip;
+--   2. a 404 is a RESPONSE, not an error: the status is data (the caller
+--      decides what a 4xx means), never an `Err`;
+--   3. a `Transfer-Encoding: chunked` body reassembles across several
+--      reads (a short read is legal, so the client accumulates);
+--   4. a response with no framing at all reads to end of stream, bounded
+--      by an explicit maximum;
+--   5. a header name matches case-insensitively (ASCII folding, so
+--      `Content-Length` and `content-length` are the same name), and a
+--      repeated name keeps every value in arrival order.
+--
+-- BODY FRAMING. Three framings, chosen in RFC 7230 order: a
+-- `Transfer-Encoding` naming `chunked` (chunk-size hex line, chunk, CRLF,
+-- terminating zero chunk whose trailer is not parsed), else a decimal
+-- `Content-Length` (exactly that many bytes), else no framing (all
+-- remaining bytes). `Transfer-Encoding` wins over `Content-Length`, as
+-- the RFC requires. A no-framing body is bounded by the request's
+-- maximum: the client refuses past it (`HttpBodyTooLarge`) rather than
+-- growing forever.
+--
+-- NAMED ERRORS (a value in every case, the house style; the socket layer
+-- is WRAPPED, not flattened, so its own vocabulary survives as
+-- `HttpNetworkError`'s payload):
+--   `HttpBadStatusLine`   the status line is not `HTTP/<v> <ddd>[ <reason>]`;
+--   `HttpBadHeaderLine`   a head line is malformed (no colon, an empty
+--                         name), or a framing line is malformed (a
+--                         non-decimal `Content-Length`, a non-hex
+--                         chunk-size line; the framing grammar of the
+--                         head section shares this error);
+--   `HttpUnsupportedTransferEncoding` a `Transfer-Encoding` that is not
+--                         `chunked`;
+--   `HttpBodyTooLarge`    the received bytes passed the maximum;
+--   `HttpTruncatedBody`   a `Content-Length` body or a chunk ran past the
+--                         bytes that arrived (the peer closed early);
+--   `HttpBadUrl`          `http-get`'s URL did not parse, or it named no
+--                         host (a request needs one);
+--   `HttpNoTls`           an `https` URL: the runtime has no TLS, and a
+--                         plaintext fallback would be a security bug, so
+--                         it is refused by name, never attempted;
+--   `HttpUnsupportedScheme` any other scheme (or a scheme-less reference);
+--   `HttpNetworkError`    the socket layer failed (connect, read, write).
+--
+-- NAMED REFUSALS (boundaries this client deliberately does not cross, each
+-- an explicit decision rather than a silent gap):
+--   no TLS: `https` is refused (above); there is no cipher, no handshake,
+--     and no plaintext downgrade;
+--   no redirect following: a 3xx is returned as data; the caller decides
+--     whether and where to re-request (Ruby's Net::HTTP raises or follows
+--     depending on `follow_redirects`; here it is always the caller's
+--     move);
+--   no keep-alive or connection reuse: every request opens a fresh
+--     connection and sends `Connection: close`; there is no pool;
+--   no cookies, no proxies, no HTTP/2 (HTTP/1.1 text only), and no
+--     automatic content decoding: a body is the bytes as sent. A caller
+--     wanting `Content-Encoding: gzip` decoded uses Text.Zlib's `inflate`
+--     on the body itself;
+--   no request headers of the caller's choosing beyond the list given:
+--     `Host` and `Connection: close` are always sent, a `Content-Length`
+--     is computed from the body when one is present, and a caller-supplied
+--     `Content-Length` in the header list is NOT consulted (the computed
+--     one is appended);
+--   a chunked request body is not sent: `http-request` sends a body with a
+--     computed `Content-Length` only (request-side chunking is the caller's
+--     to avoid, and no API here produces it).
+module Effect.Http where
+
+  import Data.Bytes
+  import Data.Bool
+  import Data.Char
+  import Data.List
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+  import Effect.Net
+  import Relation.Eq
+  import Relation.Ord
+  import Text.Show (nat-to-string)
+  import Text.Uri
+
+  export HttpError, HttpBadStatusLine, HttpBadHeaderLine, HttpUnsupportedTransferEncoding, HttpBodyTooLarge, HttpTruncatedBody, HttpBadUrl, HttpNoTls, HttpUnsupportedScheme, HttpNetworkError
+  export render-http-error
+  export HttpRequest, MkHttpRequest, http-request-method, http-request-host, http-request-port, http-request-path, http-request-headers, http-request-body
+  export HttpResponse, MkHttpResponse, http-status, http-reason, http-headers, http-header, http-header-all, http-body
+  export http-request, http-request-max, http-get, max-response-bytes
+
+
+  -- -------------------------------------------------------------------
+  -- Errors.
+  -- -------------------------------------------------------------------
+
+  -- What went wrong: a malformed or refused reply, a bad URL, or the
+  -- socket layer's own named failure (wrapped, not flattened).
+  data HttpError where
+    HttpBadStatusLine :: HttpError
+    HttpBadHeaderLine :: HttpError
+    HttpUnsupportedTransferEncoding :: HttpError
+    HttpBodyTooLarge :: HttpError
+    HttpTruncatedBody :: HttpError
+    HttpBadUrl :: HttpError
+    HttpNoTls :: HttpError
+    HttpUnsupportedScheme :: HttpError
+    HttpNetworkError :: NetError -> HttpError
+
+  -- The diagnostic line for a named error.
+  render-http-error :: HttpError -> String
+  render-http-error e = case e of
+    HttpBadStatusLine -> "malformed HTTP status line"
+    HttpBadHeaderLine -> "malformed HTTP header line"
+    HttpUnsupportedTransferEncoding -> "unsupported transfer encoding (only chunked is decoded)"
+    HttpBodyTooLarge -> "response body exceeded the maximum size"
+    HttpTruncatedBody -> "the peer closed before the framed body was complete"
+    HttpBadUrl -> "malformed URL, or a URL with no host"
+    HttpNoTls -> "https requires TLS, which this plaintext-only client does not provide"
+    HttpUnsupportedScheme -> "unsupported URL scheme (only http is sent)"
+    HttpNetworkError n -> "socket error"
+
+  -- The default bound on a whole received response, in bytes (the
+  -- no-framing case and the header section share it).
+  max-response-bytes :: Nat
+  max-response-bytes = 1048576
+
+
+  -- -------------------------------------------------------------------
+  -- The request and response values.
+  -- -------------------------------------------------------------------
+
+  -- A request: method, host, port, request-target path, headers, and an
+  -- optional body. The path is sent as given, with a leading `/` supplied
+  -- when it is empty or does not start with one.
+  data HttpRequest where
+    MkHttpRequest :: String -> String -> Nat -> String -> List (String, String) -> Option Bytes -> HttpRequest
+
+  http-request-method :: HttpRequest -> String
+  http-request-method q = case q of
+    MkHttpRequest method _ _ _ _ _ -> method
+
+  http-request-host :: HttpRequest -> String
+  http-request-host q = case q of
+    MkHttpRequest _ host _ _ _ _ -> host
+
+  http-request-port :: HttpRequest -> Nat
+  http-request-port q = case q of
+    MkHttpRequest _ _ port _ _ _ -> port
+
+  http-request-path :: HttpRequest -> String
+  http-request-path q = case q of
+    MkHttpRequest _ _ _ path _ _ -> path
+
+  http-request-headers :: HttpRequest -> List (String, String)
+  http-request-headers q = case q of
+    MkHttpRequest _ _ _ _ headers _ -> headers
+
+  http-request-body :: HttpRequest -> Option Bytes
+  http-request-body q = case q of
+    MkHttpRequest _ _ _ _ _ body -> body
+
+  -- A response: status code, reason phrase, the header list (duplicates
+  -- kept, in arrival order) and the decoded body bytes.
+  data HttpResponse where
+    MkHttpResponse :: Nat -> String -> List (String, String) -> Bytes -> HttpResponse
+
+  http-status :: HttpResponse -> Nat
+  http-status r = case r of
+    MkHttpResponse code _ _ _ -> code
+
+  http-reason :: HttpResponse -> String
+  http-reason r = case r of
+    MkHttpResponse _ reason _ _ -> reason
+
+  http-headers :: HttpResponse -> List (String, String)
+  http-headers r = case r of
+    MkHttpResponse _ _ headers _ -> headers
+
+  http-body :: HttpResponse -> Bytes
+  http-body r = case r of
+    MkHttpResponse _ _ _ body -> body
+
+  -- The FIRST value of `name`, matched case-insensitively (ASCII folding:
+  -- a header name is ASCII, so `Content-Length` and `content-length` are
+  -- the same name, and no locale folding is done), or `None`.
+  http-header :: HttpResponse -> String -> Option String
+  http-header r name = header-lookup (http-headers r) name
+
+  -- Every value of `name`, matched case-insensitively, in arrival order
+  -- (a repeated header keeps every value).
+  http-header-all :: HttpResponse -> String -> List String
+  http-header-all r name = header-lookup-all (http-headers r) name
+
+
+  -- -------------------------------------------------------------------
+  -- Private byte and char plumbing.
+  -- -------------------------------------------------------------------
+
+  -- The byte at `i`, or `None` past the end (`bytes-get` faults, so guard).
+  byte-at :: Bytes -> Nat -> Option Nat
+  byte-at b i = case i >= bytes-len b of
+    True -> None
+    False -> Some (bytes-get b i)
+
+  -- Is the byte at `i` equal to `v`? `False` past the end.
+  eq-byte :: Bytes -> Nat -> Nat -> Bool
+  eq-byte b i v = case byte-at b i of
+    Some x -> x == v
+    None -> False
+
+  -- The bytes in [start, end) as a fresh buffer (end clamped to length).
+  bytes-slice :: Bytes -> Nat -> Nat -> Bytes
+  bytes-slice b start end = bytes-from-list (reverse (slice-acc b start (clamp end (bytes-len b)) Nil))
+
+  clamp :: Nat -> Nat -> Nat
+  clamp v n = case v > n of
+    True -> n
+    False -> v
+
+  slice-acc :: Bytes -> Nat -> Nat -> List Nat -> List Nat
+  slice-acc b i end acc = case i >= end of
+    True -> acc
+    False -> slice-acc b (i + 1) end (Cons (bytes-get b i) acc)
+
+  -- Append `b`'s bytes to a REVERSED byte accumulator.
+  append-bytes-rev :: List Nat -> Bytes -> Nat -> Nat -> List Nat
+  append-bytes-rev acc b i n = case i >= n of
+    True -> acc
+    False -> append-bytes-rev (Cons (bytes-get b i) acc) b (i + 1) n
+
+  -- Two buffers concatenated.
+  bytes-append :: Bytes -> Bytes -> Bytes
+  bytes-append a b =
+    let ra = append-bytes-rev Nil a 0 (bytes-len a) in
+    let rb = append-bytes-rev ra b 0 (bytes-len b) in
+    bytes-from-list (reverse rb)
+
+  -- The head/body boundary: `Some (head-end, body-start)` for the first
+  -- `CRLF CRLF` or `LF LF`, or `None`. The head text is [0, head-end):
+  -- the terminating blank line's own CRLF (together with the last line's)
+  -- is what the scan found, so the head text carries no trailing newline.
+  find-head :: Bytes -> Nat -> Nat -> Option (Nat, Nat)
+  find-head b i n = case i >= n of
+    True -> None
+    False -> case blank-at b i of
+      Some pair -> Some pair
+      None -> find-head b (i + 1) n
+
+  blank-at :: Bytes -> Nat -> Option (Nat, Nat)
+  blank-at b i =
+    case (eq-byte b i 13) && (eq-byte b (i + 1) 10) && (eq-byte b (i + 2) 13) && (eq-byte b (i + 3) 10) of
+      True -> Some (i, i + 4)
+      False -> case (eq-byte b i 10) && (eq-byte b (i + 1) 10) of
+        True -> Some (i, i + 2)
+        False -> None
+
+  -- Drop a single trailing CR (a CRLF line ending).
+  strip-cr :: List Char -> List Char
+  strip-cr cs = case reverse cs of
+    Cons c rest -> case eq-char c '\r' of
+      True -> reverse rest
+      False -> cs
+    Nil -> cs
+
+  -- Split LF-terminated text into lines, once per LF; the final partial
+  -- line (there is none when the text does not end in LF) is kept. A
+  -- trailing CR is stripped from every line.
+  lines-of :: List Char -> List (List Char)
+  lines-of cs = reverse (lines-acc cs Nil Nil)
+
+  lines-acc :: List Char -> List Char -> List (List Char) -> List (List Char)
+  lines-acc cs cur acc = case cs of
+    Nil -> Cons (strip-cr (reverse cur)) acc
+    Cons c rest -> case eq-char c '\n' of
+      True -> lines-acc rest Nil (Cons (strip-cr (reverse cur)) acc)
+      False -> lines-acc rest (Cons c cur) acc
+
+  ascii-lower :: Char -> Char
+  ascii-lower c = let n = char-code c in case (n >= 65) && (n <= 90) of
+    True -> case char-from-code (n + 32) of
+      Some x -> x
+      None -> '?'
+    False -> c
+
+  -- ASCII case-folded name equality (the header-name comparison).
+  name-eq :: String -> String -> Bool
+  name-eq a b = chars-fold-eq (unpack a) (unpack b)
+
+  chars-fold-eq :: List Char -> List Char -> Bool
+  chars-fold-eq a b = case a of
+    Nil -> case b of
+      Nil -> True
+      Cons _ _ -> False
+    Cons x xs -> case b of
+      Nil -> False
+      Cons y ys -> case eq-char (ascii-lower x) (ascii-lower y) of
+        True -> chars-fold-eq xs ys
+        False -> False
+
+  -- Drop leading spaces and tabs.
+  trim-front :: List Char -> List Char
+  trim-front cs = case cs of
+    Cons c rest -> case (eq-char c ' ') || (eq-char c '\t') of
+      True -> trim-front rest
+      False -> cs
+    Nil -> Nil
+
+  -- Trim leading and trailing spaces and tabs.
+  trim-value :: List Char -> List Char
+  trim-value cs = trim-front (reverse (trim-front (reverse cs)))
+
+  -- The chars before the first `sep`, and the rest from `sep` onward.
+  break-on :: Char -> List Char -> (List Char, List Char)
+  break-on sep cs = break-on-acc sep cs Nil
+
+  break-on-acc :: Char -> List Char -> List Char -> (List Char, List Char)
+  break-on-acc sep cs acc = case cs of
+    Nil -> (reverse acc, Nil)
+    Cons c rest -> case eq-char c sep of
+      True -> (reverse acc, cs)
+      False -> break-on-acc sep rest (Cons c acc)
+
+  -- The chars before the first `:` in a header line, or `None` if there is
+  -- none.
+  break-colon :: List Char -> Option (List Char, List Char)
+  break-colon cs = break-colon-acc cs Nil
+
+  break-colon-acc :: List Char -> List Char -> Option (List Char, List Char)
+  break-colon-acc cs acc = case cs of
+    Nil -> None
+    Cons c rest -> case eq-char c ':' of
+      True -> Some (reverse acc, rest)
+      False -> break-colon-acc rest (Cons c acc)
+
+  -- The chars before the first `;` (a chunk extension is skipped).
+  before-semicolon :: List Char -> List Char
+  before-semicolon cs = case cs of
+    Nil -> Nil
+    Cons c rest -> case eq-char c ';' of
+      True -> Nil
+      False -> Cons c (before-semicolon rest)
+
+  -- A nonempty run of ASCII digits as a decimal `Nat`.
+  parse-decimal :: List Char -> Option Nat
+  parse-decimal cs = case cs of
+    Nil -> None
+    Cons _ _ -> parse-decimal-go cs 0
+
+  parse-decimal-go :: List Char -> Nat -> Option Nat
+  parse-decimal-go cs acc = case cs of
+    Nil -> Some acc
+    Cons c rest -> case digit-value c of
+      Some n -> parse-decimal-go rest (acc * 10 + n)
+      None -> None
+
+  -- A nonempty run of hex digits as a `Nat` (chunk size).
+  parse-hex :: List Char -> Option Nat
+  parse-hex cs = case cs of
+    Nil -> None
+    Cons _ _ -> parse-hex-go cs 0
+
+  parse-hex-go :: List Char -> Nat -> Option Nat
+  parse-hex-go cs acc = case cs of
+    Nil -> Some acc
+    Cons c rest -> case hex-digit-value c of
+      Some n -> parse-hex-go rest (acc * 16 + n)
+      None -> None
+
+
+  -- -------------------------------------------------------------------
+  -- Headers: storage, lookup and parsing.
+  -- -------------------------------------------------------------------
+
+  -- The first value of `name`, case-insensitively, or `None`.
+  header-lookup :: List (String, String) -> String -> Option String
+  header-lookup headers name = case headers of
+    Nil -> None
+    Cons kv rest -> case kv of
+      (k, v) -> case name-eq k name of
+        True -> Some v
+        False -> header-lookup rest name
+
+  -- Every value of `name`, case-insensitively, in arrival order.
+  header-lookup-all :: List (String, String) -> String -> List String
+  header-lookup-all headers name = case headers of
+    Nil -> Nil
+    Cons kv rest -> case kv of
+      (k, v) -> case name-eq k name of
+        True -> Cons v (header-lookup-all rest name)
+        False -> header-lookup-all rest name
+
+  -- One `Name: value` line (leading whitespace of the value trimmed).
+  parse-header :: List Char -> Result HttpError (String, String)
+  parse-header cs = case break-colon cs of
+    None -> Err HttpBadHeaderLine
+    Some pair -> case pair of
+      (name, after) -> case is-empty name of
+        True -> Err HttpBadHeaderLine
+        False -> Ok (pack name, pack (trim-value after))
+
+  parse-headers :: List (List Char) -> List (String, String) -> Result HttpError (List (String, String))
+  parse-headers lines acc = case lines of
+    Nil -> Ok (reverse acc)
+    Cons line rest -> case parse-header line of
+      Err e -> Err e
+      Ok kv -> parse-headers rest (Cons kv acc)
+
+  -- The status line `HTTP/<version> <ddd>[ <reason>]` into (code, reason).
+  -- The version text is accepted as any nonempty token (only the leading
+  -- `HTTP/` is required); the code must be exactly three digits.
+  parse-status :: List Char -> Result HttpError (Nat, String)
+  parse-status cs = case strip-prefix (unpack "HTTP/") cs of
+    None -> Err HttpBadStatusLine
+    Some rest -> case break-on ' ' rest of
+      (version, after) -> case is-empty version of
+        True -> Err HttpBadStatusLine
+        False -> case after of
+          Nil -> Err HttpBadStatusLine
+          Cons _ tail -> case tail of
+            Cons d0 (Cons d1 (Cons d2 more)) -> case digit-value d0 of
+              None -> Err HttpBadStatusLine
+              Some n0 -> case digit-value d1 of
+                None -> Err HttpBadStatusLine
+                Some n1 -> case digit-value d2 of
+                  None -> Err HttpBadStatusLine
+                  Some n2 -> case reason-of more of
+                    None -> Err HttpBadStatusLine
+                    Some reason -> Ok (n0 * 100 + n1 * 10 + n2, reason)
+            _ -> Err HttpBadStatusLine
+
+  -- After the three code digits: end of line (empty reason) or a space and
+  -- the reason verbatim.
+  reason-of :: List Char -> Option String
+  reason-of more = case more of
+    Nil -> Some ""
+    Cons c rest -> case eq-char c ' ' of
+      True -> Some (pack rest)
+      False -> None
+
+  strip-prefix :: List Char -> List Char -> Option (List Char)
+  strip-prefix pre cs = case pre of
+    Nil -> Some cs
+    Cons p prest -> case cs of
+      Nil -> None
+      Cons c rest -> case eq-char p c of
+        True -> strip-prefix prest rest
+        False -> None
+
+
+  -- -------------------------------------------------------------------
+  -- Body framing.
+  -- -------------------------------------------------------------------
+
+  data Framing where
+    FramedByLength :: Nat -> Framing
+    FramedByChunks :: Framing
+    FramedByEof :: Framing
+
+  -- `Transfer-Encoding: chunked` wins over `Content-Length`, per the RFC.
+  choose-framing :: List (String, String) -> Result HttpError Framing
+  choose-framing headers = case header-lookup headers "transfer-encoding" of
+    Some te -> case name-eq (pack (trim-value (unpack te))) "chunked" of
+      True -> Ok FramedByChunks
+      False -> Err HttpUnsupportedTransferEncoding
+    None -> case header-lookup headers "content-length" of
+      Some cl -> case parse-decimal (trim-value (unpack cl)) of
+        None -> Err HttpBadHeaderLine
+        Some n -> Ok (FramedByLength n)
+      None -> Ok FramedByEof
+
+  -- The body bytes for the chosen framing, from `body-start` onward.
+  extract-body :: Framing -> Bytes -> Nat -> Result HttpError Bytes
+  extract-body framing b body-start = case framing of
+    FramedByEof -> Ok (bytes-slice b body-start (bytes-len b))
+    FramedByLength len -> case body-start + len > bytes-len b of
+      True -> Err HttpTruncatedBody
+      False -> Ok (bytes-slice b body-start (body-start + len))
+    FramedByChunks -> parse-chunks b body-start (bytes-len b)
+
+  -- Chunked reassembly: size line, chunk, repeat; the terminating zero
+  -- chunk ends the body (its optional trailer is not parsed).
+  parse-chunks :: Bytes -> Nat -> Nat -> Result HttpError Bytes
+  parse-chunks b i n = case chunk-loop b i n Nil of
+    Err e -> Err e
+    Ok rev -> Ok (bytes-from-list (reverse rev))
+
+  chunk-loop :: Bytes -> Nat -> Nat -> List Nat -> Result HttpError (List Nat)
+  chunk-loop b i n acc = case parse-hex-line b i n of
+    Err e -> Err e
+    Ok pair -> case pair of
+      (size, after-line) -> case size == 0 of
+        True -> Ok acc
+        False -> case after-line + size + 2 > n of
+          True -> Err HttpTruncatedBody
+          False -> chunk-loop b (after-line + size + 2) n (append-bytes-rev acc (bytes-slice b after-line (after-line + size)) 0 size)
+
+  -- A chunk-size line: hex digits (any `;` extension skipped), through LF.
+  parse-hex-line :: Bytes -> Nat -> Nat -> Result HttpError (Nat, Nat)
+  parse-hex-line b i n = case line-end-lf b i n of
+    lf -> case lf >= n of
+      True -> Err HttpBadHeaderLine
+      False -> case string-from-bytes (bytes-slice b i lf) of
+        None -> Err HttpBadHeaderLine
+        Some text -> case parse-hex (before-semicolon (strip-cr (unpack text))) of
+          None -> Err HttpBadHeaderLine
+          Some size -> Ok (size, lf + 1)
+
+  -- The index of the first LF at or after `i`, or `n` if none.
+  line-end-lf :: Bytes -> Nat -> Nat -> Nat
+  line-end-lf b i n = case i >= n of
+    True -> n
+    False -> case eq-byte b i 10 of
+      True -> i
+      False -> line-end-lf b (i + 1) n
+
+
+  -- -------------------------------------------------------------------
+  -- Rendering the request.
+  -- -------------------------------------------------------------------
+
+  -- The request-target: the path, with a leading `/` when empty or bare.
+  target-of :: String -> String
+  target-of path = case string-char-at path 0 of
+    None -> "/"
+    Some c -> case eq-char c '/' of
+      True -> path
+      False -> string-concat "/" path
+
+  request-line :: String -> String -> String
+  request-line method path =
+    string-concat method (string-concat " " (string-concat (target-of path) " HTTP/1.1\r\n"))
+
+  header-line :: String -> String -> String
+  header-line name value = string-concat name (string-concat ": " (string-concat value "\r\n"))
+
+  render-header-lines :: List (String, String) -> String
+  render-header-lines headers = case headers of
+    Nil -> ""
+    Cons kv rest -> case kv of
+      (k, v) -> string-concat (header-line k v) (render-header-lines rest)
+
+  content-length-line :: Option Bytes -> String
+  content-length-line body = case body of
+    None -> ""
+    Some b -> string-concat "Content-Length: " (string-concat (nat-to-string (bytes-len b)) "\r\n")
+
+  -- The whole head: request line, `Host`, `Connection: close`, the
+  -- caller's headers, the computed `Content-Length` (when a body is
+  -- present) and the blank line.
+  render-head :: HttpRequest -> String
+  render-head q = case q of
+    MkHttpRequest method host _ path headers body ->
+      string-concat (request-line method path)
+        (string-concat (header-line "Host" host)
+          (string-concat (header-line "Connection" "close")
+            (string-concat (render-header-lines headers)
+              (string-concat (content-length-line body) "\r\n"))))
+
+  -- The request as bytes: head, then the body when one is present.
+  render-request :: HttpRequest -> Bytes
+  render-request q = case q of
+    MkHttpRequest _ _ _ _ _ body -> case body of
+      None -> string-to-bytes (render-head q)
+      Some b -> bytes-append (string-to-bytes (render-head q)) b
+
+
+  -- -------------------------------------------------------------------
+  -- Sending and reading.
+  -- -------------------------------------------------------------------
+
+  -- Send `q` on a fresh connection and read the whole reply. The default
+  -- bound (max-response-bytes) applies; use http-request-max for an
+  -- explicit one.
+  http-request :: forall r. using (io :: Io r) => HttpRequest ->{IO r} Result HttpError HttpResponse
+  http-request q = http-request-max max-response-bytes q
+
+  -- Send `q` with an explicit bound on the received bytes (headers plus
+  -- body). Refuses past it with HttpBodyTooLarge.
+  http-request-max :: forall r. using (io :: Io r) => Nat -> HttpRequest ->{IO r} Result HttpError HttpResponse
+  http-request-max bound q = case q of
+    MkHttpRequest _ host port _ _ _ -> case net-connect host port of
+      Err e -> Err (HttpNetworkError e)
+      Ok s -> case net-write s (render-request q) of
+        Err e -> close-then s (HttpNetworkError e)
+        Ok _ -> case read-response s bound Nil 0 of
+          Err e -> close-then s e
+          Ok rev -> case net-close s of
+            _ -> parse-response (bytes-from-list (reverse rev))
+
+  -- Close the socket, then hand back the (already named) error.
+  close-then :: forall r. using (io :: Io r) => Socket -> HttpError ->{IO r} Result HttpError HttpResponse
+  close-then s e = case net-close s of
+    _ -> Err e
+
+  -- Read to end of stream into a reversed byte accumulator, bounded by
+  -- `bound` on the running total.
+  read-response :: forall r. using (io :: Io r) => Socket -> Nat -> List Nat -> Nat ->{IO r} Result HttpError (List Nat)
+  read-response s bound acc count = case count >= bound of
+    True -> Err HttpBodyTooLarge
+    False -> case net-read s 4096 of
+      Err e -> Err (HttpNetworkError e)
+      Ok b -> case bytes-len b == 0 of
+        True -> Ok acc
+        False -> read-response s bound (append-bytes-rev acc b 0 (bytes-len b)) (count + bytes-len b)
+
+  -- Parse a whole reply from its bytes: find the head, split it, parse the
+  -- status line and headers, choose a framing and decode the body.
+  parse-response :: Bytes -> Result HttpError HttpResponse
+  parse-response b = case find-head b 0 (bytes-len b) of
+    None -> Err HttpBadHeaderLine
+    Some pair -> case pair of
+      (head-end, body-start) -> case string-from-bytes (bytes-slice b 0 head-end) of
+        None -> Err HttpBadHeaderLine
+        Some head-text -> case lines-of (unpack head-text) of
+          Nil -> Err HttpBadStatusLine
+          Cons status-line header-lines -> case parse-status status-line of
+            Err e -> Err e
+            Ok code -> case code of
+              (status, reason) -> case parse-headers header-lines Nil of
+                Err e -> Err e
+                Ok headers -> case choose-framing headers of
+                  Err e -> Err e
+                  Ok framing -> case extract-body framing b body-start of
+                    Err e -> Err e
+                    Ok body -> Ok (MkHttpResponse status reason headers body)
+
+
+  -- -------------------------------------------------------------------
+  -- The URL convenience.
+  -- -------------------------------------------------------------------
+
+  -- The request-target of a parsed URL: its path (with a leading `/`)
+  -- plus its query when present (a fragment is not sent).
+  get-target :: Uri -> String
+  get-target u = string-concat (target-of (uri-path u)) (query-part u)
+
+  query-part :: Uri -> String
+  query-part u = case uri-query u of
+    None -> ""
+    Some q -> string-concat "?" q
+
+  -- GET `url` on a fresh connection. The URL is parsed with Text.Uri. An
+  -- `https` URL is refused (HttpNoTls); any non-`http` scheme (or none) is
+  -- refused (HttpUnsupportedScheme); a URL with no host is HttpBadUrl. A
+  -- missing port is 80.
+  http-get :: forall r. using (io :: Io r) => String ->{IO r} Result HttpError HttpResponse
+  http-get url = case uri-parse url of
+    Err e -> Err HttpBadUrl
+    Ok u -> case uri-scheme u of
+      None -> Err HttpUnsupportedScheme
+      Some scheme -> case scheme == "http" of
+        True -> case uri-host u of
+          None -> Err HttpBadUrl
+          Some host -> case uri-port u of
+            Some p -> http-request (MkHttpRequest "GET" host p (get-target u) Nil None)
+            None -> http-request (MkHttpRequest "GET" host 80 (get-target u) Nil None)
+        False -> case scheme == "https" of
+          True -> Err HttpNoTls
+          False -> Err HttpUnsupportedScheme
