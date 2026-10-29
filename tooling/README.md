@@ -31,6 +31,9 @@ D198-D205, D221-D227 where the specs understate).
   either type-checks the ladder's modules or runs one rung through the real
   CLI. The compiler does not embed the P30/P31 toolkit, so this assembly is
   how a rung runs outside the test harness.
+  With `--all-programs` it asks the design document's question of every
+  rung: is the artifact runnable? It builds each `bootstrap/programs/Run.*.cinch`
+  and reports its exit code, failing only when a program did not build.
 
 ## Drift check (CI)
 

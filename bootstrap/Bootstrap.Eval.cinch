@@ -1,0 +1,695 @@
+-- Bootstrap.Eval: the ladder's differential oracle for codegen. An
+-- interpreter for the fragment `Bootstrap.Check` accepts, written in
+-- Cinch, that says what a program's `main` MEANS. The IR rung's emitted
+-- binary is checked against this second implementation rather than
+-- against itself.
+--
+-- See bootstrap/README.md for the ladder, the artifact conventions and
+-- the discipline every rung follows.
+--
+-- THE FRAGMENT. Values: the literals `Int`, `Bool`, `Unit`, `String` and
+-- `Char`; a constructor applied to arguments; a closure (a lambda's
+-- parameters, its body and the environment it captured); a top-level
+-- function under application. Terms: variables, application, the operators
+-- `+ - * /` (Int to Int), `== /=` (a comparable value type to Bool) and
+-- `< > <= >=` (Int to Bool), `EIf`, `ELet` (scoped sequentially), `ELam`
+-- with at least one parameter, `ECase` over wildcard, variable, integer,
+-- string, character and constructor-with-arguments patterns, and top-level
+-- `DFun` with recursion (including recursion between top-level functions).
+-- Declarations: `DSig` and `DFun` (a signature fixes a function's arity)
+-- and `DData` (whose constructors become values).
+--
+-- REFUSALS BY NAME. Nothing outside the fragment is guessed at. An
+-- `*Unmodeled` node (in a term or in a declaration), a term form this rung
+-- does not model, an operator outside the fragment, an application of a
+-- non-function, a case with no matching alternative, an unbound variable, a
+-- pattern outside the fragment, and an arity that disagrees with the
+-- declaration are each a named `Bootstrap.Report` diagnostic. A
+-- malformed spine is refused rather than read as the empty sequence, so a
+-- form is never silently dropped.
+--
+-- THE VALUE TYPE AND THE SPINE CONVENTION. A Cinch data type cannot nest
+-- itself inside another type constructor (positivity), and a closure that
+-- captures an environment needs that environment in the value type. The
+-- interpreter therefore carries its environments and its collected
+-- arguments as `Value` spines (`VEnvEnd`/`VBind` and `VArgsEnd`/`VArg`)
+-- rather than as `List`s, exactly as `Bootstrap.Ast` and `Data.Json` do.
+-- A `Value` never nests another type constructor around itself.
+--
+-- THE TWO ENTRY POINTS. `eval-program` evaluates a program's `main` and
+-- answers either its value or the diagnostics; `eval-main` is the same
+-- evaluation narrowed to the `Option Int` a comparison against codegen
+-- wants. `eval-expr-in-program` evaluates one expression against the
+-- program's top-level environment (how a caller asks for `fib 10` rather
+-- than for `main`), and `eval-main-result` keeps the diagnostics when
+-- `main`'s value is not an `Int`.
+
+module Bootstrap.Eval where
+
+  import Text.Lex (Span)
+  import Bootstrap.Ast
+  import Bootstrap.Report
+
+  -- The value family is exported so a caller can build and compare the
+  -- interpreter's answers (an oracle's surface), not only read them as
+  -- text.
+  export Value, VInt, VBool, VUnit, VStr, VChr, VCon, VArgsEnd, VArg, VClosure, VFun, VEnvEnd, VBind
+  export eval-program, eval-main, eval-main-result, eval-expr-in-program, value-equal, render-value
+
+  -- The rung's name in every diagnostic it renders.
+  rung :: String
+  rung = "bootstrap.eval"
+
+  -- A synthesised position for a fact about the program rather than about
+  -- a node in it (no `main`, a `main` with parameters).
+  zero-span :: Span
+  zero-span = Span 0 0 0 0
+
+  -- ------------------------------------------------------------------ values
+
+  -- The interpreter's values. `VClosure` carries a lambda's parameter
+  -- patterns, its body and the environment it captured (the environment
+  -- has to live in the value type, or a closure could not be a value).
+  -- `VFun` is a top-level function under application: its name, the arity
+  -- its declaration states, its clauses, and the arguments collected so
+  -- far. `VCon` is a constructor applied to a (possibly empty) argument
+  -- spine. The two spines (`VArgsEnd`/`VArg` and `VEnvEnd`/`VBind`) are
+  -- the positivity answer the header describes.
+  data Value where
+    VInt :: Int -> Value
+    VBool :: Bool -> Value
+    VUnit :: Value
+    VStr :: String -> Value
+    VChr :: Char -> Value
+    VCon :: String -> Value -> Value
+    VArgsEnd :: Value
+    VArg :: Value -> Value -> Value
+    VClosure :: List Pat -> Expr -> Value -> Value
+    VFun :: String -> Nat -> List (List Pat, Expr) -> Value -> Value
+    VEnvEnd :: Value
+    VBind :: String -> Value -> Value -> Value
+
+  -- A refusal: one diagnostic at `s`, in this rung's name.
+  fail :: forall a. Span -> String -> Result (List Diagnostic) a
+  fail s msg = Err (Cons (MkDiagnostic rung s msg) Nil)
+
+  -- ------------------------------------------------------ spine and env helpers
+
+  -- A list of values as an argument spine, and back. A malformed spine
+  -- yields the empty list, the `Bootstrap.Ast` walkers' documented answer.
+  args-from-list :: List Value -> Value
+  args-from-list vs = case vs of
+    Nil -> VArgsEnd
+    Cons v rest -> VArg v (args-from-list rest)
+
+  args-to-list :: Value -> List Value
+  args-to-list a = case a of
+    VArgsEnd -> Nil
+    VArg v rest -> Cons v (args-to-list rest)
+    other -> Nil
+
+  values-append :: List Value -> List Value -> List Value
+  values-append xs ys = case xs of
+    Nil -> ys
+    Cons x rest -> Cons x (values-append rest ys)
+
+  -- Append one argument to a collected spine (a function under
+  -- application gains one argument at a time).
+  arg-push :: Value -> Value -> Value
+  arg-push a v = args-from-list (values-append (args-to-list a) (Cons v Nil))
+
+  -- The environment: a spine of bindings, searched from the front, so a
+  -- later binding shadows an earlier one. `env-merge` splices a spine of
+  -- bindings (each a `VBind` cell ending in `VEnvEnd`) onto a base
+  -- environment, which is how a pattern's bindings extend the environment
+  -- its body is evaluated in.
+  env-bind :: String -> Value -> Value -> Value
+  env-bind name v env = VBind name v env
+
+  env-lookup :: String -> Value -> Option Value
+  env-lookup name env = case env of
+    VEnvEnd -> None
+    VBind n v rest -> if string-compare n name == 0 then Some v else env-lookup name rest
+    other -> None
+
+  env-merge :: Value -> Value -> Value
+  env-merge bs env = case bs of
+    VEnvEnd -> env
+    VBind n v rest -> VBind n v (env-merge rest env)
+    other -> env
+
+  -- ---------------------------------------------------------- spine wellformedness
+
+  -- Whether a spine ends in its end marker. The `*-of` walkers answer the
+  -- empty list for anything else, so a consumer that wants to report a
+  -- malformed spine asks this first (the interpreter refuses one rather
+  -- than reading it as the empty sequence).
+  spine-ok-exprs :: Expr -> Bool
+  spine-ok-exprs e = case e of
+    EArgsEnd s -> True
+    EArg s x rest -> spine-ok-exprs rest
+    other -> False
+
+  spine-ok-bindings :: Expr -> Bool
+  spine-ok-bindings e = case e of
+    EBindingsEnd s -> True
+    EBinding s n rhs rest -> spine-ok-bindings rest
+    other -> False
+
+  spine-ok-alts :: Expr -> Bool
+  spine-ok-alts e = case e of
+    EAltsEnd s -> True
+    EAlt s p body rest -> spine-ok-alts rest
+    other -> False
+
+  -- ------------------------------------------------------------- literal decoding
+
+  -- The `Int` literal nodes carry the literal's decimal text (the parser's
+  -- spelling), so the interpreter parses it once, here.
+  lit-int-value :: String -> Int
+  lit-int-value s = lit-int-digits s 0 (string-length s) 0
+
+  lit-int-digits :: String -> Nat -> Nat -> Int -> Int
+  lit-int-digits s i n acc = case i == n of
+    True -> acc
+    False -> case string-char-at s i of
+      None -> acc
+      Some c -> case digit-value c of
+        None -> acc
+        Some d -> lit-int-digits s (i + 1) n (int-add (int-mul acc 10) (int-from-i64 (nat-to-i64 d)))
+
+  -- A character literal holds its one character as text.
+  string-first-char :: String -> Option Char
+  string-first-char s = string-char-at s 0
+
+  -- ------------------------------------------------------------- values as ints
+
+  value-int :: Value -> Option Int
+  value-int v = case v of
+    VInt n -> Some n
+    other -> None
+
+  -- ------------------------------------------------------------- equality
+
+  -- Structural equality over the comparable values; `None` for a pair the
+  -- fragment does not compare (a function, or two different shapes).
+  value-equal :: Value -> Value -> Option Bool
+  value-equal l r = case l of
+    VInt a -> case r of
+      VInt b -> Some (a == b)
+      other -> None
+    VBool a -> case r of
+      VBool b -> Some (a == b)
+      other -> None
+    VUnit -> case r of
+      VUnit -> Some True
+      other -> None
+    VStr a -> case r of
+      VStr b -> Some (string-compare a b == 0)
+      other -> None
+    VChr a -> case r of
+      VChr b -> Some (eq-char a b)
+      other -> None
+    VCon n a -> case r of
+      VCon n2 b -> value-args-equal n n2 a b
+      other -> None
+    other -> None
+
+  value-args-equal :: String -> String -> Value -> Value -> Option Bool
+  value-args-equal n n2 a b = case string-compare n n2 == 0 of
+    False -> Some False
+    True -> value-list-equal (args-to-list a) (args-to-list b)
+
+  value-list-equal :: List Value -> List Value -> Option Bool
+  value-list-equal xs ys = case xs of
+    Nil -> case ys of
+      Nil -> Some True
+      other -> Some False
+    Cons x rest -> case ys of
+      Nil -> Some False
+      Cons y yrest -> case value-equal x y of
+        None -> None
+        Some b -> if b then value-list-equal rest yrest else Some False
+
+  -- ------------------------------------------------------------- pattern matching
+
+  -- Three answers: the pattern matched with this spine of bindings, it did
+  -- not match, or it is a pattern this rung refuses (carried with the
+  -- position and message to report).
+  data Matched where
+    MMiss :: Matched
+    MHit :: Value -> Matched
+    MBad :: Span -> String -> Matched
+
+  pat-match :: Pat -> Value -> Matched
+  pat-match p v = case p of
+    PWild s -> MHit VEnvEnd
+    PVar s n -> MHit (VBind n v VEnvEnd)
+    PLitInt s text -> case v of
+      VInt n -> if n == lit-int-value text then MHit VEnvEnd else MMiss
+      other -> MMiss
+    PLitStr s text -> case v of
+      VStr s2 -> if string-compare s2 text == 0 then MHit VEnvEnd else MMiss
+      other -> MMiss
+    PLitChar s text -> case v of
+      VChr c -> case string-first-char text of
+        None -> MBad s (string-concat "bad character literal pattern: " text)
+        Some d -> if eq-char c d then MHit VEnvEnd else MMiss
+      other -> MMiss
+    PCon s n args -> case v of
+      VCon n2 vargs -> case string-compare n n2 == 0 of
+        False -> MMiss
+        True -> pat-match-spine (pats-of args) (args-to-list vargs)
+      other -> MMiss
+    other -> MBad (pat-span other) "unsupported pattern: this pattern form is outside the eval fragment"
+
+  pat-match-spine :: List Pat -> List Value -> Matched
+  pat-match-spine ps vs = case ps of
+    Nil -> case vs of
+      Nil -> MHit VEnvEnd
+      other -> MMiss
+    Cons p rest -> case vs of
+      Nil -> MMiss
+      Cons v vrest -> case pat-match p v of
+        MMiss -> MMiss
+        MBad s msg -> MBad s msg
+        MHit bs -> case pat-match-spine rest vrest of
+          MMiss -> MMiss
+          MBad s msg -> MBad s msg
+          MHit bs2 -> MHit (env-merge bs bs2)
+
+  -- ------------------------------------------------------------- operators
+
+  arith-test :: Nat -> Int -> Int -> Int
+  arith-test tag a b =
+    if tag == 0 then int-add a b
+    else if tag == 1 then int-sub a b
+    else if tag == 2 then int-mul a b
+    else int-div a b
+
+  rel-test :: Nat -> Int -> Int -> Bool
+  rel-test tag a b =
+    if tag == 0 then a < b
+    else if tag == 1 then a <= b
+    else if tag == 2 then a > b
+    else a >= b
+
+  left-non-int :: String -> String
+  left-non-int op =
+    string-concat "the left operand of " (string-concat op " is not an Int")
+
+  right-non-int :: String -> String
+  right-non-int op =
+    string-concat "the right operand of " (string-concat op " is not an Int")
+
+  -- One arithmetic operator's two operands: both `Int`, result `Int`.
+  int-arith :: Span -> String -> Nat -> Value -> Value -> Result (List Diagnostic) Value
+  int-arith s op tag l r = case l of
+    VInt a -> case r of
+      VInt b -> Ok (VInt (arith-test tag a b))
+      other -> fail s (right-non-int op)
+    other -> fail s (left-non-int op)
+
+  -- One ordering operator's two operands: both `Int`, result `Bool`.
+  int-rel :: Span -> String -> Nat -> Value -> Value -> Result (List Diagnostic) Value
+  int-rel s op tag l r = case l of
+    VInt a -> case r of
+      VInt b -> Ok (VBool (rel-test tag a b))
+      other -> fail s (right-non-int op)
+    other -> fail s (left-non-int op)
+
+  -- `==` or `/=` over the comparable values.
+  eq-op :: Span -> String -> Bool -> Value -> Value -> Result (List Diagnostic) Value
+  eq-op s op want l r = case value-equal l r of
+    None -> fail s (string-concat "cannot compare these values with " op)
+    Some b -> Ok (VBool (if want then b else not b))
+
+  apply-op :: Span -> String -> Value -> Value -> Result (List Diagnostic) Value
+  apply-op s op l r =
+    if string-compare op "+" == 0 then int-arith s op 0 l r
+    else if string-compare op "-" == 0 then int-arith s op 1 l r
+    else if string-compare op "*" == 0 then int-arith s op 2 l r
+    else if string-compare op "/" == 0 then int-arith s op 3 l r
+    else if string-compare op "<" == 0 then int-rel s op 0 l r
+    else if string-compare op "<=" == 0 then int-rel s op 1 l r
+    else if string-compare op ">" == 0 then int-rel s op 2 l r
+    else if string-compare op ">=" == 0 then int-rel s op 3 l r
+    else if string-compare op "==" == 0 then eq-op s op True l r
+    else if string-compare op "/=" == 0 then eq-op s op False l r
+    else fail s (string-concat "unsupported operator: " op)
+
+  -- ------------------------------------------------------------- application
+
+  -- The over-application message: more arguments than the declaration's
+  -- arity allows.
+  over-applied-message :: String -> Nat -> Nat -> String
+  over-applied-message name given arity =
+    string-concat "arity mismatch: "
+      (string-concat name
+        (string-concat " applied to "
+          (string-concat (nat-to-string given)
+            (string-concat " argument(s), but its declaration has arity " (nat-to-string arity)))))
+
+  -- The clause message: a clause whose parameter count disagrees with the
+  -- declaration's arity.
+  clause-arity-message :: String -> Nat -> Nat -> String
+  clause-arity-message name given arity =
+    string-concat "arity mismatch: "
+      (string-concat name
+        (string-concat " has "
+          (string-concat (nat-to-string given)
+            (string-concat " parameters in this clause but its declaration has arity " (nat-to-string arity)))))
+
+  -- Apply a value to one argument. A closure binds its first parameter and
+  -- either evaluates its body (no parameters left) or keeps the remaining
+  -- ones; a constructor gains an argument; a top-level function collects
+  -- one more argument.
+  apply-value :: Value -> Span -> Value -> Value -> Result (List Diagnostic) Value
+  apply-value globals s f arg = case f of
+    VClosure ps body cenv -> case ps of
+      Nil -> fail s "cannot apply a non-function"
+      Cons p rest -> case pat-match p arg of
+        MHit bs -> case rest of
+          Nil -> eval-expr globals (env-merge bs cenv) body
+          Cons p2 more -> Ok (VClosure rest body (env-merge bs cenv))
+        MMiss -> fail s "the pattern of this lambda parameter did not match the argument"
+        MBad sp msg -> Err (Cons (MkDiagnostic rung sp msg) Nil)
+    VFun name arity clauses collected -> apply-fun globals s name arity clauses (arg-push collected arg)
+    VCon n cargs -> Ok (VCon n (arg-push cargs arg))
+    other -> fail s "cannot apply a non-function"
+
+  -- A top-level function one argument richer: short of its arity it stays a
+  -- value, at its arity it runs its clauses, and past it the call disagrees
+  -- with the declaration.
+  apply-fun :: Value -> Span -> String -> Nat -> List (List Pat, Expr) -> Value -> Result (List Diagnostic) Value
+  apply-fun globals s name arity clauses collected =
+    let have = list-length (args-to-list collected) in
+    if have < arity then Ok (VFun name arity clauses collected)
+    else if have > arity then fail s (over-applied-message name have arity)
+    else run-clauses globals s name arity clauses (args-to-list collected)
+
+  -- The first clause whose patterns match the arguments, its body evaluated
+  -- in the top-level environment extended with the pattern's bindings. A
+  -- clause whose parameter count disagrees with the declaration is refused
+  -- by name, and a function all of whose clauses ran out is refused as a
+  -- call with no matching clause.
+  run-clauses :: Value -> Span -> String -> Nat -> List (List Pat, Expr) -> List Value -> Result (List Diagnostic) Value
+  run-clauses globals s name arity clauses args = case clauses of
+    Nil -> fail s (string-concat "no clause of " (string-concat name " matches these arguments"))
+    Cons c rest -> case c of
+      (pats, body) -> case list-length pats == arity of
+        False -> fail s (clause-arity-message name (list-length pats) arity)
+        True -> case pat-match-spine pats args of
+          MHit bs -> eval-expr globals (env-merge bs globals) body
+          MMiss -> run-clauses globals s name arity rest args
+          MBad sp msg -> Err (Cons (MkDiagnostic rung sp msg) Nil)
+
+  -- ------------------------------------------------------------- the evaluator
+
+  eval-args :: Value -> Value -> List Expr -> Result (List Diagnostic) (List Value)
+  eval-args globals env es = case es of
+    Nil -> Ok Nil
+    Cons e rest -> case eval-expr globals env e of
+      Err ds -> Err ds
+      Ok v -> case eval-args globals env rest of
+        Err ds -> Err ds
+        Ok vs -> Ok (Cons v vs)
+
+  eval-con :: Value -> Value -> Span -> String -> Expr -> Result (List Diagnostic) Value
+  eval-con globals env s n args = case spine-ok-exprs args of
+    False -> fail s "malformed argument spine"
+    True -> case eval-args globals env (exprs-of args) of
+      Err ds -> Err ds
+      Ok vs -> Ok (VCon n (args-from-list vs))
+
+  eval-app :: Value -> Value -> Span -> Expr -> Expr -> Result (List Diagnostic) Value
+  eval-app globals env s f a = case eval-expr globals env f of
+    Err ds -> Err ds
+    Ok fv -> case eval-expr globals env a of
+      Err ds -> Err ds
+      Ok av -> apply-value globals s fv av
+
+  eval-bin :: Value -> Value -> Span -> String -> Expr -> Expr -> Result (List Diagnostic) Value
+  eval-bin globals env s op l r = case eval-expr globals env l of
+    Err ds -> Err ds
+    Ok lv -> case eval-expr globals env r of
+      Err ds -> Err ds
+      Ok rv -> apply-op s op lv rv
+
+  eval-neg :: Value -> Value -> Span -> Expr -> Result (List Diagnostic) Value
+  eval-neg globals env s x = case eval-expr globals env x of
+    Err ds -> Err ds
+    Ok v -> case v of
+      VInt n -> Ok (VInt (int-neg n))
+      other -> fail s "the operand of unary minus is not an Int"
+
+  eval-if :: Value -> Value -> Span -> Expr -> Expr -> Expr -> Result (List Diagnostic) Value
+  eval-if globals env s c t f = case eval-expr globals env c of
+    Err ds -> Err ds
+    Ok cv -> case cv of
+      VBool b -> if b then eval-expr globals env t else eval-expr globals env f
+      other -> fail s "the condition of an if is not a Bool"
+
+  eval-bindings :: Value -> Value -> List (String, Expr) -> Result (List Diagnostic) Value
+  eval-bindings globals env bs = case bs of
+    Nil -> Ok env
+    Cons b rest -> case b of
+      (n, rhs) -> case eval-expr globals env rhs of
+        Err ds -> Err ds
+        Ok v -> eval-bindings globals (env-bind n v env) rest
+
+  eval-let :: Value -> Value -> Span -> Expr -> Expr -> Result (List Diagnostic) Value
+  eval-let globals env s bs body = case spine-ok-bindings bs of
+    False -> fail s "malformed let binding spine"
+    True -> case eval-bindings globals env (bindings-of bs) of
+      Err ds -> Err ds
+      Ok env2 -> eval-expr globals env2 body
+
+  run-alts :: Value -> Value -> Span -> Value -> List (Pat, Expr) -> Result (List Diagnostic) Value
+  run-alts globals env s sv alts = case alts of
+    Nil -> fail s "case expression has no matching alternative"
+    Cons a rest -> case a of
+      (p, body) -> case pat-match p sv of
+        MHit bs -> eval-expr globals (env-merge bs env) body
+        MMiss -> run-alts globals env s sv rest
+        MBad sp msg -> Err (Cons (MkDiagnostic rung sp msg) Nil)
+
+  eval-case :: Value -> Value -> Span -> Expr -> Expr -> Result (List Diagnostic) Value
+  eval-case globals env s scrut alts = case spine-ok-alts alts of
+    False -> fail s "malformed alternative spine"
+    True -> case eval-expr globals env scrut of
+      Err ds -> Err ds
+      Ok sv -> run-alts globals env s sv (alts-of alts)
+
+  eval-expr :: Value -> Value -> Expr -> Result (List Diagnostic) Value
+  eval-expr globals env e = case e of
+    EVar s n -> case env-lookup n env of
+      None -> fail s (string-concat "unbound variable: " n)
+      Some v -> Ok v
+    ECon s n args -> eval-con globals env s n args
+    ELitInt s text -> Ok (VInt (lit-int-value text))
+    ELitStr s text -> Ok (VStr text)
+    ELitChar s text -> case string-first-char text of
+      None -> fail s (string-concat "bad character literal: " text)
+      Some c -> Ok (VChr c)
+    EUnit s -> Ok VUnit
+    EApp s f a -> eval-app globals env s f a
+    EBin s op l r -> eval-bin globals env s op l r
+    ENeg s x -> eval-neg globals env s x
+    ELam s ps body -> Ok (VClosure ps body env)
+    ELet s bs body -> eval-let globals env s bs body
+    EIf s c t f -> eval-if globals env s c t f
+    ECase s scrut alts -> eval-case globals env s scrut alts
+    EAnn s x t -> eval-expr globals env x
+    ELitFloat s text -> fail s "unsupported expression: float literal"
+    ETuple s xs -> fail s "unsupported expression: tuple"
+    EList s xs -> fail s "unsupported expression: list literal"
+    EForall s vs body -> fail s "unsupported expression: forall"
+    EUsing s bounds body -> fail s "unsupported expression: implicit using"
+    EBind s n rhs -> fail s "unsupported expression: bind statement"
+    EDo s stmts -> fail s "unsupported expression: do block"
+    EHandle s body h -> fail s "unsupported expression: handle"
+    EWith s bs body -> fail s "unsupported expression: with"
+    EArg s x rest -> fail s "unsupported expression: argument spine cell"
+    EArgsEnd s -> fail s "unsupported expression: argument spine end"
+    EBinding s n rhs rest -> fail s "unsupported expression: binding spine cell"
+    EBindingsEnd s -> fail s "unsupported expression: binding spine end"
+    EAlt s p body rest -> fail s "unsupported expression: alternative spine cell"
+    EAltsEnd s -> fail s "unsupported expression: alternative spine end"
+    EUnmodeled s text -> fail s (string-concat "unmodeled expression: " text)
+
+  -- ------------------------------------------------- the top-level environment
+
+  -- A signature's arrow count: the arity its declaration fixes.
+  ty-arity :: TypeExpr -> Nat
+  ty-arity t = case t of
+    TFun s a b -> 1 + ty-arity b
+    other -> 0
+
+  arities-append :: List (String, Nat) -> List (String, Nat) -> List (String, Nat)
+  arities-append xs ys = case xs of
+    Nil -> ys
+    Cons x rest -> Cons x (arities-append rest ys)
+
+  decl-sig-arities :: List Decl -> List (String, Nat)
+  decl-sig-arities ds = case ds of
+    Nil -> Nil
+    Cons d rest -> case d of
+      DSig s n t -> Cons (n, ty-arity t) (decl-sig-arities rest)
+      other -> decl-sig-arities rest
+
+  -- Every signature's arity in the program, collected before any body runs
+  -- (so the registry agrees with the checker's, which is built the same
+  -- way).
+  sig-arities :: List Module -> List (String, Nat)
+  sig-arities ms = case ms of
+    Nil -> Nil
+    Cons m rest -> arities-append (decl-sig-arities (module-decls m)) (sig-arities rest)
+
+  arity-lookup :: String -> List (String, Nat) -> Option Nat
+  arity-lookup name arities = case arities of
+    Nil -> None
+    Cons a rest -> case a of
+      (n, k) -> if string-compare n name == 0 then Some k else arity-lookup name rest
+
+  -- A function's declared arity: its signature's arrow count, or, absent a
+  -- signature, the parameter count of its first clause.
+  fun-arity :: String -> List (List Pat, Expr) -> List (String, Nat) -> Nat
+  fun-arity name clauses arities = case arity-lookup name arities of
+    Some n -> n
+    None -> case clauses of
+      Nil -> 0
+      Cons c rest -> case c of
+        (pats, body) -> list-length pats
+
+  ctor-binds :: List (String, TypeExpr) -> Value -> Value
+  ctor-binds cs env = case cs of
+    Nil -> env
+    Cons c rest -> case c of
+      (name, t) -> ctor-binds rest (VBind name (VCon name VArgsEnd) env)
+
+  globals-decls :: List Decl -> List (String, Nat) -> Value -> Value
+  globals-decls ds arities env = case ds of
+    Nil -> env
+    Cons d rest -> case d of
+      DFun s n clauses -> globals-decls rest arities (VBind n (VFun n (fun-arity n clauses arities) clauses VArgsEnd) env)
+      DData s n ctors -> globals-decls rest arities (ctor-binds ctors env)
+      other -> globals-decls rest arities env
+
+  globals-modules :: List Module -> List (String, Nat) -> Value -> Value
+  globals-modules ms arities env = case ms of
+    Nil -> env
+    Cons m rest -> globals-modules rest arities (globals-decls (module-decls m) arities env)
+
+  -- The program-wide value environment: every top-level function as a
+  -- value (so recursion, including mutual recursion, resolves) and every
+  -- constructor as a value.
+  globals-of :: Program -> Value
+  globals-of p = case p of
+    MkProgram s ms -> globals-modules ms (sig-arities ms) VEnvEnd
+
+  -- ------------------------------------------------------------- the entry points
+
+  -- A program-level refusal: a declaration the parser recorded as unmodeled
+  -- is a form this interpreter does not model, so it is refused by name
+  -- rather than ignored (the ladder's boundary rule, applied to the whole
+  -- program). Declarations that model no value the fragment can evaluate
+  -- (`DClass`, `DInstance`, `DForeign`, ...) declare names the interpreter
+  -- does not bind, so a use of one is refused as an unbound variable at the
+  -- use site instead of at the declaration.
+  diags-append :: List Diagnostic -> List Diagnostic -> List Diagnostic
+  diags-append xs ys = case xs of
+    Nil -> ys
+    Cons x rest -> Cons x (diags-append rest ys)
+
+  decl-unmodeleds :: Decl -> List Diagnostic
+  decl-unmodeleds d = case d of
+    DUnmodeled s text -> Cons (MkDiagnostic rung s (string-concat "unmodeled declaration: " text)) Nil
+    other -> Nil
+
+  decls-unmodeleds :: List Decl -> List Diagnostic
+  decls-unmodeleds ds = case ds of
+    Nil -> Nil
+    Cons d rest -> diags-append (decl-unmodeleds d) (decls-unmodeleds rest)
+
+  modules-unmodeleds :: List Module -> List Diagnostic
+  modules-unmodeleds ms = case ms of
+    Nil -> Nil
+    Cons m rest -> diags-append (decls-unmodeleds (module-decls m)) (modules-unmodeleds rest)
+
+  find-fun-in-decls :: List Decl -> String -> Option (String, List (List Pat, Expr))
+  find-fun-in-decls ds name = case ds of
+    Nil -> None
+    Cons d rest -> case d of
+      DFun s n clauses -> if string-compare n name == 0 then Some (n, clauses) else find-fun-in-decls rest name
+      other -> find-fun-in-decls rest name
+
+  main-fun :: List Module -> Option (String, List (List Pat, Expr))
+  main-fun ms = case ms of
+    Nil -> None
+    Cons m rest -> case find-fun-in-decls (module-decls m) "main" of
+      None -> main-fun rest
+      Some f -> Some f
+
+  -- Evaluate `main` in the program's top-level environment. `main` must
+  -- take no parameters (the ladder's programs answer an exit code from a
+  -- nullary `main`), and a program with no `main` is refused by name.
+  eval-program :: Program -> Result (List Diagnostic) Value
+  eval-program p = case p of
+    MkProgram s ms -> case modules-unmodeleds ms of
+      Cons d rest -> Err (Cons d rest)
+      Nil -> case main-fun ms of
+        None -> fail zero-span "no main declaration in this program"
+        Some mf -> let g = globals-of p in case mf of
+          (name, clauses) -> case clauses of
+            Nil -> fail zero-span "main has no clauses"
+            Cons first rest -> case first of
+              (pats, body) -> case list-length pats == 0 of
+                True -> eval-expr g g body
+                False -> fail zero-span "main must take no parameters"
+
+  eval-main-result :: Program -> Result (List Diagnostic) Int
+  eval-main-result p = case eval-program p of
+    Err ds -> Err ds
+    Ok v -> case value-int v of
+      Some n -> Ok n
+      None -> fail zero-span "main's value is not an Int"
+
+  -- The program's `main` as an `Int`, or `None` when it did not evaluate
+  -- to one (a refusal, or a value of another type).
+  eval-main :: Program -> Option Int
+  eval-main p = case eval-program p of
+    Err ds -> None
+    Ok v -> value-int v
+
+  -- Evaluate one expression against the program's top-level environment:
+  -- how a caller asks for `fib 10` rather than for `main`.
+  eval-expr-in-program :: Program -> Expr -> Result (List Diagnostic) Value
+  eval-expr-in-program p e = case p of
+    MkProgram s ms -> case modules-unmodeleds ms of
+      Cons d rest -> Err (Cons d rest)
+      Nil -> let g = globals-of p in eval-expr g g e
+
+  -- ------------------------------------------------------------- rendering
+
+  render-args :: List Value -> String
+  render-args vs = case vs of
+    Nil -> empty-string
+    Cons v rest -> string-concat " " (string-concat (render-value v) (render-args rest))
+
+  -- A value as text, for a report file rather than for the language (the
+  -- interpreter's answer is the value itself).
+  render-value :: Value -> String
+  render-value v = case v of
+    VInt n -> int-to-string n
+    VBool b -> if b then "True" else "False"
+    VUnit -> "()"
+    VStr s -> s
+    VChr c -> char-string c
+    VCon n args -> string-concat n (render-args (args-to-list args))
+    VArgsEnd -> "()"
+    VArg x rest -> render-args (args-to-list (VArg x rest))
+    VClosure ps body env -> "<lambda>"
+    VFun n ar clauses collected -> string-concat "<function " (string-concat n ">")
+    VEnvEnd -> "<env>"
+    VBind n v rest -> "<env>"

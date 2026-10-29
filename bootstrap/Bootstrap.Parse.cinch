@@ -1,0 +1,1589 @@
+-- Bootstrap.Parse: rung 1 of the bootstrap ladder, the parser for the
+-- language's own surface grammar.
+--
+-- Lexing and layout are `Text.Lex` (the token stream carries the
+-- virtual `{`, `;`, `}` of the layout pass and the spans on every
+-- token), so this module is a token-level grammar. It fills the shared
+-- contract tree of `Bootstrap.Ast`: a `Program` of `Module`s whose
+-- declarations carry `Text.Lex` spans on every node.
+--
+-- Coverage is stated, never implied. The fragment this rung models is
+-- the module header, `import`/`export`, `signature` classes with their
+-- members, `data` with constructors, `record`/`effect`, `foreign`,
+-- fixity declarations, `implicit instance ... where` members, value
+-- signatures and equations with patterns (`if`, `let ... in`, `case
+-- ... of`, application, operators, literals, tuples, lists, lambdas,
+-- `forall` and `using` prefixes in types). Anything the parser
+-- recognizes but does not model becomes the matching `*Unmodeled` node
+-- carrying its span and source text, never a silent drop: a whole
+-- declaration the parser cannot model is a `DUnmodeled` holding the
+-- text consumed up to the next declaration boundary, and a term or
+-- type or pattern the expression grammar cannot model is an
+-- `EUnmodeled`/`TUnmodeled`/`PUnmodeled` at the same granularity. What
+-- that leaves unmodeled over the prelude corpus is exactly what
+-- `program-unmodeled-count` reports as a number.
+--
+-- The parser threads a fixity table (a pre-scan of the token stream's
+-- `infix`/`infixl`/`infixr` declarations) so operator chains nest by
+-- precedence and associativity rather than by position; an operator
+-- the module does not declare defaults to a left-associative
+-- precedence of 5, which is what an unimported operator's chain would
+-- need to parse at all.
+--
+-- See bootstrap/README.md for the ladder and the discipline.
+module Bootstrap.Parse where
+
+  import Bootstrap.Ast
+  import Bootstrap.Report
+  import Text.Lex (Span, span-start, span-end, span-line, span-col,
+                   Token, TVar, TCon, TOp, TInt, TFloat, TStr, TChar, TWord,
+                   TPunct, TEOF, LToken, lt-span, lt-virtual, lt-token,
+                   Lexed, LexedTokens, LexedFail, LexErrorKind, lex-error-message,
+                   lex-source, bytes-slice)
+  import Text.Parse (ParseOutcome, Parsed, Failed, ParseErrorBundle, Bundle,
+                     ParseError, EFail)
+  import Data.Bool
+  import Data.Bytes
+  import Data.Char
+  import Data.List
+  import Data.Nat
+  import Data.Option (Option, None, Some)
+  import Data.String
+  import Text.Show (nat-to-string, char-string)
+
+  export parse-program
+
+  -- ------------------------------------------------------------------
+  -- The parser result: a value with the unconsumed token stream, or a
+  -- failure the recovery path turns into an unmodeled node.
+  -- ------------------------------------------------------------------
+
+  data Ps a where
+    POk :: a -> List LToken -> Ps a
+    PBad :: Ps a
+
+  -- A fixity fact: the associativity word and the precedence a
+  -- pre-scan of the stream recovered.
+  data Fix where
+    MkFix :: String -> Nat -> Fix
+
+  -- ------------------------------------------------------------------
+  -- Token predicates and small accessors.
+  -- ------------------------------------------------------------------
+
+  sp-of :: LToken -> Span
+  sp-of t = lt-span t
+
+  is-punct-t :: Token -> String -> Bool
+  is-punct-t t s = case t of
+    TPunct x -> string-compare x s == 0
+    _ -> False
+
+  is-word-t :: Token -> String -> Bool
+  is-word-t t s = case t of
+    TWord x -> string-compare x s == 0
+    _ -> False
+
+  is-eof-t :: Token -> Bool
+  is-eof-t t = case t of
+    TEOF -> True
+    _ -> False
+
+  is-open-tok :: Token -> Bool
+  is-open-tok t = case t of
+    TPunct p ->
+      if string-compare p "(" == 0 then True
+      else if string-compare p "[" == 0 then True
+      else if string-compare p "{" == 0 then True
+      else if string-compare p "[|" == 0 then True
+      else False
+    _ -> False
+
+  is-close-tok :: Token -> Bool
+  is-close-tok t = case t of
+    TPunct p ->
+      if string-compare p ")" == 0 then True
+      else if string-compare p "]" == 0 then True
+      else if string-compare p "}" == 0 then True
+      else if string-compare p "|]" == 0 then True
+      else False
+    _ -> False
+
+  op-name-of :: Token -> Option String
+  op-name-of t = case t of
+    TOp s -> Some s
+    TPunct p -> if string-compare p "|" == 0 then Some "|" else None
+    _ -> None
+
+  -- The operators an expression chain may continue with: the operator
+  -- class, the contextual `|`, and the dollar application.
+  op-expr-of :: Token -> Option String
+  op-expr-of t = case t of
+    TOp s -> Some s
+    TPunct p ->
+      if string-compare p "|" == 0 then Some "|"
+      else if string-compare p "$" == 0 then Some "$"
+      else None
+    _ -> None
+
+  list-start-span :: List LToken -> Span
+  list-start-span ts = case ts of
+    Cons t rest -> lt-span t
+    Nil -> Span 0 0 1 1
+
+  list-end-span :: List LToken -> Span
+  list-end-span ts = case ts of
+    Cons t rest -> case rest of
+      Nil -> lt-span t
+      Cons _ _ -> list-end-span rest
+    Nil -> Span 0 0 1 1
+
+  drop-toks :: List LToken -> Nat -> List LToken
+  drop-toks ts n =
+    if nat-cmp n 0 == 0 then ts
+    else case ts of
+      Nil -> Nil
+      Cons t rest -> drop-toks rest (n - 1)
+
+  slice-src :: Bytes -> Span -> String
+  slice-src src s = case string-from-bytes (bytes-slice src (span-start s) (span-end s)) of
+    Some t -> t
+    None -> empty-string
+
+  bytes-to-string :: Bytes -> String
+  bytes-to-string b = case string-from-bytes b of
+    Some s -> s
+    None -> empty-string
+
+  -- The span of a token run: the start of the caller's stream, the end
+  -- of what it consumed.
+  run-span :: List LToken -> List LToken -> Span
+  run-span toks consumed = span-join (list-start-span toks) (list-end-span consumed)
+
+  -- ------------------------------------------------------------------
+  -- Source-text derived names.
+  -- ------------------------------------------------------------------
+
+  str-nat :: String -> Nat
+  str-nat s = str-nat-at s 0 0
+
+  str-nat-at :: String -> Nat -> Nat -> Nat
+  str-nat-at s i acc = case string-char-at s i of
+    None -> acc
+    Some c -> case digit-value c of
+      Some d -> str-nat-at s (i + 1) (acc * 10 + d)
+      None -> acc
+
+  last-dot-from :: String -> Nat -> Option Nat -> Option Nat
+  last-dot-from s i acc =
+    if nat-cmp i (string-length s) == 0 then acc
+    else case string-char-at s i of
+      Some c -> if eq-char c '.' then last-dot-from s (i + 1) (Some i)
+                else last-dot-from s (i + 1) acc
+      None -> acc
+
+  con-name-p :: String -> Bool
+  con-name-p s = case last-dot-from s 0 None of
+    Some i -> upper-at s (i + 1)
+    None -> upper-at s 0
+
+  upper-at :: String -> Nat -> Bool
+  upper-at s i = case string-char-at s i of
+    Some c -> is-ascii-upper c
+    None -> False
+
+  -- ------------------------------------------------------------------
+  -- The fixity pre-scan.
+  -- ------------------------------------------------------------------
+
+  assoc-word :: String -> String
+  assoc-word w =
+    if string-compare w "infix" == 0 then "none"
+    else if string-compare w "infixl" == 0 then "left"
+    else "right"
+
+  scan-fixities :: List LToken -> List (String, Fix)
+  scan-fixities toks = case toks of
+    Cons t rest -> case lt-token t of
+      TWord w ->
+        if string-compare w "infix" == 0 || string-compare w "infixl" == 0 || string-compare w "infixr" == 0
+        then case rest of
+          Cons p rest2 -> case lt-token p of
+            TInt n -> append-pairs (fix-entries (assoc-word w) (str-nat n) rest2) (scan-fixities rest2)
+            _ -> scan-fixities rest
+          Nil -> scan-fixities rest
+        else scan-fixities rest
+      _ -> scan-fixities rest
+    Nil -> Nil
+
+  fix-entries :: String -> Nat -> List LToken -> List (String, Fix)
+  fix-entries assoc prec toks = case toks of
+    Cons t rest -> case op-name-of (lt-token t) of
+      Some o -> Cons (o, MkFix assoc prec) (fix-entries assoc prec rest)
+      None -> Nil
+    Nil -> Nil
+
+  append-pairs :: List (String, Fix) -> List (String, Fix) -> List (String, Fix)
+  append-pairs xs ys = case xs of
+    Nil -> ys
+    Cons p rest -> Cons p (append-pairs rest ys)
+
+  lookup-fix :: String -> List (String, Fix) -> Fix
+  lookup-fix op fix =
+    if string-compare op "$" == 0 then MkFix "right" 0
+    else case fix of
+      Nil -> MkFix "left" 5
+      Cons p rest -> case p of
+        (o, f) -> if string-compare o op == 0 then f else lookup-fix op rest
+
+  -- ------------------------------------------------------------------
+  -- Generic token-run consumption (recovery and unmodeled capture).
+  -- ------------------------------------------------------------------
+
+  -- Consume tokens to the next declaration boundary at depth zero,
+  -- without consuming the boundary itself.
+  take-bal :: List LToken -> Nat -> List LToken -> List LToken
+  take-bal toks depth acc = case toks of
+    Nil -> reverse acc
+    Cons t rest ->
+      let k = lt-token t in
+      if nat-cmp depth 0 == 0 && (is-boundary-tok k) then reverse acc
+      else if is-open-tok k then take-bal rest (depth + 1) (Cons t acc)
+      else if is-close-tok k then
+        if nat-cmp depth 0 == 0 then take-bal rest 0 (Cons t acc)
+        else take-bal rest (depth - 1) (Cons t acc)
+      else take-bal rest depth (Cons t acc)
+
+  is-boundary-tok :: Token -> Bool
+  is-boundary-tok k =
+    is-punct-t k ";" || is-punct-t k "}" || is-eof-t k
+
+  -- Consume tokens to the next terminator at depth zero; used for an
+  -- expression form the fragment only recognizes.
+  take-term-region :: List LToken -> Nat -> List LToken -> List LToken
+  take-term-region toks depth acc = case toks of
+    Nil -> reverse acc
+    Cons t rest ->
+      let k = lt-token t in
+      if nat-cmp depth 0 == 0 && (is-term-stop k) then reverse acc
+      else if is-open-tok k then take-term-region rest (depth + 1) (Cons t acc)
+      else if is-close-tok k then
+        if nat-cmp depth 0 == 0 then take-term-region rest 0 (Cons t acc)
+        else take-term-region rest (depth - 1) (Cons t acc)
+      else take-term-region rest depth (Cons t acc)
+
+  is-term-stop :: Token -> Bool
+  is-term-stop k = case k of
+    TPunct p ->
+      if string-compare p ";" == 0 then True
+      else if string-compare p "}" == 0 then True
+      else if string-compare p ")" == 0 then True
+      else if string-compare p "]" == 0 then True
+      else if string-compare p "," == 0 then True
+      else False
+    TWord w ->
+      if string-compare w "then" == 0 then True
+      else if string-compare w "else" == 0 then True
+      else if string-compare w "of" == 0 then True
+      else if string-compare w "in" == 0 then True
+      else if string-compare w "where" == 0 then True
+      else False
+    TEOF -> True
+    _ -> False
+
+  consume-to-close :: List LToken -> String -> List LToken
+  consume-to-close toks close = case toks of
+    Nil -> Nil
+    Cons t rest ->
+      if is-punct-t (lt-token t) close then Nil
+      else Cons t (consume-to-close rest close)
+
+  skip-balanced-paren :: List LToken -> List LToken
+  skip-balanced-paren toks = case toks of
+    Cons t rest ->
+      if is-punct-t (lt-token t) "(" then skip-bal rest 1
+      else toks
+    Nil -> Nil
+
+  skip-bal :: List LToken -> Nat -> List LToken
+  skip-bal toks depth = case toks of
+    Nil -> Nil
+    Cons t rest ->
+      let k = lt-token t in
+      if is-punct-t k "(" then skip-bal rest (depth + 1)
+      else if is-punct-t k ")" then
+        if nat-cmp depth 1 == 0 then rest
+        else skip-bal rest (depth - 1)
+      else skip-bal rest depth
+
+  -- ------------------------------------------------------------------
+  -- Module header and the block structure.
+  -- ------------------------------------------------------------------
+
+  parse-program :: String -> Bytes -> ParseOutcome Program
+  parse-program name src = case lex-source src of
+    LexedFail s k -> Failed (Bundle name src (Cons (EFail s (lex-error-message k)) Nil))
+    LexedTokens toks ->
+      case parse-modules toks src (scan-fixities toks) Nil of
+        POk ms rest -> Parsed (MkProgram (program-span-of ms) ms) Nil
+        PBad -> Parsed (MkProgram (Span 0 0 1 1) Nil) Nil
+
+  program-span-of :: List Module -> Span
+  program-span-of ms = case ms of
+    Cons m rest -> module-span m
+    Nil -> Span 0 0 1 1
+
+  parse-modules :: List LToken -> Bytes -> List (String, Fix) -> List Module -> Ps (List Module)
+  parse-modules toks src fix acc = case toks of
+    Cons t rest -> case lt-token t of
+      TEOF -> POk (reverse acc) toks
+      TPunct p ->
+        if string-compare p ";" == 0 then parse-modules rest src fix acc
+        else if string-compare p "}" == 0 then POk (reverse acc) rest
+        else module-step toks src fix acc
+      _ -> module-step toks src fix acc
+    Nil -> POk (reverse acc) Nil
+
+  module-step :: List LToken -> Bytes -> List (String, Fix) -> List Module -> Ps (List Module)
+  module-step toks src fix acc = case parse-module toks src fix of
+    POk m rest -> parse-modules rest src fix (Cons m acc)
+    PBad -> case take-bal toks 0 Nil of
+      consumed ->
+        let sp = run-span toks consumed in
+        let m = MkModule sp "(unparsed)" (decl-spine sp (Cons (DUnmodeled sp (slice-src src sp)) Nil)) in
+        POk (reverse (Cons m acc)) (drop-toks toks (list-length consumed))
+
+  parse-module :: List LToken -> Bytes -> List (String, Fix) -> Ps Module
+  parse-module toks src fix = case toks of
+    Cons t rest ->
+      if is-word-t (lt-token t) "module" then parse-module-rest (sp-of t) rest src fix
+      else PBad
+    Nil -> PBad
+
+  parse-module-rest :: Span -> List LToken -> Bytes -> List (String, Fix) -> Ps Module
+  parse-module-rest start toks src fix = case parse-path toks of
+    POk name rest1 -> case skip-balanced-paren rest1 of
+      rest2 -> case rest2 of
+        Cons w rest3 ->
+          if is-word-t (lt-token w) "where" then
+            case parse-block rest3 src fix of
+              POk ds rest4 -> POk (MkModule start name (decl-spine start ds)) rest4
+              PBad -> PBad
+          else PBad
+        Nil -> PBad
+    PBad -> PBad
+
+  -- `a.b.c` from segments collected in reverse order, flattened once.
+  join-dots :: List String -> String
+  join-dots rev = string-concat-all (with-dots (reverse rev) True)
+
+  with-dots :: List String -> Bool -> List String
+  with-dots segs first = case segs of
+    Nil -> Nil
+    Cons s more -> if first then Cons s (with-dots more False)
+                   else Cons "." (Cons s (with-dots more False))
+
+  parse-path :: List LToken -> Ps String
+  parse-path toks = case toks of
+    Cons t rest -> case lt-token t of
+      TCon s -> path-more rest (Cons s Nil)
+      TVar s -> path-more rest (Cons s Nil)
+      _ -> PBad
+    Nil -> PBad
+
+  path-more :: List LToken -> List String -> Ps String
+  path-more toks acc = case toks of
+    Cons t rest -> case lt-token t of
+      TPunct p ->
+        if string-compare p "." == 0 then
+          case rest of
+            Cons t2 rest2 -> case lt-token t2 of
+              TCon s -> path-more rest2 (Cons s acc)
+              TVar s -> path-more rest2 (Cons s acc)
+              _ -> POk (join-dots acc) toks
+            Nil -> POk (join-dots acc) toks
+        else POk (join-dots acc) toks
+      _ -> POk (join-dots acc) toks
+    Nil -> POk (join-dots acc) Nil
+
+  -- A `where`-introduced block: a `{`, declarations separated by `;`,
+  -- closed by `}`.
+  parse-block :: List LToken -> Bytes -> List (String, Fix) -> Ps (List Decl)
+  parse-block toks src fix = case toks of
+    Cons t rest ->
+      if is-punct-t (lt-token t) "{" then decls-loop rest src fix Nil
+      else PBad
+    Nil -> PBad
+
+  decls-loop :: List LToken -> Bytes -> List (String, Fix) -> List Decl -> Ps (List Decl)
+  decls-loop toks src fix acc = case toks of
+    Cons t rest -> case lt-token t of
+      TPunct p ->
+        if string-compare p ";" == 0 then decls-loop rest src fix acc
+        else if string-compare p "}" == 0 then POk (reverse acc) rest
+        else decl-step toks src fix acc
+      TEOF -> POk (reverse acc) toks
+      _ -> decl-step toks src fix acc
+    Nil -> POk (reverse acc) Nil
+
+  decl-step :: List LToken -> Bytes -> List (String, Fix) -> List Decl -> Ps (List Decl)
+  decl-step toks src fix acc = case parse-decl-recover toks src fix of
+    POk d rest -> decls-loop rest src fix (Cons d acc)
+    PBad -> POk (reverse acc) toks
+
+  parse-decl-recover :: List LToken -> Bytes -> List (String, Fix) -> Ps Decl
+  parse-decl-recover toks src fix = case parse-decl toks src fix of
+    POk d rest -> POk d rest
+    PBad -> case take-bal toks 0 Nil of
+      consumed -> POk (DUnmodeled (run-span toks consumed) (slice-src src (run-span toks consumed))) (drop-toks toks (list-length consumed))
+
+  -- ------------------------------------------------------------------
+  -- Declarations.
+  -- ------------------------------------------------------------------
+
+  parse-decl :: List LToken -> Bytes -> List (String, Fix) -> Ps Decl
+  parse-decl toks src fix = case toks of
+    Cons t rest -> case lt-token t of
+      TWord w -> decl-by-word w toks src fix
+      TVar s -> parse-sig-or-eq toks src fix
+      TPunct p ->
+        if string-compare p "(" == 0 then parse-sig-or-eq toks src fix
+        else PBad
+      _ -> PBad
+    Nil -> PBad
+
+  decl-by-word :: String -> List LToken -> Bytes -> List (String, Fix) -> Ps Decl
+  decl-by-word w toks src fix =
+    if string-compare w "import" == 0 then parse-import toks
+    else if string-compare w "export" == 0 then parse-export toks src
+    else if string-compare w "signature" == 0 then parse-signature toks src fix
+    else if string-compare w "data" == 0 then parse-data toks src fix
+    else if string-compare w "record" == 0 then parse-record toks src fix
+    else if string-compare w "effect" == 0 then parse-effect toks src fix
+    else if string-compare w "foreign" == 0 then parse-foreign toks src
+    else if string-compare w "instance" == 0 then parse-instance toks src fix False
+    else if string-compare w "implicit" == 0 then parse-implicit toks src fix
+    else if string-compare w "infix" == 0 then parse-fixity toks
+    else if string-compare w "infixl" == 0 then parse-fixity toks
+    else if string-compare w "infixr" == 0 then parse-fixity toks
+    else PBad
+
+  parse-implicit :: List LToken -> Bytes -> List (String, Fix) -> Ps Decl
+  parse-implicit toks src fix = case toks of
+    Cons i rest -> case lt-token i of
+      TWord w ->
+        if string-compare w "implicit" == 0 then
+          case rest of
+            Cons n rest2 ->
+              if is-word-t (lt-token n) "instance" then parse-instance rest src fix True else PBad
+            Nil -> PBad
+        else PBad
+      _ -> PBad
+    Nil -> PBad
+
+  -- import [modifier] path [(members|args)] [as alias]
+  parse-import :: List LToken -> Ps Decl
+  parse-import toks = case toks of
+    Cons t rest -> case parse-path (skip-import-mods rest) of
+      POk name rest1 -> POk (DImport (sp-of t) name) (skip-import-tail rest1)
+      PBad -> PBad
+    Nil -> PBad
+
+  skip-import-mods :: List LToken -> List LToken
+  skip-import-mods toks = case toks of
+    Cons t rest -> case lt-token t of
+      TWord w ->
+        if string-compare w "stage" == 0 then skip-import-mods rest
+        else if string-compare w "replaceable" == 0 then skip-import-mods rest
+        else if string-compare w "specialized" == 0 then skip-import-mods rest
+        else toks
+      _ -> toks
+    Nil -> toks
+
+  skip-import-tail :: List LToken -> List LToken
+  skip-import-tail toks = case toks of
+    Cons t rest -> case lt-token t of
+      TPunct p ->
+        if string-compare p "(" == 0 then skip-after-alias (skip-balanced-paren toks)
+        else toks
+      TWord w ->
+        if string-compare w "as" == 0 then skip-alias rest else toks
+      _ -> toks
+    Nil -> toks
+
+  skip-after-alias :: List LToken -> List LToken
+  skip-after-alias toks = case toks of
+    Cons t rest -> case lt-token t of
+      TWord w -> if string-compare w "as" == 0 then skip-alias rest else toks
+      _ -> toks
+    Nil -> toks
+
+  skip-alias :: List LToken -> List LToken
+  skip-alias toks = case parse-path toks of
+    POk name rest -> rest
+    PBad -> toks
+
+  -- export items run to the declaration boundary; the text is kept.
+  parse-export :: List LToken -> Bytes -> Ps Decl
+  parse-export toks src = case toks of
+    Cons t rest -> case take-bal rest 0 Nil of
+      consumed -> POk (DExport (sp-of t) (slice-src src (run-span toks consumed))) (drop-toks rest (list-length consumed))
+    Nil -> PBad
+
+  -- infixl N op, op, ...
+  parse-fixity :: List LToken -> Ps Decl
+  parse-fixity toks = case toks of
+    Cons t rest -> case lt-token t of
+      TWord w -> case rest of
+        Cons p rest2 -> case lt-token p of
+          TInt n -> case parse-op-list rest2 Nil of
+            POk ops rest3 -> POk (DFixity (sp-of t) w (str-nat n) ops) rest3
+            PBad -> PBad
+          _ -> PBad
+        Nil -> PBad
+      _ -> PBad
+    Nil -> PBad
+
+  parse-op-list :: List LToken -> List String -> Ps (List String)
+  parse-op-list toks acc = case toks of
+    Cons t rest -> case op-name-of (lt-token t) of
+      Some o -> op-list-tail rest (Cons o acc)
+      None -> PBad
+    Nil -> PBad
+
+  op-list-tail :: List LToken -> List String -> Ps (List String)
+  op-list-tail toks acc = case toks of
+    Cons t rest -> case lt-token t of
+      TPunct p ->
+        if string-compare p "," == 0 then
+          case rest of
+            Cons t2 rest2 -> case op-name-of (lt-token t2) of
+              Some o -> op-list-tail rest2 (Cons o acc)
+              None -> POk (reverse acc) toks
+            Nil -> POk (reverse acc) toks
+        else POk (reverse acc) toks
+      _ -> POk (reverse acc) toks
+    Nil -> POk (reverse acc) toks
+
+  -- A value name: a variable, or a parenthesized operator `(|+|)`.
+  parse-value-name :: List LToken -> Ps String
+  parse-value-name toks = case toks of
+    Cons t rest -> case lt-token t of
+      TVar s -> if string-compare s "_" == 0 then PBad else POk s rest
+      TCon s -> POk s rest
+      TPunct p ->
+        if string-compare p "(" == 0 then
+          case rest of
+            Cons t2 rest2 -> case op-name-of (lt-token t2) of
+              Some o -> case rest2 of
+                Cons t3 rest3 ->
+                  if is-punct-t (lt-token t3) ")" then POk o rest3 else PBad
+                Nil -> PBad
+              None -> PBad
+            Nil -> PBad
+        else PBad
+      _ -> PBad
+    Nil -> PBad
+
+  at-boundary :: List LToken -> Bool
+  at-boundary toks = case toks of
+    Nil -> True
+    Cons t rest -> case lt-token t of
+      TPunct p -> if string-compare p ";" == 0 then True else if string-compare p "}" == 0 then True else False
+      TEOF -> True
+      _ -> False
+
+  expect-word-t :: List LToken -> String -> Ps Span
+  expect-word-t toks w = case toks of
+    Cons t rest -> if is-word-t (lt-token t) w then POk (sp-of t) rest else PBad
+    Nil -> PBad
+
+  parse-sig-or-eq :: List LToken -> Bytes -> List (String, Fix) -> Ps Decl
+  parse-sig-or-eq toks src fix = case parse-value-name toks of
+    POk name rest -> case rest of
+      Cons t rest2 ->
+        if is-punct-t (lt-token t) "::" then
+          case parse-type rest2 src of
+            POk ty rest3 ->
+              if at-boundary rest3 then POk (DSig (list-start-span toks) name ty) rest3 else PBad
+            PBad -> PBad
+        else parse-eq name toks rest src fix
+      Nil -> PBad
+    PBad -> PBad
+
+  parse-eq :: String -> List LToken -> List LToken -> Bytes -> List (String, Fix) -> Ps Decl
+  parse-eq name start toks src fix = case parse-pats toks src of
+    POk pats rest -> case rest of
+      Cons t rest2 ->
+        if is-punct-t (lt-token t) "=" then
+          case parse-expr rest2 src fix of
+            POk body rest3 ->
+              if at-boundary rest3 then POk (DFun (list-start-span start) name (Cons (pats, body) Nil)) rest3
+              else PBad
+            PBad -> PBad
+        else PBad
+      Nil -> PBad
+    PBad -> PBad
+
+  -- signature Name params where { members }
+  parse-signature :: List LToken -> Bytes -> List (String, Fix) -> Ps Decl
+  parse-signature toks src fix = case toks of
+    Cons t rest ->
+      if is-word-t (lt-token t) "signature" then
+        case parse-ctor-name rest of
+          POk name rest1 -> case parse-param-names rest1 src Nil of
+            POk params rest2 -> case expect-word-t rest2 "where" of
+              POk _ rest3 -> case parse-block rest3 src fix of
+                POk members rest4 -> POk (DClass (sp-of t) name params (decl-spine (sp-of t) members)) rest4
+                PBad -> PBad
+              PBad -> PBad
+            PBad -> PBad
+          PBad -> PBad
+      else PBad
+    Nil -> PBad
+
+  parse-ctor-name :: List LToken -> Ps String
+  parse-ctor-name toks = case toks of
+    Cons t rest -> case lt-token t of
+      TCon s -> POk s rest
+      TVar s -> POk s rest
+      _ -> PBad
+    Nil -> PBad
+
+  -- data Name params where { Ctor :: Type ; ... }
+  parse-data :: List LToken -> Bytes -> List (String, Fix) -> Ps Decl
+  parse-data toks src fix = case toks of
+    Cons t rest ->
+      if is-word-t (lt-token t) "data" then
+        case parse-ctor-name rest of
+          POk name rest1 -> case parse-param-names rest1 src Nil of
+            POk params rest2 -> case expect-word-t rest2 "where" of
+              POk _ rest3 -> case parse-fields rest3 src of
+                POk fields rest4 -> POk (DData (sp-of t) name fields) rest4
+                PBad -> PBad
+              PBad -> PBad
+            PBad -> PBad
+          PBad -> PBad
+      else PBad
+    Nil -> PBad
+
+  parse-record :: List LToken -> Bytes -> List (String, Fix) -> Ps Decl
+  parse-record toks src fix = case toks of
+    Cons t rest ->
+      if is-word-t (lt-token t) "record" then
+        case parse-ctor-name rest of
+          POk name rest1 -> case parse-param-names rest1 src Nil of
+            POk params rest2 -> case expect-word-t rest2 "where" of
+              POk _ rest3 -> case parse-fields rest3 src of
+                POk fields rest4 -> POk (DRecord (sp-of t) name fields) rest4
+                PBad -> PBad
+              PBad -> PBad
+            PBad -> PBad
+          PBad -> PBad
+      else PBad
+    Nil -> PBad
+
+  parse-effect :: List LToken -> Bytes -> List (String, Fix) -> Ps Decl
+  parse-effect toks src fix = case toks of
+    Cons t rest ->
+      if is-word-t (lt-token t) "effect" then
+        case parse-ctor-name rest of
+          POk name rest1 -> case parse-param-names rest1 src Nil of
+            POk params rest2 -> case expect-word-t rest2 "where" of
+              POk _ rest3 -> case parse-fields rest3 src of
+                POk fields rest4 -> POk (DEffect (sp-of t) name fields) rest4
+                PBad -> PBad
+              PBad -> PBad
+            PBad -> PBad
+          PBad -> PBad
+      else PBad
+    Nil -> PBad
+
+  -- A `{ name :: Type ; ... }` block, as a list of pairs; an item the
+  -- fragment cannot model becomes a `("", TUnmodeled)` pair.
+  parse-fields :: List LToken -> Bytes -> Ps (List (String, TypeExpr))
+  parse-fields toks src = case toks of
+    Cons t rest ->
+      if is-punct-t (lt-token t) "{" then fields-loop rest src Nil
+      else PBad
+    Nil -> PBad
+
+  fields-loop :: List LToken -> Bytes -> List (String, TypeExpr) -> Ps (List (String, TypeExpr))
+  fields-loop toks src acc = case toks of
+    Cons t rest -> case lt-token t of
+      TPunct p ->
+        if string-compare p ";" == 0 then fields-loop rest src acc
+        else if string-compare p "}" == 0 then POk (reverse acc) rest
+        else field-step toks src acc
+      TEOF -> POk (reverse acc) toks
+      _ -> field-step toks src acc
+    Nil -> POk (reverse acc) Nil
+
+  field-step :: List LToken -> Bytes -> List (String, TypeExpr) -> Ps (List (String, TypeExpr))
+  field-step toks src acc = case parse-field toks src of
+    POk f rest -> fields-loop rest src (Cons f acc)
+    PBad -> case take-bal toks 0 Nil of
+      consumed ->
+        let sp = run-span toks consumed in
+        fields-loop (drop-toks toks (list-length consumed)) src (Cons ("", TUnmodeled sp (slice-src src sp)) acc)
+
+  parse-field :: List LToken -> Bytes -> Ps (String, TypeExpr)
+  parse-field toks src = case parse-value-name toks of
+    POk name rest -> case rest of
+      Cons t rest2 ->
+        if is-punct-t (lt-token t) "::" then
+          case parse-type rest2 src of
+            POk ty rest3 -> POk (name, ty) rest3
+            PBad -> PBad
+        else PBad
+      Nil -> PBad
+    PBad -> PBad
+
+  -- foreign import ccall "symbol" name :: Type
+  parse-foreign :: List LToken -> Bytes -> Ps Decl
+  parse-foreign toks src = case toks of
+    Cons t rest ->
+      if is-word-t (lt-token t) "foreign" then foreign-rest (sp-of t) rest src else PBad
+    Nil -> PBad
+
+  foreign-rest :: Span -> List LToken -> Bytes -> Ps Decl
+  foreign-rest sp toks src = case toks of
+    Cons i rest -> case lt-token i of
+      TWord w ->
+        if string-compare w "import" == 0 || string-compare w "export" == 0 then foreign-abi sp rest src
+        else PBad
+      _ -> PBad
+    Nil -> PBad
+
+  foreign-abi :: Span -> List LToken -> Bytes -> Ps Decl
+  foreign-abi sp toks src = case toks of
+    Cons a rest -> case lt-token a of
+      TWord abi ->
+        if string-compare abi "ccall" == 0 || string-compare abi "component" == 0 then foreign-sym sp abi rest src
+        else PBad
+      _ -> PBad
+    Nil -> PBad
+
+  foreign-sym :: Span -> String -> List LToken -> Bytes -> Ps Decl
+  foreign-sym sp abi toks src = case toks of
+    Cons s rest -> case lt-token s of
+      TStr b -> foreign-name sp abi rest src
+      _ -> PBad
+    Nil -> PBad
+
+  foreign-name :: Span -> String -> List LToken -> Bytes -> Ps Decl
+  foreign-name sp abi toks src = case parse-value-name toks of
+    POk name rest -> case rest of
+      Cons c rest2 ->
+        if is-punct-t (lt-token c) "::" then
+          case parse-type rest2 src of
+            POk ty rest3 -> POk (DForeign sp abi name ty) rest3
+            PBad -> PBad
+        else PBad
+      Nil -> PBad
+    PBad -> PBad
+
+  -- instance Name params :: Type where { members }
+  parse-instance :: List LToken -> Bytes -> List (String, Fix) -> Bool -> Ps Decl
+  parse-instance toks src fix is-impl = case toks of
+    Cons t rest ->
+      if is-word-t (lt-token t) "instance" then
+        case parse-ctor-name rest of
+          POk name rest1 -> case parse-param-names rest1 src Nil of
+            POk params rest2 -> case rest2 of
+              Cons c rest3 ->
+                if is-punct-t (lt-token c) "::" then
+                  case parse-type rest3 src of
+                    POk cls rest4 -> case expect-word-t rest4 "where" of
+                      POk _ rest5 -> case parse-block rest5 src fix of
+                        POk members rest6 -> POk (DInstance (sp-of t) is-impl name cls (decl-spine (sp-of t) members)) rest6
+                        PBad -> PBad
+                      PBad -> PBad
+                    PBad -> PBad
+                else PBad
+              Nil -> PBad
+            PBad -> PBad
+          PBad -> PBad
+      else PBad
+    Nil -> PBad
+
+  -- Parameter binders: `x`, `X`, `(x :: T)`, `{x}`; the names only (the
+  -- contract carries no parameter field).
+  parse-param-names :: List LToken -> Bytes -> List String -> Ps (List String)
+  parse-param-names toks src acc = case toks of
+    Cons t rest -> case lt-token t of
+      TVar s ->
+        if string-compare s "_" == 0 then parse-param-names rest src acc
+        else parse-param-names rest src (Cons s acc)
+      TCon s -> parse-param-names rest src (Cons s acc)
+      TPunct p ->
+        if string-compare p "(" == 0 then
+          case parse-annot-param rest src of
+            POk n rest2 -> parse-param-names rest2 src (Cons n acc)
+            PBad -> POk (reverse acc) toks
+        else if string-compare p "{" == 0 then
+          case parse-brace-param rest of
+            POk n rest2 -> parse-param-names rest2 src (Cons n acc)
+            PBad -> POk (reverse acc) toks
+        else POk (reverse acc) toks
+      _ -> POk (reverse acc) toks
+    Nil -> POk (reverse acc) Nil
+
+  parse-annot-param :: List LToken -> Bytes -> Ps String
+  parse-annot-param toks src = case toks of
+    Cons t rest -> case lt-token t of
+      TVar s -> case rest of
+        Cons d rest2 ->
+          if is-punct-t (lt-token d) "::" then
+            case parse-type rest2 src of
+              POk ty rest3 -> case rest3 of
+                Cons e rest4 ->
+                  if is-punct-t (lt-token e) ")" then POk s rest4 else PBad
+                Nil -> PBad
+              PBad -> PBad
+          else PBad
+        Nil -> PBad
+      _ -> PBad
+    Nil -> PBad
+
+  parse-brace-param :: List LToken -> Ps String
+  parse-brace-param toks = case toks of
+    Cons t rest -> case lt-token t of
+      TVar s -> case rest of
+        Cons d rest2 -> if is-punct-t (lt-token d) "}" then POk s rest2 else PBad
+        Nil -> PBad
+      _ -> PBad
+    Nil -> PBad
+
+  -- ------------------------------------------------------------------
+  -- Patterns.
+  -- ------------------------------------------------------------------
+
+  starts-pattern :: Token -> Bool
+  starts-pattern k = case k of
+    TVar s -> True
+    TCon s -> True
+    TInt s -> True
+    TStr b -> True
+    TChar n -> True
+    TPunct p ->
+      if string-compare p "(" == 0 then True else if string-compare p "[" == 0 then True else False
+    _ -> False
+
+  parse-pats :: List LToken -> Bytes -> Ps (List Pat)
+  parse-pats toks src = pats-loop toks src Nil
+
+  pats-loop :: List LToken -> Bytes -> List Pat -> Ps (List Pat)
+  pats-loop toks src acc = case toks of
+    Cons t rest ->
+      if starts-pattern (lt-token t) then
+        case parse-pat toks src of
+          POk p rest2 -> pats-loop rest2 src (Cons p acc)
+          PBad -> POk (reverse acc) toks
+      else POk (reverse acc) toks
+    Nil -> POk (reverse acc) toks
+
+  parse-pat :: List LToken -> Bytes -> Ps Pat
+  parse-pat toks src = case parse-pat-atomic toks src of
+    POk p rest -> pat-tail p rest src
+    PBad -> PBad
+
+  pat-tail :: Pat -> List LToken -> Bytes -> Ps Pat
+  pat-tail p toks src = case toks of
+    Cons t rest -> case lt-token t of
+      TWord w ->
+        if string-compare w "as" == 0 then
+          case rest of
+            Cons n rest2 -> case lt-token n of
+              TVar s -> pat-tail (PAs (pat-span p) s p) rest2 src
+              _ -> POk p toks
+            Nil -> POk p toks
+        else POk p toks
+      TPunct q ->
+        if string-compare q "::" == 0 then
+          case parse-type rest src of
+            POk ty rest2 -> POk (PAnn (pat-span p) p ty) rest2
+            PBad -> POk p toks
+        else POk p toks
+      _ -> POk p toks
+    Nil -> POk p toks
+
+  parse-pat-atomic :: List LToken -> Bytes -> Ps Pat
+  parse-pat-atomic toks src = case toks of
+    Cons t rest -> case lt-token t of
+      TVar s ->
+        if string-compare s "_" == 0 then POk (PWild (sp-of t)) rest
+        else POk (PVar (sp-of t) s) rest
+      TCon s -> case parse-ctr-pats rest src Nil of
+        POk args rest2 -> POk (PCon (sp-of t) s (pat-spine (sp-of t) args)) rest2
+        PBad -> POk (PCon (sp-of t) s (pat-spine (sp-of t) Nil)) rest
+      TInt s -> POk (PLitInt (sp-of t) s) rest
+      TStr b -> POk (PLitStr (sp-of t) (bytes-to-string b)) rest
+      TChar n -> case char-from-code n of
+        Some c -> POk (PLitChar (sp-of t) (char-string c)) rest
+        None -> POk (PLitChar (sp-of t) empty-string) rest
+      TPunct p ->
+        if string-compare p "(" == 0 then parse-paren-pat (sp-of t) rest src
+        else if string-compare p "[" == 0 then parse-list-pat (sp-of t) rest src
+        else PBad
+      _ -> PBad
+    Nil -> PBad
+
+  parse-ctr-pats :: List LToken -> Bytes -> List Pat -> Ps (List Pat)
+  parse-ctr-pats toks src acc = case toks of
+    Cons t rest ->
+      if starts-pattern (lt-token t) then
+        case parse-pat-atomic toks src of
+          POk p rest2 -> parse-ctr-pats rest2 src (Cons p acc)
+          PBad -> POk (reverse acc) toks
+      else POk (reverse acc) toks
+    Nil -> POk (reverse acc) toks
+
+  parse-paren-pat :: Span -> List LToken -> Bytes -> Ps Pat
+  parse-paren-pat sp toks src = case toks of
+    Cons t rest -> case lt-token t of
+      TPunct p ->
+        if string-compare p ")" == 0 then POk (PTuple sp (pat-spine sp Nil)) rest
+        else pat-paren-items sp toks src Nil
+      _ -> pat-paren-items sp toks src Nil
+    Nil -> PBad
+
+  pat-paren-items :: Span -> List LToken -> Bytes -> List Pat -> Ps Pat
+  pat-paren-items sp toks src acc = case parse-pat toks src of
+    POk p rest -> case rest of
+      Cons t2 rest2 -> case lt-token t2 of
+        TPunct q ->
+          if string-compare q "," == 0 then pat-paren-items sp rest2 src (Cons p acc)
+          else if string-compare q ")" == 0 then
+            case acc of
+              Nil -> POk p rest2
+              _ -> POk (PTuple sp (pat-spine sp (reverse (Cons p acc)))) rest2
+          else PBad
+        _ -> PBad
+      Nil -> PBad
+    PBad -> PBad
+
+  parse-list-pat :: Span -> List LToken -> Bytes -> Ps Pat
+  parse-list-pat sp toks src = case toks of
+    Cons t rest -> case lt-token t of
+      TPunct p ->
+        if string-compare p "]" == 0 then POk (PList sp (pat-spine sp Nil)) rest
+        else list-pat-items sp toks src Nil
+      _ -> list-pat-items sp toks src Nil
+    Nil -> PBad
+
+  list-pat-items :: Span -> List LToken -> Bytes -> List Pat -> Ps Pat
+  list-pat-items sp toks src acc = case parse-pat toks src of
+    POk p rest -> case rest of
+      Cons t2 rest2 -> case lt-token t2 of
+        TPunct q ->
+          if string-compare q "," == 0 then list-pat-items sp rest2 src (Cons p acc)
+          else if string-compare q "]" == 0 then POk (PList sp (pat-spine sp (reverse (Cons p acc)))) rest2
+          else PBad
+        _ -> PBad
+      Nil -> PBad
+    PBad -> PBad
+
+  -- ------------------------------------------------------------------
+  -- Terms.
+  -- ------------------------------------------------------------------
+
+  starts-atom :: Token -> Bool
+  starts-atom k = case k of
+    TVar s -> True
+    TCon s -> True
+    TInt s -> True
+    TFloat s -> True
+    TStr b -> True
+    TChar n -> True
+    TPunct p ->
+      if string-compare p "(" == 0 then True
+      else if string-compare p "[" == 0 then True
+      else if string-compare p "[|" == 0 then True
+      else if string-compare p "\\" == 0 then True
+      else False
+    TWord w ->
+      if string-compare w "if" == 0 then True
+      else if string-compare w "let" == 0 then True
+      else if string-compare w "letrec" == 0 then True
+      else if string-compare w "case" == 0 then True
+      else if string-compare w "do" == 0 then True
+      else if string-compare w "handle" == 0 then True
+      else if string-compare w "with" == 0 then True
+      else False
+    _ -> False
+
+  parse-expr :: List LToken -> Bytes -> List (String, Fix) -> Ps Expr
+  parse-expr toks src fix = case parse-chain toks src 0 fix of
+    POk e rest -> case rest of
+      Cons t rest2 ->
+        if is-punct-t (lt-token t) "::" then
+          case parse-type rest2 src of
+            POk ty rest3 -> POk (EAnn (expr-span e) e ty) rest3
+            PBad -> POk e rest
+        else POk e rest
+      Nil -> POk e rest
+    PBad -> PBad
+
+  parse-chain :: List LToken -> Bytes -> Nat -> List (String, Fix) -> Ps Expr
+  parse-chain toks src minp fix = case parse-app toks src fix of
+    POk lhs rest -> chain-loop lhs rest src minp fix
+    PBad -> PBad
+
+  chain-loop :: Expr -> List LToken -> Bytes -> Nat -> List (String, Fix) -> Ps Expr
+  chain-loop lhs toks src minp fix = case toks of
+    Cons t rest -> case op-expr-of (lt-token t) of
+      Some op -> case lookup-fix op fix of
+        MkFix assoc prec ->
+          if lt-i64 (nat-cmp prec minp) 0 then POk lhs toks
+          else if string-compare assoc "right" == 0 then chain-right lhs op rest src prec fix
+          else chain-left lhs op rest src prec fix
+      None -> POk lhs toks
+    Nil -> POk lhs toks
+
+  chain-right :: Expr -> String -> List LToken -> Bytes -> Nat -> List (String, Fix) -> Ps Expr
+  chain-right lhs op toks src prec fix = case parse-chain toks src prec fix of
+    POk rhs rest2 -> chain-loop (EBin (span-join (expr-span lhs) (expr-span rhs)) op lhs rhs) rest2 src prec fix
+    PBad -> POk lhs toks
+
+  chain-left :: Expr -> String -> List LToken -> Bytes -> Nat -> List (String, Fix) -> Ps Expr
+  chain-left lhs op toks src prec fix = case parse-chain toks src (prec + 1) fix of
+    POk rhs rest2 -> chain-loop (EBin (span-join (expr-span lhs) (expr-span rhs)) op lhs rhs) rest2 src prec fix
+    PBad -> POk lhs toks
+
+  parse-app :: List LToken -> Bytes -> List (String, Fix) -> Ps Expr
+  parse-app toks src fix = case parse-prefix toks src fix of
+    POk head rest -> app-args head rest src fix Nil
+    PBad -> PBad
+
+  app-args :: Expr -> List LToken -> Bytes -> List (String, Fix) -> List Expr -> Ps Expr
+  app-args head toks src fix acc = case toks of
+    Cons t rest ->
+      if starts-atom (lt-token t) then
+        case parse-atom toks src fix of
+          POk a rest2 -> app-args head rest2 src fix (Cons a acc)
+          PBad -> finish-app head toks acc
+      else finish-app head toks acc
+    Nil -> finish-app head toks acc
+
+  finish-app :: Expr -> List LToken -> List Expr -> Ps Expr
+  finish-app head toks acc = case acc of
+    Nil -> POk head toks
+    Cons _ _ -> case head of
+      ECon s name args -> POk (ECon s name (expr-spine s (reverse acc))) toks
+      _ -> POk (app-fold head (reverse acc)) toks
+
+  app-fold :: Expr -> List Expr -> Expr
+  app-fold head args = case args of
+    Nil -> head
+    Cons a rest -> app-fold (EApp (span-join (expr-span head) (expr-span a)) head a) rest
+
+  parse-prefix :: List LToken -> Bytes -> List (String, Fix) -> Ps Expr
+  parse-prefix toks src fix = case toks of
+    Cons t rest -> case lt-token t of
+      TOp s ->
+        if string-compare s "-" == 0 then
+          case parse-prefix rest src fix of
+            POk e rest2 -> POk (ENeg (sp-of t) e) rest2
+            PBad -> PBad
+        else parse-atom toks src fix
+      _ -> parse-atom toks src fix
+    Nil -> PBad
+
+  parse-atom :: List LToken -> Bytes -> List (String, Fix) -> Ps Expr
+  parse-atom toks src fix = case toks of
+    Cons t rest -> case lt-token t of
+      TInt s -> POk (ELitInt (sp-of t) s) rest
+      TFloat s -> POk (ELitFloat (sp-of t) s) rest
+      TStr b -> POk (ELitStr (sp-of t) (bytes-to-string b)) rest
+      TChar n -> case char-from-code n of
+        Some c -> POk (ELitChar (sp-of t) (char-string c)) rest
+        None -> POk (ELitChar (sp-of t) empty-string) rest
+      TVar s -> name-atom (sp-of t) rest (Cons s Nil)
+      TCon s -> name-atom (sp-of t) rest (Cons s Nil)
+      TPunct p ->
+        if string-compare p "(" == 0 then parse-paren-expr (sp-of t) rest src fix
+        else if string-compare p "[" == 0 then parse-list-expr (sp-of t) rest src fix
+        else if string-compare p "[|" == 0 then parse-unmodeled-atom toks src "|]"
+        else if string-compare p "\\" == 0 then parse-lam (sp-of t) rest src fix
+        else PBad
+      TWord w ->
+        if string-compare w "if" == 0 then parse-if (sp-of t) rest src fix
+        else if string-compare w "let" == 0 then parse-let (sp-of t) rest src fix
+        else if string-compare w "letrec" == 0 then parse-letrec (sp-of t) rest src fix
+        else if string-compare w "case" == 0 then parse-case (sp-of t) rest src fix
+        else if string-compare w "do" == 0 then parse-unmodeled-expr toks src
+        else if string-compare w "handle" == 0 then parse-unmodeled-expr toks src
+        else if string-compare w "with" == 0 then parse-unmodeled-expr toks src
+        else PBad
+      _ -> PBad
+    Nil -> PBad
+
+  name-atom :: Span -> List LToken -> List String -> Ps Expr
+  name-atom sp toks acc = case toks of
+    Cons t rest -> case lt-token t of
+      TPunct p ->
+        if string-compare p "." == 0 then
+          case rest of
+            Cons t2 rest2 -> case lt-token t2 of
+              TVar s2 -> name-atom sp rest2 (Cons s2 acc)
+              TCon s2 -> name-atom sp rest2 (Cons s2 acc)
+              _ -> finish-name sp toks (join-dots acc)
+            Nil -> finish-name sp toks (join-dots acc)
+        else finish-name sp toks (join-dots acc)
+      _ -> finish-name sp toks (join-dots acc)
+    Nil -> finish-name sp toks (join-dots acc)
+
+  finish-name :: Span -> List LToken -> String -> Ps Expr
+  finish-name sp toks s =
+    if con-name-p s then POk (ECon sp s (EArgsEnd sp)) toks
+    else POk (EVar sp s) toks
+
+  parse-paren-expr :: Span -> List LToken -> Bytes -> List (String, Fix) -> Ps Expr
+  parse-paren-expr sp toks src fix = case toks of
+    Cons t rest -> case lt-token t of
+      TPunct p ->
+        if string-compare p ")" == 0 then POk (EUnit (span-join sp (sp-of t))) rest
+        else case op-name-of (lt-token t) of
+          Some o -> case rest of
+            Cons t2 rest2 ->
+              if is-punct-t (lt-token t2) ")" then POk (EVar (span-join sp (sp-of t2)) o) rest2
+              else paren-items sp toks src fix Nil
+            Nil -> PBad
+          None -> paren-items sp toks src fix Nil
+      _ -> paren-items sp toks src fix Nil
+    Nil -> PBad
+
+  paren-items :: Span -> List LToken -> Bytes -> List (String, Fix) -> List Expr -> Ps Expr
+  paren-items sp toks src fix acc = case parse-expr toks src fix of
+    POk e rest -> case rest of
+      Cons t2 rest2 -> case lt-token t2 of
+        TPunct q ->
+          if string-compare q "," == 0 then paren-items sp rest2 src fix (Cons e acc)
+          else if string-compare q ")" == 0 then
+            case acc of
+              Nil -> POk e rest2
+              _ -> POk (ETuple sp (expr-spine sp (reverse (Cons e acc)))) rest2
+          else PBad
+        _ -> PBad
+      Nil -> PBad
+    PBad -> PBad
+
+  parse-list-expr :: Span -> List LToken -> Bytes -> List (String, Fix) -> Ps Expr
+  parse-list-expr sp toks src fix = case toks of
+    Cons t rest -> case lt-token t of
+      TPunct p ->
+        if string-compare p "]" == 0 then POk (EList sp (expr-spine sp Nil)) rest
+        else list-items sp toks src fix Nil
+      _ -> list-items sp toks src fix Nil
+    Nil -> PBad
+
+  list-items :: Span -> List LToken -> Bytes -> List (String, Fix) -> List Expr -> Ps Expr
+  list-items sp toks src fix acc = case parse-expr toks src fix of
+    POk e rest -> case rest of
+      Cons t2 rest2 -> case lt-token t2 of
+        TPunct q ->
+          if string-compare q "," == 0 then list-items sp rest2 src fix (Cons e acc)
+          else if string-compare q "]" == 0 then POk (EList sp (expr-spine sp (reverse (Cons e acc)))) rest2
+          else PBad
+        _ -> PBad
+      Nil -> PBad
+    PBad -> PBad
+
+  parse-unmodeled-atom :: List LToken -> Bytes -> String -> Ps Expr
+  parse-unmodeled-atom toks src close = case consume-to-close toks close of
+    consumed -> POk (EUnmodeled (run-span toks consumed) (slice-src src (run-span toks consumed))) (drop-toks toks (list-length consumed))
+
+  parse-unmodeled-expr :: List LToken -> Bytes -> Ps Expr
+  parse-unmodeled-expr toks src = case take-term-region toks 0 Nil of
+    consumed -> POk (EUnmodeled (run-span toks consumed) (slice-src src (run-span toks consumed))) (drop-toks toks (list-length consumed))
+
+  parse-lam :: Span -> List LToken -> Bytes -> List (String, Fix) -> Ps Expr
+  parse-lam sp toks src fix = case parse-pats toks src of
+    POk pats rest -> case rest of
+      Cons t rest2 ->
+        if is-punct-t (lt-token t) "->" then
+          case parse-expr rest2 src fix of
+            POk body rest3 -> POk (ELam sp pats body) rest3
+            PBad -> PBad
+        else PBad
+      Nil -> PBad
+    PBad -> PBad
+
+  parse-letrec :: Span -> List LToken -> Bytes -> List (String, Fix) -> Ps Expr
+  parse-letrec sp toks src fix = case toks of
+    Cons t rest ->
+      if is-word-t (lt-token t) "let" then parse-let sp rest src fix else PBad
+    Nil -> PBad
+
+  parse-if :: Span -> List LToken -> Bytes -> List (String, Fix) -> Ps Expr
+  parse-if sp toks src fix = case parse-expr toks src fix of
+    POk c rest -> case expect-word-t rest "then" of
+      POk _ rest2 -> case parse-expr rest2 src fix of
+        POk th rest3 -> case expect-word-t rest3 "else" of
+          POk _ rest4 -> case parse-expr rest4 src fix of
+            POk el rest5 -> POk (EIf sp c th el) rest5
+            PBad -> PBad
+          PBad -> PBad
+        PBad -> PBad
+      PBad -> PBad
+    PBad -> PBad
+
+  parse-let :: Span -> List LToken -> Bytes -> List (String, Fix) -> Ps Expr
+  parse-let sp toks src fix = case toks of
+    Cons b rest ->
+      if is-punct-t (lt-token b) "{" then
+        case parse-bindings rest src fix Nil of
+          POk bs rest2 -> case expect-word-t rest2 "in" of
+            POk _ rest3 -> case parse-expr rest3 src fix of
+              POk body rest4 -> POk (ELet sp (binding-spine sp bs) body) rest4
+              PBad -> PBad
+            PBad -> PBad
+          PBad -> PBad
+      else PBad
+    Nil -> PBad
+
+  parse-bindings :: List LToken -> Bytes -> List (String, Fix) -> List (String, Expr) -> Ps (List (String, Expr))
+  parse-bindings toks src fix acc = case toks of
+    Cons t rest -> case lt-token t of
+      TPunct p ->
+        if string-compare p ";" == 0 then parse-bindings rest src fix acc
+        else if string-compare p "}" == 0 then POk (reverse acc) rest
+        else binding-step toks src fix acc
+      TEOF -> POk (reverse acc) toks
+      _ -> binding-step toks src fix acc
+    Nil -> POk (reverse acc) Nil
+
+  binding-step :: List LToken -> Bytes -> List (String, Fix) -> List (String, Expr) -> Ps (List (String, Expr))
+  binding-step toks src fix acc = case parse-binding toks src fix of
+    POk b rest -> parse-bindings rest src fix (Cons b acc)
+    PBad -> case take-bal toks 0 Nil of
+      consumed ->
+        let sp = run-span toks consumed in
+        parse-bindings (drop-toks toks (list-length consumed)) src fix (Cons (empty-string, EUnmodeled sp (slice-src src sp)) acc)
+
+  parse-binding :: List LToken -> Bytes -> List (String, Fix) -> Ps (String, Expr)
+  parse-binding toks src fix = case parse-value-name toks of
+    POk name rest -> case rest of
+      Cons t rest2 ->
+        if is-punct-t (lt-token t) "=" then
+          case parse-expr rest2 src fix of
+            POk e rest3 -> POk (name, e) rest3
+            PBad -> PBad
+        else case parse-pats rest src of
+          POk pats rest3 -> case rest3 of
+            Cons eq rest4 ->
+              if is-punct-t (lt-token eq) "=" then
+                case parse-expr rest4 src fix of
+                  POk body rest5 -> POk (name, ELam (sp-of t) pats body) rest5
+                  PBad -> PBad
+              else PBad
+            Nil -> PBad
+          PBad -> PBad
+      Nil -> PBad
+    PBad -> PBad
+
+  parse-case :: Span -> List LToken -> Bytes -> List (String, Fix) -> Ps Expr
+  parse-case sp toks src fix = case parse-expr toks src fix of
+    POk scrut rest -> case expect-word-t rest "of" of
+      POk _ rest2 -> case rest2 of
+        Cons b rest3 ->
+          if is-punct-t (lt-token b) "{" then
+            case parse-alts rest3 src fix Nil of
+              POk alts rest4 -> POk (ECase sp scrut (alt-spine sp alts)) rest4
+              PBad -> PBad
+          else PBad
+        Nil -> PBad
+      PBad -> PBad
+    PBad -> PBad
+
+  parse-alts :: List LToken -> Bytes -> List (String, Fix) -> List (Pat, Expr) -> Ps (List (Pat, Expr))
+  parse-alts toks src fix acc = case toks of
+    Cons t rest -> case lt-token t of
+      TPunct p ->
+        if string-compare p ";" == 0 then parse-alts rest src fix acc
+        else if string-compare p "}" == 0 then POk (reverse acc) rest
+        else alt-step toks src fix acc
+      TEOF -> POk (reverse acc) toks
+      _ -> alt-step toks src fix acc
+    Nil -> POk (reverse acc) Nil
+
+  alt-step :: List LToken -> Bytes -> List (String, Fix) -> List (Pat, Expr) -> Ps (List (Pat, Expr))
+  alt-step toks src fix acc = case parse-alt toks src fix of
+    POk a rest -> parse-alts rest src fix (Cons a acc)
+    PBad -> case take-bal toks 0 Nil of
+      consumed ->
+        let sp = run-span toks consumed in
+        let text = slice-src src sp in
+        parse-alts (drop-toks toks (list-length consumed)) src fix (Cons ((PUnmodeled sp text), EUnmodeled sp text) acc)
+
+  parse-alt :: List LToken -> Bytes -> List (String, Fix) -> Ps (Pat, Expr)
+  parse-alt toks src fix = case parse-pat toks src of
+    POk p rest -> case rest of
+      Cons t rest2 ->
+        if is-punct-t (lt-token t) "->" then
+          case parse-expr rest2 src fix of
+            POk body rest3 -> POk (p, body) rest3
+            PBad -> PBad
+        else PBad
+      Nil -> PBad
+    PBad -> PBad
+
+  -- ------------------------------------------------------------------
+  -- Types.
+  -- ------------------------------------------------------------------
+
+  parse-type :: List LToken -> Bytes -> Ps TypeExpr
+  parse-type toks src = case toks of
+    Cons t rest -> case lt-token t of
+      TWord w ->
+        if string-compare w "forall" == 0 then forall-rest (sp-of t) rest src
+        else parse-type-using toks src
+      _ -> parse-type-using toks src
+    Nil -> PBad
+
+  forall-rest :: Span -> List LToken -> Bytes -> Ps TypeExpr
+  forall-rest sp toks src = case parse-binder-names toks Nil of
+    POk names rest -> case rest of
+      Cons d rest2 ->
+        if is-punct-t (lt-token d) "." then
+          case parse-type-using rest2 src of
+            POk body rest3 -> POk (TForall sp names body) rest3
+            PBad -> PBad
+        else PBad
+      Nil -> PBad
+    PBad -> PBad
+
+  parse-binder-names :: List LToken -> List String -> Ps (List String)
+  parse-binder-names toks acc = case toks of
+    Cons t rest -> case lt-token t of
+      TVar s -> parse-binder-names rest (Cons s acc)
+      TCon s -> parse-binder-names rest (Cons s acc)
+      _ -> POk (reverse acc) toks
+    Nil -> POk (reverse acc) Nil
+
+  parse-type-using :: List LToken -> Bytes -> Ps TypeExpr
+  parse-type-using toks src = case toks of
+    Cons t rest -> case lt-token t of
+      TWord w ->
+        if string-compare w "using" == 0 then
+          case parse-bounds rest src of
+            POk bounds rest2 -> case rest2 of
+              Cons a rest3 ->
+                if is-punct-t (lt-token a) "=>" then
+                  case parse-type-using rest3 src of
+                    POk body rest4 -> POk (TUsing (sp-of t) bounds body) rest4
+                    PBad -> PBad
+                else PBad
+              Nil -> PBad
+            PBad -> PBad
+        else parse-arrow toks src
+      _ -> parse-arrow toks src
+    Nil -> PBad
+
+  parse-bounds :: List LToken -> Bytes -> Ps TypeExpr
+  parse-bounds toks src = case toks of
+    Cons t rest ->
+      if is-punct-t (lt-token t) "(" then
+        case bound-items rest src Nil of
+          POk bs rest2 -> case rest2 of
+            Cons c rest3 ->
+              if is-punct-t (lt-token c) ")" then POk (type-bound-spine (sp-of t) bs) rest3
+              else PBad
+            Nil -> PBad
+          PBad -> PBad
+      else PBad
+    Nil -> PBad
+
+  bound-items :: List LToken -> Bytes -> List (String, TypeExpr) -> Ps (List (String, TypeExpr))
+  bound-items toks src acc = case toks of
+    Cons t rest -> case lt-token t of
+      TPunct p ->
+        if string-compare p ")" == 0 then POk (reverse acc) rest
+        else bound-step toks src acc
+      _ -> bound-step toks src acc
+    Nil -> PBad
+
+  bound-step :: List LToken -> Bytes -> List (String, TypeExpr) -> Ps (List (String, TypeExpr))
+  bound-step toks src acc = case parse-bound toks src of
+    POk b rest -> case rest of
+      Cons t rest2 -> case lt-token t of
+        TPunct p ->
+          if string-compare p "," == 0 then bound-items rest2 src (Cons b acc)
+          else POk (reverse acc) rest
+        _ -> POk (reverse acc) rest
+      Nil -> POk (reverse acc) Nil
+    PBad -> PBad
+
+  parse-bound :: List LToken -> Bytes -> Ps (String, TypeExpr)
+  parse-bound toks src = case toks of
+    Cons t rest -> case lt-token t of
+      TVar s -> case rest of
+        Cons d rest2 ->
+          if is-punct-t (lt-token d) "::" then
+            case parse-type rest2 src of
+              POk ty rest3 -> POk (s, ty) rest3
+              PBad -> PBad
+          else case parse-type toks src of
+            POk ty rest3 -> POk (empty-string, ty) rest3
+            PBad -> PBad
+        Nil -> case parse-type toks src of
+          POk ty rest3 -> POk (empty-string, ty) rest3
+          PBad -> PBad
+      _ -> case parse-type toks src of
+        POk ty rest3 -> POk (empty-string, ty) rest3
+        PBad -> PBad
+    Nil -> PBad
+
+  parse-arrow :: List LToken -> Bytes -> Ps TypeExpr
+  parse-arrow toks src = case parse-type-app toks src of
+    POk lhs rest -> case rest of
+      Cons t rest2 -> case lt-token t of
+        TPunct p ->
+          if string-compare p "->" == 0 then arrow-after lhs rest2 src
+          else POk lhs rest
+        _ -> POk lhs rest
+      Nil -> POk lhs rest
+    PBad -> PBad
+
+  arrow-after :: TypeExpr -> List LToken -> Bytes -> Ps TypeExpr
+  arrow-after lhs toks src = case toks of
+    Cons b rest -> case lt-token b of
+      TPunct q ->
+        if string-compare q "{" == 0 then
+          case take-until-close toks "}" of
+            consumed -> case parse-arrow (skip-if-close (drop-toks toks (list-length consumed)) "}") src of
+              POk rhs rest2 -> POk (TFunEff (span-join (type-expr-span lhs) (type-expr-span rhs)) lhs (slice-src src (run-span toks consumed)) rhs) rest2
+              PBad -> PBad
+        else arrow-rhs lhs toks src
+      _ -> arrow-rhs lhs toks src
+    Nil -> PBad
+
+  arrow-rhs :: TypeExpr -> List LToken -> Bytes -> Ps TypeExpr
+  arrow-rhs lhs toks src = case parse-arrow toks src of
+    POk rhs rest -> POk (TFun (span-join (type-expr-span lhs) (type-expr-span rhs)) lhs rhs) rest
+    PBad -> PBad
+
+  take-until-close :: List LToken -> String -> List LToken
+  take-until-close toks close = case toks of
+    Nil -> Nil
+    Cons t rest ->
+      if is-punct-t (lt-token t) close then Nil
+      else Cons t (take-until-close rest close)
+
+  skip-if-close :: List LToken -> String -> List LToken
+  skip-if-close toks close = case toks of
+    Cons t rest -> if is-punct-t (lt-token t) close then rest else toks
+    Nil -> toks
+
+  starts-type-atom :: Token -> Bool
+  starts-type-atom k = case k of
+    TVar s -> True
+    TCon s -> True
+    TPunct p ->
+      if string-compare p "(" == 0 then True else if string-compare p "[" == 0 then True else False
+    _ -> False
+
+  parse-type-app :: List LToken -> Bytes -> Ps TypeExpr
+  parse-type-app toks src = case parse-type-atom toks src of
+    POk head rest -> type-app-args head rest src Nil
+    PBad -> PBad
+
+  type-app-args :: TypeExpr -> List LToken -> Bytes -> List TypeExpr -> Ps TypeExpr
+  type-app-args head toks src acc = case toks of
+    Cons t rest ->
+      if starts-type-atom (lt-token t) then
+        case parse-type-atom toks src of
+          POk a rest2 -> type-app-args head rest2 src (Cons a acc)
+          PBad -> finish-type-app head toks acc
+      else finish-type-app head toks acc
+    Nil -> finish-type-app head toks acc
+
+  finish-type-app :: TypeExpr -> List LToken -> List TypeExpr -> Ps TypeExpr
+  finish-type-app head toks acc = case acc of
+    Nil -> POk head toks
+    _ -> POk (TApp (type-expr-span head) head (type-arg-spine (type-expr-span head) (reverse acc))) toks
+
+  parse-type-atom :: List LToken -> Bytes -> Ps TypeExpr
+  parse-type-atom toks src = case toks of
+    Cons t rest -> case lt-token t of
+      TVar s -> type-name-atom (sp-of t) rest (Cons s Nil)
+      TCon s -> type-name-atom (sp-of t) rest (Cons s Nil)
+      TPunct p ->
+        if string-compare p "(" == 0 then parse-paren-type (sp-of t) rest src
+        else if string-compare p "[" == 0 then parse-list-type (sp-of t) rest src
+        else PBad
+      _ -> PBad
+    Nil -> PBad
+
+  type-name-atom :: Span -> List LToken -> List String -> Ps TypeExpr
+  type-name-atom sp toks acc = case toks of
+    Cons t rest -> case lt-token t of
+      TPunct p ->
+        if string-compare p "." == 0 then
+          case rest of
+            Cons t2 rest2 -> case lt-token t2 of
+              TVar s2 -> type-name-atom sp rest2 (Cons s2 acc)
+              TCon s2 -> type-name-atom sp rest2 (Cons s2 acc)
+              _ -> POk (TName sp (join-dots acc)) toks
+            Nil -> POk (TName sp (join-dots acc)) toks
+        else POk (TName sp (join-dots acc)) toks
+      _ -> POk (TName sp (join-dots acc)) toks
+    Nil -> POk (TName sp (join-dots acc)) Nil
+
+  parse-paren-type :: Span -> List LToken -> Bytes -> Ps TypeExpr
+  parse-paren-type sp toks src = case toks of
+    Cons t rest -> case lt-token t of
+      TPunct p ->
+        if string-compare p ")" == 0 then POk (TName (span-join sp (sp-of t)) "()") rest
+        else paren-type-head sp toks src
+      _ -> paren-type-head sp toks src
+    Nil -> PBad
+
+  paren-type-head :: Span -> List LToken -> Bytes -> Ps TypeExpr
+  paren-type-head sp toks src = case toks of
+    Cons t rest -> case lt-token t of
+      TVar name -> case rest of
+        Cons d rest2 ->
+          if is-punct-t (lt-token d) "::" then
+            case parse-type rest2 src of
+              POk ty rest3 -> case rest3 of
+                Cons e rest4 ->
+                  if is-punct-t (lt-token e) ")" then POk (TBound (span-join sp (sp-of e)) name ty (TBoundsEnd (sp-of e))) rest4
+                  else PBad
+                Nil -> PBad
+              PBad -> PBad
+          else paren-type-items sp toks src Nil
+        Nil -> paren-type-items sp toks src Nil
+      _ -> paren-type-items sp toks src Nil
+    Nil -> PBad
+
+  paren-type-items :: Span -> List LToken -> Bytes -> List TypeExpr -> Ps TypeExpr
+  paren-type-items sp toks src acc = case parse-type toks src of
+    POk ty rest -> case rest of
+      Cons t2 rest2 -> case lt-token t2 of
+        TPunct q ->
+          if string-compare q "," == 0 then paren-type-items sp rest2 src (Cons ty acc)
+          else if string-compare q ")" == 0 then
+            case acc of
+              Nil -> POk ty rest2
+              _ -> POk (TTuple sp (type-arg-spine sp (reverse (Cons ty acc)))) rest2
+          else PBad
+        _ -> PBad
+      Nil -> PBad
+    PBad -> PBad
+
+  parse-list-type :: Span -> List LToken -> Bytes -> Ps TypeExpr
+  parse-list-type sp toks src = case toks of
+    Cons t rest -> case lt-token t of
+      TPunct p ->
+        if string-compare p "]" == 0 then POk (TName sp "List") rest
+        else case parse-type toks src of
+          POk ty rest2 -> case rest2 of
+            Cons c rest3 ->
+              if is-punct-t (lt-token c) "]" then POk (TApp sp (TName sp "List") (type-arg-spine sp (Cons ty Nil))) rest3
+              else PBad
+            Nil -> PBad
+          PBad -> PBad
+      _ -> PBad
+    Nil -> PBad

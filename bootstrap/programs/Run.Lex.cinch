@@ -1,0 +1,119 @@
+-- Run.Lex: the lexing-coverage prerequisite made runnable (bootstrap/README.md:
+-- a rung is a runnable artifact, not a claim). The self-hosting lexer must
+-- read the compiler's own sources, so this program lexes `.cinch` sources
+-- through `Text.Lex`, writes each file's rendered token stream to
+-- `<name>.lex` (or a `FAIL <message>` line when `Text.Lex` refuses it), and
+-- returns the number of files that failed as its exit code (0 only when every
+-- file lexed, the convention every harness in this repo uses).
+--
+-- The input is a file list when one is given and otherwise the directory
+-- listing: if `corpus.txt` exists, its lines name the files to lex (paths
+-- relative to the working directory, so a rung's test can keep the corpus in a
+-- subdirectory the compiler will not compile); otherwise every `.cinch` file
+-- in the working directory is lexed. That fallback is what lets
+-- `tooling/run-bootstrap-ladder.sh` run this program by hand over the sources
+-- it assembled.
+--
+-- A Rust test builds and runs this file through cinch::driver and compares
+-- each `.lex` with the bootstrap compiler's own lexer and layout pass
+-- (`compiler/tests/bootstrap_lexer.rs`).
+
+module Main where
+
+  import Text.Lex
+  import Text.Builder (Builder, builder-new, builder-add-line, builder-bytes)
+  import Data.Path (path-from-string)
+  import Data.Bytes
+  import Data.String
+  import Data.List
+  import Data.Nat
+  import Data.Int
+  import Effect.Fs (fs-read, fs-write, fs-list)
+
+  -- Lex the listed sources (a `corpus.txt` beside the program) or, when
+  -- there is none, every `.cinch` file in the working directory; answer the
+  -- number that failed (the exit code).
+  main :: Unit ->{IO r} Int
+  main u = with (io = newIO ()) in
+    case fs-read (path-from-string "corpus.txt") of
+      Ok b -> run-files (split-lines b) 0
+      Err e -> case fs-list (path-from-string ".") of
+        Err e2 -> 255
+        Ok names -> run-files (only-cinch names) 0
+
+  -- The directory listing, keeping only the `.cinch` sources.
+  only-cinch :: List String -> List String
+  only-cinch ns = case ns of
+    Nil -> Nil
+    Cons n rest -> if ends-with n (".cinch") then Cons n (only-cinch rest) else only-cinch rest
+
+  -- The newline-separated file list as a list of names (blank lines dropped).
+  split-lines :: Bytes -> List String
+  split-lines b = split-lines-at b 0 0 Nil
+
+  split-lines-at :: Bytes -> Nat -> Nat -> List String -> List String
+  split-lines-at b i start acc =
+    if nat-cmp i (bytes-len b) == 0 then reverse (add-line b start i acc)
+    else if nat-cmp (bytes-get b i) 10 == 0 then split-lines-at b (i + 1) (i + 1) (add-line b start i acc)
+    else split-lines-at b (i + 1) start acc
+
+  add-line :: Bytes -> Nat -> Nat -> List String -> List String
+  add-line b start i acc =
+    let line = bytes-string (bytes-slice b start i) in
+    if string-length line == 0 then acc else Cons line acc
+
+  bytes-string :: Bytes -> String
+  bytes-string b = case string-from-bytes b of
+    Some s -> s
+    None -> empty-string
+
+  run-files :: forall r. using (io :: Io r) => List String -> Int ->{IO r} Int
+  run-files ns failed = case ns of
+    Nil -> failed
+    Cons n rest -> case lex-file n of
+      True -> run-files rest (failed + 1)
+      False -> run-files rest failed
+
+  -- Lex one file and write its `.lex`: the rendered stream on success, a
+  -- `FAIL <message>` line when `Text.Lex` refuses it. Either way the Bool
+  -- answers whether the file failed.
+  lex-file :: forall r. using (io :: Io r) => String ->{IO r} Bool
+  lex-file name = case fs-read (path-from-string name) of
+    Err e -> True
+    Ok src -> case lex-source src of
+      LexedFail sp k -> write-out name (string-to-bytes (string-concat "FAIL " (lex-error-message k)))
+      LexedTokens toks -> write-out name (render-all toks)
+
+  write-out :: forall r. using (io :: Io r) => String -> Bytes ->{IO r} Bool
+  write-out name content =
+    case fs-write (path-from-string (string-concat name (".lex"))) content of
+      Err e -> True
+      Ok _ -> False
+
+  -- One rendered token per line (`render-token` escapes a spelling's newlines,
+  -- so one token is always one line). The stream goes through `Text.Builder`:
+  -- one allocation and one copy pass, where a right-nested `string-concat`
+  -- over a whole stream is quadratic in the stream's length.
+  render-all :: List LToken -> Bytes
+  render-all ts = builder-bytes (render-into builder-new ts)
+
+  render-into :: Builder -> List LToken -> Builder
+  render-into b ts = case ts of
+    Nil -> b
+    Cons t rest -> render-into (builder-add-line (render-token t) b) rest
+
+  -- Whether `s` ends with `suffix` (bytes).
+  ends-with :: String -> String -> Bool
+  ends-with s suffix =
+    let b = string-to-bytes s in
+    let sfx = string-to-bytes suffix in
+    let bl = bytes-len b in
+    let sl = bytes-len sfx in
+    if nat-cmp sl bl == 1 then False
+    else bytes-equal-at b (bl - sl) sfx 0 sl
+
+  bytes-equal-at :: Bytes -> Nat -> Bytes -> Nat -> Nat -> Bool
+  bytes-equal-at b i s j n =
+    if nat-cmp n 0 == 0 then True
+    else if nat-cmp (bytes-get b i) (bytes-get s j) == 0 then bytes-equal-at b (i + 1) s (j + 1) (n - 1)
+    else False

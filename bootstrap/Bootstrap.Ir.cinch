@@ -50,6 +50,7 @@ module Bootstrap.Ir where
   import Data.String
   import Text.Lex (Span)
   import Text.Show (nat-to-string)
+  import Text.Builder (Builder, builder-new, builder-add-string, builder-add-line, builder-run)
 
   -- The rung's surface: the pipeline (wave 2) and the rung's own driver
   -- reach the emitter through these two, exactly as the interface
@@ -62,11 +63,14 @@ module Bootstrap.Ir where
   -- The generator's state: the shared fresh-name counter, the local
   -- environment (a name to the slot pointer that holds it, most recent
   -- binding first), the program's top-level function names (the heads a
-  -- `call` may name), and the text emitted so far.
+  -- `call` may name), and the text emitted so far. The text is a
+  -- `Builder`: appending to a `String` copies everything emitted so far,
+  -- so a module emitted piece by piece would cost time quadratic in its
+  -- length; the builder appends in constant time and flattens once.
   data Gen where
-    MkGen :: Nat -> List (String, String) -> List String -> String -> Gen
+    MkGen :: Nat -> List (String, String) -> List String -> Builder -> Gen
 
-  gen-code :: Gen -> String
+  gen-code :: Gen -> Builder
   gen-code g = case g of
     MkGen n env fns code -> code
 
@@ -81,11 +85,12 @@ module Bootstrap.Ir where
   -- Append text as it stands (a prologue carries its own newlines).
   gen-text :: Gen -> String -> Gen
   gen-text g s = case g of
-    MkGen n env fns code -> MkGen n env fns (string-concat code s)
+    MkGen n env fns code -> MkGen n env fns (builder-add-string s code)
 
   -- Append one line.
   gen-line :: Gen -> String -> Gen
-  gen-line g s = gen-text g (string-concat s "\n")
+  gen-line g s = case g of
+    MkGen n env fns code -> MkGen n env fns (builder-add-line s code)
 
   -- Join string fragments; the writer combinator every emitter uses.
   cat :: List String -> String
@@ -409,7 +414,7 @@ module Bootstrap.Ir where
   -- The rung's entry point: the whole program as one LLVM module.
   emit-program :: Program -> String
   emit-program p =
-    gen-code (gen-modules (MkGen 0 Nil (program-function-names p) ir-header) (program-modules p))
+    builder-run (gen-code (gen-modules (MkGen 0 Nil (program-function-names p) (builder-add-string ir-header builder-new)) (program-modules p)))
 
   -- ------------------------------------------------------------ diagnostics
 

@@ -1,0 +1,28 @@
+-- Rung 6's runnable program: the whole ladder on one source file.
+--
+-- It reads four argument words (source, IR module, executable, report) from
+-- the runtime's input source, one per line, and runs
+-- `Bootstrap.Pipeline.compile-source` on them. Exit 0 means every stage
+-- succeeded and the artifact ran; any other code names the stage that
+-- stopped (see Bootstrap.Pipeline's exit codes) or the driver rung's own.
+--
+--   printf 'fib.cinch\nfib.ll\nfib.bin\nreport.txt\n' | cinch run Main.cinch
+--
+-- The report the driver rung writes names clang's exit code and the
+-- artifact's, which is where the artifact's own answer lives: the pipeline's
+-- exit code says whether the CHAIN worked.
+
+module Main where
+
+  import Bootstrap.Driver (read-argv)
+  import Bootstrap.Pipeline (compile-source, four-words, pipeline-bad-args)
+  import Data.Path (path-from-string)
+
+  run-words :: forall r. using (io :: Io r) => List String ->{IO r, Diverge} Int
+  run-words ws = case four-words ws of
+    None -> pipeline-bad-args
+    Some words -> case words of
+      (source, ir, exe, report) -> compile-source source (path-from-string ir) (path-from-string exe) (path-from-string report)
+
+  main :: Unit ->{IO r, Diverge} Int
+  main u = with (io = newIO ()) in run-words (read-argv u)

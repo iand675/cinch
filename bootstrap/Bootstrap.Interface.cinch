@@ -1,0 +1,666 @@
+-- Bootstrap.Interface: reading a compiled module interface as data.
+--
+-- A self-hosted compiler consumes its dependencies' `.cinchif` artifacts
+-- instead of re-parsing their sources (design/compiled-interface-metadata.md
+-- section 3, rule 1). This module is the reader: it takes an artifact's bytes
+-- and answers the questions a consumer must ask before it may rely on the
+-- artifact, so nothing about an interface has to be taken on trust.
+--
+-- WHAT IT ANSWERS
+--
+--   * the module name and the recorded interface schema version;
+--   * the recorded `source_hash`, and whether it is the FNV-1a 64 decimal of
+--     the module's own source bytes (the rule `interface::content_hash`
+--     applies when the driver writes the artifact);
+--   * the imported modules' names;
+--   * the exported values' names and their rendered scheme texts, whether
+--     those schemes are non-empty, and whether they are stable across two
+--     reads of the same bytes;
+--   * the recorded fixity rows (operator, associativity, precedence),
+--     rendered as `op assoc prec` so a consumer compares them as data;
+--   * the artifact's interface identity, recomputed from the artifact's own
+--     bytes by the rule the format states, so a consumer can tell a matching
+--     interface from a stale one.
+--
+-- THE IDENTITY RULE (reported, and the reason this module does text work)
+--
+-- `Iface::iface_hash` (compiler/src/interface.rs) hashes the canonical
+-- serialization of a *clone* of the interface with `source_hash` and
+-- `compiler` emptied and `units` cleared: those fields are the input
+-- identity, the producing compiler and the instantiation representation, and
+-- none of them is part of the contract a dependent is invalidated by. The
+-- artifact on disk is `Iface::to_json`'s output, which is canonical JSON
+-- (`JsonValue::write_canonical`: keys in byte order, no insignificant
+-- whitespace, no trailing newline), so the contract is the artifact's bytes
+-- with exactly those three regions blanked. This module performs that
+-- substitution on the bytes (`blank-field-string`, `empty-array-field`) and
+-- runs FNV-1a 64 over the result, which is the whole rule. It is a text
+-- transformation and not a re-serialization on purpose: re-serializing would
+-- make this module a second implementation of the canonical printer, and the
+-- artifact's bytes are already canonical. The reader locates keys by their
+-- canonical spelling (`"key":`, anchored on the `{` or `,` before it), not by
+-- indentation, so the layout the canonical printer chooses is not a contract
+-- this reader depends on: only the key order and the spelling of the three
+-- blanked regions having no effect on the result, which they cannot, since
+-- blanking a string or clearing an array changes neither.
+--
+-- THE SOURCE HASH IS NOT A SHA-256 (reported)
+--
+-- `source_hash` is `interface::content_hash`, i.e. FNV-1a 64 rendered as a
+-- decimal string, not a SHA-256. `iface-source-hash` therefore compares FNV
+-- against FNV and `fnv-source-hash` exposes that spelling. `sha256-hex` is
+-- provided as well, because the *package* identity in this design is a
+-- SHA-256 (`Text.Json.canonical-hash` over `canonical-bytes`), and a consumer
+-- that wants a cryptographic digest of an artifact has to take it there: the
+-- interface identity is a cache-invalidation hash, not a security boundary
+-- (interface.rs's own header says so).
+--
+-- WHAT IT DOES NOT MODEL (the honest boundary)
+--
+-- This reader interprets the fields the questions above name and nothing
+-- else. It reads but does not interpret: `params`, `abi.layouts` (sizes,
+-- alignments, offsets, discriminants), `assumptions`, `assertions`,
+-- `contracts`, `must_use`, `laws`, `upgrades`, `units`, and the `foreign`
+-- contract tables. It does not refuse them and it does not drop them: every
+-- one of them is inside the bytes the identity hash covers, so a change in
+-- one of them is still visible as a changed `iface_hash`, but a consumer that
+-- needs the ABI layout facts, the instance coherence tables or the
+-- assumption manifest must read that JSON itself. A scheme is reported as the
+-- text the artifact records, uninterpreted: nothing here checks that a scheme
+-- is well formed or that it means what the artifact claims.
+--
+-- Export discipline: this module exports only its reading surface, so the
+-- helpers it shares by name with another rung (`Bootstrap.Manifest` needs the
+-- same byte equality and array walking) stay private and a consumer that
+-- imports both rungs unqualified gets no ambiguity. See bootstrap/README.md
+-- for the ladder and the toolkit a project ships beside these artifacts.
+
+module Bootstrap.Interface where
+
+  import Data.Bool
+  import Data.Bytes
+  import Data.Int
+  import Data.Json
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.String
+  import Text.Parse (ParseOutcome, Parsed, Failed)
+  import Text.Show (nat-to-string)
+  import Text.Json (parse-json, digest-hex)
+
+  export iface-schema-version
+  export iface-parse, iface-module, iface-schema, iface-source-hash
+  export iface-import-names, iface-value-names, iface-value-schemes, iface-fixity-rows
+  export iface-hash, iface-contract, iface-report
+  export iface-schemes-non-empty, iface-schemes-stable
+  export iface-import-names-match, iface-value-names-match, iface-fixity-rows-match
+  export fnv-source-hash, sha256-hex
+
+  -- The interface schema version this reader understands
+  -- (`interface::SCHEMA_VERSION`). A later schema is answered as a mismatch
+  -- rather than guessed at.
+  iface-schema-version :: Nat
+  iface-schema-version = 1
+
+  -- ----------------------------------------------------------------- bytes
+
+  -- Do the `k` bytes at `hi` and `ni` agree? Used by the needle search.
+  bytes-equal-at :: Bytes -> Nat -> Bytes -> Nat -> Nat -> Bool
+  bytes-equal-at hay hi needle ni k =
+    if nat-cmp k 0 == 0 then True
+    else if nat-cmp (bytes-get hay hi) (bytes-get needle ni) == 0 then bytes-equal-at hay (hi + 1) needle (ni + 1) (k - 1)
+    else False
+
+  -- The first index at or after `from` where `needle` occurs, or `None`.
+  bytes-find :: Bytes -> Bytes -> Nat -> Option Nat
+  bytes-find hay needle from =
+    if nat-cmp (from + bytes-len needle) (bytes-len hay) > 0 then None
+    else if bytes-equal-at hay from needle 0 (bytes-len needle) then Some from
+    else bytes-find hay needle (from + 1)
+
+  -- `hay` with the half-open range `[lo, hi)` replaced by `repl`: the prefix,
+  -- the replacement and the suffix, copied into one fresh buffer.
+  bytes-splice :: Bytes -> Nat -> Nat -> Bytes -> Bytes
+  bytes-splice hay lo hi repl =
+    let bl = bytes-len hay in
+    let rl = bytes-len repl in
+    let out = bytes-new (bl - (hi - lo) + rl) in
+    let u = copy-bytes-into out hay 0 0 lo in
+    let v = copy-bytes-into out repl lo 0 rl in
+    let w = copy-bytes-into out hay (lo + rl) hi (bl - hi) in
+    out
+
+  -- Is this byte one of the JSON insignificant whitespace bytes?
+  is-space-byte :: Nat -> Bool
+  is-space-byte n =
+    nat-cmp n 32 == 0 || nat-cmp n 10 == 0 || nat-cmp n 9 == 0 || nat-cmp n 13 == 0
+
+  skip-spaces :: Bytes -> Nat -> Nat
+  skip-spaces b i =
+    if nat-cmp i (bytes-len b) == 0 then i
+    else if is-space-byte (bytes-get b i) then skip-spaces b (i + 1)
+    else i
+
+  -- ------------------------------------------------- text surgery on bytes
+
+  -- The index of the byte that closes the JSON string whose content starts at
+  -- `i`, honoring the `\\` escape. The caller guarantees `i` is inside the
+  -- buffer (`Iface::to_json` never emits an unterminated string).
+  string-stop :: Bytes -> Nat -> Nat
+  string-stop b i =
+    if nat-cmp i (bytes-len b) == 0 then i
+    else if nat-cmp (bytes-get b i) 92 == 0 then string-stop b (i + 2)
+    else if nat-cmp (bytes-get b i) 34 == 0 then i
+    else string-stop b (i + 1)
+
+  -- The index of the `]` closing the array that the `[` at `open` opens, with
+  -- brackets inside strings skipped, so a string containing `[` or `]` cannot
+  -- end the scan early.
+  array-stop :: Bytes -> Nat -> Nat
+  array-stop b open = brackets-scan b (open + 1) 1 0
+
+  brackets-scan :: Bytes -> Nat -> Nat -> Nat -> Nat
+  brackets-scan b i depth in-str =
+    if nat-cmp i (bytes-len b) == 0 then i
+    else if nat-cmp in-str 1 == 0 then in-string-scan b i depth
+    else in-array b i depth
+
+  in-string-scan :: Bytes -> Nat -> Nat -> Nat
+  in-string-scan b i depth =
+    if nat-cmp (bytes-get b i) 92 == 0 then brackets-scan b (i + 2) depth 1
+    else if nat-cmp (bytes-get b i) 34 == 0 then brackets-scan b (i + 1) depth 0
+    else brackets-scan b (i + 1) depth 1
+
+  in-array :: Bytes -> Nat -> Nat -> Nat
+  in-array b i depth =
+    if nat-cmp (bytes-get b i) 34 == 0 then brackets-scan b (i + 1) depth 1
+    else if nat-cmp (bytes-get b i) 91 == 0 then brackets-scan b (i + 1) (depth + 1) 0
+    else if nat-cmp (bytes-get b i) 93 == 0 then close-bracket b i depth
+    else brackets-scan b (i + 1) depth 0
+
+  close-bracket :: Bytes -> Nat -> Nat -> Nat
+  close-bracket b i depth =
+    if nat-cmp depth 1 == 0 then i
+    else brackets-scan b (i + 1) (depth - 1) 0
+
+  -- A top-level key's needle: the canonical printer writes a key as `"key":`
+  -- with no whitespace at all, keys in byte order (interface.rs's `to_json`
+  -- goes through `JsonValue::write_canonical`). It is a substring search and
+  -- not a line search because the canonical form has no lines.
+  key-needle :: String -> String
+  key-needle k = string-concat "\"" (string-concat k "\":")
+
+  -- `key-needle`'s anchor: the byte before the opening quote of an object key
+  -- is `{` (first key) or `,` (any other). Without that check a key's spelling
+  -- inside some string value would match, so a document that mentions
+  -- `"source_hash":` in a scheme could make this reader blank the wrong bytes.
+  bytes-find-key :: Bytes -> Bytes -> Nat -> Option Nat
+  bytes-find-key hay needle from = case bytes-find hay needle from of
+    None -> None
+    Some p -> if key-anchored hay p then Some p else bytes-find-key hay needle (p + 1)
+
+  key-anchored :: Bytes -> Nat -> Bool
+  key-anchored hay p =
+    if nat-cmp p 0 == 0 then False
+    else if nat-cmp (bytes-get hay (p - 1)) 123 == 0 then True
+    else nat-cmp (bytes-get hay (p - 1)) 44 == 0
+
+  -- The index of a top-level key's value, or `None` when the key is absent or
+  -- the document ends where its value should begin. Being total on a
+  -- malformed document matters: the artifact's bytes are read, not trusted.
+  value-start :: Bytes -> String -> Option Nat
+  value-start hay key =
+    let needle = string-to-bytes (key-needle key) in
+    case bytes-find-key hay needle 0 of
+      None -> None
+      Some p -> let at = skip-spaces hay (p + bytes-len needle) in
+        if nat-cmp at (bytes-len hay) < 0 then Some at
+        else None
+
+  -- `hay` with the string value of top-level key `key` blanked: the bytes
+  -- between the value's quotes are removed, so `"source_hash":"123"` becomes
+  -- `"source_hash":""`, which is the text the identity rule hashes.
+  blank-field-string :: Bytes -> String -> Bytes
+  blank-field-string hay key = case value-start hay key of
+    None -> hay
+    Some open ->
+      if nat-cmp (bytes-get hay open) 34 == 0 then
+        let close = string-stop hay (open + 1) in
+        bytes-splice hay (open + 1) close (bytes-new 0)
+      else hay
+
+  -- `hay` with the value of top-level key `key` replaced by `[]`, whatever its
+  -- length: the identity rule clears the `units` table, and an artifact that
+  -- records instantiation units has a non-empty array there.
+  empty-array-field :: Bytes -> String -> Bytes
+  empty-array-field hay key = case value-start hay key of
+    None -> hay
+    Some open ->
+      if nat-cmp (bytes-get hay open) 91 == 0 then
+        let close = array-stop hay open in
+        if nat-cmp close (bytes-len hay) < 0 then
+          bytes-splice hay open (close + 1) (string-to-bytes "[]")
+        else hay
+      else hay
+
+  -- -------------------------------------------------------------------- fnv
+
+  -- FNV-1a 64, the rule `Iface::iface_hash` and `interface::content_hash`
+  -- apply: the offset basis, then `h ^= byte; h *= prime` per byte, wrapping
+  -- at 64 bits.
+  fnv-basis :: U64
+  fnv-basis = 0xcbf29ce484222325
+
+  fnv-prime :: U64
+  fnv-prime = 0x100000001b3
+
+  fnv-bytes :: Bytes -> U64
+  fnv-bytes b = fnv-from b 0 fnv-basis
+
+  fnv-from :: Bytes -> Nat -> U64 -> U64
+  fnv-from b i h =
+    if nat-cmp i (bytes-len b) == 0 then h
+    else fnv-from b (i + 1) (fnv-step h (bytes-get b i))
+
+  fnv-step :: U64 -> Nat -> U64
+  fnv-step h byte = wrapping-mul-u64 (bit-xor-u64 h (nat-to-u64 byte)) fnv-prime
+
+  -- A byte value (0..255) as a `U64`: `Bytes` yields `Nat` and the hash works
+  -- on `U64`; a byte is far inside `I64`'s range, so the narrowing conversion
+  -- is exact.
+  nat-to-u64 :: Nat -> U64
+  nat-to-u64 n = wrapping-i64-to-u64 (nat-to-i64 n)
+
+  -- The decimal spelling of a `U64`, the form the interface records both
+  -- hashes in. A `U64` can exceed `I64`, so it is rendered by division rather
+  -- than through a signed conversion.
+  u64-decimal :: U64 -> String
+  u64-decimal h = if eq-u64 h 0 then "0" else u64-decimal-acc h empty-string
+
+  u64-decimal-acc :: U64 -> String -> String
+  u64-decimal-acc h acc =
+    if eq-u64 h 0 then acc
+    else case checked-rem-u64 h 10 of
+      Some r -> case checked-div-u64 h 10 of
+        Some q -> u64-decimal-acc q (string-concat (u64-digit r) acc)
+        None -> acc
+      None -> acc
+
+  u64-digit :: U64 -> String
+  u64-digit d =
+    if eq-u64 d 0 then "0"
+    else if eq-u64 d 1 then "1"
+    else if eq-u64 d 2 then "2"
+    else if eq-u64 d 3 then "3"
+    else if eq-u64 d 4 then "4"
+    else if eq-u64 d 5 then "5"
+    else if eq-u64 d 6 then "6"
+    else if eq-u64 d 7 then "7"
+    else if eq-u64 d 8 then "8"
+    else "9"
+
+  -- The FNV-1a 64 spelling the interface's `source_hash` must carry for these
+  -- source bytes (`interface::content_hash`).
+  fnv-source-hash :: Bytes -> String
+  fnv-source-hash src = u64-decimal (fnv-bytes src)
+
+  -- The SHA-256 of these bytes, lowercase hex. Not the interface's rule (see
+  -- the header): this is the digest the package identity uses, exposed where a
+  -- consumer wants a cryptographic one.
+  sha256-hex :: Bytes -> String
+  sha256-hex src = digest-hex (sha256-bytes src)
+
+  -- ------------------------------------------------------------- json walk
+
+  -- Parse an interface document. `None` for bytes that are not a JSON document
+  -- at all, so "this is not an interface" is distinguishable from "this
+  -- interface lacks a field I need".
+  iface-parse :: Bytes -> Option Json
+  iface-parse src = case parse-json "interface" src of
+    Parsed v soft -> Some v
+    Failed b -> None
+
+  -- The value of an object's entry with exactly this key. A parsed document
+  -- has unique keys (`Text.Json` refuses duplicates), so there is at most one.
+  json-field :: String -> Json -> Option Json
+  json-field key v = case v of
+    JObj kk vv rest -> if string-compare key kk == 0 then Some vv else json-field key rest
+    other -> None
+
+  -- The items of an array spine. Anything that is not an array yields `Nil`.
+  json-items :: Json -> List Json
+  json-items v = case v of
+    JArr h t -> Cons h (json-items t)
+    other -> Nil
+
+  -- A string-valued field, or `None` when it is absent or not a string.
+  string-field :: String -> Json -> Option String
+  string-field key doc = case json-field key doc of
+    Some v -> case v of
+      JStr s -> Some s
+      other -> None
+    None -> None
+
+  -- A number-valued field as a `Nat`. The interface's integers (`schema`,
+  -- `prec`) are non-negative, so the conversion through `I64` is exact.
+  nat-field :: String -> Json -> Option Nat
+  nat-field key doc = case json-field key doc of
+    Some v -> case v of
+      JNum n -> Some (nat-from-i64 (int-to-i64 n))
+      other -> None
+    None -> None
+
+  -- One key of every item of an array of objects, in artifact order. A missing
+  -- or non-string field reports the empty string rather than dropping the
+  -- item, so a caller can tell "this value has no scheme text" from "this
+  -- value is not here".
+  field-strings-of :: String -> List Json -> List String
+  field-strings-of key items = case items of
+    Nil -> Nil
+    Cons item rest -> Cons (item-field-string key item) (field-strings-of key rest)
+
+  item-field-string :: String -> Json -> String
+  item-field-string key item = case string-field key item of
+    Some s -> s
+    None -> empty-string
+
+  -- --------------------------------------------------------- the questions
+
+  iface-module :: Json -> Option String
+  iface-module doc = string-field "module" doc
+
+  iface-schema :: Json -> Option Nat
+  iface-schema doc = nat-field "schema" doc
+
+  iface-source-hash :: Json -> Option String
+  iface-source-hash doc = string-field "source_hash" doc
+
+  -- Every import's module name, in the artifact's (sorted) order.
+  iface-import-names :: Json -> Option (List String)
+  iface-import-names doc = case json-field "imports" doc of
+    Some arr -> Some (field-strings-of "module" (json-items arr))
+    None -> None
+
+  -- The exported values' names, in the artifact's (sorted) order.
+  iface-value-names :: Json -> Option (List String)
+  iface-value-names doc = case json-field "exports" doc of
+    Some ex -> case json-field "values" ex of
+      Some arr -> Some (field-strings-of "name" (json-items arr))
+      None -> None
+    None -> None
+
+  -- The exported values' rendered scheme texts, in the same order.
+  iface-value-schemes :: Json -> Option (List String)
+  iface-value-schemes doc = case json-field "exports" doc of
+    Some ex -> case json-field "values" ex of
+      Some arr -> Some (field-strings-of "scheme" (json-items arr))
+      None -> None
+    None -> None
+
+  -- A number-valued key of one item, as its decimal text (empty when absent).
+  item-field-number :: String -> Json -> String
+  item-field-number key item = case nat-field key item of
+    Some n -> nat-to-string n
+    None -> empty-string
+
+  fixity-row :: Json -> String
+  fixity-row item =
+    string-concat (item-field-string "op" item)
+      (string-concat " "
+        (string-concat (item-field-string "assoc" item)
+          (string-concat " " (item-field-number "prec" item))))
+
+  fixity-rows-of :: List Json -> List String
+  fixity-rows-of items = case items of
+    Nil -> Nil
+    Cons item rest -> Cons (fixity-row item) (fixity-rows-of rest)
+
+  -- The recorded fixity rows, or `None` when the interface carries no
+  -- `fixities` table at all. An interface that carries the table but no rows
+  -- answers `Some Nil`, which a caller must not confuse with `None`.
+  iface-fixity-rows :: Json -> Option (List String)
+  iface-fixity-rows doc = case json-field "exports" doc of
+    Some ex -> case json-field "fixities" ex of
+      Some arr -> Some (fixity-rows-of (json-items arr))
+      None -> None
+    None -> None
+
+  -- ------------------------------------------------------- the identity rule
+
+  -- The contract text the interface identity covers: the artifact's own bytes
+  -- with `source_hash` and `compiler` blanked and `units` cleared
+  -- (interface.rs's `Iface::iface_hash`). `None` when one of those three
+  -- fields is absent or shaped differently from the schema, because the
+  -- identity cannot be recomputed from a document that does not record them.
+  iface-contract :: Bytes -> Json -> Option Bytes
+  iface-contract src doc = case string-field "source_hash" doc of
+    Some sh -> case string-field "compiler" doc of
+      Some cv -> case json-field "units" doc of
+        Some uv -> case uv of
+          JArr item rest -> Some (empty-array-field (blank-field-string (blank-field-string src "source_hash") "compiler") "units")
+          JArrEnd -> Some (empty-array-field (blank-field-string (blank-field-string src "source_hash") "compiler") "units")
+          other -> None
+        None -> None
+      None -> None
+    None -> None
+
+  -- The artifact's interface identity, recomputed from its own bytes.
+  iface-hash :: Bytes -> Json -> Option String
+  iface-hash src doc = case iface-contract src doc of
+    Some c -> Some (u64-decimal (fnv-bytes c))
+    None -> None
+
+  -- --------------------------------------------------------- list predicates
+
+  string-elem :: String -> List String -> Bool
+  string-elem k xs = case xs of
+    Nil -> False
+    Cons y rest -> if string-compare k y == 0 then True else string-elem k rest
+
+  all-elem :: List String -> List String -> Bool
+  all-elem xs ys = case xs of
+    Nil -> True
+    Cons x rest -> if string-elem x ys then all-elem rest ys else False
+
+  -- Equal lengths plus containment both ways: a multiset comparison that does
+  -- not build a second structure. Order-insensitive on purpose: a consumer
+  -- asks whether the interface exports what it expects, not in what order the
+  -- artifact sorted them.
+  list-permutation :: List String -> List String -> Bool
+  list-permutation xs ys =
+    if nat-cmp (list-length xs) (list-length ys) == 0 then all-elem xs ys && all-elem ys xs
+    else False
+
+  strings-equal :: List String -> List String -> Bool
+  strings-equal xs ys = case xs of
+    Nil -> case ys of
+      Nil -> True
+      Cons y rest -> False
+    Cons x rest -> case ys of
+      Nil -> False
+      Cons y yrest -> if string-compare x y == 0 then strings-equal rest yrest else False
+
+  all-non-empty :: List String -> Bool
+  all-non-empty xs = case xs of
+    Nil -> True
+    Cons x rest -> if string-compare x empty-string == 0 then False else all-non-empty rest
+
+  -- ----------------------------------------------------- the answers as data
+
+  -- Whether every exported value's rendered scheme text is present and
+  -- non-empty.
+  iface-schemes-non-empty :: Json -> Bool
+  iface-schemes-non-empty doc = case iface-value-schemes doc of
+    Some schemes -> all-non-empty schemes
+    None -> False
+
+  -- Whether two reads of an artifact render the same scheme text. A consumer
+  -- cannot read files, so a caller performs the reads (the artifact's bytes as
+  -- the driver wrote them, and a second buffer for the same document) and this
+  -- is the property it needs: the scheme text does not depend on which read it
+  -- came from, so a scheme a consumer cached cannot disagree with the scheme a
+  -- later read reports.
+  iface-schemes-stable :: Bytes -> Bytes -> Bool
+  iface-schemes-stable a b = strings-both (schemes-of a) (schemes-of b)
+
+  -- The schemes of one read of a document, or `None` when it does not parse or
+  -- records no value table.
+  schemes-of :: Bytes -> Option (List String)
+  schemes-of src = case iface-parse src of
+    None -> None
+    Some doc -> iface-value-schemes doc
+
+  -- `Some`-equality under `strings-equal`: two absent reads are not stable.
+  strings-both :: Option (List String) -> Option (List String) -> Bool
+  strings-both a b = case a of
+    None -> False
+    Some xs -> case b of
+      None -> False
+      Some ys -> strings-equal xs ys
+
+  -- Whether the interface's exported value names are exactly `expected`.
+  iface-value-names-match :: Json -> List String -> Bool
+  iface-value-names-match doc expected = case iface-value-names doc of
+    Some names -> list-permutation names expected
+    None -> False
+
+  -- Whether the interface's imported module names are exactly `expected`.
+  iface-import-names-match :: Json -> List String -> Bool
+  iface-import-names-match doc expected = case iface-import-names doc of
+    Some names -> list-permutation names expected
+    None -> False
+
+  -- Whether the interface's fixity rows are exactly `expected`, in order. A
+  -- missing table is a mismatch, not an empty one.
+  iface-fixity-rows-match :: Json -> List String -> Bool
+  iface-fixity-rows-match doc expected = case iface-fixity-rows doc of
+    Some rows -> strings-equal rows expected
+    None -> False
+
+  -- ------------------------------------------------------------- the report
+
+  line-of :: String -> String -> String
+  line-of key value = string-concat key (string-concat " " (string-concat value "\n"))
+
+  -- The rows of one table as a list of lines. A list and not a nested
+  -- concatenation: a right-nested `string-concat` over a table is quadratic in
+  -- the table's size (the prelude's own note), and an interface's export table
+  -- is as long as the module is large. The rows are joined once, by the same
+  -- `string-concat-all` the whole report goes through.
+  prefixed-lines :: String -> List String -> List String
+  prefixed-lines prefix xs = case xs of
+    Nil -> Nil
+    Cons x rest -> Cons (line-of prefix x) (prefixed-lines prefix rest)
+
+  value-lines :: List String -> List String -> List String
+  value-lines names schemes = case names of
+    Nil -> Nil
+    Cons n rest -> case schemes of
+      Nil -> Nil
+      Cons s srest ->
+        Cons (line-of "value" (string-concat n (string-concat " :: " s)))
+          (value-lines rest srest)
+
+  option-text :: Option String -> String
+  option-text o = case o of
+    Some s -> s
+    None -> "-"
+
+  option-number :: Option Nat -> String
+  option-number o = case o of
+    Some n -> nat-to-string n
+    None -> "-"
+
+  list-length-text :: Option (List String) -> String
+  list-length-text o = case o of
+    Some xs -> nat-to-string (list-length xs)
+    None -> "-"
+
+  -- The whole reading as text: one `key value` line per fact, the value list
+  -- one `value name :: scheme` line each, the module's own source bytes
+  -- rendered as `source-hash-fnv`/`source-sha256`, then the contract text the
+  -- identity was taken over between markers, so a caller can compare those
+  -- bytes against the compiler's own text.
+  iface-report :: Bytes -> Bytes -> Bytes -> String
+  iface-report src source copy = case iface-parse src of
+    None -> "iface-report: the artifact does not parse\n"
+    Some doc -> string-concat (facts-report src source copy doc) (contract-report src doc)
+
+  facts-report :: Bytes -> Bytes -> Bytes -> Json -> String
+  facts-report src source copy doc = string-concat-all (report-lines src source copy doc)
+
+  -- Every fact as one line (the `import`, `value` and `fixity` rows are
+  -- already newline-terminated by their own renderers), so the report is one
+  -- concatenation of a list rather than a hand-balanced nest of calls.
+  report-lines :: Bytes -> Bytes -> Bytes -> Json -> List String
+  report-lines src source copy doc = Cons (fact-module doc)
+    (Cons (fact-schema doc)
+    (Cons (fact-recorded-hash doc)
+    (Cons (fact-fnv-hash source)
+    (Cons (fact-sha256 source)
+    (Cons (fact-imports-line doc)
+    (Cons (fact-imports doc)
+    (Cons (fact-values-line doc)
+    (Cons (fact-values doc)
+    (Cons (fact-fixities-line doc)
+    (Cons (fact-fixities doc)
+    (Cons (fact-iface-hash src doc)
+    (Cons (fact-stable src copy)
+    Nil))))))))))))
+
+  fact-module :: Json -> String
+  fact-module doc = line-of "module" (option-text (iface-module doc))
+
+  fact-schema :: Json -> String
+  fact-schema doc = line-of "schema" (option-number (iface-schema doc))
+
+  fact-recorded-hash :: Json -> String
+  fact-recorded-hash doc = line-of "source-hash-recorded" (option-text (iface-source-hash doc))
+
+  fact-fnv-hash :: Bytes -> String
+  fact-fnv-hash src = line-of "source-hash-fnv" (fnv-source-hash src)
+
+  fact-sha256 :: Bytes -> String
+  fact-sha256 src = line-of "source-sha256" (sha256-hex src)
+
+  fact-imports-line :: Json -> String
+  fact-imports-line doc = line-of "imports" (list-length-text (iface-import-names doc))
+
+  fact-imports :: Json -> String
+  fact-imports doc = string-concat-all (prefixed-lines "import" (option-list (iface-import-names doc)))
+
+  fact-values-line :: Json -> String
+  fact-values-line doc = line-of "values" (list-length-text (iface-value-names doc))
+
+  fact-values :: Json -> String
+  fact-values doc =
+    string-concat-all (value-lines (option-list (iface-value-names doc)) (option-list (iface-value-schemes doc)))
+
+  fact-fixities-line :: Json -> String
+  fact-fixities-line doc = line-of "fixities" (list-length-text (iface-fixity-rows doc))
+
+  fact-fixities :: Json -> String
+  fact-fixities doc = string-concat-all (prefixed-lines "fixity" (option-list (iface-fixity-rows doc)))
+
+  fact-iface-hash :: Bytes -> Json -> String
+  fact-iface-hash src doc = line-of "iface-hash" (option-text (iface-hash src doc))
+
+  fact-stable :: Bytes -> Bytes -> String
+  fact-stable src copy = line-of "schemes-stable" (yes-no (iface-schemes-stable src copy))
+
+  option-list :: Option (List String) -> List String
+  option-list o = case o of
+    Some xs -> xs
+    None -> Nil
+
+  yes-no :: Bool -> String
+  yes-no b = if b then "yes" else "no"
+
+  contract-report :: Bytes -> Json -> String
+  contract-report src doc = case iface-contract src doc of
+    None -> "--- contract ---\nthe artifact does not record the identity fields\n--- end ---\n"
+    Some c -> case string-from-bytes c of
+      Some t -> string-concat "--- contract ---\n" (string-concat t "--- end ---\n")
+      None -> "--- contract ---\nthe contract is not text\n--- end ---\n"

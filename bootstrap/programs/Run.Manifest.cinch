@@ -1,0 +1,235 @@
+-- Rung 2's driver program: check canonical manifests, report the facts.
+--
+-- Assembled by the rung's test and by `tooling/run-bootstrap-ladder.sh` from
+-- the toolkit plus `bootstrap/*.cinch`. It reads manifests (the interface
+-- artifacts a compile wrote, and the base package manifest) and, for each
+-- one, prints one line and folds a per-input failure code into its exit
+-- status:
+--
+--   artifact <name> parse=<yes|no> driver-round-trip=<0|1>
+--     canonical-round-trip=<0|1> reorder-same=<yes|no>
+--     added-key-differs=<yes|no> reorder-visible=<yes|no>
+--     hash-stable=<yes|no>
+--   package <name> parse=<yes|no> modules=<n|-> facade=<name|->
+--     facade-index=<n|-> order-permutation=<yes|no|->
+--
+-- `driver-round-trip` is 0 for "the canonical form of these bytes equals the
+-- bytes" and 1 for "it does not". The compiler writes canonical JSON, so a
+-- real artifact must report 0: its bytes ARE its canonical form.
+-- `canonical-round-trip` is the same code applied to the canonical form, the
+-- fixed-point property a manifest needs to be written back without drift.
+-- Both are reported so a writer that regressed to pretty-printing is visible
+-- as 1/0 rather than as a passing fixed-point test. The `reorder`,
+-- `added-key` and `hash` columns are computed on the parsed value with the
+-- document really modified in Cinch (see `Bootstrap.Manifest`), so a
+-- canonical printer that ignored key order or dropped a key fails here
+-- instead of passing vacuously.
+--
+-- EVERY artifact gets EVERY column: there is no size tier and nothing is
+-- skipped. Every artifact's bytes must be their own canonical form, and the
+-- fixed-point, reorder, added-key, visibility and hash columns must all hold.
+-- The runtime still frees nothing and `Text.Json`'s printers still allocate in
+-- proportion to the document, so the harness caps a spawned program's heap
+-- (`compiler/.cargo/config.toml`, `CINCH_HEAP_LIMIT`); a document that
+-- exceeds it is reported by name with its alloc stats rather than tolerated
+-- with a smaller claim.
+--
+-- INPUTS. The bytes arrive through `Effect.Fs`. A compiled artifact cannot be
+-- a byte-list literal: the compiler's recursion over a list literal grows
+-- with its element count, 200 elements check and 300 abort the CLI with a
+-- stack overflow. The two placeholders the test substitutes are the artifact
+-- directory and the package manifest path; the checked-in defaults make this
+-- file runnable by hand in a project where `cinch check` has just written
+-- `build/`.
+--
+-- Exit status: 0 when every input passed, else the first failure code:
+-- 1 an input does not parse, 2 the canonical form is not a fixed point,
+-- 3 reordering entries changed the canonical bytes, 4 the added key did not
+-- change them, 5 a package question could not be answered, 6 the content
+-- hash is not a function of the canonical bytes, 7 an input could not be
+-- read, 9 the artifact's bytes are not its canonical form.
+module Main where
+
+  import Bootstrap.Manifest
+  import Data.Bool
+  import Data.Bytes
+  import Data.List
+  import Data.Nat
+  import Data.Option
+  import Data.Path
+  import Data.Result
+  import Data.String
+  import Effect.Fs (FsError, fs-read, fs-list)
+  import Text.Show (int-to-string, nat-to-string)
+
+  -- One manifest input: a compiled interface artifact, or a package
+  -- manifest whose module facts are answered.
+  data Input where
+    MkArtifact :: String -> Bytes -> Input
+    MkPackage :: String -> Bytes -> Input
+
+  -- The directory of artifacts and the package manifest. The test
+  -- substitutes both placeholder bindings; these defaults are what a hand
+  -- run uses.
+  artifact-dir :: String
+  artifact-dir = __MANIFEST_ARTIFACT_DIR__
+
+  package-path :: String
+  package-path = __MANIFEST_PACKAGE_PATH__
+
+  -- A small canonical document with nested objects, an array and every
+  -- scalar kind a manifest uses, so the canonical laws have something to act
+  -- on even when no build directory exists.
+  sample-artifact-text :: String
+  sample-artifact-text = "{\"a\":1,\"b\":[true,null],\"c\":{\"w\":\"v\",\"x\":\"y\"}}"
+
+  -- A miniature package manifest: two modules, the second a facade, and an
+  -- `order` that lists both.
+  sample-package-text :: String
+  sample-package-text = "{\"schema\":1,\"name\":\"sample\",\"modules\":[{\"name\":\"A\",\"path\":\"A.cinch\",\"embedded\":true},{\"name\":\"Prelude\",\"path\":\"Prelude.cinch\",\"embedded\":true,\"facade\":true}],\"order\":[\"A\",\"Prelude\"]}"
+
+  samples :: List Input
+  samples = Cons (MkArtifact "sample-artifact.cinchif" (string-to-bytes sample-artifact-text)) (Cons (MkPackage "sample-package.cinchpkg" (string-to-bytes sample-package-text)) Nil)
+
+  -- ---------------------------------------------------------------- output
+
+  say :: forall r. using (io :: Io r) => String ->{IO r} Unit
+  say s = ioWrite (string-to-bytes s)
+
+  yes-no :: Bool -> String
+  yes-no b = if b then "yes" else "no"
+
+  nat-text :: Option Nat -> String
+  nat-text o = case o of
+    Some n -> nat-to-string n
+    None -> "-"
+
+  string-text :: Option String -> String
+  string-text o = case o of
+    Some s -> s
+    None -> "-"
+
+  bool-text :: Option Bool -> String
+  bool-text o = case o of
+    Some b -> yes-no b
+    None -> "-"
+
+  artifact-line :: String -> Bool -> Int -> Int -> Bool -> Bool -> Bool -> Bool -> String
+  artifact-line name parsed driver-code canonical-code reorder-same added-differs reorder-visible hash-stable =
+    string-concat-all [
+      "artifact ", name,
+      " parse=", yes-no parsed,
+      " driver-round-trip=", int-to-string driver-code,
+      " canonical-round-trip=", int-to-string canonical-code,
+      " reorder-same=", yes-no reorder-same,
+      " added-key-differs=", yes-no added-differs,
+      " reorder-visible=", yes-no reorder-visible,
+      " hash-stable=", yes-no hash-stable,
+      "\n"
+    ]
+
+  package-line :: String -> Bool -> String -> String -> String -> String -> String
+  package-line name parsed modules facade index permutation =
+    string-concat-all [
+      "package ", name,
+      " parse=", yes-no parsed,
+      " modules=", modules,
+      " facade=", facade,
+      " facade-index=", index,
+      " order-permutation=", permutation,
+      "\n"
+    ]
+
+  -- ------------------------------------------------------------- checking
+
+  first-failure :: Int -> Int -> Int
+  first-failure acc code = if acc == 0 then code else acc
+
+  artifact-tail-code :: Bool -> Bool -> Bool -> Int
+  artifact-tail-code reorder-same added-differs hash-stable =
+    if reorder-same then
+      (if added-differs then
+        (if hash-stable then 0 else 6)
+        else 4)
+      else 3
+
+  artifact-after-fixed-point :: Int -> Bool -> Bool -> Bool -> Int
+  artifact-after-fixed-point canonical-code reorder-same added-differs hash-stable =
+    if canonical-code == 0 then artifact-tail-code reorder-same added-differs hash-stable
+    else 2
+
+  artifact-after-round-trip :: Int -> Int -> Bool -> Bool -> Bool -> Int
+  artifact-after-round-trip driver-code canonical-code reorder-same added-differs hash-stable =
+    if driver-code == 0 then artifact-after-fixed-point canonical-code reorder-same added-differs hash-stable
+    else 9
+
+  package-facts-code :: Option Nat -> Option String -> Option Nat -> Option Bool -> Int
+  package-facts-code count facade index permutation = case count of
+    None -> 5
+    Some n -> case facade of
+      None -> 5
+      Some f -> case index of
+        None -> 5
+        Some i -> case permutation of
+          None -> 5
+          Some b -> 0
+
+  check-artifact :: forall r. using (io :: Io r) => String -> Bytes -> Int ->{IO r} Int
+  check-artifact name src acc = case manifest-survey src of
+    MkManifestSurvey parsed driver-code canonical-code reorder-same added-differs reorder-visible hash-stable ->
+      case say (artifact-line name parsed driver-code canonical-code reorder-same added-differs reorder-visible hash-stable) of
+        written ->
+          if parsed then
+            first-failure acc (artifact-after-round-trip driver-code canonical-code reorder-same added-differs hash-stable)
+          else first-failure acc 1
+
+  check-package :: forall r. using (io :: Io r) => String -> Bytes -> Int ->{IO r} Int
+  check-package name src acc = case manifest-package-facts src of
+    MkPackageFacts parsed count facade index permutation ->
+      case say (package-line name parsed (nat-text count) (string-text facade) (nat-text index) (bool-text permutation)) of
+        written -> first-failure acc (if parsed then package-facts-code count facade index permutation else 5)
+
+  check-input :: forall r. using (io :: Io r) => Input -> Int ->{IO r} Int
+  check-input input acc = case input of
+    MkArtifact name src -> check-artifact name src acc
+    MkPackage name src -> check-package name src acc
+
+  check-inputs :: forall r. using (io :: Io r) => List Input -> Int ->{IO r, Diverge} Int
+  check-inputs inputs acc = case inputs of
+    Nil -> acc
+    Cons input rest -> case check-input input acc of
+      acc2 -> check-inputs rest acc2
+
+  -- --------------------------------------------------------------- reading
+
+  unreadable :: forall r. using (io :: Io r) => String -> Int ->{IO r} Int
+  unreadable what acc = case say (string-concat what " unreadable\n") of
+    written -> first-failure acc 7
+
+  read-artifact :: forall r. using (io :: Io r) => String -> Int ->{IO r} Int
+  read-artifact name acc =
+    let path = path-join (path-from-string artifact-dir) (path-from-string name) in
+    case fs-read path of
+      Err e -> unreadable (string-concat "artifact " name) acc
+      Ok bytes -> check-artifact name bytes acc
+
+  read-artifacts :: forall r. using (io :: Io r) => List String -> Int ->{IO r, Diverge} Int
+  read-artifacts names acc = case names of
+    Nil -> acc
+    Cons name rest -> case read-artifact name acc of
+      acc2 -> read-artifacts rest acc2
+
+  check-artifact-dir :: forall r. using (io :: Io r) => Int ->{IO r, Diverge} Int
+  check-artifact-dir acc = case fs-list (path-from-string artifact-dir) of
+    Err e -> unreadable (string-concat "artifact-dir " artifact-dir) acc
+    Ok names -> read-artifacts names acc
+
+  check-package-file :: forall r. using (io :: Io r) => Int ->{IO r} Int
+  check-package-file acc = case fs-read (path-from-string package-path) of
+    Err e -> unreadable (string-concat "package " package-path) acc
+    Ok bytes -> check-package (path-basename (path-from-string package-path)) bytes acc
+
+  main :: Unit ->{IO r, Diverge} Int
+  main u = with (io = newIO ()) in case check-inputs samples 0 of
+    acc1 -> case check-artifact-dir acc1 of
+      acc2 -> check-package-file acc2

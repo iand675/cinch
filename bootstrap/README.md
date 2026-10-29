@@ -120,6 +120,7 @@ into a number a test can assert and a report can print. A rung that
 ## Running a rung by hand
 
     tooling/run-bootstrap-ladder.sh                          # type-check every ladder module
+    tooling/run-bootstrap-ladder.sh --all-programs           # build and run every rung program
     tooling/run-bootstrap-ladder.sh programs/Run.Parse.cinch # run one rung program
 
 The compiler does not embed the P30/P31 toolkit, so the script assembles a

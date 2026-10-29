@@ -1,0 +1,121 @@
+-- Rung 6: the pipeline. Every earlier rung is one step; this module is the
+-- chain that turns a source file into a RUNNING native binary: read the
+-- bytes, parse to the shared tree, check the fragment, refuse with named
+-- diagnostics if either stage objects, emit LLVM IR, hand the module to a
+-- spawned clang, run the artifact, and report both exit codes.
+--
+-- See bootstrap/README.md for the ladder and design/bootstrap-ladder.md for
+-- the decisions. The imports are SELECTED rather than wholesale on purpose:
+-- several rungs export a helper called `rung` (and the ladder's coherence
+-- test already caught two modules exporting `bytes-equal-from`), so a
+-- consumer that composes them unqualified gets an ambiguity, and the
+-- language's remedy is a selection.
+--
+-- The argument words come from `read-argv` (Bootstrap.Driver), which reads
+-- them from the runtime's input source because a compiled Cinch program
+-- cannot yet reach the operating system's own argv. Four words: the source
+-- to compile, the IR module to write, the executable clang must produce,
+-- and the report naming both the child's exit code and the artifact's.
+
+module Bootstrap.Pipeline where
+
+  import Bootstrap.Ast (Program)
+  import Bootstrap.Check (check-program)
+  import Bootstrap.Driver (link-and-report, read-argv)
+  import Bootstrap.Ir (emit-diagnostics, emit-program)
+  import Bootstrap.Parse (parse-program)
+  import Bootstrap.Report (Diagnostic, render-diagnostics)
+  import Data.Path (Path, path-from-string, path-to-string)
+  import Data.String (string-concat, string-to-bytes)
+  import Effect.Fs (fs-read, fs-write)
+  import Text.Parse (Bundle, Failed, ParseError, ParseOutcome, Parsed, render-bundle)
+
+  -- ----------------------------------------------------------------- exits
+
+  -- One code per stage, so a run says where it stopped rather than only
+  -- that it stopped. The link stage's codes are the driver rung's own.
+
+  pipeline-ok :: Int
+  pipeline-ok = 0
+
+  pipeline-bad-args :: Int
+  pipeline-bad-args = 1
+
+  pipeline-read-failed :: Int
+  pipeline-read-failed = 2
+
+  pipeline-parse-failed :: Int
+  pipeline-parse-failed = 3
+
+  pipeline-check-refused :: Int
+  pipeline-check-refused = 4
+
+  pipeline-emit-refused :: Int
+  pipeline-emit-refused = 5
+
+  pipeline-write-failed :: Int
+  pipeline-write-failed = 6
+
+  -- --------------------------------------------------------------- helpers
+
+  -- The refusal file sits beside the IR module: a `.diagnostics` suffix on
+  -- the path the caller asked for, so a failed run leaves its evidence
+  -- exactly where the caller looks for the module.
+  refusal-path :: Path -> Path
+  refusal-path ir = path-from-string (string-concat (path-to-string ir) ".diagnostics")
+
+  -- Write a refusal's text and answer with the stage's code; a write that
+  -- itself fails is its own code, because then the evidence is missing.
+  write-failure :: forall r. using (io :: Io r) => Path -> String -> Int ->{IO r} Int
+  write-failure ir text code = case fs-write (refusal-path ir) (string-to-bytes text) of
+    Ok u -> code
+    Err e -> pipeline-write-failed
+
+  -- The four argument words, or None when the caller gave fewer.
+  four-words :: List String -> Option (String, String, String, String)
+  four-words ws = case ws of
+    Cons a rest -> case rest of
+      Cons b rest2 -> case rest2 of
+        Cons c rest3 -> case rest3 of
+          Cons d others -> Some (a, b, c, d)
+          Nil -> None
+        Nil -> None
+      Nil -> None
+    Nil -> None
+
+  -- ------------------------------------------------------------ the chain
+
+  -- Source to running binary. Each stage hands its artifact to the next,
+  -- and the first refusal stops the run with the code that names it.
+  compile-source :: forall r. using (io :: Io r) => String -> Path -> Path -> Path ->{IO r, Diverge} Int
+  compile-source source ir exe report = case fs-read (path-from-string source) of
+    Err e -> pipeline-read-failed
+    Ok src -> after-parse source src (parse-program source src) ir exe report
+
+  -- `ParseOutcome`'s `Parsed` carries the value AND the errors a recovering
+  -- parse produced, so a clean parse is `Parsed prog Nil`. This rung accepts
+  -- only a clean parse: a recovered one stops the pipeline and writes the
+  -- recoverable errors beside the module, because handing a half-understood
+  -- tree to the checker would be the silent drop the ladder forbids.
+  after-parse :: forall r. using (io :: Io r) => String -> Bytes -> ParseOutcome Program -> Path -> Path -> Path ->{IO r, Diverge} Int
+  after-parse name src outcome ir exe report = case outcome of
+    Failed bundle -> write-failure ir (render-bundle bundle) pipeline-parse-failed
+    Parsed prog Nil -> after-check (check-program prog) prog ir exe report
+    Parsed prog recoverable -> write-failure ir (render-bundle (Bundle name src recoverable)) pipeline-parse-failed
+
+  after-check :: forall r. using (io :: Io r) => List Diagnostic -> Program -> Path -> Path -> Path ->{IO r, Diverge} Int
+  after-check found prog ir exe report = case found of
+    Nil -> after-emit (emit-diagnostics prog) prog ir exe report
+    Cons d rest -> write-failure ir (render-diagnostics found) pipeline-check-refused
+
+  after-emit :: forall r. using (io :: Io r) => List Diagnostic -> Program -> Path -> Path -> Path ->{IO r, Diverge} Int
+  after-emit found prog ir exe report = case found of
+    Nil -> write-module ir (emit-program prog) exe report
+    Cons d rest -> write-failure ir (render-diagnostics found) pipeline-emit-refused
+
+  -- The last stage: the module lands, then the driver rung links it, runs
+  -- the artifact and writes the report the caller reads.
+  write-module :: forall r. using (io :: Io r) => Path -> String -> Path -> Path ->{IO r, Diverge} Int
+  write-module ir text exe report = case fs-write ir (string-to-bytes text) of
+    Err e -> pipeline-write-failed
+    Ok u -> link-and-report ir exe report

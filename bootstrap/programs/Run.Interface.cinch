@@ -1,0 +1,175 @@
+-- The interface rung's driver program: read a compiled module interface and
+-- judge it.
+--
+-- This is a real program, assembled by the rung's test and by
+-- `tooling/run-bootstrap-ladder.sh` from the toolkit plus `bootstrap/*.cinch`.
+-- It is handed the bytes of a real `build/<Module>.cinchif` the driver just
+-- wrote, the module's own source bytes, and the answers the harness read from
+-- the compiler's own model of that artifact; it prints what it read and
+-- exits with the number of the first answer that does not hold, so the exit
+-- code names WHICH answer failed:
+--
+--   0  every answer holds
+--   1  the artifact's bytes are not a JSON document
+--   2  the module name is missing or is not the expected one
+--   3  the schema version is missing or is not the version this reader expects
+--   4  the recorded source hash is missing, is not the hash the harness read,
+--      or is not the FNV-1a 64 decimal of the module's own source bytes
+--   5  the exported value names are missing or are not the expected set
+--   6  an exported value's rendered scheme text is empty
+--   7  the schemes are not stable across two reads of the artifact's bytes
+--   8  the imported module names are missing or are not the expected set
+--   9  the fixity rows are missing or are not the expected rows
+--  10  the recomputed interface identity is not the expected one
+--  11  the SHA-256 of the module's source bytes is not the digest the harness
+--      computed independently
+--  12  the artifact does not record a field the identity rule needs
+--      (`source_hash`, `compiler` or `units`)
+--
+-- The checks are evaluated in the order 1, 2, 3, 4, 5, 6, 7, 8, 9, 12, 10, 11
+-- and the first failure wins, so an altered artifact always reports one
+-- numbered answer rather than a pile of them.
+--
+-- The harness substitutes the bindings below: a source file cannot carry a
+-- compiled artifact's bytes, and the expected answers must come from outside
+-- this program or the program would be checking itself. Running the file by
+-- hand uses the checked-in empty artifact, which the program reports as
+-- answer 1 (an empty document is not a JSON document) rather than passing
+-- silently.
+--
+-- The `iface-report` text on standard output is the evidence: it repeats every
+-- fact the program read, and it carries the contract text the identity was
+-- recomputed over between `--- contract ---` and `--- end ---`, so a caller
+-- can compare those bytes against the text the compiler itself hashed.
+
+module Main where
+
+  import Bootstrap.Interface
+  import Data.Bool
+  import Data.Bytes
+  import Data.Json
+  import Data.List
+  import Data.Nat
+  import Data.Option
+  import Data.String
+
+  -- The artifact's bytes as a Cinch string (substituted by the harness).
+  artifact-text :: String
+  artifact-text = ""
+
+  -- A second read of the same artifact's bytes (substituted by the harness),
+  -- used by the scheme-stability answer.
+  artifact-copy-text :: String
+  artifact-copy-text = ""
+
+  -- The module's own source bytes, the bytes the driver hashed into the
+  -- artifact's `source_hash` (substituted by the harness).
+  source-text :: String
+  source-text = ""
+
+  -- The answers the harness read from the compiler's own model of the
+  -- artifact, so every claim here is checked against an independent reader
+  -- rather than trusted (substituted by the harness).
+  expected-module :: String
+  expected-module = ""
+
+  expected-source-hash :: String
+  expected-source-hash = ""
+
+  expected-iface-hash :: String
+  expected-iface-hash = ""
+
+  expected-sha256-hex :: String
+  expected-sha256-hex = ""
+
+  expected-imports :: List String
+  expected-imports = Nil
+
+  expected-value-names :: List String
+  expected-value-names = Nil
+
+  expected-fixity-rows :: List String
+  expected-fixity-rows = Nil
+
+  artifact-bytes :: Bytes
+  artifact-bytes = string-to-bytes artifact-text
+
+  -- The artifact's bytes as a second, independent read of the same document
+  -- (the harness reads the file twice and hands both copies over): the scheme
+  -- text a consumer reads must not depend on which read produced it.
+  artifact-copy-bytes :: Bytes
+  artifact-copy-bytes = string-to-bytes artifact-copy-text
+
+  source-bytes :: Bytes
+  source-bytes = string-to-bytes source-text
+
+  -- 0 when the check holds, its own number when it does not.
+  zero-if :: Bool -> Int -> Int
+  zero-if b code = if b then 0 else code
+
+  check-module :: Json -> Int
+  check-module doc = case iface-module doc of
+    Some m -> zero-if (string-compare m expected-module == 0) 2
+    None -> 2
+
+  check-schema :: Json -> Int
+  check-schema doc = case iface-schema doc of
+    Some s -> zero-if (nat-cmp s iface-schema-version == 0) 3
+    None -> 3
+
+  check-source :: Json -> Int
+  check-source doc = case iface-source-hash doc of
+    Some sh ->
+      let recorded = string-compare sh expected-source-hash == 0 in
+      let derived = string-compare sh (fnv-source-hash source-bytes) == 0 in
+      zero-if (recorded && derived) 4
+    None -> 4
+
+  check-value-names :: Json -> Int
+  check-value-names doc = zero-if (iface-value-names-match doc expected-value-names) 5
+
+  check-schemes :: Json -> Int
+  check-schemes doc = zero-if (iface-schemes-non-empty doc) 6
+
+  check-stability :: Int
+  check-stability = zero-if (iface-schemes-stable artifact-bytes artifact-copy-bytes) 7
+
+  check-imports :: Json -> Int
+  check-imports doc = zero-if (iface-import-names-match doc expected-imports) 8
+
+  check-fixities :: Json -> Int
+  check-fixities doc = zero-if (iface-fixity-rows-match doc expected-fixity-rows) 9
+
+  check-hash :: Bytes -> Json -> Int
+  check-hash src doc = case iface-hash src doc of
+    Some h -> zero-if (string-compare h expected-iface-hash == 0) 10
+    None -> 12
+
+  check-sha256 :: Int
+  check-sha256 = zero-if (string-compare (sha256-hex source-bytes) expected-sha256-hex == 0) 11
+
+  checks :: Bytes -> Json -> List Int
+  checks src doc = Cons (check-module doc)
+    (Cons (check-schema doc)
+      (Cons (check-source doc)
+        (Cons (check-value-names doc)
+          (Cons (check-schemes doc)
+            (Cons check-stability
+              (Cons (check-imports doc)
+                (Cons (check-fixities doc)
+                  (Cons (check-hash src doc)
+                    (Cons check-sha256 Nil)))))))))
+
+  first-failure :: List Int -> Int
+  first-failure ns = case ns of
+    Nil -> 0
+    Cons n rest -> if n == 0 then first-failure rest else n
+
+  verdict :: Bytes -> Int
+  verdict src = case iface-parse src of
+    None -> 1
+    Some doc -> first-failure (checks src doc)
+
+  main :: Unit ->{IO r, Diverge} Int
+  main u = with (io = newIO ()) in case ioWrite (string-to-bytes (iface-report artifact-bytes source-bytes artifact-copy-bytes)) of
+    w -> verdict artifact-bytes

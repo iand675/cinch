@@ -122,8 +122,8 @@ fn the_emitted_ir_assembles_and_runs_to_the_fragments_meaning() {
         "the fragment's function is a `define` with an i64 parameter:\n{fib_ir}"
     );
     assert!(
-        fib_ir.contains("define i32 @main(i32 %argc, ptr %argv) {"),
-        "`main` is a `define` returning i32 (the native process entry, which hands its command line to the runtime first):\n{fib_ir}"
+        fib_ir.contains("define i32 @main() {"),
+        "`main` is a `define` returning i32 (the fragment emitter's standalone process entry):\n{fib_ir}"
     );
     assert!(
         fib_ir.contains("ret i32 "),

@@ -1,0 +1,323 @@
+-- Bootstrap.Manifest: rung 2 of the ladder, the canonical manifest reader.
+--
+-- A manifest here is a JSON document read through `Text.Json`'s parser and
+-- canonical printer (P31). This module answers two kinds of question.
+--
+-- Round trips: is this document already canonical (do its bytes equal the
+-- canonical form of its own parse), is that canonical form a fixed point of
+-- parse then print, does reordering every object's entries leave the
+-- canonical bytes alone, does adding a top-level entry change them, and is
+-- the content hash a function of the canonical bytes. The reordering and
+-- adding are done to the parsed value in Cinch, so the round trip is tested
+-- against a document this module really modified, not against a claim.
+--
+-- Package facts: the module count, the facade module and its 0-based index
+-- in `order`, and whether `order` is a permutation of the module list.
+--
+-- Both answers come from ONE parse per document (`manifest-survey` and
+-- `manifest-package-facts`), because each additional parse or print of a
+-- document is a measurable cost:
+--
+--   a document is parsed whole, so a manifest has to fit in one `Bytes`
+--   buffer (there is no streaming parse);
+--
+--   the canonical printer sorts an object's keys with an insertion sort, so
+--   one object with k entries costs O(k^2) key comparisons (manifests have
+--   tens of entries per object, far inside that);
+--
+--   the printer builds its output with `string-concat` and a `String` is
+--   immutable, so printing a document of n elements copies O(n^2) bytes,
+--   and the runtime frees nothing, so a program's footprint is its TOTAL
+--   allocation. Measured with one canonicalization over one artifact:
+--   `Effect.Process.cinchif` (15,329 bytes) peaked at 477 MB,
+--   `Prelude.cinchif` (193,092 bytes) at 1.57 GB, and
+--   `Data.Machine.cinchif` (474,869 bytes) reached a 129.6 GB peak memory
+--   footprint before it was killed. That is why `Run.Manifest` parses the
+--   largest artifacts and reports their canonical columns as skipped, with
+--   the size and the bound that caused it, instead of pretending it
+--   checked them.
+--
+-- Only the public surface is exported; the helpers below stay private so a
+-- consumer that imports several bootstrap modules unqualified cannot hit a
+-- name collision (the prelude's `span`/`or-else` precedent, D386).
+module Bootstrap.Manifest where
+
+  import Data.Bool
+  import Data.Bytes
+  import Data.Json
+  import Data.List
+  import Data.Nat
+  import Data.Option
+  import Data.String
+  import Text.Parse (ParseOutcome, Parsed, Failed)
+  import Text.Json (parse-json, print-json, canonical-bytes, digest-hex)
+
+  export ManifestSurvey, MkManifestSurvey
+  export manifest-survey, manifest-parses, manifest-canonical
+  export PackageFacts, MkPackageFacts, manifest-package-facts
+  export manifest-bytes-equal, content-identity
+  export manifest-field, manifest-items
+  export manifest-reorder, manifest-add-key
+
+  -- What one manifest round trip checks, computed from a single parse:
+  -- whether it parsed, the byte-identical round-trip code (0: the canonical
+  -- form of these bytes IS these bytes, 1: it is not), the fixed-point code
+  -- (0: the canonical form canonicalizes to itself), whether reordering
+  -- every object's entries keeps the canonical bytes, whether an added
+  -- top-level entry changes them, whether the reordering is visible in the
+  -- printed form (so the invariance check is not vacuous), and whether the
+  -- content hash follows the canonical bytes.
+  data ManifestSurvey where
+    MkManifestSurvey :: Bool -> Int -> Int -> Bool -> Bool -> Bool -> Bool -> ManifestSurvey
+
+  -- The package questions, from a single parse: did it parse, how many
+  -- modules, the facade module, its 0-based index in `order`, and whether
+  -- `order` is a permutation of the module list.
+  data PackageFacts where
+    MkPackageFacts :: Bool -> Option Nat -> Option String -> Option Nat -> Option Bool -> PackageFacts
+
+  -- ---------------------------------------------------------------- bytes
+
+  -- Byte equality by length then byte: the runtime exposes no `Bytes`
+  -- equality primitive. Prefixed because `Bootstrap.Interface` exports the
+  -- same idea under the plain name.
+  manifest-bytes-equal :: Bytes -> Bytes -> Bool
+  manifest-bytes-equal a b =
+    if nat-cmp (bytes-len a) (bytes-len b) == 0 then bytes-equal-from a b 0
+    else False
+
+  bytes-equal-from :: Bytes -> Bytes -> Nat -> Bool
+  bytes-equal-from a b i =
+    if nat-cmp i (bytes-len a) == 0 then True
+    else if nat-cmp (bytes-get a i) (bytes-get b i) == 0 then bytes-equal-from a b (i + 1)
+    else False
+
+  -- The content identity of already canonical bytes: the value
+  -- `canonical-hash` computes, without canonicalizing a value again.
+  content-identity :: Bytes -> String
+  content-identity canonical = digest-hex (sha256-bytes canonical)
+
+  -- ---------------------------------------------------------- round trips
+
+  -- The canonical bytes of a document, or `None` when it does not parse.
+  manifest-canonical :: Bytes -> Option Bytes
+  manifest-canonical src = case parse-json "manifest" src of
+    Parsed v soft -> Some (canonical-bytes v)
+    Failed b -> None
+
+  -- Whether `Text.Json` accepts the whole document (linear in its length; the
+  -- cheap check for a document too large to print).
+  manifest-parses :: Bytes -> Bool
+  manifest-parses src = case parse-json "manifest" src of
+    Parsed v soft -> True
+    Failed b -> False
+
+  -- 0 when the canonical bytes equal the source, 1 otherwise.
+  round-trip-code-of :: Bytes -> Bytes -> Int
+  round-trip-code-of src canonical = if manifest-bytes-equal canonical src then 0 else 1
+
+  -- --------------------------------------------------------------- reading
+
+  -- The value of an object's entry with exactly this key. A parsed document
+  -- has unique keys (`Text.Json` refuses duplicates), so there is at most one.
+  manifest-field :: String -> Json -> Option Json
+  manifest-field k v = case v of
+    JObj kk vv rest -> if string-compare k kk == 0 then Some vv else manifest-field k rest
+    other -> None
+
+  -- The items of an array spine. Anything that is not an array yields `Nil`,
+  -- the convention `Bootstrap.Ast`'s spine walkers use for a malformed tail.
+  manifest-items :: Json -> List Json
+  manifest-items v = case v of
+    JArr h t -> Cons h (manifest-items t)
+    other -> Nil
+
+  -- The items of a string array. `None` when the value is not an array or an
+  -- item is not a string, so a caller can tell "absent" from "empty".
+  string-items-of :: Json -> Option (List String)
+  string-items-of v = case v of
+    JArr h t -> case h of
+      JStr s -> case string-items-of t of
+        Some ss -> Some (Cons s ss)
+        None -> None
+      other -> None
+    JArrEnd -> Some Nil
+    other -> None
+
+  name-of-item :: Json -> Option String
+  name-of-item item = case manifest-field "name" item of
+    Some v -> case v of
+      JStr s -> Some s
+      other -> None
+    None -> None
+
+  module-names-of :: List Json -> Option (List String)
+  module-names-of items = case items of
+    Nil -> Some Nil
+    Cons item rest -> case name-of-item item of
+      Some n -> case module-names-of rest of
+        Some ns -> Some (Cons n ns)
+        None -> None
+      None -> None
+
+  facade-of :: List Json -> Option String
+  facade-of items = case items of
+    Nil -> None
+    Cons item rest -> case manifest-field "facade" item of
+      Some f -> case f of
+        JBool b -> if b then name-of-item item else facade-of rest
+        other -> facade-of rest
+      None -> facade-of rest
+
+  string-index :: String -> List String -> Nat -> Option Nat
+  string-index k xs i = case xs of
+    Nil -> None
+    Cons y rest -> if string-compare k y == 0 then Some i else string-index k rest (i + 1)
+
+  string-elem :: String -> List String -> Bool
+  string-elem k xs = case xs of
+    Nil -> False
+    Cons y rest -> if string-compare k y == 0 then True else string-elem k rest
+
+  all-elem :: List String -> List String -> Bool
+  all-elem xs ys = case xs of
+    Nil -> True
+    Cons x rest -> if string-elem x ys then all-elem rest ys else False
+
+  -- Equal lengths plus containment both ways: a multiset comparison that
+  -- does not build a second structure.
+  is-permutation :: List String -> List String -> Bool
+  is-permutation xs ys =
+    if nat-cmp (list-length xs) (list-length ys) == 0 then all-elem xs ys && all-elem ys xs
+    else False
+
+  -- ------------------------------------------------ modifying the document
+
+  -- The entry list of an object spine, values untouched.
+  entries-of-spine :: Json -> List (String, Json)
+  entries-of-spine t = case t of
+    JObj k x rest -> Cons (k, x) (entries-of-spine rest)
+    other -> Nil
+
+  -- The object spine an entry list denotes.
+  object-spine :: List (String, Json) -> Json
+  object-spine es = case es of
+    Nil -> JObjEnd
+    Cons e rest -> case e of
+      (k, v) -> JObj k v (object-spine rest)
+
+  reverse-entries :: List (String, Json) -> List (String, Json)
+  reverse-entries es = reverse-entries-into es Nil
+
+  reverse-entries-into :: List (String, Json) -> List (String, Json) -> List (String, Json)
+  reverse-entries-into es acc = case es of
+    Nil -> acc
+    Cons e rest -> case e of
+      (k, v) -> reverse-entries-into rest (Cons (k, manifest-reorder v) acc)
+
+  -- Every object in the document with its entries in reverse order, member
+  -- values visited too. The canonical form sorts entries, so this changes
+  -- the printed document and must leave the canonical bytes alone.
+  manifest-reorder :: Json -> Json
+  manifest-reorder v = case v of
+    JArr h t -> JArr (manifest-reorder h) (manifest-reorder t)
+    JObj k x t -> object-spine (reverse-entries (Cons (k, manifest-reorder x) (entries-of-spine t)))
+    JObjEnd -> JObjEnd
+    JArrEnd -> JArrEnd
+    JNull -> JNull
+    JBool b -> JBool b
+    JNum n -> JNum n
+    JFloat f -> JFloat f
+    JStr s -> JStr s
+
+  -- The key the content-sensitivity check adds. It is not a manifest field,
+  -- so a manifest reader ignores it and the document stays valid.
+  probe-key :: String
+  probe-key = "bootstrap_manifest_probe"
+
+  probe-value :: String
+  probe-value = "added by Bootstrap.Manifest"
+
+  -- A copy of the document with one extra top-level entry. A non-object
+  -- document is returned unchanged, which the survey reports as "the
+  -- addition made no difference" rather than silently.
+  manifest-add-key :: Json -> Json
+  manifest-add-key v = case v of
+    JObj k x t -> object-spine (Cons (probe-key, JStr probe-value) (Cons (k, x) (entries-of-spine t)))
+    other -> other
+
+  -- ------------------------------------------------------------ the survey
+
+  hash-stable-of :: Bytes -> Bytes -> Bytes -> Bool
+  hash-stable-of c rc dc =
+    (string-compare (content-identity c) (content-identity rc) == 0) && (not (string-compare (content-identity c) (content-identity dc) == 0))
+
+  canonical-or-empty :: Bytes -> Bytes
+  canonical-or-empty c = case manifest-canonical c of
+    Some x -> x
+    None -> bytes-new 0
+
+  survey-of :: Bytes -> Json -> ManifestSurvey
+  survey-of src v =
+    let c = canonical-bytes v in
+    let r = manifest-reorder v in
+    let d = manifest-add-key v in
+    let rc = canonical-bytes r in
+    let dc = canonical-bytes d in
+    let c2 = canonical-or-empty c in
+    MkManifestSurvey True
+      (round-trip-code-of src c)
+      (round-trip-code-of c c2)
+      (manifest-bytes-equal c rc)
+      (not (manifest-bytes-equal c dc))
+      (not (string-compare (print-json v) (print-json r) == 0))
+      (hash-stable-of c rc dc)
+
+  manifest-survey :: Bytes -> ManifestSurvey
+  manifest-survey src = case parse-json "manifest" src of
+    Parsed v soft -> survey-of src v
+    Failed b -> MkManifestSurvey False 1 1 False False False False
+
+  -- -------------------------------------------------------- package facts
+
+  facade-index-of :: Option String -> Option (List String) -> Option Nat
+  facade-index-of facade order = case facade of
+    Some f -> case order of
+      Some o -> string-index f o 0
+      None -> None
+    None -> None
+
+  permutation-of :: Option (List String) -> Option (List String) -> Option Bool
+  permutation-of names order = case names of
+    Some ns -> case order of
+      Some o -> Some (is-permutation ns o)
+      None -> None
+    None -> None
+
+  count-of :: Option (List String) -> Option Nat
+  count-of names = case names of
+    Some ns -> Some (list-length ns)
+    None -> None
+
+  module-items-of :: Json -> List Json
+  module-items-of v = case manifest-field "modules" v of
+    Some ms -> manifest-items ms
+    None -> Nil
+
+  order-of :: Json -> Option (List String)
+  order-of v = case manifest-field "order" v of
+    Some o -> string-items-of o
+    None -> None
+
+  package-facts-of :: Json -> PackageFacts
+  package-facts-of v =
+    let items = module-items-of v in
+    let names = module-names-of items in
+    let order = order-of v in
+    let facade = facade-of items in
+    MkPackageFacts True (count-of names) facade (facade-index-of facade order) (permutation-of names order)
+
+  manifest-package-facts :: Bytes -> PackageFacts
+  manifest-package-facts src = case parse-json "manifest" src of
+    Parsed v soft -> package-facts-of v
+    Failed b -> MkPackageFacts False None None None None

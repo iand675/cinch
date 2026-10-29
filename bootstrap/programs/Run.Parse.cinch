@@ -1,0 +1,180 @@
+-- The rung 1 driver program: parse the hand-checked examples and the
+-- whole prelude corpus, in Cinch, and write what it found.
+--
+-- The Rust test ships this file as the entry beside Bootstrap.Parse and
+-- the toolkit, substitutes `__DIR__` with the project directory, and
+-- reads back `report.txt`. Nothing here is rung-specific state: the
+-- inputs are the corpus files and the two examples, and the report is
+-- the evidence (the unmodeled count per module, the declaration and
+-- constructor names, and the fixity facts).
+module Main where
+
+  import Bootstrap.Parse
+  import Bootstrap.Ast
+  import Text.Parse (ParseOutcome, Parsed, Failed, ParseErrorBundle, render-bundle)
+  import Data.Bool
+  import Data.List
+  import Data.Nat
+  import Data.Option (Option, None, Some)
+  import Data.Path
+  import Data.Result
+  import Data.String
+  import Effect.Fs (fs-read, fs-write, FsError)
+  import Text.Show (nat-to-string)
+
+  root :: Path
+  root = path-from-string __DIR__
+
+  under :: String -> Path
+  under n = path-join root (path-from-string n)
+
+  main :: Unit ->{IO r} Int
+  main u = with (io = newIO ()) in run-all ()
+
+  run-all :: forall r. using (io :: Io r) => Unit ->{IO r} Int
+  run-all u =
+    let one = report-one Nil "FIB" (under "fib.cinch") in
+    let two = report-one (snd-lines one) "CLASSES" (under "classes.cinch") in
+    let three = report-corpus (snd-lines two) (under "corpus.txt") in
+    case write-report (snd-lines three) of
+      w -> case all-ok one two three of
+        True -> 0
+        False -> 5
+
+  all-ok :: (List String, Bool) -> (List String, Bool) -> (List String, Bool) -> Bool
+  all-ok a b c = and-bool (fst-bool a) (and-bool (fst-bool b) (fst-bool c))
+
+  fst-bool :: (List String, Bool) -> Bool
+  fst-bool p = case p of
+    (xs, ok) -> ok
+
+  snd-lines :: (List String, Bool) -> List String
+  snd-lines p = case p of
+    (xs, ok) -> xs
+
+  read-bytes :: forall r. using (io :: Io r) => Path ->{IO r} Option Bytes
+  read-bytes p = case fs-read p of
+    Err e -> None
+    Ok b -> Some b
+
+  write-report :: forall r. using (io :: Io r) => List String ->{IO r} Unit
+  write-report lines = case fs-write (under "report.txt") (string-to-bytes (string-concat-all (add-newlines (reverse lines)))) of
+    Err e -> ()
+    Ok u -> ()
+
+  add-newlines :: List String -> List String
+  add-newlines xs = case xs of
+    Nil -> Nil
+    Cons s rest -> Cons (string-concat s "\n") (add-newlines rest)
+
+  report-one :: forall r. using (io :: Io r) => List String -> String -> Path ->{IO r} (List String, Bool)
+  report-one acc tag path = case read-bytes path of
+    None -> (Cons (string-concat tag " unmodeled -1") acc, False)
+    Some b -> case parse-program tag b of
+      Failed bundle -> (Cons (string-concat tag " failed") acc, False)
+      Parsed p soft ->
+        let n = program-unmodeled-count p in
+        let head = Cons (string-concat tag (string-concat " unmodeled " (nat-to-string n))) acc in
+        let full = dump-program tag p head in
+        (full, nat-cmp n 0 == 0)
+
+  report-corpus :: forall r. using (io :: Io r) => List String -> Path ->{IO r} (List String, Bool)
+  report-corpus acc path = case read-bytes path of
+    None -> (Cons "CORPUS missing" acc, False)
+    Some b -> case string-from-bytes b of
+      None -> (Cons "CORPUS undecodable" acc, False)
+      Some text -> corpus-lines (lines-of text) acc True
+
+  corpus-lines :: forall r. using (io :: Io r) => List String -> List String -> Bool ->{IO r} (List String, Bool)
+  corpus-lines ls acc ok = case ls of
+    Nil -> (acc, ok)
+    Cons line rest ->
+      if string-length line == 0 then corpus-lines rest acc ok
+      else case tab-split line of
+        (name, path) -> case read-bytes (path-from-string path) of
+          None -> corpus-lines rest (Cons (string-concat name " unmodeled -1") acc) False
+          Some b -> case parse-program name b of
+            Failed bundle -> corpus-lines rest (Cons (string-concat name (string-concat " failed " (render-bundle bundle))) acc) False
+            Parsed p soft ->
+              let n = program-unmodeled-count p in
+              let head = Cons (string-concat name (string-concat " unmodeled " (nat-to-string n))) acc in
+              corpus-lines rest (dump-program name p head) ok
+
+  -- ----------------------------------------------------------------
+  -- Fact extraction (the report lines the Rust test reads back).
+  -- ----------------------------------------------------------------
+
+  dump-program :: String -> Program -> List String -> List String
+  dump-program tag p acc = dump-modules tag (program-modules p) acc
+
+  dump-modules :: String -> List Module -> List String -> List String
+  dump-modules tag ms acc = case ms of
+    Nil -> acc
+    Cons m rest -> dump-modules tag rest (dump-decls tag (module-decls m) acc)
+
+  dump-decls :: String -> List Decl -> List String -> List String
+  dump-decls tag ds acc = case ds of
+    Nil -> acc
+    Cons d rest -> dump-decls tag rest (dump-one tag d acc)
+
+  dump-one :: String -> Decl -> List String -> List String
+  dump-one tag d acc = case d of
+    DData s n ctors -> dump-ctors tag n ctors (named-line tag n acc)
+    DRecord s n fields -> dump-ctors tag n fields (named-line tag n acc)
+    DClass s n ps members -> dump-decls tag (decls-of members) (mem-line tag n acc)
+    DInstance s i n cls members -> dump-decls tag (decls-of members) (mem-line tag n acc)
+    DFixity s assoc prec ops -> dump-fixities tag assoc prec ops acc
+    other -> named-line tag (case decl-name other of Some n -> n; None -> "") acc
+
+  named-line :: String -> String -> List String -> List String
+  named-line tag n acc =
+    if string-length n == 0 then acc
+    else Cons (string-concat "D " (string-concat tag (string-concat " " n))) acc
+
+  mem-line :: String -> String -> List String -> List String
+  mem-line tag n acc = Cons (string-concat "D " (string-concat tag (string-concat " " n))) acc
+
+  dump-ctors :: String -> String -> List (String, TypeExpr) -> List String -> List String
+  dump-ctors tag n ctors acc = case ctors of
+    Nil -> named-line tag n acc
+    Cons c rest -> case c of
+      (name, ty) -> dump-ctors tag n rest (Cons (string-concat "C " (string-concat tag (string-concat " " name))) (named-line tag n acc))
+
+  dump-fixities :: String -> String -> Nat -> List String -> List String -> List String
+  dump-fixities tag assoc prec ops acc = case ops of
+    Nil -> acc
+    Cons o rest -> dump-fixities tag assoc prec rest (Cons (string-concat "X " (string-concat tag (string-concat " " (string-concat assoc (string-concat " " (string-concat (nat-to-string prec) (string-concat " " o))))))) acc)
+
+  -- ----------------------------------------------------------------
+  -- String splitting (ASCII inputs).
+  -- ----------------------------------------------------------------
+
+  lines-of :: String -> List String
+  lines-of s = lines-from s 0 0 Nil
+
+  lines-from :: String -> Nat -> Nat -> List String -> List String
+  lines-from s i start acc =
+    if nat-cmp i (string-length s) == 0 then reverse (finish-line s start i acc)
+    else case string-char-at s i of
+      Some c -> if eq-char c '\n' then lines-from s (i + 1) (i + 1) (Cons (string-slice s start i) acc)
+                else lines-from s (i + 1) start acc
+      None -> reverse acc
+
+  finish-line :: String -> Nat -> Nat -> List String -> List String
+  finish-line s start end acc =
+    if nat-cmp start end == 0 then acc
+    else Cons (string-slice s start end) acc
+
+  tab-split :: String -> (String, String)
+  tab-split line = tab-split-from line 0
+
+  tab-split-from :: String -> Nat -> (String, String)
+  tab-split-from line i =
+    if nat-cmp i (string-length line) == 0 then (line, empty-string)
+    else case string-char-at line i of
+      Some c -> if eq-char c '\t' then (string-slice line 0 i, string-slice line (i + 1) (string-length line))
+                else tab-split-from line (i + 1)
+      None -> (line, empty-string)
+
+  and-bool :: Bool -> Bool -> Bool
+  and-bool a b = if a then b else False

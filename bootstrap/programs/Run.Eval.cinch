@@ -1,0 +1,400 @@
+-- Run.Eval: the differential oracle driven as a whole program. It builds
+-- the AST of `examples/compiler/fib.cinch` the way
+-- `compiler/tests/bootstrap_contract.rs` builds its small tree, evaluates
+-- it with `Bootstrap.Eval`, and checks that `fib 10` is 55 and that `main`
+-- is 0. It then asserts each named refusal (including an unmodeled
+-- declaration, a program-level refusal), exercises the fragment's
+-- remaining shapes (a lambda with a parameter, a constructor pattern with
+-- an argument pattern, a nullary constructor, recursion between two
+-- top-level functions, string and character values, and `==` over a
+-- comparison's Bool result), writes its evidence to
+-- `bootstrap-eval-report.txt`, and answers the first failing check's code
+-- as its exit code (0 when every check passed).
+--
+-- See bootstrap/README.md for the ladder. The interpreter is
+-- `Bootstrap.Eval`; this file is its entry point, so the rung is a
+-- runnable artifact rather than a Rust string literal, and
+-- `tooling/run-bootstrap-ladder.sh programs/Run.Eval.cinch` runs it
+-- through the real `cinch` CLI. A Rust test ships this same file as its
+-- entry, so the program the test runs and the program a human runs are one
+-- artifact.
+
+module Main where
+
+  import Text.Lex (Span)
+  import Bootstrap.Ast
+  import Bootstrap.Report (Diagnostic, diagnostic-message, diagnostic-rung)
+  import Bootstrap.Eval (Value, VInt, eval-expr-in-program, eval-main, value-equal, render-value)
+  import Bootstrap.Parse (parse-program)
+  import Text.Parse (ParseOutcome, Parsed, Failed)
+  import Data.Path (Path, path-from-string)
+  import Effect.Fs (fs-write)
+
+  -- A fixed position for every synthesised node: the interpreter does not
+  -- consult a node's span except to report a refusal, and these programs
+  -- have no source file of their own.
+  sp :: Span
+  sp = Span 0 4 1 1
+
+  -- ------------------------------------------------------- small builders
+
+  int :: String -> Expr
+  int text = ELitInt sp text
+
+  var :: String -> Expr
+  var name = EVar sp name
+
+  call :: Expr -> Expr -> Expr
+  call f a = EApp sp f a
+
+  binop :: String -> Expr -> Expr -> Expr
+  binop op l r = EBin sp op l r
+
+  test-if :: Expr -> Expr -> Expr -> Expr
+  test-if c t f = EIf sp c t f
+
+  lam :: List Pat -> Expr -> Expr
+  lam ps body = ELam sp ps body
+
+  con :: String -> List Expr -> Expr
+  con name args = ECon sp name (expr-spine sp args)
+
+  con0 :: String -> Expr
+  con0 name = ECon sp name (expr-spine sp Nil)
+
+  pwild :: Pat
+  pwild = PWild sp
+
+  pvar :: String -> Pat
+  pvar name = PVar sp name
+
+  plit-int :: String -> Pat
+  plit-int text = PLitInt sp text
+
+  pcon :: String -> List Pat -> Pat
+  pcon name args = PCon sp name (pat-spine sp args)
+
+  alt :: Pat -> Expr -> (Pat, Expr)
+  alt p body = (p, body)
+
+  alts :: List (Pat, Expr) -> Expr
+  alts xs = alt-spine sp xs
+
+  -- ------------------------------------------------- the example's AST
+
+  -- fib n = if n == 0 then 0 else if n == 1 then 1 else fib (n - 1) + fib (n - 2)
+  fib-body :: Expr
+  fib-body = test-if (binop "==" (var "n") (int "0")) (int "0") (test-if (binop "==" (var "n") (int "1")) (int "1") (binop "+" (call (var "fib") (binop "-" (var "n") (int "1"))) (call (var "fib") (binop "-" (var "n") (int "2")))))
+
+  -- main = if fib 10 == 55 then 0 else 1
+  main-body :: Expr
+  main-body = test-if (binop "==" (call (var "fib") (int "10")) (int "55")) (int "0") (int "1")
+
+  -- un-wrap m = case m of MJust x -> x; MNothing -> 0
+  unwrap-body :: Expr
+  unwrap-body = ECase sp (var "m") (alts (Cons (alt (pcon "MJust" (Cons (pvar "x") Nil)) (var "x")) (Cons (alt (pcon "MNothing" Nil) (int "0")) Nil)))
+
+  -- is-even n = if n == 0 then 1 else is-odd (n - 1)
+  even-body :: Expr
+  even-body = test-if (binop "==" (var "n") (int "0")) (int "1") (call (var "is-odd") (binop "-" (var "n") (int "1")))
+
+  -- is-odd n = if n == 0 then 0 else is-even (n - 1)
+  odd-body :: Expr
+  odd-body = test-if (binop "==" (var "n") (int "0")) (int "0") (call (var "is-even") (binop "-" (var "n") (int "1")))
+
+  int-type :: TypeExpr
+  int-type = TName sp "Int"
+
+  maybe-int-type :: TypeExpr
+  maybe-int-type = TName sp "MaybeInt"
+
+  int-fun-type :: TypeExpr
+  int-fun-type = TFun sp int-type int-type
+
+  -- Every declaration of the program, in one module.
+  prog-decls :: List Decl
+  prog-decls =
+    Cons (DSig sp "fib" int-fun-type)
+      (Cons (DFun sp "fib" (Cons (Cons (pvar "n") Nil, fib-body) Nil))
+        (Cons (DSig sp "main" int-type)
+          (Cons (DFun sp "main" (Cons (Nil, main-body) Nil))
+            (Cons (DData sp "MaybeInt" (Cons ("MJust", TFun sp int-type maybe-int-type) (Cons ("MNothing", maybe-int-type) Nil)))
+              (Cons (DSig sp "un-wrap" (TFun sp maybe-int-type int-type))
+                (Cons (DFun sp "un-wrap" (Cons (Cons (pvar "m") Nil, unwrap-body) Nil))
+                  (Cons (DSig sp "is-even" int-fun-type)
+                    (Cons (DFun sp "is-even" (Cons (Cons (pvar "n") Nil, even-body) Nil))
+                      (Cons (DSig sp "is-odd" int-fun-type)
+                        (Cons (DFun sp "is-odd" (Cons (Cons (pvar "n") Nil, odd-body) Nil)) Nil))))))))))
+
+  prog :: Program
+  prog = MkProgram sp (Cons (MkModule sp "Main" (decl-spine sp prog-decls)) Nil)
+
+  -- -------------------------------------------- the expressions evaluated
+
+  fib-ten :: Expr
+  fib-ten = call (var "fib") (int "10")
+
+  fib-ten-result :: Result (List Diagnostic) Value
+  fib-ten-result = eval-expr-in-program prog fib-ten
+
+  main-value :: Option Int
+  main-value = eval-main prog
+
+  lam-expr :: Expr
+  lam-expr = call (lam (Cons (pvar "x") Nil) (binop "+" (var "x") (int "1"))) (int "41")
+
+  just-seven :: Expr
+  just-seven = con "MJust" (Cons (int "7") Nil)
+
+  unwrap-just-expr :: Expr
+  unwrap-just-expr = call (var "un-wrap") just-seven
+
+  unwrap-nothing-expr :: Expr
+  unwrap-nothing-expr = call (var "un-wrap") (con0 "MNothing")
+
+  even-ten :: Expr
+  even-ten = call (var "is-even") (int "10")
+
+  str-expr :: Expr
+  str-expr = ELitStr sp "cinch"
+
+  chr-expr :: Expr
+  chr-expr = ELitChar sp "z"
+
+  -- 1 < 2 == 1 > 0, so the two sides are the Bool True and the result is 1.
+  bool-expr :: Expr
+  bool-expr = test-if (binop "==" (binop "<" (int "1") (int "2")) (binop ">" (int "1") (int "0"))) (int "1") (int "0")
+
+  -- ------------------------------------------------------- the refusals
+
+  unmodeled-expr :: Expr
+  unmodeled-expr = EUnmodeled sp "a-form-we-do-not-model"
+
+  bad-op-expr :: Expr
+  bad-op-expr = binop "@" (int "1") (int "2")
+
+  apply-non-fn-expr :: Expr
+  apply-non-fn-expr = call (int "1") (int "2")
+
+  no-match-expr :: Expr
+  no-match-expr = ECase sp (int "1") (alts (Cons (alt (plit-int "2") (int "9")) Nil))
+
+  -- case 5 of 1 -> 0; _ -> 42: the literal misses and the wildcard catches.
+  wild-expr :: Expr
+  wild-expr = ECase sp (int "5") (alts (Cons (alt (plit-int "1") (int "0")) (Cons (alt pwild (int "42")) Nil)))
+
+  unbound-expr :: Expr
+  unbound-expr = var "nowhere"
+
+  -- `main` is declared with arity 0, so applying it to one argument
+  -- disagrees with the declaration.
+  over-applied-expr :: Expr
+  over-applied-expr = call (var "main") (int "1")
+
+  -- A function whose clause has two parameters under a signature with one
+  -- arrow: the arity disagrees with the declaration.
+  bad-arity-decls :: List Decl
+  bad-arity-decls =
+    Cons (DSig sp "f" int-fun-type)
+      (Cons (DFun sp "f" (Cons (Cons (pvar "a") (Cons (pvar "b") Nil), var "a") Nil)) Nil)
+
+  bad-arity-program :: Program
+  bad-arity-program = MkProgram sp (Cons (MkModule sp "Main" (decl-spine sp bad-arity-decls)) Nil)
+
+  bad-arity-expr :: Expr
+  bad-arity-expr = call (var "f") (int "1")
+
+  -- A program holding a declaration the parser could not model is refused
+  -- by name before anything is evaluated.
+  unmodeled-decl-program :: Program
+  unmodeled-decl-program = MkProgram sp (Cons (MkModule sp "Main" (decl-spine sp (Cons (DUnmodeled sp "an-attribute-block") Nil))) Nil)
+
+  unmodeled-decl-result :: Result (List Diagnostic) Value
+  unmodeled-decl-result = eval-expr-in-program unmodeled-decl-program (int "0")
+
+  -- -------------------------------- the same source, parsed and evaluated
+
+  -- The example's own bytes, with its newlines escaped (a raw string
+  -- literal is not in the language). The parser reads these and the
+  -- interpreter evaluates the tree it produces, so the interpreter's
+  -- answers are checked against a second source of the same program rather
+  -- than only against the hand-built tree above.
+  fib-source :: String
+  fib-source = "module Main where\n  fib :: Int -> Int\n  fib n = if n == 0 then 0 else if n == 1 then 1 else fib (n - 1) + fib (n - 2)\n\n  main :: Int\n  main = if fib 10 == 55 then 0 else 1\n"
+
+  parsed-fib :: ParseOutcome Program
+  parsed-fib = parse-program "fib.cinch" (string-to-bytes fib-source)
+
+  parsed-program :: ParseOutcome Program -> Option Program
+  parsed-program o = case o of
+    Parsed p errs -> Some p
+    Failed b -> None
+
+  parsed-clean :: Bool
+  parsed-clean = case parsed-program parsed-fib of
+    None -> False
+    Some p -> program-unmodeled-count p == 0
+
+  parsed-fib-ten :: Result (List Diagnostic) Value
+  parsed-fib-ten = case parsed-program parsed-fib of
+    None -> Err Nil
+    Some p -> eval-expr-in-program p (call (var "fib") (int "10"))
+
+  parsed-main-value :: Option Int
+  parsed-main-value = case parsed-program parsed-fib of
+    None -> None
+    Some p -> eval-main p
+
+  parsed-main-ok :: Bool
+  parsed-main-ok = case parsed-main-value of
+    Some n -> n == 0
+    None -> False
+
+  -- ------------------------------------------------------- the checks
+
+  -- The value one expression evaluates to, or the empty renders.
+  eval-of :: Program -> Expr -> Result (List Diagnostic) Value
+  eval-of p e = eval-expr-in-program p e
+
+  -- Whether a result is the value `want` (a refusal, or a different value,
+  -- is not).
+  is-value :: Result (List Diagnostic) Value -> Value -> Bool
+  is-value r want = case r of
+    Err ds -> False
+    Ok v -> case value-equal v want of
+      Some b -> b
+      None -> False
+
+  -- Whether a result is a refusal in this rung's name that renders exactly
+  -- `want`.
+  refuses :: Result (List Diagnostic) Value -> String -> Bool
+  refuses r want = case r of
+    Err ds -> case ds of
+      Nil -> False
+      Cons d rest -> (string-compare (diagnostic-rung d) "bootstrap.eval" == 0) && (string-compare (diagnostic-message d) want == 0)
+    Ok v -> False
+
+  main-ok :: Bool
+  main-ok = case main-value of
+    Some n -> n == 0
+    None -> False
+
+  check :: Bool -> Int -> Int
+  check b code = if b then 0 else code
+
+  -- The first failing check's code, or 0 when every check passed.
+  first-failure :: List Int -> Int
+  first-failure cs = case cs of
+    Nil -> 0
+    Cons c rest -> if c == 0 then first-failure rest else c
+
+  ints-append :: List Int -> List Int -> List Int
+  ints-append xs ys = case xs of
+    Nil -> ys
+    Cons x rest -> Cons x (ints-append rest ys)
+
+  -- The checks, in order: the hand-built program's `fib 10` and `main`,
+  -- each named refusal, the fragment's remaining shapes, and the same
+  -- source parsed and evaluated.
+  checks-a :: List Int
+  checks-a =
+    Cons (check (is-value fib-ten-result (VInt 55)) 1)
+      (Cons (check main-ok 2)
+      (Cons (check (refuses (eval-of prog unmodeled-expr) "unmodeled expression: a-form-we-do-not-model") 3)
+      (Cons (check (refuses (eval-of prog bad-op-expr) "unsupported operator: @") 4)
+      (Cons (check (refuses (eval-of prog apply-non-fn-expr) "cannot apply a non-function") 5)
+      Nil))))
+
+  checks-b :: List Int
+  checks-b =
+    Cons (check (refuses (eval-of prog no-match-expr) "case expression has no matching alternative") 6)
+      (Cons (check (refuses (eval-of prog unbound-expr) "unbound variable: nowhere") 7)
+      (Cons (check (refuses (eval-of prog over-applied-expr) "arity mismatch: main applied to 1 argument(s), but its declaration has arity 0") 8)
+      (Cons (check (refuses (eval-of bad-arity-program bad-arity-expr) "arity mismatch: f has 2 parameters in this clause but its declaration has arity 1") 9)
+      (Cons (check (is-value (eval-of prog lam-expr) (VInt 42)) 10)
+      (Cons (check (is-value (eval-of prog unwrap-just-expr) (VInt 7)) 11)
+      Nil)))))
+
+  checks-c :: List Int
+  checks-c =
+    Cons (check (is-value (eval-of prog unwrap-nothing-expr) (VInt 0)) 12)
+      (Cons (check (is-value (eval-of prog even-ten) (VInt 1)) 13)
+      (Cons (check (is-value (eval-of prog str-expr) (VStr "cinch")) 14)
+      (Cons (check (is-value (eval-of prog chr-expr) (VChr 'z')) 15)
+      (Cons (check (is-value (eval-of prog bool-expr) (VInt 1)) 16)
+      (Cons (check (is-value (eval-of prog wild-expr) (VInt 42)) 17)
+      (Cons (check parsed-clean 18)
+      (Cons (check (is-value parsed-fib-ten (VInt 55)) 19)
+      (Cons (check parsed-main-ok 20)
+      (Cons (check (refuses unmodeled-decl-result "unmodeled declaration: an-attribute-block") 21)
+      Nil)))))))))
+
+  checks :: List Int
+  checks = ints-append checks-a (ints-append checks-b checks-c)
+
+  verdict :: Int
+  verdict = first-failure checks
+
+  -- ------------------------------------------------------- the report
+
+  line :: String -> String -> String
+  line label value = string-concat label (string-concat " = " (string-concat value "\n"))
+
+  result-text :: Result (List Diagnostic) Value -> String
+  result-text r = case r of
+    Err ds -> "<refused>"
+    Ok v -> render-value v
+
+  maybe-int-text :: Option Int -> String
+  maybe-int-text o = case o of
+    Some n -> int-to-string n
+    None -> "<none>"
+
+  strings-append :: List String -> List String -> List String
+  strings-append xs ys = case xs of
+    Nil -> ys
+    Cons x rest -> Cons x (strings-append rest ys)
+
+  report-lines-a :: List String
+  report-lines-a =
+    Cons (line "fib 10" (result-text fib-ten-result))
+      (Cons (line "main" (maybe-int-text main-value))
+      (Cons (line "lambda" (result-text (eval-of prog lam-expr)))
+      (Cons (line "constructor-case" (result-text (eval-of prog unwrap-just-expr)))
+      (Cons (line "nullary-constructor-case" (result-text (eval-of prog unwrap-nothing-expr)))
+      Nil))))
+
+  report-lines-b :: List String
+  report-lines-b =
+    Cons (line "mutual-recursion" (result-text (eval-of prog even-ten)))
+      (Cons (line "string" (result-text (eval-of prog str-expr)))
+      (Cons (line "char" (result-text (eval-of prog chr-expr)))
+      (Cons (line "bool-compare" (result-text (eval-of prog bool-expr)))
+      (Cons (line "wildcard" (result-text (eval-of prog wild-expr)))
+      Nil))))
+
+  report-lines-c :: List String
+  report-lines-c =
+    Cons (line "parsed-fib 10" (result-text parsed-fib-ten))
+      (Cons (line "parsed-main" (maybe-int-text parsed-main-value))
+      (Cons (line "unmodeled-declaration" (result-text unmodeled-decl-result))
+      (Cons (line "verdict" (int-to-string verdict))
+      Nil)))
+
+  report-lines :: List String
+  report-lines = strings-append report-lines-a (strings-append report-lines-b report-lines-c)
+
+  report-text :: String
+  report-text = string-concat-all report-lines
+
+  report-path :: Path
+  report-path = path-from-string "bootstrap-eval-report.txt"
+
+  -- Run every check, write the evidence, and answer the first failing
+  -- check's code. A failed report write is 255, so it is never mistaken
+  -- for a passing run.
+  main :: Unit ->{IO r} Int
+  main u = with (io = newIO ()) in
+    case fs-write report-path (string-to-bytes report-text) of
+      Err e -> 255
+      Ok x -> verdict

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Assemble a bootstrap-ladder project and run it through the real compiler
 # CLI. Rationale: the compiler does not embed the P30/P31 toolkit
-# (Text.Lex, Text.Scan, Text.Parse and Text.Json are on disk and absent
+# (Text.Lex, Text.Scan, Text.Parse, Text.Json and Text.Builder are on disk and absent
 # from compiler/prelude/cinch-base.cinchpkg), and every bootstrap artifact
 # imports it, so a rung runs as a PROJECT: the toolkit sources, every
 # bootstrap/*.cinch module and one program are copied beside each other in
@@ -11,7 +11,16 @@
 #
 # Usage:
 #   tooling/run-bootstrap-ladder.sh                          # type-check the ladder's modules
+#   tooling/run-bootstrap-ladder.sh --all-programs           # build and run every rung program
 #   tooling/run-bootstrap-ladder.sh programs/Run.Parse.cinch # run one rung program
+#
+# `--all-programs` asks whether each rung's artifact is RUNNABLE, which the
+# design document requires of every milestone: it assembles a project per
+# program and reports the program's own exit code, judging only whether the
+# program BUILT (the compiler prints `cinch: ...` on stderr when it does not).
+# A rung's exit code is its own business: `Bootstrap.Test`'s failing-suite
+# program exits nonzero on purpose. Whether a rung is correct is its test's
+# claim, not this script's.
 #
 # Requirements: a Rust toolchain (the script drives `cargo run` from
 # compiler/), and clang on PATH for the rungs that link.
@@ -23,8 +32,8 @@ dir="$(mktemp -d)"
 trap 'rm -rf "$dir"' EXIT
 
 # The toolkit the artifacts import and the package does not embed.
-cp "$compiler/prelude/Text/Lex.cinch" "$compiler/prelude/Text/Scan.cinch" \
-   "$compiler/prelude/Text/Parse.cinch" "$compiler/prelude/Text/Json.cinch" "$dir/"
+toolkit=(Lex Scan Parse Json Builder)
+for m in "${toolkit[@]}"; do cp "$compiler/prelude/Text/$m.cinch" "$dir/"; done
 # Every bootstrap module.
 cp "$root"/bootstrap/*.cinch "$dir/"
 
@@ -48,6 +57,38 @@ if [ "$#" -eq 0 ]; then
     exit 1
   fi
   echo "run-bootstrap-ladder: every ladder module checks"
+  exit 0
+fi
+
+if [ "$1" = "--all-programs" ]; then
+  # One project per program: every program declares `module Main`, so they
+  # cannot share a directory.
+  built=0
+  broke=0
+  for prog in "$root"/bootstrap/programs/*.cinch; do
+    [ -f "$prog" ] || continue
+    name="$(basename "$prog")"
+    one="$(mktemp -d)"
+    for m in "${toolkit[@]}"; do cp "$compiler/prelude/Text/$m.cinch" "$one/"; done
+    cp "$root"/bootstrap/*.cinch "$one/"
+    cp "$prog" "$one/$name"
+    err="$(mktemp)"
+    set +e
+    cargo run -q --manifest-path "$compiler/Cargo.toml" --bin cinch -- run "$one/$name" 2>"$err"
+    code=$?
+    set -e
+    if grep -q '^cinch: ' "$err"; then
+      echo "run-bootstrap-ladder: DID NOT BUILD $name"
+      grep '^cinch: ' "$err" | head -3 | sed 's/^/    /'
+      broke=$((broke + 1))
+    else
+      echo "run-bootstrap-ladder: ran $name, exit $code"
+      built=$((built + 1))
+    fi
+    rm -rf "$one" "$err"
+  done
+  echo "run-bootstrap-ladder: $built program(s) built and ran, $broke did not build"
+  [ "$broke" -eq 0 ] || exit 1
   exit 0
 fi
 
