@@ -1,0 +1,306 @@
+-- Rung 5: drive clang. The rung that lets the ladder build anything: a
+-- Cinch program that reads its arguments, reads an LLVM IR module from a
+-- file, hands that module to a spawned `clang` on the child's stdin, waits
+-- for the link, runs the executable clang produced, and writes a report
+-- naming both exit codes.
+--
+-- See bootstrap/README.md for the ladder and the discipline every rung
+-- follows. The diagnostic vocabulary is Bootstrap.Report's, the artifact
+-- boundary is Effect.Fs (`fs-read`/`fs-write`) and Effect.Process
+-- (`process-spawn` and the `child-*` operations).
+--
+-- The arguments. A Cinch program cannot reach the operating system's own
+-- argv: the runtime exposes no argv of its own (the program's compiled
+-- `main` is `i32 @main()` with no parameters, and no primitive reads the
+-- process command line). The channel the runtime DOES give every program
+-- is its input source (`ioRead`, the `Io r` capability, the same source
+-- the JSON probes read a document from), so this rung's argument reader
+-- takes the words from there: one argument word per line, the shape
+-- `Text.Args` documents for its `List String` argv. `driver-args` is the
+-- reader itself and is the whole of the rung's argument surface; a later
+-- rung that gains a real argv primitive replaces only `read-argv`.
+--
+-- The options are the three the driver needs:
+--
+--   --input  PATH   the LLVM IR module to link
+--   --output PATH   the executable clang must produce
+--   --report PATH   the file naming the child's exit code and the
+--                   artifact's
+--
+-- The report file is the rung's file evidence: `render-report` writes
+-- `clang-exit: N` and `artifact-exit: M`, one per line, so a Rust test
+-- reads the child's exit code back rather than taking the program's own
+-- exit code on trust.
+--
+-- The process's own exit code (the only assertion a Cinch program has) is
+-- 0 exactly when clang linked the module; a distinct number per failed
+-- step (see the `exit-*` constants) names which step refused.
+--
+-- Named refusals (boundaries this rung does not cross):
+--   an empty argument word: the words arrive one per line, so an empty
+--     line is not expressible as a word (it is dropped, as Text.Args's
+--     header already records for its own reader);
+--   environment additions for clang: the child inherits this process's
+--     environment (the platform spawn's own rule), so `PATH` resolves the
+--     bare `clang` name and no `KEY=VALUE` is added here;
+--   the artifact's stdout and stderr: drained and counted so the child
+--     cannot block on a full pipe, but not captured into the report.
+
+module Bootstrap.Driver where
+
+  import Bootstrap.Report
+  import Data.Bytes
+  import Data.Char
+  import Data.List
+  import Data.Nat
+  import Data.Option
+  import Data.Path
+  import Data.Result
+  import Data.String
+  import Effect.Fs
+  import Effect.Process
+  import Text.Lex (Span)
+  import Text.Show (nat-to-string)
+
+  -- The three paths the driver is handed: the IR module to link, the
+  -- executable to produce, and the report file to write.
+  data DriverArgs where
+    DriverArgs :: Path -> Path -> Path -> DriverArgs
+
+  -- ---------------------------------------------------------------- exits
+
+  exit-ok :: Int
+  exit-ok = 0
+
+  exit-bad-args :: Int
+  exit-bad-args = 1
+
+  exit-read-failed :: Int
+  exit-read-failed = 2
+
+  exit-spawn-failed :: Int
+  exit-spawn-failed = 3
+
+  exit-clang-failed :: Int
+  exit-clang-failed = 4
+
+  exit-artifact-failed :: Int
+  exit-artifact-failed = 5
+
+  exit-report-failed :: Int
+  exit-report-failed = 6
+
+  -- ---------------------------------------------------------- diagnostics
+
+  -- A zero-width span at the start of the synthetic argv input: the
+  -- driver's diagnostics are about the argument words, which have no
+  -- source file of their own.
+  zero-span :: Span
+  zero-span = Span 0 0 0 0
+
+  diagnostic :: String -> Diagnostic
+  diagnostic msg = MkDiagnostic "bootstrap.driver" zero-span msg
+
+  -- --------------------------------------------------------- argument scan
+
+  -- The scan's accumulator: the value each option has bound, if it has.
+  data Collected where
+    Collected :: Option String -> Option String -> Option String -> Collected
+
+  set-input :: String -> Collected -> Collected
+  set-input v c = case c of
+    Collected i o r -> Collected (Some v) o r
+
+  set-output :: String -> Collected -> Collected
+  set-output v c = case c of
+    Collected i o r -> Collected i (Some v) r
+
+  set-report :: String -> Collected -> Collected
+  set-report v c = case c of
+    Collected i o r -> Collected i o (Some v)
+
+  scan-args :: List String -> Collected -> Result Diagnostic Collected
+  scan-args argv acc = case argv of
+    Nil -> Ok acc
+    Cons w rest -> case string-compare w "--input" of
+      0 -> scan-value "--input" rest acc set-input
+      _ -> case string-compare w "--output" of
+        0 -> scan-value "--output" rest acc set-output
+        _ -> case string-compare w "--report" of
+          0 -> scan-value "--report" rest acc set-report
+          _ -> Err (diagnostic (unknown-word w))
+
+  -- An option's value word: the one after it, or the named refusal.
+  scan-value :: String -> List String -> Collected -> (String -> Collected -> Collected) -> Result Diagnostic Collected
+  scan-value name rest acc set = case rest of
+    Nil -> Err (diagnostic (missing-value name))
+    Cons v more -> scan-args more (set v acc)
+
+  missing-value :: String -> String
+  missing-value name = string-concat name " needs a value"
+
+  unknown-word :: String -> String
+  unknown-word w = string-concat "unknown argument: " w
+
+  -- Complete the three bindings, or name the first that is absent.
+  finish-args :: Collected -> Result Diagnostic DriverArgs
+  finish-args c = case c of
+    Collected i o r -> case i of
+      None -> Err (diagnostic "missing --input")
+      Some is -> case o of
+        None -> Err (diagnostic "missing --output")
+        Some os -> case r of
+          None -> Err (diagnostic "missing --report")
+          Some rs -> Ok (DriverArgs (path-from-string is) (path-from-string os) (path-from-string rs))
+
+  -- The argument words, parsed into the three paths, or the named refusal.
+  driver-args :: List String -> Result Diagnostic DriverArgs
+  driver-args argv = case scan-args argv (Collected None None None) of
+    Err d -> Err d
+    Ok c -> finish-args c
+
+  -- ------------------------------------------------------- the argv reader
+
+  -- The input source read to its end, in arrival order (the chunks are
+  -- consed as they arrive, so they are reversed before they are joined).
+  read-chunks :: forall r. using (io :: Io r) => Nat -> List Bytes ->{IO r, Diverge} List Bytes
+  read-chunks n acc = case ioRead n of
+    None -> acc
+    Some b -> case bytes-len b == 0 of
+      True -> acc
+      False -> read-chunks n (Cons b acc)
+
+  chunks-size :: List Bytes -> Nat
+  chunks-size cs = case cs of
+    Nil -> 0
+    Cons b rest -> bytes-len b + chunks-size rest
+
+  chunks-bytes :: List Bytes -> Bytes
+  chunks-bytes cs = gather (bytes-new (chunks-size cs)) 0 (reverse cs)
+
+  gather :: Bytes -> Nat -> List Bytes -> Bytes
+  gather out i cs = case cs of
+    Nil -> out
+    Cons b rest -> gather (gather-one out i b 0) (i + bytes-len b) rest
+
+  gather-one :: Bytes -> Nat -> Bytes -> Nat -> Bytes
+  gather-one out i b j = case j == bytes-len b of
+    True -> out
+    False -> case bytes-set out (i + j) (bytes-get b j) of
+      _ -> gather-one out i b (j + 1)
+
+  -- One argument word per line: split on the newline byte (code 10), then
+  -- drop the empty words (the trailing newline's own, and any blank line).
+  words-of :: String -> List String
+  words-of s = keep-nonempty (split-lines s 0 0 (string-length s))
+
+  split-lines :: String -> Nat -> Nat -> Nat -> List String
+  split-lines s start i n = case i == n of
+    True -> Cons (string-slice s start n) Nil
+    False -> case string-char-at s i of
+      None -> Cons (string-slice s start n) Nil
+      Some c -> case char-code c == 10 of
+        True -> Cons (string-slice s start i) (split-lines s (i + 1) (i + 1) n)
+        False -> split-lines s start (i + 1) n
+
+  keep-nonempty :: List String -> List String
+  keep-nonempty xs = case xs of
+    Nil -> Nil
+    Cons w rest -> case string-compare w empty-string of
+      0 -> keep-nonempty rest
+      _ -> Cons w (keep-nonempty rest)
+
+  -- The program's argument words, read from the runtime input source.
+  -- This is the one place a system argv would be read if the runtime had
+  -- one; today the words cross the input source instead.
+  read-argv :: forall r. using (io :: Io r) => Unit ->{IO r, Diverge} List String
+  read-argv u = case chunks-bytes (read-chunks 4096 Nil) of
+    bs -> case string-from-bytes bs of
+      None -> Nil
+      Some text -> words-of text
+
+  -- ------------------------------------------------------------- the drive
+
+  -- Drain one of a child's output pipes to its end, counting the bytes
+  -- (the child must not block on a full pipe the caller never reads).
+  drain :: forall r. using (io :: Io r) => Child -> Stream -> Nat ->{IO r} Result ProcessError Nat
+  drain c s acc = case child-read c s 4096 of
+    Err e -> Err e
+    Ok b -> case bytes-len b == 0 of
+      True -> Ok acc
+      False -> drain c s (acc + bytes-len b)
+
+  -- Spawn clang, write the IR module to its stdin, drain its pipes, wait
+  -- for the link and report the exit code. `clang -x ir - -o OUT` reads
+  -- the module from stdin (the `-` input), which is why the module is read
+  -- by this program first rather than left for clang to open.
+  spawn-clang :: forall r. using (io :: Io r) => Bytes -> Path ->{IO r} Result ProcessError Nat
+  spawn-clang ir output =
+    let args = Cons "-x" (Cons "ir" (Cons "-" (Cons "-o" (Cons (path-to-string output) Nil)))) in
+    let cmd = command (path-from-string "clang") args in
+    case process-spawn None cmd of
+      Err e -> Err e
+      Ok c -> case child-write-stdin c ir of
+        Err e -> Err e
+        Ok written -> case child-close-stdin c of
+          Err e -> Err e
+          Ok closed -> case drain c Stdout 0 of
+            Err e -> Err e
+            Ok out-count -> case drain c Stderr 0 of
+              Err e -> Err e
+              Ok err-count -> case child-wait c of
+                Err e -> Err e
+                Ok code -> case child-close c of
+                  Err e -> Err e
+                  Ok done -> Ok code
+
+  -- Run the executable clang produced and report its exit code (the
+  -- artifact's behaviour, from the artifact's own mouth).
+  run-artifact :: forall r. using (io :: Io r) => Path ->{IO r} Result ProcessError Nat
+  run-artifact exe = case process-spawn None (command exe Nil) of
+    Err e -> Err e
+    Ok c -> case child-close-stdin c of
+      Err e -> Err e
+      Ok closed -> case drain c Stdout 0 of
+        Err e -> Err e
+        Ok out-count -> case drain c Stderr 0 of
+          Err e -> Err e
+          Ok err-count -> case child-wait c of
+            Err e -> Err e
+            Ok code -> case child-close c of
+              Err e -> Err e
+              Ok done -> Ok code
+
+  -- The report file's text: the child's exit code and the artifact's, one
+  -- per line.
+  render-report :: Nat -> Nat -> String
+  render-report clang-code artifact-code =
+    string-concat "clang-exit: " (string-concat (nat-to-string clang-code) (string-concat "\n"
+      (string-concat "artifact-exit: " (string-concat (nat-to-string artifact-code) "\n"))))
+
+  write-report :: forall r. using (io :: Io r) => Path -> Nat -> Nat ->{IO r} Result FsError Unit
+  write-report report clang-code artifact-code =
+    fs-write report (string-to-bytes (render-report clang-code artifact-code))
+
+  -- Read the input module, link it with clang, run the artifact, and write
+  -- the report. The exit code names the step that refused, or 0.
+  link-and-report :: forall r. using (io :: Io r) => Path -> Path -> Path ->{IO r, Diverge} Int
+  link-and-report input output report = case fs-read input of
+    Err e -> exit-read-failed
+    Ok ir -> case spawn-clang ir output of
+      Err e -> exit-spawn-failed
+      Ok code -> case code == 0 of
+        False -> exit-clang-failed
+        True -> case run-artifact output of
+          Err e -> exit-artifact-failed
+          Ok artifact-code -> case write-report report code artifact-code of
+            Err e -> exit-report-failed
+            Ok written -> exit-ok
+
+  -- The rung's whole behaviour: parse the words, then drive the link.
+  driver-run :: forall r. using (io :: Io r) => List String ->{IO r, Diverge} Int
+  driver-run argv = case driver-args argv of
+    Err d -> case ioWrite (string-to-bytes (render-diagnostic d)) of
+      _ -> exit-bad-args
+    Ok a -> case a of
+      DriverArgs input output report -> link-and-report input output report

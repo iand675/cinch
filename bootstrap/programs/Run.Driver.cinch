@@ -1,0 +1,18 @@
+-- Rung 5's runnable program: the artifact `bootstrap/Bootstrap.Driver.cinch`
+-- driven as a whole program. It reads its argument words from the runtime
+-- input source, reads the LLVM IR module they name, links it with a spawned
+-- `clang`, runs the produced executable, and writes the report file naming
+-- both exit codes.
+--
+-- See bootstrap/README.md for the ladder. The logic is all in
+-- `Bootstrap.Driver`; this file is its entry point, so the rung is a runnable
+-- artifact rather than a Rust string literal (`tooling/run-bootstrap-ladder.sh`
+-- runs it through the real `cinch` CLI). The exit code is 0 exactly when
+-- clang linked the module; the report file carries the numbers.
+
+module Main where
+
+  import Bootstrap.Driver
+
+  main :: Unit ->{IO r, Diverge} Int
+  main u = with (io = newIO ()) in driver-run (read-argv u)
