@@ -500,6 +500,12 @@ const CANONICAL_PROBE: &str = r#"module Main where
   g10 :: Nat
   g10 = golden 10 "-1234" "-1234"
 
+  -- A control character with no named escape prints `\u00` then its
+  -- high nibble then its low one; swapped nibbles still look like a
+  -- valid escape (`\u0010`, `\u00f1`) and name a different character.
+  g11 :: Nat
+  g11 = golden 11 "\"\\u0001\\u001f\"" "\"\\u0001\\u001f\""
+
   fp1 :: Nat
   fp1 = fixed-point 20 "{\"a\":[1,2.5e0],\"b\":\"x\"}"
 
@@ -507,7 +513,7 @@ const CANONICAL_PROBE: &str = r#"module Main where
   fp2 = fixed-point 21 "\"\\u00e9A/\\b\\f\\n\\r\\t\\\\\\\"\""
 
   main :: Int
-  main = int-of (g1 + g2 + g3 + g4 + g5 + g6 + g7 + g8 + g9 + g10 + fp1 + fp2 + entry-order + non-finite-nan + non-finite-inf)
+  main = int-of (g1 + g2 + g3 + g4 + g5 + g6 + g7 + g8 + g9 + g10 + g11 + fp1 + fp2 + entry-order + non-finite-nan + non-finite-inf)
 "#;
 
 // ----------------------------------------------------------------

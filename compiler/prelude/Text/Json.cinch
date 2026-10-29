@@ -890,7 +890,7 @@ module Text.Json where
     else if eq-i64 cp 13 then "\\r"
     else if eq-i64 cp 9 then "\\t"
     else if lt-i64 cp 32 then
-      string-concat "\\u00" (string-concat (hex-digit (nat-rem (nat-from-i64 cp) 16)) (hex-digit (nat-div (nat-from-i64 cp) 16)))
+      string-concat "\\u00" (string-concat (hex-digit (nat-div (nat-from-i64 cp) 16)) (hex-digit (nat-rem (nat-from-i64 cp) 16)))
     else char-string c
 
 
