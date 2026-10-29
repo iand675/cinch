@@ -365,6 +365,33 @@ these places:
 (treated as immortal). The block then leaks, and the leak counter reports
 it (section 9). Koka uses the same rule.
 
+**As built (S1).** The encoding lives in
+`compiler/runtime/src/block_kinds.rs`, which the runtime's `block.rs` and
+the code generator both include verbatim, so the kind numbers cannot
+drift. Where S1 differs from the plan above:
+
+- `cinch_alloc_raw(size, kind)` takes the header kind as a second argument
+  and the runtime writes the whole header in one store. Generated code
+  never encodes a heap header itself; it only encodes static ones.
+- Until the `@__cinch_layouts` table exists (S5), `layout` holds the
+  payload size in words for every block, so `cinch_free` rebuilds the
+  `Layout` from the header alone without a per-kind size rule. A payload
+  of `0xFFFF` words or more stores `layout = 0xFFFF` and keeps its byte
+  size in one extra word at offset -16. S5 replaces this meaning of the
+  field with the table index; kinds that derive their size from the kind
+  then stop reading it.
+- One kind beyond the list above: `raw` (13), the unscanned byte buffers
+  the Wasm canonical ABI glue lowers into. They are not Cinch values.
+- Static blocks are `{ header; block }` storage `@"U.clo#h"`/`@"U.blk#h"`
+  with `@"U.clo"`/`@"U.blk"` an LLVM alias one word in, so no reference
+  site changed. The string composite is
+  `{ hdr; tag; buf_word; hdr; kind; len; data_word; data }` (indices 1,
+  4 and 7 are the addressed points).
+- The stats line gains `header-blocks`, `header-bytes`, `immortal` (blocks
+  allocated with `rc = 0`, i.e. interned `Sym` cells; static blocks are
+  never allocated and are not counted) and `freed` (calls of `cinch_free`
+  that deallocated). `live` and the sticky count stay with S3.
+
 **Later, optional.** Moving the constructor tag and runtime `kind` into the
 header saves one word per block, as Lean does. It shifts every field offset
 by -8, so it is deliberately not part of the first slices.
@@ -806,18 +833,35 @@ Decided by the user, 2026-10-29:
 Still open (the numbering of the original list; 1, 2 and 6 are decided
 above):
 
-3. **Escaping cyclic `letrec` values.** Accept a bounded, reported leak
-   (proposed), recompute through a unit (this changes the cost model:
-   lost sharing, possibly exponential), or reject escaping recursive
-   values?
-4. **Memo groups before escape checking lands.** Leak the non-proven groups
-   (proposed), or tear down everything and let an escaped demand fault
-   (exit 70)?
+Revised 2026-10-29 after the user's objection to proposed leaks: the
+language is GC-free AND leak-free by construction. No proposal below leaks.
+
+3. **Escaping cyclic `letrec` values.** Proposed (revised): a recursive value
+   knot is region-scoped exactly like a `~` memo cell. It lives in the
+   region of the scope that creates it, is torn down at that scope's exit,
+   and may not escape (the escape checker that already enforces `Ref r a`
+   and `Mut r a` rejects it at compile time, naming the binding). A value
+   needed beyond the scope is rebuilt acyclically or moved into a structure
+   parameterized by the region. The earlier proposal (a bounded, reported
+   leak) is withdrawn: it leaked once per evaluation, so a `letrec` in a
+   loop leaked without bound. How many existing programs return a knot is
+   unmeasured; S8 measures it over the prelude, examples and bootstrap
+   before the rule lands.
+4. **Memo groups.** Proposed (revised): enforce the lazy specification's own
+   rule (`Lazy {e} r a` does not outlive `r`, lines 73-74) in the checker,
+   which the bootstrap does not yet do for cells. Every group is then torn
+   down at region exit, with no escape analysis needed and no leak and no
+   fault. The earlier "leak the unproven groups" proposal is withdrawn.
 5. **Cross-task sharing.** Mark-on-spawn (proposed), always-atomic counts,
    or copy?
 7. **`mutBorrow`.** An owned copy at borrow time (proposed), or real place
    borrows first?
-8. **Header budget.** One word: 32-bit count, 16-bit layout id. Is a
-   sticky count past 2^31 acceptable?
+8. **Header budget.** Proposed (revised): one word with a 40-bit count,
+   an 8-bit kind and a 16-bit layout id (with one reserved id meaning "the
+   shape is in an extra word", so the 65,536-shape limit is soft). A 40-bit
+   count cannot overflow in practice (2^40 references to one block need 8
+   TiB of pointers), and overflow faults deterministically instead of going
+   sticky, so no block ever leaks. The earlier 32-bit sticky count is
+   withdrawn because sticky means leaked.
 9. **Separate compilation.** Should exported functions record inferred
    borrow modes in `.cinchif`, or default to owned?
