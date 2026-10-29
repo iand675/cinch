@@ -17,6 +17,10 @@
 //!   `{ i64 ptrtoint(@"U.app"), i64 arity, i64 0 }`,
 //! * `@"U.blk"` (zero-field constructors): the static ADT block, so repeated
 //!   construction returns one pointer,
+//! * `@"U.clo#h"`/`@"U.blk#h"`: the storage of those two static blocks,
+//!   an immortal block header word followed by the block; `@"U.clo"` and
+//!   `@"U.blk"` are aliases one word in, so a static block is addressed
+//!   like a heap block (runtime ABI, `compiler/runtime/src/block.rs`),
 //! * `@"U.dec<N>"` (mathematical `Nat`/`Int` literals beyond the `i64`
 //!   fast path): the private decimal digit string a bignum literal parses.
 //!
@@ -72,6 +76,14 @@ use crate::types::Scalar;
 use crate::Result;
 use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+
+/// The runtime's block header encoding (kinds, rc conventions, the header
+/// word layout), shared verbatim with `compiler/runtime/src/block.rs` so
+/// the two sides cannot drift.
+#[allow(dead_code)]
+mod block {
+    include!("../runtime/src/block_kinds.rs");
+}
 
 /// The target's lowering choices (WebAssembly and WASI specification
 /// sections 2 and 7): the `Usize`/`Isize` word width and which task ABI
@@ -135,11 +147,12 @@ pub fn emit_for(profile: &crate::core::TargetProfile, program: &Program) -> Resu
             "target datalayout = \"e-m:e-p:32:32-p10:8:8-p20:8:8-i64:64-i128:128-n32:64-S128-ni:1:10:20\"\n",
         );
     }
-    out.push_str("declare ptr @cinch_alloc_raw(i64)\n");
+    out.push_str("declare ptr @cinch_alloc_raw(i64, i64)\n");
     out.push_str("declare ptr @memcpy(ptr, ptr, i64)\n");
     // The runtime ABI's mathematical `Nat`/`Int` and `Bytes` externs
-    // (`compiler/runtime/src/lib.rs`); bignum words are pointers to the
-    // runtime's blocks, passed and returned as `i64` words.
+    // (`compiler/runtime/src/lib.rs`); `Nat`/`Int` words are opaque
+    // runtime words (immediates or bignum block pointers) passed and
+    // returned as `i64`.
     for f in [
         "declare i64 @cinch_nat_from_i64(i64)",
         "declare i64 @cinch_nat_to_i64(i64)",
@@ -741,7 +754,7 @@ impl Registry {
         // and must not collide with the runtime helpers.
         let mut globals: HashSet<String> = HashSet::new();
         for unit in reg.arity.keys() {
-            for suffix in ["", ".app", ".clo", ".blk", "#tail"] {
+            for suffix in ["", ".app", ".clo", ".blk", ".clo#h", ".blk#h", "#tail"] {
                 let full = format!("{unit}{suffix}");
                 for reserved in ["main", "__apply", "malloc", "memcpy"] {
                     if full == reserved {
@@ -1200,16 +1213,14 @@ fn build_unit(
             // static tag blocks (`None` tag 0; `LT`/`EQ`/`GT` tags 0/1/2),
             // `Some` is a fresh `{ tag; value }` block (tag 1).
             if op.returns_option() {
-                globals.push_str(&format!(
-                    "@{blk} = internal constant [1 x i64] [i64 0]\n\n",
-                    blk = quote(&format!("{name}.blk"))
-                ));
+                globals.push_str(&static_block(&format!("{name}.blk"), block::KIND_CTOR, &["0".to_string()]));
             }
             if op.returns_ordering() {
                 for (suf, tag) in [(".lt", 0), (".eq", 1), (".gt", 2)] {
-                    globals.push_str(&format!(
-                        "@{blk} = internal constant [1 x i64] [i64 {tag}]\n\n",
-                        blk = quote(&format!("{name}{suf}"))
+                    globals.push_str(&static_block(
+                        &format!("{name}{suf}"),
+                        block::KIND_CTOR,
+                        &[tag.to_string()],
                     ));
                 }
             }
@@ -1224,10 +1235,7 @@ fn build_unit(
         }
         UnitBody::Ctor(tag, fields) => {
             if *fields == 0 {
-                globals.push_str(&format!(
-                    "@{blk} = internal constant [1 x i64] [i64 {tag}]\n\n",
-                    blk = quote(&format!("{name}.blk"))
-                ));
+                globals.push_str(&static_block(&format!("{name}.blk"), block::KIND_CTOR, &[tag.to_string()]));
             }
             ctor_body(&mut b, reg, name, *tag, *fields, reg.plans.get(name));
         }
@@ -1307,10 +1315,29 @@ fn fn_header(
 }
 
 fn clo_def(name: &str, arity: usize) -> String {
+    let app = quote(&format!("{name}.app"));
+    static_block(
+        &format!("{name}.clo"),
+        block::KIND_CLOSURE,
+        &[format!("ptrtoint (ptr @{app} to i64)"), arity.to_string(), "0".to_string()],
+    )
+}
+
+/// An immortal static block whose payload is the 64-bit `words`: the
+/// storage `@"<sym>#h"` puts the block header first, and `@"<sym>"` is an
+/// alias one word in, so every reference to the symbol addresses the
+/// payload exactly as it addresses a heap block's.
+fn static_block(sym: &str, kind: u8, words: &[String]) -> String {
+    let n = words.len();
+    let hdr = block::static_header(kind, n as u16) as i64;
+    let init: Vec<String> = words.iter().map(|w| format!("i64 {w}")).collect();
     format!(
-        "@{clo} = internal constant {{ i64, i64, i64 }} {{ i64 ptrtoint (ptr @{app} to i64), i64 {arity}, i64 0 }}\n\n",
-        clo = quote(&format!("{name}.clo")),
-        app = quote(&format!("{name}.app")),
+        "@{storage} = internal constant [{len} x i64] [i64 {hdr}, {init}]\n\
+         @{sym} = internal alias [{n} x i64], getelementptr inbounds (i8, ptr @{storage}, i64 8)\n\n",
+        storage = quote(&format!("{sym}#h")),
+        sym = quote(sym),
+        len = n + 1,
+        init = init.join(", "),
     )
 }
 
@@ -1338,7 +1365,7 @@ fn stub_def(name: &str, arity: usize) -> String {
     let szb = b.reg();
     b.line(&format!("{szb} = mul i64 {sz}, 8"));
     let new = b.reg();
-    b.line(&format!("{new} = call ptr @cinch_alloc_raw(i64 {szb})"));
+    b.line(&alloc_call(&new, &szb, block::KIND_CLOSURE));
     let cw = b.load_at("%self", 0);
     b.store_at(&new, 0, &cw);
     b.store_at(&new, 8, &arity.to_string());
@@ -1793,7 +1820,7 @@ fn ret_option(
     b.start(&lsome);
     let v = val(b);
     let p = b.reg();
-    b.line(&format!("{p} = call ptr @cinch_alloc_raw(i64 16)"));
+    b.line(&alloc_call(&p, 16, block::KIND_CTOR));
     b.store_at(&p, 0, "1");
     b.store_at(&p, 8, &v);
     let w = b.reg();
@@ -1825,7 +1852,7 @@ fn ret_result(b: &mut Builder, raw: &str, ok: impl FnOnce(&mut Builder) -> Strin
     let code = b.reg();
     b.line(&format!("{code} = sub i64 0, {raw}"));
     let ep = b.reg();
-    b.line(&format!("{ep} = call ptr @cinch_alloc_raw(i64 16)"));
+    b.line(&alloc_call(&ep, 16, block::KIND_CTOR));
     b.store_at(&ep, 0, "0");
     b.store_at(&ep, 8, &code);
     let ew = b.reg();
@@ -1834,7 +1861,7 @@ fn ret_result(b: &mut Builder, raw: &str, ok: impl FnOnce(&mut Builder) -> Strin
     b.start(&lok);
     let v = ok(b);
     let op = b.reg();
-    b.line(&format!("{op} = call ptr @cinch_alloc_raw(i64 16)"));
+    b.line(&alloc_call(&op, 16, block::KIND_CTOR));
     b.store_at(&op, 0, "1");
     b.store_at(&op, 8, &v);
     let ow = b.reg();
@@ -1933,6 +1960,12 @@ fn rt_call(b: &mut Builder, f: &str, args: &[String]) -> String {
     r
 }
 
+/// The `cinch_alloc_raw` call that allocates a `size`-byte block with
+/// header kind `kind` into `dst` (runtime ABI, `compiler/runtime/src/block.rs`).
+fn alloc_call(dst: &str, size: impl std::fmt::Display, kind: u8) -> String {
+    format!("{dst} = call ptr @cinch_alloc_raw(i64 {size}, i64 {kind})")
+}
+
 /// The task ABI symbol of the target's backend (WebAssembly and WASI
 /// specification section 7): the cooperative scheduler under a Wasm
 /// artifact profile, the OS-thread scheduler on the host.
@@ -2024,7 +2057,7 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, name: &str, op: PrimOp) {
                         b.line(&format!("{w} = lshr i64 {n}, 32"));
                         let nw = rt_call(b, "cinch_nat_from_i64", &[format!("i64 {w}")]);
                         let t = b.reg();
-                        b.line(&format!("{t} = call ptr @cinch_alloc_raw(i64 24)"));
+                        b.line(&alloc_call(&t, 24, block::KIND_CTOR));
                         b.store_at(&t, 0, "0");
                         b.store_at(&t, 8, &cp);
                         b.store_at(&t, 16, &nw);
@@ -2454,7 +2487,7 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, name: &str, op: PrimOp) {
                     b.start(&lfail);
                     let ep = b.load_at(&out, 0);
                     let eb = b.reg();
-                    b.line(&format!("{eb} = call ptr @cinch_alloc_raw(i64 16)"));
+                    b.line(&alloc_call(&eb, 16, block::KIND_CTOR));
                     b.store_at(&eb, 0, "0");
                     b.store_at(&eb, 8, &ep);
                     let ew = b.reg();
@@ -2466,16 +2499,13 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, name: &str, op: PrimOp) {
                     let okw = if n == 1 {
                         let p = b.load_at(&out, 0);
                         let ok = b.reg();
-                        b.line(&format!("{ok} = call ptr @cinch_alloc_raw(i64 16)"));
+                        b.line(&alloc_call(&ok, 16, block::KIND_CTOR));
                         b.store_at(&ok, 0, "1");
                         b.store_at(&ok, 8, &p);
                         ok
                     } else {
                         let tup = b.reg();
-                        b.line(&format!(
-                            "{tup} = call ptr @cinch_alloc_raw(i64 {})",
-                            8 + 8 * n
-                        ));
+                        b.line(&alloc_call(&tup, 8 + 8 * n, block::KIND_CTOR));
                         b.store_at(&tup, 0, "0");
                         for i in 0..n {
                             let p = b.load_at(&out, i * 8);
@@ -2484,7 +2514,7 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, name: &str, op: PrimOp) {
                         let tupw = b.reg();
                         b.line(&format!("{tupw} = ptrtoint ptr {tup} to i64"));
                         let ok = b.reg();
-                        b.line(&format!("{ok} = call ptr @cinch_alloc_raw(i64 16)"));
+                        b.line(&alloc_call(&ok, 16, block::KIND_CTOR));
                         b.store_at(&ok, 0, "1");
                         b.store_at(&ok, 8, &tupw);
                         ok
@@ -3180,7 +3210,7 @@ fn ctor_body(
     if let Some(plan) = plan {
         let bytes = 8 + plan.payload;
         let p = b.reg();
-        b.line(&format!("{p} = call ptr @cinch_alloc_raw(i64 {bytes})"));
+        b.line(&alloc_call(&p, bytes, block::KIND_CTOR));
         b.store_at(&p, 0, &tag.to_string());
         let payload = b.gep(&p, 8);
         for (i, fa) in plan.fields.iter().enumerate() {
@@ -3193,7 +3223,7 @@ fn ctor_body(
     }
     let bytes = (1 + fields) * 8;
     let p = b.reg();
-    b.line(&format!("{p} = call ptr @cinch_alloc_raw(i64 {bytes})"));
+    b.line(&alloc_call(&p, bytes, block::KIND_CTOR));
     b.store_at(&p, 0, &tag.to_string());
     for i in 0..fields {
         b.store_at(&p, (1 + i) * 8, &format!("%p{i}"));
@@ -3361,7 +3391,7 @@ fn load_field_word(b: &mut Builder, reg: &Registry, payload: &str, fa: &FieldAcc
         FieldShape::Inline { size, tag, fields } => {
             // Box the inline payload out into a fresh block.
             let blk = b.reg();
-            b.line(&format!("{blk} = call ptr @cinch_alloc_raw(i64 {})", 8 + size));
+            b.line(&alloc_call(&blk, 8 + size, block::KIND_CTOR));
             b.store_at(&blk, 0, &tag.to_string());
             let dst = b.gep(&blk, 8);
             let src = b.gep(payload, fa.offset as usize);
@@ -3755,10 +3785,7 @@ fn foreign_import_body(
                 full.join(", ")
             ));
             let blk = b.reg();
-            b.line(&format!(
-                "{blk} = call ptr @cinch_alloc_raw(i64 {})",
-                8 + plan.result.width
-            ));
+            b.line(&alloc_call(&blk, 8 + plan.result.width, block::KIND_CTOR));
             b.store_at(&blk, 0, &plan.result.tag.to_string());
             let payload = b.gep(&blk, 8);
             for fa in &plan.result.fields {
@@ -3842,10 +3869,7 @@ fn export_entry(out: &mut String, plan: &ForeignPlan, reg: &Registry, cx: &Lower
                     format!("ptr {byval} {n}{}", param_attrs(p, true))
                 });
                 let blk = b.reg();
-                b.line(&format!(
-                    "{blk} = call ptr @cinch_alloc_raw(i64 {})",
-                    8 + p.width
-                ));
+                b.line(&alloc_call(&blk, 8 + p.width, block::KIND_CTOR));
                 b.store_at(&blk, 0, &p.tag.to_string());
                 let payload = b.gep(&blk, 8);
                 for fa in &p.fields {
@@ -3919,7 +3943,7 @@ fn mk_body(b: &mut Builder, info: &InstInfo) {
     let mc = info.method_count;
     let bytes = (1 + mc) * 8;
     let p = b.reg();
-    b.line(&format!("{p} = call ptr @cinch_alloc_raw(i64 {bytes})"));
+    b.line(&alloc_call(&p, bytes, block::KIND_DICT));
     b.store_at(&p, 0, &mc.to_string());
     for (i, (method, m_arity)) in info.methods.iter().enumerate() {
         let w = if *m_arity == info.subdict_count {
@@ -3945,7 +3969,7 @@ fn mk_body(b: &mut Builder, info: &InstInfo) {
         } else {
             let cb = (3 + info.subdict_count) * 8;
             let c = b.reg();
-            b.line(&format!("{c} = call ptr @cinch_alloc_raw(i64 {cb})"));
+            b.line(&alloc_call(&c, cb, block::KIND_CLOSURE));
             let cw = b.reg();
             b.line(&format!(
                 "{cw} = ptrtoint ptr @{app} to i64",
@@ -4038,8 +4062,8 @@ fn core_body(b: &mut Builder, reg: &Registry, f: &FnDef, width: usize) -> Result
 fn collect_prims(e: &Core, out: &mut BTreeSet<PrimOp>) {
     match e {
         Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Var(_)
-        | Core::Global(_)
-        | Core::Ctor(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc
+        | Core::Global(..)
+        | Core::Ctor(..) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc
         | Core::BoxAlloc
         | Core::DeclsQuote { .. }
         | Core::SyntaxLit(_)
@@ -4059,8 +4083,8 @@ fn collect_prims(e: &Core, out: &mut BTreeSet<PrimOp>) {
         Core::Prim(op) => {
             out.insert(*op);
         }
-        Core::DictProj(d, _) | Core::Proj(d, _) | Core::Demand(d) => collect_prims(d, out),
-        Core::InstDict(_, args) | Core::App(_, args) | Core::Lam { env: args, .. } => {
+        Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d) => collect_prims(d, out),
+        Core::InstDict(_, args, _) | Core::App(_, args) | Core::Lam { env: args, .. } => {
             if let Core::App(f, _) = e {
                 collect_prims(f, out);
             }
@@ -4068,7 +4092,7 @@ fn collect_prims(e: &Core, out: &mut BTreeSet<PrimOp>) {
                 collect_prims(a, out);
             }
         }
-        Core::Let(_, v, body) => {
+        Core::Let(_, _, v, body) => {
             collect_prims(v, out);
             collect_prims(body, out);
         }
@@ -4097,8 +4121,8 @@ fn collect_binders(e: &Core, out: &mut Vec<LocalId>) {
         | Core::Bool(_)
         | Core::Unit
         | Core::Var(_)
-        | Core::Global(_)
-        | Core::Ctor(_)
+        | Core::Global(..)
+        | Core::Ctor(..)
         | Core::Prim(_)
         | Core::Foreign(_)
         | Core::SpliceVal(_)
@@ -4107,9 +4131,9 @@ fn collect_binders(e: &Core, out: &mut Vec<LocalId>) {
         | Core::DeclsQuote { .. }
         | Core::SyntaxLit(_)
         | Core::StrLit(_) => {}
-        Core::DictProj(d, _) => collect_binders(d, out),
+        Core::DictProj(d, ..) => collect_binders(d, out),
         Core::Proj(d, _) => collect_binders(d, out),
-        Core::InstDict(_, subs) | Core::Lam { env: subs, .. } => {
+        Core::InstDict(_, subs, _) | Core::Lam { env: subs, .. } => {
             for s in subs {
                 collect_binders(s, out);
             }
@@ -4133,7 +4157,7 @@ fn collect_binders(e: &Core, out: &mut Vec<LocalId>) {
             collect_binders(v, out);
         }
         Core::BoxGet(v) => collect_binders(v, out),
-        Core::Let(x, e, body) => {
+        Core::Let(x, _, e, body) => {
             out.push(*x);
             collect_binders(e, out);
             collect_binders(body, out);
@@ -4147,7 +4171,7 @@ fn collect_binders(e: &Core, out: &mut Vec<LocalId>) {
             collect_binders(scrut, out);
             for a in alts {
                 match &a.pat {
-                    CPat::Var(x) => out.push(*x),
+                    CPat::Var(x, _) => out.push(*x),
                     CPat::Wild => {}
                     CPat::Con { fields, .. } => out.extend(fields.iter().copied()),
                 }
@@ -4202,7 +4226,7 @@ impl CoreEmitter<'_, '_> {
     /// If `f` names a code generation unit, its name and arity.
     fn known_unit(&self, f: &Core) -> Option<(String, usize)> {
         match f {
-            Core::Global(id) | Core::Ctor(id) => {
+            Core::Global(id, _) | Core::Ctor(id, _) => {
                 self.reg.arity.get(&id.0).map(|a| (id.0.clone(), *a))
             }
             Core::Prim(op) => Some((op.symbol(), op.arity())),
@@ -4283,9 +4307,13 @@ impl CoreEmitter<'_, '_> {
                 Ok(r)
             }
             Core::ConstBig { nat, digits } => {
-                // A boxed bignum word (core.rs): the fast path boxes an
-                // `i64` immediate, the slow path parses a private decimal
+                // A literal that fits an immediate is its own word (no
+                // call, no box). Otherwise the `i64` path boxes a machine
+                // integer and the slow path parses a private decimal
                 // constant through the runtime.
+                if let Some(w) = immediate_word(*nat, digits) {
+                    return Ok(w.to_string());
+                }
                 let (from_i64, from_dec) = if *nat {
                     ("cinch_nat_from_i64", "cinch_nat_from_decimal")
                 } else {
@@ -4318,14 +4346,17 @@ impl CoreEmitter<'_, '_> {
                 // allocation). `String` is immutable and its backing is
                 // never handed out mutably, so the shared object is
                 // semantics-transparent. The object is
-                // `{ tag; bytes_word; kind; len; data_word; data... }`:
-                // words 0-1 are the `StrBuf` block (`ctor_body`'s
-                // `{ tag; field0 }`), words 2-4 the `Boxed<Bytes>`
+                // `{ hdr; tag; bytes_word; hdr; kind; len; data_word; data... }`:
+                // words 1-2 are the `StrBuf` block (`ctor_body`'s
+                // `{ tag; field0 }`), words 4-6 the `Boxed<Bytes>`
                 // buffer block (`{ kind; Bytes { len; data } }`, the
-                // runtime's `repr(C)` pair), the data bytes inline. The
-                // buffer kind is the runtime ABI's `KIND_BYTES_STATIC`
-                // (5): a mutation attempt takes the defined read-only
-                // fault instead of writing to constant data.
+                // runtime's `repr(C)` pair), the data bytes inline. Words
+                // 0 and 3 are the two blocks' immortal headers, so both
+                // are addressed one word past their header like any
+                // block. The in-block buffer kind is the runtime ABI's
+                // `KIND_BYTES_STATIC` (5): a mutation attempt takes the
+                // defined read-only fault instead of writing to constant
+                // data.
                 let (tag, fields) = self.reg.ctors.get(&ctor.0).copied().ok_or_else(|| {
                     crate::Error::plain(format!("unknown constructor {ctor}"))
                 })?;
@@ -4337,22 +4368,26 @@ impl CoreEmitter<'_, '_> {
                 let unit = self.unit.clone();
                 let name = self.b.dec_name(&unit);
                 let qname = quote(&name);
-                let ty = format!("{{ i64, ptr, i64, i64, ptr, [{} x i8] }}", bytes.len());
+                let ty = format!("{{ i64, i64, ptr, i64, i64, i64, ptr, [{} x i8] }}", bytes.len());
                 let buf_word =
-                    format!("ptr getelementptr inbounds ({ty}, ptr @{qname}, i64 0, i32 2)");
+                    format!("ptr getelementptr inbounds ({ty}, ptr @{qname}, i64 0, i32 4)");
                 let data_word =
-                    format!("ptr getelementptr inbounds ({ty}, ptr @{qname}, i64 0, i32 5, i64 0)");
+                    format!("ptr getelementptr inbounds ({ty}, ptr @{qname}, i64 0, i32 7, i64 0)");
+                let str_hdr = block::static_header(block::KIND_CTOR, 2) as i64;
+                let buf_hdr = block::static_header(block::KIND_BYTES_STATIC, 3) as i64;
                 let data = if bytes.is_empty() {
                     "[0 x i8] zeroinitializer".to_string()
                 } else {
                     format!("[{} x i8] c\"{}\"", bytes.len(), c_string_bytes(bytes))
                 };
                 self.b.global(format!(
-                    "@{qname} = internal constant {ty} {{ i64 {tag}, {buf_word}, i64 5, i64 {}, {data_word}, {data} }}",
+                    "@{qname} = internal constant {ty} {{ i64 {str_hdr}, i64 {tag}, {buf_word}, i64 {buf_hdr}, i64 5, i64 {}, {data_word}, {data} }}",
                     bytes.len(),
                 ));
                 let r = self.b.reg();
-                self.b.line(&format!("{r} = ptrtoint ptr @{qname} to i64"));
+                self.b.line(&format!(
+                    "{r} = ptrtoint ptr getelementptr inbounds ({ty}, ptr @{qname}, i64 0, i32 1) to i64"
+                ));
                 Ok(r)
             }
             Core::Bool(b) => Ok(if *b { "1" } else { "0" }.to_string()),
@@ -4366,11 +4401,11 @@ impl CoreEmitter<'_, '_> {
                 self.b.line(&format!("{r} = load i64, ptr {slot}"));
                 Ok(r)
             }
-            Core::Global(id) => self.unit_value(&id.0),
-            Core::Ctor(id) => self.unit_value(&id.0),
+            Core::Global(id, _) => self.unit_value(&id.0),
+            Core::Ctor(id, _) => self.unit_value(&id.0),
             Core::Prim(op) => self.unit_value(&op.symbol()),
             Core::Foreign(n) => self.unit_value(n),
-            Core::DictProj(d, idx) => {
+            Core::DictProj(d, idx, _) => {
                 let dv = self.emit_expr(d)?;
                 let p = self.b.reg();
                 self.b.line(&format!("{p} = inttoptr i64 {dv} to ptr"));
@@ -4404,7 +4439,7 @@ impl CoreEmitter<'_, '_> {
                 self.b.start(&l);
                 Ok("0".to_string())
             }
-            Core::InstDict(id, subs) => {
+            Core::InstDict(id, subs, _) => {
                 let info = self
                     .reg
                     .insts
@@ -4446,7 +4481,7 @@ impl CoreEmitter<'_, '_> {
                 }
                 let bytes = (3 + env.len()) * 8;
                 let c = self.b.reg();
-                self.b.line(&format!("{c} = call ptr @cinch_alloc_raw(i64 {bytes})"));
+                self.b.line(&alloc_call(&c, bytes, block::KIND_CLOSURE));
                 let cw = self.b.reg();
                 self.b.line(&format!(
                     "{cw} = ptrtoint ptr @{app} to i64",
@@ -4462,7 +4497,7 @@ impl CoreEmitter<'_, '_> {
                 self.b.line(&format!("{w} = ptrtoint ptr {c} to i64"));
                 Ok(w)
             }
-            Core::Let(x, e, body) => {
+            Core::Let(x, _, e, body) => {
                 if !self.bound.contains(x) {
                     return err(format!("let binds unknown local {}", x.0));
                 }
@@ -4517,7 +4552,7 @@ impl CoreEmitter<'_, '_> {
                 // `{ state; value }` fixpoint box: an empty read faults
                 // through the black-hole rule (exit 70).
                 let c = self.b.reg();
-                self.b.line(&format!("{c} = call ptr @cinch_alloc_raw(i64 16)"));
+                self.b.line(&alloc_call(&c, 16, block::KIND_KNOT));
                 self.b.store_at(&c, 0, "0");
                 self.b.store_at(&c, 8, "0");
                 let w = self.b.reg();
@@ -4561,7 +4596,7 @@ impl CoreEmitter<'_, '_> {
                 // `{ state; thunk; value }`; the thunk slot is filled by
                 // `LazyInit`.
                 let c = self.b.reg();
-                self.b.line(&format!("{c} = call ptr @cinch_alloc_raw(i64 24)"));
+                self.b.line(&alloc_call(&c, 24, block::KIND_MEMO));
                 self.b.store_at(&c, 0, "0");
                 self.b.store_at(&c, 8, "0");
                 self.b.store_at(&c, 16, "0");
@@ -4665,7 +4700,7 @@ impl CoreEmitter<'_, '_> {
     /// - Anything else is an ordinary call followed by `ret`.
     fn emit_tail(&mut self, e: &Core) -> Result<()> {
         match e {
-            Core::Let(x, v, body) => {
+            Core::Let(x, _, v, body) => {
                 if !self.bound.contains(x) {
                     return err(format!("let binds unknown local {}", x.0));
                 }
@@ -4770,13 +4805,13 @@ impl CoreEmitter<'_, '_> {
         let mut default: Option<(Option<LocalId>, &Core, Option<u32>)> = None;
         for a in alts {
             match &a.pat {
-                CPat::Con { tag, fields } => {
+                CPat::Con { tag, fields, .. } => {
                     if cons.iter().any(|(t, _, _, _)| t == tag) {
                         return err(format!("duplicate case tag {tag}"));
                     }
                     cons.push((*tag, fields, &a.body, a.weight));
                 }
-                CPat::Var(x) => {
+                CPat::Var(x, _) => {
                     if default.is_some() {
                         return err("case has more than one default alternative");
                     }
@@ -4882,6 +4917,7 @@ impl CoreEmitter<'_, '_> {
 mod tests {
     use super::*;
     use crate::core::{GlobalId, InstanceDef, IntOp, NatOp};
+    use crate::repr::Class;
     use std::process::Command;
     use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -4968,6 +5004,7 @@ mod tests {
             prim: None,
             ctor: None,
             hints: crate::core::FnHints::default(),
+            repr: crate::core::UnitRepr::default(),
         }
     }
 
@@ -4980,6 +5017,7 @@ mod tests {
             prim: Some(op),
             ctor: None,
             hints: crate::core::FnHints::default(),
+            repr: crate::core::UnitRepr::default(),
         }
     }
 
@@ -4992,6 +5030,7 @@ mod tests {
             prim: None,
             ctor: Some((tag, fields)),
             hints: crate::core::FnHints::default(),
+            repr: crate::core::UnitRepr::default(),
         }
     }
 
@@ -5004,11 +5043,11 @@ mod tests {
     }
 
     fn g(id: &str) -> Core {
-        Core::Global(gid(id))
+        Core::Global(gid(id), Vec::new())
     }
 
     fn ct(id: &str) -> Core {
-        Core::Ctor(gid(id))
+        Core::Ctor(gid(id), Vec::new())
     }
 
     fn v(i: usize) -> Core {
@@ -5310,7 +5349,7 @@ mod tests {
         // add2 is applied to one argument; the filled closure takes the rest.
         let add2 = fndef("add2", &["a", "b"], app(p(arith(ArithOp::Add)), vec![v(0), v(1)]));
         let body = Core::Let(
-            LocalId(10),
+            LocalId(10), Class::Raw,
             Box::new(app(g("add2"), vec![n(20)])),
             Box::new(app(v(10), vec![n(22)])),
         );
@@ -5333,7 +5372,7 @@ mod tests {
             },
         );
         let body = Core::Let(
-            LocalId(10),
+            LocalId(10), Class::Raw,
             Box::new(app(g("mk"), vec![n(10)])),
             Box::new(app(v(10), vec![n(32)])),
         );
@@ -5365,20 +5404,20 @@ mod tests {
             "add_Maybe",
             &["d", "x", "y"],
             Core::Let(
-                LocalId(10),
-                Box::new(Core::DictProj(Box::new(v(0)), 0)),
+                LocalId(10), Class::Raw,
+                Box::new(Core::DictProj(Box::new(v(0)), 0, None)),
                 Box::new(app(v(10), vec![v(1), v(2)])),
             ),
         );
         let body = Core::Let(
-            LocalId(10),
-            Box::new(Core::InstDict(gid("Main.Add_Int"), vec![])),
+            LocalId(10), Class::Raw,
+            Box::new(Core::InstDict(gid("Main.Add_Int"), vec![], vec![])),
             Box::new(Core::Let(
-                LocalId(11),
-                Box::new(Core::InstDict(gid("Main.Add_Maybe"), vec![v(10)])),
+                LocalId(11), Class::Raw,
+                Box::new(Core::InstDict(gid("Main.Add_Maybe"), vec![v(10)], vec![])),
                 Box::new(Core::Let(
-                    LocalId(12),
-                    Box::new(Core::DictProj(Box::new(v(11)), 0)),
+                    LocalId(12), Class::Raw,
+                    Box::new(Core::DictProj(Box::new(v(11)), 0, None)),
                     Box::new(app(v(12), vec![n(20), n(22)])),
                 )),
             )),
@@ -5390,12 +5429,18 @@ mod tests {
                 method_count: 1,
                 subdict_count: 0,
                 methods: vec![gid("add_Int")],
+                class: "Add".to_string(),
+                tparams: 0,
+                own: vec![0],
             },
             InstanceDef {
                 id: gid("Main.Add_Maybe"),
                 method_count: 1,
                 subdict_count: 1,
                 methods: vec![gid("add_Maybe")],
+                class: "Add".to_string(),
+                tparams: 0,
+                own: vec![0],
             },
         ];
         assert_eq!(
@@ -5415,26 +5460,23 @@ mod tests {
             scrut: Box::new(scrut),
             alts: vec![
                 CAlt::new(
-                    CPat::Con {
-                        tag,
-                        fields: vec![LocalId(field)],
-                    },
+                    CPat::con(tag, vec![LocalId(field)]),
                     app(p(arith(ArithOp::Add)), vec![v(field), n(37)]),
                 ),
                 CAlt::new(CPat::Wild, n(7)),
             ],
         };
         let body = Core::Let(
-            LocalId(10),
+            LocalId(10), Class::Raw,
             Box::new(app(ct("T.Some"), vec![n(5)])),
             Box::new(Core::Let(
-                LocalId(11),
+                LocalId(11), Class::Raw,
                 Box::new(case_on(v(10), 20, 0)),
                 Box::new(Core::Let(
-                    LocalId(12),
+                    LocalId(12), Class::Raw,
                     Box::new(ct("T.None")),
                     Box::new(Core::Let(
-                        LocalId(13),
+                        LocalId(13), Class::Raw,
                         Box::new(case_on(v(12), 21, 0)),
                         Box::new(app(p(arith(ArithOp::Add)), vec![v(11), v(13)])),
                     )),
@@ -5452,19 +5494,16 @@ mod tests {
         // The constructor closure goes through __apply to build Some 5.
         let some = ctor_fn("T.Some", &["x"], 0, 1);
         let body = Core::Let(
-            LocalId(10),
+            LocalId(10), Class::Raw,
             Box::new(ct("T.Some")),
             Box::new(Core::Let(
-                LocalId(11),
+                LocalId(11), Class::Raw,
                 Box::new(app(v(10), vec![n(5)])),
                 Box::new(Core::Case {
                     scrut: Box::new(v(11)),
                     alts: vec![
                         CAlt::new(
-                            CPat::Con {
-                                tag: 0,
-                                fields: vec![LocalId(20)],
-                            },
+                            CPat::con(0, vec![LocalId(20)]),
                             app(p(arith(ArithOp::Add)), vec![v(20), n(37)]),
                         ),
                         CAlt::new(CPat::Wild, n(7)),
@@ -5483,12 +5522,12 @@ mod tests {
         // CPat::Var binds the scrutinee word in the default branch.
         let some = ctor_fn("T.Some", &["x"], 0, 1);
         let body = Core::Let(
-            LocalId(10),
+            LocalId(10), Class::Raw,
             Box::new(app(ct("T.Some"), vec![n(9)])),
             Box::new(Core::Case {
                 scrut: Box::new(v(10)),
                 alts: vec![CAlt::new(
-                    CPat::Var(LocalId(20)),
+                    CPat::Var(LocalId(20), Class::Raw),
                     Core::If(
                         Box::new(app(p(cmp(CmpOp::Eq)), vec![v(20), v(20)])),
                         CBranch::new(n(4)),
@@ -5508,10 +5547,10 @@ mod tests {
         // Repeated construction of a zero-field constructor shares one block.
         let none = ctor_fn("T.None", &[], 1, 0);
         let body = Core::Let(
-            LocalId(10),
+            LocalId(10), Class::Raw,
             Box::new(ct("T.None")),
             Box::new(Core::Let(
-                LocalId(11),
+                LocalId(11), Class::Raw,
                 Box::new(ct("T.None")),
                 Box::new(app(p(cmp(CmpOp::Eq)), vec![v(10), v(11)])),
             )),
@@ -5650,15 +5689,15 @@ mod tests {
         // from `boxsum 0 3` the recursion sums 3 + 2 + 1 = 6.
         let boxx = ctor_fn("T.box", &["x"], 0, 1);
         let body = Core::Let(
-            LocalId(2),
+            LocalId(2), Class::Raw,
             Box::new(app(p(arith(ArithOp::Sub)), vec![v(1), n(1)])),
             Box::new(Core::Let(
-                LocalId(4),
+                LocalId(4), Class::Raw,
                 Box::new(app(ct("T.box"), vec![v(1)])),
                 Box::new(Core::Case {
                     scrut: Box::new(v(4)),
                     alts: vec![CAlt {
-                        pat: CPat::Con { tag: 0, fields: vec![LocalId(3)] },
+                        pat: CPat::con(0, vec![LocalId(3)]),
                         weight: None,
                         body: Box::new(Core::If(
                             Box::new(app(p(cmp(CmpOp::Eq)), vec![v(1), n(0)])),
@@ -5855,10 +5894,10 @@ mod tests {
     fn bytes_round_trip() {
         // bytesGet (bytesSet (bytesNew 3) 0 65) 0 = 65, and the length is 3.
         let body = Core::Let(
-            LocalId(0),
+            LocalId(0), Class::Raw,
             Box::new(app(p(PrimOp::Bytes(BytesOp::New)), vec![cnat("3")])),
             Box::new(Core::Let(
-                LocalId(1),
+                LocalId(1), Class::Raw,
                 Box::new(app(
                     p(PrimOp::Bytes(BytesOp::Set)),
                     vec![v(0), cnat("0"), cnat("65")],
@@ -5883,7 +5922,7 @@ mod tests {
         // Out-of-bounds indices and byte values outside 0..=255 fault
         // through the panic path (exit 71).
         let get_oob = Core::Let(
-            LocalId(0),
+            LocalId(0), Class::Raw,
             Box::new(app(p(PrimOp::Bytes(BytesOp::New)), vec![cnat("3")])),
             Box::new(app(
                 p(PrimOp::Bytes(BytesOp::Get)),
@@ -5892,7 +5931,7 @@ mod tests {
         );
         assert_eq!(run("bytes_get_oob", &main_prog(vec![], get_oob)), 71);
         let set_bad = Core::Let(
-            LocalId(0),
+            LocalId(0), Class::Raw,
             Box::new(app(p(PrimOp::Bytes(BytesOp::New)), vec![cnat("3")])),
             Box::new(app(
                 p(PrimOp::Bytes(BytesOp::Set)),
@@ -5920,15 +5959,15 @@ mod tests {
             vec![v(0), v(0), cnat("1"), cnat("0"), cnat("3")],
         );
         let body = Core::Let(
-            LocalId(0),
+            LocalId(0), Class::Raw,
             Box::new(app(p(PrimOp::Bytes(BytesOp::New)), vec![cnat("4")])),
             Box::new(Core::Let(
-                LocalId(1),
+                LocalId(1), Class::Raw,
                 Box::new(set("0", "1")),
                 Box::new(Core::Let(
-                    LocalId(2),
+                    LocalId(2), Class::Raw,
                     Box::new(set("1", "2")),
-                    Box::new(Core::Let(LocalId(3), Box::new(copy), Box::new(answer))),
+                    Box::new(Core::Let(LocalId(3), Class::Raw, Box::new(copy), Box::new(answer))),
                 )),
             )),
         );
@@ -5947,7 +5986,7 @@ mod tests {
 
         // A range past either end faults through the panic path.
         let oob = Core::Let(
-            LocalId(0),
+            LocalId(0), Class::Raw,
             Box::new(app(p(PrimOp::Bytes(BytesOp::New)), vec![cnat("4")])),
             Box::new(app(
                 p(PrimOp::Bytes(BytesOp::Copy)),
@@ -6051,6 +6090,21 @@ fn reify_unit_value(out: &mut Vec<QWord>, name: &str, arity: usize) {
     }
 }
 
+/// The immediate word of a `Nat`/`Int` literal, when its value is in the
+/// immediate range of the runtime ABI (`compiler/runtime/src/lib.rs`, "Word
+/// representation"): `v << 1 | 1` for a `Nat` in `0..=2^63-1` or an `Int`
+/// in `-2^62..=2^62-1`. The runtime returns exactly this word for the
+/// same value, so a folded literal is indistinguishable from a computed
+/// one.
+fn immediate_word(nat: bool, digits: &str) -> Option<i64> {
+    let v: i128 = digits.parse().ok()?;
+    let (lo, hi) = if nat { (0, (1i128 << 63) - 1) } else { (-(1i128 << 62), (1i128 << 62) - 1) };
+    if !(lo..=hi).contains(&v) {
+        return None;
+    }
+    Some(((v << 1) | 1) as u64 as i64)
+}
+
 /// Reify `e` into the evaluator's word encoding. The body of a
 /// quotation is closed runtime-side code (decision D43): its only
 /// inputs are the captured hole blocks.
@@ -6060,19 +6114,27 @@ fn reify(out: &mut Vec<QWord>, e: &Core, reg: &Registry) -> Result<()> {
             q_imm(out, quote_op::INT);
             q_imm(out, *v as u64);
         }
-        Core::ConstBig { nat, digits } => {
-            q_imm(out, quote_op::BIG);
-            q_imm(out, if *nat { 1 } else { 0 });
-            q_imm(out, digits.len() as u64);
-            let b = digits.as_bytes();
-            for chunk in b.chunks(8) {
-                let mut w: u64 = 0;
-                for (i, c) in chunk.iter().enumerate() {
-                    w |= (*c as u64) << (8 * i);
-                }
-                q_imm(out, w);
+        Core::ConstBig { nat, digits } => match immediate_word(*nat, digits) {
+            // A small literal is already its runtime word: the raw `INT`
+            // form, so the evaluator neither parses nor allocates it.
+            Some(w) => {
+                q_imm(out, quote_op::INT);
+                q_imm(out, w as u64);
             }
-        }
+            None => {
+                q_imm(out, quote_op::BIG);
+                q_imm(out, if *nat { 1 } else { 0 });
+                q_imm(out, digits.len() as u64);
+                let b = digits.as_bytes();
+                for chunk in b.chunks(8) {
+                    let mut w: u64 = 0;
+                    for (i, c) in chunk.iter().enumerate() {
+                        w |= (*c as u64) << (8 * i);
+                    }
+                    q_imm(out, w);
+                }
+            }
+        },
         Core::Bool(b) => {
             q_imm(out, quote_op::BOOL);
             q_imm(out, if *b { 1 } else { 0 });
@@ -6086,7 +6148,7 @@ fn reify(out: &mut Vec<QWord>, e: &Core, reg: &Registry) -> Result<()> {
             q_imm(out, quote_op::HOLE);
             q_imm(out, *i as u64);
         }
-        Core::Let(x, v, body) => {
+        Core::Let(x, _, v, body) => {
             q_imm(out, quote_op::LET);
             q_imm(out, x.0 as u64);
             reify(out, v, reg)?;
@@ -6113,13 +6175,13 @@ fn reify(out: &mut Vec<QWord>, e: &Core, reg: &Registry) -> Result<()> {
             let mut default: Option<(Option<LocalId>, &Core)> = None;
             for a in alts {
                 match &a.pat {
-                    CPat::Con { tag, fields } => {
+                    CPat::Con { tag, fields, .. } => {
                         if cons.iter().any(|(t, _, _)| t == tag) {
                             return err(format!("duplicate case tag {tag}"));
                         }
                         cons.push((*tag, fields, &a.body));
                     }
-                    CPat::Var(x) => {
+                    CPat::Var(x, _) => {
                         if default.is_some() {
                             return err("case has more than one default alternative");
                         }
@@ -6179,7 +6241,7 @@ fn reify(out: &mut Vec<QWord>, e: &Core, reg: &Registry) -> Result<()> {
                 reify(out, a, reg)?;
             }
         }
-        Core::DictProj(d, idx) => {
+        Core::DictProj(d, idx, _) => {
             // A dictionary is the `{ nmeth; meth0; ... }` block of the
             // `mk` units: method `idx` is the block's field `idx`.
             q_imm(out, quote_op::PROJ);
@@ -6216,7 +6278,7 @@ fn reify(out: &mut Vec<QWord>, e: &Core, reg: &Registry) -> Result<()> {
                 },
             }
         }
-        Core::InstDict(id, subs) => {
+        Core::InstDict(id, subs, _) => {
             let info = reg
                 .insts
                 .get(&id.0)
@@ -6252,11 +6314,11 @@ fn reify(out: &mut Vec<QWord>, e: &Core, reg: &Registry) -> Result<()> {
             q_imm(out, quote_op::DEMAND);
             reify(out, cell, reg)?;
         }
-        Core::Global(g) => {
+        Core::Global(g, _) => {
             let arity = reg.arity_of(&g.0)?;
             reify_unit_value(out, &g.0, arity);
         }
-        Core::Ctor(g) => {
+        Core::Ctor(g, _) => {
             let arity = reg.arity_of(&g.0)?;
             reify_unit_value(out, &g.0, arity);
         }
@@ -6347,7 +6409,7 @@ fn emit_quote_block(e: &mut CoreEmitter, body: &Core, holes: &[Core]) -> Result<
     let n = hv.len();
     let bytes = (4 + n) * 8;
     let p = e.b.reg();
-    e.b.line(&format!("{p} = call ptr @cinch_alloc_raw(i64 {bytes})"));
+    e.b.line(&alloc_call(&p, bytes, block::KIND_CODE));
     // The code block's kind word (runtime ABI `KIND_CODE`).
     e.b.store_at(&p, 0, "3");
     e.b.store_at(&p, 8, &format!("ptrtoint (ptr @{g} to i64)", g = quote(&gname)));
@@ -6421,7 +6483,7 @@ fn canon_word_to_flat(
             let len = rt_call(b, "cinch_bytes_len", &[format!("i64 {ww}")]);
             let src = rt_call(b, "cinch_bytes_data", &[format!("i64 {ww}")]);
             let dst = b.reg();
-            b.line(&format!("{dst} = call ptr @cinch_alloc_raw(i64 {len})"));
+            b.line(&alloc_call(&dst, &len, block::KIND_RAW));
             let sp = b.reg();
             b.line(&format!("{sp} = inttoptr i64 {src} to ptr"));
             let cp = b.reg();
@@ -6491,7 +6553,7 @@ fn canon_lift_shape(
             let w = rt_call(b, "cinch_bytes_from_data", &[format!("i64 {p64}"), format!("i64 {l64}")]);
             if *wrapped {
                 let blk = b.reg();
-                b.line(&format!("{blk} = call ptr @cinch_alloc_raw(i64 16)"));
+                b.line(&alloc_call(&blk, 16, block::KIND_CTOR));
                 b.store_at(&blk, 0, "0");
                 b.store_at(&blk, 8, &w);
                 let r = b.reg();
@@ -6511,10 +6573,7 @@ fn canon_lift_shape(
         }
         CanonShape::Ctor { tag, tag_at, fields } => {
             let blk = b.reg();
-            b.line(&format!(
-                "{blk} = call ptr @cinch_alloc_raw(i64 {})",
-                8 * (1 + fields.len())
-            ));
+            b.line(&alloc_call(&blk, 8 * (1 + fields.len()), block::KIND_CTOR));
             match tag_at {
                 Some((offset, size)) => {
                     let p = b.gep(base, *offset as usize);
@@ -6576,7 +6635,7 @@ fn canon_lower_shape(
             let len = rt_call(b, "cinch_bytes_len", &[format!("i64 {ww}")]);
             let src = rt_call(b, "cinch_bytes_data", &[format!("i64 {ww}")]);
             let dst = b.reg();
-            b.line(&format!("{dst} = call ptr @cinch_alloc_raw(i64 {len})"));
+            b.line(&alloc_call(&dst, &len, block::KIND_RAW));
             let sp = b.reg();
             b.line(&format!("{sp} = inttoptr i64 {src} to ptr"));
             let r = b.reg();
@@ -6688,10 +6747,10 @@ fn canon_import_body(b: &mut Builder, plan: &ForeignPlan) -> Result<()> {
             let blk = b.reg();
             if matches!(case.payload, crate::core::CanonShape::Unit) {
                 // A zero-field constructor block is its tag word.
-                b.line(&format!("{blk} = call ptr @cinch_alloc_raw(i64 8)"));
+                b.line(&alloc_call(&blk, 8, block::KIND_CTOR));
                 b.store_at(&blk, 0, &case.safe_tag.to_string());
             } else {
-                b.line(&format!("{blk} = call ptr @cinch_alloc_raw(i64 16)"));
+                b.line(&alloc_call(&blk, 16, block::KIND_CTOR));
                 b.store_at(&blk, 0, &case.safe_tag.to_string());
                 b.store_at(&blk, 8, &payload);
             }
@@ -6738,7 +6797,7 @@ fn canon_import_body(b: &mut Builder, plan: &ForeignPlan) -> Result<()> {
             crate::core::CanonShape::Ctor { tag_at: Some(_), .. } => {
                 // An enum value: its block carries the discriminant.
                 let blk = b.reg();
-                b.line(&format!("{blk} = call ptr @cinch_alloc_raw(i64 8)"));
+                b.line(&alloc_call(&blk, 8, block::KIND_CTOR));
                 b.store_at(&blk, 0, &v);
                 let w = b.reg();
                 b.line(&format!("{w} = ptrtoint ptr {blk} to i64"));
@@ -6746,10 +6805,7 @@ fn canon_import_body(b: &mut Builder, plan: &ForeignPlan) -> Result<()> {
             }
             crate::core::CanonShape::Ctor { tag, tag_at: None, fields } => {
                 let blk = b.reg();
-                b.line(&format!(
-                    "{blk} = call ptr @cinch_alloc_raw(i64 {})",
-                    8 * (1 + fields.len())
-                ));
+                b.line(&alloc_call(&blk, 8 * (1 + fields.len()), block::KIND_CTOR));
                 b.store_at(&blk, 0, &tag.to_string());
                 if let Some(f) = fields.first() {
                     let _ = f;
@@ -6866,7 +6922,7 @@ fn canon_export_entry(out: &mut String, plan: &ForeignPlan, reg: &Registry) -> R
                 );
                 if *wrapped {
                     let blk = b.reg();
-                    b.line(&format!("{blk} = call ptr @cinch_alloc_raw(i64 16)"));
+                    b.line(&alloc_call(&blk, 16, block::KIND_CTOR));
                     b.store_at(&blk, 0, "0");
                     b.store_at(&blk, 8, &w);
                     let r = b.reg();
@@ -6889,7 +6945,7 @@ fn canon_export_entry(out: &mut String, plan: &ForeignPlan, reg: &Registry) -> R
                         // A block word carrying the discriminant or bits.
                         let blk = b.reg();
                         let words = if matches!(step, CanonStep::Tag) { 8 } else { 16 };
-                        b.line(&format!("{blk} = call ptr @cinch_alloc_raw(i64 {words})"));
+                        b.line(&alloc_call(&blk, words, block::KIND_CTOR));
                         if matches!(step, CanonStep::Tag) {
                             let t = b.reg();
                             b.line(&format!("{t} = zext i32 {v} to i64"));

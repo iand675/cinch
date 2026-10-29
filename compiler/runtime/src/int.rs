@@ -40,15 +40,24 @@ impl Int {
 
     /// Convert from an `i64`.
     pub fn from_i64(v: i64) -> Int {
-        let (negative, magnitude) = if v < 0 {
-            (true, (v as i128).unsigned_abs())
-        } else {
-            (false, v as u64 as u128)
-        };
-        Int {
-            negative: negative && magnitude != 0,
-            limbs: nat_limbs_from_u128(magnitude),
-        }
+        Int::from_i128(i128::from(v))
+    }
+
+    /// Convert from an `i128`.
+    pub(crate) fn from_i128(v: i128) -> Int {
+        Int::from_parts(v < 0, nat_limbs_from_u128(v.unsigned_abs()))
+    }
+
+    /// An integer from a sign and a normalized magnitude; zero is never
+    /// negative, so a negative flag on the empty magnitude is dropped.
+    pub(crate) fn from_parts(negative: bool, limbs: Vec<u32>) -> Int {
+        debug_assert!(limbs.last() != Some(&0), "magnitude not normalized");
+        Int { negative: negative && !limbs.is_empty(), limbs }
+    }
+
+    /// The sign and the normalized magnitude.
+    pub(crate) fn parts(&self) -> (bool, &[u32]) {
+        (self.negative, &self.limbs)
     }
 
     /// Convert to an `i64`, faulting when the value does not fit.
@@ -79,38 +88,17 @@ impl Int {
 
     /// `self + other`.
     pub fn add(&self, other: &Int) -> Int {
-        if self.negative == other.negative {
-            Int {
-                negative: self.negative,
-                limbs: limbs::add_limbs(&self.limbs, &other.limbs),
-            }
-        } else {
-            match limbs::cmp_limbs(&self.limbs, &other.limbs) {
-                Ordering::Equal => Int::zero(),
-                Ordering::Greater => Int {
-                    negative: self.negative,
-                    limbs: limbs::sub_limbs(&self.limbs, &other.limbs),
-                },
-                Ordering::Less => Int {
-                    negative: other.negative,
-                    limbs: limbs::sub_limbs(&other.limbs, &self.limbs),
-                },
-            }
-        }
+        add_parts(self.negative, &self.limbs, other.negative, &other.limbs)
     }
 
     /// `self - other`.
     pub fn sub(&self, other: &Int) -> Int {
-        self.add(&other.neg())
+        add_parts(self.negative, &self.limbs, !other.negative, &other.limbs)
     }
 
     /// `self * other`.
     pub fn mul(&self, other: &Int) -> Int {
-        let limbs = limbs::mul_limbs(&self.limbs, &other.limbs);
-        Int {
-            negative: (self.negative != other.negative) && !limbs.is_empty(),
-            limbs,
-        }
+        mul_parts(self.negative, &self.limbs, other.negative, &other.limbs)
     }
 
     /// `(self / other, self % other)`.
@@ -120,19 +108,7 @@ impl Int {
     /// (so `-7 / 3` is `(-2, -1)` and `7 / -3` is `(-2, 1)`). Faults on
     /// division by zero.
     pub fn div_rem(&self, other: &Int) -> Result<(Int, Int)> {
-        if other.is_zero() {
-            return Err(Error::DivByZero);
-        }
-        let (q, r) = limbs::div_rem_limbs(&self.limbs, &other.limbs);
-        let q = Int {
-            negative: (self.negative != other.negative) && !q.is_empty(),
-            limbs: q,
-        };
-        let r = Int {
-            negative: self.negative && !r.is_empty(),
-            limbs: r,
-        };
-        Ok((q, r))
+        div_rem_parts(self.negative, &self.limbs, other.negative, &other.limbs)
     }
 
     /// `self / other` with division truncated toward zero.
@@ -147,22 +123,12 @@ impl Int {
 
     /// `-self`; negation of zero is zero.
     pub fn neg(&self) -> Int {
-        Int {
-            negative: !self.negative && !self.is_zero(),
-            limbs: self.limbs.clone(),
-        }
+        Int::from_parts(!self.negative, self.limbs.clone())
     }
 
     /// Three-way comparison.
     pub fn cmp(&self, other: &Int) -> Ordering {
-        // Invariant: a negative value is never zero, so a value that is not
-        // negative is greater than any negative one.
-        match (self.negative, other.negative) {
-            (false, true) => Ordering::Greater,
-            (true, false) => Ordering::Less,
-            (false, false) => limbs::cmp_limbs(&self.limbs, &other.limbs),
-            (true, true) => limbs::cmp_limbs(&other.limbs, &self.limbs),
-        }
+        cmp_parts(self.negative, &self.limbs, other.negative, &other.limbs)
     }
 
     /// Parse ASCII decimal text into an integer.
@@ -229,6 +195,51 @@ fn nat_limbs_from_u128(mut v: u128) -> Vec<u32> {
     }
     limbs::normalize(&mut limbs);
     limbs
+}
+
+// The arithmetic over borrowed sign-magnitude parts, so an immediate
+// operand (whose magnitude lives on the caller's stack) and a boxed one
+// share one implementation. A `true` sign on an empty magnitude is
+// accepted and means zero, which is what negating zero produces.
+
+/// `a + b`.
+pub(crate) fn add_parts(an: bool, a: &[u32], bn: bool, b: &[u32]) -> Int {
+    if an == bn {
+        return Int::from_parts(an, limbs::add_limbs(a, b));
+    }
+    match limbs::cmp_limbs(a, b) {
+        Ordering::Equal => Int::zero(),
+        Ordering::Greater => Int::from_parts(an, limbs::sub_limbs(a, b)),
+        Ordering::Less => Int::from_parts(bn, limbs::sub_limbs(b, a)),
+    }
+}
+
+/// `a * b`.
+pub(crate) fn mul_parts(an: bool, a: &[u32], bn: bool, b: &[u32]) -> Int {
+    Int::from_parts(an != bn, limbs::mul_limbs(a, b))
+}
+
+/// `(a / b, a % b)`, truncating, the remainder signed like `a`.
+pub(crate) fn div_rem_parts(an: bool, a: &[u32], bn: bool, b: &[u32]) -> Result<(Int, Int)> {
+    if limbs::is_zero(b) {
+        return Err(Error::DivByZero);
+    }
+    let (q, r) = limbs::div_rem_limbs(a, b);
+    Ok((Int::from_parts(an != bn, q), Int::from_parts(an, r)))
+}
+
+/// Three-way comparison.
+pub(crate) fn cmp_parts(an: bool, a: &[u32], bn: bool, b: &[u32]) -> Ordering {
+    // An empty magnitude is zero whatever its flag, so the flags are
+    // normalized before the sign decides.
+    let an = an && !a.is_empty();
+    let bn = bn && !b.is_empty();
+    match (an, bn) {
+        (false, true) => Ordering::Greater,
+        (true, false) => Ordering::Less,
+        (false, false) => limbs::cmp_limbs(a, b),
+        (true, true) => limbs::cmp_limbs(b, a),
+    }
 }
 
 #[cfg(test)]

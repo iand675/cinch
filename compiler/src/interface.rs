@@ -16,7 +16,10 @@ use std::collections::BTreeMap;
 use std::fmt;
 
 pub const SCHEMA_VERSION: u32 = 1;
-pub const RUNTIME_ABI_VERSION: u32 = 1;
+/// 2: every block carries a header word at offset -8 (count, kind, layout),
+/// statics included; `cinch_alloc_raw`/`cinch_alloc` take the block kind;
+/// `cinch_free` really frees; small `Nat`/`Int` are immediates with low bit 1.
+pub const RUNTIME_ABI_VERSION: u32 = 2;
 pub const LANGUAGE_VERSION: &str = "draft-0.2+amendments";
 
 /// A reference to an imported module's interface identity.

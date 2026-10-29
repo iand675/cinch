@@ -29,6 +29,7 @@
 //! indirect call of `code`, so every call site can pass an argument vector
 //! of any length without allocating intermediate closures.
 
+pub use crate::repr::Class;
 use crate::types::{Scalar, Ty};
 use crate::{Error, Result};
 use std::collections::HashMap;
@@ -285,7 +286,8 @@ impl ConvMode {
 }
 
 /// Mathematical `Nat` operations (`cinch.runtime.nat*`). Words are
-/// boxed bignums (the runtime blocks); `Div`/`Rem` fault on a zero divisor
+/// runtime-owned and opaque (small immediates or bignum blocks, runtime
+/// ABI); `Div`/`Rem` fault on a zero divisor
 /// and `Sub` faults when the result would be negative (the inductive `Nat`
 /// subtraction is truncated to exactness: it faults, it does not clamp).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -297,7 +299,7 @@ pub enum NatOp {
     Rem,
     /// `natCmp a b` is the raw immediate -1, 0 or 1 (`Nat -> Nat -> I64`).
     Cmp,
-    /// `natFromI64`: box a machine integer, faulting on a negative input.
+    /// `natFromI64`: a machine integer as a `Nat` word, faulting on a negative input.
     FromI64,
     /// `natToI64`: value as a machine integer, faulting out of `i64` range.
     ToI64,
@@ -333,8 +335,9 @@ impl NatOp {
 }
 
 /// Mathematical `Int` operations (`cinch.runtime.int*`). Words are
-/// boxed bignums (sign-magnitude); `Div`/`Rem` truncate toward zero and
-/// fault on a zero divisor.
+/// runtime-owned and opaque (small immediates or sign-magnitude bignum
+/// blocks, runtime ABI); `Div`/`Rem` truncate toward zero and fault on a
+/// zero divisor.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum IntOp {
     Add,
@@ -345,7 +348,7 @@ pub enum IntOp {
     Neg,
     /// `intCmp a b` is the raw immediate -1, 0 or 1 (`Int -> Int -> I64`).
     Cmp,
-    /// `intFromI64`: box a machine integer.
+    /// `intFromI64`: a machine integer as an `Int` word.
     FromI64,
     /// `intToI64`: value as a machine integer, faulting out of `i64` range.
     ToI64,
@@ -882,10 +885,10 @@ impl ConcOp {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum PrimOp {
-    /// Mathematical `Nat` operations on boxed bignum words
+    /// Mathematical `Nat` operations on opaque runtime words
     /// (`cinch.runtime.nat*`; runtime ABI, `cinch_nat_*`).
     Nat(NatOp),
-    /// Mathematical `Int` operations on boxed bignum words
+    /// Mathematical `Int` operations on opaque runtime words
     /// (`cinch.runtime.int*`; runtime ABI, `cinch_int_*`).
     Int(IntOp),
     /// `Bytes` operations on boxed byte buffers
@@ -1566,10 +1569,19 @@ fn typed_op_from_head(head: &str, ty: Scalar) -> Option<PrimOp> {
 #[derive(Clone, Debug)]
 pub enum CPat {
     /// Bind the scrutinee word.
-    Var(LocalId),
+    Var(LocalId, Class),
     Wild,
-    /// Zero-arity constructor; `tag` selects the branch.
-    Con { tag: usize, fields: Vec<LocalId> },
+    /// Zero-arity constructor; `tag` selects the branch. `classes` is
+    /// parallel to `fields` (each field binder's class, resolved against
+    /// the scrutinee's type); it is empty only before lowering.
+    Con { tag: usize, fields: Vec<LocalId>, classes: Vec<Class> },
+}
+
+impl CPat {
+    /// A constructor pattern whose field classes lowering fills in.
+    pub fn con(tag: usize, fields: Vec<LocalId>) -> CPat {
+        CPat::Con { tag, fields, classes: Vec::new() }
+    }
 }
 
 /// One branch of a two-way decision point (`if`, a guard test, a
@@ -1623,10 +1635,11 @@ pub enum Core {
     Int(i64),
     /// Mathematical `Nat`/`Int` constant, carried as a decimal digit
     /// string with an optional leading `-` (`nat` selects the `Nat`
-    /// runtime). Code generation materialises it through
-    /// `cinch_nat_from_decimal`/`cinch_int_from_decimal` over a private constant
-    /// string, with an `cinch_nat_from_i64`/`cinch_int_from_i64` fast path when
-    /// the value fits an `i64`.
+    /// runtime). Code generation folds a value in the runtime's immediate
+    /// range to its constant word; a larger one goes through
+    /// `cinch_int_from_i64` when it fits an `i64` (an `Int` only), else
+    /// through `cinch_nat_from_decimal`/`cinch_int_from_decimal` over a
+    /// private constant string.
     ConstBig { nat: bool, digits: String },
     /// Constant `Bytes` (the compile-time fold of a collection literal
     /// and the file converters' `txt`/`bytes` payloads). Code generation
@@ -1660,29 +1673,39 @@ pub enum Core {
     /// the position expects the spliced code's value (supercompilation
     /// and JIT specification section 7).
     SpliceVal(usize),
-    /// Top-level function used as a value (behaves as its closure).
-    Global(GlobalId),
-    /// Constructor function used as a value.
-    Ctor(GlobalId),
+    /// Top-level function used as a value (behaves as its closure), with
+    /// the class vector of its instantiation (empty for a monomorphic
+    /// unit; in the enclosing unit's parameter space before the
+    /// collector, concrete after it).
+    Global(GlobalId, Vec<Class>),
+    /// Constructor function used as a value, with the class vector of its
+    /// data type's parameters at this use (field classes follow from the
+    /// constructor unit's [`UnitRepr::fields`]).
+    Ctor(GlobalId, Vec<Class>),
     /// Primitive function used as a value.
     Prim(PrimOp),
     /// A real foreign import used as a value: the synthesized wrapper
     /// unit's name (foreign function interface specification section 2).
     /// Like `Prim`, it is opaque to the optimizer.
     Foreign(String),
-    /// Method selection from a dictionary value.
-    DictProj(Box<Core>, usize),
+    /// Method selection from a dictionary value. The site names the class
+    /// and the method's own type parameters' classes; the collector maps
+    /// the index to the dictionary slot of that vector and clears it.
+    DictProj(Box<Core>, usize, Option<Box<MethodSite>>),
     /// Record field projection: load the field from the record block
     /// (uniform-word slot, or the recorded offset for boundary layouts).
     Proj(Box<Core>, ProjField),
-    /// Instance dictionary construction: call the instance's `mk` unit.
-    InstDict(GlobalId, Vec<Core>),
+    /// Instance dictionary construction: call the instance's `mk` unit,
+    /// with the class vector of the instance's own type parameters.
+    InstDict(GlobalId, Vec<Core>, Vec<Class>),
     /// Curried application spine with at least one argument.
     App(Box<Core>, Vec<Core>),
     /// Hoisted lambda: create a closure over `env` for function `fn_id`,
     /// whose parameters are `env` followed by the lambda's own parameter(s).
+    /// The hoisted unit shares the enclosing unit's type parameters.
     Lam { fn_id: GlobalId, env: Vec<Core> },
-    Let(LocalId, Box<Core>, Box<Core>),
+    /// `let`, with the binder's class.
+    Let(LocalId, Class, Box<Core>, Box<Core>),
     /// A two-way decision point: the condition and its two weighted
     /// branches (attribute annotations specification section 2.1).
     If(Box<Core>, CBranch<Core>, CBranch<Core>),
@@ -2683,6 +2706,29 @@ impl ForeignPlan {
     }
 }
 
+/// A method projection's instantiation: the signature, and the classes
+/// of the method's own type parameters (those beyond the class's).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MethodSite {
+    pub class: String,
+    pub own: Vec<Class>,
+}
+
+/// A unit's representation facts, attached at lowering.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct UnitRepr {
+    /// How many type parameters the unit's classes range over: zero for a
+    /// monomorphic unit, which has exactly one copy. Hoisted lambdas and
+    /// `letrec` members share their definition's parameters.
+    pub tparams: usize,
+    /// The class of each runtime parameter, parallel to `FnDef::params`
+    /// (a hoisted lambda's environment slots come first).
+    pub params: Vec<Class>,
+    /// For constructor units: the class of each runtime field, over the
+    /// data type's own parameters (`Cons` is `[Param(0), Obj]`).
+    pub fields: Vec<Class>,
+}
+
 #[derive(Clone, Debug)]
 pub struct FnDef {
     pub id: GlobalId,
@@ -2700,6 +2746,8 @@ pub struct FnDef {
     pub hints: FnHints,
     /// Optimizer metadata (usage multiplicities, purity, dictionaries).
     pub meta: FnMeta,
+    /// Representation classes of the parameters and fields.
+    pub repr: UnitRepr,
 }
 
 impl FnDef {
@@ -2715,8 +2763,17 @@ pub struct InstanceDef {
     pub method_count: usize,
     /// Arity of `mk`: one parameter per `using` constraint on the instance.
     pub subdict_count: usize,
-    /// Method function ids, parallel to the signature's method order.
+    /// Method function ids, parallel to the signature's method order (one
+    /// per dictionary slot once the collector has run).
     pub methods: Vec<GlobalId>,
+    /// The signature the instance implements.
+    pub class: String,
+    /// The instance's own type parameters (its dictionary's vector).
+    pub tparams: usize,
+    /// Per method: how many type parameters the method quantifies beyond
+    /// the class's. A method unit's vector is the instance's followed by
+    /// those.
+    pub own: Vec<usize>,
 }
 
 #[derive(Clone, Debug)]
@@ -2921,7 +2978,7 @@ fn scan_unit_of(
     foreigns: &std::collections::BTreeMap<String, ForeignPlan>,
 ) -> Option<(String, usize)> {
     match e {
-        Core::Global(id) | Core::Ctor(id) => fns
+        Core::Global(id, _) | Core::Ctor(id, _) => fns
             .get(&id.0)
             .or_else(|| insts.get(&id.0))
             .map(|a| (id.0.clone(), *a)),
@@ -3032,7 +3089,7 @@ fn tail_groups(program: &Program) -> Vec<(TailGroup, Option<usize>)> {
     ) {
         match e {
             Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Var(_)
-            | Core::Global(_) | Core::Ctor(_) | Core::Prim(_) | Core::Foreign(_)
+            | Core::Global(..) | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_)
             | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc
             | Core::SyntaxLit(_) | Core::StrLit(_) => {}
             Core::Quote { holes, body, .. } => {
@@ -3048,10 +3105,10 @@ fn tail_groups(program: &Program) -> Vec<(TailGroup, Option<usize>)> {
                     all_calls(h, fns, insts, foreigns, out);
                 }
             }
-            Core::DictProj(d, _) | Core::Proj(d, _) | Core::Demand(d) | Core::BoxGet(d) => {
+            Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d) | Core::BoxGet(d) => {
                 all_calls(d, fns, insts, foreigns, out)
             }
-            Core::InstDict(_, args) => {
+            Core::InstDict(_, args, _) => {
                 for a in args {
                     all_calls(a, fns, insts, foreigns, out);
                 }
@@ -3070,7 +3127,7 @@ fn tail_groups(program: &Program) -> Vec<(TailGroup, Option<usize>)> {
                     all_calls(a, fns, insts, foreigns, out);
                 }
             }
-            Core::Let(_, v, body) => {
+            Core::Let(_, _, v, body) => {
                 all_calls(v, fns, insts, foreigns, out);
                 all_calls(body, fns, insts, foreigns, out);
             }
@@ -3102,7 +3159,7 @@ fn tail_groups(program: &Program) -> Vec<(TailGroup, Option<usize>)> {
         out: &mut Vec<(Option<String>, usize, usize)>,
     ) {
         match e {
-            Core::Let(_, _, body) => tail_calls(body, fns, insts, foreigns, out),
+            Core::Let(_, _, _, body) => tail_calls(body, fns, insts, foreigns, out),
             Core::If(_, t, fe) => {
                 tail_calls(&t.body, fns, insts, foreigns, out);
                 tail_calls(&fe.body, fns, insts, foreigns, out);
@@ -3321,7 +3378,7 @@ fn calls_walk(
 ) {
     match e {
         Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit
-        | Core::Var(_) | Core::Global(_) | Core::Ctor(_) | Core::Prim(_) | Core::Foreign(_)
+        | Core::Var(_) | Core::Global(..) | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_)
         | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc
         | Core::SyntaxLit(_) | Core::StrLit(_) => {}
         Core::Quote { holes, body, .. } => {
@@ -3337,10 +3394,10 @@ fn calls_walk(
                 calls_walk(h, false, fns, insts, foreigns, callees, out);
             }
         }
-        Core::DictProj(d, _) | Core::Proj(d, _) | Core::Demand(d) | Core::BoxGet(d) => {
+        Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d) | Core::BoxGet(d) => {
             calls_walk(d, false, fns, insts, foreigns, callees, out)
         }
-        Core::InstDict(_, args) => {
+        Core::InstDict(_, args, _) => {
             for a in args {
                 calls_walk(a, false, fns, insts, foreigns, callees, out);
             }
@@ -3361,7 +3418,7 @@ fn calls_walk(
                 calls_walk(a, false, fns, insts, foreigns, callees, out);
             }
         }
-        Core::Let(_, v, body) => {
+        Core::Let(_, _, v, body) => {
             calls_walk(v, false, fns, insts, foreigns, callees, out);
             calls_walk(body, tail, fns, insts, foreigns, callees, out);
         }
@@ -3609,13 +3666,13 @@ fn core_eq(a: &Core, b: &Core) -> bool {
         (Core::Bool(x), Core::Bool(y)) => x == y,
         (Core::Unit, Core::Unit) | (Core::Fault, Core::Fault) | (Core::LazyAlloc, Core::LazyAlloc) => true,
         (Core::Var(x), Core::Var(y)) => x == y,
-        (Core::Global(x), Core::Global(y)) | (Core::Ctor(x), Core::Ctor(y)) => x == y,
+        (Core::Global(x, v1), Core::Global(y, v2)) | (Core::Ctor(x, v1), Core::Ctor(y, v2)) => x == y && v1 == v2,
         (Core::Prim(x), Core::Prim(y)) => x == y,
         (Core::Foreign(x), Core::Foreign(y)) => x == y,
-        (Core::DictProj(d1, i1), Core::DictProj(d2, i2)) => i1 == i2 && core_eq(d1, d2),
+        (Core::DictProj(d1, i1, s1), Core::DictProj(d2, i2, s2)) => i1 == i2 && s1 == s2 && core_eq(d1, d2),
         (Core::Proj(d1, i1), Core::Proj(d2, i2)) => i1 == i2 && core_eq(d1, d2),
-        (Core::InstDict(g1, a1), Core::InstDict(g2, a2)) => {
-            g1 == g2 && a1.len() == a2.len() && a1.iter().zip(a2).all(|(x, y)| core_eq(x, y))
+        (Core::InstDict(g1, a1, v1), Core::InstDict(g2, a2, v2)) => {
+            g1 == g2 && v1 == v2 && a1.len() == a2.len() && a1.iter().zip(a2).all(|(x, y)| core_eq(x, y))
         }
         (Core::App(f1, a1), Core::App(f2, a2)) => {
             core_eq(f1, f2) && a1.len() == a2.len() && a1.iter().zip(a2).all(|(x, y)| core_eq(x, y))
@@ -3623,7 +3680,9 @@ fn core_eq(a: &Core, b: &Core) -> bool {
         (Core::Lam { fn_id: g1, env: e1 }, Core::Lam { fn_id: g2, env: e2 }) => {
             g1 == g2 && e1.len() == e2.len() && e1.iter().zip(e2).all(|(x, y)| core_eq(x, y))
         }
-        (Core::Let(l1, v1, b1), Core::Let(l2, v2, b2)) => l1 == l2 && core_eq(v1, v2) && core_eq(b1, b2),
+        (Core::Let(l1, c1, v1, b1), Core::Let(l2, c2, v2, b2)) => {
+            l1 == l2 && c1 == c2 && core_eq(v1, v2) && core_eq(b1, b2)
+        }
         (Core::If(c1, t1, f1), Core::If(c2, t2, f2)) => {
             core_eq(c1, c2)
                 && t1.weight == t2.weight
@@ -3648,10 +3707,10 @@ fn core_eq(a: &Core, b: &Core) -> bool {
 
 fn pat_eq(a: &CPat, b: &CPat) -> bool {
     match (a, b) {
-        (CPat::Var(x), CPat::Var(y)) => x == y,
+        (CPat::Var(x, c1), CPat::Var(y, c2)) => x == y && c1 == c2,
         (CPat::Wild, CPat::Wild) => true,
-        (CPat::Con { tag: t1, fields: f1 }, CPat::Con { tag: t2, fields: f2 }) => {
-            t1 == t2 && f1 == f2
+        (CPat::Con { tag: t1, fields: f1, classes: k1 }, CPat::Con { tag: t2, fields: f2, classes: k2 }) => {
+            t1 == t2 && f1 == f2 && k1 == k2
         }
         _ => false,
     }
@@ -3669,11 +3728,11 @@ fn max_local(e: &Core) -> usize {
 pub fn walk_locals(e: &Core, f: &mut impl FnMut(LocalId)) {
     match e {
         Core::Var(l) => f(*l),
-        Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(_)
-        | Core::Ctor(_) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(_)
+        Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
+        | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(_)
         | Core::StrLit(_) => {}
-        Core::DictProj(d, _) | Core::Proj(d, _) | Core::Demand(d) => walk_locals(d, f),
-        Core::InstDict(_, args) | Core::App(_, args) => {
+        Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d) => walk_locals(d, f),
+        Core::InstDict(_, args, _) | Core::App(_, args) => {
             if let Core::App(h, _) = e {
                 walk_locals(h, f);
             }
@@ -3686,7 +3745,7 @@ pub fn walk_locals(e: &Core, f: &mut impl FnMut(LocalId)) {
                 walk_locals(a, f);
             }
         }
-        Core::Let(l, v, body) => {
+        Core::Let(l, _, v, body) => {
             f(*l);
             walk_locals(v, f);
             walk_locals(body, f);
@@ -3713,7 +3772,7 @@ pub fn walk_locals(e: &Core, f: &mut impl FnMut(LocalId)) {
             walk_locals(scrut, f);
             for a in alts {
                 match &a.pat {
-                    CPat::Var(l) => f(*l),
+                    CPat::Var(l, _) => f(*l),
                     CPat::Con { fields, .. } => {
                         for l in fields {
                             f(*l);
@@ -3749,11 +3808,11 @@ fn use_range(e: &Core, l: LocalId) -> (usize, usize) {
                 (0, 0)
             }
         }
-        Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(_)
-        | Core::Ctor(_) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(_)
+        Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
+        | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(_)
         | Core::StrLit(_) => (0, 0),
-        Core::DictProj(d, _) | Core::Proj(d, _) | Core::Demand(d) => use_range(d, l),
-        Core::InstDict(_, args) | Core::App(_, args) => {
+        Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d) => use_range(d, l),
+        Core::InstDict(_, args, _) | Core::App(_, args) => {
             let mut parts: Vec<(usize, usize)> = Vec::new();
             if let Core::App(h, _) = e {
                 parts.push(use_range(h, l));
@@ -3767,7 +3826,7 @@ fn use_range(e: &Core, l: LocalId) -> (usize, usize) {
             let parts: Vec<(usize, usize)> = env.iter().map(|a| use_range(a, l)).collect();
             seq(&parts)
         }
-        Core::Let(x, v, body) => {
+        Core::Let(x, _, v, body) => {
             let (vmin, vmax) = use_range(v, l);
             if *x == l {
                 (vmin, vmax)
@@ -3810,7 +3869,7 @@ fn use_range(e: &Core, l: LocalId) -> (usize, usize) {
             let mut maxs = Vec::new();
             for a in alts {
                 let shadowed = match &a.pat {
-                    CPat::Var(x) => *x == l,
+                    CPat::Var(x, _) => *x == l,
                     CPat::Con { fields, .. } => fields.contains(&l),
                     CPat::Wild => false,
                 };
@@ -3859,11 +3918,11 @@ fn renumber_core(e: &Core, nparams: usize) -> Core {
         };
         match e {
             Core::Var(l) => note(*l, map, next),
-            Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(_)
-            | Core::Ctor(_) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(_)
+            Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
+            | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(_)
             | Core::StrLit(_) => {}
-            Core::DictProj(d, _) | Core::Proj(d, _) | Core::Demand(d) => assign(d, map, next),
-            Core::InstDict(_, args) | Core::App(_, args) => {
+            Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d) => assign(d, map, next),
+            Core::InstDict(_, args, _) | Core::App(_, args) => {
                 if let Core::App(h, _) = e {
                     assign(h, map, next);
                 }
@@ -3876,7 +3935,7 @@ fn renumber_core(e: &Core, nparams: usize) -> Core {
                     assign(a, map, next);
                 }
             }
-            Core::Let(l, v, body) => {
+            Core::Let(l, _, v, body) => {
                 note(*l, map, next);
                 assign(v, map, next);
                 assign(body, map, next);
@@ -3903,7 +3962,7 @@ fn renumber_core(e: &Core, nparams: usize) -> Core {
                 assign(scrut, map, next);
                 for a in alts {
                     match &a.pat {
-                        CPat::Var(l) => note(*l, map, next),
+                        CPat::Var(l, _) => note(*l, map, next),
                         CPat::Con { fields, .. } => {
                             for l in fields {
                                 note(*l, map, next);
@@ -3936,8 +3995,8 @@ fn renumber_core(e: &Core, nparams: usize) -> Core {
             Core::ConstSym(s) => Core::ConstSym(s.clone()),
             Core::Bool(b) => Core::Bool(*b),
             Core::Unit => Core::Unit,
-            Core::Global(g) => Core::Global(g.clone()),
-            Core::Ctor(g) => Core::Ctor(g.clone()),
+            Core::Global(g, v) => Core::Global(g.clone(), v.clone()),
+            Core::Ctor(g, v) => Core::Ctor(g.clone(), v.clone()),
             Core::Prim(p) => Core::Prim(*p),
             Core::Foreign(n) => Core::Foreign(n.clone()),
             Core::Fault => Core::Fault,
@@ -3945,17 +4004,18 @@ fn renumber_core(e: &Core, nparams: usize) -> Core {
             Core::BoxAlloc => Core::BoxAlloc,
             Core::SyntaxLit(t) => Core::SyntaxLit(t.clone()),
             Core::StrLit(s) => Core::StrLit(s.clone()),
-            Core::DictProj(d, i) => Core::DictProj(Box::new(rw(d)), *i),
+            Core::DictProj(d, i, s) => Core::DictProj(Box::new(rw(d)), *i, s.clone()),
             Core::Proj(d, f) => Core::Proj(Box::new(rw(d)), f.clone()),
             Core::Demand(d) => Core::Demand(Box::new(rw(d))),
-            Core::InstDict(g, args) => Core::InstDict(g.clone(), args.iter().map(rw).collect()),
+            Core::InstDict(g, args, v) => Core::InstDict(g.clone(), args.iter().map(rw).collect(), v.clone()),
             Core::App(f, args) => Core::App(Box::new(rw(f)), args.iter().map(rw).collect()),
             Core::Lam { fn_id, env } => Core::Lam {
                 fn_id: fn_id.clone(),
                 env: env.iter().map(rw).collect(),
             },
-            Core::Let(l, v, body) => Core::Let(
+            Core::Let(l, c, v, body) => Core::Let(
                 *map.get(l).unwrap_or(l),
+                *c,
                 Box::new(rw(v)),
                 Box::new(rw(body)),
             ),
@@ -3980,13 +4040,14 @@ fn renumber_core(e: &Core, nparams: usize) -> Core {
                     .iter()
                     .map(|a| {
                         let pat = match &a.pat {
-                            CPat::Var(l) => CPat::Var(*map.get(l).unwrap_or(l)),
-                            CPat::Con { tag, fields } => CPat::Con {
+                            CPat::Var(l, c) => CPat::Var(*map.get(l).unwrap_or(l), *c),
+                            CPat::Con { tag, fields, classes } => CPat::Con {
                                 tag: *tag,
                                 fields: fields
                                     .iter()
                                     .map(|l| *map.get(l).unwrap_or(l))
                                     .collect(),
+                                classes: classes.clone(),
                             },
                             CPat::Wild => CPat::Wild,
                         };
@@ -4011,15 +4072,28 @@ fn renumber_core(e: &Core, nparams: usize) -> Core {
     rewrite(e, &map)
 }
 
-/// Instantiate a rule's template at a match site: pattern variables
-/// (`holes`) take their bound subterms, and the template's own binders are
-/// alpha-renamed away from the residual program's locals.
+/// Instantiate a rule's template (or an unfolded callee's body) at a
+/// match site: pattern variables (`holes`) take their bound subterms, the
+/// template's own binders are alpha-renamed away from the residual
+/// program's locals, and its parameter classes resolve against `cv` (the
+/// rule's matched classes or the call's instantiation vector, in the
+/// residual's own parameter space).
 fn instantiate(
     tmpl: &Core,
     holes: &std::collections::HashSet<LocalId>,
     binds: &HashMap<LocalId, Core>,
     next: &mut usize,
+    cv: &[Class],
 ) -> Core {
+    let substituted;
+    let tmpl = if cv.is_empty() {
+        tmpl
+    } else {
+        let mut t = tmpl.clone();
+        subst_classes(&mut t, cv);
+        substituted = t;
+        &substituted
+    };
     let mut ren: HashMap<LocalId, LocalId> = HashMap::new();
     fn go(
         e: &Core,
@@ -4054,8 +4128,8 @@ fn instantiate(
             Core::ConstSym(s) => Core::ConstSym(s.clone()),
             Core::Bool(b) => Core::Bool(*b),
             Core::Unit => Core::Unit,
-            Core::Global(g) => Core::Global(g.clone()),
-            Core::Ctor(g) => Core::Ctor(g.clone()),
+            Core::Global(g, v) => Core::Global(g.clone(), v.clone()),
+            Core::Ctor(g, v) => Core::Ctor(g.clone(), v.clone()),
             Core::Prim(p) => Core::Prim(*p),
             Core::Foreign(n) => Core::Foreign(n.clone()),
             Core::Fault => Core::Fault,
@@ -4063,14 +4137,15 @@ fn instantiate(
             Core::BoxAlloc => Core::BoxAlloc,
             Core::SyntaxLit(t) => Core::SyntaxLit(t.clone()),
             Core::StrLit(s) => Core::StrLit(s.clone()),
-            Core::DictProj(d, i) => {
-                Core::DictProj(Box::new(go(d, holes, binds, ren, next)), *i)
+            Core::DictProj(d, i, s) => {
+                Core::DictProj(Box::new(go(d, holes, binds, ren, next)), *i, s.clone())
             }
             Core::Proj(d, f) => Core::Proj(Box::new(go(d, holes, binds, ren, next)), f.clone()),
             Core::Demand(d) => Core::Demand(Box::new(go(d, holes, binds, ren, next))),
-            Core::InstDict(g, args) => Core::InstDict(
+            Core::InstDict(g, args, v) => Core::InstDict(
                 g.clone(),
                 args.iter().map(|a| go(a, holes, binds, ren, next)).collect(),
+                v.clone(),
             ),
             Core::App(f, args) => Core::App(
                 Box::new(go(f, holes, binds, ren, next)),
@@ -4080,12 +4155,12 @@ fn instantiate(
                 fn_id: fn_id.clone(),
                 env: env.iter().map(|a| go(a, holes, binds, ren, next)).collect(),
             },
-            Core::Let(l, v, body) => {
+            Core::Let(l, c, v, body) => {
                 let v = go(v, holes, binds, ren, next);
                 let nl = fresh(*l, ren, next);
                 let body = go(body, holes, binds, ren, next);
                 ren.remove(l);
-                Core::Let(nl, Box::new(v), Box::new(body))
+                Core::Let(nl, *c, Box::new(v), Box::new(body))
             }
             Core::LazyInit(l, t) => {
                 let nl = fresh(*l, ren, next);
@@ -4124,19 +4199,19 @@ fn instantiate(
                     .map(|a| {
                         let mut locals: Vec<LocalId> = Vec::new();
                         let pat = match &a.pat {
-                            CPat::Var(l) => {
+                            CPat::Var(l, c) => {
                                 let nl = fresh(*l, ren, next);
                                 locals.push(*l);
-                                CPat::Var(nl)
+                                CPat::Var(nl, *c)
                             }
-                            CPat::Con { tag, fields } => {
+                            CPat::Con { tag, fields, classes } => {
                                 let mut out = Vec::new();
                                 for l in fields {
                                     let nl = fresh(*l, ren, next);
                                     locals.push(*l);
                                     out.push(nl);
                                 }
-                                CPat::Con { tag: *tag, fields: out }
+                                CPat::Con { tag: *tag, fields: out, classes: classes.clone() }
                             }
                             CPat::Wild => CPat::Wild,
                         };
@@ -4165,12 +4240,15 @@ fn instantiate(
 
 /// First-order matching of a rule's pattern against a core subterm: a
 /// pattern variable matches anything, and a repeated variable must match
-/// structurally equal subterms.
+/// structurally equal subterms. The pattern's classes are in the rule's
+/// own parameter space: a parameter class binds to the subterm's class
+/// (into `cb`), and a concrete one must be equal.
 fn match_pat(
     pat: &Core,
     holes: &std::collections::HashSet<LocalId>,
     sub: &Core,
     binds: &mut HashMap<LocalId, Core>,
+    cb: &mut Vec<Option<Class>>,
 ) -> bool {
     if let Core::Var(l) = pat {
         if holes.contains(l) {
@@ -4197,64 +4275,100 @@ fn match_pat(
             true
         }
         (Core::Var(x), Core::Var(y)) => x == y,
-        (Core::Global(x), Core::Global(y)) | (Core::Ctor(x), Core::Ctor(y)) => x == y,
+        (Core::Global(x, v1), Core::Global(y, v2)) | (Core::Ctor(x, v1), Core::Ctor(y, v2)) => {
+            x == y && match_classes(v1, v2, cb)
+        }
         (Core::Prim(x), Core::Prim(y)) => x == y,
         (Core::Foreign(x), Core::Foreign(y)) => x == y,
-        (Core::DictProj(d1, i1), Core::DictProj(d2, i2)) => {
-            i1 == i2 && match_pat(d1, holes, d2, binds)
+        (Core::DictProj(d1, i1, s1), Core::DictProj(d2, i2, s2)) => {
+            i1 == i2
+                && match (s1, s2) {
+                    (Some(a), Some(b)) => a.class == b.class && match_classes(&a.own, &b.own, cb),
+                    (None, None) => true,
+                    _ => false,
+                }
+                && match_pat(d1, holes, d2, binds, cb)
         }
         (Core::Proj(d1, i1), Core::Proj(d2, i2)) => {
-            i1 == i2 && match_pat(d1, holes, d2, binds)
+            i1 == i2 && match_pat(d1, holes, d2, binds, cb)
         }
-        (Core::InstDict(g1, a1), Core::InstDict(g2, a2)) => {
+        (Core::InstDict(g1, a1, v1), Core::InstDict(g2, a2, v2)) => {
             g1 == g2
                 && a1.len() == a2.len()
-                && a1.iter().zip(a2).all(|(x, y)| match_pat(x, holes, y, binds))
+                && match_classes(v1, v2, cb)
+                && a1.iter().zip(a2).all(|(x, y)| match_pat(x, holes, y, binds, cb))
         }
         (Core::App(f1, a1), Core::App(f2, a2)) => {
             a1.len() == a2.len()
-                && match_pat(f1, holes, f2, binds)
-                && a1.iter().zip(a2).all(|(x, y)| match_pat(x, holes, y, binds))
+                && match_pat(f1, holes, f2, binds, cb)
+                && a1.iter().zip(a2).all(|(x, y)| match_pat(x, holes, y, binds, cb))
         }
         (Core::Lam { fn_id: g1, env: e1 }, Core::Lam { fn_id: g2, env: e2 }) => {
             g1 == g2
                 && e1.len() == e2.len()
-                && e1.iter().zip(e2).all(|(x, y)| match_pat(x, holes, y, binds))
+                && e1.iter().zip(e2).all(|(x, y)| match_pat(x, holes, y, binds, cb))
         }
-        (Core::Let(_, v1, b1), Core::Let(_, v2, b2)) => {
-            match_pat(v1, holes, v2, binds) && match_pat(b1, holes, b2, binds)
+        (Core::Let(_, c1, v1, b1), Core::Let(_, c2, v2, b2)) => {
+            match_class(*c1, *c2, cb)
+                && match_pat(v1, holes, v2, binds, cb)
+                && match_pat(b1, holes, b2, binds, cb)
         }
         (Core::If(c1, t1, f1), Core::If(c2, t2, f2)) => {
             t1.weight == t2.weight
                 && f1.weight == f2.weight
-                && match_pat(c1, holes, c2, binds)
-                && match_pat(&t1.body, holes, &t2.body, binds)
-                && match_pat(&f1.body, holes, &f2.body, binds)
+                && match_pat(c1, holes, c2, binds, cb)
+                && match_pat(&t1.body, holes, &t2.body, binds, cb)
+                && match_pat(&f1.body, holes, &f2.body, binds, cb)
         }
         (Core::Case { scrut: s1, alts: a1 }, Core::Case { scrut: s2, alts: a2 }) => {
             a1.len() == a2.len()
-                && match_pat(s1, holes, s2, binds)
+                && match_pat(s1, holes, s2, binds, cb)
                 && a1.iter().zip(a2).all(|(x, y)| {
                     x.weight == y.weight
-                        && pat_shape_eq(&x.pat, &y.pat)
-                        && match_pat(&x.body, holes, &y.body, binds)
+                        && pat_shape_eq(&x.pat, &y.pat, cb)
+                        && match_pat(&x.body, holes, &y.body, binds, cb)
                 })
         }
-        (Core::Demand(d1), Core::Demand(d2)) => match_pat(d1, holes, d2, binds),
-        (Core::LazyInit(_, t1), Core::LazyInit(_, t2)) => match_pat(t1, holes, t2, binds),
+        (Core::Demand(d1), Core::Demand(d2)) => match_pat(d1, holes, d2, binds, cb),
+        (Core::LazyInit(_, t1), Core::LazyInit(_, t2)) => match_pat(t1, holes, t2, binds, cb),
         (Core::StrLit(s1), Core::StrLit(s2)) => s1 == s2,
         (Core::SyntaxLit(t1), Core::SyntaxLit(t2)) => format!("{t1:?}") == format!("{t2:?}"),
         _ => false,
     }
 }
 
+/// One pattern class against one subterm class (see [`match_pat`]). A
+/// rule fires where its untyped pattern matches, as it did before
+/// classes existed, so classes never block a match: the first subterm
+/// class a rule parameter meets is the one its template uses.
+fn match_class(p: Class, s: Class, cb: &mut Vec<Option<Class>>) -> bool {
+    if let Class::Param(i) = p {
+        let i = i as usize;
+        if cb.len() <= i {
+            cb.resize(i + 1, None);
+        }
+        if cb[i].is_none() {
+            cb[i] = Some(s);
+        }
+    }
+    true
+}
+
+fn match_classes(p: &[Class], s: &[Class], cb: &mut Vec<Option<Class>>) -> bool {
+    for (a, b) in p.iter().zip(s) {
+        match_class(*a, *b, cb);
+    }
+    true
+}
+
 /// Pattern shapes match when their binders are alpha-equivalent (the
 /// pattern's own binders are freshened at every use).
-fn pat_shape_eq(a: &CPat, b: &CPat) -> bool {
+fn pat_shape_eq(a: &CPat, b: &CPat, cb: &mut Vec<Option<Class>>) -> bool {
     match (a, b) {
-        (CPat::Var(_), CPat::Var(_)) | (CPat::Wild, CPat::Wild) => true,
-        (CPat::Con { tag: t1, fields: f1 }, CPat::Con { tag: t2, fields: f2 }) => {
-            t1 == t2 && f1.len() == f2.len()
+        (CPat::Var(_, c1), CPat::Var(_, c2)) => match_class(*c1, *c2, cb),
+        (CPat::Wild, CPat::Wild) => true,
+        (CPat::Con { tag: t1, fields: f1, classes: k1 }, CPat::Con { tag: t2, fields: f2, classes: k2 }) => {
+            t1 == t2 && f1.len() == f2.len() && match_classes(k1, k2, cb)
         }
         _ => false,
     }
@@ -4323,15 +4437,17 @@ struct FoldCtors {
     some: Option<GlobalId>,
 }
 
+/// A folded checked operation's `Option` result: every caller folds a
+/// machine scalar, so the payload class is `Raw`.
 fn opt_value(ctors: &FoldCtors, v: Option<Core>) -> Option<Core> {
     match v {
         Some(v) => {
             let g = ctors.some.as_ref()?;
-            Some(Core::App(Box::new(Core::Ctor(g.clone())), vec![v]))
+            Some(Core::App(Box::new(Core::Ctor(g.clone(), vec![Class::Raw])), vec![v]))
         }
         None => {
             let g = ctors.none.as_ref()?;
-            Some(Core::App(Box::new(Core::Ctor(g.clone())), vec![]))
+            Some(Core::App(Box::new(Core::Ctor(g.clone(), vec![Class::Raw])), vec![]))
         }
     }
 }
@@ -4683,17 +4799,17 @@ fn has_alloc(e: &Core) -> bool {
             | Core::BoxGet(_) | Core::Demand(_) | Core::Quote { .. }
             | Core::DeclsQuote { .. } => *found = true,
             Core::Prim(PrimOp::Delay) => *found = true,
-            Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(_)
-            | Core::Ctor(_) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_)
+            Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
+            | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_)
             | Core::Fault | Core::SyntaxLit(_) | Core::StrLit(_)
             | Core::Var(_) => {}
-            Core::DictProj(d, _) | Core::Proj(d, _) => go(d, found),
-            Core::InstDict(_, args) | Core::App(_, args) | Core::Lam { env: args, .. } => {
+            Core::DictProj(d, ..) | Core::Proj(d, _) => go(d, found),
+            Core::InstDict(_, args, _) | Core::App(_, args) | Core::Lam { env: args, .. } => {
                 for a in args {
                     go(a, found);
                 }
             }
-            Core::Let(_, v, body) => {
+            Core::Let(_, _, v, body) => {
                 go(v, found);
                 go(body, found);
             }
@@ -4735,12 +4851,12 @@ struct OptCx {
 
 fn scan_calls(e: &Core, f: &mut impl FnMut(&GlobalId)) {
     match e {
-        Core::Global(g) => f(g),
-        Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Ctor(_)
+        Core::Global(g, _) => f(g),
+        Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Ctor(..)
         | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(_) | Core::StrLit(_)
         | Core::Var(_) => {}
-        Core::DictProj(d, _) | Core::Proj(d, _) | Core::Demand(d) => scan_calls(d, f),
-        Core::InstDict(_, args) | Core::App(_, args) => {
+        Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d) => scan_calls(d, f),
+        Core::InstDict(_, args, _) | Core::App(_, args) => {
             if let Core::App(h, _) = e {
                 scan_calls(h, f);
             }
@@ -4754,7 +4870,7 @@ fn scan_calls(e: &Core, f: &mut impl FnMut(&GlobalId)) {
                 scan_calls(a, f);
             }
         }
-        Core::Let(_, v, body) => {
+        Core::Let(_, _, v, body) => {
             scan_calls(v, f);
             scan_calls(body, f);
         }
@@ -4794,17 +4910,17 @@ fn scan_memo(e: &Core, n: &mut usize) {
         Core::LazyAlloc | Core::LazyInit(_, _) | Core::BoxAlloc | Core::BoxInit(_, _)
         | Core::RefSet(_, _)
         | Core::BoxGet(_) | Core::Demand(_) => *n += 1,
-        Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(_)
-        | Core::Ctor(_) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_)
+        Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
+        | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_)
         | Core::Fault | Core::SyntaxLit(_) | Core::StrLit(_)
         | Core::Var(_) => {}
-        Core::DictProj(d, _) | Core::Proj(d, _) => scan_memo(d, n),
-        Core::InstDict(_, args) | Core::App(_, args) | Core::Lam { env: args, .. } => {
+        Core::DictProj(d, ..) | Core::Proj(d, _) => scan_memo(d, n),
+        Core::InstDict(_, args, _) | Core::App(_, args) | Core::Lam { env: args, .. } => {
             for a in args {
                 scan_memo(a, n);
             }
         }
-        Core::Let(_, v, body) => {
+        Core::Let(_, _, v, body) => {
             scan_memo(v, n);
             scan_memo(body, n);
         }
@@ -4853,20 +4969,20 @@ fn weights_ok(e: &Core) -> bool {
                     go(&a.body, ok);
                 }
             }
-            Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(_)
-            | Core::Ctor(_) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(_)
+            Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
+            | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(_)
             | Core::StrLit(_) | Core::Var(_) => {}
-            Core::DictProj(d, _) | Core::Proj(d, _) | Core::Demand(d) | Core::BoxGet(d) => {
+            Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d) | Core::BoxGet(d) => {
                 go(d, ok)
             }
             Core::BoxInit(_, v) => go(v, ok),
             Core::RefSet(_, v) => go(v, ok),
-            Core::InstDict(_, args) | Core::App(_, args) | Core::Lam { env: args, .. } => {
+            Core::InstDict(_, args, _) | Core::App(_, args) | Core::Lam { env: args, .. } => {
                 for a in args {
                     go(a, ok);
                 }
             }
-            Core::Let(_, v, body) => {
+            Core::Let(_, _, v, body) => {
                 go(v, ok);
                 go(body, ok);
             }
@@ -4888,10 +5004,10 @@ fn scope_ok(e: &Core, nparams: usize) -> bool {
     fn go(e: &Core, bound: &mut std::collections::HashSet<LocalId>) -> bool {
         match e {
             Core::Var(l) => bound.contains(l),
-            Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(_)
-            | Core::Ctor(_) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(_)
+            Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
+            | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(_)
             | Core::StrLit(_) => true,
-            Core::DictProj(d, _) | Core::Proj(d, _) | Core::Demand(d) | Core::BoxGet(d) => {
+            Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d) | Core::BoxGet(d) => {
                 go(d, bound)
             }
             Core::BoxInit(l, v) => {
@@ -4906,10 +5022,10 @@ fn scope_ok(e: &Core, nparams: usize) -> bool {
                 bound.remove(l);
                 ok
             }
-            Core::InstDict(_, args) | Core::App(_, args) | Core::Lam { env: args, .. } => {
+            Core::InstDict(_, args, _) | Core::App(_, args) | Core::Lam { env: args, .. } => {
                 args.iter().all(|a| go(a, bound))
             }
-            Core::Let(l, v, body) => {
+            Core::Let(l, _, v, body) => {
                 if !go(v, bound) {
                     return false;
                 }
@@ -4932,7 +5048,7 @@ fn scope_ok(e: &Core, nparams: usize) -> bool {
                 for a in alts {
                     let mut added: Vec<LocalId> = Vec::new();
                     match &a.pat {
-                        CPat::Var(l) => {
+                        CPat::Var(l, _) => {
                             bound.insert(*l);
                             added.push(*l);
                         }
@@ -5021,19 +5137,19 @@ fn body_impure(e: &Core) -> bool {
                     *bad = true;
                 }
             }
-            Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(_)
-            | Core::Ctor(_) | Core::SpliceVal(_) | Core::LazyAlloc | Core::BoxAlloc
+            Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
+            | Core::Ctor(..) | Core::SpliceVal(_) | Core::LazyAlloc | Core::BoxAlloc
             | Core::SyntaxLit(_) | Core::StrLit(_) | Core::Var(_) => {}
-            Core::DictProj(d, _) | Core::Proj(d, _) | Core::Demand(d) | Core::BoxGet(d) => {
+            Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d) | Core::BoxGet(d) => {
                 go(d, bad)
             }
             Core::BoxInit(_, v) => go(v, bad),
-            Core::InstDict(_, args) | Core::App(_, args) | Core::Lam { env: args, .. } => {
+            Core::InstDict(_, args, _) | Core::App(_, args) | Core::Lam { env: args, .. } => {
                 for a in args {
                     go(a, bad);
                 }
             }
-            Core::Let(_, v, body) => {
+            Core::Let(_, _, v, body) => {
                 go(v, bad);
                 go(body, bad);
             }
@@ -5070,7 +5186,7 @@ fn pure_value(
     caller: &FnDef,
 ) -> Result<(), String> {
     match v {
-        Core::Global(g) => {
+        Core::Global(g, _) => {
             if !cx.pure.get(&g.0).copied().unwrap_or(false) {
                 return Err("effect barrier: the callback performs effects".to_string());
             }
@@ -5108,29 +5224,51 @@ fn pure_value(
 
 /// Split a producer pipeline into its stages and base producer
 /// (`prodMap`/`prodTake` are the prelude's step-form producer library).
-fn split_chain(e: &Core) -> (Vec<(bool, Core)>, Core) {
-    let mut stages: Vec<(bool, Core)> = Vec::new();
+/// Each stage keeps its head (name and class vector) beside its argument.
+fn split_chain(e: &Core) -> (Vec<ChainStage>, Core) {
+    let mut stages: Vec<ChainStage> = Vec::new();
     let mut cur = e.clone();
     loop {
-        match &cur {
-            Core::App(h, args)
-                if matches!(&**h, Core::Global(g) if g.0.ends_with(".prod-map"))
-                    && args.len() == 2 =>
-            {
-                stages.push((true, args[0].clone()));
-                cur = args[1].clone();
-            }
-            Core::App(h, args)
-                if matches!(&**h, Core::Global(g) if g.0.ends_with(".prod-take"))
-                    && args.len() == 2 =>
-            {
-                stages.push((false, args[0].clone()));
-                cur = args[1].clone();
-            }
-            _ => break,
-        }
+        let stage = match &cur {
+            Core::App(h, args) if args.len() == 2 => match &**h {
+                Core::Global(g, v) if is_unit(g, ".prod-map") => {
+                    Some(ChainStage { map: true, arg: args[0].clone(), head: g.clone(), classes: v.clone() })
+                }
+                Core::Global(g, v) if is_unit(g, ".prod-take") => {
+                    Some(ChainStage { map: false, arg: args[0].clone(), head: g.clone(), classes: v.clone() })
+                }
+                _ => None,
+            },
+            _ => None,
+        };
+        let Some(stage) = stage else { break };
+        cur = match &cur {
+            Core::App(_, args) => args[1].clone(),
+            _ => unreachable!("a stage is an application"),
+        };
+        stages.push(stage);
     }
     (stages, cur)
+}
+
+/// One stage of a producer pipeline (see [`split_chain`]).
+struct ChainStage {
+    map: bool,
+    arg: Core,
+    head: GlobalId,
+    classes: Vec<Class>,
+}
+
+/// Whether a unit is the prelude unit named by `suffix`, in any
+/// representation copy.
+fn is_unit(g: &GlobalId, suffix: &str) -> bool {
+    crate::repr::base_unit(&g.0).ends_with(suffix)
+}
+
+/// The class at `i` of a producer library unit's vector: `prod-map` and
+/// `prod-fold` quantify `s a b`, `prod-take` quantifies `s a`.
+fn stage_class(v: &[Class], i: usize) -> Class {
+    v.get(i).copied().unwrap_or(Class::Raw)
 }
 
 /// The transformation set of supercompilation section 2 and the weight
@@ -5167,20 +5305,20 @@ impl Driver<'_> {
     /// specification section 6: no intermediate allocation, the
     /// observation model preserved).
     fn fuse(&mut self, e: &Core) -> Option<Core> {
-        let (is_fold, head, args) = match e {
+        let (is_fold, head, head_classes, args) = match e {
             Core::App(h, args) => match &**h {
-                Core::Global(g) if g.0.ends_with(".prod-fold") && args.len() == 3 => {
-                    (true, g.0.clone(), args.clone())
+                Core::Global(g, v) if is_unit(g, ".prod-fold") && args.len() == 3 => {
+                    (true, g.clone(), v.clone(), args.clone())
                 }
-                Core::Global(g) if g.0.ends_with(".prod-map") && args.len() == 2 => {
-                    (false, g.0.clone(), args.clone())
+                Core::Global(g, v) if is_unit(g, ".prod-map") && args.len() == 2 => {
+                    (false, g.clone(), v.clone(), args.clone())
                 }
                 _ => return None,
             },
             _ => return None,
         };
         let (stages, base) = split_chain(if is_fold { &args[2] } else { &args[1] });
-        let maps: Vec<Core> = stages.iter().filter(|(m, _)| *m).map(|(_, f)| f.clone()).collect();
+        let maps: Vec<Core> = stages.iter().filter(|s| s.map).map(|s| s.arg.clone()).collect();
         if maps.len() < 2 && !(is_fold && maps.len() == 1) {
             return None;
         }
@@ -5203,7 +5341,7 @@ impl Driver<'_> {
         };
         for c in callbacks {
             let blocked = match c {
-                Core::Global(g) => self
+                Core::Global(g, _) => self
                     .defs
                     .get(&g.0)
                     .map(|f| has_alloc(&f.body))
@@ -5263,6 +5401,19 @@ impl Driver<'_> {
                 .collect();
             (params, inner)
         };
+        // The composed unit's classes: the closures are `Obj`, the
+        // element is the base producer's (`a` of the innermost stage),
+        // and a fold's accumulator is the fold's `b`. It is built inside
+        // the caller, so it shares the caller's type parameters.
+        let innermost = stages.last().map(|s| s.classes.clone()).unwrap_or_default();
+        let state0 = stage_class(&innermost, 0);
+        let elem = stage_class(&innermost, 1);
+        let out = stage_class(&head_classes, 2);
+        let mut param_classes = vec![Class::Obj; env.len()];
+        if is_fold {
+            param_classes.push(out);
+        }
+        param_classes.push(elem);
         let nparams = params.len();
         let body = renumber_core(&body, nparams);
         self.new_fns.push(FnDef {
@@ -5273,24 +5424,26 @@ impl Driver<'_> {
             ctor: None,
             hints: FnHints::default(),
             meta: FnMeta { pure: true, ..FnMeta::default() },
+            repr: UnitRepr {
+                tparams: self.caller.repr.tparams,
+                params: param_classes,
+                fields: Vec::new(),
+            },
         });
         // Rebuild the producer: the map stages collapse into the composed
-        // callback, the take stages keep their order over the base.
+        // callback, the take stages keep their order over the base, now
+        // over the base's element (each take wraps the state in `TakeSt`).
         let mut producer = base;
-        for (is_map, arg) in stages.iter().rev() {
-            if *is_map {
+        let mut state = state0;
+        for stage in stages.iter().rev() {
+            if stage.map {
                 continue;
             }
             producer = Core::App(
-                Box::new(Core::Global(GlobalId(
-                    self.defs
-                        .keys()
-                        .find(|k| k.ends_with(".prod-take"))
-                        .cloned()
-                        .unwrap_or_else(|| "Prelude.prod-take".to_string()),
-                ))),
-                vec![arg.clone(), producer],
+                Box::new(Core::Global(stage.head.clone(), vec![state, elem])),
+                vec![stage.arg.clone(), producer],
             );
+            state = Class::Obj;
         }
         self.changed = true;
         self.fuel_left -= 1;
@@ -5302,13 +5455,11 @@ impl Driver<'_> {
         ));
         self.site("fusion", None);
         let lam = Core::Lam { fn_id: gid, env };
+        let head = Core::Global(head, vec![state, elem, out]);
         Some(if is_fold {
-            Core::App(
-                Box::new(Core::Global(GlobalId(head))),
-                vec![args[0].clone(), lam, producer],
-            )
+            Core::App(Box::new(head), vec![args[0].clone(), lam, producer])
         } else {
-            Core::App(Box::new(Core::Global(GlobalId(head))), vec![lam, producer])
+            Core::App(Box::new(head), vec![lam, producer])
         })
     }
 
@@ -5324,7 +5475,7 @@ impl Driver<'_> {
 
     fn dead_alts_in(&mut self, e: &mut Core, syn: &mut HashMap<LocalId, LocalId>) {
         match e {
-            Core::Let(l, v, _) => {
+            Core::Let(l, _, v, _) => {
                 if let Core::Var(src) = &**v {
                     let root = syn.get(src).copied().unwrap_or(*src);
                     syn.insert(*l, root);
@@ -5374,7 +5525,7 @@ impl Driver<'_> {
     }
 
     fn merge_cases_in(&mut self, e: &mut Core, syn: &mut HashMap<LocalId, LocalId>) {
-        if let Core::Let(l, v, _) = e {
+        if let Core::Let(l, _, v, _) = e {
             if let Core::Var(src) = &**v {
                 let root = syn.get(src).copied().unwrap_or(*src);
                 syn.insert(*l, root);
@@ -5470,7 +5621,8 @@ impl Driver<'_> {
             let holes: std::collections::HashSet<LocalId> =
                 rule.holes.iter().copied().collect();
             let mut binds: HashMap<LocalId, Core> = HashMap::new();
-            if !match_pat(&rule.pattern, &holes, e, &mut binds) {
+            let mut cb: Vec<Option<Class>> = Vec::new();
+            if !match_pat(&rule.pattern, &holes, e, &mut binds, &mut cb) {
                 continue;
             }
             if self.fuel_left == 0 {
@@ -5505,7 +5657,11 @@ impl Driver<'_> {
                 continue;
             }
             let mut next = self.fresh;
-            let inst = instantiate(&rule.template, &holes, &binds, &mut next);
+            // The template's rule-parameter classes take the classes the
+            // pattern met; a parameter the pattern does not mention has no
+            // word in the residual's space and stays uncounted.
+            let cv: Vec<Class> = cb.iter().map(|c| c.unwrap_or(Class::Raw)).collect();
+            let inst = instantiate(&rule.template, &holes, &binds, &mut next, &cv);
             self.fresh = next.max(self.fresh);
             *e = inst;
             self.changed = true;
@@ -5545,7 +5701,7 @@ impl Driver<'_> {
                 for (i, a) in alts.iter().enumerate() {
                     match &a.pat {
                         CPat::Con { tag: t, .. } if *t == tag => pick = Some(i),
-                        CPat::Var(_) | CPat::Wild => fallback = Some(i),
+                        CPat::Var(..) | CPat::Wild => fallback = Some(i),
                         _ => {}
                     }
                 }
@@ -5556,15 +5712,16 @@ impl Driver<'_> {
                     let alt = alts[i].clone();
                     let mut out = *alt.body.clone();
                     match &alt.pat {
-                        CPat::Con { fields: fs, .. } => {
+                        CPat::Con { fields: fs, classes, .. } => {
                             for (slot, f) in fs.iter().enumerate() {
                                 if let Some(val) = fields.get(slot) {
-                                    out = Core::Let(*f, Box::new(val.clone()), Box::new(out));
+                                    let c = classes.get(slot).copied().unwrap_or(Class::Raw);
+                                    out = Core::Let(*f, c, Box::new(val.clone()), Box::new(out));
                                 }
                             }
                         }
-                        CPat::Var(l) => {
-                            out = Core::Let(*l, Box::new((**scrut).clone()), Box::new(out));
+                        CPat::Var(l, c) => {
+                            out = Core::Let(*l, *c, Box::new((**scrut).clone()), Box::new(out));
                         }
                         CPat::Wild => {}
                     }
@@ -5578,15 +5735,21 @@ impl Driver<'_> {
         // Dictionary and effect-static specialization: a call through a
         // statically known dictionary becomes a direct call.
         if let Core::App(h, args) = e {
-            if let Core::DictProj(d, idx) = &**h {
-                if let Core::InstDict(id, subs) = &**d {
+            if let Core::DictProj(d, idx, site) = &**h {
+                if let Core::InstDict(id, subs, iv) = &**d {
                     if let Some(inst_def) = self.caller_program_instance(id) {
                         if let Some(mid) = inst_def.methods.get(*idx) {
                             let want = self.defs.get(&mid.0).map(|f| f.params.len());
                             if want == Some(subs.len() + args.len()) && self.spend_fuel() {
                                 let mut new_args = subs.clone();
                                 new_args.extend(args.iter().cloned());
-                                *e = Core::App(Box::new(Core::Global(mid.clone())), new_args);
+                                // The method unit's vector: the instance's,
+                                // then the method's own parameters'.
+                                let mut mv = iv.clone();
+                                if let Some(s) = site {
+                                    mv.extend(s.own.iter().copied());
+                                }
+                                *e = Core::App(Box::new(Core::Global(mid.clone(), mv)), new_args);
                                 self.changed = true;
                                 self.site("dictionary-specialize", None);
                                 return;
@@ -5598,8 +5761,8 @@ impl Driver<'_> {
         }
         // Known-application unfolding, bounded by fuel and the whistle.
         if let Core::App(h, args) = e {
-            if let Core::Global(g) = &**h {
-                if let Some(new) = self.try_unfold(g, args) {
+            if let Core::Global(g, v) = &**h {
+                if let Some(new) = self.try_unfold(g, v, args) {
                     *e = new;
                     return;
                 }
@@ -5679,7 +5842,9 @@ impl Driver<'_> {
         Ok(())
     }
 
-    fn try_unfold(&mut self, g: &GlobalId, args: &[Core]) -> Option<Core> {
+    /// Unfold a saturated call of `g` at instantiation vector `v`: the
+    /// callee's body is copied into the caller's parameter space.
+    fn try_unfold(&mut self, g: &GlobalId, v: &[Class], args: &[Core]) -> Option<Core> {
         if self.cx.opaque.contains(&g.0) {
             self.site("unfold", Some("opaque boundary: a replaceable dispatch boundary residualizes".to_string()));
             return None;
@@ -5719,7 +5884,7 @@ impl Driver<'_> {
             let atom = matches!(
                 arg,
                 Core::Var(_) | Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_)
-                    | Core::Unit | Core::Global(_) | Core::Ctor(_) | Core::Prim(_) | Core::Foreign(_)
+                    | Core::Unit | Core::Global(..) | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_)
             );
             if atom {
                 binds.insert(l, arg.clone());
@@ -5736,13 +5901,14 @@ impl Driver<'_> {
         }
         let holes: std::collections::HashSet<LocalId> = (0..args.len()).map(LocalId).collect();
         let mut next = self.fresh;
-        let mut body = instantiate(&f.body, &holes, &binds, &mut next);
+        let mut body = instantiate(&f.body, &holes, &binds, &mut next, v);
         self.fresh = next;
         for i in (0..args.len()).rev() {
             let fresh_v = LocalId(0x8000_0000 + i);
             let arg = LocalId(0x4000_0000 + i);
-            if let (Some(Core::Var(v)), Some(a)) = (binds.get(&fresh_v), binds.get(&arg)) {
-                body = Core::Let(*v, Box::new(a.clone()), Box::new(body));
+            if let (Some(Core::Var(x)), Some(a)) = (binds.get(&fresh_v), binds.get(&arg)) {
+                let c = f.repr.params.get(i).copied().unwrap_or(Class::Raw).subst(v);
+                body = Core::Let(*x, c, Box::new(a.clone()), Box::new(body));
             }
         }
         self.fuel_left -= 1;
@@ -5770,7 +5936,7 @@ fn drop_dead(
     drv: &mut Driver,
 ) {
     match e {
-        Core::Let(l, src, _) => {
+        Core::Let(l, _, src, _) => {
             if let Core::Var(s) = &**src {
                 let root = syn.get(s).copied().unwrap_or(*s);
                 syn.insert(*l, root);
@@ -5805,20 +5971,20 @@ fn drop_dead(
 fn child_slots(e: &mut Core) -> Vec<&mut Core> {
     let mut out: Vec<&mut Core> = Vec::new();
     match e {
-        Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(_)
-        | Core::Ctor(_) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(_)
+        Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
+        | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(_)
         | Core::StrLit(_) | Core::Var(_) => {}
-        Core::DictProj(d, _) | Core::Proj(d, _) | Core::Demand(d) | Core::BoxGet(d) => {
+        Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d) | Core::BoxGet(d) => {
             out.push(&mut **d)
         }
         Core::BoxInit(_, v) => out.push(&mut **v),
         Core::RefSet(_, v) => out.push(&mut **v),
-        Core::InstDict(_, args) | Core::App(_, args) | Core::Lam { env: args, .. } => {
+        Core::InstDict(_, args, _) | Core::App(_, args) | Core::Lam { env: args, .. } => {
             for a in args {
                 out.push(a);
             }
         }
-        Core::Let(_, v, body) => {
+        Core::Let(_, _, v, body) => {
             out.push(&mut **v);
             out.push(&mut **body);
         }
@@ -5843,15 +6009,44 @@ fn child_slots(e: &mut Core) -> Vec<&mut Core> {
     out
 }
 
+/// Resolve every parameter class in `e` (binders, pattern fields,
+/// instantiation vectors, method sites) against `cv`.
+pub fn subst_classes(e: &mut Core, cv: &[Class]) {
+    let sub = |cs: &mut Vec<Class>| {
+        for c in cs.iter_mut() {
+            *c = c.subst(cv);
+        }
+    };
+    match e {
+        Core::Global(_, v) | Core::Ctor(_, v) | Core::InstDict(_, _, v) => sub(v),
+        Core::DictProj(_, _, Some(s)) => sub(&mut s.own),
+        Core::Let(_, c, _, _) => *c = c.subst(cv),
+        Core::Case { alts, .. } => {
+            for a in alts.iter_mut() {
+                match &mut a.pat {
+                    CPat::Var(_, c) => *c = c.subst(cv),
+                    CPat::Con { classes, .. } => sub(classes),
+                    CPat::Wild => {}
+                }
+            }
+        }
+        Core::Quote { body: Some(b), .. } => subst_classes(b, cv),
+        _ => {}
+    }
+    for k in child_slots(e) {
+        subst_classes(k, cv);
+    }
+}
+
 /// The constructor a scrutinee applies, if it is a known one.
 fn ctor_shape(e: &Core, defs: &HashMap<String, FnDef>) -> (Option<usize>, Vec<Core>) {
     match e {
-        Core::Ctor(g) => {
+        Core::Ctor(g, _) => {
             let tag = defs.get(&g.0).and_then(|f| f.ctor).map(|(t, _)| t);
             (tag, Vec::new())
         }
         Core::App(h, args) => match &**h {
-            Core::Ctor(g) => {
+            Core::Ctor(g, _) => {
                 let tag = defs.get(&g.0).and_then(|f| f.ctor).map(|(t, _)| t);
                 (tag, args.clone())
             }
@@ -5878,13 +6073,13 @@ fn alpha_eq(a: &Core, b: &Core) -> bool {
             ) => n1 == n2 && d1 == d2,
             (Core::Bool(x), Core::Bool(y)) => x == y,
             (Core::Unit, Core::Unit) | (Core::Fault, Core::Fault) | (Core::LazyAlloc, Core::LazyAlloc) => true,
-            (Core::Global(x), Core::Global(y)) | (Core::Ctor(x), Core::Ctor(y)) => x == y,
+            (Core::Global(x, v1), Core::Global(y, v2)) | (Core::Ctor(x, v1), Core::Ctor(y, v2)) => x == y && v1 == v2,
             (Core::Prim(x), Core::Prim(y)) => x == y,
             (Core::Foreign(x), Core::Foreign(y)) => x == y,
-            (Core::DictProj(d1, i1), Core::DictProj(d2, i2)) => i1 == i2 && go(d1, d2, map),
+            (Core::DictProj(d1, i1, s1), Core::DictProj(d2, i2, s2)) => i1 == i2 && s1 == s2 && go(d1, d2, map),
             (Core::Proj(d1, i1), Core::Proj(d2, i2)) => i1 == i2 && go(d1, d2, map),
-            (Core::InstDict(g1, a1), Core::InstDict(g2, a2)) => {
-                g1 == g2 && a1.len() == a2.len() && a1.iter().zip(a2).all(|(x, y)| go(x, y, map))
+            (Core::InstDict(g1, a1, v1), Core::InstDict(g2, a2, v2)) => {
+                g1 == g2 && v1 == v2 && a1.len() == a2.len() && a1.iter().zip(a2).all(|(x, y)| go(x, y, map))
             }
             (Core::App(f1, a1), Core::App(f2, a2)) => {
                 a1.len() == a2.len()
@@ -5894,7 +6089,10 @@ fn alpha_eq(a: &Core, b: &Core) -> bool {
             (Core::Lam { fn_id: g1, env: e1 }, Core::Lam { fn_id: g2, env: e2 }) => {
                 g1 == g2 && e1.len() == e2.len() && e1.iter().zip(e2).all(|(x, y)| go(x, y, map))
             }
-            (Core::Let(l1, v1, b1), Core::Let(l2, v2, b2)) => {
+            (Core::Let(l1, c1, v1, b1), Core::Let(l2, c2, v2, b2)) => {
+                if c1 != c2 {
+                    return false;
+                }
                 if !go(v1, v2, map) {
                     return false;
                 }
@@ -5927,13 +6125,13 @@ fn alpha_eq(a: &Core, b: &Core) -> bool {
                     let mut bound: Vec<LocalId> = Vec::new();
                     let ok = match (&x.pat, &y.pat) {
                         (CPat::Wild, CPat::Wild) => true,
-                        (CPat::Var(p), CPat::Var(q)) => {
+                        (CPat::Var(p, c1), CPat::Var(q, c2)) if c1 == c2 => {
                             map.insert(*p, *q);
                             bound.push(*p);
                             true
                         }
-                        (CPat::Con { tag: t1, fields: f1 }, CPat::Con { tag: t2, fields: f2 })
-                            if t1 == t2 && f1.len() == f2.len() =>
+                        (CPat::Con { tag: t1, fields: f1, classes: k1 }, CPat::Con { tag: t2, fields: f2, classes: k2 })
+                            if t1 == t2 && f1.len() == f2.len() && k1 == k2 =>
                         {
                             for (p, q) in f1.iter().zip(f2) {
                                 map.insert(*p, *q);
@@ -5970,7 +6168,7 @@ fn shared_inner_case<'a>(
     root: LocalId,
 ) -> Option<(LocalId, &'a Vec<CAlt<Core>>)> {
     let (sub, case): (LocalId, &Core) = match body {
-        Core::Let(l, src, rest) => match &**src {
+        Core::Let(l, _, src, rest) => match &**src {
             Core::Var(s) if syn.get(s).copied().unwrap_or(*s) == root => (*l, &**rest),
             _ => return None,
         },
@@ -6002,7 +6200,7 @@ fn contains_case_on(e: &Core, syn: &HashMap<LocalId, LocalId>, root: LocalId) ->
             return;
         }
         match e {
-            Core::Let(l, src, _) => {
+            Core::Let(l, _, src, _) => {
                 if let Core::Var(s) = &**src {
                     let r = syn.get(s).copied().unwrap_or(*s);
                     syn.insert(*l, r);
@@ -6338,20 +6536,20 @@ fn size_of(e: &Core) -> usize {
 fn child_slots_imm(e: &Core) -> Vec<&Core> {
     let mut out: Vec<&Core> = Vec::new();
     match e {
-        Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(_)
-        | Core::Ctor(_) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(_)
+        Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
+        | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(_)
         | Core::StrLit(_) | Core::Var(_) => {}
-        Core::DictProj(d, _) | Core::Proj(d, _) | Core::Demand(d) | Core::BoxGet(d) => {
+        Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d) | Core::BoxGet(d) => {
             out.push(&**d)
         }
         Core::BoxInit(_, v) => out.push(&**v),
         Core::RefSet(_, v) => out.push(&**v),
-        Core::InstDict(_, args) | Core::App(_, args) | Core::Lam { env: args, .. } => {
+        Core::InstDict(_, args, _) | Core::App(_, args) | Core::Lam { env: args, .. } => {
             for a in args {
                 out.push(a);
             }
         }
-        Core::Let(_, v, body) => {
+        Core::Let(_, _, v, body) => {
             out.push(&**v);
             out.push(&**body);
         }

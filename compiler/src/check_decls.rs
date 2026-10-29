@@ -507,7 +507,8 @@ impl Checker {
             prim: None,
             ctor: None,
             hints: crate::core::FnHints::default(),
-                    meta: crate::core::FnMeta::default(),
+            meta: crate::core::FnMeta::default(),
+            repr: crate::core::UnitRepr { tparams: 0, params: vec![Class::Raw], fields: Vec::new() },
         });
         self.install_index_families();
         self.install_staging_api();
@@ -1626,7 +1627,10 @@ impl Checker {
                 prim: None,
                 ctor: Some((tag, runtime_arity)),
                 hints: crate::core::FnHints::default(),
-                    meta: crate::core::FnMeta::default(),
+                meta: crate::core::FnMeta::default(),
+                // The index family's constructors carry index words and
+                // the family's own blocks (`Nat` indices, `Vec` spines).
+                repr: crate::core::UnitRepr::default(),
             });
             ctor_names.push((cname, tag));
         }
@@ -1664,7 +1668,8 @@ impl Checker {
             prim: None,
             ctor: None,
             hints: crate::core::FnHints::default(),
-                    meta: crate::core::FnMeta::default(),
+            meta: crate::core::FnMeta::default(),
+            repr: crate::core::UnitRepr { tparams: 0, params: vec![Class::Raw], fields: Vec::new() },
         });
         let length = ValueInfo {
             module: "<builtin>".to_string(),
@@ -1684,7 +1689,8 @@ impl Checker {
             prim: None,
             ctor: None,
             hints: crate::core::FnHints::default(),
-                    meta: crate::core::FnMeta::default(),
+            meta: crate::core::FnMeta::default(),
+            repr: crate::core::UnitRepr { tparams: 0, params: vec![Class::Obj], fields: Vec::new() },
         });
         // `Vec.getCopy`: copy the element at a `Fin` index out of a
         // borrowed vector (the acceptance probe's safe element access).
@@ -1756,14 +1762,18 @@ impl Checker {
         let walk = crate::core::Core::Case {
             scrut: Box::new(crate::core::Core::Var(LocalId(0))),
             alts: vec![
-                CAlt::new(CPat::Con { tag: 0, fields: vec![] }, crate::core::Core::Fault),
+                CAlt::new(CPat::con(0, vec![]), crate::core::Core::Fault),
                 CAlt::new(
-                    CPat::Con { tag: 1, fields: vec![LocalId(2), LocalId(3)] },
+                    CPat::Con {
+                        tag: 1,
+                        fields: vec![LocalId(2), LocalId(3)],
+                        classes: vec![Class::Param(0), Class::Obj],
+                    },
                     crate::core::Core::If(
                         Box::new(i_is_zero),
                         CBranch::new(crate::core::Core::Var(LocalId(2))),
                         CBranch::new(crate::core::Core::App(
-                            Box::new(crate::core::Core::Global(go.clone())),
+                            Box::new(crate::core::Core::Global(go.clone(), vec![Class::Param(0)])),
                             vec![
                                 crate::core::Core::Var(LocalId(3)),
                                 crate::core::Core::App(
@@ -1783,13 +1793,19 @@ impl Checker {
             prim: None,
             ctor: None,
             hints: crate::core::FnHints::default(),
-                    meta: crate::core::FnMeta::default(),
+            meta: crate::core::FnMeta::default(),
+            repr: crate::core::UnitRepr {
+                tparams: 1,
+                params: vec![Class::Obj, Class::TObj],
+                fields: Vec::new(),
+            },
         });
         self.fns.push(FnDef {
             id: GlobalId("<builtin>.getCopy".to_string()),
             params: vec!["_d".to_string(), "v".to_string(), "fin".to_string()],
             body: crate::core::Core::Let(
                 LocalId(3),
+                Class::TObj,
                 Box::new(crate::core::Core::Proj(
                     Box::new(crate::core::Core::Var(LocalId(2))),
                     crate::core::ProjField::slot(0),
@@ -1797,6 +1813,7 @@ impl Checker {
                 Box::new(crate::core::Core::App(
                     Box::new(crate::core::Core::Global(
                         GlobalId("<builtin>.getCopy.go".to_string()),
+                        vec![Class::Param(0)],
                     )),
                     vec![crate::core::Core::Var(LocalId(1)), crate::core::Core::Var(LocalId(3))],
                 )),
@@ -1804,7 +1821,13 @@ impl Checker {
             prim: None,
             ctor: None,
             hints: crate::core::FnHints::default(),
-                    meta: crate::core::FnMeta::default(),
+            meta: crate::core::FnMeta::default(),
+            // The `Copy` evidence marker, the borrowed vector, the `Fin`.
+            repr: crate::core::UnitRepr {
+                tparams: 1,
+                params: vec![Class::Raw, Class::Obj, Class::Obj],
+                fields: Vec::new(),
+            },
         });
         // `vecStream`/`vecStreamStep` (P10): a producer over a borrowed
         // `Vec` for the target library's scalar sum. The step is the same
@@ -1819,13 +1842,20 @@ impl Checker {
             scrut: Box::new(crate::core::Core::Var(LocalId(0))),
             alts: vec![
                 CAlt::new(
-                    CPat::Con { tag: 0, fields: vec![] },
-                    crate::core::Core::App(Box::new(crate::core::Core::Ctor(done_gid)), vec![]),
+                    CPat::con(0, vec![]),
+                    crate::core::Core::App(
+                        Box::new(crate::core::Core::Ctor(done_gid, vec![Class::Obj, Class::Param(0)])),
+                        vec![],
+                    ),
                 ),
                 CAlt::new(
-                    CPat::Con { tag: 1, fields: vec![LocalId(1), LocalId(2)] },
+                    CPat::Con {
+                        tag: 1,
+                        fields: vec![LocalId(1), LocalId(2)],
+                        classes: vec![Class::Param(0), Class::Obj],
+                    },
                     crate::core::Core::App(
-                        Box::new(crate::core::Core::Ctor(yield_gid)),
+                        Box::new(crate::core::Core::Ctor(yield_gid, vec![Class::Obj, Class::Param(0)])),
                         vec![
                             crate::core::Core::Var(LocalId(1)),
                             crate::core::Core::Var(LocalId(2)),
@@ -1871,7 +1901,8 @@ impl Checker {
             prim: None,
             ctor: None,
             hints: crate::core::FnHints::default(),
-                    meta: crate::core::FnMeta::default(),
+            meta: crate::core::FnMeta::default(),
+            repr: crate::core::UnitRepr { tparams: 1, params: vec![Class::Obj], fields: Vec::new() },
         });
         // Evidence constructors (core specification section 3): `refl`
         // proves `Eq x x`, `congr` lifts equality across a named total
@@ -3215,6 +3246,13 @@ impl Checker {
                         ctor: None,
                         hints: crate::core::FnHints::default(),
                         meta: crate::core::FnMeta::default(),
+                        // The identity on the container: its one parameter
+                        // has the container's class.
+                        repr: crate::core::UnitRepr {
+                            tparams: params.len(),
+                            params: vec![crate::repr::repr_of(&base, &params, self, &mut |_| {})],
+                            fields: Vec::new(),
+                        },
                     });
                 }
                 ast::Decl::Record(rec) => {
@@ -4443,8 +4481,18 @@ impl Checker {
                     .get(&(module.to_string(), cname.clone()))
                     .cloned()
                     .unwrap();
-                let runtime_arity = match &v.kind {
-                    ValueKind::Ctor { runtime_arity, .. } => *runtime_arity,
+                let (runtime_arity, fields) = match &v.kind {
+                    ValueKind::Ctor { runtime_arity, field_tys, field_erased, ty_params, .. } => {
+                        // Each runtime field's class over the data type's own
+                        // parameters (`Cons` is `[Param(0), Obj]`).
+                        let fields: Vec<Class> = field_tys
+                            .iter()
+                            .zip(field_erased)
+                            .filter(|(_, e)| !**e)
+                            .map(|(t, _)| crate::repr::repr_of(t, ty_params, self, &mut |_| {}))
+                            .collect();
+                        (*runtime_arity, (fields, ty_params.len()))
+                    }
                     _ => unreachable!(),
                 };
                 self.fns.push(FnDef {
@@ -4455,6 +4503,11 @@ impl Checker {
                     ctor: Some((*tag, runtime_arity)),
                     hints: crate::core::FnHints::default(),
                     meta: crate::core::FnMeta::default(),
+                    repr: crate::core::UnitRepr {
+                        tparams: fields.1,
+                        params: fields.0.clone(),
+                        fields: fields.0,
+                    },
                 });
             }
         }
@@ -4563,6 +4616,7 @@ impl Checker {
             }
         }
         let mut method_fns = Vec::new();
+        let mut method_own: Vec<usize> = Vec::new();
         let mut seen: Vec<String> = Vec::new();
         let mut pres_methods: Vec<(String, GlobalId, Ty)> = Vec::new();
         for (mname, mscheme) in sig.methods.clone() {
@@ -4686,7 +4740,23 @@ impl Checker {
             if from_default {
                 self.build_scope(&sig.module, true);
             }
+            // The method unit's class vector: the instance's parameters,
+            // then the method's own (their rigid names in the body).
+            let own_names: Vec<String> = mscheme
+                .params
+                .iter()
+                .filter(|p| !sig.params.contains(p))
+                .filter_map(|p| match body_map.get(p) {
+                    Some(Ty::Param(n)) => Some(n.clone()),
+                    _ => None,
+                })
+                .collect();
+            method_own.push(own_names.len());
+            let mut tparams = params.clone();
+            tparams.extend(own_names);
+            self.method_tparams = Some(tparams);
             let checked = self.check_equations(&mname, &gid, &scheme, &eqs, Vec::new());
+            self.method_tparams = None;
             if from_default {
                 self.build_scope(module, true);
             }
@@ -4800,6 +4870,9 @@ impl Checker {
             method_count: sig.methods.len(),
             subdict_count: mparams + subdict_count,
             methods: method_fns,
+            class: class.clone(),
+            tparams: params.len(),
+            own: method_own,
         };
         if mparams > 0 {
             self.param_inst_defs
@@ -4976,7 +5049,8 @@ impl Checker {
             let _ = n;
             subs.push(ECore::Hole(id));
         }
-        Ok((ECore::InstDict(base_id, subs), String::new()))
+        let tys: Vec<Ty> = params.iter().map(|p| sub[p].clone()).collect();
+        Ok((ECore::InstDict(base_id, subs, tys), String::new()))
     }
 
     /// The instantiation declarations of one module (`import M (args) as
@@ -5061,7 +5135,9 @@ impl Checker {
                 let mut c = c;
                 resolve_lit_words(&mut c, &lits);
                 resolve_idx_words(&mut c, &idx_vals);
-                let low = lower(&c);
+                // Module arguments are closed: no type parameters.
+                let own = HashSet::new();
+                let low = lower(&c, &LowerCx::new(self, &[], &own));
                 arg_ids.push(arg_identity(&low, &text));
                 cores.push(low);
             }
@@ -5185,14 +5261,26 @@ impl Checker {
                 for i in 0..n {
                     args.push(crate::core::Core::Var(LocalId(i)));
                 }
+                // The wrapper is the target at its own parameters: it
+                // forwards the identity vector, and its parameters are the
+                // target's beyond the module parameters.
+                let tp = fd.repr.tparams;
                 wrappers.push(FnDef {
                     id: fn_id(&u.name, &name),
                     params: (0..n).map(|i| format!("p{i}")).collect(),
-                    body: crate::core::Core::App(Box::new(crate::core::Core::Global(gid)), args),
+                    body: crate::core::Core::App(
+                        Box::new(crate::core::Core::Global(gid, crate::repr::identity(tp))),
+                        args,
+                    ),
                     prim: None,
                     ctor: None,
                     hints: crate::core::FnHints::default(),
                     meta: shifted_meta(&fd.meta, k),
+                    repr: crate::core::UnitRepr {
+                        tparams: tp,
+                        params: fd.repr.params.iter().skip(k).copied().collect(),
+                        fields: Vec::new(),
+                    },
                 });
             }
             for ui in &u.insts {
@@ -5227,17 +5315,23 @@ impl Checker {
                     for i in 0..n {
                         args.push(crate::core::Core::Var(LocalId(i)));
                     }
+                    let tp = fd.repr.tparams;
                     wrappers.push(FnDef {
                         id: wid.clone(),
                         params: (0..n).map(|i| format!("p{i}")).collect(),
                         body: crate::core::Core::App(
-                            Box::new(crate::core::Core::Global(mth.clone())),
+                            Box::new(crate::core::Core::Global(mth.clone(), crate::repr::identity(tp))),
                             args,
                         ),
                         prim: None,
                         ctor: None,
                         hints: crate::core::FnHints::default(),
                         meta: shifted_meta(&fd.meta, k),
+                        repr: crate::core::UnitRepr {
+                            tparams: tp,
+                            params: fd.repr.params.iter().skip(k).copied().collect(),
+                            fields: Vec::new(),
+                        },
                     });
                     methods.push(wid);
                 }
@@ -5246,6 +5340,9 @@ impl Checker {
                     method_count: base.method_count,
                     subdict_count: base.subdict_count - k,
                     methods,
+                    class: base.class.clone(),
+                    tparams: base.tparams,
+                    own: base.own.clone(),
                 });
             }
         }
@@ -5895,7 +5992,22 @@ impl Checker {
             None
         };
         self.pending_refs.clear();
-        let (ty, ctx, _map) = self.rigidify(scheme);
+        let (ty, ctx, map) = self.rigidify(scheme);
+        // The class-vector order: an instance method's list (the instance's
+        // parameters, then its own), else the scheme's parameters' rigid
+        // names. It is re-set before lowering, since a nested check (a
+        // staged unit compiled on demand) reuses the field.
+        let tparams: Vec<String> = match self.method_tparams.take() {
+            Some(t) => t,
+            None => scheme
+                .params
+                .iter()
+                .filter_map(|p| match map.get(p) {
+                    Some(Ty::Param(n)) => Some(n.clone()),
+                    _ => None,
+                })
+                .collect(),
+        };
         self.reset_usage();
         self.smaller.clear();
         // P20: a fresh safety fact collector per definition (attribute
@@ -5937,12 +6049,14 @@ impl Checker {
         }
         for (l, c) in extra_dicts {
             env.dicts.push((l, c.clone()));
+            self.note_local_class(l, Checker::dict_class(&c.class));
             dict_meta.push((l, c.class.clone()));
             param_ids.push(l);
         }
         for (n, c) in &ctx {
             let l = self.fresh_local();
             env.dicts.push((l, c.clone()));
+            self.note_local_class(l, Checker::dict_class(&c.class));
             dict_meta.push((l, c.class.clone()));
             if is_capability_class(&c.class) {
                 // A capability binder is a term-level value too: `f @{io =
@@ -6234,6 +6348,7 @@ impl Checker {
                 std::mem::take(&mut self.pending_refs),
             );
             self.current_logical = None;
+            self.cur_tparams = tparams;
             return self.finish_fn(id.clone(), param_ids, body, None, None, true, meta);
         }
         self.pending_refs.clear();
@@ -6247,6 +6362,7 @@ impl Checker {
                 &body,
             );
         }
+        self.cur_tparams = tparams;
         self.finish_fn(id.clone(), param_ids, body, None, None, false, meta)
     }
 
@@ -6291,11 +6407,11 @@ impl Checker {
             bad: &mut Vec<String>,
         ) {
             match e {
-                ECore::Global(g) if g == id => {
+                ECore::Global(g, _) if g == id => {
                     bad.push("a recursive use with no decreasing argument".to_string());
                 }
                 ECore::App(f, args) => {
-                    if let ECore::Global(g) = &**f {
+                    if let ECore::Global(g, _) = &**f {
                         if g == id {
                             let mut decreased = false;
                             for a in args {
@@ -6338,17 +6454,17 @@ impl Checker {
                     // The head of a recursive call is handled above; a
                     // bare self-reference is only a use outside one.
                     match &**f {
-                        ECore::Global(g) if g == id => {}
+                        ECore::Global(g, _) if g == id => {}
                         _ => walk(f, id, smaller, extra, params, bad),
                     }
                     for a in args {
                         walk(a, id, smaller, extra, params, bad);
                     }
                 }
-                ECore::DictProj(d, _) | ECore::Proj(d, _) | ECore::Demand(d) => {
+                ECore::DictProj(d, ..) | ECore::Proj(d, _) | ECore::Demand(d) => {
                     walk(d, id, smaller, extra, params, bad)
                 }
-                ECore::InstDict(_, args) | ECore::MkClos { env: args, .. } => {
+                ECore::InstDict(_, args, _) | ECore::MkClos { env: args, .. } => {
                     for a in args {
                         walk(a, id, smaller, extra, params, bad);
                     }
@@ -6486,18 +6602,28 @@ impl Checker {
             // Hint attributes ride the function's code generation unit
             // (attribute annotations specification section 5).
             let hints = self.fn_hints.get(&id.0).copied().unwrap_or_default();
-            self.fns.push(finalize_fn(id, param_ids, body, prim, ctor, hints, meta));
-            for h in hoisted {
-                self.fns.push(finalize_fn(
-                    h.id,
-                    h.params,
-                    h.body,
-                    None,
-                    None,
-                    crate::core::FnHints::default(),
-                    crate::core::FnMeta::default(),
-                ));
+            // The definition, its hoisted lambdas and its `letrec` members
+            // share the definition's type parameters.
+            let own: HashSet<GlobalId> = hoisted.iter().map(|h| h.id.clone()).collect();
+            let tparams = self.cur_tparams.clone();
+            let mut done = Vec::with_capacity(hoisted.len() + 1);
+            {
+                let mut cx = LowerCx::new(self, &tparams, &own);
+                done.push(finalize_fn(id, param_ids, body, prim, ctor, hints, meta, &mut cx));
+                for h in hoisted {
+                    done.push(finalize_fn(
+                        h.id,
+                        h.params,
+                        h.body,
+                        None,
+                        None,
+                        crate::core::FnHints::default(),
+                        crate::core::FnMeta::default(),
+                        &mut cx,
+                    ));
+                }
             }
+            self.fns.extend(done);
         }
         Ok(())
     }
@@ -6837,6 +6963,9 @@ impl Checker {
                 ctor: None,
                 hints: self.fn_hints.get(&unit).cloned().unwrap_or_default(),
                 meta,
+                // An inline target fragment: its words are the fragment's
+                // own, not classified here.
+                repr: crate::core::UnitRepr::default(),
             });
             self.prims.push(plan);
         }
@@ -8541,7 +8670,7 @@ impl Checker {
             head = f;
         }
         match head {
-            ECore::Global(_) | ECore::Ctor(_) | ECore::Prim(_) | ECore::DictProj(_, _) => {}
+            ECore::Global(..) | ECore::Ctor(..) | ECore::Prim(_) | ECore::DictProj(..) => {}
             _ => {
                 return Err(Error::at(
                     r.match_tm.span(),
@@ -8654,20 +8783,29 @@ impl Checker {
         let rule_unit = GlobalId(format!("{}.rewrite.{}", self.current_module, r.name.text));
         hoist_lambdas(&mut m, &rule_unit.0, &mut self.lam_counter, &mut hoisted);
         hoist_lambdas(&mut rp, &rule_unit.0, &mut self.lam_counter, &mut hoisted);
-        for h in hoisted {
-            self.fns.push(finalize_fn(
-                h.id,
-                h.params,
-                h.body,
-                None,
-                None,
-                crate::core::FnHints::default(),
-                crate::core::FnMeta::default(),
-            ));
-        }
-        let pattern = lower(&m);
-        let template = lower(&rp);
-        let require = req_ec.as_ref().map(|req| lower(req));
+        // The rule's own type parameters are not threaded here: its
+        // classes are recorded concretely where known, and matching binds
+        // nothing it cannot see (see `core::match_class`).
+        let own: HashSet<GlobalId> = hoisted.iter().map(|h| h.id.clone()).collect();
+        let mut done = Vec::new();
+        let (pattern, template, require) = {
+            let mut cx = LowerCx::new(self, &[], &own);
+            for h in hoisted {
+                done.push(finalize_fn(
+                    h.id,
+                    h.params,
+                    h.body,
+                    None,
+                    None,
+                    crate::core::FnHints::default(),
+                    crate::core::FnMeta::default(),
+                    &mut cx,
+                ));
+            }
+            cx.orig.clear();
+            (lower(&m, &cx), lower(&rp, &cx), req_ec.as_ref().map(|req| lower(req, &cx)))
+        };
+        self.fns.extend(done);
         // The `require` clause's operative condition: `Available v` over a
         // capability binder is valid exactly where that capability is in
         // the firing function's validity scope.
@@ -8675,7 +8813,7 @@ impl Checker {
             (Some(req), crate::core::RequireCond::Unknown) => match req {
                 crate::core::Core::App(f, args) => match (&**f, args.as_slice()) {
                     (
-                        crate::core::Core::Global(_) | crate::core::Core::Ctor(_),
+                        crate::core::Core::Global(..) | crate::core::Core::Ctor(..),
                         [crate::core::Core::Var(l)],
                     ) if ctx_lids.iter().any(|(_, c, _)| c == l) => {
                         let class = ctx_lids
@@ -8891,7 +9029,7 @@ impl Checker {
                 }
             };
             // The exit adapter (mathematical `Int` slice): `main`'s
-            // result is a boxed bignum while the C `main` truncates its
+            // result is an opaque `Int` word while the C `main` truncates its
             // unit's word to `i32`, so the checker synthesizes
             // `"<module>.main.exit"`, whose body converts the `main`
             // unit's result to a machine `i64` through `cinch_int_to_i64`,
@@ -8902,11 +9040,11 @@ impl Checker {
             let exit_id = GlobalId(format!("{user_module}.main.exit"));
             let main_word = if effectful {
                 crate::core::Core::App(
-                    Box::new(crate::core::Core::Global(main_id)),
+                    Box::new(crate::core::Core::Global(main_id, Vec::new())),
                     vec![crate::core::Core::Unit],
                 )
             } else {
-                crate::core::Core::Global(main_id)
+                crate::core::Core::Global(main_id, Vec::new())
             };
             self.fns.push(FnDef {
                 id: exit_id.clone(),
@@ -8918,7 +9056,8 @@ impl Checker {
                 prim: None,
                 ctor: None,
                 hints: crate::core::FnHints::default(),
-                    meta: crate::core::FnMeta::default(),
+                meta: crate::core::FnMeta::default(),
+                repr: crate::core::UnitRepr::default(),
             });
             main_exit = Some(exit_id);
         }
@@ -16462,7 +16601,9 @@ impl Checker {
                 self.top_schemes
                     .insert((module.to_string(), name.clone()), scheme);
             }
-            self.fns.push(finalize_fn(
+            // A data import is a closed constant: no type parameters.
+            let own = HashSet::new();
+            let def = finalize_fn(
                 bound,
                 Vec::new(),
                 body,
@@ -16470,7 +16611,9 @@ impl Checker {
                 None,
                 crate::core::FnHints::default(),
                 crate::core::FnMeta::default(),
-            ));
+                &mut LowerCx::new(self, &[], &own),
+            );
+            self.fns.push(def);
             self.data_imports.push(DataImport {
                 module: module.to_string(),
                 name,
@@ -16497,7 +16640,9 @@ impl Checker {
         ] {
             ctors.insert(n.to_string(), self.prelude_ctor_id(n));
         }
-        let pctor = |n: &str| ECore::Ctor(ctors[n].clone());
+        // Decoded constants carry no element types here: their
+        // constructors' instantiations are unrecorded.
+        let pctor = |n: &str| ECore::Ctor(ctors[n].clone(), Vec::new());
         let unit = |n: &str, arg: ECore| -> ECore { app_spine(pctor(n), vec![arg]) };
         if let Ty::Adt(name, args) = ty {
             match (name.as_str(), args.as_slice()) {
@@ -16617,7 +16762,7 @@ impl Checker {
                             args.push(self.json_const(x, &field_tys[i], span)?);
                         }
                         return Ok(app_spine(
-                            ECore::Ctor(fn_id(&t.module, cname)),
+                            ECore::Ctor(fn_id(&t.module, cname), Vec::new()),
                             args,
                         ));
                     }
@@ -18001,11 +18146,11 @@ impl Checker {
             Core::Var(l) => frame.get(l.0).cloned().ok_or_else(|| {
                 Error::plain(format!("internal error: unbound local {} at compile time", l.0))
             })?,
-            Core::Global(g) => {
+            Core::Global(g, _) => {
                 let v = self.global_value(cx, &g.0)?;
                 self.deref_value(cx, v)?
             }
-            Core::Ctor(g) => {
+            Core::Ctor(g, _) => {
                 let v = self.global_value(cx, &g.0)?;
                 self.deref_value(cx, v)?
             }
@@ -18023,7 +18168,7 @@ impl Checker {
                 let v = Value::PrimFn { op: *op, args: Vec::new() };
                 self.deref_value(cx, v)?
             }
-            Core::DictProj(d, i) => match self.eval_core(cx, d, frame)? {
+            Core::DictProj(d, i, _) => match self.eval_core(cx, d, frame)? {
                 Value::Dict { methods } => methods.get(*i).cloned().ok_or_else(|| {
                     Error::plain("internal error: dictionary projection out of range")
                 })?,
@@ -18045,7 +18190,7 @@ impl Checker {
                     )))
                 }
             },
-            Core::InstDict(g, args) => {
+            Core::InstDict(g, args, _) => {
                 let (module, name) = g.0.rsplit_once('.').unwrap_or(("", &g.0));
                 self.ensure_instance(cx, module, name)?;
                 let def = self
@@ -18104,7 +18249,7 @@ impl Checker {
                     arity,
                 }
             }
-            Core::Let(l, v, body) => {
+            Core::Let(l, _, v, body) => {
                 let val = self.eval_core(cx, v, frame)?;
                 let saved = set_local(frame, l.0, val);
                 let r = self.eval_core(cx, body, frame);
@@ -18130,11 +18275,11 @@ impl Checker {
                     let mut saved: Vec<(usize, Option<Value>)> = Vec::new();
                     let matched = match &alt.pat {
                         crate::core::CPat::Wild => true,
-                        crate::core::CPat::Var(l) => {
+                        crate::core::CPat::Var(l, _) => {
                             saved.push((l.0, set_local(frame, l.0, s.clone())));
                             true
                         }
-                        crate::core::CPat::Con { tag, fields } => match &s {
+                        crate::core::CPat::Con { tag, fields, .. } => match &s {
                             Value::Adt { tag: t, fields: fs, .. } if t == tag => {
                                 for (l, v) in fields.iter().zip(fs.iter()) {
                                     saved.push((l.0, set_local(frame, l.0, v.clone())));
@@ -20284,29 +20429,38 @@ impl Checker {
         let mut hoisted = Vec::new();
         hoist_lambdas(&mut body, &id.0, &mut self.lam_counter, &mut hoisted);
         let before = self.fns.len();
-        self.fns.push(finalize_fn(
-            id.clone(),
-            Vec::new(),
-            body,
-            None,
-            None,
-            crate::core::FnHints::default(),
-            crate::core::FnMeta::default(),
-        ));
-        for h in hoisted {
-            self.fns.push(finalize_fn(
-                h.id,
-                h.params,
-                h.body,
+        // A probe runs at compile time only; its classes are never read.
+        let own: HashSet<GlobalId> = hoisted.iter().map(|h| h.id.clone()).collect();
+        let mut done = Vec::new();
+        {
+            let mut lcx = LowerCx::new(self, &[], &own);
+            done.push(finalize_fn(
+                id.clone(),
+                Vec::new(),
+                body,
                 None,
                 None,
                 crate::core::FnHints::default(),
                 crate::core::FnMeta::default(),
+                &mut lcx,
             ));
+            for h in hoisted {
+                done.push(finalize_fn(
+                    h.id,
+                    h.params,
+                    h.body,
+                    None,
+                    None,
+                    crate::core::FnHints::default(),
+                    crate::core::FnMeta::default(),
+                    &mut lcx,
+                ));
+            }
         }
+        self.fns.extend(done);
         let mut cx = StageCx::new(scx);
         let mut frame: Vec<Value> = Vec::new();
-        let r = self.eval_core(&mut cx, &crate::core::Core::Global(id), &mut frame);
+        let r = self.eval_core(&mut cx, &crate::core::Core::Global(id, Vec::new()), &mut frame);
         // The probe's units are not part of the checked program.
         self.fns.truncate(before);
         match r {

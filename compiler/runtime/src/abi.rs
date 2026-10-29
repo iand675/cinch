@@ -6,8 +6,6 @@
 //! the safe Rust API in [`crate::nat`] and [`crate::int`] returns
 //! [`crate::error::Error`] instead so callers (and tests) can observe them.
 
-use std::alloc::{alloc_zeroed, Layout};
-
 use crate::error::{Error, Result};
 use crate::int::Int;
 use crate::nat::Nat;
@@ -57,40 +55,52 @@ pub const KIND_BYTES_STATIC: i64 = 5;
 /// `Nat`/`Int` payloads are Rust values whose internal `Vec<u32>` header
 /// is a standard library implementation detail: generated code treats
 /// those blocks as opaque and only passes the word back to this runtime.
+/// Every box is a header block ([`crate::block`]); the header's kind is a
+/// separate namespace from this in-block `kind` word.
 #[repr(C)]
 struct Boxed<T> {
     kind: i64,
     value: T,
 }
 
+fn boxed<T>(header_kind: u8, rc: i64, kind: i64, value: T) -> i64 {
+    crate::block::allocate_value(header_kind, rc, Boxed { kind, value }) as usize as i64
+}
+
 fn box_nat(v: Nat) -> i64 {
-    Box::into_raw(Box::new(Boxed {
-        kind: KIND_NAT,
-        value: v,
-    })) as usize as i64
+    boxed(crate::block::KIND_NAT, crate::block::RC_FRESH, KIND_NAT, v)
 }
 
 fn box_int(v: Int) -> i64 {
-    Box::into_raw(Box::new(Boxed {
-        kind: KIND_INT,
-        value: v,
-    })) as usize as i64
+    boxed(crate::block::KIND_INT, crate::block::RC_FRESH, KIND_INT, v)
 }
 
 pub(crate) fn box_bytes(v: crate::bytes::Bytes) -> i64 {
-    Box::into_raw(Box::new(Boxed {
-        kind: KIND_BYTES,
-        value: v,
-    })) as usize as i64
+    boxed(crate::block::KIND_BYTES, crate::block::RC_FRESH, KIND_BYTES, v)
 }
 
 /// Box one interned name cell (the cell is handed out once per name and
-/// never freed, so its word is the name's identity).
+/// never freed, so its word is the name's identity): an immortal block.
 pub(crate) fn box_sym(v: crate::sym::SymCell) -> i64 {
-    Box::into_raw(Box::new(Boxed {
-        kind: KIND_SYM,
-        value: v,
-    })) as usize as i64
+    boxed(crate::block::KIND_SYM, crate::block::RC_IMMORTAL, KIND_SYM, v)
+}
+
+/// Release the Rust resources a runtime box owns (a `Nat`'s limbs, a heap
+/// buffer's data) before its block is deallocated. Every other kind owns
+/// nothing outside its block.
+///
+/// # Safety
+///
+/// `p` is the payload pointer of a live block whose header kind is
+/// `header_kind`, and is not read again.
+unsafe fn drop_box_payload(p: *mut u8, header_kind: u8) {
+    use crate::block::{KIND_BYTES as B, KIND_INT as I, KIND_NAT as N};
+    match header_kind {
+        N => unsafe { std::ptr::drop_in_place(&raw mut (*p.cast::<Boxed<Nat>>()).value) },
+        I => unsafe { std::ptr::drop_in_place(&raw mut (*p.cast::<Boxed<Int>>()).value) },
+        B => unsafe { (*p.cast::<Boxed<crate::bytes::Bytes>>()).value.release() },
+        _ => {}
+    }
 }
 
 /// Read a `Sym` word, faulting on null or wrong-kind blocks.
@@ -107,7 +117,7 @@ pub(crate) unsafe fn as_sym<'a>(word: i64) -> &'a crate::sym::SymCell {
 }
 
 /// Fault through the `cinch_panic` path: write `msg` to stderr and exit 71.
-fn panic_exit(msg: &[u8]) -> ! {
+pub(crate) fn panic_exit(msg: &[u8]) -> ! {
     use std::io::Write;
     let _ = std::io::stderr().write_all(b"cinchruntime: ");
     let _ = std::io::stderr().write_all(msg);
@@ -128,7 +138,89 @@ pub(crate) fn raise(err: Error) -> ! {
     panic_exit(err.to_string().as_bytes())
 }
 
-/// Read a `Nat` word, faulting on null or wrong-kind blocks.
+// Small `Nat`/`Int` immediates (design/reclamation.md section 2.6). Heap
+// blocks are 8-aligned, so a word whose low bit is 1 is never a pointer:
+// it is the immediate `v << 1 | 1`. Every entry point returns the
+// immediate whenever the value fits (the canonical form), so a box only
+// ever holds a value outside the immediate range and two words of the
+// same small value are the same word.
+
+/// The largest `Nat` immediate, `2^63 - 1`: all 63 payload bits. It is
+/// also `i64::MAX`, so every `Nat` an `i64` can carry is an immediate.
+pub(crate) const NAT_IMMEDIATE_MAX: u64 = (1 << 63) - 1;
+
+/// The smallest `Int` immediate, `-2^62`.
+pub(crate) const INT_IMMEDIATE_MIN: i64 = -(1 << 62);
+
+/// The largest `Int` immediate, `2^62 - 1`. With [`INT_IMMEDIATE_MIN`]
+/// this is the 63-bit two's complement payload, decoded by one arithmetic
+/// shift; a wider range would need a second tag bit.
+pub(crate) const INT_IMMEDIATE_MAX: i64 = (1 << 62) - 1;
+
+/// Whether a `Nat`/`Int` word is an immediate (and so not a pointer).
+#[inline]
+pub(crate) fn is_immediate(word: i64) -> bool {
+    word & 1 != 0
+}
+
+#[inline]
+fn nat_immediate(v: u64) -> i64 {
+    debug_assert!(v <= NAT_IMMEDIATE_MAX);
+    ((v << 1) | 1) as i64
+}
+
+#[inline]
+fn nat_immediate_value(word: i64) -> u64 {
+    (word as u64) >> 1
+}
+
+#[inline]
+fn int_immediate(v: i64) -> i64 {
+    debug_assert!((INT_IMMEDIATE_MIN..=INT_IMMEDIATE_MAX).contains(&v));
+    (v << 1) | 1
+}
+
+#[inline]
+fn int_immediate_value(word: i64) -> i64 {
+    word >> 1
+}
+
+/// The canonical word of a machine-range `Nat` value.
+fn nat_word_u128(v: u128) -> i64 {
+    if v <= u128::from(NAT_IMMEDIATE_MAX) {
+        nat_immediate(v as u64)
+    } else {
+        box_nat(Nat::from_u128(v))
+    }
+}
+
+/// The canonical word of a `Nat`: the immediate when it fits, else a box.
+pub(crate) fn nat_word(v: Nat) -> i64 {
+    match v.to_u64() {
+        Some(u) if u <= NAT_IMMEDIATE_MAX => nat_immediate(u),
+        _ => box_nat(v),
+    }
+}
+
+/// The canonical word of a machine-range `Int` value.
+fn int_word_i128(v: i128) -> i64 {
+    if (i128::from(INT_IMMEDIATE_MIN)..=i128::from(INT_IMMEDIATE_MAX)).contains(&v) {
+        int_immediate(v as i64)
+    } else {
+        box_int(Int::from_i128(v))
+    }
+}
+
+/// The canonical word of an `Int`: the immediate when it fits, else a box.
+pub(crate) fn int_word(v: Int) -> i64 {
+    match v.to_i64() {
+        Ok(i) if (INT_IMMEDIATE_MIN..=INT_IMMEDIATE_MAX).contains(&i) => int_immediate(i),
+        _ => box_int(v),
+    }
+}
+
+/// Read a boxed `Nat` word, faulting on null or wrong-kind blocks. The
+/// caller has already ruled out an immediate.
 unsafe fn as_nat<'a>(word: i64) -> &'a Nat {
     let p = word as *const Boxed<Nat>;
     if p.is_null() {
@@ -141,7 +233,8 @@ unsafe fn as_nat<'a>(word: i64) -> &'a Nat {
     &b.value
 }
 
-/// Read an `Int` word, faulting on null or wrong-kind blocks.
+/// Read a boxed `Int` word, faulting on null or wrong-kind blocks. The
+/// caller has already ruled out an immediate.
 unsafe fn as_int<'a>(word: i64) -> &'a Int {
     let p = word as *const Boxed<Int>;
     if p.is_null() {
@@ -152,6 +245,58 @@ unsafe fn as_int<'a>(word: i64) -> &'a Int {
         raise(Error::CorruptValue);
     }
     &b.value
+}
+
+/// The magnitude of any `Nat` word: an immediate's lands in `scratch`.
+unsafe fn nat_limbs<'a>(word: i64, scratch: &'a mut [u32; 2]) -> &'a [u32] {
+    if is_immediate(word) {
+        crate::nat::small_limbs(nat_immediate_value(word), scratch)
+    } else {
+        unsafe { as_nat(word) }.limbs()
+    }
+}
+
+/// The sign and magnitude of any `Int` word: an immediate's magnitude
+/// lands in `scratch`.
+unsafe fn int_parts<'a>(word: i64, scratch: &'a mut [u32; 2]) -> (bool, &'a [u32]) {
+    if is_immediate(word) {
+        let v = int_immediate_value(word);
+        (v < 0, crate::nat::small_limbs(v.unsigned_abs(), scratch))
+    } else {
+        unsafe { as_int(word) }.parts()
+    }
+}
+
+/// The bignum path of a binary `Nat` operation (at least one operand is
+/// boxed), returning the canonical word of the resulting magnitude.
+unsafe fn nat_slow(a: i64, b: i64, op: impl FnOnce(&[u32], &[u32]) -> Result<Vec<u32>>) -> i64 {
+    let (mut sa, mut sb) = ([0u32; 2], [0u32; 2]);
+    let x = unsafe { nat_limbs(a, &mut sa) };
+    let y = unsafe { nat_limbs(b, &mut sb) };
+    match op(x, y) {
+        Ok(limbs) => nat_word(Nat::from_limbs(limbs)),
+        Err(e) => raise(e),
+    }
+}
+
+/// The bignum path of a binary `Int` operation (at least one operand is
+/// boxed), returning the canonical word of the result.
+unsafe fn int_slow(
+    a: i64,
+    b: i64,
+    op: impl FnOnce(bool, &[u32], bool, &[u32]) -> Result<Int>,
+) -> i64 {
+    let (mut sa, mut sb) = ([0u32; 2], [0u32; 2]);
+    let (an, x) = unsafe { int_parts(a, &mut sa) };
+    let (bn, y) = unsafe { int_parts(b, &mut sb) };
+    match op(an, x, bn, y) {
+        Ok(v) => int_word(v),
+        Err(e) => raise(e),
+    }
+}
+
+fn ordering_word(o: std::cmp::Ordering) -> i64 {
+    o as i64
 }
 
 /// Read a `Bytes` word, faulting on null or wrong-kind blocks. Both
@@ -234,85 +379,100 @@ pub extern "C" fn cinch_fault_div_zero() -> ! {
 // Allocation
 // ---------------------------------------------------------------------------
 
-/// Allocate a zero-filled heap block of `size` bytes and return it as a
-/// word.
+/// Validate an allocation request's size and header kind.
+fn alloc_request(size: i64, kind: i64, negative: &[u8], bad_kind: &[u8]) -> (usize, u8) {
+    if size < 0 {
+        panic_exit(negative);
+    }
+    if !(1..=i64::from(crate::block::KIND_RAW)).contains(&kind) {
+        panic_exit(bad_kind);
+    }
+    (size as usize, kind as u8)
+}
+
+/// Allocate a zero-filled heap block of `size` bytes with header kind
+/// `kind` (a `KIND_*` of [`crate::block`]) and return it as a word.
 ///
 /// The size is rounded up to a whole number of 64-bit words (minimum one
-/// word). Negative sizes and allocation failures fault through `cinch_panic`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn cinch_alloc(size: i64) -> i64 {
-    if size < 0 {
-        panic_exit(b"cinch_alloc called with negative size");
-    }
-    let raw = size as usize;
-    let rounded = match raw.checked_add(7).map(|s| s & !7) {
-        Some(0) => 8,
-        Some(s) => s,
-        None => panic_exit(b"cinch_alloc size overflow"),
-    };
-    let Ok(layout) = Layout::from_size_align(rounded, 8) else {
-        panic_exit(b"cinch_alloc layout failure");
-    };
-    let p = unsafe { alloc_zeroed(layout) };
-    if p.is_null() {
-        panic_exit(b"cinch_alloc out of memory");
-    }
-    p as usize as i64
-}
-
-/// Allocate `size` uninitialised bytes (8-byte aligned, minimum one word)
-/// and return the block pointer: the allocator generated code calls in
-/// place of `malloc`, so every block it builds is counted and capped by
-/// [`crate::heap`]. Every call site initialises each word it reads, so the
-/// block is not zero-filled (the same contract as the `malloc` it
-/// replaces). Negative sizes, size overflow, and allocation failure fault
+/// word). Negative sizes, an unknown kind, and allocation failures fault
 /// through `cinch_panic`.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn cinch_alloc_raw(size: i64) -> *mut u8 {
-    if size < 0 {
-        panic_exit(b"cinch_alloc_raw called with negative size");
-    }
-    let rounded = match (size as usize).checked_add(7).map(|s| s & !7) {
-        Some(0) => 8,
-        Some(s) => s,
-        None => panic_exit(b"cinch_alloc_raw size overflow"),
-    };
-    let Ok(layout) = Layout::from_size_align(rounded, 8) else {
-        panic_exit(b"cinch_alloc_raw layout failure");
-    };
-    let p = unsafe { std::alloc::alloc(layout) };
-    if p.is_null() {
-        panic_exit(b"cinch_alloc_raw out of memory");
-    }
-    p
+pub unsafe extern "C" fn cinch_alloc(size: i64, kind: i64) -> i64 {
+    let (size, kind) = alloc_request(
+        size,
+        kind,
+        b"cinch_alloc called with negative size",
+        b"cinch_alloc called with an unknown block kind",
+    );
+    (unsafe { crate::block::allocate(size, kind, crate::block::RC_FRESH, true) }) as usize as i64
 }
 
-/// Free a block previously returned by [`cinch_alloc`].
-///
-/// Currently a no-op: blocks are leaked until memory reclamation lands.
-/// The symbol exists so generated code can already emit balanced
-/// allocation and deallocation. Freeing must go through
-/// `std::alloc::dealloc` with the block's layout, which the counting global
-/// allocator ([`crate::heap`]) turns into the current-bytes decrement.
+/// Allocate a block of `size` uninitialised bytes (8-byte aligned, minimum
+/// one word) with header kind `kind` and return the payload pointer: the
+/// allocator generated code calls in place of `malloc`, so every block it
+/// builds is counted and capped by [`crate::heap`]. The header at offset -8
+/// gets `rc = 1`, `kind`, and the payload size ([`crate::block`]). Every
+/// call site initialises each word it reads, so the payload is not
+/// zero-filled (the same contract as the `malloc` it replaces). Negative
+/// sizes, an unknown kind, size overflow, and allocation failure fault
+/// through `cinch_panic`.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn cinch_free(_word: i64) {}
+pub unsafe extern "C" fn cinch_alloc_raw(size: i64, kind: i64) -> *mut u8 {
+    let (size, kind) = alloc_request(
+        size,
+        kind,
+        b"cinch_alloc_raw called with negative size",
+        b"cinch_alloc_raw called with an unknown block kind",
+    );
+    unsafe { crate::block::allocate(size, kind, crate::block::RC_FRESH, false) }
+}
+
+/// Deallocate the header block behind `word`: the raw release of a block
+/// whose count has reached zero. It does not visit the block's children;
+/// it only releases what a runtime box owns outside its block (a `Nat`'s
+/// limbs, a heap buffer's data), then returns the block to the allocator
+/// with the size its header records.
+///
+/// An immediate word (low bit 1), the null word, and an immortal block
+/// (`rc == 0`: static blocks and interned `Sym` cells) are ignored. Any
+/// other word must be a live heap block allocated by this runtime.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn cinch_free(word: i64) {
+    if word == 0 || word & 1 != 0 {
+        return;
+    }
+    let p = word as usize as *mut u8;
+    let h = unsafe { crate::block::read_header(p) };
+    if crate::block::rc(h) == crate::block::RC_IMMORTAL {
+        return;
+    }
+    unsafe {
+        drop_box_payload(p, crate::block::kind(h));
+        crate::block::free(p);
+    }
+    crate::heap::account_block_free();
+}
 
 // ---------------------------------------------------------------------------
 // Nat
 // ---------------------------------------------------------------------------
 
-/// Box an `i64` as a `Nat`, faulting on negative input.
+/// An `i64` as a `Nat` word (always an immediate), faulting on negative
+/// input.
 #[unsafe(no_mangle)]
 pub extern "C" fn cinch_nat_from_i64(v: i64) -> i64 {
-    match Nat::from_i64(v) {
-        Ok(n) => box_nat(n),
-        Err(e) => raise(e),
+    if v < 0 {
+        raise(Error::NegativeInput);
     }
+    nat_immediate(v as u64)
 }
 
 /// The value of a `Nat` word as an `i64`, faulting when out of range.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_nat_to_i64(word: i64) -> i64 {
+    if is_immediate(word) {
+        return nat_immediate_value(word) as i64;
+    }
     match unsafe { as_nat(word) }.to_i64() {
         Ok(v) => v,
         Err(e) => raise(e),
@@ -322,66 +482,94 @@ pub unsafe extern "C" fn cinch_nat_to_i64(word: i64) -> i64 {
 /// 1 when the `Nat` word fits in an `i64`, else 0.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_nat_fits_i64(word: i64) -> i64 {
+    if is_immediate(word) {
+        return 1;
+    }
     i64::from(unsafe { as_nat(word) }.fits_i64())
 }
 
 /// `a + b` for `Nat` words.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_nat_add(a: i64, b: i64) -> i64 {
-    box_nat(unsafe { as_nat(a) }.add(unsafe { as_nat(b) }))
+    if is_immediate(a & b) {
+        let sum = u128::from(nat_immediate_value(a)) + u128::from(nat_immediate_value(b));
+        return nat_word_u128(sum);
+    }
+    unsafe { nat_slow(a, b, |x, y| Ok(crate::limbs::add_limbs(x, y))) }
 }
 
 /// `a - b` for `Nat` words, faulting on negative result.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_nat_sub(a: i64, b: i64) -> i64 {
-    match unsafe { as_nat(a) }.sub(unsafe { as_nat(b) }) {
-        Ok(v) => box_nat(v),
-        Err(e) => raise(e),
+    if is_immediate(a & b) {
+        return match nat_immediate_value(a).checked_sub(nat_immediate_value(b)) {
+            Some(d) => nat_immediate(d),
+            None => raise(Error::NegativeResult),
+        };
     }
+    unsafe { nat_slow(a, b, crate::nat::sub_mag) }
 }
 
 /// `a * b` for `Nat` words.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_nat_mul(a: i64, b: i64) -> i64 {
-    box_nat(unsafe { as_nat(a) }.mul(unsafe { as_nat(b) }))
+    if is_immediate(a & b) {
+        let product = u128::from(nat_immediate_value(a)) * u128::from(nat_immediate_value(b));
+        return nat_word_u128(product);
+    }
+    unsafe { nat_slow(a, b, |x, y| Ok(crate::limbs::mul_limbs(x, y))) }
 }
 
 /// `a / b` for `Nat` words (the quotient; the remainder is available
 /// through [`cinch_nat_rem`]), faulting on division by zero.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_nat_div(a: i64, b: i64) -> i64 {
-    match unsafe { as_nat(a) }.div_rem(unsafe { as_nat(b) }) {
-        Ok((q, _)) => box_nat(q),
-        Err(e) => raise(e),
+    if is_immediate(a & b) {
+        return match nat_immediate_value(a).checked_div(nat_immediate_value(b)) {
+            Some(q) => nat_immediate(q),
+            None => raise(Error::DivByZero),
+        };
     }
+    unsafe { nat_slow(a, b, |x, y| crate::nat::div_rem_mag(x, y).map(|(q, _)| q)) }
 }
 
 /// `a % b` for `Nat` words, faulting on division by zero.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_nat_rem(a: i64, b: i64) -> i64 {
-    match unsafe { as_nat(a) }.rem(unsafe { as_nat(b) }) {
-        Ok(v) => box_nat(v),
-        Err(e) => raise(e),
+    if is_immediate(a & b) {
+        return match nat_immediate_value(a).checked_rem(nat_immediate_value(b)) {
+            Some(r) => nat_immediate(r),
+            None => raise(Error::DivByZero),
+        };
     }
+    unsafe { nat_slow(a, b, |x, y| crate::nat::div_rem_mag(x, y).map(|(_, r)| r)) }
 }
 
 /// Three-way comparison of `Nat` words: -1, 0 or 1.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_nat_cmp(a: i64, b: i64) -> i64 {
-    use std::cmp::Ordering;
-    match unsafe { as_nat(a) }.cmp(unsafe { as_nat(b) }) {
-        Ordering::Less => -1,
-        Ordering::Equal => 0,
-        Ordering::Greater => 1,
+    if is_immediate(a & b) {
+        return ordering_word(nat_immediate_value(a).cmp(&nat_immediate_value(b)));
     }
+    let (mut sa, mut sb) = ([0u32; 2], [0u32; 2]);
+    let x = unsafe { nat_limbs(a, &mut sa) };
+    let y = unsafe { nat_limbs(b, &mut sb) };
+    ordering_word(crate::limbs::cmp_limbs(x, y))
 }
 
 /// Parse ASCII decimal digits at `ptr` into a `Nat` word, faulting on
 /// malformed input.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_nat_from_decimal(ptr: *const u8, len: usize) -> i64 {
-    match unsafe { bytes(ptr, len) }.and_then(Nat::from_decimal) {
-        Ok(v) => box_nat(v),
+    let text = match unsafe { bytes(ptr, len) } {
+        Ok(t) => t,
+        Err(e) => raise(e),
+    };
+    if let Some(v) = crate::nat::parse_small(text) {
+        return nat_word_u128(u128::from(v));
+    }
+    match Nat::from_decimal(text) {
+        Ok(v) => nat_word(v),
         Err(e) => raise(e),
     }
 }
@@ -391,8 +579,7 @@ pub unsafe extern "C" fn cinch_nat_from_decimal(ptr: *const u8, len: usize) -> i
 /// buffer is then untouched).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_nat_to_decimal(word: i64, buf: *mut u8, cap: usize) -> usize {
-    let v = unsafe { as_nat(word) };
-    let len = v.decimal_len();
+    let len = unsafe { cinch_nat_decimal_len(word) };
     if buf.is_null() {
         raise(Error::CorruptValue);
     }
@@ -400,7 +587,12 @@ pub unsafe extern "C" fn cinch_nat_to_decimal(word: i64, buf: *mut u8, cap: usiz
         raise(Error::BufferTooSmall);
     }
     let dst = unsafe { std::slice::from_raw_parts_mut(buf, cap) };
-    match v.to_decimal(dst) {
+    let written = if is_immediate(word) {
+        crate::nat::write_u64_decimal(nat_immediate_value(word), false, dst)
+    } else {
+        unsafe { as_nat(word) }.to_decimal(dst)
+    };
+    match written {
         Ok(n) => n,
         Err(e) => raise(e),
     }
@@ -409,6 +601,9 @@ pub unsafe extern "C" fn cinch_nat_to_decimal(word: i64, buf: *mut u8, cap: usiz
 /// Number of ASCII bytes [`cinch_nat_to_decimal`] would write.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_nat_decimal_len(word: i64) -> usize {
+    if is_immediate(word) {
+        return crate::nat::u64_decimal_len(nat_immediate_value(word), false);
+    }
     unsafe { as_nat(word) }.decimal_len()
 }
 
@@ -416,15 +611,18 @@ pub unsafe extern "C" fn cinch_nat_decimal_len(word: i64) -> usize {
 // Int
 // ---------------------------------------------------------------------------
 
-/// Box an `i64` as an `Int` word.
+/// An `i64` as an `Int` word (an immediate inside the immediate range).
 #[unsafe(no_mangle)]
 pub extern "C" fn cinch_int_from_i64(v: i64) -> i64 {
-    box_int(Int::from_i64(v))
+    int_word_i128(i128::from(v))
 }
 
 /// The value of an `Int` word as an `i64`, faulting when out of range.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_int_to_i64(word: i64) -> i64 {
+    if is_immediate(word) {
+        return int_immediate_value(word);
+    }
     match unsafe { as_int(word) }.to_i64() {
         Ok(v) => v,
         Err(e) => raise(e),
@@ -434,70 +632,112 @@ pub unsafe extern "C" fn cinch_int_to_i64(word: i64) -> i64 {
 /// 1 when the `Int` word fits in an `i64`, else 0.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_int_fits_i64(word: i64) -> i64 {
+    if is_immediate(word) {
+        return 1;
+    }
     i64::from(unsafe { as_int(word) }.fits_i64())
 }
 
 /// `a + b` for `Int` words.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_int_add(a: i64, b: i64) -> i64 {
-    box_int(unsafe { as_int(a) }.add(unsafe { as_int(b) }))
+    if is_immediate(a & b) {
+        let sum = i128::from(int_immediate_value(a)) + i128::from(int_immediate_value(b));
+        return int_word_i128(sum);
+    }
+    unsafe { int_slow(a, b, |an, x, bn, y| Ok(crate::int::add_parts(an, x, bn, y))) }
 }
 
 /// `a - b` for `Int` words.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_int_sub(a: i64, b: i64) -> i64 {
-    box_int(unsafe { as_int(a) }.sub(unsafe { as_int(b) }))
+    if is_immediate(a & b) {
+        let diff = i128::from(int_immediate_value(a)) - i128::from(int_immediate_value(b));
+        return int_word_i128(diff);
+    }
+    unsafe { int_slow(a, b, |an, x, bn, y| Ok(crate::int::add_parts(an, x, !bn, y))) }
 }
 
 /// `a * b` for `Int` words.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_int_mul(a: i64, b: i64) -> i64 {
-    box_int(unsafe { as_int(a) }.mul(unsafe { as_int(b) }))
+    if is_immediate(a & b) {
+        let product = i128::from(int_immediate_value(a)) * i128::from(int_immediate_value(b));
+        return int_word_i128(product);
+    }
+    unsafe { int_slow(a, b, |an, x, bn, y| Ok(crate::int::mul_parts(an, x, bn, y))) }
 }
 
 /// `a / b` for `Int` words, truncated toward zero, faulting on division by
 /// zero.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_int_div(a: i64, b: i64) -> i64 {
-    match unsafe { as_int(a) }.div(unsafe { as_int(b) }) {
-        Ok(v) => box_int(v),
-        Err(e) => raise(e),
+    if is_immediate(a & b) {
+        // `-2^62 / -1` is the one quotient that leaves the immediate
+        // range; `int_word_i128` boxes it.
+        let (x, y) = (int_immediate_value(a), int_immediate_value(b));
+        return match i128::from(x).checked_div(i128::from(y)) {
+            Some(q) => int_word_i128(q),
+            None => raise(Error::DivByZero),
+        };
     }
+    unsafe { int_slow(a, b, |an, x, bn, y| crate::int::div_rem_parts(an, x, bn, y).map(|(q, _)| q)) }
 }
 
 /// `a % b` for `Int` words, with the sign of the dividend, faulting on
 /// division by zero.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_int_rem(a: i64, b: i64) -> i64 {
-    match unsafe { as_int(a) }.rem(unsafe { as_int(b) }) {
-        Ok(v) => box_int(v),
-        Err(e) => raise(e),
+    if is_immediate(a & b) {
+        return match int_immediate_value(a).checked_rem(int_immediate_value(b)) {
+            Some(r) => int_immediate(r),
+            None => raise(Error::DivByZero),
+        };
     }
+    unsafe { int_slow(a, b, |an, x, bn, y| crate::int::div_rem_parts(an, x, bn, y).map(|(_, r)| r)) }
 }
 
 /// `-a` for an `Int` word.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_int_neg(a: i64) -> i64 {
-    box_int(unsafe { as_int(a) }.neg())
+    if is_immediate(a) {
+        return int_word_i128(-i128::from(int_immediate_value(a)));
+    }
+    // A box can negate into the immediate range (`2^62` to `-2^62`).
+    int_word(unsafe { as_int(a) }.neg())
 }
 
 /// Three-way comparison of `Int` words: -1, 0 or 1.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_int_cmp(a: i64, b: i64) -> i64 {
-    use std::cmp::Ordering;
-    match unsafe { as_int(a) }.cmp(unsafe { as_int(b) }) {
-        Ordering::Less => -1,
-        Ordering::Equal => 0,
-        Ordering::Greater => 1,
+    if is_immediate(a & b) {
+        return ordering_word(int_immediate_value(a).cmp(&int_immediate_value(b)));
     }
+    let (mut sa, mut sb) = ([0u32; 2], [0u32; 2]);
+    let (an, x) = unsafe { int_parts(a, &mut sa) };
+    let (bn, y) = unsafe { int_parts(b, &mut sb) };
+    ordering_word(crate::int::cmp_parts(an, x, bn, y))
 }
 
 /// Parse an optionally signed ASCII decimal numeral at `ptr` into an `Int`
 /// word, faulting on malformed input.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_int_from_decimal(ptr: *const u8, len: usize) -> i64 {
-    match unsafe { bytes(ptr, len) }.and_then(Int::from_decimal) {
-        Ok(v) => box_int(v),
+    let text = match unsafe { bytes(ptr, len) } {
+        Ok(t) => t,
+        Err(e) => raise(e),
+    };
+    let (negative, digits) = match text.split_first() {
+        Some((b'-', rest)) => (true, rest),
+        Some((b'+', rest)) => (false, rest),
+        _ => (false, text),
+    };
+    if let Some(m) = crate::nat::parse_small(digits) {
+        let v = i128::from(m);
+        return int_word_i128(if negative { -v } else { v });
+    }
+    match Int::from_decimal(text) {
+        Ok(v) => int_word(v),
         Err(e) => raise(e),
     }
 }
@@ -507,8 +747,7 @@ pub unsafe extern "C" fn cinch_int_from_decimal(ptr: *const u8, len: usize) -> i
 /// (the buffer is then untouched).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_int_to_decimal(word: i64, buf: *mut u8, cap: usize) -> usize {
-    let v = unsafe { as_int(word) };
-    let len = v.decimal_len();
+    let len = unsafe { cinch_int_decimal_len(word) };
     if buf.is_null() {
         raise(Error::CorruptValue);
     }
@@ -516,7 +755,13 @@ pub unsafe extern "C" fn cinch_int_to_decimal(word: i64, buf: *mut u8, cap: usiz
         raise(Error::BufferTooSmall);
     }
     let dst = unsafe { std::slice::from_raw_parts_mut(buf, cap) };
-    match v.to_decimal(dst) {
+    let written = if is_immediate(word) {
+        let v = int_immediate_value(word);
+        crate::nat::write_u64_decimal(v.unsigned_abs(), v < 0, dst)
+    } else {
+        unsafe { as_int(word) }.to_decimal(dst)
+    };
+    match written {
         Ok(n) => n,
         Err(e) => raise(e),
     }
@@ -525,6 +770,10 @@ pub unsafe extern "C" fn cinch_int_to_decimal(word: i64, buf: *mut u8, cap: usiz
 /// Number of ASCII bytes [`cinch_int_to_decimal`] would write.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_int_decimal_len(word: i64) -> usize {
+    if is_immediate(word) {
+        let v = int_immediate_value(word);
+        return crate::nat::u64_decimal_len(v.unsigned_abs(), v < 0);
+    }
     unsafe { as_int(word) }.decimal_len()
 }
 
@@ -804,14 +1053,155 @@ mod tests {
         }
     }
 
+    fn nat_dec(s: &str) -> i64 {
+        unsafe { cinch_nat_from_decimal(s.as_ptr(), s.len()) }
+    }
+
+    fn int_dec(s: &str) -> i64 {
+        unsafe { cinch_int_from_decimal(s.as_ptr(), s.len()) }
+    }
+
+    fn nat_text(w: i64) -> String {
+        let mut buf = [0u8; 64];
+        let n = unsafe { cinch_nat_to_decimal(w, buf.as_mut_ptr(), buf.len()) };
+        assert_eq!(n, unsafe { cinch_nat_decimal_len(w) });
+        String::from_utf8(buf[..n].to_vec()).unwrap()
+    }
+
+    fn int_text(w: i64) -> String {
+        let mut buf = [0u8; 64];
+        let n = unsafe { cinch_int_to_decimal(w, buf.as_mut_ptr(), buf.len()) };
+        assert_eq!(n, unsafe { cinch_int_decimal_len(w) });
+        String::from_utf8(buf[..n].to_vec()).unwrap()
+    }
+
     #[test]
-    fn alloc_zero_fills_and_free_keeps_the_symbol() {
+    fn nat_words_are_canonical_across_the_immediate_edge() {
         unsafe {
-            let p = cinch_alloc(24);
+            let top = cinch_nat_from_i64(i64::MAX);
+            assert!(is_immediate(top), "2^63-1 is the largest immediate");
+            assert_eq!(top, nat_dec("9223372036854775807"));
+            let one = cinch_nat_from_i64(1);
+            // Overflow promotes: 2^63 is a box, and so is 2^64.
+            let edge = cinch_nat_add(top, one);
+            assert!(!is_immediate(edge));
+            assert_eq!(nat_text(edge), "9223372036854775808");
+            assert_eq!(cinch_nat_fits_i64(edge), 0);
+            let wide = cinch_nat_mul(edge, cinch_nat_from_i64(2));
+            assert_eq!(nat_text(wide), "18446744073709551616");
+            // Demotion: a box result back in range is the immediate word,
+            // equal to the word every other path produces for that value.
+            assert_eq!(cinch_nat_sub(edge, one), top);
+            assert_eq!(cinch_nat_div(wide, edge), cinch_nat_from_i64(2));
+            assert_eq!(cinch_nat_rem(wide, cinch_nat_from_i64(10)), cinch_nat_from_i64(6));
+            // Mixed operands compare by value.
+            assert_eq!(cinch_nat_cmp(edge, top), 1);
+            assert_eq!(cinch_nat_cmp(top, edge), -1);
+            assert_eq!(cinch_nat_cmp(edge, nat_dec("9223372036854775808")), 0);
+            assert_eq!(nat_text(top), "9223372036854775807");
+            assert_eq!(nat_text(cinch_nat_from_i64(0)), "0");
+            assert_eq!(nat_dec("0000"), cinch_nat_from_i64(0));
+        }
+    }
+
+    #[test]
+    fn int_words_are_canonical_across_both_immediate_edges() {
+        unsafe {
+            let max = cinch_int_from_i64(INT_IMMEDIATE_MAX);
+            let min = cinch_int_from_i64(INT_IMMEDIATE_MIN);
+            assert!(is_immediate(max) && is_immediate(min));
+            let one = cinch_int_from_i64(1);
+            let above = cinch_int_add(max, one);
+            let below = cinch_int_sub(min, one);
+            assert!(!is_immediate(above) && !is_immediate(below));
+            assert_eq!(cinch_int_to_i64(above), 1 << 62);
+            assert_eq!(cinch_int_to_i64(below), -(1 << 62) - 1);
+            assert_eq!(int_text(above), "4611686018427387904");
+            assert_eq!(int_text(min), "-4611686018427387904");
+            // Negation crosses the asymmetric edge both ways.
+            let neg_min = cinch_int_neg(min);
+            assert!(!is_immediate(neg_min));
+            assert_eq!(cinch_int_cmp(neg_min, above), 0);
+            assert_eq!(cinch_int_neg(above), min);
+            assert_eq!(cinch_int_neg(max), cinch_int_add(min, one));
+            assert_eq!(cinch_int_to_i64(cinch_int_div(min, cinch_int_from_i64(-1))), 1 << 62);
+            assert_eq!(cinch_int_sub(above, one), max);
+            assert_eq!(cinch_int_add(below, one), min);
+            // The i64 edges are boxes and convert back exactly.
+            for v in [i64::MIN, i64::MAX, i64::MIN + 1] {
+                let w = cinch_int_from_i64(v);
+                assert!(!is_immediate(w));
+                assert_eq!(cinch_int_to_i64(w), v);
+                assert_eq!(int_text(w), v.to_string());
+                assert_eq!(cinch_int_cmp(w, int_dec(&v.to_string())), 0);
+            }
+            assert_eq!(int_dec("-0"), cinch_int_from_i64(0));
+            assert_eq!(int_dec("+17"), cinch_int_from_i64(17));
+            assert_eq!(cinch_int_rem(cinch_int_from_i64(-7), cinch_int_from_i64(3)), cinch_int_from_i64(-1));
+            assert_eq!(cinch_int_cmp(below, min), -1);
+            assert_eq!(cinch_int_cmp(min, below), 1);
+        }
+    }
+
+    #[test]
+    fn alloc_zero_fills_and_writes_a_fresh_header() {
+        unsafe {
+            let p = cinch_alloc(24, i64::from(crate::block::KIND_MEMO));
             assert_ne!(p, 0);
             let slice = std::slice::from_raw_parts(p as *const u8, 24);
             assert!(slice.iter().all(|&b| b == 0));
-            cinch_free(p);
+            let h = crate::block::read_header(p as *const u8);
+            assert_eq!(crate::block::rc(h), 1);
+            assert_eq!(crate::block::kind(h), crate::block::KIND_MEMO);
+            assert_eq!(crate::block::layout(h), 3);
+        }
+    }
+
+    /// `cinch_free` releases mortal blocks (including a bignum's limbs and a
+    /// buffer's data, through the payload drop) and leaves immediates,
+    /// immortal statics and interned symbols alone. Only this test frees in
+    /// this binary, so the `freed` counter delta is exact.
+    #[test]
+    fn free_releases_mortal_blocks_and_ignores_immortal_words() {
+        let freed = || crate::heap::block_stats().3;
+        unsafe {
+            let before = freed();
+            let ctor = cinch_alloc_raw(16, i64::from(crate::block::KIND_CTOR));
+            ctor.cast::<i64>().write(1);
+            ctor.cast::<i64>().add(1).write(42);
+            cinch_free(ctor as usize as i64);
+            let digits = b"123456789012345678901234567890123456789";
+            cinch_free(cinch_nat_from_decimal(digits.as_ptr(), digits.len()));
+            let buf = cinch_bytes_new(4096);
+            cinch_bytes_set(buf, 4095, 7);
+            cinch_free(buf);
+            assert_eq!(freed() - before, 3);
+
+            cinch_free(0);
+            cinch_free(0x2b);
+            static STATIC_BLK: [u64; 2] = [crate::block::static_header(crate::block::KIND_CTOR, 1), 0];
+            cinch_free(STATIC_BLK.as_ptr().add(1) as usize as i64);
+            let sym = crate::sym::intern(b"free-ignores-me").unwrap();
+            cinch_free(sym);
+            assert_eq!(as_sym(sym).name(), b"free-ignores-me");
+            assert_eq!(crate::sym::intern(b"free-ignores-me").unwrap(), sym);
+            assert_eq!(freed() - before, 3);
+
+            // The payload drop really releases the box's out-of-block
+            // memory: 64 MiB of buffers and bignum limbs churned through
+            // `cinch_free` leave live bytes about where they were. Other
+            // tests allocate concurrently, hence the slack.
+            let live = || crate::heap::stats().2;
+            let start = live();
+            let huge = cinch_nat_mul(
+                cinch_nat_from_decimal(digits.as_ptr(), digits.len()),
+                cinch_nat_from_decimal(digits.as_ptr(), digits.len()),
+            );
+            for _ in 0..1024 {
+                cinch_free(cinch_bytes_new(64 << 10));
+                cinch_free(cinch_nat_mul(huge, huge));
+            }
+            assert!(live() < start + (16 << 20), "live {} -> {}", start, live());
         }
     }
 

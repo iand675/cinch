@@ -83,14 +83,104 @@ fn stats_line_counts_list_cells_only_when_asked() {
     assert!(blocks >= 1000, "{line}");
     assert!(bytes >= 1000 * 24, "{line}");
     assert!(peak > 0 && peak <= bytes, "{line}");
+    let (hblocks, hbytes) = (field(&line, "header-blocks"), field(&line, "header-bytes"));
     assert_eq!(
         line,
-        format!("cinch-alloc: blocks={blocks} bytes={bytes} peak={peak}")
+        format!(
+            "cinch-alloc: blocks={blocks} bytes={bytes} peak={peak} header-blocks={hblocks} \
+             header-bytes={hbytes} immortal=0 freed=0"
+        )
     );
+    assert!(hblocks >= 1000 && hblocks <= blocks, "{line}");
 
     let quiet = run_with(&exe, &[]);
     assert_eq!(quiet.status.code(), Some(0));
     assert!(quiet.stderr.is_empty(), "{quiet:?}");
+    common::cleanup(&dir);
+}
+
+/// A list of `n` machine `I64`s built and counted through the primitive
+/// operations directly (no `Int`/`Nat` arithmetic, no class dictionaries),
+/// so the only heap values that depend on `n` are its `n` `Cons` cells.
+fn cons_program(n: usize) -> String {
+    format!(
+        r#"
+module Main where
+  import Data.List
+
+  foreign import ccall "cinch.prim.eqI64" eq64 :: I64 -> I64 -> Bool
+  foreign import ccall "cinch.prim.wrappingSubI64" sub64 :: I64 -> I64 -> I64
+  foreign import ccall "cinch.prim.wrappingAddI64" add64 :: I64 -> I64 -> I64
+
+  build :: I64 -> List I64 -> List I64
+  build n acc = case eq64 n 0 of
+    True -> acc
+    False -> build (sub64 n 1) (Cons n acc)
+
+  count :: List I64 -> I64 -> I64
+  count xs k = case xs of
+    Nil -> k
+    Cons h t -> count t (add64 k 1)
+
+  main :: Unit -> Int
+  main u = case eq64 (count (build {n} Nil) 0) {n} of
+    True -> 0
+    False -> 1
+"#
+    )
+}
+
+fn stats_of(exe: &Path) -> String {
+    let out = run_with(exe, &[("CINCH_ALLOC_STATS", "1")]);
+    assert_eq!(out.status.code(), Some(0), "{out:?}");
+    stats_line(&out).expect("cinch-alloc line")
+}
+
+/// Header blocks are exactly the program's Cinch values, kept apart from the
+/// runtime's own allocations: 2000 more `Cons` cells are 2000 more header
+/// blocks of 32 bytes each (the 24-byte `{ tag; head; tail }` block plus its
+/// 8-byte header) and no other allocation at all.
+#[test]
+fn header_blocks_count_constructor_cells_with_their_header() {
+    let (dir_a, small) = built("hdr_small", &cons_program(1000));
+    let (dir_b, large) = built("hdr_large", &cons_program(3000));
+    let (a, b) = (stats_of(&small), stats_of(&large));
+    let delta = |name: &str| field(&b, name) - field(&a, name);
+    assert_eq!(delta("header-blocks"), 2000, "{a}\n{b}");
+    assert_eq!(delta("header-bytes"), 2000 * 32, "{a}\n{b}");
+    assert_eq!(delta("blocks"), 2000, "no runtime-internal allocation per cell\n{a}\n{b}");
+    assert_eq!(delta("bytes"), 2000 * 32, "{a}\n{b}");
+    for line in [&a, &b] {
+        assert!(field(line, "header-blocks") >= 1000, "{line}");
+        assert!(field(line, "header-blocks") <= field(line, "blocks"), "{line}");
+        assert!(field(line, "header-bytes") <= field(line, "bytes"), "{line}");
+        assert_eq!(field(line, "freed"), 0, "{line}");
+    }
+    common::cleanup(&dir_a);
+    common::cleanup(&dir_b);
+}
+
+/// Interned symbols are immortal header blocks, one per distinct name: two
+/// names interned five times are two immortal blocks.
+#[test]
+fn interned_symbols_are_counted_immortal_once_per_name() {
+    const SYMS: &str = r#"
+module Main where
+  import Data.Sym
+
+  main :: Unit -> Int
+  main u = case intern "alpha" == intern "alpha" of
+    True -> case intern "beta" == intern "alpha" of
+      True -> 2
+      False -> case intern "beta" == intern "beta" of
+        True -> 0
+        False -> 3
+    False -> 1
+"#;
+    let (dir, exe) = built("hdr_syms", SYMS);
+    let line = stats_of(&exe);
+    assert_eq!(field(&line, "immortal"), 2, "{line}");
+    assert!(field(&line, "header-blocks") >= 2, "{line}");
     common::cleanup(&dir);
 }
 

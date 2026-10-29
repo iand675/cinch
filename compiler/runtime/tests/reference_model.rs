@@ -360,7 +360,7 @@ fn extern_word_api_fault_codes_are_the_documented_ones() {
 fn extern_alloc_zero_fills_blocks() {
     unsafe {
         for size in [1i64, 7, 8, 9, 4096] {
-            let p = cinchruntime::abi::cinch_alloc(size);
+            let p = cinchruntime::abi::cinch_alloc(size, i64::from(cinchruntime::block::KIND_CTOR));
             assert_ne!(p, 0);
             let bytes = std::slice::from_raw_parts(p as *const u8, size as usize);
             assert!(bytes.iter().all(|&b| b == 0), "size {size}");

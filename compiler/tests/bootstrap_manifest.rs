@@ -26,14 +26,12 @@
 //!   in `order`, and whether `order` is a permutation of the module list.
 //!
 //! Every artifact gets every column, in its own process: one claim each, and
-//! the simplest memory bound, because the runtime frees nothing and the
-//! harness caps a spawned program's heap (`compiler/.cargo/config.toml`,
-//! `CINCH_HEAP_LIMIT`) on a run's TOTAL allocation. One manifest exceeds that
-//! cap on its own and is listed in `BLOCKED_ON_RECLAMATION` with its
-//! measured allocation. The main test runs it anyway and asserts it hits
-//! the cap, so a NEW manifest cannot join it silently, and a `--ignored`
-//! test gives it the same assertions with no cap override for the day
-//! reclamation lands. No line ever reports a narrowed claim.
+//! the simplest memory bound while the runtime does not yet free memory (the
+//! harness caps a spawned program's heap on a run's TOTAL allocation,
+//! `compiler/.cargo/config.toml`, `CINCH_HEAP_LIMIT`). Every manifest fits
+//! the cap on its own; the last that did not (`Data.Machine.cinchif`, 7.4 GB)
+//! fits at 690 MB since small `Nat`/`Int` immediates. No line ever reports a
+//! narrowed claim.
 
 mod common;
 
@@ -53,29 +51,6 @@ const PACKAGE_PATH_PLACEHOLDER: &str = "__MANIFEST_PACKAGE_PATH__";
 const PACKAGE_MODULES: &str = "55";
 const PACKAGE_FACADE: &str = "Prelude";
 const PACKAGE_FACADE_INDEX: &str = "33";
-
-/// The manifests whose own process exceeds the harness's 2 GiB cap
-/// (`compiler/.cargo/config.toml`, `CINCH_HEAP_LIMIT`) because the runtime
-/// still frees nothing: the cap acts on a run's TOTAL allocation, and one full
-/// survey (two parses plus six prints) is larger than the cap by itself.
-/// Measured with `CINCH_ALLOC_STATS=1`, one process, no cap override:
-///
-/// - `Data.Machine.cinchif` (422,431 canonical bytes):
-///   `cinch-alloc: blocks=320949204 bytes=7387209801 peak=7384954700`
-///   (before the runtime's `bytesCopy`/`bytesCompare` primitives; it still
-///   exceeds the cap after them).
-///
-/// `Prelude.cinchif` was listed too (2.66 GB) until those primitives landed;
-/// it now passes at `cinch-alloc: blocks=58790475 bytes=1380872162`, which is
-/// the assertion below catching an improvement as designed. Every other
-/// manifest passes its own process under the cap, so this list is a decision,
-/// not a class: a NEW manifest that exceeds the cap fails the main test
-/// loudly, and the ignored test below runs the listed one with the same
-/// assertions and no override, turning green the day reclamation lands.
-const BLOCKED_ON_RECLAMATION: &[(&str, &str)] = &[(
-    "Data.Machine.cinchif",
-    "cinch-alloc: blocks=320949204 bytes=7387209801 peak=7384954700",
-)];
 
 /// A module with a data type, an instance and a foreign import, so the
 /// artifacts carry more than an empty export table.
@@ -276,47 +251,11 @@ fn exit_message(code: i32, alloc: &str, stdout: &str) -> String {
 fn manifest_round_trips_and_answers_package_facts() {
     let (artifacts, manifests, exe, run_dir, src_dir) = fixture("main");
 
-    // One process per artifact: one claim each, and the simplest memory bound.
-    // The harness caps a spawned program's heap and the runtime frees nothing,
-    // so a shared process would be bounded by the SUM over every manifest.
-    let blocked: Vec<&str> = BLOCKED_ON_RECLAMATION
-        .iter()
-        .map(|(name, _)| *name)
-        .collect();
-    for (name, stats) in BLOCKED_ON_RECLAMATION {
-        assert!(
-            artifacts.iter().any(|(n, _)| n == name),
-            "BLOCKED_ON_RECLAMATION names {name}, which this compile did not produce ({stats})"
-        );
-    }
-
     let mut package_checked = false;
     for (name, bytes) in &artifacts {
         clear_dir(&manifests);
         std::fs::write(manifests.join(name), bytes).expect("copy artifact");
         let (code, stdout, alloc) = run_program(&exe);
-
-        if blocked.contains(&name.as_str()) {
-            let stats = BLOCKED_ON_RECLAMATION
-                .iter()
-                .find(|(n, _)| n == name)
-                .map(|(_, s)| *s)
-                .unwrap_or("(not recorded)");
-            // Blocked on reclamation, and named as such above. This assertion
-            // is the guard in both directions: a blocked manifest that starts
-            // passing must leave the list, and a manifest that is NOT in the
-            // list can never be added to it without failing the run above.
-            assert_eq!(
-                code, 73,
-                "{name} is expected to exceed the heap cap on its own (recorded: {stats}); if \
-                 it passes now, remove it from BLOCKED_ON_RECLAMATION\nallocation: {alloc}"
-            );
-            assert!(
-                alloc.contains("heap limit exceeded"),
-                "{name}: exit 73 must be the heap cap:\n{alloc}"
-            );
-            continue;
-        }
 
         assert_eq!(code, 0, "{name}: {}", exit_message(code, &alloc, &stdout));
         assert!(
@@ -341,36 +280,6 @@ fn manifest_round_trips_and_answers_package_facts() {
     }
     assert!(package_checked, "at least one manifest must have run");
 
-    common::cleanup(&run_dir);
-    common::cleanup(&src_dir);
-}
-
-/// The manifests that do not fit the harness's cap on their own, with the SAME
-/// assertions as the test above, one process each and no cap override. Ignored
-/// rather than deleted so it is one `--ignored` away from turning green:
-/// `cargo test --test bootstrap_manifest -- --ignored`.
-#[test]
-#[ignore = "Data.Machine.cinchif allocates 7,387,209,801 bytes on its own, over the 2 GiB cap; blocked on runtime reclamation"]
-fn blocked_manifests_round_trip_once_reclamation_lands() {
-    let (artifacts, manifests, exe, run_dir, src_dir) = fixture("blocked");
-    for (name, _stats) in BLOCKED_ON_RECLAMATION {
-        let (_, bytes) = artifacts
-            .iter()
-            .find(|(n, _)| n == name)
-            .unwrap_or_else(|| panic!("this compile produced no {name}"));
-        clear_dir(&manifests);
-        std::fs::write(manifests.join(name), bytes).expect("copy artifact");
-        let (code, stdout, alloc) = run_program(&exe);
-        assert_eq!(code, 0, "{name}: {}", exit_message(code, &alloc, &stdout));
-        assert!(
-            !stdout.contains("skipped"),
-            "{name}: no manifest may be reported with a narrowed claim:\n{stdout}"
-        );
-        let line = report_line(&stdout, "artifact ", name)
-            .unwrap_or_else(|| panic!("{name}: no artifact line in:\n{stdout}"));
-        expect_full_columns(line, name);
-        expect_package_facts(&stdout);
-    }
     common::cleanup(&run_dir);
     common::cleanup(&src_dir);
 }

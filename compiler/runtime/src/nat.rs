@@ -57,12 +57,7 @@ impl Nat {
 
     /// `self - other`, faulting when the result would be negative.
     pub fn sub(&self, other: &Nat) -> Result<Nat> {
-        if limbs::cmp_limbs(&self.limbs, &other.limbs) == Ordering::Less {
-            return Err(Error::NegativeResult);
-        }
-        Ok(Nat {
-            limbs: limbs::sub_limbs(&self.limbs, &other.limbs),
-        })
+        sub_mag(&self.limbs, &other.limbs).map(|limbs| Nat { limbs })
     }
 
     /// `self * other`.
@@ -75,10 +70,7 @@ impl Nat {
     /// `(self / other, self % other)` with truncating division, faulting on
     /// division by zero.
     pub fn div_rem(&self, other: &Nat) -> Result<(Nat, Nat)> {
-        if other.is_zero() {
-            return Err(Error::DivByZero);
-        }
-        let (q, r) = limbs::div_rem_limbs(&self.limbs, &other.limbs);
+        let (q, r) = div_rem_mag(&self.limbs, &other.limbs)?;
         Ok((Nat { limbs: q }, Nat { limbs: r }))
     }
 
@@ -118,15 +110,105 @@ impl Nat {
 
     /// Convert from a `u64`.
     pub fn from_u64(v: u64) -> Nat {
+        Nat::from_u128(u128::from(v))
+    }
+
+    /// Convert from a `u128`.
+    pub(crate) fn from_u128(mut v: u128) -> Nat {
         let mut limbs = Vec::new();
-        let mut v = v;
         while v > 0 {
             limbs.push(v as u32);
             v >>= 32;
         }
-        limbs::normalize(&mut limbs);
         Nat { limbs }
     }
+
+    /// The value as a `u64`, when it fits.
+    pub(crate) fn to_u64(&self) -> Option<u64> {
+        magnitude_to_u64(&self.limbs).ok()
+    }
+
+    /// Wrap a normalized magnitude (the output of the `limbs` operations
+    /// and of the magnitude functions below).
+    pub(crate) fn from_limbs(limbs: Vec<u32>) -> Nat {
+        debug_assert!(limbs.last() != Some(&0), "magnitude not normalized");
+        Nat { limbs }
+    }
+
+    /// The normalized little-endian magnitude.
+    pub(crate) fn limbs(&self) -> &[u32] {
+        &self.limbs
+    }
+}
+
+/// The normalized magnitude of a `u64`, held in `scratch` so an immediate
+/// operand reaches the shared limb arithmetic without allocating.
+pub(crate) fn small_limbs(v: u64, scratch: &mut [u32; 2]) -> &[u32] {
+    scratch[0] = v as u32;
+    scratch[1] = (v >> 32) as u32;
+    let len = if v == 0 {
+        0
+    } else if v >> 32 == 0 {
+        1
+    } else {
+        2
+    };
+    &scratch[..len]
+}
+
+/// `a - b` on magnitudes, faulting when the result would be negative.
+pub(crate) fn sub_mag(a: &[u32], b: &[u32]) -> Result<Vec<u32>> {
+    if limbs::cmp_limbs(a, b) == Ordering::Less {
+        return Err(Error::NegativeResult);
+    }
+    Ok(limbs::sub_limbs(a, b))
+}
+
+/// `(a / b, a % b)` on magnitudes, faulting on division by zero.
+pub(crate) fn div_rem_mag(a: &[u32], b: &[u32]) -> Result<(Vec<u32>, Vec<u32>)> {
+    if limbs::is_zero(b) {
+        return Err(Error::DivByZero);
+    }
+    Ok(limbs::div_rem_limbs(a, b))
+}
+
+/// The value of an all-digit numeral short enough to be a `u64` (at most
+/// 19 digits, which never overflows), or `None` for anything else: the
+/// caller falls back to the full parser, which also owns the errors.
+pub(crate) fn parse_small(bytes: &[u8]) -> Option<u64> {
+    if bytes.is_empty() || bytes.len() > 19 || !bytes.iter().all(u8::is_ascii_digit) {
+        return None;
+    }
+    Some(bytes.iter().fold(0u64, |acc, &b| acc * 10 + u64::from(b - b'0')))
+}
+
+/// Number of ASCII bytes [`write_u64_decimal`] writes for `v`.
+pub(crate) fn u64_decimal_len(v: u64, negative: bool) -> usize {
+    let mut n = 1;
+    let mut rest = v / 10;
+    while rest > 0 {
+        rest /= 10;
+        n += 1;
+    }
+    n + usize::from(negative && v != 0)
+}
+
+/// [`write_decimal`] for a magnitude that fits a `u64`, without the
+/// chunk vectors the bignum path allocates.
+pub(crate) fn write_u64_decimal(v: u64, negative: bool, buf: &mut [u8]) -> Result<usize> {
+    let total = u64_decimal_len(v, negative);
+    if buf.len() < total {
+        return Err(Error::BufferTooSmall);
+    }
+    let mut rest = v;
+    for slot in buf[..total].iter_mut().rev() {
+        *slot = b'0' + (rest % 10) as u8;
+        rest /= 10;
+    }
+    if negative && v != 0 {
+        buf[0] = b'-';
+    }
+    Ok(total)
 }
 
 impl PartialEq for Nat {

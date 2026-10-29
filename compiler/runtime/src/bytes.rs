@@ -6,7 +6,8 @@
 //! pointer, so a read-only data-section buffer (a string literal's
 //! constant backing) is the same block shape generated code can emit
 //! directly. The region is owned (heap buffers are allocated here and
-//! never freed, matching the word model) or read-only constant data
+//! released only when `cinch_free` frees their block, [`Bytes::release`])
+//! or read-only constant data
 //! (the `KIND_BYTES_STATIC` block kind: mutation attempts fault instead
 //! of writing). Indexing is bounds-checked; out-of-range indices,
 //! negative lengths, and byte values outside `0..=255` are
@@ -81,6 +82,22 @@ impl Bytes {
     pub(crate) fn data_ptr(&self) -> *mut u8 {
         self.data
     }
+
+    /// Free an owned region (a heap buffer's data, never a read-only
+    /// constant one). [`From<Vec<u8>>`] is the only constructor of an owned
+    /// region, so a non-empty one is exactly a boxed slice of `len` bytes.
+    ///
+    /// # Safety
+    ///
+    /// `self` owns its region (its block kind is `KIND_BYTES`) and is not
+    /// used again.
+    pub(crate) unsafe fn release(&mut self) {
+        if self.len > 0 {
+            let region = std::ptr::slice_from_raw_parts_mut(self.data, self.len as usize);
+            drop(unsafe { Box::from_raw(region) });
+        }
+        self.len = 0;
+    }
 }
 
 /// Copy `n` bytes from the `src` region (`src_len` long) at `si` into the
@@ -115,8 +132,8 @@ pub(crate) unsafe fn copy_range(
 }
 
 impl From<Vec<u8>> for Bytes {
-    /// Take ownership of the vector's region (the word model leaks it:
-    /// words are never freed). The vector is shrunk to its length so
+    /// Take ownership of the vector's region until [`Bytes::release`].
+    /// The vector is shrunk to its length so
     /// `len` and the region agree exactly.
     fn from(mut buf: Vec<u8>) -> Bytes {
         buf.shrink_to_fit();

@@ -83,7 +83,6 @@ fn number_in(line: &str, key: &str) -> u64 {
 }
 
 #[test]
-#[ignore = "blocked on reclamation: Run.Maps allocates past the 2 GiB test cap while nothing is freed (measured cinch-alloc: blocks=92960242 bytes=2147483723 at the cap, after the 4000- and 32000-key phases pass); inline small Nat/Int (design/reclamation.md S2) removes most of those blocks"]
 fn the_map_answers_over_more_keys_than_the_fixed_table_indexed() {
     // The behavioural run, through the driver: the program's exit code is
     // its own verdict on 32000 distinct-digest keys, the repeated-key
@@ -105,7 +104,7 @@ fn the_map_answers_over_more_keys_than_the_fixed_table_indexed() {
 }
 
 #[test]
-#[ignore = "blocked on reclamation: Run.Maps allocates past the 2 GiB test cap while nothing is freed (measured cinch-alloc: blocks=92960242 bytes=2147483723 at the cap, after the 4000- and 32000-key phases pass); inline small Nat/Int (design/reclamation.md S2) removes most of those blocks"]
+#[ignore = "not a memory block any more: Run.Maps runs under the 2 GiB cap (cinch-alloc blocks=3007402 bytes=130438144 with small Nat/Int immediates, blocks=15457002 bytes=385784877 just before them), but the degradation pin fails: 256 keys in ONE bucket inserted in 5ms against 11ms for 4000 distinct-digest keys (about 7x per key, the pin asks for 10x); the pre-immediates build misses it too (9ms against 51ms), so the pin's premise needs re-deriving, not a faster map"]
 fn the_measured_spans_pin_where_the_shipped_map_degrades() {
     // Build the artifact and run it directly, so the program's stdout
     // (its measured spans) can be read as data. Running the built

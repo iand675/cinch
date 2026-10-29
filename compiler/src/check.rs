@@ -8,6 +8,7 @@
 //! Operators are ordinary value names, so `x + y` is just a method call.
 
 use crate::ast;
+use crate::repr::Class;
 use crate::core::{ArithMode, ArithOp, BytesOp, CAlt, CBranch, CPat, CmpOp, ConcOp, Core, FieldAccess, FieldShape, FnDef, GlobalId, InstanceDef, IntOp, LocalId, NatOp, PrimOp, Program, ProjField, SymOp};
 use crate::types::{ClassApp, EffLabel, EffRow, EitherMeta, IxParam, ITerm, IdxCmp, IdxOp, Mult, PTerm, PredFn, PropOblig, PtrRole, RowTail, Scalar, Scheme, Sort, Ty, Unifier, c_abi_scalar, collect_row_names, default_mult, pred_alpha_eq, pred_binder, pred_conjuncts, pred_implies};
 use crate::{Error, Result};
@@ -50,15 +51,23 @@ enum ECore {
     Bool(bool),
     Unit,
     Var(LocalId),
-    Global(GlobalId),
-    Ctor(GlobalId),
+    /// A top-level unit, with the types its scheme's type parameters
+    /// take at this use (empty: no instantiation was recorded, which
+    /// lowering reads as the enclosing definition's own parameters for
+    /// its hoisted units, and as monomorphic otherwise).
+    Global(GlobalId, Vec<Ty>),
+    /// A constructor, with its data type's parameter types at this use.
+    Ctor(GlobalId, Vec<Ty>),
     Prim(PrimOp),
     /// A real foreign import used as a value (its wrapper unit's name).
     Foreign(String),
-    DictProj(Box<ECore>, usize),
+    /// A method projection, with the signature and the types of the
+    /// method's own type parameters at this use.
+    DictProj(Box<ECore>, usize, Option<(String, Vec<Ty>)>),
     /// Record field projection: load the field from the record block.
     Proj(Box<ECore>, crate::core::ProjField),
-    InstDict(GlobalId, Vec<ECore>),
+    /// A dictionary, with the instance's own parameter types.
+    InstDict(GlobalId, Vec<ECore>, Vec<Ty>),
     App(Box<ECore>, Vec<ECore>),
     /// Un-hoisted lambda: `params` are its pattern parameters.
     Lam { params: Vec<LocalId>, body: Box<ECore> },
@@ -131,7 +140,9 @@ enum ECore {
 #[derive(Clone, Debug)]
 enum DictExpr {
     Binder(LocalId),
-    Instance(GlobalId, Vec<DictExpr>),
+    /// An instance dictionary: the instance, its sub-dictionaries, and
+    /// the types its own parameters matched.
+    Instance(GlobalId, Vec<DictExpr>, Vec<Ty>),
     /// Structural evidence for the compiler-known `Copy` class: a marker
     /// class has no methods, so its dictionary is a plain unit word.
     Marker,
@@ -158,11 +169,30 @@ fn undetermined_hint(uni: &Unifier, wanted: &ClassApp) -> &'static str {
 fn dict_expr_ecore(d: &DictExpr) -> ECore {
     match d {
         DictExpr::Binder(l) => ECore::Var(*l),
-        DictExpr::Instance(id, subs) => {
-            ECore::InstDict(id.clone(), subs.iter().map(dict_expr_ecore).collect())
-        }
+        DictExpr::Instance(id, subs, tys) => ECore::InstDict(
+            id.clone(),
+            subs.iter().map(dict_expr_ecore).collect(),
+            tys.clone(),
+        ),
         DictExpr::Marker => ECore::Unit,
     }
+}
+
+/// A method use's site: the class (the scheme's `ctx[0]`) and the types
+/// of the method's own type parameters, those its class constraint does
+/// not mention (in `params` order, the order an instance's method unit
+/// appends them to the instance's parameters).
+fn method_site(s: &Scheme, ptys: &[Ty]) -> Option<(String, Vec<Ty>)> {
+    let (_, class) = s.ctx.first()?;
+    let mentioned = |p: &str| class.args.iter().any(|a| matches!(a, Ty::Param(n) if n == p));
+    let own = s
+        .params
+        .iter()
+        .zip(ptys)
+        .filter(|(p, _)| !mentioned(p))
+        .map(|(_, t)| t.clone())
+        .collect();
+    Some((class.class.clone(), own))
 }
 
 fn free_locals(e: &ECore, bound: &mut Vec<LocalId>, out: &mut Vec<LocalId>) {
@@ -173,17 +203,17 @@ fn free_locals(e: &ECore, bound: &mut Vec<LocalId>, out: &mut Vec<LocalId>) {
                 out.push(*l);
             }
         }
-        ECore::Int(_) | ECore::ConstBig { .. } | ECore::ConstBytes(_) | ECore::ConstString { .. } | ECore::ConstSym(_) | ECore::Lit(_) | ECore::Bool(_) | ECore::Unit | ECore::Global(_)
-        | ECore::Ctor(_) | ECore::Prim(_) | ECore::Foreign(_) | ECore::Hole(_) | ECore::QuoteHole(_) | ECore::IdxPending(_) | ECore::Fault
+        ECore::Int(_) | ECore::ConstBig { .. } | ECore::ConstBytes(_) | ECore::ConstString { .. } | ECore::ConstSym(_) | ECore::Lit(_) | ECore::Bool(_) | ECore::Unit | ECore::Global(..)
+        | ECore::Ctor(..) | ECore::Prim(_) | ECore::Foreign(_) | ECore::Hole(_) | ECore::QuoteHole(_) | ECore::IdxPending(_) | ECore::Fault
         | ECore::SyntaxLit(_) | ECore::StrLit(_) => {}
         ECore::Quote { holes, .. } | ECore::DeclsQuote { holes, .. } => {
             for h in holes {
                 free_locals(h, bound, out);
             }
         }
-        ECore::DictProj(d, _) => free_locals(d, bound, out),
+        ECore::DictProj(d, ..) => free_locals(d, bound, out),
         ECore::Proj(d, _) => free_locals(d, bound, out),
-        ECore::InstDict(_, args) | ECore::App(_, args) | ECore::MkClos { env: args, .. } => {
+        ECore::InstDict(_, args, _) | ECore::App(_, args) | ECore::MkClos { env: args, .. } => {
             for a in args {
                 free_locals(a, bound, out);
             }
@@ -236,7 +266,7 @@ fn free_locals(e: &ECore, bound: &mut Vec<LocalId>, out: &mut Vec<LocalId>) {
             for alt in alts {
                 let n = bound.len();
                 match &alt.pat {
-                    CPat::Var(l) => bound.push(*l),
+                    CPat::Var(l, _) => bound.push(*l),
                     CPat::Con { fields, .. } => bound.extend(fields.iter().copied()),
                     CPat::Wild => {}
                 }
@@ -265,8 +295,8 @@ fn hoist_lambdas(e: &mut ECore, hint: &str, counter: &mut usize, fns: &mut Vec<H
         | ECore::Bool(_)
         | ECore::Unit
         | ECore::Var(_)
-        | ECore::Global(_)
-        | ECore::Ctor(_)
+        | ECore::Global(..)
+        | ECore::Ctor(..)
         | ECore::Prim(_) | ECore::Foreign(_)
         | ECore::Hole(_)
         | ECore::QuoteHole(_)
@@ -287,9 +317,9 @@ fn hoist_lambdas(e: &mut ECore, hint: &str, counter: &mut usize, fns: &mut Vec<H
                 hoist_lambdas(h, hint, counter, fns);
             }
         }
-        ECore::DictProj(d, _) => hoist_lambdas(d, hint, counter, fns),
+        ECore::DictProj(d, ..) => hoist_lambdas(d, hint, counter, fns),
         ECore::Proj(d, _) => hoist_lambdas(d, hint, counter, fns),
-        ECore::InstDict(_, args) | ECore::App(_, args) | ECore::MkClos { env: args, .. } => {
+        ECore::InstDict(_, args, _) | ECore::App(_, args) | ECore::MkClos { env: args, .. } => {
             for a in args {
                 hoist_lambdas(a, hint, counter, fns);
             }
@@ -346,14 +376,14 @@ fn hoist_lambdas(e: &mut ECore, hint: &str, counter: &mut usize, fns: &mut Vec<H
 /// Renumber the locals of a function body so that its parameters are
 /// `LocalId(0..arity)` in ABI order and every other local follows in
 /// traversal order. Codegen relies on this convention.
-fn renumber_fn(body: &ECore, params: &[LocalId]) -> ECore {
+fn renumber_fn(body: &ECore, params: &[LocalId]) -> (ECore, HashMap<LocalId, LocalId>) {
     let mut map: HashMap<LocalId, LocalId> = HashMap::new();
     for (i, p) in params.iter().enumerate() {
         map.insert(*p, LocalId(i));
     }
     let mut next = params.len();
     assign_locals(body, &mut map, &mut next);
-    rewrite_locals(body, &map)
+    (rewrite_locals(body, &map), map)
 }
 
 fn note_local(l: LocalId, map: &mut HashMap<LocalId, LocalId>, next: &mut usize) {
@@ -368,8 +398,8 @@ fn assign_locals(e: &ECore, map: &mut HashMap<LocalId, LocalId>, next: &mut usiz
     match e {
         ECore::LitFold { body, .. } => assign_locals(body, map, next),
         ECore::Var(l) => note_local(*l, map, next),
-        ECore::Int(_) | ECore::ConstBig { .. } | ECore::ConstBytes(_) | ECore::ConstString { .. } | ECore::ConstSym(_) | ECore::Lit(_) | ECore::Bool(_) | ECore::Unit | ECore::Global(_)
-        | ECore::Ctor(_) | ECore::Prim(_) | ECore::Foreign(_) | ECore::Hole(_) | ECore::QuoteHole(_) | ECore::IdxPending(_) | ECore::Fault
+        ECore::Int(_) | ECore::ConstBig { .. } | ECore::ConstBytes(_) | ECore::ConstString { .. } | ECore::ConstSym(_) | ECore::Lit(_) | ECore::Bool(_) | ECore::Unit | ECore::Global(..)
+        | ECore::Ctor(..) | ECore::Prim(_) | ECore::Foreign(_) | ECore::Hole(_) | ECore::QuoteHole(_) | ECore::IdxPending(_) | ECore::Fault
         | ECore::SyntaxLit(_) | ECore::StrLit(_) => {}
         ECore::Quote { holes, body, .. } => {
             for h in holes {
@@ -382,9 +412,9 @@ fn assign_locals(e: &ECore, map: &mut HashMap<LocalId, LocalId>, next: &mut usiz
                 assign_locals(h, map, next);
             }
         }
-        ECore::DictProj(d, _) => assign_locals(d, map, next),
+        ECore::DictProj(d, ..) => assign_locals(d, map, next),
         ECore::Proj(d, _) => assign_locals(d, map, next),
-        ECore::InstDict(_, args) | ECore::App(_, args) | ECore::MkClos { env: args, .. } => {
+        ECore::InstDict(_, args, _) | ECore::App(_, args) | ECore::MkClos { env: args, .. } => {
             if let ECore::App(f, _) = e {
                 assign_locals(f, map, next);
             }
@@ -428,7 +458,7 @@ fn assign_locals(e: &ECore, map: &mut HashMap<LocalId, LocalId>, next: &mut usiz
             assign_locals(scrut, map, next);
             for alt in alts {
                 match &alt.pat {
-                    CPat::Var(l) => note_local(*l, map, next),
+                    CPat::Var(l, _) => note_local(*l, map, next),
                     CPat::Con { fields, .. } => {
                         for f in fields {
                             note_local(*f, map, next);
@@ -464,8 +494,8 @@ fn rewrite_locals(e: &ECore, map: &HashMap<LocalId, LocalId>) -> ECore {
         ECore::Lit(i) => ECore::Lit(*i),
         ECore::Bool(b) => ECore::Bool(*b),
         ECore::Unit => ECore::Unit,
-        ECore::Global(g) => ECore::Global(g.clone()),
-        ECore::Ctor(g) => ECore::Ctor(g.clone()),
+        ECore::Global(g, t) => ECore::Global(g.clone(), t.clone()),
+        ECore::Ctor(g, t) => ECore::Ctor(g.clone(), t.clone()),
         ECore::Prim(p) => ECore::Prim(*p),
         ECore::Foreign(n) => ECore::Foreign(n.clone()),
         ECore::Hole(h) => ECore::Hole(*h),
@@ -484,11 +514,12 @@ fn rewrite_locals(e: &ECore, map: &HashMap<LocalId, LocalId>) -> ECore {
             holes: holes.iter().map(|h| rewrite_locals(h, map)).collect(),
             name_holes: name_holes.clone(),
         },
-        ECore::DictProj(d, i) => ECore::DictProj(Box::new(rewrite_locals(d, map)), *i),
+        ECore::DictProj(d, i, s) => ECore::DictProj(Box::new(rewrite_locals(d, map)), *i, s.clone()),
         ECore::Proj(d, i) => ECore::Proj(Box::new(rewrite_locals(d, map)), i.clone()),
-        ECore::InstDict(g, args) => ECore::InstDict(
+        ECore::InstDict(g, args, t) => ECore::InstDict(
             g.clone(),
             args.iter().map(|a| rewrite_locals(a, map)).collect(),
+            t.clone(),
         ),
         ECore::App(f, args) => ECore::App(
             Box::new(rewrite_locals(f, map)),
@@ -533,10 +564,12 @@ fn rewrite_locals(e: &ECore, map: &HashMap<LocalId, LocalId>) -> ECore {
                 .iter()
                 .map(|a| {
                     let p = match &a.pat {
-                        CPat::Var(l) => CPat::Var(m(l)),
-                        CPat::Con { tag, fields } => {
-                            CPat::Con { tag: *tag, fields: fields.iter().map(m).collect() }
-                        }
+                        CPat::Var(l, c) => CPat::Var(m(l), *c),
+                        CPat::Con { tag, fields, classes } => CPat::Con {
+                            tag: *tag,
+                            fields: fields.iter().map(m).collect(),
+                            classes: classes.clone(),
+                        },
                         CPat::Wild => CPat::Wild,
                     };
                     CAlt {
@@ -556,8 +589,8 @@ fn resolve_lit_words(e: &mut ECore, lits: &[ECore]) {
         ECore::LitFold { body, .. } => resolve_lit_words(body, lits),
         ECore::Lit(i) => *e = lits[*i].clone(),
         ECore::Int(_) | ECore::ConstBig { .. } | ECore::ConstBytes(_) | ECore::ConstString { .. } | ECore::ConstSym(_) | ECore::Bool(_) | ECore::Unit | ECore::Var(_)
-        | ECore::Global(_)
-        | ECore::Ctor(_) | ECore::Prim(_) | ECore::Foreign(_) | ECore::Hole(_) | ECore::QuoteHole(_) | ECore::IdxPending(_) | ECore::Fault | ECore::LazyAlloc | ECore::BoxAlloc
+        | ECore::Global(..)
+        | ECore::Ctor(..) | ECore::Prim(_) | ECore::Foreign(_) | ECore::Hole(_) | ECore::QuoteHole(_) | ECore::IdxPending(_) | ECore::Fault | ECore::LazyAlloc | ECore::BoxAlloc
         | ECore::SyntaxLit(_) | ECore::StrLit(_) => {}
         ECore::Quote { holes, body, .. } => {
             for h in holes {
@@ -570,10 +603,10 @@ fn resolve_lit_words(e: &mut ECore, lits: &[ECore]) {
                 resolve_lit_words(h, lits);
             }
         }
-        ECore::DictProj(d, _) | ECore::Proj(d, _) | ECore::Demand(d) => {
+        ECore::DictProj(d, ..) | ECore::Proj(d, _) | ECore::Demand(d) => {
             resolve_lit_words(d, lits)
         }
-        ECore::InstDict(_, args) | ECore::MkClos { env: args, .. } => {
+        ECore::InstDict(_, args, _) | ECore::MkClos { env: args, .. } => {
             for a in args {
                 resolve_lit_words(a, lits);
             }
@@ -619,8 +652,8 @@ fn resolve_idx_words(e: &mut ECore, vals: &[ECore]) {
         | ECore::Bool(_)
         | ECore::Unit
         | ECore::Var(_)
-        | ECore::Global(_)
-        | ECore::Ctor(_)
+        | ECore::Global(..)
+        | ECore::Ctor(..)
         | ECore::Prim(_) | ECore::Foreign(_)
         | ECore::Hole(_)
         | ECore::QuoteHole(_)
@@ -640,10 +673,10 @@ fn resolve_idx_words(e: &mut ECore, vals: &[ECore]) {
                 resolve_idx_words(h, vals);
             }
         }
-        ECore::DictProj(d, _) | ECore::Proj(d, _) | ECore::Demand(d) => {
+        ECore::DictProj(d, ..) | ECore::Proj(d, _) | ECore::Demand(d) => {
             resolve_idx_words(d, vals)
         }
-        ECore::InstDict(_, args) | ECore::MkClos { env: args, .. } => {
+        ECore::InstDict(_, args, _) | ECore::MkClos { env: args, .. } => {
             for a in args {
                 resolve_idx_words(a, vals);
             }
@@ -710,7 +743,9 @@ fn reify_value(v: &crate::core::Value, string_ctor: &str) -> Option<ECore> {
                     _ => None,
                 };
             }
-            let mut core = ECore::Ctor(GlobalId(ctor.clone()));
+            // A compile-time value carries no types: its constructor's
+            // instantiation is unrecorded.
+            let mut core = ECore::Ctor(GlobalId(ctor.clone()), Vec::new());
             for f in fields {
                 core = app_spine(core, vec![reify_value(f, string_ctor)?]);
             }
@@ -732,8 +767,8 @@ fn fold_blocked(e: &ECore) -> bool {
         | ECore::Bool(_)
         | ECore::Unit
         | ECore::Var(_)
-        | ECore::Global(_)
-        | ECore::Ctor(_)
+        | ECore::Global(..)
+        | ECore::Ctor(..)
         | ECore::Prim(_) => false,
         ECore::Lit(_)
         | ECore::Foreign(_)
@@ -753,8 +788,8 @@ fn fold_blocked(e: &ECore) -> bool {
         | ECore::Quote { .. }
         | ECore::DeclsQuote { .. } => true,
         ECore::LitFold { body, .. } => fold_blocked(body),
-        ECore::DictProj(d, _) | ECore::Proj(d, _) => fold_blocked(d),
-        ECore::InstDict(_, args) | ECore::MkClos { env: args, .. } => {
+        ECore::DictProj(d, ..) | ECore::Proj(d, _) => fold_blocked(d),
+        ECore::InstDict(_, args, _) | ECore::MkClos { env: args, .. } => {
             args.iter().any(fold_blocked)
         }
         ECore::App(f, args) => fold_blocked(f) || args.iter().any(fold_blocked),
@@ -769,6 +804,75 @@ fn fold_blocked(e: &ECore) -> bool {
     }
 }
 
+/// What lowering needs to attach representation classes: the checker's
+/// binder types (keyed by the ids before renumbering), the definition's
+/// type parameters, and its own hoisted and `letrec` units.
+pub(crate) struct LowerCx<'a> {
+    ck: &'a Checker,
+    tparams: &'a [String],
+    own: &'a HashSet<GlobalId>,
+    /// Renumbered id to checker id.
+    orig: HashMap<LocalId, LocalId>,
+}
+
+impl<'a> LowerCx<'a> {
+    pub(crate) fn new(ck: &'a Checker, tparams: &'a [String], own: &'a HashSet<GlobalId>) -> Self {
+        LowerCx { ck, tparams, own, orig: HashMap::new() }
+    }
+
+    fn class(&self, ty: &Ty) -> crate::repr::Class {
+        let z = self.ck.uni.zonk(ty);
+        crate::repr::repr_of(&z, self.tparams, self.ck, &mut |t| {
+            if std::env::var_os("CINCH_REPR_DEBUG").is_some() {
+                eprintln!("cinch-repr: no class for {t} (parameters {:?})", self.tparams);
+            }
+        })
+    }
+
+    fn classes(&self, tys: &[Ty]) -> Vec<crate::repr::Class> {
+        tys.iter().map(|t| self.class(t)).collect()
+    }
+
+    /// The class of a binder of the lowered body.
+    fn local(&self, l: LocalId) -> crate::repr::Class {
+        let l = self.orig.get(&l).copied().unwrap_or(l);
+        if let Some(c) = self.ck.local_cls.get(&l) {
+            return *c;
+        }
+        match self.ck.local_tys.get(&l) {
+            Some(t) => self.class(t),
+            None => {
+                if std::env::var_os("CINCH_REPR_DEBUG").is_some() {
+                    eprintln!("cinch-repr: binder v{} has no recorded type", l.0);
+                }
+                crate::repr::Class::Raw
+            }
+        }
+    }
+}
+
+impl crate::repr::TypeReprs for Checker {
+    fn adt(&self, name: &str, args: &[Ty]) -> crate::repr::AdtRepr {
+        let kinds = match self.types.get(name) {
+            Some(k) if !k.is_empty() => k,
+            _ => return crate::repr::AdtRepr::Obj,
+        };
+        if let Some(r) = kinds.iter().find_map(|k| k.refine.as_ref()) {
+            let mut map: HashMap<String, Ty> = HashMap::new();
+            for (p, a) in r.params.iter().zip(args) {
+                map.insert(p.clone(), a.clone());
+            }
+            return crate::repr::AdtRepr::Base(Checker::subst_ty(&r.base, &map));
+        }
+        // A foreign opaque type's values come only from foreign calls:
+        // they are handles the foreign side owns.
+        if kinds.iter().all(|k| k.opaque) {
+            return crate::repr::AdtRepr::Raw;
+        }
+        crate::repr::AdtRepr::Obj
+    }
+}
+
 fn finalize_fn(
     id: GlobalId,
     params: Vec<LocalId>,
@@ -777,105 +881,133 @@ fn finalize_fn(
     ctor: Option<(usize, usize)>,
     hints: crate::core::FnHints,
     meta: crate::core::FnMeta,
+    cx: &mut LowerCx,
 ) -> FnDef {
-    let body = renumber_fn(&body, &params);
+    cx.orig.clear();
+    let param_classes = params.iter().map(|l| cx.local(*l)).collect();
+    let (body, map) = renumber_fn(&body, &params);
+    cx.orig = map.iter().map(|(o, n)| (*n, *o)).collect();
     FnDef {
         id,
         params: params.iter().map(|l| format!("v{}", l.0)).collect(),
-        body: lower(&body),
+        body: lower(&body, cx),
         prim,
         ctor,
         hints,
         meta,
+        repr: crate::core::UnitRepr {
+            tparams: cx.tparams.len(),
+            params: param_classes,
+            fields: Vec::new(),
+        },
     }
 }
 
-fn lower(e: &ECore) -> crate::core::Core {
+/// Lower an elaborated body to [`Core`], attaching the class of every
+/// binder and the class vector of every instantiation.
+fn lower(e: &ECore, cx: &LowerCx) -> crate::core::Core {
+    use crate::core::Core as C;
+    let low = |x: &ECore| lower(x, cx);
     match e {
-        ECore::Int(v) => crate::core::Core::Int(*v),
-        ECore::ConstBig { nat, digits } => crate::core::Core::ConstBig {
+        ECore::Int(v) => C::Int(*v),
+        ECore::ConstBig { nat, digits } => C::ConstBig {
             nat: *nat,
             digits: digits.clone(),
         },
-        ECore::ConstBytes(b) => crate::core::Core::ConstBytes(b.clone()),
-        ECore::ConstString { ctor, bytes } => crate::core::Core::ConstString {
+        ECore::ConstBytes(b) => C::ConstBytes(b.clone()),
+        ECore::ConstString { ctor, bytes } => C::ConstString {
             ctor: ctor.clone(),
             bytes: bytes.clone(),
         },
-        ECore::ConstSym(s) => crate::core::Core::ConstSym(s.clone()),
-        ECore::LitFold { body, .. } => lower(body),
+        ECore::ConstSym(s) => C::ConstSym(s.clone()),
+        ECore::LitFold { body, .. } => low(body),
         ECore::Lit(_) => {
             unreachable!("deferred literals are resolved before lowering")
         }
-        ECore::Bool(b) => crate::core::Core::Bool(*b),
-        ECore::Unit => crate::core::Core::Unit,
-        ECore::Var(l) => crate::core::Core::Var(*l),
-        ECore::Global(g) => crate::core::Core::Global(g.clone()),
-        ECore::Ctor(g) => crate::core::Core::Ctor(g.clone()),
-        ECore::Prim(p) => crate::core::Core::Prim(*p),
-        ECore::Foreign(n) => crate::core::Core::Foreign(n.clone()),
-        ECore::DictProj(d, i) => crate::core::Core::DictProj(Box::new(lower(d)), *i),
-        ECore::Proj(d, f) => crate::core::Core::Proj(Box::new(lower(d)), f.clone()),
-        ECore::InstDict(g, args) => {
-            crate::core::Core::InstDict(g.clone(), args.iter().map(lower).collect())
+        ECore::Bool(b) => C::Bool(*b),
+        ECore::Unit => C::Unit,
+        ECore::Var(l) => C::Var(*l),
+        ECore::Global(g, tys) => {
+            let v = if !tys.is_empty() {
+                cx.classes(tys)
+            } else if cx.own.contains(g) {
+                crate::repr::identity(cx.tparams.len())
+            } else {
+                Vec::new()
+            };
+            C::Global(g.clone(), v)
         }
-        ECore::App(f, args) => {
-            crate::core::Core::App(Box::new(lower(f)), args.iter().map(lower).collect())
+        ECore::Ctor(g, tys) => C::Ctor(g.clone(), cx.classes(tys)),
+        ECore::Prim(p) => C::Prim(*p),
+        ECore::Foreign(n) => C::Foreign(n.clone()),
+        ECore::DictProj(d, i, site) => C::DictProj(
+            Box::new(low(d)),
+            *i,
+            site.as_ref().map(|(class, own)| {
+                Box::new(crate::core::MethodSite { class: class.clone(), own: cx.classes(own) })
+            }),
+        ),
+        ECore::Proj(d, f) => C::Proj(Box::new(low(d)), f.clone()),
+        ECore::InstDict(g, args, tys) => {
+            C::InstDict(g.clone(), args.iter().map(low).collect(), cx.classes(tys))
         }
+        ECore::App(f, args) => C::App(Box::new(low(f)), args.iter().map(low).collect()),
         ECore::Lam { .. } | ECore::Hole(_) | ECore::IdxPending(_) => {
             unreachable!("lambda hoisting and dictionary solving run before lowering")
         }
-        ECore::QuoteHole(idx) => crate::core::Core::SpliceVal(*idx),
-        ECore::Quote { template, holes, body } => crate::core::Core::Quote {
+        ECore::QuoteHole(idx) => C::SpliceVal(*idx),
+        ECore::Quote { template, holes, body } => C::Quote {
             template: template.clone(),
-            holes: holes.iter().map(lower).collect(),
-            body: Some(Box::new(lower(body))),
+            holes: holes.iter().map(low).collect(),
+            body: Some(Box::new(low(body))),
         },
-        ECore::DeclsQuote { template, holes, name_holes } => crate::core::Core::DeclsQuote {
+        ECore::DeclsQuote { template, holes, name_holes } => C::DeclsQuote {
             template: template.clone(),
-            holes: holes.iter().map(lower).collect(),
+            holes: holes.iter().map(low).collect(),
             name_holes: name_holes.clone(),
         },
-        ECore::SyntaxLit(toks) => crate::core::Core::SyntaxLit(toks.clone()),
-        ECore::StrLit(s) => crate::core::Core::StrLit(s.clone()),
-        ECore::Fault => crate::core::Core::Fault,
-        ECore::MkClos { fn_id, env } => crate::core::Core::Lam {
+        ECore::SyntaxLit(toks) => C::SyntaxLit(toks.clone()),
+        ECore::StrLit(s) => C::StrLit(s.clone()),
+        ECore::Fault => C::Fault,
+        ECore::MkClos { fn_id, env } => C::Lam {
             fn_id: fn_id.clone(),
-            env: env.iter().map(lower).collect(),
+            env: env.iter().map(low).collect(),
         },
-        ECore::Let(l, v, body) => {
-            crate::core::Core::Let(*l, Box::new(lower(v)), Box::new(lower(body)))
-        }
-        ECore::If(c, t, f) => crate::core::Core::If(
-            Box::new(lower(c)),
+        ECore::Let(l, v, body) => C::Let(*l, cx.local(*l), Box::new(low(v)), Box::new(low(body))),
+        ECore::If(c, t, f) => C::If(
+            Box::new(low(c)),
             CBranch {
                 weight: t.weight,
-                body: Box::new(lower(&t.body)),
+                body: Box::new(low(&t.body)),
             },
             CBranch {
                 weight: f.weight,
-                body: Box::new(lower(&f.body)),
+                body: Box::new(low(&f.body)),
             },
         ),
-        ECore::Demand(d) => crate::core::Core::Demand(Box::new(lower(d))),
-        ECore::LazyAlloc => crate::core::Core::LazyAlloc,
-        ECore::LazyInit(l, t) => {
-            crate::core::Core::LazyInit(*l, Box::new(lower(t)))
-        }
-        ECore::BoxAlloc => crate::core::Core::BoxAlloc,
-        ECore::BoxInit(l, v) => {
-            crate::core::Core::BoxInit(*l, Box::new(lower(v)))
-        }
-        ECore::RefSet(l, v) => crate::core::Core::RefSet(*l, Box::new(lower(v))),
-        ECore::BoxGet(v) => crate::core::Core::BoxGet(Box::new(lower(v))),
-        ECore::Case { scrut, alts } => crate::core::Core::Case {
-            scrut: Box::new(lower(scrut)),
+        ECore::Demand(d) => C::Demand(Box::new(low(d))),
+        ECore::LazyAlloc => C::LazyAlloc,
+        ECore::LazyInit(l, t) => C::LazyInit(*l, Box::new(low(t))),
+        ECore::BoxAlloc => C::BoxAlloc,
+        ECore::BoxInit(l, v) => C::BoxInit(*l, Box::new(low(v))),
+        ECore::RefSet(l, v) => C::RefSet(*l, Box::new(low(v))),
+        ECore::BoxGet(v) => C::BoxGet(Box::new(low(v))),
+        ECore::Case { scrut, alts } => C::Case {
+            scrut: Box::new(low(scrut)),
             alts: alts
                 .iter()
                 .map(|a| CAlt {
-                    pat: a.pat.clone(),
+                    pat: match &a.pat {
+                        CPat::Var(l, _) => CPat::Var(*l, cx.local(*l)),
+                        CPat::Con { tag, fields, .. } => CPat::Con {
+                            tag: *tag,
+                            fields: fields.clone(),
+                            classes: fields.iter().map(|f| cx.local(*f)).collect(),
+                        },
+                        CPat::Wild => CPat::Wild,
+                    },
                     weight: a.weight,
-                    body: Box::new(lower(&a.body)),
+                    body: Box::new(low(&a.body)),
                 })
                 .collect(),
         },
@@ -1861,7 +1993,7 @@ fn call_step(
     env: &Env,
     args: &[ast::Term],
 ) -> Option<(GlobalId, Vec<Option<ITerm>>)> {
-    let ECore::Global(g) = callee else {
+    let ECore::Global(g, _) = callee else {
         return None;
     };
     let idxs = args
@@ -2253,6 +2385,27 @@ struct Checker {
     /// classification reads the ABI layout table, computed after the
     /// declaration pass).
     pending_foreign: Vec<(String, crate::ast::ForeignDecl, Scheme, ForeignAbi)>,
+    /// Every binder's type, for its representation class at lowering
+    /// (local ids are unique across the whole check, so entries never
+    /// collide between definitions).
+    local_tys: HashMap<LocalId, Ty>,
+    /// Binders whose class is fixed without a type: dictionaries,
+    /// capability evidence and markers.
+    local_cls: HashMap<LocalId, crate::repr::Class>,
+    /// The rigid names of the type parameters of the definition being
+    /// checked, in class-vector order (its hoisted lambdas and `letrec`
+    /// members share them).
+    cur_tparams: Vec<String>,
+    /// An instance method's parameter list, set by the instance check for
+    /// the method's own `check_equations` call: the instance's parameters
+    /// then the method's own.
+    method_tparams: Option<Vec<String>>,
+    /// Let-generalized locals and their quantified metavariables, in the
+    /// scheme's parameter order.
+    gen_locals: HashMap<LocalId, Vec<crate::types::MetaId>>,
+    /// Each use of a generalized local: the alias binder elaborated at the
+    /// use, the local, and the types its quantifiers take there.
+    gen_uses: HashMap<LocalId, (LocalId, Vec<Ty>)>,
     /// Use counts accumulated for the definition being checked.
     uses: HashMap<LocalId, UseNode>,
     /// Usage obligations of the definition's binders.
@@ -2679,6 +2832,12 @@ impl Checker {
             module_foreign: Vec::new(),
             foreign_plans: Vec::new(),
             pending_foreign: Vec::new(),
+            local_tys: HashMap::new(),
+            local_cls: HashMap::new(),
+            cur_tparams: Vec::new(),
+            method_tparams: None,
+            gen_locals: HashMap::new(),
+            gen_uses: HashMap::new(),
             uses: HashMap::new(),
             obligations: HashMap::new(),
             lam_depth: 0,
@@ -3138,6 +3297,7 @@ impl Checker {
         ty: Ty,
         span: ast::Span,
     ) {
+        self.note_local_ty(l, &ty);
         if !self.obligations.contains_key(&l) {
             self.obligations.insert(
                 l,
@@ -3151,6 +3311,29 @@ impl Checker {
                     cont: self.cont_depth,
                 },
             );
+        }
+    }
+
+    /// Record a binder's type for its representation class (the first
+    /// record wins, like obligations: an equation parameter's declared
+    /// domain precedes its pattern binding).
+    pub(crate) fn note_local_ty(&mut self, l: LocalId, ty: &Ty) {
+        self.local_tys.entry(l).or_insert_with(|| ty.clone());
+    }
+
+    /// Fix a binder's class without a type (a dictionary or evidence).
+    pub(crate) fn note_local_class(&mut self, l: LocalId, c: crate::repr::Class) {
+        self.local_cls.insert(l, c);
+    }
+
+    /// The class of a dictionary binder for `class`: capabilities are
+    /// runtime evidence words and the `Copy` marker is the unit word;
+    /// every other dictionary is a counted block.
+    pub(crate) fn dict_class(class: &str) -> crate::repr::Class {
+        if is_capability_class(class) || class == "Copy" {
+            crate::repr::Class::Raw
+        } else {
+            crate::repr::Class::Obj
         }
     }
 
@@ -3745,8 +3928,8 @@ impl Checker {
     }
 
     /// The constant of literal `digits` at type `ty`. `Nat` and `Int` are
-    /// mathematical: the digits become a boxed bignum materialised through
-    /// the runtime, and a `Nat` literal must not be negative. `Sym` names
+    /// mathematical: the digits become a `ConstBig` (a runtime immediate
+    /// or bignum word), and a `Nat` literal must not be negative. `Sym` names
     /// the interned cell of the spelling (primitive types specification
     /// section 9). Every other type range-checks to a canonical `i64` word
     /// (section 7: out-of-range literals are compile errors).
@@ -3922,8 +4105,8 @@ impl Checker {
             | ECore::Bool(_)
             | ECore::Unit
             | ECore::Var(_)
-            | ECore::Global(_)
-            | ECore::Ctor(_)
+            | ECore::Global(..)
+            | ECore::Ctor(..)
             | ECore::Prim(_)
             | ECore::Foreign(_)
             | ECore::Hole(_)
@@ -3945,10 +4128,10 @@ impl Checker {
                     self.fold_pass(h, unit, fold);
                 }
             }
-            ECore::DictProj(d, _) | ECore::Proj(d, _) | ECore::Demand(d) => {
+            ECore::DictProj(d, ..) | ECore::Proj(d, _) | ECore::Demand(d) => {
                 self.fold_pass(d, unit, fold)
             }
-            ECore::InstDict(_, args) | ECore::MkClos { env: args, .. } => {
+            ECore::InstDict(_, args, _) | ECore::MkClos { env: args, .. } => {
                 for a in args {
                     self.fold_pass(a, unit, fold);
                 }
@@ -3992,7 +4175,8 @@ impl Checker {
         if !free.is_empty() || fold_blocked(body) {
             return None;
         }
-        let core = lower(body);
+        let own = HashSet::new();
+        let core = lower(body, &LowerCx::new(self, &[], &own));
         let scx = self.fold_scx.clone().unwrap_or_default();
         let mut cx = StageCx::new(&scx);
         let mut frame: Vec<crate::core::Value> = Vec::new();
@@ -4033,7 +4217,7 @@ impl Checker {
             },
             ITerm::Fn(g) => {
                 self.check_executable(&g, span)?;
-                ECore::Global(GlobalId(g))
+                ECore::Global(GlobalId(g), Vec::new())
             }
             ITerm::App(f, args) => {
                 let mut cores = vec![self.reify_idx(&f, names, nat, span)?];
@@ -4553,7 +4737,13 @@ impl Checker {
                 prim: None,
                 ctor: Some((0, n)),
                 hints: crate::core::FnHints::default(),
-                    meta: crate::core::FnMeta::default(),
+                meta: crate::core::FnMeta::default(),
+                // `(a, b, ...)`: each field is its own component's class.
+                repr: crate::core::UnitRepr {
+                    tparams: n,
+                    params: crate::repr::identity(n),
+                    fields: crate::repr::identity(n),
+                },
             });
         }
         Ok(GlobalId(format!("Tuple.{n}")))
@@ -6535,9 +6725,20 @@ impl Checker {
     /// The returned list is the instantiated form of `val_params`: each
     /// entry becomes a runtime argument at the use site (insert-and-solve).
     fn instantiate(&mut self, s: &Scheme) -> (Ty, Vec<(String, ClassApp)>, Vec<Ty>) {
+        let (t, ctx, vals, _) = self.instantiate_at(s);
+        (t, ctx, vals)
+    }
+
+    /// [`Checker::instantiate`], also returning the metavariables the
+    /// scheme's type parameters took, in `params` order: the use site's
+    /// instantiation, whose classes lowering records.
+    fn instantiate_at(&mut self, s: &Scheme) -> (Ty, Vec<(String, ClassApp)>, Vec<Ty>, Vec<Ty>) {
         let mut types = HashMap::new();
+        let mut param_tys = Vec::with_capacity(s.params.len());
         for p in &s.params {
-            types.insert(p.clone(), self.uni.fresh());
+            let m = self.uni.fresh();
+            param_tys.push(m.clone());
+            types.insert(p.clone(), m);
         }
         for p in &s.idx_params {
             match p {
@@ -6576,7 +6777,7 @@ impl Checker {
             .iter()
             .map(|(n, c)| (n.clone(), Self::subst_full_class(c, &types, &rows, &regions)))
             .collect();
-        (Self::subst_full(&s.ty, &types, &rows, &regions), ctx, val_args)
+        (Self::subst_full(&s.ty, &types, &rows, &regions), ctx, val_args, param_tys)
     }
 
     fn subst_full_class(
@@ -7038,7 +7239,7 @@ impl Checker {
                             // sub-dictionary names its owner for the law
                             // rows.
                             if container.is_none() && c.class == class {
-                                if let DictExpr::Instance(id, _) = &d {
+                                if let DictExpr::Instance(id, _, _) = &d {
                                     container = Some(id.clone());
                                 }
                             }
@@ -7059,7 +7260,14 @@ impl Checker {
                 }
                 let inst_info = self.instance_list[idx].clone();
                 self.record_transfer(&inst_info, &obligs, container, wanted, &subdicts, span)?;
-                Ok(Solved(DictExpr::Instance(base_id, subs)))
+                // The dictionary's class vector ranges over the instance's
+                // own parameters, as the match bound them.
+                let tys: Vec<Ty> = inst_info
+                    .params
+                    .iter()
+                    .map(|p| sub.get(p).cloned().unwrap_or(Ty::Unit))
+                    .collect();
+                Ok(Solved(DictExpr::Instance(base_id, subs, tys)))
     }
 
     /// The instance parameters a target states as proposition variables
@@ -7209,7 +7417,7 @@ impl Checker {
             let Some(sol) = solutions.get(&call.want) else {
                 continue;
             };
-            let DictExpr::Instance(base_id, _) = sol else {
+            let DictExpr::Instance(base_id, _, _) = sol else {
                 // A dictionary supplied by a `using` binder: the
                 // obligations ride on the binder's constraint (its
                 // supplier's callers establish them).
@@ -7281,7 +7489,7 @@ impl Checker {
             if !w.method || seen.contains(&w.id) {
                 continue;
             }
-            let Some(DictExpr::Instance(base_id, _)) = solutions.get(&w.id) else {
+            let Some(DictExpr::Instance(base_id, _, _)) = solutions.get(&w.id) else {
                 continue;
             };
             let Some(inst) = self
@@ -7435,8 +7643,8 @@ impl Checker {
                 None => return Err(Error::plain("internal error: unsolved dictionary hole")),
             },
             ECore::Int(_) | ECore::ConstBig { .. } | ECore::ConstBytes(_) | ECore::ConstString { .. } | ECore::ConstSym(_) | ECore::Lit(_) | ECore::Bool(_)
-            | ECore::Unit | ECore::Var(_) | ECore::Global(_)
-            | ECore::Ctor(_) | ECore::Prim(_) | ECore::Foreign(_) | ECore::QuoteHole(_)
+            | ECore::Unit | ECore::Var(_) | ECore::Global(..)
+            | ECore::Ctor(..) | ECore::Prim(_) | ECore::Foreign(_) | ECore::QuoteHole(_)
             | ECore::IdxPending(_) | ECore::Fault
             | ECore::SyntaxLit(_) | ECore::StrLit(_) => e.clone(),
             ECore::BoxAlloc => ECore::BoxAlloc,
@@ -7461,15 +7669,16 @@ impl Checker {
                     .collect::<Result<Vec<_>>>()?,
                 name_holes: name_holes.clone(),
             },
-            ECore::DictProj(d, i) => {
-                ECore::DictProj(Box::new(self.fill_holes(d, sol)?), *i)
+            ECore::DictProj(d, i, s) => {
+                ECore::DictProj(Box::new(self.fill_holes(d, sol)?), *i, s.clone())
             }
             ECore::Proj(d, i) => ECore::Proj(Box::new(self.fill_holes(d, sol)?), i.clone()),
-            ECore::InstDict(g, args) => ECore::InstDict(
+            ECore::InstDict(g, args, t) => ECore::InstDict(
                 g.clone(),
                 args.iter()
                     .map(|a| self.fill_holes(a, sol))
                     .collect::<Result<Vec<_>>>()?,
+                t.clone(),
             ),
             ECore::App(f, args) => ECore::App(
                 Box::new(self.fill_holes(f, sol)?),
@@ -7533,7 +7742,7 @@ impl Checker {
     /// being checked the module's parameter binders apply first (the unit's
     /// leading runtime parameters); from outside, a parameterized module's
     /// functions are reached only through instantiation units.
-    fn fn_ref(&self, v: &ValueInfo, span: ast::Span) -> Result<ECore> {
+    fn fn_ref(&self, v: &ValueInfo, tys: Vec<Ty>, span: ast::Span) -> Result<ECore> {
         if self.param_modules.contains(&v.module) {
             if v.module != self.current_module {
                 return Err(Error::at(
@@ -7544,7 +7753,7 @@ impl Checker {
                     ),
                 ));
             }
-            let mut core = ECore::Global(fn_id(&v.module, &v.name));
+            let mut core = ECore::Global(fn_id(&v.module, &v.name), tys);
             if !self.cur_mod_params.is_empty() {
                 core = app_spine(
                     core,
@@ -7553,7 +7762,7 @@ impl Checker {
             }
             return Ok(core);
         }
-        Ok(ECore::Global(fn_id(&v.module, &v.name)))
+        Ok(ECore::Global(fn_id(&v.module, &v.name), tys))
     }
 
     /// A module parameter used as a term (a capitalized dictionary
@@ -7578,11 +7787,11 @@ impl Checker {
 /// arguments are distinct units.
 fn arg_identity(core: &crate::core::Core, text: &str) -> String {
     match core {
-        crate::core::Core::InstDict(id, subs) => {
+        crate::core::Core::InstDict(id, subs, _) => {
             let inner: Vec<String> = subs.iter().map(|s| arg_identity(s, "")).collect();
             format!("dict:{id}({})", inner.join(","))
         }
-        crate::core::Core::Global(g) => format!("val:{g}"),
+        crate::core::Core::Global(g, _) => format!("val:{g}"),
         _ => format!("val:{text}"),
     }
 }

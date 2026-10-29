@@ -78,7 +78,7 @@
 //!   under- and over-application behave exactly as the generated apply
 //!   stubs define.
 //! * A memo cell is `{ state; thunk; value }` (24 zeroed bytes, as
-//!   `cinch_alloc` allocates). `DEMAND` runs the same state machine as the
+//!   `cinch_alloc` allocates, header kind `KIND_MEMO`). `DEMAND` runs the same state machine as the
 //!   generated `__cinch_demand` helper (`MEMO_HELPERS` in
 //!   `compiler/src/codegen.rs`): state 0 stores 1, applies the thunk to
 //!   one Unit word (0), stores the value and stores state 2; state 2
@@ -670,11 +670,9 @@ impl<'a> Dec<'a> {
     }
 
     /// `[nat, ndigits, digits...]`: unpack the digit bytes and build the
-    /// bignum word through the crate's own nat/int machinery. The bytes
-    /// are parsed once through `from_decimal` so a malformed numeral is
-    /// an `Err`, and once more through the `cinch_*_decimal` entry point,
-    /// which then cannot fail, to obtain the word in the runtime's own
-    /// block layout.
+    /// bignum word through the crate's own nat/int machinery: one parse
+    /// (a malformed numeral is an `Err`), then the canonical word, an
+    /// immediate when the value fits (runtime ABI, `lib.rs`).
     fn big(&mut self) -> Result<Node> {
         let nat = self.word()?;
         if nat > 1 {
@@ -700,11 +698,9 @@ impl<'a> Dec<'a> {
             }
         }
         let word = if nat == 1 {
-            crate::Nat::from_decimal(&digits)?;
-            unsafe { crate::abi::cinch_nat_from_decimal(digits.as_ptr(), digits.len()) }
+            crate::abi::nat_word(crate::Nat::from_decimal(&digits)?)
         } else {
-            crate::Int::from_decimal(&digits)?;
-            unsafe { crate::abi::cinch_int_from_decimal(digits.as_ptr(), digits.len()) }
+            crate::abi::int_word(crate::Int::from_decimal(&digits)?)
         };
         Ok(Node::Big(word))
     }
@@ -780,7 +776,7 @@ fn eval(node: &Node, env: &mut [i64], holes: &[i64]) -> Result<i64> {
         // at `cinch_eval`), the same fault the generated
         // `__cinch_blackhole` takes.
         Node::Fault => Err(Error::BlackHole),
-        Node::LazyAlloc => Ok(unsafe { crate::abi::cinch_alloc(24) }),
+        Node::LazyAlloc => Ok(unsafe { crate::abi::cinch_alloc(24, i64::from(crate::block::KIND_MEMO)) }),
         Node::LazyInit(i, thunk) => eval_lazy_init(*i, thunk, env, holes),
         Node::Demand(cell) => eval_demand(cell, env, holes),
         // A constant buffer materialises fresh per evaluation (words are
@@ -865,7 +861,7 @@ fn eval_lam(
         saved.push(eval(e, env, holes)?);
     }
     let words = 3 + saved.len();
-    let clo = unsafe { crate::abi::cinch_alloc((words * 8) as i64) };
+    let clo = unsafe { crate::abi::cinch_alloc((words * 8) as i64, i64::from(crate::block::KIND_CLOSURE)) };
     let p = block_ptr(clo)?;
     unsafe {
         word_set(p, 0, stub);
@@ -884,7 +880,7 @@ fn eval_ctor(tag: i64, fields: &[Node], env: &mut [i64], holes: &[i64]) -> Resul
         vals.push(eval(f, env, holes)?);
     }
     let words = 1 + vals.len();
-    let block = unsafe { crate::abi::cinch_alloc((words * 8) as i64) };
+    let block = unsafe { crate::abi::cinch_alloc((words * 8) as i64, i64::from(crate::block::KIND_CTOR)) };
     let p = block_ptr(block)?;
     unsafe {
         word_set(p, 0, tag);

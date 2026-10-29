@@ -15,8 +15,16 @@
 //! Environment (read once, without allocating, on the first allocation):
 //!
 //! * `CINCH_ALLOC_STATS=1`: at process exit write
-//!   `cinch-alloc: blocks=<n> bytes=<n> peak=<n>` to stderr (cumulative
-//!   blocks and bytes, peak live bytes). The line is written by an `atexit`
+//!   `cinch-alloc: blocks=<n> bytes=<n> peak=<n> header-blocks=<n>
+//!   header-bytes=<n> immortal=<n> freed=<n>` to stderr. `blocks`, `bytes`
+//!   and `peak` cover every allocation (cumulative blocks and bytes, peak
+//!   live bytes). The rest count only Cinch value blocks, the ones with a
+//!   header word ([`crate::block`]): cumulative header blocks and their
+//!   bytes including the header, how many of them were born immortal
+//!   (interned `Sym` cells; static blocks live in the data section and are
+//!   never allocated), and how many were freed through `cinch_free`.
+//!   `blocks - header-blocks` is the runtime's own allocations (limbs,
+//!   buffer data, handle tables). The line is written by an `atexit`
 //!   handler registered on the first allocation, so it also appears after a
 //!   `cinch_panic`/`cinch_blackhole`/heap-limit fault (all of which leave
 //!   through `exit`), but not after a signal.
@@ -41,6 +49,10 @@ static BLOCKS: AtomicU64 = AtomicU64::new(0);
 static BYTES: AtomicU64 = AtomicU64::new(0);
 static CURRENT: AtomicU64 = AtomicU64::new(0);
 static PEAK: AtomicU64 = AtomicU64::new(0);
+static HEADER_BLOCKS: AtomicU64 = AtomicU64::new(0);
+static HEADER_BYTES: AtomicU64 = AtomicU64::new(0);
+static IMMORTAL: AtomicU64 = AtomicU64::new(0);
+static FREED: AtomicU64 = AtomicU64::new(0);
 /// Set once the heap-limit fault starts: the exit path (stderr writes,
 /// `atexit` handlers) may still allocate and must not fault again.
 static FAULTING: AtomicBool = AtomicBool::new(false);
@@ -114,6 +126,33 @@ pub fn account_alloc(size: usize) {
     }
 }
 
+/// Record that a header block of `size` bytes (header included) was
+/// allocated. Called by [`crate::block::allocate`] in addition to the global
+/// allocator's [`account_alloc`], so header blocks stay a subset of
+/// `blocks`.
+pub fn account_block(size: usize, immortal: bool) {
+    HEADER_BLOCKS.fetch_add(1, Relaxed);
+    HEADER_BYTES.fetch_add(size as u64, Relaxed);
+    if immortal {
+        IMMORTAL.fetch_add(1, Relaxed);
+    }
+}
+
+/// Record that a header block was deallocated by `cinch_free`.
+pub fn account_block_free() {
+    FREED.fetch_add(1, Relaxed);
+}
+
+/// Snapshot `(header_blocks, header_bytes, immortal, freed)`.
+pub fn block_stats() -> (u64, u64, u64, u64) {
+    (
+        HEADER_BLOCKS.load(Relaxed),
+        HEADER_BYTES.load(Relaxed),
+        IMMORTAL.load(Relaxed),
+        FREED.load(Relaxed),
+    )
+}
+
 /// Record that a block of `size` bytes was released.
 pub fn account_free(size: usize) {
     CURRENT.fetch_sub(size as u64, Relaxed);
@@ -148,6 +187,15 @@ extern "C" fn print_stats() {
     line.num(bytes);
     line.push(b" peak=");
     line.num(peak);
+    let (hblocks, hbytes, immortal, freed) = block_stats();
+    line.push(b" header-blocks=");
+    line.num(hblocks);
+    line.push(b" header-bytes=");
+    line.num(hbytes);
+    line.push(b" immortal=");
+    line.num(immortal);
+    line.push(b" freed=");
+    line.num(freed);
     line.push(b"\n");
     line.flush();
 }
@@ -155,14 +203,14 @@ extern "C" fn print_stats() {
 /// A fixed stack buffer for the two stderr lines: neither may allocate
 /// (one runs inside the allocator, the other after a heap fault).
 struct Line {
-    buf: [u8; 128],
+    buf: [u8; 256],
     len: usize,
 }
 
 impl Line {
     fn new() -> Self {
         Line {
-            buf: [0; 128],
+            buf: [0; 256],
             len: 0,
         }
     }

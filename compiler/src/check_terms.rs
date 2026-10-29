@@ -390,7 +390,7 @@ impl Checker {
             for kv in items.chunks(2) {
                 let kc = self.check(env, &kv[0], &k)?;
                 let vc = self.check(env, &kv[1], &v)?;
-                cores.push(app_spine(ECore::Ctor(gid.clone()), vec![kc, vc]));
+                cores.push(app_spine(ECore::Ctor(gid.clone(), vec![k.clone(), v.clone()]), vec![kc, vc]));
             }
             Ty::Tuple(vec![k, v])
         } else {
@@ -1096,7 +1096,7 @@ impl Checker {
                     cores.push(c);
                     tys.push(t);
                 }
-                Ok((app_spine(ECore::Ctor(gid), cores), Ty::Tuple(tys)))
+                Ok((app_spine(ECore::Ctor(gid, tys.clone()), cores), Ty::Tuple(tys)))
             }
             ast::Term::List(items, span) => self.elab_collection(env, items, false, None, *span),
             ast::Term::Map(kvs, span) => {
@@ -1278,8 +1278,8 @@ impl Checker {
                 // mentions earlier fields by name, and erased evidence
                 // fields are checked but never stored (core specification
                 // section 3).
-                let (mut rest, _ctx, _val) = self.instantiate(&v.scheme);
-                let ctor_core = ECore::Ctor(fn_id(&v.module, &v.name));
+                let (mut rest, _ctx, _val, ptys) = self.instantiate_at(&v.scheme);
+                let ctor_core = ECore::Ctor(fn_id(&v.module, &v.name), ptys);
                 let mut doms: Vec<(String, Ty, bool)> = Vec::new();
                 for f in names.iter() {
                     rest = self.uni.zonk(&rest);
@@ -1576,9 +1576,10 @@ impl Checker {
                             ),
                         )
                     })?;
-                    let c1 = self.check(env, &items[1], &cod.subst_idx(&var, &idx))?;
+                    let cod = cod.subst_idx(&var, &idx);
+                    let c1 = self.check(env, &items[1], &cod)?;
                     let gid = self.tuple_ctor(2, *span)?;
-                    return Ok(app_spine(ECore::Ctor(gid), vec![c0, c1]));
+                    return Ok(app_spine(ECore::Ctor(gid, vec![(*dom).clone(), cod]), vec![c0, c1]));
                 }
                 let (core, ty) = self.infer(env, term)?;
                 self.unify_arg(&ty, expected)
@@ -1866,7 +1867,7 @@ impl Checker {
                 if n == "Name" && args.is_empty() {
                     let nm = name_of_group(&g.tokens, span)?;
                     arg_cores.push(app_spine(
-                        ECore::Global(crate::core::StageOp::SymToName.global_id()),
+                        ECore::Global(crate::core::StageOp::SymToName.global_id(), Vec::new()),
                         vec![ECore::ConstSym(nm)],
                     ));
                     continue;
@@ -1876,7 +1877,8 @@ impl Checker {
         }
         let ty = rest;
         let id = GlobalId(format!("{}.{}", v.module, v.name));
-        Ok((app_spine(ECore::Global(id), arg_cores), ty))
+        // A macro is monomorphic (rejected above otherwise).
+        Ok((app_spine(ECore::Global(id, Vec::new()), arg_cores), ty))
     }
 
     /// The `Result` must-use default (attribute annotations
@@ -2110,8 +2112,8 @@ impl Checker {
                     let prop = PTerm::Pred(pf, Box::new(oi));
                     let dec_ty =
                         Ty::Adt("Dec".into(), vec![Ty::Prp(Box::new(prop.clone()))]);
-                    let yes = ECore::Ctor(fn_id("<builtin>", "Yes"));
-                    let no = ECore::Ctor(fn_id("<builtin>", "No"));
+                    let yes = ECore::Ctor(fn_id("<builtin>", "Yes"), Vec::new());
+                    let no = ECore::Ctor(fn_id("<builtin>", "No"), Vec::new());
                     match self.static_obligation(&prop)? {
                         ObligStatus::Checked => return Ok((yes, dec_ty)),
                         ObligStatus::Disproved => return Ok((no, dec_ty)),
@@ -2168,8 +2170,8 @@ impl Checker {
                     PTerm::Cmp(cmp, Box::new(li), Box::new(ri))
                 };
                 let dec_ty = Ty::Adt("Dec".into(), vec![Ty::Prp(Box::new(prop.clone()))]);
-                let yes = ECore::Ctor(fn_id("<builtin>", "Yes"));
-                let no = ECore::Ctor(fn_id("<builtin>", "No"));
+                let yes = ECore::Ctor(fn_id("<builtin>", "Yes"), Vec::new());
+                let no = ECore::Ctor(fn_id("<builtin>", "No"), Vec::new());
                 match self.static_obligation(&prop)? {
                     ObligStatus::Checked => return Ok((yes, dec_ty)),
                     ObligStatus::Disproved => return Ok((no, dec_ty)),
@@ -2327,11 +2329,11 @@ impl Checker {
         }
         fn comp_of(c: ECore) -> Comp {
             match c {
-                ECore::Ctor(g) if g.0 == "<builtin>.Yes" => Comp::Yes,
-                ECore::Ctor(g) if g.0 == "<builtin>.No" => Comp::No,
+                ECore::Ctor(g, _) if g.0 == "<builtin>.Yes" => Comp::Yes,
+                ECore::Ctor(g, _) if g.0 == "<builtin>.No" => Comp::No,
                 ECore::If(test, y, n)
-                    if matches!(&*y.body, ECore::Ctor(g) if g.0 == "<builtin>.Yes")
-                        && matches!(&*n.body, ECore::Ctor(g) if g.0 == "<builtin>.No") =>
+                    if matches!(&*y.body, ECore::Ctor(g, _) if g.0 == "<builtin>.Yes")
+                        && matches!(&*n.body, ECore::Ctor(g, _) if g.0 == "<builtin>.No") =>
                 {
                     Comp::Test(test)
                 }
@@ -2362,8 +2364,8 @@ impl Checker {
                 a.span(),
             )
         };
-        let yes = ECore::Ctor(fn_id("<builtin>", "Yes"));
-        let no = ECore::Ctor(fn_id("<builtin>", "No"));
+        let yes = ECore::Ctor(fn_id("<builtin>", "Yes"), Vec::new());
+        let no = ECore::Ctor(fn_id("<builtin>", "No"), Vec::new());
         let dec_ty = |p: PTerm| Ty::Adt("Dec".into(), vec![Ty::Prp(Box::new(p))]);
         match t {
             // `P && Q` and `P || Q` are the short-circuiting `if`
@@ -2650,7 +2652,7 @@ impl Checker {
                 ),
             ));
         }
-        let (ty, _ctx, _) = self.instantiate(&v.scheme);
+        let (ty, _ctx, _, ptys) = self.instantiate_at(&v.scheme);
         // Peel the argument chain, standing each dependent binder for an
         // index metavariable so the result type can be solved first.
         let mut fields: Vec<(Option<usize>, Ty, Mult, EffRow)> = Vec::new();
@@ -2782,7 +2784,7 @@ impl Checker {
             return Ok((kept.into_iter().next().expect("the container value"), result));
         }
         Ok((
-            app_spine(ECore::Ctor(fn_id(&v.module, &v.name)), kept),
+            app_spine(ECore::Ctor(fn_id(&v.module, &v.name), ptys), kept),
             result,
         ))
     }
@@ -2990,7 +2992,7 @@ impl Checker {
                     }
                 }
                 let v = self.resolve_var(p, p.span())?;
-                let (t, _, _) = self.instantiate(&v.scheme);
+                let (t, _, _, ptys) = self.instantiate_at(&v.scheme);
                 let t = self.uni.zonk(&t);
                 match t {
                     Ty::Prp(q) => {
@@ -3009,7 +3011,7 @@ impl Checker {
                                 if self.logical.contains(&target) {
                                     self.pending_refs.push(target);
                                 }
-                                self.fn_ref(&v, p.span())?
+                                self.fn_ref(&v, ptys, p.span())?
                             }
                             _ => ECore::Unit,
                         };
@@ -3079,7 +3081,7 @@ impl Checker {
                         )),
                     };
                 }
-                let (mut ty, _, _) = self.instantiate(&v.scheme);
+                let (mut ty, _, _, ptys) = self.instantiate_at(&v.scheme);
                 let mut arg_cores: Vec<ECore> = Vec::new();
                 for a in args {
                     let z = self.uni.zonk(&ty);
@@ -3135,7 +3137,7 @@ impl Checker {
                                 if self.logical.contains(&target) {
                                     self.pending_refs.push(target);
                                 }
-                                self.fn_ref(&v, *span)?
+                                self.fn_ref(&v, ptys, *span)?
                             }
                             _ => ECore::Unit,
                         };
@@ -3784,7 +3786,7 @@ impl Checker {
                     .into_iter()
                     .map(|(tag, ra)| {
                         CAlt::new(
-                            CPat::Con { tag, fields: Vec::new() },
+                            CPat::con(tag, Vec::new()),
                             ECore::Bool(ra != 0),
                         )
                     })
@@ -3810,7 +3812,7 @@ impl Checker {
                 };
                 if let Some(name) = list {
                     let gid = self.install_ascii_char_test(&name, span)?;
-                    return Ok(ECore::App(Box::new(ECore::Global(gid)), vec![operand]));
+                    return Ok(ECore::App(Box::new(ECore::Global(gid, Vec::new())), vec![operand]));
                 }
                 let bytes = match oty {
                     Ty::Bytes => operand,
@@ -3829,7 +3831,7 @@ impl Checker {
                 };
                 let gid = self.install_ascii_test();
                 ECore::App(
-                    Box::new(ECore::Global(gid)),
+                    Box::new(ECore::Global(gid, Vec::new())),
                     vec![
                         bytes,
                         ECore::ConstBig { nat: true, digits: "0".to_string() },
@@ -3848,7 +3850,7 @@ impl Checker {
                     ));
                 };
                 let gid = self.install_ordered_test(name, span)?;
-                ECore::App(Box::new(ECore::Global(gid)), vec![operand])
+                ECore::App(Box::new(ECore::Global(gid, Vec::new())), vec![operand])
             }
         })
     }
@@ -3890,7 +3892,7 @@ impl Checker {
             vec![i, Core::ConstBig { nat: true, digits: "1".to_string() }],
         );
         let recur = Core::App(
-            Box::new(Core::Global(gid.clone())),
+            Box::new(Core::Global(gid.clone(), Vec::new())),
             vec![b, next],
         );
         let body = Core::If(
@@ -3910,6 +3912,11 @@ impl Checker {
             ctor: None,
             hints: crate::core::FnHints::default(),
             meta: crate::core::FnMeta::default(),
+            repr: crate::core::UnitRepr {
+                tparams: 0,
+                params: vec![Class::Obj, Class::TObj],
+                fields: Vec::new(),
+            },
         });
         gid
     }
@@ -3951,20 +3958,18 @@ impl Checker {
             vec![Core::Var(LocalId(1)), Core::Int(128)],
         );
         let recur = Core::App(
-            Box::new(Core::Global(gid.clone())),
+            Box::new(Core::Global(gid.clone(), Vec::new())),
             vec![Core::Var(LocalId(2))],
         );
         let body = Core::Case {
             scrut: Box::new(Core::Var(LocalId(0))),
             alts: vec![
-                CAlt::new(
-                    CPat::Con { tag: nil_tag, fields: Vec::new() },
-                    Core::Bool(true),
-                ),
+                CAlt::new(CPat::con(nil_tag, Vec::new()), Core::Bool(true)),
                 CAlt::new(
                     CPat::Con {
                         tag: cons_tag,
                         fields: vec![LocalId(1), LocalId(2)],
+                        classes: vec![Class::Raw, Class::Obj],
                     },
                     Core::If(
                         Box::new(elem_ok),
@@ -3982,6 +3987,7 @@ impl Checker {
             ctor: None,
             hints: crate::core::FnHints::default(),
             meta: crate::core::FnMeta::default(),
+            repr: crate::core::UnitRepr { tparams: 0, params: vec![Class::Obj], fields: Vec::new() },
         });
         Ok(gid)
     }
@@ -4027,20 +4033,18 @@ impl Checker {
             ],
         );
         let recur = Core::App(
-            Box::new(Core::Global(gid.clone())),
+            Box::new(Core::Global(gid.clone(), Vec::new())),
             vec![Core::Var(LocalId(2))],
         );
         let inner = Core::Case {
             scrut: Box::new(Core::Var(LocalId(2))),
             alts: vec![
-                CAlt::new(
-                    CPat::Con { tag: nil_tag, fields: Vec::new() },
-                    Core::Bool(true),
-                ),
+                CAlt::new(CPat::con(nil_tag, Vec::new()), Core::Bool(true)),
                 CAlt::new(
                     CPat::Con {
                         tag: cons_tag,
                         fields: vec![LocalId(3), LocalId(4)],
+                        classes: vec![Class::TObj, Class::Obj],
                     },
                     Core::If(
                         Box::new(elem_cmp),
@@ -4053,14 +4057,12 @@ impl Checker {
         let body = Core::Case {
             scrut: Box::new(Core::Var(LocalId(0))),
             alts: vec![
-                CAlt::new(
-                    CPat::Con { tag: nil_tag, fields: Vec::new() },
-                    Core::Bool(true),
-                ),
+                CAlt::new(CPat::con(nil_tag, Vec::new()), Core::Bool(true)),
                 CAlt::new(
                     CPat::Con {
                         tag: cons_tag,
                         fields: vec![LocalId(1), LocalId(2)],
+                        classes: vec![Class::TObj, Class::Obj],
                     },
                     inner,
                 ),
@@ -4074,6 +4076,7 @@ impl Checker {
             ctor: None,
             hints: crate::core::FnHints::default(),
             meta: crate::core::FnMeta::default(),
+            repr: crate::core::UnitRepr { tparams: 0, params: vec![Class::Obj], fields: Vec::new() },
         });
         Ok(gid)
     }
@@ -4107,7 +4110,7 @@ impl Checker {
         let gid = GlobalId(format!("<builtin>.refine-length-{}", self.fns.len()));
         // Params: the list word (LocalId 0); the cons binders (1, 2).
         let recur = Core::App(
-            Box::new(Core::Global(gid.clone())),
+            Box::new(Core::Global(gid.clone(), Vec::new())),
             vec![Core::Var(LocalId(2))],
         );
         let succ = Core::App(
@@ -4117,17 +4120,21 @@ impl Checker {
                 recur,
             ],
         );
+        // The element binder is never read: whatever its class, the
+        // unit neither counts nor keeps it, so it is `Raw` here and the
+        // cell's own layout governs its field when the cell is freed.
         let body = Core::Case {
             scrut: Box::new(Core::Var(LocalId(0))),
             alts: vec![
                 CAlt::new(
-                    CPat::Con { tag: nil_tag, fields: Vec::new() },
+                    CPat::con(nil_tag, Vec::new()),
                     Core::ConstBig { nat: true, digits: "0".to_string() },
                 ),
                 CAlt::new(
                     CPat::Con {
                         tag: cons_tag,
                         fields: vec![LocalId(1), LocalId(2)],
+                        classes: vec![Class::Raw, Class::Obj],
                     },
                     succ,
                 ),
@@ -4141,6 +4148,7 @@ impl Checker {
             ctor: None,
             hints: crate::core::FnHints::default(),
             meta: crate::core::FnMeta::default(),
+            repr: crate::core::UnitRepr { tparams: 0, params: vec![Class::Obj], fields: Vec::new() },
         });
         Ok(gid)
     }
@@ -4567,7 +4575,7 @@ impl Checker {
                         self.uni.unify(expected, &Ty::Nat).map_err(|m| {
                             Error::at(t.span(), m)
                         })?;
-                        return Ok(app_spine(ECore::Global(gid), vec![ac]));
+                        return Ok(app_spine(ECore::Global(gid, Vec::new()), vec![ac]));
                     }
                     None => {}
                 }
@@ -4658,8 +4666,8 @@ impl Checker {
                         ),
                     ));
                 }
-                let (ty, _ctx, _val_args) = self.instantiate(&v.scheme);
-                return Ok((ECore::Global(op.global_id()), ty));
+                let (ty, _ctx, _val_args, ptys) = self.instantiate_at(&v.scheme);
+                return Ok((ECore::Global(op.global_id(), ptys), ty));
             }
             ValueKind::StageFn | ValueKind::MacroFn => {
                 if !self.compile_time {
@@ -4714,7 +4722,7 @@ impl Checker {
             }
             _ => {}
         }
-        let (ty, ctx, val_args) = self.instantiate(&v.scheme);
+        let (ty, ctx, val_args, ptys) = self.instantiate_at(&v.scheme);
         // A function whose `using` context states refinement
         // obligations constrains its callers: it must be applied
         // directly (the obligations discharge at its call's arguments).
@@ -4778,14 +4786,14 @@ impl Checker {
             idx_holes.push(ECore::IdxPending(id));
         }
         let core = match &v.kind {
-            ValueKind::TopFn | ValueKind::PrimDecl { .. } => self.fn_ref(v, span)?,
+            ValueKind::TopFn | ValueKind::PrimDecl { .. } => self.fn_ref(v, ptys, span)?,
             ValueKind::StageFn | ValueKind::MacroFn => {
-                ECore::Global(fn_id(&v.module, &v.name))
+                ECore::Global(fn_id(&v.module, &v.name), ptys)
             }
-            ValueKind::StageBuiltin(op) => ECore::Global(op.global_id()),
+            ValueKind::StageBuiltin(op) => ECore::Global(op.global_id(), ptys),
             ValueKind::Prim(op) => ECore::Prim(*op),
             ValueKind::Foreign { unit, .. } => ECore::Foreign(unit.clone()),
-            ValueKind::Ctor { .. } => ECore::Ctor(fn_id(&v.module, &v.name)),
+            ValueKind::Ctor { .. } => ECore::Ctor(fn_id(&v.module, &v.name), ptys),
             ValueKind::Method { idx, .. } => {
                 // The class constraint is `ctx[0]`: it becomes the dictionary
                 // the method is projected from. It is a method call's
@@ -4797,7 +4805,7 @@ impl Checker {
                         w.method = true;
                     }
                 }
-                ECore::DictProj(Box::new(dict), *idx)
+                ECore::DictProj(Box::new(dict), *idx, method_site(&v.scheme, &ptys))
             }
             ValueKind::Law => {
                 return Err(Error::at(
@@ -6308,6 +6316,9 @@ impl Checker {
                         fields.iter().map(|l| ECore::Var(*l)).collect();
                     branch_cols.extend(cols[1..].iter().cloned());
                     let mut branch_tys: Vec<Ty> = field_tys;
+                    for (f, t) in fields.iter().zip(&branch_tys) {
+                        self.note_local_ty(*f, t);
+                    }
                     branch_tys.extend(types[1..].iter().cloned());
                     let (core, m) = self.isolate(|s| {
                         s.compile_rows(
@@ -6321,7 +6332,7 @@ impl Checker {
                     })?;
                     branch_lists.push(branch);
                     alt_maps.push(m);
-                    alt_pats.push(CPat::Con { tag, fields });
+                    alt_pats.push(CPat::con(tag, fields));
                     alts.push(core);
                 }
                 self.merge_branches(alt_maps);
@@ -6413,6 +6424,9 @@ impl Checker {
                 let mut branch_cols: Vec<ECore> = fields.iter().map(|l| ECore::Var(*l)).collect();
                 branch_cols.extend(cols[1..].iter().cloned());
                 let mut branch_tys: Vec<Ty> = items.iter().map(|t| wrap(t)).collect();
+                for (f, t) in fields.iter().zip(&branch_tys) {
+                    self.note_local_ty(*f, t);
+                }
                 branch_tys.extend(types[1..].iter().cloned());
                 let core = self.compile_rows(
                     branch,
@@ -6424,7 +6438,7 @@ impl Checker {
                 )?;
                 Ok(ECore::Case {
                     scrut: Box::new(col0),
-                    alts: vec![CAlt::new(CPat::Con { tag: 0, fields }, core)],
+                    alts: vec![CAlt::new(CPat::con(0, fields), core)],
                 })
             }
             Ty::Param(p) => Err(Error::at(
@@ -6569,6 +6583,9 @@ impl Checker {
                     wrap(&dom),
                     wrap(&cod.subst_idx(&var, &ITerm::Var(name))),
                 ];
+                for (f, t) in fields.iter().zip(&branch_tys) {
+                    self.note_local_ty(*f, t);
+                }
                 branch_tys.extend(types[1..].iter().cloned());
                 let core = self.compile_rows(
                     branch,
@@ -6580,7 +6597,7 @@ impl Checker {
                 )?;
                 Ok(ECore::Case {
                     scrut: Box::new(col0),
-                    alts: vec![CAlt::new(CPat::Con { tag: 0, fields }, core)],
+                    alts: vec![CAlt::new(CPat::con(0, fields), core)],
                 })
             }
             Ty::Pi { .. } => Err(Error::at(
@@ -8591,7 +8608,9 @@ impl Checker {
         }
         let n = closures.len();
         let gid = self.tuple_ctor(n, span)?;
-        let core = app_spine(ECore::Ctor(gid), closures);
+        // The clause tuple's components are closures; their types are not
+        // threaded here, so the tuple's instantiation is unrecorded.
+        let core = app_spine(ECore::Ctor(gid, Vec::new()), closures);
         let ty = Ty::Handler {
             label,
             input: Box::new(input),
@@ -8746,7 +8765,7 @@ impl Checker {
                     format!("sequencing provider {} has no {mname} method", class.class),
                 )
             })?;
-        let (ty, ctx, _) = self.instantiate(&mscheme);
+        let (ty, ctx, _, ptys) = self.instantiate_at(&mscheme);
         let mut holes = Vec::new();
         for (_, c) in &ctx {
             let id = self.new_want(c.clone(), span, env);
@@ -8754,9 +8773,9 @@ impl Checker {
         }
         let dict = holes.remove(0);
         let core = if holes.is_empty() {
-            ECore::DictProj(Box::new(dict), idx)
+            ECore::DictProj(Box::new(dict), idx, method_site(&mscheme, &ptys))
         } else {
-            app_spine(ECore::DictProj(Box::new(dict), idx), holes)
+            app_spine(ECore::DictProj(Box::new(dict), idx, method_site(&mscheme, &ptys)), holes)
         };
         Ok((core, ty))
     }
@@ -8918,7 +8937,7 @@ impl Checker {
         if matches!(v.kind, ValueKind::BoolLit(_)) {
             return Err(Error::at(span, "a boolean literal takes no capability supplies"));
         }
-        let (ty, ctx, _) = self.instantiate(&v.scheme);
+        let (ty, ctx, _, ptys) = self.instantiate_at(&v.scheme);
         let mut holes = Vec::new();
         for (n, c) in &ctx {
             if is_capability_class(&c.class) {
@@ -8943,16 +8962,16 @@ impl Checker {
             }
         }
         let core = match &v.kind {
-            ValueKind::TopFn | ValueKind::PrimDecl { .. } => self.fn_ref(&v, span)?,
+            ValueKind::TopFn | ValueKind::PrimDecl { .. } => self.fn_ref(&v, ptys, span)?,
             ValueKind::StageFn | ValueKind::MacroFn => {
-                ECore::Global(fn_id(&v.module, &v.name))
+                ECore::Global(fn_id(&v.module, &v.name), ptys)
             }
             ValueKind::Prim(op) => ECore::Prim(*op),
             ValueKind::Foreign { unit, .. } => ECore::Foreign(unit.clone()),
-            ValueKind::Ctor { .. } => ECore::Ctor(fn_id(&v.module, &v.name)),
+            ValueKind::Ctor { .. } => ECore::Ctor(fn_id(&v.module, &v.name), ptys),
             ValueKind::Method { idx, .. } => {
                 let dict = holes.remove(0);
-                ECore::DictProj(Box::new(dict), *idx)
+                ECore::DictProj(Box::new(dict), *idx, method_site(&v.scheme, &ptys))
             }
             ValueKind::StageBuiltin(_)
             | ValueKind::BoolLit(_)
@@ -9158,7 +9177,7 @@ fn type_name_str(t: &Ty) -> &str {
 fn callee_want(core: &ECore) -> Option<usize> {
     match core {
         ECore::Hole(id) => Some(*id),
-        ECore::DictProj(h, _) => callee_want(h),
+        ECore::DictProj(h, ..) => callee_want(h),
         ECore::App(f, args) => {
             callee_want(f).or_else(|| args.iter().find_map(callee_want))
         }
@@ -9363,8 +9382,8 @@ fn rec_walk(
         | ECore::Lit(_)
         | ECore::Bool(_)
         | ECore::Unit
-        | ECore::Global(_)
-        | ECore::Ctor(_)
+        | ECore::Global(..)
+        | ECore::Ctor(..)
         | ECore::Prim(_)
         | ECore::Foreign(_)
         | ECore::Hole(_)
@@ -9386,7 +9405,7 @@ fn rec_walk(
                 rec_walk(h, guard, owner, by_local, edges);
             }
         }
-        ECore::DictProj(d, _) | ECore::Proj(d, _) | ECore::Demand(d) | ECore::BoxGet(d) => {
+        ECore::DictProj(d, ..) | ECore::Proj(d, _) | ECore::Demand(d) | ECore::BoxGet(d) => {
             rec_walk(d, guard, owner, by_local, edges);
         }
         ECore::App(f, args) => {
@@ -9397,7 +9416,7 @@ fn rec_walk(
                 rec_walk(a, guard + bump, owner, by_local, edges);
             }
         }
-        ECore::InstDict(_, args) | ECore::MkClos { env: args, .. } => {
+        ECore::InstDict(_, args, _) | ECore::MkClos { env: args, .. } => {
             for a in args {
                 rec_walk(a, guard, owner, by_local, edges);
             }
@@ -9441,8 +9460,8 @@ fn rec_collect_refs(e: &ECore, by_local: &HashMap<LocalId, usize>, out: &mut Vec
         | ECore::Lit(_)
         | ECore::Bool(_)
         | ECore::Unit
-        | ECore::Global(_)
-        | ECore::Ctor(_)
+        | ECore::Global(..)
+        | ECore::Ctor(..)
         | ECore::Prim(_)
         | ECore::Foreign(_)
         | ECore::Hole(_)
@@ -9464,7 +9483,7 @@ fn rec_collect_refs(e: &ECore, by_local: &HashMap<LocalId, usize>, out: &mut Vec
                 rec_collect_refs(h, by_local, out);
             }
         }
-        ECore::DictProj(d, _) | ECore::Proj(d, _) | ECore::Demand(d) | ECore::BoxGet(d) => {
+        ECore::DictProj(d, ..) | ECore::Proj(d, _) | ECore::Demand(d) | ECore::BoxGet(d) => {
             rec_collect_refs(d, by_local, out)
         }
         ECore::App(f, args) => {
@@ -9473,7 +9492,7 @@ fn rec_collect_refs(e: &ECore, by_local: &HashMap<LocalId, usize>, out: &mut Vec
                 rec_collect_refs(a, by_local, out);
             }
         }
-        ECore::InstDict(_, args) | ECore::MkClos { env: args, .. } => {
+        ECore::InstDict(_, args, _) | ECore::MkClos { env: args, .. } => {
             for a in args {
                 rec_collect_refs(a, by_local, out);
             }
@@ -9510,14 +9529,14 @@ fn rec_collect_refs(e: &ECore, by_local: &HashMap<LocalId, usize>, out: &mut Vec
 fn top_rec_walk(e: &ECore, guard: i32, owner: usize, edges: &mut Vec<(usize, GlobalId, bool)>) {
     match e {
         ECore::LitFold { body, .. } => top_rec_walk(body, guard, owner, edges),
-        ECore::Global(g) => edges.push((owner, g.clone(), guard >= 1)),
+        ECore::Global(g, _) => edges.push((owner, g.clone(), guard >= 1)),
         ECore::Var(_)
         | ECore::Int(_)
         | ECore::ConstBig { .. } | ECore::ConstBytes(_) | ECore::ConstString { .. } | ECore::ConstSym(_)
         | ECore::Lit(_)
         | ECore::Bool(_)
         | ECore::Unit
-        | ECore::Ctor(_)
+        | ECore::Ctor(..)
         | ECore::Prim(_)
         | ECore::Foreign(_)
         | ECore::Hole(_)
@@ -9539,7 +9558,7 @@ fn top_rec_walk(e: &ECore, guard: i32, owner: usize, edges: &mut Vec<(usize, Glo
                 top_rec_walk(h, guard, owner, edges);
             }
         }
-        ECore::DictProj(d, _) | ECore::Proj(d, _) | ECore::Demand(d) | ECore::BoxGet(d) => {
+        ECore::DictProj(d, ..) | ECore::Proj(d, _) | ECore::Demand(d) | ECore::BoxGet(d) => {
             top_rec_walk(d, guard, owner, edges);
         }
         ECore::App(f, args) => {
@@ -9550,7 +9569,7 @@ fn top_rec_walk(e: &ECore, guard: i32, owner: usize, edges: &mut Vec<(usize, Glo
                 top_rec_walk(a, guard + bump, owner, edges);
             }
         }
-        ECore::InstDict(_, args) | ECore::MkClos { env: args, .. } => {
+        ECore::InstDict(_, args, _) | ECore::MkClos { env: args, .. } => {
             for a in args {
                 top_rec_walk(a, guard, owner, edges);
             }
@@ -9593,7 +9612,7 @@ fn subst_rec_refs(e: &mut ECore, subs: &HashMap<LocalId, RecSub>) {
                 }
                 let mut new_args: Vec<ECore> = cap.iter().map(|c| ECore::Var(*c)).collect();
                 new_args.append(args);
-                *e = ECore::App(Box::new(ECore::Global(id)), new_args);
+                *e = ECore::App(Box::new(ECore::Global(id, Vec::new())), new_args);
                 return;
             }
         }
@@ -9619,8 +9638,8 @@ fn subst_rec_refs(e: &mut ECore, subs: &HashMap<LocalId, RecSub>) {
         | ECore::Lit(_)
         | ECore::Bool(_)
         | ECore::Unit
-        | ECore::Global(_)
-        | ECore::Ctor(_)
+        | ECore::Global(..)
+        | ECore::Ctor(..)
         | ECore::Prim(_)
         | ECore::Foreign(_)
         | ECore::Hole(_)
@@ -9642,7 +9661,7 @@ fn subst_rec_refs(e: &mut ECore, subs: &HashMap<LocalId, RecSub>) {
                 subst_rec_refs(h, subs);
             }
         }
-        ECore::DictProj(d, _) | ECore::Proj(d, _) | ECore::Demand(d) | ECore::BoxGet(d) => {
+        ECore::DictProj(d, ..) | ECore::Proj(d, _) | ECore::Demand(d) | ECore::BoxGet(d) => {
             subst_rec_refs(d, subs)
         }
         ECore::App(f, args) => {
@@ -9651,7 +9670,7 @@ fn subst_rec_refs(e: &mut ECore, subs: &HashMap<LocalId, RecSub>) {
                 subst_rec_refs(a, subs);
             }
         }
-        ECore::InstDict(_, args) | ECore::MkClos { env: args, .. } => {
+        ECore::InstDict(_, args, _) | ECore::MkClos { env: args, .. } => {
             for a in args {
                 subst_rec_refs(a, subs);
             }

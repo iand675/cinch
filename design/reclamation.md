@@ -411,10 +411,15 @@ drift. Where S1 differs from the plan above:
   allocated with `rc = 0`, i.e. interned `Sym` cells; static blocks are
   never allocated and are not counted) and `freed` (calls of `cinch_free`
   that deallocated). `live` stays with S3.
-- Every field position and width is a named `*_SHIFT`/`*_BITS` constant
-  in `block_kinds.rs` and every encoder and decoder uses them, so a
-  different count width (for example 40 bits) is a change to that file
-  alone. No sticky overflow state was built.
+- The header is `rc: 40 bits signed (low) | kind: u8 | layout: u16`, with
+  no `flags` field. Only the widths are named constants (`RC_BITS`,
+  `KIND_BITS`, `LAYOUT_BITS` in `block_kinds.rs`); every shift, mask and
+  the `RC_MAX`/`RC_MIN` range derive from them, so a width change is local
+  to that file. No sticky overflow state was built, and the increment
+  needs no check: the heap is capped below 8 * 2^40 bytes.
+- Block memory comes only from `block::allocate` and goes back only
+  through `block::free`, the one place a different backing allocator
+  plugs in. The header spends no bits on allocator identity.
 
 **Later, optional.** Moving the constructor tag and runtime `kind` into the
 header saves one word per block, as Lean does. It shifts every field offset
@@ -881,12 +886,12 @@ language is GC-free AND leak-free by construction. No proposal below leaks.
    or copy?
 7. **`mutBorrow`.** An owned copy at borrow time (proposed), or real place
    borrows first?
-8. **Header budget.** Proposed (revised): one word with a 40-bit count,
+8. **Header budget.** DECIDED (D398): one word with a 40-bit count,
    an 8-bit kind and a 16-bit layout id (with one reserved id meaning "the
    shape is in an extra word", so the 65,536-shape limit is soft). A 40-bit
-   count cannot overflow in practice (2^40 references to one block need 8
-   TiB of pointers), and overflow faults deterministically instead of going
-   sticky, so no block ever leaks. The earlier 32-bit sticky count is
+   count cannot overflow: the allocator caps the heap below 8 TiB, and 2^40
+   references to one block would need 8 TiB of pointer words, so the
+   increment needs no check and no block ever leaks (`design/no-faults.md`). The earlier 32-bit sticky count is
    withdrawn because sticky means leaked.
 9. **Separate compilation.** Should exported functions record inferred
    borrow modes in `.cinchif`, or default to owned?

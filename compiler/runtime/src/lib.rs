@@ -21,22 +21,49 @@
 //! * ADT values: `ptrtoint` of a heap block `{ i64 tag; i64 field0; ... }`
 //!   with `tag` the constructor index in declaration order (the compiler's
 //!   convention; this runtime only allocates such blocks through
-//!   [`cinch_alloc`]).
+//!   [`cinch_alloc`]). Every block carries a header word before it (see
+//!   Block header).
 //! * Function values and dictionaries: `ptrtoint` of their closure or
 //!   record blocks (see `compiler/src/core.rs`).
-//! * `Nat` and `Int` (the unbounded numbers): `ptrtoint` of a bignum heap
-//!   block owned by this runtime (below).
+//! * `Nat` and `Int` (the unbounded numbers): a small immediate or
+//!   `ptrtoint` of a bignum heap block owned by this runtime (below).
 //!
 //! The unbounded `Nat` and `Int` of the core spec are distinct from the
 //! 64-bit machine `Int` above; only the context says which is meant, and
 //! their words are never confused because each is produced and consumed by
 //! the correspondingly named entry points.
 //!
+//! # Small `Nat`/`Int` immediates
+//!
+//! Heap blocks are 8-aligned, so a `Nat`/`Int` word whose low bit is 1 is
+//! never a pointer: it is the immediate `v << 1 | 1`, decoded by one
+//! shift right (logical for `Nat`, arithmetic for `Int`).
+//!
+//! * A `Nat` immediate covers `0 ..= 2^63 - 1`, every value of the 63
+//!   payload bits. That is exactly the non-negative `i64` range, so
+//!   `cinch_nat_from_i64` never allocates.
+//! * An `Int` immediate covers `-2^62 ..= 2^62 - 1`, the 63-bit two's
+//!   complement payload. One tag bit leaves 63 bits, and two's complement
+//!   keeps decoding to a single arithmetic shift and lets the fast paths
+//!   add, subtract and compare decoded values in machine arithmetic.
+//!
+//! Every entry point returns the immediate whenever its result is in
+//! range (the canonical form). A bignum block therefore only ever holds a
+//! value outside the immediate range: a `Nat` of at least 2^63, or an
+//! `Int` below -2^62 or above 2^62 - 1. Two words of the same in-range
+//! value are the same word, and overflow of an immediate operation
+//! promotes to a block, while a block result that falls back in range
+//! (a difference, a quotient, a negation) demotes to the immediate. The
+//! code generator folds a literal in range to its immediate constant
+//! (`immediate_word` in `compiler/src/codegen.rs`), and the quote
+//! evaluator decodes to the same words. A word that may be an immediate
+//! MUST NOT be dereferenced without testing the low bit first.
+//!
 //! # Heap layouts
 //!
 //! Bignum blocks are allocated by this runtime and are opaque to generated
-//! code. A word produced by a `cinch_nat_*` or `cinch_int_*` entry point points at
-//! a block with the following layout (offsets in bytes):
+//! code. A `Nat`/`Int` word with low bit 0 points at a block with the
+//! following layout (offsets in bytes):
 //!
 //! | offset | size | field |
 //! |--------|------|-------|
@@ -50,12 +77,44 @@
 //! flag. Zero is non-negative and has the empty magnitude. The `Vec`
 //! header inside the payload is a standard library implementation detail;
 //! generated code MUST treat the block as opaque and only pass the word
-//! back to this runtime. Words are immutable and may be shared; they are
-//! never freed (see [`cinch_free`]).
+//! back to this runtime. Words are immutable and may be shared. Generated
+//! code never frees them yet; [`cinch_free`] can.
 //!
 //! Blocks allocated through [`cinch_alloc`] are zero-filled byte blocks of a
 //! whole number of 64-bit words, for the compiler's `{ i64 tag; ... }`
 //! convention.
+//!
+//! # Block header
+//!
+//! Every block a word points at, heap or static, has one 64-bit header word
+//! at offset -8 from the address the word holds. Every offset above and in
+//! the code generator is relative to that address, so the header is
+//! invisible to field access. The encoding (`compiler/runtime/src/block_kinds.rs`,
+//! which the code generator includes verbatim) is, from the low bit. Each
+//! width is a named `*_BITS` constant there and every shift and mask is
+//! derived from the widths:
+//!
+//! | bits | field | meaning |
+//! |------|-------|---------|
+//! | 0..40 | `rc`, signed | 0 immortal (static blocks, interned `Sym` cells, `KIND_BYTES_STATIC` buffers); 1 when allocated; > 0 a single-threaded count up to `RC_MAX` (2^39 - 1); < 0 reserved for atomic counts. A count cannot overflow: the heap is capped below 8 * 2^40 bytes, so no increment needs a check, and there is no sticky state |
+//! | 40..48 | `kind: u8` | [`block`]`::KIND_*`: ctor 1, closure 2, dictionary 3, memo 4, knot 5, nat 6, int 7, bytes 8, bytes-static 9, sym 10, code 11, boxed scalar 12, raw 13, freed 255 (0 is never a live block) |
+//! | 48..64 | `layout: u16` | the payload size in 64-bit words; `0xFFFF` means the payload is at least that large and its byte size is the word at offset -16 |
+//!
+//! Block memory is only obtained and returned by `block::allocate` and
+//! `block::free`, the one place a different backing allocator plugs in.
+//!
+//! The header kind is its own namespace: constructor tags and the runtime
+//! boxes' in-block `kind` word stay in word 0 of the payload. `layout`
+//! holds the size until the layout table of `design/reclamation.md`
+//! section 3 lands; its scan encoding follows the representation decision,
+//! and that table replaces this field's meaning. Static blocks are emitted
+//! as `{ header; block }` with the symbol (`@"U.clo"`, `@"U.blk"`) an
+//! alias one word in; the string-literal constant carries a header before
+//! each of its two blocks. A word with low bit 1 is an immediate, never a
+//! block, and no header code dereferences it. Pointers from the OS
+//! resource handles (buffer, directory, process, scope and task handles)
+//! are not blocks and have no header: they are freed only by their own
+//! close entry points.
 //!
 //! # Faults
 //!
@@ -97,32 +156,43 @@
 //!
 //! Allocation (sizes are byte counts):
 //!
-//! * `cinch_alloc(size: i64) -> i64`: allocate `size` zero-filled bytes
-//!   (rounded up to a whole number of 64-bit words, minimum one word) and
-//!   return the block as a word. Negative sizes, size overflow, and
-//!   allocation failure fault through `cinch_panic`.
-//! * `cinch_free(word: i64)`: currently a no-op; blocks are leaked by design
-//!   until reclamation lands. The symbol exists so generated code can
-//!   already emit balanced allocation and deallocation.
-//! * `cinch_alloc_raw(size: i64) -> ptr`: allocate `size` uninitialised
-//!   bytes (rounded up to whole words, minimum one); the allocator
-//!   generated code calls for every constructor, closure, dictionary and
-//!   tuple block.
+//! * `cinch_alloc(size: i64, kind: i64) -> i64`: allocate `size`
+//!   zero-filled bytes (rounded up to a whole number of 64-bit words,
+//!   minimum one word) as a block with header kind `kind` and `rc = 1`,
+//!   and return the block as a word. Negative sizes, a kind outside
+//!   1..=13, size overflow, and allocation failure fault through
+//!   `cinch_panic`.
+//! * `cinch_free(word: i64)`: deallocate the block behind `word` with the
+//!   size its header records, after releasing what a runtime box owns
+//!   outside its block (a bignum's limbs, a heap buffer's data). It never
+//!   visits the block's children. Immediates (low bit 1), 0, and immortal
+//!   blocks (`rc == 0`) are ignored. Generated code does not call it yet.
+//! * `cinch_alloc_raw(size: i64, kind: i64) -> ptr`: allocate `size`
+//!   uninitialised bytes (rounded up to whole words, minimum one) as a
+//!   block with header kind `kind` and `rc = 1`, and return the payload
+//!   pointer; the allocator generated code calls for every constructor,
+//!   closure, dictionary, memo, knot, quote and tuple block, passing the
+//!   block's kind.
 //!
 //! Every heap allocation (the two allocators above and every runtime
 //! `Box`/`Vec`) is counted by the counting global allocator in [`heap`].
 //! Environment: `CINCH_ALLOC_STATS=1` prints
-//! `cinch-alloc: blocks=<n> bytes=<n> peak=<n>` to stderr at exit;
+//! `cinch-alloc: blocks=<n> bytes=<n> peak=<n> header-blocks=<n>
+//! header-bytes=<n> immortal=<n> freed=<n>` to stderr at exit (the last
+//! four count header blocks only, see [`heap`]);
 //! `CINCH_HEAP_LIMIT=<n>[K|M|G]` caps cumulative allocated bytes (default
 //! 8 GiB, `0` disables) and faults with exit 73 and
 //! `cinch: heap limit exceeded (<n> bytes)` past it;
 //! `CINCH_STACK_SIZE=<n>[K|M|G]` sizes the program thread's reserved
 //! stack (default 1 GiB, [`platform::cinch_run_main`]).
 //!
-//! `Nat` (unbounded natural numbers; negative input or results fault):
+//! `Nat` (unbounded natural numbers; negative input or results fault).
+//! Every result word is canonical (see "Small `Nat`/`Int` immediates"),
+//! and an operation whose operands are both immediates allocates only
+//! when its result leaves the immediate range:
 //!
-//! * `cinch_nat_from_i64(v: i64) -> i64`: box a machine integer, faulting on
-//!   negative `v`.
+//! * `cinch_nat_from_i64(v: i64) -> i64`: a machine integer as a word (an
+//!   immediate), faulting on negative `v`.
 //! * `cinch_nat_to_i64(word: i64) -> i64`: value as a machine integer,
 //!   faulting when out of `i64` range.
 //! * `cinch_nat_fits_i64(word: i64) -> i64`: 1 or 0.
@@ -142,9 +212,10 @@
 //!   fault when `cap` is too small (leaving the buffer untouched). Use
 //!   `cinch_nat_decimal_len(word: i64) -> usize` to size the buffer.
 //!
-//! `Int` (unbounded integers):
+//! `Int` (unbounded integers; canonical results as for `Nat`):
 //!
-//! * `cinch_int_from_i64(v: i64) -> i64`: box a machine integer.
+//! * `cinch_int_from_i64(v: i64) -> i64`: a machine integer as a word (a
+//!   block only outside the immediate range).
 //! * `cinch_int_to_i64(word: i64) -> i64`: value as a machine integer,
 //!   faulting when out of `i64` range.
 //! * `cinch_int_fits_i64(word: i64) -> i64`: 1 or 0.
@@ -278,6 +349,7 @@
 //! (`PrimOp::Pty` presents the same `Result` convention).
 
 pub mod abi;
+pub mod block;
 pub mod bytes;
 pub mod coop;
 pub mod error;

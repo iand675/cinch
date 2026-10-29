@@ -2207,6 +2207,60 @@ so the embedding sweep stays its own decision.
   scope's exit, and an escaping knot is a compile error from the existing
   escape checker. This replaces the earlier proposals to leak unproven
   groups and escaping knots. `design/reclamation.md` section 12.
+- **D397 (allocators; decided by the user, 2026-10-29)**: the program
+  allocator is user-supplied, with an in-house small-object allocator
+  (mimalloc-style size classes, free by address mask) as the default and
+  system `malloc` as one choice; scoped allocation is a `Heap r` capability
+  supplied by `with (heap = ...) in`, so arenas and bump allocators are
+  library values (uncounted arena blocks, escape refused statically, a
+  teardown check as the safety net); the `jpl` profile gains fully-in-place
+  functions (`#[fip]`, FP2) and proven `#[alloc "bounded(n)"]` budgets
+  against a static startup pool. `design/allocators.md`.
+- **D398 (header layout; decided by the user)**: the constructor tag folds
+  into the header (slice S1b; a two-field cell is 24 bytes, as in OCaml,
+  GHC, Lean and Koka), and the layout-id width is a compiler build option
+  (default 40-bit count, 8-bit kind, 16-bit layout id; large programs may
+  trade count bits for layout bits; overflow is impossible by construction
+  because the allocator caps the heap below `8 * 2^count_bits` bytes),
+  recorded in `runtime_abi`.
+- **D399 (reclamation S1 as built)**: one header word at offset -8 of
+  every block, statics included: a signed 40-bit count (0 immortal, 1
+  fresh, negative reserved for atomic counts; no overflow check, D398),
+  an 8-bit kind (1 ctor, 2 closure, 3 dict, 4 memo, 5 knot, 6 nat, 7 int,
+  8 bytes, 9 bytes-static, 10 sym, 11 code, 12 boxed scalar, 13 raw, 255
+  freed) and a 16-bit layout field that holds the payload size in words
+  until S5's layout table (0xFFFF means the byte size is in an extra word at
+  -16). The widths are the only named constants (`runtime/src/block_kinds.rs`,
+  included by both the runtime and codegen); every shift and mask derives
+  from them. `block::allocate`/`block::free` are the one allocator
+  interface (slice A1 swaps the backing allocator there).
+  `cinch_alloc_raw(size, kind)` writes the header; `cinch_free` really
+  deallocates and ignores null, immediates and immortal blocks. Static
+  blocks are `@"U.x#h" = [header, words...]` with `@"U.x"` an alias one word
+  in, so no reference site changed. The stats line appends
+  `header-blocks= header-bytes= immortal= freed=`. `runtime_abi` is 2. A
+  `Cons` cell is 32 bytes until S1b folds the tag into the header. Tests:
+  `alloc_accounting` (header blocks counted exactly per cell, immortal
+  symbols counted once per name) and runtime unit tests (field extremes,
+  large blocks, 64 MiB of churn through `cinch_free` with live bytes flat).
+- **D400 (reclamation S2 as built: small `Nat`/`Int` immediates)**: a word
+  with low bit 1 is the immediate `v << 1 | 1`; `Nat` immediates cover
+  `0..=2^63-1` (exactly the non-negative `i64` range, so
+  `cinch_nat_from_i64` never allocates) and `Int` immediates
+  `-2^62..=2^62-1` (the 63-bit two's complement payload, one arithmetic
+  shift to decode). Results are canonical: every entry point returns the
+  immediate whenever the result fits, so a box only ever holds an
+  out-of-range value and the same small value is always the same word.
+  Both-immediate operations run in 128-bit arithmetic with no allocation;
+  mixed operands use a two-limb stack buffer, not a temporary bignum.
+  Codegen folds an in-range `ConstBig` to its constant word; the quote
+  encoder emits small constants as raw `INT` words. Measured: blocks fell
+  79-81% (parser on `Data.HashMap` 2.61 M to 0.56 M; `Run.Maps` 15.5 M to
+  3.0 M blocks and 386 MB to 130 MB), and the last manifest blocked on
+  reclamation (`Data.Machine.cinchif`, 7.4 GB) now round-trips at 690 MB.
+  `tests/small_nats.rs` covers the boundaries 2^62, 2^63, 2^64 and the
+  `Int` edges, promotion and demotion, round trips, and hashing across
+  spellings of the same value.
 
 ### Refinement types (P28)
 

@@ -591,8 +591,8 @@ fn emit_ir_references_the_constant_directly() {
     );
     for l in &lit_lines {
         assert!(
-            l.contains("internal constant { i64, ptr, i64, i64, ptr,"),
-            "the constant is the composite object (block header + bytes): {l}"
+            l.contains("internal constant { i64, i64, ptr, i64, i64, i64, ptr,"),
+            "the constant is the composite object (two headered blocks + bytes): {l}"
         );
         assert!(!l.contains("cinch_bytes_from_data"), "no materialisation: {l}");
     }
@@ -600,8 +600,9 @@ fn emit_ir_references_the_constant_directly() {
         .split_once(' ')
         .map(|(n, _)| n.trim_start_matches('@').to_string())
         .expect("constant name");
+    // The value word points one header word into the composite.
     assert!(
-        ir.contains(&format!("ptrtoint ptr @{name} to i64")),
+        ir.contains(&format!("ptr @{name}, i64 0, i32 1) to i64")),
         "the constant is referenced directly"
     );
     let code = driver_with(Mode::Run, StageMode::Refresh, &dir.join("Main.cinch"), None)
