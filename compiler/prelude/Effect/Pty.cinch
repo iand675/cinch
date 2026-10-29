@@ -318,9 +318,10 @@ module Effect.Pty where
   put-word :: Bytes -> Nat -> String -> Nat
   put-word b i s = put-bytes b i (string-to-bytes s) 0
 
+  -- `src` from `j` copied in one runtime `memmove`, then the NUL.
   put-bytes :: Bytes -> Nat -> Bytes -> Nat -> Nat
-  put-bytes b i src j = case j == bytes-len src of
-    True -> case bytes-set b i 0 of
-      _ -> i + 1
-    False -> case bytes-set b i (bytes-get src j) of
-      _ -> put-bytes b (i + 1) src (j + 1)
+  put-bytes b i src j =
+    let n = bytes-len src - j in
+    let u = bytes-copy-range b src i j n in
+    case bytes-set b (i + n) 0 of
+      _ -> i + n + 1

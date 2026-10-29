@@ -656,41 +656,51 @@ module Text.Uri where
   -- step for step, so the section 5.4 examples reproduce.
   -- -----------------------------------------------------------------
 
+  -- The output buffer is held REVERSED (`rout`), so moving a segment
+  -- costs that segment's length and removing the last one stays local;
+  -- appending each segment to the end of a forward list would re-copy
+  -- the whole output at every segment.
   remove-dot-segments :: String -> String
-  remove-dot-segments s = pack (rem-dots (unpack s) Nil)
+  remove-dot-segments s = pack (reverse (rem-dots (unpack s) Nil))
 
   rem-dots :: List Char -> List Char -> List Char
-  rem-dots input out =
-    if is-empty input then out
-    else if prefix-of (unpack "../") input then rem-dots (drop 3 input) out
-    else if prefix-of (unpack "./") input then rem-dots (drop 2 input) out
-    else if prefix-of (unpack "/./") input then rem-dots (Cons '/' (drop 3 input)) out
-    else if same-chars input (unpack "/.") then rem-dots (Cons '/' Nil) out
-    else if prefix-of (unpack "/../") input then rem-dots (Cons '/' (drop 4 input)) (before-last-slash out)
-    else if same-chars input (unpack "/..") then rem-dots (Cons '/' Nil) (before-last-slash out)
-    else if same-chars input (unpack ".") then out
-    else if same-chars input (unpack "..") then out
-    else move-segment input out
+  rem-dots input rout =
+    if is-empty input then rout
+    else if prefix-of (unpack "../") input then rem-dots (drop 3 input) rout
+    else if prefix-of (unpack "./") input then rem-dots (drop 2 input) rout
+    else if prefix-of (unpack "/./") input then rem-dots (Cons '/' (drop 3 input)) rout
+    else if same-chars input (unpack "/.") then rem-dots (Cons '/' Nil) rout
+    else if prefix-of (unpack "/../") input then rem-dots (Cons '/' (drop 4 input)) (before-last-slash rout)
+    else if same-chars input (unpack "/..") then rem-dots (Cons '/' Nil) (before-last-slash rout)
+    else if same-chars input (unpack ".") then rout
+    else if same-chars input (unpack "..") then rout
+    else move-segment input rout
 
   -- Step E: move the first path segment (a leading `/` plus chars up to
   -- the next `/`, or the chars up to the next `/` when there is no
   -- leading `/`) from the input to the output.
   move-segment :: List Char -> List Char -> List Char
-  move-segment input out = case input of
-    Nil -> out
+  move-segment input rout = case input of
+    Nil -> rout
     Cons c rest ->
       if eq-char c '/' then
         let seg = Cons '/' (take-until '/' rest) in
-        rem-dots (drop-until '/' rest) (out <> seg)
+        rem-dots (drop-until '/' rest) (reverse-onto seg rout)
       else
         let seg = take-until '/' input in
-        rem-dots (drop-until '/' input) (out <> seg)
+        rem-dots (drop-until '/' input) (reverse-onto seg rout)
+
+  -- `xs` reversed in front of `acc`.
+  reverse-onto :: List Char -> List Char -> List Char
+  reverse-onto xs acc = case xs of
+    Nil -> acc
+    Cons x rest -> reverse-onto rest (Cons x acc)
 
   -- The path through its last `/` (the base's directory).
   path-dir :: String -> String
   path-dir s = pack (reverse (drop-until '/' (reverse (unpack s))))
 
-  -- The output with its last segment and that segment's `/` removed
-  -- (section 5.2.4's "remove the last segment").
+  -- The reversed output with its last segment and that segment's `/`
+  -- removed (section 5.2.4's "remove the last segment").
   before-last-slash :: List Char -> List Char
-  before-last-slash cs = reverse (drop 1 (drop-until '/' (reverse cs)))
+  before-last-slash rout = drop 1 (drop-until '/' rout)

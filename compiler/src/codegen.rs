@@ -27,6 +27,33 @@
 //! `cinch.runtime.*` units are wrappers around the `cinch_*` externs of the
 //! runtime crate.
 //!
+//! # The process entry
+//!
+//! A native program's C entry receives the process's own command line and
+//! stashes it in the runtime before any program code runs:
+//!
+//! ```text
+//! define i32 @main(i32 %argc, ptr %argv) {
+//! entry:
+//!   %n = sext i32 %argc to i64
+//!   call i64 @cinch_argv_init(i64 %n, ptr %argv)
+//!   %r = call i64 @cinch_run_main(ptr @"<main>.exit")
+//!   %c = trunc i64 %r to i32
+//!   ret i32 %c
+//! }
+//! ```
+//!
+//! The language-level contract is unchanged (`main :: Int`, or
+//! `main :: Unit ->{e} Int` applied to its `Unit` argument by the
+//! synthesized `<main>.exit` adapter); the capture only makes
+//! `Effect.Process`'s `process-args` answer. `cinch_run_main` runs the
+//! adapter on a thread with a 1 GiB reserved stack and answers its word:
+//! locals live in stack slots, so the platform's 8 MiB main-thread stack
+//! ends after a few thousand frames of an ordinary non-tail recursion. A
+//! Wasm artifact keeps the plain `i32 @main()` shape: its entry is the
+//! loader's `_start` and the host hands the command line to it, not to
+//! this `main`.
+//!
 //! # Parameter convention
 //!
 //! `FnDef::params` carries names for diagnostics only; the body refers to
@@ -108,7 +135,7 @@ pub fn emit_for(profile: &crate::core::TargetProfile, program: &Program) -> Resu
             "target datalayout = \"e-m:e-p:32:32-p10:8:8-p20:8:8-i64:64-i128:128-n32:64-S128-ni:1:10:20\"\n",
         );
     }
-    out.push_str("declare ptr @malloc(i64)\n");
+    out.push_str("declare ptr @cinch_alloc_raw(i64)\n");
     out.push_str("declare ptr @memcpy(ptr, ptr, i64)\n");
     // The runtime ABI's mathematical `Nat`/`Int` and `Bytes` externs
     // (`compiler/runtime/src/lib.rs`); bignum words are pointers to the
@@ -137,6 +164,8 @@ pub fn emit_for(profile: &crate::core::TargetProfile, program: &Program) -> Resu
         "declare i64 @cinch_bytes_len(i64)",
         "declare i64 @cinch_bytes_get(i64, i64)",
         "declare i64 @cinch_bytes_set(i64, i64, i64)",
+        "declare i64 @cinch_bytes_copy(i64, i64, i64, i64, i64)",
+        "declare i64 @cinch_bytes_compare(i64, i64)",
         // A fresh `Bytes` from a pointer-length span: the constant
         // `Bytes` emission (the P14 constant-emission path) and the
         // canonical ABI glue both materialise buffers through it.
@@ -178,6 +207,17 @@ pub fn emit_for(profile: &crate::core::TargetProfile, program: &Program) -> Resu
         "declare i64 @cinch_net_write(i64, i64)",
         "declare i64 @cinch_net_close(i64)",
         "declare i64 @cinch_net_resolve(i64, i64)",
+        // This process's own command line (the argv capture of
+        // `compiler/runtime/src/platform.rs`): the generated entry glue
+        // stashes `argc`/`argv` through `cinch_argv_init`, and the two
+        // readers answer with the capture.
+        "declare i64 @cinch_argv_init(i64, ptr)",
+        "declare i64 @cinch_argv_count()",
+        "declare i64 @cinch_argv_get(i64)",
+        // The program's own thread (`cinch_run_main`): the native entry
+        // glue runs the program on a reserved stack larger than the
+        // platform's main-thread default.
+        "declare i64 @cinch_run_main(ptr)",
         // The live piped child (the piped section of
         // `compiler/runtime/src/platform.rs`): separately readable
         // stdout and stderr, writable stdin.
@@ -347,6 +387,19 @@ pub fn emit_for(profile: &crate::core::TargetProfile, program: &Program) -> Resu
                     // section 2).
                     prim_decl_units(&mut units, &cx, &reg, program, f)?;
                 } else {
+                    // A member of a recursive group whose tail calls cross
+                    // arities runs its body in a worker of the group's
+                    // width (`crate::core::tail_widths`); its own symbol
+                    // stays the entry closures and exports call.
+                    if let Some(&width) = reg.tail_width.get(&f.id.0) {
+                        units.push(build_unit(
+                            &cx,
+                            &reg,
+                            &tail_worker(&f.id.0),
+                            width,
+                            UnitBody::TailWorker(f),
+                        )?);
+                    }
                     units.push(build_unit(&cx, &reg, &f.id.0, f.arity(), UnitBody::Fn(f))?);
                 }
             }
@@ -375,10 +428,30 @@ pub fn emit_for(profile: &crate::core::TargetProfile, program: &Program) -> Resu
 
     if let Some(main_exit) = main_exit {
         let main_unit = &main_exit.0;
-        out.push_str(&format!(
-            "define i32 @main() {{\nentry:\n  %r = call i64 @{}()\n  %c = trunc i64 %r to i32\n  ret i32 %c\n}}\n",
-            quote(main_unit)
-        ));
+        if cx.native {
+            // The native process entry keeps the C signature and hands
+            // the process's own command line to the runtime BEFORE the
+            // program's code runs (`cinch_argv_init`), so a program can
+            // read its own arguments through the prelude's `process-args`
+            // and the language-level contract (`main :: Int`, applied to
+            // `Unit` when it is effectful) is unchanged. The program then
+            // runs on the runtime's reserved-stack thread
+            // (`cinch_run_main`). The result word truncates to the C
+            // `exit` status exactly as before.
+            out.push_str(&format!(
+                "define i32 @main(i32 %argc, ptr %argv) {{\nentry:\n  %n = sext i32 %argc to i64\n  call i64 @cinch_argv_init(i64 %n, ptr %argv)\n  %r = call i64 @cinch_run_main(ptr @{})\n  %c = trunc i64 %r to i32\n  ret i32 %c\n}}\n",
+                quote(main_unit)
+            ));
+        } else {
+            // A Wasm artifact has no `argv` to capture (its entry is the
+            // loader's `_start`, not this `main`), so the entry stays as
+            // it was: the command line reaches it through the platform
+            // layer a Wasm target actually provides.
+            out.push_str(&format!(
+                "define i32 @main() {{\nentry:\n  %r = call i64 @{}()\n  %c = trunc i64 %r to i32\n  ret i32 %c\n}}\n",
+                quote(main_unit)
+            ));
+        }
     }
     // Function attribute groups and metadata nodes (the branch weights
     // of attribute annotations specification section 3.1).
@@ -467,6 +540,10 @@ struct Registry {
     /// (`%__sl_layout_N = type [W x i8]`), keyed by width: the `byval`
     /// and `sret` spellings need a pointee type.
     layout_types: BTreeMap<u64, String>,
+    /// The widened tail signatures (`crate::core::tail_widths`): a unit
+    /// named here runs its body in the worker `tail_worker(name)`, which
+    /// takes the mapped number of words.
+    tail_width: HashMap<String, usize>,
 }
 
 impl Registry {
@@ -646,6 +723,7 @@ impl Registry {
                 reg.ranges.insert(f.id.0.clone(), r);
             }
         }
+        reg.tail_width = crate::core::tail_widths(p);
         // The named by-value layout types (`byval`/`sret` pointees).
         let mut widths: BTreeSet<u64> = BTreeSet::new();
         for plan in p.foreigns.values() {
@@ -663,7 +741,7 @@ impl Registry {
         // and must not collide with the runtime helpers.
         let mut globals: HashSet<String> = HashSet::new();
         for unit in reg.arity.keys() {
-            for suffix in ["", ".app", ".clo", ".blk"] {
+            for suffix in ["", ".app", ".clo", ".blk", "#tail"] {
                 let full = format!("{unit}{suffix}");
                 for reserved in ["main", "__apply", "malloc", "memcpy"] {
                     if full == reserved {
@@ -693,6 +771,31 @@ impl Registry {
             .copied()
             .ok_or_else(|| crate::Error::plain(format!("unknown code generation unit {name:?}")))
     }
+
+    /// The symbol and parameter count a direct call of `unit` (arity
+    /// `arity`) targets: its widened worker where it has one, else the
+    /// unit itself. Two units whose tail signatures have one count have
+    /// identical prototypes, which is what `musttail` needs.
+    fn tail_sig(&self, unit: &str, arity: usize) -> (String, usize) {
+        match self.tail_width.get(unit) {
+            Some(&width) => (tail_worker(unit), width),
+            None => (unit.to_string(), arity),
+        }
+    }
+}
+
+/// The worker symbol of a widened unit. `#` appears in no source
+/// identifier, so the name cannot meet another unit's.
+fn tail_worker(unit: &str) -> String {
+    format!("{unit}#tail")
+}
+
+/// A direct call's argument list padded to the callee's tail signature:
+/// a widened worker ignores its trailing words.
+fn padded_args(vals: &[String], width: usize) -> String {
+    let mut out: Vec<String> = vals.iter().map(|v| format!("i64 {v}")).collect();
+    out.resize(width.max(vals.len()), "i64 undef".to_string());
+    out.join(", ")
 }
 
 enum UnitBody<'a> {
@@ -700,6 +803,10 @@ enum UnitBody<'a> {
     Ctor(usize, usize),
     Mk(&'a InstInfo),
     Fn(&'a FnDef),
+    /// A widened unit's body under its group's tail signature
+    /// (`Registry::tail_sig`); the unit's own symbol becomes a one-call
+    /// wrapper into it.
+    TailWorker(&'a FnDef),
     /// A real foreign import's synthesized marshalling wrapper (foreign
     /// function interface specification section 2).
     Foreign(&'a crate::core::ForeignPlan),
@@ -809,7 +916,7 @@ enum Callee {
     Unit,
     /// An LLVM intrinsic that touches no memory.
     Pure,
-    /// An allocation (`malloc`).
+    /// An allocation (`cinch_alloc_raw`, the runtime's accounted allocator).
     Alloc,
     /// A memory copy or fill (`memcpy`, `memset`).
     Copy,
@@ -830,7 +937,7 @@ fn classify_callee(sym: &str, units: &BTreeSet<String>) -> Callee {
         return Callee::Unit;
     }
     match sym {
-        "malloc" => Callee::Alloc,
+        "cinch_alloc_raw" => Callee::Alloc,
         "memcpy" => Callee::Copy,
         "__apply" | "__cinch_demand" => Callee::Indirect,
         "exit" | "cinch_panic" | "__cinch_blackhole" => Callee::Fault,
@@ -1126,7 +1233,7 @@ fn build_unit(
         }
         UnitBody::Mk(info) => mk_body(&mut b, info),
         UnitBody::Foreign(plan) => foreign_import_body(&mut b, cx, reg, plan)?,
-        UnitBody::Fn(f) => {
+        UnitBody::Fn(f) | UnitBody::TailWorker(f) => {
             hints = f.hints;
             lang.def = true;
             lang.pure = f.meta.pure;
@@ -1135,12 +1242,28 @@ fn build_unit(
             lang.checked_params = f.meta.contract.checked_params;
             ret_range = f.meta.contract.result_range;
             noundef_params = f.meta.contract.params.iter().map(|p| p.noundef).collect();
-            core_body(&mut b, reg, f)?;
+            match (&body, reg.tail_width.get(name)) {
+                (UnitBody::Fn(_), Some(&width)) => {
+                    let params: Vec<String> = (0..arity).map(|i| format!("%p{i}")).collect();
+                    let r = b.reg();
+                    b.line(&format!(
+                        "{r} = call i64 @{}({})",
+                        quote(&tail_worker(name)),
+                        padded_args(&params, width)
+                    ));
+                    b.line(&format!("ret i64 {r}"));
+                }
+                _ => core_body(&mut b, reg, f, arity)?,
+            }
         }
     }
     let header = fn_header(name, arity, ret_range, &noundef_params);
-    let units: BTreeSet<String> = reg.arity.keys().cloned().collect();
+    let mut units: BTreeSet<String> = reg.arity.keys().cloned().collect();
+    units.extend(reg.tail_width.keys().map(|u| tail_worker(u)));
     let scan = scan_body(&format!("{}{}", b.allocas, b.code), &units);
+    // A worker is never a first-class value: closures and the apply
+    // stub reach it through the unit's own symbol.
+    let worker = matches!(body, UnitBody::TailWorker(_));
     Ok(EmittedUnit {
         name: name.to_string(),
         hints,
@@ -1151,8 +1274,8 @@ fn build_unit(
         header,
         allocas: b.allocas,
         code: b.code,
-        stub: stub_def(name, arity),
-        clo: clo_def(name, arity),
+        stub: if worker { String::new() } else { stub_def(name, arity) },
+        clo: if worker { String::new() } else { clo_def(name, arity) },
         scan,
         lang_facts: lang,
     })
@@ -1215,7 +1338,7 @@ fn stub_def(name: &str, arity: usize) -> String {
     let szb = b.reg();
     b.line(&format!("{szb} = mul i64 {sz}, 8"));
     let new = b.reg();
-    b.line(&format!("{new} = call ptr @malloc(i64 {szb})"));
+    b.line(&format!("{new} = call ptr @cinch_alloc_raw(i64 {szb})"));
     let cw = b.load_at("%self", 0);
     b.store_at(&new, 0, &cw);
     b.store_at(&new, 8, &arity.to_string());
@@ -1670,7 +1793,7 @@ fn ret_option(
     b.start(&lsome);
     let v = val(b);
     let p = b.reg();
-    b.line(&format!("{p} = call ptr @malloc(i64 16)"));
+    b.line(&format!("{p} = call ptr @cinch_alloc_raw(i64 16)"));
     b.store_at(&p, 0, "1");
     b.store_at(&p, 8, &v);
     let w = b.reg();
@@ -1702,7 +1825,7 @@ fn ret_result(b: &mut Builder, raw: &str, ok: impl FnOnce(&mut Builder) -> Strin
     let code = b.reg();
     b.line(&format!("{code} = sub i64 0, {raw}"));
     let ep = b.reg();
-    b.line(&format!("{ep} = call ptr @malloc(i64 16)"));
+    b.line(&format!("{ep} = call ptr @cinch_alloc_raw(i64 16)"));
     b.store_at(&ep, 0, "0");
     b.store_at(&ep, 8, &code);
     let ew = b.reg();
@@ -1711,7 +1834,7 @@ fn ret_result(b: &mut Builder, raw: &str, ok: impl FnOnce(&mut Builder) -> Strin
     b.start(&lok);
     let v = ok(b);
     let op = b.reg();
-    b.line(&format!("{op} = call ptr @malloc(i64 16)"));
+    b.line(&format!("{op} = call ptr @cinch_alloc_raw(i64 16)"));
     b.store_at(&op, 0, "1");
     b.store_at(&op, 8, &v);
     let ow = b.reg();
@@ -1901,7 +2024,7 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, name: &str, op: PrimOp) {
                         b.line(&format!("{w} = lshr i64 {n}, 32"));
                         let nw = rt_call(b, "cinch_nat_from_i64", &[format!("i64 {w}")]);
                         let t = b.reg();
-                        b.line(&format!("{t} = call ptr @malloc(i64 24)"));
+                        b.line(&format!("{t} = call ptr @cinch_alloc_raw(i64 24)"));
                         b.store_at(&t, 0, "0");
                         b.store_at(&t, 8, &cp);
                         b.store_at(&t, 16, &nw);
@@ -1971,6 +2094,29 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, name: &str, op: PrimOp) {
                         &[args[0].clone(), format!("i64 {i}"), format!("i64 {v}")],
                     );
                     ret(b, "0");
+                }
+                BytesOp::Copy => {
+                    let di = rt_call(b, "cinch_nat_to_i64", &[args[2].clone()]);
+                    let si = rt_call(b, "cinch_nat_to_i64", &[args[3].clone()]);
+                    let n = rt_call(b, "cinch_nat_to_i64", &[args[4].clone()]);
+                    let _ = rt_call(
+                        b,
+                        k.extern_name(),
+                        &[
+                            args[0].clone(),
+                            args[1].clone(),
+                            format!("i64 {di}"),
+                            format!("i64 {si}"),
+                            format!("i64 {n}"),
+                        ],
+                    );
+                    ret(b, "0");
+                }
+                BytesOp::Compare => {
+                    // The order is a machine word (-1/0/1), not a `Nat`:
+                    // nothing to box.
+                    let r = rt_call(b, k.extern_name(), &args);
+                    ret(b, &r);
                 }
             }
         }
@@ -2112,17 +2258,34 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, name: &str, op: PrimOp) {
             }
         }
         Proc(k) => {
-            // The piped-child units (the piped section of
+            // The process units (the argv capture and the piped section of
             // `compiler/runtime/src/platform.rs`): the program text, the
             // NUL-separated argument and environment words and the
             // payloads cross as `Bytes` words, the handles and the pipe
-            // selector as machine scalars, and the boundary word becomes
-            // the prelude `Result` through `ret_result`.
+            // selector as machine scalars, and the child half's boundary
+            // word becomes the prelude `Result` through `ret_result`.
+            // The command line is raw rather than a `Result`: a captured
+            // word has no failure mode.
             use ProcOp::*;
             let raw_args = |n: usize| -> Vec<String> {
                 (0..n).map(|i| format!("i64 %p{i}")).collect()
             };
             match k {
+                ArgCount => {
+                    // The `Unit` argument is the prelude's arity spelling
+                    // only; the extern takes none (as `fsTempDir`), and
+                    // the machine count boxes as the `Nat` result.
+                    let c = rt_call(b, k.extern_name(), &[]);
+                    let n = rt_call(b, "cinch_nat_from_i64", &[format!("i64 {c}")]);
+                    ret(b, &n);
+                }
+                Arg => {
+                    // The `Nat` index crosses as an `i64`; the result is
+                    // already a boxed `Bytes` word.
+                    let i = rt_call(b, "cinch_nat_to_i64", &["i64 %p0".to_string()]);
+                    let w = rt_call(b, k.extern_name(), &[format!("i64 {i}")]);
+                    ret(b, &w);
+                }
                 Spawn => {
                     let r = rt_call(b, k.extern_name(), &raw_args(4));
                     let w = freeze_word(b, &r);
@@ -2291,7 +2454,7 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, name: &str, op: PrimOp) {
                     b.start(&lfail);
                     let ep = b.load_at(&out, 0);
                     let eb = b.reg();
-                    b.line(&format!("{eb} = call ptr @malloc(i64 16)"));
+                    b.line(&format!("{eb} = call ptr @cinch_alloc_raw(i64 16)"));
                     b.store_at(&eb, 0, "0");
                     b.store_at(&eb, 8, &ep);
                     let ew = b.reg();
@@ -2303,14 +2466,14 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, name: &str, op: PrimOp) {
                     let okw = if n == 1 {
                         let p = b.load_at(&out, 0);
                         let ok = b.reg();
-                        b.line(&format!("{ok} = call ptr @malloc(i64 16)"));
+                        b.line(&format!("{ok} = call ptr @cinch_alloc_raw(i64 16)"));
                         b.store_at(&ok, 0, "1");
                         b.store_at(&ok, 8, &p);
                         ok
                     } else {
                         let tup = b.reg();
                         b.line(&format!(
-                            "{tup} = call ptr @malloc(i64 {})",
+                            "{tup} = call ptr @cinch_alloc_raw(i64 {})",
                             8 + 8 * n
                         ));
                         b.store_at(&tup, 0, "0");
@@ -2321,7 +2484,7 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, name: &str, op: PrimOp) {
                         let tupw = b.reg();
                         b.line(&format!("{tupw} = ptrtoint ptr {tup} to i64"));
                         let ok = b.reg();
-                        b.line(&format!("{ok} = call ptr @malloc(i64 16)"));
+                        b.line(&format!("{ok} = call ptr @cinch_alloc_raw(i64 16)"));
                         b.store_at(&ok, 0, "1");
                         b.store_at(&ok, 8, &tupw);
                         ok
@@ -3017,7 +3180,7 @@ fn ctor_body(
     if let Some(plan) = plan {
         let bytes = 8 + plan.payload;
         let p = b.reg();
-        b.line(&format!("{p} = call ptr @malloc(i64 {bytes})"));
+        b.line(&format!("{p} = call ptr @cinch_alloc_raw(i64 {bytes})"));
         b.store_at(&p, 0, &tag.to_string());
         let payload = b.gep(&p, 8);
         for (i, fa) in plan.fields.iter().enumerate() {
@@ -3030,7 +3193,7 @@ fn ctor_body(
     }
     let bytes = (1 + fields) * 8;
     let p = b.reg();
-    b.line(&format!("{p} = call ptr @malloc(i64 {bytes})"));
+    b.line(&format!("{p} = call ptr @cinch_alloc_raw(i64 {bytes})"));
     b.store_at(&p, 0, &tag.to_string());
     for i in 0..fields {
         b.store_at(&p, (1 + i) * 8, &format!("%p{i}"));
@@ -3198,7 +3361,7 @@ fn load_field_word(b: &mut Builder, reg: &Registry, payload: &str, fa: &FieldAcc
         FieldShape::Inline { size, tag, fields } => {
             // Box the inline payload out into a fresh block.
             let blk = b.reg();
-            b.line(&format!("{blk} = call ptr @malloc(i64 {})", 8 + size));
+            b.line(&format!("{blk} = call ptr @cinch_alloc_raw(i64 {})", 8 + size));
             b.store_at(&blk, 0, &tag.to_string());
             let dst = b.gep(&blk, 8);
             let src = b.gep(payload, fa.offset as usize);
@@ -3593,7 +3756,7 @@ fn foreign_import_body(
             ));
             let blk = b.reg();
             b.line(&format!(
-                "{blk} = call ptr @malloc(i64 {})",
+                "{blk} = call ptr @cinch_alloc_raw(i64 {})",
                 8 + plan.result.width
             ));
             b.store_at(&blk, 0, &plan.result.tag.to_string());
@@ -3680,7 +3843,7 @@ fn export_entry(out: &mut String, plan: &ForeignPlan, reg: &Registry, cx: &Lower
                 });
                 let blk = b.reg();
                 b.line(&format!(
-                    "{blk} = call ptr @malloc(i64 {})",
+                    "{blk} = call ptr @cinch_alloc_raw(i64 {})",
                     8 + p.width
                 ));
                 b.store_at(&blk, 0, &p.tag.to_string());
@@ -3756,7 +3919,7 @@ fn mk_body(b: &mut Builder, info: &InstInfo) {
     let mc = info.method_count;
     let bytes = (1 + mc) * 8;
     let p = b.reg();
-    b.line(&format!("{p} = call ptr @malloc(i64 {bytes})"));
+    b.line(&format!("{p} = call ptr @cinch_alloc_raw(i64 {bytes})"));
     b.store_at(&p, 0, &mc.to_string());
     for (i, (method, m_arity)) in info.methods.iter().enumerate() {
         let w = if *m_arity == info.subdict_count {
@@ -3782,7 +3945,7 @@ fn mk_body(b: &mut Builder, info: &InstInfo) {
         } else {
             let cb = (3 + info.subdict_count) * 8;
             let c = b.reg();
-            b.line(&format!("{c} = call ptr @malloc(i64 {cb})"));
+            b.line(&format!("{c} = call ptr @cinch_alloc_raw(i64 {cb})"));
             let cw = b.reg();
             b.line(&format!(
                 "{cw} = ptrtoint ptr @{app} to i64",
@@ -3805,15 +3968,17 @@ fn mk_body(b: &mut Builder, info: &InstInfo) {
     b.line(&format!("ret i64 {w}"));
 }
 
-/// Lower a [`FnDef`] body from [`Core`].
-fn core_body(b: &mut Builder, reg: &Registry, f: &FnDef) -> Result<()> {
+/// Lower a [`FnDef`] body from [`Core`] into a unit taking `width`
+/// parameters: the definition's arity, or its group's width for a
+/// widened worker (the trailing parameters unused).
+fn core_body(b: &mut Builder, reg: &Registry, f: &FnDef, width: usize) -> Result<()> {
     let mut bound: Vec<LocalId> = (0..f.arity()).map(LocalId).collect();
     collect_binders(&f.body, &mut bound);
     let mut e = CoreEmitter {
         b,
         reg,
         unit: f.id.0.clone(),
-        unit_arity: f.arity(),
+        width,
         loop_label: String::new(),
         bound: bound.into_iter().collect(),
         slots: HashMap::new(),
@@ -3997,9 +4162,10 @@ struct CoreEmitter<'a, 'b> {
     reg: &'a Registry,
     /// The unit's name, for unique private constant names.
     unit: String,
-    /// The unit's parameter count: the tail-call rules compare callee
+    /// The unit's parameter count (its arity, or the group width of a
+    /// widened worker): the tail-call rules compare callee tail
     /// signatures against it (decision D104).
-    unit_arity: usize,
+    width: usize,
     /// The loop header a saturated self tail call jumps to (decision
     /// D104).
     loop_label: String,
@@ -4280,7 +4446,7 @@ impl CoreEmitter<'_, '_> {
                 }
                 let bytes = (3 + env.len()) * 8;
                 let c = self.b.reg();
-                self.b.line(&format!("{c} = call ptr @malloc(i64 {bytes})"));
+                self.b.line(&format!("{c} = call ptr @cinch_alloc_raw(i64 {bytes})"));
                 let cw = self.b.reg();
                 self.b.line(&format!(
                     "{cw} = ptrtoint ptr @{app} to i64",
@@ -4351,7 +4517,7 @@ impl CoreEmitter<'_, '_> {
                 // `{ state; value }` fixpoint box: an empty read faults
                 // through the black-hole rule (exit 70).
                 let c = self.b.reg();
-                self.b.line(&format!("{c} = call ptr @malloc(i64 16)"));
+                self.b.line(&format!("{c} = call ptr @cinch_alloc_raw(i64 16)"));
                 self.b.store_at(&c, 0, "0");
                 self.b.store_at(&c, 8, "0");
                 let w = self.b.reg();
@@ -4395,7 +4561,7 @@ impl CoreEmitter<'_, '_> {
                 // `{ state; thunk; value }`; the thunk slot is filled by
                 // `LazyInit`.
                 let c = self.b.reg();
-                self.b.line(&format!("{c} = call ptr @malloc(i64 24)"));
+                self.b.line(&format!("{c} = call ptr @cinch_alloc_raw(i64 24)"));
                 self.b.store_at(&c, 0, "0");
                 self.b.store_at(&c, 8, "0");
                 self.b.store_at(&c, 16, "0");
@@ -4440,8 +4606,7 @@ impl CoreEmitter<'_, '_> {
             if arity == args.len() {
                 let mut vals = Vec::with_capacity(args.len());
                 for a in args {
-                    let v = self.emit_expr(a)?;
-                    vals.push(format!("i64 {v}"));
+                    vals.push(self.emit_expr(a)?);
                 }
                 // The result's `!range` fact where the callee's type
                 // states one (the plan note's item 3).
@@ -4451,11 +4616,14 @@ impl CoreEmitter<'_, '_> {
                     }
                     _ => String::new(),
                 };
+                // A widened callee is called in its worker directly,
+                // without the wrapper's extra frame.
+                let (sym, width) = self.reg.tail_sig(&unit, arity);
                 let r = self.b.reg();
                 self.b.line(&format!(
                     "{r} = call i64 @{}({}){rng}",
-                    quote(&unit),
-                    vals.join(", ")
+                    quote(&sym),
+                    padded_args(&vals, width)
                 ));
                 return Ok(r);
             }
@@ -4488,9 +4656,12 @@ impl CoreEmitter<'_, '_> {
     ///   registers first, then stores them over the unit's parameter
     ///   slots and jumps to the loop header: constant stack however deep
     ///   the recursion runs.
-    /// - A tail call to a known unit with the caller's exact arity is a
-    ///   `musttail` call whose result returns directly (mutual tail
-    ///   recursion: the C ABI boundary does not keep frames).
+    /// - A tail call to a known unit whose tail signature has the
+    ///   caller's parameter count is a `musttail` call whose result
+    ///   returns directly (mutual tail recursion: the C ABI boundary
+    ///   does not keep frames). The members of a recursive group of
+    ///   mixed arities share one widened signature
+    ///   (`crate::core::tail_widths`), so their mutual calls qualify.
     /// - Anything else is an ordinary call followed by `ret`.
     fn emit_tail(&mut self, e: &Core) -> Result<()> {
         match e {
@@ -4546,19 +4717,19 @@ impl CoreEmitter<'_, '_> {
                         self.b.line(&format!("br label %{loop_label}"));
                         Ok(())
                     }
-                    Some((unit, arity)) if arity == self.unit_arity => {
-                        // Same signature as the caller, so `musttail` is
+                    Some((unit, arity)) if self.reg.tail_sig(&unit, arity).1 == self.width => {
+                        // Same prototype as the caller, so `musttail` is
                         // legal: the callee's frame replaces ours.
                         let mut vals = Vec::with_capacity(args.len());
                         for a in args {
-                            let v = self.emit_expr(a)?;
-                            vals.push(format!("i64 {v}"));
+                            vals.push(self.emit_expr(a)?);
                         }
+                        let (sym, width) = self.reg.tail_sig(&unit, arity);
                         let r = self.b.reg();
                         self.b.line(&format!(
                             "{r} = musttail call i64 @{}({})",
-                            quote(&unit),
-                            vals.join(", ")
+                            quote(&sym),
+                            padded_args(&vals, width)
                         ));
                         self.b.line(&format!("ret i64 {r}"));
                         Ok(())
@@ -4767,7 +4938,10 @@ mod tests {
             "[{name}] clang rejected emitted IR:\n{}\n--- IR ---\n{ir}",
             String::from_utf8_lossy(&cc.stderr)
         );
+        // The platform's main-thread stack size, not the runtime's 1 GiB
+        // reservation: the constant-stack tests prove depth against it.
         let out = Command::new(&bin)
+            .env("CINCH_STACK_SIZE", "8M")
             .output()
             .unwrap_or_else(|e| panic!("[{name}] failed to run compiled binary: {e}"));
         let code = out.status.code().unwrap_or_else(|| {
@@ -5511,11 +5685,14 @@ mod tests {
     }
 
     #[test]
-    fn tail_call_fallback_on_signature_mismatch_is_reported() {
-        // `f a b = if a == 0 then 0 else g (a - 1)` tail-calls `g`, whose
-        // arity differs from `f`'s: `musttail` needs identical
-        // signatures, so the group falls back to ordinary calls and the
-        // report says so (surface grammar local amendments section 9).
+    fn mixed_arity_mutual_tail_calls_run_in_constant_stack() {
+        // `f a b = if a == 0 then 0 else g (a - 1)` and `g x = f x x`
+        // tail-call each other across arities. `musttail` needs identical
+        // prototypes, so the group lowers under its widest arity: `g`'s
+        // body runs in the two-word worker `T.g#tail` and both mutual
+        // calls are `musttail` (surface grammar local amendments section
+        // 9). From `f 1000000 0` the cycle is 2,000,001 calls deep, which
+        // a frame per call could not reach on the 8 MiB test stack.
         let f = fndef(
             "T.f",
             &["a", "b"],
@@ -5529,19 +5706,37 @@ mod tests {
             ),
         );
         let gg = fndef("T.g", &["x"], app(g("T.f"), vec![v(0), v(0)]));
-        let prog = main_prog(vec![f, gg], app(g("T.f"), vec![n(3), n(0)]));
-        assert_eq!(run("tail_call_fallback_runs", &prog), 0);
+        let prog = main_prog(vec![f, gg], app(g("T.f"), vec![n(1_000_000), n(0)]));
+        assert_eq!(run("mixed_arity_mutual_tail", &prog), 0);
         let ir = emit(&prog).expect("emit");
         assert!(
-            !ir.contains("musttail"),
-            "a signature mismatch must not be tail-marked:\n{ir}"
+            ir.contains("musttail call i64 @\"T.g#tail\"(")
+                && ir.contains("musttail call i64 @\"T.f\"("),
+            "mixed-arity mutual tail calls must be tail-marked:\n{ir}"
         );
+        // `T.g` keeps its own one-word symbol for closures and exports.
+        assert!(ir.contains("define i64 @\"T.g\"(i64 %p0)"), "{ir}");
+        assert_eq!(crate::core::tail_widths(&prog).get("T.g"), Some(&2));
         let groups = crate::core::tail_report(&prog);
         assert_eq!(groups.len(), 1, "{groups:?}");
         assert_eq!(groups[0].members, vec!["T.f", "T.g"]);
+        assert_eq!(groups[0].mark, "marked");
+    }
+
+    #[test]
+    fn tail_call_fallback_on_unsaturated_call_is_reported() {
+        // `h x = k x x x` over-applies `k a b`: an unsaturated tail call
+        // goes through `__apply`, so the group falls back and the report
+        // names the call (surface grammar local amendments section 9).
+        let k = fndef("T.k", &["a", "b"], app(g("T.h"), vec![v(0)]));
+        let h = fndef("T.h", &["x"], app(g("T.k"), vec![v(0), v(0), v(0)]));
+        let prog = main_prog(vec![k, h], n(0));
+        let groups = crate::core::tail_report(&prog);
+        assert_eq!(groups.len(), 1, "{groups:?}");
+        assert_eq!(groups[0].members, vec!["T.h", "T.k"]);
         assert_eq!(
             groups[0].mark,
-            "fallback (tail call T.f -> T.g: arity 1 differs from caller arity 2)"
+            "fallback (tail call T.h -> T.k: applied to 3 arguments, unit arity 2)"
         );
     }
 
@@ -5705,6 +5900,61 @@ mod tests {
             )),
         );
         assert_eq!(run("bytes_set_bad_value", &main_prog(vec![], set_bad)), 71);
+    }
+
+    #[test]
+    fn bytes_copy_is_a_memmove_and_compare_orders_contents() {
+        // b = [1, 2, 0, 0]; bytesCopy b b 1 0 3 moves [1, 2, 0] one to the
+        // right: [1, 1, 2, 0] (a byte-at-a-time forward copy would smear
+        // to [1, 1, 1, 1]). The answer is b[2] * 10 + b[3] = 20.
+        let set = |i: &str, x: &str| {
+            app(p(PrimOp::Bytes(BytesOp::Set)), vec![v(0), cnat(i), cnat(x)])
+        };
+        let get = |i: &str| app(p(PrimOp::Bytes(BytesOp::Get)), vec![v(0), cnat(i)]);
+        let answer = app(p(PrimOp::Nat(NatOp::ToI64)), vec![app(
+            p(PrimOp::Nat(NatOp::Add)),
+            vec![app(p(PrimOp::Nat(NatOp::Mul)), vec![get("2"), cnat("10")]), get("3")],
+        )]);
+        let copy = app(
+            p(PrimOp::Bytes(BytesOp::Copy)),
+            vec![v(0), v(0), cnat("1"), cnat("0"), cnat("3")],
+        );
+        let body = Core::Let(
+            LocalId(0),
+            Box::new(app(p(PrimOp::Bytes(BytesOp::New)), vec![cnat("4")])),
+            Box::new(Core::Let(
+                LocalId(1),
+                Box::new(set("0", "1")),
+                Box::new(Core::Let(
+                    LocalId(2),
+                    Box::new(set("1", "2")),
+                    Box::new(Core::Let(LocalId(3), Box::new(copy), Box::new(answer))),
+                )),
+            )),
+        );
+        assert_eq!(run("bytes_copy_memmove", &main_prog(vec![], body)), 20);
+
+        // bytesCompare (bytesNew 2) (bytesNew 3) is -1 (a proper prefix
+        // orders first): exit status 255.
+        let cmp = app(
+            p(PrimOp::Bytes(BytesOp::Compare)),
+            vec![
+                app(p(PrimOp::Bytes(BytesOp::New)), vec![cnat("2")]),
+                app(p(PrimOp::Bytes(BytesOp::New)), vec![cnat("3")]),
+            ],
+        );
+        assert_eq!(run("bytes_compare_prefix", &main_prog(vec![], cmp)), 255);
+
+        // A range past either end faults through the panic path.
+        let oob = Core::Let(
+            LocalId(0),
+            Box::new(app(p(PrimOp::Bytes(BytesOp::New)), vec![cnat("4")])),
+            Box::new(app(
+                p(PrimOp::Bytes(BytesOp::Copy)),
+                vec![v(0), v(0), cnat("2"), cnat("0"), cnat("3")],
+            )),
+        );
+        assert_eq!(run("bytes_copy_oob", &main_prog(vec![], oob)), 71);
     }
 }
 
@@ -6097,7 +6347,7 @@ fn emit_quote_block(e: &mut CoreEmitter, body: &Core, holes: &[Core]) -> Result<
     let n = hv.len();
     let bytes = (4 + n) * 8;
     let p = e.b.reg();
-    e.b.line(&format!("{p} = call ptr @malloc(i64 {bytes})"));
+    e.b.line(&format!("{p} = call ptr @cinch_alloc_raw(i64 {bytes})"));
     // The code block's kind word (runtime ABI `KIND_CODE`).
     e.b.store_at(&p, 0, "3");
     e.b.store_at(&p, 8, &format!("ptrtoint (ptr @{g} to i64)", g = quote(&gname)));
@@ -6171,7 +6421,7 @@ fn canon_word_to_flat(
             let len = rt_call(b, "cinch_bytes_len", &[format!("i64 {ww}")]);
             let src = rt_call(b, "cinch_bytes_data", &[format!("i64 {ww}")]);
             let dst = b.reg();
-            b.line(&format!("{dst} = call ptr @malloc(i64 {len})"));
+            b.line(&format!("{dst} = call ptr @cinch_alloc_raw(i64 {len})"));
             let sp = b.reg();
             b.line(&format!("{sp} = inttoptr i64 {src} to ptr"));
             let cp = b.reg();
@@ -6241,7 +6491,7 @@ fn canon_lift_shape(
             let w = rt_call(b, "cinch_bytes_from_data", &[format!("i64 {p64}"), format!("i64 {l64}")]);
             if *wrapped {
                 let blk = b.reg();
-                b.line(&format!("{blk} = call ptr @malloc(i64 16)"));
+                b.line(&format!("{blk} = call ptr @cinch_alloc_raw(i64 16)"));
                 b.store_at(&blk, 0, "0");
                 b.store_at(&blk, 8, &w);
                 let r = b.reg();
@@ -6262,7 +6512,7 @@ fn canon_lift_shape(
         CanonShape::Ctor { tag, tag_at, fields } => {
             let blk = b.reg();
             b.line(&format!(
-                "{blk} = call ptr @malloc(i64 {})",
+                "{blk} = call ptr @cinch_alloc_raw(i64 {})",
                 8 * (1 + fields.len())
             ));
             match tag_at {
@@ -6326,7 +6576,7 @@ fn canon_lower_shape(
             let len = rt_call(b, "cinch_bytes_len", &[format!("i64 {ww}")]);
             let src = rt_call(b, "cinch_bytes_data", &[format!("i64 {ww}")]);
             let dst = b.reg();
-            b.line(&format!("{dst} = call ptr @malloc(i64 {len})"));
+            b.line(&format!("{dst} = call ptr @cinch_alloc_raw(i64 {len})"));
             let sp = b.reg();
             b.line(&format!("{sp} = inttoptr i64 {src} to ptr"));
             let r = b.reg();
@@ -6438,10 +6688,10 @@ fn canon_import_body(b: &mut Builder, plan: &ForeignPlan) -> Result<()> {
             let blk = b.reg();
             if matches!(case.payload, crate::core::CanonShape::Unit) {
                 // A zero-field constructor block is its tag word.
-                b.line(&format!("{blk} = call ptr @malloc(i64 8)"));
+                b.line(&format!("{blk} = call ptr @cinch_alloc_raw(i64 8)"));
                 b.store_at(&blk, 0, &case.safe_tag.to_string());
             } else {
-                b.line(&format!("{blk} = call ptr @malloc(i64 16)"));
+                b.line(&format!("{blk} = call ptr @cinch_alloc_raw(i64 16)"));
                 b.store_at(&blk, 0, &case.safe_tag.to_string());
                 b.store_at(&blk, 8, &payload);
             }
@@ -6488,7 +6738,7 @@ fn canon_import_body(b: &mut Builder, plan: &ForeignPlan) -> Result<()> {
             crate::core::CanonShape::Ctor { tag_at: Some(_), .. } => {
                 // An enum value: its block carries the discriminant.
                 let blk = b.reg();
-                b.line(&format!("{blk} = call ptr @malloc(i64 8)"));
+                b.line(&format!("{blk} = call ptr @cinch_alloc_raw(i64 8)"));
                 b.store_at(&blk, 0, &v);
                 let w = b.reg();
                 b.line(&format!("{w} = ptrtoint ptr {blk} to i64"));
@@ -6497,7 +6747,7 @@ fn canon_import_body(b: &mut Builder, plan: &ForeignPlan) -> Result<()> {
             crate::core::CanonShape::Ctor { tag, tag_at: None, fields } => {
                 let blk = b.reg();
                 b.line(&format!(
-                    "{blk} = call ptr @malloc(i64 {})",
+                    "{blk} = call ptr @cinch_alloc_raw(i64 {})",
                     8 * (1 + fields.len())
                 ));
                 b.store_at(&blk, 0, &tag.to_string());
@@ -6616,7 +6866,7 @@ fn canon_export_entry(out: &mut String, plan: &ForeignPlan, reg: &Registry) -> R
                 );
                 if *wrapped {
                     let blk = b.reg();
-                    b.line(&format!("{blk} = call ptr @malloc(i64 16)"));
+                    b.line(&format!("{blk} = call ptr @cinch_alloc_raw(i64 16)"));
                     b.store_at(&blk, 0, "0");
                     b.store_at(&blk, 8, &w);
                     let r = b.reg();
@@ -6639,7 +6889,7 @@ fn canon_export_entry(out: &mut String, plan: &ForeignPlan, reg: &Registry) -> R
                         // A block word carrying the discriminant or bits.
                         let blk = b.reg();
                         let words = if matches!(step, CanonStep::Tag) { 8 } else { 16 };
-                        b.line(&format!("{blk} = call ptr @malloc(i64 {words})"));
+                        b.line(&format!("{blk} = call ptr @cinch_alloc_raw(i64 {words})"));
                         if matches!(step, CanonStep::Tag) {
                             let t = b.reg();
                             b.line(&format!("{t} = zext i32 {v} to i64"));

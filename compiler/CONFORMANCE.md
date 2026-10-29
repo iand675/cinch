@@ -207,7 +207,7 @@ and dash-style prelude function names.
 | --- | --- |
 | Dash identifiers and the minus whitespace contract (D102) | done (lexer + ast; whole minus table unit-tested (D128/D129); digits excluded from the right of a glue dash so `x-1` subtracts) |
 | Multi-binding `let` and guarded `letrec` (D103): recursion only under lambda/`~`/`delay`, eager cycles rejected with the fix named | done (fixpoint boxes with black-hole fault 70 (D131-D137); `tests/letrec.rs` 9/9) |
-| Tail recursion in constant stack, self and mutual (D104) | done (loop-header self-jumps + `musttail` mutual groups; 1,000,000-deep proofs; `tail_calls` manifest section with Tarjan SCC marks and fallback reasons (D138-D139); `tests/surface.rs` run-tests) |
+| Tail recursion in constant stack, self and mutual (D104) | done (loop-header self-jumps + `musttail` mutual groups, widened to the group's widest arity when members' arities differ (`core.rs::tail_widths`, `@"<unit>#tail"` workers); 1,000,000-deep proofs on an 8 MiB stack, mixed-arity included; `tail_calls` manifest section with Tarjan SCC marks and fallback reasons (D138-D139); `tests/surface.rs` run-tests, `tests/tail_calls.rs`) |
 | `[...]`/`{k => v}` literals desugaring to `FromList`/`FromMap`, with the prelude `Map` (D105) | done (`FromList`/`FromMap` classes, `Map` BST, expected-type instance selection, D92 fold pass with `literal_folds` boundary (D142/D147); `tests/surface.rs`) |
 | Dash-style prelude function names (D106) | done (all 911 prelude-declared functions/methods renamed; compiler-side name references moved; builtin surface values and intrinsic symbols unchanged (D130)) |
 | Export declarations and re-exports (`export module X`, `export A.b`); imports private until re-exported (D107) | done (surface is exactly the named set with `export` decls (D143/D146); instances/fixities/foreign table stay module-owned) |
@@ -2080,6 +2080,113 @@ so the embedding sweep stays its own decision.
   the empty list, so a malformed spine cannot fault a consumer. Found by
   building `bootstrap/Bootstrap.Ast.cinch`, where the first draft used
   `List X` and did not compile.
+
+- **D388 (class methods may have default implementations)**: an equation
+  for a declared method inside a `signature` block is its default (surface
+  grammar local amendments section 15). Motivated by `mconcat`: the user's
+  direction is interface-first (`Monoid`'s `mconcat`, not bespoke
+  `concat-strings`), and a generic `mconcat` over `String` is quadratic,
+  so `Monoid_String` must be able to supply its own; without defaults,
+  making `mconcat` a method forced every `Monoid` instance in every program
+  to define it (`refinements`' `Monoid_NonEmpty` fixture broke at once).
+  Implementation: `SigDecl.defaults` (parsed in `parse_sig_item`: a method
+  name followed by `::` declares, followed by patterns and `=` defaults),
+  visited by every pass that visits instance method bodies (fixity
+  resolution, references, hygiene, template holes, macro expansion, span
+  stamping, incremental body references). `check_instance` takes the
+  default's equations for an omitted method and checks them at the
+  instance's scheme under `build_scope(class module)`, restoring the
+  instance's scope after; an error there names the default, the class's
+  module and the instance, because its span points into the class's file.
+  `check_bodies` checks each default once at the method's general scheme
+  (unit `<module>.<Class>.<method>.default`), so a broken default is
+  found with no instance, and the elaborated unit's span-free hash is the
+  default's identity in `MethodExport.default` (the interface key is
+  omitted for a method without one, so existing artifacts are unchanged).
+  Instances still elaborate their own copy: specialized code per instance,
+  and no self-dictionary construction in core. Two carriers needed rules of
+  their own, found when the prelude's `mconcat` became a method: at a
+  function carrier the taken default is eta-expanded to the instance's
+  arrow count (`Monoid_Function` otherwise failed the arity rule), and at a
+  refinement instance a taken default checks at the refined type, not the
+  container (`Monoid_NonZero` otherwise needed a `Monoid Int` that does not
+  exist); both instances now take the default, no overrides. The arity
+  rule's two messages were also inverted ("more parameters" fired when the
+  equation had fewer) and now read the right way round. Also: a parameterized
+  module's base instance now resolves for its own methods even when the
+  scope is the class module's (`Some(i) != self.self_instance` beside the
+  `base` rule). Pinned by `compiler/tests/class_defaults.rs` (6 cases:
+  taken and overridden, a default using the class module's private helper
+  and its method's own constraint, the omitted-method refusal, the
+  undeclared-method refusal, an ill-typed default reported at the class
+  with no instance, the interface identity moving for exactly the changed
+  default, and the prelude's `mconcat` default at a function carrier and at
+  `NonZero`).
+
+- **D389 (GC-free reclamation: Perceus reference counting; decided by the
+  user, 2026-10-29)**: compiled programs had no reclamation at all
+  (`cinch_free` a no-op, codegen calling `@malloc` directly), so a
+  program's footprint was its total allocation; test programs reached
+  32-100+ GB. The user chose GC-free precise reference counting (Perceus:
+  compiler-inserted dup/drop, borrowed parameters, drop-reuse) over region
+  inference and copy-on-share, and reclamation before any new
+  bootstrap-ladder rung. Design: `design/reclamation.md` (status quo,
+  header, insertion algorithm, cycles, runtime values, concurrency,
+  verification, staged slices S0-S12, spec conflicts). S0 landed: a counting
+  `#[global_allocator]` (`compiler/runtime/src/heap.rs`), every codegen
+  allocation routed through `cinch_alloc_raw`, `CINCH_ALLOC_STATS=1`, and a
+  `CINCH_HEAP_LIMIT` cap (default 8 GiB, exit 73; 2 GiB for every program a
+  `cargo test` spawns, via `compiler/.cargo/config.toml`).
+- **D390 (destructor order: reverse; decided by the user)**: effectful
+  destructors run last-acquired, first-released, as the lazy specification's
+  teardown says; `design/ownership-and-usage.md:72-73` (declaration order)
+  is amended with the reclamation slices. Memory reclamation itself is
+  unordered and unobservable.
+- **D391 (uniqueness: runtime checks plus static proof where possible;
+  decided by the user)**: in-place reuse is guarded by the runtime count
+  check everywhere, and the checker establishes uniqueness statically where
+  it can (skipping the check and the fallback allocation). A static proof
+  only optimizes a check that is always correct without it. FP2
+  (fully-in-place functions over Perceus) is the reference.
+- **D392 (word representation: option C, demand-driven specialization over
+  three representation classes; user direction, pending formal
+  confirmation)**: polymorphic code is compiled per class vector
+  (`Raw`/`Obj`/`TObj`) only where reached, never per source type; the set is
+  finite under polymorphic recursion; polymorphic bodies ship as IR and
+  specialized copies cache in the store. Chosen over A (tagging, which
+  boxes 64-bit scalars in polymorphic slots and breaks the primitive-types
+  "no allocation" rule) and B (witness arguments, which change every
+  polymorphic export's arity). `design/layouts-and-specialization.md`
+  sections 2 and 10.2.
+- **D393 (layouts and specialization; direction)**: every type has a layout
+  (size, alignment, offsets, pointer map); the default is one word; `repr`
+  attributes choose a type's block layout and now yield its pointer map;
+  value types and field unpacking go beyond one word; layout polymorphism is
+  ENUMERATED (a definition lists its layouts, finite by construction) rather
+  than an open `forall (l :: Layout)`; hand-written specialized bodies are
+  instantiation-keyed rewrites (D55); representation instances give a
+  generic type an ad hoc representation at one instantiation, transparently
+  (views plus a proven isomorphism), with `vector<bool>`'s and Rust
+  specialization's lessons as rules. `design/layouts-and-specialization.md`.
+- **D394 (one justification rule for every alternative implementation;
+  direction)**: a `prim` target body, a `rewrite`, a representation
+  instance and a specialized body are all alternatives chosen by a static
+  condition and must be justified equal to their baseline, at one of three
+  recorded tiers: kernel proof, sample-checked law, or assumed (in
+  `assumptions.declared`). A safety profile may require kernel proofs.
+- **D395 (verified primitives and proof automation; direction, user:
+  "more powerful than Lean")**: machine types get bit-vector models, `prim`
+  laws become kernel theorems, `prim` bodies are proven against a formal
+  semantics of the LLVM instructions they use (and `asm` bodies against ISA
+  models), and certificates from external solvers are checked by the kernel
+  itself, with compiled checking only as a recorded tier (Lean's `bv_decide`
+  adds its compiler to the trusted base; Lean's `@[extern]` machine
+  operations are trusted to match their models). Beyond bit-vectors,
+  tactics are Cinch stage programs producing kernel-checked evidence (proof
+  terms, reflection, or certificates), covering linear arithmetic,
+  rewriting, congruence closure, rings, AC normalization, induction, SMT
+  bridges and separation logic. `design/verified-primitives.md`,
+  `design/proof-automation.md`.
 
 ### Refinement types (P28)
 

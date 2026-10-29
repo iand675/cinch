@@ -1175,6 +1175,10 @@ struct SigInfo {
     param_kinds: Vec<ParamKind>,
     /// Method name, method scheme; the class constraint is `ctx[0]`.
     methods: Vec<(String, Scheme)>,
+    /// Default equations by method name, in method order: an instance
+    /// that omits the method checks these at its own types, in the
+    /// class module's scope (the names the default was written against).
+    defaults: Vec<(String, Vec<ast::Equation>)>,
     /// `law` members (primitive operations and inline target IR
     /// specification section 5): name and stated equation scheme.
     laws: Vec<(String, Scheme)>,
@@ -2065,6 +2069,10 @@ struct Checker {
     qualified_types: HashMap<(String, String), TypeKind>,
     sigs: HashMap<String, Vec<SigInfo>>,
     qualified_sigs: HashMap<(String, String), SigInfo>,
+    /// `(module, class, method)` to the hash of the default's generic
+    /// elaboration: the interface records it, so an instance that inlined
+    /// the default rechecks when the default changes.
+    default_ids: HashMap<(String, String, String), String>,
     instances: HashMap<String, Vec<usize>>,
     instance_list: Vec<InstanceInfo>,
     fns: Vec<FnDef>,
@@ -2609,6 +2617,7 @@ impl Checker {
             qualified_types: HashMap::new(),
             sigs: HashMap::new(),
             qualified_sigs: HashMap::new(),
+            default_ids: HashMap::new(),
             instances: HashMap::new(),
             instance_list: Vec::new(),
             fns: Vec::new(),
@@ -4397,6 +4406,7 @@ impl Checker {
                         params: params.clone(),
                         param_kinds: vec![ParamKind::Type; params.len()],
                         methods: Vec::new(),
+                        defaults: Vec::new(),
                         laws: Vec::new(),
                     });
                 }
@@ -6817,6 +6827,7 @@ impl Checker {
                 // arguments). Each instantiation publishes its own copy.
                 if self.instance_list[i].base
                     && self.instance_list[i].module != self.current_module
+                    && Some(i) != self.self_instance
                 {
                     continue;
                 }

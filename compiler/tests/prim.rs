@@ -284,9 +284,9 @@ module Main where
     // The baseline rule: without the capability the baseline body is
     // the fallback, and the manifest names it.
     let baseline = manifest_of("pick-baseline", src, &TargetProfile::native());
-    assert!(baseline.contains("\"condition\": null"), "{baseline}");
+    assert!(baseline.contains("\"condition\":null"), "{baseline}");
     assert!(baseline.contains("baseline"), "{baseline}");
-    assert!(baseline.contains("\"family\": \"llvm\""), "{baseline}");
+    assert!(baseline.contains("\"family\":\"llvm\""), "{baseline}");
 
     // With the capability evidence the conditional body is selected,
     // and the manifest names the capability and why.
@@ -343,7 +343,7 @@ module Main where
     let code = run_source(src).expect("the justified prim compiles and runs");
     assert_eq!(code, 0);
     let m = manifest_of("tier-justified", src, &TargetProfile::native());
-    assert!(m.contains("\"tier\": \"justified\""), "{m}");
+    assert!(m.contains("\"tier\":\"justified\""), "{m}");
     assert!(m.contains("Main.twiceLaw"), "{m}");
 }
 
@@ -365,9 +365,9 @@ module Main where
     if addB 40 2 == 42 then 0 else 1
 "#;
     let m = manifest_of("tier-assumed", src, &TargetProfile::native());
-    assert!(m.contains("\"tier\": \"assumed\""), "{m}");
+    assert!(m.contains("\"tier\":\"assumed\""), "{m}");
     assert!(m.contains("prim:Main.addB#"), "{m}");
-    assert!(m.contains("\"family\": \"llvm\""), "{m}");
+    assert!(m.contains("\"family\":\"llvm\""), "{m}");
 }
 
 /// The text of one unit's function attribute group (empty when the unit
@@ -473,10 +473,10 @@ module Main where
   main = 0
 "#;
     let m = manifest_of("unsafe-trust", src, &TargetProfile::native());
-    assert!(m.contains("\"trust\": [") && m.contains("trusted not verified"), "{m}");
+    assert!(m.contains("\"trust\":[") && m.contains("trusted not verified"), "{m}");
     assert!(m.contains("prim:Main.tick#"), "{m}");
     let i = m
-        .find("\"declared\": [")
+        .find("\"declared\":[")
         .unwrap_or_else(|| panic!("declared assumptions: {m}"));
     let declared = &m[i..m[i..].find(']').map(|j| i + j).unwrap_or(m.len())];
     assert!(declared.contains("prim:Main.tick#"), "{declared}");

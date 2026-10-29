@@ -283,10 +283,10 @@ fn body_change_rechecks_only_its_declaration() {
     let manifest = std::fs::read_to_string(dir.join("build").join("Main.rebuild.json"))
         .expect("rebuild manifest");
     assert!(
-        manifest.contains("\"rechecked\": [\"v:Base.bump-count\"]"),
+        manifest.contains("\"rechecked\":[\"v:Base.bump-count\"]"),
         "{manifest}"
     );
-    assert!(manifest.contains("\"verified\": true"), "{manifest}");
+    assert!(manifest.contains("\"verified\":true"), "{manifest}");
     assert_eq!(
         set(&report.typed_modules),
         set(&["Base".to_string()]),

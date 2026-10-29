@@ -96,7 +96,7 @@ use crate::interface::{
 /// `store.json`'s shape bumps this, which invalidates every entry
 /// through [`StoreError::IdentityMismatch`] instead of relying on
 /// readers to tolerate two shapes.
-pub const STORE_SCHEMA: u32 = 1;
+pub const STORE_SCHEMA: u32 = 2;
 
 /// The entry manifest's file name inside an entry directory.
 pub const ENTRY_MANIFEST: &str = "store.json";
@@ -1017,61 +1017,51 @@ fn expected_records(
     Ok(records)
 }
 
-/// The entry manifest's canonical text: fixed key order, no timestamps,
-/// so two writes of one key are byte-identical.
+/// The entry manifest's canonical text (the canonical JSON form every
+/// compiler artifact uses), with no timestamps, so two writes of one key
+/// are byte-identical.
 fn entry_manifest(
     pkg: &Package,
     key: &str,
     profile: &TargetProfile,
     modules: &[ModuleRecord],
 ) -> String {
-    let mut text = String::new();
-    text.push_str("{\n");
-    text.push_str(&format!("  \"store_schema\": {STORE_SCHEMA},\n"));
-    text.push_str(&format!("  \"package\": {:?},\n", pkg.name));
-    text.push_str(&format!("  \"version\": {:?},\n", pkg.version));
-    text.push_str(&format!("  \"key\": {key:?},\n"));
-    text.push_str(&format!("  \"compiler\": {:?},\n", env!("CARGO_PKG_VERSION")));
-    text.push_str(&format!("  \"iface_schema\": {},\n", interface::SCHEMA_VERSION));
-    text.push_str(&format!("  \"runtime_abi\": {},\n", interface::RUNTIME_ABI_VERSION));
-    text.push_str(&format!(
-        "  \"language\": {:?},\n",
-        interface::LANGUAGE_VERSION
-    ));
-    text.push_str(&format!("  \"profile\": {:?},\n", profile.name));
     let mut union: Vec<Kind> = modules.iter().flat_map(|m| m.kinds.iter().copied()).collect();
     union.sort();
     union.dedup();
-    text.push_str(&format!(
-        "  \"kinds\": {},\n",
-        kind_list(&union)
-    ));
-    text.push_str("  \"modules\": [\n");
-    for (i, m) in modules.iter().enumerate() {
-        text.push_str(&format!(
-            "    {{\"module\": {:?}, \"iface_hash\": {:?}, \"kinds\": {}, \"bodies\": {}}}",
-            m.module,
-            m.iface_hash,
-            kind_list(&m.kinds),
-            body_list(&m.bodies)
-        ));
-        text.push_str(if i + 1 < modules.len() { ",\n" } else { "\n" });
-    }
-    text.push_str("  ]\n}\n");
-    text
+    JsonValue::obj([
+        ("store_schema", STORE_SCHEMA.into()),
+        ("package", (&pkg.name).into()),
+        ("version", (&pkg.version).into()),
+        ("key", key.into()),
+        ("compiler", env!("CARGO_PKG_VERSION").into()),
+        ("iface_schema", interface::SCHEMA_VERSION.into()),
+        ("runtime_abi", interface::RUNTIME_ABI_VERSION.into()),
+        ("language", interface::LANGUAGE_VERSION.into()),
+        ("profile", (&profile.name).into()),
+        ("kinds", kind_list(&union)),
+        (
+            "modules",
+            JsonValue::arr(modules, |m| {
+                JsonValue::obj([
+                    ("module", (&m.module).into()),
+                    ("iface_hash", (&m.iface_hash).into()),
+                    ("kinds", kind_list(&m.kinds)),
+                    (
+                        "bodies",
+                        JsonValue::arr(&m.bodies, |(k, h)| {
+                            JsonValue::obj([("kind", k.as_str().into()), ("hash", h.into())])
+                        }),
+                    ),
+                ])
+            }),
+        ),
+    ])
+    .to_canonical_string()
 }
 
-fn kind_list(kinds: &[Kind]) -> String {
-    let items: Vec<String> = kinds.iter().map(|k| format!("{:?}", k.as_str())).collect();
-    format!("[{}]", items.join(", "))
-}
-
-fn body_list(bodies: &[(Kind, String)]) -> String {
-    let items: Vec<String> = bodies
-        .iter()
-        .map(|(k, h)| format!("{{\"kind\": {:?}, \"hash\": {h:?}}}", k.as_str()))
-        .collect();
-    format!("[{}]", items.join(", "))
+fn kind_list(kinds: &[Kind]) -> JsonValue {
+    JsonValue::arr(kinds, |k| k.as_str().into())
 }
 
 fn check_identity(field: &'static str, recorded: u64, current: u64) -> Result<(), StoreError> {

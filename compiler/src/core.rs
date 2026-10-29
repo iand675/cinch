@@ -397,6 +397,15 @@ pub enum BytesOp {
     Get,
     /// `bytesSet :: Bytes -> Nat -> Nat -> Unit`.
     Set,
+    /// `bytesCopy :: Bytes -> Bytes -> Nat -> Nat -> Nat -> Unit`: copy
+    /// `n` bytes from `src` at `si` into `dst` at `di` in one runtime
+    /// `memmove` (overlap-safe; either range out of bounds faults, exit
+    /// 71). Cinch-level copy loops box a `Nat` per index step, so every
+    /// bulk copy goes through this.
+    Copy,
+    /// `bytesCompare :: Bytes -> Bytes -> I64`: the lexicographic order
+    /// of the two buffers' contents as -1/0/1, read in place.
+    Compare,
 }
 
 impl BytesOp {
@@ -406,6 +415,8 @@ impl BytesOp {
             BytesOp::Len => "Len",
             BytesOp::Get => "Get",
             BytesOp::Set => "Set",
+            BytesOp::Copy => "Copy",
+            BytesOp::Compare => "Compare",
         }
     }
 
@@ -416,6 +427,8 @@ impl BytesOp {
             BytesOp::Len => "cinch_bytes_len",
             BytesOp::Get => "cinch_bytes_get",
             BytesOp::Set => "cinch_bytes_set",
+            BytesOp::Copy => "cinch_bytes_copy",
+            BytesOp::Compare => "cinch_bytes_compare",
         }
     }
 }
@@ -661,16 +674,29 @@ impl NetOp {
     }
 }
 
-/// The piped-child externs (`cinch.runtime.process*`; runtime ABI,
-/// `cinch_process_*` over the piped section of
-/// `compiler/runtime/src/platform.rs`): a LIVE child with separately
-/// readable stdout and stderr and writable stdin, which the one-shot
-/// `cinch_proc_*` set cannot express (`Effect.Process`'s header names
-/// that gap as a refusal this ABI lifts). The result convention is
-/// [`NetOp`]'s: the boundary's raw word, negative as the negated code of
-/// the shared vocabulary.
+/// The process externs (`cinch.runtime.process*`; runtime ABI, the
+/// `cinch_process_*` piped-child set and the `cinch_argv_*` command-line
+/// capture of `compiler/runtime/src/platform.rs`). Two halves:
+/// this process's OWN command line (`ArgCount`/`Arg`), which the
+/// generated entry glue captures before any program code runs, and a
+/// LIVE child with separately readable stdout and stderr and writable
+/// stdin, which the one-shot `cinch_proc_*` set cannot express
+/// (`Effect.Process`'s header names that gap as a refusal this ABI
+/// lifts). The child half's result convention is [`NetOp`]'s: the
+/// boundary's raw word, negative as the negated code of the shared
+/// vocabulary.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum ProcOp {
+    /// `processArgCount :: Unit -> Nat`: how many words this process's
+    /// own command line has, word 0 (the program name) included. 0 when
+    /// the runtime captured none (a `main` a C caller supplied never
+    /// captures).
+    ArgCount,
+    /// `processArg :: Nat -> Bytes`: the `i`-th word of this process's
+    /// own command line as fresh bytes, word 0 being the program name.
+    /// An index outside `0..processArgCount` takes the defined
+    /// out-of-bounds fault.
+    Arg,
     /// `processSpawn :: Bytes -> Bytes -> Bytes -> Bytes -> Result I64
     /// I64`: the program, its NUL-separated arguments, the working
     /// directory (empty inherits) and the NUL-separated `KEY=VALUE`
@@ -699,6 +725,8 @@ pub enum ProcOp {
 impl ProcOp {
     fn name(self) -> &'static str {
         match self {
+            ProcOp::ArgCount => "ArgCount",
+            ProcOp::Arg => "Arg",
             ProcOp::Spawn => "Spawn",
             ProcOp::WriteStdin => "WriteStdin",
             ProcOp::CloseStdin => "CloseStdin",
@@ -711,6 +739,12 @@ impl ProcOp {
     /// The runtime extern this operation is emitted against.
     pub fn extern_name(self) -> &'static str {
         match self {
+            // The command-line capture. Its externs are named for the
+            // entry's `argv` rather than the `process*` family (the
+            // runtime's `cinch_argv_*` capture), because they read this
+            // process's own command line, not a child's.
+            ProcOp::ArgCount => "cinch_argv_count",
+            ProcOp::Arg => "cinch_argv_get",
             ProcOp::Spawn => "cinch_process_spawn",
             ProcOp::WriteStdin => "cinch_process_write_stdin",
             ProcOp::CloseStdin => "cinch_process_close_stdin",
@@ -1013,6 +1047,8 @@ impl PrimOp {
                 "bytesLen" => Bytes(BytesOp::Len),
                 "bytesGet" => Bytes(BytesOp::Get),
                 "bytesSet" => Bytes(BytesOp::Set),
+                "bytesCopy" => Bytes(BytesOp::Copy),
+                "bytesCompare" => Bytes(BytesOp::Compare),
                 "utf8Validate" => Utf8(Utf8Op::Validate),
                 "utf8CountChars" => Utf8(Utf8Op::CountChars),
                 "utf8DecodeAt" => Utf8(Utf8Op::DecodeAt),
@@ -1038,6 +1074,8 @@ impl PrimOp {
                 "netWrite" => Net(NetOp::Write),
                 "netClose" => Net(NetOp::Close),
                 "netResolve" => Net(NetOp::Resolve),
+                "processArgCount" => Proc(ProcOp::ArgCount),
+                "processArg" => Proc(ProcOp::Arg),
                 "processSpawn" => Proc(ProcOp::Spawn),
                 "processWriteStdin" => Proc(ProcOp::WriteStdin),
                 "processCloseStdin" => Proc(ProcOp::CloseStdin),
@@ -1151,6 +1189,7 @@ impl PrimOp {
             | Platform(PlatformOp::RandomBytes | PlatformOp::FsTempDir) => 1,
             Net(_) | Proc(_) | Pty(_) => self.sig().0.len(),
             Bytes(BytesOp::Set) => 3,
+            Bytes(BytesOp::Copy) => 5,
             Sym(SymOp::Intern | SymOp::Name) => 1,
             Neg { .. } | BitNot { .. } | BitScan { .. } | FloatUn { .. } | FClass { .. }
             | CharToU32 | U32ToChar | Conv { .. } | Delay | Force | Demand | NotBool | Eval => 1,
@@ -1213,6 +1252,10 @@ impl PrimOp {
             Bytes(BytesOp::Len) => (vec![Ty::Bytes], Ty::Nat),
             Bytes(BytesOp::Get) => (vec![Ty::Bytes, Ty::Nat], Ty::Nat),
             Bytes(BytesOp::Set) => (vec![Ty::Bytes, Ty::Nat, Ty::Nat], Ty::Unit),
+            Bytes(BytesOp::Copy) => {
+                (vec![Ty::Bytes, Ty::Bytes, Ty::Nat, Ty::Nat, Ty::Nat], Ty::Unit)
+            }
+            Bytes(BytesOp::Compare) => (vec![Ty::Bytes, Ty::Bytes], i64t),
             Utf8(Utf8Op::Validate) => (vec![Ty::Bytes], Ty::Bool),
             Utf8(Utf8Op::CountChars) => (vec![Ty::Bytes], Ty::Nat),
             Utf8(Utf8Op::DecodeAt) => {
@@ -1239,6 +1282,8 @@ impl PrimOp {
             Net(NetOp::Write) => (vec![i64t.clone(), Ty::Bytes], res(Ty::Nat)),
             Net(NetOp::Close) => (vec![i64t.clone()], res(Ty::Unit)),
             Net(NetOp::Resolve) => (vec![Ty::Bytes, i64t.clone()], res(Ty::Bytes)),
+            Proc(ProcOp::ArgCount) => (vec![Ty::Unit], Ty::Nat),
+            Proc(ProcOp::Arg) => (vec![Ty::Nat], Ty::Bytes),
             Proc(ProcOp::Spawn) => (
                 vec![Ty::Bytes, Ty::Bytes, Ty::Bytes, Ty::Bytes],
                 res(i64t.clone()),
@@ -2908,23 +2953,64 @@ pub struct TailGroup {
 /// The mark is exactly the language's guarantee: a tail call to a member
 /// of the group (a self call, or a mutual call) lowers to a jump or a
 /// `musttail` call when the callee is a known unit applied to its exact
-/// arity at the caller's exact arity. Tail calls to units outside the
-/// group and dynamically dispatched tail calls are outside the claim
-/// (a dynamic cycle through a first-class self value is not statically
-/// visible). The tail positions mirror the code generator's
-/// [`crate::codegen`] `emit_tail`: `Let` bodies, `If` branches and `Case`
-/// alternatives, stopping at the first call.
+/// arity. Members of different arities share one widened tail signature
+/// ([`tail_widths`]), so a mutual call between them is a `musttail` call
+/// too. Tail calls to units outside the group and dynamically dispatched
+/// tail calls are outside the claim (a dynamic cycle through a
+/// first-class self value is not statically visible). The tail positions
+/// mirror the code generator's [`crate::codegen`] `emit_tail`: `Let`
+/// bodies, `If` branches and `Case` alternatives, stopping at the first
+/// call.
 pub fn tail_report(program: &Program) -> Vec<TailGroup> {
+    tail_groups(program).into_iter().map(|(g, _)| g).collect()
+}
+
+/// The widened tail signature of every unit that needs one: the unit's
+/// name to its group's width, for each member of a recursive group whose
+/// member tail calls cross arities and whose own arity is below the
+/// group's widest. `musttail` needs the caller's and the callee's
+/// prototypes to be identical, so code generation runs such a member's
+/// body in a worker taking `width` words (the trailing ones unused) and
+/// keeps the unit's own symbol as a one-call wrapper for closures and
+/// other entries; every member then tail-calls every other through
+/// prototypes of one shape.
+pub fn tail_widths(program: &Program) -> std::collections::HashMap<String, usize> {
+    let arity: std::collections::HashMap<&str, usize> =
+        program.fns.iter().map(|f| (f.id.0.as_str(), f.arity())).collect();
+    let mut out = std::collections::HashMap::new();
+    for (group, width) in tail_groups(program) {
+        let Some(width) = width else {
+            continue;
+        };
+        for m in group.members {
+            if arity.get(m.as_str()).is_some_and(|&a| a < width) {
+                out.insert(m, width);
+            }
+        }
+    }
+    out
+}
+
+/// [`tail_report`]'s groups, each with the width its members lower
+/// under when their tail calls cross arities ([`tail_widths`]).
+fn tail_groups(program: &Program) -> Vec<(TailGroup, Option<usize>)> {
     // Unit arities as code generation sees them: every function (its
     // parameter count), and every instance's dictionary construction
     // unit. Primitives and foreign wrappers answer from their own
     // metadata (`unit_of`).
     let mut fns: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
     let mut bodies: std::collections::HashMap<String, &Core> = std::collections::HashMap::new();
+    // The units code generation lowers from their `Core` body, the only
+    // ones that can take a widened worker (a `prim` declaration's unit is
+    // its inline target fragment).
+    let mut lowered: std::collections::HashSet<&str> = std::collections::HashSet::new();
     for f in &program.fns {
         fns.insert(f.id.0.clone(), f.arity());
         if f.prim.is_none() && f.ctor.is_none() {
             bodies.insert(f.id.0.clone(), &f.body);
+            if !f.meta.prim_body {
+                lowered.insert(f.id.0.as_str());
+            }
         }
     }
     let mut insts: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
@@ -3129,9 +3215,14 @@ pub fn tail_report(program: &Program) -> Vec<TailGroup> {
         members.sort();
         // The mark: every tail call to a group member is a jump (self)
         // or a `musttail` call (mutual) exactly when it saturates the
-        // callee at the caller's arity (`codegen::emit_tail`).
+        // callee (`codegen::emit_tail`). Saturated calls across arities
+        // widen the group: its members lower under its widest member's
+        // arity, so their prototypes match.
+        let width = members.iter().filter_map(|m| fns.get(m)).copied().max().unwrap_or(0);
+        let widenable = members.iter().all(|m| lowered.contains(m.as_str()));
+        let mut widen = false;
         let mut mark = "marked".to_string();
-        'marks: for caller in &members {
+        for caller in &members {
             let Some(body) = bodies.get(caller) else {
                 // A leaf unit (a primitive or foreign wrapper) never
                 // reaches a cycle through its own code.
@@ -3147,23 +3238,29 @@ pub fn tail_report(program: &Program) -> Vec<TailGroup> {
                 if !members.contains(&callee) {
                     continue;
                 }
-                if args != callee_arity {
-                    mark = format!(
-                        "fallback (tail call {caller} -> {callee}: applied to {args} arguments, unit arity {callee_arity})"
-                    );
-                    break 'marks;
-                }
-                if callee_arity != caller_arity {
-                    mark = format!(
-                        "fallback (tail call {caller} -> {callee}: arity {callee_arity} differs from caller arity {caller_arity})"
-                    );
-                    break 'marks;
+                let fallback = if args != callee_arity {
+                    Some(format!(
+                        "tail call {caller} -> {callee}: applied to {args} arguments, unit arity {callee_arity}"
+                    ))
+                } else if callee_arity != caller_arity && !widenable {
+                    Some(format!(
+                        "tail call {caller} -> {callee}: arity {callee_arity} differs from caller arity {caller_arity}"
+                    ))
+                } else {
+                    widen |= callee_arity != caller_arity;
+                    None
+                };
+                // The report names the first call that falls back.
+                if let Some(reason) = fallback {
+                    if mark == "marked" {
+                        mark = format!("fallback ({reason})");
+                    }
                 }
             }
         }
-        out.push(TailGroup { members, mark });
+        out.push((TailGroup { members, mark }, widen.then_some(width)));
     }
-    out.sort_by(|a, b| a.members.cmp(&b.members));
+    out.sort_by(|a, b| a.0.members.cmp(&b.0.members));
     out
 }
 
@@ -6300,6 +6397,8 @@ mod tests {
             PrimOp::Bytes(BytesOp::New),
             PrimOp::Bytes(BytesOp::Get),
             PrimOp::Bytes(BytesOp::Set),
+            PrimOp::Bytes(BytesOp::Copy),
+            PrimOp::Bytes(BytesOp::Compare),
             PrimOp::NotBool,
             PrimOp::Delay,
             PrimOp::Bound { ty: Scalar::U8, max: false },

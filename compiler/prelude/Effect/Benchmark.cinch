@@ -95,16 +95,17 @@ module Effect.Benchmark where
 
 
   -- The table: a header, one row per report in input order, and the
-  -- total row. Labels are the caller's, printed verbatim.
+  -- total row. Labels are the caller's, printed verbatim. The rows are
+  -- flattened once: nesting `string-concat` would re-copy the rest of the
+  -- table at every row.
   benchmark-table :: List BenchmarkReport -> String
   benchmark-table reports =
-    string-concat "label  nanoseconds\n"
-      (string-concat (benchmark-rows reports) (benchmark-total reports))
+    string-concat-all (Cons "label  nanoseconds\n" (benchmark-rows reports (Cons (benchmark-total reports) Nil)))
 
-  benchmark-rows :: List BenchmarkReport -> String
-  benchmark-rows reports = case reports of
-    Nil -> empty-string
-    Cons r rest -> string-concat (benchmark-row r) (benchmark-rows rest)
+  benchmark-rows :: List BenchmarkReport -> List String -> List String
+  benchmark-rows reports after = case reports of
+    Nil -> after
+    Cons r rest -> Cons (benchmark-row r) (benchmark-rows rest after)
 
   benchmark-row :: BenchmarkReport -> String
   benchmark-row r =

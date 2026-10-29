@@ -65,10 +65,12 @@ impl FixityTable {
 }
 
 /// One parsed signature block item: an associated type member, a
-/// method signature, or a class law declaration.
+/// method signature, a method's default equation, or a class law
+/// declaration.
 enum SigItem {
     Member(Decl),
     Method((Name, Type)),
+    Default(Equation),
     Law((Name, Type)),
 }
 
@@ -1407,6 +1409,7 @@ impl<'a> Parser<'a> {
         let mut type_members = Vec::new();
         let mut member_decls = Vec::new();
         let mut methods = Vec::new();
+        let mut defaults = Vec::new();
         let mut laws = Vec::new();
         for it in items {
             match it {
@@ -1415,19 +1418,20 @@ impl<'a> Parser<'a> {
                     member_decls.push(d);
                 }
                 SigItem::Method(m) => methods.push(m),
+                SigItem::Default(eq) => defaults.push(eq),
                 SigItem::Law(l) => laws.push(l),
             }
         }
-        Ok(SigDecl { name, params, type_members, member_decls, methods, laws, span })
+        Ok(SigDecl { name, params, type_members, member_decls, methods, defaults, laws, span })
     }
 
     /// One signature block item: an associated type member (`opaque type`
     /// or `record`), a method signature (modules and compilation
     /// specification section 1; foreign function interface specification
-    /// section 2), or a class `law` declaration (primitive operations and
-    /// inline target IR specification section 5). Members are spliced
-    /// ahead of the signature so its method types resolve them (decision
-    /// D65).
+    /// section 2), a method's default equation, or a class `law`
+    /// declaration (primitive operations and inline target IR
+    /// specification section 5). Members are spliced ahead of the
+    /// signature so its method types resolve them (decision D65).
     fn parse_sig_item(&mut self) -> Result<SigItem> {
         if self.at(&Tok::Opaque) {
             return Ok(SigItem::Member(Decl::OpaqueType(self.parse_opaque_type()?)));
@@ -1442,7 +1446,20 @@ impl<'a> Parser<'a> {
             let ty = self.parse_type()?;
             return Ok(SigItem::Law((name, ty)));
         }
-        Ok(SigItem::Method(self.parse_method_signature()?))
+        if self.parse_modifier()?.is_some() {
+            return Err(self.err(
+                "modifiers on signature methods are not supported in the bootstrap slice",
+            ));
+        }
+        // A method name followed by `::` declares the method; followed by
+        // patterns and `=` it is the method's default, as at top level.
+        let name = self.parse_value_name()?;
+        if self.at(&Tok::ColonColon) {
+            self.bump();
+            let ty = self.parse_type()?;
+            return Ok(SigItem::Method((name, ty)));
+        }
+        Ok(SigItem::Default(self.parse_equation_rest(name, true)?))
     }
 
     /// `opaque type T [params] :: Type` (foreign function interface
@@ -3598,6 +3615,9 @@ fn resolve_module_decl(d: &mut Decl, fix: &FixityTable) -> Result<()> {
         Decl::Signature(sig) => {
             for (_, ty) in &mut sig.methods {
                 resolve_type(ty, fix)?;
+            }
+            for eq in &mut sig.defaults {
+                resolve_equation(eq, fix)?;
             }
             for (_, ty) in &mut sig.laws {
                 resolve_type(ty, fix)?;

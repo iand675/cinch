@@ -74,7 +74,17 @@ constant stack regardless of call depth. Compilation:
   LLVM `tail`/`musttail` marked calls so the C ABI boundary does not
   force frames; a group that cannot be tail-marked falls back to the
   trampoline-free normal path and the compiler report says so.
-- Non-tail recursion is unchanged (ordinary calls).
+  `musttail` needs identical prototypes, so a group whose members'
+  tail calls cross arities lowers under one widened signature (its
+  widest member's arity): each narrower member's body runs in a worker
+  `@"<unit>#tail"` taking that many words, the unit's own symbol stays
+  as a one-call wrapper for closures and exports, and direct calls go
+  to the worker (`core.rs::tail_widths`). Only a call that does not
+  saturate its callee still falls back.
+- Non-tail recursion is unchanged (ordinary calls). A native program
+  runs on a 1 GiB reserved stack (`cinch_run_main`, overridable with
+  `CINCH_STACK_SIZE`), so a non-tail recursion hundreds of thousands of
+  frames deep is an ordinary program rather than a crash.
 
 The test shape: a 1,000,000-deep tail-recursive sum and a two-function
 mutual ping-pong both exit 0 in constant stack.

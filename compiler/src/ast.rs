@@ -660,6 +660,10 @@ pub struct SigDecl {
     /// The member declarations to splice (emptied by the splice).
     pub member_decls: Vec<Decl>,
     pub methods: Vec<(Name, Type)>,
+    /// Default equations for declared methods, in source order: an
+    /// instance that does not define a method takes its default, checked
+    /// at the instance's types as if the instance had written it.
+    pub defaults: Vec<Equation>,
     /// `law name :: prop` members (primitive operations and inline
     /// target IR specification section 5): class laws stating the
     /// equations instances are checked against, citable as `justify`
@@ -1330,6 +1334,12 @@ pub fn collect_decl_refs(d: &Decl, out: &mut Vec<RefSite>) {
         Decl::Signature(s) => {
             for (_, ty) in &s.methods {
                 collect_type_refs(ty, out);
+            }
+            for eq in &s.defaults {
+                collect_term_refs(&eq.body, out);
+                for l in &eq.locals {
+                    collect_local_refs(l, out);
+                }
             }
             for (_, ty) in &s.laws {
                 collect_type_refs(ty, out);
@@ -2099,6 +2109,17 @@ pub fn hyg_decl(d: &Decl, cx: &mut HygCx, sc: &mut HygScope) -> Result<Decl> {
                 methods.push((Name::new(f, n.span), ty));
             }
             s.methods = methods;
+            // A default follows its method's fresh name, so it still
+            // pairs with the method it defaults.
+            let mut defaults = Vec::new();
+            for eq in &s.defaults {
+                let mut eq = hyg_equation(eq, cx, sc)?;
+                if let Some((_, f)) = sc.values.iter().rev().find(|(orig, _)| *orig == eq.name.text) {
+                    eq.name = Name::new(f.clone(), eq.name.span);
+                }
+                defaults.push(eq);
+            }
+            s.defaults = defaults;
             let mut laws = Vec::new();
             for (n, ty) in &s.laws {
                 let ty = hyg_type(ty, cx, sc)?;
@@ -2438,9 +2459,16 @@ fn subst_holes_local(d: &LocalDecl, vals: &[Term]) -> LocalDecl {
 /// Substitute template holes in a declaration template.
 pub fn subst_holes_decl(d: &Decl, vals: &[Term]) -> Decl {
     match d {
+        Decl::Signature(s) => {
+            let mut s = s.clone();
+            for eq in &mut s.defaults {
+                eq.body = subst_holes(&eq.body, vals);
+                eq.locals = eq.locals.iter().map(|l| subst_holes_local(l, vals)).collect();
+            }
+            Decl::Signature(s)
+        }
         Decl::Import(_) | Decl::ImportData(_) | Decl::Export(_) | Decl::Fixity(_)
         | Decl::Foreign(_) | Decl::OpaqueType(_)
-        | Decl::Signature(_)
         | Decl::Data(_) | Decl::Refine(_) | Decl::Record(_) | Decl::Codata(_) | Decl::Effect(_)
         | Decl::ValueSig { .. } | Decl::Generate { .. } => d.clone(),
         Decl::Attributed { attrs, inner } => Decl::Attributed {
@@ -2724,7 +2752,19 @@ fn collect_decl_holes(d: &mut Decl, holes: &mut Vec<HoleExpr>) {
             }
         }
         Decl::Generate { .. } => {}
-        Decl::Signature(_) => {}
+        Decl::Signature(s) => {
+            for eq in &mut s.defaults {
+                collect_template_holes(&mut eq.body, holes);
+                for l in &mut eq.locals {
+                    if let LocalDecl::Eq { body, .. }
+                    | LocalDecl::Bind { body, .. }
+                    | LocalDecl::Lazy { body, .. } = l
+                    {
+                        collect_template_holes(body, holes);
+                    }
+                }
+            }
+        }
         Decl::Instance(i) => {
             for m in &mut i.methods {
                 collect_template_holes(&mut m.body, holes);

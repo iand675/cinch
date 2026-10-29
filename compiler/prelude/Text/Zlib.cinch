@@ -117,11 +117,10 @@ module Text.Zlib where
   -- no ordering story.
   -- ---------------------------------------------------------------------
 
+  -- One runtime `memmove` (`bytes-copy-range`); every caller copies
+  -- between two distinct buffers.
   bytes-move :: Bytes -> Nat -> Bytes -> Nat -> Nat -> Unit
-  bytes-move dst at src from n = case n == 0 of
-    True -> ()
-    False -> case bytes-set dst at (bytes-get src from) of
-      _ -> bytes-move dst (at + 1) src (from + 1) (n - 1)
+  bytes-move dst at src from n = bytes-copy-range dst src at from n
 
   -- Two bytes at `p` little-endian (a stored block's LEN/NLEN wire
   -- order); the caller has checked that both bytes exist.

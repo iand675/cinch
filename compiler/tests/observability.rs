@@ -33,6 +33,7 @@ const LEX_SRC: &str = include_str!("../prelude/Text/Lex.cinch");
 const SCAN_SRC: &str = include_str!("../prelude/Text/Scan.cinch");
 const PARSE_SRC: &str = include_str!("../prelude/Text/Parse.cinch");
 const JSON_SRC: &str = include_str!("../prelude/Text/Json.cinch");
+const BUILDER_SRC: &str = include_str!("../prelude/Text/Builder.cinch");
 
 // ----------------------------------------------------------------
 // Shared harness
@@ -51,7 +52,7 @@ fn write_project(name: &str, files: &[(&str, &str)]) -> PathBuf {
     ));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).expect("temp project dir");
-    let modules: [(&str, &str); 7] = [
+    let modules: [(&str, &str); 8] = [
         ("Effect.Log.cinch", LOG_SRC),
         ("Effect.Trace.cinch", TRACE_SRC),
         ("Text.Otlp.cinch", OTLP_SRC),
@@ -59,6 +60,7 @@ fn write_project(name: &str, files: &[(&str, &str)]) -> PathBuf {
         ("Text.Scan.cinch", SCAN_SRC),
         ("Text.Parse.cinch", PARSE_SRC),
         ("Text.Json.cinch", JSON_SRC),
+        ("Text.Builder.cinch", BUILDER_SRC),
     ];
     for (file, src) in modules {
         std::fs::write(dir.join(file), src).unwrap_or_else(|e| panic!("write {file}: {e}"));

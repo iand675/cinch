@@ -620,7 +620,7 @@ module Main where
     let manifest =
         std::fs::read_to_string(dir.join("build/Main.manifest.json")).expect("manifest");
     assert!(manifest.contains("\"trust\""), "{manifest}");
-    assert!(manifest.contains("\"level\": 2"), "{manifest}");
+    assert!(manifest.contains("\"level\":2"), "{manifest}");
     assert!(manifest.contains("full-recheck"), "{manifest}");
     assert!(manifest.contains("\"target\""), "{manifest}");
     assert!(manifest.contains("sumPair"), "{manifest}");
@@ -684,7 +684,7 @@ module Main where
     .expect("project run");
     let manifest =
         std::fs::read_to_string(dir.join("build/Main.manifest.json")).expect("manifest");
-    assert!(manifest.contains("\"vector_shape\": \"scalable\""), "{manifest}");
+    assert!(manifest.contains("\"vector_shape\":\"scalable\""), "{manifest}");
     assert!(!manifest.contains("fixed(8)"), "{manifest}");
     let _ = std::fs::remove_dir_all(&dir);
 }

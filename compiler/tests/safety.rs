@@ -1433,19 +1433,23 @@ module Main where
 
     // Per definition: the assertion, its verification result, and for
     // `bounded(x)` which proof method established the bound.
-    let section_start = manifest.find("\"safety\": {").expect("safety section");
-    let section_end = manifest.find("\"trust\"").expect("trust section");
+    let section_start = manifest.find("\"safety\":{").expect("safety section");
+    let section_end = manifest[section_start..]
+        .find("\"specialization\":")
+        .map(|i| section_start + i)
+        .expect("the section after safety");
     let section = &manifest[section_start..section_end];
-    assert!(section.contains("\"assertions\": ["), "{section}");
+    assert!(section.contains("\"assertions\":["), "{section}");
     assert!(
         section.contains(
-            "{\"definition\": \"Main.walk\", \"attribute\": \"recursion=bounded(xs)\", \"result\": \"structural (depth <= xs: the size of the decreasing argument)\"}"
+            "{\"attribute\":\"recursion=bounded(xs)\",\"definition\":\"Main.walk\",\"result\":\"structural (depth <= xs: the size of the decreasing argument)\"}"
         ),
         "{section}"
     );
-    assert!(section.contains("\"definition\": \"Main.walk\", \"attribute\": \"jpl assert-min=2\""), "{section}");
+    assert!(section.contains("{\"attribute\":\"jpl assert-min=2\",\"definition\":\"Main.walk\""), "{section}");
     // The `jpl` summary (decision D114).
-    assert!(section.contains("\"jpl\": {\"modules\": [\"Main\"]"), "{section}");
+    assert!(section.contains("\"jpl\":{\"assertions\":"), "{section}");
+    assert!(section.contains("\"modules\":[\"Main\"]}}"), "{section}");
     // The summary names definitions and rules, never paths.
     assert!(!section.contains('/'), "no paths in the safety summary: {section}");
     assert!(!section.contains(&dir.display().to_string()), "{section}");

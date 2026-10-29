@@ -34,17 +34,30 @@
 -- with a valid scalar; tabs rejected in indentation; line endings
 -- normalizing to LF.
 --
--- Named refusals (unproductions this module deliberately does not
--- lex; each is an error naming itself, never a silent drift):
---   `#[...]` attribute annotations (amendment section 5) need the
---     attribute family's raw argument capture;
---   `prim` declarations (primitive operations and inline target IR
---     specification section 2) whose bodies capture raw `{ ... }`
---     fragment regions the token grammar never sees;
---   the tick name forms `'name` and `''T` (amendment section 12): only
---     the `Char` literal form `'c'` is lexed here, since the name
---     forms feed quoteDecls token trees and macro APIs outside this
---     toolkit's scope.
+-- The self-hosting forms the compiler's own sources use are lexed
+-- here, each as a token that carries what a parser needs:
+--   `#[name]`, `#[name(...)]` and `#[name=...]` attribute annotations
+--     (amendment section 5) become one `TAttr` token holding the inner
+--     text between `#[` and `]`;
+--   `prim` bodies (primitive operations and inline target IR
+--     specification section 2) become the `prim` keyword plus the
+--     balanced `{ ... }` region a registered family name opens, as
+--     the compiler emits it: `TPunct "{"`, one `TPrimFrag` token
+--     holding the verbatim inner IR text, and `TPunct "}"`;
+--   the tick name forms `'name` and `''T` (amendment section 12)
+--     become `TTickName` and `TTickType` tokens holding the name
+--     (only the `Char` literal form `'c'` stays a `TChar`).
+--
+-- Named refusals (malformed input each is an error naming itself,
+-- never a silent drift): `RefusedAttr` for an attribute with no valid
+-- name or no closing `]`, `RefusedPrim` for an unterminated `prim`
+-- body fragment, and `RefusedTickName` for a tick that is neither a
+-- `Char` literal nor a name. All three kinds stay exported names (a
+-- module that mentions one keeps resolving, and `Text.Parse`'s error
+-- vocabulary is unchanged); what moved is which inputs reach them: the
+-- three well-formed forms above once refused and now lex to the
+-- carrying tokens, so a refusal means malformed input, not a form
+-- this module has not learned.
 module Text.Lex where
 
   import Data.Bool
@@ -57,7 +70,7 @@ module Text.Lex where
   import Text.Show
 
   export Span, span-start, span-end, span-line, span-col
-  export Token, TVar, TCon, TOp, TInt, TFloat, TStr, TChar, TWord, TPunct, TEOF
+  export Token, TVar, TCon, TOp, TInt, TFloat, TStr, TChar, TWord, TPunct, TAttr, TPrimFrag, TTickName, TTickType, TEOF
   export LToken, lt-span, lt-virtual, lt-token
   export LexErrorKind, TabInIndentation, UnterminatedComment, UnterminatedString,
     UnterminatedChar, BadEscape, MalformedNumber, UnexpectedChar, MalformedTick,
@@ -146,6 +159,20 @@ module Text.Lex where
     TChar :: Nat -> Token
     TWord :: String -> Token
     TPunct :: String -> Token
+    -- One `#[...]` attribute annotation: the inner text between `#[`
+    -- and `]` (the compiler's `Attr`, whose name and raw argument text
+    -- a parser splits out).
+    TAttr :: String -> Token
+    -- The verbatim inner text of a `prim` body's inline target-IR
+    -- fragment (the compiler's `Fragment`): the balanced `{ ... }`
+    -- region a registered family name opens, captured raw so fragment
+    -- grammars never pass through the surface tokenizer.
+    TPrimFrag :: String -> Token
+    -- `'name`: the tick lexeme's symbol form (amendment section 12),
+    -- the name `lex_word`'s shape, dashes included.
+    TTickName :: String -> Token
+    -- `''T`: the tick lexeme's type-name form (amendment section 12).
+    TTickType :: String -> Token
     TEOF :: Token
 
   -- A token with its span; the flag marks `{`, `;`, `}` inserted by
@@ -202,6 +229,18 @@ module Text.Lex where
     TPunct x -> case b of
       TPunct y -> string-compare x y == 0
       _ -> False
+    TAttr x -> case b of
+      TAttr y -> string-compare x y == 0
+      _ -> False
+    TPrimFrag x -> case b of
+      TPrimFrag y -> string-compare x y == 0
+      _ -> False
+    TTickName x -> case b of
+      TTickName y -> string-compare x y == 0
+      _ -> False
+    TTickType x -> case b of
+      TTickType y -> string-compare x y == 0
+      _ -> False
     TEOF -> case b of
       TEOF -> True
       _ -> False
@@ -217,6 +256,10 @@ module Text.Lex where
     TChar _ -> "char"
     TWord _ -> "kw"
     TPunct _ -> "punct"
+    TAttr _ -> "attr"
+    TPrimFrag _ -> "frag"
+    TTickName _ -> "sym"
+    TTickType _ -> "typename"
     TEOF -> "eof"
 
   token-spelling :: Token -> String
@@ -230,6 +273,10 @@ module Text.Lex where
     TChar n -> nat-to-string n
     TWord s -> s
     TPunct s -> s
+    TAttr s -> s
+    TPrimFrag s -> s
+    TTickName s -> s
+    TTickType s -> s
     TEOF -> empty-string
 
   -- The canonical rendering the drift tests compare against the
@@ -257,17 +304,24 @@ module Text.Lex where
       Some c -> render-escaped (string-to-bytes (char-string c)) 0
     _ -> render-escaped (string-to-bytes (token-spelling k)) 0
 
+  -- One piece per character: the two-character escape, or the character's own
+  -- text. The pieces accumulate reversed and flatten once, so a long literal
+  -- is linear: a right-nested `string-concat` would be quadratic in the
+  -- literal's length.
   render-escaped :: Bytes -> Nat -> String
-  render-escaped b i =
-    if nat-cmp i (bytes-len b) == 0 then empty-string
+  render-escaped b i = string-concat-all (reverse (render-pieces b i Nil))
+
+  render-pieces :: Bytes -> Nat -> List String -> List String
+  render-pieces b i acc =
+    if nat-cmp i (bytes-len b) == 0 then acc
     else case utf8-at b i of
-      None -> empty-string
+      None -> acc
       Some p -> case p of
         (c, w) ->
           let piece = if eq-char c '\n' then "\\n"
                 else if eq-char c '\\' then "\\\\"
                 else char-string c in
-          string-concat piece (render-escaped b (i + w))
+          render-pieces b (i + w) (Cons piece acc)
 
   -- ---------------------------------------------------------------------------
   -- Lex errors.
@@ -322,9 +376,9 @@ module Text.Lex where
     UnclosedDelimiter -> "unclosed delimiter"
     InWithoutLet -> "`in` has no matching implicit `let` block"
     InCrossesDelimiter -> "`in` must not cross an unmatched explicit delimiter"
-    RefusedAttr -> "refused: attribute annotations are not in the lexing toolkit's production set"
-    RefusedPrim -> "refused: `prim` inline target-IR fragments are not in the lexing toolkit's production set"
-    RefusedTickName -> "refused: the tick name forms `'name` and `''T` are not in the lexing toolkit's production set"
+    RefusedAttr -> "refused: malformed attribute annotation"
+    RefusedPrim -> "refused: unterminated `prim` body fragment"
+    RefusedTickName -> "refused: a tick literal needs an identifier name (`'name` is a symbol, `''T` a type name, `'c'` a character)"
 
   data Lexed where
     LexedTokens :: List LToken -> Lexed
@@ -552,76 +606,84 @@ module Text.Lex where
 
   -- The reserved word table: every quoted alphabetic terminal of the
   -- EBNF plus the amendment keywords. `letrec` scans as the pair the
-  -- compiler emits (`letrec` then `let`, sharing one span).
+  -- compiler emits (`letrec` then `let`, sharing one span). The table
+  -- is split by byte length, so an identifier is compared only with the
+  -- keywords of its own length (none at all for a length outside
+  -- 2..10): the lexer runs this for every word.
   keyword-token :: String -> Option Token
   keyword-token w =
-    if string-compare w ("module") == 0 then Some (TWord w)
-    else if string-compare w ("where") == 0 then Some (TWord w)
-    else if string-compare w ("data") == 0 then Some (TWord w)
-    else if string-compare w ("record") == 0 then Some (TWord w)
-    else if string-compare w ("codata") == 0 then Some (TWord w)
-    else if string-compare w ("effect") == 0 then Some (TWord w)
-    else if string-compare w ("signature") == 0 then Some (TWord w)
-    else if string-compare w ("instance") == 0 then Some (TWord w)
-    else if string-compare w ("implicit") == 0 then Some (TWord w)
-    else if string-compare w ("import") == 0 then Some (TWord w)
-    else if string-compare w ("as") == 0 then Some (TWord w)
-    else if string-compare w ("type") == 0 then Some (TWord w)
-    else if string-compare w ("opaque") == 0 then Some (TWord w)
-    else if string-compare w ("forall") == 0 then Some (TWord w)
-    else if string-compare w ("Sigma") == 0 then Some (TWord w)
-    else if string-compare w ("using") == 0 then Some (TWord w)
-    else if string-compare w ("in") == 0 then Some (TWord w)
-    else if string-compare w ("let") == 0 then Some (TWord w)
-    else if string-compare w ("letrec") == 0 then Some (TWord w)
-    else if string-compare w ("if") == 0 then Some (TWord w)
-    else if string-compare w ("then") == 0 then Some (TWord w)
-    else if string-compare w ("else") == 0 then Some (TWord w)
-    else if string-compare w ("case") == 0 then Some (TWord w)
-    else if string-compare w ("of") == 0 then Some (TWord w)
-    else if string-compare w ("do") == 0 then Some (TWord w)
-    else if string-compare w ("handle") == 0 then Some (TWord w)
-    else if string-compare w ("with") == 0 then Some (TWord w)
-    else if string-compare w ("rewrite") == 0 then Some (TWord w)
-    else if string-compare w ("prim") == 0 then Some (TWord w)
-    else if string-compare w ("law") == 0 then Some (TWord w)
-    else if string-compare w ("target") == 0 then Some (TWord w)
-    else if string-compare w ("justify") == 0 then Some (TWord w)
-    else if string-compare w ("match") == 0 then Some (TWord w)
-    else if string-compare w ("replace") == 0 then Some (TWord w)
-    else if string-compare w ("require") == 0 then Some (TWord w)
-    else if string-compare w ("upgrade") == 0 then Some (TWord w)
-    else if string-compare w ("contract") == 0 then Some (TWord w)
-    else if string-compare w ("to") == 0 then Some (TWord w)
-    else if string-compare w ("generate") == 0 then Some (TWord w)
-    else if string-compare w ("quoteDecls") == 0 then Some (TWord w)
-    else if string-compare w ("foreign") == 0 then Some (TWord w)
-    else if string-compare w ("export") == 0 then Some (TWord w)
-    else if string-compare w ("ccall") == 0 then Some (TWord w)
-    else if string-compare w ("component") == 0 then Some (TWord w)
-    else if string-compare w ("proof") == 0 then Some (TWord w)
-    else if string-compare w ("spec") == 0 then Some (TWord w)
-    else if string-compare w ("stage") == 0 then Some (TWord w)
-    else if string-compare w ("corec") == 0 then Some (TWord w)
-    else if string-compare w ("macro") == 0 then Some (TWord w)
-    else if string-compare w ("infix") == 0 then Some (TWord w)
-    else if string-compare w ("infixl") == 0 then Some (TWord w)
-    else if string-compare w ("infixr") == 0 then Some (TWord w)
-    else if string-compare w ("erased") == 0 then Some (TWord w)
-    else if string-compare w ("own") == 0 then Some (TWord w)
-    else if string-compare w ("return") == 0 then Some (TWord w)
-    else if string-compare w ("resume") == 0 then Some (TWord w)
-    else None
+    if keyword-of-length (nat-to-i64 (string-byte-length w)) w then Some (TWord w) else None
 
-  -- The word at the cursor: a reserved word, the `prim` refusal, or a
-  -- var/con identifier. `letrec` scans as the pair the compiler emits
-  -- (`letrec` then `let`, sharing one span).
+  -- Is `w`, of byte length `n`, one of the keywords of that length?
+  keyword-of-length :: I64 -> String -> Bool
+  keyword-of-length n w =
+    if eq-i64 n 2 then keywords-two w
+    else if eq-i64 n 3 then keywords-three w
+    else if eq-i64 n 4 then keywords-four w
+    else if eq-i64 n 5 then keywords-five w
+    else if eq-i64 n 6 then keywords-six w
+    else if eq-i64 n 7 then keywords-seven w
+    else if eq-i64 n 8 then keywords-eight w
+    else if eq-i64 n 9 then keywords-nine w
+    else if eq-i64 n 10 then is-spelled w "quoteDecls"
+    else False
+
+  -- `w` is exactly the spelling `s` (an in-place byte comparison).
+  is-spelled :: String -> String -> Bool
+  is-spelled w s = eq-i64 (string-compare w s) 0
+
+  keywords-two :: String -> Bool
+  keywords-two w =
+    is-spelled w "as" || is-spelled w "in" || is-spelled w "if"
+    || is-spelled w "of" || is-spelled w "do" || is-spelled w "to"
+
+  keywords-three :: String -> Bool
+  keywords-three w = is-spelled w "let" || is-spelled w "law" || is-spelled w "own"
+
+  keywords-four :: String -> Bool
+  keywords-four w =
+    is-spelled w "data" || is-spelled w "type" || is-spelled w "then"
+    || is-spelled w "else" || is-spelled w "case" || is-spelled w "with"
+    || is-spelled w "prim" || is-spelled w "spec"
+
+  keywords-five :: String -> Bool
+  keywords-five w =
+    is-spelled w "where" || is-spelled w "Sigma" || is-spelled w "using"
+    || is-spelled w "match" || is-spelled w "proof" || is-spelled w "stage"
+    || is-spelled w "corec" || is-spelled w "macro" || is-spelled w "infix"
+    || is-spelled w "ccall"
+
+  keywords-six :: String -> Bool
+  keywords-six w =
+    is-spelled w "module" || is-spelled w "record" || is-spelled w "codata"
+    || is-spelled w "effect" || is-spelled w "import" || is-spelled w "opaque"
+    || is-spelled w "forall" || is-spelled w "letrec" || is-spelled w "handle"
+    || is-spelled w "target" || is-spelled w "export" || is-spelled w "infixl"
+    || is-spelled w "infixr" || is-spelled w "erased" || is-spelled w "return"
+    || is-spelled w "resume"
+
+  keywords-seven :: String -> Bool
+  keywords-seven w =
+    is-spelled w "rewrite" || is-spelled w "justify" || is-spelled w "replace"
+    || is-spelled w "require" || is-spelled w "upgrade" || is-spelled w "foreign"
+
+  keywords-eight :: String -> Bool
+  keywords-eight w =
+    is-spelled w "implicit" || is-spelled w "contract" || is-spelled w "generate"
+    || is-spelled w "instance"
+
+  keywords-nine :: String -> Bool
+  keywords-nine w = is-spelled w "signature" || is-spelled w "component"
+
+  -- The word at the cursor: a reserved word or a var/con identifier.
+  -- `letrec` scans as the pair the compiler emits (`letrec` then
+  -- `let`, sharing one span). `prim` is an ordinary keyword here; its
+  -- inline body fragments are captured by the scan loop.
   lex-word :: Scan -> TokenStep
   lex-word s = case scan-ident s of
     Pair s2 cs ->
       let str = case string-from-bytes (chars-bytes cs) of Some s -> s; None -> empty-string in
-      if string-compare str ("prim") == 0 then ErrAt (scan-span s) RefusedPrim
-      else if string-compare str ("letrec") == 0 then
+      if string-compare str ("letrec") == 0 then
         Tok2 s2 (TWord str) (TWord ("let"))
       else case keyword-token str of
         Some t -> Tok1 s2 t
@@ -632,19 +694,22 @@ module Text.Lex where
               if is-upper-char c then Tok1 s2 (TCon str) else Tok1 s2 (TVar str)
 
   -- Reserved punctuation from a symbol run: the multi-character forms
-  -- and the bare reserved symbols. Anything else is an operator.
+  -- and the bare reserved symbols. Anything else is an operator. Every
+  -- reserved form is one or two bytes, so a longer run is an operator
+  -- without a comparison.
   symbol-token :: String -> Token
   symbol-token s =
-    if string-compare s ("::") == 0 then TPunct s
-    else if string-compare s ("->") == 0 then TPunct s
-    else if string-compare s ("<-") == 0 then TPunct s
-    else if string-compare s ("=>") == 0 then TPunct s
-    else if string-compare s ("!") == 0 then TPunct s
-    else if string-compare s ("@") == 0 then TPunct s
-    else if string-compare s ("=") == 0 then TPunct s
-    else if string-compare s ("|") == 0 then TPunct s
-    else if string-compare s ("~") == 0 then TPunct s
-    else TOp s
+    if reserved-symbol (nat-to-i64 (string-byte-length s)) s then TPunct s else TOp s
+
+  -- Is the run `s`, of byte length `n`, a reserved symbol?
+  reserved-symbol :: I64 -> String -> Bool
+  reserved-symbol n s =
+    if eq-i64 n 1 then
+      is-spelled s "!" || is-spelled s "@" || is-spelled s "="
+      || is-spelled s "|" || is-spelled s "~"
+    else if eq-i64 n 2 then
+      is-spelled s "::" || is-spelled s "->" || is-spelled s "<-" || is-spelled s "=>"
+    else False
 
   is-nil-chars :: List Char -> Bool
   is-nil-chars xs = case xs of
@@ -848,8 +913,10 @@ module Text.Lex where
       else lex-string-acc (skip-char s) (Cons c acc)
 
   -- The tick lexeme (amendment section 12): `'c'` is a `Char`
-  -- literal and wins; the name forms `'name` and `''T` are the named
-  -- refusal.
+  -- literal and wins; `'name` is the symbol form and `''T` the type
+  -- name form, each a token carrying the name (`lex_word`'s shape,
+  -- dashes included). A tick that is neither a `Char` literal nor a
+  -- name is `RefusedTickName`.
   lex-tick :: Scan -> TokenStep
   lex-tick s =
     case peek-at s 1 of
@@ -869,14 +936,224 @@ module Text.Lex where
             Some d | eq-char d '\'' ->
               Tok1 (skip-char (skip-char (skip-char s)))
                 (TChar (char-code c))
-            _ -> ErrAt (scan-span s) RefusedTickName
+            _ ->
+              if eq-char c '\'' then
+                case peek-char (skip-char (skip-char s)) of
+                  Some d | is-ident-start-char d -> tick-name-step True (skip-char (skip-char s))
+                  _ -> ErrAt (scan-span s) RefusedTickName
+              else if is-ident-start-char c then
+                tick-name-step False (skip-char s)
+              else ErrAt (scan-span s) RefusedTickName
+
+  is-ident-start-char :: Char -> Bool
+  is-ident-start-char c = is-alpha-char c || eq-char c '_'
+
+  -- The name after the tick(s): `'name` is a symbol, `''T` a type
+  -- name (the caller has already checked the name's first character).
+  tick-name-step :: Bool -> Scan -> TokenStep
+  tick-name-step is-type s = case scan-ident s of
+    Pair s2 cs ->
+      let name = case string-from-bytes (chars-bytes cs) of Some x -> x; None -> empty-string in
+      if is-type then Tok1 s2 (TTickType name) else Tok1 s2 (TTickName name)
+
+  -- ---------------------------------------------------------------------------
+  -- Attributes and `prim` body fragments (the self-hosting forms).
+  -- ---------------------------------------------------------------------------
+
+  is-attr-name-char :: Char -> Bool
+  is-attr-name-char c = is-ident-char c || eq-char c '.' || eq-char c '-'
+
+  scan-attr-name :: Scan -> Scan
+  scan-attr-name s = case peek-char s of
+    Some c | is-attr-name-char c -> scan-attr-name (skip-char s)
+    _ -> s
+
+  -- A dotted attribute name: non-empty, no leading or trailing `.` or
+  -- `-` (the compiler's `lex_attr` name rule).
+  attr-name-valid :: String -> Bool
+  attr-name-valid name =
+    if string-length name == 0 then False
+    else case string-char-at name 0 of
+      None -> False
+      Some first -> case string-char-at name (string-length name - 1) of
+        None -> False
+        Some last ->
+          not (eq-char first '.') && not (eq-char first '-')
+            && not (eq-char last '.') && not (eq-char last '-')
+
+  -- The balanced `(...)` region of an attribute's arguments, string
+  -- literals skipped so a `)` inside one does not close the group.
+  scan-attr-parens :: Scan -> Nat -> ResultScan
+  scan-attr-parens s depth = case peek-char s of
+    None -> SRErr (scan-span s) RefusedAttr
+    Some c ->
+      if eq-char c '"' then scan-attr-parens (skip-attr-string (skip-char s)) depth
+      else if eq-char c '(' then scan-attr-parens (skip-char s) (depth + 1)
+      else if eq-char c ')' then
+        if nat-cmp depth 1 == 0 then SROk (skip-char s)
+        else scan-attr-parens (skip-char s) (depth - 1)
+      else scan-attr-parens (skip-char s) depth
+
+  -- Consume a `"..."` string (the closing quote included), with `\`
+  -- escapes; used only to keep a `)` inside one opaque.
+  skip-attr-string :: Scan -> Scan
+  skip-attr-string s = case peek-char s of
+    None -> s
+    Some c ->
+      if eq-char c '\\' then skip-attr-string (skip-char (skip-char s))
+      else if eq-char c '"' then skip-char s
+      else skip-attr-string (skip-char s)
+
+  -- The `= literal` tail of an attribute: up to the closing `]`.
+  scan-attr-to-bracket :: Scan -> Scan
+  scan-attr-to-bracket s = case peek-char s of
+    Some c | eq-char c ']' -> s
+    _ -> scan-attr-to-bracket (skip-char s)
+
+  is-close-bracket :: Scan -> Bool
+  is-close-bracket s = case peek-char s of
+    Some c | eq-char c ']' -> True
+    _ -> False
+
+  -- The byte range [i, j) decoded as a String.
+  bytes-to-string-at :: Bytes -> Nat -> Nat -> String
+  bytes-to-string-at b i j = case string-from-bytes (bytes-slice b i j) of
+    Some s -> s
+    None -> empty-string
+
+  -- The compiler trims an attribute's `= value` text, so the inner text
+  -- `#[flag=true ]` carries is `flag=true`: walk back over the
+  -- whitespace before the `]`.
+  trim-attr-end :: Bytes -> Nat -> Nat
+  trim-attr-end b j =
+    if nat-cmp j 0 == 0 then j
+    else if is-attr-space (bytes-get b (j - 1)) then trim-attr-end b (j - 1)
+    else j
+
+  is-attr-space :: Nat -> Bool
+  is-attr-space c = nat-cmp c 32 == 0 || nat-cmp c 9 == 0 || nat-cmp c 13 == 0 || nat-cmp c 10 == 0
+
+  -- One `#[...]` attribute: `#[name]`, `#[name(...)]` or
+  -- `#[name=...]`, the token carrying the inner text between `#[` and
+  -- `]` with the `= value` text trimmed as the compiler trims it. A
+  -- missing or malformed name, or an unterminated group, is
+  -- `RefusedAttr`.
+  lex-attr :: Scan -> TokenStep
+  lex-attr s0 =
+    let s = skip-char (skip-char s0) in
+    let start = scan-off s in
+    let s1 = scan-attr-name s in
+    let name = bytes-to-string-at (scan-src s1) start (scan-off s1) in
+    if not (attr-name-valid name) then ErrAt (scan-span s0) RefusedAttr
+    else case peek-char s1 of
+      None -> ErrAt (scan-span s0) RefusedAttr
+      Some c ->
+        if eq-char c '(' then
+          case scan-attr-parens (skip-char s1) 1 of
+            SRErr sp k -> ErrAt sp k
+            SROk s2 ->
+              if is-close-bracket s2
+              then Tok1 (skip-char s2) (TAttr (bytes-to-string-at (scan-src s2) start (scan-off s2)))
+              else ErrAt (scan-span s0) RefusedAttr
+        else if eq-char c '=' then
+          let s2 = scan-attr-to-bracket s1 in
+          if is-close-bracket s2
+          then
+            let stop = trim-attr-end (scan-src s2) (scan-off s2) in
+            Tok1 (skip-char s2) (TAttr (bytes-to-string-at (scan-src s2) start stop))
+          else ErrAt (scan-span s0) RefusedAttr
+        else if eq-char c ']' then Tok1 (skip-char s1) (TAttr name)
+        else ErrAt (scan-span s0) RefusedAttr
+
+  data FragmentResult where
+    FragOk :: String -> Span -> Scan -> FragmentResult
+    FragErr :: Span -> LexErrorKind -> FragmentResult
+
+  -- Capture a `prim` body's balanced `{ ... }` region verbatim, once a
+  -- registered family name has opened it: nesting counted and string
+  -- literals skipped, exactly as the compiler's `lex_fragment` does.
+  -- `FragOk` carries the inner text, the closing `}`'s span, and the
+  -- scan after it.
+  lex-fragment :: Scan -> FragmentResult
+  lex-fragment s0 = fragment-loop (skip-char s0) (scan-off (skip-char s0)) 1 False
+
+  fragment-loop :: Scan -> Nat -> Nat -> Bool -> FragmentResult
+  fragment-loop s start depth in-str = case peek-char s of
+    None -> FragErr (scan-span s) RefusedPrim
+    Some c ->
+      if in-str then
+        if eq-char c '"' then fragment-loop (skip-char s) start depth False
+        else if eq-char c '\\' then fragment-loop (skip-char (skip-char s)) start depth True
+        else fragment-loop (skip-char s) start depth True
+      else
+        if eq-char c '"' then fragment-loop (skip-char s) start depth True
+        else if eq-char c '{' then fragment-loop (skip-char s) start (depth + 1) False
+        else if eq-char c '}' then
+          if nat-cmp depth 1 == 0 then
+            FragOk (bytes-to-string-at (scan-src s) start (scan-off s)) (scan-span s) (skip-char s)
+          else fragment-loop (skip-char s) start (depth - 1) False
+        else fragment-loop (skip-char s) start depth False
 
   -- ---------------------------------------------------------------------------
   -- The scan loop (the compiler's `run`).
   -- ---------------------------------------------------------------------------
 
-  lex-tokens :: Bytes -> Lexed
-  lex-tokens b = scan-all (Scan b 0 1 1 True None) Nil
+  -- The scan loop's state: the innermost `prim` declaration (its
+  -- column and whether its `where` has been seen) and the last scanned
+  -- word, so a `family { ... }` body opener can be recognized (the
+  -- compiler's `Lexer::note`/`at_prim_fragment`).
+  data LexCtx where
+    LexCtx :: Option (Nat, Bool) -> Option String -> LexCtx
+
+  lex-ctx-prim :: LexCtx -> Option (Nat, Bool)
+  lex-ctx-prim c = case c of
+    LexCtx p l -> p
+
+  lex-ctx-last :: LexCtx -> Option String
+  lex-ctx-last c = case c of
+    LexCtx p l -> l
+
+  set-lex-prim :: LexCtx -> Option (Nat, Bool) -> LexCtx
+  set-lex-prim c p = LexCtx p (lex-ctx-last c)
+
+  set-lex-last :: LexCtx -> Option String -> LexCtx
+  set-lex-last c l = LexCtx (lex-ctx-prim c) l
+
+  -- The registered target-IR family names a `prim` body may open.
+  is-family-word :: Option String -> Bool
+  is-family-word w = case w of
+    None -> False
+    Some s -> string-compare s "llvm" == 0 || string-compare s "wasm" == 0
+      || string-compare s "asm" == 0 || string-compare s "clr" == 0
+      || string-compare s "jvm" == 0
+
+  at-prim-fragment :: LexCtx -> Bool
+  at-prim-fragment c = case lex-ctx-prim c of
+    None -> False
+    Some pc -> case pc of
+      (col, seen) -> seen && is-family-word (lex-ctx-last c)
+
+  note-last :: Token -> LexCtx -> LexCtx
+  note-last t c = case t of
+    TVar w -> set-lex-last c (Some w)
+    TCon w -> set-lex-last c (Some w)
+    _ -> set-lex-last c None
+
+  -- Update the context after a token, as the compiler's `note` does:
+  -- track the `prim` declaration and the last word, ending the body
+  -- block at the next line-start token at or outside the `prim`
+  -- keyword's column.
+  note-token :: Bool -> Nat -> Token -> LexCtx -> LexCtx
+  note-token at-line-start col t c =
+    let c1 = note-last t c in
+    if is-tok-word t ("prim") then set-lex-prim c1 (Some (col, False))
+    else case lex-ctx-prim c1 of
+      None -> c1
+      Some pc -> case pc of
+        (prim-col, seen) ->
+          let seen2 = seen || is-tok-word t ("where") in
+          if at-line-start && le-i64 (nat-cmp col prim-col) 0 then set-lex-prim c1 None
+          else set-lex-prim c1 (Some (prim-col, seen2))
 
   -- A token's span runs from its first byte to the scanner position
   -- after its last.
@@ -884,28 +1161,41 @@ module Text.Lex where
   span-end-at sp s = case sp of
     Span a b l c -> Span a (scan-off s) l c
 
-  -- The `$(` pair and `prim` inline fragments are the only multi-
-  -- token scans; `prim` is refused at its keyword above, so the pair
-  -- is the whole special case.
-  scan-all :: Scan -> List LToken -> Lexed
-  scan-all s acc = case skip-blank s of
+  lex-tokens :: Bytes -> Lexed
+  lex-tokens b = scan-all (LexCtx None None) (Scan b 0 1 1 True None) Nil
+
+  scan-all :: LexCtx -> Scan -> List LToken -> Lexed
+  scan-all ctx s acc = case skip-blank s of
     SRErr sp k -> LexedFail sp k
     SROk s2 ->
       let sp0 = scan-span s2 in
+      let at-line-start = scan-leading s2 in
       case peek-char s2 of
         None -> LexedTokens (reverse (Cons (LTok sp0 False TEOF) acc))
         Some c ->
-          if eq-char c '$' && is-dollar-paren s2 then
+          if eq-char c '{' && at-prim-fragment ctx then
+            case lex-fragment s2 of
+              FragErr sp k -> LexedFail sp k
+              FragOk text close s3 ->
+                scan-all (set-lex-last ctx None) s3
+                  (Cons (LTok close False (TPunct ("}")))
+                    (Cons (LTok sp0 False (TPrimFrag text))
+                      (Cons (LTok sp0 False (TPunct ("{"))) acc)))
+          else if eq-char c '$' && is-dollar-paren s2 then
             let s3 = skip-char (skip-char s2) in
             let sp1 = span-end-at sp0 s3 in
-            scan-all s3 (Cons (LTok sp1 False (TPunct ("(")))
+            let ctx1 = note-token at-line-start (span-col sp0) (TPunct ("$")) ctx in
+            scan-all ctx1 s3 (Cons (LTok sp1 False (TPunct ("(")))
               (Cons (LTok sp1 False (TPunct ("$"))) acc))
           else case scan-token s2 sp0 of
             ErrAt sp k -> LexedFail sp k
-            Tok1 s3 t -> scan-all s3 (Cons (LTok (span-end-at sp0 s3) False t) acc)
+            Tok1 s3 t ->
+              let ctx1 = note-token at-line-start (span-col sp0) t ctx in
+              scan-all ctx1 s3 (Cons (LTok (span-end-at sp0 s3) False t) acc)
             Tok2 s3 t1 t2 ->
+              let ctx1 = note-token at-line-start (span-col sp0) t1 ctx in
               let sp1 = span-end-at sp0 s3 in
-              scan-all s3 (Cons (LTok sp1 False t2) (Cons (LTok sp1 False t1) acc))
+              scan-all ctx1 s3 (Cons (LTok sp1 False t2) (Cons (LTok sp1 False t1) acc))
 
   -- scan_token: the dispatch order is the compiler's exactly.
   scan-token :: Scan -> Span -> TokenStep
@@ -934,7 +1224,7 @@ module Text.Lex where
             _ -> lex-symbol s
         else if eq-char c '#' then
           case peek-at s 1 of
-            Some d | eq-char d '[' -> ErrAt sp0 RefusedAttr
+            Some d | eq-char d '[' -> lex-attr s
             _ -> lex-symbol s
         else if eq-char c '%' then
           case lex-multiplicity s of

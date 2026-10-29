@@ -587,19 +587,23 @@ module Main where
 
     // Per contract: the definition and contract it names, the kind and
     // formula, the verification result, and the stated assumptions.
-    let section_start = manifest.find("\"temporal\": {").expect("temporal section");
-    let section_end = manifest.find("\"trust\"").expect("trust section");
+    let section_start = manifest.find("\"temporal\":{").expect("temporal section");
+    let section_end = manifest[section_start..]
+        .find("\"trust\":{")
+        .map(|i| section_start + i)
+        .expect("trust section");
     let section = &manifest[section_start..section_end];
-    assert!(section.contains("\"contracts\": ["), "{section}");
+    assert!(section.contains("\"contracts\":["), "{section}");
+    // Rows are canonical JSON, keys in byte order.
     assert!(
         section.contains(
-            "{\"definition\": \"Main.countdown\", \"contract\": \"loopInv\", \"kind\": \"safety\", \"formula\": \"always (copyOut m < 5)\""
+            "\"contract\":\"loopInv\",\"definition\":\"Main.countdown\",\"formula\":\"always (copyOut m < 5)\",\"kind\":\"safety\""
         ),
         "{section}"
     );
     assert!(
         section.contains(
-            "{\"definition\": \"Main.walk\", \"contract\": \"marker\", \"kind\": \"recurrence\", \"formula\": \"recur (copyOut m < 5)\""
+            "\"contract\":\"marker\",\"definition\":\"Main.walk\",\"formula\":\"recur (copyOut m < 5)\",\"kind\":\"recurrence\""
         ),
         "{section}"
     );

@@ -75,6 +75,7 @@
 module Effect.Coverage where
 
   import Algebra.Semigroup
+  import Algebra.Monoid
   import Data.List
   import Data.Map
   import Data.Nat
@@ -135,13 +136,15 @@ module Effect.Coverage where
   -- The report: one line per site, `label` TAB count NEWLINE, then a
   -- final `total` TAB total NEWLINE. An empty recorder is the total
   -- line alone (`total\t0\n`), with no site lines.
+  -- The lines are combined once by `mconcat` (String's is one buffer);
+  -- nesting `<>` would re-copy the rest of the report at every site.
   coverage-report :: Coverage -> String
-  coverage-report c = report-lines (coverage-counts c) <> total-line c
+  coverage-report c = mconcat (report-lines (coverage-counts c) (Cons (total-line c) Nil))
 
-  report-lines :: List (String, Nat) -> String
-  report-lines rows = case rows of
-    Nil -> empty-string
-    Cons row rest -> count-line row <> report-lines rest
+  report-lines :: List (String, Nat) -> List String -> List String
+  report-lines rows after = case rows of
+    Nil -> after
+    Cons row rest -> Cons (count-line row) (report-lines rest after)
 
   count-line :: (String, Nat) -> String
   count-line p = case p of

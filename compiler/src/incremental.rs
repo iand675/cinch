@@ -488,6 +488,14 @@ fn body_refs(d: &Decl, out: &mut Vec<RefSite>) {
                 local_refs(&m.locals, out);
             }
         }
+        // A default's body is the class's own code, like an instance
+        // method's is the instance's.
+        Decl::Signature(s) => {
+            for eq in &s.defaults {
+                ast::collect_term_refs(&eq.body, out);
+                local_refs(&eq.locals, out);
+            }
+        }
         Decl::Rewrite(r) => {
             ast::collect_term_refs(&r.match_tm, out);
             ast::collect_term_refs(&r.replace_tm, out);
@@ -2159,41 +2167,32 @@ impl Session {
         std::fs::create_dir_all(&self.out_dir)
             .map_err(|e| Error::plain(format!("{}: {e}", self.out_dir.display())))?;
         let path = self.out_dir.join(format!("{}.rebuild.json", self.entry_stem));
-        let list = |xs: &[String]| -> String {
-            let items: Vec<String> = xs.iter().map(|x| format!("{x:?}")).collect();
-            format!("[{}]", items.join(", "))
-        };
-        let mut text = String::new();
-        text.push_str("{\n");
-        text.push_str(&format!("  \"rechecked\": {},\n", list(&report.rechecked)));
-        text.push_str(&format!("  \"retyped\": {},\n", list(&report.retyped)));
-        text.push_str(&format!("  \"kept\": {},\n", list(&report.kept)));
-        text.push_str(&format!(
-            "  \"typed_modules\": {},\n",
-            list(&report.typed_modules)
-        ));
-        text.push_str(&format!(
-            "  \"changes\": [{}],\n",
-            report
-                .changes
-                .iter()
-                .map(|(id, k)| format!("{{\"item\": {id:?}, \"kind\": {k:?}}}"))
-                .collect::<Vec<_>>()
-                .join(", ")
-        ));
-        text.push_str(&format!(
-            "  \"chain_ok\": {},\n  \"full_rebuild\": {},\n",
-            report.chain_ok, report.full_rebuild
-        ));
-        text.push_str("  \"link\": {\n");
-        text.push_str(&format!("    \"placed\": {},\n", list(&report.link.placed)));
-        text.push_str(&format!("    \"reused\": {},\n", list(&report.link.reused)));
-        text.push_str(&format!("    \"dropped\": {},\n", list(&report.link.dropped)));
-        text.push_str(&format!(
-            "    \"verified\": {},\n    \"repaired\": {}\n  }}\n}}\n",
-            report.link.verified, report.link.repaired
-        ));
-        std::fs::write(&path, text)
+        use crate::interface::JsonValue as J;
+        let doc = J::obj([
+            ("rechecked", (&report.rechecked).into()),
+            ("retyped", (&report.retyped).into()),
+            ("kept", (&report.kept).into()),
+            ("typed_modules", (&report.typed_modules).into()),
+            (
+                "changes",
+                J::arr(&report.changes, |(id, k)| {
+                    J::obj([("item", id.into()), ("kind", format!("{k:?}").into())])
+                }),
+            ),
+            ("chain_ok", report.chain_ok.into()),
+            ("full_rebuild", report.full_rebuild.into()),
+            (
+                "link",
+                J::obj([
+                    ("placed", (&report.link.placed).into()),
+                    ("reused", (&report.link.reused).into()),
+                    ("dropped", (&report.link.dropped).into()),
+                    ("verified", report.link.verified.into()),
+                    ("repaired", report.link.repaired.into()),
+                ]),
+            ),
+        ]);
+        std::fs::write(&path, doc.to_canonical_string())
             .map_err(|e| Error::plain(format!("{}: {e}", path.display())))?;
         Ok(())
     }
@@ -2490,7 +2489,13 @@ fn split_ir(ir: &str) -> Result<SplitIr> {
         }
         let mut best: Option<String> = None;
         for u in &clo_units {
-            if symbol == u.as_str() || symbol.starts_with(&format!("{u}.")) {
+            // A unit's own symbols: the unit, its `.`-suffixed companions
+            // (`.clo`, `.app`, `.blk`) and its `#`-suffixed workers (the
+            // mixed-arity tail group's `#tail`).
+            if symbol == u.as_str()
+                || symbol.starts_with(&format!("{u}."))
+                || symbol.starts_with(&format!("{u}#"))
+            {
                 if best.as_ref().map(|b: &String| u.len() > b.len()).unwrap_or(true) {
                     best = Some(u.clone());
                 }
@@ -2536,6 +2541,15 @@ fn split_ir(ir: &str) -> Result<SplitIr> {
     }
     if blocks.len() != clo_units.len() {
         ok = false;
+    }
+    // Assembly keeps only the preamble, the unit blocks and the tail, so a
+    // chunk between the first and the last block that no unit owns would
+    // be silently dropped; fall back to a blob instead.
+    let in_blocks: BTreeSet<usize> = blocks.iter().flat_map(|(_, ix)| ix.iter().copied()).collect();
+    if let (Some(lo), Some(hi)) = (in_blocks.iter().next(), in_blocks.iter().next_back()) {
+        if (*lo..=*hi).any(|i| !in_blocks.contains(&i)) {
+            ok = false;
+        }
     }
     if !ok {
         return Ok(SplitIr {

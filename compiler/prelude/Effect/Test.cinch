@@ -266,22 +266,24 @@ module Effect.Test where
   -- the case, the failing assertion and the message), a blank line,
   -- then the totals line. A report with no failures is the totals
   -- line alone.
+  -- The blocks are flattened once: nesting `string-concat` would re-copy
+  -- the rest of the report at every failure.
   render-report :: Report -> String
   render-report r = case report-failures r of
     Nil -> totals-line r
-    fs -> string-concat (failure-blocks fs 1) (string-concat "\n" (totals-line r))
+    fs -> string-concat-all (failure-blocks fs 1 (Cons "\n" (Cons (totals-line r) Nil)))
 
-  failure-blocks :: List CaseFailure -> Int -> String
-  failure-blocks fs i = case fs of
-    Nil -> ""
-    Cons f rest -> string-concat (int-to-string i)
-      (string-concat ") "
-        (string-concat (failure-case f)
-          (string-concat ": "
-            (string-concat (failure-assertion f)
-              (string-concat "\n  "
-                (string-concat (failure-message f)
-                  (string-concat "\n" (failure-blocks rest (i + 1)))))))))
+  failure-blocks :: List CaseFailure -> Int -> List String -> List String
+  failure-blocks fs i after = case fs of
+    Nil -> after
+    Cons f rest -> Cons (int-to-string i)
+      (Cons ") "
+        (Cons (failure-case f)
+          (Cons ": "
+            (Cons (failure-assertion f)
+              (Cons "\n  "
+                (Cons (failure-message f)
+                  (Cons "\n" (failure-blocks rest (i + 1) after))))))))
 
   -- The counts line: Minitest's format, always plural (one shape for
   -- every report).

@@ -43,6 +43,8 @@ module Data.NonZero where
 
   -- The multiplicative identity is 1: non-zero, so the transfer
   -- preserves the refinement (the contrast with `Monoid (NonEmpty a)`,
-  -- whose identity violates non-emptiness).
+  -- whose identity violates non-emptiness). `mconcat` is the class
+  -- default, checked at `NonZero` itself: it composes this instance's
+  -- own methods, so it preserves the refinement by construction.
   implicit instance Monoid_NonZero :: Monoid NonZero where
     mempty = 1

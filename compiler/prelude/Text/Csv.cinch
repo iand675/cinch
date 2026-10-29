@@ -85,7 +85,7 @@ module Text.Csv where
   import Data.List (List, Nil, Cons, map, length, reverse)
   import Data.Option (Option, None, Some)
   import Data.Result (Result, Ok, Err)
-  import Data.String (String, empty-string, pack, string-concat, string-to-bytes, unpack, utf8-encode-width)
+  import Data.String (String, empty-string, pack, string-concat, string-concat-all, string-to-bytes, unpack, utf8-encode-width)
 
   export CsvError, CsvUnterminatedQuote, CsvStrayQuote, CsvTextAfterQuote
   export CsvBareCarriageReturn, CsvRowArity
@@ -360,20 +360,24 @@ module Text.Csv where
   -- field quoted exactly when it must be.
   -- ---------------------------------------------------------------------------
 
+  -- The document's pieces are collected and flattened once: nesting
+  -- `string-concat` would re-copy the rest of the document at every row
+  -- and field.
   csv-print :: List (List String) -> String
-  csv-print rows = case rows of
-    Nil -> empty-string
-    Cons r rest -> string-concat (print-row r) (csv-print rest)
+  csv-print rows = string-concat-all (row-pieces rows)
 
-  print-row :: List String -> String
-  print-row fields = string-concat (print-fields fields) "\n"
+  row-pieces :: List (List String) -> List String
+  row-pieces rows = case rows of
+    Nil -> Nil
+    Cons r rest -> field-pieces r (row-pieces rest)
 
-  print-fields :: List String -> String
-  print-fields fields = case fields of
-    Nil -> empty-string
+  -- One row's fields, comma separated and closed by LF, before `after`.
+  field-pieces :: List String -> List String -> List String
+  field-pieces fields after = case fields of
+    Nil -> Cons "\n" after
     Cons f rest -> case rest of
-      Nil -> print-field f
-      _ -> string-concat (print-field f) (string-concat "," (print-fields rest))
+      Nil -> Cons (print-field f) (Cons "\n" after)
+      _ -> Cons (print-field f) (Cons "," (field-pieces rest after))
 
   print-field :: String -> String
   print-field f = case quoted-form (unpack f) of

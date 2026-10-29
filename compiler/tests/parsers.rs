@@ -416,7 +416,11 @@ fn lex_agrees_with_compiler_token_stream() {
 
 /// Layout and lexing refusals and errors are named, not silent: the
 /// tab rule, the layout indent rule, `in` without a `let`, and the
-/// three named unproductions.
+/// three refusal kinds against genuinely malformed input (an attribute
+/// the compiler cannot parse, a `prim` body fragment with no closing
+/// `}`, and a tick that is neither a `Char` literal nor a name). The
+/// well-formed forms (`#[x]`, `prim ... where`, `'name`, `''T`) lex as
+/// tokens instead (see `lex_agrees_with_compiler_token_stream`).
 #[test]
 fn lex_errors_are_named() {
     // Each case asserts the message names the rule (the program
@@ -450,9 +454,9 @@ fn lex_errors_are_named() {
         ("module M where\n\tfoo = 1\n", "tabs are rejected in indentation"),
         ("module M where\n  f = case x of\n  0 -> 1\n", "layout block must indent farther"),
         ("f = 1 in 2\n", "has no matching implicit"),
-        ("#[x] f = 1\n", "refused:"),
-        ("prim law where\n", "refused:"),
-        ("'name\n", "refused:"),
+        ("#[x f = 1\n", "malformed attribute annotation"),
+        ("prim f :: U32 where\n  llvm {\n", "unterminated `prim` body fragment"),
+        ("''\n", "needs an identifier name"),
     ];
     program.push_str("  main :: Int\n");
     program.push_str("  main =\n");

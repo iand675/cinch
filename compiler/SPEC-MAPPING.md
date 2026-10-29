@@ -205,7 +205,7 @@ property holds by construction rather than by a named test.
 
 | # | Anchor | Requirement | Status | Evidence |
 | --- | --- | --- | --- | --- |
-| 122 | surf#9-tail-constant-stack | Tail recursion MUST run in constant stack (self and mutual); unmarkable groups fall back with the report saying so | I | loop-header self jumps + `musttail` mutual groups (D104, D138-D139; `core.rs::tail_report`, `codegen.rs` loop header); `tail_calls` manifest section with Tarjan SCC marks and fallback reasons (`driver.rs`); tail marking exercised by `tests/safety.rs::recursion_tail_covers_self_and_mutual_groups`; the constant-stack run itself pinned at 1,000,001 calls deep (self and mutual, marks asserted `marked`) with the no-tail overflow control by `tests/tail_calls.rs` |
+| 122 | surf#9-tail-constant-stack | Tail recursion MUST run in constant stack (self and mutual); unmarkable groups fall back with the report saying so | I | loop-header self jumps + `musttail` mutual groups (D104, D138-D139; `core.rs::tail_report`, `codegen.rs` loop header); a group of mixed arities lowers under one widened signature (`core.rs::tail_widths`, `@"<unit>#tail"` workers), so only an unsaturated member call falls back; `tail_calls` manifest section with Tarjan SCC marks and fallback reasons (`driver.rs`); tail marking exercised by `tests/safety.rs::recursion_tail_covers_self_and_mutual_groups`; the constant-stack run itself pinned at 1,000,001 calls deep (self, mutual, and mixed-arity mutual, marks asserted `marked`) with the no-tail overflow control by `tests/tail_calls.rs`, all on an 8 MiB stack (`CINCH_STACK_SIZE=8M`; the runtime's own reservation is 1 GiB) |
 
 ## Roadmap gaps (unplanned requirements)
 

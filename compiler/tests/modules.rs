@@ -58,7 +58,7 @@ fn multi_file_module_links_and_runs() {
         assert!(dir.join(f).exists(), "missing artifact {f}");
     }
     let lib_iface = std::fs::read_to_string(dir.join("build/Lib.cinchif")).expect("iface");
-    assert!(lib_iface.contains("\"module\": \"Lib\""), "{lib_iface}");
+    assert!(lib_iface.contains("\"module\":\"Lib\""), "{lib_iface}");
     assert!(lib_iface.contains("Lib.double"), "{lib_iface}");
     let manifest = std::fs::read_to_string(dir.join("build/Main.manifest.json")).expect("manifest");
     assert!(manifest.contains("\"modules\""), "{manifest}");

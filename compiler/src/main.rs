@@ -8,13 +8,19 @@ usage:
   cinch check <file.cinch> [--rebuild]         typecheck only
   cinch emit-ir <file.cinch> [-o <out.ll>] [--rebuild]
   cinch build <file.cinch> [-o <out>] [--rebuild]
-  cinch run <file.cinch> [--rebuild]           compile and run; exit code is the program's
+  cinch run <file.cinch> [args...] [--rebuild] compile and run; exit code is the program's
   cinch lsp                        run the language server over stdio
 
 flags:
   -o <path>   the output path (emit-ir and build)
   --rebuild   recompute a package-store entry that fails verification
               instead of failing the compile with the reason
+  --          everything after it is a program argument (run), so an
+              argument that looks like a flag can still be passed
+
+`run` forwards every word after the entry file to the program's own
+command line, which the program reads with `process-args`
+(Effect.Process).
 ";
 
 fn main() {
@@ -60,11 +66,17 @@ fn main() {
                 }
             }
             "--rebuild" => opts.rebuild_store = true,
-            f if file.is_none() => file = Some(f),
-            other => {
-                eprintln!("cinch: unexpected argument {other}");
-                exit(2);
+            // Everything after `--` is the run program's own argument
+            // list, verbatim: `cinch run prog.cinch -- --rebuild x`.
+            "--" => {
+                opts.program_args.extend(rest[i + 1..].iter().cloned());
+                break;
             }
+            f if file.is_none() => file = Some(f),
+            // After the entry file, a word that is not one of the flags
+            // above belongs to the program `run` executes. `--` is the
+            // escape for a program argument that looks like a flag.
+            other => opts.program_args.push(other.to_string()),
         }
         i += 1;
     }

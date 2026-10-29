@@ -347,8 +347,8 @@ module Pack where
     assert_eq!(dist.select(&[]).unwrap().name, "baseline");
     // The loader record names the selection and the feature profile.
     let record = dist.loader_record("baseline", &[]);
-    assert!(record.contains("\"selected\": \"baseline\""), "{record}");
-    assert!(record.contains("\"name\": \"specialized\""), "{record}");
+    assert!(record.contains("\"selected\":\"baseline\""), "{record}");
+    assert!(record.contains("\"name\":\"specialized\""), "{record}");
     assert!(record.contains("wasm.simd"), "{record}");
     // A reload reproduces the choice (the packaging is deterministic).
     let again = package_variants(src, "<test>", &variants).expect("re-packaging");
@@ -456,12 +456,15 @@ module GlueProbe where
     let manifest =
         std::fs::read_to_string(dir.join("build/client.manifest.json")).expect("the manifest");
     assert!(manifest.contains("\"wasm\""), "{manifest}");
-    assert!(manifest.contains("\"artifact\": \"wasi-component\""), "{manifest}");
-    assert!(manifest.contains("\"canonical_abi\": \"wasi-0.3\""), "{manifest}");
-    assert!(manifest.contains("\"required\": [\"wasm.component-model\"]"), "{manifest}");
-    assert!(manifest.contains("\"selected\": {\"profile\": \"wasm32-wasi-component\""), "{manifest}");
-    assert!(manifest.contains("\"lowerings\": [\"tasks:cooperative\"]"), "{manifest}");
+    assert!(manifest.contains("\"artifact\":\"wasi-component\""), "{manifest}");
+    assert!(manifest.contains("\"canonical_abi\":\"wasi-0.3\""), "{manifest}");
+    assert!(manifest.contains("\"required\":[\"wasm.component-model\"]"), "{manifest}");
+    // `selected` is `{"features":[..],"profile":..}` (keys in byte order);
+    // the closing brace tells it from the `target` section's `profile`.
+    assert!(manifest.contains("\"selected\":{\"features\":["), "{manifest}");
+    assert!(manifest.contains("\"profile\":\"wasm32-wasi-component\"}"), "{manifest}");
+    assert!(manifest.contains("\"lowerings\":[\"tasks:cooperative\"]"), "{manifest}");
     assert!(manifest.contains("example:codec@0.1.0/decoder#decode"), "{manifest}");
-    assert!(manifest.contains("\"ret_area\": {\"size\": 12, \"align\": 4, \"cases\": 2}"), "{manifest}");
+    assert!(manifest.contains("\"ret_area\":{\"align\":4,\"cases\":2,\"size\":12}"), "{manifest}");
     let _ = std::fs::remove_dir_all(&dir);
 }

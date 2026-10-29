@@ -381,11 +381,17 @@ module Data.Matrix where
       Nil -> Cons s (pad-cells Nil ss)
       Cons w w2 -> Cons (pad-column w s) (pad-cells w2 ss)
 
+  -- The strings separated by `sep`, flattened once (`string-concat-all`
+  -- is one buffer; nesting `string-concat` would re-copy the rest of the
+  -- rendering at every row and cell).
   join-with :: String -> List String -> String
-  join-with sep xs = case xs of
-    Nil -> empty-string
-    Cons s Nil -> s
-    Cons s ss -> string-concat s (string-concat sep (join-with sep ss))
+  join-with sep xs = string-concat-all (sep-pieces sep xs)
+
+  sep-pieces :: String -> List String -> List String
+  sep-pieces sep xs = case xs of
+    Nil -> Nil
+    Cons s Nil -> Cons s Nil
+    Cons s ss -> Cons s (Cons sep (sep-pieces sep ss))
 
   to-string :: Matrix -> String
   to-string m =

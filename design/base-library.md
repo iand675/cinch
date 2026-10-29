@@ -53,9 +53,11 @@ style (D106)).
 ## The buildout (dispatched)
 
 - `Algebra.Semigroup` + `Algebra.Monoid`: `Semigroup` (`<>`),
-  `Monoid` (`mempty`), newtypes Sum/Dual/First/Last/Endo, instances
-  for List, Option, Ordering, Nat under addition and multiplication
-  (via newtypes), String, functions, and tuples.
+  `Monoid` (`mempty`, and `mconcat` with a balanced-fold default that
+  String overrides with its one-buffer concatenation), newtypes
+  Sum/Dual/First/Last/Endo, instances for List, Option, Ordering, Nat
+  under addition and multiplication (via newtypes), String, functions,
+  and tuples.
 - `Category.Functor`/`Category.Applicative`/`Category.Monad`:
   `map`/`<$>`, `pure`/`<*>`, `>>=`/`join`, `Identity`/`Const`/
   `Compose`, instances for List, Option, Result e, functions ((->) r).

@@ -94,15 +94,11 @@ module Data.StringIo where
   io-cursor io = case io of
     IoBuf _ p -> p
 
-  -- A byte-range copy (the private plumbing Data.String keeps for the
-  -- same job; named apart from the facade's exported
-  -- `copy-bytes-into`, so neither shadows the other).
+  -- A byte-range copy (named apart from the facade's exported
+  -- `copy-bytes-into`, so neither shadows the other): the runtime's
+  -- `memmove`, never a per-byte loop.
   copy-into :: Bytes -> Bytes -> Nat -> Nat -> Nat -> Unit
-  copy-into dst src di si n =
-    if n == 0 then ()
-    else
-      let u = bytes-set dst di (bytes-get src si) in
-      copy-into dst src (di + 1) (si + 1) (n - 1)
+  copy-into dst src di si n = bytes-copy-range dst src di si n
 
   string-io-new :: StringIo
   string-io-new = IoBuf (bytes-new 0) 0

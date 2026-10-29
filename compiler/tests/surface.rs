@@ -32,22 +32,21 @@ fn check_entry(dir: &Path, entry: &str) -> Result<(), String> {
 }
 
 /// The manifest's `literal_folds` boundary: `(kind, folded)` per site.
+/// Rows are canonical JSON, keys in byte order: `{"folded":..,"kind":..}`.
 fn literal_folds(dir: &Path) -> Vec<(String, bool)> {
     let text = std::fs::read_to_string(dir.join("build/Main.manifest.json"))
         .expect("manifest");
     let mut out = Vec::new();
-    let start = text.find("\"literal_folds\"").expect("literal_folds section");
-    let end = text[start..].find("\"data_imports\"").map(|i| i + start).unwrap_or(text.len());
+    let start = text.find("\"literal_folds\":").expect("literal_folds section");
+    let end = text[start..].find("\"lowering\":").map(|i| i + start).expect("next section");
     let mut rest = &text[start..end];
-    while let Some(i) = rest.find("\"kind\": \"") {
-        let kind_start = i + "\"kind\": \"".len();
-        let kind_end = rest[kind_start..].find('"').unwrap() + kind_start;
-        let kind = rest[kind_start..kind_end].to_string();
-        let tail = &rest[kind_end..];
-        let f = tail.find("\"folded\": ").unwrap();
-        let folded = tail[f..].starts_with("\"folded\": true");
-        out.push((kind, folded));
-        rest = &rest[kind_end..];
+    while let Some(i) = rest.find("{\"folded\":") {
+        let row = &rest[i + "{\"folded\":".len()..];
+        let folded = row.starts_with("true");
+        let k = row.find("\"kind\":\"").expect("kind") + "\"kind\":\"".len();
+        let kind_end = row[k..].find('"').unwrap() + k;
+        out.push((row[k..kind_end].to_string(), folded));
+        rest = &row[kind_end..];
     }
     out
 }
@@ -61,15 +60,8 @@ fn manifest_has(dir: &Path, needle: &str) -> bool {
 fn iface_value_names(dir: &Path, module: &str) -> Vec<String> {
     let text = std::fs::read_to_string(dir.join(format!("build/{module}.cinchif")))
         .expect("interface");
-    let mut out = Vec::new();
-    let mut rest = text.as_str();
-    while let Some(i) = rest.find("\"name\": \"") {
-        let start = i + "\"name\": \"".len();
-        let end = rest[start..].find('"').unwrap() + start;
-        out.push(rest[start..end].to_string());
-        rest = &rest[end..];
-    }
-    out
+    let iface = cinch::interface::Iface::from_json(&text).expect("parse interface");
+    iface.exports.values.into_iter().map(|v| v.name).collect()
 }
 
 // ---------------------------------------- D105/D110: collection literals
@@ -532,10 +524,10 @@ fn json_txt_and_bytes_converters_bind_and_record_provenance() {
     ]);
     assert_eq!(run_entry(&dir, "Main.cinch").expect("run"), 0);
     // Provenance: converter identity and file content hash per binding.
-    assert!(manifest_has(&dir, "\"converter\": \"json\""), "json provenance");
-    assert!(manifest_has(&dir, "\"converter\": \"txt\""), "txt provenance");
-    assert!(manifest_has(&dir, "\"converter\": \"bytes\""), "bytes provenance");
-    assert!(manifest_has(&dir, "\"hash\": \""), "content hashes recorded");
+    assert!(manifest_has(&dir, "\"converter\":\"json\""), "json provenance");
+    assert!(manifest_has(&dir, "\"converter\":\"txt\""), "txt provenance");
+    assert!(manifest_has(&dir, "\"converter\":\"bytes\""), "bytes provenance");
+    assert!(manifest_has(&dir, "\"hash\":\""), "content hashes recorded");
     assert!(!manifest_has(&dir, "hello"), "contents stay out of the manifest");
 }
 

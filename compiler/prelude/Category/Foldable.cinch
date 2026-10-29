@@ -56,8 +56,12 @@ module Category.Foldable where
   -- `Semigroup`, and a `Monoid` does not entail a `Semigroup` (the
   -- no-superbundle rule; the same pair Data.Const's Applicative
   -- instance states).
+  -- The combination is `Monoid`'s `mconcat` over the mapped elements, so
+  -- a carrier with a one-pass combine (String) uses it and every other
+  -- one gets the balanced fold; a right fold of `<>` re-copies the
+  -- accumulated suffix at every element for a `<>` that copies.
   fold-map :: forall t a m. using (fold :: Foldable t, mon :: Monoid m, sg :: Semigroup m) => (a -> m) -> t a -> m
-  fold-map f xs = foldr (\y acc -> (<>) (f y) acc) mempty xs
+  fold-map f xs = mconcat (foldr (\y acc -> Cons (f y) acc) Nil xs)
 
   -- `fold-right1`/`fold-left1`: the fold with an element of the
   -- container as its seed, so an empty container has nothing to return.
@@ -130,10 +134,10 @@ module Category.Foldable where
   -- `concat`: the monoid fold over the container's elements, so
   -- `List String` gives a `String` and `List (List a)` a `List a`. The
   -- identity keeps the empty container meaningful; the combination is
-  -- `<>`, whose `Semigroup` is stated separately (a `Monoid` entails
-  -- nothing).
+  -- `mconcat` (see `fold-map`), whose `Semigroup` is stated separately
+  -- (a `Monoid` entails nothing).
   concat :: forall t a. using (fold :: Foldable t, mon :: Monoid a, sg :: Semigroup a) => t a -> a
-  concat xs = foldr (\y acc -> (<>) y acc) mempty xs
+  concat xs = mconcat (to-list xs)
 
   -- `maximum`/`minimum`: partial over an empty container (an `Option`
   -- value), and decided by comparison rather than position, so an

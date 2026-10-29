@@ -84,6 +84,9 @@ module Text.Json where
   import Data.Option
   import Data.Result
   import Data.String
+  import Data.Ordering
+  import Data.List (sort-by)
+  import Text.Builder (Builder, builder-new, builder-add-string, builder-add-bytes, builder-run, builder-bytes)
 
   -- The P30 combinator shape over the character stream.
   export JState, JReply, JOk, JErr, JParser, MkJParser, run-jparser-fn
@@ -113,18 +116,29 @@ module Text.Json where
   -- The float one decimal spelling stands for (correctly rounded).
   foreign import ccall "cinch.runtime.textF64FromDecimal" f64-from-decimal :: Bytes -> F64
 
-  -- The lowercase hex rendering of a digest.
+  -- The lowercase hex rendering of a digest: one buffer of two ASCII
+  -- digits per byte, filled in place.
   digest-hex :: Bytes -> String
-  digest-hex b = digest-hex-from b 0
+  digest-hex b =
+    let n = bytes-len b in
+    let out = bytes-new (n + n) in
+    let u = digest-hex-into out b 0 in
+    case string-from-bytes out of
+      Some s -> s
+      None -> empty-string
 
-  digest-hex-from :: Bytes -> Nat -> String
-  digest-hex-from b i =
-    if nat-cmp i (bytes-len b) == 0 then empty-string
+  digest-hex-into :: Bytes -> Bytes -> Nat -> Unit
+  digest-hex-into out b i =
+    if nat-cmp i (bytes-len b) == 0 then ()
     else
       let byte = bytes-get b i in
-      string-concat (hex-digit (nat-div byte 16))
-        (string-concat (hex-digit (nat-rem byte 16))
-          (digest-hex-from b (i + 1)))
+      let u = bytes-set out (i + i) (hex-code (nat-div byte 16)) in
+      let v = bytes-set out (i + i + 1) (hex-code (nat-rem byte 16)) in
+      digest-hex-into out b (i + 1)
+
+  -- The ASCII code of one lowercase hex digit.
+  hex-code :: Nat -> Nat
+  hex-code n = if lt-i64 (nat-cmp n 10) 0 then 48 + n else 87 + n
 
   hex-digit :: Nat -> String
   hex-digit n =
@@ -785,33 +799,38 @@ module Text.Json where
   -- Printing (total), canonicalization, content identity.
   -- ---------------------------------------------------------------------------
 
+  -- The printers emit into a `Builder` and flatten once: concatenating
+  -- each rendered piece onto the rendering of the rest re-copies that
+  -- whole suffix at every step, quadratic in the document's length.
+
   -- The total printer: object entries in spine order, no whitespace.
   print-json :: Json -> String
-  print-json v = write-value False v
+  print-json v = builder-run (emit-value False v builder-new)
 
   -- The canonical form (the header's rules): object keys sorted.
   canonical-json :: Json -> String
-  canonical-json v = write-value True v
+  canonical-json v = builder-run (emit-value True v builder-new)
 
   canonical-bytes :: Json -> Bytes
-  canonical-bytes v = string-to-bytes (canonical-json v)
+  canonical-bytes v = builder-bytes (emit-value True v builder-new)
 
   -- The content identity of a value: SHA-256 over its canonical bytes
   -- (the hex digest).
   canonical-hash :: Json -> String
   canonical-hash v = digest-hex (sha256-bytes (canonical-bytes v))
 
-  write-value :: Bool -> Json -> String
-  write-value sorted v = case v of
-    JNull -> "null"
-    JBool b -> if b then "true" else "false"
-    JNum n -> int-to-string n
-    JFloat f -> write-float f
-    JStr s -> write-string s
-    JArr h t -> string-concat "[" (write-array-items sorted h t)
-    JObj k x t -> string-concat "{" (write-object-body sorted (entries-of (JObj k x t)))
-    JArrEnd -> "[]"
-    JObjEnd -> "{}"
+  -- `b` followed by the rendering of `v`.
+  emit-value :: Bool -> Json -> Builder -> Builder
+  emit-value sorted v b = case v of
+    JNull -> builder-add-string "null" b
+    JBool x -> builder-add-string (if x then "true" else "false") b
+    JNum n -> builder-add-string (int-to-string n) b
+    JFloat f -> builder-add-string (write-float f) b
+    JStr s -> emit-string s b
+    JArr h t -> emit-array-rest sorted t (emit-value sorted h (builder-add-string "[" b))
+    JObj k x t -> emit-entries sorted (sort-if sorted (entries-of v)) (builder-add-string "{" b)
+    JArrEnd -> builder-add-string "[]" b
+    JObjEnd -> builder-add-string "{}" b
 
   write-float :: F64 -> String
   write-float f =
@@ -820,27 +839,22 @@ module Text.Json where
       Some s -> s
       None -> empty-string
 
-  write-array-items :: Bool -> Json -> Json -> String
-  write-array-items sorted first rest =
-    string-concat (write-value sorted first) (write-array-rest sorted rest)
-
-  write-array-rest :: Bool -> Json -> String
-  write-array-rest sorted t = case t of
-    JArr h t2 -> string-concat "," (write-array-items sorted h t2)
-    JArrEnd -> "]"
-    other -> string-concat "," (string-concat (write-value sorted other) "]")
+  -- The array after its first item: each further item comma separated,
+  -- closed by `]`.
+  emit-array-rest :: Bool -> Json -> Builder -> Builder
+  emit-array-rest sorted t b = case t of
+    JArr h t2 -> emit-array-rest sorted t2 (emit-value sorted h (builder-add-string "," b))
+    JArrEnd -> builder-add-string "]" b
+    other -> builder-add-string "]" (emit-value sorted other (builder-add-string "," b))
 
   -- The object body after its `{`: the entries, comma separated,
-  -- closed by `}` (sorted by key in the canonical form).
-  write-object-body :: Bool -> List JEntry -> String
-  write-object-body sorted es = write-entries sorted (if sorted then sort-entries es else es)
-
-  write-entries :: Bool -> List JEntry -> String
-  write-entries sorted es = case es of
-    Nil -> "}"
+  -- closed by `}`.
+  emit-entries :: Bool -> List JEntry -> Builder -> Builder
+  emit-entries sorted es b = case es of
+    Nil -> builder-add-string "}" b
     Cons e rest -> case rest of
-      Nil -> string-concat (write-entry sorted e) "}"
-      _ -> string-concat (write-entry sorted e) (string-concat "," (write-entries sorted rest))
+      Nil -> builder-add-string "}" (emit-entry sorted e b)
+      _ -> emit-entries sorted rest (builder-add-string "," (emit-entry sorted e b))
 
   entries-of :: Json -> List JEntry
   entries-of t = case t of
@@ -848,50 +862,64 @@ module Text.Json where
     JObjEnd -> Nil
     other -> Cons (JEntry "" other) Nil
 
-  write-entry :: Bool -> JEntry -> String
-  write-entry sorted e = case e of
-    JEntry k v -> string-concat (write-string k) (string-concat ":" (write-value sorted v))
+  emit-entry :: Bool -> JEntry -> Builder -> Builder
+  emit-entry sorted e b = case e of
+    JEntry k v -> emit-value sorted v (builder-add-string ":" (emit-string k b))
 
-  -- Insertion sort by key (`string-compare`, byte order), stable for
-  -- equal keys (a parsed document never has them).
-  sort-entries :: List JEntry -> List JEntry
-  sort-entries es = case es of
-    Nil -> Nil
-    Cons e rest -> insert-entry e (sort-entries rest)
+  -- The canonical form sorts by key (`string-compare`, byte order) with
+  -- Data.List's stable merge sort, so equal keys (a parsed document
+  -- never has them) keep their spine order.
+  sort-if :: Bool -> List JEntry -> List JEntry
+  sort-if sorted es = if sorted then sort-by compare-keys es else es
 
-  insert-entry :: JEntry -> List JEntry -> List JEntry
-  insert-entry e es = case es of
-    Nil -> Cons e Nil
-    Cons f rest -> if le-key e f then Cons e (Cons f rest) else Cons f (insert-entry e rest)
-
-  le-key :: JEntry -> JEntry -> Bool
-  le-key e f = case e of
+  compare-keys :: JEntry -> JEntry -> Ordering
+  compare-keys e f = case e of
     JEntry k1 v1 -> case f of
-      JEntry k2 v2 -> le-i64 (string-compare k1 k2) 0
+      JEntry k2 v2 ->
+        let c = string-compare k1 k2 in
+        if lt-i64 c 0 then LT else if eq-i64 c 0 then EQ else GT
 
   -- The quoted JSON string: exactly the `\"`, `\\`, `\b`, `\f`, `\n`,
-  -- `\r`, `\t` and `\u00xx` escapes, every other scalar raw UTF-8.
-  write-string :: String -> String
-  write-string s = string-concat "\"" (string-concat (write-chars (unpack s)) "\"")
+  -- `\r`, `\t` and `\u00xx` escapes, every other scalar raw UTF-8. Every
+  -- escaped scalar is ASCII and no byte of a multi-byte UTF-8 sequence is
+  -- below 128, so the scan runs over bytes and appends each unescaped run
+  -- as one slice.
+  emit-string :: String -> Builder -> Builder
+  emit-string s b =
+    let raw = string-to-bytes s in
+    builder-add-string "\"" (emit-string-from raw 0 0 (builder-add-string "\"" b))
 
-  write-chars :: List Char -> String
-  write-chars cs = case cs of
-    Nil -> empty-string
-    Cons c rest -> string-concat (write-char c) (write-chars rest)
+  -- `start` is the first byte of the pending unescaped run, `i` the scan
+  -- position.
+  emit-string-from :: Bytes -> Nat -> Nat -> Builder -> Builder
+  emit-string-from raw start i b =
+    if nat-cmp i (bytes-len raw) == 0 then flush-run raw start i b
+    else
+      let x = bytes-get raw i in
+      if needs-escape x then emit-string-from raw (i + 1) (i + 1) (builder-add-string (escape-byte x) (flush-run raw start i b))
+      else emit-string-from raw start (i + 1) b
 
-  write-char :: Char -> String
-  write-char c =
-    let cp = u32-to-i64 (char-to-u32 c) in
-    if eq-i64 cp 34 then "\\\""
-    else if eq-i64 cp 92 then "\\\\"
-    else if eq-i64 cp 8 then "\\b"
-    else if eq-i64 cp 12 then "\\f"
-    else if eq-i64 cp 10 then "\\n"
-    else if eq-i64 cp 13 then "\\r"
-    else if eq-i64 cp 9 then "\\t"
-    else if lt-i64 cp 32 then
-      string-concat "\\u00" (string-concat (hex-digit (nat-div (nat-from-i64 cp) 16)) (hex-digit (nat-rem (nat-from-i64 cp) 16)))
-    else char-string c
+  -- The unescaped run [start, i), appended without a copy when it is the
+  -- whole (private) buffer.
+  flush-run :: Bytes -> Nat -> Nat -> Builder -> Builder
+  flush-run raw start i b =
+    if nat-cmp start i == 0 then b
+    else if nat-cmp start 0 == 0 && nat-cmp i (bytes-len raw) == 0 then builder-add-bytes raw b
+    else builder-add-bytes (bytes-slice raw start i) b
+
+  needs-escape :: Nat -> Bool
+  needs-escape x = lt-i64 (nat-cmp x 32) 0 || nat-cmp x 34 == 0 || nat-cmp x 92 == 0
+
+  escape-byte :: Nat -> String
+  escape-byte x =
+    if nat-cmp x 34 == 0 then "\\\""
+    else if nat-cmp x 92 == 0 then "\\\\"
+    else if nat-cmp x 8 == 0 then "\\b"
+    else if nat-cmp x 12 == 0 then "\\f"
+    else if nat-cmp x 10 == 0 then "\\n"
+    else if nat-cmp x 13 == 0 then "\\r"
+    else if nat-cmp x 9 == 0 then "\\t"
+    else string-concat "\\u00" (string-concat (hex-digit (nat-div x 16)) (hex-digit (nat-rem x 16)))
 
 
   -- ---------------------------------------------------------------------------

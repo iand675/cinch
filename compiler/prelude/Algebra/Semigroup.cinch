@@ -58,28 +58,50 @@ module Algebra.Semigroup where
   -- these costs an explicit import of this module, since the facade
   -- re-exports no class home.
 
-  -- `sconcat`: combine the whole list with `<>`, right-associated
-  -- (`foldr1` in base), or `None` when there is nothing to combine.
-  -- The carrier is `List a` and the emptiness is reported as an
-  -- `Option` (the prelude's partiality convention). `NonEmpty` would
-  -- be the more precise argument, but its home (Data.NonEmpty) imports
-  -- this module for `<>`, so naming it here would be a cycle; the
-  -- `Option` result is the version that lives in this module.
+  -- `sconcat`: combine the whole list with `<>`, in order, or `None`
+  -- when there is nothing to combine. The carrier is `List a` and the
+  -- emptiness is reported as an `Option` (the prelude's partiality
+  -- convention). `NonEmpty` would be the more precise argument, but its
+  -- home (Data.NonEmpty) imports this module for `<>`, so naming it here
+  -- would be a cycle; the `Option` result is the version that lives in
+  -- this module.
+  --
+  -- The bracketing is balanced (rounds of `combine-pairs`), which the
+  -- associativity law makes equal to base's right fold `foldr1 (<>)`
+  -- with the same n - 1 combinations; for a `<>` that copies its
+  -- operands (String) the right fold re-copies the accumulated suffix at
+  -- every step, O(n^2) bytes, where the rounds copy O(n log n).
   sconcat :: forall a. using (s :: Semigroup a) => List a -> Option a
   sconcat xs = case xs of
     Nil -> None
-    Cons y ys -> case sconcat ys of
-      None -> Some y
-      Some rest -> Some ((<>) y rest)
+    Cons y ys -> case ys of
+      Nil -> Some y
+      Cons _ _ -> sconcat (combine-pairs xs)
 
-  -- `stimes n x`: `n` copies of `x` combined with `<>`, right-nested.
-  -- A `Nat` cannot be negative, but it can be zero, and a bare
-  -- `Semigroup` has no identity to return; base's `stimes 0` is an
-  -- error and the prelude refuses faults, so `0` reads as one copy.
-  -- That is the reading under which the law
-  -- `stimes (m + n) x == stimes m x <> stimes n x` is stated for
-  -- `m, n >= 1`. Costs `n - 1` combinations.
+  -- One round of a balanced combine: adjacent pairs combined in order,
+  -- an odd last value carried unchanged (shared with Algebra.Monoid's
+  -- `mconcat`).
+  combine-pairs :: forall a. using (sa :: Semigroup a) => List a -> List a
+  combine-pairs xs = case xs of
+    Nil -> Nil
+    Cons x rest -> case rest of
+      Nil -> Cons x Nil
+      Cons y more -> Cons ((<>) x y) (combine-pairs more)
+
+  -- `stimes n x`: `n` copies of `x` combined with `<>`. A `Nat` cannot
+  -- be negative, but it can be zero, and a bare `Semigroup` has no
+  -- identity to return; base's `stimes 0` is an error and the prelude
+  -- refuses faults, so `0` reads as one copy. That is the reading under
+  -- which the law `stimes (m + n) x == stimes m x <> stimes n x` is
+  -- stated for `m, n >= 1`. By repeated doubling (associativity makes
+  -- any bracketing of the n copies equal): O(log n) combinations, where
+  -- chaining one copy at a time costs n - 1 and, for a `<>` that copies
+  -- its operands, O(n^2) bytes.
   stimes :: forall a. using (s :: Semigroup a) => Nat -> a -> a
   stimes n x = case n == 0 of
     True -> x
-    False -> if n == 1 then x else (<>) x (stimes (n - 1) x)
+    False -> if n == 1 then x else
+      let half = n / 2 in
+      let h = stimes half x in
+      let hh = (<>) h h in
+      if half + half == n then hh else (<>) hh x

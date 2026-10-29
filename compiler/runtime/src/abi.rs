@@ -26,6 +26,9 @@ pub const EXIT_PANIC: i32 = 71;
 /// Exit code of the division fault (`cinch_fault_div_zero`).
 pub const EXIT_DIV_ZERO: i32 = 72;
 
+/// Exit code of the heap-limit fault (`CINCH_HEAP_LIMIT`, [`crate::heap`]).
+pub const EXIT_HEAP_LIMIT: i32 = 73;
+
 /// Block kind tag: a `Nat` value.
 pub const KIND_NAT: i64 = 1;
 
@@ -257,11 +260,40 @@ pub unsafe extern "C" fn cinch_alloc(size: i64) -> i64 {
     p as usize as i64
 }
 
+/// Allocate `size` uninitialised bytes (8-byte aligned, minimum one word)
+/// and return the block pointer: the allocator generated code calls in
+/// place of `malloc`, so every block it builds is counted and capped by
+/// [`crate::heap`]. Every call site initialises each word it reads, so the
+/// block is not zero-filled (the same contract as the `malloc` it
+/// replaces). Negative sizes, size overflow, and allocation failure fault
+/// through `cinch_panic`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn cinch_alloc_raw(size: i64) -> *mut u8 {
+    if size < 0 {
+        panic_exit(b"cinch_alloc_raw called with negative size");
+    }
+    let rounded = match (size as usize).checked_add(7).map(|s| s & !7) {
+        Some(0) => 8,
+        Some(s) => s,
+        None => panic_exit(b"cinch_alloc_raw size overflow"),
+    };
+    let Ok(layout) = Layout::from_size_align(rounded, 8) else {
+        panic_exit(b"cinch_alloc_raw layout failure");
+    };
+    let p = unsafe { std::alloc::alloc(layout) };
+    if p.is_null() {
+        panic_exit(b"cinch_alloc_raw out of memory");
+    }
+    p
+}
+
 /// Free a block previously returned by [`cinch_alloc`].
 ///
-/// Currently a no-op: blocks are leaked by design until memory reclamation
-/// lands. The symbol exists so generated code can already emit balanced
-/// allocation and deallocation.
+/// Currently a no-op: blocks are leaked until memory reclamation lands.
+/// The symbol exists so generated code can already emit balanced
+/// allocation and deallocation. Freeing must go through
+/// `std::alloc::dealloc` with the block's layout, which the counting global
+/// allocator ([`crate::heap`]) turns into the current-bytes decrement.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_free(_word: i64) {}
 
@@ -528,6 +560,42 @@ pub unsafe extern "C" fn cinch_bytes_set(word: i64, index: i64, value: i64) -> i
         Ok(()) => 0,
         Err(e) => raise(e),
     }
+}
+
+/// Copy `n` bytes of `src` from `si` into `dst` at `di` (one `memmove`:
+/// the two words may be the same buffer and the ranges may overlap);
+/// returns 0 (the Unit word). A negative index or count or a range past
+/// either end takes the out-of-bounds fault; a read-only `dst` takes the
+/// read-only fault. A zero count is a no-op, as the Cinch-level loop it
+/// replaces was.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn cinch_bytes_copy(dst: i64, src: i64, di: i64, si: i64, n: i64) -> i64 {
+    if n == 0 {
+        return 0;
+    }
+    // Each borrow ends before the next begins: `dst` and `src` may name
+    // one buffer, and only raw pointers cross into the copy.
+    let (dp, dl) = {
+        let d = unsafe { as_bytes_mut(dst) };
+        (d.data_ptr(), d.len())
+    };
+    let (sp, sl) = {
+        let s = unsafe { as_bytes(src) };
+        (s.data_ptr(), s.len())
+    };
+    match unsafe { crate::bytes::copy_range(dp, dl, di, sp, sl, si, n) } {
+        Ok(()) => 0,
+        Err(e) => raise(e),
+    }
+}
+
+/// The lexicographic order of two `Bytes` words' contents: -1, 0 or 1,
+/// read in place (no copy, no allocation).
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn cinch_bytes_compare(a: i64, b: i64) -> i64 {
+    let a = unsafe { as_bytes(a) }.as_slice();
+    let b = unsafe { as_bytes(b) }.as_slice();
+    a.cmp(b) as i64
 }
 
 /// The data pointer of a `Bytes` word: how buffer contents cross to

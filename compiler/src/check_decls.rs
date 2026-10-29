@@ -3818,12 +3818,31 @@ impl Checker {
                             b.name.span,
                         )?);
                     }
+                    // A default belongs to a declared method; its clauses
+                    // group by name in source order like top-level ones.
+                    let mut defaults: Vec<(String, Vec<ast::Equation>)> = Vec::new();
+                    for eq in &sig.defaults {
+                        if !methods.iter().any(|(m, _)| *m == eq.name.text) {
+                            return Err(Error::at(
+                                eq.name.span,
+                                format!(
+                                    "`{}` is not a method of {}: a default equation needs the method's signature in the same signature block",
+                                    eq.name.text, sig.name.text
+                                ),
+                            ));
+                        }
+                        match defaults.iter_mut().find(|(m, _)| *m == eq.name.text) {
+                            Some((_, eqs)) => eqs.push(eq.clone()),
+                            None => defaults.push((eq.name.text.clone(), vec![eq.clone()])),
+                        }
+                    }
                     let info = SigInfo {
                         module: module.clone(),
                         name: sig.name.text.clone(),
                         params: params.clone(),
                         param_kinds: param_kinds.clone(),
                         methods,
+                        defaults,
                         laws,
                     };
                     // A class application is also the dictionary's type:
@@ -4440,6 +4459,39 @@ impl Checker {
             }
         }
 
+        // Method defaults of this module's classes, checked once at the
+        // method's own scheme (the class dictionary is `ctx[0]`), so a
+        // broken default is reported at the class even before any instance
+        // takes it. The elaborated unit is span-free, and its hash is the
+        // default's identity in the interface: instances inline the
+        // default, so a changed default must change the class's contract.
+        let mut with_defaults: Vec<SigInfo> = self
+            .sigs
+            .values()
+            .flatten()
+            .filter(|s| s.module == module && !s.defaults.is_empty())
+            .cloned()
+            .collect();
+        with_defaults.sort_by(|a, b| a.name.cmp(&b.name));
+        for sig in with_defaults {
+            for (mname, eqs) in &sig.defaults {
+                let scheme = sig
+                    .methods
+                    .iter()
+                    .find(|(m, _)| m == mname)
+                    .map(|(_, s)| s.clone())
+                    .expect("a default names a declared method (checked at collection)");
+                let gid = GlobalId(format!("{module}.{}.{mname}.default", sig.name));
+                let before = self.fns.len();
+                self.check_equations(mname, &gid, &scheme, eqs, Vec::new())?;
+                let rows: String = self.fns[before..].iter().map(|f| format!("{f:?}\n")).collect();
+                self.default_ids.insert(
+                    (module.to_string(), sig.name.clone(), mname.clone()),
+                    crate::interface::content_hash(&rows),
+                );
+            }
+        }
+
         // Instances of this module.
         let pending: Vec<(String, ast::InstDecl)> = self
             .instance_defs_pending
@@ -4514,17 +4566,23 @@ impl Checker {
         let mut seen: Vec<String> = Vec::new();
         let mut pres_methods: Vec<(String, GlobalId, Ty)> = Vec::new();
         for (mname, mscheme) in sig.methods.clone() {
-            let eqs: Vec<ast::Equation> = inst
+            let mut eqs: Vec<ast::Equation> = inst
                 .methods
                 .iter()
                 .filter(|e| e.name.text == mname)
                 .cloned()
                 .collect();
-            if eqs.is_empty() {
-                return Err(Error::at(
-                    inst.span,
-                    format!("instance {} does not define method {mname}", inst.name.text),
-                ));
+            let from_default = eqs.is_empty();
+            if from_default {
+                match sig.defaults.iter().find(|(m, _)| *m == mname) {
+                    Some((_, d)) => eqs = d.clone(),
+                    None => {
+                        return Err(Error::at(
+                            inst.span,
+                            format!("instance {} does not define method {mname}", inst.name.text),
+                        ))
+                    }
+                }
             }
             // Substitute the class parameters with the instance's type
             // arguments; the method's own quantifiers become fresh rigid
@@ -4552,8 +4610,12 @@ impl Checker {
             // (the rep-identity is the point: no delegation code, no
             // wrapper). Fresh rigid parameters for the base elaboration,
             // so the refined and base types never share metavariables,
-            // and one map for the body's type and context alike.
-            let body_map: HashMap<String, Ty> = if transfer {
+            // and one map for the body's type and context alike. A taken
+            // default is the exception: it is generic code over the
+            // class's own methods, which exist at the refined type (this
+            // instance) and not at the container, and composing them
+            // preserves the predicate by construction.
+            let body_map: HashMap<String, Ty> = if transfer && !from_default {
                 let mut bmap = HashMap::new();
                 for p in &mscheme.params {
                     match sig.params.iter().position(|s| s == p) {
@@ -4595,7 +4657,52 @@ impl Checker {
                 ctx,
                 ty: body_ty,
             };
-            self.check_equations(&mname, &gid, &scheme, &eqs, Vec::new())?;
+            // A default is written against the method's general type; at a
+            // function carrier (`Monoid (t -> u)`) the instance's method
+            // type has more arrows than the default binds, so the taken
+            // copy is eta-expanded to the instance's arity: the same
+            // function, with the arity rule satisfied.
+            if from_default {
+                let arrows = arrow_count(&scheme.ty);
+                for eq in &mut eqs {
+                    let missing = arrows.saturating_sub(eq.pats.len());
+                    if missing == 0 {
+                        continue;
+                    }
+                    let span = eq.span;
+                    let mut args = Vec::with_capacity(missing);
+                    for k in 0..missing {
+                        let n = ast::Name::new(format!("$eta{k}"), span);
+                        eq.pats.push(ast::Pat::Var(n.clone(), span));
+                        args.push(ast::Term::Var(ast::VarPath { quals: Vec::new(), name: n }));
+                    }
+                    let body = std::mem::replace(&mut eq.body, ast::Term::Unit(span));
+                    eq.body = ast::Term::App(Box::new(body), args, span);
+                }
+            }
+            // A default resolves names where it was written: the class's
+            // module, whose imports the instance's module need not share.
+            // Its spans point into that module, so the error says so.
+            if from_default {
+                self.build_scope(&sig.module, true);
+            }
+            let checked = self.check_equations(&mname, &gid, &scheme, &eqs, Vec::new());
+            if from_default {
+                self.build_scope(module, true);
+            }
+            checked.map_err(|e| {
+                if from_default {
+                    Error {
+                        span: e.span,
+                        message: format!(
+                            "{} (in the default of {}.{mname}, module {}, taken by instance {})",
+                            e.message, sig.name, sig.module, inst.name.text
+                        ),
+                    }
+                } else {
+                    e
+                }
+            })?;
             method_fns.push(gid);
             seen.push(mname);
         }
@@ -5926,7 +6033,7 @@ impl Checker {
                 other => {
                     return Err(Error::at(
                         eqs[0].span,
-                        format!("{name} has fewer parameters than its signature ({other})"),
+                        format!("{name} has more parameters than its signature ({other})"),
                     ));
                 }
             }
@@ -5936,7 +6043,7 @@ impl Checker {
         {
             return Err(Error::at(
                 eqs[0].span,
-                format!("{name} has more parameters than its signature"),
+                format!("{name} has fewer parameters than its signature"),
             ));
         }
         let mut value_params = Vec::new();
@@ -14909,6 +15016,10 @@ impl Checker {
                         .map(|(n, sch)| MethodExport {
                             name: n.clone(),
                             scheme: render_scheme(sch),
+                            default: self
+                                .default_ids
+                                .get(&(s.module.clone(), s.name.clone(), n.clone()))
+                                .cloned(),
                         })
                         .collect(),
                 });
@@ -15152,6 +15263,21 @@ pub fn check_program_multi_full_probe(
     Option<ProbeResult>,
 )> {
     check_program_multi_full_impl(prelude, modules, source_hashes, scx, wit, profile, probe)
+}
+
+/// The number of parameters a type's arrow spine declares: what an
+/// equation at that type must bind under the arity rule.
+fn arrow_count(ty: &Ty) -> usize {
+    let mut n = 0;
+    let mut rest = ty;
+    loop {
+        match rest {
+            Ty::Fun(_, _, _, b) => rest = b,
+            Ty::Pi { cod, .. } => rest = cod,
+            _ => return n,
+        }
+        n += 1;
+    }
 }
 
 /// Name the module a collect or check failure happened in.
@@ -16936,6 +17062,15 @@ impl Checker {
                 }
                 Ok(())
             }
+            ast::Decl::Signature(s) => {
+                for eq in &mut s.defaults {
+                    self.expand_macros_in_term(cx, module, &mut eq.body)?;
+                    for l in &mut eq.locals {
+                        self.expand_macros_in_local(cx, module, l)?;
+                    }
+                }
+                Ok(())
+            }
             ast::Decl::Instance(i) => {
                 for m in &mut i.methods {
                     self.expand_macros_in_term(cx, module, &mut m.body)?;
@@ -17542,6 +17677,11 @@ fn stamp_decl_spans(d: &mut ast::Decl, site: &crate::lexer::ExpSite) {
                     | ast::LocalDecl::Lazy { body, .. } => stamp_term_spans(body, site),
                     ast::LocalDecl::Sig { .. } => {}
                 }
+            }
+        }
+        ast::Decl::Signature(s) => {
+            for eq in &mut s.defaults {
+                stamp_term_spans(&mut eq.body, site);
             }
         }
         ast::Decl::Instance(i) => {
@@ -18527,6 +18667,46 @@ impl Checker {
                         };
                         *slot = byte;
                         Value::Unit
+                    }
+                    BytesOp::Copy => {
+                        let di = bytes_word(&args[2], "a `Bytes` index")?;
+                        let si = bytes_word(&args[3], "a `Bytes` index")?;
+                        let n = bytes_word(&args[4], "a `Bytes` count")?;
+                        let (Value::Bytes(dst), Value::Bytes(src)) = (&args[0], &args[1]) else {
+                            return Err(Error::plain(
+                                "expected two `Bytes` buffers at compile time for `bytesCopy`",
+                            ));
+                        };
+                        let oob = || {
+                            Error::plain(
+                                "`bytesCopy` out of bounds faults at compile time (the runtime fault path is exit 71)",
+                            )
+                        };
+                        if di < 0 || si < 0 || n < 0 {
+                            return Err(oob());
+                        }
+                        let (di, si, n) = (di as usize, si as usize, n as usize);
+                        // Read the source range out first: `dst` and `src`
+                        // may be the same buffer (the runtime copy is a
+                        // `memmove`).
+                        let chunk: Vec<u8> = {
+                            let s = src.borrow();
+                            let end = si.checked_add(n).filter(|&e| e <= s.len()).ok_or_else(oob)?;
+                            s[si..end].to_vec()
+                        };
+                        let mut d = dst.borrow_mut();
+                        let end = di.checked_add(n).filter(|&e| e <= d.len()).ok_or_else(oob)?;
+                        d[di..end].copy_from_slice(&chunk);
+                        Value::Unit
+                    }
+                    BytesOp::Compare => {
+                        let (Value::Bytes(a), Value::Bytes(b)) = (&args[0], &args[1]) else {
+                            return Err(Error::plain(
+                                "expected two `Bytes` buffers at compile time for `bytesCompare`",
+                            ));
+                        };
+                        let ord = a.borrow().as_slice().cmp(b.borrow().as_slice());
+                        Value::Word(ord as i64)
                     }
                 })
             }

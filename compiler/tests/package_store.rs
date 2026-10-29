@@ -302,7 +302,7 @@ fn writing_twice_is_idempotent_and_the_entry_reads_back() {
     // what the entry records.
     let manifest = std::fs::read_to_string(dir.join(ENTRY_MANIFEST)).expect("the entry manifest");
     assert!(
-        manifest.contains(&format!("\"key\": {key:?}")),
+        manifest.contains(&format!("\"key\":{key:?}")),
         "the manifest records the key: {manifest}"
     );
     for iface in ifaces {
@@ -312,13 +312,13 @@ fn writing_twice_is_idempotent_and_the_entry_reads_back() {
         assert_eq!(back, canonical(iface), "{} round-trips", iface.module);
         assert_eq!(back.iface_hash(), iface.iface_hash());
         assert!(
-            manifest.contains(&format!("\"iface_hash\": {:?}", iface.iface_hash())),
+            manifest.contains(&format!("\"iface_hash\":{:?}", iface.iface_hash())),
             "the manifest records {}'s hash",
             iface.module
         );
     }
     assert!(
-        manifest.contains("\"kinds\": [\"interface\"]"),
+        manifest.contains("\"kinds\":[\"interface\"]"),
         "the manifest records the artifact kinds present: {manifest}"
     );
 
@@ -424,8 +424,8 @@ fn a_corrupt_artifact_is_a_hard_error_to_load_and_a_repair_to_write() {
     std::fs::write(
         &manifest_path,
         manifest.replace(
-            &format!("\"iface_hash\": {:?}", ifaces[0].iface_hash()),
-            "\"iface_hash\": \"0\"",
+            &format!("\"iface_hash\":{:?}", ifaces[0].iface_hash()),
+            "\"iface_hash\":\"0\"",
         ),
     )
     .expect("tamper the hash");

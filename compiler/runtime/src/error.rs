@@ -53,6 +53,9 @@ pub enum Error {
     /// exhausting the native stack (resource exhaustion is a named
     /// failure mode).
     NestingTooDeep,
+    /// Cumulative heap allocation would exceed the `CINCH_HEAP_LIMIT` cap
+    /// ([`crate::heap`]); exits with [`crate::abi::EXIT_HEAP_LIMIT`].
+    HeapLimit,
 }
 
 impl Error {
@@ -66,6 +69,7 @@ impl Error {
         match self {
             Error::DivByZero => crate::abi::EXIT_DIV_ZERO,
             Error::BlackHole => crate::abi::EXIT_BLACKHOLE,
+            Error::HeapLimit => crate::abi::EXIT_HEAP_LIMIT,
             _ => crate::abi::EXIT_PANIC,
         }
     }
@@ -88,6 +92,7 @@ impl fmt::Display for Error {
                 "the quoted program faulted or a memo cell was demanded while evaluating"
             }
             Error::NestingTooDeep => "quotation nesting exceeds the evaluator's depth bound",
+            Error::HeapLimit => "heap limit exceeded",
         };
         f.write_str(msg)
     }

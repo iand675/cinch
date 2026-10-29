@@ -81,13 +81,16 @@ module Text.Show where
     wrap-bytes b
 
   -- Decimal formatting: digits are raw ASCII bytes (48..=57), so no
-  -- character literals are needed.
+  -- character literals are needed. The low `k` digits of `n` fill
+  -- [pos, pos + k) from the END, one division per digit; extracting each
+  -- digit from the front as `n / 10^(k - 1)` would rebuild the power and
+  -- divide the whole number at every digit, quadratic in `k`.
   nat-digits-into :: Bytes -> Nat -> Nat -> Nat -> Unit
   nat-digits-into b pos n k =
     if k == 0 then ()
     else
-      let u = bytes-set b pos (48 + nat-rem (nat-div n (pow10 (k - 1))) 10) in
-      nat-digits-into b (pos + 1) n (k - 1)
+      let u = bytes-set b (pos + k - 1) (48 + nat-rem n 10) in
+      nat-digits-into b pos (nat-div n 10) (k - 1)
 
   pow10 :: Nat -> Nat
   pow10 k = if k == 0 then 1 else 10 * pow10 (k - 1)

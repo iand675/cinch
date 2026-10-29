@@ -637,22 +637,6 @@ fn unescape_field(s: &str) -> String {
     out
 }
 
-fn json_escape(s: &str) -> String {
-    let mut out = String::new();
-    for c in s.chars() {
-        match c {
-            '"' => out.push_str("\\\""),
-            '\\' => out.push_str("\\\\"),
-            '\n' => out.push_str("\\n"),
-            '\r' => out.push_str("\\r"),
-            '\t' => out.push_str("\\t"),
-            c if (c as u32) < 0x20 => out.push_str(&format!("\\u{:04x}", c as u32)),
-            c => out.push(c),
-        }
-    }
-    out
-}
-
 /// The captured inputs of a previous build (replay mode), from the
 /// snapshot file beside the manifest.
 fn read_stage_snap(path: &Path) -> Vec<StageInput> {
@@ -728,29 +712,13 @@ fn write_artifacts(
     foreign.dedup();
     declared.sort();
     declared.dedup();
-    let mut text = String::new();
-    text.push_str("{\n  \"entry\": ");
-    text.push_str(&format!("{:?},\n", entry));
-    text.push_str("  \"runtime_abi\": 1,\n  \"modules\": [\n");
-    for (i, (m, h)) in modules.iter().enumerate() {
-        text.push_str(&format!(
-            "    {{\"module\": {:?}, \"iface_hash\": {:?}}}",
-            m, h
-        ));
-        text.push_str(if i + 1 < modules.len() { ",\n" } else { "\n" });
-    }
-    text.push_str("  ],\n  \"assumptions\": {\n");
-    text.push_str(&format!("    \"primitives\": {:?},\n", prims));
-    text.push_str(&format!("    \"foreign\": {:?},\n", foreign));
-    text.push_str(&format!("    \"declared\": {:?}\n", declared));
-    text.push_str("  },\n");
+    use crate::interface::JsonValue as J;
     // `prim` declarations (primitive operations and inline target IR
     // specification section 8): per prim the selected body's family and
     // condition, its tier, its `uses` list and its validation result.
     // Selection is manifest-only: it never enters the contract
     // projection (section 6).
-    text.push_str("  \"prims\": [\n");
-    for (i, p) in program.prims.iter().enumerate() {
+    let prims_rows = J::arr(&program.prims, |p| {
         let body = &p.bodies[p.selected];
         let uses: Vec<String> = body
             .uses
@@ -777,93 +745,81 @@ fn write_artifacts(
                 )
             })
             .collect();
-        text.push_str(&format!(
-            "    {{\"name\": \"{}\", \"module\": \"{}\", \"tier\": \"{}\", \"family\": \"{}\", \"condition\": {}, \"why\": \"{}\", \"uses\": {:?}, \"immarg\": {:?}, \"validation\": {:?}, \"trust\": {:?}, \"identity\": \"{}\"}}",
-            p.name,
-            p.module,
-            match p.tier {
-                crate::core::PrimTier::Justified => "justified",
-                crate::core::PrimTier::Assumed => "assumed",
-            },
-            body.family,
-            match &body.when {
-                Some(c) => format!("\"{c}\""),
-                None => "null".to_string(),
-            },
-            p.selected_why,
-            uses,
-            body.immarg,
-            validations,
-            trust,
-            p.identity
-        ));
-        text.push_str(if i + 1 < program.prims.len() { ",\n" } else { "\n" });
-    }
-    text.push_str("  ],\n");
+        J::obj([
+            ("name", (&p.name).into()),
+            ("module", (&p.module).into()),
+            (
+                "tier",
+                match p.tier {
+                    crate::core::PrimTier::Justified => "justified",
+                    crate::core::PrimTier::Assumed => "assumed",
+                }
+                .into(),
+            ),
+            ("family", (&body.family).into()),
+            ("condition", body.when.as_ref().into()),
+            ("why", (&p.selected_why).into()),
+            ("uses", uses.into()),
+            ("immarg", (&body.immarg).into()),
+            ("validation", validations.into()),
+            ("trust", trust.into()),
+            ("identity", (&p.identity).into()),
+        ])
+    });
     // The class law check rows (section 5): what the sample-wise check
     // decided, honestly (`checked` over its samples or `not checked` at
     // the law machinery's boundary).
-    text.push_str("  \"laws\": [\n");
-    for (i, l) in program.laws.iter().enumerate() {
-        text.push_str(&format!(
-            "    {{\"instance\": \"{}\", \"class\": \"{}\", \"law\": \"{}\", \"status\": \"{}\"}}",
-            l.instance, l.class, l.law, l.status
-        ));
-        text.push_str(if i + 1 < program.laws.len() { ",\n" } else { "\n" });
-    }
-    text.push_str("  ],\n");
+    let law_rows = J::arr(&program.laws, |l| {
+        J::obj([
+            ("instance", (&l.instance).into()),
+            ("class", (&l.class).into()),
+            ("law", (&l.law).into()),
+            ("status", (&l.status).into()),
+        ])
+    });
+    let fired = |name: &str| {
+        opt.sites
+            .iter()
+            .any(|s| s.kind == format!("rewrite:{name}") && s.stop.is_none())
+    };
     // The target profile and the conditions the target rules discharged
     // (platform proofs and SIMD specification sections 1-3; modules and
     // compilation specification section 13: target conditions are
     // preserved in the manifest).
-    text.push_str("  \"target\": {\n");
-    text.push_str(&format!("    \"profile\": \"{}\",\n", profile.name));
-    text.push_str(&format!("    \"word_size\": {},\n", profile.word_size));
-    text.push_str(&format!("    \"endian\": \"{}\",\n", profile.endian));
-    text.push_str(&format!(
-        "    \"vector_shape\": \"{}\",\n",
-        match profile.vector_shape {
-            crate::core::VectorShape::Fixed(w) => format!("fixed({w})"),
-            crate::core::VectorShape::Scalable => "scalable".to_string(),
-        }
-    ));
-    text.push_str(&format!("    \"features\": {:?},\n", profile.features));
-    text.push_str(&format!(
-        "    \"admission\": \"{}\",\n",
-        "the deployment contract must satisfy the recorded feature assumptions"
-    ));
-    text.push_str("    \"conditions\": [\n");
-    let conds: Vec<String> = program
-        .rewrites
-        .iter()
-        .filter(|r| r.target)
-        .map(|r| {
-            let fired = opt
-                .sites
-                .iter()
-                .any(|s| s.kind == format!("rewrite:{}", r.name) && s.stop.is_none());
-            format!(
-                "      {{\"rule\": \"{}\", \"condition\": \"{}\", \"discharged\": {}}}",
-                r.name,
-                match &r.cond {
-                    crate::core::RequireCond::CapabilityInScope { class, .. } => {
-                        format!("capability {class} valid in the firing region's validity scope")
-                    }
-                    crate::core::RequireCond::Always => "always".to_string(),
-                    crate::core::RequireCond::Never => "never".to_string(),
-                    crate::core::RequireCond::Unknown => {
-                        "decided at the match site".to_string()
-                    }
-                },
-                fired
-            )
-        })
-        .collect();
-    text.push_str(&conds.join(",\n"));
-    if !conds.is_empty() {
-        text.push('\n');
-    }
-    text.push_str("    ]\n  },\n");
+    let conditions = J::arr(program.rewrites.iter().filter(|r| r.target), |r| {
+        let condition = match &r.cond {
+            crate::core::RequireCond::CapabilityInScope { class, .. } => {
+                format!("capability {class} valid in the firing region's validity scope")
+            }
+            crate::core::RequireCond::Always => "always".to_string(),
+            crate::core::RequireCond::Never => "never".to_string(),
+            crate::core::RequireCond::Unknown => "decided at the match site".to_string(),
+        };
+        J::obj([
+            ("rule", (&r.name).into()),
+            ("condition", condition.into()),
+            ("discharged", fired(&r.name).into()),
+        ])
+    });
+    let target = J::obj([
+        ("profile", (&profile.name).into()),
+        ("word_size", profile.word_size.into()),
+        ("endian", (&profile.endian).into()),
+        (
+            "vector_shape",
+            match profile.vector_shape {
+                crate::core::VectorShape::Fixed(w) => format!("fixed({w})"),
+                crate::core::VectorShape::Scalable => "scalable".to_string(),
+            }
+            .into(),
+        ),
+        ("features", (&profile.features).into()),
+        (
+            "admission",
+            "the deployment contract must satisfy the recorded feature assumptions".into(),
+        ),
+        ("conditions", conditions),
+    ]);
     // The Wasm and components record (WebAssembly and WASI
     // specification sections 2, 4 and 8): the artifact shape, the
     // required and available capabilities, the loader's selected feature
@@ -885,243 +841,265 @@ fn write_artifacts(
         }
     )];
     for r in &program.rewrites {
-        if r.target
-            && opt
-                .sites
-                .iter()
-                .any(|s| s.kind == format!("rewrite:{}", r.name) && s.stop.is_none())
-        {
+        if r.target && fired(&r.name) {
             lowerings.push(format!("rewrite:{}", r.name));
         }
     }
-    text.push_str("  \"wasm\": {\n");
-    text.push_str(&format!(
-        "    \"artifact\": \"{}\",\n",
-        profile.artifact.spelling()
-    ));
     let canon = match wit.first() {
         Some(a) => a.abi.spelling(),
         None => "none",
     };
-    text.push_str(&format!("    \"canonical_abi\": \"{canon}\",\n"));
-    text.push_str(&format!("    \"required\": {:?},\n", required));
-    text.push_str(&format!("    \"available\": {:?},\n", profile.features));
-    text.push_str(&format!(
-        "    \"selected\": {{\"profile\": {:?}, \"features\": {:?}}},\n",
-        profile.name, profile.features
-    ));
-    text.push_str(&format!("    \"lowerings\": {:?},\n", lowerings));
-    text.push_str("    \"adapters\": [\n");
-    let mut adapter_rows: Vec<String> = Vec::new();
+    let mut adapter_rows: Vec<J> = Vec::new();
     for a in wit {
         for b in &a.bindings {
-            let mut row = format!(
-                "{{\"package\": {:?}, \"module\": {:?}, \"name\": {:?}, \"symbol\": {:?}, \"export\": {}, \"core_params\": {:?}, \"core_results\": {:?}",
-                a.package,
-                a.module,
-                b.name,
-                b.symbol,
-                b.export,
-                b.call.core_params.iter().map(|t| t.spelling()).collect::<Vec<_>>(),
-                b.call.core_results.iter().map(|t| t.spelling()).collect::<Vec<_>>()
-            );
+            let mut row = J::obj([
+                ("package", (&a.package).into()),
+                ("module", (&a.module).into()),
+                ("name", (&b.name).into()),
+                ("symbol", (&b.symbol).into()),
+                ("export", b.export.into()),
+                ("core_params", J::arr(&b.call.core_params, |t| t.spelling().into())),
+                ("core_results", J::arr(&b.call.core_results, |t| t.spelling().into())),
+            ]);
+            let J::Obj(fields) = &mut row else { unreachable!() };
             if let Some(ret) = &b.call.ret {
-                row.push_str(&format!(
-                    ", \"ret_area\": {{\"size\": {}, \"align\": {}, \"cases\": {}}}",
-                    ret.size,
-                    ret.align,
-                    ret.cases.len()
-                ));
+                fields.insert(
+                    "ret_area".to_string(),
+                    J::obj([
+                        ("size", ret.size.into()),
+                        ("align", ret.align.into()),
+                        ("cases", (ret.cases.len() as u64).into()),
+                    ]),
+                );
             }
             if let Some(g) = &b.call.glue_gap {
-                row.push_str(&format!(", \"glue_gap\": {g:?}"));
+                fields.insert("glue_gap".to_string(), g.into());
             }
-            row.push('}');
             adapter_rows.push(row);
         }
     }
-    text.push_str(&adapter_rows.join(",\n"));
-    if !adapter_rows.is_empty() {
-        text.push('\n');
-    }
-    text.push_str("    ]\n  },\n");
+    let wasm = J::obj([
+        ("artifact", profile.artifact.spelling().into()),
+        ("canonical_abi", canon.into()),
+        ("required", required.into()),
+        ("available", (&profile.features).into()),
+        (
+            "selected",
+            J::obj([
+                ("profile", (&profile.name).into()),
+                ("features", (&profile.features).into()),
+            ]),
+        ),
+        ("lowerings", lowerings.into()),
+        ("adapters", J::Arr(adapter_rows)),
+    ]);
     // Specialization configuration and report (supercompilation and JIT
     // specification sections 5 and 8).
-    text.push_str("  \"specialization\": {\n");
-    text.push_str("    \"ran\": true,\n");
-    text.push_str(&format!("    \"fuel\": {},\n", profile.fuel));
-    text.push_str(&format!("    \"measure\": {},\n", profile.measure));
-    text.push_str("    \"whistle\": \"repetition-or-measure\",\n");
-    text.push_str(&format!("    \"runtime_codegen\": {},\n", false));
-    text.push_str("    \"sites\": [\n");
-    for (i, s) in opt.sites.iter().enumerate() {
-        text.push_str(&format!(
-            "      {{\"unit\": {:?}, \"kind\": {:?}, \"stop\": {}}}",
-            s.fn_id,
-            s.kind,
-            match &s.stop {
-                Some(stop) => format!("{stop:?}"),
-                None => "null".to_string(),
-            }
-        ));
-        text.push_str(if i + 1 < opt.sites.len() { ",\n" } else { "\n" });
-    }
-    text.push_str("    ],\n");
-    text.push_str(&format!("    \"fused\": {:?},\n", opt.fused));
-    text.push_str(&format!("    \"discarded\": {:?}\n", opt.discarded));
-    text.push_str("  },\n");
+    let specialization = J::obj([
+        ("ran", true.into()),
+        ("fuel", profile.fuel.into()),
+        ("measure", profile.measure.into()),
+        ("whistle", "repetition-or-measure".into()),
+        ("runtime_codegen", false.into()),
+        (
+            "sites",
+            J::arr(&opt.sites, |s| {
+                J::obj([
+                    ("unit", (&s.fn_id).into()),
+                    ("kind", (&s.kind).into()),
+                    ("stop", s.stop.as_ref().into()),
+                ])
+            }),
+        ),
+        ("fused", (&opt.fused).into()),
+        ("discarded", (&opt.discarded).into()),
+    ]);
     // Tail-call status of the recursive call-graph groups (surface
     // grammar local amendments section 9; decision D104): "marked" when
     // the group's self and mutual tail calls are jumps or `musttail`
     // calls (constant stack), "fallback (<reason>)" when one is an
     // ordinary call (the reason names the call).
-    let tail_groups = crate::core::tail_report(program);
-    text.push_str("  \"tail_calls\": {\n    \"groups\": [\n");
-    for (i, g) in tail_groups.iter().enumerate() {
-        text.push_str(&format!(
-            "      {{\"members\": {:?}, \"mark\": {:?}}}",
-            g.members, g.mark
-        ));
-        text.push_str(if i + 1 < tail_groups.len() { ",\n" } else { "\n" });
-    }
-    text.push_str("    ]\n  },\n");
+    let tail_calls = J::obj([(
+        "groups",
+        J::arr(&crate::core::tail_report(program), |g| {
+            J::obj([("members", (&g.members).into()), ("mark", (&g.mark).into())])
+        }),
+    )]);
     // The collection literal fold boundary (surface grammar local
     // amendments section 10; decision D110): each literal's site, its
     // construction's kind, and whether the compile-time fold made it a
     // constant value or it keeps its runtime `from-list`/`from-map` call.
-    text.push_str("  \"literal_folds\": {\n    \"sites\": [\n");
-    for (i, f) in report.literal_folds.iter().enumerate() {
-        text.push_str(&format!(
-            "      {{\"unit\": {:?}, \"site\": {:?}, \"kind\": {:?}, \"folded\": {}}}",
-            f.unit, f.site, f.kind, f.folded
-        ));
-        text.push_str(if i + 1 < report.literal_folds.len() { ",\n" } else { "\n" });
-    }
-    text.push_str("    ]\n  },\n");
+    let literal_folds = J::obj([(
+        "sites",
+        J::arr(&report.literal_folds, |f| {
+            J::obj([
+                ("unit", (&f.unit).into()),
+                ("site", (&f.site).into()),
+                ("kind", (&f.kind).into()),
+                ("folded", f.folded.into()),
+            ])
+        }),
+    )]);
     // The `import data` bindings' provenance (surface grammar local
     // amendments section 11): the converter identity and the file's
     // content hash per binding. The import's contract covers the
     // conversion, not the file bytes; the manifest records hashes, never
     // contents.
-    text.push_str("  \"data_imports\": {\n    \"bindings\": [\n");
-    for (i, d) in report.data_imports.iter().enumerate() {
-        text.push_str(&format!(
-            "      {{\"module\": {:?}, \"name\": {:?}, \"file\": {:?}, \"converter\": {:?}, \"hash\": {:?}}}",
-            d.module, d.name, d.file, d.converter, d.hash
-        ));
-        text.push_str(if i + 1 < report.data_imports.len() { ",\n" } else { "\n" });
-    }
-    text.push_str("    ]\n  },\n");
+    let data_imports = J::obj([(
+        "bindings",
+        J::arr(&report.data_imports, |d| {
+            J::obj([
+                ("module", (&d.module).into()),
+                ("name", (&d.name).into()),
+                ("file", (&d.file).into()),
+                ("converter", (&d.converter).into()),
+                ("hash", (&d.hash).into()),
+            ])
+        }),
+    )]);
     // P20's safety assertion summary (attribute annotations
     // specification section 10): per definition, the assertion, its
     // verification result, and for `bounded(x)` which proof method
     // established the bound (decision D113); plus the `jpl` profile's
     // whole-program summary (decision D114). Definition names, never
     // paths.
-    text.push_str("  \"safety\": {\n    \"assertions\": [\n");
-    for (i, a) in report.safety.assertions.iter().enumerate() {
-        text.push_str(&format!(
-            "      {{\"definition\": {:?}, \"attribute\": {:?}, \"result\": {:?}}}",
-            a.definition, a.attribute, a.result
-        ));
-        text.push_str(
-            if i + 1 < report.safety.assertions.len() { ",\n" } else { "\n" },
-        );
-    }
-    text.push_str("    ],\n");
-    match &report.safety.jpl {
-        Some(j) => text.push_str(&format!(
-            "    \"jpl\": {{\"modules\": {:?}, \"definitions\": {}, \"assertions\": {}}}\n",
-            j.modules, j.definitions, j.assertions
-        )),
-        None => text.push_str("    \"jpl\": null\n"),
-    }
-    text.push_str("  },\n");
+    let safety = J::obj([
+        (
+            "assertions",
+            J::arr(&report.safety.assertions, |a| {
+                J::obj([
+                    ("definition", (&a.definition).into()),
+                    ("attribute", (&a.attribute).into()),
+                    ("result", (&a.result).into()),
+                ])
+            }),
+        ),
+        (
+            "jpl",
+            match &report.safety.jpl {
+                Some(j) => J::obj([
+                    ("modules", (&j.modules).into()),
+                    ("definitions", j.definitions.into()),
+                    ("assertions", j.assertions.into()),
+                ]),
+                None => J::Null,
+            },
+        ),
+    ]);
     // The verified temporal contracts (core specification section 10):
     // per contract, the definition it names, the kind and formula, the
     // verification result (which argument discharged it), and the stated
     // assumptions (a liveness claim relies on the runtime policies it
     // names). Definition names, never paths.
-    text.push_str("  \"temporal\": {\n    \"contracts\": [\n");
-    for (i, t) in report.temporal.iter().enumerate() {
-        text.push_str(&format!(
-            "      {{\"definition\": {:?}, \"contract\": {:?}, \"kind\": {:?}, \"formula\": {:?}, \"result\": {:?}, \"assumptions\": {:?}}}",
-            t.definition, t.contract, t.kind, t.formula, t.result, t.assumptions
-        ));
-        text.push_str(if i + 1 < report.temporal.len() { ",\n" } else { "\n" });
-    }
-    text.push_str("    ]\n  },\n");
+    let temporal = J::obj([(
+        "contracts",
+        J::arr(&report.temporal, |t| {
+            J::obj([
+                ("definition", (&t.definition).into()),
+                ("contract", (&t.contract).into()),
+                ("kind", (&t.kind).into()),
+                ("formula", (&t.formula).into()),
+                ("result", (&t.result).into()),
+                ("assumptions", (&t.assumptions).into()),
+            ])
+        }),
+    )]);
     // Trust level (supercompilation and JIT specification section 9:
     // full recheck is the default) and the checked-versus-trusted
     // lowering split (platform proofs and SIMD specification section 8).
-    text.push_str("  \"trust\": {\n");
-    text.push_str("    \"level\": 2,\n");
-    text.push_str("    \"name\": \"full-recheck\",\n");
-    text.push_str(&format!("    \"rechecked\": {:?},\n", opt.rechecked));
-    text.push_str(&format!(
-        "    \"trusted\": {:?}\n",
-        vec![
-            "type preservation by construction",
-            "effect-order preservation by construction",
-        ]
-    ));
-    text.push_str("  },\n");
-    text.push_str("  \"lowering\": {\n");
-    text.push_str(&format!(
-        "    \"checked\": {:?},\n",
-        vec![
-            "core structure and scoping",
-            "usage of %1/%aff parameters",
-            "memo and demand sharing",
-            "decision-point weights",
-            "contract identity",
-        ]
-    ));
-    text.push_str(&format!(
-        "    \"trusted\": {:?}\n",
-        vec![
-            "LLVM code generation",
-            "the runtime and its instruction model",
-        ]
-    ));
-    text.push_str("  },\n");
+    let trust = J::obj([
+        ("level", 2u64.into()),
+        ("name", "full-recheck".into()),
+        ("rechecked", (&opt.rechecked).into()),
+        (
+            "trusted",
+            vec![
+                "type preservation by construction",
+                "effect-order preservation by construction",
+            ]
+            .into(),
+        ),
+    ]);
+    let lowering = J::obj([
+        (
+            "checked",
+            vec![
+                "core structure and scoping",
+                "usage of %1/%aff parameters",
+                "memo and demand sharing",
+                "decision-point weights",
+                "contract identity",
+            ]
+            .into(),
+        ),
+        (
+            "trusted",
+            vec!["LLVM code generation", "the runtime and its instruction model"].into(),
+        ),
+    ]);
     // Staging build identity (modules specification section 10): the mode,
     // the compiler version, generated declarations, and every captured
     // input with its hash. Secrets record their name only.
-    text.push_str("  \"staging\": {\n");
-    text.push_str(&format!("    \"mode\": \"{}\",\n", match report.mode {
-        StageMode::Refresh => "refresh",
-        StageMode::Replay => "replay",
-        StageMode::Live => "live",
-    }));
-    text.push_str(&format!("    \"compiler\": \"{}\",\n", env!("CARGO_PKG_VERSION")));
-    text.push_str("    \"generated\": {");
-    let mut gen: Vec<(&String, &Vec<String>)> =
-        report.generated.iter().map(|(m, names)| (m, names)).collect();
-    gen.sort();
-    for (i, (m, names)) in gen.iter().enumerate() {
-        let list: Vec<String> = names.iter().map(|n| format!("{:?}", n)).collect();
-        text.push_str(&format!(
-            "{}{:?}: [{}]",
-            if i > 0 { ", " } else { "" },
-            m,
-            list.join(", ")
-        ));
-    }
-    text.push_str("},\n    \"inputs\": [\n");
-    for (i, input) in report.inputs.iter().enumerate() {
-        text.push_str(&format!(
-            "      {{\"kind\": \"{}\", \"snapshot\": \"{}\", \"name\": \"{}\", \"hash\": \"{}\", \"live\": {}}}",
-            input.kind,
-            json_escape(&input.snapshot),
-            json_escape(&input.name),
-            input.hash,
-            input.live
-        ));
-        text.push_str(if i + 1 < report.inputs.len() { ",\n" } else { "\n" });
-    }
-    text.push_str("    ]\n  }\n}\n");
-    std::fs::write(manifest_path, text)
+    let staging = J::obj([
+        (
+            "mode",
+            match report.mode {
+                StageMode::Refresh => "refresh",
+                StageMode::Replay => "replay",
+                StageMode::Live => "live",
+            }
+            .into(),
+        ),
+        ("compiler", env!("CARGO_PKG_VERSION").into()),
+        (
+            "generated",
+            J::Obj(report.generated.iter().map(|(m, names)| (m.clone(), names.into())).collect()),
+        ),
+        (
+            "inputs",
+            J::arr(&report.inputs, |input| {
+                J::obj([
+                    ("kind", (&input.kind).into()),
+                    ("snapshot", (&input.snapshot).into()),
+                    ("name", (&input.name).into()),
+                    ("hash", (&input.hash).into()),
+                    ("live", input.live.into()),
+                ])
+            }),
+        ),
+    ]);
+    let doc = J::obj([
+        ("entry", entry.into()),
+        ("runtime_abi", 1u64.into()),
+        (
+            "modules",
+            J::arr(&modules, |(m, h)| {
+                J::obj([("module", (*m).into()), ("iface_hash", h.into())])
+            }),
+        ),
+        (
+            "assumptions",
+            J::obj([
+                ("primitives", prims.into()),
+                ("foreign", foreign.into()),
+                ("declared", declared.into()),
+            ]),
+        ),
+        ("prims", prims_rows),
+        ("laws", law_rows),
+        ("target", target),
+        ("wasm", wasm),
+        ("specialization", specialization),
+        ("tail_calls", tail_calls),
+        ("literal_folds", literal_folds),
+        ("data_imports", data_imports),
+        ("safety", safety),
+        ("temporal", temporal),
+        ("trust", trust),
+        ("lowering", lowering),
+        ("staging", staging),
+    ]);
+    std::fs::write(manifest_path, doc.to_canonical_string())
         .map_err(|e| Error::plain(format!("{}: {e}", manifest_path.display())))?;
     // The snapshot file carries the captured input contents for replay.
     let snap_path = out_dir.join(format!("{entry}.stage.snap"));
@@ -1209,28 +1187,23 @@ impl Distribution {
     /// feature profile): the variant table and the selection, as JSON
     /// for the artifact manifest.
     pub fn loader_record(&self, selected: &str, available: &[String]) -> String {
-        let mut out = String::new();
-        out.push_str("{\"selected\": ");
-        crate::interface::json_str(&mut out, selected);
-        out.push_str(", \"available\": ");
-        crate::interface::json_list(&mut out, available);
-        out.push_str(", \"variants\": [");
-        for (i, v) in self.variants.iter().enumerate() {
-            if i > 0 {
-                out.push_str(", ");
-            }
-            out.push_str("{\"name\": ");
-            crate::interface::json_str(&mut out, &v.name);
-            out.push_str(", \"required\": ");
-            crate::interface::json_list(&mut out, &v.required);
-            out.push_str(", \"lowerings\": ");
-            crate::interface::json_list(&mut out, &v.lowerings);
-            out.push_str(", \"ir_hash\": ");
-            crate::interface::json_str(&mut out, &v.ir_hash);
-            out.push('}');
-        }
-        out.push_str("]}");
-        out
+        use crate::interface::JsonValue as J;
+        J::obj([
+            ("selected", selected.into()),
+            ("available", available.into()),
+            (
+                "variants",
+                J::arr(&self.variants, |v| {
+                    J::obj([
+                        ("name", (&v.name).into()),
+                        ("required", (&v.required).into()),
+                        ("lowerings", (&v.lowerings).into()),
+                        ("ir_hash", (&v.ir_hash).into()),
+                    ])
+                }),
+            ),
+        ])
+        .to_canonical_string()
     }
 }
 
@@ -1622,7 +1595,7 @@ fn scratch_dir(tag: &str) -> std::path::PathBuf {
 }
 
 /// The flags a compile takes that are neither a mode nor a profile.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct DriverOptions {
     /// `--rebuild`: rewrite the package-store entry for this compile's
     /// key even when the entry is intact and matches it, instead of
@@ -1631,6 +1604,14 @@ pub struct DriverOptions {
     /// `crate::store`), so this is the explicit way to force a rewrite,
     /// and the escape for an entry a consumer reported as corrupt.
     pub rebuild_store: bool,
+    /// The words the CLI forwards to the program `Mode::Run` executes:
+    /// every argument after the entry file (`cinch run f.cinch a b`, or
+    /// everything after `--` verbatim). They land on the built program's
+    /// own command line, so the program reads them with
+    /// `Effect.Process`'s `process-args` (`word 0` of that capture is
+    /// the program itself, not one of these). Empty for a library
+    /// caller, which is every test: only the CLI has words to forward.
+    pub program_args: Vec<String>,
 }
 
 /// The compile-time I/O mode from `CINCH_STAGE_MODE` (`refresh`,
@@ -1653,7 +1634,9 @@ pub fn driver(mode: Mode, path: &Path, out: Option<&Path>) -> Result<i32> {
 }
 
 /// [`driver`] with explicit options: the entry point the `cinch` CLI
-/// uses for its flags.
+/// uses for its flags. `Run` executes the produced binary and returns
+/// its exit code in `Ok`, handing the program `opts.program_args` as
+/// its command line.
 pub fn driver_opts(
     mode: Mode,
     path: &Path,
@@ -1830,7 +1813,11 @@ pub fn driver_with_profile_opts(
             std::fs::write(&ir_path, &ir)
                 .map_err(|e| Error::plain(format!("{}: {e}", ir_path.display())))?;
             link(&ir_path, &exe)?;
+            // The program's own command line (the CLI's forwarded
+            // words): the entry glue captures them, so the built
+            // program reads them with `process-args`.
             let status = std::process::Command::new(&exe)
+                .args(&opts.program_args)
                 .status()
                 .map_err(|e| Error::plain(format!("{}: {e}", exe.display())))?;
             Ok(status.code().unwrap_or(1))

@@ -696,30 +696,37 @@ module Text.Yaml where
     let trailing = if not (is-empty lines) then 1 + pending else 0 in
     apply-chomp chomp body trailing
 
+  -- The block scalars collect their pieces and flatten once: a nested or
+  -- accumulating `string-concat` would re-copy the text built so far at
+  -- every line.
   bs-literal :: List BsLine -> String
-  bs-literal lines = case lines of
-    Nil -> empty-string
+  bs-literal lines = string-concat-all (literal-pieces lines)
+
+  literal-pieces :: List BsLine -> List String
+  literal-pieces lines = case lines of
+    Nil -> Nil
     Cons l rest -> case l of
       BsLine text more -> case rest of
-        Nil -> text
-        _ -> string-concat text (string-concat "\n" (bs-literal rest))
+        Nil -> Cons text Nil
+        _ -> Cons text (Cons "\n" (literal-pieces rest))
 
   -- Folded: a single break between two normal lines folds to a space,
   -- n breaks to n - 1 newlines, and a break next to a more-indented line
   -- is kept (the spec's folding rule).
   bs-fold :: List BsLine -> String
-  bs-fold lines = fold-go lines empty-string False 0 True
+  bs-fold lines = fold-go lines Nil False 0 True
 
-  fold-go :: List BsLine -> String -> Bool -> Nat -> Bool -> String
+  -- `acc` holds the pieces so far, most recent first.
+  fold-go :: List BsLine -> List String -> Bool -> Nat -> Bool -> String
   fold-go lines acc started pending prev-normal = case lines of
-    Nil -> acc
+    Nil -> string-concat-all (reverse acc)
     Cons l rest -> case l of
       BsLine text more ->
         if string-length text == 0 then fold-go rest acc started (pending + 1) prev-normal
         else if started then
           let sep = if pending == 0 then (if prev-normal && not more then " " else "\n") else string-repeat pending "\n" in
-          fold-go rest (string-concat acc (string-concat sep text)) True 0 (not more)
-        else fold-go rest (string-concat (string-repeat pending "\n") text) True 0 (not more)
+          fold-go rest (Cons text (Cons sep acc)) True 0 (not more)
+        else fold-go rest (Cons text (Cons (string-repeat pending "\n") Nil)) True 0 (not more)
 
   apply-chomp :: BsChomp -> String -> Nat -> String
   apply-chomp chomp body trailing = case chomp of

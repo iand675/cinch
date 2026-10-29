@@ -75,6 +75,43 @@ impl Bytes {
         }
         unsafe { std::slice::from_raw_parts(self.data, self.len as usize) }
     }
+
+    /// The data pointer, for the overlap-safe range copy, which must not
+    /// hold a `&` and a `&mut` to one buffer at once.
+    pub(crate) fn data_ptr(&self) -> *mut u8 {
+        self.data
+    }
+}
+
+/// Copy `n` bytes from the `src` region (`src_len` long) at `si` into the
+/// `dst` region (`dst_len` long) at `di`, as `memmove`: the two regions
+/// may be the same buffer and may overlap. A negative index or count, or
+/// a range past either end, is [`Error::OutOfBounds`] and copies nothing.
+///
+/// # Safety
+///
+/// `dst` must be valid for `dst_len` writable bytes and `src` for
+/// `src_len` readable bytes.
+pub(crate) unsafe fn copy_range(
+    dst: *mut u8,
+    dst_len: i64,
+    di: i64,
+    src: *const u8,
+    src_len: i64,
+    si: i64,
+    n: i64,
+) -> Result<()> {
+    if di < 0 || si < 0 || n < 0 {
+        return Err(Error::OutOfBounds);
+    }
+    let fits = |at: i64, len: i64| at.checked_add(n).is_some_and(|end| end <= len);
+    if !fits(di, dst_len) || !fits(si, src_len) {
+        return Err(Error::OutOfBounds);
+    }
+    if n > 0 {
+        unsafe { std::ptr::copy(src.add(si as usize), dst.add(di as usize), n as usize) };
+    }
+    Ok(())
 }
 
 impl From<Vec<u8>> for Bytes {
@@ -146,5 +183,22 @@ mod tests {
         assert_eq!(b.set(2, 1), Err(Error::OutOfBounds));
         assert_eq!(b.set(0, -1), Err(Error::OutOfBounds));
         assert_eq!(b.set(0, 256), Err(Error::OutOfBounds));
+    }
+
+    #[test]
+    fn copy_range_moves_overlapping_and_checks_bounds() {
+        let b = Bytes::from(vec![1, 2, 3, 4, 5]);
+        let p = b.data_ptr();
+        // Overlapping, forward: memmove semantics, not a byte-at-a-time smear.
+        assert_eq!(unsafe { copy_range(p, 5, 1, p, 5, 0, 4) }, Ok(()));
+        assert_eq!(b.as_slice(), &[1, 1, 2, 3, 4]);
+        assert_eq!(unsafe { copy_range(p, 5, 0, p, 5, 1, 4) }, Ok(()));
+        assert_eq!(b.as_slice(), &[1, 2, 3, 4, 4]);
+        // Every out-of-range shape faults and leaves the buffer alone.
+        for (di, si, n) in [(4, 0, 2), (0, 4, 2), (-1, 0, 1), (0, -1, 1), (0, 0, -1), (i64::MAX, 0, 1)] {
+            assert_eq!(unsafe { copy_range(p, 5, di, p, 5, si, n) }, Err(Error::OutOfBounds));
+        }
+        assert_eq!(b.as_slice(), &[1, 2, 3, 4, 4]);
+        assert_eq!(unsafe { copy_range(p, 5, 5, p, 5, 5, 0) }, Ok(()));
     }
 }

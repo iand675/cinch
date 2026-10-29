@@ -178,7 +178,7 @@ module LawAssume where
     check_sources(src, "assume").expect("the law citation justifies the rule");
     let m = manifest_of("law-assume", src);
     let declared = {
-        let s = m.find("\"declared\": [").expect("declared assumptions");
+        let s = m.find("\"declared\":[").expect("declared assumptions");
         let e = m[s..].find(']').map(|i| s + i).expect("end");
         &m[s..e]
     };

@@ -209,13 +209,11 @@ module Data.String where
     else if cp < 65536 then 3
     else 4
 
-  -- Concatenation (O(n + m) copies).
+  -- Concatenation (O(n + m) copies). The range copy is the runtime's
+  -- `memmove` (`bytes-copy-range`): a loop here boxed a `Nat` for every
+  -- index step.
   copy-bytes-into :: Bytes -> Bytes -> Nat -> Nat -> Nat -> Unit
-  copy-bytes-into dst src di si n =
-    if n == 0 then ()
-    else
-      let u = bytes-set dst di (bytes-get src si) in
-      copy-bytes-into dst src (di + 1) (si + 1) (n - 1)
+  copy-bytes-into dst src di si n = bytes-copy-range dst src di si n
 
   string-concat :: String -> String -> String
   string-concat a b =
@@ -226,20 +224,47 @@ module Data.String where
     let v = copy-bytes-into out y (bytes-len x) 0 (bytes-len y) in
     StrBuf out
 
-  -- Every string in the list, in order (the concatenating fold the
-  -- text homes kept rebuilding by hand). `String` is a `Monoid`
-  -- (Data.String owns the instance), so this is exactly `mconcat`;
-  -- `string-join ""` is this with Text.Scan's separator machinery. The
-  -- name stays because the old surface exports it.
+  -- Every string in the list, in order, in one pass: sum the byte lengths,
+  -- allocate the result once, copy each piece once. A right fold of
+  -- `string-concat` would re-copy the whole built suffix at every step,
+  -- quadratic in the result's length. The concatenation of valid UTF-8
+  -- is valid UTF-8, so the buffer wraps without a decode. This is the
+  -- `Monoid String` instance's `mconcat`.
   string-concat-all :: List String -> String
-  string-concat-all xs = mconcat xs
+  string-concat-all xs =
+    let out = bytes-new (strings-byte-length xs 0) in
+    let u = copy-strings-into out 0 xs in
+    StrBuf out
+
+  strings-byte-length :: List String -> Nat -> Nat
+  strings-byte-length xs acc = case xs of
+    Nil -> acc
+    Cons s rest -> strings-byte-length rest (acc + string-byte-length s)
+
+  copy-strings-into :: Bytes -> Nat -> List String -> Unit
+  copy-strings-into out pos xs = case xs of
+    Nil -> ()
+    Cons s rest ->
+      let b = string-bytes-raw s in
+      let u = copy-bytes-into out b pos 0 (bytes-len b) in
+      copy-strings-into out (pos + bytes-len b) rest
 
   -- `s` repeated `n` times (the run-building helper the padding and
-  -- numeric-format sites spelled out as fixed byte runs).
+  -- numeric-format sites spelled out as fixed byte runs): one buffer of
+  -- `n` copies, filled in place.
   string-repeat :: Nat -> String -> String
-  string-repeat n s = case n == 0 of
-    True -> empty-string
-    False -> string-concat s (string-repeat (n - 1) s)
+  string-repeat n s =
+    let b = string-bytes-raw s in
+    let out = bytes-new (n * bytes-len b) in
+    let u = repeat-into out b 0 n in
+    StrBuf out
+
+  repeat-into :: Bytes -> Bytes -> Nat -> Nat -> Unit
+  repeat-into out b pos n =
+    if n == 0 then ()
+    else
+      let u = copy-bytes-into out b pos 0 (bytes-len b) in
+      repeat-into out b (pos + bytes-len b) (n - 1)
 
   -- Byte offsets of code point `n`; returns the byte length when `n`
   -- reaches past the end.
@@ -257,7 +282,7 @@ module Data.String where
   -- zero, so the span is guarded).
   string-slice :: String -> Nat -> Nat -> String
   string-slice s start end =
-    let b = string-to-bytes s in
+    let b = string-bytes-raw s in
     let i0 = string-byte-index-from b 0 start in
     let span = if end > start then end - start else 0 in
     let i1 = string-byte-index-from b i0 span in
@@ -312,8 +337,11 @@ module Data.String where
       0 -> compare-bytes-from a b (i + 1)
       c -> c
 
+  -- Compares the two backings in place: `string-to-bytes` would copy
+  -- both operands first, and the lexer's keyword table compares every
+  -- identifier against dozens of literals.
   string-compare :: String -> String -> I64
-  string-compare a b = compare-bytes-from (string-to-bytes a) (string-to-bytes b) 0
+  string-compare a b = bytes-compare (string-bytes-raw a) (string-bytes-raw b)
 
   implicit instance Eq_String :: Eq String where
     (==) x y = eq-i64 (string-compare x y) 0
@@ -331,9 +359,11 @@ module Data.String where
   implicit instance Semigroup_String :: Semigroup String where
     (<>) x y = string-concat x y
 
-  -- `empty-string` is the identity (moved from Algebra.Monoid).
+  -- `empty-string` is the identity (moved from Algebra.Monoid); `mconcat`
+  -- overrides the class's balanced fold with the one-pass concatenation.
   implicit instance Monoid_String :: Monoid String where
     mempty = empty-string
+    mconcat xs = string-concat-all xs
 
   -- The digest of the UTF-8 backing through the `Bytes` instance
   -- (Data.Bytes owns the byte fold, so the two instances agree by

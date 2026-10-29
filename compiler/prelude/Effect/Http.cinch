@@ -547,11 +547,12 @@ module Effect.Http where
   header-line :: String -> String -> String
   header-line name value = string-concat name (string-concat ": " (string-concat value "\r\n"))
 
-  render-header-lines :: List (String, String) -> String
-  render-header-lines headers = case headers of
-    Nil -> ""
+  -- The caller's header lines, before `after` (pieces for one flatten).
+  header-pieces :: List (String, String) -> List String -> List String
+  header-pieces headers after = case headers of
+    Nil -> after
     Cons kv rest -> case kv of
-      (k, v) -> string-concat (header-line k v) (render-header-lines rest)
+      (k, v) -> Cons (header-line k v) (header-pieces rest after)
 
   content-length-line :: Option Bytes -> String
   content-length-line body = case body of
@@ -560,15 +561,15 @@ module Effect.Http where
 
   -- The whole head: request line, `Host`, `Connection: close`, the
   -- caller's headers, the computed `Content-Length` (when a body is
-  -- present) and the blank line.
+  -- present) and the blank line, flattened once (nesting `string-concat`
+  -- would re-copy the rest of the head at every header).
   render-head :: HttpRequest -> String
   render-head q = case q of
     MkHttpRequest method host _ path headers body ->
-      string-concat (request-line method path)
-        (string-concat (header-line "Host" host)
-          (string-concat (header-line "Connection" "close")
-            (string-concat (render-header-lines headers)
-              (string-concat (content-length-line body) "\r\n"))))
+      string-concat-all (Cons (request-line method path)
+        (Cons (header-line "Host" host)
+          (Cons (header-line "Connection" "close")
+            (header-pieces headers (Cons (content-length-line body) (Cons "\r\n" Nil))))))
 
   -- The request as bytes: head, then the body when one is present.
   render-request :: HttpRequest -> Bytes

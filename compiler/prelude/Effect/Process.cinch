@@ -26,8 +26,31 @@
 -- intrinsic is; the `IO r` discipline lives in this module's wrappers,
 -- exactly as the primitive-type home wraps `bytesNew`.
 --
+-- This module also closes the argv gap that made a real bootstrap tool
+-- impossible: `cinch_argv_*` (`cinch_argv_init`, then
+-- `cinch_argv_count`/`cinch_argv_get`) is THIS process's own command
+-- line, captured by the generated entry glue BEFORE any program code
+-- runs (the native `@main` of `compiler/src/codegen.rs`), and
+-- `process-args` is the binding a program reads it with. The capture
+-- mirrors the operating system exactly: word 0 is the program name and
+-- the count includes it, so `process-args` reports the words AFTER the
+-- program name, in the order they were given. An index outside the
+-- capture is the boundary's own defined out-of-bounds fault (the
+-- `bytesGet` convention), which only a caller walking past the count
+-- can reach, not `process-args`.
+--
 -- Named refusals (boundaries this module deliberately does not
 -- cross):
+--   the process's own environment: the command line is captured, the
+--     environment is not. It is the SAME SIZE to add (one sibling
+--     `cinch_env_count`/`cinch_env_get` pair over `environ`, or the
+--     entry's third parameter `envp`, plus one `Effect.Env`-style
+--     binding), and it is refused here only because environment access
+--     is its own home's vocabulary, not the process home's; a caller
+--     that needs it gets it from the same entry glue;
+--   a non-UTF-8 word: a command line is OS bytes, so `process-args`
+--     reports `ProcessInvalidArgument` instead of substituting or
+--     dropping text (the `fs-list` refusal, one vocabulary up);
 --   the live child's pipes are separate: a caller reads stdout and
 --     stderr on its own schedule, so a child that fills one pipe while
 --     the caller reads the other blocks until it is drained (there is
@@ -67,6 +90,7 @@ module Effect.Process where
   export ProcessError, ProcessNotFound, ProcessPermissionDenied, ProcessInvalidArgument, ProcessIoError
   export Command, command, command-with-env
   export process-run
+  export process-args
   export Child, child-handle, Stream, Stdout, Stderr
   export process-spawn, child-write-stdin, child-close-stdin, child-read, child-wait, child-close
 
@@ -214,6 +238,48 @@ module Effect.Process where
             _ -> c
 
   -- ---------------------------------------------------------------------------
+  -- The process's own command line (argv)
+  -- ---------------------------------------------------------------------------
+
+  -- The command-line capture (the `cinch_argv_*` externs of
+  -- `compiler/runtime/src/platform.rs`). The generated entry glue
+  -- stashes the process's `argc`/`argv` before any program code runs,
+  -- so a compiled program reads its own arguments here. The capture is
+  -- raw, not the one-shot boundary's `Result`: word 0 is the program
+  -- name, the count includes it, and an index outside `0 ..< count`
+  -- faults (a caller walks the count it asked for).
+  foreign import ccall "cinch.runtime.processArgCount" raw-arg-count :: Unit -> Nat
+  foreign import ccall "cinch.runtime.processArg" raw-arg :: Nat -> Bytes
+
+  -- The arguments this process was invoked with, the program name
+  -- (word 0) excluded, decoded as text. An empty command line is
+  -- `Ok Nil`, and a word that is not valid UTF-8 is `Err
+  -- ProcessInvalidArgument` (a command line is OS bytes: the `fs-list`
+  -- refusal, one vocabulary up). Words that carry a space, a `-` or
+  -- nothing at all arrive intact: this reads the operating system's
+  -- own `argv` words, so there is no splitting, quoting or trimming
+  -- between the shell's exec and this list.
+  -- `process-args` is an effectful computation, so it takes the `Unit`
+  -- an effectful value always takes in this tree (`main :: Unit ->{IO
+  -- r} Int`'s shape): `process-args ()`.
+  process-args :: forall r. using (io :: Io r) => Unit ->{IO r} Result ProcessError (List String)
+  process-args u =
+    let n = raw-arg-count () in
+    case n == 0 of
+      True -> Ok Nil
+      False -> args-down (n - 1) Nil
+
+  -- The words `i ..< count` consed from the last one down, so the list
+  -- comes out ascending without a reverse. (The count and word 0 are
+  -- the program name, which the surface excludes.)
+  args-down :: forall r. Nat -> List String ->{IO r} Result ProcessError (List String)
+  args-down i acc = case i == 0 of
+    True -> Ok acc
+    False -> case string-from-bytes (raw-arg i) of
+      Some s -> args-down (i - 1) (Cons s acc)
+      None -> Err ProcessInvalidArgument
+
+  -- ---------------------------------------------------------------------------
   -- The live child (the piped ABI)
   -- ---------------------------------------------------------------------------
 
@@ -304,12 +370,13 @@ module Effect.Process where
   put-word :: Bytes -> Nat -> String -> Nat
   put-word b i s = put-bytes b i (string-to-bytes s) 0
 
+  -- `src` from `j` copied in one runtime `memmove`, then the NUL.
   put-bytes :: Bytes -> Nat -> Bytes -> Nat -> Nat
-  put-bytes b i src j = case j == bytes-len src of
-    True -> case bytes-set b i 0 of
-      _ -> i + 1
-    False -> case bytes-set b i (bytes-get src j) of
-      _ -> put-bytes b (i + 1) src (j + 1)
+  put-bytes b i src j =
+    let n = bytes-len src - j in
+    let u = bytes-copy-range b src i j n in
+    case bytes-set b (i + n) 0 of
+      _ -> i + n + 1
 
   -- Write `bs` to the child's stdin: the byte count, or the named
   -- error.

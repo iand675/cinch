@@ -10,3 +10,9 @@
 # setting gives the rest of the suite the same headroom.
 [env]
 RUST_MIN_STACK = "67108864"
+
+# Every program a test compiles and spawns inherits this, so a runaway
+# allocation faults (exit 73) at 2 GiB instead of reaching the runtime's
+# 8 GiB default with several suites running side by side. Set it to 0
+# for a measurement that needs the whole heap.
+CINCH_HEAP_LIMIT = "2G"

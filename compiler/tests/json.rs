@@ -24,6 +24,7 @@ const LEX_SRC: &str = include_str!("../prelude/Text/Lex.cinch");
 const SCAN_SRC: &str = include_str!("../prelude/Text/Scan.cinch");
 const PARSE_SRC: &str = include_str!("../prelude/Text/Parse.cinch");
 const JSON_SRC: &str = include_str!("../prelude/Text/Json.cinch");
+const BUILDER_SRC: &str = include_str!("../prelude/Text/Builder.cinch");
 const ARGS_SRC: &str = include_str!("../prelude/Text/Args.cinch");
 
 // ----------------------------------------------------------------
@@ -46,6 +47,7 @@ fn write_project(name: &str, files: &[(&str, &str)]) -> PathBuf {
     std::fs::write(dir.join("Text.Scan.cinch"), SCAN_SRC).expect("write Text.Scan");
     std::fs::write(dir.join("Text.Parse.cinch"), PARSE_SRC).expect("write Text.Parse");
     std::fs::write(dir.join("Text.Json.cinch"), JSON_SRC).expect("write Text.Json");
+    std::fs::write(dir.join("Text.Builder.cinch"), BUILDER_SRC).expect("write Text.Builder");
     std::fs::write(dir.join("Text.Args.cinch"), ARGS_SRC).expect("write Text.Args");
     for (name, src) in files {
         std::fs::write(dir.join(name), src).unwrap_or_else(|e| panic!("write {name}: {e}"));
@@ -840,6 +842,9 @@ fn bootstrap_manifest_round_trip_is_byte_identical() {
     let (c3, out3) = run_exe(&exe, out1.as_bytes());
     assert_eq!(c3, 0);
     assert_eq!(out3, out1, "the canonical manifest must round trip byte identically");
+    // The compiler already writes the canonical form, so the Cinch
+    // printer reproduces the artifact's own bytes.
+    assert_eq!(out1, original_text, "the written interface is already canonical");
 
     // No manifest fact is lost: the interface parses back to the same
     // canonical projection on both sides.
@@ -897,4 +902,70 @@ fn json_codec_round_trips_the_d65_set() {
 #[test]
 fn args_parsing_names_errors_and_round_trips() {
     expect_exit("args-probe", ARGS_PROBE, 0);
+}
+
+/// The canonical printer prints `200 * (argument count)` small objects,
+/// so one build measures two sizes.
+const SCALING_PROBE: &str = r#"module Main where
+  import Text.Json (canonical-bytes)
+  import Data.Json
+  import Data.Bytes
+  import Data.Int
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Result
+  import Effect.Process
+
+  -- Keys out of order, so the canonical sort runs; a quote, so the
+  -- string escaping runs.
+  item :: Nat -> Json
+  item n =
+    let k = int-from-i64 (nat-to-i64 n) in
+    JObj "name" (JStr "item") (JObj "id" (JNum k) (JObj "ok" (JBool True) (JObj "tags" (JArr (JStr "a\"b") (JArr (JNum k) JArrEnd)) JObjEnd)))
+
+  items :: Nat -> Json -> Json
+  items n acc = if n == 0 then acc else items (n - 1) (JArr (item n) acc)
+
+  main :: Unit ->{IO r} Int
+  main u = with (io = newIO ()) in case process-args () of
+    Err e -> 2
+    Ok got -> if bytes-len (canonical-bytes (items (200 * list-length got) JArrEnd)) == 0 then 1 else 0
+"#;
+
+/// The canonical printer's cost is linear in the document: four times
+/// the objects allocate about four times the bytes (`CINCH_ALLOC_STATS`
+/// counts every allocation, so the ratio is deterministic, not a timing).
+/// Concatenating each piece onto the rendering of the rest, the shape
+/// this printer replaced, copied the built suffix at every step and
+/// showed the ratio of a quadratic, well above 10 at these sizes.
+#[test]
+fn canonical_printing_allocates_linearly_in_the_document() {
+    let (dir, exe) = build_exe("canonical-scaling", SCALING_PROBE);
+    let alloc_bytes = |args: &[&str]| -> u64 {
+        let out = std::process::Command::new(&exe)
+            .args(args)
+            .env("CINCH_ALLOC_STATS", "1")
+            .env("CINCH_HEAP_LIMIT", "1G")
+            .output()
+            .unwrap_or_else(|e| panic!("spawn {}: {e}", exe.display()));
+        assert_eq!(out.status.code(), Some(0), "{out:?}");
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        let line = stderr
+            .lines()
+            .find(|l| l.starts_with("cinch-alloc:"))
+            .unwrap_or_else(|| panic!("no cinch-alloc line: {stderr}"));
+        line.split_whitespace()
+            .find_map(|w| w.strip_prefix("bytes="))
+            .and_then(|v| v.parse().ok())
+            .unwrap_or_else(|| panic!("no bytes= in {line:?}"))
+    };
+    let small = alloc_bytes(&["x"]);
+    let large = alloc_bytes(&["x", "x", "x", "x"]);
+    let ratio = large as f64 / small as f64;
+    assert!(
+        ratio < 6.0,
+        "4x the objects allocated {ratio:.2}x the bytes ({small} -> {large}); linear is about 4"
+    );
+    let _ = std::fs::remove_dir_all(&dir);
 }

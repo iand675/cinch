@@ -67,6 +67,7 @@
 //! | 70 | `BlackHole` (e.g. demanding a memo cell mid-evaluation) | [`cinch_blackhole`] |
 //! | 71 | generic fault: `cinch_panic` and every runtime error except division by zero and the `BlackHole` fault | [`cinch_panic`] |
 //! | 72 | division or remainder by zero | [`cinch_fault_div_zero`] |
+//! | 73 | heap limit exceeded (`CINCH_HEAP_LIMIT`) | [`heap`] |
 //!
 //! Exit code 70 is coupled to the code generator: `compiler/src/codegen.rs`
 //! emits `__cinch_blackhole` calling `exit(i32 70)` directly. Both call
@@ -76,7 +77,8 @@
 //! In the safe Rust API ([`Nat`], [`Int`]) the same conditions surface as
 //! [`Error`] values, so tooling and tests observe them without dying. The
 //! extern "C" layer maps [`Error::DivByZero`] onto exit 72,
-//! [`Error::BlackHole`] onto exit 70, and every other error onto exit 71.
+//! [`Error::BlackHole`] onto exit 70, [`Error::HeapLimit`] onto exit 73,
+//! and every other error onto exit 71.
 //!
 //! # Extern symbols
 //!
@@ -102,6 +104,20 @@
 //! * `cinch_free(word: i64)`: currently a no-op; blocks are leaked by design
 //!   until reclamation lands. The symbol exists so generated code can
 //!   already emit balanced allocation and deallocation.
+//! * `cinch_alloc_raw(size: i64) -> ptr`: allocate `size` uninitialised
+//!   bytes (rounded up to whole words, minimum one); the allocator
+//!   generated code calls for every constructor, closure, dictionary and
+//!   tuple block.
+//!
+//! Every heap allocation (the two allocators above and every runtime
+//! `Box`/`Vec`) is counted by the counting global allocator in [`heap`].
+//! Environment: `CINCH_ALLOC_STATS=1` prints
+//! `cinch-alloc: blocks=<n> bytes=<n> peak=<n>` to stderr at exit;
+//! `CINCH_HEAP_LIMIT=<n>[K|M|G]` caps cumulative allocated bytes (default
+//! 8 GiB, `0` disables) and faults with exit 73 and
+//! `cinch: heap limit exceeded (<n> bytes)` past it;
+//! `CINCH_STACK_SIZE=<n>[K|M|G]` sizes the program thread's reserved
+//! stack (default 1 GiB, [`platform::cinch_run_main`]).
 //!
 //! `Nat` (unbounded natural numbers; negative input or results fault):
 //!
@@ -159,6 +175,14 @@
 //!   faulting on an out-of-bounds index or a value outside 0..=255. A
 //!   read-only data-section buffer (a string literal's backing) takes
 //!   the defined read-only fault instead of a write.
+//! * `cinch_bytes_copy(dst, src, di, si, n: i64) -> i64`: copy `n` bytes
+//!   of `src` at `si` into `dst` at `di` as one `memmove` (same buffer
+//!   and overlap allowed), returning 0; an out-of-range index or count
+//!   faults out of bounds and a read-only `dst` faults read-only. Every
+//!   bulk copy in the prelude goes through it: a Cinch-level loop boxes
+//!   a `Nat` per index step.
+//! * `cinch_bytes_compare(a, b: i64) -> i64`: the lexicographic order of
+//!   the two contents as -1/0/1, read in place (`string-compare`).
 //! * `cinch_bytes_data(word: i64) -> i64`, `cinch_bytes_from_data(ptr: *const
 //!   u8, len: i64) -> i64`: the pointer-length crossing for buffer
 //!   contents (the UTF-8 and symbol intrinsics and the canonical ABI
@@ -227,7 +251,13 @@
 //! homes: word buffers that carry path and content bytes across the
 //! scalar foreign boundary, the runtime-capability clocks, the
 //! filesystem operations and the subprocess operations over real
-//! pipes.
+//! pipes. The layer also carries this process's own command line: the
+//! `cinch_argv_*` externs (`cinch_argv_init`, called by the generated
+//! entry glue before any program code runs, then `cinch_argv_count` and
+//! `cinch_argv_get`; word 0 is the program name), which is how a
+//! compiled program reads its own arguments; and the program's own
+//! thread, `cinch_run_main`, which the same glue calls next to run the
+//! program on a 1 GiB reserved stack (`CINCH_STACK_SIZE` overrides it).
 //!
 //! The networking and piped-child layers (P40's networking family;
 //! `compiler/runtime/src/net.rs` and the piped section of
@@ -251,6 +281,7 @@ pub mod abi;
 pub mod bytes;
 pub mod coop;
 pub mod error;
+pub mod heap;
 pub mod eval;
 pub mod evolution;
 mod int;

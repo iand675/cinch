@@ -50,6 +50,18 @@
 //! * `cinch_signal_send(pid, sig) -> i64`: POSIX `kill` (the raw
 //!   result: 0, or -1 on failure, which the Cinch side maps to a named
 //!   error).
+//! * `cinch_argv_init(argc, argv) -> i64`, `cinch_argv_count() -> i64`,
+//!   `cinch_argv_get(i) -> i64`: this process's OWN command line. The
+//!   generated entry glue stashes `argc`/`argv` through `cinch_argv_init`
+//!   before any program code runs (so a compiled program can read its
+//!   own arguments); word 0 is the program name, the count includes it,
+//!   and an index outside `0..count` takes the defined out-of-bounds
+//!   fault. A `main` a C caller supplies (`foreign export`) never
+//!   captures, so the count is 0 there.
+//! * `cinch_run_main(entry) -> i64`: the generated entry glue's next
+//!   step after `cinch_argv_init`: run the program's entry unit on a
+//!   thread with a 1 GiB reserved stack (`CINCH_STACK_SIZE=<n>[K|M|G]`
+//!   overrides it) and answer its result word.
 //! * `cinch_proc_new(prog) -> i64`, `cinch_proc_arg(proc, arg) ->
 //!   i64`, `cinch_proc_env(proc, kv) -> i64`, `cinch_proc_stdin(proc,
 //!   data) -> i64`, `cinch_proc_run(proc) -> i64`,
@@ -72,7 +84,7 @@
 //! with `nm` by the tests below (the standing runtime rule).
 
 use std::collections::BTreeMap;
-use std::sync::LazyLock;
+use std::sync::{LazyLock, OnceLock};
 use std::time::Instant;
 
 // ---------------------------------------------------------------------------
@@ -443,6 +455,115 @@ pub extern "C" fn cinch_signal_send(pid: i64, sig: i64) -> i64 {
         return -INVALID_ARGUMENT;
     };
     i64::from(unsafe { kill(pid, sig) })
+}
+
+// ---------------------------------------------------------------------------
+// This process's own command line (argv)
+// ---------------------------------------------------------------------------
+
+/// The command line the generated entry glue captured: one byte string
+/// per OS `argv` word, the program name first, exactly as the operating
+/// system passed it.
+///
+/// The glue calls [`cinch_argv_init`] before any program code runs
+/// (`compiler/src/codegen.rs` emits the call in the native `@main`), and
+/// the words are copied in here because the entry's own `argv` is only
+/// guaranteed for the duration of `main`. A first capture wins; a
+/// program whose `main` a C caller supplies (`foreign export`) never
+/// captures at all, so the count is 0 there.
+static ARGV: OnceLock<Vec<Vec<u8>>> = OnceLock::new();
+
+/// Capture the process's `argc`/`argv`: 0. Every word is copied (the
+/// caller's array and its strings need not outlive the call). A null
+/// `argv`, a negative `argc`, or a repeated call leaves the capture as
+/// it is.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn cinch_argv_init(argc: i64, argv: *const *const u8) -> i64 {
+    if argv.is_null() {
+        return 0;
+    }
+    let Ok(n) = usize::try_from(argc) else {
+        return 0;
+    };
+    let mut words = Vec::with_capacity(n);
+    for i in 0..n {
+        let p = unsafe { *argv.add(i) };
+        if p.is_null() {
+            words.push(Vec::new());
+            continue;
+        }
+        let mut len = 0usize;
+        while unsafe { *p.add(len) } != 0 {
+            len += 1;
+        }
+        words.push(unsafe { std::slice::from_raw_parts(p, len) }.to_vec());
+    }
+    let _ = ARGV.set(words);
+    0
+}
+
+/// How many words the captured command line has (0 when nothing was
+/// captured). Word 0 is the program name.
+#[unsafe(no_mangle)]
+pub extern "C" fn cinch_argv_count() -> i64 {
+    ARGV.get().map_or(0, |words| words.len() as i64)
+}
+
+/// The `i`-th captured word as a fresh `Bytes` word: word 0 is the
+/// program name, the rest are its arguments. An index outside
+/// `0..count` takes the defined out-of-bounds fault (exit 71, the
+/// `Bytes` indexing convention).
+#[unsafe(no_mangle)]
+pub extern "C" fn cinch_argv_get(i: i64) -> i64 {
+    if let Some(words) = ARGV.get() {
+        if let Ok(i) = usize::try_from(i) {
+            if let Some(word) = words.get(i) {
+                return crate::abi::box_bytes(crate::bytes::Bytes::from(word.clone()));
+            }
+        }
+    }
+    crate::abi::raise(crate::error::Error::OutOfBounds)
+}
+
+// ---------------------------------------------------------------------------
+// The program's own thread
+// ---------------------------------------------------------------------------
+
+/// The stack reserved for the program's code when `CINCH_STACK_SIZE` is
+/// unset: 1 GiB.
+pub const DEFAULT_STACK_SIZE: usize = 1 << 30;
+
+/// Run the program's entry unit `entry` on a thread with a large reserved
+/// stack and answer its result word; the generated native `@main` calls
+/// this right after [`cinch_argv_init`].
+///
+/// The process's own main thread has the platform's default stack
+/// (8 MiB on macOS, and on Linux under the usual `ulimit -s`), and a
+/// non-tail recursion over a long list is an ordinary program: generated
+/// code keeps every local in its own stack slot, so frames run to
+/// kilobytes and the default stack ends after a few thousand of them. The
+/// reservation is address space only; the OS commits a page when the
+/// recursion first touches it, so a shallow program pays nothing for it.
+///
+/// `CINCH_STACK_SIZE=<n>[K|M|G]` sets the size (an unparsable or zero
+/// value keeps the default). A refused reservation runs `entry` on the
+/// calling thread, which is the platform-stack behaviour the reservation
+/// only widens. A fault inside `entry` leaves through `exit` from the
+/// program's thread as before, so the exit code and the `atexit` handlers
+/// (the `CINCH_ALLOC_STATS` line) are unchanged.
+#[unsafe(no_mangle)]
+pub extern "C" fn cinch_run_main(entry: extern "C" fn() -> i64) -> i64 {
+    let size = crate::heap::env_bytes(c"CINCH_STACK_SIZE")
+        .and_then(crate::heap::parse_limit)
+        .filter(|&n| n > 0)
+        .and_then(|n| usize::try_from(n).ok())
+        .unwrap_or(DEFAULT_STACK_SIZE);
+    match std::thread::Builder::new().stack_size(size).spawn(move || entry()) {
+        // Every runtime extern is `extern "C"`, so a Rust panic aborts in
+        // place and never unwinds into the join.
+        Ok(handle) => handle.join().unwrap_or(i64::from(crate::abi::EXIT_PANIC)),
+        Err(_) => entry(),
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1024,6 +1145,10 @@ mod tests {
             "cinch_fs_temp_dir",
             "cinch_random_bytes",
             "cinch_signal_send",
+            "cinch_argv_init",
+            "cinch_argv_count",
+            "cinch_argv_get",
+            "cinch_run_main",
             "cinch_proc_new",
             "cinch_proc_arg",
             "cinch_proc_env",
@@ -1265,6 +1390,42 @@ mod tests {
         assert_eq!(unsafe { cinch_proc_free(p) }, 0);
         unsafe { cinch_buf_free(sh) };
         unsafe { cinch_buf_free(out) };
+    }
+
+    /// The command-line capture: the entry glue's call copies the words,
+    /// the count includes the program name, and each word reads back
+    /// (empty words and words with a space included).
+    #[test]
+    fn argv_capture_round_trips() {
+        let args: [&[u8]; 4] = [b"/usr/local/bin/tool", b"a b", b"-x", b""];
+        // The runtime reads each word to its NUL, so the probe's buffers
+        // carry one.
+        let owned: Vec<Vec<u8>> = args
+            .iter()
+            .map(|a| {
+                let mut v = a.to_vec();
+                v.push(0);
+                v
+            })
+            .collect();
+        let ptrs: Vec<*const u8> = owned.iter().map(|w| w.as_ptr()).collect();
+        assert_eq!(unsafe { cinch_argv_init(ptrs.len() as i64, ptrs.as_ptr()) }, 0);
+        assert_eq!(cinch_argv_count(), 4);
+        for (i, want) in args.iter().enumerate() {
+            let word = cinch_argv_get(i as i64);
+            assert_eq!(
+                unsafe { crate::abi::as_bytes(word) }.as_slice(),
+                *want,
+                "word {i}"
+            );
+        }
+        // A null `argv` and a repeated call leave the capture as it is.
+        assert_eq!(unsafe { cinch_argv_init(0, std::ptr::null()) }, 0);
+        assert_eq!(cinch_argv_count(), 4);
+        // An index outside the capture takes the defined out-of-bounds
+        // fault, which exits the process, so it is not exercised here:
+        // the compiled-program test (`compiler/tests/argv.rs`) covers
+        // the words a real command line delivers.
     }
 }
 

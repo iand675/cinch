@@ -38,6 +38,33 @@ module Algebra.Monoid where
 
   signature Monoid a where
     mempty :: a
+    -- `mconcat`: combine the whole list with `<>`, in order, or `mempty`
+    -- for the empty list. This is the operation the text homes kept
+    -- rebuilding as a private `concat-strings`; they call it now.
+    --
+    -- A method with a default (D388), so a carrier whose `<>` copies its
+    -- operands can override it with a one-pass combine (`Monoid String`
+    -- does) while every other instance inherits the default below. The
+    -- `Semigroup a` constraint is the method's own, not the class's (a
+    -- class constraint entails nothing, the standing no-superbundle
+    -- rule): the default needs it for `<>`, so every caller supplies it,
+    -- exactly as the free function it replaces required.
+    --
+    -- The default's bracketing is BALANCED: each round combines adjacent
+    -- pairs, and rounds repeat until one value remains. Associativity (the
+    -- Semigroup law) makes every bracketing of the same sequence equal, so
+    -- this equals the right fold `foldr (<>) mempty` (the right unit law
+    -- covers dropping the fold's trailing `mempty`), in n - 1 combinations
+    -- for n values. What the bracketing changes is the cost of a `<>` that
+    -- copies its operands: the right fold re-copies the whole accumulated
+    -- suffix at every step, O(n^2) bytes, while each balanced round copies
+    -- every byte once, O(n log n) over the log n rounds. An override must
+    -- equal the default. The rounds are Algebra.Semigroup's balanced
+    -- `sconcat`, with `mempty` for the empty list.
+    mconcat :: using (sa :: Semigroup a) => List a -> a
+    mconcat xs = case sconcat xs of
+      None -> mempty
+      Some v -> v
     -- The class laws (primitive operations and inline target IR
     -- specification section 5): `mempty` is a left and right unit of
     -- `<>` (Algebra.Semigroup's method; a class constraint entails
@@ -45,28 +72,6 @@ module Algebra.Monoid where
     -- identity as `Monoid.left-unit` and `Monoid.right-unit`.
     law left-unit :: (x :: a) -> Eq (mempty <> x) x
     law right-unit :: (x :: a) -> Eq (x <> mempty) x
-
-  -- ------------------------------------------------------------------
-  -- The class-generic fold. A free function with a `using` constraint,
-  -- not a class method (the scheme of `sum-list` and `enum-from-to`);
-  -- the facade re-exports no class home, so reaching it costs an
-  -- explicit import of this module, exactly as `mempty` and `<>` do.
-
-  -- `mconcat`: combine the whole list with `<>` around the identity,
-  -- right-associated (`foldr (<>) mempty`), so it is the empty list's
-  -- `mempty` for the running fold's seed. This is the operation the
-  -- text homes kept rebuilding as a private `concat-strings`; they call
-  -- it now.
-  --
-  -- Two constraints, not one: `mempty` needs the `Monoid` dictionary
-  -- and `<>` needs its own `Semigroup` one, because a class constraint
-  -- entails nothing (the standing no-superbundle rule). At a concrete
-  -- carrier both dictionaries are the implicit instances, so callers
-  -- never write them; only a generic caller must carry both.
-  mconcat :: forall a. using (ma :: Monoid a, sa :: Semigroup a) => List a -> a
-  mconcat xs = case xs of
-    Nil -> mempty
-    Cons y ys -> (<>) y (mconcat ys)
 
   -- ------------------------------------------------------------------
   -- The instance-carrying newtypes (design/base-library.md: "the
@@ -197,7 +202,8 @@ module Algebra.Monoid where
 
   -- A function into a monoid is a monoid pointwise: the identity is the
   -- function returning the identity. Eta-expanded like the function
-  -- Semigroup above: `mempty x` is the identity at x.
+  -- Semigroup above: `mempty x` is the identity at x. `mconcat` is the
+  -- class default, eta-expanded by the checker to this carrier's arity.
   implicit instance Monoid_Function t u :: using (mb :: Monoid u) => Monoid (t -> u) where
     mempty x = mempty
 

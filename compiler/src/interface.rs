@@ -173,6 +173,10 @@ pub struct TypeExport {
 pub struct MethodExport {
     pub name: String,
     pub scheme: String,
+    /// The identity of the method's default, when the class gives one:
+    /// an instance that omits the method inlines the default, so the
+    /// default is part of the class's contract.
+    pub default: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -449,226 +453,29 @@ impl Iface {
         }
     }
 
-    /// Canonical serialization: fixed key order, sorted lists.
+    /// Canonical serialization: lists sorted (content normalization, so
+    /// declaration order never changes the bytes), then printed in the
+    /// canonical JSON form (keys in byte order, no whitespace; see
+    /// [`JsonValue::write_canonical`]).
     pub fn to_json(&self) -> String {
-        let mut out = String::new();
-        out.push_str("{\n");
-        kv_num(&mut out, 1, "schema", self.schema as u64);
-        kv_str(&mut out, 1, "language", &self.language);
-        kv_num(&mut out, 1, "runtime_abi", self.runtime_abi as u64);
-        kv_str(&mut out, 1, "compiler", &self.compiler);
-        kv_str(&mut out, 1, "module", &self.module);
-        kv_str(&mut out, 1, "source_hash", &self.source_hash);
-
-        // imports
-        out.push_str("  \"imports\": ");
         let mut imports = self.imports.clone();
         imports.sort();
-        if imports.is_empty() {
-            out.push_str("[]");
-        } else {
-            out.push_str("[\n");
-            for (i, r) in imports.iter().enumerate() {
-                out.push_str("    {\"module\": ");
-                json_str(&mut out, &r.module);
-                out.push_str(", \"iface_hash\": ");
-                json_str(&mut out, &r.iface_hash);
-                out.push_str("}");
-                out.push_str(if i + 1 < imports.len() { ",\n" } else { "\n" });
-            }
-            out.push_str("  ]");
-        }
-        out.push_str(",\n");
-
-        // The parameter block's signatures (module parameters as module
-        // arguments): part of the contract projection.
-        out.push_str("  \"params\": ");
-        json_list(&mut out, &self.params);
-        out.push_str(",\n");
-
-        // exports
-        out.push_str("  \"exports\": {\n");
-        out.push_str("    \"values\": ");
         let mut values = self.exports.values.clone();
         values.sort(); // derived Ord gives the canonical order
-        arr_of(&mut out, 2, &values, |o, v| {
-            o.push_str("{\"name\": ");
-            json_str(o, &v.name);
-            o.push_str(", \"scheme\": ");
-            json_str(o, &v.scheme);
-            o.push_str(", \"symbol\": ");
-            json_str(o, &v.symbol);
-            o.push_str(", \"arity\": ");
-            o.push_str(&v.arity.to_string());
-            o.push('}');
-        });
-        out.push_str(",\n    \"types\": ");
         let mut types = self.exports.types.clone();
         types.sort();
-        arr_of(&mut out, 2, &types, |o, t| {
-            o.push_str("{\"name\": ");
-            json_str(o, &t.name);
-            o.push_str(", \"params\": ");
-            json_list(o, &t.params);
-            o.push_str(", \"kind\": ");
-            json_str(o, &t.kind);
-            o.push_str(", \"ctors\": ");
-            arr_of(o, 0, &t.ctors, |o, c| {
-                o.push_str("{\"name\": ");
-                json_str(o, &c.name);
-                o.push_str(", \"tag\": ");
-                o.push_str(&c.tag.to_string());
-                o.push_str(", \"fields\": ");
-                json_list(o, &c.fields);
-                o.push_str(", \"erased\": [");
-                for (i, e) in c.erased.iter().enumerate() {
-                    if i > 0 {
-                        o.push_str(", ");
-                    }
-                    o.push_str(if *e { "true" } else { "false" });
-                }
-                o.push_str("]}");
-            });
-            o.push_str(", \"fields\": ");
-            json_list(o, &t.fields);
-            o.push('}');
-        });
-        out.push_str(",\n    \"signatures\": ");
         let mut sigs = self.exports.signatures.clone();
         sigs.sort();
-        arr_of(&mut out, 2, &sigs, |o, s| {
-            o.push_str("{\"name\": ");
-            json_str(o, &s.name);
-            o.push_str(", \"params\": ");
-            json_list(o, &s.params);
-            o.push_str(", \"methods\": ");
-            arr_of(o, 0, &s.methods, |o, m| {
-                o.push_str("{\"name\": ");
-                json_str(o, &m.name);
-                o.push_str(", \"scheme\": ");
-                json_str(o, &m.scheme);
-                o.push('}');
-            });
-            o.push('}');
-        });
-        out.push_str(",\n    \"instances\": ");
         let mut insts = self.exports.instances.clone();
         insts.sort();
-        arr_of(&mut out, 2, &insts, |o, inst| {
-            o.push_str("{\"id\": ");
-            json_str(o, &inst.id);
-            o.push_str(", \"class\": ");
-            json_str(o, &inst.class);
-            o.push_str(", \"target\": ");
-            json_str(o, &inst.target);
-            o.push_str(", \"ctx\": ");
-            json_list(o, &inst.ctx);
-            o.push_str(", \"methods\": ");
-            json_list(o, &inst.methods);
-            o.push_str(", \"implicit\": ");
-            o.push_str(if inst.implicit { "true" } else { "false" });
-            o.push('}');
-        });
-        out.push_str(",\n    \"fixities\": ");
         let mut fixes = self.exports.fixities.clone();
         fixes.sort();
-        arr_of(&mut out, 2, &fixes, |o, f| {
-            o.push_str("{\"op\": ");
-            json_str(o, &f.op);
-            o.push_str(", \"assoc\": ");
-            json_str(o, &f.assoc);
-            o.push_str(", \"prec\": ");
-            o.push_str(&f.prec.to_string());
-            o.push('}');
-        });
-        out.push_str(",\n    \"foreign\": ");
         let mut foreign = self.exports.foreign.clone();
         foreign.sort();
-        arr_of(&mut out, 2, &foreign, |o, f| {
-            o.push_str("{\"symbol\": ");
-            json_str(o, &f.symbol);
-            o.push_str(", \"abi\": ");
-            json_str(o, &f.abi);
-            o.push_str(", \"external\": ");
-            json_str(o, &f.external);
-            o.push_str(", \"type\": ");
-            json_str(o, &f.ty);
-            o.push_str(", \"effects\": ");
-            json_str(o, &f.effects);
-            o.push_str(", \"notes\": ");
-            json_str(o, &f.notes);
-            o.push_str(", \"kind\": ");
-            json_str(o, &f.kind);
-            o.push_str(", \"deallocator\": ");
-            json_str(o, &f.deallocator);
-            o.push_str(", \"params\": ");
-            arr_of(o, 0, &f.params, |o, p| {
-                json_foreign_param(o, p);
-            });
-            o.push_str(", \"result\": ");
-            json_foreign_param(o, &f.result);
-            o.push('}');
-        });
-        out.push_str("\n  },\n");
-
-        // assumptions
-        out.push_str("  \"assumptions\": {\n    \"primitives\": ");
-        json_list(&mut out, &sorted(&self.assumptions.primitives));
-        out.push_str(",\n    \"foreign\": ");
-        json_list(&mut out, &sorted(&self.assumptions.foreign));
-        out.push_str(",\n    \"declared\": ");
-        json_list(&mut out, &sorted(&self.assumptions.declared));
-        out.push_str("\n  },\n");
-
-        // schema compatibility evidence (runtime evolution specification
-        // section 11): the checked upgrade chain, sorted for canonical
-        // identity.
-        out.push_str("  \"upgrades\": ");
         let mut ups = self.upgrades.clone();
         ups.sort_by(|a, b| (&a.old, &a.new).cmp(&(&b.old, &b.new)));
-        arr_of(&mut out, 2, &ups, |o, u| {
-            o.push_str("{\"old\": ");
-            json_str(o, &u.old);
-            o.push_str(", \"new\": ");
-            json_str(o, &u.new);
-            o.push_str(", \"migrated\": ");
-            o.push_str(if u.migrated { "true" } else { "false" });
-            o.push_str(", \"added\": ");
-            let mut added = u.added.clone();
-            added.sort();
-            arr_of(o, 0, &added, |o, (n, t)| {
-                o.push_str("{\"name\": ");
-                json_str(o, n);
-                o.push_str(", \"type\": ");
-                json_str(o, t);
-                o.push_str("}");
-            });
-            o.push_str(", \"retyped\": ");
-            json_list(o, &sorted(&u.retyped));
-            o.push_str("}");
-        });
-        out.push_str(",\n");
-
-        // The module's instantiation units (module parameters as module
-        // arguments): representation, excluded from the contract hash.
-        out.push_str("  \"units\": ");
         let mut units = self.units.clone();
         units.sort();
-        arr_of(&mut out, 2, &units, |o, u| {
-            o.push_str("{\"name\": ");
-            json_str(o, &u.name);
-            o.push_str(", \"target\": ");
-            json_str(o, &u.target);
-            o.push_str(", \"args\": ");
-            json_list(o, &u.args);
-            o.push_str(", \"unit_id\": ");
-            json_str(o, &u.unit_id);
-            o.push('}');
-        });
-        out.push_str(",\n");
-
-        // abi
-        out.push_str("  \"abi\": {\n    \"symbols\": [");
         let mut symbols: Vec<String> = self
             .exports
             .values
@@ -676,101 +483,233 @@ impl Iface {
             .map(|v| format!("{}={}", v.name, v.symbol))
             .collect();
         symbols.sort();
-        for (i, s) in symbols.iter().enumerate() {
-            if i > 0 {
-                out.push_str(", ");
-            }
-            json_str(&mut out, s);
-        }
-        out.push_str("],\n    \"convention\": ");
-        json_str(&mut out, "uniform-word, curried apply stub");
-        // Computed layout facts (attribute annotations specification
-        // section 4.3): semantic attributes' compiled form, part of the
-        // contract projection.
-        out.push_str(",\n    \"layouts\": ");
         let mut layouts = self.layouts.clone();
         layouts.sort();
-        arr_of(&mut out, 2, &layouts, |o, l| {
-            o.push_str("{\"type\": ");
-            json_str(o, &l.name);
-            o.push_str(", \"repr\": ");
-            json_str(o, &l.repr);
-            o.push_str(", \"size\": ");
-            o.push_str(&l.size.to_string());
-            o.push_str(", \"align\": ");
-            o.push_str(&l.align.to_string());
-            o.push_str(", \"fields\": ");
-            arr_of(o, 0, &l.fields, |o, f| {
-                o.push_str("{\"name\": ");
-                json_str(o, &f.name);
-                o.push_str(", \"offset\": ");
-                o.push_str(&f.offset.to_string());
-                o.push_str(", \"size\": ");
-                o.push_str(&f.size.to_string());
-                o.push_str(", \"align\": ");
-                o.push_str(&f.align.to_string());
-                o.push_str("}");
-            });
-            if let Some(w) = l.discriminant {
-                o.push_str(", \"discriminant\": ");
-                o.push_str(&w.to_string());
-            }
-            o.push('}');
-        });
-        out.push_str("\n  },\n");
-
-        // Satisfied safety assertions (attribute annotations
-        // specification section 10; decision D112): contract facts
-        // exactly like the `repr` facts above, hashed into `iface_hash`.
-        out.push_str("  \"assertions\": ");
         let mut assertions = self.assertions.clone();
         assertions.sort();
-        arr_of(&mut out, 2, &assertions, |o, a| {
-            o.push_str("{\"name\": ");
-            json_str(o, &a.name);
-            o.push_str(", \"facts\": ");
-            json_list(o, &sorted(&a.facts));
-            o.push('}');
-        });
-        // The temporal contracts (core specification section 10):
-        // contract facts exactly like the assertion rows above, hashed
-        // into `iface_hash`.
-        out.push_str(",\n  \"contracts\": ");
         let mut contracts = self.contracts.clone();
         contracts.sort();
-        arr_of(&mut out, 2, &contracts, |o, c| {
-            o.push_str("{\"name\": ");
-            json_str(o, &c.name);
-            o.push_str(", \"kind\": ");
-            json_str(o, &c.kind);
-            o.push_str(", \"formula\": ");
-            json_str(o, &c.formula);
-            o.push_str(", \"assumptions\": ");
-            json_list(o, &sorted(&c.assumptions));
-            o.push('}');
-        });
-        // The `must-use` rows of the return-value discipline (decision
-        // D114's rule 7 default): the exported `Result`-returning values.
-        out.push_str(",\n  \"must_use\": ");
-        json_list(&mut out, &sorted(&self.must_use));
-        // The law and preservation check rows of the module's instances
-        // (contract facts hashed into `iface_hash`).
-        out.push_str(",\n  \"laws\": ");
         let mut laws = self.laws.clone();
         laws.sort();
-        arr_of(&mut out, 2, &laws, |o, l| {
-            o.push_str("{\"instance\": ");
-            json_str(o, &l.instance);
-            o.push_str(", \"class\": ");
-            json_str(o, &l.class);
-            o.push_str(", \"law\": ");
-            json_str(o, &l.law);
-            o.push_str(", \"status\": ");
-            json_str(o, &l.status);
-            o.push('}');
-        });
-        out.push_str("\n}\n");
-        out
+
+        let exports = JsonValue::obj([
+            (
+                "values",
+                JsonValue::arr(&values, |v| {
+                    JsonValue::obj([
+                        ("name", (&v.name).into()),
+                        ("scheme", (&v.scheme).into()),
+                        ("symbol", (&v.symbol).into()),
+                        ("arity", v.arity.into()),
+                    ])
+                }),
+            ),
+            (
+                "types",
+                JsonValue::arr(&types, |t| {
+                    JsonValue::obj([
+                        ("name", (&t.name).into()),
+                        ("params", (&t.params).into()),
+                        ("kind", (&t.kind).into()),
+                        (
+                            "ctors",
+                            JsonValue::arr(&t.ctors, |c| {
+                                JsonValue::obj([
+                                    ("name", (&c.name).into()),
+                                    ("tag", c.tag.into()),
+                                    ("fields", (&c.fields).into()),
+                                    ("erased", (&c.erased).into()),
+                                ])
+                            }),
+                        ),
+                        ("fields", (&t.fields).into()),
+                    ])
+                }),
+            ),
+            (
+                "signatures",
+                JsonValue::arr(&sigs, |s| {
+                    JsonValue::obj([
+                        ("name", (&s.name).into()),
+                        ("params", (&s.params).into()),
+                        (
+                            "methods",
+                            JsonValue::arr(&s.methods, |m| {
+                                let mut o = JsonValue::obj([
+                                    ("name", (&m.name).into()),
+                                    ("scheme", (&m.scheme).into()),
+                                ]);
+                                if let (JsonValue::Obj(map), Some(d)) = (&mut o, &m.default) {
+                                    map.insert("default".to_string(), d.into());
+                                }
+                                o
+                            }),
+                        ),
+                    ])
+                }),
+            ),
+            (
+                "instances",
+                JsonValue::arr(&insts, |inst| {
+                    JsonValue::obj([
+                        ("id", (&inst.id).into()),
+                        ("class", (&inst.class).into()),
+                        ("target", (&inst.target).into()),
+                        ("ctx", (&inst.ctx).into()),
+                        ("methods", (&inst.methods).into()),
+                        ("implicit", inst.implicit.into()),
+                    ])
+                }),
+            ),
+            (
+                "fixities",
+                JsonValue::arr(&fixes, |f| {
+                    JsonValue::obj([
+                        ("op", (&f.op).into()),
+                        ("assoc", (&f.assoc).into()),
+                        ("prec", f.prec.into()),
+                    ])
+                }),
+            ),
+            (
+                "foreign",
+                JsonValue::arr(&foreign, |f| {
+                    JsonValue::obj([
+                        ("symbol", (&f.symbol).into()),
+                        ("abi", (&f.abi).into()),
+                        ("external", (&f.external).into()),
+                        ("type", (&f.ty).into()),
+                        ("effects", (&f.effects).into()),
+                        ("notes", (&f.notes).into()),
+                        ("kind", (&f.kind).into()),
+                        ("deallocator", (&f.deallocator).into()),
+                        ("params", JsonValue::arr(&f.params, foreign_param_json)),
+                        ("result", foreign_param_json(&f.result)),
+                    ])
+                }),
+            ),
+        ]);
+
+        let doc = JsonValue::obj([
+            ("schema", self.schema.into()),
+            ("language", (&self.language).into()),
+            ("runtime_abi", self.runtime_abi.into()),
+            ("compiler", (&self.compiler).into()),
+            ("module", (&self.module).into()),
+            ("source_hash", (&self.source_hash).into()),
+            (
+                "imports",
+                JsonValue::arr(&imports, |r| {
+                    JsonValue::obj([
+                        ("module", (&r.module).into()),
+                        ("iface_hash", (&r.iface_hash).into()),
+                    ])
+                }),
+            ),
+            // The parameter block's signatures (module parameters as
+            // module arguments): part of the contract projection.
+            ("params", (&self.params).into()),
+            ("exports", exports),
+            (
+                "assumptions",
+                JsonValue::obj([
+                    ("primitives", sorted(&self.assumptions.primitives).into()),
+                    ("foreign", sorted(&self.assumptions.foreign).into()),
+                    ("declared", sorted(&self.assumptions.declared).into()),
+                ]),
+            ),
+            // Schema compatibility evidence (runtime evolution
+            // specification section 11): the checked upgrade chain.
+            (
+                "upgrades",
+                JsonValue::arr(&ups, |u| {
+                    let mut added = u.added.clone();
+                    added.sort();
+                    JsonValue::obj([
+                        ("old", (&u.old).into()),
+                        ("new", (&u.new).into()),
+                        ("migrated", u.migrated.into()),
+                        (
+                            "added",
+                            JsonValue::arr(&added, |(n, t)| {
+                                JsonValue::obj([("name", n.into()), ("type", t.into())])
+                            }),
+                        ),
+                        ("retyped", sorted(&u.retyped).into()),
+                    ])
+                }),
+            ),
+            // The module's instantiation units (module parameters as
+            // module arguments): representation, excluded from the
+            // contract hash.
+            (
+                "units",
+                JsonValue::arr(&units, |u| {
+                    JsonValue::obj([
+                        ("name", (&u.name).into()),
+                        ("target", (&u.target).into()),
+                        ("args", (&u.args).into()),
+                        ("unit_id", (&u.unit_id).into()),
+                    ])
+                }),
+            ),
+            (
+                "abi",
+                JsonValue::obj([
+                    ("symbols", symbols.into()),
+                    ("convention", "uniform-word, curried apply stub".into()),
+                    // Computed layout facts (attribute annotations
+                    // specification section 4.3): semantic attributes'
+                    // compiled form, part of the contract projection.
+                    ("layouts", JsonValue::arr(&layouts, layout_json)),
+                ]),
+            ),
+            // Satisfied safety assertions (attribute annotations
+            // specification section 10; decision D112): contract facts
+            // exactly like the `repr` facts above, hashed into
+            // `iface_hash`.
+            (
+                "assertions",
+                JsonValue::arr(&assertions, |a| {
+                    JsonValue::obj([
+                        ("name", (&a.name).into()),
+                        ("facts", sorted(&a.facts).into()),
+                    ])
+                }),
+            ),
+            // The temporal contracts (core specification section 10):
+            // contract facts like the assertion rows, hashed into
+            // `iface_hash`.
+            (
+                "contracts",
+                JsonValue::arr(&contracts, |c| {
+                    JsonValue::obj([
+                        ("name", (&c.name).into()),
+                        ("kind", (&c.kind).into()),
+                        ("formula", (&c.formula).into()),
+                        ("assumptions", sorted(&c.assumptions).into()),
+                    ])
+                }),
+            ),
+            // The `must-use` rows of the return-value discipline
+            // (decision D114's rule 7 default): the exported
+            // `Result`-returning values.
+            ("must_use", sorted(&self.must_use).into()),
+            // The law and preservation check rows of the module's
+            // instances (contract facts hashed into `iface_hash`).
+            (
+                "laws",
+                JsonValue::arr(&laws, |l| {
+                    JsonValue::obj([
+                        ("instance", (&l.instance).into()),
+                        ("class", (&l.class).into()),
+                        ("law", (&l.law).into()),
+                        ("status", (&l.status).into()),
+                    ])
+                }),
+            ),
+        ]);
+        doc.to_canonical_string()
     }
 
     /// Interface identity: stable across rebuilds with the same contract.
@@ -882,6 +821,10 @@ impl Iface {
                 methods.push(MethodExport {
                     name: field_str(mo, "name")?,
                     scheme: field_str(mo, "scheme")?,
+                    default: match mo.get("default") {
+                        Some(d) => Some(d.as_str()?.to_string()),
+                        None => None,
+                    },
                 });
             }
             signatures.push(SigExport {
@@ -1142,70 +1085,6 @@ fn sorted(v: &[String]) -> Vec<String> {
     out
 }
 
-fn kv_str(out: &mut String, indent: usize, k: &str, v: &str) {
-    out.push_str(&"  ".repeat(indent));
-    out.push('"');
-    out.push_str(k);
-    out.push_str("\": ");
-    json_str(out, v);
-    out.push_str(",\n");
-}
-
-fn kv_num(out: &mut String, indent: usize, k: &str, v: u64) {
-    out.push_str(&"  ".repeat(indent));
-    out.push('"');
-    out.push_str(k);
-    out.push_str("\": ");
-    out.push_str(&v.to_string());
-    out.push_str(",\n");
-}
-
-pub(crate) fn json_str(out: &mut String, s: &str) {
-    out.push('"');
-    for c in s.chars() {
-        match c {
-            '"' => out.push_str("\\\""),
-            '\\' => out.push_str("\\\\"),
-            '\n' => out.push_str("\\n"),
-            '\r' => out.push_str("\\r"),
-            '\t' => out.push_str("\\t"),
-            c if (c as u32) < 0x20 => out.push_str(&format!("\\u{:04x}", c as u32)),
-            c => out.push(c),
-        }
-    }
-    out.push('"');
-}
-
-pub(crate) fn json_list(out: &mut String, items: &[String]) {
-    out.push('[');
-    for (i, s) in items.iter().enumerate() {
-        if i > 0 {
-            out.push_str(", ");
-        }
-        json_str(out, s);
-    }
-    out.push(']');
-}
-
-fn arr_of<T, F>(out: &mut String, indent: usize, items: &[T], mut f: F)
-where
-    F: FnMut(&mut String, &T),
-{
-    if items.is_empty() {
-        out.push_str("[]");
-        return;
-    }
-    out.push_str("[\n");
-    let pad = "  ".repeat(indent + 2);
-    for (i, item) in items.iter().enumerate() {
-        out.push_str(&pad);
-        f(out, item);
-        out.push_str(if i + 1 < items.len() { ",\n" } else { "\n" });
-    }
-    out.push_str(&"  ".repeat(indent));
-    out.push(']');
-}
-
 /// Content hash for source identity (`source_hash` in an interface).
 pub fn content_hash(text: &str) -> String {
     fnv1a64(text.as_bytes()).to_string()
@@ -1244,13 +1123,78 @@ impl From<String> for ParseError {
     }
 }
 
+/// One JSON value: what the parser produces and what every artifact
+/// writer builds before printing it with [`JsonValue::write_canonical`].
+/// Objects are `BTreeMap`s so key order is byte order by construction,
+/// which is the canonical form's order (`Text.Json`'s `string-compare`).
 #[derive(Debug, Clone)]
 pub(crate) enum JsonValue {
+    Null,
     Num(u64),
     Str(String),
     Bool(bool),
     Arr(Vec<JsonValue>),
     Obj(BTreeMap<String, JsonValue>),
+}
+
+impl From<&str> for JsonValue {
+    fn from(s: &str) -> JsonValue {
+        JsonValue::Str(s.to_string())
+    }
+}
+
+impl From<&String> for JsonValue {
+    fn from(s: &String) -> JsonValue {
+        JsonValue::Str(s.clone())
+    }
+}
+
+impl From<String> for JsonValue {
+    fn from(s: String) -> JsonValue {
+        JsonValue::Str(s)
+    }
+}
+
+impl From<u64> for JsonValue {
+    fn from(n: u64) -> JsonValue {
+        JsonValue::Num(n)
+    }
+}
+
+impl From<u32> for JsonValue {
+    fn from(n: u32) -> JsonValue {
+        JsonValue::Num(n as u64)
+    }
+}
+
+impl From<bool> for JsonValue {
+    fn from(b: bool) -> JsonValue {
+        JsonValue::Bool(b)
+    }
+}
+
+impl<T: Into<JsonValue>> From<Option<T>> for JsonValue {
+    fn from(v: Option<T>) -> JsonValue {
+        v.map_or(JsonValue::Null, Into::into)
+    }
+}
+
+impl<T: Into<JsonValue>> From<Vec<T>> for JsonValue {
+    fn from(v: Vec<T>) -> JsonValue {
+        JsonValue::Arr(v.into_iter().map(Into::into).collect())
+    }
+}
+
+impl<T: Into<JsonValue> + Clone> From<&[T]> for JsonValue {
+    fn from(v: &[T]) -> JsonValue {
+        JsonValue::Arr(v.iter().cloned().map(Into::into).collect())
+    }
+}
+
+impl<T: Into<JsonValue> + Clone> From<&Vec<T>> for JsonValue {
+    fn from(v: &Vec<T>) -> JsonValue {
+        JsonValue::from(v.as_slice())
+    }
 }
 
 impl JsonValue {
@@ -1288,6 +1232,90 @@ impl JsonValue {
             _ => Err(ParseError("expected boolean".into())),
         }
     }
+
+    /// An object from its entries. Keys are distinct at every call site;
+    /// a repeated key would silently keep only the last value, so debug
+    /// builds refuse it.
+    pub(crate) fn obj<const N: usize>(entries: [(&str, JsonValue); N]) -> JsonValue {
+        let map: BTreeMap<String, JsonValue> =
+            entries.into_iter().map(|(k, v)| (k.to_string(), v)).collect();
+        debug_assert_eq!(map.len(), N, "duplicate key in a JSON object literal");
+        JsonValue::Obj(map)
+    }
+
+    /// An array of the given items, each converted by `f`.
+    pub(crate) fn arr<T>(items: impl IntoIterator<Item = T>, f: impl FnMut(T) -> JsonValue) -> JsonValue {
+        JsonValue::Arr(items.into_iter().map(f).collect())
+    }
+
+    /// The canonical form, `Text.Json`'s `canonical-json` byte for byte:
+    /// keys in byte order, no insignificant whitespace (no trailing
+    /// newline either), integers in plain decimal, and strings escaping
+    /// exactly `\"`, `\\`, `\b`, `\f`, `\n`, `\r`, `\t` and `\u00xx`
+    /// (lowercase hex) for the remaining controls below U+0020. Every
+    /// other scalar, `/`, DEL and non-ASCII included, is raw UTF-8.
+    /// Every JSON artifact the compiler writes goes through here so a
+    /// Cinch program can reproduce the bytes.
+    pub(crate) fn write_canonical(&self, out: &mut String) {
+        match self {
+            JsonValue::Null => out.push_str("null"),
+            JsonValue::Bool(b) => out.push_str(if *b { "true" } else { "false" }),
+            JsonValue::Num(n) => out.push_str(&n.to_string()),
+            JsonValue::Str(s) => write_canonical_str(out, s),
+            JsonValue::Arr(items) => {
+                out.push('[');
+                for (i, v) in items.iter().enumerate() {
+                    if i > 0 {
+                        out.push(',');
+                    }
+                    v.write_canonical(out);
+                }
+                out.push(']');
+            }
+            JsonValue::Obj(map) => {
+                out.push('{');
+                for (i, (k, v)) in map.iter().enumerate() {
+                    if i > 0 {
+                        out.push(',');
+                    }
+                    write_canonical_str(out, k);
+                    out.push(':');
+                    v.write_canonical(out);
+                }
+                out.push('}');
+            }
+        }
+    }
+
+    pub(crate) fn to_canonical_string(&self) -> String {
+        let mut out = String::new();
+        self.write_canonical(&mut out);
+        out
+    }
+}
+
+fn write_canonical_str(out: &mut String, s: &str) {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    out.push('"');
+    for c in s.chars() {
+        match c {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            '\u{8}' => out.push_str("\\b"),
+            '\u{c}' => out.push_str("\\f"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            c if (c as u32) < 0x20 => {
+                let b = c as usize;
+                out.push_str("\\u00");
+                out.push(HEX[b >> 4] as char);
+                out.push(HEX[b & 0xf] as char);
+            }
+            c => out.push(c),
+        }
+    }
+    out.push('"');
 }
 
 /// Parse one JSON document (shared with the schema introspection
@@ -1318,29 +1346,45 @@ fn field_bool(o: &BTreeMap<String, JsonValue>, k: &str) -> Result<bool, ParseErr
     }
 }
 
-/// Serialize one foreign parameter or result's binding contract.
-fn json_foreign_param(out: &mut String, p: &ForeignParam) {
-    out.push_str("{\"type\": ");
-    json_str(out, &p.ty);
-    out.push_str(", \"class\": ");
-    json_str(out, &p.class);
-    out.push_str(", \"role\": ");
-    json_str(out, &p.role);
-    out.push_str(", \"allocator\": ");
-    json_str(out, &p.allocator);
-    out.push_str(", \"nullable\": ");
-    out.push_str(if p.nullable { "true" } else { "false" });
-    out.push_str(", \"width\": ");
-    out.push_str(&p.width.to_string());
-    out.push_str(", \"align\": ");
-    out.push_str(&p.align.to_string());
-    out.push_str(", \"signed\": ");
-    out.push_str(if p.signed { "true" } else { "false" });
-    out.push_str(", \"offsets\": ");
-    arr_of(out, 0, &p.offsets, |o, (off, size)| {
-        o.push_str(&format!("[{off}, {size}]"));
-    });
-    out.push('}');
+/// One foreign parameter or result's binding contract.
+fn foreign_param_json(p: &ForeignParam) -> JsonValue {
+    JsonValue::obj([
+        ("type", (&p.ty).into()),
+        ("class", (&p.class).into()),
+        ("role", (&p.role).into()),
+        ("allocator", (&p.allocator).into()),
+        ("nullable", p.nullable.into()),
+        ("width", p.width.into()),
+        ("align", p.align.into()),
+        ("signed", p.signed.into()),
+        ("offsets", JsonValue::arr(&p.offsets, |(off, size)| vec![*off, *size].into())),
+    ])
+}
+
+/// One computed layout fact. `discriminant` is present only for a tagged
+/// layout, never as `null`, so a struct layout reads back as `None`.
+fn layout_json(l: &AbiLayout) -> JsonValue {
+    let mut v = JsonValue::obj([
+        ("type", (&l.name).into()),
+        ("repr", (&l.repr).into()),
+        ("size", l.size.into()),
+        ("align", l.align.into()),
+        (
+            "fields",
+            JsonValue::arr(&l.fields, |f| {
+                JsonValue::obj([
+                    ("name", (&f.name).into()),
+                    ("offset", f.offset.into()),
+                    ("size", f.size.into()),
+                    ("align", f.align.into()),
+                ])
+            }),
+        ),
+    ]);
+    if let (Some(w), JsonValue::Obj(m)) = (l.discriminant, &mut v) {
+        m.insert("discriminant".to_string(), w.into());
+    }
+    v
 }
 
 /// Parse one foreign parameter or result's binding contract.
@@ -1413,7 +1457,7 @@ impl<'a> JsonParser<'a> {
             }
             Some(b'n') => {
                 self.expect_word("null")?;
-                Ok(JsonValue::Bool(false))
+                Ok(JsonValue::Null)
             }
             Some(c) if c.is_ascii_digit() || *c == b'-' => self.parse_num(),
             _ => Err(ParseError(format!("unexpected token at byte {}", self.i))),
@@ -1461,6 +1505,9 @@ impl<'a> JsonParser<'a> {
                         Some(b'n') => s.push('\n'),
                         Some(b'r') => s.push('\r'),
                         Some(b't') => s.push('\t'),
+                        Some(b'b') => s.push('\u{8}'),
+                        Some(b'f') => s.push('\u{c}'),
+                        Some(b'/') => s.push('/'),
                         Some(b'u') => {
                             fn read_hex(b: &[u8], base: usize) -> Result<u32, ParseError> {
                                 let hex = b
@@ -1721,17 +1768,51 @@ mod tests {
 
     #[test]
     fn rejects_wrong_schema() {
-        let text = sample().to_json().replace("\"schema\": 1", "\"schema\": 99");
-        assert!(Iface::from_json(&text).is_err());
+        let text = sample().to_json();
+        let wrong = text.replace("\"schema\":1", "\"schema\":99");
+        assert_ne!(wrong, text, "the schema field was rewritten");
+        assert!(Iface::from_json(&wrong).is_err());
     }
 
     #[test]
-    fn parses_sorted_json_with_spaces() {
-        let f = sample();
-        let text = f.to_json();
+    fn parses_json_with_insignificant_whitespace() {
+        // The writer is compact; the reader still takes a hand-spaced
+        // document (a pretty-printed or hand-edited interface).
+        let text = sample().to_json().replace("\":", "\" : ").replace(",\"", ",\n  \"");
         let back = Iface::from_json(&text).expect("parse");
         assert_eq!(back.module, "Main");
         assert_eq!(back.exports.instances[0].id, "Main.Add_Int");
+    }
+
+    #[test]
+    fn to_json_is_the_canonical_form() {
+        let text = sample().to_json();
+        // A fixed point of parse-then-print: keys already in byte order,
+        // nothing to drop.
+        assert_eq!(parse_json(&text).expect("parse").to_canonical_string(), text);
+        assert!(!text.contains('\n') && !text.ends_with('\n'), "one line: {text}");
+        assert!(text.starts_with("{\"abi\":{"), "keys sorted: {text}");
+    }
+
+    #[test]
+    fn canonical_string_escape_table() {
+        // The table `Text.Json`'s `write-char` uses: the seven short
+        // escapes, `\u00xx` (high nibble first, lowercase) for the other
+        // controls, and everything else raw, `/`, DEL and non-ASCII
+        // included.
+        let s = "\"\\\u{8}\u{c}\n\r\t\u{1}\u{1f}\u{b}/\u{7f}\u{e9}\u{1F600}";
+        let printed = JsonValue::from(s).to_canonical_string();
+        assert_eq!(
+            printed,
+            "\"\\\"\\\\\\b\\f\\n\\r\\t\\u0001\\u001f\\u000b/\u{7f}\u{e9}\u{1F600}\""
+        );
+        assert_eq!(parse_json(&printed).expect("parse").as_str().expect("string"), s);
+        let doc = JsonValue::obj([
+            ("b", JsonValue::Null),
+            ("a", vec![1u64, 20].into()),
+            ("B", true.into()),
+        ]);
+        assert_eq!(doc.to_canonical_string(), "{\"B\":true,\"a\":[1,20],\"b\":null}");
     }
 
     #[test]
@@ -1792,7 +1873,8 @@ mod tests {
     fn parser_is_strict() {
         let text = sample().to_json();
         assert!(Iface::from_json(&format!("{text}trailing")).is_err());
-        let dup = text.replace("\"schema\": 1", "\"schema\": 1, \"schema\": 1");
+        let dup = text.replace("\"schema\":1", "\"schema\":1,\"schema\":1");
+        assert_ne!(dup, text, "the duplicate was spliced in");
         assert!(Iface::from_json(&dup).is_err());
         assert!(Iface::from_json("{\"schema\": 1, module: 2}").is_err());
     }

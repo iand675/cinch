@@ -2,7 +2,7 @@
 //! exercised in, and the toolkit sources every project ships.
 //!
 //! The compiler does not embed the P30/P31 toolkit: `Text.Lex`,
-//! `Text.Scan`, `Text.Parse` and `Text.Json` are on disk and absent from
+//! `Text.Scan`, `Text.Parse`, `Text.Json` and `Text.Builder` are on disk and absent from
 //! `compiler/prelude/cinch-base.cinchpkg`, so a project ships them as
 //! sources beside its entry. That is the rule
 //! `design/stdlib-and-bootstrap.md` states and the pattern
@@ -16,12 +16,30 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 /// The toolkit a bootstrap project ships. Order follows the modules'
-/// own imports: `Text.Parse` imports `Text.Lex` and `Text.Scan`.
+/// own imports: `Text.Parse` imports `Text.Lex` and `Text.Scan`; the
+/// renderers emit through `Text.Builder`, because a right-nested
+/// `string-concat` over a long sequence recopies its suffix at every step.
 pub const TOOLKIT: &[(&str, &str)] = &[
-    ("Text.Lex.cinch", include_str!("../../prelude/Text/Lex.cinch")),
-    ("Text.Scan.cinch", include_str!("../../prelude/Text/Scan.cinch")),
-    ("Text.Parse.cinch", include_str!("../../prelude/Text/Parse.cinch")),
-    ("Text.Json.cinch", include_str!("../../prelude/Text/Json.cinch")),
+    (
+        "Text.Lex.cinch",
+        include_str!("../../prelude/Text/Lex.cinch"),
+    ),
+    (
+        "Text.Scan.cinch",
+        include_str!("../../prelude/Text/Scan.cinch"),
+    ),
+    (
+        "Text.Parse.cinch",
+        include_str!("../../prelude/Text/Parse.cinch"),
+    ),
+    (
+        "Text.Json.cinch",
+        include_str!("../../prelude/Text/Json.cinch"),
+    ),
+    (
+        "Text.Builder.cinch",
+        include_str!("../../prelude/Text/Builder.cinch"),
+    ),
 ];
 
 /// A fresh project directory holding the toolkit and `files`. The caller
@@ -30,8 +48,7 @@ pub const TOOLKIT: &[(&str, &str)] = &[
 pub fn project(tag: &str, files: &[(&str, &str)]) -> PathBuf {
     static COUNTER: AtomicU64 = AtomicU64::new(0);
     let n = COUNTER.fetch_add(1, Ordering::SeqCst);
-    let dir =
-        std::env::temp_dir().join(format!("cinch_boot_{}_{}_{}", tag, std::process::id(), n));
+    let dir = std::env::temp_dir().join(format!("cinch_boot_{}_{}_{}", tag, std::process::id(), n));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).expect("project directory");
     for (name, src) in TOOLKIT.iter().chain(files.iter()) {

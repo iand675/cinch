@@ -278,3 +278,52 @@ they amend its normative EBNF.
 - **Cinch naming (D278-D281), 2026-10-28.** The language is Cinch:
   sources `.cinch`, interfaces `.cinchif`, runtime externs `cinch_*`;
   section 8's intrinsic symbols are `cinch.prim.*`.
+
+# 15 Default method implementations
+
+An equation in a `signature` block for one of its declared methods is that
+method's default. The surface grammar's `declaration_block` already admits
+the equation; this section gives it a meaning.
+
+```haskell
+signature Monoid a where
+  mempty :: a
+  mconcat :: using (s :: Semigroup a) => List a -> a
+  mconcat xs = case xs of
+    Nil -> mempty
+    Cons y ys -> y <> mconcat ys
+```
+
+- **Taking and overriding.** An instance that defines the method uses its
+  own equations. An instance that omits it takes the default, checked at
+  the instance's types exactly as if the instance had written it, so each
+  instance gets code specialized to its own type. An instance that omits a
+  method with no default is refused, as before.
+- **What a default may use.** The class's own methods (through the
+  instance being defined) and the method's own `using` constraints: a
+  default that needs another class states it on the method, as `mconcat`
+  states `Semigroup a` above, and every caller and instance then supplies
+  it. There are no superclasses, so this is the only way a default reaches
+  another class's methods.
+- **Scope.** A default resolves names in the class's module, where it was
+  written: it may call that module's private helpers, and an instance in
+  another module need not import what the default uses.
+- **Checked at the class.** Each default is type-checked once at its
+  method's general scheme when the class's module is checked, so a broken
+  default is reported at the class, in the class's file, even if no
+  instance takes it.
+- **Part of the class's contract.** An instance elsewhere inlines the
+  default, so the class's interface records each default's identity (the
+  hash of its generic elaboration) beside the method's scheme. A changed
+  default changes the class's interface and rechecks the instances that
+  depend on it; an unchanged one leaves them alone.
+- **At any carrier.** A default is written against the method's general
+  type. Where an instance's method type has more arrows than the default
+  binds (`Monoid (t -> u)` makes `mconcat`'s `List a -> a` into
+  `List (t -> u) -> t -> u`), the taken default is eta-expanded to the
+  instance's arity: the same function. At a refinement instance (whose own
+  equations check at the container's types), a taken default checks at the
+  refined type instead: it composes the instance's own methods, which exist
+  there and preserve the refinement by construction.
+- **Rejected.** An equation for a name the block does not declare as a
+  method (the default needs the method's signature in the same block).

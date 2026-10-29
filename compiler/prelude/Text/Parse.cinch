@@ -151,6 +151,10 @@ module Text.Parse where
       Some c -> char-string c
     TWord s -> s
     TPunct s -> s
+    TAttr s -> s
+    TPrimFrag s -> s
+    TTickName s -> s
+    TTickType s -> s
 
   join-items :: List ErrorItem -> String
   join-items xs = string-join ", " (map render-item xs)
