@@ -1,34 +1,52 @@
 -- Effect.Process: subprocesses over real pipes (P34, the platform
--- layer: the shape that drives `clang` and `lld`).
+-- layer: the shape that drives `clang` and `lld`), one shot and live.
 --
 -- A `Command` names a program, its arguments and its environment
 -- additions; `process-run` runs it with the given input on its stdin,
--- captures its stdout and reports its exit code, all under the `Io r`
--- capability in the mold of the runtime's `Io r` operations (decision
--- D45: subprocesses run at runtime through the capability, never
--- ambient at compile time; a `stage` body reaches a subprocess only
--- through staging's own recorded `StageProcess` capability, and this
--- home has no staging path). Failures are NAMED `ProcessError` values
--- in a `Result` (the house style), never faults.
+-- captures its stdout and reports its exit code, and `process-spawn`
+-- starts a LIVE `Child` whose three stdio pipes the caller drives
+-- (`child-write-stdin`, `child-close-stdin`, `child-read`,
+-- `child-wait`, `child-close`), all under the `Io r` capability in the
+-- mold of the runtime's `Io r` operations (decision D45: subprocesses
+-- run at runtime through the capability, never ambient at compile
+-- time; a `stage` body reaches a subprocess only through staging's own
+-- recorded `StageProcess` capability, and this home has no staging
+-- path). Failures are NAMED `ProcessError` values in a `Result` (the
+-- house style), never faults.
 --
--- The boundary words (`compiler/runtime/src/platform.rs`, the
--- `cinch_proc_*`/`cinch_buf_*` externs) are the plain `foreign import
--- ccall` machinery (machine scalars); paths, arguments and output
--- cross through runtime word buffers one byte at a time (see
--- Effect.Fs's bridge).
+-- Two boundary conventions live here, both in
+-- `compiler/runtime/src/platform.rs`: the one-shot `cinch_proc_*`/
+-- `cinch_buf_*` externs are plain `foreign import ccall` declarations
+-- whose paths, arguments and output cross through runtime word buffers
+-- one byte at a time (see Effect.Fs's bridge), while the live-child
+-- `cinch.runtime.process*` units take `Bytes` words for the program,
+-- the NUL-separated argument and environment words and every payload
+-- (a long-lived child is a value stream, not a byte-at-a-time bridge).
+-- Those units are pure at the boundary, as every `cinch.runtime.*`
+-- intrinsic is; the `IO r` discipline lives in this module's wrappers,
+-- exactly as the primitive-type home wraps `bytesNew`.
 --
 -- Named refusals (boundaries this module deliberately does not
 -- cross):
---   streaming a live child: `process-run` is one shot (run, drain the
---     stdout pipe to its end, reap); a long-lived child with a
---     backpressured pipe needs the handle API this slice does not
---     ship;
---   stderr capture: the child inherits this process's stderr (only
---     stdout is captured);
---   killing by signal: the exit code is the child's own (a signal
---     death reports 128 + the signal number, the shell convention);
+--   the live child's pipes are separate: a caller reads stdout and
+--     stderr on its own schedule, so a child that fills one pipe while
+--     the caller reads the other blocks until it is drained (there is
+--     no select or multiplexing here), and `child-wait` blocks, so the
+--     caller drains what it needs before it waits;
+--   stderr capture of the one-shot shape: `process-run`'s child
+--     inherits this process's stderr (only stdout is captured), while a
+--     spawned child's stderr is its own pipe;
+--   killing by signal: an exit code is the child's own (a signal death
+--     reports 128 + the signal number, the shell convention), and the
+--     only signal this module sends is the kill a `child-close` of an
+--     unreaped child does;
 --   a stdin payload larger than the pipe buffer while the child does
---     not read: the write blocks (the worked drivers consume theirs).
+--     not read: the write blocks (the worked drivers consume theirs);
+--   no pseudo-terminal: a child's stdio are pipes, never a terminal
+--     (the parity catalog's `PTY` shape is not this slice's);
+--   an empty argument is not expressible: the argument list crosses
+--     NUL-separated, so an empty word between separators is refused
+--     (`ProcessInvalidArgument`) rather than dropped.
 --
 -- Module scheme (design/base-library.md): `Effect.*` is the effect
 -- system's vocabulary.
@@ -39,6 +57,7 @@ module Effect.Process where
   import Data.List
   import Data.Machine
   import Data.Nat
+  import Data.Option
   import Data.Path
   import Data.Result
   import Data.String
@@ -47,6 +66,8 @@ module Effect.Process where
   export ProcessError, ProcessNotFound, ProcessPermissionDenied, ProcessInvalidArgument, ProcessIoError
   export Command, command, command-with-env
   export process-run
+  export Child, child-handle, Stream, Stdout, Stderr
+  export process-spawn, child-write-stdin, child-close-stdin, child-read, child-wait, child-close
 
 
   -- What went wrong before the child's own exit code could exist.
@@ -190,3 +211,149 @@ module Effect.Process where
             _ -> add-env h rest
           c -> case buf-free eb of
             _ -> c
+
+  -- ---------------------------------------------------------------------------
+  -- The live child (the piped ABI)
+  -- ---------------------------------------------------------------------------
+
+  -- A live child with three stdio pipes of its own.
+  data Child where
+    Child :: Nat -> Child
+
+  -- Which of the child's two output pipes a read takes.
+  data Stream where
+    Stdout :: Stream
+    Stderr :: Stream
+
+  -- The child's handle word, for the layers above this one.
+  child-handle :: Child -> Nat
+  child-handle c = case c of
+    Child h -> h
+
+  -- The live-child words (`compiler/runtime/src/platform.rs`'s piped
+  -- section). The program text, the NUL-separated argument and
+  -- environment words and every payload cross as `Bytes`, and each
+  -- result is the boundary word as a `Result` whose `Err` payload is
+  -- the named code's own number (the POSITIVE code here, unlike the
+  -- one-shot words above, whose codes arrive negated).
+  foreign import ccall "cinch.runtime.processSpawn" raw-process-spawn :: Bytes -> Bytes -> Bytes -> Bytes -> Result I64 I64
+  foreign import ccall "cinch.runtime.processWriteStdin" raw-process-write-stdin :: I64 -> Bytes -> Result I64 Nat
+  foreign import ccall "cinch.runtime.processCloseStdin" raw-process-close-stdin :: I64 -> Result I64 Unit
+  foreign import ccall "cinch.runtime.processRead" raw-process-read :: I64 -> I64 -> Nat -> Result I64 Bytes
+  foreign import ccall "cinch.runtime.processWait" raw-process-wait :: I64 -> Result I64 Nat
+  foreign import ccall "cinch.runtime.processClose" raw-process-close :: I64 -> Result I64 Unit
+
+  -- The boundary code as the named vocabulary (the constructors the
+  -- one-shot words use; only the sign of the code differs, and the
+  -- piped units carry the positive one).
+  pipe-error-code :: I64 -> ProcessError
+  pipe-error-code c = case c of
+    1 -> ProcessNotFound
+    2 -> ProcessPermissionDenied
+    6 -> ProcessInvalidArgument
+    _ -> ProcessIoError
+
+  -- Start `cmd` with its three stdio pipes, running in `dir` (`None`
+  -- inherits this process's own directory): the live child, or the
+  -- named error. The child inherits this process's environment plus
+  -- `cmd`'s additions.
+  process-spawn :: forall r. using (io :: Io r) => Option Path -> Command ->{IO r} Result ProcessError Child
+  process-spawn dir cmd = case cmd of
+    Command prog args env ->
+      let program = string-to-bytes (path-to-string prog) in
+      let argument-words = nul-words args in
+      let directory = dir-bytes dir in
+      let env-words = nul-words (key-value-words env) in
+      case raw-process-spawn program argument-words directory env-words of
+        Err c -> Err (pipe-error-code c)
+        Ok h -> Ok (Child (nat-from-i64 h))
+
+  -- The working directory as its byte path (the empty buffer is the
+  -- boundary's "inherit this process's directory").
+  dir-bytes :: Option Path -> Bytes
+  dir-bytes dir = case dir of
+    None -> bytes-new 0
+    Some p -> string-to-bytes (path-to-string p)
+
+  -- The environment additions as `KEY=VALUE` words.
+  key-value-words :: List (String, String) -> List String
+  key-value-words kvs = case kvs of
+    Nil -> Nil
+    Cons kv rest -> case kv of
+      (k, v) -> Cons (string-concat k (string-concat "=" v)) (key-value-words rest)
+
+  -- A list of words as one NUL-separated `Bytes` buffer (the encoding
+  -- the runtime's `cinch_process_spawn` documents: one word per
+  -- NUL-separated run of bytes, one trailing separator adding no word,
+  -- and an empty word refused there).
+  nul-words :: List String -> Bytes
+  nul-words xs = fill-words (bytes-new (words-size xs)) 0 xs
+
+  words-size :: List String -> Nat
+  words-size xs = case xs of
+    Nil -> 0
+    Cons s rest -> string-byte-length s + 1 + words-size rest
+
+  fill-words :: Bytes -> Nat -> List String -> Bytes
+  fill-words b i xs = case xs of
+    Nil -> b
+    Cons s rest -> fill-words b (put-word b i s) rest
+
+  -- One word's bytes plus its NUL separator; the next index.
+  put-word :: Bytes -> Nat -> String -> Nat
+  put-word b i s = put-bytes b i (string-to-bytes s) 0
+
+  put-bytes :: Bytes -> Nat -> Bytes -> Nat -> Nat
+  put-bytes b i src j = case j == bytes-len src of
+    True -> case bytes-set b i 0 of
+      _ -> i + 1
+    False -> case bytes-set b i (bytes-get src j) of
+      _ -> put-bytes b (i + 1) src (j + 1)
+
+  -- Write `bs` to the child's stdin: the byte count, or the named
+  -- error.
+  child-write-stdin :: forall r. using (io :: Io r) => Child -> Bytes ->{IO r} Result ProcessError Nat
+  child-write-stdin c bs = case c of
+    Child h -> case raw-process-write-stdin (nat-to-i64 h) bs of
+      Err e -> Err (pipe-error-code e)
+      Ok n -> Ok n
+
+  -- Close the child's stdin, which is how it sees the end of its
+  -- input: the unit, or the named error.
+  child-close-stdin :: forall r. using (io :: Io r) => Child ->{IO r} Result ProcessError Unit
+  child-close-stdin c = case c of
+    Child h -> case raw-process-close-stdin (nat-to-i64 h) of
+      Err e -> Err (pipe-error-code e)
+      Ok u -> Ok u
+
+  -- Read up to `max` bytes of one of the child's output pipes: `Ok` of
+  -- what one platform call produced (empty at that pipe's end), or the
+  -- named error.
+  child-read :: forall r. using (io :: Io r) => Child -> Stream -> Nat ->{IO r} Result ProcessError Bytes
+  child-read c s max = case c of
+    Child h -> case raw-process-read (nat-to-i64 h) (stream-word s) max of
+      Err e -> Err (pipe-error-code e)
+      Ok b -> Ok b
+
+  -- The runtime's pipe selector.
+  stream-word :: Stream -> I64
+  stream-word s = case s of
+    Stdout -> 0
+    Stderr -> 1
+
+  -- Wait for the child: its exit code (128 + the signal number for a
+  -- signal death, the shell convention), or the named error.
+  child-wait :: forall r. using (io :: Io r) => Child ->{IO r} Result ProcessError Nat
+  child-wait c = case c of
+    Child h -> case raw-process-wait (nat-to-i64 h) of
+      Err e -> Err (pipe-error-code e)
+      Ok code -> Ok code
+
+  -- Close the child: a child no wait reaped is killed and reaped
+  -- first, and the handle is gone afterwards (a second close is the
+  -- named error).
+  child-close :: forall r. using (io :: Io r) => Child ->{IO r} Result ProcessError Unit
+  child-close c = case c of
+    Child h -> case raw-process-close (nat-to-i64 h) of
+      Err e -> Err (pipe-error-code e)
+      Ok u -> Ok u

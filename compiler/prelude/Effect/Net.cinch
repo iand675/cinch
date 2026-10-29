@@ -1,0 +1,146 @@
+-- Effect.Net: TCP sockets and name resolution over the runtime's
+-- `cinch_net_*` externs (`compiler/runtime/src/net.rs`). A `Socket` is
+-- a live connection the runtime's handle table owns; `net-read` and
+-- `net-write` move bytes over it; `net-resolve` is the DNS primitive
+-- (one `<ip>:<port>` line per resolved address), which the name
+-- resolution home presents.
+--
+-- The operations run under the `Io r` capability (decision D45's
+-- determinism rule: a socket is consulted when a program with the
+-- capability calls it, never ambient at compile time, so a build
+-- cannot depend on what the network answered). Every failure is a
+-- NAMED `NetError` value in a `Result` (the house style), never a
+-- fault: the boundary's raw word carries the shared platform error
+-- codes (`compiler/runtime/src/platform.rs`), which `net-error-code`
+-- maps one for one.
+--
+-- The boundary words themselves are the `cinch.runtime.net*` units
+-- (machine scalars and `Bytes`; see the runtime module's header for the
+-- return-code convention). Those units are pure at the boundary, as
+-- every `cinch.runtime.*` intrinsic is (a primitive's declared type is
+-- its `sig()`, which carries no effect row); this module's wrappers are
+-- where the `IO r` discipline lives, exactly as the primitive-type
+-- home wraps `bytesNew`.
+--
+-- Module scheme (design/base-library.md): `Effect.*` is the effect
+-- system's vocabulary, and a socket is a runtime capability.
+--
+-- THE LAW SHAPE (what the slice's tests pin):
+--   1. round trip: bytes written to a socket are what the peer reads,
+--      and `net-read` answers what the peer wrote (a stream is a byte
+--      sequence, not a message boundary: a short read is legal, and a
+--      caller that wants a length loops);
+--   2. end of stream: `net-read` answers `Ok` of the EMPTY buffer once
+--      the peer closed its side, and that is not an error;
+--   3. the handle is single-use on close: every operation after
+--      `net-close` is `Err NetInvalidArgument`, and so is a handle the
+--      caller invented;
+--   4. refusal is a value: a connection nothing listens on answers
+--      `Err` (the documented code), never a fault and never a hang on a
+--      name that does not resolve;
+--   5. `net-resolve` answers at least one `<ip>:<port>` line for a name
+--      the platform resolves, each line newline terminated.
+--
+-- Named refusals (boundaries this module deliberately does not cross):
+--   plain TCP only: no TLS (a caller that needs it wraps the stream),
+--     no UDP, and no listening or accepting (this slice is the client
+--     side);
+--   no timeouts: connect and read block until the platform call
+--     returns and do not observe the concurrency cancellation token of
+--     section 4 (a cancellation-aware read needs the poll shim this
+--     slice does not ship);
+--   UTF-8 host text only: a host crosses as text, so a name that is not
+--     UTF-8 is not expressible here;
+--   no address parsing: `net-resolve` hands back the resolver's own
+--     `<ip>:<port>` lines; an `IPAddr` value type over them is the
+--     address home's work, not this module's;
+--   one read, not a filled length: `net-read` returns what one platform
+--     call produced, never a loop to fill the requested size.
+module Effect.Net where
+
+  import Data.Bytes
+  import Data.Nat
+  import Data.Result
+  import Data.String
+
+  export NetError, NetNotFound, NetPermissionDenied, NetInvalidArgument, NetIoError
+  export Socket, socket-handle
+  export net-connect, net-read, net-write, net-close, net-resolve
+
+
+  -- What went wrong, named. The constructors correspond one for one to
+  -- the platform layer's shared codes.
+  data NetError where
+    NetNotFound :: NetError
+    NetPermissionDenied :: NetError
+    NetInvalidArgument :: NetError
+    NetIoError :: NetError
+
+  -- An open TCP connection, as the runtime's socket handle.
+  data Socket where
+    Socket :: Nat -> Socket
+
+  -- The handle word of a socket, for the layers above this one.
+  socket-handle :: Socket -> Nat
+  socket-handle s = case s of
+    Socket h -> h
+
+  -- The runtime words (see this module's header for why they are
+  -- pure-typed). Each result is the boundary's word as a `Result`: the
+  -- `Err` payload is the named code's own number.
+  foreign import ccall "cinch.runtime.netTcpConnect" raw-net-connect :: Bytes -> I64 -> Result I64 I64
+  foreign import ccall "cinch.runtime.netRead" raw-net-read :: I64 -> Nat -> Result I64 Bytes
+  foreign import ccall "cinch.runtime.netWrite" raw-net-write :: I64 -> Bytes -> Result I64 Nat
+  foreign import ccall "cinch.runtime.netClose" raw-net-close :: I64 -> Result I64 Unit
+  foreign import ccall "cinch.runtime.netResolve" raw-net-resolve :: Bytes -> I64 -> Result I64 Bytes
+
+  -- The boundary code as the named vocabulary.
+  net-error-code :: I64 -> NetError
+  net-error-code c = case c of
+    1 -> NetNotFound
+    2 -> NetPermissionDenied
+    6 -> NetInvalidArgument
+    _ -> NetIoError
+
+  -- Connect to `host` (UTF-8 host text) at `port` (0..=65535) over TCP:
+  -- the open socket, or the named error. The name is resolved by the
+  -- platform resolver.
+  net-connect :: forall r. using (io :: Io r) => String -> Nat ->{IO r} Result NetError Socket
+  net-connect host port =
+    case raw-net-connect (string-to-bytes host) (nat-to-i64 port) of
+      Err c -> Err (net-error-code c)
+      Ok h -> Ok (Socket (nat-from-i64 h))
+
+  -- Read up to `max` bytes of the socket: `Ok` of what one platform
+  -- call produced (empty at the end of the stream), or the named error.
+  net-read :: forall r. using (io :: Io r) => Socket -> Nat ->{IO r} Result NetError Bytes
+  net-read s max = case s of
+    Socket h -> case raw-net-read (nat-to-i64 h) max of
+      Err c -> Err (net-error-code c)
+      Ok b -> Ok b
+
+  -- Write `bs` to the socket: the byte count (the whole buffer goes),
+  -- or the named error.
+  net-write :: forall r. using (io :: Io r) => Socket -> Bytes ->{IO r} Result NetError Nat
+  net-write s bs = case s of
+    Socket h -> case raw-net-write (nat-to-i64 h) bs of
+      Err c -> Err (net-error-code c)
+      Ok n -> Ok n
+
+  -- Close the socket: the handle is gone afterwards, so every later
+  -- operation on it is `Err NetInvalidArgument`.
+  net-close :: forall r. using (io :: Io r) => Socket ->{IO r} Result NetError Unit
+  net-close s = case s of
+    Socket h -> case raw-net-close (nat-to-i64 h) of
+      Err c -> Err (net-error-code c)
+      Ok u -> Ok u
+
+  -- Resolve `host` (UTF-8 host text) at `port`: `Ok` of one
+  -- `<ip>:<port>` line per resolved address (each newline terminated,
+  -- an IPv6 address bracketed), or the named error. The empty result is
+  -- an empty buffer: the resolver answered with no address.
+  net-resolve :: forall r. using (io :: Io r) => String -> Nat ->{IO r} Result NetError Bytes
+  net-resolve host port =
+    case raw-net-resolve (string-to-bytes host) (nat-to-i64 port) of
+      Err c -> Err (net-error-code c)
+      Ok b -> Ok b
