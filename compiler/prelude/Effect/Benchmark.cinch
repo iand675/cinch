@@ -1,0 +1,123 @@
+-- Effect.Benchmark: timing `IO r` actions against the runtime's
+-- monotonic clock, the Ruby `Benchmark` surface (the tooling entry in
+-- design/stdlib-parity-ruby.md, ported onto the P34 `Effect.Clock`).
+--
+-- The clock is the monotonic reading only (`clock-monotonic-ns`, never
+-- `clock-wall-ns`), so an interval is a natural number of nanoseconds
+-- and never runs backwards. As with Ruby's `Benchmark`, no attempt is
+-- made to subtract the measurement overhead (the two clock reads and
+-- the report record): an interval is the raw span around the action,
+-- and two measurements are comparable because they pay the same
+-- overhead.
+--
+-- Design law shape:
+--   value transparency: `benchmark-measure label work` returns
+--     `work`'s value unchanged (timing never consumes or alters the
+--     timed result);
+--   non-negativity: the monotonic clock is non-decreasing, so the
+--     elapsed nanoseconds (and `benchmark-realtime`'s `Duration`) are
+--     always non-negative;
+--   agreement: `benchmark-realtime` and `benchmark-measure` read the
+--     same interval around the same action (the former truncates to
+--     whole milliseconds), and `benchmark-table`'s total is the sum
+--     of its rows;
+--   ordering only: measurements are compared to each other, never to
+--     an absolute wall-clock budget.
+--
+-- Named refusals (boundaries this module deliberately does not cross):
+--   overhead subtraction: not attempted (Ruby does not either); the
+--     clock reads stay part of the interval;
+--   absolute-duration claims: the module offers no thresholds or
+--     budgets, and its tests order measurements rather than pin
+--     absolute times;
+--   wall-clock and calendar: only the monotonic clock is consulted;
+--     dates and formatting are the Time family's business
+--     (Effect.Clock's header), not here;
+--   statistics: no minimum/maximum/mean/deviation aggregation and no
+--     Ruby `Benchmark.bmbm` warm-up pass; a report is one interval and
+--     the table adds the rows up;
+--   compile-time readings: `Effect.Clock`'s refusal (D45): the timing
+--     operations need the `Io r` capability and cannot run in a
+--     `stage` body.
+--
+-- Module scheme (design/base-library.md): `Effect.*` is the effect
+-- system's vocabulary, and timing is a runtime capability in the
+-- `Io r` mold (D45), so the home is Effect.
+module Effect.Benchmark where
+
+  import Data.Nat
+  import Data.List
+  import Data.String
+  import Effect.Clock
+  import Text.Show
+
+  export BenchmarkReport, benchmark-label, benchmark-elapsed-ns
+  export benchmark-measure, benchmark-realtime, benchmark-table
+
+
+  -- One measurement: the label the caller supplied and the elapsed
+  -- monotonic nanoseconds around the action. The constructor is the
+  -- smart surface's only source of reports, so a report's interval is
+  -- always one this module read.
+  data BenchmarkReport where
+    BenchmarkReport :: String -> Nat -> BenchmarkReport
+
+  benchmark-label :: BenchmarkReport -> String
+  benchmark-label r = case r of
+    BenchmarkReport l _ -> l
+
+  benchmark-elapsed-ns :: BenchmarkReport -> Nat
+  benchmark-elapsed-ns r = case r of
+    BenchmarkReport _ n -> n
+
+
+  -- Run `work` and report the monotonic span around it, together with
+  -- `work`'s own value so a measurement never discards the result. The
+  -- elapsed is `t1 - t0`; the monotonic clock guarantees `t1 >= t0`,
+  -- so the natural subtraction cannot go below zero.
+  benchmark-measure :: forall r a. using (io :: Io r) => String -> (Unit ->{IO r} a) ->{IO r} (BenchmarkReport, a)
+  benchmark-measure label work =
+    let t0 = clock-monotonic-ns () in
+    let x = work () in
+    let t1 = clock-monotonic-ns () in
+    (BenchmarkReport label (t1 - t0), x)
+
+  -- The same interval as `benchmark-measure`, truncated to whole
+  -- milliseconds (`Effect.Clock`'s `monotonic-elapsed`); the action's
+  -- value is deliberately dropped, so callers wanting it use
+  -- `benchmark-measure`.
+  benchmark-realtime :: forall r a. using (io :: Io r) => (Unit ->{IO r} a) ->{IO r} Duration
+  benchmark-realtime work =
+    let t0 = clock-monotonic-ns () in
+    let x = work () in
+    let t1 = clock-monotonic-ns () in
+    monotonic-elapsed t0 t1
+
+
+  -- The table: a header, one row per report in input order, and the
+  -- total row. Labels are the caller's, printed verbatim.
+  benchmark-table :: List BenchmarkReport -> String
+  benchmark-table reports =
+    string-concat "label  nanoseconds\n"
+      (string-concat (benchmark-rows reports) (benchmark-total reports))
+
+  benchmark-rows :: List BenchmarkReport -> String
+  benchmark-rows reports = case reports of
+    Nil -> empty-string
+    Cons r rest -> string-concat (benchmark-row r) (benchmark-rows rest)
+
+  benchmark-row :: BenchmarkReport -> String
+  benchmark-row r =
+    string-concat (benchmark-label r)
+      (string-concat "  "
+        (string-concat (nat-to-string (benchmark-elapsed-ns r)) "\n"))
+
+  benchmark-total :: List BenchmarkReport -> String
+  benchmark-total reports =
+    string-concat "total  "
+      (string-concat (nat-to-string (benchmark-total-ns reports)) "\n")
+
+  -- The sum of the rows (the agreement law: the total is the rows
+  -- added up, nothing else).
+  benchmark-total-ns :: List BenchmarkReport -> Nat
+  benchmark-total-ns reports = sum-list 0 (map benchmark-elapsed-ns reports)

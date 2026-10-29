@@ -1,0 +1,323 @@
+-- Effect.Test: the Minitest-shaped test runner (the bootstrap's own
+-- test vocabulary).
+--
+-- What this module is: the runner the bootstrap needs to run its own
+-- tests (design/stdlib-and-bootstrap.md, "Also needed for
+-- bootstrapping": "a Cinch test runner"). Ruby's `Minitest` is the
+-- design reference (design/stdlib-parity-ruby.md, P40: "the Cinch
+-- test runner (Minitest-shaped)"), and this module ports its spirit
+-- as a library: a `TestCase` carries a name and a pure body returning
+-- the case's checks, `assert`/`assert-eq`/`refute`/`refute-eq` build
+-- NAMED checks (`Pass`/`Fail`) as values, `run-suite` runs a list of
+-- cases, writes one progress line per case and returns the `Report`,
+-- and `render-report` renders the summary Minitest prints (one block
+-- per failure, then the counts line).
+--
+-- Module scheme (design/base-library.md): `Effect.*` is the effect
+-- system's vocabulary, and the runner is here rather than in a
+-- `Data.*` home because its one effectful operation IS the report.
+-- REPORTING is `Effect.Io`'s capability: each case's line goes to the
+-- runtime's output sink through the `Io r` capability's `ioWrite`
+-- (the runtime's own operation, D81; capabilities are lexical and
+-- never ambient, D21), so the suite's row is exactly the reporting
+-- row `{IO r}` and the caller must hold the capability (`with (io =
+-- newIO ()) in`). The choice is stated against the alternative this
+-- repo has: `Effect.Log`'s `log` carries structured `Json` records
+-- for the P32 observability story and lives outside the embedded
+-- prelude family, while a runner's output is plain text lines, one
+-- per case, which is what Minitest prints and what `ioWrite` takes.
+--
+-- THE LAW SHAPE (what the tests pin):
+--   1. counts. `report-runs` is the number of cases run,
+--      `report-assertions` is the sum of the per-case counts, and
+--      `report-failures` holds one entry per failing case, in run
+--      order.
+--   2. order. Outcomes follow the case list's order, and the suite is
+--      that list's catamorphism: `run-suite (xs <> ys)` reports xs's
+--      outcomes then ys's, with the counts added and the failure list
+--      concatenated.
+--   3. the observation law for assertions. A case's assertion count is
+--      the length of the prefix of its checks up to and including the
+--      first `Fail` (every `Pass` before it, and nothing after), so
+--      the count is exactly the number of assertions a runner that
+--      aborted the body would have executed.
+--   4. rendering. `assert-eq` and `refute-eq` render BOTH values
+--      through `Text.Show` (the message names the expectation and the
+--      observed rendering), and `render-report`'s totals line is the
+--      Minitest format `N cases, M assertions, K failures` (always
+--      plural: the line has one shape for every report).
+--
+-- NAMED REFUSALS (what this runner will not do):
+--   faults are not caught. An assertion never faults: a failing
+--     assertion is a `Fail` value. A body that faults anyway
+--     (division by zero, a byte write out of range) takes the
+--     runtime's fault path, so there is no Minitest `errors` count;
+--     catching the fault would need a handler over it, and no effect
+--     label here carries a catchable failure (the `Diverge` label is
+--     productivity, not an exception).
+--   no abort. A body's checks are a strict `List`, so the body
+--     evaluates all of them before the runner sees the first `Fail`;
+--     the runner OBSERVES the prefix (law 3) and cannot stop the
+--     body. A short-circuit body would need the checks to be an
+--     effect or a codata producer, neither of which the case type
+--     spends.
+--   no effectful bodies. A body is `Unit -> List Check`, pure, because
+--     the suite's row is exactly the reporting row; a body that wants
+--     the runtime capability would widen the suite's type and is out
+--     of this slice.
+--   no skips, no expected failures, no filtering or shuffling. The
+--     runner runs the cases it is given, in the order it is given
+--     them; Minitest's `skip`/`flunk`, its name filter and its seed
+--     are not ported.
+module Effect.Test where
+
+  import Data.Bool
+  import Data.List
+  import Data.Option
+  import Data.String
+  import Relation.Eq
+  import Text.Show
+
+  export Check, Pass, Fail
+  export assert, assert-eq, refute, refute-eq
+  export TestCase, case-name, case-body
+  export CaseFailure, failure-case, failure-assertion, failure-message
+  export CaseOutcome, CasePassed, CaseFailed, outcome-name, outcome-ok, outcome-assertions
+  export Report, report-outcomes, report-runs, report-assertions, report-failures, report-ok
+  export run-suite, render-report
+
+
+  -- ------------------------------------------------------------------
+  -- The assertion vocabulary: assertions are values.
+  -- ------------------------------------------------------------------
+
+  -- One assertion's outcome. The first field is the assertion's NAME
+  -- (the label the author gave it, so a failure reads as the
+  -- sentence it is); a `Fail` carries the rendered message after it.
+  -- An assertion is a value, never a fault: that is the whole reason
+  -- a failing case is reportable rather than fatal.
+  data Check where
+    Pass :: String -> Check
+    Fail :: String -> String -> Check
+
+  -- The condition holds. `assert "one-plus-one" (1 + 1 == 2)`.
+  assert :: String -> Bool -> Check
+  assert label ok = if ok then Pass label else Fail label "expected true, got false"
+
+  -- The two values are equal, rendered through `Show` so the message
+  -- names both. `assert-eq "sum" (1 + 1) 2`.
+  assert-eq :: forall a. using (ea :: Eq a, sa :: Show a) => String -> a -> a -> Check
+  assert-eq label expected actual =
+    if expected == actual then
+      Pass label
+    else
+      Fail label (string-concat "expected "
+        (string-concat (show expected)
+          (string-concat ", got " (show actual))))
+
+  -- The condition fails. `refute "not-two" (1 == 2)`.
+  refute :: String -> Bool -> Check
+  refute label ok = if ok then Fail label "expected false, got true" else Pass label
+
+  -- The two values differ (Minitest's `refute_equal`), rendered
+  -- through `Show`.
+  refute-eq :: forall a. using (ea :: Eq a, sa :: Show a) => String -> a -> a -> Check
+  refute-eq label expected actual =
+    if expected == actual then
+      Fail label (string-concat "expected different values, got "
+        (string-concat (show expected)
+          (string-concat " and " (show actual))))
+    else
+      Pass label
+
+  -- ------------------------------------------------------------------
+  -- Cases, outcomes and the report.
+  -- ------------------------------------------------------------------
+
+  -- A named case and its body. The body is a function of `Unit` so a
+  -- suite re-evaluates it per run instead of sharing one evaluation
+  -- between runs, and it is pure: the runner's only effect is the
+  -- reporting (see the refusals).
+  data TestCase where
+    TestCase :: String -> (Unit -> List Check) -> TestCase
+
+  case-name :: TestCase -> String
+  case-name c = case c of
+    TestCase name body -> name
+
+  case-body :: TestCase -> Unit -> List Check
+  case-body c u = case c of
+    TestCase name body -> body u
+
+  -- A failing case's detail: the case's name, the failing assertion's
+  -- label, and the assertion's rendered message. `render-report`
+  -- prints exactly these three, and they are the three Minitest's own
+  -- failure list carries (test name, failing assertion, message).
+  data CaseFailure where
+    CaseFailure :: String -> String -> String -> CaseFailure
+
+  failure-case :: CaseFailure -> String
+  failure-case f = case f of
+    CaseFailure name label msg -> name
+
+  failure-assertion :: CaseFailure -> String
+  failure-assertion f = case f of
+    CaseFailure name label msg -> label
+
+  failure-message :: CaseFailure -> String
+  failure-message f = case f of
+    CaseFailure name label msg -> msg
+
+  -- One case's outcome: its name and the number of assertions
+  -- observed (law 3), plus the failure detail when it failed.
+  data CaseOutcome where
+    CasePassed :: String -> Int -> CaseOutcome
+    CaseFailed :: Int -> CaseFailure -> CaseOutcome
+
+  outcome-name :: CaseOutcome -> String
+  outcome-name o = case o of
+    CasePassed name n -> name
+    CaseFailed n f -> failure-case f
+
+  outcome-ok :: CaseOutcome -> Bool
+  outcome-ok o = case o of
+    CasePassed name n -> True
+    CaseFailed n f -> False
+
+  outcome-assertions :: CaseOutcome -> Int
+  outcome-assertions o = case o of
+    CasePassed name n -> n
+    CaseFailed n f -> n
+
+  -- A run of a suite: what Minitest's `Minitest::Result` list is, one
+  -- outcome per case in run order.
+  data Report where
+    Report :: List CaseOutcome -> Report
+
+  report-outcomes :: Report -> List CaseOutcome
+  report-outcomes r = case r of
+    Report os -> os
+
+  report-runs :: Report -> Int
+  report-runs r = length (report-outcomes r)
+
+  report-assertions :: Report -> Int
+  report-assertions r = count-assertions (report-outcomes r)
+
+  -- The failing cases, in run order.
+  report-failures :: Report -> List CaseFailure
+  report-failures r = collect-failures (report-outcomes r)
+
+  -- True when no case failed (an empty report is ok: nothing ran,
+  -- nothing failed).
+  report-ok :: Report -> Bool
+  report-ok r = all-ok (report-outcomes r)
+
+  -- ------------------------------------------------------------------
+  -- Running a suite.
+  -- ------------------------------------------------------------------
+
+  -- Run every case, reporting each one through the `Io r` capability
+  -- as it finishes (one line: `<name>` prefixed by its verdict), and
+  -- return the report. The progress lines are what a caller watches
+  -- while the suite runs; `render-report` is the summary after it.
+  run-suite :: forall r. using (io :: Io r) => List TestCase ->{IO r} Report
+  run-suite cases = Report (rev-outcomes (run-cases cases Nil))
+
+  run-cases :: forall r. using (io :: Io r) => List TestCase -> List CaseOutcome ->{IO r} List CaseOutcome
+  run-cases cases acc = case cases of
+    Nil -> acc
+    Cons c rest -> case run-case c of
+      outcome -> case ioWrite (string-to-bytes (progress-line outcome)) of
+        w -> run-cases rest (Cons outcome acc)
+
+  -- One case, from its body's checks to its outcome. The scan stops
+  -- at the first failure, so the count and the message are the first
+  -- failing assertion's (law 3).
+  run-case :: TestCase -> CaseOutcome
+  run-case c = case c of
+    TestCase name body -> case scan-checks (body ()) 0 of
+      (n, None) -> CasePassed name n
+      (n, Some f) -> case f of
+        (label, msg) -> CaseFailed n (CaseFailure name label msg)
+
+  -- The assertion count (every check up to and including the first
+  -- `Fail`) and, when the case failed, its failing assertion's label
+  -- and message. The tail after a failure is never scanned.
+  scan-checks :: List Check -> Int -> (Int, Option (String, String))
+  scan-checks cs n = case cs of
+    Nil -> (n, None)
+    Cons c rest -> case c of
+      Pass _ -> scan-checks rest (n + 1)
+      Fail label msg -> (n + 1, Some (label, msg))
+
+  -- The per-case progress line: Minitest prints one marker per case,
+  -- this runner one line per case.
+  progress-line :: CaseOutcome -> String
+  progress-line o = case o of
+    CasePassed name n -> string-concat "ok " (string-concat name "\n")
+    CaseFailed n f -> string-concat "FAIL " (string-concat (failure-case f) "\n")
+
+  -- ------------------------------------------------------------------
+  -- Rendering the report.
+  -- ------------------------------------------------------------------
+
+  -- The summary Minitest prints: one block per failure (its number,
+  -- the case, the failing assertion and the message), a blank line,
+  -- then the totals line. A report with no failures is the totals
+  -- line alone.
+  render-report :: Report -> String
+  render-report r = case report-failures r of
+    Nil -> totals-line r
+    fs -> string-concat (failure-blocks fs 1) (string-concat "\n" (totals-line r))
+
+  failure-blocks :: List CaseFailure -> Int -> String
+  failure-blocks fs i = case fs of
+    Nil -> ""
+    Cons f rest -> string-concat (int-to-string i)
+      (string-concat ") "
+        (string-concat (failure-case f)
+          (string-concat ": "
+            (string-concat (failure-assertion f)
+              (string-concat "\n  "
+                (string-concat (failure-message f)
+                  (string-concat "\n" (failure-blocks rest (i + 1)))))))))
+
+  -- The counts line: Minitest's format, always plural (one shape for
+  -- every report).
+  totals-line :: Report -> String
+  totals-line r = string-concat (int-to-string (report-runs r))
+    (string-concat " cases, "
+      (string-concat (int-to-string (report-assertions r))
+        (string-concat " assertions, "
+          (string-concat (int-to-string (length (report-failures r)))
+            " failures\n"))))
+
+  -- ------------------------------------------------------------------
+  -- The report's derived views (the counts law, in one place).
+  -- ------------------------------------------------------------------
+
+  count-assertions :: List CaseOutcome -> Int
+  count-assertions os = case os of
+    Nil -> 0
+    Cons o rest -> outcome-assertions o + count-assertions rest
+
+  collect-failures :: List CaseOutcome -> List CaseFailure
+  collect-failures os = case os of
+    Nil -> Nil
+    Cons o rest -> case o of
+      CasePassed name n -> collect-failures rest
+      CaseFailed n f -> Cons f (collect-failures rest)
+
+  all-ok :: List CaseOutcome -> Bool
+  all-ok os = case os of
+    Nil -> True
+    Cons o rest -> outcome-ok o && all-ok rest
+
+  rev-outcomes :: List CaseOutcome -> List CaseOutcome
+  rev-outcomes os = rev-into os Nil
+
+  rev-into :: List CaseOutcome -> List CaseOutcome -> List CaseOutcome
+  rev-into os acc = case os of
+    Nil -> acc
+    Cons o rest -> rev-into rest (Cons o acc)
