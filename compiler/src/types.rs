@@ -1825,6 +1825,28 @@ impl EffRow {
     }
 }
 
+/// Whether a type needs parentheses when it appears as an ARGUMENT of an
+/// applied type constructor (`List (List a)`, `Option (List a)`,
+/// `List (a -> b)` in the arrows it emits itself). Types that already
+/// print their own delimiters (tuples, arrows, Pis, Sigmas, handlers) do
+/// not; a nullary constructor or a variable is atomic. Without this the
+/// rendered contract text is not re-parseable, which matters because an
+/// interface's rendered scheme is the contract a consumer reads.
+fn needs_parens_as_argument(t: &Ty) -> bool {
+    match t {
+        Ty::Adt(_, args) => !args.is_empty(),
+        Ty::App(..)
+        | Ty::Thunk { .. }
+        | Ty::Later(_)
+        | Ty::Lazy { .. }
+        | Ty::Ref(..)
+        | Ty::Mut(..)
+        | Ty::Ptr { .. }
+        | Ty::Handler { .. } => true,
+        _ => false,
+    }
+}
+
 impl fmt::Display for Ty {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -1841,14 +1863,22 @@ impl fmt::Display for Ty {
             Ty::Adt(t, args) => {
                 write!(f, "{t}")?;
                 for a in args {
-                    write!(f, " {a}")?;
+                    if needs_parens_as_argument(a) {
+                        write!(f, " ({a})")?;
+                    } else {
+                        write!(f, " {a}")?;
+                    }
                 }
                 Ok(())
             }
             Ty::App(h, args) => {
                 write!(f, "({h}")?;
                 for a in args {
-                    write!(f, " {a}")?;
+                    if needs_parens_as_argument(a) {
+                        write!(f, " ({a})")?;
+                    } else {
+                        write!(f, " {a}")?;
+                    }
                 }
                 write!(f, ")")
             }
@@ -1918,7 +1948,11 @@ impl fmt::Display for ClassApp {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.class)?;
         for a in &self.args {
-            write!(f, " {a}")?;
+            if needs_parens_as_argument(a) {
+                write!(f, " ({a})")?;
+            } else {
+                write!(f, " {a}")?;
+            }
         }
         Ok(())
     }
