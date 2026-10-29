@@ -18,6 +18,8 @@
 -- runtime cells).
 module Data.Sym where
 
+  import Data.Bytes
+  import Data.Hash
   import Data.String
   import Text.Show
 
@@ -63,3 +65,20 @@ module Data.Sym where
   -- (raw ASCII 39), the name renders as itself.
   implicit instance Show_Sym :: Show Sym where
     show s = string-concat (char-string '\'') (sym-name s)
+
+  -- The digest is the interned name's bytes through the `Bytes`
+  -- instance (Data.Bytes owns the fold), read straight off the
+  -- intrinsic layer with no `String` in between. Interning keys on the
+  -- name, so two names equal under `Eq` are the same cell and hash
+  -- alike (the `Hash` law), and the digest never reads a cell address,
+  -- so it is deterministic across runs exactly as `Ord` is.
+  --
+  -- The cell's own word would be the stronger answer (identity is
+  -- already the `Eq`), but nothing here exposes a handle as data: the
+  -- type has no C counterpart and no `Sym`-to-word conversion exists,
+  -- and inventing one to hash by address would buy only the weaker
+  -- property (addresses are not reproducible across runs).
+  -- `symName` hands out a fresh buffer per call, so a hash allocates
+  -- once.
+  implicit instance Hash_Sym :: Hash Sym where
+    hash s = hash (sym-name-bytes s)

@@ -7,10 +7,14 @@
 -- (71).
 --
 -- Module scheme (design/base-library.md): the type's home carries its
--- `FromList` instance (`[1, 2, 3]` at `Bytes` fills a buffer).
+-- instance family: `FromList` (`[1, 2, 3]` at `Bytes` fills a
+-- buffer) and the key pair `Eq`/`Hash` (a byte slice is a plausible
+-- key: a compiler's names arrive as the lexer's bytes).
 module Data.Bytes where
 
+  import Data.Hash
   import Data.List
+  import Data.Nat
 
   export bytes-new, bytes-len, bytes-get, bytes-set, bytes-from-list, bytes-fill, sha256-bytes
 
@@ -47,3 +51,37 @@ module Data.Bytes where
 
   implicit instance FromList_Bytes :: FromList Bytes Nat where
     from-list xs = bytes-from-list xs
+
+  -- Byte-for-byte equality over the whole slice: the lengths agree and
+  -- every byte agrees. The keyed structures need `Eq` beside `Hash`
+  -- (Data.HashMap's header): hashing alone cannot decide a digest
+  -- collision, so an instance that hashes without comparing is not a
+  -- key.
+  bytes-equal-from :: Bytes -> Bytes -> Nat -> Bool
+  bytes-equal-from a b i =
+    if i >= bytes-len a then i >= bytes-len b
+    else if i >= bytes-len b then False
+    else if bytes-get a i == bytes-get b i then bytes-equal-from a b (i + 1)
+    else False
+
+  implicit instance Eq_Bytes :: Eq Bytes where
+    (==) x y = bytes-equal-from x y 0
+    (/=) x y = not (bytes-equal-from x y 0)
+
+  -- The whole slice folded with the 31-mix (`h * 31 + byte`): every
+  -- byte contributes, so two slices that differ only past a shared
+  -- prefix get different digests, and the fold runs over `Nat`
+  -- (bignum), so it cannot overflow. The digest reads content only,
+  -- so equal slices hash alike (the `Hash` law) and two distinct
+  -- slices may still share one (the bucket scan's job).
+  hash-bytes-from :: Bytes -> Nat -> Nat -> Nat
+  hash-bytes-from b i h =
+    if i >= bytes-len b then h
+    else hash-bytes-from b (i + 1) (nat-add (nat-mul h 31) (bytes-get b i))
+
+  -- The buffer's digest (instances live with their type). `Data.String`
+  -- hashes its UTF-8 backing through THIS instance, so a string and the
+  -- bytes it converts to agree by construction rather than by two
+  -- copies of one algorithm.
+  implicit instance Hash_Bytes :: Hash Bytes where
+    hash b = hash-bytes-from b 0 0

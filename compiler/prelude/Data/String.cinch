@@ -335,12 +335,10 @@ module Data.String where
   implicit instance Monoid_String :: Monoid String where
     mempty = empty-string
 
-  -- A 31-hash over the UTF-8 bytes: equal strings hash alike by
-  -- construction (the `Hash` law; instances live with their type).
-  hash-string-from :: Bytes -> Nat -> Nat -> Nat
-  hash-string-from b i h =
-    if i >= bytes-len b then h
-    else hash-string-from b (i + 1) (nat-add (nat-mul h 31) (bytes-get b i))
-
+  -- The digest of the UTF-8 backing through the `Bytes` instance
+  -- (Data.Bytes owns the byte fold, so the two instances agree by
+  -- construction instead of keeping two copies of one algorithm).
+  -- `string-bytes-raw` reads the backing in place: hashing copies
+  -- nothing.
   implicit instance Hash_String :: Hash String where
-    hash s = hash-string-from (string-bytes-raw s) 0 0
+    hash s = hash (string-bytes-raw s)
