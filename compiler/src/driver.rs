@@ -1205,7 +1205,13 @@ fn parse_family_and_user(
     scx: &mut StagingCx,
 ) -> Result<(PreludeSources, crate::parser::ParsedModules, HashMap<String, String>)> {
     let prelude = parse_prelude(adapters)?;
-    let user = parse_source(user_src, user_file, &prelude.base, &HashMap::new())?;
+    // The user source parses against the facade's base table plus every
+    // embedded family module's own fixity table: an operator's fixity is
+    // part of the module that declares it (the interface fact of
+    // `design/compiled-interface-metadata.md` section 2.1, rule 3), so
+    // `import Algebra.Semigroup` supplies `<>`'s fixity exactly as it
+    // supplies the name, and no consumer redeclares it.
+    let user = parse_source(user_src, user_file, &prelude.base, &prelude.fixities)?;
     let mut hashes = HashMap::new();
     let mut files = HashMap::new();
     let mut fixities = prelude.fixities.clone();
