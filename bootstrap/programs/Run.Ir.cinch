@@ -1,0 +1,224 @@
+-- The rung 4 driver: the fragment as a runnable artifact.
+--
+-- Builds three fragments' trees by hand (the same nodes `Bootstrap.Parse`
+-- would fill and `Bootstrap.Check` would accept), asks `Bootstrap.Ir` for
+-- each one's LLVM IR text, and writes that text beside this program:
+--
+--   program.ll              `fib` and a `main` that is 0 when fib 10 == 55
+--   program-arith.ll        a `main` that is `let x = 6 in let y = 7 in x * y`
+--   program-pick.ll         `pick a b` and a `main` that is `pick 7 3`
+--   program-ir.diagnostics  the lowerable fragments' refusals (empty)
+--   program-ir.refusals     a fourth fragment's refusals (non-empty: its
+--                           `main` body is an unmodeled form)
+--
+-- The exit code is a bitmask of the driver's own failures (a write that
+-- failed, a fragment the emitter refused), so 0 means every fragment
+-- produced IR and every file landed. The rung's Rust test then assembles
+-- each file with clang and asserts the produced binary's exit code, which
+-- is the fragment's `main` meaning: 0, 42 and 7. It also reads the two
+-- diagnostics files back: the lowerable fragments draw none, and the
+-- unmodeled fragment is refused by name rather than dropped.
+--
+-- Run it through tooling/run-bootstrap-ladder.sh (it writes into the
+-- current directory), or through `cargo test --test bootstrap_ir`, which
+-- gives the output paths absolute values inside its project.
+
+module Main where
+
+  import Bootstrap.Ast
+  import Bootstrap.Ir
+  import Bootstrap.Report
+  import Data.Bytes
+  import Data.Path
+  import Effect.Fs
+  import Text.Lex (Span)
+
+  sp :: Span
+  sp = Span 0 0 1 1
+
+  -- ------------------------------------------------- fragment A: fib
+
+  -- `fib n = if n == 0 then 0 else if n == 1 then 1 else fib (n-1) + fib (n-2)`
+  fib-call :: String -> Expr
+  fib-call k = EApp sp (EVar sp "fib") (EBin sp "-" (EVar sp "n") (ELitInt sp k))
+
+  fib-body :: Expr
+  fib-body =
+    EIf sp (EBin sp "==" (EVar sp "n") (ELitInt sp "0")) (ELitInt sp "0")
+      (EIf sp (EBin sp "==" (EVar sp "n") (ELitInt sp "1")) (ELitInt sp "1")
+        (EBin sp "+" (fib-call "1") (fib-call "2")))
+
+  fib-clause :: (List Pat, Expr)
+  fib-clause = (Cons (PVar sp "n") Nil, fib-body)
+
+  fib-decl :: Decl
+  fib-decl = DFun sp "fib" (Cons fib-clause Nil)
+
+  fib-sig :: Decl
+  fib-sig = DSig sp "fib" (TFun sp (TName sp "Int") (TName sp "Int"))
+
+  -- `main = if fib 10 == 55 then 0 else 1`
+  fib-main :: Expr
+  fib-main =
+    EIf sp (EBin sp "==" (EApp sp (EVar sp "fib") (ELitInt sp "10")) (ELitInt sp "55"))
+      (ELitInt sp "0") (ELitInt sp "1")
+
+  fib-main-clause :: (List Pat, Expr)
+  fib-main-clause = (Nil, fib-main)
+
+  fib-main-decl :: Decl
+  fib-main-decl = DFun sp "main" (Cons fib-main-clause Nil)
+
+  fib-main-sig :: Decl
+  fib-main-sig = DSig sp "main" (TName sp "Int")
+
+  fib-decls :: Decl
+  fib-decls = decl-spine sp (Cons fib-sig (Cons fib-decl (Cons fib-main-sig (Cons fib-main-decl Nil))))
+
+  fib-ast :: Program
+  fib-ast = MkProgram sp (Cons (MkModule sp "Main" fib-decls) Nil)
+
+  -- ------------------------------ fragment B: let-bound arithmetic
+
+  -- `main = let x = 6 in let y = 7 in x * y`
+  arith-bindings :: Expr
+  arith-bindings =
+    EBinding sp "x" (ELitInt sp "6") (EBinding sp "y" (ELitInt sp "7") (EBindingsEnd sp))
+
+  arith-main :: Expr
+  arith-main = ELet sp arith-bindings (EBin sp "*" (EVar sp "x") (EVar sp "y"))
+
+  arith-main-clause :: (List Pat, Expr)
+  arith-main-clause = (Nil, arith-main)
+
+  arith-main-decl :: Decl
+  arith-main-decl = DFun sp "main" (Cons arith-main-clause Nil)
+
+  arith-main-sig :: Decl
+  arith-main-sig = DSig sp "main" (TName sp "Int")
+
+  arith-decls :: Decl
+  arith-decls = decl-spine sp (Cons arith-main-sig (Cons arith-main-decl Nil))
+
+  arith-ast :: Program
+  arith-ast = MkProgram sp (Cons (MkModule sp "Main" arith-decls) Nil)
+
+  -- -------------------------- fragment C: a two-parameter function
+
+  -- `pick a b = if a < b then b else a`, `main = pick 7 3`
+  pick-body :: Expr
+  pick-body = EIf sp (EBin sp "<" (EVar sp "a") (EVar sp "b")) (EVar sp "b") (EVar sp "a")
+
+  pick-clause :: (List Pat, Expr)
+  pick-clause = (Cons (PVar sp "a") (Cons (PVar sp "b") Nil), pick-body)
+
+  pick-decl :: Decl
+  pick-decl = DFun sp "pick" (Cons pick-clause Nil)
+
+  pick-sig :: Decl
+  pick-sig = DSig sp "pick" (TFun sp (TName sp "Int") (TFun sp (TName sp "Int") (TName sp "Int")))
+
+  pick-main :: Expr
+  pick-main = EApp sp (EApp sp (EVar sp "pick") (ELitInt sp "7")) (ELitInt sp "3")
+
+  pick-main-clause :: (List Pat, Expr)
+  pick-main-clause = (Nil, pick-main)
+
+  pick-main-decl :: Decl
+  pick-main-decl = DFun sp "main" (Cons pick-main-clause Nil)
+
+  pick-main-sig :: Decl
+  pick-main-sig = DSig sp "main" (TName sp "Int")
+
+  pick-decls :: Decl
+  pick-decls = decl-spine sp (Cons pick-sig (Cons pick-decl (Cons pick-main-sig (Cons pick-main-decl Nil))))
+
+  pick-ast :: Program
+  pick-ast = MkProgram sp (Cons (MkModule sp "Main" pick-decls) Nil)
+
+  -- -------------------- a fragment outside the boundary, refused
+
+  -- `main`'s body is an unmodeled form: the emitter must name it rather
+  -- than drop it, and this fragment's refusals are written out so the
+  -- rung's test can read them back.
+  bad-main-clause :: (List Pat, Expr)
+  bad-main-clause = (Nil, EUnmodeled sp "a surface form outside the fragment")
+
+  bad-main-decl :: Decl
+  bad-main-decl = DFun sp "main" (Cons bad-main-clause Nil)
+
+  bad-decls :: Decl
+  bad-decls = decl-spine sp (Cons bad-main-decl Nil)
+
+  bad-ast :: Program
+  bad-ast = MkProgram sp (Cons (MkModule sp "Main" bad-decls) Nil)
+
+  bad-diags :: List Diagnostic
+  bad-diags = emit-diagnostics bad-ast
+
+  -- -------------------------------------------------------- the output
+
+  -- Where each fragment's IR text goes. The rung's test rewrites these
+  -- literals to absolute paths inside its project; run by hand the files
+  -- land in the current directory.
+  ir-out-fib :: String
+  ir-out-fib = "program.ll"
+
+  ir-out-arith :: String
+  ir-out-arith = "program-arith.ll"
+
+  ir-out-pick :: String
+  ir-out-pick = "program-pick.ll"
+
+  ir-out-diags :: String
+  ir-out-diags = "program-ir.diagnostics"
+
+  ir-out-refusals :: String
+  ir-out-refusals = "program-ir.refusals"
+
+  -- The emitter's refusals for the three fragments, one list each.
+  fib-diags :: List Diagnostic
+  fib-diags = emit-diagnostics fib-ast
+
+  arith-diags :: List Diagnostic
+  arith-diags = emit-diagnostics arith-ast
+
+  pick-diags :: List Diagnostic
+  pick-diags = emit-diagnostics pick-ast
+
+  -- One literal adder, so the driver's own failure bits cannot collide.
+  diag-code :: Int -> List Diagnostic -> Int
+  diag-code bit ds = case ds of
+    Nil -> 0
+    Cons d rest -> bit
+
+  -- Write `text` to `path`: 0 on success, `bit` on a named filesystem
+  -- error.
+  write-code :: forall r. using (io :: Io r) => Int -> String -> String ->{IO r} Int
+  write-code bit path text =
+    case fs-write (path-from-string path) (string-to-bytes text) of
+      Ok _ -> 0
+      Err e -> bit
+
+  all-diags :: String
+  all-diags = render-diagnostics (append-diags fib-diags (append-diags arith-diags pick-diags))
+
+  append-diags :: List Diagnostic -> List Diagnostic -> List Diagnostic
+  append-diags a b = case a of
+    Nil -> b
+    Cons x rest -> Cons x (append-diags rest b)
+
+  main :: Unit ->{IO r} Int
+  main u = with (io = newIO ()) in
+    let fa = emit-program fib-ast in
+    let fb = emit-program arith-ast in
+    let fc = emit-program pick-ast in
+    let c1 = write-code 1 ir-out-fib fa in
+    let c2 = write-code 2 ir-out-arith fb in
+    let c3 = write-code 4 ir-out-pick fc in
+    let c4 = write-code 8 ir-out-refusals (render-diagnostics bad-diags) in
+    let c5 = write-code 16 ir-out-diags all-diags in
+    let d1 = diag-code 32 fib-diags in
+    let d2 = diag-code 64 arith-diags in
+    let d3 = diag-code 128 pick-diags in
+    c1 + c2 + c3 + c4 + c5 + d1 + d2 + d3

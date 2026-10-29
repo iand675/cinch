@@ -1,0 +1,614 @@
+-- Bootstrap.Ir: LLVM IR text for the bootstrap fragment (rung 4).
+--
+-- The emitter consumes the tree `Bootstrap.Ast` declares and the
+-- signatures the fragment's corpus states, and writes one LLVM module as
+-- text: `i64` values throughout, `add`/`sub`/`mul`/`sdiv`/`srem` for
+-- arithmetic, `icmp` plus `zext` for comparisons, `br` with an
+-- `alloca`/`store` slot for `if` and `let`, a direct `call` per
+-- application (recursion is the same call), and a `main` returning `i32`
+-- built from the fragment's `main :: Int`.
+--
+-- Why the text and not an in-process backend: the ladder's rung 5 drives
+-- `clang` and the compiler itself emits IR text, so rung 4 produces the
+-- same artifact the compiler's own backend does. The text is built from
+-- escaped literals and `string-concat` (Cinch has no raw strings), which
+-- is why every instruction has a small constructor-shaped emitter below.
+--
+-- The shape of the generated code, stated once:
+--   * every local (a parameter or a `let` binding) lives in an `alloca`
+--     slot; a use is a `load i64, i64* %slot`, so no phi node is needed
+--     and the control flow of a nested `if` stays obvious;
+--   * an `if` allocates one result slot, branches to a then and an else
+--     block, each stores its value and branches to a join block that
+--     loads the slot;
+--   * booleans are `i64` 0/1, and every `br` condition is
+--     `icmp ne i64 <cond>, 0`, so a comparison and a `Bool`-valued
+--     expression are both branchable without a second value kind;
+--   * counters (values `%vN`, slots `%sN`, parameters `%pN`, labels `LN`)
+--     restart per function, since LLVM names are function-local.
+--
+-- Named refusals (`emit-diagnostics`): a construct outside the fragment
+-- is never silently dropped. An unmodeled node, a lambda or `case` body,
+-- an operator-named or multi-equation definition, a `using`/`forall`
+-- signature (dictionary passing), a class or instance, an effect or a
+-- foreign import, a parameter pattern beyond a variable or wildcard, an
+-- application whose head is not a fragment function, and a signature whose
+-- arity disagrees with its equation are all named with their span. The
+-- checker decides whether a program is legal; the emitter decides whether
+-- it can lower it, and says so.
+--
+-- See bootstrap/README.md for the ladder and design/stdlib-and-bootstrap.md
+-- for the milestone this artifact is.
+
+module Bootstrap.Ir where
+
+  import Bootstrap.Ast
+  import Bootstrap.Report
+  import Data.List
+  import Data.Nat
+  import Data.Option
+  import Data.String
+  import Text.Lex (Span)
+  import Text.Show (nat-to-string)
+
+  -- The rung's surface: the pipeline (wave 2) and the rung's own driver
+  -- reach the emitter through these two, exactly as the interface
+  -- decision states, so the generator's internals cannot collide with
+  -- another rung's names.
+  export emit-program, emit-diagnostics
+
+  -- ------------------------------------------------------------- the writer
+
+  -- The generator's state: the shared fresh-name counter, the local
+  -- environment (a name to the slot pointer that holds it, most recent
+  -- binding first), the program's top-level function names (the heads a
+  -- `call` may name), and the text emitted so far.
+  data Gen where
+    MkGen :: Nat -> List (String, String) -> List String -> String -> Gen
+
+  gen-code :: Gen -> String
+  gen-code g = case g of
+    MkGen n env fns code -> code
+
+  gen-env :: Gen -> List (String, String)
+  gen-env g = case g of
+    MkGen n env fns code -> env
+
+  gen-fns :: Gen -> List String
+  gen-fns g = case g of
+    MkGen n env fns code -> fns
+
+  -- Append text as it stands (a prologue carries its own newlines).
+  gen-text :: Gen -> String -> Gen
+  gen-text g s = case g of
+    MkGen n env fns code -> MkGen n env fns (string-concat code s)
+
+  -- Append one line.
+  gen-line :: Gen -> String -> Gen
+  gen-line g s = gen-text g (string-concat s "\n")
+
+  -- Join string fragments; the writer combinator every emitter uses.
+  cat :: List String -> String
+  cat xs = string-concat-all xs
+
+  -- A fresh name with `prefix` from the shared counter: `%v` for values,
+  -- `%s` for slots, `%p` for parameters, `L` for labels.
+  fresh-named :: Gen -> String -> (Gen, String)
+  fresh-named g prefix = case g of
+    MkGen n env fns code -> (MkGen (n + 1) env fns code, cat [prefix, nat-to-string n])
+
+  fresh-val :: Gen -> (Gen, String)
+  fresh-val g = fresh-named g "%v"
+
+  fresh-slot :: Gen -> (Gen, String)
+  fresh-slot g = fresh-named g "%s"
+
+  fresh-label :: Gen -> (Gen, String)
+  fresh-label g = fresh-named g "L"
+
+  -- Start a function: fresh counters and an empty local environment.
+  reset-gen :: Gen -> Gen
+  reset-gen g = case g of
+    MkGen n env fns code -> MkGen 0 Nil fns code
+
+  -- The environment extended with one binding (the most recent first).
+  env-bind :: String -> String -> Gen -> Gen
+  env-bind name slot g = case g of
+    MkGen n env fns code -> MkGen n (Cons (name, slot) env) fns code
+
+  -- Replace the environment (a function's parameter bindings).
+  with-env :: List (String, String) -> Gen -> Gen
+  with-env bindings g = case g of
+    MkGen n env fns code -> MkGen n bindings fns code
+
+  env-lookup :: String -> List (String, String) -> Option String
+  env-lookup name env = case env of
+    Nil -> None
+    Cons b rest -> case b of
+      (n, slot) -> if string-compare n name == 0 then Some slot else env-lookup name rest
+
+  name-in :: String -> List String -> Bool
+  name-in name xs = case xs of
+    Nil -> False
+    Cons y rest -> if string-compare y name == 0 then True else name-in name rest
+
+  -- A top-level function's symbol: the `cinch_` prefix keeps the
+  -- fragment's names clear of the C runtime's own symbols. The fragment's
+  -- names are identifiers (an operator-named definition is refused).
+  llvm-name :: String -> String
+  llvm-name n = cat ["cinch_", n]
+
+  -- ---------------------------------------------------------- expressions
+
+  -- Generate `e`, appending its instructions to the current block and
+  -- returning the operand that denotes its value (`%vN` or a literal).
+  gen-expr :: Gen -> Expr -> (Gen, String)
+  gen-expr g e = case e of
+    EVar s name -> gen-use g name
+    ELitInt s text -> (g, text)
+    ECon s name args -> gen-con g name args
+    EApp s f a -> gen-app g e
+    EBin s op l r -> gen-bin-expr g op l r
+    ENeg s x -> gen-neg g x
+    EIf s c t f -> gen-if g c t f
+    ELet s bs body -> gen-let g bs body
+    EAnn s x t -> gen-expr g x
+    EUnit s -> (g, "0")
+    other -> (gen-text g "  ; unsupported expression\n", "0")
+
+  -- A local's value sits in its slot; a use is a load.
+  gen-use :: Gen -> String -> (Gen, String)
+  gen-use g name = case env-lookup name (gen-env g) of
+    Some slot ->
+      let (g1, v) = fresh-val g in
+      (gen-line g1 (cat ["  ", v, " = load i64, i64* ", slot]), v)
+    None -> (gen-text g (cat ["  ; unsupported name `", name, "` in value position\n"]), "0")
+
+  -- `True` and `False` are the fragment's only lowered constructors; they
+  -- are `i64` 1 and 0.
+  gen-con :: Gen -> String -> Expr -> (Gen, String)
+  gen-con g name args =
+    if string-compare name "True" == 0 then (g, "1")
+    else if string-compare name "False" == 0 then (g, "0")
+    else (gen-text g (cat ["  ; unsupported constructor `", name, "`\n"]), "0")
+
+  gen-app :: Gen -> Expr -> (Gen, String)
+  gen-app g e = case app-head e of
+    EVar s name -> case name-in name (gen-fns g) of
+      True -> gen-call g name (app-args e)
+      False -> (gen-text g (cat ["  ; unsupported call to `", name, "`\n"]), "0")
+    other -> (gen-text g "  ; unsupported application head\n", "0")
+
+  gen-call :: Gen -> String -> List Expr -> (Gen, String)
+  gen-call g name args =
+    let (g1, argstr) = gen-args g args in
+    let (g2, r) = fresh-val g1 in
+    (gen-line g2 (cat ["  ", r, " = call i64 @", llvm-name name, "(", argstr, ")"]), r)
+
+  -- Every argument is spelled `i64 <operand>`: LLVM's call syntax wants the
+  -- type on each argument, literal or register.
+  gen-args :: Gen -> List Expr -> (Gen, String)
+  gen-args g args = case args of
+    Nil -> (g, "")
+    Cons a Nil -> case gen-expr g a of
+      (g1, av) -> (g1, cat ["i64 ", av])
+    Cons a rest -> case gen-expr g a of
+      (g1, av) -> case gen-args g1 rest of
+        (g2, reststr) -> (g2, cat ["i64 ", av, ", ", reststr])
+
+  -- The head of an application chain (`fib` in `fib x y`).
+  app-head :: Expr -> Expr
+  app-head e = case e of
+    EApp s f a -> app-head f
+    other -> other
+
+  -- An application chain's arguments, leftmost first.
+  app-args :: Expr -> List Expr
+  app-args e = app-args-into e Nil
+
+  app-args-into :: Expr -> List Expr -> List Expr
+  app-args-into e acc = case e of
+    EApp s f a -> app-args-into f (Cons a acc)
+    other -> acc
+
+  gen-bin-expr :: Gen -> String -> Expr -> Expr -> (Gen, String)
+  gen-bin-expr g op l r =
+    let (g1, lv) = gen-expr g l in
+    let (g2, rv) = gen-expr g1 r in
+    gen-bin g2 op lv rv
+
+  gen-bin :: Gen -> String -> String -> String -> (Gen, String)
+  gen-bin g op a b =
+    if string-compare op "+" == 0 then gen-arith g "add" a b
+    else if string-compare op "-" == 0 then gen-arith g "sub" a b
+    else if string-compare op "*" == 0 then gen-arith g "mul" a b
+    else if string-compare op "/" == 0 then gen-arith g "sdiv" a b
+    else if string-compare op "%" == 0 then gen-arith g "srem" a b
+    else if string-compare op "==" == 0 then gen-cmp g "eq" a b
+    else if string-compare op "/=" == 0 then gen-cmp g "ne" a b
+    else if string-compare op "<" == 0 then gen-cmp g "slt" a b
+    else if string-compare op "<=" == 0 then gen-cmp g "sle" a b
+    else if string-compare op ">" == 0 then gen-cmp g "sgt" a b
+    else if string-compare op ">=" == 0 then gen-cmp g "sge" a b
+    else (gen-text g (cat ["  ; unsupported operator `", op, "`\n"]), "0")
+
+  gen-arith :: Gen -> String -> String -> String -> (Gen, String)
+  gen-arith g op a b =
+    let (g1, v) = fresh-val g in
+    (gen-line g1 (cat ["  ", v, " = ", op, " i64 ", a, ", ", b]), v)
+
+  gen-cmp :: Gen -> String -> String -> String -> (Gen, String)
+  gen-cmp g cond a b =
+    let (g1, c) = fresh-val g in
+    let (g2, r) = fresh-val g1 in
+    let g3 = gen-line g2 (cat ["  ", c, " = icmp ", cond, " i64 ", a, ", ", b]) in
+    (gen-line g3 (cat ["  ", r, " = zext i1 ", c, " to i64"]), r)
+
+  gen-neg :: Gen -> Expr -> (Gen, String)
+  gen-neg g x =
+    let (g1, xv) = gen-expr g x in
+    gen-arith g1 "sub" "0" xv
+
+  -- `if`: one result slot, a then and an else block, a join block that
+  -- loads the slot. The condition is `icmp ne <cond>, 0` so a comparison
+  -- result and a `Bool`-valued expression branch the same way.
+  gen-if :: Gen -> Expr -> Expr -> Expr -> (Gen, String)
+  gen-if g c t e =
+    let (g1, cv) = gen-expr g c in
+    let (g2, slot) = fresh-slot g1 in
+    let (g3, lt) = fresh-label g2 in
+    let (g4, le) = fresh-label g3 in
+    let (g5, lj) = fresh-label g4 in
+    let (g6, cc) = fresh-val g5 in
+    let (g7, r) = fresh-val g6 in
+    let g8 = gen-line g7 (cat ["  ", slot, " = alloca i64"]) in
+    let g9 = gen-line g8 (cat ["  ", cc, " = icmp ne i64 ", cv, ", 0"]) in
+    let g10 = gen-line g9 (cat ["  br i1 ", cc, ", label %", lt, ", label %", le]) in
+    let g11 = gen-line g10 (cat [lt, ":"]) in
+    let (g12, tv) = gen-expr g11 t in
+    let g13 = gen-line g12 (cat ["  store i64 ", tv, ", i64* ", slot]) in
+    let g14 = gen-line g13 (cat ["  br label %", lj]) in
+    let g15 = gen-line g14 (cat [le, ":"]) in
+    let (g16, ev) = gen-expr g15 e in
+    let g17 = gen-line g16 (cat ["  store i64 ", ev, ", i64* ", slot]) in
+    let g18 = gen-line g17 (cat ["  br label %", lj]) in
+    let g19 = gen-line g18 (cat [lj, ":"]) in
+    (gen-line g19 (cat ["  ", r, " = load i64, i64* ", slot]), r)
+
+  -- `let`: each binding gets a slot; the right side is stored once and
+  -- every use in the body loads it (shadowing is the environment order).
+  gen-let :: Gen -> Expr -> Expr -> (Gen, String)
+  gen-let g bindings body =
+    let g1 = gen-bindings g (bindings-of bindings) in
+    gen-expr g1 body
+
+  gen-bindings :: Gen -> List (String, Expr) -> Gen
+  gen-bindings g bs = case bs of
+    Nil -> g
+    Cons b rest -> case b of
+      (name, rhs) ->
+        let (g1, rv) = gen-expr g rhs in
+        let (g2, slot) = fresh-slot g1 in
+        let g3 = gen-line g2 (cat ["  ", slot, " = alloca i64"]) in
+        let g4 = gen-line g3 (cat ["  store i64 ", rv, ", i64* ", slot]) in
+        gen-bindings (env-bind name slot g4) rest
+
+  -- ----------------------------------------------------------- definitions
+
+  -- One parameter: its declared type, the slot prologue that stores it,
+  -- and the name it binds (a wildcard parameter binds nothing).
+  gen-param :: Gen -> Pat -> (Gen, String, String, Option (String, String))
+  gen-param g p = case p of
+    PVar s name ->
+      let (g1, pn) = fresh-named g "%p" in
+      let (g2, slot) = fresh-slot g1 in
+      (g2, cat ["i64 ", pn], cat ["  ", slot, " = alloca i64\n  store i64 ", pn, ", i64* ", slot, "\n"], Some (name, slot))
+    PWild s ->
+      let (g1, pn) = fresh-named g "%p" in
+      (g1, cat ["i64 ", pn], "", None)
+    other -> (g, "i64 0", "", None)
+
+  gen-params :: Gen -> List Pat -> (Gen, String, String, List (String, String))
+  gen-params g pats = gen-params-into g pats Nil
+
+  gen-params-into :: Gen -> List Pat -> List (String, String) -> (Gen, String, String, List (String, String))
+  gen-params-into g pats env = case pats of
+    Nil -> (g, "", "", env)
+    Cons p rest -> case gen-param g p of
+      (g1, header, prologue, opt) -> case gen-params-into g1 rest (env-add opt env) of
+        (g2, header2, prologue2, env2) -> (g2, join-params header header2, cat [prologue, prologue2], env2)
+
+  env-add :: Option (String, String) -> List (String, String) -> List (String, String)
+  env-add opt env = case opt of
+    None -> env
+    Some pair -> Cons pair env
+
+  join-params :: String -> String -> String
+  join-params a b =
+    if string-length a == 0 then b
+    else if string-length b == 0 then a
+    else cat [a, ", ", b]
+
+  gen-define-clause :: Gen -> String -> List Pat -> Expr -> Gen
+  gen-define-clause g name pats body =
+    let (g1, header, prologue, env) = gen-params g pats in
+    let g2 = with-env env g1 in
+    let g3 = gen-line g2 (cat ["define i64 @", llvm-name name, "(", header, ") {"]) in
+    let g4 = gen-line g3 "entry:" in
+    let g5 = gen-text g4 prologue in
+    let (g6, rv) = gen-expr g5 body in
+    let g7 = gen-line g6 (cat ["  ret i64 ", rv]) in
+    gen-line g7 "}"
+
+  -- The fragment's `main :: Int`: the same body, truncated to the `i32`
+  -- the C entry expects.
+  gen-main-clause :: Gen -> List Pat -> Expr -> Gen
+  gen-main-clause g pats body = case pats of
+    Nil ->
+      let g1 = gen-line g "define i32 @main() {" in
+      let g2 = gen-line g1 "entry:" in
+      let (g3, rv) = gen-expr g2 body in
+      let (g4, tv) = fresh-val g3 in
+      let g5 = gen-line g4 (cat ["  ", tv, " = trunc i64 ", rv, " to i32"]) in
+      let g6 = gen-line g5 (cat ["  ret i32 ", tv]) in
+      gen-line g6 "}"
+    other -> g
+
+  gen-fun-clause :: Gen -> String -> List Pat -> Expr -> Gen
+  gen-fun-clause g name pats body =
+    if string-compare name "main" == 0 then gen-main-clause g pats body
+    else gen-define-clause g name pats body
+
+  gen-decl :: Gen -> Decl -> Gen
+  gen-decl g d = case d of
+    DFun s name clauses -> case clauses of
+      Nil -> g
+      Cons c rest -> case c of
+        (pats, body) -> gen-fun-clause (reset-gen g) name pats body
+    other -> g
+
+  gen-decls :: Gen -> List Decl -> Gen
+  gen-decls g ds = case ds of
+    Nil -> g
+    Cons d rest -> gen-decls (gen-decl g d) rest
+
+  gen-module :: Gen -> Module -> Gen
+  gen-module g m = gen-decls g (module-decls m)
+
+  gen-modules :: Gen -> List Module -> Gen
+  gen-modules g ms = case ms of
+    Nil -> g
+    Cons m rest -> gen-modules (gen-module g m) rest
+
+  -- --------------------------------------------------------------- program
+
+  -- The callable top-level names: every `DFun` except `main`, which is
+  -- emitted as the `i32` entry rather than as a `cinch_` function.
+  program-function-names :: Program -> List String
+  program-function-names p = case p of
+    MkProgram s ms -> module-fn-names ms
+
+  module-fn-names :: List Module -> List String
+  module-fn-names ms = case ms of
+    Nil -> Nil
+    Cons m rest -> decls-fn-names (module-decls m) (module-fn-names rest)
+
+  decls-fn-names :: List Decl -> List String -> List String
+  decls-fn-names ds acc = case ds of
+    Nil -> acc
+    Cons d rest -> case d of
+      DFun s name clauses -> if string-compare name "main" == 0 then decls-fn-names rest acc else decls-fn-names rest (Cons name acc)
+      other -> decls-fn-names rest acc
+
+  ir-header :: String
+  ir-header =
+    cat ["; LLVM IR for a Cinch fragment, emitted by Bootstrap.Ir (rung 4)\n",
+      "; every value is i64; the fragment's main :: Int returns i32.\n",
+      "\n"]
+
+  -- The rung's entry point: the whole program as one LLVM module.
+  emit-program :: Program -> String
+  emit-program p =
+    gen-code (gen-modules (MkGen 0 Nil (program-function-names p) ir-header) (program-modules p))
+
+  -- ------------------------------------------------------------ diagnostics
+
+  -- A rung diagnostic: the rung name, the node's span and the message, so
+  -- it renders exactly like the compiler's own.
+  diag :: Span -> String -> Diagnostic
+  diag s msg = MkDiagnostic "bootstrap.ir" s msg
+
+  append-diags :: List Diagnostic -> List Diagnostic -> List Diagnostic
+  append-diags a b = case a of
+    Nil -> b
+    Cons x rest -> Cons x (append-diags rest b)
+
+  -- What the emitter cannot lower, named with its span. Empty means the
+  -- program is in the fragment and `emit-program` produces its IR.
+  emit-diagnostics :: Program -> List Diagnostic
+  emit-diagnostics p = case p of
+    MkProgram s ms -> module-refusals (program-function-names p) ms
+
+  module-refusals :: List String -> List Module -> List Diagnostic
+  module-refusals fns ms = case ms of
+    Nil -> Nil
+    Cons m rest -> append-diags (decls-refusals fns (module-decls m)) (module-refusals fns rest)
+
+  decls-refusals :: List String -> List Decl -> List Diagnostic
+  decls-refusals fns ds = case ds of
+    Nil -> Nil
+    Cons d rest -> append-diags (decl-refusal fns ds d) (decls-refusals fns rest)
+
+  decl-refusal :: List String -> List Decl -> Decl -> List Diagnostic
+  decl-refusal fns ds d = case d of
+    DSig s name t -> sig-refusal s name t
+    DFun s name clauses -> fun-refusal fns ds s name clauses
+    DClass s name params members -> Cons (diag s (cat ["class `", name, "` is not in the fragment"])) Nil
+    DInstance s i name t members -> Cons (diag s "an instance declaration is not in the fragment") Nil
+    DEffect s name ops -> Cons (diag s (cat ["effect `", name, "` is not in the fragment"])) Nil
+    DForeign s conv fname t -> Cons (diag s (cat ["foreign import `", fname, "` is not in the fragment"])) Nil
+    DUnmodeled s text -> Cons (diag s "an unmodeled declaration is not in the fragment") Nil
+    other -> Nil
+
+  sig-refusal :: Span -> String -> TypeExpr -> List Diagnostic
+  sig-refusal s name t = case sig-unsupported t of
+    None -> Nil
+    Some why -> Cons (diag s (cat ["signature for `", name, "` carries ", why])) Nil
+
+  -- A signature's arrow spine is the lowered shape; `using` (dictionary
+  -- passing) and `forall` (type abstraction) are outside the fragment.
+  sig-unsupported :: TypeExpr -> Option String
+  sig-unsupported t = case t of
+    TUsing s a b -> Some "a using constraint the fragment does not lower"
+    TForall s vs body -> Some "a forall the fragment does not lower"
+    TFun s a b -> sig-unsupported b
+    TFunEff s a row b -> sig-unsupported b
+    other -> None
+
+  sig-arity :: TypeExpr -> Nat
+  sig-arity t = case t of
+    TFun s a b -> 1 + sig-arity b
+    TFunEff s a row b -> 1 + sig-arity b
+    other -> 0
+
+  find-sig :: List Decl -> String -> Option TypeExpr
+  find-sig ds name = case ds of
+    Nil -> None
+    Cons d rest -> case d of
+      DSig s n t -> if string-compare n name == 0 then Some t else find-sig rest name
+      other -> find-sig rest name
+
+  fun-refusal :: List String -> List Decl -> Span -> String -> List (List Pat, Expr) -> List Diagnostic
+  fun-refusal fns ds s name clauses =
+    append-diags (name-refusal s name) (clause-refusals fns ds s name clauses)
+
+  name-refusal :: Span -> String -> List Diagnostic
+  name-refusal s name =
+    if is-operator-name name then Cons (diag s (cat ["operator definition `", name, "` has no lowered symbol"])) Nil
+    else Nil
+
+  clause-refusals :: List String -> List Decl -> Span -> String -> List (List Pat, Expr) -> List Diagnostic
+  clause-refusals fns ds s name clauses = case clauses of
+    Nil -> Cons (diag s (cat ["function `", name, "` has no equations"])) Nil
+    Cons c rest -> case rest of
+      Nil -> one-clause-refusals fns ds s name c
+      Cons d more -> Cons (diag s (cat ["function `", name, "` has several equations; only one is lowered"])) Nil
+
+  one-clause-refusals :: List String -> List Decl -> Span -> String -> (List Pat, Expr) -> List Diagnostic
+  one-clause-refusals fns ds s name c = case c of
+    (pats, body) ->
+      append-diags (arity-refusal ds s name (list-length pats))
+        (append-diags (pats-refusals pats)
+          (append-diags (main-param-refusal s name pats) (expr-refusals fns body)))
+
+  arity-refusal :: List Decl -> Span -> String -> Nat -> List Diagnostic
+  arity-refusal ds s name n = case find-sig ds name of
+    None -> Nil
+    Some t ->
+      if sig-arity t == n then Nil
+      else Cons (diag s (cat ["signature for `", name, "` has arity ", nat-to-string (sig-arity t), " but the equation binds ", nat-to-string n])) Nil
+
+  main-param-refusal :: Span -> String -> List Pat -> List Diagnostic
+  main-param-refusal s name pats = case pats of
+    Nil -> Nil
+    Cons p rest -> if string-compare name "main" == 0 then Cons (diag s "main must take no parameters in this rung") Nil else Nil
+
+  pats-refusals :: List Pat -> List Diagnostic
+  pats-refusals ps = case ps of
+    Nil -> Nil
+    Cons p rest -> append-diags (pat-refusal p) (pats-refusals rest)
+
+  pat-refusal :: Pat -> List Diagnostic
+  pat-refusal p = case p of
+    PVar s name -> Nil
+    PWild s -> Nil
+    other -> Cons (diag (pat-span other) "a parameter pattern beyond a variable or wildcard is not lowered") Nil
+
+  expr-refusals :: List String -> Expr -> List Diagnostic
+  expr-refusals fns e = case e of
+    EVar s name -> Nil
+    ELitInt s text -> Nil
+    ECon s name args -> con-refusal s name
+    EApp s f a -> app-refusal fns e
+    EBin s op l r -> append-diags (op-refusal s op) (append-diags (expr-refusals fns l) (expr-refusals fns r))
+    ENeg s x -> expr-refusals fns x
+    EIf s c t f -> append-diags (expr-refusals fns c) (append-diags (expr-refusals fns t) (expr-refusals fns f))
+    ELet s bs body -> append-diags (bindings-refusals fns (bindings-of bs)) (expr-refusals fns body)
+    EAnn s x t -> expr-refusals fns x
+    EUnit s -> Nil
+    other -> Cons (diag (expr-span other) (cat ["the emitter cannot lower this ", expr-node-name other])) Nil
+
+  app-refusal :: List String -> Expr -> List Diagnostic
+  app-refusal fns e = case app-head e of
+    EVar s name -> if name-in name fns then args-refusals fns (app-args e) else Cons (diag s (cat ["`", name, "` is applied but is not a fragment function"])) Nil
+    other -> Cons (diag (expr-span other) "an application whose head is not a function name is not lowered") Nil
+
+  args-refusals :: List String -> List Expr -> List Diagnostic
+  args-refusals fns args = case args of
+    Nil -> Nil
+    Cons a rest -> append-diags (expr-refusals fns a) (args-refusals fns rest)
+
+  con-refusal :: Span -> String -> List Diagnostic
+  con-refusal s name =
+    if string-compare name "True" == 0 then Nil
+    else if string-compare name "False" == 0 then Nil
+    else Cons (diag s (cat ["constructor `", name, "` is not lowered"])) Nil
+
+  op-refusal :: Span -> String -> List Diagnostic
+  op-refusal s op =
+    if op-supported op then Nil else Cons (diag s (cat ["operator `", op, "` is not lowered"])) Nil
+
+  op-supported :: String -> Bool
+  op-supported op =
+    if string-compare op "+" == 0 then True
+    else if string-compare op "-" == 0 then True
+    else if string-compare op "*" == 0 then True
+    else if string-compare op "/" == 0 then True
+    else if string-compare op "%" == 0 then True
+    else if string-compare op "==" == 0 then True
+    else if string-compare op "/=" == 0 then True
+    else if string-compare op "<" == 0 then True
+    else if string-compare op "<=" == 0 then True
+    else if string-compare op ">" == 0 then True
+    else if string-compare op ">=" == 0 then True
+    else False
+
+  bindings-refusals :: List String -> List (String, Expr) -> List Diagnostic
+  bindings-refusals fns bs = case bs of
+    Nil -> Nil
+    Cons b rest -> case b of
+      (name, rhs) -> append-diags (expr-refusals fns rhs) (bindings-refusals fns rest)
+
+  -- The surface name of a node, so a refusal says which construct it is.
+  expr-node-name :: Expr -> String
+  expr-node-name e = case e of
+    EVar s n -> "variable"
+    ECon s n args -> "constructor application"
+    ELitInt s text -> "integer literal"
+    ELitFloat s text -> "float literal"
+    ELitStr s text -> "string literal"
+    ELitChar s text -> "character literal"
+    EUnit s -> "unit"
+    ETuple s xs -> "tuple"
+    EList s xs -> "list literal"
+    EApp s f a -> "application"
+    EBin s op l r -> "operator application"
+    ENeg s x -> "negation"
+    ELam s ps body -> "lambda"
+    ELet s bs body -> "let"
+    EIf s c t f -> "if"
+    ECase s scrut alts -> "case"
+    EAnn s x t -> "ascription"
+    EForall s vs body -> "forall expression"
+    EUsing s bounds body -> "using expression"
+    EBind s n rhs -> "binding"
+    EDo s stmts -> "do block"
+    EHandle s body h -> "handle"
+    EWith s bs body -> "with"
+    EArg s x rest -> "argument spine"
+    EArgsEnd s -> "argument spine end"
+    EBinding s name rhs rest -> "binding spine"
+    EBindingsEnd s -> "binding spine end"
+    EAlt s p body rest -> "alternative spine"
+    EAltsEnd s -> "alternative spine end"
+    EUnmodeled s text -> "unmodeled expression"
