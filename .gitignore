@@ -19,6 +19,8 @@ dist/
 # Generated compiler artifacts (rebuilt by `cinch build`/`run`)
 examples/compiler/build/
 examples/source/build/
+bootstrap/build/
+bootstrap/programs/build/
 
 # Slice scratch dirs (probe scripts and fixtures)
 .wasm-probe/
