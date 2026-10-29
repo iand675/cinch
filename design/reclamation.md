@@ -789,8 +789,8 @@ Decided by the user, 2026-10-29:
   always correct without it, so a gap in the analysis costs speed, never
   safety.
 
-- **Representation: option C (user direction, "heavily leaning towards
-  C"), with demand-driven specialization**: polymorphic code is specialized
+- **Representation: option C (confirmed by the user, 2026-10-29), with
+  demand-driven specialization**: polymorphic code is specialized
   per class vector (`Raw`/`Obj`/`TObj`) only where a caller reaches it, with
   polymorphic bodies carried as IR in interfaces. This supersedes section
   2.8's recommendation of A. The layout model built on it (value types,
@@ -803,14 +803,9 @@ Decided by the user, 2026-10-29:
   (class specialization behind the A ABI) is absorbed into S4. S1-S3 and S9
   are unchanged.
 
-Still open (question 1 is answered by C, pending formal confirmation):
+Still open (the numbering of the original list; 1, 2 and 6 are decided
+above):
 
-
-1. **Representation.** A (recommended), B, or C, and correspondingly
-   whether to amend `primitive-types-specification.md:22`.
-2. **Destructor order.** Should future effectful destructors follow
-   declaration order (`ownership-and-usage.md:72-73`) or reverse order
-   (lazy spec `:42`, `:70`)?
 3. **Escaping cyclic `letrec` values.** Accept a bounded, reported leak
    (proposed), recompute through a unit (this changes the cost model:
    lost sharing, possibly exponential), or reject escaping recursive
@@ -820,8 +815,6 @@ Still open (question 1 is answered by C, pending formal confirmation):
    (exit 70)?
 5. **Cross-task sharing.** Mark-on-spawn (proposed), always-atomic counts,
    or copy?
-6. **Guaranteed in-place update.** Pursue a uniqueness discipline, or rely
-   on the runtime `IsUnique` check plus local freshness proofs only?
 7. **`mutBorrow`.** An owned copy at borrow time (proposed), or real place
    borrows first?
 8. **Header budget.** One word: 32-bit count, 16-bit layout id. Is a

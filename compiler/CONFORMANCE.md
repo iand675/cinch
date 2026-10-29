@@ -2149,8 +2149,7 @@ so the embedding sweep stays its own decision.
   only optimizes a check that is always correct without it. FP2
   (fully-in-place functions over Perceus) is the reference.
 - **D392 (word representation: option C, demand-driven specialization over
-  three representation classes; user direction, pending formal
-  confirmation)**: polymorphic code is compiled per class vector
+  three representation classes; confirmed by the user, 2026-10-29)**: polymorphic code is compiled per class vector
   (`Raw`/`Obj`/`TObj`) only where reached, never per source type; the set is
   finite under polymorphic recursion; polymorphic bodies ship as IR and
   specialized copies cache in the store. Chosen over A (tagging, which
@@ -2159,15 +2158,25 @@ so the embedding sweep stays its own decision.
   polymorphic export's arity). `design/layouts-and-specialization.md`
   sections 2 and 10.2.
 - **D393 (layouts and specialization; direction)**: every type has a layout
-  (size, alignment, offsets, pointer map); the default is one word; `repr`
+  (size, alignment, offsets, pointer map); a type without `repr` gets a
+  compiler-chosen layout recorded in its interface (user decision: fields
+  may be reordered and small fixed-layout fields unpacked; explicit `repr`
+  pins a layout), starting from one word per field; `repr`
   attributes choose a type's block layout and now yield its pointer map;
-  value types and field unpacking go beyond one word; layout polymorphism is
-  ENUMERATED (a definition lists its layouts, finite by construction) rather
-  than an open `forall (l :: Layout)`; hand-written specialized bodies are
-  instantiation-keyed rewrites (D55); representation instances give a
-  generic type an ad hoc representation at one instantiation, transparently
-  (views plus a proven isomorphism), with `vector<bool>`'s and Rust
-  specialization's lessons as rules. `design/layouts-and-specialization.md`.
+  value types and field unpacking go beyond one word; multi-word layouts
+  are specialized on demand and the compiler boxes at EXPANDING edges of the
+  instantiation graph (user decision; a cycle containing an edge that wraps
+  a type parameter inside an inline type, detected in linear time; boxing
+  there makes every cycle pass through a pointer, so specialization
+  terminates; a warning names the cycle, an error in `#[no-alloc]` code);
+  hand-written specialized bodies are instantiation-keyed rewrites (D55);
+  representation instances give a generic type an ad hoc representation,
+  transparently (views plus a proven isomorphism), with instance coherence
+  (user decision: `implicit represent` is the coherent default, named
+  representations coexist and are chosen in context by a type index such
+  as `List Bool via dense`, a scoped `with` default, or a signature;
+  crossing representations is an explicit conversion, never a hidden copy),
+  and `vector<bool>`'s and Rust specialization's lessons as rules. `design/layouts-and-specialization.md`.
 - **D394 (one justification rule for every alternative implementation;
   direction)**: a `prim` target body, a `rewrite`, a representation
   instance and a specialized body are all alternatives chosen by a static

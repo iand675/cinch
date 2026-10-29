@@ -73,9 +73,18 @@ for all particular type layouts" as its partial-specialization direction
 A **layout** is a size, an alignment, field offsets, and which words are
 counted pointers (the pointer map reclamation needs).
 
-- **Default layout**: one word, with the three classes of section 2 inside
-  it. Without an attribute, a type is one word: a scalar, or a pointer to a
-  block whose fields are one word each.
+- **Default layout: compiler-chosen (user decision, 2026-10-29).** A type
+  without a `repr` attribute gets the layout the compiler picks: it may
+  reorder fields, and it may unpack small fixed-layout fields inline, as
+  GHC's `-funbox-small-strict-fields` does. The baseline it starts from is
+  one word per field, with the three classes of section 2 inside each word.
+  The chosen layout is recorded in the interface, so consumers compile
+  against it without seeing the definition. The algorithm is deterministic
+  and versioned with `runtime_abi`, so two packages built by the same
+  compiler agree on it. A layout change is an interface change, and the
+  store recompiles the dependents. A type whose layout must not move (FFI,
+  on-disk formats, hot-replacement boundaries) says so with `repr(C)` or
+  another explicit `repr`; the compiler never changes an explicit layout.
 - **`repr` attributes** (`repr(C)`, `transparent`, `align(N)`, `packed(N)`,
   `u8..u64` discriminants) choose a type's own block layout exactly as the
   attribute specification says. New: the pointer map comes out of the same
@@ -93,25 +102,58 @@ counted pointers (the pointer map reclamation needs).
   one-word layout, the same distinction OxCaml's "separability" axis draws
   inside its `value` layout ([OxCaml unboxed types](https://oxcaml.org/documentation/unboxed-types/intro/)).
 
-## 4 Beyond one word: enumerated layouts
+## 4 Beyond one word: demand-driven layouts, boxed at expanding edges
 
-A multi-word value cannot sit in a default one-word slot. Rather than an
-open `forall (l :: Layout)` (whose specialization would not terminate under
-layout-changing polymorphic recursion such as `data Nest a = Leaf a | Node
-(Nest (a, a))`), a definition **lists** the layouts it supports:
+Decided by the user (2026-10-29): multi-word layouts are specialized on
+demand like the classes of section 2, and the compiler boxes at expanding
+edges. No layout kinds or enumerations are needed: the final, whole-program
+specialization always knows each instantiation's concrete layout.
 
-```
-#[layouts(l = (word, float64, bits64 & bits64))]
-map :: forall (a :: TYPE l) b. (a -> b) -> List a -> List b
-```
+**The termination problem.** Specializing on full layouts (Rust-style)
+diverges on layout-growing polymorphic recursion: `data Nest a = Leaf a |
+Node (Nest (a, a))` with an unboxed pair has layouts `a, (a,a),
+((a,a),(a,a)), ...` that never repeat.
 
-- One copy is generated per listed layout: finite by enumeration, so the
-  termination question disappears.
-- Instantiating at a layout outside the list is a type error naming the list.
-- The type checker selects the copy from the inferred layout; callers never
-  name it. (OxCaml's [`ppx_template`](https://oxcaml.org/documentation/templates/reference)
-  does the same generation as a preprocessor, which is why its callers must
-  select a copy by name.)
+**It is detectable, in linear time.** Build the instantiation graph. Its
+nodes are pairs (generic definition D, type parameter `a`). For every use of
+a generic E inside D at arguments τ1..τm, and every parameter `b_j` of E, add
+an edge from (D,`a`) to (E,`b_j`): a **0-edge** if τj is exactly `a`, a
+**1-edge** if `a` occurs strictly inside τj. A cycle containing a 1-edge is
+an **expanding cycle**.
+
+Claim: specialization from `main` reaches finitely many instances iff no
+reachable cycle contains a 1-edge.
+
+- If: every 1-edge then lies between strongly connected components, so any
+  instantiation path crosses at most N of them (N components). A 0-edge
+  preserves a type argument's depth, and a 1-edge adds at most c (the
+  deepest type expression in the program). Roots are written in the
+  program, so every reached argument has depth at most d0 + N*c. Finitely
+  many types of bounded depth exist over the program's finite set of type
+  constructors, so the set of instances is finite.
+- Only if: one trip around an expanding cycle maps `a` to a type strictly
+  containing `a`; k trips give depth at least k, so the instances are
+  infinite, and a static specializer follows every edge.
+
+The check is Tarjan's strongly connected components plus one test per
+1-edge. It has the same shape as Kennedy and Pierce's "expansive" criterion
+for generic inheritance (2007). Rust specializes per type and finds the
+problem dynamically, by its recursion limit.
+
+**Only inline wrappers grow layouts.** A 1-edge whose wrapping type is a
+pointer (any boxed constructor) leaves the layout at one `Obj` word, which
+is why section 2's classes need no check at all. The layout check therefore
+considers only 1-edges whose wrapper is laid out inline (a value type, or an
+unpacked field).
+
+**The rule.** At each expanding edge whose wrapper is inline, the compiler
+boxes the wrapper at that edge: the value is stored behind a pointer there,
+one allocation per level, which is what GHC does for nested datatypes. The
+cycle then passes through a pointer and its layouts stop growing. The
+compiler warns, naming the cycle; an attribute turns the warning into an
+error for code that must never allocate a box (`#[no-alloc]` code gets the
+error by default). Acyclic chains can still multiply instances, as C++
+templates can; they are finite, and only reached instances are built.
 
 ## 5 Hand-written specialized bodies
 
@@ -144,8 +186,10 @@ represent List Bool as BitList where
   specialize index  = bit-list-index
 ```
 
-- `List Bool` is still the type `List Bool`; there is no wrapper type and no
-  class constraint (the difference from data families).
+- Under the implicit representation, `List Bool` is still the type
+  `List Bool`; there is no wrapper type and no class constraint (the
+  difference from data families). A named representation indexes the type
+  (section 6.1) but stays transparent at the source.
 - When the collector compiles a generic function at `List Bool`, building
   `Cons y ys` calls the representation's builder and matching `case xs of
   Cons y ys` reads `view xs` first: Wadler's views, which also became GHC's
@@ -162,9 +206,9 @@ represent List Bool as BitList where
     a field borrow needs a borrowing view from the representation, or the
     representation is admitted only at `Copy` element types (the proposed
     starting point: it covers bitsets and packed numeric arrays);
-  - coherence: exactly one representation per instantiation program-wide,
-    declared in the type's module or the element type's module (the orphan
-    rule), with disjoint keys;
+  - coherence: exactly as for instances, with `implicit` marking the
+    coherent default and named representations chosen in context (section
+    6.1);
   - a representation is chosen by types only, never by multiplicity, region,
     effects or proofs (Rust's specialization is [known to be unsound](https://std-dev-guide.rust-lang.org/policy/specialization.html)
     because it chose implementations by erased lifetimes);
@@ -174,6 +218,53 @@ represent List Bool as BitList where
   a packed array is a copy, so a generic `map` at that instantiation can go
   quadratic without a `specialize map`. The manifest records which functions
   ran through the view and which took a fast path.
+
+### 6.1 Implicit and named representations, chosen in context
+
+User direction (2026-10-29): representations use the same `implicit`
+keyword as instances, and code can choose a representation in context.
+
+```
+implicit represent List Bool as BitList where ...   -- the coherent default
+represent dense :: List Bool as ByteList where ...  -- named, never implicit
+```
+
+- **Coherence is instance coherence.** An `implicit represent` is eligible
+  for implicit resolution. Two implicit representations whose heads unify
+  reject as `ambiguous representation`, under the same orphan rule as
+  instances (D119). Named representations coexist freely, because every use
+  names one. With no implicit representation, a type has its ordinary
+  (compiler-chosen, section 3) layout.
+- **The one difference from instances.** An instance never changes how a
+  value is stored, but a representation does. A `List Bool` built as
+  `BitList` cannot be read by code compiled against `ByteList`, so the
+  representation a value was built with must be visible wherever the value
+  flows. A representation therefore indexes its type: `List Bool` (the
+  implicit representation) and `List Bool via dense` (spelling open) are
+  different types for unification. They are transparent at the source:
+  constructors, patterns and every generic function work on both through
+  the views.
+- **Choosing in context**, three ways:
+  - a type annotation: `xs :: List Bool via dense`. Inference propagates it,
+    so `[True, False]` checked against that type builds a `ByteList`;
+  - a scoped default, `with (represent List Bool = dense) in e`, mirroring
+    `with (io = ...) in`: inside `e`, `List Bool` constructions with no other
+    constraint infer `via dense`;
+  - a function that requires one: `popcount :: List Bool via bits -> Nat`,
+    which then takes a fast path without the view.
+- **Crossing representations is explicit.** A value of `List Bool via dense`
+  passed where `List Bool` is expected is a type error naming both
+  representations, not a hidden O(n) conversion (the core language's
+  "potentially expensive copies SHOULD be explicit"). A generated
+  `rerepresent` converts, through the view and the target's builders. A value
+  escaping a `with` scope keeps its `via` type, so the boundary is visible
+  where it happens.
+- **Generic code never names representations.** In `length :: forall a.
+  List a -> Nat`, the representation index is a hidden parameter of the
+  `List` application. It is resolved at each instantiation and becomes part
+  of the specialization key (class vector, layout, representation), so the
+  collector builds one copy per reached representation. `specialize` fast
+  paths are keyed by (function, instantiation, representation).
 
 ## 7 One justification rule for every alternative implementation
 
@@ -212,23 +303,26 @@ index bounds by linear arithmetic, glue by congruence closure).
 2. Representation classes on `Core` and the specialization collector
    (reclamation S4/S5 under option C).
 3. Value types and field unpacking (section 3).
-4. Enumerated layouts (section 4).
+4. Demand-driven multi-word layouts with expanding-edge boxing (section 4).
 5. `specialize` bodies as instantiation-keyed rewrites (section 5).
 6. Representation instances (section 6), on D55 and the law layer.
 
 ## 9 Open decisions
 
-- Confirm option C formally (the user's stated direction; recorded as D392).
-- May the default layout change (the compiler reordering or unpacking fields
-  of types without `repr`, recorded in the interface), or is it fixed, with
-  an opt-in `#[repr(auto)]`? Proposed: fixed.
+- Decided (2026-10-29): option C (D392), and compiler-chosen default
+  layouts (section 3).
+- Decided (2026-10-29): multi-word layouts are demand-driven, boxed at
+  expanding edges (section 4); representations follow instance coherence
+  with `implicit`, and are chosen in context (section 6.1).
+- Spelling of a named representation in a type (`List Bool via dense`
+  proposed) and of the scoped default (`with (represent List Bool = dense)
+  in` proposed).
 - Spelling of value types: a `repr` attribute (proposed), a declaration form
   (`value data`), or OxCaml's `#` syntax.
-- Spelling of enumerated layouts (attribute proposed) and of specialized
+- Spelling of specialized
   bodies (a `prim`-style declaration form proposed, since it carries a body
   and a trust tier).
-- Representation instances: `Copy`-only element types first (proposed), and
-  disjoint keys only (proposed) or a most-specific-match rule.
+- Representation instances: `Copy`-only element types first (proposed).
 - Packed containers (a contiguous `F64` array) are an array type with its own
   layout, not a specialization of `List`; whether the base library grows one
   is separate.
@@ -273,8 +367,7 @@ index bounds by linear arithmetic, glue by congruence closure).
 - **Option C** has zero runtime overhead and no boxing; its costs (consumer
   compilation, binary size, hot replacement of every version) are absorbed
   by the store and bounded by the versions actually reached.
-- **Unbounded layout polymorphism (`forall (l :: Layout)`)** was rejected
-  for the collector: specializing on full layouts (Rust-style) diverges on
+- **Naive full-layout specialization** (Rust-style) diverges on
   `data Nest a = Leaf a | Node (Nest (a, a))`, whose unpacked layouts
   `a, (a,a), ((a,a),(a,a)), ...` never repeat. Three alternatives were
   considered: run-time specialization (the .NET CLR's answer: only reached
@@ -282,8 +375,11 @@ index bounds by linear arithmetic, glue by congruence closure).
   generic fallback past a budget, and layouts in kinds with the kind checker
   refusing layout-growing recursion (GHC's [levity polymorphism](https://simon.peytonjones.org/assets/pdfs/levity-polymorphism.pdf),
   [Kinds Are Calling Conventions](https://dl.acm.org/doi/10.1145/3408986),
-  OxCaml layouts). Enumerated layouts (section 4) were chosen because they
-  are finite by construction and give the user explicit control.
+  OxCaml layouts). Enumerated layouts were proposed first, being finite by
+  construction. They were dropped once the user asked for proof that the
+  compiler cannot detect layout-growing recursion: it can, in linear time
+  (section 4), so the compiler boxes at the expanding edge instead of making
+  every definition list its layouts.
 - **Data families** (per-instance representation as a distinct type) were
   rejected as the primary mechanism because generic code then needs a class
   to reach the specialized type; representation instances keep the type the
