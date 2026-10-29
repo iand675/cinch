@@ -10,6 +10,29 @@ default gems; our Prelude facade) over independently organized
 libraries (its gems; our scheme homes). The curation sorts every
 family into PORT, PORT-REDESIGNED, SUBSUMED, or REFUSED.
 
+## Status (2026-10-29)
+
+The P37-P40 families landed as importable prelude modules (each with
+law-shaped tests, none embedded: the check budget is the constraint,
+`compiler/CONFORMANCE.md` D338-D369 carries the decisions and the
+refusals). P36's engine landed earlier.
+
+| Family | State |
+| --- | --- |
+| Collections/text utilities: `Set`, `HashMap`, `Path`, scanning and formatting | done (`Data.Set`/`HashMap`/`Path` embedded; `Data.Path`'s Pathname half in D358) |
+| `FileUtils`, `Find`, `Tempfile` | done (`Effect.FileUtils` D358, `Effect.Find` D359, temp files in D358) |
+| `CSV`, `StringIO`, `Base64`, `Shellwords` | done (D348, D346, D351, D352) |
+| Numeric: `BigDecimal`, `Rational`, `Complex`, `Matrix` | done (D342-D344) |
+| Serialization: `JSON`, `CSV`, `TOML`, YAML safe subset | done (`Text.Json` earlier; D348, D349, D350) |
+| OS/process: `Open3` shape, `Signal` | done as the piped child (D363) and the lossy delivery vocabulary (D357); PTY refused (D367) |
+| Time: `Date`/`Time`/`DateTime` | done (D345) |
+| Networking: `Net::HTTP`, `Socket`, `URI`, `IPAddr`, `Resolv` | `Socket` (D363), `URI` and `IPAddr` (D347), resolution over `net-resolve` (D363); `Net::HTTP` and a DNS home remain |
+| Crypto: `Digest`, `SecureRandom`, `HMAC` | done (D356, D357) |
+| Tooling: `OptionParser`, `Benchmark`, `Coverage`, `Minitest`-shaped runner | done (D353, D361, D362) |
+| Compression: `Zlib` | done (D354, D355) |
+| `ERB`, `Struct`, `Fiber`, `Logger`, `IRB`, `Fiddle`, `Singleton`, `Observer` | subsumed by language features, not ported |
+| `Marshal`, `ObjectSpace`, `Kernel#eval`-style reflection, `Drb` | refused, reasons below |
+
 ## Port
 
 - Collections/text utilities: `Set`, `Pathname`, `FileUtils`, `Find`,
@@ -80,3 +103,10 @@ family into PORT, PORT-REDESIGNED, SUBSUMED, or REFUSED.
 Every family lands in the scheme homes with law-shaped tests and the
 bootstrap discipline: any family milestone marked for bootstrapping
 (P35) gets a runnable artifact, not a claim.
+
+Delivered 2026-10-29: every family above is in the scheme homes with
+a law-shaped test target, importable rather than embedded (the check
+budget is the constraint). Left open: `Net::HTTP` and a DNS home on
+`cinch_net_resolve`'s lines, a pseudo-terminal child (refused, D367),
+and the base-layer `Eq (List Char)` instance the path family spells
+out by hand (D368).

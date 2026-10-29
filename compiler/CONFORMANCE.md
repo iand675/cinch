@@ -1387,6 +1387,442 @@ correspondence: one lexeme in expression/pattern, staging `Name`, and
   transformer zoo (row effects do it natively), IO-as-a-monad,
   numeric towers beyond Semiring, lenses.
 
+### Standard library parity (P37-P40)
+
+`design/stdlib-parity-ruby.md` sorts Ruby's standard library into
+PORT, PORT-REDESIGNED, SUBSUMED and REFUSED against the bootstrap
+test. This block records the P37-P40 families of that curation (P36,
+the RE2-style `Text.Regex` and `Text.Scan`, landed earlier and is
+recorded above). Every family here is an ordinary importable module
+reached with an explicit `import` and resolved from a source file
+beside the entry (D309's rule for the P30 toolkit), NOT a member of
+the embedded family: the checker's per-program recursion budget is
+the binding constraint (D337(b)) and the P36 wave set the precedent,
+so the embedding sweep stays its own decision.
+
+| Requirement | Status |
+|---|---|
+| P37 serialization breadth: YAML safe subset, CSV, TOML | done |
+| P38 numerics: Rational, BigDecimal, Complex, Matrix | done |
+| P38 civil time: Date, Time | done |
+| P39 crypto and compression: Digest, HMAC, entropy, Zlib | done |
+| P40 OS sweep: Pathname (in `Data.Path`), FileUtils, Find, Tempfile, piped child | done, PTY refused |
+| P40 tooling: OptionParser, Benchmark, Coverage, test runner | done |
+| P40 networking: Socket, name resolution, URI, IPAddr | done; `Net::HTTP` todo |
+| Subsumed (ERB, Struct, Fiber, Logger, IRB, Fiddle, Singleton, Observer) | mapped, not ported |
+| Refused (Marshal, ObjectSpace and eval-style reflection, Drb) | refused with reasons in the curation |
+| PTY / pseudo-terminal | refused: no runtime support (D367) |
+| `Net::HTTP` and the DNS home | todo: the HTTP layer over `Effect.Net` |
+
+- **D338-D340 (the wave lands, reported)**: 25 new prelude modules
+  and 22 new test targets, each family verified by compiling and
+  running real programs through the driver (no source-text
+  assertions). Homes follow `design/base-library.md`: concrete types
+  and their instances in `Data.*`, conversion in `Text.*`, capability
+  vocabulary in `Effect.*`. Every family is importable and none is
+  embedded (D309/D321 precedent, D337(b) budget); the interface each
+  one exports is its declaration surface, and its operators' fixity
+  now travels with it (D360). The curation's PORT list is the
+  checklist and the deliverables are named per family below.
+- **D341 (Rational, reported)**: `Data.Rational` is an abstract
+  normalised quotient (`Int` numerator over a strictly positive,
+  coprime denominator, sign on the numerator, zero collapsing to
+  `0/1`); the raw constructor stays off the export list so the
+  canonical form is a type invariant. `add`/`sub`/`mul` are total and
+  exact (bignum); `div` is the only partial operation and refuses a
+  zero divisor as the named `DivideByZero`, a zero denominator at
+  construction as `ZeroDenominator`. `Relation.Ord` carries no `cmp`
+  method, so the comparison is the named `rational-cmp` with the
+  `Ord` instance projected from it. `to-f64` is documented as within
+  two ULP for `I64`-fitting parts and faults outside them.
+- **D342 (BigDecimal, reported)**: `Data.BigDecimal` is
+  `unscaled * 10^exponent` over `Int`, held in canonical form
+  (trailing zeros folded into the exponent), constructor private, so
+  field equality is value equality (`0.1 == 0.10`) and
+  `0.1 + 0.2 == 0.3` holds exactly. Only `div` and `round` round, and
+  each takes its precision (`Nat`, fractional digits) and an explicit
+  `Rounding` mode (seven modes; the decision is taken on the
+  magnitude with the sign re-applied, so `RoundHalfEven` ties to
+  even on the magnitude). Refused: `NaN` and Infinity (a zero divisor
+  is the runtime's exit-72 division fault, since precision is never
+  inferred), implicit `F64` coercion, ambient precision and mode
+  (Ruby's `BigDecimal.limit`), exponent notation in `to-string`;
+  `from-string` implements `[+-]? (digits ("." digits)? | "." digits)`
+  and everything else is `MalformedLiteral`, never a silent zero.
+  `to-f64` converts through the exact decimal text rather than
+  `int-to-i64`, which would truncate a bignum to 64 bits.
+- **D343 (Complex, reported)**: `Data.Complex` is a pair of `F64`
+  with the arithmetic-operation classes instanced over the pair (the
+  method is over `Complex`, so `Add` composes `add-f64` on the parts).
+  Refused deliberately: any non-`F64` carrier, mixed real and complex
+  arithmetic (`from-real`/`real-part`/`imag-part` are the explicit
+  crossings), and ordering of any kind, since the field admits no
+  order compatible with its arithmetic; `Eq` is IEEE on the parts. No
+  arctangent primitive exists, so `arg` is built on a documented
+  `atan-approx` (four half-angle reductions and eight odd series
+  terms, absolute error under 1e-12).
+- **D344 (Matrix, reported)**: `Data.Matrix` is a dense `F64`
+  matrix, row-major over `Data.List`, with the shape invariant
+  enforced at construction (a ragged input is the named `RaggedRows`
+  and the constructor stays private, so no operation re-checks a
+  width). Five named error constructors carry the offending
+  dimensions. `determinant` is cofactor expansion along the first
+  row, O(n!) and stated as such; the sizes verified are small and an
+  LU/QR family would replace it. Refused: sparse matrices,
+  decompositions and `inverse`, integer and rational carriers.
+- **D345 (civil time, reported)**: `Data.Date` is a proleptic
+  Gregorian date behind a private constructor with `date` returning
+  `Option` (an invalid date has no representation) and parsing
+  carrying its own two-variant named error. All day arithmetic runs
+  on the epoch-day line with floored quotient and remainder (because
+  `int-div` truncates toward zero), so month lengths and the leap
+  rule cannot drift out of the stepping path. `Data.Time` is a date
+  plus nanoseconds under one day, with UTC-explicit epoch-nanosecond
+  conversions (the quantity `Effect.Clock.clock-wall-ns` reads),
+  whole-millisecond `Duration` arithmetic that carries the date, and
+  an unsigned `diff` whose direction is `cmp`'s. Refused: timezone
+  database and offsets, locale formatting, leap seconds, the Julian
+  calendar and the Gregorian reform cutover, sub-millisecond
+  durations. `to-string`/`from-string`/`cmp` exist in both modules,
+  so no whole import of both is accepted and the facade cannot
+  re-export both whole (a consumer selects per name).
+- **D346 (StringIO, reported)**: `Data.StringIo` is Ruby's mutable
+  `StringIO` as a value-threaded buffer (buffer plus cursor, both
+  passed and returned) because binders default to `%many`, so an
+  in-place write would be observable through a retained handle; a
+  write therefore reallocates, at `O(length + written)` per write.
+  A write overwrites at the cursor and extends past the end, never
+  inserting; reads clamp and, at or past the end, return an empty
+  buffer WITHOUT moving the cursor; `seek` past the end is the named
+  `SeekOutOfRange` and never pads (a negative offset is
+  unrepresentable); `truncate` only shrinks and clamps the cursor, so
+  `0 <= pos <= length` holds for every handle the module produces.
+  Refused: Ruby's `IO` inheritance, encoding handling, `each_line`
+  with a custom separator. `eof?` is spelled `string-io-eof`
+  (identifiers carry no `?`), and the representation constructor is
+  `IoBuf` rather than the type's name, because an `export` item
+  naming a data type also exports a same-named constructor (the
+  `Data.String` shape).
+- **D347 (IPAddr and URI, reported)**: `Data.IpAddr` splits Ruby's
+  one `IPAddr` class into distinct IPv4 and IPv6 types under a sum,
+  since the families differ in width, byte count and text grammar;
+  parsing is total into `Option`, rendering is RFC 5952 for IPv6
+  (lower-case, longest zero run of at least two groups, earliest on
+  ties), and every family's comparison is numeric with every IPv4
+  before every IPv6. Refused: name resolution, IPv4-embedded IPv6,
+  `%zone` scope ids, CIDR prefixes, RFC 3986-violating IPv4
+  spellings. `Text.Uri` is one type over the seven components with
+  absent distinguished from empty, `uri-parse` returning a named
+  error; percent coding is defined over the unreserved set with
+  malformed escapes and non-UTF-8 output refused; normalization is
+  lower-case scheme and host, upper-case escapes and default-port
+  removal; `uri-resolve` is RFC 3986 section 5.2 including 5.2.4
+  dot-segment removal under the strict-parser reading, with all 42
+  of the section 5.4 examples pinned. Bracketed hosts are validated
+  through `ipv6-parse`.
+- **D348 (CSV, reported)**: `Text.Csv` is RFC 4180 with a fixed
+  comma separator and LF or CRLF terminators; the scanner reads
+  scalars of a `String` (so decoding is already done and there is no
+  malformed-byte case) while spans carry byte offsets reconstructed
+  from each scalar's UTF-8 width, so offsets are byte-exact and
+  columns count scalars. Refused with names: a custom separator,
+  converters (typing is `Text.Codec`'s step), encoding handling, a
+  lone CR, a stray quote, text after a closing quote, an unterminated
+  quote, and ragged header keying (the named `CsvRowArity` rather
+  than Ruby's nil padding). Printing is LF-terminated with minimal
+  quoting, which is what makes the printed form canonical.
+- **D349 (TOML, reported)**: `Text.Toml` parses and prints onto the
+  same `Json` shape as `Text.Json` and `Text.Yaml`, so the codec
+  family has one value vocabulary. In scope: bare, quoted and dotted
+  keys, tables and arrays of tables, basic, literal and multi-line
+  strings with escapes, decimal (underscore and sign), hexadecimal,
+  octal and binary integers, floats with fraction and exponent
+  including `inf`/`nan`, booleans, arrays with comments and trailing
+  commas, inline tables and comments. Printing is total and its
+  emission order is part of the contract (values, then sub-tables,
+  then table arrays, each in spine order; the round-trip law is
+  stated over emission-order documents). Refused by name:
+  date-times, a `JNull` or non-table root, newlines in an inline
+  table, and a mixed array printed inline.
+- **D350 (YAML safe subset, reported)**: the port is a redesign, not
+  a translation, because YAML loading is the classic
+  arbitrary-object-deserialization surface. `yaml-parse` produces the
+  finite `Json` tree: scalars typed only as int, float, bool, null or
+  string, no node referring to another, so parsing cannot construct an
+  object, call anything or build a shared or cyclic structure. An
+  alias expands a spine copy of its anchored node and an alias
+  reaching its own anchor is the refused `YamlAliasCycle`; every tag
+  is refused before its node is read, with the object-constructing
+  families (`!ruby/*`, `!!python/object/apply:*`) getting their own
+  error kind, since closing that CVE is the point of the slice. Also
+  refused by name: `<<` merge keys, multi-document streams,
+  `%YAML`/`%TAG` directives, complex and explicit keys, duplicate
+  keys, `.inf`/`.nan`, undefined aliases. Mapping keys are text
+  (`Json` carries `String` keys), so a plain key is not typed and a
+  non-scalar key has no representation.
+- **D351 (Base64, reported)**: `Text.Base64` carries the RFC 4648
+  standard and URL-safe alphabets over `Bytes` and `String`, mapping
+  Ruby's four methods (strict encode, strict decode, urlsafe encode,
+  urlsafe decode, plus `decode64`'s leniency as
+  `base64-decode-lenient`, which ignores non-alphabet scalars). Every
+  failure is one of three named errors (invalid character, invalid
+  length, invalid padding), never a fault. Refused: line-wrapped and
+  MIME output, separate `-bytes` spellings (the signatures already
+  distinguish the carriers), and accepting the URL-safe alphabet in
+  the standard decoder (the URL-safe decoder is the permissive one,
+  matching Ruby).
+- **D352 (Shellwords, reported)**: `Text.Shellwords` follows Ruby
+  3.4's `shellsplit` (whitespace-separated words, single quotes
+  literal, the POSIX double-quote escape set, an unquoted backslash
+  escaping the next scalar, a quoted empty word preserved), with
+  unterminated single and double quotes as two named errors.
+  `shellwords-escape`/`shellwords-join` use single-quote escaping,
+  a deliberate divergence from Ruby's backslash form, because a
+  backslash cannot spell LF (it is a shell line continuation); the
+  safe set is stated in the header. NUL is escaped like any other
+  unsafe scalar (there is no `exec` boundary in the module).
+- **D353 (OptionParser, reported)**: `Text.OptionParser` lands
+  Ruby's declarative flag specification beside `Text.Args`: a spec
+  carries short and long names, whether a value is taken, a named
+  converter and help text, and `parse-options` binds typed values by
+  long name (a repeated option's last occurrence wins, positionals
+  keep argv order). It does not delegate to `Text.Args`, because the
+  short forms `Text.Args` refuses are exactly the forms it must
+  accept, and the two agree on the long spellings (asserted over one
+  shared argv). Accepted beyond `Text.Args`: short names, clustered
+  flags, unique long-name prefixes (exact wins, a tie is the named
+  `AmbiguousOption`), `--` ending options, a lone `-` as positional.
+  Refused by name: negation, callbacks and subcommands, required
+  options, single-dash long names, response files and environment
+  fallbacks, and a value on a flag. `ConvInt` folds through the
+  bignum operations so a value beyond `I64` binds exactly, and
+  `ConvFloat` validates the spelling in language before calling the
+  runtime's correctly-rounded reader.
+- **D354 (Zlib, reported)**: `Text.Zlib` ships the asymmetric pair
+  RFC 1950 requires of a bootstrap: `inflate` is complete (stored,
+  fixed-Huffman and dynamic-Huffman blocks with the code-length
+  16/17/18 repeats, the full length and distance tables, the header
+  and the trailing Adler-32), and `deflate` is a stored-block
+  encoder whose output is a legal stream. Every refusal is a value
+  with no partial bytes crossing the boundary (`BadHeader`,
+  `BadChecksum`, `InvalidCode`, `TruncatedStream`). Evidence is two
+  sided: python's `zlib` fixtures at levels 0/1/9 and `Z_FIXED` are
+  decoded by `inflate` (each block type asserted as generated), and
+  `deflate`'s output is decoded by python's `zlib.decompress` byte
+  for byte, with a flipped-Adler control rejected. Refused: the gzip
+  and raw-DEFLATE wrappers, dictionaries, streaming, and a
+  trailing-data check. `adler32`/`crc32` keep their digits whole
+  (`adler-32` would lex as a name minus a literal).
+- **D355 (distrust boundaries in the Zlib slice, reported)**:
+  `inflate` never guesses. A reserved block type, a stored block
+  whose NLEN is not LEN's complement, a code past its alphabet, a
+  back-reference reaching before the output's start, a repeat code
+  overrunning the two length arrays, a code no Huffman code matches,
+  a read past the last byte and fewer than four bytes where the
+  Adler-32 belongs are each a named error rather than a repaired
+  stream.
+- **D356 (Digest and the crypto externs, reported)**: the runtime
+  gains SHA-512 (FIPS 180-4), SHA-1 (FIPS 180-1), MD5 (RFC 1321) and
+  HMAC-SHA-256 (RFC 2104, block 64) beside the existing SHA-256, each
+  pinned to its published vectors in the runtime's own tests and
+  again through Cinch in `tests/runtime_prims.rs`;
+  `cinch.runtime.textHmacSha256` is the first arity-2 text unit.
+  `Text.Digest` binds them as one selector (`Digest` names the
+  algorithm) rather than ad hoc, and keeps HMAC a separate
+  authentication pair, because a digest is content identity and a
+  keyed MAC authenticates; SHA-1 and MD5 are legacy identity only,
+  and the refusal of `hmac-sha1`/`hmac-md5` is by omission.
+  `digest-hex` is the single canonical rendering (lower-case, full
+  width).
+- **D357 (entropy and signals, reported)**: the runtime gains
+  `cinch.runtime.randomBytes` (OS entropy) and
+  `cinch.runtime.signalSend` (POSIX `kill`, raw result). The delivery
+  vocabulary is deliberately lossy in the open (`SignalNotDelivered`
+  from `kill`'s -1, `SignalInvalidNumber` from the runtime's range
+  check): `cinch_signal_send` does not carry `errno`, so ESRCH and
+  EPERM cannot be separated and the module ships only variants the
+  boundary can produce, with the follow-up named (the extern would
+  have to carry `errno`). `signal-number` is the host's POSIX table,
+  not a portable mapping, so `SigUsr1`/`SigUsr2` are refused (30/31 on
+  Darwin, 10/12 on Linux, measured) pending an intrinsic that reports
+  the host's numbers. Signals are sent, never received: trap and
+  handler installation, masks, `Signal.trap` blocks, self-raising as
+  control flow and Windows emulation are refused with their reasons.
+  `Effect.Random` draws the entropy with the explicit `IO r` row,
+  refuses seeding and reproducibility (a seed API is where a security
+  bug lives), and refuses a stream or `Random.new`-shaped object.
+- **D358 (filesystem mutations and the Pathname half, reported)**:
+  `Effect.FileUtils` carries the mutating sweep (`mkdir-p`, `rm`,
+  `rm-r`, `cp`, `mv`, `touch`, `temp-file`, `temp-dir`) over the new
+  `cinch.runtime.fsMkdir`/`fsRemove`/`fsTempDir` externs and
+  `Effect.Fs`, with its own named error vocabulary rather than
+  exposing `FsError`. `mv` is `fs-rename`, chosen for atomicity, and
+  a cross-filesystem move surfaces the OS's refusal. `rm` never
+  follows a symlink to its target, and `rm-r` walks without following
+  links (the runtime resolves through `symlink_metadata`). Temp names
+  carry 128 bits of OS entropy and are checked before creation, since
+  no exclusive-create primitive exists: a collision is the named
+  `FileUtilsAlreadyExists`, never a silent truncation. The pure
+  Pathname half stays in `Data.Path` (`path-basename`, `dirname`,
+  `extname`, `stem`, `normalize`, `is-absolute`, `relative-to`),
+  where normalization is lexical and never a disk call, a leading
+  `..` is preserved in a relative path and dropped in an absolute
+  one, and segment comparison goes through an explicit `eq-chars`
+  because the base layer states no `Eq (List Char)` instance (a
+  candidate for a base-layer instance, not added here). Refused:
+  permission and ownership operations, symlink creation, metadata
+  preservation, exclusive create.
+- **D359 (Find, reported)**: `Effect.Find` walks the tree pre-order
+  (root first, each directory's entries in `fs-list`'s ascending
+  order, depth-first), reporting each path once, with a visitor that
+  continues, prunes a subtree (keeping the entry, skipping its
+  contents, a no-op on a non-directory) or stops (yielding the
+  reported prefix). The first named `FsError` aborts the walk and
+  `Err` carries nothing collected, because a truncated list is
+  indistinguishable from a complete one; there is no `ignore_error`
+  counterpart to Ruby's default. The visitor is a plain value, so the
+  row is `{IO r}` alone. No symlink-cycle detection: metadata
+  reports the target's kind and the caller prunes.
+- **D360 (operator fixity travels with the module's interface,
+  reported)**: an operator's precedence and associativity are part of
+  the module that declares it, so an importer parses the operator
+  without redeclaring it: `design/compiled-interface-metadata.md`
+  section 2.1 already records `exports.fixities`, and rule 3 fixes
+  the merge. The single-source path (`check_sources`/`run_source`)
+  parsed user code against the facade's base table with an EMPTY
+  import table, so an imported declaration never arrived and the
+  family's own modules had to be shadowed by a local redeclaration;
+  it now threads the embedded family's per-module tables, and
+  `tests/fixity_interfaces.rs` pins the three claims (a single-source
+  program importing `Algebra.Semigroup` parses `<>` infix with no
+  local declaration, a project consumer parses a sibling's
+  `infixr 6 <+>`, and the sibling's `.cinchif` records the fixity).
+  `Algebra.Semigroup`'s header already documented the intended rule;
+  the code now matches it. Separately, the checker prints
+  embedded-family errors with NO file name while parse errors carry
+  one, which cost several slices a diagnosis cycle; recorded as a
+  diagnostics nit, unfixed.
+- **D361 (Benchmark and Coverage, reported)**: `Effect.Benchmark`
+  measures one interval on `Effect.Clock`'s monotonic reading and
+  returns the action's value beside it (value transparency), with the
+  table rendering one row per report and the rows' sum; overhead
+  subtraction, wall-clock and calendar readings, statistics and
+  Ruby's `bm`/`bmbm` warm-up pass are refused. Its tests compare a
+  busy interval to a trivial one and never assert an absolute
+  duration, so they do not depend on machine speed. `Effect.Coverage`
+  is the recorder half only (a hit multiset keyed by site label, in
+  an ascending-label order by construction, with keywise merge,
+  `coverage-new` as identity and the report format pinned): no
+  source-level instrumentation exists in this compiler, so the header
+  fixes the call shape the eventual pass must supply and the module
+  emits nothing. Un-hit sites, label syntax and persistence are
+  refused as the pass's business.
+- **D362 (the test runner, reported)**: `Effect.Test` is the
+  Minitest-shaped runner `design/stdlib-and-bootstrap.md` lists as a
+  bootstrap need: assertions are VALUES (`Pass`/`Fail` carrying the
+  message), never faults, so a failing assertion is data the report
+  carries and there is no `errors` count (a fault is not catchable and
+  `Diverge` is productivity); a case's assertion count is the prefix
+  through and including its first failure, and a body is a strict
+  list, so the runner observes rather than aborts. Case bodies are
+  pure (`Unit -> List Check`), which keeps the suite's row exactly the
+  reporting row, and `run-suite` performs `{IO r}` through `Effect.Io`'s
+  writer rather than `Effect.Log` (which carries structured P32
+  records and is not an embedded module). The rendered report is
+  Minitest's shape with a fixed plural; `skip`, `flunk`,
+  expected-failure annotations, name filtering, shuffling and seeding
+  are refused.
+- **D363 (sockets, name resolution and the piped child, reported)**:
+  the runtime gains `compiler/runtime/src/net.rs` (`tcp_connect`,
+  `read`, `write`, `close`, `resolve`) and the piped-child ABI
+  (`process_spawn`, `write_stdin`, `close_stdin`, `read` with a stream
+  selector, `wait`, `close`) in `platform.rs`, both behind
+  `Mutex`-guarded handle tables with never-reused counter handles, so
+  a stale, closed or invented handle is always the named error and
+  never somebody else's socket. Socket I/O runs on a dup so no lock is
+  held across a blocking call. These are the first `Result`-carrying
+  primitive units: the raw word could not be told apart from a
+  failure code, so the unit presents it as the prelude `Result` with
+  the tags `crate::task`'s outcome ABI already documents, and the two
+  families derive unit arity from `sig()`, so arity and signature
+  cannot disagree. `Effect.Net` is the capability home (`NetError`,
+  `net-connect`/`-read`/`-write`/`-close`/`-resolve`, end of stream as
+  an empty buffer and not an error), and the piped surface joins
+  `Effect.Process` as `Child`, `Stream`, `process-spawn` and the
+  `child-*` operations, lifting the earlier "streaming a live child"
+  refusal. Refused: TLS, UDP, listen and accept, socket timeouts and
+  cancellation-aware calls, non-UTF-8 host text, pseudo-terminals, an
+  empty argument, and selecting over the child's pipes (drain then
+  wait). `Net::HTTP` and a DNS home over `net-resolve`'s lines remain.
+- **D364 (the runtime staticlib build is serialized, reported)**:
+  `driver::ensure_runtime` rebuilds `libcinchruntime.a` when any
+  runtime source is newer than the archive, and cargo replaces that
+  archive IN PLACE with no locking, so two `cinch` processes (parallel
+  test binaries, a sibling build) raced a rebuild against a link and
+  clang read a truncated file, failing with no diagnostic of its own.
+  The build now holds an exclusive advisory lock on
+  `compiler/runtime/target/.cinch-runtime.lock` and a link holds it
+  shared, and a filesystem without advisory locking degrades to the
+  previous behaviour rather than failing the build. `link_with` also
+  captures clang's stderr and appends it to the error, because "failed
+  to link" with the reason dropped reads as a truncated sentence and
+  made two slices' failures look like code defects.
+- **D365 (the test-thread stack, reported)**: D337(b) named the
+  options for the checker's per-expression recursion against the 2 MB
+  test-thread stack; this lands the harness stack raise as
+  `compiler/.cargo/config.toml`'s `RUST_MIN_STACK` (64 MB), which
+  gives every target the headroom the first harnesses needed
+  individually. The signature to know is every test in a target
+  failing with no panic text: that is a test-thread stack abort, not a
+  code break. The depth limit itself remains the open item.
+- **D366 (compiler finding: the capability wrapper miscompile,
+  tracked)**: a `using`-declared function whose body applies a PURE
+  function to a pure-typed intrinsic's result faults at run time
+  (`cinchruntime: null or wrong-kind word or corrupt generated data`,
+  exit 71) when it is called from another `using` function. Controls
+  that work: the same body in a pure function, the same `using`
+  function called directly from a `with` body, and a `using` body that
+  IS just the intrinsic. Minimal repro: module `M` declaring
+  `foreign import ccall "cinch.runtime.randomBytes" rb :: Nat -> Bytes`
+  with `two b = bytes-len b` and
+  `outer2 :: forall r. using (io :: Io r) => Unit ->{IO r} Nat`,
+  `outer2 u = two (rb 16)`, called from a second `using` wrapper in
+  `Main` whose `main` runs `with (io = newIO ()) in ...`. The repro
+  faults (verified twice, once from each of two slices) and it makes
+  `Effect.Random`'s `random-hex` unusable through a further capability
+  wrapper, which is why `Effect.FileUtils` declares the entropy
+  intrinsic itself and combines it through a pure helper. Unclaimed by
+  any fence, tracked as a bug fix; the intrinsic's declared type is
+  its scheme (no row), so the IO discipline lives in the prelude
+  wrapper, which is the route the fault involves.
+- **D367 (PTY refused, reported)**: a pseudo-terminal child (Ruby's
+  `PTY`, and `Open3`'s interactive shape) is refused rather than
+  approximated: the runtime has no pseudo-terminal support, and adding
+  one means `openpty` plus a controlling-terminal handshake in the
+  runtime, which is its own slice. The refusal is stated in
+  `Effect.Process`'s header beside the streaming surface that DID
+  land (D363).
+- **D368 (no `Eq (List Char)` in the base layer, recorded)**: the
+  embedded family states no `Eq` instance for `List`, so the two
+  modules that compare whole segments (`Data.Path`) or split points
+  wrote explicit recursions (`eq-chars`). A base-layer instance is a
+  separate decision, because it would make comparison available to
+  programs that today have to spell it out.
+- **D369 (slice discipline, reported)**: every slice wrote only its
+  own module and test target, left integration (the embedded list, the
+  facade, the conformance entries) to the lead, and reported its
+  refusals as first-class results; three separate prelude breakages
+  landed in the shared tree during the wave (a keyword used as a
+  binder, a `Nat`/`I64` handle mismatch and a missing instance), each
+  caught by its own slice's test run and by a trivial probe program,
+  which is the cheapest gate for an embedded-family break. The
+  keyword list is the recurring trap: `data`, `target`, `to`, `as`,
+  `in`, `of`, `let`, `case`, `where`, `type`, `if`, `then`, `else`,
+  `module`, `import`, `using`, `forall`, `spec`, `stage`, `macro`,
+  `law` and `prim` are never binder names, and a failure there is a
+  parse error reported BEFORE any type checking, which reads like a
+  compiler crash.
+
 ### Refinement types (P28)
 
 Implemented `dfc653d` (2026-10-27, `RefinementSlice`, D248-D255):
