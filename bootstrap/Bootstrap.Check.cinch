@@ -1,0 +1,844 @@
+-- Bootstrap.Check: rung 3 of the bootstrap ladder, the fragment checker.
+--
+-- `check-program` walks the tree `Bootstrap.Ast` declares and returns the
+-- list of failures, empty meaning the program is accepted. Every failure is
+-- a named, spanned `Bootstrap.Report` diagnostic: an unbound variable, a
+-- type mismatch, an arity mismatch against a declared signature, a missing
+-- or duplicated signature, a constructor used at the wrong arity, and every
+-- form outside this rung's fragment refused BY NAME (including each
+-- `*Unmodeled` node, with the source text the parser recorded).
+--
+-- THE FRAGMENT. Types: `Int`, `Bool`, `Unit`, `String`, `Char`, and a
+-- program-declared type name (with arguments). Terms: integer, string and
+-- character literals, `Unit`; variables; application; `EBin` over `+ - * /`
+-- (with both sides `Int`, result `Int`), `== /=` (both sides the same
+-- comparable type, result `Bool`) and `< > <= >=` (both sides `Int`, result
+-- `Bool`); `EIf`; `EAnn`; `ELet` (a binding spine, scoped sequentially);
+-- `ELam`; `ECase`; and constructor application. Patterns: wildcard,
+-- variable, integer, string and character literals, and a constructor
+-- applied to argument patterns. Declarations: `DSig` + `DFun` (the clause's
+-- parameter count must equal the signature's arrow count, and a clause an
+-- earlier clause already matches is refused), recursion between top-level
+-- functions (the registry is built before any body is checked), and `DData`
+-- (each constructor's argument types and its result type, which must be the
+-- type it is declared under).
+--
+-- THE HONEST BOUNDARY. No polymorphism: a signature or annotation with
+-- `forall` or an implicit `using` is refused by name, so this rung type
+-- checks a monomorphic fragment only. `DClass`, `DInstance` and `DFixity`
+-- are refused by name, and class dictionaries are not implemented anywhere
+-- in this rung. Tuples, list literals, floats, `do`, `handle`, `with`,
+-- nested `let rec` and the effect-arrow type form are refused by name.
+-- A constructor must be applied at full arity (a partial constructor
+-- application is not in the fragment). Expression and pattern spines are
+-- walked with the AST's own `*-of` walkers and a malformed spine (a cell
+-- sequence that does not end in its end marker) is reported as such.
+--
+-- TYPES. The checker carries its own small type language (`Ty`, below)
+-- rather than reusing `TypeExpr`: a body is checked against a known type
+-- (the signature's, an annotation's, or an inferred function's), and the
+-- only "unknown" is `TyHole`, which compares equal to everything so one
+-- failure does not cascade into a dozen. There is no unifier: an expression
+-- whose type cannot be inferred syntactically (a lambda with no expected
+-- function type) is refused by name rather than guessed at.
+module Bootstrap.Check where
+
+  import Text.Lex (Span, span-start, span-end, span-line, span-col)
+  import Algebra.Semigroup
+  import Bootstrap.Ast
+  import Bootstrap.Report
+
+  export check-program
+
+  -- The diagnostics list is appended with the `Semigroup` operator (the
+  -- prelude spells list append through it), so this module declares its
+  -- fixity the way every operator-using home does.
+  infixr 6 <>
+
+
+  -- The rung's name in every diagnostic it renders.
+  rung :: String
+  rung = "bootstrap.check"
+
+  -- A zero-width span at the start of the file: a node the checker
+  -- synthesizes (a registry entry's spine) has no source position.
+  zero-span :: Span
+  zero-span = Span 0 0 0 0
+
+  -- One failure, at `s`, with `msg`.
+  fail :: Span -> String -> List Diagnostic
+  fail s msg = Cons (MkDiagnostic rung s msg) Nil
+
+  -- ------------------------------------------------------------------ types
+
+  -- The checker's type language: the fragment's closed set, a function
+  -- type, a named type applied to an argument spine, the spine cells
+  -- themselves, and the error type.
+  data Ty where
+    TyInt :: Ty
+    TyBool :: Ty
+    TyUnit :: Ty
+    TyStr :: Ty
+    TyChr :: Ty
+    TyFun :: Ty -> Ty -> Ty
+    TyCon :: String -> Ty -> Ty
+    TyArg :: Span -> Ty -> Ty -> Ty
+    TyArgsEnd :: Span -> Ty
+    TyHole :: Ty
+
+  -- ------------------------------------------------------------------ the
+  -- top-level registry: one entry per signature and per constructor,
+  -- collected before any body is checked so top-level functions may be
+  -- mutually recursive.
+
+  data Top where
+    TopSig :: String -> Ty -> Top
+    TopCtor :: String -> String -> Ty -> Top
+
+  -- ----------------------------------------------------------- type display
+
+  -- A type as the diagnostics name it.
+  ty-text :: Ty -> String
+  ty-text t = case t of
+    TyInt -> "Int"
+    TyBool -> "Bool"
+    TyUnit -> "Unit"
+    TyStr -> "String"
+    TyChr -> "Char"
+    TyHole -> "_"
+    TyFun a b -> string-concat "(" (string-concat (ty-text a) (string-concat " -> " (string-concat (ty-text b) ")")))
+    TyCon n args -> string-concat n (ty-args-text args)
+    TyArg s x rest -> string-concat " " (string-concat (ty-text x) (ty-args-text rest))
+    TyArgsEnd s -> empty-string
+
+  ty-args-text :: Ty -> String
+  ty-args-text t = case t of
+    TyArgsEnd s -> empty-string
+    TyArg s x rest -> string-concat " " (string-concat (ty-text x) (ty-args-text rest))
+    other -> empty-string
+
+  -- ----------------------------------------------------------- type equality
+
+  -- Structural equality; `TyHole` is unknown and equal to everything, so a
+  -- failure is reported once, where it happened, instead of at every use.
+  ty-equal :: Ty -> Ty -> Bool
+  ty-equal a b = case a of
+    TyHole -> True
+    TyInt -> ty-is b "int"
+    TyBool -> ty-is b "bool"
+    TyUnit -> ty-is b "unit"
+    TyStr -> ty-is b "string"
+    TyChr -> ty-is b "char"
+    TyFun d1 c1 -> case b of
+      TyFun d2 c2 -> if ty-equal d1 d2 then ty-equal c1 c2 else False
+      other -> False
+    TyCon n1 sp1 -> case b of
+      TyCon n2 sp2 -> if string-compare n1 n2 == 0 then ty-spine-equal sp1 sp2 else False
+      other -> False
+    TyArg s x rest -> case b of
+      TyArg s2 y rest2 -> if ty-equal x y then ty-spine-equal rest rest2 else False
+      other -> False
+    TyArgsEnd s -> case b of
+      TyArgsEnd s2 -> True
+      other -> False
+
+  -- A nullary tag's comparison: kept separate so `ty-equal`'s equations
+  -- stay readable.
+  ty-is :: Ty -> String -> Bool
+  ty-is t tag =
+    if string-compare tag "int" == 0 then ty-is-int t
+    else if string-compare tag "bool" == 0 then ty-is-bool t
+    else if string-compare tag "unit" == 0 then ty-is-unit t
+    else if string-compare tag "string" == 0 then ty-is-str t
+    else ty-is-chr t
+
+  ty-is-int :: Ty -> Bool
+  ty-is-int t = case t of
+    TyInt -> True
+    other -> False
+
+  ty-is-bool :: Ty -> Bool
+  ty-is-bool t = case t of
+    TyBool -> True
+    other -> False
+
+  ty-is-unit :: Ty -> Bool
+  ty-is-unit t = case t of
+    TyUnit -> True
+    other -> False
+
+  ty-is-str :: Ty -> Bool
+  ty-is-str t = case t of
+    TyStr -> True
+    other -> False
+
+  ty-is-chr :: Ty -> Bool
+  ty-is-chr t = case t of
+    TyChr -> True
+    other -> False
+
+  ty-spine-equal :: Ty -> Ty -> Bool
+  ty-spine-equal a b = case a of
+    TyArgsEnd s -> case b of
+      TyArgsEnd s2 -> True
+      other -> False
+    TyArg s x rest -> case b of
+      TyArg s2 y rest2 -> if ty-equal x y then ty-spine-equal rest rest2 else False
+      other -> False
+    other -> False
+
+  -- --------------------------------------------------- type shape helpers
+
+  -- The number of arrows in a type: a clause's parameter count.
+  ty-arity :: Ty -> Nat
+  ty-arity t = case t of
+    TyFun a b -> 1 + ty-arity b
+    other -> 0
+
+  -- The argument types, left to right.
+  ty-arg-types :: Ty -> List Ty
+  ty-arg-types t = case t of
+    TyFun a b -> Cons a (ty-arg-types b)
+    other -> Nil
+
+  -- The type under every arrow.
+  ty-result :: Ty -> Ty
+  ty-result t = case t of
+    TyFun a b -> ty-result b
+    other -> t
+
+  -- The head name of a named type (used to match a constructor pattern's
+  -- expected type against the constructor's result).
+  ty-head-name :: Ty -> Option String
+  ty-head-name t = case t of
+    TyCon n sp -> Some n
+    other -> None
+
+  -- Whether a type is worth comparing with `==`: a function is not.
+  ty-comparable :: Ty -> Bool
+  ty-comparable t = case t of
+    TyFun a b -> False
+    other -> True
+
+  -- A spine of the argument types collected so far.
+  ty-spine-of-list :: List Ty -> Ty
+  ty-spine-of-list ts = case ts of
+    Nil -> TyArgsEnd zero-span
+    Cons t rest -> TyArg zero-span t (ty-spine-of-list rest)
+
+  -- A constructor's function type: its argument types arrowed onto the
+  -- type it constructs.
+  ctor-ty :: String -> Ty -> Ty
+  ctor-ty owner args = case args of
+    TyArgsEnd s -> TyCon owner (TyArgsEnd zero-span)
+    TyArg s x rest -> TyFun x (ctor-ty owner rest)
+    other -> TyCon owner (TyArgsEnd zero-span)
+
+  -- A mismatch at `s`, when the two types really differ.
+  ty-compare :: Span -> Ty -> Ty -> List Diagnostic
+  ty-compare s found expected =
+    if ty-equal found expected then Nil
+    else fail s (string-concat "type mismatch: expected " (string-concat (ty-text expected) (string-concat ", found " (ty-text found))))
+
+  -- ----------------------------------------------------------- TypeExpr -> Ty
+
+  -- The primitives by name; anything else is a named type with no
+  -- arguments (a program-declared type, or a name this fragment treats as
+  -- opaque).
+  prim-ty :: String -> Ty
+  prim-ty n =
+    if string-compare n "Int" == 0 then TyInt
+    else if string-compare n "Bool" == 0 then TyBool
+    else if string-compare n "Unit" == 0 then TyUnit
+    else if string-compare n "String" == 0 then TyStr
+    else if string-compare n "Char" == 0 then TyChr
+    else TyCon n (TyArgsEnd zero-span)
+
+  type-head-name :: TypeExpr -> Option String
+  type-head-name t = case t of
+    TName s n -> Some n
+    TApp s h args -> type-head-name h
+    other -> None
+
+  type-to-ty :: TypeExpr -> (Ty, List Diagnostic)
+  type-to-ty t = case t of
+    TName s n -> (prim-ty n, Nil)
+    TApp s h args -> type-app-to-ty h args
+    TFun s a b -> case type-to-ty a of
+      (ta, da) -> case type-to-ty b of
+        (tb, db) -> (TyFun ta tb, da <> db)
+    TFunEff s a row b -> (TyHole, fail s "unsupported type: effect arrow")
+    TTuple s xs -> (TyHole, fail s "unsupported type: tuple")
+    TForall s vs body -> (TyHole, fail s "unsupported type: forall")
+    TUsing s bounds body -> (TyHole, fail s "unsupported type: implicit using")
+    TArg s x rest -> (TyHole, fail s "unsupported type: type spine cell")
+    TArgsEnd s -> (TyHole, fail s "unsupported type: type spine end")
+    TBound s name ty rest -> (TyHole, fail s "unsupported type: implicit bound")
+    TBoundsEnd s -> (TyHole, fail s "unsupported type: implicit bounds end")
+    TUnmodeled s text -> (TyHole, fail s (string-concat "unmodeled type: " text))
+
+  type-app-to-ty :: TypeExpr -> TypeExpr -> (Ty, List Diagnostic)
+  type-app-to-ty h args = case type-head-name h of
+    None -> (TyHole, fail (type-expr-span h) "unsupported type: application of a non-constructor type")
+    Some name -> case ty-spine-to-ty args of
+      (spine, ds) -> (TyCon name spine, ds)
+
+  -- An argument spine of `TypeExpr` as a spine of `Ty`.
+  ty-spine-to-ty :: TypeExpr -> (Ty, List Diagnostic)
+  ty-spine-to-ty t = case t of
+    TArgsEnd s -> (TyArgsEnd s, Nil)
+    TArg s x rest -> case type-to-ty x of
+      (tx, dx) -> case ty-spine-to-ty rest of
+        (tr, dr) -> (TyArg s tx tr, dx <> dr)
+    other -> (TyArgsEnd (type-expr-span other), fail (type-expr-span other) "malformed type spine")
+
+  -- ------------------------------------------------------ spine wellformedness
+
+  -- Whether an expression spine ends in its end marker (the AST's `*-of`
+  -- walkers answer the empty list for anything else, so a consumer that
+  -- wants to report a malformed spine asks this first).
+  spine-ok-exprs :: Expr -> Bool
+  spine-ok-exprs e = case e of
+    EArgsEnd s -> True
+    EArg s x rest -> spine-ok-exprs rest
+    other -> False
+
+  spine-ok-pats :: Pat -> Bool
+  spine-ok-pats p = case p of
+    PArgsEnd s -> True
+    PArg s x rest -> spine-ok-pats rest
+    other -> False
+
+  -- ------------------------------------------------------------- the registry
+
+  sig-lookup :: String -> List Top -> Option Ty
+  sig-lookup name tops = case tops of
+    Nil -> None
+    Cons t rest -> case t of
+      TopSig n ty -> if string-compare n name == 0 then Some ty else sig-lookup name rest
+      TopCtor c owner args -> sig-lookup name rest
+
+  has-sig :: String -> List Top -> Bool
+  has-sig name tops = case sig-lookup name tops of
+    None -> False
+    Some ty -> True
+
+  ctor-lookup :: String -> List Top -> Option Top
+  ctor-lookup name tops = case tops of
+    Nil -> None
+    Cons t rest -> case t of
+      TopCtor c owner args -> if string-compare c name == 0 then Some t else ctor-lookup name rest
+      TopSig n ty -> ctor-lookup name rest
+
+  has-ctor :: String -> List Top -> Bool
+  has-ctor name tops = case ctor-lookup name tops of
+    None -> False
+    Some t -> True
+
+  -- The value environment: every signature, and every constructor as its
+  -- own function value (so a constructor named without arguments still
+  -- resolves, and `ECon` is checked against exactly this type).
+  tops-env :: List Top -> List (String, Ty)
+  tops-env tops = case tops of
+    Nil -> Nil
+    Cons t rest -> case t of
+      TopSig n ty -> Cons (n, ty) (tops-env rest)
+      TopCtor c owner args -> Cons (c, ctor-ty owner args) (tops-env rest)
+
+  -- The language's own `Bool` constructors. The fragment has `Bool` and
+  -- `if`, so its two values are in the initial environment, written exactly
+  -- as the parser writes them (a constructor with an empty argument
+  -- spine). Every other prelude constructor belongs to a type outside this
+  -- rung's fragment and is reported as an unknown constructor.
+  builtin-env :: List (String, Ty)
+  builtin-env = Cons ("True", TyBool) (Cons ("False", TyBool) Nil)
+
+  -- The environment every body starts from: the builtins, then the
+  -- program's own top-level names.
+  base-env :: List Top -> List (String, Ty)
+  base-env tops = (builtin-env) <> (tops-env tops)
+
+  env-lookup :: String -> List (String, Ty) -> Option Ty
+  env-lookup name env = case env of
+    Nil -> None
+    Cons b rest -> case b of
+      (n, t) -> if string-compare n name == 0 then Some t else env-lookup name rest
+
+  -- ------------------------------------------------------------- expressions
+
+  check-expr :: List (String, Ty) -> Expr -> Ty -> List Diagnostic
+  check-expr env e expected = case e of
+    ELam s ps body -> check-lam env s ps body expected
+    EIf s c t f -> check-if env s c t f expected
+    ECase s scrut alts -> check-case env s scrut alts expected
+    ELet s bs body -> check-let env s bs body expected
+    EAnn s x t -> check-ann-against env s x t expected
+    other -> case infer-expr env other of
+      (t, ds) -> ds <> (ty-compare (expr-span other) t expected)
+
+  infer-expr :: List (String, Ty) -> Expr -> (Ty, List Diagnostic)
+  infer-expr env e = case e of
+    EVar s n -> case env-lookup n env of
+      None -> (TyHole, fail s (string-concat "unbound variable: " n))
+      Some t -> (t, Nil)
+    ECon s n args -> infer-con env s n args
+    ELitInt s text -> (TyInt, Nil)
+    ELitStr s text -> (TyStr, Nil)
+    ELitChar s text -> (TyChr, Nil)
+    EUnit s -> (TyUnit, Nil)
+    EApp s f a -> infer-app env s f a
+    EBin s op l r -> infer-bin env s op l r
+    ENeg s x -> (TyInt, check-expr env x TyInt)
+    EIf s c t f -> infer-if env s c t f
+    ECase s scrut alts -> infer-case env s scrut alts
+    ELet s bs body -> infer-let env s bs body
+    EAnn s x t -> check-ann env s x t
+    ELam s ps body -> (TyHole, (fail s "cannot infer the type of this lambda: give it a type annotation"))
+    EForall s vs body -> (TyHole, fail s "unsupported expression: forall")
+    EUsing s bounds body -> (TyHole, fail s "unsupported expression: implicit using")
+    EBind s n rhs -> (TyHole, fail s "unsupported expression: bind statement")
+    EDo s stmts -> (TyHole, fail s "unsupported expression: do block")
+    EHandle s body h -> (TyHole, fail s "unsupported expression: handle")
+    EWith s bs body -> (TyHole, fail s "unsupported expression: with")
+    ETuple s xs -> (TyHole, fail s "unsupported expression: tuple")
+    EList s xs -> (TyHole, fail s "unsupported expression: list literal")
+    ELitFloat s text -> (TyHole, fail s "unsupported expression: float literal")
+    EArg s x rest -> (TyHole, fail s "unsupported expression: argument spine cell")
+    EArgsEnd s -> (TyHole, fail s "unsupported expression: argument spine end")
+    EBinding s n rhs rest -> (TyHole, fail s "unsupported expression: binding spine cell")
+    EBindingsEnd s -> (TyHole, fail s "unsupported expression: binding spine end")
+    EAlt s p body rest -> (TyHole, fail s "unsupported expression: alternative spine cell")
+    EAltsEnd s -> (TyHole, fail s "unsupported expression: alternative spine end")
+    EUnmodeled s text -> (TyHole, fail s (string-concat "unmodeled expression: " text))
+
+  -- `f a`: the domain is the argument's expected type, the codomain the
+  -- result. A head whose type is unknown does not add a failure.
+  infer-app :: List (String, Ty) -> Span -> Expr -> Expr -> (Ty, List Diagnostic)
+  infer-app env s f a = case infer-expr env f of
+    (tf, df) -> case tf of
+      TyFun d c -> (c, df <> (check-expr env a d))
+      TyHole -> (TyHole, df)
+      other -> (TyHole, df <> (fail s (string-concat "cannot apply a value of type " (ty-text other))))
+
+  -- The constructor application: its arguments are checked against the
+  -- declaration's argument types even when the count is wrong, so the
+  -- arity failure is reported once and by itself.
+  infer-con :: List (String, Ty) -> Span -> String -> Expr -> (Ty, List Diagnostic)
+  infer-con env s n args = case env-lookup n env of
+    None -> (TyHole, fail s (string-concat "unknown constructor: " n))
+    Some ty -> case spine-ok-exprs args of
+      False -> (TyHole, fail s "malformed argument spine")
+      True -> case check-args env (ty-arg-types ty) (exprs-of args) (ty-result ty) of
+        (r, ds) -> (r, ds <> (ctor-arity-diag s n (list-length (exprs-of args)) ty))
+
+  -- The arity failure for a constructor used with the wrong number of
+  -- arguments, empty when the count matches its declaration.
+  ctor-arity-diag :: Span -> String -> Nat -> Ty -> List Diagnostic
+  ctor-arity-diag s n given ty =
+    if given == ty-arity ty then Nil else fail s (ctor-arity-message n given (ty-arity ty))
+
+  check-args :: List (String, Ty) -> List Ty -> List Expr -> Ty -> (Ty, List Diagnostic)
+  check-args env tys es result = case tys of
+    Nil -> check-extra-args env es result
+    Cons t trest -> case es of
+      Nil -> (result, Nil)
+      Cons e erest -> case check-expr env e t of
+        ds -> case check-args env trest erest result of
+          (r, d2) -> (r, ds <> d2)
+
+  -- Arguments past the declared arity are still checked, against the error
+  -- type: the arity failure is the report, and a form outside the fragment
+  -- inside one of them is still named.
+  check-extra-args :: List (String, Ty) -> List Expr -> Ty -> (Ty, List Diagnostic)
+  check-extra-args env es result = case es of
+    Nil -> (result, Nil)
+    Cons e rest -> case check-expr env e TyHole of
+      ds -> case check-extra-args env rest result of
+        (r, d2) -> (r, ds <> d2)
+
+  -- ------------------------------------------------------------ the operators
+
+  is-arith-op :: String -> Bool
+  is-arith-op op =
+    if string-compare op "+" == 0 then True
+    else if string-compare op "-" == 0 then True
+    else if string-compare op "*" == 0 then True
+    else string-compare op "/" == 0
+
+  is-rel-op :: String -> Bool
+  is-rel-op op =
+    if string-compare op "<" == 0 then True
+    else if string-compare op ">" == 0 then True
+    else if string-compare op "<=" == 0 then True
+    else string-compare op ">=" == 0
+
+  is-eq-op :: String -> Bool
+  is-eq-op op =
+    if string-compare op "==" == 0 then True
+    else string-compare op "/=" == 0
+
+  -- The natural frames: `Int -> Int -> Int` for arithmetic, `Int -> Int ->
+  -- Bool` for the ordering comparisons, and same-type comparison for `==`.
+  infer-bin :: List (String, Ty) -> Span -> String -> Expr -> Expr -> (Ty, List Diagnostic)
+  infer-bin env s op l r =
+    if is-arith-op op then (TyInt, (check-expr env l TyInt) <> (check-expr env r TyInt))
+    else if is-rel-op op then (TyBool, (check-expr env l TyInt) <> (check-expr env r TyInt))
+    else if is-eq-op op then infer-equality env s op l r
+    else (TyHole, fail s (string-concat "unsupported operator: " op))
+
+  infer-equality :: List (String, Ty) -> Span -> String -> Expr -> Expr -> (Ty, List Diagnostic)
+  infer-equality env s op l r = case infer-expr env l of
+    (tl, dl) -> case infer-expr env r of
+      (tr, dr) -> case ty-equal tl tr of
+        False -> (TyHole, dl <> dr <> (fail s (equality-mismatch-message op tl tr)))
+        True -> case ty-comparable tl of
+          False -> (TyHole, dl <> dr <> (fail s (string-concat "cannot compare values of type " (ty-text tl))))
+          True -> (TyBool, dl <> dr)
+
+  equality-mismatch-message :: String -> Ty -> Ty -> String
+  equality-mismatch-message op a b =
+    string-concat "the two sides of " (string-concat op (string-concat " have different types: " (string-concat (ty-text a) (string-concat " and " (ty-text b)))))
+
+  -- --------------------------------------------------------------- branches
+
+  check-if :: List (String, Ty) -> Span -> Expr -> Expr -> Expr -> Ty -> List Diagnostic
+  check-if env s c t f expected =
+    (check-expr env c TyBool) <> ((check-expr env t expected) <> (check-expr env f expected))
+
+  infer-if :: List (String, Ty) -> Span -> Expr -> Expr -> Expr -> (Ty, List Diagnostic)
+  infer-if env s c t f = case infer-expr env t of
+    (tt, dt) -> case infer-expr env f of
+      (tf, df) -> case ty-equal tt tf of
+        True -> (tt, (check-expr env c TyBool) <> (dt <> df))
+        False -> (TyHole, (check-expr env c TyBool) <> (dt <> (df <> (fail s (branch-mismatch-message tt tf)))))
+
+  branch-mismatch-message :: Ty -> Ty -> String
+  branch-mismatch-message a b =
+    string-concat "the two branches of this if have different types: " (string-concat (ty-text a) (string-concat " and " (ty-text b)))
+
+  -- ------------------------------------------------------------ case matching
+
+  check-case :: List (String, Ty) -> Span -> Expr -> Expr -> Ty -> List Diagnostic
+  check-case env s scrut alts expected = case infer-expr env scrut of
+    (ts, ds) -> case alts-of alts of
+      Nil -> ds <> (fail s "this case expression has no alternatives")
+      Cons a rest -> ds <> (check-alts env ts (Cons a rest) expected)
+
+  check-alts :: List (String, Ty) -> Ty -> List (Pat, Expr) -> Ty -> List Diagnostic
+  check-alts env ts alts expected = case alts of
+    Nil -> Nil
+    Cons a rest -> case a of
+      (p, body) -> case check-pat env p ts of
+        (env2, dp) -> (dp <> (check-expr env2 body expected)) <> (check-alts env ts rest expected)
+
+  infer-case :: List (String, Ty) -> Span -> Expr -> Expr -> (Ty, List Diagnostic)
+  infer-case env s scrut alts = case infer-expr env scrut of
+    (ts, ds) -> case alts-of alts of
+      Nil -> (TyHole, ds <> (fail s "this case expression has no alternatives"))
+      Cons a rest -> case a of
+        (p, body) -> case check-pat env p ts of
+          (env2, dp) -> case infer-expr env2 body of
+            (t1, d1) -> (t1, ds <> (dp <> (d1 <> (check-alts env ts rest t1))))
+
+  -- --------------------------------------------------------------- let binding
+
+  bind-let :: List (String, Ty) -> Expr -> (List (String, Ty), List Diagnostic)
+  bind-let env bs = case bs of
+    EBindingsEnd s -> (env, Nil)
+    EBinding s n rhs rest -> case spine-ok-bindings rest of
+      False -> (env, fail s "malformed let binding spine")
+      True -> case infer-expr env rhs of
+        (t, d) -> case bind-let (Cons (n, t) env) rest of
+          (env2, d2) -> (env2, d <> d2)
+    other -> (env, fail (expr-span other) "malformed let binding spine")
+
+  spine-ok-bindings :: Expr -> Bool
+  spine-ok-bindings e = case e of
+    EBindingsEnd s -> True
+    EBinding s n rhs rest -> spine-ok-bindings rest
+    other -> False
+
+  check-let :: List (String, Ty) -> Span -> Expr -> Expr -> Ty -> List Diagnostic
+  check-let env s bs body expected = case bind-let env bs of
+    (env2, ds) -> ds <> (check-expr env2 body expected)
+
+  infer-let :: List (String, Ty) -> Span -> Expr -> Expr -> (Ty, List Diagnostic)
+  infer-let env s bs body = case bind-let env bs of
+    (env2, ds) -> case infer-expr env2 body of
+      (t, d) -> (t, ds <> d)
+
+  -- ----------------------------------------------------------- annotations
+
+  -- An annotation is checked against the expression and fixes its type.
+  check-ann :: List (String, Ty) -> Span -> Expr -> TypeExpr -> (Ty, List Diagnostic)
+  check-ann env s x t = case type-to-ty t of
+    (ty, dt) -> (ty, dt <> (check-expr env x ty))
+
+  check-ann-against :: List (String, Ty) -> Span -> Expr -> TypeExpr -> Ty -> List Diagnostic
+  check-ann-against env s x t expected = case type-to-ty t of
+    (ty, dt) -> dt <> ((check-expr env x ty) <> (ty-compare s ty expected))
+
+  -- --------------------------------------------------------------- lambdas
+
+  -- A lambda is checkable only against a known function type: the
+  -- parameter's type has to come from somewhere, and this rung has no
+  -- unifier to invent it. Once the parameters are bound (one arrow each),
+  -- the body is checked against what is left of the type.
+  check-lam :: List (String, Ty) -> Span -> List Pat -> Expr -> Ty -> List Diagnostic
+  check-lam env s ps body expected = case expected of
+    TyHole -> fail s "cannot infer the type of this lambda: give it a type annotation"
+    other -> case bind-lam env s ps expected of
+      (env2, ds) -> ds <> (check-expr env2 body (lam-result ps expected))
+
+  -- The lambda's parameters, bound against the arrows of its type.
+  bind-lam :: List (String, Ty) -> Span -> List Pat -> Ty -> (List (String, Ty), List Diagnostic)
+  bind-lam env s ps expected = case ps of
+    Nil -> (env, Nil)
+    Cons p rest -> case expected of
+      TyFun d c -> case check-pat env p d of
+        (env2, dp) -> case bind-lam env2 s rest c of
+          (env3, d2) -> (env3, dp <> d2)
+      other -> (env, fail s (string-concat "this lambda cannot be checked against " (string-concat (ty-text expected) ", which is not a function type")))
+
+  -- The type left after one arrow per parameter.
+  lam-result :: List Pat -> Ty -> Ty
+  lam-result ps t = case ps of
+    Nil -> t
+    Cons p rest -> case t of
+      TyFun d c -> lam-result rest c
+      other -> TyHole
+
+  -- --------------------------------------------------------------- patterns
+
+  check-pat :: List (String, Ty) -> Pat -> Ty -> (List (String, Ty), List Diagnostic)
+  check-pat env p expected = case p of
+    PWild s -> (env, Nil)
+    PVar s n -> (Cons (n, expected) env, Nil)
+    PLitInt s text -> (env, ty-compare s TyInt expected)
+    PLitStr s text -> (env, ty-compare s TyStr expected)
+    PLitChar s text -> (env, ty-compare s TyChr expected)
+    PCon s n args -> check-con-pat env s n args expected
+    PTuple s xs -> (env, fail s "unsupported pattern: tuple")
+    PList s xs -> (env, fail s "unsupported pattern: list literal")
+    PAs s n inner -> (env, fail s "unsupported pattern: as binding")
+    PAnn s inner t -> (env, fail s "unsupported pattern: type annotation")
+    PArg s x rest -> (env, fail s "unsupported pattern: pattern spine cell")
+    PArgsEnd s -> (env, fail s "unsupported pattern: pattern spine end")
+    PUnmodeled s text -> (env, fail s (string-concat "unmodeled pattern: " text))
+
+  -- The pattern's arguments are bound even when the count is wrong, so the
+  -- arity failure does not drag an unbound variable along with it.
+  check-con-pat :: List (String, Ty) -> Span -> String -> Pat -> Ty -> (List (String, Ty), List Diagnostic)
+  check-con-pat env s n args expected = case env-lookup n env of
+    None -> (env, fail s (string-concat "unknown constructor: " n))
+    Some ty ->
+      let d0 = con-pat-type-diag s ty expected in
+      case spine-ok-pats args of
+        False -> (env, d0 <> (fail s "malformed argument spine"))
+        True -> case bind-pats env (ty-arg-types ty) (pats-of args) of
+          (env2, dp) -> (env2, d0 <> dp <> (ctor-arity-diag s n (list-length (pats-of args)) ty))
+
+  -- The pattern's expected type must be the type the constructor builds
+  -- (compared by head name: the arguments a declared type is applied to are
+  -- not tracked inside a data declaration).
+  con-pat-type-diag :: Span -> Ty -> Ty -> List Diagnostic
+  con-pat-type-diag s ctor-ty-here expected = case ty-head-name ctor-ty-here of
+    None -> Nil
+    Some owner -> case ty-head-name expected of
+      None -> Nil
+      Some eo -> if string-compare owner eo == 0 then Nil else ty-compare s (TyCon owner (TyArgsEnd zero-span)) expected
+
+  bind-pats :: List (String, Ty) -> List Ty -> List Pat -> (List (String, Ty), List Diagnostic)
+  bind-pats env tys pats = case tys of
+    Nil -> bind-extra-pats env pats
+    Cons t trest -> case pats of
+      Nil -> (env, Nil)
+      Cons p prest -> case check-pat env p t of
+        (env2, d) -> case bind-pats env2 trest prest of
+          (env3, d2) -> (env3, d <> d2)
+
+  -- Patterns past the declared arity are still bound (against the error
+  -- type), so the arity failure is the only report.
+  bind-extra-pats :: List (String, Ty) -> List Pat -> (List (String, Ty), List Diagnostic)
+  bind-extra-pats env pats = case pats of
+    Nil -> (env, Nil)
+    Cons p rest -> case check-pat env p TyHole of
+      (env2, d) -> case bind-extra-pats env2 rest of
+        (env3, d2) -> (env3, d <> d2)
+
+  -- ----------------------------------------------------------- clause coverage
+
+  pat-covers :: Pat -> Pat -> Bool
+  pat-covers a b = case a of
+    PWild s -> True
+    PVar s n -> True
+    PLitInt s t -> case b of
+      PLitInt s2 t2 -> string-compare t t2 == 0
+      other -> False
+    PLitStr s t -> case b of
+      PLitStr s2 t2 -> string-compare t t2 == 0
+      other -> False
+    PLitChar s t -> case b of
+      PLitChar s2 t2 -> string-compare t t2 == 0
+      other -> False
+    PCon s n args -> case b of
+      PCon s2 n2 args2 -> if string-compare n n2 == 0 then pat-spine-covers (pats-of args) (pats-of args2) else False
+      other -> False
+    other -> False
+
+  pat-spine-covers :: List Pat -> List Pat -> Bool
+  pat-spine-covers a b = case a of
+    Nil -> case b of
+      Nil -> True
+      other -> False
+    Cons pa resta -> case b of
+      Nil -> False
+      Cons pb restb -> if pat-covers pa pb then pat-spine-covers resta restb else False
+
+  -- Whether `a` matches every list `b` matches (same length, every
+  -- position covered).
+  clause-covers :: List Pat -> List Pat -> Bool
+  clause-covers a b = case a of
+    Nil -> case b of
+      Nil -> True
+      other -> False
+    Cons pa resta -> case b of
+      Nil -> False
+      Cons pb restb -> if pat-covers pa pb then clause-covers resta restb else False
+
+  covered :: List (List Pat) -> List Pat -> Bool
+  covered earlier pats = case earlier of
+    Nil -> False
+    Cons e rest -> if clause-covers e pats then True else covered rest pats
+
+  -- A clause an earlier clause already matches is unreachable: the check
+  -- this rung's non-overlap requirement comes down to.
+  check-overlap :: List (List Pat, Expr) -> List (List Pat) -> List Diagnostic
+  check-overlap clauses earlier = case clauses of
+    Nil -> Nil
+    Cons c rest -> case c of
+      (pats, body) -> case covered earlier pats of
+        True -> (fail (clause-span pats) "unreachable clause: an earlier clause already matches these patterns") <> (check-overlap rest (Cons pats earlier))
+        False -> check-overlap rest (Cons pats earlier)
+
+  clause-span :: List Pat -> Span
+  clause-span pats = case pats of
+    Nil -> zero-span
+    Cons p rest -> pat-span p
+
+  -- --------------------------------------------------------------- functions
+
+  check-fun :: List Top -> Span -> String -> List (List Pat, Expr) -> List Diagnostic
+  check-fun tops s name clauses = case sig-lookup name tops of
+    None -> fail s (string-concat "no signature for " name)
+    Some ty -> case clauses of
+      Nil -> fail s (string-concat "a function declaration with no clauses: " name)
+      Cons c rest -> check-clauses name (base-env tops) ty (ty-arity ty) clauses
+
+  check-clauses :: String -> List (String, Ty) -> Ty -> Nat -> List (List Pat, Expr) -> List Diagnostic
+  check-clauses name env ty arity clauses =
+    (check-clause-list name env ty arity clauses) <> (check-overlap clauses Nil)
+
+  check-clause-list :: String -> List (String, Ty) -> Ty -> Nat -> List (List Pat, Expr) -> List Diagnostic
+  check-clause-list name env ty arity clauses = case clauses of
+    Nil -> Nil
+    Cons c rest -> case c of
+      (pats, body) -> (check-clause name env ty arity pats body) <> (check-clause-list name env ty arity rest)
+
+  check-clause :: String -> List (String, Ty) -> Ty -> Nat -> List Pat -> Expr -> List Diagnostic
+  check-clause name env ty arity pats body = case list-length pats == arity of
+    False -> fail (clause-span pats) (arity-mismatch-message name (list-length pats) arity)
+    True -> case bind-pats env (ty-arg-types ty) pats of
+      (env2, dp) -> dp <> (check-expr env2 body (ty-result ty))
+
+  arity-mismatch-message :: String -> Nat -> Nat -> String
+  arity-mismatch-message name given expected =
+    string-concat "arity mismatch: " (string-concat name (string-concat ": signature arity " (string-concat (nat-to-string expected) (string-concat ", clause arity " (nat-to-string given)))))
+
+  ctor-arity-message :: String -> Nat -> Nat -> String
+  ctor-arity-message name given expected =
+    string-concat "arity mismatch: constructor " (string-concat name (string-concat ": declared arity " (string-concat (nat-to-string expected) (string-concat ", used arity " (nat-to-string given)))))
+
+  ctor-return-message :: String -> String -> String
+  ctor-return-message name owner =
+    string-concat "constructor " (string-concat name (string-concat " must return " owner))
+
+  -- --------------------------------------------------------------- the scan
+
+  -- Pass one: register every signature and constructor, and report the
+  -- duplicates. Declaration order within a module is not required for the
+  -- registry, so top-level functions may be mutually recursive.
+  scan-decl :: Decl -> List Top -> List Diagnostic -> (List Top, List Diagnostic)
+  scan-decl d tops acc = case d of
+    DSig s n t -> case has-sig n tops of
+      True -> (tops, acc <> (fail s (string-concat "duplicate signature for " n)))
+      False -> case type-to-ty t of
+        (ty, ds) -> (Cons (TopSig n ty) tops, acc <> ds)
+    DData s n ctors -> scan-ctors n ctors tops acc
+    DDecl s x rest -> case scan-decl x tops acc of
+      (t2, a2) -> scan-decl rest t2 a2
+    other -> (tops, acc)
+
+  scan-ctors :: String -> List (String, TypeExpr) -> List Top -> List Diagnostic -> (List Top, List Diagnostic)
+  scan-ctors owner ctors tops acc = case ctors of
+    Nil -> (tops, acc)
+    Cons c rest -> case c of
+      (name, texpr) -> case has-ctor name tops of
+        True -> scan-ctors owner rest tops (acc <> (fail (type-expr-span texpr) (string-concat "duplicate constructor: " name)))
+        False -> case ctor-to-top name owner texpr of
+          (entry, ds) -> scan-ctors owner rest (Cons entry tops) (acc <> ds)
+
+  ctor-to-top :: String -> String -> TypeExpr -> (Top, List Diagnostic)
+  ctor-to-top name owner texpr = case type-to-ty texpr of
+    (ty, ds) -> case ty-result ty of
+      TyCon n sp -> if string-compare n owner == 0 then (TopCtor name owner (ty-spine-of-list (ty-arg-types ty)), ds) else (TopCtor name owner (ty-spine-of-list (ty-arg-types ty)), ds <> (fail (type-expr-span texpr) (ctor-return-message name owner)))
+      other -> (TopCtor name owner (ty-spine-of-list (ty-arg-types ty)), ds <> (fail (type-expr-span texpr) (ctor-return-message name owner)))
+
+  scan-decls :: List Decl -> List Top -> List Diagnostic -> (List Top, List Diagnostic)
+  scan-decls ds tops acc = case ds of
+    Nil -> (tops, acc)
+    Cons d rest -> case scan-decl d tops acc of
+      (t2, a2) -> scan-decls rest t2 a2
+
+  scan-modules :: List Module -> List Top -> List Diagnostic -> (List Top, List Diagnostic)
+  scan-modules ms tops acc = case ms of
+    Nil -> (tops, acc)
+    Cons m rest -> case scan-decls (module-decls m) tops acc of
+      (t2, a2) -> scan-modules rest t2 a2
+
+  -- ------------------------------------------------------- pass two: checking
+
+  check-decl :: List Top -> Decl -> List Diagnostic
+  check-decl tops d = case d of
+    DSig s n t -> Nil
+    DFun s n clauses -> check-fun tops s n clauses
+    DData s n ctors -> Nil
+    DClass s n params members -> fail s "class declarations are not supported in this rung"
+    DInstance s is-implicit name class-app members -> fail s "instance declarations are not supported in this rung"
+    DFixity s assoc prec ops -> fail s "fixity declarations are not supported in this rung"
+    DImport s path -> Nil
+    DExport s text -> Nil
+    DRecord s n fields -> fail s "record declarations are not supported in this rung"
+    DEffect s n ops -> fail s "effect declarations are not supported in this rung"
+    DForeign s conv foreign-name t -> fail s "foreign declarations are not supported in this rung"
+    DDecl s x rest -> (check-decl tops x) <> (check-decl tops rest)
+    DDeclsEnd s -> Nil
+    DUnmodeled s text -> fail s (string-concat "unmodeled declaration: " text)
+
+  check-decls :: List Top -> List Decl -> List Diagnostic
+  check-decls tops ds = case ds of
+    Nil -> Nil
+    Cons d rest -> (check-decl tops d) <> (check-decls tops rest)
+
+  check-modules :: List Top -> List Module -> List Diagnostic
+  check-modules tops ms = case ms of
+    Nil -> Nil
+    Cons m rest -> (check-decls tops (module-decls m)) <> (check-modules tops rest)
+
+  -- The entry point: the failures of the whole program, in the two passes'
+  -- order (registry duplicates first, then the declarations in source
+  -- order).
+  check-program :: Program -> List Diagnostic
+  check-program p = case p of
+    MkProgram s ms -> case scan-modules ms Nil Nil of
+      (tops, d1) -> d1 <> (check-modules tops ms)

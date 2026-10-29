@@ -1,0 +1,504 @@
+-- Rung 3's runnable artifact: the checker's driver program.
+--
+-- `module Main` so `cinch run bootstrap/programs/Run.Check.cinch` (with
+-- Bootstrap.Ast, Bootstrap.Report and Bootstrap.Check beside it) runs it
+-- with no test harness in the way. It hand-builds the AST of
+-- `examples/compiler/fib.cinch`, so the layout of every span below is that
+-- file's own (line 4 is the `fib` signature, line 5 its clause, line 8
+-- `main`'s clause), asserts the checker accepts it, then asserts each named
+-- refusal against its exact rendered diagnostic text, one case per line of
+-- the report the program writes.
+--
+-- Two artefacts, one answer: the exit code is the 1-based number of the
+-- first case whose report differs from the text pinned here (0 when every
+-- case matched), and `bootstrap-check-report.txt` in the working directory
+-- holds every case's rendered diagnostics, so a reader sees what the
+-- checker said, not just that it said it.
+--
+-- The cases, in order: the accepted fib program; an unbound variable; a
+-- type mismatch; an arity mismatch; a duplicated signature; a function
+-- with no signature; an unmodeled expression and an unmodeled
+-- declaration; class, instance and fixity declarations; an operator
+-- outside the fragment; an expression form outside it; a type form outside
+-- it; a pattern form outside it; an unknown constructor; a constructor at
+-- the wrong arity; a constructor whose result type is not the type it is
+-- declared under; an unreachable clause; the accepted recursive corpus
+-- (a data type, case matching, mutual recursion); and the accepted literal
+-- surface (let, annotation, lambda, negation, string and character
+-- literals).
+module Main where
+
+  import Text.Lex (Span, span-start, span-end, span-line, span-col)
+  import Algebra.Semigroup
+  import Data.String (string-to-bytes)
+  import Data.Path (path-from-string)
+  import Effect.Fs (fs-write)
+  import Data.Result (Result, Ok, Err)
+  import Bootstrap.Ast
+  import Bootstrap.Report
+  import Bootstrap.Check
+
+  -- The declaration lists and the check lists below are appended with the
+  -- `Semigroup` operator, so this module declares its fixity.
+  infixr 6 <>
+
+  -- ------------------------------------------------------------ constructors
+
+  -- A span at `line`:`col` (the offsets are not what a diagnostic renders,
+  -- so zero is honest about what this program knows).
+  at :: Nat -> Nat -> Span
+  at line col = Span 0 0 line col
+
+  -- One module named `Main` holding `ds`.
+  program-of :: List Decl -> Program
+  program-of ds = MkProgram (at 1 1) (Cons (MkModule (at 1 1) "Main" (decl-spine (at 1 1) ds)) Nil)
+
+  one-decl :: Decl -> List Decl
+  one-decl d = Cons d Nil
+
+  clause-of :: List Pat -> Expr -> (List Pat, Expr)
+  clause-of pats body = (pats, body)
+
+  alt-of :: Pat -> Expr -> (Pat, Expr)
+  alt-of p body = (p, body)
+
+  ctor-decl :: String -> TypeExpr -> (String, TypeExpr)
+  ctor-decl name t = (name, t)
+
+  binding-of :: String -> Expr -> (String, Expr)
+  binding-of name e = (name, e)
+
+  -- `True` and `False` are the prelude's `Bool` constructors: the fragment
+  -- has `Bool`, so its two values are written exactly as the parser writes
+  -- them (a constructor with an empty argument spine).
+  true-expr :: Nat -> Nat -> Expr
+  true-expr line col = ECon (at line col) "True" (EArgsEnd (at line col))
+
+  false-expr :: Nat -> Nat -> Expr
+  false-expr line col = ECon (at line col) "False" (EArgsEnd (at line col))
+
+  -- ------------------------------------------- examples/compiler/fib.cinch
+
+  fib-sig :: Decl
+  fib-sig = DSig (at 4 3) "fib" (TFun (at 4 10) (TName (at 4 10) "Int") (TName (at 4 15) "Int"))
+
+  main-sig :: Decl
+  main-sig = DSig (at 7 3) "main" (TName (at 7 10) "Int")
+
+  eq-of :: Nat -> String -> Nat -> String -> Expr
+  eq-of c name vcol val = EBin (at 5 c) "==" (EVar (at 5 c) name) (ELitInt (at 5 vcol) val)
+
+  sub-of :: Nat -> String -> Nat -> String -> Expr
+  sub-of c name vcol val = EBin (at 5 c) "-" (EVar (at 5 c) name) (ELitInt (at 5 vcol) val)
+
+  -- fib n = if n == 0 then 0 else if n == 1 then 1 else fib (n - 1) + fib (n - 2)
+  fib-body-of :: Expr -> Expr -> Expr -> Expr -> Expr
+  fib-body-of c1 c2 a1 a2 =
+    EIf (at 5 11) c1 (ELitInt (at 5 24) "0")
+      (EIf (at 5 31) c2 (ELitInt (at 5 44) "1")
+        (EBin (at 5 50) "+"
+          (EApp (at 5 50) (EVar (at 5 50) "fib") a1)
+          (EApp (at 5 66) (EVar (at 5 66) "fib") a2)))
+
+  fib-body :: Expr
+  fib-body = fib-body-of (eq-of 14 "n" 19 "0") (eq-of 34 "n" 39 "1") (sub-of 54 "n" 58 "1") (sub-of 70 "n" 74 "2")
+
+  -- fib with the clause's parameters and body given, so a case can change
+  -- either.
+  fib-fun-of :: List Pat -> Expr -> Decl
+  fib-fun-of pats body = DFun (at 5 3) "fib" (Cons (clause-of pats body) Nil)
+
+  fib-fun :: Decl
+  fib-fun = fib-fun-of (Cons (PVar (at 5 7) "n") Nil) fib-body
+
+  -- main = if fib 10 == 55 then 0 else 1
+  main-body :: Expr
+  main-body =
+    EIf (at 8 10)
+      (EBin (at 8 13) "=="
+        (EApp (at 8 13) (EVar (at 8 13) "fib") (ELitInt (at 8 17) "10"))
+        (ELitInt (at 8 22) "55"))
+      (ELitInt (at 8 29) "0")
+      (ELitInt (at 8 34) "1")
+
+  main-fun :: Decl
+  main-fun = DFun (at 8 3) "main" (Cons (clause-of Nil main-body) Nil)
+
+  fib-program :: Program
+  fib-program = program-of ((one-decl fib-sig) <> (one-decl fib-fun) <> (one-decl main-sig) <> (one-decl main-fun))
+
+  -- ------------------------------------------------------------ the refusals
+
+  -- an unbound variable: `m` is read where the clause binds `n`.
+  unbound-program :: Program
+  unbound-program =
+    program-of
+      ((one-decl fib-sig)
+       <> (one-decl (fib-fun-of (Cons (PVar (at 5 7) "n") Nil)
+            (fib-body-of (eq-of 14 "m" 19 "0") (eq-of 34 "n" 39 "1") (sub-of 54 "n" 58 "1") (sub-of 70 "n" 74 "2"))))
+       <> (one-decl main-sig) <> (one-decl main-fun))
+
+  -- a type mismatch: fib's body is `True` where its signature says `Int`.
+  type-program :: Program
+  type-program =
+    program-of
+      ((one-decl fib-sig)
+       <> (one-decl (fib-fun-of (Cons (PVar (at 5 7) "n") Nil) (true-expr 5 11)))
+       <> (one-decl main-sig) <> (one-decl main-fun))
+
+  -- an arity mismatch: the clause takes two parameters, the signature one.
+  arity-program :: Program
+  arity-program =
+    program-of
+      ((one-decl fib-sig)
+       <> (one-decl (fib-fun-of (Cons (PVar (at 5 7) "n") (Cons (PWild (at 5 9)) Nil)) fib-body))
+       <> (one-decl main-sig) <> (one-decl main-fun))
+
+  -- a second signature for the same name.
+  dup-sig-program :: Program
+  dup-sig-program =
+    program-of ((one-decl fib-sig) <> (one-decl fib-sig) <> (one-decl fib-fun) <> (one-decl main-sig) <> (one-decl main-fun))
+
+  -- no signature at all, so `main`'s call cannot resolve `fib` either.
+  no-sig-program :: Program
+  no-sig-program = program-of ((one-decl fib-fun) <> (one-decl main-sig) <> (one-decl main-fun))
+
+  -- an unmodeled expression, with the parser's own source text.
+  unmodeled-expr-program :: Program
+  unmodeled-expr-program =
+    program-of
+      ((one-decl fib-sig)
+       <> (one-decl (fib-fun-of (Cons (PVar (at 5 7) "n") Nil) (EUnmodeled (at 5 11) "let x = 1 in x")))
+       <> (one-decl main-sig) <> (one-decl main-fun))
+
+  -- an unmodeled declaration.
+  unmodeled-decl-program :: Program
+  unmodeled-decl-program =
+    program-of
+      ((one-decl (DUnmodeled (at 4 3) "type Alias = Int"))
+       <> (one-decl main-sig)
+       <> (one-decl (DFun (at 8 3) "main" (Cons (clause-of Nil (ELitInt (at 8 10) "0")) Nil))))
+
+  class-program :: Program
+  class-program = program-of (one-decl (DClass (at 4 3) "Eq" Nil (DDeclsEnd (at 4 3))))
+
+  instance-program :: Program
+  instance-program = program-of (one-decl (DInstance (at 4 3) False "Eq_Int" (TName (at 4 3) "Int") (DDeclsEnd (at 4 3))))
+
+  fixity-program :: Program
+  fixity-program = program-of (one-decl (DFixity (at 4 3) "infixl" 6 (Cons "+" Nil)))
+
+  -- `&&` is not one of the fragment's operators.
+  operator-program :: Program
+  operator-program =
+    program-of
+      ((one-decl fib-sig)
+       <> (one-decl (fib-fun-of (Cons (PVar (at 5 7) "n") Nil) (EBin (at 5 11) "&&" (ELitInt (at 5 11) "1") (ELitInt (at 5 11) "2"))))
+       <> (one-decl main-sig) <> (one-decl main-fun))
+
+  -- a tuple literal is outside the fragment.
+  tuple-expr :: Expr
+  tuple-expr = ETuple (at 5 11) (expr-spine (at 5 11) (Cons (ELitInt (at 5 11) "1") Nil))
+
+  expression-program :: Program
+  expression-program =
+    program-of
+      ((one-decl fib-sig)
+       <> (one-decl (fib-fun-of (Cons (PVar (at 5 7) "n") Nil) tuple-expr))
+       <> (one-decl main-sig) <> (one-decl main-fun))
+
+  -- a polymorphic signature is outside the fragment.
+  type-form-program :: Program
+  type-form-program =
+    program-of (one-decl (DSig (at 4 3) "id" (TForall (at 4 8) (Cons "a" Nil) (TName (at 4 8) "a"))))
+
+  -- an unmodeled type, with the parser's own source text.
+  unmodeled-type-program :: Program
+  unmodeled-type-program =
+    program-of (one-decl (DSig (at 4 3) "f" (TUnmodeled (at 4 8) "(a, b) -> Int")))
+
+  -- --------------------------------------------------- the recursive corpus
+
+  -- data Peano where
+  --   Pz :: Peano
+  --   Ps :: Peano -> Peano
+  peano-data :: Decl
+  peano-data =
+    DData (at 4 3) "Peano"
+      (Cons (ctor-decl "Pz" (TName (at 5 11) "Peano"))
+      (Cons (ctor-decl "Ps" (TFun (at 6 11) (TName (at 6 11) "Peano") (TName (at 6 20) "Peano"))) Nil))
+
+  pz-pat :: Pat
+  pz-pat = PCon (at 10 5) "Pz" (PArgsEnd (at 10 7))
+
+  ps-q-pat :: Pat
+  ps-q-pat = PCon (at 11 5) "Ps" (pat-spine (at 11 7) (Cons (PVar (at 11 8) "q") Nil))
+
+  -- to-int :: Peano -> Int
+  to-int-sig :: Decl
+  to-int-sig = DSig (at 8 3) "to-int" (TFun (at 8 12) (TName (at 8 12) "Peano") (TName (at 8 21) "Int"))
+
+  -- to-int p = case p of
+  --   Pz -> 0
+  --   Ps q -> 1 + to-int q
+  to-int-body-of :: Pat -> Pat -> Expr
+  to-int-body-of pz-arm ps-arm =
+    ECase (at 9 14) (EVar (at 9 14) "p")
+      (alt-spine (at 10 5)
+        (Cons (alt-of pz-arm (ELitInt (at 10 11) "0"))
+        (Cons (alt-of ps-arm
+                (EBin (at 11 12) "+" (ELitInt (at 11 12) "1")
+                  (EApp (at 11 17) (EVar (at 11 17) "to-int") (EVar (at 11 23) "q"))))
+         Nil)))
+
+  to-int-fun-of :: Pat -> Pat -> Decl
+  to-int-fun-of pz-arm ps-arm =
+    DFun (at 9 3) "to-int" (Cons (clause-of (Cons (PVar (at 9 10) "p") Nil) (to-int-body-of pz-arm ps-arm)) Nil)
+
+  peano-program-with :: Pat -> Pat -> Program
+  peano-program-with pz-arm ps-arm =
+    program-of ((one-decl peano-data) <> (one-decl to-int-sig) <> (one-decl (to-int-fun-of pz-arm ps-arm)))
+
+  peano-program :: Program
+  peano-program = peano-program-with pz-pat ps-q-pat
+
+  -- a pattern form outside the fragment.
+  pattern-program :: Program
+  pattern-program = peano-program-with (PList (at 10 5) (PArgsEnd (at 10 5))) ps-q-pat
+
+  -- an unmodeled pattern, with the parser's own source text.
+  unmodeled-pattern-program :: Program
+  unmodeled-pattern-program = peano-program-with (PUnmodeled (at 10 5) "Pz | Ps q") ps-q-pat
+
+  -- a constructor no declaration names.
+  unknown-ctor-program :: Program
+  unknown-ctor-program = peano-program-with (PCon (at 10 5) "Qz" (PArgsEnd (at 10 7))) ps-q-pat
+
+  -- `Ps` is declared at arity one and used at arity two.
+  ps-two-args :: Pat
+  ps-two-args = PCon (at 11 5) "Ps" (pat-spine (at 11 7) (Cons (PVar (at 11 8) "q") (Cons (PWild (at 11 10)) Nil)))
+
+  ctor-arity-program :: Program
+  ctor-arity-program = peano-program-with pz-pat ps-two-args
+
+  -- Pz is declared under `Peano` but its type says `Int`.
+  ctor-return-program :: Program
+  ctor-return-program = program-of (one-decl (DData (at 4 3) "Peano" (Cons (ctor-decl "Pz" (TName (at 4 10) "Int")) Nil)))
+
+  -- the second clause is a case the first one already matches.
+  coverage-program :: Program
+  coverage-program =
+    program-of
+      ((one-decl fib-sig)
+       <> (one-decl (DFun (at 5 3) "fib"
+             (Cons (clause-of (Cons (PVar (at 5 7) "n") Nil) (EVar (at 5 11) "n"))
+             (Cons (clause-of (Cons (PLitInt (at 6 7) "0") Nil) (ELitInt (at 6 11) "0")) Nil)))))
+
+  -- the whole corpus at once: a data type, case matching, and three
+  -- functions of which two are mutually recursive.
+  is-even-sig :: Decl
+  is-even-sig = DSig (at 13 3) "is-even" (TFun (at 13 12) (TName (at 13 12) "Peano") (TName (at 13 21) "Bool"))
+
+  is-even-body :: Expr
+  is-even-body =
+    ECase (at 14 15) (EVar (at 14 15) "p")
+      (alt-spine (at 15 5)
+        (Cons (alt-of (PCon (at 15 5) "Pz" (PArgsEnd (at 15 7))) (true-expr 15 11))
+        (Cons (alt-of (PCon (at 16 5) "Ps" (pat-spine (at 16 7) (Cons (PVar (at 16 8) "q") Nil)))
+                (EApp (at 16 12) (EVar (at 16 12) "is-odd") (EVar (at 16 19) "q")))
+         Nil)))
+
+  is-even-fun :: Decl
+  is-even-fun = DFun (at 14 3) "is-even" (Cons (clause-of (Cons (PVar (at 14 11) "p") Nil) is-even-body) Nil)
+
+  is-odd-sig :: Decl
+  is-odd-sig = DSig (at 18 3) "is-odd" (TFun (at 18 12) (TName (at 18 12) "Peano") (TName (at 18 21) "Bool"))
+
+  is-odd-body :: Expr
+  is-odd-body =
+    ECase (at 19 14) (EVar (at 19 14) "p")
+      (alt-spine (at 20 5)
+        (Cons (alt-of (PCon (at 20 5) "Pz" (PArgsEnd (at 20 7))) (false-expr 20 11))
+        (Cons (alt-of (PCon (at 21 5) "Ps" (pat-spine (at 21 7) (Cons (PVar (at 21 8) "q") Nil)))
+                (EApp (at 21 12) (EVar (at 21 12) "is-even") (EVar (at 21 20) "q")))
+         Nil)))
+
+  is-odd-fun :: Decl
+  is-odd-fun = DFun (at 19 3) "is-odd" (Cons (clause-of (Cons (PVar (at 19 10) "p") Nil) is-odd-body) Nil)
+
+  -- succ :: Peano -> Peano
+  -- succ p = Ps p
+  succ-sig :: Decl
+  succ-sig = DSig (at 23 3) "succ" (TFun (at 23 11) (TName (at 23 11) "Peano") (TName (at 23 20) "Peano"))
+
+  succ-fun :: Decl
+  succ-fun =
+    DFun (at 24 3) "succ"
+      (Cons (clause-of (Cons (PVar (at 24 8) "p") Nil)
+              (ECon (at 24 13) "Ps" (expr-spine (at 24 13) (Cons (EVar (at 24 16) "p") Nil))))
+       Nil)
+
+  fragment-decls :: List Decl
+  fragment-decls =
+    (one-decl peano-data)
+    <> (one-decl to-int-sig) <> (one-decl (to-int-fun-of pz-pat ps-q-pat))
+    <> (one-decl is-even-sig) <> (one-decl is-even-fun)
+    <> (one-decl is-odd-sig) <> (one-decl is-odd-fun)
+    <> (one-decl succ-sig) <> (one-decl succ-fun)
+
+  fragment-program :: Program
+  fragment-program = program-of fragment-decls
+
+  -- --------------------------------------------------------- literal surface
+
+  -- everything the fragment's terms have that `fib` does not use: a
+  -- type-annotated `let`, a lambda checked against a function type, a
+  -- negation, and a string, a character and a `Bool` value.
+  annot :: Expr
+  annot = EAnn (at 5 12) (ELitInt (at 5 12) "5") (TName (at 5 17) "Int")
+
+  t-body :: Expr
+  t-body =
+    ELet (at 5 8)
+      (binding-spine (at 5 8) (Cons (binding-of "a" annot) Nil))
+      (EBin (at 5 22) "+" (EVar (at 5 22) "a") (ELitInt (at 5 24) "1"))
+
+  t-sig :: Decl
+  t-sig = DSig (at 4 3) "t" (TName (at 4 7) "Int")
+
+  t-fun :: Decl
+  t-fun = DFun (at 5 3) "t" (Cons (clause-of Nil t-body) Nil)
+
+  apply-sig :: Decl
+  apply-sig =
+    DSig (at 7 3) "apply" (TFun (at 7 11)
+      (TFun (at 7 11) (TName (at 7 11) "Int") (TName (at 7 16) "Int"))
+      (TFun (at 7 21) (TName (at 7 21) "Int") (TName (at 7 26) "Int")))
+
+  apply-fun :: Decl
+  apply-fun =
+    DFun (at 8 3) "apply"
+      (Cons (clause-of (Cons (PVar (at 8 9) "f") (Cons (PVar (at 8 11) "x") Nil))
+              (EApp (at 8 15) (EVar (at 8 15) "f") (EVar (at 8 17) "x")))
+       Nil)
+
+  double-lambda :: Expr
+  double-lambda = ELam (at 11 19) (Cons (PVar (at 11 20) "y") Nil) (EBin (at 11 25) "+" (EVar (at 11 25) "y") (EVar (at 11 27) "y"))
+
+  twice-sig :: Decl
+  twice-sig = DSig (at 10 3) "twice" (TFun (at 10 11) (TName (at 10 11) "Int") (TName (at 10 16) "Int"))
+
+  twice-fun :: Decl
+  twice-fun =
+    DFun (at 11 3) "twice"
+      (Cons (clause-of (Cons (PVar (at 11 9) "x") Nil)
+              (EApp (at 11 13)
+                (EApp (at 11 13) (EVar (at 11 13) "apply") double-lambda)
+                (EVar (at 11 32) "x")))
+       Nil)
+
+  greeting-sig :: Decl
+  greeting-sig = DSig (at 13 3) "greeting" (TName (at 13 12) "String")
+
+  greeting-fun :: Decl
+  greeting-fun = DFun (at 14 3) "greeting" (Cons (clause-of Nil (ELitStr (at 14 12) "hi")) Nil)
+
+  letter-sig :: Decl
+  letter-sig = DSig (at 15 3) "letter" (TName (at 15 10) "Char")
+
+  letter-fun :: Decl
+  letter-fun = DFun (at 16 3) "letter" (Cons (clause-of Nil (ELitChar (at 16 10) "x")) Nil)
+
+  below-sig :: Decl
+  below-sig = DSig (at 17 3) "below" (TName (at 17 9) "Int")
+
+  below-fun :: Decl
+  below-fun = DFun (at 18 3) "below" (Cons (clause-of Nil (ENeg (at 18 9) (ELitInt (at 18 10) "1"))) Nil)
+
+  flag-sig :: Decl
+  flag-sig = DSig (at 19 3) "flag" (TName (at 19 8) "Bool")
+
+  flag-fun :: Decl
+  flag-fun = DFun (at 20 3) "flag" (Cons (clause-of Nil (true-expr 20 8)) Nil)
+
+  apart-sig :: Decl
+  apart-sig = DSig (at 21 3) "apart" (TName (at 21 9) "Bool")
+
+  apart-fun :: Decl
+  apart-fun = DFun (at 22 3) "apart" (Cons (clause-of Nil (EBin (at 22 9) "==" (ELitStr (at 22 9) "a") (ELitStr (at 22 14) "b"))) Nil)
+
+  literals-decls :: List Decl
+  literals-decls =
+    (one-decl t-sig) <> (one-decl t-fun)
+    <> (one-decl apply-sig) <> (one-decl apply-fun)
+    <> (one-decl twice-sig) <> (one-decl twice-fun)
+    <> (one-decl greeting-sig) <> (one-decl greeting-fun)
+    <> (one-decl letter-sig) <> (one-decl letter-fun)
+    <> (one-decl below-sig) <> (one-decl below-fun)
+    <> (one-decl flag-sig) <> (one-decl flag-fun)
+    <> (one-decl apart-sig) <> (one-decl apart-fun)
+
+  literals-program :: Program
+  literals-program = program-of literals-decls
+
+  -- --------------------------------------------------------------- the cases
+
+  data Check where
+    MkCheck :: String -> Program -> String -> Check
+
+  one :: Check -> List Check
+  one c = Cons c Nil
+
+  -- The report for one case: the label, then the checker's own rendering.
+  case-text :: Check -> String
+  case-text c = case c of
+    MkCheck label p expected -> string-concat label (string-concat ":\n" (render-diagnostics (check-program p)))
+
+  report-of :: List Check -> String
+  report-of cases = case cases of
+    Nil -> empty-string
+    Cons c rest -> string-concat (case-text c) (report-of rest)
+
+  -- The 1-based number of the first case whose report differs from the text
+  -- pinned with it, or 0 when every case matched.
+  verdict-of :: List Check -> Nat -> Int
+  verdict-of cases n = case cases of
+    Nil -> 0
+    Cons c rest -> case c of
+      MkCheck label p expected -> case string-compare (render-diagnostics (check-program p)) expected of
+        0 -> verdict-of rest (n + 1)
+        other -> int-from-i64 (nat-to-i64 (n + 1))
+
+  cases :: List Check
+  cases =
+    (one (MkCheck "fib" fib-program empty-string))
+    <> (one (MkCheck "unbound" unbound-program "bootstrap.check:5:14: unbound variable: m\n"))
+    <> (one (MkCheck "type" type-program "bootstrap.check:5:11: type mismatch: expected Int, found Bool\n"))
+    <> (one (MkCheck "arity" arity-program "bootstrap.check:5:7: arity mismatch: fib: signature arity 1, clause arity 2\n"))
+    <> (one (MkCheck "dup-sig" dup-sig-program "bootstrap.check:4:3: duplicate signature for fib\n"))
+    <> (one (MkCheck "no-sig" no-sig-program "bootstrap.check:5:3: no signature for fib\nbootstrap.check:8:13: unbound variable: fib\n"))
+    <> (one (MkCheck "unmodeled-expr" unmodeled-expr-program "bootstrap.check:5:11: unmodeled expression: let x = 1 in x\n"))
+    <> (one (MkCheck "unmodeled-decl" unmodeled-decl-program "bootstrap.check:4:3: unmodeled declaration: type Alias = Int\n"))
+    <> (one (MkCheck "unmodeled-type" unmodeled-type-program "bootstrap.check:4:8: unmodeled type: (a, b) -> Int\n"))
+    <> (one (MkCheck "unmodeled-pattern" unmodeled-pattern-program "bootstrap.check:10:5: unmodeled pattern: Pz | Ps q\n"))
+    <> (one (MkCheck "class" class-program "bootstrap.check:4:3: class declarations are not supported in this rung\n"))
+    <> (one (MkCheck "instance" instance-program "bootstrap.check:4:3: instance declarations are not supported in this rung\n"))
+    <> (one (MkCheck "fixity" fixity-program "bootstrap.check:4:3: fixity declarations are not supported in this rung\n"))
+    <> (one (MkCheck "operator" operator-program "bootstrap.check:5:11: unsupported operator: &&\n"))
+    <> (one (MkCheck "expression" expression-program "bootstrap.check:5:11: unsupported expression: tuple\n"))
+    <> (one (MkCheck "type-form" type-form-program "bootstrap.check:4:8: unsupported type: forall\n"))
+    <> (one (MkCheck "pattern" pattern-program "bootstrap.check:10:5: unsupported pattern: list literal\n"))
+    <> (one (MkCheck "unknown-ctor" unknown-ctor-program "bootstrap.check:10:5: unknown constructor: Qz\n"))
+    <> (one (MkCheck "ctor-arity" ctor-arity-program "bootstrap.check:11:5: arity mismatch: constructor Ps: declared arity 1, used arity 2\n"))
+    <> (one (MkCheck "ctor-return" ctor-return-program "bootstrap.check:4:10: constructor Pz must return Peano\n"))
+    <> (one (MkCheck "unreachable-clause" coverage-program "bootstrap.check:6:7: unreachable clause: an earlier clause already matches these patterns\n"))
+    <> (one (MkCheck "fragment" fragment-program empty-string))
+    <> (one (MkCheck "literals" literals-program empty-string))
+
+  -- ------------------------------------------------------------------- main
+
+  main :: Unit ->{IO r} Int
+  main u = with (io = newIO ()) in
+    case fs-write (path-from-string "bootstrap-check-report.txt") (string-to-bytes (report-of cases)) of
+      Err e -> 100
+      Ok x -> verdict-of cases 0
