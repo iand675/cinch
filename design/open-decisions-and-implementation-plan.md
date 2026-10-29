@@ -62,13 +62,13 @@ The language requirements are ambitious but coherent enough to define a research
 | Resource usage algebra and dependent borrowing | Claiming memory and logical soundness together |
 | Effect calculus and continuation multiplicity | General handlers and asynchronous APIs |
 | Guarded recursion, clocks or sized types | Accepting productive codata and coinductive proofs |
-| Immutable sharing and reclamation strategy | Stable runtime representation and performance claims |
+| Immutable sharing and reclamation strategy (designed: GC-free Perceus reference counting, `design/reclamation.md`; word representation by specialization, `design/layouts-and-specialization.md`) | Stable runtime representation and performance claims |
 | Abstract type identity and functor generativity | Separate compilation and module evolution |
 | Optimization equivalence and observable allocation failure | Certifying transformations consistently |
 | Typed-code contexts and stage dependencies | Hygienic dependent metaprogramming |
 | Migration atomicity and cancellation semantics | Production hot replacement |
-| Certificate formats and trusted backends | Meaningful artifact assurance profiles |
-| Instruction models, target capability lifetime and scalable widths | Sound platform-specific SIMD specialization |
+| Certificate formats and trusted backends (direction: `design/verified-primitives.md`, `design/proof-automation.md`) | Meaningful artifact assurance profiles |
+| Instruction models, target capability lifetime and scalable widths (instruction models: `design/verified-primitives.md`) | Sound platform-specific SIMD specialization |
 | Native pointer provenance, callback entry and unwind policy | Publishing safe foreign wrappers |
 | Source concurrency memory model and backend correspondence | Claiming data-race freedom across native and Wasm |
 | Cancellation, task failure and cleanup semantics | Stabilizing async APIs |
