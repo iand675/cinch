@@ -1,0 +1,522 @@
+-- Data.IpAddr: IPv4 and IPv6 addresses as data, not names to resolve.
+--
+-- A port of Ruby's `IPAddr` (design/stdlib-parity-ruby.md, the
+-- networking family: "`Net::HTTP`, `Socket`, `URI`, `IPAddr`,
+-- `Resolv`/DNS"). Ruby folds both families into one class and lets
+-- construction reach the network; this module keeps the two families
+-- as distinct types (`Ipv4`, `Ipv6`) with a sum (`IpAddr`) over them,
+-- because the two have different widths, different byte counts and
+-- different text grammars, and because a value that has been parsed
+-- must never depend on a resolver.
+--
+-- Module scheme (design/base-library.md): `Data.*` homes are concrete
+-- types, and an address is a concrete value with its parsing,
+-- rendering, byte view and comparison, so its home is `Data.IpAddr`.
+-- Identifiers are kebab-case per D106. The range invariants (four
+-- octets at most 255, exactly eight 16-bit groups) live at the smart
+-- constructors and at `ipv4-parse`/`ipv6-parse`; the raw constructor
+-- stays out of the export list per D143's surface rule.
+--
+-- The law shape (exercised in compiler/tests/lib_uri_ipaddr.rs):
+--   parse/render round trip: `ipv4-parse (ipv4-to-string a) == Some a`
+--     and `ipv6-parse (ipv6-to-string a) == Some a`, so the canonical
+--     rendering is a fixed point of parsing;
+--   the byte view is width-exact and most significant byte first:
+--     four bytes for `Ipv4`, sixteen for `Ipv6`;
+--   `Eq`/`Ord` agree with numeric address order within a family and
+--     place every `Ipv4` before every `Ipv6` across families.
+--
+-- Named refusals (unproductions this module deliberately does not
+-- implement; each is a named boundary, never a silent gap):
+--   name resolution: no DNS, no `/etc/hosts`, no lookup of any kind
+--     lives here (Ruby's `IPAddr#new` resolves a hostname). Resolution
+--     belongs to the socket slice, which will call it out explicitly;
+--   IPv4-embedded and IPv4-compatible IPv6 (`::ffff:1.2.3.4`,
+--     `::1.2.3.4`) and NAT64 spellings: refused, not guessed, since
+--     the mixed text grammar hides which family a reader meant;
+--   scope and zone identifiers (`fe80::1%eth0`): refused (the zone is
+--     a property of the interface, not of the address);
+--   prefixes and masks (`10.0.0.0/8`, `2001:db8::/32`): refused (the
+--     network prefix is the prefix family's business, not this one's);
+--   IPv4 short and leading-zero forms (`1.2.3`, `010.1.1.1`, `0x7f.1`):
+--     refused, following RFC 3986's `dec-octet` (three digits at most,
+--     no leading zero), so one text spells exactly one address.
+module Data.IpAddr where
+
+  import Relation.Eq
+  import Relation.Ord
+  import Data.Nat
+  import Data.Option
+  import Data.List
+  import Data.Bytes
+  import Data.Bool
+  import Data.Char
+
+  export IpFamily, Ipv4Family, Ipv6Family
+  export Ipv4, ipv4-parse, ipv4-from-octets, ipv4-to-string, ipv4-bytes
+  export Ipv6, ipv6-parse, ipv6-from-groups, ipv6-to-string, ipv6-bytes
+  export IpAddr, V4Addr, V6Addr, ip-parse, ip-to-string, ip-bytes, ip-family
+
+
+  -- -----------------------------------------------------------------
+  -- The two families and the sum over them.
+  -- -----------------------------------------------------------------
+
+  -- Which family an address belongs to (Ruby spells this as a pair of
+  -- predicates; one total witness keeps the answer exhaustive).
+  data IpFamily where
+    Ipv4Family :: IpFamily
+    Ipv6Family :: IpFamily
+
+  -- Four octets, each 0..=255.
+  data Ipv4 where
+    MkIpv4 :: Nat -> Nat -> Nat -> Nat -> Ipv4
+
+  -- Exactly eight 16-bit groups, most significant first.
+  data Ipv6 where
+    MkIpv6 :: List Nat -> Ipv6
+
+  data IpAddr where
+    V4Addr :: Ipv4 -> IpAddr
+    V6Addr :: Ipv6 -> IpAddr
+
+
+  -- -----------------------------------------------------------------
+  -- Private list and character plumbing (the module keeps its own;
+  -- the shared helpers of Data.String and Text.Scan are not on the
+  -- implicit surface, and each family's home keeps its own copies).
+  -- -----------------------------------------------------------------
+
+  chars-rev :: forall a. List a -> List a
+  chars-rev cs = chars-rev-acc cs Nil
+
+  chars-rev-acc :: forall a. List a -> List a -> List a
+  chars-rev-acc cs acc = case cs of
+    Nil -> acc
+    Cons c rest -> chars-rev-acc rest (Cons c acc)
+
+  chars-append :: List Char -> List Char -> List Char
+  chars-append a b = case a of
+    Nil -> b
+    Cons c rest -> Cons c (chars-append rest b)
+
+  list-empty :: forall a. List a -> Bool
+  list-empty xs = case xs of
+    Nil -> True
+    Cons _ _ -> False
+
+  list-count :: forall a. List a -> Nat
+  list-count xs = case xs of
+    Nil -> 0
+    Cons _ ys -> 1 + list-count ys
+
+  list-take :: forall a. Nat -> List a -> List a
+  list-take n xs =
+    if n == 0 then Nil
+    else case xs of
+      Nil -> Nil
+      Cons y ys -> Cons y (list-take (n - 1) ys)
+
+  list-drop :: forall a. Nat -> List a -> List a
+  list-drop n xs =
+    if n == 0 then xs
+    else case xs of
+      Nil -> Nil
+      Cons _ ys -> list-drop (n - 1) ys
+
+  char-nat :: Char -> Nat
+  char-nat c = nat-from-i64 (u32-to-i64 (char-to-u32 c))
+
+  char-of :: Nat -> Char
+  char-of n = case u32-to-char (wrapping-i64-to-u32 (nat-to-i64 n)) of
+    Some x -> x
+    None -> '?'
+
+  is-digit :: Char -> Bool
+  is-digit c = let n = char-nat c in (n >= 48) && (n <= 57)
+
+  digit-of :: Char -> Nat
+  digit-of c = char-nat c - 48
+
+  is-hex :: Char -> Bool
+  is-hex c =
+    let n = char-nat c in
+    is-digit c || ((n >= 97) && (n <= 102)) || ((n >= 65) && (n <= 70))
+
+  hex-of :: Char -> Nat
+  hex-of c =
+    let n = char-nat c in
+    if n <= 57 then n - 48 else if n >= 97 then n - 87 else n - 55
+
+  hex-low :: Nat -> Char
+  hex-low d = if d <= 9 then char-of (48 + d) else char-of (87 + d)
+
+  -- Split at every `sep`, keeping empty pieces: a trailing separator
+  -- yields a trailing empty piece, so the piece count is exact and a
+  -- leading/trailing `:` shows up as an empty piece to reject.
+  split-on :: Char -> List Char -> List (List Char)
+  split-on sep cs = split-on-acc sep cs Nil Nil
+
+  split-on-acc :: Char -> List Char -> List Char -> List (List Char) -> List (List Char)
+  split-on-acc sep cs piece acc = case cs of
+    Nil -> chars-rev (Cons (chars-rev piece) acc)
+    Cons c rest ->
+      if eq-char c sep then split-on-acc sep rest Nil (Cons (chars-rev piece) acc)
+      else split-on-acc sep rest (Cons c piece) acc
+
+  -- Combine four checked components under a constructor (the octets of
+  -- an IPv4 address are all-or-nothing).
+  combine4 :: forall a b c d e. Option a -> Option b -> Option c -> Option d -> (a -> b -> c -> d -> e) -> Option e
+  combine4 oa ob oc od f = case oa of
+    None -> None
+    Some a -> case ob of
+      None -> None
+      Some b -> case oc of
+        None -> None
+        Some c -> case od of
+          None -> None
+          Some d -> Some (f a b c d)
+
+  sequence-opt :: forall a. List (Option a) -> Option (List a)
+  sequence-opt xs = case xs of
+    Nil -> Some Nil
+    Cons y ys -> case y of
+      None -> None
+      Some v -> case sequence-opt ys of
+        None -> None
+        Some vs -> Some (Cons v vs)
+
+  nat-append :: List Nat -> List Nat -> List Nat
+  nat-append a b = case a of
+    Nil -> b
+    Cons x rest -> Cons x (nat-append rest b)
+
+
+  -- -----------------------------------------------------------------
+  -- IPv4.
+  -- -----------------------------------------------------------------
+
+  -- The leading-zero test: a multi-digit octet may not start with `0`
+  -- (RFC 3986 `dec-octet`; see the refusals in the header).
+  leading-zero :: List Char -> Bool
+  leading-zero cs = case cs of
+    Cons c rest -> eq-char c '0' && not (list-empty rest)
+    Nil -> False
+
+  decimal-digits :: List Char -> Nat -> Option Nat
+  decimal-digits cs acc = case cs of
+    Nil -> Some acc
+    Cons c rest ->
+      if is-digit c then decimal-digits rest (acc * 10 + digit-of c) else None
+
+  octet-value :: List Char -> Option Nat
+  octet-value cs =
+    if list-empty cs then None
+    else if leading-zero cs then None
+    else if list-count cs > 3 then None
+    else case decimal-digits cs 0 of
+      None -> None
+      Some v -> if v <= 255 then Some v else None
+
+  ipv4-parse :: String -> Option Ipv4
+  ipv4-parse s = case split-on '.' (unpack s) of
+    Cons p1 (Cons p2 (Cons p3 (Cons p4 Nil))) ->
+      combine4 (octet-value p1) (octet-value p2) (octet-value p3) (octet-value p4) MkIpv4
+    _ -> None
+
+  -- The smart constructor: octets outside 0..=255 are refused, so no
+  -- caller can build an `Ipv4` the parser would never produce.
+  ipv4-from-octets :: Nat -> Nat -> Nat -> Nat -> Option Ipv4
+  ipv4-from-octets a b c d =
+    if (a <= 255) && (b <= 255) && (c <= 255) && (d <= 255) then Some (MkIpv4 a b c d)
+    else None
+
+  ipv4-to-string :: Ipv4 -> String
+  ipv4-to-string a = case a of
+    MkIpv4 a1 a2 a3 a4 ->
+      string-concat (nat-to-string a1)
+        (string-concat "."
+          (string-concat (nat-to-string a2)
+            (string-concat "."
+              (string-concat (nat-to-string a3)
+                (string-concat "." (nat-to-string a4))))))
+
+  ipv4-bytes :: Ipv4 -> Bytes
+  ipv4-bytes a = case a of
+    MkIpv4 a1 a2 a3 a4 -> bytes-from-list (Cons a1 (Cons a2 (Cons a3 (Cons a4 Nil))))
+
+  -- Numeric order over the octets (the `Ord` instance's witness).
+  ipv4-order :: Ipv4 -> Ipv4 -> I64
+  ipv4-order a b = case a of
+    MkIpv4 a1 a2 a3 a4 -> case b of
+      MkIpv4 b1 b2 b3 b4 ->
+        let c1 = nat-cmp a1 b1 in
+        if eq-i64 c1 0 then
+          let c2 = nat-cmp a2 b2 in
+          if eq-i64 c2 0 then
+            let c3 = nat-cmp a3 b3 in
+            if eq-i64 c3 0 then nat-cmp a4 b4 else c3
+          else c2
+        else c1
+
+
+  -- -----------------------------------------------------------------
+  -- IPv6.
+  -- -----------------------------------------------------------------
+
+  -- The first `::` split into the text before it and the text after
+  -- it, both excluding the two colons.
+  find-double-colon :: List Char -> Option (List Char, List Char)
+  find-double-colon cs = find-dc-acc cs Nil
+
+  find-dc-acc :: List Char -> List Char -> Option (List Char, List Char)
+  find-dc-acc cs pre = case cs of
+    Nil -> None
+    Cons c rest ->
+      if eq-char c ':' then
+        case rest of
+          Cons c2 rest2 ->
+            if eq-char c2 ':' then Some (chars-rev pre, rest2)
+            else find-dc-acc rest2 (Cons c2 (Cons c pre))
+          Nil -> None
+      else find-dc-acc rest (Cons c pre)
+
+  -- Whether a second `::` appears (at most one is allowed).
+  contains-double-colon :: List Char -> Bool
+  contains-double-colon cs = case cs of
+    Nil -> False
+    Cons c rest ->
+      if eq-char c ':' then
+        case rest of
+          Cons c2 rest2 -> if eq-char c2 ':' then True else contains-double-colon rest
+          Nil -> False
+      else contains-double-colon rest
+
+  all-hex :: List Char -> Bool
+  all-hex cs = case cs of
+    Nil -> True
+    Cons c rest -> if is-hex c then all-hex rest else False
+
+  hex-digits :: List Char -> Nat -> Nat
+  hex-digits cs acc = case cs of
+    Nil -> acc
+    Cons c rest -> hex-digits rest (acc * 16 + hex-of c)
+
+  -- One `h16` group: one to four hex digits (empty pieces and overly
+  -- long groups are refused).
+  hex-group :: List Char -> Option Nat
+  hex-group cs =
+    if list-empty cs then None
+    else if list-count cs > 4 then None
+    else if all-hex cs then Some (hex-digits cs 0)
+    else None
+
+  -- A side of a `::` split: empty means zero groups, otherwise every
+  -- colon-separated piece must be a valid group.
+  hex-groups :: List Char -> Option (List Nat)
+  hex-groups cs =
+    if list-empty cs then Some Nil
+    else sequence-opt (map hex-group (split-on ':' cs))
+
+  -- The uncompressed form: exactly eight non-empty groups.
+  parse-full-groups :: List (List Char) -> Option Ipv6
+  parse-full-groups pieces =
+    if list-count pieces == 8 then
+      case sequence-opt (map hex-group pieces) of
+        None -> None
+        Some gs -> Some (MkIpv6 gs)
+    else None
+
+  zeros :: Nat -> List Nat
+  zeros k = if k == 0 then Nil else Cons 0 (zeros (k - 1))
+
+  -- The compressed form: the two sides together leave at least one
+  -- group to `::`, so at most seven explicit groups.
+  pad-groups :: List Nat -> List Nat -> Option Ipv6
+  pad-groups ls rs =
+    let n = list-count ls + list-count rs in
+    if n > 7 then None
+    else Some (MkIpv6 (nat-append ls (nat-append (zeros (8 - n)) rs)))
+
+  ipv6-parse :: String -> Option Ipv6
+  ipv6-parse s = case find-double-colon (unpack s) of
+    None -> parse-full-groups (split-on ':' (unpack s))
+    Some halves -> case halves of
+      (left, right) ->
+        if contains-double-colon right then None
+        else case hex-groups left of
+          None -> None
+          Some ls -> case hex-groups right of
+            None -> None
+            Some rs -> pad-groups ls rs
+
+  -- The smart constructor: exactly eight groups, each 0..=65535.
+  ipv6-from-groups :: List Nat -> Option Ipv6
+  ipv6-from-groups gs =
+    if list-count gs == 8 && all-groups-ok gs then Some (MkIpv6 gs) else None
+
+  all-groups-ok :: List Nat -> Bool
+  all-groups-ok gs = case gs of
+    Nil -> True
+    Cons g rest -> if g <= 65535 then all-groups-ok rest else False
+
+  -- The longest run of consecutive zero groups at least two long,
+  -- earliest on ties (RFC 5952's compression choice: never compress a
+  -- single zero group, and leftmost wins a tie).
+  longest-zero-run :: List Nat -> Option (Nat, Nat)
+  longest-zero-run gs = scan-runs gs 0 0 0 None
+
+  scan-runs :: List Nat -> Nat -> Nat -> Nat -> Option (Nat, Nat) -> Option (Nat, Nat)
+  scan-runs gs i run-start run-len best = case gs of
+    Nil -> if run-len >= 2 then longer run-start run-len best else best
+    Cons g rest ->
+      if g == 0 then
+        let start = if run-len == 0 then i else run-start in
+        scan-runs rest (i + 1) start (run-len + 1) best
+      else
+        let best2 = if run-len >= 2 then longer run-start run-len best else best in
+        scan-runs rest (i + 1) 0 0 best2
+
+  -- Strictly longer wins, so the earliest run keeps a tie.
+  longer :: Nat -> Nat -> Option (Nat, Nat) -> Option (Nat, Nat)
+  longer start len best = case best of
+    None -> Some (start, len)
+    Some b -> case b of
+      (_, bl) -> if len > bl then Some (start, len) else best
+
+  render-group :: Nat -> String
+  render-group g = if g == 0 then "0" else pack (render-group-chars g)
+
+  render-group-chars :: Nat -> List Char
+  render-group-chars g =
+    if g == 0 then Nil
+    else chars-append (render-group-chars (nat-div g 16)) (Cons (hex-low (nat-rem g 16)) Nil)
+
+  join-groups :: List Nat -> String
+  join-groups gs = pack (join-groups-chars gs)
+
+  join-groups-chars :: List Nat -> List Char
+  join-groups-chars gs = case gs of
+    Nil -> Nil
+    Cons g Nil -> unpack (render-group g)
+    Cons g rest -> chars-append (unpack (render-group g)) (Cons ':' (join-groups-chars rest))
+
+  -- Canonical rendering: lower-case hex, the chosen zero run spelled
+  -- `::`, at most one `::` per address.
+  ipv6-to-string :: Ipv6 -> String
+  ipv6-to-string a = case a of
+    MkIpv6 gs -> case longest-zero-run gs of
+      None -> join-groups gs
+      Some r -> case r of
+        (start, len) -> render-run gs start len
+
+  render-run :: List Nat -> Nat -> Nat -> String
+  render-run gs start len =
+    let head-groups = list-take start gs in
+    let tail-groups = list-drop (start + len) gs in
+    let head-str = join-groups head-groups in
+    let tail-str = join-groups tail-groups in
+    if start == 0 then
+      if list-empty tail-groups then "::" else string-concat "::" tail-str
+    else
+      if list-empty tail-groups then string-concat head-str "::"
+      else string-concat head-str (string-concat "::" tail-str)
+
+  ipv6-bytes :: Ipv6 -> Bytes
+  ipv6-bytes a = case a of
+    MkIpv6 gs -> bytes-from-list (group-bytes gs)
+
+  group-bytes :: List Nat -> List Nat
+  group-bytes gs = case gs of
+    Nil -> Nil
+    Cons g rest -> Cons (nat-div g 256) (Cons (nat-rem g 256) (group-bytes rest))
+
+  ipv6-order :: Ipv6 -> Ipv6 -> I64
+  ipv6-order a b = case a of
+    MkIpv6 xs -> case b of
+      MkIpv6 ys -> nat-list-order xs ys
+
+  nat-list-order :: List Nat -> List Nat -> I64
+  nat-list-order xs ys = case xs of
+    Nil -> case ys of
+      Nil -> 0
+      Cons _ _ -> -1
+    Cons x xr -> case ys of
+      Nil -> 1
+      Cons y yr ->
+        let c = nat-cmp x y in
+        if eq-i64 c 0 then nat-list-order xr yr else c
+
+
+  -- -----------------------------------------------------------------
+  -- The sum over the families.
+  -- -----------------------------------------------------------------
+
+  ip-family :: IpAddr -> IpFamily
+  ip-family a = case a of
+    V4Addr _ -> Ipv4Family
+    V6Addr _ -> Ipv6Family
+
+  ip-to-string :: IpAddr -> String
+  ip-to-string a = case a of
+    V4Addr v -> ipv4-to-string v
+    V6Addr v -> ipv6-to-string v
+
+  ip-bytes :: IpAddr -> Bytes
+  ip-bytes a = case a of
+    V4Addr v -> ipv4-bytes v
+    V6Addr v -> ipv6-bytes v
+
+  ip-parse :: String -> Option IpAddr
+  ip-parse s = case ipv4-parse s of
+    Some v -> Some (V4Addr v)
+    None -> case ipv6-parse s of
+      Some v -> Some (V6Addr v)
+      None -> None
+
+  -- Every `Ipv4` sorts before every `Ipv6` (the families are told
+  -- apart by which one a parser chose, never by a shared number line).
+  ip-order :: IpAddr -> IpAddr -> I64
+  ip-order a b = case a of
+    V4Addr x -> case b of
+      V4Addr y -> ipv4-order x y
+      V6Addr _ -> -1
+    V6Addr x -> case b of
+      V4Addr _ -> 1
+      V6Addr y -> ipv6-order x y
+
+
+  -- -----------------------------------------------------------------
+  -- Instances (they live with their type; D159's parked deviation is
+  -- over).
+  -- -----------------------------------------------------------------
+
+  implicit instance Eq_Ipv4 :: Eq Ipv4 where
+    (==) x y = eq-i64 (ipv4-order x y) 0
+    (/=) x y = ne-i64 (ipv4-order x y) 0
+
+  implicit instance Ord_Ipv4 :: Ord Ipv4 where
+    (<) x y = lt-i64 (ipv4-order x y) 0
+    (<=) x y = le-i64 (ipv4-order x y) 0
+    (>) x y = gt-i64 (ipv4-order x y) 0
+    (>=) x y = ge-i64 (ipv4-order x y) 0
+
+  implicit instance Eq_Ipv6 :: Eq Ipv6 where
+    (==) x y = eq-i64 (ipv6-order x y) 0
+    (/=) x y = ne-i64 (ipv6-order x y) 0
+
+  implicit instance Ord_Ipv6 :: Ord Ipv6 where
+    (<) x y = lt-i64 (ipv6-order x y) 0
+    (<=) x y = le-i64 (ipv6-order x y) 0
+    (>) x y = gt-i64 (ipv6-order x y) 0
+    (>=) x y = ge-i64 (ipv6-order x y) 0
+
+  implicit instance Eq_IpAddr :: Eq IpAddr where
+    (==) x y = eq-i64 (ip-order x y) 0
+    (/=) x y = ne-i64 (ip-order x y) 0
+
+  implicit instance Ord_IpAddr :: Ord IpAddr where
+    (<) x y = lt-i64 (ip-order x y) 0
+    (<=) x y = le-i64 (ip-order x y) 0
+    (>) x y = gt-i64 (ip-order x y) 0
+    (>=) x y = ge-i64 (ip-order x y) 0
