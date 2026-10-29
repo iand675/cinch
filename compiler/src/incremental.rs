@@ -1074,6 +1074,10 @@ impl Session {
             &opt,
             &self.profile,
             &self.wit,
+            // The session has no `--rebuild` flag of its own: the CLI
+            // flag is the driver's. A store entry that disagrees with the
+            // session's interfaces is still a hard error here.
+            &crate::driver::DriverOptions::default(),
         )?;
         report.chain_ok = self.chain_ok();
 

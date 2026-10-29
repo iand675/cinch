@@ -17,6 +17,7 @@ pub mod lexer;
 pub mod lsp;
 pub mod parser;
 pub mod repl;
+pub mod store;
 pub mod types;
 
 use std::fmt;

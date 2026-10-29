@@ -1,0 +1,341 @@
+{
+  "schema": 1,
+  "name": "cinch-base",
+  "version": "0.1.0",
+  "source_manifest": "the embedded prelude family (compiler/prelude/Prelude.cinch is the facade)",
+  "modules": [
+    {
+      "name": "Data.Core",
+      "path": "Data/Core.cinch",
+      "embedded": true
+    },
+    {
+      "name": "Data.Ordering",
+      "path": "Data/Ordering.cinch",
+      "embedded": true
+    },
+    {
+      "name": "Relation.Eq",
+      "path": "Relation/Eq.cinch",
+      "embedded": true
+    },
+    {
+      "name": "Relation.Ord",
+      "path": "Relation/Ord.cinch",
+      "embedded": true
+    },
+    {
+      "name": "Algebra.Arithmetic",
+      "path": "Algebra/Arithmetic.cinch",
+      "embedded": true
+    },
+    {
+      "name": "Algebra.Bits",
+      "path": "Algebra/Bits.cinch",
+      "embedded": true
+    },
+    {
+      "name": "Function.Combinators",
+      "path": "Function/Combinators.cinch",
+      "embedded": true
+    },
+    {
+      "name": "Data.Nat",
+      "path": "Data/Nat.cinch",
+      "embedded": true
+    },
+    {
+      "name": "Data.Int",
+      "path": "Data/Int.cinch",
+      "embedded": true
+    },
+    {
+      "name": "Data.Option",
+      "path": "Data/Option.cinch",
+      "embedded": true
+    },
+    {
+      "name": "Data.Result",
+      "path": "Data/Result.cinch",
+      "embedded": true
+    },
+    {
+      "name": "Data.List",
+      "path": "Data/List.cinch",
+      "embedded": true
+    },
+    {
+      "name": "Data.Enum",
+      "path": "Data/Enum.cinch",
+      "embedded": true
+    },
+    {
+      "name": "Data.Char",
+      "path": "Data/Char.cinch",
+      "embedded": true
+    },
+    {
+      "name": "Data.Bool",
+      "path": "Data/Bool.cinch",
+      "embedded": true
+    },
+    {
+      "name": "Data.Machine",
+      "path": "Data/Machine.cinch",
+      "embedded": true
+    },
+    {
+      "name": "Data.Bytes",
+      "path": "Data/Bytes.cinch",
+      "embedded": true
+    },
+    {
+      "name": "Data.Map",
+      "path": "Data/Map.cinch",
+      "embedded": true
+    },
+    {
+      "name": "Data.String",
+      "path": "Data/String.cinch",
+      "embedded": true
+    },
+    {
+      "name": "Data.Json",
+      "path": "Data/Json.cinch",
+      "embedded": true
+    },
+    {
+      "name": "Data.Producer",
+      "path": "Data/Producer.cinch",
+      "embedded": true
+    },
+    {
+      "name": "Data.Target",
+      "path": "Data/Target.cinch",
+      "embedded": true
+    },
+    {
+      "name": "Data.Path",
+      "path": "Data/Path.cinch",
+      "embedded": true
+    },
+    {
+      "name": "Effect.Sequencing",
+      "path": "Effect/Sequencing.cinch",
+      "embedded": true
+    },
+    {
+      "name": "Effect.Concurrent",
+      "path": "Effect/Concurrent.cinch",
+      "embedded": true
+    },
+    {
+      "name": "Effect.Clock",
+      "path": "Effect/Clock.cinch",
+      "embedded": true
+    },
+    {
+      "name": "Effect.Fs",
+      "path": "Effect/Fs.cinch",
+      "embedded": true
+    },
+    {
+      "name": "Effect.Process",
+      "path": "Effect/Process.cinch",
+      "embedded": true
+    },
+    {
+      "name": "Effect.Io",
+      "path": "Effect/Io.cinch",
+      "embedded": true
+    },
+    {
+      "name": "Data.FromList",
+      "path": "Data/FromList.cinch",
+      "embedded": true
+    },
+    {
+      "name": "Data.FromMap",
+      "path": "Data/FromMap.cinch",
+      "embedded": true
+    },
+    {
+      "name": "Text.Show",
+      "path": "Text/Show.cinch",
+      "embedded": true
+    },
+    {
+      "name": "Data.Sym",
+      "path": "Data/Sym.cinch",
+      "embedded": true
+    },
+    {
+      "name": "Prelude",
+      "path": "Prelude.cinch",
+      "embedded": true,
+      "facade": true
+    },
+    {
+      "name": "Algebra.Semigroup",
+      "path": "Algebra/Semigroup.cinch",
+      "embedded": true
+    },
+    {
+      "name": "Algebra.Group",
+      "path": "Algebra/Group.cinch",
+      "embedded": true
+    },
+    {
+      "name": "Algebra.Semiring",
+      "path": "Algebra/Semiring.cinch",
+      "embedded": true
+    },
+    {
+      "name": "Algebra.Monoid",
+      "path": "Algebra/Monoid.cinch",
+      "embedded": true
+    },
+    {
+      "name": "Category.Functor",
+      "path": "Category/Functor.cinch",
+      "embedded": true
+    },
+    {
+      "name": "Category.Applicative",
+      "path": "Category/Applicative.cinch",
+      "embedded": true
+    },
+    {
+      "name": "Category.Monad",
+      "path": "Category/Monad.cinch",
+      "embedded": true
+    },
+    {
+      "name": "Category.Alternative",
+      "path": "Category/Alternative.cinch",
+      "embedded": true
+    },
+    {
+      "name": "Category.Foldable",
+      "path": "Category/Foldable.cinch",
+      "embedded": true
+    },
+    {
+      "name": "Category.Traversable",
+      "path": "Category/Traversable.cinch",
+      "embedded": true
+    },
+    {
+      "name": "Data.Identity",
+      "path": "Data/Identity.cinch",
+      "embedded": true
+    },
+    {
+      "name": "Data.Const",
+      "path": "Data/Const.cinch",
+      "embedded": true
+    },
+    {
+      "name": "Data.Compose",
+      "path": "Data/Compose.cinch",
+      "embedded": true
+    },
+    {
+      "name": "Data.NonEmpty",
+      "path": "Data/NonEmpty.cinch",
+      "embedded": true
+    },
+    {
+      "name": "Data.Sorted",
+      "path": "Data/Sorted.cinch",
+      "embedded": true
+    },
+    {
+      "name": "Data.NonZero",
+      "path": "Data/NonZero.cinch",
+      "embedded": true
+    },
+    {
+      "name": "Data.Ascii",
+      "path": "Data/Ascii.cinch",
+      "embedded": true
+    },
+    {
+      "name": "Data.Set",
+      "path": "Data/Set.cinch",
+      "embedded": true
+    },
+    {
+      "name": "Data.Hash",
+      "path": "Data/Hash.cinch",
+      "embedded": true
+    },
+    {
+      "name": "Text.Codec",
+      "path": "Text/Codec.cinch",
+      "embedded": true
+    },
+    {
+      "name": "Data.HashMap",
+      "path": "Data/HashMap.cinch",
+      "embedded": true
+    }
+  ],
+  "order": [
+    "Data.Core",
+    "Data.Ordering",
+    "Relation.Eq",
+    "Relation.Ord",
+    "Algebra.Arithmetic",
+    "Algebra.Bits",
+    "Function.Combinators",
+    "Data.Nat",
+    "Data.Int",
+    "Data.Option",
+    "Data.Result",
+    "Data.List",
+    "Data.Enum",
+    "Data.Char",
+    "Data.Bool",
+    "Data.Machine",
+    "Data.Bytes",
+    "Data.Map",
+    "Data.String",
+    "Data.Json",
+    "Data.Producer",
+    "Data.Target",
+    "Data.Path",
+    "Effect.Sequencing",
+    "Effect.Concurrent",
+    "Effect.Clock",
+    "Effect.Fs",
+    "Effect.Process",
+    "Effect.Io",
+    "Data.FromList",
+    "Data.FromMap",
+    "Text.Show",
+    "Data.Sym",
+    "Prelude",
+    "Algebra.Semigroup",
+    "Algebra.Group",
+    "Algebra.Semiring",
+    "Algebra.Monoid",
+    "Category.Functor",
+    "Category.Applicative",
+    "Category.Monad",
+    "Category.Alternative",
+    "Category.Foldable",
+    "Category.Traversable",
+    "Data.Identity",
+    "Data.Const",
+    "Data.Compose",
+    "Data.NonEmpty",
+    "Data.Sorted",
+    "Data.NonZero",
+    "Data.Ascii",
+    "Data.Set",
+    "Data.Hash",
+    "Text.Codec",
+    "Data.HashMap"
+  ]
+}

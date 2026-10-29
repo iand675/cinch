@@ -1482,7 +1482,7 @@ fn prelude_file_of(module: &str) -> String {
     if module == "Prelude" {
         return "prelude/Prelude.cinch".to_string();
     }
-    for (path, _) in driver::PRELUDE_EARLY.iter().chain(driver::PRELUDE_LATE.iter()) {
+    for (path, _) in driver::prelude_sources() {
         if path.trim_end_matches(".cinch").replace('/', ".") == module {
             return format!("prelude/{path}");
         }

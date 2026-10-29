@@ -4883,10 +4883,7 @@ mod tests {
         let mut datas: Vec<String> = Vec::new();
         let mut foreigns = 0;
         let mut insts: Vec<InstDecl> = Vec::new();
-        for (_path, src) in crate::driver::PRELUDE_EARLY
-            .iter()
-            .chain(crate::driver::PRELUDE_LATE.iter())
-        {
+        for (_path, src) in crate::driver::prelude_sources() {
             let toks = crate::lexer::lex(src).expect("lex the family");
             let toks = crate::layout::layout(toks).expect("lay out the family");
             let pm = parse_module(&toks, &base).expect("parse should succeed");

@@ -26,18 +26,25 @@ pub enum Mode {
 /// every module parses against.
 pub const PRELUDE_FACADE: &str = include_str!("../prelude/Prelude.cinch");
 
-/// The base library's scheme homes (the prelude split), embedded so
-/// every compilation sees them. The list is in dependency order
-/// (imports first) for fixity threading and interface order; the
-/// facade above checks last (it re-exports the family) and its source
-/// parses first (its fixity table is the base table).
-/// The base library's scheme homes whose surfaces the `Prelude` facade
-/// re-exports (the prelude split), in collection order: each module's
-/// eager references (signature types, signature constraint classes)
-/// resolve against modules listed before it. The facade collects after
-/// these (its `export` items read their surfaces) and before
-/// [`PRELUDE_LATE`].
-pub const PRELUDE_EARLY: &[(&str, &str)] = &[
+/// The base package's manifest: module names, source paths, imports,
+/// the facade flag and the check ORDER (design/base-library.md,
+/// "Packages and the manifest"). Resolution order is data, so no order
+/// is written into this code; [`EMBEDDED_SOURCES`] carries the bytes
+/// (`include_str!`, so the family stays embedded and hash-stable per
+/// D161-D174) keyed by the manifest's paths, and is deliberately
+/// UNORDERED.
+pub const BASE_PACKAGE: &str = include_str!("../prelude/cinch-base.cinchpkg");
+
+/// Every embedded prelude source, keyed by its manifest path. The
+/// manifest's `order` is the truth about the order; this table only
+/// answers "what are the bytes of this path".
+pub const EMBEDDED_SOURCES: &[(&str, &str)] = &[
+    // The facade is listed here too, so the manifest's paths and this
+    // table agree name for name; `parse_prelude` parses the facade from
+    // `PRELUDE_FACADE` (with the generated vocabulary appended) rather
+    // than through this entry.
+    ("Prelude.cinch", PRELUDE_FACADE),
+    ("Data/Core.cinch", include_str!("../prelude/Data/Core.cinch")),
     ("Relation/Eq.cinch", include_str!("../prelude/Relation/Eq.cinch")),
     ("Relation/Ord.cinch", include_str!("../prelude/Relation/Ord.cinch")),
     ("Algebra/Arithmetic.cinch", include_str!("../prelude/Algebra/Arithmetic.cinch")),
@@ -76,12 +83,8 @@ pub const PRELUDE_EARLY: &[(&str, &str)] = &[
     // `Data.String` (its name conversions); the facade collects after
     // the whole family.
     ("Data/Sym.cinch", include_str!("../prelude/Data/Sym.cinch")),
-];
-
-/// The rest of the base library family (the class modules and the
-/// newer families), collected after the facade: their eager references
-/// are old-surface names, which the facade's surface provides.
-pub const PRELUDE_LATE: &[(&str, &str)] = &[
+    // The class modules and the newer families continue here; the
+    // manifest's order, not this table's, decides where each is checked.
     ("Algebra/Semigroup.cinch", include_str!("../prelude/Algebra/Semigroup.cinch")),
     ("Algebra/Group.cinch", include_str!("../prelude/Algebra/Group.cinch")),
     ("Algebra/Semiring.cinch", include_str!("../prelude/Algebra/Semiring.cinch")),
@@ -105,18 +108,172 @@ pub const PRELUDE_LATE: &[(&str, &str)] = &[
     ("Data/HashMap.cinch", include_str!("../prelude/Data/HashMap.cinch")),
 ];
 
-/// Every embedded prelude module name (the family's scheme names and
-/// the facade): imports of these resolve to the embedded sources,
-/// never to a file beside the entry unless an explicit source module
-/// shadows the copy.
-pub fn prelude_module_names() -> Vec<String> {
-    let mut names: Vec<String> = PRELUDE_EARLY
+/// One module of a package manifest: the name, the source path, and
+/// whether it is the re-export facade. The module's IMPORTS are not
+/// recorded here on purpose: the compiler reads them from the source
+/// (`scan_file`), and a copy in the manifest is a second truth that
+/// drifts the moment an import is added.
+#[derive(Debug, Clone)]
+pub struct PackageModule {
+    pub name: String,
+    pub path: String,
+    pub facade: bool,
+}
+
+/// Every embedded family module's `(name, source hash)`, so a produced
+/// interface records the bytes it came from. Without this the family's
+/// interfaces carry an empty `source_hash`, which leaves a stored
+/// artifact with no witness for which sources produced it.
+pub fn family_source_hashes() -> Vec<(String, String)> {
+    base_package()
+        .modules
         .iter()
-        .chain(PRELUDE_LATE.iter())
-        .map(|(path, _)| path.trim_end_matches(".cinch").replace('/', "."))
-        .collect();
-    names.push("Prelude".to_string());
-    names
+        .filter_map(|m| {
+            embedded_source(&m.path)
+                .map(|(_, src)| (m.name.clone(), crate::interface::content_hash(src)))
+        })
+        .collect()
+}
+
+/// A parsed package manifest (`.cinchpkg`): the module list and the
+/// check ORDER a package ships as data, instead of the compiler
+/// holding either in code (design/base-library.md, "Packages and the
+/// manifest").
+#[derive(Debug, Clone)]
+pub struct Package {
+    pub name: String,
+    pub version: String,
+    pub modules: Vec<PackageModule>,
+    pub order: Vec<String>,
+    /// The manifest bytes' content hash, recorded by [`Package::parse`].
+    /// The package store keys on it (see `crate::store::package_key`), so
+    /// an edit to the manifest that changes the module set, the paths or
+    /// the order moves the key even when every source is unchanged.
+    pub manifest_hash: String,
+}
+
+impl Package {
+    /// Parse a manifest: canonical JSON (design/stdlib-and-bootstrap.md),
+    /// read with the parser the `.cinchif` reader uses. The `Num`
+    /// variant is unsigned, so every field is a string, a boolean or an
+    /// array.
+    pub fn parse(text: &str) -> Result<Package> {
+        use crate::interface::{JsonValue, parse_json};
+        let wrap = |e: crate::interface::ParseError| Error::plain(format!("package manifest: {e}"));
+        let doc = parse_json(text).map_err(wrap)?;
+        let obj = doc.as_object().map_err(wrap)?;
+        let field = |k: &str| -> Result<&JsonValue> {
+            obj.get(k)
+                .ok_or_else(|| Error::plain(format!("package manifest: missing `{k}`")))
+        };
+        let name = str_of(field("name")?, "name")?;
+        let version = str_of(field("version")?, "version")?;
+        let mut modules: Vec<PackageModule> = Vec::new();
+        for m in field("modules")?.as_array().map_err(wrap)? {
+            let o = m.as_object().map_err(wrap)?;
+            let name = match o.get("name").map(|v| v.as_str()) {
+                Some(Ok(s)) => s.to_string(),
+                _ => return Err(Error::plain("package manifest: a module entry needs `name`")),
+            };
+            let path = match o.get("path").map(|v| v.as_str()) {
+                Some(Ok(s)) => s.to_string(),
+                _ => return Err(Error::plain("package manifest: a module entry needs `path`")),
+            };
+            // `embedded` is recorded for a reader's benefit; the source
+            // table is what decides whether a path has bytes.
+            let facade = matches!(o.get("facade"), Some(JsonValue::Bool(true)));
+            modules.push(PackageModule {
+                name,
+                path,
+                facade,
+            });
+        }
+        let mut order: Vec<String> = Vec::new();
+        for n in field("order")?.as_array().map_err(wrap)? {
+            order.push(str_of(n, "an order entry")?);
+        }
+        Ok(Package {
+            name,
+            version,
+            modules,
+            order,
+            manifest_hash: crate::interface::content_hash(text),
+        })
+    }
+
+    /// The facade's position in the check order: the split between the
+    /// early homes (checked before it) and the late ones.
+    pub fn facade_index(&self) -> usize {
+        self.order
+            .iter()
+            .position(|n| self.modules.iter().any(|m| m.facade && &m.name == n))
+            .unwrap_or(self.order.len())
+    }
+
+    /// `(path, source)` for every embedded module, in manifest order.
+    pub fn ordered_sources(&self) -> Result<Vec<(&'static str, &'static str)>> {
+        self.order
+            .iter()
+            .map(|name| {
+                let m = self.modules.iter().find(|m| &m.name == name).ok_or_else(|| {
+                    Error::plain(format!(
+                        "package manifest: `{name}` is in `order` but has no module entry"
+                    ))
+                })?;
+                embedded_source(&m.path).ok_or_else(|| {
+                    Error::plain(format!(
+                        "package manifest: no embedded source for `{}`",
+                        m.path
+                    ))
+                })
+            })
+            .collect()
+    }
+
+    /// Every module name, in check order.
+    pub fn module_names(&self) -> Vec<String> {
+        self.order.clone()
+    }
+}
+
+fn str_of(v: &crate::interface::JsonValue, what: &str) -> Result<String> {
+    v.as_str()
+        .map(|s| s.to_string())
+        .map_err(|e| Error::plain(format!("package manifest: {what}: {e}")))
+}
+
+/// The embedded `(path, source)` entry for a manifest path (the
+/// `include_str!` table).
+pub fn embedded_source(path: &str) -> Option<(&'static str, &'static str)> {
+    EMBEDDED_SOURCES.iter().copied().find(|(p, _)| *p == path)
+}
+
+/// The base package, parsed once from its embedded manifest.
+pub static BASE: std::sync::LazyLock<Package> = std::sync::LazyLock::new(|| {
+    Package::parse(BASE_PACKAGE)
+        .unwrap_or_else(|e| panic!("the embedded base package manifest must parse: {e}"))
+});
+
+/// The base package (see [`BASE`]).
+pub fn base_package() -> &'static Package {
+    &BASE
+}
+
+/// The embedded family's sources in manifest order. Infallible at the
+/// call sites: the manifest is embedded, and `tests/package_manifest.rs`
+/// pins it against the source table.
+pub fn prelude_sources() -> Vec<(&'static str, &'static str)> {
+    base_package()
+        .ordered_sources()
+        .unwrap_or_else(|e| panic!("the embedded base package manifest is inconsistent: {e}"))
+}
+
+/// Every embedded prelude module name (the family's scheme names and
+/// the facade), in manifest order: imports of these resolve to the
+/// embedded sources, never to a file beside the entry unless an
+/// explicit source module shadows the copy.
+pub fn prelude_module_names() -> Vec<String> {
+    base_package().module_names()
 }
 
 /// The parsed prelude family: the scheme homes in dependency order
@@ -154,11 +311,19 @@ pub fn parse_prelude(adapters: &[crate::interface::WitAdapter]) -> Result<Prelud
             out.extend(parsed.modules);
             Ok(())
         };
-    for (path, src) in PRELUDE_EARLY {
-        parse_into(src, path, &mut early)?;
-    }
-    for (path, src) in PRELUDE_LATE {
-        parse_into(src, path, &mut late)?;
+    // The manifest's order decides everything. Every module listed
+    // before the facade is an early home (checked before it, so the
+    // facade's `export` items can read its surface); the facade itself
+    // is parsed above, because ITS fixity table is the base table every
+    // module parses against; every module after the facade is a late
+    // home (checked after it, resolving old-surface names through it).
+    let facade_at = base_package().facade_index();
+    for (i, (path, src)) in prelude_sources().into_iter().enumerate() {
+        if i == facade_at {
+            continue;
+        }
+        let out = if i < facade_at { &mut early } else { &mut late };
+        parse_into(src, path, out)?;
     }
     // Check order: the facade's export targets first (the facade reads
     // their surfaces), the facade (the implicit base layer the late
@@ -512,13 +677,13 @@ fn read_stage_snap(path: &Path) -> Vec<StageInput> {
     inputs
 }
 
-/// Write the per-module interfaces, the artifact manifest, and the stage
-/// snapshot (design note sections 2 and 5; modules specification section
-/// 10: the build identity includes generator versions and input hashes;
-/// supercompilation and JIT specification sections 5, 8 and 9: the
-/// specialization configuration and trust level; platform proofs and SIMD
-/// specification sections 1 and 8: the target conditions and which
-/// lowering was checked).
+/// Write the per-module interfaces, the artifact manifest, the stage
+/// snapshot, and the package store entry (design note sections 2 and 5;
+/// modules specification section 10: the build identity includes
+/// generator versions and input hashes; supercompilation and JIT
+/// specification sections 5, 8 and 9: the specialization configuration
+/// and trust level; platform proofs and SIMD specification sections 1
+/// and 8: the target conditions and which lowering was checked).
 #[allow(clippy::too_many_arguments)]
 fn write_artifacts(
     out_dir: &Path,
@@ -530,6 +695,7 @@ fn write_artifacts(
     opt: &crate::core::OptReport,
     profile: &crate::core::TargetProfile,
     wit: &[crate::interface::WitAdapter],
+    opts: &DriverOptions,
 ) -> Result<()> {
     std::fs::create_dir_all(out_dir)
         .map_err(|e| Error::plain(format!("{}: {e}", out_dir.display())))?;
@@ -973,6 +1139,27 @@ fn write_artifacts(
     }
     std::fs::write(&snap_path, snap)
         .map_err(|e| Error::plain(format!("{}: {e}", snap_path.display())))?;
+    // The package artifact store: this compile's interfaces for the
+    // embedded base package, cached per user and keyed on the compile's
+    // inputs (see `crate::store`). The compile path only writes here, and
+    // never fails a build over an entry: a root that cannot be created,
+    // or a store that cannot be written (a read-only cache directory, a
+    // full disk), degrades to compiling without a store, and an entry
+    // that is not this compile's artifact set is rewritten rather than
+    // trusted. The hard errors belong to the consuming path
+    // (`Store::load`), where a caller is about to rely on the artifacts.
+    // A package that cannot be resolved to its sources is the one fault
+    // worth reporting: the embedded manifest is pinned against the
+    // embedded sources, so it cannot happen, and silently ignoring it
+    // would hide a real inconsistency.
+    let store = crate::store::Store::user();
+    if store.ensure_root().is_ok() {
+        if let Err(e) = store.write(base_package(), profile, wit, ifaces, opts.rebuild_store) {
+            if matches!(&e, crate::store::StoreError::Package { .. }) {
+                return Err(Error::plain(e.to_string()));
+            }
+        }
+    }
     Ok(())
 }
 
@@ -1219,8 +1406,17 @@ fn parse_family_and_user(
         fixities.insert(m.clone(), f.clone());
     }
     for m in &user.modules {
-        hashes.insert(m.name.text.clone(), String::new());
+        hashes.insert(
+            m.name.text.clone(),
+            crate::interface::content_hash(user_src),
+        );
         files.insert(m.name.text.clone(), user_file.to_string());
+    }
+    // The embedded family witnesses its own sources as well.
+    for (name, hash) in family_source_hashes() {
+        let file = format!("prelude/{name}.cinch");
+        hashes.entry(name.clone()).or_insert(hash);
+        files.entry(name).or_insert(file);
     }
     scx.fixities = fixities;
     scx.files = files;
@@ -1425,18 +1621,53 @@ fn scratch_dir(tag: &str) -> std::path::PathBuf {
     std::env::temp_dir().join(format!("cinch-{tag}-{pid}-{n}"))
 }
 
+/// The flags a compile takes that are neither a mode nor a profile.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct DriverOptions {
+    /// `--rebuild`: rewrite the package-store entry for this compile's
+    /// key even when the entry is intact and matches it, instead of
+    /// leaving it alone. The compile path never fails over an entry's
+    /// contents (it repairs anything that is not this compile's set, see
+    /// `crate::store`), so this is the explicit way to force a rewrite,
+    /// and the escape for an entry a consumer reported as corrupt.
+    pub rebuild_store: bool,
+}
+
+/// The compile-time I/O mode from `CINCH_STAGE_MODE` (`refresh`,
+/// `replay`, or `live`; default `refresh`).
+fn stage_mode_from_env() -> StageMode {
+    match std::env::var("CINCH_STAGE_MODE").as_deref() {
+        Ok("replay") => StageMode::Replay,
+        Ok("live") => StageMode::Live,
+        _ => StageMode::Refresh,
+    }
+}
+
 /// Compile `path` according to `mode`. `out` names the output file for
 /// `EmitIr` and `Build`; `Run` executes the produced binary and returns its
 /// exit code in `Ok`. The compile-time I/O mode comes from
 /// `CINCH_STAGE_MODE` (`refresh`, `replay`, or `live`; default
 /// `refresh`).
 pub fn driver(mode: Mode, path: &Path, out: Option<&Path>) -> Result<i32> {
-    let stage_mode = match std::env::var("CINCH_STAGE_MODE").as_deref() {
-        Ok("replay") => StageMode::Replay,
-        Ok("live") => StageMode::Live,
-        _ => StageMode::Refresh,
-    };
-    driver_with(mode, stage_mode, path, out)
+    driver_opts(mode, path, out, &DriverOptions::default())
+}
+
+/// [`driver`] with explicit options: the entry point the `cinch` CLI
+/// uses for its flags.
+pub fn driver_opts(
+    mode: Mode,
+    path: &Path,
+    out: Option<&Path>,
+    opts: &DriverOptions,
+) -> Result<i32> {
+    driver_with_profile_opts(
+        mode,
+        stage_mode_from_env(),
+        path,
+        out,
+        &crate::core::TargetProfile::native(),
+        opts,
+    )
 }
 
 /// [`driver`] with an explicit compile-time I/O mode (modules
@@ -1453,13 +1684,33 @@ pub fn driver_with(
 /// [`driver_with`] with an explicit target profile (the driving bounds
 /// and feature assumptions of supercompilation section 5 and platform
 /// section 1).
-#[allow(clippy::too_many_arguments)]
 pub fn driver_with_profile(
     mode: Mode,
     stage_mode: StageMode,
     path: &Path,
     out: Option<&Path>,
     profile: &crate::core::TargetProfile,
+) -> Result<i32> {
+    driver_with_profile_opts(
+        mode,
+        stage_mode,
+        path,
+        out,
+        profile,
+        &DriverOptions::default(),
+    )
+}
+
+/// [`driver_with_profile`] with explicit options: the whole compile,
+/// with the flags that are neither a mode nor a profile.
+#[allow(clippy::too_many_arguments)]
+pub fn driver_with_profile_opts(
+    mode: Mode,
+    stage_mode: StageMode,
+    path: &Path,
+    out: Option<&Path>,
+    profile: &crate::core::TargetProfile,
+    opts: &DriverOptions,
 ) -> Result<i32> {
     let project = load_project(path)?;
     let adapters = wit_for_source(path)?;
@@ -1498,6 +1749,14 @@ pub fn driver_with_profile(
         hashes.insert(name.clone(), crate::interface::content_hash(&project.sources[&key]));
         files.insert(name.clone(), key);
     }
+    // The embedded family is hashed too, so its interfaces witness their
+    // sources. A source module beside the entry shadows a family copy of
+    // the same name and keeps its own hash (the insert above).
+    for (name, hash) in family_source_hashes() {
+        let file = format!("prelude/{name}.cinch");
+        hashes.entry(name.clone()).or_insert(hash);
+        files.entry(name).or_insert(file);
+    }
     let dir = path.parent().map(|p| p.to_path_buf()).unwrap_or_default();
     let entry_stem = path
         .file_stem()
@@ -1530,7 +1789,7 @@ pub fn driver_with_profile(
     // 2-5): every residual program is rechecked before installation, and
     // the report records where specialization stopped.
     let (program, opt) = crate::core::optimize(&program, profile)?;
-    write_artifacts(&out_dir, &entry_stem, &ifaces, &manifest_path, &report, &program, &opt, profile, &adapters)?;
+    write_artifacts(&out_dir, &entry_stem, &ifaces, &manifest_path, &report, &program, &opt, profile, &adapters, opts)?;
     if mode == Mode::Check {
         return Ok(0);
     }

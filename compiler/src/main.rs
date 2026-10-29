@@ -1,15 +1,20 @@
-use cinch::driver::{driver, Mode};
+use cinch::driver::{driver_opts, DriverOptions, Mode};
 use std::process::exit;
 
 const USAGE: &str = "\
 cinch: bootstrap compiler for the safe language design
 
 usage:
-  cinch check <file.cinch>          typecheck only
-  cinch emit-ir <file.cinch> [-o <out.ll>]
-  cinch build <file.cinch> [-o <out>]
-  cinch run <file.cinch>            compile and run; exit code is the program's
+  cinch check <file.cinch> [--rebuild]         typecheck only
+  cinch emit-ir <file.cinch> [-o <out.ll>] [--rebuild]
+  cinch build <file.cinch> [-o <out>] [--rebuild]
+  cinch run <file.cinch> [--rebuild]           compile and run; exit code is the program's
   cinch lsp                        run the language server over stdio
+
+flags:
+  -o <path>   the output path (emit-ir and build)
+  --rebuild   recompute a package-store entry that fails verification
+              instead of failing the compile with the reason
 ";
 
 fn main() {
@@ -40,6 +45,7 @@ fn main() {
     };
     let mut file: Option<&str> = None;
     let mut out: Option<&str> = None;
+    let mut opts = DriverOptions::default();
     let mut i = 0;
     while i < rest.len() {
         match rest[i].as_str() {
@@ -53,6 +59,7 @@ fn main() {
                     }
                 }
             }
+            "--rebuild" => opts.rebuild_store = true,
             f if file.is_none() => file = Some(f),
             other => {
                 eprintln!("cinch: unexpected argument {other}");
@@ -65,7 +72,12 @@ fn main() {
         eprint!("{USAGE}");
         exit(2);
     };
-    match driver(mode, std::path::Path::new(file), out.map(std::path::Path::new)) {
+    match driver_opts(
+        mode,
+        std::path::Path::new(file),
+        out.map(std::path::Path::new),
+        &opts,
+    ) {
         Ok(code) => exit(code),
         Err(e) => {
             eprintln!("cinch: {e}");
