@@ -266,6 +266,26 @@ polymorphic tagging for free. Under B and C, `Nat` is simply the `TObj`
 class. It is the largest single block-count reduction available, and no
 option precludes it.
 
+**As built (S2).** The ranges are `Nat` `0 ..= 2^63 - 1` (exactly the
+non-negative `i64` range, so `cinch_nat_from_i64` never allocates) and
+`Int` `-2^62 ..= 2^62 - 1` (the 63-bit two's complement payload, one
+arithmetic shift to decode). Results are canonical: every entry point
+returns the immediate whenever the value is in range, so a box only ever
+holds an out-of-range value, a box result that falls back in range
+demotes, and two words of the same small value are the same word.
+Mixed and boxed operands run the shared limb arithmetic over borrowed
+magnitudes (an immediate's limbs sit on the stack), so no temporary
+bignum is built for an immediate operand. Codegen folds an in-range
+`ConstBig` to its constant word, and the quote encoder emits it as the
+raw `INT` word, so the evaluator neither parses nor allocates it; an
+out-of-range `BIG` constant is parsed once into its canonical word. The
+compile-time evaluator (D92) carries decimal `Value::Big` and lowers to
+`ConstBig`, so it materialises no runtime words. Measured with
+`CINCH_ALLOC_STATS=1` under the 2 GiB cap: `Run.Maps` 15,457,002 blocks
+to 3,007,402 (385.8 MB to 130.4 MB allocated, the latter with S1's
+headers); the bootstrap lexer on `Data/HashMap.cinch` 3,639,966 to
+673,892; the bootstrap parser on the same module 2,608,257 to 559,918.
+
 ### 2.7 Comparison
 
 | | A: tagged polymorphic slots | B: witnesses | C: class monomorphisation |
@@ -718,6 +738,7 @@ not depend on the section 2 decision. S0 has landed.
 |---|---|---|---|---|
 | S0 (landed) | Counting allocator, cap, stats; codegen routed to `cinch_alloc_raw` | `runtime/src/heap.rs`, `abi.rs:263-288`, `codegen.rs` | none | indep |
 | S1 | Header word at -8; `cinch_alloc_raw` returns `base+8` with `rc=1`; codegen writes kind, layout and size at all 30 sites; immortal headers on `.blk`, `.clo` and the string composite; runtime boxes and `eval.rs` allocations on the header allocator; `cinch_free` really deallocates (no caller yet); `runtime_abi` bump | `runtime/src/{abi,heap,eval,lib}.rs`, new `runtime/src/block.rs`, `codegen.rs` (alloc sites, statics `1176-1181`, `1244-1250`, `4222-4266`), `interface.rs:434` | S0 | indep (the layout table's scan encoding follows the decision; the field can land zeroed) |
+| S1b | Constructor tag folded into the header (user decision, 2026-10-29): a two-field cell drops from 32 to 24 bytes, as in OCaml, GHC, Lean and Koka. Layout ids are assigned so each data type's constructors (per class vector) are consecutive, and `tag = layout_id - base`, with `base` a compile-time constant at every `case` (one load from the header, a shift and a subtract, the same cost as today's load of field 0). Every field offset shifts by -8: ctor bodies, projections, `case`, `eval.rs` closed-form layouts, boundary payloads, wasm glue, static blocks | `codegen.rs`, `runtime/src/{block,eval,abi}.rs` | S1 | indep |
 | S2 | Small `Nat`/`Int` immediates; `ConstBig` folding | `runtime/src/{abi,nat,int,lib}.rs`, `codegen.rs:4194-4221`, `eval.rs` big constants | none | indep |
 | S3 | Runtime drop machinery: `cinch_drop_slow` (iterative, kind dispatch, payload drop), sticky overflow, `live`/immortal/sticky counters, `CINCH_LEAK_CHECK`, `CINCH_RC_DEBUG` quarantine | `runtime/src/{block,heap,abi}.rs`, `codegen.rs:427`, `436` (exit hook) | S1 | indep, except the scan rule |
 | S4 | Representation classes: `repr_of(&Ty)`; classes on `Let`, `CPat`, params and env; per-constructor field classes; optimizer preserves them; plus the option-specific front end: A `Tag`/`Untag` coercions; B `Repr a` witnesses; C class vectors and specialiser | `check.rs` (`finalize_fn` `772-791`, `lower` `793-883`), `check_terms.rs` (instantiation sites), `check_decls.rs` (beside `param_contract` `9653`), `core.rs` (nodes, optimizer), `interface.rs` (B: arity) | none | **decision** (the class plumbing part is indep) |
