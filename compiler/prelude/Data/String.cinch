@@ -227,10 +227,12 @@ module Data.String where
     StrBuf out
 
   -- Every string in the list, in order (the concatenating fold the
-  -- text homes kept rebuilding by hand; `string-join ""` is this with
-  -- Text.Scan's separator machinery).
+  -- text homes kept rebuilding by hand). `String` is a `Monoid`
+  -- (Data.String owns the instance), so this is exactly `mconcat`;
+  -- `string-join ""` is this with Text.Scan's separator machinery. The
+  -- name stays because the old surface exports it.
   string-concat-all :: List String -> String
-  string-concat-all xs = foldr string-concat empty-string xs
+  string-concat-all xs = mconcat xs
 
   -- `s` repeated `n` times (the run-building helper the padding and
   -- numeric-format sites spelled out as fixed byte runs).

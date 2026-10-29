@@ -5,11 +5,21 @@
 -- `Char` (primitive types specification section 8); `F32`/`F64` have
 -- no `Eq`/`Ord` instances. A class constraint entails nothing: `Ord`
 -- does not extend `Eq`. Instances live with their type.
+--
+-- `comparing` and `Down` are the keyed-comparison vocabulary. The
+-- `Ord` methods are the four booleans, so the class never returns
+-- `Ordering`; `comparing` assembles the three-way result from those
+-- booleans. `Down` is the order-reversing newtype, and its instances
+-- live here with the type.
 module Relation.Ord where
+
+  import Relation.Eq
+  import Data.Ordering
 
   infix 3 <, <=, >, >=
 
   export Ord, (<), (<=), (>), (>=)
+  export comparing, Down
 
 
   signature Ord a where
@@ -17,3 +27,43 @@ module Relation.Ord where
     (<=) :: a -> a -> Bool
     (>) :: a -> a -> Bool
     (>=) :: a -> a -> Bool
+
+  -- Keyed comparison: `comparing k x y` orders `x` and `y` by the
+  -- projections of `k`. The `Ord` class carries only the four boolean
+  -- methods, so the three-way result is assembled here: `LT` when the
+  -- key is `<`, `GT` when it is `>`, `EQ` otherwise.
+  comparing :: forall a b. using (ord :: Ord b) => (a -> b) -> a -> a -> Ordering
+  comparing k x y = case k x < k y of
+    True -> LT
+    False -> case k x > k y of
+      True -> GT
+      False -> EQ
+
+  -- The order-reversing newtype: `Down x` is `x` with the order
+  -- swapped, so `comparing (\p -> Down (key p))` sorts by `key`
+  -- descending. Equality is unaffected by the flip (only the four
+  -- ordering methods reverse).
+  data Down a where
+    Down :: a -> Down a
+
+  implicit instance Eq_Down a :: using (ea :: Eq a) => Eq (Down a) where
+    (==) x y = case x of
+      Down a -> case y of
+        Down b -> a == b
+    (/=) x y = case x of
+      Down a -> case y of
+        Down b -> a /= b
+
+  implicit instance Ord_Down a :: using (oa :: Ord a) => Ord (Down a) where
+    (<) x y = case x of
+      Down a -> case y of
+        Down b -> b < a
+    (<=) x y = case x of
+      Down a -> case y of
+        Down b -> b <= a
+    (>) x y = case x of
+      Down a -> case y of
+        Down b -> b > a
+    (>=) x y = case x of
+      Down a -> case y of
+        Down b -> b >= a

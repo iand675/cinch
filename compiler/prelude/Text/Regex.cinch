@@ -82,6 +82,7 @@ module Text.Regex where
   import Text.Show
 
   import Algebra.Semigroup
+  import Algebra.Monoid
 
   infixr 6 <>
 
@@ -97,20 +98,17 @@ module Text.Regex where
   -- -----------------------------------------------------------------
   -- Small private helpers. The generic list and scalar shapes come from
   -- their homes: `reverse`, `<>`, `list-length`, `nth` and `replicate`
-  -- (Data.List), `char-code` (Data.Char). `is-none` and
-  -- `concat-strings` stay here (this module sits under `Text.Scan` in
-  -- the import graph).
+  -- (Data.List), `char-code` (Data.Char). `is-none` stays here. The
+  -- concatenating fold is `mconcat` (Algebra.Monoid): `String` is a
+  -- `Monoid`, so the constraint is `Monoid` and this module no longer
+  -- needs a private `concat-strings` (nor the `Text.Scan` import the
+  -- old helper existed to avoid).
   -- -----------------------------------------------------------------
 
   is-none :: forall a. Option a -> Bool
   is-none o = case o of
     None -> True
     Some _ -> False
-
-  concat-strings :: List String -> String
-  concat-strings xs = case xs of
-    Nil -> empty-string
-    Cons y ys -> string-concat y (concat-strings ys)
 
   -- String helpers over the byte backing.
   string-codes :: String -> List Nat
@@ -927,7 +925,7 @@ module Text.Regex where
   -- Escape the regex metacharacters in a literal string, so the
   -- result matches exactly that string (Ruby's Regexp.escape).
   regex-escape :: String -> String
-  regex-escape s = concat-strings (escape-each (unpack s))
+  regex-escape s = mconcat (escape-each (unpack s))
 
   escape-each :: List Char -> List String
   escape-each cs = case cs of
@@ -1289,14 +1287,14 @@ module Text.Regex where
   regex-replace-all :: Regex -> (Match -> String) -> String -> String
   regex-replace-all re f s =
     let subj = string-to-bytes s in
-    concat-strings (replace-pieces subj (regex-scan re s) f 0 Nil)
+    mconcat (replace-pieces subj (regex-scan re s) f 0 Nil)
 
   regex-replace-first :: Regex -> (Match -> String) -> String -> String
   regex-replace-first re f s = case regex-search-from re s 0 of
     None -> s
     Some m ->
       let subj = string-to-bytes s in
-      concat-strings (replace-pieces subj (Cons m Nil) f 0 Nil)
+      mconcat (replace-pieces subj (Cons m Nil) f 0 Nil)
 
   replace-pieces :: Bytes -> List Match -> (Match -> String) -> Nat -> List String -> List String
   replace-pieces subj ms f c acc = case ms of
@@ -1345,7 +1343,7 @@ module Text.Regex where
       else (n, cs, seen)
 
   render-template :: List Tpl -> Match -> String
-  render-template tpl m = concat-strings (render-each tpl m)
+  render-template tpl m = mconcat (render-each tpl m)
 
   render-each :: List Tpl -> Match -> List String
   render-each tpl m = case tpl of

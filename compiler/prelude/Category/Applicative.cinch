@@ -23,6 +23,12 @@
 -- append helper moved to Data.List with them). `map` in the instance
 -- bodies is the Category.Functor method, resolved at the same
 -- container through its instance there.
+--
+-- The combinators below the class are the free functions an
+-- `Applicative` body needs and none of them is a class method (there
+-- are none to inherit): `void`, `when`, `unless`, `ap`, `replicate-m`.
+-- Each states its own constraint and is reached with an explicit
+-- `import Category.Applicative` (the facade re-exports no class home).
 module Category.Applicative where
 
   import Category.Functor
@@ -39,3 +45,43 @@ module Category.Applicative where
     pure x _ = x
     (<*>) ff fx r = (ff r) (fx r)
     lift-a2 f fx fy r = f (fx r) (fy r)
+
+  -- ------------------------------------------------------------------
+  -- The free combinators. Each states its constraint: the class has no
+  -- default methods, and a `Monad` does not entail an `Applicative`
+  -- (the no-superbundle rule), so the constraint named is the one the
+  -- body actually uses.
+
+  -- `void` keeps the structure and discards its values (base's
+  -- Data.Functor.void). Its home is this module, whose combinators
+  -- below discard their results the same way; `()` is a constant, so
+  -- nothing is built and nothing is observed.
+  void :: forall f a. using (fun :: Functor f) => f a -> f Unit
+  void v = map (\_ -> ()) v
+
+  -- `when`/`unless`: run the action only under the condition. The
+  -- branch that does not run still needs a value of the effect's type
+  -- and `pure ()` is the only operation either body uses, which is why
+  -- the constraint is `Applicative` (base's own constraint for both).
+  when :: forall f. using (app :: Applicative f) => Bool -> f Unit -> f Unit
+  when c act = if c then act else pure ()
+
+  unless :: forall f. using (app :: Applicative f) => Bool -> f Unit -> f Unit
+  unless c act = if c then pure () else act
+
+  -- `ap` is `(<*>)` under the name `Control.Monad` carries for it.
+  -- `base` states it at `Monad` because its body there reaches `pure`;
+  -- here `Monad` entails no `Applicative`, so the honest constraint is
+  -- the `Applicative` itself, whose `<*>` is this function.
+  ap :: forall f a b. using (app :: Applicative f) => f (a -> b) -> f a -> f b
+  ap mf mx = (<*>) mf mx
+
+  -- `replicate-m`: the action run `n` times, its results in order. Zero
+  -- runs nothing and yields the empty list inside the effect; n runs
+  -- the action left to right through `lift-a2`. The count is a `Nat`
+  -- because a length cannot be negative and a count that cannot be
+  -- negative needs no refusal.
+  replicate-m :: forall f a. using (app :: Applicative f) => Nat -> f a -> f (List a)
+  replicate-m n act = case n == 0 of
+    True -> pure Nil
+    False -> lift-a2 (\x xs -> Cons x xs) act (replicate-m (n - 1) act)

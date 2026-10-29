@@ -25,7 +25,36 @@
 module Category.Traversable where
 
   import Category.Applicative
+  import Category.Monad
 
   signature Traversable (t :: Type -> Type) where
     traverse :: forall f a b. using (app :: Applicative f) => (a -> f b) -> t a -> f (t b)
     sequence :: forall f a. using (app :: Applicative f) => t (f a) -> f (t a)
+
+  -- ------------------------------------------------------------------
+  -- The free combinators. Each states its constraints (the class has no
+  -- default methods) and reaches the container through the class
+  -- method, so a new instance inherits all of them.
+
+  -- `sequence-a` is `sequence` under its `Applicative` spelling: base
+  -- keeps both names for the one function, because the traversal only
+  -- ever needed the effect's `Applicative`.
+  sequence-a :: forall t f a. using (trav :: Traversable t, app :: Applicative f) => t (f a) -> f (t a)
+  sequence-a xs = sequence xs
+
+  -- `for` is `traverse` with the container first, so a call reads as a
+  -- walk over the container.
+  for :: forall t f a b. using (trav :: Traversable t, app :: Applicative f) => t a -> (a -> f b) -> f (t b)
+  for xs f = traverse f xs
+
+  -- `map-m`/`for-m` are the monadic traversals (base's `mapM`/`forM`).
+  -- Beyond the container they state two constraints on the effect: its
+  -- `Applicative`, whose dictionary the traversal actually threads, and
+  -- its `Monad`, which is the vocabulary these names belong to. Both
+  -- are named because a `Monad` does not entail an `Applicative` (the
+  -- no-superbundle rule) and the traversal needs the latter.
+  map-m :: forall t m a b. using (trav :: Traversable t, mon :: Monad m, app :: Applicative m) => (a -> m b) -> t a -> m (t b)
+  map-m f xs = traverse f xs
+
+  for-m :: forall t m a b. using (trav :: Traversable t, mon :: Monad m, app :: Applicative m) => t a -> (a -> m b) -> m (t b)
+  for-m xs f = map-m f xs

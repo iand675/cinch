@@ -36,8 +36,7 @@
 //! only the pre-split surface.
 
 use cinch::driver::{
-    check_sources, check_sources_ifaces, driver, run_source, Mode, PRELUDE_EARLY, PRELUDE_FACADE,
-    PRELUDE_LATE,
+    check_sources, check_sources_ifaces, driver, prelude_sources, run_source, Mode, PRELUDE_FACADE,
 };
 use cinch::interface::Iface;
 use std::collections::{BTreeMap, BTreeSet};
@@ -117,13 +116,12 @@ fn reexported_modules(src: &str) -> Vec<String> {
         .collect()
 }
 
-/// The embedded scheme homes by module name, in the driver's own
-/// tables (so the test tracks the shipped family, not a copy).
+/// The embedded scheme homes by module name, in the package manifest's
+/// own order (so the test tracks the shipped family, not a copy).
 fn home_sources() -> BTreeMap<String, &'static str> {
-    PRELUDE_EARLY
-        .iter()
-        .chain(PRELUDE_LATE.iter())
-        .map(|(path, src)| (path.trim_end_matches(".cinch").replace('/', "."), *src))
+    prelude_sources()
+        .into_iter()
+        .map(|(path, src)| (path.trim_end_matches(".cinch").replace('/', "."), src))
         .collect()
 }
 

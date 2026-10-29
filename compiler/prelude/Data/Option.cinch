@@ -11,6 +11,11 @@
 -- D22; the classes live in Effect.Sequencing).
 module Data.Option where
 
+  -- `Data.Option` reaches `List`, `Nil` and `Cons` through `Data.Core`
+  -- (which declares them), so it does not import `Data.List` too: a name
+  -- imported from two homes is an ambiguity error, and the types live in
+  -- exactly one place now.
+  import Data.Core
   import Algebra.Semigroup
   import Algebra.Monoid
   import Category.Functor
@@ -21,12 +26,93 @@ module Data.Option where
   import Category.Traversable
 
   export Option, None, Some
+  export maybe, from-option, is-some, is-none, cat-options, map-option, option-to-list, list-to-option, or-else
 
-  -- The optional value: the primitive signatures mention `Option` for
-  -- checked results and `Ordering` for totalOrder.
-  data Option a where
-    None :: Option a
-    Some :: a -> Option a
+  -- `Option`, `None` and `Some` are declared in `Data.Core` and
+  -- re-exported here (that module's header says why: this home consumes
+  -- a `List` in `cat-options`, and `Data.List` answers an `Option` in
+  -- `nth`, so neither home could be checked first). This home carries
+  -- the type's instance family and its combinators.
+
+  -- ---------------------------------------------------------------------
+  -- The combinators: `Data.Maybe`'s folds and conversions, as free
+  -- functions beside the class instances below. Every one of them is a
+  -- total function: partiality here is `Option` itself, never a fault.
+  -- ---------------------------------------------------------------------
+
+  -- The fold: the default `d` unless there is a value, which `f`
+  -- consumes. The default leads and the function follows, matching
+  -- Haskell's `maybe` (`maybe d f o`); parity of argument order is the
+  -- point of these combinators, and the option is the thing opened last.
+  maybe :: forall a b. b -> (a -> b) -> Option a -> b
+  maybe d f o = case o of
+    None -> d
+    Some x -> f x
+
+  -- The value, or the default when there is none
+  -- (`Data.Maybe.fromMaybe`); the default leads for the same reason, and
+  -- because the result's type is the default's type.
+  from-option :: forall a. a -> Option a -> a
+  from-option d o = case o of
+    None -> d
+    Some x -> x
+
+  -- The presence tests: the tag read, no payload work, no constraint.
+  is-some :: forall a. Option a -> Bool
+  is-some o = case o of
+    None -> False
+    Some _ -> True
+
+  is-none :: forall a. Option a -> Bool
+  is-none o = case o of
+    None -> True
+    Some _ -> False
+
+  -- The present values, in order; `None`s drop (`Data.Maybe.catMaybes`).
+  -- `List` is nameable here because `Data.Core` declares it ahead of
+  -- every home (this function's signature is exactly the cycle that
+  -- module exists to break).
+  cat-options :: forall a. List (Option a) -> List a
+  cat-options xs = case xs of
+    Nil -> Nil
+    Cons o ys -> case o of
+      None -> cat-options ys
+      Some x -> Cons x (cat-options ys)
+
+  -- The option's own map, for a caller who has only the prelude: the
+  -- `Functor` method of the same name (`map` in Data.List's surface) is
+  -- reached through its constraint or with `import Category.Functor`.
+  map-option :: forall a b. (a -> b) -> Option a -> Option b
+  map-option f o = case o of
+    None -> None
+    Some x -> Some (f x)
+
+  -- A `Some` is a one-element list and a `None` the empty list
+  -- (`Data.Maybe.maybeToList`); `list-to-option` is its left inverse.
+  option-to-list :: forall a. Option a -> List a
+  option-to-list o = case o of
+    None -> Nil
+    Some x -> Cons x Nil
+
+  -- The first element, or `None` for the empty list
+  -- (`Data.Maybe.listToMaybe`); the tail is deliberately not inspected,
+  -- so this is O(1) on any list.
+  list-to-option :: forall a. List a -> Option a
+  list-to-option xs = case xs of
+    Nil -> None
+    Cons x _ -> Some x
+
+  -- First success: `None` falls through to the second option, `Some`
+  -- keeps the first (`Control.Applicative`'s `(<|>)` for `Option`, which
+  -- a prelude-only caller cannot reach: `Alternative` is not in the
+  -- implicit surface). The name is the value-fallback one, as in Scala's
+  -- `orElse` and this repo's `Text.Json.or-else`; Rust's closure-taking
+  -- `or_else` is deliberately not the shape, so an eager second option
+  -- is never built.
+  or-else :: forall a. Option a -> Option a -> Option a
+  or-else o1 o2 = case o1 of
+    None -> o2
+    Some x -> Some x
 
   implicit instance SeqOption :: OptionSequencing where
     pure x = Some x

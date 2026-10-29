@@ -14,6 +14,8 @@ module Data.Char where
   export char-to-u32, u32-to-char, eq-char, ne-char, lt-char, le-char, gt-char, ge-char
   export char-code, char-from-code
   export is-ascii-digit, digit-value, hex-digit-value, is-ascii-hex-digit
+  export is-ascii-alpha, is-ascii-alpha-numeric, is-ascii-space
+  export is-ascii-upper, is-ascii-lower, to-upper-ascii, to-lower-ascii
 
 
   -- Primitive types specification, section 6: Char values are Unicode
@@ -70,6 +72,60 @@ module Data.Char where
   is-ascii-hex-digit c = case hex-digit-value c of
     Some _ -> True
     None -> False
+
+  -- The ASCII character classes and the ASCII case fold, the whole
+  -- families every text home had spelled out by hand before this was
+  -- their home (`is-alpha-char`/`is-upper-char` in Text.Lex,
+  -- `is-ws-char` in Text.Scan, `ascii-up`/`ascii-down` there and in
+  -- Effect.Http). The names say ASCII because that is the whole class
+  -- they accept: there is no Unicode letter, whitespace, case or
+  -- digit database in the UTF-8 layers, and none is claimed (the
+  -- Unicode scope statement in Text.Scan's header is the house
+  -- position). `is-ascii-digit` above follows the same rule.
+
+  -- A-Z is `65..90`, `a`-`z` is `97..122` in code point order.
+  is-ascii-upper :: Char -> Bool
+  is-ascii-upper c =
+    let n = char-code c in
+    (n >= 65) && (n <= 90)
+
+  is-ascii-lower :: Char -> Bool
+  is-ascii-lower c =
+    let n = char-code c in
+    (n >= 97) && (n <= 122)
+
+  is-ascii-alpha :: Char -> Bool
+  is-ascii-alpha c = is-ascii-upper c || is-ascii-lower c
+
+  is-ascii-alpha-numeric :: Char -> Bool
+  is-ascii-alpha-numeric c = is-ascii-alpha c || is-ascii-digit c
+
+  -- ASCII whitespace: space, tab, LF, VT, FF, CR (the ASCII subset of
+  -- base's `isSpace`; the other three controls are the whitespace
+  -- classes that exist outside ASCII).
+  is-ascii-space :: Char -> Bool
+  is-ascii-space c =
+    let n = char-code c in
+    (n == 32) || ((n >= 9) && (n <= 13))
+
+  -- The ASCII case fold. A scalar outside the affected range is
+  -- returned unchanged, which is the documented behaviour for every
+  -- non-ASCII scalar and every non-letter. `char-from-code` cannot
+  -- fail on a code an upper/lower test just admitted, so the `None`
+  -- arm returns the input unchanged (never a magic placeholder).
+  to-upper-ascii :: Char -> Char
+  to-upper-ascii c =
+    let n = char-code c in
+    if is-ascii-lower c then
+      (case char-from-code (n - 32) of Some d -> d; None -> c)
+    else c
+
+  to-lower-ascii :: Char -> Char
+  to-lower-ascii c =
+    let n = char-code c in
+    if is-ascii-upper c then
+      (case char-from-code (n + 32) of Some d -> d; None -> c)
+    else c
 
   implicit instance Eq_Char :: Eq Char where
     (==) x y = eq-char x y

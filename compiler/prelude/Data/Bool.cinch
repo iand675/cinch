@@ -17,7 +17,7 @@ module Data.Bool where
   infixr 2 &&
   infixr 1 ||
 
-  export prim-eq-bool, prim-ne-bool, prim-not-bool, prim-and-bool, prim-or-bool, not, and, or, xor, (&&), (||)
+  export prim-eq-bool, prim-ne-bool, prim-not-bool, prim-and-bool, prim-or-bool, not, and, or, xor, bool, (&&), (||)
 
 
   foreign import ccall "cinch.prim.eqBool" prim-eq-bool :: Bool -> Bool -> Bool
@@ -47,6 +47,12 @@ module Data.Bool where
 
   xor :: Bool -> Bool -> Bool
   xor x y = prim-and-bool (prim-or-bool x y) (prim-not-bool (prim-and-bool x y))
+
+  -- The boolean fold: `bool f t b` is `t` when `b` is `True` and `f`
+  -- otherwise (`Data.Bool.bool`), the elimination form matching the
+  -- constructors' order.
+  bool :: forall a. a -> a -> Bool -> a
+  bool f t b = if b then t else f
 
   implicit instance Eq_Bool :: Eq Bool where
     (==) x y = prim-eq-bool x y

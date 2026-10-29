@@ -17,7 +17,25 @@
 -- type" (design/base-library.md). The List and Option instances got
 -- theirs at the prelude split (Data.List/Data.Option). NonEmpty's
 -- instance lives with its type in Data/NonEmpty.cinch.
+--
+-- The free combinators below the class are the folds `base` spells as
+-- methods or helpers. The class has no default methods, so each one is
+-- a free function stating its constraints (the `sum-list`/`enum-from-to`
+-- scheme), and each reaches a container only through the class methods,
+-- so one definition serves every instance. The partial ones
+-- (`fold-right1`, `fold-left1`, `maximum`, `minimum`, `maximum-by`,
+-- `minimum-by`) report an empty container as `None` (the prelude's
+-- partiality convention). They are reached with an explicit `import
+-- Category.Foldable`: the facade re-exports no class home, and
+-- `Data.List` deliberately carries no concrete twin of them (reported
+-- to the lead with this slice).
 module Category.Foldable where
+
+  import Relation.Eq
+  import Relation.Ord
+  import Algebra.Semigroup
+  import Algebra.Monoid
+  import Algebra.Semiring
 
   signature Foldable (t :: Type -> Type) where
     foldr :: forall a b. (a -> b -> b) -> b -> t a -> b
@@ -25,3 +43,131 @@ module Category.Foldable where
     to-list :: forall a. t a -> List a
     null :: forall a. t a -> Bool
     length :: forall a. t a -> Int
+
+  -- ------------------------------------------------------------------
+  -- The free combinators. Each states its constraints and walks the
+  -- container through the class methods, so a new instance inherits all
+  -- of them with no further code.
+
+  -- `fold-map`: map every element into a monoid and combine with `<>`,
+  -- starting from `mempty`. The empty container therefore gives the
+  -- identity, never an absent value. Both constraints are stated: the
+  -- identity comes from `Monoid` and the combination from
+  -- `Semigroup`, and a `Monoid` does not entail a `Semigroup` (the
+  -- no-superbundle rule; the same pair Data.Const's Applicative
+  -- instance states).
+  fold-map :: forall t a m. using (fold :: Foldable t, mon :: Monoid m, sg :: Semigroup m) => (a -> m) -> t a -> m
+  fold-map f xs = foldr (\y acc -> (<>) (f y) acc) mempty xs
+
+  -- `fold-right1`/`fold-left1`: the fold with an element of the
+  -- container as its seed, so an empty container has nothing to return.
+  -- The right form seeds with the first element and folds the tail into
+  -- it; the left form is the class `foldl` from the first element over
+  -- the tail. Both names are `base`'s `foldr1`/`foldl1` spelled the way
+  -- a name may be spelled here (a digit cannot follow the dash).
+  fold-right1 :: forall t a. using (fold :: Foldable t) => (a -> a -> a) -> t a -> Option a
+  fold-right1 f xs = case to-list xs of
+    Nil -> None
+    Cons y ys -> Some (fold-right1-into f y ys)
+
+  fold-left1 :: forall t a. using (fold :: Foldable t) => (a -> a -> a) -> t a -> Option a
+  fold-left1 f xs = case to-list xs of
+    Nil -> None
+    Cons y ys -> Some (foldl f y ys)
+
+  -- Private: the `foldr1` walk over the tail, seeded with the first
+  -- element.
+  fold-right1-into :: forall a. (a -> a -> a) -> a -> List a -> a
+  fold-right1-into f seed rest = case rest of
+    Nil -> seed
+    Cons y ys -> f seed (fold-right1-into f y ys)
+
+  -- `any`/`all`: a predicate decided over the whole container. The
+  -- names collide with nothing: `Data.Bool`'s `and`/`or` are the binary
+  -- operations `Bool -> Bool -> Bool`, these take a predicate and a
+  -- container. The walk is the class `foldr`, which this language
+  -- evaluates strictly in its recursive position, so every element is
+  -- visited; the answer is the same, the short-circuit is not there.
+  any :: forall t a. using (fold :: Foldable t) => (a -> Bool) -> t a -> Bool
+  any p xs = foldr (\y acc -> if p y then True else acc) False xs
+
+  all :: forall t a. using (fold :: Foldable t) => (a -> Bool) -> t a -> Bool
+  all p xs = foldr (\y acc -> if p y then acc else False) True xs
+
+  -- `elem`: membership under `Eq`, in `base`'s argument order (the
+  -- element, then the container).
+  elem :: forall t a. using (fold :: Foldable t, ea :: Eq a) => a -> t a -> Bool
+  elem x xs = any (\y -> y == x) xs
+
+  not-elem :: forall t a. using (fold :: Foldable t, ea :: Eq a) => a -> t a -> Bool
+  not-elem x xs = not (elem x xs)
+
+  -- `find`: the first element the predicate accepts, or `None`. The
+  -- predicate does the deciding, so no `Eq` constraint is stated (the
+  -- same reason `base`'s `find` takes a predicate).
+  find :: forall t a. using (fold :: Foldable t) => (a -> Bool) -> t a -> Option a
+  find p xs = find-list p (to-list xs)
+
+  -- Private: the list-level search the container search materializes
+  -- into.
+  find-list :: forall a. (a -> Bool) -> List a -> Option a
+  find-list p xs = case xs of
+    Nil -> None
+    Cons y ys -> if p y then Some y else find-list p ys
+
+  -- `sum`/`product`: the container's additive or multiplicative
+  -- combination. The constraint is `Semiring`, not `Add`: an empty
+  -- container needs an identity to return and `Add` carries none, while
+  -- `Semiring`'s `zero`/`one` are exactly the two identities
+  -- (Algebra.Semiring). `sum-list` (Data.List) is the seeded list twin
+  -- of `sum`: the same walk with an explicit starting value.
+  sum :: forall t a. using (fold :: Foldable t, sr :: Semiring a) => t a -> a
+  sum xs = foldr (\y acc -> add y acc) zero xs
+
+  product :: forall t a. using (fold :: Foldable t, sr :: Semiring a) => t a -> a
+  product xs = foldr (\y acc -> mul y acc) one xs
+
+  -- `concat`: the monoid fold over the container's elements, so
+  -- `List String` gives a `String` and `List (List a)` a `List a`. The
+  -- identity keeps the empty container meaningful; the combination is
+  -- `<>`, whose `Semigroup` is stated separately (a `Monoid` entails
+  -- nothing).
+  concat :: forall t a. using (fold :: Foldable t, mon :: Monoid a, sg :: Semigroup a) => t a -> a
+  concat xs = foldr (\y acc -> (<>) y acc) mempty xs
+
+  -- `maximum`/`minimum`: partial over an empty container (an `Option`
+  -- value), and decided by comparison rather than position, so an
+  -- element before the greatest one still wins when it is greater. A
+  -- tie keeps the first element for `minimum` and the last one for
+  -- `maximum`, exactly as `base`'s `min`/`max` do. The `-by` forms take
+  -- the comparator, so non-`Ord` shapes and keys compare too.
+  maximum :: forall t a. using (fold :: Foldable t, oa :: Ord a) => t a -> Option a
+  maximum xs = fold-right1 larger xs
+
+  minimum :: forall t a. using (fold :: Foldable t, oa :: Ord a) => t a -> Option a
+  minimum xs = fold-right1 smaller xs
+
+  maximum-by :: forall t a. using (fold :: Foldable t) => (a -> a -> Ordering) -> t a -> Option a
+  maximum-by cmp xs = fold-right1 (better cmp) xs
+
+  minimum-by :: forall t a. using (fold :: Foldable t) => (a -> a -> Ordering) -> t a -> Option a
+  minimum-by cmp xs = fold-right1 (worse cmp) xs
+
+  -- Private: the four comparisons the `Ord` walks and the comparator
+  -- walks share. Each keeps the element the comparison favours and, on
+  -- a tie, the one `base`'s `min`/`max`/`minBy`/`maxBy` keep.
+  larger :: forall a. using (oa :: Ord a) => a -> a -> a
+  larger x y = if y < x then x else y
+
+  smaller :: forall a. using (oa :: Ord a) => a -> a -> a
+  smaller x y = if y < x then y else x
+
+  better :: forall a. (a -> a -> Ordering) -> a -> a -> a
+  better cmp x y = case cmp x y of
+    GT -> x
+    _ -> y
+
+  worse :: forall a. (a -> a -> Ordering) -> a -> a -> a
+  worse cmp x y = case cmp x y of
+    GT -> y
+    _ -> x

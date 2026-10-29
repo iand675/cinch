@@ -35,7 +35,12 @@ module Text.Otlp where
   import Data.Bytes (bytes-get, bytes-len)
   import Data.Int (int-from-i64)
   import Data.Json
-  import Data.List
+  -- The list import names the three declarations this module uses: a
+  -- wholesale `import Data.List` beside a wholesale `import Effect.Trace`
+  -- would make the name `span` arrive from both homes (Data.List's
+  -- splitting function and the tracing operation), which the checker
+  -- refuses by name.
+  import Data.List (List, Nil, Cons)
   import Data.Nat
   import Data.Option
   import Data.String

@@ -14,6 +14,10 @@ use std::path::PathBuf;
 
 const SEMIGROUP: &str = include_str!("../prelude/Algebra/Semigroup.cinch");
 const MONOID: &str = include_str!("../prelude/Algebra/Monoid.cinch");
+/// `Text.Regex` is not part of the embedded prelude, so its consumer
+/// test writes it beside the entry as a file project (the shape
+/// `lib_benchmark.rs` uses for `Text.Scan`).
+const REGEX: &str = include_str!("../prelude/Text/Regex.cinch");
 
 /// Helpers shared by the law programs: structural equality on the
 /// sample carriers (List and Option of Nat, Ordering), the newtype
@@ -90,6 +94,14 @@ const HELPERS: &str = r#"
 
   ordByTag :: Nat -> Ordering
   ordByTag n = if n == 0 then LT else if n == 1 then EQ else GT
+
+  fromAll :: All -> Bool
+  fromAll x = case x of
+    All b -> b
+
+  fromAny :: Any -> Bool
+  fromAny x = case x of
+    Any b -> b
 "#;
 
 /// The `Main` module of a law program: the standard imports (with the
@@ -122,6 +134,20 @@ fn expect_exit(name: &str, body: &str, expected: i32) {
         Ok(code) => assert_eq!(code, expected, "{name}: expected exit {expected}, got {code}"),
         Err(e) => panic!("{name}: compilation failed: {e}"),
     }
+}
+
+/// A temp project for the `Text.Regex` consumer: the real module source
+/// beside a `Main`, so `import Text.Regex` resolves to it and every
+/// other import falls back to the embedded prelude.
+fn expect_regex_exit(name: &str, main: &str, expected: i32) {
+    let dir = std::env::temp_dir().join(format!("cinch_algebra_regex_{}_{}", name, std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("temp project dir");
+    std::fs::write(dir.join("Text.Regex.cinch"), REGEX).expect("write Text.Regex");
+    std::fs::write(dir.join("main.cinch"), main).expect("write main");
+    let code = driver(Mode::Run, &dir.join("main.cinch"), None).expect("regex run");
+    let _ = std::fs::remove_dir_all(&dir);
+    assert_eq!(code, expected, "{name}: expected exit {expected}, got {code}");
 }
 
 // ---------------------------------------------------------------- List
@@ -726,6 +752,157 @@ fn tuple_semigroup_and_monoid_are_componentwise_and_obeys_the_laws() {
 "#,
         0,
     );
+}
+
+// -------------------------------------------------------------- mconcat
+
+#[test]
+fn mconcat_folds_through_the_identity_for_strings_lists_and_sums() {
+    // `mconcat` is the class-generic fold: the empty list gives the
+    // instance's `mempty` (the identity), a non-empty one gives the
+    // running `<>`. Observed for String, List Nat (append) and Sum.
+    expect_exit(
+        "mconcat",
+        r#"
+  main :: Int
+  main =
+    let emptyStr = mconcat (Nil :: List String) in
+    let str = mconcat (Cons (nat-to-string 1) (Cons (nat-to-string 2) Nil)) in
+    let emptyList = mconcat (Nil :: List (List Nat)) in
+    let appended = mconcat (Cons (listByTag 1) (Cons (listByTag 2) Nil)) in
+    let emptySum = mconcat (Nil :: List Sum) in
+    let summed = mconcat (Cons (Sum 2) (Cons (Sum 3) Nil)) in
+    let c1 = emptyStr == empty-string in
+    let c2 = str == nat-to-string 12 in
+    let c3 = eqListNat emptyList Nil in
+    let c4 = eqListNat appended (listByTag 1 <> listByTag 2) in
+    let c5 = nat-cmp (fromSum emptySum) 0 == 0 in
+    let c6 = nat-cmp (fromSum summed) 5 == 0 in
+    if c1 then (if c2 then (if c3 then (if c4 then (if c5 then (if c6 then 0 else 6) else 5) else 4) else 3) else 2) else 1
+"#,
+        0,
+    );
+}
+
+// ------------------------------------------------------------ All / Any
+
+#[test]
+fn all_and_any_fold_bool_lists_through_mconcat() {
+    // The two boolean monoids: `All` (conjunction, identity True) and
+    // `Any` (disjunction, identity False). The empty list reads through
+    // `mconcat` as the identity, a mixed list shows each operation.
+    expect_exit(
+        "bool-monoids",
+        r#"
+  main :: Int
+  main =
+    let allEmpty = fromAll (mconcat (Nil :: List All)) in
+    let anyEmpty = fromAny (mconcat (Nil :: List Any)) in
+    let allTrue = fromAll (mconcat (Cons (All True) (Cons (All True) Nil))) in
+    let allMixed = fromAll (mconcat (Cons (All True) (Cons (All False) Nil))) in
+    let anyFalse = fromAny (mconcat (Cons (Any False) (Cons (Any False) Nil))) in
+    let anyMixed = fromAny (mconcat (Cons (Any False) (Cons (Any True) Nil))) in
+    let c1 = allEmpty in
+    let c2 = not anyEmpty in
+    let c3 = allTrue in
+    let c4 = not allMixed in
+    let c5 = not anyFalse in
+    let c6 = anyMixed in
+    let c7 = not (fromAll (All True <> All False)) in
+    let c8 = fromAny (Any False <> Any True) in
+    let c9 = fromAll (mempty) in
+    let c10 = not (fromAny (mempty)) in
+    if c1 then (if c2 then (if c3 then (if c4 then (if c5 then (if c6 then (if c7 then (if c8 then (if c9 then (if c10 then 0 else 10) else 9) else 8) else 7) else 6) else 5) else 4) else 3) else 2) else 1
+"#,
+        0,
+    );
+}
+
+// ------------------------------------------------------ sconcat / stimes
+
+#[test]
+fn sconcat_and_stimes_combine_a_carrier() {
+    // `sconcat` is the list-level `<>` with the empty case as `None`;
+    // `stimes` repeats. A non-commutative carrier (List Nat) shows the
+    // order is preserved, and Sum gives the numeric reading.
+    expect_exit(
+        "sconcat-stimes",
+        r#"
+  optSumIs :: Nat -> Option Sum -> Bool
+  optSumIs n o = case o of
+    None -> False
+    Some s -> nat-cmp (fromSum s) n == 0
+
+  isNone :: forall a. Option a -> Bool
+  isNone o = case o of
+    None -> True
+    Some _ -> False
+
+  optListIs :: Option (List Nat) -> List Nat -> Bool
+  optListIs o xs = case o of
+    None -> False
+    Some ys -> eqListNat ys xs
+
+  main :: Int
+  main =
+    let c1 = isNone (sconcat (Nil :: List Sum)) in
+    let c2 = optSumIs 6 (sconcat (Cons (Sum 1) (Cons (Sum 2) (Cons (Sum 3) Nil)))) in
+    let c3 = optListIs (sconcat (Cons (listByTag 0) (Cons (listByTag 1) (Cons (listByTag 2) Nil)))) (listByTag 0 <> (listByTag 1 <> listByTag 2)) in
+    let c4 = nat-cmp (fromSum (stimes 0 (Sum 5))) 5 == 0 in
+    let c5 = nat-cmp (fromSum (stimes 1 (Sum 5))) 5 == 0 in
+    let c6 = nat-cmp (fromSum (stimes 3 (Sum 2))) 6 == 0 in
+    let c7 = eqListNat (stimes 3 (Cons 1 Nil)) (Cons 1 (Cons 1 (Cons 1 Nil))) in
+    if c1 then (if c2 then (if c3 then (if c4 then (if c5 then (if c6 then (if c7 then 0 else 7) else 6) else 5) else 4) else 3) else 2) else 1
+"#,
+        0,
+    );
+}
+
+// ------------------------------------ the re-pointed callers (behaviour)
+
+#[test]
+fn string_concat_all_still_concatenates_in_order() {
+    // `string-concat-all` (Data.String) is now `mconcat`; the same
+    // output as before, since String's `<>` is concatenation and its
+    // identity is the empty string.
+    expect_exit(
+        "string-concat-all",
+        r#"
+  main :: Int
+  main =
+    let empty = string-concat-all (Nil :: List String) in
+    let three = string-concat-all (Cons (nat-to-string 1) (Cons (nat-to-string 2) (Cons (nat-to-string 3) Nil))) in
+    let c1 = empty == empty-string in
+    let c2 = three == nat-to-string 123 in
+    if c1 then (if c2 then 0 else 2) else 1
+"#,
+        0,
+    );
+}
+
+#[test]
+fn regex_escape_goes_through_mconcat_behaviour_preserving() {
+    // `regex-escape` (Text.Regex) used a private `concat-strings`; it
+    // now calls `mconcat`. The escaped output is unchanged: a
+    // metacharacter gains a leading backslash, plain characters pass
+    // through, and the empty input is the empty string.
+    let main = r#"
+module Main where
+
+  import Text.Regex
+
+  main :: Int
+  main =
+    let plain = regex-escape "abc" in
+    let dotted = regex-escape "a.b" in
+    let empty = regex-escape "" in
+    let c1 = plain == "abc" in
+    let c2 = dotted == "a\\.b" in
+    let c3 = nat-cmp (string-byte-length dotted) 4 == 0 in
+    let c4 = empty == empty-string in
+    if c1 then (if c2 then (if c3 then (if c4 then 0 else 4) else 3) else 2) else 1
+"#;
+    expect_regex_exit("regex-escape", main, 0);
 }
 
 // ------------------------------------------- the real files as project

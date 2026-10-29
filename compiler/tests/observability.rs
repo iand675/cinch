@@ -186,7 +186,6 @@ fn collecting_handler_nests_span_scopes_by_lexical_scope() {
   import Effect.Trace (span, end-span, end-marker, span-scope)
   import Text.Json (canonical-json)
   import Data.Json
-  import Data.List
   import Data.String
 
   main :: Unit ->{{IO r}} Int
@@ -239,7 +238,6 @@ fn scope_brackets_close_sibling_scopes() {
   import Effect.Trace (span, end-span, end-marker, span-scope)
   import Text.Json (canonical-json)
   import Data.Json
-  import Data.List
   import Data.String
 
   main :: Unit ->{{IO r}} Int
@@ -304,7 +302,6 @@ fn otlp_json_envelope_exports_logs_metrics_and_spans() {
   import Text.Parse (ParseOutcome, Parsed, Failed)
   import Text.Otlp (parse-traceparent, otlp-export)
   import Data.Json
-  import Data.List
   import Data.Option
   import Data.String
 
@@ -449,7 +446,6 @@ fn trace_context_propagates_across_run_boundaries_in_one_trace() {
   import Text.Otlp (parse-traceparent, otlp-export)
   import Algebra.Semigroup
   import Data.Json
-  import Data.List
   import Data.Option
   import Data.String
 
@@ -529,7 +525,6 @@ fn dx_program_reads_naturally_with_levels_and_fields() {
   import Effect.Trace (span, end-span, end-marker, span-scope)
   import Text.Json (canonical-json)
   import Data.Json
-  import Data.List
   import Data.String
 
   main :: Unit ->{{IO r}} Int

@@ -29,8 +29,19 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 /// with: the Category class modules, the universal visitors and their
 /// instances, and the remaining library modules (their dotted headers
 /// and instances check in the same program).
+///
+/// The list is the family's own order restricted to these modules, and
+/// it must carry every LATE family module its members import: a shipped
+/// copy is a source module, so it displaces the embedded copy and is
+/// collected after the facade but BEFORE the late family, which means a
+/// late home it imports (`Algebra.Group`, `Algebra.Semiring`) is not
+/// registered yet when its signatures are collected. An early home
+/// (`Relation.Eq`, `Data.Ordering`, `Function.Combinators`) is
+/// registered before the shadow point and needs no copy.
 const SHIPPED: &str = concat!(
     include_str!("../prelude/Algebra/Semigroup.cinch"),
+    include_str!("../prelude/Algebra/Group.cinch"),
+    include_str!("../prelude/Algebra/Semiring.cinch"),
     include_str!("../prelude/Algebra/Monoid.cinch"),
     include_str!("../prelude/Category/Functor.cinch"),
     include_str!("../prelude/Category/Applicative.cinch"),
@@ -38,9 +49,9 @@ const SHIPPED: &str = concat!(
     include_str!("../prelude/Category/Alternative.cinch"),
     include_str!("../prelude/Category/Foldable.cinch"),
     include_str!("../prelude/Category/Traversable.cinch"),
-    include_str!("../prelude/Data/Compose.cinch"),
     include_str!("../prelude/Data/Identity.cinch"),
     include_str!("../prelude/Data/Const.cinch"),
+    include_str!("../prelude/Data/Compose.cinch"),
     include_str!("../prelude/Data/NonEmpty.cinch"),
 );
 const HK_SURFACE: &str = include_str!("fixtures/hk/hk_surface_fixture.cinch");

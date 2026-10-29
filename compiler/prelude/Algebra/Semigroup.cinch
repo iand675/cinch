@@ -50,3 +50,36 @@ module Algebra.Semigroup where
     (<>) x y = case x of
       (x1, x2) -> case y of
         (y1, y2) -> ((<>) x1 y1, (<>) x2 y2)
+
+  -- ------------------------------------------------------------------
+  -- The class-generic folds. These are free functions with a `using`
+  -- constraint, not new class methods (the scheme of `sum-list` and
+  -- `enum-from-to`): the class is the interface and reaching one of
+  -- these costs an explicit import of this module, since the facade
+  -- re-exports no class home.
+
+  -- `sconcat`: combine the whole list with `<>`, right-associated
+  -- (`foldr1` in base), or `None` when there is nothing to combine.
+  -- The carrier is `List a` and the emptiness is reported as an
+  -- `Option` (the prelude's partiality convention). `NonEmpty` would
+  -- be the more precise argument, but its home (Data.NonEmpty) imports
+  -- this module for `<>`, so naming it here would be a cycle; the
+  -- `Option` result is the version that lives in this module.
+  sconcat :: forall a. using (s :: Semigroup a) => List a -> Option a
+  sconcat xs = case xs of
+    Nil -> None
+    Cons y ys -> case sconcat ys of
+      None -> Some y
+      Some rest -> Some ((<>) y rest)
+
+  -- `stimes n x`: `n` copies of `x` combined with `<>`, right-nested.
+  -- A `Nat` cannot be negative, but it can be zero, and a bare
+  -- `Semigroup` has no identity to return; base's `stimes 0` is an
+  -- error and the prelude refuses faults, so `0` reads as one copy.
+  -- That is the reading under which the law
+  -- `stimes (m + n) x == stimes m x <> stimes n x` is stated for
+  -- `m, n >= 1`. Costs `n - 1` combinations.
+  stimes :: forall a. using (s :: Semigroup a) => Nat -> a -> a
+  stimes n x = case n == 0 of
+    True -> x
+    False -> if n == 1 then x else (<>) x (stimes (n - 1) x)

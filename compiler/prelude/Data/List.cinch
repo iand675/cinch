@@ -12,9 +12,28 @@
 -- reached through its constraint or an explicit `import
 -- Category.Functor`, which shadows this one per the import shadowing
 -- rule (decision D145).
+--
+-- The concrete `base` combinators live here beside the type: the four
+-- partial projections, the pairing and splitting family, the searching
+-- family, the bounded generators (`iterate`/`unfold`/`cycle` take their
+-- bound as a parameter, because every list-producing walk in this
+-- language must end), the scans and the element-seeded folds,
+-- `transpose`, the stable merge sort, the run grouping, the joining
+-- family, and `nub`/`subsequences`. The container-generic twins
+-- (`sum`, `elem`, the folds with an element seed, ...) live in
+-- `Category.Foldable`, which is reached with an explicit `import`; a
+-- program that wants the list operation without a class constraint uses
+-- the name here, which is the `map` situation over again.
 module Data.List where
 
-  import Data.Option
+  -- `Data.List` reaches `Option`, `None` and `Some` through `Data.Core`
+  -- (which declares them), so it does not import `Data.Option` too: a
+  -- name imported from two homes is an ambiguity error, and the types
+  -- live in exactly one place now.
+  import Data.Core
+  import Data.Ordering
+  import Relation.Eq
+  import Relation.Ord
   import Algebra.Arithmetic
   import Algebra.Semigroup
   import Algebra.Monoid
@@ -27,11 +46,18 @@ module Data.List where
 
   export List, Nil, Cons, map, foldr, length, sum-list, list-byte-count
   export reverse, take, drop, nth, replicate, list-length, is-empty
+  export head, tail, last, init
+  export zip, zip-with, unzip, split-at, span, break, partition
+  export find, find-index, elem-index, lookup
+  export iterate, unfold, cycle, scanl, scanr, fold-left1, fold-right1
+  export transpose, sort, sort-by, group-by
+  export intersperse, intercalate, nub, subsequences
 
 
-  data List a where
-    Nil :: List a
-    Cons :: a -> List a -> List a
+  -- `List`, `Nil` and `Cons` are declared in `Data.Core` and re-exported
+  -- here (that module's header says why: `Data.List` and `Data.Option`
+  -- name each other in signatures, so neither can be checked first).
+  -- This home carries the type's instance family and its operations.
 
   map :: forall a b. (a -> b) -> List a -> List b
   map f xs = case xs of
@@ -104,6 +130,372 @@ module Data.List where
   is-empty xs = case xs of
     Nil -> True
     Cons _ _ -> False
+
+  -- The partial projections of a list: the first element, everything
+  -- but the first, the last element, and everything but the last. Each
+  -- reports the empty list as `None` (the prelude's partiality
+  -- convention: a partial accessor returns `Option`, never a fault).
+  -- `head` is `nth 0` spelled for the reader.
+  head :: forall a. List a -> Option a
+  head xs = case xs of
+    Nil -> None
+    Cons y _ -> Some y
+
+  tail :: forall a. List a -> Option (List a)
+  tail xs = case xs of
+    Nil -> None
+    Cons _ ys -> Some ys
+
+  last :: forall a. List a -> Option a
+  last xs = case xs of
+    Nil -> None
+    Cons y ys -> case ys of
+      Nil -> Some y
+      Cons _ _ -> last ys
+
+  init :: forall a. List a -> Option (List a)
+  init xs = case xs of
+    Nil -> None
+    Cons _ ys -> case ys of
+      Nil -> None
+      Cons _ _ -> Some (init-into xs)
+
+  -- Private: the prefix up to the last element of a non-empty list.
+  init-into :: forall a. List a -> List a
+  init-into xs = case xs of
+    Nil -> Nil
+    Cons y ys -> case ys of
+      Nil -> Nil
+      Cons _ _ -> Cons y (init-into ys)
+
+  -- Pairing, truncated at the shorter side (so a length mismatch
+  -- shortens the result, never faults).
+  zip :: forall a b. List a -> List b -> List (a, b)
+  zip xs ys = case xs of
+    Nil -> Nil
+    Cons x xr -> case ys of
+      Nil -> Nil
+      Cons y yr -> Cons (x, y) (zip xr yr)
+
+  -- `zip` with the pair built by `f`, truncated the same way.
+  zip-with :: forall a b c. (a -> b -> c) -> List a -> List b -> List c
+  zip-with f xs ys = case xs of
+    Nil -> Nil
+    Cons x xr -> case ys of
+      Nil -> Nil
+      Cons y yr -> Cons (f x y) (zip-with f xr yr)
+
+  -- The inverse of `zip`: the first components and the second
+  -- components, each in order.
+  unzip :: forall a b. List (a, b) -> (List a, List b)
+  unzip ps = case ps of
+    Nil -> (Nil, Nil)
+    Cons p rest -> case p of
+      (a, b) -> case unzip rest of
+        (af, bf) -> (Cons a af, Cons b bf)
+
+  -- The first `n` elements and the rest; the split clamps at the end,
+  -- so `split-at n` of a shorter list is the whole list and `Nil`.
+  split-at :: forall a. Nat -> List a -> (List a, List a)
+  split-at n xs = case n == 0 of
+    True -> (Nil, xs)
+    False -> case xs of
+      Nil -> (Nil, Nil)
+      Cons y ys -> case split-at (n - 1) ys of
+        (a, b) -> (Cons y a, b)
+
+  -- The longest prefix whose elements satisfy `p`, and the rest.
+  span :: forall a. (a -> Bool) -> List a -> (List a, List a)
+  span p xs = case xs of
+    Nil -> (Nil, Nil)
+    Cons y ys -> case p y of
+      True -> case span p ys of
+        (a, b) -> (Cons y a, b)
+      False -> (Nil, xs)
+
+  -- The longest prefix whose elements do NOT satisfy `p`, and the rest.
+  -- Written out rather than spelled `span` of a negated predicate:
+  -- `not` lives in `Data.Bool`, which is checked after this module.
+  break :: forall a. (a -> Bool) -> List a -> (List a, List a)
+  break p xs = case xs of
+    Nil -> (Nil, Nil)
+    Cons y ys -> case p y of
+      True -> (Nil, xs)
+      False -> case break p ys of
+        (a, b) -> (Cons y a, b)
+
+  -- The elements that satisfy `p` and the ones that do not, each in
+  -- input order (so the two results interleave back into the input).
+  partition :: forall a. (a -> Bool) -> List a -> (List a, List a)
+  partition p xs = case xs of
+    Nil -> (Nil, Nil)
+    Cons y ys -> case p y of
+      True -> case partition p ys of
+        (a, b) -> (Cons y a, b)
+      False -> case partition p ys of
+        (a, b) -> (a, Cons y b)
+
+  -- The first element `p` accepts (`None` when none does).
+  find :: forall a. (a -> Bool) -> List a -> Option a
+  find p xs = case xs of
+    Nil -> None
+    Cons y ys -> case p y of
+      True -> Some y
+      False -> find p ys
+
+  -- The position of the first element `p` accepts (`None` when none
+  -- does). The position is a `Nat`: it counts from zero, so it cannot
+  -- be negative.
+  find-index :: forall a. (a -> Bool) -> List a -> Option Nat
+  find-index p xs = find-index-from p 0 xs
+
+  -- Private: the search with the position reached so far.
+  find-index-from :: forall a. (a -> Bool) -> Nat -> List a -> Option Nat
+  find-index-from p i xs = case xs of
+    Nil -> None
+    Cons y ys -> case p y of
+      True -> Some i
+      False -> find-index-from p (i + 1) ys
+
+  -- The position of the first element equal to `x` (`None` when
+  -- absent).
+  elem-index :: forall a. using (eq :: Eq a) => a -> List a -> Option Nat
+  elem-index x xs = find-index (\y -> y == x) xs
+
+  -- The value paired with `key`: the first pair whose key matches wins,
+  -- so a repeated key keeps the earliest value (`None` when absent).
+  -- `lookup` is the association-list read `Data.Map`/`Data.HashMap`
+  -- build their trees over.
+  lookup :: forall k v. using (eq :: Eq k) => k -> List (k, v) -> Option v
+  lookup key kvs = case kvs of
+    Nil -> None
+    Cons p ps -> case p of
+      (k2, v) -> case key == k2 of
+        True -> Some v
+        False -> lookup key ps
+
+  -- The enumeration `x, f x, f (f x), ...` cut to `n` elements. The
+  -- bound is what keeps the walk total (`base`'s `iterate` is
+  -- infinite).
+  iterate :: forall a. Nat -> (a -> a) -> a -> List a
+  iterate n f x = case n == 0 of
+    True -> Nil
+    False -> Cons x (iterate (n - 1) f (f x))
+
+  -- The unfolding: `f` either yields the next element together with the
+  -- next seed, or stops. `base` spells this `unfoldr`; the `r` suffix
+  -- is historical (the walk is not a right fold), so the name here is
+  -- the plain one.
+  unfold :: forall a b. (b -> Option (a, b)) -> b -> List a
+  unfold f seed = case f seed of
+    None -> Nil
+    Some p -> case p of
+      (x, next) -> Cons x (unfold f next)
+
+  -- The list repeated `n` times. `base`'s `cycle` on an empty list
+  -- never returns; here the empty list stays empty, because every
+  -- list-producing walk in this language must end.
+  cycle :: forall a. Nat -> List a -> List a
+  cycle n xs = case n == 0 of
+    True -> Nil
+    False -> case xs of
+      Nil -> Nil
+      Cons _ _ -> append-list xs (cycle (n - 1) xs)
+
+  -- The successive reductions from the left, the seed first: `scanl f z
+  -- xs` has one element more than `xs` (`base`'s `scanl`).
+  scanl :: forall a b. (b -> a -> b) -> b -> List a -> List b
+  scanl f z xs = case xs of
+    Nil -> Cons z Nil
+    Cons y ys -> Cons z (scanl f (f z y) ys)
+
+  -- The successive reductions from the right: the first element is the
+  -- whole fold and the seed is last (`base`'s `scanr`).
+  scanr :: forall a b. (a -> b -> b) -> b -> List a -> List b
+  scanr f z xs = case scanr-fold f z xs of
+    (total, rest) -> Cons total rest
+
+  -- Private: the right fold and its scans together, so the seed is
+  -- never recomputed and `scanr` needs no special case for the empty
+  -- list.
+  scanr-fold :: forall a b. (a -> b -> b) -> b -> List a -> (b, List b)
+  scanr-fold f z xs = case xs of
+    Nil -> (z, Nil)
+    Cons y ys -> case scanr-fold f z ys of
+      (q, qs) -> (f y q, Cons q qs)
+
+  -- The left fold seeded with the first element, so an empty list has
+  -- nothing to return (`None`; `base`'s `foldl1` faults).
+  fold-left1 :: forall a. (a -> a -> a) -> List a -> Option a
+  fold-left1 f xs = case xs of
+    Nil -> None
+    Cons y ys -> Some (fold-left1-walk f y ys)
+
+  -- Private: the left fold whose seed is already an element.
+  fold-left1-walk :: forall a. (a -> a -> a) -> a -> List a -> a
+  fold-left1-walk f acc xs = case xs of
+    Nil -> acc
+    Cons y ys -> fold-left1-walk f (f acc y) ys
+
+  -- The right fold seeded with the first element (`None` on an empty
+  -- list).
+  fold-right1 :: forall a. (a -> a -> a) -> List a -> Option a
+  fold-right1 f xs = case xs of
+    Nil -> None
+    Cons y ys -> Some (fold-right1-walk f y ys)
+
+  -- Private: the right fold whose seed is already an element.
+  fold-right1-walk :: forall a. (a -> a -> a) -> a -> List a -> a
+  fold-right1-walk f seed rest = case rest of
+    Nil -> seed
+    Cons y ys -> f seed (fold-right1-walk f y ys)
+
+  -- The transpose of a ragged list of lists: round k is the k-th
+  -- element of every row that still has one, so a short row contributes
+  -- nothing to the later rounds and the result has as many rows as the
+  -- longest input row (`base`'s `transpose`). A rectangular `Matrix`
+  -- record keeps its own row-level helper; this is the general list
+  -- operation.
+  transpose :: forall a. List (List a) -> List (List a)
+  transpose xss = case peel-column xss of
+    None -> Nil
+    Some p -> case p of
+      (column, rest) -> Cons column (transpose rest)
+
+  -- Private: one column and what remains of the rows that still have an
+  -- element after it. Exhausted rows drop out, and `None` (every row
+  -- exhausted) is what ends `transpose`.
+  peel-column :: forall a. List (List a) -> Option (List a, List (List a))
+  peel-column xss = case xss of
+    Nil -> None
+    Cons row rows -> case row of
+      Nil -> peel-column rows
+      Cons x xs -> case peel-column rows of
+        None -> Some (Cons x Nil, Cons xs Nil)
+        Some p -> case p of
+          (column, rest) -> Some (Cons x column, Cons xs rest)
+
+  -- Merge sort under a three-way comparator. Stable: the left element
+  -- is kept unless the right one compares strictly before it, so equal
+  -- elements stay in their input order (`base`'s `sortBy`).
+  sort-by :: forall a. (a -> a -> Ordering) -> List a -> List a
+  sort-by cmp xs = case xs of
+    Nil -> Nil
+    Cons _ ys -> case ys of
+      Nil -> xs
+      Cons _ _ -> case split-half xs of
+        (a, b) -> merge-by cmp (sort-by cmp a) (sort-by cmp b)
+
+  -- Private: the merge of two sorted runs. The right element wins only
+  -- when it compares strictly before the left one, which is what makes
+  -- the sort stable.
+  merge-by :: forall a. (a -> a -> Ordering) -> List a -> List a -> List a
+  merge-by cmp xs ys = case xs of
+    Nil -> ys
+    Cons x xr -> case ys of
+      Nil -> xs
+      Cons y yr -> case cmp x y of
+        GT -> Cons y (merge-by cmp xs yr)
+        _ -> Cons x (merge-by cmp xr ys)
+
+  -- Private: the two contiguous halves, split at the midpoint. The
+  -- split has to be contiguous for the merge below to be stable (an
+  -- even/odd deal reorders equal elements across the halves); both
+  -- halves are non-empty for a list of two or more, the only shape the
+  -- sort splits.
+  split-half :: forall a. List a -> (List a, List a)
+  split-half xs = split-at (list-length xs / 2) xs
+
+  -- The list in ascending order under `Ord` (a stable merge sort).
+  sort :: forall a. using (ord :: Ord a) => List a -> List a
+  sort xs = sort-by compare-ord xs
+
+  -- Private: `Ord`'s four boolean methods assembled into the three-way
+  -- result the comparator-taking combinators want. `Ord` carries no
+  -- `compare` method, so the assembly has to happen somewhere.
+  compare-ord :: forall a. using (ord :: Ord a) => a -> a -> Ordering
+  compare-ord x y = case x < y of
+    True -> LT
+    False -> case x > y of
+      True -> GT
+      False -> EQ
+
+  -- The runs of adjacent elements the `same` test groups together: a
+  -- run starts at an element and grows while `same` holds of that
+  -- element and the next candidate, so `same` is the same-group test
+  -- rather than an equality (`base`'s `groupBy`).
+  group-by :: forall a. (a -> a -> Bool) -> List a -> List (List a)
+  group-by same xs = case xs of
+    Nil -> Nil
+    Cons y ys -> case span (same y) ys of
+      (run, rest) -> Cons (Cons y run) (group-by same rest)
+
+  -- `sep` between the elements, one separator fewer than the list has
+  -- elements, so `Nil` and a singleton come back unchanged (`base`'s
+  -- `intersperse`).
+  intersperse :: forall a. a -> List a -> List a
+  intersperse sep xs = case xs of
+    Nil -> Nil
+    Cons y ys -> Cons y (intersperse-into sep ys)
+
+  -- Private: the separators and elements after the first one.
+  intersperse-into :: forall a. a -> List a -> List a
+  intersperse-into sep xs = case xs of
+    Nil -> Nil
+    Cons y ys -> Cons sep (Cons y (intersperse-into sep ys))
+
+  -- The lists joined with `sep` between them (`base`'s `intercalate`,
+  -- which is `concat` of `intersperse sep`); `Nil` and a singleton come
+  -- back unchanged. The join is the private `join-lists` below rather
+  -- than `Category.Foldable`'s class-level `concat`: this is a list
+  -- operation, its join is four lines, and a home needs no class
+  -- constraint to concatenate its own type.
+  intercalate :: forall a. List a -> List (List a) -> List a
+  intercalate sep xss = join-lists (intersperse sep xss)
+
+  -- Private: the concatenation of a list of lists.
+  join-lists :: forall a. List (List a) -> List a
+  join-lists xss = case xss of
+    Nil -> Nil
+    Cons ys yss -> append-list ys (join-lists yss)
+
+  -- The list with later duplicates removed, keeping the first
+  -- occurrence of each element (`base`'s `nub`; the `Eq` constraint is
+  -- what decides sameness).
+  nub :: forall a. using (eq :: Eq a) => List a -> List a
+  nub xs = case xs of
+    Nil -> Nil
+    Cons y ys -> Cons y (nub (drop-eq y ys))
+
+  -- Private: `xs` without the elements equal to `x`.
+  drop-eq :: forall a. using (eq :: Eq a) => a -> List a -> List a
+  drop-eq x xs = case xs of
+    Nil -> Nil
+    Cons y ys -> case y == x of
+      True -> drop-eq x ys
+      False -> Cons y (drop-eq x ys)
+
+  -- Every subsequence, the empty one first, in `base`'s order:
+  -- `subsequences [a, b]` is `[[], [a], [b], [a, b]]`. The count is
+  -- `2^n` for a list of `n` elements, so this is the one combinator
+  -- here whose result can dwarf its input; it still ends, because the
+  -- input does.
+  subsequences :: forall a. List a -> List (List a)
+  subsequences xs = Cons Nil (non-empty-subsequences xs)
+
+  -- Private: the subsequences that keep at least one element (the
+  -- empty one is `subsequences`'s first).
+  non-empty-subsequences :: forall a. List a -> List (List a)
+  non-empty-subsequences xs = case xs of
+    Nil -> Nil
+    Cons y ys -> Cons (Cons y Nil) (subs-with y (non-empty-subsequences ys))
+
+  -- Private: every subsequence of `subs` both without and with `x` in
+  -- front, in `base`'s order.
+  subs-with :: forall a. a -> List (List a) -> List (List a)
+  subs-with x subs = case subs of
+    Nil -> Nil
+    Cons ys rest -> Cons ys (Cons (Cons x ys) (subs-with x rest))
 
   sum-list :: forall a. using (add :: Add a) => a -> List a -> a
   sum-list z xs = foldr (\x acc -> x + acc) z xs

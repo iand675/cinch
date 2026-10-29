@@ -1,9 +1,9 @@
-module Category.Functor where
+module Demo.Bump where
   bump :: Int -> Int
   bump x = x + 1
 
 module Main where
-  import Category.Functor
+  import Demo.Bump
 
   main :: Int
   main = bump 1

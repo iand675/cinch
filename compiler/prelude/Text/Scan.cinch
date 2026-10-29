@@ -4,11 +4,17 @@
 -- SCANNING (the subject-last argument order throughout: the needle,
 -- separator or pattern names what happens, the subject is last):
 --   `string-index-of` / `string-contains` / `string-starts-with` /
---   `string-ends-with` over scalar indices; `string-split-on` (an
---   empty separator splits into single scalars, Ruby's `split("")`);
---   `string-join`; `string-lines` (splits at LF; a single trailing
---   empty line is dropped) and `string-words` (ASCII whitespace
---   runs).
+--   `string-ends-with` over scalar indices; `string-char-index-of`
+--   for a single scalar; `string-split-on` (an empty separator splits
+--   into single scalars, Ruby's `split("")`); `string-join`;
+--   `string-lines` (splits at LF; a single trailing empty line is
+--   dropped) and its inverse `string-unlines` (each line followed by
+--   LF); `string-words` (ASCII whitespace runs) and its inverse
+--   `string-unwords` (single-space join); `string-take` /
+--   `string-drop` / `string-split-at` cutting at a scalar count, and
+--   `string-take-while` / `string-drop-while` cutting at a scalar
+--   predicate. Prefix and suffix tests ARE `string-starts-with` /
+--   `string-ends-with` (no separate `is-prefix-of` spelling).
 --
 -- FORMATTING: `format` is the template interpolation (`{}` consumes
 --   the next argument in order, `{{` and `}}` are literal braces;
@@ -44,7 +50,10 @@ module Text.Scan where
   import Text.Show
 
   export string-index-of, string-contains, string-starts-with, string-ends-with
+  export string-char-index-of
   export string-split-on, string-join, string-lines, string-words
+  export string-unlines, string-unwords
+  export string-split-at, string-take, string-drop, string-take-while, string-drop-while
   export string-strip, string-lstrip, string-rstrip, string-chomp, string-chop
   export string-upcase-ascii, string-downcase-ascii, string-capitalize-ascii
   export string-pad-left, string-pad-right, string-center
@@ -138,6 +147,18 @@ module Text.Scan where
     None -> False
     Some _ -> True
 
+  -- The scalar index of the first occurrence of a single scalar (the
+  -- one-scalar special case of `string-index-of`; `None` when the
+  -- scalar is absent, so it never coincides with the empty-needle
+  -- rule above).
+  string-char-index-of :: Char -> String -> Option Nat
+  string-char-index-of c s = char-index-at c (unpack s) 0
+
+  char-index-at :: Char -> List Char -> Nat -> Option Nat
+  char-index-at c cs i = case cs of
+    Nil -> None
+    Cons d rest -> if eq-char c d then Some i else char-index-at c rest (i + 1)
+
   string-starts-with :: String -> String -> Bool
   string-starts-with pre s = list-prefix-of (string-codes pre) (string-codes s)
 
@@ -216,6 +237,55 @@ module Text.Scan where
         if is-empty piece then words-loop rest Nil acc
         else words-loop rest Nil (Cons (reverse piece) acc)
       else words-loop rest (Cons c piece) acc
+
+  -- The inverse of `string-lines`: every line followed by LF, so
+  -- `string-unlines (string-lines s)` is `s` with exactly one trailing
+  -- LF (and the empty list is the empty string, matching
+  -- `string-lines ""`). It cannot be a bare join: a join would leave
+  -- the last line unterminated.
+  string-unlines :: List String -> String
+  string-unlines lines = string-concat-all (unlines-each lines)
+
+  unlines-each :: List String -> List String
+  unlines-each lines = case lines of
+    Nil -> Nil
+    Cons y ys -> Cons y (Cons "\n" (unlines-each ys))
+
+  -- The inverse of `string-words`: a single space between elements
+  -- (the empty list is the empty string, matching `string-words ""`).
+  string-unwords :: List String -> String
+  string-unwords words = string-join " " words
+
+  -- Splitting at a scalar count, over scalar boundaries (a count past
+  -- the end puts everything in the first part; 0 puts everything in
+  -- the second).
+  string-split-at :: Nat -> String -> (String, String)
+  string-split-at n s = (string-take n s, string-drop n s)
+
+  string-take :: Nat -> String -> String
+  string-take n s = pack (take n (unpack s))
+
+  string-drop :: Nat -> String -> String
+  string-drop n s = pack (drop n (unpack s))
+
+  -- The longest prefix (suffix) whose scalars all satisfy `p`; unlike
+  -- `string-take`/`string-drop` the cut is predicate-driven, so the
+  -- caller supplies the scalar test.
+  string-take-while :: (Char -> Bool) -> String -> String
+  string-take-while p s = pack (take-while-chars p (unpack s))
+
+  string-drop-while :: (Char -> Bool) -> String -> String
+  string-drop-while p s = pack (drop-while-chars p (unpack s))
+
+  take-while-chars :: (Char -> Bool) -> List Char -> List Char
+  take-while-chars p cs = case cs of
+    Nil -> Nil
+    Cons c rest -> if p c then Cons c (take-while-chars p rest) else Nil
+
+  drop-while-chars :: (Char -> Bool) -> List Char -> List Char
+  drop-while-chars p cs = case cs of
+    Nil -> Nil
+    Cons c rest -> if p c then drop-while-chars p rest else cs
 
   -- -----------------------------------------------------------------
   -- Trimming and case (ASCII).

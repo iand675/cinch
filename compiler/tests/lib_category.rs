@@ -476,3 +476,145 @@ fn function_family_laws_pointwise() {
         0,
     );
 }
+
+/// The Applicative free combinators: `void` keeps the shape and drops
+/// the value, and `when`/`unless` run their action on one of the two
+/// conditions only. The action is `None`, which a condition that does
+/// not run it cannot produce: the branch that does not run yields
+/// `pure ()`, so the two conditions are distinguishable in the result.
+#[test]
+fn applicative_void_when_and_unless() {
+    expect_ok(
+        "applicative-void-when-unless",
+        r#"  check1 :: Int
+  check1 = case void (Some (3 :: Int)) of
+    Some _ -> 0
+    None -> 1
+
+  check2 :: Int
+  check2 = case void (None :: Option Int) of
+    None -> 0
+    Some _ -> 2
+
+  check3 :: Int
+  check3 = case when True (None :: Option Unit) of
+    None -> 0
+    Some _ -> 4
+
+  check4 :: Int
+  check4 = case when False (None :: Option Unit) of
+    Some _ -> 0
+    None -> 8
+
+  check5 :: Int
+  check5 = case unless True (None :: Option Unit) of
+    Some _ -> 0
+    None -> 16
+
+  check6 :: Int
+  check6 = case unless False (None :: Option Unit) of
+    None -> 0
+    Some _ -> 32
+
+  main :: Int
+  main = check1 + check2 + check3 + check4 + check5 + check6"#,
+        0,
+    );
+}
+
+/// `ap` (the `Control.Monad` name for `(<*>)`) and `replicate-m`: the
+/// repetition's result count and order are the observed values, and
+/// count 0 reports the empty list without running the action (a failing
+/// action repeated zero times still succeeds).
+#[test]
+fn applicative_ap_and_replicate_m() {
+    expect_ok(
+        "applicative-ap-replicate-m",
+        r#"  check1 :: Int
+  check1 = if ap (Some (\y -> y + 1)) (Some (2 :: Int)) == Some 3 then 0 else 1
+
+  check2 :: Int
+  check2 = case ap (None :: Option (Int -> Int)) (Some (2 :: Int)) of
+    None -> 0
+    Some _ -> 2
+
+  check3 :: Int
+  check3 = case replicate-m 0 (None :: Option Int) of
+    Some ys -> if same-list ys (Nil :: List Int) then 0 else 4
+    None -> 4
+
+  check4 :: Int
+  check4 = case replicate-m 3 (Some (7 :: Int)) of
+    Some ys -> if same-list ys (Cons 7 (Cons 7 (Cons 7 Nil))) then 0 else 8
+    None -> 8
+
+  check5 :: Int
+  check5 = case replicate-m 3 (None :: Option Int) of
+    None -> 0
+    Some _ -> 16
+
+  check6 :: Int
+  check6 = case replicate-m 1 (Some (7 :: Int)) of
+    Some ys -> if same-list ys (Cons 7 Nil) then 0 else 32
+    None -> 32
+
+  main :: Int
+  main = check1 + check2 + check3 + check4 + check5 + check6"#,
+        0,
+    );
+}
+
+/// Kleisli composition: `>=>` runs the left step first and `<=<` is it
+/// reversed (`(f <=< g) x == (g >=> f) x`), a failing step short
+/// circuits either way, and the `Result` step pair shows the order in
+/// which the two run (the failure reports the value the first step
+/// produced). The `>=>` uses here are infix, so they also assert that
+/// the operator's fixity travels with `import Category.Monad`.
+#[test]
+fn monad_kleisli_composition() {
+    expect_ok(
+        "monad-kleisli",
+        r#"  step-a :: Int -> Option Int
+  step-a y = Some (y + 1)
+
+  step-b :: Int -> Option Int
+  step-b y = Some (y * 2)
+
+  step-fail :: Int -> Option Int
+  step-fail y = None
+
+  add-one :: Int -> Result Int Int
+  add-one y = Ok (y + 1)
+
+  fail-at :: Int -> Result Int Int
+  fail-at y = Err y
+
+  check1 :: Int
+  check1 = if (step-a >=> step-b) 5 == Some (12 :: Int) then 0 else 1
+
+  check2 :: Int
+  check2 = if (step-b <=< step-a) 5 == Some (12 :: Int) then 0 else 2
+
+  check3 :: Int
+  check3 = if (step-a >=> step-a >=> step-a) 0 == Some (3 :: Int) then 0 else 4
+
+  check4 :: Int
+  check4 = case (step-a >=> step-fail) 5 of
+    None -> 0
+    Some _ -> 8
+
+  check5 :: Int
+  check5 = case (step-fail <=< step-a) 5 of
+    None -> 0
+    Some _ -> 16
+
+  check6 :: Int
+  check6 = case (add-one >=> fail-at) 5 of
+    Err e -> if e == 6 then 0 else 32
+    Ok _ -> 32
+
+  main :: Int
+  main = check1 + check2 + check3 + check4 + check5 + check6"#,
+        0,
+    );
+}

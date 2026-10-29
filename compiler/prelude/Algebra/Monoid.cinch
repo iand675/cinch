@@ -47,6 +47,28 @@ module Algebra.Monoid where
     law right-unit :: (x :: a) -> Eq (x <> mempty) x
 
   -- ------------------------------------------------------------------
+  -- The class-generic fold. A free function with a `using` constraint,
+  -- not a class method (the scheme of `sum-list` and `enum-from-to`);
+  -- the facade re-exports no class home, so reaching it costs an
+  -- explicit import of this module, exactly as `mempty` and `<>` do.
+
+  -- `mconcat`: combine the whole list with `<>` around the identity,
+  -- right-associated (`foldr (<>) mempty`), so it is the empty list's
+  -- `mempty` for the running fold's seed. This is the operation the
+  -- text homes kept rebuilding as a private `concat-strings`; they call
+  -- it now.
+  --
+  -- Two constraints, not one: `mempty` needs the `Monoid` dictionary
+  -- and `<>` needs its own `Semigroup` one, because a class constraint
+  -- entails nothing (the standing no-superbundle rule). At a concrete
+  -- carrier both dictionaries are the implicit instances, so callers
+  -- never write them; only a generic caller must carry both.
+  mconcat :: forall a. using (ma :: Monoid a, sa :: Semigroup a) => List a -> a
+  mconcat xs = case xs of
+    Nil -> mempty
+    Cons y ys -> (<>) y (mconcat ys)
+
+  -- ------------------------------------------------------------------
   -- The instance-carrying newtypes (design/base-library.md: "the
   -- newtypes that exist only to carry instances live with their class
   -- module"). Their instances live with their type, so both the
@@ -76,6 +98,36 @@ module Algebra.Monoid where
 
   implicit instance Monoid_Product :: Monoid Product where
     mempty = Product 1
+
+  -- Bool under conjunction. A list of `Bool` folds through `Monoid`
+  -- only under an explicit choice of which boolean monoid is meant
+  -- (the bare `Bool` carries none), so `All` picks conjunction and
+  -- `Any` picks disjunction, the pair base's `Data.Monoid` names. The
+  -- identity of conjunction is `True`, so `mconcat Nil` (an `All`) is
+  -- `All True`.
+  data All where
+    All :: Bool -> All
+
+  implicit instance Semigroup_All :: Semigroup All where
+    (<>) x y = case x of
+      All a -> case y of
+        All b -> All (and a b)
+
+  implicit instance Monoid_All :: Monoid All where
+    mempty = All True
+
+  -- Bool under disjunction: `Any`'s identity is `False`, so
+  -- `mconcat Nil` (an `Any`) is `Any False`.
+  data Any where
+    Any :: Bool -> Any
+
+  implicit instance Semigroup_Any :: Semigroup Any where
+    (<>) x y = case x of
+      Any a -> case y of
+        Any b -> Any (or a b)
+
+  implicit instance Monoid_Any :: Monoid Any where
+    mempty = Any False
 
   -- Dual: composition in the opposite order. `Dual x <> Dual y`
   -- combines y before x, turning any monoid into its opposite.

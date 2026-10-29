@@ -23,18 +23,28 @@
 --
 -- Named refusals (boundaries this module deliberately does not
 -- cross):
---   deletion: the family ships no `set-delete` (nothing needs it in
---     the bootstrap; it lands with its own probe);
---   `set-union`: the family ships none (the union law is asserted
---     test-locally in compiler/tests/prelude_split.rs);
+--   an arbitrary-height join: `balance` fixes subtrees that differ by
+--     at most two levels, so the ordered operations that drop a node
+--     rejoin through the right subtree's minimum (`set-glue`), and
+--     `set-filter`/`set-map` rebuild through `set-from-list` rather
+--     than a structural rejoin. That rebuild is why `set-filter`
+--     states `Ord a` where Data.Set's `filter` needs nothing;
 --   a size-augmented node: the node carries the height (AVL), so
 --     `set-size` stays the O(n) walk it has always been.
+--
+-- The bootstrap's deletion and union refusals are over: the family now
+-- ships `set-delete`, `set-union`, `set-intersection`,
+-- `set-difference`, `set-subset`, `set-map`, `set-filter` and
+-- `set-fold` (the union behavior the bootstrap asserted test-locally
+-- in compiler/tests/prelude_split.rs is now the family's own).
 --
 -- Module scheme (design/base-library.md): the type's home carries its
 -- `FromList` instance (`[a, b, c]` at `Set a` folds `set-insert`).
 module Data.Set where
 
   export Set, Tip, Bin, set-empty, set-insert, set-member, set-to-list, set-size, set-from-list
+  export set-delete, set-is-empty, set-union, set-intersection, set-difference, set-subset
+  export set-map, set-filter, set-fold
 
   -- The ordered set: a height-augmented AVL tree over `Ord a`.
   data Set a where
@@ -123,6 +133,129 @@ module Data.Set where
   set-from-list xs = case xs of
     Nil -> Tip
     Cons y ys -> set-insert y (set-from-list ys)
+
+  -- Removal: the search descends as `set-member` does, and a found
+  -- node's subtrees rejoin through the right subtree's smallest element
+  -- (the AVL delete), so the height invariant survives. An absent
+  -- element rebuilds the same tree.
+  set-delete :: forall a. using (ord :: Ord a) => a -> Set a -> Set a
+  set-delete x s = case s of
+    Tip -> Tip
+    Bin _ y l r ->
+      if x < y then balance y (set-delete x l) r
+      else if y < x then balance y l (set-delete x r)
+      else set-glue l r
+
+  -- Rejoin two trees where every element of the first is below every
+  -- element of the second: the right tree's smallest element becomes
+  -- the root. The node a delete or filter dropped took one level from
+  -- each side at most, so the subtrees handed to `balance` differ by at
+  -- most two levels, exactly what it fixes.
+  set-glue :: forall a. Set a -> Set a -> Set a
+  set-glue l r = case set-min r of
+    None -> l
+    Some y -> balance y l (set-delete-min r)
+
+  -- The smallest element, read down the left spine (no comparison).
+  set-min :: forall a. Set a -> Option a
+  set-min s = case s of
+    Tip -> None
+    Bin _ y l _ -> case l of
+      Tip -> Some y
+      Bin _ _ _ _ -> set-min l
+
+  -- The same tree without its smallest element, rebalancing on the way
+  -- back up.
+  set-delete-min :: forall a. Set a -> Set a
+  set-delete-min s = case s of
+    Tip -> Tip
+    Bin _ y l r -> case l of
+      Tip -> r
+      Bin _ _ _ _ -> balance y (set-delete-min l) r
+
+  -- Named `set-is-empty` because the bare `is-empty` is the list's
+  -- (`List a -> Bool`) and there is no overloading to share one
+  -- spelling; the module prefix is how the family disambiguates.
+  set-is-empty :: forall a. Set a -> Bool
+  set-is-empty s = case s of
+    Tip -> True
+    Bin _ _ _ _ -> False
+
+  -- The union inserts the left set's ascending listing into the right;
+  -- `set-insert` keeps one copy per element and rebalances, so the
+  -- result is a proper AVL tree. The result is symmetric in its
+  -- elements but the cost is not: O(m log n) for m and n elements.
+  set-union :: forall a. using (ord :: Ord a) => Set a -> Set a -> Set a
+  set-union a b = set-insert-all (set-to-list a) b
+
+  set-insert-all :: forall a. using (ord :: Ord a) => List a -> Set a -> Set a
+  set-insert-all xs s = case xs of
+    Nil -> s
+    Cons y ys -> set-insert-all ys (set-insert y s)
+
+  -- The elements of the left set that the right set also holds.
+  set-intersection :: forall a. using (ord :: Ord a) => Set a -> Set a -> Set a
+  set-intersection a b = set-keep-member (set-to-list a) b set-empty
+
+  set-keep-member :: forall a. using (ord :: Ord a) => List a -> Set a -> Set a -> Set a
+  set-keep-member xs b acc = case xs of
+    Nil -> acc
+    Cons y ys -> case set-member y b of
+      True -> set-keep-member ys b (set-insert y acc)
+      False -> set-keep-member ys b acc
+
+  -- The elements of the left set that the right set does NOT hold.
+  set-difference :: forall a. using (ord :: Ord a) => Set a -> Set a -> Set a
+  set-difference a b = set-drop-member (set-to-list a) b set-empty
+
+  set-drop-member :: forall a. using (ord :: Ord a) => List a -> Set a -> Set a -> Set a
+  set-drop-member xs b acc = case xs of
+    Nil -> acc
+    Cons y ys -> case set-member y b of
+      True -> set-drop-member ys b acc
+      False -> set-drop-member ys b (set-insert y acc)
+
+  -- Whether every element of the first set is in the second (Data.Set's
+  -- `isSubsetOf`, kept under the module prefix, which is how every
+  -- other ordered operation here names itself).
+  set-subset :: forall a. using (ord :: Ord a) => Set a -> Set a -> Bool
+  set-subset a b = set-subset-of (set-to-list a) b
+
+  set-subset-of :: forall a. using (ord :: Ord a) => List a -> Set a -> Bool
+  set-subset-of xs b = case xs of
+    Nil -> True
+    Cons y ys -> if set-member y b then set-subset-of ys b else False
+
+  -- The image of a set under a function (Data.Set's `map`): every
+  -- element is rewritten and reinserted, so two elements that collide
+  -- keep one copy and the result is ordered by the NEW values, hence
+  -- `Ord b` and never `Ord a`.
+  set-map :: forall a b. using (ord :: Ord b) => (a -> b) -> Set a -> Set b
+  set-map f s = set-from-list (map f (set-to-list s))
+
+  -- The elements the predicate accepts, rebuilt from the surviving
+  -- ascending listing. The rebuild is why this states `Ord a` where
+  -- Data.Set's `filter` needs nothing: `balance` only fixes subtrees
+  -- that differ by at most two levels, so a structural filter (which
+  -- can empty one whole side) has no join to use and reinserts
+  -- instead. The rebuild also means duplicates cannot appear and the
+  -- ascending order is re-derived.
+  set-filter :: forall a. using (ord :: Ord a) => (a -> Bool) -> Set a -> Set a
+  set-filter p s = set-from-list (set-keep-if p (set-to-list s))
+
+  set-keep-if :: forall a. (a -> Bool) -> List a -> List a
+  set-keep-if p xs = case xs of
+    Nil -> Nil
+    Cons y ys -> case p y of
+      True -> Cons y (set-keep-if p ys)
+      False -> set-keep-if p ys
+
+  -- A RIGHT fold in ascending order (Data.Set's `foldr`): folding with
+  -- `Cons` rebuilds `set-to-list`, and the empty set is the identity.
+  set-fold :: forall a b. (a -> b -> b) -> b -> Set a -> b
+  set-fold f z s = case s of
+    Tip -> z
+    Bin _ y l r -> set-fold f (f y (set-fold f z r)) l
 
   -- Collection literals at `Set` (surface grammar local amendments
   -- section 10).

@@ -491,6 +491,11 @@ fn indent_block(s: &str, n: usize) -> String {
 // named refusals in the program's header and enforced below.
 // ----------------------------------------------------------------
 
+// The grammar program's imports name `Data.Option`'s three constructors
+// only: `or-else` is `Text.Parse`'s parser combinator here, and a
+// wholesale `import Data.Option` beside a wholesale `import Text.Parse`
+// makes the name arrive from both homes (the checker refuses that by
+// name and suggests a selection).
 const GRAMMAR_SRC: &str = r#"module Main where
   import Text.Lex
   import Text.Parse
@@ -499,7 +504,7 @@ const GRAMMAR_SRC: &str = r#"module Main where
   import Data.List
   import Data.String
   import Data.Nat
-  import Data.Option
+  import Data.Option (Option, None, Some)
   import Data.Int
   import Text.Show
 

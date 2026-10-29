@@ -20,10 +20,11 @@
 --
 -- Named refusals (boundaries this module deliberately does not
 -- cross):
---   deletion: the family ships no `hash-map-delete`;
 --   bucket-order observation: the buckets' entry order is an
---     implementation detail (insertion order within a bucket), and
---     nothing lists the entries;
+--     implementation detail (insertion order within a bucket), so
+--     `hash-map-to-list`/`hash-map-keys`/`hash-map-values` list the
+--     entries in that unstable order and nothing may depend on it (the
+--     ordered views live at Data.Map);
 --   a fixed bucket count: the digest, not `rem` of a constant, is the
 --     index (there is no `hash-buckets`);
 --   adversarial digests: the `Hash` law is the caller's contract (the
@@ -37,6 +38,8 @@ module Data.HashMap where
   import Data.Hash
 
   export HashMap, hash-map-empty, hash-map-insert, hash-map-lookup, hash-map-from-pairs
+  export hash-map-delete, hash-map-union, hash-map-union-with, hash-map-size, hash-map-is-empty
+  export hash-map-to-list, hash-map-keys, hash-map-values, hash-map-map, hash-map-filter, hash-map-fold
 
   -- The private bucket spine: a height-augmented AVL tree over
   -- digests (`SBin height digest bucket left right`).
@@ -139,6 +142,202 @@ module Data.HashMap where
     Nil -> hash-map-empty
     Cons p ps -> case p of
       (a, b) -> hash-map-insert a b (hash-map-from-pairs ps)
+
+  -- Removal: the bucket loses the key's entry, and a bucket left empty
+  -- drops its digest node from the spine, so deleting every key leaves
+  -- the same `STip` spine `hash-map-empty` has (nothing accumulates).
+  hash-map-delete :: forall k v. using (h :: Hash k, eq :: Eq k) => k -> HashMap k v -> HashMap k v
+  hash-map-delete x m = case m of
+    HashMap s -> HashMap (spine-delete-key (hash x) x s)
+
+  bucket-delete :: forall k v. using (eq :: Eq k) => k -> List (k, v) -> List (k, v)
+  bucket-delete x b = case b of
+    Nil -> Nil
+    Cons p ps -> case p of
+      (k2, v2) -> if k2 == x then ps else Cons p (bucket-delete x ps)
+
+  spine-delete-key :: forall k v. using (eq :: Eq k) => Nat -> k -> Spine k v -> Spine k v
+  spine-delete-key d x s = case s of
+    STip -> STip
+    SBin _ d2 b l r ->
+      if d < d2 then spine-balance d2 b (spine-delete-key d x l) r
+      else if d2 < d then spine-balance d2 b l (spine-delete-key d x r)
+      else spine-drop-digest d2 (bucket-delete x b) l r
+
+  -- A digest's bucket after a key removal: an empty bucket drops the
+  -- digest node, a surviving bucket keeps the node and its (unchanged)
+  -- cached height.
+  spine-drop-digest :: forall k v. Nat -> List (k, v) -> Spine k v -> Spine k v -> Spine k v
+  spine-drop-digest d b l r = case b of
+    Nil -> spine-glue l r
+    Cons _ _ -> sbin d b l r
+
+  -- Rejoin two spines where every digest of the first is below every
+  -- digest of the second: the right spine's smallest node is raised
+  -- (the rejoin Data.Set's `set-glue` is, over digests instead of
+  -- elements).
+  spine-glue :: forall k v. Spine k v -> Spine k v -> Spine k v
+  spine-glue l r = case spine-min r of
+    None -> l
+    Some p -> case p of
+      (d, b) -> spine-balance d b l (spine-delete-min r)
+
+  -- The smallest digest and its bucket, read down the left spine.
+  spine-min :: forall k v. Spine k v -> Option (Nat, List (k, v))
+  spine-min s = case s of
+    STip -> None
+    SBin _ d b l _ -> case l of
+      STip -> Some (d, b)
+      SBin _ _ _ _ _ -> spine-min l
+
+  -- The same spine without its smallest node, rebalancing on the way
+  -- back up.
+  spine-delete-min :: forall k v. Spine k v -> Spine k v
+  spine-delete-min s = case s of
+    STip -> STip
+    SBin _ d b l r -> case l of
+      STip -> r
+      SBin _ _ _ _ _ -> spine-balance d b (spine-delete-min l) r
+
+  -- The entries in the buckets' unstable order (see the refusal in the
+  -- header): the ordered views live at Data.Map.
+  hash-map-to-list :: forall k v. HashMap k v -> List (k, v)
+  hash-map-to-list m = case m of
+    HashMap s -> spine-to-list-into s Nil
+
+  spine-to-list-into :: forall k v. Spine k v -> List (k, v) -> List (k, v)
+  spine-to-list-into s acc = case s of
+    STip -> acc
+    SBin _ _ b l r -> spine-to-list-into l (entry-append-into b (spine-to-list-into r acc))
+
+  entry-append-into :: forall k v. List (k, v) -> List (k, v) -> List (k, v)
+  entry-append-into b acc = case b of
+    Nil -> acc
+    Cons e es -> Cons e (entry-append-into es acc)
+
+  hash-map-keys :: forall k v. HashMap k v -> List k
+  hash-map-keys m = entry-keys (hash-map-to-list m)
+
+  hash-map-values :: forall k v. HashMap k v -> List v
+  hash-map-values m = entry-values (hash-map-to-list m)
+
+  entry-keys :: forall k v. List (k, v) -> List k
+  entry-keys es = case es of
+    Nil -> Nil
+    Cons e rest -> case e of
+      (k, _) -> Cons k (entry-keys rest)
+
+  entry-values :: forall k v. List (k, v) -> List v
+  entry-values es = case es of
+    Nil -> Nil
+    Cons e rest -> case e of
+      (_, v) -> Cons v (entry-values rest)
+
+  -- The entry count: the buckets' lengths summed over the spine.
+  hash-map-size :: forall k v. HashMap k v -> Nat
+  hash-map-size m = case m of
+    HashMap s -> spine-size s
+
+  spine-size :: forall k v. Spine k v -> Nat
+  spine-size s = case s of
+    STip -> 0
+    SBin _ _ b l r -> list-length b + spine-size l + spine-size r
+
+  -- Named `hash-map-is-empty` because the bare `is-empty` is the
+  -- list's (`List a -> Bool`) and there is no overloading to share one
+  -- spelling; the module prefix is how the family disambiguates.
+  hash-map-is-empty :: forall k v. HashMap k v -> Bool
+  hash-map-is-empty m = case m of
+    HashMap s -> spine-empty s
+
+  spine-empty :: forall k v. Spine k v -> Bool
+  spine-empty s = case s of
+    STip -> True
+    SBin _ _ _ _ _ -> False
+
+  -- The LEFT map's value wins a shared key (Data.Map's `union`): the
+  -- left map's entries are inserted into the right, and
+  -- `hash-map-insert` replaces the stored value in place. The listing
+  -- that drives the walk is in the buckets' order, which cannot matter
+  -- here: the result is a map, and the walk visits each left entry
+  -- exactly once.
+  hash-map-union :: forall k v. using (h :: Hash k, eq :: Eq k) => HashMap k v -> HashMap k v -> HashMap k v
+  hash-map-union a b = hash-map-insert-all (hash-map-to-list a) b
+
+  -- The union of `hash-map-union` with a shared key combined instead
+  -- of chosen: `f` sees the LEFT value first and the right value
+  -- second (Data.Map's `unionWith`).
+  hash-map-union-with :: forall k v. using (h :: Hash k, eq :: Eq k) => (v -> v -> v) -> HashMap k v -> HashMap k v -> HashMap k v
+  hash-map-union-with f a b = hash-map-combine-all f (hash-map-to-list a) b
+
+  hash-map-insert-all :: forall k v. using (h :: Hash k, eq :: Eq k) => List (k, v) -> HashMap k v -> HashMap k v
+  hash-map-insert-all es m = case es of
+    Nil -> m
+    Cons e rest -> case e of
+      (k, v) -> hash-map-insert-all rest (hash-map-insert k v m)
+
+  hash-map-combine-all :: forall k v. using (h :: Hash k, eq :: Eq k) => (v -> v -> v) -> List (k, v) -> HashMap k v -> HashMap k v
+  hash-map-combine-all f es m = case es of
+    Nil -> m
+    Cons e rest -> case e of
+      (k, v) -> case hash-map-lookup k m of
+        None -> hash-map-combine-all f rest (hash-map-insert k v m)
+        Some v2 -> hash-map-combine-all f rest (hash-map-insert k (f v v2) m)
+
+  -- Rewrite the values: the keys and their digests are unchanged, so
+  -- the spine's shape and cached heights carry over and no `Hash`/`Eq`
+  -- is needed (Data.Map's `map`).
+  hash-map-map :: forall k v w. (v -> w) -> HashMap k v -> HashMap k w
+  hash-map-map f m = case m of
+    HashMap s -> HashMap (spine-map f s)
+
+  spine-map :: forall k v w. (v -> w) -> Spine k v -> Spine k w
+  spine-map f s = case s of
+    STip -> STip
+    SBin h d b l r -> SBin h d (bucket-map f b) (spine-map f l) (spine-map f r)
+
+  bucket-map :: forall k v w. (v -> w) -> List (k, v) -> List (k, w)
+  bucket-map f b = case b of
+    Nil -> Nil
+    Cons e es -> case e of
+      (k, v) -> Cons (k, f v) (bucket-map f es)
+
+  -- Keep the entries the predicate accepts, rebuilt through
+  -- `hash-map-from-pairs`. The rebuild, not a structural filter, is why
+  -- the constraints are stated: an emptied bucket would leave a digest
+  -- node to drop, and dropping one is Data.Set's arbitrary-height
+  -- rejoin problem. The predicate sees the key as well as the value.
+  hash-map-filter :: forall k v. using (h :: Hash k, eq :: Eq k) => (k -> v -> Bool) -> HashMap k v -> HashMap k v
+  hash-map-filter p m = hash-map-from-pairs (entry-keep-if p (hash-map-to-list m))
+
+  entry-keep-if :: forall k v. (k -> v -> Bool) -> List (k, v) -> List (k, v)
+  entry-keep-if p es = case es of
+    Nil -> Nil
+    Cons e rest -> case e of
+      (k, v) -> case p k v of
+        True -> Cons e (entry-keep-if p rest)
+        False -> entry-keep-if p rest
+
+  -- A RIGHT fold in `hash-map-to-list`'s order: the fold visits every
+  -- entry exactly once, and that order is the buckets' unstable order,
+  -- so an order-dependent combining function must not be relied on
+  -- (folding with `Cons` rebuilds `hash-map-to-list` itself, and the
+  -- empty map is the identity). The right direction is what makes the
+  -- `Cons` rebuild agree with the view.
+  hash-map-fold :: forall k v b. (k -> v -> b -> b) -> b -> HashMap k v -> b
+  hash-map-fold f z m = case m of
+    HashMap s -> spine-fold f z s
+
+  spine-fold :: forall k v b. (k -> v -> b -> b) -> b -> Spine k v -> b
+  spine-fold f z s = case s of
+    STip -> z
+    SBin _ _ b l r -> spine-fold f (bucket-fold f (spine-fold f z r) b) l
+
+  bucket-fold :: forall k v b. (k -> v -> b -> b) -> b -> List (k, v) -> b
+  bucket-fold f z b = case b of
+    Nil -> z
+    Cons e es -> case e of
+      (k, v) -> f k v (bucket-fold f z es)
 
   -- Map literals at `HashMap` (surface grammar local amendments
   -- section 10).

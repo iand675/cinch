@@ -6,10 +6,13 @@
 -- with the slave as all three of its standard streams, and the caller
 -- drives the master with `pty-read` and `pty-write`, waits with
 -- `pty-wait`, sizes the window with `pty-resize`, and releases the
--- handle with `pty-close`. This is the `Open3`/`PTY` shape of
--- design/stdlib-parity-ruby.md under P34's Process capability, the
--- refusal D367 that the piped-child ABI (`Effect.Process`) recorded
--- because the runtime had no pseudo-terminal support.
+-- handle with `pty-close`. The handle is LINEAR: every operation takes
+-- it at `%1` and, except `pty-close`, hands it back, so a terminal is
+-- threaded through a program rather than aliased. This is the
+-- `Open3`/`PTY` shape of design/stdlib-parity-ruby.md under P34's
+-- Process capability, the refusal D367 that the piped-child ABI
+-- (`Effect.Process`) recorded because the runtime had no
+-- pseudo-terminal support.
 --
 -- The operations run under the `Io r` capability (decision D45's
 -- determinism rule: a terminal is consulted when a program with the
@@ -34,15 +37,62 @@
 --      input and may interleave it with the child's own output, so a
 --      caller matches on the substring's presence, never an exact
 --      buffer;
---   2. the handle is single-use on close: every operation after
---      `pty-close` is `Err PtyInvalidArgument`, and so is a handle the
---      caller invented;
+--   2. the handle is threaded: every operation takes it at `%1` and,
+--      except `pty-close`, hands it back. A `%1` parameter must be used
+--      exactly once on every path, so the handle a closed terminal was
+--      is gone: a program has no variable left to read from after a
+--      close, none to close twice, and none to use on one branch only.
+--      Read-after-close and double-close are therefore not writable
+--      programs, and the compiler says so (a second use of the parameter
+--      is `multiplicity %1: p must be used exactly once on every path,
+--      but is used 1 to 2 time(s)`; using it on one branch only answers
+--      the same with `(unused on some path)` appended). The boundary
+--      still refuses a handle word the caller fabricated (`Pty 4096`
+--      answers `PtyInvalidArgument`): the discipline removes the
+--      accidental misuses, the runtime check remains for invented
+--      words;
 --   3. the slave is consumed once: a handle whose child already holds
---      the slave refuses a second spawn (`PtyInvalidArgument`);
+--      the slave refuses a second spawn (`PtyInvalidArgument`). This
+--      stays a runtime refusal, since a threaded handle can legally be
+--      spawned twice; what the discipline removes is the spawn of a
+--      handle that is already gone;
 --   4. refusal is a value: a program that does not exist answers `Err`
 --      (the documented code), never a fault;
 --   5. the child's exit code is its own, or 128 + the signal number for
 --      a signal death (the shell convention).
+--
+-- WHY THE RETURN SHAPE KEEPS THE HANDLE ON THE ERROR PATH: an operation
+-- answers `(Pty, Result PtyError a)` rather than `Result PtyError a`
+-- because the failure does not free the handle. A bare `Result` would
+-- drop the handle on the error path, and dropping it is exactly the leak
+-- this shape exists to prevent. `pty-spawn` is the one operation whose
+-- error path really does free the handle (the slave is consumed by the
+-- attempt, so the handle is closed rather than handed back), which is
+-- why it answers a bare `Result PtyError Pty`: there is nothing left to
+-- return.
+--
+-- WHAT THE THREADING DOES NOT GIVE YOU (stated so the shape is not
+-- overread):
+--   a terminal opened and never closed stays legal. A `let` or `case`
+--     binder defaults to `%many` and cannot carry a multiplicity
+--     annotation, so a `Pty` bound from `pty-open` and never handed to
+--     `pty-close` is accepted, and so is a handle dropped on one branch
+--     of a `case` on some other value. The discipline is enforced where
+--     a `%1` arrow exists: it forbids misusing a handle you hold, not
+--     holding one. Closing the last handle is a caller obligation, not a
+--     type error;
+--   no unrestricted wrapper. linear-base's `Ur a` (a regular value
+--     inside a constructor, extracted without a linear use) needs `Copy`
+--     evidence the language does not give (`Copy` is compiler-known and
+--     cannot be declared or given instances), so there is no `Ur Pty`
+--     spelling and no way to say "unrestricted once inside";
+--   no multiplicity-polymorphic binder and no user-declared
+--     `Consumable`/`Dupable`/`Movable` classes: a function cannot let its
+--     caller pick the discipline per use site, and the classes that would
+--     name that choice cannot be declared;
+--   no linear closure: a lambda body's uses are not counted per
+--     parameter, so a `%1 ->` continuation has to be a named function.
+--     The threading holds at the module's function boundaries.
 --
 -- Named refusals (boundaries this module deliberately does not cross):
 --   no terminal emulation beyond the pseudo-terminal itself: no
@@ -86,11 +136,19 @@ module Effect.Pty where
 
   -- A live pseudo-terminal, as the runtime's handle word. The handle
   -- owns the master end and the child; the slave end belongs to the
-  -- child once a spawn consumed it.
+  -- child once a spawn consumed it. The operations below take it at
+  -- `%1`, so a live terminal is a value threaded by hand rather than a
+  -- reference copied around.
   data Pty where
     Pty :: Nat -> Pty
 
-  -- The handle word of a terminal, for the layers above this one.
+  -- The handle word of a terminal, for the layers above this one. The
+  -- word is not a handle, and the projection is the one hole in the
+  -- discipline: a `Pty` minted from a word is a second value for the
+  -- same terminal, which the runtime answers with `PtyInvalidArgument`
+  -- once the real handle is closed (and a word that was never live
+  -- answers the same). The threading's guarantee covers the handles the
+  -- operations hand out, not the bare word.
   pty-handle :: Pty -> Nat
   pty-handle p = case p of
     Pty h -> h
@@ -142,11 +200,15 @@ module Effect.Pty where
   -- Start `cmd` on the terminal `p`, running in `dir` (`None` inherits
   -- this process's own directory): the same handle with the child beside
   -- its master, or the named error. The child's stdin, stdout and stderr
-  -- are all the slave end, so it is a terminal session. A handle whose
-  -- child already holds the slave refuses a second spawn; on a spawn
-  -- failure the handle is closed rather than left live with a consumed
-  -- slave.
-  pty-spawn :: forall r. using (io :: Io r) => Pty -> Option Path -> PtyCommand ->{IO r} Result PtyError Pty
+  -- are all the slave end, so it is a terminal session. The handle is
+  -- consumed at `%1`: the slave leaves it for the child, so the handle
+  -- the caller held is the one the attempt used, and it is a fresh
+  -- result (never the same variable). A handle whose child already holds
+  -- the slave refuses a second spawn; on a spawn failure the handle is
+  -- closed rather than left live with a consumed slave, which is why the
+  -- error path carries no handle: it is already freed, and handing back
+  -- a closed one would be a trap for the caller.
+  pty-spawn :: forall r. using (io :: Io r) => Pty %1 -> Option Path -> PtyCommand ->{IO r} Result PtyError Pty
   pty-spawn p dir cmd = case p of
     Pty h -> case cmd of
       PtyCommand prog args env ->
@@ -155,58 +217,71 @@ module Effect.Pty where
         let directory = dir-bytes dir in
         let env-words = nul-words (key-value-words env) in
         case raw-pty-spawn (nat-to-i64 h) program argument-words directory env-words of
-          Err c -> pty-spawn-fail p c
+          Err c -> pty-spawn-fail (Pty h) c
           Ok h2 -> Ok (Pty (nat-from-i64 h2))
 
-  -- Free the handle and report the negated code (the spawn failed after
-  -- the slave left the handle).
-  pty-spawn-fail :: forall r. using (io :: Io r) => Pty -> I64 ->{IO r} Result PtyError Pty
+  -- Consume the handle and answer the spawn's code: the slave is gone
+  -- from the handle, so a caller that keeps it could only wait on a child
+  -- that never started. The close's own result is dropped, because the
+  -- spawn's failure is the answer the caller asked for; the one leak
+  -- this module can produce is a spawn failure whose close also fails.
+  pty-spawn-fail :: forall r. using (io :: Io r) => Pty %1 -> I64 ->{IO r} Result PtyError Pty
   pty-spawn-fail p c = case p of
     Pty h -> case raw-pty-close (nat-to-i64 h) of
       _ -> Err (pty-error-code c)
 
   -- Write `bs` to the terminal's master (the child reads it on its
-  -- stdin): the byte count (the whole buffer goes), or the named error.
-  pty-write :: forall r. using (io :: Io r) => Pty -> Bytes ->{IO r} Result PtyError Nat
+  -- stdin): the handle and the byte count (the whole buffer goes), or
+  -- the handle and the named error. The handle comes back because a
+  -- failed write is a failed write, not a dead terminal: the caller
+  -- keeps the session.
+  pty-write :: forall r. using (io :: Io r) => Pty %1 -> Bytes ->{IO r} (Pty, Result PtyError Nat)
   pty-write p bs = case p of
-    Pty h -> case raw-pty-write (nat-to-i64 h) bs of
+    Pty h -> (Pty h, case raw-pty-write (nat-to-i64 h) bs of
       Err c -> Err (pty-error-code c)
-      Ok n -> Ok n
+      Ok n -> Ok n)
 
   -- Read up to `max` bytes of the terminal's master (what the child
   -- wrote to its stdout or stderr, plus the terminal's echo of the
-  -- input): `Ok` of what one platform call produced, or the named error.
-  pty-read :: forall r. using (io :: Io r) => Pty -> Nat ->{IO r} Result PtyError Bytes
+  -- input): the handle and `Ok` of what one platform call produced, or
+  -- the handle and the named error. A failed read leaves the session
+  -- live, so the handle is handed back rather than dropped.
+  pty-read :: forall r. using (io :: Io r) => Pty %1 -> Nat ->{IO r} (Pty, Result PtyError Bytes)
   pty-read p max = case p of
-    Pty h -> case raw-pty-read (nat-to-i64 h) max of
+    Pty h -> (Pty h, case raw-pty-read (nat-to-i64 h) max of
       Err c -> Err (pty-error-code c)
-      Ok b -> Ok b
+      Ok b -> Ok b)
 
-  -- Wait for the child: its exit code (128 + the signal number for a
-  -- signal death, the shell convention), or the named error. A second
-  -- wait answers the same code.
-  pty-wait :: forall r. using (io :: Io r) => Pty ->{IO r} Result PtyError Nat
+  -- Wait for the child: the handle and its exit code (128 + the signal
+  -- number for a signal death, the shell convention), or the handle and
+  -- the named error. A second wait answers the same code, so waiting is
+  -- not what ends the handle's life; `pty-close` is.
+  pty-wait :: forall r. using (io :: Io r) => Pty %1 ->{IO r} (Pty, Result PtyError Nat)
   pty-wait p = case p of
-    Pty h -> case raw-pty-wait (nat-to-i64 h) of
+    Pty h -> (Pty h, case raw-pty-wait (nat-to-i64 h) of
       Err c -> Err (pty-error-code c)
-      Ok code -> Ok code
+      Ok code -> Ok code)
 
   -- Close the terminal: a child no wait reaped is killed and reaped
-  -- first, and the handle is gone afterwards (a second close is the
-  -- named error).
-  pty-close :: forall r. using (io :: Io r) => Pty ->{IO r} Result PtyError Unit
+  -- first, and the handle is consumed. This is the one operation that
+  -- does not hand the handle back, which is the whole point: after it
+  -- there is no value to read from or to close a second time, so those
+  -- programs cannot be written. The named error is the boundary's
+  -- answer for a handle word that was never live.
+  pty-close :: forall r. using (io :: Io r) => Pty %1 ->{IO r} Result PtyError Unit
   pty-close p = case p of
     Pty h -> case raw-pty-close (nat-to-i64 h) of
       Err c -> Err (pty-error-code c)
       Ok u -> Ok u
 
   -- Set the terminal's window size to `cols` columns by `rows` rows:
-  -- the unit, or the named error.
-  pty-resize :: forall r. using (io :: Io r) => Pty -> Nat -> Nat ->{IO r} Result PtyError Unit
+  -- the handle and the unit, or the handle and the named error (the
+  -- handle comes back for the same reason as `pty-write`'s).
+  pty-resize :: forall r. using (io :: Io r) => Pty %1 -> Nat -> Nat ->{IO r} (Pty, Result PtyError Unit)
   pty-resize p cols rows = case p of
-    Pty h -> case raw-pty-resize (nat-to-i64 h) cols rows of
+    Pty h -> (Pty h, case raw-pty-resize (nat-to-i64 h) cols rows of
       Err c -> Err (pty-error-code c)
-      Ok u -> Ok u
+      Ok u -> Ok u)
 
   -- The working directory as its byte path (the empty buffer is the
   -- boundary's "inherit this process's directory").

@@ -1,5 +1,5 @@
 module Main where
-  import Category.Functor
+  import Demo.Bump
 
   main :: Int
   main = bump 1
