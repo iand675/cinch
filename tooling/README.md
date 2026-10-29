@@ -26,6 +26,11 @@ D198-D205, D221-D227 where the specs understate).
 - `check-real-files-parse.sh`: parses every real `.cinch` file under
   `compiler/prelude/` and `examples/source/` and requires zero ERROR
   nodes (the whole-file property net for the scanner).
+- `run-bootstrap-ladder.sh`: assembles a project out of the toolkit sources,
+  every `bootstrap/*.cinch` module and (optionally) one rung program, and
+  either type-checks the ladder's modules or runs one rung through the real
+  CLI. The compiler does not embed the P30/P31 toolkit, so this assembly is
+  how a rung runs outside the test harness.
 
 ## Drift check (CI)
 

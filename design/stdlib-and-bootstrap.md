@@ -73,6 +73,14 @@ nothing, refusals named). The bootstrap milestones are the program's
 definition of done for this roadmap: each milestone is a runnable
 Cinch artifact, not a claim.
 
+## Implementation notes
+
+The ladder's implementation decisions (the artifact layout, the in-type
+spine convention, why a rung runs as an assembled project, the hashing
+boundary and what each rung's evidence must be) are recorded in
+`design/bootstrap-ladder.md`, with `bootstrap/README.md` as the rung-by-rung
+contract.
+
 ## Sequencing
 
 Library slices fan out as parallel work once the in-flight compiler

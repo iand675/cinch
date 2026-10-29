@@ -1,0 +1,52 @@
+-- The diagnostic vocabulary every rung shares: a rung name, a span and a
+-- message, rendered in the compiler's own shape (`line:col: message`).
+-- Every rung reports through this type, so a failure reads the same
+-- wherever in the ladder it happens. See bootstrap/README.md.
+--
+-- A report is a `List Diagnostic`; `List` comes from the implicit surface.
+
+module Bootstrap.Report where
+
+  import Text.Lex (Span, span-line, span-col)
+  import Text.Show (nat-to-string)
+  import Bootstrap.Ast (span-join, span-here)
+
+  data Diagnostic where
+    MkDiagnostic :: String -> Span -> String -> Diagnostic
+
+  diagnostic-rung :: Diagnostic -> String
+  diagnostic-rung d = case d of
+    MkDiagnostic rung s msg -> rung
+
+  diagnostic-span :: Diagnostic -> Span
+  diagnostic-span d = case d of
+    MkDiagnostic rung s msg -> s
+
+  diagnostic-message :: Diagnostic -> String
+  diagnostic-message d = case d of
+    MkDiagnostic rung s msg -> msg
+
+  -- `line:col`, the position a reader navigates to.
+  render-position :: Span -> String
+  render-position s =
+    string-concat (nat-to-string (span-line s)) (string-concat ":" (nat-to-string (span-col s)))
+
+  -- `rung:line:col: message`: the shape the compiler's own diagnostics use,
+  -- with the rung name where the file name goes.
+  render-diagnostic :: Diagnostic -> String
+  render-diagnostic d =
+    let rung = diagnostic-rung d in
+    let pos = render-position (diagnostic-span d) in
+    string-concat rung (string-concat ":" (string-concat pos (string-concat ": " (diagnostic-message d))))
+
+  diagnostics-count :: List Diagnostic -> Nat
+  diagnostics-count ds = case ds of
+    Nil -> 0
+    Cons d rest -> 1 + diagnostics-count rest
+
+  -- One per line, newline-terminated, so a rung can write its report to a
+  -- file or a stream without further formatting.
+  render-diagnostics :: List Diagnostic -> String
+  render-diagnostics ds = case ds of
+    Nil -> empty-string
+    Cons d rest -> string-concat (render-diagnostic d) (string-concat "\n" (render-diagnostics rest))

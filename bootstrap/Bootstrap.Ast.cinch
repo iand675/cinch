@@ -1,0 +1,539 @@
+-- The parse tree the bootstrap rungs pass between them: the toolkit's spans
+-- on every node, the surface forms the fragment models, and an explicit
+-- honest boundary for the forms it only recognizes.
+--
+-- See bootstrap/README.md for the ladder, the corpus and the discipline
+-- every rung follows.
+--
+-- Sequences are IN-TYPE SPINES with end markers, not `List X`: a Cinch data
+-- type cannot nest itself inside another type constructor (`TApp :: ... ->
+-- List TypeExpr -> TypeExpr` is refused by the positivity discipline), which
+-- is the same constraint `Data.Json`'s `JArr`/`JArrEnd` answers. A parser
+-- builds a spine from the list it already has (`type-arg-spine`); a consumer
+-- takes the list back (`type-args-of`) and then has the whole `List`
+-- vocabulary. A spine is well formed when its last cell is the matching end
+-- marker, and the walkers below return the empty list for anything else, so
+-- a malformed spine cannot fault a consumer.
+--
+-- Declaration order is load-bearing (a type cannot mention one declared
+-- later): types, patterns, terms, declarations, modules, program.
+--
+-- `*Unmodeled` nodes are rung 1's coverage boundary: the parser records the
+-- span and the source text of a form it does not model yet, and the checker
+-- refuses it BY NAME, so coverage is a count over a corpus rather than a
+-- claim. `*-unmodeled-count` computes those counts.
+--
+-- Names are `String` throughout (a later rung interns if it needs to). A
+-- declaration's name for an operator definition is the operator text
+-- (`|+|`), so a consumer tells an operator from a value with
+-- `is-operator-name`.
+
+module Bootstrap.Ast where
+
+  import Text.Lex (Span, span-start, span-end, span-line, span-col)
+
+  -- ------------------------------------------------------------------ spans
+
+  -- The union of two spans: the start of the first, the end of the second.
+  span-join :: Span -> Span -> Span
+  span-join a b = Span (span-start a) (span-end b) (span-line a) (span-col a)
+
+  -- A zero-width span at the start of `s`, for a node the parser synthesizes.
+  span-here :: Span -> Span
+  span-here s = Span (span-start s) (span-start s) (span-line s) (span-col s)
+
+  -- Whether a declaration name is an operator (surface syntax and grammar,
+  -- `operator`): the parser keeps the operator text as the name and the first
+  -- character decides.
+  is-operator-name :: String -> Bool
+  is-operator-name s = case string-char-at s 0 of
+    None -> False
+    Some c -> is-operator-char c
+
+  is-operator-char :: Char -> Bool
+  is-operator-char c = is-operator-code (char-code c)
+
+  -- The symbol set of the surface grammar's `operator` class, as code points:
+  -- 33 `!` through 126 `~`, less the reserved punctuation `"` `'` `(` `)`
+  -- `,` `;` `{` `}` `[` `]` and the layout characters.
+  is-operator-code :: Nat -> Bool
+  is-operator-code n =
+    if n == 33 then True
+    else if n == 35 then True
+    else if n == 36 then True
+    else if n == 37 then True
+    else if n == 38 then True
+    else if n == 42 then True
+    else if n == 43 then True
+    else if n == 45 then True
+    else if n == 46 then True
+    else if n == 47 then True
+    else if n == 58 then True
+    else if n == 60 then True
+    else if n == 61 then True
+    else if n == 62 then True
+    else if n == 63 then True
+    else if n == 64 then True
+    else if n == 92 then True
+    else if n == 94 then True
+    else if n == 124 then True
+    else if n == 126 then True
+    else False
+
+  -- ------------------------------------------------------------------ types
+
+  data TypeExpr where
+    TName :: Span -> String -> TypeExpr
+    TApp :: Span -> TypeExpr -> TypeExpr -> TypeExpr
+    TFun :: Span -> TypeExpr -> TypeExpr -> TypeExpr
+    TFunEff :: Span -> TypeExpr -> String -> TypeExpr -> TypeExpr
+    TTuple :: Span -> TypeExpr -> TypeExpr
+    TForall :: Span -> List String -> TypeExpr -> TypeExpr
+    TUsing :: Span -> TypeExpr -> TypeExpr -> TypeExpr
+    TArg :: Span -> TypeExpr -> TypeExpr -> TypeExpr
+    TArgsEnd :: Span -> TypeExpr
+    TBound :: Span -> String -> TypeExpr -> TypeExpr -> TypeExpr
+    TBoundsEnd :: Span -> TypeExpr
+    TUnmodeled :: Span -> String -> TypeExpr
+
+  type-arg-spine :: Span -> List TypeExpr -> TypeExpr
+  type-arg-spine s xs = case xs of
+    Nil -> TArgsEnd s
+    Cons x rest -> TArg s x (type-arg-spine s rest)
+
+  type-args-of :: TypeExpr -> List TypeExpr
+  type-args-of t = case t of
+    TArgsEnd s -> Nil
+    TArg s x rest -> Cons x (type-args-of rest)
+    other -> Nil
+
+  type-bound-spine :: Span -> List (String, TypeExpr) -> TypeExpr
+  type-bound-spine s xs = case xs of
+    Nil -> TBoundsEnd s
+    Cons x rest -> case x of
+      (name, t) -> TBound s name t (type-bound-spine s rest)
+
+  type-bounds-of :: TypeExpr -> List (String, TypeExpr)
+  type-bounds-of t = case t of
+    TBoundsEnd s -> Nil
+    TBound s name ty rest -> Cons (name, ty) (type-bounds-of rest)
+    other -> Nil
+
+  type-expr-span :: TypeExpr -> Span
+  type-expr-span t = case t of
+    TName s n -> s
+    TApp s h args -> s
+    TFun s a b -> s
+    TFunEff s a row b -> s
+    TTuple s xs -> s
+    TForall s vs body -> s
+    TUsing s bounds body -> s
+    TArg s x rest -> s
+    TArgsEnd s -> s
+    TBound s name ty rest -> s
+    TBoundsEnd s -> s
+    TUnmodeled s text -> s
+
+  -- ---------------------------------------------------------------- patterns
+
+  data Pat where
+    PWild :: Span -> Pat
+    PVar :: Span -> String -> Pat
+    PCon :: Span -> String -> Pat -> Pat
+    PLitInt :: Span -> String -> Pat
+    PLitStr :: Span -> String -> Pat
+    PLitChar :: Span -> String -> Pat
+    PTuple :: Span -> Pat -> Pat
+    PList :: Span -> Pat -> Pat
+    PAs :: Span -> String -> Pat -> Pat
+    PAnn :: Span -> Pat -> TypeExpr -> Pat
+    PArg :: Span -> Pat -> Pat -> Pat
+    PArgsEnd :: Span -> Pat
+    PUnmodeled :: Span -> String -> Pat
+
+  pat-spine :: Span -> List Pat -> Pat
+  pat-spine s ps = case ps of
+    Nil -> PArgsEnd s
+    Cons p rest -> PArg s p (pat-spine s rest)
+
+  pats-of :: Pat -> List Pat
+  pats-of p = case p of
+    PArgsEnd s -> Nil
+    PArg s x rest -> Cons x (pats-of rest)
+    other -> Nil
+
+  pat-span :: Pat -> Span
+  pat-span p = case p of
+    PWild s -> s
+    PVar s n -> s
+    PCon s n args -> s
+    PLitInt s text -> s
+    PLitStr s text -> s
+    PLitChar s text -> s
+    PTuple s xs -> s
+    PList s xs -> s
+    PAs s n inner -> s
+    PAnn s inner t -> s
+    PArg s x rest -> s
+    PArgsEnd s -> s
+    PUnmodeled s text -> s
+
+  -- ------------------------------------------------------------------- terms
+
+  data Expr where
+    EVar :: Span -> String -> Expr
+    ECon :: Span -> String -> Expr -> Expr
+    ELitInt :: Span -> String -> Expr
+    ELitFloat :: Span -> String -> Expr
+    ELitStr :: Span -> String -> Expr
+    ELitChar :: Span -> String -> Expr
+    EUnit :: Span -> Expr
+    ETuple :: Span -> Expr -> Expr
+    EList :: Span -> Expr -> Expr
+    EApp :: Span -> Expr -> Expr -> Expr
+    EBin :: Span -> String -> Expr -> Expr -> Expr
+    ENeg :: Span -> Expr -> Expr
+    ELam :: Span -> List Pat -> Expr -> Expr
+    ELet :: Span -> Expr -> Expr -> Expr
+    EIf :: Span -> Expr -> Expr -> Expr -> Expr
+    ECase :: Span -> Expr -> Expr -> Expr
+    EAnn :: Span -> Expr -> TypeExpr -> Expr
+    EForall :: Span -> List String -> Expr -> Expr
+    EUsing :: Span -> TypeExpr -> Expr -> Expr
+    EBind :: Span -> String -> Expr -> Expr
+    EDo :: Span -> Expr -> Expr
+    EHandle :: Span -> Expr -> Expr -> Expr
+    EWith :: Span -> Expr -> Expr -> Expr
+    EArg :: Span -> Expr -> Expr -> Expr
+    EArgsEnd :: Span -> Expr
+    EBinding :: Span -> String -> Expr -> Expr -> Expr
+    EBindingsEnd :: Span -> Expr
+    EAlt :: Span -> Pat -> Expr -> Expr -> Expr
+    EAltsEnd :: Span -> Expr
+    EUnmodeled :: Span -> String -> Expr
+
+  expr-spine :: Span -> List Expr -> Expr
+  expr-spine s xs = case xs of
+    Nil -> EArgsEnd s
+    Cons x rest -> EArg s x (expr-spine s rest)
+
+  exprs-of :: Expr -> List Expr
+  exprs-of e = case e of
+    EArgsEnd s -> Nil
+    EArg s x rest -> Cons x (exprs-of rest)
+    other -> Nil
+
+  binding-spine :: Span -> List (String, Expr) -> Expr
+  binding-spine s bs = case bs of
+    Nil -> EBindingsEnd s
+    Cons b rest -> case b of
+      (name, rhs) -> EBinding s name rhs (binding-spine s rest)
+
+  bindings-of :: Expr -> List (String, Expr)
+  bindings-of e = case e of
+    EBindingsEnd s -> Nil
+    EBinding s name rhs rest -> Cons (name, rhs) (bindings-of rest)
+    other -> Nil
+
+  alt-spine :: Span -> List (Pat, Expr) -> Expr
+  alt-spine s alts = case alts of
+    Nil -> EAltsEnd s
+    Cons a rest -> case a of
+      (p, body) -> EAlt s p body (alt-spine s rest)
+
+  alts-of :: Expr -> List (Pat, Expr)
+  alts-of e = case e of
+    EAltsEnd s -> Nil
+    EAlt s p body rest -> Cons (p, body) (alts-of rest)
+    other -> Nil
+
+  expr-span :: Expr -> Span
+  expr-span e = case e of
+    EVar s n -> s
+    ECon s n args -> s
+    ELitInt s text -> s
+    ELitFloat s text -> s
+    ELitStr s text -> s
+    ELitChar s text -> s
+    EUnit s -> s
+    ETuple s xs -> s
+    EList s xs -> s
+    EApp s f a -> s
+    EBin s op l r -> s
+    ENeg s x -> s
+    ELam s ps body -> s
+    ELet s bs body -> s
+    EIf s c t f -> s
+    ECase s scrut alts -> s
+    EAnn s x t -> s
+    EForall s vs body -> s
+    EUsing s bounds body -> s
+    EBind s n rhs -> s
+    EDo s stmts -> s
+    EHandle s body h -> s
+    EWith s bs body -> s
+    EArg s x rest -> s
+    EArgsEnd s -> s
+    EBinding s name rhs rest -> s
+    EBindingsEnd s -> s
+    EAlt s p body rest -> s
+    EAltsEnd s -> s
+    EUnmodeled s text -> s
+
+  -- ------------------------------------------------------------ declarations
+
+  -- `DFun`'s clauses are `(List Pat, Expr)` pairs; a pattern list inside a
+  -- clause is not a recursive position of `Decl`, so it stays a `List`. A
+  -- clause's own `where` locals and a declaration's modifiers are not
+  -- modeled yet: they arrive as `DUnmodeled` when a corpus uses them.
+  data Decl where
+    DSig :: Span -> String -> TypeExpr -> Decl
+    DFun :: Span -> String -> List (List Pat, Expr) -> Decl
+    DData :: Span -> String -> List (String, TypeExpr) -> Decl
+    DClass :: Span -> String -> List String -> Decl -> Decl
+    DInstance :: Span -> Bool -> String -> TypeExpr -> Decl -> Decl
+    DFixity :: Span -> String -> Nat -> List String -> Decl
+    DImport :: Span -> String -> Decl
+    DExport :: Span -> String -> Decl
+    DRecord :: Span -> String -> List (String, TypeExpr) -> Decl
+    DEffect :: Span -> String -> List (String, TypeExpr) -> Decl
+    DForeign :: Span -> String -> String -> TypeExpr -> Decl
+    DDecl :: Span -> Decl -> Decl -> Decl
+    DDeclsEnd :: Span -> Decl
+    DUnmodeled :: Span -> String -> Decl
+
+  decl-spine :: Span -> List Decl -> Decl
+  decl-spine s ds = case ds of
+    Nil -> DDeclsEnd s
+    Cons d rest -> DDecl s d (decl-spine s rest)
+
+  decls-of :: Decl -> List Decl
+  decls-of d = case d of
+    DDeclsEnd s -> Nil
+    DDecl s x rest -> Cons x (decls-of rest)
+    other -> Nil
+
+  decl-span :: Decl -> Span
+  decl-span d = case d of
+    DSig s n t -> s
+    DFun s n clauses -> s
+    DData s n ctors -> s
+    DClass s n params members -> s
+    DInstance s is-implicit name class-app members -> s
+    DFixity s assoc prec ops -> s
+    DImport s path -> s
+    DExport s text -> s
+    DRecord s n fields -> s
+    DEffect s n ops -> s
+    DForeign s conv foreign-name t -> s
+    DDecl s x rest -> s
+    DDeclsEnd s -> s
+    DUnmodeled s text -> s
+
+  -- A declaration's name, where it has one a consumer registers.
+  decl-name :: Decl -> Option String
+  decl-name d = case d of
+    DSig s n t -> Some n
+    DFun s n clauses -> Some n
+    DData s n ctors -> Some n
+    DClass s n params members -> Some n
+    DInstance s is-implicit name class-app members -> Some name
+    DFixity s assoc prec ops -> None
+    DImport s path -> Some path
+    DExport s text -> None
+    DRecord s n fields -> Some n
+    DEffect s n ops -> Some n
+    DForeign s conv foreign-name t -> Some foreign-name
+    DDecl s x rest -> None
+    DDeclsEnd s -> None
+    DUnmodeled s text -> None
+
+  -- -------------------------------------------------------- modules, programs
+
+  data Module where
+    MkModule :: Span -> String -> Decl -> Module
+
+  module-span :: Module -> Span
+  module-span m = case m of
+    MkModule s name decls -> s
+
+  module-name :: Module -> String
+  module-name m = case m of
+    MkModule s name decls -> name
+
+  -- The module's declarations, flattened out of its spine.
+  module-decls :: Module -> List Decl
+  module-decls m = case m of
+    MkModule s name decls -> decls-of decls
+
+  data Program where
+    MkProgram :: Span -> List Module -> Program
+
+  program-modules :: Program -> List Module
+  program-modules p = case p of
+    MkProgram s ms -> ms
+
+  program-span :: Program -> Span
+  program-span p = case p of
+    MkProgram s ms -> s
+
+  -- --------------------------------------- coverage: the boundary, counted
+
+  type-unmodeled-count :: TypeExpr -> Nat
+  type-unmodeled-count t = case t of
+    TName s n -> 0
+    TApp s h args -> type-unmodeled-count h + type-unmodeleds (type-args-of args)
+    TFun s a b -> type-unmodeled-count a + type-unmodeled-count b
+    TFunEff s a row b -> type-unmodeled-count a + type-unmodeled-count b
+    TTuple s xs -> type-unmodeleds (type-args-of xs)
+    TForall s vs body -> type-unmodeled-count body
+    TUsing s bounds body -> bounds-unmodeled (type-bounds-of bounds) + type-unmodeled-count body
+    TArg s x rest -> type-unmodeled-count x + type-unmodeled-count rest
+    TArgsEnd s -> 0
+    TBound s name ty rest -> type-unmodeled-count ty + type-unmodeled-count rest
+    TBoundsEnd s -> 0
+    TUnmodeled s text -> 1
+
+  type-unmodeleds :: List TypeExpr -> Nat
+  type-unmodeleds ts = case ts of
+    Nil -> 0
+    Cons t rest -> type-unmodeled-count t + type-unmodeleds rest
+
+  bounds-unmodeled :: List (String, TypeExpr) -> Nat
+  bounds-unmodeled bs = case bs of
+    Nil -> 0
+    Cons b rest -> bound-unmodeled b + bounds-unmodeled rest
+
+  bound-unmodeled :: (String, TypeExpr) -> Nat
+  bound-unmodeled b = case b of
+    (name, t) -> type-unmodeled-count t
+
+  pat-unmodeled-count :: Pat -> Nat
+  pat-unmodeled-count p = case p of
+    PWild s -> 0
+    PVar s n -> 0
+    PCon s n args -> pats-unmodeled (pats-of args)
+    PLitInt s text -> 0
+    PLitStr s text -> 0
+    PLitChar s text -> 0
+    PTuple s xs -> pats-unmodeled (pats-of xs)
+    PList s xs -> pats-unmodeled (pats-of xs)
+    PAs s n inner -> pat-unmodeled-count inner
+    PAnn s inner t -> pat-unmodeled-count inner + type-unmodeled-count t
+    PArg s x rest -> pat-unmodeled-count x + pat-unmodeled-count rest
+    PArgsEnd s -> 0
+    PUnmodeled s text -> 1
+
+  pats-unmodeled :: List Pat -> Nat
+  pats-unmodeled ps = case ps of
+    Nil -> 0
+    Cons p rest -> pat-unmodeled-count p + pats-unmodeled rest
+
+  expr-unmodeled-count :: Expr -> Nat
+  expr-unmodeled-count e = case e of
+    EVar s n -> 0
+    ECon s n args -> exprs-unmodeled (exprs-of args)
+    ELitInt s text -> 0
+    ELitFloat s text -> 0
+    ELitStr s text -> 0
+    ELitChar s text -> 0
+    EUnit s -> 0
+    ETuple s xs -> exprs-unmodeled (exprs-of xs)
+    EList s xs -> exprs-unmodeled (exprs-of xs)
+    EApp s f a -> expr-unmodeled-count f + expr-unmodeled-count a
+    EBin s op l r -> expr-unmodeled-count l + expr-unmodeled-count r
+    ENeg s x -> expr-unmodeled-count x
+    ELam s ps body -> pats-unmodeled ps + expr-unmodeled-count body
+    ELet s bs body -> bindings-unmodeled (bindings-of bs) + expr-unmodeled-count body
+    EIf s c t f -> expr-unmodeled-count c + expr-unmodeled-count t + expr-unmodeled-count f
+    ECase s scrut alts -> expr-unmodeled-count scrut + alts-unmodeled (alts-of alts)
+    EAnn s x t -> expr-unmodeled-count x + type-unmodeled-count t
+    EForall s vs body -> expr-unmodeled-count body
+    EUsing s bounds body -> bounds-unmodeled (type-bounds-of bounds) + expr-unmodeled-count body
+    EBind s n rhs -> expr-unmodeled-count rhs
+    EDo s stmts -> exprs-unmodeled (exprs-of stmts)
+    EHandle s body h -> expr-unmodeled-count body + expr-unmodeled-count h
+    EWith s bs body -> bindings-unmodeled (bindings-of bs) + expr-unmodeled-count body
+    EArg s x rest -> expr-unmodeled-count x + expr-unmodeled-count rest
+    EArgsEnd s -> 0
+    EBinding s name rhs rest -> expr-unmodeled-count rhs + expr-unmodeled-count rest
+    EBindingsEnd s -> 0
+    EAlt s p body rest -> pat-unmodeled-count p + expr-unmodeled-count body + expr-unmodeled-count rest
+    EAltsEnd s -> 0
+    EUnmodeled s text -> 1
+
+  exprs-unmodeled :: List Expr -> Nat
+  exprs-unmodeled es = case es of
+    Nil -> 0
+    Cons e rest -> expr-unmodeled-count e + exprs-unmodeled rest
+
+  bindings-unmodeled :: List (String, Expr) -> Nat
+  bindings-unmodeled bs = case bs of
+    Nil -> 0
+    Cons b rest -> binding-unmodeled b + bindings-unmodeled rest
+
+  binding-unmodeled :: (String, Expr) -> Nat
+  binding-unmodeled b = case b of
+    (name, e) -> expr-unmodeled-count e
+
+  alts-unmodeled :: List (Pat, Expr) -> Nat
+  alts-unmodeled alts = case alts of
+    Nil -> 0
+    Cons a rest -> alt-unmodeled a + alts-unmodeled rest
+
+  alt-unmodeled :: (Pat, Expr) -> Nat
+  alt-unmodeled a = case a of
+    (p, e) -> pat-unmodeled-count p + expr-unmodeled-count e
+
+  clauses-unmodeled :: List (List Pat, Expr) -> Nat
+  clauses-unmodeled cs = case cs of
+    Nil -> 0
+    Cons c rest -> clause-unmodeled c + clauses-unmodeled rest
+
+  clause-unmodeled :: (List Pat, Expr) -> Nat
+  clause-unmodeled c = case c of
+    (pats, body) -> pats-unmodeled pats + expr-unmodeled-count body
+
+  ctors-unmodeled :: List (String, TypeExpr) -> Nat
+  ctors-unmodeled cs = case cs of
+    Nil -> 0
+    Cons c rest -> ctor-unmodeled c + ctors-unmodeled rest
+
+  ctor-unmodeled :: (String, TypeExpr) -> Nat
+  ctor-unmodeled c = case c of
+    (name, t) -> type-unmodeled-count t
+
+  decl-unmodeled-count :: Decl -> Nat
+  decl-unmodeled-count d = case d of
+    DSig s n t -> type-unmodeled-count t
+    DFun s n clauses -> clauses-unmodeled clauses
+    DData s n ctors -> ctors-unmodeled ctors
+    DClass s n params members -> decls-unmodeled (decls-of members)
+    DInstance s is-implicit name class-app members -> type-unmodeled-count class-app + decls-unmodeled (decls-of members)
+    DFixity s assoc prec ops -> 0
+    DImport s path -> 0
+    DExport s text -> 0
+    DRecord s n fields -> ctors-unmodeled fields
+    DEffect s n ops -> ctors-unmodeled ops
+    DForeign s conv foreign-name t -> type-unmodeled-count t
+    DDecl s x rest -> decl-unmodeled-count x + decl-unmodeled-count rest
+    DDeclsEnd s -> 0
+    DUnmodeled s text -> 1
+
+  decls-unmodeled :: List Decl -> Nat
+  decls-unmodeled ds = case ds of
+    Nil -> 0
+    Cons d rest -> decl-unmodeled-count d + decls-unmodeled rest
+
+  module-unmodeled-count :: Module -> Nat
+  module-unmodeled-count m = case m of
+    MkModule s name decls -> decl-unmodeled-count decls
+
+  program-unmodeled-count :: Program -> Nat
+  program-unmodeled-count p = case p of
+    MkProgram s ms -> modules-unmodeled ms
+
+  modules-unmodeled :: List Module -> Nat
+  modules-unmodeled ms = case ms of
+    Nil -> 0
+    Cons m rest -> module-unmodeled-count m + modules-unmodeled rest
