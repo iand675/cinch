@@ -98,7 +98,57 @@ forcing paths.
   Deterministic destruction is what the laziness spec already provides for
   thunks and cells.
 
-# 7 Open decisions
+# 7 Library signatures: the linear-base comparison
+
+At the user's direction (2026-10-29) the library's signatures were
+reviewed against `linear-base-0.8.1` for places where a multiplicity
+should carry the discipline. What the language has: `%0`, `%1`, `%aff`
+and `%many` on arrows, checked path-sensitively (the cases in
+`tests/ownership.rs`). Three homes use them in signatures today:
+`Effect.Pty` (`Pty %1 ->` on all seven operations, each returning the
+terminal except `pty-close`), `Effect.Clock` (the continuation at `%1`
+in `worker-body`, `run-timeout`, `timeout`) and `Text.Lex` (`%0` for the
+tokens a rule cannot reach, `%aff`/`%many`/`%1` elsewhere).
+
+What maps, and where it is applied:
+
+- A handle threaded by hand. `Effect.Pty` is the worked case
+  (D377/D378): taking the terminal at `%1` and handing it back on every
+  path makes reading or closing one twice, closing on only one branch,
+  and using it after a close into COMPILE errors rather than runtime
+  faults, with the negative programs pinned in `tests/lib_pty.rs`. The
+  module header states what the discipline does and does not buy:
+  misuse becomes unwritable; a leak is still possible, because a `%1`
+  parameter cannot force a path to consume it.
+- A capability passed to a callback exactly once (`Effect.Clock`'s
+  continuations).
+
+What does not map, with the reason:
+
+- `Ur a`: linear-base's unrestricted wrapper needs a data type whose
+  field is used `%many`, which the linear discipline rejects at its own
+  declaration, so there is no `Ur Pty`.
+- Class-quantified `Consumable`/`Dupable`/`Movable`: a class method
+  cannot let its caller pick a multiplicity here, and there are no
+  multiplicity-polymorphic binders (`forall (p :: Multiplicity)`) and no
+  inline `%1 ->` lambdas, so a linear continuation has to be a named
+  function (the limit `Effect/Pty.cinch`'s header records).
+- The polarized/mutable containers (`Data.Array.Polarized`,
+  `Data.Vector.Mutable.Linear`, `Data.Unrestricted.Linear`) are library
+  surface rather than language capability: they are writable with the
+  multiplicities above wherever the representation is a value Cinch can
+  express, and nothing in the language blocks them.
+
+Still available, not yet applied: `Effect.Process` exposes a `Child`
+value that a caller holds across `child-close`, which is exactly the
+`Effect.Pty` shape and would catch a double close the same way; the
+`Pty` precedent (a handle returned on every non-consuming path, plus
+negative tests) is the mechanism, not a new one. `Effect.Fs` keeps its
+directory handle as a raw `I64` inside its own open/close pairs and does
+not hand it to callers, so there is nothing to annotate until that
+surface is made a value.
+
+# 8 Open decisions
 
 - Default multiplicity for unannotated parameters (`%aff` vs `%many`).
 - User-extensible `Share` instances and copy semantics at the surface.

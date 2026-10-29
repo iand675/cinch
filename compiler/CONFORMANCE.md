@@ -1956,18 +1956,104 @@ so the embedding sweep stays its own decision.
   a `<>`; no counterexample exists in the tree (every module that
   writes `<>` infix declares it). The mechanism, read off
   `parse_prelude` in `compiler/src/driver.rs`: the embedded family is
-  parsed in two passes for check order, `PRELUDE_EARLY` (the scheme
-  homes the facade re-exports) and then `PRELUDE_LATE` (the class
-  modules and the newer families), and each module is parsed with the
-  facade's base table plus the tables of the modules parsed BEFORE it.
-  `Algebra.Semigroup` is late and `Data.Path` is early, so at `Path`'s
-  parse its importer's table does not exist yet. Two candidate fixes,
+  parsed in two passes for check order - the modules the facade
+  re-exports, then the class modules and the newer families - and each
+  module is parsed with the facade's base table plus the tables of the
+  modules parsed BEFORE it. Since the manifest refactor (`D379`'s
+  order, `cinch-base.cinchpkg`) the two passes are the manifest's
+  `order` split at the facade; `Algebra.Semigroup` is late and
+  `Data.Path` is early, so at `Path`'s parse its importer's table does
+  not exist yet. Two candidate fixes,
   both tracked beside D366: pre-harvest every family module's `infix`
   declarations before the ordered parse (a fixity pre-pass, since
   fixities are syntactic and name-independent), or move the operator
-  homes ahead of their users in `PRELUDE_EARLY` and let the facade
+  homes ahead of their users in the early group and let the facade
   collect the later ones. The authoring rule stands either way, so
   this is a consistency fix, not a blocker.
+
+- **D382 (compiler defect fixed: interface schemes were not
+  re-parseable)**: `Ty`'s `Display` printed an applied type
+  constructor's arguments with no parentheses, so `Option (List a)`
+  rendered as `Option List a` and `List (List a)` as `List List a`.
+  That text is not a signature: it is what an interface records as a
+  declaration's contract (`render_scheme`, `check_decls.rs`), what the
+  surface probe splices back into a program (`tests/prelude_split.rs`),
+  and what the artifact store ships as the contract a consumer reads,
+  so the defect made the recorded contract unparseable rather than
+  merely ugly. Fixed in `compiler/src/types.rs`:
+  `needs_parens_as_argument` parenthesizes an argument that is itself an
+  application, an `App`, or a prefix-form type (`Thunk`, `Later`,
+  `Lazy`, `Ref`, `Mut`, `Ptr`, `Handler`); a variable, a nullary
+  constructor, a tuple, an arrow, a `Pi` or a `Sigma` already carries
+  its own delimiters. The same rule now applies to a class
+  application's arguments (`ClassApp`), so a constraint reads
+  `Monoid (List a)`.
+- **D383 (a source module that takes a family module's name must supply
+  its surface)**: the collection order for a program that reuses an
+  embedded module's name is: the family before the facade, the facade,
+  then the SOURCE copies of the displaced modules, then the family
+  after the facade, then the remaining source modules. A displaced
+  family module is skipped entirely (so no duplicate signature), which
+  is what lets a project ship a faithful copy of a home; the price is
+  that the copy must declare what the family's later members name. A
+  source module named `Category.Functor` that declares only `bump`
+  leaves the class `Functor` unregistered while `Category.Applicative`
+  and its siblings are collected, and the family itself fails with
+  `unknown signature Functor` (no file position, because the failing
+  module is embedded). Three `hk` fixtures used exactly that stub to
+  test dotted-import syntax and were renamed off the family name; the
+  faithful-copy case stays pinned by
+  `hk::shipped_category_functor_imports_across_files`.
+- **D384 (compiler defect fixed: an undetermined instance parameter
+  aborted the obligation)**: instance resolution returned
+  `instance X parameter a is not determined by its target` when a
+  structurally matching candidate left a parameter bound only to an
+  undetermined metavariable, which is what an ambiguous literal ask
+  (`Eq ?x` from `if 1 == 1`) does against `Eq (Down a)`: the trial
+  unifier binds `?x := Down ?a` and determines nothing. The code after
+  the candidate loop already defers that shape to literal defaulting
+  (D7), so the in-loop error was the anomaly; a candidate that
+  determines nothing is now SKIPPED, which lets a later candidate or
+  the deferral answer the ask. The regression was that any instance
+  with a parameter sitting earlier in the family than the nullary
+  instance that used to answer the ask made every such program fail:
+  `Eq_Down`/`Ord_Down` (`Relation.Ord`, ordered before `Data.Nat`)
+  broke `tests/dependent.rs` and three `prelude_split` cases. Verified
+  fixed with the family probe, `dependent` 14/14 and `lib_function_ord`
+  9/9.
+- **D385 (harness copy sets must be closed over the LATE family)**: a
+  test harness that writes hand-listed prelude copies beside its entry
+  file is shipping SOURCE modules, so by D383 those copies displace the
+  embedded ones and are collected before the late family. A copy that
+  imports a late home (`Algebra.Group`, `Algebra.Semiring`) must ship
+  that home too, or its own signatures fail with `unknown signature
+  Semiring`; an early home (`Relation.Eq`, `Data.Ordering`,
+  `Function.Combinators`) is registered before the shadow point and
+  needs no copy, so the correct repair is the LATE subset, not the
+  whole import closure. `hk`'s set gained exactly `Algebra.Group` and
+  `Algebra.Semiring`; `lib_foldable`'s gained the four its earlier
+  slice found by experiment.
+- **D386 (two implicit-surface names collided with a prelude module's
+  own)**: `Data.List.span` beside `Effect.Trace`'s tracing operation of
+  the same name, and `Data.Option.or-else` beside `Text.Parse`'s parser
+  combinator, are refused by name when a program imports both homes
+  wholesale ("the name `x` is imported from both ... and ...: rename
+  one"). The language's remedy is a selection (`import Data.Option
+  (Option, None, Some)`), which is what the two harnesses that hit it
+  now write. `Data.List.span` keeps its name (GHC `base` parity);
+  `Data.Option.or-else` keeps its name too, since the collision is
+  explicit-import against explicit-import and the parser vocabulary has
+  the older claim.
+  The `span` collision was also INTERNAL to the library: `Text.Otlp`
+  imports `Effect.Trace` and `Data.List` wholesale and uses only
+  `List`/`Nil`/`Cons` from the latter, so its list import is now that
+  precise selection (a wholesale import beside a wholesale import is a
+  latent ambiguity for as long as the two surfaces do not overlap, which
+  is not a property to rely on in a library that grows).
+  Diagnostic gap, tracked: the ambiguity carries no file position even
+  when the colliding module is a project source file, so the failing
+  module cannot be located from the message alone (the family member
+  case may legitimately have no file, but a project copy does).
 
 ### Refinement types (P28)
 

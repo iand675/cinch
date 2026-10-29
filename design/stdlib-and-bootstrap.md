@@ -44,7 +44,9 @@ written in Cinch needs. No em dashes.
    pipes - bootstrapping depends on this).
 6. **Bootstrap milestones (P35)** - the acceptance ladder:
    (1) a Cinch program parses the language's own grammar (P30),
-   (2) reads and writes a manifest `.cinchif`-canonically (P31),
+   (2) reads and writes a manifest `.cinchif`-canonically (P31; the
+   base package's own manifest is `compiler/prelude/cinch-base.cinchpkg`,
+   the `.cinchpkg` format of design/base-library.md),
    (3) type-checks a fragment (the checker port),
    (4) emits LLVM IR text (the codegen port),
    (5) drives clang via process spawn (P34),

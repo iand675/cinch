@@ -233,7 +233,9 @@ Semantics notes for the slice:
 ```
 compiler/
   Cargo.toml
-  prelude/Prelude.cinch     the class stack and generic helpers, in-language
+  prelude/Prelude.cinch     the facade: the implicit surface and its re-exports
+  prelude/cinch-base.cinchpkg  the base package's modules and check order (data)
+  prelude/Data/Core.cinch   the inductive types the home modules re-export
   src/
     lexer.rs               tokens and lexical rules
     layout.rs              indentation to { ; }
@@ -244,6 +246,7 @@ compiler/
     check_decls.rs         declarations and program assembly
     core.rs                core IR and the runtime ABI
     codegen.rs             LLVM IR text
+    store.rs               the content-keyed artifact cache
     driver.rs              CLI pipeline
   tests/integration.rs     compile and run programs, assert exit codes
 ```
