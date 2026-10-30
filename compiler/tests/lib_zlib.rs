@@ -292,7 +292,8 @@ const PREAMBLE: &str = r#"module Main where
     False -> False
     True -> bytes-same-at a b 0
 
-  bytes-same-at :: Bytes -> Bytes -> Nat -> Bool
+  -- Called only once the lengths agree, so `b`'s reads share `a`'s bound.
+  bytes-same-at :: using (bytes-len a == bytes-len b) => (a :: Bytes) -> (b :: Bytes) -> Nat -> Bool
   bytes-same-at a b i = case i >= bytes-len a of
     True -> True
     False -> case bytes-get a i == bytes-get b i of

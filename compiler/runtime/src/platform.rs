@@ -512,9 +512,10 @@ pub extern "C" fn cinch_argv_count() -> i64 {
 }
 
 /// The `i`-th captured word as a fresh `Bytes` word: word 0 is the
-/// program name, the rest are its arguments. An index outside
-/// `0..count` takes the defined out-of-bounds fault (exit 71, the
-/// `Bytes` indexing convention).
+/// program name, the rest are its arguments. The prelude's `raw-arg`
+/// takes evidence that `i` is below `raw-arg-count ()`, and the capture
+/// never changes once taken, so an index outside `0..count` is the
+/// out-of-bounds compiler-bug trap.
 #[unsafe(no_mangle)]
 pub extern "C" fn cinch_argv_get(i: i64) -> i64 {
     if let Some(words) = ARGV.get() {

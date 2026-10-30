@@ -160,18 +160,31 @@ module Text.Parse where
   join-items xs = string-join ", " (map render-item xs)
 
   -- The source line containing a byte offset: its start offset and
-  -- its text (without the line ending).
-  line-start-at :: Bytes -> Nat -> Nat
+  -- its text (without the line ending). The offset is inside the
+  -- source or at its end.
+  line-start-at :: using (i <= bytes-len b) => (b :: Bytes) -> (i :: Nat) -> Nat
   line-start-at b i =
     if i == 0 then 0
     else if nat-cmp (bytes-get b (i - 1)) 10 == 0 then i
     else line-start-at b (i - 1)
 
-  line-end-at :: Bytes -> Nat -> Nat
+  line-end-at :: using (i <= bytes-len b) => (b :: Bytes) -> (i :: Nat) -> refined (r <= bytes-len b) Nat
   line-end-at b i =
-    if nat-cmp i (bytes-len b) == 0 then i
-    else if nat-cmp (bytes-get b i) 10 == 0 then i
-    else line-end-at b (i + 1)
+    if i < bytes-len b then
+      if nat-cmp (bytes-get b i) 10 == 0 then i
+      else line-end-at b (i + 1)
+    else bytes-len b
+
+  -- The text of the line holding offset `i`. A span past the end of the
+  -- source names no line, so it shows as an empty source line under the
+  -- header rather than reading out of range.
+  line-text-at :: Bytes -> Nat -> String
+  line-text-at b i =
+    if i <= bytes-len b then
+      case string-from-bytes (bytes-slice b (line-start-at b i) (line-end-at b i)) of
+        Some s -> s
+        None -> empty-string
+    else empty-string
 
   -- Megaparsec's rendered error: the position header, the source line
   -- with a caret under the offending column, then the `unexpected`
@@ -184,8 +197,6 @@ module Text.Parse where
     EUnexpected s u xs ->
       let ln = span-line s in
       let col = span-col s in
-      let ls = line-start-at b (span-start s) in
-      let le = line-end-at b (span-start s) in
       let gutter = nat-to-string ln in
       let pad = string-repeat (nat-digit-count ln) " " in
       let caret = string-concat pad
@@ -194,7 +205,7 @@ module Text.Parse where
       let body = string-concat ("  |\n")
             (string-concat gutter
               (string-concat (" | ")
-                (string-concat (case string-from-bytes (bytes-slice b ls le) of Some s -> s; None -> empty-string)
+                (string-concat (line-text-at b (span-start s))
                   (string-concat ("\n")
                     (string-concat caret ("\n")))))) in
       let unexp = string-concat ("unexpected: ")

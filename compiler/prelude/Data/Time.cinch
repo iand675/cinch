@@ -15,7 +15,7 @@
 -- Data.Date, so the two families agree by construction and no offset
 -- enters the arithmetic. The clock hands that reading back as a `Nat`
 -- and `from-epoch-nanos` takes the `Int`, so a consumer pairs them with
--- the prelude's `Nat`/`Int` conversion (`int-from-i64 (nat-to-i64 n)`);
+-- the prelude's `Nat`/`Int` conversion (`nat-to-int n`, of any size);
 -- the clock's own clamp (the epoch to the year 2262) is its boundary,
 -- not this family's. Nothing in this slice consults a timezone
 -- database, because no such thing exists here.
@@ -159,8 +159,8 @@ module Data.Time where
   from-epoch-nanos :: Int -> Time
   from-epoch-nanos n =
     let day = int-floor-div n nanos-per-day-divisor in
-    let rem = int-floor-mod n nanos-per-day-divisor in
-    Time (from-epoch-days day) (int-to-nat rem)
+    let rem = int-mod-nat n 86400000000000 in
+    Time (from-epoch-days day) rem
 
   -- Move forward by `d` (a whole number of milliseconds; the day
   -- carries).
@@ -171,6 +171,12 @@ module Data.Time where
   sub-duration :: Duration -> Time -> Time
   sub-duration d t = shift-by (int-neg (duration-nanos d)) t
 
+  -- `|x - y|` as a `Nat`. A named function so each branch checks
+  -- against the declared `Nat` (in a `let`, the `if` would take the
+  -- first branch's refined type and the other branch could not meet it).
+  int-gap :: Int -> Int -> Nat
+  int-gap x y = if x < y then nat-from-int (y - x) else nat-from-int (x - y)
+
   -- The distance between two instants in whole milliseconds (truncated
   -- toward zero): unsigned, because `Duration` is, so the caller reads
   -- direction from `cmp` (the refusal above).
@@ -178,8 +184,8 @@ module Data.Time where
   diff a b =
     let x = to-epoch-nanos a in
     let y = to-epoch-nanos b in
-    let gap = if x < y then int-sub y x else int-sub x y in
-    duration-from-millis (int-to-nat (int-div gap 1000000))
+    let gap = int-gap x y in
+    duration-from-millis (gap / 1000000)
 
   cmp :: Time -> Time -> Ordering
   cmp a b =
@@ -318,29 +324,16 @@ module Data.Time where
   duration-nanos :: Duration -> Int
   duration-nanos d = int-mul (nat-to-int (duration-millis d)) 1000000
 
-  -- Floored quotient and remainder (the epoch split needs a
-  -- non-negative remainder, and `int-div`/`int-rem` truncate toward
-  -- zero). The divisor is a `NonZero`, threaded from the caller.
+  -- Floored quotient (the epoch split needs it, and `int-div` truncates
+  -- toward zero; the floored remainder as a `Nat` is `int-mod-nat`).
+  -- The divisor is a `NonZero`, threaded from the caller. `Nat`/`Int`
+  -- convert through `nat-to-int`/`nat-from-int` (Data.Nat), of any
+  -- size.
   int-floor-div :: Int -> NonZero Int -> Int
   int-floor-div a b =
     let q = int-div a b in
     let r = int-rem a b in
     if r < 0 then int-sub q 1 else q
-
-  int-floor-mod :: Int -> NonZero Int -> Int
-  int-floor-mod a b =
-    let r = int-rem a b in
-    if r < 0 then int-add r (unrefine b) else r
-
-  -- `Nat` to `Int` and back through the shared value (the bignum words
-  -- are the same; only the machine width of the step bounds it, which
-  -- every call site here is far inside: epoch nanoseconds, day counts,
-  -- millisecond counts).
-  nat-to-int :: Nat -> Int
-  nat-to-int n = int-from-i64 (nat-to-i64 n)
-
-  int-to-nat :: Int -> Nat
-  int-to-nat n = nat-from-i64 (int-to-i64 n)
 
   -- `k` ASCII digits of `v`, zero padded. The caller bounds `v` below
   -- `10^k` (an hour, minute, second or sub-second field): a wider value

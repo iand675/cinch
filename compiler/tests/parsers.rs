@@ -79,7 +79,7 @@ fn program_header() -> String {
         "    Cons c rest -> cat-bytes c (chunk-bytes rest)",
         "",
         "  int-of :: Nat -> Int",
-        "  int-of n = int-from-i64 (nat-to-i64 n)",
+        "  int-of n = nat-to-int n",
         "",
     ] {
         s.push_str(line);
@@ -435,9 +435,12 @@ fn lex_errors_are_named() {
         "",
         "  eq-bytes-at :: Bytes -> Bytes -> Nat -> Nat -> Bool",
         "  eq-bytes-at hay needle i j =",
-        "    if nat-cmp j (bytes-len needle) == 0 then True",
-        "    else if nat-cmp (bytes-get hay (i + j)) (bytes-get needle j) == 0 then eq-bytes-at hay needle i (j + 1)",
-        "    else False",
+        "    if j < bytes-len needle then",
+        "      if i + j < bytes-len hay then",
+        "        if nat-cmp (bytes-get hay (i + j)) (bytes-get needle j) == 0 then eq-bytes-at hay needle i (j + 1)",
+        "        else False",
+        "      else False",
+        "    else True",
         "",
         "  check-msg :: Bytes -> String -> Nat -> Int",
         "  check-msg src needle i = case lex-source src of",
@@ -525,7 +528,7 @@ const GRAMMAR_SRC: &str = r#"module Main where
     Cons c rest -> cat-bytes c (chunk-bytes rest)
 
   int-of :: Nat -> Int
-  int-of n = int-from-i64 (nat-to-i64 n)
+  int-of n = nat-to-int n
 
   join-sep :: List String -> String -> String
   join-sep xs sep = case xs of
@@ -1146,8 +1149,8 @@ choice-p
 
   text-nat-from :: Bytes -> Nat -> Nat -> Nat
   text-nat-from b i acc =
-    if nat-cmp i (bytes-len b) == 0 then acc
-    else text-nat-from b (i + 1) (acc * 10 + bytes-get b i % 16)
+    if i < bytes-len b then text-nat-from b (i + 1) (acc * 10 + bytes-get b i % 16)
+    else acc
 
   value-decl :: Parser Tm
   value-decl = MkParser (\s -> run-parser-fn (
@@ -1340,10 +1343,12 @@ parse-fmap (\ms -> spine ms) (many-p module-decl)) s)
 
   eq-bytes-at :: Bytes -> Bytes -> Nat -> Nat -> Bool
   eq-bytes-at hay needle i j =
-    if nat-cmp j (bytes-len needle) == 0 then True
-    else if i + j >= bytes-len hay then False
-    else if nat-cmp (bytes-get hay (i + j)) (bytes-get needle j) == 0 then eq-bytes-at hay needle i (j + 1)
-    else False
+    if j < bytes-len needle then
+      if i + j < bytes-len hay then
+        if nat-cmp (bytes-get hay (i + j)) (bytes-get needle j) == 0 then eq-bytes-at hay needle i (j + 1)
+        else False
+      else False
+    else True
 
   has-sub :: Bytes -> Bytes -> Nat -> Bool
   has-sub hay needle i =
@@ -1464,10 +1469,12 @@ fn parse_bundle_rendering() {
         "",
         "  eq-bytes-at :: Bytes -> Bytes -> Nat -> Nat -> Bool",
         "  eq-bytes-at hay needle i j =",
-        "    if nat-cmp j (bytes-len needle) == 0 then True",
-        "    else if i + j >= bytes-len hay then False",
-        "    else if nat-cmp (bytes-get hay (i + j)) (bytes-get needle j) == 0 then eq-bytes-at hay needle i (j + 1)",
-        "    else False",
+        "    if j < bytes-len needle then",
+        "      if i + j < bytes-len hay then",
+        "        if nat-cmp (bytes-get hay (i + j)) (bytes-get needle j) == 0 then eq-bytes-at hay needle i (j + 1)",
+        "        else False",
+        "      else False",
+        "    else True",
         "",
         "  main :: Int",
         "  main = case run-parser (\x22test\x22) (bytes-from-list [119, 111, 114, 108, 100]) (expect-word (\x22hello\x22)) of",
@@ -1546,10 +1553,12 @@ fn expect_eof_is_a_non_consuming_guard() {
         "",
         "  eq-bytes-at :: Bytes -> Bytes -> Nat -> Nat -> Bool",
         "  eq-bytes-at hay needle i j =",
-        "    if nat-cmp j (bytes-len needle) == 0 then True",
-        "    else if i + j >= bytes-len hay then False",
-        "    else if nat-cmp (bytes-get hay (i + j)) (bytes-get needle j) == 0 then eq-bytes-at hay needle i (j + 1)",
-        "    else False",
+        "    if j < bytes-len needle then",
+        "      if i + j < bytes-len hay then",
+        "        if nat-cmp (bytes-get hay (i + j)) (bytes-get needle j) == 0 then eq-bytes-at hay needle i (j + 1)",
+        "        else False",
+        "      else False",
+        "    else True",
         "",
         "  main :: Int",
         "  main = standalone-eof",

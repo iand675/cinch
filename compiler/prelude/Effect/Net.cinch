@@ -76,12 +76,13 @@ module Effect.Net where
     NetInvalidArgument :: NetError
     NetIoError :: NetError
 
-  -- An open TCP connection, as the runtime's socket handle.
+  -- An open TCP connection, as the runtime's socket handle word (kept
+  -- as the runtime's `I64`: it only ever goes back to the runtime).
   data Socket where
-    Socket :: Nat -> Socket
+    Socket :: I64 -> Socket
 
   -- The handle word of a socket, for the layers above this one.
-  socket-handle :: Socket -> Nat
+  socket-handle :: Socket -> I64
   socket-handle s = case s of
     Socket h -> h
 
@@ -104,18 +105,20 @@ module Effect.Net where
 
   -- Connect to `host` (UTF-8 host text) at `port` (0..=65535) over TCP:
   -- the open socket, or the named error. The name is resolved by the
-  -- platform resolver.
+  -- platform resolver. A port past the `I64` range is invalid like any
+  -- other port past 65535.
   net-connect :: forall r. using (io :: Io r) => String -> Nat ->{IO r} Result NetError Socket
-  net-connect host port =
-    case raw-net-connect (string-to-bytes host) (nat-to-i64 port) of
+  net-connect host port = case checked-nat-to-i64 port of
+    None -> Err NetInvalidArgument
+    Some p -> case raw-net-connect (string-to-bytes host) p of
       Err c -> Err (net-error-code c)
-      Ok h -> Ok (Socket (nat-from-i64 h))
+      Ok h -> Ok (Socket h)
 
   -- Read up to `max` bytes of the socket: `Ok` of what one platform
   -- call produced (empty at the end of the stream), or the named error.
   net-read :: forall r. using (io :: Io r) => Socket -> Nat ->{IO r} Result NetError Bytes
   net-read s max = case s of
-    Socket h -> case raw-net-read (nat-to-i64 h) max of
+    Socket h -> case raw-net-read h max of
       Err c -> Err (net-error-code c)
       Ok b -> Ok b
 
@@ -123,7 +126,7 @@ module Effect.Net where
   -- or the named error.
   net-write :: forall r. using (io :: Io r) => Socket -> Bytes ->{IO r} Result NetError Nat
   net-write s bs = case s of
-    Socket h -> case raw-net-write (nat-to-i64 h) bs of
+    Socket h -> case raw-net-write h bs of
       Err c -> Err (net-error-code c)
       Ok n -> Ok n
 
@@ -131,7 +134,7 @@ module Effect.Net where
   -- operation on it is `Err NetInvalidArgument`.
   net-close :: forall r. using (io :: Io r) => Socket ->{IO r} Result NetError Unit
   net-close s = case s of
-    Socket h -> case raw-net-close (nat-to-i64 h) of
+    Socket h -> case raw-net-close h of
       Err c -> Err (net-error-code c)
       Ok u -> Ok u
 
@@ -140,7 +143,8 @@ module Effect.Net where
   -- an IPv6 address bracketed), or the named error. The empty result is
   -- an empty buffer: the resolver answered with no address.
   net-resolve :: forall r. using (io :: Io r) => String -> Nat ->{IO r} Result NetError Bytes
-  net-resolve host port =
-    case raw-net-resolve (string-to-bytes host) (nat-to-i64 port) of
+  net-resolve host port = case checked-nat-to-i64 port of
+    None -> Err NetInvalidArgument
+    Some p -> case raw-net-resolve (string-to-bytes host) p of
       Err c -> Err (net-error-code c)
       Ok b -> Ok b

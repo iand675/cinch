@@ -892,7 +892,7 @@ fn surface_and_or_short_circuit() {
     let witness = |cond: &str, then_v: i32, else_v: i32| {
         format!(
             "module Main where\n\
-             \x20 mark :: Bytes -> Bool\n\
+             \x20 mark :: using (0 < bytes-len b) => (b :: Bytes) -> Bool\n\
              \x20 mark b = case bytes-set b 0 1 of\n\
              \x20   _ -> True\n\
              \n\

@@ -126,21 +126,22 @@ module Text.Regex where
     else c >= 97 && c <= 122
 
   -- Int/Nat conversions and the signed-offset bias (relative
-  -- program offsets travel as u32 words biased by 2^31).
+  -- program offsets travel as u32 words biased by 2^31). The bias is
+  -- the floored residue modulo 2^32, the value the u32 word holds: for
+  -- every offset the compiler emits (within 2^31 of zero) it is the
+  -- plain sum.
   int-of :: Nat -> Int
-  int-of n = int-from-i64 (nat-to-i64 n)
-
-  nat-of :: Int -> Nat
-  nat-of x = nat-from-i64 (int-to-i64 x)
+  int-of n = nat-to-int n
 
   int-bias :: Int -> Nat
-  int-bias x = nat-from-i64 (wrapping-add-i64 (int-to-i64 x) 2147483648)
+  int-bias x = int-mod-nat (int-add x 2147483648) 4294967296
 
   int-unbias :: Nat -> Int
-  int-unbias raw = int-from-i64 (wrapping-sub-i64 (nat-to-i64 raw) 2147483648)
+  int-unbias raw = int-sub (nat-to-int raw) 2147483648
 
-  -- Little-endian u32 words over a Bytes buffer.
-  put-u32 :: Bytes -> Nat -> Nat -> Unit
+  -- Little-endian u32 words over a Bytes buffer; the word's four bytes
+  -- must lie inside it.
+  put-u32 :: using (off + 4 <= bytes-len buf) => (buf :: Bytes) -> (off :: Nat) -> Nat -> Unit
   put-u32 buf off v =
     let u = bytes-set buf off (nat-rem v 256) in
     let w = bytes-set buf (off + 1) (nat-rem (nat-div v 256) 256) in
@@ -148,7 +149,7 @@ module Text.Regex where
     let y = bytes-set buf (off + 3) (nat-rem (nat-div v 16777216) 256) in
     ()
 
-  get-u32 :: Bytes -> Nat -> Nat
+  get-u32 :: using (off + 4 <= bytes-len buf) => (buf :: Bytes) -> (off :: Nat) -> Nat
   get-u32 buf off =
     let a = bytes-get buf off in
     let b = bytes-get buf (off + 1) in
@@ -798,21 +799,23 @@ module Text.Regex where
     Regex :: Prog -> Nat -> Regex
 
   encode-program :: List Instr -> Bytes
-  encode-program instrs =
-    let buf = bytes-new (list-length instrs * 16) in
-    let u = encode-into buf 0 instrs in
-    buf
+  encode-program instrs = encode-from 0 instrs
 
-  encode-into :: Bytes -> Nat -> List Instr -> Unit
-  encode-into buf pc instrs = case instrs of
-    Nil -> ()
+  -- Instruction `pc` and the rest, as the program's 16-byte records. The
+  -- buffer is made at the list's end, sized for every record, and the
+  -- bound comes back in the result, so each record's offsets are proven
+  -- inside it. The opcode byte is `instr-op i` itself: every opcode is
+  -- at most 8, so the `nat-rem` leaves it unchanged.
+  encode-from :: (pc :: Nat) -> List Instr -> refined (16 * pc <= bytes-len out) Bytes
+  encode-from pc instrs = case instrs of
+    Nil -> bytes-new (16 * pc)
     Cons i rest ->
-      let base = pc * 16 in
-      let u = bytes-set buf base (instr-op i) in
-      let v = put-u32 buf (base + 4) (instr-a i) in
-      let w = put-u32 buf (base + 8) (instr-b i) in
-      let x = put-u32 buf (base + 12) (instr-c i) in
-      encode-into buf (pc + 1) rest
+      let out = encode-from (pc + 1) rest in
+      let u = bytes-set out (16 * pc) (nat-rem (instr-op i) 256) in
+      let v = put-u32 out (16 * pc + 4) (instr-a i) in
+      let w = put-u32 out (16 * pc + 8) (instr-b i) in
+      let x = put-u32 out (16 * pc + 12) (instr-c i) in
+      out
 
   instr-op :: Instr -> Nat
   instr-op i = case i of
@@ -853,20 +856,21 @@ module Text.Regex where
   instr-c :: Instr -> Nat
   instr-c i = 0
 
-  fetch-op :: Regex -> Nat -> Nat
-  fetch-op re pc = case re of
+  prog-bytes :: Regex -> Bytes
+  prog-bytes re = case re of
     Regex p _ -> case p of
-      Prog buf _ -> bytes-get buf (pc * 16)
+      Prog buf _ -> buf
 
-  fetch-a :: Regex -> Nat -> Nat
-  fetch-a re pc = case re of
-    Regex p _ -> case p of
-      Prog buf _ -> get-u32 buf (pc * 16 + 4)
+  -- The fields of instruction `pc`, whose record must lie inside the
+  -- program. The interpreter checks that once per thread.
+  fetch-op :: using (16 * pc + 16 <= bytes-len (prog-bytes re)) => (re :: Regex) -> (pc :: Nat) -> Nat
+  fetch-op re pc = bytes-get (prog-bytes re) (16 * pc)
 
-  fetch-b :: Regex -> Nat -> Nat
-  fetch-b re pc = case re of
-    Regex p _ -> case p of
-      Prog buf _ -> get-u32 buf (pc * 16 + 8)
+  fetch-a :: using (16 * pc + 16 <= bytes-len (prog-bytes re)) => (re :: Regex) -> (pc :: Nat) -> Nat
+  fetch-a re pc = get-u32 (prog-bytes re) (16 * pc + 4)
+
+  fetch-b :: using (16 * pc + 16 <= bytes-len (prog-bytes re)) => (re :: Regex) -> (pc :: Nat) -> Nat
+  fetch-b re pc = get-u32 (prog-bytes re) (16 * pc + 8)
 
   prog-count :: Regex -> Nat
   prog-count re = case re of
@@ -875,7 +879,12 @@ module Text.Regex where
 
   -- The relative-offset target of a jump or split word.
   target-pc :: Regex -> Nat -> Nat -> Nat
-  target-pc re pc raw = nat-of (int-add (int-of pc) (int-unbias raw))
+  -- A compiled program never jumps before its start (the compiler
+  -- emits every offset); such a target would be outside the program
+  -- exactly as one past its end is, so it reads as that one.
+  target-pc re pc raw =
+    let t = int-add (int-of pc) (int-unbias raw) in
+    if t < 0 then prog-count re else nat-from-int t
 
   -- -----------------------------------------------------------------
   -- The public surface.
@@ -1043,6 +1052,11 @@ module Text.Regex where
     Nil -> (reverse acc, matched, steps)
     Cons th rest -> case th of
       (pc, caps) ->
+        -- `expand` queues only instructions inside the program, so this
+        -- restates that check where the fetches can read it; a thread
+        -- outside the program has no instruction to run and ends.
+        if 16 * pc + 16 > bytes-len (prog-bytes re) then step-loop re subj pos cur next w rest acc matched visited (steps + 1)
+        else
         let op = fetch-op re pc in
         if op == op-match then (reverse acc, Some caps, steps + 1)
         else if op == op-char then
@@ -1064,16 +1078,19 @@ module Text.Regex where
           else step-loop re subj pos cur next w rest acc matched visited (steps + 1)
         else step-loop re subj pos cur next w rest acc matched visited (steps + 1)
 
-  class-hit :: Regex -> Nat -> Nat -> Bool
+  class-hit :: using (16 * pc + 16 <= bytes-len (prog-bytes re)) => (re :: Regex) -> (pc :: Nat) -> Nat -> Bool
   class-hit re pc cp =
     let n = fetch-a re pc in
     let neg = fetch-b re pc in
     let hit = range-hit re (pc + 1) n cp in
     if neg == 1 then not hit else hit
 
+  -- The compiler emits a class's `n` range records right after it, so
+  -- each is inside the program; a record past its end would be no range.
   range-hit :: Regex -> Nat -> Nat -> Nat -> Bool
   range-hit re i n cp =
     if n == 0 then False
+    else if 16 * i + 16 > bytes-len (prog-bytes re) then False
     else if fetch-a re i <= cp then
       if cp <= fetch-b re i then True
       else range-hit re (i + 1) (n - 1) cp
@@ -1087,7 +1104,11 @@ module Text.Regex where
     Nil -> (acc, steps)
     Cons th rest -> case th of
       (pc, caps) ->
-        if seen-visited visited pc (pos + 1) then expand re subj pos prev cur rest acc visited (steps + 1)
+        -- Every target the compiler emits is an instruction of the
+        -- program, which owns one visited stamp per instruction; a
+        -- target outside either is no instruction, and its thread ends.
+        if 16 * pc + 16 > bytes-len (prog-bytes re) || 4 * pc + 4 > bytes-len visited then expand re subj pos prev cur rest acc visited (steps + 1)
+        else if seen-visited visited pc (pos + 1) then expand re subj pos prev cur rest acc visited (steps + 1)
         else
           let u = mark-visited visited pc (pos + 1) in
           let op = fetch-op re pc in
@@ -1129,11 +1150,11 @@ module Text.Regex where
   -- (position + 1) whose closure last claimed the counter. Stamps
   -- are absolute positions, so within one search the buffer never
   -- needs clearing; a new search gets a fresh buffer.
-  seen-visited :: Bytes -> Nat -> Nat -> Bool
-  seen-visited buf pc stamp = get-u32 buf (pc * 4) == stamp
+  seen-visited :: using (4 * pc + 4 <= bytes-len buf) => (buf :: Bytes) -> (pc :: Nat) -> Nat -> Bool
+  seen-visited buf pc stamp = get-u32 buf (4 * pc) == stamp
 
-  mark-visited :: Bytes -> Nat -> Nat -> Unit
-  mark-visited buf pc stamp = put-u32 buf (pc * 4) stamp
+  mark-visited :: using (4 * pc + 4 <= bytes-len buf) => (buf :: Bytes) -> (pc :: Nat) -> Nat -> Unit
+  mark-visited buf pc stamp = put-u32 buf (4 * pc) stamp
 
   -- The scalar before byte offset `p` (a forward scan; word
   -- boundaries at a search start need it).
@@ -1184,15 +1205,23 @@ module Text.Regex where
     else if en == 4294967295 then None
     else Some (bytes-text subj st en)
 
-  -- The text of `[a, b)`; a reversed range holds no bytes.
+  -- The text of `[a, b)`; a reversed range holds no bytes. Every end the
+  -- matcher records (a capture slot, a match end, the subject's length)
+  -- is a position inside the subject, so the comparison answers `b`
+  -- itself; it is the fact the copy's bound reads.
   bytes-text :: Bytes -> Nat -> Nat -> String
   bytes-text subj a b =
-    let n = saturating-sub b a in
-    let out = bytes-new n in
-    let u = copy-bytes-into out subj 0 a n in
-    case string-from-bytes out of
-      None -> empty-string
-      Some t -> t
+    if b <= bytes-len subj then range-text subj a b else range-text subj a (bytes-len subj)
+
+  range-text :: using (b <= bytes-len subj) => (subj :: Bytes) -> (a :: Nat) -> (b :: Nat) -> String
+  range-text subj a b =
+    if b <= a then empty-string
+    else
+      let out = bytes-new (b - a) in
+      let u = copy-bytes-into out subj 0 a (b - a) in
+      case string-from-bytes out of
+        None -> empty-string
+        Some t -> t
 
   -- -----------------------------------------------------------------
   -- Matching API.

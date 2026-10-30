@@ -11,8 +11,15 @@
 //! (the `KIND_BYTES_STATIC` block kind: mutation attempts fault instead
 //! of writing). Indexing is bounds-checked; out-of-range indices,
 //! negative lengths, and byte values outside `0..=255` are
-//! [`Error::OutOfBounds`], never undefined behaviour. This is the
-//! foundation the FFI and string slices build on.
+//! [`Error::OutOfBounds`], never undefined behaviour. For generated
+//! code every one of these checks is a compiler-bug trap: a `Bytes`
+//! index carries evidence that it is below the length, a copy range
+//! evidence that it ends inside both buffers, a byte value is an
+//! `InRange 0 255 Nat`, and a read-only buffer is only ever a `String`'s
+//! backing, which no conversion hands out. A buffer's length is fixed
+//! when it is made: `len` is private and only [`Bytes::release`] clears
+//! it, as the block is freed, which is what lets the compiler keep
+//! facts over `bytes-len b` across writes to `b`.
 
 use crate::error::{Error, Result};
 use std::fmt;

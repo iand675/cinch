@@ -96,8 +96,8 @@ module Data.StringIo where
 
   -- A byte-range copy (named apart from the facade's exported
   -- `copy-bytes-into`, so neither shadows the other): the runtime's
-  -- `memmove`, never a per-byte loop.
-  copy-into :: Bytes -> Bytes -> Nat -> Nat -> Nat -> Unit
+  -- `memmove`, never a per-byte loop, with its two range obligations.
+  copy-into :: using (di + n <= bytes-len dst, si + n <= bytes-len src) => (dst :: Bytes) -> (src :: Bytes) -> (di :: Nat) -> (si :: Nat) -> (n :: Nat) -> Unit
   copy-into dst src di si n = bytes-copy-range dst src di si n
 
   string-io-new :: StringIo
@@ -140,15 +140,20 @@ module Data.StringIo where
   string-io-write :: StringIo -> Bytes -> StringIo
   string-io-write io bs = write-at (io-buffer io) (io-cursor io) bs
 
+  -- The new buffer is the longer of the old one and the write's end, so
+  -- both copies land inside it.
   write-at :: Bytes -> Nat -> Bytes -> StringIo
   write-at b p bs =
-    let n = bytes-len b in
-    let m = bytes-len bs in
-    let grown = if p + m > n then p + m else n in
-    let out = bytes-new grown in
-    let u = copy-into out b 0 0 n in
-    let v = copy-into out bs p 0 m in
-    IoBuf out (p + m)
+    if p + bytes-len bs > bytes-len b then
+      let out = bytes-new (p + bytes-len bs) in
+      let u = copy-into out b 0 0 (bytes-len b) in
+      let v = copy-into out bs p 0 (bytes-len bs) in
+      IoBuf out (p + bytes-len bs)
+    else
+      let out = bytes-new (bytes-len b) in
+      let u = copy-into out b 0 0 (bytes-len b) in
+      let v = copy-into out bs p 0 (bytes-len bs) in
+      IoBuf out (p + bytes-len bs)
 
   -- Read up to n bytes from the cursor, advancing by the number
   -- consumed. At or past the end the result is the empty buffer and the
@@ -166,26 +171,26 @@ module Data.StringIo where
   read-line-from b p = read-from b p (line-span b p)
 
   -- The shared read core, so `read` and `read-line` agree on the end
-  -- behaviour: the count clamps to what remains, and the cursor moves
-  -- by exactly what was read. The subtraction branch comes first so the
-  -- `if` is pinned to `Nat`: an unconstrained literal elaborates as
-  -- `Int` (D10), and a bare `0` in the other branch order makes the
-  -- whole `let` an `Int` (the binder's type is not yet known).
+  -- behaviour: the count clamps to what remains (nothing remains past
+  -- the end), and the cursor moves by exactly what was read.
   read-from :: Bytes -> Nat -> Nat -> (Bytes, StringIo)
   read-from b p n =
-    let len = bytes-len b in
-    let avail = if len > p then len - p else 0 in
-    let take = if n < avail then n else avail in
-    let out = bytes-new take in
-    let u = copy-into out b 0 p take in
-    (out, IoBuf b (p + take))
+    if p + n <= bytes-len b then read-span b p n
+    else if p <= bytes-len b then read-span b p (bytes-len b - p)
+    else (bytes-new 0, IoBuf b p)
+
+  -- The `k` bytes from `p`, which lie inside the buffer.
+  read-span :: using (p + k <= bytes-len b) => (b :: Bytes) -> (p :: Nat) -> (k :: Nat) -> (Bytes, StringIo)
+  read-span b p k =
+    let out = bytes-new k in
+    let u = copy-into out b 0 p k in
+    (out, IoBuf b (p + k))
 
   -- Bytes from the cursor through the next LF, inclusive; the whole
   -- remainder when no LF follows (the last line has no terminator).
   line-span :: Bytes -> Nat -> Nat
   line-span b p =
-    let len = bytes-len b in
-    if p >= len then 0
+    if p >= bytes-len b then 0
     else if bytes-get b p == 10 then 1
     else 1 + line-span b (p + 1)
 
@@ -212,8 +217,7 @@ module Data.StringIo where
 
   truncate-to :: Bytes -> Nat -> Nat -> StringIo
   truncate-to b p n =
-    let len = bytes-len b in
-    if n >= len then IoBuf b p
+    if n >= bytes-len b then IoBuf b p
     else
       let out = bytes-new n in
       let u = copy-into out b 0 0 n in

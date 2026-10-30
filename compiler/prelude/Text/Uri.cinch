@@ -256,9 +256,16 @@ module Text.Uri where
   uri-decode :: String -> Result UriError String
   uri-decode s = case dec-bytes (unpack s) Nil of
     None -> Err BadPercentEscape
-    Some rev-bytes -> case string-from-bytes (bytes-from-list (reverse rev-bytes)) of
+    Some rev-bytes -> case string-from-bytes (bytes-from-list (as-bytes (reverse rev-bytes))) of
       None -> Err BadUtf8
       Some out -> Ok out
+
+  -- The decoded values as bytes. Each is a UTF-8 byte or a two-digit hex
+  -- escape, so already below 256 and the `nat-rem` leaves it unchanged.
+  as-bytes :: List Nat -> List (InRange 0 255 Nat)
+  as-bytes bs = case bs of
+    Nil -> Nil
+    Cons b rest -> Cons (nat-rem b 256) (as-bytes rest)
 
   dec-bytes :: List Char -> List Nat -> Option (List Nat)
   dec-bytes cs acc = case cs of

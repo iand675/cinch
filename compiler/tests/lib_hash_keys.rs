@@ -89,11 +89,13 @@ const BYTES_KEYS: &str = r#"module Main where
     None -> True
     Some _ -> False
 
+  -- The key's middle byte is the index's residue (the index stays below
+  -- 256 here, so it is the index itself).
   key-a :: Nat -> Bytes
-  key-a i = bytes-from-list (Cons 7 (Cons i (Cons 1 Nil)))
+  key-a i = bytes-from-list (Cons 7 (Cons (nat-rem i 256) (Cons 1 Nil)))
 
   key-b :: Nat -> Bytes
-  key-b i = bytes-from-list (Cons 7 (Cons i (Cons 2 Nil)))
+  key-b i = bytes-from-list (Cons 7 (Cons (nat-rem i 256) (Cons 2 Nil)))
 
   coll-a :: Bytes
   coll-a = bytes-from-list (Cons 0 (Cons 31 Nil))
@@ -204,7 +206,7 @@ const STRING_KEYS: &str = r#"module Main where
     Cons p rest -> case p of
       (k, _) -> if hash k == hash (string-to-bytes k) then byte-agreement rest else False
 
-  str-of :: List Nat -> String
+  str-of :: List (InRange 0 255 Nat) -> String
   str-of xs = case string-from-bytes (bytes-from-list xs) of
     Some s -> s
     None -> empty-string
@@ -317,12 +319,12 @@ const NAME_INDEX: &str = r#"module Main where
   find-name :: String -> HashMap String Nat -> Int
   find-name n m = case hash-map-lookup n m of
     None -> 0 - 1
-    Some i -> int-from-i64 (nat-to-i64 i)
+    Some i -> nat-to-int i
 
   find-bytes :: Bytes -> HashMap Bytes Nat -> Int
   find-bytes n m = case hash-map-lookup n m of
     None -> 0 - 1
-    Some i -> int-from-i64 (nat-to-i64 i)
+    Some i -> nat-to-int i
 
   agree :: List (String, Nat) -> Bool
   agree ps = case ps of

@@ -186,6 +186,8 @@ pub fn emit_for(profile: &crate::core::TargetProfile, program: &Program) -> Resu
         "declare i64 @cinch_nat_from_decimal(ptr, i64)",
         "declare i64 @cinch_int_from_i64(i64)",
         "declare i64 @cinch_int_to_i64(i64)",
+        "declare i64 @cinch_int_from_nat(i64)",
+        "declare i64 @cinch_int_to_nat(i64)",
         "declare i64 @cinch_int_add(i64, i64)",
         "declare i64 @cinch_int_sub(i64, i64)",
         "declare i64 @cinch_int_mul(i64, i64)",
@@ -195,6 +197,9 @@ pub fn emit_for(profile: &crate::core::TargetProfile, program: &Program) -> Resu
         "declare i64 @cinch_int_cmp(i64, i64)",
         "declare i64 @cinch_int_from_decimal(ptr, i64)",
         "declare i64 @cinch_bytes_new(i64)",
+        // A `Nat` as a length or read count: bignums clamp to `i64::MAX`,
+        // so a request no allocation can hold is the heap `Exhausted` exit.
+        "declare i64 @cinch_nat_to_len(i64)",
         "declare i64 @cinch_bytes_len(i64)",
         "declare i64 @cinch_bytes_get(i64, i64)",
         "declare i64 @cinch_bytes_set(i64, i64, i64)",
@@ -2962,7 +2967,9 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
                     ret(b, &r);
                 }
                 DecodeAt => {
-                    let i = rt_call(b, "cinch_nat_to_i64", &["i64 %p1".to_string()]);
+                    // A clamped index past `i64` is past every buffer's
+                    // end, so it decodes as `None`.
+                    let i = rt_call(b, "cinch_nat_to_len", &["i64 %p1".to_string()]);
                     let n = rt_call(
                         b,
                         k.extern_name(),
@@ -3011,12 +3018,16 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
         Bytes(k) => {
             // The `Bytes` externs take machine counts, indices and byte
             // values; the intrinsic units convert `Nat` words through
-            // `cinch_nat_to_i64` and results back through `cinch_nat_from_i64`
-            // (a `Nat` outside `i64` range faults, exit 71).
+            // `cinch_nat_to_i64` and results back through `cinch_nat_from_i64`.
+            // Every index is below a buffer length (its obligation) and
+            // every byte value below 256 (its type), so those conversions
+            // never leave `i64` range; a length goes through
+            // `cinch_nat_to_len`, where a bignum is the heap `Exhausted`
+            // exit of an allocation that cannot be held.
             let args: Vec<String> = (0..op.arity()).map(|i| format!("i64 %p{i}")).collect();
             match k {
                 BytesOp::New => {
-                    let n = rt_call(b, "cinch_nat_to_i64", &[args[0].clone()]);
+                    let n = rt_call(b, "cinch_nat_to_len", &[args[0].clone()]);
                     let r = rt_call(b, k.extern_name(), &[format!("i64 {n}")]);
                     ret(b, &r);
                 }
@@ -3141,7 +3152,7 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
             use PlatformOp::*;
             match k {
                 RandomBytes => {
-                    let n = rt_call(b, "cinch_nat_to_i64", &["i64 %p0".to_string()]);
+                    let n = rt_call(b, "cinch_nat_to_len", &["i64 %p0".to_string()]);
                     let r = rt_call(b, k.extern_name(), &[format!("i64 {n}")]);
                     ret(b, &r);
                 }
@@ -3189,8 +3200,9 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
                 }
                 Read => {
                     // `(handle, max)`: the `Nat` cap crosses as an `i64`
-                    // (like the `Bytes` counts).
-                    let max = rt_call(b, "cinch_nat_to_i64", &["i64 %p1".to_string()]);
+                    // (like the `Bytes` counts, clamped by
+                    // `cinch_nat_to_len`).
+                    let max = rt_call(b, "cinch_nat_to_len", &["i64 %p1".to_string()]);
                     let r = rt_call(
                         b,
                         k.extern_name(),
@@ -3230,9 +3242,10 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
                     ret(b, &n);
                 }
                 Arg => {
-                    // The `Nat` index crosses as an `i64`; the result is
+                    // The `Nat` index crosses as an `i64` (it is below
+                    // the count by `raw-arg`'s obligation); the result is
                     // already a boxed `Bytes` word.
-                    let i = rt_call(b, "cinch_nat_to_i64", &["i64 %p0".to_string()]);
+                    let i = rt_call(b, "cinch_nat_to_len", &["i64 %p0".to_string()]);
                     let w = rt_call(b, k.extern_name(), &[format!("i64 {i}")]);
                     ret(b, &w);
                 }
@@ -3250,8 +3263,8 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
                 }
                 Read => {
                     // `(handle, which, max)`: the `Nat` cap crosses as an
-                    // `i64`.
-                    let max = rt_call(b, "cinch_nat_to_i64", &["i64 %p2".to_string()]);
+                    // `i64`, clamped by `cinch_nat_to_len`.
+                    let max = rt_call(b, "cinch_nat_to_len", &["i64 %p2".to_string()]);
                     let r = rt_call(
                         b,
                         k.extern_name(),
@@ -3310,8 +3323,9 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
                     });
                 }
                 Read => {
-                    // `(handle, max)`: the `Nat` cap crosses as an `i64`.
-                    let max = rt_call(b, "cinch_nat_to_i64", &["i64 %p1".to_string()]);
+                    // `(handle, max)`: the `Nat` cap crosses as an `i64`,
+                    // clamped by `cinch_nat_to_len`.
+                    let max = rt_call(b, "cinch_nat_to_len", &["i64 %p1".to_string()]);
                     let r = rt_call(
                         b,
                         k.extern_name(),
@@ -3334,9 +3348,10 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
                 }
                 Resize => {
                     // `(handle, cols, rows)`: the two `Nat` sizes cross as
-                    // `i64`.
-                    let cols = rt_call(b, "cinch_nat_to_i64", &["i64 %p1".to_string()]);
-                    let rows = rt_call(b, "cinch_nat_to_i64", &["i64 %p2".to_string()]);
+                    // `i64`, clamped by `cinch_nat_to_len`; the runtime
+                    // refuses a size past `u16` as a value.
+                    let cols = rt_call(b, "cinch_nat_to_len", &["i64 %p1".to_string()]);
+                    let rows = rt_call(b, "cinch_nat_to_len", &["i64 %p2".to_string()]);
                     let r = rt_call(
                         b,
                         k.extern_name(),
@@ -3456,14 +3471,16 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
                     ret(b, "0");
                 }
                 IoRead => {
-                    let n = rt_call(b, "cinch_nat_to_i64", &["i64 %p1".to_string()]);
+                    let n = rt_call(b, "cinch_nat_to_len", &["i64 %p1".to_string()]);
                     let r = rt_call(b, "cinch_io_read", &[format!("i64 {n}")]);
                     let none = b.reg();
                     b.line(&format!("{none} = icmp eq i64 {r}, 0"));
                     ret_option(b, reg, op, name, &none, |_| r.clone());
                 }
                 IoSleep => {
-                    let n = rt_call(b, "cinch_nat_to_i64", &["i64 %p1".to_string()]);
+                    // A clamped duration past `i64` milliseconds sleeps until
+                    // cancellation, as the exact one would.
+                    let n = rt_call(b, "cinch_nat_to_len", &["i64 %p1".to_string()]);
                     let _ = rt_call(b, &task_rt(cx, "io_sleep"), &[format!("i64 {n}")]);
                     ret(b, "0");
                 }

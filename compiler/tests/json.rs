@@ -339,7 +339,7 @@ const ROUND_TRIP_PROBE: &str = r#"module Main where
     Cons x rest -> if x == 0 then first-bad rest else x
 
   int-of :: Nat -> Int
-  int-of n = int-from-i64 (nat-to-i64 n)
+  int-of n = nat-to-int n
 
   -- Parse, print, parse again: the values agree and the second print
   -- is the first print byte for byte. A parse failure is `n + 50`.
@@ -427,7 +427,7 @@ const CANONICAL_PROBE: &str = r#"module Main where
     Cons x rest -> if x == 0 then first-bad rest else x
 
   int-of :: Nat -> Int
-  int-of n = int-from-i64 (nat-to-i64 n)
+  int-of n = nat-to-int n
 
   -- The pinned canonical rendering (sorted keys, stable numbers, no
   -- insignificant whitespace). A parse failure is `n + 50`.
@@ -543,7 +543,7 @@ const CODEC_PROBE: &str = r#"module Main where
     Cons x rest -> if x == 0 then first-bad rest else x
 
   int-of :: Nat -> Int
-  int-of n = int-from-i64 (nat-to-i64 n)
+  int-of n = nat-to-int n
 
   decode-i64 :: Json -> Result JsonDecodeError I64
   decode-i64 j = decode-json j
@@ -654,7 +654,7 @@ const ARGS_PROBE: &str = r#"module Main where
     Cons x rest -> if x == 0 then first-bad rest else x
 
   int-of :: Nat -> Int
-  int-of n = int-from-i64 (nat-to-i64 n)
+  int-of n = nat-to-int n
 
   err-is :: ArgsError -> ArgsError -> Bool
   err-is a b = case a of
@@ -921,7 +921,7 @@ const SCALING_PROBE: &str = r#"module Main where
   -- string escaping runs.
   item :: Nat -> Json
   item n =
-    let k = int-from-i64 (nat-to-i64 n) in
+    let k = nat-to-int n in
     JObj "name" (JStr "item") (JObj "id" (JNum k) (JObj "ok" (JBool True) (JObj "tags" (JArr (JStr "a\"b") (JArr (JNum k) JArrEnd)) JObjEnd)))
 
   items :: Nat -> Json -> Json

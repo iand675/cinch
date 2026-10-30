@@ -178,7 +178,7 @@ module Data.Date where
     let dd = int-add (int-sub doy (int-div (int-add (int-mul 153 mp) 2) 5)) 1 in
     let m = if mp < 10 then int-add mp 3 else int-sub mp 9 in
     let y = if m <= 2 then int-add (int-add yoe (int-mul era 400)) 1 else int-add yoe (int-mul era 400) in
-    Date y (int-to-nat m) (int-to-nat dd)
+    Date y (civil-field m) (civil-field dd)
 
   -- `n` days later (crossing month and year boundaries by construction).
   add-days :: Nat -> Date -> Date
@@ -203,13 +203,13 @@ module Data.Date where
   day-of-year :: Date -> Nat
   day-of-year x =
     let jan1 = Date (year x) 1 1 in
-    int-to-nat (int-add (diff-days jan1 x) 1)
+    civil-field (int-add (diff-days jan1 x) 1)
 
   -- The weekday, 0 for Sunday through 6 for Saturday (Ruby's `wday`).
   -- 1970-01-01 (day 0) is a Thursday, hence the +4; the modulo is
   -- floored so the pre-epoch days land in range too.
   day-of-week :: Date -> Nat
-  day-of-week x = int-to-nat (int-floor-mod (int-add (to-epoch-days x) 4) 7)
+  day-of-week x = int-mod-nat (int-add (to-epoch-days x) 4) 7
 
   -- -----------------------------------------------------------------
   -- ISO 8601 rendering and reading.
@@ -218,11 +218,17 @@ module Data.Date where
   -- `[-]YYYY-MM-DD`, the year zero padded to four digits (a wider year
   -- prints in full, a negative one carries the astronomical sign and
   -- its magnitude). The only rendering, per the refusals above.
+  -- `|y|` as a `Nat`. A named function so each branch checks against
+  -- the declared `Nat` (in a `let`, the `if` would take the first
+  -- branch's refined type and the other branch could not meet it).
+  int-magnitude :: Int -> Nat
+  int-magnitude y = if y < 0 then nat-from-int (0 - y) else nat-from-int y
+
   to-string :: Date -> String
   to-string x =
     let y = year x in
-    let mag = if y < 0 then int-neg y else y in
-    let ys = if mag < 10000 then digits-string 4 (int-to-nat mag) else int-to-string mag in
+    let mag = int-magnitude y in
+    let ys = if mag < 10000 then digits-string 4 mag else nat-to-string mag in
     let md = string-concat (digits-string 2 (month x)) (string-concat "-" (digits-string 2 (day x))) in
     if y < 0 then string-concat "-" (string-concat ys (string-concat "-" md))
     else string-concat ys (string-concat "-" md)
@@ -313,30 +319,25 @@ module Data.Date where
   -- Private plumbing.
   -- -----------------------------------------------------------------
 
-  -- Floored quotient and remainder (the decompositions above need a
-  -- non-negative remainder, and `int-div`/`int-rem` truncate toward
-  -- zero). The divisor is a `NonZero`, so each caller's numeral
-  -- divisor discharges at compile time.
+  -- Floored quotient (the decompositions above need it, and `int-div`
+  -- truncates toward zero; the floored remainder as a `Nat` is
+  -- `int-mod-nat`). The divisor is a `NonZero`, so each caller's
+  -- numeral divisor discharges at compile time.
   int-floor-div :: Int -> NonZero Int -> Int
   int-floor-div a b =
     let q = int-div a b in
     let r = int-rem a b in
     if r < 0 then int-sub q 1 else q
 
-  int-floor-mod :: Int -> NonZero Int -> Int
-  int-floor-mod a b =
-    let r = int-rem a b in
-    if r < 0 then int-add r (unrefine b) else r
-
-  -- `Nat` to `Int` and back through the shared value (the bignum words
-  -- are the same; only the machine width of the step bounds it, which
-  -- every call site here is far inside: day counts, month and day
-  -- fields, and epoch-day magnitudes within `I64`).
-  nat-to-int :: Nat -> Int
-  nat-to-int n = int-from-i64 (nat-to-i64 n)
-
-  int-to-nat :: Int -> Nat
-  int-to-nat n = nat-from-i64 (int-to-i64 n)
+  -- A civil field (month, day, day of year) as a `Nat`. The civil
+  -- algorithm keeps every field positive for every day count (Howard
+  -- Hinnant's derivation: the floored era split makes the day of the
+  -- era non-negative, and month and day follow from it), but the
+  -- discharge cannot follow its divisions, so the impossible negative
+  -- arm is written out and reads 0. `Nat`/`Int` otherwise convert
+  -- through `nat-to-int`/`nat-from-int` (Data.Nat), of any size.
+  civil-field :: Int -> Nat
+  civil-field v = if v < 0 then 0 else nat-from-int v
 
   -- `k` ASCII digits of `v`, zero padded. The caller bounds `v` below
   -- `10^k` (a month or day field, a four-digit year magnitude): a wider

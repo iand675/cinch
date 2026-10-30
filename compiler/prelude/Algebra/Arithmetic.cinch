@@ -17,7 +17,7 @@ module Algebra.Arithmetic where
   infixl 8 +, -
 
   export Add, (+), Sub, (-), Mul, (*), Neg, negate, Rem, (%), Div, (/)
-  export NonZero
+  export NonZero, InRange
 
   -- The divisor type, declared here because the `Div`/`Rem` classes
   -- and the `Nat`/`Int` homes (checked right after this module) name
@@ -28,6 +28,17 @@ module Algebra.Arithmetic where
   -- `NonZero Nat` IS its `Nat` at runtime, and a numeral decides its
   -- predicate at compile time.
   type NonZero a = refine (n :: a) with NonZero n
+
+  -- A range of a number, the result type of every operation whose
+  -- result lies in known bounds by construction (`u32-to-i64 :: U32 ->
+  -- InRange 0 4294967295 I64`, `bytes-get`'s `InRange 0 255 Nat`,
+  -- `char-code`'s `InRange 0 1114111 Nat`). The bounds are inclusive
+  -- index parameters, so the predicate is two comparisons the
+  -- difference-logic discharge reads directly: a let-bound result
+  -- carries `lo <= x && x <= hi` as a fact, an application in an
+  -- obligation carries it for its term, and where no range is demanded
+  -- the value is its number (`c - 48`, `nat-add c 1`).
+  type InRange (lo :: Int) (hi :: Int) a = refine (x :: a) with lo <= x && x <= hi
 
 
   signature Add a where

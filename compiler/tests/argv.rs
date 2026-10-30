@@ -79,7 +79,7 @@ module Main where
   main :: Unit ->{{IO r}} Int
   main u = with (io = newIO ()) in case process-args () of
     Err e -> 12
-    Ok got -> int-from-i64 (nat-to-i64 (verdict got expected-words 1))
+    Ok got -> nat-to-int (verdict got expected-words 1)
 "#
     )
 }

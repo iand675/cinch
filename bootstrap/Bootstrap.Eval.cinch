@@ -176,7 +176,7 @@ module Bootstrap.Eval where
       None -> acc
       Some c -> case digit-value c of
         None -> acc
-        Some d -> lit-int-digits s (i + 1) n (int-add (int-mul acc 10) (int-from-i64 (nat-to-i64 d)))
+        Some d -> lit-int-digits s (i + 1) n (int-add (int-mul acc 10) (nat-to-int d))
 
   -- A character literal holds its one character as text.
   string-first-char :: String -> Option Char

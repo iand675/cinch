@@ -86,15 +86,16 @@ module Main where
     k -> if k == n then 0 else 1
 
   -- 0 when the two buffers differ somewhere (the first difference is
-  -- enough); 1 when every byte agrees. A collision of two independent
-  -- 32-byte OS draws has probability 2^-256, so pinning the inequality
-  -- as an expectation is safe: it is not a plausible event in the life
-  -- of the universe, and a failure would mean the entropy source is not
-  -- entropy.
+  -- enough, and a length mismatch is one); 1 when every byte agrees. A
+  -- collision of two independent 32-byte OS draws has probability
+  -- 2^-256, so pinning the inequality as an expectation is safe: it is
+  -- not a plausible event in the life of the universe, and a failure
+  -- would mean the entropy source is not entropy.
   differ :: Bytes -> Bytes -> Nat -> Nat
-  differ a b i = case i == bytes-len a of
-    True -> 1
-    False -> case bytes-get a i == bytes-get b i of
+  differ a b i =
+    if i >= bytes-len a then (if i >= bytes-len b then 1 else 0)
+    else if i >= bytes-len b then 0
+    else case bytes-get a i == bytes-get b i of
       True -> differ a b (i + 1)
       False -> 0
 
@@ -295,10 +296,11 @@ module Main where
   hex-drawn u = case random-hex 8 of
     s -> all-hex (string-to-bytes s) 0 16
 
+  -- 0 when `b` is exactly `n` bytes, every one a lower-case hex digit.
   all-hex :: Bytes -> Nat -> Nat -> Nat
-  all-hex b i n = case i == n of
-    True -> if bytes-len b == n then 0 else 1
-    False -> case hex-byte (bytes-get b i) of
+  all-hex b i n =
+    if i >= bytes-len b then (if bytes-len b == n then 0 else 1)
+    else case hex-byte (bytes-get b i) of
       True -> all-hex b (i + 1) n
       False -> 1
 

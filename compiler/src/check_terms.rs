@@ -786,6 +786,24 @@ impl Checker {
                     }
                     ty = cod;
                 }
+                // A result refinement naming an argument states its fact
+                // over the argument's reading here, when that reading is
+                // an admissible fact term (a byte read or an effectful
+                // call could change under the fact): otherwise, and for a
+                // partial application, it drops to the container.
+                {
+                    let zty = self.uni.zonk(&ty);
+                    if Checker::has_positional_result(&zty) {
+                        let readings: Vec<Option<ITerm>> = args
+                            .iter()
+                            .map(|a| if self.fact_term_ok(env, a) { self.idx_of_term(a, env).ok() } else { None })
+                            .collect();
+                        let resolved = Checker::resolve_positional_result(&zty, &readings);
+                        if resolved != zty {
+                            ty = resolved;
+                        }
+                    }
+                }
                 // A signature's refinement obligations discharge at the
                 // call (the `Dec` evidence path); a method call's
                 // instance obligations record for the discharge after
@@ -1650,8 +1668,23 @@ impl Checker {
         inferred: &Ty,
         expected: &Ty,
     ) -> Result<()> {
-        let inf = self.uni.zonk(inferred);
+        let mut inf = self.uni.zonk(inferred);
         let exp = self.uni.zonk(expected);
+        // A comparison-refined value (a range of a number, or a relation
+        // like `bytes-len out == n`) is its container with a fact (see
+        // `unify_arg`): where the lattice table cannot weaken it to the
+        // expected refinement, it enters that refinement as its container
+        // does, by evidence, and its own predicate is one of the facts (a
+        // local's refined predicate, or an application's result
+        // refinement read by the discharge). `let m = mask-i64 x 255 in
+        // nat-from-i64 m` is an `InRange 0 255 Nat` this way.
+        if let (Some(iv), Some(ev)) = (self.refine_view(&inf), self.refine_view(&exp)) {
+            if Checker::is_comparison_refinement(&iv) && ev.base.is_some() && !pred_implies(&iv.pred, &ev.pred) {
+                if let Some(b) = iv.base {
+                    inf = b;
+                }
+            }
+        }
         if !matches!(inf, Ty::Meta(_)) && self.refine_view(&inf).is_none() {
             if let Some(RefineView { base: Some(base), pred, binder }) = self.refine_view(&exp) {
                 if self.uni.unify(&inf, &base).is_ok() {
@@ -2904,6 +2937,12 @@ impl Checker {
                 if v.module == "Data.Bytes" && v.name == "bytes-len" {
                     return true;
                 }
+                // A pure arithmetic intrinsic applied to all of its
+                // arguments (`u32-to-i64 c`, `bit-and-i64 x 255`,
+                // `nat-rem n 10`) is a value of its arguments alone.
+                if let ValueKind::Prim(op) = v.kind {
+                    return op.is_pure_arith() && args.len() == op.arity();
+                }
                 if !matches!(v.kind, ValueKind::TopFn) {
                     return false;
                 }
@@ -3267,6 +3306,35 @@ impl Checker {
             out.push(Fact { prop, at: now, names });
         }
         self.bind_facts(env, &out, now, span)
+    }
+
+    /// A definition's declared result as one row's body checks against
+    /// it: a result refinement naming parameter `i` (`refined (i <=
+    /// bytes-len out) Bytes`, stored with the positional `$a{i}`) states
+    /// its predicate over the name the row's pattern gives that
+    /// parameter. A parameter the row leaves unnamed (a constructor
+    /// pattern, a wildcard) stays positional, which no fact mentions, so
+    /// the promise is refused there rather than weakened.
+    fn row_result(&self, env: &Env, expected: &Ty) -> Ty {
+        let exp = self.uni.zonk(expected);
+        if self.result_params.is_empty() || !Checker::has_positional_result(&exp) {
+            return exp;
+        }
+        let Ty::Adt(n, targs) = &exp else { return exp };
+        let [Ty::Prp(p), base] = targs.as_slice() else { return exp };
+        let mut pred = p.subst(&crate::types::pred_binder(p), &ITerm::Var("$it".to_string()));
+        for (i, l) in self.result_params.iter().enumerate() {
+            let name = env
+                .locals
+                .iter()
+                .rev()
+                .map(|(n, _, _)| n)
+                .find(|n| env.lookup(n).is_some_and(|(x, _)| x == *l));
+            if let Some(name) = name {
+                pred = pred.subst(&format!("$a{i}"), &ITerm::Var(name.clone()));
+            }
+        }
+        Ty::Adt(n.clone(), vec![Ty::Prp(Box::new(pred)), base.clone()])
     }
 
     // ------------------------------------------------- dependent core (P7)
@@ -5518,6 +5586,15 @@ impl Checker {
             _ => {}
         }
         let (ty, ctx, val_args, ptys) = self.instantiate_at(&v.scheme);
+        // Used as a value, a function keeps its result refinements,
+        // including those naming its own arguments by position (they
+        // name the same function's arguments wherever the value goes, and
+        // a later application resolves them). A function flows into a
+        // function expectation covariantly in its result (`unify_arg`),
+        // so `map char-code cs` is a `List Nat`, `f :: Char -> InRange 0
+        // 1114111 Nat = char-code` keeps the range, and a result naming
+        // an argument weakens to its base wherever it lands on a type
+        // variable.
         // A function whose `using` context states refinement
         // obligations constrains its callers: it must be applied
         // directly (the obligations discharge at its call's arguments).
@@ -6623,7 +6700,8 @@ impl Checker {
                     let mut env = first.env.clone();
                     let facts = Self::branch_facts(&reading, &BranchKey::Bool(true));
                     s.bind_facts(&mut env, &facts, reading.end, gspan)?;
-                    s.check(&mut env, &first.body, expected)
+                    let exp = s.row_result(&env, expected);
+                    s.check(&mut env, &first.body, &exp)
                 })?;
                 // The refutation reaches the later rows whose names denote
                 // the same values as in this row (a later row's pattern
@@ -6660,7 +6738,8 @@ impl Checker {
                 self.note_use(*l, ctx_span, &[], &first.env.dicts)?;
             }
             let mut env = first.env.clone();
-            return self.check(&mut env, &first.body, expected);
+            let exp = self.row_result(&env, expected);
+            return self.check(&mut env, &first.body, &exp);
         }
         let col0 = cols[0].clone();
         let ty0 = self.uni.zonk(&types[0]);
@@ -6707,7 +6786,13 @@ impl Checker {
         let (borrow, inner_ty) = match &ty0 {
             Ty::Ref(r, inner) => (Some((r.clone(), false)), (**inner).clone()),
             Ty::Mut(r, inner) => (Some((r.clone(), true)), (**inner).clone()),
-            other => (None, other.clone()),
+            // A range-refined number matches as its number (literal
+            // rows over `bytes-len b`); its range stays a fact of the
+            // scrutinee.
+            other => match self.refine_view(other) {
+                Some(rv) if self.is_range_refinement(&rv) => (None, rv.base.clone().unwrap_or_else(|| other.clone())),
+                _ => (None, other.clone()),
+            },
         };
         let wrap = |t: &Ty| -> Ty {
             match &borrow {
@@ -8220,9 +8305,10 @@ impl Checker {
     fn cps(&mut self, env: &mut Env, term: &ast::Term, kv: &Cont) -> Result<ECore> {
         if !self.term_may_dispatch(term) {
             // No operation can fire here: ordinary evaluation, then flow.
+            // The value weakens into the continuation's type as any
+            // argument does (a refined result, a function's result).
             let (core, ty) = self.infer(env, term)?;
-            self.uni
-                .unify(&ty, &kv.ty)
+            self.unify_arg(&ty, &kv.ty)
                 .map_err(|m| Error::at(term.span(), m))?;
             return Ok(app_spine(ECore::Var(kv.kv), vec![core]));
         }
@@ -8367,9 +8453,12 @@ impl Checker {
                 // Leaves and lambdas: an operation inside a lambda body
                 // does not dispatch (the closure may run anywhere), so the
                 // ordinary elaboration is exact here.
+                // A function leaf weakens into its continuation's arrow
+                // covariantly in its result (`unify_arg`): the arrow was
+                // opened with the call site's result before this head
+                // elaborated.
                 let (core, ty) = self.infer(env, term)?;
-                self.uni
-                    .unify(&ty, &kv.ty)
+                self.unify_arg(&ty, &kv.ty)
                     .map_err(|m| Error::at(term.span(), m))?;
                 Ok(app_spine(ECore::Var(kv.kv), vec![core]))
             }
@@ -8427,6 +8516,17 @@ impl Checker {
     /// pair unifies exactly, so borrowed data is never claimed as owned
     /// and allocator identities never convert.
     fn unify_arg(&mut self, inferred: &Ty, expected: &Ty) -> std::result::Result<(), String> {
+        // A function flows into a function expectation covariantly in its
+        // result, so a refined result weakens exactly as a refined value
+        // does (`map char-code cs`, `f :: Char -> Nat = char-code`). The
+        // parameter and the effects unify exactly.
+        if let Ty::Fun(d, m, e, c) = self.uni.zonk(inferred) {
+            if Self::final_result_refined(self, &c) && matches!(self.uni.zonk(expected), Ty::Fun(..) | Ty::Meta(_)) {
+                let res = self.uni.fresh();
+                self.uni.unify(&Ty::Fun(d, m, e, Box::new(res.clone())), expected)?;
+                return self.unify_arg(&c, &res);
+            }
+        }
         // Weakening along the refinement lattice (refinement types
         // design, "narrowings and the implication theory"): a `refined
         // p` value IS a `refined q` value whenever the table derives `p
@@ -8446,6 +8546,27 @@ impl Checker {
                     "a `{}` value does not flow to `{}`: the implication table cannot derive `{}` implies `{}` (weakening is implicit and free where implication is decidable; strengthen with `narrow` and a `Dec`, or weaken by ascription to a point the table derives)",
                     inferred, expected, iv.pred, ev.pred
                 ));
+            }
+        }
+        // Weakening to the top of the lattice: a comparison refinement (a
+        // range of a number, `bytes-len out == n` of a buffer) is a fact
+        // about its container, never a carrier with instances of its own,
+        // so where no refinement is demanded it flows as the container at
+        // zero cost, into a plain expectation or an open one (a class
+        // method's carrier, `c - 48`, a tuple or list element):
+        // `nat-from-i64 (u32-to-i64 x)`, `nat-add (bytes-get b i) 1`, and
+        // `c + 1` is the `Nat` sum, not a value claimed in range. Other
+        // refinements (`NonEmpty`, `Sorted`) are no silent subtype of
+        // their container: they project through `unrefine`, and keep
+        // their point under an open expectation (`Some nz` stays an
+        // `Option (NonZero Nat)`). The fact a let-bound result carries
+        // stays in the local's type, where the evidence reads it.
+        if let Some(iv) = self.refine_view(inferred) {
+            let exp = self.uni.zonk(expected);
+            if self.refine_view(&exp).is_none() && Checker::is_comparison_refinement(&iv) {
+                if let Some(base) = &iv.base {
+                    return self.unify_arg(base, &exp);
+                }
             }
         }
         if let (
@@ -8518,8 +8639,12 @@ impl Checker {
                         .map_err(|m| Error::at(span, m))?;
                     ty = cod;
                 }
-                self.uni
-                    .unify(&ty, &kv.ty)
+                // A continuation-passing application has no argument
+                // readings, so a result conjunct naming an argument drops,
+                // and the result weakens into the continuation's type as
+                // any value does (`nat-to-int (char-code (poke ()))`).
+                let ty = Checker::strip_positional_results(&self.uni.zonk(&ty));
+                self.unify_arg(&ty, &kv.ty)
                     .map_err(|m| Error::at(span, m))?;
                 let mut core = ECore::Var(v_f);
                 for (l, _) in &done {

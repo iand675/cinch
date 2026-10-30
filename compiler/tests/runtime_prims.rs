@@ -105,7 +105,9 @@ module Main where
   import Data.String
   import Prims
 
-  digest-is-at :: Bytes -> List Nat -> Nat -> Bool
+  -- The scan index never passes the end: with `i /= bytes-len b` that
+  -- proves the read, and `i + 1` stays within the bound.
+  digest-is-at :: using (i <= bytes-len b) => (b :: Bytes) -> List Nat -> (i :: Nat) -> Bool
   digest-is-at b xs i = case xs of
     Nil -> i == bytes-len b
     Cons y ys -> case i == bytes-len b of
@@ -115,7 +117,7 @@ module Main where
   digest-is :: Bytes -> List Nat -> Bool
   digest-is b xs = digest-is-at b xs 0
 
-  aa-list :: Nat -> List Nat
+  aa-list :: Nat -> List (InRange 0 255 Nat)
   aa-list n = if n == 0 then Nil else Cons 170 (aa-list (n - 1))
 
   aa-key :: Nat -> Bytes
@@ -163,10 +165,12 @@ module Main where
   import Data.Bytes
   import Prims
 
-  differs-at :: Bytes -> Bytes -> Nat -> Bool
+  -- Buffers of different lengths differ; a scan index within both
+  -- lengths proves both reads.
+  differs-at :: using (i <= bytes-len a) => (a :: Bytes) -> (b :: Bytes) -> (i :: Nat) -> Bool
   differs-at a b i = case i == bytes-len a of
     True -> False
-    False -> if bytes-get a i == bytes-get b i then differs-at a b (i + 1) else True
+    False -> if i < bytes-len b then (if bytes-get a i == bytes-get b i then differs-at a b (i + 1) else True) else True
 
   main :: Int
   main =
@@ -318,7 +322,7 @@ module Main where
   is-digit :: Nat -> Bool
   is-digit c = if c >= 48 then c <= 57 else False
 
-  digits-nat :: Bytes -> Nat -> Nat -> Nat
+  digits-nat :: using (i <= bytes-len b) => (b :: Bytes) -> (i :: Nat) -> Nat -> Nat
   digits-nat b i acc = case i == bytes-len b of
     True -> acc
     False -> case is-digit (bytes-get b i) of
@@ -335,7 +339,9 @@ module Main where
   main u = with (io = newIO ()) in
     let pid = self-pid (path-from-string "/bin/sh") in
     let c1 = if pid > 0 then 0 else 1 in
-    let c2 = if signal-send (nat-to-i64 pid) 0 == 0 then 0 else 2 in
+    let c2 = case checked-nat-to-i64 pid of
+          Some p -> if signal-send p 0 == 0 then 0 else 2
+          None -> 2 in
     c1 + c2
 "#,
     );

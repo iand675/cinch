@@ -14,7 +14,9 @@ use std::fmt;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Error {
     /// A natural number was required but the input was negative
-    /// (`Nat::from_i64` on a negative literal).
+    /// (`Nat::from_i64` on a negative literal). At the extern "C" layer
+    /// it is a compiler-bug trap: `nat-from-i64` takes evidence that its
+    /// argument is non-negative.
     NegativeInput,
     /// `Nat` subtraction produced a negative result.
     NegativeResult,
@@ -22,7 +24,9 @@ pub enum Error {
     /// the extern "C" layer it is a compiler-bug trap, because every
     /// generated divisor is a `NonZero` by its type.
     DivByZero,
-    /// The value does not fit in an `i64`.
+    /// The value does not fit in an `i64`. At the extern "C" layer it is
+    /// a compiler-bug trap: every conversion to `I64` carries evidence
+    /// that its value is in range.
     OutOfRange,
     /// Decimal text is not a well-formed numeral.
     MalformedDecimal,
@@ -33,13 +37,22 @@ pub enum Error {
     /// `String`, so every interned name is valid UTF-8 and `sym-name` is
     /// total).
     MalformedName,
-    /// A byte-buffer index, length, or byte value was outside its allowed
-    /// range (`Error::OutOfBounds` from [`crate::bytes`]).
+    /// A byte-buffer index, range, length, or byte value was outside its
+    /// allowed range (`Error::OutOfBounds` from [`crate::bytes`]). At the
+    /// extern "C" layer it is a compiler-bug trap: every generated index
+    /// carries evidence that it is below the buffer's length, every copy
+    /// range evidence that it ends inside both buffers, and every byte
+    /// value is an `InRange 0 255 Nat` by its type.
     OutOfBounds,
     /// A write reached a read-only buffer (a string literal's constant
-    /// data-section backing): the runtime takes the defined fault
-    /// instead of writing to constant data.
+    /// data-section backing). At the extern "C" layer it is a
+    /// compiler-bug trap: the backing exists only inside a `String`, and
+    /// every conversion out of a `String` copies into a fresh heap buffer.
     ReadOnly,
+    /// Writing or flushing the program's standard output failed (a closed
+    /// pipe, a full device): an operating-system outcome the program
+    /// cannot rule out, so not a compiler-bug trap.
+    OutputFailed,
     /// An extern entry point received a null word or a word whose block kind
     /// does not match the entry point (corrupt generated code or data),
     /// including a quotation block or program stream that is malformed
@@ -78,19 +91,28 @@ impl Error {
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let msg = match self {
-            Error::NegativeInput => "natural number constructed from negative input",
+            Error::NegativeInput => {
+                "compiler bug: natural number constructed from negative input (`nat-from-i64` carries evidence that its argument is non-negative)"
+            }
             Error::NegativeResult => {
                 "compiler bug: natural subtraction below zero (every `a - b` at `Nat` carries evidence that `b <= a`)"
             }
             Error::DivByZero => {
                 "compiler bug: division or remainder by zero (every divisor is a `NonZero` by its type)"
             }
-            Error::OutOfRange => "value does not fit in i64",
+            Error::OutOfRange => {
+                "compiler bug: value does not fit in i64 (every conversion to `I64` carries evidence that its value is in range)"
+            }
             Error::MalformedDecimal => "malformed decimal numeral",
             Error::BufferTooSmall => "decimal buffer too small",
             Error::MalformedName => "symbol name is not valid UTF-8",
-            Error::OutOfBounds => "byte-buffer index, length, or byte value out of range",
-            Error::ReadOnly => "a read-only buffer cannot be mutated",
+            Error::OutOfBounds => {
+                "compiler bug: byte-buffer index, range or byte value out of range (every index and range carries evidence that it is inside the buffer, and every byte is an `InRange 0 255 Nat`)"
+            }
+            Error::ReadOnly => {
+                "compiler bug: a write reached a read-only buffer (a string literal's backing is never handed out as `Bytes`)"
+            }
+            Error::OutputFailed => "writing to standard output failed",
             Error::CorruptValue => "compiler bug: null or wrong-kind word or corrupt generated data",
             Error::BlackHole => {
                 "the quoted program faulted or a memo cell was demanded while evaluating"
@@ -137,11 +159,24 @@ mod tests {
             Error::MalformedDecimal,
             Error::BufferTooSmall,
             Error::OutOfBounds,
+            Error::ReadOnly,
+            Error::OutputFailed,
             Error::CorruptValue,
         ];
         for e in others {
             assert_eq!(e.exit_code(), 71, "{e:?} must exit through cinch_panic");
         }
+    }
+
+    #[test]
+    fn byte_buffer_bounds_and_read_only_are_compiler_bug_traps() {
+        for e in [Error::OutOfBounds, Error::ReadOnly] {
+            assert_eq!(e.exit_code(), 71);
+            assert!(e.to_string().starts_with("compiler bug:"), "{e:?}");
+        }
+        // A failed stdout write is the operating system's outcome, not
+        // an invariant the compiler guarantees.
+        assert!(!Error::OutputFailed.to_string().starts_with("compiler bug:"));
     }
 
     #[test]

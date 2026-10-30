@@ -102,7 +102,7 @@ fn intern_and_sym_name_round_trip_with_identity_across_the_boundary() {
         "sym-round-trip",
         r#"
 module Main where
-  name-of :: List Nat -> String
+  name-of :: List (InRange 0 255 Nat) -> String
   name-of xs = case string-from-bytes (bytes-from-list xs) of
     Some s -> s
     None -> empty-string
@@ -171,7 +171,7 @@ fn literal_patterns_dispatch_by_identity() {
         "sym-patterns",
         r#"
 module Main where
-  name-of :: List Nat -> String
+  name-of :: List (InRange 0 255 Nat) -> String
   name-of xs = case string-from-bytes (bytes-from-list xs) of
     Some s -> s
     None -> empty-string
@@ -267,7 +267,7 @@ fn char_and_symbol_spellings_type_apart() {
         "char-vs-sym",
         r#"
 module Main where
-  name-of :: List Nat -> String
+  name-of :: List (InRange 0 255 Nat) -> String
   name-of xs = case string-from-bytes (bytes-from-list xs) of
     Some s -> s
     None -> empty-string

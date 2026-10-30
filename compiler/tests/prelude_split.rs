@@ -250,6 +250,51 @@ const RESTATED: &[(&str, &str, &str)] = &[
         "scalar-to-simd",
     ),
     ("nat-sub", "Nat", "nat-sub 5 3"),
+    // The conversions that state the range they need are applied
+    // directly too, at an argument in range.
+    ("nat-from-i64", "Nat", "nat-from-i64 5"),
+    ("nat-to-i64", "I64", "nat-to-i64 5"),
+    ("int-to-i64", "I64", "int-to-i64 5"),
+    ("nat-from-int", "Nat", "nat-from-int 5"),
+    // A result refinement over another module's function renders that
+    // function qualified (`Data.Bytes.bytes-len`), which a probe module
+    // cannot name, so these probe at a call.
+    ("bytes-new", "Bytes", "bytes-new 3"),
+    (
+        "string-byte-index-from",
+        "Nat",
+        "let b = bytes-new 2 in string-byte-index-from b 0 1",
+    ),
+    // Names whose `using` context states refinement obligations must be
+    // applied directly, so each probes at a call whose obligations its own
+    // freshly made buffers discharge.
+    (
+        "bytes-get",
+        "InRange 0 255 Nat",
+        "let b = bytes-new 1 in bytes-get b 0",
+    ),
+    ("bytes-set", "Unit", "let b = bytes-new 1 in bytes-set b 0 7"),
+    (
+        "bytes-copy-range",
+        "Unit",
+        "let d = bytes-new 2 in let s = bytes-new 2 in bytes-copy-range d s 0 0 2",
+    ),
+    (
+        "copy-bytes-into",
+        "Unit",
+        "let d = bytes-new 2 in let s = bytes-new 2 in copy-bytes-into d s 0 0 2",
+    ),
+    (
+        "nat-digits-into",
+        "Unit",
+        "let b = bytes-new 2 in nat-digits-into b 0 42 2",
+    ),
+    ("utf8-cont", "Option Nat", "let b = bytes-new 2 in utf8-cont b 0 2 0"),
+    (
+        "utf8-encode-into",
+        "Nat",
+        "let b = bytes-new 4 in utf8-encode-into b 0 65",
+    ),
 ];
 
 /// One probe per surface name, keyed by the name's contract kind:
@@ -1051,7 +1096,7 @@ fn hash_consistency_and_hashmap_round_trips() {
     if n == 0 then True
     else
       let m = n - 1 in
-      let x = int-from-i64 (nat-to-i64 m) in
+      let x = nat-to-int m in
       if hash-agrees (int-add x (int-neg 7)) (int-sub x 7) then run-int m else False
 
   bool-char-string :: Bool
@@ -1209,14 +1254,21 @@ fn codec_round_trips_the_d65_set() {
     eq-opt (decode-bool (encode True)) (Some True) &&
     eq-opt (decode-bool (encode False)) (Some False)
 
+  -- Each encoding is bound once and its length checked before it is
+  -- indexed: the length is part of the format, and it proves the reads.
   format :: Bool
   format =
+    let w = encode (wrapping-shl-i64 1 56) in
+    let t = encode True in
+    let f = encode False in
     bytes-len (encode (1 :: I64)) == 8 &&
-    bytes-get (encode (wrapping-shl-i64 1 56)) 7 == 1 &&
-    bytes-get (encode (wrapping-shl-i64 1 56)) 0 == 0 &&
-    bytes-len (encode True) == 1 &&
-    bytes-get (encode True) 0 == 1 &&
-    bytes-get (encode False) 0 == 0
+    bytes-len w == 8 &&
+    bytes-get w 7 == 1 &&
+    bytes-get w 0 == 0 &&
+    bytes-len t == 1 &&
+    bytes-get t 0 == 1 &&
+    bytes-len f == 1 &&
+    bytes-get f 0 == 0
 
   malformed :: Bool
   malformed =

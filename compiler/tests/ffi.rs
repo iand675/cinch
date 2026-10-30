@@ -447,17 +447,13 @@ module Main where
 
 #[test]
 fn faulting_foreign_path_exits_without_unwinding() {
-    // The exported function faults inside the runtime (an out-of-bounds
-    // byte read): the process exits through the fault path (71), it never
-    // unwinds into the C caller.
-    let o = c_fixture(
-        "boom",
-        r#"
-extern long long fix_boom(void);
-int main(void) { fix_boom(); return 0; }
-"#,
-    );
-    expect_ok(
+    // This exported function used to fault inside the runtime with an
+    // out-of-bounds byte read. Bytes reads are now total by construction,
+    // so the same program is refused at compile time: the read's index
+    // obligation is not provable, and no faulting export is ever built.
+    // The fault-path exit across the boundary itself (71, no unwind into
+    // the C caller) stays covered by the non-null contract test below.
+    expect_err(
         "export-fault",
         r#"
 module Main where
@@ -466,8 +462,7 @@ module Main where
 
   foreign export ccall "fix_boom" boom :: Unit -> I64
 "#,
-        &[&o],
-        71,
+        "the obligation `5 < (Data.Bytes.bytes-len (Data.Bytes.bytes-new 1))`",
     );
 }
 

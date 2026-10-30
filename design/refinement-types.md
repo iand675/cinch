@@ -187,13 +187,81 @@ entails `1 <= n`. The fragment and what it reads:
   a mutable place's fact goes stale at a write (the proof's cited
   facts are the ones the staleness check reads, and of two equal facts
   the innermost is cited, so a re-test after a write is the fresh
-  one), and a refined local's own predicate (when it mentions only the
-  local) is one more fact.
+  one), and a refined local's own predicate is one more fact (it may
+  name other locals that are not rebound after it, `bytes-len out ==
+  n`, and its container need not be a number).
 
 Richer fragments (two-variable inequalities with arbitrary
 coefficients, Fourier-Motzkin, full Presburger `omega`) would cover
 `i + j < n` and `2 * i <= n`, at exponential worst-case search; no
 prelude obligation needs them yet.
+
+**Refined results (as built, 2026-10-30).** A result that lies in a
+known range by construction says so in its type, and the range is a
+fact wherever the value is used:
+
+- Spelling. `type InRange (lo :: Int) (hi :: Int) a = refine (x :: a)
+  with lo <= x && x <= hi` (in `Algebra.Arithmetic`, beside `NonZero`):
+  a refinement may take `Nat`/`Int` index parameters, and a named
+  refinement with index parameters is also a predicate over a value
+  (`InRange 0 255 r`), so the type and the predicate share one name.
+  The float refinements (`design/float-refinements.md`) reuse it. A
+  result may also name earlier arguments with the anonymous former:
+  `nat-rem :: Nat -> (d :: NonZero Nat) -> refined (r < d) Nat`,
+  `bytes-new :: (n :: Nat) -> refined (bytes-len out == n) Bytes`,
+  `nat-from-i64 :: using (0 <= x) => (x :: I64) -> refined (n == x)
+  Nat`. Such an arrow is not dependent: the container is the same for
+  every argument, so it stays a function arrow and the argument's name
+  becomes positional (`$a{i}`, as in a `using` obligation).
+- At a call. A direct application substitutes each named argument's
+  index reading where the argument is an admissible fact term (a byte
+  read or an effectful call could change under the fact); a conjunct
+  over an argument with no reading drops, the rest stay. A function
+  used as a value keeps its whole type, positional names included (they
+  name the same function's arguments wherever the value goes), and
+  flows into a function type covariantly in its result: at its own
+  refined type it keeps the result (`len :: Bytes -> InRange 0 ...
+  Nat = bytes-len`), at a plain type or a type variable (`map char-code
+  cs`) the result weakens to its container. A call elaborated in
+  continuation-passing style under a handler drops the conjuncts naming
+  arguments. Dropping only weakens, so no fact is ever assumed.
+- In the discharge. A let-bound result keeps its refined type, so its
+  predicate is a refined local's fact. An application inside an
+  obligation or a fact contributes its callee's result refinement over
+  that application (`0 <= u32-to-i64 c`); a predicate naming
+  arguments contributes only where each named argument is a numeral, a
+  local, arithmetic over them, a top-level constant or a pure
+  arithmetic intrinsic applied to them. Pure arithmetic intrinsics
+  (`Nat`/`Int` and machine integer operations and conversions) are
+  admissible fact terms.
+- Without friction. A refined value whose predicate is comparisons only
+  flows as its container into a plain expectation and into an open one
+  (a class method's carrier, a tuple or list element): a range or a
+  relation is a fact about its container, never a carrier with
+  instances of its own, so `c - 48`, `c + 1` and `nat-add c 1` need no
+  `unrefine` and `c + 1` is not claimed in range. Other refinements
+  (`NonEmpty`, `Sorted`) stay no silent subtype of their container:
+  they project through `unrefine` and keep their point under an open
+  expectation.
+  A comparison-refined value the lattice table cannot weaken to an
+  expected refinement enters it by evidence, its own predicate among
+  the facts, and a literal `case` over a range-refined scrutinee
+  matches its number.
+- A definition's own body checks against its result refinement with
+  each row's parameter names in place of the positional ones; a
+  parameter the row leaves unnamed stays positional, so that promise
+  is refused rather than weakened.
+- Trust. A compiler intrinsic's declaration may state only a result
+  refinement the intrinsic's promise entails (`prim_result_promise` in
+  `check_decls.rs`: total integer conversions keep the value and the
+  source's range, `charToU32` the scalar range, `bytesGet` a byte,
+  `bytesLen` an `i64` count, `bytesNew n` a buffer of length `n`, the
+  `Nat`/`Int`/`I64` conversions the value, `nat-rem` `r < d && r <=
+  n`, `nat-div` `q <= n`, comparisons `-1..1`, the integer bounds
+  their value, and `bitAnd x m` with `m >= 0` the range `[0, m]`). Of
+  the foreign symbols only the runtime's own `cinch_*` externs may
+  state a result refinement, and only where the runtime keeps it (the
+  clock readings, clamped to `0..=i64::MAX`).
 
 ## Partial weakening and `forget` (user direction, 2026-10-27)
 

@@ -60,7 +60,7 @@ const HELPERS: &str = r#"  same-str :: String -> String -> Bool
     if m == 0 then ""
     else if m == 1 then "alpha\n"
     else if m == 2 then string-concat "n=" (nat-to-string (k * 1000000000000))
-    else if m == 3 then string-concat "i=" (int-to-string (int-neg (int-from-i64 (nat-to-i64 (k * 9000000000)))))
+    else if m == 3 then string-concat "i=" (int-to-string (int-neg (nat-to-int (k * 9000000000))))
     else if m == 4 then non-ascii-char
     else if m == 5 then string-concat "\t" (string-concat (nat-to-string k) "\n")
     else string-repeat 3 "\u{e9}"
@@ -91,13 +91,14 @@ const HELPERS: &str = r#"  same-str :: String -> String -> Bool
   -- How many times byte `v` occurs in a string, by a TAIL scan over the bytes
   -- (never a materialized `List Char` or a per-index scalar scan: both would
   -- recurse or rescan on the scale document). O(n).
-  count-byte-from :: Nat -> Bytes -> Nat -> Nat -> Nat -> Nat
-  count-byte-from v b len i n = case i >= len of
-    True -> n
-    False -> if bytes-get b i == v then count-byte-from v b len (i + 1) (n + 1) else count-byte-from v b len (i + 1) n
+  count-byte-from :: Nat -> Bytes -> Nat -> Nat -> Nat
+  count-byte-from v b i n =
+    if i < bytes-len b then
+      (if bytes-get b i == v then count-byte-from v b (i + 1) (n + 1) else count-byte-from v b (i + 1) n)
+    else n
 
   count-byte :: Nat -> Bytes -> Nat
-  count-byte v b = count-byte-from v b (bytes-len b) 0 0
+  count-byte v b = count-byte-from v b 0 0
 
   -- The LF count of a string (byte 10 never occurs inside a multi-byte scalar).
   newline-count :: String -> Nat
@@ -274,7 +275,7 @@ fn structural_chunk_count_and_size() {
     expect_ok(
         "structural-renders-bytes",
         r#"  natint :: Builder
-  natint = builder-add-int (int-from-i64 (nat-to-i64 42)) (builder-add-int (int-neg (int-from-i64 (nat-to-i64 7))) (builder-add-nat 12345 builder-new))
+  natint = builder-add-int (nat-to-int 42) (builder-add-int (int-neg (nat-to-int 7)) (builder-add-nat 12345 builder-new))
 
   bytes-b :: Builder
   bytes-b = builder-add-bytes (bytes-from-list (Cons 104 (Cons 105 Nil))) builder-new

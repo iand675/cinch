@@ -300,9 +300,10 @@ pub enum NatOp {
     Rem,
     /// `natCmp a b` is the raw immediate -1, 0 or 1 (`Nat -> Nat -> I64`).
     Cmp,
-    /// `natFromI64`: a machine integer as a `Nat` word, faulting on a negative input.
+    /// `natFromI64`: a machine integer as a `Nat` word; the caller proves
+    /// it non-negative (a negative one is a compiler-bug trap).
     FromI64,
-    /// `natToI64`: value as a machine integer, faulting out of `i64` range.
+    /// `natToI64`: value as a machine integer; the caller proves it fits.
     ToI64,
 }
 
@@ -351,8 +352,14 @@ pub enum IntOp {
     Cmp,
     /// `intFromI64`: a machine integer as an `Int` word.
     FromI64,
-    /// `intToI64`: value as a machine integer, faulting out of `i64` range.
+    /// `intToI64`: value as a machine integer; the caller proves it fits.
     ToI64,
+    /// `intFromNat`: a `Nat` as the `Int` of the same value (total).
+    FromNat,
+    /// `intToNat`: a non-negative `Int` as the `Nat` of the same value
+    /// (the caller proves `0 <= x`; a negative one is a compiler-bug
+    /// trap).
+    ToNat,
 }
 
 impl IntOp {
@@ -367,6 +374,8 @@ impl IntOp {
             IntOp::Cmp => "Cmp",
             IntOp::FromI64 => "FromI64",
             IntOp::ToI64 => "ToI64",
+            IntOp::FromNat => "FromNat",
+            IntOp::ToNat => "ToNat",
         }
     }
 
@@ -382,6 +391,8 @@ impl IntOp {
             IntOp::Cmp => "cinch_int_cmp",
             IntOp::FromI64 => "cinch_int_from_i64",
             IntOp::ToI64 => "cinch_int_to_i64",
+            IntOp::FromNat => "cinch_int_from_nat",
+            IntOp::ToNat => "cinch_int_to_nat",
         }
     }
 }
@@ -1047,6 +1058,8 @@ impl PrimOp {
                 "intCmp" => Int(IntOp::Cmp),
                 "intFromI64" => Int(IntOp::FromI64),
                 "intToI64" => Int(IntOp::ToI64),
+                "intFromNat" => Int(IntOp::FromNat),
+                "intToNat" => Int(IntOp::ToNat),
                 "bytesNew" => Bytes(BytesOp::New),
                 "bytesLen" => Bytes(BytesOp::Len),
                 "bytesGet" => Bytes(BytesOp::Get),
@@ -1178,12 +1191,28 @@ impl PrimOp {
         format!("cinch.prim.{n}")
     }
 
+    /// A deterministic function of its integer arguments alone: the
+    /// `Nat`/`Int` operations and the machine integer operations and
+    /// conversions. Two applications to the same arguments denote the
+    /// same value, so such an application may be the subject of a fact
+    /// (every other intrinsic reads a buffer, the platform or the
+    /// clock, or is a float operation whose comparisons give no facts).
+    pub fn is_pure_arith(self) -> bool {
+        use PrimOp::*;
+        match self {
+            Nat(_) | Int(_) | CharToU32 | Bound { .. } | Arith { .. } | Neg { .. } | Shift { .. }
+            | Rotate { .. } | Bit { .. } | BitNot { .. } | BitScan { .. } | Cmp { .. } => true,
+            Conv { from, to, .. } => !from.is_float() && !to.is_float(),
+            _ => false,
+        }
+    }
+
     pub fn arity(self) -> usize {
         use PrimOp::*;
         match self {
             Bound { .. } => 0,
             Nat(NatOp::FromI64 | NatOp::ToI64)
-            | Int(IntOp::FromI64 | IntOp::ToI64 | IntOp::Neg)
+            | Int(IntOp::FromI64 | IntOp::ToI64 | IntOp::Neg | IntOp::FromNat | IntOp::ToNat)
             | Bytes(BytesOp::New | BytesOp::Len)
             | Utf8(Utf8Op::Validate | Utf8Op::CountChars | Utf8Op::Encode)
             | Text(
@@ -1252,6 +1281,8 @@ impl PrimOp {
             Int(IntOp::Cmp) => (vec![Ty::Int, Ty::Int], i64t),
             Int(IntOp::FromI64) => (vec![i64t], Ty::Int),
             Int(IntOp::ToI64) => (vec![Ty::Int], i64t),
+            Int(IntOp::FromNat) => (vec![Ty::Nat], Ty::Int),
+            Int(IntOp::ToNat) => (vec![Ty::Int], Ty::Nat),
             Bytes(BytesOp::New) => (vec![Ty::Nat], Ty::Bytes),
             Bytes(BytesOp::Len) => (vec![Ty::Bytes], Ty::Nat),
             Bytes(BytesOp::Get) => (vec![Ty::Bytes, Ty::Nat], Ty::Nat),
@@ -4825,6 +4856,13 @@ fn fold_prim(op: PrimOp, args: &[Core], ctors: &FoldCtors) -> Option<Core> {
                 IntOp::ToI64 => {
                     let v = bs[0].1.to_i64()?;
                     Some(Core::Int(v))
+                }
+                IntOp::FromNat => Some(Core::ConstBig { nat: false, digits: bs[0].1.to_dec() }),
+                IntOp::ToNat => {
+                    if bs[0].1.neg {
+                        return None;
+                    }
+                    Some(Core::ConstBig { nat: true, digits: bs[0].1.to_dec() })
                 }
             }
         }

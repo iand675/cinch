@@ -200,13 +200,13 @@ module Text.Toml where
   -- One byte at the cursor, or `None` at end of input.
   peek-b :: St -> Option Nat
   peek-b s =
-    if nat-ge (st-off s) (bytes-len (st-src s)) then None
+    if st-off s >= bytes-len (st-src s) then None
     else Some (bytes-get (st-src s) (st-off s))
 
   -- One byte at `k` bytes ahead (lookahead without consuming).
   byte-at :: St -> Nat -> Option Nat
   byte-at s k =
-    if nat-ge (st-off s + k) (bytes-len (st-src s)) then None
+    if st-off s + k >= bytes-len (st-src s) then None
     else Some (bytes-get (st-src s) (st-off s + k))
 
   is-byte :: St -> Nat -> Nat -> Bool
@@ -217,7 +217,7 @@ module Text.Toml where
   advance1 :: St -> St
   advance1 s = case s of
     St b off ln ->
-      if nat-ge off (bytes-len b) then s
+      if off >= bytes-len b then s
       else
         if nat-eq (bytes-get b off) 10 then St b (off + 1) (ln + 1)
         else St b (off + 1) ln
@@ -325,13 +325,14 @@ module Text.Toml where
   -- Keys: bare, basic-string, literal-string, dotted.
   -- ---------------------------------------------------------------------------
 
-  scan-bare-key :: St -> St -> List Nat -> Result TomlError (String, St)
+  scan-bare-key :: St -> St -> List (InRange 0 255 Nat) -> Result TomlError (String, St)
   scan-bare-key start s acc = case peek-b s of
-    Some c -> if is-bare-key-char c then scan-bare-key start (advance1 s) (Cons c acc)
+    -- `c` is a byte the cursor read, so the `nat-rem` leaves it unchanged.
+    Some c -> if is-bare-key-char c then scan-bare-key start (advance1 s) (Cons (nat-rem c 256) acc)
       else finish-bare-key start s acc
     None -> finish-bare-key start s acc
 
-  finish-bare-key :: St -> St -> List Nat -> Result TomlError (String, St)
+  finish-bare-key :: St -> St -> List (InRange 0 255 Nat) -> Result TomlError (String, St)
   finish-bare-key start s acc =
     if is-empty acc then Err (TomlSyntax (st-line start) "expected a key")
     else Ok (bytes-to-string (bytes-from-list (reverse acc)), s)
@@ -938,7 +939,7 @@ module Text.Toml where
   radix-to-int :: Nat -> List Nat -> Int -> Int
   radix-to-int base ds acc = case ds of
     Nil -> acc
-    Cons d rest -> radix-to-int base rest (int-add (int-mul acc (int-from-i64 (nat-to-i64 base))) (int-from-i64 (nat-to-i64 d)))
+    Cons d rest -> radix-to-int base rest (int-add (int-mul acc (nat-to-int base)) (nat-to-int d))
 
   int-from-digits :: Nat -> List Nat -> Int
   int-from-digits sg ids =
@@ -948,19 +949,26 @@ module Text.Toml where
   digits-to-int :: List Nat -> Int -> Int
   digits-to-int ds acc = case ds of
     Nil -> acc
-    Cons c rest -> digits-to-int rest (int-add (int-mul acc (int-from-i64 10)) (int-sub (int-from-i64 (nat-to-i64 c)) (int-from-i64 48)))
+    Cons c rest -> digits-to-int rest (int-add (int-mul acc (int-from-i64 10)) (int-sub (nat-to-int c) (int-from-i64 48)))
 
   -- The cleaned decimal spelling for the runtime conversion: sign,
   -- integer digits, optional `.` fraction, optional exponent.
-  float-codes :: Nat -> List Nat -> List Nat -> Nat -> List Nat -> List Nat
+  float-codes :: Nat -> List Nat -> List Nat -> Nat -> List Nat -> List (InRange 0 255 Nat)
   float-codes sg ids fds esg eds =
     (sign-code sg)
-      <> ((reverse ids)
-        <> ((if is-empty fds then Nil else Cons 46 (reverse fds))
-          <> (if is-empty eds then Nil else Cons 101 ((sign-code esg) <> (reverse eds)))))
+      <> ((digit-bytes (reverse ids))
+        <> ((if is-empty fds then Nil else Cons 46 (digit-bytes (reverse fds)))
+          <> (if is-empty eds then Nil else Cons 101 ((sign-code esg) <> (digit-bytes (reverse eds))))))
 
-  sign-code :: Nat -> List Nat
+  sign-code :: Nat -> List (InRange 0 255 Nat)
   sign-code sg = if nat-eq sg 2 then Cons 45 Nil else Nil
+
+  -- Collected digit codes as bytes: each is an ASCII digit the cursor
+  -- read, so the `nat-rem` leaves it unchanged.
+  digit-bytes :: List Nat -> List (InRange 0 255 Nat)
+  digit-bytes ds = case ds of
+    Nil -> Nil
+    Cons d rest -> Cons (nat-rem d 256) (digit-bytes rest)
 
   -- `inf`/`nan` (with an optional sign) become the runtime float the
   -- decimal conversion stands for (`str::parse` accepts these).
@@ -983,7 +991,7 @@ module Text.Toml where
 
   consume-word :: St -> Bytes -> Nat -> Result TomlError St
   consume-word s b i =
-    if nat-ge i (bytes-len b) then Ok s
+    if i >= bytes-len b then Ok s
     else case peek-b s of
       Some c -> if nat-eq c (bytes-get b i) then consume-word (advance1 s) b (i + 1)
         else Err (TomlSyntax (st-line s) "unexpected keyword")

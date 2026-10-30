@@ -58,9 +58,10 @@
 -- worst case is a bound just above a power of 256, where 129 of the 256
 -- values of a one-byte region are accepted), so the expected number of
 -- draws is below two. `bound = 1` has `w = 0`: no bytes are drawn and
--- the answer is 0. `bytes-to-nat` reads the draw
--- big-endian, which is what makes `v` uniform over `0 .. 256^w - 1` (the
--- byte order only fixes the numeric value, not its distribution).
+-- the answer is 0. `bytes-to-nat` reads the whole draw (exactly `w`
+-- bytes) big-endian, which is what makes `v` uniform over `0 .. 256^w
+-- - 1` (the byte order only fixes the numeric value, not its
+-- distribution).
 --
 -- Named refusals (boundaries this module deliberately does not cross):
 --   seeding, and reproducibility: there is no seed argument, no
@@ -174,7 +175,7 @@ module Effect.Random where
   random-nat :: forall r. using (io :: Io r) => Unit ->{IO r} Nat
   random-nat u =
     let b = random-bytes 8 in
-    bytes-to-nat b 0 8 0
+    bytes-to-nat b 0 0
 
   -- A uniform value below `bound`: rejection sampling over
   -- `byte-width bound` bytes, in the acceptance region the header
@@ -207,7 +208,7 @@ module Effect.Random where
   hex-of-bytes :: Bytes -> String
   hex-of-bytes b =
     let out = bytes-new (2 * bytes-len b) in
-    let u = hex-fill out b 0 (bytes-len b) in
+    let u = hex-fill out b 0 in
     case string-from-bytes out of
       Some s -> s
       None -> empty-string
@@ -223,7 +224,7 @@ module Effect.Random where
   -- the reduction's divisor, so it arrives already proven non-zero.
   draw-below :: forall r. using (io :: Io r) => NonZero Nat -> Nat ->{IO r} Result RandomError Nat
   draw-below bound w =
-    let v = bytes-to-nat (random-bytes w) 0 w 0 in
+    let v = bytes-to-nat (random-bytes w) 0 0 in
     let top = nat-pow 256 w in
     -- `top - top % bound`, the largest multiple of `bound` not above
     -- `top`, written as that multiple (the same number, no subtraction).
@@ -232,13 +233,17 @@ module Effect.Random where
       True -> Ok (nat-rem v bound)
       False -> draw-below bound w
 
-  -- The first `n` bytes of `b` as one big-endian `Nat` (the first byte is
-  -- the most significant): the standard reading, and the one that makes a
-  -- fresh draw uniform over `0 .. 256^n - 1`.
-  bytes-to-nat :: Bytes -> Nat -> Nat -> Nat -> Nat
-  bytes-to-nat b i n acc = case i == n of
-    True -> acc
-    False -> bytes-to-nat b (i + 1) n (nat-add (nat-mul acc 256) (bytes-get b i))
+  -- The bytes of `b` from `i` on as one big-endian `Nat` (the first byte
+  -- is the most significant): the standard reading, and the one that
+  -- makes a fresh draw uniform over `0 .. 256^n - 1`. Every caller hands
+  -- it a fresh draw, whose length is exactly the width asked for, so
+  -- reading to the buffer's end is reading the draw; the intrinsic's
+  -- pinned `Nat -> Bytes` signature cannot state that length, and the
+  -- buffer's own length is the bound each read proves.
+  bytes-to-nat :: Bytes -> Nat -> Nat -> Nat
+  bytes-to-nat b i acc = case i < bytes-len b of
+    False -> acc
+    True -> bytes-to-nat b (i + 1) (nat-add (nat-mul acc 256) (bytes-get b i))
 
   -- `base ^ k` (the only power this module needs: the byte width's
   -- region).
@@ -254,17 +259,22 @@ module Effect.Random where
     True -> w
     False -> byte-width bound (w + 1)
 
-  -- The hex digits of `b`'s first `n` bytes into `out`, two per byte.
-  hex-fill :: Bytes -> Bytes -> Nat -> Nat -> Unit
-  hex-fill out b i n = case i == n of
-    True -> ()
-    False ->
+  -- The hex digits of `b`'s bytes from `i` on into `out`, two per byte.
+  -- `out` holds two bytes for each of `b`'s (the caller sizes it so, and
+  -- that is the obligation), so byte `i` of `b` lands at `2 * i` and
+  -- `2 * i + 1`, both inside `out`.
+  hex-fill :: using (2 * bytes-len b <= bytes-len out) => (out :: Bytes) -> (b :: Bytes) -> (i :: Nat) -> Unit
+  hex-fill out b i = case i < bytes-len b of
+    False -> ()
+    True ->
       let v = bytes-get b i in
-      let hi = bytes-set out (2 * i) (hex-digit (nat-div v 16)) in
+      -- `v` is a byte, so `v / 16` is already below 16 and the `rem 16`
+      -- leaves it unchanged; it is the range `hex-digit` reads.
+      let hi = bytes-set out (2 * i) (hex-digit (nat-rem (nat-div v 16) 16)) in
       let lo = bytes-set out (2 * i + 1) (hex-digit (nat-rem v 16)) in
-      hex-fill out b (i + 1) n
+      hex-fill out b (i + 1)
 
   -- One hex digit's ASCII byte: `0`..`9` (48..57) then `a`..`f`
   -- (97..102), lower case.
-  hex-digit :: Nat -> Nat
+  hex-digit :: using (d < 16) => (d :: Nat) -> InRange 0 255 Nat
   hex-digit d = if d < 10 then 48 + d else 87 + d

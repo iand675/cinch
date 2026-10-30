@@ -157,14 +157,13 @@ fn join_all_or_cancel_cancels_siblings_on_failure() {
         "cancel-sibling",
         r#"
 module Main where
-  setByte :: Bytes -> Nat -> Nat -> Bytes
-  setByte b i v = case bytes-set b i v of
+  -- One-byte buffer: binding `bytes-new 1` gives `bytes-len b == 1`,
+  -- which proves index 0; the value is typed as a byte.
+  fill :: InRange 0 255 Nat -> Bytes
+  fill v = let b = bytes-new 1 in case bytes-set b 0 v of
     _ -> b
 
-  fill :: Nat -> Bytes
-  fill v = setByte (bytes-new 1) 0 v
-
-  putByte :: forall r. using (io :: Io r) => Nat ->{IO r} Unit
+  putByte :: forall r. using (io :: Io r) => InRange 0 255 Nat ->{IO r} Unit
   putByte v = ioWrite (fill v)
 
   -- A long-running task: cancellation is observed at a defined point

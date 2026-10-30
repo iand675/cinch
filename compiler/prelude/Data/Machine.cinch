@@ -28,8 +28,10 @@ module Data.Machine where
   import Data.Ordering
   import Text.Codec
   import Data.Option
+  import Algebra.Arithmetic
 
   export f64-to-decimal, f64-from-decimal
+  export mask-i64, u8-to-nat, u16-to-nat, u32-to-nat, i64-le-byte
 
   export abs-f32, abs-f64, add-f32, add-f64, bit-and-i16, bit-and-i32, bit-and-i64, bit-and-i8, bit-and-isize, bit-and-u16, bit-and-u32, bit-and-u64, bit-and-u8, bit-and-usize, bit-not-i16, bit-not-i32, bit-not-i64, bit-not-i8, bit-not-isize, bit-not-u16, bit-not-u32, bit-not-u64, bit-not-u8, bit-not-usize, bit-or-i16, bit-or-i32, bit-or-i64, bit-or-i8, bit-or-isize, bit-or-u16, bit-or-u32, bit-or-u64, bit-or-u8, bit-or-usize, bit-xor-i16, bit-xor-i32, bit-xor-i64, bit-xor-i8, bit-xor-isize, bit-xor-u16, bit-xor-u32, bit-xor-u64, bit-xor-u8, bit-xor-usize, checked-add-i16, checked-add-i32, checked-add-i64, checked-add-i8, checked-add-isize, checked-add-u16, checked-add-u32, checked-add-u64, checked-add-u8, checked-add-usize, checked-div-i16, checked-div-i32, checked-div-i64, checked-div-i8, checked-div-isize, checked-div-u16, checked-div-u32, checked-div-u64, checked-div-u8, checked-div-usize, checked-f32-to-i16, checked-f32-to-i32, checked-f32-to-i64, checked-f32-to-i8, checked-f32-to-isize, checked-f32-to-u16, checked-f32-to-u32, checked-f32-to-u64, checked-f32-to-u8, checked-f32-to-usize, checked-f64-to-i16, checked-f64-to-i32, checked-f64-to-i64, checked-f64-to-i8, checked-f64-to-isize, checked-f64-to-u16, checked-f64-to-u32, checked-f64-to-u64, checked-f64-to-u8, checked-f64-to-usize, checked-i16-to-i16, checked-i16-to-i32, checked-i16-to-i64, checked-i16-to-i8, checked-i16-to-isize, checked-i16-to-u16, checked-i16-to-u32, checked-i16-to-u64, checked-i16-to-u8, checked-i16-to-usize, checked-i32-to-i16, checked-i32-to-i32, checked-i32-to-i64, checked-i32-to-i8, checked-i32-to-isize, checked-i32-to-u16, checked-i32-to-u32, checked-i32-to-u64, checked-i32-to-u8, checked-i32-to-usize, checked-i64-to-i16, checked-i64-to-i32, checked-i64-to-i64, checked-i64-to-i8, checked-i64-to-isize, checked-i64-to-u16, checked-i64-to-u32, checked-i64-to-u64, checked-i64-to-u8, checked-i64-to-usize, checked-i8-to-i16, checked-i8-to-i32, checked-i8-to-i64, checked-i8-to-i8, checked-i8-to-isize, checked-i8-to-u16, checked-i8-to-u32, checked-i8-to-u64, checked-i8-to-u8, checked-i8-to-usize, checked-isize-to-i16, checked-isize-to-i32, checked-isize-to-i64, checked-isize-to-i8, checked-isize-to-isize, checked-isize-to-u16, checked-isize-to-u32, checked-isize-to-u64, checked-isize-to-u8, checked-isize-to-usize, checked-mul-i16, checked-mul-i32, checked-mul-i64, checked-mul-i8, checked-mul-isize, checked-mul-u16, checked-mul-u32, checked-mul-u64, checked-mul-u8, checked-mul-usize, checked-neg-i16, checked-neg-i32, checked-neg-i64, checked-neg-i8, checked-neg-isize, checked-neg-u16, checked-neg-u32, checked-neg-u64, checked-neg-u8, checked-neg-usize, checked-rem-i16, checked-rem-i32, checked-rem-i64, checked-rem-i8, checked-rem-isize, checked-rem-u16, checked-rem-u32, checked-rem-u64, checked-rem-u8, checked-rem-usize, checked-shl-i16, checked-shl-i32, checked-shl-i64, checked-shl-i8, checked-shl-isize, checked-shl-u16, checked-shl-u32, checked-shl-u64, checked-shl-u8, checked-shl-usize, checked-shr-i16, checked-shr-i32, checked-shr-i64, checked-shr-i8, checked-shr-isize, checked-shr-u16, checked-shr-u32, checked-shr-u64, checked-shr-u8, checked-shr-usize, checked-sub-i16, checked-sub-i32, checked-sub-i64, checked-sub-i8, checked-sub-isize, checked-sub-u16, checked-sub-u32, checked-sub-u64, checked-sub-u8, checked-sub-usize, checked-u16-to-i16, checked-u16-to-i32, checked-u16-to-i64, checked-u16-to-i8, checked-u16-to-isize, checked-u16-to-u16, checked-u16-to-u32, checked-u16-to-u64, checked-u16-to-u8, checked-u16-to-usize, checked-u32-to-i16, checked-u32-to-i32, checked-u32-to-i64, checked-u32-to-i8, checked-u32-to-isize, checked-u32-to-u16, checked-u32-to-u32, checked-u32-to-u64, checked-u32-to-u8, checked-u32-to-usize, checked-u64-to-i16, checked-u64-to-i32, checked-u64-to-i64, checked-u64-to-i8, checked-u64-to-isize, checked-u64-to-u16, checked-u64-to-u32, checked-u64-to-u64, checked-u64-to-u8, checked-u64-to-usize, checked-u8-to-i16, checked-u8-to-i32, checked-u8-to-i64, checked-u8-to-i8, checked-u8-to-isize, checked-u8-to-u16, checked-u8-to-u32, checked-u8-to-u64, checked-u8-to-u8, checked-u8-to-usize, checked-usize-to-i16, checked-usize-to-i32, checked-usize-to-i64, checked-usize-to-i8, checked-usize-to-isize, checked-usize-to-u16, checked-usize-to-u32, checked-usize-to-u64, checked-usize-to-u8, checked-usize-to-usize, count-ones-i16, count-ones-i32, count-ones-i64, count-ones-i8, count-ones-isize, count-ones-u16, count-ones-u32, count-ones-u64, count-ones-u8, count-ones-usize, div-f32, div-f64, eq-i16, eq-i32, eq-i64, eq-i8, eq-isize, eq-u16, eq-u32, eq-u64, eq-u8, eq-usize, f32-to-f32, f32-to-f64, f64-to-f32, f64-to-f64, feq-f32, feq-f64, fge-f32, fge-f64, fgt-f32, fgt-f64, fle-f32, fle-f64, flt-f32, flt-f64, fne-f32, fne-f64, ge-i16, ge-i32, ge-i64, ge-i8, ge-isize, ge-u16, ge-u32, ge-u64, ge-u8, ge-usize, gt-i16, gt-i32, gt-i64, gt-i8, gt-isize, gt-u16, gt-u32, gt-u64, gt-u8, gt-usize, i16-to-f32, i16-to-f64, i16-to-i16, i16-to-i32, i16-to-i64, i16-to-isize, i32-to-f32, i32-to-f64, i32-to-i32, i32-to-i64, i32-to-isize, i64-to-f32, i64-to-f64, i64-to-i64, i64-to-isize, i8-to-f32, i8-to-f64, i8-to-i16, i8-to-i32, i8-to-i64, i8-to-i8, i8-to-isize, is-finite-f32, is-finite-f64, is-infinite-f32, is-infinite-f64, is-na-nf32, is-na-nf64, is-normal-f32, is-normal-f64, isize-to-f32, isize-to-f64, isize-to-i64, isize-to-isize, le-i16, le-i32, le-i64, le-i8, le-isize, le-u16, le-u32, le-u64, le-u8, le-usize, leading-zeros-i16, leading-zeros-i32, leading-zeros-i64, leading-zeros-i8, leading-zeros-isize, leading-zeros-u16, leading-zeros-u32, leading-zeros-u64, leading-zeros-u8, leading-zeros-usize, lt-i16, lt-i32, lt-i64, lt-i8, lt-isize, lt-u16, lt-u32, lt-u64, lt-u8, lt-usize, max-bound-i16, max-bound-i32, max-bound-i64, max-bound-i8, max-bound-isize, max-bound-u16, max-bound-u32, max-bound-u64, max-bound-u8, max-bound-usize, maximum-f32, maximum-f64, min-bound-i16, min-bound-i32, min-bound-i64, min-bound-i8, min-bound-isize, min-bound-u16, min-bound-u32, min-bound-u64, min-bound-u8, min-bound-usize, minimum-f32, minimum-f64, mul-f32, mul-f64, ne-i16, ne-i32, ne-i64, ne-i8, ne-isize, ne-u16, ne-u32, ne-u64, ne-u8, ne-usize, neg-f32, neg-f64, reverse-bits-i16, reverse-bits-i32, reverse-bits-i64, reverse-bits-i8, reverse-bits-isize, reverse-bits-u16, reverse-bits-u32, reverse-bits-u64, reverse-bits-u8, reverse-bits-usize, rotate-left-i16, rotate-left-i32, rotate-left-i64, rotate-left-i8, rotate-left-isize, rotate-left-u16, rotate-left-u32, rotate-left-u64, rotate-left-u8, rotate-left-usize, rotate-right-i16, rotate-right-i32, rotate-right-i64, rotate-right-i8, rotate-right-isize, rotate-right-u16, rotate-right-u32, rotate-right-u64, rotate-right-u8, rotate-right-usize, saturating-add-i16, saturating-add-i32, saturating-add-i64, saturating-add-i8, saturating-add-isize, saturating-add-u16, saturating-add-u32, saturating-add-u64, saturating-add-u8, saturating-add-usize, saturating-f32-to-i16, saturating-f32-to-i32, saturating-f32-to-i64, saturating-f32-to-i8, saturating-f32-to-isize, saturating-f32-to-u16, saturating-f32-to-u32, saturating-f32-to-u64, saturating-f32-to-u8, saturating-f32-to-usize, saturating-f64-to-i16, saturating-f64-to-i32, saturating-f64-to-i64, saturating-f64-to-i8, saturating-f64-to-isize, saturating-f64-to-u16, saturating-f64-to-u32, saturating-f64-to-u64, saturating-f64-to-u8, saturating-f64-to-usize, saturating-i16-to-i16, saturating-i16-to-i32, saturating-i16-to-i64, saturating-i16-to-i8, saturating-i16-to-isize, saturating-i16-to-u16, saturating-i16-to-u32, saturating-i16-to-u64, saturating-i16-to-u8, saturating-i16-to-usize, saturating-i32-to-i16, saturating-i32-to-i32, saturating-i32-to-i64, saturating-i32-to-i8, saturating-i32-to-isize, saturating-i32-to-u16, saturating-i32-to-u32, saturating-i32-to-u64, saturating-i32-to-u8, saturating-i32-to-usize, saturating-i64-to-i16, saturating-i64-to-i32, saturating-i64-to-i64, saturating-i64-to-i8, saturating-i64-to-isize, saturating-i64-to-u16, saturating-i64-to-u32, saturating-i64-to-u64, saturating-i64-to-u8, saturating-i64-to-usize, saturating-i8-to-i16, saturating-i8-to-i32, saturating-i8-to-i64, saturating-i8-to-i8, saturating-i8-to-isize, saturating-i8-to-u16, saturating-i8-to-u32, saturating-i8-to-u64, saturating-i8-to-u8, saturating-i8-to-usize, saturating-isize-to-i16, saturating-isize-to-i32, saturating-isize-to-i64, saturating-isize-to-i8, saturating-isize-to-isize, saturating-isize-to-u16, saturating-isize-to-u32, saturating-isize-to-u64, saturating-isize-to-u8, saturating-isize-to-usize, saturating-mul-i16, saturating-mul-i32, saturating-mul-i64, saturating-mul-i8, saturating-mul-isize, saturating-mul-u16, saturating-mul-u32, saturating-mul-u64, saturating-mul-u8, saturating-mul-usize, saturating-neg-i16, saturating-neg-i32, saturating-neg-i64, saturating-neg-i8, saturating-neg-isize, saturating-neg-u16, saturating-neg-u32, saturating-neg-u64, saturating-neg-u8, saturating-neg-usize, saturating-sub-i16, saturating-sub-i32, saturating-sub-i64, saturating-sub-i8, saturating-sub-isize, saturating-sub-u16, saturating-sub-u32, saturating-sub-u64, saturating-sub-u8, saturating-sub-usize, saturating-u16-to-i16, saturating-u16-to-i32, saturating-u16-to-i64, saturating-u16-to-i8, saturating-u16-to-isize, saturating-u16-to-u16, saturating-u16-to-u32, saturating-u16-to-u64, saturating-u16-to-u8, saturating-u16-to-usize, saturating-u32-to-i16, saturating-u32-to-i32, saturating-u32-to-i64, saturating-u32-to-i8, saturating-u32-to-isize, saturating-u32-to-u16, saturating-u32-to-u32, saturating-u32-to-u64, saturating-u32-to-u8, saturating-u32-to-usize, saturating-u64-to-i16, saturating-u64-to-i32, saturating-u64-to-i64, saturating-u64-to-i8, saturating-u64-to-isize, saturating-u64-to-u16, saturating-u64-to-u32, saturating-u64-to-u64, saturating-u64-to-u8, saturating-u64-to-usize, saturating-u8-to-i16, saturating-u8-to-i32, saturating-u8-to-i64, saturating-u8-to-i8, saturating-u8-to-isize, saturating-u8-to-u16, saturating-u8-to-u32, saturating-u8-to-u64, saturating-u8-to-u8, saturating-u8-to-usize, saturating-usize-to-i16, saturating-usize-to-i32, saturating-usize-to-i64, saturating-usize-to-i8, saturating-usize-to-isize, saturating-usize-to-u16, saturating-usize-to-u32, saturating-usize-to-u64, saturating-usize-to-u8, saturating-usize-to-usize, sign-bit-f32, sign-bit-f64, sqrt-f32, sqrt-f64, sub-f32, sub-f64, swap-bytes-i16, swap-bytes-i32, swap-bytes-i64, swap-bytes-i8, swap-bytes-isize, swap-bytes-u16, swap-bytes-u32, swap-bytes-u64, swap-bytes-u8, swap-bytes-usize, total-order-f32, total-order-f64, trailing-zeros-i16, trailing-zeros-i32, trailing-zeros-i64, trailing-zeros-i8, trailing-zeros-isize, trailing-zeros-u16, trailing-zeros-u32, trailing-zeros-u64, trailing-zeros-u8, trailing-zeros-usize, u16-to-f32, u16-to-f64, u16-to-i32, u16-to-i64, u16-to-isize, u16-to-u16, u16-to-u32, u16-to-u64, u16-to-usize, u32-to-f32, u32-to-f64, u32-to-i64, u32-to-isize, u32-to-u32, u32-to-u64, u32-to-usize, u64-to-f32, u64-to-f64, u64-to-u64, u64-to-usize, u8-to-f32, u8-to-f64, u8-to-i16, u8-to-i32, u8-to-i64, u8-to-isize, u8-to-u16, u8-to-u32, u8-to-u64, u8-to-u8, u8-to-usize, usize-to-f32, usize-to-f64, usize-to-u64, usize-to-usize, wrapping-add-i16, wrapping-add-i32, wrapping-add-i64, wrapping-add-i8, wrapping-add-isize, wrapping-add-u16, wrapping-add-u32, wrapping-add-u64, wrapping-add-u8, wrapping-add-usize, wrapping-i16-to-i16, wrapping-i16-to-i32, wrapping-i16-to-i64, wrapping-i16-to-i8, wrapping-i16-to-isize, wrapping-i16-to-u16, wrapping-i16-to-u32, wrapping-i16-to-u64, wrapping-i16-to-u8, wrapping-i16-to-usize, wrapping-i32-to-i16, wrapping-i32-to-i32, wrapping-i32-to-i64, wrapping-i32-to-i8, wrapping-i32-to-isize, wrapping-i32-to-u16, wrapping-i32-to-u32, wrapping-i32-to-u64, wrapping-i32-to-u8, wrapping-i32-to-usize, wrapping-i64-to-i16, wrapping-i64-to-i32, wrapping-i64-to-i64, wrapping-i64-to-i8, wrapping-i64-to-isize, wrapping-i64-to-u16, wrapping-i64-to-u32, wrapping-i64-to-u64, wrapping-i64-to-u8, wrapping-i64-to-usize, wrapping-i8-to-i16, wrapping-i8-to-i32, wrapping-i8-to-i64, wrapping-i8-to-i8, wrapping-i8-to-isize, wrapping-i8-to-u16, wrapping-i8-to-u32, wrapping-i8-to-u64, wrapping-i8-to-u8, wrapping-i8-to-usize, wrapping-isize-to-i16, wrapping-isize-to-i32, wrapping-isize-to-i64, wrapping-isize-to-i8, wrapping-isize-to-isize, wrapping-isize-to-u16, wrapping-isize-to-u32, wrapping-isize-to-u64, wrapping-isize-to-u8, wrapping-isize-to-usize, wrapping-mul-i16, wrapping-mul-i32, wrapping-mul-i64, wrapping-mul-i8, wrapping-mul-isize, wrapping-mul-u16, wrapping-mul-u32, wrapping-mul-u64, wrapping-mul-u8, wrapping-mul-usize, wrapping-neg-i16, wrapping-neg-i32, wrapping-neg-i64, wrapping-neg-i8, wrapping-neg-isize, wrapping-neg-u16, wrapping-neg-u32, wrapping-neg-u64, wrapping-neg-u8, wrapping-neg-usize, wrapping-shl-i16, wrapping-shl-i32, wrapping-shl-i64, wrapping-shl-i8, wrapping-shl-isize, wrapping-shl-u16, wrapping-shl-u32, wrapping-shl-u64, wrapping-shl-u8, wrapping-shl-usize, wrapping-shr-i16, wrapping-shr-i32, wrapping-shr-i64, wrapping-shr-i8, wrapping-shr-isize, wrapping-shr-u16, wrapping-shr-u32, wrapping-shr-u64, wrapping-shr-u8, wrapping-shr-usize, wrapping-sub-i16, wrapping-sub-i32, wrapping-sub-i64, wrapping-sub-i8, wrapping-sub-isize, wrapping-sub-u16, wrapping-sub-u32, wrapping-sub-u64, wrapping-sub-u8, wrapping-sub-usize, wrapping-u16-to-i16, wrapping-u16-to-i32, wrapping-u16-to-i64, wrapping-u16-to-i8, wrapping-u16-to-isize, wrapping-u16-to-u16, wrapping-u16-to-u32, wrapping-u16-to-u64, wrapping-u16-to-u8, wrapping-u16-to-usize, wrapping-u32-to-i16, wrapping-u32-to-i32, wrapping-u32-to-i64, wrapping-u32-to-i8, wrapping-u32-to-isize, wrapping-u32-to-u16, wrapping-u32-to-u32, wrapping-u32-to-u64, wrapping-u32-to-u8, wrapping-u32-to-usize, wrapping-u64-to-i16, wrapping-u64-to-i32, wrapping-u64-to-i64, wrapping-u64-to-i8, wrapping-u64-to-isize, wrapping-u64-to-u16, wrapping-u64-to-u32, wrapping-u64-to-u64, wrapping-u64-to-u8, wrapping-u64-to-usize, wrapping-u8-to-i16, wrapping-u8-to-i32, wrapping-u8-to-i64, wrapping-u8-to-i8, wrapping-u8-to-isize, wrapping-u8-to-u16, wrapping-u8-to-u32, wrapping-u8-to-u64, wrapping-u8-to-u8, wrapping-u8-to-usize, wrapping-usize-to-i16, wrapping-usize-to-i32, wrapping-usize-to-i64, wrapping-usize-to-i8, wrapping-usize-to-isize, wrapping-usize-to-u16, wrapping-usize-to-u32, wrapping-usize-to-u64, wrapping-usize-to-u8, wrapping-usize-to-usize, zero-u32
 
@@ -43,8 +45,10 @@ module Data.Machine where
   -- single result type and cannot express which family is meant.
 
   -- I8 (8 bits).
-  foreign import ccall "cinch.prim.minBoundI8" min-bound-i8 :: I8
-  foreign import ccall "cinch.prim.maxBoundI8" max-bound-i8 :: I8
+  -- A bound states its value, so `nat-from-i64 max-bound-i64` and the
+  -- like discharge their range with nothing written.
+  foreign import ccall "cinch.prim.minBoundI8" min-bound-i8 :: refined (r == -128) I8
+  foreign import ccall "cinch.prim.maxBoundI8" max-bound-i8 :: refined (r == 127) I8
   foreign import ccall "cinch.prim.checkedAddI8" checked-add-i8 :: I8 -> I8 -> Option I8
   foreign import ccall "cinch.prim.checkedSubI8" checked-sub-i8 :: I8 -> I8 -> Option I8
   foreign import ccall "cinch.prim.checkedMulI8" checked-mul-i8 :: I8 -> I8 -> Option I8
@@ -82,8 +86,8 @@ module Data.Machine where
   foreign import ccall "cinch.prim.geI8" ge-i8 :: I8 -> I8 -> Bool
 
   -- I16 (16 bits).
-  foreign import ccall "cinch.prim.minBoundI16" min-bound-i16 :: I16
-  foreign import ccall "cinch.prim.maxBoundI16" max-bound-i16 :: I16
+  foreign import ccall "cinch.prim.minBoundI16" min-bound-i16 :: refined (r == -32768) I16
+  foreign import ccall "cinch.prim.maxBoundI16" max-bound-i16 :: refined (r == 32767) I16
   foreign import ccall "cinch.prim.checkedAddI16" checked-add-i16 :: I16 -> I16 -> Option I16
   foreign import ccall "cinch.prim.checkedSubI16" checked-sub-i16 :: I16 -> I16 -> Option I16
   foreign import ccall "cinch.prim.checkedMulI16" checked-mul-i16 :: I16 -> I16 -> Option I16
@@ -121,8 +125,8 @@ module Data.Machine where
   foreign import ccall "cinch.prim.geI16" ge-i16 :: I16 -> I16 -> Bool
 
   -- I32 (32 bits).
-  foreign import ccall "cinch.prim.minBoundI32" min-bound-i32 :: I32
-  foreign import ccall "cinch.prim.maxBoundI32" max-bound-i32 :: I32
+  foreign import ccall "cinch.prim.minBoundI32" min-bound-i32 :: refined (r == -2147483648) I32
+  foreign import ccall "cinch.prim.maxBoundI32" max-bound-i32 :: refined (r == 2147483647) I32
   foreign import ccall "cinch.prim.checkedAddI32" checked-add-i32 :: I32 -> I32 -> Option I32
   foreign import ccall "cinch.prim.checkedSubI32" checked-sub-i32 :: I32 -> I32 -> Option I32
   foreign import ccall "cinch.prim.checkedMulI32" checked-mul-i32 :: I32 -> I32 -> Option I32
@@ -160,8 +164,8 @@ module Data.Machine where
   foreign import ccall "cinch.prim.geI32" ge-i32 :: I32 -> I32 -> Bool
 
   -- I64 (64 bits).
-  foreign import ccall "cinch.prim.minBoundI64" min-bound-i64 :: I64
-  foreign import ccall "cinch.prim.maxBoundI64" max-bound-i64 :: I64
+  foreign import ccall "cinch.prim.minBoundI64" min-bound-i64 :: refined (r == -9223372036854775808) I64
+  foreign import ccall "cinch.prim.maxBoundI64" max-bound-i64 :: refined (r == 9223372036854775807) I64
   foreign import ccall "cinch.prim.checkedAddI64" checked-add-i64 :: I64 -> I64 -> Option I64
   foreign import ccall "cinch.prim.checkedSubI64" checked-sub-i64 :: I64 -> I64 -> Option I64
   foreign import ccall "cinch.prim.checkedMulI64" checked-mul-i64 :: I64 -> I64 -> Option I64
@@ -199,8 +203,8 @@ module Data.Machine where
   foreign import ccall "cinch.prim.geI64" ge-i64 :: I64 -> I64 -> Bool
 
   -- U8 (8 bits).
-  foreign import ccall "cinch.prim.minBoundU8" min-bound-u8 :: U8
-  foreign import ccall "cinch.prim.maxBoundU8" max-bound-u8 :: U8
+  foreign import ccall "cinch.prim.minBoundU8" min-bound-u8 :: refined (r == 0) U8
+  foreign import ccall "cinch.prim.maxBoundU8" max-bound-u8 :: refined (r == 255) U8
   foreign import ccall "cinch.prim.checkedAddU8" checked-add-u8 :: U8 -> U8 -> Option U8
   foreign import ccall "cinch.prim.checkedSubU8" checked-sub-u8 :: U8 -> U8 -> Option U8
   foreign import ccall "cinch.prim.checkedMulU8" checked-mul-u8 :: U8 -> U8 -> Option U8
@@ -238,8 +242,8 @@ module Data.Machine where
   foreign import ccall "cinch.prim.geU8" ge-u8 :: U8 -> U8 -> Bool
 
   -- U16 (16 bits).
-  foreign import ccall "cinch.prim.minBoundU16" min-bound-u16 :: U16
-  foreign import ccall "cinch.prim.maxBoundU16" max-bound-u16 :: U16
+  foreign import ccall "cinch.prim.minBoundU16" min-bound-u16 :: refined (r == 0) U16
+  foreign import ccall "cinch.prim.maxBoundU16" max-bound-u16 :: refined (r == 65535) U16
   foreign import ccall "cinch.prim.checkedAddU16" checked-add-u16 :: U16 -> U16 -> Option U16
   foreign import ccall "cinch.prim.checkedSubU16" checked-sub-u16 :: U16 -> U16 -> Option U16
   foreign import ccall "cinch.prim.checkedMulU16" checked-mul-u16 :: U16 -> U16 -> Option U16
@@ -277,8 +281,8 @@ module Data.Machine where
   foreign import ccall "cinch.prim.geU16" ge-u16 :: U16 -> U16 -> Bool
 
   -- U32 (32 bits).
-  foreign import ccall "cinch.prim.minBoundU32" min-bound-u32 :: U32
-  foreign import ccall "cinch.prim.maxBoundU32" max-bound-u32 :: U32
+  foreign import ccall "cinch.prim.minBoundU32" min-bound-u32 :: refined (r == 0) U32
+  foreign import ccall "cinch.prim.maxBoundU32" max-bound-u32 :: refined (r == 4294967295) U32
   foreign import ccall "cinch.prim.checkedAddU32" checked-add-u32 :: U32 -> U32 -> Option U32
   foreign import ccall "cinch.prim.checkedSubU32" checked-sub-u32 :: U32 -> U32 -> Option U32
   foreign import ccall "cinch.prim.checkedMulU32" checked-mul-u32 :: U32 -> U32 -> Option U32
@@ -316,8 +320,8 @@ module Data.Machine where
   foreign import ccall "cinch.prim.geU32" ge-u32 :: U32 -> U32 -> Bool
 
   -- U64 (64 bits).
-  foreign import ccall "cinch.prim.minBoundU64" min-bound-u64 :: U64
-  foreign import ccall "cinch.prim.maxBoundU64" max-bound-u64 :: U64
+  foreign import ccall "cinch.prim.minBoundU64" min-bound-u64 :: refined (r == 0) U64
+  foreign import ccall "cinch.prim.maxBoundU64" max-bound-u64 :: refined (r == 18446744073709551615) U64
   foreign import ccall "cinch.prim.checkedAddU64" checked-add-u64 :: U64 -> U64 -> Option U64
   foreign import ccall "cinch.prim.checkedSubU64" checked-sub-u64 :: U64 -> U64 -> Option U64
   foreign import ccall "cinch.prim.checkedMulU64" checked-mul-u64 :: U64 -> U64 -> Option U64
@@ -489,48 +493,54 @@ module Data.Machine where
   -- for integer-to-float and float-to-float, which round per IEEE 754.
   -- `checked` returns Option (None on NaN and out-of-range floats),
   -- `saturating` clamps (NaN maps to zero), `wrapping` truncates in
-  -- two's complement and is defined between integer types only.
+  -- two's complement and is defined between integer types only. A
+  -- total integer conversion's result is its source's value: it states
+  -- that (`r == x`, a fact over the argument wherever the argument has
+  -- a reading) and the source's range (`InRange 0 255 r` for a `U8`,
+  -- which holds even where it has none), so a converted byte is a
+  -- non-negative `I64` for `nat-from-i64` and below 256 wherever that
+  -- matters.
 
   foreign import ccall "cinch.prim.i8ToI8" i8-to-i8 :: I8 -> I8
-  foreign import ccall "cinch.prim.i8ToI16" i8-to-i16 :: I8 -> I16
-  foreign import ccall "cinch.prim.i8ToI32" i8-to-i32 :: I8 -> I32
-  foreign import ccall "cinch.prim.i8ToI64" i8-to-i64 :: I8 -> I64
-  foreign import ccall "cinch.prim.i8ToIsize" i8-to-isize :: I8 -> Isize
+  foreign import ccall "cinch.prim.i8ToI16" i8-to-i16 :: (x :: I8) -> refined (InRange (-128) 127 r && r == x) I16
+  foreign import ccall "cinch.prim.i8ToI32" i8-to-i32 :: (x :: I8) -> refined (InRange (-128) 127 r && r == x) I32
+  foreign import ccall "cinch.prim.i8ToI64" i8-to-i64 :: (x :: I8) -> refined (InRange (-128) 127 r && r == x) I64
+  foreign import ccall "cinch.prim.i8ToIsize" i8-to-isize :: (x :: I8) -> refined (InRange (-128) 127 r && r == x) Isize
   foreign import ccall "cinch.prim.i16ToI16" i16-to-i16 :: I16 -> I16
-  foreign import ccall "cinch.prim.i16ToI32" i16-to-i32 :: I16 -> I32
-  foreign import ccall "cinch.prim.i16ToI64" i16-to-i64 :: I16 -> I64
-  foreign import ccall "cinch.prim.i16ToIsize" i16-to-isize :: I16 -> Isize
+  foreign import ccall "cinch.prim.i16ToI32" i16-to-i32 :: (x :: I16) -> refined (InRange (-32768) 32767 r && r == x) I32
+  foreign import ccall "cinch.prim.i16ToI64" i16-to-i64 :: (x :: I16) -> refined (InRange (-32768) 32767 r && r == x) I64
+  foreign import ccall "cinch.prim.i16ToIsize" i16-to-isize :: (x :: I16) -> refined (InRange (-32768) 32767 r && r == x) Isize
   foreign import ccall "cinch.prim.i32ToI32" i32-to-i32 :: I32 -> I32
-  foreign import ccall "cinch.prim.i32ToI64" i32-to-i64 :: I32 -> I64
-  foreign import ccall "cinch.prim.i32ToIsize" i32-to-isize :: I32 -> Isize
+  foreign import ccall "cinch.prim.i32ToI64" i32-to-i64 :: (x :: I32) -> refined (InRange (-2147483648) 2147483647 r && r == x) I64
+  foreign import ccall "cinch.prim.i32ToIsize" i32-to-isize :: (x :: I32) -> refined (InRange (-2147483648) 2147483647 r && r == x) Isize
   foreign import ccall "cinch.prim.i64ToI64" i64-to-i64 :: I64 -> I64
-  foreign import ccall "cinch.prim.i64ToIsize" i64-to-isize :: I64 -> Isize
-  foreign import ccall "cinch.prim.u8ToI16" u8-to-i16 :: U8 -> I16
-  foreign import ccall "cinch.prim.u8ToI32" u8-to-i32 :: U8 -> I32
-  foreign import ccall "cinch.prim.u8ToI64" u8-to-i64 :: U8 -> I64
+  foreign import ccall "cinch.prim.i64ToIsize" i64-to-isize :: (x :: I64) -> refined (r == x) Isize
+  foreign import ccall "cinch.prim.u8ToI16" u8-to-i16 :: (x :: U8) -> refined (InRange 0 255 r && r == x) I16
+  foreign import ccall "cinch.prim.u8ToI32" u8-to-i32 :: (x :: U8) -> refined (InRange 0 255 r && r == x) I32
+  foreign import ccall "cinch.prim.u8ToI64" u8-to-i64 :: (x :: U8) -> refined (InRange 0 255 r && r == x) I64
   foreign import ccall "cinch.prim.u8ToU8" u8-to-u8 :: U8 -> U8
-  foreign import ccall "cinch.prim.u8ToU16" u8-to-u16 :: U8 -> U16
-  foreign import ccall "cinch.prim.u8ToU32" u8-to-u32 :: U8 -> U32
-  foreign import ccall "cinch.prim.u8ToU64" u8-to-u64 :: U8 -> U64
-  foreign import ccall "cinch.prim.u8ToUsize" u8-to-usize :: U8 -> Usize
-  foreign import ccall "cinch.prim.u8ToIsize" u8-to-isize :: U8 -> Isize
-  foreign import ccall "cinch.prim.u16ToI32" u16-to-i32 :: U16 -> I32
-  foreign import ccall "cinch.prim.u16ToI64" u16-to-i64 :: U16 -> I64
+  foreign import ccall "cinch.prim.u8ToU16" u8-to-u16 :: (x :: U8) -> refined (InRange 0 255 r && r == x) U16
+  foreign import ccall "cinch.prim.u8ToU32" u8-to-u32 :: (x :: U8) -> refined (InRange 0 255 r && r == x) U32
+  foreign import ccall "cinch.prim.u8ToU64" u8-to-u64 :: (x :: U8) -> refined (InRange 0 255 r && r == x) U64
+  foreign import ccall "cinch.prim.u8ToUsize" u8-to-usize :: (x :: U8) -> refined (InRange 0 255 r && r == x) Usize
+  foreign import ccall "cinch.prim.u8ToIsize" u8-to-isize :: (x :: U8) -> refined (InRange 0 255 r && r == x) Isize
+  foreign import ccall "cinch.prim.u16ToI32" u16-to-i32 :: (x :: U16) -> refined (InRange 0 65535 r && r == x) I32
+  foreign import ccall "cinch.prim.u16ToI64" u16-to-i64 :: (x :: U16) -> refined (InRange 0 65535 r && r == x) I64
   foreign import ccall "cinch.prim.u16ToU16" u16-to-u16 :: U16 -> U16
-  foreign import ccall "cinch.prim.u16ToU32" u16-to-u32 :: U16 -> U32
-  foreign import ccall "cinch.prim.u16ToU64" u16-to-u64 :: U16 -> U64
-  foreign import ccall "cinch.prim.u16ToUsize" u16-to-usize :: U16 -> Usize
-  foreign import ccall "cinch.prim.u16ToIsize" u16-to-isize :: U16 -> Isize
-  foreign import ccall "cinch.prim.u32ToI64" u32-to-i64 :: U32 -> I64
+  foreign import ccall "cinch.prim.u16ToU32" u16-to-u32 :: (x :: U16) -> refined (InRange 0 65535 r && r == x) U32
+  foreign import ccall "cinch.prim.u16ToU64" u16-to-u64 :: (x :: U16) -> refined (InRange 0 65535 r && r == x) U64
+  foreign import ccall "cinch.prim.u16ToUsize" u16-to-usize :: (x :: U16) -> refined (InRange 0 65535 r && r == x) Usize
+  foreign import ccall "cinch.prim.u16ToIsize" u16-to-isize :: (x :: U16) -> refined (InRange 0 65535 r && r == x) Isize
+  foreign import ccall "cinch.prim.u32ToI64" u32-to-i64 :: (x :: U32) -> refined (InRange 0 4294967295 r && r == x) I64
   foreign import ccall "cinch.prim.u32ToU32" u32-to-u32 :: U32 -> U32
-  foreign import ccall "cinch.prim.u32ToU64" u32-to-u64 :: U32 -> U64
-  foreign import ccall "cinch.prim.u32ToUsize" u32-to-usize :: U32 -> Usize
-  foreign import ccall "cinch.prim.u32ToIsize" u32-to-isize :: U32 -> Isize
+  foreign import ccall "cinch.prim.u32ToU64" u32-to-u64 :: (x :: U32) -> refined (InRange 0 4294967295 r && r == x) U64
+  foreign import ccall "cinch.prim.u32ToUsize" u32-to-usize :: (x :: U32) -> refined (InRange 0 4294967295 r && r == x) Usize
+  foreign import ccall "cinch.prim.u32ToIsize" u32-to-isize :: (x :: U32) -> refined (InRange 0 4294967295 r && r == x) Isize
   foreign import ccall "cinch.prim.u64ToU64" u64-to-u64 :: U64 -> U64
-  foreign import ccall "cinch.prim.u64ToUsize" u64-to-usize :: U64 -> Usize
-  foreign import ccall "cinch.prim.usizeToU64" usize-to-u64 :: Usize -> U64
+  foreign import ccall "cinch.prim.u64ToUsize" u64-to-usize :: (x :: U64) -> refined (r == x) Usize
+  foreign import ccall "cinch.prim.usizeToU64" usize-to-u64 :: (x :: Usize) -> refined (r == x) U64
   foreign import ccall "cinch.prim.usizeToUsize" usize-to-usize :: Usize -> Usize
-  foreign import ccall "cinch.prim.isizeToI64" isize-to-i64 :: Isize -> I64
+  foreign import ccall "cinch.prim.isizeToI64" isize-to-i64 :: (x :: Isize) -> refined (r == x) I64
   foreign import ccall "cinch.prim.isizeToIsize" isize-to-isize :: Isize -> Isize
   foreign import ccall "cinch.prim.i8ToF32" i8-to-f32 :: I8 -> F32
   foreign import ccall "cinch.prim.i8ToF64" i8-to-f64 :: I8 -> F64
@@ -1175,10 +1185,30 @@ module Data.Machine where
     leading-zeros x = leading-zeros-isize x
     trailing-zeros x = trailing-zeros-isize x
 
+  -- A mask with a non-negative mask word: the `bit-and` of any word
+  -- with `m >= 0` lies in `[0, m]` (the and clears the sign bit and
+  -- every bit `m` lacks), so `mask-i64 x 255` is a byte. It is the same
+  -- intrinsic as `bit-and-i64`; only the declared range differs, which
+  -- `bit-and-i64` itself cannot state because a negative mask (`-1`,
+  -- the high bit) is an ordinary use of it.
+  foreign import ccall "cinch.prim.bitAndI64" mask-i64 :: I64 -> (m :: InRange 0 9223372036854775807 I64) -> refined (0 <= r && r <= m) I64
+
+  -- The unsigned machine integers as the `Nat` of the same value: the
+  -- widening conversion's range is the evidence `nat-from-i64` needs,
+  -- and the result keeps it.
+  u8-to-nat :: U8 -> InRange 0 255 Nat
+  u8-to-nat b = let w = u8-to-i64 b in nat-from-i64 w
+
+  u16-to-nat :: U16 -> InRange 0 65535 Nat
+  u16-to-nat b = let w = u16-to-i64 b in nat-from-i64 w
+
+  u32-to-nat :: U32 -> InRange 0 4294967295 Nat
+  u32-to-nat b = let w = u32-to-i64 b in nat-from-i64 w
+
   -- One little-endian byte of an `I64` at shift `k` bits (the A6
   -- INTEGER column format, modules specification section 11).
-  i64-le-byte :: I64 -> U32 -> Nat
-  i64-le-byte x k = nat-from-i64 (bit-and-i64 (wrapping-shr-i64 x k) 255)
+  i64-le-byte :: I64 -> U32 -> InRange 0 255 Nat
+  i64-le-byte x k = let b = mask-i64 (wrapping-shr-i64 x k) 255 in nat-from-i64 b
 
   -- The P31 text conversions of `F64` (compiler/runtime/src/text.rs;
   -- the `cinch.runtime.textF64*` intrinsics, nm-verified there):
@@ -1223,8 +1253,9 @@ module Data.Machine where
   implicit instance JsonCodec_I64 :: JsonCodec I64 where
     encode-json x = JNum (int-from-i64 x)
     decode-json j = case j of
-      JNum n ->
-        if lt-i64 (int-cmp n (int-from-i64 (min-bound-i64))) 0 then Err (OutOfRange "I64")
-        else if lt-i64 0 (int-cmp n (int-from-i64 (max-bound-i64))) then Err (OutOfRange "I64")
-        else Ok (int-to-i64 n)
+      -- Outside the `I64` range is the named range error (the check is
+      -- the conversion's own: `checked-int-to-i64`).
+      JNum n -> case checked-int-to-i64 n of
+        Some v -> Ok v
+        None -> Err (OutOfRange "I64")
       _ -> Err (TypeMismatch "integer")

@@ -38,8 +38,8 @@
 -- numerator and denominator each fit `I64` divides their two nearest
 -- `F64` values, so the result is within two units in the last place of
 -- the exact quotient, and exact when both magnitudes are at most 2^53.
--- Outside `I64` it faults through `int-to-i64` (exit 71), the same
--- conversion boundary `Data.Int` already declares.
+-- Outside `I64` each is assembled from 32-bit limbs (`int-to-f64`), so
+-- a huge one is a rounded float or an infinity rather than a fault.
 --
 -- Module scheme (design/base-library.md): `Data.*` is concrete types,
 -- and the type's home carries its `Eq`/`Ord`/`Hash` instance family.
@@ -176,8 +176,23 @@ module Data.Rational where
   -- The value as a machine float (see the boundary note in the
   -- header).
   to-f64 :: Rational -> F64
-  to-f64 r =
-    div-f64 (i64-to-f64 (int-to-i64 (numerator r))) (i64-to-f64 (int-to-i64 (denominator r)))
+  to-f64 r = div-f64 (int-to-f64 (numerator r)) (int-to-f64 (denominator r))
+
+  -- An `Int` as an `F64`: exact through `I64` when it fits, otherwise
+  -- assembled from base-2^32 limbs (each limb exact, each step one
+  -- rounding), so a magnitude past `I64` is a finite float or an
+  -- infinity, never a fault.
+  int-to-f64 :: Int -> F64
+  int-to-f64 n = case checked-int-to-i64 n of
+    Some v -> i64-to-f64 v
+    None -> if n < 0 then neg-f64 (nat-to-f64 (nat-from-int (0 - n))) else nat-to-f64 (nat-from-int n)
+
+  nat-to-f64 :: Nat -> F64
+  nat-to-f64 m = case checked-nat-to-i64 m of
+    Some v -> i64-to-f64 v
+    None ->
+      let low = nat-rem m 4294967296 in
+      add-f64 (mul-f64 (nat-to-f64 (m / 4294967296)) (i64-to-f64 4294967296)) (i64-to-f64 (nat-to-i64 low))
 
   -- The reduced rendering `n/d`: `1/2` for `Rational(1,2)`, `-1/2` for
   -- `Rational(-1,2)`, and `n/1` (not `n`) for a whole number, Ruby's

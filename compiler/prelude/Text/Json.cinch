@@ -120,24 +120,25 @@ module Text.Json where
   -- digits per byte, filled in place.
   digest-hex :: Bytes -> String
   digest-hex b =
-    let n = bytes-len b in
-    let out = bytes-new (n + n) in
+    let out = bytes-new (bytes-len b + bytes-len b) in
     let u = digest-hex-into out b 0 in
     case string-from-bytes out of
       Some s -> s
       None -> empty-string
 
-  digest-hex-into :: Bytes -> Bytes -> Nat -> Unit
+  digest-hex-into :: using (bytes-len out == bytes-len b + bytes-len b) => (out :: Bytes) -> (b :: Bytes) -> (i :: Nat) -> Unit
   digest-hex-into out b i =
-    if nat-cmp i (bytes-len b) == 0 then ()
-    else
+    if i < bytes-len b then
       let byte = bytes-get b i in
-      let u = bytes-set out (i + i) (hex-code (nat-div byte 16)) in
+      -- A byte is below 256, so its high nibble is already below 16; the
+      -- `nat-rem` restates that bound where the checker can read it.
+      let u = bytes-set out (i + i) (hex-code (nat-rem (nat-div byte 16) 16)) in
       let v = bytes-set out (i + i + 1) (hex-code (nat-rem byte 16)) in
       digest-hex-into out b (i + 1)
+    else ()
 
   -- The ASCII code of one lowercase hex digit.
-  hex-code :: Nat -> Nat
+  hex-code :: using (n < 16) => (n :: Nat) -> InRange 0 255 Nat
   hex-code n = if lt-i64 (nat-cmp n 10) 0 then 48 + n else 87 + n
 
   hex-digit :: Nat -> String
@@ -338,16 +339,21 @@ module Text.Json where
 
   peek-byte :: JState -> Option Nat
   peek-byte s =
-    if nat-cmp (state-off s) (bytes-len (state-src s)) == 0 then None
-    else Some (bytes-get (state-src s) (state-off s))
+    if state-off s < bytes-len (state-src s) then Some (bytes-get (state-src s) (state-off s))
+    else None
 
+  -- Step one byte. The end of input is a fixed point, as `Text.Lex`'s
+  -- `skip-char` is: every caller has just peeked a byte, so it never
+  -- asks to step past the end.
   advance1 :: JState -> JState
   advance1 s = case s of
     JState b off l c ->
-      let byte = bytes-get b off in
-      if nat-cmp byte 10 == 0 then JState b (off + 1) (l + 1) 1
-      else if is-continuation byte then JState b (off + 1) l c
-      else JState b (off + 1) l (c + 1)
+      if off < bytes-len b then
+        let byte = bytes-get b off in
+        if nat-cmp byte 10 == 0 then JState b (off + 1) (l + 1) 1
+        else if is-continuation byte then JState b (off + 1) l c
+        else JState b (off + 1) l (c + 1)
+      else s
 
   advance-n :: JState -> Nat -> JState
   advance-n s k = if k == 0 then s else advance-n (advance1 s) (k - 1)
@@ -557,11 +563,12 @@ module Text.Json where
 
   scan-literal-at :: JState -> Bytes -> Nat -> Json -> JReply Json
   scan-literal-at s lit i v =
-    if nat-cmp i (bytes-len lit) == 0 then JOk True v s Nil
-    else case peek-byte s of
-      Some b -> if nat-cmp b (bytes-get lit i) == 0 then scan-literal-at (advance1 s) lit (i + 1) v
-        else JErr True (EUnexpected (pos-span s) (Some (byte-item b)) (literal-items lit))
-      None -> JErr True (EUnexpected (pos-span s) (Some IEnd) (literal-items lit))
+    if i < bytes-len lit then
+      case peek-byte s of
+        Some b -> if nat-cmp b (bytes-get lit i) == 0 then scan-literal-at (advance1 s) lit (i + 1) v
+          else JErr True (EUnexpected (pos-span s) (Some (byte-item b)) (literal-items lit))
+        None -> JErr True (EUnexpected (pos-span s) (Some IEnd) (literal-items lit))
+    else JOk True v s Nil
 
   literal-items :: Bytes -> List ErrorItem
   literal-items lit = label-items (case string-from-bytes lit of
@@ -733,10 +740,14 @@ module Text.Json where
     Some b -> if nat-cmp b 43 == 0 || nat-cmp b 45 == 0 then advance1 s else s
     None -> s
 
+  -- The scan never steps past the source's end, but the state does not
+  -- carry that as a fact; an end past the source is a number error.
   scan-number-done :: JState -> JState -> JReply Json
   scan-number-done origin s =
-    let raw = bytes-slice (state-src origin) (state-off origin) (state-off s) in
-    JOk True (number-value raw) s Nil
+    if state-off s <= bytes-len (state-src s) then
+      let raw = bytes-slice (state-src s) (state-off origin) (state-off s) in
+      JOk True (number-value raw) s Nil
+    else num-err origin s None
 
   next-item :: JState -> ErrorItem
   next-item s = case peek-byte s of
@@ -758,25 +769,27 @@ module Text.Json where
 
   is-float-from :: Bytes -> Nat -> Bool
   is-float-from raw i =
-    if nat-cmp i (bytes-len raw) == 0 then False
-    else
+    if i < bytes-len raw then
       let b = bytes-get raw i in
       if nat-cmp b 46 == 0 || nat-cmp b 101 == 0 || nat-cmp b 69 == 0 then True
       else is-float-from raw (i + 1)
+    else False
 
+  -- The spelling is a scanned number, so it has a first byte; an empty
+  -- spelling would fold no digits.
   int-of-spelling :: Bytes -> Int
   int-of-spelling raw =
-    if nat-cmp (bytes-get raw 0) 45 == 0 then int-neg (digits-fold raw 1 (int-from-i64 0))
+    if 0 < bytes-len raw && nat-cmp (bytes-get raw 0) 45 == 0 then int-neg (digits-fold raw 1 (int-from-i64 0))
     else digits-fold raw 0 (int-from-i64 0)
 
   digits-fold :: Bytes -> Nat -> Int -> Int
   digits-fold raw i acc =
-    if nat-cmp i (bytes-len raw) == 0 then acc
-    else
+    if i < bytes-len raw then
       -- The spelling is a validated digit run; the offset is taken in
       -- `Int`, the same value with no lower bound to prove.
       let d = int-sub (int-from-i64 (nat-to-i64 (bytes-get raw i))) (int-from-i64 48) in
       digits-fold raw (i + 1) (int-add (int-mul acc (int-from-i64 10)) d)
+    else acc
 
 
   -- ---------------------------------------------------------------------------
@@ -893,17 +906,17 @@ module Text.Json where
 
   -- `start` is the first byte of the pending unescaped run, `i` the scan
   -- position.
-  emit-string-from :: Bytes -> Nat -> Nat -> Builder -> Builder
+  emit-string-from :: using (i <= bytes-len raw) => (raw :: Bytes) -> Nat -> (i :: Nat) -> Builder -> Builder
   emit-string-from raw start i b =
-    if nat-cmp i (bytes-len raw) == 0 then flush-run raw start i b
-    else
+    if i < bytes-len raw then
       let x = bytes-get raw i in
       if needs-escape x then emit-string-from raw (i + 1) (i + 1) (builder-add-string (escape-byte x) (flush-run raw start i b))
       else emit-string-from raw start (i + 1) b
+    else flush-run raw start i b
 
   -- The unescaped run [start, i), appended without a copy when it is the
   -- whole (private) buffer.
-  flush-run :: Bytes -> Nat -> Nat -> Builder -> Builder
+  flush-run :: using (i <= bytes-len raw) => (raw :: Bytes) -> Nat -> (i :: Nat) -> Builder -> Builder
   flush-run raw start i b =
     if nat-cmp start i == 0 then b
     else if nat-cmp start 0 == 0 && nat-cmp i (bytes-len raw) == 0 then builder-add-bytes raw b

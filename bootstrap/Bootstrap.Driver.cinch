@@ -170,24 +170,19 @@ module Bootstrap.Driver where
       True -> acc
       False -> read-chunks n (Cons b acc)
 
-  chunks-size :: List Bytes -> Nat
-  chunks-size cs = case cs of
-    Nil -> 0
-    Cons b rest -> bytes-len b + chunks-size rest
-
   chunks-bytes :: List Bytes -> Bytes
-  chunks-bytes cs = gather (bytes-new (chunks-size cs)) 0 (reverse cs)
+  chunks-bytes cs = gather 0 (reverse cs)
 
-  gather :: Bytes -> Nat -> List Bytes -> Bytes
-  gather out i cs = case cs of
-    Nil -> out
-    Cons b rest -> gather (gather-one out i b 0) (i + bytes-len b) rest
-
-  gather-one :: Bytes -> Nat -> Bytes -> Nat -> Bytes
-  gather-one out i b j = case j == bytes-len b of
-    True -> out
-    False -> case bytes-set out (i + j) (bytes-get b j) of
-      _ -> gather-one out i b (j + 1)
+  -- Join the chunks in order after `pos` leading bytes. The buffer is made
+  -- at the end of the list, sized by the lengths walked, so each copy is in
+  -- range by construction.
+  gather :: (pos :: Nat) -> List Bytes -> refined (pos <= bytes-len out) Bytes
+  gather pos cs = case cs of
+    Nil -> bytes-new pos
+    Cons b rest ->
+      let out = gather (pos + bytes-len b) rest in
+      let u = bytes-copy-range out b pos 0 (bytes-len b) in
+      out
 
   -- One argument word per line: split on the newline byte (code 10), then
   -- drop the empty words (the trailing newline's own, and any blank line).

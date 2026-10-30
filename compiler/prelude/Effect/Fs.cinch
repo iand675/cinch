@@ -102,26 +102,38 @@ module Effect.Fs where
   foreign import ccall "cinch_fs_dir_close" raw-fs-dir-close :: forall r. I64 ->{IO r} I64
 
   -- Fill a fresh word buffer from a `Bytes` value (byte at a time:
-  -- the boundary is machine scalars).
+  -- the boundary is machine scalars). `i` walks the buffer, so each
+  -- read is in bounds.
   buf-from-bytes :: forall r. Bytes ->{IO r} I64
-  buf-from-bytes b = buf-fill (buf-new ()) b 0 (bytes-len b)
+  buf-from-bytes b = buf-fill (buf-new ()) b 0
 
-  buf-fill :: forall r. I64 -> Bytes -> Nat -> Nat ->{IO r} I64
-  buf-fill h b i n = case i == n of
-    True -> h
-    False -> case buf-push h (nat-to-i64 (bytes-get b i)) of
-      _ -> buf-fill h b (i + 1) n
+  buf-fill :: forall r. I64 -> Bytes -> Nat ->{IO r} I64
+  buf-fill h b i = case i < bytes-len b of
+    False -> h
+    True -> case buf-push h (nat-to-i64 (bytes-get b i)) of
+      _ -> buf-fill h b (i + 1)
 
-  -- A word buffer's contents as a fresh `Bytes` value.
-  buf-to-bytes :: forall r. I64 ->{IO r} Bytes
-  buf-to-bytes h = case buf-len h of
-    n -> buf-copy (bytes-new (nat-from-i64 n)) h 0 (nat-from-i64 n)
+  -- A word buffer's contents as a fresh `Bytes` value, or `None` when
+  -- the runtime answers the handle (`buf-len`) or a byte of it
+  -- (`buf-get`) with its negated error code; the callers report that as
+  -- `IoError`.
+  buf-to-bytes :: forall r. I64 ->{IO r} Option Bytes
+  buf-to-bytes h =
+    let n = buf-len h in
+    case 0 <= n of
+      True -> buf-copy (bytes-new (nat-from-i64 n)) h 0
+      False -> None
 
-  buf-copy :: forall r. Bytes -> I64 -> Nat -> Nat ->{IO r} Bytes
-  buf-copy b h i n = case i == n of
-    True -> b
-    False -> case bytes-set b i (nat-from-i64 (buf-get h (nat-to-i64 i))) of
-      _ -> buf-copy b h (i + 1) n
+  -- Each byte read back is `0..=255` or a negated error code.
+  buf-copy :: forall r. Bytes -> I64 -> Nat ->{IO r} Option Bytes
+  buf-copy b h i = case i < bytes-len b of
+    False -> Some b
+    True ->
+      let v = buf-get h (nat-to-i64 i) in
+      case 0 <= v && v <= 255 of
+        True -> case bytes-set b i (nat-from-i64 v) of
+          _ -> buf-copy b h (i + 1)
+        False -> None
 
   -- A path's bytes as a fresh word buffer.
   path-buf :: forall r. Path ->{IO r} I64
@@ -146,9 +158,11 @@ module Effect.Fs where
     let out = buf-new () in
     case raw-fs-read ph out of
       0 -> case buf-to-bytes out of
-        bs -> case buf-free ph of
+        r -> case buf-free ph of
           _ -> case buf-free out of
-            _ -> Ok bs
+            _ -> case r of
+              Some bs -> Ok bs
+              None -> Err IoError
       c -> case buf-free ph of
         _ -> case buf-free out of
           _ -> Err (fs-error-code c)
@@ -188,7 +202,9 @@ module Effect.Fs where
     case raw-fs-meta-kind ph of
       k -> case fs-kind k of
         Some kind -> case raw-fs-meta-size ph of
-          s -> case ge-i64 s 0 of
+          -- An `Ord` test, so the branch knows `s >= 0` for the size's
+          -- conversion (a negative word is the negated error code).
+          s -> case s >= 0 of
             True -> case buf-free ph of
               _ -> Ok (FileMeta kind (nat-from-i64 s))
             False -> case buf-free ph of
@@ -219,7 +235,10 @@ module Effect.Fs where
   dir-names :: forall r. I64 -> I64 -> List String ->{IO r} Result FsError (List String)
   dir-names dh out acc = case raw-fs-dir-next dh out of
     1 -> case buf-to-bytes out of
-      bs -> case string-from-bytes bs of
+      None -> case raw-fs-dir-close dh of
+        _ -> case buf-free out of
+          _ -> Err IoError
+      Some bs -> case string-from-bytes bs of
         Some s -> dir-names dh out (insert-name s acc)
         None -> case raw-fs-dir-close dh of
           _ -> case buf-free out of

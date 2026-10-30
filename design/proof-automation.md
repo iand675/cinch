@@ -89,7 +89,10 @@ Ordered by the obligations the current roadmap creates:
 2. **Linear arithmetic (`omega`-like).** Every layout, index and length
    obligation is Presburger arithmetic; packed layouts and value types
    (section 3 there) generate them by construction. The difference-logic
-   fragment has landed (section 5); the rest of Presburger is open.
+   fragment has landed (section 5), and so has a linear pass over facts
+   with more than two terms (Fourier-Motzkin with a checked Farkas
+   certificate, section 5); integer-only reasoning (Presburger proper,
+   cutting planes) is open.
 3. **Congruence closure with E-matching (`grind`-like).** Glue for
    everything above; it is what makes specialization proofs short enough to
    write routinely.
@@ -141,6 +144,30 @@ Ordered by the obligations the current roadmap creates:
   atom as a constraint (linearizing, and rounding `a * (x - y) <= c`
   down to `x - y <= floor(c / a)` over integers) is valid, and a
   cycle's sum telescopes.
+- **Three-term facts (as built, 2026-10-30, NF5).** A fact or goal over
+  more than two terms (`di + n <= bytes-len dst`, `bytes-len out ==
+  bytes-len x + bytes-len y`, `i + k <= n`) is not a difference
+  constraint, and every `bytes-copy-range` obligation is one. When
+  Bellman-Ford finds no cycle, a second pass reads every comparison as
+  `sum(a * key) <= c` over the same opaque keys (each row's
+  coefficients divided by their common factor and the bound rounded
+  down, sound over the integers), keeps the rows connected to the goal's
+  keys, and eliminates keys by Fourier-Motzkin. A refutation is a Farkas
+  certificate (`LinCert::Farkas`: positive integer multipliers whose
+  weighted sum of cited constraints cancels every key and leaves `0 <=
+  c` with `c < 0`), or a split of a disequality into its two strict
+  alternatives, each refuted (at most 2 deep, trying at most 6
+  disequalities per depth). `check_lin_cert` re-reads each cited
+  constraint from its source and re-sums. The cost is bounded and
+  predictable: elimination stops once it holds 256 rows, and passing
+  that cap refuses the obligation (it is then reported as unproved),
+  never a longer search. The pass refutes the rational relaxation, so it
+  is incomplete over the integers: a fact set with a rational solution
+  and no integer one (`x == 2 * y` and `x == 2 * z + 1`) is not refuted
+  beyond what the per-row rounding catches
+  (`tests/safe_bytes.rs`, `an_integer_only_contradiction_is_not_used`).
+  The soundness argument adds one lemma: a nonnegative combination of
+  valid linear constraints is valid.
 
 ## 6 Open decisions
 

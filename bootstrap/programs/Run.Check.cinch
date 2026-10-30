@@ -467,7 +467,7 @@ module Main where
     Cons c rest -> case c of
       MkCheck label p expected -> case string-compare (render-diagnostics (check-program p)) expected of
         0 -> verdict-of rest (n + 1)
-        other -> int-from-i64 (nat-to-i64 (n + 1))
+        other -> nat-to-int (n + 1)
 
   cases :: List Check
   cases =

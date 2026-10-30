@@ -90,34 +90,30 @@ module Text.Lex where
   -- imports it for its char-list-to-String conversions.
 
   -- The byte range [i, j) of a buffer as a fresh copy; a reversed range
-  -- (`j < i`) holds no bytes, so it is the empty copy.
-  bytes-slice :: Bytes -> Nat -> Nat -> Bytes
+  -- (`j < i`) holds no bytes, so it is the empty copy. The range's end
+  -- must lie inside the buffer: every caller slices between offsets it
+  -- has already scanned, so it holds that bound.
+  bytes-slice :: using (j <= bytes-len b) => (b :: Bytes) -> (i :: Nat) -> (j :: Nat) -> Bytes
   bytes-slice b i j =
-    let n = saturating-sub j i in
-    let out = bytes-new n in
-    let u = copy-bytes-into out b 0 i n in
-    out
+    if i <= j then
+      let out = bytes-new (j - i) in
+      let u = copy-bytes-into out b 0 i (j - i) in
+      out
+    else bytes-new 0
 
-  char-width :: Char -> Nat
-  char-width c = utf8-encode-width (char-code c)
-
-  chars-width :: List Char -> Nat
-  chars-width cs = case cs of
-    Nil -> 0
-    Cons c rest -> char-width c + chars-width rest
-
-  chars-into :: Bytes -> Nat -> List Char -> Unit
-  chars-into b pos cs = case cs of
-    Nil -> ()
+  -- UTF-8 encode the chars into a buffer whose first `pos` bytes are left
+  -- for the caller. The buffer is made at the end of the list, so its
+  -- size is exactly the encoded width and each encode lands inside it.
+  chars-bytes-from :: (pos :: Nat) -> List Char -> refined (pos <= bytes-len out) Bytes
+  chars-bytes-from pos cs = case cs of
+    Nil -> bytes-new pos
     Cons c rest ->
-      let u = utf8-encode-into b pos (char-code c) in
-      chars-into b (pos + char-width c) rest
+      let out = chars-bytes-from (pos + utf8-encode-width (char-code c)) rest in
+      let u = utf8-encode-into out pos (char-code c) in
+      out
 
   chars-bytes :: List Char -> Bytes
-  chars-bytes cs =
-    let b = bytes-new (chars-width cs) in
-    let u = chars-into b 0 cs in
-    b
+  chars-bytes cs = chars-bytes-from 0 cs
 
   -- ---------------------------------------------------------------------------
   -- Spans, tokens, located tokens.
@@ -194,11 +190,15 @@ module Text.Lex where
   lt-token t = case t of
     LTok s v k -> k
 
-  bytes-eq :: Bytes -> Bytes -> Nat -> Bool
+  -- Byte equality of two equal-length buffers from offset `i` on. The
+  -- caller compares lengths first, which is the bound that keeps the
+  -- second buffer's reads in range.
+  bytes-eq :: using (bytes-len x == bytes-len y) => (x :: Bytes) -> (y :: Bytes) -> (i :: Nat) -> Bool
   bytes-eq x y i =
-    if nat-cmp i (bytes-len x) == 0 then True
-    else if nat-cmp (bytes-get x i) (bytes-get y i) == 0 then bytes-eq x y (i + 1)
-    else False
+    if i < bytes-len x then
+      if nat-cmp (bytes-get x i) (bytes-get y i) == 0 then bytes-eq x y (i + 1)
+      else False
+    else True
 
   -- Token equality over the kind and its spelling: `Text.Parse`'s
   -- token matchers compare with this.
@@ -220,7 +220,7 @@ module Text.Lex where
       TFloat y -> string-compare x y == 0
       _ -> False
     TStr x -> case b of
-      TStr y -> nat-cmp (bytes-len x) (bytes-len y) == 0 && bytes-eq x y 0
+      TStr y -> bytes-len x == bytes-len y && bytes-eq x y 0
       _ -> False
     TChar x -> case b of
       TChar y -> nat-cmp x y == 0
@@ -616,7 +616,9 @@ module Text.Lex where
   -- 2..10): the lexer runs this for every word.
   keyword-token :: String -> Option Token
   keyword-token w =
-    if keyword-of-length (nat-to-i64 (string-byte-length w)) w then Some (TWord w) else None
+    case checked-nat-to-i64 (string-byte-length w) of
+      Some n -> if keyword-of-length n w then Some (TWord w) else None
+      None -> None
 
   -- Is `w`, of byte length `n`, one of the keywords of that length?
   keyword-of-length :: I64 -> String -> Bool
@@ -703,7 +705,9 @@ module Text.Lex where
   -- without a comparison.
   symbol-token :: String -> Token
   symbol-token s =
-    if reserved-symbol (nat-to-i64 (string-byte-length s)) s then TPunct s else TOp s
+    case checked-nat-to-i64 (string-byte-length s) of
+      Some n -> if reserved-symbol n s then TPunct s else TOp s
+      None -> TOp s
 
   -- Is the run `s`, of byte length `n`, a reserved symbol?
   reserved-symbol :: I64 -> String -> Bool
@@ -1020,16 +1024,23 @@ module Text.Lex where
     Some c | eq-char c ']' -> True
     _ -> False
 
-  -- The byte range [i, j) decoded as a String.
-  bytes-to-string-at :: Bytes -> Nat -> Nat -> String
-  bytes-to-string-at b i j = case string-from-bytes (bytes-slice b i j) of
-    Some s -> s
-    None -> empty-string
+  -- The byte range [i, j) decoded as a String (bytes that are not UTF-8
+  -- decode as the empty text). The scan offsets that reach here stay
+  -- inside the source, but a `Scan` does not carry that bound as a fact,
+  -- so an end past the buffer is `None` and the lexer reports it as a
+  -- refused token rather than reading out of range.
+  bytes-to-string-at :: Bytes -> Nat -> Nat -> Option String
+  bytes-to-string-at b i j =
+    if j <= bytes-len b then
+      case string-from-bytes (bytes-slice b i j) of
+        Some s -> Some s
+        None -> Some empty-string
+    else None
 
   -- The compiler trims an attribute's `= value` text, so the inner text
   -- `#[flag=true ]` carries is `flag=true`: walk back over the
   -- whitespace before the `]`.
-  trim-attr-end :: Bytes -> Nat -> Nat
+  trim-attr-end :: using (j <= bytes-len b) => (b :: Bytes) -> (j :: Nat) -> Nat
   trim-attr-end b j =
     if j == 0 then j
     else if is-attr-space (bytes-get b (j - 1)) then trim-attr-end b (j - 1)
@@ -1048,7 +1059,12 @@ module Text.Lex where
     let s = skip-char (skip-char s0) in
     let start = scan-off s in
     let s1 = scan-attr-name s in
-    let name = bytes-to-string-at (scan-src s1) start (scan-off s1) in
+    case bytes-to-string-at (scan-src s1) start (scan-off s1) of
+      None -> ErrAt (scan-span s0) RefusedAttr
+      Some name -> lex-attr-tail s0 s1 start name
+
+  lex-attr-tail :: Scan -> Scan -> Nat -> String -> TokenStep
+  lex-attr-tail s0 s1 start name =
     if not (attr-name-valid name) then ErrAt (scan-span s0) RefusedAttr
     else case peek-char s1 of
       None -> ErrAt (scan-span s0) RefusedAttr
@@ -1058,14 +1074,20 @@ module Text.Lex where
             SRErr sp k -> ErrAt sp k
             SROk s2 ->
               if is-close-bracket s2
-              then Tok1 (skip-char s2) (TAttr (bytes-to-string-at (scan-src s2) start (scan-off s2)))
+              then case bytes-to-string-at (scan-src s2) start (scan-off s2) of
+                None -> ErrAt (scan-span s0) RefusedAttr
+                Some t -> Tok1 (skip-char s2) (TAttr t)
               else ErrAt (scan-span s0) RefusedAttr
         else if eq-char c '=' then
           let s2 = scan-attr-to-bracket s1 in
           if is-close-bracket s2
           then
-            let stop = trim-attr-end (scan-src s2) (scan-off s2) in
-            Tok1 (skip-char s2) (TAttr (bytes-to-string-at (scan-src s2) start stop))
+            if scan-off s2 <= bytes-len (scan-src s2) then
+              let stop = trim-attr-end (scan-src s2) (scan-off s2) in
+              case bytes-to-string-at (scan-src s2) start stop of
+                None -> ErrAt (scan-span s0) RefusedAttr
+                Some t -> Tok1 (skip-char s2) (TAttr t)
+            else ErrAt (scan-span s0) RefusedAttr
           else ErrAt (scan-span s0) RefusedAttr
         else if eq-char c ']' then Tok1 (skip-char s1) (TAttr name)
         else ErrAt (scan-span s0) RefusedAttr
@@ -1096,7 +1118,9 @@ module Text.Lex where
         else if eq-char c '{' then fragment-loop (skip-char s) start (depth + 1) False
         else if eq-char c '}' then
           if depth == 1 then
-            FragOk (bytes-to-string-at (scan-src s) start (scan-off s)) (scan-span s) (skip-char s)
+            case bytes-to-string-at (scan-src s) start (scan-off s) of
+              None -> FragErr (scan-span s) RefusedPrim
+              Some t -> FragOk t (scan-span s) (skip-char s)
           else fragment-loop (skip-char s) start (depth - 1) False
         else fragment-loop (skip-char s) start depth False
 

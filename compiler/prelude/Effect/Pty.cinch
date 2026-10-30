@@ -138,9 +138,10 @@ module Effect.Pty where
   -- owns the master end and the child; the slave end belongs to the
   -- child once a spawn consumed it. The operations below take it at
   -- `%1`, so a live terminal is a value threaded by hand rather than a
-  -- reference copied around.
+  -- reference copied around. The handle stays the runtime's `I64` word:
+  -- it only ever goes back to the runtime.
   data Pty where
-    Pty :: Nat -> Pty
+    Pty :: I64 -> Pty
 
   -- The handle word of a terminal, for the layers above this one. The
   -- word is not a handle, and the projection is the one hole in the
@@ -149,7 +150,7 @@ module Effect.Pty where
   -- once the real handle is closed (and a word that was never live
   -- answers the same). The threading's guarantee covers the handles the
   -- operations hand out, not the bare word.
-  pty-handle :: Pty -> Nat
+  pty-handle :: Pty -> I64
   pty-handle p = case p of
     Pty h -> h
 
@@ -195,7 +196,7 @@ module Effect.Pty where
   pty-open :: forall r. using (io :: Io r) => Unit ->{IO r} Result PtyError Pty
   pty-open u = case raw-pty-open u of
     Err c -> Err (pty-error-code c)
-    Ok h -> Ok (Pty (nat-from-i64 h))
+    Ok h -> Ok (Pty h)
 
   -- Start `cmd` on the terminal `p`, running in `dir` (`None` inherits
   -- this process's own directory): the same handle with the child beside
@@ -216,9 +217,9 @@ module Effect.Pty where
         let argument-words = nul-words args in
         let directory = dir-bytes dir in
         let env-words = nul-words (key-value-words env) in
-        case raw-pty-spawn (nat-to-i64 h) program argument-words directory env-words of
+        case raw-pty-spawn h program argument-words directory env-words of
           Err c -> pty-spawn-fail (Pty h) c
-          Ok h2 -> Ok (Pty (nat-from-i64 h2))
+          Ok h2 -> Ok (Pty h2)
 
   -- Consume the handle and answer the spawn's code: the slave is gone
   -- from the handle, so a caller that keeps it could only wait on a child
@@ -227,7 +228,7 @@ module Effect.Pty where
   -- this module can produce is a spawn failure whose close also fails.
   pty-spawn-fail :: forall r. using (io :: Io r) => Pty %1 -> I64 ->{IO r} Result PtyError Pty
   pty-spawn-fail p c = case p of
-    Pty h -> case raw-pty-close (nat-to-i64 h) of
+    Pty h -> case raw-pty-close h of
       _ -> Err (pty-error-code c)
 
   -- Write `bs` to the terminal's master (the child reads it on its
@@ -237,7 +238,7 @@ module Effect.Pty where
   -- keeps the session.
   pty-write :: forall r. using (io :: Io r) => Pty %1 -> Bytes ->{IO r} (Pty, Result PtyError Nat)
   pty-write p bs = case p of
-    Pty h -> (Pty h, case raw-pty-write (nat-to-i64 h) bs of
+    Pty h -> (Pty h, case raw-pty-write h bs of
       Err c -> Err (pty-error-code c)
       Ok n -> Ok n)
 
@@ -248,7 +249,7 @@ module Effect.Pty where
   -- live, so the handle is handed back rather than dropped.
   pty-read :: forall r. using (io :: Io r) => Pty %1 -> Nat ->{IO r} (Pty, Result PtyError Bytes)
   pty-read p max = case p of
-    Pty h -> (Pty h, case raw-pty-read (nat-to-i64 h) max of
+    Pty h -> (Pty h, case raw-pty-read h max of
       Err c -> Err (pty-error-code c)
       Ok b -> Ok b)
 
@@ -258,7 +259,7 @@ module Effect.Pty where
   -- not what ends the handle's life; `pty-close` is.
   pty-wait :: forall r. using (io :: Io r) => Pty %1 ->{IO r} (Pty, Result PtyError Nat)
   pty-wait p = case p of
-    Pty h -> (Pty h, case raw-pty-wait (nat-to-i64 h) of
+    Pty h -> (Pty h, case raw-pty-wait h of
       Err c -> Err (pty-error-code c)
       Ok code -> Ok code)
 
@@ -270,7 +271,7 @@ module Effect.Pty where
   -- answer for a handle word that was never live.
   pty-close :: forall r. using (io :: Io r) => Pty %1 ->{IO r} Result PtyError Unit
   pty-close p = case p of
-    Pty h -> case raw-pty-close (nat-to-i64 h) of
+    Pty h -> case raw-pty-close h of
       Err c -> Err (pty-error-code c)
       Ok u -> Ok u
 
@@ -279,7 +280,7 @@ module Effect.Pty where
   -- handle comes back for the same reason as `pty-write`'s).
   pty-resize :: forall r. using (io :: Io r) => Pty %1 -> Nat -> Nat ->{IO r} (Pty, Result PtyError Unit)
   pty-resize p cols rows = case p of
-    Pty h -> (Pty h, case raw-pty-resize (nat-to-i64 h) cols rows of
+    Pty h -> (Pty h, case raw-pty-resize h cols rows of
       Err c -> Err (pty-error-code c)
       Ok u -> Ok u)
 
@@ -302,26 +303,18 @@ module Effect.Pty where
   -- NUL-separated run of bytes, one trailing separator adding no word,
   -- and an empty word refused there).
   nul-words :: List String -> Bytes
-  nul-words xs = fill-words (bytes-new (words-size xs)) 0 xs
+  nul-words xs = words-from 0 xs
 
-  words-size :: List String -> Nat
-  words-size xs = case xs of
-    Nil -> 0
-    Cons s rest -> string-byte-length s + 1 + words-size rest
-
-  fill-words :: Bytes -> Nat -> List String -> Bytes
-  fill-words b i xs = case xs of
-    Nil -> b
-    Cons s rest -> fill-words b (put-word b i s) rest
-
-  -- One word's bytes plus its NUL separator; the next index.
-  put-word :: Bytes -> Nat -> String -> Nat
-  put-word b i s = put-bytes b i (string-to-bytes s)
-
-  -- All of `src` copied in one runtime `memmove`, then the NUL.
-  put-bytes :: Bytes -> Nat -> Bytes -> Nat
-  put-bytes b i src =
-    let n = bytes-len src in
-    let u = bytes-copy-range b src i 0 n in
-    case bytes-set b (i + n) 0 of
-      _ -> i + n + 1
+  -- The words from offset `i`, each followed by its NUL: the buffer is
+  -- made once, at the end of the list, sized to the words and their
+  -- separators, and the result's refinement (`i <= bytes-len out`) is
+  -- the bound each copy and separator proves.
+  words-from :: (i :: Nat) -> List String -> refined (i <= bytes-len out) Bytes
+  words-from i xs = case xs of
+    Nil -> bytes-new i
+    Cons s rest ->
+      let src = string-to-bytes s in
+      let out = words-from (i + bytes-len src + 1) rest in
+      let u = bytes-copy-range out src i 0 (bytes-len src) in
+      case bytes-set out (i + bytes-len src) 0 of
+        _ -> out
