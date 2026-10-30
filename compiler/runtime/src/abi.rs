@@ -547,8 +547,9 @@ pub unsafe extern "C" fn cinch_free(word: i64) {
 // Nat
 // ---------------------------------------------------------------------------
 
-/// An `i64` as a `Nat` word (always an immediate), faulting on negative
-/// input.
+/// An `i64` as a `Nat` word (always an immediate). Well-typed code
+/// proves `0 <= v` (`nat-from-i64`'s obligation), so a negative input is
+/// a compiler-bug trap.
 #[unsafe(no_mangle)]
 pub extern "C" fn cinch_nat_from_i64(v: i64) -> i64 {
     if v < 0 {
@@ -557,7 +558,9 @@ pub extern "C" fn cinch_nat_from_i64(v: i64) -> i64 {
     nat_immediate(v as u64)
 }
 
-/// The value of a `Nat` word as an `i64`, faulting when out of range.
+/// The value of a `Nat` word as an `i64`. Well-typed code proves the
+/// value fits (`nat-to-i64`'s obligation), so one that does not is a
+/// compiler-bug trap.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_nat_to_i64(word: i64) -> i64 {
     if is_immediate(word) {
@@ -709,7 +712,9 @@ pub extern "C" fn cinch_int_from_i64(v: i64) -> i64 {
     int_word_i128(i128::from(v))
 }
 
-/// The value of an `Int` word as an `i64`, faulting when out of range.
+/// The value of an `Int` word as an `i64`. Well-typed code proves the
+/// value fits (`int-to-i64`'s obligation), so one that does not is a
+/// compiler-bug trap.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_int_to_i64(word: i64) -> i64 {
     if is_immediate(word) {
@@ -728,6 +733,28 @@ pub unsafe extern "C" fn cinch_int_fits_i64(word: i64) -> i64 {
         return 1;
     }
     i64::from(unsafe { as_int(word) }.fits_i64())
+}
+
+/// A `Nat` word as the `Int` of the same value (total).
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn cinch_int_from_nat(word: i64) -> i64 {
+    if is_immediate(word) {
+        return int_word_i128(i128::from(nat_immediate_value(word)));
+    }
+    int_word(crate::int::Int::from_parts(false, unsafe { as_nat(word) }.limbs().to_vec()))
+}
+
+/// A non-negative `Int` word as the `Nat` of the same value. Well-typed
+/// code proves `0 <= x` (`int-to-nat`'s obligation), so a negative input
+/// is a compiler-bug trap.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn cinch_int_to_nat(word: i64) -> i64 {
+    let mut scratch = [0u32; 2];
+    let (negative, limbs) = unsafe { int_parts(word, &mut scratch) };
+    if negative {
+        raise(Error::NegativeInput);
+    }
+    nat_word(Nat::from_limbs(limbs.to_vec()))
 }
 
 /// `a + b` for `Int` words.
@@ -869,7 +896,10 @@ pub unsafe extern "C" fn cinch_int_decimal_len(word: i64) -> usize {
     unsafe { as_int(word) }.decimal_len()
 }
 
-/// A zeroed `Bytes` block of `len` bytes, faulting on negative length.
+/// A zeroed `Bytes` block of `len` bytes. Generated code passes a length
+/// through [`cinch_nat_to_len`], so it is never negative (a negative one
+/// is the compiler-bug trap); a length no allocation can hold is the heap
+/// `Exhausted` exit, through the allocator.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_bytes_new(len: i64) -> i64 {
     match crate::bytes::Bytes::new(len) {
@@ -878,13 +908,26 @@ pub unsafe extern "C" fn cinch_bytes_new(len: i64) -> i64 {
     }
 }
 
+/// A `Nat` word as a buffer length or read count: its value, or
+/// `i64::MAX` for a bignum. No buffer that large can be allocated, so the
+/// request it feeds takes the heap `Exhausted` exit, the outcome a
+/// too-large allocation has, rather than an `i64` conversion fault.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn cinch_nat_to_len(word: i64) -> i64 {
+    if is_immediate(word) {
+        return nat_immediate_value(word) as i64;
+    }
+    unsafe { as_nat(word) }.to_i64().unwrap_or(i64::MAX)
+}
+
 /// The length in bytes of a `Bytes` word.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_bytes_len(word: i64) -> i64 {
     unsafe { as_bytes(word) }.len()
 }
 
-/// The byte (0..=255) at `index`, faulting out of bounds.
+/// The byte (0..=255) at `index`. The index carries evidence that it is
+/// below the length, so the bounds check is a compiler-bug trap.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_bytes_get(word: i64, index: i64) -> i64 {
     match unsafe { as_bytes(word) }.get(index) {
@@ -893,8 +936,11 @@ pub unsafe extern "C" fn cinch_bytes_get(word: i64, index: i64) -> i64 {
     }
 }
 
-/// Write `value` (0..=255) at `index`; returns 0 (the Unit word),
-/// faulting on out-of-bounds index or value.
+/// Write `value` (0..=255) at `index`; returns 0 (the Unit word). The
+/// index carries evidence that it is in bounds and the value is an
+/// `InRange 0 255 Nat`, so both checks are compiler-bug traps, as is a
+/// read-only `word` (a string literal's backing is never a `Bytes`
+/// value).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_bytes_set(word: i64, index: i64, value: i64) -> i64 {
     match unsafe { as_bytes_mut(word) }.set(index, value) {
@@ -905,10 +951,10 @@ pub unsafe extern "C" fn cinch_bytes_set(word: i64, index: i64, value: i64) -> i
 
 /// Copy `n` bytes of `src` from `si` into `dst` at `di` (one `memmove`:
 /// the two words may be the same buffer and the ranges may overlap);
-/// returns 0 (the Unit word). A negative index or count or a range past
-/// either end takes the out-of-bounds fault; a read-only `dst` takes the
-/// read-only fault. A zero count is a no-op, as the Cinch-level loop it
-/// replaces was.
+/// returns 0 (the Unit word). Both ranges carry evidence that they end
+/// inside their buffers, so the range check is a compiler-bug trap, as
+/// is a read-only `dst`. A zero count is a no-op, as the Cinch-level loop
+/// it replaces was.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_bytes_copy(dst: i64, src: i64, di: i64, si: i64, n: i64) -> i64 {
     if n == 0 {
@@ -1035,41 +1081,40 @@ pub extern "C" fn cinch_task_poll_cancel() -> i64 {
 }
 
 /// Write a `Bytes` word to the runtime's output sink (stdout), flushed so
-/// an observer sees it immediately; returns 0 (the Unit word).
+/// an observer sees it immediately; returns 0 (the Unit word). A failed
+/// write or flush (a closed pipe, a full device) is the operating
+/// system's outcome, which no program can rule out: it exits through the
+/// panic path as [`Error::OutputFailed`].
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_io_write(word: i64) -> i64 {
     use std::io::Write;
     let buf = unsafe { as_bytes(word) }.as_slice();
     let mut out = std::io::stdout();
     if out.write_all(buf).is_err() || out.flush().is_err() {
-        raise(Error::OutOfBounds);
+        raise(Error::OutputFailed);
     }
     0
 }
 
 /// Read up to `len` bytes from the runtime's input source (stdin): the
 /// `Bytes` word, or 0 when the source is at end of input (`ioRead`'s
-/// `None`). A negative length faults.
+/// `None`). Generated code passes `len` through [`cinch_nat_to_len`], so
+/// a negative one is the compiler-bug trap. The buffer grows with what
+/// arrives rather than being sized to `len` up front, so a large request
+/// over a short input allocates only what is read.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_io_read(len: i64) -> i64 {
     use std::io::Read;
-    if len < 0 {
-        raise(Error::OutOfBounds);
-    }
-    let want = usize::try_from(len).unwrap_or(usize::MAX);
-    let mut buf = vec![0u8; want];
-    let mut filled = 0usize;
-    while filled < want {
-        match std::io::stdin().read(&mut buf[filled..]) {
-            Ok(0) => break,
-            Ok(n) => filled += n,
-            Err(_) => break,
-        }
-    }
-    if filled == 0 {
+    let Ok(want) = u64::try_from(len) else {
+        raise(Error::CorruptValue)
+    };
+    let mut buf = Vec::new();
+    // A read error ends the input as end of input did before; the bytes
+    // already read stay in `buf`.
+    let _ = std::io::stdin().lock().take(want).read_to_end(&mut buf);
+    if buf.is_empty() {
         return 0;
     }
-    buf.truncate(filled);
     box_bytes(crate::bytes::Bytes::from(buf))
 }
 

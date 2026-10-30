@@ -83,14 +83,15 @@ module Bootstrap.Manifest where
   -- same idea under the plain name.
   manifest-bytes-equal :: Bytes -> Bytes -> Bool
   manifest-bytes-equal a b =
-    if nat-cmp (bytes-len a) (bytes-len b) == 0 then bytes-equal-from a b 0
+    if bytes-len a == bytes-len b then bytes-equal-from a b 0
     else False
 
-  bytes-equal-from :: Bytes -> Bytes -> Nat -> Bool
+  bytes-equal-from :: using (bytes-len a == bytes-len b) => (a :: Bytes) -> (b :: Bytes) -> (i :: Nat) -> Bool
   bytes-equal-from a b i =
-    if nat-cmp i (bytes-len a) == 0 then True
-    else if nat-cmp (bytes-get a i) (bytes-get b i) == 0 then bytes-equal-from a b (i + 1)
-    else False
+    if i < bytes-len a then
+      if nat-cmp (bytes-get a i) (bytes-get b i) == 0 then bytes-equal-from a b (i + 1)
+      else False
+    else True
 
   -- The content identity of already canonical bytes: the value
   -- `canonical-hash` computes, without canonicalizing a value again.

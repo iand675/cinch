@@ -71,9 +71,10 @@ module Data.IpAddr where
     Ipv4Family :: IpFamily
     Ipv6Family :: IpFamily
 
-  -- Four octets, each 0..=255.
+  -- Four octets, each 0..=255. The field type carries the bound, so the
+  -- byte form needs no check and no constructor site can exceed it.
   data Ipv4 where
-    MkIpv4 :: Nat -> Nat -> Nat -> Nat -> Ipv4
+    MkIpv4 :: InRange 0 255 Nat -> InRange 0 255 Nat -> InRange 0 255 Nat -> InRange 0 255 Nat -> Ipv4
 
   -- Exactly eight 16-bit groups, most significant first.
   data Ipv6 where
@@ -159,7 +160,7 @@ module Data.IpAddr where
         Some n -> decimal-digits rest (acc * 10 + n)
         None -> None
 
-  octet-value :: List Char -> Option Nat
+  octet-value :: List Char -> Option (InRange 0 255 Nat)
   octet-value cs =
     if is-empty cs then None
     else if leading-zero cs then None
@@ -376,10 +377,15 @@ module Data.IpAddr where
   ipv6-bytes a = case a of
     MkIpv6 gs -> bytes-from-list (group-bytes gs)
 
-  group-bytes :: List Nat -> List Nat
+  -- Every group is at most 65535 (all three constructors enforce it:
+  -- `hex-group` reads at most four hex digits, `ipv6-from-groups` checks
+  -- `all-groups-ok`, `pad-groups` adds zeros), so `nat-div g 256` is
+  -- already below 256 and the `nat-rem` returns it unchanged. The
+  -- remainder only states that bound where the byte list can read it.
+  group-bytes :: List Nat -> List (InRange 0 255 Nat)
   group-bytes gs = case gs of
     Nil -> Nil
-    Cons g rest -> Cons (nat-div g 256) (Cons (nat-rem g 256) (group-bytes rest))
+    Cons g rest -> Cons (nat-rem (nat-div g 256) 256) (Cons (nat-rem g 256) (group-bytes rest))
 
   ipv6-order :: Ipv6 -> Ipv6 -> I64
   ipv6-order a b = case a of

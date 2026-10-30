@@ -1003,7 +1003,7 @@ module Main where
   main :: Int
   main =
     if negate 5 == -5 then
-      if int-from-i64 (nat-to-i64 (nat-add 2 3)) == 5 then
+      if int-from-i64 (nat-to-i64 (2 + 3)) == 5 then
         if int-to-i64 7 == 7 then
           if nat-from-i64 9 == 9 then 0 else 4
         else 3
@@ -1064,35 +1064,37 @@ module Main where
 }
 
 #[test]
-fn bytes_faults_are_panic_path_71() {
-    // Out-of-bounds indices, byte values outside 0..=255 and negative
-    // lengths all raise `Error::OutOfBounds` and exit 71 (the panic path).
-    run_ok(
+fn bytes_faults_are_refused_at_compile_time() {
+    // These three programs used to fault at run time (exit 71): an
+    // out-of-bounds read, an out-of-bounds write and a byte value above
+    // 255. Bytes operations are now total by construction, so each one is
+    // refused when it is checked, naming the obligation that cannot hold.
+    expect_err(
         "bytes-get-oob",
         r#"
 module Main where
   main :: Int
   main = let b = bytes-new 2 in let x = bytes-get b 2 in 0
 "#,
-        71,
+        "the obligation `2 < (Data.Bytes.bytes-len b)`",
     );
-    run_ok(
+    expect_err(
         "bytes-set-oob",
         r#"
 module Main where
   main :: Int
   main = let b = bytes-new 2 in let u = bytes-set b 2 1 in 0
 "#,
-        71,
+        "the obligation `2 < (Data.Bytes.bytes-len b)`",
     );
-    run_ok(
+    expect_err(
         "bytes-set-bad-value",
         r#"
 module Main where
   main :: Int
   main = let b = bytes-new 2 in let u = bytes-set b 0 300 in 0
 "#,
-        71,
+        "its predicate `(0 <= 300 && 300 <= 255)` is false",
     );
 }
 

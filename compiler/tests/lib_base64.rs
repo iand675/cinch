@@ -29,8 +29,10 @@ const HELPERS: &str = r#"
   bytes-equal :: Bytes -> Bytes -> Bool
   bytes-equal a b = bytes-equal-from a b 0
 
-  count-from :: Nat -> Nat -> List Nat
-  count-from i n = if i >= n then Nil else Cons i (count-from (i + 1) n)
+  -- The bytes from `i` up to 255: every value a byte can hold, so the
+  -- bound is the byte range itself.
+  bytes-upward :: Nat -> List (InRange 0 255 Nat)
+  bytes-upward i = if i < 256 then Cons i (bytes-upward (i + 1)) else Nil
 
   err-tag :: Result Base64Error Bytes -> Nat
   err-tag r = case r of
@@ -40,27 +42,27 @@ const HELPERS: &str = r#"
       InvalidBase64Length _ -> 2
       InvalidBase64Padding -> 3
 
-  enc-is :: List Nat -> String -> Bool
+  enc-is :: List (InRange 0 255 Nat) -> String -> Bool
   enc-is xs expected = base64-encode (bytes-from-list xs) == expected
 
-  dec-ok :: String -> List Nat -> Bool
+  dec-ok :: String -> List (InRange 0 255 Nat) -> Bool
   dec-ok input expected = case base64-decode input of
     Err _ -> False
     Ok bs -> bytes-equal bs (bytes-from-list expected)
 
-  url-dec-ok :: String -> List Nat -> Bool
+  url-dec-ok :: String -> List (InRange 0 255 Nat) -> Bool
   url-dec-ok input expected = case base64-url-decode input of
     Err _ -> False
     Ok bs -> bytes-equal bs (bytes-from-list expected)
 
-  lenient-is :: String -> List Nat -> Bool
+  lenient-is :: String -> List (InRange 0 255 Nat) -> Bool
   lenient-is input expected = bytes-equal (base64-decode-lenient input) (bytes-from-list expected)
 
-  foobar :: List Nat
+  foobar :: List (InRange 0 255 Nat)
   foobar = Cons 102 (Cons 111 (Cons 111 (Cons 98 (Cons 97 (Cons 114 Nil)))))
 
   all-bytes :: Bytes
-  all-bytes = bytes-from-list (count-from 0 256)
+  all-bytes = bytes-from-list (bytes-upward 0)
 "#;
 
 /// The `Main` module: the standard imports around the shared helpers and

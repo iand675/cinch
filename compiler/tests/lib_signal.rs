@@ -114,7 +114,7 @@ module Main where
   is-digit c = if c >= 48 then c <= 57 else False
 
   digits-nat :: Bytes -> Nat -> Nat -> Nat
-  digits-nat b i acc = case i == bytes-len b of
+  digits-nat b i acc = case i >= bytes-len b of
     True -> acc
     False -> case is-digit (bytes-get b i) of
       True -> digits-nat b (i + 1) (acc * 10 + (bytes-get b i % 16))
@@ -131,11 +131,17 @@ module Main where
     Ok u -> True
     Err e -> False
 
+  -- The probe against `pid`, as the exit-code bit it contributes.
+  probe-bit :: forall r. using (io :: Io r) => Nat ->{IO r} Int
+  probe-bit pid = case checked-nat-to-i64 pid of
+    Some p -> if probe-ok p then 0 else 2
+    None -> 2
+
   main :: Unit ->{IO r, Diverge} Int
   main u = with (io = newIO ()) in
     let pid = self-pid (path-from-string "/bin/sh") in
     let c1 = if pid > 0 then 0 else 1 in
-    let c2 = if probe-ok (nat-to-i64 pid) then 0 else 2 in
+    let c2 = probe-bit pid in
     let c3 = if probe-ok 0 then 0 else 4 in
     c1 + c2 + c3
 "#,

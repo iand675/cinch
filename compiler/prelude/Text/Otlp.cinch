@@ -90,7 +90,9 @@ module Text.Otlp where
           (string-concat "-" (string-concat span-id
             (string-concat "-" (hex2 f))))))
 
-  dash-at :: Bytes -> Nat -> Bool
+  -- The header helpers read at fixed offsets below the 55-byte minimum
+  -- `parse-traceparent` checks first; each carries its offsets' bound.
+  dash-at :: using (i < bytes-len b) => (b :: Bytes) -> (i :: Nat) -> Bool
   dash-at b i = nat-cmp (bytes-get b i) 45 == 0
 
   -- One lowercase-hex digit's value; `None` for anything else
@@ -101,7 +103,7 @@ module Text.Otlp where
     else if c >= 97 && c <= 102 then Some (c - 87)
     else None
 
-  hex2-val :: Bytes -> Nat -> Option Nat
+  hex2-val :: using (i + 1 < bytes-len b) => (b :: Bytes) -> (i :: Nat) -> Option Nat
   hex2-val b i = case hex-digit-val (bytes-get b i) of
     None -> None
     Some hi -> case hex-digit-val (bytes-get b (i + 1)) of
@@ -109,10 +111,10 @@ module Text.Otlp where
       Some lo -> Some (hi * 16 + lo)
 
   -- An id field: `len` lowercase-hex digits, not all zeros.
-  id-valid :: Bytes -> Nat -> Nat -> Bool
+  id-valid :: using (start + len <= bytes-len b) => (b :: Bytes) -> (start :: Nat) -> (len :: Nat) -> Bool
   id-valid b start len = id-scan b start (start + len) False
 
-  id-scan :: Bytes -> Nat -> Nat -> Bool -> Bool
+  id-scan :: using (end <= bytes-len b) => (b :: Bytes) -> (i :: Nat) -> (end :: Nat) -> Bool -> Bool
   id-scan b i end nonzero =
     if i >= end then nonzero
     else case hex-digit-val (bytes-get b i) of
@@ -328,4 +330,4 @@ module Text.Otlp where
     _ -> Nil
 
   nat-json :: Nat -> Json
-  nat-json n = num (int-from-i64 (nat-to-i64 n))
+  nat-json n = num (nat-to-int n)

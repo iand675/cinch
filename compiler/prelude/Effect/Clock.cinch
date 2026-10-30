@@ -66,9 +66,12 @@ module Effect.Clock where
   monotonic-elapsed t0 t1 = Duration (saturating-sub t1 t0 / 1000000)
 
   -- The runtime clock words behind the capability (`compiler/runtime/
-  -- src/platform.rs`, the `cinch_clock_*` externs).
-  foreign import ccall "cinch_clock_monotonic_ns" raw-monotonic-ns :: forall r. Unit ->{IO r} I64
-  foreign import ccall "cinch_clock_wall_ns" raw-wall-ns :: forall r. Unit ->{IO r} I64
+  -- src/platform.rs`, the `cinch_clock_*` externs). Both readings are
+  -- clamped by the runtime to `0..=i64::MAX` (a duration since the
+  -- origin or the epoch, saturated; a wall clock before the epoch reads
+  -- 0), so their declared range is the runtime's own guarantee.
+  foreign import ccall "cinch_clock_monotonic_ns" raw-monotonic-ns :: forall r. Unit ->{IO r} InRange 0 9223372036854775807 I64
+  foreign import ccall "cinch_clock_wall_ns" raw-wall-ns :: forall r. Unit ->{IO r} InRange 0 9223372036854775807 I64
 
   -- Nanoseconds since an arbitrary origin: non-decreasing across
   -- calls (two readings never go backwards).

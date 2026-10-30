@@ -373,8 +373,8 @@ module Data.BigDecimal where
   render-unsigned :: Int -> Int -> String
   render-unsigned m e =
     let digits = int-to-string m in
-    if e < 0 then insert-point digits (int-to-nat (int-neg e))
-    else string-concat digits (string-repeat (int-to-nat e) "0")
+    if e < 0 then insert-point digits (nat-from-int (0 - e))
+    else string-concat digits (string-repeat (nat-from-int e) "0")
 
   -- The point sits `k` digits from the right (zero-padded when `k`
   -- reaches past the digit run); `k == 0` never gets here, since the
@@ -462,15 +462,3 @@ module Data.BigDecimal where
 
   codes-of :: String -> List Nat
   codes-of s = map char-code (unpack s)
-
-  -- `Nat` to `Int` through the shared bit pattern. Every call site
-  -- here converts a digit count, a precision or an exponent magnitude,
-  -- all of which are far below an `I64`'s range; a count above it
-  -- cannot be produced by any literal or buffer this family reads.
-  nat-to-int :: Nat -> Int
-  nat-to-int n = int-from-i64 (nat-to-i64 n)
-
-  -- The inverse, for the non-negative magnitudes above (a digit width,
-  -- an inserted-point offset, a power of ten's exponent).
-  int-to-nat :: Int -> Nat
-  int-to-nat n = nat-from-i64 (int-to-i64 n)

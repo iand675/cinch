@@ -106,8 +106,9 @@ module Bootstrap.Interface where
 
   -- ----------------------------------------------------------------- bytes
 
-  -- Do the `k` bytes at `hi` and `ni` agree? Used by the needle search.
-  bytes-equal-at :: Bytes -> Nat -> Bytes -> Nat -> Nat -> Bool
+  -- Do the `k` bytes at `hi` and `ni` agree? Used by the needle search,
+  -- which only asks about ranges inside both buffers.
+  bytes-equal-at :: using (hi + k <= bytes-len hay, ni + k <= bytes-len needle) => (hay :: Bytes) -> (hi :: Nat) -> (needle :: Bytes) -> (ni :: Nat) -> (k :: Nat) -> Bool
   bytes-equal-at hay hi needle ni k =
     if k == 0 then True
     else if nat-cmp (bytes-get hay hi) (bytes-get needle ni) == 0 then bytes-equal-at hay (hi + 1) needle (ni + 1) (k - 1)
@@ -116,22 +117,21 @@ module Bootstrap.Interface where
   -- The first index at or after `from` where `needle` occurs, or `None`.
   bytes-find :: Bytes -> Bytes -> Nat -> Option Nat
   bytes-find hay needle from =
-    if nat-cmp (from + bytes-len needle) (bytes-len hay) > 0 then None
-    else if bytes-equal-at hay from needle 0 (bytes-len needle) then Some from
-    else bytes-find hay needle (from + 1)
+    if from + bytes-len needle <= bytes-len hay then
+      if bytes-equal-at hay from needle 0 (bytes-len needle) then Some from
+      else bytes-find hay needle (from + 1)
+    else None
 
   -- `hay` with the half-open range `[lo, hi)` replaced by `repl`: the prefix,
   -- the replacement and the suffix, copied into one fresh buffer. A range
   -- that is not inside `hay` (the callers never pass one) leaves it as is.
   bytes-splice :: Bytes -> Nat -> Nat -> Bytes -> Bytes
   bytes-splice hay lo hi repl =
-    let bl = bytes-len hay in
-    let rl = bytes-len repl in
-    if lo <= hi && hi <= bl then
-      let out = bytes-new ((bl - hi) + lo + rl) in
+    if lo <= hi && hi <= bytes-len hay then
+      let out = bytes-new ((bytes-len hay - hi) + lo + bytes-len repl) in
       let u = copy-bytes-into out hay 0 0 lo in
-      let v = copy-bytes-into out repl lo 0 rl in
-      let w = copy-bytes-into out hay (lo + rl) hi (bl - hi) in
+      let v = copy-bytes-into out repl lo 0 (bytes-len repl) in
+      let w = copy-bytes-into out hay (lo + bytes-len repl) hi (bytes-len hay - hi) in
       out
     else hay
 
@@ -142,21 +142,25 @@ module Bootstrap.Interface where
 
   skip-spaces :: Bytes -> Nat -> Nat
   skip-spaces b i =
-    if nat-cmp i (bytes-len b) == 0 then i
-    else if is-space-byte (bytes-get b i) then skip-spaces b (i + 1)
+    if i < bytes-len b then
+      if is-space-byte (bytes-get b i) then skip-spaces b (i + 1)
+      else i
     else i
 
   -- ------------------------------------------------- text surgery on bytes
 
   -- The index of the byte that closes the JSON string whose content starts at
   -- `i`, honoring the `\\` escape. The caller guarantees `i` is inside the
-  -- buffer (`Iface::to_json` never emits an unterminated string).
+  -- buffer (`Iface::to_json` never emits an unterminated string); an
+  -- escape that runs off the end stops at an index past it, which
+  -- `bytes-splice` refuses as a range outside the buffer.
   string-stop :: Bytes -> Nat -> Nat
   string-stop b i =
-    if nat-cmp i (bytes-len b) == 0 then i
-    else if nat-cmp (bytes-get b i) 92 == 0 then string-stop b (i + 2)
-    else if nat-cmp (bytes-get b i) 34 == 0 then i
-    else string-stop b (i + 1)
+    if i < bytes-len b then
+      if nat-cmp (bytes-get b i) 92 == 0 then string-stop b (i + 2)
+      else if nat-cmp (bytes-get b i) 34 == 0 then i
+      else string-stop b (i + 1)
+    else i
 
   -- The index of the `]` closing the array that the `[` at `open` opens, with
   -- brackets inside strings skipped, so a string containing `[` or `]` cannot
@@ -169,17 +173,18 @@ module Bootstrap.Interface where
   -- a level to drop.
   brackets-scan :: using (1 <= depth) => Bytes -> Nat -> (depth :: Nat) -> Nat -> Nat
   brackets-scan b i depth in-str =
-    if nat-cmp i (bytes-len b) == 0 then i
-    else if nat-cmp in-str 1 == 0 then in-string-scan b i depth
-    else in-array b i depth
+    if i < bytes-len b then
+      if nat-cmp in-str 1 == 0 then in-string-scan b i depth
+      else in-array b i depth
+    else i
 
-  in-string-scan :: using (1 <= depth) => Bytes -> Nat -> (depth :: Nat) -> Nat
+  in-string-scan :: using (1 <= depth, i < bytes-len b) => (b :: Bytes) -> (i :: Nat) -> (depth :: Nat) -> Nat
   in-string-scan b i depth =
     if nat-cmp (bytes-get b i) 92 == 0 then brackets-scan b (i + 2) depth 1
     else if nat-cmp (bytes-get b i) 34 == 0 then brackets-scan b (i + 1) depth 0
     else brackets-scan b (i + 1) depth 1
 
-  in-array :: using (1 <= depth) => Bytes -> Nat -> (depth :: Nat) -> Nat
+  in-array :: using (1 <= depth, i < bytes-len b) => (b :: Bytes) -> (i :: Nat) -> (depth :: Nat) -> Nat
   in-array b i depth =
     if nat-cmp (bytes-get b i) 34 == 0 then brackets-scan b (i + 1) depth 1
     else if nat-cmp (bytes-get b i) 91 == 0 then brackets-scan b (i + 1) (depth + 1) 0
@@ -207,11 +212,15 @@ module Bootstrap.Interface where
     None -> None
     Some p -> if key-anchored hay p then Some p else bytes-find-key hay needle (p + 1)
 
+  -- `p` is a match `bytes-find` returned, so it is inside `hay`; the
+  -- restated bound is that guarantee in a form the checker reads.
   key-anchored :: Bytes -> Nat -> Bool
   key-anchored hay p =
     if p == 0 then False
-    else if nat-cmp (bytes-get hay (p - 1)) 123 == 0 then True
-    else nat-cmp (bytes-get hay (p - 1)) 44 == 0
+    else if p <= bytes-len hay then
+      if nat-cmp (bytes-get hay (p - 1)) 123 == 0 then True
+      else nat-cmp (bytes-get hay (p - 1)) 44 == 0
+    else False
 
   -- The index of a top-level key's value, or `None` when the key is absent or
   -- the document ends where its value should begin. Being total on a
@@ -232,7 +241,7 @@ module Bootstrap.Interface where
   blank-field-string hay key = case value-start hay key of
     None -> hay
     Some open ->
-      if nat-cmp (bytes-get hay open) 34 == 0 then
+      if open < bytes-len hay && nat-cmp (bytes-get hay open) 34 == 0 then
         let close = string-stop hay (open + 1) in
         bytes-splice hay (open + 1) close (bytes-new 0)
       else hay
@@ -244,7 +253,7 @@ module Bootstrap.Interface where
   empty-array-field hay key = case value-start hay key of
     None -> hay
     Some open ->
-      if nat-cmp (bytes-get hay open) 91 == 0 then
+      if open < bytes-len hay && nat-cmp (bytes-get hay open) 91 == 0 then
         let close = array-stop hay open in
         if nat-cmp close (bytes-len hay) < 0 then
           bytes-splice hay open (close + 1) (string-to-bytes "[]")
@@ -267,17 +276,17 @@ module Bootstrap.Interface where
 
   fnv-from :: Bytes -> Nat -> U64 -> U64
   fnv-from b i h =
-    if nat-cmp i (bytes-len b) == 0 then h
-    else fnv-from b (i + 1) (fnv-step h (bytes-get b i))
+    if i < bytes-len b then fnv-from b (i + 1) (fnv-step h (bytes-get b i))
+    else h
 
   fnv-step :: U64 -> Nat -> U64
   fnv-step h byte = wrapping-mul-u64 (bit-xor-u64 h (nat-to-u64 byte)) fnv-prime
 
   -- A byte value (0..255) as a `U64`: `Bytes` yields `Nat` and the hash works
-  -- on `U64`; a byte is far inside `I64`'s range, so the narrowing conversion
-  -- is exact.
+  -- on `U64`. The residue below 2^63 is the value itself for a byte, and
+  -- it is the evidence the conversion through `I64` needs.
   nat-to-u64 :: Nat -> U64
-  nat-to-u64 n = wrapping-i64-to-u64 (nat-to-i64 n)
+  nat-to-u64 n = let w = nat-rem n 9223372036854775808 in wrapping-i64-to-u64 (nat-to-i64 w)
 
   -- The decimal spelling of a `U64`, the form the interface records both
   -- hashes in. A `U64` can exceed `I64`, so it is rendered by division rather
@@ -350,11 +359,11 @@ module Bootstrap.Interface where
     None -> None
 
   -- A number-valued field as a `Nat`. The interface's integers (`schema`,
-  -- `prec`) are non-negative, so the conversion through `I64` is exact.
+  -- `prec`) are non-negative; a negative one is no such field.
   nat-field :: String -> Json -> Option Nat
   nat-field key doc = case json-field key doc of
     Some v -> case v of
-      JNum n -> Some (nat-from-i64 (int-to-i64 n))
+      JNum n -> if n < 0 then None else Some (nat-from-int n)
       other -> None
     None -> None
 

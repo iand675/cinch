@@ -2926,6 +2926,10 @@ struct Checker {
     /// bind it as hidden evidence over the names their patterns give
     /// those locals. Positional binders `$a{i}` index the locals.
     param_facts: Vec<(PTerm, Vec<LocalId>)>,
+    /// The value-parameter locals of the definition being checked, so a
+    /// result refinement naming parameter `i` (positional `$a{i}`) reads
+    /// over the name each row gives it (`row_result`).
+    result_params: Vec<LocalId>,
 }
 
 /// A `generate do` block collected for compile-time execution (staging).
@@ -3268,6 +3272,7 @@ impl Checker {
             prop_calls: Vec::new(),
             app_callee_depth: 0,
             param_facts: Vec::new(),
+            result_params: Vec::new(),
         }
     }
 
@@ -3509,14 +3514,26 @@ impl Checker {
                 if !fresh || !scheme.params.is_empty() {
                     continue;
                 }
-                let Some((sort, rv)) = self.int_view(&t) else {
-                    continue;
+                // A refined local's predicate holds of it: over an
+                // integer container with the sort, over any other (a
+                // `Bytes` whose length a result refinement states) as the
+                // fact alone. It may also name other locals (a result
+                // refinement stated over the call's arguments, `bytes-len
+                // out == n`), which must still denote what they denoted
+                // at the binding: none of them is rebound after it.
+                let rv = match self.int_view(&t) {
+                    Some((sort, rv)) => {
+                        out.sorts.push((name.clone(), sort));
+                        rv
+                    }
+                    None => self.refine_view(&t),
                 };
-                out.sorts.push((name.clone(), sort));
                 if let Some(rv) = rv {
                     let mut fv = Vec::new();
                     rv.pred.free_vars(&mut fv);
-                    if fv.iter().all(|v| *v == rv.binder) {
+                    if fv.iter().all(|v| {
+                        *v == rv.binder || (!later.contains(v.as_str()) && env.lookup(v).is_some())
+                    }) {
                         out.refined.push(rv.pred.subst(&rv.binder, &ITerm::Var(name.clone())));
                     }
                 }
@@ -3577,6 +3594,20 @@ impl Checker {
     fn linear_discharge(&self, ev: &Evidence, obl: &PTerm) -> Option<Vec<usize>> {
         let mut hyps: Vec<PTerm> = ev.items.iter().map(|(_, q, _, _)| q.clone()).collect();
         hyps.extend(ev.refined.iter().cloned());
+        // Every application the facts and the goal mention holds its
+        // callee's result refinement (`0 <= u32-to-i64 c` from
+        // `u32-to-i64 :: U32 -> InRange 0 4294967295 I64`), one more
+        // fact. A range holds of every result, so this is sound whatever
+        // the arguments are and however often the term is evaluated.
+        let mut facts = Vec::new();
+        for p in hyps.iter().chain(std::iter::once(obl)) {
+            self.app_result_facts(p, &mut facts);
+        }
+        for f in facts {
+            if !hyps.contains(&f) {
+                hyps.push(f);
+            }
+        }
         let mut heads: Vec<(String, usize)> = Vec::new();
         for p in hyps.iter().chain(std::iter::once(obl)) {
             index_heads(p, &mut heads);
@@ -3594,6 +3625,120 @@ impl Checker {
             }
         }
         Some(used)
+    }
+
+    /// Whether an index term denotes one value wherever it is read: a
+    /// numeral, a local, arithmetic over such terms, or a pure arithmetic
+    /// intrinsic applied to all of its arguments (`PrimOp::is_pure_arith`).
+    fn stable_reading(&self, t: &ITerm) -> bool {
+        match t {
+            ITerm::Num(_) | ITerm::Var(_) => true,
+            ITerm::Bin(_, a, b) => self.stable_reading(a) && self.stable_reading(b),
+            // A top-level constant (a nullary definition, or a nullary
+            // pure intrinsic such as `max-bound-i64`) is one value.
+            ITerm::Fn(h) => h.rsplit_once('.').is_some_and(|(module, name)| {
+                self.qualified.get(&(module.to_string(), name.to_string())).is_some_and(|v| {
+                    !matches!(v.scheme.ty, Ty::Fun(..) | Ty::Pi { .. })
+                        && match v.kind {
+                            ValueKind::TopFn => true,
+                            ValueKind::Prim(op) => op.is_pure_arith(),
+                            _ => false,
+                        }
+                })
+            }),
+            ITerm::App(f, args) => {
+                let ITerm::Fn(h) = &**f else { return false };
+                let Some((module, name)) = h.rsplit_once('.') else { return false };
+                match self.qualified.get(&(module.to_string(), name.to_string())).map(|v| &v.kind) {
+                    Some(ValueKind::Prim(op)) => {
+                        op.is_pure_arith() && op.arity() == args.len() && args.iter().all(|a| self.stable_reading(a))
+                    }
+                    _ => false,
+                }
+            }
+            _ => false,
+        }
+    }
+
+    /// The result facts of the applications a predicate mentions (see
+    /// `linear_discharge`). A result refinement naming an argument
+    /// (`refined (r < $a1) Nat`) states its fact only where that argument
+    /// is a numeral, a local, arithmetic over them or a pure arithmetic
+    /// intrinsic applied to them: such a reading denotes the same value
+    /// at the call and in the fact.
+    fn app_result_facts(&self, p: &PTerm, out: &mut Vec<PTerm>) {
+        let simple = |t: &ITerm| self.stable_reading(t);
+        fn terms<'a>(t: &'a ITerm, out: &mut Vec<(&'a str, &'a [ITerm], &'a ITerm)>) {
+            match t {
+                ITerm::Fn(h) => out.push((h, &[], t)),
+                ITerm::App(f, args) => {
+                    if let ITerm::Fn(h) = &**f {
+                        out.push((h, args, t));
+                    } else {
+                        terms(f, out);
+                    }
+                    args.iter().for_each(|a| terms(a, out));
+                }
+                ITerm::Bin(_, a, b) => {
+                    terms(a, out);
+                    terms(b, out);
+                }
+                ITerm::Lam(..) | ITerm::Var(_) | ITerm::Num(_) | ITerm::MVar(_) => {}
+            }
+        }
+        fn preds<'a>(p: &'a PTerm, out: &mut Vec<(&'a str, &'a [ITerm], &'a ITerm)>) {
+            match p {
+                PTerm::Cmp(_, a, b) | PTerm::Eq(a, b) => {
+                    terms(a, out);
+                    terms(b, out);
+                }
+                PTerm::Not(q) => preds(q, out),
+                PTerm::And(a, b) | PTerm::Or(a, b) => {
+                    preds(a, out);
+                    preds(b, out);
+                }
+                PTerm::Pred(_, a) => terms(a, out),
+                PTerm::Var(_) | PTerm::MVar(_) => {}
+            }
+        }
+        let mut apps = Vec::new();
+        preds(p, &mut apps);
+        for (head, args, term) in apps {
+            let Some((module, name)) = head.rsplit_once('.') else { continue };
+            let Some(v) = self.qualified.get(&(module.to_string(), name.to_string())) else { continue };
+            let mut ty = v.scheme.ty.clone();
+            let mut ok = true;
+            for a in args {
+                ty = match ty {
+                    Ty::Fun(_, _, _, cod) => *cod,
+                    Ty::Pi { var, cod, .. } => cod.subst_idx(&var, a),
+                    _ => {
+                        ok = false;
+                        break;
+                    }
+                };
+            }
+            if !ok || matches!(ty, Ty::Fun(..) | Ty::Pi { .. }) {
+                continue;
+            }
+            let readings: Vec<Option<ITerm>> =
+                args.iter().map(|a| simple(a).then(|| a.clone())).collect();
+            let ty = Self::resolve_positional_result(&ty, &readings);
+            let Some(rv) = self.refine_view(&ty) else { continue };
+            let mut fv = Vec::new();
+            rv.pred.free_vars(&mut fv);
+            let mut avs = Vec::new();
+            for a in args {
+                a.free_vars(&mut avs);
+            }
+            if !fv.iter().all(|x| *x == rv.binder || avs.contains(x)) {
+                continue;
+            }
+            let f = rv.pred.subst(&rv.binder, term);
+            if !out.contains(&f) {
+                out.push(f);
+            }
+        }
     }
 
     /// Discharge one refinement obligation at a call (refinement types
@@ -5825,6 +5970,42 @@ impl Checker {
                     ),
                 ))
             }
+            ast::Type::Con(p, _) if args.len() > 1 => {
+                // A named refinement with index parameters applied to
+                // its index arguments and a value (`InRange 0 255 r`, the
+                // predicate of the type `InRange 0 255 Nat`): one
+                // spelling for the type and its predicate.
+                let name = p.parts().join(".");
+                let tk = self.lookup_type(&p.parts()).ok().and_then(|i| {
+                    self.types.get(&i.name)?.iter().find(|t| t.refine.is_some()).cloned()
+                });
+                if let Some(tk) = tk {
+                    let r = tk.refine.clone().expect("refine is some");
+                    let idx: Vec<&String> = r
+                        .params
+                        .iter()
+                        .zip(&tk.param_kinds)
+                        .filter(|(_, k)| matches!(k, ParamKind::Val(_)))
+                        .map(|(p, _)| p)
+                        .collect();
+                    if idx.len() + 1 == args.len() {
+                        let unit = Ty::Nat;
+                        let mut map: HashMap<String, Ty> = HashMap::new();
+                        for (p, a) in idx.iter().zip(&args) {
+                            map.insert((*p).clone(), Ty::Idx(Box::new(self.conv_idx(a, vars, &unit)?)));
+                        }
+                        let operand = self.conv_idx(args[args.len() - 1], vars, &unit)?;
+                        map.insert(r.binder.clone(), Ty::Idx(Box::new(operand)));
+                        return Ok(Checker::subst_pt(&r.pred, &map));
+                    }
+                }
+                Err(Error::at(
+                    span,
+                    format!(
+                        "`{name}` is not a proposition former here (a named refinement's predicate takes its index arguments and one value: `InRange 0 255 x`)"
+                    ),
+                ))
+            }
             ast::Type::Var(n, _) if args.is_empty() && vars.contains(&n.text) => {
                 Ok(PTerm::Var(n.text.clone()))
             }
@@ -6035,6 +6216,32 @@ impl Checker {
         }
     }
 
+    /// A range refinement: a numeric container (`Nat`, `Int`, a machine
+    /// integer, `Char`) under comparisons and their conjunctions only
+    /// (`InRange 0 255 Nat`, `refined (r < d) Nat`). Such a value is a
+    /// fact about a number rather than a carrier of its own, so an open
+    /// expectation takes its container (see `unify_arg`).
+    pub(crate) fn is_range_refinement(&self, rv: &RefineView) -> bool {
+        rv.base.as_ref().is_some_and(|b| self.int_view(b).is_some_and(|(_, inner)| inner.is_none()))
+            && Self::is_comparison_refinement(rv)
+    }
+
+    /// A refinement whose predicate is comparisons and their conjunctions
+    /// only, over any container (`InRange 0 255 Nat`, `refined (bytes-len
+    /// out == n) Bytes`): what the difference-logic discharge reads, so
+    /// such a value enters a stronger refinement of the same kind by the
+    /// facts in scope (see `check_subsume`).
+    pub(crate) fn is_comparison_refinement(rv: &RefineView) -> bool {
+        fn ranges(p: &PTerm) -> bool {
+            match p {
+                PTerm::Cmp(..) | PTerm::Eq(..) => true,
+                PTerm::And(a, b) => ranges(a) && ranges(b),
+                _ => false,
+            }
+        }
+        ranges(&rv.pred)
+    }
+
     /// `refined P T` (the anonymous lattice point of `T` by `P`), and
     /// `refined P` where the container is left to the ascription (the
     /// everyday form of partial weakening, refinement types design).
@@ -6154,11 +6361,81 @@ impl Checker {
         }
     }
 
+    /// An arrow chain's final result with its refinement erased to the
+    /// container, and the refinement's view (`None` for a plain result).
+    fn split_result_refinement(&self, t: &Ty) -> (Ty, Option<RefineView>) {
+        match t {
+            Ty::Fun(d, m, e, c) => {
+                let (c, rv) = self.split_result_refinement(c);
+                (Ty::Fun(d.clone(), *m, e.clone(), Box::new(c)), rv)
+            }
+            other => match self.refine_view(other) {
+                Some(RefineView { base: Some(base), pred, binder }) => {
+                    (base.clone(), Some(RefineView { base: Some(base), pred, binder }))
+                }
+                _ => (other.clone(), None),
+            },
+        }
+    }
+
+    /// Whether an intrinsic's promise (`prim_result_promise`) entails the
+    /// result refinement its declaration states, under the declaration's
+    /// own parameter refinements; the reason it does not otherwise.
+    fn check_intrinsic_promise(&self, op: PrimOp, declared: &Ty, rv: &RefineView) -> std::result::Result<(), String> {
+        let Some((promise, pre)) = prim_result_promise(op) else {
+            return Err("the intrinsic promises nothing of its result (its declared result is its container)".to_string());
+        };
+        let mut facts: Vec<PTerm> = Vec::new();
+        let mut vars: Vec<(String, IntSort)> = Vec::new();
+        let mut cur = declared;
+        let mut i = 0;
+        while let Ty::Fun(d, _, _, c) = cur {
+            let name = format!("$a{i}");
+            if let Some((sort, view)) = self.int_view(d) {
+                vars.push((name.clone(), sort));
+                if let Some(v) = view {
+                    facts.push(v.pred.subst(&v.binder, &ITerm::Var(name.clone())));
+                }
+            }
+            cur = c;
+            i += 1;
+        }
+        if let Some((sort, _)) = rv.base.as_ref().and_then(|b| self.int_view(b)) {
+            vars.push(("$it".to_string(), sort));
+        }
+        let entails = |hyps: &[PTerm], goal: &PTerm| -> bool {
+            if hyps.iter().any(|h| pred_entails(h, goal)) {
+                return true;
+            }
+            let mut heads: Vec<(String, usize)> = Vec::new();
+            for p in hyps.iter().chain(std::iter::once(goal)) {
+                index_heads(p, &mut heads);
+            }
+            let fns = heads.into_iter().filter_map(|(h, k)| self.fn_int_sort(&h, k).map(|s| (h, k, s))).collect();
+            linear_entails(hyps, goal, &Sorts { vars: vars.clone(), fns }).is_some()
+        };
+        if let Some(pre) = &pre {
+            if !entails(&facts, pre) {
+                return Err(format!(
+                    "its promise needs `{pre}` of its arguments: state it in a parameter's refinement"
+                ));
+            }
+        }
+        let goal = rv.pred.subst(&rv.binder, &ITerm::Var("$it".to_string()));
+        facts.push(promise.clone());
+        if entails(&facts, &goal) {
+            Ok(())
+        } else {
+            Err(format!("the intrinsic promises `{promise}` of its result `$it`, which does not entail `{goal}`"))
+        }
+    }
+
     /// An arrow chain with each parameter's refinement erased to its
     /// container (`Nat -> NonZero Nat -> Nat` is `Nat -> Nat -> Nat`);
     /// the result is kept as written. An intrinsic's declared type is
-    /// compared against its known signature through this view, so a
-    /// declaration may add a precondition but never a promise.
+    /// compared against its known signature through this view and
+    /// `split_result_refinement`, so a declaration may add a
+    /// precondition, and a promise only where the intrinsic keeps it.
     fn erase_param_refinements(&self, t: &Ty) -> Ty {
         match t {
             Ty::Fun(dom, m, eff, cod) => Ty::Fun(
@@ -7206,10 +7483,144 @@ impl Checker {
                         region_params,
                         ctx,
                         obligs,
-                        ty: t,
+                        ty: Self::positional_results(&t, 0),
                     });
                 }
             }
+        }
+    }
+
+    /// A result refinement that names earlier arguments (`bytes-new ::
+    /// (n :: Nat) -> refined (bytes-len out == n) Bytes`, `nat-rem ::
+    /// Nat -> (d :: NonZero Nat) -> refined (r < d) Nat`) states a fact
+    /// about each call's result, not a dependent type: the container is
+    /// the same for every argument. Such an arrow stays a plain function
+    /// arrow, and the argument's name in the predicate becomes the
+    /// positional `$a{i}` (as a `using` obligation's does), which a full
+    /// application substitutes with the argument's index reading (and
+    /// drops to the container where it has none). An arrow whose name
+    /// reaches anywhere else (a later parameter, the container) stays a
+    /// dependent `Pi`.
+    fn positional_results(t: &Ty, i: usize) -> Ty {
+        match t {
+            Ty::Fun(d, m, e, c) => Ty::Fun(d.clone(), *m, e.clone(), Box::new(Self::positional_results(c, i + 1))),
+            Ty::Pi { var, dom, mult, eff, cod } => {
+                let cod = Self::positional_results(cod, i + 1);
+                let mut skeleton = &cod;
+                let mut elsewhere = false;
+                while let Ty::Fun(d, _, _, c) | Ty::Pi { dom: d, cod: c, .. } = skeleton {
+                    elsewhere |= d.mentions_idx(var);
+                    skeleton = c;
+                }
+                let only_in_pred = match skeleton {
+                    Ty::Adt(n, args) if n == "refined" => match args.as_slice() {
+                        [_, base] => !base.mentions_idx(var),
+                        _ => false,
+                    },
+                    _ => false,
+                };
+                if !elsewhere && only_in_pred {
+                    Ty::Fun(dom.clone(), *mult, eff.clone(), Box::new(cod.subst_idx(var, &ITerm::Var(format!("$a{i}")))))
+                } else {
+                    Ty::Pi { var: var.clone(), dom: dom.clone(), mult: *mult, eff: eff.clone(), cod: Box::new(cod) }
+                }
+            }
+            other => other.clone(),
+        }
+    }
+
+    /// The positional argument names a result refinement mentions.
+    fn positional_mentions(t: &Ty) -> Vec<usize> {
+        let Ty::Adt(n, args) = t else { return Vec::new() };
+        let [Ty::Prp(p), _] = args.as_slice() else { return Vec::new() };
+        if n != "refined" {
+            return Vec::new();
+        }
+        let mut fv = Vec::new();
+        p.free_vars(&mut fv);
+        fv.iter()
+            .filter(|v| crate::types::is_positional_arg(v))
+            .filter_map(|v| v[2..].parse::<usize>().ok())
+            .collect()
+    }
+
+    /// Whether an arrow chain's final result is a refinement (a function
+    /// whose result weakens covariantly, see `unify_arg`).
+    pub(crate) fn final_result_refined(&self, t: &Ty) -> bool {
+        match self.uni.zonk(t) {
+            Ty::Fun(_, _, _, c) | Ty::Pi { cod: c, .. } => self.final_result_refined(&c),
+            other => self.refine_view(&other).is_some(),
+        }
+    }
+
+    /// Whether an arrow chain's final result is a refinement naming a
+    /// positional argument.
+    pub(crate) fn has_positional_result(t: &Ty) -> bool {
+        match t {
+            Ty::Fun(_, _, _, c) | Ty::Pi { cod: c, .. } => Self::has_positional_result(c),
+            other => !Self::positional_mentions(other).is_empty(),
+        }
+    }
+
+    /// A function's type where its application has no argument readings
+    /// (a call elaborated in continuation-passing style): a result
+    /// refinement's conjuncts naming an argument have no argument to
+    /// name, so they drop (a weakening, always sound); the rest stay.
+    pub(crate) fn strip_positional_results(t: &Ty) -> Ty {
+        match t {
+            Ty::Fun(d, m, e, c) => Ty::Fun(d.clone(), *m, e.clone(), Box::new(Self::strip_positional_results(c))),
+            Ty::Pi { var, dom, mult, eff, cod } => Ty::Pi {
+                var: var.clone(),
+                dom: dom.clone(),
+                mult: *mult,
+                eff: eff.clone(),
+                cod: Box::new(Self::strip_positional_results(cod)),
+            },
+            other => Self::resolve_positional_result(other, &[]),
+        }
+    }
+
+    /// The result of a direct application to `args` (each argument's
+    /// index reading, `None` where it has none or is not an admissible
+    /// fact term): a result refinement's conjunct naming argument `i`
+    /// states its fact over that argument's reading, and drops when an
+    /// argument it names has no reading or was not supplied (a partial
+    /// application); with every conjunct dropped the result is the
+    /// container.
+    pub(crate) fn resolve_positional_result(t: &Ty, args: &[Option<ITerm>]) -> Ty {
+        if matches!(t, Ty::Fun(..) | Ty::Pi { .. }) {
+            return Self::strip_positional_results(t);
+        }
+        if Self::positional_mentions(t).is_empty() {
+            return t.clone();
+        }
+        let Ty::Adt(n, targs) = t else { return t.clone() };
+        let [Ty::Prp(p), base] = targs.as_slice() else { return t.clone() };
+        // The refined binder moves to `$it` first, so an argument that
+        // mentions a local of the binder's name is not captured.
+        let pred = p.subst(&crate::types::pred_binder(p), &ITerm::Var("$it".to_string()));
+        let mut kept: Option<PTerm> = None;
+        'conj: for c in pred_conjuncts(&pred) {
+            let mut fv = Vec::new();
+            c.free_vars(&mut fv);
+            if !fv.iter().any(|v| v == "$it") {
+                continue;
+            }
+            let mut c = c.clone();
+            for v in fv.iter().filter(|v| crate::types::is_positional_arg(v)) {
+                match v[2..].parse::<usize>().ok().and_then(|i| args.get(i)) {
+                    Some(Some(it)) => c = c.subst(v, it),
+                    _ => continue 'conj,
+                }
+            }
+            kept = Some(match kept {
+                None => c,
+                Some(k) => PTerm::And(Box::new(k), Box::new(c)),
+            });
+        }
+        match kept {
+            Some(p) => Ty::Adt(n.clone(), vec![Ty::Prp(Box::new(p)), base.clone()]),
+            None => base.clone(),
         }
     }
 

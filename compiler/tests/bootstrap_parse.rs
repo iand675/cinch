@@ -23,9 +23,13 @@
 //!     module has an unmodeled node to account for the miss. A missing
 //!     name with no unmodeled node is the silent drop this catches.
 //!
-//! What is still unmodeled (named, so the boundary is honest): the four
-//! refinement `type R = refine (x :: T) with p` declarations, the class
-//! `law` members of the class homes, the few `do`/`with` terms, and any
+//! What is still unmodeled (named, so the boundary is honest): the
+//! refinement `type R = refine (x :: T) with p` declarations (including
+//! `InRange`'s `Nat`/`Int` index parameters), the class `law` members of
+//! the class homes, the few `do`/`with` terms, the anonymous `refined P
+//! T` result types and the predicate `using` contexts of the range-carrying
+//! signatures (`nat-from-i64`, the widening conversions and integer bounds
+//! in `Data.Machine`, the clock readings, the bytes primitives), and any
 //! form only `examples/source` (the surface proposals, "not compiled")
 //! uses. `EXPECTED_UNMODELED` is the measured residual per module.
 
@@ -50,33 +54,34 @@ const EXPECTED_UNMODELED: &[(&str, usize)] = &[
     ("Data.Ordering", 0),
     ("Relation.Eq", 0),
     ("Relation.Ord", 0),
-    ("Algebra.Arithmetic", 1),
+    ("Algebra.Arithmetic", 2),
     ("Algebra.Bits", 0),
     ("Function.Combinators", 0),
-    ("Data.Nat", 2),
-    ("Data.Int", 0),
+    ("Data.Nat", 7),
+    ("Data.Int", 2),
     ("Data.Option", 3),
     ("Data.Result", 1),
     ("Data.List", 7),
     ("Data.Enum", 0),
-    ("Data.Char", 0),
+    ("Data.Char", 2),
     ("Data.Bool", 0),
-    ("Data.Bytes", 0),
+    ("Data.Machine", 52),
+    ("Data.Bytes", 10),
     ("Data.Map", 0),
-    ("Data.String", 0),
+    ("Data.String", 8),
     ("Data.Json", 0),
     ("Data.Producer", 0),
     ("Data.Target", 0),
     ("Data.Path", 0),
     ("Effect.Sequencing", 0),
     ("Effect.Concurrent", 0),
-    ("Effect.Clock", 4),
+    ("Effect.Clock", 6),
     ("Effect.Fs", 0),
-    ("Effect.Process", 0),
+    ("Effect.Process", 3),
     ("Effect.Io", 0),
     ("Data.FromList", 0),
     ("Data.FromMap", 0),
-    ("Text.Show", 0),
+    ("Text.Show", 1),
     ("Data.Sym", 0),
     ("Prelude", 0),
     ("Algebra.Semigroup", 8),
@@ -100,7 +105,6 @@ const EXPECTED_UNMODELED: &[(&str, usize)] = &[
     ("Data.Hash", 0),
     ("Text.Codec", 0),
     ("Data.HashMap", 0),
-    ("Data.Machine", 0),
     ("01-bounded-index", 0),
     ("02-vector-filter", 2),
     ("03-map-fusion", 3),

@@ -145,10 +145,16 @@ module Bootstrap.Parse where
       Nil -> Nil
       Cons t rest -> drop-toks rest (n - 1)
 
+  -- The source text a span covers. Every span here came from lexing `src`,
+  -- so it lies inside it; the guard restates that, and a span past the end
+  -- reads as no text, the same as bytes that do not decode.
   slice-src :: Bytes -> Span -> String
-  slice-src src s = case string-from-bytes (bytes-slice src (span-start s) (span-end s)) of
-    Some t -> t
-    None -> empty-string
+  slice-src src s =
+    if span-end s <= bytes-len src then
+      case string-from-bytes (bytes-slice src (span-start s) (span-end s)) of
+        Some t -> t
+        None -> empty-string
+    else empty-string
 
   bytes-to-string :: Bytes -> String
   bytes-to-string b = case string-from-bytes b of

@@ -108,47 +108,36 @@ module Text.Builder where
     BLine s rest -> string-byte-length s + 1 + builder-size rest
     BBytes x rest -> bytes-len x + builder-size rest
 
-  -- One pass over the spine, filling the output BACKWARD from `end`. The
-  -- spine holds the pieces most-recent-first (an append prepends a cell), so
-  -- walking it head to tail and placing each piece at the end of the still
-  -- unfilled region lays the document out in APPEND order: the last append
-  -- lands last. Private: callers go through `builder-bytes`. `end` starts
-  -- at the spine's size and drops by each piece, so a piece never needs
-  -- more room than is left; that invariant lives in `builder-bytes`, so
-  -- a piece that did not fit would stop the fill (it never happens).
-  builder-fill-into :: Bytes -> Nat -> Builder -> Unit
-  builder-fill-into out end b = case b of
-    BEnd -> ()
+  -- One pass over the spine that makes the output at the far end and fills
+  -- it on the way back. The spine holds the pieces most-recent-first (an
+  -- append prepends a cell), so `extra` counts the bytes of the newer
+  -- pieces already walked: the buffer is made at `BEnd` with room for all
+  -- of them, and each piece lands just before the newer pieces, which lays
+  -- the document out in APPEND order. The result refinement is the room
+  -- still owed to the newer pieces, so every copy is in range by
+  -- construction. Private: callers go through `builder-bytes`.
+  builder-fill :: (extra :: Nat) -> Builder -> refined (extra <= bytes-len out) Bytes
+  builder-fill extra b = case b of
+    BEnd -> bytes-new extra
     BString s rest ->
-      let n = string-byte-length s in
-      case checked-sub end n of
-        Some e ->
-          let u = copy-bytes-into out (string-to-bytes s) e 0 n in
-          builder-fill-into out e rest
-        None -> ()
+      let x = string-to-bytes s in
+      let out = builder-fill (extra + bytes-len x) rest in
+      let u = copy-bytes-into out x (bytes-len out - (extra + bytes-len x)) 0 (bytes-len x) in
+      out
     BLine s rest ->
-      let n = string-byte-length s in
-      case checked-sub end (n + 1) of
-        Some e ->
-          let u = copy-bytes-into out (string-to-bytes s) e 0 n in
-          let v = bytes-set out (e + n) 10 in
-          builder-fill-into out e rest
-        None -> ()
+      let x = string-to-bytes s in
+      let out = builder-fill (extra + bytes-len x + 1) rest in
+      let u = copy-bytes-into out x (bytes-len out - (extra + bytes-len x + 1)) 0 (bytes-len x) in
+      let v = bytes-set out (bytes-len out - (extra + 1)) 10 in
+      out
     BBytes x rest ->
-      let n = bytes-len x in
-      case checked-sub end n of
-        Some e ->
-          let u = copy-bytes-into out x e 0 n in
-          builder-fill-into out e rest
-        None -> ()
+      let out = builder-fill (extra + bytes-len x) rest in
+      let u = copy-bytes-into out x (bytes-len out - (extra + bytes-len x)) 0 (bytes-len x) in
+      out
 
   -- The flattened bytes: one allocation, one copy pass.
   builder-bytes :: Builder -> Bytes
-  builder-bytes b =
-    let s = builder-size b in
-    let out = bytes-new s in
-    let u = builder-fill-into out s b in
-    out
+  builder-bytes b = builder-fill 0 b
 
   -- The flattened string: flatten once, then decode the UTF-8. A builder
   -- built through the string, line, nat and int surface is always valid UTF-8;

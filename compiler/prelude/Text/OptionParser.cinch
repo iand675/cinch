@@ -465,7 +465,7 @@ module Text.OptionParser where
     if i >= n then Some (if neg then int-neg acc else acc)
     else case digit-at s i of
       None -> None
-      Some d -> fold-digits s (i + 1) n neg (int-add (int-mul acc (int-from-i64 10)) (int-from-i64 (nat-to-i64 d)))
+      Some d -> fold-digits s (i + 1) n neg (int-add (int-mul acc (int-from-i64 10)) (nat-to-int d))
 
   -- The decimal float converter: optional sign, one or more integer
   -- digits, an optional `.`-fraction, and an optional exponent, with

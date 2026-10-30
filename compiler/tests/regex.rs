@@ -847,7 +847,7 @@ const EVIL_SRC: &str = r#"module Main where
   run-of-b :: Nat -> String
   run-of-b n = string-concat (run-of n) "b"
 
-  fill :: Bytes -> Nat -> Nat -> Nat -> Unit
+  fill :: using (n <= bytes-len b) => (b :: Bytes) -> (i :: Nat) -> (n :: Nat) -> InRange 0 255 Nat -> Unit
   fill b i n v =
     if i >= n then ()
     else

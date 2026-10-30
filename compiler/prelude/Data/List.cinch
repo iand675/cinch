@@ -44,7 +44,7 @@ module Data.List where
   import Category.Foldable
   import Category.Traversable
 
-  export List, Nil, Cons, map, foldr, length, sum-list, list-byte-count
+  export List, Nil, Cons, map, foldr, length, sum-list
   export reverse, take, drop, nth, replicate, list-length, is-empty
   export head, tail, last, init
   export zip, zip-with, unzip, split-at, span, break, partition
@@ -499,12 +499,6 @@ module Data.List where
 
   sum-list :: forall a. using (add :: Add a) => a -> List a -> a
   sum-list z xs = foldr (\x acc -> x + acc) z xs
-
-  -- `FromList Bytes Nat`: a buffer whose bytes are the list's `Nat`
-  -- values in order. A value that does not fit a byte faults in
-  -- `bytes-set`, like every out-of-range byte write.
-  list-byte-count :: List Nat -> Nat
-  list-byte-count xs = list-length xs
 
   implicit instance FromList_List e :: FromList (List e) e where
     from-list xs = xs

@@ -8,6 +8,66 @@ fn prim_scheme(op: PrimOp) -> Scheme {
     Scheme::mono(Ty::funs(&args, res))
 }
 
+/// What a compiler intrinsic guarantees of its result, over `$it` (the
+/// result) and `$a{i}` (the i-th argument), with the precondition over
+/// the arguments the guarantee needs (`None` when it holds for every
+/// argument). A declaration may state any result refinement these
+/// entail (`u8-to-i64 :: (x :: U8) -> refined (InRange 0 255 r && r ==
+/// x) I64`); the runtime and the generated unit keep every row:
+/// - a total integer conversion's result is its source's value, so it
+///   equals the argument and lies in the source's range;
+/// - `charToU32` answers the scalar value, at most `0x10FFFF`;
+/// - `bytesGet` reads one byte, and `bytesNew n` is `n` bytes long;
+/// - the `Nat`/`Int` conversions to and from `I64` keep the value (the
+///   ones that cannot hold it need an obligation to be called at all);
+/// - `nat-rem n d` is below `d` and at most `n`, `nat-div n d` at most
+///   `n`;
+/// - a comparison answers -1, 0 or 1;
+/// - `bitAnd x m` with `m` non-negative lies in `[0, m]` (the and of a
+///   non-negative word clears the sign bit and every bit `m` lacks).
+fn prim_result_promise(op: PrimOp) -> Option<(PTerm, Option<PTerm>)> {
+    let it = || Box::new(ITerm::Var("$it".to_string()));
+    let arg = |i: usize| Box::new(ITerm::Var(format!("$a{i}")));
+    let num = |n: i128| Box::new(ITerm::num(n));
+    let le = |a: Box<ITerm>, b: Box<ITerm>| PTerm::Cmp(IdxCmp::Le, a, b);
+    let and = |a: PTerm, b: PTerm| PTerm::And(Box::new(a), Box::new(b));
+    let range = |lo: i128, hi: i128| and(le(num(lo), it()), le(it(), num(hi)));
+    let same = || PTerm::Cmp(IdxCmp::Eq, it(), arg(0));
+    Some(match op {
+        PrimOp::Conv { from, to, mode: crate::core::ConvMode::Total } if !from.is_float() && !to.is_float() => {
+            match IntSort::of_scalar(from)? {
+                IntSort::Bounded(lo, hi) => (and(range(lo, hi), same()), None),
+                _ => return None,
+            }
+        }
+        PrimOp::CharToU32 => (and(range(0, 0x10FFFF), same()), None),
+        // A bound is its type's extreme (`Usize`/`Isize` depend on the
+        // target's width, so they promise nothing).
+        PrimOp::Bound { ty, max } if !matches!(ty, Scalar::Usize | Scalar::Isize) => match IntSort::of_scalar(ty)? {
+            IntSort::Bounded(lo, hi) => (PTerm::Cmp(IdxCmp::Eq, it(), num(if max { hi } else { lo })), None),
+            _ => return None,
+        },
+        PrimOp::Bytes(BytesOp::Get) => (range(0, 255), None),
+        // A buffer's length is the runtime's `i64` count.
+        PrimOp::Bytes(BytesOp::Len) => (range(0, i64::MAX as i128), None),
+        PrimOp::Bytes(BytesOp::New) => (
+            PTerm::Cmp(
+                IdxCmp::Eq,
+                Box::new(ITerm::app_fn("Data.Bytes.bytes-len", vec![ITerm::Var("$it".to_string())])),
+                arg(0),
+            ),
+            None,
+        ),
+        PrimOp::Nat(NatOp::FromI64 | NatOp::ToI64)
+        | PrimOp::Int(IntOp::FromI64 | IntOp::ToI64 | IntOp::FromNat | IntOp::ToNat) => (same(), None),
+        PrimOp::Nat(NatOp::Rem) => (and(PTerm::Cmp(IdxCmp::Lt, it(), arg(1)), le(it(), arg(0))), None),
+        PrimOp::Nat(NatOp::Div) => (le(it(), arg(0)), None),
+        PrimOp::Nat(NatOp::Cmp) | PrimOp::Int(IntOp::Cmp) => (range(-1, 1), None),
+        PrimOp::Bit { op: crate::core::BitOp::And, .. } => (and(le(num(0), it()), le(it(), arg(1))), Some(le(num(0), arg(1)))),
+        _ => return None,
+    })
+}
+
 /// The positivity discipline (core specification section 2; roadmap gap
 /// A1): the type being declared may occur in a constructor field only
 /// strictly positively, as the field type itself or in the codomain of an
@@ -2506,9 +2566,12 @@ impl Checker {
                         // Nat`): a refined value IS its container at
                         // runtime, so the intrinsic receives the same
                         // word, and the refinement is a precondition the
-                        // caller must now prove. The result is never
-                        // refined: the intrinsic does not promise it.
-                        if self.erase_param_refinements(&s.ty) != expected.ty {
+                        // caller must now prove. The result may be
+                        // refined only as far as the intrinsic promises
+                        // (`prim_result_promise`): a range or relation
+                        // the runtime keeps, never one it does not.
+                        let (plain, promised) = self.split_result_refinement(&self.erase_param_refinements(&s.ty));
+                        if plain != expected.ty {
                             return Err(Error::at(
                                 f.span,
                                 format!(
@@ -2516,6 +2579,10 @@ impl Checker {
                                     f.symbol, expected.ty, s.ty
                                 ),
                             ));
+                        }
+                        if let Some(rv) = promised {
+                            self.check_intrinsic_promise(op, &s.ty, &rv)
+                                .map_err(|m| Error::at(f.span, format!("intrinsic {} is declared {}, but {m}", f.symbol, s.ty)))?;
                         }
                         let rendered = render_scheme(&s);
                         self.add_value(
@@ -3104,10 +3171,15 @@ impl Checker {
                             Some(ann) => self.binder_kind(ann, &params)?,
                             None => ParamKind::Type,
                         };
-                        if !matches!(k, ParamKind::Type | ParamKind::Con(_)) {
+                        // Index parameters (`type InRange (lo :: Int) (hi
+                        // :: Int) a`) state the predicate's literal
+                        // bounds: they are part of the lattice point, not
+                        // of the container, and substitute into the
+                        // predicate at each application.
+                        if !matches!(k, ParamKind::Type | ParamKind::Con(_) | ParamKind::Val(Ty::Int | Ty::Nat)) {
                             return Err(Error::at(
                                 b.name.span,
-                                "a refinement's parameters are type parameters (the container states any index parameters)",
+                                "a refinement's parameters are type parameters or `Nat`/`Int` index parameters (the container states any other index parameters)",
                             ));
                         }
                         params.push(b.name.text.clone());
@@ -3191,7 +3263,7 @@ impl Checker {
                         .zip(&param_kinds)
                         .map(|(p, k)| match k {
                             ParamKind::Type | ParamKind::Con(_) => Ty::Param(p.clone()),
-                            _ => unreachable!("refinement parameters are types"),
+                            _ => Ty::Idx(Box::new(ITerm::Var(p.clone()))),
                         })
                         .collect();
                     let field_tys: Vec<Ty> = vec![
@@ -6329,6 +6401,7 @@ impl Checker {
             })
             .collect();
         let outer_facts = std::mem::replace(&mut self.param_facts, own_facts);
+        let outer_result_params = std::mem::replace(&mut self.result_params, value_params.clone());
         let body = if n_pats == 0 {
             self.check(&mut env.clone(), &rows[0].body, &rest)
         } else {
@@ -6342,6 +6415,7 @@ impl Checker {
             )
         };
         self.param_facts = outer_facts;
+        self.result_params = outer_result_params;
         let body = body?;
         let performed = self.exit_perf(saved);
         if name.starts_with('$') {
@@ -9792,6 +9866,30 @@ impl Checker {
         for a in &arg_tys {
             params.push(self.abi_param(a).map_err(|e| Error::at(f.span, e.message))?);
         }
+        // A refined result is a promise about what the external function
+        // answers. Only the Cinch runtime's own externs (`cinch_*`, part
+        // of the trusted runtime, their ranges documented and kept at
+        // their definitions in `compiler/runtime`) may state one
+        // (`raw-monotonic-ns`'s `InRange 0 9223372036854775807 I64`);
+        // other C code cannot be checked to keep it. The word crosses as
+        // its container.
+        let refined_base;
+        let cur: &Ty = match self.refine_base(cur) {
+            Some(base) if f.is_import && f.symbol.starts_with("cinch_") => {
+                refined_base = base;
+                &refined_base
+            }
+            Some(_) => {
+                return Err(Error::at(
+                    f.span,
+                    format!(
+                        "a foreign result refinement is a promise the external function {} cannot be checked to keep (only the Cinch runtime's own `cinch_*` externs state their documented result ranges)",
+                        f.symbol
+                    ),
+                ))
+            }
+            None => cur,
+        };
         let mut result = self
             .abi_param(cur)
             .map_err(|e| Error::at(f.span, e.message))?;
@@ -18658,7 +18756,7 @@ impl Checker {
                         let r = a.sub(&b);
                         if r.neg && !r.is_zero() {
                             return Err(Error::plain(
-                                "`Nat` subtraction below zero faults at compile time (the runtime fault path is exit 71)",
+                                "compiler bug: `Nat` subtraction below zero at compile time (every `a - b` at `Nat` carries evidence that `b <= a`)",
                             ));
                         }
                         big_value(r, true)
@@ -18675,13 +18773,13 @@ impl Checker {
                     NatOp::FromI64 => {
                         let w = word_of(&args[0], "a machine integer")?;
                         if w < 0 {
-                            return Err(Error::plain("`natFromI64` faults on a negative input"));
+                            return Err(Error::plain("compiler bug: `natFromI64` of a negative input reached compile-time evaluation (its argument carries `0 <= x` evidence)"));
                         }
                         big_value(Big::from_i64(w), true)
                     }
                     NatOp::ToI64 => {
                         let w = a.to_i64().ok_or_else(|| {
-                            Error::plain("`natToI64` faults when the value leaves `I64` range")
+                            Error::plain("compiler bug: `natToI64` of a value past `I64` range reached compile-time evaluation (its argument carries range evidence)")
                         })?;
                         Value::Word(w)
                     }
@@ -18706,8 +18804,15 @@ impl Checker {
                     IntOp::Cmp => Value::Word(big_cmp_word(&a, &b)),
                     IntOp::FromI64 => big_value(Big::from_i64(word_of(&args[0], "a machine integer")?), false),
                     IntOp::ToI64 => Value::Word(a.to_i64().ok_or_else(|| {
-                        Error::plain("`intToI64` faults when the value leaves `I64` range")
+                        Error::plain("compiler bug: `intToI64` of a value past `I64` range reached compile-time evaluation (its argument carries range evidence)")
                     })?),
+                    IntOp::FromNat => big_value(a, false),
+                    IntOp::ToNat => {
+                        if a.neg {
+                            return Err(Error::plain("compiler bug: `intToNat` of a negative input reached compile-time evaluation (its argument carries `0 <= x` evidence)"));
+                        }
+                        big_value(a, true)
+                    }
                 })
             }
             PrimOp::EqBool => Ok(Value::Bool(
@@ -18902,7 +19007,7 @@ impl Checker {
                         let n = bytes_word(&args[0], "a `Bytes` length")?;
                         if n < 0 {
                             return Err(Error::plain(
-                                "`bytesNew` faults on a negative length at compile time (the runtime fault path is exit 71)",
+                                "compiler bug: `bytesNew` with a negative length at compile time (a length is a `Nat`)",
                             ));
                         }
                         Value::Bytes(std::rc::Rc::new(std::cell::RefCell::new(vec![
@@ -18935,7 +19040,7 @@ impl Checker {
                                     Some(v) => big_value(Big::from_i64(v as i64), true),
                                     None => {
                                         return Err(Error::plain(
-                                            "`bytesGet` out of bounds faults at compile time (the runtime fault path is exit 71)",
+                                            "compiler bug: `bytesGet` out of bounds at compile time (every index carries evidence that it is below `bytes-len b`)",
                                         ))
                                     }
                                 }
@@ -18959,7 +19064,7 @@ impl Checker {
                         };
                         let byte = u8::try_from(v).map_err(|_| {
                             Error::plain(
-                                "`bytesSet` on a value outside 0..=255 faults at compile time (the runtime fault path is exit 71)",
+                                "compiler bug: `bytesSet` of a value outside 0..=255 at compile time (a byte is an `InRange 0 255 Nat`)",
                             )
                         })?;
                         let mut buf = b.borrow_mut();
@@ -18970,7 +19075,7 @@ impl Checker {
                         };
                         let Some(slot) = slot else {
                             return Err(Error::plain(
-                                "`bytesSet` out of bounds faults at compile time (the runtime fault path is exit 71)",
+                                "compiler bug: `bytesSet` out of bounds at compile time (every index carries evidence that it is below `bytes-len b`)",
                             ));
                         };
                         *slot = byte;
@@ -18987,7 +19092,7 @@ impl Checker {
                         };
                         let oob = || {
                             Error::plain(
-                                "`bytesCopy` out of bounds faults at compile time (the runtime fault path is exit 71)",
+                                "compiler bug: `bytesCopy` out of bounds at compile time (both ranges carry evidence that they end inside their buffers)",
                             )
                         };
                         if di < 0 || si < 0 || n < 0 {
@@ -19639,8 +19744,12 @@ impl Checker {
             }];
             for (fname, off, size, is_bool) in &cols {
                 for k in 0..*size {
+                    // A byte value is `InRange 0 255 Nat`: a `Bool` column
+                    // writes a numeral, an `INTEGER` column one
+                    // little-endian byte of the word (`i64-le-byte`, a
+                    // mask whose result range is promised).
                     let byte_val = if *is_bool {
-                        app(var("nat-from-i64"), vec![ast::Term::If {
+                        ast::Term::If {
                             cond: Box::new(proj(var("row"), fname)),
                             then: Box::new(int(1)),
                             els: Box::new(int(0)),
@@ -19648,12 +19757,9 @@ impl Checker {
                             then_attrs: Vec::new(),
                             else_attrs: Vec::new(),
                             span: sp,
-                        }])
+                        }
                     } else {
-                        app(var("nat-from-i64"), vec![app(var("bit-and-i64"), vec![
-                            app(var("wrapping-shr-i64"), vec![proj(var("row"), fname), int(k * 8)]),
-                            int(255),
-                        ])])
+                        app(var("i64-le-byte"), vec![proj(var("row"), fname), int(k * 8)])
                     };
                     binds.push(ast::LocalDecl::Bind {
                         pat: ast::Pat::Wild(sp),

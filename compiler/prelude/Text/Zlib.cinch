@@ -117,14 +117,15 @@ module Text.Zlib where
   -- no ordering story.
   -- ---------------------------------------------------------------------
 
-  -- One runtime `memmove` (`bytes-copy-range`); every caller copies
-  -- between two distinct buffers.
-  bytes-move :: Bytes -> Nat -> Bytes -> Nat -> Nat -> Unit
+  -- One runtime `memmove` (`bytes-copy-range`, whose two range
+  -- obligations it carries); every caller copies between two distinct
+  -- buffers.
+  bytes-move :: using (at + n <= bytes-len dst, from + n <= bytes-len src) => (dst :: Bytes) -> (at :: Nat) -> (src :: Bytes) -> (from :: Nat) -> (n :: Nat) -> Unit
   bytes-move dst at src from n = bytes-copy-range dst src at from n
 
   -- Two bytes at `p` little-endian (a stored block's LEN/NLEN wire
   -- order); the caller has checked that both bytes exist.
-  le16-at :: Bytes -> Nat -> Nat
+  le16-at :: using (p + 1 < bytes-len src) => (src :: Bytes) -> (p :: Nat) -> Nat
   le16-at src p = bytes-get src p + bytes-get src (p + 1) * 256
 
   -- Four bytes at `p` big-endian (the Adler-32's wire order); fewer
@@ -149,8 +150,10 @@ module Text.Zlib where
   adler-nat b = case adler-sums 1 0 b 0 of
     (lo, hi) -> hi * 65536 + lo
 
+  -- The checksum's low 32 bits (both halves are below 65521, so the
+  -- residue is the value itself; it is the conversion's evidence).
   adler32 :: Bytes -> U32
-  adler32 b = wrapping-i64-to-u32 (nat-to-i64 (adler-nat b))
+  adler32 b = let w = nat-rem (adler-nat b) 4294967296 in wrapping-i64-to-u32 (nat-to-i64 w)
 
   -- The running sums: `lo` is RFC 1950's `a` and `hi` its `b`, which
   -- accumulates `a` AFTER `a` has taken the byte.
@@ -186,7 +189,7 @@ module Text.Zlib where
 
   -- A byte value (0..=255) as a `U32`.
   byte-u32 :: Nat -> U32
-  byte-u32 v = wrapping-i64-to-u32 (nat-to-i64 v)
+  byte-u32 v = let w = nat-rem v 4294967296 in wrapping-i64-to-u32 (nat-to-i64 w)
 
   -- ---------------------------------------------------------------------
   -- The bit reader.
@@ -361,53 +364,59 @@ module Text.Zlib where
   -- The growing output.
   -- ---------------------------------------------------------------------
 
-  -- The buffer, its capacity, and how many bytes are written. The
-  -- capacity doubles when full, so a stream of n bytes costs O(log n)
-  -- reallocations and O(n) copying; the extra capacity is trimmed once
-  -- at the end (`out-bytes`).
+  -- The buffer and how many bytes are written; the capacity is the
+  -- buffer's own length, so every write's bound is a fact over
+  -- `bytes-len` rather than a separate field the checker cannot connect
+  -- to it. The written count never passes the capacity: a fresh sink
+  -- writes nothing, a push into room advances by one below the length,
+  -- and a push into a full sink grows it first. The capacity doubles
+  -- when full, so a stream of n bytes costs O(log n) reallocations and
+  -- O(n) copying; the extra capacity is trimmed once at the end
+  -- (`out-bytes`).
   data Sink where
-    Sink :: Bytes -> Nat -> Nat -> Sink
+    Sink :: Bytes -> Nat -> Sink
 
   out-new :: Nat -> Sink
-  out-new n = Sink (bytes-new n) n 0
+  out-new n = Sink (bytes-new n) 0
 
-  out-push :: Sink -> Nat -> Sink
+  out-push :: Sink -> InRange 0 255 Nat -> Sink
   out-push o v = case o of
-    Sink buf cap len -> case len >= cap of
-      True -> push-into (out-grow o) v
-      False -> push-into o v
+    Sink buf len -> case len < bytes-len buf of
+      True ->
+        let u = bytes-set buf len v in
+        Sink buf (len + 1)
+      False -> grow-push buf v
 
-  push-into :: Sink -> Nat -> Sink
-  push-into o v = case o of
-    Sink buf cap len -> case bytes-set buf len v of
-      _ -> Sink buf cap (len + 1)
-
-  out-grow :: Sink -> Sink
-  out-grow o = case o of
-    Sink buf cap len -> grow-to buf cap len
-
-  -- Doubling, with the first growth off an empty buffer.
-  grow-to :: Bytes -> Nat -> Nat -> Sink
-  grow-to buf cap len =
-    let cap2 = double-cap cap in
+  -- A push into a full sink: the written count never passes the
+  -- capacity (the `Sink` invariant above), so a sink with no room has
+  -- written exactly `bytes-len buf` bytes, and that is both how much
+  -- the doubled buffer takes over and where the new byte goes.
+  grow-push :: Bytes -> InRange 0 255 Nat -> Sink
+  grow-push buf v =
+    let cap2 = double-cap (bytes-len buf) in
     let buf2 = bytes-new cap2 in
-    let u = bytes-move buf2 0 buf 0 len in
-    Sink buf2 cap2 len
+    let u = bytes-move buf2 0 buf 0 (bytes-len buf) in
+    let w = bytes-set buf2 (bytes-len buf) v in
+    Sink buf2 (bytes-len buf + 1)
 
   -- The doubled capacity, and 1 for a sink grown off nothing (a fresh
-  -- buffer always holds at least one byte).
-  double-cap :: Nat -> Nat
-  double-cap cap = if cap == 0 then 1 else cap * 2
+  -- buffer always holds at least one more byte than the old one). The
+  -- zero arm spells 1 as `cap + 1`, the same number there, because the
+  -- result's refinement is read from the expression and a bare literal
+  -- cannot carry it.
+  double-cap :: (cap :: Nat) -> refined (cap < r) Nat
+  double-cap cap = if cap == 0 then cap + 1 else cap * 2
 
   -- The written bytes as an exact buffer (the identity when the
-  -- capacity was already exact).
+  -- capacity is already exact: by the `Sink` invariant, a count not
+  -- below the length is the length).
   out-bytes :: Sink -> Bytes
   out-bytes o = case o of
-    Sink buf cap len -> case cap == len of
-      True -> buf
-      False -> out-slice buf len
+    Sink buf len -> case len < bytes-len buf of
+      True -> out-slice buf len
+      False -> buf
 
-  out-slice :: Bytes -> Nat -> Bytes
+  out-slice :: using (len <= bytes-len buf) => (buf :: Bytes) -> (len :: Nat) -> Bytes
   out-slice buf len =
     let b2 = bytes-new len in
     let u = bytes-move b2 0 buf 0 len in
@@ -415,12 +424,15 @@ module Text.Zlib where
 
   -- The byte `dist` positions back from the write head (the LZ77 copy
   -- source); None reaches before the output's first byte, which is
-  -- InvalidCode.
-  out-back :: Sink -> Nat -> Option Nat
+  -- InvalidCode. The second test names the read's bound: by the `Sink`
+  -- invariant it fails only for a distance of zero, which no distance
+  -- code decodes to (the smallest base is 1), so it refuses a copy with
+  -- no source byte rather than reading one past the written bytes.
+  out-back :: Sink -> Nat -> Option (InRange 0 255 Nat)
   out-back o dist = case o of
-    Sink buf cap len -> case dist > len of
-      True -> None
-      False -> Some (bytes-get buf (len - dist))
+    Sink buf len ->
+      if dist <= len && len - dist < bytes-len buf then Some (bytes-get buf (len - dist))
+      else None
 
   -- ---------------------------------------------------------------------
   -- Decoding. The state is the reader and the sink; the block loop
@@ -438,7 +450,7 @@ module Text.Zlib where
   st-sink s = case s of
     St b o -> o
 
-  push-byte :: St -> Nat -> St
+  push-byte :: St -> InRange 0 255 Nat -> St
   push-byte st v = St (st-bits st) (out-push (st-sink st) v)
 
   -- The whole stream: header, blocks, trailing Adler-32.
@@ -510,11 +522,12 @@ module Text.Zlib where
   stored-length :: Bits -> Result ZlibError (Nat, Nat)
   stored-length b =
     let p = bits-align b in
-    case p + 4 <= bytes-len (bits-src b) of
+    let src = bits-src b in
+    case p + 4 <= bytes-len src of
       False -> Err TruncatedStream
       True ->
-        let len = le16-at (bits-src b) p in
-        let nlen = le16-at (bits-src b) (p + 2) in
+        let len = le16-at src p in
+        let nlen = le16-at src (p + 2) in
         case len + nlen == 65535 of
           True -> Ok (p + 4, len)
           False -> Err InvalidCode
@@ -716,64 +729,51 @@ module Text.Zlib where
 
   -- The zlib stream for `src`: header 0x78 0x01 (CM 8, CINFO 7,
   -- FLEVEL 0, FDICT clear, FCHECK 1, the pair a multiple of 31), one
-  -- stored block per 65535-byte chunk with the last one final, and the
+  -- stored block per 65535-byte chunk with the last one final (one
+  -- empty final block for no bytes: a stream still needs one), and the
   -- Adler-32 of `src` big-endian. The buffer is sized exactly, so
   -- nothing is copied twice.
   deflate :: Bytes -> Bytes
   deflate src =
-    let n = bytes-len src in
-    let cap = 2 + block-count n * 5 + n + 4 in
-    let out = bytes-new cap in
+    let out = write-blocks 2 src 0 (adler-nat src) in
     let u = bytes-set out 0 120 in
     let v = bytes-set out 1 1 in
-    let start = write-blocks out 2 src 0 n in
-    let w = write-be32 out start (adler-nat src) in
     out
 
-  -- The number of stored blocks: one per 65535 bytes, and one even for
-  -- no bytes (a stream still needs a final block).
-  block-count :: Nat -> Nat
-  block-count n = case n == 0 of
-    True -> 1
-    False -> nat-div (n + 65534) 65535
+  -- The stream from the stored block for `src[from..]` on, written at
+  -- `at`: a header byte carrying BFINAL and BTYPE 00, LEN little-endian,
+  -- LEN's complement, then the literals, and after the final block the
+  -- Adler-32. The buffer is made by the final block, once the whole
+  -- length is known (`at` plus that block plus the checksum), and the
+  -- earlier blocks write into it on the way back; the result's
+  -- refinement is the room every write proves (this block's five
+  -- header bytes at least), so no size is computed apart from the
+  -- writes. A block is final exactly when what is left fits in one
+  -- (at most 65535 bytes).
+  write-blocks :: using (from <= bytes-len src) => (at :: Nat) -> (src :: Bytes) -> (from :: Nat) -> Nat -> refined (at + 5 <= bytes-len out) Bytes
+  write-blocks at src from adler =
+    if from + 65535 < bytes-len src then
+      let out = write-blocks (at + 65540) src (from + 65535) adler in
+      let u = bytes-set out at 0 in
+      let v = write-le16 out (at + 1) 65535 in
+      let w = write-le16 out (at + 3) 0 in
+      let x = bytes-move out (at + 5) src from 65535 in
+      out
+    else
+      let out = bytes-new (at + 5 + (bytes-len src - from) + 4) in
+      let u = bytes-set out at 1 in
+      let v = write-le16 out (at + 1) (bytes-len src - from) in
+      let w = write-le16 out (at + 3) (65535 - (bytes-len src - from)) in
+      let x = bytes-move out (at + 5) src from (bytes-len src - from) in
+      let y = write-be32 out (at + 5 + (bytes-len src - from)) adler in
+      out
 
-  -- Every stored block for `src[from..total)`, returning the index
-  -- after the last byte written: a header byte carrying BFINAL and
-  -- BTYPE 00, LEN little-endian, LEN's complement, then the literals.
-  -- `from` never passes `total` (each block advances by at most what is
-  -- left); that bound lives in the recursion, so a call past the end
-  -- writes nothing.
-  write-blocks :: Bytes -> Nat -> Bytes -> Nat -> Nat -> Nat
-  write-blocks out at src from total = case checked-sub total from of
-    None -> at
-    Some rest -> case block-chunk rest of
-      (chunk, complement) ->
-        let final = final-flags from chunk total in
-        let u = bytes-set out at final in
-        let v = write-le16 out (at + 1) chunk in
-        let w = write-le16 out (at + 3) complement in
-        let u2 = bytes-move out (at + 5) src from chunk in
-        let next = at + 5 + chunk in
-        case final == 1 of
-          True -> next
-          False -> write-blocks out next src (from + chunk) total
-
-  -- The bytes one stored block carries (the 65535-byte maximum, or all
-  -- that is left) and LEN's complement, `65535 - chunk`.
-  block-chunk :: Nat -> (Nat, Nat)
-  block-chunk rest = if rest > 65535 then (65535, 0) else (rest, 65535 - rest)
-
-  -- BFINAL for the block: 1 when the block ending at `from + chunk` is
-  -- the stream's last, 0 otherwise (RFC 1951 3.2.3's one-bit field).
-  final-flags :: Nat -> Nat -> Nat -> Nat
-  final-flags from chunk total = if from + chunk >= total then 1 else 0
-
-  write-le16 :: Bytes -> Nat -> Nat -> Unit
+  write-le16 :: using (at + 1 < bytes-len out) => (out :: Bytes) -> (at :: Nat) -> Nat -> Unit
   write-le16 out at v =
     let u = bytes-set out at (nat-rem v 256) in
     bytes-set out (at + 1) (nat-rem (nat-div v 256) 256)
 
-  write-be32 :: Bytes -> Nat -> Nat -> Unit
+  write-be32 :: using (at + 3 < bytes-len out) => (out :: Bytes) -> (at :: Nat) -> Nat -> Unit
   write-be32 out at v =
     let u = bytes-set out at (nat-rem (nat-div v 16777216) 256) in
     let w = bytes-set out (at + 1) (nat-rem (nat-div v 65536) 256) in

@@ -48,6 +48,53 @@ feeds `design/no-faults.md`.
   runtime's negative check is a compiler-bug trap (exit 71,
   `compiler bug:`). A `Nat` index difference reaches runtime only as a
   folded constant. `tests/safe_subtraction.rs`.
+- **The `I64` conversions (`NegativeInput`, `OutOfRange`; the
+  `nat-from-i64`, `nat-to-i64`/`int-to-i64` rows below)**: closed
+  2026-10-30. `nat-from-i64 :: using (0 <= x) => (x :: I64) -> refined
+  (n == x) Nat`, `nat-to-i64 :: using (n <= 9223372036854775807) =>
+  ...`, `int-to-i64 :: using (-9223372036854775808 <= x, x <=
+  9223372036854775807) => ...`; `checked-nat-from-i64`,
+  `checked-nat-to-i64` and `checked-int-to-i64` answer `None`, and
+  `nat-from-int`/`nat-to-int` convert `Int` and `Nat` of any size with
+  no `I64` in between. Results in a known range state it
+  (`design/refinement-types.md`, "refined results"): every widening
+  integer conversion (`InRange lo hi r && r == x`), `mask-i64`,
+  `char-code`, `nat-rem`, the integer bounds, `bytes-get`/`bytes-len`/
+  `bytes-new`, and the runtime clock readings, so converting a value
+  non-negative by construction needs nothing written. `Hash_Int` hashes
+  the magnitude as a `Nat` (no conversion), `Data.Rational.to-f64`
+  assembles a huge numerator from 32-bit limbs, and every intrinsic
+  unit's `Nat` count or index crosses through `cinch_nat_to_len` (a
+  bignum clamps to `i64::MAX`: an out-of-range index, or the heap
+  `Exhausted` exit for a count). Both runtime checks are compiler-bug
+  traps. `tests/range_facts.rs`, `tests/small_nats.rs`.
+- **Byte buffers (`OutOfBounds`, `ReadOnly`; the `bytes-get`/`bytes-set`/
+  `bytes-copy-range`/`bytes-new` rows, `argv`, the IO buffer paths)**:
+  closed 2026-10-30 (NF5). `bytes-get`/`bytes-set :: using (i <
+  bytes-len b) => ...`, a byte is an `InRange 0 255 Nat` both ways (a
+  read's result carries it, a write's value proves it),
+  `bytes-copy-range :: using (di + n <= bytes-len dst, si + n <=
+  bytes-len src) => ...`, `bytes-new :: (n :: Nat) -> refined (bytes-len
+  out == n) Bytes`, and `bytes-len` is at most `2^63 - 1`. A buffer's
+  length never changes (the runtime's `len` is private and cleared only
+  as the block is freed), so facts over `bytes-len b` survive writes to
+  `b`. Loops discharge through their own guard; recursions carry their
+  bound as their own `using` obligation; a buffer sized by a sum over a
+  list is made at the end of a structural recursion whose result states
+  `pos <= bytes-len out` (`concat-from`, `pack-from`, `words-from`,
+  `bytes-from-list`). Three-term bounds (every copy range) discharge
+  through the linear pass added to the fact checker
+  (`design/proof-automation.md` section 5). `bytes-from-list` takes
+  `List (InRange 0 255 Nat)`; `FromList Bytes` takes `U8` elements.
+  `raw-arg` takes `using (i < arg-count)`. A string literal's read-only
+  backing exists only inside a `String` (the `StrBuf` constructor and
+  its reader are module-private, every conversion out copies), so no
+  `Bytes` value is ever one. The word-buffer copy loops of `Effect.Fs`
+  and `Effect.Process` answer a runtime error code as `IoError`/
+  `ProcessIoError` instead of reading it as a byte. The runtime's
+  index, range, value and read-only checks are compiler-bug traps; a
+  failed stdout write is `OutputFailed` (still reachable, below).
+  `tests/safe_bytes.rs`.
 
 ## Runtime exits classified (2026-10-30)
 
@@ -68,8 +115,8 @@ length from generated code (`cinch_bytes_from_data`, `abi.rs:968,973`;
 (`Error::CorruptValue` throughout `eval.rs`, reported at `eval.rs:1149`);
 the block layout and header checks (`block.rs:322,327,332,342,368,391,402`);
 freed or corrupt counts (`rc.rs:139`); the program thread unwinding
-(`platform.rs:577`). Not yet labelled: `coop.rs:510`, the cooperative
-join's handle count, still raises `OutOfBounds` without the prefix.
+(`platform.rs:577`); the cooperative join's handle count (`coop.rs:510`,
+now `CorruptValue`).
 
 **Faults a well-typed program can still reach** (left for the
 migration, not fixed here):
@@ -80,16 +127,25 @@ migration, not fixed here):
 - ~~`abi.rs:631,643,782,795` `cinch_nat_div`/`rem`, `cinch_int_div`/`rem`
   (`DivByZero`, exit 72)~~: closed (see above); the check is now a
   compiler-bug trap.
-- `abi.rs:566` `cinch_nat_from_i64` (`NegativeInput`); `abi.rs:579,729`
-  `cinch_nat_to_i64`/`cinch_int_to_i64` (`OutOfRange`).
-- `abi.rs:667,674,829,842` `cinch_nat_from_decimal`/`cinch_int_from_decimal`
-  and `text.rs:446` `cinch_text_f64_from_decimal` (`MalformedDecimal`).
-- `abi.rs:886,901,911,938` `cinch_bytes_new`/`get`/`set`/`copy`
-  (`OutOfBounds`) and `abi.rs:382` (`ReadOnly`, a write to a string
-  literal's bytes).
-- `platform.rs:527` `cinch_argv_get` out of range (`OutOfBounds`).
-- `abi.rs:1054` `cinch_io_write` on a write or flush failure, and
-  `abi.rs:1066` `cinch_io_read` with a negative length (`OutOfBounds`).
+- ~~`abi.rs:566` `cinch_nat_from_i64` (`NegativeInput`); `abi.rs:579,729`
+  `cinch_nat_to_i64`/`cinch_int_to_i64` (`OutOfRange`)~~: closed (see
+  above); the checks are compiler-bug traps.
+- `text.rs:446` `cinch_text_f64_from_decimal` (`MalformedDecimal`, the
+  float slice's). `abi.rs:667,674,829,842` `cinch_nat_from_decimal`/
+  `cinch_int_from_decimal` are reached only by the code generator's
+  big-numeral constants (`codegen.rs` around 5271), whose digits are a
+  numeral's by construction: no surface name exposes them, so no
+  well-typed program reaches the malformed path (2026-10-30 audit).
+- ~~`abi.rs` `cinch_bytes_new`/`get`/`set`/`copy` (`OutOfBounds`),
+  `as_bytes_mut` (`ReadOnly`), `platform.rs` `cinch_argv_get`
+  (`OutOfBounds`), `cinch_io_read` with a negative length~~: closed (see
+  above); the checks are compiler-bug traps. `cinch_bytes_from_data`
+  takes its pointer and length from generated code only: a compiler-bug
+  trap already.
+- `abi.rs` `cinch_io_write` on a write or flush failure
+  (`OutputFailed`, exit 71): an operating-system outcome (a closed pipe,
+  a full device) that no program can rule out; making it a `Result` of
+  `io-write` is a separate API change.
 - `sym.rs:96` `cinch_sym_intern` on non-UTF-8 bytes (`MalformedName`,
   through the raw `sym-intern-bytes`).
 - `coop.rs:422` the cooperative scheduler's deadlock (awaiting a task
@@ -122,14 +178,14 @@ Grouped by `Error` variant (`compiler/runtime/src/error.rs:12-45`) / exit code.
 | `DivByZero` | ~~72~~ 71 | `cinch_nat_div/rem`, `cinch_int_div/rem` | `nat-div`/`nat-rem`/`int-div`/`int-rem` with a zero divisor | **No (closed 2026-10-30)**: the divisor is a `NonZero`; the runtime check is a compiler-bug trap |
 | `BlackHole` | 70 | `abi.rs:358` `cinch_blackhole`; `eval.rs:1044-1048` `cinch_eval` on `Err(BlackHole)`; codegen's `__cinch_demand`/`BoxGet` re-entrancy check | memo cell (`~`) demanded while its own thunk is running; a quoted `Code a`'s own `FAULT` opcode; a `letrec` box read before write | **Yes** for memo re-entrancy and `eval`'s embedded fault opcode (ordinary program logic, no static proof of acyclic demand order); **no** for the `letrec` box case: guarded by the static guarded-letrec rule (`check_terms.rs:9306-9341`), defense-in-depth only |
 | `CorruptValue` | 71 | `abi.rs:112-121,201-211,220-229` (`as_sym`/`as_nat`/`as_int`/`as_bytes`/`as_bytes_mut`) on null/wrong-kind block; `eval.rs` quote-block/program-stream validation | a null or wrong-kind heap word reaching an extern entry point; a hand-built or corrupted quote block | **No** for ordinary generated code (the compiler only ever emits well-formed words); reachable only via raw-pointer `foreign`/FFI corruption or a compiler bug |
-| `NegativeInput` | 71 | `abi.rs:463-466` `cinch_nat_from_i64` | `nat-from-i64` on a negative `I64` | **Yes**: no static proof the argument is non-negative |
+| `NegativeInput` | 71 | `abi.rs:463-466` `cinch_nat_from_i64`, `cinch_int_to_nat` | `nat-from-i64`/`nat-from-int` on a negative value | **No (closed 2026-10-30)**: the argument carries `0 <= x` evidence; the runtime check is a compiler-bug trap |
 | `NegativeResult` | 71 | `abi.rs` `cinch_nat_sub` (immediate and bignum path via `nat::sub_mag`) | `nat-sub a b` with `b > a` | **No (closed 2026-10-30)**: `a - b` at `Nat` requires evidence that `b <= a`; the runtime check is a compiler-bug trap |
-| `OutOfRange` | 71 | `abi.rs:473-479,616-620` `cinch_nat_to_i64`/`cinch_int_to_i64` | converting a bignum `Nat`/`Int` outside `i64` range to `I64` | **Yes**: callers routinely use `nat-to-i64`/`int-to-i64` without first checking `nat-fits-i64`/`int-fits-i64` |
-| `MalformedDecimal` | 71 | `abi.rs:552-562,666-677`; `eval.rs` `BIG` opcode decode | `nat-from-decimal`/`int-from-decimal` on non-numeral bytes | **Yes** when parsing untrusted text (`String->Nat`/`Int` has no total prelude form) |
+| `OutOfRange` | 71 | `abi.rs:473-479,616-620` `cinch_nat_to_i64`/`cinch_int_to_i64` | converting a bignum `Nat`/`Int` outside `i64` range to `I64` | **No (closed 2026-10-30)**: the argument carries range evidence (or the caller uses a `checked-*` form); the runtime check is a compiler-bug trap |
+| `MalformedDecimal` | 71 | `abi.rs:552-562,666-677`; `eval.rs` `BIG` opcode decode; `text.rs` `cinch_text_f64_from_decimal` | a big numeral's constant (well-formed by construction); `f64-from-decimal` on non-numeral bytes | **No** for `Nat`/`Int` (only generated constants reach the decimal parsers; no surface name exposes them); **yes** for `f64-from-decimal` on untrusted text (the float slice) |
 | `BufferTooSmall` | 71 | `abi.rs:566-578,695-706` `cinch_nat_to_decimal`/`cinch_int_to_decimal` | caller-supplied buffer shorter than `decimal_len` | **No** in practice: generated/prelude code always sizes the buffer from `decimal-len` first, but nothing in the type system *proves* it; a hand-written caller can still trigger it |
 | `MalformedName` | 71 | `sym.rs:38-39` `intern` | a `Sym` name that is not valid UTF-8 | **No**: the only surface entry (`Data.Sym.intern :: String -> Sym`, `Sym.cinch:39-40`) converts through `string-to-bytes`, which is always valid UTF-8; dead for well-typed programs unless a raw `sym-intern-bytes :: Bytes -> Sym` is called directly with non-UTF-8 bytes (exposed but undocumented as a lower-level escape) |
-| `OutOfBounds` | 71 | `bytes.rs:38-69` `Bytes::new/get/set`; `abi.rs:788-800,852-863` `cinch_bytes_get/set`, `cinch_bytes_copy`, `cinch_bytes_from_data`; `abi.rs:870-874` `cinch_task_join_all_or_cancel`; `platform.rs:516-521` `cinch_argv_get`; `abi.rs:955,967` `cinch_io_write/read` (buffer write failure reuses this code) | any `bytes-get`/`bytes-set` index outside `0..len`, a byte value outside `0..=255`, a negative/overflowing `bytes-copy-range` range, a negative `Bytes::new` length | **Yes, heavily**: `bytes-get`/`bytes-set` are the dominant faulting primitive in the whole prelude (see §4) |
-| `ReadOnly` | 71 | `abi.rs:201-211` `as_bytes_mut` on `KIND_BYTES_STATIC` | `bytes-set`/`bytes-copy-range` targeting a string literal's constant backing | **Yes**: nothing in the type system distinguishes a literal's `Bytes` from a heap one |
+| `OutOfBounds` | 71 | `bytes.rs` `Bytes::new/get/set`, `copy_range`; `abi.rs` `cinch_bytes_new/get/set/copy`; `platform.rs` `cinch_argv_get` | a `bytes-get`/`bytes-set` index outside `0..len`, a byte value outside `0..=255`, a `bytes-copy-range` range past either end, a negative length, an `argv` index past the count | **No (closed 2026-10-30, NF5)**: every index, range and value carries its evidence; the checks are compiler-bug traps. A failed stdout write is now `OutputFailed` (still reachable, section 5) |
+| `ReadOnly` | 71 | `abi.rs` `as_bytes_mut` on `KIND_BYTES_STATIC` | `bytes-set`/`bytes-copy-range` targeting a string literal's constant backing | **No (closed 2026-10-30, NF5)**: the backing exists only inside a `String` (private constructor and reader); every conversion out copies; the check is a compiler-bug trap |
 | `NestingTooDeep` | 71 | `eval.rs:162,288-299` `MAX_NESTING = 1024` | a quoted program (`Code a`) whose expression tree + captured holes nests past 1024 evaluator-recursion units | **Yes**: `eval`/quotation depth is a runtime property, not type-checked |
 | `HeapLimit` | 73 | `heap.rs:118-130,175-179` `account_alloc`/`heap_limit_exit` | cumulative heap allocation exceeding `CINCH_HEAP_LIMIT` (default 8 GiB, every `cinch_alloc`/`cinch_alloc_raw`/Rust `Box`/`Vec` call) | **Yes**: resource exhaustion, see §5 |
 
@@ -177,12 +233,12 @@ For each faulting primitive: the `.cinch` functions that expose it with no total
 |---|---|---|---|
 | `Nat` subtraction below zero | **closed 2026-10-30**: `nat-sub` and `-` at `Nat` require `b <= a` | `saturating-sub` (truncating), `checked-sub` (`Option`) | all sites migrated (see the closing note above) |
 | `Nat`/`Int` division or remainder by zero | **closed 2026-10-30**: `nat-div`/`nat-rem`/`int-div`/`int-rem` and `/`/`%` take a `NonZero` divisor | `checked-div`/`checked-rem` (`Option`), `non-zero`/`non-zero-nat`, `decide (NonZero d)`; `Data.BigDecimal.div` now answers `Option`, `Data.Rational.div` keeps its `Result` | all sites migrated (see the closing note above) |
-| `Bytes` out-of-bounds index/value | `bytes-get`/`bytes-set` (`Data/Bytes.cinch:33-34`) | `Data.Http.byte-at` (`Http.cinch:213-217`) wraps one `bytes-get` in a bounds check returning `Option Nat`: the **only** such wrapper found; every other caller indexes raw and relies on hand-proven loop bounds | the single most call-site-dense faulting primitive: `Bool.cinch`, `Bytes.cinch`, `List.cinch`, `Machine.cinch`, `String.cinch`, `StringIo.cinch`, `Fs.cinch`, `Http.cinch`, `Process.cinch`, `Pty.cinch`, `Random.cinch`, `Base64.cinch`, `Builder.cinch`, `Digest.cinch`, `Json.cinch`, `Lex.cinch`, `Otlp.cinch`, `Parse.cinch`, `Regex.cinch`, `Scan.cinch`: well over 100 call sites prelude-wide, plus more in `bootstrap/` and `examples/source` |
+| `Bytes` out-of-bounds index/value | **closed 2026-10-30 (NF5)**: `bytes-get`/`bytes-set`/`bytes-copy-range` take index and range obligations, a byte is an `InRange 0 255 Nat` | a guard (`if i < bytes-len b`), the buffer's own `bytes-new` length, an own `using` obligation, or a structural recursion whose result states its bound | all sites migrated (see the closing note above) |
 | decimal parse failure | `nat-from-decimal`/`int-from-decimal` (raw runtime imports) | surface parsers in `Text.Parse`/`Text.Json`/`Text.Toml`/`Text.Csv` validate digit-by-digit (`digits-fold`, `all-digits`) *before* calling the parser, so most prelude use is effectively guarded; no `Option`-returning `Nat`/`Int` decimal parse is exported directly | low direct exposure (a handful of call sites) because callers pre-validate; still unguarded if a program calls the raw parser on unvalidated text |
 | `Sym` interning of non-UTF-8 bytes | `sym-intern-bytes :: Bytes -> Sym` (`Data/Sym.cinch:33`) | `Data.Sym.intern :: String -> Sym` (`Sym.cinch:39-40`) is the documented total front door (a `String`'s bytes are always valid UTF-8) | effectively zero exposure through the documented API; the raw foreign import is exposed but not meant to be called directly |
 | eval nesting too deep | `cinch_eval`/`eval :: Code a -> a` | none: nesting depth is inherent to the quoted program's own shape, no static bound | rare (quotation/supercompilation code only) |
-| read-only buffer write | `bytes-set`/`bytes-copy-range` on a string-literal `Bytes` | none: a `String`'s backing and a heap `Bytes` are the same runtime type at this layer | moderate; anywhere a string literal's bytes are treated as a mutable buffer |
-| `Nat`/`Int` → `I64` range overflow | `nat-to-i64`/`int-to-i64` | `nat-fits-i64`/`int-fits-i64` (`cinch_nat_fits_i64`/`cinch_int_fits_i64`) exist as total pre-checks, but most call sites convert directly without checking (e.g. `Show.cinch:117`, `Fs.cinch:112,123`, `Process.cinch:141,151`) | tens of call sites, mostly unguarded |
+| read-only buffer write | **closed 2026-10-30 (NF5)**: no `Bytes` value is a literal's backing | `string-to-bytes` copies (as before) | none |
+| `Nat`/`Int` → `I64` range overflow | **closed 2026-10-30**: `nat-to-i64`/`int-to-i64` state the range they need | `checked-nat-to-i64`/`checked-int-to-i64` (`Option`), `nat-to-int`/`nat-from-int` (any size) | all sites migrated (see the closing note above) |
 
 Refinement-typed indices (`Dec`/`decide`, `design`'s total-API pattern) exist for several **container-level** invariants: `NonZero` (`Data/NonZero.cinch:32-34`), `NonEmpty` (`Data/NonEmpty.cinch:43-45`), `Sorted` (`Data/Sorted.cinch:30-32`), `Ascii` (`Data/Ascii.cinch:30-32`): but there is **no general `Fin n`/bounded-index refinement type** anywhere in `specifications/`, `design/`, or `compiler/prelude/`; `Bytes`/`List` indexing has no refined-index total alternative at all, which is why `bytes-get`/`bytes-set`/`nat-sub`/division dominate the exposure counts above.
 
@@ -225,8 +281,8 @@ Refinement-typed indices (`Dec`/`decide`, `design`'s total-API pattern) exist fo
 
 | rank | operation | fault | approx. call sites |
 |---|---|---|---|
-| 1 | `bytes-get` | `OutOfBounds`, exit 71 | 100+ (dominant across `Text/*`, `Data/*`, `Effect/*`) |
-| 2 | `bytes-set` | `OutOfBounds`/`ReadOnly`, exit 71 | 90+ |
+| 1 | `bytes-get` | closed (`i < bytes-len b` evidence) | 100+ |
+| 2 | `bytes-set` | closed (index evidence, byte-valued argument) | 90+ |
 | 3 | `nat-div` | closed (divisor is `NonZero Nat`) | 60+ |
 | 4 | `nat-rem` | closed (divisor is `NonZero Nat`) | 60+ |
 | 5 | `int-div` | closed (divisor is `NonZero Int`) | 25+ |

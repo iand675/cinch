@@ -233,28 +233,43 @@ module Text.Yaml where
   y-at-eof :: YState -> Bool
   y-at-eof s = y-off s >= bytes-len (y-src s)
 
-  -- Moving one scalar forward, position included.
+  -- Moving one scalar forward, position included. Every caller has just
+  -- peeked a byte at the offset, so the end-of-input row is the state
+  -- every caller already sees there; it restates that peek for the checker.
   y-advance1 :: YState -> YState
   y-advance1 s = case s of
     YState b o l c ->
-      let byte = bytes-get b o in
-      if byte == 10 then YState b (o + 1) (l + 1) 1
-      else if byte >= 128 && byte < 192 then YState b (o + 1) l c
-      else YState b (o + 1) l (c + 1)
+      if o < bytes-len b then
+        let byte = bytes-get b o in
+        if byte == 10 then YState b (o + 1) (l + 1) 1
+        else if byte >= 128 && byte < 192 then YState b (o + 1) l c
+        else YState b (o + 1) l (c + 1)
+      else s
 
   y-advance-to :: YState -> Nat -> YState
   y-advance-to s goal =
     if y-off s >= goal || y-at-eof s then s else y-advance-to (y-advance1 s) goal
 
   -- The offset of the current line's '\n' (or the buffer's end).
-  y-line-end :: YState -> Nat
+  y-line-end :: (s :: YState) -> refined (r <= bytes-len (y-src s)) Nat
   y-line-end s = scan-eol (y-src s) (y-off s)
 
-  scan-eol :: Bytes -> Nat -> Nat
+  -- A scan past the end answers the buffer's end. A state's offset never
+  -- passes the end (`y-advance1` and `y-advance-to` stop there), so a scan
+  -- that starts at one reaches its end exactly at `bytes-len b`: the
+  -- same offset as answering `i`, now one the range helpers can read.
+  scan-eol :: (b :: Bytes) -> Nat -> refined (r <= bytes-len b) Nat
   scan-eol b i =
-    if i >= bytes-len b then i
+    if i >= bytes-len b then bytes-len b
     else if bytes-get b i == 10 then i
     else scan-eol b (i + 1)
+
+  -- A scalar scanner's end, read as an offset inside the buffer. The
+  -- scanners answer either their start (a state's offset, never past the
+  -- end) or one past a byte they read, so `k` is already inside and this
+  -- answers `k` itself; the comparison is what lets the checker read it.
+  end-in :: (b :: Bytes) -> Nat -> refined (r <= bytes-len b) Nat
+  end-in b k = if k <= bytes-len b then k else bytes-len b
 
   y-next-line :: YState -> YState
   y-next-line s =
@@ -362,20 +377,22 @@ module Text.Yaml where
   -- helper, but that module is not part of the embedded family (D309),
   -- and importing it would make this module unembeddable in turn: the
   -- whole module imports the embedded homes only.
-  -- A reversed range (`j < i`) holds no bytes: the empty copy.
-  byte-range :: Bytes -> Nat -> Nat -> Bytes
+  -- A reversed range (`j < i`) holds no bytes: the empty copy. The range
+  -- must lie inside the buffer, which every scanner end offset does.
+  byte-range :: using (j <= bytes-len b) => (b :: Bytes) -> (i :: Nat) -> (j :: Nat) -> Bytes
   byte-range b i j =
-    let n = saturating-sub j i in
-    let out = bytes-new n in
-    let u = copy-bytes-into out b 0 i n in
-    out
+    if j <= i then bytes-new 0
+    else
+      let out = bytes-new (j - i) in
+      let u = copy-bytes-into out b 0 i (j - i) in
+      out
 
-  text-range :: Bytes -> Nat -> Nat -> String
+  text-range :: using (j <= bytes-len b) => (b :: Bytes) -> (i :: Nat) -> (j :: Nat) -> String
   text-range b i j = case string-from-bytes (byte-range b i j) of
     Some t -> t
     None -> empty-string
 
-  trim-trailing-space :: Bytes -> Nat -> Nat -> Nat
+  trim-trailing-space :: using (j <= bytes-len b) => (b :: Bytes) -> (i :: Nat) -> (j :: Nat) -> Nat
   trim-trailing-space b i j =
     if j <= i then i
     else
@@ -386,28 +403,30 @@ module Text.Yaml where
   -- byte, and preceded by a space or a tab. A guarded helper rather than
   -- `&&` on a lookback, because `&&` is a strict function here (Data.Bool)
   -- and would read the byte before the buffer's start.
-  comment-begins :: Bytes -> Nat -> Nat -> Bool
   -- `i` never precedes `start`, so `i <= start` is the line-start test
   -- (the same answer), and past it the byte before `i` exists.
+  comment-begins :: using (i <= bytes-len b) => (b :: Bytes) -> (start :: Nat) -> (i :: Nat) -> Bool
   comment-begins b start i =
     if i <= start then False
     else if bytes-get b (i - 1) == 32 then True
     else bytes-get b (i - 1) == 9
 
   -- The end of a run of non-space bytes (the tag, anchor and directive
-  -- token scanners).
-  token-end :: Bytes -> Nat -> Nat
+  -- token scanners). Past the end it answers the end, as `scan-eol` does:
+  -- every start is a state's offset or one past a peeked byte, never
+  -- beyond the end, so this is the offset the scan reached.
+  token-end :: (b :: Bytes) -> Nat -> refined (r <= bytes-len b) Nat
   token-end b i =
-    if i >= bytes-len b then i
+    if i >= bytes-len b then bytes-len b
     else
       let c = bytes-get b i in
       if c == 32 || c == 9 || c == 10 || c == 13 || c == 44 || c == 91 || c == 93 || c == 123 || c == 125 || c == 35 then i
       else token-end b (i + 1)
 
   -- The end of a token that stops at a flow indicator as well.
-  name-end :: Bytes -> Nat -> Nat
+  name-end :: (b :: Bytes) -> Nat -> refined (r <= bytes-len b) Nat
   name-end b i =
-    if i >= bytes-len b then i
+    if i >= bytes-len b then bytes-len b
     else
       let c = bytes-get b i in
       if c == 32 || c == 9 || c == 10 || c == 13 || c == 44 || c == 91 || c == 93 || c == 123 || c == 125 || c == 35 then i
@@ -685,7 +704,7 @@ module Text.Yaml where
   flush-blanks :: Nat -> List BsLine -> List BsLine
   flush-blanks n acc = if n == 0 then acc else flush-blanks (n - 1) (Cons (BsLine empty-string False) acc)
 
-  bs-line-text :: Bytes -> Nat -> Nat -> String
+  bs-line-text :: using (j <= bytes-len b) => (b :: Bytes) -> (i :: Nat) -> (j :: Nat) -> String
   bs-line-text b i j =
     if j > i then
       let c = bytes-get b (j - 1) in
@@ -876,7 +895,7 @@ module Text.Yaml where
 
   scan-flow-key-plain :: YState -> Result YamlError (String, YState)
   scan-flow-key-plain s =
-    let stop = flow-key-end (y-src s) (y-off s) (y-off s) (y-off s) in
+    let stop = end-in (y-src s) (flow-key-end (y-src s) (y-off s) (y-off s) (y-off s)) in
     if stop == y-off s then y-err s YamlSyntaxError "expected a scalar"
     else Ok (text-range (y-src s) (y-off s) stop, y-advance-to s stop)
 
@@ -899,7 +918,7 @@ module Text.Yaml where
 
   scan-flow-plain :: YState -> Result YamlError (String, YState)
   scan-flow-plain s =
-    let stop = flow-plain-end (y-src s) (y-off s) (y-off s) (y-off s) in
+    let stop = end-in (y-src s) (flow-plain-end (y-src s) (y-off s) (y-off s) (y-off s)) in
     if stop == y-off s then y-err s YamlSyntaxError "expected a scalar"
     else
       let text = text-range (y-src s) (y-off s) stop in
@@ -1077,7 +1096,7 @@ module Text.Yaml where
 
   parse-plain-scalar :: YState -> Result YamlError (YNode, YState)
   parse-plain-scalar s =
-    let stop = plain-end (y-src s) (y-off s) (y-off s) (y-off s) in
+    let stop = end-in (y-src s) (plain-end (y-src s) (y-off s) (y-off s) (y-off s)) in
     let text = text-range (y-src s) (y-off s) stop in
     if non-finite-text text then y-err s YamlUnsupportedScalar (string-concat "scalar " text)
     else Ok (YPlain text, y-advance-to s stop)
@@ -1255,8 +1274,10 @@ module Text.Yaml where
   parse-plain-key :: YState -> Result YamlError (YKey, YState)
   parse-plain-key s = case y-find-colon s of
     None -> y-err s YamlSyntaxError "a mapping entry needs a ':' after its key"
-    Some colon ->
-      let stop = trim-trailing-space (y-src s) (y-off s) colon in
+    Some found ->
+      -- `colon-scan` answers only offsets of bytes it read.
+      let colon = end-in (y-src s) found in
+      let stop = end-in (y-src s) (trim-trailing-space (y-src s) (y-off s) colon) in
       if stop == y-off s then y-err s YamlComplexKey "an empty mapping key is not in the safe subset"
       else Ok (YKey (text-range (y-src s) (y-off s) stop) True, y-advance-to s colon)
 
@@ -1352,7 +1373,9 @@ module Text.Yaml where
     Some b -> b == 32 || b == 9 || b == 10 || b == 13 || b == 35
 
   token-range :: YState -> String
-  token-range s = text-range (y-src s) (y-off s) (token-end (y-src s) (y-off s))
+  token-range s =
+    let stop = token-end (y-src s) (y-off s) in
+    text-range (y-src s) (y-off s) stop
 
 
   -- ---------------------------------------------------------------------------

@@ -433,7 +433,8 @@ module Main where
 "#,
     );
     // `> 1` alone does not reach `> 5` (the interval is not
-    // contained): the flow refuses.
+    // contained): the flow refuses, naming the obligation that no fact
+    // in scope discharges.
     expect_err(
         "unknown-not-implied",
         r#"
@@ -449,7 +450,7 @@ module Main where
   main :: Int
   main = 0
 "#,
-        &["does not flow to"],
+        &["the obligation `v > 5`"],
     );
     // The documented vocabulary row: `length xs > 0` implies
     // `NotNull xs`.

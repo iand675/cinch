@@ -98,7 +98,7 @@ const MAIN: &str = "module Main where
     let b = check (twice (Pair 2 3) == 7) 2 in
     let c = check (unbox (combine-all (Cons (Box 1) (Cons (Box 2) (Cons (Box 3) Nil)))) == 6) 4 in
     let d = check (unbox (combine-all (Nil :: List Box)) == 0) 8 in
-    int-from-i64 (nat-to-i64 (a + b + c + d))
+    nat-to-int (a + b + c + d)
 ";
 
 #[test]

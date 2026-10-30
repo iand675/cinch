@@ -51,13 +51,14 @@ module Main where
   split-lines :: Bytes -> List String
   split-lines b = split-lines-at b 0 0 Nil
 
-  split-lines-at :: Bytes -> Nat -> Nat -> List String -> List String
+  split-lines-at :: using (i <= bytes-len b) => (b :: Bytes) -> (i :: Nat) -> Nat -> List String -> List String
   split-lines-at b i start acc =
-    if nat-cmp i (bytes-len b) == 0 then reverse (add-line b start i acc)
-    else if nat-cmp (bytes-get b i) 10 == 0 then split-lines-at b (i + 1) (i + 1) (add-line b start i acc)
-    else split-lines-at b (i + 1) start acc
+    if i < bytes-len b then
+      if nat-cmp (bytes-get b i) 10 == 0 then split-lines-at b (i + 1) (i + 1) (add-line b start i acc)
+      else split-lines-at b (i + 1) start acc
+    else reverse (add-line b start i acc)
 
-  add-line :: Bytes -> Nat -> Nat -> List String -> List String
+  add-line :: using (i <= bytes-len b) => (b :: Bytes) -> Nat -> (i :: Nat) -> List String -> List String
   add-line b start i acc =
     let line = bytes-string (bytes-slice b start i) in
     if string-length line == 0 then acc else Cons line acc
@@ -107,12 +108,10 @@ module Main where
   ends-with s suffix =
     let b = string-to-bytes s in
     let sfx = string-to-bytes suffix in
-    let bl = bytes-len b in
-    let sl = bytes-len sfx in
-    if sl > bl then False
-    else bytes-equal-at b (bl - sl) sfx 0 sl
+    if bytes-len sfx <= bytes-len b then bytes-equal-at b (bytes-len b - bytes-len sfx) sfx 0 (bytes-len sfx)
+    else False
 
-  bytes-equal-at :: Bytes -> Nat -> Bytes -> Nat -> Nat -> Bool
+  bytes-equal-at :: using (i + n <= bytes-len b, j + n <= bytes-len s) => (b :: Bytes) -> (i :: Nat) -> (s :: Bytes) -> (j :: Nat) -> (n :: Nat) -> Bool
   bytes-equal-at b i s j n =
     if n == 0 then True
     else if nat-cmp (bytes-get b i) (bytes-get s j) == 0 then bytes-equal-at b (i + 1) s (j + 1) (n - 1)

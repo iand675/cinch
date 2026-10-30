@@ -127,34 +127,33 @@ module Main where
   import Data.String
   import Effect.Pty
 
-  -- The transcript buffer and its filled length. A pseudo-terminal
-  -- echoes and may interleave, so the checks accumulate and match the
-  -- substring's presence, never an exact buffer.
+  -- The transcript so far, exactly as long as what was read. A
+  -- pseudo-terminal echoes and may interleave, so the checks accumulate
+  -- and match the substring's presence, never an exact buffer. Each
+  -- read makes a fresh buffer sized to both parts, so every copy is in
+  -- bounds by the buffer's own length.
   data Transcript where
-    Transcript :: Bytes -> Nat -> Transcript
+    Transcript :: Bytes -> Transcript
 
   append-bytes :: Transcript -> Bytes -> Transcript
   append-bytes t bs = case t of
-    Transcript buf n -> case bytes-len bs of
-      m -> Transcript buf (copy-into buf n bs 0 m)
-
-  copy-into :: Bytes -> Nat -> Bytes -> Nat -> Nat -> Nat
-  copy-into dst di src si sn = case si == sn of
-    True -> di
-    False -> case bytes-set dst di (bytes-get src si) of
-      _ -> copy-into dst (di + 1) src (si + 1) sn
+    Transcript buf ->
+      let out = bytes-new (bytes-len buf + bytes-len bs) in
+      let u = bytes-copy-range out buf 0 0 (bytes-len buf) in
+      case bytes-copy-range out bs (bytes-len buf) 0 (bytes-len bs) of
+        _ -> Transcript out
 
   has-hi :: Transcript -> Bool
   has-hi t = case t of
-    Transcript buf n -> scan-hi buf 0 n
+    Transcript buf -> scan-hi buf 0
 
-  scan-hi :: Bytes -> Nat -> Nat -> Bool
-  scan-hi buf i n = case i + 1 < n of
+  scan-hi :: Bytes -> Nat -> Bool
+  scan-hi buf i = case i + 1 < bytes-len buf of
     True -> case bytes-get buf i == 104 of
       True -> case bytes-get buf (i + 1) == 105 of
         True -> True
-        False -> scan-hi buf (i + 1) n
-      False -> scan-hi buf (i + 1) n
+        False -> scan-hi buf (i + 1)
+      False -> scan-hi buf (i + 1)
     False -> False
 
   -- Read until the transcript holds "hi" or the fuel runs out. The
@@ -185,7 +184,7 @@ module Main where
           (sp1, Err e) -> 4
           (sp1, Ok n) -> case n == 8 of
             False -> 5
-            True -> case read-until sp1 (Transcript (bytes-new 8192) 0) 64 of
+            True -> case read-until sp1 (Transcript (bytes-new 0)) 64 of
               (sp2, Err e) -> 6
               (sp2, Ok t) -> case has-hi t of
                 False -> 7

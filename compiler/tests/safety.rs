@@ -634,7 +634,7 @@ module Main where
       answer = $(quoteNat (echo 1)))
 
   main :: Int
-  main = int-from-i64 (nat-to-i64 answer)
+  main = nat-to-int answer
 "#,
     );
     assert_row(

@@ -506,8 +506,10 @@ pub unsafe extern "C" fn cinch_coop_task_join_all_or_cancel(
     n: i64,
     out: i64,
 ) -> i64 {
+    // `n` is the handle count the code generator emits for the call, as
+    // in `cinch_task_join_all_or_cancel`.
     if n < 0 {
-        crate::abi::raise(crate::error::Error::OutOfBounds);
+        crate::abi::raise(crate::error::Error::CorruptValue);
     }
     let scope = unsafe { &*(scope as *const Arc<CoopScope>) };
     unsafe { scope.join_all_or_cancel(handles as *const i64, n as usize, out as *mut i64) }

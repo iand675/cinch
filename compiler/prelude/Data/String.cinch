@@ -12,9 +12,11 @@
 -- exposes its backing mutably. Conversions copy on the way in
 -- (`string-from-bytes`) and on the way out (`string-to-bytes`);
 -- mutation exists only on plain `Bytes`. The representation
--- constructor is module-private, so once a buffer is wrapped no alias
--- can mutate it; a literal's backing is the read-only constant
--- itself, where a mutation attempt takes the defined runtime fault.
+-- constructor and the backing reader are module-private, so once a
+-- buffer is wrapped no alias can mutate it, and a literal's backing
+-- (the read-only data-section constant itself) never reaches a write:
+-- outside this module it cannot be named, and in it every use of a
+-- backing is a read or the source of a copy.
 --
 -- The functions here are the REFERENCE SEMANTICS for UTF-8. The
 -- runtime provides SIMD-accelerated implementations of the same rules
@@ -26,6 +28,7 @@
 -- instance family (the parked-instance deviation of D159 is over).
 module Data.String where
 
+  import Algebra.Arithmetic
   import Data.Nat
   import Data.Option
   import Data.List
@@ -105,7 +108,10 @@ module Data.String where
     else if w == 4 then 65536
     else 0
 
-  utf8-cont :: Bytes -> Nat -> Nat -> Nat -> Option Nat
+  -- The `k` continuation bytes from `i`: the caller has checked that
+  -- they lie inside the buffer (`i + k <= bytes-len b`), so each read
+  -- is in bounds and the obligation steps with the index.
+  utf8-cont :: using (i + k <= bytes-len b) => (b :: Bytes) -> (i :: Nat) -> (k :: Nat) -> Nat -> Option Nat
   utf8-cont b i k cp =
     if k == 0 then Some cp
     else
@@ -139,7 +145,7 @@ module Data.String where
 
   utf8-char :: Nat -> Nat -> Option (Char, Nat)
   utf8-char cp w =
-    case u32-to-char (wrapping-i64-to-u32 (nat-to-i64 cp)) of
+    case char-from-code cp of
       None -> None
       Some c -> Some (c, w)
 
@@ -187,36 +193,44 @@ module Data.String where
   string-char-at :: String -> Nat -> Option Char
   string-char-at s n = string-char-at-from (string-bytes-raw s) 0 n
 
-  -- Encode one scalar value (bytes are raw values; division is the
-  -- `nat-div`/`nat-rem` function family).
-  utf8-encode-into :: Bytes -> Nat -> Nat -> Nat
-  utf8-encode-into b pos cp =
-    if cp < 128 then
-      let u = bytes-set b pos cp in 0
-    else if cp < 2048 then
-      let u = bytes-set b pos (192 + nat-div cp 64) in
-      let v = bytes-set b (pos + 1) (128 + nat-rem cp 64) in 0
-    else if cp < 65536 then
-      let u = bytes-set b pos (224 + nat-div cp 4096) in
-      let v = bytes-set b (pos + 1) (128 + nat-rem (nat-div cp 64) 64) in
-      let w = bytes-set b (pos + 2) (128 + nat-rem cp 64) in 0
-    else
-      let u = bytes-set b pos (240 + nat-div cp 262144) in
-      let v = bytes-set b (pos + 1) (128 + nat-rem (nat-div cp 4096) 64) in
-      let w = bytes-set b (pos + 2) (128 + nat-rem (nat-div cp 64) 64) in
-      let x = bytes-set b (pos + 3) (128 + nat-rem cp 64) in 0
-
-  utf8-encode-width :: Nat -> Nat
+  utf8-encode-width :: Nat -> InRange 1 4 Nat
   utf8-encode-width cp =
     if cp < 128 then 1
     else if cp < 2048 then 2
     else if cp < 65536 then 3
     else 4
 
+  -- Encode one scalar value at `pos` (bytes are raw values; division is
+  -- the `nat-div`/`nat-rem` function family). The caller proves the
+  -- encoding fits (`pos + utf8-encode-width cp <= bytes-len b`, a
+  -- buffer sized with `utf8-encode-width`), and the branches test that
+  -- same width, so each one knows how many bytes it may write. Every
+  -- byte is taken modulo its field width, which is the same number for
+  -- every value its width admits (`cp < 128` in the first branch, `cp /
+  -- 64 < 32` in the second, `cp / 4096 < 16` in the third, and `cp <
+  -- 2^22` in the last, past which the unmasked lead byte did not fit a
+  -- byte at all).
+  utf8-encode-into :: using (pos + utf8-encode-width cp <= bytes-len b) => (b :: Bytes) -> (pos :: Nat) -> (cp :: Nat) -> Nat
+  utf8-encode-into b pos cp =
+    if utf8-encode-width cp <= 1 then
+      let u = bytes-set b pos (nat-rem cp 128) in 0
+    else if utf8-encode-width cp <= 2 then
+      let u = bytes-set b pos (192 + nat-rem (nat-div cp 64) 32) in
+      let v = bytes-set b (pos + 1) (128 + nat-rem cp 64) in 0
+    else if utf8-encode-width cp <= 3 then
+      let u = bytes-set b pos (224 + nat-rem (nat-div cp 4096) 16) in
+      let v = bytes-set b (pos + 1) (128 + nat-rem (nat-div cp 64) 64) in
+      let w = bytes-set b (pos + 2) (128 + nat-rem cp 64) in 0
+    else
+      let u = bytes-set b pos (240 + nat-rem (nat-div cp 262144) 16) in
+      let v = bytes-set b (pos + 1) (128 + nat-rem (nat-div cp 4096) 64) in
+      let w = bytes-set b (pos + 2) (128 + nat-rem (nat-div cp 64) 64) in
+      let x = bytes-set b (pos + 3) (128 + nat-rem cp 64) in 0
+
   -- Concatenation (O(n + m) copies). The range copy is the runtime's
-  -- `memmove` (`bytes-copy-range`): a loop here boxed a `Nat` for every
-  -- index step.
-  copy-bytes-into :: Bytes -> Bytes -> Nat -> Nat -> Nat -> Unit
+  -- `memmove` (`bytes-copy-range`, with its two range obligations): a
+  -- loop here boxed a `Nat` for every index step.
+  copy-bytes-into :: using (di + n <= bytes-len dst, si + n <= bytes-len src) => (dst :: Bytes) -> (src :: Bytes) -> (di :: Nat) -> (si :: Nat) -> (n :: Nat) -> Unit
   copy-bytes-into dst src di si n = bytes-copy-range dst src di si n
 
   string-concat :: String -> String -> String
@@ -228,58 +242,55 @@ module Data.String where
     let v = copy-bytes-into out y (bytes-len x) 0 (bytes-len y) in
     StrBuf out
 
-  -- Every string in the list, in order, in one pass: sum the byte lengths,
-  -- allocate the result once, copy each piece once. A right fold of
+  -- Every string in the list, in order, in one pass: the buffer is made
+  -- once, at the end of the list, sized to the pieces' total, and each
+  -- piece is copied once on the way back. A right fold of
   -- `string-concat` would re-copy the whole built suffix at every step,
   -- quadratic in the result's length. The concatenation of valid UTF-8
   -- is valid UTF-8, so the buffer wraps without a decode. This is the
   -- `Monoid String` instance's `mconcat`.
   string-concat-all :: List String -> String
-  string-concat-all xs =
-    let out = bytes-new (strings-byte-length xs 0) in
-    let u = copy-strings-into out 0 xs in
-    StrBuf out
+  string-concat-all xs = StrBuf (concat-from 0 xs)
 
-  strings-byte-length :: List String -> Nat -> Nat
-  strings-byte-length xs acc = case xs of
-    Nil -> acc
-    Cons s rest -> strings-byte-length rest (acc + string-byte-length s)
-
-  copy-strings-into :: Bytes -> Nat -> List String -> Unit
-  copy-strings-into out pos xs = case xs of
-    Nil -> ()
+  -- The pieces of `xs` copied from offset `pos`: the result's refinement
+  -- (`pos <= bytes-len out`) is what each copy's range proves.
+  concat-from :: (pos :: Nat) -> List String -> refined (pos <= bytes-len out) Bytes
+  concat-from pos xs = case xs of
+    Nil -> bytes-new pos
     Cons s rest ->
       let b = string-bytes-raw s in
+      let out = concat-from (pos + bytes-len b) rest in
       let u = copy-bytes-into out b pos 0 (bytes-len b) in
-      copy-strings-into out (pos + bytes-len b) rest
+      out
 
   -- `s` repeated `n` times (the run-building helper the padding and
   -- numeric-format sites spelled out as fixed byte runs): one buffer of
-  -- `n` copies, filled in place.
+  -- `n` copies, made once and filled in place.
   string-repeat :: Nat -> String -> String
-  string-repeat n s =
-    let b = string-bytes-raw s in
-    let out = bytes-new (n * bytes-len b) in
-    let u = repeat-into out b 0 n in
-    StrBuf out
+  string-repeat n s = StrBuf (repeat-from 0 n (string-bytes-raw s))
 
-  repeat-into :: Bytes -> Bytes -> Nat -> Nat -> Unit
-  repeat-into out b pos n =
-    if n == 0 then ()
+  -- `n` copies of `b` from offset `pos`, in the shape of `concat-from`.
+  repeat-from :: (pos :: Nat) -> Nat -> (b :: Bytes) -> refined (pos <= bytes-len out) Bytes
+  repeat-from pos n b =
+    if n == 0 then bytes-new pos
     else
+      let out = repeat-from (pos + bytes-len b) (n - 1) b in
       let u = copy-bytes-into out b pos 0 (bytes-len b) in
-      repeat-into out b (pos + bytes-len b) (n - 1)
+      out
 
-  -- Byte offsets of code point `n`; returns the byte length when `n`
-  -- reaches past the end.
-  string-byte-index-from :: Bytes -> Nat -> Nat -> Nat
+  -- Byte offset of code point `n` from offset `i`; the byte length when
+  -- `n` reaches past the end. The offset never moves backwards and never
+  -- passes the end, and the result says so. A sequence whose width runs
+  -- past the end is malformed, as `utf8-at` decides; the step restates
+  -- that end test, so it answers `i` as a malformed sequence does.
+  string-byte-index-from :: using (i <= bytes-len b) => (b :: Bytes) -> (i :: Nat) -> Nat -> refined (i <= r && r <= bytes-len b) Nat
   string-byte-index-from b i n =
     if i >= bytes-len b then i
     else if n == 0 then i
     else case utf8-at b i of
       None -> i
       Some p -> case p of
-        (c, w) -> string-byte-index-from b (i + w) (n - 1)
+        (c, w) -> if i + w <= bytes-len b then string-byte-index-from b (i + w) (n - 1) else i
 
   -- The code point range [start, end); indices past the end clamp and a
   -- reversed range yields the empty string (the span's subtraction
@@ -290,24 +301,27 @@ module Data.String where
     let i0 = string-byte-index-from b 0 start in
     let span = if end > start then end - start else 0 in
     let i1 = string-byte-index-from b i0 span in
-    -- `string-byte-index-from` never moves backwards, so `i0 <= i1`
-    -- on every input; the empty string answers the case that cannot
-    -- occur, since that fact lives in another function.
-    if i0 <= i1 then
-      let out = bytes-new (i1 - i0) in
-      let u = copy-bytes-into out b 0 i0 (i1 - i0) in
-      StrBuf out
-    else StrBuf (bytes-new 0)
+    let out = bytes-new (i1 - i0) in
+    let u = copy-bytes-into out b 0 i0 (i1 - i0) in
+    StrBuf out
 
   -- Haskell's `Data.String` pair: `pack` is the `List Char` view of a
   -- string, `unpack` its inverse (new conversions: no `String`/`List
   -- Char` pair existed before). `pack` constructs a fresh string (the
   -- wrap/copy discipline: the buffer is fresh and never aliased).
   pack :: List Char -> String
-  pack cs =
-    let b = bytes-new (pack-width cs 0) in
-    let u = pack-into b 0 cs in
-    StrBuf b
+  pack cs = StrBuf (pack-from 0 cs)
+
+  -- The characters' encodings from offset `pos`, in the shape of
+  -- `concat-from`.
+  pack-from :: (pos :: Nat) -> List Char -> refined (pos <= bytes-len out) Bytes
+  pack-from pos cs = case cs of
+    Nil -> bytes-new pos
+    Cons c rest ->
+      let cp = char-code c in
+      let out = pack-from (pos + utf8-encode-width cp) rest in
+      let u = utf8-encode-into out pos cp in
+      out
 
   unpack :: String -> List Char
   unpack s = unpack-from s 0 (string-length s)
@@ -315,18 +329,6 @@ module Data.String where
   -- The scalar value of a character (the encoding family above).
   char-code :: Char -> Nat
   char-code c = nat-from-i64 (u32-to-i64 (char-to-u32 c))
-
-  pack-width :: List Char -> Nat -> Nat
-  pack-width cs acc = case cs of
-    Nil -> acc
-    Cons c rest -> pack-width rest (acc + utf8-encode-width (char-code c))
-
-  pack-into :: Bytes -> Nat -> List Char -> Unit
-  pack-into b pos cs = case cs of
-    Nil -> ()
-    Cons c rest ->
-      let u = utf8-encode-into b pos (char-code c) in
-      pack-into b (pos + utf8-encode-width (char-code c)) rest
 
   unpack-from :: String -> Nat -> Nat -> List Char
   unpack-from s i n =

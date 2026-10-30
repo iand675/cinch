@@ -9,6 +9,7 @@
 module Data.Char where
 
   import Data.Option
+  import Algebra.Arithmetic
   import Data.Hash
 
   export char-to-u32, u32-to-char, eq-char, ne-char, lt-char, le-char, gt-char, ge-char
@@ -21,7 +22,7 @@ module Data.Char where
   -- Primitive types specification, section 6: Char values are Unicode
   -- scalar values, in code point order. `u32-to-char` rejects surrogates
   -- and values above 0x10FFFF.
-  foreign import ccall "cinch.prim.charToU32" char-to-u32 :: Char -> U32
+  foreign import ccall "cinch.prim.charToU32" char-to-u32 :: (c :: Char) -> refined (InRange 0 1114111 r && r == c) U32
   foreign import ccall "cinch.prim.u32ToChar" u32-to-char :: U32 -> Option Char
   foreign import ccall "cinch.prim.eqChar" eq-char :: Char -> Char -> Bool
   foreign import ccall "cinch.prim.neChar" ne-char :: Char -> Char -> Bool
@@ -31,14 +32,18 @@ module Data.Char where
   foreign import ccall "cinch.prim.geChar" ge-char :: Char -> Char -> Bool
 
   -- The scalar value as a `Nat`: the conversion the text and data
-  -- homes all spelled out by hand before this was its home.
-  char-code :: Char -> Nat
+  -- homes all spelled out by hand before this was its home. A scalar
+  -- value is at most 0x10FFFF, and the result says so.
+  char-code :: Char -> InRange 0 1114111 Nat
   char-code c = nat-from-i64 (u32-to-i64 (char-to-u32 c))
 
   -- The inverse, partial exactly as `u32-to-char` is: a value outside
-  -- the scalar range (a surrogate, or above 0x10FFFF) is `None`.
+  -- the scalar range (a surrogate, or above 0x10FFFF) is `None`. The
+  -- range test comes first, so a value past `U32` is `None` rather than
+  -- a wrapped scalar.
   char-from-code :: Nat -> Option Char
-  char-from-code n = u32-to-char (wrapping-i64-to-u32 (nat-to-i64 n))
+  char-from-code n =
+    if n <= 1114111 then u32-to-char (wrapping-i64-to-u32 (nat-to-i64 n)) else None
 
   -- The ASCII digit and hex-digit test/value pairs. Every text and
   -- data home that parses numeric text had written its own (under

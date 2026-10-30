@@ -357,7 +357,7 @@ module Main where
       answer = $(quoteNat (greet 1)))
 
   main :: Int
-  main = int-from-i64 (nat-to-i64 answer)
+  main = nat-to-int answer
 "#,
         42,
     );
@@ -446,10 +446,17 @@ module Main where
   copy-out =
     let s = "ab" in
     let b = string-to-bytes s in
-    let u = bytes-set b 0 120 in
-    if string-compare s "ab" == 0 then
-      if bytes-get (string-to-bytes s) 0 == 97 then 0 else 2
-    else 1
+    -- "ab" is two bytes; the length checks prove the write and the read
+    -- (a wrong length is its own failure code, never skipped silently).
+    if bytes-len b == 2 then
+      let u = bytes-set b 0 120 in
+      if string-compare s "ab" == 0 then
+        let c = string-to-bytes s in
+        if bytes-len c == 2 then
+          if bytes-get c 0 == 97 then 0 else 2
+        else 4
+      else 1
+    else 4
 
   copy-in :: Int
   copy-in =
@@ -562,7 +569,7 @@ fn emit_ir_references_the_constant_directly() {
          \x20 main =\n\
          \x20   let a = string-to-bytes (greet 0) in\n\
          \x20   let b = string-to-bytes (greet 1) in\n\
-         \x20   if bytes-len a + bytes-len b == 10 then\n\
+         \x20   if bytes-len a == 5 && bytes-len b == 5 then\n\
          \x20     if bytes-get b 4 == 111 then 0 else 2\n\
          \x20   else 1\n",
     )]);

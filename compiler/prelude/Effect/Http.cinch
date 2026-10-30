@@ -210,8 +210,9 @@ module Effect.Http where
   -- Private byte and char plumbing.
   -- -------------------------------------------------------------------
 
-  -- The byte at `i`, or `None` past the end (`bytes-get` faults, so guard).
-  byte-at :: Bytes -> Nat -> Option Nat
+  -- The byte at `i`, or `None` past the end (the guard is the bound
+  -- `bytes-get` asks for).
+  byte-at :: Bytes -> Nat -> Option (InRange 0 255 Nat)
   byte-at b i = case i >= bytes-len b of
     True -> None
     False -> Some (bytes-get b i)
@@ -224,29 +225,28 @@ module Effect.Http where
 
   -- The bytes in [start, end) as a fresh buffer (end clamped to length).
   bytes-slice :: Bytes -> Nat -> Nat -> Bytes
-  bytes-slice b start end = bytes-from-list (reverse (slice-acc b start (clamp end (bytes-len b)) Nil))
+  bytes-slice b start end =
+    if end > bytes-len b then bytes-from-list (reverse (slice-acc b start (bytes-len b) Nil))
+    else bytes-from-list (reverse (slice-acc b start end Nil))
 
-  clamp :: Nat -> Nat -> Nat
-  clamp v n = case v > n of
-    True -> n
-    False -> v
-
-  slice-acc :: Bytes -> Nat -> Nat -> List Nat -> List Nat
+  -- The caller's clamp is this walk's bound: every index read is below
+  -- `end`, so below the length.
+  slice-acc :: using (end <= bytes-len b) => (b :: Bytes) -> Nat -> (end :: Nat) -> List (InRange 0 255 Nat) -> List (InRange 0 255 Nat)
   slice-acc b i end acc = case i >= end of
     True -> acc
     False -> slice-acc b (i + 1) end (Cons (bytes-get b i) acc)
 
-  -- Append `b`'s bytes to a REVERSED byte accumulator.
-  append-bytes-rev :: List Nat -> Bytes -> Nat -> Nat -> List Nat
-  append-bytes-rev acc b i n = case i >= n of
+  -- Append all of `b`'s bytes from `i` on to a REVERSED byte accumulator.
+  append-bytes-rev :: List (InRange 0 255 Nat) -> Bytes -> Nat -> List (InRange 0 255 Nat)
+  append-bytes-rev acc b i = case i >= bytes-len b of
     True -> acc
-    False -> append-bytes-rev (Cons (bytes-get b i) acc) b (i + 1) n
+    False -> append-bytes-rev (Cons (bytes-get b i) acc) b (i + 1)
 
   -- Two buffers concatenated.
   bytes-append :: Bytes -> Bytes -> Bytes
   bytes-append a b =
-    let ra = append-bytes-rev Nil a 0 (bytes-len a) in
-    let rb = append-bytes-rev ra b 0 (bytes-len b) in
+    let ra = append-bytes-rev Nil a 0 in
+    let rb = append-bytes-rev ra b 0 in
     bytes-from-list (reverse rb)
 
   -- The head/body boundary: `Some (head-end, body-start)` for the first
@@ -498,7 +498,7 @@ module Effect.Http where
     Err e -> Err e
     Ok rev -> Ok (bytes-from-list (reverse rev))
 
-  chunk-loop :: Bytes -> Nat -> Nat -> List Nat -> Result HttpError (List Nat)
+  chunk-loop :: Bytes -> Nat -> Nat -> List (InRange 0 255 Nat) -> Result HttpError (List (InRange 0 255 Nat))
   chunk-loop b i n acc = case parse-hex-line b i n of
     Err e -> Err e
     Ok pair -> case pair of
@@ -506,7 +506,7 @@ module Effect.Http where
         True -> Ok acc
         False -> case after-line + size + 2 > n of
           True -> Err HttpTruncatedBody
-          False -> chunk-loop b (after-line + size + 2) n (append-bytes-rev acc (bytes-slice b after-line (after-line + size)) 0 size)
+          False -> chunk-loop b (after-line + size + 2) n (append-bytes-rev acc (bytes-slice b after-line (after-line + size)) 0)
 
   -- A chunk-size line: hex digits (any `;` extension skipped), through LF.
   parse-hex-line :: Bytes -> Nat -> Nat -> Result HttpError (Nat, Nat)
@@ -609,14 +609,14 @@ module Effect.Http where
 
   -- Read to end of stream into a reversed byte accumulator, bounded by
   -- `bound` on the running total.
-  read-response :: forall r. using (io :: Io r) => Socket -> Nat -> List Nat -> Nat ->{IO r} Result HttpError (List Nat)
+  read-response :: forall r. using (io :: Io r) => Socket -> Nat -> List (InRange 0 255 Nat) -> Nat ->{IO r} Result HttpError (List (InRange 0 255 Nat))
   read-response s bound acc count = case count >= bound of
     True -> Err HttpBodyTooLarge
     False -> case net-read s 4096 of
       Err e -> Err (HttpNetworkError e)
       Ok b -> case bytes-len b == 0 of
         True -> Ok acc
-        False -> read-response s bound (append-bytes-rev acc b 0 (bytes-len b)) (count + bytes-len b)
+        False -> read-response s bound (append-bytes-rev acc b 0) (count + bytes-len b)
 
   -- Parse a whole reply from its bytes: find the head, split it, parse the
   -- status line and headers, choose a framing and decode the body.

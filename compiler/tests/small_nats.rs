@@ -36,8 +36,9 @@ const HELPERS: &str = r#"
     Cons x rest -> if x then first-fail rest (i + 1) else i
 
   -- The digit's value as its low nibble: `c - 48` on every ASCII digit,
-  -- and no lower bound to prove.
-  digits-nat :: Bytes -> Nat -> Nat -> Nat -> Nat
+  -- and no lower bound to prove. The scan's own obligation keeps each
+  -- read inside the buffer.
+  digits-nat :: using (i <= n, n <= bytes-len b) => (b :: Bytes) -> (i :: Nat) -> (n :: Nat) -> Nat -> Nat
   digits-nat b i n acc =
     if i == n then acc else digits-nat b (i + 1) n (acc * 10 + bytes-get b i % 16)
 
@@ -46,15 +47,16 @@ const HELPERS: &str = r#"
     let b = string-to-bytes s in
     digits-nat b 0 (bytes-len b) 0
 
-  digits-int :: Bytes -> Nat -> Nat -> Int -> Int
+  digits-int :: using (i <= n, n <= bytes-len b) => (b :: Bytes) -> (i :: Nat) -> (n :: Nat) -> Int -> Int
   digits-int b i n acc =
     if i == n then acc
-    else digits-int b (i + 1) n (acc * 10 + int-from-i64 (nat-to-i64 (bytes-get b i % 16)))
+    else digits-int b (i + 1) n (acc * 10 + nat-to-int (bytes-get b i % 16))
 
   parse-int :: String -> Int
   parse-int s =
     let b = string-to-bytes s in
-    if bytes-get b 0 == 45 then int-neg (digits-int b 1 (bytes-len b) 0)
+    if bytes-len b == 0 then 0
+    else if bytes-get b 0 == 45 then int-neg (digits-int b 1 (bytes-len b) 0)
     else digits-int b 0 (bytes-len b) 0
 
   nat-round-trips :: Nat -> String -> Bool
@@ -66,16 +68,29 @@ const HELPERS: &str = r#"
   two63 :: Nat
   two63 = 9223372036854775808
 
+  -- The sign bit cleared is the low 63 bits (`mask-i64`, a non-negative
+  -- word): a negative word's `i - min-bound`, the same value.
   u64-to-nat :: U64 -> Nat
   u64-to-nat u =
     let i = wrapping-u64-to-i64 u in
     if i >= 0 then nat-from-i64 i
-    else nat-from-i64 (wrapping-sub-i64 i min-bound-i64) + two63
+    else nat-from-i64 (mask-i64 i 9223372036854775807) + two63
 
+  -- The low 63 bits of `n - 2^63` (a residue below 2^63, so it is an
+  -- `I64`): the value itself for every `n` below 2^64.
   nat-to-u64 :: Nat -> U64
   nat-to-u64 n =
-    if n < two63 then wrapping-i64-to-u64 (nat-to-i64 n)
-    else wrapping-i64-to-u64 (wrapping-add-i64 (nat-to-i64 (n - two63)) min-bound-i64)
+    if n < 9223372036854775808 then wrapping-i64-to-u64 (nat-to-i64 n)
+    else
+      let low = nat-rem (n - 9223372036854775808) 9223372036854775808 in
+      wrapping-i64-to-u64 (wrapping-add-i64 (nat-to-i64 low) min-bound-i64)
+
+  -- An `Int` the checks know is in `I64` range (`0` would mark a
+  -- conversion the check did not expect to leave the range).
+  i64-of :: Int -> I64
+  i64-of x = case checked-int-to-i64 x of
+    Some v -> v
+    None -> 0
 
   nat-found :: Nat -> Nat -> HashMap Nat Nat -> Bool
   nat-found k v m = case hash-map-lookup k m of
@@ -180,7 +195,7 @@ fn nat_crosses_the_immediate_edge_exactly_in_both_directions() {
     , p64 > p63
     , not (p63 < m63)
     , nat-cmp p63 9223372036854775808 == 0
-    , nat-to-i64 m63 == max-bound-i64
+    , i64-of (nat-to-int m63) == max-bound-i64
     , nat-from-i64 max-bound-i64 == m63
     , nat-to-u64 p63 == wrapping-i64-to-u64 min-bound-i64
     , nat-to-u64 (minus p64 1) == max-bound-u64
@@ -215,7 +230,7 @@ fn int_crosses_both_immediate_edges_and_their_negations() {
 
   checks :: Nat -> List Bool
   checks z =
-    let zi = int-from-i64 (nat-to-i64 z) in
+    let zi = nat-to-int z in
     let imax = 4611686018427387903 + zi in
     let imin = (0 - 4611686018427387904) + zi in
     let above = imax + 1 in
@@ -253,8 +268,8 @@ fn int_crosses_both_immediate_edges_and_their_negations() {
     , int-to-i64 (int-from-i64 min-bound-i64) == min-bound-i64
     , int-from-i64 min-bound-i64 == 0 - 9223372036854775808
     , int-from-i64 max-bound-i64 + 1 == 9223372036854775808
-    , int-to-i64 above == wrapping-add-i64 (int-to-i64 imax) 1
-    , int-to-i64 imin == wrapping-sub-i64 0 (int-to-i64 above)
+    , i64-of above == wrapping-add-i64 (i64-of imax) 1
+    , i64-of imin == wrapping-sub-i64 0 (i64-of above)
     ]
 "#,
     );
@@ -274,7 +289,7 @@ fn equal_values_agree_as_map_keys_whichever_path_built_them() {
     let p63 = (4611686018427387904 + z) * 2 in
     let p64 = p63 + p63 in
     let nats = hash-map-insert p64 3 (hash-map-insert p63 2 (hash-map-insert m63 1 hash-map-empty)) in
-    let zi = int-from-i64 (nat-to-i64 z) in
+    let zi = nat-to-int z in
     let above = (4611686018427387903 + zi) + 1 in
     let imin = (zi - 4611686018427387905) + 1 in
     let ints = hash-map-insert imin 2 (hash-map-insert above 1 hash-map-empty) in
@@ -326,9 +341,15 @@ fn nat_subtraction_on_immediates_takes_its_evidence_from_a_test() {
 }
 
 #[test]
-fn nat_from_a_negative_i64_still_faults_from_immediates() {
-    // `nat-from-i64` of a negative takes the panic path (71), never a
-    // wrapped immediate.
-    let checks = "  checks :: Nat -> List Bool\n  checks z = [ nat-from-i64 (wrapping-sub-i64 (nat-to-i64 z) 1) == 0 ]\n";
-    assert_eq!(run("nat-from-neg-i64", &program(checks)), 71, "nat-from-neg-i64");
+fn nat_from_a_possibly_negative_i64_is_refused_and_the_checked_form_answers() {
+    // `nat-from-i64` states `0 <= x`: an argument that may be negative is
+    // a compile error (the runtime's negative check is a compiler-bug
+    // trap), and `checked-nat-from-i64` answers `None` for it.
+    let refused = "  checks :: Nat -> List Bool\n  checks z = [ nat-from-i64 (wrapping-sub-i64 (i64-of (nat-to-int z)) 1) == 0 ]\n";
+    match cinch::driver::check_sources(&program(refused), "<test>") {
+        Ok(_) => panic!("a possibly negative argument must be refused"),
+        Err(e) => assert!(e.to_string().contains("the obligation `0 <= "), "{e}"),
+    }
+    let checks = "  none-nat :: Option Nat -> Bool\n  none-nat o = case o of\n    None -> True\n    Some _ -> False\n\n  checks :: Nat -> List Bool\n  checks z = [ none-nat (checked-nat-from-i64 (wrapping-sub-i64 (i64-of (nat-to-int z)) 1)) ]\n";
+    assert_eq!(run("checked-nat-from-neg-i64", &program(checks)), 0, "checked-nat-from-neg-i64");
 }

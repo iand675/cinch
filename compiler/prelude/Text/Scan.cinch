@@ -81,7 +81,7 @@ module Text.Scan where
   codes-chars :: List Nat -> List Char
   codes-chars cs = case cs of
     Nil -> Nil
-    Cons c rest -> case u32-to-char (wrapping-i64-to-u32 (nat-to-i64 c)) of
+    Cons c rest -> case char-from-code c of
       None -> codes-chars rest
       Some ch -> Cons ch (codes-chars rest)
 
@@ -114,17 +114,17 @@ module Text.Scan where
   spaces :: Nat -> String
   spaces n =
     let buf = bytes-new n in
-    let u = fill-run buf 0 n 32 in
+    let u = fill-spaces buf 0 in
     case string-from-bytes buf of
       None -> empty-string
       Some t -> t
 
-  fill-run :: Bytes -> Nat -> Nat -> Nat -> Unit
-  fill-run buf i n v =
-    if i >= n then ()
-    else
-      let u = bytes-set buf i v in
-      fill-run buf (i + 1) n v
+  fill-spaces :: (buf :: Bytes) -> (i :: Nat) -> Unit
+  fill-spaces buf i =
+    if i < bytes-len buf then
+      let u = bytes-set buf i 32 in
+      fill-spaces buf (i + 1)
+    else ()
 
   -- -----------------------------------------------------------------
   -- Scanning (subject last).

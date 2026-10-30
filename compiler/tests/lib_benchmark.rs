@@ -181,14 +181,14 @@ fn realtime_runs_the_action_and_orders_the_busy_span_above_the_trivial_one() {
 
   -- One byte whose value depends on the counter, so the accumulation
   -- cannot be discarded: the write consumes its result.
-  one-byte :: Nat -> Bytes
+  one-byte :: InRange 0 255 Nat -> Bytes
   one-byte v = bytes-from-list (Cons v Nil)
 
   main :: Unit ->{IO r} Int
   main u = with (io = newIO ()) in
     let triv = benchmark-realtime (\() -> ()) in
     let busy = benchmark-realtime (\() ->
-      let v = spin 500000 0 in ioWrite (one-byte (65 + v % 10))) in
+      let v = spin 500000 0 in ioWrite (one-byte (65 + nat-rem v 10))) in
     if duration-millis busy > duration-millis triv then 0 else 1
 "#,
         0,

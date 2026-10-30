@@ -137,7 +137,7 @@ fn the_family_still_checks_with_the_manifest_order() {
                \n\
                \x20 main :: Int\n\
                \x20 main = case mempty <> (mempty :: Sum) of\n\
-               \x20   Sum n -> int-from-i64 (nat-to-i64 n)\n";
+               \x20   Sum n -> nat-to-int n\n";
     match check_sources(src, "<manifest-order>") {
         Ok(_) => {}
         Err(e) => panic!("the manifest-ordered family must still check: {e}"),

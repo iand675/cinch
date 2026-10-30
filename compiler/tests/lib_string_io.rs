@@ -45,13 +45,15 @@ const STRING_IO: &str = include_str!("../prelude/Data/StringIo.cinch");
 /// instance) plus the byte constructors and the infallible seek the
 /// checks share.
 const HELPERS: &str = r#"
-  bytes-of :: List Nat -> Bytes
+  bytes-of :: List (InRange 0 255 Nat) -> Bytes
   bytes-of xs = bytes-from-list xs
 
   same :: Bytes -> Bytes -> Bool
   same a b = if bytes-len a == bytes-len b then same-at a b 0 else False
 
-  same-at :: Bytes -> Bytes -> Nat -> Bool
+  -- `same` has compared the lengths, so each index below `a`'s is
+  -- below `b`'s too.
+  same-at :: using (bytes-len a == bytes-len b) => (a :: Bytes) -> (b :: Bytes) -> Nat -> Bool
   same-at a b i =
     if i >= bytes-len a then True
     else if bytes-get a i == bytes-get b i then same-at a b (i + 1)
@@ -267,22 +269,28 @@ fn rewind_restores_the_initial_state_and_conversions_copy() {
     let ok3 = string-io-len io1 == 3 in
     if ok1 && ok2 && ok3 then 0 else 2
 
+  -- A list-built buffer carries no length fact, so each check guards
+  -- its write; a too-short buffer fails the check's bit, never silently.
   check3 :: Int
   check3 =
     let b = bytes-of (Cons 97 (Cons 98 Nil)) in
     let io1 = string-io-from-bytes b in
-    let u = bytes-set b 0 122 in
-    let ok1 = same (string-io-to-bytes io1) (bytes-of (Cons 97 (Cons 98 Nil))) in
-    let ok2 = bytes-get b 0 == 122 in
-    if ok1 && ok2 then 0 else 4
+    if bytes-len b > 0 then
+      let u = bytes-set b 0 122 in
+      let ok1 = same (string-io-to-bytes io1) (bytes-of (Cons 97 (Cons 98 Nil))) in
+      let ok2 = bytes-get b 0 == 122 in
+      if ok1 && ok2 then 0 else 4
+    else 4
 
   check4 :: Int
   check4 =
     let io1 = string-io-from-bytes (bytes-of (Cons 97 (Cons 98 Nil))) in
     let out = string-io-to-bytes io1 in
-    let u = bytes-set out 0 122 in
-    let ok1 = same (string-io-to-bytes io1) (bytes-of (Cons 97 (Cons 98 Nil))) in
-    if ok1 then 0 else 8
+    if bytes-len out > 0 then
+      let u = bytes-set out 0 122 in
+      let ok1 = same (string-io-to-bytes io1) (bytes-of (Cons 97 (Cons 98 Nil))) in
+      if ok1 then 0 else 8
+    else 8
 
   main :: Int
   main = check1 + check2 + check3 + check4

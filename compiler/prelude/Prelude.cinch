@@ -113,4 +113,4 @@ module Prelude where
   -- The `Text.Show` surface is curated per name: the old surface's
   -- formatting family, NOT the new `Show` class (that one is reached
   -- with `import Text.Show`).
-  export char-string, nat-digits-into, pow10, nat-digit-count, nat-to-string, int-digit-count, int-digits-into, int-to-string
+  export char-string, nat-digits-into, pow10, nat-digit-count, nat-to-string, int-to-string

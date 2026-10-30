@@ -133,23 +133,36 @@ module Effect.Process where
   foreign import ccall "cinch_proc_free" raw-proc-free :: forall r. I64 ->{IO r} I64
 
   buf-from-bytes :: forall r. Bytes ->{IO r} I64
-  buf-from-bytes b = buf-fill (buf-new ()) b 0 (bytes-len b)
+  buf-from-bytes b = buf-fill (buf-new ()) b 0
 
-  buf-fill :: forall r. I64 -> Bytes -> Nat -> Nat ->{IO r} I64
-  buf-fill h b i n = case i == n of
-    True -> h
-    False -> case buf-push h (nat-to-i64 (bytes-get b i)) of
-      _ -> buf-fill h b (i + 1) n
+  -- `i` walks the buffer, so each read is in bounds.
+  buf-fill :: forall r. I64 -> Bytes -> Nat ->{IO r} I64
+  buf-fill h b i = case i < bytes-len b of
+    False -> h
+    True -> case buf-push h (nat-to-i64 (bytes-get b i)) of
+      _ -> buf-fill h b (i + 1)
 
-  buf-to-bytes :: forall r. I64 ->{IO r} Bytes
-  buf-to-bytes h = case buf-len h of
-    n -> buf-copy (bytes-new (nat-from-i64 n)) h 0 (nat-from-i64 n)
+  -- A word buffer's contents as a fresh `Bytes` value, or `None` when
+  -- the runtime answers the handle (`buf-len`) or a byte of it
+  -- (`buf-get`) with its negated error code; the caller reports that as
+  -- `ProcessIoError`.
+  buf-to-bytes :: forall r. I64 ->{IO r} Option Bytes
+  buf-to-bytes h =
+    let n = buf-len h in
+    case 0 <= n of
+      True -> buf-copy (bytes-new (nat-from-i64 n)) h 0
+      False -> None
 
-  buf-copy :: forall r. Bytes -> I64 -> Nat -> Nat ->{IO r} Bytes
-  buf-copy b h i n = case i == n of
-    True -> b
-    False -> case bytes-set b i (nat-from-i64 (buf-get h (nat-to-i64 i))) of
-      _ -> buf-copy b h (i + 1) n
+  -- Each byte read back is `0..=255` or a negated error code.
+  buf-copy :: forall r. Bytes -> I64 -> Nat ->{IO r} Option Bytes
+  buf-copy b h i = case i < bytes-len b of
+    False -> Some b
+    True ->
+      let v = buf-get h (nat-to-i64 i) in
+      case 0 <= v && v <= 255 of
+        True -> case bytes-set b i (nat-from-i64 v) of
+          _ -> buf-copy b h (i + 1)
+        False -> None
 
   path-buf :: forall r. Path ->{IO r} I64
   path-buf p = buf-from-bytes (string-to-bytes (path-to-string p))
@@ -201,11 +214,15 @@ module Effect.Process where
     case raw-proc-read-out h out of
       n -> case ge-i64 n 0 of
         True -> case raw-proc-wait h of
-          e -> case ge-i64 e 0 of
+          -- The test is an `Ord` comparison so its branch knows `e >= 0`,
+          -- the exit code's conversion evidence.
+          e -> case e >= 0 of
             True -> case buf-to-bytes out of
-              bs -> case raw-proc-free h of
+              r -> case raw-proc-free h of
                 _ -> case buf-free out of
-                  _ -> Ok (nat-from-i64 e, bs)
+                  _ -> case r of
+                    Some bs -> Ok (nat-from-i64 e, bs)
+                    None -> Err ProcessIoError
             False -> case buf-free out of
               _ -> process-fail h e
         False -> case buf-free out of
@@ -244,12 +261,20 @@ module Effect.Process where
   -- The command-line capture (the `cinch_argv_*` externs of
   -- `compiler/runtime/src/platform.rs`). The generated entry glue
   -- stashes the process's `argc`/`argv` before any program code runs,
-  -- so a compiled program reads its own arguments here. The capture is
-  -- raw, not the one-shot boundary's `Result`: word 0 is the program
-  -- name, the count includes it, and an index outside `0 ..< count`
-  -- faults (a caller walks the count it asked for).
+  -- so a compiled program reads its own arguments here, and the count
+  -- never changes afterwards. The capture is raw, not the one-shot
+  -- boundary's `Result`: word 0 is the program name, the count includes
+  -- it, and an index takes evidence that it is below the count (the
+  -- `bytes-get` shape).
   foreign import ccall "cinch.runtime.processArgCount" raw-arg-count :: Unit -> Nat
-  foreign import ccall "cinch.runtime.processArg" raw-arg :: Nat -> Bytes
+
+  -- The count as a name an obligation can mention (a fact term is a
+  -- name or a pure application to names, never to `()`); it is the
+  -- same number on every read, since the capture is taken once.
+  arg-count :: Nat
+  arg-count = raw-arg-count ()
+
+  foreign import ccall "cinch.runtime.processArg" raw-arg :: using (i < arg-count) => (i :: Nat) -> Bytes
 
   -- The arguments this process was invoked with, the program name
   -- (word 0) excluded, decoded as text. An empty command line is
@@ -263,16 +288,14 @@ module Effect.Process where
   -- an effectful value always takes in this tree (`main :: Unit ->{IO
   -- r} Int`'s shape): `process-args ()`.
   process-args :: forall r. using (io :: Io r) => Unit ->{IO r} Result ProcessError (List String)
-  process-args u =
-    let n = raw-arg-count () in
-    case n == 0 of
-      True -> Ok Nil
-      False -> args-down (n - 1) Nil
+  process-args u = case arg-count == 0 of
+    True -> Ok Nil
+    False -> args-down (arg-count - 1) Nil
 
-  -- The words `i ..< count` consed from the last one down, so the list
-  -- comes out ascending without a reverse. (The count and word 0 are
-  -- the program name, which the surface excludes.)
-  args-down :: forall r. Nat -> List String ->{IO r} Result ProcessError (List String)
+  -- The words `1 ..= i` consed from the last one down, so the list
+  -- comes out ascending without a reverse. (Word 0 is the program
+  -- name, which the surface excludes.) `i` stays below the count.
+  args-down :: forall r. using (i < arg-count) => (i :: Nat) -> List String ->{IO r} Result ProcessError (List String)
   args-down i acc = case i == 0 of
     True -> Ok acc
     False -> case string-from-bytes (raw-arg i) of
@@ -285,7 +308,7 @@ module Effect.Process where
 
   -- A live child with three stdio pipes of its own.
   data Child where
-    Child :: Nat -> Child
+    Child :: I64 -> Child
 
   -- Which of the child's two output pipes a read takes.
   data Stream where
@@ -293,7 +316,7 @@ module Effect.Process where
     Stderr :: Stream
 
   -- The child's handle word, for the layers above this one.
-  child-handle :: Child -> Nat
+  child-handle :: Child -> I64
   child-handle c = case c of
     Child h -> h
 
@@ -333,7 +356,7 @@ module Effect.Process where
       let env-words = nul-words (key-value-words env) in
       case raw-process-spawn program argument-words directory env-words of
         Err c -> Err (pipe-error-code c)
-        Ok h -> Ok (Child (nat-from-i64 h))
+        Ok h -> Ok (Child h)
 
   -- The working directory as its byte path (the empty buffer is the
   -- boundary's "inherit this process's directory").
@@ -354,35 +377,27 @@ module Effect.Process where
   -- NUL-separated run of bytes, one trailing separator adding no word,
   -- and an empty word refused there).
   nul-words :: List String -> Bytes
-  nul-words xs = fill-words (bytes-new (words-size xs)) 0 xs
+  nul-words xs = words-from 0 xs
 
-  words-size :: List String -> Nat
-  words-size xs = case xs of
-    Nil -> 0
-    Cons s rest -> string-byte-length s + 1 + words-size rest
-
-  fill-words :: Bytes -> Nat -> List String -> Bytes
-  fill-words b i xs = case xs of
-    Nil -> b
-    Cons s rest -> fill-words b (put-word b i s) rest
-
-  -- One word's bytes plus its NUL separator; the next index.
-  put-word :: Bytes -> Nat -> String -> Nat
-  put-word b i s = put-bytes b i (string-to-bytes s)
-
-  -- All of `src` copied in one runtime `memmove`, then the NUL.
-  put-bytes :: Bytes -> Nat -> Bytes -> Nat
-  put-bytes b i src =
-    let n = bytes-len src in
-    let u = bytes-copy-range b src i 0 n in
-    case bytes-set b (i + n) 0 of
-      _ -> i + n + 1
+  -- The words from offset `i`, each followed by its NUL: the buffer is
+  -- made once, at the end of the list, sized to the words and their
+  -- separators, and the result's refinement (`i <= bytes-len out`) is
+  -- the bound each copy and separator proves.
+  words-from :: (i :: Nat) -> List String -> refined (i <= bytes-len out) Bytes
+  words-from i xs = case xs of
+    Nil -> bytes-new i
+    Cons s rest ->
+      let src = string-to-bytes s in
+      let out = words-from (i + bytes-len src + 1) rest in
+      let u = bytes-copy-range out src i 0 (bytes-len src) in
+      case bytes-set out (i + bytes-len src) 0 of
+        _ -> out
 
   -- Write `bs` to the child's stdin: the byte count, or the named
   -- error.
   child-write-stdin :: forall r. using (io :: Io r) => Child -> Bytes ->{IO r} Result ProcessError Nat
   child-write-stdin c bs = case c of
-    Child h -> case raw-process-write-stdin (nat-to-i64 h) bs of
+    Child h -> case raw-process-write-stdin h bs of
       Err e -> Err (pipe-error-code e)
       Ok n -> Ok n
 
@@ -390,7 +405,7 @@ module Effect.Process where
   -- input: the unit, or the named error.
   child-close-stdin :: forall r. using (io :: Io r) => Child ->{IO r} Result ProcessError Unit
   child-close-stdin c = case c of
-    Child h -> case raw-process-close-stdin (nat-to-i64 h) of
+    Child h -> case raw-process-close-stdin h of
       Err e -> Err (pipe-error-code e)
       Ok u -> Ok u
 
@@ -399,7 +414,7 @@ module Effect.Process where
   -- named error.
   child-read :: forall r. using (io :: Io r) => Child -> Stream -> Nat ->{IO r} Result ProcessError Bytes
   child-read c s max = case c of
-    Child h -> case raw-process-read (nat-to-i64 h) (stream-word s) max of
+    Child h -> case raw-process-read h (stream-word s) max of
       Err e -> Err (pipe-error-code e)
       Ok b -> Ok b
 
@@ -413,7 +428,7 @@ module Effect.Process where
   -- signal death, the shell convention), or the named error.
   child-wait :: forall r. using (io :: Io r) => Child ->{IO r} Result ProcessError Nat
   child-wait c = case c of
-    Child h -> case raw-process-wait (nat-to-i64 h) of
+    Child h -> case raw-process-wait h of
       Err e -> Err (pipe-error-code e)
       Ok code -> Ok code
 
@@ -422,6 +437,6 @@ module Effect.Process where
   -- named error).
   child-close :: forall r. using (io :: Io r) => Child ->{IO r} Result ProcessError Unit
   child-close c = case c of
-    Child h -> case raw-process-close (nat-to-i64 h) of
+    Child h -> case raw-process-close h of
       Err e -> Err (pipe-error-code e)
       Ok u -> Ok u

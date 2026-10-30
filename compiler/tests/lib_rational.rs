@@ -338,7 +338,9 @@ fn order_main() -> String {
              \x20 close a b = flt-f64 (abs-f64 (sub-f64 a b)) tol\n\
              \n\
              \x20 f64-scale :: Rational -> Bool\n\
-             \x20 f64-scale r = feq-f64 (to-f64 (mul r (from-int (denominator r)))) (i64-to-f64 (int-to-i64 (numerator r)))\n\
+             \x20 f64-scale r = case checked-int-to-i64 (numerator r) of\n\
+             \x20   Some n -> feq-f64 (to-f64 (mul r (from-int (denominator r)))) (i64-to-f64 n)\n\
+             \x20   None -> True\n\
              \n\
              \x20 f64-integral :: Bool\n\
              \x20 f64-integral = feq-f64 (to-f64 (from-int 7)) (i64-to-f64 7) && feq-f64 (to-f64 (from-int (-9))) (i64-to-f64 (-9))\n\

@@ -316,20 +316,24 @@ module Main where
     let s = string-concat-all (parts n) in
     if same (string-slice s 1 4) "b5c" && same (string-slice s 5 50) "xyxy" && same (string-slice s 4 2) "" then 0 else 8
 
-  hi-bytes :: Nat -> Bytes
+  -- "Hi" plus one caller byte, written in place into a fresh buffer; the
+  -- result's length is in its type, which proves the copy below.
+  hi-bytes :: InRange 0 255 Nat -> refined (bytes-len out == 3) Bytes
   hi-bytes n =
-    let b = bytes-from-list (Cons 104 (Cons 105 (Cons n Nil))) in
-    let u = bytes-set b 0 72 in
+    let b = bytes-new 3 in
+    let u0 = bytes-set b 0 72 in
+    let u1 = bytes-set b 1 105 in
+    let u2 = bytes-set b 2 n in
     b
 
-  check-bytes :: Nat -> Int
+  check-bytes :: InRange 0 255 Nat -> Int
   check-bytes n =
     let b = hi-bytes n in
     let c = bytes-new 3 in
     let u = bytes-copy-range c b 0 0 3 in
-    if bytes-get c 0 == 72 && bytes-compare b c == 0 && bytes-len (sha256-bytes c) == 32 then 0 else 16
+    if bytes-get c 0 == 72 && bytes-compare b c == 0 && bytes-compare b (bytes-from-list (Cons 72 (Cons 105 (Cons n Nil)))) == 0 && bytes-len (sha256-bytes c) == 32 then 0 else 16
 
-  check-utf8 :: Nat -> Int
+  check-utf8 :: InRange 0 255 Nat -> Int
   check-utf8 n = case string-from-bytes (hi-bytes n) of
     None -> 32
     Some s -> if same s "Hi!" && string-length s == 3 then 0 else 32
@@ -659,8 +663,11 @@ module Main where
     (v, vs) -> if v == False && list-length vs == 3 then 0 else 1
 
   check-i64 :: Nat -> Int
-  check-i64 n = case spread (nat-to-i64 n) (nat-to-i64 (n + 1)) of
-    (v, vs) -> if eq-i64 v (nat-to-i64 (n + 1)) && list-length vs == 3 then 0 else 2
+  check-i64 n =
+    if n < 9223372036854775807 then
+      case spread (nat-to-i64 n) (nat-to-i64 (n + 1)) of
+        (v, vs) -> if eq-i64 v (nat-to-i64 (n + 1)) && list-length vs == 3 then 0 else 2
+    else 2
 
   check-list :: Int -> Int
   check-list n = case spread (build n Nil) (build (n + 1) Nil) of

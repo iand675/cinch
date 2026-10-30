@@ -30,7 +30,7 @@ module Text.Show where
   import Data.String
   import Data.Ordering
 
-  export Show, show, char-string, nat-digits-into, pow10, nat-digit-count, nat-to-string, int-digit-count, int-digits-into, int-to-string
+  export Show, show, char-string, nat-digits-into, pow10, nat-digit-count, nat-to-string, int-to-string
 
   signature Show a where
     show :: a -> String
@@ -84,8 +84,9 @@ module Text.Show where
   -- character literals are needed. The low `k` digits of `n` fill
   -- [pos, pos + k) from the END, one division per digit; extracting each
   -- digit from the front as `n / 10^(k - 1)` would rebuild the power and
-  -- divide the whole number at every digit, quadratic in `k`.
-  nat-digits-into :: Bytes -> Nat -> Nat -> Nat -> Unit
+  -- divide the whole number at every digit, quadratic in `k`. The span
+  -- lies inside the buffer, and each digit is `48 + n % 10 <= 57`.
+  nat-digits-into :: using (pos + k <= bytes-len b) => (b :: Bytes) -> (pos :: Nat) -> Nat -> (k :: Nat) -> Unit
   nat-digits-into b pos n k =
     if k == 0 then ()
     else
@@ -100,36 +101,22 @@ module Text.Show where
 
   nat-to-string :: Nat -> String
   nat-to-string n =
-    let b = bytes-new (nat-digit-count n) in
-    let u = nat-digits-into b 0 n (nat-digit-count n) in
+    let k = nat-digit-count n in
+    let b = bytes-new k in
+    let u = nat-digits-into b 0 n k in
     wrap-bytes b
 
   -- Signed decimal for `Int`, built from bignum division so values
-  -- beyond i64 format correctly; the sign is a raw ASCII 45 byte and
-  -- digits are raw ASCII bytes (48..=57).
-  int-digit-count :: Int -> Nat
-  int-digit-count n = if lt-i64 (int-cmp n 10) 0 then 1 else 1 + int-digit-count (int-div n 10)
-
-  int-digits-into :: Bytes -> Nat -> Int -> Nat -> Unit
-  int-digits-into b pos n k =
-    if k == 0 then ()
-    else
-      let d = nat-from-i64 (int-to-i64 (int-rem n 10)) in
-      let u = bytes-set b (pos + (k - 1)) (48 + d) in
-      int-digits-into b pos (int-div n 10) (k - 1)
-
+  -- beyond i64 format correctly: the magnitude is a `Nat` (`0 - x` for
+  -- a negative `x`) and renders as one, after a raw ASCII 45 byte for
+  -- the sign.
   int-to-string :: Int -> String
   int-to-string x =
-    if eq-i64 (int-cmp x 0) 0 then nat-to-string 0
-    else if lt-i64 (int-cmp x 0) 0 then
-      let m = int-neg x in
-      let k = int-digit-count m in
+    if x < 0 then
+      let m = nat-from-int (0 - x) in
+      let k = nat-digit-count m in
       let b = bytes-new (k + 1) in
       let u = bytes-set b 0 45 in
-      let v = int-digits-into b 1 m k in
+      let v = nat-digits-into b 1 m k in
       wrap-bytes b
-    else
-      let k = int-digit-count x in
-      let b = bytes-new k in
-      let u = int-digits-into b 0 x k in
-      wrap-bytes b
+    else nat-to-string (nat-from-int x)

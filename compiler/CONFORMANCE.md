@@ -2573,6 +2573,53 @@ so the embedding sweep stays its own decision.
   needing range facts for conversion results); the bootstrap parser does
   not model predicate `using` (two unmodeled nodes in `Data.Nat`).
   `tests/safe_subtraction.rs`.
+- **D418 (no faults NF3b: refined results carry ranges)**: `type InRange
+  (lo :: Int) (hi :: Int) a = refine (x :: a) with lo <= x && x <= hi`
+  (in `Algebra.Arithmetic`; also usable as a predicate); refinements may
+  take `Nat`/`Int` index parameters, and a result may name an earlier
+  argument (`nat-rem :: Nat -> (d :: NonZero Nat) -> refined (r < d)
+  Nat`), filled in at direct calls and dropped (never asserted) for
+  partial application, function values under a type variable, and calls
+  under a handler. Function results refine covariantly (`len :: Bytes ->
+  InRange ... Nat = bytes-len` keeps its range); only comparison
+  refinements decay silently to their container, `NonEmpty`/`Sorted` still
+  need `unrefine`. A compiler intrinsic may promise only what its row in
+  `prim_result_promise` (`check_decls.rs`) says the runtime guarantees, and
+  a foreign result may be refined only for the runtime's own `cinch_*`
+  symbols. Refined signatures: the 34 widening conversions and four
+  full-range ones, the 16 integer bounds, `mask-i64`, `u8/u16/u32-to-nat`,
+  `char-to-u32`/`char-code`, the raw clock readings (the runtime clamps
+  them), `nat-from-i64 :: using (0 <= x)`, `nat-to-i64`/`int-to-i64` with
+  range obligations and `checked-*` forms, `nat-to-int`/`nat-from-int`
+  (new total intrinsics `cinch_int_from_nat`/`cinch_int_to_nat`).
+  `Hash_Int` hashes the magnitude without converting through `I64`. OS
+  handles stay `I64`. The runtime's negative-input and out-of-range checks
+  are compiler-bug traps. `tests/range_facts.rs`.
+- **D419 (no faults NF5: `Bytes` operations are total; Fourier-Motzkin)**:
+  `bytes-get`/`bytes-set` take `using (i < bytes-len b)` and a byte is an
+  `InRange 0 255 Nat` both ways; `bytes-copy-range` takes `using (di + n <=
+  bytes-len dst, si + n <= bytes-len src)`; `bytes-new`'s result has
+  `bytes-len` equal to its argument; `FromList Bytes` takes `U8` elements;
+  `raw-arg` takes `using (i < arg-count)`. A buffer's length never changes
+  (private in the runtime). Read-only literal buffers stay unreachable by
+  type: only `Data.String` holds a static buffer, and every conversion out
+  copies. Difference logic is followed, when it finds nothing, by a
+  Fourier-Motzkin pass over the connected constraints (integer rounding
+  per row, at most 256 rows and two disequality splits, refusal at a limit)
+  whose Farkas certificate `check_lin_cert` re-checks; integer-only
+  contradictions with rational solutions are not used. Sites whose buffers
+  were filled by helpers became structural recursions returning `refined
+  (pos <= bytes-len out) Bytes` or carry their own `using` bound; failures
+  that were silent became `Option`/`Result`. Runtime index, range, value
+  and read-only checks are compiler-bug traps; a failed stdout write is
+  `OutputFailed` (still reachable: the OS can refuse a write);
+  `cinch_nat_to_len` turns an oversized count into the heap-exhausted exit;
+  `cinch_io_read` grows its buffer as input arrives. Sites resting on an
+  invariant the checker cannot see (Regex program counters, Yaml offsets,
+  some `nat-rem` masks, Zlib distance 0, three bootstrap guards) are listed
+  in `design/next-steps.md`. The bootstrap parser does not model `using`
+  predicates, `refined` results or `InRange` parameters; its coverage table
+  records them as unmodeled. `tests/safe_bytes.rs`.
 ### Refinement types (P28)
 
 Implemented `dfc653d` (2026-10-27, `RefinementSlice`, D248-D255):

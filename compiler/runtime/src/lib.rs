@@ -310,9 +310,11 @@
 //! when its result leaves the immediate range:
 //!
 //! * `cinch_nat_from_i64(v: i64) -> i64`: a machine integer as a word (an
-//!   immediate), faulting on negative `v`.
-//! * `cinch_nat_to_i64(word: i64) -> i64`: value as a machine integer,
-//!   faulting when out of `i64` range.
+//!   immediate). Every caller proves `0 <= v` (`nat-from-i64`'s
+//!   obligation), so a negative `v` is a compiler-bug trap.
+//! * `cinch_nat_to_i64(word: i64) -> i64`: value as a machine integer.
+//!   Every caller proves it fits, so one that does not is a compiler-bug
+//!   trap.
 //! * `cinch_nat_fits_i64(word: i64) -> i64`: 1 or 0.
 //! * `cinch_nat_add(a: i64, b: i64) -> i64`, `cinch_nat_mul(a, b) -> i64`:
 //!   exact arithmetic.
@@ -336,9 +338,15 @@
 //!
 //! * `cinch_int_from_i64(v: i64) -> i64`: a machine integer as a word (a
 //!   block only outside the immediate range).
-//! * `cinch_int_to_i64(word: i64) -> i64`: value as a machine integer,
-//!   faulting when out of `i64` range.
+//! * `cinch_int_to_i64(word: i64) -> i64`: value as a machine integer.
+//!   Every caller proves it fits, so one that does not is a compiler-bug
+//!   trap.
 //! * `cinch_int_fits_i64(word: i64) -> i64`: 1 or 0.
+//! * `cinch_int_from_nat(word: i64) -> i64`: a `Nat` word as the `Int` of
+//!   the same value (total).
+//! * `cinch_int_to_nat(word: i64) -> i64`: a non-negative `Int` word as the
+//!   `Nat` of the same value; every caller proves `0 <= x`, so a negative
+//!   one is a compiler-bug trap.
 //! * `cinch_int_add(a: i64, b: i64) -> i64`, `cinch_int_sub(a, b) -> i64`,
 //!   `cinch_int_mul(a, b) -> i64`, `cinch_int_neg(a) -> i64`: exact arithmetic.
 //! * `cinch_int_div(a: i64, b: i64) -> i64`, `cinch_int_rem(a, b) -> i64`:
@@ -356,22 +364,30 @@
 //!
 //! `Bytes` (byte buffers; the foundation for the FFI and string slices):
 //!
-//! * `cinch_bytes_new(len: i64) -> i64`: a zeroed buffer block, faulting on
-//!   negative length.
-//! * `cinch_bytes_len(word: i64) -> i64`: the length in bytes.
+//! * `cinch_bytes_new(len: i64) -> i64`: a zeroed buffer block. Generated
+//!   code passes the length through `cinch_nat_to_len(word: i64) -> i64`
+//!   (a `Nat` word's value, `i64::MAX` for a bignum), so a length no
+//!   allocation can hold is the heap `Exhausted` exit and a negative one
+//!   the compiler-bug trap.
+//! * `cinch_bytes_len(word: i64) -> i64`: the length in bytes, fixed when
+//!   the buffer is made (the compiler's facts over `bytes-len b` rely on
+//!   it).
 //! * `cinch_bytes_get(word: i64, index: i64) -> i64`: the byte (0..=255) at
-//!   `index`, faulting out of bounds.
+//!   `index`.
 //! * `cinch_bytes_set(word: i64, index: i64, value: i64) -> i64`: write
-//!   `value` (0..=255) at `index`, returning 0 (the Unit word) and
-//!   faulting on an out-of-bounds index or a value outside 0..=255. A
-//!   read-only data-section buffer (a string literal's backing) takes
-//!   the defined read-only fault instead of a write.
+//!   `value` (0..=255) at `index`, returning 0 (the Unit word).
 //! * `cinch_bytes_copy(dst, src, di, si, n: i64) -> i64`: copy `n` bytes
 //!   of `src` at `si` into `dst` at `di` as one `memmove` (same buffer
-//!   and overlap allowed), returning 0; an out-of-range index or count
-//!   faults out of bounds and a read-only `dst` faults read-only. Every
-//!   bulk copy in the prelude goes through it: a Cinch-level loop boxes
-//!   a `Nat` per index step.
+//!   and overlap allowed), returning 0. Every bulk copy in the prelude
+//!   goes through it: a Cinch-level loop boxes a `Nat` per index step.
+//!
+//!   The index, value and range checks of these three, and the read-only
+//!   check on a written buffer, are compiler-bug traps: `bytes-get` and
+//!   `bytes-set` take evidence that the index is below `bytes-len b`,
+//!   `bytes-copy-range` that both ranges end inside their buffers, a byte
+//!   value is an `InRange 0 255 Nat` by its type, and a string literal's
+//!   read-only backing exists only inside a `String`, whose every
+//!   conversion out copies.
 //! * `cinch_bytes_compare(a, b: i64) -> i64`: the lexicographic order of
 //!   the two contents as -1/0/1, read in place (`string-compare`).
 //! * `cinch_bytes_data(word: i64) -> i64`, `cinch_bytes_from_data(ptr: *const
@@ -412,8 +428,9 @@
 //!   a defined fault path and produces no value (exit 70 for the quoted
 //!   program's own fault or a black-holed memo cell, 71 otherwise).
 //!
-//! Every bignum and byte-buffer fault exits through `cinch_panic` (71),
-//! the zero-divisor compiler-bug trap included; see `crate::error::Error`.
+//! Every bignum and byte-buffer check exits through `cinch_panic` (71);
+//! the zero-divisor, negative-difference, out-of-bounds and read-only
+//! checks are compiler-bug traps. See `crate::error::Error`.
 //!
 //! Structured concurrency and runtime I/O (concurrency specification
 //! sections 2, 4 and 9; one OS thread per task, fork-join happens-before,
@@ -439,7 +456,10 @@
 //!   (section 4).
 //! * `cinch_io_write(word: i64) -> i64`, `cinch_io_read(len: i64) -> i64`,
 //!   `cinch_io_sleep(millis: i64) -> i64`: the `Io r` operations (stdout,
-//!   stdin, and a cancellation-aware suspension point).
+//!   stdin, and a cancellation-aware suspension point). A failed stdout
+//!   write is `Error::OutputFailed` (71), the one operating-system outcome
+//!   here that a program cannot rule out; `cinch_io_read` takes its count
+//!   through `cinch_nat_to_len` and grows its buffer with what arrives.
 //! * `cinch_coop_*`: the cooperative single-threaded backend of [`coop`] (the Wasm profile's lowering target) mirrors this surface under these names with the same word conventions.
 //!
 //! The platform layer (P34; `compiler/runtime/src/platform.rs`), the

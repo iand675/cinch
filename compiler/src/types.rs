@@ -884,7 +884,22 @@ pub fn pred_conjuncts(p: &PTerm) -> Vec<PTerm> {
 pub fn pred_binder(p: &PTerm) -> String {
     let mut fv = Vec::new();
     p.free_vars(&mut fv);
-    fv.into_iter().next().unwrap_or_else(|| "$it".to_string())
+    // A positional argument name (`$a1` in a result refinement naming an
+    // argument, `refined (r < $a1) Nat`) is never the refined binder, and
+    // a renamed binder (`$it`) is it wherever it appears.
+    if fv.iter().any(|v| v == "$it") {
+        return "$it".to_string();
+    }
+    fv.into_iter()
+        .find(|v| !is_positional_arg(v))
+        .unwrap_or_else(|| "$it".to_string())
+}
+
+/// Whether a name is a positional argument binder (`$a{i}`): a
+/// signature's `using` obligations and its result refinements name the
+/// call's arguments this way.
+pub fn is_positional_arg(v: &str) -> bool {
+    v.strip_prefix("$a").is_some_and(|i| !i.is_empty() && i.bytes().all(|b| b.is_ascii_digit()))
 }
 
 /// The integer interval a predicate states over one measure expression
@@ -1286,6 +1301,43 @@ pub enum DiffCert {
     /// negation of an `==` goal) read as `l - r <= -1` (`lt`) or
     /// `r - l <= -1` (`gt`); each side's steps cite it as `Case(depth)`.
     Split { on: DiffWhy, lt: Box<DiffCert>, gt: Box<DiffCert> },
+    /// A refutation outside the difference fragment (a fact or goal over
+    /// three or more terms, `i + k <= bytes-len b`): see [`LinCert`].
+    Linear(LinCert),
+}
+
+/// One linear constraint `sum(a * key) <= c` over the same opaque keys
+/// the difference reading uses, with its terms sorted by key and no
+/// zero coefficient, so two readings of one atom compare equal.
+#[derive(Clone, Debug, PartialEq)]
+pub struct LinLe {
+    pub terms: Vec<(ITerm, i128)>,
+    pub c: i128,
+}
+
+impl LinLe {
+    /// Whether `by` alone establishes `self`: the same left side under
+    /// an equal or tighter bound.
+    fn follows_from(&self, by: &LinLe) -> bool {
+        self.terms == by.terms && by.c <= self.c
+    }
+}
+
+/// One cited constraint of a Farkas combination.
+#[derive(Clone, Debug, PartialEq)]
+pub struct LinStep {
+    pub le: LinLe,
+    pub why: DiffWhy,
+}
+
+/// A linear refutation: positive integer multipliers whose weighted sum
+/// of the cited constraints cancels every term and leaves `0 <= c` with
+/// `c < 0` (a Farkas certificate), or a split of a disequality whose
+/// two strict alternatives are each refuted.
+#[derive(Clone, Debug, PartialEq)]
+pub enum LinCert {
+    Farkas(Vec<(i128, LinStep)>),
+    Split { on: DiffWhy, lt: Box<LinCert>, gt: Box<LinCert> },
 }
 
 /// A proof that hypotheses entail one goal clause (an atom, or a
@@ -1314,6 +1366,17 @@ impl LinearProof {
                     why(on, out);
                     go(lt, out);
                     go(gt, out);
+                }
+                DiffCert::Linear(l) => lin(l, out),
+            }
+        }
+        fn lin(c: &LinCert, out: &mut Vec<usize>) {
+            match c {
+                LinCert::Farkas(steps) => steps.iter().for_each(|(_, s)| why(&s.why, out)),
+                LinCert::Split { on, lt, gt } => {
+                    why(on, out);
+                    lin(lt, out);
+                    lin(gt, out);
                 }
             }
         }
@@ -1583,7 +1646,13 @@ pub fn linear_entails(hyps: &[PTerm], goal: &PTerm, sorts: &Sorts) -> Option<Vec
             steps.push(DiffStep { le, why: DiffWhy::Domain(k.clone()) });
         }
     }
-    let cert = diff_refute(&mut steps, &diseqs, &keys, 0)?;
+    // Difference logic first (complete within its fragment and cheap);
+    // then the linear procedure, for facts and goals over three or more
+    // terms that the difference reading cannot hold.
+    let cert = match diff_refute(&mut steps, &diseqs, &keys, 0) {
+        Some(c) => c,
+        None => DiffCert::Linear(lin_prove(hyps, &disjuncts, sorts)?),
+    };
     let proof = LinearProof { goal: goal.clone(), cert };
     // The search is untrusted: only a proof the checker accepts counts.
     check_linear_proof(hyps, &proof, sorts).then(|| vec![proof])
@@ -1744,9 +1813,377 @@ pub fn check_linear_proof(hyps: &[PTerm], proof: &LinearProof, sorts: &Sorts) ->
                 }
                 true
             }
+            // The linear procedure answers at the top level only.
+            DiffCert::Linear(_) => false,
         }
     }
+    if let DiffCert::Linear(l) = &proof.cert {
+        return check_lin_cert(hyps, &disjuncts, l, sorts);
+    }
     go(&proof.cert, &cited, &mut Vec::new())
+}
+
+// --------------------------------------------------------------------------
+// Linear facts beyond the difference fragment (design/proof-automation.md
+// section 5, "three-term facts"). Bellman-Ford above only reads `x - y <=
+// c`; a bound such as `di + n <= bytes-len dst` has three terms. This
+// procedure reads every comparison as `sum(a * key) <= c` over the same
+// opaque keys, eliminates keys by Fourier-Motzkin, and returns positive
+// integer multipliers (a Farkas certificate) that `check_lin_cert`
+// re-checks by summing. It is sound over the integers and incomplete: it
+// refutes the rational relaxation, so a set with a rational solution and
+// no integer one (`2 * x == 1`) is not refuted, beyond the rounding each
+// single constraint gets when it is read.
+
+/// The most rows elimination may hold at once. Passing it abandons the
+/// attempt, which is a refusal of the obligation (the caller then names
+/// it as unproved), never a long search: every elimination step is
+/// bounded by `LIN_ROWS^2` combinations and there are at most as many
+/// steps as keys.
+const LIN_ROWS: usize = 256;
+
+/// The deepest disequality split the linear procedure attempts, and how
+/// many disequalities it tries at each depth.
+const LIN_SPLITS: usize = 2;
+const LIN_SPLIT_TRIES: usize = 6;
+
+fn gcd(a: i128, b: i128) -> i128 {
+    let (mut a, mut b) = (a.abs(), b.abs());
+    while b != 0 {
+        (a, b) = (b, a % b);
+    }
+    a
+}
+
+/// `l - r <= d` as a linear constraint, the left side's coefficients
+/// divided by their common factor and the bound rounded down (sound over
+/// the integers). `None` when it holds of every value.
+fn lin_le(l: &ITerm, r: &ITerm, d: i128, sorts: &Sorts) -> Option<LinLe> {
+    let exact = sorts.term(l).or_else(|| sorts.term(r))?.exact();
+    let diff = lin_of(l, exact)?.add(lin_of(r, exact)?, -1)?;
+    let c = d.checked_sub(diff.c)?;
+    let mut terms: Vec<(ITerm, i128)> = diff.terms.into_iter().filter(|(_, a)| *a != 0).collect();
+    if terms.is_empty() {
+        return (c < 0).then_some(LinLe { terms, c });
+    }
+    let g = terms.iter().fold(0, |g, (_, a)| gcd(g, *a));
+    for (_, a) in terms.iter_mut() {
+        *a /= g;
+    }
+    terms.sort_by_cached_key(|(t, _)| format!("{t:?}"));
+    Some(LinLe { terms, c: c.div_euclid(g) })
+}
+
+enum LinReading {
+    Les(Vec<LinLe>),
+    Ne(LinLe, LinLe),
+}
+
+fn lin_cmp(op: IdxCmp, l: &ITerm, r: &ITerm, sorts: &Sorts) -> LinReading {
+    let les = |v: Vec<Option<LinLe>>| LinReading::Les(v.into_iter().flatten().collect());
+    match op {
+        IdxCmp::Lt => les(vec![lin_le(l, r, -1, sorts)]),
+        IdxCmp::Le => les(vec![lin_le(l, r, 0, sorts)]),
+        IdxCmp::Gt => les(vec![lin_le(r, l, -1, sorts)]),
+        IdxCmp::Ge => les(vec![lin_le(r, l, 0, sorts)]),
+        IdxCmp::Eq => les(vec![lin_le(l, r, 0, sorts), lin_le(r, l, 0, sorts)]),
+        IdxCmp::Ne => match (lin_le(l, r, -1, sorts), lin_le(r, l, -1, sorts)) {
+            (Some(a), Some(b)) => LinReading::Ne(a, b),
+            _ => LinReading::Les(Vec::new()),
+        },
+    }
+}
+
+fn lin_atom(a: &PTerm, sorts: &Sorts) -> LinReading {
+    match diff_lit(a) {
+        Some((op, l, r)) => lin_cmp(op, &l, &r, sorts),
+        None => LinReading::Les(Vec::new()),
+    }
+}
+
+fn lin_negated(g: &PTerm, sorts: &Sorts) -> LinReading {
+    match diff_lit(g) {
+        Some((op, l, r)) => lin_cmp(neg_cmp(op), &l, &r, sorts),
+        None => LinReading::Les(Vec::new()),
+    }
+}
+
+/// A key's sort axioms as linear constraints.
+fn lin_domain(t: &ITerm, sorts: &Sorts) -> Vec<LinLe> {
+    sort_domain(t, sorts)
+        .into_iter()
+        .map(|d| {
+            let mut terms = Vec::new();
+            if let Some(x) = d.x {
+                terms.push((x, 1));
+            }
+            if let Some(y) = d.y {
+                terms.push((y, -1));
+            }
+            LinLe { terms, c: d.c }
+        })
+        .collect()
+}
+
+/// The linear procedure over the hypotheses and the goal clause's
+/// disjuncts: the constraints connected to the goal's keys, refuted with
+/// up to `LIN_SPLITS` disequality splits.
+fn lin_prove(hyps: &[PTerm], disjuncts: &[PTerm], sorts: &Sorts) -> Option<LinCert> {
+    let mut steps: Vec<LinStep> = Vec::new();
+    let mut diseqs: Vec<(DiffWhy, LinLe, LinLe)> = Vec::new();
+    let mut add = |r: LinReading, why: DiffWhy, steps: &mut Vec<LinStep>| match r {
+        LinReading::Les(ls) => steps.extend(ls.into_iter().map(|le| LinStep { le, why: why.clone() })),
+        LinReading::Ne(a, b) => diseqs.push((why, a, b)),
+    };
+    for (k, g) in disjuncts.iter().enumerate() {
+        add(lin_negated(g, sorts), DiffWhy::Goal(k), &mut steps);
+    }
+    let goal_rows = steps.len();
+    for (i, h) in hyps.iter().enumerate().rev() {
+        if hyps[i + 1..].iter().any(|later| later == h) {
+            continue;
+        }
+        for (j, a) in pred_conjuncts(h).iter().enumerate() {
+            add(lin_atom(a, sorts), DiffWhy::Hyp { hyp: i, conj: j }, &mut steps);
+        }
+    }
+    // Only the constraints that share keys with the goal, transitively,
+    // can take part in its refutation.
+    let mut keys: Vec<ITerm> = Vec::new();
+    for s in &steps[..goal_rows] {
+        for (t, _) in &s.le.terms {
+            if !keys.contains(t) {
+                keys.push(t.clone());
+            }
+        }
+    }
+    let touches = |le: &LinLe, keys: &[ITerm]| le.terms.iter().any(|(t, _)| keys.contains(t));
+    let mut used = vec![false; steps.len()];
+    let mut used_ne = vec![false; diseqs.len()];
+    loop {
+        let mut grew = false;
+        for (i, s) in steps.iter().enumerate() {
+            if !used[i] && (i < goal_rows || touches(&s.le, &keys)) {
+                used[i] = true;
+                grew = true;
+                for (t, _) in &s.le.terms {
+                    if !keys.contains(t) {
+                        keys.push(t.clone());
+                    }
+                }
+            }
+        }
+        for (i, (_, a, _)) in diseqs.iter().enumerate() {
+            if !used_ne[i] && touches(a, &keys) {
+                used_ne[i] = true;
+                grew = true;
+                for (t, _) in &a.terms {
+                    if !keys.contains(t) {
+                        keys.push(t.clone());
+                    }
+                }
+            }
+        }
+        if !grew {
+            break;
+        }
+    }
+    let mut rows: Vec<LinStep> =
+        steps.into_iter().zip(used).filter(|(_, u)| *u).map(|(s, _)| s).collect();
+    for k in &keys {
+        for le in lin_domain(k, sorts) {
+            rows.push(LinStep { le, why: DiffWhy::Domain(k.clone()) });
+        }
+    }
+    if rows.len() > LIN_ROWS {
+        return None;
+    }
+    let diseqs: Vec<(DiffWhy, LinLe, LinLe)> =
+        diseqs.into_iter().zip(used_ne).filter(|(_, u)| *u).map(|(d, _)| d).collect();
+    lin_refute(&mut rows, &diseqs, 0)
+}
+
+fn lin_refute(rows: &mut Vec<LinStep>, diseqs: &[(DiffWhy, LinLe, LinLe)], depth: usize) -> Option<LinCert> {
+    if let Some(m) = fourier_motzkin(rows) {
+        let mut cert: Vec<(i128, LinStep)> = Vec::new();
+        for (i, k) in m {
+            cert.push((k, rows[i].clone()));
+        }
+        return Some(LinCert::Farkas(cert));
+    }
+    if depth >= LIN_SPLITS {
+        return None;
+    }
+    for k in 0..diseqs.len().min(LIN_SPLIT_TRIES) {
+        let (on, lt, gt) = diseqs[k].clone();
+        let rest: Vec<(DiffWhy, LinLe, LinLe)> =
+            diseqs.iter().enumerate().filter(|(i, _)| *i != k).map(|(_, d)| d.clone()).collect();
+        let mut side = |le: LinLe, rows: &mut Vec<LinStep>| {
+            rows.push(LinStep { le, why: DiffWhy::Case(depth) });
+            let c = lin_refute(rows, &rest, depth + 1);
+            rows.pop();
+            c
+        };
+        let Some(l) = side(lt, rows) else { continue };
+        let Some(g) = side(gt, rows) else { continue };
+        return Some(LinCert::Split { on, lt: Box::new(l), gt: Box::new(g) });
+    }
+    None
+}
+
+/// Fourier-Motzkin elimination over `rows`: the multipliers (row index,
+/// positive integer) of a combination that cancels every key and leaves
+/// a negative bound, or `None` when the rows are rationally feasible, a
+/// coefficient overflows, or the row cap is passed.
+fn fourier_motzkin(rows: &[LinStep]) -> Option<Vec<(usize, i128)>> {
+    // Each row: coefficients, bound, and its derivation over `rows`.
+    type Row = (Vec<(ITerm, i128)>, i128, Vec<(usize, i128)>);
+    let mut cur: Vec<Row> =
+        rows.iter().enumerate().map(|(i, s)| (s.le.terms.clone(), s.le.c, vec![(i, 1)])).collect();
+    loop {
+        if let Some(r) = cur.iter().find(|r| r.0.is_empty() && r.1 < 0) {
+            return Some(r.2.clone());
+        }
+        // The key whose elimination makes the fewest new rows.
+        let mut best: Option<(ITerm, usize)> = None;
+        let mut seen: Vec<ITerm> = Vec::new();
+        for r in &cur {
+            for (t, _) in &r.0 {
+                if seen.contains(t) {
+                    continue;
+                }
+                seen.push(t.clone());
+                let coef = |r: &Row| r.0.iter().find(|(k, _)| k == t).map_or(0, |(_, a)| *a);
+                let pos = cur.iter().filter(|r| coef(r) > 0).count();
+                let neg = cur.iter().filter(|r| coef(r) < 0).count();
+                let cost = pos * neg;
+                if best.as_ref().is_none_or(|(_, c)| cost < *c) {
+                    best = Some((t.clone(), cost));
+                }
+            }
+        }
+        let (t, _) = best?;
+        let coef = |r: &Row| r.0.iter().find(|(k, _)| *k == t).map_or(0, |(_, a)| *a);
+        let (mut next, mut pos, mut neg): (Vec<Row>, Vec<Row>, Vec<Row>) = (Vec::new(), Vec::new(), Vec::new());
+        for r in cur {
+            match coef(&r) {
+                0 => next.push(r),
+                a if a > 0 => pos.push(r),
+                _ => neg.push(r),
+            }
+        }
+        for p in &pos {
+            for n in &neg {
+                let (ap, an) = (coef(p), -coef(n));
+                let mut terms: Vec<(ITerm, i128)> = Vec::new();
+                for (row, k) in [(p, an), (n, ap)] {
+                    for (key, a) in &row.0 {
+                        let v = a.checked_mul(k)?;
+                        match terms.iter_mut().find(|(j, _)| j == key) {
+                            Some((_, b)) => *b = b.checked_add(v)?,
+                            None => terms.push((key.clone(), v)),
+                        }
+                    }
+                }
+                terms.retain(|(_, a)| *a != 0);
+                let c = p.1.checked_mul(an)?.checked_add(n.1.checked_mul(ap)?)?;
+                let mut deriv: Vec<(usize, i128)> = Vec::new();
+                for (row, k) in [(p, an), (n, ap)] {
+                    for (i, m) in &row.2 {
+                        let v = m.checked_mul(k)?;
+                        match deriv.iter_mut().find(|(j, _)| j == i) {
+                            Some((_, b)) => *b = b.checked_add(v)?,
+                            None => deriv.push((*i, v)),
+                        }
+                    }
+                }
+                // Exact division by a common factor of everything keeps
+                // the multipliers integral and the numbers small.
+                let g = terms
+                    .iter()
+                    .map(|(_, a)| *a)
+                    .chain(deriv.iter().map(|(_, m)| *m))
+                    .chain(std::iter::once(c))
+                    .fold(0, gcd);
+                let g = if g > 1 { g } else { 1 };
+                for (_, a) in terms.iter_mut() {
+                    *a /= g;
+                }
+                for (_, m) in deriv.iter_mut() {
+                    *m /= g;
+                }
+                next.push((terms, c / g, deriv));
+                if next.len() > LIN_ROWS {
+                    return None;
+                }
+            }
+        }
+        cur = next;
+    }
+}
+
+/// Check a linear certificate without search: every cited constraint
+/// follows from its source re-read, every multiplier is positive, and the
+/// weighted sum cancels every key and bounds zero by a negative number.
+fn check_lin_cert(hyps: &[PTerm], disjuncts: &[PTerm], cert: &LinCert, sorts: &Sorts) -> bool {
+    let cited = |w: &DiffWhy| -> Option<LinReading> {
+        match w {
+            DiffWhy::Hyp { hyp, conj } => {
+                let conjs = pred_conjuncts(hyps.get(*hyp)?);
+                Some(lin_atom(conjs.get(*conj)?, sorts))
+            }
+            DiffWhy::Goal(k) => Some(lin_negated(disjuncts.get(*k)?, sorts)),
+            DiffWhy::Domain(t) => Some(LinReading::Les(lin_domain(t, sorts))),
+            DiffWhy::Case(_) => None,
+        }
+    };
+    fn go(cert: &LinCert, cited: &dyn Fn(&DiffWhy) -> Option<LinReading>, cases: &mut Vec<LinLe>) -> bool {
+        match cert {
+            LinCert::Farkas(steps) => {
+                let justified = steps.iter().all(|(k, s)| {
+                    *k > 0
+                        && match &s.why {
+                            DiffWhy::Case(d) => cases.get(*d).is_some_and(|c| s.le.follows_from(c)),
+                            w => matches!(cited(w), Some(LinReading::Les(ls)) if ls.iter().any(|l| s.le.follows_from(l))),
+                        }
+                });
+                let mut sum: i128 = 0;
+                let mut net: Vec<(ITerm, i128)> = Vec::new();
+                for (k, s) in steps {
+                    for (t, a) in &s.le.terms {
+                        let Some(v) = a.checked_mul(*k) else { return false };
+                        match net.iter_mut().find(|(j, _)| j == t) {
+                            Some((_, b)) => match b.checked_add(v) {
+                                Some(x) => *b = x,
+                                None => return false,
+                            },
+                            None => net.push((t.clone(), v)),
+                        }
+                    }
+                    match s.le.c.checked_mul(*k).and_then(|v| sum.checked_add(v)) {
+                        Some(v) => sum = v,
+                        None => return false,
+                    }
+                }
+                justified && !steps.is_empty() && sum < 0 && net.iter().all(|(_, n)| *n == 0)
+            }
+            LinCert::Split { on, lt, gt } => {
+                let Some(LinReading::Ne(a, b)) = cited(on) else {
+                    return false;
+                };
+                for (alt, sub) in [(a, lt), (b, gt)] {
+                    cases.push(alt);
+                    let ok = go(sub, cited, cases);
+                    cases.pop();
+                    if !ok {
+                        return false;
+                    }
+                }
+                true
+            }
+        }
+    }
+    go(cert, &cited, &mut Vec::new())
 }
 
 impl PTerm {
@@ -2521,6 +2958,18 @@ impl fmt::Display for Ty {
             Ty::Region(r) => write!(f, "{r}"),
             Ty::Meta(MetaId(m)) => write!(f, "?m{m}"),
             Ty::Adt(t, args) => {
+                // The anonymous former prints as it is written: the
+                // predicate parenthesized and a renamed binder (`$it`)
+                // back to a plain name, so an interface's rendering reads
+                // back.
+                if let (true, [Ty::Prp(p), base]) = (t == "refined", args.as_slice()) {
+                    let p = p.subst("$it", &ITerm::Var("r".to_string()));
+                    return if needs_parens_as_argument(base) {
+                        write!(f, "refined ({p}) ({base})")
+                    } else {
+                        write!(f, "refined ({p}) {base}")
+                    };
+                }
                 write!(f, "{t}")?;
                 for a in args {
                     if needs_parens_as_argument(a) {
@@ -2560,6 +3009,10 @@ impl fmt::Display for Ty {
                 }
                 write!(f, ")")
             }
+            // A result refinement naming arguments by position prints
+            // with those arguments named (`(a0 :: I64) -> refined (r ==
+            // a0) Nat`), the form it was written in.
+            Ty::Fun(..) if mentions_positional_result(self) => write!(f, "{}", name_positional(self, 0)),
             Ty::Fun(a, m, e, b) => match (m, e.is_pure()) {
                 (Mult::Many, true) => write!(f, "({a} -> {b})"),
                 (Mult::Many, false) => write!(f, "({a} ->{e} {b})"),
@@ -2594,6 +3047,54 @@ impl fmt::Display for Ty {
                 write!(f, "(Sigma ({var} :: {dom}). {cod})")
             }
         }
+    }
+}
+
+/// Whether an arrow chain's final result mentions a positional argument
+/// name (`$a{i}`).
+fn mentions_positional_result(t: &Ty) -> bool {
+    match t {
+        Ty::Fun(_, _, _, c) | Ty::Pi { cod: c, .. } => mentions_positional_result(c),
+        Ty::Adt(n, args) if n == "refined" => match args.as_slice() {
+            [Ty::Prp(p), _] => {
+                let mut fv = Vec::new();
+                p.free_vars(&mut fv);
+                fv.iter().any(|v| is_positional_arg(v))
+            }
+            _ => false,
+        },
+        _ => false,
+    }
+}
+
+/// The arrow chain with each positionally named argument (`$a{i}`) bound
+/// by a dependent arrow named `a{i}`, for display.
+fn name_positional(t: &Ty, i: usize) -> Ty {
+    match t {
+        Ty::Fun(a, m, e, b) => {
+            let pos = format!("$a{i}");
+            let name = format!("a{i}");
+            let cod = name_positional(b, i + 1);
+            if cod.mentions_idx(&pos) {
+                Ty::Pi {
+                    var: name.clone(),
+                    dom: a.clone(),
+                    mult: *m,
+                    eff: e.clone(),
+                    cod: Box::new(cod.subst_idx(&pos, &ITerm::Var(name))),
+                }
+            } else {
+                Ty::Fun(a.clone(), *m, e.clone(), Box::new(cod))
+            }
+        }
+        Ty::Pi { var, dom, mult, eff, cod } => Ty::Pi {
+            var: var.clone(),
+            dom: dom.clone(),
+            mult: *mult,
+            eff: eff.clone(),
+            cod: Box::new(name_positional(cod, i + 1)),
+        },
+        other => other.clone(),
     }
 }
 

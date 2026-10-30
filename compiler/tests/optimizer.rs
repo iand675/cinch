@@ -331,7 +331,7 @@ fn fusion_preserves_the_pull_boundary() {
     // means the fused pipeline must never pull it, so the log stays 0.
     let src = r#"
 module Pull where
-  stepF :: Bytes -> Nat -> Step Nat Nat
+  stepF :: using (0 < bytes-len log) => (log :: Bytes) -> Nat -> Step Nat Nat
   stepF log k = case k of
     0 -> Yield 3 1
     1 -> Yield 5 2
