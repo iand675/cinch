@@ -3,7 +3,7 @@
 Where the work stands, what comes next in order, what needs a decision
 from the user, and the working rules that kept parallel agents safe. Every
 claim here is recorded in more detail in `compiler/CONFORMANCE.md`
-(D388-D417 on `main`, D418-D419 on `wip/nf3b-nf5`) and the linked design notes. No em dashes.
+(D388-D419) and the linked design notes. No em dashes.
 
 ## 1 Where it stands
 
@@ -17,16 +17,14 @@ claim here is recorded in more detail in `compiler/CONFORMANCE.md`
 - **Faults: a well-typed program does not fault** (`design/no-faults.md`,
   D401, D407-D417). Pattern coverage counts no guarded row; division takes
   a `NonZero` divisor; `Nat` subtraction needs `b <= a`; exhaustion is one
-  defined `Exhausted` exit (73), with stack overflow caught by guard bands.
-  Byte indexing and conversion ranges are built on a branch (next bullet).
+  defined `Exhausted` exit (73), with stack overflow caught by guard bands;
+  byte indexing is proven in bounds; conversions carry their ranges.
   Evidence comes from every `case` branch (`if`, guards, `&&`, `||` are
   case forms), and obligations discharge by difference logic, then
   Fourier-Motzkin, each proof with a re-checked certificate.
-- **NF3b and NF5 are built but not on `main`.** They live on branch
-  `wip/nf3b-nf5` (CONFORMANCE D418-D419 there): refined results with ranges
-  (`InRange`), total conversions, total `Bytes` operations, and a
-  Fourier-Motzkin fallback with Farkas certificates. The branch's full
-  suite is 1081 passed, 1 failed; see section 2.0.
+- **One known test failure on `main`** (merged at the user's direction,
+  2026-10-30, to circle back to): the full suite is 1081 passed, 1 failed;
+  see section 2.0.
 - **Design directions recorded and decided:** representation option C with
   demand-driven specialization, compiler-chosen default layouts,
   expanding-edge boxing, representations as instances of `Represent t c`
@@ -42,9 +40,9 @@ claim here is recorded in more detail in `compiler/CONFORMANCE.md`
 
 ## 2 Next, in order
 
-### 2.0 Land `wip/nf3b-nf5`
+### 2.0 Fix the one failing test
 
-One failure stands between the branch and `main`:
+NF3b and NF5 (D418-D419) were merged with one failure outstanding:
 `surface::bytes_literal_folds_and_map_literal_round_trips`. A bytes list
 literal (`buf :: Bytes; buf = [1, 2, 3]`) no longer folds to a constant
 buffer at compile time; the program still runs correctly. `FromList Bytes`
@@ -53,9 +51,9 @@ now takes `U8` elements (`Data/Bytes.cinch` `bytes-from-u8s`, through
 (`check.rs`) returns `None` because the compile-time evaluator
 (`eval_core`) fails somewhere on that path [INFERENCE: most likely a
 widening intrinsic or the refined-result plumbing it does not evaluate].
-Fix the evaluator (or the instance) so the literal folds again, run the
-full suite with no time limit, and fast-forward `main`. The branch also
-changed one diagnostic: a refinement flow that no fact discharges now
+Fix the evaluator (or the instance) so the literal folds again, and run
+the full suite with no time limit. The same merge also changed one
+diagnostic: a refinement flow that no fact discharges now
 reports "the obligation `v > 5` ..." instead of "does not flow to"
 (`tests/lattice.rs`), which names the failing obligation but no longer
 names both types; restore the type names in the message if that is
