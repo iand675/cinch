@@ -61,7 +61,9 @@
 //! * `cinch_run_main(entry) -> i64`: the generated entry glue's next
 //!   step after `cinch_argv_init`: run the program's entry unit on a
 //!   thread with a 1 GiB reserved stack (`CINCH_STACK_SIZE=<n>[K|M|G]`
-//!   overrides it) and answer its result word.
+//!   overrides it) inside the stack guard of `crate::stack`, and answer
+//!   its result word. Overflowing the stack, or the OS refusing the
+//!   thread, is the `Exhausted` exit 73.
 //! * `cinch_proc_new(prog) -> i64`, `cinch_proc_arg(proc, arg) ->
 //!   i64`, `cinch_proc_env(proc, kv) -> i64`, `cinch_proc_stdin(proc,
 //!   data) -> i64`, `cinch_proc_run(proc) -> i64`,
@@ -546,23 +548,34 @@ pub const DEFAULT_STACK_SIZE: usize = 1 << 30;
 /// recursion first touches it, so a shallow program pays nothing for it.
 ///
 /// `CINCH_STACK_SIZE=<n>[K|M|G]` sets the size (an unparsable or zero
-/// value keeps the default). A refused reservation runs `entry` on the
-/// calling thread, which is the platform-stack behaviour the reservation
-/// only widens. A fault inside `entry` leaves through `exit` from the
-/// program's thread as before, so the exit code and the `atexit` handlers
-/// (the `CINCH_ALLOC_STATS` line) are unchanged.
+/// value keeps the default; a size below [`crate::stack::MIN_STACK_BYTES`]
+/// is raised to it). `entry` runs inside [`crate::stack::guarded`], so
+/// overflowing the reservation is the stack `Exhausted` exit (`cinch:
+/// exhausted: stack`, exit 73), never a crash. A refused reservation is
+/// the `Exhausted` exit too, before any program code runs: `stack` when
+/// the OS had no memory for it, `threads` otherwise. A fault inside
+/// `entry` leaves through `exit` from the program's thread as before, so
+/// the exit code and the `atexit` handlers (the `CINCH_ALLOC_STATS` line)
+/// are unchanged.
 #[unsafe(no_mangle)]
 pub extern "C" fn cinch_run_main(entry: extern "C" fn() -> i64) -> i64 {
     let size = crate::heap::env_bytes(c"CINCH_STACK_SIZE")
         .and_then(crate::heap::parse_limit)
         .filter(|&n| n > 0)
         .and_then(|n| usize::try_from(n).ok())
-        .unwrap_or(DEFAULT_STACK_SIZE);
-    match std::thread::Builder::new().stack_size(size).spawn(move || entry()) {
+        .unwrap_or(DEFAULT_STACK_SIZE)
+        .max(crate::stack::MIN_STACK_BYTES);
+    let spawned = std::thread::Builder::new()
+        .stack_size(size)
+        .spawn(move || crate::stack::guarded(|| entry()));
+    match spawned {
         // Every runtime extern is `extern "C"`, so a Rust panic aborts in
-        // place and never unwinds into the join.
-        Ok(handle) => handle.join().unwrap_or(i64::from(crate::abi::EXIT_PANIC)),
-        Err(_) => entry(),
+        // place and never unwinds into the join: a failed join is a
+        // runtime invariant broken, not a program outcome.
+        Ok(handle) => handle
+            .join()
+            .unwrap_or_else(|_| crate::abi::panic_exit(b"compiler bug: the program thread unwound")),
+        Err(e) => crate::stack::spawn_refused(&e),
     }
 }
 

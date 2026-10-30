@@ -450,8 +450,10 @@ parsing `Data/Machine.cinch` exceeds 2 GiB (69 M blocks at a 1500 M cap).
 
 ### 10.5 Policies in force while nothing is reclaimed
 
-- `CINCH_HEAP_LIMIT` caps total allocation (default 8 GiB; exit 73 with
-  `cinch: heap limit exceeded (<n> bytes)`); every program a `cargo test`
+- `CINCH_HEAP_LIMIT` caps the heap (default 8 GiB; exit 73 with
+  `cinch: exhausted: heap (<n> bytes)`). While nothing was reclaimed it
+  capped total allocation; since reclamation landed (2026-10-30) it caps
+  live bytes (`design/no-faults.md` section 4). Every program a `cargo test`
   spawns inherits `CINCH_HEAP_LIMIT=2G` from `compiler/.cargo/config.toml`.
 - A test that legitimately needs more than the cap is NOT given a larger
   cap: the input that exceeds it is named in a `BLOCKED_ON_RECLAMATION`

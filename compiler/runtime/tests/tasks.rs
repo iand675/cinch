@@ -10,7 +10,7 @@ use cinchruntime::abi::{
     cinch_scope_close, cinch_scope_open, cinch_task_join_all_or_cancel, cinch_task_poll_cancel,
     cinch_task_spawn,
 };
-use cinchruntime::task::{TASK_ERR_TAG, TASK_OK_TAG};
+use cinchruntime::task::{JOIN_FAILED, TASK_ERR_TAG, TASK_OK_TAG};
 
 /// The body's observed the cancellation request.
 static OBSERVED: AtomicBool = AtomicBool::new(false);
@@ -93,10 +93,10 @@ fn join_all_or_cancel_cancels_the_siblings_on_failure() {
             out.as_mut_ptr() as i64,
         )
     };
-    // The first failure's payload is the join's `Err` payload, and the
+    // The first failure's own `Err` block is the join's result, and the
     // join waited for the sibling's cleanup acknowledgment.
-    assert_eq!(status, 1);
-    assert_eq!(out[0], 9);
+    assert_eq!(status, JOIN_FAILED);
+    assert_eq!(unsafe { *(out[0] as *const i64) }, 9);
     assert!(OBSERVED.load(Ordering::SeqCst), "the sibling never observed its cancellation request");
     unsafe { cinch_scope_close(scope) };
 }

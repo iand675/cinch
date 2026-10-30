@@ -32,6 +32,9 @@ const LAZY_ALLOC: i64 = 15;
 const LAZY_INIT: i64 = 16;
 const DEMAND: i64 = 17;
 const UNITREF: i64 = 18;
+const SET: i64 = 20;
+const DUP: i64 = 21;
+const DROP: i64 = 22;
 
 type Stub = unsafe extern "C" fn(i64, i64, *mut i64) -> i64;
 
@@ -274,8 +277,8 @@ fn proj_mode_0_loads_a_field_word() {
     let (blk, buf) = byte_block();
     buf[8..16].copy_from_slice(&777i64.to_le_bytes());
     buf[16..24].copy_from_slice(&(-5i64).to_le_bytes());
-    assert_eq!(run(quote_block(&[PROJ, UNITREF, blk, 0, 1], &[])), Ok(777));
-    assert_eq!(run(quote_block(&[PROJ, UNITREF, blk, 0, 2], &[])), Ok(-5));
+    assert_eq!(run(quote_block(&[PROJ, UNITREF, blk, 0, 1, 0], &[])), Ok(777));
+    assert_eq!(run(quote_block(&[PROJ, UNITREF, blk, 0, 2, 0], &[])), Ok(-5));
 }
 
 #[test]
@@ -284,20 +287,22 @@ fn proj_mode_1_extends_signed_and_unsigned() {
     buf[0] = 0xFF;
     buf[1..3].copy_from_slice(&0x8000u16.to_le_bytes());
     // One byte at offset 0: 255 unsigned, -1 signed.
-    assert_eq!(run(quote_block(&[PROJ, UNITREF, blk, 1, 0, 1, 0], &[])), Ok(255));
-    assert_eq!(run(quote_block(&[PROJ, UNITREF, blk, 1, 0, 1, 1], &[])), Ok(-1));
+    assert_eq!(run(quote_block(&[PROJ, UNITREF, blk, 1, 0, 1, 0, 0], &[])), Ok(255));
+    assert_eq!(run(quote_block(&[PROJ, UNITREF, blk, 1, 0, 1, 1, 0], &[])), Ok(-1));
     // Two bytes at offset 1: 32768 unsigned, -32768 signed.
-    assert_eq!(run(quote_block(&[PROJ, UNITREF, blk, 1, 1, 2, 0], &[])), Ok(32768));
-    assert_eq!(run(quote_block(&[PROJ, UNITREF, blk, 1, 1, 2, 1], &[])), Ok(-32768));
+    assert_eq!(run(quote_block(&[PROJ, UNITREF, blk, 1, 1, 2, 0, 0], &[])), Ok(32768));
+    assert_eq!(run(quote_block(&[PROJ, UNITREF, blk, 1, 1, 2, 1, 0], &[])), Ok(-32768));
     // A zero-width scalar loads the constant 0 (the compiler's shape).
-    assert_eq!(run(quote_block(&[PROJ, UNITREF, blk, 1, 0, 0, 0], &[])), Ok(0));
+    assert_eq!(run(quote_block(&[PROJ, UNITREF, blk, 1, 0, 0, 0, 0], &[])), Ok(0));
+    // A boundary scalar is never a counted reference.
+    assert_eq!(run(quote_block(&[PROJ, UNITREF, blk, 1, 0, 1, 0, 1], &[])), Err(Error::CorruptValue));
 }
 
 #[test]
 fn proj_mode_2_loads_a_boundary_word() {
     let (blk, buf) = byte_block();
     buf[8..16].copy_from_slice(&777i64.to_le_bytes());
-    assert_eq!(run(quote_block(&[PROJ, UNITREF, blk, 2, 8], &[])), Ok(777));
+    assert_eq!(run(quote_block(&[PROJ, UNITREF, blk, 2, 8, 0], &[])), Ok(777));
 }
 
 // ------------------------------------------------------------ laziness
@@ -329,12 +334,42 @@ fn lazy_cell_demands_its_thunk_once_across_repeated_demands() {
     let prog = [
         LET, 1, LAZY_ALLOC,
         LET, 2, LAZY_INIT, 1, UNITREF, clo,
-        LET, 3, DEMAND, LOCAL, 1,
-        LET, 4, DEMAND, LOCAL, 1,
+        LET, 3, DEMAND, LOCAL, 1, 0,
+        LET, 4, DEMAND, LOCAL, 1, 0,
         APP, UNITREF, clo_sum, 2, LOCAL, 3, LOCAL, 4,
     ];
     assert_eq!(run(quote_block(&prog, &[])), Ok(10));
     assert_eq!(THUNK5_CALLS.load(Ordering::SeqCst), 1, "the thunk ran more than once");
+}
+
+#[test]
+fn demand_moves_the_thunk_out_of_its_cell() {
+    let clo = closure(stub_thunk_5, 1, &[]);
+    let cell = run(quote_block(&[LAZY_ALLOC], &[])).expect("LAZY_ALLOC yields the cell");
+    let prog = [LET, 1, UNITREF, cell, LET, 2, LAZY_INIT, 1, UNITREF, clo, DEMAND, LOCAL, 1, 0];
+    assert_eq!(run(quote_block(&prog, &[])), Ok(5));
+    // State 2, no thunk (the application consumed it), the value.
+    unsafe {
+        assert_eq!(*(cell as *const i64), 2);
+        assert_eq!(*(cell as *const i64).add(1), 0);
+        assert_eq!(*(cell as *const i64).add(2), 5);
+    }
+}
+
+#[test]
+fn set_replaces_the_binder_word() {
+    let prog = [LET, 1, INT, 3, LET, 2, SET, 1, INT, 4, LOCAL, 1];
+    assert_eq!(run(quote_block(&prog, &[])), Ok(4));
+    assert_eq!(run(quote_block(&[SET, 9, INT, 4], &[])), Err(Error::CorruptValue));
+}
+
+#[test]
+fn count_operations_skip_immediates_and_name_bound_slots() {
+    // An immediate (low bit 1) is never counted; the body follows.
+    let prog = [LET, 1, INT, 7, DUP, 1, DROP, 1, LOCAL, 1];
+    assert_eq!(run(quote_block(&prog, &[])), Ok(7));
+    assert_eq!(run(quote_block(&[DUP, 1, UNIT], &[])), Err(Error::CorruptValue));
+    assert_eq!(run(quote_block(&[DEMAND, UNITREF, 8, 2], &[])), Err(Error::CorruptValue));
 }
 
 unsafe extern "C" fn stub_thunk_zero(_self: i64, _argc: i64, _argv: *mut i64) -> i64 {
@@ -357,7 +392,7 @@ static INNER_ERR: Mutex<Option<Error>> = Mutex::new(None);
 unsafe extern "C" fn stub_self_demand(self_word: i64, _argc: i64, _argv: *mut i64) -> i64 {
     SELF_CALLS.fetch_add(1, Ordering::SeqCst);
     let cell = unsafe { *(self_word as *const i64).add(3) };
-    let inner = run(quote_block(&[DEMAND, UNITREF, cell], &[]));
+    let inner = run(quote_block(&[DEMAND, UNITREF, cell, 0], &[]));
     *INNER_ERR.lock().unwrap() = inner.err();
     0
 }
@@ -371,7 +406,7 @@ fn self_demanding_cell_faults_as_the_black_hole() {
     let prog = [
         LET, 1, UNITREF, cell,
         LET, 2, LAZY_INIT, 1, UNITREF, clo,
-        DEMAND, LOCAL, 1,
+        DEMAND, LOCAL, 1, 0,
     ];
     assert_eq!(run(quote_block(&prog, &[])), Err(Error::BlackHole));
     assert_eq!(SELF_CALLS.load(Ordering::SeqCst), 1);
@@ -392,11 +427,12 @@ fn fault_opcode_takes_the_black_hole_fault() {
 
 #[test]
 fn exit_codes_match_the_fault_table() {
-    // cinch_eval exits 70 for BlackHole and 71 for a failing evaluation.
+    // cinch_eval exits 70 for BlackHole, 73 (the stack `Exhausted` exit)
+    // past the nesting bound, and 71 for any other failing evaluation.
     assert_eq!(Error::BlackHole.exit_code(), 70);
     assert_eq!(Error::CorruptValue.exit_code(), 71);
     assert_eq!(Error::MalformedDecimal.exit_code(), 71);
-    assert_eq!(Error::NestingTooDeep.exit_code(), 71);
+    assert_eq!(Error::NestingTooDeep.exit_code(), 73);
 }
 
 #[test]
@@ -474,15 +510,15 @@ fn non_block_words_where_a_block_is_required_are_errors() {
     // Null and misaligned values as scrutinee, projection base, function
     // and memo cell.
     assert_eq!(
-        run(quote_block(&[PROJ, INT, 5, 0, 0], &[])),
+        run(quote_block(&[PROJ, INT, 5, 0, 0, 0], &[])),
         Err(Error::CorruptValue)
     );
     assert_eq!(
-        run(quote_block(&[PROJ, INT, 0, 0, 0], &[])),
+        run(quote_block(&[PROJ, INT, 0, 0, 0, 0], &[])),
         Err(Error::CorruptValue)
     );
     assert_eq!(
-        run(quote_block(&[DEMAND, INT, 5], &[])),
+        run(quote_block(&[DEMAND, INT, 5, 0], &[])),
         Err(Error::CorruptValue)
     );
     assert_eq!(

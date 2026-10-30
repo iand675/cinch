@@ -41,8 +41,10 @@
 //! stored expression (its last use there consumes it, or it is dropped
 //! before), and the binder owns the new one.
 //!
-//! Quotation bodies are reified for the runtime evaluator and are left
-//! untouched.
+//! A quotation body is a closed body of its own, transformed with no
+//! owned parameters (its holes produce owned values); the runtime
+//! evaluator (`runtime/src/eval.rs`) runs the count operations placed
+//! there with the node conventions code generation uses.
 //!
 //! # Verification
 //!
@@ -104,7 +106,7 @@ fn param_classes(f: &FnDef) -> Vec<Class> {
 
 /// Every binder's class: the parameters', and the `let` and pattern
 /// binders' recorded classes.
-fn binder_classes(f: &FnDef, body: &Core) -> HashMap<usize, Class> {
+fn binder_classes(params: &[Class], body: &Core) -> HashMap<usize, Class> {
     fn walk(e: &Core, out: &mut HashMap<usize, Class>) {
         match e {
             Core::Let(x, c, ..) => {
@@ -143,23 +145,31 @@ fn binder_classes(f: &FnDef, body: &Core) -> HashMap<usize, Class> {
         }
     }
     let mut out: HashMap<usize, Class> = HashMap::new();
-    for (i, c) in param_classes(f).into_iter().enumerate() {
-        out.insert(i, c);
+    for (i, c) in params.iter().enumerate() {
+        out.insert(i, *c);
     }
     walk(body, &mut out);
     out
 }
 
 fn transform(f: &FnDef) -> Core {
-    let class = binder_classes(f, &f.body);
-    let mut next = f.arity();
-    crate::core::walk_locals(&f.body, &mut |l| next = next.max(l.0 + 1));
+    transform_body(&param_classes(f), &f.body)
+}
+
+/// The count operations of a body whose parameters (all owned) have the
+/// classes `params`. A quotation body is a closed body with none: the
+/// runtime evaluator runs the operations the pass places there exactly
+/// as code generation runs them in a unit.
+fn transform_body(params: &[Class], body: &Core) -> Core {
+    let class = binder_classes(params, body);
+    let mut next = params.len();
+    crate::core::walk_locals(body, &mut |l| next = next.max(l.0 + 1));
     for k in class.keys() {
         next = next.max(k + 1);
     }
     let mut pass = Pass { class, fv: HashMap::new(), alias: HashMap::new(), next };
-    let owned: Set = (0..f.arity()).filter(|i| pass.counted(*i)).collect();
-    pass.go(&f.body, &owned, &Set::new())
+    let owned: Set = (0..params.len()).filter(|i| pass.counted(*i)).collect();
+    pass.go(body, &owned, &Set::new())
 }
 
 struct Pass {
@@ -335,7 +345,11 @@ impl Pass {
             }
             Core::Quote { template, holes, body } => {
                 let es: Vec<&Core> = holes.iter().collect();
-                Core::Quote { template: template.clone(), holes: self.seq(&es, owned, live), body: body.clone() }
+                Core::Quote {
+                    template: template.clone(),
+                    holes: self.seq(&es, owned, live),
+                    body: body.as_ref().map(|b| Box::new(transform_body(&[], b))),
+                }
             }
             Core::Let(x, c, v, b) => {
                 let mut fb = self.need(b);
@@ -605,9 +619,13 @@ fn pat_binders(p: &CPat) -> Vec<usize> {
 /// `Dup` adds one, a borrowed read needs one, and every path that returns
 /// ends with none held.
 pub fn verify(f: &FnDef, body: &Core) -> Result<(), String> {
-    let class = binder_classes(f, body);
+    verify_body(&param_classes(f), body)
+}
+
+fn verify_body(params: &[Class], body: &Core) -> Result<(), String> {
+    let class = binder_classes(params, body);
     let mut st = State { cnt: HashMap::new(), parent: HashMap::new() };
-    for i in 0..f.arity() {
+    for i in 0..params.len() {
         if class.get(&i).copied().is_some_and(counted) {
             st.cnt.insert(i, 1);
         }
@@ -733,8 +751,12 @@ impl Verifier {
                 }
                 self.all(args, st)
             }
-            Core::Lam { env: args, .. } | Core::InstDict(_, args, _) | Core::Quote { holes: args, .. } => {
-                self.all(args, st)
+            Core::Lam { env: args, .. } | Core::InstDict(_, args, _) => self.all(args, st),
+            Core::Quote { holes, body, .. } => {
+                if let Some(b) = body {
+                    verify_body(&[], b).map_err(|m| format!("in a quotation body: {m}"))?;
+                }
+                self.all(holes, st)
             }
             Core::If(c, t, f) => {
                 if !self.value(c, st)? {

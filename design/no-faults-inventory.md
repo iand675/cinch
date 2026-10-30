@@ -12,6 +12,64 @@ feeds `design/no-faults.md`.
   the pattern compiler is the coverage check and can no longer emit
   `Core::Fault`, and `run_out` is deleted. `specifications/surface-grammar-local-amendments.md`
   section 16, `tests/guard_coverage.rs`, CONFORMANCE D401.
+- **Resource exhaustion (all of section 5 except the I/O row)**: closed
+  2026-10-30. The heap cap (now on live bytes), a real allocation
+  failure, a native stack overflow on the program's or a task's thread,
+  the evaluator's nesting bound, and a refused thread are one defined
+  outcome: exit 73 with `cinch: exhausted: heap (<n> bytes)`,
+  `cinch: exhausted: stack` or `cinch: exhausted: threads`
+  (`design/no-faults.md` section 4.1, `compiler/runtime/src/stack.rs`,
+  `tests/exhaustion.rs`). Nothing in the runtime aborts or dies on a
+  signal for resource reasons any more.
+
+## Runtime exits classified (2026-10-30)
+
+Every runtime exit that is neither `Exhausted` (73) nor a program result,
+at the tree of 2026-10-30.
+
+**Compiler-bug traps** (an invariant the compiler guarantees; exit 71,
+message starting `compiler bug:`): the null or wrong-kind word checks
+`abi.rs:174,182,295,304,368,383` (`Error::CorruptValue`, whose message
+now says so) and `cinch_nat_to_decimal`/`cinch_int_to_decimal`'s null
+buffer (`abi.rs:685,853`); `cinch_panic` with a corrupt message pointer
+(`abi.rs:416`); the allocators' negative sizes and bad kinds
+(`abi.rs:435,438,492,506,511`) and a corrupt layout table
+(`abi.rs:525`); the join handle count (`abi.rs:1027`); a pointer and
+length from generated code (`cinch_bytes_from_data`, `abi.rs:968,973`;
+`cinch_sym_intern`, `sym.rs:85,90`; `cinch_utf8_encode`'s null buffer,
+`string.rs:73`); a malformed quote block or program stream
+(`Error::CorruptValue` throughout `eval.rs`, reported at `eval.rs:1149`);
+the block layout and header checks (`block.rs:322,327,332,342,368,391,402`);
+freed or corrupt counts (`rc.rs:139`); the program thread unwinding
+(`platform.rs:577`). Not yet labelled: `coop.rs:510`, the cooperative
+join's handle count, still raises `OutOfBounds` without the prefix.
+
+**Faults a well-typed program can still reach** (left for the
+migration, not fixed here):
+
+- `abi.rs:608` `cinch_nat_sub` (`NegativeResult`), and `abi.rs:337` for
+  the bignum path of the same operation.
+- `abi.rs:631,643,782,795` `cinch_nat_div`/`rem`, `cinch_int_div`/`rem`
+  (`DivByZero`, exit 72), and `abi.rs:337,353` for their bignum paths.
+- `abi.rs:566` `cinch_nat_from_i64` (`NegativeInput`); `abi.rs:579,729`
+  `cinch_nat_to_i64`/`cinch_int_to_i64` (`OutOfRange`).
+- `abi.rs:667,674,829,842` `cinch_nat_from_decimal`/`cinch_int_from_decimal`
+  and `text.rs:446` `cinch_text_f64_from_decimal` (`MalformedDecimal`).
+- `abi.rs:886,901,911,938` `cinch_bytes_new`/`get`/`set`/`copy`
+  (`OutOfBounds`) and `abi.rs:382` (`ReadOnly`, a write to a string
+  literal's bytes).
+- `platform.rs:527` `cinch_argv_get` out of range (`OutOfBounds`).
+- `abi.rs:1054` `cinch_io_write` on a write or flush failure, and
+  `abi.rs:1066` `cinch_io_read` with a negative length (`OutOfBounds`).
+- `sym.rs:96` `cinch_sym_intern` on non-UTF-8 bytes (`MalformedName`,
+  through the raw `sym-intern-bytes`).
+- `coop.rs:422` the cooperative scheduler's deadlock (awaiting a task
+  suspended on the call stack): no static rule yet rules it out.
+- `eval.rs` `Error::BlackHole` (a quoted program's `FAULT` opcode, memo
+  re-entrancy), exit 70, and the codegen-emitted sites of section 2.
+- `abi.rs:688,856` `BufferTooSmall`: reachable only from a foreign C
+  caller (no generated code calls the `*_to_decimal` externs), so it
+  belongs with section 6.
 
 
 Goal: every way a **compiled, well-typed** Cinch program can stop abnormally today.
@@ -105,10 +163,10 @@ Refinement-typed indices (`Dec`/`decide`, `design`'s total-API pattern) exist fo
 
 | mechanism | site | behavior | exit code / termination |
 |---|---|---|---|
-| Heap cap | `heap.rs:118-130,175-179`; env `CINCH_HEAP_LIMIT` (default 8 GiB, `0` disables) | cumulative allocation (not live bytes) exceeding the cap | defined fault, exit **73** |
-| Native stack overflow | `platform.rs:539-566` `cinch_run_main`; 1 GiB reserved stack (`DEFAULT_STACK_SIZE`, `platform.rs:535`), overridable via `CINCH_STACK_SIZE` | the reservation is address space only (pages commit on touch); a sufficiently deep **non-tail** recursion (every generated local lives in its own stack slot) exhausts even the 1 GiB reservation | **undefined termination**: Rust's guard-page handler on the thread prints `thread '<unnamed>' has overflowed its stack` and calls `abort()` (SIGABRT/SIGSEGV depending on platform), *not* one of the defined `EXIT_*` codes. This is the one genuinely open-ended abnormal-termination path a well-typed, otherwise-correct recursive program can hit just by processing a large enough input: tail calls are musttail-marked by the code generator (`codegen.rs:5671-5675,5746-5755`) and so don't count, but any non-tail structural recursion over an unbounded input does. |
-| Eval nesting | `eval.rs:162,288-299` `MAX_NESTING = 1024` | bounded explicitly so quotation evaluation faults (`NestingTooDeep`, exit 71) instead of overflowing the native stack | defined fault, exit 71 |
-| OS thread spawn failure | `task.rs:152-153` `Scope::spawn`; `platform.rs:555-558` `cinch_run_main` (graceful fallback only for the *first*, outermost thread) | `Scope::spawn` (structured-concurrency task spawn) calls `panic!` if `std::thread::Builder::spawn` fails (e.g. OS thread/process limits exhausted) | **undefined termination**: a Rust `panic!` crossing an `extern "C"` boundary aborts the process immediately (Rust panics never unwind across `extern "C"`); no stderr message in the defined format, no `EXIT_*` code |
+| Heap cap | `heap.rs` `account_alloc`; env `CINCH_HEAP_LIMIT` (default 8 GiB, `0` disables) | **closed 2026-10-30**: the cap is on live bytes (allocated minus freed); a refused system allocation and a request too large for any layout take the same exit | `Exhausted`, exit **73**, `cinch: exhausted: heap (<n> bytes)` |
+| Native stack overflow | `platform.rs` `cinch_run_main`, `task.rs` `Scope::spawn`, `stack.rs` `guarded` | **closed 2026-10-30**: a 64 KiB guard band at the low end of every Cinch thread's stack, a `SIGSEGV`/`SIGBUS` handler on an alternate stack, and inline stack probes on every generated unit | `Exhausted`, exit **73**, `cinch: exhausted: stack` |
+| Eval nesting | `eval.rs` `MAX_NESTING = 1024` | **closed 2026-10-30**: the bound stands in for the stack, so passing it is the stack outcome | `Exhausted`, exit **73**, `cinch: exhausted: stack` |
+| OS thread spawn failure | `task.rs` `Scope::spawn`, `platform.rs` `cinch_run_main` (the old fallback onto the unguarded main thread is gone) | **closed 2026-10-30**: `stack::spawn_refused` | `Exhausted`, exit **73**, `cinch: exhausted: threads` (`stack` when the refusal was `ENOMEM`) |
 | File-descriptor / OS errors | `abi.rs:946-951` `cinch_io_write` maps a write/flush failure to `Error::OutOfBounds` (exit 71, a slight misnomer but still a defined fault); `platform.rs` process/pty/net handle operations return negated error codes (`-INVALID_ARGUMENT` etc.) as ordinary `Result`-shaped values, not faults | OS errors are generally surfaced as values, not faults, **except** `cinch_io_write`'s stdout failure | mostly fine; the one write-failure case reuses the `OutOfBounds` fault rather than returning a `Result` |
 
 ---

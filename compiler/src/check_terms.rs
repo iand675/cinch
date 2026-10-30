@@ -592,7 +592,7 @@ impl Checker {
                 }
                 if p.quals.is_empty() {
                     if let Some((l, s)) = env.lookup(&p.name.text) {
-                        let (t, _, _) = self.instantiate(&s);
+                        let (t, copy) = self.instantiate_local(l, &s);
                         let t = self.uni.zonk(&t);
                         // A bare use of a memo cell demands it and copies
                         // the cached value out; the binding name elaborates
@@ -617,7 +617,7 @@ impl Checker {
                         let mut path = std::mem::take(&mut self.place_path);
                         path.reverse();
                         self.note_use(l, p.span(), &path, &env.dicts)?;
-                        return Ok((ECore::Var(l), t));
+                        return Ok((copy.unwrap_or(ECore::Var(l)), t));
                     }
                 }
                 self.place_path.clear();
@@ -1344,6 +1344,7 @@ impl Checker {
                                 )
                             })?;
                         let unit = self.fresh_local();
+                        self.note_local_ty(unit, &Ty::Unit);
                         ECore::Lam { params: vec![unit], body: Box::new(c) }
                     } else {
                         self.check(env, t, &dom)?
@@ -5054,18 +5055,26 @@ impl Checker {
                             }
                         }
                     };
-                    let scheme = self.generalize_local(env, &ty, is_value);
+                    let scheme = self.generalize_local(env, l, &ty, is_value.then_some(&core));
                     self.bind_local(env, &name.text, l, scheme, None, name.span)?;
-                    out.push((l, core));
+                    // A let-generalized local's uses are copies of its
+                    // definition, so the binding itself is never read.
+                    if !self.gen_defs.contains_key(&l) {
+                        out.push((l, core));
+                    }
                 }
                 ast::LocalDecl::Bind { pat, body, span } => {
                     let (bc, bt) = self.elab_local_strict(env, body, *span, None, form)?;
                     let l = self.fresh_local();
+                    self.note_local_ty(l, &bt);
                     match pat {
                         ast::Pat::Var(n, _) => {
-                            let scheme =
-                                self.generalize_local(env, &bt, is_syntactic_value(body));
+                            let def = is_syntactic_value(body).then_some(&bc);
+                            let scheme = self.generalize_local(env, l, &bt, def);
                             self.bind_local(env, &n.text, l, scheme, None, n.span)?;
+                            if self.gen_defs.contains_key(&l) {
+                                continue;
+                            }
                         }
                         ast::Pat::Wild(_) => {
                             // The `Result` must-use default (decision
@@ -5085,9 +5094,12 @@ impl Checker {
                         | ast::Pat::Tuple(_, _)
                         | ast::Pat::As(_, _, _) => {
                             // Irrefutable structural patterns destructured
-                            // through field projections.
+                            // through field projections. The components
+                            // generalize under the value restriction, as a
+                            // variable binding does.
+                            let def = is_syntactic_value(body).then(|| bc.clone());
                             out.push((l, bc));
-                            self.destructure_bind(env, pat, l, &bt, &mut out)?;
+                            self.destructure_bind(env, pat, l, &bt, def, &mut out)?;
                             continue;
                         }
                         _ => {
@@ -5133,6 +5145,7 @@ impl Checker {
                     .unify(inner, &bt)
                     .map_err(|m| Error::at(body.span(), m))?;
                 let unit_param = self.fresh_local();
+                self.note_local_ty(unit_param, &Ty::Unit);
                 let thunk = ECore::Lam {
                     params: vec![unit_param],
                     body: Box::new(bc),
@@ -5146,6 +5159,7 @@ impl Checker {
             }
             for (l, thunk) in inits {
                 let tmp = self.fresh_local();
+                self.note_local_ty(tmp, &Ty::Unit);
                 out.push((tmp, ECore::LazyInit(l, Box::new(thunk))));
             }
         }
@@ -5368,7 +5382,10 @@ impl Checker {
         // through a fixpoint box, so every value member gets one.
         for m in &mut mems {
             if !m.is_cell && !m.is_fun && !m.name.is_empty() {
-                m.boxed = Some(self.fresh_local());
+                let b = self.fresh_local();
+                // The fixpoint box is a block `{ state; value }`.
+                self.note_local_class(b, Class::Obj);
+                m.boxed = Some(b);
             }
         }
         let mut cores: Vec<ECore> = Vec::new();
@@ -5397,6 +5414,7 @@ impl Checker {
                     .unify(&inner, &bt)
                     .map_err(|e| Error::at(m.span, e))?;
                 let unit_param = self.fresh_local();
+                self.note_local_ty(unit_param, &Ty::Unit);
                 cores.push(ECore::Lam {
                     params: vec![unit_param],
                     body: Box::new(bc),
@@ -5522,6 +5540,7 @@ impl Checker {
             let core = cores[i].clone();
             if m.is_cell {
                 let tmp = self.fresh_local();
+                self.note_local_ty(tmp, &Ty::Unit);
                 out.push((tmp, ECore::LazyInit(m.l, Box::new(core))));
             } else if m.is_fun {
                 let id = unit_ids[i].clone().unwrap();
@@ -5541,20 +5560,18 @@ impl Checker {
         }
 
         // The group is monomorphic within itself; its named members
-        // generalize for the body like any other local binding.
+        // generalize for the body like any other local binding. A member's
+        // definition is the whole group's bindings: a copy at one
+        // instantiation copies every member, and the group's units with
+        // them (`Checker::gen_copy`).
         for m in &mems {
             if m.name.is_empty() || m.is_cell {
                 continue;
             }
-            let is_value = if m.is_fun {
-                true
-            } else if m.is_cell {
-                false
-            } else {
-                is_syntactic_value(m.body)
-            };
+            let is_value = m.is_fun || is_syntactic_value(m.body);
+            let def = is_value.then(|| wrap_lets(out.clone(), ECore::Var(m.l)));
             let ty = self.uni.zonk(&m.ty);
-            let scheme = self.generalize_local(&env0, &ty, is_value);
+            let scheme = self.generalize_local(&env0, m.l, &ty, def.as_ref());
             self.bind_local(env, &m.name, m.l, scheme, None, m.span)?;
         }
         Ok((out, group))
@@ -5562,24 +5579,28 @@ impl Checker {
 
     /// Bind the components of an irrefutable structural pattern to fresh
     /// locals by field projection, extending `out` with one let per binder.
+    /// `def` is the definition of `l` when the bound value is a syntactic
+    /// value; a component's definition is it with the projections down to
+    /// the component.
     fn destructure_bind(
         &mut self,
         env: &mut Env,
         pat: &ast::Pat,
         l: LocalId,
         ty: &Ty,
+        def: Option<ECore>,
         out: &mut Vec<(LocalId, ECore)>,
     ) -> Result<()> {
         match pat {
             ast::Pat::Var(n, _) => {
-                let scheme = self.generalize_local(env, ty, true);
+                let scheme = self.generalize_local(env, l, ty, def.as_ref());
                 self.bind_local(env, &n.text, l, scheme, None, n.span)?;
             }
             ast::Pat::Wild(_) | ast::Pat::Unit(_) => {}
             ast::Pat::As(n, inner, _) => {
-                let scheme = self.generalize_local(env, ty, true);
+                let scheme = self.generalize_local(env, l, ty, def.as_ref());
                 self.bind_local(env, &n.text, l, scheme, None, n.span)?;
-                self.destructure_bind(env, inner, l, ty, out)?;
+                self.destructure_bind(env, inner, l, ty, def, out)?;
             }
             ast::Pat::Tuple(items, span) => {
                 let n = items.len();
@@ -5602,11 +5623,12 @@ impl Checker {
                 };
                 for (i, item) in items.iter().enumerate() {
                     let fl = self.fresh_local();
-                    out.push((
-                        fl,
-                        ECore::Proj(Box::new(ECore::Var(l)), ProjField::slot(i, Class::Raw), comps[i].clone()),
-                    ));
-                    self.destructure_bind(env, item, fl, &comps[i], out)?;
+                    self.note_local_ty(fl, &comps[i]);
+                    let field =
+                        ECore::Proj(Box::new(ECore::Var(l)), ProjField::slot(i, Class::Raw), comps[i].clone());
+                    let fdef = def.as_ref().map(|d| ECore::Let(l, Box::new(d.clone()), Box::new(field.clone())));
+                    out.push((fl, field));
+                    self.destructure_bind(env, item, fl, &comps[i], fdef, out)?;
                 }
             }
             other => {
@@ -5621,11 +5643,16 @@ impl Checker {
 
     /// Generalize a local binding (let-polymorphism) under the value
     /// restriction: only syntactic values generalize, so a memo cell or an
-    /// effectful computation is never shared polymorphically.
-    fn generalize_local(&mut self, env: &Env, ty: &Ty, is_value: bool) -> Scheme {
-        if !is_value {
+    /// effectful computation is never shared polymorphically. `def` is the
+    /// binding's definition when it is a syntactic value (`None`: it stays
+    /// monomorphic). The quantified type metavariables of `l` and its
+    /// definition are recorded: each use elaborates to its own copy of the
+    /// definition ([`Checker::gen_copy`]), and the caller drops the
+    /// binding itself where nothing else reads it.
+    fn generalize_local(&mut self, env: &Env, l: LocalId, ty: &Ty, def: Option<&ECore>) -> Scheme {
+        let Some(def) = def else {
             return Scheme::mono(ty.clone());
-        }
+        };
         let env_metas = env_free_metas(&self.uni, env);
         // A deferred literal's type stays monomorphic: one literal has one
         // type (primitive types specification, section 7).
@@ -5639,6 +5666,17 @@ impl Checker {
             return Scheme::mono(ty.clone());
         }
         let (ty2, tps, rps) = self.uni.generalize(ty, &quantify);
+        let metas: Vec<crate::types::MetaId> = quantify
+            .iter()
+            .filter_map(|m| match m {
+                EitherMeta::Type(t) => Some(*t),
+                EitherMeta::Row(_) => None,
+            })
+            .collect();
+        if !metas.is_empty() {
+            self.gen_defs.insert(l, def.clone());
+        }
+        self.gen_locals.insert(l, metas);
         Scheme {
             obligs: Vec::new(),
             params: tps,
@@ -7006,6 +7044,9 @@ impl Checker {
         let kv = self.fresh_local();
         let v = self.fresh_local();
         let ty = self.uni.fresh();
+        // The continuation is a closure over its value.
+        self.note_local_class(kv, Class::Obj);
+        self.note_local_ty(v, &ty);
         let frame = self.conts.len();
         self.conts.push(ContFrame { kind, risky, consumes_linear: false });
         self.cont_depth += 1;
@@ -7641,6 +7682,7 @@ impl Checker {
             };
             let ac = self.check(env, a, &dom)?;
             let l = self.fresh_local();
+            self.note_local_ty(l, &dom);
             binds.push((l, ac));
             ty = cod;
             if !eff.is_pure() {
@@ -7740,6 +7782,7 @@ impl Checker {
             self.promote_resumptions(span)?;
         }
         let rv = self.fresh_local();
+        self.note_local_ty(rv, &result);
         let resumption = ECore::Lam {
             params: vec![rv],
             body: Box::new(app_spine(ECore::Var(kv.kv), vec![ECore::Var(rv)])),
@@ -8182,6 +8225,10 @@ impl Checker {
         }
         let mut clause_eff = EffRow::pure();
         let mut closures: Vec<ECore> = Vec::new();
+        // Each clause closure's type, the clause tuple's instantiation: its
+        // class vector makes the tuple's fields counted references, so
+        // dropping the handler releases the clause closures.
+        let mut clause_tys: Vec<Ty> = Vec::new();
         // The return clause: `return p -> e`.
         let x = self.fresh_local();
         let mut env2 = env.clone();
@@ -8215,6 +8262,7 @@ impl Checker {
                 .union_rows(&clause_eff, &performed)
                 .map_err(|m| Error::plain(m))?;
         closures.push(ECore::Lam { params: vec![x], body: Box::new(body) });
+        clause_tys.push(Ty::fun(input.clone(), output.clone()));
         // One clause per operation, in declaration order (slot order).
         let mut k_binders: Vec<Option<LocalId>> = Vec::new();
         let mut seen: Vec<String> = Vec::new();
@@ -8239,6 +8287,7 @@ impl Checker {
             }
             let mut ty = op_ty;
             let mut params: Vec<LocalId> = Vec::new();
+            let mut param_tys: Vec<Ty> = Vec::new();
             let mut env3 = env.clone();
             let mut saw_label = false;
             self.lam_depth += 1;
@@ -8258,6 +8307,7 @@ impl Checker {
                     }
                 };
                 let l = self.fresh_local();
+                param_tys.push(dom.clone());
                 match p {
                     ast::Pat::Var(pn, _) => {
                         self.bind_local(&mut env3, &pn.text, l, Scheme::mono(dom), None, pn.span)?
@@ -8283,6 +8333,8 @@ impl Checker {
             }
             // Everything past the label arrow is the operation's result.
             let result = ty;
+            let k_ty = Ty::fun(result, output.clone());
+            param_tys.push(k_ty.clone());
             let k = match &slot_clause.resume {
                 Some(kn) => {
                     let kl = self.fresh_local();
@@ -8290,7 +8342,7 @@ impl Checker {
                         &mut env3,
                         &kn.text,
                         kl,
-                        Scheme::mono(Ty::fun(result, output.clone())),
+                        Scheme::mono(k_ty),
                         Some(Mult::Aff),
                         kn.span,
                     )?;
@@ -8305,7 +8357,7 @@ impl Checker {
                         kl,
                         "_",
                         Some(Mult::Aff),
-                        Ty::fun(result, output.clone()),
+                        k_ty,
                         slot_clause.span,
                     );
                     params.push(kl);
@@ -8323,6 +8375,7 @@ impl Checker {
                 .union_rows(&clause_eff, &performed)
                 .map_err(|m| Error::plain(m))?;
             closures.push(ECore::Lam { params, body: Box::new(body) });
+            clause_tys.push(param_tys.into_iter().rev().fold(output.clone(), |acc, p| Ty::fun(p, acc)));
         }
         for c in &h.clauses {
             if !seen.contains(&c.op.text) {
@@ -8334,9 +8387,7 @@ impl Checker {
         }
         let n = closures.len();
         let gid = self.tuple_ctor(n, span)?;
-        // The clause tuple's components are closures; their types are not
-        // threaded here, so the tuple's instantiation is unrecorded.
-        let core = app_spine(ECore::Ctor(gid, Vec::new()), closures);
+        let core = app_spine(ECore::Ctor(gid, clause_tys), closures);
         let ty = Ty::Handler {
             label,
             input: Box::new(input),
@@ -8395,6 +8446,10 @@ impl Checker {
         // continuation.
         let hv = self.fresh_local();
         let pv = self.fresh_local();
+        // The handler value is its clause tuple; the prompt takes the
+        // handled computation's result.
+        self.note_local_class(hv, Class::Obj);
+        self.note_local_ty(pv, &input);
         let ret_call = app_spine(
             // Slot 0 holds the return clause's closure.
             ECore::Proj(
@@ -8416,6 +8471,7 @@ impl Checker {
         });
         self.cont_depth += 1;
         let kv0_local = self.fresh_local();
+        self.note_local_class(kv0_local, Class::Obj);
         let kv0 = Cont { kv: kv0_local, ty: input.clone(), frame: prompt_frame };
         self.extents.push(HandlerExtent {
             label: label.clone(),

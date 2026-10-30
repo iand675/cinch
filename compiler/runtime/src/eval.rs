@@ -54,13 +54,16 @@
 //! | 10 | `APP` | `[fn, nargs, args...]` | apply through the closure apply-stub convention |
 //! | 11 | `LAM` | `[stub, shape, arity, nenv, env...]` | allocate the closure block `{ stub; arity; nenv; env... }` of a hoisted lambda, whose header carries the shape descriptor `shape` (`block_kinds.rs`'s `shape_desc`) |
 //! | 12 | `CTOR` | `[desc, nfields, fields...]` | allocate the constructor block `{ fields... }` whose header carries the constructor descriptor `desc` (a layout id, or an escaped descriptor: `block_kinds.rs`) |
-//! | 13 | `PROJ` | `[value, mode, ...]` | mode 0 `[slot]` loads the block's field word at `8 * slot`; mode 1 `[offset, size, signed]` loads a boundary-layout scalar at `offset`; mode 2 `[offset]` loads a boundary-layout word at `offset` |
+//! | 13 | `PROJ` | `[value, mode, ..., counted]` | mode 0 `[slot]` loads the block's field word at `8 * slot`; mode 1 `[offset, size, signed]` loads a boundary-layout scalar at `offset`; mode 2 `[offset]` loads a boundary-layout word at `offset`; `counted` 1 dups the loaded word (never for mode 1) |
 //! | 14 | `FAULT` | | the program's own fault (exit 70) |
 //! | 15 | `LAZY_ALLOC` | | allocate `{ 0; 0; 0 }`: an empty memo cell |
 //! | 16 | `LAZY_INIT` | `[cell-local, thunk]` | store the thunk into the cell; the value is the unit word |
-//! | 17 | `DEMAND` | `[cell]` | run the memo cell's state machine |
+//! | 17 | `DEMAND` | `[cell, counted]` | run the memo cell's state machine; `counted` 1 dups the value |
 //! | 18 | `UNITREF` | `[clo]` | a unit's closure word as a value |
 //! | 19 | `CONST_BYTES` | `[len, words...]` | a constant byte buffer: `len` data bytes packed eight per word little endian; each evaluation boxes a fresh heap buffer (a compiled string literal's shared data-section constant is the compiled form, never this stream) |
+//! | 20 | `SET` | `[slot, value]` | replace the binder's word (a `RefSet`); the value is the unit word |
+//! | 21 | `DUP` | `[slot, body]` | add a reference to the binder's counted word, then `body` |
+//! | 22 | `DROP` | `[slot, body]` | release the binder's counted reference, then `body` |
 //!
 //! # Value conventions
 //!
@@ -80,10 +83,27 @@
 //! * A memo cell is `{ state; thunk; value }` (24 zeroed bytes, as
 //!   `cinch_alloc` allocates, header kind `KIND_MEMO`). `DEMAND` runs the same state machine as the
 //!   generated `__cinch_demand` helper (`MEMO_HELPERS` in
-//!   `compiler/src/codegen.rs`): state 0 stores 1, applies the thunk to
-//!   one Unit word (0), stores the value and stores state 2; state 2
-//!   returns the stored value; any other state (including 1, a cell
-//!   demanded while its own evaluation runs) is the `BlackHole` fault.
+//!   `compiler/src/codegen.rs`): state 0 stores 1, moves the thunk out
+//!   (its slot becomes 0), applies it to one Unit word (0), stores the
+//!   value and stores state 2; state 2 returns the stored value; any
+//!   other state (including 1, a cell demanded while its own evaluation
+//!   runs) is the `BlackHole` fault.
+//!
+//! # Ownership
+//!
+//! The program follows generated code's ownership rules
+//! (`compiler/src/rc.rs`, which places the `DUP` and `DROP` operations
+//! in the quotation body as it does in a unit). Every expression yields
+//! an owned value, so every value that leaves the evaluator for compiled
+//! code (an application's closure and arguments, a closure's or a
+//! constructor's fields, a stored thunk, the result of [`run`]) carries
+//! its own reference. A binder owns the reference its `LET` gave it; a
+//! `CASE` field is borrowed from the scrutinee until a `DUP`; the
+//! scrutinee and the container of `PROJ` and `DEMAND` are borrowed, and
+//! a counted loaded word is dupped. A hole's quote block is borrowed from
+//! the enclosing block, which owns its holes; evaluating it yields an
+//! owned value. A failing evaluation exits the process, so what it holds
+//! is not released.
 //!
 //! # Faults and exit codes
 //!
@@ -96,7 +116,7 @@
 //! | [`Error::BlackHole`] | the program's `FAULT` opcode, or a memo cell demanded mid-evaluation | 70 (the `BlackHole` fault, `cinch_blackhole`) |
 //! | [`Error::CorruptValue`] | malformed contents: bad kind word, null or short program, truncated or unknown opcode stream, out-of-range local or hole index, non-block word where a block is required, trailing words | 71 (`cinch_panic`, message naming eval) |
 //! | [`Error::MalformedDecimal`] | a `BIG` constant's digit bytes are not a numeral | 71 |
-//! | [`Error::NestingTooDeep`] | nesting past [`MAX_NESTING`] | 71 |
+//! | [`Error::NestingTooDeep`] | nesting past [`MAX_NESTING`] | 73 (the stack `Exhausted` exit, `cinch: exhausted: stack`) |
 //!
 //! # Nesting bound
 //!
@@ -203,10 +223,11 @@ mod op {
     /// `[desc, nfields, fields...]`: allocate the constructor block
     /// `{ fields... }` whose header carries descriptor `desc`.
     pub const CTOR: u64 = 12;
-    /// `[value, mode, ...]`: mode 0 `[slot]` loads the block's word at
-    /// `8 * slot`; mode 1 `[offset, size, signed]` loads a
+    /// `[value, mode, ..., counted]`: mode 0 `[slot]` loads the block's
+    /// word at `8 * slot`; mode 1 `[offset, size, signed]` loads a
     /// boundary-layout scalar at `offset`; mode 2 `[offset]` loads a
-    /// boundary-layout word at `offset`.
+    /// boundary-layout word at `offset`. A `counted` (1) word is dupped:
+    /// the container is borrowed and the result owned.
     pub const PROJ: u64 = 13;
     /// The program's own fault (exit 70).
     pub const FAULT: u64 = 14;
@@ -215,13 +236,21 @@ mod op {
     /// `[cell-local, thunk]`: store the thunk into the cell; the value
     /// is the unit word.
     pub const LAZY_INIT: u64 = 16;
-    /// `[cell]`: run the memo cell's state machine.
+    /// `[cell, counted]`: run the memo cell's state machine; a counted
+    /// value is dupped (the cell keeps its own reference).
     pub const DEMAND: u64 = 17;
     /// `[clo]`: a unit's closure word as a value.
     pub const UNITREF: u64 = 18;
     /// `[len, words...]`: a constant byte buffer, its data bytes packed
     /// eight per word little endian.
     pub const CONST_BYTES: u64 = 19;
+    /// `[slot, value]`: replace the binder's word; the value is the unit
+    /// word.
+    pub const SET: u64 = 20;
+    /// `[slot, body]`: add a reference to the counted binder's word.
+    pub const DUP: u64 = 21;
+    /// `[slot, body]`: release the counted binder's reference.
+    pub const DROP: u64 = 22;
 }
 
 // ------------------------------------------------------------ decoded tree
@@ -231,8 +260,9 @@ mod op {
 /// evaluation is pure indexing with no slot lookup.
 enum Node {
     Int(i64),
-    /// A `BIG` constant whose word is built during decoding.
-    Big(i64),
+    /// A `BIG` constant, parsed during decoding and boxed afresh by each
+    /// evaluation (the result is owned, like every other value).
+    Big(Big),
     Bool(i64),
     Unit,
     Local(u32),
@@ -243,15 +273,24 @@ enum Node {
     App(Box<Node>, Vec<Node>),
     Lam { stub: i64, shape: u64, arity: u64, env: Vec<Node> },
     Ctor { desc: u64, fields: Vec<Node> },
-    Proj { value: Box<Node>, mode: u64, slot: u64, offset: u64, size: u64, signed: bool },
+    Proj { value: Box<Node>, mode: u64, slot: u64, offset: u64, size: u64, signed: bool, counted: bool },
     Fault,
     LazyAlloc,
     LazyInit(u32, Box<Node>),
-    Demand(Box<Node>),
+    Demand(Box<Node>, bool),
     UnitRef(i64),
     /// A `CONST_BYTES` constant's data; each evaluation boxes a fresh
     /// heap buffer from it.
     Bytes(Vec<u8>),
+    Set(u32, Box<Node>),
+    Dup(u32, Box<Node>),
+    Drop(u32, Box<Node>),
+}
+
+/// A `BIG` constant's value.
+enum Big {
+    Nat(crate::Nat),
+    Int(crate::Int),
 }
 
 /// One `CASE` constructor alternative: its field binders (dense
@@ -489,6 +528,8 @@ impl<'a> Dec<'a> {
             op::DEMAND => self.expr_demand(),
             op::UNITREF => Ok(Node::UnitRef(self.word()? as i64)),
             op::CONST_BYTES => self.expr_const_bytes(),
+            op::SET => self.expr_set(),
+            op::DUP | op::DROP => self.expr_rc(),
             _ => Err(Error::CorruptValue),
         }
     }
@@ -572,18 +613,8 @@ impl<'a> Dec<'a> {
     fn expr_proj(&mut self) -> Result<Node> {
         let value = self.expr()?;
         let mode = self.word()?;
-        match mode {
-            0 => {
-                let slot = self.word()?;
-                Ok(Node::Proj {
-                    value: Box::new(value),
-                    mode,
-                    slot,
-                    offset: 0,
-                    size: 0,
-                    signed: false,
-                })
-            }
+        let (slot, offset, size, signed) = match mode {
+            0 => (self.word()?, 0, 0, false),
             1 => {
                 let offset = self.word()?;
                 let size = self.word()?;
@@ -594,26 +625,24 @@ impl<'a> Dec<'a> {
                 if signed > 1 {
                     return Err(Error::CorruptValue);
                 }
-                Ok(Node::Proj {
-                    value: Box::new(value),
-                    mode,
-                    slot: 0,
-                    offset,
-                    size,
-                    signed: signed == 1,
-                })
+                (0, offset, size, signed == 1)
             }
-            2 => {
-                let offset = self.word()?;
-                Ok(Node::Proj {
-                    value: Box::new(value),
-                    mode,
-                    slot: 0,
-                    offset,
-                    size: 0,
-                    signed: false,
-                })
-            }
+            2 => (0, self.word()?, 0, false),
+            _ => return Err(Error::CorruptValue),
+        };
+        let counted = self.flag()?;
+        // A boundary scalar is never a reference.
+        if counted && mode == 1 {
+            return Err(Error::CorruptValue);
+        }
+        Ok(Node::Proj { value: Box::new(value), mode, slot, offset, size, signed, counted })
+    }
+
+    /// A 0-or-1 operand.
+    fn flag(&mut self) -> Result<bool> {
+        match self.word()? {
+            0 => Ok(false),
+            1 => Ok(true),
             _ => Err(Error::CorruptValue),
         }
     }
@@ -626,7 +655,24 @@ impl<'a> Dec<'a> {
     }
 
     fn expr_demand(&mut self) -> Result<Node> {
-        Ok(Node::Demand(Box::new(self.expr()?)))
+        let cell = self.expr()?;
+        Ok(Node::Demand(Box::new(cell), self.flag()?))
+    }
+
+    fn expr_set(&mut self) -> Result<Node> {
+        let slot = self.word()?;
+        let idx = self.lookup(slot)?;
+        let value = self.expr()?;
+        Ok(Node::Set(idx, Box::new(value)))
+    }
+
+    /// `DUP`/`DROP` `[slot, body]` (the opcode word is already read).
+    fn expr_rc(&mut self) -> Result<Node> {
+        let dup = self.words[self.pos - 1] == op::DUP;
+        let slot = self.word()?;
+        let idx = self.lookup(slot)?;
+        let body = Box::new(self.expr()?);
+        Ok(if dup { Node::Dup(idx, body) } else { Node::Drop(idx, body) })
     }
 
     /// `[scrutinee, ncon, cons..., default]`.
@@ -672,9 +718,9 @@ impl<'a> Dec<'a> {
         Ok(Node::Case(Box::new(scrut), arms, alt))
     }
 
-    /// `[nat, ndigits, digits...]`: unpack the digit bytes and build the
-    /// bignum word through the crate's own nat/int machinery: one parse
-    /// (a malformed numeral is an `Err`), then the canonical word, an
+    /// `[nat, ndigits, digits...]`: unpack the digit bytes and parse them
+    /// through the crate's own nat/int machinery once (a malformed
+    /// numeral is an `Err`); evaluation builds the canonical word, an
     /// immediate when the value fits (runtime ABI, `lib.rs`).
     fn big(&mut self) -> Result<Node> {
         let nat = self.word()?;
@@ -700,12 +746,11 @@ impl<'a> Dec<'a> {
                 }
             }
         }
-        let word = if nat == 1 {
-            crate::abi::nat_word(crate::Nat::from_decimal(&digits)?)
+        Ok(Node::Big(if nat == 1 {
+            Big::Nat(crate::Nat::from_decimal(&digits)?)
         } else {
-            crate::abi::int_word(crate::Int::from_decimal(&digits)?)
-        };
-        Ok(Node::Big(word))
+            Big::Int(crate::Int::from_decimal(&digits)?)
+        }))
     }
 
     /// A `CONST_BYTES` constant: `len` data bytes packed eight per word
@@ -760,7 +805,9 @@ fn apply_checked(clo: i64, argv: &mut [i64]) -> Result<i64> {
 fn eval(node: &Node, env: &mut [i64], holes: &[i64]) -> Result<i64> {
     let _f = Frame::new()?;
     match node {
-        Node::Int(v) | Node::Big(v) | Node::Bool(v) | Node::UnitRef(v) => Ok(*v),
+        Node::Int(v) | Node::Bool(v) | Node::UnitRef(v) => Ok(*v),
+        Node::Big(Big::Nat(n)) => Ok(crate::abi::nat_word(n.clone())),
+        Node::Big(Big::Int(n)) => Ok(crate::abi::int_word(n.clone())),
         Node::Unit => Ok(0),
         Node::Local(i) => Ok(env[*i as usize]),
         Node::Hole(i) => run(holes[*i as usize]),
@@ -772,8 +819,14 @@ fn eval(node: &Node, env: &mut [i64], holes: &[i64]) -> Result<i64> {
             eval_lam(*stub, *shape, *arity, captured, env, holes)
         }
         Node::Ctor { desc, fields } => eval_ctor(*desc, fields, env, holes),
-        Node::Proj { value, mode, slot, offset, size, signed } => {
-            eval_proj(value, *mode, *slot, *offset, *size, *signed, env, holes)
+        Node::Proj { value, mode, slot, offset, size, signed, counted } => {
+            let w = eval_proj(value, *mode, *slot, *offset, *size, *signed, env, holes)?;
+            if *counted {
+                // SAFETY: a counted field of a live container is a live
+                // block word, an immediate or 0.
+                unsafe { crate::rc::cinch_dup(w) };
+            }
+            Ok(w)
         }
         // The program's own fault is the `BlackHole` fault path (exit 70
         // at `cinch_eval`), the same fault the generated
@@ -781,13 +834,39 @@ fn eval(node: &Node, env: &mut [i64], holes: &[i64]) -> Result<i64> {
         Node::Fault => Err(Error::BlackHole),
         Node::LazyAlloc => Ok(unsafe { crate::abi::cinch_alloc(24, i64::from(crate::block::KIND_MEMO)) }),
         Node::LazyInit(i, thunk) => eval_lazy_init(*i, thunk, env, holes),
-        Node::Demand(cell) => eval_demand(cell, env, holes),
-        // A constant buffer materialises fresh per evaluation (words are
-        // never freed; the compiled literal is a shared read-only
-        // constant instead).
+        Node::Demand(cell, counted) => eval_demand(cell, *counted, env, holes),
+        // A constant buffer materialises fresh per evaluation (the
+        // compiled literal is a shared read-only constant instead).
         Node::Bytes(data) => Ok(crate::abi::box_bytes(crate::bytes::Bytes::from(
             data.clone(),
         ))),
+        Node::Set(i, value) => {
+            env[*i as usize] = eval(value, env, holes)?;
+            Ok(0)
+        }
+        Node::Dup(..) | Node::Drop(..) => eval_rc(node, env, holes),
+    }
+}
+
+/// A run of `DUP`/`DROP` operations and the body after them, in one
+/// frame: a body can open with a count operation per binder it
+/// releases, and they must not spend the nesting budget.
+fn eval_rc(mut node: &Node, env: &mut [i64], holes: &[i64]) -> Result<i64> {
+    loop {
+        match node {
+            // SAFETY: the ownership pass dups and drops only counted
+            // binders it holds a reference to (a live block word, an
+            // immediate or 0).
+            Node::Dup(i, body) => {
+                unsafe { crate::rc::cinch_dup(env[*i as usize]) };
+                node = body;
+            }
+            Node::Drop(i, body) => {
+                unsafe { crate::rc::cinch_drop(env[*i as usize]) };
+                node = body;
+            }
+            _ => return eval(node, env, holes),
+        }
     }
 }
 
@@ -937,29 +1016,41 @@ fn eval_lazy_init(slot: u32, thunk: &Node, env: &mut [i64], holes: &[i64]) -> Re
     Ok(0)
 }
 
-fn eval_demand(cell: &Node, env: &mut [i64], holes: &[i64]) -> Result<i64> {
+fn eval_demand(cell: &Node, counted: bool, env: &mut [i64], holes: &[i64]) -> Result<i64> {
     let w = eval(cell, env, holes)?;
     let p = block_ptr(w)?;
     // The state machine of the generated `__cinch_demand` helper
     // (`MEMO_HELPERS` in `compiler/src/codegen.rs`).
-    match unsafe { word_at(p, 0) } {
+    let v = match unsafe { word_at(p, 0) } {
         0 => {
             unsafe { word_set(p, 0, 1) };
             let thunk = unsafe { word_at(p, 8) };
             block_ptr(thunk)?;
+            // The application consumes the thunk: the cell gives its
+            // reference up, so releasing the cell later cannot release
+            // the thunk a second time.
+            unsafe { word_set(p, 8, 0) };
             let mut argv = [0i64];
             let v = apply_checked(thunk, &mut argv)?;
             unsafe {
                 word_set(p, 16, v);
                 word_set(p, 0, 2);
             }
-            Ok(v)
+            v
         }
-        2 => Ok(unsafe { word_at(p, 16) }),
+        2 => unsafe { word_at(p, 16) },
         // State 1 is a cell demanded while its own evaluation runs (or
         // any other corrupt state): the `BlackHole` fault.
-        _ => Err(Error::BlackHole),
+        _ => return Err(Error::BlackHole),
+    };
+    if counted {
+        // The cell keeps its reference to the value; the result is a
+        // second one (as generated code dups the demanded word).
+        // SAFETY: a counted value word is a live block word, an
+        // immediate or 0.
+        unsafe { crate::rc::cinch_dup(v) };
     }
+    Ok(v)
 }
 
 // ------------------------------------------------------------ the entry points
@@ -1050,6 +1141,9 @@ pub extern "C" fn cinch_eval(quote: i64) -> i64 {
     match run(quote) {
         Ok(v) => v,
         Err(Error::BlackHole) => crate::abi::cinch_blackhole(),
+        // The nesting bound stands in for the native stack, so running
+        // past it is the same `Exhausted` outcome as overflowing it.
+        Err(Error::NestingTooDeep) => crate::abi::exhausted(crate::abi::Resource::Stack),
         Err(e) => {
             let msg = format!("cinch_eval: {e}");
             unsafe { crate::abi::cinch_panic(msg.as_ptr(), msg.len()) }

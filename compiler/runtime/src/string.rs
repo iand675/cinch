@@ -69,7 +69,7 @@ pub unsafe extern "C" fn cinch_utf8_encode(cp: i64, out: *mut u8, cap: i64) -> i
     let buf = if cap == 0 {
         &mut [][..]
     } else if out.is_null() {
-        let msg = b"cinch_utf8_encode: null output buffer";
+        let msg = b"compiler bug: cinch_utf8_encode: null output buffer";
         unsafe { crate::abi::cinch_panic(msg.as_ptr(), msg.len()) }
     } else {
         unsafe { std::slice::from_raw_parts_mut(out, cap as usize) }

@@ -10,7 +10,11 @@
 // local to this file. Today, from the low bit:
 //
 //   rc      40 bits, signed: 0 immortal, > 0 a single-threaded count,
-//           < 0 reserved for atomic (multi-threaded) counts
+//           -n an atomic count of n (a block shared across tasks, see
+//           the runtime's `rc.rs`); the field must be the low bits, so
+//           an atomic add or subtract of one on the whole word changes
+//           only the count, except the drop that takes the last
+//           reference, whose carry its thread repairs
 //   kind     8 bits: one of the `KIND_*` constants below
 //   layout  16 bits: for a constructor block (`KIND_CTOR`), its
 //           constructor's layout id; for a closure or a dictionary
@@ -108,6 +112,7 @@ pub const LAYOUT_SHIFT: u32 = KIND_SHIFT + KIND_BITS;
 
 const _: () = assert!(LAYOUT_SHIFT + LAYOUT_BITS == 64, "the header fields fill one word");
 const _: () = assert!(RC_BITS >= 2 && RC_BITS <= 63);
+const _: () = assert!(RC_SHIFT == 0, "atomic counts add and subtract one on the whole header word");
 const _: () = assert!(KIND_BITS <= 8, "kinds are u8");
 const _: () = assert!(LAYOUT_BITS <= 16, "layouts are u16");
 

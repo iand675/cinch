@@ -50,26 +50,26 @@ pub enum Error {
     /// A quotation is nested deeper than [`crate::eval::MAX_NESTING`]
     /// units of evaluator recursion (through its expression tree, its
     /// captured holes, or both); the evaluator refuses it instead of
-    /// exhausting the native stack (resource exhaustion is a named
-    /// failure mode).
+    /// exhausting the native stack. At the extern "C" layer it is the
+    /// stack `Exhausted` exit ([`crate::abi::EXIT_EXHAUSTED`]), the same
+    /// outcome as the native stack running out.
     NestingTooDeep,
-    /// Cumulative heap allocation would exceed the `CINCH_HEAP_LIMIT` cap
-    /// ([`crate::heap`]); exits with [`crate::abi::EXIT_HEAP_LIMIT`].
-    HeapLimit,
 }
 
 impl Error {
-    /// Process exit code used when this error surfaces as a runtime fault.
+    /// Process exit code used when this error surfaces at the extern "C"
+    /// layer.
     ///
     /// [`Error::DivByZero`] uses the dedicated division fault code (the same
-    /// code `cinch_fault_div_zero` exits with) and [`Error::BlackHole`] the
-    /// `BlackHole` code (the same code `cinch_blackhole` exits with); every
-    /// other variant exits through the `cinch_panic` path.
+    /// code `cinch_fault_div_zero` exits with), [`Error::BlackHole`] the
+    /// `BlackHole` code (the same code `cinch_blackhole` exits with) and
+    /// [`Error::NestingTooDeep`] the `Exhausted` code; every other variant
+    /// exits through the `cinch_panic` path.
     pub fn exit_code(self) -> i32 {
         match self {
             Error::DivByZero => crate::abi::EXIT_DIV_ZERO,
             Error::BlackHole => crate::abi::EXIT_BLACKHOLE,
-            Error::HeapLimit => crate::abi::EXIT_HEAP_LIMIT,
+            Error::NestingTooDeep => crate::abi::EXIT_EXHAUSTED,
             _ => crate::abi::EXIT_PANIC,
         }
     }
@@ -87,12 +87,11 @@ impl fmt::Display for Error {
             Error::MalformedName => "symbol name is not valid UTF-8",
             Error::OutOfBounds => "byte-buffer index, length, or byte value out of range",
             Error::ReadOnly => "a read-only buffer cannot be mutated",
-            Error::CorruptValue => "null or wrong-kind word or corrupt generated data",
+            Error::CorruptValue => "compiler bug: null or wrong-kind word or corrupt generated data",
             Error::BlackHole => {
                 "the quoted program faulted or a memo cell was demanded while evaluating"
             }
             Error::NestingTooDeep => "quotation nesting exceeds the evaluator's depth bound",
-            Error::HeapLimit => "heap limit exceeded",
         };
         f.write_str(msg)
     }
@@ -113,6 +112,11 @@ mod tests {
     }
 
     #[test]
+    fn nesting_too_deep_exits_exhausted() {
+        assert_eq!(Error::NestingTooDeep.exit_code(), 73);
+    }
+
+    #[test]
     fn the_remaining_errors_exit_through_the_panic_path() {
         let others = [
             Error::NegativeInput,
@@ -122,7 +126,6 @@ mod tests {
             Error::BufferTooSmall,
             Error::OutOfBounds,
             Error::CorruptValue,
-            Error::NestingTooDeep,
         ];
         for e in others {
             assert_eq!(e.exit_code(), 71, "{e:?} must exit through cinch_panic");

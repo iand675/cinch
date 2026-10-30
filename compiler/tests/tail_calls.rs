@@ -36,6 +36,7 @@ fn run_on_8mib(name: &str, src: &str) -> Option<i32> {
     }
     let status = std::process::Command::new(&exe)
         .env("CINCH_STACK_SIZE", "8M")
+        .env("CINCH_HEAP_LIMIT", "2G")
         .status()
         .unwrap_or_else(|e| panic!("{name}: run {}: {e}", exe.display()));
     let _ = std::fs::remove_dir_all(&dir);
@@ -133,8 +134,9 @@ module Main where
 
 /// The control that makes the depth honest: the same 1,000,000-deep
 /// descent with NO tail call to lower. Every call pushes a frame, the
-/// frames exhaust the 8 MiB stack, and the binary dies on the signal. A
-/// green run here would mean the tests above proved nothing about depth.
+/// frames exhaust the 8 MiB stack, and the binary takes the runtime's
+/// stack `Exhausted` exit (73, `compiler/runtime/src/stack.rs`). A green
+/// run here would mean the tests above proved nothing about depth.
 #[test]
 fn deep_recursion_without_a_tail_call_exhausts_the_stack() {
     let src = r#"
@@ -150,7 +152,8 @@ module Main where
             "deep-recursion-control: the non-tail descent ran 1,000,000 deep to completion: \
              the stack-overflow premise of the constant-stack proof is gone"
         ),
-        Some(code) => panic!("deep-recursion-control: expected a death on a signal, got exit {code}"),
-        None => {}
+        Some(73) => {}
+        Some(code) => panic!("deep-recursion-control: expected the Exhausted exit 73, got exit {code}"),
+        None => panic!("deep-recursion-control: died on a signal instead of the Exhausted exit"),
     }
 }

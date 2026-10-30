@@ -231,10 +231,25 @@ module Main where
     assert!(wrapper.contains("load i8,"), "wrapper loads the U8 field:\n{wrapper}");
     assert!(wrapper.contains("load i32,"), "wrapper loads the U32 field:\n{wrapper}");
     assert!(wrapper.contains("load i16,"), "wrapper loads the U16 field:\n{wrapper}");
-    assert!(
-        !wrapper.contains("load i64,"),
-        "the packed copy never reads a word across padding:\n{wrapper}"
-    );
+    // The wrapper releases its parameter on return, which reads the
+    // block's header (the word 8 bytes before the block); every other
+    // load is a field read at the field's own width.
+    let headers: Vec<&str> = wrapper
+        .lines()
+        .filter_map(|l| {
+            let (lhs, rhs) = l.trim().split_once(" = ")?;
+            (rhs.starts_with("getelementptr") && rhs.ends_with(", i64 -8")).then_some(lhs)
+        })
+        .collect();
+    for l in wrapper.lines() {
+        if let Some((_, rest)) = l.split_once("load i64, ptr ") {
+            let ptr = rest.split([',', ' ']).next().unwrap_or(rest);
+            assert!(
+                headers.contains(&ptr),
+                "the packed copy never reads a word across padding ({l}):\n{wrapper}"
+            );
+        }
+    }
 }
 
 #[test]

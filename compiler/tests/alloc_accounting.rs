@@ -3,9 +3,12 @@
 //! Every block a compiled program allocates reaches the runtime's counting
 //! allocator (`compiler/runtime/src/heap.rs`): `CINCH_ALLOC_STATS=1` makes
 //! the process print its totals at exit, and `CINCH_HEAP_LIMIT` (default
-//! 8 GiB) turns runaway allocation into a named fault with exit code 73.
-//! Every spawned program here runs with an explicit small cap, so a broken
-//! cap fails the test instead of exhausting the machine.
+//! 8 GiB) caps the live heap: a program whose live bytes would pass it
+//! takes the `Exhausted` exit (code 73, `cinch: exhausted: heap (<n>
+//! bytes)`), while a program that frees what it is done with runs on
+//! however much it allocates over its life. Every spawned program here
+//! runs with an explicit small cap, so a broken cap fails the test
+//! instead of exhausting the machine.
 
 mod common;
 
@@ -13,8 +16,8 @@ use std::path::Path;
 use std::process::{Command, Output};
 use std::time::{Duration, Instant};
 
-/// The heap-limit fault's exit code (`EXIT_HEAP_LIMIT` in the runtime).
-const EXIT_HEAP_LIMIT: i32 = 73;
+/// The `Exhausted` exit code (`EXIT_EXHAUSTED` in the runtime).
+const EXIT_EXHAUSTED: i32 = 73;
 
 const LIST_1000: &str = r#"
 module Main where
@@ -84,14 +87,18 @@ fn stats_line_counts_list_cells_only_when_asked() {
     assert!(bytes >= 1000 * 24, "{line}");
     assert!(peak > 0 && peak <= bytes, "{line}");
     let (hblocks, hbytes) = (field(&line, "header-blocks"), field(&line, "header-bytes"));
+    let freed = field(&line, "freed");
     assert_eq!(
         line,
         format!(
             "cinch-alloc: blocks={blocks} bytes={bytes} peak={peak} header-blocks={hblocks} \
-             header-bytes={hbytes} immortal=0 freed=0 live={hblocks}"
+             header-bytes={hbytes} immortal=0 freed={freed} live={}",
+            hblocks - freed
         )
     );
     assert!(hblocks >= 1000 && hblocks <= blocks, "{line}");
+    // The list dies once `length` has counted it: every cell is freed.
+    assert!(freed >= 1000, "{line}");
 
     let quiet = run_with(&exe, &[]);
     assert_eq!(quiet.status.code(), Some(0));
@@ -151,11 +158,13 @@ fn header_blocks_count_constructor_cells_with_their_header() {
     assert_eq!(delta("header-bytes"), 2000 * 24, "{a}\n{b}");
     assert_eq!(delta("blocks"), 2000, "no runtime-internal allocation per cell\n{a}\n{b}");
     assert_eq!(delta("bytes"), 2000 * 24, "{a}\n{b}");
+    // The extra cells die once counted.
+    assert_eq!(delta("freed"), 2000, "{a}\n{b}");
+    assert_eq!(delta("live"), 0, "{a}\n{b}");
     for line in [&a, &b] {
         assert!(field(line, "header-blocks") >= 1000, "{line}");
         assert!(field(line, "header-blocks") <= field(line, "blocks"), "{line}");
         assert!(field(line, "header-bytes") <= field(line, "bytes"), "{line}");
-        assert_eq!(field(line, "freed"), 0, "{line}");
     }
     common::cleanup(&dir_a);
     common::cleanup(&dir_b);
@@ -255,13 +264,54 @@ fn unbounded_allocation_hits_the_named_cap() {
     let (dir, exe) = built("alloc_cap", UNBOUNDED);
     let start = Instant::now();
     let out = run_with(&exe, &[("CINCH_HEAP_LIMIT", "64M")]);
-    assert_eq!(out.status.code(), Some(EXIT_HEAP_LIMIT), "{out:?}");
+    assert_eq!(out.status.code(), Some(EXIT_EXHAUSTED), "{out:?}");
     let stderr = String::from_utf8_lossy(&out.stderr);
-    assert!(
-        stderr.contains(&format!("cinch: heap limit exceeded ({} bytes)", 64u64 << 20)),
-        "{stderr}"
-    );
+    // `<n>` is the live heap the refused allocation would have made: just
+    // past the cap, since the growing list keeps every cell live.
+    let n: u64 = stderr
+        .lines()
+        .find_map(|l| l.strip_prefix("cinch: exhausted: heap ("))
+        .and_then(|r| r.strip_suffix(" bytes)"))
+        .and_then(|v| v.parse().ok())
+        .unwrap_or_else(|| panic!("no exhausted line in {stderr}"));
+    assert!(n > 64 << 20 && n < 65 << 20, "{stderr}");
     assert!(start.elapsed() < Duration::from_secs(30));
+    common::cleanup(&dir);
+}
+
+/// Builds and drops a 1000-cell list 4000 times: about 32 KiB live at a
+/// time, over 100 MiB allocated over the run.
+const CHURN: &str = r#"
+module Main where
+  import Data.List
+
+  build :: Int -> List Int -> List Int
+  build n acc = case n == 0 of
+    True -> acc
+    False -> build (n - 1) (Cons n acc)
+
+  churn :: Int -> Int
+  churn k = case k == 0 of
+    True -> 0
+    False -> case length (build 1000 Nil) == 1000 of
+      True -> churn (k - 1)
+      False -> 1
+
+  main :: Unit -> Int
+  main u = churn 4000
+"#;
+
+/// The cap bounds the live heap, not the lifetime total: a program that
+/// frees every list it is done with runs to completion under a cap far
+/// below what it allocates in total.
+#[test]
+fn the_cap_bounds_live_bytes_not_the_lifetime_total() {
+    let (dir, exe) = built("alloc_churn", CHURN);
+    let out = run_with(&exe, &[("CINCH_HEAP_LIMIT", "16M"), ("CINCH_ALLOC_STATS", "1")]);
+    assert_eq!(out.status.code(), Some(0), "{out:?}");
+    let line = stats_line(&out).expect("cinch-alloc line");
+    assert!(field(&line, "bytes") > 64 << 20, "{line}");
+    assert!(field(&line, "peak") <= 16 << 20, "{line}");
     common::cleanup(&dir);
 }
 

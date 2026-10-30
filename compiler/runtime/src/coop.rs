@@ -102,16 +102,25 @@
 //! # Reclamation
 //!
 //! Scope, task and handle records follow the runtime's leak-by-design
-//! policy (`cinch_free` is a no-op until reclamation lands): a scope word is
-//! freed at its one consumption point (`cinch_coop_scope_close`) and handle
-//! words carry one leaked reference. A handle word is never freed twice.
+//! policy: a scope word is freed at its one consumption point
+//! (`cinch_coop_scope_close`) and handle words carry one leaked
+//! reference. A handle word is never freed twice.
+//!
+//! Task bodies and results move with the same ownership as in
+//! `crate::task` (the body to the task, consumed by its apply stub; the
+//! result to the join that hands it out, or to the close path, which
+//! drops it), and the join hands results over in the same shape
+//! (`crate::task::join_failed`, `crate::task::join_succeeded`). Nothing
+//! is marked atomic: every task runs on the scheduler's one thread, so no
+//! count is ever changed from two threads (design/reclamation.md section
+//! 8).
 
 use std::cell::{Cell, RefCell};
 use std::collections::VecDeque;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use crate::task::{apply_closure, TASK_ERR_TAG, TASK_OK_TAG};
+use crate::task::{apply_closure, discard_result, join_failed, join_succeeded, TASK_ERR_TAG, TASK_OK_TAG};
 
 /// The Unit word passed to a task body (the same word `crate::task` passes).
 const UNIT_WORD: i64 = 0;
@@ -119,11 +128,6 @@ const UNIT_WORD: i64 = 0;
 /// The constructor tag of a `Result` block (in its header's layout id).
 fn result_tag(result: i64) -> i64 {
     (unsafe { crate::block::ctor_tag_of(result as usize as *const u8) }) as i64
-}
-
-/// The single field word of a `Result` block.
-fn result_payload(result: i64) -> i64 {
-    unsafe { *(result as *const i64) }
 }
 
 /// One spawned task's state.
@@ -209,14 +213,13 @@ impl CoopScope {
 
     /// `joinAllOrCancel` (section 2): run the scheduler until every task
     /// in `handles` has completed and the ready queue is empty, requesting
-    /// cooperative cancellation of the members once one fails. Returns 0
-    /// when every body returned `Ok` (their payloads in `out`), or 1 when
-    /// a body failed (the first `Err` payload in `out[0]`).
+    /// cooperative cancellation of the members once one fails, and hand
+    /// the results over as `crate::task::Scope::join_all_or_cancel` does.
     ///
     /// # Safety
     ///
-    /// `handles` points at `n` handle words from [`CoopScope::spawn`];
-    /// `out` points at `n` writable words.
+    /// `handles` points at `n` handle words from [`CoopScope::spawn`],
+    /// none joined before; `out` points at `n` writable words.
     pub unsafe fn join_all_or_cancel(
         &self,
         handles: *const i64,
@@ -238,28 +241,25 @@ impl CoopScope {
             let popped = j.borrow_mut().pop();
             debug_assert!(popped.map_or(false, |p| Rc::ptr_eq(&p, &set)));
         });
-        match set.first_err.get() {
-            Some(payload) => {
-                unsafe { *out.add(0) = payload };
-                1
-            }
-            None => {
-                for (i, s) in set.members.iter().enumerate() {
-                    let r = s.result();
-                    // `first_err` is None exactly when no member carries
-                    // the `Err` tag, so this writes the `Ok` payloads.
-                    debug_assert_eq!(result_tag(r), TASK_OK_TAG);
-                    unsafe { *out.add(i) = result_payload(r) };
-                }
-                0
-            }
+        // The join is the one observer of what it hands out, so it takes
+        // those results out of their task states. A failure takes only the
+        // `Err`: the other members' results stay, and the close path drops
+        // them.
+        if let Some(k) = set.first_err.get() {
+            return unsafe { join_failed(set.members[k].result.replace(0), out) };
         }
+        let results: Vec<i64> = set.members.iter().map(|s| s.result.replace(0)).collect();
+        // `first_err` is None exactly when no member carries the `Err`
+        // tag.
+        debug_assert!(results.iter().all(|r| result_tag(*r) == TASK_OK_TAG));
+        unsafe { join_succeeded(&results, out) }
     }
 
     /// Scope exit (section 2): request cancellation of every child that no
     /// join has observed, then run the scheduler until each cleanup
-    /// acknowledgment has arrived. By return every child has finished and
-    /// nothing remains queued on the thread.
+    /// acknowledgment has arrived, and drop the results no join took. By
+    /// return every child has finished and nothing remains queued on the
+    /// thread.
     pub fn close(&self) {
         loop {
             let mut pending = Vec::new();
@@ -270,11 +270,15 @@ impl CoopScope {
                 }
             }
             if pending.is_empty() && queue_empty() {
-                return;
+                break;
             }
             if !pump_one() {
                 no_progress_fault();
             }
+        }
+        let unjoined: Vec<i64> = self.children.borrow().iter().map(|c| c.result.replace(0)).collect();
+        for r in unjoined {
+            unsafe { discard_result(r) };
         }
     }
 }
@@ -289,16 +293,16 @@ impl Drop for CoopScope {
 struct JoinSet {
     /// The joined tasks, in handle order.
     members: Vec<Arc<CoopTaskState>>,
-    /// The `Err` payload of the first member to fail in completion order.
-    first_err: Cell<Option<i64>>,
+    /// The index of the first member to fail in completion order.
+    first_err: Cell<Option<usize>>,
 }
 
 impl JoinSet {
     /// Observe failures among the members: the first one in completion
-    /// order becomes the join's `Err` payload and requests cancellation of
-    /// the unfinished members (the first-failure-cancels rule of section
-    /// 2). Runs at join entry (for failures that predate the call) and
-    /// after every task completion while the join is active.
+    /// order becomes the join's `Err` and requests cancellation of the
+    /// unfinished members (the first-failure-cancels rule of section 2).
+    /// Runs at join entry (for failures that predate the call) and after
+    /// every task completion while the join is active.
     fn refresh(&self) {
         if self.first_err.get().is_some() {
             return;
@@ -306,10 +310,11 @@ impl JoinSet {
         let first = self
             .members
             .iter()
-            .filter(|s| s.is_done() && result_tag(s.result()) == TASK_ERR_TAG)
-            .min_by_key(|s| s.seq());
-        if let Some(s) = first {
-            self.first_err.set(Some(result_payload(s.result())));
+            .enumerate()
+            .filter(|(_, s)| s.is_done() && result_tag(s.result()) == TASK_ERR_TAG)
+            .min_by_key(|(_, s)| s.seq());
+        if let Some((i, _)) = first {
+            self.first_err.set(Some(i));
             for m in &self.members {
                 if !m.is_done() {
                     m.cancel.set(true);
@@ -491,9 +496,9 @@ pub unsafe extern "C" fn cinch_coop_task_spawn(scope: i64, closure: i64) -> i64 
     scope.spawn(closure)
 }
 
-/// `joinAllOrCancel` over the `n` handles at `handles`: 0 and the `Ok`
-/// payloads in `out` on success, 1 and the first `Err` payload in
-/// `out[0]` on failure (the first failure cancels the siblings).
+/// `joinAllOrCancel` over the `n` handles at `handles`: the hand-over of
+/// `cinch_task_join_all_or_cancel` (a negative return is a failure, with
+/// its `Err` block in `out[0]`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_coop_task_join_all_or_cancel(
     scope: i64,

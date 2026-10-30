@@ -33,12 +33,19 @@ pub const HEADER_BYTES: usize = 8;
 
 /// The header word of the block whose payload starts at `p`.
 ///
+/// Header words are read and written as relaxed atomics: a block marked
+/// for sharing across tasks (`crate::rc`, negative counts) has its count
+/// changed by atomic read-modify-writes on other threads while this one
+/// reads its kind or layout. A relaxed access is an ordinary load or
+/// store on every supported target, so a block no other thread can reach
+/// pays nothing for it; the ordering the counts need is in `crate::rc`.
+///
 /// # Safety
 ///
 /// `p` must be the payload pointer of a header block (heap or static).
 #[inline]
 pub unsafe fn read_header(p: *const u8) -> u64 {
-    unsafe { p.cast::<u64>().sub(1).read() }
+    unsafe { header_cell(p) }.load(std::sync::atomic::Ordering::Relaxed)
 }
 
 /// Overwrite the header word of the block whose payload starts at `p`.
@@ -48,7 +55,19 @@ pub unsafe fn read_header(p: *const u8) -> u64 {
 /// `p` must be the payload pointer of a heap header block.
 #[inline]
 pub unsafe fn write_header(p: *mut u8, h: u64) {
-    unsafe { p.cast::<u64>().sub(1).write(h) }
+    unsafe { header_cell(p) }.store(h, std::sync::atomic::Ordering::Relaxed)
+}
+
+/// The header word of the block at `p` as an atomic. A static block's
+/// header is read-only data: only relaxed loads may touch it, which
+/// pointer-sized atomics allow on read-only memory.
+///
+/// # Safety
+///
+/// `p` must be the payload pointer of a header block (heap or static).
+#[inline]
+pub unsafe fn header_cell<'a>(p: *const u8) -> &'a std::sync::atomic::AtomicU64 {
+    unsafe { std::sync::atomic::AtomicU64::from_ptr(p.cast::<u64>().sub(1).cast_mut()) }
 }
 
 /// The reference count field.
@@ -123,10 +142,13 @@ fn plan(payload: usize, ext: bool) -> Option<Layout> {
 }
 
 /// Allocate the backing memory of a block, write `ext` (when given) and
-/// `header`, and account for it. Returns the payload pointer.
+/// `header`, and account for it. Returns the payload pointer. A payload
+/// too large for any allocation layout is the heap `Exhausted` exit; the
+/// counting global allocator ([`crate::heap`]) never answers null, so a
+/// refused allocation never returns here either.
 unsafe fn allocate_block(payload: usize, header: u64, ext: Option<u64>, immortal: bool, zeroed: bool) -> *mut u8 {
     let Some(layout) = plan(payload, ext.is_some()) else {
-        crate::abi::panic_exit(b"block size overflow");
+        crate::heap::request_too_large(payload);
     };
     let base = unsafe {
         if zeroed {
@@ -135,9 +157,6 @@ unsafe fn allocate_block(payload: usize, header: u64, ext: Option<u64>, immortal
             std::alloc::alloc(layout)
         }
     };
-    if base.is_null() {
-        crate::abi::panic_exit(b"block allocation out of memory");
-    }
     let p = match ext {
         Some(x) => {
             unsafe { base.cast::<u64>().write(x) };
@@ -153,16 +172,17 @@ unsafe fn allocate_block(payload: usize, header: u64, ext: Option<u64>, immortal
 /// Allocate a block with a `size`-byte payload (rounded up to whole words,
 /// minimum one) and write its header with `rc` and `kind`; the layout
 /// field is the payload size. Returns the payload pointer. The payload is
-/// zero-filled when `zeroed`, otherwise uninitialised. Overflow and
-/// allocation failure fault (exit 71). The shaped kinds (constructors,
-/// closures, dictionaries) go through [`allocate_shaped`].
+/// zero-filled when `zeroed`, otherwise uninitialised. A size no
+/// allocation can hold, and allocation failure, are the heap `Exhausted`
+/// exit. The shaped kinds (constructors, closures, dictionaries) go
+/// through [`allocate_shaped`].
 ///
 /// # Safety
 ///
 /// The caller initialises every payload word it later reads.
 pub unsafe fn allocate(size: usize, kind: u8, rc: i64, zeroed: bool) -> *mut u8 {
     let Some(payload) = round_payload(size) else {
-        crate::abi::panic_exit(b"block size overflow");
+        crate::heap::request_too_large(size);
     };
     let words = payload / 8;
     let (field, ext) = if words >= LAYOUT_BIG as usize {
@@ -184,7 +204,7 @@ pub unsafe fn allocate(size: usize, kind: u8, rc: i64, zeroed: bool) -> *mut u8 
 /// payload.
 pub unsafe fn allocate_shaped(size: usize, kind: u8, desc: u64, zeroed: bool) -> *mut u8 {
     let Some(payload) = round_payload(size) else {
-        crate::abi::panic_exit(b"block size overflow");
+        crate::heap::request_too_large(size);
     };
     let field = ctor_layout_field(desc);
     let ext = (field == LAYOUT_BIG).then_some(desc);

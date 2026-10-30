@@ -476,11 +476,42 @@ fn assign_locals(e: &ECore, map: &mut HashMap<LocalId, LocalId>, next: &mut usiz
 }
 
 fn rewrite_locals(e: &ECore, map: &HashMap<LocalId, LocalId>) -> ECore {
+    remap_ecore(e, &Remap { locals: map, units: None, tys: None })
+}
+
+/// A renaming of an elaborated body: its locals, and optionally its
+/// `letrec` unit ids and the types it records (a let-generalized local's
+/// copy, [`Checker::gen_copy`]).
+struct Remap<'a> {
+    locals: &'a HashMap<LocalId, LocalId>,
+    units: Option<&'a HashMap<GlobalId, GlobalId>>,
+    tys: Option<&'a dyn Fn(&Ty) -> Ty>,
+}
+
+impl Remap<'_> {
+    fn ty(&self, t: &Ty) -> Ty {
+        match self.tys {
+            Some(f) => f(t),
+            None => t.clone(),
+        }
+    }
+
+    fn tys(&self, ts: &[Ty]) -> Vec<Ty> {
+        ts.iter().map(|t| self.ty(t)).collect()
+    }
+
+    fn unit(&self, g: &GlobalId) -> GlobalId {
+        self.units.and_then(|u| u.get(g)).unwrap_or(g).clone()
+    }
+}
+
+fn remap_ecore(e: &ECore, r: &Remap) -> ECore {
+    let map = r.locals;
     let m = |l: &LocalId| *map.get(l).unwrap_or(l);
     match e {
         ECore::LitFold { idx, body } => ECore::LitFold {
             idx: *idx,
-            body: Box::new(rewrite_locals(body, map)),
+            body: Box::new(remap_ecore(body, r)),
         },
         ECore::Var(l) => ECore::Var(m(l)),
         ECore::Int(v) => ECore::Int(*v),
@@ -497,8 +528,8 @@ fn rewrite_locals(e: &ECore, map: &HashMap<LocalId, LocalId>) -> ECore {
         ECore::Lit(i) => ECore::Lit(*i),
         ECore::Bool(b) => ECore::Bool(*b),
         ECore::Unit => ECore::Unit,
-        ECore::Global(g, t) => ECore::Global(g.clone(), t.clone()),
-        ECore::Ctor(g, t) => ECore::Ctor(g.clone(), t.clone()),
+        ECore::Global(g, t) => ECore::Global(r.unit(g), r.tys(t)),
+        ECore::Ctor(g, t) => ECore::Ctor(g.clone(), r.tys(t)),
         ECore::Prim(p) => ECore::Prim(*p),
         ECore::Foreign(n) => ECore::Foreign(n.clone()),
         ECore::Hole(h) => ECore::Hole(*h),
@@ -509,62 +540,67 @@ fn rewrite_locals(e: &ECore, map: &HashMap<LocalId, LocalId>) -> ECore {
         ECore::StrLit(s) => ECore::StrLit(s.clone()),
         ECore::Quote { template, holes, body } => ECore::Quote {
             template: template.clone(),
-            holes: holes.iter().map(|h| rewrite_locals(h, map)).collect(),
-            body: Box::new(rewrite_locals(body, map)),
+            holes: holes.iter().map(|h| remap_ecore(h, r)).collect(),
+            body: Box::new(remap_ecore(body, r)),
         },
         ECore::DeclsQuote { template, holes, name_holes } => ECore::DeclsQuote {
             template: template.clone(),
-            holes: holes.iter().map(|h| rewrite_locals(h, map)).collect(),
+            holes: holes.iter().map(|h| remap_ecore(h, r)).collect(),
             name_holes: name_holes.clone(),
         },
         ECore::DictProj(d, i, s, t) => {
-            ECore::DictProj(Box::new(rewrite_locals(d, map)), *i, s.clone(), t.clone())
+            ECore::DictProj(
+                Box::new(remap_ecore(d, r)),
+                *i,
+                s.as_ref().map(|(c, own)| (c.clone(), r.tys(own))),
+                r.ty(t),
+            )
         }
-        ECore::Proj(d, i, t) => ECore::Proj(Box::new(rewrite_locals(d, map)), i.clone(), t.clone()),
+        ECore::Proj(d, i, t) => ECore::Proj(Box::new(remap_ecore(d, r)), i.clone(), r.ty(t)),
         ECore::InstDict(g, args, t) => ECore::InstDict(
             g.clone(),
-            args.iter().map(|a| rewrite_locals(a, map)).collect(),
-            t.clone(),
+            args.iter().map(|a| remap_ecore(a, r)).collect(),
+            r.tys(t),
         ),
         ECore::App(f, args) => ECore::App(
-            Box::new(rewrite_locals(f, map)),
-            args.iter().map(|a| rewrite_locals(a, map)).collect(),
+            Box::new(remap_ecore(f, r)),
+            args.iter().map(|a| remap_ecore(a, r)).collect(),
         ),
         ECore::Lam { params, body } => ECore::Lam {
             params: params.iter().map(m).collect(),
-            body: Box::new(rewrite_locals(body, map)),
+            body: Box::new(remap_ecore(body, r)),
         },
         ECore::MkClos { fn_id, env } => ECore::MkClos {
-            fn_id: fn_id.clone(),
-            env: env.iter().map(|a| rewrite_locals(a, map)).collect(),
+            fn_id: r.unit(fn_id),
+            env: env.iter().map(|a| remap_ecore(a, r)).collect(),
         },
         ECore::Let(l, v, body) => ECore::Let(
             m(l),
-            Box::new(rewrite_locals(v, map)),
-            Box::new(rewrite_locals(body, map)),
+            Box::new(remap_ecore(v, r)),
+            Box::new(remap_ecore(body, r)),
         ),
         ECore::If(c, t, f) => ECore::If(
-            Box::new(rewrite_locals(c, map)),
+            Box::new(remap_ecore(c, r)),
             CBranch {
                 weight: t.weight,
-                body: Box::new(rewrite_locals(&t.body, map)),
+                body: Box::new(remap_ecore(&t.body, r)),
             },
             CBranch {
                 weight: f.weight,
-                body: Box::new(rewrite_locals(&f.body, map)),
+                body: Box::new(remap_ecore(&f.body, r)),
             },
         ),
-        ECore::Demand(d, t) => ECore::Demand(Box::new(rewrite_locals(d, map)), t.clone()),
+        ECore::Demand(d, t) => ECore::Demand(Box::new(remap_ecore(d, r)), r.ty(t)),
         ECore::LazyAlloc => ECore::LazyAlloc,
         ECore::LazyInit(l, t) => {
-            ECore::LazyInit(m(l), Box::new(rewrite_locals(t, map)))
+            ECore::LazyInit(m(l), Box::new(remap_ecore(t, r)))
         }
         ECore::BoxAlloc => ECore::BoxAlloc,
-        ECore::BoxInit(l, v, t) => ECore::BoxInit(m(l), Box::new(rewrite_locals(v, map)), t.clone()),
-        ECore::RefSet(l, v) => ECore::RefSet(m(l), Box::new(rewrite_locals(v, map))),
-        ECore::BoxGet(v, t) => ECore::BoxGet(Box::new(rewrite_locals(v, map)), t.clone()),
+        ECore::BoxInit(l, v, t) => ECore::BoxInit(m(l), Box::new(remap_ecore(v, r)), r.ty(t)),
+        ECore::RefSet(l, v) => ECore::RefSet(m(l), Box::new(remap_ecore(v, r))),
+        ECore::BoxGet(v, t) => ECore::BoxGet(Box::new(remap_ecore(v, r)), r.ty(t)),
         ECore::Case { scrut, alts } => ECore::Case {
-            scrut: Box::new(rewrite_locals(scrut, map)),
+            scrut: Box::new(remap_ecore(scrut, r)),
             alts: alts
                 .iter()
                 .map(|a| {
@@ -580,11 +616,81 @@ fn rewrite_locals(e: &ECore, map: &HashMap<LocalId, LocalId>) -> ECore {
                     CAlt {
                         pat: p,
                         weight: a.weight,
-                        body: Box::new(rewrite_locals(&a.body, map)),
+                        body: Box::new(remap_ecore(&a.body, r)),
                     }
                 })
                 .collect(),
         },
+    }
+}
+
+/// The binders an elaborated body introduces (`let` binders, lambda
+/// parameters, `case` pattern binders), and the units it names (its
+/// globals and closures; the `letrec` units among them are copied with a
+/// let-generalized local's definition).
+fn def_parts(e: &ECore, binders: &mut Vec<LocalId>, units: &mut Vec<GlobalId>) {
+    match e {
+        ECore::Int(_) | ECore::ConstBig { .. } | ECore::ConstBytes(_) | ECore::ConstString { .. } | ECore::ConstSym(_)
+        | ECore::Lit(_) | ECore::Bool(_) | ECore::Unit | ECore::Var(_) | ECore::Ctor(..) | ECore::Prim(_)
+        | ECore::Foreign(_) | ECore::Hole(_) | ECore::QuoteHole(_) | ECore::IdxPending(_) | ECore::Fault
+        | ECore::LazyAlloc | ECore::BoxAlloc | ECore::SyntaxLit(_) | ECore::StrLit(_) => {}
+        ECore::Global(g, _) => units.push(g.clone()),
+        ECore::LitFold { body, .. } => def_parts(body, binders, units),
+        ECore::Quote { holes, body, .. } => {
+            for h in holes {
+                def_parts(h, binders, units);
+            }
+            def_parts(body, binders, units);
+        }
+        ECore::DeclsQuote { holes, .. } => {
+            for h in holes {
+                def_parts(h, binders, units);
+            }
+        }
+        ECore::DictProj(d, ..) | ECore::Proj(d, ..) | ECore::Demand(d, _) | ECore::BoxGet(d, _) => def_parts(d, binders, units),
+        ECore::LazyInit(_, v) | ECore::BoxInit(_, v, _) | ECore::RefSet(_, v) => def_parts(v, binders, units),
+        ECore::InstDict(_, args, _) => {
+            for a in args {
+                def_parts(a, binders, units);
+            }
+        }
+        ECore::App(f, args) => {
+            def_parts(f, binders, units);
+            for a in args {
+                def_parts(a, binders, units);
+            }
+        }
+        ECore::MkClos { fn_id, env } => {
+            units.push(fn_id.clone());
+            for a in env {
+                def_parts(a, binders, units);
+            }
+        }
+        ECore::Lam { params, body } => {
+            binders.extend(params.iter().copied());
+            def_parts(body, binders, units);
+        }
+        ECore::Let(l, v, body) => {
+            binders.push(*l);
+            def_parts(v, binders, units);
+            def_parts(body, binders, units);
+        }
+        ECore::If(c, t, f) => {
+            def_parts(c, binders, units);
+            def_parts(&t.body, binders, units);
+            def_parts(&f.body, binders, units);
+        }
+        ECore::Case { scrut, alts } => {
+            def_parts(scrut, binders, units);
+            for a in alts {
+                match &a.pat {
+                    CPat::Var(l, _) => binders.push(*l),
+                    CPat::Con { fields, .. } => binders.extend(fields.iter().copied()),
+                    CPat::Wild => {}
+                }
+                def_parts(&a.body, binders, units);
+            }
+        }
     }
 }
 
@@ -821,23 +927,92 @@ pub(crate) struct LowerCx<'a> {
     /// Classes of untyped `let` binders, from their definitions (keyed by
     /// the lowered body's ids), so later uses of them resolve too.
     inferred: std::cell::RefCell<HashMap<LocalId, crate::repr::Class>>,
+    /// The unit being lowered, for diagnostics.
+    unit: Option<GlobalId>,
+    /// Whether the lowered code runs. A word whose class is unknown would
+    /// be miscompiled (a counted word read as `Raw` is consumed without
+    /// its references being counted), so in runtime code it is a
+    /// compiler bug; compile-time-only code never reads classes.
+    runtime: bool,
+    /// The compiler bugs found while lowering.
+    bugs: std::cell::RefCell<Vec<String>>,
 }
 
 impl<'a> LowerCx<'a> {
     pub(crate) fn new(ck: &'a Checker, tparams: &'a [String], own: &'a HashSet<GlobalId>) -> Self {
-        LowerCx { ck, tparams, own, orig: HashMap::new(), inferred: Default::default() }
+        LowerCx {
+            ck,
+            tparams,
+            own,
+            orig: HashMap::new(),
+            inferred: Default::default(),
+            unit: None,
+            runtime: true,
+            bugs: Default::default(),
+        }
     }
 
+    /// A context for code that only runs at compile time (a fold, a
+    /// probe): its classes are never read.
+    pub(crate) fn compile_time(ck: &'a Checker, tparams: &'a [String], own: &'a HashSet<GlobalId>) -> Self {
+        LowerCx { runtime: false, ..LowerCx::new(ck, tparams, own) }
+    }
+
+    /// Name the unit the next lowering belongs to.
+    pub(crate) fn for_unit(mut self, unit: GlobalId) -> Self {
+        self.unit = Some(unit);
+        self
+    }
+
+    /// What lowering refused (compiler bugs, and representation
+    /// conflicts it cannot compile), as one error.
+    pub(crate) fn finish(&self) -> Result<()> {
+        let bugs = self.bugs.borrow();
+        match bugs.first() {
+            None => Ok(()),
+            Some(first) => Err(Error::plain(format!(
+                "{first}{}",
+                if bugs.len() > 1 { format!(" (and {} more)", bugs.len() - 1) } else { String::new() }
+            ))),
+        }
+    }
+
+    fn bug(&self, msg: String) {
+        self.refuse(format!("compiler bug: {msg}"));
+    }
+
+    fn refuse(&self, msg: String) {
+        if self.runtime {
+            self.bugs.borrow_mut().push(msg);
+        }
+    }
+
+    fn unit_name(&self) -> String {
+        self.unit.as_ref().map_or_else(|| "a closed expression".to_string(), |u| u.0.clone())
+    }
+
+    /// The class of a type at lowering. A metavariable still unbound here
+    /// is a type nothing constrains, so no word of it is ever produced at
+    /// run time (the element type of an empty literal, say): `Raw`. A
+    /// let-generalized local's quantified metavariables are no exception:
+    /// each use runs its own copy of the definition, typed at that use's
+    /// instantiation ([`Checker::gen_copy`]), and the definition itself is
+    /// never run at them.
     fn class(&self, ty: &Ty) -> crate::repr::Class {
+        use crate::repr::Class;
         let z = self.ck.uni.zonk(ty);
-        // A metavariable still undetermined at lowering is a type nothing
-        // constrains, so no word of it is ever produced at run time (the
-        // element type of an empty literal, say): `Raw` is exact for it,
-        // not a fallback.
-        crate::repr::repr_of(&z, self.tparams, self.ck, &mut |t| {
-            if !matches!(t, Ty::Meta(_)) && std::env::var_os("CINCH_REPR_DEBUG").is_some() {
-                eprintln!("cinch-repr: no class for {t} (parameters {:?})", self.tparams);
-            }
+        match &z {
+            Ty::Meta(_) => return Class::Raw,
+            Ty::Ref(_, a) | Ty::Mut(_, a) => return self.class(a),
+            _ => {}
+        }
+        crate::repr::repr_of(&z, self.tparams, self.ck, &mut |t| match t {
+            Ty::Meta(_) => {}
+            _ => self.bug(format!(
+                "no representation class for {t} in {} (type parameters {:?})",
+                self.unit_name(),
+                self.tparams
+            )),
         })
     }
 
@@ -863,11 +1038,19 @@ impl<'a> LowerCx<'a> {
         self.known(l).unwrap_or_else(|| self.missing(l))
     }
 
+    /// A binder the elaboration created without recording its type: in
+    /// runtime code, a compiler bug (its words could not be counted).
     fn missing(&self, l: LocalId) -> crate::repr::Class {
-        if std::env::var_os("CINCH_REPR_DEBUG").is_some() {
-            let l = self.orig.get(&l).copied().unwrap_or(l);
-            eprintln!("cinch-repr: binder v{} has no recorded type", l.0);
-        }
+        let l = self.orig.get(&l).copied().unwrap_or(l);
+        let name = match self.ck.obligations.get(&l) {
+            Some(o) if o.name != "_" => format!("`{}` (v{})", o.name, l.0),
+            _ => format!("v{}", l.0),
+        };
+        let site = match self.ck.local_origin.get(&l) {
+            Some(loc) => format!(", created at {}:{}", loc.file(), loc.line()),
+            None => String::new(),
+        };
+        self.bug(format!("binder {name} of {} has no recorded type{site}", self.unit_name()));
         crate::repr::Class::Raw
     }
 
@@ -936,16 +1119,19 @@ fn finalize_fn(
     hints: crate::core::FnHints,
     meta: crate::core::FnMeta,
     cx: &mut LowerCx,
-) -> FnDef {
+) -> Result<FnDef> {
     cx.orig.clear();
     cx.inferred.borrow_mut().clear();
+    cx.unit = Some(id.clone());
     let param_classes = params.iter().map(|l| cx.local(*l)).collect();
     let (body, map) = renumber_fn(&body, &params);
     cx.orig = map.iter().map(|(o, n)| (*n, *o)).collect();
-    FnDef {
+    let body = lower(&body, cx);
+    cx.finish()?;
+    Ok(FnDef {
         id,
         params: params.iter().map(|l| format!("v{}", l.0)).collect(),
-        body: lower(&body, cx),
+        body,
         prim,
         ctor,
         hints,
@@ -956,7 +1142,7 @@ fn finalize_fn(
             fields: Vec::new(),
             ..Default::default()
         },
-    }
+    })
 }
 
 /// Lower an elaborated body to [`Core`], attaching the class of every
@@ -2462,6 +2648,9 @@ struct Checker {
     /// Binders whose class is fixed without a type: dictionaries,
     /// capability evidence and markers.
     local_cls: HashMap<LocalId, crate::repr::Class>,
+    /// Where the elaboration created each binder (debug builds only), so
+    /// a binder lowering finds untyped names its source.
+    local_origin: HashMap<LocalId, &'static std::panic::Location<'static>>,
     /// The rigid names of the type parameters of the definition being
     /// checked, in class-vector order (its hoisted lambdas and `letrec`
     /// members share them).
@@ -2473,9 +2662,14 @@ struct Checker {
     /// Let-generalized locals and their quantified metavariables, in the
     /// scheme's parameter order.
     gen_locals: HashMap<LocalId, Vec<crate::types::MetaId>>,
-    /// Each use of a generalized local: the alias binder elaborated at the
-    /// use, the local, and the types its quantifiers take there.
-    gen_uses: HashMap<LocalId, (LocalId, Vec<Ty>)>,
+    /// The definition of each let-generalized local: the expression its
+    /// value is (for a destructured component, the bound value with the
+    /// projections down to the component; for a `letrec` member, its
+    /// whole group's bindings). Each use elaborates to a copy of it with
+    /// the quantified metavariables instantiated ([`Checker::gen_copy`]),
+    /// so every copy has one concrete representation and the local can
+    /// run at a raw type at one use and a counted one at another.
+    gen_defs: HashMap<LocalId, ECore>,
     /// Use counts accumulated for the definition being checked.
     uses: HashMap<LocalId, UseNode>,
     /// Usage obligations of the definition's binders.
@@ -2904,10 +3098,11 @@ impl Checker {
             pending_foreign: Vec::new(),
             local_tys: HashMap::new(),
             local_cls: HashMap::new(),
+            local_origin: HashMap::new(),
             cur_tparams: Vec::new(),
             method_tparams: None,
             gen_locals: HashMap::new(),
-            gen_uses: HashMap::new(),
+            gen_defs: HashMap::new(),
             uses: HashMap::new(),
             obligations: HashMap::new(),
             lam_depth: 0,
@@ -3964,9 +4159,13 @@ impl Checker {
         }
     }
 
+    #[track_caller]
     fn fresh_local(&mut self) -> LocalId {
         let l = LocalId(self.next_local);
         self.next_local += 1;
+        if cfg!(debug_assertions) {
+            self.local_origin.insert(l, std::panic::Location::caller());
+        }
         l
     }
 
@@ -4246,7 +4445,7 @@ impl Checker {
             return None;
         }
         let own = HashSet::new();
-        let core = lower(body, &LowerCx::new(self, &[], &own));
+        let core = lower(body, &LowerCx::compile_time(self, &[], &own));
         let scx = self.fold_scx.clone().unwrap_or_default();
         let mut cx = StageCx::new(&scx);
         let mut frame: Vec<crate::core::Value> = Vec::new();
@@ -6800,6 +6999,83 @@ impl Checker {
     fn instantiate(&mut self, s: &Scheme) -> (Ty, Vec<(String, ClassApp)>, Vec<Ty>) {
         let (t, ctx, vals, _) = self.instantiate_at(s);
         (t, ctx, vals)
+    }
+
+    /// Instantiate the scheme of the local `l` at a use of its value. The
+    /// use of a let-generalized local is a copy of its definition at this
+    /// instantiation (`Some`, [`Checker::gen_copy`]); any other local's
+    /// use is the local itself.
+    fn instantiate_local(&mut self, l: LocalId, s: &Scheme) -> (Ty, Option<ECore>) {
+        let (t, _, _, ptys) = self.instantiate_at(s);
+        let map: HashMap<crate::types::MetaId, Ty> = match self.gen_locals.get(&l) {
+            Some(metas) if self.gen_defs.contains_key(&l) => metas.iter().copied().zip(ptys).collect(),
+            _ => return (t, None),
+        };
+        (t, Some(self.gen_copy(l, &map)))
+    }
+
+    /// A copy of the definition of the let-generalized local `l` for one
+    /// use, its quantified metavariables instantiated by `map`. One
+    /// compiled body cannot serve uses of different representations (a
+    /// raw word and a counted one), so each use gets its own: every
+    /// binder of the copy is fresh and typed with its original's type
+    /// instantiated, and every `letrec` unit the definition reaches (its
+    /// own group, and the groups nested in it) is copied with it under a
+    /// fresh unit id. Fresh binders follow the originals' id order,
+    /// because a `letrec` unit takes its captured locals sorted by id, in
+    /// the order its call sites pass them.
+    fn gen_copy(&mut self, l: LocalId, map: &HashMap<crate::types::MetaId, Ty>) -> ECore {
+        let def = self.gen_defs[&l].clone();
+        let rec: HashMap<GlobalId, usize> =
+            self.pending_rec.iter().enumerate().map(|(i, (id, _))| (id.clone(), i)).collect();
+        let mut binders = Vec::new();
+        let mut named = Vec::new();
+        def_parts(&def, &mut binders, &mut named);
+        // The reachable `letrec` units, transitively.
+        let mut units: Vec<usize> = Vec::new();
+        while let Some(g) = named.pop() {
+            if let Some(&i) = rec.get(&g) {
+                if !units.contains(&i) {
+                    units.push(i);
+                    def_parts(&self.pending_rec[i].1, &mut binders, &mut named);
+                }
+            }
+        }
+        binders.sort_by_key(|b| b.0);
+        binders.dedup();
+        let mut locals: HashMap<LocalId, LocalId> = HashMap::with_capacity(binders.len());
+        for b in binders {
+            let n = self.fresh_local();
+            if let Some(t) = self.local_tys.get(&b) {
+                let t = self.uni.subst_metas(t, map);
+                self.local_tys.insert(n, t);
+            }
+            if let Some(c) = self.local_cls.get(&b).copied() {
+                self.local_cls.insert(n, c);
+            }
+            if let Some(o) = self.local_origin.get(&b).copied() {
+                self.local_origin.insert(n, o);
+            }
+            locals.insert(b, n);
+        }
+        let mut ids: HashMap<GlobalId, GlobalId> = HashMap::with_capacity(units.len());
+        for &i in &units {
+            let id = GlobalId(format!("{}.letrec#{}", self.current_module, self.lam_counter));
+            self.lam_counter += 1;
+            ids.insert(self.pending_rec[i].0.clone(), id);
+        }
+        let (out, copies) = {
+            let uni = &self.uni;
+            let tys = |t: &Ty| uni.subst_metas(t, map);
+            let r = Remap { locals: &locals, units: Some(&ids), tys: Some(&tys) };
+            let copies: Vec<(GlobalId, ECore)> = units
+                .iter()
+                .map(|&i| (ids[&self.pending_rec[i].0].clone(), remap_ecore(&self.pending_rec[i].1, &r)))
+                .collect();
+            (remap_ecore(&def, &r), copies)
+        };
+        self.pending_rec.extend(copies);
+        out
     }
 
     /// [`Checker::instantiate`], also returning the metavariables the

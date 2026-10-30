@@ -13,7 +13,7 @@ use cinchruntime::coop::{
     cinch_coop_io_sleep, cinch_coop_scope_close, cinch_coop_scope_open, cinch_coop_task_join_all_or_cancel,
     cinch_coop_task_poll_cancel, cinch_coop_task_spawn,
 };
-use cinchruntime::task::{TASK_ERR_TAG, TASK_OK_TAG};
+use cinchruntime::task::{JOIN_FAILED, TASK_ERR_TAG, TASK_OK_TAG};
 
 /// The apply-stub signature of a body closure record.
 type Stub = unsafe extern "C" fn(i64, i64, *mut i64) -> i64;
@@ -95,6 +95,9 @@ fn spawn2(scope: i64, stub: Stub, s0: i64, s1: i64) -> i64 {
 }
 
 /// `joinAllOrCancel` through the C ABI: the status word and the `out` block.
+/// A failure's `out[0]` and a one-handle join's `out[0]` are the member's
+/// own `Result` block ([`payload`] reads it); a wider success hands the
+/// payloads over directly.
 fn join(scope: i64, handles: &[i64]) -> (i64, Vec<i64>) {
     let mut out = vec![0i64; handles.len()];
     let status = unsafe {
@@ -106,6 +109,11 @@ fn join(scope: i64, handles: &[i64]) -> (i64, Vec<i64>) {
         )
     };
     (status, out)
+}
+
+/// The payload of a `Result` block word.
+fn payload(result: i64) -> i64 {
+    unsafe { *(result as *const i64) }
 }
 
 /// `Ok` of the thread-local variable: the parent's pre-spawn effect.
@@ -203,17 +211,18 @@ fn a_child_that_never_polls_keeps_its_own_outcome_under_cancellation() {
     let failing = spawn1(scope, stub_err_saved, 9);
     let stubborn = spawn2(scope, stub_mark_ok, 0, 42);
     let (status, out) = join(scope, &[failing, stubborn]);
-    assert_eq!(status, 1);
-    assert_eq!(out[0], 9);
+    assert_eq!(status, JOIN_FAILED);
+    assert_eq!(payload(out[0]), 9);
     // The request was pending the whole time the sibling ran, but the body
     // never reaches a poll point: it ran to completion (its completion
     // flag) and the join's error payload is the failure's, nothing
     // fabricated for the canceled sibling.
     assert_eq!(done(), 1);
-    // The sibling's recorded outcome is its own `Ok` word.
+    // The sibling's recorded outcome is its own `Ok` word: the failed
+    // join took only the failure.
     let (status, out) = join(scope, &[stubborn]);
     assert_eq!(status, 0);
-    assert_eq!(out, vec![42]);
+    assert_eq!(payload(out[0]), 42);
     unsafe { cinch_coop_scope_close(scope) };
 }
 
@@ -227,8 +236,8 @@ fn a_child_observes_cancellation_at_a_poll_point_only() {
     let observer = spawn2(scope, stub_spin_ok, 0, 1);
     let failing = spawn1(scope, stub_err_saved, 9);
     let (status, out) = join(scope, &[observer, failing]);
-    assert_eq!(status, 1);
-    assert_eq!(out[0], 9);
+    assert_eq!(status, JOIN_FAILED);
+    assert_eq!(payload(out[0]), 9);
     // The body's first effect ran before the request (its start marker
     // comes first) and the request was observed at the poll point itself
     // (its observation marker): nothing outside the poll points saw it.
@@ -237,7 +246,7 @@ fn a_child_observes_cancellation_at_a_poll_point_only() {
     // The outcome recorded for the observer is its own `Ok` word.
     let (status, out) = join(scope, &[observer]);
     assert_eq!(status, 0);
-    assert_eq!(out, vec![1]);
+    assert_eq!(payload(out[0]), 1);
     unsafe { cinch_coop_scope_close(scope) };
 }
 
@@ -249,9 +258,9 @@ fn first_failure_cancels_the_siblings_and_the_join_awaits_all() {
     let failing = spawn1(scope, stub_err_saved, 9);
     let stubborn = spawn2(scope, stub_mark_ok, 2, 3);
     let (status, out) = join(scope, &[spinner, failing, stubborn]);
-    // The failure's payload is the join's `Err` payload ...
-    assert_eq!(status, 1);
-    assert_eq!(out[0], 9);
+    // The failure's own `Err` is the join's ...
+    assert_eq!(status, JOIN_FAILED);
+    assert_eq!(payload(out[0]), 9);
     // ... and by the time the join returns every other child has finished
     // (per-child completion flags): the spinner observed its request and
     // acknowledged it, and the sibling that never polls ran to completion.
@@ -315,7 +324,7 @@ fn poll_cancel_and_io_sleep_return_the_documented_words() {
     let probe = spawn(scope, stub_probe_words);
     let (status, out) = join(scope, &[probe]);
     assert_eq!(status, 0);
-    assert_eq!(out, vec![0]);
+    assert_eq!(payload(out[0]), 0);
     assert_eq!(trace(), vec![0, 0]);
     unsafe { cinch_coop_scope_close(scope) };
     // With a request pending (the failure runs first and cancels the
@@ -326,8 +335,8 @@ fn poll_cancel_and_io_sleep_return_the_documented_words() {
     let failing = spawn1(scope, stub_err_saved, 9);
     let probe = spawn(scope, stub_probe_words);
     let (status, out) = join(scope, &[failing, probe]);
-    assert_eq!(status, 1);
-    assert_eq!(out[0], 9);
+    assert_eq!(status, JOIN_FAILED);
+    assert_eq!(payload(out[0]), 9);
     assert_eq!(trace(), vec![1, 0]);
     unsafe { cinch_coop_scope_close(scope) };
 }

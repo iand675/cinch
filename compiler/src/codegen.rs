@@ -157,13 +157,19 @@ pub fn emit_for(profile: &crate::core::TargetProfile, program: &Program) -> Resu
     out.push_str("declare i64 @cinch_exit_check(i64)\n");
     out.push_str("declare ptr @memcpy(ptr, ptr, i64)\n");
     // The count entry points (`compiler/runtime/src/rc.rs`, design/reclamation.md
-    // section 4): the slow path of an inline drop, the out-of-line forms a
-    // `rc_debug` build calls, and the raw release an apply stub uses to
-    // move the saved words out of a uniquely held closure.
+    // sections 4 and 8): the slow paths of an inline dup or drop (the
+    // zero crossing, and the atomic counts of blocks shared across tasks),
+    // the out-of-line forms a `rc_debug` build calls, the raw release an
+    // apply stub uses to move the saved words out of a uniquely held
+    // closure, and the registration that tells the runtime the program
+    // counts references.
     out.push_str("declare void @cinch_dup(i64)\n");
     out.push_str("declare void @cinch_drop(i64)\n");
     out.push_str("declare void @cinch_drop_slow(i64)\n");
+    out.push_str("declare void @cinch_dup_mt(i64)\n");
+    out.push_str("declare void @cinch_drop_mt(i64)\n");
     out.push_str("declare void @cinch_free(i64)\n");
+    out.push_str("declare void @cinch_reclaim_enable()\n");
     // The runtime ABI's mathematical `Nat`/`Int` and `Bytes` externs
     // (`compiler/runtime/src/lib.rs`); `Nat`/`Int` words are opaque
     // runtime words (immediates or bignum block pointers) passed and
@@ -443,7 +449,7 @@ pub fn emit_for(profile: &crate::core::TargetProfile, program: &Program) -> Resu
     }
     let classes = classify_units(&units);
     for u in &units {
-        let group = reg.attr_group(u.hints, &u.lang_facts, &classes[&u.name]);
+        let group = reg.attr_group(u.hints, &u.lang_facts, &classes[&u.name], cx.native);
         assemble_unit(&mut out, u, group);
     }
     // The C-callable entries (foreign function interface specification
@@ -484,7 +490,7 @@ pub fn emit_for(profile: &crate::core::TargetProfile, program: &Program) -> Resu
     }
     // The constructor layout table, complete now that every unit has
     // asked for its descriptors.
-    out.push_str(&reg.layouts.borrow().finish()?);
+    out.push_str(&reg.layouts.borrow().finish(reg.reclaim)?);
     // Function attribute groups and metadata nodes (the branch weights
     // of attribute annotations specification section 3.1).
     out.push_str(&reg.finish_meta());
@@ -613,13 +619,26 @@ impl Registry {
     /// its LLVM contract attributes, registered once per distinct
     /// group. Every contract attribute is claimed only where the
     /// classification proved it (design/llvm-contract-attributes.md).
+    ///
+    /// A native unit also carries `"probe-stack"="inline-asm"`: a frame
+    /// larger than a page then touches each page in order as it grows,
+    /// so it reaches the runtime's stack guard (`compiler/runtime/src/stack.rs`)
+    /// instead of stepping over it, and overflowing the stack is always
+    /// the `Exhausted` exit. Units are the only generated functions whose
+    /// frame grows with the program (every local has its own slot); the
+    /// stubs and helpers keep small fixed frames. Wasm has no native
+    /// stack to probe.
     fn attr_group(
         &self,
         hints: crate::core::FnHints,
         lang: &UnitLang,
         class: &UnitClass,
+        native: bool,
     ) -> Option<String> {
         let mut attrs: Vec<String> = Vec::new();
+        if native {
+            attrs.push("\"probe-stack\"=\"inline-asm\"".to_string());
+        }
         match hints.inline {
             Some(crate::core::InlineHint::Inline) => attrs.push("inlinehint".to_string()),
             Some(crate::core::InlineHint::Always) => attrs.push("alwaysinline".to_string()),
@@ -1016,9 +1035,10 @@ fn prim_param_classes(op: PrimOp) -> Vec<Class> {
 /// parameter after the extern call returns, on every return path, unless
 /// the primitive passes the word on: `delay` returns its thunk, `force`
 /// and `withScope` hand their closure to `__apply` (which consumes it),
-/// and `spawn` hands the task body to the runtime (which keeps it,
-/// immortal, for the task thread). Results are fresh, owned words; a
-/// `Some`/`Ok` payload is a fresh word the block takes over.
+/// and `spawn` moves the task body to its thread (the runtime marks what
+/// it reaches shared, and the thread's apply stub consumes it). Results
+/// are fresh, owned words; a `Some`/`Ok` payload is a fresh word the
+/// block takes over.
 fn prim_consumes(op: PrimOp, i: usize) -> bool {
     match op {
         PrimOp::Delay | PrimOp::Force => i == 0,
@@ -1303,8 +1323,11 @@ impl Layouts {
     /// The layout table and the global constructor that registers it
     /// with the runtime before any generated code runs
     /// (`cinch_layouts_register`): one entry per index, then the map
-    /// extensions of the entries wider than an entry's own map.
-    fn finish(&self) -> Result<String> {
+    /// extensions of the entries wider than an entry's own map. A program
+    /// that counts references (`reclaim`) also says so there
+    /// (`cinch_reclaim_enable`), so the runtime marks task bodies and
+    /// drops the task results nobody receives.
+    fn finish(&self, reclaim: bool) -> Result<String> {
         if self.late_escape {
             return err("internal error: a constructor shape escaped after the tag reads were emitted without escapes");
         }
@@ -1334,10 +1357,11 @@ impl Layouts {
         entries.extend(ext);
         let n = entries.len();
         let words: Vec<String> = entries.iter().map(|e| format!("i64 {}", *e as i64)).collect();
+        let enable = if reclaim { "  call void @cinch_reclaim_enable()\n" } else { "" };
         Ok(format!(
             "@__cinch_layouts = internal constant [{n} x i64] [{}]\n\
              define internal void @__cinch_layouts_init() {{\n\
-             entry:\n  call void @cinch_layouts_register(ptr @__cinch_layouts, i64 {n})\n  ret void\n}}\n\
+             entry:\n{enable}  call void @cinch_layouts_register(ptr @__cinch_layouts, i64 {n})\n  ret void\n}}\n\
              @llvm.global_ctors = appending global [1 x {{ i32, ptr, ptr }}] [{{ i32, ptr, ptr }} {{ i32 65535, ptr @__cinch_layouts_init, ptr null }}]\n",
             words.join(", ")
         ))
@@ -1400,8 +1424,7 @@ fn dynamic_shape_desc(b: &mut Builder, reg: &Registry, map: &[Class], tag: &str)
 /// header that says `LAYOUT_BIG`.
 fn ctor_tag(b: &mut Builder, p: &str, escapes: bool) -> String {
     let hp = b.gep_dyn(p, "-8");
-    let h = b.reg();
-    b.line(&format!("{h} = load i64, ptr {hp}"));
+    let h = header_load(b, &hp);
     let l = b.reg();
     b.line(&format!("{l} = lshr i64 {h}, {}", block::LAYOUT_SHIFT));
     if !escapes {
@@ -1623,10 +1646,10 @@ fn classify_callee(sym: &str, units: &BTreeSet<String>) -> Callee {
         "cinch_alloc_raw" | "cinch_alloc_ctor" | "cinch_alloc_shaped" => Callee::Alloc,
         "memcpy" => Callee::Copy,
         // A dup writes a header (design/reclamation.md section 11, item 9).
-        "cinch_dup" => Callee::Copy,
+        "cinch_dup" | "cinch_dup_mt" => Callee::Copy,
         // A drop may free what the caller passed or allocated before the
         // call, and so does the raw release of a unique closure.
-        "cinch_drop" | "cinch_drop_slow" | "cinch_free" => Callee::Free,
+        "cinch_drop" | "cinch_drop_slow" | "cinch_drop_mt" | "cinch_free" => Callee::Free,
         "__apply" | "__cinch_demand" => Callee::Indirect,
         "exit" | "cinch_panic" | "__cinch_blackhole" => Callee::Fault,
         "cinch_scope_close" | "cinch_coop_scope_close" | "cinch_task_join_all_or_cancel"
@@ -2154,12 +2177,11 @@ fn stub_take_saved(b: &mut Builder, reg: &Registry, name: &str, arity: usize, co
     let hp = b.gep("%self", 0);
     let hp8 = b.reg();
     b.line(&format!("{hp8} = getelementptr inbounds i8, ptr {hp}, i64 -8"));
-    let h = b.reg();
-    b.line(&format!("{h} = load i64, ptr {hp8}"));
-    let rc = b.reg();
-    b.line(&format!("{rc} = and i64 {h}, {}", (1u64 << block::RC_BITS) - 1));
+    let h = header_load(b, &hp8);
+    let top = b.reg();
+    b.line(&format!("{top} = shl i64 {h}, {RC_TOP_SHIFT}"));
     let unique = b.reg();
-    b.line(&format!("{unique} = icmp eq i64 {rc}, 1"));
+    b.line(&format!("{unique} = icmp eq i64 {top}, {}", 1i64 << RC_TOP_SHIFT));
     let lmove = b.label();
     let lshare = b.label();
     let ldone = b.label();
@@ -2169,15 +2191,25 @@ fn stub_take_saved(b: &mut Builder, reg: &Registry, name: &str, arity: usize, co
     b.line(&format!("br label %{ldone}"));
     b.start(&lshare);
     dup_saved(b);
-    // Immortal (static or spawned-task) closures keep their count.
-    let mortal = b.reg();
-    b.line(&format!("{mortal} = icmp ne i64 {rc}, 0"));
-    let ldec = b.label();
-    b.line(&format!("br i1 {mortal}, label %{ldec}, label %{ldone}"));
+    // The count is not one here: above one it drops in place; a closure
+    // shared with other tasks drops atomically (and may be released, its
+    // saved words already dupped for the call); an immortal (static)
+    // closure keeps its count.
+    let plain = b.reg();
+    b.line(&format!("{plain} = icmp sgt i64 {top}, 0"));
+    let (ldec, lother, lmt) = (b.label(), b.label(), b.label());
+    b.line(&format!("br i1 {plain}, label %{ldec}, label %{lother}"));
     b.start(&ldec);
     let h1 = b.reg();
-    b.line(&format!("{h1} = sub i64 {h}, 1"));
+    b.line(&format!("{h1} = sub i64 {h}, {}", 1u64 << block::RC_SHIFT));
     b.line(&format!("store i64 {h1}, ptr {hp8}"));
+    b.line(&format!("br label %{ldone}"));
+    b.start(&lother);
+    let shared = b.reg();
+    b.line(&format!("{shared} = icmp ne i64 {top}, 0"));
+    b.line(&format!("br i1 {shared}, label %{lmt}, label %{ldone}"));
+    b.start(&lmt);
+    b.line(&format!("call void @cinch_drop_mt(i64 {selfw})"));
     b.line(&format!("br label %{ldone}"));
     b.start(&ldone);
 }
@@ -2733,18 +2765,40 @@ fn rt_call(b: &mut Builder, f: &str, args: &[String]) -> String {
     r
 }
 
+/// The count field shifted to the top of the word: the count's sign is
+/// the word's, and a count of `n` reads as `n << RC_TOP_SHIFT`, so one
+/// signed compare separates the plain, atomic and immortal cases.
+const RC_TOP_SHIFT: u32 = 64 - (block::RC_SHIFT + block::RC_BITS);
+
+/// Load the header word at `hp` into a fresh register. The load is
+/// atomic (`monotonic`, an ordinary load on every target, measured free
+/// against a plain one): a block shared with other tasks has its count
+/// changed by their atomic read-modify-writes meanwhile, and a plain load
+/// racing with those reads undef in LLVM's memory model. Stores stay
+/// plain: only a positive count is written in place, and no other thread
+/// can reach that block.
+fn header_load(b: &mut Builder, hp: &str) -> String {
+    let h = b.reg();
+    b.line(&format!("{h} = load atomic i64, ptr {hp} monotonic, align 8"));
+    h
+}
+
 /// One reference count operation on the word `w` of class `class`
-/// (design/reclamation.md sections 3 and 4). `Raw` words are never
+/// (design/reclamation.md sections 3, 4 and 8). `Raw` words are never
 /// counted. An `Obj` word may be 0 (the `Copy` marker dictionary is the
 /// unit word), and a `TObj` word tests its low bit first: an immediate
 /// owns no block. A block word then reads its header at -8, whose low
-/// `RC_BITS` are the count; 0 is immortal (statics, interned symbols,
-/// blocks reachable from a spawned task) and is never written.
+/// `RC_BITS` are the signed count, and shifts the count to the top of
+/// the word ([`RC_TOP_SHIFT`]): positive is a count only this thread
+/// changes, updated in place; negative is a block shared with other
+/// tasks, whose count only `cinch_dup_mt`/`cinch_drop_mt` change
+/// (atomically); 0 is immortal (statics, interned symbols) and is never
+/// written.
 ///
-/// Dup increments. Drop decrements, and at a count of one hands the
-/// block to `cinch_drop_slow`, which releases it and everything only it
-/// kept alive. Both are inline. Negative (atomic) counts do not exist
-/// before S9, so the masked count is read as unsigned. Under
+/// Dup increments a positive count after one compare. Drop decrements a
+/// count above one after one compare, and hands a count of one to
+/// `cinch_drop_slow`, which releases the block and everything only it
+/// kept alive. Both are inline. Under
 /// [`TargetProfile::rc_debug`](crate::core::TargetProfile::rc_debug) both
 /// call the out-of-line `cinch_dup`/`cinch_drop` instead, so that
 /// `CINCH_RC_DEBUG=1`'s header checks see every operation.
@@ -2778,35 +2832,41 @@ fn rc_op(b: &mut Builder, debug: bool, drop: bool, w: &str, class: Class) {
     b.line(&format!("{p} = inttoptr i64 {w} to ptr"));
     let hp = b.reg();
     b.line(&format!("{hp} = getelementptr inbounds i8, ptr {p}, i64 -8"));
-    let h = b.reg();
-    b.line(&format!("{h} = load i64, ptr {hp}"));
-    let rc = b.reg();
-    b.line(&format!("{rc} = and i64 {h}, {}", (1u64 << block::RC_BITS) - 1));
+    let h = header_load(b, &hp);
+    let top = b.reg();
+    b.line(&format!("{top} = shl i64 {h}, {RC_TOP_SHIFT}"));
+    let one = 1u64 << block::RC_SHIFT;
+    let top_one = 1i64 << RC_TOP_SHIFT;
+    let (lplain, lother, lmt) = (b.label(), b.label(), b.label());
+    let plain = b.reg();
     if drop {
-        let ldec = b.label();
+        b.line(&format!("{plain} = icmp sgt i64 {top}, {top_one}"));
+    } else {
+        b.line(&format!("{plain} = icmp sgt i64 {top}, 0"));
+    }
+    b.line(&format!("br i1 {plain}, label %{lplain}, label %{lother}"));
+    b.start(&lplain);
+    let h1 = b.reg();
+    b.line(&format!("{h1} = {} i64 {h}, {one}", if drop { "sub" } else { "add" }));
+    b.line(&format!("store i64 {h1}, ptr {hp}"));
+    b.line(&format!("br label %{ldone}"));
+    b.start(&lother);
+    if drop {
         let lslow = b.label();
         b.line(&format!(
-            "switch i64 {rc}, label %{ldec} [\n  i64 0, label %{ldone}\n  i64 1, label %{lslow}\n]"
+            "switch i64 {top}, label %{lmt} [\n  i64 0, label %{ldone}\n  i64 {top_one}, label %{lslow}\n]"
         ));
-        b.start(&ldec);
-        let h1 = b.reg();
-        b.line(&format!("{h1} = sub i64 {h}, 1"));
-        b.line(&format!("store i64 {h1}, ptr {hp}"));
-        b.line(&format!("br label %{ldone}"));
         b.start(&lslow);
         b.line(&format!("call void @cinch_drop_slow(i64 {w})"));
         b.line(&format!("br label %{ldone}"));
     } else {
-        let linc = b.label();
-        let imm = b.reg();
-        b.line(&format!("{imm} = icmp eq i64 {rc}, 0"));
-        b.line(&format!("br i1 {imm}, label %{ldone}, label %{linc}"));
-        b.start(&linc);
-        let h1 = b.reg();
-        b.line(&format!("{h1} = add i64 {h}, 1"));
-        b.line(&format!("store i64 {h1}, ptr {hp}"));
-        b.line(&format!("br label %{ldone}"));
+        let shared = b.reg();
+        b.line(&format!("{shared} = icmp ne i64 {top}, 0"));
+        b.line(&format!("br i1 {shared}, label %{lmt}, label %{ldone}"));
     }
+    b.start(&lmt);
+    b.line(&format!("call void @{}(i64 {w})", if drop { "cinch_drop_mt" } else { "cinch_dup_mt" }));
+    b.line(&format!("br label %{ldone}"));
     b.start(&ldone);
 }
 
@@ -2832,6 +2892,12 @@ fn task_rt(cx: &LowerCx, base: &str) -> String {
         format!("cinch_{base}")
     }
 }
+
+/// The widest `joinAllOrCancel` whose tuple gets exact pointer maps: one
+/// anonymous shape per mask of counted payloads, `2^n` of them, each a
+/// layout group (64 table words). Four handles cost 16 groups; wider
+/// joins keep uncounted tuple slots.
+const JOIN_SHAPED_MAX: usize = 4;
 
 fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: PrimOp) {
     // `Usize`/`Isize` cross as the target's concrete word scalar
@@ -3328,35 +3394,62 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
                             format!("i64 {outw}"),
                         ],
                     );
+                    // The runtime's hand-over (`crate::task::join_failed`,
+                    // `join_succeeded`): a failure, or one member, is that
+                    // member's own `Result` block, built by its body with
+                    // the payload's class in its map, so it is the join's
+                    // result as it stands and owns what it holds.
+                    if n == 1 {
+                        let r = b.load_at(&out, 0);
+                        ret(b, &r);
+                        return;
+                    }
                     let lfail = b.label();
                     let lok = b.label();
-                    let ldone = b.label();
-                    let is_ok = b.reg();
-                    b.line(&format!("{is_ok} = icmp eq i64 {st}, 0"));
-                    b.line(&format!("br i1 {is_ok}, label %{lok}, label %{lfail}"));
-                    // Failure: `Err e` over the first failure payload. The
-                    // task outcome's payload classes are the task bodies'
-                    // result types, which this unit does not see: its
-                    // blocks are uncounted.
+                    let failed = b.reg();
+                    b.line(&format!("{failed} = icmp slt i64 {st}, 0"));
+                    b.line(&format!("br i1 {failed}, label %{lfail}, label %{lok}"));
                     b.start(&lfail);
-                    let ep = b.load_at(&out, 0);
-                    let ew = ctor_block_word(b, reg.raw_shape_desc(1, TAG_ERR), &[ep]);
-                    b.line(&format!("br label %{ldone}"));
-                    // Success: `Ok` over the payloads (a tuple block for a
-                    // multi-task join).
+                    let ew = b.load_at(&out, 0);
+                    ret(b, &ew);
+                    // Success over several members: `Ok` over a tuple of
+                    // their payloads, which the runtime moved out of their
+                    // `Ok` blocks. This unit does not see the bodies' result
+                    // types, so the runtime reports which payloads are
+                    // counted (bit `i` of the mask) and the tuple takes the
+                    // pointer map of that mask, one shape per mask (`TObj`
+                    // covers both counted classes). Each shape costs a
+                    // layout group, so joins wider than `JOIN_SHAPED_MAX`
+                    // keep uncounted slots, which can only leak.
                     b.start(&lok);
-                    let payload = if n == 1 {
-                        b.load_at(&out, 0)
+                    let parts: Vec<String> = (0..n).map(|i| b.load_at(&out, i * 8)).collect();
+                    let desc = if n <= JOIN_SHAPED_MAX {
+                        let descs: Vec<String> = (0..1u64 << n)
+                            .map(|mask| {
+                                let map: Vec<Class> =
+                                    (0..n).map(|i| if mask >> i & 1 == 1 { Class::TObj } else { Class::Raw }).collect();
+                                format!("i64 {}", reg.shape_desc(&map, 0) as i64)
+                            })
+                            .collect();
+                        let table = quote(&format!("{name}.shapes"));
+                        b.global(format!("@{table} = internal constant [{} x i64] [{}]", descs.len(), descs.join(", ")));
+                        let at = b.reg();
+                        b.line(&format!("{at} = getelementptr inbounds [{} x i64], ptr @{table}, i64 0, i64 {st}", descs.len()));
+                        let d = b.reg();
+                        b.line(&format!("{d} = load i64, ptr {at}"));
+                        d
                     } else {
-                        let parts: Vec<String> = (0..n).map(|i| b.load_at(&out, i * 8)).collect();
-                        ctor_block_word(b, reg.raw_shape_desc(n as u64, 0), &parts)
+                        (reg.raw_shape_desc(n as u64, 0) as i64).to_string()
                     };
-                    let okw2 = ctor_block_word(b, reg.raw_shape_desc(1, TAG_OK), &[payload]);
-                    b.line(&format!("br label %{ldone}"));
-                    b.start(&ldone);
-                    let res = b.reg();
-                    b.line(&format!("{res} = phi i64 [ {ew}, %{lfail} ], [ {okw2}, %{lok} ]"));
-                    ret(b, &res);
+                    let tp = b.reg();
+                    b.line(&format!("{tp} = call ptr @cinch_alloc_ctor(i64 {}, i64 {desc})", 8 * n));
+                    for (i, part) in parts.iter().enumerate() {
+                        b.store_at(&tp, 8 * i, part);
+                    }
+                    let tuple = b.reg();
+                    b.line(&format!("{tuple} = ptrtoint ptr {tp} to i64"));
+                    let okw = ctor_block_word(b, reg.shape_desc(&[Class::Obj], TAG_OK), &[tuple]);
+                    ret(b, &okw);
                 }
                 IoWrite => {
                     let _ = rt_call(b, "cinch_io_write", &["i64 %p1".to_string()]);
@@ -5859,7 +5952,11 @@ mod tests {
     /// (`CINCH_CLANG`, else `clang` on PATH) against the runtime
     /// staticlib, run the binary and return its process exit code.
     fn run(name: &str, program: &Program) -> i32 {
-        let ir = emit(program).expect("codegen emit failed");
+        // `emit` compiles for the native profile, which reclaims: the
+        // program gets its count operations exactly as a driver build does.
+        let program = crate::rc::insert(program.clone(), &crate::core::TargetProfile::native())
+            .unwrap_or_else(|e| panic!("[{name}] ownership pass failed: {e}"));
+        let ir = emit(&program).expect("codegen emit failed");
         let uniq = format!(
             "cinch_codegen_{}_{}",
             std::process::id(),
@@ -6803,7 +6900,7 @@ mod tests {
     fn bytes_round_trip() {
         // bytesGet (bytesSet (bytesNew 3) 0 65) 0 = 65, and the length is 3.
         let body = Core::Let(
-            LocalId(0), Class::Raw,
+            LocalId(0), Class::Obj,
             Box::new(app(p(PrimOp::Bytes(BytesOp::New)), vec![cnat("3")])),
             Box::new(Core::Let(
                 LocalId(1), Class::Raw,
@@ -6831,7 +6928,7 @@ mod tests {
         // Out-of-bounds indices and byte values outside 0..=255 fault
         // through the panic path (exit 71).
         let get_oob = Core::Let(
-            LocalId(0), Class::Raw,
+            LocalId(0), Class::Obj,
             Box::new(app(p(PrimOp::Bytes(BytesOp::New)), vec![cnat("3")])),
             Box::new(app(
                 p(PrimOp::Bytes(BytesOp::Get)),
@@ -6840,7 +6937,7 @@ mod tests {
         );
         assert_eq!(run("bytes_get_oob", &main_prog(vec![], get_oob)), 71);
         let set_bad = Core::Let(
-            LocalId(0), Class::Raw,
+            LocalId(0), Class::Obj,
             Box::new(app(p(PrimOp::Bytes(BytesOp::New)), vec![cnat("3")])),
             Box::new(app(
                 p(PrimOp::Bytes(BytesOp::Set)),
@@ -6868,7 +6965,7 @@ mod tests {
             vec![v(0), v(0), cnat("1"), cnat("0"), cnat("3")],
         );
         let body = Core::Let(
-            LocalId(0), Class::Raw,
+            LocalId(0), Class::Obj,
             Box::new(app(p(PrimOp::Bytes(BytesOp::New)), vec![cnat("4")])),
             Box::new(Core::Let(
                 LocalId(1), Class::Raw,
@@ -6895,7 +6992,7 @@ mod tests {
 
         // A range past either end faults through the panic path.
         let oob = Core::Let(
-            LocalId(0), Class::Raw,
+            LocalId(0), Class::Obj,
             Box::new(app(p(PrimOp::Bytes(BytesOp::New)), vec![cnat("4")])),
             Box::new(app(
                 p(PrimOp::Bytes(BytesOp::Copy)),
@@ -6947,10 +7044,12 @@ mod quote_op {
     /// `[desc, nfields, fields...]`: allocate the constructor block
     /// `{ fields... }` whose header carries descriptor `desc`.
     pub const CTOR: u64 = 12;
-    /// `[value, mode, ...]`: mode 0 `[slot]` loads the block's word at
-    /// `8 * slot`; mode 1 `[offset, size, signed]` loads a
+    /// `[value, mode, ..., counted]`: mode 0 `[slot]` loads the block's
+    /// word at `8 * slot`; mode 1 `[offset, size, signed]` loads a
     /// boundary-layout scalar at `offset`; mode 2 `[offset]` loads a
-    /// boundary-layout word at `offset`.
+    /// boundary-layout word at `offset`. `counted` (0 or 1) says the
+    /// loaded word is a counted reference, dupped so the result is owned
+    /// (the container is borrowed).
     pub const PROJ: u64 = 13;
     /// The program's own fault (exit 70).
     pub const FAULT: u64 = 14;
@@ -6959,7 +7058,8 @@ mod quote_op {
     /// `[cell-local, thunk]`: store the thunk into the cell; the value
     /// is the unit word.
     pub const LAZY_INIT: u64 = 16;
-    /// `[cell]`: run the memo cell's state machine.
+    /// `[cell, counted]`: run the memo cell's state machine; a counted
+    /// value is dupped (the cell keeps its own reference).
     pub const DEMAND: u64 = 17;
     /// `[clo]`: a unit's closure word as a value.
     pub const UNITREF: u64 = 18;
@@ -6967,6 +7067,14 @@ mod quote_op {
     /// eight per word little endian (the runtime evaluator boxes a
     /// fresh heap buffer per run).
     pub const CONST_BYTES: u64 = 19;
+    /// `[slot, value]`: replace the binder's word (a `RefSet`; the old
+    /// value was released by the ownership pass); the value is the unit
+    /// word.
+    pub const SET: u64 = 20;
+    /// `[slot, body]`: add a reference to the counted binder's word.
+    pub const DUP: u64 = 21;
+    /// `[slot, body]`: release the counted binder's reference.
+    pub const DROP: u64 = 22;
 }
 
 /// One reified word: an immediate, or the relocated closure word of a
@@ -6979,6 +7087,12 @@ enum QWord {
 
 fn q_imm(out: &mut Vec<QWord>, v: u64) {
     out.push(QWord::Imm(v));
+}
+
+/// The `counted` operand of a loaded word of class `c` (an open
+/// parameter class is never counted, as in the ownership pass).
+fn q_counted(c: crate::repr::Class) -> u64 {
+    u64::from(matches!(c, crate::repr::Class::Obj | crate::repr::Class::TObj))
 }
 
 /// The closure constant of a unit (`@"<name>.clo"`).
@@ -7065,13 +7179,12 @@ fn reify(out: &mut Vec<QWord>, e: &Core, reg: &Registry) -> Result<()> {
             reify(out, v, reg)?;
             reify(out, body, reg)?;
         }
-        // A `RefSet` write is a `Let` with the unit body: store the
-        // value into the borrow's slot and yield `Unit`.
+        // The ownership pass released the old value; the slot takes the
+        // new one.
         Core::RefSet(l, v) => {
-            q_imm(out, quote_op::LET);
+            q_imm(out, quote_op::SET);
             q_imm(out, l.0 as u64);
             reify(out, v, reg)?;
-            q_imm(out, quote_op::UNIT);
         }
         Core::If(c, t, f) => {
             q_imm(out, quote_op::IF);
@@ -7128,6 +7241,13 @@ fn reify(out: &mut Vec<QWord>, e: &Core, reg: &Registry) -> Result<()> {
                 }
             }
         }
+        // A unit used as a value at arity 0 is already its call (see
+        // `reify_unit_value`), as `emit_app` calls a known nullary unit
+        // directly: applying the result again would treat the value (a
+        // constructor block, say) as a closure.
+        Core::App(f, args) if args.is_empty() && reify_unit_arity(f, reg)? == Some(0) => {
+            reify(out, f, reg)?;
+        }
         Core::App(f, args) => {
             q_imm(out, quote_op::APP);
             reify_value(out, f, reg)?;
@@ -7153,13 +7273,14 @@ fn reify(out: &mut Vec<QWord>, e: &Core, reg: &Registry) -> Result<()> {
                 reify(out, a, reg)?;
             }
         }
-        Core::DictProj(d, idx, ..) => {
+        Core::DictProj(d, idx, _, class) => {
             // A dictionary is the `{ nmeth; meth0; ... }` block of the
             // `mk` units: method `idx` is the block's word `1 + idx`.
             q_imm(out, quote_op::PROJ);
             reify(out, d, reg)?;
             q_imm(out, 0);
             q_imm(out, *idx as u64 + 1);
+            q_imm(out, q_counted(*class));
         }
         Core::Proj(d, f) => {
             q_imm(out, quote_op::PROJ);
@@ -7189,6 +7310,7 @@ fn reify(out: &mut Vec<QWord>, e: &Core, reg: &Registry) -> Result<()> {
                     }
                 },
             }
+            q_imm(out, q_counted(f.class));
         }
         Core::InstDict(id, subs, _) => {
             let info = reg
@@ -7222,12 +7344,15 @@ fn reify(out: &mut Vec<QWord>, e: &Core, reg: &Registry) -> Result<()> {
             q_imm(out, cell.0 as u64);
             reify(out, thunk, reg)?;
         }
-        Core::Demand(cell, _) => {
+        Core::Demand(cell, class) => {
             q_imm(out, quote_op::DEMAND);
             reify(out, cell, reg)?;
+            q_imm(out, q_counted(*class));
         }
-        Core::Dup(..) | Core::Drop(..) => {
-            return err("internal error: a reference count operation reached a quotation body")
+        Core::Dup(x, _, body) | Core::Drop(x, _, body) => {
+            q_imm(out, if matches!(e, Core::Dup(..)) { quote_op::DUP } else { quote_op::DROP });
+            q_imm(out, x.0 as u64);
+            reify(out, body, reg)?;
         }
         Core::Global(g, _) => {
             let arity = reg.arity_of(&g.0)?;
@@ -7287,6 +7412,22 @@ fn reify(out: &mut Vec<QWord>, e: &Core, reg: &Registry) -> Result<()> {
         }
     }
     Ok(())
+}
+
+/// The arity of a unit head (a global, constructor, primitive or
+/// foreign binding), or `None` for a computed expression.
+fn reify_unit_arity(e: &Core, reg: &Registry) -> Result<Option<usize>> {
+    Ok(match e {
+        Core::Global(g, _) | Core::Ctor(g, _) => Some(reg.arity_of(&g.0)?),
+        Core::Prim(op) => Some(op.arity()),
+        Core::Foreign(n) => Some(
+            reg.foreigns
+                .get(n)
+                .ok_or_else(|| crate::Error::plain(format!("unknown foreign binding {n}")))?
+                .arity(),
+        ),
+        _ => None,
+    })
 }
 
 /// A value position: a unit used as a value, or a computed expression.

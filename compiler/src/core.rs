@@ -3578,10 +3578,8 @@ pub struct TargetProfile {
     /// Reclamation (design/reclamation.md slice S6): `crate::rc` inserts
     /// dup and drop over the residual program, and code generation emits
     /// the matching ownership in the apply stubs, primitive and foreign
-    /// wrappers, dictionary construction and projections. Off by default
-    /// until every binder carries an exact class (a binder whose class is
-    /// wrong would be freed while live); with it off, nothing is counted
-    /// and every block leaks, as before S6.
+    /// wrappers, dictionary construction and projections. On by default;
+    /// with it off, nothing is counted and every block leaks.
     pub reclaim: bool,
 }
 
@@ -3644,10 +3642,12 @@ impl TargetProfile {
     }
 }
 
-/// The compile-time opt-in to reclamation while it is off by default:
-/// `CINCH_RECLAIM=1` in the compiler's environment.
+/// Reclamation is on unless `CINCH_RECLAIM=0` is in the compiler's
+/// environment: the switch builds the leak-everything baseline that
+/// allocation measurements and A/B debugging of a suspected ownership
+/// bug compare against.
 fn reclaim_from_env() -> bool {
-    std::env::var_os("CINCH_RECLAIM").is_some_and(|v| v == "1")
+    std::env::var_os("CINCH_RECLAIM").is_none_or(|v| v != "0")
 }
 
 impl TargetProfile {
@@ -6570,7 +6570,11 @@ pub fn optimize(program: &Program, profile: &TargetProfile) -> Result<(Program, 
             fused: Vec::new(),
             new_fns: Vec::new(),
             fuse_counter: 0,
-            fresh: max_local(&orig.body) + 1,
+            // Fresh ids exceed every parameter as well as every local the
+            // body mentions: an unused parameter appears nowhere in the
+            // body, and an unfolded binder reusing its id would take over
+            // its class (a `Raw` parameter counted as an object).
+            fresh: (max_local(&orig.body) + 1).max(orig.params.len()),
             changed: false,
             fuel_left: profile.fuel,
             fuel_reported: false,

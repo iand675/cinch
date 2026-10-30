@@ -17,7 +17,7 @@ basically".
 Definitions used below:
 
 - A **fault** is an abnormal stop the program's types do not declare: a
-  runtime check that exits (today's exit codes 70-73), a native stack
+  runtime check that exits (today's exit codes 70-72), a native stack
   overflow, an abort.
 - A **typed failure** is an outcome the types declare and the program must
   handle or pass on: a `Result`, or the failure branch of a resource
@@ -41,7 +41,7 @@ purpose exists only behind an onerous, recorded opt-in (section 6).**
 | Static pool exhaustion faults (`design/allocators.md` section 3) | A `jpl` program's pool is sized from its proven bound, so exhaustion is impossible after startup. Code without a proven bound allocates under a typed budget boundary (section 4). Reserving the pool can fail only before any user code runs, as a refusal to start. |
 | Arena teardown check faults (`design/allocators.md` section 4) | The static escape rule is the guarantee. The runtime check stays only as a compiler-bug trap in debug builds. |
 | Teardown fault sentinels for wrong escape proofs (D396, reclamation section 6) | The escape checker is the guarantee; the sentinel is a compiler-bug trap. |
-| `CINCH_HEAP_LIMIT` exit 73 | A development and test guard against runaway programs while reclamation is incomplete. A program's own memory budget becomes a typed boundary (section 4). |
+| `CINCH_HEAP_LIMIT` exit 73 | A development and test guard against runaway programs; since reclamation it caps live bytes, and exit 73 is the one `Exhausted` outcome (section 4, as built). A program's own memory budget becomes a typed boundary (section 4). |
 
 ## 3 Partial operations become total
 
@@ -99,6 +99,52 @@ bounded, no static check can rule exhaustion out. So there are two tiers:
   recursion), so stack exhaustion becomes the same `Exhausted` outcome
   instead of a guard-page crash. Today's 1 GiB reserved stack
   (`cinch_run_main`) is an interim measure.
+
+### 4.1 As built (2026-10-30): the implicit `Exhausted` at `main`
+
+Section 7's decision is implemented in the runtime
+(`compiler/runtime/src/abi.rs`, `heap.rs`, `stack.rs`; tests in
+`compiler/tests/exhaustion.rs`). Every resource exhaustion is one
+outcome: exit code **73** and exactly one stderr line naming the
+resource.
+
+| resource | when | stderr line |
+| --- | --- | --- |
+| heap | the live heap (bytes allocated and not freed) would pass `CINCH_HEAP_LIMIT` (default 8 GiB), or the system allocator refuses, or a request is too large for any allocation | `cinch: exhausted: heap (<n> bytes)`, `<n>` the live bytes the program asked to hold |
+| stack | a thread running Cinch code (the program's thread or a task's) overflows its stack, or the evaluator passes its nesting bound (`MAX_NESTING`, which stands in for the stack) | `cinch: exhausted: stack` |
+| threads | the OS refuses the program's thread or a task's thread (a refusal for memory, `ENOMEM`, reports `stack`) | `cinch: exhausted: threads` |
+
+73 was already the heap cap's code, the only resource exit before, so
+every existing check of it keeps its meaning; it is distinct from the
+fault codes 70-72, from the compiler-bug traps (71 with a message
+starting `compiler bug:`) and from the leak check's 74. A `main` may
+return any `Int`, so a program's own result can equal any of these; the
+stderr line is what tells the outcome from a result.
+
+Stack overflow is detected with a guard band plus a signal handler on
+an alternate stack. Each thread that runs Cinch code runs it inside
+`stack::guarded`, which makes the bottom 64 KiB of the thread's own
+stack inaccessible (above whatever guard the C library put below it),
+gives the thread an alternate signal stack, and records the band's
+address in a thread-specific key. The `SIGSEGV`/`SIGBUS` handler takes
+the `Exhausted` exit when the fault address lies in the calling
+thread's band (or the 64 KiB below it, the C library's guard), through
+`_exit`; any other fault reinstates the previous disposition and
+re-faults, so a genuine crash stays a crash. A frame can only skip the
+band if it is larger than the band and unprobed, so every generated
+native unit carries `"probe-stack"="inline-asm"` (each page of a large
+frame is touched in order); rustc probes the runtime's own frames on
+x86_64 and aarch64. Explicit depth counters were rejected because they
+cost every call and cannot see the C library's frames; a heap-backed
+stack (section 4 above) remains the long-term answer for unbounded
+recursion. Verified on macOS arm64; the Linux x86_64 and aarch64 paths
+(glibc and musl signal layouts, `pthread_getattr_np`) are written from
+each ABI and not yet run.
+
+Reaching the `Exhausted` exit leaves through `exit` for the heap and
+threads (so `CINCH_ALLOC_STATS` still prints), and through `_exit` for
+the stack, the only exit a signal handler may take. When two threads
+exhaust at once the first one's line and exit win; the others wait.
 
 ## 5 Foreign code
 

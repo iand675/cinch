@@ -686,6 +686,43 @@ default to owned. Dictionary and capability parameters (`FnMeta.dicts`,
 asserts that each owned binder is consumed exactly once on each path
 (Lean's IR checker). It runs under `debug_assertions` in tests.
 
+**As built (S6a).** `compiler/src/rc.rs` inserts `Dup`/`Drop` with every
+parameter owned (borrow inference is S6b) and a debug verifier refuses
+any path that does not consume an owned binder exactly once. Reclamation
+is on by default; `CINCH_RECLAIM=0` in the compiler's environment builds
+the leak-everything baseline for measurements and A/B debugging.
+
+- Binder classes are exact or the build fails. Every binder the
+  elaboration creates records its type or class where it is created
+  (the memo thunk's and codata observation's unit parameters, a `let`
+  binding's binder, tuple destructuring fields, continuation and
+  resumption binders of effect handling, the handler value and prompt
+  parameter, fixpoint boxes, `LazyInit` temporaries, effect-operation
+  arguments). `LowerCx::local` reports a binder without one as
+  `compiler bug: binder <name> of <unit> has no recorded type` (debug
+  builds add the elaboration site), and a type with no class likewise.
+  Compile-time-only lowering (constant folds, probes) is exempt: its
+  classes are never read.
+- An undetermined metavariable is `Raw`: no word of its type exists. A
+  let-generalized local is no exception, because it has no single
+  compiled body. Each use of it elaborates to its own copy of the
+  local's definition, with fresh binders typed at that use's
+  instantiation (`Checker::gen_copy`), so a raw use and a counted use
+  each count by their own representation; the binding itself is dropped
+  where nothing else reads it. A local function's definition is its
+  lambda; a destructured component's is the bound value with the
+  projections down to it; a `letrec` member's is its whole group, whose
+  units are copied with it under fresh ids (fresh binders keep the
+  originals' id order, the order a unit's captured parameters are
+  passed in). Destructured components generalize only when the bound
+  value is a syntactic value, as variable bindings do.
+- Quotation bodies are closed bodies of their own: the pass places their
+  operations too, and the runtime evaluator (`runtime/src/eval.rs`) runs
+  them (`DUP`/`DROP`/`SET` opcodes, a `counted` flag on `PROJ` and
+  `DEMAND`). Every evaluator value is owned, so what leaves the evaluator
+  for compiled code carries its own reference; `DEMAND` moves the thunk
+  out of its cell before applying it.
+
 ---
 
 ## 5 Reuse and multiplicities
@@ -824,9 +861,9 @@ in `block.rs` (`Scan`). Where S3 differs from the plan above:
   the fault codes 70-73 and is not one of them: under
   `design/no-faults.md` it is not a program fault, because it exists only
   when a test asks for it and it diagnoses the compiler's reclamation,
-  not the program. Until S6 emits drops every allocating program leaks,
-  so the check fails on them by design. The `cyclic` category waits for
-  S8.
+  not the program. With reclamation on (the default since S6a), it
+  reports only memo values and `letrec` knots, which stay allocated until
+  S8; the `cyclic` category waits for S8.
 - `CINCH_RC_DEBUG=1`: `block::free` poisons the payload
   (`0xdeadbeefdeadbeef`), writes kind `KIND_FREED` with `rc = 0` and keeps
   the memory. `cinch_dup`, `cinch_drop`, `cinch_drop_slow` and every
@@ -878,6 +915,144 @@ transfer alone does not isolate them. Options:
 
 The Wasm cooperative backend (`coop.rs`) is single-threaded, so it never
 marks. Memo cells never cross threads (lazy spec `:77`, `:122`).
+
+**As built (S9).** Option 1, mark on spawn, in `compiler/runtime/src/rc.rs`
+(counts and marking), `task.rs` (spawn and results), `coop.rs`, and the
+code generator's fast paths and concurrency units. Where S9 differs from
+the plan above or fills it in:
+
+- A runtime flag says whether the program counts at all: the layout
+  table's global constructor calls `cinch_reclaim_enable()` when the
+  program was built with `TargetProfile::reclaim`. Without it the runtime
+  neither marks nor drops task results, since such a program never dups
+  a shared block and freeing anything on its behalf would be wrong.
+- Marking. `cinch_task_spawn` marks the body closure (`cinch_mark_mt`)
+  before the thread exists; the thread's creation publishes the marks.
+  The walk negates each mortal, unmarked block's count on its first
+  visit and follows the S5 maps' `Obj` and `TObj` slots. It stops at
+  immortal blocks and at marked ones: blocks are immutable along scanned
+  slots, so the marked set is closed under reachability, and an unmarked
+  block is reachable from one thread only (nothing else can be racing on
+  the blocks the walk writes). It is a pointer-reversal walk like the
+  release, with no recursion and no memory beyond the blocks. A live
+  block's count must survive (it only changes sign), so there is no
+  field for the resume cursor; instead the slot the walk descended
+  through holds the parent link tagged `0b10` in its low bits, a pattern
+  no scanned slot otherwise holds (block words are 8-aligned, immediates
+  odd). On the way back the walk scans the parent's slots down from the
+  top for the tag, restores the child's word and resumes below it. That
+  costs at most `w^2 / 2` extra slot reads for a block of `w` scanned
+  words; a list cell costs one, and every inline-mapped block has at
+  most 16 words. Marking a block on entry also makes a shared child, or
+  a cycle through a scanned slot, a single visit.
+- Atomic counts. A count of `-n` is `n` references. `cinch_dup_mt` is a
+  relaxed `fetch_sub(1)` on the whole header word: the field of `-n` is
+  `2^40 - n`, which never borrows from the kind. `cinch_drop_mt` is a
+  release `fetch_add(1)`, which carries into the kind only when it takes
+  the last reference (`-1` to `0`); that thread then fences acquire,
+  rewrites the header as a count of one with the kind and layout its
+  read-modify-write returned, and releases the block. The orderings are
+  `Arc`'s: a dup's caller already holds a reference, so the count cannot
+  reach zero under it; every drop releases its thread's uses of the
+  block, and the acquire fence before the free makes them all happen
+  before it. The release walk decrements an atomic child the same way,
+  so whichever thread drops a shared block last frees it, children
+  first. `cinch_dup` and `cinch_drop` (the `rc_debug` out-of-line forms)
+  dispatch on the sign.
+- Header reads are atomic. The runtime's `block::read_header` and
+  `write_header` are relaxed atomic accesses, and generated code loads
+  headers (count operations and tag reads) with `load atomic ...
+  monotonic`: other threads change a marked block's count while this one
+  reads its kind, layout or sign, and a plain load racing with them is
+  undefined in Rust and reads undef in LLVM. Both are ordinary loads on
+  every target. Stores stay plain: only a positive count is written in
+  place, on a block no other thread can reach.
+- The fast path, after the null and immediate tests:
+
+  ```
+  %h   = load atomic i64, ptr %hp monotonic, align 8
+  %top = shl i64 %h, 24              ; the count in the top 40 bits
+  ; dup:  icmp sgt %top, 0           -> add %h, 1; store
+  ;       else icmp ne %top, 0       -> call @cinch_dup_mt  (0: immortal)
+  ; drop: icmp sgt %top, 1 << 24     -> sub %h, 1; store
+  ;       else switch %top [0: done, 1 << 24: @cinch_drop_slow]
+  ;            default               -> call @cinch_drop_mt
+  ```
+
+  One load, one shift and one compare in the common case (a dup of a
+  positive count, a drop of a count above one), where the S6 path had a
+  mask and a two-case switch. An apply stub's inline release of its
+  closure takes the same test: a count of one moves the saved words, a
+  count above one drops in place, a negative count drops through
+  `cinch_drop_mt`. Under `rc_debug` every operation still calls
+  `cinch_dup`/`cinch_drop`.
+- Results cross back without marking: a body's `Result` word is stored
+  (sequentially consistent, under the scope lock) before its done flag,
+  and the joiner reads both after the body returned, so the joiner's
+  plain counts follow every count the task made. The result moves from
+  the task state to the join that hands it out (taken out, so nothing
+  else drops it) or, for a child no join took, to the scope's close,
+  which drops it. A failed join takes only the first failure's `Err`
+  block and returns it as the join's result (status -1): its map was
+  built by the body with the error's class. A one-handle join returns the
+  member's own `Ok` block. A wider success needs a tuple of the payloads,
+  whose classes the join unit does not see, so the runtime moves the
+  payloads out of their `Ok` blocks and returns a mask of the counted
+  ones (from each `Ok` block's map), and the join unit picks the tuple's
+  shape from a table of `2^n` shapes (`TObj` covers both counted
+  classes). Each shape costs a layout group, so joins of up to
+  `JOIN_SHAPED_MAX` (4) handles are exact and wider ones keep uncounted
+  tuple slots, which leak their payloads. Before S9 every join leaked its
+  members' `Result` blocks and the payloads.
+- Other cross-thread paths. Scope and handle words are raw and never
+  counted. There are no channels. `withScope` runs its body on the
+  calling thread, and a `Blocking` foreign call runs on its task's own
+  thread. The Wasm backend (`coop.rs`) never marks and shares the result
+  ownership above.
+- What marking cannot see: a counted block reachable from a task body
+  only through a slot that S5 left conservatively `Raw` (a memo value, a
+  knot value, a dictionary's value-method slot, a join tuple wider than
+  four, a boxed-out or packed boundary word, a builtin index-family
+  constructor, an unrecorded class vector) is not marked, and if both
+  threads count it the counts race. D77 keeps memo cells from crossing
+  threads untransferred; the rest close with the same fixes that end
+  their leaks (classes for those slots, and copies of the join unit per
+  class vector).
+- S7 must reuse a block in place only at a count of exactly one: a
+  marked block at `-1` is uniquely held too, but reusing it would give a
+  marked block unmarked children.
+- Tests. `rc::tests`: eight threads racing 200,000 rounds of dups and
+  drops on one marked cell end at exactly `-1`, and a second race in
+  which every thread drops its own reference frees the cell and its
+  child exactly once, under the debug checks (with a plain load and
+  store in place of the dup's atomic, it traps in every run); marking
+  stops at immortal blocks and does not pass through one; a marked
+  subgraph mixed with unmarked blocks marks only what is new, leaves
+  every reversed slot as it was and releases in reverse slot order with
+  atomic counts reaching zero; a shared child is marked once and a
+  closure is read by its shape; a million-cell list marks on a 256 KiB
+  thread. `tests/reclamation_tasks.rs`: five threads reading one
+  1000-cell list 150 times each (20 runs plain and 20 under
+  `CINCH_RC_DEBUG`), children returning fresh lists through one-, two-
+  and failed joins, and trees freed by whichever of four tasks finishes
+  last, all `leaked=0`. With marking switched off in a copy of the
+  runtime the first program faulted in 10 of 10 runs and the tree
+  program in 6 of 6; at HEAD before S9 the first crashed every run and
+  the join program leaked 150,350 blocks.
+- Measured on `tests/reclamation.rs`'s 1000-by-1000 build-and-drop loop,
+  as the driver builds it (unoptimised IR, debug runtime), 15 runs
+  interleaved: 710 ms median before S9, 739 ms after. Of that, the S6 IR
+  linked with the S9 runtime takes 734 ms, so the fast paths' sign test
+  and atomic header loads cost under 1% and the rest is the debug
+  runtime's unoptimised atomic header reads. With `-O2` and the release
+  runtime: medians 318 ms before and 324 ms after (minimums 295 and 303
+  ms, within the spread of these runs). On a count-heavy loop (one dup
+  and one drop per cell of a shared 1000-cell list, 3,000 traversals) at
+  `-O2`, 21 runs: medians 289 ms before and 295 ms after, minimums 277
+  ms both. A monotonic header load measured the same as a plain one.
+- `runtime_abi` must bump: `cinch_dup_mt`, `cinch_drop_mt`,
+  `cinch_mark_mt` and `cinch_reclaim_enable` are new, negative counts
+  exist, and the join's hand-over changed.
 
 ---
 

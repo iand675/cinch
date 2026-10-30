@@ -241,8 +241,8 @@ fn exit_message(code: i32, alloc: &str, stdout: &str) -> String {
     format!(
         "the rung program must pass every check; bit {code} (1 unparseable, 2 not a fixed \
          point, 3 reorder changed canonical bytes, 4 added key did not, 5 package facts, \
-         6 hash not stable, 7 unreadable, 9 bytes are not canonical, 73 heap limit; the \
-         runtime frees nothing, so the cap acts on this run's TOTAL allocation)\n\
+         6 hash not stable, 7 unreadable, 9 bytes are not canonical, 73 Exhausted (its live \
+         heap passed CINCH_HEAP_LIMIT or its stack overflowed; stderr names which))\n\
          allocation: {alloc}\nfull output:\n{stdout}"
     )
 }

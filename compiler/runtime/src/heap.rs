@@ -28,23 +28,31 @@
 //!   `blocks - header-blocks` is the runtime's own allocations (limbs,
 //!   buffer data, handle tables). The line is written by an `atexit`
 //!   handler registered on the first allocation, so it also appears after a
-//!   `cinch_panic`/`cinch_blackhole`/heap-limit fault (all of which leave
-//!   through `exit`), but not after a signal.
-//! * `CINCH_HEAP_LIMIT=<n>[K|M|G]`: fault with exit code
-//!   [`crate::abi::EXIT_HEAP_LIMIT`] and `cinch: heap limit exceeded (<n>
-//!   bytes)` once cumulative allocated bytes would exceed `n`. Unset means
-//!   [`DEFAULT_HEAP_LIMIT`] (8 GiB); `0` disables the cap. An unparsable
-//!   value falls back to the default rather than disabling the cap.
+//!   `cinch_panic`/`cinch_blackhole` fault and after a heap or thread
+//!   `Exhausted` exit (all of which leave through `exit`), but not after a
+//!   signal or a stack `Exhausted` exit (which leaves through `_exit`,
+//!   [`crate::stack`]).
+//! * `CINCH_HEAP_LIMIT=<n>[K|M|G]`: once the live heap (bytes allocated
+//!   and not yet freed, whose high-water mark is the stats line's `peak`)
+//!   would exceed `n`, exit `Exhausted` ([`crate::abi::EXIT_EXHAUSTED`])
+//!   with `cinch: exhausted: heap (<n> bytes)`, where `<n>` is the live
+//!   bytes the failing allocation would have brought the heap to. Unset
+//!   means [`DEFAULT_HEAP_LIMIT`] (8 GiB); `0` disables the cap. An
+//!   unparsable value falls back to the default rather than disabling
+//!   the cap.
 //! * `CINCH_LEAK_CHECK=1` and `CINCH_RC_DEBUG=1`: the diagnostics of
 //!   [`crate::rc`].
 //!
-//! The limit is on cumulative allocation, not live bytes: generated code
-//! frees nothing yet, so the two coincide for generated blocks, and
-//! counting cumulative bytes keeps the cap meaningful for transient
-//! runtime buffers too.
+//! The cap bounds live bytes, not the lifetime total: reclamation frees
+//! blocks as they die, so a program whose live heap stays under the cap
+//! runs to completion however much it allocates over its life, and the
+//! cap bounds the memory the process actually holds. A real allocation
+//! failure (the system allocator answering null) is the same `Exhausted`
+//! exit, never Rust's `handle_alloc_error` abort, so the global
+//! allocator never answers null.
 
 use std::alloc::{GlobalAlloc, Layout, System};
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering::Relaxed};
+use std::sync::atomic::{AtomicU64, Ordering::Relaxed};
 use std::sync::LazyLock;
 
 /// The cap applied when `CINCH_HEAP_LIMIT` is unset: 8 GiB.
@@ -58,9 +66,6 @@ static HEADER_BLOCKS: AtomicU64 = AtomicU64::new(0);
 static HEADER_BYTES: AtomicU64 = AtomicU64::new(0);
 static IMMORTAL: AtomicU64 = AtomicU64::new(0);
 static FREED: AtomicU64 = AtomicU64::new(0);
-/// Set once the heap-limit fault starts: the exit path (stderr writes,
-/// `atexit` handlers) may still allocate and must not fault again.
-static FAULTING: AtomicBool = AtomicBool::new(false);
 
 struct Config {
     /// 0 means uncapped.
@@ -147,18 +152,40 @@ pub(crate) fn parse_limit(v: &[u8]) -> Option<u64> {
     n.checked_mul(mult)
 }
 
-/// Record an allocation of `size` bytes, faulting if it would cross the
-/// heap cap. The single accounting point for every heap block.
+/// Record an allocation of `size` bytes, exiting `Exhausted` if it would
+/// take the live heap past the cap. The single accounting point for
+/// every heap block. Once an `Exhausted` exit is under way the cap no
+/// longer applies: the exit path (stderr writes, `atexit` handlers) may
+/// still allocate and must not exit twice.
 pub fn account_alloc(size: usize) {
     let size = size as u64;
-    let total = BYTES.fetch_add(size, Relaxed) + size;
+    BYTES.fetch_add(size, Relaxed);
     BLOCKS.fetch_add(1, Relaxed);
     let cur = CURRENT.fetch_add(size, Relaxed) + size;
     PEAK.fetch_max(cur, Relaxed);
     let limit = CONFIG.limit;
-    if limit != 0 && total > limit && !FAULTING.swap(true, Relaxed) {
-        heap_limit_exit(limit);
+    if limit != 0 && cur > limit && !crate::abi::exhausting() {
+        crate::abi::exhausted(crate::abi::Resource::Heap(cur));
     }
+}
+
+/// The system allocator answered null for an allocation already counted
+/// by [`account_alloc`]: the `Exhausted` exit, reporting the live bytes
+/// the program asked to hold. A failure on the exit path itself leaves
+/// at once with the same code.
+fn refused() -> ! {
+    if crate::abi::exhausting() {
+        crate::abi::exhausted_again();
+    }
+    crate::abi::exhausted(crate::abi::Resource::Heap(CURRENT.load(Relaxed)))
+}
+
+/// A request of `size` bytes that no allocation can satisfy (its size
+/// does not fit an allocation layout): the same `Exhausted` exit, with
+/// the live bytes it would have brought the heap to.
+pub(crate) fn request_too_large(size: usize) -> ! {
+    let n = CURRENT.load(Relaxed).saturating_add(size as u64);
+    crate::abi::exhausted(crate::abi::Resource::Heap(n))
 }
 
 /// Record that a header block of `size` bytes (header included) was
@@ -229,16 +256,6 @@ pub fn stats() -> (u64, u64, u64, u64) {
     )
 }
 
-fn heap_limit_exit(limit: u64) -> ! {
-    let mut line = Line::new();
-    line.push(b"cinch: heap limit exceeded (");
-    line.num(limit);
-    line.push(b" bytes)\n");
-    line.flush();
-    // `exit`, not `_exit`, so the stats handler still runs.
-    std::process::exit(crate::error::Error::HeapLimit.exit_code())
-}
-
 extern "C" fn print_stats() {
     let (blocks, bytes, _, peak) = stats();
     let mut line = Line::new();
@@ -277,28 +294,30 @@ pub(crate) fn write_leak_report(live: u64, immortal: u64, leaked: u64) {
     line.flush();
 }
 
-/// A fixed stack buffer for the two stderr lines: neither may allocate
-/// (one runs inside the allocator, the other after a heap fault).
-struct Line {
+/// A fixed stack buffer for the runtime's no-allocation stderr lines (the
+/// stats and leak lines, and the `Exhausted` line of
+/// [`crate::abi::exhausted`], which runs inside the allocator or a signal
+/// handler).
+pub(crate) struct Line {
     buf: [u8; 256],
     len: usize,
 }
 
 impl Line {
-    fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Line {
             buf: [0; 256],
             len: 0,
         }
     }
 
-    fn push(&mut self, s: &[u8]) {
+    pub(crate) fn push(&mut self, s: &[u8]) {
         let n = s.len().min(self.buf.len() - self.len);
         self.buf[self.len..self.len + n].copy_from_slice(&s[..n]);
         self.len += n;
     }
 
-    fn num(&mut self, mut v: u64) {
+    pub(crate) fn num(&mut self, mut v: u64) {
         let mut tmp = [0u8; 20];
         let mut i = tmp.len();
         loop {
@@ -312,7 +331,7 @@ impl Line {
         self.push(&tmp[i..]);
     }
 
-    fn flush(&self) {
+    pub(crate) fn flush(&self) {
         let mut off = 0;
         while off < self.len {
             let n = unsafe { write(2, self.buf[off..].as_ptr(), self.len - off) };
@@ -325,18 +344,27 @@ impl Line {
 }
 
 /// The counting global allocator: the system allocator plus
-/// [`account_alloc`]/[`account_free`].
+/// [`account_alloc`]/[`account_free`]. It never answers null: a refused
+/// allocation is the heap `Exhausted` exit ([`refused`]).
 pub struct Counting;
+
+/// `p`, or the `Exhausted` exit when the system allocator refused.
+fn granted(p: *mut u8) -> *mut u8 {
+    if p.is_null() {
+        refused();
+    }
+    p
+}
 
 unsafe impl GlobalAlloc for Counting {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
         account_alloc(layout.size());
-        unsafe { System.alloc(layout) }
+        granted(unsafe { System.alloc(layout) })
     }
 
     unsafe fn alloc_zeroed(&self, layout: Layout) -> *mut u8 {
         account_alloc(layout.size());
-        unsafe { System.alloc_zeroed(layout) }
+        granted(unsafe { System.alloc_zeroed(layout) })
     }
 
     unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
@@ -347,7 +375,7 @@ unsafe impl GlobalAlloc for Counting {
     unsafe fn realloc(&self, ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
         account_free(layout.size());
         account_alloc(new_size);
-        unsafe { System.realloc(ptr, layout, new_size) }
+        granted(unsafe { System.realloc(ptr, layout, new_size) })
     }
 }
 

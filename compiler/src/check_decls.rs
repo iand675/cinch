@@ -5141,7 +5141,9 @@ impl Checker {
                 resolve_idx_words(&mut c, &idx_vals);
                 // Module arguments are closed: no type parameters.
                 let own = HashSet::new();
-                let low = lower(&c, &LowerCx::new(self, &[], &own));
+                let lcx = LowerCx::new(self, &[], &own).for_unit(GlobalId(format!("{module}.{}", unit.text)));
+                let low = lower(&c, &lcx);
+                lcx.finish()?;
                 arg_ids.push(arg_identity(&low, &text));
                 cores.push(low);
             }
@@ -6614,7 +6616,7 @@ impl Checker {
             let mut done = Vec::with_capacity(hoisted.len() + 1);
             {
                 let mut cx = LowerCx::new(self, &tparams, &own);
-                done.push(finalize_fn(id, param_ids, body, prim, ctor, hints, meta, &mut cx));
+                done.push(finalize_fn(id, param_ids, body, prim, ctor, hints, meta, &mut cx)?);
                 for h in hoisted {
                     done.push(finalize_fn(
                         h.id,
@@ -6625,7 +6627,7 @@ impl Checker {
                         crate::core::FnHints::default(),
                         crate::core::FnMeta::default(),
                         &mut cx,
-                    ));
+                    )?);
                 }
             }
             self.fns.extend(done);
@@ -8788,13 +8790,23 @@ impl Checker {
         let rule_unit = GlobalId(format!("{}.rewrite.{}", self.current_module, r.name.text));
         hoist_lambdas(&mut m, &rule_unit.0, &mut self.lam_counter, &mut hoisted);
         hoist_lambdas(&mut rp, &rule_unit.0, &mut self.lam_counter, &mut hoisted);
-        // The rule's own type parameters are not threaded here: its
-        // classes are recorded concretely where known, and matching binds
-        // nothing it cannot see (see `core::match_class`).
+        // The rule's own type parameters lower to open classes
+        // (`Class::Param`, in binder order): a firing binds each to the
+        // first subterm class it meets (`core::match_class`), and the
+        // template uses that class.
+        let rule_tparams: Vec<String> = hints
+            .iter()
+            .map(|(name, _)| name.clone())
+            .filter(|name| {
+                !row_params.contains(name)
+                    && !region_params.contains(name)
+                    && matches!(kinds.get(name), Some(ParamKind::Type) | None)
+            })
+            .collect();
         let own: HashSet<GlobalId> = hoisted.iter().map(|h| h.id.clone()).collect();
         let mut done = Vec::new();
         let (pattern, template, require) = {
-            let mut cx = LowerCx::new(self, &[], &own);
+            let mut cx = LowerCx::new(self, &rule_tparams, &own);
             for h in hoisted {
                 done.push(finalize_fn(
                     h.id,
@@ -8805,10 +8817,15 @@ impl Checker {
                     crate::core::FnHints::default(),
                     crate::core::FnMeta::default(),
                     &mut cx,
-                ));
+                )?);
             }
+            // The pattern and template are code a firing splices into the
+            // matched unit.
             cx.orig.clear();
-            (lower(&m, &cx), lower(&rp, &cx), req_ec.as_ref().map(|req| lower(req, &cx)))
+            cx.unit = Some(rule_unit.clone());
+            let lowered = (lower(&m, &cx), lower(&rp, &cx), req_ec.as_ref().map(|req| lower(req, &cx)));
+            cx.finish()?;
+            lowered
         };
         self.fns.extend(done);
         // The `require` clause's operative condition: `Available v` over a
@@ -16622,7 +16639,7 @@ impl Checker {
                 crate::core::FnHints::default(),
                 crate::core::FnMeta::default(),
                 &mut LowerCx::new(self, &[], &own),
-            );
+            )?;
             self.fns.push(def);
             self.data_imports.push(DataImport {
                 module: module.to_string(),
@@ -20446,7 +20463,7 @@ impl Checker {
         let own: HashSet<GlobalId> = hoisted.iter().map(|h| h.id.clone()).collect();
         let mut done = Vec::new();
         {
-            let mut lcx = LowerCx::new(self, &[], &own);
+            let mut lcx = LowerCx::compile_time(self, &[], &own);
             done.push(finalize_fn(
                 id.clone(),
                 Vec::new(),
@@ -20456,7 +20473,7 @@ impl Checker {
                 crate::core::FnHints::default(),
                 crate::core::FnMeta::default(),
                 &mut lcx,
-            ));
+            )?);
             for h in hoisted {
                 done.push(finalize_fn(
                     h.id,
@@ -20467,7 +20484,7 @@ impl Checker {
                     crate::core::FnHints::default(),
                     crate::core::FnMeta::default(),
                     &mut lcx,
-                ));
+                )?);
             }
         }
         self.fns.extend(done);

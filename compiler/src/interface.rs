@@ -16,11 +16,13 @@ use std::collections::BTreeMap;
 use std::fmt;
 
 pub const SCHEMA_VERSION: u32 = 1;
-/// 4: layout entries carry 2-bit pointer maps; closures and dictionaries
-/// have shaped headers and allocate through `cinch_alloc_shaped`; the entry
-/// glue calls `cinch_exit_check`; the quote `LAM` gains a shape operand.
-/// (3: the tag in the header; 2: the header word and small immediates.)
-pub const RUNTIME_ABI_VERSION: u32 = 4;
+/// 5: negative counts are atomic (mark-on-spawn, `cinch_mark_mt`,
+/// `cinch_dup_mt`/`cinch_drop_mt`); joins hand results out once;
+/// `cinch_reclaim_enable`; the quote encoder gains `SET`/`DUP`/`DROP`; one
+/// `Exhausted` exit (73) for heap, stack and threads, with the heap cap on
+/// live bytes. (4: pointer maps and shaped closures; 3: the tag in the
+/// header; 2: the header word and small immediates.)
+pub const RUNTIME_ABI_VERSION: u32 = 5;
 pub const LANGUAGE_VERSION: &str = "draft-0.2+amendments";
 
 /// A reference to an imported module's interface identity.

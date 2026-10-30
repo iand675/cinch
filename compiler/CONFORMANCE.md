@@ -2309,9 +2309,8 @@ so the embedding sweep stays its own decision.
   incremental linker maps a copy to its generic declaration. On
   `bootstrap_pipeline`'s program the build shrank (4693 to 3753 defines,
   13.5 MB to 12.6 MB) because unreached generic bodies are no longer
-  emitted. Open: let-generalized locals still share one copy (their
-  quantified slots are `Raw`, which can leak but never frees a live
-  block; the prelude and bootstrap have none).
+  emitted. Let-generalized locals, which shared one copy here, get one
+  copy per use since D408.
 - **D404 (map-headed fusion composed only the innermost stage; fixed)**:
   for `prod-map f (prod-map g (prod-map h p))` not consumed by a fold in
   the same unit, `Driver::fuse` left the head's own callback `f` out of
@@ -2381,6 +2380,89 @@ so the embedding sweep stays its own decision.
   evidence that `b <= a`; `saturating-sub` is the truncating form. Running
   out of memory or stack is part of every program's implicit outcome, a
   defined `Exhausted` exit and never a crash.
+- **D408 (reclamation on by default; every binder typed)**: every binder
+  the elaboration creates records its type at its source (memo and codata
+  thunk parameters, `let _ = e` and generalized `let x` binders, `bind_cont`
+  binders, effect resumption, handler and prompt parameters, `letrec`
+  thunk parameters, `LazyInit` temporaries, fixpoint boxes, tuple fields,
+  effect operation arguments), and a binder with no type is a compile-time
+  `compiler bug:` error in `LowerCx::local`. It was found that leaving a
+  let-generalized local's type variable `Raw` in its one shared body hands
+  one reference to two owners (a double free), correcting D403's "can
+  only leak". A let-generalized local now has no shared body: each use
+  elaborates to a copy of its definition typed at that use's
+  instantiation (`Checker::gen_copy`; a `letrec` member copies its whole
+  group and the group's units, a destructured component the bound value
+  and its projections), so a local used at a raw type and at a counted
+  type is accepted and each copy counts by its own representation.
+  Destructured components generalize only when the bound value is a
+  syntactic value. `TargetProfile::reclaim`
+  is on unless `CINCH_RECLAIM=0` in the compiler's environment, the switch
+  kept for leak-everything baselines and A/B debugging. The quote encoder
+  gains `SET` (a `RefSet` used to encode as a shadowing `LET`), `DUP` and
+  `DROP` and a `counted` flag on `PROJ`/`DEMAND`; the evaluator owns every
+  value it produces and builds `BIG` constants when evaluated.
+- **D409 (reclamation S9 as built: mark-on-spawn atomic counts)**:
+  `cinch_task_spawn` marks the body closure's reachable graph before the
+  thread starts (`cinch_mark_mt`, a pointer-reversal walk over the S5 maps
+  that tags the descended slot with `0b10` instead of using the live
+  block's count, stopping at immortal and already-marked blocks), negating
+  each count. Dup on a negative count is a relaxed `fetch_sub(1)`; drop is
+  a release `fetch_add(1)`, and the thread that takes it from -1 fences
+  (acquire), restores the header and releases the block. Header loads are
+  atomic (`monotonic`) everywhere; stores stay plain because only positive
+  counts are written in place. The fast path is one load, one shift and one
+  compare (under 1% on the measured loops). Join hands each result out
+  once (before S9 every join leaked its results), with wide joins exact up
+  to four handles. Blocks reachable only through conservatively `Raw`
+  slots are not marked, an open gap tied to the same slots' leaks. S7
+  reuse must require a count of exactly +1. Tests:
+  `tests/reclamation_tasks.rs` (shared lists and trees across five and four
+  threads, 20 plain and 20 debug runs, `leaked=0`) and runtime races (8
+  threads by 200,000 rounds on one cell); with marking disabled the list
+  program faulted 10 of 10 runs.
+- **D410 (one `Exhausted` outcome)**: running out of heap, stack or
+  threads exits 73 (`EXIT_EXHAUSTED`) with `cinch: exhausted: heap (<n>
+  bytes)`, `cinch: exhausted: stack` or `cinch: exhausted: threads`.
+  `CINCH_HEAP_LIMIT` caps LIVE bytes now that memory is reclaimed (the
+  stats line's `bytes=` stays cumulative); real allocation failure and
+  oversized requests take the same exit. Every thread running Cinch code
+  has a 64 KiB guard band and an alternate signal stack
+  (`runtime/src/stack.rs`): a SIGSEGV or SIGBUS inside the band takes the
+  stack exit, any other fault re-raises, and every generated unit carries
+  `"probe-stack"="inline-asm"` so a large frame cannot jump the band. Eval
+  nesting past `MAX_NESTING` is the stack exit. The remaining runtime exits
+  are classified in `design/no-faults-inventory.md`: compiler-bug traps
+  carry a `compiler bug:` message; the reachable faults are the migration's
+  (`Nat` subtraction, division, conversions, decimal parsing, `Bytes`
+  operations, `argv`, IO buffers, symbol names, the cooperative
+  scheduler's deadlock check). `runtime_abi` is 5. Verified on macOS arm64;
+  the Linux paths are written from each ABI, not run.
+- **D411 (reclamation on: the bugs it exposed, fixed)**: (1) the
+  optimizer's fresh local ids started past the largest id the body
+  mentions, so an unused parameter's id was reused by an inlined `let` and
+  took its class: a `Char` parameter was dropped as an object (segfault).
+  Fresh ids now also start past the parameter count;
+  `reclamation::unused_raw_parameters_are_never_counted` covers `Char`,
+  `Bool`, `I64`, `U8`, nested lambdas and unused trailing parameters. (2) A
+  quotation containing a nullary constructor encoded it as an application
+  of the constructor's own result block, crashing with or without
+  reclamation. (3) A handler's clause tuple carried no type arguments, so
+  dropping it never released its clause closures. (4) Let-generalized
+  locals: each use is now its own copy of the local's definition (a
+  `letrec` group copied as a group with fresh unit ids in the original
+  order; a destructured component with its bound value), and the
+  representation refusal is deleted, so `integration::local_let_polymorphism`
+  is accepted again. Destructured tuple components now generalize only
+  under the value restriction; before, they always generalized, which was
+  unsound. (5) Rewrite rules lower their own type variables to open class
+  parameters. Measured with reclamation on: peak memory `Run.Maps` 120 MB to
+  3.5 MB, the lexer on `Data/HashMap.cinch` 15.0 MB to 0.38 MB, the parser
+  13.5 MB to 0.54 MB, `Run.Manifest` on `Data.Machine.cinchif` 602 MB to
+  10.3 MB, the pipeline compiling `fib.cinch` 1.78 MB to 0.02 MB; `live=0`
+  at exit for all of them. The only expected leak is a `letrec` value knot
+  (3 blocks) until S8. Open: constants built at compile time are
+  constructed without type arguments, so their counted fields may leak.
 ### Refinement types (P28)
 
 Implemented `dfc653d` (2026-10-27, `RefinementSlice`, D248-D255):

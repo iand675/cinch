@@ -24,13 +24,98 @@ pub const EXIT_PANIC: i32 = 71;
 /// Exit code of the division fault (`cinch_fault_div_zero`).
 pub const EXIT_DIV_ZERO: i32 = 72;
 
-/// Exit code of the heap-limit fault (`CINCH_HEAP_LIMIT`, [`crate::heap`]).
-pub const EXIT_HEAP_LIMIT: i32 = 73;
+/// Exit code of the `Exhausted` outcome (`design/no-faults.md` sections 4
+/// and 7): the program ran out of a resource, which every program's
+/// declared outcome at `main` includes. One code for every resource; the
+/// stderr line [`exhausted`] writes names which one. It keeps the code the
+/// heap cap already had, since the heap cap was the one resource exit
+/// before and stays its most common cause.
+pub const EXIT_EXHAUSTED: i32 = 73;
+
+/// The resource an `Exhausted` exit ran out of.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Resource {
+    /// The heap, carrying the live heap bytes the program would have
+    /// held: past the `CINCH_HEAP_LIMIT` cap, or refused by the system
+    /// allocator ([`crate::heap`]).
+    Heap(u64),
+    /// A thread's stack ([`crate::stack`]), or the evaluator's nesting
+    /// bound ([`crate::eval::MAX_NESTING`]), which stands in for it.
+    Stack,
+    /// The OS refused a thread (the program's own thread or a task's).
+    Threads,
+}
+
+/// Set by the first `Exhausted` exit: allocation stops being capped (the
+/// exit path may allocate) and a second thread reaching an `Exhausted`
+/// exit waits for the first instead of racing it through `exit`.
+static EXHAUSTING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+unsafe extern "C" {
+    fn _exit(code: i32) -> !;
+    fn pause() -> i32;
+}
+
+/// Whether an `Exhausted` exit is under way.
+pub(crate) fn exhausting() -> bool {
+    EXHAUSTING.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+/// Claim the exit, or, when another thread already has, wait for it to
+/// end the process.
+fn claim_exhausted() {
+    if EXHAUSTING.swap(true, std::sync::atomic::Ordering::SeqCst) {
+        loop {
+            unsafe { pause() };
+        }
+    }
+}
+
+/// Write `cinch: exhausted: <resource>` to stderr without allocating.
+fn exhausted_line(r: Resource) {
+    let mut line = crate::heap::Line::new();
+    line.push(b"cinch: exhausted: ");
+    match r {
+        Resource::Heap(n) => {
+            line.push(b"heap (");
+            line.num(n);
+            line.push(b" bytes)");
+        }
+        Resource::Stack => line.push(b"stack"),
+        Resource::Threads => line.push(b"threads"),
+    }
+    line.push(b"\n");
+    line.flush();
+}
+
+/// The `Exhausted` exit: write the line and leave through `exit`, so the
+/// `atexit` handlers (the `CINCH_ALLOC_STATS` line) still run.
+pub fn exhausted(r: Resource) -> ! {
+    claim_exhausted();
+    exhausted_line(r);
+    std::process::exit(EXIT_EXHAUSTED)
+}
+
+/// The `Exhausted` exit from a signal handler or from an allocator that
+/// cannot allocate: the same line, then `_exit`, the only exit that is
+/// async-signal-safe and needs no memory.
+pub(crate) fn exhausted_in_signal(r: Resource) -> ! {
+    claim_exhausted();
+    exhausted_line(r);
+    unsafe { _exit(EXIT_EXHAUSTED) }
+}
+
+/// Leave immediately with the `Exhausted` code: an allocation failed
+/// while an `Exhausted` exit (whose line is already written or being
+/// written) was running.
+pub(crate) fn exhausted_again() -> ! {
+    unsafe { _exit(EXIT_EXHAUSTED) }
+}
 
 /// Exit code of a failed leak check (`CINCH_LEAK_CHECK=1`,
 /// [`crate::rc::cinch_exit_check`]): live mortal blocks remained when
 /// `main` returned. An opt-in diagnostic of the compiler's reclamation,
-/// not a program fault, so it sits after the fault codes 70-73 rather
+/// not a program fault, so it sits after the runtime's codes 70-73 rather
 /// than among them.
 pub const EXIT_LEAK: i32 = 74;
 
@@ -113,12 +198,13 @@ fn div_zero_exit() -> ! {
     std::process::exit(EXIT_DIV_ZERO)
 }
 
-/// Map a Rust API error onto its defined runtime fault.
+/// Map a Rust API error onto its defined runtime exit.
 pub(crate) fn raise(err: Error) -> ! {
-    if err == Error::DivByZero {
-        div_zero_exit();
+    match err {
+        Error::DivByZero => div_zero_exit(),
+        Error::NestingTooDeep => exhausted(Resource::Stack),
+        _ => panic_exit(err.to_string().as_bytes()),
     }
-    panic_exit(err.to_string().as_bytes())
 }
 
 // Small `Nat`/`Int` immediates (design/reclamation.md section 2.6). Heap
@@ -327,7 +413,7 @@ pub extern "C" fn cinch_blackhole() -> ! {
 pub unsafe extern "C" fn cinch_panic(msg: *const u8, len: usize) -> ! {
     match unsafe { bytes(msg, len) } {
         Ok(m) => panic_exit(m),
-        Err(_) => panic_exit(b"panic with corrupt message pointer"),
+        Err(_) => panic_exit(b"compiler bug: panic with corrupt message pointer"),
     }
 }
 
@@ -358,15 +444,16 @@ fn alloc_request(size: i64, kind: i64, negative: &[u8], bad_kind: &[u8]) -> (usi
 /// `kind` (a `KIND_*` of [`crate::block`]) and return it as a word.
 ///
 /// The size is rounded up to a whole number of 64-bit words (minimum one
-/// word). Negative sizes, an unknown kind, and allocation failures fault
-/// through `cinch_panic`.
+/// word). A negative size or an unknown kind is a compiler-bug trap
+/// (generated code passes constant sizes and kinds); allocation failure
+/// is the heap `Exhausted` exit.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_alloc(size: i64, kind: i64) -> i64 {
     let (size, kind) = alloc_request(
         size,
         kind,
-        b"cinch_alloc called with negative size",
-        b"cinch_alloc called with an unknown block kind",
+        b"compiler bug: cinch_alloc called with negative size",
+        b"compiler bug: cinch_alloc called with an unknown block kind",
     );
     (unsafe { crate::block::allocate(size, kind, crate::block::RC_FRESH, true) }) as usize as i64
 }
@@ -378,15 +465,15 @@ pub unsafe extern "C" fn cinch_alloc(size: i64, kind: i64) -> i64 {
 /// gets `rc = 1`, `kind`, and the payload size ([`crate::block`]). Every
 /// call site initialises each word it reads, so the payload is not
 /// zero-filled (the same contract as the `malloc` it replaces). Negative
-/// sizes, an unknown kind, size overflow, and allocation failure fault
-/// through `cinch_panic`.
+/// sizes and an unknown kind are compiler-bug traps; size overflow and
+/// allocation failure are the heap `Exhausted` exit.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_alloc_raw(size: i64, kind: i64) -> *mut u8 {
     let (size, kind) = alloc_request(
         size,
         kind,
-        b"cinch_alloc_raw called with negative size",
-        b"cinch_alloc_raw called with an unknown block kind",
+        b"compiler bug: cinch_alloc_raw called with negative size",
+        b"compiler bug: cinch_alloc_raw called with an unknown block kind",
     );
     unsafe { crate::block::allocate(size, kind, crate::block::RC_FRESH, false) }
 }
@@ -397,12 +484,12 @@ pub unsafe extern "C" fn cinch_alloc_raw(size: i64, kind: i64) -> *mut u8 {
 /// field holds (the constructor's tag is in its low bits), or an escaped
 /// descriptor, which goes in the word before the header
 /// (`block_kinds.rs`). The block gets `rc = 1` and kind `KIND_CTOR`; the
-/// payload is the fields alone, with no tag word. Negative sizes fault
-/// through `cinch_panic`.
+/// payload is the fields alone, with no tag word. A negative size is a
+/// compiler-bug trap.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_alloc_ctor(size: i64, desc: i64) -> *mut u8 {
     if size < 0 {
-        panic_exit(b"cinch_alloc_ctor called with negative size");
+        panic_exit(b"compiler bug: cinch_alloc_ctor called with negative size");
     }
     unsafe { crate::block::allocate_ctor(size as usize, desc as u64, false) }
 }
@@ -411,17 +498,17 @@ pub unsafe extern "C" fn cinch_alloc_ctor(size: i64, desc: i64) -> *mut u8 {
 /// of `size` uninitialised payload bytes whose shape descriptor is `desc`
 /// (`block_kinds.rs`'s `shape_desc`: a table index, or an escaped
 /// descriptor that goes in the word before the header), with `rc = 1`,
-/// and return the payload pointer. Negative sizes and any other kind
-/// fault through `cinch_panic`.
+/// and return the payload pointer. A negative size or any other kind is
+/// a compiler-bug trap.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_alloc_shaped(size: i64, kind: i64, desc: i64) -> *mut u8 {
     if size < 0 {
-        panic_exit(b"cinch_alloc_shaped called with negative size");
+        panic_exit(b"compiler bug: cinch_alloc_shaped called with negative size");
     }
     let closure = i64::from(crate::block::KIND_CLOSURE);
     let dict = i64::from(crate::block::KIND_DICT);
     if kind != closure && kind != dict {
-        panic_exit(b"cinch_alloc_shaped called with an unshaped block kind");
+        panic_exit(b"compiler bug: cinch_alloc_shaped called with an unshaped block kind");
     }
     unsafe { crate::block::allocate_shaped(size as usize, kind as u8, desc as u64, false) }
 }
@@ -435,7 +522,7 @@ pub unsafe extern "C" fn cinch_alloc_shaped(size: i64, kind: i64, desc: i64) -> 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_layouts_register(table: *const u64, len: i64) {
     if len < 0 || (len > 0 && table.is_null()) {
-        panic_exit(b"cinch_layouts_register called with a corrupt table");
+        panic_exit(b"compiler bug: cinch_layouts_register called with a corrupt table");
     }
     unsafe { crate::block::register_layouts(table, len as usize) }
 }
@@ -872,21 +959,18 @@ pub unsafe extern "C" fn cinch_bytes_data(word: i64) -> i64 {
 
 /// A fresh `Bytes` word holding a copy of `len` bytes at `ptr` (the
 /// canonical ABI copies its lists and strings; zero-copy needs its own
-/// sharing arrangement). Negative lengths and null pointers with a
-/// positive length fault.
+/// sharing arrangement). The pointer and length come from generated
+/// code (a constant's data, a canonical-ABI list), so a negative length
+/// or a null pointer with a positive length is a compiler-bug trap.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_bytes_from_data(ptr: *const u8, len: i64) -> i64 {
-    if len < 0 {
-        raise(Error::OutOfBounds)
-    }
-    let n = match usize::try_from(len) {
-        Ok(n) => n,
-        Err(_) => raise(Error::OutOfBounds),
+    let Ok(n) = usize::try_from(len) else {
+        raise(Error::CorruptValue)
     };
     let slice: &[u8] = if n == 0 {
         &[]
     } else if ptr.is_null() {
-        raise(Error::OutOfBounds)
+        raise(Error::CorruptValue)
     } else {
         unsafe { std::slice::from_raw_parts(ptr, n) }
     };
@@ -926,9 +1010,11 @@ pub unsafe extern "C" fn cinch_task_spawn(scope: i64, closure: i64) -> i64 {
     scope.spawn(closure)
 }
 
-/// `joinAllOrCancel` over the `n` handles at `handles`: 0 and the `Ok`
-/// payloads in `out` on success, 1 and the first `Err` payload in
-/// `out[0]` on failure (the first failure cancels the siblings).
+/// `joinAllOrCancel` over the `n` handles at `handles`: wait for every
+/// member, then hand the results over as `crate::task::join_failed` and
+/// `crate::task::join_succeeded` describe (a negative return is a
+/// failure, with its `Err` block in `out[0]`; the first failure cancels
+/// the siblings).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_task_join_all_or_cancel(
     scope: i64,
@@ -936,8 +1022,9 @@ pub unsafe extern "C" fn cinch_task_join_all_or_cancel(
     n: i64,
     out: i64,
 ) -> i64 {
+    // `n` is the handle count the code generator emits for the call.
     if n < 0 {
-        raise(Error::OutOfBounds);
+        raise(Error::CorruptValue);
     }
     let scope = unsafe { &*(scope as *const std::sync::Arc<crate::task::Scope>) };
     unsafe {

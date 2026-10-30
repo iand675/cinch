@@ -93,7 +93,7 @@
 //!
 //! | bits | field | meaning |
 //! |------|-------|---------|
-//! | 0..40 | `rc`, signed | 0 immortal (static blocks, interned `Sym` cells, `KIND_BYTES_STATIC` buffers); 1 when allocated; > 0 a single-threaded count up to `RC_MAX` (2^39 - 1); < 0 reserved for atomic counts. A count cannot overflow: the heap is capped below 8 * 2^40 bytes, so no increment needs a check, and there is no sticky state |
+//! | 0..40 | `rc`, signed | 0 immortal (static blocks, interned `Sym` cells, `KIND_BYTES_STATIC` buffers); 1 when allocated; > 0 a single-threaded count up to `RC_MAX` (2^39 - 1); `-n` an atomic count of `n`, for a block marked when a task body reached it (changed only by atomic read-modify-writes, never unmarked). A count cannot overflow: the heap is capped below 8 * 2^40 bytes, so no increment needs a check, and there is no sticky state |
 //! | 40..48 | `kind: u8` | [`block`]`::KIND_*`: ctor 1, closure 2, dictionary 3, memo 4, knot 5, nat 6, int 7, bytes 8, bytes-static 9, sym 10, code 11, boxed scalar 12, raw 13, freed 255 (0 is never a live block) |
 //! | 48..64 | `layout: u16` | a constructor block's layout id; a closure's or dictionary's shape index; for every other kind, the payload size in 64-bit words. `0xFFFF` (`LAYOUT_BIG`) is the escape: the word at offset -16 holds an escaped descriptor (the three shaped kinds), or another kind's payload byte size (a payload of at least 0xFFFF words) |
 //!
@@ -150,17 +150,33 @@
 //! blocks and have no header: they are freed only by their own close
 //! entry points.
 //!
-//! # Faults
+//! # Exits
 //!
-//! Faults are defined runtime failures. At the extern "C" layer they write
-//! a message to stderr (when one exists) and terminate the process:
+//! A compiled program ends in one of three ways besides returning from
+//! `main` (whose `Int` result is the exit status): a fault, a
+//! compiler-bug trap, or the `Exhausted` outcome. Each writes a message
+//! to stderr (when one exists) and terminates the process:
 //!
-//! | exit code | fault | entry point |
-//! |-----------|-------|-------------|
-//! | 70 | `BlackHole` (e.g. demanding a memo cell mid-evaluation) | [`cinch_blackhole`] |
-//! | 71 | generic fault: `cinch_panic` and every runtime error except division by zero and the `BlackHole` fault | [`cinch_panic`] |
+//! | exit code | outcome | entry point |
+//! |-----------|---------|-------------|
+//! | 70 | `BlackHole` fault (e.g. demanding a memo cell mid-evaluation) | [`cinch_blackhole`] |
+//! | 71 | generic fault: `cinch_panic` and every runtime error except division by zero, the `BlackHole` fault and the evaluator's nesting bound; also every compiler-bug trap, whose message starts `compiler bug:` | [`cinch_panic`] |
 //! | 72 | division or remainder by zero | [`cinch_fault_div_zero`] |
-//! | 73 | heap limit exceeded (`CINCH_HEAP_LIMIT`) | [`heap`] |
+//! | 73 | `Exhausted`: the program ran out of a resource, with one line `cinch: exhausted: heap (<n> bytes)`, `cinch: exhausted: stack` or `cinch: exhausted: threads` | [`abi::exhausted`] |
+//!
+//! `Exhausted` is part of every program's declared outcome at `main`
+//! (`design/no-faults.md` sections 4 and 7), never a crash: the live heap
+//! passing `CINCH_HEAP_LIMIT` or the system allocator refusing
+//! ([`heap`]; `<n>` is the live bytes the program asked to hold), a
+//! thread's stack overflowing its guard or the evaluator's nesting
+//! bound ([`stack`], [`eval`]), and the OS refusing a thread
+//! ([`stack::spawn_refused`]). A compiler-bug trap fires only when the
+//! compiler or runtime broke an invariant (a corrupt header, a null or
+//! wrong-kind word, a negative generated size): no well-typed program
+//! reaches one when the compiler is correct. The faults 70-72 are the
+//! ones a well-typed program can still reach today
+//! (`design/no-faults-inventory.md`). A program's own result can also be
+//! 70-74; the stderr line is what tells an outcome from a result.
 //!
 //! Exit code 70 is coupled to the code generator: `compiler/src/codegen.rs`
 //! emits `__cinch_blackhole` calling `exit(i32 70)` directly. Both call
@@ -175,33 +191,36 @@
 //! In the safe Rust API ([`Nat`], [`Int`]) the same conditions surface as
 //! [`Error`] values, so tooling and tests observe them without dying. The
 //! extern "C" layer maps [`Error::DivByZero`] onto exit 72,
-//! [`Error::BlackHole`] onto exit 70, [`Error::HeapLimit`] onto exit 73,
-//! and every other error onto exit 71.
+//! [`Error::BlackHole`] onto exit 70, [`Error::NestingTooDeep`] onto the
+//! stack `Exhausted` exit 73, and every other error onto exit 71.
 //!
 //! # Extern symbols
 //!
 //! Every entry point takes and returns `i64` words or raw pointers. Word
 //! arguments must be words produced by this runtime: null or wrong-kind
-//! blocks fault as [`Error::CorruptValue`] (exit 71). Any other bogus word
-//! used as a pointer is a caller bug and faults like any invalid pointer
-//! dereference, not as a typed runtime fault.
+//! blocks are the compiler-bug trap [`Error::CorruptValue`] (exit 71). Any
+//! other bogus word used as a pointer is a caller bug and faults like any
+//! invalid pointer dereference, not as a typed runtime fault.
 //!
-//! Faults:
+//! Exits:
 //!
 //! * `cinch_blackhole() -> !`: the `BlackHole` fault, exit 70.
 //! * `cinch_panic(msg: *const u8, len: usize) -> !`: write the message to
 //!   stderr and exit 71. A null pointer or zero length writes nothing.
 //! * `cinch_fault_div_zero() -> !`: division fault, exit 72.
+//! * The `Exhausted` exit, 73, has no extern entry point: the runtime
+//!   takes it itself, from the allocator, the stack guard's signal
+//!   handler, the evaluator and the thread spawns ([`abi::exhausted`]).
 //!
 //! Allocation (sizes are byte counts):
 //!
 //! * `cinch_alloc(size: i64, kind: i64) -> i64`: allocate `size`
 //!   zero-filled bytes (rounded up to a whole number of 64-bit words,
 //!   minimum one word) as a block with header kind `kind` and `rc = 1`,
-//!   and return the block as a word. Negative sizes, a kind outside
+//!   and return the block as a word. Negative sizes and a kind outside
 //!   4..=13 (the shaped kinds go through `cinch_alloc_ctor` and
-//!   `cinch_alloc_shaped`), size overflow, and allocation failure fault
-//!   through `cinch_panic`.
+//!   `cinch_alloc_shaped`) are compiler-bug traps; size overflow and
+//!   allocation failure are the heap `Exhausted` exit.
 //! * `cinch_free(word: i64)`: deallocate the block behind `word` with the
 //!   size its header records (a shaped block's from the layout table),
 //!   after releasing what a runtime box owns outside its block (a
@@ -221,28 +240,48 @@
 //!   block, with no tag word.
 //! * `cinch_alloc_shaped(size: i64, kind: i64, desc: i64) -> ptr`: the
 //!   same for a closure (kind 2) or dictionary (kind 3) block of shape
-//!   descriptor `desc`; any other kind faults.
+//!   descriptor `desc`; any other kind is a compiler-bug trap.
 //! * `cinch_layouts_register(table: *const u64, len: i64)`: install the
 //!   program's layout table of `len` words.
 //!
-//! Reference counts ([`rc`]; generated code does not call them yet):
+//! Reference counts ([`rc`]):
 //!
 //! * `cinch_dup(word: i64)`, `cinch_drop(word: i64)`: add or drop one
-//!   reference. Immediates, 0 and immortal blocks are ignored. The drop
-//!   of a block's last reference releases it.
+//!   reference, plainly or atomically by the count's sign. Immediates, 0
+//!   and immortal blocks are ignored. The drop of a block's last
+//!   reference releases it.
 //! * `cinch_drop_slow(word: i64)`: release a block whose count is 1, and
 //!   every block only it kept alive: iteratively (a pointer-reversal walk
 //!   through the dead blocks, no native recursion), children in reverse
 //!   slot order and before their parent, by the pointer maps above, with
 //!   a box's out-of-block payload (limbs, buffer data) released with it.
+//!   An atomic child is decremented atomically and released by whichever
+//!   thread drops its last reference.
+//! * `cinch_dup_mt(word: i64)`, `cinch_drop_mt(word: i64)`: the shared
+//!   paths of the inline fast paths, for a block word whose count is
+//!   negative: a relaxed `fetch_sub` of the header word adds a reference;
+//!   a release `fetch_add` drops one, and the drop that takes the last
+//!   one fences acquire, restores the header's kind (its add carried into
+//!   it) and releases the block.
+//! * `cinch_mark_mt(word: i64)`: negate the count of every mortal,
+//!   unmarked block reachable from `word`, stopping at immortal and
+//!   marked blocks, by a pointer-reversal walk over the live blocks with
+//!   no native recursion and no memory beyond them. The task runtime calls
+//!   it on each body closure before its thread starts; generated code
+//!   does not.
+//! * `cinch_reclaim_enable()`: the program counts references. The code
+//!   generator's global constructor calls it when the program was built
+//!   with reclamation; without it the runtime neither marks task bodies
+//!   nor drops task results.
 //! * `cinch_exit_check(code: i64) -> i64`: called by the entry glue when
 //!   `main` returns; `code` unless `CINCH_LEAK_CHECK=1` finds live mortal
 //!   blocks, then 74 (below).
 //!
-//! A corrupt header, a negative count or an invalid map code reached by
-//! these entry points is a compiler-bug trap (exit 71 with a message
-//! naming the compiler bug), not a program fault: no well-typed program
-//! reaches one when the compiler is correct (`design/no-faults.md`).
+//! A corrupt header, a count of the wrong sign for its entry point or an
+//! invalid map code reached by these entry points is a compiler-bug trap
+//! (exit 71 with a message naming the compiler bug), not a program fault:
+//! no well-typed program reaches one when the compiler is correct
+//! (`design/no-faults.md`).
 //!
 //! Every heap allocation (the allocators above and every runtime
 //! `Box`/`Vec`) is counted by the counting global allocator in [`heap`].
@@ -250,11 +289,13 @@
 //! `cinch-alloc: blocks=<n> bytes=<n> peak=<n> header-blocks=<n>
 //! header-bytes=<n> immortal=<n> freed=<n> live=<n>` to stderr at exit
 //! (the last five count header blocks only, see [`heap`]);
-//! `CINCH_HEAP_LIMIT=<n>[K|M|G]` caps cumulative allocated bytes (default
-//! 8 GiB, `0` disables) and faults with exit 73 and
-//! `cinch: heap limit exceeded (<n> bytes)` past it;
+//! `CINCH_HEAP_LIMIT=<n>[K|M|G]` caps the live heap (bytes allocated and
+//! not yet freed; default 8 GiB, `0` disables) and takes the `Exhausted`
+//! exit 73 with `cinch: exhausted: heap (<n> bytes)` past it;
 //! `CINCH_STACK_SIZE=<n>[K|M|G]` sizes the program thread's reserved
-//! stack (default 1 GiB, [`platform::cinch_run_main`]);
+//! stack (default 1 GiB, at least 256 KiB, [`platform::cinch_run_main`];
+//! overflowing it is the `Exhausted` exit with `cinch: exhausted: stack`,
+//! [`stack`]);
 //! `CINCH_LEAK_CHECK=1` makes `cinch_exit_check` print `cinch-leak:
 //! live=<n> immortal=<n> leaked=<n>` and exit 74 when `leaked` (live
 //! header blocks that are not immortal) is not 0, an opt-in diagnostic of
@@ -379,12 +420,18 @@
 //!   structured scope of `withScope`; close cancels and joins unjoined
 //!   children (section 2).
 //! * `cinch_task_spawn(scope: i64, closure: i64) -> i64`: run `closure` on a
-//!   task thread, returning its handle. The body runs through the closure
-//!   apply-stub ABI and returns the prelude `Result` word (the task
-//!   outcome ABI of `crate::task`).
+//!   task thread, returning its handle. The closure's reference moves to
+//!   the thread, and a reclaiming program's closure is marked first
+//!   (`cinch_mark_mt`). The body runs through the closure apply-stub ABI
+//!   and returns the prelude `Result` word (the task outcome ABI of
+//!   `crate::task`).
 //! * `cinch_task_join_all_or_cancel(scope, handles: i64, n: i64, out: i64) -> i64`:
-//!   `joinAllOrCancel`; 0 and the `Ok` payloads in `out`, or 1 and the
-//!   first `Err` payload in `out[0]`.
+//!   `joinAllOrCancel`, handing the results over: -1 and the first
+//!   failure's own `Err` block in `out[0]`; for one handle, 0 and its own
+//!   `Ok` block in `out[0]`; for several, the owned payloads in `out` and
+//!   a mask whose bit `i` says payload `i` is counted, which picks the
+//!   join unit's tuple map. Results no join hands out are dropped by the
+//!   scope's close.
 //! * `cinch_task_poll_cancel() -> i64`: the cancellation observation point
 //!   (section 4).
 //! * `cinch_io_write(word: i64) -> i64`, `cinch_io_read(len: i64) -> i64`,
@@ -404,7 +451,9 @@
 //! `cinch_argv_get`; word 0 is the program name), which is how a
 //! compiled program reads its own arguments; and the program's own
 //! thread, `cinch_run_main`, which the same glue calls next to run the
-//! program on a 1 GiB reserved stack (`CINCH_STACK_SIZE` overrides it).
+//! program on a 1 GiB reserved stack (`CINCH_STACK_SIZE` overrides it)
+//! inside the stack guard of [`stack`], which turns overflowing it into
+//! the `Exhausted` exit.
 //!
 //! The networking and piped-child layers (P40's networking family;
 //! `compiler/runtime/src/net.rs` and the piped section of
@@ -440,6 +489,7 @@ pub mod platform;
 pub mod pty;
 pub mod rc;
 pub mod string;
+pub mod stack;
 pub mod sym;
 pub mod task;
 pub mod text;

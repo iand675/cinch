@@ -74,22 +74,20 @@ pub fn cmp(a: &SymCell, b: &SymCell) -> i64 {
 /// The cell for the `len` bytes at `ptr` (`symIntern :: Bytes -> Sym` at
 /// the intrinsic layer). The table is keyed by name, so an equal name
 /// resolves to the same cell as any earlier intern (and as the
-/// compile-time constant of a tick literal). Negative lengths and null
-/// pointers with a positive length fault; a name that is not UTF-8
-/// faults.
+/// compile-time constant of a tick literal). Generated code passes a
+/// `Bytes` value's own data pointer and length, so a negative length or
+/// a null pointer with a positive length is a compiler-bug trap
+/// ([`Error::CorruptValue`]); a name that is not UTF-8 faults
+/// ([`Error::MalformedName`]).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_sym_intern(ptr: *const u8, len: i64) -> i64 {
-    if len < 0 {
-        abi::raise(Error::OutOfBounds);
-    }
-    let n = match usize::try_from(len) {
-        Ok(n) => n,
-        Err(_) => abi::raise(Error::OutOfBounds),
+    let Ok(n) = usize::try_from(len) else {
+        abi::raise(Error::CorruptValue);
     };
     let slice: &[u8] = if n == 0 {
         &[]
     } else if ptr.is_null() {
-        abi::raise(Error::OutOfBounds);
+        abi::raise(Error::CorruptValue);
     } else {
         unsafe { std::slice::from_raw_parts(ptr, n) }
     };

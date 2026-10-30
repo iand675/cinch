@@ -2558,57 +2558,63 @@ impl Unifier {
 
     /// Resolve all metavar bindings.
     pub fn zonk(&self, ty: &Ty) -> Ty {
+        self.zonk_in(ty, None)
+    }
+
+    /// Resolve all metavar bindings, then replace the unbound
+    /// metavariables `map` names by their types (themselves resolved):
+    /// one instantiation of a let-generalized local's quantified
+    /// metavariables.
+    pub fn subst_metas(&self, ty: &Ty, map: &HashMap<MetaId, Ty>) -> Ty {
+        self.zonk_in(ty, Some(map))
+    }
+
+    fn zonk_in(&self, ty: &Ty, map: Option<&HashMap<MetaId, Ty>>) -> Ty {
+        let z = |t: &Ty| self.zonk_in(t, map);
         match self.shallow(ty) {
-            Ty::Adt(t, args) => Ty::Adt(t, args.iter().map(|a| self.zonk(a)).collect()),
-            Ty::App(h, args) => Ty::apply_spine(
-                self.zonk(&h),
-                args.iter().map(|a| self.zonk(a)).collect::<Vec<_>>(),
-            ),
-            Ty::Tuple(args) => Ty::Tuple(args.iter().map(|a| self.zonk(a)).collect()),
-            Ty::Fun(a, m, e, b) => {
-                Ty::fun_mult(self.zonk(&a), m, self.resolve_row(&e), self.zonk(&b))
-            }
+            Ty::Meta(m) => match map.and_then(|mp| mp.get(&m)) {
+                Some(t) => self.zonk(t),
+                None => Ty::Meta(m),
+            },
+            Ty::Adt(t, args) => Ty::Adt(t, args.iter().map(z).collect()),
+            Ty::App(h, args) => Ty::apply_spine(z(&h), args.iter().map(z).collect::<Vec<_>>()),
+            Ty::Tuple(args) => Ty::Tuple(args.iter().map(z).collect()),
+            Ty::Fun(a, m, e, b) => Ty::fun_mult(z(&a), m, self.resolve_row(&e), z(&b)),
             Ty::Pi { var, dom, mult, eff, cod } => Ty::Pi {
                 var,
-                dom: Box::new(self.zonk(&dom)),
+                dom: Box::new(z(&dom)),
                 mult,
                 eff: self.resolve_row(&eff),
-                cod: Box::new(self.zonk(&cod)),
+                cod: Box::new(z(&cod)),
             },
             Ty::Sigma { var, dom, cod } => Ty::Sigma {
                 var,
-                dom: Box::new(self.zonk(&dom)),
-                cod: Box::new(self.zonk(&cod)),
+                dom: Box::new(z(&dom)),
+                cod: Box::new(z(&cod)),
             },
             Ty::Idx(t) => Ty::Idx(Box::new(self.resolve_idx(&t))),
             Ty::Prp(p) => Ty::Prp(Box::new(self.resolve_prop(&p))),
             Ty::Thunk { eff, inner } => Ty::Thunk {
                 eff: self.resolve_row(&eff),
-                inner: Box::new(self.zonk(&inner)),
+                inner: Box::new(z(&inner)),
             },
-            Ty::Later(inner) => Ty::Later(Box::new(self.zonk(&inner))),
+            Ty::Later(inner) => Ty::Later(Box::new(z(&inner))),
             Ty::Lazy { eff, region, inner } => Ty::Lazy {
                 eff: self.resolve_row(&eff),
                 region: self.resolve_region(&region),
-                inner: Box::new(self.zonk(&inner)),
+                inner: Box::new(z(&inner)),
             },
-            Ty::Ref(region, inner) => {
-                Ty::Ref(self.resolve_region(&region), Box::new(self.zonk(&inner)))
-            }
-            Ty::Mut(region, inner) => {
-                Ty::Mut(self.resolve_region(&region), Box::new(self.zonk(&inner)))
-            }
-            Ty::Ptr { role, pointee } => {
-                Ty::Ptr { role: role.clone(), pointee: Box::new(self.zonk(&pointee)) }
-            }
+            Ty::Ref(region, inner) => Ty::Ref(self.resolve_region(&region), Box::new(z(&inner))),
+            Ty::Mut(region, inner) => Ty::Mut(self.resolve_region(&region), Box::new(z(&inner))),
+            Ty::Ptr { role, pointee } => Ty::Ptr { role: role.clone(), pointee: Box::new(z(&pointee)) },
             Ty::Region(r) => Ty::Region(self.resolve_region(&r)),
             Ty::Handler { label, input, output, eff, resumption } => Ty::Handler {
                 label: EffLabel {
                     head: label.head.clone(),
                     arg: label.arg.as_ref().map(|a| self.resolve_region(a)),
                 },
-                input: Box::new(self.zonk(&input)),
-                output: Box::new(self.zonk(&output)),
+                input: Box::new(z(&input)),
+                output: Box::new(z(&output)),
                 eff: self.resolve_row(&eff),
                 resumption,
             },

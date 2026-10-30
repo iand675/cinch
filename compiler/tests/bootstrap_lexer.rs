@@ -13,11 +13,10 @@
 //!       (`kind:spelling@line:col[!v]`, the contract
 //!       `compiler/tests/parsers.rs` states for the shared corpus).
 //!
-//! One run of the program per source. A compiled Cinch program's footprint
-//! is its total allocation over the run (the runtime reclaims nothing yet),
-//! so a single run over a whole corpus is bounded by nothing useful; a run
-//! per source keeps each process small and makes a runtime heap-limit fault
-//! (exit 73) name the source that was too big instead of failing the sweep.
+//! One run of the program per source. A run per source keeps each process
+//! small and makes the runtime's `Exhausted` exit (73: the live heap past
+//! `CINCH_HEAP_LIMIT`, or the stack overflowing) name the source that was
+//! too big instead of failing the sweep.
 //!
 //! The default corpus is BOUNDED: the `prim` acceptance fixtures (which
 //! carry the attribute, `prim` body and tick lexemes this rung adds), the
@@ -270,9 +269,9 @@ fn run_program(exe: &Path, dir: &Path, label: &str) -> i32 {
     let stderr = String::from_utf8_lossy(&out.stderr).trim().to_string();
     match out.status.code() {
         Some(73) => panic!(
-            "{label}: Run.Lex hit the runtime's heap limit (exit 73): a compiled program's \
-             footprint is its total allocation and nothing is reclaimed yet, so this source is too \
-             big for one run. stderr:\n{stderr}"
+            "{label}: Run.Lex took the runtime's Exhausted exit (73): its live heap passed \
+             CINCH_HEAP_LIMIT or its stack overflowed (the stderr line names which), so this \
+             source needs more than one run is given. stderr:\n{stderr}"
         ),
         Some(code) => code,
         None => panic!("{label}: Run.Lex was signalled ({}), not a lexing failure:\n{stderr}", out.status),
