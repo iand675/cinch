@@ -110,7 +110,7 @@ component boundary). A foreign call is the one place where "the compiler
 accepted it" cannot by itself mean "it cannot crash", so it is always
 visible in the manifest.
 
-## 6 The onerous opt-in
+## 6 The onerous opt-in (withdrawn for now, section 7)
 
 A deliberate fault (an `unreachable` the programmer cannot yet prove, an
 `assert` on runtime data that stops the program) is allowed only:
@@ -127,17 +127,24 @@ A deliberate fault (an `unreachable` the programmer cannot yet prove, an
 A runtime `assert` that the program can recover from is a typed failure
 (`Result`), not a fault, and needs no opt-in.
 
-## 7 Open questions
+## 7 Decisions (user, 2026-10-30)
 
-- `Nat` subtraction: proof-carrying `a - b` (requires `b <= a`), `monus`
-  under its own name, or both (proposed: both, with the plain operator
-  demanding the proof).
+- **No `#[may-fault]` for now.** Every fault must be proven impossible.
+  Section 6's opt-in is withdrawn unless something compelling turns out to
+  be unprovable, which then comes back to the user for discussion.
+- **`Nat` subtraction:** the plain operator `a - b` requires evidence that
+  `b <= a`. The truncating form exists under its own name,
+  `saturating-sub` (`max(a - b, 0)`; mathematics calls it "monus", Rust
+  `saturating_sub`), matching the prelude's machine-scalar vocabulary.
+- **Exhaustion at `main` is implicit for now.** Every program's declared
+  outcome includes running out of memory or stack, reported as one defined
+  `Exhausted` exit, never a crash. Budget boundaries inside a program
+  (section 4) stay available for code that wants to handle it.
+
+## 8 Open questions
+
 - Indexing: `Fin`-typed indices, refinement predicates, or both; how much
   of the proof burden linear-arithmetic automation removes in practice.
-- The budget boundary's spelling and whether the ambient boundary at `main`
-  is implicit (every `main` returns a result that includes `Exhausted`) or
-  explicit.
+- The budget boundary's spelling.
 - Heap-backed stacks: segmented stacks (Go's history: split stacks were
   replaced by copying stacks) versus a per-boundary stack reservation.
-- Whether `#[may-fault]` exists at all, or every fault must be proven
-  impossible (the strict reading of "bulletproof").

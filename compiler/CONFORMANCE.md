@@ -2374,6 +2374,13 @@ so the embedding sweep stays its own decision.
   (`CINCH_REPR_DEBUG` misses: 68 in `bootstrap_pipeline`, 63 in `json`,
   20 in `codata`); `CINCH_RECLAIM=1` at compile time turns it on.
 
+- **D407 (no faults: the user's decisions, 2026-10-30)**: a well-typed
+  program never faults (`design/no-faults.md`). There is no `#[may-fault]`
+  escape for now: every fault must be proven impossible, and anything that
+  seems unprovable comes back to the user. Plain `Nat` subtraction requires
+  evidence that `b <= a`; `saturating-sub` is the truncating form. Running
+  out of memory or stack is part of every program's implicit outcome, a
+  defined `Exhausted` exit and never a crash.
 ### Refinement types (P28)
 
 Implemented `dfc653d` (2026-10-27, `RefinementSlice`, D248-D255):
