@@ -113,7 +113,10 @@ pub fn emit_for(profile: &crate::core::TargetProfile, program: &Program) -> Resu
         coop_tasks: profile.artifact != crate::core::ArtifactProfile::Native,
         native: profile.artifact == crate::core::ArtifactProfile::Native,
     };
-    let reg = Registry::build(program)?;
+    let mut reg = Registry::build(program)?;
+    reg.rc_debug = profile.rc_debug;
+    reg.reclaim = profile.reclaim;
+    let reg = reg;
     // A program with `foreign export` entries may be linked as a library
     // with the C side supplying `main` (foreign function interface
     // specification section 1; decision D65).
@@ -153,6 +156,14 @@ pub fn emit_for(profile: &crate::core::TargetProfile, program: &Program) -> Resu
     out.push_str("declare void @cinch_layouts_register(ptr, i64)\n");
     out.push_str("declare i64 @cinch_exit_check(i64)\n");
     out.push_str("declare ptr @memcpy(ptr, ptr, i64)\n");
+    // The count entry points (`compiler/runtime/src/rc.rs`, design/reclamation.md
+    // section 4): the slow path of an inline drop, the out-of-line forms a
+    // `rc_debug` build calls, and the raw release an apply stub uses to
+    // move the saved words out of a uniquely held closure.
+    out.push_str("declare void @cinch_dup(i64)\n");
+    out.push_str("declare void @cinch_drop(i64)\n");
+    out.push_str("declare void @cinch_drop_slow(i64)\n");
+    out.push_str("declare void @cinch_free(i64)\n");
     // The runtime ABI's mathematical `Nat`/`Int` and `Bytes` externs
     // (`compiler/runtime/src/lib.rs`); `Nat`/`Int` words are opaque
     // runtime words (immediates or bignum block pointers) passed and
@@ -572,6 +583,13 @@ struct Registry {
     /// Each unit's parameter classes (concrete after the collector): the
     /// classes of the words a closure over the unit saves.
     unit_params: HashMap<String, Vec<Class>>,
+    /// Count operations call the out-of-line runtime entries
+    /// ([`crate::core::TargetProfile::rc_debug`]).
+    rc_debug: bool,
+    /// The program counts references
+    /// ([`crate::core::TargetProfile::reclaim`]); otherwise no unit emits
+    /// an ownership operation and every block leaks.
+    reclaim: bool,
 }
 
 impl Registry {
@@ -973,13 +991,39 @@ fn sig_class(t: &crate::types::Ty) -> Class {
     crate::repr::repr_of(t, &[], &SigTypes, &mut |_| {})
 }
 
-/// A primitive's parameter classes from its signature; one without a
-/// signature (the deferral and concurrency builtins) has uncounted
-/// parameters.
+/// A primitive's parameter classes from its signature. The deferral,
+/// evaluation and concurrency builtins carry no boundary signature;
+/// their classes are fixed here: a thunk, memo cell, quotation or task
+/// body is a block, a capability, scope or task handle is raw, and a
+/// byte count or duration is a `Nat`.
 fn prim_param_classes(op: PrimOp) -> Vec<Class> {
-    match prim_sig(op) {
-        Some((params, _)) => params.iter().map(sig_class).collect(),
-        None => vec![Class::Raw; op.arity()],
+    use ConcOp::*;
+    match op {
+        PrimOp::Delay | PrimOp::Force | PrimOp::Demand | PrimOp::Eval => vec![Class::Obj],
+        PrimOp::Conc(WithScope | Spawn | IoWrite) => vec![Class::Raw, Class::Obj],
+        PrimOp::Conc(IoRead | IoSleep) => vec![Class::Raw, Class::TObj],
+        PrimOp::Conc(PollCancel | JoinN(_)) => vec![Class::Raw; op.arity()],
+        _ => match prim_sig(op) {
+            Some((params, _)) => params.iter().map(sig_class).collect(),
+            None => vec![Class::Raw; op.arity()],
+        },
+    }
+}
+
+/// The primitive ownership table (design/reclamation.md section 4). A
+/// primitive unit owns its parameters like every unit. The runtime
+/// externs it wraps only borrow theirs, so the unit drops each counted
+/// parameter after the extern call returns, on every return path, unless
+/// the primitive passes the word on: `delay` returns its thunk, `force`
+/// and `withScope` hand their closure to `__apply` (which consumes it),
+/// and `spawn` hands the task body to the runtime (which keeps it,
+/// immortal, for the task thread). Results are fresh, owned words; a
+/// `Some`/`Ok` payload is a fresh word the block takes over.
+fn prim_consumes(op: PrimOp, i: usize) -> bool {
+    match op {
+        PrimOp::Delay | PrimOp::Force => i == 0,
+        PrimOp::Conc(ConcOp::WithScope | ConcOp::Spawn) => i == 1,
+        _ => false,
     }
 }
 
@@ -1578,6 +1622,11 @@ fn classify_callee(sym: &str, units: &BTreeSet<String>) -> Callee {
     match sym {
         "cinch_alloc_raw" | "cinch_alloc_ctor" | "cinch_alloc_shaped" => Callee::Alloc,
         "memcpy" => Callee::Copy,
+        // A dup writes a header (design/reclamation.md section 11, item 9).
+        "cinch_dup" => Callee::Copy,
+        // A drop may free what the caller passed or allocated before the
+        // call, and so does the raw release of a unique closure.
+        "cinch_drop" | "cinch_drop_slow" | "cinch_free" => Callee::Free,
         "__apply" | "__cinch_demand" => Callee::Indirect,
         "exit" | "cinch_panic" | "__cinch_blackhole" => Callee::Fault,
         "cinch_scope_close" | "cinch_coop_scope_close" | "cinch_task_join_all_or_cancel"
@@ -1824,6 +1873,19 @@ fn build_unit(
     body: UnitBody,
 ) -> Result<EmittedUnit> {
     let mut b = Builder::new();
+    b.rc_debug = reg.rc_debug;
+    b.reclaim = reg.reclaim;
+    // The counted parameters a primitive or foreign wrapper only lends to
+    // the runtime or the foreign side, released on every return.
+    let borrowed = |consumes: &dyn Fn(usize) -> bool| -> Vec<(String, Class)> {
+        let cs = reg.unit_params.get(name).cloned().unwrap_or_default();
+        (0..arity)
+            .filter_map(|i| {
+                let c = cs.get(i).copied().unwrap_or(Class::Raw);
+                (counted_class(c) && !consumes(i)).then(|| (format!("%p{i}"), c))
+            })
+            .collect()
+    };
     let mut globals = String::new();
     let mut hints = crate::core::FnHints::default();
     let mut lang = UnitLang {
@@ -1853,6 +1915,7 @@ fn build_unit(
                     .map(|t| matches!(t, crate::types::Ty::Prim(_) | crate::types::Ty::Bool))
                     .collect();
             }
+            b.ret_drops = borrowed(&|i| prim_consumes(*op, i));
             prim_body(&mut b, cx, reg, name, *op);
         }
         UnitBody::Ctor(fields) => {
@@ -1863,7 +1926,10 @@ fn build_unit(
             ctor_body(&mut b, reg, name, desc, *fields, reg.plan_of(name));
         }
         UnitBody::Mk(info) => mk_body(&mut b, reg, info),
-        UnitBody::Foreign(plan) => foreign_import_body(&mut b, cx, reg, plan)?,
+        UnitBody::Foreign(plan) => {
+            b.ret_drops = borrowed(&|_| false);
+            foreign_import_body(&mut b, cx, reg, plan)?
+        }
         UnitBody::Fn(f) | UnitBody::TailWorker(f) => {
             hints = f.hints;
             lang.def = true;
@@ -1952,8 +2018,19 @@ fn clo_def(reg: &Registry, name: &str, arity: usize) -> String {
 /// Emit the apply stub `@"<name>.app"`: merge `saved` with `argv`, then
 /// saturate (call the underlying function), grow (allocate a closure with
 /// more filled arguments) or over-apply (call then `__apply` the rest).
+///
+/// Ownership (design/reclamation.md section 4): the stub consumes the
+/// closure and the arguments. The arguments move on, and so do the saved
+/// words once they are copied out: each counted one is dupped, since the
+/// closure still holds its own, and the closure is then dropped. A
+/// uniquely held closure skips both: its saved words move and its block
+/// is released without visiting them (`cinch_free`). An over-applied
+/// call's intermediate result is consumed by the `__apply` that receives
+/// the rest.
 fn stub_def(reg: &Registry, name: &str, arity: usize) -> String {
     let mut b = Builder::new();
+    b.rc_debug = reg.rc_debug;
+    b.reclaim = reg.reclaim;
     let nf_p = b.gep("%self", 16);
     let nf = b.reg();
     b.line(&format!("{nf} = load i64, ptr {nf_p}"));
@@ -1986,6 +2063,7 @@ fn stub_def(reg: &Registry, name: &str, arity: usize) -> String {
     let acb = b.reg();
     b.line(&format!("{acb} = mul i64 %argc, 8"));
     b.line(&format!("call ptr @memcpy(ptr {nd2}, ptr %argv, i64 {acb})"));
+    stub_take_saved(&mut b, reg, name, arity, &nd, &nf);
     let wr = b.reg();
     b.line(&format!("{wr} = ptrtoint ptr {new} to i64"));
     b.line(&format!("ret i64 {wr}"));
@@ -2003,6 +2081,7 @@ fn stub_def(reg: &Registry, name: &str, arity: usize) -> String {
     let acb2 = b.reg();
     b.line(&format!("{acb2} = mul i64 %argc, 8"));
     b.line(&format!("call ptr @memcpy(ptr {m2}, ptr %argv, i64 {acb2})"));
+    stub_take_saved(&mut b, reg, name, arity, &m, &nf);
     let mut args = Vec::with_capacity(arity);
     for i in 0..arity {
         let w = b.load_at(&m, i * 8);
@@ -2039,11 +2118,85 @@ fn stub_def(reg: &Registry, name: &str, arity: usize) -> String {
     ))
 }
 
+/// The release half of an apply stub: `copy` holds the `nf` saved words
+/// just copied out of `%self`, which now owns nothing the copy needs.
+fn stub_take_saved(b: &mut Builder, reg: &Registry, name: &str, arity: usize, copy: &str, nf: &str) {
+    if !b.reclaim {
+        return;
+    }
+    let classes: Vec<Class> = (0..arity.saturating_sub(1))
+        .map(|i| reg.unit_params.get(name).and_then(|cs| cs.get(i)).copied().unwrap_or(Class::Raw))
+        .collect();
+    let selfw = b.reg();
+    b.line(&format!("{selfw} = ptrtoint ptr %self to i64"));
+    let dup_saved = |b: &mut Builder| {
+        for (i, c) in classes.iter().enumerate() {
+            if !counted_class(*c) {
+                continue;
+            }
+            let has = b.reg();
+            b.line(&format!("{has} = icmp ult i64 {i}, {nf}"));
+            let ldup = b.label();
+            let lnext = b.label();
+            b.line(&format!("br i1 {has}, label %{ldup}, label %{lnext}"));
+            b.start(&ldup);
+            let w = b.load_at(copy, i * 8);
+            rc_op(b, reg.rc_debug, false, &w, *c);
+            b.line(&format!("br label %{lnext}"));
+            b.start(&lnext);
+        }
+    };
+    if reg.rc_debug {
+        dup_saved(b);
+        rc_op(b, true, true, &selfw, Class::Obj);
+        return;
+    }
+    let hp = b.gep("%self", 0);
+    let hp8 = b.reg();
+    b.line(&format!("{hp8} = getelementptr inbounds i8, ptr {hp}, i64 -8"));
+    let h = b.reg();
+    b.line(&format!("{h} = load i64, ptr {hp8}"));
+    let rc = b.reg();
+    b.line(&format!("{rc} = and i64 {h}, {}", (1u64 << block::RC_BITS) - 1));
+    let unique = b.reg();
+    b.line(&format!("{unique} = icmp eq i64 {rc}, 1"));
+    let lmove = b.label();
+    let lshare = b.label();
+    let ldone = b.label();
+    b.line(&format!("br i1 {unique}, label %{lmove}, label %{lshare}"));
+    b.start(&lmove);
+    b.line(&format!("call void @cinch_free(i64 {selfw})"));
+    b.line(&format!("br label %{ldone}"));
+    b.start(&lshare);
+    dup_saved(b);
+    // Immortal (static or spawned-task) closures keep their count.
+    let mortal = b.reg();
+    b.line(&format!("{mortal} = icmp ne i64 {rc}, 0"));
+    let ldec = b.label();
+    b.line(&format!("br i1 {mortal}, label %{ldec}, label %{ldone}"));
+    b.start(&ldec);
+    let h1 = b.reg();
+    b.line(&format!("{h1} = sub i64 {h}, 1"));
+    b.line(&format!("store i64 {h1}, ptr {hp8}"));
+    b.line(&format!("br label %{ldone}"));
+    b.start(&ldone);
+}
+
+fn counted_class(c: Class) -> bool {
+    matches!(c, Class::Obj | Class::TObj)
+}
+
 /// Memo cell machinery (laziness and reclamation specification). A cell is
 /// `{ i64 state; i64 thunk; i64 value }` with state 0 = unevaluated,
 /// 1 = evaluating, 2 = evaluated. Demanding an evaluating cell is a black
 /// hole: the defined `BlackHole` runtime fault (exit 70), never undefined
 /// behavior.
+///
+/// Evaluation moves the thunk out of the cell (its slot becomes 0, which
+/// the cell's pointer map skips) and hands it to `__apply`, which
+/// consumes it: the thunk and what only it captured are released once it
+/// has run (design/reclamation.md section 6). The result word returns
+/// borrowed from the cell; `Core::Demand` dups it.
 const MEMO_HELPERS: &str = r#"
 declare void @exit(i32) noreturn
 
@@ -2063,6 +2216,7 @@ eval:
   store i64 1, ptr %sp
   %tp = getelementptr inbounds i8, ptr %p, i64 8
   %thunk = load i64, ptr %tp
+  store i64 0, ptr %tp
   %argv = alloca i64, i64 1
   store i64 0, ptr %argv
   %v = call i64 @__apply(i64 %thunk, i64 1, ptr %argv)
@@ -2105,6 +2259,14 @@ struct Builder {
     tmp: usize,
     blk: usize,
     dec: usize,
+    /// Words to drop on every `ret`: a primitive or foreign wrapper's
+    /// parameters that the runtime only borrows (design/reclamation.md
+    /// section 4). Such a body returns from many places; each releases
+    /// them after the extern call and before returning.
+    ret_drops: Vec<(String, Class)>,
+    rc_debug: bool,
+    /// Ownership operations are emitted at all (the program reclaims).
+    reclaim: bool,
 }
 
 impl Builder {
@@ -2116,6 +2278,9 @@ impl Builder {
             tmp: 0,
             blk: 0,
             dec: 0,
+            ret_drops: Vec::new(),
+            rc_debug: false,
+            reclaim: false,
         }
     }
 
@@ -2146,6 +2311,13 @@ impl Builder {
     }
 
     fn line(&mut self, s: &str) {
+        if !self.ret_drops.is_empty() && s.starts_with("ret ") {
+            let drops = std::mem::take(&mut self.ret_drops);
+            for (w, c) in &drops {
+                rc_op(self, self.rc_debug, true, w, *c);
+            }
+            self.ret_drops = drops;
+        }
         self.code.push_str("  ");
         self.code.push_str(s);
         self.code.push('\n');
@@ -2559,6 +2731,83 @@ fn rt_call(b: &mut Builder, f: &str, args: &[String]) -> String {
     let r = b.reg();
     b.line(&format!("{r} = call i64 @{f}({})", args.join(", ")));
     r
+}
+
+/// One reference count operation on the word `w` of class `class`
+/// (design/reclamation.md sections 3 and 4). `Raw` words are never
+/// counted. An `Obj` word may be 0 (the `Copy` marker dictionary is the
+/// unit word), and a `TObj` word tests its low bit first: an immediate
+/// owns no block. A block word then reads its header at -8, whose low
+/// `RC_BITS` are the count; 0 is immortal (statics, interned symbols,
+/// blocks reachable from a spawned task) and is never written.
+///
+/// Dup increments. Drop decrements, and at a count of one hands the
+/// block to `cinch_drop_slow`, which releases it and everything only it
+/// kept alive. Both are inline. Negative (atomic) counts do not exist
+/// before S9, so the masked count is read as unsigned. Under
+/// [`TargetProfile::rc_debug`](crate::core::TargetProfile::rc_debug) both
+/// call the out-of-line `cinch_dup`/`cinch_drop` instead, so that
+/// `CINCH_RC_DEBUG=1`'s header checks see every operation.
+fn rc_op(b: &mut Builder, debug: bool, drop: bool, w: &str, class: Class) {
+    if !b.reclaim || !matches!(class, Class::Obj | Class::TObj) {
+        return;
+    }
+    if debug {
+        let f = if drop { "cinch_drop" } else { "cinch_dup" };
+        b.line(&format!("call void @{f}(i64 {w})"));
+        return;
+    }
+    let lblock = b.label();
+    let ldone = b.label();
+    let skip = b.reg();
+    b.line(&format!("{skip} = icmp eq i64 {w}, 0"));
+    let skip = if class == Class::TObj {
+        let lo = b.reg();
+        b.line(&format!("{lo} = and i64 {w}, 1"));
+        let imm = b.reg();
+        b.line(&format!("{imm} = icmp ne i64 {lo}, 0"));
+        let either = b.reg();
+        b.line(&format!("{either} = or i1 {skip}, {imm}"));
+        either
+    } else {
+        skip
+    };
+    b.line(&format!("br i1 {skip}, label %{ldone}, label %{lblock}"));
+    b.start(&lblock);
+    let p = b.reg();
+    b.line(&format!("{p} = inttoptr i64 {w} to ptr"));
+    let hp = b.reg();
+    b.line(&format!("{hp} = getelementptr inbounds i8, ptr {p}, i64 -8"));
+    let h = b.reg();
+    b.line(&format!("{h} = load i64, ptr {hp}"));
+    let rc = b.reg();
+    b.line(&format!("{rc} = and i64 {h}, {}", (1u64 << block::RC_BITS) - 1));
+    if drop {
+        let ldec = b.label();
+        let lslow = b.label();
+        b.line(&format!(
+            "switch i64 {rc}, label %{ldec} [\n  i64 0, label %{ldone}\n  i64 1, label %{lslow}\n]"
+        ));
+        b.start(&ldec);
+        let h1 = b.reg();
+        b.line(&format!("{h1} = sub i64 {h}, 1"));
+        b.line(&format!("store i64 {h1}, ptr {hp}"));
+        b.line(&format!("br label %{ldone}"));
+        b.start(&lslow);
+        b.line(&format!("call void @cinch_drop_slow(i64 {w})"));
+        b.line(&format!("br label %{ldone}"));
+    } else {
+        let linc = b.label();
+        let imm = b.reg();
+        b.line(&format!("{imm} = icmp eq i64 {rc}, 0"));
+        b.line(&format!("br i1 {imm}, label %{ldone}, label %{linc}"));
+        b.start(&linc);
+        let h1 = b.reg();
+        b.line(&format!("{h1} = add i64 {h}, 1"));
+        b.line(&format!("store i64 {h1}, ptr {hp}"));
+        b.line(&format!("br label %{ldone}"));
+    }
+    b.start(&ldone);
 }
 
 /// The `cinch_alloc_raw` call that allocates a `size`-byte block with
@@ -4519,6 +4768,20 @@ fn export_entry(out: &mut String, plan: &ForeignPlan, reg: &Registry, cx: &Lower
 /// has no subdicts) or a fresh closure filled with the subdict parameters.
 fn mk_body(b: &mut Builder, reg: &Registry, info: &InstInfo) {
     let mc = info.method_count;
+    // The subdictionaries are owned parameters, and every method takes
+    // each of them once (a value method's call consumes them, a method
+    // closure stores them): one reference per method, the unit's own
+    // being the last, or a drop when the class has no methods.
+    let uses = info.methods.len();
+    for j in 0..info.subdict_count {
+        let w = format!("%p{j}");
+        if uses == 0 {
+            rc_op(b, reg.rc_debug, true, &w, Class::Obj);
+        }
+        for _ in 1..uses {
+            rc_op(b, reg.rc_debug, false, &w, Class::Obj);
+        }
+    }
     let bytes = (1 + mc) * 8;
     let p = b.reg();
     b.line(&shaped_alloc_call(&p, bytes, block::KIND_DICT, reg.dict_desc(info)));
@@ -4661,7 +4924,8 @@ fn collect_prims(e: &Core, out: &mut BTreeSet<PrimOp>) {
         Core::Prim(op) => {
             out.insert(*op);
         }
-        Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d) => collect_prims(d, out),
+        Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d, _) => collect_prims(d, out),
+        Core::Dup(_, _, body) | Core::Drop(_, _, body) => collect_prims(body, out),
         Core::InstDict(_, args, _) | Core::App(_, args) | Core::Lam { env: args, .. } => {
             if let Core::App(f, _) = e {
                 collect_prims(f, out);
@@ -4680,9 +4944,9 @@ fn collect_prims(e: &Core, out: &mut BTreeSet<PrimOp>) {
             collect_prims(&f.body, out);
         }
         Core::LazyInit(_, t) => collect_prims(t, out),
-        Core::BoxInit(_, v) => collect_prims(v, out),
+        Core::BoxInit(_, v, _) => collect_prims(v, out),
         Core::RefSet(_, v) => collect_prims(v, out),
-        Core::BoxGet(v) => collect_prims(v, out),
+        Core::BoxGet(v, _) => collect_prims(v, out),
         Core::Case { scrut, alts } => {
             collect_prims(scrut, out);
             for a in alts {
@@ -4722,11 +4986,12 @@ fn collect_binders(e: &Core, out: &mut Vec<LocalId>) {
                 collect_binders(a, out);
             }
         }
-        Core::Demand(d) => collect_binders(d, out),
+        Core::Demand(d, _) => collect_binders(d, out),
+        Core::Dup(_, _, body) | Core::Drop(_, _, body) => collect_binders(body, out),
         Core::LazyAlloc => {}
         Core::LazyInit(_, t) => collect_binders(t, out),
         Core::BoxAlloc => {}
-        Core::BoxInit(l, v) => {
+        Core::BoxInit(l, v, _) => {
             out.push(*l);
             collect_binders(v, out);
         }
@@ -4734,7 +4999,7 @@ fn collect_binders(e: &Core, out: &mut Vec<LocalId>) {
             out.push(*l);
             collect_binders(v, out);
         }
-        Core::BoxGet(v) => collect_binders(v, out),
+        Core::BoxGet(v, _) => collect_binders(v, out),
         Core::Let(x, _, e, body) => {
             out.push(*x);
             collect_binders(e, out);
@@ -4996,11 +5261,16 @@ impl CoreEmitter<'_, '_> {
             Core::Ctor(id, _) => self.unit_value(&id.0),
             Core::Prim(op) => self.unit_value(&op.symbol()),
             Core::Foreign(n) => self.unit_value(n),
-            Core::DictProj(d, idx, _) => {
+            // A projection hands out an owned reference to the loaded
+            // word (design/reclamation.md section 4): the container keeps
+            // its own, and `crate::rc` keeps the container alive across
+            // the load.
+            Core::DictProj(d, idx, _, class) => {
                 let dv = self.emit_expr(d)?;
                 let p = self.b.reg();
                 self.b.line(&format!("{p} = inttoptr i64 {dv} to ptr"));
                 let r = self.b.load_at(&p, (1 + idx) * 8);
+                rc_op(self.b, self.reg.rc_debug, false, &r, *class);
                 Ok(r)
             }
             Core::Proj(d, idx) => {
@@ -5010,10 +5280,18 @@ impl CoreEmitter<'_, '_> {
                 if let Some(fa) = &idx.access {
                     // A boundary-layout type: the field sits at its
                     // recorded offset in the payload (attribute
-                    // annotations specification section 4.3).
-                    Ok(load_field_word(&mut self.b, self.reg, &p, fa))
+                    // annotations specification section 4.3). Only a
+                    // word field is a reference the block holds; a
+                    // scalar is raw and an inline aggregate is boxed out
+                    // into a fresh block.
+                    let r = load_field_word(&mut self.b, self.reg, &p, fa);
+                    if matches!(fa.shape, crate::core::FieldShape::Word { .. }) {
+                        rc_op(self.b, self.reg.rc_debug, false, &r, idx.class);
+                    }
+                    Ok(r)
                 } else {
                     let r = self.b.load_at(&p, idx.slot * 8);
+                    rc_op(self.b, self.reg.rc_debug, false, &r, idx.class);
                     Ok(r)
                 }
             }
@@ -5129,13 +5407,17 @@ impl CoreEmitter<'_, '_> {
                 self.b.line(&format!("{r} = load i64, ptr {slot}"));
                 Ok(r)
             }
-            Core::Demand(cell) => {
+            Core::Demand(cell, class) => {
+                // The cell keeps its reference to the cached value (its
+                // value slot is uncounted until S8 tears memo groups
+                // down), so the demand hands out a second one.
                 let v = self.emit_expr(cell)?;
                 let r = self.b.reg();
                 self.b.line(&format!(
                     "{r} = call i64 @{}(i64 {v})",
                     quote("__cinch_demand")
                 ));
+                rc_op(self.b, self.reg.rc_debug, false, &r, *class);
                 Ok(r)
             }
             Core::BoxAlloc => {
@@ -5149,11 +5431,15 @@ impl CoreEmitter<'_, '_> {
                 self.b.line(&format!("{w} = ptrtoint ptr {c} to i64"));
                 Ok(w)
             }
-            Core::BoxInit(cell, v) => {
+            Core::BoxInit(cell, v, class) => {
                 if !self.bound.contains(cell) {
                     return err(format!("box init for unknown local {}", cell.0));
                 }
                 let v = self.emit_expr(v)?;
+                // The box keeps one reference (its value slot is
+                // uncounted until S8 tears knots down) and the result is
+                // another.
+                rc_op(self.b, self.reg.rc_debug, false, &v, *class);
                 let slot = self.slot(*cell);
                 let bw = self.b.reg();
                 self.b.line(&format!("{bw} = load i64, ptr {slot}"));
@@ -5163,7 +5449,7 @@ impl CoreEmitter<'_, '_> {
                 self.b.store_at(&p, 0, "1");
                 Ok(v)
             }
-            Core::BoxGet(cell) => {
+            Core::BoxGet(cell, class) => {
                 let w = self.emit_expr(cell)?;
                 let p = self.b.reg();
                 self.b.line(&format!("{p} = inttoptr i64 {w} to ptr"));
@@ -5178,8 +5464,8 @@ impl CoreEmitter<'_, '_> {
                 self.b.line("call void @exit(i32 70)");
                 self.b.line("unreachable");
                 self.b.start(&lok);
-                let r = self.b.reg();
-                self.b.line(&format!("{r} = load i64, ptr {p}"));
+                let r = self.b.load_at(&p, 8);
+                rc_op(self.b, self.reg.rc_debug, false, &r, *class);
                 Ok(r)
             }
             Core::LazyAlloc => {
@@ -5216,11 +5502,27 @@ impl CoreEmitter<'_, '_> {
                 self.b.line(&format!("store i64 {v}, ptr {slot}"));
                 Ok("0".to_string())
             }
+            Core::Dup(x, class, body) | Core::Drop(x, class, body) => {
+                self.emit_count(e, *x, *class)?;
+                self.emit_expr(body)
+            }
             Core::Case { scrut, alts } => match self.emit_case(scrut, alts, false)? {
                 Some(v) => Ok(v),
                 None => err("internal error: a value-position case emitted no result"),
             },
         }
+    }
+
+    /// The count operation of a `Dup`/`Drop` node on its binder's word.
+    fn emit_count(&mut self, e: &Core, x: LocalId, class: Class) -> Result<()> {
+        if !self.bound.contains(&x) {
+            return err(format!("count operation on unknown local {}", x.0));
+        }
+        let slot = self.slot(x);
+        let w = self.b.reg();
+        self.b.line(&format!("{w} = load i64, ptr {slot}"));
+        rc_op(self.b, self.reg.rc_debug, matches!(e, Core::Drop(..)), &w, class);
+        Ok(())
     }
 
     /// Emit an application: a saturated call of a known unit is a direct
@@ -5297,6 +5599,12 @@ impl CoreEmitter<'_, '_> {
                 let v = self.emit_expr(v)?;
                 let slot = self.slot(*x);
                 self.b.line(&format!("store i64 {v}, ptr {slot}"));
+                self.emit_tail(body)
+            }
+            // Count operations precede what they guard, so a tail call
+            // after them stays the last instruction before `ret`.
+            Core::Dup(x, class, body) | Core::Drop(x, class, body) => {
+                self.emit_count(e, *x, *class)?;
                 self.emit_tail(body)
             }
             Core::If(c, t, f) => {
@@ -5828,7 +6136,7 @@ mod tests {
         for (name, op, args, expected) in cases {
             let body = Core::Proj(
                 Box::new(app(p(op), args)),
-                crate::core::ProjField::slot(0),
+                crate::core::ProjField::slot(0, Class::Raw),
             );
             let code = run(&format!("net_proc_err_{name}"), &main_prog(vec![], body));
             assert_eq!(code, expected, "{name}: the Err payload became the exit code");
@@ -6006,7 +6314,7 @@ mod tests {
             &["d", "x", "y"],
             Core::Let(
                 LocalId(10), Class::Raw,
-                Box::new(Core::DictProj(Box::new(v(0)), 0, None)),
+                Box::new(Core::DictProj(Box::new(v(0)), 0, None, Class::Raw)),
                 Box::new(app(v(10), vec![v(1), v(2)])),
             ),
         );
@@ -6018,7 +6326,7 @@ mod tests {
                 Box::new(Core::InstDict(gid("Main.Add_Maybe"), vec![v(10)], vec![])),
                 Box::new(Core::Let(
                     LocalId(12), Class::Raw,
-                    Box::new(Core::DictProj(Box::new(v(11)), 0, None)),
+                    Box::new(Core::DictProj(Box::new(v(11)), 0, None, Class::Raw)),
                     Box::new(app(v(12), vec![n(20), n(22)])),
                 )),
             )),
@@ -6174,7 +6482,7 @@ mod tests {
         let pair = ctor_fn("T.pair", &["a", "b"], 0, 2);
         let body = Core::Proj(
             Box::new(app(ct("T.pair"), vec![n(41), n(2)])),
-            crate::core::ProjField::slot(1),
+            crate::core::ProjField::slot(1, Class::Raw),
         );
         assert_eq!(run("tuple_block_projection", &main_prog(vec![pair], body)), 2);
     }
@@ -6845,7 +7153,7 @@ fn reify(out: &mut Vec<QWord>, e: &Core, reg: &Registry) -> Result<()> {
                 reify(out, a, reg)?;
             }
         }
-        Core::DictProj(d, idx, _) => {
+        Core::DictProj(d, idx, ..) => {
             // A dictionary is the `{ nmeth; meth0; ... }` block of the
             // `mk` units: method `idx` is the block's word `1 + idx`.
             q_imm(out, quote_op::PROJ);
@@ -6903,7 +7211,7 @@ fn reify(out: &mut Vec<QWord>, e: &Core, reg: &Registry) -> Result<()> {
             }
         }
         Core::Fault => q_imm(out, quote_op::FAULT),
-        Core::BoxAlloc | Core::BoxInit(_, _) | Core::BoxGet(_) => {
+        Core::BoxAlloc | Core::BoxInit(..) | Core::BoxGet(..) => {
             return Err(crate::Error::plain(
                 "a recursive `letrec` value cannot be reified into a quotation body",
             ))
@@ -6914,9 +7222,12 @@ fn reify(out: &mut Vec<QWord>, e: &Core, reg: &Registry) -> Result<()> {
             q_imm(out, cell.0 as u64);
             reify(out, thunk, reg)?;
         }
-        Core::Demand(cell) => {
+        Core::Demand(cell, _) => {
             q_imm(out, quote_op::DEMAND);
             reify(out, cell, reg)?;
+        }
+        Core::Dup(..) | Core::Drop(..) => {
+            return err("internal error: a reference count operation reached a quotation body")
         }
         Core::Global(g, _) => {
             let arity = reg.arity_of(&g.0)?;

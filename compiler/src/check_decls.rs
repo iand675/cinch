@@ -1809,7 +1809,7 @@ impl Checker {
                 Class::TObj,
                 Box::new(crate::core::Core::Proj(
                     Box::new(crate::core::Core::Var(LocalId(2))),
-                    crate::core::ProjField::slot(0),
+                    crate::core::ProjField::slot(0, Class::TObj),
                 )),
                 Box::new(crate::core::Core::App(
                     Box::new(crate::core::Core::Global(
@@ -6466,7 +6466,7 @@ impl Checker {
                         walk(a, id, smaller, extra, params, bad);
                     }
                 }
-                ECore::DictProj(d, ..) | ECore::Proj(d, _) | ECore::Demand(d) => {
+                ECore::DictProj(d, ..) | ECore::Proj(d, ..) | ECore::Demand(d, _) => {
                     walk(d, id, smaller, extra, params, bad)
                 }
                 ECore::InstDict(_, args, _) | ECore::MkClos { env: args, .. } => {
@@ -18178,7 +18178,7 @@ impl Checker {
                 let v = Value::PrimFn { op: *op, args: Vec::new() };
                 self.deref_value(cx, v)?
             }
-            Core::DictProj(d, i, _) => match self.eval_core(cx, d, frame)? {
+            Core::DictProj(d, i, ..) => match self.eval_core(cx, d, frame)? {
                 Value::Dict { methods } => methods.get(*i).cloned().ok_or_else(|| {
                     Error::plain("internal error: dictionary projection out of range")
                 })?,
@@ -18325,12 +18325,12 @@ impl Checker {
                 origin: cx.origin.clone(),
             },
             Core::StrLit(s) => Value::Str(s.clone()),
-            Core::BoxAlloc | Core::BoxInit(_, _) | Core::BoxGet(_) => {
+            Core::BoxAlloc | Core::BoxInit(..) | Core::BoxGet(..) => {
                 return Err(Error::plain(
                     "a recursive `letrec` value cannot be evaluated at compile time (the staging evaluator has no fixpoint boxes)",
                 ))
             }
-            Core::Demand(_) | Core::LazyAlloc | Core::LazyInit(_, _) => {
+            Core::Demand(..) | Core::LazyAlloc | Core::LazyInit(_, _) => {
                 return Err(Error::plain(
                     "lazy evaluation (`delay`, memo cells) is not available at compile time in this slice",
                 ))
@@ -18340,6 +18340,9 @@ impl Checker {
                     "the compile-time computation faulted (the fault path ran)",
                 ))
             }
+            // Reference counting is inserted after this evaluator's
+            // programs are built; it never sees a count operation.
+            Core::Dup(_, _, body) | Core::Drop(_, _, body) => self.eval_core(cx, body, frame)?,
         })
     }
 

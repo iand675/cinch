@@ -16,6 +16,7 @@ pub mod layout;
 pub mod lexer;
 pub mod lsp;
 pub mod parser;
+pub mod rc;
 pub mod repl;
 pub mod repr;
 pub mod specialize;

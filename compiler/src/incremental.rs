@@ -1050,7 +1050,10 @@ impl Session {
         timings.optimize_ms = since_ms(t_opt);
         if can_emit {
             let t_emit = std::time::Instant::now();
-            let ir = crate::codegen::emit_for(&self.profile, &opt_program)?;
+            // Reference counting after specialization, as in a cold
+            // build (design/reclamation.md section 4).
+            let counted = crate::rc::insert(opt_program.clone(), &self.profile)?;
+            let ir = crate::codegen::emit_for(&self.profile, &counted)?;
             timings.emit_ms = since_ms(t_emit);
 
             // 6. LINK: the declaration-keyed object cache assembles the

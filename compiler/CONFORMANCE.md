@@ -2348,6 +2348,31 @@ so the embedding sweep stays its own decision.
   baseline (`alloc_accounting`). `runtime_abi` is 4. The pipeline
   program's table has 6,912 entries (54 KiB). Nothing emits dup/drop yet:
   that is S6.
+- **D406 (reclamation S6a as built: Perceus insertion, all parameters
+  owned; behind `TargetProfile::reclaim`, off by default)**:
+  `compiler/src/rc.rs` inserts `Core::Dup`/`Core::Drop` after the
+  specialization collector at every driver emission site; a debug-build
+  verifier rejects any path that does not consume an owned binder exactly
+  once (a compile-time compiler-bug trap). Projections, `Demand`, `BoxGet`
+  and `BoxInit` carry their result class from the checker and hand out
+  owned references. Apply stubs consume the closure (a unique closure's
+  saved words move and its block is freed raw), primitive and foreign
+  wrappers drop the parameters their externs borrow on every return,
+  `mk` dups subdictionaries per method, `__cinch_demand` moves the thunk
+  out before running it, and the contract scan classes dup as a write
+  and drop as a free. Inline fast paths, or out-of-line
+  `cinch_dup`/`cinch_drop` under `rc_debug`. Dictionaries are owned.
+  Memo values and knot values leak (uncounted slots, S8). Lowering
+  infers an untyped `let` or scrutinee binder's class from its
+  definition, and an undetermined metavariable is `Raw` (uninhabited).
+  `BoxGet` read the knot's state word instead of its value; fixed and
+  pinned by `letrec::value_knot_read_under_a_lambda_yields_the_value`.
+  `reclamation` (8 programs, plain and under `CINCH_RC_DEBUG`) reports
+  `leaked=0`, the knot exactly 3, the build-and-drop loop a peak under
+  1 MB for 32 MB allocated, and a million-cell list drops. Off by default
+  because binder classes are still incomplete in larger programs
+  (`CINCH_REPR_DEBUG` misses: 68 in `bootstrap_pipeline`, 63 in `json`,
+  20 in `codata`); `CINCH_RECLAIM=1` at compile time turns it on.
 
 ### Refinement types (P28)
 

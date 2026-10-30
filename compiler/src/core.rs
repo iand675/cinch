@@ -1692,7 +1692,9 @@ pub enum Core {
     /// Method selection from a dictionary value. The site names the class
     /// and the method's own type parameters' classes; the collector maps
     /// the index to the dictionary slot of that vector and clears it.
-    DictProj(Box<Core>, usize, Option<Box<MethodSite>>),
+    /// The last field is the selected method value's class: the
+    /// selection hands out an owned reference, counted by it.
+    DictProj(Box<Core>, usize, Option<Box<MethodSite>>, Class),
     /// Record field projection: load the field from the record block
     /// (uniform-word slot, or the recorded offset for boundary layouts).
     Proj(Box<Core>, ProjField),
@@ -1722,8 +1724,9 @@ pub enum Core {
     },
     /// Demand a memo cell: run its state machine (lazy allocation is
     /// `LazyAlloc` + `LazyInit`; see the laziness and reclamation
-    /// specification).
-    Demand(Box<Core>),
+    /// specification). The class is the cached value's: the cell keeps
+    /// its own reference and the demand hands out another.
+    Demand(Box<Core>, Class),
     /// Allocate an empty memo cell: `{ state; thunk; value }`.
     LazyAlloc,
     /// Store a thunk closure into a memo cell.
@@ -1734,10 +1737,12 @@ pub enum Core {
     /// value is stored faults through the black-hole rule.
     BoxAlloc,
     /// Evaluate `value`, store it into the box bound to `box_l`, and
-    /// return it.
-    BoxInit(LocalId, Box<Core>),
-    /// Read a fixpoint box at use time.
-    BoxGet(Box<Core>),
+    /// return it. The class is the value's: the box keeps one reference
+    /// and the result is another.
+    BoxInit(LocalId, Box<Core>, Class),
+    /// Read a fixpoint box at use time, handing out an owned reference
+    /// to its value (of the class given).
+    BoxGet(Box<Core>, Class),
     /// Write through a `Mut` borrow: evaluate `val`, store it into the
     /// mutable cell the exclusive borrow `local` names, and yield `Unit`.
     /// This is the mutation that invalidates evidence about the location
@@ -1749,6 +1754,14 @@ pub enum Core {
     /// The runtime fault path: exit 70 through `__cinch_blackhole`,
     /// reached when a match falls through with pattern coverage unprovable.
     Fault,
+    /// Reference counting (design/reclamation.md section 4, inserted by
+    /// `crate::rc` after specialization): add one reference to the
+    /// binder's word (counted by its class), then evaluate the body.
+    Dup(LocalId, Class, Box<Core>),
+    /// Release one reference to the binder's word (counted by its
+    /// class), then evaluate the body. The binder is not used again on
+    /// this path unless a `Dup` of it preceded.
+    Drop(LocalId, Class, Box<Core>),
     /// A typed quotation template under construction (staging): the
     /// template carrying `SpliceHole` placeholders plus the elaborated
     /// splice expressions, evaluated when the quote is constructed
@@ -2444,17 +2457,21 @@ pub struct FnContract {
 /// A record field projection's lowering plan: the runtime field slot,
 /// and for boundary-layout types (`repr(C)`, `repr(packed)`,
 /// `repr(transparent)`) the recorded-offset access (attribute
-/// annotations specification section 4.3).
+/// annotations specification section 4.3). `class` is the projected
+/// field's representation class: the projection hands out an owned
+/// reference to the field, so code generation counts it by this class.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ProjField {
     pub slot: usize,
     pub access: Option<FieldAccess>,
+    pub class: Class,
 }
 
 impl ProjField {
-    /// A uniform-word slot projection (no recorded layout).
-    pub fn slot(slot: usize) -> ProjField {
-        ProjField { slot, access: None }
+    /// A uniform-word slot projection (no recorded layout) of a field of
+    /// class `class`.
+    pub fn slot(slot: usize, class: Class) -> ProjField {
+        ProjField { slot, access: None, class }
     }
 }
 
@@ -3114,7 +3131,7 @@ fn tail_groups(program: &Program) -> Vec<(TailGroup, Option<usize>)> {
                     all_calls(h, fns, insts, foreigns, out);
                 }
             }
-            Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d) | Core::BoxGet(d) => {
+            Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d, _) | Core::BoxGet(d, _) => {
                 all_calls(d, fns, insts, foreigns, out)
             }
             Core::InstDict(_, args, _) => {
@@ -3140,9 +3157,10 @@ fn tail_groups(program: &Program) -> Vec<(TailGroup, Option<usize>)> {
                 all_calls(v, fns, insts, foreigns, out);
                 all_calls(body, fns, insts, foreigns, out);
             }
-            Core::BoxInit(_, v) => all_calls(v, fns, insts, foreigns, out),
+            Core::BoxInit(_, v, _) => all_calls(v, fns, insts, foreigns, out),
             Core::RefSet(_, v) => all_calls(v, fns, insts, foreigns, out),
             Core::LazyInit(_, t) => all_calls(t, fns, insts, foreigns, out),
+            Core::Dup(_, _, body) | Core::Drop(_, _, body) => all_calls(body, fns, insts, foreigns, out),
             Core::If(c, t, fe) => {
                 all_calls(c, fns, insts, foreigns, out);
                 all_calls(&t.body, fns, insts, foreigns, out);
@@ -3403,7 +3421,7 @@ fn calls_walk(
                 calls_walk(h, false, fns, insts, foreigns, callees, out);
             }
         }
-        Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d) | Core::BoxGet(d) => {
+        Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d, _) | Core::BoxGet(d, _) => {
             calls_walk(d, false, fns, insts, foreigns, callees, out)
         }
         Core::InstDict(_, args, _) => {
@@ -3431,8 +3449,11 @@ fn calls_walk(
             calls_walk(v, false, fns, insts, foreigns, callees, out);
             calls_walk(body, tail, fns, insts, foreigns, callees, out);
         }
-        Core::BoxInit(_, v) | Core::LazyInit(_, v) | Core::RefSet(_, v) => {
+        Core::BoxInit(_, v, _) | Core::LazyInit(_, v) | Core::RefSet(_, v) => {
             calls_walk(v, false, fns, insts, foreigns, callees, out)
+        }
+        Core::Dup(_, _, body) | Core::Drop(_, _, body) => {
+            calls_walk(body, tail, fns, insts, foreigns, callees, out)
         }
         Core::If(c, t, fe) => {
             calls_walk(c, false, fns, insts, foreigns, callees, out);
@@ -3546,6 +3567,22 @@ pub struct TargetProfile {
     /// section 10; decision D114): the whole safety assertion set is
     /// mandatory at the JPL rule numbers for every user definition.
     pub jpl: bool,
+    /// Reference count debugging (design/reclamation.md sections 3 and
+    /// 9): every dup and drop the compiled program performs calls the
+    /// runtime's out-of-line `cinch_dup`/`cinch_drop` instead of the
+    /// inline fast paths, so that running it under `CINCH_RC_DEBUG=1`
+    /// checks every count operation against a live header and traps on a
+    /// use after free. It is a build property (the inline paths cannot
+    /// check), off by default.
+    pub rc_debug: bool,
+    /// Reclamation (design/reclamation.md slice S6): `crate::rc` inserts
+    /// dup and drop over the residual program, and code generation emits
+    /// the matching ownership in the apply stubs, primitive and foreign
+    /// wrappers, dictionary construction and projections. Off by default
+    /// until every binder carries an exact class (a binder whose class is
+    /// wrong would be freed while live); with it off, nothing is counted
+    /// and every block leaks, as before S6.
+    pub reclaim: bool,
 }
 
 impl TargetProfile {
@@ -3565,6 +3602,8 @@ impl TargetProfile {
             artifact: ArtifactProfile::Native,
             required: Vec::new(),
             jpl: false,
+            rc_debug: false,
+            reclaim: reclaim_from_env(),
         }
     }
 
@@ -3599,9 +3638,19 @@ impl TargetProfile {
             artifact,
             required: Vec::new(),
             jpl: false,
+            rc_debug: false,
+            reclaim: reclaim_from_env(),
         }
     }
+}
 
+/// The compile-time opt-in to reclamation while it is off by default:
+/// `CINCH_RECLAIM=1` in the compiler's environment.
+fn reclaim_from_env() -> bool {
+    std::env::var_os("CINCH_RECLAIM").is_some_and(|v| v == "1")
+}
+
+impl TargetProfile {
     /// The `jpl` target profile (attribute annotations specification
     /// section 10; decision D114): the host's native target with the
     /// whole safety assertion set mandatory at the JPL rule numbers
@@ -3684,7 +3733,9 @@ fn core_eq(a: &Core, b: &Core) -> bool {
         (Core::Global(x, v1), Core::Global(y, v2)) | (Core::Ctor(x, v1), Core::Ctor(y, v2)) => x == y && v1 == v2,
         (Core::Prim(x), Core::Prim(y)) => x == y,
         (Core::Foreign(x), Core::Foreign(y)) => x == y,
-        (Core::DictProj(d1, i1, s1), Core::DictProj(d2, i2, s2)) => i1 == i2 && s1 == s2 && core_eq(d1, d2),
+        (Core::DictProj(d1, i1, s1, c1), Core::DictProj(d2, i2, s2, c2)) => {
+            i1 == i2 && s1 == s2 && c1 == c2 && core_eq(d1, d2)
+        }
         (Core::Proj(d1, i1), Core::Proj(d2, i2)) => i1 == i2 && core_eq(d1, d2),
         (Core::InstDict(g1, a1, v1), Core::InstDict(g2, a2, v2)) => {
             g1 == g2 && v1 == v2 && a1.len() == a2.len() && a1.iter().zip(a2).all(|(x, y)| core_eq(x, y))
@@ -3712,7 +3763,7 @@ fn core_eq(a: &Core, b: &Core) -> bool {
                     x.weight == y.weight && pat_eq(&x.pat, &y.pat) && core_eq(&x.body, &y.body)
                 })
         }
-        (Core::Demand(d1), Core::Demand(d2)) => core_eq(d1, d2),
+        (Core::Demand(d1, c1), Core::Demand(d2, c2)) => c1 == c2 && core_eq(d1, d2),
         (Core::LazyInit(l1, t1), Core::LazyInit(l2, t2)) => l1 == l2 && core_eq(t1, t2),
         (Core::StrLit(s1), Core::StrLit(s2)) => s1 == s2,
         (Core::SyntaxLit(t1), Core::SyntaxLit(t2)) => format!("{t1:?}") == format!("{t2:?}"),
@@ -3746,7 +3797,7 @@ pub fn walk_locals(e: &Core, f: &mut impl FnMut(LocalId)) {
         Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
         | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(_)
         | Core::StrLit(_) => {}
-        Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d) => walk_locals(d, f),
+        Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d, _) => walk_locals(d, f),
         Core::InstDict(_, args, _) | Core::App(_, args) => {
             if let Core::App(h, _) = e {
                 walk_locals(h, f);
@@ -3769,7 +3820,7 @@ pub fn walk_locals(e: &Core, f: &mut impl FnMut(LocalId)) {
             f(*l);
             walk_locals(t, f);
         }
-        Core::BoxInit(l, v) => {
+        Core::BoxInit(l, v, _) => {
             f(*l);
             walk_locals(v, f);
         }
@@ -3777,7 +3828,11 @@ pub fn walk_locals(e: &Core, f: &mut impl FnMut(LocalId)) {
             f(*l);
             walk_locals(v, f);
         }
-        Core::BoxGet(v) => walk_locals(v, f),
+        Core::BoxGet(v, _) => walk_locals(v, f),
+        Core::Dup(l, _, body) | Core::Drop(l, _, body) => {
+            f(*l);
+            walk_locals(body, f);
+        }
         Core::If(c, t, fe) => {
             walk_locals(c, f);
             walk_locals(&t.body, f);
@@ -3826,7 +3881,7 @@ fn use_range(e: &Core, l: LocalId) -> (usize, usize) {
         Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
         | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(_)
         | Core::StrLit(_) => (0, 0),
-        Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d) => use_range(d, l),
+        Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d, _) => use_range(d, l),
         Core::InstDict(_, args, _) | Core::App(_, args) => {
             let mut parts: Vec<(usize, usize)> = Vec::new();
             if let Core::App(h, _) = e {
@@ -3857,7 +3912,7 @@ fn use_range(e: &Core, l: LocalId) -> (usize, usize) {
                 use_range(t, l)
             }
         }
-        Core::BoxInit(x, v) => {
+        Core::BoxInit(x, v, _) => {
             if *x == l {
                 (0, 0)
             } else {
@@ -3871,7 +3926,12 @@ fn use_range(e: &Core, l: LocalId) -> (usize, usize) {
                 use_range(v, l)
             }
         }
-        Core::BoxGet(v) => use_range(v, l),
+        Core::BoxGet(v, _) => use_range(v, l),
+        Core::Dup(x, _, body) | Core::Drop(x, _, body) => {
+            let (bmin, bmax) = use_range(body, l);
+            let k = usize::from(*x == l);
+            (bmin + k, bmax + k)
+        }
         Core::If(c, t, fe) => {
             let (cmin, cmax) = use_range(c, l);
             let (tmin, tmax) = use_range(&t.body, l);
@@ -3936,7 +3996,7 @@ fn renumber_core(e: &Core, nparams: usize) -> Core {
             Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
             | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(_)
             | Core::StrLit(_) => {}
-            Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d) => assign(d, map, next),
+            Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d, _) => assign(d, map, next),
             Core::InstDict(_, args, _) | Core::App(_, args) => {
                 if let Core::App(h, _) = e {
                     assign(h, map, next);
@@ -3959,7 +4019,7 @@ fn renumber_core(e: &Core, nparams: usize) -> Core {
                 note(*l, map, next);
                 assign(t, map, next);
             }
-            Core::BoxInit(l, v) => {
+            Core::BoxInit(l, v, _) => {
                 note(*l, map, next);
                 assign(v, map, next);
             }
@@ -3967,7 +4027,11 @@ fn renumber_core(e: &Core, nparams: usize) -> Core {
                 note(*l, map, next);
                 assign(v, map, next);
             }
-            Core::BoxGet(v) => assign(v, map, next),
+            Core::BoxGet(v, _) => assign(v, map, next),
+            Core::Dup(l, _, body) | Core::Drop(l, _, body) => {
+                note(*l, map, next);
+                assign(body, map, next);
+            }
             Core::If(c, t, fe) => {
                 assign(c, map, next);
                 assign(&t.body, map, next);
@@ -4019,9 +4083,9 @@ fn renumber_core(e: &Core, nparams: usize) -> Core {
             Core::BoxAlloc => Core::BoxAlloc,
             Core::SyntaxLit(t) => Core::SyntaxLit(t.clone()),
             Core::StrLit(s) => Core::StrLit(s.clone()),
-            Core::DictProj(d, i, s) => Core::DictProj(Box::new(rw(d)), *i, s.clone()),
+            Core::DictProj(d, i, s, c) => Core::DictProj(Box::new(rw(d)), *i, s.clone(), *c),
             Core::Proj(d, f) => Core::Proj(Box::new(rw(d)), f.clone()),
-            Core::Demand(d) => Core::Demand(Box::new(rw(d))),
+            Core::Demand(d, c) => Core::Demand(Box::new(rw(d)), *c),
             Core::InstDict(g, args, v) => Core::InstDict(g.clone(), args.iter().map(rw).collect(), v.clone()),
             Core::App(f, args) => Core::App(Box::new(rw(f)), args.iter().map(rw).collect()),
             Core::Lam { fn_id, env, classes } => Core::Lam {
@@ -4038,13 +4102,15 @@ fn renumber_core(e: &Core, nparams: usize) -> Core {
             Core::LazyInit(l, t) => {
                 Core::LazyInit(*map.get(l).unwrap_or(l), Box::new(rw(t)))
             }
-            Core::BoxInit(l, v) => {
-                Core::BoxInit(*map.get(l).unwrap_or(l), Box::new(rw(v)))
+            Core::BoxInit(l, v, c) => {
+                Core::BoxInit(*map.get(l).unwrap_or(l), Box::new(rw(v)), *c)
             }
             Core::RefSet(l, v) => {
                 Core::RefSet(*map.get(l).unwrap_or(l), Box::new(rw(v)))
             }
-            Core::BoxGet(v) => Core::BoxGet(Box::new(rw(v))),
+            Core::BoxGet(v, c) => Core::BoxGet(Box::new(rw(v)), *c),
+            Core::Dup(l, c, body) => Core::Dup(*map.get(l).unwrap_or(l), *c, Box::new(rw(body))),
+            Core::Drop(l, c, body) => Core::Drop(*map.get(l).unwrap_or(l), *c, Box::new(rw(body))),
             Core::If(c, t, fe) => Core::If(
                 Box::new(rw(c)),
                 CBranch { weight: t.weight, body: Box::new(rw(&t.body)) },
@@ -4153,11 +4219,11 @@ fn instantiate(
             Core::BoxAlloc => Core::BoxAlloc,
             Core::SyntaxLit(t) => Core::SyntaxLit(t.clone()),
             Core::StrLit(s) => Core::StrLit(s.clone()),
-            Core::DictProj(d, i, s) => {
-                Core::DictProj(Box::new(go(d, holes, binds, ren, next)), *i, s.clone())
+            Core::DictProj(d, i, s, c) => {
+                Core::DictProj(Box::new(go(d, holes, binds, ren, next)), *i, s.clone(), *c)
             }
             Core::Proj(d, f) => Core::Proj(Box::new(go(d, holes, binds, ren, next)), f.clone()),
-            Core::Demand(d) => Core::Demand(Box::new(go(d, holes, binds, ren, next))),
+            Core::Demand(d, c) => Core::Demand(Box::new(go(d, holes, binds, ren, next)), *c),
             Core::InstDict(g, args, v) => Core::InstDict(
                 g.clone(),
                 args.iter().map(|a| go(a, holes, binds, ren, next)).collect(),
@@ -4185,11 +4251,11 @@ fn instantiate(
                 ren.remove(l);
                 Core::LazyInit(nl, Box::new(t))
             }
-            Core::BoxInit(l, v) => {
+            Core::BoxInit(l, v, c) => {
                 let nl = fresh(*l, ren, next);
                 let v = go(v, holes, binds, ren, next);
                 ren.remove(l);
-                Core::BoxInit(nl, Box::new(v))
+                Core::BoxInit(nl, Box::new(v), *c)
             }
             Core::RefSet(l, v) => {
                 let nl = fresh(*l, ren, next);
@@ -4197,7 +4263,13 @@ fn instantiate(
                 ren.remove(l);
                 Core::RefSet(nl, Box::new(v))
             }
-            Core::BoxGet(v) => Core::BoxGet(Box::new(go(v, holes, binds, ren, next))),
+            Core::BoxGet(v, c) => Core::BoxGet(Box::new(go(v, holes, binds, ren, next)), *c),
+            Core::Dup(l, c, body) => {
+                Core::Dup(*ren.get(l).unwrap_or(l), *c, Box::new(go(body, holes, binds, ren, next)))
+            }
+            Core::Drop(l, c, body) => {
+                Core::Drop(*ren.get(l).unwrap_or(l), *c, Box::new(go(body, holes, binds, ren, next)))
+            }
             Core::If(c, t, fe) => Core::If(
                 Box::new(go(c, holes, binds, ren, next)),
                 CBranch {
@@ -4297,8 +4369,9 @@ fn match_pat(
         }
         (Core::Prim(x), Core::Prim(y)) => x == y,
         (Core::Foreign(x), Core::Foreign(y)) => x == y,
-        (Core::DictProj(d1, i1, s1), Core::DictProj(d2, i2, s2)) => {
+        (Core::DictProj(d1, i1, s1, c1), Core::DictProj(d2, i2, s2, c2)) => {
             i1 == i2
+                && match_class(*c1, *c2, cb)
                 && match (s1, s2) {
                     (Some(a), Some(b)) => a.class == b.class && match_classes(&a.own, &b.own, cb),
                     (None, None) => true,
@@ -4346,7 +4419,9 @@ fn match_pat(
                         && match_pat(&x.body, holes, &y.body, binds, cb)
                 })
         }
-        (Core::Demand(d1), Core::Demand(d2)) => match_pat(d1, holes, d2, binds, cb),
+        (Core::Demand(d1, c1), Core::Demand(d2, c2)) => {
+            match_class(*c1, *c2, cb) && match_pat(d1, holes, d2, binds, cb)
+        }
         (Core::LazyInit(_, t1), Core::LazyInit(_, t2)) => match_pat(t1, holes, t2, binds, cb),
         (Core::StrLit(s1), Core::StrLit(s2)) => s1 == s2,
         (Core::SyntaxLit(t1), Core::SyntaxLit(t2)) => format!("{t1:?}") == format!("{t2:?}"),
@@ -4811,9 +4886,9 @@ fn has_alloc(e: &Core) -> bool {
             return;
         }
         match e {
-            Core::LazyAlloc | Core::LazyInit(_, _) | Core::BoxAlloc | Core::BoxInit(_, _)
+            Core::LazyAlloc | Core::LazyInit(_, _) | Core::BoxAlloc | Core::BoxInit(..)
             | Core::RefSet(_, _)
-            | Core::BoxGet(_) | Core::Demand(_) | Core::Quote { .. }
+            | Core::BoxGet(..) | Core::Demand(..) | Core::Quote { .. }
             | Core::DeclsQuote { .. } => *found = true,
             Core::Prim(PrimOp::Delay) => *found = true,
             Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
@@ -4831,8 +4906,9 @@ fn has_alloc(e: &Core) -> bool {
                 go(body, found);
             }
             Core::LazyInit(_, t) => go(t, found),
-            Core::BoxInit(_, v) => go(v, found),
-            Core::BoxGet(v) => go(v, found),
+            Core::BoxInit(_, v, _) => go(v, found),
+            Core::BoxGet(v, _) => go(v, found),
+            Core::Dup(_, _, body) | Core::Drop(_, _, body) => go(body, found),
             Core::If(c, t, fe) => {
                 go(c, found);
                 go(&t.body, found);
@@ -4872,7 +4948,7 @@ fn scan_calls(e: &Core, f: &mut impl FnMut(&GlobalId)) {
         Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Ctor(..)
         | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(_) | Core::StrLit(_)
         | Core::Var(_) => {}
-        Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d) => scan_calls(d, f),
+        Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d, _) => scan_calls(d, f),
         Core::InstDict(_, args, _) | Core::App(_, args) => {
             if let Core::App(h, _) = e {
                 scan_calls(h, f);
@@ -4891,10 +4967,11 @@ fn scan_calls(e: &Core, f: &mut impl FnMut(&GlobalId)) {
             scan_calls(v, f);
             scan_calls(body, f);
         }
+        Core::Dup(_, _, body) | Core::Drop(_, _, body) => scan_calls(body, f),
         Core::LazyInit(_, t) => scan_calls(t, f),
-        Core::BoxInit(_, v) => scan_calls(v, f),
+        Core::BoxInit(_, v, _) => scan_calls(v, f),
         Core::RefSet(_, v) => scan_calls(v, f),
-        Core::BoxGet(v) => scan_calls(v, f),
+        Core::BoxGet(v, _) => scan_calls(v, f),
         Core::If(c, t, fe) => {
             scan_calls(c, f);
             scan_calls(&t.body, f);
@@ -4924,14 +5001,15 @@ fn memo_count(e: &Core) -> usize {
 
 fn scan_memo(e: &Core, n: &mut usize) {
     match e {
-        Core::LazyAlloc | Core::LazyInit(_, _) | Core::BoxAlloc | Core::BoxInit(_, _)
+        Core::LazyAlloc | Core::LazyInit(_, _) | Core::BoxAlloc | Core::BoxInit(..)
         | Core::RefSet(_, _)
-        | Core::BoxGet(_) | Core::Demand(_) => *n += 1,
+        | Core::BoxGet(..) | Core::Demand(..) => *n += 1,
         Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
         | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_)
         | Core::Fault | Core::SyntaxLit(_) | Core::StrLit(_)
         | Core::Var(_) => {}
         Core::DictProj(d, ..) | Core::Proj(d, _) => scan_memo(d, n),
+        Core::Dup(_, _, body) | Core::Drop(_, _, body) => scan_memo(body, n),
         Core::InstDict(_, args, _) | Core::App(_, args) | Core::Lam { env: args, .. } => {
             for a in args {
                 scan_memo(a, n);
@@ -4989,10 +5067,11 @@ fn weights_ok(e: &Core) -> bool {
             Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
             | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(_)
             | Core::StrLit(_) | Core::Var(_) => {}
-            Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d) | Core::BoxGet(d) => {
+            Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d, _) | Core::BoxGet(d, _) => {
                 go(d, ok)
             }
-            Core::BoxInit(_, v) => go(v, ok),
+            Core::BoxInit(_, v, _) => go(v, ok),
+            Core::Dup(_, _, body) | Core::Drop(_, _, body) => go(body, ok),
             Core::RefSet(_, v) => go(v, ok),
             Core::InstDict(_, args, _) | Core::App(_, args) | Core::Lam { env: args, .. } => {
                 for a in args {
@@ -5024,15 +5103,16 @@ fn scope_ok(e: &Core, nparams: usize) -> bool {
             Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
             | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(_)
             | Core::StrLit(_) => true,
-            Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d) | Core::BoxGet(d) => {
+            Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d, _) | Core::BoxGet(d, _) => {
                 go(d, bound)
             }
-            Core::BoxInit(l, v) => {
+            Core::BoxInit(l, v, _) => {
                 bound.insert(*l);
                 let ok = go(v, bound);
                 bound.remove(l);
                 ok
             }
+            Core::Dup(l, _, body) | Core::Drop(l, _, body) => bound.contains(l) && go(body, bound),
             Core::RefSet(l, v) => {
                 bound.insert(*l);
                 let ok = go(v, bound);
@@ -5157,10 +5237,11 @@ fn body_impure(e: &Core) -> bool {
             Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
             | Core::Ctor(..) | Core::SpliceVal(_) | Core::LazyAlloc | Core::BoxAlloc
             | Core::SyntaxLit(_) | Core::StrLit(_) | Core::Var(_) => {}
-            Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d) | Core::BoxGet(d) => {
+            Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d, _) | Core::BoxGet(d, _) => {
                 go(d, bad)
             }
-            Core::BoxInit(_, v) => go(v, bad),
+            Core::BoxInit(_, v, _) => go(v, bad),
+            Core::Dup(_, _, body) | Core::Drop(_, _, body) => go(body, bad),
             Core::InstDict(_, args, _) | Core::App(_, args) | Core::Lam { env: args, .. } => {
                 for a in args {
                     go(a, bad);
@@ -5751,7 +5832,7 @@ impl Driver<'_> {
         // Dictionary and effect-static specialization: a call through a
         // statically known dictionary becomes a direct call.
         if let Core::App(h, args) = e {
-            if let Core::DictProj(d, idx, site) = &**h {
+            if let Core::DictProj(d, idx, site, _) = &**h {
                 if let Core::InstDict(id, subs, iv) = &**d {
                     if let Some(inst_def) = self.caller_program_instance(id) {
                         if let Some(mid) = inst_def.methods.get(*idx) {
@@ -5990,10 +6071,11 @@ pub(crate) fn child_slots(e: &mut Core) -> Vec<&mut Core> {
         Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
         | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(_)
         | Core::StrLit(_) | Core::Var(_) => {}
-        Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d) | Core::BoxGet(d) => {
+        Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d, _) | Core::BoxGet(d, _) => {
             out.push(&mut **d)
         }
-        Core::BoxInit(_, v) => out.push(&mut **v),
+        Core::BoxInit(_, v, _) => out.push(&mut **v),
+        Core::Dup(_, _, body) | Core::Drop(_, _, body) => out.push(&mut **body),
         Core::RefSet(_, v) => out.push(&mut **v),
         Core::InstDict(_, args, _) | Core::App(_, args) | Core::Lam { env: args, .. } => {
             for a in args {
@@ -6035,7 +6117,15 @@ pub fn subst_classes(e: &mut Core, cv: &[Class]) {
     };
     match e {
         Core::Global(_, v) | Core::Ctor(_, v) | Core::InstDict(_, _, v) | Core::Lam { classes: v, .. } => sub(v),
-        Core::DictProj(_, _, Some(s)) => sub(&mut s.own),
+        Core::DictProj(_, _, site, c) => {
+            if let Some(s) = site {
+                sub(&mut s.own);
+            }
+            *c = c.subst(cv);
+        }
+        Core::Proj(_, f) => f.class = f.class.subst(cv),
+        Core::Demand(_, c) | Core::BoxGet(_, c) | Core::BoxInit(_, _, c) => *c = c.subst(cv),
+        Core::Dup(_, c, _) | Core::Drop(_, c, _) => *c = c.subst(cv),
         Core::Let(_, c, _, _) => *c = c.subst(cv),
         Core::Case { alts, .. } => {
             for a in alts.iter_mut() {
@@ -6094,7 +6184,9 @@ fn alpha_eq(a: &Core, b: &Core) -> bool {
             (Core::Global(x, v1), Core::Global(y, v2)) | (Core::Ctor(x, v1), Core::Ctor(y, v2)) => x == y && v1 == v2,
             (Core::Prim(x), Core::Prim(y)) => x == y,
             (Core::Foreign(x), Core::Foreign(y)) => x == y,
-            (Core::DictProj(d1, i1, s1), Core::DictProj(d2, i2, s2)) => i1 == i2 && s1 == s2 && go(d1, d2, map),
+            (Core::DictProj(d1, i1, s1, c1), Core::DictProj(d2, i2, s2, c2)) => {
+                i1 == i2 && s1 == s2 && c1 == c2 && go(d1, d2, map)
+            }
             (Core::Proj(d1, i1), Core::Proj(d2, i2)) => i1 == i2 && go(d1, d2, map),
             (Core::InstDict(g1, a1, v1), Core::InstDict(g2, a2, v2)) => {
                 g1 == g2 && v1 == v2 && a1.len() == a2.len() && a1.iter().zip(a2).all(|(x, y)| go(x, y, map))
@@ -6557,10 +6649,11 @@ pub(crate) fn child_slots_imm(e: &Core) -> Vec<&Core> {
         Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
         | Core::Ctor(..) | Core::Prim(_) | Core::Foreign(_) | Core::SpliceVal(_) | Core::Fault | Core::LazyAlloc | Core::BoxAlloc | Core::SyntaxLit(_)
         | Core::StrLit(_) | Core::Var(_) => {}
-        Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d) | Core::BoxGet(d) => {
+        Core::DictProj(d, ..) | Core::Proj(d, _) | Core::Demand(d, _) | Core::BoxGet(d, _) => {
             out.push(&**d)
         }
-        Core::BoxInit(_, v) => out.push(&**v),
+        Core::BoxInit(_, v, _) => out.push(&**v),
+        Core::Dup(_, _, body) | Core::Drop(_, _, body) => out.push(&**body),
         Core::RefSet(_, v) => out.push(&**v),
         Core::InstDict(_, args, _) | Core::App(_, args) | Core::Lam { env: args, .. } => {
             for a in args {

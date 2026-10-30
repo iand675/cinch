@@ -62,10 +62,12 @@ enum ECore {
     /// A real foreign import used as a value (its wrapper unit's name).
     Foreign(String),
     /// A method projection, with the signature and the types of the
-    /// method's own type parameters at this use.
-    DictProj(Box<ECore>, usize, Option<(String, Vec<Ty>)>),
+    /// method's own type parameters at this use, and the selected
+    /// method value's type (its representation class at lowering).
+    DictProj(Box<ECore>, usize, Option<(String, Vec<Ty>)>, Ty),
     /// Record field projection: load the field from the record block.
-    Proj(Box<ECore>, crate::core::ProjField),
+    /// The type is the field's, for its representation class.
+    Proj(Box<ECore>, crate::core::ProjField, Ty),
     /// A dictionary, with the instance's own parameter types.
     InstDict(GlobalId, Vec<ECore>, Vec<Ty>),
     App(Box<ECore>, Vec<ECore>),
@@ -80,8 +82,9 @@ enum ECore {
     /// Case on a boxed ADT value; the alternatives carry their weights
     /// beside them (attribute annotations specification section 2.1).
     Case { scrut: Box<ECore>, alts: Vec<CAlt<ECore>> },
-    /// Demand a memo cell (its state machine runs at code generation).
-    Demand(Box<ECore>),
+    /// Demand a memo cell (its state machine runs at code generation),
+    /// with the cached value's type.
+    Demand(Box<ECore>, Ty),
     /// Allocate an empty memo cell.
     LazyAlloc,
     /// Store a thunk into a memo cell.
@@ -91,11 +94,11 @@ enum ECore {
     /// amendments section 9).
     BoxAlloc,
     /// Evaluate `value`, store it into the box bound to `box_l`, and
-    /// return it.
-    BoxInit(LocalId, Box<ECore>),
+    /// return it; the type is the value's.
+    BoxInit(LocalId, Box<ECore>, Ty),
     /// Read a fixpoint box: a use of a recursive `letrec` value inside a
-    /// thunk, resolved when the thunk runs.
-    BoxGet(Box<ECore>),
+    /// thunk, resolved when the thunk runs; the type is the value's.
+    BoxGet(Box<ECore>, Ty),
     /// Write through a `Mut` borrow (evidence invalidation over mutable
     /// state): store `val` into the cell the exclusive borrow `local`
     /// names, yielding `Unit`. Lowers to [`crate::core::Core::RefSet`].
@@ -212,7 +215,7 @@ fn free_locals(e: &ECore, bound: &mut Vec<LocalId>, out: &mut Vec<LocalId>) {
             }
         }
         ECore::DictProj(d, ..) => free_locals(d, bound, out),
-        ECore::Proj(d, _) => free_locals(d, bound, out),
+        ECore::Proj(d, ..) => free_locals(d, bound, out),
         ECore::InstDict(_, args, _) | ECore::App(_, args) | ECore::MkClos { env: args, .. } => {
             for a in args {
                 free_locals(a, bound, out);
@@ -239,7 +242,7 @@ fn free_locals(e: &ECore, bound: &mut Vec<LocalId>, out: &mut Vec<LocalId>) {
             free_locals(&t.body, bound, out);
             free_locals(&f.body, bound, out);
         }
-        ECore::Demand(d) => free_locals(d, bound, out),
+        ECore::Demand(d, _) => free_locals(d, bound, out),
         ECore::LazyAlloc => {}
         ECore::LazyInit(l, t) => {
             if !bound.contains(l) && !out.contains(l) {
@@ -248,7 +251,7 @@ fn free_locals(e: &ECore, bound: &mut Vec<LocalId>, out: &mut Vec<LocalId>) {
             free_locals(t, bound, out);
         }
         ECore::BoxAlloc => {}
-        ECore::BoxInit(l, v) => {
+        ECore::BoxInit(l, v, _) => {
             if !bound.contains(l) && !out.contains(l) {
                 out.push(*l);
             }
@@ -260,7 +263,7 @@ fn free_locals(e: &ECore, bound: &mut Vec<LocalId>, out: &mut Vec<LocalId>) {
             }
             free_locals(v, bound, out);
         }
-        ECore::BoxGet(v) => free_locals(v, bound, out),
+        ECore::BoxGet(v, _) => free_locals(v, bound, out),
         ECore::Case { scrut, alts } => {
             free_locals(scrut, bound, out);
             for alt in alts {
@@ -318,7 +321,7 @@ fn hoist_lambdas(e: &mut ECore, hint: &str, counter: &mut usize, fns: &mut Vec<H
             }
         }
         ECore::DictProj(d, ..) => hoist_lambdas(d, hint, counter, fns),
-        ECore::Proj(d, _) => hoist_lambdas(d, hint, counter, fns),
+        ECore::Proj(d, ..) => hoist_lambdas(d, hint, counter, fns),
         ECore::InstDict(_, args, _) | ECore::App(_, args) | ECore::MkClos { env: args, .. } => {
             for a in args {
                 hoist_lambdas(a, hint, counter, fns);
@@ -336,13 +339,13 @@ fn hoist_lambdas(e: &mut ECore, hint: &str, counter: &mut usize, fns: &mut Vec<H
             hoist_lambdas(&mut t.body, hint, counter, fns);
             hoist_lambdas(&mut f.body, hint, counter, fns);
         }
-        ECore::Demand(d) => hoist_lambdas(d, hint, counter, fns),
+        ECore::Demand(d, _) => hoist_lambdas(d, hint, counter, fns),
         ECore::LazyAlloc => {}
         ECore::LazyInit(_, t) => hoist_lambdas(t, hint, counter, fns),
         ECore::BoxAlloc => {}
-        ECore::BoxInit(_, v) => hoist_lambdas(v, hint, counter, fns),
+        ECore::BoxInit(_, v, _) => hoist_lambdas(v, hint, counter, fns),
         ECore::RefSet(_, v) => hoist_lambdas(v, hint, counter, fns),
-        ECore::BoxGet(v) => hoist_lambdas(v, hint, counter, fns),
+        ECore::BoxGet(v, _) => hoist_lambdas(v, hint, counter, fns),
         ECore::Case { scrut, alts } => {
             hoist_lambdas(scrut, hint, counter, fns);
             for alt in alts {
@@ -413,7 +416,7 @@ fn assign_locals(e: &ECore, map: &mut HashMap<LocalId, LocalId>, next: &mut usiz
             }
         }
         ECore::DictProj(d, ..) => assign_locals(d, map, next),
-        ECore::Proj(d, _) => assign_locals(d, map, next),
+        ECore::Proj(d, ..) => assign_locals(d, map, next),
         ECore::InstDict(_, args, _) | ECore::App(_, args) | ECore::MkClos { env: args, .. } => {
             if let ECore::App(f, _) = e {
                 assign_locals(f, map, next);
@@ -438,14 +441,14 @@ fn assign_locals(e: &ECore, map: &mut HashMap<LocalId, LocalId>, next: &mut usiz
             assign_locals(&t.body, map, next);
             assign_locals(&f.body, map, next);
         }
-        ECore::Demand(d) => assign_locals(d, map, next),
+        ECore::Demand(d, _) => assign_locals(d, map, next),
         ECore::LazyAlloc => {}
         ECore::LazyInit(l, t) => {
             note_local(*l, map, next);
             assign_locals(t, map, next);
         }
         ECore::BoxAlloc => {}
-        ECore::BoxInit(l, v) => {
+        ECore::BoxInit(l, v, _) => {
             note_local(*l, map, next);
             assign_locals(v, map, next);
         }
@@ -453,7 +456,7 @@ fn assign_locals(e: &ECore, map: &mut HashMap<LocalId, LocalId>, next: &mut usiz
             note_local(*l, map, next);
             assign_locals(v, map, next);
         }
-        ECore::BoxGet(v) => assign_locals(v, map, next),
+        ECore::BoxGet(v, _) => assign_locals(v, map, next),
         ECore::Case { scrut, alts } => {
             assign_locals(scrut, map, next);
             for alt in alts {
@@ -514,8 +517,10 @@ fn rewrite_locals(e: &ECore, map: &HashMap<LocalId, LocalId>) -> ECore {
             holes: holes.iter().map(|h| rewrite_locals(h, map)).collect(),
             name_holes: name_holes.clone(),
         },
-        ECore::DictProj(d, i, s) => ECore::DictProj(Box::new(rewrite_locals(d, map)), *i, s.clone()),
-        ECore::Proj(d, i) => ECore::Proj(Box::new(rewrite_locals(d, map)), i.clone()),
+        ECore::DictProj(d, i, s, t) => {
+            ECore::DictProj(Box::new(rewrite_locals(d, map)), *i, s.clone(), t.clone())
+        }
+        ECore::Proj(d, i, t) => ECore::Proj(Box::new(rewrite_locals(d, map)), i.clone(), t.clone()),
         ECore::InstDict(g, args, t) => ECore::InstDict(
             g.clone(),
             args.iter().map(|a| rewrite_locals(a, map)).collect(),
@@ -549,15 +554,15 @@ fn rewrite_locals(e: &ECore, map: &HashMap<LocalId, LocalId>) -> ECore {
                 body: Box::new(rewrite_locals(&f.body, map)),
             },
         ),
-        ECore::Demand(d) => ECore::Demand(Box::new(rewrite_locals(d, map))),
+        ECore::Demand(d, t) => ECore::Demand(Box::new(rewrite_locals(d, map)), t.clone()),
         ECore::LazyAlloc => ECore::LazyAlloc,
         ECore::LazyInit(l, t) => {
             ECore::LazyInit(m(l), Box::new(rewrite_locals(t, map)))
         }
         ECore::BoxAlloc => ECore::BoxAlloc,
-        ECore::BoxInit(l, v) => ECore::BoxInit(m(l), Box::new(rewrite_locals(v, map))),
+        ECore::BoxInit(l, v, t) => ECore::BoxInit(m(l), Box::new(rewrite_locals(v, map)), t.clone()),
         ECore::RefSet(l, v) => ECore::RefSet(m(l), Box::new(rewrite_locals(v, map))),
-        ECore::BoxGet(v) => ECore::BoxGet(Box::new(rewrite_locals(v, map))),
+        ECore::BoxGet(v, t) => ECore::BoxGet(Box::new(rewrite_locals(v, map)), t.clone()),
         ECore::Case { scrut, alts } => ECore::Case {
             scrut: Box::new(rewrite_locals(scrut, map)),
             alts: alts
@@ -603,7 +608,7 @@ fn resolve_lit_words(e: &mut ECore, lits: &[ECore]) {
                 resolve_lit_words(h, lits);
             }
         }
-        ECore::DictProj(d, ..) | ECore::Proj(d, _) | ECore::Demand(d) => {
+        ECore::DictProj(d, ..) | ECore::Proj(d, ..) | ECore::Demand(d, _) => {
             resolve_lit_words(d, lits)
         }
         ECore::InstDict(_, args, _) | ECore::MkClos { env: args, .. } => {
@@ -628,9 +633,9 @@ fn resolve_lit_words(e: &mut ECore, lits: &[ECore]) {
             resolve_lit_words(&mut f.body, lits);
         }
         ECore::LazyInit(_, t) => resolve_lit_words(t, lits),
-        ECore::BoxInit(_, v) => resolve_lit_words(v, lits),
+        ECore::BoxInit(_, v, _) => resolve_lit_words(v, lits),
         ECore::RefSet(_, v) => resolve_lit_words(v, lits),
-        ECore::BoxGet(v) => resolve_lit_words(v, lits),
+        ECore::BoxGet(v, _) => resolve_lit_words(v, lits),
         ECore::Case { scrut, alts } => {
             resolve_lit_words(scrut, lits);
             for alt in alts {
@@ -673,7 +678,7 @@ fn resolve_idx_words(e: &mut ECore, vals: &[ECore]) {
                 resolve_idx_words(h, vals);
             }
         }
-        ECore::DictProj(d, ..) | ECore::Proj(d, _) | ECore::Demand(d) => {
+        ECore::DictProj(d, ..) | ECore::Proj(d, ..) | ECore::Demand(d, _) => {
             resolve_idx_words(d, vals)
         }
         ECore::InstDict(_, args, _) | ECore::MkClos { env: args, .. } => {
@@ -698,9 +703,9 @@ fn resolve_idx_words(e: &mut ECore, vals: &[ECore]) {
             resolve_idx_words(&mut f.body, vals);
         }
         ECore::LazyInit(_, t) => resolve_idx_words(t, vals),
-        ECore::BoxInit(_, v) => resolve_idx_words(v, vals),
+        ECore::BoxInit(_, v, _) => resolve_idx_words(v, vals),
         ECore::RefSet(_, v) => resolve_idx_words(v, vals),
-        ECore::BoxGet(v) => resolve_idx_words(v, vals),
+        ECore::BoxGet(v, _) => resolve_idx_words(v, vals),
         ECore::Case { scrut, alts } => {
             resolve_idx_words(scrut, vals);
             for alt in alts {
@@ -778,17 +783,17 @@ fn fold_blocked(e: &ECore) -> bool {
         | ECore::Fault
         | ECore::SyntaxLit(_)
         | ECore::StrLit(_)
-        | ECore::Demand(_)
+        | ECore::Demand(..)
         | ECore::LazyAlloc
         | ECore::LazyInit(_, _)
         | ECore::BoxAlloc
-        | ECore::BoxInit(_, _)
+        | ECore::BoxInit(..)
         | ECore::RefSet(_, _)
-        | ECore::BoxGet(_)
+        | ECore::BoxGet(..)
         | ECore::Quote { .. }
         | ECore::DeclsQuote { .. } => true,
         ECore::LitFold { body, .. } => fold_blocked(body),
-        ECore::DictProj(d, ..) | ECore::Proj(d, _) => fold_blocked(d),
+        ECore::DictProj(d, ..) | ECore::Proj(d, ..) => fold_blocked(d),
         ECore::InstDict(_, args, _) | ECore::MkClos { env: args, .. } => {
             args.iter().any(fold_blocked)
         }
@@ -813,17 +818,24 @@ pub(crate) struct LowerCx<'a> {
     own: &'a HashSet<GlobalId>,
     /// Renumbered id to checker id.
     orig: HashMap<LocalId, LocalId>,
+    /// Classes of untyped `let` binders, from their definitions (keyed by
+    /// the lowered body's ids), so later uses of them resolve too.
+    inferred: std::cell::RefCell<HashMap<LocalId, crate::repr::Class>>,
 }
 
 impl<'a> LowerCx<'a> {
     pub(crate) fn new(ck: &'a Checker, tparams: &'a [String], own: &'a HashSet<GlobalId>) -> Self {
-        LowerCx { ck, tparams, own, orig: HashMap::new() }
+        LowerCx { ck, tparams, own, orig: HashMap::new(), inferred: Default::default() }
     }
 
     fn class(&self, ty: &Ty) -> crate::repr::Class {
         let z = self.ck.uni.zonk(ty);
+        // A metavariable still undetermined at lowering is a type nothing
+        // constrains, so no word of it is ever produced at run time (the
+        // element type of an empty literal, say): `Raw` is exact for it,
+        // not a fallback.
         crate::repr::repr_of(&z, self.tparams, self.ck, &mut |t| {
-            if std::env::var_os("CINCH_REPR_DEBUG").is_some() {
+            if !matches!(t, Ty::Meta(_)) && std::env::var_os("CINCH_REPR_DEBUG").is_some() {
                 eprintln!("cinch-repr: no class for {t} (parameters {:?})", self.tparams);
             }
         })
@@ -833,20 +845,62 @@ impl<'a> LowerCx<'a> {
         tys.iter().map(|t| self.class(t)).collect()
     }
 
-    /// The class of a binder of the lowered body.
-    fn local(&self, l: LocalId) -> crate::repr::Class {
+    /// A binder's recorded class, if the checker recorded its type or
+    /// class.
+    fn known(&self, l: LocalId) -> Option<crate::repr::Class> {
+        if let Some(c) = self.inferred.borrow().get(&l) {
+            return Some(*c);
+        }
         let l = self.orig.get(&l).copied().unwrap_or(l);
         if let Some(c) = self.ck.local_cls.get(&l) {
-            return *c;
+            return Some(*c);
         }
-        match self.ck.local_tys.get(&l) {
-            Some(t) => self.class(t),
-            None => {
-                if std::env::var_os("CINCH_REPR_DEBUG").is_some() {
-                    eprintln!("cinch-repr: binder v{} has no recorded type", l.0);
-                }
-                crate::repr::Class::Raw
-            }
+        self.ck.local_tys.get(&l).map(|t| self.class(t))
+    }
+
+    /// The class of a binder of the lowered body.
+    fn local(&self, l: LocalId) -> crate::repr::Class {
+        self.known(l).unwrap_or_else(|| self.missing(l))
+    }
+
+    fn missing(&self, l: LocalId) -> crate::repr::Class {
+        if std::env::var_os("CINCH_REPR_DEBUG").is_some() {
+            let l = self.orig.get(&l).copied().unwrap_or(l);
+            eprintln!("cinch-repr: binder v{} has no recorded type", l.0);
+        }
+        crate::repr::Class::Raw
+    }
+
+    /// The class of a `let` binder: its recorded type's, or for a binder
+    /// the elaboration introduced without one (match compilation's
+    /// scrutinee temporaries, desugaring's intermediates), the class of
+    /// the word it is bound to.
+    fn let_class(&self, l: LocalId, v: &ECore) -> crate::repr::Class {
+        self.known(l).or_else(|| self.expr_class(v)).unwrap_or_else(|| self.missing(l))
+    }
+
+    /// The class of an elaborated expression's word, where its shape
+    /// shows it.
+    fn expr_class(&self, e: &ECore) -> Option<crate::repr::Class> {
+        use crate::repr::Class;
+        match e {
+            ECore::Var(x) => self.known(*x),
+            ECore::Let(x, v, b) => match &**b {
+                ECore::Var(y) if y == x => Some(self.let_class(*x, v)),
+                _ => self.expr_class(b),
+            },
+            ECore::LitFold { body, .. } => self.expr_class(body),
+            ECore::Proj(_, _, t) | ECore::DictProj(.., t) | ECore::Demand(_, t) | ECore::BoxGet(_, t)
+            | ECore::BoxInit(_, _, t) => Some(self.class(t)),
+            ECore::ConstBig { .. } => Some(Class::TObj),
+            ECore::ConstBytes(_) | ECore::ConstString { .. } | ECore::MkClos { .. } | ECore::Lam { .. }
+            | ECore::InstDict(..) | ECore::LazyAlloc | ECore::BoxAlloc | ECore::Quote { .. } => Some(Class::Obj),
+            ECore::Int(_) | ECore::Bool(_) | ECore::Unit | ECore::ConstSym(_) | ECore::LazyInit(..)
+            | ECore::RefSet(..) => Some(Class::Raw),
+            ECore::App(f, _) if matches!(**f, ECore::Ctor(..)) => Some(Class::Obj),
+            ECore::If(_, t, f) => self.expr_class(&t.body).or_else(|| self.expr_class(&f.body)),
+            ECore::Case { alts, .. } => alts.iter().find_map(|a| self.expr_class(&a.body)),
+            _ => None,
         }
     }
 }
@@ -884,6 +938,7 @@ fn finalize_fn(
     cx: &mut LowerCx,
 ) -> FnDef {
     cx.orig.clear();
+    cx.inferred.borrow_mut().clear();
     let param_classes = params.iter().map(|l| cx.local(*l)).collect();
     let (body, map) = renumber_fn(&body, &params);
     cx.orig = map.iter().map(|(o, n)| (*n, *o)).collect();
@@ -941,14 +996,17 @@ fn lower(e: &ECore, cx: &LowerCx) -> crate::core::Core {
         ECore::Ctor(g, tys) => C::Ctor(g.clone(), cx.classes(tys)),
         ECore::Prim(p) => C::Prim(*p),
         ECore::Foreign(n) => C::Foreign(n.clone()),
-        ECore::DictProj(d, i, site) => C::DictProj(
+        ECore::DictProj(d, i, site, ty) => C::DictProj(
             Box::new(low(d)),
             *i,
             site.as_ref().map(|(class, own)| {
                 Box::new(crate::core::MethodSite { class: class.clone(), own: cx.classes(own) })
             }),
+            cx.class(ty),
         ),
-        ECore::Proj(d, f) => C::Proj(Box::new(low(d)), f.clone()),
+        ECore::Proj(d, f, ty) => {
+            C::Proj(Box::new(low(d)), crate::core::ProjField { class: cx.class(ty), ..f.clone() })
+        }
         ECore::InstDict(g, args, tys) => {
             C::InstDict(g.clone(), args.iter().map(low).collect(), cx.classes(tys))
         }
@@ -977,7 +1035,11 @@ fn lower(e: &ECore, cx: &LowerCx) -> crate::core::Core {
             // `letrec` member: it shares the definition's parameters.
             classes: crate::repr::identity(cx.tparams.len()),
         },
-        ECore::Let(l, v, body) => C::Let(*l, cx.local(*l), Box::new(low(v)), Box::new(low(body))),
+        ECore::Let(l, v, body) => {
+            let c = cx.let_class(*l, v);
+            cx.inferred.borrow_mut().insert(*l, c);
+            C::Let(*l, c, Box::new(low(v)), Box::new(low(body)))
+        }
         ECore::If(c, t, f) => C::If(
             Box::new(low(c)),
             CBranch {
@@ -989,20 +1051,24 @@ fn lower(e: &ECore, cx: &LowerCx) -> crate::core::Core {
                 body: Box::new(low(&f.body)),
             },
         ),
-        ECore::Demand(d) => C::Demand(Box::new(low(d))),
+        ECore::Demand(d, ty) => C::Demand(Box::new(low(d)), cx.class(ty)),
         ECore::LazyAlloc => C::LazyAlloc,
         ECore::LazyInit(l, t) => C::LazyInit(*l, Box::new(low(t))),
         ECore::BoxAlloc => C::BoxAlloc,
-        ECore::BoxInit(l, v) => C::BoxInit(*l, Box::new(low(v))),
+        ECore::BoxInit(l, v, ty) => C::BoxInit(*l, Box::new(low(v)), cx.class(ty)),
         ECore::RefSet(l, v) => C::RefSet(*l, Box::new(low(v))),
-        ECore::BoxGet(v) => C::BoxGet(Box::new(low(v))),
+        ECore::BoxGet(v, ty) => C::BoxGet(Box::new(low(v)), cx.class(ty)),
         ECore::Case { scrut, alts } => C::Case {
             scrut: Box::new(low(scrut)),
             alts: alts
                 .iter()
                 .map(|a| CAlt {
                     pat: match &a.pat {
-                        CPat::Var(l, _) => CPat::Var(*l, cx.local(*l)),
+                        CPat::Var(l, _) => {
+                            let c = cx.let_class(*l, scrut);
+                            cx.inferred.borrow_mut().insert(*l, c);
+                            CPat::Var(*l, c)
+                        }
                         CPat::Con { tag, fields, .. } => CPat::Con {
                             tag: *tag,
                             fields: fields.clone(),
@@ -4132,7 +4198,7 @@ impl Checker {
                     self.fold_pass(h, unit, fold);
                 }
             }
-            ECore::DictProj(d, ..) | ECore::Proj(d, _) | ECore::Demand(d) => {
+            ECore::DictProj(d, ..) | ECore::Proj(d, ..) | ECore::Demand(d, _) => {
                 self.fold_pass(d, unit, fold)
             }
             ECore::InstDict(_, args, _) | ECore::MkClos { env: args, .. } => {
@@ -4157,9 +4223,9 @@ impl Checker {
                 self.fold_pass(&mut f.body, unit, fold);
             }
             ECore::LazyInit(_, t) => self.fold_pass(t, unit, fold),
-            ECore::BoxInit(_, v) => self.fold_pass(v, unit, fold),
+            ECore::BoxInit(_, v, _) => self.fold_pass(v, unit, fold),
             ECore::RefSet(_, v) => self.fold_pass(v, unit, fold),
-            ECore::BoxGet(v) => self.fold_pass(v, unit, fold),
+            ECore::BoxGet(v, _) => self.fold_pass(v, unit, fold),
             ECore::Case { scrut, alts } => {
                 self.fold_pass(scrut, unit, fold);
                 for alt in alts {
@@ -7655,11 +7721,11 @@ impl Checker {
             | ECore::IdxPending(_) | ECore::Fault
             | ECore::SyntaxLit(_) | ECore::StrLit(_) => e.clone(),
             ECore::BoxAlloc => ECore::BoxAlloc,
-            ECore::BoxInit(l, v) => {
-                ECore::BoxInit(*l, Box::new(self.fill_holes(v, sol)?))
+            ECore::BoxInit(l, v, t) => {
+                ECore::BoxInit(*l, Box::new(self.fill_holes(v, sol)?), t.clone())
             }
             ECore::RefSet(l, v) => ECore::RefSet(*l, Box::new(self.fill_holes(v, sol)?)),
-            ECore::BoxGet(v) => ECore::BoxGet(Box::new(self.fill_holes(v, sol)?)),
+            ECore::BoxGet(v, t) => ECore::BoxGet(Box::new(self.fill_holes(v, sol)?), t.clone()),
             ECore::Quote { template, holes, body } => ECore::Quote {
                 template: template.clone(),
                 holes: holes
@@ -7676,10 +7742,10 @@ impl Checker {
                     .collect::<Result<Vec<_>>>()?,
                 name_holes: name_holes.clone(),
             },
-            ECore::DictProj(d, i, s) => {
-                ECore::DictProj(Box::new(self.fill_holes(d, sol)?), *i, s.clone())
+            ECore::DictProj(d, i, s, t) => {
+                ECore::DictProj(Box::new(self.fill_holes(d, sol)?), *i, s.clone(), t.clone())
             }
-            ECore::Proj(d, i) => ECore::Proj(Box::new(self.fill_holes(d, sol)?), i.clone()),
+            ECore::Proj(d, i, t) => ECore::Proj(Box::new(self.fill_holes(d, sol)?), i.clone(), t.clone()),
             ECore::InstDict(g, args, t) => ECore::InstDict(
                 g.clone(),
                 args.iter()
@@ -7719,7 +7785,7 @@ impl Checker {
                     body: Box::new(self.fill_holes(&f.body, sol)?),
                 },
             ),
-            ECore::Demand(d) => ECore::Demand(Box::new(self.fill_holes(d, sol)?)),
+            ECore::Demand(d, t) => ECore::Demand(Box::new(self.fill_holes(d, sol)?), t.clone()),
             ECore::LazyAlloc => ECore::LazyAlloc,
             ECore::LazyInit(l, t) => {
                 ECore::LazyInit(*l, Box::new(self.fill_holes(t, sol)?))

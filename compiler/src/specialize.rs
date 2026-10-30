@@ -147,7 +147,7 @@ impl<'a> Cx<'a> {
                     }
                 }
             }
-            Core::DictProj(_, i, Some(site)) if !site.own.is_empty() => {
+            Core::DictProj(_, i, Some(site), _) if !site.own.is_empty() => {
                 let (o, filled) = fit(&site.own, site.own.len());
                 self.unrecorded += filled as usize;
                 let key = (site.class.clone(), *i);
@@ -269,7 +269,7 @@ impl<'a> Cx<'a> {
                     *g = GlobalId(inst_name(&g.0, iv));
                 }
             }
-            Core::DictProj(_, i, site) => {
+            Core::DictProj(_, i, site, _) => {
                 if let Some(s) = site.take() {
                     if !s.own.is_empty() {
                         let o = fit(&s.own, s.own.len()).0;

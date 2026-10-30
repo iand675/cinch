@@ -1229,6 +1229,7 @@ pub fn package_variants(
         // the build takes (supercompilation and JIT specification
         // section 5: the driving bounds are profile parameters).
         let (program, _opt) = crate::specialize::optimize(&program, profile)?;
+        let program = crate::rc::insert(program, profile)?;
         let ir = crate::codegen::emit_for(profile, &program)?;
         let mut required: Vec<String> = profile.required.clone();
         if profile.artifact != crate::core::ArtifactProfile::Native
@@ -1784,6 +1785,10 @@ pub fn driver_with_profile_opts(
     // artifact enforces the assumed deployment baseline and the world's
     // implementation obligations.
     admit_artifact(profile, &program, &adapters)?;
+    // Reference counting goes in after specialization (design/reclamation.md
+    // section 4): driving duplicates and discards subterms, which would
+    // unbalance inserted count operations.
+    let program = crate::rc::insert(program, profile)?;
     let ir = codegen::emit_for(profile, &program)?;
     match mode {
         Mode::Check => unreachable!(),
@@ -1861,6 +1866,7 @@ pub fn run_program_objects(
     objects: &[&str],
 ) -> Result<i32> {
     let (program, _opt) = crate::specialize::optimize(program, profile)?;
+    let program = crate::rc::insert(program, profile)?;
     let ir = codegen::emit_for(profile, &program)?;
     let tmp = scratch_dir("test");
     std::fs::create_dir_all(&tmp).map_err(|e| Error::plain(format!("{}: {e}", tmp.display())))?;
@@ -1889,6 +1895,7 @@ pub fn build_source_objects(src: &str, objects: &[&str], out: &Path) -> Result<(
     let profile = crate::core::TargetProfile::native();
     let program = check_sources_with(src, "<test>", &mut StagingCx::default())?;
     let (program, _opt) = crate::specialize::optimize(&program, &profile)?;
+    let program = crate::rc::insert(program, &profile)?;
     let ir = codegen::emit_for(&profile, &program)?;
     let ir_path = out.with_extension("ll");
     std::fs::write(&ir_path, &ir).map_err(|e| Error::plain(format!("{}: {e}", ir_path.display())))?;
@@ -1910,6 +1917,7 @@ pub fn run_program_io(
     input: &[u8],
 ) -> Result<(i32, String)> {
     let (program, _opt) = crate::specialize::optimize(program, profile)?;
+    let program = crate::rc::insert(program, profile)?;
     let ir = codegen::emit_for(profile, &program)?;
     let tmp = scratch_dir("test");
     std::fs::create_dir_all(&tmp).map_err(|e| Error::plain(format!("{}: {e}", tmp.display())))?;

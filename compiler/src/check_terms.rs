@@ -612,7 +612,7 @@ impl Checker {
                                 tail: RowTail::Closed,
                             })?;
                             self.perform(&eff)?;
-                            return Ok((ECore::Demand(Box::new(ECore::Var(l))), *inner));
+                            return Ok((ECore::Demand(Box::new(ECore::Var(l)), (*inner).clone()), *inner));
                         }
                         let mut path = std::mem::take(&mut self.place_path);
                         path.reverse();
@@ -1204,7 +1204,10 @@ impl Checker {
                                         runtime_idx,
                                         &field_ty,
                                     ),
+                                    class: Class::Raw,
                                 },
+                                // The stored observation closure.
+                                Ty::fun(Ty::Unit, field_ty.clone()),
                             ),
                             vec![ECore::Unit],
                         ),
@@ -1222,7 +1225,9 @@ impl Checker {
                                 runtime_idx,
                                 &field_ty,
                             ),
+                            class: Class::Raw,
                         },
+                        field_ty.clone(),
                     ),
                     field_ty,
                 ))
@@ -1995,7 +2000,7 @@ impl Checker {
                         })?;
                         self.perform(&eff)?;
                         Ok((
-                            ECore::Demand(Box::new(arg)),
+                            ECore::Demand(Box::new(arg), (*inner).clone()),
                             Ty::Ref(region, inner),
                         ))
                     }
@@ -3818,7 +3823,8 @@ impl Checker {
                     Ty::Bytes => operand,
                     Ty::Adt(name, _) if name == "String" => ECore::Proj(
                         Box::new(operand),
-                        ProjField { slot: 0, access: None },
+                        ProjField::slot(0, Class::Raw),
+                        Ty::Bytes,
                     ),
                     other => {
                         return Err(Error::at(
@@ -4806,7 +4812,14 @@ impl Checker {
                         w.method = true;
                     }
                 }
-                ECore::DictProj(Box::new(dict), *idx, method_site(&v.scheme, &ptys))
+                // The slot holds the method value itself, or a closure
+                // awaiting the method's own dictionaries and indices.
+                let slot_ty = if holes.is_empty() && idx_holes.is_empty() {
+                    ty.clone()
+                } else {
+                    Ty::fun(Ty::Unit, ty.clone())
+                };
+                ECore::DictProj(Box::new(dict), *idx, method_site(&v.scheme, &ptys), slot_ty)
             }
             ValueKind::Law => {
                 return Err(Error::at(
@@ -5482,7 +5495,7 @@ impl Checker {
                 unit_ids.push(Some(id));
             } else {
                 if let Some(b) = m.boxed {
-                    subs.insert(m.l, RecSub::Val(b));
+                    subs.insert(m.l, RecSub::Val(b, m.ty.clone()));
                 }
                 unit_ids.push(None);
             }
@@ -5521,7 +5534,7 @@ impl Checker {
                 ));
                 self.pending_rec.push((id, core));
             } else if let Some(b) = m.boxed {
-                out.push((m.l, ECore::BoxInit(b, Box::new(core))));
+                out.push((m.l, ECore::BoxInit(b, Box::new(core), m.ty.clone())));
             } else {
                 out.push((m.l, core));
             }
@@ -5589,7 +5602,10 @@ impl Checker {
                 };
                 for (i, item) in items.iter().enumerate() {
                     let fl = self.fresh_local();
-                    out.push((fl, ECore::Proj(Box::new(ECore::Var(l)), ProjField::slot(i))));
+                    out.push((
+                        fl,
+                        ECore::Proj(Box::new(ECore::Var(l)), ProjField::slot(i, Class::Raw), comps[i].clone()),
+                    ));
                     self.destructure_bind(env, item, fl, &comps[i], out)?;
                 }
             }
@@ -5648,6 +5664,7 @@ impl Checker {
         span: ast::Span,
     ) -> Result<ECore> {
         let sloc = self.fresh_local();
+        self.note_local_ty(sloc, &scrut_ty);
         // Every alternative carries its weight beside it, and a guarded
         // one its guard's weight (attribute annotations specification
         // sections 2 and 3).
@@ -7728,7 +7745,12 @@ impl Checker {
             body: Box::new(app_spine(ECore::Var(kv.kv), vec![ECore::Var(rv)])),
         };
         let vtable = self.extents[idx].vtable;
-        let mut core = ECore::Proj(Box::new(ECore::Var(vtable)), ProjField::slot(slot));
+        // A vtable slot holds the handler clause's closure.
+        let mut core = ECore::Proj(
+            Box::new(ECore::Var(vtable)),
+            ProjField::slot(slot, Class::Raw),
+            Ty::fun(Ty::Unit, Ty::Unit),
+        );
         for (l, _) in done {
             core = app_spine(core, vec![ECore::Var(*l)]);
         }
@@ -8374,7 +8396,12 @@ impl Checker {
         let hv = self.fresh_local();
         let pv = self.fresh_local();
         let ret_call = app_spine(
-            ECore::Proj(Box::new(ECore::Var(hv)), ProjField::slot(0)),
+            // Slot 0 holds the return clause's closure.
+            ECore::Proj(
+                Box::new(ECore::Var(hv)),
+                ProjField::slot(0, Class::Raw),
+                Ty::fun(Ty::Unit, Ty::Unit),
+            ),
             vec![ECore::Var(pv)],
         );
         let prompt_body = match kv {
@@ -8477,9 +8504,15 @@ impl Checker {
         }
         let dict = holes.remove(0);
         let core = if holes.is_empty() {
-            ECore::DictProj(Box::new(dict), idx, method_site(&mscheme, &ptys))
+            ECore::DictProj(Box::new(dict), idx, method_site(&mscheme, &ptys), ty.clone())
         } else {
-            app_spine(ECore::DictProj(Box::new(dict), idx, method_site(&mscheme, &ptys)), holes)
+            let slot = ECore::DictProj(
+                Box::new(dict),
+                idx,
+                method_site(&mscheme, &ptys),
+                Ty::fun(Ty::Unit, ty.clone()),
+            );
+            app_spine(slot, holes)
         };
         Ok((core, ty))
     }
@@ -8675,7 +8708,8 @@ impl Checker {
             ValueKind::Ctor { .. } => ECore::Ctor(fn_id(&v.module, &v.name), ptys),
             ValueKind::Method { idx, .. } => {
                 let dict = holes.remove(0);
-                ECore::DictProj(Box::new(dict), *idx, method_site(&v.scheme, &ptys))
+                let slot_ty = if holes.is_empty() { ty.clone() } else { Ty::fun(Ty::Unit, ty.clone()) };
+                ECore::DictProj(Box::new(dict), *idx, method_site(&v.scheme, &ptys), slot_ty)
             }
             ValueKind::StageBuiltin(_)
             | ValueKind::BoolLit(_)
@@ -9017,8 +9051,8 @@ fn char_literal_word(s: &str, span: ast::Span) -> Result<i64> {
 enum RecSub {
     /// A function member: its code generation unit and captured words.
     Fun(GlobalId, Vec<LocalId>),
-    /// A value member: its fixpoint box.
-    Val(LocalId),
+    /// A value member: its fixpoint box and the value's type.
+    Val(LocalId, Ty),
 }
 
 /// The guarded-letrec rule (surface grammar local amendments section 9):
@@ -9109,7 +9143,7 @@ fn rec_walk(
                 rec_walk(h, guard, owner, by_local, edges);
             }
         }
-        ECore::DictProj(d, ..) | ECore::Proj(d, _) | ECore::Demand(d) | ECore::BoxGet(d) => {
+        ECore::DictProj(d, ..) | ECore::Proj(d, ..) | ECore::Demand(d, _) | ECore::BoxGet(d, _) => {
             rec_walk(d, guard, owner, by_local, edges);
         }
         ECore::App(f, args) => {
@@ -9132,7 +9166,7 @@ fn rec_walk(
             rec_walk(v, guard, owner, by_local, edges);
             rec_walk(body, guard, owner, by_local, edges);
         }
-        ECore::BoxInit(_, v) | ECore::LazyInit(_, v) | ECore::RefSet(_, v) => {
+        ECore::BoxInit(_, v, _) | ECore::LazyInit(_, v) | ECore::RefSet(_, v) => {
             rec_walk(v, guard, owner, by_local, edges)
         }
         ECore::If(c, t, f) => {
@@ -9187,7 +9221,7 @@ fn rec_collect_refs(e: &ECore, by_local: &HashMap<LocalId, usize>, out: &mut Vec
                 rec_collect_refs(h, by_local, out);
             }
         }
-        ECore::DictProj(d, ..) | ECore::Proj(d, _) | ECore::Demand(d) | ECore::BoxGet(d) => {
+        ECore::DictProj(d, ..) | ECore::Proj(d, ..) | ECore::Demand(d, _) | ECore::BoxGet(d, _) => {
             rec_collect_refs(d, by_local, out)
         }
         ECore::App(f, args) => {
@@ -9206,7 +9240,7 @@ fn rec_collect_refs(e: &ECore, by_local: &HashMap<LocalId, usize>, out: &mut Vec
             rec_collect_refs(v, by_local, out);
             rec_collect_refs(body, by_local, out);
         }
-        ECore::BoxInit(_, v) | ECore::LazyInit(_, v) | ECore::RefSet(_, v) => {
+        ECore::BoxInit(_, v, _) | ECore::LazyInit(_, v) | ECore::RefSet(_, v) => {
             rec_collect_refs(v, by_local, out)
         }
         ECore::If(c, t, f) => {
@@ -9262,7 +9296,7 @@ fn top_rec_walk(e: &ECore, guard: i32, owner: usize, edges: &mut Vec<(usize, Glo
                 top_rec_walk(h, guard, owner, edges);
             }
         }
-        ECore::DictProj(d, ..) | ECore::Proj(d, _) | ECore::Demand(d) | ECore::BoxGet(d) => {
+        ECore::DictProj(d, ..) | ECore::Proj(d, ..) | ECore::Demand(d, _) | ECore::BoxGet(d, _) => {
             top_rec_walk(d, guard, owner, edges);
         }
         ECore::App(f, args) => {
@@ -9285,7 +9319,7 @@ fn top_rec_walk(e: &ECore, guard: i32, owner: usize, edges: &mut Vec<(usize, Glo
             top_rec_walk(v, guard, owner, edges);
             top_rec_walk(body, guard, owner, edges);
         }
-        ECore::BoxInit(_, v) | ECore::LazyInit(_, v) | ECore::RefSet(_, v) => {
+        ECore::BoxInit(_, v, _) | ECore::LazyInit(_, v) | ECore::RefSet(_, v) => {
             top_rec_walk(v, guard, owner, edges)
         }
         ECore::If(c, t, f) => {
@@ -9331,9 +9365,9 @@ fn subst_rec_refs(e: &mut ECore, subs: &HashMap<LocalId, RecSub>) {
                     env: cap.iter().map(|c| ECore::Var(*c)).collect(),
                 };
             }
-            Some(RecSub::Val(b)) => {
-                let b = *b;
-                *e = ECore::BoxGet(Box::new(ECore::Var(b)));
+            Some(RecSub::Val(b, ty)) => {
+                let (b, ty) = (*b, ty.clone());
+                *e = ECore::BoxGet(Box::new(ECore::Var(b)), ty);
             }
             None => {}
         },
@@ -9365,7 +9399,7 @@ fn subst_rec_refs(e: &mut ECore, subs: &HashMap<LocalId, RecSub>) {
                 subst_rec_refs(h, subs);
             }
         }
-        ECore::DictProj(d, ..) | ECore::Proj(d, _) | ECore::Demand(d) | ECore::BoxGet(d) => {
+        ECore::DictProj(d, ..) | ECore::Proj(d, ..) | ECore::Demand(d, _) | ECore::BoxGet(d, _) => {
             subst_rec_refs(d, subs)
         }
         ECore::App(f, args) => {
@@ -9384,7 +9418,7 @@ fn subst_rec_refs(e: &mut ECore, subs: &HashMap<LocalId, RecSub>) {
             subst_rec_refs(v, subs);
             subst_rec_refs(body, subs);
         }
-        ECore::BoxInit(_, v) | ECore::LazyInit(_, v) | ECore::RefSet(_, v) => {
+        ECore::BoxInit(_, v, _) | ECore::LazyInit(_, v) | ECore::RefSet(_, v) => {
             subst_rec_refs(v, subs)
         }
         ECore::If(c, t, f) => {

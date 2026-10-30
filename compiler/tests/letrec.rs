@@ -146,6 +146,25 @@ module Main where
 }
 
 #[test]
+fn value_knot_read_under_a_lambda_yields_the_value() {
+    // `r` is a value member whose own use sits under a lambda, so it
+    // lives in a fixpoint box. Reading the box must return the stored
+    // value (word 1 of `{ state; value }`), not the state word: reading
+    // the state handed `case` the word 1 as if it were a block.
+    expect_ok(
+        "letrec-knot-read",
+        r#"
+module Main where
+  main :: Int
+  main =
+    letrec r :: (Nat, Unit -> Nat); r = (41, \u -> case r of (a, g) -> a + 1)
+    in case r of (a, g) -> if g () == 42 then 0 else 1
+"#,
+        0,
+    );
+}
+
+#[test]
 fn guarded_delay_value_cycle_is_accepted() {
     // A cyclic value through `delay`: the group checks (forcing the
     // cycle runs into the black-hole rule, by design).
