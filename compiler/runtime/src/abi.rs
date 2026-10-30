@@ -27,6 +27,13 @@ pub const EXIT_DIV_ZERO: i32 = 72;
 /// Exit code of the heap-limit fault (`CINCH_HEAP_LIMIT`, [`crate::heap`]).
 pub const EXIT_HEAP_LIMIT: i32 = 73;
 
+/// Exit code of a failed leak check (`CINCH_LEAK_CHECK=1`,
+/// [`crate::rc::cinch_exit_check`]): live mortal blocks remained when
+/// `main` returned. An opt-in diagnostic of the compiler's reclamation,
+/// not a program fault, so it sits after the fault codes 70-73 rather
+/// than among them.
+pub const EXIT_LEAK: i32 = 74;
+
 /// Box `value` in a header block of `header_kind` and count `rc`. A box is
 /// the bare payload: its kind is the header's, so it carries no in-block
 /// kind word. The [`crate::bytes::Bytes`] payload is a stable
@@ -65,7 +72,7 @@ pub(crate) fn box_sym(v: crate::sym::SymCell) -> i64 {
 ///
 /// `p` is the payload pointer of a live block whose header kind is
 /// `header_kind`, and is not read again.
-unsafe fn drop_box_payload(p: *mut u8, header_kind: u8) {
+pub(crate) unsafe fn drop_box_payload(p: *mut u8, header_kind: u8) {
     use crate::block::{KIND_BYTES as B, KIND_INT as I, KIND_NAT as N};
     match header_kind {
         N => unsafe { std::ptr::drop_in_place(p.cast::<Nat>()) },
@@ -334,14 +341,14 @@ pub extern "C" fn cinch_fault_div_zero() -> ! {
 // Allocation
 // ---------------------------------------------------------------------------
 
-/// Validate an allocation request's size and header kind. A constructor
-/// block needs its layout id, so `KIND_CTOR` goes through
-/// [`cinch_alloc_ctor`] instead.
+/// Validate an allocation request's size and header kind. The shaped
+/// kinds (constructors, closures, dictionaries) need a descriptor, so
+/// they go through [`cinch_alloc_ctor`] and [`cinch_alloc_shaped`].
 fn alloc_request(size: i64, kind: i64, negative: &[u8], bad_kind: &[u8]) -> (usize, u8) {
     if size < 0 {
         panic_exit(negative);
     }
-    if !(1..=i64::from(crate::block::KIND_RAW)).contains(&kind) || kind == i64::from(crate::block::KIND_CTOR) {
+    if !(1..=i64::from(crate::block::KIND_RAW)).contains(&kind) || crate::block::kind_has_shape(kind as u8) {
         panic_exit(bad_kind);
     }
     (size as usize, kind as u8)
@@ -400,11 +407,31 @@ pub unsafe extern "C" fn cinch_alloc_ctor(size: i64, desc: i64) -> *mut u8 {
     unsafe { crate::block::allocate_ctor(size as usize, desc as u64, false) }
 }
 
-/// Install the program's layout table: `len` entries, one per layout id,
-/// each recording its constructor's payload size in words
-/// (`block_kinds.rs`'s `layout_entry`). Generated code calls it from a
-/// global constructor, before any of its own code runs; [`cinch_free`]
-/// sizes constructor blocks from it.
+/// Allocate a closure (`KIND_CLOSURE`) or dictionary (`KIND_DICT`) block
+/// of `size` uninitialised payload bytes whose shape descriptor is `desc`
+/// (`block_kinds.rs`'s `shape_desc`: a table index, or an escaped
+/// descriptor that goes in the word before the header), with `rc = 1`,
+/// and return the payload pointer. Negative sizes and any other kind
+/// fault through `cinch_panic`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn cinch_alloc_shaped(size: i64, kind: i64, desc: i64) -> *mut u8 {
+    if size < 0 {
+        panic_exit(b"cinch_alloc_shaped called with negative size");
+    }
+    let closure = i64::from(crate::block::KIND_CLOSURE);
+    let dict = i64::from(crate::block::KIND_DICT);
+    if kind != closure && kind != dict {
+        panic_exit(b"cinch_alloc_shaped called with an unshaped block kind");
+    }
+    unsafe { crate::block::allocate_shaped(size as usize, kind as u8, desc as u64, false) }
+}
+
+/// Install the program's layout table: `len` words, one entry per
+/// constructor layout id and closure or dictionary shape index, then the
+/// map extensions of the wide entries (`block_kinds.rs`'s
+/// `layout_entry`). Generated code calls it from a global constructor,
+/// before any of its own code runs; [`cinch_free`] sizes shaped blocks
+/// from it and [`crate::rc`] scans them by it.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_layouts_register(table: *const u64, len: i64) {
     if len < 0 || (len > 0 && table.is_null()) {
@@ -414,10 +441,11 @@ pub unsafe extern "C" fn cinch_layouts_register(table: *const u64, len: i64) {
 }
 
 /// Deallocate the header block behind `word`: the raw release of a block
-/// whose count has reached zero. It does not visit the block's children;
-/// it only releases what a runtime box owns outside its block (a `Nat`'s
-/// limbs, a heap buffer's data), then returns the block to the allocator
-/// with the size its header records.
+/// whose count has reached zero. It does not visit the block's children
+/// (that is [`crate::rc::cinch_drop_slow`]); it only releases what a
+/// runtime box owns outside its block (a `Nat`'s limbs, a heap buffer's
+/// data), then returns the block to the allocator with the size its
+/// header records (a shaped block's from the layout table).
 ///
 /// An immediate word (low bit 1), the null word, and an immortal block
 /// (`rc == 0`: static blocks and interned `Sym` cells) are ignored. Any
@@ -1140,11 +1168,12 @@ mod tests {
 
     /// `cinch_free` releases mortal blocks (including a bignum's limbs and a
     /// buffer's data, through the payload drop) and leaves immediates,
-    /// immortal statics and interned symbols alone. Only this test frees in
-    /// this binary, so the `freed` counter delta is exact.
+    /// immortal statics and interned symbols alone. The `freed` count is
+    /// this thread's, so tests freeing beside it do not disturb it.
     #[test]
     fn free_releases_mortal_blocks_and_ignores_immortal_words() {
-        let freed = || crate::heap::block_stats().3;
+        let freed = crate::heap::thread_freed;
+        let _heavy = crate::heap::TEST_HEAVY.lock().unwrap_or_else(|e| e.into_inner());
         unsafe {
             let before = freed();
             // A two-field constructor: id 2 of the test table records two

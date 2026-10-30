@@ -167,7 +167,7 @@ unsafe extern "C" fn stub_env_add(self_word: i64, argc: i64, argv: *mut i64) -> 
 fn lam_builds_a_closure_record_over_its_saved_words() {
     // (lam with env [10, 20]) applied to [1, 2]: the stub reads the
     // saved words from the record and folds in the arguments.
-    let prog = [APP, LAM, stub_env_add as usize as i64, 2, 2, INT, 10, INT, 20, 2, INT, 1, INT, 2];
+    let prog = [APP, LAM, stub_env_add as usize as i64, 0, 2, 2, INT, 10, INT, 20, 2, INT, 1, INT, 2];
     assert_eq!(run(quote_block(&prog, &[])), Ok(12012));
 }
 
@@ -418,7 +418,7 @@ fn malformed_program_streams_are_errors() {
     assert_eq!(run(quote_block(&[BOOL, 2], &[])), Err(Error::CorruptValue));
     // A lambda capturing more values than its arity.
     assert_eq!(
-        run(quote_block(&[LAM, 1, 1, 2, INT, 1, INT, 2], &[])),
+        run(quote_block(&[LAM, 1, 0, 1, 2, INT, 1, INT, 2], &[])),
         Err(Error::CorruptValue)
     );
 }

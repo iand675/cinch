@@ -16,12 +16,11 @@ use std::collections::BTreeMap;
 use std::fmt;
 
 pub const SCHEMA_VERSION: u32 = 1;
-/// 3: constructor blocks carry no tag word; the header's layout id is
-/// `group << 6 | tag`, sizes come from `@__cinch_layouts`, constructors
-/// allocate through `cinch_alloc_ctor`, and runtime boxes keep their kind in
-/// the header only. (2: the header word at -8 and small `Nat`/`Int`
-/// immediates.)
-pub const RUNTIME_ABI_VERSION: u32 = 3;
+/// 4: layout entries carry 2-bit pointer maps; closures and dictionaries
+/// have shaped headers and allocate through `cinch_alloc_shaped`; the entry
+/// glue calls `cinch_exit_check`; the quote `LAM` gains a shape operand.
+/// (3: the tag in the header; 2: the header word and small immediates.)
+pub const RUNTIME_ABI_VERSION: u32 = 4;
 pub const LANGUAGE_VERSION: &str = "draft-0.2+amendments";
 
 /// A reference to an imported module's interface identity.

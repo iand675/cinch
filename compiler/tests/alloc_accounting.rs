@@ -88,7 +88,7 @@ fn stats_line_counts_list_cells_only_when_asked() {
         line,
         format!(
             "cinch-alloc: blocks={blocks} bytes={bytes} peak={peak} header-blocks={hblocks} \
-             header-bytes={hbytes} immortal=0 freed=0"
+             header-bytes={hbytes} immortal=0 freed=0 live={hblocks}"
         )
     );
     assert!(hblocks >= 1000 && hblocks <= blocks, "{line}");
@@ -277,5 +277,128 @@ fn normal_program_runs_under_the_default_cap() {
         .expect("spawn program");
     assert_eq!(out.status.code(), Some(0), "{out:?}");
     assert!(out.stderr.is_empty());
+    common::cleanup(&dir);
+}
+
+/// A program whose `build` returns a structure over every kind of word a
+/// pointer map distinguishes: constructor copies at three class vectors
+/// (`List Shape`, `List (Nat -> Nat)`, the pair of them), raw `U8`
+/// fields, boxed and immediate `Nat`s, `Bytes` buffers, a partially
+/// applied primitive and a lambda capturing a boxed `Nat`. Every value is
+/// used once, so no block is shared: nothing dups yet. `main` hands
+/// control to the C probe, which calls `build` through its symbol and,
+/// as `RC_PROBE` says, keeps the result, drops it once, or drops it twice.
+const DROP_PROGRAM: &str = r#"
+module Main where
+  import Data.List
+
+  data Shape where
+    Leaf :: Shape
+    Node :: Shape -> U8 -> Nat -> Bytes -> Shape -> Shape
+
+  foreign import ccall "cinch.runtime.bytesNew" bytesNew :: Nat -> Bytes
+  foreign import ccall "cinch.runtime.natAdd" natAdd :: Nat -> Nat -> Nat
+  foreign import ccall "cinch.runtime.natMul" natMul :: Nat -> Nat -> Nat
+  foreign import ccall "rc_probe" rcProbe :: I64 ->{Foreign Probe, IO} I64
+
+  shapes :: Unit -> List Shape
+  shapes u =
+    Cons (Node Leaf 7 18446744073709551616 (bytesNew 16) (Node Leaf 9 3 (bytesNew 4) Leaf)) (Cons Leaf Nil)
+
+  adders :: Unit -> List (Nat -> Nat)
+  adders u =
+    let b = natMul 4294967296 8589934592 in
+    Cons (natAdd 36893488147419103232) (Cons (\x -> natAdd x b) Nil)
+
+  build :: Unit -> (List Shape, List (Nat -> Nat))
+  build u = (shapes u, adders u)
+
+  main :: Unit ->{Foreign Probe, IO} Int
+  main u = if rcProbe 0 == 0 then 0 else 1
+"#;
+
+const DROP_PROBE: &str = r#"
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+#ifdef __APPLE__
+#define UNIT(s) "_" s
+#else
+#define UNIT(s) s
+#endif
+extern int64_t cinch_build(int64_t) __asm__(UNIT("Main.build"));
+extern void cinch_drop(int64_t);
+int64_t rc_probe(int64_t unused) {
+  (void)unused;
+  const char *mode = getenv("RC_PROBE");
+  int64_t w = cinch_build(0);
+  if (mode && strcmp(mode, "drop") == 0) cinch_drop(w);
+  if (mode && strcmp(mode, "twice") == 0) { cinch_drop(w); cinch_drop(w); }
+  return 0;
+}
+"#;
+
+/// The leak check's `leaked=` count from a run's stderr.
+fn leaked(out: &Output) -> u64 {
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    let line = stderr.lines().find(|l| l.starts_with("cinch-leak:")).unwrap_or_else(|| panic!("no leak line: {stderr}"));
+    field(line, "leaked")
+}
+
+/// The emitted layout table drives the runtime's release of a real
+/// program's structure: dropped through `cinch_drop`, every block `build`
+/// allocated is freed (the live count returns to the immortal baseline,
+/// so the leak check passes), kept, the check reports exactly those
+/// blocks and exits 74, and a second drop is caught by the debug mode's
+/// header check. A map that missed a counted word would leak it; one that
+/// counted a raw word would dereference a non-pointer.
+#[test]
+fn a_compiled_structure_drops_back_to_the_immortal_baseline() {
+    let dir = common::project("rc_drop", &[]);
+    let c = dir.join("probe.c");
+    let o = dir.join("probe.o");
+    std::fs::write(&c, DROP_PROBE).expect("write probe");
+    let clang = std::env::var("CINCH_CLANG").unwrap_or_else(|_| "clang".to_string());
+    let status = Command::new(&clang).arg("-c").arg(&c).arg("-o").arg(&o).status().expect("run clang");
+    assert!(status.success(), "the probe did not compile");
+    let exe = dir.join("prog");
+    let o = o.to_string_lossy().into_owned();
+    let src = DROP_PROGRAM.to_string();
+    let out_path = exe.clone();
+    std::thread::Builder::new()
+        .stack_size(64 * 1024 * 1024)
+        .spawn(move || cinch::driver::build_source_objects(&src, &[&o], &out_path))
+        .expect("spawn build")
+        .join()
+        .expect("build thread")
+        .unwrap_or_else(|e| panic!("build: {e}"));
+
+    // Kept: the structure is what is live. Two `Cons` and two `Node`
+    // cells, two buffers and a boxed `Nat` under `shapes`; two `Cons`
+    // cells, two closures and two boxed `Nat`s under `adders`; the pair.
+    let kept = run_with(&exe, &[("CINCH_LEAK_CHECK", "1"), ("RC_PROBE", "keep")]);
+    assert_eq!(kept.status.code(), Some(74), "{kept:?}");
+    assert_eq!(leaked(&kept), 14, "{kept:?}");
+
+    let dropped = run_with(&exe, &[("CINCH_LEAK_CHECK", "1"), ("RC_PROBE", "drop")]);
+    assert_eq!(dropped.status.code(), Some(0), "{dropped:?}");
+    assert_eq!(leaked(&dropped), 0, "{dropped:?}");
+
+    let debug = run_with(&exe, &[("CINCH_LEAK_CHECK", "1"), ("CINCH_RC_DEBUG", "1"), ("RC_PROBE", "drop")]);
+    assert_eq!(debug.status.code(), Some(0), "{debug:?}");
+    assert_eq!(leaked(&debug), 0, "{debug:?}");
+
+    let twice = run_with(&exe, &[("CINCH_RC_DEBUG", "1"), ("RC_PROBE", "twice")]);
+    assert_eq!(twice.status.code(), Some(71), "{twice:?}");
+    assert!(
+        String::from_utf8_lossy(&twice.stderr).contains("compiler bug: reference count operation on a freed or corrupt block"),
+        "{twice:?}"
+    );
+
+    // Without the variable the check is silent and the exit code is the
+    // program's.
+    let quiet = run_with(&exe, &[("RC_PROBE", "keep")]);
+    assert_eq!(quiet.status.code(), Some(0), "{quiet:?}");
+    assert!(quiet.stderr.is_empty(), "{quiet:?}");
     common::cleanup(&dir);
 }

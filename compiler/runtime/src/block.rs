@@ -7,18 +7,19 @@
 //! the header is invisible to them. The encoding (rc, kind, layout) is in
 //! `block_kinds.rs`, which the code generator includes verbatim.
 //!
-//! [`allocate`] and [`free`] are the only functions that touch the backing
-//! allocator, so replacing it (the system allocator today, through the
-//! counting wrapper of [`crate::heap`]) is a change to these two alone.
+//! [`allocate_block`] and [`free`] are the only functions that touch the
+//! backing allocator, so replacing it (the system allocator today, through
+//! the counting wrapper of [`crate::heap`]) is a change to these two alone.
 //!
 //! A constructor block's `layout` is its layout id (the tag is in it, see
-//! `block_kinds.rs`), and [`free`] reads its payload size from the
-//! program's layout table, which generated code hands over through
-//! [`register_layouts`] before any of its code runs. Every other kind's
-//! `layout` is its payload size in words. Either value, when it does not
-//! fit the field, goes in one extra word before the header: a payload of
-//! [`LAYOUT_BIG`] words or more keeps its byte size there, an escaped
-//! constructor its descriptor.
+//! `block_kinds.rs`), and a closure's or a dictionary's is its shape's
+//! table index. The program's layout table, which generated code hands
+//! over through [`register_layouts`] before any of its code runs, gives
+//! each id or shape its payload size and pointer map ([`Scan`]). Every
+//! other kind's `layout` is its payload size in words. Either value, when
+//! it does not fit the field, goes in one extra word before the header: a
+//! payload of [`LAYOUT_BIG`] words or more keeps its byte size there, an
+//! escaped descriptor itself.
 //!
 //! A word with low bit 1 is an immediate, never a block: nothing here may
 //! be handed one.
@@ -69,16 +70,17 @@ pub const fn layout(h: u64) -> u16 {
 }
 
 /// The program's layout table (`@__cinch_layouts`): one entry per layout
-/// id, giving the constructor's payload size. Null until registered.
+/// id or shape index, giving its payload size and pointer map, followed
+/// by the map extensions of the wide entries. Null until registered.
 static LAYOUTS: std::sync::atomic::AtomicPtr<u64> = std::sync::atomic::AtomicPtr::new(std::ptr::null_mut());
 static LAYOUTS_LEN: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 
-/// Install the program's layout table of `len` entries. The table is
+/// Install the program's layout table of `len` words. The table is
 /// read-only data that outlives every block, so a pointer suffices.
 ///
 /// # Safety
 ///
-/// `table` points to `len` readable entries that stay valid for the rest
+/// `table` points to `len` readable words that stay valid for the rest
 /// of the process.
 pub unsafe fn register_layouts(table: *const u64, len: usize) {
     use std::sync::atomic::Ordering::Release;
@@ -87,16 +89,20 @@ pub unsafe fn register_layouts(table: *const u64, len: usize) {
     LAYOUTS_LEN.store(len, Release);
 }
 
-/// The payload words of layout table entry `index`, or `None` when no
-/// table holds it.
-fn layout_words(index: u64) -> Option<usize> {
+/// The registered table as a slice (empty before registration).
+fn layout_table() -> &'static [u64] {
     use std::sync::atomic::Ordering::Acquire;
     let len = LAYOUTS_LEN.load(Acquire);
     let table = LAYOUTS.load(Acquire);
-    if table.is_null() || index >= len as u64 {
-        return None;
+    if table.is_null() {
+        return &[];
     }
-    Some(layout_entry_words(unsafe { table.add(index as usize).read() }) as usize)
+    unsafe { std::slice::from_raw_parts(table, len) }
+}
+
+/// Layout table entry `index`, or `None` when no table holds it.
+fn layout_entry_at(index: u64) -> Option<u64> {
+    layout_table().get(usize::try_from(index).ok()?).copied()
 }
 
 /// The rounded payload size of a `size`-byte request: whole words,
@@ -148,8 +154,8 @@ unsafe fn allocate_block(payload: usize, header: u64, ext: Option<u64>, immortal
 /// minimum one) and write its header with `rc` and `kind`; the layout
 /// field is the payload size. Returns the payload pointer. The payload is
 /// zero-filled when `zeroed`, otherwise uninitialised. Overflow and
-/// allocation failure fault (exit 71). Constructor blocks go through
-/// [`allocate_ctor`].
+/// allocation failure fault (exit 71). The shaped kinds (constructors,
+/// closures, dictionaries) go through [`allocate_shaped`].
 ///
 /// # Safety
 ///
@@ -167,20 +173,31 @@ pub unsafe fn allocate(size: usize, kind: u8, rc: i64, zeroed: bool) -> *mut u8 
     unsafe { allocate_block(payload, header(rc, kind, field), ext, rc == RC_IMMORTAL, zeroed) }
 }
 
-/// Allocate a fresh constructor block of `size` payload bytes whose
-/// constructor descriptor is `desc` (a layout id, or an escaped
-/// descriptor that goes in the extra word). Returns the payload pointer.
+/// Allocate a fresh block of a shaped kind (`kind_has_shape`) with `size`
+/// payload bytes whose descriptor is `desc` (a layout id or shape index,
+/// or an escaped descriptor that goes in the extra word). Returns the
+/// payload pointer.
 ///
 /// # Safety
 ///
-/// As for [`allocate`]; `desc`'s layout table entry records this payload.
-pub unsafe fn allocate_ctor(size: usize, desc: u64, zeroed: bool) -> *mut u8 {
+/// As for [`allocate`]; `desc`'s layout table entry describes this
+/// payload.
+pub unsafe fn allocate_shaped(size: usize, kind: u8, desc: u64, zeroed: bool) -> *mut u8 {
     let Some(payload) = round_payload(size) else {
         crate::abi::panic_exit(b"block size overflow");
     };
     let field = ctor_layout_field(desc);
     let ext = (field == LAYOUT_BIG).then_some(desc);
-    unsafe { allocate_block(payload, header(RC_FRESH, KIND_CTOR, field), ext, false, zeroed) }
+    unsafe { allocate_block(payload, header(RC_FRESH, kind, field), ext, false, zeroed) }
+}
+
+/// Allocate a fresh constructor block: [`allocate_shaped`] of `KIND_CTOR`.
+///
+/// # Safety
+///
+/// As for [`allocate_shaped`].
+pub unsafe fn allocate_ctor(size: usize, desc: u64, zeroed: bool) -> *mut u8 {
+    unsafe { allocate_shaped(size, KIND_CTOR, desc, zeroed) }
 }
 
 /// Move `value` into a fresh header block of `kind` and count `rc`, the
@@ -212,9 +229,36 @@ pub unsafe fn ctor_tag_of(p: *const u8) -> u64 {
     ctor_tag(l, ext)
 }
 
+/// The layout table entry of the shaped block at `p` whose header is `h`.
+///
+/// # Safety
+///
+/// `p` is the payload pointer of a header block of a shaped kind.
+unsafe fn shape_entry(p: *const u8, h: u64) -> Option<u64> {
+    let l = layout(h);
+    let ext = if l == LAYOUT_BIG { unsafe { ext_word(p) } } else { 0 };
+    layout_entry_at(ctor_index(l, ext))
+}
+
+/// The payload words of the shaped block at `p`: a closure's prefix and
+/// filled count, every other shaped kind's table entry (at least one
+/// word, as allocated).
+///
+/// # Safety
+///
+/// As for [`shape_entry`].
+unsafe fn shaped_words(p: *const u8, h: u64, entry: u64) -> usize {
+    if kind(h) == KIND_CLOSURE {
+        let filled = unsafe { p.cast::<u64>().add(CLOSURE_FILLED_WORD as usize).read() };
+        (CLOSURE_PREFIX_WORDS as usize).saturating_add(filled as usize)
+    } else {
+        (layout_entry_words(entry) as usize).max(1)
+    }
+}
+
 /// The payload size in bytes of the heap block at `p` whose header is
-/// `h`, and whether its prefix holds the extra word. `None` for a
-/// constructor whose layout no registered table records.
+/// `h`, and whether its prefix holds the extra word. `None` for a shaped
+/// block whose layout no registered table records.
 ///
 /// # Safety
 ///
@@ -223,51 +267,212 @@ pub unsafe fn ctor_tag_of(p: *const u8) -> u64 {
 pub unsafe fn payload_bytes(p: *const u8, h: u64) -> Option<(usize, bool)> {
     let l = layout(h);
     let big = l == LAYOUT_BIG;
-    let ext = if big { unsafe { ext_word(p) } } else { 0 };
-    if kind(h) == KIND_CTOR {
-        let words = layout_words(ctor_index(l, ext))?;
-        // A constructor's payload is at least one word, as allocated.
-        return Some((words.max(1) * 8, big));
+    if kind_has_shape(kind(h)) {
+        let entry = unsafe { shape_entry(p, h) }?;
+        return Some((unsafe { shaped_words(p, h, entry) }.checked_mul(8)?, big));
     }
+    let ext = if big { unsafe { ext_word(p) } } else { 0 };
     Some((if big { ext as usize } else { l as usize * 8 }, big))
 }
 
+/// How the drop machinery reads one block's payload: how many words it
+/// has and which of them are counted.
+pub struct Scan {
+    words: usize,
+    kind: u8,
+    /// The table entry of a shaped block (0 otherwise).
+    entry: u64,
+    /// A wide entry's extension words.
+    ext: &'static [u64],
+}
+
+impl Scan {
+    /// The scan of the live heap or static block at `p` whose header is
+    /// `h`. A shaped block whose layout the table does not record, a
+    /// closure filled past its shape, or a truncated extension is a
+    /// compiler bug and traps.
+    ///
+    /// # Safety
+    ///
+    /// `p` is the payload pointer of a header block whose header is `h`.
+    pub unsafe fn of(p: *const u8, h: u64) -> Scan {
+        let k = kind(h);
+        if !kind_has_shape(k) {
+            let Some((bytes, _)) = (unsafe { payload_bytes(p, h) }) else {
+                crate::abi::panic_exit(b"compiler bug: block header corrupt");
+            };
+            return Scan { words: bytes / 8, kind: k, entry: 0, ext: &[] };
+        }
+        let Some(entry) = (unsafe { shape_entry(p, h) }) else {
+            crate::abi::panic_exit(b"compiler bug: shaped block with no registered layout");
+        };
+        let words = unsafe { shaped_words(p, h, entry) };
+        let mapped = layout_entry_words(entry) as usize;
+        if k == KIND_CLOSURE && words > mapped {
+            crate::abi::panic_exit(b"compiler bug: closure filled past its shape");
+        }
+        let ext = if layout_entry_inline(entry) {
+            &[][..]
+        } else {
+            let table = layout_table();
+            let start = layout_entry_map(entry) as usize;
+            let n = scan_ext_len(mapped as u64) as usize;
+            match start.checked_add(n).and_then(|end| table.get(start..end)) {
+                Some(ext) => ext,
+                None => crate::abi::panic_exit(b"compiler bug: layout map extension out of range"),
+            }
+        };
+        // A constructor or dictionary is scanned over its mapped words: a
+        // zero-field constructor's one allocated word holds nothing.
+        let words = if k == KIND_CLOSURE { words } else { mapped };
+        Scan { words, kind: k, entry, ext }
+    }
+
+    /// The number of payload words to visit.
+    pub fn words(&self) -> usize {
+        self.words
+    }
+
+    /// The code (`SCAN_*`) of payload word `slot` (below [`Scan::words`]).
+    /// An invalid code is a compiler bug and traps.
+    pub fn code(&self, slot: usize) -> u64 {
+        let slot = slot as u64;
+        let code = if !kind_has_shape(self.kind) {
+            fixed_scan_code(self.kind, slot)
+        } else if self.ext.is_empty() {
+            scan_code_at(layout_entry_map(self.entry), slot)
+        } else {
+            scan_code_at(self.ext[(slot / SCAN_EXT_WORDS) as usize], slot % SCAN_EXT_WORDS)
+        };
+        if code > SCAN_TOBJ {
+            crate::abi::panic_exit(b"compiler bug: invalid pointer map code");
+        }
+        code
+    }
+}
+
+/// The poison every payload word of a freed block holds in debug mode.
+pub const POISON: u64 = 0xdead_beef_dead_beef;
+
 /// Return a heap block's memory to the allocator. The payload is not
 /// inspected: a caller that owns resources inside it (a `Nat`'s limbs, a
-/// buffer's data) releases them first.
+/// buffer's data) releases them first. Under `CINCH_RC_DEBUG=1` the
+/// block is poisoned instead (kind `KIND_FREED`, every payload word
+/// [`POISON`]) and kept, so a later use finds the poison rather than a
+/// reused block.
 ///
 /// # Safety
 ///
 /// `p` must be the payload pointer of a live, mortal heap block allocated
-/// by [`allocate`] or [`allocate_ctor`], not used again afterwards.
+/// by [`allocate`] or [`allocate_shaped`], not used again afterwards.
 pub unsafe fn free(p: *mut u8) {
     let h = unsafe { read_header(p) };
     let Some((payload, ext)) = (unsafe { payload_bytes(p, h) }) else {
-        crate::abi::panic_exit(b"constructor block with no registered layout");
+        crate::abi::panic_exit(b"compiler bug: shaped block with no registered layout");
     };
+    if crate::heap::rc_debug() {
+        let words = p.cast::<u64>();
+        for i in 0..payload / 8 {
+            unsafe { words.add(i).write(POISON) };
+        }
+        unsafe { write_header(p, header(RC_IMMORTAL, KIND_FREED, layout(h))) };
+        return;
+    }
     let Some(layout) = plan(payload, ext) else {
-        crate::abi::panic_exit(b"block header corrupt");
+        crate::abi::panic_exit(b"compiler bug: block header corrupt");
     };
     let prefix = layout.size() - payload;
     unsafe { std::alloc::dealloc(p.sub(prefix), layout) };
 }
 
-/// A layout table for the unit tests: entry `i` records `i % 7` payload
-/// words. Every test that needs a table registers this one, so tests
-/// running side by side agree on it.
+/// A layout table for the unit tests. Entry `i < 200` records `i % 7`
+/// unscanned payload words; the entries of [`test_shapes`] carry pointer
+/// maps. Every test that needs a table installs this one, once, so tests
+/// running side by side never see a registration in progress.
 #[cfg(test)]
 pub(crate) fn install_test_layouts() -> fn(u64) -> usize {
-    static TABLE: [u64; 200] = {
-        let mut t = [0u64; 200];
+    use test_shapes::*;
+    static TABLE: [u64; TABLE_LEN] = {
+        let mut t = [0u64; TABLE_LEN];
         let mut i = 0;
-        while i < t.len() {
-            t[i] = layout_entry(i as u64 % 7);
+        while i < 200 {
+            t[i] = layout_entry(i as u64 % 7, 0);
             i += 1;
+        }
+        let mut s = 0;
+        while s < SHAPES.len() {
+            let (index, codes) = SHAPES[s];
+            let mut map = 0;
+            let mut j = 0;
+            while j < codes.len() {
+                map |= scan_slot(codes[j], j as u64);
+                j += 1;
+            }
+            t[index as usize] = layout_entry(codes.len() as u64, map);
+            s += 1;
+        }
+        // The wide shape's map lives in its extension words.
+        t[WIDE as usize] = layout_entry(WIDE_WORDS, WIDE_EXT);
+        let mut w = 0;
+        while w < WIDE_WORDS {
+            t[(WIDE_EXT + w / SCAN_EXT_WORDS) as usize] |= scan_slot(wide_code(w), w % SCAN_EXT_WORDS);
+            w += 1;
         }
         t
     };
-    unsafe { register_layouts(TABLE.as_ptr(), TABLE.len()) };
+    static ONCE: std::sync::Once = std::sync::Once::new();
+    ONCE.call_once(|| unsafe { register_layouts(TABLE.as_ptr(), TABLE.len()) });
     |index| index as usize % 7
+}
+
+/// The pointer-mapped entries of the unit tests' layout table.
+#[cfg(test)]
+pub(crate) mod test_shapes {
+    use super::*;
+
+    const R: u64 = SCAN_RAW;
+    const O: u64 = SCAN_OBJ;
+    const T: u64 = SCAN_TOBJ;
+
+    /// `Cons` over a `TObj` head.
+    pub const CONS_T: u64 = 200;
+    /// `Cons` over an `Obj` head.
+    pub const CONS_O: u64 = 201;
+    /// `{ raw; obj }`.
+    pub const PAIR_RO: u64 = 202;
+    /// A zero-field constructor.
+    pub const NIL: u64 = 203;
+    /// Four counted fields, for the visiting order.
+    pub const QUAD: u64 = 204;
+    /// A closure shape over `(Obj, TObj, Raw)` parameters.
+    pub const CLOSURE_OTR: u64 = 205;
+    /// A dictionary `{ count; closure method; value method }`.
+    pub const DICT_OR: u64 = 206;
+    /// A 40-word constructor whose map needs an extension.
+    pub const WIDE: u64 = 207;
+    pub const WIDE_WORDS: u64 = 40;
+    /// Where the wide shape's extension starts.
+    pub const WIDE_EXT: u64 = 250;
+    pub const TABLE_LEN: usize = (WIDE_EXT + scan_ext_len(WIDE_WORDS)) as usize;
+
+    /// The wide shape's code of word `w`: `Obj`, `TObj`, `Raw` in turn.
+    pub const fn wide_code(w: u64) -> u64 {
+        match w % 3 {
+            0 => O,
+            1 => T,
+            _ => R,
+        }
+    }
+
+    pub(super) const SHAPES: [(u64, &[u64]); 7] = [
+        (CONS_T, &[T, O]),
+        (CONS_O, &[O, O]),
+        (PAIR_RO, &[R, O]),
+        (NIL, &[]),
+        (QUAD, &[O, O, O, O]),
+        (CLOSURE_OTR, &[R, R, R, O, T, R]),
+        (DICT_OR, &[R, O, R]),
+    ];
 }
 
 #[cfg(test)]

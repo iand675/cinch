@@ -13,11 +13,12 @@
 //           < 0 reserved for atomic (multi-threaded) counts
 //   kind     8 bits: one of the `KIND_*` constants below
 //   layout  16 bits: for a constructor block (`KIND_CTOR`), its
-//           constructor's layout id; for every other kind, the payload
-//           size in 64-bit words. `LAYOUT_BIG` is the escape: the
-//           value is in the word before the header (offset -16), a
-//           constructor descriptor for a constructor block, the byte
-//           size otherwise
+//           constructor's layout id; for a closure or a dictionary
+//           (`KIND_CLOSURE`, `KIND_DICT`), its shape's layout table
+//           index; for every other kind, the payload size in 64-bit
+//           words. `LAYOUT_BIG` is the escape: the value is in the word
+//           before the header (offset -16), a descriptor for the three
+//           shaped kinds, the byte size otherwise
 //
 // A count never saturates and needs no overflow check: the heap is capped
 // below 8 * 2^RC_BITS bytes, so fewer than `RC_MAX` words can ever hold a
@@ -42,6 +43,18 @@
 // escaped descriptor, and its low `LAYOUT_BITS` are the header's layout
 // either way.
 //
+// A closure's or a dictionary's layout is the table index of its shape,
+// described the same way with tag 0: a regular index below `LAYOUT_BIG`,
+// or `LAYOUT_BIG` and the escaped descriptor at -16. A closure's shape is
+// the classes of its unit's parameters, which its saved words are, and
+// its size is not in the table: a closure is `CLOSURE_PREFIX_WORDS`
+// words plus its filled count. A dictionary's shape is its instance's
+// method slots, and its entry records its size.
+//
+// The layout table's entries carry the pointer maps the drop machinery
+// scans (`SCAN_*` below). Every unshaped kind's map is fixed by the kind
+// (`fixed_scan_code`).
+//
 // The kind namespace is separate from constructor tags.
 
 /// No kind: a zero header never belongs to a live block.
@@ -50,9 +63,11 @@ pub const KIND_NONE: u8 = 0;
 /// id), including tuples, the prelude ADTs built by primitives, and
 /// boundary-layout (`repr(C)`) payloads.
 pub const KIND_CTOR: u8 = 1;
-/// A closure `{ code; arity; nfilled; saved... }`.
+/// A closure `{ code; arity; nfilled; saved... }`; its layout is its
+/// shape's descriptor.
 pub const KIND_CLOSURE: u8 = 2;
-/// An instance dictionary `{ nmeth; methods... }`.
+/// An instance dictionary `{ nmeth; methods... }`; its layout is its
+/// shape's descriptor.
 pub const KIND_DICT: u8 = 3;
 /// A memo cell `{ state; thunk; value }`.
 pub const KIND_MEMO: u8 = 4;
@@ -171,17 +186,130 @@ pub const fn ctor_index(layout: u16, ext: u64) -> u64 {
 }
 
 /// Width of the payload size, in words, in the low bits of a layout table
-/// entry. The entry's high bits are reserved for the pointer map.
+/// entry. The rest of the entry is the pointer map.
 pub const LAYOUT_ENTRY_WORDS_BITS: u32 = 32;
+const LAYOUT_ENTRY_MAP_BITS: u32 = 64 - LAYOUT_ENTRY_WORDS_BITS;
 
-/// A layout table entry for a constructor of `words` payload words.
-pub const fn layout_entry(words: u64) -> u64 {
-    words & field_mask(LAYOUT_ENTRY_WORDS_BITS)
+// Pointer maps. Each payload word of a block has a `SCAN_BITS` code:
+// `SCAN_RAW` is never touched, `SCAN_OBJ` is a counted pointer (or 0, or
+// an immortal block, both skipped), and `SCAN_TOBJ` is an immediate when
+// its low bit is 1 and a counted pointer otherwise. Code 3 is invalid:
+// registration refuses a table that uses it.
+//
+// A block of at most `SCAN_INLINE_WORDS` words keeps its codes in its
+// entry's map bits, word `i` at bit `SCAN_BITS * i` of the map. A wider
+// block's map bits are instead the table index of its extension:
+// `scan_ext_len(words)` consecutive table words, word `i`'s code at bit
+// `SCAN_BITS * (i % SCAN_EXT_WORDS)` of extension word `i /
+// SCAN_EXT_WORDS`. Which form an entry has follows from its size, so no
+// flag bit is spent.
+
+/// Width of one word's code.
+pub const SCAN_BITS: u32 = 2;
+pub const SCAN_RAW: u64 = 0;
+pub const SCAN_OBJ: u64 = 1;
+pub const SCAN_TOBJ: u64 = 2;
+/// The mask of one code.
+pub const SCAN_CODE_MASK: u64 = field_mask(SCAN_BITS);
+/// Payload words an entry's own map covers.
+pub const SCAN_INLINE_WORDS: u64 = (LAYOUT_ENTRY_MAP_BITS / SCAN_BITS) as u64;
+/// Payload words one extension word covers.
+pub const SCAN_EXT_WORDS: u64 = (64 / SCAN_BITS) as u64;
+
+const _: () = assert!(SCAN_RAW == 0, "a zero entry scans nothing");
+const _: () = assert!(SCAN_TOBJ <= SCAN_CODE_MASK && SCAN_OBJ <= SCAN_CODE_MASK);
+const _: () = assert!(LAYOUT_ENTRY_MAP_BITS % SCAN_BITS == 0 && 64 % SCAN_BITS == 0);
+
+/// `code` placed at `slot` of a map word.
+pub const fn scan_slot(code: u64, slot: u64) -> u64 {
+    (code & SCAN_CODE_MASK) << (SCAN_BITS as u64 * slot)
+}
+
+/// The code at `slot` of a map word.
+pub const fn scan_code_at(map: u64, slot: u64) -> u64 {
+    (map >> (SCAN_BITS as u64 * slot)) & SCAN_CODE_MASK
+}
+
+/// A layout table entry for a block of `words` payload words whose map
+/// bits are `map`: the packed codes when `words <= SCAN_INLINE_WORDS`,
+/// else the table index of the extension.
+pub const fn layout_entry(words: u64, map: u64) -> u64 {
+    (words & field_mask(LAYOUT_ENTRY_WORDS_BITS)) | (map << LAYOUT_ENTRY_WORDS_BITS)
 }
 
 /// The payload size in words a layout table entry records.
 pub const fn layout_entry_words(entry: u64) -> u64 {
     entry & field_mask(LAYOUT_ENTRY_WORDS_BITS)
+}
+
+/// The map bits of a layout table entry.
+pub const fn layout_entry_map(entry: u64) -> u64 {
+    entry >> LAYOUT_ENTRY_WORDS_BITS
+}
+
+/// Whether an entry's map bits are its codes (else an extension index).
+pub const fn layout_entry_inline(entry: u64) -> bool {
+    layout_entry_words(entry) <= SCAN_INLINE_WORDS
+}
+
+/// The extension words a map of `words` payload words needs (0 inline).
+pub const fn scan_ext_len(words: u64) -> u64 {
+    if words <= SCAN_INLINE_WORDS {
+        0
+    } else {
+        words.div_ceil(SCAN_EXT_WORDS)
+    }
+}
+
+/// Whether blocks of `kind` keep a layout table index (a descriptor) in
+/// their header's layout field rather than their size.
+pub const fn kind_has_shape(kind: u8) -> bool {
+    kind == KIND_CTOR || kind == KIND_CLOSURE || kind == KIND_DICT
+}
+
+/// A closure's fixed words before its saved arguments: code, arity and
+/// filled count, none of them counted.
+pub const CLOSURE_PREFIX_WORDS: u64 = 3;
+/// The closure word holding its filled count.
+pub const CLOSURE_FILLED_WORD: u64 = 2;
+/// A dictionary's method count word, before its method slots.
+pub const DICT_PREFIX_WORDS: u64 = 1;
+/// A memo cell's thunk word (`{ state; thunk; value }`).
+pub const MEMO_THUNK_WORD: u64 = 1;
+/// A quote code block's fixed words (`{ KIND_CODE; code; len; holes }`)
+/// before its hole words.
+pub const CODE_PREFIX_WORDS: u64 = 4;
+
+/// The code of payload word `slot` of a block whose kind fixes its map
+/// (every kind but `kind_has_shape`'s). A memo cell's value and a knot's
+/// value have no class at the kind: they are `SCAN_RAW`, which can only
+/// leak. A quote block's holes are quote blocks.
+pub const fn fixed_scan_code(kind: u8, slot: u64) -> u64 {
+    if kind == KIND_MEMO {
+        if slot == MEMO_THUNK_WORD {
+            SCAN_OBJ
+        } else {
+            SCAN_RAW
+        }
+    } else if kind == KIND_CODE {
+        if slot < CODE_PREFIX_WORDS {
+            SCAN_RAW
+        } else {
+            SCAN_OBJ
+        }
+    } else {
+        SCAN_RAW
+    }
+}
+
+/// The descriptor of shape `index` of a closure or dictionary: the index
+/// itself when it fits the header, else the escaped form with tag 0.
+pub const fn shape_desc(index: u64) -> u64 {
+    if index < LAYOUT_BIG as u64 {
+        index
+    } else {
+        ctor_escaped(index, 0)
+    }
 }
 
 /// Encode a header word. `rc` must be in `RC_MIN..=RC_MAX`; it is stored

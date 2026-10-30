@@ -52,7 +52,7 @@
 //! | 8 | `IF` | `[cond, then, else]` | evaluate `cond`, then exactly one branch |
 //! | 9 | `CASE` | `[scrutinee, ncon, cons..., default]` | select by the scrutinee block's constructor tag (in its header); each `con` is `[tag, nfields, fields..., body]` binding the block's field words; `default` is `[0]` (none), `[1, body]` (wildcard) or `[2, slot, body]` (variable) |
 //! | 10 | `APP` | `[fn, nargs, args...]` | apply through the closure apply-stub convention |
-//! | 11 | `LAM` | `[stub, arity, nenv, env...]` | allocate the closure block `{ stub; arity; nenv; env... }` of a hoisted lambda |
+//! | 11 | `LAM` | `[stub, shape, arity, nenv, env...]` | allocate the closure block `{ stub; arity; nenv; env... }` of a hoisted lambda, whose header carries the shape descriptor `shape` (`block_kinds.rs`'s `shape_desc`) |
 //! | 12 | `CTOR` | `[desc, nfields, fields...]` | allocate the constructor block `{ fields... }` whose header carries the constructor descriptor `desc` (a layout id, or an escaped descriptor: `block_kinds.rs`) |
 //! | 13 | `PROJ` | `[value, mode, ...]` | mode 0 `[slot]` loads the block's field word at `8 * slot`; mode 1 `[offset, size, signed]` loads a boundary-layout scalar at `offset`; mode 2 `[offset]` loads a boundary-layout word at `offset` |
 //! | 14 | `FAULT` | | the program's own fault (exit 70) |
@@ -196,8 +196,9 @@ mod op {
     /// `[fn, nargs, args...]`: apply through the closure apply-stub
     /// convention.
     pub const APP: u64 = 10;
-    /// `[stub, arity, nenv, env...]`: allocate the closure block
-    /// `{ stub; arity; nenv; env... }` of a hoisted lambda.
+    /// `[stub, shape, arity, nenv, env...]`: allocate the closure block
+    /// `{ stub; arity; nenv; env... }` of a hoisted lambda, of shape
+    /// descriptor `shape`.
     pub const LAM: u64 = 11;
     /// `[desc, nfields, fields...]`: allocate the constructor block
     /// `{ fields... }` whose header carries descriptor `desc`.
@@ -240,7 +241,7 @@ enum Node {
     If(Box<Node>, Box<Node>, Box<Node>),
     Case(Box<Node>, Vec<Arm>, Alt),
     App(Box<Node>, Vec<Node>),
-    Lam { stub: i64, arity: u64, env: Vec<Node> },
+    Lam { stub: i64, shape: u64, arity: u64, env: Vec<Node> },
     Ctor { desc: u64, fields: Vec<Node> },
     Proj { value: Box<Node>, mode: u64, slot: u64, offset: u64, size: u64, signed: bool },
     Fault,
@@ -545,6 +546,7 @@ impl<'a> Dec<'a> {
         if stub == 0 {
             return Err(Error::CorruptValue);
         }
+        let shape = self.word()?;
         let arity = self.word()?;
         let nenv = self.count_word()?;
         if nenv as u64 > arity {
@@ -554,7 +556,7 @@ impl<'a> Dec<'a> {
         for _ in 0..nenv {
             env.push(self.expr()?);
         }
-        Ok(Node::Lam { stub, arity, env })
+        Ok(Node::Lam { stub, shape, arity, env })
     }
 
     fn expr_ctor(&mut self) -> Result<Node> {
@@ -766,8 +768,8 @@ fn eval(node: &Node, env: &mut [i64], holes: &[i64]) -> Result<i64> {
         Node::If(c, t, e) => eval_if(c, t, e, env, holes),
         Node::Case(scrut, arms, alt) => eval_case(scrut, arms, alt, env, holes),
         Node::App(f, args) => eval_app(f, args, env, holes),
-        Node::Lam { stub, arity, env: captured } => {
-            eval_lam(*stub, *arity, captured, env, holes)
+        Node::Lam { stub, shape, arity, env: captured } => {
+            eval_lam(*stub, *shape, *arity, captured, env, holes)
         }
         Node::Ctor { desc, fields } => eval_ctor(*desc, fields, env, holes),
         Node::Proj { value, mode, slot, offset, size, signed } => {
@@ -859,6 +861,7 @@ fn eval_app(f: &Node, args: &[Node], env: &mut [i64], holes: &[i64]) -> Result<i
 
 fn eval_lam(
     stub: i64,
+    shape: u64,
     arity: u64,
     captured: &[Node],
     env: &mut [i64],
@@ -868,9 +871,9 @@ fn eval_lam(
     for e in captured {
         saved.push(eval(e, env, holes)?);
     }
-    let words = 3 + saved.len();
-    let clo = unsafe { crate::abi::cinch_alloc((words * 8) as i64, i64::from(crate::block::KIND_CLOSURE)) };
-    let p = block_ptr(clo)?;
+    let words = crate::block::CLOSURE_PREFIX_WORDS as usize + saved.len();
+    let p = unsafe { crate::block::allocate_shaped(words * 8, crate::block::KIND_CLOSURE, shape, false) }.cast::<i64>();
+    let clo = p as usize as i64;
     unsafe {
         word_set(p, 0, stub);
         word_set(p, 8, arity as i64);

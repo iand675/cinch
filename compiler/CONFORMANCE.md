@@ -2321,6 +2321,33 @@ so the embedding sweep stays its own decision.
   with `m0` the head's callback, which also passes the allocation
   barrier. Pinned by `optimizer::map_headed_fusion_composes_every_stage`
   (fused and unfused runs both compute 300; the bug gave 10).
+- **D405 (reclamation S3 and S5 as built: pointer maps and the drop
+  machinery)**: each `@__cinch_layouts` entry keeps the size in its low 32
+  bits and a 2-bit-per-word map in the high 32 (0 Raw, 1 Obj, 2 TObj
+  tested by its low bit, 3 invalid and trapped), inline for up to 16 words
+  and through an extension for wider blocks (`SCAN_*` in
+  `block_kinds.rs`). Constructors are copied per reached class vector when
+  their field classes mention a parameter (`Cons@T`), with groups per
+  (type, vector); closures, dictionaries and anonymous primitive and
+  canonical-ABI blocks get shapes deduplicated by map, closures and
+  dictionaries through `cinch_alloc_shaped`. Fallbacks to Raw, which can
+  only leak, are recorded where the type is not available (memo and knot
+  values, dictionary value slots, task join blocks, boxed-out and packed
+  boundary words, builtin index-family constructors, unrecorded vectors,
+  closure shapes of signature-less primitives). `runtime/src/rc.rs`
+  releases a dead structure by pointer reversal (the dead block's count
+  field holds the resume cursor), with no recursion and no extra memory,
+  children in reverse slot order (D390). `CINCH_LEAK_CHECK=1` reports
+  `cinch-leak: live= immortal= leaked=` and exits 74 when leaked is
+  nonzero (an opt-in compiler diagnostic, not a program fault);
+  `CINCH_RC_DEBUG=1` poisons and quarantines freed blocks and turns
+  use-after-free into a `compiler bug:` trap. Proven by runtime tests (a
+  million-cell list on a 256 KiB thread, shared structure freed once,
+  reverse order, immediates skipped, a 40-word extension) and by a
+  compiled structure dropped through a linked C probe back to the immortal
+  baseline (`alloc_accounting`). `runtime_abi` is 4. The pipeline
+  program's table has 6,912 entries (54 KiB). Nothing emits dup/drop yet:
+  that is S6.
 
 ### Refinement types (P28)
 

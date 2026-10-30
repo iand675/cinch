@@ -12,6 +12,13 @@
 //! constructor is applied to is `Obj` whatever its arguments
 //! (`crate::repr::repr_of`), so recursing at `Pair a a` reaches `[Obj]`.
 //!
+//! A constructor unit whose field classes mention its type's parameters
+//! (`Cons` is `[Param(0), Obj]`) is copied per vector its uses reach as
+//! well, with those fields resolved, so each copy's blocks carry the
+//! pointer map of that vector (design/reclamation.md section 3, slice
+//! S5). It has no body, so reaching it reaches nothing further. A
+//! constructor whose fields do not depend on the vector stays one unit.
+//!
 //! Dictionaries are copied per vector of the instance's own parameters.
 //! A method with type parameters of its own (beyond the class's) gets one
 //! dictionary slot per own vector some projection of that class reaches;
@@ -57,6 +64,8 @@ struct Cx<'a> {
     by_class: BTreeMap<String, BTreeSet<(String, Vector)>>,
     /// Own vectors reached per (class, method index) through projections.
     own: BTreeMap<(String, usize), BTreeSet<Vector>>,
+    /// Reached vectors per vector-dependent constructor unit.
+    ctors: BTreeMap<String, BTreeSet<Vector>>,
     work: Vec<Item>,
     unrecorded: usize,
 }
@@ -68,9 +77,25 @@ impl<'a> Cx<'a> {
         (body && f.repr.tparams > 0 && !self.pinned.contains(id)).then_some(f)
     }
 
+    /// A constructor unit whose field classes depend on its class vector.
+    fn ctor_generic(&self, id: &str) -> Option<&'a FnDef> {
+        let f = *self.fns.get(id)?;
+        let dependent = f.repr.fields.iter().any(|c| c.is_param());
+        (f.ctor.is_some() && f.repr.tparams > 0 && dependent && !self.pinned.contains(id)).then_some(f)
+    }
+
     fn reach_unit(&mut self, id: &str, v: Vector) {
         if self.units.entry(id.to_string()).or_default().insert(v.clone()) {
             self.work.push(Item::Unit(id.to_string(), v));
+        }
+    }
+
+    /// Reach constructor unit `id` at the class vector of its use.
+    fn reach_ctor(&mut self, id: &str, v: &[Class]) {
+        if let Some(f) = self.ctor_generic(id) {
+            let (v, filled) = fit(v, f.repr.tparams);
+            self.unrecorded += filled as usize;
+            self.ctors.entry(id.to_string()).or_default().insert(v);
         }
     }
 
@@ -108,8 +133,11 @@ impl<'a> Cx<'a> {
                     let (v, filled) = fit(v, f.repr.tparams);
                     self.unrecorded += filled as usize;
                     self.reach_unit(&g.0, v);
+                } else {
+                    self.reach_ctor(&g.0, v);
                 }
             }
+            Core::Ctor(g, v) => self.reach_ctor(&g.0, v),
             Core::InstDict(g, _, iv) => {
                 if let Some(inst) = self.insts.get(g.0.as_str()).copied() {
                     let (iv, filled) = fit(iv, inst.tparams);
@@ -229,8 +257,8 @@ impl<'a> Cx<'a> {
     /// Rename every reference to the copy it reaches.
     fn rename(&self, e: &mut Core, slots: &HashMap<String, (usize, Vec<(usize, Vector)>)>) {
         match e {
-            Core::Global(g, v) | Core::Lam { fn_id: g, classes: v, .. } => {
-                if let Some(f) = self.generic(&g.0) {
+            Core::Global(g, v) | Core::Lam { fn_id: g, classes: v, .. } | Core::Ctor(g, v) => {
+                if let Some(f) = self.generic(&g.0).or_else(|| self.ctor_generic(&g.0)) {
                     *v = fit(v, f.repr.tparams).0;
                     *g = GlobalId(spec_name(&g.0, v));
                 }
@@ -286,6 +314,7 @@ pub fn specialize(program: &Program, report: &mut OptReport) -> Program {
         inst_copies: BTreeMap::new(),
         by_class: BTreeMap::new(),
         own: BTreeMap::new(),
+        ctors: BTreeMap::new(),
         work: Vec::new(),
         unrecorded: 0,
     };
@@ -315,6 +344,18 @@ pub fn specialize(program: &Program, report: &mut OptReport) -> Program {
                 subst_classes(&mut copy.body, v);
                 cx.rename(&mut copy.body, &slots);
                 copy.repr.params = crate::repr::subst_all(&copy.repr.params, v);
+                copy.repr.tparams = 0;
+                out.fns.push(copy);
+                report.versions.push(spec_name(&f.id.0, v));
+            }
+        } else if cx.ctor_generic(&f.id.0).is_some() {
+            // A constructor unit has no body to rename: its copies differ
+            // in their field classes alone.
+            for v in cx.ctors.get(&f.id.0).unwrap_or(&empty) {
+                let mut copy = f.clone();
+                copy.id = GlobalId(spec_name(&f.id.0, v));
+                copy.repr.params = crate::repr::subst_all(&copy.repr.params, v);
+                copy.repr.fields = crate::repr::subst_all(&copy.repr.fields, v);
                 copy.repr.tparams = 0;
                 out.fns.push(copy);
                 report.versions.push(spec_name(&f.id.0, v));

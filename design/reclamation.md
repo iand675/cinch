@@ -464,6 +464,109 @@ from the row in section 10:
   15,077,685 bytes (header bytes 18,379,144 to 14,633,832, minus 20%),
   with 673,939 blocks and identical output.
 
+**As built (S5).** Every table index now carries a pointer map, and the
+encoding is the `SCAN_*` section of `block_kinds.rs`, which the runtime
+and the code generator both include. Where S5 differs from the plan:
+
+- An entry keeps the payload size in words in its low 32 bits and the
+  map in its high 32: two bits per word (`0` `Raw`, never touched; `1`
+  `Obj`, a counted pointer, with 0 and immortal blocks skipped; `2`
+  `TObj`, an immediate when its low bit is 1, else `Obj`; `3` invalid
+  and trapped). That covers 16 words inline. A wider block's 32 map bits
+  are the table index of its extension, `ceil(words / 32)` table words
+  appended after every entry, 32 codes each. Two bits is the least that
+  separates three classes; 16 inline words cover every tuple and every
+  prelude constructor, so the common scan reads one entry; and the size
+  already says which form an entry has, so no flag bit is spent.
+- Constructor blocks. Constructor units have no body, so S4's collector
+  left them generic. It now copies each constructor unit whose field
+  classes mention a type parameter once per reached class vector
+  (`Data.Core.List.Cons@T`, fields resolved), and renames every
+  `Core::Ctor` (and `Global`) reference; one whose fields do not depend
+  on the vector (`Nil`) stays one unit. Groups are per data type and
+  vector (key `<type>@<letters>`), the tag stays `id & 63`, and a `case`
+  is unchanged. A boundary-layout (`repr(C)`) payload maps each word
+  field at an 8-aligned offset to its constructor field's class; scalars
+  are `Raw`.
+- The fixed groups 0-2 are gone. The `Option`, `Result` and `Ordering`
+  values the code generator builds without a unit take anonymous shapes
+  with the prelude's tags (`BUILT_TYPES` still refuses a prelude that
+  declares them with other payloads), and anonymous groups are keyed by
+  pointer map instead of size. Their maps come from the primitive's
+  signature (`Some U8` is `[Raw]`, `decodeAt`'s `(Char, Nat)` is `[Raw,
+  TObj]`) or from the canonical shape (a byte payload or ADT is `Obj`; a
+  scalar, handle or unit is `Raw`).
+- Closures carry their shape as a layout table index in the header's
+  layout field: the map is the three uncounted words (code, arity,
+  filled) and then the classes of the unit's parameters, because a
+  closure's saved words are always its unit's leading arguments (a
+  `Core::Lam` environment, a grow in `@"U.app"`, a method closure's
+  subdictionaries). Shapes are deduplicated by map and placed first in
+  the ids of type groups that no constructor uses, so they cost no group
+  of their own until those run out; past `LAYOUT_BIG` they escape like a
+  constructor. The size is `3 + filled`, read from the closure. Closures
+  come from `cinch_alloc_shaped(size, kind, desc)`, and `cinch_alloc` and
+  `cinch_alloc_raw` now refuse the three shaped kinds. The `.clo`
+  statics, the grow path, `Core::Lam`, `mk` and the quote evaluator's
+  `LAM` (whose operands gain the shape after the stub) all carry it.
+- Dictionaries are shaped too, because their slots are not all closures:
+  a method whose arity equals the subdictionary count stores its
+  computed value in the slot (`mk_body`), and no unit records a
+  result's class. Closure slots (a static `.clo`, or a fresh closure
+  over the subdictionaries) are `Obj` and counted; value slots are
+  `Raw`. The size comes from the entry.
+- Fixed by the kind (`fixed_scan_code`): a memo cell's thunk is `Obj`
+  and its state and value `Raw`; a knot's state and value are `Raw`; a
+  quote block's four header words are `Raw` and its holes `Obj`; bignum,
+  byte, symbol, boxed-scalar and raw blocks are leaves.
+- Every conservative `Raw` (it can only leak), with its reason: a memo
+  cell's value and a knot's value (`LazyAlloc`/`BoxAlloc` carry no
+  class, and both are S8's cycles anyway); a dictionary's value-method
+  slots (no result class); a task join's `Err`, `Ok` and tuple blocks
+  (the payloads are the task bodies' results, which the join unit does
+  not see); a boxed-out inline boundary aggregate, the word fields inside
+  an inline aggregate, and a word field at an unaligned (`repr(packed)`)
+  offset (no recorded class, or no word slot); constructors with no
+  recorded field classes (the builtin index family, `<builtin>.*`); a
+  constructor use with no recorded class vector (fitted to `Raw` and
+  counted in the manifest's `representation_unrecorded`); and the
+  parameters of primitives without a signature (the deferral and
+  concurrency builtins) in a closure's shape. The blocks a foreign call
+  fills from C bytes are `Raw` by right, not conservatively: no word in
+  them is a reference the program owns.
+- The compiled check is
+  `alloc_accounting::a_compiled_structure_drops_back_to_the_immortal_baseline`.
+  A C probe linked into a real program calls its `build` unit through
+  its symbol (constructor copies at three vectors, raw `U8` fields,
+  boxed and immediate `Nat`s, buffers, a partially applied primitive, a
+  lambda over a boxed `Nat`) and hands the result to `cinch_drop`. Under
+  `CINCH_LEAK_CHECK=1` the kept structure is exactly its 14 blocks
+  (exit 74) and the dropped one leaves `leaked=0` (exit 0), plain and
+  under `CINCH_RC_DEBUG=1`, where a second drop traps. This is the least
+  invasive real check: it needs no language surface for dropping, only a
+  test entry the driver already supports (linking an object), and a
+  wrong map shows as a leak or a fault.
+- Measured on `bootstrap_pipeline`'s program: 6,912 table entries (108
+  groups, 54 KiB of read-only data), 447 of them in use, none escaped and
+  none wider than 16 words, with 66 distinct closure and dictionary
+  shapes, all placed in unused ids of type groups.
+- `runtime_abi` must bump: the table entries gain maps, a closure's and a
+  dictionary's layout field changes meaning, closures and dictionaries
+  have a new allocator, the entry glue calls `cinch_exit_check`, and the
+  quote `LAM` operands changed.
+
+What S6 needs from S3 and S5: the inline fast paths of section 4 read
+the count at -8 and call `cinch_drop_slow(word)` at `rc == 1`;
+`cinch_dup`/`cinch_drop` are the out-of-line forms, and since inlined
+paths skip `CINCH_RC_DEBUG`'s header checks, a build that hunts a use
+after free should call those instead. A binder's class says whether a
+`TObj` low-bit test comes first. The pointer maps already describe what
+every block owns, so a `Case` alternative's field dups and the drop
+specialisation of section 4 can read field classes from the constructor
+copy's `UnitRepr::fields`. `CINCH_LEAK_CHECK` judges S6's output program
+by program, and `__cinch_demand` clearing the thunk needs no runtime
+change because a thunk slot of 0 is skipped.
+
 ---
 
 ## 4 Insertion algorithm on `Core`
@@ -686,6 +789,61 @@ uses an intrusive stack threaded through the dead blocks' own header words:
 This needs no recursion and no extra memory. Children are visited in
 reverse slot order (section 11, item 3). The evaluator's decoded tree is
 already depth-bounded (`eval.rs:99-104`, `MAX_NESTING`).
+
+**As built (S3).** `compiler/runtime/src/rc.rs`, with the per-block scan
+in `block.rs` (`Scan`). Where S3 differs from the plan above:
+
+- The header cannot hold a link: a full pointer does not fit beside the
+  kind and layout, and those are what the scan of a parked block needs.
+  `cinch_drop_slow` is therefore a pointer-reversal walk
+  (Deutsch-Schorr-Waite): a dead block's count field holds its resume
+  cursor (the next slot to visit), and the slot through which the walk
+  descended into a dying child holds the link back to the block's own
+  parent, which that slot no longer needs. There is no recursion and no
+  memory beyond the dead blocks. Children are visited in reverse slot
+  order and a block is freed after its children, so a list's release
+  holds its spine until the last cell.
+- Entry points: `cinch_dup(word)` and `cinch_drop(word)`, which ignore
+  0, immediates and `rc == 0`, and `cinch_drop_slow(word)` for a block at
+  `rc == 1`. A negative count traps, because nothing allocates atomic
+  counts before S9; `cinch_dup_mt`, `cinch_drop_mt` and `cinch_mark_mt`
+  stay with S9. `cinch_free` keeps its raw meaning.
+- Per kind: a `Nat` or `Int` box drops its limb vector and a `Bytes` box
+  its data before the block is freed; `Sym` cells and static blocks are
+  immortal and skipped; `KIND_BYTES_STATIC`, boxed-scalar and raw blocks
+  are leaves. The maps are S5's.
+- No sticky state: the heap cap makes count overflow impossible (D398).
+  The stats line gains `live=` (header blocks minus freed, immortal ones
+  included) after the existing fields; `freed` also counts the drop
+  machinery's frees and debug quarantines.
+- `CINCH_LEAK_CHECK=1`: the entry glue (native and Wasm) passes `main`'s
+  word through `cinch_exit_check`, which writes `cinch-leak: live=<n>
+  immortal=<n> leaked=<n>` and returns exit code 74 when `leaked` (live
+  header blocks that are not immortal) is not 0, else the program's own
+  word. A fault exits before the glue, so it keeps its code. 74 follows
+  the fault codes 70-73 and is not one of them: under
+  `design/no-faults.md` it is not a program fault, because it exists only
+  when a test asks for it and it diagnoses the compiler's reclamation,
+  not the program. Until S6 emits drops every allocating program leaks,
+  so the check fails on them by design. The `cyclic` category waits for
+  S8.
+- `CINCH_RC_DEBUG=1`: `block::free` poisons the payload
+  (`0xdeadbeefdeadbeef`), writes kind `KIND_FREED` with `rc = 0` and keeps
+  the memory. `cinch_dup`, `cinch_drop`, `cinch_drop_slow` and every
+  child the walk visits check alignment and a live kind, and an `Obj`
+  slot holding an immediate traps. These, and the release-mode traps on
+  an invalid kind, an invalid map code or a shaped block with no table
+  entry, are compiler-bug traps (exit 71, `compiler bug: ...`). The mode
+  is an environment variable rather than a cargo feature, so the
+  runtime every program links has it.
+- Tests: the runtime's `rc::tests` build blocks through the allocation
+  ABI over a registered table with pointer maps and release them: a
+  million-cell list on a 256 KiB thread, shared substructure freed once,
+  reverse order through a test-only log of freed blocks, `TObj`
+  immediates skipped and boxed numbers freed, raw words never touched,
+  closures scanned up to their filled count, dictionary value slots not
+  scanned, a 40-word constructor through its map extension, memo cells,
+  and debug poisoning. The compiled check is S5's.
 
 ---
 

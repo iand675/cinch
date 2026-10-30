@@ -95,29 +95,49 @@
 //! |------|-------|---------|
 //! | 0..40 | `rc`, signed | 0 immortal (static blocks, interned `Sym` cells, `KIND_BYTES_STATIC` buffers); 1 when allocated; > 0 a single-threaded count up to `RC_MAX` (2^39 - 1); < 0 reserved for atomic counts. A count cannot overflow: the heap is capped below 8 * 2^40 bytes, so no increment needs a check, and there is no sticky state |
 //! | 40..48 | `kind: u8` | [`block`]`::KIND_*`: ctor 1, closure 2, dictionary 3, memo 4, knot 5, nat 6, int 7, bytes 8, bytes-static 9, sym 10, code 11, boxed scalar 12, raw 13, freed 255 (0 is never a live block) |
-//! | 48..64 | `layout: u16` | a constructor block's layout id; for every other kind, the payload size in 64-bit words. `0xFFFF` (`LAYOUT_BIG`) is the escape: the word at offset -16 holds an escaped constructor's descriptor, or another kind's payload byte size (a payload of at least 0xFFFF words) |
+//! | 48..64 | `layout: u16` | a constructor block's layout id; a closure's or dictionary's shape index; for every other kind, the payload size in 64-bit words. `0xFFFF` (`LAYOUT_BIG`) is the escape: the word at offset -16 holds an escaped descriptor (the three shaped kinds), or another kind's payload byte size (a payload of at least 0xFFFF words) |
 //!
 //! Block memory is only obtained and returned by `block::allocate`,
-//! `block::allocate_ctor` and `block::free`, the one place a different
+//! `block::allocate_shaped` and `block::free`, the one place a different
 //! backing allocator plugs in.
 //!
-//! Constructor layout ids. The code generator gives each data type one
-//! group of `2^CTOR_TAG_BITS` (64) consecutive ids, `id = group << 6 |
-//! tag`, so `tag = id - base` with the type's `base = group << 6`, read
-//! as `id & CTOR_TAG_MASK` without knowing the type. The id indexes the
-//! program's layout table `@__cinch_layouts` (one `i64` entry per id: the
-//! payload size in words in the low 32 bits, the high bits reserved for
-//! the pointer map), which generated code registers with
-//! [`cinch_layouts_register`] from a global constructor, and from which
-//! [`cinch_free`] sizes a constructor block. A type of more than 64
+//! Constructor layout ids. The code generator gives each data type, at
+//! each class vector its constructor units are copied for, one group of
+//! `2^CTOR_TAG_BITS` (64) consecutive ids, `id = group << 6 | tag`, so
+//! `tag = id - base` with the group's `base = group << 6`, read as `id &
+//! CTOR_TAG_MASK` without knowing the type. A type of more than 64
 //! constructors, or past the last of the 1023 groups, is escaped: its
-//! header says `LAYOUT_BIG` and the word at -16 is the descriptor
-//! `index << 40 | tag << 16 | 0xFFFF` (a 24-bit tag and a 24-bit table
-//! index). A descriptor, regular id or escaped, is what generated code
-//! hands [`cinch_alloc_ctor`]. The layout groups of `Option`, `Result`
-//! and `Ordering` are fixed (0, 1 and 2) because generated code builds
-//! those without a constructor unit in hand; the task runtime reads only
-//! the `Result` tag, which needs no group.
+//! header says `LAYOUT_BIG` and the word at -16 is the descriptor `index
+//! << 40 | tag << 16 | 0xFFFF` (a 24-bit tag and a 24-bit table index). A
+//! descriptor, regular id or escaped, is what generated code hands
+//! [`cinch_alloc_ctor`]. Blocks the code generator builds without a
+//! constructor unit in hand (the `Option`, `Result` and `Ordering` values
+//! of primitives, tuples of joined tasks, canonical ABI lifts, boxed-out
+//! boundary aggregates) take an anonymous group per pointer map, with the
+//! prelude's tags; the task runtime reads only the `Result` tag, which
+//! needs no group.
+//!
+//! Closure and dictionary shapes. A closure's layout is the table index
+//! of its shape, the classes of its unit's parameters (its saved words
+//! are the unit's leading arguments), and a dictionary's is its
+//! instance's method-slot map; both escape like a constructor, with tag
+//! 0. A closure's size is `3 + filled` words (its words 0..3 are code,
+//! arity, filled); a dictionary's is its entry's.
+//!
+//! The layout table `@__cinch_layouts`, which generated code registers
+//! with [`cinch_layouts_register`] from a global constructor, has one
+//! `i64` entry per id and shape index, then the map extensions. An entry
+//! is the payload size in words in its low 32 bits and the pointer map in
+//! its high 32: two bits per payload word, word `i` at bit `32 + 2i`, `0`
+//! never touched (`Raw`), `1` a counted pointer (`Obj`; 0 and immortal
+//! blocks skipped), `2` an immediate when its low bit is 1 and a counted
+//! pointer otherwise (`TObj`), `3` invalid. A block of more than 16 words
+//! keeps the table index of its extension in those 32 bits instead:
+//! `ceil(words / 32)` table words of 32 codes each. Every other kind's
+//! map is fixed by the kind (`block::fixed_scan_code`): a memo cell's
+//! thunk (word 1) and a quote block's holes (words 4..) are counted, and
+//! nothing else is. [`cinch_free`] sizes shaped blocks from the table and
+//! the drop machinery of [`rc`] scans by it.
 //!
 //! Static blocks are emitted as `{ header; block }` with the symbol
 //! (`@"U.clo"`, `@"U.blk"`) an alias one word in (two for an escaped
@@ -147,6 +167,11 @@
 //! sites are the same defined fault and MUST use the same code; the
 //! constant lives in [`abi::EXIT_BLACKHOLE`].
 //!
+//! Exit code 74 is not a fault: it is the opt-in leak check's
+//! (`CINCH_LEAK_CHECK=1`, [`rc::cinch_exit_check`]), a diagnostic of the
+//! compiler's reclamation that tests ask for. A program run without the
+//! variable never produces it.
+//!
 //! In the safe Rust API ([`Nat`], [`Int`]) the same conditions surface as
 //! [`Error`] values, so tooling and tests observe them without dying. The
 //! extern "C" layer maps [`Error::DivByZero`] onto exit 72,
@@ -174,10 +199,11 @@
 //!   zero-filled bytes (rounded up to a whole number of 64-bit words,
 //!   minimum one word) as a block with header kind `kind` and `rc = 1`,
 //!   and return the block as a word. Negative sizes, a kind outside
-//!   2..=13 (constructors go through `cinch_alloc_ctor`), size overflow,
-//!   and allocation failure fault through `cinch_panic`.
+//!   4..=13 (the shaped kinds go through `cinch_alloc_ctor` and
+//!   `cinch_alloc_shaped`), size overflow, and allocation failure fault
+//!   through `cinch_panic`.
 //! * `cinch_free(word: i64)`: deallocate the block behind `word` with the
-//!   size its header records (a constructor's from the layout table),
+//!   size its header records (a shaped block's from the layout table),
 //!   after releasing what a runtime box owns outside its block (a
 //!   bignum's limbs, a heap buffer's data). It never visits the block's
 //!   children. Immediates (low bit 1), 0, and immortal blocks (`rc == 0`)
@@ -185,28 +211,56 @@
 //! * `cinch_alloc_raw(size: i64, kind: i64) -> ptr`: allocate `size`
 //!   uninitialised bytes (rounded up to whole words, minimum one) as a
 //!   block with header kind `kind` and `rc = 1`, and return the payload
-//!   pointer; the allocator generated code calls for every closure,
-//!   dictionary, memo, knot, quote and raw block, passing the block's
-//!   kind. The same kinds as `cinch_alloc`.
+//!   pointer; the allocator generated code calls for every memo, knot,
+//!   quote and raw block, passing the block's kind. The same kinds as
+//!   `cinch_alloc`.
 //! * `cinch_alloc_ctor(size: i64, desc: i64) -> ptr`: allocate a
 //!   constructor block of `size` uninitialised payload bytes whose header
 //!   carries the constructor descriptor `desc` (above), with `rc = 1`, and
 //!   return the payload pointer: every constructor, tuple and boundary
 //!   block, with no tag word.
+//! * `cinch_alloc_shaped(size: i64, kind: i64, desc: i64) -> ptr`: the
+//!   same for a closure (kind 2) or dictionary (kind 3) block of shape
+//!   descriptor `desc`; any other kind faults.
 //! * `cinch_layouts_register(table: *const u64, len: i64)`: install the
-//!   program's layout table of `len` entries.
+//!   program's layout table of `len` words.
 //!
-//! Every heap allocation (the three allocators above and every runtime
+//! Reference counts ([`rc`]; generated code does not call them yet):
+//!
+//! * `cinch_dup(word: i64)`, `cinch_drop(word: i64)`: add or drop one
+//!   reference. Immediates, 0 and immortal blocks are ignored. The drop
+//!   of a block's last reference releases it.
+//! * `cinch_drop_slow(word: i64)`: release a block whose count is 1, and
+//!   every block only it kept alive: iteratively (a pointer-reversal walk
+//!   through the dead blocks, no native recursion), children in reverse
+//!   slot order and before their parent, by the pointer maps above, with
+//!   a box's out-of-block payload (limbs, buffer data) released with it.
+//! * `cinch_exit_check(code: i64) -> i64`: called by the entry glue when
+//!   `main` returns; `code` unless `CINCH_LEAK_CHECK=1` finds live mortal
+//!   blocks, then 74 (below).
+//!
+//! A corrupt header, a negative count or an invalid map code reached by
+//! these entry points is a compiler-bug trap (exit 71 with a message
+//! naming the compiler bug), not a program fault: no well-typed program
+//! reaches one when the compiler is correct (`design/no-faults.md`).
+//!
+//! Every heap allocation (the allocators above and every runtime
 //! `Box`/`Vec`) is counted by the counting global allocator in [`heap`].
 //! Environment: `CINCH_ALLOC_STATS=1` prints
 //! `cinch-alloc: blocks=<n> bytes=<n> peak=<n> header-blocks=<n>
-//! header-bytes=<n> immortal=<n> freed=<n>` to stderr at exit (the last
-//! four count header blocks only, see [`heap`]);
+//! header-bytes=<n> immortal=<n> freed=<n> live=<n>` to stderr at exit
+//! (the last five count header blocks only, see [`heap`]);
 //! `CINCH_HEAP_LIMIT=<n>[K|M|G]` caps cumulative allocated bytes (default
 //! 8 GiB, `0` disables) and faults with exit 73 and
 //! `cinch: heap limit exceeded (<n> bytes)` past it;
 //! `CINCH_STACK_SIZE=<n>[K|M|G]` sizes the program thread's reserved
-//! stack (default 1 GiB, [`platform::cinch_run_main`]).
+//! stack (default 1 GiB, [`platform::cinch_run_main`]);
+//! `CINCH_LEAK_CHECK=1` makes `cinch_exit_check` print `cinch-leak:
+//! live=<n> immortal=<n> leaked=<n>` and exit 74 when `leaked` (live
+//! header blocks that are not immortal) is not 0, an opt-in diagnostic of
+//! the compiler's reclamation for tests; `CINCH_RC_DEBUG=1` poisons and
+//! quarantines freed blocks and validates every header the count entry
+//! points touch.
 //!
 //! `Nat` (unbounded natural numbers; negative input or results fault).
 //! Every result word is canonical (see "Small `Nat`/`Int` immediates"),
@@ -384,6 +438,7 @@ mod nat;
 pub mod net;
 pub mod platform;
 pub mod pty;
+pub mod rc;
 pub mod string;
 pub mod sym;
 pub mod task;

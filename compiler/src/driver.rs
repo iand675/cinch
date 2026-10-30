@@ -1882,6 +1882,19 @@ pub fn run_source_objects(src: &str, objects: &[&str]) -> Result<i32> {
     run_program_objects(&program, &crate::core::TargetProfile::native(), objects)
 }
 
+/// Check and compile a source string into the executable `out`, linked
+/// with extra objects, without running it: for a test that runs the
+/// program under an environment of its own (the runtime diagnostics).
+pub fn build_source_objects(src: &str, objects: &[&str], out: &Path) -> Result<()> {
+    let profile = crate::core::TargetProfile::native();
+    let program = check_sources_with(src, "<test>", &mut StagingCx::default())?;
+    let (program, _opt) = crate::specialize::optimize(&program, &profile)?;
+    let ir = codegen::emit_for(&profile, &program)?;
+    let ir_path = out.with_extension("ll");
+    std::fs::write(&ir_path, &ir).map_err(|e| Error::plain(format!("{}: {e}", ir_path.display())))?;
+    link_with(&ir_path, out, objects)
+}
+
 /// Compile and run a source string with the runtime's input source fed
 /// from `input` and its output sink captured; used by the runtime I/O
 /// and concurrency tests (concurrency specification, sections 4 and 9).

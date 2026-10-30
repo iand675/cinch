@@ -16,13 +16,15 @@
 //!
 //! * `CINCH_ALLOC_STATS=1`: at process exit write
 //!   `cinch-alloc: blocks=<n> bytes=<n> peak=<n> header-blocks=<n>
-//!   header-bytes=<n> immortal=<n> freed=<n>` to stderr. `blocks`, `bytes`
-//!   and `peak` cover every allocation (cumulative blocks and bytes, peak
-//!   live bytes). The rest count only Cinch value blocks, the ones with a
-//!   header word ([`crate::block`]): cumulative header blocks and their
-//!   bytes including the header, how many of them were born immortal
-//!   (interned `Sym` cells; static blocks live in the data section and are
-//!   never allocated), and how many were freed through `cinch_free`.
+//!   header-bytes=<n> immortal=<n> freed=<n> live=<n>` to stderr.
+//!   `blocks`, `bytes` and `peak` cover every allocation (cumulative
+//!   blocks and bytes, peak live bytes). The rest count only Cinch value
+//!   blocks, the ones with a header word ([`crate::block`]): cumulative
+//!   header blocks and their bytes including the header, how many of them
+//!   were born immortal (interned `Sym` cells; static blocks live in the
+//!   data section and are never allocated), how many were freed (by
+//!   `cinch_free` or the drop machinery of [`crate::rc`]), and how many
+//!   are live (`header-blocks - freed`, immortal ones included).
 //!   `blocks - header-blocks` is the runtime's own allocations (limbs,
 //!   buffer data, handle tables). The line is written by an `atexit`
 //!   handler registered on the first allocation, so it also appears after a
@@ -33,10 +35,13 @@
 //!   bytes)` once cumulative allocated bytes would exceed `n`. Unset means
 //!   [`DEFAULT_HEAP_LIMIT`] (8 GiB); `0` disables the cap. An unparsable
 //!   value falls back to the default rather than disabling the cap.
+//! * `CINCH_LEAK_CHECK=1` and `CINCH_RC_DEBUG=1`: the diagnostics of
+//!   [`crate::rc`].
 //!
-//! The limit is on cumulative allocation, not live bytes: nothing is freed
-//! yet, so the two coincide for generated blocks, and counting cumulative
-//! bytes keeps the cap meaningful for transient runtime buffers too.
+//! The limit is on cumulative allocation, not live bytes: generated code
+//! frees nothing yet, so the two coincide for generated blocks, and
+//! counting cumulative bytes keeps the cap meaningful for transient
+//! runtime buffers too.
 
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering::Relaxed};
@@ -60,6 +65,10 @@ static FAULTING: AtomicBool = AtomicBool::new(false);
 struct Config {
     /// 0 means uncapped.
     limit: u64,
+    /// `CINCH_RC_DEBUG=1`.
+    rc_debug: bool,
+    /// `CINCH_LEAK_CHECK=1`.
+    leak_check: bool,
 }
 
 unsafe extern "C" {
@@ -78,8 +87,34 @@ static CONFIG: LazyLock<Config> = LazyLock::new(|| {
         None => DEFAULT_HEAP_LIMIT,
         Some(v) => parse_limit(v).unwrap_or(DEFAULT_HEAP_LIMIT),
     };
-    Config { limit }
+    Config {
+        limit,
+        rc_debug: env_bytes(c"CINCH_RC_DEBUG") == Some(b"1"),
+        leak_check: env_bytes(c"CINCH_LEAK_CHECK") == Some(b"1"),
+    }
 });
+
+/// Whether `CINCH_RC_DEBUG=1`: freed blocks are poisoned and kept, and the
+/// count entry points validate headers ([`crate::rc`]).
+pub fn rc_debug() -> bool {
+    #[cfg(test)]
+    if FORCE_RC_DEBUG.with(std::cell::Cell::get) {
+        return true;
+    }
+    CONFIG.rc_debug
+}
+
+#[cfg(test)]
+thread_local! {
+    /// Debug mode for the calling test thread only, so a unit test can
+    /// observe poisoning without the environment.
+    pub(crate) static FORCE_RC_DEBUG: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Whether `CINCH_LEAK_CHECK=1` ([`crate::rc::cinch_exit_check`]).
+pub fn leak_check() -> bool {
+    CONFIG.leak_check
+}
 
 pub(crate) fn env_bytes(name: &std::ffi::CStr) -> Option<&'static [u8]> {
     let p = unsafe { getenv(name.as_ptr()) };
@@ -138,10 +173,30 @@ pub fn account_block(size: usize, immortal: bool) {
     }
 }
 
-/// Record that a header block was deallocated by `cinch_free`.
+/// Record that a header block was freed (`cinch_free`, the drop
+/// machinery, or a debug-mode quarantine).
 pub fn account_block_free() {
     FREED.fetch_add(1, Relaxed);
+    #[cfg(test)]
+    THREAD_FREED.with(|c| c.set(c.get() + 1));
 }
+
+#[cfg(test)]
+thread_local! {
+    static THREAD_FREED: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+}
+
+/// The header blocks the calling test thread has freed: the global
+/// counter also counts the tests running beside it.
+#[cfg(test)]
+pub(crate) fn thread_freed() -> u64 {
+    THREAD_FREED.with(std::cell::Cell::get)
+}
+
+/// Held by the unit tests whose allocation volume would disturb a
+/// live-bytes measurement running beside them.
+#[cfg(test)]
+pub(crate) static TEST_HEAVY: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 /// Snapshot `(header_blocks, header_bytes, immortal, freed)`.
 pub fn block_stats() -> (u64, u64, u64, u64) {
@@ -151,6 +206,12 @@ pub fn block_stats() -> (u64, u64, u64, u64) {
         IMMORTAL.load(Relaxed),
         FREED.load(Relaxed),
     )
+}
+
+/// Header blocks allocated and not freed, immortal ones included.
+pub fn live_blocks() -> u64 {
+    let (hblocks, _, _, freed) = block_stats();
+    hblocks.saturating_sub(freed)
 }
 
 /// Record that a block of `size` bytes was released.
@@ -196,6 +257,22 @@ extern "C" fn print_stats() {
     line.num(immortal);
     line.push(b" freed=");
     line.num(freed);
+    line.push(b" live=");
+    line.num(hblocks.saturating_sub(freed));
+    line.push(b"\n");
+    line.flush();
+}
+
+/// Write the leak check's line, `cinch-leak: live=<n> immortal=<n>
+/// leaked=<n>`, to stderr without allocating.
+pub(crate) fn write_leak_report(live: u64, immortal: u64, leaked: u64) {
+    let mut line = Line::new();
+    line.push(b"cinch-leak: live=");
+    line.num(live);
+    line.push(b" immortal=");
+    line.num(immortal);
+    line.push(b" leaked=");
+    line.num(leaked);
     line.push(b"\n");
     line.flush();
 }

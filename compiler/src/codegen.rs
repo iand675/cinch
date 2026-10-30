@@ -67,7 +67,7 @@
 //! optimisation passes can promote them.
 
 use crate::core::{
-    AbiClass, AbiParam, ArithMode, ArithOp, BitOp, BitScanOp, BytesOp, CAlt, CBranch, CmpOp,
+    AbiClass, AbiParam, ArithMode, ArithOp, BitOp, BitScanOp, BytesOp, CAlt, CBranch, Class, CmpOp,
     ConcOp, ConvMode, Core, CPat, CtorLayout, FClassOp, FieldAccess, FieldShape, FloatBinOp,
     FloatUnOp, FnDef, ForeignPlan, LocalId, NetOp, PlatformOp, PrimAbiTy, PrimPlan, PrimOp,
     ProcOp, Program, PtyOp, ShiftOp, SymOp, TextOp, Utf8Op,
@@ -149,7 +149,9 @@ pub fn emit_for(profile: &crate::core::TargetProfile, program: &Program) -> Resu
     }
     out.push_str("declare ptr @cinch_alloc_raw(i64, i64)\n");
     out.push_str("declare ptr @cinch_alloc_ctor(i64, i64)\n");
+    out.push_str("declare ptr @cinch_alloc_shaped(i64, i64, i64)\n");
     out.push_str("declare void @cinch_layouts_register(ptr, i64)\n");
+    out.push_str("declare i64 @cinch_exit_check(i64)\n");
     out.push_str("declare ptr @memcpy(ptr, ptr, i64)\n");
     // The runtime ABI's mathematical `Nat`/`Int` and `Bytes` externs
     // (`compiler/runtime/src/lib.rs`); `Nat`/`Int` words are opaque
@@ -451,10 +453,11 @@ pub fn emit_for(profile: &crate::core::TargetProfile, program: &Program) -> Resu
             // and the language-level contract (`main :: Int`, applied to
             // `Unit` when it is effectful) is unchanged. The program then
             // runs on the runtime's reserved-stack thread
-            // (`cinch_run_main`). The result word truncates to the C
-            // `exit` status exactly as before.
+            // (`cinch_run_main`). The result word passes the runtime's
+            // exit check (`CINCH_LEAK_CHECK`, a no-op otherwise) and
+            // truncates to the C `exit` status exactly as before.
             out.push_str(&format!(
-                "define i32 @main(i32 %argc, ptr %argv) {{\nentry:\n  %n = sext i32 %argc to i64\n  call i64 @cinch_argv_init(i64 %n, ptr %argv)\n  %r = call i64 @cinch_run_main(ptr @{})\n  %c = trunc i64 %r to i32\n  ret i32 %c\n}}\n",
+                "define i32 @main(i32 %argc, ptr %argv) {{\nentry:\n  %n = sext i32 %argc to i64\n  call i64 @cinch_argv_init(i64 %n, ptr %argv)\n  %r = call i64 @cinch_run_main(ptr @{})\n  %x = call i64 @cinch_exit_check(i64 %r)\n  %c = trunc i64 %x to i32\n  ret i32 %c\n}}\n",
                 quote(main_unit)
             ));
         } else {
@@ -463,7 +466,7 @@ pub fn emit_for(profile: &crate::core::TargetProfile, program: &Program) -> Resu
             // it was: the command line reaches it through the platform
             // layer a Wasm target actually provides.
             out.push_str(&format!(
-                "define i32 @main() {{\nentry:\n  %r = call i64 @{}()\n  %c = trunc i64 %r to i32\n  ret i32 %c\n}}\n",
+                "define i32 @main() {{\nentry:\n  %r = call i64 @{}()\n  %x = call i64 @cinch_exit_check(i64 %r)\n  %c = trunc i64 %x to i32\n  ret i32 %c\n}}\n",
                 quote(main_unit)
             ));
         }
@@ -566,6 +569,9 @@ struct Registry {
     /// named here runs its body in the worker `tail_worker(name)`, which
     /// takes the mapped number of words.
     tail_width: HashMap<String, usize>,
+    /// Each unit's parameter classes (concrete after the collector): the
+    /// classes of the words a closure over the unit saves.
+    unit_params: HashMap<String, Vec<Class>>,
 }
 
 impl Registry {
@@ -759,6 +765,7 @@ impl Registry {
         for (i, w) in widths.into_iter().enumerate() {
             reg.layout_types.insert(w, format!("__sl_layout_{i}"));
         }
+        reg.unit_params = unit_param_classes(p, &reg);
 
         // Every unit emits four global names; all of them must be distinct
         // and must not collide with the runtime helpers.
@@ -809,23 +816,52 @@ impl Registry {
 
 impl Registry {
     /// Give every data type of the program its layout ids (`Layouts`):
-    /// the constructor units grouped by their data type, in a fixed
-    /// order, each constructor's payload its field words or its boundary
-    /// plan's size.
+    /// the constructor units grouped by their data type and class vector,
+    /// in a fixed order, each constructor's map its field classes or its
+    /// boundary plan's words.
     fn lay_out_constructors(&mut self, p: &Program) -> Result<()> {
-        let mut types: BTreeMap<String, BTreeMap<usize, (String, u64)>> = BTreeMap::new();
+        let mut types: BTreeMap<String, BTreeMap<usize, (String, Vec<Class>)>> = BTreeMap::new();
+        // The built prelude types' payload words per tag, across copies.
+        let mut built: BTreeMap<&str, BTreeMap<usize, u64>> = BTreeMap::new();
         for f in &p.fns {
             let Some((tag, fields)) = f.ctor else { continue };
-            let key = f.repr.data.clone().unwrap_or_else(|| f.id.0.clone());
-            let words = match self.plans.get(&f.id.0) {
-                Some(plan) => plan.payload.div_ceil(8),
-                None => fields as u64,
+            // A constructor copied for a class vector (`Cons@T`) lays out
+            // with its type at that vector.
+            let base = crate::repr::base_unit(&f.id.0);
+            let suffix = &f.id.0[base.len()..];
+            let key = match &f.repr.data {
+                Some(d) => format!("{d}{suffix}"),
+                None => f.id.0.clone(),
             };
-            if types.entry(key.clone()).or_default().insert(tag, (f.id.0.clone(), words)).is_some() {
+            let map = match self.plan_of(&f.id.0) {
+                Some(plan) => boundary_map(plan, &f.repr.fields),
+                None if f.repr.fields.len() == fields => f.repr.fields.clone(),
+                // A constructor lowering gave no classes (the builtin
+                // index family's): never counted.
+                None => vec![Class::Raw; fields],
+            };
+            if let Some(d) = f.repr.data.as_deref() {
+                if let Some((name, _)) = BUILT_TYPES.iter().find(|(k, _)| *k == d) {
+                    built.entry(name).or_default().insert(tag, map.len() as u64);
+                }
+            }
+            if types.entry(key.clone()).or_default().insert(tag, (f.id.0.clone(), map)).is_some() {
                 return err(format!("data type {key} has two constructor units of tag {tag}"));
             }
         }
-        let mut layouts = Layouts::new();
+        for (key, words) in BUILT_TYPES {
+            if let Some(got) = built.get(key) {
+                let got: Vec<u64> = (0..got.keys().next_back().map_or(0, |t| t + 1))
+                    .map(|t| got.get(&t).copied().unwrap_or(0))
+                    .collect();
+                if got != words {
+                    return err(format!(
+                        "the prelude type {key} has payload words {got:?} per constructor; code generation builds it as {words:?}"
+                    ));
+                }
+            }
+        }
+        let mut layouts = Layouts::default();
         // A program that crosses the canonical ABI can lift an enum whose
         // tag arrives at run time; its block may be escaped, so every tag
         // read must allow for one.
@@ -834,11 +870,11 @@ impl Registry {
         }
         for (key, ctors) in &types {
             let ncons = ctors.keys().next_back().map_or(0, |t| t + 1);
-            let mut words = vec![0u64; ncons];
-            for (tag, (_, w)) in ctors {
-                words[*tag] = *w;
+            let mut maps = vec![Vec::new(); ncons];
+            for (tag, (_, map)) in ctors {
+                maps[*tag] = map.clone();
             }
-            layouts.add_type(key, &words)?;
+            layouts.add_type(key, &maps)?;
             for (tag, (unit, _)) in ctors {
                 let desc = layouts.desc(key, *tag as u64).expect("laid out just now");
                 self.ctor_descs.insert(unit.clone(), desc);
@@ -846,6 +882,12 @@ impl Registry {
         }
         self.layouts = RefCell::new(layouts);
         Ok(())
+    }
+
+    /// The boundary layout plan of constructor unit `unit`, or of the
+    /// generic constructor a class-vector copy was made from.
+    fn plan_of(&self, unit: &str) -> Option<&CtorLayout> {
+        self.plans.get(unit).or_else(|| self.plans.get(crate::repr::base_unit(unit).as_ref()))
     }
 
     /// The descriptor of constructor unit `unit`.
@@ -856,19 +898,40 @@ impl Registry {
             .ok_or_else(|| crate::Error::plain(format!("unknown constructor unit {unit:?}")))
     }
 
-    /// The descriptor of an `n`-tuple: its constructor unit's, or the
-    /// anonymous shape of `n` words when the program has no such unit.
-    fn tuple_desc(&self, n: usize) -> u64 {
-        match self.ctor_descs.get(&format!("Tuple.{n}")) {
-            Some(d) => *d,
-            None => self.shape_desc(n as u64, 0),
-        }
+    /// The descriptor of a block of tag `tag` whose payload words have the
+    /// classes `map` and that no constructor unit names
+    /// (`Layouts::shape_desc`).
+    fn shape_desc(&self, map: &[Class], tag: u64) -> u64 {
+        self.layouts.borrow_mut().shape_desc(map, tag)
     }
 
-    /// The descriptor of a block of `words` payload words and tag `tag`
-    /// that no constructor unit names (`Layouts::shape_desc`).
-    fn shape_desc(&self, words: u64, tag: u64) -> u64 {
-        self.layouts.borrow_mut().shape_desc(words, tag)
+    /// [`Registry::shape_desc`] of `words` uncounted words: a block whose
+    /// words' classes are not known here (a boxed-out boundary aggregate,
+    /// a task outcome), so it can only leak, never free a live block.
+    fn raw_shape_desc(&self, words: u64, tag: u64) -> u64 {
+        self.shape_desc(&vec![Class::Raw; words as usize], tag)
+    }
+
+    /// The shape descriptor of a closure over unit `unit`: its saved words
+    /// are the unit's leading parameters, so its map is the fixed closure
+    /// words and then the unit's parameter classes.
+    fn closure_desc(&self, unit: &str) -> u64 {
+        let mut map = vec![Class::Raw; block::CLOSURE_PREFIX_WORDS as usize];
+        match self.unit_params.get(unit) {
+            Some(params) => map.extend(params.iter().copied()),
+            None => map.extend(std::iter::repeat_n(Class::Raw, self.arity.get(unit).copied().unwrap_or(0))),
+        }
+        self.layouts.borrow_mut().shape(map)
+    }
+
+    /// The shape descriptor of an instance's dictionary `{ nmeth;
+    /// methods... }`: a method slot holding a closure is counted, one
+    /// holding a value method's computed value (`mk_body`) is not, because
+    /// no unit records the class of a result.
+    fn dict_desc(&self, info: &InstInfo) -> u64 {
+        let mut map = vec![Class::Raw; block::DICT_PREFIX_WORDS as usize];
+        map.extend(info.methods.iter().map(|(_, arity)| if *arity == info.subdict_count { Class::Raw } else { Class::Obj }));
+        self.layouts.borrow_mut().shape(map)
     }
 
     /// Whether a tag read must allow for an escaped descriptor.
@@ -877,44 +940,182 @@ impl Registry {
     }
 }
 
-/// The layout groups reserved for the prelude ADTs the code generator
-/// builds without a constructor unit in hand: the `Option` results of
-/// primitives, the `Result` outcomes of the platform and task units, and
-/// the `Ordering` of comparisons. Each row is the data type, its group
-/// and its constructors' payload words in tag order, exactly the
-/// prelude's declarations (`prelude/Data/Core.cinch`,
-/// `prelude/Data/Ordering.cinch`); a program that declares them otherwise
-/// is refused rather than miscompiled.
-const GROUP_OPTION: u64 = 0;
-const GROUP_RESULT: u64 = 1;
-const GROUP_ORDERING: u64 = 2;
-const RESERVED_GROUPS: [(&str, u64, &[u64]); 3] = [
-    ("Data.Core.Option", GROUP_OPTION, &[0, 1]),
-    ("Data.Core.Result", GROUP_RESULT, &[1, 1]),
-    ("Data.Ordering.Ordering", GROUP_ORDERING, &[0, 0, 0]),
+/// The pointer map of a boundary-layout (`repr(C)`) payload: a word field
+/// at an aligned offset has its constructor field's class (`fields`), and
+/// every other payload word is uncounted. A scalar is not a pointer; a
+/// word field at an unaligned offset (`repr(packed)`) and the word fields
+/// inside an inline nested aggregate have no word-aligned slot or no
+/// recorded class, so they can only leak.
+fn boundary_map(plan: &CtorLayout, fields: &[Class]) -> Vec<Class> {
+    let mut map = vec![Class::Raw; plan.payload.div_ceil(8) as usize];
+    for (i, fa) in plan.fields.iter().enumerate() {
+        if matches!(fa.shape, FieldShape::Word { .. }) && fa.offset % 8 == 0 && fa.size == 8 {
+            if let (Some(slot), Some(c)) = (map.get_mut((fa.offset / 8) as usize), fields.get(i)) {
+                *slot = concrete(*c);
+            }
+        }
+    }
+    map
+}
+
+/// The checker's view of named types as far as code generation needs it:
+/// the types a primitive's signature names are data types, all `Obj`.
+struct SigTypes;
+
+impl crate::repr::TypeReprs for SigTypes {
+    fn adt(&self, _name: &str, _args: &[crate::types::Ty]) -> crate::repr::AdtRepr {
+        crate::repr::AdtRepr::Obj
+    }
+}
+
+/// The class of a primitive signature's type.
+fn sig_class(t: &crate::types::Ty) -> Class {
+    crate::repr::repr_of(t, &[], &SigTypes, &mut |_| {})
+}
+
+/// A primitive's parameter classes from its signature; one without a
+/// signature (the deferral and concurrency builtins) has uncounted
+/// parameters.
+fn prim_param_classes(op: PrimOp) -> Vec<Class> {
+    match prim_sig(op) {
+        Some((params, _)) => params.iter().map(sig_class).collect(),
+        None => vec![Class::Raw; op.arity()],
+    }
+}
+
+/// The payload classes of the prelude block a primitive returns: `[t]`
+/// for `Option t`, `[e, t]` for `Result e t` (the `Err` then the `Ok`
+/// payload), empty otherwise. Runtime input (`IoRead`) is `Option Bytes`.
+fn prim_payload_classes(op: PrimOp) -> Vec<Class> {
+    if op == PrimOp::Conc(ConcOp::IoRead) {
+        return vec![Class::Obj];
+    }
+    match prim_sig(op).map(|(_, t)| t) {
+        Some(crate::types::Ty::Adt(name, args)) if name == "Option" || name == "Result" => args.iter().map(sig_class).collect(),
+        _ => Vec::new(),
+    }
+}
+
+/// The classes of a foreign wrapper unit's parameters: a canonical
+/// binding's safe words (a byte payload, an enum, a flags value or a
+/// flattened aggregate is a block; a scalar, `Bool`, `Char` or handle is
+/// not), or a C binding's (an aggregate parameter is the `repr(C)` block
+/// it copies from; scalars and pointer roles are raw).
+fn foreign_param_classes(plan: &ForeignPlan) -> Vec<Class> {
+    use crate::core::CanonStep;
+    match &plan.canon {
+        Some(call) => call
+            .params
+            .iter()
+            .map(|steps| match steps.as_slice() {
+                [] | [CanonStep::Word { .. }] | [CanonStep::Handle] => Class::Raw,
+                _ => Class::Obj,
+            })
+            .collect(),
+        None => plan
+            .params
+            .iter()
+            .map(|a| if matches!(a.class, AbiClass::Aggregate) { Class::Obj } else { Class::Raw })
+            .collect(),
+    }
+}
+
+/// Every unit's parameter classes, fitted to its arity (a missing or open
+/// class is `Raw`). A constructor's parameters are its fields; a
+/// dictionary construction unit's are its subdictionaries.
+fn unit_param_classes(p: &Program, reg: &Registry) -> HashMap<String, Vec<Class>> {
+    let fit = |cs: &[Class], n: usize| -> Vec<Class> {
+        (0..n).map(|i| cs.get(i).copied().map_or(Class::Raw, concrete)).collect()
+    };
+    let mut out: HashMap<String, Vec<Class>> = HashMap::new();
+    for op in &reg.prims {
+        out.insert(op.symbol(), prim_param_classes(*op));
+    }
+    for f in &p.fns {
+        let arity = f.arity();
+        let cs = if f.ctor.is_some() { &f.repr.fields } else { &f.repr.params };
+        let classes = match f.prim {
+            Some(op) if cs.len() != arity => prim_param_classes(op),
+            _ => fit(cs, arity),
+        };
+        out.insert(f.id.0.clone(), classes);
+    }
+    for (name, plan) in &p.foreigns {
+        if !plan.export {
+            out.insert(name.clone(), fit(&foreign_param_classes(plan), plan.arity()));
+        }
+    }
+    for inst in &p.instances {
+        out.insert(format!("{}.mk", inst.id.0), vec![Class::Obj; inst.subdict_count]);
+    }
+    out
+}
+
+/// The prelude types the code generator builds without a constructor unit
+/// in hand: the `Option` results of primitives, the `Result` outcomes of
+/// the platform and task units, and the `Ordering` of comparisons. Each
+/// row is the data type and its constructors' payload words in tag order,
+/// exactly the prelude's declarations (`prelude/Data/Core.cinch`,
+/// `prelude/Data/Ordering.cinch`). Those blocks take anonymous shapes
+/// (`Layouts::shape_desc`) with the same tags, so a program that declares
+/// the types otherwise is refused rather than miscompiled.
+const BUILT_TYPES: [(&str, &[u64]); 3] = [
+    ("Data.Core.Option", &[0, 1]),
+    ("Data.Core.Result", &[1, 1]),
+    ("Data.Ordering.Ordering", &[0, 0, 0]),
 ];
 
-/// The prelude tags of the reserved types.
+/// The prelude tags of the built types.
 const TAG_NONE: u64 = 0;
 const TAG_SOME: u64 = 1;
 const TAG_ERR: u64 = 0;
 const TAG_OK: u64 = 1;
 
-/// Constructor layout ids (design/reclamation.md section 3, slice S1b;
-/// the encoding is `block_kinds.rs`'s). Each data type gets one group of
-/// `2^CTOR_TAG_BITS` consecutive ids, `base = group << CTOR_TAG_BITS`, so
-/// a block's tag is `id - base`, which every reader computes as `id &
+/// A class with every parameter resolved to `Raw`: a word whose class
+/// the collector left open is never counted, which can only leak.
+fn concrete(c: Class) -> Class {
+    if c.is_param() {
+        Class::Raw
+    } else {
+        c
+    }
+}
+
+/// The pointer-map code (`block_kinds.rs`) of a word's class.
+fn scan_code(c: Class) -> u64 {
+    match c {
+        Class::Obj => block::SCAN_OBJ,
+        Class::TObj => block::SCAN_TOBJ,
+        Class::Raw | Class::Param(_) => block::SCAN_RAW,
+    }
+}
+
+/// Layout ids and shapes (design/reclamation.md section 3, slices S1b and
+/// S5; the encoding is `block_kinds.rs`'s). Every table index records a
+/// payload size and pointer map.
+///
+/// Constructor blocks: each data type at each class vector its
+/// constructor units were copied for (`crate::specialize`) gets one group
+/// of `2^CTOR_TAG_BITS` consecutive ids, `base = group << CTOR_TAG_BITS`,
+/// so a block's tag is `id - base`, which every reader computes as `id &
 /// CTOR_TAG_MASK` without knowing the scrutinee's type (`Core::Case`
-/// carries none). A type with more constructors than a group holds, or
-/// one past the last group, is escaped: one layout table index per
-/// constructor, its tag in the descriptor word before the header. The
-/// ids index the layout table emitted at the end of the module.
+/// carries none). The same type at another vector is another group: its
+/// constructors' maps differ, its tags do not. A type with more
+/// constructors than a group holds, or one past the last group, is
+/// escaped: one table index per constructor, its tag in the descriptor
+/// word before the header. Blocks no constructor unit names take an
+/// anonymous group per pointer map.
+///
+/// Closures and dictionaries: one table index per distinct map (a shape),
+/// placed first in the indices of the type groups that no constructor
+/// uses, so shapes cost no group of their own until those run out.
 #[derive(Default)]
 struct Layouts {
     /// Each laid-out type's ids, by data type (or anonymous shape) key.
     types: HashMap<String, TypeIds>,
-    /// Payload words per table index; ids no type holds are zero.
-    table: Vec<u64>,
+    /// The pointer map per table index (its length is the payload
+    /// words); `None` for an index no block uses.
+    table: Vec<Option<Vec<Class>>>,
     /// The first table index past every assigned one.
     next: u64,
     /// Whether some block may carry an escaped descriptor, so every tag
@@ -924,6 +1125,10 @@ struct Layouts {
     /// escapes: the emitted tag reads would be wrong, so the module is
     /// refused (`finish`).
     late_escape: bool,
+    /// Closure and dictionary shapes by map.
+    shapes: HashMap<Vec<Class>, u64>,
+    /// Where the search for an unused index below `next` resumes.
+    hole: u64,
 }
 
 #[derive(Clone, Copy)]
@@ -931,30 +1136,18 @@ enum TypeIds {
     /// Regular ids `ctor_id(group, tag)`.
     Group(u64),
     /// Escaped: tag `t` has table index `base + t`, or `base` for every
-    /// tag when the constructors share one size (`shared`, an anonymous
+    /// tag when the constructors share one map (`shared`, an anonymous
     /// shape).
     Escaped { base: u64, shared: bool },
 }
 
 impl Layouts {
-    fn new() -> Layouts {
-        let mut l = Layouts::default();
-        for (key, group, words) in RESERVED_GROUPS {
-            l.types.insert(key.to_string(), TypeIds::Group(group));
-            for (tag, w) in words.iter().enumerate() {
-                l.set_words(block::ctor_id(group, tag as u64), *w);
-            }
-            l.next = l.next.max(block::ctor_id(group + 1, 0));
-        }
-        l
-    }
-
-    fn set_words(&mut self, index: u64, words: u64) {
+    fn set_map(&mut self, index: u64, map: &[Class]) {
         let i = index as usize;
         if self.table.len() <= i {
-            self.table.resize(i + 1, 0);
+            self.table.resize(i + 1, None);
         }
-        self.table[i] = words;
+        self.table[i] = Some(map.iter().map(|c| concrete(*c)).collect());
     }
 
     /// Reserve `n` table indices for one type: a whole regular group when
@@ -973,30 +1166,23 @@ impl Layouts {
         Ok(TypeIds::Escaped { base, shared: false })
     }
 
-    /// Lay out a data type whose tag `t` carries `words[t]` payload words.
-    fn add_type(&mut self, key: &str, words: &[u64]) -> Result<()> {
-        if let Some((_, _, want)) = RESERVED_GROUPS.iter().find(|(k, _, _)| *k == key) {
-            if words != *want {
-                return err(format!(
-                    "the prelude type {key} has payload words {words:?} per constructor; code generation builds it as {want:?}"
-                ));
-            }
-            return Ok(());
-        }
-        if (words.len() as u64) >> block::CTOR_ESC_TAG_BITS != 0 {
+    /// Lay out a data type (at one class vector) whose tag `t` has the
+    /// pointer map `maps[t]`, one class per payload word.
+    fn add_type(&mut self, key: &str, maps: &[Vec<Class>]) -> Result<()> {
+        if (maps.len() as u64) >> block::CTOR_ESC_TAG_BITS != 0 {
             return err(format!("data type {key} has more constructors than a descriptor can tag"));
         }
-        let ids = self.place(words.len() as u64)?;
+        let ids = self.place(maps.len() as u64)?;
         if matches!(ids, TypeIds::Escaped { .. }) {
             self.escaped = true;
         }
         self.types.insert(key.to_string(), ids);
-        for (tag, w) in words.iter().enumerate() {
+        for (tag, map) in maps.iter().enumerate() {
             let index = match ids {
                 TypeIds::Group(g) => block::ctor_id(g, tag as u64),
                 TypeIds::Escaped { base, .. } => base + tag as u64,
             };
-            self.set_words(index, *w);
+            self.set_map(index, map);
         }
         Ok(())
     }
@@ -1010,14 +1196,16 @@ impl Layouts {
     }
 
     /// The descriptor of a block that no constructor unit names (a
-    /// canonical ABI lift, a boxed-out nested aggregate, a tuple with no
-    /// unit): tag `tag` of the anonymous shape of `words` payload words.
-    /// Any id with the right tag reads correctly, so the shape only has
-    /// to record the size: one regular group per size, and one shared
-    /// escaped index per size for tags past a group.
-    fn shape_desc(&mut self, words: u64, tag: u64) -> u64 {
+    /// canonical ABI lift, a boxed-out nested aggregate, a built prelude
+    /// value): tag `tag` of the anonymous shape whose payload words have
+    /// the classes `map`. Any id with the right tag reads correctly, so
+    /// the shape only has to record the map: one regular group per map,
+    /// and one shared escaped index per map for tags past a group.
+    fn shape_desc(&mut self, map: &[Class], tag: u64) -> u64 {
+        let map: Vec<Class> = map.iter().map(|c| concrete(*c)).collect();
         let regular = tag <= block::CTOR_TAG_MASK;
-        let key = if regular { format!("<shape {words}w>") } else { format!("<shape {words}w escaped>") };
+        let letters = crate::repr::letters(&map);
+        let key = if regular { format!("<shape {letters}>") } else { format!("<shape {letters} escaped>") };
         if !self.types.contains_key(&key) {
             let group = self.next.div_ceil(block::CTOR_TAG_MASK + 1);
             let ids = if regular && group < block::CTOR_GROUPS {
@@ -1031,11 +1219,11 @@ impl Layouts {
             match ids {
                 TypeIds::Group(g) => {
                     for t in 0..=block::CTOR_TAG_MASK {
-                        self.set_words(block::ctor_id(g, t), words);
+                        self.set_map(block::ctor_id(g, t), &map);
                     }
                 }
                 TypeIds::Escaped { base, .. } => {
-                    self.set_words(base, words);
+                    self.set_map(base, &map);
                     self.late_escape |= !self.escaped;
                 }
             }
@@ -1044,21 +1232,70 @@ impl Layouts {
         self.desc(&key, tag).expect("laid out just now")
     }
 
+    /// The shape descriptor (`block_kinds.rs`'s `shape_desc`) of a
+    /// closure or dictionary whose payload words have the classes `map`.
+    fn shape(&mut self, map: Vec<Class>) -> u64 {
+        let map: Vec<Class> = map.into_iter().map(concrete).collect();
+        if let Some(index) = self.shapes.get(&map) {
+            return block::shape_desc(*index);
+        }
+        while self.hole < self.next && matches!(self.table.get(self.hole as usize), Some(Some(_))) {
+            self.hole += 1;
+        }
+        let index = if self.hole < self.next {
+            self.hole
+        } else {
+            let group = self.next.div_ceil(block::CTOR_TAG_MASK + 1);
+            let base = if group < block::CTOR_GROUPS { block::ctor_id(group, 0) } else { self.next };
+            self.next = if group < block::CTOR_GROUPS { block::ctor_id(group + 1, 0) } else { base + 1 };
+            base
+        };
+        self.hole = index + 1;
+        self.set_map(index, &map);
+        self.shapes.insert(map, index);
+        block::shape_desc(index)
+    }
+
     /// The layout table and the global constructor that registers it
     /// with the runtime before any generated code runs
-    /// (`cinch_layouts_register`).
+    /// (`cinch_layouts_register`): one entry per index, then the map
+    /// extensions of the entries wider than an entry's own map.
     fn finish(&self) -> Result<String> {
         if self.late_escape {
             return err("internal error: a constructor shape escaped after the tag reads were emitted without escapes");
         }
-        let entries: Vec<String> = self.table.iter().map(|w| format!("i64 {}", block::layout_entry(*w))).collect();
+        let mut entries: Vec<u64> = Vec::with_capacity(self.table.len());
+        let mut ext: Vec<u64> = Vec::new();
+        for map in &self.table {
+            let map = map.as_deref().unwrap_or(&[]);
+            let words = map.len() as u64;
+            let n = block::scan_ext_len(words);
+            if n == 0 {
+                let bits = map.iter().enumerate().fold(0, |m, (i, c)| m | block::scan_slot(scan_code(*c), i as u64));
+                entries.push(block::layout_entry(words, bits));
+            } else {
+                let at = (self.table.len() + ext.len()) as u64;
+                if at >> (64 - block::LAYOUT_ENTRY_WORDS_BITS) != 0 {
+                    return err("the layout table is too large for its map extension indices");
+                }
+                entries.push(block::layout_entry(words, at));
+                let start = ext.len();
+                ext.resize(start + n as usize, 0);
+                for (i, c) in map.iter().enumerate() {
+                    let i = i as u64;
+                    ext[start + (i / block::SCAN_EXT_WORDS) as usize] |= block::scan_slot(scan_code(*c), i % block::SCAN_EXT_WORDS);
+                }
+            }
+        }
+        entries.extend(ext);
         let n = entries.len();
+        let words: Vec<String> = entries.iter().map(|e| format!("i64 {}", *e as i64)).collect();
         Ok(format!(
             "@__cinch_layouts = internal constant [{n} x i64] [{}]\n\
              define internal void @__cinch_layouts_init() {{\n\
              entry:\n  call void @cinch_layouts_register(ptr @__cinch_layouts, i64 {n})\n  ret void\n}}\n\
              @llvm.global_ctors = appending global [1 x {{ i32, ptr, ptr }}] [{{ i32, ptr, ptr }} {{ i32 65535, ptr @__cinch_layouts_init, ptr null }}]\n",
-            entries.join(", ")
+            words.join(", ")
         ))
     }
 }
@@ -1087,18 +1324,18 @@ fn ctor_block_word(b: &mut Builder, desc: u64, fields: &[String]) -> String {
 fn string_block_word(b: &mut Builder, reg: &Registry, bytes: &str) -> String {
     let desc = match reg.ctor_descs.get("Data.String.StrBuf") {
         Some(d) => *d,
-        None => reg.shape_desc(1, 0),
+        None => reg.shape_desc(&[Class::Obj], 0),
     };
     ctor_block_word(b, desc, &[bytes.to_string()])
 }
 
-/// The descriptor, computed at run time, of an anonymous block of
-/// `words` payload words whose tag is the word `tag` (an enum lifted from
-/// canonical memory): the shape's regular id for a tag that fits a group,
-/// its escaped descriptor otherwise.
-fn dynamic_shape_desc(b: &mut Builder, reg: &Registry, words: u64, tag: &str) -> String {
-    let group_base = reg.shape_desc(words, 0);
-    let esc = reg.shape_desc(words, block::CTOR_TAG_MASK + 1);
+/// The descriptor, computed at run time, of an anonymous block whose
+/// payload words have the classes `map` and whose tag is the word `tag`
+/// (an enum lifted from canonical memory): the shape's regular id for a
+/// tag that fits a group, its escaped descriptor otherwise.
+fn dynamic_shape_desc(b: &mut Builder, reg: &Registry, map: &[Class], tag: &str) -> String {
+    let group_base = reg.shape_desc(map, 0);
+    let esc = reg.shape_desc(map, block::CTOR_TAG_MASK + 1);
     let index = block::ctor_index(block::LAYOUT_BIG, esc);
     let fits = b.reg();
     b.line(&format!("{fits} = icmp ule i64 {tag}, {}", block::CTOR_TAG_MASK));
@@ -1152,11 +1389,19 @@ fn ctor_tag(b: &mut Builder, p: &str, escapes: bool) -> String {
 }
 
 /// An immortal static constructor block with descriptor `desc` and
-/// payload `words`, addressed one header in like `static_block`'s (an
-/// escaped descriptor adds its word before the header).
+/// payload `words` (`static_shaped_block`).
 fn static_ctor_block(sym: &str, desc: u64, words: &[String]) -> String {
+    static_shaped_block(sym, block::KIND_CTOR, desc, words)
+}
+
+/// An immortal static block of a shaped kind with descriptor `desc` and
+/// payload `words`: the storage `@"<sym>#h"` puts the block header first
+/// (an escaped descriptor adds its word before it), and `@"<sym>"` is an
+/// alias at the payload, so every reference to the symbol addresses the
+/// payload exactly as it addresses a heap block's.
+fn static_shaped_block(sym: &str, kind: u8, desc: u64, words: &[String]) -> String {
     let field = block::ctor_layout_field(desc);
-    let hdr = block::static_header(block::KIND_CTOR, field) as i64;
+    let hdr = block::static_header(kind, field) as i64;
     let mut init: Vec<String> = Vec::new();
     if field == block::LAYOUT_BIG {
         init.push(format!("i64 {}", desc as i64));
@@ -1331,7 +1576,7 @@ fn classify_callee(sym: &str, units: &BTreeSet<String>) -> Callee {
         return Callee::Unit;
     }
     match sym {
-        "cinch_alloc_raw" | "cinch_alloc_ctor" => Callee::Alloc,
+        "cinch_alloc_raw" | "cinch_alloc_ctor" | "cinch_alloc_shaped" => Callee::Alloc,
         "memcpy" => Callee::Copy,
         "__apply" | "__cinch_demand" => Callee::Indirect,
         "exit" | "cinch_panic" | "__cinch_blackhole" => Callee::Fault,
@@ -1594,19 +1839,11 @@ fn build_unit(
             // static blocks whose headers carry their layout ids (`None`;
             // `LT`/`EQ`/`GT`), `Some` is a fresh `{ value }` block.
             if op.returns_option() {
-                globals.push_str(&static_ctor_block(
-                    &format!("{name}.blk"),
-                    block::ctor_id(GROUP_OPTION, TAG_NONE),
-                    &[],
-                ));
+                globals.push_str(&static_ctor_block(&format!("{name}.blk"), reg.shape_desc(&[], TAG_NONE), &[]));
             }
             if op.returns_ordering() {
                 for (suf, tag) in [(".lt", 0), (".eq", 1), (".gt", 2)] {
-                    globals.push_str(&static_ctor_block(
-                        &format!("{name}{suf}"),
-                        block::ctor_id(GROUP_ORDERING, tag),
-                        &[],
-                    ));
+                    globals.push_str(&static_ctor_block(&format!("{name}{suf}"), reg.shape_desc(&[], tag), &[]));
                 }
             }
             ret_range = reg.ranges.get(name).copied();
@@ -1623,9 +1860,9 @@ fn build_unit(
             if *fields == 0 {
                 globals.push_str(&static_ctor_block(&format!("{name}.blk"), desc, &[]));
             }
-            ctor_body(&mut b, reg, name, desc, *fields, reg.plans.get(name));
+            ctor_body(&mut b, reg, name, desc, *fields, reg.plan_of(name));
         }
-        UnitBody::Mk(info) => mk_body(&mut b, info),
+        UnitBody::Mk(info) => mk_body(&mut b, reg, info),
         UnitBody::Foreign(plan) => foreign_import_body(&mut b, cx, reg, plan)?,
         UnitBody::Fn(f) | UnitBody::TailWorker(f) => {
             hints = f.hints;
@@ -1668,8 +1905,8 @@ fn build_unit(
         header,
         allocas: b.allocas,
         code: b.code,
-        stub: if worker { String::new() } else { stub_def(name, arity) },
-        clo: if worker { String::new() } else { clo_def(name, arity) },
+        stub: if worker { String::new() } else { stub_def(reg, name, arity) },
+        clo: if worker { String::new() } else { clo_def(reg, name, arity) },
         scan,
         lang_facts: lang,
     })
@@ -1700,37 +1937,22 @@ fn fn_header(
     format!("define {ret} @{}({})", quote(name), params.join(", "))
 }
 
-fn clo_def(name: &str, arity: usize) -> String {
+/// The unit's static closure `@"<name>.clo"`, `{ app; arity; 0 }`, with
+/// the unit's closure shape.
+fn clo_def(reg: &Registry, name: &str, arity: usize) -> String {
     let app = quote(&format!("{name}.app"));
-    static_block(
+    static_shaped_block(
         &format!("{name}.clo"),
         block::KIND_CLOSURE,
+        reg.closure_desc(name),
         &[format!("ptrtoint (ptr @{app} to i64)"), arity.to_string(), "0".to_string()],
-    )
-}
-
-/// An immortal static block whose payload is the 64-bit `words`: the
-/// storage `@"<sym>#h"` puts the block header first, and `@"<sym>"` is an
-/// alias one word in, so every reference to the symbol addresses the
-/// payload exactly as it addresses a heap block's.
-fn static_block(sym: &str, kind: u8, words: &[String]) -> String {
-    let n = words.len();
-    let hdr = block::static_header(kind, n as u16) as i64;
-    let init: Vec<String> = words.iter().map(|w| format!("i64 {w}")).collect();
-    format!(
-        "@{storage} = internal constant [{len} x i64] [i64 {hdr}, {init}]\n\
-         @{sym} = internal alias [{n} x i64], getelementptr inbounds (i8, ptr @{storage}, i64 8)\n\n",
-        storage = quote(&format!("{sym}#h")),
-        sym = quote(sym),
-        len = n + 1,
-        init = init.join(", "),
     )
 }
 
 /// Emit the apply stub `@"<name>.app"`: merge `saved` with `argv`, then
 /// saturate (call the underlying function), grow (allocate a closure with
 /// more filled arguments) or over-apply (call then `__apply` the rest).
-fn stub_def(name: &str, arity: usize) -> String {
+fn stub_def(reg: &Registry, name: &str, arity: usize) -> String {
     let mut b = Builder::new();
     let nf_p = b.gep("%self", 16);
     let nf = b.reg();
@@ -1751,7 +1973,7 @@ fn stub_def(name: &str, arity: usize) -> String {
     let szb = b.reg();
     b.line(&format!("{szb} = mul i64 {sz}, 8"));
     let new = b.reg();
-    b.line(&alloc_call(&new, &szb, block::KIND_CLOSURE));
+    b.line(&shaped_alloc_call(&new, &szb, block::KIND_CLOSURE, reg.closure_desc(name)));
     let cw = b.load_at("%self", 0);
     b.store_at(&new, 0, &cw);
     b.store_at(&new, 8, &arity.to_string());
@@ -2186,9 +2408,12 @@ fn fault_when(b: &mut Builder, unit: &str, bad: &str, msg: &str) {
 }
 
 /// Return `None` when `none_if` is true, else `Some v` (the prelude
-/// `Option` ADT, in its reserved layout group).
+/// `Option` ADT, an anonymous shape of its tags whose field has the class
+/// `op`'s signature gives it).
 fn ret_option(
     b: &mut Builder,
+    reg: &Registry,
+    op: PrimOp,
     name: &str,
     none_if: &str,
     val: impl FnOnce(&mut Builder) -> String,
@@ -2205,7 +2430,8 @@ fn ret_option(
     b.line(&format!("ret i64 {w}"));
     b.start(&lsome);
     let v = val(b);
-    let w = ctor_block_word(b, block::ctor_id(GROUP_OPTION, TAG_SOME), &[v]);
+    let field = prim_payload_classes(op).first().copied().unwrap_or(Class::Raw);
+    let w = ctor_block_word(b, reg.shape_desc(&[field], TAG_SOME), &[v]);
     b.line(&format!("ret i64 {w}"));
 }
 
@@ -2216,15 +2442,16 @@ fn ret(b: &mut Builder, v: &str) {
 /// Return the prelude `Result` a boundary word stands for: a NEGATIVE
 /// word is `Err` over its POSITIVE named error code, a non-negative one
 /// is `Ok` over the value the caller maps from it (the prelude `Result`
-/// tags, in its reserved layout group, the same convention
-/// `crate::task`'s outcome ABI documents). The platform's net and
-/// piped-child externs answer one word for both outcomes
-/// (`crate::platform`'s return-code
-/// convention), so their units present that word as this `Result`: a
-/// socket read's success value is a fresh `Bytes` buffer, which a single
-/// raw word at the language level could not tell apart from a failure
-/// code.
-fn ret_result(b: &mut Builder, raw: &str, ok: impl FnOnce(&mut Builder) -> String) {
+/// tags, as anonymous shapes whose fields have the classes `op`'s
+/// signature gives them, the same convention `crate::task`'s outcome ABI
+/// documents). The platform's net and piped-child externs answer one word
+/// for both outcomes (`crate::platform`'s return-code convention), so
+/// their units present that word as this `Result`: a socket read's
+/// success value is a fresh `Bytes` buffer, which a single raw word at
+/// the language level could not tell apart from a failure code.
+fn ret_result(b: &mut Builder, reg: &Registry, op: PrimOp, raw: &str, ok: impl FnOnce(&mut Builder) -> String) {
+    let classes = prim_payload_classes(op);
+    let class = |i: usize| classes.get(i).copied().unwrap_or(Class::Raw);
     let neg = b.reg();
     b.line(&format!("{neg} = icmp slt i64 {raw}, 0"));
     let lerr = b.label();
@@ -2233,11 +2460,11 @@ fn ret_result(b: &mut Builder, raw: &str, ok: impl FnOnce(&mut Builder) -> Strin
     b.start(&lerr);
     let code = b.reg();
     b.line(&format!("{code} = sub i64 0, {raw}"));
-    let ew = ctor_block_word(b, block::ctor_id(GROUP_RESULT, TAG_ERR), &[code]);
+    let ew = ctor_block_word(b, reg.shape_desc(&[class(0)], TAG_ERR), &[code]);
     b.line(&format!("ret i64 {ew}"));
     b.start(&lok);
     let v = ok(b);
-    let ow = ctor_block_word(b, block::ctor_id(GROUP_RESULT, TAG_OK), &[v]);
+    let ow = ctor_block_word(b, reg.shape_desc(&[class(1)], TAG_OK), &[v]);
     b.line(&format!("ret i64 {ow}"));
 }
 
@@ -2256,6 +2483,8 @@ fn overflow_intrinsic(signed: bool, op: ArithOp, s: Scalar) -> String {
 /// specification, section 4) through the overflow intrinsics.
 fn arith_overflow(
     b: &mut Builder,
+    reg: &Registry,
+    prim: PrimOp,
     name: &str,
     s: Scalar,
     op: ArithOp,
@@ -2276,7 +2505,7 @@ fn arith_overflow(
     match mode {
         ArithMode::Wrapping => unreachable!("wrapping arithmetic does not use intrinsics"),
         ArithMode::Checked => {
-            ret_option(b, name, &flag, |b| {
+            ret_option(b, reg, prim, name, &flag, |b| {
                 let w = ext_n(b, s, &val);
                 canon(b, s, &w)
             });
@@ -2336,6 +2565,12 @@ fn rt_call(b: &mut Builder, f: &str, args: &[String]) -> String {
 /// header kind `kind` into `dst` (runtime ABI, `compiler/runtime/src/block.rs`).
 fn alloc_call(dst: &str, size: impl std::fmt::Display, kind: u8) -> String {
     format!("{dst} = call ptr @cinch_alloc_raw(i64 {size}, i64 {kind})")
+}
+
+/// The `cinch_alloc_shaped` call that allocates a `size`-byte closure or
+/// dictionary block of shape descriptor `desc` into `dst`.
+fn shaped_alloc_call(dst: &str, size: impl std::fmt::Display, kind: u8, desc: u64) -> String {
+    format!("{dst} = call ptr @cinch_alloc_shaped(i64 {size}, i64 {kind}, i64 {})", desc as i64)
 }
 
 /// The task ABI symbol of the target's backend (WebAssembly and WASI
@@ -2420,7 +2655,7 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
                     );
                     let bad = b.reg();
                     b.line(&format!("{bad} = icmp slt i64 {n}, 0"));
-                    ret_option(b, name, &bad, |b| {
+                    ret_option(b, reg, op, name, &bad, |b| {
                         // The extern packs the scalar value in the low
                         // 32 bits and the byte width above them.
                         let cp = b.reg();
@@ -2428,7 +2663,9 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
                         let w = b.reg();
                         b.line(&format!("{w} = lshr i64 {n}, 32"));
                         let nw = rt_call(b, "cinch_nat_from_i64", &[format!("i64 {w}")]);
-                        ctor_block_word(b, reg.tuple_desc(2), &[cp, nw])
+                        // `(Char, Nat)`: the code point is raw, the width a
+                        // `Nat` word.
+                        ctor_block_word(b, reg.shape_desc(&[Class::Raw, Class::TObj], 0), &[cp, nw])
                     });
                 }
                 Encode => {
@@ -2621,7 +2858,7 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
                         &["i64 %p0".to_string(), "i64 %p1".to_string()],
                     );
                     let w = freeze_word(b, &r);
-                    ret_result(b, &w, |_| w.clone());
+                    ret_result(b, reg, op, &w, |_| w.clone());
                 }
                 Write => {
                     // `(handle, data)`: the byte count is a `Nat`.
@@ -2631,7 +2868,7 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
                         &["i64 %p0".to_string(), "i64 %p1".to_string()],
                     );
                     let w = freeze_word(b, &r);
-                    ret_result(b, &w, |b| {
+                    ret_result(b, reg, op, &w, |b| {
                         rt_call(b, "cinch_nat_from_i64", &[format!("i64 {w}")])
                     });
                 }
@@ -2645,13 +2882,13 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
                         &["i64 %p0".to_string(), format!("i64 {max}")],
                     );
                     let w = freeze_word(b, &r);
-                    ret_result(b, &w, |_| w.clone());
+                    ret_result(b, reg, op, &w, |_| w.clone());
                 }
                 Close => {
                     let r = rt_call(b, k.extern_name(), &["i64 %p0".to_string()]);
                     let w = freeze_word(b, &r);
                     // `Ok` over the Unit word.
-                    ret_result(b, &w, |_| "0".to_string());
+                    ret_result(b, reg, op, &w, |_| "0".to_string());
                 }
             }
         }
@@ -2687,12 +2924,12 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
                 Spawn => {
                     let r = rt_call(b, k.extern_name(), &raw_args(4));
                     let w = freeze_word(b, &r);
-                    ret_result(b, &w, |_| w.clone());
+                    ret_result(b, reg, op, &w, |_| w.clone());
                 }
                 WriteStdin => {
                     let r = rt_call(b, k.extern_name(), &raw_args(2));
                     let w = freeze_word(b, &r);
-                    ret_result(b, &w, |b| {
+                    ret_result(b, reg, op, &w, |b| {
                         rt_call(b, "cinch_nat_from_i64", &[format!("i64 {w}")])
                     });
                 }
@@ -2710,19 +2947,19 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
                         ],
                     );
                     let w = freeze_word(b, &r);
-                    ret_result(b, &w, |_| w.clone());
+                    ret_result(b, reg, op, &w, |_| w.clone());
                 }
                 Wait => {
                     let r = rt_call(b, k.extern_name(), &raw_args(1));
                     let w = freeze_word(b, &r);
-                    ret_result(b, &w, |b| {
+                    ret_result(b, reg, op, &w, |b| {
                         rt_call(b, "cinch_nat_from_i64", &[format!("i64 {w}")])
                     });
                 }
                 CloseStdin | Close => {
                     let r = rt_call(b, k.extern_name(), &raw_args(1));
                     let w = freeze_word(b, &r);
-                    ret_result(b, &w, |_| "0".to_string());
+                    ret_result(b, reg, op, &w, |_| "0".to_string());
                 }
             }
         }
@@ -2743,17 +2980,17 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
                     // only; the extern takes no arguments (as `fsTempDir`).
                     let r = rt_call(b, k.extern_name(), &[]);
                     let w = freeze_word(b, &r);
-                    ret_result(b, &w, |_| w.clone());
+                    ret_result(b, reg, op, &w, |_| w.clone());
                 }
                 Spawn => {
                     let r = rt_call(b, k.extern_name(), &raw_args(5));
                     let w = freeze_word(b, &r);
-                    ret_result(b, &w, |_| w.clone());
+                    ret_result(b, reg, op, &w, |_| w.clone());
                 }
                 Write => {
                     let r = rt_call(b, k.extern_name(), &raw_args(2));
                     let w = freeze_word(b, &r);
-                    ret_result(b, &w, |b| {
+                    ret_result(b, reg, op, &w, |b| {
                         rt_call(b, "cinch_nat_from_i64", &[format!("i64 {w}")])
                     });
                 }
@@ -2766,19 +3003,19 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
                         &["i64 %p0".to_string(), format!("i64 {max}")],
                     );
                     let w = freeze_word(b, &r);
-                    ret_result(b, &w, |_| w.clone());
+                    ret_result(b, reg, op, &w, |_| w.clone());
                 }
                 Wait => {
                     let r = rt_call(b, k.extern_name(), &raw_args(1));
                     let w = freeze_word(b, &r);
-                    ret_result(b, &w, |b| {
+                    ret_result(b, reg, op, &w, |b| {
                         rt_call(b, "cinch_nat_from_i64", &[format!("i64 {w}")])
                     });
                 }
                 Close => {
                     let r = rt_call(b, k.extern_name(), &raw_args(1));
                     let w = freeze_word(b, &r);
-                    ret_result(b, &w, |_| "0".to_string());
+                    ret_result(b, reg, op, &w, |_| "0".to_string());
                 }
                 Resize => {
                     // `(handle, cols, rows)`: the two `Nat` sizes cross as
@@ -2795,7 +3032,7 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
                         ],
                     );
                     let w = freeze_word(b, &r);
-                    ret_result(b, &w, |_| "0".to_string());
+                    ret_result(b, reg, op, &w, |_| "0".to_string());
                 }
             }
         }
@@ -2848,21 +3085,24 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
                     let is_ok = b.reg();
                     b.line(&format!("{is_ok} = icmp eq i64 {st}, 0"));
                     b.line(&format!("br i1 {is_ok}, label %{lok}, label %{lfail}"));
-                    // Failure: `Err e` over the first failure payload.
+                    // Failure: `Err e` over the first failure payload. The
+                    // task outcome's payload classes are the task bodies'
+                    // result types, which this unit does not see: its
+                    // blocks are uncounted.
                     b.start(&lfail);
                     let ep = b.load_at(&out, 0);
-                    let ew = ctor_block_word(b, block::ctor_id(GROUP_RESULT, TAG_ERR), &[ep]);
+                    let ew = ctor_block_word(b, reg.raw_shape_desc(1, TAG_ERR), &[ep]);
                     b.line(&format!("br label %{ldone}"));
                     // Success: `Ok` over the payloads (a tuple block for a
-                    // multi-task join, `Tuple.{n}`'s layout).
+                    // multi-task join).
                     b.start(&lok);
                     let payload = if n == 1 {
                         b.load_at(&out, 0)
                     } else {
                         let parts: Vec<String> = (0..n).map(|i| b.load_at(&out, i * 8)).collect();
-                        ctor_block_word(b, reg.tuple_desc(n), &parts)
+                        ctor_block_word(b, reg.raw_shape_desc(n as u64, 0), &parts)
                     };
-                    let okw2 = ctor_block_word(b, block::ctor_id(GROUP_RESULT, TAG_OK), &[payload]);
+                    let okw2 = ctor_block_word(b, reg.raw_shape_desc(1, TAG_OK), &[payload]);
                     b.line(&format!("br label %{ldone}"));
                     b.start(&ldone);
                     let res = b.reg();
@@ -2878,7 +3118,7 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
                     let r = rt_call(b, "cinch_io_read", &[format!("i64 {n}")]);
                     let none = b.reg();
                     b.line(&format!("{none} = icmp eq i64 {r}, 0"));
-                    ret_option(b, name, &none, |_| r.clone());
+                    ret_option(b, reg, op, name, &none, |_| r.clone());
                 }
                 IoSleep => {
                     let n = rt_call(b, "cinch_nat_to_i64", &["i64 %p1".to_string()]);
@@ -2953,7 +3193,7 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
                     ret(b, &c);
                 }
                 ArithMode::Checked | ArithMode::Saturating => {
-                    arith_overflow(b, name, ty, aop, mode)
+                    arith_overflow(b, reg, op, name, ty, aop, mode)
                 }
             }
         }
@@ -2971,7 +3211,7 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
                         "{bad} = icmp eq i64 %p0, {}",
                         min_word(ty)
                     ));
-                    ret_option(b, name, &bad, |b| {
+                    ret_option(b, reg, op, name, &bad, |b| {
                         let r = b.reg();
                         b.line(&format!("{r} = sub i64 0, %p0"));
                         canon(b, ty, &r)
@@ -3013,7 +3253,7 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
             } else {
                 z
             };
-            ret_option(b, name, &bad, |b| {
+            ret_option(b, reg, op, name, &bad, |b| {
                 let inst = match (op, ty.is_signed()) {
                     (CheckedDiv { .. }, true) => "sdiv",
                     (CheckedDiv { .. }, false) => "udiv",
@@ -3057,7 +3297,7 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
             if checked {
                 let bad = b.reg();
                 b.line(&format!("{bad} = icmp uge i64 %p1, {w}"));
-                ret_option(b, name, &bad, sh);
+                ret_option(b, reg, op, name, &bad, sh);
             } else {
                 let v = sh(b);
                 ret(b, &v);
@@ -3372,15 +3612,15 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
             b.line(&format!("{sur} = and i1 {s1}, {s2}"));
             let bad = b.reg();
             b.line(&format!("{bad} = or i1 {hi}, {sur}"));
-            ret_option(b, name, &bad, |_| "%p0".to_string());
+            ret_option(b, reg, op, name, &bad, |_| "%p0".to_string());
         }
-        Conv { from, to, mode } => conv_body(b, name, from, to, mode),
+        Conv { from, to, mode } => conv_body(b, reg, op, name, from, to, mode),
     }
 }
 
 /// Conversions (primitive types specification, section 7): every result is
 /// canonicalized to the target's word form.
-fn conv_body(b: &mut Builder, name: &str, from: Scalar, to: Scalar, mode: ConvMode) {
+fn conv_body(b: &mut Builder, reg: &Registry, op: PrimOp, name: &str, from: Scalar, to: Scalar, mode: ConvMode) {
     if from.is_int_like() && to.is_int_like() {
         match mode {
             ConvMode::Total => {
@@ -3395,7 +3635,7 @@ fn conv_body(b: &mut Builder, name: &str, from: Scalar, to: Scalar, mode: ConvMo
                 let c = canon(b, to, "%p0");
                 let bad = b.reg();
                 b.line(&format!("{bad} = icmp ne i64 {c}, %p0"));
-                ret_option(b, name, &bad, |_| c.clone());
+                ret_option(b, reg, op, name, &bad, |_| c.clone());
             }
             ConvMode::Saturating => {
                 let c = canon(b, to, "%p0");
@@ -3503,7 +3743,7 @@ fn conv_body(b: &mut Builder, name: &str, from: Scalar, to: Scalar, mode: ConvMo
         ConvMode::Checked => {
             let bad = b.reg();
             b.line(&format!("{bad} = xor i1 {ok}, true"));
-            ret_option(b, name, &bad, |_| word.clone());
+            ret_option(b, reg, op, name, &bad, |_| word.clone());
         }
         ConvMode::Saturating => {
             // NaN maps to zero; out of range clamps to the bound the value
@@ -3723,9 +3963,10 @@ fn load_field_word(b: &mut Builder, reg: &Registry, payload: &str, fa: &FieldAcc
         FieldShape::Inline { size, tag, fields } => {
             // Box the inline payload out into a fresh block: the nested
             // aggregate has no constructor unit in hand here, so its block
-            // takes the anonymous shape of its size.
+            // takes the anonymous shape of its size, uncounted because its
+            // word fields' classes are not recorded.
             let blk = b.reg();
-            b.line(&ctor_alloc_call(&blk, size, reg.shape_desc(size.div_ceil(8), *tag as u64)));
+            b.line(&ctor_alloc_call(&blk, size, reg.raw_shape_desc(size.div_ceil(8), *tag as u64)));
             let dst = blk.clone();
             let src = b.gep(payload, fa.offset as usize);
             for f in fields {
@@ -4117,11 +4358,13 @@ fn foreign_import_body(
                 quote(&plan.symbol),
                 full.join(", ")
             ));
+            // The block holds C bytes: no word in it is a reference this
+            // program owns, so none is counted.
             let blk = b.reg();
             b.line(&ctor_alloc_call(
                 &blk,
                 plan.result.width,
-                reg.shape_desc(plan.result.width.div_ceil(8), plan.result.tag as u64),
+                reg.raw_shape_desc(plan.result.width.div_ceil(8), plan.result.tag as u64),
             ));
             let payload = blk.clone();
             for fa in &plan.result.fields {
@@ -4205,7 +4448,7 @@ fn export_entry(out: &mut String, plan: &ForeignPlan, reg: &Registry, cx: &Lower
                     format!("ptr {byval} {n}{}", param_attrs(p, true))
                 });
                 let blk = b.reg();
-                b.line(&ctor_alloc_call(&blk, p.width, reg.shape_desc(p.width.div_ceil(8), p.tag as u64)));
+                b.line(&ctor_alloc_call(&blk, p.width, reg.raw_shape_desc(p.width.div_ceil(8), p.tag as u64)));
                 let payload = blk.clone();
                 for fa in &p.fields {
                     copy_field_exact(&mut b, reg, &payload, 0, &n, 0, fa, true);
@@ -4274,11 +4517,11 @@ fn export_entry(out: &mut String, plan: &ForeignPlan, reg: &Registry, cx: &Lower
 /// Body of `@"<id>.mk"`: build `{ i64 nmeth; i64 meth0; ... }` where each
 /// method word is the method function's static closure (when the instance
 /// has no subdicts) or a fresh closure filled with the subdict parameters.
-fn mk_body(b: &mut Builder, info: &InstInfo) {
+fn mk_body(b: &mut Builder, reg: &Registry, info: &InstInfo) {
     let mc = info.method_count;
     let bytes = (1 + mc) * 8;
     let p = b.reg();
-    b.line(&alloc_call(&p, bytes, block::KIND_DICT));
+    b.line(&shaped_alloc_call(&p, bytes, block::KIND_DICT, reg.dict_desc(info)));
     b.store_at(&p, 0, &mc.to_string());
     for (i, (method, m_arity)) in info.methods.iter().enumerate() {
         let w = if *m_arity == info.subdict_count {
@@ -4304,7 +4547,7 @@ fn mk_body(b: &mut Builder, info: &InstInfo) {
         } else {
             let cb = (3 + info.subdict_count) * 8;
             let c = b.reg();
-            b.line(&alloc_call(&c, cb, block::KIND_CLOSURE));
+            b.line(&shaped_alloc_call(&c, cb, block::KIND_CLOSURE, reg.closure_desc(method)));
             let cw = b.reg();
             b.line(&format!(
                 "{cw} = ptrtoint ptr @{app} to i64",
@@ -4828,7 +5071,7 @@ impl CoreEmitter<'_, '_> {
                 }
                 let bytes = (3 + env.len()) * 8;
                 let c = self.b.reg();
-                self.b.line(&alloc_call(&c, bytes, block::KIND_CLOSURE));
+                self.b.line(&shaped_alloc_call(&c, bytes, block::KIND_CLOSURE, self.reg.closure_desc(&fn_id.0)));
                 let cw = self.b.reg();
                 self.b.line(&format!(
                     "{cw} = ptrtoint ptr @{app} to i64",
@@ -6595,6 +6838,7 @@ fn reify(out: &mut Vec<QWord>, e: &Core, reg: &Registry) -> Result<()> {
             }
             q_imm(out, quote_op::LAM);
             out.push(QWord::Clo(format!("{}.app", fn_id.0)));
+            q_imm(out, reg.closure_desc(&fn_id.0));
             q_imm(out, arity as u64);
             q_imm(out, env.len() as u64);
             for a in env {
@@ -6934,6 +7178,7 @@ fn canon_lift_shape(
                 vals.push(canon_lift_shape(b, reg, f, base)?);
             }
             let words = fields.len() as u64;
+            let map: Vec<Class> = fields.iter().map(canon_class).collect();
             match tag_at {
                 Some((offset, size)) => {
                     let p = b.gep(base, *offset as usize);
@@ -6941,7 +7186,7 @@ fn canon_lift_shape(
                     b.line(&format!("{t} = load i{}, ptr {p}, align 1", size * 8));
                     let tw = b.reg();
                     b.line(&format!("{tw} = zext i{} {t} to i64", size * 8));
-                    let desc = dynamic_shape_desc(b, reg, words, &tw);
+                    let desc = dynamic_shape_desc(b, reg, &map, &tw);
                     let blk = b.reg();
                     b.line(&format!("{blk} = call ptr @cinch_alloc_ctor(i64 {}, i64 {desc})", 8 * words));
                     for (i, v) in vals.iter().enumerate() {
@@ -6951,10 +7196,21 @@ fn canon_lift_shape(
                     b.line(&format!("{w} = ptrtoint ptr {blk} to i64"));
                     w
                 }
-                None => ctor_block_word(b, reg.shape_desc(words, *tag), &vals),
+                None => ctor_block_word(b, reg.shape_desc(&map, *tag), &vals),
             }
         }
     })
+}
+
+/// The class of the safe word a canonical shape lifts to: a byte payload
+/// and an ADT are fresh blocks, a scalar, a handle and the unit word are
+/// not counted.
+fn canon_class(shape: &crate::core::CanonShape) -> Class {
+    use crate::core::CanonShape;
+    match shape {
+        CanonShape::Bytes { .. } | CanonShape::Ctor { .. } => Class::Obj,
+        CanonShape::Scalar { .. } | CanonShape::Handle { .. } | CanonShape::Unit => Class::Raw,
+    }
 }
 
 /// Store one safe value word into its canonical memory shape (the
@@ -7106,12 +7362,12 @@ fn canon_import_body(b: &mut Builder, reg: &Registry, plan: &ForeignPlan) -> Res
             b.start(&labels[i]);
             let payload = canon_lift_shape(b, reg, &case.payload, base)?;
             // A zero-field constructor is its header alone.
-            let fields = if matches!(case.payload, crate::core::CanonShape::Unit) {
-                Vec::new()
+            let (fields, map) = if matches!(case.payload, crate::core::CanonShape::Unit) {
+                (Vec::new(), Vec::new())
             } else {
-                vec![payload]
+                (vec![payload], vec![canon_class(&case.payload)])
             };
-            let w = ctor_block_word(b, reg.shape_desc(fields.len() as u64, case.safe_tag), &fields);
+            let w = ctor_block_word(b, reg.shape_desc(&map, case.safe_tag), &fields);
             b.store_at(&slot, 0, &w);
             b.line(&format!("br label %{join}"));
             if i + 1 < ret.cases.len() {
@@ -7153,7 +7409,7 @@ fn canon_import_body(b: &mut Builder, reg: &Registry, plan: &ForeignPlan) -> Res
             crate::core::CanonShape::Ctor { tag_at: Some(_), .. } => {
                 // An enum value: its block's header carries the
                 // discriminant as its tag.
-                let desc = dynamic_shape_desc(b, reg, 0, &v);
+                let desc = dynamic_shape_desc(b, reg, &[], &v);
                 let blk = b.reg();
                 b.line(&format!("{blk} = call ptr @cinch_alloc_ctor(i64 0, i64 {desc})"));
                 let w = b.reg();
@@ -7161,9 +7417,12 @@ fn canon_import_body(b: &mut Builder, reg: &Registry, plan: &ForeignPlan) -> Res
                 w
             }
             crate::core::CanonShape::Ctor { tag, tag_at: None, fields } => {
+                // One flat core value crosses: a scalar in the first
+                // field, and nothing else is stored, so nothing is
+                // counted.
                 let blk = b.reg();
                 let words = fields.len() as u64;
-                b.line(&ctor_alloc_call(&blk, 8 * words, reg.shape_desc(words, *tag)));
+                b.line(&ctor_alloc_call(&blk, 8 * words, reg.raw_shape_desc(words, *tag)));
                 if !fields.is_empty() {
                     b.store_at(&blk, 0, &v);
                 }
@@ -7298,14 +7557,14 @@ fn canon_export_entry(out: &mut String, plan: &ForeignPlan, reg: &Registry) -> R
                         let t = b.reg();
                         b.line(&format!("{t} = zext i32 {v} to i64"));
                         if matches!(step, CanonStep::Tag) {
-                            let desc = dynamic_shape_desc(&mut b, reg, 0, &t);
+                            let desc = dynamic_shape_desc(&mut b, reg, &[], &t);
                             let blk = b.reg();
                             b.line(&format!("{blk} = call ptr @cinch_alloc_ctor(i64 0, i64 {desc})"));
                             let r = b.reg();
                             b.line(&format!("{r} = ptrtoint ptr {blk} to i64"));
                             r
                         } else {
-                            ctor_block_word(&mut b, reg.shape_desc(1, 0), &[t])
+                            ctor_block_word(&mut b, reg.shape_desc(&[Class::Raw], 0), &[t])
                         }
                     }
                 }
@@ -7608,8 +7867,8 @@ fn prim_wrapper_unit(
         header: fn_header(name, plan.arity, None, &vec![true; plan.arity]),
         allocas: b.allocas,
         code: b.code,
-        stub: stub_def(name, plan.arity),
-        clo: clo_def(name, plan.arity),
+        stub: stub_def(reg, name, plan.arity),
+        clo: clo_def(reg, name, plan.arity),
         scan,
         lang_facts: UnitLang {
             pure: plan.pure,
