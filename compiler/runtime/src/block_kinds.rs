@@ -12,23 +12,43 @@
 //   rc      40 bits, signed: 0 immortal, > 0 a single-threaded count,
 //           < 0 reserved for atomic (multi-threaded) counts
 //   kind     8 bits: one of the `KIND_*` constants below
-//   layout  16 bits: the payload size in 64-bit words; `LAYOUT_BIG`
-//           means the byte size is in the word before the header
-//           (offset -16)
+//   layout  16 bits: for a constructor block (`KIND_CTOR`), its
+//           constructor's layout id; for every other kind, the payload
+//           size in 64-bit words. `LAYOUT_BIG` is the escape: the
+//           value is in the word before the header (offset -16), a
+//           constructor descriptor for a constructor block, the byte
+//           size otherwise
 //
 // A count never saturates and needs no overflow check: the heap is capped
 // below 8 * 2^RC_BITS bytes, so fewer than `RC_MAX` words can ever hold a
 // reference to one block. There is no sticky "immortal" state.
 //
-// The kind namespace is separate from constructor tags and from the
-// runtime's in-block `Boxed::kind` word: both of those stay in word 0 of
-// the payload.
+// Constructor blocks carry no tag word: the tag is in the layout id. The
+// code generator gives each data type one group of `2^CTOR_TAG_BITS`
+// consecutive ids, `id = group << CTOR_TAG_BITS | tag`, so a type's
+// `base` is `group << CTOR_TAG_BITS` and `tag = id - base = id &
+// CTOR_TAG_MASK`. The mask form needs no knowledge of the scrutinee's
+// type, which is what lets a `case`, the quote evaluator and the task
+// runtime read a tag without it. The id also indexes the program's
+// layout table (`@__cinch_layouts`, registered through
+// `cinch_layouts_register`), whose entry gives the payload size.
+//
+// A constructor that does not fit (a type with more than
+// `2^CTOR_TAG_BITS` constructors, or a program with more types than
+// `CTOR_GROUPS`) is escaped: its header layout is `LAYOUT_BIG` and the
+// word at -16 is its full descriptor, `index << CTOR_ESC_INDEX_SHIFT |
+// tag << CTOR_ESC_TAG_SHIFT | LAYOUT_BIG`. A descriptor is what generated
+// code hands `cinch_alloc_ctor`: a regular id (below `LAYOUT_BIG`) or an
+// escaped descriptor, and its low `LAYOUT_BITS` are the header's layout
+// either way.
+//
+// The kind namespace is separate from constructor tags.
 
 /// No kind: a zero header never belongs to a live block.
 pub const KIND_NONE: u8 = 0;
-/// A constructor block `{ tag; fields... }`, including tuples, the
-/// prelude ADTs built by primitives, and boundary-layout (`repr(C)`)
-/// payloads.
+/// A constructor block `{ fields... }` (the tag is in the header's layout
+/// id), including tuples, the prelude ADTs built by primitives, and
+/// boundary-layout (`repr(C)`) payloads.
 pub const KIND_CTOR: u8 = 1;
 /// A closure `{ code; arity; nfilled; saved... }`.
 pub const KIND_CLOSURE: u8 = 2;
@@ -91,9 +111,78 @@ pub const RC_MAX: i64 = (1i64 << (RC_BITS - 1)) - 1;
 /// The most negative count (the atomic range's far end).
 pub const RC_MIN: i64 = -(1i64 << (RC_BITS - 1));
 
-/// The `layout` value saying the payload size is stored out of line, in
-/// the word at offset -16: the payload is at least this many words.
+/// The `layout` value saying the real value is stored out of line, in
+/// the word at offset -16: a constructor block's descriptor, or another
+/// kind's payload byte size (the payload is at least this many words).
 pub const LAYOUT_BIG: u16 = field_mask(LAYOUT_BITS) as u16;
+
+/// Width of the tag inside a regular constructor layout id (its low bits).
+pub const CTOR_TAG_BITS: u32 = 6;
+/// The tag of a regular layout id is `id & CTOR_TAG_MASK`.
+pub const CTOR_TAG_MASK: u64 = field_mask(CTOR_TAG_BITS);
+/// How many data types get a group of regular ids: every id of every
+/// group stays below `LAYOUT_BIG`.
+pub const CTOR_GROUPS: u64 = (LAYOUT_BIG as u64) >> CTOR_TAG_BITS;
+/// Where an escaped descriptor keeps its tag, and how wide it is.
+pub const CTOR_ESC_TAG_SHIFT: u32 = LAYOUT_BITS;
+pub const CTOR_ESC_TAG_BITS: u32 = 24;
+/// Where an escaped descriptor keeps its layout table index (the rest of
+/// the word).
+pub const CTOR_ESC_INDEX_SHIFT: u32 = CTOR_ESC_TAG_SHIFT + CTOR_ESC_TAG_BITS;
+
+const _: () = assert!(CTOR_TAG_BITS < LAYOUT_BITS);
+const _: () = assert!(((CTOR_GROUPS << CTOR_TAG_BITS) - 1) < LAYOUT_BIG as u64);
+const _: () = assert!(CTOR_ESC_INDEX_SHIFT < 64);
+
+/// A regular constructor layout id: `tag` of the data type in `group`
+/// (`group < CTOR_GROUPS`, `tag <= CTOR_TAG_MASK`).
+pub const fn ctor_id(group: u64, tag: u64) -> u64 {
+    (group << CTOR_TAG_BITS) | tag
+}
+
+/// The escaped descriptor of `tag` whose layout table entry is `index`.
+pub const fn ctor_escaped(index: u64, tag: u64) -> u64 {
+    (index << CTOR_ESC_INDEX_SHIFT) | (tag << CTOR_ESC_TAG_SHIFT) | LAYOUT_BIG as u64
+}
+
+/// The header layout field a descriptor stores: the id itself, or
+/// `LAYOUT_BIG` for an escaped one.
+pub const fn ctor_layout_field(desc: u64) -> u16 {
+    (desc & field_mask(LAYOUT_BITS)) as u16
+}
+
+/// The constructor tag of a block whose header layout is `layout` and,
+/// when that is `LAYOUT_BIG`, whose descriptor word at -16 is `ext`.
+pub const fn ctor_tag(layout: u16, ext: u64) -> u64 {
+    if layout == LAYOUT_BIG {
+        (ext >> CTOR_ESC_TAG_SHIFT) & field_mask(CTOR_ESC_TAG_BITS)
+    } else {
+        layout as u64 & CTOR_TAG_MASK
+    }
+}
+
+/// The layout table index of a constructor block, as for [`ctor_tag`].
+pub const fn ctor_index(layout: u16, ext: u64) -> u64 {
+    if layout == LAYOUT_BIG {
+        ext >> CTOR_ESC_INDEX_SHIFT
+    } else {
+        layout as u64
+    }
+}
+
+/// Width of the payload size, in words, in the low bits of a layout table
+/// entry. The entry's high bits are reserved for the pointer map.
+pub const LAYOUT_ENTRY_WORDS_BITS: u32 = 32;
+
+/// A layout table entry for a constructor of `words` payload words.
+pub const fn layout_entry(words: u64) -> u64 {
+    words & field_mask(LAYOUT_ENTRY_WORDS_BITS)
+}
+
+/// The payload size in words a layout table entry records.
+pub const fn layout_entry_words(entry: u64) -> u64 {
+    entry & field_mask(LAYOUT_ENTRY_WORDS_BITS)
+}
 
 /// Encode a header word. `rc` must be in `RC_MIN..=RC_MAX`; it is stored
 /// in two's complement in its field.
@@ -120,7 +209,8 @@ pub const fn header_layout(h: u64) -> u16 {
     ((h >> LAYOUT_SHIFT) & field_mask(LAYOUT_BITS)) as u16
 }
 
-/// The header of a static (immortal) block of `words` payload words.
-pub const fn static_header(kind: u8, words: u16) -> u64 {
-    header(RC_IMMORTAL, kind, words)
+/// The header of a static (immortal) block: `layout` is the payload size
+/// in words, or a constructor's layout field.
+pub const fn static_header(kind: u8, layout: u16) -> u64 {
+    header(RC_IMMORTAL, kind, layout)
 }

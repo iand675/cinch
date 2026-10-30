@@ -16,10 +16,12 @@ use std::collections::BTreeMap;
 use std::fmt;
 
 pub const SCHEMA_VERSION: u32 = 1;
-/// 2: every block carries a header word at offset -8 (count, kind, layout),
-/// statics included; `cinch_alloc_raw`/`cinch_alloc` take the block kind;
-/// `cinch_free` really frees; small `Nat`/`Int` are immediates with low bit 1.
-pub const RUNTIME_ABI_VERSION: u32 = 2;
+/// 3: constructor blocks carry no tag word; the header's layout id is
+/// `group << 6 | tag`, sizes come from `@__cinch_layouts`, constructors
+/// allocate through `cinch_alloc_ctor`, and runtime boxes keep their kind in
+/// the header only. (2: the header word at -8 and small `Nat`/`Int`
+/// immediates.)
+pub const RUNTIME_ABI_VERSION: u32 = 3;
 pub const LANGUAGE_VERSION: &str = "draft-0.2+amendments";
 
 /// A reference to an imported module's interface identity.

@@ -591,7 +591,7 @@ fn emit_ir_references_the_constant_directly() {
     );
     for l in &lit_lines {
         assert!(
-            l.contains("internal constant { i64, i64, ptr, i64, i64, i64, ptr,"),
+            l.contains("internal constant { i64, ptr, i64, i64, ptr,"),
             "the constant is the composite object (two headered blocks + bytes): {l}"
         );
         assert!(!l.contains("cinch_bytes_from_data"), "no materialisation: {l}");

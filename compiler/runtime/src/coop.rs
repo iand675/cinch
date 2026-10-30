@@ -11,9 +11,9 @@
 //! (`compiler/src/core.rs`: the closure record is `{ code; arity; nfilled;
 //! saved[0..] }` and `code` has signature `i64 (ptr self, i64 argc, ptr
 //! argv)`). The body returns the prelude `Result e a` word of the task
-//! outcome ABI: a block whose tag word is [`TASK_ERR_TAG`] (the prelude
-//! `Err`, failure) or [`TASK_OK_TAG`] (the prelude `Ok`, success) and
-//! whose single field word is the payload. Those conventions are
+//! outcome ABI: a constructor block whose header tag is [`TASK_ERR_TAG`]
+//! (the prelude `Err`, failure) or [`TASK_OK_TAG`] (the prelude `Ok`,
+//! success) and whose single field word is the payload. Those conventions are
 //! `crate::task`'s, reused here verbatim, so a body is identical in both
 //! backends. Because the backend is single-threaded its state needs no
 //! atomics (the current task is a thread-local pointer), but every
@@ -116,14 +116,14 @@ use crate::task::{apply_closure, TASK_ERR_TAG, TASK_OK_TAG};
 /// The Unit word passed to a task body (the same word `crate::task` passes).
 const UNIT_WORD: i64 = 0;
 
-/// The tag word of a `Result` block.
+/// The constructor tag of a `Result` block (in its header's layout id).
 fn result_tag(result: i64) -> i64 {
-    unsafe { *(result as *const i64) }
+    (unsafe { crate::block::ctor_tag_of(result as usize as *const u8) }) as i64
 }
 
 /// The single field word of a `Result` block.
 fn result_payload(result: i64) -> i64 {
-    unsafe { *((result as *const i64).add(1)) }
+    unsafe { *(result as *const i64) }
 }
 
 /// One spawned task's state.

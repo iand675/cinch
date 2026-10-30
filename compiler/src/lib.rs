@@ -18,6 +18,7 @@ pub mod lsp;
 pub mod parser;
 pub mod repl;
 pub mod repr;
+pub mod specialize;
 pub mod store;
 pub mod types;
 

@@ -11,8 +11,9 @@
 //! - `Int`: the `i64` itself.
 //! - `Bool`: 0 or 1.
 //! - `Unit`: 0.
-//! - ADT values: `ptrtoint` of a heap block `{ i64 tag; i64 field0; ... }`
-//!   with `tag` the constructor index in declaration order.
+//! - ADT values: `ptrtoint` of a constructor block `{ i64 field0; ... }`
+//!   whose header's layout id carries the tag, the constructor index in
+//!   declaration order (`runtime/src/block_kinds.rs`).
 //! - Function values: `ptrtoint` of a closure record (below).
 //! - Dictionaries: `ptrtoint` of a record `{ i64 nmeth; i64 meth0; ... }`
 //!   where each `methN` is a function value.
@@ -1702,8 +1703,10 @@ pub enum Core {
     App(Box<Core>, Vec<Core>),
     /// Hoisted lambda: create a closure over `env` for function `fn_id`,
     /// whose parameters are `env` followed by the lambda's own parameter(s).
-    /// The hoisted unit shares the enclosing unit's type parameters.
-    Lam { fn_id: GlobalId, env: Vec<Core> },
+    /// `classes` is the hoisted unit's instantiation vector: the
+    /// enclosing definition's identity vector at lowering, substituted
+    /// when unfolding copies the closure into another unit.
+    Lam { fn_id: GlobalId, env: Vec<Core>, classes: Vec<Class> },
     /// `let`, with the binder's class.
     Let(LocalId, Class, Box<Core>, Box<Core>),
     /// A two-way decision point: the condition and its two weighted
@@ -2495,7 +2498,7 @@ pub enum FieldShape {
 /// the slot convention).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CtorLayout {
-    /// The recorded payload size in bytes (after the tag word).
+    /// The recorded payload size in bytes (the whole block payload).
     pub payload: u64,
     /// The store plan per runtime field slot.
     pub fields: Vec<FieldAccess>,
@@ -2727,6 +2730,12 @@ pub struct UnitRepr {
     /// For constructor units: the class of each runtime field, over the
     /// data type's own parameters (`Cons` is `[Param(0), Obj]`).
     pub fields: Vec<Class>,
+    /// For constructor units: the qualified data type the constructor
+    /// builds (`Data.Core.List`), so code generation can give each type's
+    /// constructors consecutive layout ids. `None` for a type of one
+    /// constructor that the unit itself names (tuples) and for every
+    /// other unit.
+    pub data: Option<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -3647,6 +3656,12 @@ pub struct OptReport {
     /// Justification identities the rules relied on, for the artifact
     /// manifest's `assumptions.declared`.
     pub assumptions: Vec<String>,
+    /// Representation copies the collector emitted (`crate::specialize`),
+    /// one `unit@letters` name per reached class vector, sorted.
+    pub versions: Vec<String>,
+    /// Instantiation sites whose class vector was missing or not concrete
+    /// (padded with `Raw`, which can only leak, never free a live block).
+    pub unrecorded: usize,
 }
 
 // ------------------------------------------------------------- core utilities
@@ -3677,8 +3692,8 @@ fn core_eq(a: &Core, b: &Core) -> bool {
         (Core::App(f1, a1), Core::App(f2, a2)) => {
             core_eq(f1, f2) && a1.len() == a2.len() && a1.iter().zip(a2).all(|(x, y)| core_eq(x, y))
         }
-        (Core::Lam { fn_id: g1, env: e1 }, Core::Lam { fn_id: g2, env: e2 }) => {
-            g1 == g2 && e1.len() == e2.len() && e1.iter().zip(e2).all(|(x, y)| core_eq(x, y))
+        (Core::Lam { fn_id: g1, env: e1, classes: c1 }, Core::Lam { fn_id: g2, env: e2, classes: c2 }) => {
+            g1 == g2 && c1 == c2 && e1.len() == e2.len() && e1.iter().zip(e2).all(|(x, y)| core_eq(x, y))
         }
         (Core::Let(l1, c1, v1, b1), Core::Let(l2, c2, v2, b2)) => {
             l1 == l2 && c1 == c2 && core_eq(v1, v2) && core_eq(b1, b2)
@@ -4009,9 +4024,10 @@ fn renumber_core(e: &Core, nparams: usize) -> Core {
             Core::Demand(d) => Core::Demand(Box::new(rw(d))),
             Core::InstDict(g, args, v) => Core::InstDict(g.clone(), args.iter().map(rw).collect(), v.clone()),
             Core::App(f, args) => Core::App(Box::new(rw(f)), args.iter().map(rw).collect()),
-            Core::Lam { fn_id, env } => Core::Lam {
+            Core::Lam { fn_id, env, classes } => Core::Lam {
                 fn_id: fn_id.clone(),
                 env: env.iter().map(rw).collect(),
+                classes: classes.clone(),
             },
             Core::Let(l, c, v, body) => Core::Let(
                 *map.get(l).unwrap_or(l),
@@ -4151,9 +4167,10 @@ fn instantiate(
                 Box::new(go(f, holes, binds, ren, next)),
                 args.iter().map(|a| go(a, holes, binds, ren, next)).collect(),
             ),
-            Core::Lam { fn_id, env } => Core::Lam {
+            Core::Lam { fn_id, env, classes } => Core::Lam {
                 fn_id: fn_id.clone(),
                 env: env.iter().map(|a| go(a, holes, binds, ren, next)).collect(),
+                classes: classes.clone(),
             },
             Core::Let(l, c, v, body) => {
                 let v = go(v, holes, binds, ren, next);
@@ -4303,7 +4320,7 @@ fn match_pat(
                 && match_pat(f1, holes, f2, binds, cb)
                 && a1.iter().zip(a2).all(|(x, y)| match_pat(x, holes, y, binds, cb))
         }
-        (Core::Lam { fn_id: g1, env: e1 }, Core::Lam { fn_id: g2, env: e2 }) => {
+        (Core::Lam { fn_id: g1, env: e1, .. }, Core::Lam { fn_id: g2, env: e2, .. }) => {
             g1 == g2
                 && e1.len() == e2.len()
                 && e1.iter().zip(e2).all(|(x, y)| match_pat(x, holes, y, binds, cb))
@@ -4864,7 +4881,7 @@ fn scan_calls(e: &Core, f: &mut impl FnMut(&GlobalId)) {
                 scan_calls(a, f);
             }
         }
-        Core::Lam { fn_id, env } => {
+        Core::Lam { fn_id, env, .. } => {
             f(fn_id);
             for a in env {
                 scan_calls(a, f);
@@ -5197,7 +5214,7 @@ fn pure_value(
             }
             Ok(())
         }
-        Core::Lam { fn_id, env } => {
+        Core::Lam { fn_id, env, .. } => {
             if !cx.pure.get(&fn_id.0).copied().unwrap_or(false) {
                 return Err("effect barrier: the callback performs effects".to_string());
             }
@@ -5332,12 +5349,13 @@ impl Driver<'_> {
         // must not move is memo and demand structure (supercompilation
         // section 3). An eager pipeline's pure-justification rule is the
         // one that refuses effectful callbacks (modules section 5).
-        let callbacks: Vec<&Core> = if is_fold {
-            let mut v = vec![&args[1]];
+        // A map-headed chain's own callback (`args[0]`) is the outermost
+        // stage: it is a callback like every other and passes the same
+        // barrier.
+        let callbacks: Vec<&Core> = {
+            let mut v = vec![if is_fold { &args[1] } else { &args[0] }];
             v.extend(maps.iter());
             v
-        } else {
-            maps.iter().collect()
         };
         for c in callbacks {
             let blocked = match c {
@@ -5346,7 +5364,7 @@ impl Driver<'_> {
                     .get(&g.0)
                     .map(|f| has_alloc(&f.body))
                     .unwrap_or(false),
-                Core::Lam { fn_id, env } => {
+                Core::Lam { fn_id, env, .. } => {
                     self.defs
                         .get(&fn_id.0)
                         .map(|f| has_alloc(&f.body))
@@ -5364,14 +5382,11 @@ impl Driver<'_> {
             }
         }
         // Composed callback: `\acc x -> k acc (m1 (m2 ... (mn x)))` for a
-        // fold, `\x -> m1 (m2 ... (mn x))` for a map.
-        let env: Vec<Core> = if is_fold {
-            let mut v = vec![args[1].clone()];
-            v.extend(maps.iter().cloned());
-            v
-        } else {
-            maps.clone()
-        };
+        // fold, `\x -> m0 (m1 (... (mn x)))` for a map, where `m0` is the
+        // map head's own callback. Env slot 0 is `k` or `m0`; inner stage i
+        // is slot i + 1.
+        let mut env: Vec<Core> = vec![if is_fold { args[1].clone() } else { args[0].clone() }];
+        env.extend(maps.iter().cloned());
         let nmaps = maps.len();
         let gid = GlobalId(format!("$fuse.{}", self.fuse_counter));
         self.fuse_counter += 1;
@@ -5390,12 +5405,12 @@ impl Driver<'_> {
                 .collect();
             (params, body)
         } else {
-            let x = LocalId(nmaps);
+            let x = LocalId(nmaps + 1);
             let mut inner = Core::Var(x);
-            for i in (1..nmaps).rev() {
+            for i in (0..=nmaps).rev() {
                 inner = Core::App(Box::new(Core::Var(LocalId(i))), vec![inner]);
             }
-            let params: Vec<String> = (1..=nmaps)
+            let params: Vec<String> = (0..=nmaps)
                 .map(|i| format!("m{i}"))
                 .chain(["x".to_string()])
                 .collect();
@@ -5428,6 +5443,7 @@ impl Driver<'_> {
                 tparams: self.caller.repr.tparams,
                 params: param_classes,
                 fields: Vec::new(),
+                data: None,
             },
         });
         // Rebuild the producer: the map stages collapse into the composed
@@ -5454,7 +5470,7 @@ impl Driver<'_> {
             if is_fold { "fold loop" } else { "map" }
         ));
         self.site("fusion", None);
-        let lam = Core::Lam { fn_id: gid, env };
+        let lam = Core::Lam { fn_id: gid, env, classes: crate::repr::identity(self.caller.repr.tparams) };
         let head = Core::Global(head, vec![state, elem, out]);
         Some(if is_fold {
             Core::App(Box::new(head), vec![args[0].clone(), lam, producer])
@@ -5968,7 +5984,7 @@ fn drop_dead(
 }
 
 /// Mutable views of a term's child positions (for bottom-up rewrites).
-fn child_slots(e: &mut Core) -> Vec<&mut Core> {
+pub(crate) fn child_slots(e: &mut Core) -> Vec<&mut Core> {
     let mut out: Vec<&mut Core> = Vec::new();
     match e {
         Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)
@@ -6018,7 +6034,7 @@ pub fn subst_classes(e: &mut Core, cv: &[Class]) {
         }
     };
     match e {
-        Core::Global(_, v) | Core::Ctor(_, v) | Core::InstDict(_, _, v) => sub(v),
+        Core::Global(_, v) | Core::Ctor(_, v) | Core::InstDict(_, _, v) | Core::Lam { classes: v, .. } => sub(v),
         Core::DictProj(_, _, Some(s)) => sub(&mut s.own),
         Core::Let(_, c, _, _) => *c = c.subst(cv),
         Core::Case { alts, .. } => {
@@ -6031,6 +6047,8 @@ pub fn subst_classes(e: &mut Core, cv: &[Class]) {
             }
         }
         Core::Quote { body: Some(b), .. } => subst_classes(b, cv),
+        // `child_slots` leaves a spine's head out.
+        Core::App(f, _) => subst_classes(f, cv),
         _ => {}
     }
     for k in child_slots(e) {
@@ -6086,8 +6104,8 @@ fn alpha_eq(a: &Core, b: &Core) -> bool {
                     && go(f1, f2, map)
                     && a1.iter().zip(a2).all(|(x, y)| go(x, y, map))
             }
-            (Core::Lam { fn_id: g1, env: e1 }, Core::Lam { fn_id: g2, env: e2 }) => {
-                g1 == g2 && e1.len() == e2.len() && e1.iter().zip(e2).all(|(x, y)| go(x, y, map))
+            (Core::Lam { fn_id: g1, env: e1, classes: c1 }, Core::Lam { fn_id: g2, env: e2, classes: c2 }) => {
+                g1 == g2 && c1 == c2 && e1.len() == e2.len() && e1.iter().zip(e2).all(|(x, y)| go(x, y, map))
             }
             (Core::Let(l1, c1, v1, b1), Core::Let(l2, c2, v2, b2)) => {
                 if c1 != c2 {
@@ -6533,7 +6551,7 @@ fn size_of(e: &Core) -> usize {
     n
 }
 
-fn child_slots_imm(e: &Core) -> Vec<&Core> {
+pub(crate) fn child_slots_imm(e: &Core) -> Vec<&Core> {
     let mut out: Vec<&Core> = Vec::new();
     match e {
         Core::Int(_) | Core::ConstBig { .. } | Core::ConstBytes(_) | Core::ConstString { .. } | Core::ConstSym(_) | Core::Bool(_) | Core::Unit | Core::Global(..)

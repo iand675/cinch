@@ -899,6 +899,7 @@ fn finalize_fn(
             tparams: cx.tparams.len(),
             params: param_classes,
             fields: Vec::new(),
+            ..Default::default()
         },
     }
 }
@@ -972,6 +973,9 @@ fn lower(e: &ECore, cx: &LowerCx) -> crate::core::Core {
         ECore::MkClos { fn_id, env } => C::Lam {
             fn_id: fn_id.clone(),
             env: env.iter().map(low).collect(),
+            // A closure's unit is the definition's own hoisted lambda or
+            // `letrec` member: it shares the definition's parameters.
+            classes: crate::repr::identity(cx.tparams.len()),
         },
         ECore::Let(l, v, body) => C::Let(*l, cx.local(*l), Box::new(low(v)), Box::new(low(body))),
         ECore::If(c, t, f) => C::If(
@@ -4743,6 +4747,9 @@ impl Checker {
                     tparams: n,
                     params: crate::repr::identity(n),
                     fields: crate::repr::identity(n),
+                    // A tuple type has one constructor, which the unit
+                    // names, so it needs no data type of its own.
+                    data: None,
                 },
             });
         }

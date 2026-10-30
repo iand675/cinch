@@ -222,7 +222,7 @@ const PRODUCER: &str = r#"
   step3 k = case k of
     0 -> Yield 3 1
     1 -> Yield 5 2
-    2 -> Done
+    _ -> Done
 
   srcP :: Producer Nat Nat
   srcP = Producer step3 0
@@ -248,7 +248,7 @@ module TracePipe where
   step3 k = case k of
     0 -> Yield 3 1
     1 -> Yield 5 2
-    2 -> Done
+    _ -> Done
 
   srcP :: Producer Nat Nat
   srcP = Producer step3 0
@@ -283,24 +283,69 @@ module TracePipe where
 }
 
 #[test]
-fn fusion_preserves_the_pull_boundary() {
-    // A producer whose third step takes the fault path: `prod-take 2`
-    // means the fused pipeline must never pull it.
+fn map_headed_fusion_composes_every_stage() {
+    // A map chain that is not consumed by a fold in the same unit takes the
+    // map-headed fusion path. Every stage's callback must run: the head's
+    // own (`addHundred`) as well as the inner ones. Each dropped-stage
+    // combination gives a distinct sum, so the exit code says which.
     let src = r#"
-module Pull where
-  stepF :: Nat -> Step Nat Nat
-  stepF k = case k of
+module MapHead where
+  step3 :: Nat -> Step Nat Nat
+  step3 k = case k of
     0 -> Yield 3 1
     1 -> Yield 5 2
+    _ -> Done
+
+  srcP :: Producer Nat Nat
+  srcP = Producer step3 0
+
+  addOne :: Nat -> Nat
+  addOne x = nat-add x 1
+
+  timesTen :: Nat -> Nat
+  timesTen x = nat-mul x 10
+
+  addHundred :: Nat -> Nat
+  addHundred x = nat-add x 100
+
+  #[inline(never)]
+  pipe :: Producer Nat Nat
+  pipe = prod-map addHundred (prod-map timesTen (prod-map addOne srcP))
+
+  main :: Int
+  -- (3+1)*10+100 + (5+1)*10+100 = 300; addOne alone gives 10, without
+  -- the head 100, without addOne 280
+  main =
+    let t = prod-fold 0 nat-add pipe in
+    if t == 300 then 0 else if t == 10 then 3 else if t == 100 then 4 else if t == 280 then 5 else 1
+"#;
+    let base = run("map-head-base", src, &TargetProfile { fuel: 0, ..TargetProfile::native() });
+    assert_eq!(base, 0, "the unfused baseline must compute 300");
+    let fused = run("map-head-fused", src, &TargetProfile::native());
+    assert_eq!(fused, 0, "the fused pipeline must run every map stage");
+}
+
+#[test]
+fn fusion_preserves_the_pull_boundary() {
+    // A producer whose third step records that it ran: `prod-take 2`
+    // means the fused pipeline must never pull it, so the log stays 0.
+    let src = r#"
+module Pull where
+  stepF :: Bytes -> Nat -> Step Nat Nat
+  stepF log k = case k of
+    0 -> Yield 3 1
+    1 -> Yield 5 2
+    _ -> let _p = bytes-set log 0 1 in Done
 
   doubleN :: Nat -> Nat
   doubleN x = nat-add x x
 
   main :: Int
   main =
-    let s = Producer stepF 0 in
+    let log = bytes-new 1 in
+    let s = Producer (stepF log) 0 in
     let taken = prod-take 2 (prod-map doubleN s) in
-    if prod-fold 0 nat-add taken == 16 then 0 else 1
+    if prod-fold 0 nat-add taken == 16 && bytes-get log 0 == 0 then 0 else 1
 "#;
     let fused = run("pull-fused", src, &TargetProfile::native());
     assert_eq!(fused, 0, "the fused pipeline must pull exactly two steps");
@@ -322,7 +367,7 @@ module AllocBlock where
   step3 k = case k of
     0 -> Yield 3 1
     1 -> Yield 5 2
-    2 -> Done
+    _ -> Done
 
   mem :: Nat -> Nat
   mem x = let ~y = nat-add x x in copyOut (demand y)

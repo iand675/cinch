@@ -327,3 +327,28 @@ signature Monoid a where
   there and preserve the refinement by construction.
 - **Rejected.** An equation for a name the block does not declare as a
   method (the default needs the method's signature in the same block).
+
+# 16 Guards and match coverage
+
+A `case` alternative may carry a guard, `pattern | guard -> body`. The
+first alternative whose pattern matches and whose guard evaluates to
+`True` runs; a failing guard falls through to the later alternatives in
+source order.
+
+- **A guarded alternative covers nothing.** Coverage is checked over the
+  unguarded alternatives alone: a match is accepted only when they cover
+  every constructor and value of the scrutinee (an integer, `Nat` or
+  `Sym` column needs a catch-all, since its literals never exhaust the
+  type). The checker does not reason about guard expressions, so
+  `x | x < n` followed by `x | x >= n` is rejected; the last case is
+  written unguarded. Function equations follow the same rule, so a
+  literal equation ladder ends in a catch-all equation.
+- **The always-true guard.** Cinch has no `otherwise`; the literal guard
+  `True` is the always-true spelling and counts as unguarded. Any other
+  expression, even one that is constantly true, is a guard.
+- **The diagnostic.** A match that fails coverage is a compile error
+  naming the uncovered constructor or value (for example "non-exhaustive
+  patterns: constructor None is not covered by an unguarded row") and
+  suggesting an unguarded final alternative. A well-typed match
+  therefore never runs out of alternatives at runtime; there is no
+  fall-through fault (`design/no-faults.md` section 3).

@@ -273,7 +273,7 @@ module Main where
     );
     let proj = body_of(&ir, "Main.proj");
     assert!(
-        !proj.contains("cinch_alloc_raw") && !proj.contains("call"),
+        !proj.contains("cinch_alloc") && !proj.contains("call"),
         "the projection runs at zero cost, got:\n{proj}"
     );
     assert!(
@@ -283,7 +283,7 @@ module Main where
     let ne1 = body_of(&ir, "Main.ne1");
     let list1 = body_of(&ir, "Main.list1");
     assert!(
-        !ne1.contains("cinch_alloc_raw") && !ne1.contains("NonEmpty"),
+        !ne1.contains("cinch_alloc") && !ne1.contains("NonEmpty"),
         "a refined value's construction allocates no wrapper, got:\n{ne1}"
     );
     assert_eq!(

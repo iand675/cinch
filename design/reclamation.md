@@ -421,9 +421,48 @@ drift. Where S1 differs from the plan above:
   through `block::free`, the one place a different backing allocator
   plugs in. The header spends no bits on allocator identity.
 
-**Later, optional.** Moving the constructor tag and runtime `kind` into the
-header saves one word per block, as Lean does. It shifts every field offset
-by -8, so it is deliberately not part of the first slices.
+**As built (S1b).** The constructor tag is in the header and constructor
+blocks have no tag word: a `Cons` cell is 24 bytes. Where S1b differs
+from the row in section 10:
+
+- Layout ids are assigned at whole-program emission, one group of
+  `2^CTOR_TAG_BITS` (64) consecutive ids per data type, `id = group << 6 |
+  tag`. So `tag = id - base` with `base = group << 6`, and every reader
+  computes it as `id & CTOR_TAG_MASK`. `Core::Case` carries no type, so
+  the mask is what lets a `case`, the quote evaluator and the task
+  runtime read a tag without knowing the scrutinee's type. The cost is
+  the same (load, shift, mask). The id space is sparse: 1023 groups in 16
+  bits.
+- The checker records each constructor unit's data type
+  (`UnitRepr::data`); tuples, which have one constructor, use the unit
+  name. The groups of `Option`, `Result` and `Ordering` are fixed (0, 1,
+  2) because generated code builds them without a constructor unit in
+  hand. A program that declares them with other payloads is refused.
+  Blocks no unit names (canonical ABI lifts, boxed-out nested aggregates,
+  foreign aggregate results) take an anonymous group per payload size:
+  their tags read correctly, but S5's pointer maps will need their real
+  types.
+- `cinch_free` sizes a constructor block from `@__cinch_layouts` (one
+  `i64` per id: the words in the low 32 bits, the high bits reserved for
+  S5's pointer map). A global constructor registers the table through
+  `cinch_layouts_register`. Other kinds keep size-in-header.
+- Escape: a type of more than 64 constructors, or one past the last
+  group, stores `LAYOUT_BIG` in the header and the descriptor `index << 40
+  | tag << 16 | 0xFFFF` at -16. When a program has any escaped type (or
+  any canonical ABI binding, whose enum tags arrive at run time), every
+  tag read branches on `LAYOUT_BIG`. Otherwise tag reads stay
+  branch-free.
+- A `case` whose alternatives are all defaults does not read its
+  scrutinee, so an immediate never reaches a header load. The evaluator
+  follows the same rule.
+- The runtime boxes (`Nat`, `Int`, `Bytes`, `Sym`) dropped their in-block
+  kind word, which duplicated the header kind; the kind checks read the
+  header instead. `cinch_alloc`/`cinch_alloc_raw` refuse `KIND_CTOR`;
+  constructors go through `cinch_alloc_ctor(size, desc)`.
+- Measured: `LIST_1000` went from 56,862 to 48,862 bytes (1,922 blocks
+  both). `Run.Lex` over `Data/HashMap.cinch` went from 18,822,997 to
+  15,077,685 bytes (header bytes 18,379,144 to 14,633,832, minus 20%),
+  with 673,939 blocks and identical output.
 
 ---
 

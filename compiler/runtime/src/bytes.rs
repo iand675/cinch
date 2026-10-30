@@ -1,8 +1,8 @@
 //! Byte buffers backing the language-level `Bytes` type.
 //!
 //! A buffer is a fixed-length byte region behind an `i64` word: the
-//! runtime block is `Boxed<Bytes>` (`compiler/runtime/src/abi.rs`) and
-//! this payload is a stable `#[repr(C)]` pair of length and data
+//! runtime block is a `KIND_BYTES` header block whose payload is this
+//! (`compiler/runtime/src/abi.rs`), a stable `#[repr(C)]` pair of length and data
 //! pointer, so a read-only data-section buffer (a string literal's
 //! constant backing) is the same block shape generated code can emit
 //! directly. The region is owned (heap buffers are allocated here and

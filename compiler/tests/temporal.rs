@@ -434,6 +434,7 @@ module Main where
   down m 3 = down m 2
   down m 2 = down m 1
   down m 1 = copyOut m
+  down m _ = copyOut m
 
   contract recurrence marker for down where
     recur = (copyOut m < 5)

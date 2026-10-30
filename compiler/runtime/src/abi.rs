@@ -27,62 +27,34 @@ pub const EXIT_DIV_ZERO: i32 = 72;
 /// Exit code of the heap-limit fault (`CINCH_HEAP_LIMIT`, [`crate::heap`]).
 pub const EXIT_HEAP_LIMIT: i32 = 73;
 
-/// Block kind tag: a `Nat` value.
-pub const KIND_NAT: i64 = 1;
-
-/// Block kind tag: an `Int` value.
-pub const KIND_INT: i64 = 2;
-
-/// Block kind tag: a `Bytes` buffer.
-pub const KIND_BYTES: i64 = 3;
-
-/// Block kind tag: a `Sym` interned name cell (primitive types
-/// specification section 9).
-pub const KIND_SYM: i64 = 4;
-
-/// Block kind tag: a read-only `Bytes` buffer whose data lives in the
-/// data section (a string literal's constant backing). The payload is
-/// the same [`crate::bytes::Bytes`]; mutation attempts fault (a defined
-/// fault, never a write) instead of touching constant data.
-pub const KIND_BYTES_STATIC: i64 = 5;
-
-/// Heap block behind a bignum word.
-///
-/// `kind` is the first machine word so a corrupt word faults instead of
-/// being misinterpreted; the payload follows. The [`crate::bytes::Bytes`]
-/// payload is a stable `#[repr(C)]` length-and-pointer pair (read-only
-/// data-section buffers are the same shape, `KIND_BYTES_STATIC`); the
-/// `Nat`/`Int` payloads are Rust values whose internal `Vec<u32>` header
-/// is a standard library implementation detail: generated code treats
-/// those blocks as opaque and only passes the word back to this runtime.
-/// Every box is a header block ([`crate::block`]); the header's kind is a
-/// separate namespace from this in-block `kind` word.
-#[repr(C)]
-struct Boxed<T> {
-    kind: i64,
-    value: T,
-}
-
-fn boxed<T>(header_kind: u8, rc: i64, kind: i64, value: T) -> i64 {
-    crate::block::allocate_value(header_kind, rc, Boxed { kind, value }) as usize as i64
+/// Box `value` in a header block of `header_kind` and count `rc`. A box is
+/// the bare payload: its kind is the header's, so it carries no in-block
+/// kind word. The [`crate::bytes::Bytes`] payload is a stable
+/// `#[repr(C)]` length-and-pointer pair (read-only data-section buffers
+/// are the same shape, `KIND_BYTES_STATIC`); the `Nat`/`Int` payloads are
+/// Rust values whose internal `Vec<u32>` header is a standard library
+/// implementation detail: generated code treats those blocks as opaque
+/// and only passes the word back to this runtime.
+fn boxed<T>(header_kind: u8, rc: i64, value: T) -> i64 {
+    crate::block::allocate_value(header_kind, rc, value) as usize as i64
 }
 
 fn box_nat(v: Nat) -> i64 {
-    boxed(crate::block::KIND_NAT, crate::block::RC_FRESH, KIND_NAT, v)
+    boxed(crate::block::KIND_NAT, crate::block::RC_FRESH, v)
 }
 
 fn box_int(v: Int) -> i64 {
-    boxed(crate::block::KIND_INT, crate::block::RC_FRESH, KIND_INT, v)
+    boxed(crate::block::KIND_INT, crate::block::RC_FRESH, v)
 }
 
 pub(crate) fn box_bytes(v: crate::bytes::Bytes) -> i64 {
-    boxed(crate::block::KIND_BYTES, crate::block::RC_FRESH, KIND_BYTES, v)
+    boxed(crate::block::KIND_BYTES, crate::block::RC_FRESH, v)
 }
 
 /// Box one interned name cell (the cell is handed out once per name and
 /// never freed, so its word is the name's identity): an immortal block.
 pub(crate) fn box_sym(v: crate::sym::SymCell) -> i64 {
-    boxed(crate::block::KIND_SYM, crate::block::RC_IMMORTAL, KIND_SYM, v)
+    boxed(crate::block::KIND_SYM, crate::block::RC_IMMORTAL, v)
 }
 
 /// Release the Rust resources a runtime box owns (a `Nat`'s limbs, a heap
@@ -96,24 +68,28 @@ pub(crate) fn box_sym(v: crate::sym::SymCell) -> i64 {
 unsafe fn drop_box_payload(p: *mut u8, header_kind: u8) {
     use crate::block::{KIND_BYTES as B, KIND_INT as I, KIND_NAT as N};
     match header_kind {
-        N => unsafe { std::ptr::drop_in_place(&raw mut (*p.cast::<Boxed<Nat>>()).value) },
-        I => unsafe { std::ptr::drop_in_place(&raw mut (*p.cast::<Boxed<Int>>()).value) },
-        B => unsafe { (*p.cast::<Boxed<crate::bytes::Bytes>>()).value.release() },
+        N => unsafe { std::ptr::drop_in_place(p.cast::<Nat>()) },
+        I => unsafe { std::ptr::drop_in_place(p.cast::<Int>()) },
+        B => unsafe { (*p.cast::<crate::bytes::Bytes>()).release() },
         _ => {}
     }
 }
 
+/// The header kind of the block behind `word`, faulting on null. A
+/// corrupt word faults here instead of being misinterpreted.
+unsafe fn box_kind(word: i64) -> u8 {
+    if word == 0 {
+        raise(Error::CorruptValue);
+    }
+    crate::block::kind(unsafe { crate::block::read_header(word as usize as *const u8) })
+}
+
 /// Read a `Sym` word, faulting on null or wrong-kind blocks.
 pub(crate) unsafe fn as_sym<'a>(word: i64) -> &'a crate::sym::SymCell {
-    let p = word as *const Boxed<crate::sym::SymCell>;
-    if p.is_null() {
+    if unsafe { box_kind(word) } != crate::block::KIND_SYM {
         raise(Error::CorruptValue);
     }
-    let b = unsafe { &*p };
-    if b.kind != KIND_SYM {
-        raise(Error::CorruptValue);
-    }
-    &b.value
+    unsafe { &*(word as usize as *const crate::sym::SymCell) }
 }
 
 /// Fault through the `cinch_panic` path: write `msg` to stderr and exit 71.
@@ -222,29 +198,19 @@ pub(crate) fn int_word(v: Int) -> i64 {
 /// Read a boxed `Nat` word, faulting on null or wrong-kind blocks. The
 /// caller has already ruled out an immediate.
 unsafe fn as_nat<'a>(word: i64) -> &'a Nat {
-    let p = word as *const Boxed<Nat>;
-    if p.is_null() {
+    if unsafe { box_kind(word) } != crate::block::KIND_NAT {
         raise(Error::CorruptValue);
     }
-    let b = unsafe { &*p };
-    if b.kind != KIND_NAT {
-        raise(Error::CorruptValue);
-    }
-    &b.value
+    unsafe { &*(word as usize as *const Nat) }
 }
 
 /// Read a boxed `Int` word, faulting on null or wrong-kind blocks. The
 /// caller has already ruled out an immediate.
 unsafe fn as_int<'a>(word: i64) -> &'a Int {
-    let p = word as *const Boxed<Int>;
-    if p.is_null() {
+    if unsafe { box_kind(word) } != crate::block::KIND_INT {
         raise(Error::CorruptValue);
     }
-    let b = unsafe { &*p };
-    if b.kind != KIND_INT {
-        raise(Error::CorruptValue);
-    }
-    &b.value
+    unsafe { &*(word as usize as *const Int) }
 }
 
 /// The magnitude of any `Nat` word: an immediate's lands in `scratch`.
@@ -304,15 +270,11 @@ fn ordering_word(o: std::cmp::Ordering) -> i64 {
 /// data-section buffers (`KIND_BYTES_STATIC`, a string literal's
 /// backing).
 pub(crate) unsafe fn as_bytes<'a>(word: i64) -> &'a crate::bytes::Bytes {
-    let p = word as *const Boxed<crate::bytes::Bytes>;
-    if p.is_null() {
+    let k = unsafe { box_kind(word) };
+    if k != crate::block::KIND_BYTES && k != crate::block::KIND_BYTES_STATIC {
         raise(Error::CorruptValue);
     }
-    let b = unsafe { &*p };
-    if b.kind != KIND_BYTES && b.kind != KIND_BYTES_STATIC {
-        raise(Error::CorruptValue);
-    }
-    &b.value
+    unsafe { &*(word as usize as *const crate::bytes::Bytes) }
 }
 
 /// Read a `Bytes` word for mutation. Buffer writes are part of the
@@ -322,18 +284,11 @@ pub(crate) unsafe fn as_bytes<'a>(word: i64) -> &'a crate::bytes::Bytes {
 /// literal's backing) takes the defined read-only fault instead of a
 /// write to constant data.
 unsafe fn as_bytes_mut<'a>(word: i64) -> &'a mut crate::bytes::Bytes {
-    let p = word as *mut Boxed<crate::bytes::Bytes>;
-    if p.is_null() {
-        raise(Error::CorruptValue);
+    match unsafe { box_kind(word) } {
+        crate::block::KIND_BYTES => unsafe { &mut *(word as usize as *mut crate::bytes::Bytes) },
+        crate::block::KIND_BYTES_STATIC => raise(Error::ReadOnly),
+        _ => raise(Error::CorruptValue),
     }
-    let b = unsafe { &mut *p };
-    if b.kind != KIND_BYTES {
-        if b.kind == KIND_BYTES_STATIC {
-            raise(Error::ReadOnly);
-        }
-        raise(Error::CorruptValue);
-    }
-    &mut b.value
 }
 
 /// Borrow a byte slice from a raw pointer and length.
@@ -379,12 +334,14 @@ pub extern "C" fn cinch_fault_div_zero() -> ! {
 // Allocation
 // ---------------------------------------------------------------------------
 
-/// Validate an allocation request's size and header kind.
+/// Validate an allocation request's size and header kind. A constructor
+/// block needs its layout id, so `KIND_CTOR` goes through
+/// [`cinch_alloc_ctor`] instead.
 fn alloc_request(size: i64, kind: i64, negative: &[u8], bad_kind: &[u8]) -> (usize, u8) {
     if size < 0 {
         panic_exit(negative);
     }
-    if !(1..=i64::from(crate::block::KIND_RAW)).contains(&kind) {
+    if !(1..=i64::from(crate::block::KIND_RAW)).contains(&kind) || kind == i64::from(crate::block::KIND_CTOR) {
         panic_exit(bad_kind);
     }
     (size as usize, kind as u8)
@@ -425,6 +382,35 @@ pub unsafe extern "C" fn cinch_alloc_raw(size: i64, kind: i64) -> *mut u8 {
         b"cinch_alloc_raw called with an unknown block kind",
     );
     unsafe { crate::block::allocate(size, kind, crate::block::RC_FRESH, false) }
+}
+
+/// Allocate a constructor block of `size` uninitialised payload bytes
+/// whose constructor descriptor is `desc` and return the payload pointer.
+/// `desc` is a layout id below `LAYOUT_BIG`, which the header's layout
+/// field holds (the constructor's tag is in its low bits), or an escaped
+/// descriptor, which goes in the word before the header
+/// (`block_kinds.rs`). The block gets `rc = 1` and kind `KIND_CTOR`; the
+/// payload is the fields alone, with no tag word. Negative sizes fault
+/// through `cinch_panic`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn cinch_alloc_ctor(size: i64, desc: i64) -> *mut u8 {
+    if size < 0 {
+        panic_exit(b"cinch_alloc_ctor called with negative size");
+    }
+    unsafe { crate::block::allocate_ctor(size as usize, desc as u64, false) }
+}
+
+/// Install the program's layout table: `len` entries, one per layout id,
+/// each recording its constructor's payload size in words
+/// (`block_kinds.rs`'s `layout_entry`). Generated code calls it from a
+/// global constructor, before any of its own code runs; [`cinch_free`]
+/// sizes constructor blocks from it.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn cinch_layouts_register(table: *const u64, len: i64) {
+    if len < 0 || (len > 0 && table.is_null()) {
+        panic_exit(b"cinch_layouts_register called with a corrupt table");
+    }
+    unsafe { crate::block::register_layouts(table, len as usize) }
 }
 
 /// Deallocate the header block behind `word`: the raw release of a block
@@ -1014,11 +1000,6 @@ mod tests {
     }
 
     #[test]
-    fn kind_tags_are_distinct() {
-        assert_ne!(KIND_NAT, KIND_INT);
-    }
-
-    #[test]
     fn boxing_round_trips_through_the_word_api() {
         unsafe {
             let w = cinch_nat_from_i64(41);
@@ -1166,7 +1147,13 @@ mod tests {
         let freed = || crate::heap::block_stats().3;
         unsafe {
             let before = freed();
-            let ctor = cinch_alloc_raw(16, i64::from(crate::block::KIND_CTOR));
+            // A two-field constructor: id 2 of the test table records two
+            // payload words, and the tag (2) is in the id.
+            let words_of = crate::block::install_test_layouts();
+            let id = crate::block::ctor_id(0, 2);
+            assert_eq!(words_of(id), 2);
+            let ctor = cinch_alloc_ctor(16, id as i64);
+            assert_eq!(crate::block::ctor_tag_of(ctor), 2);
             ctor.cast::<i64>().write(1);
             ctor.cast::<i64>().add(1).write(42);
             cinch_free(ctor as usize as i64);

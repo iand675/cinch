@@ -20,9 +20,10 @@
 //! closure apply-stub ABI (`compiler/src/core.rs`: the closure record is
 //! `{ code; arity; nfilled; saved[0..] }` and `code` has signature
 //! `i64 (ptr self, i64 argc, ptr argv)`). The body returns the prelude
-//! `Result e a` word: a block whose tag word is [`TASK_ERR_TAG`] (the
-//! prelude `Err`, failure) or [`TASK_OK_TAG`] (the prelude `Ok`, success)
-//! and whose single field word is the payload. `joinAllOrCancel` reads
+//! `Result e a` word: a constructor block whose header tag is
+//! [`TASK_ERR_TAG`] (the prelude `Err`, failure) or [`TASK_OK_TAG`] (the
+//! prelude `Ok`, success) and whose single field word, at offset 0, is
+//! the payload. `joinAllOrCancel` reads
 //! this convention: the first failure cancels the siblings and its
 //! payload becomes the join's `Err` payload.
 //!
@@ -244,14 +245,14 @@ impl Scope {
     }
 }
 
-/// The tag word of a `Result` block.
+/// The constructor tag of a `Result` block (in its header's layout id).
 fn result_tag(result: i64) -> i64 {
-    unsafe { *(result as *const i64) }
+    (unsafe { crate::block::ctor_tag_of(result as usize as *const u8) }) as i64
 }
 
 /// The single field word of a `Result` block.
 fn result_payload(result: i64) -> i64 {
-    unsafe { *((result as *const i64).add(1)) }
+    unsafe { *(result as *const i64) }
 }
 
 thread_local! {

@@ -913,6 +913,9 @@ fn write_artifacts(
         ),
         ("fused", (&opt.fused).into()),
         ("discarded", (&opt.discarded).into()),
+        // Option C's representation copies, one per reached class vector.
+        ("representation_versions", (&opt.versions).into()),
+        ("representation_unrecorded", (opt.unrecorded as u64).into()),
     ]);
     // Tail-call status of the recursive call-graph groups (surface
     // grammar local amendments section 9; decision D104): "marked" when
@@ -1225,7 +1228,7 @@ pub fn package_variants(
         // The variant's residual program: the same specialization path
         // the build takes (supercompilation and JIT specification
         // section 5: the driving bounds are profile parameters).
-        let (program, _opt) = crate::core::optimize(&program, profile)?;
+        let (program, _opt) = crate::specialize::optimize(&program, profile)?;
         let ir = crate::codegen::emit_for(profile, &program)?;
         let mut required: Vec<String> = profile.required.clone();
         if profile.artifact != crate::core::ArtifactProfile::Native
@@ -1771,7 +1774,7 @@ pub fn driver_with_profile_opts(
     // Specialization (supercompilation and JIT specification sections
     // 2-5): every residual program is rechecked before installation, and
     // the report records where specialization stopped.
-    let (program, opt) = crate::core::optimize(&program, profile)?;
+    let (program, opt) = crate::specialize::optimize(&program, profile)?;
     write_artifacts(&out_dir, &entry_stem, &ifaces, &manifest_path, &report, &program, &opt, profile, &adapters, opts)?;
     if mode == Mode::Check {
         return Ok(0);
@@ -1857,7 +1860,7 @@ pub fn run_program_objects(
     profile: &crate::core::TargetProfile,
     objects: &[&str],
 ) -> Result<i32> {
-    let (program, _opt) = crate::core::optimize(program, profile)?;
+    let (program, _opt) = crate::specialize::optimize(program, profile)?;
     let ir = codegen::emit_for(profile, &program)?;
     let tmp = scratch_dir("test");
     std::fs::create_dir_all(&tmp).map_err(|e| Error::plain(format!("{}: {e}", tmp.display())))?;
@@ -1893,7 +1896,7 @@ pub fn run_program_io(
     profile: &crate::core::TargetProfile,
     input: &[u8],
 ) -> Result<(i32, String)> {
-    let (program, _opt) = crate::core::optimize(program, profile)?;
+    let (program, _opt) = crate::specialize::optimize(program, profile)?;
     let ir = codegen::emit_for(profile, &program)?;
     let tmp = scratch_dir("test");
     std::fs::create_dir_all(&tmp).map_err(|e| Error::plain(format!("{}: {e}", tmp.display())))?;

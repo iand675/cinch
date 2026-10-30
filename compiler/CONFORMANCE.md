@@ -2261,6 +2261,66 @@ so the embedding sweep stays its own decision.
   `tests/small_nats.rs` covers the boundaries 2^62, 2^63, 2^64 and the
   `Int` edges, promotion and demotion, round trips, and hashing across
   spellings of the same value.
+- **D401 (guards cover nothing; no-faults, 2026-10-30)**: a guarded row
+  covers no value unless its guard is the literal `True` (Cinch has no
+  `otherwise`), so a `case` whose rows can all fail by guard, and a literal
+  match without a catch-all, are compile errors naming the uncovered value
+  and suggesting an unguarded final row. The pattern compiler
+  (`compile_rows`) is the whole coverage check; the second coverage engine
+  (`matrix_covered`, `drop_row_col`) and the runtime fallthrough (`run_out`,
+  which emitted `Core::Fault`, exit 70) are deleted. `literal_ladder`
+  (`#[recursion "bounded(n)"]` depth) accepts a non-recursive catch-all
+  equation as a one-frame base case. The other checker `Fault` producers are
+  dead by static guarantees (unhandled effect operations rejected by effect
+  rows, `getCopy`'s `Fin n` index, template holes, compile-time evaluation).
+  Migrated: 12 matches in 7 test programs; no prelude, bootstrap or example
+  code. `specifications/surface-grammar-local-amendments.md` section 16,
+  `tests/guard_coverage.rs`.
+- **D402 (reclamation S1b as built: the tag lives in the header)**:
+  constructor blocks have no tag word, so a two-field cell is 24 bytes
+  (OCaml, GHC, Lean and Koka's size). Each data type gets a group of 64
+  consecutive layout ids, `id = group << 6 | tag`, and a `case` reads
+  `id & 63`: the same cost as `id - base` without the scrutinee's type,
+  which `Core::Case` does not carry, at the price of a sparse id space
+  (1023 groups). `Option`, `Result` and `Ordering` have fixed groups 0-2
+  because generated code builds them without a constructor unit. Payload
+  sizes come from a codegen-emitted `@__cinch_layouts` table (one i64 per
+  id; size in the low 32 bits, the high bits reserved for S5's pointer
+  map), registered by a global constructor. A type with more than 64
+  constructors, or past the last group, uses id 0xFFFF with a descriptor
+  word at -16, and tag reads check for it only in programs that contain
+  one. A `case` of only defaults loads nothing from its scrutinee, so an
+  immediate is never dereferenced. Runtime boxes keep their kind in the
+  header only. `runtime_abi` is 3. Measured: `Run.Lex` over
+  `Data/HashMap.cinch` 18.8 MB to 15.1 MB, output byte-identical.
+- **D403 (reclamation S4 as built: the specialization collector)**: every
+  `Core` binder, pattern, constructor field and instantiation carries a
+  representation class (`Raw`, `Obj`, `TObj`, or `Param(i)` inside
+  generic bodies; `compiler/src/repr.rs`). After `core::optimize`, the
+  collector (`compiler/src/specialize.rs`) roots at every non-generic unit
+  and copies each reached generic unit once per reached concrete class
+  vector, as `@"<unit>@<letters>"` (R, O, T); instances are copied per
+  vector of their own parameters, and methods with their own type
+  parameters get appended dictionary slots per reached own-vector. At most
+  3^k copies per unit because any constructor application is `Obj`, so
+  nested datatypes (accepted: `Deep :: Nest (Pair a) -> Nest a`)
+  terminate. The manifest's `specialization` section reports
+  `representation_versions` and `representation_unrecorded`; the
+  incremental linker maps a copy to its generic declaration. On
+  `bootstrap_pipeline`'s program the build shrank (4693 to 3753 defines,
+  13.5 MB to 12.6 MB) because unreached generic bodies are no longer
+  emitted. Open: let-generalized locals still share one copy (their
+  quantified slots are `Raw`, which can leak but never frees a live
+  block; the prelude and bootstrap have none).
+- **D404 (map-headed fusion composed only the innermost stage; fixed)**:
+  for `prod-map f (prod-map g (prod-map h p))` not consumed by a fold in
+  the same unit, `Driver::fuse` left the head's own callback `f` out of
+  the fused closure and its barrier check, and its composition loop
+  skipped environment slot 0, so the program computed `prod-map h p`: a
+  silent wrong answer. The map branch now composes `m0 (m1 (... (mn x)))`
+  with `m0` the head's callback, which also passes the allocation
+  barrier. Pinned by `optimizer::map_headed_fusion_composes_every_stage`
+  (fused and unfused runs both compute 300; the bug gave 10).
 
 ### Refinement types (P28)
 

@@ -50,11 +50,11 @@
 //! | 6 | `HOLE` | `[idx]` | the captured hole's quote block, evaluated in place |
 //! | 7 | `LET` | `[slot, value, body]` | bind `slot` to `value` in `body` |
 //! | 8 | `IF` | `[cond, then, else]` | evaluate `cond`, then exactly one branch |
-//! | 9 | `CASE` | `[scrutinee, ncon, cons..., default]` | select by the scrutinee block's tag word; each `con` is `[tag, nfields, fields..., body]` binding the block's field words; `default` is `[0]` (none), `[1, body]` (wildcard) or `[2, slot, body]` (variable) |
+//! | 9 | `CASE` | `[scrutinee, ncon, cons..., default]` | select by the scrutinee block's constructor tag (in its header); each `con` is `[tag, nfields, fields..., body]` binding the block's field words; `default` is `[0]` (none), `[1, body]` (wildcard) or `[2, slot, body]` (variable) |
 //! | 10 | `APP` | `[fn, nargs, args...]` | apply through the closure apply-stub convention |
 //! | 11 | `LAM` | `[stub, arity, nenv, env...]` | allocate the closure block `{ stub; arity; nenv; env... }` of a hoisted lambda |
-//! | 12 | `CTOR` | `[tag, nfields, fields...]` | allocate `{ tag; fields... }` |
-//! | 13 | `PROJ` | `[value, mode, ...]` | mode 0 `[slot]` loads the block's field word at `8 * (1 + slot)`; mode 1 `[offset, size, signed]` loads a boundary-layout scalar at `8 + offset`; mode 2 `[offset]` loads a boundary-layout word at `8 + offset` |
+//! | 12 | `CTOR` | `[desc, nfields, fields...]` | allocate the constructor block `{ fields... }` whose header carries the constructor descriptor `desc` (a layout id, or an escaped descriptor: `block_kinds.rs`) |
+//! | 13 | `PROJ` | `[value, mode, ...]` | mode 0 `[slot]` loads the block's field word at `8 * slot`; mode 1 `[offset, size, signed]` loads a boundary-layout scalar at `offset`; mode 2 `[offset]` loads a boundary-layout word at `offset` |
 //! | 14 | `FAULT` | | the program's own fault (exit 70) |
 //! | 15 | `LAZY_ALLOC` | | allocate `{ 0; 0; 0 }`: an empty memo cell |
 //! | 16 | `LAZY_INIT` | `[cell-local, thunk]` | store the thunk into the cell; the value is the unit word |
@@ -68,9 +68,9 @@
 //! docs) and the code generator's block layouts:
 //!
 //! * Every value is one `i64` word. An ADT or `CTOR` block is
-//!   `{ i64 tag; i64 field0; ... }`; field `i` lives at byte offset
-//!   `8 * (1 + i)`, and a boundary-layout projection reads at payload
-//!   base 8 plus its recorded offset.
+//!   `{ i64 field0; ... }` with the constructor's tag in the header's
+//!   layout id; field `i` lives at byte offset `8 * i`, and a
+//!   boundary-layout projection reads at its recorded offset.
 //! * A function value or unit closure is `{ code_ptr; arity; nfilled;
 //!   saved[0..] }`. Applying one loads word 0 and calls it as
 //!   `unsafe extern "C" fn(i64 self, i64 argc, *mut i64 argv) -> i64`
@@ -189,9 +189,9 @@ mod op {
     /// `[cond, then, else]`.
     pub const IF: u64 = 8;
     /// `[scrutinee, ncon, cons..., default]`; each `con` is
-    /// `[tag, nfields, fields..., body]` binding the block's field words,
-    /// `default` is `[0]` (no default), `[1, body]` (wildcard) or
-    /// `[2, slot, body]` (variable).
+    /// `[tag, nfields, fields..., body]` binding the block's field words
+    /// (the scrutinee's tag is in its header), `default` is `[0]` (no
+    /// default), `[1, body]` (wildcard) or `[2, slot, body]` (variable).
     pub const CASE: u64 = 9;
     /// `[fn, nargs, args...]`: apply through the closure apply-stub
     /// convention.
@@ -199,12 +199,13 @@ mod op {
     /// `[stub, arity, nenv, env...]`: allocate the closure block
     /// `{ stub; arity; nenv; env... }` of a hoisted lambda.
     pub const LAM: u64 = 11;
-    /// `[tag, nfields, fields...]`: allocate `{ tag; fields... }`.
+    /// `[desc, nfields, fields...]`: allocate the constructor block
+    /// `{ fields... }` whose header carries descriptor `desc`.
     pub const CTOR: u64 = 12;
-    /// `[value, mode, ...]`: mode 0 `[slot]` loads the block's field
-    /// word at `8 * (1 + slot)`; mode 1 `[offset, size, signed]` loads a
-    /// boundary-layout scalar at `8 + offset`; mode 2 `[offset]` loads a
-    /// boundary-layout word at `8 + offset`.
+    /// `[value, mode, ...]`: mode 0 `[slot]` loads the block's word at
+    /// `8 * slot`; mode 1 `[offset, size, signed]` loads a
+    /// boundary-layout scalar at `offset`; mode 2 `[offset]` loads a
+    /// boundary-layout word at `offset`.
     pub const PROJ: u64 = 13;
     /// The program's own fault (exit 70).
     pub const FAULT: u64 = 14;
@@ -240,7 +241,7 @@ enum Node {
     Case(Box<Node>, Vec<Arm>, Alt),
     App(Box<Node>, Vec<Node>),
     Lam { stub: i64, arity: u64, env: Vec<Node> },
-    Ctor { tag: i64, fields: Vec<Node> },
+    Ctor { desc: u64, fields: Vec<Node> },
     Proj { value: Box<Node>, mode: u64, slot: u64, offset: u64, size: u64, signed: bool },
     Fault,
     LazyAlloc,
@@ -557,13 +558,13 @@ impl<'a> Dec<'a> {
     }
 
     fn expr_ctor(&mut self) -> Result<Node> {
-        let tag = self.word()? as i64;
+        let desc = self.word()?;
         let n = self.count_word()?;
         let mut fields = Vec::with_capacity(n);
         for _ in 0..n {
             fields.push(self.expr()?);
         }
-        Ok(Node::Ctor { tag, fields })
+        Ok(Node::Ctor { desc, fields })
     }
 
     fn expr_proj(&mut self) -> Result<Node> {
@@ -768,7 +769,7 @@ fn eval(node: &Node, env: &mut [i64], holes: &[i64]) -> Result<i64> {
         Node::Lam { stub, arity, env: captured } => {
             eval_lam(*stub, *arity, captured, env, holes)
         }
-        Node::Ctor { tag, fields } => eval_ctor(*tag, fields, env, holes),
+        Node::Ctor { desc, fields } => eval_ctor(*desc, fields, env, holes),
         Node::Proj { value, mode, slot, offset, size, signed } => {
             eval_proj(value, *mode, *slot, *offset, *size, *signed, env, holes)
         }
@@ -818,11 +819,18 @@ fn eval_case(
     holes: &[i64],
 ) -> Result<i64> {
     let w = eval(scrut, env, holes)?;
-    let p = block_ptr(w)?;
-    let tag = unsafe { word_at(p, 0) } as u64;
-    if let Some(arm) = arms.iter().find(|a| a.tag == tag) {
+    // Only a constructor arm reads the block: a scrutinee matched by
+    // defaults alone may be an immediate, which has no header.
+    let arm = if arms.is_empty() {
+        None
+    } else {
+        let p = block_ptr(w)?;
+        let tag = unsafe { crate::block::ctor_tag_of(p.cast()) };
+        arms.iter().find(|a| a.tag == tag).map(|a| (p, a))
+    };
+    if let Some((p, arm)) = arm {
         for (i, slot) in arm.fields.iter().enumerate() {
-            let off = 8usize.checked_mul(1 + i).ok_or(Error::CorruptValue)?;
+            let off = 8usize.checked_mul(i).ok_or(Error::CorruptValue)?;
             env[*slot as usize] = unsafe { word_at(p, off) };
         }
         return eval(&arm.body, env, holes);
@@ -874,21 +882,18 @@ fn eval_lam(
     Ok(clo)
 }
 
-fn eval_ctor(tag: i64, fields: &[Node], env: &mut [i64], holes: &[i64]) -> Result<i64> {
+fn eval_ctor(desc: u64, fields: &[Node], env: &mut [i64], holes: &[i64]) -> Result<i64> {
     let mut vals = Vec::with_capacity(fields.len());
     for f in fields {
         vals.push(eval(f, env, holes)?);
     }
-    let words = 1 + vals.len();
-    let block = unsafe { crate::abi::cinch_alloc((words * 8) as i64, i64::from(crate::block::KIND_CTOR)) };
-    let p = block_ptr(block)?;
+    let p = unsafe { crate::block::allocate_ctor(vals.len() * 8, desc, false) }.cast::<i64>();
     unsafe {
-        word_set(p, 0, tag);
         for (i, v) in vals.iter().enumerate() {
-            word_set(p, 8 * (1 + i), *v);
+            word_set(p, 8 * i, *v);
         }
     }
-    Ok(block)
+    Ok(p as usize as i64)
 }
 
 fn eval_proj(
@@ -905,15 +910,12 @@ fn eval_proj(
     let p = block_ptr(w)?;
     match mode {
         0 => {
-            let off = slot
-                .checked_add(1)
-                .and_then(|s| s.checked_mul(8))
-                .ok_or(Error::CorruptValue)?;
+            let off = slot.checked_mul(8).ok_or(Error::CorruptValue)?;
             let off = usize::try_from(off).map_err(|_| Error::CorruptValue)?;
             Ok(unsafe { word_at(p, off) })
         }
         1 | 2 => {
-            let off = offset.checked_add(8).ok_or(Error::CorruptValue)?;
+            let off = offset;
             let off = usize::try_from(off).map_err(|_| Error::CorruptValue)?;
             if mode == 1 {
                 Ok(unsafe { scalar_at(p, off, size, signed) })

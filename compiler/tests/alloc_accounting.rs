@@ -138,8 +138,9 @@ fn stats_of(exe: &Path) -> String {
 
 /// Header blocks are exactly the program's Cinch values, kept apart from the
 /// runtime's own allocations: 2000 more `Cons` cells are 2000 more header
-/// blocks of 32 bytes each (the 24-byte `{ tag; head; tail }` block plus its
-/// 8-byte header) and no other allocation at all.
+/// blocks of 24 bytes each (the 16-byte `{ head; tail }` block plus its
+/// 8-byte header, which carries the tag in its layout id) and no other
+/// allocation at all.
 #[test]
 fn header_blocks_count_constructor_cells_with_their_header() {
     let (dir_a, small) = built("hdr_small", &cons_program(1000));
@@ -147,15 +148,80 @@ fn header_blocks_count_constructor_cells_with_their_header() {
     let (a, b) = (stats_of(&small), stats_of(&large));
     let delta = |name: &str| field(&b, name) - field(&a, name);
     assert_eq!(delta("header-blocks"), 2000, "{a}\n{b}");
-    assert_eq!(delta("header-bytes"), 2000 * 32, "{a}\n{b}");
+    assert_eq!(delta("header-bytes"), 2000 * 24, "{a}\n{b}");
     assert_eq!(delta("blocks"), 2000, "no runtime-internal allocation per cell\n{a}\n{b}");
-    assert_eq!(delta("bytes"), 2000 * 32, "{a}\n{b}");
+    assert_eq!(delta("bytes"), 2000 * 24, "{a}\n{b}");
     for line in [&a, &b] {
         assert!(field(line, "header-blocks") >= 1000, "{line}");
         assert!(field(line, "header-blocks") <= field(line, "blocks"), "{line}");
         assert!(field(line, "header-bytes") <= field(line, "bytes"), "{line}");
         assert_eq!(field(line, "freed"), 0, "{line}");
     }
+    common::cleanup(&dir_a);
+    common::cleanup(&dir_b);
+}
+
+/// A data type of 70 constructors, more than one layout group's 64 tags,
+/// so every constructor is escaped (`block_kinds.rs`): its tag lives in a
+/// descriptor word before the header. `n` cells of the one-field `C69`
+/// are chained and counted, and `rank` matches constructors on both
+/// sides of tag 64, by name and by wildcard.
+fn escaped_program(n: usize) -> String {
+    let mut ctors = String::new();
+    for i in 0..69 {
+        ctors.push_str(&format!("    C{i} :: Big\n"));
+    }
+    ctors.push_str("    C69 :: Big -> Big\n");
+    format!(
+        r#"
+module Main where
+  foreign import ccall "cinch.prim.eqI64" eq64 :: I64 -> I64 -> Bool
+  foreign import ccall "cinch.prim.wrappingSubI64" sub64 :: I64 -> I64 -> I64
+  foreign import ccall "cinch.prim.wrappingAddI64" add64 :: I64 -> I64 -> I64
+
+  data Big where
+{ctors}
+  build :: I64 -> Big -> Big
+  build n acc = case eq64 n 0 of
+    True -> acc
+    False -> build (sub64 n 1) (C69 acc)
+
+  count :: Big -> I64 -> I64
+  count b k = case b of
+    C69 t -> count t (add64 k 1)
+    C0 -> k
+    _ -> sub64 0 1
+
+  rank :: Big -> I64
+  rank b = case b of
+    C0 -> 0
+    C63 -> 63
+    C64 -> 64
+    C68 -> 68
+    _ -> 99
+
+  main :: Unit -> Int
+  main u = case eq64 (count (build {n} C0) 0) {n} of
+    True -> case eq64 (add64 (add64 (rank C63) (rank C64)) (add64 (rank C68) (rank (C69 C1)))) 294 of
+      True -> 0
+      False -> 2
+    False -> 1
+"#
+    )
+}
+
+/// Escaped constructors match correctly, and each heap cell pays exactly
+/// its descriptor word: a one-field `C69` cell is 24 bytes (field, header,
+/// descriptor), and nothing else allocates per cell.
+#[test]
+fn escaped_constructors_match_and_carry_one_descriptor_word() {
+    let (dir_a, small) = built("esc_small", &escaped_program(1000));
+    let (dir_b, large) = built("esc_large", &escaped_program(3000));
+    let (a, b) = (stats_of(&small), stats_of(&large));
+    let delta = |name: &str| field(&b, name) - field(&a, name);
+    assert_eq!(delta("header-blocks"), 2000, "{a}\n{b}");
+    assert_eq!(delta("header-bytes"), 2000 * 24, "{a}\n{b}");
+    assert_eq!(delta("blocks"), 2000, "{a}\n{b}");
     common::cleanup(&dir_a);
     common::cleanup(&dir_b);
 }

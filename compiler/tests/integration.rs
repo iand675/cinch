@@ -608,11 +608,10 @@ module Main where
 }
 
 #[test]
-fn guard_failure_with_covered_patterns_faults() {
-    // Every applicable row failing its guard is non-exhaustive at runtime.
-    // The fallback is a defined runtime fault (exit 70): returning a word
-    // crashed on boxed result types before the review fix.
-    expect_ok(
+fn guard_failure_with_covered_patterns_is_rejected() {
+    // A guarded row covers nothing: every applicable row can fail its
+    // guard, so the match is rejected rather than faulting at runtime.
+    expect_err(
         "guard-fault",
         r#"
 module Main where
@@ -623,15 +622,15 @@ module Main where
   main :: Int
   main = f 5
 "#,
-        70,
+        "a scrutinee value is not covered by an unguarded row",
     );
 }
 
 #[test]
-fn guard_failure_on_boxed_result_faults() {
-    // The review P0 repro: the old zero-word fallback put 0 in an `Option`
-    // slot and the caller segfaulted loading its tag.
-    expect_ok(
+fn guard_failure_on_boxed_result_is_rejected() {
+    // The review P0 repro (a boxed result behind an all-guarded match) no
+    // longer reaches a runtime fallback at all.
+    expect_err(
         "guard-fault-boxed",
         r#"
 module Main where
@@ -644,7 +643,7 @@ module Main where
     Some x -> x
     None -> 7
 "#,
-        70,
+        "a scrutinee value is not covered by an unguarded row",
     );
 }
 
@@ -708,10 +707,10 @@ module Main where
 }
 
 #[test]
-fn integer_match_without_catch_all_faults_at_runtime() {
-    // Integer literals cannot cover every `Int`; a match that falls through
-    // with unprovable coverage takes the runtime fault path (exit 70).
-    expect_ok(
+fn integer_match_without_catch_all_is_rejected() {
+    // Integer literals cannot cover every `Int`, so a literal match needs a
+    // catch-all row; without one it is a compile error, never a fault.
+    expect_err(
         "literal-fault",
         r#"
 module Main where
@@ -722,9 +721,9 @@ module Main where
   main :: Int
   main = f 5
 "#,
-        70,
+        "a value other than 0, 1 is not covered",
     );
-    expect_ok(
+    expect_err(
         "literal-fault-case",
         r#"
 module Main where
@@ -733,7 +732,7 @@ module Main where
     0 -> 1
     1 -> 2
 "#,
-        70,
+        "a value other than 0, 1 is not covered",
     );
 }
 

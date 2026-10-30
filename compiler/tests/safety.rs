@@ -261,6 +261,7 @@ module Main where
   down 3 = down 2
   down 2 = down 1
   down 1 = 0
+  down _ = 0
 
   main :: Int
   main = down 3
@@ -340,6 +341,7 @@ module Main where
   down 3 = down 2
   down 2 = down 1
   down 1 = 0
+  down _ = 0
 
   main :: Int
   main = 0
@@ -1133,6 +1135,7 @@ module Main where
     No _ -> down 2 x
   down 2 x = down 1 x
   down 1 x = x
+  down _ x = x
 
   main :: Int
   main = case 2 + 2 of

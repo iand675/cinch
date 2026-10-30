@@ -214,13 +214,14 @@ fn weights_on_guards() {
         "guard-weights",
         r#"
 module Main where
-  guardW :: Bool -> Nat
-  guardW b = case b of
-    #[weight(2000)] True | #[weight(2000)] True -> 0
+  guardW :: Bool -> Nat -> Nat
+  guardW b n = case b of
+    #[weight(2000)] True | #[weight(2000)] n == 0 -> 0
+    #[weight(2000)] True -> 2
     #[weight(1)] False -> 1
 
   main :: Int
-  main = if guardW True == 0 then 0 else 1
+  main = if guardW True 0 == 0 then 0 else 1
 "#,
     );
     // The guard's own decision point: its pass outcome at 2000, the

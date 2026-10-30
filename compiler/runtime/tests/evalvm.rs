@@ -9,6 +9,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Mutex;
 
 use cinchruntime::abi::{cinch_int_to_i64, cinch_nat_to_i64};
+use cinchruntime::block::{ctor_escaped, ctor_id, static_header, KIND_CTOR};
 use cinchruntime::eval::{run, KIND_CODE, MAX_NESTING};
 use cinchruntime::Error;
 
@@ -38,6 +39,14 @@ type Stub = unsafe extern "C" fn(i64, i64, *mut i64) -> i64;
 /// or a quote block header. Word-aligned, like every real block word.
 fn words_block(ws: &[i64]) -> i64 {
     Vec::leak(ws.to_vec()).as_mut_ptr() as i64
+}
+
+/// A leaked constructor block over `fields`: an immortal header whose
+/// layout field is `layout` (the tag is in it), then the field words.
+fn ctor_block(layout: u64, fields: &[i64]) -> i64 {
+    let mut ws = vec![static_header(KIND_CTOR, layout as u16) as i64];
+    ws.extend_from_slice(fields);
+    words_block(&ws) + 8
 }
 
 /// A `Code` block over `program` with one hole word per captured quote.
@@ -186,8 +195,8 @@ fn case_selects_the_matching_arm_and_binds_its_fields() {
     TAKEN_CALLS.store(0, Ordering::SeqCst);
     let clo_u = closure(stub_untaken, 0, &[]);
     let clo_a = closure(stub_add_fields, 2, &[]);
-    // Scrutinee block { tag 1; 7; 8 } injected through UNITREF.
-    let blk = words_block(&[1, 7, 8]);
+    // Scrutinee block { 7; 8 } of tag 1, injected through UNITREF.
+    let blk = ctor_block(ctor_id(0, 1), &[7, 8]);
     let prog = [
         CASE, UNITREF, blk,
         2,
@@ -202,26 +211,44 @@ fn case_selects_the_matching_arm_and_binds_its_fields() {
 
 #[test]
 fn case_wildcard_default_when_no_tag_matches() {
-    let blk = words_block(&[9, 0]);
+    let blk = ctor_block(ctor_id(3, 9), &[0]);
     let prog = [CASE, UNITREF, blk, 0, 1, INT, 42];
     assert_eq!(run(quote_block(&prog, &[])), Ok(42));
 }
 
 #[test]
 fn case_variable_default_binds_the_scrutinee() {
-    let blk = words_block(&[9, 0]);
+    let blk = ctor_block(ctor_id(3, 9), &[0]);
     let prog = [CASE, UNITREF, blk, 0, 2, 33, LOCAL, 33];
     assert_eq!(run(quote_block(&prog, &[])), Ok(blk));
 }
 
+/// A default-only `case` never reads its scrutinee, so an immediate (no
+/// header, low bit 1) is a valid scrutinee there.
+#[test]
+fn case_with_defaults_only_never_reads_an_immediate_scrutinee() {
+    assert_eq!(run(quote_block(&[CASE, INT, 0x2b, 0, 1, INT, 42], &[])), Ok(42));
+    assert_eq!(run(quote_block(&[CASE, INT, 0x2b, 0, 2, 5, LOCAL, 5], &[])), Ok(0x2b));
+}
+
 #[test]
 fn ctor_allocates_a_block_case_can_consume() {
-    // ctor 2 [5, 6], then case on it reading the field words back.
+    // ctor of layout id 2 (group 0, tag 2) [5, 6], then case on it
+    // reading the field words back.
+    let id = ctor_id(0, 2) as i64;
     let prog = [
-        LET, 1, CTOR, 2, 2, INT, 5, INT, 6,
+        LET, 1, CTOR, id, 2, INT, 5, INT, 6,
         CASE, LOCAL, 1, 1, 2, 2, 10, 11, LOCAL, 11, 0,
     ];
     assert_eq!(run(quote_block(&prog, &[])), Ok(6));
+    // An escaped descriptor keeps its tag (70, beyond a group) in the
+    // word before the header, and `case` reads it from there.
+    let esc = ctor_escaped(4, 70) as i64;
+    let prog = [
+        LET, 1, CTOR, esc, 1, INT, 9,
+        CASE, LOCAL, 1, 2, 6, 0, INT, 1, 70, 1, 10, LOCAL, 10, 0,
+    ];
+    assert_eq!(run(quote_block(&prog, &[])), Ok(9));
 }
 
 // ------------------------------------------------------------ HOLE
@@ -245,8 +272,8 @@ fn out_of_range_hole_index_is_an_error() {
 #[test]
 fn proj_mode_0_loads_a_field_word() {
     let (blk, buf) = byte_block();
-    buf[16..24].copy_from_slice(&777i64.to_le_bytes());
-    buf[24..32].copy_from_slice(&(-5i64).to_le_bytes());
+    buf[8..16].copy_from_slice(&777i64.to_le_bytes());
+    buf[16..24].copy_from_slice(&(-5i64).to_le_bytes());
     assert_eq!(run(quote_block(&[PROJ, UNITREF, blk, 0, 1], &[])), Ok(777));
     assert_eq!(run(quote_block(&[PROJ, UNITREF, blk, 0, 2], &[])), Ok(-5));
 }
@@ -254,8 +281,8 @@ fn proj_mode_0_loads_a_field_word() {
 #[test]
 fn proj_mode_1_extends_signed_and_unsigned() {
     let (blk, buf) = byte_block();
-    buf[8] = 0xFF;
-    buf[9..11].copy_from_slice(&0x8000u16.to_le_bytes());
+    buf[0] = 0xFF;
+    buf[1..3].copy_from_slice(&0x8000u16.to_le_bytes());
     // One byte at offset 0: 255 unsigned, -1 signed.
     assert_eq!(run(quote_block(&[PROJ, UNITREF, blk, 1, 0, 1, 0], &[])), Ok(255));
     assert_eq!(run(quote_block(&[PROJ, UNITREF, blk, 1, 0, 1, 1], &[])), Ok(-1));
@@ -269,7 +296,7 @@ fn proj_mode_1_extends_signed_and_unsigned() {
 #[test]
 fn proj_mode_2_loads_a_boundary_word() {
     let (blk, buf) = byte_block();
-    buf[16..24].copy_from_slice(&777i64.to_le_bytes());
+    buf[8..16].copy_from_slice(&777i64.to_le_bytes());
     assert_eq!(run(quote_block(&[PROJ, UNITREF, blk, 2, 8], &[])), Ok(777));
 }
 

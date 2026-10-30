@@ -4,6 +4,15 @@ Status: inventory taken 2026-10-29 by a read-only scout over the tree at
 the time (before slices S1/S2 were integrated; line numbers drift). It
 feeds `design/no-faults.md`.
 
+## Closed since the inventory
+
+- **Guards and literal matches (rows 70 and 140 below, item 1 of the
+  escape-hatch list)**: closed 2026-10-30. A `case` whose rows can all fail
+  by guard, and a literal match without a catch-all, are compile errors;
+  the pattern compiler is the coverage check and can no longer emit
+  `Core::Fault`, and `run_out` is deleted. `specifications/surface-grammar-local-amendments.md`
+  section 16, `tests/guard_coverage.rs`, CONFORMANCE D401.
+
 
 Goal: every way a **compiled, well-typed** Cinch program can stop abnormally today.
 Two structurally different fault regimes exist:

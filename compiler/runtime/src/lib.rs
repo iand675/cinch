@@ -18,11 +18,12 @@
 //! * `Int` (the 64-bit machine integer of the surface prelude): the `i64`
 //!   itself.
 //! * `Bool`: 0 or 1. `Unit`: 0.
-//! * ADT values: `ptrtoint` of a heap block `{ i64 tag; i64 field0; ... }`
-//!   with `tag` the constructor index in declaration order (the compiler's
-//!   convention; this runtime only allocates such blocks through
-//!   [`cinch_alloc`]). Every block carries a header word before it (see
-//!   Block header).
+//! * ADT values: `ptrtoint` of a heap or static constructor block
+//!   `{ i64 field0; ... }` whose header carries the constructor's layout
+//!   id, and with it the tag (the constructor index in declaration order),
+//!   instead of a tag word (see Block header). Generated code allocates
+//!   them through [`cinch_alloc_ctor`]; this runtime reads a tag only
+//!   through `block::ctor_tag_of`.
 //! * Function values and dictionaries: `ptrtoint` of their closure or
 //!   record blocks (see `compiler/src/core.rs`).
 //! * `Nat` and `Int` (the unbounded numbers): a small immediate or
@@ -62,27 +63,23 @@
 //! # Heap layouts
 //!
 //! Bignum blocks are allocated by this runtime and are opaque to generated
-//! code. A `Nat`/`Int` word with low bit 0 points at a block with the
-//! following layout (offsets in bytes):
-//!
-//! | offset | size | field |
-//! |--------|------|-------|
-//! | 0 | 8 | `kind`: `i64`, `KIND_NAT` (1) or `KIND_INT` (2) |
-//! | 8 | ... | payload: a Rust `Nat` value (`KIND_NAT`) or `Int` value (`KIND_INT`) |
-//!
-//! The `kind` word comes first so that a corrupt or mismatched word faults
-//! (see Faults) instead of being reinterpreted. The payload is a
+//! code. A `Nat`/`Int` word with low bit 0 points at a header block of kind
+//! `KIND_NAT`/`KIND_INT` whose payload, at offset 0, is a Rust `Nat` or
+//! `Int` value. A box carries no in-block kind word: the header's kind is
+//! checked instead, so a corrupt or mismatched word still faults (see
+//! Faults) rather than being reinterpreted. The payload is a
 //! sign-magnitude bignum: a normalized base 2^32 `Vec<u32>` magnitude
 //! (little-endian limbs, no leading zero limbs) plus, for `Int`, a negative
 //! flag. Zero is non-negative and has the empty magnitude. The `Vec`
 //! header inside the payload is a standard library implementation detail;
 //! generated code MUST treat the block as opaque and only pass the word
 //! back to this runtime. Words are immutable and may be shared. Generated
-//! code never frees them yet; [`cinch_free`] can.
+//! code never frees them yet; [`cinch_free`] can. A `Bytes` box
+//! (`KIND_BYTES`, or `KIND_BYTES_STATIC` for a string literal's
+//! data-section buffer) is the `repr(C)` pair `{ len; data }` at offset 0.
 //!
 //! Blocks allocated through [`cinch_alloc`] are zero-filled byte blocks of a
-//! whole number of 64-bit words, for the compiler's `{ i64 tag; ... }`
-//! convention.
+//! whole number of 64-bit words.
 //!
 //! # Block header
 //!
@@ -98,23 +95,40 @@
 //! |------|-------|---------|
 //! | 0..40 | `rc`, signed | 0 immortal (static blocks, interned `Sym` cells, `KIND_BYTES_STATIC` buffers); 1 when allocated; > 0 a single-threaded count up to `RC_MAX` (2^39 - 1); < 0 reserved for atomic counts. A count cannot overflow: the heap is capped below 8 * 2^40 bytes, so no increment needs a check, and there is no sticky state |
 //! | 40..48 | `kind: u8` | [`block`]`::KIND_*`: ctor 1, closure 2, dictionary 3, memo 4, knot 5, nat 6, int 7, bytes 8, bytes-static 9, sym 10, code 11, boxed scalar 12, raw 13, freed 255 (0 is never a live block) |
-//! | 48..64 | `layout: u16` | the payload size in 64-bit words; `0xFFFF` means the payload is at least that large and its byte size is the word at offset -16 |
+//! | 48..64 | `layout: u16` | a constructor block's layout id; for every other kind, the payload size in 64-bit words. `0xFFFF` (`LAYOUT_BIG`) is the escape: the word at offset -16 holds an escaped constructor's descriptor, or another kind's payload byte size (a payload of at least 0xFFFF words) |
 //!
-//! Block memory is only obtained and returned by `block::allocate` and
-//! `block::free`, the one place a different backing allocator plugs in.
+//! Block memory is only obtained and returned by `block::allocate`,
+//! `block::allocate_ctor` and `block::free`, the one place a different
+//! backing allocator plugs in.
 //!
-//! The header kind is its own namespace: constructor tags and the runtime
-//! boxes' in-block `kind` word stay in word 0 of the payload. `layout`
-//! holds the size until the layout table of `design/reclamation.md`
-//! section 3 lands; its scan encoding follows the representation decision,
-//! and that table replaces this field's meaning. Static blocks are emitted
-//! as `{ header; block }` with the symbol (`@"U.clo"`, `@"U.blk"`) an
-//! alias one word in; the string-literal constant carries a header before
-//! each of its two blocks. A word with low bit 1 is an immediate, never a
-//! block, and no header code dereferences it. Pointers from the OS
-//! resource handles (buffer, directory, process, scope and task handles)
-//! are not blocks and have no header: they are freed only by their own
-//! close entry points.
+//! Constructor layout ids. The code generator gives each data type one
+//! group of `2^CTOR_TAG_BITS` (64) consecutive ids, `id = group << 6 |
+//! tag`, so `tag = id - base` with the type's `base = group << 6`, read
+//! as `id & CTOR_TAG_MASK` without knowing the type. The id indexes the
+//! program's layout table `@__cinch_layouts` (one `i64` entry per id: the
+//! payload size in words in the low 32 bits, the high bits reserved for
+//! the pointer map), which generated code registers with
+//! [`cinch_layouts_register`] from a global constructor, and from which
+//! [`cinch_free`] sizes a constructor block. A type of more than 64
+//! constructors, or past the last of the 1023 groups, is escaped: its
+//! header says `LAYOUT_BIG` and the word at -16 is the descriptor
+//! `index << 40 | tag << 16 | 0xFFFF` (a 24-bit tag and a 24-bit table
+//! index). A descriptor, regular id or escaped, is what generated code
+//! hands [`cinch_alloc_ctor`]. The layout groups of `Option`, `Result`
+//! and `Ordering` are fixed (0, 1 and 2) because generated code builds
+//! those without a constructor unit in hand; the task runtime reads only
+//! the `Result` tag, which needs no group.
+//!
+//! Static blocks are emitted as `{ header; block }` with the symbol
+//! (`@"U.clo"`, `@"U.blk"`) an alias one word in (two for an escaped
+//! constructor, whose descriptor word comes first); the string-literal
+//! constant carries a header before each of its two blocks. A word with
+//! low bit 1 is an immediate, never a block, and no header code
+//! dereferences it: a `case` reads its scrutinee's header only when some
+//! alternative is a constructor pattern. Pointers from the OS resource
+//! handles (buffer, directory, process, scope and task handles) are not
+//! blocks and have no header: they are freed only by their own close
+//! entry points.
 //!
 //! # Faults
 //!
@@ -160,21 +174,29 @@
 //!   zero-filled bytes (rounded up to a whole number of 64-bit words,
 //!   minimum one word) as a block with header kind `kind` and `rc = 1`,
 //!   and return the block as a word. Negative sizes, a kind outside
-//!   1..=13, size overflow, and allocation failure fault through
-//!   `cinch_panic`.
+//!   2..=13 (constructors go through `cinch_alloc_ctor`), size overflow,
+//!   and allocation failure fault through `cinch_panic`.
 //! * `cinch_free(word: i64)`: deallocate the block behind `word` with the
-//!   size its header records, after releasing what a runtime box owns
-//!   outside its block (a bignum's limbs, a heap buffer's data). It never
-//!   visits the block's children. Immediates (low bit 1), 0, and immortal
-//!   blocks (`rc == 0`) are ignored. Generated code does not call it yet.
+//!   size its header records (a constructor's from the layout table),
+//!   after releasing what a runtime box owns outside its block (a
+//!   bignum's limbs, a heap buffer's data). It never visits the block's
+//!   children. Immediates (low bit 1), 0, and immortal blocks (`rc == 0`)
+//!   are ignored. Generated code does not call it yet.
 //! * `cinch_alloc_raw(size: i64, kind: i64) -> ptr`: allocate `size`
 //!   uninitialised bytes (rounded up to whole words, minimum one) as a
 //!   block with header kind `kind` and `rc = 1`, and return the payload
-//!   pointer; the allocator generated code calls for every constructor,
-//!   closure, dictionary, memo, knot, quote and tuple block, passing the
-//!   block's kind.
+//!   pointer; the allocator generated code calls for every closure,
+//!   dictionary, memo, knot, quote and raw block, passing the block's
+//!   kind. The same kinds as `cinch_alloc`.
+//! * `cinch_alloc_ctor(size: i64, desc: i64) -> ptr`: allocate a
+//!   constructor block of `size` uninitialised payload bytes whose header
+//!   carries the constructor descriptor `desc` (above), with `rc = 1`, and
+//!   return the payload pointer: every constructor, tuple and boundary
+//!   block, with no tag word.
+//! * `cinch_layouts_register(table: *const u64, len: i64)`: install the
+//!   program's layout table of `len` entries.
 //!
-//! Every heap allocation (the two allocators above and every runtime
+//! Every heap allocation (the three allocators above and every runtime
 //! `Box`/`Vec`) is counted by the counting global allocator in [`heap`].
 //! Environment: `CINCH_ALLOC_STATS=1` prints
 //! `cinch-alloc: blocks=<n> bytes=<n> peak=<n> header-blocks=<n>

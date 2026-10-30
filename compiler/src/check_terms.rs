@@ -3916,6 +3916,7 @@ impl Checker {
                 tparams: 0,
                 params: vec![Class::Obj, Class::TObj],
                 fields: Vec::new(),
+                ..Default::default()
             },
         });
         gid
@@ -3987,7 +3988,7 @@ impl Checker {
             ctor: None,
             hints: crate::core::FnHints::default(),
             meta: crate::core::FnMeta::default(),
-            repr: crate::core::UnitRepr { tparams: 0, params: vec![Class::Obj], fields: Vec::new() },
+            repr: crate::core::UnitRepr { tparams: 0, params: vec![Class::Obj], fields: Vec::new(), ..Default::default() },
         });
         Ok(gid)
     }
@@ -4076,7 +4077,7 @@ impl Checker {
             ctor: None,
             hints: crate::core::FnHints::default(),
             meta: crate::core::FnMeta::default(),
-            repr: crate::core::UnitRepr { tparams: 0, params: vec![Class::Obj], fields: Vec::new() },
+            repr: crate::core::UnitRepr { tparams: 0, params: vec![Class::Obj], fields: Vec::new(), ..Default::default() },
         });
         Ok(gid)
     }
@@ -4148,7 +4149,7 @@ impl Checker {
             ctor: None,
             hints: crate::core::FnHints::default(),
             meta: crate::core::FnMeta::default(),
-            repr: crate::core::UnitRepr { tparams: 0, params: vec![Class::Obj], fields: Vec::new() },
+            repr: crate::core::UnitRepr { tparams: 0, params: vec![Class::Obj], fields: Vec::new(), ..Default::default() },
         });
         Ok(gid)
     }
@@ -5678,24 +5679,25 @@ impl Checker {
                 guard_weight: guard_weights[i],
             });
         }
-        let covered = self.matrix_covered(&rows, &[scrut_ty.clone()])?;
         let core = self.compile_rows(
             rows,
             vec![ECore::Var(sloc)],
             vec![scrut_ty],
             expected,
             span,
-            covered,
+            "a scrutinee value",
         )?;
         Ok(ECore::Let(sloc, Box::new(scrut_core), Box::new(core)))
     }
 
     /// Pattern-matrix compilation with source-order, fall-through
     /// semantics: the first row that matches wins, and a guarded row whose
-    /// guard fails falls through to the later rows. `covered` says whether
-    /// the pattern part of the whole match covers its scrutinee space; it
-    /// chooses the fallback a fall-through reaches once every applicable
-    /// row has failed its guard.
+    /// guard fails falls through to the later rows. Compilation is the
+    /// coverage check: a path that runs out of rows is a value no
+    /// unguarded row covers, so a guarded row covers nothing (only the
+    /// literal guard `True` counts as unguarded) and the match is rejected
+    /// rather than faulting at runtime. `uncovered` names the value space
+    /// the current path stands for, for that diagnostic.
     fn compile_rows(
         &mut self,
         rows: Vec<Row>,
@@ -5703,17 +5705,22 @@ impl Checker {
         types: Vec<Ty>,
         expected: &Ty,
         ctx_span: ast::Span,
-        covered: bool,
+        uncovered: &str,
     ) -> Result<ECore> {
         if rows.is_empty() {
-            return self.run_out(covered);
+            return Err(Error::at(
+                ctx_span,
+                format!(
+                    "non-exhaustive patterns: {uncovered} is not covered by an unguarded row (a guarded row covers nothing, since its guard can fail); add an unguarded final row such as `_ -> ...`"
+                ),
+            ));
         }
         for r in &rows {
             check_row_binders(&r.pats)?;
         }
         if types.is_empty() {
             let first = &rows[0];
-            if let Some(g) = &first.guard {
+            if let Some(g) = first.guard.as_ref().filter(|g| !guard_always_true(g)) {
                 // The row's destructure runs on every path that reaches
                 // the row, before its guard.
                 for l in &first.consumed {
@@ -5735,7 +5742,7 @@ impl Checker {
                         types.clone(),
                         expected,
                         ctx_span,
-                        covered,
+                        uncovered,
                     )
                 })?;
                 self.merge_branches(vec![bm, rm]);
@@ -5791,7 +5798,7 @@ impl Checker {
             .iter()
             .all(|r| matches!(r.pats[0], ast::Pat::Var(..) | ast::Pat::Wild(_)))
         {
-            return self.consume_column(rows, cols, types, expected, ctx_span, covered);
+            return self.consume_column(rows, cols, types, expected, ctx_span, uncovered);
         }
 
         // Borrow matching (ownership and usage design, section 4): a
@@ -5825,7 +5832,7 @@ impl Checker {
                         }
                     }
                 }
-                self.consume_column(rows, cols, types, expected, ctx_span, covered)
+                self.consume_column(rows, cols, types, expected, ctx_span, uncovered)
             }
             Ty::Prim(s @ (Scalar::F32 | Scalar::F64)) => {
                 // Floats have no `Eq` instance (primitive types
@@ -5841,7 +5848,7 @@ impl Checker {
                         ));
                     }
                 }
-                self.consume_column(rows, cols, types, expected, ctx_span, covered)
+                self.consume_column(rows, cols, types, expected, ctx_span, uncovered)
             }
             Ty::Bytes => {
                 // `Bytes` values have no literals or constructors to match;
@@ -5854,7 +5861,7 @@ impl Checker {
                         ));
                     }
                 }
-                self.consume_column(rows, cols, types, expected, ctx_span, covered)
+                self.consume_column(rows, cols, types, expected, ctx_span, uncovered)
             }
             Ty::Ptr { role, .. } => {
                 // Boundary pointers carry one role and have no
@@ -5868,7 +5875,7 @@ impl Checker {
                         ));
                     }
                 }
-                self.consume_column(rows, cols, types, expected, ctx_span, covered)
+                self.consume_column(rows, cols, types, expected, ctx_span, uncovered)
             }
             Ty::Int | Ty::Nat | Ty::Prim(_) | Ty::Sym => {
                 // Integer literal patterns: a literal matches when the
@@ -5956,6 +5963,12 @@ impl Checker {
                 let sums = self.decision_weights(&branch_lists, "this literal match", ctx_span)?;
                 let (lit_sums, default_sum) = sums.split_at(literals.len());
                 let mut branch_maps = Vec::new();
+                let default_space = if literals.is_empty() {
+                    uncovered.to_string()
+                } else {
+                    let lits: Vec<&str> = literals.iter().map(|(v, _)| v.as_str()).collect();
+                    format!("a value other than {}", lits.join(", "))
+                };
                 let (mut chain, m) = self.isolate(|s| {
                     s.compile_rows(
                         defaults.clone(),
@@ -5963,7 +5976,7 @@ impl Checker {
                         rest_tys.clone(),
                         expected,
                         ctx_span,
-                        covered,
+                        &default_space,
                     )
                 })?;
                 branch_maps.push(m);
@@ -5977,7 +5990,7 @@ impl Checker {
                             rest_tys.clone(),
                             expected,
                             ctx_span,
-                            covered,
+                            &format!("the value {v}"),
                         )
                     })?;
                     branch_maps.push(m);
@@ -6078,11 +6091,11 @@ impl Checker {
                         rest_tys.clone(),
                         expected,
                         ctx_span,
-                        covered,
+                        "True",
                     )
                 })?;
                 let (f, fm) = self.isolate(|s| {
-                    s.compile_rows(false_rows, rest_cols, rest_tys, expected, ctx_span, covered)
+                    s.compile_rows(false_rows, rest_cols, rest_tys, expected, ctx_span, "False")
                 })?;
                 self.merge_branches(vec![tm, fm]);
                 Ok(ECore::If(
@@ -6327,7 +6340,7 @@ impl Checker {
                             branch_tys,
                             expected,
                             ctx_span,
-                            covered,
+                            &format!("constructor {name}"),
                         )
                     })?;
                     branch_lists.push(branch);
@@ -6434,7 +6447,7 @@ impl Checker {
                     branch_tys,
                     expected,
                     ctx_span,
-                    covered,
+                    uncovered,
                 )?;
                 Ok(ECore::Case {
                     scrut: Box::new(col0),
@@ -6593,7 +6606,7 @@ impl Checker {
                     branch_tys,
                     expected,
                     ctx_span,
-                    covered,
+                    uncovered,
                 )?;
                 Ok(ECore::Case {
                     scrut: Box::new(col0),
@@ -6637,7 +6650,7 @@ impl Checker {
         types: Vec<Ty>,
         expected: &Ty,
         ctx_span: ast::Span,
-        covered: bool,
+        uncovered: &str,
     ) -> Result<ECore> {
         for r in rows.iter_mut() {
             let p0 = r.pats[0].clone();
@@ -6655,18 +6668,8 @@ impl Checker {
             types[1..].to_vec(),
             expected,
             ctx_span,
-            covered,
+            uncovered,
         )
-    }
-
-    /// The fallback when a match runs out at runtime. This is never a
-    /// value: the pattern part is normally covered (the checker rejects
-    /// non-exhaustive matrices), and a failed guard on every applicable row
-    /// means the coverage proof was incomplete. Returning a word here would
-    /// crash on boxed result types (review P0), so it is a defined runtime
-    /// fault in every case.
-    fn run_out(&self, _covered: bool) -> Result<ECore> {
-        Ok(ECore::Fault)
     }
 
     /// Desugar the surface pattern sugar: list patterns become nested
@@ -6960,311 +6963,12 @@ impl Checker {
             res_args,
         }))
     }
+}
 
-    /// Drop column 0 of one row.
-    fn drop_row_col(&self, r: &Row) -> Row {
-        let mut a = r.clone();
-        a.pats = r.pats[1..].to_vec();
-        a
-    }
-
-    /// Does the pattern part of this row matrix cover its scrutinee space,
-    /// ignoring guards? Integer literals cover an unbounded domain, so an
-    /// integer column is covered only with a catch-all row.
-    fn matrix_covered(&mut self, rows: &[Row], types: &[Ty]) -> Result<bool> {
-        if rows.is_empty() {
-            return Ok(false);
-        }
-        if types.is_empty() {
-            return Ok(true);
-        }
-        let mut rows = rows.to_vec();
-        // As-patterns hide nothing about coverage.
-        for r in rows.iter_mut() {
-            while let ast::Pat::As(_, inner, _) = &r.pats[0] {
-                r.pats[0] = (**inner).clone();
-            }
-        }
-        if rows
-            .iter()
-            .all(|r| matches!(r.pats[0], ast::Pat::Var(..) | ast::Pat::Wild(_)))
-        {
-            let rest: Vec<Row> = rows.iter().map(|r| self.drop_row_col(r)).collect();
-            return self.matrix_covered(&rest, &types[1..]);
-        }
-        let ty0 = self.uni.zonk(&types[0]);
-        // A borrowed column covers its referent's pattern space; nested
-        // field columns borrow too (ownership and usage design, section 4).
-        let (borrow, inner_ty) = match &ty0 {
-            Ty::Ref(r, inner) => (Some((r.clone(), false)), (**inner).clone()),
-            Ty::Mut(r, inner) => (Some((r.clone(), true)), (**inner).clone()),
-            other => (None, other.clone()),
-        };
-        let wrap = |t: &Ty| -> Ty {
-            match &borrow {
-                Some((r, true)) => Ty::Mut(r.clone(), Box::new(t.clone())),
-                Some((r, false)) => Ty::Ref(r.clone(), Box::new(t.clone())),
-                None => t.clone(),
-            }
-        };
-        match &inner_ty {
-            Ty::Unit => {
-                if rows.iter().any(|r| {
-                    !matches!(r.pats[0], ast::Pat::Unit(_) | ast::Pat::Var(..) | ast::Pat::Wild(_))
-                }) {
-                    return Ok(false);
-                }
-                let rest: Vec<Row> = rows.iter().map(|r| self.drop_row_col(r)).collect();
-                self.matrix_covered(&rest, &types[1..])
-            }
-            Ty::Int | Ty::Nat | Ty::Prim(_) => {
-                // Integer columns cover an unbounded domain (machine
-                // scalars included), so a catch-all row is required.
-                let mut literals: Vec<String> = Vec::new();
-                let mut defaults: Vec<Row> = Vec::new();
-                let mut lit_rows: Vec<(String, Row)> = Vec::new();
-                for r in &rows {
-                    match &r.pats[0] {
-                        ast::Pat::Var(..) | ast::Pat::Wild(_) => {
-                            defaults.push(self.drop_row_col(r));
-                        }
-                        ast::Pat::Int(v, _) => {
-                            if !literals.contains(v) {
-                                literals.push(v.clone());
-                            }
-                            lit_rows.push((v.clone(), self.drop_row_col(r)));
-                        }
-                        _ => return Ok(false),
-                    }
-                }
-                if defaults.is_empty() {
-                    return Ok(false);
-                }
-                if !self.matrix_covered(&defaults, &types[1..])? {
-                    return Ok(false);
-                }
-                for v in literals {
-                    let mut branch = defaults.clone();
-                    branch.extend(
-                        lit_rows.iter().filter(|(x, _)| *x == v).map(|(_, r)| r.clone()),
-                    );
-                    if !self.matrix_covered(&branch, &types[1..])? {
-                        return Ok(false);
-                    }
-                }
-                Ok(true)
-            }
-            Ty::Bool => {
-                let mut branches = (Vec::new(), Vec::new());
-                for r in &rows {
-                    let tag = match &r.pats[0] {
-                        ast::Pat::Var(..) | ast::Pat::Wild(_) => None,
-                        ast::Pat::Con(p, args, _) if args.is_empty() => {
-                            match p.parts().as_slice() {
-                                ["True"] => Some(true),
-                                ["False"] => Some(false),
-                                _ => return Ok(false),
-                            }
-                        }
-                        _ => return Ok(false),
-                    };
-                    match tag {
-                        Some(true) => branches.0.push(self.drop_row_col(r)),
-                        Some(false) => branches.1.push(self.drop_row_col(r)),
-                        None => {
-                            branches.0.push(self.drop_row_col(r));
-                            branches.1.push(self.drop_row_col(r));
-                        }
-                    }
-                }
-                Ok(self.matrix_covered(&branches.0, &types[1..])?
-                    && self.matrix_covered(&branches.1, &types[1..])?)
-            }
-            Ty::Adt(_, ty_args) => {
-                let info = match self.lookup_type(&[type_name_str(&inner_ty)]) {
-                    Ok(i) => i,
-                    Err(_) => return Ok(false),
-                };
-                let mut ctor_rows: Vec<Vec<Row>> =
-                    (0..info.ctors.len()).map(|_| Vec::new()).collect();
-                let mut var_rows: Vec<(ast::Span, Row)> = Vec::new();
-                let mut parts_by_tag: Vec<Option<CtorParts>> =
-                    (0..info.ctors.len()).map(|_| None).collect();
-                for r in &rows {
-                    match &r.pats[0] {
-                        ast::Pat::Var(..) | ast::Pat::Wild(_) => {
-                            var_rows.push((r.pats[0].span(), self.drop_row_col(r)));
-                        }
-                        ast::Pat::Con(p, args, _) => {
-                            // A constructor from another type means this
-                            // prover cannot claim coverage.
-                            let v = match self.ctor_for_type(&info, p, r.pats[0].span()) {
-                                Ok(v) => v,
-                                Err(_) => return Ok(false),
-                            };
-                            let (tag, arity) = match &v.kind {
-                                ValueKind::Ctor { tag, arity, .. } => (*tag, *arity),
-                                _ => return Ok(false),
-                            };
-                            if args.len() != arity || tag >= ctor_rows.len() {
-                                return Ok(false);
-                            }
-                            // The indices decide whether the constructor
-                            // can build the type at all: an arm for a
-                            // refuted constructor is impossible, and a
-                            // match stuck on rigid indices is not
-                            // provable here.
-                            if parts_by_tag[tag].is_none() {
-                                match self.match_ctor(&v, ty_args) {
-                                    Ok(CtorMatch::Possible(parts)) => {
-                                        parts_by_tag[tag] = Some(parts);
-                                    }
-                                    Ok(CtorMatch::Refuted) => {
-                                        return Err(Error::at(
-                                            r.pats[0].span(),
-                                            format!(
-                                                "impossible arm: constructor {} cannot build {} (the indices refute it), so this arm can never match",
-                                                v.name, inner_ty
-                                            ),
-                                        ))
-                                    }
-                                    Ok(CtorMatch::Unknown(msg)) => {
-                                        return Err(Error::at(
-                                            r.pats[0].span(),
-                                            format!(
-                                                "cannot match constructor {} against {}: the index equation {msg} has no solution here (this slice does not refine rigid indices)",
-                                                v.name, inner_ty
-                                            ),
-                                        ))
-                                    }
-                                    Err(_) => return Ok(false),
-                                }
-                            }
-                            let parts = parts_by_tag[tag].as_ref().unwrap();
-                            // Erased fields bind evidence by name; they
-                            // cover themselves and take no column.
-                            let mut kept: Vec<ast::Pat> = Vec::new();
-                            for (i, sp) in args.iter().enumerate() {
-                                if !parts.fields[i].2 {
-                                    kept.push(sp.clone());
-                                }
-                            }
-                            let mut a = self.drop_row_col(r);
-                            let mut pats = kept;
-                            pats.append(&mut a.pats);
-                            a.pats = pats;
-                            ctor_rows[tag].push(a);
-                        }
-                        _ => return Ok(false),
-                    }
-                }
-                for (name, tag) in &info.ctors {
-                    // A constructor with no explicit arm may still run
-                    // (wildcard rows reach it), so it must be covered
-                    // unless the indices refute it.
-                    let parts = match parts_by_tag[*tag].take() {
-                        Some(p) => p,
-                        None => {
-                            let v = match self.ctor_of_type(&info, name) {
-                                Ok(v) => v,
-                                Err(_) => return Ok(false),
-                            };
-                            match self.match_ctor(&v, ty_args) {
-                                Ok(CtorMatch::Possible(p)) => p,
-                                Ok(CtorMatch::Refuted) => continue,
-                                Ok(CtorMatch::Unknown(_)) => {
-                                    match self.ctor_parts(&v, ty_args) {
-                                        Ok(p) => p,
-                                        Err(_) => return Ok(false),
-                                    }
-                                }
-                                Err(_) => return Ok(false),
-                            }
-                        }
-                    };
-                    let arity = parts.fields.iter().filter(|(_, _, e)| !*e).count();
-                    let mut branch = std::mem::take(&mut ctor_rows[*tag]);
-                    for (span, r) in &var_rows {
-                        let mut a = r.clone();
-                        let mut pats = vec![ast::Pat::Wild(*span); arity];
-                        pats.append(&mut a.pats);
-                        a.pats = pats;
-                        branch.push(a);
-                    }
-                    let field_tys: Vec<Ty> = parts
-                        .fields
-                        .iter()
-                        .filter(|(_, _, e)| !*e)
-                        .map(|(_, t, _)| t.clone())
-                        .collect();
-                    let mut tys: Vec<Ty> = field_tys.iter().map(|t| wrap(t)).collect();
-                    tys.extend(types[1..].iter().cloned());
-                    if !self.matrix_covered(&branch, &tys)? {
-                        return Ok(false);
-                    }
-                    let _ = name;
-                }
-                Ok(true)
-            }
-            Ty::Tuple(items) => {
-                let n = items.len();
-                let mut sub_rows: Vec<Row> = Vec::new();
-                for r in &rows {
-                    match &r.pats[0] {
-                        ast::Pat::Var(..) | ast::Pat::Wild(_) => {
-                            let span = r.pats[0].span();
-                            let mut a = self.drop_row_col(r);
-                            let mut pats = vec![ast::Pat::Wild(span); n];
-                            pats.extend(a.pats.iter().cloned());
-                            a.pats = pats;
-                            sub_rows.push(a);
-                        }
-                        ast::Pat::Tuple(pats, _) if pats.len() == n => {
-                            let mut a = self.drop_row_col(r);
-                            let mut ps = pats.clone();
-                            ps.append(&mut a.pats);
-                            a.pats = ps;
-                            sub_rows.push(a);
-                        }
-                        _ => return Ok(false),
-                    }
-                }
-                let mut tys: Vec<Ty> = items.iter().map(|t| wrap(t)).collect();
-                tys.extend(types[1..].iter().cloned());
-                self.matrix_covered(&sub_rows, &tys)
-            }
-            Ty::Sigma { var, dom, cod } => {
-                let mut sub_rows: Vec<Row> = Vec::new();
-                for r in &rows {
-                    match &r.pats[0] {
-                        ast::Pat::Var(..) | ast::Pat::Wild(_) => {
-                            let span = r.pats[0].span();
-                            let mut a = self.drop_row_col(r);
-                            let mut pats = vec![ast::Pat::Wild(span); 2];
-                            pats.extend(a.pats.iter().cloned());
-                            a.pats = pats;
-                            sub_rows.push(a);
-                        }
-                        ast::Pat::Tuple(pats, _) if pats.len() == 2 => {
-                            let mut a = self.drop_row_col(r);
-                            let mut ps = pats.clone();
-                            ps.append(&mut a.pats);
-                            a.pats = ps;
-                            sub_rows.push(a);
-                        }
-                        _ => return Ok(false),
-                    }
-                }
-                let mut tys: Vec<Ty> = vec![
-                    wrap(&dom),
-                    wrap(&cod.subst_idx(&var, &ITerm::Var(var.clone()))),
-                ];
-                tys.extend(types[1..].iter().cloned());
-                self.matrix_covered(&sub_rows, &tys)
-            }
-            _ => Ok(false),
-        }
-    }
+/// The literal guard `True` is the always-true guard spelling (Cinch has
+/// no `otherwise`): its row covers what an unguarded row covers.
+fn guard_always_true(g: &ast::Term) -> bool {
+    matches!(g, ast::Term::Con(p) if p.parts().as_slice() == ["True"])
 }
 
 // ------------------------------------------------------------ effects, handlers, do (P6)

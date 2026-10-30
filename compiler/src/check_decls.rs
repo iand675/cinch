@@ -508,7 +508,7 @@ impl Checker {
             ctor: None,
             hints: crate::core::FnHints::default(),
             meta: crate::core::FnMeta::default(),
-            repr: crate::core::UnitRepr { tparams: 0, params: vec![Class::Raw], fields: Vec::new() },
+            repr: crate::core::UnitRepr { tparams: 0, params: vec![Class::Raw], fields: Vec::new(), ..Default::default() },
         });
         self.install_index_families();
         self.install_staging_api();
@@ -1630,7 +1630,7 @@ impl Checker {
                 meta: crate::core::FnMeta::default(),
                 // The index family's constructors carry index words and
                 // the family's own blocks (`Nat` indices, `Vec` spines).
-                repr: crate::core::UnitRepr::default(),
+                repr: crate::core::UnitRepr { data: Some(format!("<builtin>.{name}")), ..Default::default() },
             });
             ctor_names.push((cname, tag));
         }
@@ -1669,7 +1669,7 @@ impl Checker {
             ctor: None,
             hints: crate::core::FnHints::default(),
             meta: crate::core::FnMeta::default(),
-            repr: crate::core::UnitRepr { tparams: 0, params: vec![Class::Raw], fields: Vec::new() },
+            repr: crate::core::UnitRepr { tparams: 0, params: vec![Class::Raw], fields: Vec::new(), ..Default::default() },
         });
         let length = ValueInfo {
             module: "<builtin>".to_string(),
@@ -1690,7 +1690,7 @@ impl Checker {
             ctor: None,
             hints: crate::core::FnHints::default(),
             meta: crate::core::FnMeta::default(),
-            repr: crate::core::UnitRepr { tparams: 0, params: vec![Class::Obj], fields: Vec::new() },
+            repr: crate::core::UnitRepr { tparams: 0, params: vec![Class::Obj], fields: Vec::new(), ..Default::default() },
         });
         // `Vec.getCopy`: copy the element at a `Fin` index out of a
         // borrowed vector (the acceptance probe's safe element access).
@@ -1798,6 +1798,7 @@ impl Checker {
                 tparams: 1,
                 params: vec![Class::Obj, Class::TObj],
                 fields: Vec::new(),
+                ..Default::default()
             },
         });
         self.fns.push(FnDef {
@@ -1827,6 +1828,7 @@ impl Checker {
                 tparams: 1,
                 params: vec![Class::Raw, Class::Obj, Class::Obj],
                 fields: Vec::new(),
+                ..Default::default()
             },
         });
         // `vecStream`/`vecStreamStep` (P10): a producer over a borrowed
@@ -1902,7 +1904,7 @@ impl Checker {
             ctor: None,
             hints: crate::core::FnHints::default(),
             meta: crate::core::FnMeta::default(),
-            repr: crate::core::UnitRepr { tparams: 1, params: vec![Class::Obj], fields: Vec::new() },
+            repr: crate::core::UnitRepr { tparams: 1, params: vec![Class::Obj], fields: Vec::new(), ..Default::default() },
         });
         // Evidence constructors (core specification section 3): `refl`
         // proves `Eq x x`, `congr` lifts equality across a named total
@@ -3252,6 +3254,7 @@ impl Checker {
                             tparams: params.len(),
                             params: vec![crate::repr::repr_of(&base, &params, self, &mut |_| {})],
                             fields: Vec::new(),
+                            ..Default::default()
                         },
                     });
                 }
@@ -4507,6 +4510,7 @@ impl Checker {
                         tparams: fields.1,
                         params: fields.0.clone(),
                         fields: fields.0,
+                        data: Some(format!("{}.{}", t.module, t.name)),
                     },
                 });
             }
@@ -5280,6 +5284,7 @@ impl Checker {
                         tparams: tp,
                         params: fd.repr.params.iter().skip(k).copied().collect(),
                         fields: Vec::new(),
+                        ..Default::default()
                     },
                 });
             }
@@ -5331,6 +5336,7 @@ impl Checker {
                             tparams: tp,
                             params: fd.repr.params.iter().skip(k).copied().collect(),
                             fields: Vec::new(),
+                            ..Default::default()
                         },
                     });
                     methods.push(wid);
@@ -6223,7 +6229,6 @@ impl Checker {
                 })
             })
             .collect::<Result<Vec<_>>>()?;
-        let covered = self.matrix_covered(&rows, &doms)?;
         // Optimizer metadata for this code generation unit: usage
         // multiplicities of the runtime parameters, honest pure callback
         // parameters, and capability dictionaries (supercompilation and
@@ -6259,7 +6264,7 @@ impl Checker {
                 doms,
                 &rest,
                 eqs[0].span,
-                covered,
+                "an argument combination",
             )?
         };
         let performed = self.exit_perf(saved);
@@ -11887,10 +11892,11 @@ fn decrease_bound(doms: &[Ty], pos: usize, measure: bool, name: Option<&str>) ->
 
 /// The conservative call-graph depth bound (decision D113's fallback):
 /// the literal counter ladder, where every equation matches a literal
-/// counter at position 0 and every recursive call steps the counter
-/// down a literal that some equation matches. The bound is the deepest
-/// chain of nested self-call frames from any entry counter. Returns
-/// `None` when no conservative bound applies.
+/// counter at position 0 (or is a catch-all base case that makes no
+/// recursive call, which coverage requires of an integer match) and every
+/// recursive call steps the counter down a literal. The bound is the
+/// deepest chain of nested self-call frames from any entry counter.
+/// Returns `None` when no conservative bound applies.
 fn literal_ladder(eqs: &[ast::Equation], self_calls: &[SelfCallRec]) -> Option<u64> {
     if self_calls.is_empty() {
         return None;
@@ -11898,30 +11904,34 @@ fn literal_ladder(eqs: &[ast::Equation], self_calls: &[SelfCallRec]) -> Option<u
     if self_calls.iter().any(|c| c.closure || c.args.is_empty()) {
         return None;
     }
-    // Every equation matches a literal counter at position 0.
-    let mut lits: Vec<i128> = Vec::with_capacity(eqs.len());
+    // Every equation matches a literal counter at position 0, or is a
+    // catch-all (`None`).
+    let mut lits: Vec<Option<i128>> = Vec::with_capacity(eqs.len());
     for e in eqs {
-        let ast::Pat::Int(k, _) = &e.pats[0] else {
-            return None;
-        };
-        lits.push(k.parse().ok()?);
+        match &e.pats[0] {
+            ast::Pat::Int(k, _) => lits.push(Some(k.parse().ok()?)),
+            ast::Pat::Var(..) | ast::Pat::Wild(_) => lits.push(None),
+            _ => return None,
+        }
     }
-    // Every self-call steps the counter down a literal.
+    // Every self-call steps the counter down a literal, and a catch-all
+    // equation makes none (its counter is unknown, so no descent is
+    // visible from it).
     let mut steps: Vec<Vec<i128>> = vec![Vec::new(); eqs.len()];
     for c in self_calls {
         let Some(ArgShape::Literal(m)) = c.args.first() else {
             return None;
         };
+        lits[c.eq]?;
         steps[c.eq].push(*m);
     }
-    // The frames one entry counter reaches: the equation matching the
-    // counter runs, and its calls step strictly down to the equations
-    // matching those literals.
-    fn frames(k: i128, lits: &[i128], steps: &[Vec<i128>], seen: usize) -> Option<u64> {
+    // The frames one entry counter reaches: the first equation matching
+    // the counter in source order runs, and its calls step strictly down.
+    fn frames(k: i128, lits: &[Option<i128>], steps: &[Vec<i128>], seen: usize) -> Option<u64> {
         if seen > lits.len() {
             return None;
         }
-        let eq = lits.iter().position(|l| *l == k)?;
+        let eq = lits.iter().position(|l| l.is_none_or(|l| l == k))?;
         let mut deepest = 0u64;
         for &m in &steps[eq] {
             if m >= k {
@@ -11931,9 +11941,9 @@ fn literal_ladder(eqs: &[ast::Equation], self_calls: &[SelfCallRec]) -> Option<u
         }
         Some(1 + deepest)
     }
-    let mut bound = 0u64;
-    for &k in &lits {
-        bound = bound.max(frames(k, &lits, &steps, 0)?);
+    let mut bound = 1u64;
+    for k in lits.iter().flatten() {
+        bound = bound.max(frames(*k, &lits, &steps, 0)?);
     }
     Some(bound)
 }
@@ -18233,7 +18243,7 @@ impl Checker {
                 }
                 self.apply_value(cx, fv, vals)?
             }
-            Core::Lam { fn_id, env } => {
+            Core::Lam { fn_id, env, .. } => {
                 let mut captured = Vec::new();
                 for a in env {
                     captured.push(self.eval_core(cx, a, frame)?);

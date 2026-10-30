@@ -54,10 +54,12 @@ fn reset_state() {
     VAR.with(|v| v.set(0));
 }
 
-/// A `Result` block word (`{ tag; payload }`), as the task outcome ABI
-/// defines it.
+/// A `Result` block word (`{ payload }` with the tag in the header's
+/// layout id), as the task outcome ABI defines it.
 fn result_block(tag: i64, payload: i64) -> i64 {
-    Box::into_raw(Box::new([tag, payload])) as usize as i64
+    use cinchruntime::block::{ctor_id, static_header, KIND_CTOR};
+    let hdr = static_header(KIND_CTOR, ctor_id(0, tag as u64) as u16) as i64;
+    Box::into_raw(Box::new([hdr, payload])) as usize as i64 + 8
 }
 
 /// A closure record `{ code; arity; nfilled }` whose apply stub is `stub`.

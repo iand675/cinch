@@ -1046,7 +1046,7 @@ impl Session {
         let merged = self.merged_program()?;
         let can_emit =
             merged.main.is_some() || merged.foreigns.values().any(|p| p.export);
-        let (opt_program, opt) = crate::core::optimize(&merged, &self.profile)?;
+        let (opt_program, opt) = crate::specialize::optimize(&merged, &self.profile)?;
         timings.optimize_ms = since_ms(t_opt);
         if can_emit {
             let t_emit = std::time::Instant::now();
@@ -1764,7 +1764,12 @@ impl Session {
         let mut next_index: BTreeMap<String, CacheEntry> = BTreeMap::new();
         let mut unit_texts: Vec<(String, String)> = Vec::new();
         for (symbol, text) in &split.units {
-            let owner = decl_of_symbol.get(symbol).cloned();
+            // A representation copy (`unit@letters`) belongs to the
+            // declaration of the generic unit it was copied from.
+            let owner = decl_of_symbol
+                .get(symbol)
+                .or_else(|| decl_of_symbol.get(crate::repr::base_unit(symbol).as_ref()))
+                .cloned();
             let decl_hash = match &owner {
                 Some(o) => self.decl_hash_of(o),
                 None => hash_of(symbol),
