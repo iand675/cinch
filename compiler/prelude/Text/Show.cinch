@@ -89,7 +89,7 @@ module Text.Show where
   nat-digits-into b pos n k =
     if k == 0 then ()
     else
-      let u = bytes-set b (pos + k - 1) (48 + nat-rem n 10) in
+      let u = bytes-set b (pos + (k - 1)) (48 + nat-rem n 10) in
       nat-digits-into b pos (nat-div n 10) (k - 1)
 
   pow10 :: Nat -> Nat
@@ -115,7 +115,7 @@ module Text.Show where
     if k == 0 then ()
     else
       let d = nat-from-i64 (int-to-i64 (int-rem n 10)) in
-      let u = bytes-set b (pos + k - 1) (48 + d) in
+      let u = bytes-set b (pos + (k - 1)) (48 + d) in
       int-digits-into b pos (int-div n 10) (k - 1)
 
   int-to-string :: Int -> String

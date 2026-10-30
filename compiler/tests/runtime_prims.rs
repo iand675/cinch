@@ -322,7 +322,7 @@ module Main where
   digits-nat b i acc = case i == bytes-len b of
     True -> acc
     False -> case is-digit (bytes-get b i) of
-      True -> digits-nat b (i + 1) (acc * 10 + (bytes-get b i - 48))
+      True -> digits-nat b (i + 1) (acc * 10 + (bytes-get b i % 16))
       False -> acc
 
   self-pid :: forall r. using (io :: Io r) => Path ->{IO r, Diverge} Nat

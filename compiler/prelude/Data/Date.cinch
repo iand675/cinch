@@ -315,17 +315,18 @@ module Data.Date where
 
   -- Floored quotient and remainder (the decompositions above need a
   -- non-negative remainder, and `int-div`/`int-rem` truncate toward
-  -- zero).
-  int-floor-div :: Int -> Int -> Int
+  -- zero). The divisor is a `NonZero`, so each caller's numeral
+  -- divisor discharges at compile time.
+  int-floor-div :: Int -> NonZero Int -> Int
   int-floor-div a b =
     let q = int-div a b in
     let r = int-rem a b in
     if r < 0 then int-sub q 1 else q
 
-  int-floor-mod :: Int -> Int -> Int
+  int-floor-mod :: Int -> NonZero Int -> Int
   int-floor-mod a b =
     let r = int-rem a b in
-    if r < 0 then int-add r b else r
+    if r < 0 then int-add r (unrefine b) else r
 
   -- `Nat` to `Int` and back through the shared value (the bignum words
   -- are the same; only the machine width of the step bounds it, which
@@ -367,10 +368,14 @@ module Data.Date where
   digits-value :: List Char -> Nat
   digits-value ds = digits-value-acc ds 0
 
+  -- The callers pass digit runs; `digit-value` reads each digit, and a
+  -- non-digit (which a run never holds) ends the run.
   digits-value-acc :: List Char -> Nat -> Nat
   digits-value-acc ds acc = case ds of
     Nil -> acc
-    Cons c rest -> digits-value-acc rest (nat-add (nat-mul acc 10) (nat-sub (char-code c) 48))
+    Cons c rest -> case digit-value c of
+      Some d -> digits-value-acc rest (nat-add (nat-mul acc 10) d)
+      None -> acc
 
   -- The value of a two-digit field, or `None` when either character is
   -- not an ASCII digit (`Data.Char`'s `digit-value` is the only digit

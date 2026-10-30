@@ -671,14 +671,17 @@ module Text.Regex where
     else if a + b >= size-cap then size-cap
     else a + b
 
+  -- The zero test on `a` is the decision that makes it the overflow
+  -- check's divisor.
   sat-mul :: Nat -> Nat -> Nat
-  sat-mul a b =
-    if a == 0 then 0
-    else if b == 0 then 0
-    else if a >= size-cap then size-cap
-    else if b >= size-cap then size-cap
-    else if b > (nat-div size-cap a) then size-cap
-    else a * b
+  sat-mul a b = case decide (NonZero a) of
+    No _ -> 0
+    Yes w ->
+      if b == 0 then 0
+      else if a >= size-cap then size-cap
+      else if b >= size-cap then size-cap
+      else if b > nat-div size-cap (NonZero a w) then size-cap
+      else a * b
 
   prog-size :: RegexAst -> Nat
   prog-size node = case node of
@@ -693,7 +696,11 @@ module Text.Regex where
       let b = prog-size body in
       case mx of
         None -> sat-add (sat-mul mn b) (sat-add b 2)
-        Some m -> sat-add (sat-mul mn b) (sat-mul (m - mn) (sat-add b 1))
+        -- The parser refuses `{n,m}` with `m < n`, so the optional count
+        -- is there on every AST it builds; a reversed pair adds none.
+        Some m -> case checked-sub m mn of
+          Some k -> sat-add (sat-mul mn b) (sat-mul k (sat-add b 1))
+          None -> sat-mul mn b
     AstStart -> 1
     AstEnd -> 1
     AstWord -> 1
@@ -726,8 +733,11 @@ module Text.Regex where
       case mx of
         None -> pre <> (star-of xs lb greedy)
         Some m ->
-          if m == mn then pre
-          else pre <> (opt-nest xs lb (m - mn) greedy)
+          -- `{mn,m}`: the optional tail has `m - mn` copies (none for a
+          -- reversed pair, which the parser never builds).
+          case checked-sub m mn of
+            Some k -> pre <> (opt-nest xs lb k greedy)
+            None -> pre
 
   emit-ranges :: List (Nat, Nat) -> List Instr
   emit-ranges rs = case rs of
@@ -1174,10 +1184,12 @@ module Text.Regex where
     else if en == 4294967295 then None
     else Some (bytes-text subj st en)
 
+  -- The text of `[a, b)`; a reversed range holds no bytes.
   bytes-text :: Bytes -> Nat -> Nat -> String
   bytes-text subj a b =
-    let out = bytes-new (b - a) in
-    let u = copy-bytes-into out subj 0 a (b - a) in
+    let n = saturating-sub b a in
+    let out = bytes-new n in
+    let u = copy-bytes-into out subj 0 a n in
     case string-from-bytes out of
       None -> empty-string
       Some t -> t

@@ -156,9 +156,10 @@ module Text.Toml where
 
   hex-val :: Nat -> Nat
   hex-val c =
-    if is-digit-b c then c - 48
-    else if nat-lt c 97 then c - 55
-    else c - 87
+    -- `c - 48`, `c - 55`, `c - 87` for a digit, an upper and a lower
+    -- letter, written as the low nibble plus nine for a letter: the same
+    -- number on every byte `is-hex-b` admits.
+    c % 16 + 9 * (c / 64)
 
   is-hex-alpha :: Nat -> Bool
   is-hex-alpha c = (nat-ge c 65 && nat-lt c 71) || (nat-ge c 97 && nat-lt c 103)
@@ -222,7 +223,7 @@ module Text.Toml where
         else St b (off + 1) ln
 
   advance-n :: St -> Nat -> St
-  advance-n s k = if nat-eq k 0 then s else advance-n (advance1 s) (k - 1)
+  advance-n s k = if k == 0 then s else advance-n (advance1 s) (k - 1)
 
   -- UTF-8 decoding at the cursor (the reference decoder in
   -- `Data.String`).
@@ -427,7 +428,7 @@ module Text.Toml where
 
   scan-hex-digits :: St -> Nat -> Nat -> Result TomlError (Nat, St)
   scan-hex-digits s n acc =
-    if nat-eq n 0 then Ok (acc, s)
+    if n == 0 then Ok (acc, s)
     else case peek-b s of
       Some c -> if is-hex-b c then scan-hex-digits (advance1 s) (n - 1) (acc * 16 + hex-val c)
         else Err (TomlSyntax (st-line s) "expected a hex digit in an escape")
@@ -465,7 +466,7 @@ module Text.Toml where
     let r = count-quotes s 0 in
     case r of
       (q, s1) ->
-        if nat-ge q 3 then
+        if q >= 3 then
           if nat-le q 5 then Ok (pack (reverse (replicate (q - 3) '"' <> acc)), s1)
           else Err (TomlSyntax (st-line s) "too many quotation marks at the end of a multi-line string")
         else scan-ml-basic-body s1 (replicate q '"' <> acc)
@@ -527,7 +528,7 @@ module Text.Toml where
         let r = count-single-quotes s 0 in
         case r of
           (q, s1) ->
-            if nat-ge q 3 then
+            if q >= 3 then
               if nat-le q 5 then Ok (pack (reverse (replicate (q - 3) (case char-from-code 39 of Some x -> x; None -> '"') <> acc)), s1)
               else Err (TomlSyntax (st-line s) "too many quotation marks at the end of a multi-line string")
             else scan-ml-literal s1 (replicate q (case char-from-code 39 of Some x -> x; None -> '"') <> acc)
@@ -619,7 +620,7 @@ module Text.Toml where
   set-list-at :: Nat -> List Seg -> Node -> Node -> Result TomlError Node
   set-list-at i segs value node = case node of
     NList h tail ->
-      if nat-eq i 0 then and-then (set-at segs value h) (\h2 -> Ok (NList h2 tail))
+      if i == 0 then and-then (set-at segs value h) (\h2 -> Ok (NList h2 tail))
       else and-then (set-list-at (i - 1) segs value tail) (\t2 -> Ok (NList h t2))
     NListEnd -> Err (TomlDuplicateKey "array index")
     _ -> Err (TomlDuplicateKey "array")
@@ -672,7 +673,7 @@ module Text.Toml where
   ensure-list-at :: Nat -> List Seg -> Node -> Result TomlError Node
   ensure-list-at i segs node = case node of
     NList h tail ->
-      if nat-eq i 0 then and-then (ensure-table segs h) (\h2 -> Ok (NList h2 tail))
+      if i == 0 then and-then (ensure-table segs h) (\h2 -> Ok (NList h2 tail))
       else and-then (ensure-list-at (i - 1) segs tail) (\t2 -> Ok (NList h t2))
     NListEnd -> Err (TomlDuplicateKey "array index")
     _ -> Err (TomlDuplicateKey "array")
@@ -738,7 +739,7 @@ module Text.Toml where
   append-list-at :: Nat -> List Seg -> Node -> Result TomlError (Node, Nat)
   append-list-at i segs node = case node of
     NList h tail ->
-      if nat-eq i 0 then and-then (append-elt segs h) (\r -> case r of
+      if i == 0 then and-then (append-elt segs h) (\r -> case r of
           (h2, j) -> Ok (NList h2 tail, j))
       else and-then (append-list-at (i - 1) segs tail) (\r -> case r of
           (t2, j) -> Ok (NList h t2, j))
@@ -929,7 +930,7 @@ module Text.Toml where
 
   radix-digit :: Nat -> Nat -> Option Nat
   radix-digit base c =
-    if is-digit-b c then
+    if c >= 48 && c < 58 then
       (let v = c - 48 in if nat-lt v base then Some v else None)
     else if nat-eq base 16 && is-hex-alpha c then Some (hex-val c)
     else None
@@ -947,7 +948,7 @@ module Text.Toml where
   digits-to-int :: List Nat -> Int -> Int
   digits-to-int ds acc = case ds of
     Nil -> acc
-    Cons c rest -> digits-to-int rest (int-add (int-mul acc (int-from-i64 10)) (int-from-i64 (nat-to-i64 (c - 48))))
+    Cons c rest -> digits-to-int rest (int-add (int-mul acc (int-from-i64 10)) (int-sub (int-from-i64 (nat-to-i64 c)) (int-from-i64 48)))
 
   -- The cleaned decimal spelling for the runtime conversion: sign,
   -- integer digits, optional `.` fraction, optional exponent.

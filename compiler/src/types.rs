@@ -840,20 +840,23 @@ pub fn pred_alpha_eq(p: &PTerm, q: &PTerm) -> bool {
     pred_canon(p).eq(&pred_canon(q))
 }
 
+/// The comparison that holds exactly when `op` fails (integer
+/// trichotomy; never applied to float comparisons, which give no facts).
+fn neg_cmp(op: IdxCmp) -> IdxCmp {
+    match op {
+        IdxCmp::Lt => IdxCmp::Ge,
+        IdxCmp::Le => IdxCmp::Gt,
+        IdxCmp::Gt => IdxCmp::Le,
+        IdxCmp::Ge => IdxCmp::Lt,
+        IdxCmp::Eq => IdxCmp::Ne,
+        IdxCmp::Ne => IdxCmp::Eq,
+    }
+}
+
 /// The top-level conjuncts of a predicate, with negated comparisons
 /// folded into their positive forms (`Not (x < 5)` is `x >= 5`) so the
 /// interval rows see every bound the predicate carries.
 pub fn pred_conjuncts(p: &PTerm) -> Vec<PTerm> {
-    fn neg_cmp(op: IdxCmp) -> IdxCmp {
-        match op {
-            IdxCmp::Lt => IdxCmp::Ge,
-            IdxCmp::Le => IdxCmp::Gt,
-            IdxCmp::Gt => IdxCmp::Le,
-            IdxCmp::Ge => IdxCmp::Lt,
-            IdxCmp::Eq => IdxCmp::Ne,
-            IdxCmp::Ne => IdxCmp::Eq,
-        }
-    }
     fn go(p: &PTerm, out: &mut Vec<PTerm>) {
         match p {
             PTerm::And(a, b) => {
@@ -898,6 +901,17 @@ pub fn pred_measure_bounds(p: &PTerm, measure: &ITerm) -> (Option<i128>, Option<
 /// complete (an unknown pair is not implied).
 pub fn pred_implies(p: &PTerm, q: &PTerm) -> bool {
     pred_implies_canon(&pred_canon(p), &pred_canon(q))
+}
+
+/// Whether the fact `p` entails the obligation `q` over the same names
+/// (the evidence discharge: both speak about the caller's own values, so
+/// no renaming applies; `a < b` must not entail `b < a`). The rows are
+/// `pred_implies`'s, which need a numeral on one side of an atom;
+/// relations between variables (`i < n` entails `i + 1 <= n`) and the
+/// combination of several facts are `linear_entails`, which needs the
+/// names' integer sorts.
+pub fn pred_entails(p: &PTerm, q: &PTerm) -> bool {
+    pred_implies_canon(p, q)
 }
 
 fn pred_implies_canon(p: &PTerm, q: &PTerm) -> bool {
@@ -1057,6 +1071,20 @@ fn atom_implied_by(conj: &[PTerm], qa: &PTerm) -> bool {
         return true;
     }
     match qa {
+        PTerm::Cmp(IdxCmp::Ne, ..) => {
+            // A disequality against a bound (row 3): the conjuncts'
+            // range misses the bound, or the bound is zero and the
+            // measure is `NonZero`.
+            let Some((m, b)) = ne_atom(qa) else {
+                return false;
+            };
+            let iv = interval_over(conj, &m);
+            iv.disjoint(Interval { lo: Some(b), hi: Some(b) })
+                || (b == 0
+                    && conj
+                        .iter()
+                        .any(|pa| matches!(pa, PTerm::Pred(PredFn::NonZero, y) if (**y).eq(&m))))
+        }
         PTerm::Cmp(..) | PTerm::Eq(..) => {
             // Interval containment (row 2): the conjuncts' range over
             // the atom's measure sits inside the atom's own range.
@@ -1082,11 +1110,643 @@ fn atom_implied_by(conj: &[PTerm], qa: &PTerm) -> bool {
             matches!(iv.lo, Some(lo) if lo >= 1)
         }
         PTerm::Pred(PredFn::NonZero, x) => {
-            // A range excluding zero implies `NonZero x` (row 3).
+            // A range excluding zero implies `NonZero x` (row 3), and so
+            // does `x /= 0` (the predicate's own decision test).
             interval_over(conj, x).excludes_zero()
+                || conj.iter().any(|pa| ne_atom(pa).is_some_and(|(m, b)| b == 0 && m.eq(x)))
         }
         _ => false,
     }
+}
+
+/// A disequality atom read as `(measure, bound)` (`x /= 5` or `5 /= x`).
+fn ne_atom(a: &PTerm) -> Option<(ITerm, i128)> {
+    let PTerm::Cmp(IdxCmp::Ne, l, r) = a else {
+        return None;
+    };
+    match (bound_value(l), bound_value(r)) {
+        (None, Some(b)) => Some(((**l).clone(), b)),
+        (Some(b), None) => Some(((**r).clone(), b)),
+        _ => None,
+    }
+}
+
+// ------------------------------------------------------------------
+// Linear facts over variables: difference logic (refinement types
+// design, "narrowings and the implication theory"; proof automation
+// design section 4 item 2). The interval rows above need a numeral on
+// one side of every atom and read one fact at a time. This procedure
+// reads every fact in scope together as constraints `x - y <= c` over
+// integer terms and refutes them with the obligation's negation: a
+// negative cycle in the constraint graph (Bellman-Ford) is the
+// refutation, and the cycle itself is the certificate. Difference
+// logic is the fragment chosen because it is what index and length
+// reasoning needs (`i < n` gives `i + 1 <= n`, `i <= j` and `j < n`
+// give `i < n`, a `Nat` is never negative) and it decides in
+// polynomial time with a certificate a kernel checks by addition;
+// unit-two-variable or full Presburger reasoning (Fourier-Motzkin,
+// omega) costs exponential worst-case search for shapes (`i + j < n`,
+// `2 * i <= n`) no obligation in the prelude has yet.
+//
+// What a term means: every term denotes the value it computes at run
+// time, read through its sort.
+// - `Nat` and `Int` arithmetic is exact (a `Nat` difference only returns
+//   when it is exact), so `+`, `-` and multiplication by a numeral
+//   linearize, and an opaque `Nat` value is never negative.
+// - A machine integer or `Char` is an exact value in its type's range,
+//   but its arithmetic is opaque: the prelude gives machine types no
+//   `Add`/`Sub`/`Mul` (primitive types specification section 4), so a
+//   `+` there is a user instance of an overflow family the solver cannot
+//   see (`i + 1` over `I64` may wrap to the minimum). `i + 1` is then
+//   one more value of the type, bounded by the range like any other.
+// - A term with no known integer sort (a float, an unknown function's
+//   result) gives no constraint: an atom over it is skipped as a
+//   hypothesis and refused as a goal.
+// A `/=` hypothesis is used by case split (`d <= -1` or `d >= 1`), at
+// most `DIFF_SPLITS` deep, splitting only a disequality the current
+// model violates; a deeper need is refused, never guessed.
+
+/// The integer domain a term's values range over, which fixes what its
+/// arithmetic means to the solver.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum IntSort {
+    /// `Nat`: exact arithmetic, never negative.
+    Nat,
+    /// `Int`: exact arithmetic, unbounded.
+    Int,
+    /// A machine integer or `Char`: an exact value in `[lo, hi]`, with
+    /// opaque arithmetic.
+    Bounded(i128, i128),
+}
+
+impl IntSort {
+    /// The sort of a scalar type's values (`None` for floats, whose
+    /// comparisons are not integer reasoning). `Usize`/`Isize` take the
+    /// widest range any target gives them, which holds everywhere.
+    pub fn of_scalar(s: Scalar) -> Option<IntSort> {
+        if s.is_float() {
+            return None;
+        }
+        if s == Scalar::Char {
+            return Some(IntSort::Bounded(0, 0x10FFFF));
+        }
+        let w = s.width();
+        Some(if s.is_signed() {
+            IntSort::Bounded(-(1i128 << (w - 1)), (1i128 << (w - 1)) - 1)
+        } else {
+            IntSort::Bounded(0, (1i128 << w) - 1)
+        })
+    }
+
+    fn exact(self) -> bool {
+        !matches!(self, IntSort::Bounded(..))
+    }
+}
+
+/// The integer sorts of the names a set of facts reads: locals by name
+/// (the innermost binding last) and full applications of named
+/// functions by head and arity (the baked measures `length` and
+/// `toNat` are `Nat` without an entry).
+#[derive(Clone, Debug, Default)]
+pub struct Sorts {
+    pub vars: Vec<(String, IntSort)>,
+    pub fns: Vec<(String, usize, IntSort)>,
+}
+
+impl Sorts {
+    /// A term's sort: a local's, a function result's, or arithmetic's
+    /// operands' (both operands of `+` have the result's type).
+    pub fn term(&self, t: &ITerm) -> Option<IntSort> {
+        match t {
+            ITerm::Var(n) => self.vars.iter().rev().find(|(m, _)| m == n).map(|(_, s)| *s),
+            ITerm::Fn(h) => self.fun(h, 0),
+            ITerm::App(f, args) => match &**f {
+                ITerm::Fn(h) => self.fun(h, args.len()),
+                _ => None,
+            },
+            ITerm::Bin(_, a, b) => self.term(a).or_else(|| self.term(b)),
+            ITerm::Num(_) | ITerm::Lam(..) | ITerm::MVar(_) => None,
+        }
+    }
+
+    fn fun(&self, head: &str, arity: usize) -> Option<IntSort> {
+        if arity == 1 && matches!(head, "<builtin>.length" | "<builtin>.toNat") {
+            return Some(IntSort::Nat);
+        }
+        self.fns.iter().find(|(h, k, _)| h == head && *k == arity).map(|(_, _, s)| *s)
+    }
+}
+
+/// One difference constraint `x - y <= c`; `None` is the constant zero.
+#[derive(Clone, Debug, PartialEq)]
+pub struct DiffLe {
+    pub x: Option<ITerm>,
+    pub y: Option<ITerm>,
+    pub c: i128,
+}
+
+impl DiffLe {
+    /// Whether `by` alone establishes `self`: the same difference under
+    /// an equal or tighter bound.
+    fn follows_from(&self, by: &DiffLe) -> bool {
+        self.x == by.x && self.y == by.y && by.c <= self.c
+    }
+}
+
+/// Why one constraint of a refutation holds.
+#[derive(Clone, Debug, PartialEq)]
+pub enum DiffWhy {
+    /// Conjunct `conj` (in `pred_conjuncts` order) of hypothesis `hyp`.
+    Hyp { hyp: usize, conj: usize },
+    /// The range axiom of the term's sort (a `Nat` is non-negative, a
+    /// machine integer lies in its type's range).
+    Domain(ITerm),
+    /// The negation of the goal's disjunct `k`.
+    Goal(usize),
+    /// The alternative that the enclosing case split at this depth
+    /// (counted from the root) assumes.
+    Case(usize),
+}
+
+/// One cited constraint of a cycle.
+#[derive(Clone, Debug, PartialEq)]
+pub struct DiffStep {
+    pub le: DiffLe,
+    pub why: DiffWhy,
+}
+
+/// A difference-logic refutation of the hypotheses together with the
+/// goal's negation, checkable without search: a cycle's constraints sum
+/// to `0 <= c` with `c < 0` (every term cancels), and a split refutes
+/// both alternatives of a disequality.
+#[derive(Clone, Debug, PartialEq)]
+pub enum DiffCert {
+    Cycle(Vec<DiffStep>),
+    /// The disequality cited by `on` (a hypothesis `l /= r`, or the
+    /// negation of an `==` goal) read as `l - r <= -1` (`lt`) or
+    /// `r - l <= -1` (`gt`); each side's steps cite it as `Case(depth)`.
+    Split { on: DiffWhy, lt: Box<DiffCert>, gt: Box<DiffCert> },
+}
+
+/// A proof that hypotheses entail one goal clause (an atom, or a
+/// disjunction of atoms): the clause and its refutation certificate.
+#[derive(Clone, Debug, PartialEq)]
+pub struct LinearProof {
+    pub goal: PTerm,
+    pub cert: DiffCert,
+}
+
+impl LinearProof {
+    /// The hypotheses the certificate cites (the facts a discharge read,
+    /// for the staleness check over mutable places).
+    pub fn hyps_used(&self) -> Vec<usize> {
+        fn why(w: &DiffWhy, out: &mut Vec<usize>) {
+            if let DiffWhy::Hyp { hyp, .. } = w {
+                if !out.contains(hyp) {
+                    out.push(*hyp);
+                }
+            }
+        }
+        fn go(c: &DiffCert, out: &mut Vec<usize>) {
+            match c {
+                DiffCert::Cycle(steps) => steps.iter().for_each(|s| why(&s.why, out)),
+                DiffCert::Split { on, lt, gt } => {
+                    why(on, out);
+                    go(lt, out);
+                    go(gt, out);
+                }
+            }
+        }
+        let mut out = Vec::new();
+        go(&self.cert, &mut out);
+        out
+    }
+}
+
+/// The deepest case split over `/=` facts the search attempts.
+const DIFF_SPLITS: usize = 4;
+
+/// A linear form `sum(coef * key) + c` over opaque keys.
+struct Lin {
+    terms: Vec<(ITerm, i128)>,
+    c: i128,
+}
+
+impl Lin {
+    fn add(mut self, other: Lin, sign: i128) -> Option<Lin> {
+        self.c = self.c.checked_add(other.c.checked_mul(sign)?)?;
+        for (k, a) in other.terms {
+            let a = a.checked_mul(sign)?;
+            match self.terms.iter_mut().find(|(j, _)| *j == k) {
+                Some((_, b)) => *b = b.checked_add(a)?,
+                None => self.terms.push((k, a)),
+            }
+        }
+        Some(self)
+    }
+
+    fn scale(mut self, k: i128) -> Option<Lin> {
+        self.c = self.c.checked_mul(k)?;
+        for (_, a) in self.terms.iter_mut() {
+            *a = a.checked_mul(k)?;
+        }
+        Some(self)
+    }
+}
+
+/// A normalized term as a linear form: exact arithmetic linearizes,
+/// anything else (and every compound term of an opaque sort) is a key.
+fn lin_of(t: &ITerm, exact: bool) -> Option<Lin> {
+    if let ITerm::Num(d) = t {
+        return Some(Lin { terms: Vec::new(), c: d.parse().ok()? });
+    }
+    if exact {
+        match t {
+            ITerm::Bin(IdxOp::Add, a, b) => return lin_of(a, true)?.add(lin_of(b, true)?, 1),
+            ITerm::Bin(IdxOp::Sub, a, b) => return lin_of(a, true)?.add(lin_of(b, true)?, -1),
+            ITerm::Bin(IdxOp::Mul, a, b) => match (&**a, &**b) {
+                (ITerm::Num(k), o) | (o, ITerm::Num(k)) => return lin_of(o, true)?.scale(k.parse().ok()?),
+                _ => {}
+            },
+            _ => {}
+        }
+    }
+    Some(Lin { terms: vec![(t.clone(), 1)], c: 0 })
+}
+
+/// What `lin <= 0` says as a difference constraint.
+enum Fit {
+    Le(DiffLe),
+    /// Holds of every value (no information).
+    True,
+    /// Not a difference constraint.
+    No,
+}
+
+fn fit(lin: Lin) -> Fit {
+    let terms: Vec<(ITerm, i128)> = lin.terms.into_iter().filter(|(_, a)| *a != 0).collect();
+    // `a * (x - y) + c <= 0` over integers is `x - y <= floor(-c / a)`.
+    let bound = |a: i128| lin.c.checked_neg().map(|n| n.div_euclid(a));
+    let le = |x: Option<ITerm>, y: Option<ITerm>, a: i128| match bound(a) {
+        Some(c) => Fit::Le(DiffLe { x, y, c }),
+        None => Fit::No,
+    };
+    match terms.as_slice() {
+        [] if lin.c <= 0 => Fit::True,
+        [] => Fit::Le(DiffLe { x: None, y: None, c: -lin.c }),
+        [(k, a)] if *a > 0 => le(Some(k.clone()), None, *a),
+        [(k, a)] => le(None, Some(k.clone()), -*a),
+        [(k, a), (j, b)] if *a == -*b && *a > 0 => le(Some(k.clone()), Some(j.clone()), *a),
+        [(k, a), (j, b)] if *a == -*b => le(Some(j.clone()), Some(k.clone()), *b),
+        _ => Fit::No,
+    }
+}
+
+/// `l - r <= d` as a difference constraint, trying the exact reading of
+/// both sides first and then each side as one opaque value (`i + j <=
+/// 5` is a bound on the value `i + j`).
+fn read_le(l: &ITerm, r: &ITerm, d: i128, sorts: &Sorts) -> Fit {
+    let Some(sort) = sorts.term(l).or_else(|| sorts.term(r)) else {
+        return Fit::No;
+    };
+    let exact = sort.exact();
+    for (lx, rx) in [(exact, exact), (false, exact), (exact, false), (false, false)] {
+        let (Some(a), Some(b)) = (lin_of(l, lx), lin_of(r, rx)) else {
+            return Fit::No;
+        };
+        let Some(diff) = a.add(b, -1).and_then(|x| x.add(Lin { terms: Vec::new(), c: d }, -1)) else {
+            return Fit::No;
+        };
+        match fit(diff) {
+            Fit::No => continue,
+            f => return f,
+        }
+    }
+    Fit::No
+}
+
+/// An atom's difference reading: constraints that all hold, or a
+/// disequality whose two strict alternatives are `lt` and `gt`.
+enum DiffReading {
+    Les(Vec<DiffLe>),
+    Ne(DiffLe, DiffLe),
+}
+
+fn read_cmp(op: IdxCmp, l: &ITerm, r: &ITerm, sorts: &Sorts) -> DiffReading {
+    let les = |fs: Vec<Fit>| {
+        DiffReading::Les(
+            fs.into_iter()
+                .filter_map(|f| match f {
+                    Fit::Le(le) => Some(le),
+                    _ => None,
+                })
+                .collect(),
+        )
+    };
+    match op {
+        IdxCmp::Lt => les(vec![read_le(l, r, -1, sorts)]),
+        IdxCmp::Le => les(vec![read_le(l, r, 0, sorts)]),
+        IdxCmp::Gt => les(vec![read_le(r, l, -1, sorts)]),
+        IdxCmp::Ge => les(vec![read_le(r, l, 0, sorts)]),
+        IdxCmp::Eq => les(vec![read_le(l, r, 0, sorts), read_le(r, l, 0, sorts)]),
+        IdxCmp::Ne => match (read_le(l, r, -1, sorts), read_le(r, l, -1, sorts)) {
+            (Fit::Le(a), Fit::Le(b)) => DiffReading::Ne(a, b),
+            _ => DiffReading::Les(Vec::new()),
+        },
+    }
+}
+
+/// An atom as one comparison over normalized terms: `NonZero x` is `x
+/// /= 0`, `NotNull x` is `length x >= 1`, and `Not` flips the operator.
+fn diff_lit(a: &PTerm) -> Option<(IdxCmp, ITerm, ITerm)> {
+    match a {
+        PTerm::Cmp(op, l, r) => Some((*op, l.normalize(), r.normalize())),
+        PTerm::Eq(l, r) => Some((IdxCmp::Eq, l.normalize(), r.normalize())),
+        PTerm::Pred(PredFn::NonZero, x) => Some((IdxCmp::Ne, x.normalize(), ITerm::num(0))),
+        PTerm::Pred(PredFn::NotNull, x) => Some((
+            IdxCmp::Ge,
+            ITerm::app_fn("<builtin>.length".to_string(), vec![x.normalize()]),
+            ITerm::num(1),
+        )),
+        PTerm::Not(p) => diff_lit(p).map(|(op, l, r)| (neg_cmp(op), l, r)),
+        _ => None,
+    }
+}
+
+fn read_atom(a: &PTerm, sorts: &Sorts) -> DiffReading {
+    match diff_lit(a) {
+        Some((op, l, r)) => read_cmp(op, &l, &r, sorts),
+        None => DiffReading::Les(Vec::new()),
+    }
+}
+
+/// The negation of goal disjunct `g`.
+fn read_negated(g: &PTerm, sorts: &Sorts) -> DiffReading {
+    match diff_lit(g) {
+        Some((op, l, r)) => read_cmp(neg_cmp(op), &l, &r, sorts),
+        None => DiffReading::Les(Vec::new()),
+    }
+}
+
+/// A term's sort axioms: a `Nat` value is non-negative (unless it is a
+/// difference, whose exact value may be negative), a machine integer or
+/// `Char` lies in its range.
+fn sort_domain(t: &ITerm, sorts: &Sorts) -> Vec<DiffLe> {
+    fn has_sub(t: &ITerm) -> bool {
+        match t {
+            ITerm::Bin(IdxOp::Sub, ..) => true,
+            ITerm::Bin(_, a, b) => has_sub(a) || has_sub(b),
+            _ => false,
+        }
+    }
+    match sorts.term(t) {
+        Some(IntSort::Nat) if !has_sub(t) => vec![DiffLe { x: None, y: Some(t.clone()), c: 0 }],
+        Some(IntSort::Bounded(lo, hi)) => vec![
+            DiffLe { x: Some(t.clone()), y: None, c: hi },
+            DiffLe { x: None, y: Some(t.clone()), c: -lo },
+        ],
+        _ => Vec::new(),
+    }
+}
+
+/// A goal's disjuncts when it is a disjunction of atoms.
+fn goal_disjuncts(g: &PTerm, out: &mut Vec<PTerm>) -> bool {
+    match g {
+        PTerm::Or(a, b) => goal_disjuncts(a, out) && goal_disjuncts(b, out),
+        PTerm::And(..) => false,
+        _ => {
+            out.push(g.clone());
+            true
+        }
+    }
+}
+
+/// Whether the hypotheses entail `goal` in difference logic, with one
+/// checkable proof per goal clause. Sound and, within the fragment and
+/// the split bound, complete: a failure means some integer assignment
+/// satisfies every readable hypothesis and violates the goal. Of equal
+/// hypotheses only the last (innermost) is read, so a fact re-derived
+/// after a write is the one a proof cites.
+pub fn linear_entails(hyps: &[PTerm], goal: &PTerm, sorts: &Sorts) -> Option<Vec<LinearProof>> {
+    if let PTerm::And(a, b) = goal {
+        let mut p = linear_entails(hyps, a, sorts)?;
+        p.extend(linear_entails(hyps, b, sorts)?);
+        return Some(p);
+    }
+    let mut disjuncts = Vec::new();
+    if !goal_disjuncts(goal, &mut disjuncts) {
+        let PTerm::Or(a, b) = goal else { return None };
+        return linear_entails(hyps, a, sorts).or_else(|| linear_entails(hyps, b, sorts));
+    }
+    let mut steps: Vec<DiffStep> = Vec::new();
+    let mut diseqs: Vec<(DiffWhy, DiffLe, DiffLe)> = Vec::new();
+    let mut add = |reading: DiffReading, why: DiffWhy, steps: &mut Vec<DiffStep>| match reading {
+        DiffReading::Les(ls) => {
+            steps.extend(ls.into_iter().map(|le| DiffStep { le, why: why.clone() }))
+        }
+        DiffReading::Ne(lt, gt) => diseqs.push((why, lt, gt)),
+    };
+    for (k, g) in disjuncts.iter().enumerate() {
+        add(read_negated(g, sorts), DiffWhy::Goal(k), &mut steps);
+    }
+    // Innermost first: Bellman-Ford relaxes in edge order, so a cycle
+    // through a fresh fact is found before one through an older equal
+    // one (equal ones are skipped outright).
+    for (i, h) in hyps.iter().enumerate().rev() {
+        if hyps[i + 1..].iter().any(|later| later == h) {
+            continue;
+        }
+        for (j, a) in pred_conjuncts(h).iter().enumerate() {
+            add(read_atom(a, sorts), DiffWhy::Hyp { hyp: i, conj: j }, &mut steps);
+        }
+    }
+    let mut keys: Vec<ITerm> = Vec::new();
+    let mut note = |t: &Option<ITerm>| {
+        if let Some(t) = t {
+            if !keys.contains(t) {
+                keys.push(t.clone());
+            }
+        }
+    };
+    for s in &steps {
+        note(&s.le.x);
+        note(&s.le.y);
+    }
+    for (_, lt, gt) in &diseqs {
+        for le in [lt, gt] {
+            note(&le.x);
+            note(&le.y);
+        }
+    }
+    for k in &keys {
+        for le in sort_domain(k, sorts) {
+            steps.push(DiffStep { le, why: DiffWhy::Domain(k.clone()) });
+        }
+    }
+    let cert = diff_refute(&mut steps, &diseqs, &keys, 0)?;
+    let proof = LinearProof { goal: goal.clone(), cert };
+    // The search is untrusted: only a proof the checker accepts counts.
+    check_linear_proof(hyps, &proof, sorts).then(|| vec![proof])
+}
+
+/// Refute `steps` together with one alternative of every disequality.
+fn diff_refute(
+    steps: &mut Vec<DiffStep>,
+    diseqs: &[(DiffWhy, DiffLe, DiffLe)],
+    keys: &[ITerm],
+    depth: usize,
+) -> Option<DiffCert> {
+    let model = match diff_cycle(steps, keys) {
+        Err(cycle) => return Some(DiffCert::Cycle(cycle.into_iter().map(|e| steps[e].clone()).collect())),
+        Ok(model) => model,
+    };
+    // The model satisfies every constraint; it is a counterexample
+    // unless it makes some disequality's two sides equal. Split only
+    // such a disequality.
+    let val = |t: &Option<ITerm>| match t {
+        None => Some(0),
+        Some(t) => keys.iter().position(|k| k == t).map(|i| model[i + 1] - model[0]),
+    };
+    let holds = |le: &DiffLe| matches!((val(&le.x), val(&le.y)), (Some(x), Some(y)) if x - y <= le.c);
+    let k = diseqs.iter().position(|(_, lt, gt)| !holds(lt) && !holds(gt))?;
+    if depth >= DIFF_SPLITS {
+        return None;
+    }
+    let (on, lt, gt) = diseqs[k].clone();
+    let rest: Vec<(DiffWhy, DiffLe, DiffLe)> =
+        diseqs.iter().enumerate().filter(|(i, _)| *i != k).map(|(_, d)| d.clone()).collect();
+    let side = |le: DiffLe, steps: &mut Vec<DiffStep>| {
+        steps.push(DiffStep { le, why: DiffWhy::Case(depth) });
+        let c = diff_refute(steps, &rest, keys, depth + 1);
+        steps.pop();
+        c
+    };
+    let lt = side(lt, steps)?;
+    let gt = side(gt, steps)?;
+    Some(DiffCert::Split { on, lt: Box::new(lt), gt: Box::new(gt) })
+}
+
+/// Bellman-Ford from a virtual source over `x - y <= c` as an edge `y ->
+/// x` of weight `c` (node 0 is the constant zero, node `i + 1` is key
+/// `i`): a negative cycle's edge indices, or a satisfying assignment.
+fn diff_cycle(steps: &[DiffStep], keys: &[ITerm]) -> std::result::Result<Vec<i128>, Vec<usize>> {
+    let node = |t: &Option<ITerm>| match t {
+        None => 0,
+        Some(t) => keys.iter().position(|k| k == t).map_or(0, |i| i + 1),
+    };
+    let edges: Vec<(usize, usize, i128)> =
+        steps.iter().map(|s| (node(&s.le.x), node(&s.le.y), s.le.c)).collect();
+    let n = keys.len() + 1;
+    let mut dist = vec![0i128; n];
+    let mut pred = vec![usize::MAX; n];
+    let mut last = None;
+    for _ in 0..=n {
+        last = None;
+        for (e, &(x, y, c)) in edges.iter().enumerate() {
+            let cand = dist[y].saturating_add(c);
+            if cand < dist[x] {
+                dist[x] = cand;
+                pred[x] = e;
+                last = Some(x);
+            }
+        }
+        if last.is_none() {
+            return Ok(dist);
+        }
+    }
+    // Still relaxing after `n + 1` rounds: walking predecessors `n`
+    // times from the last relaxed node lands on a negative cycle.
+    let mut v = last.expect("relaxed this round");
+    for _ in 0..n {
+        match pred.get(v) {
+            Some(&e) if e != usize::MAX => v = edges[e].1,
+            _ => return Err(Vec::new()),
+        }
+    }
+    let start = v;
+    let mut cycle = Vec::new();
+    loop {
+        let e = pred[v];
+        if e == usize::MAX || cycle.len() > n {
+            return Err(Vec::new());
+        }
+        cycle.push(e);
+        v = edges[e].1;
+        if v == start {
+            return Err(cycle);
+        }
+    }
+}
+
+/// Check a linear proof without search (the trusted half: what the
+/// dependent kernel's evidence check would run on the certificate):
+/// every step's constraint follows from what it cites, re-read from the
+/// hypotheses, the goal and the sort axioms, and each cycle sums to a
+/// contradiction.
+pub fn check_linear_proof(hyps: &[PTerm], proof: &LinearProof, sorts: &Sorts) -> bool {
+    let mut disjuncts = Vec::new();
+    if !goal_disjuncts(&proof.goal, &mut disjuncts) {
+        return false;
+    }
+    let cited = |w: &DiffWhy| -> Option<DiffReading> {
+        match w {
+            DiffWhy::Hyp { hyp, conj } => {
+                let conjs = pred_conjuncts(hyps.get(*hyp)?);
+                Some(read_atom(conjs.get(*conj)?, sorts))
+            }
+            DiffWhy::Goal(k) => Some(read_negated(disjuncts.get(*k)?, sorts)),
+            DiffWhy::Domain(t) => Some(DiffReading::Les(sort_domain(t, sorts))),
+            DiffWhy::Case(_) => None,
+        }
+    };
+    fn go(
+        cert: &DiffCert,
+        cited: &dyn Fn(&DiffWhy) -> Option<DiffReading>,
+        cases: &mut Vec<DiffLe>,
+    ) -> bool {
+        match cert {
+            DiffCert::Cycle(steps) => {
+                let justified = steps.iter().all(|s| match &s.why {
+                    DiffWhy::Case(d) => cases.get(*d).is_some_and(|c| s.le.follows_from(c)),
+                    w => matches!(cited(w), Some(DiffReading::Les(ls)) if ls.iter().any(|l| s.le.follows_from(l))),
+                });
+                let mut sum: i128 = 0;
+                let mut net: Vec<(ITerm, i64)> = Vec::new();
+                let mut tally = |t: &Option<ITerm>, d: i64| {
+                    if let Some(t) = t {
+                        match net.iter_mut().find(|(k, _)| k == t) {
+                            Some((_, n)) => *n += d,
+                            None => net.push((t.clone(), d)),
+                        }
+                    }
+                };
+                for s in steps {
+                    tally(&s.le.x, 1);
+                    tally(&s.le.y, -1);
+                    match sum.checked_add(s.le.c) {
+                        Some(v) => sum = v,
+                        None => return false,
+                    }
+                }
+                justified && !steps.is_empty() && sum < 0 && net.iter().all(|(_, n)| *n == 0)
+            }
+            DiffCert::Split { on, lt, gt } => {
+                let Some(DiffReading::Ne(a, b)) = cited(on) else {
+                    return false;
+                };
+                for (alt, sub) in [(a, lt), (b, gt)] {
+                    cases.push(alt);
+                    let ok = go(sub, cited, cases);
+                    cases.pop();
+                    if !ok {
+                        return false;
+                    }
+                }
+                true
+            }
+        }
+    }
+    go(&proof.cert, &cited, &mut Vec::new())
 }
 
 impl PTerm {

@@ -80,8 +80,8 @@ decision record in `compiler/CONFORMANCE.md` where applicable.
   `%` and `/` are the `Rem` and `Div` class methods, whose instances
   cover the mathematical `Nat` and `Int` only (machine integers keep the
   explicit checked/wrapping/saturating families, primitive types
-  specification sections 4 and 8). Division or remainder by zero is the
-  defined fault (exit 72).
+  specification sections 4 and 8). The divisor is a `NonZero a`, so
+  division and remainder are total (2026-10-30).
 - Precedence follows the Rust reference table, laid onto the draft's
   0-9 scale; the new binary operators are left associative like Rust's:
 

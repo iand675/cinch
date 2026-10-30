@@ -416,6 +416,9 @@ fn surface_refs(d: &Decl, out: &mut Vec<RefSite>) {
                     ast::Oblig::Preserves { pred, .. } => ast::collect_type_refs(pred, out),
                 }
             }
+            for (_, ty) in &i.method_sigs {
+                ast::collect_type_refs(ty, out);
+            }
         }
         Decl::Refine(r) => {
             for b in &r.params {

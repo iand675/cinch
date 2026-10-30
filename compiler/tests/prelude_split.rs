@@ -208,9 +208,11 @@ fn ref_of(name: &str) -> String {
 /// nested type applications (`Option (Producer (TakeSt s) a)` renders
 /// as `Option Producer TakeSt s a`, `Ref region (Vec n U32)` as `Ref
 /// region Vec n U32`), so splicing the rendered scheme does not parse
-/// back for these seven names. Each signature below is the home
-/// declaration's own text; a rendering fix would let the table drop
-/// away.
+/// back for these names. Each signature below is the home declaration's
+/// own text; a rendering fix would let those entries drop away. The
+/// exception is `nat-sub`, whose `using (b <= a)` obligation discharges at
+/// a call's arguments, so it cannot resolve as a bare value: its probe is
+/// a full application whose obligation (`3 <= 5`) decides at compile time.
 const RESTATED: &[(&str, &str, &str)] = &[
     (
         "detect-vec-u32",
@@ -247,6 +249,7 @@ const RESTATED: &[(&str, &str, &str)] = &[
         "forall t w n region. using (dict :: SumProofs) => (vectors :: VecU32Target t w) -> (xs :: Ref region (Vec n U32)) -> Eq (scalar-sum-wrap32 xs) (simd-sum-wrap32 vectors xs)",
         "scalar-to-simd",
     ),
+    ("nat-sub", "Nat", "nat-sub 5 3"),
 ];
 
 /// One probe per surface name, keyed by the name's contract kind:

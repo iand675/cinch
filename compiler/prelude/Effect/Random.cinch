@@ -179,11 +179,12 @@ module Effect.Random where
   -- A uniform value below `bound`: rejection sampling over
   -- `byte-width bound` bytes, in the acceptance region the header
   -- derives. `bound = 0` is `Err EmptyBound`; `bound = 1` is 0 and
-  -- draws nothing.
+  -- draws nothing. The emptiness test is the decision that makes the
+  -- bound the draw's `NonZero` divisor.
   random-nat-below :: forall r. using (io :: Io r) => Nat ->{IO r} Result RandomError Nat
-  random-nat-below bound = case bound == 0 of
-    True -> Err EmptyBound
-    False -> draw-below bound (byte-width bound 0)
+  random-nat-below bound = case decide (NonZero bound) of
+    No _ -> Err EmptyBound
+    Yes w -> draw-below (NonZero bound w) (byte-width bound 0)
 
   -- A uniform value in `lo .. hi - 1` (inclusive lower, exclusive
   -- upper): the offset draw shifted by `lo`. An empty range (`hi <= lo`,
@@ -218,12 +219,15 @@ module Effect.Random where
   random-hex n = hex-of-bytes (random-bytes n)
 
   -- One rejection-sampling attempt, and the redraw (private: the loop is
-  -- the header's bias argument, not part of the surface).
-  draw-below :: forall r. using (io :: Io r) => Nat -> Nat ->{IO r} Result RandomError Nat
+  -- the header's bias argument, not part of the surface). The bound is
+  -- the reduction's divisor, so it arrives already proven non-zero.
+  draw-below :: forall r. using (io :: Io r) => NonZero Nat -> Nat ->{IO r} Result RandomError Nat
   draw-below bound w =
     let v = bytes-to-nat (random-bytes w) 0 w 0 in
     let top = nat-pow 256 w in
-    let limit = top - nat-rem top bound in
+    -- `top - top % bound`, the largest multiple of `bound` not above
+    -- `top`, written as that multiple (the same number, no subtraction).
+    let limit = nat-mul (nat-div top bound) (unrefine bound) in
     case v < limit of
       True -> Ok (nat-rem v bound)
       False -> draw-below bound w

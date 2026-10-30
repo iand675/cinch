@@ -109,11 +109,11 @@ module Main where
     let sfx = string-to-bytes suffix in
     let bl = bytes-len b in
     let sl = bytes-len sfx in
-    if nat-cmp sl bl == 1 then False
+    if sl > bl then False
     else bytes-equal-at b (bl - sl) sfx 0 sl
 
   bytes-equal-at :: Bytes -> Nat -> Bytes -> Nat -> Nat -> Bool
   bytes-equal-at b i s j n =
-    if nat-cmp n 0 == 0 then True
+    if n == 0 then True
     else if nat-cmp (bytes-get b i) (bytes-get s j) == 0 then bytes-equal-at b (i + 1) s (j + 1) (n - 1)
     else False

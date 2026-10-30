@@ -109,7 +109,7 @@ module Bootstrap.Interface where
   -- Do the `k` bytes at `hi` and `ni` agree? Used by the needle search.
   bytes-equal-at :: Bytes -> Nat -> Bytes -> Nat -> Nat -> Bool
   bytes-equal-at hay hi needle ni k =
-    if nat-cmp k 0 == 0 then True
+    if k == 0 then True
     else if nat-cmp (bytes-get hay hi) (bytes-get needle ni) == 0 then bytes-equal-at hay (hi + 1) needle (ni + 1) (k - 1)
     else False
 
@@ -121,16 +121,19 @@ module Bootstrap.Interface where
     else bytes-find hay needle (from + 1)
 
   -- `hay` with the half-open range `[lo, hi)` replaced by `repl`: the prefix,
-  -- the replacement and the suffix, copied into one fresh buffer.
+  -- the replacement and the suffix, copied into one fresh buffer. A range
+  -- that is not inside `hay` (the callers never pass one) leaves it as is.
   bytes-splice :: Bytes -> Nat -> Nat -> Bytes -> Bytes
   bytes-splice hay lo hi repl =
     let bl = bytes-len hay in
     let rl = bytes-len repl in
-    let out = bytes-new (bl - (hi - lo) + rl) in
-    let u = copy-bytes-into out hay 0 0 lo in
-    let v = copy-bytes-into out repl lo 0 rl in
-    let w = copy-bytes-into out hay (lo + rl) hi (bl - hi) in
-    out
+    if lo <= hi && hi <= bl then
+      let out = bytes-new ((bl - hi) + lo + rl) in
+      let u = copy-bytes-into out hay 0 0 lo in
+      let v = copy-bytes-into out repl lo 0 rl in
+      let w = copy-bytes-into out hay (lo + rl) hi (bl - hi) in
+      out
+    else hay
 
   -- Is this byte one of the JSON insignificant whitespace bytes?
   is-space-byte :: Nat -> Bool
@@ -161,28 +164,31 @@ module Bootstrap.Interface where
   array-stop :: Bytes -> Nat -> Nat
   array-stop b open = brackets-scan b (open + 1) 1 0
 
-  brackets-scan :: Bytes -> Nat -> Nat -> Nat -> Nat
+  -- The scan runs inside `depth` open brackets, at least one (the
+  -- array's own): the close at depth one ends it, so a deeper close has
+  -- a level to drop.
+  brackets-scan :: using (1 <= depth) => Bytes -> Nat -> (depth :: Nat) -> Nat -> Nat
   brackets-scan b i depth in-str =
     if nat-cmp i (bytes-len b) == 0 then i
     else if nat-cmp in-str 1 == 0 then in-string-scan b i depth
     else in-array b i depth
 
-  in-string-scan :: Bytes -> Nat -> Nat -> Nat
+  in-string-scan :: using (1 <= depth) => Bytes -> Nat -> (depth :: Nat) -> Nat
   in-string-scan b i depth =
     if nat-cmp (bytes-get b i) 92 == 0 then brackets-scan b (i + 2) depth 1
     else if nat-cmp (bytes-get b i) 34 == 0 then brackets-scan b (i + 1) depth 0
     else brackets-scan b (i + 1) depth 1
 
-  in-array :: Bytes -> Nat -> Nat -> Nat
+  in-array :: using (1 <= depth) => Bytes -> Nat -> (depth :: Nat) -> Nat
   in-array b i depth =
     if nat-cmp (bytes-get b i) 34 == 0 then brackets-scan b (i + 1) depth 1
     else if nat-cmp (bytes-get b i) 91 == 0 then brackets-scan b (i + 1) (depth + 1) 0
     else if nat-cmp (bytes-get b i) 93 == 0 then close-bracket b i depth
     else brackets-scan b (i + 1) depth 0
 
-  close-bracket :: Bytes -> Nat -> Nat -> Nat
+  close-bracket :: using (1 <= depth) => Bytes -> Nat -> (depth :: Nat) -> Nat
   close-bracket b i depth =
-    if nat-cmp depth 1 == 0 then i
+    if depth == 1 then i
     else brackets-scan b (i + 1) (depth - 1) 0
 
   -- A top-level key's needle: the canonical printer writes a key as `"key":`
@@ -203,7 +209,7 @@ module Bootstrap.Interface where
 
   key-anchored :: Bytes -> Nat -> Bool
   key-anchored hay p =
-    if nat-cmp p 0 == 0 then False
+    if p == 0 then False
     else if nat-cmp (bytes-get hay (p - 1)) 123 == 0 then True
     else nat-cmp (bytes-get hay (p - 1)) 44 == 0
 

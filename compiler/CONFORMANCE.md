@@ -2463,6 +2463,116 @@ so the embedding sweep stays its own decision.
   at exit for all of them. The only expected leak is a `letrec` value knot
   (3 blocks) until S8. Open: constants built at compile time are
   constructed without type arguments, so their counted fields may leak.
+- **D412 (no faults NF2: conditions carry evidence into their
+  branches)**: a condition the checker reads as a predicate (a prelude
+  `Ord`/`Eq` comparison on `Nat`, `Int`, a machine integer or `Char`; the
+  prelude's `not`; `NonZero d`; `&&`; `||`; guards) binds a hidden,
+  unforgeable evidence binder (`%cond`) in the branch it selects: the fact
+  in the then branch, its negation in the else branch, a guard's fact in
+  its row and its negation in later rows over the same names, and `&&`/`||`
+  right operands checked with the left's fact or its negation. The
+  existing obligation discharge and the D192 staleness tracker read it as
+  they read a `Yes h` binder; no `Dec` is built, and the emitted IR is
+  identical to a plain `if`. A plain value checked against a refinement of
+  its own type enters it when the predicate is decided at compile time or
+  implied by evidence in scope (the same machine word). Evidence matches
+  obligations by name, never up to renaming, and drops facts whose names
+  are rebound. Soundness fix: `pred_implies` renamed each side
+  separately, so evidence `a < b` discharged `b < a` (through `decide`
+  too); `pred_entails` compares names as written. New rules: `x /= 0`
+  gives `NonZero x`; a range missing `k` gives `x /= k`.
+  `tests/if_evidence.rs`.
+- **D413 (no faults NF1: division is total)**: `type NonZero a = refine
+  (n :: a) with NonZero n` is one refinement for every carrier (declared in
+  `Algebra.Arithmetic`, public home `Data.NonZero`); a refinement's
+  container may be a type parameter, with the predicate's fit checked at
+  use. `nat-div`, `nat-rem`, `int-div`, `int-rem`, `/` and `%` take a
+  `NonZero` divisor (`(/) :: a -> NonZero a -> a`, the single-parameter
+  shape that keeps `n / 10` unchanged); a numeral checked against a
+  refinement decides it at compile time, so literal divisors need no
+  annotation, and `0` is a compile error. `checked-div`/`checked-rem ::
+  Nat -> Nat -> Option Nat` are the total front doors. Migrated: 155
+  literal calls and 3 operator uses unchanged, 12 sites threading
+  `NonZero`, 9 deciding at runtime. `Data.BigDecimal.div` returns `Option`;
+  `Data.Complex` loses its `Div` instance (IEEE `div` stays a named
+  function). Exit 72 and `cinch_fault_div_zero` are deleted; the runtime
+  check is a compiler-bug trap. Open: `Data.Rational.normalise` decides an
+  unreachable zero-gcd arm because the positive-denominator invariant is
+  not in the types; the `NonZero Int` `Semigroup`/`Monoid` preservation
+  law is sample-checked, not proved. `tests/safe_division.rs`.
+- **D414 (floats: one unboxed type, proofs in refinements; user,
+  2026-10-30)**: `F64`/`F32` stay the only float types, unboxed, with exact
+  IEEE semantics; `NotNaN`, `Finite`, `NonZero`, `Positive`, `NonNegative`
+  and `InRange lo hi` refinements carry what is known about a value at no
+  runtime cost (a name like `Real64` is an alias for a refinement, never a
+  boxed type). The IEEE `Eq`/`Ord` instances live in an unsafe module and
+  are never implicit: an `unsafe instance` (extending D213/D221's `unsafe`)
+  names the laws it violates, is exempt from checking them, is recorded as
+  a manifest assumption, cannot be `implicit`, and is reachable only by
+  explicit selection. Facts from float comparisons use IEEE-correct
+  negation. `design/float-refinements.md`.
+- **D415 (facts come from `case` branches; `if` is a `case`; user,
+  2026-10-30)**: every branch of the pattern compiler's decision tree binds
+  what its test proves about the column's value (`branch_facts`,
+  `bind_facts` in `check_terms.rs`): `True`/`False` rows of a predicate,
+  `k` and default rows of a literal match (`x == k`, `x /= k` for every
+  earlier literal), `LT`/`EQ`/`GT` of `Relation.Ord.comparing` at a numeric
+  key, and `NotNull` for a non-empty list constructor, for the scrutinee
+  and for every name a row binds to the column. `if c then a else b` reads
+  `c` as `case c of True -> a; False -> b` does, a guard is a `Bool` column
+  over its row, and `&&`/`||` check their right operand in the `True`/
+  `False` branch of the left; the if-specific path is deleted. A guarded
+  row's failure falls through inside its own branch, so its fact never
+  leaks. Reading a condition as a predicate never changes how it
+  typechecks: the condition elaborates exactly as before and the fact is
+  read off the finished elaboration (a regression where `length xs == 2 *
+  n` with `n :: Int` was forced to `Nat` was found by the full suite and
+  fixed). Fact terms exclude byte-buffer reads, the `length`/`toNat`
+  measures, and `+`/`-`/`*` over machine integers (their arithmetic wraps).
+  A `Bool` case emits IR identical to a plain `if`. Float comparisons never
+  produce facts. `tests/case_evidence.rs`.
+- **D416 (no faults NF4: difference logic over facts)**: obligations
+  discharge from all facts in scope together, read as difference
+  constraints `x - y <= c`/`x <= c` over `Nat`, `Int`, the machine integers
+  and `Char` (`linear_entails` in `types.rs`, tried after the existing table
+  rows). The negated goal joins the facts and Bellman-Ford negative-cycle
+  detection decides it, complete within the fragment; a `/=` fact or
+  `NonZero` splits into two sides only when the current solution violates
+  it, at most four deep. Terms: locals, numerals, `+`/`-`, multiplication
+  by a numeral, and admissible fact terms as opaque values; `Nat`/`Int`
+  arithmetic is exact, opaque `Nat` values are non-negative, machine
+  integers are exact within their ranges, and machine `+` is opaque (a
+  wrapping user `Add I64` is refused as evidence at `maxBound`). Every
+  discharge produces a `DiffCert` (a cycle of cited constraints, or a split
+  with a certificate per side) that `check_linear_proof` re-checks from its
+  sources before the discharge is accepted; the kernel is meant to run the
+  same check by reflection (`design/proof-automation.md` section 5). Check
+  time on the largest prelude module is unchanged within noise.
+  `tests/linear_facts.rs`.
+- **D417 (no faults NF3: `Nat` subtraction is total)**: an instance may
+  restate a class method with obligations over the method's own arguments
+  (`implicit instance Sub_Nat :: Sub Nat where (-) :: using (y <= x) => (x
+  :: Nat) -> (y :: Nat) -> Nat`), discharged at every direct, full
+  application and refused wherever the dictionary could reach code without
+  evidence (generic `using (Sub a)` code, sub-dictionaries, module
+  arguments, the method as a value, partial application); `Sub` itself and
+  `-` at `Int` and the machine types are unchanged. `nat-sub :: using (b <=
+  a) => ...`; literals decide at compile time; a definition's own `using`
+  obligations are evidence in its body. `saturating-sub` and `checked-sub`
+  are the explicit forms. Fixed three soundness holes in signature
+  obligations: a qualified callee skipped them, a function passed inside a
+  callee expression escaped the must-apply-directly rule, and argument
+  positions skipped unnamed arrows. `Enum`'s `pred` and `to-enum` return
+  `Option`. An open reified `Nat` index difference is a compile error.
+  Migrated: about 110 sites with no code change, 30 with a guard restated
+  for the checker, 10 own-obligation recursions, 25 rewritten to the same
+  value, 6 `saturating-sub` (durations; reversed byte ranges now empty;
+  1-based columns), 14 `checked-sub` or unreachable-branch guards. The
+  runtime's negative-subtraction check is a compiler-bug trap. Open:
+  `nat-from-i64` (28 sites, mostly values non-negative by construction,
+  needing range facts for conversion results); the bootstrap parser does
+  not model predicate `using` (two unmodeled nodes in `Data.Nat`).
+  `tests/safe_subtraction.rs`.
 ### Refinement types (P28)
 
 Implemented `dfc653d` (2026-10-27, `RefinementSlice`, D248-D255):

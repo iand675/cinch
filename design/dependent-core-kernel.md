@@ -135,6 +135,91 @@ section 4), never a general proof.
   facts; the core records them as `Eq`-style hypotheses, and flow-sensitive
   invalidation drops facts when mutable state changes (core specification
   section 5).
+- As built (branch facts from matches): every branch of a match binds
+  what its test proves about the column's value, by one rule. The
+  decision tree's branches are exact, so the fact holds on every path into
+  the branch: a default branch knows the value is none of the literals,
+  and an earlier guarded row never removes values from a later branch (a
+  failing guard falls through inside its own branch). The readings:
+  - a `Bool` scrutinee the checker reads as a predicate: its `True` branch
+    gets the predicate, its `False` branch the refutation (a wildcard row
+    after `True` sits in the `False` branch). Readable predicates are a
+    comparison (`<`, `<=`, `>`, `>=`, `==`, `/=`) whose operator is the
+    prelude's `Ord`/`Eq` method and whose operands are `Nat`, `Int`,
+    machine integers or `Char` (never floats: under IEEE a NaN makes
+    `not (x < y)` differ from `x >= y`); a structural predicate written as
+    the condition (`if NonZero d then`); and `&&`, `||`, and the prelude's
+    `not` over those;
+  - a numeric scrutinee: a literal branch states `x == k`, the default
+    branch `x /= k` for every literal;
+  - `comparing k x y` (the prelude's three-way comparison; `Ord` itself has
+    only the four boolean methods) at a numeric key: `LT`, `EQ`, `GT` state
+    `k x < k y`, `k x == k y`, `k x > k y`;
+  - a list-shaped scrutinee (the `NotNull` vocabulary): a non-empty
+    constructor's branch states `NotNull x`, the empty one `not (NotNull
+    x)`. Other constructor types have no vocabulary predicate and state
+    nothing (a predicate per constructor, `IsJust`-style, would be needed).
+  The value readings state their fact about the scrutinee and about every
+  name a row binds to the column (`e -> nat-div n e` after a `0` row, or a
+  function equation's parameter after a literal equation). A scrutinee is
+  read only when a fact may name it: numerals, locals, borrow reads,
+  arithmetic (not at machine integers, whose arithmetic wraps while index
+  arithmetic is mathematical), `bytes-len`, and pure global functions
+  taking no borrow, pointer or byte buffer (a buffer's contents change
+  under `bytes-set` with no tracked footprint). `length` and `toNat` are
+  excluded: the index reading takes them as the baked measures whatever
+  they resolve to.
+  `if c then a else b` is `case c of True -> a; False -> b`: the same
+  `Bool` reading and branch rule, and a `case` whose `Bool` scrutinee no
+  pattern names branches on the test itself, so both compile to the same
+  compare-and-branch. A guard is a `Bool` column over its row (its body is
+  the `True` branch, the fallthrough to later rows the `False` branch,
+  reaching only rows whose names denote the same values). `p && q` checks
+  `q` in the `True` branch of `p` and holds both (or just `p` when `q` has
+  no reading); `p || q` checks `q` in the `False` branch of `p` and
+  refutes both. A `Bool` the checker cannot read carries no fact.
+  - Mechanism: the facts are native to the checker, not a desugaring to
+    `case decide c of`. Each fact conjunct is a hidden `Prop` binder in the
+    branch scope (its name is no identifier, so source can neither name
+    nor forge it), so the existing discharge (`discharge_oblig`) and the
+    D192 staleness tracker (`ev_derivs`/`ev_uses`, the same write log)
+    read it exactly as a `Yes h` binder.
+  - Reading never changes typing: a condition elaborates exactly as a
+    plain one (a comparison is the ordinary application of the prelude's
+    `Ord`/`Eq` method, with the same test and cost), and the fact is read
+    off that elaboration only when the method's class argument came out a
+    total order and both operands are terms a fact may name. A condition
+    whose reading would need other typing simply has no fact.
+  - Staleness: a fact is bound when its branch is elaborated, so writes in
+    sibling branches (not on its path) do not count, and it also carries
+    the window between its own test and the end of its condition, so a
+    write later in the condition (`copyOut m >= 5 || poke m`) does.
+  - Cost: the plain `if`'s, one comparison and a branch. No `Dec` value is
+    built, and a fact-bearing `if`, `case c of True/False` and literal
+    `case` allocate exactly what a plain `if` does. (`case decide c of
+    Yes/No` does not allocate either: `Yes`/`No` are static nullary words,
+    but it materializes the word and dispatches on its header; the
+    branch-fact path skips both.)
+  - Use sites: a `using` obligation at a call, and a plain value checked
+    against a refinement whose container it is (`nat-div n d` with `d ::
+    Nat` against `NonZero Nat`): the predicate instantiated at the value's
+    index reading is decided statically or entailed by evidence in scope;
+    the coercion is the same word.
+  - Entailment is `pred_entails`: `pred_implies`'s rows over the caller's
+    own names, never up to renaming (`a < b` says nothing about `b < a`).
+    One item, or the items over the obligation's names together, must
+    entail the obligation; an item whose names are rebound after it (an
+    inner `let x`) is out of scope. What discharges is what the table
+    proves: syntactic identity, conjunct projection, interval containment
+    and disjointness over literal bounds, `x /= 0` and a zero-excluding
+    range for `NonZero x`, and a range missing `k` for `x /= k`.
+    When the table fails, every fact in scope together (over any names)
+    is decided by difference logic (`linear_entails`, `types.rs`): `i <
+    n` entails `i + 1 <= n`, and `i <= j`, `j < n` entail `i < n`
+    (`design/refinement-types.md`, "linear facts over variables"). Its
+    proof is a negative-cycle certificate checked before the discharge
+    accepts it; the facts the certificate cites are the ones the
+    staleness check reads.
 - `decide P` exists only with a supplied decision procedure; its result is
   `Yes evidence | No refutation` scoped to the examined values.
 

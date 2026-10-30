@@ -89,11 +89,13 @@ module Text.Lex where
   -- `pack` is provided by Data.String (the type home); this module
   -- imports it for its char-list-to-String conversions.
 
-  -- The byte range [i, j) of a buffer as a fresh copy.
+  -- The byte range [i, j) of a buffer as a fresh copy; a reversed range
+  -- (`j < i`) holds no bytes, so it is the empty copy.
   bytes-slice :: Bytes -> Nat -> Nat -> Bytes
   bytes-slice b i j =
-    let out = bytes-new (j - i) in
-    let u = copy-bytes-into out b 0 i (j - i) in
+    let n = saturating-sub j i in
+    let out = bytes-new n in
+    let u = copy-bytes-into out b 0 i n in
     out
 
   char-width :: Char -> Nat
@@ -554,7 +556,9 @@ module Text.Lex where
     None -> s
     Some c -> if eq-char c '\n' || eq-char c '\r' then s else skip-line-comment (skip-char s)
 
-  skip-block-comment :: Scan -> Nat -> ResultScan
+  -- Inside `depth` nested comments, at least one: the closing `-}` at
+  -- depth one ends the run, so every deeper close has a level to drop.
+  skip-block-comment :: using (1 <= depth) => Scan -> (depth :: Nat) -> ResultScan
   skip-block-comment s depth = case peek-char s of
     None -> SRErr (scan-span s) UnterminatedComment
     Some c ->
@@ -982,15 +986,16 @@ module Text.Lex where
             && not (eq-char last '.') && not (eq-char last '-')
 
   -- The balanced `(...)` region of an attribute's arguments, string
-  -- literals skipped so a `)` inside one does not close the group.
-  scan-attr-parens :: Scan -> Nat -> ResultScan
+  -- literals skipped so a `)` inside one does not close the group. At
+  -- least one group is open (`depth`), so a deeper close drops a level.
+  scan-attr-parens :: using (1 <= depth) => Scan -> (depth :: Nat) -> ResultScan
   scan-attr-parens s depth = case peek-char s of
     None -> SRErr (scan-span s) RefusedAttr
     Some c ->
       if eq-char c '"' then scan-attr-parens (skip-attr-string (skip-char s)) depth
       else if eq-char c '(' then scan-attr-parens (skip-char s) (depth + 1)
       else if eq-char c ')' then
-        if nat-cmp depth 1 == 0 then SROk (skip-char s)
+        if depth == 1 then SROk (skip-char s)
         else scan-attr-parens (skip-char s) (depth - 1)
       else scan-attr-parens (skip-char s) depth
 
@@ -1026,7 +1031,7 @@ module Text.Lex where
   -- whitespace before the `]`.
   trim-attr-end :: Bytes -> Nat -> Nat
   trim-attr-end b j =
-    if nat-cmp j 0 == 0 then j
+    if j == 0 then j
     else if is-attr-space (bytes-get b (j - 1)) then trim-attr-end b (j - 1)
     else j
 
@@ -1077,7 +1082,8 @@ module Text.Lex where
   lex-fragment :: Scan -> FragmentResult
   lex-fragment s0 = fragment-loop (skip-char s0) (scan-off (skip-char s0)) 1 False
 
-  fragment-loop :: Scan -> Nat -> Nat -> Bool -> FragmentResult
+  -- At least one brace is open (`depth`), so a deeper close drops a level.
+  fragment-loop :: using (1 <= depth) => Scan -> Nat -> (depth :: Nat) -> Bool -> FragmentResult
   fragment-loop s start depth in-str = case peek-char s of
     None -> FragErr (scan-span s) RefusedPrim
     Some c ->
@@ -1089,7 +1095,7 @@ module Text.Lex where
         if eq-char c '"' then fragment-loop (skip-char s) start depth True
         else if eq-char c '{' then fragment-loop (skip-char s) start (depth + 1) False
         else if eq-char c '}' then
-          if nat-cmp depth 1 == 0 then
+          if depth == 1 then
             FragOk (bytes-to-string-at (scan-src s) start (scan-off s)) (scan-span s) (skip-char s)
           else fragment-loop (skip-char s) start (depth - 1) False
         else fragment-loop (skip-char s) start depth False
@@ -1581,8 +1587,13 @@ module Text.Lex where
   -- frame index counts from the top of the stack; the frames to close
   -- are the ones down to and including it.
   pop-to-let :: Lay -> Nat -> Span -> Lay
+  -- `let-at` indexes the stack it was found in, so the count of frames
+  -- that stay is never negative; an index past the stack names no
+  -- frame, and closes nothing.
   pop-to-let lay let-at sp =
-    pop-n-frames lay (list-len (lay-stack lay) - (let-at + 1)) sp
+    case checked-sub (list-len (lay-stack lay)) (let-at + 1) of
+      Some keep -> pop-n-frames lay keep sp
+      None -> lay
 
   pop-n-frames :: Lay -> Nat -> Span -> Lay
   pop-n-frames lay n sp =

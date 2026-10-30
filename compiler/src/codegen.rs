@@ -6315,9 +6315,10 @@ mod tests {
     }
 
     #[test]
-    fn int_div_and_rem_by_zero_fault() {
-        // Mathematical `Int` division faults on a zero divisor (exit 72,
-        // the division fault code).
+    fn int_div_and_rem_by_zero_trap_as_a_compiler_bug() {
+        // Core built by hand bypasses the checker's `NonZero` divisor, so
+        // it reaches the runtime's zero check: a compiler-bug trap on the
+        // panic path (exit 71), the exit that well-typed code never takes.
         let body = app(
             p(PrimOp::Int(IntOp::Add)),
             vec![
@@ -6325,7 +6326,7 @@ mod tests {
                 app(p(PrimOp::Int(IntOp::Rem)), vec![cbig("7"), cbig("0")]),
             ],
         );
-        assert_eq!(run("int_div_and_rem_by_zero_fault", &main_prog(vec![], body)), 72);
+        assert_eq!(run("int_div_and_rem_by_zero_trap", &main_prog(vec![], body)), 71);
     }
 
     #[test]
@@ -6880,9 +6881,9 @@ mod tests {
     }
 
     #[test]
-    fn nat_sub_faults_on_negative_result() {
-        // The inductive `Nat` subtraction is truncated: a negative result
-        // faults through the panic path (exit 71).
+    fn nat_sub_below_zero_is_a_compiler_bug_trap() {
+        // Source code cannot build this (`3 - 5` at `Nat` is refused); the
+        // raw primitive still traps through the panic path (exit 71).
         let body = app(p(PrimOp::Nat(NatOp::Sub)), vec![cnat("3"), cnat("5")]);
         assert_eq!(run("nat_sub_faults_on_negative", &main_prog(vec![], body)), 71);
     }

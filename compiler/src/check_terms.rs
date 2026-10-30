@@ -692,8 +692,10 @@ impl Checker {
                 // at the call's arguments (refinement types design,
                 // "instance heads at refinements"): a signature's own
                 // obligations now, an instance's after resolution.
+                // A qualified callee (`Data.Nat.nat-sub a b`) carries its
+                // obligations exactly like a bare one.
                 let callee_obligs = match &**f {
-                    ast::Term::Var(p) if p.quals.is_empty() => match env.lookup(&p.name.text) {
+                    ast::Term::Var(p) => match env.lookup(&p.name.text).filter(|_| p.quals.is_empty()) {
                         Some((_, s)) => s.obligs.clone(),
                         None => self
                             .resolve_var(p, p.span())
@@ -702,9 +704,19 @@ impl Checker {
                     },
                     _ => Vec::new(),
                 };
-                self.app_callee_depth += 1;
-                let (mut core, mut ty) = self.infer(env, f)?;
-                self.app_callee_depth -= 1;
+                // Only a variable callee is "applied directly": its
+                // obligations discharge below. Any other callee form (a
+                // conditional, a parenthesized application) elaborates as
+                // an ordinary value, so an obligation-bearing function
+                // inside it is refused as a value; and the arguments are
+                // never in callee position.
+                let saved_depth = std::mem::replace(
+                    &mut self.app_callee_depth,
+                    usize::from(matches!(&**f, ast::Term::Var(_))),
+                );
+                let inferred = self.infer(env, f);
+                self.app_callee_depth = saved_depth;
+                let (mut core, mut ty) = inferred?;
                 // A callee that writes memory at an unknown target (a
                 // foreign call, `eval`, a mutating `Bytes` primitive) is an
                 // opaque write that invalidates all mutable-location
@@ -816,6 +828,9 @@ impl Checker {
                                 ),
                             ));
                         }
+                        if self.decide_closed_oblig(&inst, *span)? {
+                            continue;
+                        }
                         let static_ok = idxs.iter().any(|idx| {
                             call_args
                                 .get(*idx)
@@ -832,6 +847,7 @@ impl Checker {
                 if let Some(want) = callee_want(&core) {
                     self.prop_calls.push(PropCall {
                         want,
+                        method: head_method(&core).filter(|(w, _)| *w == want).map(|(_, i)| i),
                         args: call_args,
                         evidence: self.evidence_in(env),
                         residual_fun: matches!(
@@ -869,9 +885,20 @@ impl Checker {
             ast::Term::If { cond, then, els, cond_attrs, then_attrs, else_attrs, span } => {
                 let (tw, fw) =
                     self.if_weights(cond_attrs, then_attrs, else_attrs, *span)?;
-                let ccore = self.check(env, cond, &Ty::Bool)?;
-                let ((tcore, tty), tm) = self.isolate(|s| s.infer(env, then))?;
-                let (ecore, em) = self.isolate(|s| s.check(env, els, &tty))?;
+                // `if c then a else b` is `case c of True -> a; False ->
+                // b`: the condition reads as a `Bool` column and each
+                // branch binds that column's facts by the match rule
+                // (dependent core kernel design section 8).
+                let (ccore, reading) = self.cond_reading(env, cond)?;
+                let cspan = cond.span();
+                let ((tcore, tty), tm) = self.isolate(|s| {
+                    s.in_branch(env, &reading, &BranchKey::Bool(true), cspan, |s, env| s.infer(env, then))
+                })?;
+                let (ecore, em) = self.isolate(|s| {
+                    s.in_branch(env, &reading, &BranchKey::Bool(false), cspan, |s, env| {
+                        s.check(env, els, &tty)
+                    })
+                })?;
                 self.merge_branches(vec![tm, em]);
                 Ok((
                     ECore::If(
@@ -883,10 +910,11 @@ impl Checker {
                 ))
             }
             ast::Term::Case(scrut, alts, span) => {
-                let (scrut_core, scrut_ty) = self.infer(env, scrut)?;
+                let (scrut_core, scrut_ty, reading) = self.infer_scrutinee(env, scrut)?;
                 let scrut_ty = self.uni.zonk(&scrut_ty);
                 let res = self.uni.fresh();
-                let core = self.compile_alts(env, alts, scrut_core, scrut_ty, &res, *span)?;
+                let core =
+                    self.compile_alts(env, alts, scrut_core, scrut_ty, reading, &res, *span)?;
                 Ok((core, res))
             }
             ast::Term::Ann(e, ty, _) => {
@@ -1438,9 +1466,18 @@ impl Checker {
             ast::Term::If { cond, then, els, cond_attrs, then_attrs, else_attrs, span } => {
                 let (tw, fw) =
                     self.if_weights(cond_attrs, then_attrs, else_attrs, *span)?;
-                let ccore = self.check(env, cond, &Ty::Bool)?;
-                let (tcore, tm) = self.isolate(|s| s.check(env, then, expected))?;
-                let (ecore, em) = self.isolate(|s| s.check(env, els, expected))?;
+                let (ccore, reading) = self.cond_reading(env, cond)?;
+                let cspan = cond.span();
+                let (tcore, tm) = self.isolate(|s| {
+                    s.in_branch(env, &reading, &BranchKey::Bool(true), cspan, |s, env| {
+                        s.check(env, then, expected)
+                    })
+                })?;
+                let (ecore, em) = self.isolate(|s| {
+                    s.in_branch(env, &reading, &BranchKey::Bool(false), cspan, |s, env| {
+                        s.check(env, els, expected)
+                    })
+                })?;
                 self.merge_branches(vec![tm, em]);
                 Ok(ECore::If(
                     Box::new(ccore),
@@ -1467,9 +1504,9 @@ impl Checker {
                 Ok(wrap_lets(binds, bcore))
             }),
             ast::Term::Case(scrut, alts, span) => {
-                let (scrut_core, scrut_ty) = self.infer(env, scrut)?;
+                let (scrut_core, scrut_ty, reading) = self.infer_scrutinee(env, scrut)?;
                 let scrut_ty = self.uni.zonk(&scrut_ty);
-                self.compile_alts(env, alts, scrut_core, scrut_ty, expected, *span)
+                self.compile_alts(env, alts, scrut_core, scrut_ty, reading, expected, *span)
             }
             ast::Term::List(items, span) => {
                 let (core, _) = self.elab_collection(env, items, false, Some(expected), *span)?;
@@ -1517,8 +1554,7 @@ impl Checker {
                     }
                 }
                 let (core, ty) = self.infer(env, term)?;
-                self.unify_arg(&ty, expected)
-                    .map_err(|m| Error::at(term.span(), m))?;
+                self.check_subsume(env, term, &ty, expected)?;
                 Ok(core)
             }
             ast::Term::App(f, args, span) => {
@@ -1557,8 +1593,7 @@ impl Checker {
                     return Ok(core);
                 }
                 let (core, ty) = self.infer(env, term)?;
-                self.unify_arg(&ty, expected)
-                    .map_err(|m| Error::at(term.span(), m))?;
+                self.check_subsume(env, term, &ty, expected)?;
                 Ok(core)
             }
             ast::Term::Tuple(items, span) => {
@@ -1594,11 +1629,65 @@ impl Checker {
             }
             _ => {
                 let (core, ty) = self.infer(env, term)?;
-                self.unify_arg(&ty, expected)
-                    .map_err(|m| Error::at(term.span(), m))?;
+                self.check_subsume(env, term, &ty, expected)?;
                 Ok(core)
             }
         }
+    }
+
+    /// The inferred type of a checked term meets its expected type. A
+    /// plain value at a refinement whose container it is enters the
+    /// refinement when the predicate holds of it here (refinement types
+    /// design: the refined value IS its container, so the coercion is the
+    /// same word): decided statically over its index reading, or
+    /// entailed by evidence in scope (a `Dec` binder or a branch
+    /// condition's fact, D192 staleness included). Every other pair goes
+    /// through the argument coercion.
+    fn check_subsume(
+        &mut self,
+        env: &mut Env,
+        term: &ast::Term,
+        inferred: &Ty,
+        expected: &Ty,
+    ) -> Result<()> {
+        let inf = self.uni.zonk(inferred);
+        let exp = self.uni.zonk(expected);
+        if !matches!(inf, Ty::Meta(_)) && self.refine_view(&inf).is_none() {
+            if let Some(RefineView { base: Some(base), pred, binder }) = self.refine_view(&exp) {
+                if self.uni.unify(&inf, &base).is_ok() {
+                    let it = self.idx_of_term(term, env).map_err(|e| {
+                        Error::at(
+                            term.span(),
+                            format!(
+                                "a plain value enters the refinement `{pred}` only when the predicate is proved of it, and this expression has no index reading to state it over ({})",
+                                e.message
+                            ),
+                        )
+                    })?;
+                    let inst = pred.subst(&binder, &it);
+                    return match self.static_obligation(&inst)? {
+                        ObligStatus::Checked => Ok(()),
+                        ObligStatus::Disproved => Err(Error::at(
+                            term.span(),
+                            format!(
+                                "obligation disproved: `{inst}` is false, so this value cannot enter the refinement (a failed check must not produce evidence)"
+                            ),
+                        )),
+                        ObligStatus::Timeout => Err(Error::at(
+                            term.span(),
+                            format!(
+                                "obligation status: timeout: deciding `{inst}` ran out of reduction steps (none of these outcomes is a proof)"
+                            ),
+                        )),
+                        ObligStatus::Unsupported | ObligStatus::Unresolved => {
+                            let ev = self.evidence_in(env);
+                            self.discharge_oblig(&ev, &inst, term.span())
+                        }
+                    };
+                }
+            }
+        }
+        self.unify_arg(&inf, &exp).map_err(|m| Error::at(term.span(), m))
     }
 
     /// `delay (\() -> e)` against `Later a`: the guarded observation of
@@ -2206,48 +2295,7 @@ impl Checker {
                 self.cur_runtime_decides.push(span);
                 // An executable comparison over the examined values; the
                 // evidence exists only on the successful branch.
-                let cmp_op = match cmp {
-                    IdxCmp::Eq => CmpOp::Eq,
-                    IdxCmp::Ne => CmpOp::Ne,
-                    IdxCmp::Lt => CmpOp::Lt,
-                    IdxCmp::Le => CmpOp::Le,
-                    IdxCmp::Gt => CmpOp::Gt,
-                    IdxCmp::Ge => CmpOp::Ge,
-                };
-                let test = match &lt {
-                    Ty::Nat => {
-                        let imm = ECore::App(
-                            Box::new(ECore::Prim(PrimOp::Nat(NatOp::Cmp))),
-                            vec![lc, rc],
-                        );
-                        ECore::App(
-                            Box::new(ECore::Prim(PrimOp::Cmp { ty: Scalar::I64, op: cmp_op })),
-                            vec![imm, ECore::Int(0)],
-                        )
-                    }
-                    Ty::Int => {
-                        let imm = ECore::App(
-                            Box::new(ECore::Prim(PrimOp::Int(IntOp::Cmp))),
-                            vec![lc, rc],
-                        );
-                        ECore::App(
-                            Box::new(ECore::Prim(PrimOp::Cmp { ty: Scalar::I64, op: cmp_op })),
-                            vec![imm, ECore::Int(0)],
-                        )
-                    }
-                    Ty::Prim(s) if s.is_int_like() || *s == Scalar::Char => ECore::App(
-                        Box::new(ECore::Prim(PrimOp::Cmp { ty: *s, op: cmp_op })),
-                        vec![lc, rc],
-                    ),
-                    other => {
-                        return Err(Error::at(
-                            span,
-                            format!(
-                                "obligation status: unsupported: `decide` compares `Nat`, `Int`, and machine integers, not {other}"
-                            ),
-                        ))
-                    }
-                };
+                let test = self.cmp_runtime_test(cmp, &lt, lc, rc, span)?;
                 Ok((
                     ECore::If(
                         Box::new(test),
@@ -2497,6 +2545,728 @@ impl Checker {
             t.span(),
             "obligation status: unsupported: `decide` takes a comparison (`i < n`) or `Eq x y` over values it can compare",
         ))
+    }
+
+    /// The executable comparison `decide` and a fact-bearing branch
+    /// condition share: the operands' own primitive comparison at their
+    /// numeric type (the bignum `Nat`/`Int` three-way compare against
+    /// zero, or the machine scalar's compare). It is compiled from the
+    /// compiler's vocabulary, never from a class method a shadowing
+    /// module could lie with, so the fact a branch records is exactly
+    /// what ran.
+    fn cmp_runtime_test(
+        &self,
+        cmp: IdxCmp,
+        lt: &Ty,
+        lc: ECore,
+        rc: ECore,
+        span: ast::Span,
+    ) -> Result<ECore> {
+        let cmp_op = match cmp {
+            IdxCmp::Eq => CmpOp::Eq,
+            IdxCmp::Ne => CmpOp::Ne,
+            IdxCmp::Lt => CmpOp::Lt,
+            IdxCmp::Le => CmpOp::Le,
+            IdxCmp::Gt => CmpOp::Gt,
+            IdxCmp::Ge => CmpOp::Ge,
+        };
+        Ok(match lt {
+            Ty::Nat => {
+                let imm = ECore::App(Box::new(ECore::Prim(PrimOp::Nat(NatOp::Cmp))), vec![lc, rc]);
+                ECore::App(
+                    Box::new(ECore::Prim(PrimOp::Cmp { ty: Scalar::I64, op: cmp_op })),
+                    vec![imm, ECore::Int(0)],
+                )
+            }
+            Ty::Int => {
+                let imm = ECore::App(Box::new(ECore::Prim(PrimOp::Int(IntOp::Cmp))), vec![lc, rc]);
+                ECore::App(
+                    Box::new(ECore::Prim(PrimOp::Cmp { ty: Scalar::I64, op: cmp_op })),
+                    vec![imm, ECore::Int(0)],
+                )
+            }
+            Ty::Prim(s) if s.is_int_like() || *s == Scalar::Char => ECore::App(
+                Box::new(ECore::Prim(PrimOp::Cmp { ty: *s, op: cmp_op })),
+                vec![lc, rc],
+            ),
+            other => {
+                return Err(Error::at(
+                    span,
+                    format!(
+                        "obligation status: unsupported: `decide` compares `Nat`, `Int`, and machine integers, not {other}"
+                    ),
+                ))
+            }
+        })
+    }
+
+    /// A condition elaborated for its facts (dependent core kernel
+    /// design section 8: `if`/`case` introduce facts into their
+    /// branches). Returns the `Bool` test and the facts that hold when it
+    /// is true and when it is false, each stamped with the write-log
+    /// position of its own test. A condition the checker cannot read as a
+    /// predicate checks as an ordinary `Bool` and carries no facts.
+    fn elab_cond(
+        &mut self,
+        env: &mut Env,
+        cond: &ast::Term,
+    ) -> Result<(ECore, Vec<Fact>, Vec<Fact>)> {
+        if let ast::Term::If { cond: a, then: t, els: e, cond_attrs, then_attrs, else_attrs, span } =
+            cond
+        {
+            // `p && q` and `p || q` are the short-circuit forms of
+            // `case p of True -> q; False -> False` (and the dual): the
+            // right operand is the `True` (`False`) row, so it is checked
+            // with that row's facts, by the same branch rule as any match.
+            let is_and = matches!(&**e, ast::Term::Con(p) if p.parts() == ["False"]);
+            let is_or = !is_and && matches!(&**t, ast::Term::Con(p) if p.parts() == ["True"]);
+            if is_and || is_or {
+                let (tw, fw) = self.if_weights(cond_attrs, then_attrs, else_attrs, *span)?;
+                let (ac, ap, an) = self.elab_cond(env, a)?;
+                let reading = Reading {
+                    kind: ReadingKind::Bool { pos: ap.clone(), neg: an.clone() },
+                    end: self.ev_writes.len(),
+                };
+                let (rhs, konst) = if is_and { (&**t, &**e) } else { (&**e, &**t) };
+                let fact_span = a.span();
+                let ((rc, rp, rn), rm) = self.isolate(|s| {
+                    s.in_branch(env, &reading, &BranchKey::Bool(is_and), fact_span, |s, env| {
+                        s.elab_cond(env, rhs)
+                    })
+                })?;
+                let (kc, km) = self.isolate(|s| s.check(env, konst, &Ty::Bool))?;
+                let core = if is_and {
+                    self.merge_branches(vec![rm, km]);
+                    ECore::If(Box::new(ac), CBranch::weighted(tw, rc), CBranch::weighted(fw, kc))
+                } else {
+                    self.merge_branches(vec![km, rm]);
+                    ECore::If(Box::new(ac), CBranch::weighted(tw, kc), CBranch::weighted(fw, rc))
+                };
+                // `p && q` holds: both hold (a side without a reading
+                // still leaves the other's facts). It fails: one of them
+                // fails, which needs both readings. `||` is the dual.
+                let (pos, neg) = if is_and {
+                    ([ap, rp].concat(), fact_or(an, rn))
+                } else {
+                    (fact_or(ap, rp), [an, rn].concat())
+                };
+                return Ok((core, pos, neg));
+            }
+        }
+        // `not c`, when `not` is the prelude's Boolean negation: the
+        // facts swap. The negation lowers to the primitive itself (the
+        // prelude's `not` is exactly `prim-not-bool`).
+        if self.is_prelude_not(env, cond) {
+            let ast::Term::App(_, args, _) = cond else { unreachable!() };
+            let (c, pos, neg) = self.elab_cond(env, &args[0])?;
+            return Ok((app_spine(ECore::Prim(PrimOp::NotBool), vec![c]), neg, pos));
+        }
+        // A comparison through the prelude's `Ord`/`Eq` method checks
+        // exactly as the plain condition does; its fact, when it has one,
+        // is read off that elaboration.
+        let read = match self.cond_comparison(env, cond)? {
+            Some((test, None)) => return Ok((test, Vec::new(), Vec::new())),
+            Some((test, Some(prop))) => Some((test, negate_fact(&prop), prop)),
+            None => self
+                .cond_predicate(env, cond)?
+                .map(|(test, prop)| (test, PTerm::Not(Box::new(prop.clone())), prop)),
+        };
+        if let Some((test, neg, pos)) = read {
+            let at = self.ev_writes.len();
+            let pos = self.mk_fact(env, pos, at).into_iter().collect();
+            let neg = self.mk_fact(env, neg, at).into_iter().collect();
+            return Ok((test, pos, neg));
+        }
+        Ok((self.check(env, cond, &Ty::Bool)?, Vec::new(), Vec::new()))
+    }
+
+    /// A condition as a `Bool` match column: its test and the reading
+    /// its `True`/`False` branches bind.
+    fn cond_reading(&mut self, env: &mut Env, cond: &ast::Term) -> Result<(ECore, Reading)> {
+        let (c, pos, neg) = self.elab_cond(env, cond)?;
+        Ok((c, Reading { kind: ReadingKind::Bool { pos, neg }, end: self.ev_writes.len() }))
+    }
+
+    /// Whether a term is `not c` with `not` the prelude's negation.
+    fn is_prelude_not(&self, env: &Env, t: &ast::Term) -> bool {
+        let ast::Term::App(f, args, _) = t else { return false };
+        let ast::Term::Var(p) = &**f else { return false };
+        args.len() == 1
+            && p.quals.is_empty()
+            && p.name.text == "not"
+            && env.lookup("not").is_none()
+            && self
+                .resolve_var(p, p.span())
+                .is_ok_and(|v| v.module == "Data.Bool" && matches!(v.kind, ValueKind::TopFn))
+    }
+
+    /// Whether a `case` scrutinee reads as a predicate (so it elaborates
+    /// through `elab_cond`): the short-circuit forms, the prelude's `not`,
+    /// a structural predicate, or a comparison through the prelude's
+    /// `Ord`/`Eq` method. Anything else infers as usual.
+    fn cond_readable(&self, env: &Env, t: &ast::Term) -> bool {
+        match t {
+            ast::Term::If { then, els, .. } => {
+                matches!(&**els, ast::Term::Con(p) if p.parts() == ["False"])
+                    || matches!(&**then, ast::Term::Con(p) if p.parts() == ["True"])
+            }
+            ast::Term::App(f, args, _) => match &**f {
+                ast::Term::Con(p) => args.len() == 1 && PredFn::lookup(&p.parts().join(".")).is_some(),
+                ast::Term::Var(_) if self.is_prelude_not(env, t) => true,
+                ast::Term::Var(op) => args.len() == 2 && self.comparison_op(env, op).is_some(),
+                _ => false,
+            },
+            _ => false,
+        }
+    }
+
+    /// The comparison a binary operator denotes when it is the prelude's
+    /// `Ord`/`Eq` method (a module's own `<` is an arbitrary function
+    /// whose truth states nothing).
+    fn comparison_op(&self, env: &Env, op: &ast::VarPath) -> Option<IdxCmp> {
+        if !op.quals.is_empty() || env.lookup(&op.name.text).is_some() {
+            return None;
+        }
+        let (cmp, class_module) = match op.name.text.as_str() {
+            "<" => (IdxCmp::Lt, "Relation.Ord"),
+            "<=" => (IdxCmp::Le, "Relation.Ord"),
+            ">" => (IdxCmp::Gt, "Relation.Ord"),
+            ">=" => (IdxCmp::Ge, "Relation.Ord"),
+            "==" => (IdxCmp::Eq, "Relation.Eq"),
+            "/=" => (IdxCmp::Ne, "Relation.Eq"),
+            _ => return None,
+        };
+        match self.resolve_var(op, op.span()) {
+            Ok(v) if v.module == class_module && matches!(v.kind, ValueKind::Method { .. }) => Some(cmp),
+            _ => None,
+        }
+    }
+
+    /// A comparison condition (`i < n`, `d == 0`, ...) whose operator is
+    /// the prelude's `Ord`/`Eq` method. Reading a condition as a predicate
+    /// never changes how it typechecks: it elaborates as the ordinary
+    /// `Bool` application (the class method at its instance, the same
+    /// test and cost as a plain `if`), and the fact is extracted only
+    /// when that elaboration settled the compared type at a total order
+    /// (`Nat`, `Int`, machine integers, `Char`; never floats, whose
+    /// comparisons are not trichotomous under NaN) and both operands are
+    /// terms a fact may name. `None` when the term is not such a
+    /// comparison; `Some((test, None))` when it is one without a fact.
+    fn cond_comparison(
+        &mut self,
+        env: &mut Env,
+        cond: &ast::Term,
+    ) -> Result<Option<(ECore, Option<PTerm>)>> {
+        let ast::Term::App(f, args, _) = cond else {
+            return Ok(None);
+        };
+        let ast::Term::Var(op) = &**f else {
+            return Ok(None);
+        };
+        if args.len() != 2 {
+            return Ok(None);
+        }
+        let Some(cmp) = self.comparison_op(env, op) else {
+            return Ok(None);
+        };
+        let test = self.check(env, cond, &Ty::Bool)?;
+        Ok(Some((test.clone(), self.comparison_fact(env, &test, cmp, &args[0], &args[1]))))
+    }
+
+    /// The fact an elaborated comparison states, when it states one: the
+    /// method's class argument (the compared type, solved by the ordinary
+    /// elaboration) is a total order, and both operands are terms a fact
+    /// may name.
+    fn comparison_fact(
+        &self,
+        env: &Env,
+        test: &ECore,
+        cmp: IdxCmp,
+        lhs: &ast::Term,
+        rhs: &ast::Term,
+    ) -> Option<PTerm> {
+        let mut head = test;
+        while let ECore::App(f, _) = head {
+            head = f;
+        }
+        let ECore::DictProj(dict, _, _, _) = head else { return None };
+        let ECore::Hole(want) = &**dict else { return None };
+        let w = self.wants.iter().find(|w| w.id == *want)?;
+        let compared = self.uni.zonk(w.class.args.first()?);
+        if !fact_numeric(&compared) {
+            return None;
+        }
+        if !self.fact_term_ok(env, lhs) || !self.fact_term_ok(env, rhs) {
+            return None;
+        }
+        // Index arithmetic is mathematical; a machine integer's wraps.
+        if matches!(compared, Ty::Prim(_)) && (has_arith(lhs) || has_arith(rhs)) {
+            return None;
+        }
+        let li = self.idx_of_term(lhs, env).ok()?;
+        let ri = self.idx_of_term(rhs, env).ok()?;
+        let prop = PTerm::Cmp(cmp, Box::new(li), Box::new(ri));
+        match self.static_obligation(&prop) {
+            Err(_) | Ok(ObligStatus::Timeout | ObligStatus::Unsupported) => None,
+            Ok(_) => Some(prop),
+        }
+    }
+
+    /// A structural predicate written as a condition (`if NonZero d
+    /// then ...`): it decides through `decide`'s own machinery and the
+    /// branch keeps only the test. Its static decision folds the test to
+    /// a constant exactly as `decide` folds it.
+    fn cond_predicate(
+        &mut self,
+        env: &mut Env,
+        cond: &ast::Term,
+    ) -> Result<Option<(ECore, PTerm)>> {
+        let ast::Term::App(f, args, span) = cond else {
+            return Ok(None);
+        };
+        let head = match &**f {
+            ast::Term::Con(p) => p.parts().join("."),
+            _ => return Ok(None),
+        };
+        if args.len() != 1 || PredFn::lookup(&head).is_none() || !self.fact_term_ok(env, &args[0]) {
+            return Ok(None);
+        }
+        // The condition is a test, not a counted `decide` (the
+        // `#[assert-min]` runtime-check count reads `decide` sites).
+        let counted = self.cur_runtime_decides.len();
+        let (core, dty) = self.infer_builtin_app(env, "decide", std::slice::from_ref(cond), *span)?;
+        self.cur_runtime_decides.truncate(counted);
+        let prop = match self.uni.zonk(&dty) {
+            Ty::Adt(n, a) if n == "Dec" && a.len() == 1 => match &a[0] {
+                Ty::Prp(p) => (**p).clone(),
+                _ => return Ok(None),
+            },
+            _ => return Ok(None),
+        };
+        let test = match core {
+            ECore::Ctor(g, _) if g.0 == "<builtin>.Yes" => ECore::Bool(true),
+            ECore::Ctor(g, _) if g.0 == "<builtin>.No" => ECore::Bool(false),
+            ECore::If(test, _, _) => *test,
+            _ => return Ok(None),
+        };
+        Ok(Some((test, prop)))
+    }
+
+    /// Whether a term may be the subject of a fact: its value is fixed
+    /// for as long as the names it reads are, so two occurrences of it
+    /// denote the same value. Numerals, locals, borrow reads (their
+    /// writes are tracked), arithmetic, `bytes-len` (a buffer's size
+    /// never changes), and a
+    /// global function applied to all of its arguments whose arrows
+    /// perform nothing and take no borrow, pointer or byte buffer (a
+    /// buffer's contents change under `bytes-set` with no tracked
+    /// footprint, so a fact about them could go stale unseen).
+    fn fact_term_ok(&self, env: &Env, t: &ast::Term) -> bool {
+        match t {
+            ast::Term::Int(..) | ast::Term::Char(..) => true,
+            ast::Term::Neg(inner, _) => matches!(&**inner, ast::Term::Int(..)),
+            ast::Term::Ann(e, _, _) => self.fact_term_ok(env, e),
+            ast::Term::Var(p) if p.quals.is_empty() && env.lookup(&p.name.text).is_some() => true,
+            ast::Term::Var(p) => self.resolve_var(p, p.span()).is_ok_and(|v| {
+                matches!(v.kind, ValueKind::TopFn)
+                    && !matches!(v.scheme.ty, Ty::Fun(..) | Ty::Pi { .. })
+            }),
+            ast::Term::App(f, args, _) => {
+                let ast::Term::Var(p) = &**f else {
+                    return false;
+                };
+                if p.quals.is_empty() && env.lookup(&p.name.text).is_some() {
+                    return false;
+                }
+                if p.quals.is_empty() {
+                    match (p.name.text.as_str(), args.len()) {
+                        ("copyOut" | "borrow" | "unrefine", 1) => {
+                            return matches!(&args[0], ast::Term::Var(v)
+                                if v.quals.is_empty() && env.lookup(&v.name.text).is_some());
+                        }
+                        ("+" | "-" | "*", 2) => {
+                            return self.fact_term_ok(env, &args[0]) && self.fact_term_ok(env, &args[1]);
+                        }
+                        // The index reading takes these names as the
+                        // baked measures whatever they resolve to here, so
+                        // a fact over them could state something other
+                        // than what ran.
+                        ("length" | "toNat", _) => return false,
+                        _ => {}
+                    }
+                }
+                let Ok(v) = self.resolve_var(p, p.span()) else {
+                    return false;
+                };
+                if !args.iter().all(|a| self.fact_term_ok(env, a)) {
+                    return false;
+                }
+                if v.module == "Data.Bytes" && v.name == "bytes-len" {
+                    return true;
+                }
+                if !matches!(v.kind, ValueKind::TopFn) {
+                    return false;
+                }
+                let mut ty = v.scheme.ty.clone();
+                for _ in args {
+                    let (dom, eff, cod) = match ty {
+                        Ty::Fun(dom, _, eff, cod) => (*dom, eff, *cod),
+                        Ty::Pi { dom, eff, cod, .. } => (*dom, eff, *cod),
+                        _ => return false,
+                    };
+                    let pure = eff.labels.is_empty() && matches!(eff.tail, RowTail::Closed);
+                    let mut regions = Vec::new();
+                    borrow_regions(&dom, &mut regions);
+                    if !pure || !regions.is_empty() || matches!(dom, Ty::Bytes | Ty::Ptr { .. }) {
+                        return false;
+                    }
+                    ty = cod;
+                }
+                true
+            }
+            _ => false,
+        }
+    }
+
+    /// Whether a comparison operand is known, before elaboration, to be a
+    /// value of a numeric type `decide` compares (`Nat`, `Int`, a machine
+    /// integer, `Char`; never a float). A conservative look at the
+    /// operand's shape that performs no elaboration: a local's recorded
+    /// type, a borrow read, arithmetic over such operands, or a global
+    /// function applied to all of its arguments whose result type is a
+    /// numeric type outright (`list-length :: List a -> Nat` qualifies:
+    /// its type parameter never reaches the result).
+    fn cond_operand_numeric(&self, env: &Env, t: &ast::Term) -> bool {
+        match t {
+            ast::Term::Char(..) => true,
+            ast::Term::Ann(e, _, _) => self.cond_operand_numeric(env, e),
+            ast::Term::Var(p) if p.quals.is_empty() => match env.lookup(&p.name.text) {
+                Some((_, s)) => s.params.is_empty() && fact_numeric(&self.uni.zonk(&s.ty)),
+                None => false,
+            },
+            ast::Term::App(f, args, _) => {
+                let ast::Term::Var(p) = &**f else {
+                    return false;
+                };
+                if !p.quals.is_empty() {
+                    return false;
+                }
+                match (p.name.text.as_str(), args.len()) {
+                    ("+" | "-" | "*", 2) if env.lookup(&p.name.text).is_none() => {
+                        self.cond_operand_numeric(env, &args[0])
+                            || self.cond_operand_numeric(env, &args[1])
+                    }
+                    ("copyOut", 1) if env.lookup("copyOut").is_none() => match &args[0] {
+                        ast::Term::Var(m) if m.quals.is_empty() => {
+                            match env.lookup(&m.name.text).map(|(_, s)| self.uni.zonk(&s.ty)) {
+                                Some(Ty::Mut(_, inner) | Ty::Ref(_, inner)) => fact_numeric(&inner),
+                                _ => false,
+                            }
+                        }
+                        _ => false,
+                    },
+                    _ if env.lookup(&p.name.text).is_none() => {
+                        let Ok(v) = self.resolve_var(p, p.span()) else {
+                            return false;
+                        };
+                        if !matches!(v.kind, ValueKind::TopFn) {
+                            return false;
+                        }
+                        let mut ty = v.scheme.ty.clone();
+                        for _ in args {
+                            ty = match ty {
+                                Ty::Fun(_, _, _, cod) => *cod,
+                                Ty::Pi { cod, .. } => *cod,
+                                _ => return false,
+                            };
+                        }
+                        fact_numeric(&ty)
+                    }
+                    _ => false,
+                }
+            }
+            _ => false,
+        }
+    }
+
+    /// The locals an index term's names denote here, or `None` when a
+    /// name is not a local (a fact over it could not be checked against
+    /// a later scope).
+    fn term_names(&self, env: &Env, it: &ITerm) -> Option<Vec<(String, LocalId)>> {
+        let mut fv = Vec::new();
+        it.free_vars(&mut fv);
+        fv.into_iter().map(|v| env.lookup(&v).map(|(l, _)| (v, l))).collect()
+    }
+
+    /// A fact over `prop`, tested at write-log position `at`, with the
+    /// locals its names denote here.
+    fn mk_fact(&self, env: &Env, prop: PTerm, at: usize) -> Option<Fact> {
+        let mut fv = Vec::new();
+        prop.free_vars(&mut fv);
+        let names = fv
+            .into_iter()
+            .map(|v| env.lookup(&v).map(|(l, _)| (v, l)))
+            .collect::<Option<Vec<_>>>()?;
+        Some(Fact { prop, at, names })
+    }
+
+    /// A `case` scrutinee elaborated for what its value states (the
+    /// facts its match's branches bind): a predicate (`case d == 0 of`),
+    /// a numeric or list-shaped value a fact may name (`case d of 0 ->
+    /// ...`), or the three-way `comparing k x y` at a numeric key. A
+    /// scrutinee with no reading infers as usual.
+    fn infer_scrutinee(
+        &mut self,
+        env: &mut Env,
+        scrut: &ast::Term,
+    ) -> Result<(ECore, Ty, Option<Reading>)> {
+        if self.cond_readable(env, scrut) {
+            let (c, pos, neg) = self.elab_cond(env, scrut)?;
+            let reading = (!pos.is_empty() || !neg.is_empty()).then(|| Reading {
+                kind: ReadingKind::Bool { pos, neg },
+                end: self.ev_writes.len(),
+            });
+            return Ok((c, Ty::Bool, reading));
+        }
+        let (c, ty) = self.infer(env, scrut)?;
+        let ty = self.uni.zonk(&ty);
+        let end = self.ev_writes.len();
+        let valued = fact_numeric(&ty) || matches!(&ty, Ty::Adt(n, _) if self.list_shaped(n));
+        let wraps = matches!(ty, Ty::Prim(_)) && has_arith(scrut);
+        let reading = if valued && !wraps && self.fact_term_ok(env, scrut) {
+            self.idx_of_term(scrut, env).ok().and_then(|it| {
+                let names = self.term_names(env, &it)?;
+                Some(Reading { kind: ReadingKind::Value(it, names), end })
+            })
+        } else if matches!(&ty, Ty::Adt(n, _) if n == "Ordering") {
+            self.ordering_reading(env, scrut, end)
+        } else {
+            None
+        };
+        Ok((c, ty, reading))
+    }
+
+    /// `comparing k x y` (the prelude's three-way comparison; `Ord`
+    /// itself has only the four boolean methods) at a numeric key type:
+    /// its `LT`/`EQ`/`GT` rows state `k x < k y`, `k x == k y`, `k x >
+    /// k y`. The key is the identity lambda or a function a fact may
+    /// name (a local, or a pure global) with a numeric result.
+    fn ordering_reading(&self, env: &Env, scrut: &ast::Term, end: usize) -> Option<Reading> {
+        let ast::Term::App(f, args, span) = scrut else { return None };
+        let ast::Term::Var(p) = &**f else { return None };
+        if args.len() != 3 || !p.quals.is_empty() || env.lookup(&p.name.text).is_some() {
+            return None;
+        }
+        let v = self.resolve_var(p, p.span()).ok()?;
+        if v.module != "Relation.Ord" || v.name != "comparing" {
+            return None;
+        }
+        let (k, x, y) = (&args[0], &args[1], &args[2]);
+        if !self.fact_term_ok(env, x) || !self.fact_term_ok(env, y) {
+            return None;
+        }
+        let keyed = |a: &ast::Term| -> Option<(ast::Term, bool)> {
+            match k {
+                ast::Term::Lam(pats, body, _) => {
+                    let [ast::Pat::Var(n, _)] = pats.as_slice() else { return None };
+                    let ast::Term::Var(b) = &**body else { return None };
+                    if !b.quals.is_empty() || b.name.text != n.text {
+                        return None;
+                    }
+                    Some((a.clone(), self.cond_operand_numeric(env, a)))
+                }
+                ast::Term::Var(kp) if kp.quals.is_empty() && env.lookup(&kp.name.text).is_some() => {
+                    let app = ast::Term::App(Box::new(k.clone()), vec![a.clone()], *span);
+                    let (_, s) = env.lookup(&kp.name.text)?;
+                    let numeric = s.params.is_empty()
+                        && matches!(self.uni.zonk(&s.ty), Ty::Fun(_, _, eff, cod)
+                            if eff.labels.is_empty()
+                                && matches!(eff.tail, RowTail::Closed)
+                                && fact_numeric(&cod));
+                    Some((app, numeric))
+                }
+                ast::Term::Var(_) => {
+                    let app = ast::Term::App(Box::new(k.clone()), vec![a.clone()], *span);
+                    let ok = self.fact_term_ok(env, &app);
+                    Some((app.clone(), ok && self.cond_operand_numeric(env, &app)))
+                }
+                _ => None,
+            }
+        };
+        let (kx, nx) = keyed(x)?;
+        let (ky, ny) = keyed(y)?;
+        // One side suffices: both keys have the key's one result type
+        // (a literal operand adapts to the other side).
+        if !(nx || ny) {
+            return None;
+        }
+        let a = self.idx_of_term(&kx, env).ok()?.normalize();
+        let b = self.idx_of_term(&ky, env).ok()?.normalize();
+        let mut names = self.term_names(env, &a)?;
+        names.extend(self.term_names(env, &b)?);
+        Some(Reading { kind: ReadingKind::Order(a, b, names), end })
+    }
+
+    /// The facts one branch of a match establishes about its column:
+    /// the one rule behind `if`, `case`, guards and `&&`/`||`. A branch's
+    /// fact is what its test proves about the column's value on every
+    /// path into it. The decision tree's branches are exact, so a default
+    /// branch knows the value is none of the literals, and an earlier
+    /// guarded row never removes values from a later branch (its failing
+    /// guard falls through inside its own branch).
+    fn branch_facts(reading: &Reading, key: &BranchKey) -> Vec<Fact> {
+        let at = reading.end;
+        let mk = |prop: PTerm, names: &[(String, LocalId)]| Fact { prop, at, names: names.to_vec() };
+        match (&reading.kind, key) {
+            (ReadingKind::Bool { pos, .. }, BranchKey::Bool(true)) => pos.clone(),
+            (ReadingKind::Bool { neg, .. }, BranchKey::Bool(false)) => neg.clone(),
+            (ReadingKind::Value(it, names), key) => {
+                value_facts(it, key).into_iter().map(|p| mk(p, names)).collect()
+            }
+            (ReadingKind::Order(a, b, names), BranchKey::Ctor { name, .. }) => {
+                let op = match name.as_str() {
+                    "LT" => IdxCmp::Lt,
+                    "EQ" => IdxCmp::Eq,
+                    "GT" => IdxCmp::Gt,
+                    _ => return Vec::new(),
+                };
+                vec![mk(PTerm::Cmp(op, Box::new(a.clone()), Box::new(b.clone())), names)]
+            }
+            _ => Vec::new(),
+        }
+    }
+
+    /// Bind one branch's facts into each of its rows: the column's
+    /// reading (the scrutinee's own statement), and the same statement
+    /// about every name the row binds to the column (`x -> nat-div n x`
+    /// after a `0` row knows `x /= 0`, as does a function equation's
+    /// parameter after a literal equation).
+    fn bind_column_facts(
+        &mut self,
+        rows: &mut [Row],
+        col0: &ECore,
+        key: &BranchKey,
+        span: ast::Span,
+    ) -> Result<()> {
+        let ECore::Var(l) = col0 else { return Ok(()) };
+        let reading = self.col_readings.get(l).cloned();
+        let now = self.ev_writes.len();
+        for r in rows.iter_mut() {
+            if let Some(rd) = &reading {
+                let facts = Self::branch_facts(rd, key);
+                self.bind_facts(&mut r.env, &facts, rd.end, span)?;
+            }
+            let bound: Vec<String> = r
+                .env
+                .locals
+                .iter()
+                .filter(|(n, x, _)| x == l && r.env.lookup(n).is_some_and(|(y, _)| y == *l))
+                .map(|(n, _, _)| n.clone())
+                .collect();
+            for n in bound {
+                let facts: Vec<Fact> = value_facts(&ITerm::Var(n.clone()), key)
+                    .into_iter()
+                    .map(|prop| Fact { prop, at: now, names: vec![(n.clone(), *l)] })
+                    .collect();
+                self.bind_facts(&mut r.env, &facts, now, span)?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Run `f` in one branch of `reading`'s match, with the branch's
+    /// facts in scope. Without facts the scope is the caller's own.
+    fn in_branch<T>(
+        &mut self,
+        env: &mut Env,
+        reading: &Reading,
+        key: &BranchKey,
+        span: ast::Span,
+        f: impl FnOnce(&mut Self, &mut Env) -> Result<T>,
+    ) -> Result<T> {
+        let facts = Self::branch_facts(reading, key);
+        if facts.is_empty() {
+            return f(self, env);
+        }
+        let mut env2 = env.clone();
+        self.bind_facts(&mut env2, &facts, reading.end, span)?;
+        f(self, &mut env2)
+    }
+
+    /// Bind facts as hidden evidence binders, one per conjunct, so each
+    /// atom is judged over its own names (an obligation about `d` is
+    /// discharged by `d /= 0` even when the condition also spoke about
+    /// `x`). A fact whose names no longer denote the values they did at
+    /// its test (a row rebinding the name) is not bound. The binder is
+    /// derived here (writes in sibling branches elaborated earlier are
+    /// not on its path); writes between its test and the end of its
+    /// condition (`end`) still count against it.
+    fn bind_facts(&mut self, env: &mut Env, facts: &[Fact], end: usize, span: ast::Span) -> Result<()> {
+        for f in facts {
+            let same = f.names.iter().all(|(n, l)| env.lookup(n).is_some_and(|(x, _)| x == *l));
+            if !same {
+                continue;
+            }
+            for atom in pred_conjuncts(&f.prop) {
+                let l = self.fresh_local();
+                self.bind_local(
+                    env,
+                    COND_FACT,
+                    l,
+                    Scheme::mono(Ty::Prp(Box::new(atom))),
+                    Some(Mult::Zero),
+                    span,
+                )?;
+                if f.at < end {
+                    self.ev_pre.insert(l, (f.at, end));
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Bind a definition's own obligations (`param_facts`) into one
+    /// row's scope: each positional binder `$a{i}` becomes the name the
+    /// row binds to the i-th parameter's local. An obligation over a
+    /// parameter the row's pattern does not name (a constructor
+    /// pattern, a wildcard) is not bound in that row.
+    fn bind_param_facts(
+        &mut self,
+        env: &mut Env,
+        facts: &[(PTerm, Vec<LocalId>)],
+        span: ast::Span,
+    ) -> Result<()> {
+        let now = self.ev_writes.len();
+        let mut out: Vec<Fact> = Vec::new();
+        'facts: for (p, locals) in facts {
+            let mut fv = Vec::new();
+            p.free_vars(&mut fv);
+            let mut prop = p.clone();
+            let mut names: Vec<(String, LocalId)> = Vec::new();
+            for v in &fv {
+                let Some(l) = v
+                    .strip_prefix("$a")
+                    .and_then(|i| i.parse::<usize>().ok())
+                    .and_then(|i| locals.get(i))
+                else {
+                    continue 'facts;
+                };
+                let Some(n) = env
+                    .locals
+                    .iter()
+                    .rev()
+                    .map(|(n, _, _)| n)
+                    .find(|n| env.lookup(n).is_some_and(|(x, _)| x == *l))
+                    .cloned()
+                else {
+                    continue 'facts;
+                };
+                prop = prop.subst(v, &ITerm::Var(n.clone()));
+                names.push((n, *l));
+            }
+            out.push(Fact { prop, at: now, names });
+        }
+        self.bind_facts(env, &out, now, span)
     }
 
     // ------------------------------------------------- dependent core (P7)
@@ -3482,6 +4252,23 @@ impl Checker {
                 ))
             }
         })
+    }
+
+    /// A call's obligation over arguments the checker already knows
+    /// (numerals, arithmetic over them): decided now. `Ok(true)` when it
+    /// holds, a refusal naming it when it is false (`3 - 5` at `Nat`
+    /// states `5 <= 3`), and `Ok(false)` when it needs evidence.
+    pub(crate) fn decide_closed_oblig(&self, obl: &PTerm, span: ast::Span) -> Result<bool> {
+        match self.static_obligation(obl)? {
+            ObligStatus::Checked => Ok(true),
+            ObligStatus::Disproved => Err(Error::at(
+                span,
+                format!(
+                    "the obligation `{obl}` of this call is false: its arguments are known here and do not satisfy it"
+                ),
+            )),
+            ObligStatus::Unsupported | ObligStatus::Timeout | ObligStatus::Unresolved => Ok(false),
+        }
     }
 
     /// The status of a proof obligation (core specification section 4):
@@ -5698,11 +6485,17 @@ impl Checker {
         alts: &[ast::Alt],
         scrut_core: ECore,
         scrut_ty: Ty,
+        reading: Option<Reading>,
         expected: &Ty,
         span: ast::Span,
     ) -> Result<ECore> {
         let sloc = self.fresh_local();
         self.note_local_ty(sloc, &scrut_ty);
+        // The scrutinee column's reading: each branch of the decision
+        // tree over it binds the fact its test establishes.
+        if let Some(r) = reading {
+            self.col_readings.insert(sloc, r);
+        }
         // Every alternative carries its weight beside it, and a guarded
         // one its guard's weight (attribute annotations specification
         // sections 2 and 3).
@@ -5734,6 +6527,17 @@ impl Checker {
                 guard_weight: guard_weights[i],
             });
         }
+        // A `Bool` scrutinee no pattern names is used once, as the
+        // branch test: the column branches on it directly, so the match
+        // costs what `if` costs (no slot for the test's value).
+        let scrut_core = if matches!(self.uni.zonk(&scrut_ty), Ty::Bool)
+            && rows.iter().all(|r| matches!(r.pats[0], ast::Pat::Con(..) | ast::Pat::Wild(_)))
+        {
+            self.inline_cols.insert(sloc, scrut_core);
+            None
+        } else {
+            Some(scrut_core)
+        };
         let core = self.compile_rows(
             rows,
             vec![ECore::Var(sloc)],
@@ -5741,8 +6545,14 @@ impl Checker {
             expected,
             span,
             "a scrutinee value",
-        )?;
-        Ok(ECore::Let(sloc, Box::new(scrut_core), Box::new(core)))
+        );
+        self.col_readings.remove(&sloc);
+        let held = self.inline_cols.remove(&sloc);
+        let core = core?;
+        match scrut_core.or(held) {
+            Some(sc) => Ok(ECore::Let(sloc, Box::new(sc), Box::new(core))),
+            None => Ok(core),
+        }
     }
 
     /// Pattern-matrix compilation with source-order, fall-through
@@ -5773,6 +6583,24 @@ impl Checker {
         for r in &rows {
             check_row_binders(&r.pats)?;
         }
+        if types.is_empty() && !self.param_facts.is_empty() {
+            // Every column is consumed, so each row's patterns have named
+            // the parameters they bind: the definition's own obligations
+            // become evidence over those names. Taken while the rows
+            // check, so a match inside a body does not bind them again.
+            let pf = std::mem::take(&mut self.param_facts);
+            let mut rows = rows;
+            let mut out = Ok(());
+            for r in rows.iter_mut() {
+                out = self.bind_param_facts(&mut r.env, &pf, ctx_span);
+                if out.is_err() {
+                    break;
+                }
+            }
+            let out = out.and_then(|()| self.compile_rows(rows, cols, types, expected, ctx_span, uncovered));
+            self.param_facts = pf;
+            return out;
+        }
         if types.is_empty() {
             let first = &rows[0];
             if let Some(g) = first.guard.as_ref().filter(|g| !guard_always_true(g)) {
@@ -5784,15 +6612,31 @@ impl Checker {
                 // The guard is a Bool expression in the row's scope (all
                 // pattern variables bound); its effects join the enclosing
                 // performed scope. A failing guard falls through.
+                // A guard is a `Bool` column over the row: its `True`
+                // branch is the row's body, its `False` branch the
+                // fallthrough to the later rows, with facts by the same
+                // branch rule as any match.
                 let mut genv = first.env.clone();
-                let gcore = self.check(&mut genv, g, &Ty::Bool)?;
+                let (gcore, reading) = self.cond_reading(&mut genv, g)?;
+                let gspan = g.span();
                 let (body_core, bm) = self.isolate(|s| {
                     let mut env = first.env.clone();
+                    let facts = Self::branch_facts(&reading, &BranchKey::Bool(true));
+                    s.bind_facts(&mut env, &facts, reading.end, gspan)?;
                     s.check(&mut env, &first.body, expected)
                 })?;
+                // The refutation reaches the later rows whose names denote
+                // the same values as in this row (a later row's pattern
+                // may rebind a name to another part of the scrutinee;
+                // `bind_facts` checks each name).
+                let mut rest = rows[1..].to_vec();
+                let refuted = Self::branch_facts(&reading, &BranchKey::Bool(false));
+                for r in rest.iter_mut() {
+                    self.bind_facts(&mut r.env, &refuted, reading.end, gspan)?;
+                }
                 let (rest_core, rm) = self.isolate(|s| {
                     s.compile_rows(
-                        rows[1..].to_vec(),
+                        rest,
                         cols.clone(),
                         types.clone(),
                         expected,
@@ -6024,9 +6868,18 @@ impl Checker {
                     let lits: Vec<&str> = literals.iter().map(|(v, _)| v.as_str()).collect();
                     format!("a value other than {}", lits.join(", "))
                 };
+                // A numeric column's branches state its value: the
+                // default branch is none of the literals, a literal's
+                // branch is that literal.
+                let numeric = fact_numeric(&ty0);
+                let lit_names: Vec<String> = literals.iter().map(|(v, _)| v.clone()).collect();
+                let mut default_rows = defaults.clone();
+                if numeric {
+                    self.bind_column_facts(&mut default_rows, &col0, &BranchKey::Default(lit_names), ctx_span)?;
+                }
                 let (mut chain, m) = self.isolate(|s| {
                     s.compile_rows(
-                        defaults.clone(),
+                        default_rows,
                         rest_cols.clone(),
                         rest_tys.clone(),
                         expected,
@@ -6037,7 +6890,10 @@ impl Checker {
                 branch_maps.push(m);
                 let mut rest_w = default_sum.first().copied().unwrap_or(None);
                 for (i, (v, node)) in literals.into_iter().enumerate().rev() {
-                    let branch = branch_lists[i].clone();
+                    let mut branch = branch_lists[i].clone();
+                    if numeric {
+                        self.bind_column_facts(&mut branch, &col0, &BranchKey::Lit(v.clone()), ctx_span)?;
+                    }
                     let (body, m) = self.isolate(|s| {
                         s.compile_rows(
                             branch,
@@ -6139,6 +6995,8 @@ impl Checker {
                     ctx_span,
                 )?;
                 let (tw, fw) = pair_weights(sums[0], sums[1]);
+                let mut true_rows = true_rows;
+                self.bind_column_facts(&mut true_rows, &col0, &BranchKey::Bool(true), ctx_span)?;
                 let (t, tm) = self.isolate(|s| {
                     s.compile_rows(
                         true_rows,
@@ -6149,12 +7007,22 @@ impl Checker {
                         "True",
                     )
                 })?;
+                // Bound after the `True` branch is elaborated: its writes
+                // are not on the `False` path.
+                let mut false_rows = false_rows;
+                self.bind_column_facts(&mut false_rows, &col0, &BranchKey::Bool(false), ctx_span)?;
                 let (f, fm) = self.isolate(|s| {
                     s.compile_rows(false_rows, rest_cols, rest_tys, expected, ctx_span, "False")
                 })?;
                 self.merge_branches(vec![tm, fm]);
+                // A held-back scrutinee test branches here directly.
+                let held = match &col0 {
+                    ECore::Var(l) => self.inline_cols.remove(l),
+                    _ => None,
+                };
+                let test = held.unwrap_or(col0);
                 Ok(ECore::If(
-                    Box::new(col0),
+                    Box::new(test),
                     CBranch::weighted(tw, t),
                     CBranch::weighted(fw, f),
                 ))
@@ -6162,6 +7030,11 @@ impl Checker {
             Ty::Adt(_, ty_args) => {
                 let info = self.lookup_type(&[type_name_str(&inner_ty)])?.clone();
                 let ty_args = ty_args.clone();
+                // A list-shaped column's constructor branches state its
+                // (non-)emptiness (the `NotNull` vocabulary predicate);
+                // a borrowed column states nothing about its referent.
+                let list_shaped = self.list_shaped(&info.name)
+                    && !matches!(ty0, Ty::Ref(..) | Ty::Mut(..));
                 // Classify rows by the column-0 constructor; each branch
                 // specializes its rows by prepending the field patterns,
                 // so nesting compiles recursively in source order.
@@ -6388,9 +7261,12 @@ impl Checker {
                         self.note_local_ty(*f, t);
                     }
                     branch_tys.extend(types[1..].iter().cloned());
+                    let mut branch_rows = branch.clone();
+                    let key = BranchKey::Ctor { name: name.clone(), arity, list: list_shaped };
+                    self.bind_column_facts(&mut branch_rows, &col0, &key, ctx_span)?;
                     let (core, m) = self.isolate(|s| {
                         s.compile_rows(
-                            branch.clone(),
+                            branch_rows,
                             branch_cols,
                             branch_tys,
                             expected,
@@ -7026,6 +7902,139 @@ fn guard_always_true(g: &ast::Term) -> bool {
     matches!(g, ast::Term::Con(p) if p.parts().as_slice() == ["True"])
 }
 
+/// The name of a branch condition's hidden evidence binder. It is not
+/// an identifier, so source can never name, shadow or forge it; only the
+/// discharge path reads it.
+const COND_FACT: &str = "%cond";
+
+/// One fact a branch establishes: the proposition, the write-log
+/// position of the test that established it (writes after it on the
+/// path invalidate it, D192), and the locals its names denoted there (a
+/// scope where a name denotes another value does not receive it).
+#[derive(Clone, Debug)]
+pub(crate) struct Fact {
+    prop: PTerm,
+    at: usize,
+    names: Vec<(String, LocalId)>,
+}
+
+/// What a match column's value is known to be about, so each branch of
+/// its decision tree binds the fact its test establishes. `end` is the
+/// write-log position once the scrutinee has been evaluated.
+#[derive(Clone, Debug)]
+pub(crate) struct Reading {
+    kind: ReadingKind,
+    end: usize,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) enum ReadingKind {
+    /// A `Bool` read as a predicate: the facts of its two outcomes.
+    Bool { pos: Vec<Fact>, neg: Vec<Fact> },
+    /// A numeric or list-shaped value with an index reading: a literal
+    /// branch states equality, the default branch disequality with every
+    /// literal, a constructor branch emptiness or non-emptiness.
+    Value(ITerm, Vec<(String, LocalId)>),
+    /// `comparing k x y`: `LT`/`EQ`/`GT` state the comparison of the two
+    /// keys.
+    Order(ITerm, ITerm, Vec<(String, LocalId)>),
+}
+
+/// Which branch of a column's test a row set sits in.
+pub(crate) enum BranchKey {
+    Bool(bool),
+    /// The literal's branch (numeric columns only).
+    Lit(String),
+    /// The branch no literal took (numeric columns only).
+    Default(Vec<String>),
+    /// A constructor's branch; `list` when the type is list-shaped, so
+    /// a nullary constructor refutes `NotNull` and any other proves it.
+    Ctor { name: String, arity: usize, list: bool },
+}
+
+/// The statements a value branch makes about the column's value `it`.
+fn value_facts(it: &ITerm, key: &BranchKey) -> Vec<PTerm> {
+    let num = |k: &str| Box::new(ITerm::Num(k.to_string()));
+    match key {
+        BranchKey::Lit(k) => vec![PTerm::Cmp(IdxCmp::Eq, Box::new(it.clone()), num(k))],
+        BranchKey::Default(lits) => lits
+            .iter()
+            .map(|k| PTerm::Cmp(IdxCmp::Ne, Box::new(it.clone()), num(k)))
+            .collect(),
+        BranchKey::Ctor { arity, list: true, .. } => {
+            let p = PTerm::Pred(PredFn::NotNull, Box::new(it.clone()));
+            vec![if *arity == 0 { PTerm::Not(Box::new(p)) } else { p }]
+        }
+        _ => Vec::new(),
+    }
+}
+
+/// Whether a term uses `+`, `-` or `*` anywhere: index arithmetic is
+/// mathematical, so a fact over a machine integer's wrapping arithmetic
+/// would state something other than what ran.
+fn has_arith(t: &ast::Term) -> bool {
+    match t {
+        ast::Term::App(f, args, _) => {
+            matches!(&**f, ast::Term::Var(p) if p.quals.is_empty() && matches!(p.name.text.as_str(), "+" | "-" | "*"))
+                || has_arith(f)
+                || args.iter().any(has_arith)
+        }
+        ast::Term::Ann(e, _, _) => has_arith(e),
+        _ => false,
+    }
+}
+
+/// The types whose comparisons are facts: total orders (`Nat`, `Int`,
+/// machine integers, `Char`). Floats are excluded: under IEEE a NaN
+/// operand makes `not (x < y)` differ from `x >= y`.
+fn fact_numeric(t: &Ty) -> bool {
+    match t {
+        Ty::Nat | Ty::Int => true,
+        Ty::Prim(s) => s.is_int_like() || *s == Scalar::Char,
+        _ => false,
+    }
+}
+
+/// The fact that one side holds: it needs both readings; it is
+/// established at the earlier of the two tests.
+fn fact_or(a: Vec<Fact>, b: Vec<Fact>) -> Vec<Fact> {
+    if a.is_empty() || b.is_empty() {
+        return Vec::new();
+    }
+    let conj = |v: &[Fact]| {
+        let mut it = v.iter().map(|f| f.prop.clone());
+        let first = it.next().expect("nonempty");
+        it.fold(first, |acc, p| PTerm::And(Box::new(acc), Box::new(p)))
+    };
+    let at = a.iter().chain(&b).map(|f| f.at).min().expect("nonempty");
+    let mut names: Vec<(String, LocalId)> = Vec::new();
+    for (n, l) in a.iter().chain(&b).flat_map(|f| f.names.iter()) {
+        if !names.iter().any(|(m, _)| m == n) {
+            names.push((n.clone(), *l));
+        }
+    }
+    vec![Fact { prop: PTerm::Or(Box::new(conj(&a)), Box::new(conj(&b))), at, names }]
+}
+
+/// A comparison's refutation as the complementary comparison (`not (x <
+/// 5)` is `x >= 5`), the form the implication table's interval rows read.
+fn negate_fact(p: &PTerm) -> PTerm {
+    match p {
+        PTerm::Cmp(op, a, b) => {
+            let op = match op {
+                IdxCmp::Lt => IdxCmp::Ge,
+                IdxCmp::Le => IdxCmp::Gt,
+                IdxCmp::Gt => IdxCmp::Le,
+                IdxCmp::Ge => IdxCmp::Lt,
+                IdxCmp::Eq => IdxCmp::Ne,
+                IdxCmp::Ne => IdxCmp::Eq,
+            };
+            PTerm::Cmp(op, a.clone(), b.clone())
+        }
+        other => PTerm::Not(Box::new(other.clone())),
+    }
+}
+
 // ------------------------------------------------------------ effects, handlers, do (P6)
 
 impl Checker {
@@ -7234,16 +8243,36 @@ impl Checker {
                 let kv2 = kv.clone();
                 let cond = (**c).clone();
                 let cond2 = (**c).clone();
+                let dispatches = self.term_may_dispatch(c);
+                // A condition no operation can interrupt elaborates in
+                // direct style first (it runs first), so its facts are
+                // known to the branches; the continuation then receives
+                // the test exactly as the CPS'd condition would pass it.
+                let (pre, reading) = if dispatches {
+                    (None, Reading { kind: ReadingKind::Bool { pos: Vec::new(), neg: Vec::new() }, end: 0 })
+                } else {
+                    let (cc, reading) = self.cond_reading(env, c)?;
+                    (Some(cc), reading)
+                };
+                let cspan = c.span();
                 self.bind_cont(
                     env,
                     ContKind::Once,
-                    self.term_may_dispatch(c),
+                    dispatches,
                     move |this, env, v, vty| {
                         this.uni
                             .unify(&vty, &Ty::Bool)
                             .map_err(|m| Error::at(cond2.span(), m))?;
-                        let (tcore, tm) = this.isolate(|s| s.cps(env, &tc, &kv2))?;
-                        let (ecore, em) = this.isolate(|s| s.cps(env, &ec, &kv2))?;
+                        let (tcore, tm) = this.isolate(|s| {
+                            s.in_branch(env, &reading, &BranchKey::Bool(true), cspan, |s, env| {
+                                s.cps(env, &tc, &kv2)
+                            })
+                        })?;
+                        let (ecore, em) = this.isolate(|s| {
+                            s.in_branch(env, &reading, &BranchKey::Bool(false), cspan, |s, env| {
+                                s.cps(env, &ec, &kv2)
+                            })
+                        })?;
                         this.merge_branches(vec![tm, em]);
                         Ok(ECore::If(
                             Box::new(ECore::Var(v)),
@@ -7251,7 +8280,15 @@ impl Checker {
                             CBranch::weighted(fw, ecore),
                         ))
                     },
-                    move |this, env, k| this.cps(env, &cond, k),
+                    move |this, env, k| match pre {
+                        Some(cc) => {
+                            this.uni
+                                .unify(&Ty::Bool, &k.ty)
+                                .map_err(|m| Error::at(cond.span(), m))?;
+                            Ok(app_spine(ECore::Var(k.kv), vec![cc]))
+                        }
+                        None => this.cps(env, &cond, k),
+                    },
                 )
             }
             ast::Term::Case(scrut, alts, span) => self.cps_case(env, scrut, alts, kv, *span),
@@ -7823,18 +8860,36 @@ impl Checker {
             })
             .collect();
         let scrut2 = scrut.clone();
+        let dispatches = self.term_may_dispatch(scrut);
+        // A scrutinee no operation can interrupt elaborates in direct
+        // style first (it runs first), so its reading reaches the rows;
+        // the continuation receives its value as the CPS'd scrutinee
+        // would pass it.
+        let pre = if dispatches { None } else { Some(self.infer_scrutinee(env, scrut)?) };
+        let (pre_core, reading) = match pre {
+            Some((c, t, r)) => (Some((c, t)), r),
+            None => (None, None),
+        };
+        let pre_ty = pre_core.as_ref().map(|(_, t)| t.clone());
         self.bind_cont(
             env,
             ContKind::Once,
-            self.term_may_dispatch(scrut),
+            dispatches,
             move |this, env, v, vty| {
+                if let Some(t) = &pre_ty {
+                    this.uni.unify(&vty, t).map_err(|m| Error::at(span, m))?;
+                }
+                let vty = this.uni.zonk(&vty);
                 let ans = this.uni.fresh();
                 this.current_cont.push(kv2.clone());
-                let code = this.compile_alts(env, &alts2, ECore::Var(v), vty, &ans, span);
+                let code = this.compile_alts(env, &alts2, ECore::Var(v), vty, reading, &ans, span);
                 this.current_cont.pop();
                 code
             },
-            move |this, env, k| this.cps(env, &scrut2, k),
+            move |this, env, k| match pre_core {
+                Some((c, _)) => Ok(app_spine(ECore::Var(k.kv), vec![c])),
+                None => this.cps(env, &scrut2, k),
+            },
         )
     }
 
@@ -8975,6 +10030,21 @@ fn callee_want(core: &ECore) -> Option<usize> {
         ECore::App(f, args) => {
             callee_want(f).or_else(|| args.iter().find_map(callee_want))
         }
+        _ => None,
+    }
+}
+
+/// The want and method index when an elaborated call's head is a
+/// method projected straight from its dictionary hole (`x - y`,
+/// possibly with the method's own implicit arguments applied): the one
+/// call form whose arguments are the method's own arguments.
+fn head_method(core: &ECore) -> Option<(usize, usize)> {
+    match core {
+        ECore::App(f, _) => head_method(f),
+        ECore::DictProj(h, idx, ..) => match &**h {
+            ECore::Hole(w) => Some((*w, *idx)),
+            _ => None,
+        },
         _ => None,
     }
 }

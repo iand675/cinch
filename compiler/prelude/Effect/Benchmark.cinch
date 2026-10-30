@@ -74,13 +74,14 @@ module Effect.Benchmark where
   -- Run `work` and report the monotonic span around it, together with
   -- `work`'s own value so a measurement never discards the result. The
   -- elapsed is `t1 - t0`; the monotonic clock guarantees `t1 >= t0`,
-  -- so the natural subtraction cannot go below zero.
+  -- but that is the OS's promise, not a fact the checker sees, so the
+  -- span clamps at zero (a duration is never negative).
   benchmark-measure :: forall r a. using (io :: Io r) => String -> (Unit ->{IO r} a) ->{IO r} (BenchmarkReport, a)
   benchmark-measure label work =
     let t0 = clock-monotonic-ns () in
     let x = work () in
     let t1 = clock-monotonic-ns () in
-    (BenchmarkReport label (t1 - t0), x)
+    (BenchmarkReport label (saturating-sub t1 t0), x)
 
   -- The same interval as `benchmark-measure`, truncated to whole
   -- milliseconds (`Effect.Clock`'s `monotonic-elapsed`); the action's

@@ -413,9 +413,11 @@ mod tests {
     }
 
     #[test]
-    fn div_by_zero_is_the_division_fault() {
+    fn div_by_zero_is_reported_and_traps_as_a_compiler_bug() {
+        // The safe API reports the zero divisor; the extern layer can
+        // only see one through a compiler bug (the divisor is `NonZero`).
         assert_eq!(Nat::zero().div_rem(&Nat::zero()), Err(Error::DivByZero));
-        assert_eq!(Error::DivByZero.exit_code(), 72);
+        assert_eq!(Error::DivByZero.exit_code(), crate::abi::EXIT_PANIC);
     }
 
     #[test]

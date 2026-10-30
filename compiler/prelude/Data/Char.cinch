@@ -55,9 +55,9 @@ module Data.Char where
   -- `Some 0..9` for the ASCII digits, `None` otherwise (the caller
   -- has already decided what a non-digit means).
   digit-value :: Char -> Option Nat
-  digit-value c = case is-ascii-digit c of
-    True -> Some (char-code c - 48)
-    False -> None
+  digit-value c =
+    let n = char-code c in
+    if (n >= 48) && (n <= 57) then Some (n - 48) else None
 
   -- `Some 0..15` for `0`-`9`, `a`-`f` and `A`-`F`; `None` otherwise.
   hex-digit-value :: Char -> Option Nat
@@ -116,7 +116,7 @@ module Data.Char where
   to-upper-ascii :: Char -> Char
   to-upper-ascii c =
     let n = char-code c in
-    if is-ascii-lower c then
+    if (n >= 97) && (n <= 122) then
       (case char-from-code (n - 32) of Some d -> d; None -> c)
     else c
 

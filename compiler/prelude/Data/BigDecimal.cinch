@@ -30,10 +30,10 @@
 --     because its precision is ambient state (`BigDecimal.limit`) and
 --     a quotient can be asked for without one. Here every rounding
 --     operation takes its precision, so a quotient always exists at
---     the caller's precision; division by zero is the runtime's bignum
---     division fault (exit 72), like every other `Int` division. An
---     unrepresentable remainder is rounded to the requested precision,
---     never widened to a float.
+--     the caller's precision when the divisor is not zero; `div` by
+--     zero is `None` (division is total by construction, and a zero
+--     divisor has no quotient to name). An unrepresentable remainder is
+--     rounded to the requested precision, never widened to a float.
 --   - No implicit coercion to `F64` inside arithmetic. `to-f64` is the
 --     one conversion out and it renders the exact decimal and lets the
 --     runtime's correctly-rounded decimal reader parse it, so no
@@ -259,14 +259,14 @@ module Data.BigDecimal where
   --
   -- The precision is the fractional-digit count of the quotient
   -- BEFORE normalisation, so `div 10 RoundHalfUp one three` is
-  -- `0.3333333333` and `div 2 RoundHalfUp one eight` is `0.13`. The
-  -- magnitude is rounded (the mode names below read as their names
-  -- say from there) and the sign is re-applied, so `RoundUp` is away
-  -- from zero, `RoundCeiling` is toward positive infinity, and
-  -- `RoundHalfUp` breaks a tie away from zero. A zero divisor takes
-  -- the runtime division fault (exit 72): there is no result to return
-  -- and no infinity to spell.
-  div :: Nat -> Rounding -> BigDecimal -> BigDecimal -> BigDecimal
+  -- `Some 0.3333333333` and `div 2 RoundHalfUp one eight` is `Some
+  -- 0.13`. The magnitude is rounded (the mode names below read as
+  -- their names say from there) and the sign is re-applied, so
+  -- `RoundUp` is away from zero, `RoundCeiling` is toward positive
+  -- infinity, and `RoundHalfUp` breaks a tie away from zero. A zero
+  -- divisor is `None`: there is no result to return and no infinity
+  -- to spell.
+  div :: Nat -> Rounding -> BigDecimal -> BigDecimal -> Option BigDecimal
   div p mode x y = case x of
     BigDecimal u1 e1 -> case y of
       BigDecimal u2 e2 ->
@@ -274,21 +274,51 @@ module Data.BigDecimal where
         if k < 0 then round-quotient mode p u1 (scale u2 (int-neg k))
         else round-quotient mode p (scale u1 k) u2
 
-  -- Rounding a value to `p` fractional digits is dividing it by one at
-  -- the same precision.
+  -- Rounding a value to `p` fractional digits: the division by one at
+  -- the same precision, written without a divisor test. With `k`
+  -- fractional digits to spare the value is exact; otherwise the
+  -- divisor is `10^j` and the quotient is `j` divisions by the numeral
+  -- ten (truncation toward zero composes), so no runtime zero test
+  -- stands between `round` and its result.
   round :: Nat -> Rounding -> BigDecimal -> BigDecimal
-  round p mode x = div p mode x (from-int 1)
+  round p mode x = case x of
+    BigDecimal u e ->
+      let k = int-add e (nat-to-int p) in
+      let positive = quotient-positive u 1 in
+      if k < 0 then
+        let j = int-neg k in
+        let n = abs-int u in
+        let d = int-pow10 j in
+        let q = int-div-pow10 n j in
+        rounded mode p positive q (int-sub n (int-mul q d)) d
+      else rounded mode p positive (abs-int (scale u k)) 0 1
+
+  -- `n` divided by `10^j`, one numeral division per digit.
+  int-div-pow10 :: Int -> Int -> Int
+  int-div-pow10 n j = if j <= 0 then n else int-div-pow10 (int-div n 10) (int-sub j 1)
 
   -- The quotient rounded to `decimals` fractional digits: magnitudes
   -- are divided (so the modes read on `q + r/d`, non-negative by
   -- construction) and the sign of the true quotient is re-applied.
-  round-quotient :: Rounding -> Nat -> Int -> Int -> BigDecimal
+  -- `None` exactly when the divisor is zero: `div`'s scaled divisor is
+  -- the divisor's unscaled part times a power of ten, zero exactly when
+  -- the divisor is, and the zero test is the decision that makes the
+  -- magnitude this division's `NonZero`.
+  round-quotient :: Rounding -> Nat -> Int -> Int -> Option BigDecimal
   round-quotient mode decimals n d =
     let magnitude = abs-int d in
-    let q = int-div (abs-int n) magnitude in
-    let r = int-rem (abs-int n) magnitude in
-    let positive = quotient-positive n d in
-    let m = round-magnitude mode positive q r magnitude in
+    case decide (NonZero magnitude) of
+      No _ -> None
+      Yes w ->
+        let divisor = NonZero magnitude w in
+        let q = int-div (abs-int n) divisor in
+        let r = int-rem (abs-int n) divisor in
+        Some (rounded mode decimals (quotient-positive n d) q r magnitude)
+
+  -- `q + r/d` rounded and signed at `decimals` fractional digits.
+  rounded :: Rounding -> Nat -> Bool -> Int -> Int -> Int -> BigDecimal
+  rounded mode decimals positive q r d =
+    let m = round-magnitude mode positive q r d in
     let e = int-neg (nat-to-int decimals) in
     if positive then big-decimal m e else big-decimal (int-neg m) e
 
@@ -422,10 +452,13 @@ module Data.BigDecimal where
   digits-value :: List Nat -> Int
   digits-value ds = digits-value-acc ds 0
 
+  -- The callers pass digit runs (`span-digits`), so each code is at
+  -- least 48; the offset is taken in `Int`, where it is the same value
+  -- and needs no evidence from another function.
   digits-value-acc :: List Nat -> Int -> Int
   digits-value-acc ds acc = case ds of
     Nil -> acc
-    Cons c rest -> digits-value-acc rest (int-add (int-mul acc 10) (nat-to-int (c - 48)))
+    Cons c rest -> digits-value-acc rest (int-add (int-mul acc 10) (int-sub (nat-to-int c) 48))
 
   codes-of :: String -> List Nat
   codes-of s = map char-code (unpack s)

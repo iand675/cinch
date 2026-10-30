@@ -280,12 +280,18 @@ module Bootstrap.Eval where
 
   -- ------------------------------------------------------------- operators
 
-  arith-test :: Nat -> Int -> Int -> Int
+  -- `None` only for `/` with a zero right operand: the evaluated
+  -- program divided by zero, which has no quotient, so `int-arith`
+  -- reports it as a diagnostic. The zero test is the decision that
+  -- makes the operand the division's `NonZero`.
+  arith-test :: Nat -> Int -> Int -> Option Int
   arith-test tag a b =
-    if tag == 0 then int-add a b
-    else if tag == 1 then int-sub a b
-    else if tag == 2 then int-mul a b
-    else int-div a b
+    if tag == 0 then Some (int-add a b)
+    else if tag == 1 then Some (int-sub a b)
+    else if tag == 2 then Some (int-mul a b)
+    else case decide (NonZero b) of
+      Yes w -> Some (int-div a (NonZero b w))
+      No _ -> None
 
   rel-test :: Nat -> Int -> Int -> Bool
   rel-test tag a b =
@@ -306,7 +312,9 @@ module Bootstrap.Eval where
   int-arith :: Span -> String -> Nat -> Value -> Value -> Result (List Diagnostic) Value
   int-arith s op tag l r = case l of
     VInt a -> case r of
-      VInt b -> Ok (VInt (arith-test tag a b))
+      VInt b -> case arith-test tag a b of
+        Some v -> Ok (VInt v)
+        None -> fail s (string-concat "the right operand of " (string-concat op " is zero"))
       other -> fail s (right-non-int op)
     other -> fail s (left-non-int op)
 

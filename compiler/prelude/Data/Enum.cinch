@@ -12,11 +12,13 @@
 -- builders live here; instances live with their type (Data.Int,
 -- Data.Nat). The enumeration codes are consecutive (`to-enum`/
 -- `from-enum` are mutually inverse and neighbors differ by one), so the
--- range builders walk codes; a bounded instance faults at its edges
--- (`pred` below its least value, `to-enum` of an out-of-range code) the
--- way its type already does.
+-- range builders walk codes. A bounded instance answers `None` past
+-- its edges (`pred` of its least value, `to-enum` of a code outside
+-- the type), so no method faults (design/no-faults.md section 3); a
+-- range stops where its codes leave the type.
 module Data.Enum where
 
+  import Data.Core (Option, Some, None)
   import Data.List
   import Algebra.Arithmetic
   import Relation.Eq
@@ -27,8 +29,8 @@ module Data.Enum where
 
   signature Enum a where
     succ :: a -> a
-    pred :: a -> a
-    to-enum :: Int -> a
+    pred :: a -> Option a
+    to-enum :: Int -> Option a
     from-enum :: a -> Int
 
   -- The codes behind a range: step from `n` to `stop` by `step`,
@@ -38,7 +40,9 @@ module Data.Enum where
   enum-codes step stop n =
     if step == 0 then Nil
     else if (if step > 0 then n > stop else n < stop) then Nil
-    else Cons (to-enum n) (enum-codes step stop (n + step))
+    else case to-enum n of
+      Some x -> Cons x (enum-codes step stop (n + step))
+      None -> Nil
 
   -- `[lo..hi]`'s builder: the codes from `lo` to `hi` inclusive, step
   -- one.

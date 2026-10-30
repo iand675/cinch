@@ -19,7 +19,7 @@
 --   the field inverse:    div (mul x y) y == x within the tolerance, where
 --                         y is not zero (division by zero is IEEE, not a
 --                         fault: the parts go through `div-f64`)
--- and the instance family (`Eq`, `Add`, `Sub`, `Mul`, `Div`, `Neg`) is the
+-- and the instance family (`Eq`, `Add`, `Sub`, `Mul`, `Neg`) is the
 -- class surface over those named functions. The arithmetic-operation
 -- classes DO admit this carrier: the class method is over `Complex`, not
 -- over `F64`, so `Add Complex` adds both parts with `add-f64` (the refusal
@@ -39,6 +39,11 @@
 --   * `Eq` is structural on the parts through `feq-f64`, so a value with a
 --     NaN part is unequal to itself (IEEE equality, matching Ruby's
 --     componentwise `==`).
+--   * No `Div` instance: `Algebra.Arithmetic`'s `(/)` divides by a
+--     `NonZero` divisor (division is total by construction), and the
+--     predicate `NonZero` decides numbers, not `Complex`. Complex
+--     division is total in its own way (IEEE parts, never a fault), so
+--     it stays the named function `div`.
 --   * No `Semiring`/`Group` instances: this module provides exactly the
 --     arithmetic-operation classes (`Algebra.Arithmetic`) and leaves the
 --     algebraic-structure classes to a later curation (a class constraint
@@ -269,9 +274,6 @@ module Data.Complex where
 
   implicit instance Mul_Complex :: Mul Complex where
     (*) x y = mul x y
-
-  implicit instance Div_Complex :: Div Complex where
-    (/) x y = div x y
 
   implicit instance Neg_Complex :: Neg Complex where
     negate x = neg x

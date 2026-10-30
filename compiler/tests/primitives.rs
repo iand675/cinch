@@ -848,9 +848,11 @@ module Main where
 }
 
 #[test]
-fn nat_truncating_subtraction() {
-    // The inductive `Nat` subtraction is truncated: `nat-sub` faults (exit
-    // 71, the panic path) instead of producing a negative result.
+fn nat_subtraction_requires_its_operands_in_order() {
+    // `Nat` subtraction is the exact difference and demands `b <= a`
+    // (design/no-faults.md section 7): numerals decide it at compile
+    // time, so an in-order pair runs and a reversed one is refused
+    // before anything runs.
     run_ok(
         "nat-sub",
         r#"
@@ -863,14 +865,14 @@ module Main where
 "#,
         0,
     );
-    run_ok(
-        "nat-sub-fault",
+    expect_err(
+        "nat-sub-reversed",
         r#"
 module Main where
   main :: Int
   main = let x = (3 :: Nat) - 5 in 0
 "#,
-        71,
+        "the obligation `5 <= 3` of this call is false",
     );
 }
 
@@ -1013,24 +1015,26 @@ module Main where
 }
 
 #[test]
-fn division_by_zero_faults() {
-    run_ok(
+fn division_by_a_zero_literal_is_a_compile_error() {
+    // The divisor is a `NonZero`: a zero numeral refutes its predicate at
+    // compile time, so no program can reach a zero divisor at runtime.
+    expect_err(
         "int-div-zero",
         r#"
 module Main where
   main :: Int
   main = let x = int-div 7 0 in 0
 "#,
-        72,
+        "integer literal 0 is not a NonZero Int",
     );
-    run_ok(
+    expect_err(
         "nat-rem-zero",
         r#"
 module Main where
   main :: Int
   main = let x = nat-rem 7 0 in 0
 "#,
-        72,
+        "integer literal 0 is not a NonZero Nat",
     );
 }
 

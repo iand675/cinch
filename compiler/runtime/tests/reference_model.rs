@@ -351,7 +351,8 @@ fn extern_word_api_nat_boundaries_and_decimal() {
 fn extern_word_api_fault_codes_are_the_documented_ones() {
     // The extern layer raises these errors as process exits; the codes are
     // observable through the safe mapping.
-    assert_eq!(Error::DivByZero.exit_code(), 72);
+    // A zero divisor is a compiler-bug trap on the panic path.
+    assert_eq!(Error::DivByZero.exit_code(), 71);
     assert_eq!(Error::NegativeResult.exit_code(), 71);
     assert_eq!(Error::CorruptValue.exit_code(), 71);
 }

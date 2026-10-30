@@ -1742,8 +1742,11 @@ impl Checker {
         self.qualified.insert(("Vec".to_string(), "getCopy".to_string()), get_copy);
         let go = GlobalId("<builtin>.getCopy.go".to_string());
         // go (v, i): if i == 0 take the head, else walk the tail with
-        // i - 1. A well-typed `Fin n` never walks past the end; the fault
-        // path (exit 70) is defense in depth like any fall-through match.
+        // i - 1. The subtraction sits in the `i /= 0` branch of that very
+        // test, so it cannot go below zero (the `b <= a` the surface
+        // `Nat` subtraction demands holds by construction: `i >= 1`). A
+        // well-typed `Fin n` never walks past the end; the empty-vector
+        // arm is a compiler-bug trap like any fall-through match.
         let zero = crate::core::Core::ConstBig { nat: true, digits: "0".to_string() };
         let one = crate::core::Core::ConstBig { nat: true, digits: "1".to_string() };
         let i_is_zero = crate::core::Core::App(
@@ -2498,7 +2501,14 @@ impl Checker {
                             return Err(Error::at(f.span, "primitives cannot be polymorphic or constrained"));
                         }
                         let expected = prim_scheme(op);
-                        if s.ty != expected.ty {
+                        // A declaration may refine an intrinsic's
+                        // parameters (`nat-div :: Nat -> NonZero Nat ->
+                        // Nat`): a refined value IS its container at
+                        // runtime, so the intrinsic receives the same
+                        // word, and the refinement is a precondition the
+                        // caller must now prove. The result is never
+                        // refined: the intrinsic does not promise it.
+                        if self.erase_param_refinements(&s.ty) != expected.ty {
                             return Err(Error::at(
                                 f.span,
                                 format!(
@@ -3105,21 +3115,31 @@ impl Checker {
                     }
                     self.kind_constraints.borrow_mut().clear();
                     let base = self.conv_type(&r.base, &params)?;
-                    if !matches!(
-                        self.uni.zonk(&base),
-                        Ty::Adt(..)
-                            | Ty::Int
-                            | Ty::Nat
-                            | Ty::Bool
-                            | Ty::Unit
-                            | Ty::Bytes
-                            | Ty::Sym
-                            | Ty::Prim(_)
-                    ) {
+                    // The container may also be one of the refinement's
+                    // own type parameters (`type NonZero a = refine (n ::
+                    // a) with NonZero n`): one predicate stated once for
+                    // every carrier it decides. The representation is
+                    // still the container, fixed at each instantiation,
+                    // and the predicate's admissibility is checked there
+                    // (`conv_kind`), where the carrier is known.
+                    let param_base = matches!(&self.uni.zonk(&base), Ty::Param(p) if params.contains(p));
+                    if !param_base
+                        && !matches!(
+                            self.uni.zonk(&base),
+                            Ty::Adt(..)
+                                | Ty::Int
+                                | Ty::Nat
+                                | Ty::Bool
+                                | Ty::Unit
+                                | Ty::Bytes
+                                | Ty::Sym
+                                | Ty::Prim(_)
+                        )
+                    {
                         return Err(Error::at(
                             r.base.span(),
                             format!(
-                                "a refinement's container is a named type (the runtime representation IS the container), not {base}"
+                                "a refinement's container is a named type or one of the refinement's type parameters (the runtime representation IS the container), not {base}"
                             ),
                         ));
                     }
@@ -3141,7 +3161,9 @@ impl Checker {
                             ),
                         ));
                     }
-                    self.check_pred_admissible(&pred, &r.binder.text, &self.uni.zonk(&base), r.pred.span())?;
+                    if !param_base {
+                        self.check_pred_admissible(&pred, &r.binder.text, &self.uni.zonk(&base), r.pred.span())?;
+                    }
                     // Register the type before its transparent
                     // constructor (whose scheme mentions the type).
                     self.types.entry(r.name.text.clone()).or_default().push(TypeKind {
@@ -4704,8 +4726,34 @@ impl Checker {
                 ctx.push((n.clone(), Self::subst_class(c, &body_map)));
             }
             let gid = GlobalId(format!("{module}.{}.{}", inst.name.text, mname));
+            // A method signature in the instance states this method's
+            // obligations over its own arguments; its type must be the
+            // class method's at this instance. The obligations hold in
+            // the body (the caller discharged them at the call).
+            let mut own_obligs: Vec<PropOblig> = Vec::new();
+            if let Some((sname, sty)) = inst.method_sigs.iter().find(|(n, _)| n.text == mname) {
+                if transfer {
+                    return Err(Error::at(
+                        sname.span,
+                        "a refined carrier's instance transfers its container's methods; a method signature with obligations is not supported on it",
+                    ));
+                }
+                let s = self.conv_scheme(sty).map_err(|e| {
+                    if e.span.is_some() { e } else { Error::at(sname.span, e.message) }
+                })?;
+                if !self.uni.conv_eq(&s.ty, &ty) {
+                    return Err(Error::at(
+                        sname.span,
+                        format!(
+                            "the signature of `{mname}` in instance {} has type {}, but the class method at this instance has type {}",
+                            inst.name.text, s.ty, ty
+                        ),
+                    ));
+                }
+                own_obligs = s.obligs;
+            }
             let scheme = Scheme {
-            obligs: Vec::new(),
+                obligs: own_obligs,
                 params: extra,
                 idx_params: Vec::new(),
                 val_params: Vec::new(),
@@ -4997,6 +5045,16 @@ impl Checker {
                 ))
             }
         };
+        // A module argument is a dictionary the module applies wherever
+        // it likes: an instance whose methods carry obligations over
+        // their own arguments cannot be one.
+        if !self.instance_list[idx].method_obligs.is_empty() {
+            let wanted_s = self.uni.zonk(wanted).to_string();
+            return Err(Error::at(
+                span,
+                Self::method_oblig_refusal(&self.instance_list[idx], &wanted_s),
+            ));
+        }
         if self.instance_list[idx].base {
             return Err(Error::at(
                 span,
@@ -5212,6 +5270,7 @@ impl Checker {
                     base_id: uid,
                     implicit: bi.implicit,
                     base: false,
+                    method_obligs: bi.method_obligs.clone(),
                 });
                 self.instances.entry(bi.target.class.clone()).or_default().push(idx);
                 unit_insts.push(UnitInst { inst_name: bi.name.clone() });
@@ -6257,8 +6316,21 @@ impl Checker {
         // and a nullary definition is pure.
         let doms_safety = doms.clone();
         let saved = self.enter_perf();
+        // The definition's own obligations hold in its body: every
+        // caller discharged them at the call. The rows bind them once
+        // their patterns name the parameters; a nested definition check
+        // installs its own set and restores this one.
+        let own_facts: Vec<(PTerm, Vec<LocalId>)> = scheme
+            .obligs
+            .iter()
+            .filter_map(|o| match o {
+                PropOblig::Pred(p) => Some((p.clone(), value_params.clone())),
+                PropOblig::Preserves { .. } => None,
+            })
+            .collect();
+        let outer_facts = std::mem::replace(&mut self.param_facts, own_facts);
         let body = if n_pats == 0 {
-            self.check(&mut env.clone(), &rows[0].body, &rest)?
+            self.check(&mut env.clone(), &rows[0].body, &rest)
         } else {
             self.compile_rows(
                 rows,
@@ -6267,8 +6339,10 @@ impl Checker {
                 &rest,
                 eqs[0].span,
                 "an argument combination",
-            )?
+            )
         };
+        self.param_facts = outer_facts;
+        let body = body?;
         let performed = self.exit_perf(saved);
         if name.starts_with('$') {
             // A `generate do` block performs compile-time effects under its
@@ -14891,6 +14965,56 @@ impl Checker {
                     }
                 }
             }
+            // A method signature in the block restates a class method at
+            // this instance with obligations over the method's own
+            // arguments. It adds a precondition and nothing else: no
+            // quantifier, no constraint, and its type must be the class
+            // method's at this instance (checked with the body).
+            let mut method_obligs: Vec<(usize, String, Vec<PTerm>)> = Vec::new();
+            for (mname, mty) in &inst.method_sigs {
+                let midx = self.sigs.get(&class).and_then(|ss| {
+                    ss.iter().find_map(|s| s.methods.iter().position(|(m, _)| *m == mname.text))
+                });
+                let Some(midx) = midx else {
+                    return Err(Error::at(
+                        mname.span,
+                        format!("`{}` is not a method of {class}", mname.text),
+                    ));
+                };
+                if method_obligs.iter().any(|(i, _, _)| *i == midx) {
+                    return Err(Error::at(
+                        mname.span,
+                        format!("duplicate signature for method `{}`", mname.text),
+                    ));
+                }
+                let s = self.conv_scheme(mty).map_err(|e| {
+                    if e.span.is_some() { e } else { Error::at(mname.span, e.message) }
+                })?;
+                if !s.params.is_empty() || !s.ctx.is_empty() {
+                    return Err(Error::at(
+                        mname.span,
+                        "an instance's method signature states refinement obligations over the method's arguments only (no quantifier or class constraint)",
+                    ));
+                }
+                let preds: Vec<PTerm> = s
+                    .obligs
+                    .iter()
+                    .filter_map(|o| match o {
+                        PropOblig::Pred(p) => Some(p.clone()),
+                        PropOblig::Preserves { .. } => None,
+                    })
+                    .collect();
+                if preds.is_empty() {
+                    return Err(Error::at(
+                        mname.span,
+                        format!(
+                            "the signature of `{}` in instance {} states no obligation (`using (...) =>`); without one it restates the class method and is not needed",
+                            mname.text, inst.name.text
+                        ),
+                    ));
+                }
+                method_obligs.push((midx, mname.text.clone(), preds));
+            }
             let base_id = fn_id(&module, &inst.name.text);
             let idx = self.instance_list.len();
             self.instance_list.push(InstanceInfo {
@@ -14905,6 +15029,7 @@ impl Checker {
                 // parameters; it resolves inside that module and is
                 // published per instantiation.
                 base: self.param_modules.contains(&module),
+                method_obligs,
             });
             self.instances.entry(class).or_default().push(idx);
         }
@@ -15140,6 +15265,14 @@ impl Checker {
                                 });
                             }
                         }
+                    }
+                }
+                // A refinement registers no constructor list (its
+                // transparent constructor is a value), so its parameters
+                // come from its declaration: `NonZero a` exports `a`.
+                if params.is_empty() {
+                    if let Some(r) = &t.refine {
+                        params = r.params.clone();
                     }
                 }
                 iface.exports.types.push(TypeExport {
@@ -18533,7 +18666,7 @@ impl Checker {
                     NatOp::Div | NatOp::Rem => {
                         let (q, r) = a.divmod(&b).ok_or_else(|| {
                             Error::plain(
-                                "division by zero faults at compile time (the runtime fault path is exit 72)",
+                                "compiler bug: a zero divisor reached compile-time evaluation (every divisor is a `NonZero` by its type)",
                             )
                         })?;
                         big_value(if matches!(nat, NatOp::Div) { q } else { r }, true)
@@ -18565,7 +18698,7 @@ impl Checker {
                     IntOp::Div | IntOp::Rem => {
                         let (q, r) = a.divmod(&b).ok_or_else(|| {
                             Error::plain(
-                                "division by zero faults at compile time (the runtime fault path is exit 72)",
+                                "compiler bug: a zero divisor reached compile-time evaluation (every divisor is a `NonZero` by its type)",
                             )
                         })?;
                         big_value(if matches!(int, IntOp::Div) { q } else { r }, false)

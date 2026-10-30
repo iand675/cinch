@@ -17,7 +17,8 @@ basically".
 Definitions used below:
 
 - A **fault** is an abnormal stop the program's types do not declare: a
-  runtime check that exits (today's exit codes 70-72), a native stack
+  runtime check that exits (exit codes 70 and 71; 72 was division by
+  zero, retired 2026-10-30), a native stack
   overflow, an abort.
 - A **typed failure** is an outcome the types declare and the program must
   handle or pass on: a `Result`, or the failure branch of a resource
@@ -182,6 +183,17 @@ A runtime `assert` that the program can recover from is a typed failure
   `b <= a`. The truncating form exists under its own name,
   `saturating-sub` (`max(a - b, 0)`; mathematics calls it "monus", Rust
   `saturating_sub`), matching the prelude's machine-scalar vocabulary.
+  As built (2026-10-30): an instance block may restate a class method
+  with obligations over the method's own arguments
+  (`(-) :: using (y <= x) => (x :: Nat) -> (y :: Nat) -> Nat` in
+  `Sub_Nat`). Each direct, full application discharges them where it
+  stands, and the dictionary of such an instance is refused wherever
+  it could reach code that applies the method without them (generic
+  `using (Sub a)` code, a sub-dictionary, a module argument, the method
+  used as a value). The class and `-` at `Int` are unchanged. A
+  definition's own `using` obligations hold in its body, so a
+  recursion can carry its bound (`using (1 <= depth)`). `checked-sub`
+  answers `None` when `b > a`.
 - **Exhaustion at `main` is implicit for now.** Every program's declared
   outcome includes running out of memory or stack, reported as one defined
   `Exhausted` exit, never a crash. Budget boundaries inside a program

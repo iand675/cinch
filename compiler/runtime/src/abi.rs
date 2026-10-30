@@ -17,12 +17,10 @@ use crate::nat::Nat;
 /// the same defined fault seen from two call sites.
 pub const EXIT_BLACKHOLE: i32 = 70;
 
-/// Exit code of the generic fault path (`cinch_panic` and every runtime error
-/// except division by zero).
+/// Exit code of the generic fault path (`cinch_panic` and every runtime
+/// error that is not `BlackHole` or `Exhausted`, including the
+/// compiler-bug traps).
 pub const EXIT_PANIC: i32 = 71;
-
-/// Exit code of the division fault (`cinch_fault_div_zero`).
-pub const EXIT_DIV_ZERO: i32 = 72;
 
 /// Exit code of the `Exhausted` outcome (`design/no-faults.md` sections 4
 /// and 7): the program ran out of a resource, which every program's
@@ -193,15 +191,12 @@ pub(crate) fn panic_exit(msg: &[u8]) -> ! {
     std::process::exit(EXIT_PANIC)
 }
 
-/// Fault through the dedicated division path: exit 72.
-fn div_zero_exit() -> ! {
-    std::process::exit(EXIT_DIV_ZERO)
-}
-
-/// Map a Rust API error onto its defined runtime exit.
+/// Map a Rust API error onto its defined runtime exit. A zero divisor
+/// ([`Error::DivByZero`]) is a compiler-bug trap here: every divisor is a
+/// `NonZero` by its type, so well-typed code never reaches it, and it
+/// exits through the panic path with a `compiler bug:` message.
 pub(crate) fn raise(err: Error) -> ! {
     match err {
-        Error::DivByZero => div_zero_exit(),
         Error::NestingTooDeep => exhausted(Resource::Stack),
         _ => panic_exit(err.to_string().as_bytes()),
     }
@@ -417,12 +412,6 @@ pub unsafe extern "C" fn cinch_panic(msg: *const u8, len: usize) -> ! {
     }
 }
 
-/// Division by zero fault. Exits with code 72.
-#[unsafe(no_mangle)]
-pub extern "C" fn cinch_fault_div_zero() -> ! {
-    div_zero_exit()
-}
-
 // ---------------------------------------------------------------------------
 // Allocation
 // ---------------------------------------------------------------------------
@@ -599,7 +588,8 @@ pub unsafe extern "C" fn cinch_nat_add(a: i64, b: i64) -> i64 {
     unsafe { nat_slow(a, b, |x, y| Ok(crate::limbs::add_limbs(x, y))) }
 }
 
-/// `a - b` for `Nat` words, faulting on negative result.
+/// `a - b` for `Nat` words. Well-typed code proves `b <= a`, so a
+/// negative result is a compiler-bug trap.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_nat_sub(a: i64, b: i64) -> i64 {
     if is_immediate(a & b) {
@@ -622,7 +612,8 @@ pub unsafe extern "C" fn cinch_nat_mul(a: i64, b: i64) -> i64 {
 }
 
 /// `a / b` for `Nat` words (the quotient; the remainder is available
-/// through [`cinch_nat_rem`]), faulting on division by zero.
+/// through [`cinch_nat_rem`]). The divisor is a `NonZero Nat` by its
+/// type; a zero here is a compiler-bug trap.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_nat_div(a: i64, b: i64) -> i64 {
     if is_immediate(a & b) {
@@ -634,7 +625,7 @@ pub unsafe extern "C" fn cinch_nat_div(a: i64, b: i64) -> i64 {
     unsafe { nat_slow(a, b, |x, y| crate::nat::div_rem_mag(x, y).map(|(q, _)| q)) }
 }
 
-/// `a % b` for `Nat` words, faulting on division by zero.
+/// `a % b` for `Nat` words; a zero divisor is a compiler-bug trap.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_nat_rem(a: i64, b: i64) -> i64 {
     if is_immediate(a & b) {
@@ -769,8 +760,8 @@ pub unsafe extern "C" fn cinch_int_mul(a: i64, b: i64) -> i64 {
     unsafe { int_slow(a, b, |an, x, bn, y| Ok(crate::int::mul_parts(an, x, bn, y))) }
 }
 
-/// `a / b` for `Int` words, truncated toward zero, faulting on division by
-/// zero.
+/// `a / b` for `Int` words, truncated toward zero. The divisor is a
+/// `NonZero Int` by its type; a zero here is a compiler-bug trap.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_int_div(a: i64, b: i64) -> i64 {
     if is_immediate(a & b) {
@@ -785,8 +776,8 @@ pub unsafe extern "C" fn cinch_int_div(a: i64, b: i64) -> i64 {
     unsafe { int_slow(a, b, |an, x, bn, y| crate::int::div_rem_parts(an, x, bn, y).map(|(q, _)| q)) }
 }
 
-/// `a % b` for `Int` words, with the sign of the dividend, faulting on
-/// division by zero.
+/// `a % b` for `Int` words, with the sign of the dividend; a zero
+/// divisor is a compiler-bug trap.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cinch_int_rem(a: i64, b: i64) -> i64 {
     if is_immediate(a & b) {
@@ -1107,7 +1098,7 @@ mod tests {
     fn exit_codes_match_the_documented_fault_table() {
         assert_eq!(EXIT_BLACKHOLE, 70);
         assert_eq!(EXIT_PANIC, 71);
-        assert_eq!(EXIT_DIV_ZERO, 72);
+        assert_eq!(EXIT_EXHAUSTED, 73);
         // The code generator emits exit(70) for the same fault; if that
         // constant moves, EXIT_BLACKHOLE must move with it.
         let codegen_blackhole_exit = 70;
@@ -1310,7 +1301,9 @@ mod tests {
 
     #[test]
     fn error_exit_codes_match_the_fault_paths() {
-        assert_eq!(Error::DivByZero.exit_code(), EXIT_DIV_ZERO);
+        // A zero divisor is a compiler-bug trap on the panic path: the
+        // dedicated division exit is gone with the faulting division.
+        assert_eq!(Error::DivByZero.exit_code(), EXIT_PANIC);
         assert_eq!(Error::NegativeResult.exit_code(), EXIT_PANIC);
     }
 }

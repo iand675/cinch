@@ -316,12 +316,12 @@ module Effect.Pty where
 
   -- One word's bytes plus its NUL separator; the next index.
   put-word :: Bytes -> Nat -> String -> Nat
-  put-word b i s = put-bytes b i (string-to-bytes s) 0
+  put-word b i s = put-bytes b i (string-to-bytes s)
 
-  -- `src` from `j` copied in one runtime `memmove`, then the NUL.
-  put-bytes :: Bytes -> Nat -> Bytes -> Nat -> Nat
-  put-bytes b i src j =
-    let n = bytes-len src - j in
-    let u = bytes-copy-range b src i j n in
+  -- All of `src` copied in one runtime `memmove`, then the NUL.
+  put-bytes :: Bytes -> Nat -> Bytes -> Nat
+  put-bytes b i src =
+    let n = bytes-len src in
+    let u = bytes-copy-range b src i 0 n in
     case bytes-set b (i + n) 0 of
       _ -> i + n + 1

@@ -35,9 +35,11 @@ const HELPERS: &str = r#"
     Nil -> 0
     Cons x rest -> if x then first-fail rest (i + 1) else i
 
+  -- The digit's value as its low nibble: `c - 48` on every ASCII digit,
+  -- and no lower bound to prove.
   digits-nat :: Bytes -> Nat -> Nat -> Nat -> Nat
   digits-nat b i n acc =
-    if i == n then acc else digits-nat b (i + 1) n (acc * 10 + (bytes-get b i - 48))
+    if i == n then acc else digits-nat b (i + 1) n (acc * 10 + bytes-get b i % 16)
 
   parse-nat :: String -> Nat
   parse-nat s =
@@ -47,7 +49,7 @@ const HELPERS: &str = r#"
   digits-int :: Bytes -> Nat -> Nat -> Int -> Int
   digits-int b i n acc =
     if i == n then acc
-    else digits-int b (i + 1) n (acc * 10 + int-from-i64 (nat-to-i64 (bytes-get b i - 48)))
+    else digits-int b (i + 1) n (acc * 10 + int-from-i64 (nat-to-i64 (bytes-get b i % 16)))
 
   parse-int :: String -> Int
   parse-int s =
@@ -123,11 +125,32 @@ module Main where
 fn nat_crosses_the_immediate_edge_exactly_in_both_directions() {
     let src = program(
         r#"
+  -- A runtime divisor is decided before it divides (the divisor is a
+  -- `NonZero`); a zero would fail the check rather than fault.
+  nat-quot-is :: Nat -> Nat -> Nat -> Bool
+  nat-quot-is a d q = case decide (NonZero d) of
+    Yes w -> nat-div a (NonZero d w) == q
+    No _ -> False
+
+  nat-rem-is :: Nat -> Nat -> Nat -> Bool
+  nat-rem-is a d r = case decide (NonZero d) of
+    Yes w -> nat-rem a (NonZero d w) == r
+    No _ -> False
+
+  -- The edge values are built at runtime from `z`, so no fact orders
+  -- them: each difference goes through `checked-sub` (the runtime
+  -- subtraction on the same words), and a reversed pair would show as a
+  -- failed check, not a fault.
+  minus :: Nat -> Nat -> Nat
+  minus a b = case checked-sub a b of
+    Some d -> d
+    None -> 0
+
   checks :: Nat -> List Bool
   checks z =
     let m62 = 4611686018427387903 + z in
     let p62 = m62 + 1 in
-    let m63 = p62 * 2 - 1 in
+    let m63 = minus (p62 * 2) 1 in
     let p63 = m63 + 1 in
     let p64 = p63 * 2 in
     [ nat-round-trips m62 "4611686018427387903"
@@ -140,18 +163,18 @@ fn nat_crosses_the_immediate_edge_exactly_in_both_directions() {
     , p63 == 9223372036854775808
     , p64 == 18446744073709551616
     , p63 + m63 == 18446744073709551615
-    , p64 - p63 == p63
-    , p64 - p63 - 1 == m63
-    , p63 - m63 == 1
+    , minus p64 p63 == p63
+    , minus (minus p64 p63) 1 == m63
+    , minus p63 m63 == 1
     , p64 / 2 == p63
-    , p64 / p63 == 2
-    , p64 % p63 == z
+    , nat-quot-is p64 p63 2
+    , nat-rem-is p64 p63 z
     , p63 / 3 == 3074457345618258602
     , p63 % 3 == 2
-    , m63 / m63 == 1
+    , nat-quot-is m63 m63 1
     , m63 * m63 == 85070591730234615847396907784232501249
-    , (m63 * m63) / m63 == m63
-    , (m63 + m63) - m63 == m63
+    , nat-quot-is (m63 * m63) m63 m63
+    , minus (m63 + m63) m63 == m63
     , m63 < p63
     , p63 > m63
     , p64 > p63
@@ -160,14 +183,14 @@ fn nat_crosses_the_immediate_edge_exactly_in_both_directions() {
     , nat-to-i64 m63 == max-bound-i64
     , nat-from-i64 max-bound-i64 == m63
     , nat-to-u64 p63 == wrapping-i64-to-u64 min-bound-i64
-    , nat-to-u64 (p64 - 1) == max-bound-u64
-    , u64-to-nat max-bound-u64 == p64 - 1
+    , nat-to-u64 (minus p64 1) == max-bound-u64
+    , u64-to-nat max-bound-u64 == minus p64 1
     , u64-to-nat (nat-to-u64 p63) == p63
     , u64-to-nat (nat-to-u64 m63) == m63
     , nat-label m63 == 1
     , nat-label p63 == 2
     , nat-label p64 == 3
-    , nat-label (p64 - 1) == 4
+    , nat-label (minus p64 1) == 4
     ]
 "#,
     );
@@ -179,6 +202,17 @@ fn nat_crosses_the_immediate_edge_exactly_in_both_directions() {
 fn int_crosses_both_immediate_edges_and_their_negations() {
     let src = program(
         r#"
+  -- A runtime divisor is decided before it divides (see the `Nat` edges).
+  int-quot-is :: Int -> Int -> Int -> Bool
+  int-quot-is a d q = case decide (NonZero d) of
+    Yes w -> int-div a (NonZero d w) == q
+    No _ -> False
+
+  int-rem-is :: Int -> Int -> Int -> Bool
+  int-rem-is a d r = case decide (NonZero d) of
+    Yes w -> int-rem a (NonZero d w) == r
+    No _ -> False
+
   checks :: Nat -> List Bool
   checks z =
     let zi = int-from-i64 (nat-to-i64 z) in
@@ -201,15 +235,15 @@ fn int_crosses_both_immediate_edges_and_their_negations() {
     , int-neg above == imin
     , int-neg imax == imin + 1
     , int-neg below == above + 1
-    , imin / minus-one == above
-    , imin % minus-one == zi
+    , int-quot-is imin minus-one above
+    , int-rem-is imin minus-one zi
     , above * minus-one == imin
     , imax * minus-one == imin + 1
     , (zi - 7) / 2 == 0 - 3
     , (zi - 7) % 2 == 0 - 1
-    , (zi + 7) / (0 - 2) == 0 - 3
-    , (zi + 7) % (0 - 2) == 1
-    , (above * above) / above == above
+    , (zi + 7) / (-2) == 0 - 3
+    , (zi + 7) % (-2) == 1
+    , int-quot-is (above * above) above above
     , below < imin
     , imin < imax
     , above > imax
@@ -263,29 +297,38 @@ fn equal_values_agree_as_map_keys_whichever_path_built_them() {
 }
 
 #[test]
-fn division_by_an_immediate_zero_takes_the_division_fault() {
-    // The immediate fast path owns the zero divisor check too: exit 72,
-    // never a wrapped quotient or a crash.
+fn division_by_an_immediate_takes_a_decided_divisor() {
+    // The divisor is a `NonZero`, so the immediate fast path never sees a
+    // zero from well-typed code: a runtime divisor is decided first, and
+    // both arms run on immediates (`z` is 0 here).
     for (name, expr) in [
-        ("nat-div", "nat-div (5 + z) z"),
-        ("nat-rem", "nat-rem (5 + z) z"),
-        ("int-div", "nat-from-i64 (int-to-i64 (int-div (int-from-i64 5) (int-from-i64 (nat-to-i64 z))))"),
-        ("int-rem", "nat-from-i64 (int-to-i64 (int-rem (int-from-i64 5) (int-from-i64 (nat-to-i64 z))))"),
+        ("nat-div", "let d = 5 + z in case decide (NonZero d) of\n      Yes w -> nat-div (10 + z) (NonZero d w) == 2\n      No _ -> False"),
+        ("nat-rem", "let d = 3 + z in case decide (NonZero d) of\n      Yes w -> nat-rem (10 + z) (NonZero d w) == 1\n      No _ -> False"),
+        ("zero-refused", "case decide (NonZero z) of\n      Yes w -> False\n      No _ -> True"),
     ] {
-        let checks = format!("  checks :: Nat -> List Bool\n  checks z = [ {expr} == 1 ]\n");
-        assert_eq!(run(name, &program(&checks)), 72, "{name}");
+        let checks = format!("  checks :: Nat -> List Bool\n  checks z = [ {expr} ]\n");
+        assert_eq!(run(name, &program(&checks)), 0, "{name}");
     }
 }
 
 #[test]
-fn nat_results_below_zero_still_fault_from_immediates() {
-    // Both operands immediate, the result negative: the panic path (71),
-    // never a wrapped immediate.
+fn nat_subtraction_on_immediates_takes_its_evidence_from_a_test() {
+    // Both operands immediate: a difference needs `b <= a`, so the
+    // below-zero case is the guard's other branch, never a wrapped
+    // immediate (`z` is 0 here).
     for (name, expr) in [
-        ("nat-sub-neg", "(3 + z) - 4 == 0"),
-        ("nat-from-neg-i64", "nat-from-i64 (wrapping-sub-i64 (nat-to-i64 z) 1) == 0"),
+        ("nat-sub-in-order", "if 4 <= 7 + z then (7 + z) - 4 == 3 else False"),
+        ("nat-sub-reversed", "if 4 <= 3 + z then False else (case checked-sub (3 + z) 4 of None -> True; Some _ -> False)"),
     ] {
         let checks = format!("  checks :: Nat -> List Bool\n  checks z = [ {expr} ]\n");
-        assert_eq!(run(name, &program(&checks)), 71, "{name}");
+        assert_eq!(run(name, &program(&checks)), 0, "{name}");
     }
+}
+
+#[test]
+fn nat_from_a_negative_i64_still_faults_from_immediates() {
+    // `nat-from-i64` of a negative takes the panic path (71), never a
+    // wrapped immediate.
+    let checks = "  checks :: Nat -> List Bool\n  checks z = [ nat-from-i64 (wrapping-sub-i64 (nat-to-i64 z) 1) == 0 ]\n";
+    assert_eq!(run("nat-from-neg-i64", &program(checks)), 71, "nat-from-neg-i64");
 }

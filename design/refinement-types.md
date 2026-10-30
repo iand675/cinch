@@ -121,6 +121,80 @@ table is also the home of bounded arithmetic for `bounded(n)` depth
 bounds and temporal `recur` (D113/D202) - one bounded-arithmetic
 machinery, not three.
 
+**Introduction by evidence in scope (as built, 2026-10-30).** A plain
+container value enters a refinement with no cast when the predicate,
+instantiated at the value, is decided statically or entailed by
+evidence already in scope: a `Yes w` binder, or the fact of an
+enclosing match branch (`if d == 0 then 0 else nat-div n d`, `case d
+of 0 -> 0; _ -> nat-div n d` and `case d == 0 of False -> nat-div n
+d` all pass `d :: Nat` as `NonZero Nat`, since that branch knows
+`d /= 0`). This is not silent flow up the lattice: it starts from the
+plain container, never from a weaker refined value (strengthening a
+refined value still goes through `narrow`), and the evidence it reads
+is a checked decision with D192 staleness. The coercion is the same
+word. Entailment uses the table above over the caller's own names,
+never up to renaming, and adds two rows: `x /= 0` implies `NonZero x`
+(the predicate's own decision test), and a range that misses `k`
+implies `x /= k` (with `NonZero x` implying `x /= 0`). See
+`design/dependent-core-kernel.md` section 8 for the branch facts.
+
+**Linear facts over variables (as built, 2026-10-30).** The table's
+interval rows need a numeral on one side of an atom and read one fact
+at a time. The discharge adds one decidable procedure after them:
+every fact in scope together, read as difference constraints `x - y <=
+c` (and `x <= c`), refuted with the obligation's negation. `i < n`
+entails `i + 1 <= n`, `n - i >= 1`, `NonZero (n - i)`, `i <= n` and
+`0 < n`; `i <= j` and `j < n` entail `i < n`; `n /= 0` over `Nat`
+entails `1 <= n`. The fragment and what it reads:
+
+- Terms are locals, numerals, `+`/`-` by terms of the same sort,
+  multiplication by a numeral, and every other admissible fact term
+  (`length xs`, `bytes-len b`, `char-code c`, a pure global applied
+  to its arguments) as one opaque value. An atom that is not a
+  difference after linearizing tries each side as one opaque value
+  (`i + j < 5` bounds the value `i + j`), and is otherwise skipped
+  as a hypothesis and refused as a goal.
+- Semantics: every term denotes the value it computes at run time.
+  `Nat` and `Int` arithmetic is exact (a `Nat` difference only returns
+  when it is exact, `design/no-faults.md`), so it linearizes, and an
+  opaque `Nat` value is non-negative (a difference is not assumed
+  non-negative). A machine integer or `Char` is an exact value in its
+  type's range, so comparisons over machine values chain and the
+  range bounds them (`i < n` gives `i < maxBound`), but machine `+`
+  exists only as a user instance of an overflow family the procedure
+  cannot read, so `i + 1` over `I64` is opaque: `i + 1 < n` does not
+  give `i < n` (at `maxBound` a wrapping `+` gives `minBound`), and `i
+  < n` does not give `i + 1 <= n`. A term of no integer sort (a
+  float, a polymorphic result) contributes nothing.
+- `<`, `<=`, `>`, `>=`, `==` reduce to the constraints exactly
+  (`x < y` is `x - y <= -1`). A `/=` goal negates to `==` and is
+  complete. A `/=` hypothesis (and `NonZero x`) is a case split into
+  its two strict alternatives, taken only when the current model
+  violates it and at most four deep; deeper needs refuse.
+- Decision: Bellman-Ford negative-cycle detection over the constraint
+  graph (one node per opaque term plus zero), `O(V * E)` per goal, run
+  only after the table rows fail, so the existing discharges pay
+  nothing. Within the fragment and the split bound the answer is
+  complete: a failure leaves an integer model of the facts that
+  violates the goal.
+- Certificate: the negative cycle, each edge citing its source (a
+  hypothesis conjunct, the negated goal, a sort's range axiom, or a
+  case split's alternative). A separate checker re-reads every cited
+  constraint and sums the cycle to `0 <= c` with `c < 0`; the
+  discharge accepts only a proof that checker accepts
+  (`design/proof-automation.md` section 5).
+- Scoping is as before: a fact over a rebound name is out of scope,
+  a mutable place's fact goes stale at a write (the proof's cited
+  facts are the ones the staleness check reads, and of two equal facts
+  the innermost is cited, so a re-test after a write is the fresh
+  one), and a refined local's own predicate (when it mentions only the
+  local) is one more fact.
+
+Richer fragments (two-variable inequalities with arbitrary
+coefficients, Fourier-Motzkin, full Presburger `omega`) would cover
+`i + j < n` and `2 * i <= n`, at exponential worst-case search; no
+prelude obligation needs them yet.
+
 ## Partial weakening and `forget` (user direction, 2026-10-27)
 
 Dropping SOME conjuncts is semantically already weakening to an

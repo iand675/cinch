@@ -38,7 +38,7 @@
 -- numerator and denominator each fit `I64` divides their two nearest
 -- `F64` values, so the result is within two units in the last place of
 -- the exact quotient, and exact when both magnitudes are at most 2^53.
--- Outside `I64` it faults through `int-to-i64` (exit 72), the same
+-- Outside `I64` it faults through `int-to-i64` (exit 71), the same
 -- conversion boundary `Data.Int` already declares.
 --
 -- Module scheme (design/base-library.md): `Data.*` is concrete types,
@@ -90,18 +90,28 @@ module Data.Rational where
   gcd-int a b = gcd-step (int-mag a) (int-mag b)
 
   gcd-step :: Int -> Int -> Int
-  gcd-step a b =
-    if eq-i64 (int-cmp b 0) 0 then a
-    else gcd-step b (int-rem a b)
+  gcd-step a b = case decide (NonZero b) of
+    No _ -> a
+    Yes w -> gcd-step b (int-rem a (NonZero b w))
 
   -- The normalising core: assumes `d` is non-zero and returns the
   -- unique representative (`gcd` 1, sign on the numerator, positive
   -- denominator). Zero collapses to `0/1` because `gcd(0, d)` is `d`.
+  -- The gcd is zero only when `n` and `d` both are, which no caller
+  -- produces (every denominator here is a checked non-zero or a
+  -- product of positive ones); the checker cannot see that invariant,
+  -- so the gcd's zero test is decided, and the zero arm, unreachable,
+  -- leaves the pair unreduced (there is no common factor to divide
+  -- out).
   normalise :: Int -> Int -> Rational
   normalise n d =
     let g = gcd-int n d in
-    if lt-i64 (int-cmp d 0) 0 then Rat (int-div (int-neg n) g) (int-div (int-neg d) g)
-    else Rat (int-div n g) (int-div d g)
+    case decide (NonZero g) of
+      No _ -> Rat n d
+      Yes w ->
+        let k = NonZero g w in
+        if lt-i64 (int-cmp d 0) 0 then Rat (int-div (int-neg n) k) (int-div (int-neg d) k)
+        else Rat (int-div n k) (int-div d k)
 
 
   -- The smart constructor and the only general route to a `Rational`:

@@ -3,9 +3,16 @@
 -- `Nat` is a core runtime type (primitive types specification section
 -- 1): a boxed bignum, distinct from every machine scalar. The runtime
 -- operations are representation-level and declared through `foreign
--- import`; division and remainder by zero fault with the division
--- fault code (exit 72), `nat-sub` below zero exits through the panic
--- path (71).
+-- import`. Division and remainder are total by construction: the
+-- divisor is a `NonZero Nat` (a numeral divisor decides at compile
+-- time, any other comes from `decide (NonZero d)` or is threaded), and
+-- `checked-div`/`checked-rem` answer `None` where a zero divisor is a
+-- meaningful input. Subtraction is total the same way
+-- (design/no-faults.md section 7): `a - b` and `nat-sub a b` require
+-- evidence that `b <= a` (numerals decide it at compile time; a branch
+-- condition such as `if b <= a then` supplies it), `saturating-sub`
+-- is the truncating form (`max(a - b, 0)`, "monus") under its own
+-- name, and `checked-sub` answers `None` when `b > a`.
 --
 -- Module scheme (design/base-library.md): the type's home carries its
 -- instance family. `Nat` gets no `Semigroup` instance: two monoids
@@ -16,22 +23,50 @@
 -- `Semiring` instance).
 module Data.Nat where
 
+  import Data.Core
+  import Algebra.Arithmetic
   import Algebra.Semiring
   import Data.Hash
 
   export nat-add, nat-sub, nat-mul, nat-div, nat-rem, nat-cmp, nat-from-i64, nat-to-i64
+  export checked-div, checked-rem, saturating-sub, checked-sub
 
 
   -- The mathematical `Nat` and `Int` (primitive types specification,
   -- section 1): boxed bignums, distinct from every machine scalar.
   foreign import ccall "cinch.runtime.natAdd" nat-add :: Nat -> Nat -> Nat
-  foreign import ccall "cinch.runtime.natSub" nat-sub :: Nat -> Nat -> Nat
+  -- The exact difference: the caller proves it is a `Nat`.
+  foreign import ccall "cinch.runtime.natSub" nat-sub :: using (b <= a) => (a :: Nat) -> (b :: Nat) -> Nat
   foreign import ccall "cinch.runtime.natMul" nat-mul :: Nat -> Nat -> Nat
-  foreign import ccall "cinch.runtime.natDiv" nat-div :: Nat -> Nat -> Nat
-  foreign import ccall "cinch.runtime.natRem" nat-rem :: Nat -> Nat -> Nat
+  foreign import ccall "cinch.runtime.natDiv" nat-div :: Nat -> NonZero Nat -> Nat
+  foreign import ccall "cinch.runtime.natRem" nat-rem :: Nat -> NonZero Nat -> Nat
   foreign import ccall "cinch.runtime.natCmp" nat-cmp :: Nat -> Nat -> I64
   foreign import ccall "cinch.runtime.natFromI64" nat-from-i64 :: I64 -> Nat
   foreign import ccall "cinch.runtime.natToI64" nat-to-i64 :: Nat -> I64
+
+  -- Division where a zero divisor is an ordinary input the caller
+  -- handles: `None` exactly when `d` is zero. The decision is the
+  -- divisor's evidence, so the division inside is the total one.
+  checked-div :: Nat -> Nat -> Option Nat
+  checked-div n d = case decide (NonZero d) of
+    Yes w -> Some (nat-div n (NonZero d w))
+    No _ -> None
+
+  checked-rem :: Nat -> Nat -> Option Nat
+  checked-rem n d = case decide (NonZero d) of
+    Yes w -> Some (nat-rem n (NonZero d w))
+    No _ -> None
+
+  -- Truncated subtraction ("monus", Rust's `saturating_sub`): `a - b`
+  -- when `b <= a`, else `0`. Use it where clamping at zero is what the
+  -- code means, not to silence the obligation of `-`.
+  saturating-sub :: Nat -> Nat -> Nat
+  saturating-sub a b = if b <= a then nat-sub a b else 0
+
+  -- Subtraction where `b > a` is an ordinary input the caller handles:
+  -- `None` exactly then. The test is the subtraction's evidence.
+  checked-sub :: Nat -> Nat -> Option Nat
+  checked-sub a b = if b <= a then Some (nat-sub a b) else None
 
   implicit instance Eq_Nat :: Eq Nat where
     (==) x y = eq-i64 (nat-cmp x y) 0
@@ -46,7 +81,14 @@ module Data.Nat where
   implicit instance Add_Nat :: Add Nat where
     (+) x y = nat-add x y
 
+  -- `-` at `Nat` is the exact difference, so this instance states the
+  -- precondition over the method's arguments: every direct `x - y`
+  -- discharges `y <= x` (a numeral pair decides it, a branch fact or
+  -- `Dec` evidence supplies it). The class is unchanged, so `-` at
+  -- `Int` needs nothing; and since generic code over `Sub a` could
+  -- apply `-` to anything, this dictionary is never passed to it.
   implicit instance Sub_Nat :: Sub Nat where
+    (-) :: using (y <= x) => (x :: Nat) -> (y :: Nat) -> Nat
     (-) x y = nat-sub x y
 
   implicit instance Mul_Nat :: Mul Nat where
@@ -72,11 +114,10 @@ module Data.Nat where
     hash n = n
 
   -- The enumeration of natural numbers (Data.Enum): codes are the
-  -- values, and the bounded ends fault the way `Nat` already does
-  -- (`pred` below zero, `to-enum` of a negative; instances live with
-  -- their type).
+  -- values; `pred 0` and `to-enum` of a negative code are `None`
+  -- (instances live with their type).
   implicit instance Enum_Nat :: Enum Nat where
     succ n = nat-add n 1
-    pred n = nat-sub n 1
-    to-enum n = nat-from-i64 (int-to-i64 n)
+    pred n = checked-sub n 1
+    to-enum n = if n < 0 then None else Some (nat-from-i64 (int-to-i64 n))
     from-enum n = int-from-i64 (nat-to-i64 n)

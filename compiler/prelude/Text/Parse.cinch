@@ -163,7 +163,7 @@ module Text.Parse where
   -- its text (without the line ending).
   line-start-at :: Bytes -> Nat -> Nat
   line-start-at b i =
-    if nat-cmp i 0 == 0 then 0
+    if i == 0 then 0
     else if nat-cmp (bytes-get b (i - 1)) 10 == 0 then i
     else line-start-at b (i - 1)
 
@@ -190,7 +190,7 @@ module Text.Parse where
       let pad = string-repeat (nat-digit-count ln) " " in
       let caret = string-concat pad
             (string-concat (" | ")
-              (string-concat (string-repeat (if nat-cmp col 0 == 0 then 0 else col - 1) " ") ("^"))) in
+              (string-concat (string-repeat (if col == 0 then 0 else col - 1) " ") ("^"))) in
       let body = string-concat ("  |\n")
             (string-concat gutter
               (string-concat (" | ")

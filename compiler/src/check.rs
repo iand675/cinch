@@ -10,7 +10,7 @@
 use crate::ast;
 use crate::repr::Class;
 use crate::core::{ArithMode, ArithOp, BytesOp, CAlt, CBranch, CPat, CmpOp, ConcOp, Core, FieldAccess, FieldShape, FnDef, GlobalId, InstanceDef, IntOp, LocalId, NatOp, PrimOp, Program, ProjField, SymOp};
-use crate::types::{ClassApp, EffLabel, EffRow, EitherMeta, IxParam, ITerm, IdxCmp, IdxOp, Mult, PTerm, PredFn, PropOblig, PtrRole, RowTail, Scalar, Scheme, Sort, Ty, Unifier, c_abi_scalar, collect_row_names, default_mult, pred_alpha_eq, pred_binder, pred_conjuncts, pred_implies};
+use crate::types::{ClassApp, EffLabel, EffRow, EitherMeta, IntSort, IxParam, ITerm, IdxCmp, IdxOp, Mult, PTerm, PredFn, PropOblig, PtrRole, RowTail, Scalar, Scheme, Sort, Sorts, Ty, Unifier, c_abi_scalar, collect_row_names, default_mult, linear_entails, pred_alpha_eq, pred_binder, pred_conjuncts, pred_entails, pred_implies};
 use crate::{Error, Result};
 use SolveOutcome::{Solved, Ambiguous};
 use std::cell::RefCell;
@@ -1426,6 +1426,10 @@ pub struct RefineView {
     pub base: Option<Ty>,
     /// The predicate over the binder's value.
     pub pred: PTerm,
+    /// The name the predicate states its truth over (a named
+    /// refinement's declared binder; the anonymous former's first free
+    /// name).
+    pub binder: String,
 }
 
 /// One converted `using (...)` item (refinement types design,
@@ -1483,16 +1487,35 @@ struct MatchCand {
 struct PropCall {
     /// The method call's dictionary want.
     want: usize,
+    /// The method index when the call's head is the method projection
+    /// itself (`x - y`), the one call form at which an instance's
+    /// per-method obligations over the method's own arguments can
+    /// discharge. `None` when the want was found elsewhere in the call
+    /// (a dictionary passed to a generic callee, a method passed as an
+    /// argument).
+    method: Option<usize>,
     /// The arguments in order: their values (where a named value stands
     /// for the argument), their types, and their spans.
     args: Vec<(Option<ITerm>, Ty, ast::Span)>,
-    /// The evidence in scope at the call: name, proposition, local and
-    /// its mutable footprint.
-    evidence: Vec<(String, PTerm, LocalId, Vec<String>)>,
+    /// The evidence in scope at the call (`evidence_in`).
+    evidence: Evidence,
     /// The application leaves a function (the method is not fully
     /// applied: its obligations cannot discharge at this call).
     residual_fun: bool,
     span: ast::Span,
+}
+
+/// What a refinement obligation's discharge may read at one use: the
+/// `Prop`-typed binders in scope (name, proposition, local and mutable
+/// footprint), the integer sorts of the locals (what their arithmetic
+/// means to the linear procedure), and the predicates of refined
+/// locals, stated of the local (they hold of every value of the type,
+/// so they never go stale).
+#[derive(Clone, Debug, Default)]
+pub(crate) struct Evidence {
+    pub items: Vec<(String, PTerm, LocalId, Vec<String>)>,
+    pub sorts: Vec<(String, IntSort)>,
+    pub refined: Vec<PTerm>,
 }
 
 /// One refinement transfer recorded at a resolved want (refinement
@@ -1587,6 +1610,14 @@ struct InstanceInfo {
     /// so it is never resolved on its own. Each instantiation publishes its
     /// own copy under the instantiation unit's name.
     base: bool,
+    /// Per-method obligations over the method's own arguments, from a
+    /// method signature in the instance block (`(-) :: using (y <= x)
+    /// => (x :: Nat) -> (y :: Nat) -> Nat`): the method's index in its
+    /// class, its name, and the predicates over the positional binders
+    /// `$a{i}`. They discharge at each direct, full application of the
+    /// method; the dictionary never reaches code that could apply the
+    /// method without them (a generic callee, a sub-dictionary).
+    method_obligs: Vec<(usize, String, Vec<PTerm>)>,
 }
 
 /// One module parameter of a parameterized module (`module M (x :: T)
@@ -1633,6 +1664,7 @@ pub(crate) struct UnitInst {
     pub inst_name: String,
 }
 
+#[derive(Clone)]
 struct Want {
     id: usize,
     class: ClassApp,
@@ -2855,6 +2887,23 @@ struct Checker {
     /// resolve during constraint solving). Each is the evidence local, the
     /// mutable locations its statement reads, and the use span.
     ev_uses: Vec<(LocalId, Vec<String>, ast::Span)>,
+    /// A branch fact's in-condition window: the write-log range between
+    /// its test and the end of the condition that holds it (`p || g m`
+    /// tests `p`, then `g` may write before the branch is taken). Writes
+    /// there count against the fact like writes after its binding; writes
+    /// in sibling branches elaborated between the condition and the
+    /// binding do not.
+    ev_pre: HashMap<LocalId, (usize, usize)>,
+    /// What each match column's value is known to be about (a `case`
+    /// scrutinee read as a predicate, an index term, or a three-way
+    /// comparison), so each branch of the decision tree binds the fact
+    /// its test establishes.
+    col_readings: HashMap<LocalId, Reading>,
+    /// A `Bool` match's scrutinee test held back from its `let` so the
+    /// `Bool` column branches on the test itself: `case c of True -> a;
+    /// False -> b` compiles to exactly the `if c then a else b` branch.
+    /// Present only while no pattern binds the scrutinee by name.
+    inline_cols: HashMap<LocalId, ECore>,
     /// Refinement transfers recorded at resolved wants (refinement types
     /// design, "composability"): checked in the law layer after every
     /// module's bodies are known.
@@ -2871,6 +2920,12 @@ struct Checker {
     /// obligation-bearing value is legal exactly there (its obligations
     /// discharge at its call's arguments).
     app_callee_depth: usize,
+    /// The checked definition's own `using` obligations over its
+    /// parameters, with the parameters' column locals: each holds in
+    /// the body (every caller discharged it), so the equations' rows
+    /// bind it as hidden evidence over the names their patterns give
+    /// those locals. Positional binders `$a{i}` index the locals.
+    param_facts: Vec<(PTerm, Vec<LocalId>)>,
 }
 
 /// A `generate do` block collected for compile-time execution (staging).
@@ -3000,6 +3055,47 @@ pub struct StageInput {
 
 fn fn_id(module: &str, name: &str) -> GlobalId {
     GlobalId(format!("{module}.{name}"))
+}
+
+/// The named functions a proposition's index terms apply, with the
+/// argument count of each use (a bare reference is arity zero).
+fn index_heads(p: &PTerm, out: &mut Vec<(String, usize)>) {
+    fn term(t: &ITerm, out: &mut Vec<(String, usize)>) {
+        let mut push = |h: &str, k: usize| {
+            if !out.iter().any(|(g, j)| g == h && *j == k) {
+                out.push((h.to_string(), k));
+            }
+        };
+        match t {
+            ITerm::Fn(h) => push(h, 0),
+            ITerm::App(f, args) => {
+                match &**f {
+                    ITerm::Fn(h) => push(h, args.len()),
+                    other => term(other, out),
+                }
+                args.iter().for_each(|a| term(a, out));
+            }
+            ITerm::Bin(_, a, b) => {
+                term(a, out);
+                term(b, out);
+            }
+            ITerm::Lam(_, b) => term(b, out),
+            ITerm::Var(_) | ITerm::Num(_) | ITerm::MVar(_) => {}
+        }
+    }
+    match p {
+        PTerm::Cmp(_, a, b) | PTerm::Eq(a, b) => {
+            term(a, out);
+            term(b, out);
+        }
+        PTerm::Not(q) => index_heads(q, out),
+        PTerm::And(a, b) | PTerm::Or(a, b) => {
+            index_heads(a, out);
+            index_heads(b, out);
+        }
+        PTerm::Pred(_, a) => term(a, out),
+        PTerm::Var(_) | PTerm::MVar(_) => {}
+    }
 }
 
 /// Substitute row variables (by tail) and region names inside an effect row.
@@ -3164,10 +3260,14 @@ impl Checker {
             ev_writes: Vec::new(),
             ev_derivs: HashMap::new(),
             ev_uses: Vec::new(),
+            ev_pre: HashMap::new(),
+            col_readings: HashMap::new(),
+            inline_cols: HashMap::new(),
             transfer_obligs: Vec::new(),
             transfer_seen: HashSet::new(),
             prop_calls: Vec::new(),
             app_callee_depth: 0,
+            param_facts: Vec::new(),
         }
     }
 
@@ -3245,6 +3345,9 @@ impl Checker {
         self.ev_writes.clear();
         self.ev_derivs.clear();
         self.ev_uses.clear();
+        self.ev_pre.clear();
+        self.col_readings.clear();
+        self.inline_cols.clear();
         self.cur_temporal = None;
         self.lam_depth = 0;
         self.memo_depth = 0;
@@ -3387,53 +3490,161 @@ impl Checker {
         self.ev_uses.push((l, muts, use_span));
     }
 
-    /// The `Prop`-typed binders in scope at a call (the `Dec` evidence
-    /// path): name, proposition, local and mutable footprint.
-    fn evidence_in(&self, env: &Env) -> Vec<(String, PTerm, LocalId, Vec<String>)> {
-        let mut out = Vec::new();
-        for (name, local, scheme) in &env.locals {
+    /// The evidence in scope at a call (the `Dec` evidence path and
+    /// branch-condition facts). Evidence names values by their source
+    /// names, so an item whose statement mentions a name rebound after
+    /// it (an inner `let x` or pattern `x` shadowing the `x` it was
+    /// derived about) no longer speaks about what that name now denotes
+    /// and is left out. Sorts and refined predicates come from each
+    /// name's innermost binding only.
+    fn evidence_in(&self, env: &Env) -> Evidence {
+        let mut out = Evidence::default();
+        // Innermost first, so `later` holds every name bound after the
+        // current local; the items are reversed back to scope order.
+        let mut later: HashSet<&str> = HashSet::new();
+        for (name, local, scheme) in env.locals.iter().rev() {
             let t = self.uni.zonk(&scheme.ty);
-            let Ty::Prp(q) = t else {
+            let fresh = later.insert(name.as_str());
+            let Ty::Prp(q) = &t else {
+                if !fresh || !scheme.params.is_empty() {
+                    continue;
+                }
+                let Some((sort, rv)) = self.int_view(&t) else {
+                    continue;
+                };
+                out.sorts.push((name.clone(), sort));
+                if let Some(rv) = rv {
+                    let mut fv = Vec::new();
+                    rv.pred.free_vars(&mut fv);
+                    if fv.iter().all(|v| *v == rv.binder) {
+                        out.refined.push(rv.pred.subst(&rv.binder, &ITerm::Var(name.clone())));
+                    }
+                }
                 continue;
             };
-            let q = self.uni.resolve_prop(&q);
+            let q = self.uni.resolve_prop(q);
+            let mut fv = Vec::new();
+            q.free_vars(&mut fv);
+            // `later` already holds this binder's own name, which its
+            // statement never mentions.
+            if fv.iter().any(|v| v != name && later.contains(v.as_str())) {
+                continue;
+            }
             let (muts, _) = self.ev_footprint(&q, env);
-            out.push((name.clone(), q, *local, muts));
+            out.items.push((name.clone(), q, *local, muts));
         }
+        out.items.reverse();
         out
+    }
+
+    /// A value type's integer sort, looking through a mutable or borrowed
+    /// place (`copyOut m` reads the contents) and a refinement (its
+    /// view is returned with the sort: its predicate holds of the value).
+    fn int_view(&self, t: &Ty) -> Option<(IntSort, Option<RefineView>)> {
+        match t {
+            Ty::Nat => Some((IntSort::Nat, None)),
+            Ty::Int => Some((IntSort::Int, None)),
+            Ty::Prim(s) => IntSort::of_scalar(*s).map(|s| (s, None)),
+            Ty::Mut(_, inner) | Ty::Ref(_, inner) => self.int_view(inner),
+            Ty::Adt(..) => {
+                let rv = self.refine_view(t)?;
+                let (sort, _) = self.int_view(rv.base.as_ref()?)?;
+                Some((sort, Some(rv)))
+            }
+            _ => None,
+        }
+    }
+
+    /// The integer sort of a named function's result applied to `arity`
+    /// arguments (the head of an index-level application).
+    fn fn_int_sort(&self, head: &str, arity: usize) -> Option<IntSort> {
+        let (module, name) = head.rsplit_once('.')?;
+        let v = self.qualified.get(&(module.to_string(), name.to_string()))?;
+        let mut ty = v.scheme.ty.clone();
+        for _ in 0..arity {
+            ty = match ty {
+                Ty::Fun(_, _, _, cod) => *cod,
+                Ty::Pi { cod, .. } => *cod,
+                _ => return None,
+            };
+        }
+        self.int_view(&ty).map(|(s, _)| s)
+    }
+
+    /// Every fact in scope together, by the linear procedure (`types.rs`,
+    /// "linear facts over variables"): the evidence items its checked
+    /// proof cites, when it proves the obligation.
+    fn linear_discharge(&self, ev: &Evidence, obl: &PTerm) -> Option<Vec<usize>> {
+        let mut hyps: Vec<PTerm> = ev.items.iter().map(|(_, q, _, _)| q.clone()).collect();
+        hyps.extend(ev.refined.iter().cloned());
+        let mut heads: Vec<(String, usize)> = Vec::new();
+        for p in hyps.iter().chain(std::iter::once(obl)) {
+            index_heads(p, &mut heads);
+        }
+        let fns = heads
+            .into_iter()
+            .filter_map(|(h, k)| self.fn_int_sort(&h, k).map(|s| (h, k, s)))
+            .collect();
+        let sorts = Sorts { vars: ev.sorts.clone(), fns };
+        let proofs = linear_entails(&hyps, obl, &sorts)?;
+        let mut used = Vec::new();
+        for i in proofs.iter().flat_map(|p| p.hyps_used()) {
+            if i < ev.items.len() && !used.contains(&i) {
+                used.push(i);
+            }
+        }
+        Some(used)
     }
 
     /// Discharge one refinement obligation at a call (refinement types
     /// design, "instance heads at refinements"): the caller supplies
-    /// `Dec` evidence in scope (the `Dec`/`decide` path; D192 staleness
-    /// applies). A binder that establishes a different fact is refused
-    /// as forged evidence; no binder is refused naming the obligation
-    /// and its discharge path.
-    fn discharge_oblig(
-        &mut self,
-        evidence: &[(String, PTerm, LocalId, Vec<String>)],
-        obl: &PTerm,
-        span: ast::Span,
-    ) -> Result<()> {
+    /// evidence in scope, a `Dec` binder or a branch condition's fact
+    /// (D192 staleness applies to both). One item may entail the
+    /// obligation, or the items over its names together may (nested
+    /// conditions each contribute a bound), or, by the linear procedure,
+    /// every fact in scope together (`i <= j` and `j < n` give `i < n`).
+    /// Entailment reads the names as they are, never up to renaming:
+    /// evidence about `a < b` says nothing about `b < a`. A named binder
+    /// that establishes a different fact is refused as forged evidence;
+    /// no evidence is refused naming the obligation and its discharge
+    /// paths.
+    fn discharge_oblig(&mut self, evidence: &Evidence, obl: &PTerm, span: ast::Span) -> Result<()> {
         let mut ov: Vec<String> = Vec::new();
         obl.free_vars(&mut ov);
         let mut forged: Option<(String, PTerm)> = None;
-        for (name, q, local, muts) in evidence {
+        // The items over exactly this obligation's names: evidence about
+        // another argument proves nothing here. The innermost item is
+        // tried first: a re-derived fact is the fresh one after a write.
+        let mut over: Vec<&(String, PTerm, LocalId, Vec<String>)> = Vec::new();
+        for item in evidence.items.iter().rev() {
+            let (name, q, _, _) = item;
             let mut qv: Vec<String> = Vec::new();
             q.free_vars(&mut qv);
-            // Entailment over exactly this argument's names: evidence
-            // about another argument proves nothing here.
-            if qv.iter().all(|v| ov.contains(v)) && pred_implies(q, obl) {
-                // Evidence invalidation over mutable state: record the
-                // use; staleness is checked after regions unify.
-                if self.ev_derivs.contains_key(local) && !muts.is_empty() {
-                    self.ev_uses.push((*local, muts.clone(), span));
+            if qv.iter().all(|v| ov.contains(v)) {
+                if pred_entails(q, obl) {
+                    self.note_ev_used(&[item], span);
+                    return Ok(());
                 }
-                return Ok(());
+                over.push(item);
             }
-            if qv.iter().any(|v| ov.contains(v)) {
+            if forged.is_none() && qv.iter().any(|v| ov.contains(v)) && !name.starts_with('%') {
                 forged = Some((name.clone(), q.clone()));
             }
+        }
+        if over.len() > 1 {
+            let mut it = over.iter().map(|(_, q, _, _)| q.clone());
+            let first = it.next().expect("two or more items");
+            let all = it.fold(first, |acc, q| PTerm::And(Box::new(acc), Box::new(q)));
+            if pred_entails(&all, obl) {
+                self.note_ev_used(&over, span);
+                return Ok(());
+            }
+        }
+        if let Some(used) = self.linear_discharge(evidence, obl) {
+            let items: Vec<&(String, PTerm, LocalId, Vec<String>)> =
+                used.iter().map(|i| &evidence.items[*i]).collect();
+            self.note_ev_used(&items, span);
+            return Ok(());
         }
         if let Some((name, q)) = forged {
             return Err(Error::at(
@@ -3446,9 +3657,19 @@ impl Checker {
         Err(Error::at(
             span,
             format!(
-                "the obligation `{obl}` needs `Dec` evidence at this call (discharge it in the `Dec`/`decide` world: `case decide ({obl}) of Yes w -> ...`, or pass an argument whose refinement implies it): no evidence for `{obl}` is in scope here"
+                "the obligation `{obl}` needs `Dec` evidence or a branch fact at this use (discharge it in the `Dec`/`decide` world: `case decide ({obl}) of Yes w -> ...`, under a branch condition that implies it (`if ... then`, a guard, or the left operand of `&&`), or pass an argument whose refinement implies it): no evidence for `{obl}` is in scope here"
             ),
         ))
+    }
+
+    /// Record the evidence items a discharge read (evidence invalidation
+    /// over mutable state): staleness is checked after regions unify.
+    fn note_ev_used(&mut self, items: &[&(String, PTerm, LocalId, Vec<String>)], span: ast::Span) {
+        for (_, _, local, muts) in items {
+            if self.ev_derivs.contains_key(local) && !muts.is_empty() {
+                self.ev_uses.push((*local, muts.clone(), span));
+            }
+        }
     }
 
     /// Check every recorded evidence use for staleness (evidence
@@ -3461,7 +3682,8 @@ impl Checker {
             let Some(&(deriv_len, deriv_span)) = self.ev_derivs.get(&l) else {
                 continue;
             };
-            for w in &self.ev_writes[deriv_len..] {
+            let pre = self.ev_pre.get(&l).map(|&(a, b)| &self.ev_writes[a..b]).unwrap_or(&[]);
+            for w in pre.iter().chain(&self.ev_writes[deriv_len..]) {
                 let hits = match &w.loc {
                     None => true,
                     Some(r) => {
@@ -4182,18 +4404,24 @@ impl Checker {
     /// the literal immediately; a metavariable defers the constant choice
     /// to [`Checker::resolved_literals`].
     fn lit_check(&mut self, expected: &Ty, digits: &str, span: ast::Span) -> Result<ECore> {
-        match self.uni.zonk(expected) {
-            Ty::Meta(m) => {
-                let idx = self.literal_pends.len();
-                self.literal_pends.push(PendLit {
-                    ty: Ty::Meta(m),
-                    value: digits.to_string(),
-                    span,
-                });
-                Ok(ECore::Lit(idx))
-            }
-            t => self.literal_const(&t, digits, span),
+        let t = self.uni.zonk(expected);
+        // A refinement whose carrier is still a metavariable (`4` in
+        // `7 % 4` before the context fixes the class's type) defers like
+        // a bare metavariable: the carrier decides the constant and the
+        // predicate's decision both.
+        let open = match &t {
+            Ty::Meta(_) => true,
+            _ => self
+                .refine_view(&t)
+                .and_then(|v| v.base)
+                .is_some_and(|b| matches!(self.uni.zonk(&b), Ty::Meta(_))),
+        };
+        if open {
+            let idx = self.literal_pends.len();
+            self.literal_pends.push(PendLit { ty: t, value: digits.to_string(), span });
+            return Ok(ECore::Lit(idx));
         }
+        self.literal_const(&t, digits, span)
     }
 
     /// The constant of literal `digits` at type `ty`. `Nat` and `Int` are
@@ -4215,7 +4443,56 @@ impl Checker {
             }
             Ty::Int => Ok(ECore::ConstBig { nat: false, digits: digits.to_string() }),
             Ty::Sym => Ok(ECore::ConstSym(digits.to_string())),
+            Ty::Adt(..) if self.refine_view(ty).is_some() => self.literal_refined(ty, digits, span),
             t => Ok(ECore::Int(self.literal_word(t, digits, span)?)),
+        }
+    }
+
+    /// A numeral at a named refinement of a numeric container (`10` at
+    /// `NonZero Nat`, `3` at `Small`): the literal is its container's
+    /// constant (the refinement's runtime representation IS the
+    /// container), and the predicate instantiated at the literal's value
+    /// is decided here, at compile time, by the same numeral folding
+    /// every static obligation uses. A literal that satisfies it needs
+    /// no witness and no runtime check; one that refutes it (`0` at
+    /// `NonZero Nat`) is a compile error naming the predicate, never a
+    /// refined value.
+    fn literal_refined(&self, ty: &Ty, digits: &str, span: ast::Span) -> Result<ECore> {
+        let not_numeric = || {
+            Error::at(span, format!("integer literal cannot have type {ty}"))
+        };
+        let Ty::Adt(name, _) = ty else { return Err(not_numeric()) };
+        let binder = self
+            .types
+            .get(name)
+            .and_then(|ks| ks.iter().find_map(|k| k.refine.as_ref()))
+            .map(|r| r.binder.clone())
+            .ok_or_else(not_numeric)?;
+        let Some(RefineView { base: Some(base), pred, .. }) = self.refine_view(ty) else {
+            return Err(not_numeric());
+        };
+        // The container's own literal rules apply first (a negative
+        // numeral is out of range for `Nat`; a non-numeric container
+        // takes no integer literal at all).
+        let k = self.literal_const(&self.uni.zonk(&base), digits, span)?;
+        let stmt = Checker::subst_pt(
+            &pred,
+            &HashMap::from([(binder, Ty::Idx(Box::new(ITerm::Num(digits.to_string()))))]),
+        );
+        match self.static_obligation(&stmt)? {
+            ObligStatus::Checked => Ok(k),
+            ObligStatus::Disproved => Err(Error::at(
+                span,
+                format!(
+                    "integer literal {digits} is not a {ty}: its predicate `{stmt}` is false (a refined value needs its predicate to hold)"
+                ),
+            )),
+            _ => Err(Error::at(
+                span,
+                format!(
+                    "integer literal {digits} at {ty}: its predicate `{stmt}` cannot be decided at compile time (construct the value with `decide` and the transparent constructor)"
+                ),
+            )),
         }
     }
 
@@ -4497,6 +4774,25 @@ impl Checker {
                 app_spine(head, cores)
             }
             ITerm::Bin(op, a, b) => {
+                // A `Nat` index difference is defined only where the
+                // subtrahend does not pass the minuend (the index
+                // evaluator leaves `a - b` stuck otherwise), and an index
+                // carries no evidence to the call site. So it reaches
+                // runtime only as the constant it folds to; an open one
+                // is refused rather than lowered to a subtraction that
+                // could go below zero.
+                if nat && op == IdxOp::Sub {
+                    let whole = ITerm::Bin(op, a.clone(), b.clone()).normalize();
+                    return match whole {
+                        ITerm::Num(d) => Ok(ECore::ConstBig { nat, digits: d }),
+                        other => Err(Error::at(
+                            span,
+                            format!(
+                                "the `Nat` index `{other}` would be computed at runtime here, but a `Nat` difference needs evidence that it is not negative, which an index cannot carry; pass the value as an ordinary argument and subtract with evidence"
+                            ),
+                        )),
+                    };
+                }
                 let prim = if nat {
                     PrimOp::Nat(match op {
                         IdxOp::Add => NatOp::Add,
@@ -5096,7 +5392,68 @@ impl Checker {
     ) -> Result<Ty> {
         let t = self.conv_raw(ty, vars, expect)?;
         self.check_kind(&t, expect, ty.span())?;
+        self.check_refine_instance(&t, ty.span())?;
         Ok(t)
+    }
+
+    /// Whether `pred arg` in type position is the refinement TYPE named
+    /// like the predicate applied to a carrier (`NonZero Nat`, `NonZero
+    /// a`) rather than the proposition over a value (`NonZero n`). The
+    /// surface shares one spelling, so the argument decides: a named
+    /// type that is not a value (`Nat`, `I64`, `List Nat`), or a
+    /// variable already used as a type in this signature (`a -> NonZero
+    /// a -> a`), is a carrier. A value variable or index expression
+    /// keeps the proposition reading, and so does every predicate with
+    /// no parameterized refinement of its name in scope.
+    fn refinement_type_app(&self, pred: &str, arg: &ast::Type) -> bool {
+        let parametric = self
+            .lookup_type(&[pred])
+            .is_ok_and(|k| k.refine.is_some() && k.arity > 0);
+        if !parametric {
+            return false;
+        }
+        let mut head = arg;
+        while let ast::Type::App(f, _, _) = head {
+            head = f;
+        }
+        match head {
+            ast::Type::Con(p, _) => self.lookup_value(None, &p.parts().join(".")).is_err(),
+            ast::Type::Var(n, _) => self
+                .kind_constraints
+                .borrow()
+                .iter()
+                .any(|(m, k)| *m == n.text && matches!(k, ParamKind::Type | ParamKind::Con(_))),
+            _ => false,
+        }
+    }
+
+    /// A refinement whose container is one of its own parameters
+    /// (`type NonZero a = refine (n :: a) with NonZero n`) states its
+    /// predicate once for every carrier, so the predicate's
+    /// admissibility is checked at each instantiation whose carrier is
+    /// known: `NonZero Nat` is admitted, `NonZero Bool` is refused
+    /// naming the predicate, exactly as a declaration over `Bool` would
+    /// be. A carrier still open (a parameter of an enclosing signature)
+    /// is checked where it is fixed.
+    fn check_refine_instance(&self, t: &Ty, span: ast::Span) -> Result<()> {
+        let Ty::Adt(name, args) = t else { return Ok(()) };
+        let Some(r) = self
+            .types
+            .get(name)
+            .and_then(|ks| ks.iter().find_map(|k| k.refine.as_ref()))
+        else {
+            return Ok(());
+        };
+        let Ty::Param(p) = &r.base else { return Ok(()) };
+        let Some(carrier) = r.params.iter().position(|q| q == p).and_then(|i| args.get(i)) else {
+            return Ok(());
+        };
+        let carrier = self.uni.zonk(carrier);
+        if matches!(carrier, Ty::Param(_) | Ty::Meta(_)) {
+            return Ok(());
+        }
+        let Some(view) = self.refine_view(t) else { return Ok(()) };
+        self.check_pred_admissible(&view.pred, &r.binder, &carrier, span)
     }
 
     /// The kind of a converted type as far as it is known: a named
@@ -5647,10 +6004,15 @@ impl Checker {
     fn refine_view(&self, t: &Ty) -> Option<RefineView> {
         match t {
             Ty::Adt(name, args) if name == "refined" => match args.as_slice() {
-                [Ty::Prp(p)] => Some(RefineView { base: None, pred: (**p).clone() }),
+                [Ty::Prp(p)] => Some(RefineView {
+                    base: None,
+                    pred: (**p).clone(),
+                    binder: pred_binder(p),
+                }),
                 [Ty::Prp(p), base] => Some(RefineView {
                     base: Some(base.clone()),
                     pred: (**p).clone(),
+                    binder: pred_binder(p),
                 }),
                 _ => None,
             },
@@ -5666,6 +6028,7 @@ impl Checker {
                 Some(RefineView {
                     base: Some(Self::subst_ty(&r.base, &map)),
                     pred: Checker::subst_pt(&r.pred, &map),
+                    binder: r.binder.clone(),
                 })
             }
             _ => None,
@@ -5788,6 +6151,23 @@ impl Checker {
             if !out.contains(name) {
                 out.push(name.clone());
             }
+        }
+    }
+
+    /// An arrow chain with each parameter's refinement erased to its
+    /// container (`Nat -> NonZero Nat -> Nat` is `Nat -> Nat -> Nat`);
+    /// the result is kept as written. An intrinsic's declared type is
+    /// compared against its known signature through this view, so a
+    /// declaration may add a precondition but never a promise.
+    fn erase_param_refinements(&self, t: &Ty) -> Ty {
+        match t {
+            Ty::Fun(dom, m, eff, cod) => Ty::Fun(
+                Box::new(self.refine_base(dom).unwrap_or_else(|| (**dom).clone())),
+                *m,
+                eff.clone(),
+                Box::new(self.erase_param_refinements(cod)),
+            ),
+            other => other.clone(),
         }
     }
 
@@ -5974,7 +6354,10 @@ impl Checker {
             Some("Eq" | "Not" | "&&" | "||") => {
                 return Ok(Ty::Prp(Box::new(self.conv_prop(ty, vars)?)));
             }
-            Some("NotNull" | "NonZero" | "Ascii" | "Ordered") if args.len() == 1 => {
+            Some(pred @ ("NotNull" | "NonZero" | "Ascii" | "Ordered"))
+                if args.len() == 1
+                    && !matches!(&args[0], Arg::Ty(a) if self.refinement_type_app(pred, a)) =>
+            {
                 return Ok(Ty::Prp(Box::new(self.conv_prop(ty, vars)?)));
             }
             Some("refined") => {
@@ -6728,8 +7111,11 @@ impl Checker {
                     // the caller discharges one per named argument (the
                     // `Dec` evidence path). The names normalize to
                     // positional binders (`$a{i}` names the i-th
-                    // argument), because a non-dependent chain collapses
-                    // to `Fun` and takes its names with it.
+                    // argument, counting every arrow, since the call
+                    // site's arguments are positional), because a
+                    // non-dependent chain collapses to `Fun` and takes
+                    // its names with it. An unnamed arrow holds an empty
+                    // name, which no predicate can mention.
                     let mut arg_binders: Vec<String> = Vec::new();
                     let mut cur_ast = rest;
                     loop {
@@ -6738,7 +7124,10 @@ impl Checker {
                                 arg_binders.push(name.text.clone());
                                 cur_ast = res;
                             }
-                            ast::Type::Fun { res, .. } => cur_ast = res,
+                            ast::Type::Fun { res, .. } => {
+                                arg_binders.push(String::new());
+                                cur_ast = res;
+                            }
                             _ => break,
                         }
                     }
@@ -6747,10 +7136,12 @@ impl Checker {
                             let mut fv = Vec::new();
                             p.free_vars(&mut fv);
                             for v in fv {
-                                if !arg_binders.contains(&v) {
+                                if v.is_empty() || !arg_binders.contains(&v) {
+                                    let named: Vec<&str> =
+                                        arg_binders.iter().filter(|b| !b.is_empty()).map(|b| b.as_str()).collect();
                                     return Err(Error::plain(format!(
                                         "a signature's refinement obligation names its arguments, but `{v}` is not one of the signature's dependent binders ({})",
-                                        arg_binders.join(", ")
+                                        named.join(", ")
                                     )));
                                 }
                             }
@@ -6759,6 +7150,9 @@ impl Checker {
                     for o in &mut obligs {
                         if let PropOblig::Pred(p) = o {
                             for (i, b) in arg_binders.iter().enumerate() {
+                                if b.is_empty() {
+                                    continue;
+                                }
                                 *p = p.subst(b, &ITerm::Var(format!("$a{i}")));
                             }
                         }
@@ -7583,6 +7977,24 @@ impl Checker {
                     };
                     match self.solve(&c, scope, depth + 1, span)? {
                         Solved(d) => {
+                            // A sub-dictionary is applied inside the
+                            // outer instance's methods, never at a call
+                            // the caller sees: an instance whose methods
+                            // carry obligations over their own arguments
+                            // cannot serve one.
+                            if let DictExpr::Instance(id, _, _) = &d {
+                                if let Some(si) = self
+                                    .instance_list
+                                    .iter()
+                                    .find(|i| i.base_id == *id && !i.method_obligs.is_empty())
+                                {
+                                    let cz = self.uni.zonk_class(&c);
+                                    return Err(Error::at(
+                                        span,
+                                        Self::method_oblig_refusal(si, &cz.to_string()),
+                                    ));
+                                }
+                            }
                             // The generic transfer's rep-identity
                             // dictionary is the container's: the same-class
                             // sub-dictionary names its owner for the law
@@ -7761,6 +8173,9 @@ impl Checker {
     ) -> Result<()> {
         let calls = std::mem::take(&mut self.prop_calls);
         let mut seen: HashSet<usize> = HashSet::new();
+        // Wants whose method was applied directly (the call's head), the
+        // only uses an instance's per-method obligations allow.
+        let mut direct: HashSet<usize> = HashSet::new();
         for call in calls {
             seen.insert(call.want);
             let Some(sol) = solutions.get(&call.want) else {
@@ -7780,6 +8195,58 @@ impl Checker {
             else {
                 continue;
             };
+            // Per-method obligations over the method's own arguments
+            // (`y <= x` for `x - y` at `Nat`) discharge at the direct
+            // application only: its arguments are the method's. A want
+            // found elsewhere in a call (a dictionary or a method passed
+            // to another function) is checked as an indirect use below.
+            if let Some(midx) = call.method {
+                direct.insert(call.want);
+                if let Some((_, mname, preds)) =
+                    inst.method_obligs.iter().find(|(i, _, _)| *i == midx)
+                {
+                    for p in preds {
+                        let mut fv = Vec::new();
+                        p.free_vars(&mut fv);
+                        let mut obl = p.clone();
+                        for v in &fv {
+                            let arg = v
+                                .strip_prefix("$a")
+                                .and_then(|i| i.parse::<usize>().ok())
+                                .and_then(|i| call.args.get(i));
+                            match arg {
+                                Some((Some(it), _, _)) => obl = obl.subst(v, it),
+                                Some((None, _, aspan)) => {
+                                    return Err(Error::at(
+                                        *aspan,
+                                        format!(
+                                            "`{mname}` of instance `{}` needs `{p}` of its arguments, so this argument must be a value the checker can name (a variable, a numeral, arithmetic over them); bind it with `let` first",
+                                            inst.name
+                                        ),
+                                    ))
+                                }
+                                None => {
+                                    return Err(Error::at(
+                                        call.span,
+                                        format!(
+                                            "`{mname}` of instance `{}` carries the obligation `{p}` over its arguments: apply it to all of them here (its obligation discharges at a full application)",
+                                            inst.name
+                                        ),
+                                    ))
+                                }
+                            }
+                        }
+                        if self.decide_closed_oblig(&obl, call.span)? {
+                            continue;
+                        }
+                        if call.args.iter().any(|(_, ty, _)| self.static_discharge(ty, &obl)) {
+                            continue;
+                        }
+                        let evidence = call.evidence.clone();
+                        self.discharge_oblig(&evidence, &obl, call.span)?;
+                    }
+                }
+            }
             let obligs: Vec<PTerm> = inst
                 .ctx
                 .iter()
@@ -7869,7 +8336,62 @@ impl Checker {
                 ),
             ));
         }
+        // An instance whose methods carry obligations over their own
+        // arguments never hands its dictionary to code that could apply
+        // a method without them: every want it serves must be a direct
+        // application recorded above. A method used as a value, or the
+        // dictionary passed to a generic callee (`using (Sub a)` at
+        // `Nat`), is refused.
+        for w in wants {
+            if direct.contains(&w.id) {
+                continue;
+            }
+            let Some(DictExpr::Instance(base_id, _, _)) = solutions.get(&w.id) else {
+                continue;
+            };
+            let Some(inst) = self.instance_list.iter().find(|i| i.base_id == *base_id) else {
+                continue;
+            };
+            if inst.method_obligs.is_empty() {
+                continue;
+            }
+            return Err(Error::at(
+                w.span,
+                Self::method_oblig_refusal(inst, &self.uni.zonk_class(&w.class).to_string()),
+            ));
+        }
         Ok(())
+    }
+
+    /// The refusal for an indirect use of an instance whose methods
+    /// carry obligations over their own arguments.
+    fn method_oblig_refusal(inst: &InstanceInfo, wanted: &str) -> String {
+        let stated: Vec<String> = inst
+            .method_obligs
+            .iter()
+            .map(|(_, m, ps)| {
+                format!("`{m}` needs {}", ps.iter().map(|p| format!("`{}`", Self::positional_display(p))).collect::<Vec<_>>().join(", "))
+            })
+            .collect();
+        format!(
+            "instance `{}` serves {wanted} here, but its methods carry obligations over their own arguments ({}): such a method must be applied directly to its arguments, where the obligation discharges; it cannot be used as a value or passed as a dictionary to generic code",
+            inst.name,
+            stated.join("; ")
+        )
+    }
+
+    /// A positional obligation rendered with argument names (`$a1 <=
+    /// $a0` reads `arg2 <= arg1`).
+    fn positional_display(p: &PTerm) -> PTerm {
+        let mut fv = Vec::new();
+        p.free_vars(&mut fv);
+        let mut out = p.clone();
+        for v in &fv {
+            if let Some(i) = v.strip_prefix("$a").and_then(|i| i.parse::<usize>().ok()) {
+                out = out.subst(v, &ITerm::Var(format!("arg{}", i + 1)));
+            }
+        }
+        out
     }
 
     /// Whether an argument is of the instance's carrier (an instance's

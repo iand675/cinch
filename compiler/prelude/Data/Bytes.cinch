@@ -20,8 +20,8 @@ module Data.Bytes where
 
 
   -- `nat-cmp`/`int-cmp` return the raw -1/0/1 immediate at `I64`, so
-  -- equality is `eq-i64 (int-cmp a b) 0`. Division and remainder by zero
-  -- fault with the division fault code (exit 72); `nat-sub` below zero and
+  -- equality is `eq-i64 (int-cmp a b) 0`. Division and remainder take a
+  -- `NonZero` divisor and never fault; `nat-sub` below zero and
   -- every `Bytes` fault below (out-of-bounds index, byte value outside
   -- 0..=255, a length outside `i64` range) exit through the panic path
   -- (71).

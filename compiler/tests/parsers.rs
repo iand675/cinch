@@ -1147,7 +1147,7 @@ choice-p
   text-nat-from :: Bytes -> Nat -> Nat -> Nat
   text-nat-from b i acc =
     if nat-cmp i (bytes-len b) == 0 then acc
-    else text-nat-from b (i + 1) (acc * 10 + (bytes-get b i - 48))
+    else text-nat-from b (i + 1) (acc * 10 + bytes-get b i % 16)
 
   value-decl :: Parser Tm
   value-decl = MkParser (\s -> run-parser-fn (

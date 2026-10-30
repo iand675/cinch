@@ -245,8 +245,9 @@ D-numbers) that amend or interpret this chapter's normative text.
   `&`, `|`, `^`, `<<`, `>>` wrap the `Bits` class; `%` and `/` are the
   `Rem` and `Div` methods with instances for the mathematical `Nat`
   and `Int` only (machine integers keep the explicit families);
-  bitwise NOT has no operator spelling; division or remainder by zero
-  takes the defined fault path (exit 72). Precedence and associativity:
+  bitwise NOT has no operator spelling; the divisor of `/` and `%` is a
+  `NonZero a` (a numeral is decided at compile time, so division is
+  total; 2026-10-30, `design/no-faults.md`). Precedence and associativity:
   surface grammar local amendments section 6.
 - **Interned symbols (D122-D124, D232-D237), 2026-10-28.** This amends
   section 9: `Sym` is a builtin core type with kind-tagged, leaked

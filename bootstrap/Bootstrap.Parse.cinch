@@ -140,7 +140,7 @@ module Bootstrap.Parse where
 
   drop-toks :: List LToken -> Nat -> List LToken
   drop-toks ts n =
-    if nat-cmp n 0 == 0 then ts
+    if n == 0 then ts
     else case ts of
       Nil -> Nil
       Cons t rest -> drop-toks rest (n - 1)
@@ -250,7 +250,7 @@ module Bootstrap.Parse where
       if nat-cmp depth 0 == 0 && (is-boundary-tok k) then reverse acc
       else if is-open-tok k then take-bal rest (depth + 1) (Cons t acc)
       else if is-close-tok k then
-        if nat-cmp depth 0 == 0 then take-bal rest 0 (Cons t acc)
+        if depth == 0 then take-bal rest 0 (Cons t acc)
         else take-bal rest (depth - 1) (Cons t acc)
       else take-bal rest depth (Cons t acc)
 
@@ -268,7 +268,7 @@ module Bootstrap.Parse where
       if nat-cmp depth 0 == 0 && (is-term-stop k) then reverse acc
       else if is-open-tok k then take-term-region rest (depth + 1) (Cons t acc)
       else if is-close-tok k then
-        if nat-cmp depth 0 == 0 then take-term-region rest 0 (Cons t acc)
+        if depth == 0 then take-term-region rest 0 (Cons t acc)
         else take-term-region rest (depth - 1) (Cons t acc)
       else take-term-region rest depth (Cons t acc)
 
@@ -305,14 +305,15 @@ module Bootstrap.Parse where
       else toks
     Nil -> Nil
 
-  skip-bal :: List LToken -> Nat -> List LToken
+  -- Inside `depth` open parentheses, at least one (the one just passed).
+  skip-bal :: using (1 <= depth) => List LToken -> (depth :: Nat) -> List LToken
   skip-bal toks depth = case toks of
     Nil -> Nil
     Cons t rest ->
       let k = lt-token t in
       if is-punct-t k "(" then skip-bal rest (depth + 1)
       else if is-punct-t k ")" then
-        if nat-cmp depth 1 == 0 then rest
+        if depth == 1 then rest
         else skip-bal rest (depth - 1)
       else skip-bal rest depth
 

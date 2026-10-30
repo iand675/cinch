@@ -183,9 +183,10 @@ module Text.Base64 where
 
   -- The decoded length: three bytes per whole group of 4, less one per
   -- trailing pad (so the last group of 2 data characters emits 1 byte,
-  -- 3 data characters 2).
-  decoded-length :: Nat -> Nat -> Nat
-  decoded-length n p = nat-sub (nat-mul 3 (nat-div n 4)) p
+  -- 3 data characters 2). `None` when the pads outnumber the bytes the
+  -- groups carry, which no well-formed padding does.
+  decoded-length :: Nat -> Nat -> Option Nat
+  decoded-length n p = checked-sub (nat-mul 3 (nat-div n 4)) p
 
   decode-with :: (Nat -> Option Nat) -> String -> Result Base64Error Bytes
   decode-with val s =
@@ -195,7 +196,9 @@ module Text.Base64 where
     else
       let p = trailing-pads cs in
       if p > 2 then Err InvalidBase64Padding
-      else decode-groups val (bytes-new (decoded-length n p)) cs 0
+      else case decoded-length n p of
+        Some len -> decode-groups val (bytes-new len) cs 0
+        None -> Err InvalidBase64Padding
 
   -- The number of `=` scalars at the end (the caller bounds it at 2).
   trailing-pads :: List Char -> Nat

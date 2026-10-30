@@ -213,7 +213,8 @@ Semantics notes for the slice:
 
 - `Int` and `Nat` are mathematical (bignum-backed via the Rust
   `cinchruntime`); machine types are separate and explicit (primitive types
-  specification). Division/remainder by zero faults (exit 72); `Nat`
+  specification). Division/remainder takes a `NonZero` divisor (a numeral
+  is decided at compile time), so it never faults; `Nat`
   subtraction below zero and `Bytes` bounds faults exit 71.
 - Top-level functions are monomorphic in their runtime code only in the
   sense that values are uniform words; polymorphism is real (type variables

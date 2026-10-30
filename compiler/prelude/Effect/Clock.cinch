@@ -60,9 +60,10 @@ module Effect.Clock where
     Duration ms -> ms
 
   -- The time between two monotonic readings (the first earlier):
-  -- milliseconds, truncated.
+  -- milliseconds, truncated. A duration is never negative, so readings
+  -- passed in the other order measure zero.
   monotonic-elapsed :: Nat -> Nat -> Duration
-  monotonic-elapsed t0 t1 = Duration ((t1 - t0) / 1000000)
+  monotonic-elapsed t0 t1 = Duration (saturating-sub t1 t0 / 1000000)
 
   -- The runtime clock words behind the capability (`compiler/runtime/
   -- src/platform.rs`, the `cinch_clock_*` externs).

@@ -2,7 +2,8 @@
 --
 -- `Int` is a core runtime type (primitive types specification section
 -- 1): a boxed bignum, distinct from every machine scalar. Division
--- and remainder by zero fault with the division fault code (exit 72).
+-- and remainder are total by construction: the divisor is a `NonZero
+-- Int` (see Data.Nat).
 --
 -- Module scheme (design/base-library.md): the type's home carries its
 -- instance family. `Int` gets no `Semigroup` instance (two monoids
@@ -12,6 +13,8 @@
 -- inversion on `Int`).
 module Data.Int where
 
+  import Data.Core
+  import Algebra.Arithmetic
   import Algebra.Group
   import Algebra.Semiring
   import Data.Hash
@@ -21,8 +24,8 @@ module Data.Int where
   foreign import ccall "cinch.runtime.intAdd" int-add :: Int -> Int -> Int
   foreign import ccall "cinch.runtime.intSub" int-sub :: Int -> Int -> Int
   foreign import ccall "cinch.runtime.intMul" int-mul :: Int -> Int -> Int
-  foreign import ccall "cinch.runtime.intDiv" int-div :: Int -> Int -> Int
-  foreign import ccall "cinch.runtime.intRem" int-rem :: Int -> Int -> Int
+  foreign import ccall "cinch.runtime.intDiv" int-div :: Int -> NonZero Int -> Int
+  foreign import ccall "cinch.runtime.intRem" int-rem :: Int -> NonZero Int -> Int
   foreign import ccall "cinch.runtime.intNeg" int-neg :: Int -> Int
   foreign import ccall "cinch.runtime.intCmp" int-cmp :: Int -> Int -> I64
   foreign import ccall "cinch.runtime.intFromI64" int-from-i64 :: I64 -> Int
@@ -36,9 +39,9 @@ module Data.Int where
 
   -- Mathematical `Int` and `Nat` instances (primitive types
   -- specification, section 1): comparison through the cmp prims'
-  -- immediates, arithmetic through the runtime. `Sub` on `Nat` is the
-  -- runtime's truncated subtraction: the inductive `Nat` subtraction is
-  -- truncated, and `nat-sub` faults rather than producing a negative.
+  -- immediates, arithmetic through the runtime. `-` on `Int` needs no
+  -- evidence; `-` on `Nat` is the exact difference and requires
+  -- `b <= a` (see Data.Nat).
 
   implicit instance Eq_Int :: Eq Int where
     (==) x y = eq-i64 (int-cmp x y) 0
@@ -94,6 +97,6 @@ module Data.Int where
   -- type).
   implicit instance Enum_Int :: Enum Int where
     succ n = int-add n 1
-    pred n = int-sub n 1
-    to-enum n = n
+    pred n = Some (int-sub n 1)
+    to-enum n = Some n
     from-enum n = n

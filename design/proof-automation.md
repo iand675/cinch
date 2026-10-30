@@ -88,7 +88,8 @@ Ordered by the obligations the current roadmap creates:
    common case.
 2. **Linear arithmetic (`omega`-like).** Every layout, index and length
    obligation is Presburger arithmetic; packed layouts and value types
-   (section 3 there) generate them by construction.
+   (section 3 there) generate them by construction. The difference-logic
+   fragment has landed (section 5); the rest of Presburger is open.
 3. **Congruence closure with E-matching (`grind`-like).** Glue for
    everything above; it is what makes specialization proofs short enough to
    write routinely.
@@ -117,6 +118,29 @@ Ordered by the obligations the current roadmap creates:
   and the "sample-checked" tier.
 - Refinement predicates are a closed, decidable vocabulary
   (`design/refinement-types.md`); `decide`-style reflection already fits it.
+- Difference logic decides refinement obligations from every fact in
+  scope (as built, 2026-10-30; `design/refinement-types.md`, "linear
+  facts over variables"): `x - y <= c` constraints over `Nat`, `Int`,
+  machine integers and `Char`, decided by Bellman-Ford negative-cycle
+  detection with bounded case splits on `/=` facts (`linear_entails`,
+  `compiler/src/types.rs`). It follows section 1's rule in miniature.
+  The search is untrusted: it emits a certificate (`DiffCert`), a
+  negative cycle whose edges each cite a hypothesis conjunct, the
+  negated goal, a sort's range axiom or a case split's alternative,
+  and a split node refuting both strict alternatives of a disequality.
+  A separate checker (`check_linear_proof`) re-reads every cited
+  constraint from its source and sums each cycle to `0 <= c` with `c <
+  0`; the discharge accepts only a checked proof. The checker is
+  today Rust inside the checker, so it is the compiled-check tier of
+  section 1. The kernel check belongs where the discharge produces
+  its evidence: when the kernel checks evidence terms, the certificate
+  becomes the erased proof term of the obligation, and the kernel runs
+  the same check by reflection (the checker written in Cinch, proven
+  sound once: a cycle of valid constraints summing to a negative bound
+  is unsatisfiable). Its soundness argument is two lemmas: reading an
+  atom as a constraint (linearizing, and rounding `a * (x - y) <= c`
+  down to `x - y <= floor(c / a)` over integers) is valid, and a
+  cycle's sum telescopes.
 
 ## 6 Open decisions
 

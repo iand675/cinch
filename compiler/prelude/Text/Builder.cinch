@@ -112,26 +112,35 @@ module Text.Builder where
   -- spine holds the pieces most-recent-first (an append prepends a cell), so
   -- walking it head to tail and placing each piece at the end of the still
   -- unfilled region lays the document out in APPEND order: the last append
-  -- lands last. Private: callers go through `builder-bytes`.
+  -- lands last. Private: callers go through `builder-bytes`. `end` starts
+  -- at the spine's size and drops by each piece, so a piece never needs
+  -- more room than is left; that invariant lives in `builder-bytes`, so
+  -- a piece that did not fit would stop the fill (it never happens).
   builder-fill-into :: Bytes -> Nat -> Builder -> Unit
   builder-fill-into out end b = case b of
     BEnd -> ()
     BString s rest ->
       let n = string-byte-length s in
-      let e = end - n in
-      let u = copy-bytes-into out (string-to-bytes s) e 0 n in
-      builder-fill-into out e rest
+      case checked-sub end n of
+        Some e ->
+          let u = copy-bytes-into out (string-to-bytes s) e 0 n in
+          builder-fill-into out e rest
+        None -> ()
     BLine s rest ->
       let n = string-byte-length s in
-      let e = end - (n + 1) in
-      let u = copy-bytes-into out (string-to-bytes s) e 0 n in
-      let v = bytes-set out (e + n) 10 in
-      builder-fill-into out e rest
+      case checked-sub end (n + 1) of
+        Some e ->
+          let u = copy-bytes-into out (string-to-bytes s) e 0 n in
+          let v = bytes-set out (e + n) 10 in
+          builder-fill-into out e rest
+        None -> ()
     BBytes x rest ->
       let n = bytes-len x in
-      let e = end - n in
-      let u = copy-bytes-into out x e 0 n in
-      builder-fill-into out e rest
+      case checked-sub end n of
+        Some e ->
+          let u = copy-bytes-into out x e 0 n in
+          builder-fill-into out e rest
+        None -> ()
 
   -- The flattened bytes: one allocation, one copy pass.
   builder-bytes :: Builder -> Bytes

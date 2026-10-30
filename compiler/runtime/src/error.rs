@@ -18,7 +18,9 @@ pub enum Error {
     NegativeInput,
     /// `Nat` subtraction produced a negative result.
     NegativeResult,
-    /// Division or remainder by zero.
+    /// Division or remainder by zero. The safe Rust API reports it; at
+    /// the extern "C" layer it is a compiler-bug trap, because every
+    /// generated divisor is a `NonZero` by its type.
     DivByZero,
     /// The value does not fit in an `i64`.
     OutOfRange,
@@ -60,14 +62,12 @@ impl Error {
     /// Process exit code used when this error surfaces at the extern "C"
     /// layer.
     ///
-    /// [`Error::DivByZero`] uses the dedicated division fault code (the same
-    /// code `cinch_fault_div_zero` exits with), [`Error::BlackHole`] the
-    /// `BlackHole` code (the same code `cinch_blackhole` exits with) and
-    /// [`Error::NestingTooDeep`] the `Exhausted` code; every other variant
-    /// exits through the `cinch_panic` path.
+    /// [`Error::BlackHole`] uses the `BlackHole` code (the same code
+    /// `cinch_blackhole` exits with) and [`Error::NestingTooDeep`] the
+    /// `Exhausted` code; every other variant, the compiler-bug traps
+    /// included, exits through the `cinch_panic` path.
     pub fn exit_code(self) -> i32 {
         match self {
-            Error::DivByZero => crate::abi::EXIT_DIV_ZERO,
             Error::BlackHole => crate::abi::EXIT_BLACKHOLE,
             Error::NestingTooDeep => crate::abi::EXIT_EXHAUSTED,
             _ => crate::abi::EXIT_PANIC,
@@ -79,8 +79,12 @@ impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let msg = match self {
             Error::NegativeInput => "natural number constructed from negative input",
-            Error::NegativeResult => "natural subtraction produced a negative result",
-            Error::DivByZero => "division or remainder by zero",
+            Error::NegativeResult => {
+                "compiler bug: natural subtraction below zero (every `a - b` at `Nat` carries evidence that `b <= a`)"
+            }
+            Error::DivByZero => {
+                "compiler bug: division or remainder by zero (every divisor is a `NonZero` by its type)"
+            }
             Error::OutOfRange => "value does not fit in i64",
             Error::MalformedDecimal => "malformed decimal numeral",
             Error::BufferTooSmall => "decimal buffer too small",
@@ -107,8 +111,15 @@ mod tests {
     use super::*;
 
     #[test]
-    fn div_by_zero_exits_with_the_division_fault_code() {
-        assert_eq!(Error::DivByZero.exit_code(), 72);
+    fn div_by_zero_is_a_compiler_bug_trap_on_the_panic_path() {
+        assert_eq!(Error::DivByZero.exit_code(), 71);
+        assert!(Error::DivByZero.to_string().starts_with("compiler bug:"));
+    }
+
+    #[test]
+    fn negative_nat_difference_is_a_compiler_bug_trap_on_the_panic_path() {
+        assert_eq!(Error::NegativeResult.exit_code(), 71);
+        assert!(Error::NegativeResult.to_string().starts_with("compiler bug:"));
     }
 
     #[test]
@@ -121,6 +132,7 @@ mod tests {
         let others = [
             Error::NegativeInput,
             Error::NegativeResult,
+            Error::DivByZero,
             Error::OutOfRange,
             Error::MalformedDecimal,
             Error::BufferTooSmall,
@@ -136,11 +148,11 @@ mod tests {
     fn display_names_each_variant() {
         assert_eq!(
             Error::DivByZero.to_string(),
-            "division or remainder by zero"
+            "compiler bug: division or remainder by zero (every divisor is a `NonZero` by its type)"
         );
         assert_eq!(
             Error::NegativeResult.to_string(),
-            "natural subtraction produced a negative result"
+            "compiler bug: natural subtraction below zero (every `a - b` at `Nat` carries evidence that `b <= a`)"
         );
     }
 }

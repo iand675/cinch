@@ -269,8 +269,8 @@ fn bitwise_operators_on_machine_ints() {
 #[test]
 fn modulo_and_division_on_math_types() {
     // Nat subtraction faults below zero, so the checks stay in Nat-safe
-    // territory; division and remainder by zero are defined faults (72),
-    // tested separately at the boundary.
+    // territory; a zero divisor is a compile error (the divisor is a
+    // `NonZero`), tested in tests/safe_division.rs.
     expect_ok(
         "ops-moddiv",
         "module Main where\n\

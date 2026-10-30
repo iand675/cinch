@@ -366,7 +366,8 @@ module Text.Scan where
     else
       let total = w - n in
       let left = nat-div total 2 in
-      let right = total - left in
+      -- `total - left`, the ceiling of half (the same number).
+      let right = nat-div (total + 1) 2 in
       string-concat (spaces left) (string-concat s (spaces right))
 
   -- -----------------------------------------------------------------

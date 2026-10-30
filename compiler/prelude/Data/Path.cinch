@@ -186,9 +186,15 @@ module Data.Path where
   path-extname :: Path -> String
   path-extname p = pack (extname-chars (basename-chars (unpack (path-to-string p))))
 
-  -- `path-stem`: the basename without its extension.
+  -- `path-stem`: the basename without its extension, i.e. the prefix
+  -- before the dot `extname-chars` splits at (the whole basename when
+  -- there is no extension).
   stem-chars :: List Char -> List Char
-  stem-chars b = take (list-length b - list-length (extname-chars b)) b
+  stem-chars b = case last-dot-index b 0 None of
+    None -> b
+    Some i -> case i == 0 of
+      True -> b
+      False -> take i b
 
   path-stem :: Path -> String
   path-stem p = pack (stem-chars (basename-chars (unpack (path-to-string p))))

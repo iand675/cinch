@@ -199,14 +199,14 @@ const CARRIERS: &str = r#"module Main where
   bang :: String -> String
   bang s = string-concat s "!"
 
-  nzs :: List Int -> List NonZero
+  nzs :: List Int -> List (NonZero Int)
   nzs xs = case xs of
     Nil -> Nil
     Cons y ys -> case non-zero y of
       None -> nzs ys
       Some v -> Cons v (nzs ys)
 
-  value :: NonZero -> Int
+  value :: NonZero Int -> Int
   value v = unrefine v
 
   main :: Int
@@ -214,7 +214,7 @@ const CARRIERS: &str = r#"module Main where
     let f = mconcat (Cons greet (Cons bang (Cons greet Nil))) in
     let a = if f "x" == "hi xx!hi x" then 0 else 1 in
     let b = if value (mconcat (nzs (Cons 2 (Cons 3 (Cons 7 Nil))))) == 42 then 0 else 2 in
-    let c = if value (mconcat (Nil :: List NonZero)) == 1 then 0 else 4 in
+    let c = if value (mconcat (Nil :: List (NonZero Int))) == 1 then 0 else 4 in
     a + b + c
 "#;
 

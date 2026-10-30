@@ -694,6 +694,12 @@ pub struct InstDecl {
     pub ctx: Vec<Oblig>,
     pub target: Type,
     pub methods: Vec<Equation>,
+    /// Method signatures restating a class method at this instance with
+    /// refinement obligations over the method's own arguments
+    /// (`(-) :: using (y <= x) => (x :: Nat) -> (y :: Nat) -> Nat`):
+    /// a precondition only this instance has, discharged at every
+    /// direct application of the method.
+    pub method_sigs: Vec<(Name, Type)>,
     pub span: Span,
 }
 
@@ -1371,6 +1377,9 @@ pub fn collect_decl_refs(d: &Decl, out: &mut Vec<RefSite>) {
                     Oblig::Pred(t) => collect_type_refs(t, out),
                     Oblig::Preserves { pred, .. } => collect_type_refs(pred, out),
                 }
+            }
+            for (_, t) in &i.method_sigs {
+                collect_type_refs(t, out);
             }
             for m in &i.methods {
                 collect_term_refs(&m.body, out);
@@ -2154,6 +2163,9 @@ pub fn hyg_decl(d: &Decl, cx: &mut HygCx, sc: &mut HygScope) -> Result<Decl> {
                 methods.push(hyg_equation(m, cx, sc)?);
             }
             i.methods = methods;
+            for (_, t) in &mut i.method_sigs {
+                *t = hyg_type(t, cx, sc)?;
+            }
             Decl::Instance(i)
         }
         Decl::Data(data) => {

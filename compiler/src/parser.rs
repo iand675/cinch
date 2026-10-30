@@ -1613,16 +1613,32 @@ impl<'a> Parser<'a> {
             other => (Vec::new(), other),
         };
         self.expect(&Tok::Where, "`where`")?;
-        let methods = self.parse_block_items("the instance block", |p| {
+        // A block item is a method equation, or a method signature
+        // restating the class method at this instance with obligations
+        // over its arguments (`(-) :: using (y <= x) => ...`).
+        let items = self.parse_block_items("the instance block", |p| {
             if p.parse_modifier()?.is_some() {
                 return Err(p.err(
                     "modifiers on instance methods are not supported in the bootstrap slice",
                 ));
             }
             let name = p.parse_value_name()?;
-            p.parse_equation_rest(name, true)
+            if p.at(&Tok::ColonColon) {
+                p.bump();
+                let ty = p.parse_type()?;
+                return Ok(Err((name, ty)));
+            }
+            p.parse_equation_rest(name, true).map(Ok)
         })?;
-        Ok(InstDecl { implicit, name, params, ctx, target, methods, span: start })
+        let mut methods = Vec::new();
+        let mut method_sigs = Vec::new();
+        for it in items {
+            match it {
+                Ok(eq) => methods.push(eq),
+                Err(sig) => method_sigs.push(sig),
+            }
+        }
+        Ok(InstDecl { implicit, name, params, ctx, target, methods, method_sigs, span: start })
     }
 
     fn parse_data(&mut self) -> Result<DataDecl> {
@@ -3516,6 +3532,9 @@ fn resolve_module_decl(d: &mut Decl, fix: &FixityTable) -> Result<()> {
         Decl::Equation { eq, .. } => resolve_equation(eq, fix)?,
         Decl::Instance(inst) => {
             resolve_type(&mut inst.target, fix)?;
+            for (_, t) in &mut inst.method_sigs {
+                resolve_type(t, fix)?;
+            }
             for eq in &mut inst.methods {
                 resolve_equation(eq, fix)?;
             }

@@ -20,8 +20,8 @@
 //!     of the digit run (9.999 at 2 digits is 10).
 //!   division: the precision and the mode are the caller's (1/3 at 10
 //!     digits half-up is 0.3333333333), bignum quotients survive, and a
-//!     zero divisor takes the runtime division fault (exit 72) rather
-//!     than an infinity.
+//!     zero divisor is `None` rather than an infinity (division is total
+//!     by construction).
 //!   order: `cmp` is the sign of `sub` over all pairs of the sample set,
 //!     antisymmetric, and the `Eq`/`Ord` instances are that same
 //!     relation.
@@ -179,12 +179,6 @@ fn expect_ok(name: &str, body: &str) {
     assert_eq!(code, 0, "{name}: check bitmask {code}");
 }
 
-/// One program whose run must fault with the given exit code.
-fn expect_exit(name: &str, body: &str, expected: i32) {
-    let code = run_main(name, &program(body));
-    assert_eq!(code, expected, "{name}: expected exit {expected}, got {code}");
-}
-
 /// `0.1` and `0.2` are not binary floats, so the exactness of `add` and
 /// `mul` is visible in the fields: the sum is unscaled 3 at exponent -1
 /// (3 * 10^-1), not the double sum's 0.30000000000000004, and the
@@ -292,16 +286,21 @@ fn rounding_modes_at_fractional_precision() {
 fn division_takes_an_explicit_precision_and_carries() {
     expect_ok(
         "division",
-        r#"  main :: Int
+        r#"  q :: Option BigDecimal -> String
+  q o = case o of
+    Some x -> to-string x
+    None -> "none"
+
+  main :: Int
   main =
-    let c1 = if to-string (div 10 RoundHalfUp (from-int 1) (from-int 3)) == "0.3333333333" then 0 else 1 in
-    let c2 = if to-string (div 10 RoundHalfEven (from-int 2) (from-int 3)) == "0.6666666667" then 0 else 2 in
-    let c3 = if to-string (div 30 RoundHalfUp (from-int 1) (from-int 7)) == "0.142857142857142857142857142857" then 0 else 4 in
-    let c4 = if to-string (div 0 RoundHalfUp (from-int 10000000000000000000) (from-int 3)) == "3333333333333333333" then 0 else 8 in
-    let c5 = if to-string (div 2 RoundHalfUp (from-int 1) (from-int 8)) == "0.13" then (if to-string (div 2 RoundHalfEven (from-int 1) (from-int 8)) == "0.12" then 0 else 16) else 16 in
-    let c6 = if to-string (div 5 RoundDown (from-int 1) (from-int 2)) == "0.5" then 0 else 32 in
+    let c1 = if q (div 10 RoundHalfUp (from-int 1) (from-int 3)) == "0.3333333333" then 0 else 1 in
+    let c2 = if q (div 10 RoundHalfEven (from-int 2) (from-int 3)) == "0.6666666667" then 0 else 2 in
+    let c3 = if q (div 30 RoundHalfUp (from-int 1) (from-int 7)) == "0.142857142857142857142857142857" then 0 else 4 in
+    let c4 = if q (div 0 RoundHalfUp (from-int 10000000000000000000) (from-int 3)) == "3333333333333333333" then 0 else 8 in
+    let c5 = if q (div 2 RoundHalfUp (from-int 1) (from-int 8)) == "0.13" then (if q (div 2 RoundHalfEven (from-int 1) (from-int 8)) == "0.12" then 0 else 16) else 16 in
+    let c6 = if q (div 5 RoundDown (from-int 1) (from-int 2)) == "0.5" then 0 else 32 in
     let c7 = if to-string (round 2 RoundHalfUp (lit "9.999")) == "10" then (if to-string (round 2 RoundHalfUp (lit "-9.999")) == "-10" then 0 else 64) else 64 in
-    let c8 = if to-string (div 0 RoundUp (from-int 1) (lit "0.001")) == "1000" then (if to-string (div 1 RoundUp (from-int 1) (from-int 3)) == "0.4" then 0 else 128) else 128 in
+    let c8 = if q (div 0 RoundUp (from-int 1) (lit "0.001")) == "1000" then (if q (div 1 RoundUp (from-int 1) (from-int 3)) == "0.4" then 0 else 128) else 128 in
     c1 + c2 + c3 + c4 + c5 + c6 + c7 + c8"#,
     );
 }
@@ -416,17 +415,15 @@ fn to_f64_is_the_correctly_rounded_conversion() {
     );
 }
 
-/// The named refusal behind the missing `Infinity`: a zero divisor is the
-/// runtime's bignum division fault (exit 72), reached through the rounding
-/// path like any other `Int` division.
+/// The named refusal behind the missing `Infinity`: a zero divisor has no
+/// quotient, so `div` answers `None` (division is total by construction).
 #[test]
-fn division_by_zero_takes_the_division_fault() {
-    expect_exit(
+fn division_by_zero_is_none() {
+    expect_ok(
         "division-by-zero",
         r#"  main :: Int
-  main =
-    let quotient = div 2 RoundHalfUp (from-int 1) (from-int 0) in
-    if to-string quotient == "0" then 0 else 1"#,
-        72,
+  main = case div 2 RoundHalfUp (from-int 1) (from-int 0) of
+    None -> 0
+    Some _ -> 1"#,
     );
 }

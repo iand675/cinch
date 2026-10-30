@@ -114,11 +114,15 @@ module Data.String where
       else if y >= 192 then None
       else utf8-cont b (i + 1) (k - 1) (cp * 64 + (y - 128))
 
+  -- The lead byte's payload bits: `x - 192`, `x - 224`, `x - 240` for
+  -- the lead byte of a two-, three- and four-byte sequence, written as
+  -- the low bits, which is the same number for every lead byte
+  -- `utf8-width` admits and needs no `x >= 192` evidence.
   utf8-lead-payload :: Nat -> Nat -> Nat
   utf8-lead-payload x w =
-    if w == 2 then x - 192
-    else if w == 3 then x - 224
-    else x - 240
+    if w == 2 then x % 32
+    else if w == 3 then x % 16
+    else x % 8
 
   utf8-at :: Bytes -> Nat -> Option (Char, Nat)
   utf8-at b i =
@@ -278,17 +282,22 @@ module Data.String where
         (c, w) -> string-byte-index-from b (i + w) (n - 1)
 
   -- The code point range [start, end); indices past the end clamp and a
-  -- reversed range yields the empty string (Nat subtraction faults below
-  -- zero, so the span is guarded).
+  -- reversed range yields the empty string (the span's subtraction
+  -- takes its `start < end` evidence from the test).
   string-slice :: String -> Nat -> Nat -> String
   string-slice s start end =
     let b = string-bytes-raw s in
     let i0 = string-byte-index-from b 0 start in
     let span = if end > start then end - start else 0 in
     let i1 = string-byte-index-from b i0 span in
-    let out = bytes-new (i1 - i0) in
-    let u = copy-bytes-into out b 0 i0 (i1 - i0) in
-    StrBuf out
+    -- `string-byte-index-from` never moves backwards, so `i0 <= i1`
+    -- on every input; the empty string answers the case that cannot
+    -- occur, since that fact lives in another function.
+    if i0 <= i1 then
+      let out = bytes-new (i1 - i0) in
+      let u = copy-bytes-into out b 0 i0 (i1 - i0) in
+      StrBuf out
+    else StrBuf (bytes-new 0)
 
   -- Haskell's `Data.String` pair: `pack` is the `List Char` view of a
   -- string, `unpack` its inverse (new conversions: no `String`/`List

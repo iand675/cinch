@@ -362,10 +362,12 @@ module Text.Yaml where
   -- helper, but that module is not part of the embedded family (D309),
   -- and importing it would make this module unembeddable in turn: the
   -- whole module imports the embedded homes only.
+  -- A reversed range (`j < i`) holds no bytes: the empty copy.
   byte-range :: Bytes -> Nat -> Nat -> Bytes
   byte-range b i j =
-    let out = bytes-new (j - i) in
-    let u = copy-bytes-into out b 0 i (j - i) in
+    let n = saturating-sub j i in
+    let out = bytes-new n in
+    let u = copy-bytes-into out b 0 i n in
     out
 
   text-range :: Bytes -> Nat -> Nat -> String
@@ -385,8 +387,10 @@ module Text.Yaml where
   -- `&&` on a lookback, because `&&` is a strict function here (Data.Bool)
   -- and would read the byte before the buffer's start.
   comment-begins :: Bytes -> Nat -> Nat -> Bool
+  -- `i` never precedes `start`, so `i <= start` is the line-start test
+  -- (the same answer), and past it the byte before `i` exists.
   comment-begins b start i =
-    if i == start then False
+    if i <= start then False
     else if bytes-get b (i - 1) == 32 then True
     else bytes-get b (i - 1) == 9
 
@@ -598,11 +602,12 @@ module Text.Yaml where
   is-hex-byte b =
     (b >= 48 && b < 58) || (b >= 65 && b < 71) || (b >= 97 && b < 103)
 
+  -- A hex digit's value: `b - 48` for `0`..`9`, `b - 55` for `A`..`F`
+  -- and `b - 87` for `a`..`f`, written as the low nibble plus nine for
+  -- a letter (letters are the bytes from 64 up), which is the same
+  -- number on every byte `is-hex-byte` admits and needs no lower bound.
   hex-byte-value :: Nat -> Nat
-  hex-byte-value b =
-    if b < 58 then b - 48
-    else if b < 71 then b - 55
-    else b - 87
+  hex-byte-value b = b % 16 + 9 * (b / 64)
 
   parse-single-quoted :: YState -> Result YamlError (YNode, YState)
   parse-single-quoted s = case scan-single s of
@@ -1033,11 +1038,18 @@ module Text.Yaml where
   parse-item-node :: YState -> Nat -> Result YamlError (YNode, YState)
   parse-item-node s ind = case y-peek s of
     None -> Ok (YPlain empty-string, s)
-    Some b -> if y-at-seq-start s then parse-seq s (y-col s - 1)
+    Some b -> if y-at-seq-start s then parse-seq s (y-indent s)
       else if b == 38 then parse-anchor-item s ind
       else case y-find-colon s of
-        Some i -> parse-map s (y-col s - 1)
+        Some i -> parse-map s (y-indent s)
         None -> parse-line-node s ind
+
+  -- The cursor's indentation: its 1-based column less one. The cursor
+  -- never holds column 0 (the state starts at 1 and a newline resets
+  -- to 1), a fact of `y-advance1` the checker does not see, so the
+  -- step clamps at zero.
+  y-indent :: YState -> Nat
+  y-indent s = saturating-sub (y-col s) 1
 
   -- One inline node with the line's remainder checked (the block-scalar
   -- path leaves the cursor at the next line's start and skips the
@@ -1487,7 +1499,7 @@ module Text.Yaml where
   fold-digits t i acc =
     if i >= string-length t then acc
     else case string-char-at t i of
-      Some c -> fold-digits t (i + 1) (int-add (int-mul acc (int-from-i64 10)) (int-from-i64 (nat-to-i64 (char-code c - 48))))
+      Some c -> fold-digits t (i + 1) (int-add (int-mul acc (int-from-i64 10)) (int-sub (int-from-i64 (nat-to-i64 (char-code c))) (int-from-i64 48)))
       None -> acc
 
   -- The core schema's float: a digit run with a fraction or an

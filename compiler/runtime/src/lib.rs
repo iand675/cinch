@@ -160,8 +160,7 @@
 //! | exit code | outcome | entry point |
 //! |-----------|---------|-------------|
 //! | 70 | `BlackHole` fault (e.g. demanding a memo cell mid-evaluation) | [`cinch_blackhole`] |
-//! | 71 | generic fault: `cinch_panic` and every runtime error except division by zero, the `BlackHole` fault and the evaluator's nesting bound; also every compiler-bug trap, whose message starts `compiler bug:` | [`cinch_panic`] |
-//! | 72 | division or remainder by zero | [`cinch_fault_div_zero`] |
+//! | 71 | generic fault: `cinch_panic` and every runtime error except the `BlackHole` fault and the evaluator's nesting bound; also every compiler-bug trap, whose message starts `compiler bug:` | [`cinch_panic`] |
 //! | 73 | `Exhausted`: the program ran out of a resource, with one line `cinch: exhausted: heap (<n> bytes)`, `cinch: exhausted: stack` or `cinch: exhausted: threads` | [`abi::exhausted`] |
 //!
 //! `Exhausted` is part of every program's declared outcome at `main`
@@ -172,11 +171,13 @@
 //! bound ([`stack`], [`eval`]), and the OS refusing a thread
 //! ([`stack::spawn_refused`]). A compiler-bug trap fires only when the
 //! compiler or runtime broke an invariant (a corrupt header, a null or
-//! wrong-kind word, a negative generated size): no well-typed program
-//! reaches one when the compiler is correct. The faults 70-72 are the
-//! ones a well-typed program can still reach today
-//! (`design/no-faults-inventory.md`). A program's own result can also be
-//! 70-74; the stderr line is what tells an outcome from a result.
+//! wrong-kind word, a negative generated size, a zero divisor reaching
+//! `cinch_nat_div`/`cinch_int_div` or their remainders, whose divisor is
+//! a `NonZero` by its type): no well-typed program reaches one when the
+//! compiler is correct. The faults 70 and 71 are the ones a well-typed
+//! program can still reach today (`design/no-faults-inventory.md`); exit
+//! 72, the old division fault, is retired. A program's own result can
+//! also be 70-74; the stderr line is what tells an outcome from a result.
 //!
 //! Exit code 70 is coupled to the code generator: `compiler/src/codegen.rs`
 //! emits `__cinch_blackhole` calling `exit(i32 70)` directly. Both call
@@ -190,9 +191,10 @@
 //!
 //! In the safe Rust API ([`Nat`], [`Int`]) the same conditions surface as
 //! [`Error`] values, so tooling and tests observe them without dying. The
-//! extern "C" layer maps [`Error::DivByZero`] onto exit 72,
-//! [`Error::BlackHole`] onto exit 70, [`Error::NestingTooDeep`] onto the
-//! stack `Exhausted` exit 73, and every other error onto exit 71.
+//! extern "C" layer maps [`Error::BlackHole`] onto exit 70,
+//! [`Error::NestingTooDeep`] onto the stack `Exhausted` exit 73, and
+//! every other error, [`Error::DivByZero`]'s compiler-bug trap included,
+//! onto exit 71.
 //!
 //! # Extern symbols
 //!
@@ -207,7 +209,6 @@
 //! * `cinch_blackhole() -> !`: the `BlackHole` fault, exit 70.
 //! * `cinch_panic(msg: *const u8, len: usize) -> !`: write the message to
 //!   stderr and exit 71. A null pointer or zero length writes nothing.
-//! * `cinch_fault_div_zero() -> !`: division fault, exit 72.
 //! * The `Exhausted` exit, 73, has no extern entry point: the runtime
 //!   takes it itself, from the allocator, the stack guard's signal
 //!   handler, the evaluator and the thread spawns ([`abi::exhausted`]).
@@ -315,8 +316,10 @@
 //! * `cinch_nat_fits_i64(word: i64) -> i64`: 1 or 0.
 //! * `cinch_nat_add(a: i64, b: i64) -> i64`, `cinch_nat_mul(a, b) -> i64`:
 //!   exact arithmetic.
-//! * `cinch_nat_sub(a: i64, b: i64) -> i64`: exact difference, faulting on
-//!   negative result (defined fault, not wrapping).
+//! * `cinch_nat_sub(a: i64, b: i64) -> i64`: exact difference. Every
+//!   caller proves `b <= a` (the surface `-` at `Nat` and `nat-sub` carry
+//!   the obligation), so a negative result is a compiler-bug trap (exit 71,
+//!   `compiler bug:`), never a program fault.
 //! * `cinch_nat_div(a: i64, b: i64) -> i64`: the quotient of `a / b`;
 //!   the remainder is `cinch_nat_rem(a, b) -> i64`. Both fault on division by
 //!   zero.
@@ -409,8 +412,8 @@
 //!   a defined fault path and produces no value (exit 70 for the quoted
 //!   program's own fault or a black-holed memo cell, 71 otherwise).
 //!
-//! Every bignum and byte-buffer fault exits through `cinch_panic` (71)
-//! except division by zero (72); see `crate::error::Error`.
+//! Every bignum and byte-buffer fault exits through `cinch_panic` (71),
+//! the zero-divisor compiler-bug trap included; see `crate::error::Error`.
 //!
 //! Structured concurrency and runtime I/O (concurrency specification
 //! sections 2, 4 and 9; one OS thread per task, fork-join happens-before,

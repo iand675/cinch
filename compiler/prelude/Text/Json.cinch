@@ -350,7 +350,7 @@ module Text.Json where
       else JState b (off + 1) l (c + 1)
 
   advance-n :: JState -> Nat -> JState
-  advance-n s k = if nat-cmp k 0 == 0 then s else advance-n (advance1 s) (k - 1)
+  advance-n s k = if k == 0 then s else advance-n (advance1 s) (k - 1)
 
   is-continuation :: Nat -> Bool
   is-continuation b = nat-cmp b 128 >= 0 && nat-cmp b 192 < 0
@@ -366,11 +366,11 @@ module Text.Json where
   is-hex b =
     is-digit b || (nat-cmp b 65 >= 0 && nat-cmp b 71 < 0) || (nat-cmp b 97 >= 0 && nat-cmp b 103 < 0)
 
+  -- A hex digit's value (`b - 48`, `b - 55`, `b - 87` for a digit, an
+  -- upper and a lower letter), written as the low nibble plus nine for
+  -- a letter: the same number on every byte `is-hex` admits.
   hex-value :: Nat -> Nat
-  hex-value b =
-    if is-digit b then b - 48
-    else if nat-cmp b 71 < 0 then b - 55
-    else b - 87
+  hex-value b = b % 16 + 9 * (b / 64)
 
   skip-ws :: JState -> JState
   skip-ws s = case peek-byte s of
@@ -616,20 +616,20 @@ module Text.Json where
   scan-u-escape s acc = case scan-hex4 s of
     JErr c e -> JErr c e
     JOk c hi s1 e ->
-      if nat-cmp hi 55296 >= 0 && nat-cmp hi 56320 < 0 then scan-u-low hi s1 acc
+      if hi >= 55296 && hi < 56320 then scan-u-low hi s1 acc
       else if nat-cmp hi 56320 >= 0 && nat-cmp hi 57344 < 0 then
         JErr True (EFail (pos-span s1) "unpaired low surrogate in a string escape")
       else push-scalar hi s1 acc
 
   -- The low half after a high surrogate: `\uXXXX` and a low
-  -- surrogate's worth of value.
-  scan-u-low :: Nat -> JState -> List Char -> JReply String
+  -- surrogate's worth of value. `hi` is a high surrogate.
+  scan-u-low :: using (55296 <= hi) => (hi :: Nat) -> JState -> List Char -> JReply String
   scan-u-low hi s1 acc = case expect-u-start s1 of
     JErr c2 e2 -> JErr c2 e2
     JOk c2 u s2 e2 -> case scan-hex4 s2 of
       JErr c3 e3 -> JErr c3 e3
       JOk c3 lo s3 e3 ->
-        if nat-cmp lo 56320 >= 0 && nat-cmp lo 57344 < 0 then
+        if lo >= 56320 && lo < 57344 then
           push-scalar (65536 + (hi - 55296) * 1024 + (lo - 56320)) s3 acc
         else JErr True (EFail (pos-span s3) "unpaired high surrogate in a string escape")
 
@@ -773,7 +773,9 @@ module Text.Json where
   digits-fold raw i acc =
     if nat-cmp i (bytes-len raw) == 0 then acc
     else
-      let d = int-from-i64 (nat-to-i64 (bytes-get raw i - 48)) in
+      -- The spelling is a validated digit run; the offset is taken in
+      -- `Int`, the same value with no lower bound to prove.
+      let d = int-sub (int-from-i64 (nat-to-i64 (bytes-get raw i))) (int-from-i64 48) in
       digits-fold raw (i + 1) (int-add (int-mul acc (int-from-i64 10)) d)
 
 

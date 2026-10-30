@@ -21,6 +21,33 @@ feeds `design/no-faults.md`.
   (`design/no-faults.md` section 4.1, `compiler/runtime/src/stack.rs`,
   `tests/exhaustion.rs`). Nothing in the runtime aborts or dies on a
   signal for resource reasons any more.
+- **Division and remainder by zero (`DivByZero`, the `nat-div`/`nat-rem`/
+  `int-div`/`int-rem` rows below)**: closed 2026-10-30. The divisor is a
+  `NonZero Nat`/`NonZero Int` (`type NonZero a = refine (n :: a) with
+  NonZero n`, declared in `Algebra.Arithmetic`), and so is the `Div`/`Rem`
+  classes' (`(/) :: a -> NonZero a -> a`). A numeral divisor decides its
+  predicate at compile time with nothing written (`0` is a compile error);
+  any other divisor is decided (`decide (NonZero d)`, a plain `if d == 0`
+  guard, `non-zero`/`non-zero-nat`) or threaded as a `NonZero` parameter,
+  and `checked-div`/`checked-rem` answer `None`. The runtime's zero check
+  is a compiler-bug trap (exit 71, `compiler bug:`), exit 72 and
+  `cinch_fault_div_zero` are gone. `tests/safe_division.rs`.
+- **`Nat` subtraction below zero (`NegativeResult`, the `nat-sub` and `-`
+  at `Nat` rows below)**: closed 2026-10-30. `nat-sub :: using (b <= a)
+  => (a :: Nat) -> (b :: Nat) -> Nat`, and the `Sub_Nat` instance states
+  the same obligation in a method signature inside the instance block
+  (`(-) :: using (y <= x) => (x :: Nat) -> (y :: Nat) -> Nat`), so the
+  `Sub` class and `-` at `Int` are unchanged. Numerals decide the
+  obligation at compile time (`3 - 5` is refused naming `5 <= 3`); any
+  other subtraction takes it from a branch fact, `Dec` evidence, or the
+  enclosing definition's own `using` obligation. The `Sub_Nat`
+  dictionary never reaches generic code (`using (Sub a)`), a
+  sub-dictionary or a module argument, and its method is never a
+  value. The truncating form is `saturating-sub`, and `checked-sub`
+  answers `None`; `Data.Enum`'s `pred` and `to-enum` answer `Option`. The
+  runtime's negative check is a compiler-bug trap (exit 71,
+  `compiler bug:`). A `Nat` index difference reaches runtime only as a
+  folded constant. `tests/safe_subtraction.rs`.
 
 ## Runtime exits classified (2026-10-30)
 
@@ -47,10 +74,12 @@ join's handle count, still raises `OutOfBounds` without the prefix.
 **Faults a well-typed program can still reach** (left for the
 migration, not fixed here):
 
-- `abi.rs:608` `cinch_nat_sub` (`NegativeResult`), and `abi.rs:337` for
-  the bignum path of the same operation.
-- `abi.rs:631,643,782,795` `cinch_nat_div`/`rem`, `cinch_int_div`/`rem`
-  (`DivByZero`, exit 72), and `abi.rs:337,353` for their bignum paths.
+- ~~`abi.rs:608` `cinch_nat_sub` (`NegativeResult`), and `abi.rs:337` for
+  the bignum path of the same operation~~: closed (see above); the check
+  is now a compiler-bug trap.
+- ~~`abi.rs:631,643,782,795` `cinch_nat_div`/`rem`, `cinch_int_div`/`rem`
+  (`DivByZero`, exit 72)~~: closed (see above); the check is now a
+  compiler-bug trap.
 - `abi.rs:566` `cinch_nat_from_i64` (`NegativeInput`); `abi.rs:579,729`
   `cinch_nat_to_i64`/`cinch_int_to_i64` (`OutOfRange`).
 - `abi.rs:667,674,829,842` `cinch_nat_from_decimal`/`cinch_int_from_decimal`
@@ -90,11 +119,11 @@ Grouped by `Error` variant (`compiler/runtime/src/error.rs:12-45`) / exit code.
 
 | `Error` variant | exit | site(s) | triggering operation | reachable by well-typed program |
 |---|---|---|---|---|
-| `DivByZero` | 72 | `abi.rs:374` `cinch_fault_div_zero`; raised from `cinch_nat_div/rem`, `cinch_int_div/rem` (`abi.rs:525,536,619,630`) | `nat-div`/`nat-rem`/`int-div`/`int-rem` with a zero divisor | **Yes**: `Nat`/`Int` division has no total prelude variant |
+| `DivByZero` | ~~72~~ 71 | `cinch_nat_div/rem`, `cinch_int_div/rem` | `nat-div`/`nat-rem`/`int-div`/`int-rem` with a zero divisor | **No (closed 2026-10-30)**: the divisor is a `NonZero`; the runtime check is a compiler-bug trap |
 | `BlackHole` | 70 | `abi.rs:358` `cinch_blackhole`; `eval.rs:1044-1048` `cinch_eval` on `Err(BlackHole)`; codegen's `__cinch_demand`/`BoxGet` re-entrancy check | memo cell (`~`) demanded while its own thunk is running; a quoted `Code a`'s own `FAULT` opcode; a `letrec` box read before write | **Yes** for memo re-entrancy and `eval`'s embedded fault opcode (ordinary program logic, no static proof of acyclic demand order); **no** for the `letrec` box case: guarded by the static guarded-letrec rule (`check_terms.rs:9306-9341`), defense-in-depth only |
 | `CorruptValue` | 71 | `abi.rs:112-121,201-211,220-229` (`as_sym`/`as_nat`/`as_int`/`as_bytes`/`as_bytes_mut`) on null/wrong-kind block; `eval.rs` quote-block/program-stream validation | a null or wrong-kind heap word reaching an extern entry point; a hand-built or corrupted quote block | **No** for ordinary generated code (the compiler only ever emits well-formed words); reachable only via raw-pointer `foreign`/FFI corruption or a compiler bug |
 | `NegativeInput` | 71 | `abi.rs:463-466` `cinch_nat_from_i64` | `nat-from-i64` on a negative `I64` | **Yes**: no static proof the argument is non-negative |
-| `NegativeResult` | 71 | `abi.rs:486-491` `cinch_nat_sub` (immediate and bignum path via `nat::sub_mag`) | `nat-sub a b` with `b > a` | **Yes**: `Nat` subtraction is the inductive truncated kind at the type, but the *runtime* has no saturating form; prelude exposes only the faulting `nat-sub` |
+| `NegativeResult` | 71 | `abi.rs` `cinch_nat_sub` (immediate and bignum path via `nat::sub_mag`) | `nat-sub a b` with `b > a` | **No (closed 2026-10-30)**: `a - b` at `Nat` requires evidence that `b <= a`; the runtime check is a compiler-bug trap |
 | `OutOfRange` | 71 | `abi.rs:473-479,616-620` `cinch_nat_to_i64`/`cinch_int_to_i64` | converting a bignum `Nat`/`Int` outside `i64` range to `I64` | **Yes**: callers routinely use `nat-to-i64`/`int-to-i64` without first checking `nat-fits-i64`/`int-fits-i64` |
 | `MalformedDecimal` | 71 | `abi.rs:552-562,666-677`; `eval.rs` `BIG` opcode decode | `nat-from-decimal`/`int-from-decimal` on non-numeral bytes | **Yes** when parsing untrusted text (`String->Nat`/`Int` has no total prelude form) |
 | `BufferTooSmall` | 71 | `abi.rs:566-578,695-706` `cinch_nat_to_decimal`/`cinch_int_to_decimal` | caller-supplied buffer shorter than `decimal_len` | **No** in practice: generated/prelude code always sizes the buffer from `decimal-len` first, but nothing in the type system *proves* it; a hand-written caller can still trigger it |
@@ -146,8 +175,8 @@ For each faulting primitive: the `.cinch` functions that expose it with no total
 
 | primitive | partial function(s) | total alternative in prelude | approximate call-site density |
 |---|---|---|---|
-| `Nat` subtraction below zero | `nat-sub` (`Data/Nat.cinch:28,50`) | **none**: no `Option`/saturating `Nat` subtraction exists anywhere in the prelude (checked by grep: no `checked-sub`/`saturating-sub`/`monus` hit for `Nat`); only machine-scalar `checked-sub-i64` etc. (`Data/Machine.cinch`) are total | dozens: `Date.cinch:160,373`, `Time.cinch:251,365`, `Nat.cinch:50,80`, `Base64.cinch:188`, plus every indirect use through `(-)` on `Nat` (the `Sub Nat` instance, `Nat.cinch:49-50`) |
-| `Nat`/`Int` division or remainder by zero | `nat-div`/`nat-rem`/`int-div`/`int-rem` (`Data/Nat.cinch:30-31`, `Data/Int.cinch:24-25`) | `Data.Rational.div` wraps a zero-denominator check and returns `Result RationalError Rational` (`Rational.cinch:150-153`); `Complex.div` is IEEE (never faults, `Complex.cinch:119-121`); no general `Nat`/`Int` `Option`-returning division exists | **by far the densest faulting family**: used throughout `Date.cinch`, `Time.cinch`, `BigDecimal.cinch`, `Base64.cinch`, `IpAddr.cinch`, `Random.cinch`, `Digest.cinch`, `Json.cinch`, `Otlp.cinch`, `Regex.cinch`, `Scan.cinch`, `Show.cinch`, `Toml.cinch`, `Uri.cinch`: tens of call sites per file in hex/digit/rendering code, well over 150 call sites prelude-wide |
+| `Nat` subtraction below zero | **closed 2026-10-30**: `nat-sub` and `-` at `Nat` require `b <= a` | `saturating-sub` (truncating), `checked-sub` (`Option`) | all sites migrated (see the closing note above) |
+| `Nat`/`Int` division or remainder by zero | **closed 2026-10-30**: `nat-div`/`nat-rem`/`int-div`/`int-rem` and `/`/`%` take a `NonZero` divisor | `checked-div`/`checked-rem` (`Option`), `non-zero`/`non-zero-nat`, `decide (NonZero d)`; `Data.BigDecimal.div` now answers `Option`, `Data.Rational.div` keeps its `Result` | all sites migrated (see the closing note above) |
 | `Bytes` out-of-bounds index/value | `bytes-get`/`bytes-set` (`Data/Bytes.cinch:33-34`) | `Data.Http.byte-at` (`Http.cinch:213-217`) wraps one `bytes-get` in a bounds check returning `Option Nat`: the **only** such wrapper found; every other caller indexes raw and relies on hand-proven loop bounds | the single most call-site-dense faulting primitive: `Bool.cinch`, `Bytes.cinch`, `List.cinch`, `Machine.cinch`, `String.cinch`, `StringIo.cinch`, `Fs.cinch`, `Http.cinch`, `Process.cinch`, `Pty.cinch`, `Random.cinch`, `Base64.cinch`, `Builder.cinch`, `Digest.cinch`, `Json.cinch`, `Lex.cinch`, `Otlp.cinch`, `Parse.cinch`, `Regex.cinch`, `Scan.cinch`: well over 100 call sites prelude-wide, plus more in `bootstrap/` and `examples/source` |
 | decimal parse failure | `nat-from-decimal`/`int-from-decimal` (raw runtime imports) | surface parsers in `Text.Parse`/`Text.Json`/`Text.Toml`/`Text.Csv` validate digit-by-digit (`digits-fold`, `all-digits`) *before* calling the parser, so most prelude use is effectively guarded; no `Option`-returning `Nat`/`Int` decimal parse is exported directly | low direct exposure (a handful of call sites) because callers pre-validate; still unguarded if a program calls the raw parser on unvalidated text |
 | `Sym` interning of non-UTF-8 bytes | `sym-intern-bytes :: Bytes -> Sym` (`Data/Sym.cinch:33`) | `Data.Sym.intern :: String -> Sym` (`Sym.cinch:39-40`) is the documented total front door (a `String`'s bytes are always valid UTF-8) | effectively zero exposure through the documented API; the raw foreign import is exposed but not meant to be called directly |
@@ -198,11 +227,11 @@ Refinement-typed indices (`Dec`/`decide`, `design`'s total-API pattern) exist fo
 |---|---|---|---|
 | 1 | `bytes-get` | `OutOfBounds`, exit 71 | 100+ (dominant across `Text/*`, `Data/*`, `Effect/*`) |
 | 2 | `bytes-set` | `OutOfBounds`/`ReadOnly`, exit 71 | 90+ |
-| 3 | `nat-div` | `DivByZero`, exit 72 | 60+ |
-| 4 | `nat-rem` | `DivByZero`, exit 72 | 60+ |
-| 5 | `int-div` | `DivByZero`, exit 72 | 25+ |
-| 6 | `int-rem` | `DivByZero`, exit 72 | 25+ |
-| 7 | `nat-sub` | `NegativeResult`, exit 71 | 15+ |
+| 3 | `nat-div` | closed (divisor is `NonZero Nat`) | 60+ |
+| 4 | `nat-rem` | closed (divisor is `NonZero Nat`) | 60+ |
+| 5 | `int-div` | closed (divisor is `NonZero Int`) | 25+ |
+| 6 | `int-rem` | closed (divisor is `NonZero Int`) | 25+ |
+| 7 | `nat-sub` | closed (`b <= a` evidence) | 15+ |
 | 8 | `nat-to-i64`/`int-to-i64` | `OutOfRange`, exit 71 | 10+ |
 | 9 | guarded `case`/`match` with no unguarded catch-all (checker's `run_out`) | `Core::Fault`, exit 70 | present wherever guards are used without a trailing unconditional wildcard: not grep-countable, but the single highest-leverage *type-system gap* since it's the one path that compiles despite being genuinely unprovable |
 | 10 | `nat-from-decimal`/`int-from-decimal` (direct, unvalidated) | `MalformedDecimal`, exit 71 | low single digits directly, but the underlying risk recurs anywhere text parsing skips pre-validation |

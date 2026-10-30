@@ -885,35 +885,41 @@ module Main where
 fn surface_and_or_short_circuit() {
     // Primitive types specification section 10: surface `&&`/`||` elaborate
     // to `if`, so the right operand is not evaluated when the result is
-    // already determined. `int-div 1 0` faults at runtime (exit 72) if it
-    // is ever forced, so these programs only exit 0 if it stays unevaluated.
+    // already determined. The witness `mark b` records that it ran by
+    // writing byte 0 of a buffer, so each program can tell whether the
+    // right operand was evaluated without anything faulting (no
+    // well-typed program can fault on purpose any more).
+    let witness = |cond: &str, then_v: i32, else_v: i32| {
+        format!(
+            "module Main where\n\
+             \x20 mark :: Bytes -> Bool\n\
+             \x20 mark b = case bytes-set b 0 1 of\n\
+             \x20   _ -> True\n\
+             \n\
+             \x20 main :: Int\n\
+             \x20 main =\n\
+             \x20   let b = bytes-new 1 in\n\
+             \x20   let r = if {cond} then {then_v} else {else_v} in\n\
+             \x20   if bytes-get b 0 == 0 then r else r + 10\n"
+        )
+    };
+    // Not evaluated: the buffer stays 0.
+    expect_ok("and-short-circuit", &witness("False && mark b", 1, 0), 0);
+    expect_ok("or-short-circuit", &witness("True || mark b", 0, 1), 0);
     expect_ok(
-        "and-short-circuit",
-        "module Main where\n\
-         main :: Int\n\
-         main = if False && (int-div 1 0 == 0) then 1 else 0\n",
+        "and-false-propagates",
+        &witness("(True && (int-div 4 2 == 3)) && mark b", 1, 0),
         0,
     );
-    expect_ok(
-        "or-short-circuit",
-        "module Main where\n\
-         main :: Int\n\
-         main = if True || (int-div 1 0 == 0) then 0 else 1\n",
-        0,
-    );
+    // Evaluated when the result depends on it: the mark shows (10 + 0).
+    expect_ok("and-evaluates-right", &witness("True && mark b", 0, 1), 10);
+    expect_ok("or-evaluates-right", &witness("False || mark b", 0, 1), 10);
     // When the result does depend on the right operand, it is evaluated.
     expect_ok(
         "and-or-evaluate-when-needed",
         "module Main where\n\
          main :: Int\n\
          main = if True && (int-div 4 2 == 2) then (if False || (int-div 6 3 == 2) then 0 else 1) else 2\n",
-        0,
-    );
-    expect_ok(
-        "and-false-propagates",
-        "module Main where\n\
-         main :: Int\n\
-         main = if (True && (int-div 4 2 == 3)) && (int-div 1 0 == 0) then 1 else 0\n",
         0,
     );
 }

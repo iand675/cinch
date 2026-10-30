@@ -309,9 +309,13 @@ module Text.Zlib where
   step-level :: Bits -> Level -> List Level -> Nat -> Result ZlibError (Bits, Nat)
   step-level b lv rest code = case lv of
     Level cnt first syms -> case code < first + cnt of
-      True -> case nth (code - first) syms of
+      -- A canonical code at this length is at least the level's first
+      -- code (the codes grow with length); one below it is no symbol.
+      True -> case checked-sub code first of
         None -> Err InvalidCode
-        Some sym -> Ok (b, sym)
+        Some k -> case nth k syms of
+          None -> Err InvalidCode
+          Some sym -> Ok (b, sym)
       False -> huff-walk b rest code
 
   -- ---------------------------------------------------------------------
@@ -736,24 +740,28 @@ module Text.Zlib where
   -- Every stored block for `src[from..total)`, returning the index
   -- after the last byte written: a header byte carrying BFINAL and
   -- BTYPE 00, LEN little-endian, LEN's complement, then the literals.
+  -- `from` never passes `total` (each block advances by at most what is
+  -- left); that bound lives in the recursion, so a call past the end
+  -- writes nothing.
   write-blocks :: Bytes -> Nat -> Bytes -> Nat -> Nat -> Nat
-  write-blocks out at src from total =
-    let rest = total - from in
-    let chunk = block-chunk rest in
-    let final = final-flags from chunk total in
-    let u = bytes-set out at final in
-    let v = write-le16 out (at + 1) chunk in
-    let w = write-le16 out (at + 3) (65535 - chunk) in
-    let u2 = bytes-move out (at + 5) src from chunk in
-    let next = at + 5 + chunk in
-    case final == 1 of
-      True -> next
-      False -> write-blocks out next src (from + chunk) total
+  write-blocks out at src from total = case checked-sub total from of
+    None -> at
+    Some rest -> case block-chunk rest of
+      (chunk, complement) ->
+        let final = final-flags from chunk total in
+        let u = bytes-set out at final in
+        let v = write-le16 out (at + 1) chunk in
+        let w = write-le16 out (at + 3) complement in
+        let u2 = bytes-move out (at + 5) src from chunk in
+        let next = at + 5 + chunk in
+        case final == 1 of
+          True -> next
+          False -> write-blocks out next src (from + chunk) total
 
-  -- The bytes one stored block carries: the 65535-byte maximum, or all
-  -- that is left.
-  block-chunk :: Nat -> Nat
-  block-chunk rest = if rest > 65535 then 65535 else rest
+  -- The bytes one stored block carries (the 65535-byte maximum, or all
+  -- that is left) and LEN's complement, `65535 - chunk`.
+  block-chunk :: Nat -> (Nat, Nat)
+  block-chunk rest = if rest > 65535 then (65535, 0) else (rest, 65535 - rest)
 
   -- BFINAL for the block: 1 when the block ending at `from + chunk` is
   -- the stream's last, 0 otherwise (RFC 1951 3.2.3's one-bit field).
