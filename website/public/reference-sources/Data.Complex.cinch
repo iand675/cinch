@@ -1,0 +1,279 @@
+-- Data.Complex: complex numbers over the binary64 scalar.
+--
+-- Ruby's `Complex` (design/stdlib-parity-ruby.md, the P38 numeric family:
+-- PORT as a concrete type with explicit operations, the P2 discipline of
+-- types and operations rather than a numeric tower). The carrier is fixed
+-- to `F64` (Data.Machine's binary64 scalar): both parts are machine floats,
+-- so the operations below are the field operations named explicitly rather
+-- than a promotion system. `complex` is the smart constructor (the
+-- representation stays private, like `Data.String`'s `StrBuf`), and
+-- `real-part`/`imag-part` are the observations that cross back to `F64`.
+--
+-- Design law shape (design/base-library.md: `Data.*` is concrete types, and
+-- the type's home carries its instance family): the defining identities the
+-- tests assert are
+--   the imaginary unit:   mul (complex 0 1) (complex 0 1) == complex -1 0
+--   the sample product:   mul (complex 1 2) (complex 3 4) == complex -5 10
+--   distributivity:       mul x (add y z) == add (mul x y) (mul x z)
+--   conjugation:          conjugate (conjugate z) == z
+--   the field inverse:    div (mul x y) y == x within the tolerance, where
+--                         y is not zero (division by zero is IEEE, not a
+--                         fault: the parts go through `div-f64`)
+-- and the instance family (`Eq`, `Add`, `Sub`, `Mul`, `Neg`) is the
+-- class surface over those named functions. The arithmetic-operation
+-- classes DO admit this carrier: the class method is over `Complex`, not
+-- over `F64`, so `Add Complex` adds both parts with `add-f64` (the refusal
+-- of arithmetic instances on the machine scalars themselves, primitive
+-- types specification section 8, is not touched).
+--
+-- Named refusals:
+--   * No `Complex` over `Int` (nor any carrier but `F64`): the type is
+--     fixed here. Ruby's `Complex` promotes across `Numeric`; this slice
+--     deliberately does not, and mixed real/complex arithmetic is refused
+--     too (`from-real`, `real-part` and `imag-part` are the crossings).
+--   * No ordering: comparison is absent on purpose. The parts are `F64`,
+--     which has no `Ord` instance (primitive types specification section
+--     8), and there is no total order on the complex field compatible with
+--     its arithmetic. The bit-pattern order `total-order-f64` orders NaN
+--     and signed zeros, not values, so it is not an ordering either.
+--   * `Eq` is structural on the parts through `feq-f64`, so a value with a
+--     NaN part is unequal to itself (IEEE equality, matching Ruby's
+--     componentwise `==`).
+--   * No `Div` instance: `Algebra.Arithmetic`'s `(/)` divides by a
+--     `NonZero` divisor (division is total by construction), and the
+--     predicate `NonZero` decides numbers, not `Complex`. Complex
+--     division is total in its own way (IEEE parts, never a fault), so
+--     it stays the named function `div`.
+--   * No `Semiring`/`Group` instances: this module provides exactly the
+--     arithmetic-operation classes (`Algebra.Arithmetic`) and leaves the
+--     algebraic-structure classes to a later curation (a class constraint
+--     entails nothing, so nothing is lost).
+--   * `to-string` renders each part through the P31 round-trip decimal
+--     (Data.Machine's `f64-to-decimal`: the shortest round-trip spelling)
+--     with a trailing `e0` elided, so whole and simple fractional values
+--     read as plain decimals. A part whose decimal needs a nonzero
+--     exponent keeps its scientific spelling; no fixed-notation expansion
+--     is attempted in this slice.
+--   * `arg`/`atan-approx` are a named APPROXIMATION. The binary64 scalar
+--     carries no arctangent primitive (Data.Machine has no `atan`), so
+--     `atan-approx` reduces the argument four times through
+--     `t/(1+sqrt(1+t^2))` (each reduction halves the angle) and sums the
+--     first eight odd terms of the arctangent series. The absolute error
+--     is below 1e-12 over the whole real line: the reduced truncation (the
+--     reduced argument is at most 2^-4) is below 2^-60 and the four
+--     doublings scale it by 2^4, with the `pi/2` constant adding binary64
+--     rounding noise. `arg` is the four-quadrant `atan2` built on it.
+--
+-- Instance homes. Instances live with their type (design/base-library.md);
+-- the class names come through the implicit prelude facade, the same shape
+-- Data.Int's instances use. Names are dash style (D106); operators are
+-- class methods with the base fixity table (D2).
+module Data.Complex where
+
+  import Algebra.Arithmetic
+  import Relation.Eq
+  import Data.Machine
+  import Data.String
+
+  export Complex, complex, real-part, imag-part, add, sub, mul, div, neg, conjugate, eq, abs, arg, atan-approx, from-real, to-string
+
+
+  -- The pair of binary64 parts. The constructor is module-private (the
+  -- observations below are the only way out); `complex` is the surface.
+  data Complex where
+    MkComplex :: F64 -> F64 -> Complex
+
+  -- The smart constructor (Ruby's `Complex(a, b)`).
+  complex :: F64 -> F64 -> Complex
+  complex r i = MkComplex r i
+
+  real-part :: Complex -> F64
+  real-part z = case z of
+    MkComplex r i -> r
+
+  imag-part :: Complex -> F64
+  imag-part z = case z of
+    MkComplex r i -> i
+
+  -- A complex number with zero imaginary part.
+  from-real :: F64 -> Complex
+  from-real r = complex r 0
+
+  -- (a + bi) + (c + di): componentwise (the field's addition).
+  add :: Complex -> Complex -> Complex
+  add x y =
+    complex (add-f64 (real-part x) (real-part y)) (add-f64 (imag-part x) (imag-part y))
+
+  -- (a + bi) - (c + di): componentwise.
+  sub :: Complex -> Complex -> Complex
+  sub x y =
+    complex (sub-f64 (real-part x) (real-part y)) (sub-f64 (imag-part x) (imag-part y))
+
+  -- (a + bi)(c + di) = (ac - bd) + (ad + bc)i (the imaginary unit squares
+  -- to -1, which is the `mul (complex 0 1) (complex 0 1) == complex -1 0`
+  -- identity above).
+  mul :: Complex -> Complex -> Complex
+  mul x y =
+    let a = real-part x in
+    let b = imag-part x in
+    let c = real-part y in
+    let d = imag-part y in
+    complex (sub-f64 (mul-f64 a c) (mul-f64 b d)) (add-f64 (mul-f64 a d) (mul-f64 b c))
+
+  -- (a + bi)/(c + di) = ((ac + bd) + (bc - ad)i) / (c^2 + d^2). A zero
+  -- divisor yields IEEE NaN parts through `div-f64`, never a fault.
+  div :: Complex -> Complex -> Complex
+  div x y =
+    let a = real-part x in
+    let b = imag-part x in
+    let c = real-part y in
+    let d = imag-part y in
+    let den = add-f64 (mul-f64 c c) (mul-f64 d d) in
+    complex
+      (div-f64 (add-f64 (mul-f64 a c) (mul-f64 b d)) den)
+      (div-f64 (sub-f64 (mul-f64 b c) (mul-f64 a d)) den)
+
+  -- The additive inverse, componentwise.
+  neg :: Complex -> Complex
+  neg z = complex (neg-f64 (real-part z)) (neg-f64 (imag-part z))
+
+  -- The conjugate: the reflection across the real axis. An involution
+  -- (`conjugate (conjugate z) == z`).
+  conjugate :: Complex -> Complex
+  conjugate z = complex (real-part z) (neg-f64 (imag-part z))
+
+  -- The magnitude |a + bi| = sqrt(a^2 + b^2). Naive formula (no scaling):
+  -- a part large enough to overflow the squares yields an infinite
+  -- magnitude, which is the honest IEEE result for this spelling.
+  abs :: Complex -> F64
+  abs z =
+    let r = real-part z in
+    let i = imag-part z in
+    sqrt-f64 (add-f64 (mul-f64 r r) (mul-f64 i i))
+
+  -- Structural equality: IEEE on each part.
+  eq :: Complex -> Complex -> Bool
+  eq x y = feq-f64 (real-part x) (real-part y) && feq-f64 (imag-part x) (imag-part y)
+
+  -- The named arctangent approximation (the header's refusal entry):
+  -- `atan-approx x` is the principal value in (-pi/2, pi/2).
+  atan-approx :: F64 -> F64
+  atan-approx x =
+    if sign-bit-f64 x then neg-f64 (atan-magnitude (abs-f64 x))
+    else atan-magnitude (abs-f64 x)
+
+  -- The magnitude on [0, inf): for a > 1 use atan(a) = pi/2 - atan(1/a),
+  -- so the series always sees an argument in [0, 1].
+  atan-magnitude :: F64 -> F64
+  atan-magnitude a =
+    if fgt-f64 a 1 then sub-f64 half-pi (atan-small (div-f64 1 a))
+    else atan-small a
+
+  -- Four reductions (each halves the angle) then the series; the 16 undoes
+  -- the four halvings.
+  atan-small :: F64 -> F64
+  atan-small t = mul-f64 16 (atan-series (reduce4 t))
+
+  reduce4 :: F64 -> F64
+  reduce4 t = reduce (reduce (reduce (reduce t)))
+
+  -- arctan(t) = 2 arctan(t / (1 + sqrt(1 + t^2))).
+  reduce :: F64 -> F64
+  reduce t = div-f64 t (add-f64 1 (sqrt-f64 (add-f64 1 (mul-f64 t t))))
+
+  -- The first eight odd terms: t - t^3/3 + t^5/5 - ... - t^15/15, for a
+  -- reduced argument |t| <= 2^-4 (the tail is below 2^-60 there).
+  atan-series :: F64 -> F64
+  atan-series t =
+    let t2 = mul-f64 t t in
+    let t3 = mul-f64 t2 t in
+    let t5 = mul-f64 t3 t2 in
+    let t7 = mul-f64 t5 t2 in
+    let t9 = mul-f64 t7 t2 in
+    let t11 = mul-f64 t9 t2 in
+    let t13 = mul-f64 t11 t2 in
+    let t15 = mul-f64 t13 t2 in
+    let s1 = sub-f64 t (div-f64 t3 3) in
+    let s2 = add-f64 s1 (div-f64 t5 5) in
+    let s3 = sub-f64 s2 (div-f64 t7 7) in
+    let s4 = add-f64 s3 (div-f64 t9 9) in
+    let s5 = sub-f64 s4 (div-f64 t11 11) in
+    let s6 = add-f64 s5 (div-f64 t13 13) in
+    sub-f64 s6 (div-f64 t15 15)
+
+  pi-const :: F64
+  pi-const = f64-from-decimal (string-to-bytes "3.141592653589793")
+
+  half-pi :: F64
+  half-pi = div-f64 pi-const 2
+
+  -- The left half-plane (x < 0): atan(y/x) shifted by +pi in the upper
+  -- half-plane and by -pi in the lower one.
+  arg-left :: F64 -> F64 -> F64
+  arg-left y x =
+    let base = atan-approx (div-f64 y x) in
+    if fge-f64 y 0 then add-f64 base pi-const else sub-f64 base pi-const
+
+  -- The imaginary axis (x = 0): +pi/2 above, -pi/2 below, zero at the
+  -- origin.
+  arg-axis :: F64 -> F64
+  arg-axis y =
+    if fgt-f64 y 0 then half-pi
+    else if flt-f64 y 0 then neg-f64 half-pi
+    else 0
+
+  -- The four-quadrant argument: the angle of `a + bi` in (-pi, pi], zero
+  -- for the origin. The axis cases are exact; the other quadrants defer to
+  -- `atan-approx` (the approximation's bound is the error bound here).
+  arg :: Complex -> F64
+  arg z =
+    let x = real-part z in
+    let y = imag-part z in
+    if fgt-f64 x 0 then atan-approx (div-f64 y x)
+    else if flt-f64 x 0 then arg-left y x
+    else arg-axis y
+
+  -- The P31 round-trip decimal text of one float, as a `String` (the
+  -- runtime spelling is ASCII, so the `None` arm is unreachable and only
+  -- keeps the conversion total).
+  decimal-text :: F64 -> String
+  decimal-text v = case string-from-bytes (f64-to-decimal v) of
+    Some s -> s
+    None -> empty-string
+
+  -- The part's rendering: the round-trip decimal with a trailing `e0`
+  -- elided (see the header refusal); any other exponent keeps its
+  -- scientific spelling.
+  plain-part :: F64 -> String
+  plain-part v =
+    let s = decimal-text v in
+    let n = string-byte-length s in
+    if n < 2 then s
+    else if string-slice s (n - 2) n == "e0" then string-slice s 0 (n - 2)
+    else s
+
+  -- The `a+bi` form: a negative imaginary part renders with `-` and its
+  -- magnitude (so `complex 1 -1` is `1-1i`), a non-negative one with `+`.
+  to-string :: Complex -> String
+  to-string z =
+    let r = plain-part (real-part z) in
+    let i = imag-part z in
+    let ai = plain-part (abs-f64 i) in
+    if sign-bit-f64 i then string-concat r (string-concat "-" (string-concat ai "i"))
+    else string-concat r (string-concat "+" (string-concat ai "i"))
+
+  implicit instance Eq_Complex :: Eq Complex where
+    (==) x y = eq x y
+    (/=) x y = not (eq x y)
+
+  implicit instance Add_Complex :: Add Complex where
+    (+) x y = add x y
+
+  implicit instance Sub_Complex :: Sub Complex where
+    (-) x y = sub x y
+
+  implicit instance Mul_Complex :: Mul Complex where
+    (*) x y = mul x y
+
+  implicit instance Neg_Complex :: Neg Complex where
+    negate x = neg x

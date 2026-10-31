@@ -1,0 +1,17 @@
+-- Relation.Eq: value-level equality.
+--
+-- The `Eq` class of the base library scheme (design/base-library.md:
+-- `Relation.*` is value-level comparison and decision). A class
+-- constraint entails nothing (the standing no-superbundle rule):
+-- `Ord` does not extend `Eq`, and every function states the
+-- constraints it uses. Instances live with their type.
+module Relation.Eq where
+
+  infix 3 ==, /=
+
+  export Eq, (==), (/=)
+
+
+  signature Eq a where
+    (==) :: a -> a -> Bool
+    (/=) :: a -> a -> Bool

@@ -1,0 +1,1395 @@
+-- Text.Regex: RE2-style regular expressions with linear-time matching.
+--
+-- The engine is a Pike VM (a Thompson NFA simulation with capture
+-- slots and thread priority): one pass over the input, at most one
+-- thread per program instruction per position, so a match costs
+-- O(input * program) instruction dispatches BY CONSTRUCTION and no
+-- input can make it cost more. A backtracking engine's ReDoS surface
+-- (the classic `(a+)+b` against a long run of `a`) does not exist
+-- here: there is no backtracking to blow up. The claim is pinned
+-- step-for-step and against the clock in `compiler/tests/regex.rs`.
+--
+-- THE PATTERN LANGUAGE (the RE2 subset):
+--   literals and escapes: `\n \r \t \f \v`, `\<punctuation>` as the
+--     literal character, `\xHH` and `\x{HEX}` for scalar values;
+--   classes: `[abc]`, `[^abc]`, ranges `[a-z]`, the shorthands
+--     `\d \D \w \W \s \S`; a `]` first in the class is a literal,
+--     a `-` first or last is a literal;
+--   `.` matches one Unicode scalar value except LF (this subset has
+--     no flag surface, so `.` never matches LF);
+--   repetition: `*` `+` `?`, `{n}` `{n,}` `{n,m}` (each bound at
+--     most 1000), each with a lazy `?` suffix (`a*?`, `a{2,4}?`);
+--   alternation `|`, grouping `( ... )` and `(?: ... )`;
+--   captures: numbered groups; group 0 is the whole match;
+--   anchors: `^` `\$` at the text start and end (no multiline mode),
+--     `\b` `\B` at word boundaries (ASCII word characters).
+--
+-- SEMANTICS are leftmost-first, the Ruby/Perl order: the earliest
+-- start position wins and, at that position, the first alternative
+-- in backtracking order wins (`a` before `ab` in `(a|ab)`), with
+-- greedy quantifiers before lazy ones. Capture slots record the
+-- winning (highest priority) path, exactly as a backtracking engine
+-- would report them.
+--
+-- NAMED REFUSALS (each error names itself; nothing silently
+-- misbehaves): backreferences and digit escapes (`\1`, `\0`:
+-- backreference-refused), lookahead and lookbehind (`(?=`, `(?!`,
+-- `(?<=`, `(?<!`: lookaround-refused), named capture groups
+-- (`(?<name>`, `(?P<name>`: named-group-refused), inline flags and
+-- other `(?` extensions (flag-group-refused), possessive quantifiers
+-- (`a*+`: possessive-refused), nested quantifiers (`a**`:
+-- nested-repeat-refused), quantifiers over empty-width assertions
+-- (`^*`: empty-width-repeat-refused), `\p{...}` Unicode property
+-- classes (unicode-property-refused: they need the Unicode character
+-- database, which the UTF-8 layers do not carry), the `\A \Z \z \G`
+-- anchor aliases and every other unknown letter escape
+-- (unsupported-escape), malformed counts (`a{2,1}`:
+-- invalid-repeat-range; `a{`: invalid-repeat-syntax), bounds above
+-- the 1000 repeat cap (repeat-limit-exceeded), programs above 65536
+-- instructions after repeat expansion (program-too-large), and the
+-- structural errors: unterminated-class, unterminated-group,
+-- unmatched-close-paren, trailing-backslash, invalid-hex-escape,
+-- invalid-class-range, dangling-quantifier.
+--
+-- UNICODE SCOPE (what the UTF-8 layers permit, and what they do
+-- not): matching operates on Unicode scalar values, never bytes:
+-- `.` consumes one scalar, classes range over scalar values,
+-- captures span scalar boundaries, `\x{...}` names any scalar, and
+-- match spans report byte offsets into the UTF-8 subject. What is
+-- NOT here, because the UTF-8 machinery carries no Unicode character
+-- database: canonical normalization (NFC/NFD/NFKC/NFKD), grapheme
+-- clusters, locale-aware casing, and `\p{...}` property classes.
+-- Precomposed and decomposed spellings of one grapheme are different
+-- inputs to this engine; the boundary is pinned in the tests.
+--
+-- Module scheme (design/base-library.md): `Text.*` is text
+-- processing over String/Bytes. The regex-driven scanning family
+-- (scan, split, replace) rides on this engine and lives here beside
+-- it; `Text.Scan` holds the literal-string scanning and formatting
+-- utilities.
+module Text.Regex where
+
+  import Data.Nat
+  import Data.Int
+  import Data.List
+  import Data.Option
+  import Data.Result
+  import Data.Char
+  import Data.Bool
+  import Data.Bytes
+  import Data.String
+  import Data.Machine
+  import Text.Show
+
+  import Algebra.Semigroup
+  import Algebra.Monoid
+
+
+  export Regex, parse-regex, regex-escape
+  export Match, match-start, match-end, match-text, match-group, match-group-count
+  export regex-match, regex-match-counted, regex-search-from
+  export regex-scan, regex-scan-texts, regex-split, regex-count
+  export regex-replace-all, regex-replace-first, regex-replace-all-template, regex-replace-first-template
+  export RegexError, render-regex-error
+  export BackreferenceRefused, LookaroundRefused, NamedGroupRefused, FlagGroupRefused, UnicodePropertyRefused, UnsupportedEscape, PossessiveRefused, NestedRepeatRefused, EmptyWidthRepeatRefused, DanglingQuantifier, RepeatLimitExceeded, InvalidRepeatSyntax, InvalidRepeatRange, InvalidClassRange, UnterminatedClass, UnterminatedGroup, UnmatchedCloseParen, TrailingBackslash, InvalidHexEscape, ProgramTooLarge, InvalidPatternSyntax
+
+
+  -- -----------------------------------------------------------------
+  -- Small private helpers. The generic list and scalar shapes come from
+  -- their homes: `reverse`, `<>`, `list-length`, `nth` and `replicate`
+  -- (Data.List), `char-code` (Data.Char). `is-none` stays here. The
+  -- concatenating fold is `mconcat` (Algebra.Monoid): `String` is a
+  -- `Monoid`, so the constraint is `Monoid` and this module no longer
+  -- needs a private `concat-strings` (nor the `Text.Scan` import the
+  -- old helper existed to avoid).
+  -- -----------------------------------------------------------------
+
+  is-none :: forall a. Option a -> Bool
+  is-none o = case o of
+    None -> True
+    Some _ -> False
+
+  -- String helpers over the byte backing.
+  string-codes :: String -> List Nat
+  string-codes s = codes-of (unpack s)
+
+  codes-of :: List Char -> List Nat
+  codes-of cs = case cs of
+    Nil -> Nil
+    Cons c rest -> Cons (char-code c) (codes-of rest)
+
+  is-alnum-code :: Nat -> Bool
+  is-alnum-code c =
+    if c >= 48 && c <= 57 then True
+    else if c >= 65 && c <= 90 then True
+    else c >= 97 && c <= 122
+
+  -- Int/Nat conversions and the signed-offset bias (relative
+  -- program offsets travel as u32 words biased by 2^31). The bias is
+  -- the floored residue modulo 2^32, the value the u32 word holds: for
+  -- every offset the compiler emits (within 2^31 of zero) it is the
+  -- plain sum.
+  int-of :: Nat -> Int
+  int-of n = nat-to-int n
+
+  int-bias :: Int -> Nat
+  int-bias x = int-mod-nat (int-add x 2147483648) 4294967296
+
+  int-unbias :: Nat -> Int
+  int-unbias raw = int-sub (nat-to-int raw) 2147483648
+
+  -- Little-endian u32 words over a Bytes buffer; the word's four bytes
+  -- must lie inside it.
+  put-u32 :: using (off + 4 <= bytes-len buf) => (buf :: Bytes) -> (off :: Nat) -> Nat -> Unit
+  put-u32 buf off v =
+    let u = bytes-set buf off (nat-rem v 256) in
+    let w = bytes-set buf (off + 1) (nat-rem (nat-div v 256) 256) in
+    let x = bytes-set buf (off + 2) (nat-rem (nat-div v 65536) 256) in
+    let y = bytes-set buf (off + 3) (nat-rem (nat-div v 16777216) 256) in
+    ()
+
+  get-u32 :: using (off + 4 <= bytes-len buf) => (buf :: Bytes) -> (off :: Nat) -> Nat
+  get-u32 buf off =
+    let a = bytes-get buf off in
+    let b = bytes-get buf (off + 1) in
+    let c = bytes-get buf (off + 2) in
+    let d = bytes-get buf (off + 3) in
+    a + b * 256 + c * 65536 + d * 16777216
+
+  -- The word and space shorthands (ASCII, RE2's defaults).
+  word-ranges :: List (Nat, Nat)
+  word-ranges = Cons (48, 57) (Cons (65, 90) (Cons (95, 95) (Cons (97, 122) Nil)))
+
+  space-ranges :: List (Nat, Nat)
+  space-ranges = Cons (9, 13) (Cons (32, 32) Nil)
+
+  -- The complement of a sorted disjoint range list over the scalar
+  -- space (used for `\D \W \S` inside classes).
+  comp-ranges :: List (Nat, Nat) -> List (Nat, Nat)
+  comp-ranges rs = comp-from 0 rs
+
+  comp-from :: Nat -> List (Nat, Nat) -> List (Nat, Nat)
+  comp-from lo rs = case rs of
+    Nil -> if lo <= 1114111 then Cons (lo, 1114111) Nil else Nil
+    Cons p rest -> case p of
+      (a, b) ->
+        if a > 1114111 then (if lo <= 1114111 then Cons (lo, 1114111) Nil else Nil)
+        else if lo < a then Cons (lo, a - 1) (comp-from (b + 1) rest)
+        else comp-from (b + 1) rest
+
+  -- -----------------------------------------------------------------
+  -- The pattern AST (module-private).
+  -- -----------------------------------------------------------------
+
+  data RegexAst where
+    AstEmpty :: RegexAst
+    AstLit :: Nat -> RegexAst
+    AstAny :: RegexAst
+    AstClass :: List (Nat, Nat) -> Bool -> RegexAst
+    AstCat :: RegexAst -> RegexAst -> RegexAst
+    AstAlt :: RegexAst -> RegexAst -> RegexAst
+    AstGroup :: Nat -> RegexAst -> RegexAst
+    AstRepeat :: Nat -> Option Nat -> Bool -> RegexAst -> RegexAst
+    AstStart :: RegexAst
+    AstEnd :: RegexAst
+    AstWord :: RegexAst
+    AstNotWord :: RegexAst
+
+  -- The named refusals and structural errors: one constructor per
+  -- refusal so each error names itself, with the pattern's scalar
+  -- offset for the report.
+  data RegexError where
+    BackreferenceRefused :: Nat -> RegexError
+    LookaroundRefused :: Nat -> RegexError
+    NamedGroupRefused :: Nat -> RegexError
+    FlagGroupRefused :: Nat -> RegexError
+    UnicodePropertyRefused :: Nat -> RegexError
+    UnsupportedEscape :: Nat -> Nat -> RegexError
+    PossessiveRefused :: Nat -> RegexError
+    NestedRepeatRefused :: Nat -> RegexError
+    EmptyWidthRepeatRefused :: Nat -> RegexError
+    DanglingQuantifier :: Nat -> RegexError
+    RepeatLimitExceeded :: Nat -> RegexError
+    InvalidRepeatSyntax :: Nat -> RegexError
+    InvalidRepeatRange :: Nat -> RegexError
+    InvalidClassRange :: Nat -> RegexError
+    UnterminatedClass :: Nat -> RegexError
+    UnterminatedGroup :: Nat -> RegexError
+    UnmatchedCloseParen :: Nat -> RegexError
+    TrailingBackslash :: Nat -> RegexError
+    InvalidHexEscape :: Nat -> RegexError
+    ProgramTooLarge :: Nat -> RegexError
+    InvalidPatternSyntax :: Nat -> String -> RegexError
+
+  render-regex-error :: RegexError -> String
+  render-regex-error e =
+    case e of
+      BackreferenceRefused p -> at p "backreference-refused: digit escapes (\\1, \\0) lie outside the linear-time subset"
+      LookaroundRefused p -> at p "lookaround-refused: lookahead and lookbehind are refused (RE2 refusals)"
+      NamedGroupRefused p -> at p "named-group-refused: named capture groups are outside this subset (numbered groups only)"
+      FlagGroupRefused p -> at p "flag-group-refused: inline flags and other (? extensions are refused"
+      UnicodePropertyRefused p -> at p "unicode-property-refused: \\p{...} classes need the Unicode character database the UTF-8 layers do not carry"
+      UnsupportedEscape p c -> string-concat (at p "unsupported-escape: \\") (string-concat (char-of-code c) " is outside the pattern subset")
+      PossessiveRefused p -> at p "possessive-refused: possessive quantifiers are a backtracking-engine optimization, refused here"
+      NestedRepeatRefused p -> at p "nested-repeat-refused: a quantifier directly on a quantifier is refused (wrap the first in a group)"
+      EmptyWidthRepeatRefused p -> at p "empty-width-repeat-refused: a quantifier over ^ $ \\b \\B is refused"
+      DanglingQuantifier p -> at p "dangling-quantifier: a quantifier with nothing to repeat"
+      RepeatLimitExceeded p -> at p "repeat-limit-exceeded: a repetition bound above 1000"
+      InvalidRepeatSyntax p -> at p "invalid-repeat-syntax: malformed {n,m} counts"
+      InvalidRepeatRange p -> at p "invalid-repeat-range: a repetition whose maximum is below its minimum"
+      InvalidClassRange p -> at p "invalid-class-range: a class range whose end is below its start, or a shorthand used as a range end"
+      UnterminatedClass p -> at p "unterminated-class: [ without its closing ]"
+      UnterminatedGroup p -> at p "unterminated-group: ( without its closing )"
+      UnmatchedCloseParen p -> at p "unmatched-close-paren: ) outside any group"
+      TrailingBackslash p -> at p "trailing-backslash: \\ at the end of the pattern"
+      InvalidHexEscape p -> at p "invalid-hex-escape: \\x without two hex digits, or \\x{...} without one valid scalar"
+      ProgramTooLarge n -> string-concat "program-too-large: the compiled program exceeds 65536 instructions (expanded size at least " (string-concat (nat-to-string n) ")")
+      InvalidPatternSyntax p msg -> at p (string-concat "invalid-pattern-syntax: " msg)
+
+  at :: Nat -> String -> String
+  at p msg = string-concat (string-concat "pattern offset " (nat-to-string p)) (string-concat ": " msg)
+
+  -- A rendered code point for error text (no quoting machinery: the
+  -- decimal scalar names the character unambiguously).
+  char-of-code :: Nat -> String
+  char-of-code c = string-concat "scalar " (nat-to-string c)
+
+  -- -----------------------------------------------------------------
+  -- The parser: recursive descent over the pattern's code points,
+  -- threading the position and the capture group counter.
+  -- -----------------------------------------------------------------
+
+  data Cursor where
+    Cursor :: List Nat -> Nat -> Cursor
+
+  cursor-peek :: Cursor -> Option Nat
+  cursor-peek cs = case cs of
+    Cursor cps _ -> case cps of
+      Nil -> None
+      Cons c _ -> Some c
+
+  cursor-pop :: Cursor -> Cursor
+  cursor-pop cs = case cs of
+    Cursor cps pos -> case cps of
+      Nil -> cs
+      Cons _ rest -> Cursor rest (pos + 1)
+
+  cursor-pos :: Cursor -> Nat
+  cursor-pos cs = case cs of
+    Cursor _ pos -> pos
+
+  data ParseStep where
+    ParseStep :: RegexAst -> Cursor -> Nat -> ParseStep
+
+  data ClassStep where
+    ClassStep :: List (Nat, Nat) -> Cursor -> ClassStep
+
+  data ClassAtom where
+    ClassAtom :: Nat -> Cursor -> ClassAtom
+    ClassShorthand :: List (Nat, Nat) -> Cursor -> ClassAtom
+
+  data Quant where
+    Quant :: Nat -> Option Nat -> Bool -> Cursor -> Quant
+
+  parse-alt :: Cursor -> Nat -> Result RegexError ParseStep
+  parse-alt cs g = case parse-cat cs g of
+    Err e -> Err e
+    Ok p -> case p of
+      ParseStep node cs2 g2 -> case cursor-peek cs2 of
+        None -> Ok (ParseStep node cs2 g2)
+        Some c ->
+          if c == 124 then case parse-alt (cursor-pop cs2) g2 of
+            Err e -> Err e
+            Ok q -> case q of
+              ParseStep right cs3 g3 -> Ok (ParseStep (AstAlt node right) cs3 g3)
+          else Ok (ParseStep node cs2 g2)
+
+  parse-cat :: Cursor -> Nat -> Result RegexError ParseStep
+  parse-cat cs g = parse-cat-acc AstEmpty cs g
+
+  parse-cat-acc :: RegexAst -> Cursor -> Nat -> Result RegexError ParseStep
+  parse-cat-acc acc cs g = case cursor-peek cs of
+    None -> Ok (ParseStep acc cs g)
+    Some c ->
+      if c == 124 then Ok (ParseStep acc cs g)
+      else if c == 41 then Ok (ParseStep acc cs g)
+      else case parse-repeat cs g of
+        Err e -> Err e
+        Ok p -> case p of
+          ParseStep node cs2 g2 -> parse-cat-acc (AstCat acc node) cs2 g2
+
+  parse-repeat :: Cursor -> Nat -> Result RegexError ParseStep
+  parse-repeat cs g = case parse-atom cs g of
+    Err e -> Err e
+    Ok p -> case p of
+      ParseStep node cs2 g2 -> case cursor-peek cs2 of
+        None -> Ok (ParseStep node cs2 g2)
+        Some c ->
+          if not (is-quant-code c) then Ok (ParseStep node cs2 g2)
+          else case node of
+            AstStart -> Err (EmptyWidthRepeatRefused (cursor-pos cs2))
+            AstEnd -> Err (EmptyWidthRepeatRefused (cursor-pos cs2))
+            AstWord -> Err (EmptyWidthRepeatRefused (cursor-pos cs2))
+            AstNotWord -> Err (EmptyWidthRepeatRefused (cursor-pos cs2))
+            _ -> case parse-quant cs2 of
+              Err e -> Err e
+              Ok q -> case q of
+                Quant mn mx lazy cs3 ->
+                  let node2 = AstRepeat mn mx (not lazy) node in
+                  case cursor-peek cs3 of
+                    None -> Ok (ParseStep node2 cs3 g2)
+                    Some d ->
+                      if is-quant-code d then Err (NestedRepeatRefused (cursor-pos cs3))
+                      else Ok (ParseStep node2 cs3 g2)
+
+  is-quant-code :: Nat -> Bool
+  is-quant-code c =
+    if c == 42 then True
+    else if c == 43 then True
+    else if c == 63 then True
+    else c == 123
+
+  parse-quant :: Cursor -> Result RegexError Quant
+  parse-quant cs = case cursor-peek cs of
+    None -> Err (InvalidPatternSyntax (cursor-pos cs) "a quantifier was expected")
+    Some c ->
+      if c == 42 then quant-suffix 0 None (cursor-pop cs)
+      else if c == 43 then quant-suffix 1 None (cursor-pop cs)
+      else if c == 63 then quant-suffix 0 (Some 1) (cursor-pop cs)
+      else if c == 123 then parse-brace (cursor-pop cs)
+      else Err (InvalidPatternSyntax (cursor-pos cs) "a quantifier was expected")
+
+  quant-suffix :: Nat -> Option Nat -> Cursor -> Result RegexError Quant
+  quant-suffix mn mx cs = case cursor-peek cs of
+    None -> Ok (Quant mn mx False cs)
+    Some c ->
+      if c == 63 then Ok (Quant mn mx True (cursor-pop cs))
+      else if c == 43 then Err (PossessiveRefused (cursor-pos cs))
+      else Ok (Quant mn mx False cs)
+
+  parse-brace :: Cursor -> Result RegexError Quant
+  parse-brace cs = case parse-digits cs of
+    None -> Err (InvalidRepeatSyntax (cursor-pos cs))
+    Some t -> case t of
+      (n, cs2) -> case cursor-peek cs2 of
+        None -> Err (InvalidRepeatSyntax (cursor-pos cs2))
+        Some c ->
+          if c == 125 then check-repeat n (Some n) (cursor-pop cs2)
+          else if c == 44 then
+            case cursor-peek (cursor-pop cs2) of
+              None -> Err (InvalidRepeatSyntax (cursor-pos cs2))
+              Some d ->
+                if d == 125 then check-repeat n None (cursor-pop (cursor-pop cs2))
+                else case parse-digits (cursor-pop cs2) of
+                  None -> Err (InvalidRepeatSyntax (cursor-pos cs2))
+                  Some t2 -> case t2 of
+                    (m, cs3) -> case cursor-peek cs3 of
+                      None -> Err (InvalidRepeatSyntax (cursor-pos cs3))
+                      Some e ->
+                        if e == 125 then
+                          if m < n then Err (InvalidRepeatRange (cursor-pos cs3))
+                          else check-repeat n (Some m) (cursor-pop cs3)
+                        else Err (InvalidRepeatSyntax (cursor-pos cs3))
+          else Err (InvalidRepeatSyntax (cursor-pos cs2))
+
+  check-repeat :: Nat -> Option Nat -> Cursor -> Result RegexError Quant
+  check-repeat mn mx cs =
+    if mn > 1000 then Err (RepeatLimitExceeded (cursor-pos cs))
+    else case mx of
+      None -> quant-suffix mn mx cs
+      Some m ->
+        if m > 1000 then Err (RepeatLimitExceeded (cursor-pos cs))
+        else quant-suffix mn mx cs
+
+  -- Decimal counts, saturating past seven digits so no literal can
+  -- overflow the runtime's i64-backed Nat: the repeat cap refuses
+  -- anything large before it is used.
+  parse-digits :: Cursor -> Option (Nat, Cursor)
+  parse-digits cs = parse-digits-acc cs 0 False
+
+  parse-digits-acc :: Cursor -> Nat -> Bool -> Option (Nat, Cursor)
+  parse-digits-acc cs n seen = case cursor-peek cs of
+    None -> if seen then Some (n, cs) else None
+    Some c ->
+      if c >= 48 && c <= 57 then
+        if n > 1000000 then parse-digits-acc (cursor-pop cs) 1000001 True
+        else parse-digits-acc (cursor-pop cs) (n * 10 + (c - 48)) True
+      else if seen then Some (n, cs)
+      else None
+
+  parse-atom :: Cursor -> Nat -> Result RegexError ParseStep
+  parse-atom cs g = case cursor-peek cs of
+    None -> Err (InvalidPatternSyntax (cursor-pos cs) "the pattern ended where an atom was expected")
+    Some c ->
+      if c == 40 then parse-group cs g
+      else if c == 91 then parse-class (cursor-pop cs) g
+      else if c == 46 then Ok (ParseStep AstAny (cursor-pop cs) g)
+      else if c == 94 then Ok (ParseStep AstStart (cursor-pop cs) g)
+      else if c == 36 then Ok (ParseStep AstEnd (cursor-pop cs) g)
+      else if c == 42 then Err (DanglingQuantifier (cursor-pos cs))
+      else if c == 43 then Err (DanglingQuantifier (cursor-pos cs))
+      else if c == 63 then Err (DanglingQuantifier (cursor-pos cs))
+      else if c == 92 then parse-escape (cursor-pop cs) g
+      else if c == 41 then Err (UnmatchedCloseParen (cursor-pos cs))
+      else Ok (ParseStep (AstLit c) (cursor-pop cs) g)
+
+  parse-group :: Cursor -> Nat -> Result RegexError ParseStep
+  parse-group cs g =
+    let cs1 = cursor-pop cs in
+    case cursor-peek cs1 of
+      None -> Err (UnterminatedGroup (cursor-pos cs))
+      Some c ->
+        if c == 63 then parse-group-ext cs1 g
+        else case parse-alt cs1 (g + 1) of
+          Err e -> Err e
+          Ok p -> case p of
+            ParseStep node cs2 g2 -> case cursor-peek cs2 of
+              None -> Err (UnterminatedGroup (cursor-pos cs))
+              Some d ->
+                if d == 41 then Ok (ParseStep (AstGroup (g + 1) node) (cursor-pop cs2) g2)
+                else Err (UnterminatedGroup (cursor-pos cs))
+
+  -- The `(?` family: `?:` is the one member of the subset; every
+  -- other form is a named refusal.
+  parse-group-ext :: Cursor -> Nat -> Result RegexError ParseStep
+  parse-group-ext cs g =
+    let cs1 = cursor-pop cs in
+    case cursor-peek cs1 of
+      None -> Err (UnterminatedGroup (cursor-pos cs))
+      Some c ->
+        if c == 58 then case parse-alt (cursor-pop cs1) g of
+          Err e -> Err e
+          Ok p -> case p of
+            ParseStep node cs2 g2 -> case cursor-peek cs2 of
+              None -> Err (UnterminatedGroup (cursor-pos cs))
+              Some d ->
+                if d == 41 then Ok (ParseStep node (cursor-pop cs2) g2)
+                else Err (UnterminatedGroup (cursor-pos cs))
+        else if c == 61 then Err (LookaroundRefused (cursor-pos cs))
+        else if c == 33 then Err (LookaroundRefused (cursor-pos cs))
+        else if c == 60 then case cursor-peek (cursor-pop cs1) of
+          None -> Err (NamedGroupRefused (cursor-pos cs))
+          Some d ->
+            if d == 61 then Err (LookaroundRefused (cursor-pos cs))
+            else if d == 33 then Err (LookaroundRefused (cursor-pos cs))
+            else Err (NamedGroupRefused (cursor-pos cs))
+        else if c == 80 then Err (NamedGroupRefused (cursor-pos cs))
+        else Err (FlagGroupRefused (cursor-pos cs))
+
+  parse-escape :: Cursor -> Nat -> Result RegexError ParseStep
+  parse-escape cs g = case cursor-peek cs of
+    None -> Err (TrailingBackslash (cursor-pos cs))
+    Some c ->
+      if c >= 48 && c <= 57 then Err (BackreferenceRefused (cursor-pos cs))
+      else if c == 112 then Err (UnicodePropertyRefused (cursor-pos cs))
+      else if c == 80 then Err (UnicodePropertyRefused (cursor-pos cs))
+      else if c == 100 then Ok (ParseStep (AstClass (Cons (48, 57) Nil) False) (cursor-pop cs) g)
+      else if c == 68 then Ok (ParseStep (AstClass (Cons (48, 57) Nil) True) (cursor-pop cs) g)
+      else if c == 119 then Ok (ParseStep (AstClass word-ranges False) (cursor-pop cs) g)
+      else if c == 87 then Ok (ParseStep (AstClass word-ranges True) (cursor-pop cs) g)
+      else if c == 115 then Ok (ParseStep (AstClass space-ranges False) (cursor-pop cs) g)
+      else if c == 83 then Ok (ParseStep (AstClass space-ranges True) (cursor-pop cs) g)
+      else if c == 98 then Ok (ParseStep AstWord (cursor-pop cs) g)
+      else if c == 66 then Ok (ParseStep AstNotWord (cursor-pop cs) g)
+      else if c == 120 then case parse-hex-val (cursor-pop cs) of
+        Err e -> Err e
+        Ok t -> case t of
+          (v, cs2) -> Ok (ParseStep (AstLit v) cs2 g)
+      else if c == 110 then Ok (ParseStep (AstLit 10) (cursor-pop cs) g)
+      else if c == 114 then Ok (ParseStep (AstLit 13) (cursor-pop cs) g)
+      else if c == 116 then Ok (ParseStep (AstLit 9) (cursor-pop cs) g)
+      else if c == 102 then Ok (ParseStep (AstLit 12) (cursor-pop cs) g)
+      else if c == 118 then Ok (ParseStep (AstLit 11) (cursor-pop cs) g)
+      else if c == 65 then Err (UnsupportedEscape (cursor-pos cs) c)
+      else if c == 90 then Err (UnsupportedEscape (cursor-pos cs) c)
+      else if c == 122 then Err (UnsupportedEscape (cursor-pos cs) c)
+      else if c == 71 then Err (UnsupportedEscape (cursor-pos cs) c)
+      else if is-alnum-code c then Err (UnsupportedEscape (cursor-pos cs) c)
+      else Ok (ParseStep (AstLit c) (cursor-pop cs) g)
+
+  -- `\xHH` and `\x{HEX}`: one scalar value.
+  parse-hex-val :: Cursor -> Result RegexError (Nat, Cursor)
+  parse-hex-val cs = case cursor-peek cs of
+    None -> Err (InvalidHexEscape (cursor-pos cs))
+    Some c ->
+      if c == 123 then case parse-hex-digits (cursor-pop cs) 0 0 of
+        None -> Err (InvalidHexEscape (cursor-pos cs))
+        Some t -> case t of
+          (v, cs2) -> case cursor-peek cs2 of
+            None -> Err (InvalidHexEscape (cursor-pos cs))
+            Some d ->
+              if d == 125 then
+                if v <= 1114111 then
+                  if v >= 55296 && v <= 57343 then Err (InvalidHexEscape (cursor-pos cs))
+                  else Ok (v, cursor-pop cs2)
+                else Err (InvalidHexEscape (cursor-pos cs))
+              else Err (InvalidHexEscape (cursor-pos cs))
+      else case hex-val c of
+        None -> Err (InvalidHexEscape (cursor-pos cs))
+        Some d1 -> case cursor-peek (cursor-pop cs) of
+          None -> Err (InvalidHexEscape (cursor-pos cs))
+          Some c2 -> case hex-val c2 of
+            None -> Err (InvalidHexEscape (cursor-pos cs))
+            Some d2 -> Ok (d1 * 16 + d2, cursor-pop (cursor-pop cs))
+
+  parse-hex-digits :: Cursor -> Nat -> Nat -> Option (Nat, Cursor)
+  parse-hex-digits cs n seen = case cursor-peek cs of
+    None -> if seen > 0 then Some (n, cs) else None
+    Some c -> case hex-val c of
+      None -> if seen > 0 then Some (n, cs) else None
+      Some d ->
+        if seen >= 8 then parse-hex-digits (cursor-pop cs) 1114112 (seen + 1)
+        else parse-hex-digits (cursor-pop cs) (n * 16 + d) (seen + 1)
+
+  hex-val :: Nat -> Option Nat
+  hex-val c =
+    if c >= 48 && c <= 57 then Some (c - 48)
+    else if c >= 97 && c <= 102 then Some (c - 87)
+    else if c >= 65 && c <= 70 then Some (c - 55)
+    else None
+
+  -- Character classes: items accumulate reversed; `]` first is a
+  -- literal, `-` first or last is a literal, a shorthand may not be
+  -- a range end.
+  parse-class :: Cursor -> Nat -> Result RegexError ParseStep
+  parse-class cs g = case cursor-peek cs of
+    None -> Err (UnterminatedClass (cursor-pos cs))
+    Some c ->
+      let neg = c == 94 in
+      let cs1 = if neg then cursor-pop cs else cs in
+      case parse-class-items cs1 Nil True of
+        Err e -> Err e
+        Ok p -> case p of
+          ClassStep ranges cs2 -> Ok (ParseStep (AstClass (reverse ranges) neg) cs2 g)
+
+  parse-class-items :: Cursor -> List (Nat, Nat) -> Bool -> Result RegexError ClassStep
+  parse-class-items cs acc first = case cursor-peek cs of
+    None -> Err (UnterminatedClass (cursor-pos cs))
+    Some c ->
+      if c == 93 then
+        if first then parse-class-atom-lit cs acc else Ok (ClassStep acc (cursor-pop cs))
+      else case parse-class-atom cs of
+        Err e -> Err e
+        Ok a -> case a of
+          ClassAtom cp cs2 -> case cursor-peek cs2 of
+            None -> parse-class-items cs2 (Cons (cp, cp) acc) False
+            Some d ->
+              if not (d == 45) then parse-class-items cs2 (Cons (cp, cp) acc) False
+              else case cursor-peek (cursor-pop cs2) of
+                None -> parse-class-items (cursor-pop cs2) (Cons (45, 45) (Cons (cp, cp) acc)) False
+                Some e ->
+                  if e == 93 then parse-class-items (cursor-pop cs2) (Cons (45, 45) (Cons (cp, cp) acc)) False
+                  else case parse-class-atom (cursor-pop cs2) of
+                    Err e2 -> Err e2
+                    Ok a2 -> case a2 of
+                      ClassAtom hi cs3 ->
+                        if hi >= cp then parse-class-items cs3 (Cons (cp, hi) acc) False
+                        else Err (InvalidClassRange (cursor-pos cs2))
+                      ClassShorthand _ _ -> Err (InvalidClassRange (cursor-pos cs2))
+          ClassShorthand rs cs2 -> case cursor-peek cs2 of
+            None -> parse-class-items cs2 (shorthand-pre rs acc) False
+            Some d ->
+              if not (d == 45) then parse-class-items cs2 (shorthand-pre rs acc) False
+              else case cursor-peek (cursor-pop cs2) of
+                None -> parse-class-items (cursor-pop cs2) (Cons (45, 45) (shorthand-pre rs acc)) False
+                Some e ->
+                  if e == 93 then parse-class-items (cursor-pop cs2) (Cons (45, 45) (shorthand-pre rs acc)) False
+                  else Err (InvalidClassRange (cursor-pos cs2))
+
+  -- A `]` at the head of a class is a literal item.
+  parse-class-atom-lit :: Cursor -> List (Nat, Nat) -> Result RegexError ClassStep
+  parse-class-atom-lit cs acc = parse-class-items (cursor-pop cs) (Cons (93, 93) acc) False
+
+  shorthand-pre :: List (Nat, Nat) -> List (Nat, Nat) -> List (Nat, Nat)
+  shorthand-pre rs acc = (reverse rs) <> acc
+
+  parse-class-atom :: Cursor -> Result RegexError ClassAtom
+  parse-class-atom cs = case cursor-peek cs of
+    None -> Err (UnterminatedClass (cursor-pos cs))
+    Some c ->
+      if c == 92 then class-escape (cursor-pop cs)
+      else Ok (ClassAtom c (cursor-pop cs))
+
+  class-escape :: Cursor -> Result RegexError ClassAtom
+  class-escape cs = case cursor-peek cs of
+    None -> Err (TrailingBackslash (cursor-pos cs))
+    Some c ->
+      if c == 100 then Ok (ClassShorthand (Cons (48, 57) Nil) (cursor-pop cs))
+      else if c == 68 then Ok (ClassShorthand (comp-ranges (Cons (48, 57) Nil)) (cursor-pop cs))
+      else if c == 119 then Ok (ClassShorthand word-ranges (cursor-pop cs))
+      else if c == 87 then Ok (ClassShorthand (comp-ranges word-ranges) (cursor-pop cs))
+      else if c == 115 then Ok (ClassShorthand space-ranges (cursor-pop cs))
+      else if c == 83 then Ok (ClassShorthand (comp-ranges space-ranges) (cursor-pop cs))
+      else if c == 98 then Err (UnsupportedEscape (cursor-pos cs) c)
+      else if c == 66 then Err (UnsupportedEscape (cursor-pos cs) c)
+      else if c == 120 then case parse-hex-val (cursor-pop cs) of
+        Err e -> Err e
+        Ok t -> case t of
+          (v, cs2) -> Ok (ClassAtom v cs2)
+      else if c == 110 then Ok (ClassAtom 10 (cursor-pop cs))
+      else if c == 114 then Ok (ClassAtom 13 (cursor-pop cs))
+      else if c == 116 then Ok (ClassAtom 9 (cursor-pop cs))
+      else if c == 102 then Ok (ClassAtom 12 (cursor-pop cs))
+      else if c == 118 then Ok (ClassAtom 11 (cursor-pop cs))
+      else if c == 112 then Err (UnicodePropertyRefused (cursor-pos cs))
+      else if c == 80 then Err (UnicodePropertyRefused (cursor-pos cs))
+      else if c >= 48 && c <= 57 then Err (BackreferenceRefused (cursor-pos cs))
+      else if c == 65 then Err (UnsupportedEscape (cursor-pos cs) c)
+      else if c == 90 then Err (UnsupportedEscape (cursor-pos cs) c)
+      else if c == 122 then Err (UnsupportedEscape (cursor-pos cs) c)
+      else if c == 71 then Err (UnsupportedEscape (cursor-pos cs) c)
+      else if is-alnum-code c then Err (UnsupportedEscape (cursor-pos cs) c)
+      else Ok (ClassAtom c (cursor-pop cs))
+
+  -- -----------------------------------------------------------------
+  -- Size accounting and the emitter: instructions carry RELATIVE
+  -- offsets, which makes emission compositional (concatenating
+  -- blocks never rewrites their interior).
+  -- -----------------------------------------------------------------
+
+  data Instr where
+    IChar :: Nat -> Instr
+    IClass :: Nat -> Bool -> Instr
+    IRange :: Nat -> Nat -> Instr
+    IAny :: Instr
+    ISplit :: Int -> Int -> Instr
+    IJump :: Int -> Instr
+    ISave :: Nat -> Instr
+    IMatch :: Instr
+    IAss :: Nat -> Instr
+
+  max-program-instructions :: Nat
+  max-program-instructions = 65536
+
+  size-cap :: Nat
+  size-cap = 65537
+
+  sat-add :: Nat -> Nat -> Nat
+  sat-add a b =
+    if a >= size-cap then size-cap
+    else if b >= size-cap then size-cap
+    else if a + b >= size-cap then size-cap
+    else a + b
+
+  -- The zero test on `a` is the decision that makes it the overflow
+  -- check's divisor.
+  sat-mul :: Nat -> Nat -> Nat
+  sat-mul a b = case decide (NonZero a) of
+    No _ -> 0
+    Yes w ->
+      if b == 0 then 0
+      else if a >= size-cap then size-cap
+      else if b >= size-cap then size-cap
+      else if b > nat-div size-cap (NonZero a w) then size-cap
+      else a * b
+
+  prog-size :: RegexAst -> Nat
+  prog-size node = case node of
+    AstEmpty -> 0
+    AstLit _ -> 1
+    AstAny -> 1
+    AstClass rs _ -> sat-add 1 (list-length rs)
+    AstCat a b -> sat-add (prog-size a) (prog-size b)
+    AstAlt a b -> sat-add (sat-add (prog-size a) (prog-size b)) 2
+    AstGroup _ a -> sat-add (prog-size a) 2
+    AstRepeat mn mx _ body ->
+      let b = prog-size body in
+      case mx of
+        None -> sat-add (sat-mul mn b) (sat-add b 2)
+        -- The parser refuses `{n,m}` with `m < n`, so the optional count
+        -- is there on every AST it builds; a reversed pair adds none.
+        Some m -> case checked-sub m mn of
+          Some k -> sat-add (sat-mul mn b) (sat-mul k (sat-add b 1))
+          None -> sat-mul mn b
+    AstStart -> 1
+    AstEnd -> 1
+    AstWord -> 1
+    AstNotWord -> 1
+
+  emit :: RegexAst -> List Instr
+  emit node = case node of
+    AstEmpty -> Nil
+    AstLit cp -> Cons (IChar cp) Nil
+    AstAny -> Cons IAny Nil
+    AstClass rs neg -> Cons (IClass (list-length rs) neg) (emit-ranges rs)
+    AstCat a b -> (emit a) <> (emit b)
+    AstAlt a b ->
+      let xs = emit a in
+      let ys = emit b in
+      let la = list-length xs in
+      let lb = list-length ys in
+      Cons (ISplit 1 (int-of (la + 2))) (xs <> (Cons (IJump (int-of (lb + 1))) ys))
+    AstGroup k body ->
+      let xs = emit body in
+      Cons (ISave (2 * k)) (xs <> (Cons (ISave (2 * k + 1)) Nil))
+    AstStart -> Cons (IAss 0) Nil
+    AstEnd -> Cons (IAss 1) Nil
+    AstWord -> Cons (IAss 2) Nil
+    AstNotWord -> Cons (IAss 3) Nil
+    AstRepeat mn mx greedy body ->
+      let xs = emit body in
+      let lb = list-length xs in
+      let pre = copies-of xs mn in
+      case mx of
+        None -> pre <> (star-of xs lb greedy)
+        Some m ->
+          -- `{mn,m}`: the optional tail has `m - mn` copies (none for a
+          -- reversed pair, which the parser never builds).
+          case checked-sub m mn of
+            Some k -> pre <> (opt-nest xs lb k greedy)
+            None -> pre
+
+  emit-ranges :: List (Nat, Nat) -> List Instr
+  emit-ranges rs = case rs of
+    Nil -> Nil
+    Cons p rest -> case p of
+      (lo, hi) -> Cons (IRange lo hi) (emit-ranges rest)
+
+  copies-of :: List Instr -> Nat -> List Instr
+  copies-of xs n = if n == 0 then Nil else xs <> (copies-of xs (n - 1))
+
+  -- `x*` as a loop: split prefers the body; the lazy form flips the
+  -- preference. Layout: [split, body, jump-back].
+  star-of :: List Instr -> Nat -> Bool -> List Instr
+  star-of xs lb greedy =
+    let back = IJump (int-neg (int-of (lb + 1))) in
+    if greedy then Cons (ISplit 1 (int-of (lb + 2))) (xs <> (Cons back Nil))
+    else Cons (ISplit (int-of (lb + 2)) 1) (xs <> (Cons back Nil))
+
+  -- `x{0,k}` as k nested optionals: (x (x ...)?)?.
+  opt-nest :: List Instr -> Nat -> Nat -> Bool -> List Instr
+  opt-nest xs lb k greedy =
+    if k == 0 then Nil
+    else
+      let inner = xs <> (opt-nest xs lb (k - 1) greedy) in
+      let li = list-length inner in
+      if greedy then Cons (ISplit 1 (int-of (li + 1))) inner
+      else Cons (ISplit (int-of (li + 1)) 1) inner
+
+  -- -----------------------------------------------------------------
+  -- Program encoding: 16 bytes per instruction, opcode then three
+  -- little-endian u32 words. Opcodes: char, class, any, split, jump,
+  -- save, match, assert, range.
+  -- -----------------------------------------------------------------
+
+  op-char :: Nat
+  op-char = 0
+  op-class :: Nat
+  op-class = 1
+  op-any :: Nat
+  op-any = 2
+  op-split :: Nat
+  op-split = 3
+  op-jump :: Nat
+  op-jump = 4
+  op-save :: Nat
+  op-save = 5
+  op-match :: Nat
+  op-match = 6
+  op-ass :: Nat
+  op-ass = 7
+  op-range :: Nat
+  op-range = 8
+
+  data Prog where
+    Prog :: Bytes -> Nat -> Prog
+
+  data Regex where
+    Regex :: Prog -> Nat -> Regex
+
+  encode-program :: List Instr -> Bytes
+  encode-program instrs = encode-from 0 instrs
+
+  -- Instruction `pc` and the rest, as the program's 16-byte records. The
+  -- buffer is made at the list's end, sized for every record, and the
+  -- bound comes back in the result, so each record's offsets are proven
+  -- inside it. The opcode byte is `instr-op i` itself: every opcode is
+  -- at most 8, so the `nat-rem` leaves it unchanged.
+  encode-from :: (pc :: Nat) -> List Instr -> refined (16 * pc <= bytes-len out) Bytes
+  encode-from pc instrs = case instrs of
+    Nil -> bytes-new (16 * pc)
+    Cons i rest ->
+      let out = encode-from (pc + 1) rest in
+      let u = bytes-set out (16 * pc) (nat-rem (instr-op i) 256) in
+      let v = put-u32 out (16 * pc + 4) (instr-a i) in
+      let w = put-u32 out (16 * pc + 8) (instr-b i) in
+      let x = put-u32 out (16 * pc + 12) (instr-c i) in
+      out
+
+  instr-op :: Instr -> Nat
+  instr-op i = case i of
+    IChar _ -> op-char
+    IClass _ _ -> op-class
+    IRange _ _ -> op-range
+    IAny -> op-any
+    ISplit _ _ -> op-split
+    IJump _ -> op-jump
+    ISave _ -> op-save
+    IMatch -> op-match
+    IAss _ -> op-ass
+
+  instr-a :: Instr -> Nat
+  instr-a i = case i of
+    IChar cp -> cp
+    IClass n _ -> n
+    IRange lo _ -> lo
+    IAny -> 0
+    ISplit x _ -> int-bias x
+    IJump x -> int-bias x
+    ISave k -> k
+    IMatch -> 0
+    IAss k -> k
+
+  instr-b :: Instr -> Nat
+  instr-b i = case i of
+    IChar _ -> 0
+    IClass _ neg -> if neg then 1 else 0
+    IRange _ hi -> hi
+    IAny -> 0
+    ISplit _ y -> int-bias y
+    IJump _ -> 0
+    ISave _ -> 0
+    IMatch -> 0
+    IAss _ -> 0
+
+  instr-c :: Instr -> Nat
+  instr-c i = 0
+
+  prog-bytes :: Regex -> Bytes
+  prog-bytes re = case re of
+    Regex p _ -> case p of
+      Prog buf _ -> buf
+
+  -- The fields of instruction `pc`, whose record must lie inside the
+  -- program. The interpreter checks that once per thread.
+  fetch-op :: using (16 * pc + 16 <= bytes-len (prog-bytes re)) => (re :: Regex) -> (pc :: Nat) -> Nat
+  fetch-op re pc = bytes-get (prog-bytes re) (16 * pc)
+
+  fetch-a :: using (16 * pc + 16 <= bytes-len (prog-bytes re)) => (re :: Regex) -> (pc :: Nat) -> Nat
+  fetch-a re pc = get-u32 (prog-bytes re) (16 * pc + 4)
+
+  fetch-b :: using (16 * pc + 16 <= bytes-len (prog-bytes re)) => (re :: Regex) -> (pc :: Nat) -> Nat
+  fetch-b re pc = get-u32 (prog-bytes re) (16 * pc + 8)
+
+  prog-count :: Regex -> Nat
+  prog-count re = case re of
+    Regex p _ -> case p of
+      Prog _ n -> n
+
+  -- The relative-offset target of a jump or split word.
+  target-pc :: Regex -> Nat -> Nat -> Nat
+  -- A compiled program never jumps before its start (the compiler
+  -- emits every offset); such a target would be outside the program
+  -- exactly as one past its end is, so it reads as that one.
+  target-pc re pc raw =
+    let t = int-add (int-of pc) (int-unbias raw) in
+    if t < 0 then prog-count re else nat-from-int t
+
+  -- -----------------------------------------------------------------
+  -- The public surface.
+  -- -----------------------------------------------------------------
+
+  -- A match: byte offsets into the subject and one text per group
+  -- (index 0 is the whole match; a group that did not participate is
+  -- None).
+  data Match where
+    Match :: Nat -> Nat -> List (Option String) -> Match
+
+  match-start :: Match -> Nat
+  match-start m = case m of
+    Match s _ _ -> s
+
+  match-end :: Match -> Nat
+  match-end m = case m of
+    Match _ e _ -> e
+
+  match-text :: Match -> String
+  match-text m = case m of
+    Match _ _ gs -> case gs of
+      Nil -> empty-string
+      Cons g _ -> case g of
+        None -> empty-string
+        Some t -> t
+
+  match-group :: Match -> Nat -> Option String
+  match-group m k = case m of
+    Match _ _ gs -> case nth k gs of
+      None -> None
+      Some g -> g
+
+  match-group-count :: Match -> Nat
+  match-group-count m = case m of
+    Match _ _ gs -> list-length gs
+
+  -- Compile a pattern. The parser is strict about quantifier
+  -- position: `{` right after an atom MUST be a valid quantifier
+  -- (escape it as `\{` for a literal brace there); a bare `{`
+  -- elsewhere is a literal.
+  parse-regex :: String -> Result RegexError Regex
+  parse-regex s = case parse-alt (Cursor (string-codes s) 0) 0 of
+    Err e -> Err e
+    Ok p -> case p of
+      ParseStep node cs g -> case cursor-peek cs of
+        Some c ->
+          if c == 41 then Err (UnmatchedCloseParen (cursor-pos cs))
+          else Err (InvalidPatternSyntax (cursor-pos cs) "unconsumed pattern text")
+        None ->
+          let total = sat-add (prog-size node) 3 in
+          if total >= size-cap then Err (ProgramTooLarge total)
+          else
+            let instrs = Cons (ISave 0) ((emit node) <> (Cons (ISave 1) (Cons IMatch Nil))) in
+            Ok (Regex (Prog (encode-program instrs) (list-length instrs)) g)
+
+  -- Escape the regex metacharacters in a literal string, so the
+  -- result matches exactly that string (Ruby's Regexp.escape).
+  regex-escape :: String -> String
+  regex-escape s = mconcat (escape-each (unpack s))
+
+  escape-each :: List Char -> List String
+  escape-each cs = case cs of
+    Nil -> Nil
+    Cons c rest ->
+      if is-meta-code (char-code c) then Cons (pack (Cons (code-of-char 92) (Cons c Nil))) (escape-each rest)
+      else Cons (pack (Cons c Nil)) (escape-each rest)
+
+  -- A scalar value as a `Char` (`char-from-code` with the module's
+  -- fallback, so the escape and template-walk code stays total and this
+  -- module keeps to code points rather than character literals; used for
+  -- the `\` and `$` code points).
+  code-of-char :: Nat -> Char
+  code-of-char n = case char-from-code n of
+    Some c -> c
+    None -> code-of-char 63
+
+  is-meta-code :: Nat -> Bool
+  is-meta-code c =
+    if c == 92 then True
+    else if c == 46 then True
+    else if c == 94 then True
+    else if c == 36 then True
+    else if c == 124 then True
+    else if c == 40 then True
+    else if c == 41 then True
+    else if c == 91 then True
+    else if c == 93 then True
+    else if c == 123 then True
+    else if c == 125 then True
+    else if c == 42 then True
+    else if c == 43 then True
+    else if c == 63 then True
+    else c == 45
+
+  -- The single-threaded search core. State: the subject bytes, the
+  -- byte position, the scalar before it (for `\b`), the recorded
+  -- match so far, the priority-ordered thread list, the visited
+  -- stamps and the dispatch counter.
+  --
+  -- The LINEAR TIME argument, in this code: at every position the
+  -- closure expansion (`expand`) marks each program counter at most
+  -- once (the visited stamps), so the thread list never exceeds the
+  -- program length and one input scalar costs at most
+  -- O(program) dispatches. Every loop call advances the position by
+  -- the scalar width, so the run is O(input * program) dispatches
+  -- whatever the pattern and the input are.
+  run-search :: Regex -> Bytes -> Nat -> Nat -> Option (List Nat) -> List (Nat, List Nat) -> Bytes -> Nat -> (Option (List Nat), Nat)
+  run-search re subj pos prev matched clist visited steps = case utf8-at subj pos of
+    None ->
+      -- The end-of-input position: consuming instructions fail,
+      -- zero-width assertions see the end.
+      run-iter re subj pos prev 1114112 1114112 0 matched clist visited steps
+    Some t -> case t of
+      (ch, w) ->
+        let cur = char-code ch in
+        let next = scalar-at subj (pos + w) in
+        run-iter re subj pos prev cur next w matched clist visited steps
+
+  -- The scalar value at a byte offset (the end sentinel past the
+  -- subject).
+  scalar-at :: Bytes -> Nat -> Nat
+  scalar-at subj p = case utf8-at subj p of
+    None -> 1114112
+    Some t -> case t of
+      (ch, _) -> char-code ch
+
+  run-iter :: Regex -> Bytes -> Nat -> Nat -> Nat -> Nat -> Nat -> Option (List Nat) -> List (Nat, List Nat) -> Bytes -> Nat -> (Option (List Nat), Nat)
+  run-iter re subj pos prev cur next w matched clist visited steps =
+    -- The unanchored start thread (lowest priority) is injected at
+    -- every position until a match is recorded; its closure shares
+    -- this position's visited stamps with the continuations that
+    -- were expanded last iteration, so earlier starts dominate it.
+    case start-outputs re subj pos prev cur visited of
+      (start, steps1) ->
+        let clist2 = if is-none matched then clist <> start else clist in
+        let steps2 = steps + steps1 in
+        case step-loop re subj pos cur next w clist2 Nil matched visited steps2 of
+          (nlist, matched2, steps3) ->
+            if w == 0 then (matched2, steps3)
+            else case nlist of
+              Nil -> case matched2 of
+                Some _ -> (matched2, steps3)
+                None -> run-search re subj (pos + w) cur matched2 Nil visited steps3
+              _ -> run-search re subj (pos + w) cur matched2 nlist visited steps3
+
+  start-outputs :: Regex -> Bytes -> Nat -> Nat -> Nat -> Bytes -> (List (Nat, List Nat), Nat)
+  start-outputs re subj pos prev cur visited =
+    let g = group-count-of re in
+    case expand re subj pos prev cur (Cons (0, replicate (2 * (g + 1)) 4294967295) Nil) Nil visited 0 of
+      (acc, st) -> (reverse acc, st)
+
+
+
+  group-count-of :: Regex -> Nat
+  group-count-of re = case re of
+    Regex _ g -> g
+
+  -- One step loop over the thread list in priority order. A `match`
+  -- entry records its captures and prunes every lower-priority entry
+  -- (they can no longer win); higher-priority entries already
+  -- processed keep running and may override the record later.
+  step-loop :: Regex -> Bytes -> Nat -> Nat -> Nat -> Nat -> List (Nat, List Nat) -> List (Nat, List Nat) -> Option (List Nat) -> Bytes -> Nat -> (List (Nat, List Nat), Option (List Nat), Nat)
+  step-loop re subj pos cur next w clist acc matched visited steps = case clist of
+    Nil -> (reverse acc, matched, steps)
+    Cons th rest -> case th of
+      (pc, caps) ->
+        -- `expand` queues only instructions inside the program, so this
+        -- restates that check where the fetches can read it; a thread
+        -- outside the program has no instruction to run and ends.
+        if 16 * pc + 16 > bytes-len (prog-bytes re) then step-loop re subj pos cur next w rest acc matched visited (steps + 1)
+        else
+        let op = fetch-op re pc in
+        if op == op-match then (reverse acc, Some caps, steps + 1)
+        else if op == op-char then
+          if cur == 1114112 then step-loop re subj pos cur next w rest acc matched visited (steps + 1)
+          else if fetch-a re pc == cur then
+            case expand re subj (pos + w) cur next (Cons (pc + 1, caps) Nil) acc visited (steps + 1) of
+              (acc2, steps2) -> step-loop re subj pos cur next w rest acc2 matched visited steps2
+          else step-loop re subj pos cur next w rest acc matched visited (steps + 1)
+        else if op == op-any then
+          if cur == 1114112 then step-loop re subj pos cur next w rest acc matched visited (steps + 1)
+          else if cur == 10 then step-loop re subj pos cur next w rest acc matched visited (steps + 1)
+          else case expand re subj (pos + w) cur next (Cons (pc + 1, caps) Nil) acc visited (steps + 1) of
+            (acc2, steps2) -> step-loop re subj pos cur next w rest acc2 matched visited steps2
+        else if op == op-class then
+          if cur == 1114112 then step-loop re subj pos cur next w rest acc matched visited (steps + 1)
+          else if class-hit re pc cur then
+            case expand re subj (pos + w) cur next (Cons (pc + 1 + fetch-a re pc, caps) Nil) acc visited (steps + 1) of
+              (acc2, steps2) -> step-loop re subj pos cur next w rest acc2 matched visited steps2
+          else step-loop re subj pos cur next w rest acc matched visited (steps + 1)
+        else step-loop re subj pos cur next w rest acc matched visited (steps + 1)
+
+  class-hit :: using (16 * pc + 16 <= bytes-len (prog-bytes re)) => (re :: Regex) -> (pc :: Nat) -> Nat -> Bool
+  class-hit re pc cp =
+    let n = fetch-a re pc in
+    let neg = fetch-b re pc in
+    let hit = range-hit re (pc + 1) n cp in
+    if neg == 1 then not hit else hit
+
+  -- The compiler emits a class's `n` range records right after it, so
+  -- each is inside the program; a record past its end would be no range.
+  range-hit :: Regex -> Nat -> Nat -> Nat -> Bool
+  range-hit re i n cp =
+    if n == 0 then False
+    else if 16 * i + 16 > bytes-len (prog-bytes re) then False
+    else if fetch-a re i <= cp then
+      if cp <= fetch-b re i then True
+      else range-hit re (i + 1) (n - 1) cp
+    else range-hit re (i + 1) (n - 1) cp
+
+  -- The epsilon closure at `pos`: save slots write the byte offset,
+  -- assertions see (prev, cur), consuming and match instructions
+  -- become list entries at their DFS (backtracking) priority.
+  expand :: Regex -> Bytes -> Nat -> Nat -> Nat -> List (Nat, List Nat) -> List (Nat, List Nat) -> Bytes -> Nat -> (List (Nat, List Nat), Nat)
+  expand re subj pos prev cur work acc visited steps = case work of
+    Nil -> (acc, steps)
+    Cons th rest -> case th of
+      (pc, caps) ->
+        -- Every target the compiler emits is an instruction of the
+        -- program, which owns one visited stamp per instruction; a
+        -- target outside either is no instruction, and its thread ends.
+        if 16 * pc + 16 > bytes-len (prog-bytes re) || 4 * pc + 4 > bytes-len visited then expand re subj pos prev cur rest acc visited (steps + 1)
+        else if seen-visited visited pc (pos + 1) then expand re subj pos prev cur rest acc visited (steps + 1)
+        else
+          let u = mark-visited visited pc (pos + 1) in
+          let op = fetch-op re pc in
+          if op == op-jump then
+            expand re subj pos prev cur (Cons (target-pc re pc (fetch-a re pc), caps) rest) acc visited (steps + 1)
+          else if op == op-split then
+            let t1 = target-pc re pc (fetch-a re pc) in
+            let t2 = target-pc re pc (fetch-b re pc) in
+            expand re subj pos prev cur (Cons (t1, caps) (Cons (t2, caps) rest)) acc visited (steps + 1)
+          else if op == op-save then
+            let caps2 = caps-set caps (fetch-a re pc) pos in
+            expand re subj pos prev cur (Cons (pc + 1, caps2) rest) acc visited (steps + 1)
+          else if op == op-ass then
+            if ass-holds subj pos prev cur (fetch-a re pc) then
+              expand re subj pos prev cur (Cons (pc + 1, caps) rest) acc visited (steps + 1)
+            else expand re subj pos prev cur rest acc visited (steps + 1)
+          else expand re subj pos prev cur rest (Cons (pc, caps) acc) visited (steps + 1)
+
+  ass-holds :: Bytes -> Nat -> Nat -> Nat -> Nat -> Bool
+  ass-holds subj pos prev cur kind =
+    if kind == 0 then pos == 0
+    else if kind == 1 then pos == bytes-len subj
+    else if kind == 2 then xor (is-word prev) (is-word cur)
+    else not (xor (is-word prev) (is-word cur))
+
+  is-word :: Nat -> Bool
+  is-word cp =
+    if cp >= 48 && cp <= 57 then True
+    else if cp >= 65 && cp <= 90 then True
+    else if cp >= 97 && cp <= 122 then True
+    else cp == 95
+
+  caps-set :: List Nat -> Nat -> Nat -> List Nat
+  caps-set caps idx v = case caps of
+    Nil -> Nil
+    Cons x rest -> if idx == 0 then Cons v rest else Cons x (caps-set rest (idx - 1) v)
+
+  -- The visited stamps: one u32 per instruction, holding the
+  -- (position + 1) whose closure last claimed the counter. Stamps
+  -- are absolute positions, so within one search the buffer never
+  -- needs clearing; a new search gets a fresh buffer.
+  seen-visited :: using (4 * pc + 4 <= bytes-len buf) => (buf :: Bytes) -> (pc :: Nat) -> Nat -> Bool
+  seen-visited buf pc stamp = get-u32 buf (4 * pc) == stamp
+
+  mark-visited :: using (4 * pc + 4 <= bytes-len buf) => (buf :: Bytes) -> (pc :: Nat) -> Nat -> Unit
+  mark-visited buf pc stamp = put-u32 buf (4 * pc) stamp
+
+  -- The scalar before byte offset `p` (a forward scan; word
+  -- boundaries at a search start need it).
+  prev-cp-at :: Bytes -> Nat -> Nat
+  prev-cp-at subj p = prev-walk subj 0 1114112 p
+
+  prev-walk :: Bytes -> Nat -> Nat -> Nat -> Nat
+  prev-walk subj i prev p =
+    if i >= p then prev
+    else case utf8-at subj i of
+      None -> prev
+      Some t -> case t of
+        (ch, w) -> prev-walk subj (i + w) (char-code ch) p
+
+  next-scalar :: Bytes -> Nat -> Nat
+  next-scalar subj p = case utf8-at subj p of
+    None -> p
+    Some t -> case t of
+      (_, w) -> p + w
+
+  -- Match construction: extract every participating group's text at
+  -- capture time (the spans are scalar boundaries by construction,
+  -- so the slice is always valid UTF-8).
+  build-match :: Bytes -> Nat -> List Nat -> Match
+  build-match subj g caps =
+    let s = caps-at caps 0 in
+    let e = caps-at caps 1 in
+    Match s e (group-texts subj caps 0 g)
+
+  -- A capture slot read (the unset sentinel for a missing slot).
+  caps-at :: List Nat -> Nat -> Nat
+  caps-at caps idx = case nth idx caps of
+    None -> 4294967295
+    Some v -> v
+
+  group-texts :: Bytes -> List Nat -> Nat -> Nat -> List (Option String)
+  group-texts subj caps k g =
+    if k > g then Nil
+    else
+      let st = caps-at caps (2 * k) in
+      let en = caps-at caps (2 * k + 1) in
+      let item = group-item subj st en in
+      Cons item (group-texts subj caps (k + 1) g)
+
+  group-item :: Bytes -> Nat -> Nat -> Option String
+  group-item subj st en =
+    if st == 4294967295 then None
+    else if en == 4294967295 then None
+    else Some (bytes-text subj st en)
+
+  -- The text of `[a, b)`; a reversed range holds no bytes. Every end the
+  -- matcher records (a capture slot, a match end, the subject's length)
+  -- is a position inside the subject, so the comparison answers `b`
+  -- itself; it is the fact the copy's bound reads.
+  bytes-text :: Bytes -> Nat -> Nat -> String
+  bytes-text subj a b =
+    if b <= bytes-len subj then range-text subj a b else range-text subj a (bytes-len subj)
+
+  range-text :: using (b <= bytes-len subj) => (subj :: Bytes) -> (a :: Nat) -> (b :: Nat) -> String
+  range-text subj a b =
+    if b <= a then empty-string
+    else
+      let out = bytes-new (b - a) in
+      let u = copy-bytes-into out subj 0 a (b - a) in
+      case string-from-bytes out of
+        None -> empty-string
+        Some t -> t
+
+  -- -----------------------------------------------------------------
+  -- Matching API.
+  -- -----------------------------------------------------------------
+
+  -- The leftmost-first match of the pattern anywhere in the string.
+  regex-match :: Regex -> String -> Option Match
+  regex-match re s = regex-search-from re s 0
+
+  -- The match and the engine's VM dispatch count (the ReDoS pin:
+  -- this counter is the wall-clock-independent measure of work).
+  regex-match-counted :: Regex -> String -> (Option Match, Nat)
+  regex-match-counted re s = case re of
+    Regex _ g ->
+      let subj = string-to-bytes s in
+      case run-search re subj 0 1114112 None Nil (visited-buf re) 0 of
+        (mc, steps) -> case mc of
+          None -> (None, steps)
+          Some caps -> (Some (build-match subj g caps), steps)
+
+  -- The leftmost-first match starting at or after byte offset
+  -- `from` (`^` still means the text start; `from` only bounds
+  -- where matches may begin).
+  regex-search-from :: Regex -> String -> Nat -> Option Match
+  regex-search-from re s from = case re of
+    Regex _ g ->
+      let subj = string-to-bytes s in
+      let prev = prev-cp-at subj from in
+      case run-search re subj from prev None Nil (visited-buf re) 0 of
+        (mc, _) -> case mc of
+          None -> None
+          Some caps -> Some (build-match subj g caps)
+
+  visited-buf :: Regex -> Bytes
+  visited-buf re = bytes-new (prog-count re * 4)
+
+  -- -----------------------------------------------------------------
+  -- The scanning family: every non-overlapping match left to right.
+  -- After a non-empty match the scan resumes at its end; after an
+  -- empty match it resumes one scalar later; an empty match at the
+  -- end of the subject is the last one. (This is the traversal Ruby
+  -- documents for String#scan.)
+  -- -----------------------------------------------------------------
+
+  regex-scan :: Regex -> String -> List Match
+  regex-scan re s = case re of
+    Regex _ g ->
+      let subj = string-to-bytes s in
+      scan-from re subj g 0
+
+  scan-from :: Regex -> Bytes -> Nat -> Nat -> List Match
+  scan-from re subj g pos =
+    let prev = prev-cp-at subj pos in
+    -- A fresh visited buffer per search: the stamps are absolute
+    -- positions and are only sound within one search (a later
+    -- search re-expanding the same positions must not see the
+    -- earlier search's marks).
+    case run-search re subj pos prev None Nil (visited-buf re) 0 of
+      (mc, _) -> case mc of
+        None -> Nil
+        Some caps ->
+          let m = build-match subj g caps in
+          let st = match-start m in
+          let en = match-end m in
+          if en > st then Cons m (scan-from re subj g en)
+          else if st >= bytes-len subj then Cons m Nil
+          else Cons m (scan-from re subj g (next-scalar subj st))
+
+  regex-scan-texts :: Regex -> String -> List String
+  regex-scan-texts re s = map-match-texts (regex-scan re s)
+
+  map-match-texts :: List Match -> List String
+  map-match-texts ms = case ms of
+    Nil -> Nil
+    Cons m rest -> Cons (match-text m) (map-match-texts rest)
+
+  -- Split at every match (the separators are removed; a captured
+  -- group is not echoed into the output). Trailing empty pieces are
+  -- dropped, Ruby's default.
+  regex-split :: Regex -> String -> List String
+  regex-split re s =
+    let subj = string-to-bytes s in
+    drop-trailing-empty (split-pieces subj (regex-scan re s) 0 Nil)
+
+  split-pieces :: Bytes -> List Match -> Nat -> List String -> List String
+  split-pieces subj ms c acc = case ms of
+    Nil -> reverse (Cons (bytes-text subj c (bytes-len subj)) acc)
+    Cons m rest -> split-pieces subj rest (match-end m) (Cons (bytes-text subj c (match-start m)) acc)
+
+  drop-trailing-empty :: List String -> List String
+  drop-trailing-empty xs = reverse (drop-empty-head (reverse xs))
+
+  drop-empty-head :: List String -> List String
+  drop-empty-head xs = case xs of
+    Nil -> Nil
+    Cons y ys -> if string-byte-length y == 0 then drop-empty-head ys else xs
+
+  -- Count the matches (the scan's length).
+  regex-count :: Regex -> String -> Nat
+  regex-count re s = list-length (regex-scan re s)
+
+  -- Replace every match with `f` applied to it (the text between
+  -- matches is copied through unchanged).
+  regex-replace-all :: Regex -> (Match -> String) -> String -> String
+  regex-replace-all re f s =
+    let subj = string-to-bytes s in
+    mconcat (replace-pieces subj (regex-scan re s) f 0 Nil)
+
+  regex-replace-first :: Regex -> (Match -> String) -> String -> String
+  regex-replace-first re f s = case regex-search-from re s 0 of
+    None -> s
+    Some m ->
+      let subj = string-to-bytes s in
+      mconcat (replace-pieces subj (Cons m Nil) f 0 Nil)
+
+  replace-pieces :: Bytes -> List Match -> (Match -> String) -> Nat -> List String -> List String
+  replace-pieces subj ms f c acc = case ms of
+    Nil -> reverse (Cons (bytes-text subj c (bytes-len subj)) acc)
+    Cons m rest ->
+      replace-pieces subj rest f (match-end m) (Cons (f m) (Cons (bytes-text subj c (match-start m)) acc))
+
+  -- The template form: `$0`..`$9` (and longer runs of digits) name
+  -- capture groups, `$$` is a literal `$`, and a `$` before anything
+  -- else is literal. An unset group renders as the empty string.
+  data Tpl where
+    TplLit :: String -> Tpl
+    TplGroup :: Nat -> Tpl
+
+  regex-replace-all-template :: Regex -> String -> String -> String
+  regex-replace-all-template re templ s =
+    let tpl = parse-template (unpack templ) Nil in
+    regex-replace-all re (\m -> render-template tpl m) s
+
+  regex-replace-first-template :: Regex -> String -> String -> String
+  regex-replace-first-template re templ s =
+    let tpl = parse-template (unpack templ) Nil in
+    regex-replace-first re (\m -> render-template tpl m) s
+
+  parse-template :: List Char -> List Tpl -> List Tpl
+  parse-template cs acc = case cs of
+    Nil -> reverse acc
+    Cons c rest ->
+      if not (eq-char c (code-of-char 36)) then parse-template rest (Cons (TplLit (pack (Cons c Nil))) acc)
+      else case rest of
+        Nil -> reverse (Cons (TplLit (pack (Cons c Nil))) acc)
+        Cons d rest2 ->
+          if eq-char d (code-of-char 36) then parse-template rest2 (Cons (TplLit (pack (Cons d Nil))) acc)
+          else
+            case template-digits rest 0 False of
+              (n, rest3, seen) ->
+                if seen then parse-template rest3 (Cons (TplGroup n) acc)
+                else parse-template rest2 (Cons (TplLit (pack (Cons c Nil))) acc)
+
+  template-digits :: List Char -> Nat -> Bool -> (Nat, List Char, Bool)
+  template-digits cs n seen = case cs of
+    Nil -> (n, cs, seen)
+    Cons c rest ->
+      let d = char-code c in
+      if d >= 48 && d <= 57 then template-digits rest (n * 10 + (d - 48)) True
+      else (n, cs, seen)
+
+  render-template :: List Tpl -> Match -> String
+  render-template tpl m = mconcat (render-each tpl m)
+
+  render-each :: List Tpl -> Match -> List String
+  render-each tpl m = case tpl of
+    Nil -> Nil
+    Cons t rest -> case t of
+      TplLit s -> Cons s (render-each rest m)
+      TplGroup k -> case match-group m k of
+        None -> Cons empty-string (render-each rest m)
+        Some s -> Cons s (render-each rest m)

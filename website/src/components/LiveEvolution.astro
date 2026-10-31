@@ -1,0 +1,38 @@
+---
+import CodeExcerpt from './CodeExcerpt.astro';
+const migration=String.raw`spec related :: StateV1 -> StateV2 -> Prop
+spec related old next =
+  Eq old.value (next.base + next.delta)
+
+migrate :: StateV1 %1 -> StateV2
+migrate old =
+  StateV2 { base = old.value, delta = 0 }`;
+---
+<section class="evolution-section language-section" id="live-development" aria-labelledby="evolution-title">
+  <div class="section-index mono"><span>07 / INCREMENTAL BUILDS AND HOT RELOAD</span><span>EDIT / REBUILD / REPLACE</span></div>
+  <div class="tour-heading"><h2 id="evolution-title">Change the code.<br />Keep the process.</h2><p>Track dependencies at the declaration level, reuse unchanged artifacts, and prepare a checked replacement for a running module. The build graph and the live update set describe exactly what an edit affects.</p></div>
+  <div class="incremental-layout"><div class="incremental-copy"><span class="mono">INCREMENTAL RECOMPILATION</span><h3>Follow the change<br />through the graph.</h3><p>Implementation hashes and interface hashes have different jobs. A body-only edit keeps the published contract intact; a changed type or effect propagates to the clients that rely on it.</p><p>Persistent compilation sessions and content-addressed objects let the compiler reuse work. Inlined and specialized consumers retain their implementation dependencies.</p><a class="text-link" href="/design/incremental-recompilation/">The incremental compilation design <span>↗</span></a></div>
+    <div class="dependency-workbench"><div class="dependency-heading mono">DEPENDENCY ILLUSTRATION</div><div class="edit-selector" role="group" aria-label="Kind of code edit"><button type="button" data-edit-kind="body" aria-pressed="true">Edit the body</button><button type="button" data-edit-kind="contract" aria-pressed="false">Change the contract</button></div><div class="dependency-diagram"><div class="dependency-node changed-node"><div><strong>Counter</strong><small>Edited module</small></div><span class="mono" data-build-state="counter">RECOMPILE</span></div><div class="dependency-branches"><div class="dependency-node" data-dependent="replaceable"><div><strong>Dashboard</strong><small><code>import replaceable Counter</code></small></div><span class="mono" data-build-state="replaceable">REUSE</span></div><div class="dependency-node affected-node" data-dependent="specialized"><div><strong>Report</strong><small><code>import specialized Counter</code></small></div><span class="mono" data-build-state="specialized">REBUILD SPECIALIZATION</span></div></div><div class="dependency-node unrelated-node"><div><strong>Text helpers</strong><small>No dependency on Counter</small></div><span class="mono">REUSE</span></div></div><p class="dependency-explanation" data-edit-explanation aria-live="polite">The body changed. The replaceable client keeps its interface; the specialized client must incorporate the new implementation.</p></div>
+  </div>
+  <div class="hot-reload-layout"><div><span class="mono">HOT RELOAD / STATEFUL MODULES</span><h3>Move the state<br />through a checked migration.</h3><p>A counter can change from one stored value to a base plus a delta. Its migration consumes the old state and establishes that the new representation preserves the observable count.</p><p>A stable dispatch boundary lets new calls reach the replacement. Existing frames, closures, callbacks, and destructors keep their code version until its obligations are discharged.</p><a class="text-link" href="/tutorials/09-compatible-hot-upgrades/">A complete counter-upgrade walkthrough <span>↗</span></a></div><CodeExcerpt code={migration} label="COUNTER / STATE MIGRATION" caption="The relation preserves old.value = next.base + next.delta."/></div>
+  <ol class="activation-sequence" aria-label="Checked module activation sequence"><li><span class="mono">01 / PREPARE</span><h4>Check the update set.</h4><p>Validate artifacts, compatibility evidence, and the dependents that must change together.</p></li><li><span class="mono">02 / COORDINATE</span><h4>Reach a valid boundary.</h4><p>Drain calls, use declared safe points, or establish a version-coexistence protocol.</p></li><li><span class="mono">03 / ACTIVATE</span><h4>Transfer and publish.</h4><p>Revalidate the state, move ownership, and publish the new dispatch epoch.</p></li><li><span class="mono">04 / RETIRE</span><h4>Let old code finish.</h4><p>Unload a version only when its tracked references and pending obligations permit it.</p></li></ol>
+  <a class="text-link" href="/specifications/runtime-evolution-specification/">The runtime evolution protocol <span>↗</span></a>
+</section>
+<script>
+  const evolution=document.querySelector('#live-development');
+  const editButtons=evolution?.querySelectorAll<HTMLButtonElement>('[data-edit-kind]');
+  const replaceable=evolution?.querySelector<HTMLElement>('[data-dependent="replaceable"]');
+  const replaceableState=evolution?.querySelector('[data-build-state="replaceable"]');
+  const specializedState=evolution?.querySelector('[data-build-state="specialized"]');
+  const explanation=evolution?.querySelector('[data-edit-explanation]');
+  editButtons?.forEach(button=>button.addEventListener('click',()=>{
+    const contract=button.dataset.editKind==='contract';
+    editButtons.forEach(item=>item.setAttribute('aria-pressed',String(item===button)));
+    replaceable?.classList.toggle('affected-node',contract);
+    if(replaceableState)replaceableState.textContent=contract?'RECHECK AND REBUILD':'REUSE';
+    if(specializedState)specializedState.textContent=contract?'RECHECK AND REBUILD':'REBUILD SPECIALIZATION';
+    if(explanation)explanation.textContent=contract
+      ? 'The published contract changed. Both dependent clients must be rechecked. Live activation also needs compatible clients or adapters; unrelated code remains reusable.'
+      : 'The body changed. The replaceable client keeps its interface; the specialized client must incorporate the new implementation.';
+  }));
+</script>

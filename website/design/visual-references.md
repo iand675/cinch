@@ -1,5 +1,7 @@
 # Visual reference study
 
+For the complete user-supplied resource collection, exact archived attachments, and decision history, read [the inspiration atlas](inspiration-atlas.md). Implementation guidance is in [the design handbook](design-handbook.md); future agents start with [AGENTS.md](../AGENTS.md). The notes below preserve the earlier, narrower study record.
+
 ## Sources
 
 - User-supplied military maintenance manual spread: numbered sections, figure captions, leader lines, crosshatching, dashed construction lines, and technical drawings with explicit part labels.

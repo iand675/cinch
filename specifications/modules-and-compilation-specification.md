@@ -216,8 +216,12 @@ D-numbers) that amend or interpret this chapter's normative text.
   are private until re-exported (`export module X` bulk, `export A.b`
   named); `import X as Y` and `import X (a as b, c)` rename/select
   with the duplicate-name rule over explicit imports (the prelude is
-  the implicit base layer; own names shadow imports). Instances,
-  fixities, and the foreign table stay module-owned facts, not names.
+  the implicit base layer; own names shadow imports). Instances
+  and the foreign table stay module-owned facts, not names. Fixities
+  belong to the module declaring the operator and follow that binding
+  through imports and re-exports; consumers cannot redeclare or override
+  them (user direction, 2026-10-30). An operator without a declared fixity
+  remains available in prefix form.
 - **Staging, macros, and compile-time I/O (D43-D48), 2026-10-28.**
   This amends sections 7-10: `Code t` is closed code and compile-time-
   only types (`Code`, `Syntax`, `Declarations`, `String`, `Secret`,

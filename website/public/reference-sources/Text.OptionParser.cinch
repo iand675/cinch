@@ -1,0 +1,574 @@
+-- Text.OptionParser: Ruby's `OptionParser` as a declarative flag
+-- specification over an argv-shaped `List String`.
+--
+-- Module scheme (design/base-library.md): `Text.*` is conversion to and
+-- from String/Bytes, and this is the argv reader of the `Text.*`
+-- argument family (the Ruby `OptionParser` item of the P31 tooling port,
+-- design/stdlib-parity-ruby.md). One `List OptionSpec` declares the whole
+-- surface (short and long spelling, the named converter a value runs
+-- through, the help text) and `parse-options` turns an argv into typed
+-- bindings, with no per-option callback.
+--
+-- RELATION TO Text.Args. `Text.Args` is the low-level argv walker: it
+-- takes `List ArgSpec` (an option NAME, no converter), returns the
+-- occurrences in argv order as raw `String`s, and its named refusal is
+-- exactly the short-option family (its header refuses `-abc` clusters and
+-- `-o value`), so a short word falls through there as a positional value.
+-- This module is the declarative layer ABOVE that grammar: it accepts a
+-- superset of the same argv forms (adding short names, clusters and
+-- prefix matching), binds each option at its declared type through the
+-- converter, and renders the usage table. It does NOT delegate to
+-- `Text.Args`, because the short forms `Text.Args` refuses are exactly the
+-- forms this module must accept; the two agree on the long `--name` /
+-- `--name=value` / `--name value` words, which the tests assert over one
+-- shared argv.
+--
+-- The argv grammar (after the program name):
+--
+--   --name          a long flag (no value)
+--   --name value    a long option and its separate value
+--   --name=value    the same, `=`-joined
+--   --abbrev        a unique long-name PREFIX (an exact name wins first)
+--   -n              a short flag
+--   -n value        a short option and its separate value
+--   -nvalue         the same, attached (a leading `=` is accepted:
+--                   `-n=value`)
+--   -abc            a cluster of short flags; the cluster breaks at the
+--                   first option that takes a value, whose value is the
+--                   rest of the cluster or the next word
+--   --              the end of options (every later word is a value)
+--   -               a positional value (the stdin-marker convention)
+--   bare word       a positional value
+--
+-- Law shape (what the tests assert): a value option binds the named
+-- converter applied to its value spelling (`--count=3` binds the integer
+-- 3, and the `=`-joined and separated spellings agree), a binding is keyed
+-- by the LONG name, a repeated option's LAST occurrence wins, positionals
+-- keep argv order, and an argv outside the grammar returns a named error
+-- with no partial result (the parse is total over admitted input, refusing
+-- rather than guessing).
+--
+-- Named refusals (unproductions this module deliberately does not
+-- implement; each is a named boundary, never a silent gap):
+--   `--[no-]name` negation and any boolean override spelling: a flag's
+--     presence is a `VBool True` binding, absence is no binding at all;
+--   per-option callbacks (Ruby's `on` blocks): the result is a value, not
+--     a handler, so there is no subcommand or `case` dispatch here;
+--   required options: every spec is optional (a must-occur option is the
+--     caller's check on `option-value`, or `Text.Args.Required`);
+--   single-dash LONG names (`-output`): a single dash always opens a short
+--     cluster, so `-output` reads as the cluster of `o`,`u`,...;
+--   leading-dash numerics (`-3`): a short-option word
+--     (`UnknownOption "-3"`), not a negative positional, unless it follows
+--     `--`;
+--   response files (`@file`) and environment fallbacks: argv only;
+--   a value on a flag (`--verbose=1`): `UnexpectedValue`;
+--   duplicate long names across specs: not diagnosed, the first spec in
+--     the list wins (the specification is the caller's to keep coherent).
+module Text.OptionParser where
+
+  import Data.Bool
+  import Data.Bytes
+  import Data.Char
+  import Data.Int
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+  import Text.Scan
+  import Text.Show
+
+  export OptionSpec, OptSpec, Converter, ConvString, ConvInt, ConvFloat, ConvFlag
+  export spec-short, spec-long, spec-converter, spec-help, spec-takes-value
+  export OptionValue, VString, VInt, VFloat, VBool
+  export value-string, value-int, value-float, value-bool, value-to-string
+  export ParsedOptions, option-value, option-has, option-flag-present, option-flags, option-positionals
+  export OptionParseError, UnknownOption, MissingArgument, InvalidValue, AmbiguousOption, UnexpectedValue
+  export parse-options, option-help, render-option-parse-error
+
+
+  -- -----------------------------------------------------------------
+  -- The specification.
+  -- -----------------------------------------------------------------
+
+  -- The value converter family. `ConvFlag` takes no value: its presence
+  -- binds `VBool True`, which is the whole of a flag's information.
+  data Converter where
+    ConvString :: Converter
+    ConvInt :: Converter
+    ConvFloat :: Converter
+    ConvFlag :: Converter
+
+  -- One option's spec: an optional single-character short name, the
+  -- required long name (the binding key), the converter, and the help line
+  -- for `option-help`. `spec-takes-value` is derived from the converter
+  -- (every converter but `ConvFlag` consumes a value).
+  data OptionSpec where
+    OptSpec :: Option String -> String -> Converter -> String -> OptionSpec
+
+  spec-short :: OptionSpec -> Option String
+  spec-short s = case s of
+    OptSpec sh _ _ _ -> sh
+
+  spec-long :: OptionSpec -> String
+  spec-long s = case s of
+    OptSpec _ l _ _ -> l
+
+  spec-converter :: OptionSpec -> Converter
+  spec-converter s = case s of
+    OptSpec _ _ c _ -> c
+
+  spec-help :: OptionSpec -> String
+  spec-help s = case s of
+    OptSpec _ _ _ h -> h
+
+  spec-takes-value :: OptionSpec -> Bool
+  spec-takes-value s = case spec-converter s of
+    ConvFlag -> False
+    ConvString -> True
+    ConvInt -> True
+    ConvFloat -> True
+
+
+  -- -----------------------------------------------------------------
+  -- The bound values.
+  -- -----------------------------------------------------------------
+
+  -- A bound value is one of the four converter images. `VBool` carries a
+  -- flag's presence.
+  data OptionValue where
+    VString :: String -> OptionValue
+    VInt :: Int -> OptionValue
+    VFloat :: F64 -> OptionValue
+    VBool :: Bool -> OptionValue
+
+  value-string :: OptionValue -> Option String
+  value-string v = case v of
+    VString s -> Some s
+    _ -> None
+
+  value-int :: OptionValue -> Option Int
+  value-int v = case v of
+    VInt n -> Some n
+    _ -> None
+
+  value-float :: OptionValue -> Option F64
+  value-float v = case v of
+    VFloat f -> Some f
+    _ -> None
+
+  value-bool :: OptionValue -> Option Bool
+  value-bool v = case v of
+    VBool b -> Some b
+    _ -> None
+
+  -- The rendering (the `Text.*` conversion direction): a value's text for
+  -- diagnostics. The float uses the runtime's shortest round-trip decimal
+  -- (the same spelling `Data.Machine.f64-to-decimal` gives, which `Json`'s
+  -- printer uses).
+  value-to-string :: OptionValue -> String
+  value-to-string v = case v of
+    VString s -> s
+    VInt n -> int-to-string n
+    VFloat f -> case string-from-bytes (f64-to-decimal f) of
+      Some s -> s
+      None -> empty-string
+    VBool b -> if b then "True" else "False"
+
+
+  -- -----------------------------------------------------------------
+  -- The result and its accessors.
+  -- -----------------------------------------------------------------
+
+  -- The parse result: the bindings keyed by long name (each name once,
+  -- holding its LAST occurrence) and the positional values in argv order.
+  -- Flags bind `VBool True`; `option-flags` is the flag subset of that
+  -- list.
+  data ParsedOptions where
+    ParsedOptions :: List (String, OptionValue) -> List String -> ParsedOptions
+
+  option-value :: ParsedOptions -> String -> Option OptionValue
+  option-value p name = case p of
+    ParsedOptions bs _ -> lookup-binding name bs
+
+  option-has :: ParsedOptions -> String -> Bool
+  option-has p name = case option-value p name of
+    Some _ -> True
+    None -> False
+
+  option-flag-present :: ParsedOptions -> String -> Bool
+  option-flag-present p name = case option-value p name of
+    Some v -> case v of
+      VBool b -> b
+      _ -> False
+    None -> False
+
+  option-flags :: ParsedOptions -> List String
+  option-flags p = case p of
+    ParsedOptions bs _ -> flag-names bs
+
+  option-positionals :: ParsedOptions -> List String
+  option-positionals p = case p of
+    ParsedOptions _ ps -> ps
+
+
+  -- -----------------------------------------------------------------
+  -- The named errors.
+  -- -----------------------------------------------------------------
+
+  -- One error constructor per refusal: an unknown option (the spelling is
+  -- carried verbatim), a value option whose value is missing, a value that
+  -- fails its converter (the name and the offending spelling), an
+  -- ambiguous long-name prefix (the prefix and its candidates, in spec
+  -- order), and a value on a flag.
+  data OptionParseError where
+    UnknownOption :: String -> OptionParseError
+    MissingArgument :: String -> OptionParseError
+    InvalidValue :: String -> String -> OptionParseError
+    AmbiguousOption :: String -> List String -> OptionParseError
+    UnexpectedValue :: String -> OptionParseError
+
+  render-option-parse-error :: OptionParseError -> String
+  render-option-parse-error e = case e of
+    UnknownOption n -> string-concat "unknown option: " n
+    MissingArgument n -> string-concat "missing argument for option: " n
+    InvalidValue n v -> string-concat "invalid value for option " (string-concat n (string-concat ": " v))
+    AmbiguousOption n cs -> string-concat "ambiguous option " (string-concat n (string-concat ": could be " (join-commas cs)))
+    UnexpectedValue n -> string-concat "unexpected value for option: " n
+
+
+  -- -----------------------------------------------------------------
+  -- The parse.
+  -- -----------------------------------------------------------------
+
+  parse-options :: List OptionSpec -> List String -> Result OptionParseError ParsedOptions
+  parse-options specs argv = walk specs argv Nil Nil False
+
+  -- The argv walk. `bs` accumulates raw occurrences in reverse argv order
+  -- (deduped at the end, so a repeated option keeps its last value) and
+  -- `ps` the positionals in reverse; `done` is set by `--`.
+  walk :: List OptionSpec -> List String -> List (String, OptionValue) -> List String -> Bool -> Result OptionParseError ParsedOptions
+  walk specs argv bs ps done = case argv of
+    Nil -> Ok (ParsedOptions (finish-bindings bs) (reverse ps))
+    Cons w rest ->
+      if done then walk specs rest bs (Cons w ps) True
+      else if string-compare w "--" == 0 then walk specs rest bs ps True
+      else if is-long-word w then walk-long specs w rest bs ps
+      else if is-short-word w then walk-cluster specs (string-slice w 1 (string-length w)) rest bs ps
+      else walk specs rest bs (Cons w ps) False
+
+  -- A long word is two dashes and a non-empty name; `--` alone is the
+  -- option end and a bare `-` is a positional.
+  is-long-word :: String -> Bool
+  is-long-word w = string-length w >= 3 && string-compare (string-slice w 0 2) "--" == 0
+
+  is-short-word :: String -> Bool
+  is-short-word w =
+    string-length w >= 2 &&
+    string-compare (string-slice w 0 1) "-" == 0 &&
+    string-compare (string-slice w 0 2) "--" /= 0
+
+  walk-long :: List OptionSpec -> String -> List String -> List (String, OptionValue) -> List String -> Result OptionParseError ParsedOptions
+  walk-long specs w rest bs ps =
+    case split-eq (string-slice w 2 (string-length w)) of
+      (name, inline) -> case resolve-long specs name of
+        Err e -> Err e
+        Ok sp -> walk-long-spec specs sp inline rest bs ps
+
+  -- A resolved long option: a value option consumes its value (the same
+  -- converter on either spelling), a flag binds presence and refuses an
+  -- inline value.
+  walk-long-spec :: List OptionSpec -> OptionSpec -> Option String -> List String -> List (String, OptionValue) -> List String -> Result OptionParseError ParsedOptions
+  walk-long-spec specs sp inline rest bs ps =
+    if spec-takes-value sp then walk-long-value specs sp inline rest bs ps
+    else case inline of
+      Some _ -> Err (UnexpectedValue (spec-long sp))
+      None -> walk specs rest (Cons (spec-long sp, VBool True) bs) ps False
+
+  -- The `--name value` and `--name=value` forms (the same converter on
+  -- either spelling; the `=`-joined value needs no next word).
+  walk-long-value :: List OptionSpec -> OptionSpec -> Option String -> List String -> List (String, OptionValue) -> List String -> Result OptionParseError ParsedOptions
+  walk-long-value specs sp inline rest bs ps = case inline of
+    Some v -> case apply-converter (spec-long sp) (spec-converter sp) v of
+      Err e -> Err e
+      Ok bv -> walk specs rest (Cons (spec-long sp, bv) bs) ps False
+    None -> case rest of
+      Nil -> Err (MissingArgument (spec-long sp))
+      Cons v rest2 -> case apply-converter (spec-long sp) (spec-converter sp) v of
+        Err e -> Err e
+        Ok bv -> walk specs rest2 (Cons (spec-long sp, bv) bs) ps False
+
+  -- Resolve a long name: an exact match wins; otherwise an unambiguous
+  -- long-name prefix; otherwise unknown or ambiguous.
+  resolve-long :: List OptionSpec -> String -> Result OptionParseError OptionSpec
+  resolve-long specs name =
+    if string-length name == 0 then Err (UnknownOption "--")
+    else case exact-spec specs name of
+      Some sp -> Ok sp
+      None -> case prefix-candidates specs name Nil of
+        Nil -> Err (UnknownOption (string-concat "--" name))
+        Cons first more -> case more of
+          Nil -> Ok first
+          Cons _ _ -> Err (AmbiguousOption name (long-names (reverse (Cons first more))))
+
+  exact-spec :: List OptionSpec -> String -> Option OptionSpec
+  exact-spec specs name = case specs of
+    Nil -> None
+    Cons sp rest -> if string-compare (spec-long sp) name == 0 then Some sp else exact-spec rest name
+
+  -- The specs whose long name has `name` as a prefix, in reverse spec
+  -- order (the caller reverses to render the candidate list in spec
+  -- order).
+  prefix-candidates :: List OptionSpec -> String -> List OptionSpec -> List OptionSpec
+  prefix-candidates specs name acc = case specs of
+    Nil -> acc
+    Cons sp rest -> if starts-with name (spec-long sp) then prefix-candidates rest name (Cons sp acc)
+                    else prefix-candidates rest name acc
+
+  exact-short :: List OptionSpec -> String -> Option OptionSpec
+  exact-short specs ch = case specs of
+    Nil -> None
+    Cons sp rest -> case spec-short sp of
+      None -> exact-short rest ch
+      Some s -> if string-compare s ch == 0 then Some sp else exact-short rest ch
+
+  -- A short cluster: each character is a short option; a value option
+  -- consumes the rest of the cluster (or the next word) and ends it, a
+  -- flag binds presence and the cluster continues.
+  walk-cluster :: List OptionSpec -> String -> List String -> List (String, OptionValue) -> List String -> Result OptionParseError ParsedOptions
+  walk-cluster specs body rest bs ps =
+    if string-length body == 0 then walk specs rest bs ps False
+    else case exact-short specs (string-slice body 0 1) of
+      None -> Err (UnknownOption (string-concat "-" (string-slice body 0 1)))
+      Some sp -> case spec-takes-value sp of
+        False -> walk-cluster specs (string-slice body 1 (string-length body)) rest (Cons (spec-long sp, VBool True) bs) ps
+        True -> case short-value-arg (spec-long sp) (string-slice body 1 (string-length body)) rest of
+          Err e -> Err e
+          Ok arg -> case arg of
+            (v, rest2) -> case apply-converter (spec-long sp) (spec-converter sp) v of
+              Err e -> Err e
+              Ok bv -> walk specs rest2 (Cons (spec-long sp, bv) bs) ps False
+
+  -- The value of a short value option: the rest of the cluster (an
+  -- attached spelling, a leading `=` stripped) or, if that is empty, the
+  -- next word.
+  short-value-arg :: String -> String -> List String -> Result OptionParseError (String, List String)
+  short-value-arg name rem rest =
+    let attached = strip-eq rem in
+    if string-length attached > 0 then Ok (attached, rest)
+    else case rest of
+      Nil -> Err (MissingArgument name)
+      Cons v rest2 -> Ok (v, rest2)
+
+  -- Run the converter; a failure is the named `InvalidValue` (the flag
+  -- arm is unreachable through the walk, which routes a flag's value to
+  -- `UnexpectedValue`, and exists so the converter stays total).
+  apply-converter :: String -> Converter -> String -> Result OptionParseError OptionValue
+  apply-converter name c v = case c of
+    ConvString -> Ok (VString v)
+    ConvInt -> case string-to-int v of
+      Some n -> Ok (VInt n)
+      None -> Err (InvalidValue name v)
+    ConvFloat -> case string-to-float v of
+      Some f -> Ok (VFloat f)
+      None -> Err (InvalidValue name v)
+    ConvFlag -> Err (UnexpectedValue name)
+
+
+  -- -----------------------------------------------------------------
+  -- Shared helpers.
+  -- -----------------------------------------------------------------
+
+  -- `s` up to the first `=`, and the value after it (`None` without an
+  -- `=`).
+  split-eq :: String -> (String, Option String)
+  split-eq s = case eq-index s 0 of
+    None -> (s, None)
+    Some i -> (string-slice s 0 i, Some (string-slice s (i + 1) (string-length s)))
+
+  eq-index :: String -> Nat -> Option Nat
+  eq-index s i =
+    if i >= string-length s then None
+    else case string-char-at s i of
+      Some c -> if eq-char c '=' then Some i else eq-index s (i + 1)
+      None -> None
+
+  strip-eq :: String -> String
+  strip-eq s = case string-char-at s 0 of
+    Some c -> if eq-char c '=' then string-slice s 1 (string-length s) else s
+    None -> s
+
+  starts-with :: String -> String -> Bool
+  starts-with pre s = string-compare (string-slice s 0 (string-length pre)) pre == 0
+
+  lookup-binding :: String -> List (String, OptionValue) -> Option OptionValue
+  lookup-binding name bs = case bs of
+    Nil -> None
+    Cons p rest -> case p of
+      (n, v) -> if string-compare n name == 0 then Some v else lookup-binding name rest
+
+  -- The occurrence list is in reverse argv order; keeping the FIRST entry
+  -- of each name there (its LAST occurrence in argv) and reversing gives
+  -- the bindings in last-occurrence order with last-value-wins.
+  finish-bindings :: List (String, OptionValue) -> List (String, OptionValue)
+  finish-bindings bs = reverse (dedupe bs Nil)
+
+  dedupe :: List (String, OptionValue) -> List String -> List (String, OptionValue)
+  dedupe bs seen = case bs of
+    Nil -> Nil
+    Cons p rest -> case p of
+      (n, v) -> if mem-string n seen then dedupe rest seen else Cons (n, v) (dedupe rest (Cons n seen))
+
+  mem-string :: String -> List String -> Bool
+  mem-string n xs = case xs of
+    Nil -> False
+    Cons y ys -> if string-compare y n == 0 then True else mem-string n ys
+
+  long-names :: List OptionSpec -> List String
+  long-names specs = case specs of
+    Nil -> Nil
+    Cons sp rest -> Cons (spec-long sp) (long-names rest)
+
+  flag-names :: List (String, OptionValue) -> List String
+  flag-names bs = case bs of
+    Nil -> Nil
+    Cons p rest -> case p of
+      (n, v) -> case v of
+        VBool b -> if b then Cons n (flag-names rest) else flag-names rest
+        _ -> flag-names rest
+
+
+  -- -----------------------------------------------------------------
+  -- The value converters.
+  -- -----------------------------------------------------------------
+
+  -- The decimal integer converter: optional sign, then at least one ASCII
+  -- digit and nothing else. Built through the bignum operations
+  -- (`int-mul`/`int-add`), so a value beyond `i64` binds exactly rather
+  -- than truncating.
+  string-to-int :: String -> Option Int
+  string-to-int s = case string-char-at s 0 of
+    None -> None
+    Some c -> if eq-char c '-' then int-digits s 1 (string-length s) True
+              else if eq-char c '+' then int-digits s 1 (string-length s) False
+              else int-digits s 0 (string-length s) False
+
+  int-digits :: String -> Nat -> Nat -> Bool -> Option Int
+  int-digits s i n neg =
+    if i >= n then None
+    else fold-digits s i n neg (int-from-i64 0)
+
+  fold-digits :: String -> Nat -> Nat -> Bool -> Int -> Option Int
+  fold-digits s i n neg acc =
+    if i >= n then Some (if neg then int-neg acc else acc)
+    else case digit-at s i of
+      None -> None
+      Some d -> fold-digits s (i + 1) n neg (int-add (int-mul acc (int-from-i64 10)) (nat-to-int d))
+
+  -- The decimal float converter: optional sign, one or more integer
+  -- digits, an optional `.`-fraction, and an optional exponent, with
+  -- nothing else. The spelling is validated here and then handed to the
+  -- runtime's correctly-rounded decimal reader, so an invalid spelling is
+  -- the named `InvalidValue` and never the malformed-decimal fault.
+  string-to-float :: String -> Option F64
+  string-to-float s = case string-char-at s 0 of
+    None -> None
+    Some c -> if eq-char c '-' then float-digits s 1 (string-length s) 0
+              else if eq-char c '+' then float-digits s 1 (string-length s) 0
+              else float-digits s 0 (string-length s) 0
+
+  -- The phase is the position in the grammar: 0 after the integer part
+  -- (a `.` or an exponent may follow), 1 after the fraction (only an
+  -- exponent may follow), 2 after the exponent (only the end may follow).
+  float-digits :: String -> Nat -> Nat -> Nat -> Option F64
+  float-digits s i n phase =
+    if i >= n then None
+    else case digit-at s i of
+      None -> None
+      Some _ -> float-run s (i + 1) n phase
+
+  float-run :: String -> Nat -> Nat -> Nat -> Option F64
+  float-run s i n phase =
+    if i >= n then Some (f64-of s)
+    else case digit-at s i of
+      Some _ -> float-run s (i + 1) n phase
+      None -> float-next s i n phase
+
+  float-next :: String -> Nat -> Nat -> Nat -> Option F64
+  float-next s i n phase = case string-char-at s i of
+    None -> None
+    Some c -> if phase == 0 && eq-char c '.' then float-digits s (i + 1) n 1
+              else if (phase == 0 || phase == 1) && (eq-char c 'e' || eq-char c 'E') then float-exp s (i + 1) n
+              else None
+
+  float-exp :: String -> Nat -> Nat -> Option F64
+  float-exp s i n = case string-char-at s i of
+    None -> None
+    Some c -> if eq-char c '+' || eq-char c '-' then float-digits s (i + 1) n 2
+              else float-digits s i n 2
+
+  f64-of :: String -> F64
+  f64-of s = f64-from-decimal (string-to-bytes s)
+
+  -- One ASCII digit code point as its value (0..=9), or `None`.
+  digit-at :: String -> Nat -> Option Nat
+  digit-at s i = case string-char-at s i of
+    None -> None
+    Some c -> digit-value c
+
+
+  -- -----------------------------------------------------------------
+  -- The usage table.
+  -- -----------------------------------------------------------------
+
+  -- `option-help` renders one row per spec: the short/long spellings and
+  -- the value placeholder in a padded left column, then the help text, so
+  -- the rendered table names every declared option.
+  option-help :: List OptionSpec -> String
+  option-help specs =
+    let width = column-width specs + 2 in
+    join-lines (map (\sp -> render-row width sp) specs)
+
+  render-row :: Nat -> OptionSpec -> String
+  render-row width sp = string-concat "  " (string-concat (pad-right width (flag-column sp)) (spec-help sp))
+
+  flag-column :: OptionSpec -> String
+  flag-column sp = string-concat (short-column sp) (long-column sp)
+
+  short-column :: OptionSpec -> String
+  short-column sp = case spec-short sp of
+    Some s -> string-concat "-" (string-concat s ", ")
+    None -> "    "
+
+  long-column :: OptionSpec -> String
+  long-column sp = string-concat "--" (string-concat (spec-long sp) (value-placeholder (spec-converter sp)))
+
+  value-placeholder :: Converter -> String
+  value-placeholder c = case c of
+    ConvString -> " <value>"
+    ConvInt -> " <int>"
+    ConvFloat -> " <float>"
+    ConvFlag -> ""
+
+  column-width :: List OptionSpec -> Nat
+  column-width specs = max-length (map flag-column specs) 0
+
+  max-length :: List String -> Nat -> Nat
+  max-length xs acc = case xs of
+    Nil -> acc
+    Cons y ys ->
+      let n = string-length y in
+      if n > acc then max-length ys n else max-length ys acc
+
+  pad-right :: Nat -> String -> String
+  pad-right w s =
+    let n = string-length s in
+    if n >= w then s else string-concat s (string-repeat (w - n) " ")
+
+  join-lines :: List String -> String
+  join-lines xs = string-join "\n" xs
+
+  join-commas :: List String -> String
+  join-commas xs = string-join ", " xs

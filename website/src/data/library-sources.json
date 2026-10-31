@@ -1,0 +1,750 @@
+{
+  "format": 1,
+  "base_manifest_sha256": "e6d6184945a1b1499d91e55cddb13e04d983c0bcc35ee7790c5129550eaab6e9",
+  "modules": [
+    {
+      "module": "Algebra.Arithmetic",
+      "path": "compiler/prelude/Algebra/Arithmetic.cinch",
+      "sha256": "2fac63baa07b5f42a8c907b0ba821bde5401a6e50f76f5d81f24e30d392f5ee0",
+      "embedded": true,
+      "values": 0,
+      "public_methods": 6
+    },
+    {
+      "module": "Algebra.Bits",
+      "path": "compiler/prelude/Algebra/Bits.cinch",
+      "sha256": "8901a9f4e10c73cbb55e7bb14808c700a7c7e14b7142d222808696754429c712",
+      "embedded": true,
+      "values": 5,
+      "public_methods": 15
+    },
+    {
+      "module": "Algebra.Group",
+      "path": "compiler/prelude/Algebra/Group.cinch",
+      "sha256": "e247f07f004aed06c6c258d5b4184f12186ffcc1bbefec740799112f38168d3c",
+      "embedded": true,
+      "values": 0,
+      "public_methods": 1
+    },
+    {
+      "module": "Algebra.Monoid",
+      "path": "compiler/prelude/Algebra/Monoid.cinch",
+      "sha256": "7f71172956f30dbc67374308cbb6a582b905921936183ff366d2a05c56e05258",
+      "embedded": true,
+      "values": 0,
+      "public_methods": 2
+    },
+    {
+      "module": "Algebra.Semigroup",
+      "path": "compiler/prelude/Algebra/Semigroup.cinch",
+      "sha256": "f932fc5a9425e91a4823c988d6196b7e8afea0c5c2d23066e9d8bd2ae8fef68e",
+      "embedded": true,
+      "values": 3,
+      "public_methods": 1
+    },
+    {
+      "module": "Algebra.Semiring",
+      "path": "compiler/prelude/Algebra/Semiring.cinch",
+      "sha256": "9b3224f1af4c30436de9625c3e38ff11463d85c985f7fd4fcd61856b8bc74b03",
+      "embedded": true,
+      "values": 0,
+      "public_methods": 4
+    },
+    {
+      "module": "Category.Alternative",
+      "path": "compiler/prelude/Category/Alternative.cinch",
+      "sha256": "4d05c93facf9e53c06dfbdca83d64da51c945af15373f3658390ae90a5d4bcdc",
+      "embedded": true,
+      "values": 0,
+      "public_methods": 2
+    },
+    {
+      "module": "Category.Applicative",
+      "path": "compiler/prelude/Category/Applicative.cinch",
+      "sha256": "430133dda538b4758b3f4c24dc2b0ceb162a3573a44b50a596a7b3e2696ca18a",
+      "embedded": true,
+      "values": 5,
+      "public_methods": 3
+    },
+    {
+      "module": "Category.Foldable",
+      "path": "compiler/prelude/Category/Foldable.cinch",
+      "sha256": "f3379c5293e6125a6072d12973b9933b164f7c8154e64dcb4e8bb01bad2fbaab",
+      "embedded": true,
+      "values": 21,
+      "public_methods": 5
+    },
+    {
+      "module": "Category.Functor",
+      "path": "compiler/prelude/Category/Functor.cinch",
+      "sha256": "2b1b8078f2abdf140b110074f4f80f22ba2b6ea54d72baf15125ea8311639ba1",
+      "embedded": true,
+      "values": 0,
+      "public_methods": 2
+    },
+    {
+      "module": "Category.Monad",
+      "path": "compiler/prelude/Category/Monad.cinch",
+      "sha256": "6118a2adc3dc804a4d442197f5197ef9975480487dfaa4a2df713b517fa8675f",
+      "embedded": true,
+      "values": 2,
+      "public_methods": 2
+    },
+    {
+      "module": "Category.Traversable",
+      "path": "compiler/prelude/Category/Traversable.cinch",
+      "sha256": "f1ee9b65ce36802f6ac83da08c5c9f8b95bc38fe47dff4fcb607a4d631b083ad",
+      "embedded": true,
+      "values": 4,
+      "public_methods": 2
+    },
+    {
+      "module": "Data.Ascii",
+      "path": "compiler/prelude/Data/Ascii.cinch",
+      "sha256": "5ca0b2a99f6380073373fdff71fd0e3e95eb4575eb5ccc6aa56a407c8eb284b2",
+      "embedded": true,
+      "values": 1,
+      "public_methods": 0
+    },
+    {
+      "module": "Data.BigDecimal",
+      "path": "compiler/prelude/Data/BigDecimal.cinch",
+      "sha256": "0c7f5ae4c2f2c74b137f0f968f43abd45da709a984d7f635f028315dfa17023c",
+      "embedded": false,
+      "values": 16,
+      "public_methods": 0
+    },
+    {
+      "module": "Data.Bool",
+      "path": "compiler/prelude/Data/Bool.cinch",
+      "sha256": "b5d776700b7c67f7ad33736bfa1d78edc8d8e94070852c59b22175b637fd81f5",
+      "embedded": true,
+      "values": 12,
+      "public_methods": 0
+    },
+    {
+      "module": "Data.Bytes",
+      "path": "compiler/prelude/Data/Bytes.cinch",
+      "sha256": "47f2c8ee650238fae49e2f10f60f84d4d7b1fce1ab2fc8b5588dcd85c50cfffe",
+      "embedded": true,
+      "values": 9,
+      "public_methods": 0
+    },
+    {
+      "module": "Data.Char",
+      "path": "compiler/prelude/Data/Char.cinch",
+      "sha256": "217d21faf8b93a9606f779e720aca8c012fdea1ecbc745a95298e96896d783fb",
+      "embedded": true,
+      "values": 21,
+      "public_methods": 0
+    },
+    {
+      "module": "Data.Complex",
+      "path": "compiler/prelude/Data/Complex.cinch",
+      "sha256": "16b1436d6025030f3ab3dbfd6955fb926883ead5dc83af6a373ac42919918a51",
+      "embedded": false,
+      "values": 15,
+      "public_methods": 0
+    },
+    {
+      "module": "Data.Compose",
+      "path": "compiler/prelude/Data/Compose.cinch",
+      "sha256": "e3ccc746196d71bfa0a30c6e77e7faaef88b3373244beee3a051ffbe1b205b80",
+      "embedded": true,
+      "values": 1,
+      "public_methods": 0
+    },
+    {
+      "module": "Data.Const",
+      "path": "compiler/prelude/Data/Const.cinch",
+      "sha256": "6ab8e9bf59d407a77e3a2f78ded46730596593352c4c948f9896d9fa0917a26c",
+      "embedded": true,
+      "values": 2,
+      "public_methods": 0
+    },
+    {
+      "module": "Data.Core",
+      "path": "compiler/prelude/Data/Core.cinch",
+      "sha256": "3ee42eb9b63a1cffe608355914e5c8295561ca8b17bea4d3b39b87f3e2f2a106",
+      "embedded": true,
+      "values": 0,
+      "public_methods": 0
+    },
+    {
+      "module": "Data.Date",
+      "path": "compiler/prelude/Data/Date.cinch",
+      "sha256": "010d01be4d6ef58d6642ba06d09cac5782186ed9f20e2e627864672b9eaa6233",
+      "embedded": false,
+      "values": 16,
+      "public_methods": 0
+    },
+    {
+      "module": "Data.Enum",
+      "path": "compiler/prelude/Data/Enum.cinch",
+      "sha256": "ebd926c5608f05da69741e21a3ef67ee563ed92d3622d7bbd50e860ec51818e8",
+      "embedded": true,
+      "values": 2,
+      "public_methods": 4
+    },
+    {
+      "module": "Data.FromList",
+      "path": "compiler/prelude/Data/FromList.cinch",
+      "sha256": "79adbec390aabbf362dc551bdc475da29e2721656cd005dbf263bbab88ba17c4",
+      "embedded": true,
+      "values": 0,
+      "public_methods": 1
+    },
+    {
+      "module": "Data.FromMap",
+      "path": "compiler/prelude/Data/FromMap.cinch",
+      "sha256": "af8cdaf5ec98b0c87e4c9b2c85fabfa72cb0602ea5f14ba50da7ee9e99311fcf",
+      "embedded": true,
+      "values": 0,
+      "public_methods": 1
+    },
+    {
+      "module": "Data.Hash",
+      "path": "compiler/prelude/Data/Hash.cinch",
+      "sha256": "3e7b1186345ffec5b63ee1bfaf8abe885afd60e693b2c2e984ff71b4c530ec00",
+      "embedded": true,
+      "values": 0,
+      "public_methods": 1
+    },
+    {
+      "module": "Data.HashMap",
+      "path": "compiler/prelude/Data/HashMap.cinch",
+      "sha256": "bd0ff3ffdb9066a8a0b7518641b38683a994d8e9ee9538f79e99def3d452a565",
+      "embedded": true,
+      "values": 15,
+      "public_methods": 0
+    },
+    {
+      "module": "Data.Identity",
+      "path": "compiler/prelude/Data/Identity.cinch",
+      "sha256": "2429ddda85cbdaaef07d640c7df7cb7e78e6537c30ff3920ac0ca1675a5922e9",
+      "embedded": true,
+      "values": 7,
+      "public_methods": 0
+    },
+    {
+      "module": "Data.Int",
+      "path": "compiler/prelude/Data/Int.cinch",
+      "sha256": "3298641d85d00bf4173a13060bbdfd1e8e63b8c3ff79b96e635525485bfd45ea",
+      "embedded": true,
+      "values": 11,
+      "public_methods": 0
+    },
+    {
+      "module": "Data.IpAddr",
+      "path": "compiler/prelude/Data/IpAddr.cinch",
+      "sha256": "1315365aa804385982fcb718a6772635be4b70cec5b62aeb30e3478ffa8b39ae",
+      "embedded": false,
+      "values": 12,
+      "public_methods": 0
+    },
+    {
+      "module": "Data.Json",
+      "path": "compiler/prelude/Data/Json.cinch",
+      "sha256": "6af8ff9d91b25b53c034b1626efe76bf1a6e277172920eabbd8c21e4c0781e3b",
+      "embedded": true,
+      "values": 0,
+      "public_methods": 0
+    },
+    {
+      "module": "Data.List",
+      "path": "compiler/prelude/Data/List.cinch",
+      "sha256": "07bee14b1520df1e5a0de73e0faa956c03da610014f97773b101dfe463675575",
+      "embedded": true,
+      "values": 41,
+      "public_methods": 0
+    },
+    {
+      "module": "Data.Machine",
+      "path": "compiler/prelude/Data/Machine.cinch",
+      "sha256": "c06a8e2d260d6f8bab809c4fda390c7f713b2719c46e3ca170097f0b1e2c7032",
+      "embedded": true,
+      "values": 825,
+      "public_methods": 0
+    },
+    {
+      "module": "Data.Map",
+      "path": "compiler/prelude/Data/Map.cinch",
+      "sha256": "0fa31267bf3bc94a2d17c9c2f8b454bdf7860c41e164576b81639263d16e0a32",
+      "embedded": true,
+      "values": 15,
+      "public_methods": 0
+    },
+    {
+      "module": "Data.Matrix",
+      "path": "compiler/prelude/Data/Matrix.cinch",
+      "sha256": "415f1178cef0922afe6e0d13bad42bd3a495f5236c0e197ee471ba4543968510",
+      "embedded": false,
+      "values": 15,
+      "public_methods": 0
+    },
+    {
+      "module": "Data.Nat",
+      "path": "compiler/prelude/Data/Nat.cinch",
+      "sha256": "6cd6f13c374b0fdaa230e5e5e0266d5cd75a88e8f60e8e2f81d5a355a6a15d5b",
+      "embedded": true,
+      "values": 16,
+      "public_methods": 0
+    },
+    {
+      "module": "Data.NonEmpty",
+      "path": "compiler/prelude/Data/NonEmpty.cinch",
+      "sha256": "62b6ff5b85deab84882b0b901a807f1531d7d9db7cd252e2ff5c31e9ecc0d900",
+      "embedded": true,
+      "values": 1,
+      "public_methods": 0
+    },
+    {
+      "module": "Data.NonZero",
+      "path": "compiler/prelude/Data/NonZero.cinch",
+      "sha256": "2eba752e6ccb3d4bb38eb4049a959af604b8d4c03015ccb0f5f15aa9910c4bde",
+      "embedded": true,
+      "values": 2,
+      "public_methods": 0
+    },
+    {
+      "module": "Data.Option",
+      "path": "compiler/prelude/Data/Option.cinch",
+      "sha256": "d6a557314549a9576de94de2260fdd0d8005cb703eeb075274bbe9d54b7c6a49",
+      "embedded": true,
+      "values": 9,
+      "public_methods": 0
+    },
+    {
+      "module": "Data.Ordering",
+      "path": "compiler/prelude/Data/Ordering.cinch",
+      "sha256": "7157a1cbcc1e708ab1800e1e48c42e83aca986ee496d29b1f8d9392a708df537",
+      "embedded": true,
+      "values": 0,
+      "public_methods": 0
+    },
+    {
+      "module": "Data.Path",
+      "path": "compiler/prelude/Data/Path.cinch",
+      "sha256": "1ce780bc27ffa8bb5951ac340ecf80e5ec0ebd44d0da1ce2f042175966b34772",
+      "embedded": true,
+      "values": 10,
+      "public_methods": 0
+    },
+    {
+      "module": "Data.Producer",
+      "path": "compiler/prelude/Data/Producer.cinch",
+      "sha256": "47b6a989c18527ed19e80914ff23860e4421c239eba407effa85fe855f94f30f",
+      "embedded": true,
+      "values": 7,
+      "public_methods": 0
+    },
+    {
+      "module": "Data.Rational",
+      "path": "compiler/prelude/Data/Rational.cinch",
+      "sha256": "87c8c6ce39162e1571a7f18ea2e6972fc514739a0d33788fb0ae0dfd557164ac",
+      "embedded": false,
+      "values": 12,
+      "public_methods": 0
+    },
+    {
+      "module": "Data.Result",
+      "path": "compiler/prelude/Data/Result.cinch",
+      "sha256": "b35bc2ca2f50d03522fa0e036ee1c735405ed38dce048d7d8e64d54bdc99ef8d",
+      "embedded": true,
+      "values": 11,
+      "public_methods": 0
+    },
+    {
+      "module": "Data.Set",
+      "path": "compiler/prelude/Data/Set.cinch",
+      "sha256": "da051f79c03b512657f4bb1521f307cda5eaa38cc6a82ec1dc94ec1d8988fd64",
+      "embedded": true,
+      "values": 15,
+      "public_methods": 0
+    },
+    {
+      "module": "Data.Sorted",
+      "path": "compiler/prelude/Data/Sorted.cinch",
+      "sha256": "860d71b688c670fe7cbb0e116d6f72e3971fffb48489e2752592859a2d813611",
+      "embedded": true,
+      "values": 2,
+      "public_methods": 0
+    },
+    {
+      "module": "Data.String",
+      "path": "compiler/prelude/Data/String.cinch",
+      "sha256": "eb33baef6f92bc39b36b9db2aac139073f131ae306237970781311ee57877ebb",
+      "embedded": true,
+      "values": 27,
+      "public_methods": 0
+    },
+    {
+      "module": "Data.StringIo",
+      "path": "compiler/prelude/Data/StringIo.cinch",
+      "sha256": "9eaf153aa82781838f853ea18293df64e0bda38a2055952c74da9dd84e94c4e1",
+      "embedded": false,
+      "values": 12,
+      "public_methods": 0
+    },
+    {
+      "module": "Data.Sym",
+      "path": "compiler/prelude/Data/Sym.cinch",
+      "sha256": "60ba339671cd9fdad4d749571825ac19400f401c1a63e4ef9b0672f2cbd2ba73",
+      "embedded": true,
+      "values": 2,
+      "public_methods": 0
+    },
+    {
+      "module": "Data.Target",
+      "path": "compiler/prelude/Data/Target.cinch",
+      "sha256": "a1d9ceb7eb29444f9a35ecf745234876432be54a81d615d2353b61a8cd1c411e",
+      "embedded": true,
+      "values": 2,
+      "public_methods": 2
+    },
+    {
+      "module": "Data.Time",
+      "path": "compiler/prelude/Data/Time.cinch",
+      "sha256": "6847730c2f3ac9f9200a4eef90a5ab7797facdc3555fb3e2f337f8b07569bc3a",
+      "embedded": false,
+      "values": 15,
+      "public_methods": 0
+    },
+    {
+      "module": "Effect.Benchmark",
+      "path": "compiler/prelude/Effect/Benchmark.cinch",
+      "sha256": "59fcce379631b8530523a7370db82c170c0e5d6e0a7b5961e80fd270883e8ba3",
+      "embedded": false,
+      "values": 5,
+      "public_methods": 0
+    },
+    {
+      "module": "Effect.Clock",
+      "path": "compiler/prelude/Effect/Clock.cinch",
+      "sha256": "1e4049e0bbd8d7f17d3955669904abb1916ab8f93a3cee2dcb3fa26826357b62",
+      "embedded": true,
+      "values": 6,
+      "public_methods": 0
+    },
+    {
+      "module": "Effect.Concurrent",
+      "path": "compiler/prelude/Effect/Concurrent.cinch",
+      "sha256": "07b1741a8b937105d3fefff700f6cf6ba415e1f8781e2924c396532bccf5d62a",
+      "embedded": true,
+      "values": 1,
+      "public_methods": 0
+    },
+    {
+      "module": "Effect.Coverage",
+      "path": "compiler/prelude/Effect/Coverage.cinch",
+      "sha256": "62f842a0e3043f00dbfbbbfa26b4c53df3392bd32a44681ad953a1344c21efef",
+      "embedded": false,
+      "values": 6,
+      "public_methods": 0
+    },
+    {
+      "module": "Effect.FileUtils",
+      "path": "compiler/prelude/Effect/FileUtils.cinch",
+      "sha256": "17e8649cadb5ba3ee76cccdc2f18b9306f7749857f55addaa9f517ffc4e71777",
+      "embedded": false,
+      "values": 8,
+      "public_methods": 0
+    },
+    {
+      "module": "Effect.Find",
+      "path": "compiler/prelude/Effect/Find.cinch",
+      "sha256": "8897fed1fe39856ce9857902d0a5f5fe258a1064bf3be7cf1ba35c033af98080",
+      "embedded": false,
+      "values": 3,
+      "public_methods": 0
+    },
+    {
+      "module": "Effect.Fs",
+      "path": "compiler/prelude/Effect/Fs.cinch",
+      "sha256": "5d3634d76d38f248b1d2e97c51ff8b2b3cc20585723608c14a073e1ff7d7ebae",
+      "embedded": true,
+      "values": 7,
+      "public_methods": 0
+    },
+    {
+      "module": "Effect.Http",
+      "path": "compiler/prelude/Effect/Http.cinch",
+      "sha256": "28ce800080f068afac0b699ae592bf9630a2d20f5ea2246d171a0cdea87e774c",
+      "embedded": false,
+      "values": 17,
+      "public_methods": 0
+    },
+    {
+      "module": "Effect.Io",
+      "path": "compiler/prelude/Effect/Io.cinch",
+      "sha256": "82b9a0b0d648194592d1aba2d9f200eba228b97b0b310e4646843499fd755804",
+      "embedded": true,
+      "values": 2,
+      "public_methods": 0
+    },
+    {
+      "module": "Effect.Log",
+      "path": "compiler/prelude/Effect/Log.cinch",
+      "sha256": "c32dae495122e7b3963d8fa2fd19fab81031f29093493080206d0191e7db09ed",
+      "embedded": false,
+      "values": 17,
+      "public_methods": 0
+    },
+    {
+      "module": "Effect.Net",
+      "path": "compiler/prelude/Effect/Net.cinch",
+      "sha256": "a2cb8234289a30c321ff66c01032badecda44207e910c715466821db78321a46",
+      "embedded": false,
+      "values": 6,
+      "public_methods": 0
+    },
+    {
+      "module": "Effect.Process",
+      "path": "compiler/prelude/Effect/Process.cinch",
+      "sha256": "08f3ecd91ba9170eec876e5a2df0662eb0bc4289aa4708533a36d4a45bfffa60",
+      "embedded": true,
+      "values": 11,
+      "public_methods": 0
+    },
+    {
+      "module": "Effect.Pty",
+      "path": "compiler/prelude/Effect/Pty.cinch",
+      "sha256": "04dfbae47c6b1b0db95b5393eabbe0a509d14e3962e2597f2e24e205f5a9c1be",
+      "embedded": false,
+      "values": 10,
+      "public_methods": 0
+    },
+    {
+      "module": "Effect.Random",
+      "path": "compiler/prelude/Effect/Random.cinch",
+      "sha256": "c5d1bcb6f88ed290dd79e70ddf789c1071b9e492a913b54bb62eff3022f012ce",
+      "embedded": false,
+      "values": 6,
+      "public_methods": 0
+    },
+    {
+      "module": "Effect.Resolv",
+      "path": "compiler/prelude/Effect/Resolv.cinch",
+      "sha256": "7430e1f878fff227f9adfa2717c511959737072897e99c5df85e16294a6d4fa0",
+      "embedded": false,
+      "values": 5,
+      "public_methods": 0
+    },
+    {
+      "module": "Effect.Sequencing",
+      "path": "compiler/prelude/Effect/Sequencing.cinch",
+      "sha256": "1d94fcf10e01ff6bdacecc5db92317769f719cdabf7f30cf03ef5665e2f1f255",
+      "embedded": true,
+      "values": 0,
+      "public_methods": 6
+    },
+    {
+      "module": "Effect.Signal",
+      "path": "compiler/prelude/Effect/Signal.cinch",
+      "sha256": "93778e910173dd3b7d4cf143c34a1611734bb03524199b2bd125d79ac854a598",
+      "embedded": false,
+      "values": 3,
+      "public_methods": 0
+    },
+    {
+      "module": "Effect.Test",
+      "path": "compiler/prelude/Effect/Test.cinch",
+      "sha256": "25f23bc38d56b5f178e7c80980cf4f29a8e84544dee3c883d8c857cb462478e0",
+      "embedded": false,
+      "values": 19,
+      "public_methods": 0
+    },
+    {
+      "module": "Effect.Trace",
+      "path": "compiler/prelude/Effect/Trace.cinch",
+      "sha256": "fe464ff8726132226cb84a56a1cd6f985553d0b4ab0118ca68922d98f8923366",
+      "embedded": false,
+      "values": 3,
+      "public_methods": 0
+    },
+    {
+      "module": "Function.Combinators",
+      "path": "compiler/prelude/Function/Combinators.cinch",
+      "sha256": "8d4b3bd4798a326720d7d95f6c632dc4480eb4c825ca7d4a4db1254945ba5eef",
+      "embedded": true,
+      "values": 13,
+      "public_methods": 0
+    },
+    {
+      "module": "Prelude",
+      "path": "compiler/prelude/Prelude.cinch",
+      "sha256": "7c66ae8376fdb2aec7c267b7a2a164e60eb7ada7c3b41fe8414cad81c55502f7",
+      "embedded": true,
+      "values": 1038,
+      "public_methods": 41
+    },
+    {
+      "module": "Relation.Eq",
+      "path": "compiler/prelude/Relation/Eq.cinch",
+      "sha256": "a5dc4a0e15057dac649ace6409c5a84ff531f0aa4ea6d038c3d74ac0afab878c",
+      "embedded": true,
+      "values": 0,
+      "public_methods": 2
+    },
+    {
+      "module": "Relation.Ord",
+      "path": "compiler/prelude/Relation/Ord.cinch",
+      "sha256": "7e0ea9784097052c8be5dd9a30151adeb1d05d4923878facb09d983e1777edfd",
+      "embedded": true,
+      "values": 1,
+      "public_methods": 4
+    },
+    {
+      "module": "Text.Args",
+      "path": "compiler/prelude/Text/Args.cinch",
+      "sha256": "d32463cc68034db08180c0417761348dd772852b1d99a3d24db7d6e3492a91ec",
+      "embedded": false,
+      "values": 7,
+      "public_methods": 0
+    },
+    {
+      "module": "Text.Base64",
+      "path": "compiler/prelude/Text/Base64.cinch",
+      "sha256": "54948138dd53d893cb82067bdaba883faa404e81e0013dd750c75f723c0b409d",
+      "embedded": false,
+      "values": 5,
+      "public_methods": 0
+    },
+    {
+      "module": "Text.Builder",
+      "path": "compiler/prelude/Text/Builder.cinch",
+      "sha256": "212242bd8c516223446f1023b982c053f80dfed0e591c7af4f6e0a3d027a05ab",
+      "embedded": false,
+      "values": 11,
+      "public_methods": 0
+    },
+    {
+      "module": "Text.Codec",
+      "path": "compiler/prelude/Text/Codec.cinch",
+      "sha256": "91c7d33762b281f44b718ea2a456032086ab1e8f2af32054fae3ca414e1afb29",
+      "embedded": true,
+      "values": 1,
+      "public_methods": 4
+    },
+    {
+      "module": "Text.Csv",
+      "path": "compiler/prelude/Text/Csv.cinch",
+      "sha256": "d21273e9e6f5a4ff4f641e9766e2567e232cd80b36eeaec4626a50914c2f4455",
+      "embedded": false,
+      "values": 7,
+      "public_methods": 0
+    },
+    {
+      "module": "Text.Digest",
+      "path": "compiler/prelude/Text/Digest.cinch",
+      "sha256": "91f1b7630e30fefea87a0e50b97bc3d42d58e69c73b7d60c4c175d07513588d2",
+      "embedded": false,
+      "values": 7,
+      "public_methods": 0
+    },
+    {
+      "module": "Text.Json",
+      "path": "compiler/prelude/Text/Json.cinch",
+      "sha256": "a80f141038155fcd58bf92ae57204f0b8c0b098c9144a90fced2f37606782876",
+      "embedded": false,
+      "values": 25,
+      "public_methods": 0
+    },
+    {
+      "module": "Text.Lex",
+      "path": "compiler/prelude/Text/Lex.cinch",
+      "sha256": "aac19e1c9e6d49781285e77d5818d2d570a6e2a46f244495324495b71c921998",
+      "embedded": false,
+      "values": 18,
+      "public_methods": 0
+    },
+    {
+      "module": "Text.OptionParser",
+      "path": "compiler/prelude/Text/OptionParser.cinch",
+      "sha256": "f6f1d8610648fed5f3355567cdd52a381f80322f8996ce29482931ef0977cc48",
+      "embedded": false,
+      "values": 18,
+      "public_methods": 0
+    },
+    {
+      "module": "Text.Otlp",
+      "path": "compiler/prelude/Text/Otlp.cinch",
+      "sha256": "650ee7a5b2e4c12c7c01d4218d520cc4dbd97432fedd85291c8831abdf543b9d",
+      "embedded": false,
+      "values": 5,
+      "public_methods": 0
+    },
+    {
+      "module": "Text.Parse",
+      "path": "compiler/prelude/Text/Parse.cinch",
+      "sha256": "4b6d00ab84e6969cf6fe8a21f29a255a9871c048b6df4baab006734efd7fabed",
+      "embedded": false,
+      "values": 43,
+      "public_methods": 0
+    },
+    {
+      "module": "Text.Regex",
+      "path": "compiler/prelude/Text/Regex.cinch",
+      "sha256": "ed3a6d5ed60e34766ff22fc61ce1590e0bca20b3e37e3bd3c12a147ece928391",
+      "embedded": false,
+      "values": 19,
+      "public_methods": 0
+    },
+    {
+      "module": "Text.Scan",
+      "path": "compiler/prelude/Text/Scan.cinch",
+      "sha256": "bc12b7a6cb5fe9a9b448047f9aeeb0fc3eac1e29927e2270e7be760014a93208",
+      "embedded": false,
+      "values": 30,
+      "public_methods": 0
+    },
+    {
+      "module": "Text.Shellwords",
+      "path": "compiler/prelude/Text/Shellwords.cinch",
+      "sha256": "7b371e38d5fdfeb48bcd293783859f56e645870a217f605036f5e0d5aaa486a9",
+      "embedded": false,
+      "values": 4,
+      "public_methods": 0
+    },
+    {
+      "module": "Text.Show",
+      "path": "compiler/prelude/Text/Show.cinch",
+      "sha256": "0b9010a0b6d7ee66abb481699b59c2cc0493a42f8a45621d087c8bc202db2fe7",
+      "embedded": true,
+      "values": 6,
+      "public_methods": 1
+    },
+    {
+      "module": "Text.Toml",
+      "path": "compiler/prelude/Text/Toml.cinch",
+      "sha256": "6b8e9b23caad2de0fe0d06a6f8f975dcdfe435216a22e52a77fbc0aa77899b2e",
+      "embedded": false,
+      "values": 2,
+      "public_methods": 0
+    },
+    {
+      "module": "Text.Uri",
+      "path": "compiler/prelude/Text/Uri.cinch",
+      "sha256": "b1b0e152c068b9b4ef4d47b03b84502cd0fc2b506608bdd006b87405934c50f4",
+      "embedded": false,
+      "values": 15,
+      "public_methods": 0
+    },
+    {
+      "module": "Text.Yaml",
+      "path": "compiler/prelude/Text/Yaml.cinch",
+      "sha256": "2b4ec0c04c4395f8f1b42dd0b2e564ed2453dbc570d827a84fd693f7f1b06589",
+      "embedded": false,
+      "values": 7,
+      "public_methods": 0
+    },
+    {
+      "module": "Text.Zlib",
+      "path": "compiler/prelude/Text/Zlib.cinch",
+      "sha256": "106c7d309df7a045f78b61737fc4a0a0ff14c821b1fe9f1777284549f042c55d",
+      "embedded": false,
+      "values": 4,
+      "public_methods": 0
+    }
+  ]
+}

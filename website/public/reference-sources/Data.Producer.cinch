@@ -1,0 +1,66 @@
+-- Data.Producer: the vector step form and the producer library.
+--
+-- The step form (modules and compilation specification section 6):
+-- `Done`, `Skip(state)` and `Yield(value, state)`. Producer pipelines
+-- lower to state machines; the fusion rules compose them. `vec-stream`
+-- is a producer over a borrowed vector: the block walk of the step
+-- form is the `vecStreamStep` intrinsic. `scalar-sum-wrap32` is the
+-- scalar model (platform proofs and SIMD specification section 5):
+-- the sum modulo 2^32 over the borrowed vector.
+module Data.Producer where
+
+  export Step, Done, Skip, Yield, Producer, TakeSt, prod-map, prod-take-step, prod-take, prod-fold-go, prod-fold, vec-stream, scalar-sum-wrap32
+
+
+  -- The vector step form (modules section 6): `Done`, `Skip(state)` and
+  -- `Yield(value, state)`. Producer pipelines lower to state machines.
+  data Step s a where
+    Done :: Step s a
+    Skip :: s -> Step s a
+    Yield :: a -> s -> Step s a
+
+  -- A producer: a state with its step function.
+  data Producer s a where
+    Producer :: (s -> Step s a) -> s -> Producer s a
+
+  prod-map :: forall s a b. (a -> b) -> Producer s a -> Producer s b
+  prod-map f p = case p of
+    Producer step s0 ->
+      Producer (\s -> case step s of
+        Done -> Done
+        Skip s1 -> Skip s1
+        Yield x s1 -> Yield (f x) s1) s0
+
+  data TakeSt s where
+    TakeSt :: Nat -> s -> TakeSt s
+
+  prod-take-step :: forall s a. (s -> Step s a) -> TakeSt s -> Step (TakeSt s) a
+  prod-take-step step st = case st of
+    TakeSt k s0 ->
+      if k == 0 then Done
+      else case step s0 of
+        Done -> Done
+        Skip s1 -> Skip (TakeSt k s1)
+        Yield x s1 -> Yield x (TakeSt (k - 1) s1)
+
+  prod-take :: forall s a. Nat -> Producer s a -> Producer (TakeSt s) a
+  prod-take n p = case p of
+    Producer step s0 -> Producer (prod-take-step step) (TakeSt n s0)
+
+  prod-fold-go :: forall s a b. (s -> Step s a) -> (b -> a -> b) -> b -> s -> b
+  prod-fold-go step k acc s = case step s of
+    Done -> acc
+    Skip s1 -> prod-fold-go step k acc s1
+    Yield x s1 -> prod-fold-go step k (k acc x) s1
+
+  prod-fold :: forall s a b. b -> (b -> a -> b) -> Producer s a -> b
+  prod-fold z k p = case p of
+    Producer step s0 -> prod-fold-go step k z s0
+
+  -- A producer over a borrowed vector: the block walk of the step form
+  -- is the `vecStreamStep` intrinsic.
+  vec-stream :: forall n a region. Ref region (Vec n a) -> Producer (Ref region (Vec n a)) a
+  vec-stream xs = Producer vecStreamStep xs
+
+  scalar-sum-wrap32 :: forall n region. Ref region (Vec n U32) -> U32
+  scalar-sum-wrap32 xs = prod-fold zero-u32 wrapping-add-u32 (vec-stream xs)

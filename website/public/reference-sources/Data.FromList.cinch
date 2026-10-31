@@ -1,0 +1,20 @@
+-- Data.FromList: the collection-literal construction class.
+--
+-- `[a, b, c]` desugars to `from-list` at the expected type's
+-- `FromList c e` instance; unconstrained it defaults to `List`
+-- (surface grammar local amendments section 10). Instances opt in per
+-- container and live with their type (Data.List, Data.Bytes,
+-- Data.Set).
+module Data.FromList where
+
+  import Data.List
+  export FromList, from-list
+
+
+  -- Collection literals (surface grammar local amendments, section 10):
+  -- `[a, b, c]` desugars to `from-list` at the expected type's `FromList
+  -- c e` instance and `{k => v}` to `from-map` over a `List (k, v)` of
+  -- pairs at the expected type's `FromMap m k v` instance; unconstrained
+  -- they default to `List` and `Map`. Instances opt in per container.
+  signature FromList c e where
+    from-list :: List e -> c

@@ -1,0 +1,331 @@
+-- Text.Base64: Base64 text to and from `Bytes` (RFC 4648).
+--
+-- Module scheme (design/base-library.md): `Text.*` is conversion to and
+-- from String/Bytes; this module is the Base64 half of the Ruby surface
+-- curated in design/stdlib-parity-ruby.md (`Base64`, the collections/
+-- text-utilities bullet). The carrier split is decision D88's: the
+-- encoded form is ASCII text, a `String`; the decoded form is raw bytes,
+-- a `Bytes`.
+--
+-- The Ruby methods behind each name (the port's provenance):
+--   `base64-encode`      = `Base64.strict_encode64` (the standard
+--                          alphabet, no line wrapping);
+--   `base64-decode`      = `Base64.strict_decode64` (named errors, not
+--                          exceptions);
+--   `base64-url-encode`  = `Base64.urlsafe_encode64` (default padding);
+--   `base64-url-decode`  = `Base64.urlsafe_decode64`;
+--   `base64-decode-lenient` = `Base64.decode64` (every non-alphabet
+--                          character, line breaks included, is ignored
+--                          and the result is the bytes; it never fails).
+-- The `Bytes`/`String` distinction is carried entirely by the
+-- signatures (encode takes `Bytes`, yields `String`; decode the
+-- other way), so no duplicate spellings are needed.
+--
+-- DESIGN LAW SHAPE (RFC 4648 section 4; the round trip is the module's
+-- contract):
+--   base64-decode (base64-encode b) == Ok b         for every Bytes
+--   base64-decode-lenient (base64-encode b) == b    for every Bytes
+--   string-byte-length (base64-encode b) == 4 * ceil (bytes-len b / 3)
+-- and the padding law: the encoding of an n-byte buffer ends in
+-- `=` * ((3 - n rem 3) rem 3) pad characters, so lengths 0/3 mod 3
+-- carry no pad, 2 mod 3 one pad, 1 mod 3 two. The canonical alphabet is
+-- used for encoding; decoding accepts exactly it (plus `=` in the
+-- padding positions).
+--
+-- Named refusals (the strict decoder is total over its own alphabet and
+-- refuses everything else with a named error, never a fault):
+--   a character outside the alphabet (`InvalidBase64Character`): the
+--     standard decoder refuses `-`/`_`, the URL-safe decoder refuses
+--     nothing the standard one accepts (Ruby's union behaviour);
+--   a length that is not a multiple of 4 (`InvalidBase64Length`): the
+--     input can never be a complete sequence of 4-character groups;
+--   a misplaced or excessive pad (`InvalidBase64Padding`): `=` is legal
+--     only in the last group's last one or two positions, never earlier
+--     and never as a third pad.
+-- Not carried (unproductions this module deliberately does not build):
+--   line wrapping (Ruby's `encode64`, 60 characters plus newline) and
+--   the MIME mode; the decoder's whitespace tolerance is the only nod to
+--   wrapped input, through `base64-decode-lenient`.
+module Text.Base64 where
+
+  import Data.Bool
+  import Data.Bytes
+  import Data.Char
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+
+  export Base64Error, InvalidBase64Character, InvalidBase64Length, InvalidBase64Padding
+  export base64-encode, base64-decode
+  export base64-url-encode, base64-url-decode, base64-decode-lenient
+
+
+  -- The named decode failures (the house style: Text.Parse's named
+  -- vocabulary shape, never a fault).
+  data Base64Error where
+    -- A scalar value outside the alphabet the decoder accepts.
+    InvalidBase64Character :: Char -> Base64Error
+    -- The scalar count is not a multiple of 4.
+    InvalidBase64Length :: Nat -> Base64Error
+    -- `=` appears before the last group or as a third pad.
+    InvalidBase64Padding :: Base64Error
+
+  -- -----------------------------------------------------------------
+  -- Alphabets (RFC 4648 sections 4 and 5).
+  -- -----------------------------------------------------------------
+
+  -- `A`-`Z` `a`-`z` `0`-`9` `+` `/`: a scalar value to its 6-bit value.
+  -- Every subtraction is guarded by its range test, so no `Nat`
+  -- underflow fault is reachable, and the same tests bound each value
+  -- below 64 (the range the byte joins below read).
+  standard-value :: Nat -> Option (InRange 0 63 Nat)
+  standard-value c =
+    if c >= 65 then
+      (if c <= 90 then Some (c - 65)
+       else if c >= 97 then (if c <= 122 then Some (c - 97 + 26) else None)
+       else None)
+    else if c >= 48 then
+      (if c <= 57 then Some (c - 48 + 52) else None)
+    else if c == 43 then Some 62
+    else if c == 47 then Some 63
+    else None
+
+  -- The URL-safe alphabet: `-` and `_` carry 62/63. Ruby's
+  -- `urlsafe_decode64` also accepts the standard `+`/`/` pair, so this
+  -- value function is the union (the standard table with the two
+  -- URL-safe codes overlaid); that is the documented behaviour, not a
+  -- relaxation we invented.
+  urlsafe-value :: Nat -> Option (InRange 0 63 Nat)
+  urlsafe-value c =
+    if c == 45 then Some 62
+    else if c == 95 then Some 63
+    else standard-value c
+
+  -- A 6-bit value to its standard-alphabet scalar value, an ASCII byte
+  -- for every input (anything from 63 on is `/`).
+  encode-value :: Nat -> InRange 0 255 Nat
+  encode-value v =
+    if v < 26 then v + 65
+    else if v < 52 then v - 26 + 97
+    else if v < 62 then v - 52 + 48
+    else if v == 62 then 43
+    else 47
+
+  -- A 6-bit value to its URL-safe scalar value (`-`/`_` for 62/63).
+  urlsafe-char :: Nat -> InRange 0 255 Nat
+  urlsafe-char v =
+    if v == 62 then 45 else if v == 63 then 95 else encode-value v
+
+  is-pad :: Char -> Bool
+  is-pad c = char-code c == 61
+
+  -- -----------------------------------------------------------------
+  -- Encoding.
+  -- -----------------------------------------------------------------
+
+  base64-encode :: Bytes -> String
+  base64-encode b = encode-with False b
+
+  base64-url-encode :: Bytes -> String
+  base64-url-encode b = encode-with True b
+
+  -- A 6-bit value's character in the alphabet `url` selects (URL-safe
+  -- when set). The choice travels as a flag rather than as the
+  -- character function itself: a byte's range is part of the
+  -- function's result type, and a function-typed parameter does not
+  -- carry it.
+  alphabet-char :: Bool -> Nat -> InRange 0 255 Nat
+  alphabet-char url v = if url then urlsafe-char v else encode-value v
+
+  encode-with :: Bool -> Bytes -> String
+  encode-with url b =
+    case string-from-bytes (encode-groups url b 0 0) of
+      None -> empty-string
+      Some s -> s
+
+  -- The encoding of `inb` from byte `ii` on, written at `oi`: one group
+  -- of up to 3 input bytes (b0 b1 b2) becomes 4 alphabet characters,
+  -- and a trailing group of 1 or 2 bytes pads with `=`. The buffer is
+  -- made by the last group, once the whole length is known (`oi` plus
+  -- that group's 4, which is the padding law's `4 * ceil (n / 3)`), and
+  -- the earlier groups write into it on the way back; the result's
+  -- refinement is the room every write proves.
+  encode-groups :: Bool -> (inb :: Bytes) -> (ii :: Nat) -> (oi :: Nat) -> refined (oi <= bytes-len out) Bytes
+  encode-groups url inb ii oi =
+    if ii + 3 <= bytes-len inb then
+      let out = encode-groups url inb (ii + 3) (oi + 4) in
+      let b0 = bytes-get inb ii in
+      let b1 = bytes-get inb (ii + 1) in
+      let b2 = bytes-get inb (ii + 2) in
+      let u = bytes-set out oi (alphabet-char url (nat-div b0 4)) in
+      let v = bytes-set out (oi + 1) (alphabet-char url (nat-add (nat-mul (nat-rem b0 4) 16) (nat-div b1 16))) in
+      let w = bytes-set out (oi + 2) (alphabet-char url (nat-add (nat-mul (nat-rem b1 16) 4) (nat-div b2 64))) in
+      let x = bytes-set out (oi + 3) (alphabet-char url (nat-rem b2 64)) in
+      out
+    else if ii + 2 <= bytes-len inb then
+      let out = bytes-new (oi + 4) in
+      let b0 = bytes-get inb ii in
+      let b1 = bytes-get inb (ii + 1) in
+      let u = bytes-set out oi (alphabet-char url (nat-div b0 4)) in
+      let v = bytes-set out (oi + 1) (alphabet-char url (nat-add (nat-mul (nat-rem b0 4) 16) (nat-div b1 16))) in
+      let w = bytes-set out (oi + 2) (alphabet-char url (nat-mul (nat-rem b1 16) 4)) in
+      let x = bytes-set out (oi + 3) 61 in
+      out
+    else if ii + 1 <= bytes-len inb then
+      let out = bytes-new (oi + 4) in
+      let b0 = bytes-get inb ii in
+      let u = bytes-set out oi (alphabet-char url (nat-div b0 4)) in
+      let v = bytes-set out (oi + 1) (alphabet-char url (nat-mul (nat-rem b0 4) 16)) in
+      let w = bytes-set out (oi + 2) 61 in
+      let x = bytes-set out (oi + 3) 61 in
+      out
+    else bytes-new oi
+
+  -- -----------------------------------------------------------------
+  -- Strict decoding.
+  -- -----------------------------------------------------------------
+
+  base64-decode :: String -> Result Base64Error Bytes
+  base64-decode s = decode-with standard-value s
+
+  base64-url-decode :: String -> Result Base64Error Bytes
+  base64-url-decode s = decode-with urlsafe-value s
+
+  -- The decoded bytes are gathered as a list and packed once at the end
+  -- (`bytes-from-list`), so the buffer's length is the bytes' count by
+  -- construction: three bytes per whole group of 4, less one per
+  -- trailing pad (the last group of 2 data characters emits 1 byte, 3
+  -- data characters 2). No pad count can outnumber those bytes once the
+  -- length is a multiple of 4 and the pads are at most 2 (an empty input
+  -- has no pads), so no separate length check is needed.
+  decode-with :: (Nat -> Option (InRange 0 63 Nat)) -> String -> Result Base64Error Bytes
+  decode-with val s =
+    let cs = unpack s in
+    let n = list-length cs in
+    if nat-rem n 4 /= 0 then Err (InvalidBase64Length n)
+    else
+      let p = trailing-pads cs in
+      if p > 2 then Err InvalidBase64Padding
+      else case decode-groups val cs of
+        Err e -> Err e
+        Ok xs -> Ok (bytes-from-list xs)
+
+  -- The number of `=` scalars at the end (the caller bounds it at 2).
+  trailing-pads :: List Char -> Nat
+  trailing-pads cs = count-pads (reverse cs)
+
+  count-pads :: List Char -> Nat
+  count-pads cs = case cs of
+    Nil -> 0
+    Cons c rest -> if is-pad c then 1 + count-pads rest else 0
+
+  -- Walk the groups of 4. Pads are legal only in the final group's last
+  -- positions; a pad anywhere earlier, or a pad with data after it, is
+  -- `InvalidBase64Padding`. A non-pad character is looked up in the
+  -- alphabet, and a miss is `InvalidBase64Character`. The length was
+  -- checked a multiple of 4 before this walk, so the short tails are
+  -- unreachable (kept total for the checker's sake).
+  decode-groups :: (Nat -> Option (InRange 0 63 Nat)) -> List Char -> Result Base64Error (List (InRange 0 255 Nat))
+  decode-groups val cs = case cs of
+    Nil -> Ok Nil
+    Cons a (Cons b (Cons c (Cons d rest))) ->
+      if is-pad a then Err InvalidBase64Padding
+      else if is-pad b then Err InvalidBase64Padding
+      else if is-pad d then
+        if not (is-empty rest) then Err InvalidBase64Padding
+        else if is-pad c then (decode-one val a b)
+        else (decode-two val a b c)
+      else if is-pad c then Err InvalidBase64Padding
+      else decode-three val a b c d rest
+    _ -> Err (InvalidBase64Length (list-length cs))
+
+  -- Two data characters and two pads: one byte.
+  decode-one :: (Nat -> Option (InRange 0 63 Nat)) -> Char -> Char -> Result Base64Error (List (InRange 0 255 Nat))
+  decode-one val a b = case lookup-val val a of
+    Err e -> Err e
+    Ok va -> case lookup-val val b of
+      Err e -> Err e
+      Ok vb -> Ok (Cons (join-first va vb) Nil)
+
+  -- Three data characters and one pad: two bytes.
+  decode-two :: (Nat -> Option (InRange 0 63 Nat)) -> Char -> Char -> Char -> Result Base64Error (List (InRange 0 255 Nat))
+  decode-two val a b c = case lookup-val val a of
+    Err e -> Err e
+    Ok va -> case lookup-val val b of
+      Err e -> Err e
+      Ok vb -> case lookup-val val c of
+        Err e -> Err e
+        Ok vc -> Ok (Cons (join-first va vb) (Cons (join-second vb vc) Nil))
+
+  -- Four data characters: three bytes, then the rest (a later group's
+  -- refusal is the whole decode's, after this group's own lookups).
+  decode-three :: (Nat -> Option (InRange 0 63 Nat)) -> Char -> Char -> Char -> Char -> List Char -> Result Base64Error (List (InRange 0 255 Nat))
+  decode-three val a b c d rest = case lookup-val val a of
+    Err e -> Err e
+    Ok va -> case lookup-val val b of
+      Err e -> Err e
+      Ok vb -> case lookup-val val c of
+        Err e -> Err e
+        Ok vc -> case lookup-val val d of
+          Err e -> Err e
+          Ok vd -> case decode-groups val rest of
+            Err e -> Err e
+            Ok xs -> Ok (Cons (join-first va vb) (Cons (join-second vb vc) (Cons (join-third vc vd) xs)))
+
+  -- A scalar's 6-bit value, or the named miss.
+  lookup-val :: (Nat -> Option (InRange 0 63 Nat)) -> Char -> Result Base64Error (InRange 0 63 Nat)
+  lookup-val val c = case val (char-code c) of
+    None -> Err (InvalidBase64Character c)
+    Some v -> Ok v
+
+  -- The three bytes four 6-bit values pack into (RFC 4648 section 4):
+  -- `a`'s six bits and `b`'s top two; `b`'s low four and `c`'s top
+  -- four; `c`'s low two and all of `d`. Each operand is below 64, so
+  -- `b / 16` is already below 4 and `c / 4` below 16: the `rem` on each
+  -- leaves the value unchanged and is the range the byte's bound reads.
+  join-first :: InRange 0 63 Nat -> InRange 0 63 Nat -> InRange 0 255 Nat
+  join-first a b =
+    let lo = nat-rem (nat-div b 16) 4 in
+    a * 4 + lo
+
+  join-second :: InRange 0 63 Nat -> InRange 0 63 Nat -> InRange 0 255 Nat
+  join-second b c =
+    let hi = nat-rem b 16 in
+    let lo = nat-rem (nat-div c 4) 16 in
+    hi * 16 + lo
+
+  join-third :: InRange 0 63 Nat -> InRange 0 63 Nat -> InRange 0 255 Nat
+  join-third c d =
+    let hi = nat-rem c 4 in
+    hi * 64 + d
+
+  -- -----------------------------------------------------------------
+  -- Lenient decoding (Ruby's `decode64`): drop every non-alphabet
+  -- scalar and pack what remains, never failing.
+  -- -----------------------------------------------------------------
+
+  base64-decode-lenient :: String -> Bytes
+  base64-decode-lenient s = bytes-from-list (lenient-bytes (alphabet-values (unpack s)))
+
+  -- Keep only the standard-alphabet scalars' 6-bit values (whitespace,
+  -- line breaks, `=`, the URL-safe pair and every other stray scalar
+  -- drop, exactly Ruby's `decode64` shape).
+  alphabet-values :: List Char -> List (InRange 0 63 Nat)
+  alphabet-values cs = case cs of
+    Nil -> Nil
+    Cons c rest -> case standard-value (char-code c) of
+      None -> alphabet-values rest
+      Some v -> Cons v (alphabet-values rest)
+
+  -- Whole groups of 4 give 3 bytes; a trailing 2 or 3 values give 1 or
+  -- 2 bytes; a lone trailing value is discarded.
+  lenient-bytes :: List (InRange 0 63 Nat) -> List (InRange 0 255 Nat)
+  lenient-bytes vs = case vs of
+    Cons v0 (Cons v1 (Cons v2 (Cons v3 rest))) ->
+      Cons (join-first v0 v1) (Cons (join-second v1 v2) (Cons (join-third v2 v3) (lenient-bytes rest)))
+    Cons v0 (Cons v1 (Cons v2 _)) -> Cons (join-first v0 v1) (Cons (join-second v1 v2) Nil)
+    Cons v0 (Cons v1 _) -> Cons (join-first v0 v1) Nil
+    _ -> Nil

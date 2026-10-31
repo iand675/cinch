@@ -1,0 +1,233 @@
+-- Effect.Resolv: name resolution as typed addresses, over the
+-- resolution intrinsic (`Effect.Net`'s `net-resolve`, the runtime's
+-- `cinch_net_resolve` in `compiler/runtime/src/net.rs`). The boundary
+-- answers one `<ip>:<port>` line per resolved address; this home is
+-- the DNS vocabulary over those lines, parsing each into a
+-- `Data.IpAddr` address paired with its port, so a caller holds
+-- addresses, never text.
+--
+-- Module scheme (design/base-library.md): `Effect.*` is the effect
+-- system's vocabulary, and a resolution is a runtime capability
+-- consulted under the `Io r` row, so its home is an `Effect.*` module.
+-- This is the DNS half design/stdlib-parity-ruby.md's networking
+-- family names (Ruby's `Resolv`), the piece D363 leaves open beside
+-- `Net::HTTP` ("a DNS home over `net-resolve`'s lines remain"): the
+-- socket, URI and IPAddr halves of the family landed as `Effect.Net`
+-- (D363), `Text.Uri` and `Data.IpAddr` (D347). The module has no
+-- runtime externs and needs no compiler edit; its only boundary is
+-- `Effect.Net`'s `net-resolve`.
+--
+-- THE LAW SHAPE (what the slice's tests pin):
+--   1. typed answers: `resolve host port` answers a `List` of
+--      `(IpAddr, Nat)` pairs for the lines the resolver returned, so
+--      an address is a value with a family, a rendering and a byte
+--      view, not a slice of the resolver's text;
+--   2. renderer round trip: for every answer `(a, _)`,
+--      `ip-parse (ip-to-string a)` is `Some a` (the address a caller
+--      renders is the address the resolver described, because
+--      `Data.IpAddr`'s rendering is a fixed point of its parsing);
+--   3. port carried: every answer's port is the port the caller asked
+--      for, because resolution adds no address the caller did not
+--      name a port for;
+--   4. well formed: every line the boundary returned is an address
+--      and no empty line survives (the newline is a terminator, not an
+--      answer);
+--   5. refusal is a value: a name the platform cannot resolve and a
+--      port outside 0..=65535 are named `ResolvError` values, never a
+--      fault and never a hang.
+--
+-- Named refusals (boundaries this module deliberately does not cross):
+--   address records only: the boundary answers address lookups
+--     (A/AAAA) and nothing else, so there is no MX, TXT, NS or any
+--     other record type here; a general DNS client that answers those
+--     is a hand-rolled UDP query and its own slice;
+--   no caching and no TTL: every call asks the resolver afresh and no
+--     answer is remembered, so no TTL is observed or honoured;
+--   no `/etc/hosts` and no search-domain handling: that policy is the
+--     platform resolver's business and this home neither reimplements
+--     nor bypasses it (a name resolves the way the platform resolves
+--     it, hosts file and search domains included or not, by the
+--     platform's own rules);
+--   forward lookups only: the boundary maps a name to addresses, so
+--     there is no reverse (address to name) lookup here, because the
+--     boundary does not support one;
+--   no ordering guarantee: the answers are the resolver's own order,
+--     and nothing here sorts or deduplicates them.
+module Effect.Resolv where
+
+  import Data.Bool
+  import Data.Bytes
+  import Data.Char
+  import Data.IpAddr
+  import Data.List
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+  import Effect.Net
+  import Text.Scan
+
+  export ResolvError, ResolvNotFound, ResolvPermissionDenied, ResolvInvalidArgument, ResolvIoError, ResolvMalformedAnswer
+  export resolve, resolve-addresses
+  export answer-addresses, answer-family-count, answer-has-family
+
+
+  -- What went wrong, named. The four shared platform names are the
+  -- boundary's own vocabulary (`Effect.Net`'s `NetError`, the codes
+  -- `compiler/runtime/src/platform.rs` shares across the externs);
+  -- `ResolvMalformedAnswer` is this home's extra name for a line the
+  -- boundary returned that is not a well-formed `<ip>:<port>`, which a
+  -- well-behaved boundary never produces but which this parser refuses
+  -- to turn into an invented address.
+  data ResolvError where
+    ResolvNotFound :: ResolvError
+    ResolvPermissionDenied :: ResolvError
+    ResolvInvalidArgument :: ResolvError
+    ResolvIoError :: ResolvError
+    ResolvMalformedAnswer :: ResolvError
+
+  -- The boundary code as this home's vocabulary (one for one, the way
+  -- `Effect.Net`'s own `net-error-code` maps the numeric words).
+  resolv-error-of :: NetError -> ResolvError
+  resolv-error-of e = case e of
+    NetNotFound -> ResolvNotFound
+    NetPermissionDenied -> ResolvPermissionDenied
+    NetInvalidArgument -> ResolvInvalidArgument
+    NetIoError -> ResolvIoError
+
+  -- Resolve `host` (UTF-8 host text) at `port` (0..=65535) into the
+  -- typed answer list, or the named error. Each `<ip>:<port>` line the
+  -- resolver returned is parsed into an `(IpAddr, Nat)` pair; a line
+  -- the parser cannot read is `ResolvMalformedAnswer` rather than a
+  -- dropped answer, so the well-formedness of the result is a checked
+  -- property and never a silent filter.
+  resolve :: forall r. using (io :: Io r) => String -> Nat ->{IO r} Result ResolvError (List (IpAddr, Nat))
+  resolve host port = case net-resolve host port of
+    Err e -> Err (resolv-error-of e)
+    Ok b -> parse-answer b
+
+  -- The name-only convenience: `resolve host` at port 0 and the port
+  -- discarded, so a caller that wants just the addresses (Ruby's
+  -- `Resolv.getaddresses`) reads no port it does not use. The port is
+  -- 0 because resolution is port-independent (the port is only echoed
+  -- onto each line); the addresses are the same for every port.
+  resolve-addresses :: forall r. using (io :: Io r) => String ->{IO r} Result ResolvError (List IpAddr)
+  resolve-addresses host = case resolve host 0 of
+    Err e -> Err e
+    Ok answers -> Ok (answer-addresses answers)
+
+
+  -- -----------------------------------------------------------------
+  -- Classification over an answer list (Ruby's `IPAddr#ipv4?`/
+  -- `#ipv6?` shape, one total `IpFamily` witness through
+  -- `Data.IpAddr`'s `ip-family`).
+  -- -----------------------------------------------------------------
+
+  -- The addresses alone, in the resolver's order.
+  answer-addresses :: List (IpAddr, Nat) -> List IpAddr
+  answer-addresses answers = map entry-address answers
+
+  -- How many answers belong to `fam`.
+  answer-family-count :: IpFamily -> List (IpAddr, Nat) -> Nat
+  answer-family-count fam answers = case answers of
+    Nil -> 0
+    Cons e rest -> case e of
+      (a, _) -> case same-family (ip-family a) fam of
+        True -> 1 + answer-family-count fam rest
+        False -> answer-family-count fam rest
+
+  -- Whether any answer belongs to `fam`.
+  answer-has-family :: IpFamily -> List (IpAddr, Nat) -> Bool
+  answer-has-family fam answers = not (answer-family-count fam answers == 0)
+
+
+  -- -----------------------------------------------------------------
+  -- Parsing the boundary's lines (built on the shared `char-code` of
+  -- `Data.Char` and the text helpers of `Text.Scan`/`Data.String`, and
+  -- the digit/character rules are the ones `Data.IpAddr`'s header
+  -- fixes for addresses).
+  -- -----------------------------------------------------------------
+
+  -- Read the resolver's text into the typed answer list. `string-lines`
+  -- splits at LF and drops one trailing empty segment (the terminator
+  -- after the last line), so the result's length is the line count.
+  parse-answer :: Bytes -> Result ResolvError (List (IpAddr, Nat))
+  parse-answer b = case string-from-bytes b of
+    None -> Err ResolvMalformedAnswer
+    Some text -> collect-lines (string-lines text) Nil
+
+  collect-lines :: List String -> List (IpAddr, Nat) -> Result ResolvError (List (IpAddr, Nat))
+  collect-lines lines acc = case lines of
+    Nil -> Ok (reverse acc)
+    Cons line rest ->
+      if string-byte-length line == 0 then collect-lines rest acc
+      else case parse-line line of
+        None -> Err ResolvMalformedAnswer
+        Some entry -> collect-lines rest (Cons entry acc)
+
+  -- One `<ip>:<port>` line. An IPv6 address is bracketed by the
+  -- boundary (`[::1]:80`), an IPv4 address is not (`127.0.0.1:80`).
+  parse-line :: String -> Option (IpAddr, Nat)
+  parse-line line =
+    if string-starts-with "[" line then parse-bracketed line
+    else parse-plain line
+
+  parse-bracketed :: String -> Option (IpAddr, Nat)
+  parse-bracketed line = case string-index-of "]" line of
+    None -> None
+    Some close ->
+      let rest = string-slice line (close + 1) (string-length line) in
+      case string-starts-with ":" rest of
+        True -> pair-of (string-slice line 1 close) (string-slice rest 1 (string-length rest))
+        False -> None
+
+  parse-plain :: String -> Option (IpAddr, Nat)
+  parse-plain line = case string-split-on ":" line of
+    Cons addr (Cons port-text Nil) -> pair-of addr port-text
+    _ -> None
+
+  -- The address and port halves together; either being unreadable is
+  -- `None` (the caller's `ResolvMalformedAnswer`).
+  pair-of :: String -> String -> Option (IpAddr, Nat)
+  pair-of addr-text port-text = case ip-parse addr-text of
+    None -> None
+    Some a -> case parse-port port-text of
+      None -> None
+      Some p -> Some (a, p)
+
+  -- A port: one to five decimal digits within 0..=65535 (the `u16`
+  -- range the boundary itself takes), no sign and no leading junk. Five
+  -- digits is the widest 16-bit decimal, so anything longer is refused
+  -- before the value can overflow.
+  parse-port :: String -> Option Nat
+  parse-port s =
+    if string-byte-length s == 0 then None
+    else if string-length s > 5 then None
+    else case decimal-value (unpack s) 0 of
+      None -> None
+      Some v -> if v <= 65535 then Some v else None
+
+  decimal-value :: List Char -> Nat -> Option Nat
+  decimal-value cs acc = case cs of
+    Nil -> Some acc
+    Cons c rest -> case digit-value c of
+      Some n -> decimal-value rest (acc * 10 + n)
+      None -> None
+
+
+  -- -----------------------------------------------------------------
+  -- Private plumbing.
+  -- -----------------------------------------------------------------
+
+  entry-address :: (IpAddr, Nat) -> IpAddr
+  entry-address e = case e of
+    (a, _) -> a
+
+  same-family :: IpFamily -> IpFamily -> Bool
+  same-family a b = case a of
+    Ipv4Family -> case b of
+      Ipv4Family -> True
+      Ipv6Family -> False
+    Ipv6Family -> case b of
+      Ipv4Family -> False
+      Ipv6Family -> True

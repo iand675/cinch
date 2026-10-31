@@ -1,0 +1,65 @@
+-- Data.NonEmpty: the non-empty list as a refinement (refinement types
+-- design; decision D151: `NonEmpty` is a decidable predicate over
+-- `List`, not a wrapper).
+--
+-- `type NonEmpty a = refine (xs :: List a) with NotNull xs`: `NonEmpty`
+-- IS `List a` at runtime (the witness is `Prop`-erased, decision D31),
+-- so `unrefine` projects at zero cost and no delegation code exists.
+-- The transparent constructor `NonEmpty xs w` takes the list and its
+-- witness: a `Dec (NotNull xs)` discharge that erases, or the `Yes`
+-- evidence of a `decide`.
+--
+-- The total constructor `non-empty` discharges at runtime through the
+-- `Dec`/`decide` world and returns `Option` (the total API of the
+-- design note). Forging is impossible: a witness is checked evidence,
+-- and evidence about mutable state dies with the write (the D192
+-- invalidation rule).
+--
+-- Instances are the container's own methods (the transfer rule),
+-- checked sample-wise by the P18 law layer exactly when they preserve
+-- the predicate: `Semigroup` transfers (append of non-empties is
+-- non-empty), `Monoid` cannot (its identity is empty; both asserted in
+-- compiler/tests/refinements.rs). The traversals preserve
+-- non-emptiness too, though through the applicative they report `not
+-- checked` at samples (the honest law boundary).
+--
+-- Status: this module is the P28 refinement of the bespoke `NonEmpty`
+-- data type it replaces (decision D151).
+module Data.NonEmpty where
+
+  import Category.Foldable
+  import Category.Traversable
+  import Category.Applicative
+  import Algebra.Semigroup
+
+
+  type NonEmpty a = refine (xs :: List a) with NotNull xs
+
+  -- The total constructor (refinement types design: the total API):
+  -- the runtime decision lives in the `Dec`/`decide` world and its
+  -- witness erases into the transparent constructor.
+  non-empty :: forall a. List a -> Option (NonEmpty a)
+  non-empty xs = case decide (NotNull xs) of
+    Yes w -> Some (NonEmpty xs w)
+    No _ -> None
+
+  -- The free semigroup: the container's own `<>` (list append),
+  -- preserved (append of non-empties is non-empty), associative by
+  -- `Semigroup.assoc`; both checked sample-wise in the law layer.
+  implicit instance Semigroup_NonEmpty x :: Semigroup (NonEmpty x) where
+    (<>) p q = (<>) p q
+
+  -- The container's own folds (the transfer rule): they read the
+  -- refined value as the list it is.
+  implicit instance Foldable_NonEmpty :: Foldable NonEmpty where
+    foldr f z ne = foldr f z ne
+    foldl f z ne = foldl f z ne
+    to-list ne = to-list ne
+    null ne = null ne
+    length ne = length ne
+
+  -- The container's own traversal: `traverse` on the list it is,
+  -- yielding the refined shape (the representation is the list).
+  implicit instance Traversable_NonEmpty :: Traversable NonEmpty where
+    traverse f ne = traverse f ne
+    sequence ne = sequence ne

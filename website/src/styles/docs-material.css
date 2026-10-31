@@ -130,3 +130,37 @@
 .sidebar-project-links a { font-family:'IBM Plex Mono',monospace; font-size:.56rem; color:#d6c4a1 !important; padding:.15rem 0; }
 @media(max-width:1100px) { .doc-label { display:none; }.cinch-doc-identity { gap:1.6rem; } }
 @media(max-width:799px) { .doc-project-nav { display:none; } }
+
+/* Support labels carry implementation status in text as well as colour. */
+[data-has-sidebar] .support-tag {
+  display: inline-block;
+  vertical-align: baseline;
+  border: 1px solid currentColor;
+  border-radius: .25rem .8rem .25rem .25rem;
+  padding: .12rem .5rem;
+  font: 500 .7rem/1.5 'IBM Plex Mono', monospace;
+  white-space: nowrap;
+  letter-spacing: .015em;
+}
+[data-has-sidebar] .support-tag--planned { color: #f5bd88; background: #463222; }
+[data-has-sidebar] .support-tag--partial { color: #ebd59b; background: #3a3724; }
+[data-has-sidebar] .support-tag--current { color: #c8d8a7; background: #303b25; }
+[data-has-sidebar] .support-tag--api,
+[data-has-sidebar] .support-tag--source { color: #e0d5b7; background: #38392d; }
+[data-has-sidebar][data-theme='light'] .support-tag--planned { color: #7a3b19; background: #f5dfc5; }
+[data-has-sidebar][data-theme='light'] .support-tag--partial { color: #66501c; background: #eee1b7; }
+[data-has-sidebar][data-theme='light'] .support-tag--current { color: #3a512b; background: #e0e8cf; }
+[data-has-sidebar][data-theme='light'] .support-tag--api,
+[data-has-sidebar][data-theme='light'] .support-tag--source { color: #58513c; background: #e8e0ca; }
+[data-has-sidebar] .doc-archive-note { border-inline-start: 3px solid #d88549; padding-inline-start: 1rem; font-size: .85rem; max-width: 65ch; line-height: 1.65; }
+[data-has-sidebar] .sl-markdown-content details { border: 1px solid var(--cinch-doc-rule); border-radius: .25rem 1.2rem .25rem .25rem; padding: 1rem 1.2rem; margin-block: 1.5rem; }
+[data-has-sidebar] .sl-markdown-content summary { cursor: pointer; font-weight: 600; }
+[data-has-sidebar] .sl-markdown-content summary:focus-visible { outline: 2px solid var(--sl-color-text-accent); outline-offset: 5px; }
+[data-has-sidebar] .sl-markdown-content :is(h1,h2,h3,td) { overflow-wrap: anywhere; }
+[data-has-sidebar] .sl-markdown-content a[id] { scroll-margin-top: 7rem; }
+@media (max-width: 50rem) {
+  [data-has-sidebar] .sl-markdown-content table:has(.support-tag) th,
+  [data-has-sidebar] .sl-markdown-content table:has(.support-tag) td { min-width: 8rem; }
+  [data-has-sidebar] .sl-markdown-content table:has(.support-tag) :is(th, td):nth-child(2),
+  [data-has-sidebar] .sl-markdown-content table:has(.support-tag) :is(th, td):nth-child(3) { min-width: 16rem; }
+}

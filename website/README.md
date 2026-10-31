@@ -1,6 +1,6 @@
 # Cinch documentation site
 
-Astro + Starlight rendering of the design documentation. The Markdown chapters stay where they are (`overview.md`, `specifications/`, `tutorials/`, `design/`, `examples/`, `context/`); this site reads them from disk and publishes them as one book. There is no copy step and no generated HTML twin to keep in sync.
+Astro + Starlight documentation for the Rust Cinch compiler. `/documentation/` is the reader entry point: `learn/` is the ordered language tutorial, `reference/` is the compiler user’s guide, and `library/` is generated from real checked library interfaces. The original `overview.md`, `specifications/`, `tutorials/`, `design/`, `examples/`, and `context/` remain at their existing routes as the design archive. Markdown stays in the repository and the site reads it directly.
 
 ## Commands
 
@@ -18,7 +18,9 @@ The devenv shell provides Node 24 and npm from nixpkgs. Astro 7 requires Node 22
 
 ## Visual design
 
-The landing page is `src/pages/index.astro`. It introduces the language and links into the original documentation, which lives at `/overview/` and its existing chapter routes. Links to `overview.md` are rewritten to `/overview/`.
+Future site work starts with [AGENTS.md](AGENTS.md), [the design handbook](design/design-handbook.md), and [the inspiration atlas](design/inspiration-atlas.md). These preserve the design rules, the user's original images and source links, the reasoning behind the materials and ornament, and the directions that were tried and rejected. Exact attachment copies and their provenance manifest live in `design/references/`, outside the public site assets.
+
+The landing page is `src/pages/index.astro`. It introduces the language and links into the original documentation, which lives at `/overview/` and its existing chapter routes. New readers enter through `/documentation/`; links to `overview.md` still resolve to `/overview/`.
 
 The landing page uses a cassette-futurist direction: large Momo Trust Display typography, full-width ink/ivory/orange fields, subtle static surface grain, sculpted section transitions, curved equipment-bay links, circular index plates, and an orange instrument faceplate with an inset olive display. The console includes a length gauge, casing seams, and fasteners; page details remain static and decorative. DM Sans handles reading text; IBM Plex Mono handles code and labels. The vector-length control in `src/components/ContractConsole.astro` illustrates the nonempty-input contract for `first`; it does not execute a compiler. The mascot is retained as an asset but is not displayed on the landing page. The documentation theme pairs ink, warm ivory, and ember orange. Fonts are self-hosted in `public/fonts/`; the supplied wordmark and mascot are optimized WebP assets in `public/brand/`. Shared documentation styles are in `src/styles/custom.css`; the landing page composition is in `src/styles/landing.css`. Reading pages support light, dark, and system themes.
 
@@ -70,6 +72,8 @@ The selected `/?freepage=momotrustdisplay` URL now shows the default landing pag
 
 The docs use `src/styles/docs-material.css`: a dark navigation spine, warm chapter plates, numbered section rules, curved code surrounds, and light/dark reading palettes. `src/styles/scrollbars.css` styles page, navigation, and code scrollbars without replacing native scrolling.
 
+Documentation code uses the custom Cinch Instrument / Cinch Paper Expressive Code themes in `src/themes/syntax.mjs`, with warm orange, amber, ivory, and olive token colours. Both follow the docs theme selector. The loader includes theme/config/grammar inputs in its render digest to regenerate token colours and hashed code assets when the highlighting changes.
+
 `TechnicalFigure.astro` is an original, labelled vector diagram of the nonempty-vector contract. It appears on the landing page and after that example in Tutorial 1 through the MarkdownContent override. The source Markdown and generated heading anchors are preserved.
 
 The selected wordmark is `public/brand/cinch-wordmark-instrument-v2.webp`. It retains the original lettering and loops with an orange fill and a fine ivory keyline for small-format readability. The opaque black source uses screen blending on the dark header/footer. The original gold asset remains available. See `design/logo-generation.md` for the built-in image-generation prompt and source asset.
@@ -85,3 +89,31 @@ Package, module, declaration-source, and download pages share `PlatformLayout.as
 `/downloads/` demonstrates release-channel and platform selection. `src/lib/downloads.ts` generates eight deterministic sample ZIPs, each containing only a README and release metadata, plus matching SHA-256 sidecars. No compiler is included. Repository and source-download links use the real GitHub project configured in `src/lib/project.ts`. Replace the fixtures with real release metadata and artifacts when those become available.
 
 After `npm run build`, run `npm run verify:preview` to check generated links and anchors, version-specific declarations, ZIP contents, checksums, and shared project navigation.
+
+
+## Reader documentation and verification
+
+The Rust implementation is the current behaviour authority. The tutorial and guide mark specified but unavailable behaviour with visible **Coming soon** tags, distinguish partial support and API-only mechanisms, and link to the intended design. `/reference/16-support-and-roadmap/` maps all specification areas to their reader guides. Original design pages carry an archive notice without changing their body text or heading anchors.
+
+`learn/` has the tutorial contents and 22 chapters. `reference/` has the guide contents and 27 subject pages, including dedicated attributes, type layout, allocator, REPL, and language server references. The tooling chapters describe the intended complete experience with **Coming soon** labels and explicit current implementation tables. `library/` has the directory and one generated page for each real source module. The sidebar groups library modules by namespace. The site reuses the editor TextMate grammar to highlight `cinch` code blocks.
+
+Run these checks with the Node version in `.node-version`:
+
+```sh
+npm run check
+npm run build
+npm run verify:preview
+npm run verify:docs
+npm run verify:examples -- --compiler /absolute/path/to/rust-built/cinch
+```
+
+`verify:docs` checks source drift plus built reader-page links/anchors, source downloads, archive routes, status labels, and code rendering. `verify:examples` extracts marked complete examples from the tutorial/guide, checks them, builds and executes positive programs, checks exact exit/stdout expectations, and checks named negative diagnostics. It uses temporary projects and a private store. Explanatory fragments are unmarked; every complete module must have a marker. Multi-file examples use `cinch:project` markers. This is meaningful executable documentation coverage, not a claim that every compiler test or library operation was rerun.
+
+Regenerate the library after changing source or public exports:
+
+```sh
+python3 scripts/generate-library-reference.py --compiler /absolute/path/to/rust-built/cinch
+python3 scripts/generate-library-reference.py --check
+```
+
+Use a Rust executable built from the same source snapshot. The generator imports each non-embedded module from a temporary consumer project, reads checked `.cinchif` exports, excludes private signature closure, attaches source documentation, records per-file SHA-256 witnesses, and copies exact source downloads to `public/reference-sources/`. All checked sources remain in `compiler/prelude/`; generated pages are reference outputs rather than a parallel editable tutorial. No remote package fetch is implied by a library import.

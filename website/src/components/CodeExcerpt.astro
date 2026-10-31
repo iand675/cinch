@@ -1,0 +1,12 @@
+---
+interface Props { code:string; label:string; caption?:string; }
+const {code,label,caption}=Astro.props;
+// Lightweight display highlighting for Cinch's design syntax. Text stays escaped.
+const parts=code.split(/(--[^\n]*|"[^"\n]*"|\b(?:proof|spec|stage|generate|emit|where|case|of|forall|using|type|refine|with|implicit|instance|law|specialize|rewrite|match|replace|justify|let|in)\b|\b[A-Z][A-Za-z0-9_.]*\b|\b\d+\b)/g);
+const tokenClass=(part:string)=>part.startsWith('--')?'excerpt-comment':part.startsWith('"')?'excerpt-string':/^\d+$/.test(part)?'excerpt-number':/^[A-Z]/.test(part)?'excerpt-type':/^(proof|spec|stage|generate|emit|where|case|of|forall|using|type|refine|with|implicit|instance|law|specialize|rewrite|match|replace|justify|let|in)$/.test(part)?'excerpt-keyword':undefined;
+---
+<figure class="language-excerpt">
+  <figcaption class="mono">{label}</figcaption>
+  <pre><code>{parts.map(part=><span class={tokenClass(part)}>{part}</span>)}</code></pre>
+  {caption&&<p class="excerpt-caption">{caption}</p>}
+</figure>

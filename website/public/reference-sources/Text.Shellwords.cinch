@@ -1,0 +1,222 @@
+-- Text.Shellwords: Bourne-shell word splitting and argument
+-- escaping, the Ruby `Shellwords` surface (design/stdlib-parity-ruby.md
+-- lists Shellwords under collections/text utilities to port), as a
+-- `Text.*` conversion over `String`.
+--
+-- `shellwords-split` is Ruby's `Shellwords.split`: whitespace-separated
+-- words, single quotes taking the enclosed scalars literally, double
+-- quotes honouring a backslash escape, an unquoted backslash escaping
+-- the next scalar, and a named error for an unterminated quote. It is a
+-- tokenizer, not a shell: outside quotes every other metacharacter
+-- (`|`, `*`, `$`, `>`, `#`) is an ordinary scalar.
+--
+-- Design law shape:
+--   round trip: `split (join (Cons s Nil)) == Ok (Cons s Nil)` for
+--     every `s` (the escaping family inverts splitting; asserted over
+--     hostile strings in compiler/tests/lib_shellwords.rs);
+--   empty-word preservation: a quoted empty argument is an
+--     empty-string word (`split "''" == Ok (Cons "" Nil)` and the
+--     double-quoted form likewise), never dropped;
+--   quote errors are the only failures: every input that closes its
+--     quotes yields words, so `split` is `Result` for the
+--     unterminated-quote error alone.
+--
+-- Double-quote escapes (the POSIX `2.2.3 Double-Quotes` set Ruby cites,
+-- a backslash retains its meaning only before one of these): `$`,
+-- backtick, `"`, `\`, and a newline. Every other backslash inside
+-- double quotes is retained literally (`"b\qc"` is the word `b\qc`).
+-- Outside quotes a backslash escapes any following scalar (a trailing
+-- backslash with nothing after it is a literal backslash).
+--
+-- ESCAPING (`shellwords-escape`, `shellwords-join`) is the single-quote
+-- strategy, a deliberate divergence from Ruby's backslash escaping: a
+-- string whose every scalar is SAFE is emitted bare, the empty string
+-- becomes `''`, and any other string is wrapped in single quotes with
+-- each internal `'` written `'\''`. THE SAFE SET is exactly ASCII
+-- letters `A-Z`/`a-z`, digits `0-9`, and the eight scalars
+-- `_ - . , : + / @`. Every other scalar (space, tab, newline, `'`,
+-- `"`, `\`, `$`, backtick, `*`, `|`, `>`, `#`, and every non-ASCII
+-- scalar) forces the quoted form. Single quoting makes the round trip
+-- hold for newlines without Ruby's special case: a backslash cannot
+-- spell LF (a backslash plus LF is a shell line continuation), while a
+-- single-quoted LF is a literal scalar.
+--
+-- Named refusals (boundaries this module deliberately does not cross):
+--   shell expansion: no `$var`, backtick command, globbing, or
+--     redirection; quotes and backslashes are the whole vocabulary
+--     (Ruby's own note that this is not a command-line parser);
+--   NUL: not special here (there is no `exec` boundary in this
+--     module), so a NUL scalar is escaped like any other unsafe scalar;
+--   comments: `#` is an ordinary scalar, not a comment introducer;
+--   backslash escaping: `shellwords-escape` never emits a backslash
+--     escape (the single-quote strategy above), so its output is meant
+--     to be used unquoted, exactly like Ruby's.
+--
+-- Module scheme (design/base-library.md): `Text.*` is conversion to and
+-- from String/Bytes; splitting a command line into words and escaping
+-- words back is that conversion family, so the home is Text.
+module Text.Shellwords where
+
+  import Data.Bool
+  import Data.Char
+  import Data.List
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+  import Text.Scan
+
+  export ShellwordsError, UnterminatedSingleQuote, UnterminatedDoubleQuote
+  export shellwords-split, shellwords-escape, shellwords-join
+  export render-shellwords-error
+
+
+  -- -----------------------------------------------------------------
+  -- Named errors: the two unterminated-quote shapes Ruby reports as one
+  -- `Unmatched quote`; split here so a caller can tell which quote was
+  -- left open.
+  -- -----------------------------------------------------------------
+
+  data ShellwordsError where
+    UnterminatedSingleQuote :: ShellwordsError
+    UnterminatedDoubleQuote :: ShellwordsError
+
+  render-shellwords-error :: ShellwordsError -> String
+  render-shellwords-error e = case e of
+    UnterminatedSingleQuote -> "unterminated single quote"
+    UnterminatedDoubleQuote -> "unterminated double quote"
+
+  -- -----------------------------------------------------------------
+  -- Splitting (Ruby Shellwords.split).
+  -- -----------------------------------------------------------------
+
+  -- `acc` holds the words emitted so far in reverse; `word` holds the
+  -- current word's scalars in reverse; `started` records whether a word
+  -- is in progress (set by any field scalar, a backslash, or a quote,
+  -- including a quoted empty word, so `''` and `""` survive as empty
+  -- scalars).
+  shellwords-split :: String -> Result ShellwordsError (List String)
+  shellwords-split s = split-loop (unpack s) Nil False Nil
+
+  split-loop :: List Char -> List Char -> Bool -> List String -> Result ShellwordsError (List String)
+  split-loop input word started acc = case input of
+    Nil -> Ok (reverse (finish started word acc))
+    Cons c rest ->
+      if space-char c then
+        if started then split-loop rest Nil False (Cons (pack (reverse word)) acc)
+        else split-loop rest Nil False acc
+      else if eq-char c '\'' then case sq-loop rest word of
+        Err e -> Err e
+        Ok r -> case r of
+          (rest2, word2) -> split-loop rest2 word2 True acc
+      else if eq-char c '"' then case dq-loop rest word of
+        Err e -> Err e
+        Ok r -> case r of
+          (rest2, word2) -> split-loop rest2 word2 True acc
+      else if eq-char c '\\' then case rest of
+        Nil -> split-loop Nil (Cons c word) True acc
+        Cons d rest2 -> split-loop rest2 (Cons d word) True acc
+      else split-loop rest (Cons c word) True acc
+
+  -- The word list with the in-progress word appended when one started.
+  finish :: Bool -> List Char -> List String -> List String
+  finish started word acc =
+    if started then Cons (pack (reverse word)) acc else acc
+
+  -- Single-quoted content: everything up to the closing quote is
+  -- literal, including whitespace, backslashes and newlines.
+  sq-loop :: List Char -> List Char -> Result ShellwordsError (List Char, List Char)
+  sq-loop input word = case input of
+    Nil -> Err UnterminatedSingleQuote
+    Cons c rest -> if eq-char c '\'' then Ok (rest, word) else sq-loop rest (Cons c word)
+
+  -- Double-quoted content: a backslash escapes only the double-quote
+  -- set (see the header); every other backslash is retained, and a
+  -- backslash with nothing after it leaves the quote open, so the quote
+  -- is unterminated.
+  dq-loop :: List Char -> List Char -> Result ShellwordsError (List Char, List Char)
+  dq-loop input word = case input of
+    Nil -> Err UnterminatedDoubleQuote
+    Cons c rest ->
+      if eq-char c '"' then Ok (rest, word)
+      else if eq-char c '\\' then case rest of
+        Nil -> Err UnterminatedDoubleQuote
+        Cons d rest2 ->
+          if dq-escape d then dq-loop rest2 (Cons d word)
+          else dq-loop rest2 (Cons d (Cons c word))
+      else dq-loop rest (Cons c word)
+
+  dq-escape :: Char -> Bool
+  dq-escape c =
+    if eq-char c '$' then True
+    else if eq-char c '`' then True
+    else if eq-char c '"' then True
+    else if eq-char c '\\' then True
+    else eq-char c '\n'
+
+  -- The shell's whitespace class (Ruby's `\s`): space, tab, LF, CR, FF,
+  -- VT.
+  space-char :: Char -> Bool
+  space-char c =
+    if eq-char c ' ' then True
+    else if eq-char c '\t' then True
+    else if eq-char c '\n' then True
+    else if eq-char c '\r' then True
+    else if eq-char c '\u{c}' then True
+    else eq-char c '\u{b}'
+
+  -- -----------------------------------------------------------------
+  -- Escaping (Ruby Shellwords.escape / shelljoin, single-quote form).
+  -- -----------------------------------------------------------------
+
+  -- The safe set, exactly: ASCII letters and digits and `_ - . , : + /
+  -- @`. Anything else forces the quoted form.
+  safe-char :: Char -> Bool
+  safe-char c =
+    if c >= 'a' && c <= 'z' then True
+    else if c >= 'A' && c <= 'Z' then True
+    else if c >= '0' && c <= '9' then True
+    else if eq-char c '_' then True
+    else if eq-char c '-' then True
+    else if eq-char c '.' then True
+    else if eq-char c ',' then True
+    else if eq-char c ':' then True
+    else if eq-char c '+' then True
+    else if eq-char c '/' then True
+    else eq-char c '@'
+
+  all-safe :: List Char -> Bool
+  all-safe cs = case cs of
+    Nil -> True
+    Cons c rest -> if safe-char c then all-safe rest else False
+
+  shellwords-escape :: String -> String
+  shellwords-escape s =
+    if string-byte-length s == 0 then "''"
+    else if all-safe (unpack s) then s
+    else string-concat "'" (string-concat (pack (quote-each (unpack s))) "'")
+
+  -- Each `'` written `'\''` (close, escaped quote, reopen); every other
+  -- scalar is itself.
+  quote-each :: List Char -> List Char
+  quote-each cs = case cs of
+    Nil -> Nil
+    Cons c rest -> concat-chars (quote-char c) (quote-each rest)
+
+  quote-char :: Char -> List Char
+  quote-char c =
+    if eq-char c '\'' then Cons '\'' (Cons '\\' (Cons '\'' (Cons '\'' Nil)))
+    else Cons c Nil
+
+  concat-chars :: List Char -> List Char -> List Char
+  concat-chars xs ys = case xs of
+    Nil -> ys
+    Cons z zs -> Cons z (concat-chars zs ys)
+
+  -- Escape every element and separate with one space (Ruby's
+  -- `shelljoin`).
+  shellwords-join :: List String -> String
+  shellwords-join xs = join-words (map shellwords-escape xs)
+
+  join-words :: List String -> String
+  join-words xs = string-join " " xs

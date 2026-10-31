@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="800" height="800" viewBox="0 0 800 800" role="img" aria-labelledby="title desc">
+<title id="title">Cinch gradient-gold fox</title><desc id="desc">Nine-tailed orange fox with slender legs and a geometric impossible knot halo. All gold is made from simple linear gradients. Fully vector artwork without textures or embedded images.</desc>
+<defs>
+  <linearGradient id="gold" x1="0" y1="0" x2="0.18" y2="1" gradientUnits="objectBoundingBox">
+    <stop offset="0" stop-color="#F6DEA0"/><stop offset=".48" stop-color="#D6A747"/><stop offset="1" stop-color="#9B6927"/>
+  </linearGradient>
+  <linearGradient id="goldLight" x1="0" y1="0" x2="0" y2="1">
+    <stop stop-color="#FAE6B4"/><stop offset="1" stop-color="#D1A24C"/>
+  </linearGradient>
+  <linearGradient id="orange" x1="0" y1="0" x2=".75" y2="1">
+    <stop stop-color="#E97B29"/><stop offset="1" stop-color="#B94B1E"/>
+  </linearGradient>
+  <linearGradient id="orangeSide" x1="0" y1="0" x2="1" y2="1">
+    <stop stop-color="#B64D23"/><stop offset="1" stop-color="#793D23"/>
+  </linearGradient>
+  <clipPath id="leftJoin"><path d="M20 340H195V510H20Z"/></clipPath>
+  <g id="beam">
+    <path d="M300 42 545 466 445 466 250 129Z" fill="url(#gold)" stroke="#774B27" stroke-width="2" stroke-linejoin="round"/>
+    <path d="M300 65 521 448 455 448 267 123Z" fill="url(#orange)"/>
+    <path d="M300 65 321 101 289 157 267 123Z" fill="url(#goldLight)"/>
+    <path d="M321 101 521 448 499 448 310 121Z" fill="url(#orangeSide)"/>
+    <path d="M310 121 499 448" fill="none" stroke="#EDCA7C" stroke-width="2"/>
+  </g>
+  <g id="impossibleKnot">
+    <use href="#beam" transform="rotate(120 300 324.9)"/>
+    <use href="#beam"/>
+    <use href="#beam" transform="rotate(240 300 324.9)"/>
+    <g clip-path="url(#leftJoin)"><use href="#beam" transform="rotate(120 300 324.9)"/></g>
+  </g>
+</defs>
+<g transform="rotate(-150 400 390)">
+      <path d="M376 262 C348 225 352 177 374 143 C391 116 407 110 400 70 C443 105 461 140 449 183 C438 223 409 245 414 271Z" fill="url(#orange)" stroke="url(#gold)" stroke-width="7" stroke-linejoin="round"/>
+      <path d="M374 143 C391 116 407 110 400 70 C429 96 445 119 449 145 L426 132 431 158 408 144 404 171 389 153 374 174Z" fill="url(#goldLight)"/>
+    </g><g transform="rotate(-112 400 390)">
+      <path d="M376 262 C348 225 352 177 374 143 C391 116 407 110 400 70 C443 105 461 140 449 183 C438 223 409 245 414 271Z" fill="url(#orange)" stroke="url(#gold)" stroke-width="7" stroke-linejoin="round"/>
+      <path d="M374 143 C391 116 407 110 400 70 C429 96 445 119 449 145 L426 132 431 158 408 144 404 171 389 153 374 174Z" fill="url(#goldLight)"/>
+    </g><g transform="rotate(-76 400 390)">
+      <path d="M376 262 C348 225 352 177 374 143 C391 116 407 110 400 70 C443 105 461 140 449 183 C438 223 409 245 414 271Z" fill="url(#orange)" stroke="url(#gold)" stroke-width="7" stroke-linejoin="round"/>
+      <path d="M374 143 C391 116 407 110 400 70 C429 96 445 119 449 145 L426 132 431 158 408 144 404 171 389 153 374 174Z" fill="url(#goldLight)"/>
+    </g><g transform="rotate(-38 400 390)">
+      <path d="M376 262 C348 225 352 177 374 143 C391 116 407 110 400 70 C443 105 461 140 449 183 C438 223 409 245 414 271Z" fill="url(#orange)" stroke="url(#gold)" stroke-width="7" stroke-linejoin="round"/>
+      <path d="M374 143 C391 116 407 110 400 70 C429 96 445 119 449 145 L426 132 431 158 408 144 404 171 389 153 374 174Z" fill="url(#goldLight)"/>
+    </g><g transform="rotate(0 400 390)">
+      <path d="M376 262 C348 225 352 177 374 143 C391 116 407 110 400 70 C443 105 461 140 449 183 C438 223 409 245 414 271Z" fill="url(#orange)" stroke="url(#gold)" stroke-width="7" stroke-linejoin="round"/>
+      <path d="M374 143 C391 116 407 110 400 70 C429 96 445 119 449 145 L426 132 431 158 408 144 404 171 389 153 374 174Z" fill="url(#goldLight)"/>
+    </g><g transform="rotate(38 400 390)">
+      <path d="M376 262 C348 225 352 177 374 143 C391 116 407 110 400 70 C443 105 461 140 449 183 C438 223 409 245 414 271Z" fill="url(#orange)" stroke="url(#gold)" stroke-width="7" stroke-linejoin="round"/>
+      <path d="M374 143 C391 116 407 110 400 70 C429 96 445 119 449 145 L426 132 431 158 408 144 404 171 389 153 374 174Z" fill="url(#goldLight)"/>
+    </g><g transform="rotate(76 400 390)">
+      <path d="M376 262 C348 225 352 177 374 143 C391 116 407 110 400 70 C443 105 461 140 449 183 C438 223 409 245 414 271Z" fill="url(#orange)" stroke="url(#gold)" stroke-width="7" stroke-linejoin="round"/>
+      <path d="M374 143 C391 116 407 110 400 70 C429 96 445 119 449 145 L426 132 431 158 408 144 404 171 389 153 374 174Z" fill="url(#goldLight)"/>
+    </g><g transform="rotate(112 400 390)">
+      <path d="M376 262 C348 225 352 177 374 143 C391 116 407 110 400 70 C443 105 461 140 449 183 C438 223 409 245 414 271Z" fill="url(#orange)" stroke="url(#gold)" stroke-width="7" stroke-linejoin="round"/>
+      <path d="M374 143 C391 116 407 110 400 70 C429 96 445 119 449 145 L426 132 431 158 408 144 404 171 389 153 374 174Z" fill="url(#goldLight)"/>
+    </g><g transform="rotate(150 400 390)">
+      <path d="M376 262 C348 225 352 177 374 143 C391 116 407 110 400 70 C443 105 461 140 449 183 C438 223 409 245 414 271Z" fill="url(#orange)" stroke="url(#gold)" stroke-width="7" stroke-linejoin="round"/>
+      <path d="M374 143 C391 116 407 110 400 70 C429 96 445 119 449 145 L426 132 431 158 408 144 404 171 389 153 374 174Z" fill="url(#goldLight)"/>
+    </g><use href="#impossibleKnot" transform="translate(70 92) scale(1.1)"/><g id="fox" stroke="#7D4726" stroke-width="3" stroke-linejoin="round" stroke-linecap="round">
+  <!-- Haunches and a narrow upright torso. -->
+  <path d="M337 604C300 618 289 675 313 711L355 718 449 718 482 705C502 670 482 620 458 609L437 555 359 554Z" fill="url(#orange)" stroke="url(#gold)" stroke-width="6"/>
+  <path d="M357 573C346 607 349 647 365 686L400 708 433 683C447 646 451 608 437 575Z" fill="url(#goldLight)" stroke="none"/>
+  <!-- Pointed ears, separated from the face and free of ornate filigree. -->
+  <path d="M322 468Q298 403 315 351Q356 369 374 426L429 426Q456 370 490 361Q504 419 475 470Z" fill="url(#orange)" stroke="url(#gold)" stroke-width="6"/>
+  <path d="M326 423 325 377Q352 398 358 437Z" fill="url(#goldLight)" stroke="none"/>
+  <path d="M448 438Q461 399 480 385L478 433Z" fill="url(#goldLight)" stroke="none"/>
+  <!-- A restrained cheeky fox face. -->
+  <path d="M400 420C361 414 330 440 322 475L301 489 322 500 307 514 334 521C348 555 372 575 400 576C433 576 461 554 475 524L495 514 479 502 499 485 478 479C469 442 436 417 400 420Z" fill="url(#orange)" stroke="url(#gold)" stroke-width="5"/>
+  <path d="M320 492Q353 476 383 515L400 531 418 515Q448 477 482 493L469 522Q439 563 400 563Q360 561 334 521Z" fill="url(#goldLight)" stroke="none"/>
+  <ellipse cx="368" cy="487" rx="14" ry="21" transform="rotate(-10 368 487)" fill="#FFF1CB" stroke="#82502A" stroke-width="2.5"/>
+  <ellipse cx="435" cy="489" rx="14" ry="21" transform="rotate(10 435 489)" fill="#FFF1CB" stroke="#82502A" stroke-width="2.5"/>
+  <ellipse cx="372" cy="486" rx="7" ry="11" fill="#203D35" stroke="none"/>
+  <ellipse cx="431" cy="488" rx="7" ry="11" fill="#203D35" stroke="none"/>
+  <circle cx="374" cy="482" r="2.4" fill="#FFF4D7" stroke="none"/><circle cx="433" cy="484" r="2.4" fill="#FFF4D7" stroke="none"/>
+  <path d="M353 454Q365 446 379 454M423 454Q437 448 448 460" fill="none" stroke="#8D4626" stroke-width="4"/>
+  <path d="M387 521Q400 514 412 521Q409 534 400 535Q392 533 387 521Z" fill="#203D35" stroke="none"/>
+  <path d="M400 535Q394 548 380 540M400 535Q404 547 414 542" fill="none" stroke="#6D4627" stroke-width="2.8"/>
+  <!-- Slim forelegs and small paws. -->
+  <path d="M355 602Q361 650 355 694Q345 709 352 720Q365 728 382 720L384 686 378 616" fill="url(#orange)" stroke="url(#gold)" stroke-width="5"/>
+  <path d="M423 615 418 685 419 719Q435 728 448 720Q455 709 445 695Q439 650 446 604" fill="url(#orange)" stroke="url(#gold)" stroke-width="5"/>
+  <path d="M355 694Q367 701 382 694L382 719Q365 727 352 720Q345 709 355 694ZM419 694Q433 701 445 695Q455 709 448 720Q435 728 419 719Z" fill="#35463A" stroke="none"/>
+  <path d="M316 711Q329 704 346 715M455 715Q472 704 484 705" fill="none" stroke="url(#gold)" stroke-width="5"/>
+</g>
+</svg>

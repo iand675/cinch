@@ -1,0 +1,410 @@
+-- Data.Time: the civil date-time: a calendar date plus a time of day.
+--
+-- A `Time` is a `Date` (Data.Date's proleptic Gregorian calendar date)
+-- and a nanosecond count since midnight, in `0..=86399999999999`. The
+-- representation constructor is not exported (D143's surface rule):
+-- `time` is the only way in, and it refuses a nanosecond count at or
+-- past the day's end, so a time of day outside the day cannot exist.
+-- Duration arithmetic moves on the wall-nanosecond line below and can
+-- carry the day, which is why a "time" here is a date-time and not a
+-- clock reading.
+--
+-- The instant conversions are UTC-EXPLICIT: the Unix epoch in
+-- nanoseconds (`to-epoch-nanos`/`from-epoch-nanos`) is the quantity
+-- `Effect.Clock.clock-wall-ns` reads, and epoch days come from
+-- Data.Date, so the two families agree by construction and no offset
+-- enters the arithmetic. The clock hands that reading back as a `Nat`
+-- and `from-epoch-nanos` takes the `Int`, so a consumer pairs them with
+-- the prelude's `Nat`/`Int` conversion (`nat-to-int n`, of any size);
+-- the clock's own clamp (the epoch to the year 2262) is its boundary,
+-- not this family's. Nothing in this slice consults a timezone
+-- database, because no such thing exists here.
+--
+-- Design law shape. On top of Data.Date's calendar laws: the
+-- wall-nanosecond conversions invert on the whole `Int` line, with
+-- `to-epoch-nanos (1970-01-01T00:00:00)` at 0 by construction;
+-- `add-duration` and `sub-duration` undo each other, and
+-- `add-duration (duration-from-millis m) t` moves exactly m
+-- milliseconds, carrying into the date (2024-02-28T23:59:59 + 1s is
+-- 2024-02-29T00:00:00) and, backwards, out of the year
+-- (2024-01-01T00:00:00 - 1s is 2023-12-31T23:59:59); `diff` is the
+-- `Duration` between two times and agrees with `cmp` (`diff` is 0
+-- exactly when `cmp` is `EQ`); `cmp` is a total order on the
+-- wall-nanosecond line; `hour`/`minute`/`second`/`nanosecond` are the
+-- fields of `nanoseconds-of-day`; and ISO 8601 `to-string`/
+-- `from-string` round trip. The checks are
+-- compiler/tests/lib_civil_time.rs.
+--
+-- NAMED REFUSALS (boundaries this module deliberately does not
+-- cross):
+--   - timezones, UTC offsets and zone conversion: a `Time` carries no
+--     zone (leap seconds are not modelled either), so every conversion
+--     here is UTC-explicit; there is no local-time or offset surface
+--     and no tz database to consult.
+--   - locale-aware formatting: the ISO 8601 `YYYY-MM-DDTHH:MM:SS`
+--     rendering is the only one, and there are no locale or name data
+--     to render otherwise.
+--   - leap seconds: a day is exactly 86400 seconds by construction, so
+--     `second` never reads 60 and no `23:59:60` exists (the calendar
+--     has no table of inserted leap seconds, and the runtime clock
+--     counts SI nanoseconds, which are exactly what this family
+--     stores).
+--   - a `Time` before 1970 in `Duration` arithmetic: `Duration` is an
+--     unsigned millisecond count (Effect.Clock's `Duration :: Nat ->
+--     Duration`), so an instant before the epoch is representable as a
+--     `Time` and as an epoch nanosecond, but the distance `diff`
+--     reports has no sign; `cmp` is where direction lives.
+--   - sub-millisecond `Duration`s: `Duration` is milliseconds, so
+--     `add-duration`/`sub-duration`/`diff` move whole milliseconds and
+--     the nanosecond field is untouched by them.
+--
+-- Home (design/base-library.md): `Data.*` holds the concrete types, so
+-- the `Eq`/`Ord` instances live with `Time` here; `Duration` is
+-- Effect.Clock's (the P34 capability vocabulary). Ported item: Ruby's
+-- `Time` and `DateTime` (design/stdlib-parity-ruby.md, P38 "Time:
+-- civil `Date`/`Time`/`DateTime` (calendars, formatting, parsing)
+-- atop the P34 `Clock` capability").
+module Data.Time where
+
+  import Data.Nat
+  import Data.Int
+  import Data.List
+  import Data.Option
+  import Data.Result
+  import Data.Ordering
+  import Data.Bytes
+  import Data.String
+  import Data.Char
+  import Data.Machine
+  import Relation.Eq
+  import Relation.Ord
+  import Text.Show
+  import Effect.Clock (Duration, duration-from-millis, duration-millis)
+  import Data.Date (Date, to-epoch-days, from-epoch-days, DateParseError, to-string as date-to-string, from-string as date-from-string)
+
+  export Time, time, date-part, nanoseconds-of-day, hour, minute, second, nanosecond
+  export to-epoch-nanos, from-epoch-nanos
+  export add-duration, sub-duration, diff, cmp
+  export to-string, from-string
+  export TimeParseError, NotATime, TimeFieldsOutOfRange, BadDatePart
+
+
+  -- The civil date-time: the date and the nanoseconds since its
+  -- midnight, below one day. Not exported (the invariant above);
+  -- `time` is the only constructor.
+  data Time where
+    Time :: Date -> Nat -> Time
+
+  -- The literal reader's errors, one per refusal: the text is not a
+  -- date-time, its time fields are out of range, or its date half
+  -- failed its own reader (carried through unchanged, so the date
+  -- diagnostics survive the composition).
+  data TimeParseError where
+    NotATime :: TimeParseError
+    TimeFieldsOutOfRange :: TimeParseError
+    BadDatePart :: DateParseError -> TimeParseError
+
+  -- -----------------------------------------------------------------
+  -- Construction and observation.
+  -- -----------------------------------------------------------------
+
+  -- The day's length in nanoseconds (86400 seconds; no leap seconds).
+  nanos-per-day :: Nat
+  nanos-per-day = 86400000000000
+
+  -- The same length as the epoch split's divisor: a numeral, so its
+  -- `NonZero` is decided at compile time.
+  nanos-per-day-divisor :: NonZero Int
+  nanos-per-day-divisor = 86400000000000
+
+  -- The only constructor: a nanosecond count inside the day. At or past
+  -- the day's end is `None`, so an out-of-range `Time` has no
+  -- representation.
+  time :: Date -> Nat -> Option Time
+  time d n = if n < nanos-per-day then Some (Time d n) else None
+
+  date-part :: Time -> Date
+  date-part t = case t of
+    Time d _ -> d
+
+  nanoseconds-of-day :: Time -> Nat
+  nanoseconds-of-day t = case t of
+    Time _ n -> n
+
+  hour :: Time -> Nat
+  hour t = nat-div (nanoseconds-of-day t) 3600000000000
+
+  minute :: Time -> Nat
+  minute t = nat-rem (nat-div (nanoseconds-of-day t) 60000000000) 60
+
+  second :: Time -> Nat
+  second t = nat-rem (nat-div (nanoseconds-of-day t) 1000000000) 60
+
+  nanosecond :: Time -> Nat
+  nanosecond t = nat-rem (nanoseconds-of-day t) 1000000000
+
+  -- -----------------------------------------------------------------
+  -- The wall-nanosecond line (the Unix epoch; `clock-wall-ns` reads
+  -- this quantity) and the duration arithmetic on it.
+  -- -----------------------------------------------------------------
+
+  -- Nanoseconds since 1970-01-01T00:00:00Z (negative before the epoch).
+  to-epoch-nanos :: Time -> Int
+  to-epoch-nanos t =
+    int-add (int-mul (to-epoch-days (date-part t)) (nat-to-int nanos-per-day)) (nat-to-int (nanoseconds-of-day t))
+
+  -- The inverse: every `Int` is an instant, so the result is total and
+  -- the floored split keeps the day's remainder non-negative for the
+  -- pre-epoch instants too.
+  from-epoch-nanos :: Int -> Time
+  from-epoch-nanos n =
+    let day = int-floor-div n nanos-per-day-divisor in
+    let rem = int-mod-nat n 86400000000000 in
+    Time (from-epoch-days day) rem
+
+  -- Move forward by `d` (a whole number of milliseconds; the day
+  -- carries).
+  add-duration :: Duration -> Time -> Time
+  add-duration d t = shift-by (duration-nanos d) t
+
+  -- Move backward by `d`.
+  sub-duration :: Duration -> Time -> Time
+  sub-duration d t = shift-by (int-neg (duration-nanos d)) t
+
+  -- `|x - y|` as a `Nat`. A named function so each branch checks
+  -- against the declared `Nat` (in a `let`, the `if` would take the
+  -- first branch's refined type and the other branch could not meet it).
+  int-gap :: Int -> Int -> Nat
+  int-gap x y = if x < y then nat-from-int (y - x) else nat-from-int (x - y)
+
+  -- The distance between two instants in whole milliseconds (truncated
+  -- toward zero): unsigned, because `Duration` is, so the caller reads
+  -- direction from `cmp` (the refusal above).
+  diff :: Time -> Time -> Duration
+  diff a b =
+    let x = to-epoch-nanos a in
+    let y = to-epoch-nanos b in
+    let gap = int-gap x y in
+    duration-from-millis (gap / 1000000)
+
+  cmp :: Time -> Time -> Ordering
+  cmp a b =
+    let c = int-cmp (to-epoch-nanos a) (to-epoch-nanos b) in
+    if c < 0 then LT else if c == 0 then EQ else GT
+
+  -- -----------------------------------------------------------------
+  -- ISO 8601 rendering and reading.
+  -- -----------------------------------------------------------------
+
+  -- `YYYY-MM-DDTHH:MM:SS` (the date half is Data.Date's rendering), with
+  -- `.fffffffff` appended when the sub-second field is non-zero. No
+  -- offset designator is emitted: the value is UTC by construction, and
+  -- the reader accepts a trailing `Z` (RFC 3339's UTC designator) as
+  -- well as its absence.
+  to-string :: Time -> String
+  to-string t =
+    string-concat (date-to-string (date-part t)) (string-concat "T" (time-of-day-string (nanoseconds-of-day t)))
+
+  -- Strict ISO 8601 date-time: the date half (Data.Date's reader, so
+  -- its `NotADate`/`InvalidDate` survive as `BadDatePart`), `T`, then
+  -- `HH:MM:SS` with all fields two digits, an optional `.` and 1..9
+  -- fraction digits, and an optional trailing `Z`, with nothing before
+  -- or after. `NotATime` is the shape refusal (a space separator, no
+  -- seconds, an empty fraction, junk after `Z`); `TimeFieldsOutOfRange`
+  -- is the fields refusal (`24:00:00`, `00:60:00`).
+  from-string :: String -> Result TimeParseError Time
+  from-string s =
+    let cs = unpack s in
+    case index-of-char 'T' cs 0 of
+      None -> Err NotATime
+      Some k -> after-date (string-slice s 0 k) (drop (k + 1) cs)
+
+  after-date :: String -> List Char -> Result TimeParseError Time
+  after-date text cs =
+    case date-from-string text of
+      Err e -> Err (BadDatePart e)
+      Ok d -> case from-time-chars cs of
+        Err e -> Err e
+        Ok (h, mi, se, f) -> Ok (Time d (nanos-of-hms h mi se f))
+
+  from-time-chars :: List Char -> Result TimeParseError (Nat, Nat, Nat, Nat)
+  from-time-chars cs = case drop-trailing-z cs of
+    Cons h1 (Cons h2 (Cons c1 (Cons m1 (Cons m2 (Cons c2 (Cons s1 (Cons s2 rest)))))))
+      | c1 == ':' && c2 == ':' ->
+        case hms-of h1 h2 m1 m2 s1 s2 of
+          Some (h, mi, se) -> time-tail h mi se rest
+          None -> Err NotATime
+    _ -> Err NotATime
+
+  time-tail :: Nat -> Nat -> Nat -> List Char -> Result TimeParseError (Nat, Nat, Nat, Nat)
+  time-tail h mi se rest = case rest of
+    Nil -> fields h mi se 0
+    Cons d frac | d == '.' ->
+      case fraction-nanos frac of
+        None -> Err NotATime
+        Some f -> fields h mi se f
+    _ -> Err NotATime
+
+  fields :: Nat -> Nat -> Nat -> Nat -> Result TimeParseError (Nat, Nat, Nat, Nat)
+  fields h mi se f =
+    if h > 23 then Err TimeFieldsOutOfRange
+    else if mi > 59 then Err TimeFieldsOutOfRange
+    else if se > 59 then Err TimeFieldsOutOfRange
+    else Ok (h, mi, se, f)
+
+  -- The fraction's nanoseconds: 1..9 digits scaled to nine places.
+  -- `None` for an empty fraction or a run longer than nine digits.
+  fraction-nanos :: List Char -> Option Nat
+  fraction-nanos cs = case cs of
+    Nil -> None
+    Cons _ _ ->
+      let n = list-length cs in
+      if n > 9 then None
+      else if all-digits cs then Some (nat-mul (digits-value cs) (pow10 (nat-sub 9 n)))
+      else None
+
+  -- The nanosecond count of the fields. The caller validated them
+  -- (`fields`), so the result is inside the day by construction and no
+  -- `time` check is needed; the private constructor is used directly.
+  nanos-of-hms :: Nat -> Nat -> Nat -> Nat -> Nat
+  nanos-of-hms h mi se f =
+    nat-add (nat-mul (nat-add (nat-mul (nat-add (nat-mul h 60) mi) 60) se) 1000000000) f
+
+  time-of-day-string :: Nat -> String
+  time-of-day-string n =
+    let h = nat-div n 3600000000000 in
+    let mi = nat-rem (nat-div n 60000000000) 60 in
+    let se = nat-rem (nat-div n 1000000000) 60 in
+    let f = nat-rem n 1000000000 in
+    let hms = string-concat (digits-string 2 h) (string-concat ":" (string-concat (digits-string 2 mi) (string-concat ":" (digits-string 2 se)))) in
+    if f == 0 then hms else string-concat hms (string-concat "." (digits-string 9 f))
+
+  -- -----------------------------------------------------------------
+  -- Instances (the class spellings of `cmp`; instances live with their
+  -- type per design/base-library.md).
+  -- -----------------------------------------------------------------
+
+  implicit instance Eq_Time :: Eq Time where
+    (==) a b = case cmp a b of
+      EQ -> True
+      LT -> False
+      GT -> False
+    (/=) a b = case cmp a b of
+      EQ -> False
+      LT -> True
+      GT -> True
+
+  implicit instance Ord_Time :: Ord Time where
+    (<) a b = case cmp a b of
+      LT -> True
+      EQ -> False
+      GT -> False
+    (<=) a b = case cmp a b of
+      GT -> False
+      LT -> True
+      EQ -> True
+    (>) a b = case cmp a b of
+      GT -> True
+      LT -> False
+      EQ -> False
+    (>=) a b = case cmp a b of
+      LT -> False
+      GT -> True
+      EQ -> True
+
+  -- -----------------------------------------------------------------
+  -- Private plumbing.
+  -- -----------------------------------------------------------------
+
+  shift-by :: Int -> Time -> Time
+  shift-by n t = from-epoch-nanos (int-add (to-epoch-nanos t) n)
+
+  -- `Duration` as a nanosecond count (its own unit is milliseconds, the
+  -- `ioSleep` unit).
+  duration-nanos :: Duration -> Int
+  duration-nanos d = int-mul (nat-to-int (duration-millis d)) 1000000
+
+  -- Floored quotient (the epoch split needs it, and `int-div` truncates
+  -- toward zero; the floored remainder as a `Nat` is `int-mod-nat`).
+  -- The divisor is a `NonZero`, threaded from the caller. `Nat`/`Int`
+  -- convert through `nat-to-int`/`nat-from-int` (Data.Nat), of any
+  -- size.
+  int-floor-div :: Int -> NonZero Int -> Int
+  int-floor-div a b =
+    let q = int-div a b in
+    let r = int-rem a b in
+    if r < 0 then int-sub q 1 else q
+
+  -- `k` ASCII digits of `v`, zero padded. The caller bounds `v` below
+  -- `10^k` (an hour, minute, second or sub-second field): a wider value
+  -- would be truncated to its low `k` digits by the digit writer.
+  digits-string :: Nat -> Nat -> String
+  digits-string k v =
+    let b = bytes-new k in
+    let u = nat-digits-into b 0 v k in
+    case string-from-bytes b of
+      None -> empty-string
+      Some s -> s
+
+  -- The literal reader works over scalar values (`unpack`), the same
+  -- view `Text.Lex` and `Text.Scan` use; the digit test is
+  -- `Data.Char`'s `is-ascii-digit`.
+
+  all-digits :: List Char -> Bool
+  all-digits cs = case cs of
+    Nil -> True
+    Cons c rest -> is-ascii-digit c && all-digits rest
+
+  digits-value :: List Char -> Nat
+  digits-value ds = digits-value-acc ds 0
+
+  -- The callers pass digit runs; `digit-value` reads each digit, and a
+  -- non-digit (which a run never holds) ends the run.
+  digits-value-acc :: List Char -> Nat -> Nat
+  digits-value-acc ds acc = case ds of
+    Nil -> acc
+    Cons c rest -> case digit-value c of
+      Some d -> digits-value-acc rest (nat-add (nat-mul acc 10) d)
+      None -> acc
+
+  -- The value of a two-digit field, or `None` when either character is
+  -- not an ASCII digit (`Data.Char`'s `digit-value` is the only digit
+  -- reader here, and the caller's guard has gone into the `case`).
+  two-digits :: Char -> Char -> Option Nat
+  two-digits a b = case digit-value a of
+    Some x -> case digit-value b of
+      Some y -> Some (nat-add (nat-mul x 10) y)
+      None -> None
+    None -> None
+
+  -- The three two-digit fields of the time literal, left to right, or
+  -- `None` when any of the six characters is not an ASCII digit (the
+  -- field-level `case` `two-digits` would otherwise repeat three deep).
+  hms-of :: Char -> Char -> Char -> Char -> Char -> Char -> Option (Nat, Nat, Nat)
+  hms-of h1 h2 m1 m2 s1 s2 = case two-digits h1 h2 of
+    None -> None
+    Some h -> case two-digits m1 m2 of
+      None -> None
+      Some mi -> case two-digits s1 s2 of
+        None -> None
+        Some se -> Some (h, mi, se)
+
+  -- Searches for the first occurrence of a character, from `i`. The
+  -- shape is generic over the element (an `Eq`-constrained search over
+  -- a `List`), so a shared home ought to carry it, but the base layer
+  -- states none (`Data.List` carries `nth`, a positional read, not a
+  -- search); this is reported as a candidate shared helper rather than
+  -- placed here.
+  index-of-char :: Char -> List Char -> Nat -> Option Nat
+  index-of-char c cs i = case cs of
+    Nil -> None
+    Cons x rest -> if x == c then Some i else index-of-char c rest (i + 1)
+
+  -- RFC 3339's UTC designator is accepted and never emitted; it can
+  -- only be the last scalar, so one trailing `Z` is dropped. The
+  -- comparison is a guard, not a literal pattern (the bootstrap slice
+  -- admits integer literal patterns only).
+  drop-trailing-z :: List Char -> List Char
+  drop-trailing-z cs = case reverse cs of
+    Cons c rest | c == 'Z' -> reverse rest
+    _ -> cs

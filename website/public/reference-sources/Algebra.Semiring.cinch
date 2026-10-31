@@ -1,0 +1,39 @@
+-- Algebra.Semiring: the two monoids of a ring-like carrier.
+--
+-- The base library scheme's semiring (design/base-library.md):
+-- `Semiring` names BOTH operations of the `Sum`/`Product` story: `Sum`
+-- (Algebra.Monoid) carries `Nat` under addition and `Product` carries
+-- it under multiplication, and a `Semiring` is the coherent pair on
+-- one carrier (zero and one are the two identities). This is why the
+-- bare `Nat` and `Int` carry a `Semiring` where they carry no
+-- `Semigroup`: a single `<>` cannot say which of the two monoids is
+-- meant, while `add`/`mul` name each. NO Num tower: there is no
+-- superclass chain and no numeric conversion hierarchy (the typed
+-- families with explicit conversions are the spec's deliberate
+-- choice), and machine scalars keep their explicit overflow families
+-- with no `Semiring` instance (primitive types specification
+-- section 8). A class constraint entails nothing (the standing
+-- no-superbundle rule): the class states its four operations alone.
+--
+-- Laws (asserted over sample values in compiler/tests/prelude_split.rs):
+--   add associativity:      add (add x y) z == add x (add y z)
+--   add commutativity:      add x y == add y x
+--   add identity:           add zero x == x, add x zero == x
+--   mul associativity:      mul (mul x y) z == mul x (mul y z)
+--   mul identity:           mul one x == x, mul x one == x
+--   distributivity:         mul x (add y z) == add (mul x y) (mul x z)
+--                           mul (add y z) x == add (mul y x) (mul z x)
+--   annihilation:           mul zero x == zero, mul x zero == zero
+--
+-- Instance homes. The ownership rule is "instances live with their
+-- type": `Semiring Nat` lives in Data.Nat and `Semiring Int` in
+-- Data.Int, beside their other instances.
+module Algebra.Semiring where
+
+  export Semiring, zero, one, add, mul
+
+  signature Semiring a where
+    zero :: a
+    one :: a
+    add :: a -> a -> a
+    mul :: a -> a -> a

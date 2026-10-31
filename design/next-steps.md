@@ -1,4 +1,10 @@
-# Next steps (as of 2026-10-30)
+# Next steps (as of 2026-10-31)
+
+The bootstrap continuation is now authorized (2026-10-30). Its self-hosting
+acceptance and remaining frontend/backend work are in `self-hosting.md`.
+The original merge status below records the starting point. The first
+completed continuation baseline and its remaining repairs are recorded
+separately; self-built frontend parity is still outstanding.
 
 Where the work stands, what comes next in order, what needs a decision
 from the user, and the working rules that kept parallel agents safe. Every
@@ -22,9 +28,17 @@ claim here is recorded in more detail in `compiler/CONFORMANCE.md`
   Evidence comes from every `case` branch (`if`, guards, `&&`, `||` are
   case forms), and obligations discharge by difference logic, then
   Fourier-Motzkin, each proof with a re-checked certificate.
-- **One known test failure on `main`** (merged at the user's direction,
-  2026-10-30, to circle back to): the full suite is 1081 passed, 1 failed;
-  see section 2.0.
+- **The original merged failure is fixed in the working tree.** The
+  2026-10-30 merge baseline was 1081 passed, 1 failed. The completed serial
+  first serial continuation run had 1102 passed and two failures. Both
+  subsequent repairs are now verified in the complete frozen typed-data
+  run: 1105 native compiler tests and 166 runtime tests pass, with zero
+  failures or ignored tests. All six stage-0/stage-1 executable smoke
+  checks passed too. Those are historical schema-4 execution results.
+  A later run exposed shared-cache test binaries with live source paths;
+  source content audits alone do not prove frozen runtime inputs. Newer
+  schema-6 changes have current regressions and require verification with
+  private caches. See section 2.0 and `self-hosting.md`.
 - **Design directions recorded and decided:** representation option C with
   demand-driven specialization, compiler-chosen default layouts,
   expanding-edge boxing, representations as instances of `Represent t c`
@@ -34,13 +48,116 @@ claim here is recorded in more detail in `compiler/CONFORMANCE.md`
   (`design/float-refinements.md`, D414); verified primitives and proof
   automation (`design/verified-primitives.md`, `design/proof-automation.md`,
   D395).
-- **The bootstrap ladder** (the compiler written in Cinch) was paused until
-  reclamation landed. It has landed, so the ladder can resume when the user
-  says so.
+- **The bootstrap ladder** now separates the pinned Rust seed (stage 0),
+  the seed-built Cinch compiler (stage 1), and self-builds (stages 2/3).
+  A schema-4 seed and stage 1 rebuilt and passed Fibonacci, precedence and
+  named-refusal executable smoke checks before the typed-core changes.
+  The heap-default repair refreshed the verified seed lock. Stages 0 and 1
+  have now rebuilt with the typed-data continuation; all six fresh smoke
+  checks pass in the completed full gate. The latest stage-2 attempt passes
+  parsing, checked-interface loading and source namespace resolution,
+  then exits 4 with 136 header diagnostics on schema 6, down from 232 on
+  schema 5. Counts include cascading errors rather than independent missing
+  features. Regular imported constructor
+  refusals are gone. The remaining nominal refusals name `NonZero` and
+  `InRange`, whose proof checking remains required. Header errors still
+  prevent body checking and IR emission; stage 2 has not self-built.
+  `Bootstrap.Type` and `Bootstrap.Infer` implement rank-one instantiation,
+  rigid variables, occurs/scope checks, let generalization, annotated
+  higher kinds, regular constructors, positivity and pattern coverage.
+  Module aliases, private definitions and source provenance survive
+  resolution. Lexical class givens and closed kernel IO effects now have
+  focused coverage; global instances, dependent checking and the shared
+  runtime lowering remain required. Pure typed
+  terms now retain instantiations, constructor fields, generalized lets
+  and scoped private types. Source data retain complete checked constructor
+  schemes and parameter kinds. They are not yet the emitter's input.
+  The reference-collection stack failure is fixed, with a regression over
+  more than 6,000 declarations. All six affected checker/loader/parser/
+  pipeline gates and the 11 orchestration tests pass. The completed native
+  baseline's two failing targets pass after focused repairs; the self-built
+  frontend's full behavior gate is still required. See `self-hosting.md`.
+- **Interface contracts** and the pinned seed use schema 6. The seed patch
+  and source hash were intentionally verified before installation. Stages
+  0/1 rebuilt and pass all six executable smoke checks. Schema 6's native region/class and Cinch loader focused
+  gates pass; resolved values retain Region binders, kernel Io contexts and
+  closed kernel effect rows. Source IO checking passes 15 runtime-input cases,
+  and all six affected regression targets pass. The full current-tree gate
+  remains required.
+  Schema 5 records proof preconditions and named
+  refinements are joined by declaration kinds/implicitness, full constructor
+  schemes and symbols, defining identities and explicit method visibility.
+  Higher-kinded function quantifiers retain their resolved kinds. Pure
+  schemes now retain definition-site nominal occurrences, private kinds
+  and complete constructor identity sets; nominal dependencies record
+  the checked interface hashes. Schema 5 adds pure class contexts,
+  declaration-order dictionary slots, private class closure and portable
+  pure instance heads while retaining conditional method proof contracts.
+  The producer, loader, inference, Core and imported-class focused gates
+  pass; calls use scoped givens and preserve dictionary arguments in ABI
+  arity. The seed patch is intentionally refreshed and verified; stages
+  0/1 rebuilt and pass all six smoke checks. The fresh schema-6 stage 2 exits
+  4 with 136 header diagnostics, down from schema 5's 232. IO/region/effect-arrow
+  refusals are gone; dependent/proof contexts and declarations still block
+  body checking. It emits no IR or executable. The complete green
+  regression baseline still belongs to schema 4. Complete interface-only
+  checking needs richer evidence, coherence and ABI consumption.
+- **Cinch interface loading** now checks real emitted contracts and their
+  dependency closure, preserving the full JSON metadata and parsing
+  selected value schemes with quantifiers and proof preconditions intact.
+  Loader and parser-corpus checks passed with serial code generation. The
+  loader is connected to parsing, resolution and pure polymorphic nominal
+  checking; complete kind/coherence/ABI checking remains required.
 
 ## 2 Next, in order
 
 ### 2.0 Fix the one failing test
+
+The latest continuation exposed and repaired an optimizer growth-bound
+violation: a whistle retained the oversized expansion, leading inference
+tests to emit more than 2 GB of LLVM. The driver now retains the preceding
+bounded residual and discards the rejected round's helpers and report
+entries. Two private-cache snapshots pass the focused bootstrap and optimizer
+gates, including the formerly failing inference runner. The intentionally
+updated seed source hash is
+`475b8887d71c8becfd9b572897717ac58fac3d3df5db8294c2ed3ef2bb81fcec`.
+Fresh staged builds and the complete current-tree gate remain required;
+see `self-hosting.md` for exact snapshot identities and evidence.
+
+Continuation: fixed in the working tree. Compile-time evaluation lacked
+total integer widening and tried to decode `natFromI64`/`intFromI64` inputs
+as mathematical integers before dispatching. The original failure, an
+unsigned byte-boundary test and a staged signed/unsigned conversion test
+pass in the completed full run too. That serial run finished with 1102
+native compiler tests passing and two failures: `bootstrap_ladder` imports
+`interface-global` from both Contracts and Nominal, and `prelude_split`
+chooses a sequencing probe's scheme from unordered signature contracts.
+The repairs keep one helper export home and choose the direct provider by
+its canonical identity. The runtime's 165 tests and all stage-0 smoke
+checks pass. A separate repair keeps an explicit heap cap on the quiet
+allocation probe and checks default/fallback selection in a runtime unit
+test; the runtime behavior is unchanged. The 24 affected compiler checks
+and three heap unit tests pass. The runtime source edit required an
+intentional seed refresh; that lock and its patched source hash are now
+verified. Stages 0 and 1 have rebuilt; stage 2 still refuses the same 110
+unsupported header contracts. The frozen schema-4 full gate completed on
+2026-10-31 at 13:57 UTC: 1105 compiler tests, 166 runtime tests and all six
+stage-0/stage-1 smoke checks pass, with zero failures or ignored tests.
+The source audit confirms all 497 captured inputs are unchanged. The
+snapshot SHA256 is
+`fc21e0d1be1c5a53a1cd36d4b743e83c1ee38e3e6ba190f5acd4f1a319ad8dd3`.
+Results and the audit are in `/tmp/cinch-typed-core-full/`. Schema-5 and
+lexical dictionary changes postdate that snapshot and are being checked
+separately; their first build caught a class lookup argument type mismatch,
+which was repaired for its focused gate. These are historical execution
+results. The later shared-cache provenance
+failure means they must not be used as proof of the replacement frozen
+verification setup. The schema-6 run had failed targets and was stopped
+because its cached executables read live source paths. Focused repairs are
+being tested before a new private-cache full run. The earlier overlapping gates were
+interrupted by a machine crash. Verification now runs one command at a
+time with one worker and test thread; interrupted gates are not passing
+gates.
 
 NF3b and NF5 (D418-D419) were merged with one failure outstanding:
 `surface::bytes_literal_folds_and_map_literal_round_trips`. A bytes list
@@ -134,9 +251,11 @@ mechanism for the IEEE instances. Needs the user's answer in section 4.
   Fourier-Motzkin certificates) are re-checked in Rust today. Move the check
   into the dependent kernel by reflection (`design/proof-automation.md`
   section 5).
-- The bootstrap parser does not model `using` predicates, `refined`
-  results or `InRange` index parameters; `bootstrap_parse`'s coverage table
-  records them as unmodeled (`Data.Machine` 52 and others). Model them.
+- The Cinch bootstrap parser now retains `using` predicates, refined
+  results, index arguments, quantifier kinds and structured effect rows.
+  Port their kind, dependent and effect checking into the Cinch checker;
+  the current fragment refuses them explicitly. Parser coverage alone
+  does not establish those obligations.
 - `row_result` substitution in nested local definitions may pick the wrong
   names (rare; noted by the NF3b slice).
 
@@ -174,6 +293,14 @@ is O(k^2); `Bootstrap.Ir`'s signature search is O(decls^2);
   gate, stage the tree, `git write-tree`, commit that tree to a branch with
   `git commit-tree`, and run the suite in a worktree of that branch (`mwt
   new <branch>`); fast-forward `main` only if it is green.
+  For the current read-only Git setup, use
+  `python3 tooling/verify_bootstrap.py --evidence /tmp/cinch-verification-NAME`.
+  Its source copy, Cargo caches and stage outputs are private to that run.
+  Never symlink Cargo targets between checkouts: cached tests can retain a
+  live CARGO_MANIFEST_DIR even when Cargo is invoked from the snapshot. The
+  schema-6 run exposed this when its parser corpus read the new live proof
+  module. The common harness now checks the embedded path against the active
+  package root. The new verifier and its checks still need their first run.
 - **Shared tree.** Agents never commit, branch, stash or reset; each owns a
   named region and messages the owner before touching another region; a
   slice blocked by another's in-flight edit closes out with deferred checks
@@ -195,7 +322,6 @@ is O(k^2); `Bootstrap.Ir`'s signature search is O(decls^2);
   equality be selected explicitly? Also the unsafe module's name and the
   `Real64` alias names (`design/float-refinements.md` section 8).
 - **The behavior choices** in section 2.2.
-- **Resuming the bootstrap ladder** now that reclamation has landed.
 - **Representation details** still open in
   `design/layouts-and-specialization.md` section 9 (value type spelling,
   `Copy`-only represented element types, specialized body spelling).

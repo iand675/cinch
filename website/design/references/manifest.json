@@ -1,0 +1,93 @@
+{
+  "description": "Exact copies of the eight supplied reference images. No visual edits or resizing.",
+  "images": [
+    {
+      "file": "original-cinch-wordmark.png",
+      "source": "User attachment in the Cinch site design conversation",
+      "original_filename": "codex-clipboard-2a38f100-ad70-4ae9-83bd-e87ec3d6444f.png",
+      "description": "Original supplied gold script wordmark; preserve the connected letterforms and looping silhouette.",
+      "width": 1983,
+      "height": 793,
+      "bytes": 1032699,
+      "sha256": "49fbf8140186944b6a1cade3a8831c2a99e7908e919c9bf5ce8761897acb9a0a",
+      "usage": "Design reference archive, outside public/; not a website illustration or rights grant."
+    },
+    {
+      "file": "original-cinch-mascot.png",
+      "source": "User attachment in the Cinch site design conversation",
+      "original_filename": "codex-clipboard-cc54c784-a689-4a50-b32c-97b49d1d6468.png",
+      "description": "Original supplied multi-tailed fox; retained brand history, currently absent from the production landing page.",
+      "width": 1312,
+      "height": 1199,
+      "bytes": 1931584,
+      "sha256": "1946c61a1fa29af4ccc10fe255e6a3d1bb7619f2d84680444d13b2fb13acb246",
+      "usage": "Design reference archive, outside public/; not a website illustration or rights grant."
+    },
+    {
+      "file": "space-age-pod.png",
+      "source": "User attachment in the Cinch site design conversation",
+      "original_filename": "codex-clipboard-a9196952-bda2-4a8f-b5dc-2306d3d0d245.png",
+      "description": "Supplied warm space-age interior: rounded plastic shell, curved glazing, upholstery, integrated lighting.",
+      "width": 681,
+      "height": 800,
+      "bytes": 726372,
+      "sha256": "ed1eb9373b206125f64529fc974793c142f455479ca383ed89e1f86b63878b01",
+      "usage": "Design reference archive, outside public/; not a website illustration or rights grant."
+    },
+    {
+      "file": "cassette-futurist-interior.png",
+      "source": "User attachment in the Cinch site design conversation",
+      "original_filename": "codex-clipboard-ee80c30c-20f9-4ada-aec3-244c22eb8e70.png",
+      "description": "Supplied large interior reference: broad cream shells, rounded openings, amber seating, recessed tape equipment, material texture.",
+      "width": 3207,
+      "height": 2200,
+      "bytes": 9566086,
+      "sha256": "8e762d9f4469449c832ace407fbbd9afb34a3081099ffb45f08e85d1af1dae32",
+      "usage": "Design reference archive, outside public/; not a website illustration or rights grant."
+    },
+    {
+      "file": "silo-corridor-details.png",
+      "source": "User attachment in the Cinch site design conversation",
+      "original_filename": "codex-clipboard-8cbe5772-6c05-4dc7-acd0-f178a1ed1a7f.png",
+      "description": "Supplied corridor montage: fitted equipment bays, layered service panels, circular openings, seams and practical technical detail.",
+      "width": 564,
+      "height": 986,
+      "bytes": 854067,
+      "sha256": "c5639757c366284cf12ccc503cb6be8896296430fa1d95e98d46a8fde94acf9b",
+      "usage": "Design reference archive, outside public/; not a website illustration or rights grant."
+    },
+    {
+      "file": "silo-chair-and-console.png",
+      "source": "User attachment in the Cinch site design conversation",
+      "original_filename": "codex-clipboard-1824b0ac-fa15-45a2-b78a-cea5e1ddab9c.png",
+      "description": "Supplied chair and console interior: curved enclosure, worn upholstery, close-fitting instrumentation.",
+      "width": 236,
+      "height": 295,
+      "bytes": 132839,
+      "sha256": "889587141bcf67da8056aa0822b8ca91979e2fd2f45d39fe13dec9e84548a252",
+      "usage": "Design reference archive, outside public/; not a website illustration or rights grant."
+    },
+    {
+      "file": "military-maintenance-manual.png",
+      "source": "User attachment in the Cinch site design conversation",
+      "original_filename": "codex-clipboard-4fce2b08-6e25-4352-9dd2-2b14c8bcfbd3.png",
+      "description": "Supplied manual spread: numbered sections, technical prose, exploded and cutaway line drawings, leader lines and captions.",
+      "width": 2211,
+      "height": 1853,
+      "bytes": 4465160,
+      "sha256": "58c3a84c89433ec095b5d2a0dafcb670a22109db049b41db2d25fda9e4ac1752",
+      "usage": "Design reference archive, outside public/; not a website illustration or rights grant."
+    },
+    {
+      "file": "wordmark-restyling-reference.png",
+      "source": "User attachment in the Cinch site design conversation",
+      "original_filename": "codex-clipboard-b8b78514-3491-4642-8b6d-e1b6c835dd1a.png",
+      "description": "Wordmark supplied again for the cassette-futurist restyling request; preserve this exact later reference too.",
+      "width": 1983,
+      "height": 793,
+      "bytes": 994077,
+      "sha256": "5d39bcbf05dd3858ef020a076dcd9c26533dc169719fc67cf275eb8d1d2bd23b",
+      "usage": "Design reference archive, outside public/; not a website illustration or rights grant."
+    }
+  ]
+}

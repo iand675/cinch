@@ -1,0 +1,987 @@
+-- Text.Json: JSON text to `Json` values and back, canonically.
+--
+-- Module scheme (design/base-library.md): `Text.*` is conversion to and
+-- from String/Bytes. This module is the P31 JSON family over the P30
+-- parsing toolkit's error vocabulary and the `Json` value family
+-- (decision D148): a real JSON parser (RFC 8259 section 2's grammar)
+-- with megaparsec-style error bundles, a total printer, the canonical
+-- form (sorted object keys, fixed number formatting, no insignificant
+-- whitespace) for manifests and `.cinchif` round trips, a
+-- SHA-256-strength deterministic content hash, and `JsonCodec`
+-- instances in `Text.Codec`'s law shape over the A6 schema vocabulary.
+--
+-- The parser is built ON the P30 toolkit: the combinator vocabulary
+-- (`parse-pure`, `parse-bind`, `attempt-p`, `or-else`, `label-p`,
+-- `many-p`, `sep-by-p`, `choice-p`, `expect-eof`, ...) is the same
+-- megaparsec shape as `Text.Parse`, carrying the toolkit's own error
+-- types (`ParseError`, `ErrorItem`, `ParseErrorBundle`) and span model,
+-- so `render-bundle` renders JSON errors exactly as it renders grammar
+-- errors. Where the two modules export the same name they are distinct
+-- types (`Text.Parse.Parser` over tokens, `Text.Json.JParser` over the
+-- character stream); import renames or qualification (`import Text.Json
+-- as Json`, `Json.or-else`) disambiguate at use (P19/D108).
+--
+-- WHY THE CHARACTER STREAM AND NOT `Text.Parse`'S TOKEN STREAM
+-- (reported): JSON text cannot be lexed by `Text.Lex` first. The two
+-- escape vocabularies are mutually exclusive in both directions (JSON
+-- `\u0041` is not a Cinch escape, Cinch `\u{41}` is not a JSON
+-- escape; JSON `"\/"` and `"\b"`/`"\f"` are unknown Cinch escapes),
+-- and `Text.Lex` folds numeric spellings (hex folded, underscores
+-- dropped, leading zeros stripped), so `007` and `0x1f` could not be
+-- refused as the JSON grammar demands. A JSON tokenizer feeding
+-- `Text.Parse`'s literal `Parser` would also need `Text.Lex` to export
+-- its `LTok` constructor (module-private after D308's ctor rule); the
+-- combinator shape is carried here over the raw bytes instead, which
+-- keeps every grammar rule honest. When `LTok` is exported this
+-- module's scanners can move onto `List LToken` without API change.
+--
+-- THE CANONICAL FORM (reported): object keys sorted by `string-compare`
+-- (byte order), duplicate keys refused at parse (RFC 8785 requires
+-- unique names; canonical identity needs it), no insignificant
+-- whitespace, integers as canonical decimal (`int-to-string`), floats
+-- as the shortest round-trip scientific text (`textF64ToDecimal`,
+-- `-d.dddde[-]d+`, so `2.5` renders `2.5e0` and `0.5` renders `5e-1`),
+-- strings with exactly the `\"`, `\\`, `\b`, `\f`, `\n`, `\r`, `\t` and
+-- `\u00xx` escapes (other scalars raw UTF-8). Two prints of one value
+-- are byte identical, and the canonical form is a fixed point of
+-- parse-then-print. A non-finite `JFloat` renders `null` (aeson's
+-- choice; JSON numbers are finite), the one rendering that is not a
+-- round trip: the law covers the JSON-representable values.
+--
+-- Total printing (reported): the `Json` family documents the object
+-- and array spines (`JObj`/`JArr` ended by `JObjEnd`/`JArrEnd`) but
+-- cannot enforce them, so a spine tail outside its own family (for
+-- example `JArr x JNull`) renders as one trailing item (arrays) or one
+-- trailing entry under the empty key (objects). Parsing only produces
+-- well-formed spines.
+--
+-- Named refusals (unproductions this module deliberately does not
+-- implement; each is a named boundary, never a silent gap):
+--   parse recovery and soft notes (`parse-note`, `with-recovery-p`):
+--     JSON documents report their first error as the bundle; the
+--     toolkit's recovery vocabulary composes on top when a caller
+--     wants it;
+--   comments, `NaN`/`Infinity`, trailing commas and unquoted keys
+--     (JSON5/JSONC extensions): not RFC 8259;
+--   lone surrogate escapes: refused with a named error (RFC 8259
+--     leaves them unpredictable; UTF-8 output cannot carry them);
+--   streaming/incremental parsing: the document is parsed whole
+--     (the P30 runner's shape).
+module Text.Json where
+
+  import Text.Lex (Span, span-start, bytes-slice)
+  import Text.Parse (ErrorItem, ITok, ILabel, IEnd, ParseError, EUnexpected, EFail,
+    error-span, ParseErrorBundle, Bundle, ParseOutcome, Parsed, Failed)
+  import Text.Codec
+  import Text.Show
+  import Data.Bool
+  import Data.Bytes
+  import Data.Char
+  import Data.Int
+  import Data.Json
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+  import Data.Ordering
+  import Data.List (sort-by)
+  import Text.Builder (Builder, builder-new, builder-add-string, builder-add-bytes, builder-run, builder-bytes)
+
+  -- The P30 combinator shape over the character stream.
+  export JState, JReply, JOk, JErr, JParser, MkJParser, run-jparser-fn
+  export parse-pure, parse-bind, parse-fmap, attempt-p, or-else, choice-p
+  export label-p, fail-p, many-p, some-p, sep-by-p, optional-p, between-p
+  export look-ahead-p, expect-eof, satisfy-byte
+  -- The JSON grammar and the document runner (the toolkit's
+  -- `ParseOutcome`, so `render-bundle` renders the failures).
+  export json-value, parse-json
+  -- Printing, canonicalization, content identity.
+  export print-json, canonical-json, canonical-bytes, canonical-hash, digest-hex
+  export json-eq
+
+
+  -- ---------------------------------------------------------------------------
+  -- The runtime text primitives (compiler/runtime/src/text.rs; the
+  -- `cinch.runtime.text*` intrinsics, nm-verified there).
+  -- ---------------------------------------------------------------------------
+
+  -- SHA-256 (FIPS 180-4) at content-addressing strength: the digest of
+  -- a buffer as a fresh 32-byte buffer.
+  foreign import ccall "cinch.runtime.textSha256" sha256-bytes :: Bytes -> Bytes
+
+  -- One float's shortest round-trip decimal text (scientific form).
+  foreign import ccall "cinch.runtime.textF64ToDecimal" f64-to-decimal :: F64 -> Bytes
+
+  -- The float one decimal spelling stands for (correctly rounded).
+  foreign import ccall "cinch.runtime.textF64FromDecimal" f64-from-decimal :: Bytes -> F64
+
+  -- The lowercase hex rendering of a digest: one buffer of two ASCII
+  -- digits per byte, filled in place.
+  digest-hex :: Bytes -> String
+  digest-hex b =
+    let out = bytes-new (bytes-len b + bytes-len b) in
+    let u = digest-hex-into out b 0 in
+    case string-from-bytes out of
+      Some s -> s
+      None -> empty-string
+
+  digest-hex-into :: using (bytes-len out == bytes-len b + bytes-len b) => (out :: Bytes) -> (b :: Bytes) -> (i :: Nat) -> Unit
+  digest-hex-into out b i =
+    if i < bytes-len b then
+      let byte = bytes-get b i in
+      -- A byte is below 256, so its high nibble is already below 16; the
+      -- `nat-rem` restates that bound where the checker can read it.
+      let u = bytes-set out (i + i) (hex-code (nat-rem (nat-div byte 16) 16)) in
+      let v = bytes-set out (i + i + 1) (hex-code (nat-rem byte 16)) in
+      digest-hex-into out b (i + 1)
+    else ()
+
+  -- The ASCII code of one lowercase hex digit.
+  hex-code :: using (n < 16) => (n :: Nat) -> InRange 0 255 Nat
+  hex-code n = if lt-i64 (nat-cmp n 10) 0 then 48 + n else 87 + n
+
+  hex-digit :: Nat -> String
+  hex-digit n =
+    if nat-cmp n 10 == 0 then "a"
+    else if nat-cmp n 11 == 0 then "b"
+    else if nat-cmp n 12 == 0 then "c"
+    else if nat-cmp n 13 == 0 then "d"
+    else if nat-cmp n 14 == 0 then "e"
+    else if nat-cmp n 15 == 0 then "f"
+    else nat-to-string n
+
+
+  -- ---------------------------------------------------------------------------
+  -- Parser state, replies, the parser type (the P30 shape over the
+  -- character stream: `Text.Parse`'s `PState`/`Reply`/`Parser` carry
+  -- tokens, these carry the source cursor).
+  -- ---------------------------------------------------------------------------
+
+  -- The cursor into the source: the buffer, the byte offset, and the
+  -- position as line and character column (a UTF-8 continuation byte
+  -- does not advance the column, so columns count scalars like the
+  -- compiler's spans).
+  data JState where
+    JState :: Bytes -> Nat -> Nat -> Nat -> JState
+
+  state-src :: JState -> Bytes
+  state-src s = case s of
+    JState b off l c -> b
+
+  state-off :: JState -> Nat
+  state-off s = case s of
+    JState b off l c -> off
+
+  state-line :: JState -> Nat
+  state-line s = case s of
+    JState b off l c -> l
+
+  state-col :: JState -> Nat
+  state-col s = case s of
+    JState b off l c -> c
+
+  -- A reply: the consumed/empty success and failure distinction of
+  -- `Text.Parse`'s `Reply` (the expected-set hint merges exactly as
+  -- there).
+  data JReply a where
+    JOk :: Bool -> a -> JState -> List ErrorItem -> JReply a
+    JErr :: Bool -> ParseError -> JReply a
+
+  -- A parser: a function from cursor to reply (the P30 `Parser`
+  -- shape). Recursive parsers wrap in `MkJParser` so their references
+  -- sit under a lambda (the D302 top-level value discipline).
+  data JParser a where
+    MkJParser :: (JState -> JReply a) -> JParser a
+
+  run-jparser-fn :: forall a. JParser a -> JState -> JReply a
+  run-jparser-fn p s = case p of
+    MkJParser f -> f s
+
+  -- ---------------------------------------------------------------------------
+  -- The combinator core (the P30 vocabulary; semantics follow
+  -- `Text.Parse` exactly).
+  -- ---------------------------------------------------------------------------
+
+  parse-pure :: forall a. a -> JParser a
+  parse-pure x = MkJParser (\s -> JOk False x s Nil)
+
+  parse-bind :: forall a b. JParser a -> (a -> JParser b) -> JParser b
+  parse-bind p k = MkJParser (\s0 ->
+    case run-jparser-fn p s0 of
+      JErr c e -> JErr c e
+      JOk c1 x s1 exp1 -> case run-jparser-fn (k x) s1 of
+        JErr c2 e -> JErr (c1 || c2) e
+        JOk c2 y s2 exp2 ->
+          JOk (c1 || c2) y s2 (if c2 then exp2 else merge-item-list exp1 exp2))
+
+  parse-fmap :: forall a b. (a -> b) -> JParser a -> JParser b
+  parse-fmap f p = parse-bind p (\x -> parse-pure (f x))
+
+  -- Backtracking (megaparsec's `try`).
+  attempt-p :: forall a. JParser a -> JParser a
+  attempt-p p = MkJParser (\s0 ->
+    case run-jparser-fn p s0 of
+      JErr c e -> JErr False e
+      ok -> ok)
+
+  -- Choice (megaparsec's `<|>`): the right parser runs only when the
+  -- left failed without consuming; two empty failures merge.
+  or-else :: forall a. JParser a -> JParser a -> JParser a
+  or-else p q = MkJParser (\s0 ->
+    case run-jparser-fn p s0 of
+      JOk c x s1 e -> JOk c x s1 e
+      JErr True e -> JErr True e
+      JErr False e -> case run-jparser-fn q s0 of
+        JErr False e2 -> JErr False (merge-error e e2)
+        other -> other)
+
+  choice-p :: forall a. List (JParser a) -> JParser a
+  choice-p ps = case ps of
+    Nil -> fail-p "no alternative"
+    Cons p rest -> case rest of
+      Nil -> p
+      _ -> or-else p (choice-p rest)
+
+  -- Naming a parser's expectation (megaparsec's `label`).
+  label-p :: forall a. String -> JParser a -> JParser a
+  label-p l p = MkJParser (\s0 ->
+    case run-jparser-fn p s0 of
+      JOk c x s1 e -> if c then JOk c x s1 e else JOk c x s1 (Cons (ILabel l) Nil)
+      JErr False e -> JErr False (relabel e l)
+      other -> other)
+
+  relabel :: ParseError -> String -> ParseError
+  relabel e l = case e of
+    EFail s m -> e
+    EUnexpected s u xs -> EUnexpected s u (Cons (ILabel l) Nil)
+
+  -- The explicit failure (megaparsec's `fail`): a fancy error at the
+  -- current position.
+  fail-p :: forall a. String -> JParser a
+  fail-p msg = MkJParser (\s -> JErr False (EFail (pos-span s) msg))
+
+  -- Look-ahead: parse without consuming.
+  look-ahead-p :: forall a. JParser a -> JParser a
+  look-ahead-p p = MkJParser (\s0 -> case run-jparser-fn p s0 of
+    JErr c e -> JErr False e
+    JOk c x s1 e -> JOk False x s0 e)
+
+  -- Repetition and separators (`many-p` never fails; both stop at the
+  -- first empty failure and propagate consumed failures).
+  many-p :: forall a. JParser a -> JParser (List a)
+  many-p p = MkJParser (\s0 -> many-run p s0 Nil)
+
+  many-run :: forall a. JParser a -> JState -> List a -> JReply (List a)
+  many-run p s0 acc = case run-jparser-fn p s0 of
+    JErr False e -> JOk False (reverse acc) s0 Nil
+    JErr True e -> JErr True e
+    JOk c x s1 e ->
+      if c then many-run p s1 (Cons x acc)
+      else JOk False (reverse acc) s0 Nil
+
+  some-p :: forall a. JParser a -> JParser (List a)
+  some-p p = parse-bind p (\x -> parse-fmap (\xs -> Cons x xs) (many-p p))
+
+  sep-by-p :: forall a s. JParser a -> JParser s -> JParser (List a)
+  sep-by-p p sep = or-else (sep-by1-p p sep) (parse-pure Nil)
+
+  sep-by1-p :: forall a s. JParser a -> JParser s -> JParser (List a)
+  sep-by1-p p sep = parse-bind p (\x ->
+    parse-fmap (\xs -> Cons x xs) (many-p (parse-bind sep (\_ -> p))))
+
+  optional-p :: forall a. JParser a -> JParser (Option a)
+  optional-p p = or-else (parse-fmap (\x -> Some x) p) (parse-pure None)
+
+  between-p :: forall a open close. JParser open -> JParser close -> JParser a -> JParser a
+  between-p open close p = parse-bind open (\_ ->
+    parse-bind p (\x -> parse-fmap (\_ -> x) close))
+
+  -- The end of input (the runner appends it: whole-input enforcement
+  -- is the default, as in `Text.Parse`'s runner).
+  expect-eof :: JParser Unit
+  expect-eof = MkJParser (\s -> case peek-byte s of
+    None -> JOk False () s Nil
+    Some b -> JErr False (EUnexpected (pos-span s) (Some (byte-item b)) (Cons IEnd Nil)))
+
+  -- The cursor primitive (the character stream's `token-p`): consume
+  -- one byte when the predicate decodes it.
+  satisfy-byte :: forall a. (Nat -> Option a) -> List ErrorItem -> JParser a
+  satisfy-byte f expected = MkJParser (\s -> case peek-byte s of
+    None -> JErr False (EUnexpected (pos-span s) (Some IEnd) expected)
+    Some b -> case f b of
+      None -> JErr False (EUnexpected (pos-span s) (Some (byte-item b)) expected)
+      Some x -> JOk True x (advance1 s) Nil)
+
+  -- Merging two errors at the same position unions their expected sets
+  -- (`Text.Parse`'s `merge-error`); the later position wins otherwise.
+  merge-error :: ParseError -> ParseError -> ParseError
+  merge-error a b = case a of
+    EFail s m -> a
+    EUnexpected s1 u1 x1 -> case b of
+      EFail s2 m -> b
+      EUnexpected s2 u2 x2 ->
+        if lt-i64 (nat-cmp (span-start s1) (span-start s2)) 0 then b
+        else if lt-i64 (nat-cmp (span-start s2) (span-start s1)) 0 then a
+        else EUnexpected s1 u1 (merge-item-list x1 x2)
+
+  merge-item-list :: List ErrorItem -> List ErrorItem -> List ErrorItem
+  merge-item-list xs ys = case xs of
+    Nil -> ys
+    Cons z zs -> Cons z (merge-item-list zs ys)
+
+  -- ---------------------------------------------------------------------------
+  -- Cursor primitives.
+  -- ---------------------------------------------------------------------------
+
+  pos-span :: JState -> Span
+  pos-span s = Span (state-off s) (state-off s) (state-line s) (state-col s)
+
+  peek-byte :: JState -> Option Nat
+  peek-byte s =
+    if state-off s < bytes-len (state-src s) then Some (bytes-get (state-src s) (state-off s))
+    else None
+
+  -- Step one byte. The end of input is a fixed point, as `Text.Lex`'s
+  -- `skip-char` is: every caller has just peeked a byte, so it never
+  -- asks to step past the end.
+  advance1 :: JState -> JState
+  advance1 s = case s of
+    JState b off l c ->
+      if off < bytes-len b then
+        let byte = bytes-get b off in
+        if nat-cmp byte 10 == 0 then JState b (off + 1) (l + 1) 1
+        else if is-continuation byte then JState b (off + 1) l c
+        else JState b (off + 1) l (c + 1)
+      else s
+
+  advance-n :: JState -> Nat -> JState
+  advance-n s k = if k == 0 then s else advance-n (advance1 s) (k - 1)
+
+  is-continuation :: Nat -> Bool
+  is-continuation b = nat-cmp b 128 >= 0 && nat-cmp b 192 < 0
+
+  is-ws :: Nat -> Bool
+  is-ws b =
+    nat-cmp b 32 == 0 || nat-cmp b 9 == 0 || nat-cmp b 10 == 0 || nat-cmp b 13 == 0
+
+  is-digit :: Nat -> Bool
+  is-digit b = nat-cmp b 48 >= 0 && nat-cmp b 58 < 0
+
+  is-hex :: Nat -> Bool
+  is-hex b =
+    is-digit b || (nat-cmp b 65 >= 0 && nat-cmp b 71 < 0) || (nat-cmp b 97 >= 0 && nat-cmp b 103 < 0)
+
+  -- A hex digit's value (`b - 48`, `b - 55`, `b - 87` for a digit, an
+  -- upper and a lower letter), written as the low nibble plus nine for
+  -- a letter: the same number on every byte `is-hex` admits.
+  hex-value :: Nat -> Nat
+  hex-value b = b % 16 + 9 * (b / 64)
+
+  skip-ws :: JState -> JState
+  skip-ws s = case peek-byte s of
+    Some b -> if is-ws b then skip-ws (advance1 s) else s
+    None -> s
+
+  -- The unexpected item of one byte: the scalar when it prints as
+  -- itself, its escape otherwise (error lines stay one line).
+  byte-item :: Nat -> ErrorItem
+  byte-item b = ILabel (byte-char-string b)
+
+  byte-char-string :: Nat -> String
+  byte-char-string b =
+    if nat-cmp b 32 >= 0 && nat-cmp b 127 < 0 then
+      case char-from-code b of
+        Some c -> char-string c
+        None -> empty-string
+    else string-concat "\\u{" (string-concat (nat-to-string b) "}")
+
+  label-items :: String -> List ErrorItem
+  label-items l = Cons (ILabel l) Nil
+
+
+  -- ---------------------------------------------------------------------------
+  -- The JSON grammar (RFC 8259 sections 2 and 3): objects, arrays,
+  -- strings with escapes, numbers, true/false/null. The recursive
+  -- parsers wrap in `MkJParser` so every reference sits under a lambda
+  -- (the D302 top-level value discipline).
+  -- ---------------------------------------------------------------------------
+
+  -- An object entry on its way to the `Json` family's `JObj` spine.
+  data JEntry where
+    JEntry :: String -> Json -> JEntry
+
+  value-items :: List ErrorItem
+  value-items = label-items "value"
+
+  -- `json-value` dispatches on the first byte (an empty failure at
+  -- anything unexpected, so `or-else` over fragments composes); each
+  -- arm consumes its own syntax with consumed-failure errors.
+  json-value :: JParser Json
+  json-value = MkJParser (\s -> case peek-byte s of
+    None -> JErr False (EUnexpected (pos-span s) (Some IEnd) value-items)
+    Some b ->
+      if nat-cmp b 123 == 0 then run-jparser-fn json-object s
+      else if nat-cmp b 91 == 0 then run-jparser-fn json-array s
+      else if nat-cmp b 34 == 0 then run-jparser-fn json-string s
+      else if nat-cmp b 45 == 0 then run-jparser-fn json-number s
+      else if is-digit b then run-jparser-fn json-number s
+      else if nat-cmp b 116 == 0 then run-jparser-fn json-true s
+      else if nat-cmp b 102 == 0 then run-jparser-fn json-false s
+      else if nat-cmp b 110 == 0 then run-jparser-fn json-null s
+      else JErr False (EUnexpected (pos-span s) (Some (byte-item b)) value-items))
+
+  json-object :: JParser Json
+  json-object = MkJParser (\s -> scan-object s)
+
+  json-array :: JParser Json
+  json-array = MkJParser (\s -> scan-array s)
+
+  json-string :: JParser Json
+  json-string = MkJParser (\s -> case scan-string-at s of
+    JErr c e -> JErr c e
+    JOk c k s1 e -> JOk c (JStr k) s1 e)
+
+  json-number :: JParser Json
+  json-number = MkJParser (\s -> scan-number s)
+
+  json-true :: JParser Json
+  json-true = MkJParser (\s -> scan-literal s (string-to-bytes "true") (JBool True))
+
+  json-false :: JParser Json
+  json-false = MkJParser (\s -> scan-literal s (string-to-bytes "false") (JBool False))
+
+  json-null :: JParser Json
+  json-null = MkJParser (\s -> scan-literal s (string-to-bytes "null") JNull)
+
+  -- Objects: `object = "{" [string ":" value *("," string ":" value)]
+  -- "}"`, built as the `JObj` spine ended by `JObjEnd`. A duplicate
+  -- key is refused (canonical identity needs unique names; RFC 8785).
+  scan-object :: JState -> JReply Json
+  scan-object s0 =
+    let s1 = skip-ws (advance1 s0) in
+    case peek-byte s1 of
+      Some b -> if nat-cmp b 125 == 0 then JOk True JObjEnd (advance1 s1) Nil
+        else scan-object-rest s1 Nil
+      None -> JErr True (EUnexpected (pos-span s1) (Some IEnd) value-items)
+
+  scan-object-rest :: JState -> List JEntry -> JReply Json
+  scan-object-rest s acc = case scan-entry s of
+    JErr c e -> JErr c e
+    JOk c entry s1 e ->
+      let s2 = skip-ws s1 in
+      case peek-byte s2 of
+        Some b ->
+          if nat-cmp b 125 == 0 then scan-object-close (reverse (Cons entry acc)) s2
+          else if nat-cmp b 44 == 0 then scan-object-rest (skip-ws (advance1 s2)) (Cons entry acc)
+          else JErr True (EUnexpected (pos-span s2) (Some (byte-item b)) (Cons (ILabel ",") (label-items "}")))
+        None -> JErr True (EUnexpected (pos-span s2) (Some IEnd) (Cons (ILabel ",") (label-items "}")))
+
+  -- The closing brace: the spine (a duplicate key is refused first,
+  -- at the brace's position).
+  scan-object-close :: List JEntry -> JState -> JReply Json
+  scan-object-close es s = case duplicate-key es of
+    Some k -> JErr True (EFail (pos-span s) (string-concat "duplicate object key " k))
+    None -> JOk True (build-obj es) (advance1 s) Nil
+
+  scan-entry :: JState -> JReply JEntry
+  scan-entry s0 = case peek-byte s0 of
+    None -> JErr False (EUnexpected (pos-span s0) (Some IEnd) (label-items "string"))
+    Some b ->
+      if nat-cmp b 34 == 0 then scan-entry-key s0
+      else JErr False (EUnexpected (pos-span s0) (Some (byte-item b)) (label-items "string"))
+
+  scan-entry-key :: JState -> JReply JEntry
+  scan-entry-key s0 = case scan-string-at s0 of
+    JErr c e -> JErr c e
+    JOk c key s1 e -> scan-entry-colon key (skip-ws s1)
+
+  scan-entry-colon :: String -> JState -> JReply JEntry
+  scan-entry-colon key s2 = case peek-byte s2 of
+    None -> JErr True (EUnexpected (pos-span s2) (Some IEnd) (label-items ":"))
+    Some c2 ->
+      if nat-cmp c2 58 == 0 then scan-entry-value key (skip-ws (advance1 s2))
+      else JErr True (EUnexpected (pos-span s2) (Some (byte-item c2)) (label-items ":"))
+
+  scan-entry-value :: String -> JState -> JReply JEntry
+  scan-entry-value key s = case run-jparser-fn json-value s of
+    JErr c e -> JErr c e
+    JOk c v s1 e -> JOk c (JEntry key v) s1 e
+
+  -- The first key with a later equal one (canonical identity needs
+  -- unique names; RFC 8785), or `None`.
+  duplicate-key :: List JEntry -> Option String
+  duplicate-key es = case es of
+    Nil -> None
+    Cons e rest -> case e of
+      JEntry k v -> if has-key rest k then Some k else duplicate-key rest
+
+  has-key :: List JEntry -> String -> Bool
+  has-key es k = case es of
+    Nil -> False
+    Cons e rest -> case e of
+      JEntry k2 v2 -> if string-compare k k2 == 0 then True else has-key rest k2
+
+  -- Arrays: `array = "[" [value *("," value)] "]"`, built as the
+  -- `JArr` spine ended by `JArrEnd`.
+  scan-array :: JState -> JReply Json
+  scan-array s0 =
+    let s1 = skip-ws (advance1 s0) in
+    case peek-byte s1 of
+      Some b -> if nat-cmp b 93 == 0 then JOk True JArrEnd (advance1 s1) Nil
+        else scan-array-rest s1 Nil
+      None -> JErr True (EUnexpected (pos-span s1) (Some IEnd) value-items)
+
+  scan-array-rest :: JState -> List Json -> JReply Json
+  scan-array-rest s acc = case run-jparser-fn json-value s of
+    JErr c e -> JErr c e
+    JOk c v s1 e ->
+      let s2 = skip-ws s1 in
+      case peek-byte s2 of
+        Some b ->
+          if nat-cmp b 93 == 0 then JOk True (build-arr (reverse (Cons v acc))) (advance1 s2) Nil
+          else if nat-cmp b 44 == 0 then scan-array-rest (skip-ws (advance1 s2)) (Cons v acc)
+          else JErr True (EUnexpected (pos-span s2) (Some (byte-item b)) (Cons (ILabel ",") (label-items "]")))
+        None -> JErr True (EUnexpected (pos-span s2) (Some IEnd) (Cons (ILabel ",") (label-items "]")))
+
+  -- The `Json` family's spines (decision D148's cons shapes).
+  build-obj :: List JEntry -> Json
+  build-obj es = case es of
+    Nil -> JObjEnd
+    Cons e rest -> case e of
+      JEntry k v -> JObj k v (build-obj rest)
+
+  build-arr :: List Json -> Json
+  build-arr vs = case vs of
+    Nil -> JArrEnd
+    Cons v rest -> JArr v (build-arr rest)
+
+  -- Keywords: the dispatch matched the first byte, so any mismatch is
+  -- a consumed failure naming the whole word.
+  scan-literal :: JState -> Bytes -> Json -> JReply Json
+  scan-literal s lit v = scan-literal-at s lit 0 v
+
+  scan-literal-at :: JState -> Bytes -> Nat -> Json -> JReply Json
+  scan-literal-at s lit i v =
+    if i < bytes-len lit then
+      case peek-byte s of
+        Some b -> if nat-cmp b (bytes-get lit i) == 0 then scan-literal-at (advance1 s) lit (i + 1) v
+          else JErr True (EUnexpected (pos-span s) (Some (byte-item b)) (literal-items lit))
+        None -> JErr True (EUnexpected (pos-span s) (Some IEnd) (literal-items lit))
+    else JOk True v s Nil
+
+  literal-items :: Bytes -> List ErrorItem
+  literal-items lit = label-items (case string-from-bytes lit of
+    Some t -> t
+    None -> empty-string)
+
+  -- ---------------------------------------------------------------------------
+  -- Strings: `string = quotation *char quotation`, `char` = unescaped
+  -- UTF-8 scalar or `\` escape (RFC 8259 section 7). Raw control
+  -- characters are refused; `\uXXXX` decodes with surrogate pairing.
+  -- ---------------------------------------------------------------------------
+
+  scan-string-at :: JState -> JReply String
+  scan-string-at s0 = scan-string-body (advance1 s0) Nil
+
+  scan-string-body :: JState -> List Char -> JReply String
+  scan-string-body s acc = case peek-byte s of
+    None -> JErr True (EUnexpected (pos-span s) (Some IEnd) (label-items "string"))
+    Some b ->
+      if nat-cmp b 34 == 0 then JOk True (pack (reverse acc)) (advance1 s) Nil
+      else if nat-cmp b 92 == 0 then scan-string-escape (advance1 s) acc
+      else if nat-cmp b 32 < 0 then
+        JErr True (EUnexpected (pos-span s) (Some (byte-item b)) (label-items "string character"))
+      else case utf8-at (state-src s) (state-off s) of
+        Some pair -> case pair of
+          (c, w) -> scan-string-body (advance-n s w) (Cons c acc)
+        None -> JErr True (EUnexpected (pos-span s) (Some (byte-item b)) (label-items "string character"))
+
+  scan-string-escape :: JState -> List Char -> JReply String
+  scan-string-escape s acc = case peek-byte s of
+    None -> JErr True (EUnexpected (pos-span s) (Some IEnd) escape-items)
+    Some b ->
+      if nat-cmp b 34 == 0 then scan-string-body (advance1 s) (Cons '"' acc)
+      else if nat-cmp b 92 == 0 then scan-string-body (advance1 s) (Cons '\\' acc)
+      else if nat-cmp b 47 == 0 then scan-string-body (advance1 s) (Cons '/' acc)
+      else if nat-cmp b 98 == 0 then scan-string-body (advance1 s) (Cons '\u{8}' acc)
+      else if nat-cmp b 102 == 0 then scan-string-body (advance1 s) (Cons '\u{C}' acc)
+      else if nat-cmp b 110 == 0 then scan-string-body (advance1 s) (Cons '\n' acc)
+      else if nat-cmp b 114 == 0 then scan-string-body (advance1 s) (Cons '\r' acc)
+      else if nat-cmp b 116 == 0 then scan-string-body (advance1 s) (Cons '\t' acc)
+      else if nat-cmp b 117 == 0 then scan-u-escape (advance1 s) acc
+      else JErr True (EUnexpected (pos-span s) (Some (byte-item b)) escape-items)
+
+  escape-items :: List ErrorItem
+  escape-items = label-items "escape"
+
+  -- `\uXXXX` (and the surrogate pair form): four hex digits per
+  -- escape, a high surrogate followed by a low one, combined as one
+  -- scalar. Unpaired surrogates are refused (named boundary in the
+  -- header).
+  scan-u-escape :: JState -> List Char -> JReply String
+  scan-u-escape s acc = case scan-hex4 s of
+    JErr c e -> JErr c e
+    JOk c hi s1 e ->
+      if hi >= 55296 && hi < 56320 then scan-u-low hi s1 acc
+      else if nat-cmp hi 56320 >= 0 && nat-cmp hi 57344 < 0 then
+        JErr True (EFail (pos-span s1) "unpaired low surrogate in a string escape")
+      else push-scalar hi s1 acc
+
+  -- The low half after a high surrogate: `\uXXXX` and a low
+  -- surrogate's worth of value. `hi` is a high surrogate.
+  scan-u-low :: using (55296 <= hi) => (hi :: Nat) -> JState -> List Char -> JReply String
+  scan-u-low hi s1 acc = case expect-u-start s1 of
+    JErr c2 e2 -> JErr c2 e2
+    JOk c2 u s2 e2 -> case scan-hex4 s2 of
+      JErr c3 e3 -> JErr c3 e3
+      JOk c3 lo s3 e3 ->
+        if lo >= 56320 && lo < 57344 then
+          push-scalar (65536 + (hi - 55296) * 1024 + (lo - 56320)) s3 acc
+        else JErr True (EFail (pos-span s3) "unpaired high surrogate in a string escape")
+
+  push-scalar :: Nat -> JState -> List Char -> JReply String
+  push-scalar cp s acc = case char-from-code cp of
+    Some c -> scan-string-body s (Cons c acc)
+    None -> JErr True (EFail (pos-span s) "a string escape is not a Unicode scalar value")
+
+  -- The `\u` of a second escape (the surrogate pair's second half).
+  expect-u-start :: JState -> JReply Unit
+  expect-u-start s = case peek-byte s of
+    None -> JErr True (EUnexpected (pos-span s) (Some IEnd) (label-items "\\u"))
+    Some b ->
+      if nat-cmp b 92 == 0 then expect-u-letter (advance1 s)
+      else JErr True (EUnexpected (pos-span s) (Some (byte-item b)) (label-items "\\u"))
+
+  expect-u-letter :: JState -> JReply Unit
+  expect-u-letter s = case peek-byte s of
+    None -> JErr True (EUnexpected (pos-span s) (Some IEnd) (label-items "\\u"))
+    Some b ->
+      if nat-cmp b 117 == 0 then JOk True () (advance1 s) Nil
+      else JErr True (EUnexpected (pos-span s) (Some (byte-item b)) (label-items "\\u"))
+
+  scan-hex4 :: JState -> JReply Nat
+  scan-hex4 s = scan-hex4-at s 0 0
+
+  scan-hex4-at :: JState -> Nat -> Nat -> JReply Nat
+  scan-hex4-at s i acc =
+    if nat-cmp i 4 == 0 then JOk True acc s Nil
+    else case peek-byte s of
+      Some b -> if is-hex b then scan-hex4-at (advance1 s) (i + 1) (acc * 16 + hex-value b)
+        else JErr True (EUnexpected (pos-span s) (Some (byte-item b)) (label-items "hex digit"))
+      None -> JErr True (EUnexpected (pos-span s) (Some IEnd) (label-items "hex digit"))
+
+  -- ---------------------------------------------------------------------------
+  -- Numbers: `-?(0|[1-9][0-9]*)(\.[0-9]+)?([eE][+-]?[0-9]+)?` (RFC
+  -- 8259 section 6). An integer spelling becomes `JNum` (bignum), a
+  -- spelling with a fraction or exponent `JFloat` (the runtime
+  -- conversion, correctly rounded).
+  -- ---------------------------------------------------------------------------
+
+  number-items :: List ErrorItem
+  number-items = label-items "number"
+
+  scan-number :: JState -> JReply Json
+  scan-number s0 = scan-number-sign s0 s0
+
+  -- The origin state decides the consumed flag of every error.
+  scan-number-sign :: JState -> JState -> JReply Json
+  scan-number-sign origin s = case peek-byte s of
+    None -> num-err origin s (Some IEnd)
+    Some b ->
+      if nat-cmp b 45 == 0 then scan-number-int origin (advance1 s)
+      else scan-number-int origin s
+
+  scan-number-int :: JState -> JState -> JReply Json
+  scan-number-int origin s = case peek-byte s of
+    None -> num-err origin s (Some IEnd)
+    Some b ->
+      if is-digit b then
+        if nat-cmp b 48 == 0 then scan-number-after-zero origin (advance1 s)
+        else scan-number-frac origin (scan-digits (advance1 s))
+      else num-err origin s (Some (byte-item b))
+
+  -- A leading zero may not continue with a digit (the JSON grammar's
+  -- refusal), then the optional fraction and exponent follow.
+  scan-number-after-zero :: JState -> JState -> JReply Json
+  scan-number-after-zero origin s = case peek-byte s of
+    Some b -> if is-digit b then
+        JErr True (EFail (pos-span s) "leading zero in a JSON number")
+      else scan-number-frac origin s
+    None -> scan-number-frac origin s
+
+  scan-digits :: JState -> JState
+  scan-digits s = case peek-byte s of
+    Some b -> if is-digit b then scan-digits (advance1 s) else s
+    None -> s
+
+  scan-number-frac :: JState -> JState -> JReply Json
+  scan-number-frac origin s = case peek-byte s of
+    Some b -> if nat-cmp b 46 == 0 then
+        let s1 = scan-digits (advance1 s) in
+        if nat-cmp (state-off s1) (state-off (advance1 s)) == 0 then num-err origin s1 (Some (next-item s1))
+        else scan-number-exp origin s1
+      else scan-number-exp origin s
+    None -> scan-number-exp origin s
+
+  scan-number-exp :: JState -> JState -> JReply Json
+  scan-number-exp origin s = case peek-byte s of
+    Some b ->
+      if nat-cmp b 101 == 0 || nat-cmp b 69 == 0 then
+        let s1 = skip-exp-sign (advance1 s) in
+        let s2 = scan-digits s1 in
+        if nat-cmp (state-off s2) (state-off s1) == 0 then num-err origin s1 (Some (next-item s1))
+        else scan-number-done origin s2
+      else scan-number-done origin s
+    None -> scan-number-done origin s
+
+  skip-exp-sign :: JState -> JState
+  skip-exp-sign s = case peek-byte s of
+    Some b -> if nat-cmp b 43 == 0 || nat-cmp b 45 == 0 then advance1 s else s
+    None -> s
+
+  -- The scan never steps past the source's end, but the state does not
+  -- carry that as a fact; an end past the source is a number error.
+  scan-number-done :: JState -> JState -> JReply Json
+  scan-number-done origin s =
+    if state-off s <= bytes-len (state-src s) then
+      let raw = bytes-slice (state-src s) (state-off origin) (state-off s) in
+      JOk True (number-value raw) s Nil
+    else num-err origin s None
+
+  next-item :: JState -> ErrorItem
+  next-item s = case peek-byte s of
+    Some b -> byte-item b
+    None -> IEnd
+
+  num-err :: forall a. JState -> JState -> Option ErrorItem -> JReply a
+  num-err origin s item =
+    JErr (nat-cmp (state-off s) (state-off origin) /= 0)
+      (EUnexpected (pos-span s) item number-items)
+
+  number-value :: Bytes -> Json
+  number-value raw =
+    if is-float-spelling raw then JFloat (f64-from-decimal raw)
+    else JNum (int-of-spelling raw)
+
+  is-float-spelling :: Bytes -> Bool
+  is-float-spelling raw = is-float-from raw 0
+
+  is-float-from :: Bytes -> Nat -> Bool
+  is-float-from raw i =
+    if i < bytes-len raw then
+      let b = bytes-get raw i in
+      if nat-cmp b 46 == 0 || nat-cmp b 101 == 0 || nat-cmp b 69 == 0 then True
+      else is-float-from raw (i + 1)
+    else False
+
+  -- The spelling is a scanned number, so it has a first byte; an empty
+  -- spelling would fold no digits.
+  int-of-spelling :: Bytes -> Int
+  int-of-spelling raw =
+    if 0 < bytes-len raw && nat-cmp (bytes-get raw 0) 45 == 0 then int-neg (digits-fold raw 1 (int-from-i64 0))
+    else digits-fold raw 0 (int-from-i64 0)
+
+  digits-fold :: Bytes -> Nat -> Int -> Int
+  digits-fold raw i acc =
+    if i < bytes-len raw then
+      -- The spelling is a validated digit run; the offset is taken in
+      -- `Int`, the same value with no lower bound to prove.
+      let d = int-sub (int-from-i64 (nat-to-i64 (bytes-get raw i))) (int-from-i64 48) in
+      digits-fold raw (i + 1) (int-add (int-mul acc (int-from-i64 10)) d)
+    else acc
+
+
+  -- ---------------------------------------------------------------------------
+  -- The document runner: the toolkit's `ParseOutcome`, so
+  -- `Text.Parse.render-bundle` renders the failure megaparsec-style.
+  -- ---------------------------------------------------------------------------
+
+  parse-json :: String -> Bytes -> ParseOutcome Json
+  parse-json name src =
+    let s0 = skip-ws (JState src 0 1 1) in
+    case run-jparser-fn (parse-bind json-value (\v -> parse-fmap (\_ -> v) expect-eof-trailing)) s0 of
+      JErr c e -> Failed (Bundle name src (Cons e Nil))
+      JOk c v s1 e -> Parsed v Nil
+
+  -- The runner's trailing end-of-input guard: insignificant
+  -- whitespace may follow the document (RFC 8259 section 2).
+  expect-eof-trailing :: JParser Unit
+  expect-eof-trailing = MkJParser (\s -> run-jparser-fn expect-eof (skip-ws s))
+
+
+  -- ---------------------------------------------------------------------------
+  -- Printing (total), canonicalization, content identity.
+  -- ---------------------------------------------------------------------------
+
+  -- The printers emit into a `Builder` and flatten once: concatenating
+  -- each rendered piece onto the rendering of the rest re-copies that
+  -- whole suffix at every step, quadratic in the document's length.
+
+  -- The total printer: object entries in spine order, no whitespace.
+  print-json :: Json -> String
+  print-json v = builder-run (emit-value False v builder-new)
+
+  -- The canonical form (the header's rules): object keys sorted.
+  canonical-json :: Json -> String
+  canonical-json v = builder-run (emit-value True v builder-new)
+
+  canonical-bytes :: Json -> Bytes
+  canonical-bytes v = builder-bytes (emit-value True v builder-new)
+
+  -- The content identity of a value: SHA-256 over its canonical bytes
+  -- (the hex digest).
+  canonical-hash :: Json -> String
+  canonical-hash v = digest-hex (sha256-bytes (canonical-bytes v))
+
+  -- `b` followed by the rendering of `v`.
+  emit-value :: Bool -> Json -> Builder -> Builder
+  emit-value sorted v b = case v of
+    JNull -> builder-add-string "null" b
+    JBool x -> builder-add-string (if x then "true" else "false") b
+    JNum n -> builder-add-string (int-to-string n) b
+    JFloat f -> builder-add-string (write-float f) b
+    JStr s -> emit-string s b
+    JArr h t -> emit-array-rest sorted t (emit-value sorted h (builder-add-string "[" b))
+    JObj k x t -> emit-entries sorted (sort-if sorted (entries-of v)) (builder-add-string "{" b)
+    JArrEnd -> builder-add-string "[]" b
+    JObjEnd -> builder-add-string "{}" b
+
+  write-float :: F64 -> String
+  write-float f =
+    if is-na-nf64 f || is-infinite-f64 f then "null"
+    else case string-from-bytes (f64-to-decimal f) of
+      Some s -> s
+      None -> empty-string
+
+  -- The array after its first item: each further item comma separated,
+  -- closed by `]`.
+  emit-array-rest :: Bool -> Json -> Builder -> Builder
+  emit-array-rest sorted t b = case t of
+    JArr h t2 -> emit-array-rest sorted t2 (emit-value sorted h (builder-add-string "," b))
+    JArrEnd -> builder-add-string "]" b
+    other -> builder-add-string "]" (emit-value sorted other (builder-add-string "," b))
+
+  -- The object body after its `{`: the entries, comma separated,
+  -- closed by `}`.
+  emit-entries :: Bool -> List JEntry -> Builder -> Builder
+  emit-entries sorted es b = case es of
+    Nil -> builder-add-string "}" b
+    Cons e rest -> case rest of
+      Nil -> builder-add-string "}" (emit-entry sorted e b)
+      _ -> emit-entries sorted rest (builder-add-string "," (emit-entry sorted e b))
+
+  entries-of :: Json -> List JEntry
+  entries-of t = case t of
+    JObj k v rest -> Cons (JEntry k v) (entries-of rest)
+    JObjEnd -> Nil
+    other -> Cons (JEntry "" other) Nil
+
+  emit-entry :: Bool -> JEntry -> Builder -> Builder
+  emit-entry sorted e b = case e of
+    JEntry k v -> emit-value sorted v (builder-add-string ":" (emit-string k b))
+
+  -- The canonical form sorts by key (`string-compare`, byte order) with
+  -- Data.List's stable merge sort, so equal keys (a parsed document
+  -- never has them) keep their spine order.
+  sort-if :: Bool -> List JEntry -> List JEntry
+  sort-if sorted es = if sorted then sort-by compare-keys es else es
+
+  compare-keys :: JEntry -> JEntry -> Ordering
+  compare-keys e f = case e of
+    JEntry k1 v1 -> case f of
+      JEntry k2 v2 ->
+        let c = string-compare k1 k2 in
+        if lt-i64 c 0 then LT else if eq-i64 c 0 then EQ else GT
+
+  -- The quoted JSON string: exactly the `\"`, `\\`, `\b`, `\f`, `\n`,
+  -- `\r`, `\t` and `\u00xx` escapes, every other scalar raw UTF-8. Every
+  -- escaped scalar is ASCII and no byte of a multi-byte UTF-8 sequence is
+  -- below 128, so the scan runs over bytes and appends each unescaped run
+  -- as one slice.
+  emit-string :: String -> Builder -> Builder
+  emit-string s b =
+    let raw = string-to-bytes s in
+    builder-add-string "\"" (emit-string-from raw 0 0 (builder-add-string "\"" b))
+
+  -- `start` is the first byte of the pending unescaped run, `i` the scan
+  -- position.
+  emit-string-from :: using (i <= bytes-len raw) => (raw :: Bytes) -> Nat -> (i :: Nat) -> Builder -> Builder
+  emit-string-from raw start i b =
+    if i < bytes-len raw then
+      let x = bytes-get raw i in
+      if needs-escape x then emit-string-from raw (i + 1) (i + 1) (builder-add-string (escape-byte x) (flush-run raw start i b))
+      else emit-string-from raw start (i + 1) b
+    else flush-run raw start i b
+
+  -- The unescaped run [start, i), appended without a copy when it is the
+  -- whole (private) buffer.
+  flush-run :: using (i <= bytes-len raw) => (raw :: Bytes) -> Nat -> (i :: Nat) -> Builder -> Builder
+  flush-run raw start i b =
+    if nat-cmp start i == 0 then b
+    else if nat-cmp start 0 == 0 && nat-cmp i (bytes-len raw) == 0 then builder-add-bytes raw b
+    else builder-add-bytes (bytes-slice raw start i) b
+
+  needs-escape :: Nat -> Bool
+  needs-escape x = lt-i64 (nat-cmp x 32) 0 || nat-cmp x 34 == 0 || nat-cmp x 92 == 0
+
+  escape-byte :: Nat -> String
+  escape-byte x =
+    if nat-cmp x 34 == 0 then "\\\""
+    else if nat-cmp x 92 == 0 then "\\\\"
+    else if nat-cmp x 8 == 0 then "\\b"
+    else if nat-cmp x 12 == 0 then "\\f"
+    else if nat-cmp x 10 == 0 then "\\n"
+    else if nat-cmp x 13 == 0 then "\\r"
+    else if nat-cmp x 9 == 0 then "\\t"
+    else string-concat "\\u00" (string-concat (hex-digit (nat-div x 16)) (hex-digit (nat-rem x 16)))
+
+
+  -- ---------------------------------------------------------------------------
+  -- Value equality (structural; object entry order is significant
+  -- here, the canonical form is the order-free identity).
+  -- ---------------------------------------------------------------------------
+
+  json-eq :: Json -> Json -> Bool
+  json-eq a b = case a of
+    JNull -> case b of
+      JNull -> True
+      _ -> False
+    JBool x -> case b of
+      JBool y -> if x == y then True else False
+      _ -> False
+    JNum x -> case b of
+      JNum y -> eq-i64 (int-cmp x y) 0
+      _ -> False
+    JFloat x -> case b of
+      JFloat y -> feq-f64 x y
+      _ -> False
+    JStr x -> case b of
+      JStr y -> string-compare x y == 0
+      _ -> False
+    JArr x xs -> case b of
+      JArr y ys -> if json-eq x y then json-eq xs ys else False
+      _ -> False
+    JObj k x xs -> case b of
+      JObj l y ys ->
+        if string-compare k l == 0 then (if json-eq x y then json-eq xs ys else False)
+        else False
+      _ -> False
+    JArrEnd -> case b of
+      JArrEnd -> True
+      _ -> False
+    JObjEnd -> case b of
+      JObjEnd -> True
+      _ -> False
+
+
+  -- ---------------------------------------------------------------------------
+  -- JsonCodec's identity column (the class and its decode-error
+  -- vocabulary live in `Text.Codec`; the `I64`/`Bool` instances live
+  -- with their types in `Data.Machine`/`Data.Bool`). A `Json` round
+  -- trips as itself.
+  -- ---------------------------------------------------------------------------
+
+  implicit instance JsonCodec_Json :: JsonCodec Json where
+    encode-json j = j
+    decode-json j = Ok j

@@ -3,17 +3,22 @@ import Brand from '../components/Brand.astro';
 import HeroHeadline from '../components/HeroHeadline.astro';
 import ContractConsole from '../components/ContractConsole.astro';
 import TechnicalFigure from '../components/TechnicalFigure.astro';
+import LanguageTour from '../components/LanguageTour.astro';
+import LiveEvolution from '../components/LiveEvolution.astro';
 import SiteNavigation from '../components/SiteNavigation.astro';
 import { project } from '../lib/project';
 import PremiumPagePreview from '../components/PremiumPagePreview.astro';
 import FreePagePreview from '../components/FreePagePreview.astro';
 import '../styles/custom.css';
 import '../styles/landing.css';
-const tutorial = '/tutorials/01-values-and-dependent-types/';
+const tutorial = '/learn/01-first-program/';
 const features = [
-  { n: '01', title: 'Dependent types', text: 'A vector carries its length in its type. A connection carries its schema. Functions can require evidence about the values they accept and preserve those relationships in their results.', href: tutorial, link: 'Values and dependent types' },
-  { n: '02', title: 'Ownership and effects', text: 'Resource ownership determines who can use a value and when it must be released. Effect signatures describe what a computation can do, including I/O, suspension, and divergence.', href: '/tutorials/03-ownership-and-effects/', link: 'Ownership and effects tutorial' },
-  { n: '03', title: 'Checked hot upgrades', text: 'Replacing a running module requires a compatibility check and a plan for its state. An upgrade package describes the migration, ownership transfer, and obligations to existing clients.', href: '/tutorials/09-compatible-hot-upgrades/', link: 'Compatible hot upgrades tutorial' },
+  { n: '01', title: 'Ownership and effects', text: 'Borrow data, transfer ownership, and make effects visible in function signatures. A higher-order function carries the effects of its callback; resource lifetimes constrain which references and facts remain valid.', href: '/learn/12-ownership-and-regions/', link: 'Ownership and effects' },
+  { n: '02', title: 'Structured concurrency', text: 'Tasks live inside scopes. Bounded channels transfer ownership and expose backpressure; cancellation, joining, and cleanup have distinct contracts. Concurrency uses ordinary functions with explicit effects.', href: '/learn/17-structured-concurrency/', link: 'Tasks, channels, and cancellation' },
+  { n: '03', title: 'Temporal contracts', text: 'Describe what a service must always preserve and what must eventually happen. Connect concrete operations to an abstract state machine, with scheduler and environment assumptions made explicit.', href: '/learn/21-upgrades-and-contracts/', link: 'Processes and temporal reasoning' },
+  { n: '04', title: 'Compatible hot upgrades', text: 'Replace a running module with a checked state migration, ownership transfer, and compatibility argument. Track specialized dependents and keep old code resident while live execution still needs it.', href: '/learn/21-upgrades-and-contracts/', link: 'State migration and live replacement' },
+  { n: '05', title: 'Productive streams', text: 'Work with infinite data through delayed observations and productivity checking. Distinguish producing the next element from searching indefinitely for a match, and carry the corresponding guarantee in the interface.', href: '/learn/15-streams-and-producers/', link: 'Streams and coinduction' },
+  { n: '06', title: 'Foreign code and Wasm', text: 'Give foreign calls explicit ABI, ownership, effect, and callback contracts. Component interfaces describe resource handles and failure boundaries so cross-language calls have obligations you can inspect.', href: '/learn/20-foreign-code-and-targets/', link: 'Foreign libraries and deployment interfaces' },
 ];
 ---
 <!doctype html>
@@ -53,37 +58,40 @@ const features = [
         <div class="section-index mono"><span>01 / LANGUAGE DESIGN</span><span>CINCH / DESIGN NOTES</span></div>
         <div class="manifesto-grid"><h2 id="manifesto-title">Functional code.<br /><span>Explicit contracts.</span></h2><div class="manifesto-copy"><p>A function’s type can describe the length of its result, the effects it performs, and the resources it borrows.</p><p>Cinch uses algebraic data types, pattern matching, and higher-order functions. Dependent types and ownership extend that foundation so you can specify properties of your code and check the evidence for them.</p><a class="text-link" href="/specifications/core-language-specification/">Core language specification <span>↗</span></a></div></div>
         <div class="principle-strip mono"><span>STRICT EVALUATION</span><span>DEPENDENT TYPES</span><span>EXPLICIT EFFECTS</span><span>RESOURCE CONTROL</span></div>
+        <nav class="language-jump" aria-label="Explore language features"><a href="#proofs">Proofs and refinements ↓</a><a href="#specialization">Type specialization ↓</a><a href="#staging">Typed staging ↓</a><a href="#optimization">Verified optimization ↓</a><a href="#live-development">Incremental builds and hot reload ↓</a><a href="#runtime-contracts">Runtime contracts ↓</a></nav>
       </section>
       <div class="panel-joint" aria-hidden="true"><span></span><i></i><span></span></div>
       <section class="proof-section" aria-labelledby="proof-title">
         <div class="section-index mono"><span>02 / DEPENDENT TYPES IN USE</span><span>THE CONTRACT IN CODE</span></div>
         <div class="proof-grid">
-          <div class="proof-copy"><h2 id="proof-title">A first element<br />requires<br /><em>a nonempty vector.</em></h2><p>The input has length n + 1. An empty vector has length 0, so it cannot be passed to this function.</p><p class="muted">Pattern matching leaves one constructor to handle. The returned reference borrows from the input and cannot outlive it.</p><a class="text-link" href={tutorial + '#eliminate-an-impossible-case'}>Read the example in context <span>↗</span></a></div>
+          <div class="proof-copy"><h2 id="proof-title">A first element<br />requires<br /><em>a nonempty vector.</em></h2><p>The input has length n + 1. An empty vector has length 0, so it cannot be passed to this function.</p><p class="muted">Pattern matching leaves one constructor to handle. The returned reference borrows from the input and cannot outlive it.</p><a class="text-link" href="/learn/14-dependent-types-and-proofs/#vectors-retain-a-length">Read the example in context <span>↗</span></a></div>
           <div class="code-window"><div class="code-toolbar mono"><span><i></i> first.cinch</span><span>DESIGN EXAMPLE</span></div><pre aria-label="Cinch dependent type example"><code><span class="code-comment">-- Borrow the first element of a nonempty vector.</span>
 <span class="code-name">first</span> <span class="code-punct">::</span> <span class="code-keyword">forall</span> a n region.
   <span class="code-type">Ref</span> region (<span class="code-type">Vec</span> (n + <span class="code-number">1</span>) a)
   <span class="code-punct">-&gt;</span> <span class="code-type">Ref</span> region a
 
 <span class="code-name">first</span> xs = <span class="code-keyword">case</span> xs <span class="code-keyword">of</span>
-  <span class="code-type">Cons</span> x rest <span class="code-punct">-&gt;</span> x</code></pre><div class="code-note"><span class="proof-check">↳</span><p><strong>Why there is no Nil branch</strong><br /><code>Nil</code> has length 0. This input requires <code>n + 1</code>.</p></div><div class="code-caption mono">TUTORIAL 01 / VALUES AND DEPENDENT TYPES</div></div>
+  <span class="code-type">Cons</span> x rest <span class="code-punct">-&gt;</span> x</code></pre><div class="code-note"><span class="proof-check">↳</span><p><strong>Why there is no Nil branch</strong><br /><code>Nil</code> has length 0. This input requires <code>n + 1</code>.</p></div><div class="code-caption mono">DESIGN EXAMPLE / NONEMPTY VECTORS</div></div>
         </div>
         <TechnicalFigure id="landing-vector-figure" />
       </section>
-      <section class="feature-section light-section" aria-labelledby="features-title">
-        <div class="section-index mono"><span>03 / LANGUAGE FEATURES</span><span>TYPES / RESOURCES / EVOLUTION</span></div>
-        <h2 id="features-title">What the language<br />keeps track of.</h2>
+      <LanguageTour />
+      <LiveEvolution />
+      <section class="feature-section light-section" id="runtime-contracts" aria-labelledby="features-title">
+        <div class="section-index mono"><span>08 / RUNTIME CONTRACTS</span><span>RESOURCES / PROCESSES / EVOLUTION</span></div>
+        <h2 id="features-title">Carry the contract<br />into a running system.</h2>
         <div class="feature-list">{features.map(feature => <article class="feature-row"><span class="feature-number mono" aria-hidden="true">{feature.n}</span><div><h3>{feature.title}</h3></div><div><p>{feature.text}</p><a class="text-link" href={feature.href}>{feature.link}<span>↗</span></a></div></article>)}</div>
       </section>
       <section class="reading-section" aria-labelledby="reading-title">
-        <div class="section-index mono"><span>04 / DOCUMENTATION</span><span>CONTENTS</span></div>
-        <div class="reading-heading"><h2 id="reading-title">Read the<br />language design.</h2><p>The tutorials introduce the notation.<br />The specifications define the contracts.</p></div>
-        <div class="reading-links"><a href={tutorial}><h3>Tutorials</h3><p>14 chapters, from values and types to concurrency and compatible upgrades.</p><span class="reading-arrow" aria-hidden="true">↗</span></a><a href="/specifications/core-language-specification/"><h3>Specifications</h3><p>The semantics, contracts, and rules that make up the language.</p><span class="reading-arrow" aria-hidden="true">↗</span></a><a href="/design/open-decisions-and-implementation-plan/"><h3>Design notes</h3><p>Open questions, implementation plans, and the reasoning behind the design.</p><span class="reading-arrow" aria-hidden="true">↗</span></a></div>
-        <aside class="design-status"><span class="mono">IMPLEMENTATION STATUS</span><p>Cinch is under development. These pages specify the intended language; compiler support varies by feature. <a href="/design/next-steps/">Implementation plan ↗</a></p></aside>
+        <div class="section-index mono"><span>09 / DOCUMENTATION</span><span>CONTENTS</span></div>
+        <div class="reading-heading"><h2 id="reading-title">Learn the<br />language.</h2><p>Start with a working program.<br />Keep the compiler guide nearby.</p></div>
+        <div class="reading-links"><a href={tutorial}><h3>Tutorials</h3><p>22 chapters with worked programs, exercises, and a complete project.</p><span class="reading-arrow" aria-hidden="true">↗</span></a><a href="/reference/00-guide/"><h3>Compiler guide</h3><p>Syntax, checking rules, commands, runtime controls, and planned features.</p><span class="reading-arrow" aria-hidden="true">↗</span></a><a href="/library/00-index/"><h3>Library reference</h3><p>Real checked APIs for the built-in and source-distributed modules.</p><span class="reading-arrow" aria-hidden="true">↗</span></a></div>
+        <aside class="design-status"><span class="mono">IMPLEMENTATION STATUS</span><p>This page follows the Cinch language design, including features still being implemented. The examples explain the intended contracts; they are not a browser compiler. <a href="/design/next-steps/">Implementation plan ↗</a></p></aside>
       </section>
-      <section class="ecosystem-section light-section" aria-labelledby="ecosystem-title"><div class="section-index mono"><span>05 / TOOLS AND LIBRARIES</span><span>DEVELOPER RESOURCES</span></div><h2 id="ecosystem-title">Downloads<br />and packages.</h2><div class="ecosystem-links"><a href="/downloads/"><span class="mono">TOOLCHAIN</span><h3>Get Cinch</h3><p>Choose a platform, inspect release information, or get the source.</p><span aria-hidden="true">↗</span></a><a href="/packages/"><span class="mono">LIBRARY INDEX / PREVIEW</span><h3>Browse packages</h3><p>Explore libraries, read module references, and follow linked types into the API.</p><span aria-hidden="true">↗</span></a></div></section>
-      <section class="closing"><div class="mono">TUTORIAL 01 / VALUES AND DEPENDENT TYPES</div><a href={tutorial}><h2>Read the<br /><span>first tutorial.</span></h2><span class="closing-arrow" aria-hidden="true">↗</span></a><div class="closing-bottom mono"><span>STRICT FUNCTIONS → VALUES IN TYPES → RUNTIME WITNESSES</span></div></section>
+      <section class="ecosystem-section light-section" aria-labelledby="ecosystem-title"><div class="section-index mono"><span>10 / TOOLS AND LIBRARIES</span><span>DEVELOPER RESOURCES</span></div><h2 id="ecosystem-title">Downloads<br />and packages.</h2><div class="ecosystem-links"><a href="/downloads/"><span class="mono">TOOLCHAIN</span><h3>Get Cinch</h3><p>Choose a platform, inspect release information, or get the source.</p><span aria-hidden="true">↗</span></a><a href="/packages/"><span class="mono">LIBRARY INDEX / PREVIEW</span><h3>Browse packages</h3><p>Explore libraries, read module references, and follow linked types into the API.</p><span aria-hidden="true">↗</span></a></div></section>
+      <section class="closing"><div class="mono">TUTORIAL 01 / BUILD AND RUN A PROGRAM</div><a href={tutorial}><h2>Read the<br /><span>first tutorial.</span></h2><span class="closing-arrow" aria-hidden="true">↗</span></a><div class="closing-bottom mono"><span>FIRST PROGRAM → LANGUAGE TUTORIAL → COMPILER REFERENCE</span></div></section>
     </main>
-    <footer class="landing-footer"><Brand /><div><a href="/overview/">Documentation</a><a href="/packages/">Packages</a><a href="/downloads/">Downloads</a><a href={project.repository}>GitHub ↗</a><a href="#main">Back to top ↑</a></div></footer>
+    <footer class="landing-footer"><Brand /><div><a href="/documentation/">Documentation</a><a href="/packages/">Packages</a><a href="/downloads/">Downloads</a><a href={project.repository}>GitHub ↗</a><a href="#main">Back to top ↑</a></div></footer>
     <PremiumPagePreview />
     <FreePagePreview />
   </body>

@@ -1,0 +1,343 @@
+{
+  "verified_on": "2026-10-31",
+  "implementation": "Rust compiler snapshot, isolated from concurrent workspace changes",
+  "scope": "All 36 marked complete tutorial and guide examples, each against its recorded isolated Rust compiler snapshot. The attribute index was audited against all 22 compiler-owned names. This is not the full compiler regression suite.",
+  "examples": [
+    {
+      "case": "01-first-program-1",
+      "mode": "run",
+      "passed": true,
+      "source_sha256": "3b39ae4048582ef06559c5139c40fdf786b1cff19847d6fc7baba64d507e2b65",
+      "compiler_sha256": "c0e34b053addfd1f0b786db74bab2631715bbefee4562d82a72dee99f92ff780"
+    },
+    {
+      "case": "02-values-and-layout-1",
+      "mode": "run",
+      "passed": true,
+      "source_sha256": "40005f5f9a1e82c87fc3642d340985ea5f289830343a2983f942ccb6eaf5f614",
+      "compiler_sha256": "c0e34b053addfd1f0b786db74bab2631715bbefee4562d82a72dee99f92ff780"
+    },
+    {
+      "case": "03-functions-1",
+      "mode": "run",
+      "passed": true,
+      "source_sha256": "d799867975c6497100633cf9cb6a1b30fad7926db75ff324c8a71e09245b7bd0",
+      "compiler_sha256": "c0e34b053addfd1f0b786db74bab2631715bbefee4562d82a72dee99f92ff780"
+    },
+    {
+      "case": "03-functions-2",
+      "mode": "run",
+      "passed": true,
+      "source_sha256": "f2d6572524a4d23c7273ec162d7d030e609a3b59f8fefc6b51bf8ef816b65f9a",
+      "compiler_sha256": "c0e34b053addfd1f0b786db74bab2631715bbefee4562d82a72dee99f92ff780"
+    },
+    {
+      "case": "04-data-and-matching-1",
+      "mode": "run",
+      "passed": true,
+      "source_sha256": "84b636954edf51acac195b8889040f02a43e0cb95b8b3d521c9223e4a42a6409",
+      "compiler_sha256": "c0e34b053addfd1f0b786db74bab2631715bbefee4562d82a72dee99f92ff780"
+    },
+    {
+      "case": "04-data-and-matching-2",
+      "mode": "run",
+      "passed": true,
+      "source_sha256": "b931710a730aabbebb66e5f5da5a30be9eaa06f809c041535c02b2d6c9d1f089",
+      "compiler_sha256": "c0e34b053addfd1f0b786db74bab2631715bbefee4562d82a72dee99f92ff780"
+    },
+    {
+      "case": "05-recursion-and-collections-1",
+      "mode": "run",
+      "passed": true,
+      "source_sha256": "95698571ce94cc62e433e7dada4423b50e49ecff55890d6c159defcaa0380a70",
+      "compiler_sha256": "c0e34b053addfd1f0b786db74bab2631715bbefee4562d82a72dee99f92ff780"
+    },
+    {
+      "case": "05-recursion-and-collections-2",
+      "mode": "run",
+      "passed": true,
+      "source_sha256": "2b118d7ebfa571c96c998bad3150a61b707a20051e18dc5b41ad63b6f3924e43",
+      "compiler_sha256": "c0e34b053addfd1f0b786db74bab2631715bbefee4562d82a72dee99f92ff780"
+    },
+    {
+      "case": "06-options-results-and-validation-1",
+      "mode": "run",
+      "passed": true,
+      "source_sha256": "2e59cdff8115bbe1247b86c47608806a3b16bf216f050ee3bf3a6d3972e72428",
+      "compiler_sha256": "c0e34b053addfd1f0b786db74bab2631715bbefee4562d82a72dee99f92ff780"
+    },
+    {
+      "case": "07-numbers-text-and-bytes-1",
+      "mode": "run",
+      "passed": true,
+      "source_sha256": "0e3e87a4ab4db2da93cab3a9dd6703bbdc8fe1e955f4c16496bb599deca9107c",
+      "compiler_sha256": "c0e34b053addfd1f0b786db74bab2631715bbefee4562d82a72dee99f92ff780"
+    },
+    {
+      "case": "07-numbers-text-and-bytes-2",
+      "mode": "run",
+      "passed": true,
+      "source_sha256": "a9fbba230bdc7a6e70ece92a636e6e89e16486f5cf6b12619ef5e168922d2b0b",
+      "compiler_sha256": "c0e34b053addfd1f0b786db74bab2631715bbefee4562d82a72dee99f92ff780"
+    },
+    {
+      "case": "09-signatures-and-instances-1",
+      "mode": "run",
+      "passed": true,
+      "source_sha256": "122727659716567a271e56d436e3f4172a53c09f85c1decb9ebe2fc12bc829e3",
+      "compiler_sha256": "c0e34b053addfd1f0b786db74bab2631715bbefee4562d82a72dee99f92ff780"
+    },
+    {
+      "case": "10-effects-and-io-1",
+      "mode": "run",
+      "passed": true,
+      "source_sha256": "b369a7846e31f5064d0bce4ddee8533f4bbb9b507c46e0e01ff2c273013d404e",
+      "compiler_sha256": "c0e34b053addfd1f0b786db74bab2631715bbefee4562d82a72dee99f92ff780"
+    },
+    {
+      "case": "11-handlers-and-sequencing-1",
+      "mode": "run",
+      "passed": true,
+      "source_sha256": "95acd5817335ff2d4dea64542dbfbb0ccb2a254fa9c662fb3a7ab4766db630a4",
+      "compiler_sha256": "c0e34b053addfd1f0b786db74bab2631715bbefee4562d82a72dee99f92ff780"
+    },
+    {
+      "case": "11-handlers-and-sequencing-2",
+      "mode": "run",
+      "passed": true,
+      "source_sha256": "c019d6abbb022dfaa2d129deb759f93a957ef17cf3a49b7fa689e9720325b407",
+      "compiler_sha256": "c0e34b053addfd1f0b786db74bab2631715bbefee4562d82a72dee99f92ff780"
+    },
+    {
+      "case": "12-ownership-and-regions-1",
+      "mode": "run",
+      "passed": true,
+      "source_sha256": "0829c624caa45bec596d9c6a8e736ec0ca777889ae1b39f89b0551c77f4307fb",
+      "compiler_sha256": "c0e34b053addfd1f0b786db74bab2631715bbefee4562d82a72dee99f92ff780"
+    },
+    {
+      "case": "12-ownership-and-regions-2",
+      "mode": "reject",
+      "passed": true,
+      "source_sha256": "c561c939d74099c52413ebcd165a87d73ebdf3b5440bfc625fb49d6b81fe1645",
+      "compiler_sha256": "c0e34b053addfd1f0b786db74bab2631715bbefee4562d82a72dee99f92ff780"
+    },
+    {
+      "case": "12-ownership-and-regions-3",
+      "mode": "run",
+      "passed": true,
+      "source_sha256": "17988ebe5be9f9ffa33c9c8220d1d5e6199a8c7ac88f962b70d948689d90596a",
+      "compiler_sha256": "c0e34b053addfd1f0b786db74bab2631715bbefee4562d82a72dee99f92ff780"
+    },
+    {
+      "case": "13-refinements-and-safe-operations-1",
+      "mode": "run",
+      "passed": true,
+      "source_sha256": "e7f9da46a3af6a18a014a2ca4d04aed82d808426fac6718b8ba9feba73a4d9d1",
+      "compiler_sha256": "c0e34b053addfd1f0b786db74bab2631715bbefee4562d82a72dee99f92ff780"
+    },
+    {
+      "case": "13-refinements-and-safe-operations-2",
+      "mode": "run",
+      "passed": true,
+      "source_sha256": "1b981403e7218eadc872b8a49f389f1859702f025f1a91428ea1e6b37d6308ca",
+      "compiler_sha256": "c0e34b053addfd1f0b786db74bab2631715bbefee4562d82a72dee99f92ff780"
+    },
+    {
+      "case": "14-dependent-types-and-proofs-1",
+      "mode": "run",
+      "passed": true,
+      "source_sha256": "72e7fc0449ddee2b5a7b27a608fd568cbe6b6d6e38c2c3df2efb8e85cdbd62b2",
+      "compiler_sha256": "c0e34b053addfd1f0b786db74bab2631715bbefee4562d82a72dee99f92ff780"
+    },
+    {
+      "case": "15-ffi-layout-and-attributes-1",
+      "mode": "run",
+      "passed": true,
+      "source_sha256": "cbe47168ad82a5b7131fb4dd635766b5800fe2241801f1be94e891649da1dea3",
+      "compiler_sha256": "c0e34b053addfd1f0b786db74bab2631715bbefee4562d82a72dee99f92ff780"
+    },
+    {
+      "case": "15-streams-and-producers-1",
+      "mode": "run",
+      "passed": true,
+      "source_sha256": "f2e21ba8b7a2049c5e56e4412573f8f6a47c11fe1b28607bd97f5eee1ea3bccb",
+      "compiler_sha256": "c0e34b053addfd1f0b786db74bab2631715bbefee4562d82a72dee99f92ff780"
+    },
+    {
+      "case": "16-explicit-laziness-1",
+      "mode": "run",
+      "passed": true,
+      "source_sha256": "33a73f14cd931142c5ae17ebc5099535e4216c3da5a4fa248b6aed9b004fb87b",
+      "compiler_sha256": "c0e34b053addfd1f0b786db74bab2631715bbefee4562d82a72dee99f92ff780"
+    },
+    {
+      "case": "17-structured-concurrency-1",
+      "mode": "run",
+      "passed": true,
+      "source_sha256": "848219bb740c4fc3edd5f665805693179b33d0094ab608efbde0f703e244035b",
+      "compiler_sha256": "c0e34b053addfd1f0b786db74bab2631715bbefee4562d82a72dee99f92ff780"
+    },
+    {
+      "case": "18-staging-and-macros-1",
+      "mode": "run",
+      "passed": true,
+      "source_sha256": "a1f4b8d68daaf62289df724b167aade742b81abafd257061003478d238329e54",
+      "compiler_sha256": "c0e34b053addfd1f0b786db74bab2631715bbefee4562d82a72dee99f92ff780"
+    },
+    {
+      "case": "21-upgrades-and-contracts-1",
+      "mode": "run",
+      "passed": true,
+      "source_sha256": "67c3c7b9710ff0b3b9b5e77f8378e75c32a91de4fa79a40ef7324d39652ef40f",
+      "compiler_sha256": "c0e34b053addfd1f0b786db74bab2631715bbefee4562d82a72dee99f92ff780"
+    },
+    {
+      "case": "22-putting-it-together-1",
+      "mode": "run",
+      "passed": true,
+      "source_sha256": "c327efc5d7907fccb252f647d32b68d13a3d4043cf03aa9909867148e446d1b0",
+      "compiler_sha256": "c0e34b053addfd1f0b786db74bab2631715bbefee4562d82a72dee99f92ff780"
+    },
+    {
+      "case": "22-safety-assertions-and-llvm-1",
+      "mode": "run",
+      "passed": true,
+      "source_sha256": "4df31bd322a92dfa5cc34fd3e159da1337f1fbd797470c0fe76d128542e0956c",
+      "compiler_sha256": "c0e34b053addfd1f0b786db74bab2631715bbefee4562d82a72dee99f92ff780"
+    },
+    {
+      "case": "22-safety-assertions-and-llvm-2",
+      "mode": "reject",
+      "passed": true,
+      "source_sha256": "277aa6d872debd6e2b4f85d17d0842c473ff14ec49d5b9b4d0d5ba784075d146",
+      "compiler_sha256": "c0e34b053addfd1f0b786db74bab2631715bbefee4562d82a72dee99f92ff780"
+    },
+    {
+      "case": "23-attributes-and-pragmas-2",
+      "mode": "run",
+      "passed": true,
+      "source_sha256": "87d4a8425cb14b7f9435fccdfb3e9f9087b282df7137097bbac3aee5ecf0af8e",
+      "compiler_sha256": "58363f774b0acfd79192659c7a25390236cd99cff7ef949278cb5fb0cc261586"
+    },
+    {
+      "case": "23-attributes-and-pragmas-3",
+      "mode": "reject",
+      "passed": true,
+      "source_sha256": "1eb93383def39805667aa43afdbbb2b291f509b52d4b3ffa7b9f52f637615452",
+      "compiler_sha256": "58363f774b0acfd79192659c7a25390236cd99cff7ef949278cb5fb0cc261586"
+    },
+    {
+      "case": "23-attributes-and-pragmas-5",
+      "mode": "run",
+      "passed": true,
+      "source_sha256": "e4c3c890754758ee116c12b180b35852404a712057fde8b53475c789145a922d",
+      "compiler_sha256": "58363f774b0acfd79192659c7a25390236cd99cff7ef949278cb5fb0cc261586"
+    },
+    {
+      "case": "24-type-layout-1",
+      "mode": "run",
+      "passed": true,
+      "source_sha256": "c89a607156d7aad3bfb423834086bf604dabfa543f188242288372e0890e54a4",
+      "compiler_sha256": "58363f774b0acfd79192659c7a25390236cd99cff7ef949278cb5fb0cc261586"
+    },
+    {
+      "case": "24-type-layout-3",
+      "mode": "reject",
+      "passed": true,
+      "source_sha256": "1ec398ebd24455b384871dbcacc55d500d10483b94ef8bfcaba08f32b30eaa5d",
+      "compiler_sha256": "58363f774b0acfd79192659c7a25390236cd99cff7ef949278cb5fb0cc261586"
+    },
+    {
+      "case": "pricing",
+      "mode": "run",
+      "passed": true,
+      "source_sha256": "bb7dc141f1d5372352c5ecd8946c3aa52a14c99fe54bf77e563c33b0541d129e",
+      "compiler_sha256": "c0e34b053addfd1f0b786db74bab2631715bbefee4562d82a72dee99f92ff780"
+    }
+  ],
+  "compiler_snapshots": [
+    {
+      "sha256": "c0e34b053addfd1f0b786db74bab2631715bbefee4562d82a72dee99f92ff780",
+      "implementation": "Rust compiler snapshot used for the original tutorial/guide examples"
+    },
+    {
+      "sha256": "58363f774b0acfd79192659c7a25390236cd99cff7ef949278cb5fb0cc261586",
+      "implementation": "Fresh isolated Rust compiler snapshot used for attributes and type-layout documentation"
+    }
+  ],
+  "layout_table_checks": [
+    {
+      "repr": "C",
+      "size": 12,
+      "align": 4,
+      "offsets": [
+        0,
+        4,
+        8
+      ],
+      "passed": true,
+      "compiler_sha256": "58363f774b0acfd79192659c7a25390236cd99cff7ef949278cb5fb0cc261586"
+    },
+    {
+      "repr": "C, packed(2)",
+      "size": 8,
+      "align": 2,
+      "offsets": [
+        0,
+        2,
+        6
+      ],
+      "passed": true,
+      "compiler_sha256": "58363f774b0acfd79192659c7a25390236cd99cff7ef949278cb5fb0cc261586"
+    },
+    {
+      "repr": "packed",
+      "size": 7,
+      "align": 1,
+      "offsets": [
+        0,
+        1,
+        5
+      ],
+      "passed": true,
+      "compiler_sha256": "58363f774b0acfd79192659c7a25390236cd99cff7ef949278cb5fb0cc261586"
+    },
+    {
+      "repr": "C, align(16)",
+      "size": 16,
+      "align": 16,
+      "offsets": [
+        0,
+        4,
+        8
+      ],
+      "passed": true,
+      "compiler_sha256": "58363f774b0acfd79192659c7a25390236cd99cff7ef949278cb5fb0cc261586"
+    }
+  ],
+  "tooling_reference_checks": {
+    "scope": "Existing Rust REPL and LSP behaviour suites, run against the isolated compiler snapshot. Intended Coming soon terminal/editor features are documentation targets, not verified implementations.",
+    "command": "cargo test --manifest-path /tmp/cinch-pragmas-compiler/Cargo.toml --test repl --test lsp",
+    "suites": [
+      {
+        "name": "repl",
+        "passed": 7,
+        "failed": 0
+      },
+      {
+        "name": "lsp",
+        "passed": 8,
+        "failed": 0
+      }
+    ],
+    "source_sha256": {
+      "src/repl.rs": "b7983fa4e80a71ea540805cfc6fb68483ab31c2c816e45c63d396f53fd8cfa79",
+      "src/lsp.rs": "536192f5dad3a0b7597d317b67dddfe1df71cccea562ffe6d2d22859b3c044d5",
+      "tests/repl.rs": "c556d08bcc15f6df6b03ac3be73818783b5a1a1b4ec24c283fb5ade42e967311",
+      "tests/lsp.rs": "a1325f15d1007c2d789ea0a10091808704f3a8e65333334219f67301e0e992fe"
+    },
+    "snapshot_sources_match_workspace": true,
+    "rendered_guides_have_coming_soon_labels_and_current_boundaries": true
+  }
+}

@@ -1,0 +1,11 @@
+Tool: built-in image_gen; transparent_background: true.
+Status: raster concept for design review.
+
+Use case: logo-brand.
+Asset type: original logo for Cinch, a dependently typed functional programming language with checked guarantees, expressive syntax, and precise resource control.
+Primary request: Design an exceptionally polished, distinctive logo lockup with an abstract geometric cinched C emblem and the lowercase wordmark "cinch".
+Subject: A bold compact C-shaped loop constructed from a broad continuous band, with a single elegant interlocking fold/cinch where two parts meet. The clever negative space and tight joined structure suggest connections that hold and verified correctness. The silhouette must read as a C immediately and be recognizable as a tiny developer-tool icon. Aim for a memorable simple silhouette and purposeful geometry.
+Style: premium contemporary graphic identity, flat vector-like solid shapes, confident and subtly playful, immaculate clean edges, disciplined proportions. Restrained electric violet and vivid mint accent on the symbol; deep near-black wordmark. Colours are a proposed design direction.
+Text (verbatim): "cinch" — c i n c h, lowercase. Bespoke heavy geometric sans-serif lettering, rounded precise curves, generous optical kerning. Set wordmark to the right of the emblem with balanced spacing, emblem slightly taller than letters.
+Composition: one large horizontal emblem-and-wordmark logo centered on a genuinely transparent canvas, generous even transparent margin, logo fills most of width. One logo only, no presentation sheet.
+Constraints: flat solid colour logo only; must function in one colour; no gradients, no shadows, no 3D, no rope texture, no mockup, no laptop, no extra wording, no slogan, no watermark, no background, no border, no decorative elements. Original identity, do not imitate existing programming language logos.

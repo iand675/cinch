@@ -1,0 +1,23 @@
+-- Category.Alternative: the class of containers with an identity for
+-- choice.
+--
+-- `empty` is the nullary method (the dictionary carries the value
+-- itself) and `<|>` is the choice operator (infixl 3, decision D2's
+-- per-module fixity declarations). As in Haskell the class sits over
+-- Applicative (the import below).
+--
+-- `Alternative (Result e)` is omitted by design: its `empty` needs a
+-- distinguished error value, which is a Monoid on `e`'s error type;
+-- it belongs with the Monoid integration, not here.
+--
+-- Instance homes: the List and Option instances got theirs at the
+-- prelude split (Data.List/Data.Option).
+module Category.Alternative where
+
+  import Category.Applicative
+
+  signature Alternative (f :: Type -> Type) where
+    empty :: forall a. f a
+    (<|>) :: forall a. f a -> f a -> f a
+
+  infixl 3 <|>

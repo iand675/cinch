@@ -1,0 +1,122 @@
+-- Text.Show: rendering values as `String`.
+--
+-- Module scheme (design/base-library.md): `Text.*` is conversion to
+-- and from String/Bytes. The `Show` class is the conversion family's
+-- class; there was no earlier `Show` to move (nothing in `Relation`
+-- or elsewhere carried one), so it lands here in its scheme home,
+-- refined to the bootstrap's minimal shape: `show` renders, with no
+-- `shows`/`showList` zoo.
+--
+-- The concrete conversions below (`nat-to-string`, `int-to-string`,
+-- `char-string`) are the prelude surface's formatting family (their
+-- names are decision D106's dash style and unchanged by the split).
+-- Their digits are raw ASCII bytes (48..=57), so no character
+-- literals are needed.
+--
+-- Instance homes (documented deviation from "instances live with
+-- their type"): the `Show` instances for the primitive carriers live
+-- HERE with the conversion family, not in their Data.* vocabulary
+-- modules. `show`'s result type `String` sits above the bignum and
+-- byte operations in the module order (Data.String's UTF-8 engine
+-- needs the `Nat` operations), so `Show Nat` in Data.Nat would close
+-- an import cycle. `Show` for `Bool`/`Ordering` renders their fixed
+-- text through string literals, which ordinary terms now carry.
+module Text.Show where
+
+  import Data.Nat
+  import Data.Int
+  import Data.Char
+  import Data.Bytes
+  import Data.String
+  import Data.Ordering
+
+  export Show, show, char-string, nat-digits-into, pow10, nat-digit-count, nat-to-string, int-to-string
+
+  signature Show a where
+    show :: a -> String
+
+  -- The decimal rendering agrees with the concrete conversions below
+  -- (the class's law shape: `show` is the rendering; asserted over
+  -- sample values in compiler/tests/prelude_split.rs).
+  implicit instance Show_Nat :: Show Nat where
+    show n = nat-to-string n
+
+  implicit instance Show_Int :: Show Int where
+    show x = int-to-string x
+
+  implicit instance Show_Char :: Show Char where
+    show c = char-string c
+
+  -- The raw text: `String` renders as itself (no quoting in the
+  -- bootstrap).
+  implicit instance Show_String :: Show String where
+    show s = s
+
+  -- The fixed text: each renders as its literal constructor spelling
+  -- (probed in compiler/tests/string_literals.rs).
+  implicit instance Show_Bool :: Show Bool where
+    show b = if b then "True" else "False"
+
+  implicit instance Show_Ordering :: Show Ordering where
+    show o = case o of
+      LT -> "LT"
+      EQ -> "EQ"
+      GT -> "GT"
+
+
+  -- Wrap a freshly built buffer as a `String`: the safe conversion in
+  -- copies (the buffer is ASCII by construction, so the `None` case is
+  -- unreachable; the copy keeps the string immutability contract: no
+  -- alias of the wrapped buffer survives).
+  wrap-bytes :: Bytes -> String
+  wrap-bytes b = case string-from-bytes b of
+    Some s -> s
+    None -> empty-string
+
+  char-string :: Char -> String
+  char-string c =
+    let cp = char-code c in
+    let b = bytes-new (utf8-encode-width cp) in
+    let u = utf8-encode-into b 0 cp in
+    wrap-bytes b
+
+  -- Decimal formatting: digits are raw ASCII bytes (48..=57), so no
+  -- character literals are needed. The low `k` digits of `n` fill
+  -- [pos, pos + k) from the END, one division per digit; extracting each
+  -- digit from the front as `n / 10^(k - 1)` would rebuild the power and
+  -- divide the whole number at every digit, quadratic in `k`. The span
+  -- lies inside the buffer, and each digit is `48 + n % 10 <= 57`.
+  nat-digits-into :: using (pos + k <= bytes-len b) => (b :: Bytes) -> (pos :: Nat) -> Nat -> (k :: Nat) -> Unit
+  nat-digits-into b pos n k =
+    if k == 0 then ()
+    else
+      let u = bytes-set b (pos + (k - 1)) (48 + nat-rem n 10) in
+      nat-digits-into b pos (nat-div n 10) (k - 1)
+
+  pow10 :: Nat -> Nat
+  pow10 k = if k == 0 then 1 else 10 * pow10 (k - 1)
+
+  nat-digit-count :: Nat -> Nat
+  nat-digit-count n = if n < 10 then 1 else 1 + nat-digit-count (nat-div n 10)
+
+  nat-to-string :: Nat -> String
+  nat-to-string n =
+    let k = nat-digit-count n in
+    let b = bytes-new k in
+    let u = nat-digits-into b 0 n k in
+    wrap-bytes b
+
+  -- Signed decimal for `Int`, built from bignum division so values
+  -- beyond i64 format correctly: the magnitude is a `Nat` (`0 - x` for
+  -- a negative `x`) and renders as one, after a raw ASCII 45 byte for
+  -- the sign.
+  int-to-string :: Int -> String
+  int-to-string x =
+    if x < 0 then
+      let m = nat-from-int (0 - x) in
+      let k = nat-digit-count m in
+      let b = bytes-new (k + 1) in
+      let u = bytes-set b 0 45 in
+      let v = nat-digits-into b 1 m k in
+      wrap-bytes b
+    else nat-to-string (nat-from-int x)

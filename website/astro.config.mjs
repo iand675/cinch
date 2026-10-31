@@ -4,8 +4,10 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
+import { syntaxThemes } from './src/themes/syntax.mjs';
 
 const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
+const cinchGrammar = JSON.parse(readFileSync(path.join(REPO_ROOT, 'tooling/editors/vscode/syntaxes/cinch.tmLanguage.json'), 'utf8'));
 
 /**
  * Navigation is derived from the Markdown itself, so a new chapter shows up
@@ -50,14 +52,33 @@ export default defineConfig({
         Sidebar: './src/components/Sidebar.astro',
       },
       lastUpdated: false,
+      expressiveCode: {
+        themes: syntaxThemes,
+        useStarlightUiThemeColors: false,
+        useStarlightDarkModeSwitch: true,
+        shiki: { langs: [{ ...cinchGrammar, name: 'cinch', aliases: ['Cinch'] }] },
+      },
       tableOfContents: { minHeadingLevel: 2, maxHeadingLevel: 3 },
       sidebar: [
-        { label: 'Language overview', link: '/overview/' },
-        { label: '01 / Learn Cinch', items: pagesIn('tutorials') },
-        { label: '02 / Language reference', items: pagesIn('specifications'), collapsed: true },
-        { label: '03 / Design notes', collapsed: true, items: pagesIn('design') },
-        { label: '04 / Examples', collapsed: true, items: pagesIn('examples') },
-        { label: '05 / Background', collapsed: true, items: pagesIn('context') },
+        { label: 'Documentation home', link: '/documentation/' },
+        { label: '01 / Language tutorial', items: pagesIn('learn') },
+        { label: '02 / Compiler user’s guide', items: pagesIn('reference'), collapsed: true },
+        { label: '03 / Built-in and shipped libraries', items: [
+          { label: 'Library directory', link: '/library/00-index/' },
+          ...['Prelude', 'Algebra', 'Category', 'Relation', 'Function', 'Data', 'Text', 'Effect'].map((family) => ({
+            label: family,
+            collapsed: true,
+            items: pagesIn('library').filter((page) => page.label.split('.')[0] === family),
+          })),
+        ], collapsed: true },
+        { label: '04 / Design archive', collapsed: true, items: [
+          { label: 'Original design overview', link: '/overview/' },
+          { label: 'Specifications', items: pagesIn('specifications'), collapsed: true },
+          { label: 'Original design tutorials', items: pagesIn('tutorials'), collapsed: true },
+          { label: 'Design notes', items: pagesIn('design'), collapsed: true },
+          { label: 'Examples', items: pagesIn('examples'), collapsed: true },
+          { label: 'Background', items: pagesIn('context'), collapsed: true },
+        ] },
       ],
     }),
   ],

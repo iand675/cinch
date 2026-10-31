@@ -1,0 +1,84 @@
+-- Data.Sym: interned symbols.
+--
+-- `Sym` is a core runtime type (primitive types specification section
+-- 9): one word, a handle to a process-wide interned name cell. Two
+-- equal names are the same cell, so `Eq` is identity (an O(1) pointer
+-- test) and `Ord` is lexicographic by name (deterministic across runs;
+-- never insertion order). `Show` prints `'foo`. Nothing here exposes a
+-- cell address as data: the foreign boundary takes `sym-name` (or
+-- `Bytes`), and the type has no C counterpart.
+--
+-- Literals are constants first: `'foo` interns at compile time and is
+-- emitted as a constant (the P14 constant-emission path), and `intern`
+-- of an equal name at runtime resolves to the same cell (the runtime
+-- table is keyed by name). Symbol literal patterns test identity.
+--
+-- Module scheme (design/base-library.md): the type's home carries its
+-- instance family (the `Eq`, `Ord` and `Show` instances over the
+-- runtime cells).
+module Data.Sym where
+
+  import Data.Bytes
+  import Data.Hash
+  import Data.String
+  import Text.Show
+
+  export intern, sym-name
+
+
+  -- The runtime cells (`compiler/runtime/src/sym.rs`): the intrinsic
+  -- layer speaks `Bytes` and the raw -1/0/1 comparison immediate (the
+  -- `natCmp` convention); the surface conversions below are the
+  -- section 9 signatures.
+  foreign import ccall "cinch.runtime.symIntern" sym-intern-bytes :: Bytes -> Sym
+  foreign import ccall "cinch.runtime.symName" sym-name-bytes :: Sym -> Bytes
+  foreign import ccall "cinch.runtime.symEq" sym-eq :: Sym -> Sym -> Bool
+  foreign import ccall "cinch.runtime.symCmp" sym-cmp :: Sym -> Sym -> I64
+
+  -- The prelude surface of section 9.
+  intern :: String -> Sym
+  intern s = sym-intern-bytes (string-to-bytes s)
+
+  sym-name :: Sym -> String
+  -- The runtime hands out a fresh buffer per call and the name is
+  -- valid UTF-8 (`intern` takes a `String`), so the `None` case is
+  -- unreachable; the safe conversion in copies (the string
+  -- immutability contract: the representation constructor is private).
+  sym-name s = case string-from-bytes (sym-name-bytes s) of
+    Some n -> n
+    None -> empty-string
+
+  -- `Eq` is identity: the same interned cell (section 9).
+  implicit instance Eq_Sym :: Eq Sym where
+    (==) x y = sym-eq x y
+    (/=) x y = not (sym-eq x y)
+
+  -- `Ord` is lexicographic by name: `symCmp`'s immediate against 0
+  -- (the `natCmp`/`intCmp` reading), never the cell addresses.
+  implicit instance Ord_Sym :: Ord Sym where
+    (<) x y = lt-i64 (sym-cmp x y) 0
+    (<=) x y = le-i64 (sym-cmp x y) 0
+    (>) x y = gt-i64 (sym-cmp x y) 0
+    (>=) x y = ge-i64 (sym-cmp x y) 0
+
+  -- `Show` prints `'foo` (section 9): the tick is `char-string '\''`
+  -- (raw ASCII 39), the name renders as itself.
+  implicit instance Show_Sym :: Show Sym where
+    show s = string-concat (char-string '\'') (sym-name s)
+
+  -- The digest is the interned name's bytes through the `Bytes`
+  -- instance (Data.Bytes owns the fold), read straight off the
+  -- intrinsic layer with no `String` in between. Interning keys on the
+  -- name, so two names equal under `Eq` are the same cell and hash
+  -- alike (the `Hash` law), and the digest never reads a cell address,
+  -- so it is deterministic across runs exactly as `Ord` is.
+  --
+  -- The cell's own word would be the stronger answer (identity is
+  -- already the `Eq`), but nothing here exposes a handle as data: the
+  -- type has no C counterpart and no `Sym`-to-word conversion exists,
+  -- and inventing one to hash by address would buy only the weaker
+  -- property (addresses are not reproducible across runs).
+  -- `symName` hands out a fresh buffer per call, so a hash allocates
+  -- once.
+  implicit instance Hash_Sym :: Hash Sym where
+    hash s = hash (sym-name-bytes s)

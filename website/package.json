@@ -8,7 +8,10 @@
     "build": "astro build",
     "preview": "astro preview",
     "check": "astro check",
-    "verify:preview": "python3 scripts/verify-preview.py"
+    "verify:preview": "python3 scripts/verify-preview.py",
+    "verify:docs": "python3 scripts/generate-library-reference.py --check && python3 scripts/verify-docs.py",
+    "verify:examples": "python3 scripts/verify-doc-examples.py",
+    "docs:library": "python3 scripts/generate-library-reference.py"
   },
   "dependencies": {
     "@astrojs/starlight": "^0.42.7",

@@ -1,0 +1,18 @@
+-- Data.Compose: composition of type constructors, the composing piece
+-- of the category family.
+--
+-- `Compose f g a` wraps `f (g a)`: the composite of `f` after `g` at
+-- `a`. `get-compose` is the elimination.
+--
+-- Instance homes: the Functor/Applicative/Monad instances of the
+-- composite arrive with the prelude split's instance homes (they need
+-- the component instances as constraints); the type ships first so the
+-- family's shape is complete.
+module Data.Compose where
+
+  data Compose f g a where
+    Compose :: f (g a) -> Compose f g a
+
+  get-compose :: forall f g a. Compose f g a -> f (g a)
+  get-compose c = case c of
+    Compose x -> x

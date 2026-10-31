@@ -1,0 +1,162 @@
+-- Data.Result: a computation's outcome: `Err e` or `Ok x`.
+--
+-- Module scheme (design/base-library.md): the type's home carries its
+-- instance family (the parked-instance deviation of D159 is over) and
+-- its D22 sequencing provider instance (`ResultSequencing`: `do`
+-- short-circuits on the first `Err`; the class lives in
+-- Effect.Sequencing).
+module Data.Result where
+
+  -- The shared types (`List`/`Option`/`Result` and their constructors)
+  -- come from `Data.Core`, their one declaration site, so the sibling
+  -- homes are not imported: a name imported from two homes is an
+  -- ambiguity error.
+  import Data.Core
+  import Category.Functor
+  import Category.Applicative
+  import Category.Monad
+
+  export Result, Err, Ok
+  export either, is-ok, is-err, map-result, map-err, from-result, partition-results, results, errors, result-to-option, option-to-result
+
+
+  -- `Result`, `Err` and `Ok` are declared in `Data.Core` and re-exported
+  -- here (that module's header says why: this home consumes a `List` in
+  -- its signatures and is checked before `Data.List`, so one of the two
+  -- types has to be declared ahead of both).
+
+  -- ---------------------------------------------------------------------
+  -- The combinators: `Data.Either`'s folds and conversions, as free
+  -- functions beside the class instances below. Every one of them is a
+  -- total function, and every one of them is a `case` over the two
+  -- constructors: no combinator re-wraps an untouched side, so a caller
+  -- can see which side it costs.
+  -- ---------------------------------------------------------------------
+
+  -- The two-branch fold: `f` consumes an error, `g` a value. The error
+  -- branch leads, matching Haskell's `either` and this type's
+  -- constructor order (the error is the first argument everywhere,
+  -- including `Result e a` itself).
+  either :: forall e a b. (e -> b) -> (a -> b) -> Result e a -> b
+  either f g r = case r of
+    Err e -> f e
+    Ok x -> g x
+
+  -- The branch tests: the tag read, no payload work, no constraint.
+  is-ok :: forall e a. Result e a -> Bool
+  is-ok r = case r of
+    Err _ -> False
+    Ok _ -> True
+
+  is-err :: forall e a. Result e a -> Bool
+  is-err r = case r of
+    Err _ -> True
+    Ok _ -> False
+
+  -- The value's own map, for a caller who has only the prelude: the
+  -- `Functor` method of the same name (`map` in Data.List's surface) is
+  -- reached through its constraint or with `import Category.Functor`.
+  -- The error side is untouched.
+  map-result :: forall e a b. (a -> b) -> Result e a -> Result e b
+  map-result f r = case r of
+    Err e -> Err e
+    Ok x -> Ok (f x)
+
+  -- The error's map (`Data.Either`'s `first`, `mapLeft` in ML-family
+  -- spellings: it maps the LEFT type). The value side is untouched.
+  map-err :: forall e f a. (e -> f) -> Result e a -> Result f a
+  map-err f r = case r of
+    Err e -> Err (f e)
+    Ok x -> Ok x
+
+  -- The value, or the default when there is an error
+  -- (`Data.Either.fromRight`); the default leads, like `from-option`'s.
+  from-result :: forall e a. a -> Result e a -> a
+  from-result d r = case r of
+    Err _ -> d
+    Ok x -> x
+
+  -- The classic `partitionEithers`: every error and every value, each
+  -- side in the input order with its relative order preserved. One pass,
+  -- and the recursion happens once per element (the returned tuple is
+  -- taken apart by pattern, so neither side is walked twice).
+  partition-results :: forall e a. List (Result e a) -> (List e, List a)
+  partition-results rs = case rs of
+    Nil -> (Nil, Nil)
+    Cons r rest -> case r of
+      Err e -> case partition-results rest of
+        (es, xs) -> (Cons e es, xs)
+      Ok x -> case partition-results rest of
+        (es, xs) -> (es, Cons x xs)
+
+  -- The value projection, the errors dropped (`Data.Either.rights`).
+  -- `partition-results` is the pair form; these two are the single-side
+  -- walks a caller reaches for when it wants one side only.
+  results :: forall e a. List (Result e a) -> List a
+  results rs = case rs of
+    Nil -> Nil
+    Cons r rest -> case r of
+      Err _ -> results rest
+      Ok x -> Cons x (results rest)
+
+  -- The error projection, the values dropped (`Data.Either.lefts`).
+  errors :: forall e a. List (Result e a) -> List e
+  errors rs = case rs of
+    Nil -> Nil
+    Cons r rest -> case r of
+      Err e -> Cons e (errors rest)
+      Ok _ -> errors rest
+
+  -- The value as an option, the error dropped. This is the projection a
+  -- caller reaches for in this repo because `Ok` is the success; the
+  -- error-side twin is `Data.Either`'s `hush` and is deliberately not
+  -- added (its name would have to be spelled for the error side, and no
+  -- caller has asked for it).
+  result-to-option :: forall e a. Result e a -> Option a
+  result-to-option r = case r of
+    Err _ -> None
+    Ok x -> Some x
+
+  -- The option as a result, with the error value supplied for `None`
+  -- (`Data.Either.note`); the error leads, as everywhere in this module.
+  option-to-result :: forall e a. e -> Option a -> Result e a
+  option-to-result e o = case o of
+    None -> Err e
+    Some x -> Ok x
+
+  implicit instance SeqResult e :: ResultSequencing e where
+    pure x = Ok x
+    bind r k = case r of
+      Err err -> Err err
+      Ok x -> k x
+
+  -- The error side is untouched: `map f (Err e)` is `Err e` (moved
+  -- from Category.Functor at the prelude split).
+  implicit instance Functor_Result e :: Functor (Result e) where
+    map f r = case r of
+      Err e -> Err e
+      Ok x -> Ok (f x)
+    (<$>) f r = map f r
+
+  -- `pure` is `Ok`; application propagates the FIRST `Err` (the left
+  -- operand's error wins), which is what makes `traverse` into `Result`
+  -- short-circuit on the first error in traversal order (moved from
+  -- Category.Applicative).
+  implicit instance Applicative_Result e :: Applicative (Result e) where
+    pure x = Ok x
+    (<*>) rf rx = case rf of
+      Err e -> Err e
+      Ok f -> case rx of
+        Err e -> Err e
+        Ok x -> Ok (f x)
+    lift-a2 f rx ry = (<*>) (map f rx) ry
+
+  -- The error case short-circuits: `Err e >>= k` is `Err e` (moved
+  -- from Category.Monad).
+  implicit instance Monad_Result e :: Monad (Result e) where
+    (>>=) r k = case r of
+      Err e -> Err e
+      Ok x -> k x
+    join rr = case rr of
+      Err e -> Err e
+      Ok r -> r

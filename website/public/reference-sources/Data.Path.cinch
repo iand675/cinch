@@ -1,0 +1,316 @@
+-- Data.Path: filesystem paths (P34, the platform layer).
+--
+-- A `Path` names filesystem bytes: the text of a POSIX path, carried
+-- whole (no canonicalization, no separator rewriting). This replaces
+-- the placeholder `Path :: Nat -> Path` that Effect.Io carried (an
+-- index into the runtime's input source): a real path names BYTES ON
+-- DISK, and the platform homes (Effect.Fs, Effect.Process) hand its
+-- text to the OS as UTF-8 bytes across the foreign boundary.
+--
+-- Named refusals (boundaries this module deliberately does not
+-- cross):
+--   path canonicalization: `path-join` concatenates with one `/` and
+--     never resolves `.`/`..`; `path-normalize` resolves `.`/`..`
+--     LEXICALLY (text in, text out, never a disk call and never a
+--     symlink resolution, which is the OS's job at the call: the
+--     error vocabulary reports what it found);
+--   Windows separators: the bootstrap's platform layer is POSIX (`/`
+--     is the only separator, and `\` is an ordinary character);
+--   non-UTF-8 path text: the carrier is `String` (UTF-8), so the
+--     platform layer's byte crossing is UTF-8 bytes;
+--   separator collapsing outside `path-normalize`: `path-join` puts
+--     exactly one `/` between two texts and the component readers
+--     (`path-basename`/`path-dirname`) drop trailing separators, but
+--     only `path-normalize` drops EMPTY components, so `a//b` stays
+--     `a//b` until it is normalized.
+--
+-- Module scheme (design/base-library.md): `Data.*` is data types; the
+-- path's home carries its conversions, its join, and the pure
+-- Pathname operations (the I/O half is `Effect.FileUtils`). The
+-- Pathname parity target is `design/stdlib-parity-ruby.md`'s P40 OS
+-- sweep; these are the operations that cost no I/O.
+module Data.Path where
+
+  import Algebra.Semigroup
+  import Data.Char
+  import Data.List
+  import Data.Nat
+  import Data.Option
+  import Data.String
+
+
+  export Path, path-from-string, path-to-string, path-join
+  export path-basename, path-dirname, path-extname, path-stem
+  export path-normalize, path-is-absolute, path-relative-to
+
+
+  -- The path text (POSIX; UTF-8 at the boundary).
+  data Path where
+    Path :: String -> Path
+
+  -- A path from its text.
+  path-from-string :: String -> Path
+  path-from-string s = Path s
+
+  -- The path's text.
+  path-to-string :: Path -> String
+  path-to-string p = case p of
+    Path s -> s
+
+  -- The path `a/b`: exactly one `/` between the two texts (no
+  -- separator collapsing; see the refusals above).
+  path-join :: Path -> Path -> Path
+  path-join a b = case a of
+    Path x -> case b of
+      Path y -> Path (string-concat x (string-concat "/" y))
+
+  -- ---------------------------------------------------------------------------
+  -- The pure Pathname operations: the half of Ruby's Pathname that
+  -- costs no I/O (the mutating half is `Effect.FileUtils`). Every rule
+  -- below is stated on the text; nothing here touches the disk.
+  -- ---------------------------------------------------------------------------
+
+  -- The separator and the dot (POSIX; `\` is an ordinary character).
+  slash-char :: Char
+  slash-char = '/'
+
+  dot-char :: Char
+  dot-char = '.'
+
+  is-slash :: Char -> Bool
+  is-slash c = eq-char c slash-char
+
+  -- Character-list equality. The base layer carries no `Eq (List Char)`
+  -- (comparison instances live with their types and `Data.List` states
+  -- none), and this module compares whole segments, so one local
+  -- recursion serves every site.
+  eq-chars :: List Char -> List Char -> Bool
+  eq-chars xs ys = case xs of
+    Nil -> case ys of
+      Nil -> True
+      Cons _ _ -> False
+    Cons x xr -> case ys of
+      Nil -> False
+      Cons y yr -> if eq-char x y then eq-chars xr yr else False
+
+  -- Every character is a separator (and the list is non-empty): the
+  -- all-separator path, whose basename and dirname are `/`.
+  only-slashes :: List Char -> Bool
+  only-slashes cs = case cs of
+    Nil -> False
+    Cons c rest -> case is-slash c of
+      True -> rest-only-slashes rest
+      False -> False
+
+  rest-only-slashes :: List Char -> Bool
+  rest-only-slashes cs = case cs of
+    Nil -> True
+    Cons c rest -> case is-slash c of
+      True -> rest-only-slashes rest
+      False -> False
+
+  drop-leading-slashes :: List Char -> List Char
+  drop-leading-slashes cs = case cs of
+    Nil -> Nil
+    Cons c rest -> case is-slash c of
+      True -> drop-leading-slashes rest
+      False -> cs
+
+  drop-trailing-slashes :: List Char -> List Char
+  drop-trailing-slashes cs = reverse (drop-leading-slashes (reverse cs))
+
+  take-until-slash :: List Char -> List Char
+  take-until-slash cs = case cs of
+    Nil -> Nil
+    Cons c rest -> case is-slash c of
+      True -> Nil
+      False -> Cons c (take-until-slash rest)
+
+  -- The remainder after the first separator: `None` when there is none.
+  drop-through-first-slash :: List Char -> Option (List Char)
+  drop-through-first-slash cs = case cs of
+    Nil -> None
+    Cons c rest -> case is-slash c of
+      True -> Some rest
+      False -> drop-through-first-slash rest
+
+  -- `path-basename`: the final component, after the last separator.
+  -- Trailing separators are dropped first, an all-separator path is
+  -- `/`, and the empty path is the empty string.
+  basename-chars :: List Char -> List Char
+  basename-chars cs = case cs of
+    Nil -> Nil
+    Cons c rest -> case only-slashes cs of
+      True -> Cons slash-char Nil
+      False -> reverse (take-until-slash (reverse (drop-trailing-slashes cs)))
+
+  -- `path-dirname`: everything before the final component, with
+  -- trailing separators dropped first. A path with no separator is
+  -- `.`, the all-separator path is `/`, and the empty path is `.`.
+  dirname-chars :: List Char -> List Char
+  dirname-chars cs = case cs of
+    Nil -> Cons dot-char Nil
+    Cons c rest -> case only-slashes cs of
+      True -> Cons slash-char Nil
+      False -> case drop-through-first-slash (reverse (drop-trailing-slashes cs)) of
+        None -> Cons dot-char Nil
+        Some back -> case reverse back of
+          Nil -> Cons slash-char Nil
+          prefix -> prefix
+
+  path-basename :: Path -> String
+  path-basename p = pack (basename-chars (unpack (path-to-string p)))
+
+  path-dirname :: Path -> String
+  path-dirname p = pack (dirname-chars (unpack (path-to-string p)))
+
+  -- The index of the last `.`, or `None`.
+  last-dot-index :: List Char -> Nat -> Option Nat -> Option Nat
+  last-dot-index cs i found = case cs of
+    Nil -> found
+    Cons c rest -> case eq-char c dot-char of
+      True -> last-dot-index rest (i + 1) (Some i)
+      False -> last-dot-index rest (i + 1) found
+
+  -- `path-extname`: the suffix from the last `.` in the basename when
+  -- that `.` is not the first character of the basename (`b.txt` is
+  -- `.txt`, `.bashrc` is nothing, `b.` is `.`); nothing otherwise.
+  extname-chars :: List Char -> List Char
+  extname-chars b = case last-dot-index b 0 None of
+    None -> Nil
+    Some i -> case i == 0 of
+      True -> Nil
+      False -> drop i b
+
+  path-extname :: Path -> String
+  path-extname p = pack (extname-chars (basename-chars (unpack (path-to-string p))))
+
+  -- `path-stem`: the basename without its extension, i.e. the prefix
+  -- before the dot `extname-chars` splits at (the whole basename when
+  -- there is no extension).
+  stem-chars :: List Char -> List Char
+  stem-chars b = case last-dot-index b 0 None of
+    None -> b
+    Some i -> case i == 0 of
+      True -> b
+      False -> take i b
+
+  path-stem :: Path -> String
+  path-stem p = pack (stem-chars (basename-chars (unpack (path-to-string p))))
+
+  -- `path-is-absolute`: the path begins with `/` (the empty path is
+  -- not absolute).
+  path-is-absolute :: Path -> Bool
+  path-is-absolute p = case unpack (path-to-string p) of
+    Nil -> False
+    Cons c rest -> is-slash c
+
+  -- Segment splitting for `path-normalize`: on the empty and `.`
+  -- components.
+  split-segments :: List Char -> List Char -> List (List Char) -> List (List Char)
+  split-segments cur cs acc = case cs of
+    Nil -> finish-segment cur acc
+    Cons c rest -> case is-slash c of
+      True -> split-segments Nil rest (finish-segment cur acc)
+      False -> split-segments (Cons c cur) rest acc
+
+  finish-segment :: List Char -> List (List Char) -> List (List Char)
+  finish-segment cur acc = case cur of
+    Nil -> acc
+    Cons _ _ -> Cons (reverse cur) acc
+
+  dot-segment :: List Char
+  dot-segment = Cons dot-char Nil
+
+  dotdot-segment :: List Char
+  dotdot-segment = Cons dot-char (Cons dot-char Nil)
+
+  -- The resolved components, in path order. `..` removes the segment
+  -- before it when there is one and it is not itself `..`; a `..` with
+  -- nothing removable before it is preserved in a relative path and
+  -- dropped in an absolute one (nothing exists above `/`).
+  normalize-components :: Bool -> List (List Char) -> List (List Char) -> List (List Char)
+  normalize-components absolute comps acc = case comps of
+    Nil -> reverse acc
+    Cons seg rest -> case eq-chars seg dot-segment of
+      True -> normalize-components absolute rest acc
+      False -> case eq-chars seg dotdot-segment of
+        True -> resolve-dotdot absolute seg rest acc
+        False -> normalize-components absolute rest (Cons seg acc)
+
+  resolve-dotdot :: Bool -> List Char -> List (List Char) -> List (List Char) -> List (List Char)
+  resolve-dotdot absolute seg rest acc = case acc of
+    Nil -> keep-dotdot absolute seg rest acc
+    Cons top more -> case eq-chars top dotdot-segment of
+      True -> keep-dotdot absolute seg rest acc
+      False -> normalize-components absolute rest more
+
+  keep-dotdot :: Bool -> List Char -> List (List Char) -> List (List Char) -> List (List Char)
+  keep-dotdot absolute seg rest acc = case absolute of
+    True -> normalize-components absolute rest acc
+    False -> normalize-components absolute rest (Cons seg acc)
+
+  -- A string's components in path order, `..` resolved.
+  resolve-path :: Bool -> String -> List (List Char)
+  resolve-path absolute s = normalize-components absolute (reverse (split-segments Nil (unpack s) Nil)) Nil
+
+  -- Join the resolved components: an absolute path is prefixed with
+  -- `/` (and is `/` with none); a relative path with none is `.`.
+  join-segments :: Bool -> List (List Char) -> List Char
+  join-segments absolute segs = case segs of
+    Nil -> case absolute of
+      True -> Cons slash-char Nil
+      False -> Cons dot-char Nil
+    Cons s rest -> case absolute of
+      True -> Cons slash-char (join-head s rest)
+      False -> join-head s rest
+
+  join-head :: List Char -> List (List Char) -> List Char
+  join-head s rest = case rest of
+    Nil -> s
+    Cons t more -> s <> Cons slash-char (join-head t more)
+
+  -- `path-normalize`: LEXICAL cleanup (text in, text out; no disk call
+  -- and no symlink resolution). Split on `/`, drop empty and `.`
+  -- segments, resolve each `..` as above; join with `/` and prefix
+  -- `/` when the input began with `/`.
+  path-normalize :: Path -> Path
+  path-normalize p =
+    let absolute = path-is-absolute p in
+    Path (pack (join-segments absolute (resolve-path absolute (path-to-string p))))
+
+  -- The leading components two paths share, and each one's remainder.
+  strip-common :: List (List Char) -> List (List Char) -> (List (List Char), List (List Char))
+  strip-common xs ys = case xs of
+    Nil -> (Nil, ys)
+    Cons x xr -> case ys of
+      Nil -> (xs, Nil)
+      Cons y yr -> case eq-chars x y of
+        True -> strip-common xr yr
+        False -> (xs, ys)
+
+  join-forward :: List (List Char) -> List Char
+  join-forward segs = case segs of
+    Nil -> Nil
+    Cons s rest -> join-head s rest
+
+  relative-chars :: List (List Char) -> List (List Char) -> List Char
+  relative-chars dots trem = case dots <> trem of
+    Nil -> Cons dot-char Nil
+    segs -> join-forward segs
+
+  -- `path-relative-to target base`: the relative path from `base` to
+  -- `target` under the same lexical form. Both are normalized first.
+  -- When their absoluteness differs no common prefix exists and the
+  -- normalized target is returned; otherwise the shared leading
+  -- components are dropped, one `..` is emitted per remaining base
+  -- component, and the remaining target components follow (nothing
+  -- remaining is `.`).
+  path-relative-to :: Path -> Path -> Path
+  path-relative-to dest base =
+    let nt = path-normalize dest in
+    let nb = path-normalize base in
+    case path-is-absolute nt == path-is-absolute nb of
+      False -> nt
+      True -> case strip-common (resolve-path (path-is-absolute nt) (path-to-string nt)) (resolve-path (path-is-absolute nb) (path-to-string nb)) of
+        (trem, brem) -> Path (pack (relative-chars (replicate (list-length brem) dotdot-segment) trem))

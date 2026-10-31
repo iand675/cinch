@@ -1,0 +1,27 @@
+{
+  "source": "cinch-cursive-04-balanced-flourishes.png",
+  "source_sha256": "b4ff187380b7666d9f22777eea7ec31f309c27de16ca672b96b4f6c3932b2334",
+  "svg": "cinch-cursive-04-clean-v3.svg",
+  "render": "cinch-cursive-04-clean-v3-render.png",
+  "comparison": "cinch-cursive-04-clean-v3-comparison.png",
+  "svg_bytes": 1203909,
+  "compressed_svg_bytes": 250047,
+  "previous_svg_bytes": 1669831,
+  "size_reduction_percent": 27.902344608526253,
+  "vector_paths": 610,
+  "gradients": 480,
+  "previous_paths": 994,
+  "previous_gradients": 480,
+  "foreground_ssim_by_background": {
+    "bottle_green": 0.9593743218547078,
+    "white": 0.960121185137908,
+    "black": 0.9559140032078113
+  },
+  "silhouette_iou": 0.9930801780021716,
+  "ssim_method": "Channel-average SSIM over the union of source/render foreground pixels (alpha > 0.5), using uniform 7x7 local windows, C1=0.01^2, C2=0.03^2. Original pixel dimensions. This is a defined image-similarity check, not a guarantee of subjective equivalence.",
+  "renderer": "resvg 0.48.1",
+  "embedded_images": 0,
+  "live_fonts": 0,
+  "filters": 1,
+  "notes": "Original PNG and earlier SVGs preserved. Normalized shared colour-region edges to the original pixel-cell boundaries, removed duplicate and collinear vertices, and consolidated 128 area-weighted solid tones. Reordered closed contours spatially and shortened moves. Kept the 480 fitted gradients and the curved master silhouette. No extra tone-smoothing filter was used; the existing 0.1px seam-correction effect remains. This is still a detailed vector trace."
+}

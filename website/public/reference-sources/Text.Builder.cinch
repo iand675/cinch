@@ -1,0 +1,148 @@
+-- Text.Builder: an append-cheap text and byte builder (the codegen rung's
+-- accumulator).
+--
+-- The ladder's IR rung renders LLVM IR as TEXT with `string-concat`, which
+-- copies its LEFT operand, so emitting a module piece by piece is quadratic in
+-- the number of pieces: survivable for a toy function, hostile for the whole
+-- prelude's 55 modules, and the same shape would bite the manifest writer and
+-- every diagnostic renderer. This module is the efficient accumulator the text
+-- homes did not have.
+--
+-- The representation is a SPINE of pending pieces (the `Bootstrap.Ast`
+-- `*-spine` convention, D387's answer to a data type that cannot nest a `List`
+-- of itself): each append allocates one cell and RETAINS its argument, so an
+-- append of a string or a byte slice copies NOTHING and runs in constant time,
+-- independent of the piece's length. The spine holds the pieces most-recent
+-- first; the flatten lays them out in APPEND order by filling the output
+-- backward from its end. `builder-run`/`builder-bytes` measure the whole spine
+-- once (`builder-size`), allocate ONE output buffer, and copy each piece
+-- exactly once: O(total bytes) time and one allocation, never quadratic.
+--
+-- `builder-size` is EXACT (the sum of each piece's byte length, computed
+-- without flattening) and O(number of pieces). `builder-chunks` counts the
+-- pending pieces, one per append (an append of a line is still one piece), so
+-- a caller can assert that appends do not re-copy.
+--
+-- `builder-add-nat`/`builder-add-int` render through `Text.Show`'s
+-- `nat-to-string`/`int-to-string` and append the resulting `String` as one
+-- piece. `builder-add-line` appends the text and a single LF as one piece, so
+-- the line semantics are the builder's, not a caller's.
+--
+-- `builder-run` decodes the flattened UTF-8. A builder built only through the
+-- string, line, nat and int surface is always valid UTF-8, so the decode never
+-- fails there; a raw byte chunk that is not valid UTF-8 (only
+-- `builder-add-bytes` can insert one) still flattens exactly through
+-- `builder-bytes`, and `builder-run` then yields the empty string. That is the
+-- defined total fallback, the same shape `Text.Show`'s `wrap-bytes` uses.
+--
+-- Module scheme (design/base-library.md): `Text.*` is conversion to and from
+-- String/Bytes, so the builder lives here.
+module Text.Builder where
+
+  import Data.Nat
+  import Data.String
+  import Data.Bytes
+  import Text.Show
+
+  export Builder, builder-new, builder-is-empty, builder-add-string, builder-add-bytes, builder-add-line, builder-add-nat, builder-add-int, builder-run, builder-bytes, builder-chunks, builder-size
+
+
+  -- A pending piece, each a retained argument with no copy made at append
+  -- time. `BEnd` is the spine's end marker; `BLine` carries the text before
+  -- its newline; `BBytes` carries a raw byte slice (which need not be UTF-8).
+  data Builder where
+    BEnd :: Builder
+    BString :: String -> Builder -> Builder
+    BLine :: String -> Builder -> Builder
+    BBytes :: Bytes -> Builder -> Builder
+
+  -- The empty builder (no pending pieces).
+  builder-new :: Builder
+  builder-new = BEnd
+
+  -- Whether a builder has no pending pieces. Structural: a builder is empty
+  -- exactly when it was never appended to, so an appended empty string counts
+  -- as a piece.
+  builder-is-empty :: Builder -> Bool
+  builder-is-empty b = case b of
+    BEnd -> True
+    BString _ _ -> False
+    BLine _ _ -> False
+    BBytes _ _ -> False
+
+  -- Append a string as one piece: O(1), no copy of the string's bytes.
+  builder-add-string :: String -> Builder -> Builder
+  builder-add-string s b = BString s b
+
+  -- Append a raw byte slice as one piece: O(1), no copy of the slice.
+  builder-add-bytes :: Bytes -> Builder -> Builder
+  builder-add-bytes x b = BBytes x b
+
+  -- Append the text and a single LF as one piece.
+  builder-add-line :: String -> Builder -> Builder
+  builder-add-line s b = BLine s b
+
+  -- Append a decimal `Nat` (rendered by `Text.Show`).
+  builder-add-nat :: Nat -> Builder -> Builder
+  builder-add-nat n b = BString (nat-to-string n) b
+
+  -- Append a decimal `Int` (rendered by `Text.Show`).
+  builder-add-int :: Int -> Builder -> Builder
+  builder-add-int x b = BString (int-to-string x) b
+
+  -- How many pieces are pending: one per append, so a test can assert that
+  -- appends do not re-copy. O(number of pieces).
+  builder-chunks :: Builder -> Nat
+  builder-chunks b = case b of
+    BEnd -> 0
+    BString _ rest -> 1 + builder-chunks rest
+    BLine _ rest -> 1 + builder-chunks rest
+    BBytes _ rest -> 1 + builder-chunks rest
+
+  -- The exact total byte length of the flattened result, without flattening
+  -- (a line piece counts its LF). O(number of pieces).
+  builder-size :: Builder -> Nat
+  builder-size b = case b of
+    BEnd -> 0
+    BString s rest -> string-byte-length s + builder-size rest
+    BLine s rest -> string-byte-length s + 1 + builder-size rest
+    BBytes x rest -> bytes-len x + builder-size rest
+
+  -- One pass over the spine that makes the output at the far end and fills
+  -- it on the way back. The spine holds the pieces most-recent-first (an
+  -- append prepends a cell), so `extra` counts the bytes of the newer
+  -- pieces already walked: the buffer is made at `BEnd` with room for all
+  -- of them, and each piece lands just before the newer pieces, which lays
+  -- the document out in APPEND order. The result refinement is the room
+  -- still owed to the newer pieces, so every copy is in range by
+  -- construction. Private: callers go through `builder-bytes`.
+  builder-fill :: (extra :: Nat) -> Builder -> refined (extra <= bytes-len out) Bytes
+  builder-fill extra b = case b of
+    BEnd -> bytes-new extra
+    BString s rest ->
+      let x = string-to-bytes s in
+      let out = builder-fill (extra + bytes-len x) rest in
+      let u = copy-bytes-into out x (bytes-len out - (extra + bytes-len x)) 0 (bytes-len x) in
+      out
+    BLine s rest ->
+      let x = string-to-bytes s in
+      let out = builder-fill (extra + bytes-len x + 1) rest in
+      let u = copy-bytes-into out x (bytes-len out - (extra + bytes-len x + 1)) 0 (bytes-len x) in
+      let v = bytes-set out (bytes-len out - (extra + 1)) 10 in
+      out
+    BBytes x rest ->
+      let out = builder-fill (extra + bytes-len x) rest in
+      let u = copy-bytes-into out x (bytes-len out - (extra + bytes-len x)) 0 (bytes-len x) in
+      out
+
+  -- The flattened bytes: one allocation, one copy pass.
+  builder-bytes :: Builder -> Bytes
+  builder-bytes b = builder-fill 0 b
+
+  -- The flattened string: flatten once, then decode the UTF-8. A builder
+  -- built through the string, line, nat and int surface is always valid UTF-8;
+  -- a raw byte chunk that is not yields the empty string (see the header).
+  builder-run :: Builder -> String
+  builder-run b = case string-from-bytes (builder-bytes b) of
+    Some s -> s
+    None -> empty-string

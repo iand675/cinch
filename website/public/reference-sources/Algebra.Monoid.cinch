@@ -1,0 +1,209 @@
+-- Algebra.Monoid: semigroups with an identity element.
+--
+-- `Monoid` adds the identity to the associative `<>`
+-- (Algebra.Semigroup). The import below is explicit because a class
+-- constraint entails nothing (the standing no-superbundle rule):
+-- `Monoid` does not extend `Semigroup`, and every function states the
+-- constraints it uses. The imported operator keeps the fixity declared
+-- by Algebra.Semigroup; this module cannot redeclare it.
+--
+-- `mempty` is the nullary class method `mempty :: a` (the higher-kinded
+-- slice lifted the function-type requirement on class methods): the
+-- dictionary carries the identity value directly, so call sites write
+-- `mempty`.
+--
+-- Laws (asserted over sample values in compiler/tests/lib_algebra.rs):
+--   left unit:  mempty <> x == x
+--   right unit: x <> mempty == x
+-- plus associativity of `<>` from Algebra.Semigroup.
+--
+-- Instance homes. The newtypes below exist only to carry instances, so
+-- the base library scheme puts them with their class module (here).
+-- Every instance lives with its type: the newtypes' Semigroup and
+-- Monoid instances are both here because the newtypes are declared
+-- here. The carriers that were parked here (List, Option, Ordering,
+-- String) got their instances at the prelude split: they live in the
+-- types' Data.* homes now. Structural instances over functions and
+-- tuples live with the class module permanently; the Semigroup halves
+-- of those live in Algebra.Semigroup. `Dual`'s `Group` instance is
+-- here too (it lives with its type): the opposite group of any group.
+module Algebra.Monoid where
+
+  import Algebra.Semigroup
+  import Algebra.Group
+
+
+  signature Monoid a where
+    mempty :: a
+    -- `mconcat`: combine the whole list with `<>`, in order, or `mempty`
+    -- for the empty list. This is the operation the text homes kept
+    -- rebuilding as a private `concat-strings`; they call it now.
+    --
+    -- A method with a default (D388), so a carrier whose `<>` copies its
+    -- operands can override it with a one-pass combine (`Monoid String`
+    -- does) while every other instance inherits the default below. The
+    -- `Semigroup a` constraint is the method's own, not the class's (a
+    -- class constraint entails nothing, the standing no-superbundle
+    -- rule): the default needs it for `<>`, so every caller supplies it,
+    -- exactly as the free function it replaces required.
+    --
+    -- The default's bracketing is BALANCED: each round combines adjacent
+    -- pairs, and rounds repeat until one value remains. Associativity (the
+    -- Semigroup law) makes every bracketing of the same sequence equal, so
+    -- this equals the right fold `foldr (<>) mempty` (the right unit law
+    -- covers dropping the fold's trailing `mempty`), in n - 1 combinations
+    -- for n values. What the bracketing changes is the cost of a `<>` that
+    -- copies its operands: the right fold re-copies the whole accumulated
+    -- suffix at every step, O(n^2) bytes, while each balanced round copies
+    -- every byte once, O(n log n) over the log n rounds. An override must
+    -- equal the default. The rounds are Algebra.Semigroup's balanced
+    -- `sconcat`, with `mempty` for the empty list.
+    mconcat :: using (sa :: Semigroup a) => List a -> a
+    mconcat xs = case sconcat xs of
+      None -> mempty
+      Some v -> v
+    -- The class laws (primitive operations and inline target IR
+    -- specification section 5): `mempty` is a left and right unit of
+    -- `<>` (Algebra.Semigroup's method; a class constraint entails
+    -- nothing, so the law names the operator it uses). Citable by
+    -- identity as `Monoid.left-unit` and `Monoid.right-unit`.
+    law left-unit :: (x :: a) -> Eq (mempty <> x) x
+    law right-unit :: (x :: a) -> Eq (x <> mempty) x
+
+  -- ------------------------------------------------------------------
+  -- The instance-carrying newtypes (design/base-library.md: "the
+  -- newtypes that exist only to carry instances live with their class
+  -- module"). Their instances live with their type, so both the
+  -- Semigroup and Monoid instances of each are declared here.
+
+  -- Nat under addition: `Sum x <> Sum y` adds. The bare `Nat` gets no
+  -- Semigroup instance (two monoids live on Nat; the newtype chooses).
+  data Sum where
+    Sum :: Nat -> Sum
+
+  implicit instance Semigroup_Sum :: Semigroup Sum where
+    (<>) x y = case x of
+      Sum a -> case y of
+        Sum b -> Sum (a + b)
+
+  implicit instance Monoid_Sum :: Monoid Sum where
+    mempty = Sum 0
+
+  -- Nat under multiplication.
+  data Product where
+    Product :: Nat -> Product
+
+  implicit instance Semigroup_Product :: Semigroup Product where
+    (<>) x y = case x of
+      Product a -> case y of
+        Product b -> Product (a * b)
+
+  implicit instance Monoid_Product :: Monoid Product where
+    mempty = Product 1
+
+  -- Bool under conjunction. A list of `Bool` folds through `Monoid`
+  -- only under an explicit choice of which boolean monoid is meant
+  -- (the bare `Bool` carries none), so `All` picks conjunction and
+  -- `Any` picks disjunction, the pair base's `Data.Monoid` names. The
+  -- identity of conjunction is `True`, so `mconcat Nil` (an `All`) is
+  -- `All True`.
+  data All where
+    All :: Bool -> All
+
+  implicit instance Semigroup_All :: Semigroup All where
+    (<>) x y = case x of
+      All a -> case y of
+        All b -> All (and a b)
+
+  implicit instance Monoid_All :: Monoid All where
+    mempty = All True
+
+  -- Bool under disjunction: `Any`'s identity is `False`, so
+  -- `mconcat Nil` (an `Any`) is `Any False`.
+  data Any where
+    Any :: Bool -> Any
+
+  implicit instance Semigroup_Any :: Semigroup Any where
+    (<>) x y = case x of
+      Any a -> case y of
+        Any b -> Any (or a b)
+
+  implicit instance Monoid_Any :: Monoid Any where
+    mempty = Any False
+
+  -- Dual: composition in the opposite order. `Dual x <> Dual y`
+  -- combines y before x, turning any monoid into its opposite.
+  data Dual t where
+    Dual :: t -> Dual t
+
+  implicit instance Semigroup_Dual t :: using (sa :: Semigroup t) => Semigroup (Dual t) where
+    (<>) x y = case x of
+      Dual p -> case y of
+        Dual q -> Dual ((<>) q p)
+
+  implicit instance Monoid_Dual t :: using (ma :: Monoid t) => Monoid (Dual t) where
+    mempty = Dual mempty
+
+  -- The opposite group: `invert (Dual x)` is `Dual (invert x)`. The
+  -- inverse laws hold in the opposite order (instances live with
+  -- their type).
+  implicit instance Group_Dual t :: using (ga :: Group t) => Group (Dual t) where
+    invert x = case x of
+      Dual p -> Dual (invert p)
+
+  -- First: the leftmost `Some`, in a wrapper that keeps this choice
+  -- apart from Option's own first-some reading (they agree today; the
+  -- wrapper makes the intent explicit and leaves Option free).
+  data First t where
+    First :: Option t -> First t
+
+  implicit instance Semigroup_First t :: Semigroup (First t) where
+    (<>) x y = case x of
+      First o -> case o of
+        None -> y
+        Some _ -> x
+
+  implicit instance Monoid_First t :: Monoid (First t) where
+    mempty = First None
+
+  -- Last: the rightmost `Some`.
+  data Last t where
+    Last :: Option t -> Last t
+
+  implicit instance Semigroup_Last t :: Semigroup (Last t) where
+    (<>) x y = case y of
+      Last o -> case o of
+        None -> x
+        Some _ -> y
+
+  implicit instance Monoid_Last t :: Monoid (Last t) where
+    mempty = Last None
+
+  -- Endo: endomorphisms under composition. `Endo f <> Endo g` is
+  -- `f` after `g` (like `(.)`), and `mempty` is the identity, so
+  -- folding `<>` over endomorphisms chains them left to right.
+  data Endo t where
+    Endo :: (t -> t) -> Endo t
+
+  implicit instance Semigroup_Endo t :: Semigroup (Endo t) where
+    (<>) x y = case x of
+      Endo f -> case y of
+        Endo g -> Endo (\z -> f (g z))
+
+  implicit instance Monoid_Endo t :: Monoid (Endo t) where
+    mempty = Endo (\x -> x)
+
+  -- ------------------------------------------------------------------
+  -- Structural instances (functions and tuples), with the class
+  -- module.
+
+  -- A function into a monoid is a monoid pointwise: the identity is the
+  -- function returning the identity. Eta-expanded like the function
+  -- Semigroup above: `mempty x` is the identity at x. `mconcat` is the
+  -- class default, eta-expanded by the checker to this carrier's arity.
+  implicit instance Monoid_Function t u :: using (mb :: Monoid u) => Monoid (t -> u) where
+    mempty x = mempty
+
+  -- Tuples of monoids are monoids componentwise.
+  implicit instance Monoid_Pair t u :: using (ma :: Monoid t, mb :: Monoid u) => Monoid (t, u) where
+    mempty = (mempty, mempty)

@@ -1,0 +1,69 @@
+-- Algebra.Arithmetic: the arithmetic operation classes.
+--
+-- The primitive types specification's arithmetic classes (section 8):
+-- `Add`, `Sub`, `Mul` and `Neg` on the mathematical types, `Div` and
+-- `Rem` for their division. These are operation classes, not the
+-- named algebraic structures of the base library scheme
+-- (design/base-library.md's Algebra.* family is Semigroup, Monoid,
+-- Group, Semiring, Lattice); they group here as the arithmetic
+-- operations kind. Machine scalars get NO arithmetic instances: a
+-- class method has a single result type and cannot express which
+-- overflow family is meant (primitive types specification section 8).
+-- Division and remainder are total by construction: the divisor is a
+-- `NonZero a` (design/no-faults.md). Instances live with their type.
+module Algebra.Arithmetic where
+
+  infixl 9 *, /, %
+  infixl 8 +, -
+
+  export Add, (+), Sub, (-), Mul, (*), Neg, negate, Rem, (%), Div, (/)
+  export NonZero, InRange
+
+  -- The divisor type, declared here because the `Div`/`Rem` classes
+  -- and the `Nat`/`Int` homes (checked right after this module) name
+  -- it in their signatures; its total constructors and instances live
+  -- in its public home, `Data.NonZero`. One refinement states the
+  -- predicate for every carrier it decides (`NonZero Nat`, `NonZero
+  -- Int`, a machine integer): the carrier is the container, so a
+  -- `NonZero Nat` IS its `Nat` at runtime, and a numeral decides its
+  -- predicate at compile time.
+  type NonZero a = refine (n :: a) with NonZero n
+
+  -- A range of a number, the result type of every operation whose
+  -- result lies in known bounds by construction (`u32-to-i64 :: U32 ->
+  -- InRange 0 4294967295 I64`, `bytes-get`'s `InRange 0 255 Nat`,
+  -- `char-code`'s `InRange 0 1114111 Nat`). The bounds are inclusive
+  -- index parameters, so the predicate is two comparisons the
+  -- difference-logic discharge reads directly: a let-bound result
+  -- carries `lo <= x && x <= hi` as a fact, an application in an
+  -- obligation carries it for its term, and where no range is demanded
+  -- the value is its number (`c - 48`, `nat-add c 1`).
+  type InRange (lo :: Int) (hi :: Int) a = refine (x :: a) with lo <= x && x <= hi
+
+
+  signature Add a where
+    (+) :: a -> a -> a
+
+  signature Sub a where
+    (-) :: a -> a -> a
+
+  signature Mul a where
+    (*) :: a -> a -> a
+
+  signature Neg a where
+    negate :: a -> a
+
+  -- Modulo and division for the mathematical types (decision D91).
+  -- The divisor carries its evidence: a `NonZero a`, so no instance
+  -- can reach a zero divisor. A numeral divisor needs nothing written
+  -- (`n / 10` and `n % 10` decide `NonZero 10` at compile time); any
+  -- other divisor is a threaded `NonZero a` or the product of a
+  -- runtime decision (`decide (NonZero d)`). A total division whose
+  -- divisor may be zero is not this operation: `Data.Complex.div`'s
+  -- IEEE quotient stays a named function. Machine integers keep the
+  -- checked family only, per the primitive types specification.
+  signature Rem a where
+    (%) :: a -> NonZero a -> a
+
+  signature Div a where
+    (/) :: a -> NonZero a -> a

@@ -1,0 +1,85 @@
+---
+import CodeExcerpt from './CodeExcerpt.astro';
+import '../styles/language-tour.css';
+const proofViews=[
+  {id:'bounds',label:'Runtime evidence',title:'Turn a checked value into a usable guarantee.',description:'A successful bounds check returns a Fin n: an index together with evidence that it fits. The caller handles invalid input explicitly; code that requires a bounded index receives the stronger type.',code:String.raw`checkedIndex :: (n :: Nat) -> Nat -> Option (Fin n)
+checkedIndex n i = case decide (i < n) of
+  Yes bound -> Some (Fin i bound)
+  No _ -> None`,caption:'The comparison runs. The successful proof is erased.',href:'/tutorials/02-proofs-and-runtime-checks/',link:'Proofs and runtime checks'},
+  {id:'induction',label:'Structural proofs',title:'Prove the relationship for every input.',description:'An equality can be established by induction over a natural number. Each recursive step uses a smaller value; congr carries the smaller equality through Succ. The proof is checked before it is erased.',code:String.raw`proof plusZero :: (n :: Nat) -> Eq (n + 0) n
+proof plusZero n = case n of
+  Zero -> refl
+  Succ k -> congr Succ (plusZero k)`,caption:'Proof code must be total. Looping cannot manufacture evidence.',href:'/tutorials/02-proofs-and-runtime-checks/#prove-a-general-statement',link:'Read the induction example'},
+  {id:'refinements',label:'Refinement types',title:'Keep the data. Strengthen what you know.',description:'NonEmpty describes a list whose predicate has been established. The evidence is erased and the list keeps its representation. Methods are available when their contracts preserve the refinement: appending nonempty lists stays nonempty; an empty identity would not.',code:String.raw`type NonEmpty a =
+  refine (xs :: List a) with NotNull xs
+
+from-list :: List a -> Option (NonEmpty a)`,caption:'Refinements express facts about values; newtypes give values a distinct identity.',href:'/design/refinement-types/',link:'Refinements and their laws'},
+];
+const representation=String.raw`implicit instance Bits :: Represent (List Bool) BitList where
+  -- Builders and a view connect the two representations.
+  Nil       = bit-list-empty
+  Cons b bs = bit-list-cons b bs
+
+  -- Fast paths keep the same public operations.
+  specialize length = bit-list-length
+  specialize index  = bit-list-index`;
+const generator=String.raw`stage addOne :: Code Int -> Code Int
+stage addOne body = [| let x = $(body) in x + 1 |]
+
+generate do
+  emit (quoteDecls where
+    answer :: Int
+    answer = $(addOne [| 21 |]))`;
+const generated=String.raw`answer :: Int
+answer = let x = 21 in x + 1`;
+const rewrite=String.raw`rewrite mapMap forall (f :: Int -> Int)
+                      (g :: Int -> Int)
+                      (xs :: List Int). where
+  match List.map f (List.map g xs)
+  replace List.map (\x -> f (g x)) xs
+  justify mapFusion f g xs`;
+---
+<section class="evidence-section language-section light-section" id="proofs" aria-labelledby="evidence-title">
+  <div class="section-index mono"><span>03 / PROOFS AND REFINEMENTS</span><span>VALUES / EVIDENCE / ERASURE</span></div>
+  <div class="tour-heading"><h2 id="evidence-title">Put the guarantee<br />in the type.</h2><p>Check a concrete input, prove a general law, or refine an existing type. The evidence becomes part of what another function can rely on.</p></div>
+  <div class="proof-selector" role="group" aria-label="Proof example">{proofViews.map((view,i)=><button type="button" data-proof-view={view.id} aria-pressed={i===0} aria-controls={`proof-view-${view.id}`}><span class="mono">0{i+1}</span>{view.label}</button>)}</div>
+  <div class="proof-views">{proofViews.map((view,i)=><div id={`proof-view-${view.id}`} data-proof-panel={view.id} hidden={i!==0} class="proof-view"><div class="proof-view-copy"><h3>{view.title}</h3><p>{view.description}</p><a class="text-link" href={view.href}>{view.link}<span>↗</span></a></div><CodeExcerpt code={view.code} label={view.label.toUpperCase()} caption={view.caption}/></div>)}</div>
+  <div class="automation-rail"><div><span class="mono">PROOF AUTOMATION</span><h3>Search for a proof.<br />Check the evidence.</h3><p>Tactics are compile-time Cinch programs. Arithmetic bounds, algebraic identities, and bit-vector laws can use different strategies. Each returns proof terms or certificates for the kernel to check. An unresolved goal stays unresolved.</p><a class="text-link" href="/design/proof-automation/">The proof automation design <span>↗</span></a></div><ol aria-label="Proof automation pipeline"><li><span class="mono">01 / SEARCH</span><strong>Tactic or solver</strong><small>Find an argument for the goal.</small></li><li><span class="mono">02 / EVIDENCE</span><strong>Term or certificate</strong><small>Return something checkable.</small></li><li><span class="mono">03 / CHECK</span><strong>Small proof kernel</strong><small>Validate it against the proposition.</small></li></ol></div>
+</section>
+
+<section class="specialization-section language-section" id="specialization" aria-labelledby="specialization-title">
+  <div class="section-index mono"><span>04 / TYPE SPECIALIZATION</span><span>INTERFACE / REPRESENTATION / LAWS</span></div>
+  <div class="tour-heading"><h2 id="specialization-title">Generic code.<br />Specific layouts.</h2><p>Keep one source-level interface while choosing a representation for a particular type. A <code>List Bool</code> can use a packed bit representation, with generic construction and pattern matching routed through its builders and view.</p></div>
+  <figure class="representation-figure" aria-labelledby="representation-caption">
+    <div class="representation-source"><span class="mono">SOURCE TYPE</span><strong>List Bool</strong><code>Cons True (Cons False …)</code></div>
+    <div class="representation-bridge"><span aria-hidden="true">⇄</span><span class="mono">BUILD / VIEW</span></div>
+    <div class="representation-carrier"><span class="mono">SPECIALIZED CARRIER</span><strong>BitList</strong><div class="bit-strip" aria-label="Eight packed Boolean values: true, false, true, true, false, false, true, false">{[1,0,1,1,0,0,1,0].map(bit=><span class:list={['packed-bit',{'bit-on':bit===1}]} aria-hidden="true">{bit}</span>)}</div></div>
+    <figcaption id="representation-caption">The public type stays <code>List Bool</code>. Round-trip laws connect the packed carrier to the canonical constructors.</figcaption>
+  </figure>
+  <div class="specialization-detail"><CodeExcerpt code={representation} label="REPRESENTATION INSTANCE / EXCERPT"/><div class="specialization-notes"><article><span class="mono">01 / THE CONTRACT</span><h3>A different representation must preserve meaning.</h3><p>Builders and views must satisfy the representation laws. Specialized bodies are justified against the generic baseline; the manifest records the selected implementation and its evidence tier.</p></article><article><span class="mono">02 / THE COMPILATION</span><h3>Generate the versions a program reaches.</h3><p>Specialization follows concrete layouts through generic code. Expanding recursive layouts are boxed at the expanding edge, with an error available for code that forbids allocation.</p></article><a class="text-link" href="/design/layouts-and-specialization/">Layouts, representations, and specialization <span>↗</span></a></div></div>
+  <p class="specialization-footnote">A representation preserves semantics, not asymptotic cost. Named representations can be selected with <code>via</code>; specialized fast paths avoid paying for an unsuitable generic traversal.</p>
+</section>
+
+<section class="staging-section language-section" id="staging" aria-labelledby="staging-title">
+  <div class="section-index mono"><span>05 / TYPED STAGING</span><span>COMPILE TIME → RUNTIME</span></div>
+  <div class="tour-heading"><h2 id="staging-title">Generate code<br />that gets checked.</h2><p>A generator works with typed quotations and splices. Its output enters the same elaboration and proof-checking pipeline as handwritten definitions.</p></div>
+  <div class="staging-workbench"><CodeExcerpt code={generator} label="COMPILE-TIME GENERATOR"/><div class="staging-expansion"><span class="expansion-arrow" aria-hidden="true">↳</span><CodeExcerpt code={generated} label="EXPANSION / ILLUSTRATION" caption="The generated answer evaluates to 22."/><p>The quotation introduces its own <code>x</code>. A caller’s bindings keep their identities: generated names do not accidentally capture them.</p></div></div>
+  <div class="staging-properties"><article><span class="mono">HYGIENIC BINDINGS</span><h3>Names keep their identity.</h3><p>Macro helpers resolve at their definition site. Intentional capture is explicit.</p></article><article><span class="mono">REAL COMPILE-TIME I/O</span><h3>Generate from external data.</h3><p>Read a schema or invoke a tool through scoped capabilities. Keep secrets and live handles out of generated code.</p></article><article><span class="mono">CAPTURED INPUTS</span><h3>Refresh, replay, or read live.</h3><p>Record the inputs and provenance needed to replay a build. Schema-generated types describe the captured schema.</p></article></div>
+  <a class="text-link" href="/tutorials/08-staging-and-schema-generation/">Staging and schema generation <span>↗</span></a>
+</section>
+
+<section class="optimization-section language-section light-section" id="optimization" aria-labelledby="optimization-title">
+  <div class="section-index mono"><span>06 / VERIFIED OPTIMIZATION</span><span>REWRITE / FUSE / SPECIALIZE</span></div>
+  <div class="tour-heading"><h2 id="optimization-title">Teach the compiler<br />why a shortcut works.</h2><p>Package an optimization with the law that justifies it. The compiler checks the rule’s types, evidence, and resource conditions before applying it.</p></div>
+  <div class="optimization-grid"><div><CodeExcerpt code={rewrite} label="A REWRITE JUSTIFIED BY A THEOREM"/><a class="text-link" href="/tutorials/07-rewrites-and-stream-fusion/">The map-fusion proof and rewrite <span>↗</span></a></div><div class="fusion-explanation"><span class="mono">PURE MAP FUSION</span><div class="fusion-equation"><code>map f (map g xs)</code><span aria-hidden="true">↓</span><code>map (\x → f (g x)) xs</code></div><p>Compose the callbacks into one traversal. The theorem is about pure, finite lists with total callbacks; it cannot justify changing the order of logging or other effects.</p><p>Stream fusion applies the same discipline to producer state machines and loops, removing intermediate collection machinery while preserving the declared semantics.</p></div></div>
+  <div class="target-detail"><div><span class="mono">TARGET-SPECIFIC IMPLEMENTATIONS</span><h3>Then prove the machine-level step.</h3><p>SIMD specialization adds obligations for lane arithmetic, memory access, capability availability, and the tail. A wrapping-integer sum needs a different theorem from a floating-point reduction.</p><a class="text-link" href="/tutorials/10-platform-specific-simd/">Platform proofs and SIMD <span>↗</span></a></div><figure class="simd-figure"><div class="simd-lanes" aria-label="Ten elements grouped into two four-element vector blocks and a two-element scalar tail">{[0,1,2].map((block)=><div class:list={['simd-block',{'scalar-tail':block===2}]}>{Array.from({length:block===2?2:4},(_,i)=><span>{block*4+i}</span>)}<small class="mono">{block===2?'SCALAR TAIL':`VECTOR ${block+1}`}</small></div>)}</div><figcaption>10 elements, 4 lanes: two full vector loads and two scalar elements. The tail must stay within the allocation.</figcaption></figure></div>
+</section>
+<script>
+  const proofSection=document.querySelector('#proofs');
+  const buttons=proofSection?.querySelectorAll<HTMLButtonElement>('[data-proof-view]');
+  const panels=proofSection?.querySelectorAll<HTMLElement>('[data-proof-panel]');
+  buttons?.forEach(button=>button.addEventListener('click',()=>{
+    buttons.forEach(item=>item.setAttribute('aria-pressed',String(item===button)));
+    panels?.forEach(panel=>{panel.hidden=panel.dataset.proofPanel!==button.dataset.proofView;});
+  }));
+</script>

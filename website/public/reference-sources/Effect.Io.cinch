@@ -1,0 +1,44 @@
+-- Effect.Io: the `Io r` worked vocabulary.
+--
+-- The worked vocabulary of the sequencing chapter's `loadConfig`
+-- sketch (runtime capabilities, effects and sequencing
+-- specification), provided over the filesystem like Effect.Fs's
+-- operations. A `Path` (Data.Path, the platform layer's real path
+-- type: this module's placeholder `Path :: Nat -> Path` over the
+-- runtime's input source is replaced by it) names bytes to read;
+-- `read-config-bytes` performs the read under the `Io r` capability
+-- and reports a missing or unreadable file as a `ConfigError`.
+-- `parse-config` is pure over the read bytes: the bootstrap's config
+-- document is the payload, and an empty document is not a config.
+module Effect.Io where
+
+  import Data.Path
+  import Data.Result
+  import Effect.Fs
+  export Path, ConfigError, BadConfig, Config, read-config-bytes, parse-config
+
+
+  -- The worked vocabulary of the sequencing chapter's `loadConfig`
+  -- sketch (runtime capabilities, effects and sequencing
+  -- specification), provided over the filesystem like Effect.Fs's
+  -- operations. A `Path` (Data.Path) names bytes to read;
+  -- `read-config-bytes` performs the read under the `Io r`
+  -- capability and reports a missing or unreadable file as a
+  -- `ConfigError`. `parse-config` is pure over the read bytes: the
+  -- bootstrap's config document is the payload, and an empty
+  -- document is not a config.
+  data ConfigError where
+    BadConfig :: ConfigError
+
+  data Config where
+    Config :: Bytes -> Config
+
+  read-config-bytes :: forall r. using (io :: Io r) => Path ->{IO r} Result ConfigError Bytes
+  read-config-bytes p = case fs-read p of
+    Err e -> Err BadConfig
+    Ok b -> Ok b
+
+  parse-config :: Bytes -> Result ConfigError Config
+  parse-config b = case bytes-len b of
+    0 -> Err BadConfig
+    _ -> Ok (Config b)
