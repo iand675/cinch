@@ -1,0 +1,11 @@
+<!-- Match Starlight's preference before the first paint. -->
+<script is:inline>
+  (() => {
+    let preference;
+    try { preference = localStorage.getItem('starlight-theme'); } catch {}
+    const theme = preference === 'light' || preference === 'dark'
+      ? preference
+      : (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+    document.documentElement.dataset.theme = theme;
+  })();
+</script>

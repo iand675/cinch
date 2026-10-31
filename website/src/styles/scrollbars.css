@@ -1,0 +1,15 @@
+/* Small recessed channels; native scrolling and keyboard behaviour are preserved. */
+:root:is(.cinch-landing,.cinch-platform,[data-has-sidebar]) { --cinch-scroll-track: #191e17; --cinch-scroll-thumb: #737b5b; --cinch-scroll-hover: #c69a68; scrollbar-color: var(--cinch-scroll-thumb) var(--cinch-scroll-track); scrollbar-width: thin; }
+:root[data-has-sidebar][data-theme='light'] { --cinch-scroll-track: #e5ddca; --cinch-scroll-thumb: #a2997e; --cinch-scroll-hover: #ae683e; }
+:is(.cinch-landing,.cinch-platform,[data-has-sidebar]) * { scrollbar-color: var(--cinch-scroll-thumb) var(--cinch-scroll-track); scrollbar-width: thin; }
+[data-has-sidebar] .sidebar-pane { --cinch-scroll-track: #191e17; --cinch-scroll-thumb: #737b5b; --cinch-scroll-hover: #c69a68; }
+[data-has-sidebar] .expressive-code pre { --cinch-scroll-track: var(--cinch-doc-panel,#252c20); --cinch-scroll-thumb: #8b9072; }
+:is(.cinch-landing,.cinch-platform,[data-has-sidebar])::-webkit-scrollbar, :is(.cinch-landing,.cinch-platform,[data-has-sidebar]) ::-webkit-scrollbar { width: 9px; height: 9px; }
+:is(.cinch-landing,.cinch-platform,[data-has-sidebar])::-webkit-scrollbar-track, :is(.cinch-landing,.cinch-platform,[data-has-sidebar]) ::-webkit-scrollbar-track { background: var(--cinch-scroll-track); }
+:is(.cinch-landing,.cinch-platform,[data-has-sidebar])::-webkit-scrollbar-thumb, :is(.cinch-landing,.cinch-platform,[data-has-sidebar]) ::-webkit-scrollbar-thumb { background: var(--cinch-scroll-thumb); border: 2px solid var(--cinch-scroll-track); border-radius: 9px; }
+:is(.cinch-landing,.cinch-platform,[data-has-sidebar])::-webkit-scrollbar-thumb:hover, :is(.cinch-landing,.cinch-platform,[data-has-sidebar]) ::-webkit-scrollbar-thumb:hover { background: var(--cinch-scroll-hover); }
+:is(.cinch-landing,.cinch-platform,[data-has-sidebar])::-webkit-scrollbar-corner, :is(.cinch-landing,.cinch-platform,[data-has-sidebar]) ::-webkit-scrollbar-corner { background: var(--cinch-scroll-track); }
+@supports selector(::-webkit-scrollbar) {
+  :root:is(.cinch-landing,.cinch-platform,[data-has-sidebar]), :is(.cinch-landing,.cinch-platform,[data-has-sidebar]) * { scrollbar-color: auto; scrollbar-width: auto; }
+}
+@media (forced-colors: active) { :root:is(.cinch-landing,.cinch-platform,[data-has-sidebar]), :is(.cinch-landing,.cinch-platform,[data-has-sidebar]) * { scrollbar-color: auto; } }

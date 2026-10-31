@@ -1,0 +1,7 @@
+---
+import { resolveType, type LibraryPackage, type LibraryModule } from '../../lib/catalogue';
+interface Props { text:string; package:LibraryPackage; module:LibraryModule; version:string; }
+const {text,package:p,module:m,version}=Astro.props;
+const tokens=text.split(/(\b[A-Z][A-Za-z0-9_.]*\b)/g);
+---
+<code class="api-signature">{tokens.map(token=>{const href=/^[A-Z]/.test(token)?resolveType(token,p,m,version):undefined;return href?<a href={href}>{token}</a>:token;})}</code>

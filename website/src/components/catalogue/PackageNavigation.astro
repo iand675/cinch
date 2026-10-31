@@ -1,0 +1,13 @@
+---
+import { packageUrl,moduleUrl,type LibraryPackage } from '../../lib/catalogue';
+interface Props { package:LibraryPackage; version:string; moduleName?:string; }
+const {package:p,version,moduleName}=Astro.props;
+---
+<aside class="package-navigation">
+  <details open><summary class="mono">PACKAGE CONTENTS</summary>
+    <a class="package-nav-home" href={packageUrl(p,version)} aria-current={!moduleName?'page':undefined}>{p.name}<span>{version}</span></a>
+    <p class="mono">MODULES / {String(p.modules.length).padStart(2,'0')}</p>
+    <ul>{p.modules.map(m=><li><a href={moduleUrl(p,m,version)} aria-current={m.name===moduleName?'page':undefined}>{m.name}</a></li>)}</ul>
+    <a href="/packages/" class="back-catalogue">← All packages</a>
+  </details>
+</aside>

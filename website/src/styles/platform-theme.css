@@ -1,0 +1,63 @@
+/* Reading surfaces change; the ink casing and olive instrument wells stay dark. */
+:root.cinch-platform {
+  --platform-paper: #eee6d5;
+  --platform-ink: #272b21;
+  --platform-muted: #70644e;
+  --platform-secondary: #595640;
+  --platform-rule: #bdb59e;
+  --platform-panel: #ded4bc;
+  --platform-control: #e2d7be;
+  --platform-accent: #98532d;
+  --platform-active: #dfcfad;
+  --platform-hover: #e1d5bb;
+  --platform-olive: #58613f;
+  --platform-button: #d2c19e;
+  --platform-button-ink: #69482e;
+  --platform-alert: #e5d1aa;
+  --platform-alert-ink: #735334;
+  --cinch-scroll-track: #e5ddca;
+  --cinch-scroll-thumb: #a2997e;
+  --cinch-scroll-hover: #ae683e;
+}
+:root.cinch-platform[data-theme='dark'] {
+  color-scheme: dark;
+  --platform-paper: #20251c;
+  --platform-ink: #eee6d5;
+  --platform-muted: #b1b29b;
+  --platform-secondary: #c5c3ac;
+  --platform-rule: #59614b;
+  --platform-panel: #2c3325;
+  --platform-control: #303927;
+  --platform-accent: #efad78;
+  --platform-active: #454e32;
+  --platform-hover: #343e2a;
+  --platform-olive: #c0c995;
+  --platform-button: #454e32;
+  --platform-button-ink: #f0cf9f;
+  --platform-alert: #423a23;
+  --platform-alert-ink: #ecd19b;
+  --cinch-scroll-track: #191e17;
+  --cinch-scroll-thumb: #737b5b;
+  --cinch-scroll-hover: #c69a68;
+}
+.platform-header, .platform-footer, .platform-banner,
+.signature-well, .source-listing, .source-build pre, .download-plate {
+  color-scheme: dark;
+  --cinch-scroll-track: #191e17;
+  --cinch-scroll-thumb: #737b5b;
+  --cinch-scroll-hover: #c69a68;
+}
+.platform-header .cinch-brand { margin-right:auto; }
+.theme-control { display:inline-flex; align-items:center; gap:.45rem; flex-shrink:0; color:#dcd5bd; }
+.theme-control-label { position:absolute; width:1px; height:1px; padding:0; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
+.theme-control select { color:inherit; background:#191c17; border:1px solid #686b51; border-radius:20px; padding:.55rem .6rem; font-size:.75rem; }
+.theme-control svg { color:#b5b497; }
+.platform-choice { background:var(--platform-paper); }
+.package-navigation > details > .mono { color:var(--platform-muted); }
+@media(max-width:900px) {
+  .platform-header { display:grid; grid-template-columns:1fr auto; gap:1rem; }
+  .platform-header .cinch-brand { grid-column:1; grid-row:1; }
+  .platform-header .theme-control { grid-column:2; grid-row:1; justify-self:end; }
+  .platform-header .site-navigation { grid-column:1 / -1; grid-row:2; justify-content:space-between; gap:.8rem; }
+  .platform-header .site-navigation .github-link { display:inline-flex; padding:.4rem .8rem; }
+}

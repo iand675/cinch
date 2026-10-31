@@ -1,0 +1,11 @@
+---
+import '../styles/navigation.css';
+import { project } from '../lib/project';
+const { current = '' } = Astro.props;
+---
+<nav class="site-navigation" aria-label="Main navigation">
+  <a href="/overview/" aria-current={current==='docs'?'page':undefined}>Documentation</a>
+  <a href="/packages/" aria-current={current==='packages'?'page':undefined}>Packages</a>
+  <a href="/downloads/" aria-current={current==='downloads'?'page':undefined}>Downloads</a>
+  <a href={project.repository} class="github-link">GitHub <span aria-hidden="true">↗</span></a>
+</nav>

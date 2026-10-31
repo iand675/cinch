@@ -1,0 +1,18 @@
+.technical-figure { --figure-paper: #eae2cf; --figure-ink: #373a2c; --figure-line: #aaa68f; position: relative; margin: 2rem 0; padding: 1.1rem 1.5rem 1.3rem; border: 1px solid var(--figure-line); border-radius: 3px 30px 3px 3px; background: var(--figure-paper); color: var(--figure-ink); isolation: isolate; }
+.technical-figure::before { content: ''; position: absolute; inset: 0; z-index: -1; border-radius: inherit; background: url('/textures/surface-grain.svg'); opacity: .095; mix-blend-mode: multiply; pointer-events: none; }
+.figure-running-head { display: flex; justify-content: space-between; gap: 1rem; border-bottom: 1px solid var(--figure-line); padding-bottom: .75rem; font: .55rem/1.6 'IBM Plex Mono',monospace; letter-spacing: .035em; }
+.figure-drawing { max-width: 900px; margin: .5rem auto 0; }
+.figure-drawing svg { width: 100%; height: auto; display: block; overflow: visible; }
+.figure-construction { opacity: .55; }.figure-dimension { font: 13px 'IBM Plex Mono',monospace; fill: currentColor; }.figure-value { font: 21px 'IBM Plex Mono',monospace; fill: currentColor; }.figure-callout { font: 12px 'IBM Plex Mono',monospace; fill: currentColor; }
+.figure-first-top { fill: #dfb17d; }.figure-first-front { fill: #e8c79d; }.figure-first-side { fill: #c3915f; }.figure-cell { fill: var(--figure-paper); }.figure-cell-side { fill: #d4ceb6; }
+.technical-figure .figure-legend { list-style: none; counter-reset: figure-item; display: grid; grid-template-columns: 1.15fr .8fr 1fr; gap: 1rem; margin: 0; padding: 0 0 1.2rem; }
+.figure-legend > li { position: relative; padding-left: 1.8rem; margin: 0; counter-increment: figure-item; font-family: 'DM Sans',sans-serif; line-height: 1.6; }
+.figure-legend > li::before { content: counter(figure-item); position: absolute; left: 0; top: 0; width: 18px; height: 18px; border: 1px solid currentColor; border-radius: 50%; display: grid; place-items: center; font: .6rem 'IBM Plex Mono',monospace; }
+.figure-legend span { display: block; font: .58rem/1.6 'IBM Plex Mono',monospace; text-transform: uppercase; letter-spacing: .02em; margin-bottom: .35rem; }
+.technical-figure .figure-legend code { display: block; padding: 0; background: transparent; font: .68rem/1.8 'IBM Plex Mono',monospace; color: inherit; overflow-wrap: anywhere; border: 0; }
+.technical-figure .figure-legend p { font: .76rem/1.7 'DM Sans',sans-serif; margin: 0; }
+.technical-figure figcaption { display: block; padding-top: .85rem; border-top: 1px solid var(--figure-line); font: .73rem/1.8 'DM Sans',sans-serif; color: inherit; }
+.technical-figure figcaption strong { font-weight: 600; }
+.proof-section > .technical-figure { margin-top: 4rem; margin-bottom: 0; }
+@media (max-width: 650px) { .technical-figure { padding: .9rem 1rem 1rem; border-top-right-radius: 22px; }.figure-running-head { font-size: .46rem; }.figure-running-head > span:last-child { text-align: right; max-width: 45%; }.technical-figure .figure-legend { grid-template-columns: 1fr; gap: .9rem; }.figure-legend > li { padding-left: 2rem; }.figure-legend span { font-size: .58rem; }.technical-figure .figure-legend code { font-size: .72rem; }.figure-legend code br { display: none; }.technical-figure figcaption { font-size: .74rem; }.proof-section > .technical-figure { margin-top: 3rem; } }
+@media print { .technical-figure { break-inside: avoid; --figure-paper: white; --figure-ink: black; }.technical-figure::before { display: none; } }

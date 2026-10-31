@@ -1,0 +1,12 @@
+---
+import PlatformLayout from '../../../../../layouts/PlatformLayout.astro';
+import {packages,moduleUrl,symbolId,declarationsFor} from '../../../../../lib/catalogue';
+export function getStaticPaths(){return packages.flatMap(p=>p.versions.flatMap(version=>p.modules.map(m=>({params:{name:p.name,version,module:m.name},props:{package:p,version,module:m}}))));}
+const {package:p,version,module:m}=Astro.props;
+let line=3;
+const sections=declarationsFor(m,version).map(d=>({declaration:d,lines:[`-- ${d.description}`,d.signature,...(d.constructors??[]).map(c=>`-- ${c.signature}`),''].map(text=>({number:line++,text}))}));
+---
+<PlatformLayout title={`${m.name} · declaration source`} description={`Sample declaration listing for ${m.name}.`} section="packages">
+  <div class="package-topbar"><a href={moduleUrl(p,m,version)}>← {m.name} API reference</a><span class="sample-badge">SAMPLE LISTING</span></div>
+  <section class="source-page"><div class="platform-eyebrow mono"><span>{p.name} / {version}</span><span>{m.name.replaceAll('.','/')}.cinch</span></div><h1>Declaration source.</h1><p>This sample listing contains the declarations shown in the API reference. Package implementations will appear here when real package data is connected.</p><div class="source-listing"><div class="source-module"><code>{`module ${m.name} where`}</code></div>{sections.map(s=><div class="source-section" id={symbolId(s.declaration.name)}>{s.lines.map(l=><div class="source-line" id={`L${l.number}`}><a href={`#L${l.number}`} aria-label={`Line ${l.number}`}>{l.number}</a><code>{l.text||' '}</code></div>)}</div>)}</div></section>
+</PlatformLayout>

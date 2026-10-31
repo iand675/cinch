@@ -9,7 +9,7 @@ const REPO_ROOT = path.dirname(SITE_ROOT);
 /**
  * Directories of the documentation set, relative to the repository root.
  * Every Markdown file in them becomes a page and the route is its path without
- * the extension; the overview is served at the site root.
+ * the extension; the overview is served at /overview/.
  */
 const DOC_DIRS = ['', 'specifications', 'tutorials', 'design', 'examples', 'context'];
 
@@ -18,7 +18,7 @@ type PageSource = {
   relPath: string;
   /** Absolute path of the Markdown file. */
   file: string;
-  /** Route id: the path without its extension, or `index` for the overview. */
+  /** Route id: the path without its extension, including `overview` for the design overview. */
   id: string;
 };
 
@@ -39,7 +39,7 @@ const FENCE_LANGUAGE_ALIASES: Record<string, string> = { ebnf: 'text' };
 
 /** Strip the site-absolute prefix of a link written for the raw Markdown files. */
 function routeFor(relPath: string): string {
-  return relPath === 'overview.md' ? '/' : `/${relPath.replace(/\.md$/, '')}/`;
+  return `/${relPath.replace(/\.md$/, '')}/`;
 }
 
 async function markdownFiles(root: string, relDir: string): Promise<string[]> {
@@ -61,7 +61,7 @@ async function collectSources(): Promise<PageSource[]> {
       sources.push({
         relPath,
         file: path.join(REPO_ROOT, relPath),
-        id: relPath === 'overview.md' ? 'index' : relPath.replace(/\.md$/, ''),
+        id: relPath.replace(/\.md$/, ''),
       });
     }
   }

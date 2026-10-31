@@ -1,0 +1,7 @@
+---
+import { packageUrl,moduleUrl,type LibraryPackage,type LibraryModule } from '../../lib/catalogue';
+interface Props {package:LibraryPackage; version:string; module?:LibraryModule;}
+const {package:p,version,module:m}=Astro.props;
+---
+<label class="version-select"><span class="mono">VERSION</span><select aria-label="Package version" data-version-select>{p.versions.map(v=><option selected={v===version} value={m?moduleUrl(p,m,v):packageUrl(p,v)}>{v}{v===p.version?' · latest':''}</option>)}</select></label>
+<script>document.querySelectorAll<HTMLSelectElement>('[data-version-select]').forEach(select=>select.addEventListener('change',()=>location.assign(select.value)));</script>

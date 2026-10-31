@@ -1,0 +1,28 @@
+---
+import Brand from '../components/Brand.astro';
+import '../styles/custom.css';
+import '../styles/type-study-fonts.css';
+import '../styles/type-comparison.css';
+const choices = [
+  {id:'archivo', name:'Archivo', cut:'Bold', license:'Open source · SIL OFL', source:'https://fonts.google.com/specimen/Archivo', note:'A heavier, workmanlike sans. The compact shapes give the headline more weight next to the fox.', verdict:'The straightforward sans option.'},
+  {id:'newsreader', name:'Newsreader', cut:'Display Medium · optical size 72', license:'Open source · SIL OFL', source:'https://fonts.google.com/specimen/Newsreader', note:'A newspaper-style serif with a flowing lowercase. It brings out the gold wordmark’s editorial side.', verdict:'My first free choice for Cinch.'},
+  {id:'grenze', name:'Grenze', cut:'Semibold', license:'Open source · SIL OFL', source:'https://fonts.google.com/specimen/Grenze', note:'Angular, cut-looking strokes and sturdy serifs. The most unusual option here; it echoes the pointed ears and fur in the artwork.', verdict:'The more eccentric choice.'},
+  {id:'domaine', name:'Domaine Sans Display', cut:'Regular · Klim Type Foundry', license:'Paid · official tester capture', source:'https://klim.co.nz/fonts/domaine-sans-display/', image:'domaine-sans-display', width:1042, height:440, note:'Strong stroke contrast in a sans face. The shapes feel sculpted, which suits the dimensional wordmark.', verdict:'My first paid choice for Cinch.'},
+  {id:'founders', name:'Founders Grotesk', cut:'Medium · Klim Type Foundry', license:'Paid · official tester capture', source:'https://klim.co.nz/fonts/founders-grotesk/', image:'founders-grotesk', width:929, height:329, note:'Compact, tightly spaced grotesk forms. A quieter alternative to the serif options, with more print character than the current face.', verdict:'The restrained paid option.'},
+];
+---
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8" /><meta name="viewport" content="width=device-width" /><meta name="robots" content="noindex, nofollow" /><title>Cinch — Hero type study</title><link rel="icon" href="/favicon.svg" /></head>
+<body data-pagefind-ignore>
+<header><Brand /><a href="/">← Back to Cinch</a></header>
+<main>
+  <div class="intro"><p class="eyebrow">CINCH / TYPE STUDY</p><h1>Five headline options.</h1><p>The same words, artwork, and supporting type in each sample. Only the headline changes. The selected site typeface is Momo Trust Display.</p><p class="trial-note">The three open-source options render as live text. The two paid samples are screenshots of this headline in Klim’s own type tester. No commercial font files are embedded. <a href="https://klim.co.nz/test-fonts/">Klim offers test webfonts</a> after email and licence acceptance.</p><div class="jump-links">{choices.map((c,i)=><a href={`#${c.id}`}>{i+1}. {c.name}</a>)}</div></div>
+  <div class="comparisons">{choices.map((c,i)=><section id={c.id} aria-labelledby={`${c.id}-title`}>
+    <div class="choice-info"><span class="eyebrow">OPTION 0{i+1}</span><h2 id={`${c.id}-title`}>{c.name}</h2><p class="cut">{c.cut}</p><p>{c.note}</p><p class="verdict">{c.verdict}</p><p class="license">{c.license}</p><div class="choice-links"><a href={c.image ? `/?typepage=${c.id}` : `/?hero=${c.id}`} target="_blank">{c.image ? 'Preview full page ↗' : 'Preview full hero ↗'}</a><a href={c.source} target="_blank" rel="noreferrer">Font details ↗</a></div></div>
+    <div class="sample"><div class="sample-top"><img src="/brand/cinch-wordmark.webp" alt="Cinch" width="1957" height="781" /><span>THE CINCH PROGRAMMING LANGUAGE</span></div><div class="mini-hero"><div class="mini-copy">{c.image ? <div class="paid-headline"><img src={`/type-study/${c.image}.jpg`} width={c.width} height={c.height} alt={`Power, with proof. — ${c.name}`} /></div> : <div class={`sample-headline type-${c.id}`} aria-label="Power, with proof.">Power,<br />with proof.</div>}<p>Dependent types.<br />Explicit effects. Resource control.</p></div><img class="fox" src="/brand/cinch-fox.webp" width="1308" height="1186" alt="Cinch fox mascot" /></div><div class="sample-bottom">{c.image ? 'FOUNDRY-RENDERED IMAGE / FULL HERO PREVIEW ALSO USES THIS IMAGE' : 'LIVE FONT / OPEN THE FULL HERO TO SEE THE ORANGE ACCENT'}</div></div>
+  </section>)}</div>
+  <footer><p>Earlier typography comparisons. Momo Trust Display is the selected site typeface.</p><a href="/">Return to Cinch ↗</a></footer>
+</main>
+</body>
+</html>

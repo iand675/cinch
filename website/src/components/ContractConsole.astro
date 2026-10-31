@@ -1,0 +1,59 @@
+---
+const tutorial = '/tutorials/01-values-and-dependent-types/#eliminate-an-impossible-case';
+---
+<section class="contract-console" aria-labelledby="console-title">
+  <div class="case-fittings" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+  <div class="case-spine" aria-hidden="true"><i></i><span></span><i></i></div>
+  <div class="console-label"><span class="mono" id="console-title">01 / DEPENDENT TYPES</span><span class="console-vents" aria-hidden="true"></span></div>
+  <div class="display-bezel">
+    <div class="contract-screen" data-contract-screen>
+      <div class="screen-header mono"><span>first.cinch</span><span>TYPE ILLUSTRATION</span></div>
+      <div class="screen-signature"><span>first</span> <span class="screen-colon">:: forall a n region.</span><br /><span class="screen-type">Ref region (Vec (n + 1) a)<br />→ Ref region a</span></div>
+      <div class="vector-visual" aria-label="Vector containing 3 elements">
+        <span class="vector-bracket" aria-hidden="true">[</span>
+        <div class="vector-cells" aria-hidden="true">{[0,1,2,3,4].map((i) => <span class:list={['vector-cell', {'is-filled':i < 3, 'is-first':i === 0}]} data-vector-cell>{i === 0 ? 'a' : '·'}</span>)}</div>
+        <span class="vector-bracket" aria-hidden="true">]</span>
+      </div>
+      <div class="screen-scale mono" aria-hidden="true"><span>INPUT</span><span>0 — 5 ELEMENTS</span></div>
+      <div class="contract-result" aria-live="polite" aria-atomic="true">
+        <div class="result-heading"><span class="result-lamp" aria-hidden="true"></span><strong data-result-title>Nonempty input</strong><span class="mono" data-result-equation>3 = 2 + 1</span></div>
+        <p data-result-description>The length fits n + 1. The first element can be borrowed.</p>
+      </div>
+      <div class="screen-foot mono"><span>INPUT: LENGTH-INDEXED</span><span>RESULT: BORROWED</span></div>
+    </div>
+  </div>
+  <div class="console-controls">
+    <div class="length-control"><label class="mono" for="vector-length">VECTOR LENGTH</label><div class="length-keys"><button type="button" data-length-step="-1" aria-label="Remove an element">−</button><div class="length-dial"><output for="vector-length" id="length-readout">03</output></div><button type="button" data-length-step="1" aria-label="Add an element">+</button></div><input id="vector-length" type="range" min="0" max="5" value="3" aria-label="Vector length" /></div>
+    <a href={tutorial} class="example-key"><span class="mono">TUTORIAL 01</span><span>Read the example <span aria-hidden="true">↗</span></span></a>
+  </div>
+  <div class="console-bottom mono"><span>Change the input. Inspect the contract.</span><span class="hardware-mark" aria-hidden="true">C / 01</span></div>
+</section>
+<script>
+  const range = document.querySelector<HTMLInputElement>('#vector-length');
+  if (range) {
+    const steps = document.querySelectorAll<HTMLButtonElement>('[data-length-step]');
+    const render = () => {
+      const length = Number(range.value);
+      document.querySelector<HTMLElement>('.length-dial')?.style.setProperty('--dial-angle', `${-120 + length * 48}deg`);
+      const screen = document.querySelector<HTMLElement>('[data-contract-screen]');
+      screen?.classList.toggle('is-empty', length === 0);
+      const readout = document.querySelector('#length-readout');
+      if (readout) readout.textContent = String(length).padStart(2,'0');
+      document.querySelectorAll('[data-vector-cell]').forEach((cell,i) => cell.classList.toggle('is-filled',i < length));
+      document.querySelector('.vector-visual')?.setAttribute('aria-label',`Vector containing ${length} ${length === 1 ? 'element' : 'elements'}`);
+      const title = document.querySelector('[data-result-title]');
+      const equation = document.querySelector('[data-result-equation]');
+      const description = document.querySelector('[data-result-description]');
+      if (title) title.textContent = length ? 'Nonempty input' : 'Empty input';
+      if (equation) equation.textContent = length ? `${length} = ${length - 1} + 1` : '0 ≠ n + 1';
+      if (description) description.textContent = length ? 'The length fits n + 1. The first element can be borrowed.' : 'No natural number n makes n + 1 equal 0. This input cannot be passed to first.';
+      steps.forEach(button => button.disabled = Number(button.dataset.lengthStep) < 0 ? length === 0 : length === 5);
+    };
+    range.addEventListener('input',render);
+    steps.forEach(button => button.addEventListener('click',() => {
+      range.value = String(Math.min(5,Math.max(0,Number(range.value) + Number(button.dataset.lengthStep))));
+      render();
+    }));
+    render();
+  }
+</script>

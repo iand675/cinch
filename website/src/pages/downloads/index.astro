@@ -1,0 +1,41 @@
+---
+import PlatformLayout from '../../layouts/PlatformLayout.astro';
+import {project} from '../../lib/project';
+import {targets,releases,artifacts} from '../../lib/downloads';
+const selected=artifacts[0];
+const clientArtifacts=artifacts.map(({bytes,...a})=>a);
+---
+<PlatformLayout title="Downloads" description="Choose a Cinch toolchain build, inspect release details, or get the source." section="downloads">
+  <section class="platform-banner downloads-banner"><div class="platform-eyebrow mono"><span>COMPILER / RUNTIME / TOOLS</span><span class="sample-badge">SAMPLE RELEASES</span></div><h1>Get Cinch.</h1><p>Choose a system and a release.<br />The source is on GitHub.</p></section>
+  <section class="platform-content downloads-content">
+    <div class="download-controls"><div><span class="section-rule mono">01 / RELEASE CHANNEL</span><div class="release-switch" role="group" aria-label="Release channel">{releases.map((r,i)=><button type="button" data-channel={r.id} aria-pressed={i===0}>{r.name}</button>)}</div></div><p class="download-preview-copy">This is a preview of the release page. The downloadable sample bundles contain a README and release metadata, with no compiler binary.</p></div>
+    <fieldset class="platform-choices"><legend class="section-rule mono">02 / YOUR SYSTEM</legend><div>{targets.map((t,i)=><label class="platform-choice"><input type="radio" name="platform" value={t.id} checked={i===0}/><span class="platform-symbol" aria-hidden="true">{t.symbol}</span><span><strong>{t.name}</strong><small>{t.architecture}</small></span><i aria-hidden="true"></i></label>)}</div></fieldset>
+    <div class="download-body">
+      <article class="download-plate"><div class="download-plate-top mono"><span data-release-name>{selected.release.name} release</span><span>SAMPLE BUNDLE</span></div><h2 data-release-version>{selected.release.version}</h2><p class="download-platform" data-platform-name>{selected.target.name} · {selected.target.architecture}</p><div class="download-file"><span class="mono">ARCHIVE</span><code data-filename>{selected.filename}</code></div><a class="download-button" data-download href={selected.url} download={selected.filename}>Download sample bundle <span aria-hidden="true">↓</span></a><div class="download-file-meta mono"><span data-file-size>{(selected.size/1024).toFixed(1)} KB</span><span>ZIP ARCHIVE</span><span data-release-date>{selected.release.date}</span></div></article>
+      <aside class="download-verification"><div class="section-rule mono">03 / VERIFY THE FILE</div><h2>Check the checksum.</h2><p>The hash below belongs to the selected sample archive. A different file produces a different hash.</p><label class="mono" for="archive-hash">SHA-256</label><textarea id="archive-hash" readonly rows="3">{selected.sha256}</textarea><div class="checksum-actions"><button type="button" data-copy-checksum>Copy checksum</button><a data-checksum href={`${selected.url}.sha256`}>Checksum file ↗</a></div><span class="copy-status mono" aria-live="polite" data-copy-status></span></aside>
+    </div>
+    <section class="source-build" id="source"><div class="section-rule mono">04 / SOURCE CODE</div><div><h2>Build from source.</h2><div><p>The project repository contains the compiler, runtime, base library, examples, and language design documents.</p><p>The native toolchain uses Rust, Cargo, and Clang. The commands below build the current source tree.</p><div class="source-actions"><a href={project.sourceArchive}>Download source archive ↗</a><a href={project.repository}>Open GitHub ↗</a><a href={project.releases}>GitHub releases ↗</a></div></div></div><pre><code>{`git clone https://github.com/iand675/cinch.git\ncd cinch\ncargo build --release --manifest-path compiler/Cargo.toml\n./compiler/target/release/cinch run examples/compiler/fib.cinch`}</code></pre></section>
+  </section>
+</PlatformLayout>
+<script is:inline define:vars={{artifacts:clientArtifacts}}>
+(()=>{
+ const params=new URL(location.href).searchParams;
+ let channel=['preview','nightly'].includes(params.get('channel'))?params.get('channel'):'preview';
+ let platform=artifacts.some(a=>a.target.id===params.get('platform'))?params.get('platform'):artifacts[0].target.id;
+ let selected;
+ const text=(selector,value)=>{document.querySelector(selector).textContent=value;};
+ function update(){
+   selected=artifacts.find(a=>a.release.id===channel&&a.target.id===platform);
+   document.querySelectorAll('[data-channel]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.channel===channel)));
+   document.querySelectorAll('input[name="platform"]').forEach(r=>r.checked=r.value===platform);
+   text('[data-release-name]',`${selected.release.name} release`);text('[data-release-version]',selected.release.version);text('[data-platform-name]',`${selected.target.name} · ${selected.target.architecture}`);text('[data-filename]',selected.filename);text('[data-file-size]',`${(selected.size/1024).toFixed(1)} KB`);text('[data-release-date]',selected.release.date);
+   const link=document.querySelector('[data-download]');link.href=selected.url;link.download=selected.filename;document.querySelector('[data-checksum]').href=`${selected.url}.sha256`;document.querySelector('#archive-hash').value=selected.sha256;text('[data-copy-status]','');
+   const url=new URL(location.href);url.searchParams.set('channel',channel);url.searchParams.set('platform',platform);history.replaceState(null,'',url);
+ }
+ document.querySelectorAll('[data-channel]').forEach(b=>b.addEventListener('click',()=>{channel=b.dataset.channel;update();}));
+ document.querySelectorAll('input[name="platform"]').forEach(r=>r.addEventListener('change',()=>{platform=r.value;update();}));
+ document.querySelector('[data-copy-checksum]').addEventListener('click',async()=>{try{await navigator.clipboard.writeText(selected.sha256);text('[data-copy-status]','Copied.');}catch{document.querySelector('#archive-hash').select();text('[data-copy-status]','Select and copy the checksum.');}});
+ window.addEventListener('popstate',()=>{const query=new URL(location.href).searchParams;channel=['preview','nightly'].includes(query.get('channel'))?query.get('channel'):'preview';platform=artifacts.some(a=>a.target.id===query.get('platform'))?query.get('platform'):artifacts[0].target.id;update();});
+ update();
+})();
+</script>

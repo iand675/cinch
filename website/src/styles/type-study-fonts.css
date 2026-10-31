@@ -1,0 +1,53 @@
+@font-face { font-family: 'Cinch Study Archivo'; src: url('/fonts/study/archivo.ttf') format('truetype'); font-weight: 700; font-display: swap; }
+@font-face { font-family: 'Cinch Study Newsreader'; src: url('/fonts/study/newsreader.ttf') format('truetype'); font-weight: 500; font-display: swap; }
+@font-face { font-family: 'Cinch Study Grenze'; src: url('/fonts/study/grenze.ttf') format('truetype'); font-weight: 600; font-display: swap; }
+.type-archivo { font-family: 'Cinch Study Archivo', sans-serif !important; font-weight: 700 !important; letter-spacing: -.045em !important; }
+.type-newsreader { font-family: 'Cinch Study Newsreader', serif !important; font-weight: 500 !important; letter-spacing: -.045em !important; }
+.type-grenze { font-family: 'Cinch Study Grenze', serif !important; font-weight: 600 !important; letter-spacing: -.02em !important; }
+.hero h1.type-paid { line-height: 0; margin-left: 0; }
+.hero h1.type-paid img { display: block; width: 100%; height: auto; mix-blend-mode: screen; }
+/* Let the black specimen background blend into the actual hero backdrop. */
+.hero-copy:has(.type-paid) { z-index: auto; }
+@font-face { font-family: 'Cinch Study Italiana'; src: url('/fonts/study/italiana.ttf') format('truetype'); font-weight: 400; font-display: swap; }
+@font-face { font-family: 'Cinch Study Belleza'; src: url('/fonts/study/belleza.ttf') format('truetype'); font-weight: 400; font-display: swap; }
+@font-face { font-family: 'Cinch Study Antic Didone'; src: url('/fonts/study/anticdidone.ttf') format('truetype'); font-weight: 400; font-display: swap; }
+.type-italiana { font-family: 'Cinch Study Italiana', sans-serif !important; font-weight: 400 !important; letter-spacing: -.035em !important; }
+.type-belleza { font-family: 'Cinch Study Belleza', sans-serif !important; font-weight: 400 !important; letter-spacing: -.035em !important; }
+.type-anticdidone { font-family: 'Cinch Study Antic Didone', serif !important; font-weight: 400 !important; letter-spacing: -.035em !important; }
+:root[data-free-type='italiana'] { --cinch-free-display: 'Cinch Study Italiana', sans-serif; }
+:root[data-free-type='belleza'] { --cinch-free-display: 'Cinch Study Belleza', sans-serif; }
+:root[data-free-type='anticdidone'] { --cinch-free-display: 'Cinch Study Antic Didone', serif; }
+.cinch-landing[data-free-type] :is(h1, h2, h3) { font-family:var(--cinch-free-display); font-weight:400; letter-spacing:-.035em; }
+.cinch-landing[data-free-type] astro-dev-toolbar { display:none !important; }
+@font-face { font-family: 'Cinch Study Russolo'; src: url('/fonts/study/russolo-variable.ttf') format('truetype'); font-weight:200 800; font-display:swap; }
+@font-face { font-family: 'Cinch Study Bodoni Moda'; src: url('/fonts/study/bodonimoda-variable.ttf') format('truetype'); font-weight:400 900; font-display:swap; }
+@font-face { font-family: 'Cinch Study Playfair'; src: url('/fonts/study/playfair-variable.ttf') format('truetype'); font-weight:300 900; font-stretch:87.5% 112.5%; font-display:swap; }
+.type-russolo { font-family:'Cinch Study Russolo',sans-serif !important; font-weight:400; font-optical-sizing:none; font-variation-settings:var(--candidate-axes, 'wght' 520, 'opsz' 72); letter-spacing:-.035em; }
+.type-bodonimoda { font-family:'Cinch Study Bodoni Moda',serif !important; font-weight:400; font-optical-sizing:none; font-variation-settings:var(--candidate-axes, 'wght' 400, 'opsz' 96); letter-spacing:-.035em; }
+.type-playfair { font-family:'Cinch Study Playfair',serif !important; font-weight:300; font-optical-sizing:none; font-variation-settings:var(--candidate-axes, 'wght' 300, 'opsz' 144, 'wdth' 100); letter-spacing:-.035em; }
+:root[data-free-type='russolo'] { --cinch-free-display:'Cinch Study Russolo',sans-serif; --cinch-free-axes:'wght' 520, 'opsz' 72; }
+:root[data-free-type='bodonimoda'] { --cinch-free-display:'Cinch Study Bodoni Moda',serif; --cinch-free-axes:'wght' 400, 'opsz' 96; }
+:root[data-free-type='playfair'] { --cinch-free-display:'Cinch Study Playfair',serif; --cinch-free-axes:'wght' 300, 'opsz' 144, 'wdth' 100; }
+.cinch-landing[data-free-type] :is(h1,h2,h3) { font-optical-sizing:none; font-variation-settings:var(--cinch-free-axes,normal); }
+.type-preview-note > div { flex-wrap:wrap; }
+@font-face { font-family:'Cinch Study Noto Serif'; src:url('/fonts/study/notoserif.ttf') format('truetype'); font-weight:100 900; font-stretch:62.5% 100%; font-display:swap; }
+@font-face { font-family:'Cinch Study Doto'; src:url('/fonts/study/doto.ttf') format('truetype'); font-weight:100 900; font-display:swap; }
+.type-notoserif { font-family:'Cinch Study Noto Serif',serif !important; font-weight:500; font-variation-settings:var(--candidate-axes,'wght' 500,'wdth' 100); letter-spacing:-.04em; }
+.type-doto { font-family:'Cinch Study Doto',sans-serif !important; font-weight:900; font-variation-settings:var(--candidate-axes,'wght' 900,'ROND' 100); letter-spacing:-.025em; }
+.type-momotrustdisplay { font-family:'Momo Trust Display',sans-serif !important; font-weight:400; font-synthesis:none; letter-spacing:-.035em; }
+:root[data-free-type='notoserif'] { --cinch-free-display:'Cinch Study Noto Serif',serif; --cinch-free-axes:'wght' 500,'wdth' 100; }
+:root[data-free-type='doto'] { --cinch-free-display:'Cinch Study Doto',sans-serif; --cinch-free-axes:'wght' 900,'ROND' 100; }
+:root[data-free-type='momotrustdisplay'] { --cinch-free-display:'Momo Trust Display',sans-serif; }
+.cinch-landing[data-free-type='doto'] :is(h1,h2,h3) { letter-spacing:-.025em; }
+.cinch-landing[data-free-type='momotrustdisplay'] :is(h1,h2,h3) { font-synthesis:none; }
+@media(min-width:651px) {
+  .cinch-landing[data-free-type='doto'] .hero h1 { font-size:clamp(4.2rem,7.3vw,7.5rem); }
+  .cinch-landing[data-free-type='momotrustdisplay'] .hero h1 { font-size:clamp(4.6rem,8vw,8.5rem); }
+}
+/* Doto's wide dot grid needs its own display size to keep the two-line headline. */
+@media(min-width:651px) {
+  .cinch-landing[data-free-type='doto'] .hero h1 { font-size:clamp(3.5rem,5.8vw,6.4rem); white-space:nowrap; }
+}
+@media(max-width:650px) {
+  .cinch-landing[data-free-type='doto'] .hero h1 { font-size:clamp(2.5rem,10.8vw,4rem); }
+}

@@ -1,0 +1,89 @@
+---
+import Brand from '../components/Brand.astro';
+import HeroHeadline from '../components/HeroHeadline.astro';
+import ContractConsole from '../components/ContractConsole.astro';
+import TechnicalFigure from '../components/TechnicalFigure.astro';
+import SiteNavigation from '../components/SiteNavigation.astro';
+import { project } from '../lib/project';
+import PremiumPagePreview from '../components/PremiumPagePreview.astro';
+import FreePagePreview from '../components/FreePagePreview.astro';
+import '../styles/custom.css';
+import '../styles/landing.css';
+const tutorial = '/tutorials/01-values-and-dependent-types/';
+const features = [
+  { n: '01', title: 'Dependent types', text: 'A vector carries its length in its type. A connection carries its schema. Functions can require evidence about the values they accept and preserve those relationships in their results.', href: tutorial, link: 'Values and dependent types' },
+  { n: '02', title: 'Ownership and effects', text: 'Resource ownership determines who can use a value and when it must be released. Effect signatures describe what a computation can do, including I/O, suspension, and divergence.', href: '/tutorials/03-ownership-and-effects/', link: 'Ownership and effects tutorial' },
+  { n: '03', title: 'Checked hot upgrades', text: 'Replacing a running module requires a compatibility check and a plan for its state. An upgrade package describes the migration, ownership transfer, and obligations to existing clients.', href: '/tutorials/09-compatible-hot-upgrades/', link: 'Compatible hot upgrades tutorial' },
+];
+---
+<!doctype html>
+<html lang="en" class="cinch-landing" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" /><meta name="viewport" content="width=device-width" />
+    <title>Cinch — Power, with proof.</title>
+    <meta name="description" content="Cinch is a strict functional language with dependent types, explicit effects, resource ownership, and checked contracts for running software." />
+    <meta name="theme-color" content="#191a17" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="preload" href="/fonts/momo-trust-display.ttf" as="font" type="font/ttf" crossorigin />
+    <link rel="preload" href="/fonts/dm-sans-400.ttf" as="font" type="font/ttf" crossorigin />
+  </head>
+  <body>
+    <a class="landing-skip" href="#main">Skip to content</a>
+    <header class="landing-header">
+      <div class="header-identity"><Brand /><span class="header-name mono">THE CINCH<br />PROGRAMMING LANGUAGE</span></div>
+      <SiteNavigation />
+    </header>
+    <main id="main">
+      <section class="hero" aria-labelledby="hero-title">
+        <div class="hero-topline mono"><span><i class="status-lamp" aria-hidden="true"></i> LANGUAGE DESIGN / IN DEVELOPMENT</span><span class="hero-edition">TYPES · EFFECTS · OWNERSHIP</span></div>
+        <div class="hero-grid">
+          <div class="hero-copy">
+            <div class="hero-stripes" aria-hidden="true"><span></span><span></span><span></span></div>
+            <HeroHeadline />
+            <p class="hero-description">Dependent types.<br />Explicit effects. Resource control.</p>
+            <p class="hero-detail">Cinch is a strict functional language for programs with contracts about their data, resources, and runtime behavior.</p>
+            <div class="hero-actions"><a class="button button-primary" href="/downloads/">Get Cinch <span>↗</span></a><a class="text-link" href={tutorial}>Start the tutorial <span>→</span></a></div>
+          </div>
+          <ContractConsole />
+        </div>
+        <div class="hero-baseline mono"><span>STRICT FUNCTIONAL LANGUAGE</span><span class="baseline-track" aria-hidden="true"></span><a href="#why-cinch">INSIDE THE LANGUAGE <span>↓</span></a></div>
+      </section>
+      <section class="manifesto light-section" id="why-cinch" aria-labelledby="manifesto-title">
+        <div class="section-index mono"><span>01 / LANGUAGE DESIGN</span><span>CINCH / DESIGN NOTES</span></div>
+        <div class="manifesto-grid"><h2 id="manifesto-title">Functional code.<br /><span>Explicit contracts.</span></h2><div class="manifesto-copy"><p>A function’s type can describe the length of its result, the effects it performs, and the resources it borrows.</p><p>Cinch uses algebraic data types, pattern matching, and higher-order functions. Dependent types and ownership extend that foundation so you can specify properties of your code and check the evidence for them.</p><a class="text-link" href="/specifications/core-language-specification/">Core language specification <span>↗</span></a></div></div>
+        <div class="principle-strip mono"><span>STRICT EVALUATION</span><span>DEPENDENT TYPES</span><span>EXPLICIT EFFECTS</span><span>RESOURCE CONTROL</span></div>
+      </section>
+      <div class="panel-joint" aria-hidden="true"><span></span><i></i><span></span></div>
+      <section class="proof-section" aria-labelledby="proof-title">
+        <div class="section-index mono"><span>02 / DEPENDENT TYPES IN USE</span><span>THE CONTRACT IN CODE</span></div>
+        <div class="proof-grid">
+          <div class="proof-copy"><h2 id="proof-title">A first element<br />requires<br /><em>a nonempty vector.</em></h2><p>The input has length n + 1. An empty vector has length 0, so it cannot be passed to this function.</p><p class="muted">Pattern matching leaves one constructor to handle. The returned reference borrows from the input and cannot outlive it.</p><a class="text-link" href={tutorial + '#eliminate-an-impossible-case'}>Read the example in context <span>↗</span></a></div>
+          <div class="code-window"><div class="code-toolbar mono"><span><i></i> first.cinch</span><span>DESIGN EXAMPLE</span></div><pre aria-label="Cinch dependent type example"><code><span class="code-comment">-- Borrow the first element of a nonempty vector.</span>
+<span class="code-name">first</span> <span class="code-punct">::</span> <span class="code-keyword">forall</span> a n region.
+  <span class="code-type">Ref</span> region (<span class="code-type">Vec</span> (n + <span class="code-number">1</span>) a)
+  <span class="code-punct">-&gt;</span> <span class="code-type">Ref</span> region a
+
+<span class="code-name">first</span> xs = <span class="code-keyword">case</span> xs <span class="code-keyword">of</span>
+  <span class="code-type">Cons</span> x rest <span class="code-punct">-&gt;</span> x</code></pre><div class="code-note"><span class="proof-check">↳</span><p><strong>Why there is no Nil branch</strong><br /><code>Nil</code> has length 0. This input requires <code>n + 1</code>.</p></div><div class="code-caption mono">TUTORIAL 01 / VALUES AND DEPENDENT TYPES</div></div>
+        </div>
+        <TechnicalFigure id="landing-vector-figure" />
+      </section>
+      <section class="feature-section light-section" aria-labelledby="features-title">
+        <div class="section-index mono"><span>03 / LANGUAGE FEATURES</span><span>TYPES / RESOURCES / EVOLUTION</span></div>
+        <h2 id="features-title">What the language<br />keeps track of.</h2>
+        <div class="feature-list">{features.map(feature => <article class="feature-row"><span class="feature-number mono" aria-hidden="true">{feature.n}</span><div><h3>{feature.title}</h3></div><div><p>{feature.text}</p><a class="text-link" href={feature.href}>{feature.link}<span>↗</span></a></div></article>)}</div>
+      </section>
+      <section class="reading-section" aria-labelledby="reading-title">
+        <div class="section-index mono"><span>04 / DOCUMENTATION</span><span>CONTENTS</span></div>
+        <div class="reading-heading"><h2 id="reading-title">Read the<br />language design.</h2><p>The tutorials introduce the notation.<br />The specifications define the contracts.</p></div>
+        <div class="reading-links"><a href={tutorial}><h3>Tutorials</h3><p>14 chapters, from values and types to concurrency and compatible upgrades.</p><span class="reading-arrow" aria-hidden="true">↗</span></a><a href="/specifications/core-language-specification/"><h3>Specifications</h3><p>The semantics, contracts, and rules that make up the language.</p><span class="reading-arrow" aria-hidden="true">↗</span></a><a href="/design/open-decisions-and-implementation-plan/"><h3>Design notes</h3><p>Open questions, implementation plans, and the reasoning behind the design.</p><span class="reading-arrow" aria-hidden="true">↗</span></a></div>
+        <aside class="design-status"><span class="mono">IMPLEMENTATION STATUS</span><p>Cinch is under development. These pages specify the intended language; compiler support varies by feature. <a href="/design/next-steps/">Implementation plan ↗</a></p></aside>
+      </section>
+      <section class="ecosystem-section light-section" aria-labelledby="ecosystem-title"><div class="section-index mono"><span>05 / TOOLS AND LIBRARIES</span><span>DEVELOPER RESOURCES</span></div><h2 id="ecosystem-title">Downloads<br />and packages.</h2><div class="ecosystem-links"><a href="/downloads/"><span class="mono">TOOLCHAIN</span><h3>Get Cinch</h3><p>Choose a platform, inspect release information, or get the source.</p><span aria-hidden="true">↗</span></a><a href="/packages/"><span class="mono">LIBRARY INDEX / PREVIEW</span><h3>Browse packages</h3><p>Explore libraries, read module references, and follow linked types into the API.</p><span aria-hidden="true">↗</span></a></div></section>
+      <section class="closing"><div class="mono">TUTORIAL 01 / VALUES AND DEPENDENT TYPES</div><a href={tutorial}><h2>Read the<br /><span>first tutorial.</span></h2><span class="closing-arrow" aria-hidden="true">↗</span></a><div class="closing-bottom mono"><span>STRICT FUNCTIONS → VALUES IN TYPES → RUNTIME WITNESSES</span></div></section>
+    </main>
+    <footer class="landing-footer"><Brand /><div><a href="/overview/">Documentation</a><a href="/packages/">Packages</a><a href="/downloads/">Downloads</a><a href={project.repository}>GitHub ↗</a><a href="#main">Back to top ↑</a></div></footer>
+    <PremiumPagePreview />
+    <FreePagePreview />
+  </body>
+</html>

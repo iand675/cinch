@@ -1,37 +1,58 @@
+@import './scrollbars.css';
+@font-face { font-family: 'DM Sans'; src: url('/fonts/dm-sans-400.ttf') format('truetype'); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'DM Sans'; src: url('/fonts/dm-sans-500.ttf') format('truetype'); font-weight: 500; font-style: normal; font-display: swap; }
+@font-face { font-family: 'DM Sans'; src: url('/fonts/dm-sans-600.ttf') format('truetype'); font-weight: 600; font-style: normal; font-display: swap; }
+@font-face { font-family: 'DM Sans'; src: url('/fonts/dm-sans-700.ttf') format('truetype'); font-weight: 700; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Momo Trust Display'; src: url('/fonts/momo-trust-display.ttf') format('truetype'); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'IBM Plex Mono'; src: url('/fonts/ibm-plex-mono-400.ttf') format('truetype'); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'IBM Plex Mono'; src: url('/fonts/ibm-plex-mono-500.ttf') format('truetype'); font-weight: 500; font-style: normal; font-display: swap; }
 :root {
-  --sl-font: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --sl-font-mono: ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, monospace;
+  --cinch-font-display: 'Momo Trust Display', sans-serif; --sl-font: 'DM Sans', sans-serif; --sl-font-mono: 'IBM Plex Mono', monospace;
+  --sl-color-white: #f5f0e7; --sl-color-gray-1: #e4dfd5; --sl-color-gray-2: #c9c5bb; --sl-color-gray-3: #a49c8e; --sl-color-gray-4: #797469; --sl-color-gray-5: #45443c; --sl-color-gray-6: #252621; --sl-color-black: #191a17;
+  --sl-color-accent-low: #3f291c; --sl-color-accent: #f78c47; --sl-color-accent-high: #ffb780;
+  --sl-color-bg-nav: #171815; --sl-color-bg-sidebar: #1d1e1a; --sl-color-hairline-shade: #393a31;
+  --sl-color-bg-inline-code: #303128; --sl-content-width: 49rem; --sl-sidebar-width: 18rem;
+  --sl-nav-height: 5rem; --sl-text-body: 1rem; --sl-line-height: 1.85;
+  --sl-color-orange-low: #3c2a1b; --sl-color-orange-high: #ffcb90;
 }
-
-/* Provenance line under every page title. */
-.doc-provenance {
-  margin: 0.25rem 0 0;
-  font-size: var(--sl-text-sm);
-  color: var(--sl-color-gray-3);
+:root[data-theme='light'] {
+  --sl-color-white: #272820; --sl-color-gray-1: #37382e; --sl-color-gray-2: #4b4c41; --sl-color-gray-3: #736c5f; --sl-color-gray-4: #948d7f; --sl-color-gray-5: #d4cdbf; --sl-color-gray-6: #eae4d7; --sl-color-gray-7: #f3eee4; --sl-color-black: #f8f5ed;
+  --sl-color-accent-low: #f7e4ce; --sl-color-accent: #a44813; --sl-color-accent-high: #8c3d12;
+  --sl-color-bg-nav: #f3eee4; --sl-color-bg-sidebar: #f1ece1; --sl-color-hairline-shade: #d9d1c2; --sl-color-bg-inline-code: #ede4d5;
+  --sl-color-orange-low: #f6e5cc; --sl-color-orange-high: #794012;
 }
-
-.doc-provenance .separator {
-  margin: 0 0.5rem;
-}
-
-.doc-provenance a {
-  color: var(--sl-color-text-accent);
-}
-
-/* Long specification pages read better with a slightly tighter measure. */
-.sl-markdown-content {
-  --sl-content-width: 52rem;
-}
-
-.sl-markdown-content table {
-  font-size: var(--sl-text-sm);
-}
-
-.sl-markdown-content :not(pre) > code {
-  white-space: nowrap;
-}
-
-/* Requirement keywords (MUST, SHOULD, MAY) read as emphasis in spec prose. */
-.sl-markdown-content strong {
-  font-weight: 600;
-}
+::selection { background: #f78c4760; color: inherit; }
+a, button, select { -webkit-tap-highlight-color: transparent; }
+:focus-visible { outline: 2px solid #d27535; outline-offset: 5px; }
+.cinch-brand { display: inline-flex; width: 120px; align-items: center; flex-shrink: 0; }
+.cinch-brand img { display: block; width: 100%; height: auto; }
+.cinch-brand .instrument-wordmark { mix-blend-mode: screen; }
+.status-dot { display: inline-block; width: 6px; height: 6px; background: #ef8c46; border-radius: 50%; flex-shrink: 0; }
+.cinch-doc-header { height: 100%; display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.cinch-doc-identity, .cinch-doc-tools { display: flex; align-items: center; gap: 2rem; min-width: 0; }
+.doc-label { display: flex; gap: 1.8rem; align-items: center; border-left: 1px solid var(--sl-color-gray-5); padding-left: 1.6rem; text-decoration: none; font-size: .72rem; color: var(--sl-color-gray-2); }
+.doc-label span { color: var(--sl-color-text-accent); }
+.cinch-doc-tools { gap: 1.2rem; }
+.cinch-doc-tools site-search button[data-open-modal] { border: 1px solid var(--sl-color-gray-5); border-radius: 3px; box-shadow: none; background: transparent; font-size: .75rem; }
+.sidebar-intro { display: flex; align-items: center; gap: .7rem; font-family: var(--sl-font-mono); color: var(--sl-color-gray-3); font-size: .57rem; letter-spacing: .05em; margin: .75rem 0 1rem; }
+.sidebar-home { border-top: 1px solid var(--sl-color-gray-5); padding: 1.5rem .4rem; margin-top: 1rem; color: var(--sl-color-gray-3); font-size: .72rem; text-decoration: none; }
+.sidebar-content summary .large { font-family: var(--sl-font-mono); font-size: .67rem; letter-spacing: -.025em; font-weight: 500; }
+.sidebar-content ul li { font-size: .75rem; line-height: 1.5; }
+.sidebar-content a { padding-block: .5rem; border-radius: 0; }
+.sidebar-content a[aria-current='page'] { background: var(--sl-color-accent-low); color: var(--sl-color-text-accent); border-inline-start: 2px solid var(--sl-color-accent); }
+.doc-eyebrow { display: flex; align-items: center; gap: .8rem; font-family: var(--sl-font-mono); font-size: .6rem; letter-spacing: .055em; text-transform: uppercase; color: var(--sl-color-gray-3); margin-top: 1.7rem; }
+.doc-eyebrow a { text-decoration: none; color: var(--sl-color-text-accent); }.doc-draft { margin-left: auto; font-size: .52rem; border: 1px solid var(--sl-color-gray-5); padding: .2rem .5rem; white-space: nowrap; }
+h1#_top { font-family: var(--cinch-font-display); font-size: clamp(2.4rem,4.3vw,3.6rem); letter-spacing: -.035em; font-weight: 400; font-synthesis: none; line-height: 1.1; margin-top: 1.6rem; text-wrap: balance; }
+.doc-provenance { margin: 1.1rem 0 .5rem; font-size: .67rem; color: var(--sl-color-gray-3); }.doc-provenance .separator { margin: 0 .5rem; }.doc-provenance a { color: inherit; text-underline-offset: 3px; }
+.sl-markdown-content h2, .sl-markdown-content h3, .sl-markdown-content h4 { font-family: var(--cinch-font-display); font-weight: 400; font-synthesis: none; letter-spacing: -.025em; }
+.sl-markdown-content h2 { margin-top: 3rem; padding-top: 1.6rem; border-top: 1px solid var(--sl-color-gray-5); font-size: 1.8rem; }.sl-markdown-content h3 { font-size: 1.35rem; }
+.sl-markdown-content p, .sl-markdown-content li { font-size: .96rem; }
+.sl-markdown-content a { text-decoration-thickness: 1px; text-underline-offset: 4px; }
+.sl-markdown-content :not(pre) > code { border-radius: 2px; padding: .15em .35em; font-size: .8em; overflow-wrap: anywhere; }
+.sl-markdown-content pre { border: 1px solid var(--sl-color-gray-5); border-radius: 3px; padding: 1.4rem; font-size: .79rem; line-height: 1.9; }
+.sl-markdown-content table { font-size: .8rem; width: 100%; }.sl-markdown-content th { background: var(--sl-color-bg-sidebar); font-family: var(--sl-font-mono); font-size: .7rem; font-weight: 500; }.sl-markdown-content td, .sl-markdown-content th { padding: .8rem 1rem; border-color: var(--sl-color-gray-5); }.sl-markdown-content strong { font-weight: 600; }
+.right-sidebar-panel h2 { font-family: var(--sl-font-mono); font-size: .65rem; font-weight: 500; text-transform: uppercase; letter-spacing: .04em; }.right-sidebar-panel a { font-size: .72rem; }.right-sidebar-panel { padding-top: 2.6rem; }
+.pagination-links a { border-radius: 2px; box-shadow: none; border-color: var(--sl-color-gray-5); }.pagination-links .link-title { font-family: var(--cinch-font-display); font-weight: 400; font-synthesis: none; font-size: 1.1rem; }
+@media (min-width: 72rem) { :root { --sl-content-pad-x: 2.5rem; } }
+@media (max-width: 799px) { .cinch-doc-header .cinch-brand { width: 105px; }.doc-label { font-size: .65rem; padding-left: 1rem; gap: .7rem; }.cinch-doc-identity { gap: 1rem; }.cinch-doc-tools { gap: .5rem; }.cinch-doc-tools starlight-theme-select { display: none; }.doc-eyebrow { margin-top: 1rem; }.doc-draft { display: none; } }
+@media (max-width: 390px) { .doc-label { display: none; } }

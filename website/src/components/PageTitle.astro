@@ -1,7 +1,8 @@
 ---
 import Default from '@astrojs/starlight/components/PageTitle.astro';
 
-const { data } = Astro.locals.starlightRoute.entry;
+const { data, id } = Astro.locals.starlightRoute.entry;
+const section = id.startsWith('tutorials/') ? 'Learn Cinch' : id.startsWith('specifications/') ? 'Language reference' : id.startsWith('design/') ? 'Design notes' : 'Overview';
 const { source, exported, added } = data as {
   source?: string;
   exported?: string;
@@ -22,6 +23,8 @@ const exportedText =
     : exported;
 ---
 
+<div class="doc-title-rail" aria-hidden="true"><span></span><i></i><span></span></div>
+<div class="doc-eyebrow"><a href="/overview/">CINCH</a><span>/</span><span>{section}</span><span class="doc-draft">DRAFT</span></div>
 <Default><slot /></Default>
 
 {

@@ -24,35 +24,40 @@ function pagesIn(dir) {
       const relPath = dir ? `${dir}/${name}` : name;
       const source = readFileSync(path.join(REPO_ROOT, relPath), 'utf8');
       const title = /^#\s+(.+)$/m.exec(source)?.[1]?.trim() ?? path.basename(name, '.md');
-      const link = relPath === 'overview.md' ? '/' : `/${relPath.replace(/\.md$/, '')}/`;
+      const link = `/${relPath.replace(/\.md$/, '')}/`;
       return { label: title, link };
     });
 }
 
 export default defineConfig({
-  // Placeholder for canonical URLs and the sitemap; set the real origin on deploy.
-  site: 'https://safelang.invalid',
+  // Set `site` to the real public origin when deploying to enable canonical URLs and a sitemap.
   trailingSlash: 'always',
   integrations: [
     starlight({
-      title: 'Designing a Safe Language',
+      title: 'Cinch',
       description:
-        'Draft language design documentation: a strict, dependently typed functional language with explicit effects, resource control, and checked deployment.',
+        'Cinch is a strict functional language with dependent types, explicit effects, resource ownership, and checked contracts for running software.',
       favicon: '/favicon.svg',
-      head: [],
-      customCss: ['./src/styles/custom.css'],
+      head: [
+        { tag: 'meta', attrs: { name: 'theme-color', content: '#171715' } },
+        { tag: 'link', attrs: { rel: 'preload', href: '/fonts/momo-trust-display.ttf', as: 'font', type: 'font/ttf', crossorigin: '' } },
+      ],
+      customCss: ['./src/styles/custom.css', './src/styles/docs-material.css'],
       components: {
         PageTitle: './src/components/PageTitle.astro',
+        MarkdownContent: './src/components/MarkdownContent.astro',
+        Header: './src/components/Header.astro',
+        Sidebar: './src/components/Sidebar.astro',
       },
       lastUpdated: false,
       tableOfContents: { minHeadingLevel: 2, maxHeadingLevel: 3 },
       sidebar: [
-        { label: 'Overview', link: '/' },
-        { label: 'Specifications', items: pagesIn('specifications') },
-        { label: 'Tutorials', items: pagesIn('tutorials') },
-        { label: 'Design', items: pagesIn('design') },
-        { label: 'Examples', items: pagesIn('examples') },
-        { label: 'Background', items: pagesIn('context') },
+        { label: 'Language overview', link: '/overview/' },
+        { label: '01 / Learn Cinch', items: pagesIn('tutorials') },
+        { label: '02 / Language reference', items: pagesIn('specifications'), collapsed: true },
+        { label: '03 / Design notes', collapsed: true, items: pagesIn('design') },
+        { label: '04 / Examples', collapsed: true, items: pagesIn('examples') },
+        { label: '05 / Background', collapsed: true, items: pagesIn('context') },
       ],
     }),
   ],

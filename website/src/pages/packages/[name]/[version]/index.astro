@@ -1,0 +1,23 @@
+---
+import PlatformLayout from '../../../../layouts/PlatformLayout.astro';
+import PackageNavigation from '../../../../components/catalogue/PackageNavigation.astro';
+import VersionSelect from '../../../../components/catalogue/VersionSelect.astro';
+import {packages,packageUrl,moduleUrl,declarationsFor} from '../../../../lib/catalogue';
+export function getStaticPaths(){return packages.flatMap(p=>p.versions.map(version=>({params:{name:p.name,version},props:{package:p,version}})));}
+const {package:p,version}=Astro.props;
+---
+<PlatformLayout title={`${p.name} ${version}`} description={p.synopsis} section="packages">
+  <div class="package-topbar"><a href="/packages/">← Package catalogue</a><span class="sample-badge">SAMPLE DATA</span></div>
+  <div class="package-workspace">
+    <PackageNavigation package={p} version={version}/>
+    <article class="package-article">
+      <header class="package-title"><div class="platform-eyebrow mono"><span>{p.category} / LIBRARY</span><VersionSelect package={p} version={version}/></div><h1>{p.name}</h1><p>{p.synopsis}</p><div class="package-facts mono"><span>{p.license}</span><span>{p.modules.length} modules</span><span>{p.maintainer}</span></div></header>
+      {version!==p.version&&<aside class="older-version">You’re reading {version}. <a href={packageUrl(p)}>Open the latest sample version, {p.version} →</a></aside>}
+      <nav class="package-sections" aria-label="Package sections"><a href="#readme">Readme</a><a href="#modules">Modules</a><a href="#dependencies">Dependencies</a><a href="#versions">Versions</a></nav>
+      <section class="package-readme" id="readme"><div class="section-rule mono">01 / README</div><h2>About this library</h2>{p.readme.map(text=><p>{text}</p>)}<div class="usage-fragment"><span class="mono">IMPORT A MODULE</span><pre><code>{`module Main where\n  import ${p.modules[0].name}`}</code></pre></div></section>
+      <section id="modules"><div class="section-rule mono">02 / MODULES</div><h2>Module reference</h2><div class="module-table">{p.modules.map(m=><a href={moduleUrl(p,m,version)}><div><h3>{m.name}</h3><p>{m.description}</p></div><span class="mono">{declarationsFor(m,version).length} declarations <b aria-hidden="true">↗</b></span></a>)}</div></section>
+      <section id="dependencies"><div class="section-rule mono">03 / DEPENDENCIES</div><h2>Dependencies</h2>{p.dependencies.length?<ul class="dependency-list">{p.dependencies.map(name=>{const dep=packages.find(x=>x.name===name)!;return <li><a href={packageUrl(dep)}>{dep.name}</a><code>{dep.version}</code></li>;})}</ul>:<p>This sample core package has no package dependencies.</p>}</section>
+      <section id="versions"><div class="section-rule mono">04 / VERSIONS</div><h2>Versions</h2><ul class="version-list">{p.versions.map(v=><li><a href={packageUrl(p,v)}>{v}</a><span class="mono">{v===p.version?'Latest sample':'Previous sample'}</span></li>)}</ul></section>
+    </article>
+  </div>
+</PlatformLayout>

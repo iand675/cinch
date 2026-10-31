@@ -1,0 +1,30 @@
+---
+import '../styles/type-study-fonts.css';
+const premium = {
+  domaine: {file: 'domaine-sans-display', width: 1042, height: 440},
+  founders: {file: 'founders-grotesk', width: 929, height: 329},
+};
+---
+<h1 id="hero-title">Power,<br />with <em>proof.</em></h1>
+<script is:inline define:vars={{ typeStudyEnabled: import.meta.env.DEV, premium }}>
+  // Static Astro pages do not expose query parameters while rendering.
+  // Keep this local comparison in the browser and leave production unchanged.
+  if (typeStudyEnabled) {
+    const selection = new URL(window.location.href).searchParams.get('hero');
+    const heading = document.getElementById('hero-title');
+    if (heading && ['archivo', 'newsreader', 'grenze'].includes(selection)) {
+      heading.className = `type-${selection}`;
+    } else if (heading && Object.hasOwn(premium, selection)) {
+      const spec = premium[selection];
+      const image = document.createElement('img');
+      image.src = `/type-study/${spec.file}.jpg`;
+      image.width = spec.width;
+      image.height = spec.height;
+      image.alt = '';
+      image.setAttribute('aria-hidden', 'true');
+      heading.className = 'type-paid';
+      heading.setAttribute('aria-label', 'Power, with proof.');
+      heading.replaceChildren(image);
+    }
+  }
+</script>

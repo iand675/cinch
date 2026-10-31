@@ -1,0 +1,5 @@
+{
+  "russolo": {"name":"Russolo","defaults":{"wght":520,"opsz":72},"note":"The most relevant new lead: a high-contrast sans that combines Bodoni and Futura influences. More geometric than Domaine, with adjustable display contrast through optical size.","source":"https://github.com/laerm0/Russolo"},
+  "bodonimoda": {"name":"Bodoni Moda","defaults":{"wght":400,"opsz":96},"note":"Strong vertical contrast and fine hairlines. Its visible serifs are a departure from Domaine Sans, but the overall display treatment is worth comparing.","source":"https://fonts.google.com/specimen/Bodoni+Moda"},
+  "playfair": {"name":"Playfair","defaults":{"wght":300,"opsz":144,"wdth":100},"note":"This is the variable Playfair family, with weight, width, and a large optical-size range. Try a light weight and a large optical size for finer details.","source":"https://fonts.google.com/specimen/Playfair"}
+}

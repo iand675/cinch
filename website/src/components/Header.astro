@@ -1,0 +1,10 @@
+---
+import Brand from './Brand.astro';
+import { project } from '../lib/project';
+import Search from '@astrojs/starlight/components/Search.astro';
+import ThemeSelect from '@astrojs/starlight/components/ThemeSelect.astro';
+---
+<div class="cinch-doc-header">
+  <div class="cinch-doc-identity"><Brand /><a class="doc-label" href="/overview/">The documentation <span>↗</span></a><nav class="doc-project-nav" aria-label="Project navigation"><a href="/packages/">Packages</a><a href="/downloads/">Downloads</a><a href={project.repository}>GitHub ↗</a></nav></div>
+  <div class="cinch-doc-tools"><Search /><ThemeSelect /></div>
+</div>

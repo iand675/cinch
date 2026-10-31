@@ -1,0 +1,6 @@
+.site-navigation { display:flex; align-items:center; gap:2rem; font-family:'DM Sans',sans-serif; font-size:.78rem; }
+.site-navigation a { display:inline-flex; align-items:center; gap:.5rem; color:inherit; text-decoration:none; padding-block:.5rem; }
+.site-navigation a:hover,.site-navigation a[aria-current='page'] { color:#ff985b; }
+.site-navigation .github-link { border:1px solid #eee6d548; border-radius:30px; padding:.7rem 1rem; }
+@media(max-width:760px) { .site-navigation { gap:1rem; font-size:.69rem; }.site-navigation .github-link { display:none; } }
+@media(max-width:390px) { .site-navigation { gap:.75rem; font-size:.65rem; } }

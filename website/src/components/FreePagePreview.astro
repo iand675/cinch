@@ -1,0 +1,52 @@
+---
+import variableCandidates from '../variable-type-candidates.json';
+import originalAxes from '../variable-font-axes.json';
+import requestedCandidates from '../requested-type-candidates.json';
+import requestedAxes from '../requested-font-axes.json';
+const variableAxes = {...originalAxes, ...requestedAxes};
+---
+<script is:inline define:vars={{ enabled: import.meta.env.DEV, variableCandidates, variableAxes, requestedCandidates }}>
+  if (enabled) {
+    const query = new URL(location.href).searchParams;
+    const face = query.get('freepage');
+    const staticNames = {italiana: 'Italiana', belleza: 'Belleza', anticdidone: 'Antic Didone'};
+    const isRequested = Object.hasOwn(requestedCandidates, face);
+    const isVariable = Object.hasOwn(variableAxes, face) && variableAxes[face].length > 0;
+    const activeCandidates = isRequested ? requestedCandidates : variableCandidates;
+    const names = isRequested || isVariable ? Object.fromEntries(Object.entries(activeCandidates).map(([id,c]) => [id,c.name])) : staticNames;
+    if (Object.hasOwn(names, face) && face !== 'momotrustdisplay') {
+      document.documentElement.dataset.freeType = face;
+      document.title = `Cinch — ${names[face]} full-page study`;
+      if (isVariable) {
+        const values = variableAxes[face].map(axis => {
+          const requested = query.has(axis.tag) ? Number(query.get(axis.tag)) : activeCandidates[face].defaults[axis.tag];
+          const value = Number.isFinite(requested) ? Math.min(axis.max, Math.max(axis.min, requested)) : activeCandidates[face].defaults[axis.tag];
+          return `"${axis.tag}" ${value}`;
+        });
+        document.documentElement.style.setProperty('--cinch-free-axes', values.join(', '));
+      }
+      const note = document.createElement('aside');
+      note.className = 'type-preview-note';
+      note.setAttribute('aria-label', 'Typeface preview');
+      const label = document.createElement('span');
+      label.textContent = `${names[face]} / free ${isVariable ? 'variable' : 'static'} typeface`;
+      const links = document.createElement('div');
+      for (const [id, name] of Object.entries(names)) {
+        if (id === face) continue;
+        const link = document.createElement('a');
+        link.href = `/?freepage=${id}`;
+        link.textContent = name;
+        links.append(link);
+      }
+      const reference = document.createElement('a');
+      reference.href = '/?typepage=domaine';
+      reference.textContent = 'Domaine reference ↗';
+      const all = document.createElement('a');
+      all.href = isRequested ? '/requested-type-study/' : isVariable ? '/variable-type-study/' : '/domaine-alternatives/';
+      all.textContent = 'Compare all';
+      links.append(reference, all);
+      note.append(label, links);
+      document.body.prepend(note);
+    }
+  }
+</script>
