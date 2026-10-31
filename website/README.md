@@ -41,7 +41,9 @@ Fenced code blocks are never rewritten. Adding a chapter means adding the `.md` 
 
 The public origin is `https://cinch.systems`. Vercel hosts the `cinch` project with
 `website` as its root directory, Node 24, `npm ci`, `npm run build`, and `dist` as
-the output directory. Include source files outside the root directory: the docs
+the output directory. Pushes to `deploy/cinch-site` create production deployments.
+The lockfile uses the public npm registry so builds need no private network access.
+Include source files outside the root directory: the docs
 loader and navigation read Markdown from the repository's parent directories.
 Cloudflare remains the authoritative DNS provider; web records point to the
 project-specific DNS target returned by Vercel with proxying disabled.
