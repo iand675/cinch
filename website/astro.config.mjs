@@ -30,7 +30,7 @@ function pagesIn(dir) {
 }
 
 export default defineConfig({
-  // Set `site` to the real public origin when deploying to enable canonical URLs and a sitemap.
+  site: 'https://cinch.systems',
   trailingSlash: 'always',
   integrations: [
     starlight({

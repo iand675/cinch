@@ -39,6 +39,13 @@ Fenced code blocks are never rewritten. Adding a chapter means adding the `.md` 
 
 `npm run build` produces a static site in `dist/`. Publish that directory anywhere that serves files; search is indexed at build time by Pagefind, so no server is required.
 
+The public origin is `https://cinch.systems`. Vercel hosts the `cinch` project with
+`website` as its root directory, Node 24, `npm ci`, `npm run build`, and `dist` as
+the output directory. Include source files outside the root directory: the docs
+loader and navigation read Markdown from the repository's parent directories.
+Cloudflare remains the authoritative DNS provider; web records point to the
+project-specific DNS target returned by Vercel with proxying disabled.
+
 ## Hero type study
 
 `/type-study/` compares Archivo, Newsreader, Grenze, Domaine Sans Display, and Founders Grotesk. The first three use self-hosted SIL OFL fonts in `public/fonts/study/` with their licences. The paid specimens are screenshots of the supplied headline entered into Klim’s official type testers; no commercial font binaries are included.

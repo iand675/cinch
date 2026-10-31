@@ -15,6 +15,7 @@ const {title,description,section='',sample=true}=Astro.props;
   <head>
     <meta charset="UTF-8" /><meta name="viewport" content="width=device-width" />
     <title>{title} — Cinch</title><meta name="description" content={description} />
+    <link rel="canonical" href={new URL(Astro.url.pathname, Astro.site)} />
     {sample&&<meta name="robots" content="noindex" />}
     <meta name="theme-color" content="#191a17" /><link rel="icon" href="/favicon.svg" />
     <ThemeInit />
