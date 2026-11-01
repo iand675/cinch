@@ -29,7 +29,8 @@ The latest candidate propagates the expected result through an application spine
 before checking its arguments. Dependent arrows wait for an actual witness;
 refinement/proof checks and effect rows remain enforced. Six additional cases
 cover generic and curried results, higher-order arguments, explicit Int/Nat
-mismatches and effect retention/rejection. The 17-case interface test and the
-63-case refinement/30-case dependent-source regressions are running. The existing
+mismatches and effect retention/rejection. All 17 real-interface cases now pass, including Nat division/remainder, zero
+rejection, abstract carrier identity/fact restrictions and Bool/float rejection.
+The 63-case refinement/30-case dependent-source regressions are still running. The existing
 51-by-five type/Core result is reused only after checking unchanged selected
 inputs; its runner does not select the changed inference module.

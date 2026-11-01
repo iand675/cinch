@@ -14,17 +14,23 @@
     {
       "name": "bootstrap_abstract_nonzero_types",
       "status": "passed",
-      "exit_code": 0
+      "exit_code": 0,
+      "reused": true
     },
     {
       "name": "bootstrap_abstract_nonzero_methods",
+      "status": "passed",
+      "exit_code": 0
+    },
+    {
+      "name": "bootstrap_source_refinements",
       "status": "running"
     }
   ],
   "type_core_checks": 51,
   "distinct_runtime_inputs": 5,
   "generic_interface_cases": 17,
-  "generic_interface_status": "new application-result hint fix under test; previous Nat failure preserved",
+  "generic_interface_status": "All 17 actual Native-produced interface consumer cases passed",
   "seed": "Not refreshed; last installed schema-7 checkpoint pin remains",
   "invariant": "Pending NonZero over abstract carriers gives no arithmetic fact. Normalize only after supported concrete carrier and explicit integer promotion are checked.",
   "prior_generic_interface_result": {
@@ -41,6 +47,25 @@
   "additional_regressions": {
     "source_refinements": 63,
     "source_dependent_functions": 30,
-    "status": "queued after generic interfaces"
-  }
+    "status": "63 source-refinement cases running; 30 dependent-source cases queued"
+  },
+  "generic_interface_passed_cases": [
+    "generic refined identity",
+    "generic Div given",
+    "generic Rem given",
+    "expected generic result checks first literal",
+    "expected generic curried result",
+    "expected higher order result",
+    "explicit Int argument cannot become Nat",
+    "expected result retains effects",
+    "expected result cannot erase effects",
+    "Nat Div specialization",
+    "Nat Rem specialization",
+    "Nat Div rejects zero",
+    "Nat Rem rejects zero",
+    "abstract carrier grants no Nat facts",
+    "abstract carrier identities stay distinct",
+    "float carrier remains refused",
+    "Bool carrier remains refused"
+  ]
 }
