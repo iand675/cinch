@@ -1,6 +1,6 @@
 # Self-hosting acceptance and remaining compiler work
 
-The latest installed checkpoint carries anonymous refinement contracts from
+The anonymous-contract checkpoint carries refinement contracts from
 checked Native schemes through renamed interfaces. Result binders are fresh
 and scoped against real argument identities, including exported contracts over
 refined arguments. Private defining refinement templates remain closed in
@@ -36,7 +36,7 @@ Archive plus patch reproduces every Native source byte, checked during
 preparation and independently at installation. Runtime ABI 5 and interface
 schema 7 remain unchanged.
 
-Fresh stage0/stage1 builds pass all six smoke checks. The real stage2 attempt
+At that checkpoint, fresh stage0/stage1 builds pass all six smoke checks. The stage2 attempt
 exits 4 before body checking with 70 header diagnostics, down from 76. Sixteen
 positions are imported/synthetic and fifty-four map to source; nineteen concern
 unchecked calls. Counts include cascades and do not measure completion.
@@ -47,10 +47,14 @@ the compiler bundle is
 `dfd073244314e8d054e99ac7b5ab64b47975f4531baa40199a598a42e65e55c0`.
 Evidence and source-mapped diagnostics are in `/tmp/cinch-anonymous-contract-stages/`.
 
-Deferred generic NonZero formation and result-directed application checking are
-being validated separately. Their focused type/Core, real Div/Rem consumers,
-source-refinement and dependent-source checks pass, but their broader matrix
-is still running; those changes are not installed in this checkpoint.
+The installed compiler now also supports deferred generic NonZero formation
+and result-directed application checking. All 154 Native-assisted integration
+targets pass, including the new abstract NonZero type/Core and generic Div/Rem
+consumer regressions. The exact validated snapshot is
+`41173572185db6c95dbf9606e4bf3830d09b609b42c8b2b91844dc92037cdcfa`
+(565 unchanged inputs). The Native seed is unchanged. Fresh stage0 and stage1
+smoke checks pass; the new stage2 attempt is still running. The 70 diagnostics
+above describe the preceding anonymous-contract checkpoint, not this attempt.
 
 Checked observation/call contracts, remaining source declarations and proof
 forms, an independent global typing kernel and shared-runtime typed lowering

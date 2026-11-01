@@ -1,8 +1,11 @@
 {
+  "bootstrap_achieved": false,
   "covered_targets": [
     "alloc_accounting",
     "argv",
     "attributes",
+    "bootstrap_abstract_nonzero_methods",
+    "bootstrap_abstract_nonzero_types",
     "bootstrap_anonymous_contracts",
     "bootstrap_check",
     "bootstrap_contract",
@@ -153,109 +156,12 @@
     "temporal",
     "wasm"
   ],
-  "full_bootstrap": false,
-  "integration_targets": 152,
-  "latest_candidate_source_sha256": "b84b7a8dc278a0468e43a922de01d7565af717ef8d677026f88304ae36ac8acc",
-  "note": "Native Rust-assisted test matrix only; fresh seed/stages and eventual self-built-frontend parity remain required.",
-  "prior_selected_dependency_audits_required": true,
+  "focused_evidence": "/tmp/cinch-abstract-nonzero-probe-3/results.json",
+  "general_unit_runtime_tooling_status": "Native/general inputs unchanged from earlier passed evidence; not rerun by this integration-only matrix",
+  "integration_targets": 154,
+  "native_contract_evidence": "/tmp/cinch-anonymous-contract-validation-2/native-contracts.log",
+  "native_evidence": "/tmp/cinch-anonymous-contract-validation-4/native-remainder",
   "self_built_frontend": false,
-  "status": "passed",
-  "remaining_target_results": [
-    {
-      "name": "bootstrap_check",
-      "status": "passed",
-      "exit_code": 0
-    },
-    {
-      "name": "bootstrap_function_preconditions",
-      "status": "passed",
-      "exit_code": 0
-    },
-    {
-      "name": "bootstrap_guarded_arithmetic",
-      "status": "passed",
-      "exit_code": 0
-    },
-    {
-      "name": "bootstrap_imported_preconditions",
-      "status": "passed",
-      "exit_code": 0
-    },
-    {
-      "name": "bootstrap_intrinsics",
-      "status": "passed",
-      "exit_code": 0
-    },
-    {
-      "name": "bootstrap_lexer",
-      "status": "passed",
-      "exit_code": 0
-    },
-    {
-      "name": "bootstrap_manifest",
-      "status": "passed",
-      "exit_code": 0
-    },
-    {
-      "name": "bootstrap_module_scopes",
-      "status": "passed",
-      "exit_code": 0
-    },
-    {
-      "name": "bootstrap_nonzero_types",
-      "status": "passed",
-      "exit_code": 0
-    },
-    {
-      "name": "bootstrap_parse",
-      "status": "passed",
-      "exit_code": 0
-    },
-    {
-      "name": "bootstrap_pi",
-      "status": "passed",
-      "exit_code": 0
-    },
-    {
-      "name": "bootstrap_proof",
-      "status": "passed",
-      "exit_code": 0
-    },
-    {
-      "name": "bootstrap_proposition_types",
-      "status": "passed",
-      "exit_code": 0
-    },
-    {
-      "name": "bootstrap_resolve",
-      "status": "passed",
-      "exit_code": 0
-    },
-    {
-      "name": "bootstrap_source_paths",
-      "status": "passed",
-      "exit_code": 0
-    },
-    {
-      "name": "bootstrap_test_runner",
-      "status": "passed",
-      "exit_code": 0
-    },
-    {
-      "name": "bootstrap_value_indices",
-      "status": "passed",
-      "exit_code": 0
-    },
-    {
-      "name": "bootstrap_value_kinds",
-      "status": "passed",
-      "exit_code": 0
-    },
-    {
-      "name": "lib_hash_keys",
-      "status": "passed",
-      "exit_code": 0
-    }
-  ],
-  "general_gates": "Native compiler units, runtime, tooling, binary and docs passed earlier on unchanged selected inputs"
+  "source_sha256": "41173572185db6c95dbf9606e4bf3830d09b609b42c8b2b91844dc92037cdcfa",
+  "status": "passed"
 }
