@@ -34,3 +34,9 @@ rejection, abstract carrier identity/fact restrictions and Bool/float rejection.
 The 63-case refinement/30-case dependent-source regressions are still running. The existing
 51-by-five type/Core result is reused only after checking unchanged selected
 inputs; its runner does not select the changed inference module.
+
+The separate [94-target Native integration run](native-integration-results.json)
+now passes completely, with an unchanged source audit. Its Native implementation
+and selected fixture inputs are byte-identical in the later candidate snapshots;
+those tests do not select the changed Cinch inference code. This does not finish
+the complete integration matrix or establish a self-built compiler frontend.
