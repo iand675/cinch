@@ -1,5 +1,25 @@
 # Next steps (as of 2026-11-01)
 
+Source instance dictionaries are now published as a work-in-progress checkpoint.
+The typed class and instance records retain defining owners, exact method slots,
+specialized method schemes, factory parameters and captured dictionaries.
+Source members are checked against the defining class interface, including
+method-local quantifiers and requirements. Explicit `with` accepts checked
+class dictionaries and retains the existing Io region-escape check.
+Ordinary values remain invalid dictionary arguments; only implicit instances
+participate in implicit search. Fixities remain owned by their declaring module.
+
+The focused instance target and six existing regression targets are still under
+validation. The complete suite for this implementation has not run, and its
+fresh staged build is queued after the focused checks. The previous checkpoint's
+161 passing integration targets do not establish that this implementation passes.
+[The instance checkpoint report](../bootstrap/source-instances-checkpoint-results.json)
+records the frozen inputs and the exact validation state at publication.
+Real dictionary runtime lowering, the independent global kernel, and the full
+stage2/stage3 bootstrap remain unfinished.
+
+## Last complete Native-assisted checkpoint (`623d33e`)
+
 Machine-integer value contracts and source effect declarations are now installed
 in the main working checkout and published with the source-matching seed.
 All 161 Native-assisted integration targets pass, together with all five general

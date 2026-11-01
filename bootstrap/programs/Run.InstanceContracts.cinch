@@ -1,0 +1,73 @@
+module Main where
+  import Bootstrap.Type
+  import Bootstrap.Core
+  import Bootstrap.Instance
+  import Text.Lex (Span)
+  import Data.Path (path-from-string)
+  import Effect.Fs (fs-read)
+  import Text.Show (int-to-string)
+  import Data.Nat (nat-to-int)
+
+  sp :: Span
+  sp = Span 0 0 1 1
+  cell :: UType -> UType
+  cell ty = UApp (UCon "Cell" (KFun KType KType)) ty
+  eq :: UType -> UType
+  eq ty = UApp (UCon "Eq" (KFun KType KType)) ty
+  list :: UType -> UType
+  list ty = UApp (UCon "List" (KFun KType KType)) ty
+  givens :: Nat -> List Requirement -> List CoreGiven
+  givens next rs = case rs of Nil -> Nil; Cons r rest -> Cons (CGiven sp (string-concat "#capture-" (int-to-string (nat-to-int next))) (requirement-type r)) (givens (next + 1) rest)
+  definition :: Nat -> String -> Scheme -> CoreDefinition
+  definition nonce name sc = case open-qualified True sc (enter-level (empty-store "instance-contract")) of
+    (UFun first (UFun second result), requirements, openings, checked) -> MkCoreDefinition sp name sc openings (givens 0 requirements) Nil
+      [MkCoreClause sp [CPVar sp first (nonce + 100) "first", CPVar sp second (nonce + 101) "second"] (CLocal sp first (nonce + 100) "first" Nil)]
+    other -> MkCoreDefinition sp name sc Nil Nil Nil Nil
+  change-body :: CoreDefinition -> CoreDefinition
+  change-body original = case original of
+    MkCoreDefinition s name sc openings captured hidden clauses -> MkCoreDefinition s name sc openings captured hidden [MkCoreClause s [CPVar sp (UCon "Int" KType) 10 "wrong"] (CInt sp (UCon "Int" KType) "0")]
+  checks :: Nat -> List Bool
+  checks nonce =
+    let class-id = nonce + 1 in let local-id = nonce + 2 in
+    let a = UBound class-id "a" KType in let b = UBound local-id "b" KType in
+    let qa = MkQuant class-id "a" KType False in let qb = MkQuant local-id "b" KType False in
+    let member = MkCoreClassMethod sp "keep" 0 (qualified [qa, qb] [MkRequirement "self" (cell a), MkRequirement "same" (eq b)] (UFun a (UFun b a))) in
+    let description = MkCoreClass sp "Cell" (KFun KType KType) [qa] [member] in
+    -- The factory binder deliberately shares the method-local binder's ID.
+    -- Specialization must preserve factory b and freshen the method b.
+    let factory = qualified [qb] [MkRequirement "same" (eq b)] (cell (list b)) in
+    case specialize-method description factory member of
+      None -> [False]
+      Some field -> let sc = implementation-scheme factory field in
+        let body = definition nonce (dictionary-method-symbol "make-cell" 0) sc in
+        let context = MkCoreClassContext [("Cell", KFun KType KType), ("Eq", KFun KType KType)] [description] in
+        let entry = MkCoreInstance sp "make-cell" True factory [MkCoreDictionaryField sp 0 body] in
+        [ class-closed description
+        , class-context-closed context
+        , not (class-context-closed (MkCoreClassContext [("", KType)] [MkCoreClass sp "" KType Nil Nil]))
+        , (case specialize-method description factory (MkCoreClassMethod sp "not-a-member" 0 (class-method-scheme member)) of None -> True; Some other -> False)
+        , list-length (scheme-params field) == 2
+        , (case scheme-params field of [outer, inner] -> quant-id outer == local-id && quant-id inner /= local-id && quant-id inner /= class-id; other -> False)
+        , list-length (scheme-requirements sc) == 3
+        , (case scheme-requirements sc of [first, self, local-req] -> string-compare (requirement-name first) "#instance-context-0" == 0 && string-compare (requirement-name local-req) "same" == 0; other -> False)
+        , core-definition-closed body
+        , core-definition-result-types body
+        , instance-closed context entry
+        , not (instance-closed (MkCoreClassContext Nil Nil) entry)
+        , not (instance-closed context (MkCoreInstance sp "make-cell" True factory Nil))
+        , not (instance-closed context (MkCoreInstance sp "make-cell" True factory [MkCoreDictionaryField sp 1 body]))
+        , not (instance-closed context (MkCoreInstance sp "different-cell" True factory [MkCoreDictionaryField sp 0 body]))
+        , not (instance-closed context (MkCoreInstance sp "make-cell" True (mono (cell (UCon "Int" KType))) [MkCoreDictionaryField sp 0 body]))
+        , not (instance-closed context (MkCoreInstance sp "make-cell" True factory [MkCoreDictionaryField sp 0 (change-body body)]))
+        , not (instance-closed (MkCoreClassContext [("Cell", KFun KType KType)] [description]) entry)
+        , not (instance-closed (MkCoreClassContext [("Cell", KFun KType KType), ("Eq", KType)] [description]) entry)
+        , not (instance-closed (MkCoreClassContext [("Cell", KFun KType KType), ("Eq", KFun KType KType), ("Eq", KFun KType KType)] [description]) entry)
+        , not (class-closed (MkCoreClass sp "Cell" KType [qa] [member]))
+        , not (class-closed (MkCoreClass sp "Cell" (KFun KType KType) [qa] [member, member]))
+        ]
+  verdict :: Int -> List Bool -> Int
+  verdict next values = case values of Nil -> 0; Cons True rest -> verdict (next + 1) rest; Cons False rest -> next
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in case fs-read (path-from-string "nonce.txt") of
+    Err error -> 90
+    Ok input -> verdict 1 (checks (340282366920938463463374607431768211456 + bytes-len input))

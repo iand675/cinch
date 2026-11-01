@@ -117,10 +117,10 @@ module Bootstrap.Dictionary where
     CWith sp ty given value body -> case resolve-term context scope value st of
       (out, checked) -> if string-length (given-symbol given) == 0 || (case find-given (given-symbol given) scope of Some old -> True; None -> False) then
         (CError sp, add-error sp "capability scope has an empty or duplicate binder symbol" checked)
-        else if valid-goal (resolution-classes context) (normalize checked (given-type given)) && capability-type (normalize checked (given-type given)) then
+        else if valid-goal (resolution-classes context) (normalize checked (given-type given)) then
         let supplied = unify sp (given-type given) (core-type value) checked in
         case resolve-term context (Cons given scope) body supplied of (result, done) -> (CWith sp ty given out result, unify sp ty (core-type result) done)
-        else (CError sp, add-error sp "capability scope needs a checked Io region" checked)
+        else (CError sp, add-error sp "dictionary scope needs a checked signature value" checked)
     CLambda sp ty pattern body -> case resolve-term context scope body st of (out, checked) -> (CLambda sp ty pattern out, checked)
     CLet sp ty id name scheme rhs body -> case resolve-term context scope rhs st of
       (value, sr) -> case resolve-term context scope body sr of (out, done) -> (CLet sp ty id name scheme value out, done)

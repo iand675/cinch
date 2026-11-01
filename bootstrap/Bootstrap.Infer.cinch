@@ -10,6 +10,7 @@ module Bootstrap.Infer where
   import Data.Nat (nat-from-int, nat-to-int)
   import Text.Show (int-to-string)
   import Bootstrap.Core
+  import Bootstrap.Instance
   import Bootstrap.Builtin (builtin-declarations, intrinsic-contract)
   import Bootstrap.Dictionary (resolve-dictionary-definition-with, resolve-dictionary-term-with, resolve-ready-term, check-instance-coherence)
   import Bootstrap.Parse (parse-scheme)
@@ -23,7 +24,7 @@ module Bootstrap.Infer where
   export needs-inference, infer-program, elaborate-program
   export Elaboration, elaboration-errors, elaboration-bindings, elaboration-contexts, elaboration-core
   export CheckedBinding, checked-name, checked-scheme, checked-role
-  export elaboration-data, elaboration-effects
+  export elaboration-data, elaboration-effects, elaboration-classes, elaboration-class-context, elaboration-instances
 
   -- Surface templates live only in this elaboration context. Checked
   -- Core and the type engine continue to contain typed terms exclusively.
@@ -60,21 +61,28 @@ module Bootstrap.Infer where
   checked-role :: CheckedBinding -> String
   checked-role b = case b of MkCheckedBinding name sc role -> role; MkMethodBinding name sc owner slot -> "method"; MkGivenBinding name ty symbol -> "dictionary"; MkLocalBinding name sc id level -> "local"; MkValueBinding name sc id level value -> "local"; MkIntrinsicBinding name sc symbol -> "intrinsic"; MkProofBinding fact -> "proof"
   data Elaboration where
-    MkElaboration :: List Diagnostic -> List CheckedBinding -> List Json -> List CoreDefinition -> List CoreData -> List CoreEffect -> Elaboration
+    MkElaboration :: List Diagnostic -> List CheckedBinding -> List Json -> List CoreDefinition -> List CoreData -> List CoreEffect -> CoreClassContext -> List CoreInstance -> Elaboration
   elaboration-errors :: Elaboration -> List Diagnostic
-  elaboration-errors e = case e of MkElaboration errors bindings contexts core datas effects -> errors
+  elaboration-errors e = case e of MkElaboration errors bindings contexts core datas effects descriptions instances -> errors
   elaboration-bindings :: Elaboration -> List CheckedBinding
-  elaboration-bindings e = case e of MkElaboration Nil bindings contexts core datas effects -> bindings; other -> Nil
+  elaboration-bindings e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances -> bindings; other -> Nil
   elaboration-contexts :: Elaboration -> List Json
-  elaboration-contexts e = case e of MkElaboration errors bindings contexts core datas effects -> contexts
+  elaboration-contexts e = case e of MkElaboration errors bindings contexts core datas effects descriptions instances -> contexts
   elaboration-core :: Elaboration -> List CoreDefinition
-  elaboration-core e = case e of MkElaboration Nil bindings contexts core datas effects -> core; other -> Nil
+  elaboration-core e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances -> core; other -> Nil
 
   elaboration-data :: Elaboration -> List CoreData
-  elaboration-data e = case e of MkElaboration Nil bindings contexts core datas effects -> datas; other -> Nil
+  elaboration-data e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances -> datas; other -> Nil
 
   elaboration-effects :: Elaboration -> List CoreEffect
-  elaboration-effects e = case e of MkElaboration Nil bindings contexts core datas effects -> effects; other -> Nil
+  elaboration-effects e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances -> effects; other -> Nil
+
+  elaboration-classes :: Elaboration -> List CoreClass
+  elaboration-classes e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances -> context-classes descriptions; other -> Nil
+  elaboration-class-context :: Elaboration -> CoreClassContext
+  elaboration-class-context e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances -> descriptions; other -> MkCoreClassContext Nil Nil
+  elaboration-instances :: Elaboration -> List CoreInstance
+  elaboration-instances e = case e of MkElaboration Nil bindings contexts core datas effects descriptions instances -> instances; other -> Nil
 
   same :: String -> String -> Bool
   same a b = string-compare a b == 0
@@ -122,6 +130,7 @@ module Bootstrap.Infer where
       DSig s name ty -> needs-type ty
       DRefine s name params binder predicate -> True
       DEffect s name params ops -> True
+      DInstance s flag name params head-type members -> True
       DExternal s name category None metadata -> same category "type" && (case field "kind" metadata of JStr variety -> same variety "refinement"; other -> False)
       DData s name (Cons p ps) ctors -> True
       DData s name Nil ctors -> ctor-needs ctors
@@ -937,6 +946,45 @@ module Bootstrap.Infer where
   json-rows rows = case rows of JArr row rest -> Cons row (json-rows rest); other -> Nil
   class-rows :: List Decl -> List Json
   class-rows ds = case ds of Nil -> Nil; Cons d rest -> class-declaration-rows d <> class-rows rest
+  find-class-row :: String -> List Json -> Option Json
+  find-class-row name rows = case rows of
+    Nil -> None
+    Cons row rest -> case field "identity" row of JStr identity -> if same name (interface-global identity) then Some row else find-class-row name rest; other -> find-class-row name rest
+  instance-syntax-owner :: TypeExpr -> Option String
+  instance-syntax-owner ty = case ty of TName s name -> Some name; TApp s f xs -> instance-syntax-owner f; TUsing s bounds body -> instance-syntax-owner body; TForall s qs body -> instance-syntax-owner body; other -> None
+  member-nominal-kinds :: Span -> Json -> TypeContext -> Store -> (TypeContext, Store)
+  member-nominal-kinds sp methods kinds st = case methods of
+    JArr row rest -> case resolved-text row of
+      Some text -> case collect-nominal-rows sp (resolved-nominals row) kinds st of
+        (more, checked) -> member-nominal-kinds sp rest more checked
+      None -> member-nominal-kinds sp rest kinds st
+    JArrEnd -> (kinds, st)
+    other -> (kinds, add-error sp "invalid defining class method array" st)
+  source-instance-nominals :: List Decl -> List Json -> TypeContext -> Store -> (TypeContext, Store)
+  source-instance-nominals ds rows kinds st = case ds of
+    Nil -> (kinds, st)
+    Cons (DInstance sp flag name params head-type members) rest -> case instance-syntax-owner head-type of
+      Some owner -> (case find-class-row owner rows of
+        Some row -> (case member-nominal-kinds sp (field "methods" row) kinds st of (more, checked) -> source-instance-nominals rest rows more checked)
+        None -> source-instance-nominals rest rows kinds st)
+      None -> source-instance-nominals rest rows kinds st
+    Cons other rest -> source-instance-nominals rest rows kinds st
+  typed-class-methods :: Span -> List (String, Kind) -> TypeContext -> Json -> Store -> (List CoreClassMethod, Store)
+  typed-class-methods sp classes kinds rows st = case rows of
+    JArr row rest -> case (field "name" row, field "slot" row, resolved-text row) of
+      (JStr name, JNum slot, Some text) -> if slot < 0 then (Nil, add-error sp "negative defining class method slot" st) else
+        (case imported-scheme sp classes kinds (TUnmodeled sp "missing class method contract") row st of
+          (sc, checked) -> case typed-class-methods sp classes kinds rest checked of (more, final) -> (Cons (MkCoreClassMethod sp name (nat-from-int slot) sc) more, final))
+      other -> (Nil, add-error sp "source instance needs a portable defining contract for every class method" st)
+    JArrEnd -> (Nil, st)
+    other -> (Nil, add-error sp "invalid defining class method array" st)
+  typed-class :: Span -> String -> List Json -> List (String, Kind) -> TypeContext -> Store -> (Option CoreClass, Store)
+  typed-class sp owner rows classes kinds st = case (find-class-row owner rows, context-kind owner kinds) of
+    (Some row, Some kind) -> case imported-kinds kinds (field "parameters" row) st of
+      (params, checked) -> case typed-class-methods sp classes kinds (field "methods" row) checked of
+        (methods, final) -> let description = MkCoreClass sp owner kind params methods in
+          if class-closed description then (Some description, final) else (None, add-error sp "defining class contract is not closed or has inconsistent method slots" final)
+    other -> (None, add-error sp "source instance has no defining class contract" st)
   class-kinds :: List Json -> TypeContext -> List (String, Kind) -> List (String, Kind)
   class-kinds rows kinds seen = case rows of
     Nil -> seen
@@ -1095,6 +1143,11 @@ module Bootstrap.Infer where
   operation-syntax sp inherited ty = case ty of
     TForall at binders body -> TForall sp (forall-param-spine sp (inherited <> forall-params-of binders)) body
     other -> case inherited of Nil -> ty; more -> TForall sp (forall-param-spine sp inherited) ty
+  source-instance-scheme :: Span -> List (String, Kind) -> TypeContext -> List TypeParam -> TypeExpr -> Store -> (Scheme, Store)
+  source-instance-scheme sp classes kinds ps head-type st = case parameters False kinds Nil ps 0 Nil st of
+    (qs, prepared) -> case make-scheme False classes kinds qs head-type prepared of
+      (sc, checked) -> if checked-class-type classes (scheme-body sc) && contract-scheme-closed sc then (sc, checked)
+        else (sc, add-error sp "source instance needs a closed saturated signature target" checked)
   register-operations :: List (String, Kind) -> TypeContext -> List TypeParam -> List (String, TypeExpr) -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
   register-operations classes kinds ps ops env st = case ops of
     Nil -> (env, st)
@@ -1107,6 +1160,9 @@ module Bootstrap.Infer where
     Cons d rest -> case d of
       DSig s name ty -> case make-scheme False classes kinds Nil ty st of
         (sc, ss) -> case add-binding s name sc "value" env ss of (e, se) -> register rows classes kinds rest e se
+      DInstance sp flag name ps head-type members -> case source-instance-scheme sp classes kinds ps head-type st of
+        (sc, checked) -> case add-binding sp name sc (if flag then "implicit-instance" else "instance") env checked of
+          (more, final) -> register rows classes kinds rest more final
       DEffect s owner ps ops -> case register-operations classes kinds ps ops env st of
         (e, se) -> register rows classes kinds rest e se
       DData s owner ps cs -> case parameters False kinds Nil ps 0 Nil st of
@@ -1508,14 +1564,16 @@ module Bootstrap.Infer where
   infer-with classes kinds families env locals bindings body expected st = case bindings of
     EBindingsEnd s -> case expected of None -> infer classes kinds families env locals body st; Some ty -> check classes kinds families env locals body ty st
     EBinding s name rhs rest -> case infer classes kinds families env locals rhs st of
-      (value, sv) -> case fresh-meta KRegion sv of
-        (region, sr) -> let ty = UApp (UCon "b.Io" (KFun KRegion KType)) region in
-          case fresh-id (unify s (core-type value) ty sr) of
-            (id, fresh) -> let symbol = string-concat "#capability_" (nat-to-string id) in
-              case infer-with classes kinds families (Cons (MkGivenBinding name ty symbol) env) locals rest body expected fresh of
-                (result, done) -> case resolve-dictionary-term-with classes (env-instances env) (env-givens env) (CWith s (core-type result) (CGiven s symbol ty) value result) done of
-                  (resolved, checked) -> (resolved, check-capability-escape s region (core-type result) checked)
+      (value, checked) -> let ty = normalize checked (core-type value) in
+        if not (checked-class-type classes ty) then term-error s "with binding needs a checked signature value" checked else
+        case fresh-id checked of
+          (id, fresh) -> let symbol = string-concat "#capability_" (nat-to-string id) in
+            case infer-with classes kinds families (Cons (MkGivenBinding name ty symbol) env) locals rest body expected fresh of
+              (result, done) -> case resolve-dictionary-term-with classes (env-instances env) (env-givens env) (CWith s (core-type result) (CGiven s symbol ty) value result) done of
+                (resolved, verified) -> (resolved, case with-region ty of Some region -> check-capability-escape s region (core-type result) verified; None -> verified)
     other -> term-error (expr-span bindings) "malformed capability binding spine" st
+  with-region :: UType -> Option UType
+  with-region ty = case ty of UApp (UCon name kind) region -> if same name "b.Io" && kind-equal (type-kind region) KRegion then Some region else None; other -> None
   contains-meta :: Nat -> List Nat -> Bool
   contains-meta id ids = case ids of Nil -> False; Cons first rest -> id == first || contains-meta id rest
   check-capability-escape :: Span -> UType -> UType -> Store -> Store
@@ -1757,7 +1815,7 @@ module Bootstrap.Infer where
   check-definition classes kinds families env sp name cs st = case lookup-binding name env of
     None -> (None, add-error sp (string-concat "no signature for " name) st)
     Some (MkIntrinsicBinding source sc symbol) -> (None, add-error sp "runtime intrinsic cannot also have a source definition" st)
-    Some b -> if same (checked-role b) "operation" then (None, add-error sp "effect operation cannot also have a source definition" st) else
+    Some b -> if same (checked-role b) "operation" then (None, add-error sp "effect operation cannot also have a source definition" st) else if same (checked-role b) "instance" || same (checked-role b) "implicit-instance" then (None, add-error sp "instance dictionary cannot also have an ordinary source definition" st) else
       let level = store-level st in
       case open-qualified True (checked-scheme b) (enter-level st) of
         (ty, requirements, pairs, ss) ->
@@ -1901,14 +1959,76 @@ module Bootstrap.Infer where
                 (more, final) -> (Cons declaration more, final)
           None -> checked-effects kinds env rest (add-error s "effect has no checked declaration kind" sq)
       other -> checked-effects kinds env rest st
+  instance-member-errors :: List Decl -> List String -> List String -> Store -> Store
+  instance-member-errors members wanted signatures st = case members of
+    Nil -> st
+    Cons d rest -> case d of
+      DFun sp name clauses -> if has name wanted then instance-member-errors rest wanted signatures st else instance-member-errors rest wanted signatures (add-error sp "instance defines a method outside its declaring class" st)
+      DSig sp name ty -> if has name wanted && not (has name signatures) then instance-member-errors rest wanted (Cons name signatures) st else instance-member-errors rest wanted signatures (add-error sp "instance has an extra or duplicate method signature" st)
+      other -> instance-member-errors rest wanted signatures (add-error (decl-span d) "unsupported instance member declaration" st)
+  class-member-names :: List CoreClassMethod -> List String
+  class-member-names members = case members of Nil -> Nil; Cons member rest -> Cons (class-method-name member) (class-member-names rest)
+  member-annotation :: String -> List Decl -> Option TypeExpr
+  member-annotation name ds = case ds of Nil -> None; Cons (DSig sp member ty) rest -> if same member name then Some ty else member-annotation name rest; Cons other rest -> member-annotation name rest
+  quant-next :: List Quant -> Nat
+  quant-next qs = case qs of Nil -> 0; Cons q rest -> let more = quant-next rest in if quant-id q + 1 > more then quant-id q + 1 else more
+  quant-names :: List Quant -> List String
+  quant-names qs = case qs of Nil -> Nil; Cons q rest -> Cons (quant-name q) (quant-names rest)
+  member-annotation-scheme :: List (String, Kind) -> TypeContext -> List Quant -> TypeExpr -> Store -> (Scheme, Store)
+  member-annotation-scheme classes kinds inherited ty st = case ty of
+    TForall sp binders body -> case parameters False kinds (quant-locals inherited) (region-parameters (forall-params-of binders) (region-names body)) (quant-next inherited) (quant-names inherited) (if quantifiers-ok binders then st else add-error sp "malformed instance method quantifiers" st) of
+      (local, checked) -> scheme-body-from False classes kinds (inherited <> local) body checked
+    other -> scheme-body-from False classes kinds inherited ty st
+  checked-member-annotation :: List (String, Kind) -> TypeContext -> Scheme -> Scheme -> Option TypeExpr -> Store -> (Scheme, Store)
+  checked-member-annotation classes kinds factory expected annotation st = case annotation of
+    None -> (expected, st)
+    Some syntax -> case member-annotation-scheme classes kinds (scheme-params factory) syntax st of
+      (annotated, checked) -> (annotated, if scheme-equivalent expected annotated then checked else add-error (type-expr-span syntax) "instance method signature disagrees with the specialized class contract" checked)
+  source-instance-fields :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> CoreClass -> String -> Scheme -> List Decl -> List CoreClassMethod -> Store -> (List CoreDictionaryField, Store)
+  source-instance-fields classes kinds families env description symbol factory declarations methods st = case methods of
+    Nil -> (Nil, st)
+    Cons member rest -> let name = class-method-name member in
+      case specialize-method description factory member of
+        None -> (Nil, add-error zero "cannot specialize defining class method to instance head" st)
+        Some expected ->
+          let (actual, prepared) = checked-member-annotation classes kinds factory expected (member-annotation name declarations) st in
+          let private-name = dictionary-method-symbol symbol (class-method-slot member) in
+          let implementation = implementation-scheme factory actual in
+          let bound = Cons (MkCheckedBinding private-name implementation "instance-method") env in
+          if not (has-definition name declarations) then (Nil, add-error zero (string-concat "instance is missing class method: " name) prepared) else
+          case check-definition classes kinds families bound zero private-name (function-clauses name declarations) prepared of
+            (None, failed) -> (Nil, failed)
+            (Some definition, checked) -> case resolve-dictionary-definition-with classes (env-instances env) definition checked of
+              (resolved, final) -> case source-instance-fields classes kinds families env description symbol factory declarations rest final of
+                (more, done) -> (Cons (MkCoreDictionaryField zero (class-method-slot member) (seal-definition done resolved)) more, done)
+  checked-source-instances :: List Json -> List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List Decl -> List CoreClass -> Store -> (List CoreClass, List CoreInstance, Store)
+  checked-source-instances rows classes kinds families env ds descriptions st = case ds of
+    Nil -> (descriptions, Nil, st)
+    Cons (DInstance sp flag name ps head-type members) rest -> case lookup-binding name env of
+      Some binding -> let factory = checked-scheme binding in
+        (case root-name (scheme-body factory) of
+          Some owner -> (case (case find-class owner descriptions of Some description -> (Some description, st); None -> typed-class sp owner rows classes kinds st) of
+            (Some description, checked) -> let all = decls-of members in
+              let prepared = instance-member-errors all (class-member-names (class-methods description)) Nil checked in
+              (case source-instance-fields classes kinds families env description name factory all (class-methods description) prepared of
+                (fields, done) -> let constructor = MkCoreInstance sp name flag factory fields in
+                  let retained = case find-class owner descriptions of Some prior -> descriptions; None -> Cons description descriptions in
+                  let verified = if instance-closed (MkCoreClassContext classes retained) constructor then done else add-error sp "source dictionary constructor disagrees with its defining class or method contracts" done in
+                  (case checked-source-instances rows classes kinds families env rest retained verified of
+                    (more, others, final) -> (more, Cons constructor others, final)))
+            (None, failed) -> checked-source-instances rows classes kinds families env rest descriptions failed)
+          None -> checked-source-instances rows classes kinds families env rest descriptions (add-error sp "instance target has no defining signature identity" st))
+      None -> checked-source-instances rows classes kinds families env rest descriptions (add-error sp "source instance has no registered dictionary head" st)
+    Cons other rest -> checked-source-instances rows classes kinds families env rest descriptions st
   elaborate-module :: String -> Module -> Elaboration
   elaborate-module label m =
     let ds = module-decls m in
     let contracts = check-imported-refinements ds Nil (empty-store label) in
     let start = data-order ds (data-names ds) Nil contracts in
     let (source-kinds, source-store) = collect-kinds ds primitive-kinds start in
-    let (kinds, sk) = collect-nominal-kinds ds source-kinds source-store in
     let rows = class-rows ds in
+    let (instance-kinds, instance-store) = source-instance-nominals ds rows source-kinds source-store in
+    let (kinds, sk) = collect-nominal-kinds ds instance-kinds instance-store in
     let classes = Cons ("b.Io", KFun KRegion KType) (class-kinds rows kinds Nil) in
     let aliases-checked = validate-refinements kinds (context-aliases kinds) sk in
     let (values, sv) = register rows classes kinds ds builtins aliases-checked in
@@ -1916,15 +2036,16 @@ module Bootstrap.Infer where
     let se = check-instance-coherence (env-instances env) si in
     let families = Cons ("Bool", ["True", "False"]) (families-of ds <> imported-families ds) in
     let (effects, sx) = case store-errors se of Nil -> checked-effects kinds env ds se; other -> (Nil, se) in
-    let (core, done) = case store-errors sx of Nil -> check-bodies classes kinds families env Nil ds ds sx; other -> (Nil, sx) in
+    let (descriptions, instances, sm) = case store-errors sx of Nil -> checked-source-instances rows classes kinds families env ds Nil sx; other -> (Nil, Nil, sx) in
+    let (core, done) = case store-errors sm of Nil -> check-bodies classes kinds families env Nil ds ds sm; other -> (Nil, sm) in
     let (datas, sd) = case store-errors done of Nil -> checked-data kinds env ds Nil done; other -> (Nil, done) in
     let finished = case store-errors sd of Nil -> check-data-closed datas (check-core-closed core sd); other -> sd in
-    MkElaboration (store-errors finished) (finish-bindings finished env) (contexts ds) core datas effects
+    MkElaboration (store-errors finished) (finish-bindings finished env) (contexts ds) core datas effects (MkCoreClassContext classes descriptions) instances
   elaborate-modules :: String -> List Module -> Elaboration
   elaborate-modules label ms = case ms of
-    Nil -> MkElaboration Nil Nil Nil Nil Nil Nil
+    Nil -> MkElaboration Nil Nil Nil Nil Nil Nil (MkCoreClassContext Nil Nil) Nil
     Cons m rest -> case (elaborate-module label m, elaborate-modules label rest) of
-      (MkElaboration errors bindings ctx core datas effects, MkElaboration more others scopes other-core other-data other-effects) -> MkElaboration (errors <> more) (bindings <> others) (ctx <> scopes) (core <> other-core) (datas <> other-data) (effects <> other-effects)
+      (MkElaboration errors bindings ctx core datas effects descriptions instances, MkElaboration more others scopes other-core other-data other-effects other-classes other-instances) -> MkElaboration (errors <> more) (bindings <> others) (ctx <> scopes) (core <> other-core) (datas <> other-data) (effects <> other-effects) (merge-class-contexts descriptions other-classes) (instances <> other-instances)
   elaborate-program :: String -> Program -> Elaboration
   elaborate-program label p = elaborate-modules label (program-modules p)
   infer-program :: String -> Program -> List Diagnostic

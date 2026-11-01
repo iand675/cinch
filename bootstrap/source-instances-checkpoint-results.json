@@ -1,0 +1,105 @@
+{
+  "recorded_at": "2026-11-01T22:29:26.676688+00:00",
+  "status": "work in progress; focused validation incomplete",
+  "last_complete_native_assisted_checkpoint": "623d33e0f02198e701ac8a899f3e92ee6462a266",
+  "source_sha256": "a80b991bfac3e483debfc815b930cacc463707a6dd057472ce84d8fe5e483801",
+  "source_inputs": 579,
+  "changed_inputs": [
+    "bootstrap/Bootstrap.Core.cinch",
+    "bootstrap/Bootstrap.Dictionary.cinch",
+    "bootstrap/Bootstrap.Infer.cinch",
+    "bootstrap/Bootstrap.Instance.cinch",
+    "bootstrap/Bootstrap.Resolve.cinch",
+    "bootstrap/programs/Run.InstanceContracts.cinch",
+    "bootstrap/programs/Run.SourceInstances.cinch",
+    "compiler/tests/bootstrap_source_instances.rs",
+    "compiler/tests/common/mod.rs"
+  ],
+  "source_audit": "unchanged frozen validation inputs; published implementation bytes match",
+  "focused_target": [
+    {
+      "name": "bootstrap_source_instances",
+      "status": "running",
+      "started": "2026-11-01T22:18:01.917347+00:00"
+    }
+  ],
+  "source_cases_passed_at_recording": [
+    "machine carrier specialization",
+    "plain instance explicit value",
+    "ordinary value cannot supply a dictionary",
+    "plain instance excluded from search",
+    "slots follow declaration order",
+    "method local quantifier and context",
+    "method annotation alpha rename",
+    "higher kind class parameter",
+    "factory context captured by field",
+    "generic factory selected with context",
+    "dependent method argument",
+    "value method",
+    "missing method",
+    "extra method",
+    "wrong method body",
+    "wrong generic method body",
+    "wrong annotation",
+    "overlapping implicit instances",
+    "nonclass target"
+  ],
+  "regressions": [
+    {
+      "name": "bootstrap_effect_types",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T22:25:07.157471+00:00",
+      "finished": "2026-11-01T22:26:03.951543+00:00"
+    },
+    {
+      "name": "bootstrap_effects",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T22:25:07.158003+00:00",
+      "finished": "2026-11-01T22:27:35.273973+00:00"
+    },
+    {
+      "name": "bootstrap_core",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T22:25:07.160365+00:00",
+      "finished": "2026-11-01T22:27:08.105558+00:00"
+    },
+    {
+      "name": "bootstrap_resolve",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T22:26:03.952488+00:00",
+      "finished": "2026-11-01T22:29:00.275112+00:00"
+    },
+    {
+      "name": "bootstrap_nominals",
+      "status": "running",
+      "started": "2026-11-01T22:27:08.106653+00:00"
+    },
+    {
+      "name": "bootstrap_instance_resolution",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T22:27:35.274854+00:00",
+      "finished": "2026-11-01T22:28:29.045445+00:00"
+    }
+  ],
+  "complete_current_suite": {
+    "status": "not run",
+    "integration_targets": 162,
+    "general_gates": 5
+  },
+  "fresh_staged_build": "queued after the focused target and all six regressions pass",
+  "self_hosting_achieved": false,
+  "full_self_built_frontend_suite_passed": false,
+  "remaining": [
+    "source decision and proof forms",
+    "checked imported total-measure contracts",
+    "handler typing and runtime dispatch",
+    "independent global typing and proof kernel",
+    "typed shared-runtime lowering including real dictionaries",
+    "stage2 and stage3 fixed point, changed-source behavior, and full self-built frontend suite"
+  ]
+}

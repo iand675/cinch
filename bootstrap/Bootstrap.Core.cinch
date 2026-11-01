@@ -26,6 +26,7 @@ module Bootstrap.Core where
   export map-givens, map-evidence, map-evidences, scheme-closed
   export map-pattern-types, map-term-types, abstract-term, seal-definition, core-definition-closed
 
+  export contract-quants-closed, contract-scheme-closed, core-definition-result-types
   export CoreData, MkCoreData, CoreConstructor, MkCoreConstructor
   export core-data-name, core-data-kind, core-data-params, core-data-constructors
   export core-constructor-name, core-constructor-scheme, core-constructor-fields
@@ -1335,6 +1336,29 @@ module Bootstrap.Core where
     other -> None
   patterns-result :: UType -> List CorePattern -> Option UType
   patterns-result expected patterns = case patterns of Nil -> Some expected; Cons p rest -> case pattern-result expected p of Some result -> patterns-result result rest; None -> None
+  -- Shared declaration closure checks. Global term typing and primitive
+  -- semantics remain separate from these retained contract invariants.
+  contract-quants-closed :: List Quant -> Bool
+  contract-quants-closed qs = effect-quants-scoped qs Nil && closed-quants qs
+  contract-scheme-closed :: Scheme -> Bool
+  contract-scheme-closed sc = scheme-closed sc && valid-type (scheme-body sc)
+    && scheme-index-scope Nil sc && contract-quants-closed (scheme-params sc)
+    && effect-type-scope (scheme-params sc) (scheme-body sc)
+    && effect-requirements (scheme-params sc) (scheme-requirements sc)
+  definition-clause-types :: UType -> List CoreClause -> Bool
+  definition-clause-types ty clauses = case clauses of
+    Nil -> True
+    Cons (MkCoreClause s patterns body) rest -> (case patterns-result ty patterns of Some expected -> contract-equal expected (core-type body); None -> False) && definition-clause-types ty rest
+  definition-given-types :: List Requirement -> List CoreGiven -> Bool
+  definition-given-types requirements givens = case (requirements, givens) of
+    (Nil, Nil) -> True
+    (Cons r rest, Cons g more) -> contract-equal (requirement-type r) (given-type g) && definition-given-types rest more
+    other -> False
+  core-definition-result-types :: CoreDefinition -> Bool
+  core-definition-result-types definition = let sc = core-scheme definition in let pairs = core-openings definition in
+    (case core-clauses definition of Nil -> False; Cons first rest -> True) && definition-given-types (map-requirements (substitute-bound pairs) (scheme-requirements sc)) (core-givens definition)
+      && definition-clause-types (substitute-bound pairs (scheme-body sc)) (core-clauses definition)
+
   proof-expected :: ProofScope -> List Proposition -> UType -> CoreTerm -> Bool
   proof-expected gamma facts expected term = case expected of
     URefine id name carrier predicate -> contract-equal expected (core-type term) && proof-refined-term gamma facts term

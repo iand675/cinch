@@ -1,0 +1,257 @@
+-- Typed class contracts and source dictionary constructors. A constructor
+-- binds its factory parameters/context once; each field is a method closure
+-- capturing that same prefix and the dictionary being constructed.
+module Bootstrap.Instance where
+  import Bootstrap.Type
+  import Bootstrap.Core
+  import Bootstrap.Index (IndexTerm, IBound)
+  import Text.Lex (Span)
+  import Text.Show (int-to-string)
+  import Data.Nat (nat-to-int)
+  import Algebra.Semigroup
+
+  export CoreClass, MkCoreClass, CoreClassMethod, MkCoreClassMethod
+  export CoreClassContext, MkCoreClassContext, context-class-kinds, context-classes, class-context-closed, merge-class-contexts
+  export class-name, class-kind, class-params, class-methods
+  export class-method-name, class-method-slot, class-method-scheme, class-closed
+  export CoreInstance, MkCoreInstance, CoreDictionaryField, MkCoreDictionaryField
+  export instance-name, instance-implicit, instance-scheme, instance-fields
+  export dictionary-field-slot, dictionary-field-definition, instance-closed
+  export find-class, class-target, specialize-method, implementation-scheme
+  export dictionary-method-symbol, scheme-equivalent
+
+  data CoreClassMethod where
+    MkCoreClassMethod :: Span -> String -> Nat -> Scheme -> CoreClassMethod
+  data CoreClass where
+    MkCoreClass :: Span -> String -> Kind -> List Quant -> List CoreClassMethod -> CoreClass
+  data CoreClassContext where
+    MkCoreClassContext :: List (String, Kind) -> List CoreClass -> CoreClassContext
+  data CoreDictionaryField where
+    MkCoreDictionaryField :: Span -> Nat -> CoreDefinition -> CoreDictionaryField
+  data CoreInstance where
+    MkCoreInstance :: Span -> String -> Bool -> Scheme -> List CoreDictionaryField -> CoreInstance
+  context-class-kinds :: CoreClassContext -> List (String, Kind)
+  context-class-kinds context = case context of MkCoreClassContext kinds descriptions -> kinds
+  context-classes :: CoreClassContext -> List CoreClass
+  context-classes context = case context of MkCoreClassContext kinds descriptions -> descriptions
+  signature-kind :: String -> List (String, Kind) -> Option Kind
+  signature-kind name kinds = case kinds of Nil -> None; Cons (key, kind) rest -> if same key name then Some kind else signature-kind name rest
+  kind-result-type :: Kind -> Bool
+  kind-result-type kind = case kind of KFun a b -> kind-result-type b; KType -> True; other -> False
+  signature-kinds-closed :: List (String, Kind) -> List String -> Bool
+  signature-kinds-closed kinds seen = case kinds of
+    Nil -> True
+    Cons (name, kind) rest -> string-length name > 0 && not (has-name name seen) && valid-kind kind && kind-result-type kind && (case kind-free-bound kind of Nil -> True; other -> False) && signature-kinds-closed rest (Cons name seen)
+  signature-root :: UType -> Option (String, Kind)
+  signature-root ty = case ty of UCon name kind -> Some (name, kind); UApp f x -> signature-root f; other -> None
+  signature-goal :: List (String, Kind) -> UType -> Bool
+  signature-goal kinds ty = valid-type ty && kind-equal (type-kind ty) KType && (case signature-root ty of
+    Some (name, actual) -> (case signature-kind name kinds of Some expected -> kind-equal actual expected; None -> False)
+    None -> False)
+  signature-requirements :: List (String, Kind) -> List Requirement -> Bool
+  signature-requirements kinds requirements = case requirements of Nil -> True; Cons r rest -> signature-goal kinds (requirement-type r) && signature-requirements kinds rest
+  method-signatures-known :: List (String, Kind) -> List CoreClassMethod -> Bool
+  method-signatures-known kinds methods = case methods of Nil -> True; Cons member rest -> signature-requirements kinds (scheme-requirements (class-method-scheme member)) && method-signatures-known kinds rest
+  descriptions-known :: List (String, Kind) -> List String -> List CoreClass -> Bool
+  descriptions-known kinds seen descriptions = case descriptions of
+    Nil -> True
+    Cons description rest -> not (has-name (class-name description) seen) && class-closed description
+      && (case signature-kind (class-name description) kinds of Some kind -> kind-equal kind (class-kind description); None -> False)
+      && method-signatures-known kinds (class-methods description) && descriptions-known kinds (Cons (class-name description) seen) rest
+  class-context-closed :: CoreClassContext -> Bool
+  class-context-closed context = signature-kinds-closed (context-class-kinds context) Nil && descriptions-known (context-class-kinds context) Nil (context-classes context)
+  merge-kinds :: List (String, Kind) -> List (String, Kind) -> List (String, Kind)
+  merge-kinds first second = case first of
+    Nil -> second
+    Cons (name, kind) rest -> case signature-kind name second of
+      Some old -> if kind-equal old kind then merge-kinds rest second else Cons (name, kind) (merge-kinds rest second)
+      None -> merge-kinds rest (Cons (name, kind) second)
+  same-methods :: List CoreClassMethod -> List CoreClassMethod -> Bool
+  same-methods first second = case (first, second) of
+    (Nil, Nil) -> True
+    (Cons a rest, Cons b more) -> same (class-method-name a) (class-method-name b) && class-method-slot a == class-method-slot b && scheme-equivalent (class-method-scheme a) (class-method-scheme b) && same-methods rest more
+    other -> False
+  merge-descriptions :: List CoreClass -> List CoreClass -> List CoreClass
+  merge-descriptions first second = case first of
+    Nil -> second
+    Cons description rest -> case find-class (class-name description) second of
+      Some old -> if kind-equal (class-kind description) (class-kind old) && (case quant-pairs (class-params description) (class-params old) Nil of Some pairs -> True; None -> False) && same-methods (class-methods description) (class-methods old) then merge-descriptions rest second else Cons description (merge-descriptions rest second)
+      None -> merge-descriptions rest (Cons description second)
+  merge-class-contexts :: CoreClassContext -> CoreClassContext -> CoreClassContext
+  merge-class-contexts first second = MkCoreClassContext (merge-kinds (context-class-kinds first) (context-class-kinds second)) (merge-descriptions (context-classes first) (context-classes second))
+  class-name :: CoreClass -> String
+  class-name node = case node of MkCoreClass s name kind qs members -> name
+  class-kind :: CoreClass -> Kind
+  class-kind node = case node of MkCoreClass s name kind qs members -> kind
+  class-params :: CoreClass -> List Quant
+  class-params node = case node of MkCoreClass s name kind qs members -> qs
+  class-methods :: CoreClass -> List CoreClassMethod
+  class-methods node = case node of MkCoreClass s name kind qs members -> members
+  class-method-name :: CoreClassMethod -> String
+  class-method-name member = case member of MkCoreClassMethod s name slot sc -> name
+  class-method-slot :: CoreClassMethod -> Nat
+  class-method-slot member = case member of MkCoreClassMethod s name slot sc -> slot
+  class-method-scheme :: CoreClassMethod -> Scheme
+  class-method-scheme member = case member of MkCoreClassMethod s name slot sc -> sc
+  instance-name :: CoreInstance -> String
+  instance-name node = case node of MkCoreInstance s name flag sc fields -> name
+  instance-implicit :: CoreInstance -> Bool
+  instance-implicit node = case node of MkCoreInstance s name flag sc fields -> flag
+  instance-scheme :: CoreInstance -> Scheme
+  instance-scheme node = case node of MkCoreInstance s name flag sc fields -> sc
+  instance-fields :: CoreInstance -> List CoreDictionaryField
+  instance-fields node = case node of MkCoreInstance s name flag sc fields -> fields
+  dictionary-field-slot :: CoreDictionaryField -> Nat
+  dictionary-field-slot field = case field of MkCoreDictionaryField s slot definition -> slot
+  dictionary-field-definition :: CoreDictionaryField -> CoreDefinition
+  dictionary-field-definition field = case field of MkCoreDictionaryField s slot definition -> definition
+  same :: String -> String -> Bool
+  same a b = string-compare a b == 0
+  has-name :: String -> List String -> Bool
+  has-name name names = case names of Nil -> False; Cons key rest -> same key name || has-name name rest
+  has-id :: Nat -> List Nat -> Bool
+  has-id id ids = case ids of Nil -> False; Cons key rest -> id == key || has-id id rest
+  equal-type :: UType -> UType -> Bool
+  equal-type a b = case store-errors (unify (Span 0 0 1 1) (without-index-levels a) (without-index-levels b) (empty-store "dictionary contract")) of Nil -> True; other -> False
+  declaration-kind :: List Quant -> Kind
+  declaration-kind qs = case qs of Nil -> KType; Cons q rest -> KFun (quant-kind q) (declaration-kind rest)
+  find-class :: String -> List CoreClass -> Option CoreClass
+  find-class name descriptions = case descriptions of Nil -> None; Cons d rest -> if same name (class-name d) then Some d else find-class name rest
+  application :: String -> Kind -> UType -> Option (List UType)
+  application name kind ty = case ty of
+    UCon symbol actual -> if same symbol name && kind-equal kind actual then Some Nil else None
+    UApp f x -> case application name kind f of Some args -> Some (args <> [x]); None -> None
+    other -> None
+  class-target :: CoreClass -> UType -> Bool
+  class-target description ty = valid-type ty && kind-equal (type-kind ty) KType && (case application (class-name description) (class-kind description) ty of
+    Some args -> argument-kinds (class-params description) args
+    None -> False)
+  argument-kinds :: List Quant -> List UType -> Bool
+  argument-kinds qs args = case (qs, args) of
+    (Nil, Nil) -> True
+    (Cons q rest, Cons arg more) -> kind-equal (quant-kind q) (type-kind arg) && argument-kinds rest more
+    other -> False
+  bound-id :: UType -> Option Nat
+  bound-id ty = case ty of UBound id name kind -> Some id; UIndex carrier (IBound id name) -> Some id; other -> None
+  quantifier :: Nat -> List Quant -> Option Quant
+  quantifier id qs = case qs of Nil -> None; Cons q rest -> if id == quant-id q then Some q else quantifier id rest
+  class-bindings :: List Quant -> List Quant -> List UType -> List UType -> List Nat -> Option (List (Nat, UType))
+  class-bindings params all formal actual seen = case (params, formal, actual) of
+    (Nil, Nil, Nil) -> Some Nil
+    (Cons p ps, Cons f fs, Cons a args) -> case bound-id f of
+      Some id -> if has-id id seen then None else case quantifier id all of
+        Some q -> if kind-equal (quant-kind p) (quant-kind q) && kind-equal (type-kind f) (quant-kind q) && quant-implicit p == quant-implicit q then
+          (case class-bindings ps all fs args (Cons id seen) of Some more -> Some (Cons (id, a) more); None -> None) else None
+        None -> None
+      None -> None
+    other -> None
+  parameter-types :: List Quant -> List UType
+  parameter-types qs = case qs of Nil -> Nil; Cons q rest -> Cons (UBound (quant-id q) (quant-name q) (quant-kind q)) (parameter-types rest)
+  member-bindings :: CoreClass -> CoreClassMethod -> List UType -> Option (List (Nat, UType))
+  member-bindings description member actual = let sc = class-method-scheme member in case scheme-requirements sc of
+    Cons self rest -> case application (class-name description) (class-kind description) (requirement-type self) of
+      Some formal -> class-bindings (class-params description) (scheme-params sc) formal actual Nil
+      None -> None
+    Nil -> None
+  methods-closed :: CoreClass -> Nat -> List String -> List CoreClassMethod -> Bool
+  methods-closed description next seen members = case members of
+    Nil -> True
+    Cons member rest -> string-length (class-method-name member) > 0 && class-method-slot member == next && not (has-name (class-method-name member) seen)
+      && contract-scheme-closed (class-method-scheme member)
+      && (case member-bindings description member (parameter-types (class-params description)) of Some pairs -> True; None -> False)
+      && methods-closed description (next + 1) (Cons (class-method-name member) seen) rest
+  class-closed :: CoreClass -> Bool
+  class-closed description = string-length (class-name description) > 0 && contract-quants-closed (class-params description)
+    && kind-equal (class-kind description) (declaration-kind (class-params description))
+    && methods-closed description 0 Nil (class-methods description)
+
+  -- Alpha comparison checks each binder kind in the already matched prefix.
+  quant-pairs :: List Quant -> List Quant -> List (Nat, UType) -> Option (List (Nat, UType))
+  quant-pairs first second pairs = case (first, second) of
+    (Nil, Nil) -> Some pairs
+    (Cons a rest, Cons b more) -> if kind-equal (map-kind-types (substitute-bound pairs) (quant-kind a)) (quant-kind b) && quant-implicit a == quant-implicit b then
+      quant-pairs rest more (Cons (quant-id a, UBound (quant-id b) (quant-name b) (quant-kind b)) pairs) else None
+    other -> None
+  requirement-types-equal :: List Requirement -> List Requirement -> Bool
+  requirement-types-equal first second = case (first, second) of
+    (Nil, Nil) -> True
+    (Cons a rest, Cons b more) -> equal-type (requirement-type a) (requirement-type b) && requirement-types-equal rest more
+    other -> False
+  scheme-equivalent :: Scheme -> Scheme -> Bool
+  scheme-equivalent first second = contract-scheme-closed first && contract-scheme-closed second && (case quant-pairs (scheme-params first) (scheme-params second) Nil of
+    Some pairs -> equal-type (substitute-bound pairs (scheme-body first)) (scheme-body second)
+      && requirement-types-equal (map-requirements (substitute-bound pairs) (scheme-requirements first)) (scheme-requirements second)
+    None -> False)
+  pair-id :: Nat -> List (Nat, UType) -> Bool
+  pair-id id pairs = case pairs of Nil -> False; Cons (key, ty) rest -> id == key || pair-id id rest
+  highest :: List Nat -> Nat
+  highest ids = case ids of Nil -> 0; Cons id rest -> let more = highest rest in if id > more then id else more
+  requirement-ids :: List Requirement -> List Nat
+  requirement-ids rs = case rs of Nil -> Nil; Cons r rest -> type-all-ids (requirement-type r) <> requirement-ids rest
+  scheme-ids :: Scheme -> List Nat
+  scheme-ids sc = type-all-ids (scheme-body sc) <> requirement-ids (scheme-requirements sc) <> quantifier-ids (scheme-params sc)
+  quantifier-ids :: List Quant -> List Nat
+  quantifier-ids qs = case qs of Nil -> Nil; Cons q rest -> type-all-ids (UBound (quant-id q) (quant-name q) (quant-kind q)) <> quantifier-ids rest
+  quant-names :: List Quant -> List String
+  quant-names qs = case qs of Nil -> Nil; Cons q rest -> Cons (quant-name q) (quant-names rest)
+  fresh-display :: String -> List String -> String
+  fresh-display candidate names = if has-name candidate names then fresh-display (string-concat candidate "'") names else candidate
+  fresh-members :: List Quant -> List (Nat, UType) -> Nat -> List String -> (List Quant, List (Nat, UType))
+  fresh-members qs pairs next names = case qs of
+    Nil -> (Nil, pairs)
+    Cons q rest -> if pair-id (quant-id q) pairs then fresh-members rest pairs next names else
+      let kind = map-kind-types (substitute-bound pairs) (quant-kind q) in
+      let display = fresh-display (string-concat "#method-parameter-" (int-to-string (nat-to-int next))) names in
+      let renamed = MkQuant next display kind (quant-implicit q) in
+      case fresh-members rest (Cons (quant-id q, UBound next display kind) pairs) (next + 1) (Cons display names) of
+        (more, final) -> (Cons renamed more, final)
+  -- This is the callable field contract. Factory context and the private
+  -- self capture are added by implementation-scheme, not erased here.
+  declared-member :: CoreClassMethod -> List CoreClassMethod -> Bool
+  declared-member member methods = case methods of
+    Nil -> False
+    Cons actual rest -> (class-method-slot member == class-method-slot actual && same (class-method-name member) (class-method-name actual) && scheme-equivalent (class-method-scheme member) (class-method-scheme actual)) || declared-member member rest
+  specialize-method :: CoreClass -> Scheme -> CoreClassMethod -> Option Scheme
+  specialize-method description factory member = if not (class-closed description && declared-member member (class-methods description) && contract-scheme-closed factory && class-target description (scheme-body factory)) then None else
+    case application (class-name description) (class-kind description) (scheme-body factory) of
+      Some actual -> case member-bindings description member actual of
+        Some pairs -> let sc = class-method-scheme member in
+          case fresh-members (scheme-params sc) pairs (highest (scheme-ids factory <> scheme-ids sc) + 1) (quant-names (scheme-params factory)) of
+            (local, substitutions) -> case scheme-requirements sc of
+              Cons self rest -> Some (qualified (scheme-params factory <> local) (map-requirements (substitute-bound substitutions) rest) (substitute-bound substitutions (scheme-body sc)))
+              Nil -> None
+        None -> None
+      None -> None
+  requirement-names :: List Requirement -> List String
+  requirement-names rs = case rs of Nil -> Nil; Cons r rest -> Cons (requirement-name r) (requirement-names rest)
+  captured-requirements :: Nat -> List String -> List Requirement -> List Requirement
+  captured-requirements next hidden rs = case rs of
+    Nil -> Nil
+    Cons r rest -> Cons (MkRequirement (if has-name (requirement-name r) hidden then string-concat "#instance-context-" (int-to-string (nat-to-int next)) else requirement-name r) (requirement-type r)) (captured-requirements (next + 1) hidden rest)
+  implementation-scheme :: Scheme -> Scheme -> Scheme
+  implementation-scheme factory member = qualified (scheme-params member)
+    (captured-requirements 0 (requirement-names (scheme-requirements member)) (scheme-requirements factory)
+      <> [MkRequirement "#instance-self" (scheme-body factory)] <> scheme-requirements member) (scheme-body member)
+  dictionary-method-symbol :: String -> Nat -> String
+  dictionary-method-symbol owner slot = string-concat-all ["#instance-method:", owner, ":", int-to-string (nat-to-int slot)]
+  fields-closed :: CoreClass -> Scheme -> String -> List CoreClassMethod -> List CoreDictionaryField -> Bool
+  fields-closed description factory symbol members fields = case (members, fields) of
+    (Nil, Nil) -> True
+    (Cons member rest, Cons field more) -> case specialize-method description factory member of
+      Some expected -> let definition = dictionary-field-definition field in
+        dictionary-field-slot field == class-method-slot member
+          && same (core-name definition) (dictionary-method-symbol symbol (class-method-slot member))
+          && scheme-equivalent (implementation-scheme factory expected) (core-scheme definition)
+          && core-definition-closed definition && core-definition-result-types definition
+          && fields-closed description factory symbol rest more
+      None -> False
+    other -> False
+  target-owner :: UType -> Option String
+  target-owner ty = case ty of UCon name kind -> Some name; UApp f x -> target-owner f; other -> None
+  instance-closed :: CoreClassContext -> CoreInstance -> Bool
+  instance-closed context node = let factory = instance-scheme node in
+    class-context-closed context && signature-requirements (context-class-kinds context) (scheme-requirements factory) && string-length (instance-name node) > 0 && contract-scheme-closed factory && (case target-owner (scheme-body factory) of
+      Some owner -> (case find-class owner (context-classes context) of
+        Some description -> class-closed description && class-target description (scheme-body factory) && fields-closed description factory (instance-name node) (class-methods description) (instance-fields node)
+        None -> False)
+      None -> False)

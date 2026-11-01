@@ -107,7 +107,7 @@ module Bootstrap.Resolve where
     Cons d rest -> case d of
       DImport s path mods alias members args -> own-bindings home rest acc
       DExport s text items -> own-bindings home rest acc
-      DInstance s only name params class-app members -> own-bindings home rest acc
+      DInstance s only name params class-app members -> own-bindings home rest (add-own home name acc)
       DData s name params ctors -> own-bindings home rest (own-ctors home ctors (add-own home name acc))
       DEffect s name params ops -> own-bindings home rest (own-ctors home ops (add-own home name acc))
       DForeign s direction abi symbol name ty -> own-bindings home rest (if same direction "import" then add-own home name acc else acc)
@@ -518,14 +518,26 @@ module Bootstrap.Resolve where
 
   -- Member names are labels of the class contract, not new module values.
   -- Dictionary elaboration checks them against that class after resolution.
+  instance-head-names :: TypeExpr -> List String
+  instance-head-names ty = case ty of
+    TForall sp binders body -> bound-names binders <> instance-head-names body
+    TUsing sp bounds body -> bound-names bounds <> instance-head-names body
+    other -> Nil
+  instance-method-names :: String -> List Decl -> List String
+  instance-method-names name declarations = case declarations of
+    Nil -> Nil
+    Cons (DSig sp member ty) rest -> if same member name then instance-head-names ty else instance-method-names name rest
+    Cons other rest -> instance-method-names name rest
   rename-instance-members :: List Binding -> List String -> Decl -> (Decl, List Diagnostic)
-  rename-instance-members visible locals members = case members of
-    DDecl s member rest -> case rename-instance-members visible locals member of
-      (renamed, errors) -> case rename-instance-members visible locals rest of
+  rename-instance-members visible locals members = rename-instance-members-with visible locals (decls-of members) members
+  rename-instance-members-with :: List Binding -> List String -> List Decl -> Decl -> (Decl, List Diagnostic)
+  rename-instance-members-with visible locals all members = case members of
+    DDecl s member rest -> case rename-instance-members-with visible locals all member of
+      (renamed, errors) -> case rename-instance-members-with visible locals all rest of
         (others, more) -> (DDecl s renamed others, errors <> more)
     DDeclsEnd s -> (members, Nil)
     DSig s name ty -> (DSig s name (rename-type visible locals ty), Nil)
-    DFun s name clauses -> case rename-member-clauses visible locals clauses of
+    DFun s name clauses -> case rename-member-clauses visible (instance-method-names name all <> locals) clauses of
       (renamed, errors) -> (DFun s name renamed, errors)
     other -> (members, fail (decl-span members) "instance member requires further declaration elaboration")
 
@@ -543,7 +555,7 @@ module Bootstrap.Resolve where
         (rename-predicate visible (Cons (param-name binder) names) predicate)) Nil, Nil)
     DEffect s name params ops -> (Cons (DEffect s (global-name home name) (rename-params visible Nil params)
       (rename-ctors home visible (parameter-names params) ops)) Nil, Nil)
-    DInstance s only name params class-app members -> case rename-instance-members visible (parameter-names params) members of
+    DInstance s only name params class-app members -> case rename-instance-members visible (instance-head-names class-app <> parameter-names params) members of
       (renamed, errors) -> (Cons (DInstance s only (global-name home name) (rename-params visible Nil params)
         (rename-type visible (parameter-names params) class-app) renamed) Nil, errors)
     DForeign s direction abi symbol name ty ->
