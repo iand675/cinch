@@ -1,5 +1,57 @@
 # Next steps (as of 2026-11-01)
 
+Machine-integer value contracts and source effect declarations are now installed
+in the main working checkout and published with the source-matching seed.
+All 161 Native-assisted integration targets pass, together with all five general
+gates: 140 compiler unit tests, 166 runtime tests, binary/doc tests and tooling.
+The compiler/runtime test gates contain no ignored tests. This is not the suite
+through a self-built frontend, and full self-hosting is not achieved.
+
+The complete suite uses 152 fresh gates, seven unchanged completed whole targets,
+and seven whole focused targets. Reuse audits retain byte-identical compiler,
+Cinch implementation, shared harness and each reused target's own fixtures;
+the independently changed runners and pipeline fixture are rerun. The frozen
+snapshot has 575 inputs, SHA256
+`d6f7b21cfefdd56ede0467af55ff7abd691928dc64149c05b57089958bf4f840`. Coverage and results are in
+[the checkpoint report](../bootstrap/source-effects-checkpoint-results.json).
+
+Cinch retains exact machine carriers and literal bounds, checked byte observations
+and strict-let proof identities. Machine arithmetic remains opaque to mathematical
+proofs. Source CoreEffect/CoreOperation records retain declaration owners, kinds,
+parameters, signatures and ordered slots; calls preserve their effect rows.
+Declaration closure checks reject forged scopes, carriers, slots and improper
+value types. The independent global term/proof kernel remains required.
+
+Fresh stage0 and stage1 builds pass all six smoke checks. The actual stage2
+attempt exits 4 with five header diagnostics before body checking: decide/Yes/No
+proof forms, the utf8-encode-into imported measure contract, and Text.Json's
+source JsonCodec_Json instance. The Parse effect header is resolved. Stage2
+produces no IR or compiler executable. Header counts include cascades and are
+not a completion percentage. The current tested compiler bundle is byte-identical
+to the staged one: named-source hash
+`e10dac1b622287180da4d453b1deff8e92da63ba7c10016e7dda2312c46d0a01`,
+actual bundle byte SHA256
+`27ddda055b2a0bdbb7be53ea70963ea5bc29ca907fa9f288a2752bdfa5de8541`.
+
+The installed Native source SHA256 is
+`81bb6e364f45201360e11d5b32e2b3f22cd4719a9dcb018551da034416e725e9`,
+patch SHA256
+`655dfb04a042df9cd0aff5abebbbcd23510fb35efc92567e2d9ae8cfb9dedd5d`.
+An independent archive-plus-patch check reproduces the exact tested sources,
+including another verification at installation. Runtime ABI 5, interface schema 7
+and definition-owned fixities remain unchanged. Unrelated site and reader-doc
+edits are preserved.
+
+Genuine source instance dictionary construction is under separate validation.
+Source decision/proof erasure, checked imported total-measure contracts, handler
+typing/runtime dispatch, an independent global typing/proof kernel and typed
+shared-runtime lowering remain required. Actual stage2/3 fixed-point agreement,
+changed-source behavior and the full suite through a self-built frontend remain
+unproven. Work uses at most five heavy jobs: four shared slots and one explicit
+staged-build/probe lane, with one Cargo worker/test thread and Cinch heaps at 2G.
+
+## Previous checkpoint details
+
 Source effect declarations now retain checked CoreEffect/CoreOperation records:
 the declaring owner and kind, ordered parameters, operation schemes, and handler
 dispatch slots (return slot 0; operations start at 1). The declaration checker
