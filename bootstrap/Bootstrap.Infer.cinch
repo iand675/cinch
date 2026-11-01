@@ -1218,8 +1218,37 @@ module Bootstrap.Infer where
     EWith s bindings body -> infer-with classes kinds families env locals bindings body (Some expected) st
     other -> check-inferred classes kinds families env locals expr expected st
   check-inferred :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Expr -> UType -> Store -> (CoreTerm, Store)
-  check-inferred classes kinds families env locals expr expected st = case infer classes kinds families env locals expr st of
+  check-inferred classes kinds families env locals expr expected st = case infer-expected classes kinds families env locals expr expected st of
     (term, ss) -> subsume-term (expr-span expr) term expected ss
+  -- Constrain a known application result before its arguments are checked.
+  -- This is ordinary bidirectional type information, not proof evidence.
+  -- A dependent arrow still waits for its actual argument witness.
+  application-spine :: Expr -> List Expr -> (Expr, List Expr)
+  application-spine expr args = case expr of
+    EApp sp function argument -> application-spine function (Cons argument args)
+    other -> (expr, args)
+  hint-application-result :: Span -> UType -> List Expr -> UType -> Store -> Store
+  hint-application-result sp ty args expected st = case args of
+    Nil -> let hinted = unify sp ty expected st in
+      if list-length (store-errors hinted) == list-length (store-errors st) then hinted else st
+    Cons argument rest -> case normalize st ty of
+      UPi id name domain row result -> if pi-dependent (normalize st ty) then st
+        else hint-application-result sp result rest expected st
+      URequire predicates result -> st
+      other -> case arrow-parts sp ty st of
+        (domain, row, result, shaped) -> hint-application-result sp result rest expected shaped
+  apply-spine :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> CoreTerm -> List Expr -> Store -> (CoreTerm, Store)
+  apply-spine classes kinds families env locals fun args st = case args of
+    Nil -> (fun, st)
+    Cons arg rest -> case apply-argument classes kinds families env locals (expr-span arg) fun arg st of
+      (applied, checked) -> apply-spine classes kinds families env locals applied rest checked
+  infer-expected :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Expr -> UType -> Store -> (CoreTerm, Store)
+  infer-expected classes kinds families env locals expr expected st = case expr of
+    EApp sp function argument -> case application-spine expr Nil of
+      (head, args) -> case infer classes kinds families env locals head st of
+        (fun, opened) -> apply-spine classes kinds families env locals fun args
+          (hint-application-result sp (core-type fun) args expected opened)
+    other -> infer classes kinds families env locals expr st
   comparison-predicate :: UType -> Bool
   comparison-predicate predicate = case predicate of UCompare op a b -> True; UPropNonZero value -> valid-type predicate; UPropAnd a b -> comparison-predicate a && comparison-predicate b; other -> False
   comparison-refinement :: UType -> Bool
@@ -1245,7 +1274,7 @@ module Bootstrap.Infer where
     EWith s bindings body -> infer-with classes kinds families env locals bindings body (Some expected) st
     ELitInt s text -> case checked-literal s carrier text st of (term, checked) -> introduce-refinement env s expected term checked
     ELam s patterns body -> case check-unrefined classes kinds families env locals expr carrier st of (term, checked) -> introduce-refinement env s expected term checked
-    other -> case infer classes kinds families env locals expr st of
+    other -> case infer-expected classes kinds families env locals expr carrier st of
       (term, checked) -> refine-inferred env (expr-span expr) expected carrier term checked
   -- Check the requested result inside materialized witness scopes, then
   -- close each CLet with that requested type. No local index escapes in

@@ -1,13 +1,13 @@
 {
   "status": "Exploratory WIP, no full validation or stage-chain claim",
-  "source_snapshot_sha256": "4e927797312f88a35457ef618a2c27022976a57d3c3825bfed45b25659255d00",
+  "source_snapshot_sha256": "41173572185db6c95dbf9606e4bf3830d09b609b42c8b2b91844dc92037cdcfa",
   "base_candidate_sha256": "b84b7a8dc278a0468e43a922de01d7565af717ef8d677026f88304ae36ac8acc",
   "files": {
     "bootstrap/Bootstrap.Core.cinch": "58efa47d855338063f879572a0baf5f81ec3eaa86c0d17139a39742107193347",
-    "bootstrap/Bootstrap.Infer.cinch": "a2b13a9d780f95178ff2a38926331da4183dd416cbf0227a07287156bfdeeb3c",
+    "bootstrap/Bootstrap.Infer.cinch": "6ee8b00ec970bae1b534f5334c396e9f618d5762d260d8d62399259bdb022e7a",
     "bootstrap/Bootstrap.Type.cinch": "24963c8d7c6e7f8b3ecf16eaed0c7b06be0b7ea43d21f63a0b4f7c2c93f8aa27",
     "bootstrap/programs/Run.AbstractNonZeroTypes.cinch": "68260d0388ab0015030b82857555e6e5ce63f36897be16650ea4aa42ca212a1f",
-    "compiler/tests/bootstrap_abstract_nonzero_methods.rs": "7076e910c22b4bc235534a050695ebecaca83cf2405772979e7cf0a03f5dd9a9",
+    "compiler/tests/bootstrap_abstract_nonzero_methods.rs": "500be1852fe0dd95fa22633ca8335d67b666fcc5f87e994bc4cd0787966c0f45",
     "compiler/tests/bootstrap_abstract_nonzero_types.rs": "465680137b7b3d25e9de191380c9beeac2a74ae68e02b6685214b6085a855d6a"
   },
   "tests": [
@@ -23,8 +23,24 @@
   ],
   "type_core_checks": 51,
   "distinct_runtime_inputs": 5,
-  "generic_interface_cases": 11,
-  "generic_interface_status": "pending; results may change after this checkpoint",
+  "generic_interface_cases": 17,
+  "generic_interface_status": "new application-result hint fix under test; previous Nat failure preserved",
   "seed": "Not refreshed; last installed schema-7 checkpoint pin remains",
-  "invariant": "Pending NonZero over abstract carriers gives no arithmetic fact. Normalize only after supported concrete carrier and explicit integer promotion are checked."
+  "invariant": "Pending NonZero over abstract carriers gives no arithmetic fact. Normalize only after supported concrete carrier and explicit integer promotion are checked.",
+  "prior_generic_interface_result": {
+    "status": "failed",
+    "passed_cases": [
+      "generic refined identity",
+      "generic Div given",
+      "generic Rem given"
+    ],
+    "failed_case": "Nat Div specialization",
+    "diagnostic": "type mismatch: expected Nat, found Int",
+    "source_snapshot_sha256": "4e927797312f88a35457ef618a2c27022976a57d3c3825bfed45b25659255d00"
+  },
+  "additional_regressions": {
+    "source_refinements": 63,
+    "source_dependent_functions": 30,
+    "status": "queued after generic interfaces"
+  }
 }
