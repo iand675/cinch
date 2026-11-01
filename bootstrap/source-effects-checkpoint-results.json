@@ -99,9 +99,9 @@
   "complete_current_suite": {
     "integration_targets": 161,
     "general_gates": 5,
-    "status": "running against combined current compiler and corrected runner fixtures",
+    "status": "running with corrected pipeline expectations and unchanged compiler implementation",
     "self_built_frontend": false,
-    "source_sha256": "8b0fe40febabe2529f791a97023103e622917050136a90d315a2295b6eb05ad9"
+    "source_sha256": "d6f7b21cfefdd56ede0467af55ff7abd691928dc64149c05b57089958bf4f840"
   },
   "prior_machine_matrix": {
     "source_sha256": "1cd10f728dc82864948ac6d8eb852e186928d16efbc88d9dd15f569e6b023e05",
@@ -209,5 +209,152 @@
     },
     "all_tests_passed": false,
     "self_built_frontend": false
+  },
+  "pipeline_validation_update": {
+    "recorded_at": "2026-11-01T21:51:51.409872+00:00",
+    "source_sha256": "d6f7b21cfefdd56ede0467af55ff7abd691928dc64149c05b57089958bf4f840",
+    "status": "end-to-end pipeline passed; remaining complete suite running",
+    "changed_inputs": [
+      "compiler/tests/bootstrap_pipeline.rs"
+    ],
+    "reason": "the old pipeline test expected source effect declarations to remain unsupported; source handler checking remains unsupported",
+    "added_cases": [
+      "effect declaration passes checking and reaches emitter refusal",
+      "effectful source operation call passes checking and reaches emitter refusal"
+    ],
+    "pipeline_result": [
+      {
+        "name": "bootstrap_pipeline",
+        "status": "passed",
+        "exit_code": 0,
+        "started": "2026-11-01T21:33:03.899680+00:00",
+        "finished": "2026-11-01T21:39:45.700284+00:00"
+      }
+    ],
+    "compiler_bundle_bytes_sha256": "27ddda055b2a0bdbb7be53ea70963ea5bc29ca907fa9f288a2752bdfa5de8541",
+    "compiler_implementation_unchanged": true,
+    "complete_matrix_plan": {
+      "focused_targets": [
+        "bootstrap_core",
+        "bootstrap_effect_types",
+        "bootstrap_effects",
+        "bootstrap_guarded_arithmetic",
+        "bootstrap_instance_resolution",
+        "bootstrap_pipeline",
+        "bootstrap_source_effects"
+      ],
+      "fresh_matrix_gates": 152,
+      "general_gates": 5,
+      "integration_targets": 161,
+      "reused_or_inflight_whole_targets": [
+        "alloc_accounting",
+        "bootstrap_abstract_nonzero_methods",
+        "bootstrap_check",
+        "bootstrap_function_preconditions",
+        "bootstrap_ladder",
+        "bootstrap_resolve",
+        "bootstrap_source_paths"
+      ],
+      "self_built_frontend": false,
+      "slots": "four shared slots; pipeline21 owns sole outside fifth lane until its terminal pass",
+      "source_sha256": "d6f7b21cfefdd56ede0467af55ff7abd691928dc64149c05b57089958bf4f840",
+      "workers": 4
+    },
+    "counts_at_recording": {
+      "passed": 13,
+      "running": 4,
+      "pending": 135
+    },
+    "reuse_audit": {
+      "all_native_bootstrap_implementation_prelude_runtime_harness_and_other_fixtures_unchanged": true,
+      "changed_inputs": [
+        "compiler/tests/bootstrap_pipeline.rs"
+      ],
+      "filtered_target_coverage": {
+        "source_sha256": "8b0fe40febabe2529f791a97023103e622917050136a90d315a2295b6eb05ad9",
+        "status": "listed exact full target functions",
+        "targets": {}
+      },
+      "focused_results": [
+        "/tmp/cinch-combined-validation-20/results.json",
+        "/tmp/cinch-source-effects-validation-5/results.json",
+        "/tmp/cinch-pipeline-effect-validation-21/results.json"
+      ],
+      "from_source_sha256": "8b0fe40febabe2529f791a97023103e622917050136a90d315a2295b6eb05ad9",
+      "old_results": "/tmp/cinch-combined-validation-20/complete-matrix/results.json",
+      "previous_full_run_status": "failed obsolete source-effect declaration refusal diagnostic; not a full pass",
+      "prior_focused_reuse_audit": {
+        "current_source_sha256": "8b0fe40febabe2529f791a97023103e622917050136a90d315a2295b6eb05ad9",
+        "native_and_cinch_implementation_shared_harness_and_reused_own_fixtures_unchanged": true,
+        "older_machine_matrix_results_not_reused": true,
+        "only_changed_inputs": [
+          "bootstrap/programs/Run.GuardedArithmetic.cinch",
+          "bootstrap/programs/Run.InstanceResolution.cinch"
+        ],
+        "previous_source_sha256": "d32f6cb89ddb4268e4162f0309a771711f82fed9ca5c7c415e7f99c109eafa4e",
+        "prior_results": "/tmp/cinch-source-effects-validation-5/results.json",
+        "reused_whole_targets": [
+          "bootstrap_source_effects",
+          "bootstrap_effect_types",
+          "bootstrap_effects",
+          "bootstrap_core"
+        ],
+        "status": "four completed whole focused targets reused under exact-source audit"
+      },
+      "status": "source inputs audited; only the pipeline Rust fixture changed",
+      "to_source_sha256": "d6f7b21cfefdd56ede0467af55ff7abd691928dc64149c05b57089958bf4f840",
+      "whole_targets": [
+        {
+          "exit_code": 0,
+          "finished": "2026-11-01T21:25:00.631127+00:00",
+          "name": "bootstrap_source_paths",
+          "started": "2026-11-01T21:24:59.975258+00:00",
+          "status": "passed"
+        },
+        {
+          "exit_code": 0,
+          "finished": "2026-11-01T21:27:38.370799+00:00",
+          "name": "bootstrap_check",
+          "started": "2026-11-01T21:24:59.976641+00:00",
+          "status": "passed"
+        },
+        {
+          "exit_code": 0,
+          "finished": "2026-11-01T21:33:11.401351+00:00",
+          "name": "bootstrap_ladder",
+          "started": "2026-11-01T21:30:14.075860+00:00",
+          "status": "passed"
+        },
+        {
+          "exit_code": 0,
+          "finished": "2026-11-01T21:28:13.999807+00:00",
+          "name": "bootstrap_resolve",
+          "started": "2026-11-01T21:25:00.635479+00:00",
+          "status": "passed"
+        },
+        {
+          "exit_code": 0,
+          "finished": "2026-11-01T21:29:41.543872+00:00",
+          "name": "bootstrap_function_preconditions",
+          "started": "2026-11-01T21:27:38.373688+00:00",
+          "status": "passed"
+        },
+        {
+          "exit_code": 0,
+          "finished": "2026-11-01T21:37:15.806564+00:00",
+          "name": "bootstrap_abstract_nonzero_methods",
+          "started": "2026-11-01T21:28:14.003185+00:00",
+          "status": "passed"
+        },
+        {
+          "exit_code": 0,
+          "finished": "2026-11-01T21:31:12.031602+00:00",
+          "name": "alloc_accounting",
+          "started": "2026-11-01T21:29:41.547864+00:00",
+          "status": "passed"
+        }
+      ]
+    },
+    "all_tests_passed": false
   }
 }

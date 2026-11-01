@@ -32,6 +32,16 @@ only the instance runner from the staged snapshot; the actual compiler bundle
 is byte-identical, so the verified stage boundary above still applies.
 The full suite is pending; neither earlier stopped machine matrix was a full pass.
 
+The end-to-end pipeline now also checks source effect declarations and
+operation calls through the actual checker into the emitter. Both reach the
+emitter's named refusal; source handlers remain a checking refusal. The full
+pipeline target passes, including its existing runnable examples, module and
+interface checks. The prior run stopped on its obsolete declaration-refusal
+message; the corrected snapshot changes only that Rust fixture and reruns it.
+The remaining complete suite continues with exact-source reuse audits from
+`d6f7b21cfefdd56ede0467af55ff7abd691928dc64149c05b57089958bf4f840`. The compiler implementation and
+verified staged bundle are unchanged; full-suite completion remains unproven.
+
 Fresh stage0 and stage1 builds pass all six smoke checks. The actual stage2
 attempt exits 4 before body checking with 5 header diagnostics.
 It produces no IR or compiler executable. The exact remaining categories are
