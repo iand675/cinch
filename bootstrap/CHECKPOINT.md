@@ -1,48 +1,30 @@
 # Compiler checkpoint — 1 November 2026
 
-This branch contains the ongoing compiler/bootstrap work. Full self-hosting is
-not achieved. Website and reader-documentation work is managed separately.
+The compiler now carries checked anonymous refinement contracts through interfaces
+and retains actual argument/result identities in scoped Core witnesses. Private
+nominal contract closure and definition-owned fixities remain enforced. The pinned
+Rust seed is refreshed to the exact validated Native source.
 
-The pinned Rust seed, stage directories and verification commands are documented
-in [README.md](README.md). The current implementation and remaining acceptance
-criteria are described in [self-hosting.md](../design/self-hosting.md) and
-[next-steps.md](../design/next-steps.md).
+Six focused validation gates pass, including twenty freshly executed compiled
+consumer/import/source/Core/dictionary/effect/pipeline/ladder targets, with audited
+reuse of ten byte-identical Native contract targets. All 94 independent Native
+integration targets pass. The 19 additional/repeated integration targets are still
+running; a full-matrix pass is not claimed.
 
-## Verified boundary
+Fresh stage0 and stage1 builds pass all six smoke checks. The actual stage2 attempt
+fails before body checking with 70 header diagnostics, down from 76; it produces
+no stage2 IR or compiler executable. Stage3 fixed-point agreement, changed-source
+behavior and the full suite through a self-built frontend remain unproven.
 
-- Seven focused validation gates passed: Native interface units and contracts,
-  compiled private-refinement consumers, imports, source/type/Core contracts,
-  dictionary/effect checks, and pipeline/type-syntax/stage-ladder checks. Two
-  Native gates reuse evidence after checking byte-identical producer inputs.
-- Fresh stage0 and stage1 builds passed all six smoke checks.
-- The actual stage2 attempt failed before body checking with 76 header
-  diagnostics. It produced no stage2 IR or executable.
-- A stage3 fixed point, changed-source behavior and the full compiler/runtime
-  suite through a self-built frontend are still outstanding.
+[checkpoint-results.json](checkpoint-results.json) records exact gate outcomes,
+seed identities and failure categories; [native-integration-results.json](native-integration-results.json)
+records the independent Native test scope. Full logs and frozen snapshots remain
+local. [The design record](../design/self-hosting.md) details remaining work.
 
-[checkpoint-results.json](checkpoint-results.json) records the gate outcomes,
-separate validation/stage snapshot identities, seed hashes and stage2 failure
-categories. Full logs and frozen source snapshots remain on the development
-machine; this report is a checkpoint, not a claim that the full suite passes.
+Deferred generic NonZero formation and expected-result application checking are
+being developed separately. Their focused checks pass, but the broader matrix is
+still running. Those changes remain on the separate development branch and are
+not included in this installed checkpoint.
 
-## Current work beyond this checkpoint
-
-Anonymous refinement contracts and scoped argument/result witnesses are being
-validated separately and are not installed in this checkpoint. Their current
-candidate passes Native interface contracts, 17 compiled anonymous-contract
-cases, eight private-refinement consumer cases and import regressions, but fails
-this new source regression:
-
-```cinch
-keep :: (n :: refined (r > 0) Nat) -> refined (out == n) Nat
-keep n = n
-```
-
-The failure says that the refinement predicate is not established for the value.
-The candidate remains unmerged while that witness-scope failure is investigated.
-A supplementary compiler/runtime/tooling run is partial and must not be read as
-full-suite success. Test work uses a global limit of four concurrent jobs, with
-one Cargo build worker and one test thread per job.
-
-Push policy: publish incremental compiler fixes and meaningful checkpoints to
-`codex/cinch-bootstrap`; label incomplete validation and known failures plainly.
+Unrelated website, branding and reader-documentation work is managed separately.
+Compiler changes are pushed incrementally with their validation status recorded.

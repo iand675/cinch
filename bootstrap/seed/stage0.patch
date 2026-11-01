@@ -1532,7 +1532,7 @@
                  idx_params: Vec::new(),
 --- /dev/null
 +++ b/compiler/src/check_interface.rs
-@@ -0,0 +1,407 @@
+@@ -0,0 +1,523 @@
 +// Definition-site contracts for rank-one values and class dictionaries.
 +// Kernel regions and closed builtin effects retain their checked syntax.
 +// Unsupported dependent and open-row schemes keep `resolved: null`.
@@ -1672,7 +1672,7 @@
 +        let Some(predicates) = self.resolved_numeric_preconditions(body, scheme) else { return };
 +        context.extend(predicates);
 +        let text = if class_target { self.resolved_source_class_type(body, scheme, &vars, &mut references) }
-+            else { self.resolved_source_type(body, scheme, &vars, &mut references) };
++            else { self.resolved_checked_source_type(body, &scheme.ty, scheme, &vars, &mut references, &[]) };
 +        let Some(mut text) = text else { return };
 +        if !context.is_empty() { text = format!("using ({}) => {text}", context.join(", ")); }
 +        if !prefix.is_empty() { text = format!("forall {}. {text}", prefix.join(" ")); }
@@ -1798,6 +1798,122 @@
 +            // the consumer, rather than erasing an unsupported obligation.
 +            _ => return None,
 +        })
++    }
++
++
++    // Keep the original syntax's defining identities, but read anonymous
++    // predicates from the checked type. Conversion must never run again
++    // during interface emission: it can mutate inference and kind state.
++    fn resolved_checked_source_type(
++        &self, source: &ast::Type, checked: &Ty, scheme: &Scheme, vars: &[String],
++        references: &mut std::collections::BTreeSet<(String, String)>,
++        arguments: &[(Option<String>, Ty)],
++    ) -> Option<String> {
++        fn contains_refined(source: &ast::Type) -> bool {
++            match source {
++                ast::Type::Con(path, _) => path.parts().as_slice() == ["refined"],
++                ast::Type::Var(name, _) => name.text == "refined",
++                ast::Type::App(f, x, _) => contains_refined(f) || contains_refined(x),
++                ast::Type::Fun { arg, res, .. } => contains_refined(arg) || contains_refined(res),
++                ast::Type::DepFun(_, a, _, _, b, _) => contains_refined(a) || contains_refined(b),
++                ast::Type::Tuple(items, _) => items.iter().any(contains_refined),
++                _ => false,
++            }
++        }
++        if !contains_refined(source) {
++            return self.resolved_source_type(source, scheme, vars, references);
++        }
++        let mut head = source;
++        let mut source_args = Vec::new();
++        while let ast::Type::App(f, x, _) = head { source_args.push(&**x); head = f; }
++        source_args.reverse();
++        if matches!(head, ast::Type::Con(path, _) if path.parts().as_slice() == ["refined"])
++            || matches!(head, ast::Type::Var(name, _) if name.text == "refined") {
++            let Ty::Adt(name, args) = checked else { return None };
++            let [Ty::Prp(original), carrier] = args.as_slice() else { return None };
++            if name != "refined" || source_args.len() != 2 { return None }
++            let carrier_text = self.resolved_checked_source_type(source_args[1], carrier, scheme, vars, references, arguments)?;
++            let binder = crate::types::pred_binder(original);
++            let mut free = Vec::new();
++            original.free_vars(&mut free);
++            let mut result = "cinch-result".to_string();
++            while vars.contains(&result) || free.contains(&result)
++                || arguments.iter().any(|(name, _)| name.as_ref() == Some(&result)) {
++                result.push_str("-r");
++            }
++            let mut predicate = original.subst(&binder, &ITerm::Var(result.clone()));
++            // A refined argument retains its contract at the boundary,
++            // while its checked projection may still be mathematical.
++            // Follow actual definition-site views, never a printed name,
++            // and do not read through borrows or mutable byte contents.
++            fn mathematical(checker: &Checker, ty: &Ty, seen: &mut Vec<Ty>) -> bool {
++                if matches!(ty, Ty::Nat | Ty::Int) { return true }
++                if !matches!(ty, Ty::Adt(..)) || seen.contains(ty) { return false }
++                seen.push(ty.clone());
++                checker.refine_view(ty).and_then(|view| view.base)
++                    .is_some_and(|base| mathematical(checker, &base, seen))
++            }
++            let mut numeric = Vec::new();
++            if mathematical(self, carrier, &mut Vec::new()) { numeric.push(result); }
++            for (position, (name, ty)) in arguments.iter().enumerate() {
++                if let Some(name) = name {
++                    predicate = predicate.subst(&format!("$a{position}"), &ITerm::Var(name.clone()));
++                    if mathematical(self, ty, &mut Vec::new()) { numeric.push(name.clone()); }
++                }
++            }
++            fn index(value: &ITerm, numeric: &[String]) -> bool {
++                match value {
++                    ITerm::Var(name) => numeric.contains(name),
++                    ITerm::Num(_) => true,
++                    ITerm::Bin(_, a, b) => index(a, numeric) && index(b, numeric),
++                    _ => false,
++                }
++            }
++            fn closed(value: &PTerm, numeric: &[String]) -> bool {
++                match value {
++                    PTerm::Cmp(_, a, b) => index(a, numeric) && index(b, numeric),
++                    PTerm::And(a, b) | PTerm::Or(a, b) => closed(a, numeric) && closed(b, numeric),
++                    PTerm::Pred(PredFn::NonZero, value) => index(value, numeric),
++                    _ => false,
++                }
++            }
++            // A machine carrier, float, call, or unknown operand yields
++            // no portable mathematical fact. Structural NonZero stays
++            // its own proposition rather than being rewritten to /= 0.
++            if !closed(&predicate, &numeric) { return None }
++            return Some(format!("(refined ({predicate}) {carrier_text})"));
++        }
++        match (source, checked) {
++            (ast::Type::Fun { arg, res, mult: None, eff, .. }, Ty::Fun(domain, _, _, codomain)) => {
++                let domain_text = self.resolved_checked_source_type(arg, domain, scheme, vars, references, arguments)?;
++                let effects = match eff { None => String::new(), Some(row) => self.resolved_kernel_effect_row(row, scheme, vars)? };
++                let mut next = arguments.to_vec();
++                next.push((None, (**domain).clone()));
++                let result = self.resolved_checked_source_type(res, codomain, scheme, vars, references, &next)?;
++                Some(format!("({domain_text} ->{effects} {result})"))
++            }
++            (ast::Type::DepFun(name, domain, None, row, result, _), Ty::Fun(dom, _, _, cod) | Ty::Pi { dom, cod, .. }) => {
++                if vars.contains(&name.text) { return None }
++                let domain_text = self.resolved_checked_source_type(domain, dom, scheme, vars, references, arguments)?;
++                let mut bound = vars.to_vec();
++                bound.push(name.text.clone());
++                let mut next = arguments.to_vec();
++                next.push((Some(name.text.clone()), (**dom).clone()));
++                let effects = match row { None => String::new(), Some(row) => self.resolved_kernel_effect_row(row, scheme, &bound)? };
++                let result = self.resolved_checked_source_type(result, cod, scheme, &bound, references, &next)?;
++                Some(format!("(({} :: {domain_text}) ->{effects} {result})", name.text))
++            }
++            (ast::Type::Tuple(items, _), Ty::Tuple(types)) if items.len() == types.len() => {
++                let items = items.iter().zip(types).map(|(s, t)| self.resolved_checked_source_type(s, t, scheme, vars, references, arguments)).collect::<Option<Vec<_>>>()?;
++                Some(format!("({})", items.join(", ")))
++            }
++            (ast::Type::App(..), Ty::Adt(_, types) | Ty::App(_, types)) if source_args.len() == types.len() => {
++                let head = self.resolved_source_type(head, scheme, vars, references)?;
++                let args = source_args.iter().zip(types).map(|(s, t)| self.resolved_checked_source_type(s, t, scheme, vars, references, arguments)).collect::<Option<Vec<_>>>()?;
++                Some(format!("({head} {})", args.join(" ")))
++            }
++            _ => None,
++        }
 +    }
 +
 +    // Use the checked predicates, whose argument positions are normalized

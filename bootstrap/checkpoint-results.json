@@ -1,13 +1,7 @@
 {
   "date": "2026-11-01",
-  "status": "Partial bootstrap checkpoint; full self-hosting is not achieved",
+  "status": "Verified anonymous-contract checkpoint; full self-hosting not achieved",
   "validation": [
-    {
-      "name": "native-interface-unit",
-      "status": "passed",
-      "exit_code": 0,
-      "reused": true
-    },
     {
       "name": "native-contracts",
       "status": "passed",
@@ -15,7 +9,7 @@
       "reused": true
     },
     {
-      "name": "private-refinements",
+      "name": "compiled-consumers",
       "status": "passed",
       "exit_code": 0,
       "reused": false
@@ -45,6 +39,108 @@
       "reused": false
     }
   ],
+  "compiled_target_results": [
+    {
+      "name": "bootstrap_source_refinements",
+      "status": "passed",
+      "exit_code": 0
+    },
+    {
+      "name": "bootstrap_anonymous_contracts",
+      "status": "passed",
+      "exit_code": 0
+    },
+    {
+      "name": "bootstrap_infer",
+      "status": "passed",
+      "exit_code": 0
+    },
+    {
+      "name": "bootstrap_source_pi",
+      "status": "passed",
+      "exit_code": 0
+    },
+    {
+      "name": "bootstrap_refinement_closure",
+      "status": "passed",
+      "exit_code": 0
+    },
+    {
+      "name": "bootstrap_interface",
+      "status": "passed",
+      "exit_code": 0
+    },
+    {
+      "name": "bootstrap_load",
+      "status": "passed",
+      "exit_code": 0
+    },
+    {
+      "name": "bootstrap_nominals",
+      "status": "passed",
+      "exit_code": 0
+    },
+    {
+      "name": "bootstrap_imported_nonzero",
+      "status": "passed",
+      "exit_code": 0
+    },
+    {
+      "name": "bootstrap_core",
+      "status": "passed",
+      "exit_code": 0
+    },
+    {
+      "name": "bootstrap_named_refinements",
+      "status": "passed",
+      "exit_code": 0
+    },
+    {
+      "name": "bootstrap_nonzero_source",
+      "status": "passed",
+      "exit_code": 0
+    },
+    {
+      "name": "bootstrap_typed_indices",
+      "status": "passed",
+      "exit_code": 0
+    },
+    {
+      "name": "bootstrap_refinement_types",
+      "status": "passed",
+      "exit_code": 0
+    },
+    {
+      "name": "bootstrap_refinement_core",
+      "status": "passed",
+      "exit_code": 0
+    },
+    {
+      "name": "bootstrap_instance_resolution",
+      "status": "passed",
+      "exit_code": 0
+    },
+    {
+      "name": "bootstrap_effects",
+      "status": "passed",
+      "exit_code": 0
+    },
+    {
+      "name": "bootstrap_type_syntax",
+      "status": "passed",
+      "exit_code": 0
+    },
+    {
+      "name": "bootstrap_pipeline",
+      "status": "passed",
+      "exit_code": 0
+    },
+    {
+      "name": "bootstrap_ladder",
+      "status": "passed",
+      "exit_code": 0
+    }
+  ],
   "stages": [
     {
       "name": "stage0-smoke",
@@ -63,7 +159,7 @@
     }
   ],
   "stage2_boundary": {
-    "bundle_sha256": "e3967c48eb773c9b453abeb846794799b979251b6569336fa78c305305b9a57d",
+    "bundle_sha256": "dfd073244314e8d054e99ac7b5ab64b47975f4531baa40199a598a42e65e55c0",
     "categories": {
       "NonZero needs a checked mathematical carrier": 2,
       "builtin constructor needs proposition instantiation and erasure checking: b.No": 1,
@@ -71,38 +167,37 @@
       "builtin syntax needs dependent predicate elaboration: b.decide": 1,
       "effect declarations are not supported in this rung": 1,
       "ill-formed function proof contract": 12,
-      "ill-formed source dependent function": 4,
-      "ill-formed source refinement": 7,
+      "ill-formed source dependent function": 3,
+      "ill-formed source refinement": 6,
       "ill-sorted proof predicate": 17,
-      "imported nominal scheme needs defining-module type identities: NonZero": 1,
-      "imported using context needs a defining signature contract": 6,
+      "imported using context needs a defining signature contract": 5,
       "index expression needs checked scope, purity and totality": 19,
       "instance declarations are not supported in this rung": 1,
-      "machine arithmetic cannot enter mathematical index conversion": 1,
-      "proof predicate needs checked mathematical carriers": 1,
-      "type constructor is applied to too many arguments": 1
+      "machine arithmetic cannot enter mathematical index conversion": 1
     },
-    "diagnostics": 76,
+    "diagnostics": 70,
     "executable_exists": false,
     "ir_exists": false,
     "origins": {
-      "imported-or-synthetic": 22,
+      "imported-or-synthetic": 16,
       "source": 54
     },
-    "snapshot_sha256": "9e68828fdc7bd9c28a618c3ff072ac891196c91f8a212d15b9a1c2c76222560a",
+    "snapshot_sha256": "3d7017d191bc7cd8803809bff28717e791848fe78ca14982c313d6f783d6cfa9",
     "stage2_exit_code": 4,
     "stage2_status": "failed"
   },
   "native_seed": {
-    "description": "Pinned Rust seed with schema-7 definition-site nominal, class, Region and closed kernel effect contracts, dictionary slots, dependency-ordered source family overrides, dependency-sensitive pattern field names and conditional instance method proof contracts, integer conversion fixes, definition-owned fixities, guarded heap defaults and serial build/test settings and enforced optimizer residual growth bounds, portable checked numeric preconditions and dependent argument identities, checked structural NonZero precondition exports with actual argument identities, schema-7 defining refinement payloads and literal index contracts; changed only by an intentional seed update.",
+    "description": "Pinned Rust seed with schema-7 definition-site nominal, class, Region and closed kernel effect contracts, dictionary slots, dependency-ordered source family overrides, dependency-sensitive pattern field names and conditional instance method proof contracts, integer conversion fixes, definition-owned fixities, guarded heap defaults and serial build/test settings and enforced optimizer residual growth bounds, portable checked numeric preconditions and dependent argument identities, checked structural NonZero precondition exports with actual argument identities, schema-7 defining refinement payloads and literal index contracts, checked anonymous refinements with actual argument/result identities and refined-argument numeric projections; changed only by an intentional seed update.",
     "patch": "bootstrap/seed/stage0.patch",
-    "patch_sha256": "1d3479e414067f9d86a86d927f3ea323f24432632c55743de811a50f18e5d3c3",
+    "patch_sha256": "3e44439affde5ad755cded95cccd82ccedde6b08f93f7739d4986ba4715a241f",
     "revision": "275de4f05b230c010aeb4b10265a04b97fb4eb1c",
     "runtime_abi": 5,
     "schema": 1,
-    "source_sha256": "7a2dd486210e6beaaa6db3c7b622983f9f4a6f7afe0481dd2e56b84532c8cd8c"
+    "source_sha256": "765d2f0118bdce09583b3c1ca581b19cd02be332668488c63e8162d895b70fd8"
   },
-  "full_compiler_runtime_suite": "Not established for this checkpoint",
-  "validation_source_sha256": "812d3b7672c10b46b39f368d9fcef70a6a1eb991342b21c842cfcc344fc1dfba",
-  "note": "Validation and stage snapshots differ in seed pin and progress documentation; reports preserve their distinct source hashes. Original logs and snapshots remain local."
+  "validation_source_sha256": "b84b7a8dc278a0468e43a922de01d7565af717ef8d677026f88304ae36ac8acc",
+  "stage_source_sha256": "3d7017d191bc7cd8803809bff28717e791848fe78ca14982c313d6f783d6cfa9",
+  "remaining_integration_tests": "19 additional/repeated targets in progress; not a complete-matrix pass",
+  "self_built_frontend": false,
+  "full_bootstrap": false
 }

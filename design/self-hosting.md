@@ -1,5 +1,64 @@
 # Self-hosting acceptance and remaining compiler work
 
+The latest installed checkpoint carries anonymous refinement contracts from
+checked Native schemes through renamed interfaces. Result binders are fresh
+and scoped against real argument identities, including exported contracts over
+refined arguments. Private defining refinement templates remain closed in
+interface metadata. The producer uses the original checked syntax and scheme;
+it does not infer a new contract while serializing it.
+
+The Cinch consumer retains dependent argument/result witnesses in Core let
+scopes, checks requested refinements inside those scopes, and preserves effect
+rows. Weakening a refined local also retains its checked equality to the actual
+right-hand side through the existing Core let rule. A call result supplies only
+its checked exported contract; an unchecked call is not an arithmetic fact.
+Runtime evaluation remains once per materialized witness, and witness-local
+indices cannot escape in outer annotations.
+
+All six focused validation gates pass: ten Native contract targets with audited
+reuse of byte-identical selected inputs, twenty fresh compiled-consumer/import/
+source/type/Core/dictionary/effect/pipeline/ladder targets, including seventeen
+anonymous-contract consumers, eight private-refinement consumers and sixty-three
+source-refinement cases. All ninety-four independent Native integration targets
+also pass. The final focused audit covers 562 unchanged inputs, snapshot
+`b84b7a8dc278a0468e43a922de01d7565af717ef8d677026f88304ae36ac8acc`.
+Evidence is in `/tmp/cinch-anonymous-contract-validation-5/` and the earlier
+Native-input-identical `/tmp/cinch-anonymous-contract-validation-4/native-remainder/`.
+Nineteen additional or repeated integration targets are still running; this is
+not yet a claim that the complete integration matrix passes.
+
+The source-matching Rust seed is intentionally refreshed: source
+`765d2f0118bdce09583b3c1ca581b19cd02be332668488c63e8162d895b70fd8`,
+patch `3e44439affde5ad755cded95cccd82ccedde6b08f93f7739d4986ba4715a241f`.
+Archive plus patch reproduces every Native source byte, checked during
+preparation and independently at installation. Runtime ABI 5 and interface
+schema 7 remain unchanged.
+
+Fresh stage0/stage1 builds pass all six smoke checks. The real stage2 attempt
+exits 4 before body checking with 70 header diagnostics, down from 76. Sixteen
+positions are imported/synthetic and fifty-four map to source; nineteen concern
+unchecked calls. Counts include cascades and do not measure completion.
+Stage2 produces no IR or compiler executable. The final stage audit covers
+562 unchanged inputs, snapshot
+`3d7017d191bc7cd8803809bff28717e791848fe78ca14982c313d6f783d6cfa9`;
+the compiler bundle is
+`dfd073244314e8d054e99ac7b5ab64b47975f4531baa40199a598a42e65e55c0`.
+Evidence and source-mapped diagnostics are in `/tmp/cinch-anonymous-contract-stages/`.
+
+Deferred generic NonZero formation and result-directed application checking are
+being validated separately. Their focused type/Core, real Div/Rem consumers,
+source-refinement and dependent-source checks pass, but their broader matrix
+is still running; those changes are not installed in this checkpoint.
+
+Checked observation/call contracts, remaining source declarations and proof
+forms, an independent global typing kernel and shared-runtime typed lowering
+remain required. Stage2/3 fixed-point agreement, changed-source compiler
+behavior and the full suite through a self-built frontend are unproven.
+Work uses at most five concurrent jobs, with one Cargo worker and one test
+thread per job and generated Cinch heaps limited to 2G.
+
+## Prior checkpoint history and acceptance details
+
 Interface schema 7 carries the defining template of a private named
 refinement when that type occurs in an exported value contract. The closure
 retains its defining module, ordered parameters and kinds, binder, carrier,
