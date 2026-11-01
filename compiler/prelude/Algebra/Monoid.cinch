@@ -4,10 +4,8 @@
 -- (Algebra.Semigroup). The import below is explicit because a class
 -- constraint entails nothing (the standing no-superbundle rule):
 -- `Monoid` does not extend `Semigroup`, and every function states the
--- constraints it uses. The `infixr 6 <>` redeclaration is decision
--- D2's per-module fixity style (a redundant declaration of the same
--- fixity is accepted); the imported declaration is the source of
--- truth.
+-- constraints it uses. The imported operator keeps the fixity declared
+-- by Algebra.Semigroup; this module cannot redeclare it.
 --
 -- `mempty` is the nullary class method `mempty :: a` (the higher-kinded
 -- slice lifted the function-type requirement on class methods): the
@@ -34,7 +32,6 @@ module Algebra.Monoid where
   import Algebra.Semigroup
   import Algebra.Group
 
-  infixr 6 <>
 
   signature Monoid a where
     mempty :: a

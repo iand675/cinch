@@ -33,6 +33,31 @@ fn write_project(files: &[(&str, &str)]) -> PathBuf {
 
 // ---------------------------------------------------------------- quotations
 
+#[test]
+fn integer_widening_and_mathematical_conversions_evaluate_at_compile_time() {
+    let code = run(
+        r#"module Main where
+  stage signed :: Int
+  stage signed = int-from-i64 (i8-to-i64 -128)
+  stage unsigned :: Nat
+  stage unsigned = nat-from-i64 (u8-to-i64 255)
+  stage wide :: Nat
+  stage wide = nat-from-i64 (u32-to-i64 4294967295)
+  generate do
+    emit (quoteDecls where
+      s :: Int
+      s = $(quoteInt signed)
+      u :: Nat
+      u = $(quoteNat unsigned)
+      w :: Nat
+      w = $(quoteNat wide))
+  main :: Int
+  main = if s == -128 && u == 255 && w == 4294967295 then 0 else 1
+"#,
+    ).expect("compile-time conversions preserve source width and signedness");
+    assert_eq!(code, 0);
+}
+
 /// A quotation with a typed splice evaluating correctly at runtime: the
 /// `stage` definition composes `Code` values at compile time, and the
 /// emitted declaration runs in the program.

@@ -6542,6 +6542,7 @@ impl Checker {
         }
         self.gen_locals.insert(l, metas);
         Scheme {
+            con_params: Vec::new(),
             obligs: Vec::new(),
             params: tps,
             idx_params: Vec::new(),
@@ -7207,6 +7208,12 @@ impl Checker {
                             let map = binder_maps.entry(tag).or_default();
                             for (i, sp) in args.iter().enumerate() {
                                 let b = &parts.fields[i].0;
+                                if !parts.fields.iter().skip(i + 1).any(|(_, t, _)| ty_mentions(t, b)) {
+                                    // Ordinary fields have no name to substitute
+                                    // in later field types. Their row-local
+                                    // pattern binders may differ freely.
+                                    continue;
+                                }
                                 if let ast::Pat::Var(n, _) = sp {
                                     match map.get(b) {
                                         Some(prev) if *prev != n.text => {
@@ -7222,12 +7229,7 @@ impl Checker {
                                             map.insert(b.clone(), n.text.clone());
                                         }
                                     }
-                                } else if parts
-                                    .fields
-                                    .iter()
-                                    .enumerate()
-                                    .any(|(j, (_, t, _))| j > i && ty_mentions(t, b))
-                                {
+                                } else {
                                     return Err(Error::at(
                                         sp.span(),
                                         format!(

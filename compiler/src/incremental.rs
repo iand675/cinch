@@ -1214,15 +1214,19 @@ impl Session {
         self.prelude_order = prelude.modules.iter().map(|m| m.name.text.clone()).collect();
         let prelude_fixities = prelude.base.clone();
         let mut module_fixities: HashMap<String, FixityTable> = prelude.fixities.clone();
+        let mut exported_fixities = prelude.exported_fixities.clone();
         let mut parsed_by_file: HashMap<String, crate::parser::ParsedModules> = HashMap::new();
         let mut modules: Vec<crate::ast::Module> = Vec::new();
         for name in slice {
             let file = self.module_file[name].clone();
             if !parsed_by_file.contains_key(&file) {
                 let src = self.texts[&file].clone();
-                let parsed = parse_source(&src, &file, &prelude_fixities, &module_fixities)?;
+                let parsed = parse_source(&src, &file, &prelude_fixities, &exported_fixities)?;
                 for (m, f) in &parsed.fixities {
                     module_fixities.insert(m.clone(), f.clone());
+                }
+                for (m, f) in &parsed.exported_fixities {
+                    exported_fixities.insert(m.clone(), f.clone());
                 }
                 parsed_by_file.insert(file.clone(), parsed);
             }
@@ -2147,7 +2151,7 @@ impl Session {
     ) -> Result<crate::parser::ParsedModules> {
         let adapters = self.wit.clone();
         let prelude = parse_prelude(&adapters)?;
-        let mut tables: HashMap<String, FixityTable> = prelude.fixities.clone();
+        let mut tables = prelude.exported_fixities.clone();
         // Thread the fixities of every file that precedes this one in
         // project order (dependency order: imports first).
         let order_files: Vec<String> = self
@@ -2161,7 +2165,7 @@ impl Session {
             }
             let Some(t) = self.texts.get(f) else { continue };
             if let Ok(pm) = parse_source(t, f, &prelude.base, &tables) {
-                for (m, fix) in &pm.fixities {
+                for (m, fix) in &pm.exported_fixities {
                     tables.insert(m.clone(), fix.clone());
                 }
             }

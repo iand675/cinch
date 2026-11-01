@@ -1,0 +1,1916 @@
+-- Rank-one elaboration. Definition-site class schemes and lexical
+-- dictionaries are retained in Core. Instance selection, effects and
+-- dependent obligations still require further elaboration.
+module Bootstrap.Infer where
+
+  import Bootstrap.Ast
+  import Bootstrap.Type
+  import Bootstrap.Index
+  import Bootstrap.Proof (Proposition, PNegate)
+  import Data.Nat (nat-from-int, nat-to-int)
+  import Text.Show (int-to-string)
+  import Bootstrap.Core
+  import Bootstrap.Builtin (builtin-declarations, intrinsic-contract)
+  import Bootstrap.Dictionary (resolve-dictionary-definition-with, resolve-dictionary-term-with, resolve-ready-term, check-instance-coherence)
+  import Bootstrap.Parse (parse-scheme)
+  import Bootstrap.Nominal (interface-global, resolved-entry-valid, resolved-text, resolved-nominals, qualify-resolved)
+  import Bootstrap.Report (Diagnostic)
+  import Data.Json
+  import Text.Lex (Span)
+  import Text.Parse (ParseOutcome, Parsed, Failed)
+  import Algebra.Semigroup
+
+  export needs-inference, infer-program, elaborate-program
+  export Elaboration, elaboration-errors, elaboration-bindings, elaboration-contexts, elaboration-core
+  export CheckedBinding, checked-name, checked-scheme, checked-role
+  export elaboration-data
+
+  -- Surface templates live only in this elaboration context. Checked
+  -- Core and the type engine continue to contain typed terms exclusively.
+  data TypeContext where
+    MkTypeContext :: List (String, Kind) -> List Decl -> List String -> TypeContext
+  context-kind :: String -> TypeContext -> Option Kind
+  context-kind name context = case context of MkTypeContext kinds aliases active -> lookup-kind name kinds
+  context-add-kind :: String -> Kind -> TypeContext -> TypeContext
+  context-add-kind name kind context = case context of MkTypeContext kinds aliases active -> MkTypeContext (Cons (name, kind) kinds) aliases active
+  context-aliases :: TypeContext -> List Decl
+  context-aliases context = case context of MkTypeContext kinds aliases active -> aliases
+  context-add-alias :: Decl -> TypeContext -> TypeContext
+  context-add-alias alias context = case context of MkTypeContext kinds aliases active -> MkTypeContext kinds (Cons alias aliases) active
+  context-enter-alias :: String -> TypeContext -> Option TypeContext
+  context-enter-alias name context = case context of
+    MkTypeContext kinds aliases active -> if has name active then None else Some (MkTypeContext kinds aliases (Cons name active))
+
+  data CheckedBinding where
+    MkCheckedBinding :: String -> Scheme -> String -> CheckedBinding
+    MkMethodBinding :: String -> Scheme -> String -> Nat -> CheckedBinding
+    MkGivenBinding :: String -> UType -> String -> CheckedBinding
+    MkLocalBinding :: String -> Scheme -> Nat -> Nat -> CheckedBinding
+    -- A strict, monomorphic let whose checked RHS has a total index form.
+    -- Its runtime slot remains distinct; only type conversion uses the RHS.
+    MkValueBinding :: String -> Scheme -> Nat -> Nat -> UType -> CheckedBinding
+    MkIntrinsicBinding :: String -> Scheme -> String -> CheckedBinding
+    MkProofBinding :: Proposition -> CheckedBinding
+  checked-name :: CheckedBinding -> String
+  checked-name b = case b of MkCheckedBinding name sc role -> name; MkMethodBinding name sc owner slot -> name; MkGivenBinding name ty symbol -> name; MkLocalBinding name sc id level -> name; MkValueBinding name sc id level value -> name; MkIntrinsicBinding name sc symbol -> name; MkProofBinding fact -> ""
+  checked-scheme :: CheckedBinding -> Scheme
+  checked-scheme b = case b of MkCheckedBinding name sc role -> sc; MkMethodBinding name sc owner slot -> sc; MkGivenBinding name ty symbol -> mono ty; MkLocalBinding name sc id level -> sc; MkValueBinding name sc id level value -> sc; MkIntrinsicBinding name sc symbol -> sc; MkProofBinding fact -> mono UError
+  checked-role :: CheckedBinding -> String
+  checked-role b = case b of MkCheckedBinding name sc role -> role; MkMethodBinding name sc owner slot -> "method"; MkGivenBinding name ty symbol -> "dictionary"; MkLocalBinding name sc id level -> "local"; MkValueBinding name sc id level value -> "local"; MkIntrinsicBinding name sc symbol -> "intrinsic"; MkProofBinding fact -> "proof"
+  data Elaboration where
+    MkElaboration :: List Diagnostic -> List CheckedBinding -> List Json -> List CoreDefinition -> List CoreData -> Elaboration
+  elaboration-errors :: Elaboration -> List Diagnostic
+  elaboration-errors e = case e of MkElaboration errors bindings contexts core datas -> errors
+  elaboration-bindings :: Elaboration -> List CheckedBinding
+  elaboration-bindings e = case e of MkElaboration Nil bindings contexts core datas -> bindings; other -> Nil
+  elaboration-contexts :: Elaboration -> List Json
+  elaboration-contexts e = case e of MkElaboration errors bindings contexts core datas -> contexts
+  elaboration-core :: Elaboration -> List CoreDefinition
+  elaboration-core e = case e of MkElaboration Nil bindings contexts core datas -> core; other -> Nil
+
+  elaboration-data :: Elaboration -> List CoreData
+  elaboration-data e = case e of MkElaboration Nil bindings contexts core datas -> datas; other -> Nil
+
+  same :: String -> String -> Bool
+  same a b = string-compare a b == 0
+  zero :: Span
+  zero = Span 0 0 1 1
+  unsupported-import :: String -> String -> String
+  unsupported-import category name =
+    if same category "builtin" then string-concat "builtin needs region, capability and effect elaboration: " name
+    else if same category "builtin-syntax" then string-concat "builtin syntax needs dependent predicate elaboration: " name
+    else if same category "builtin-constructor" then string-concat "builtin constructor needs proposition instantiation and erasure checking: " name
+    else string-concat-all ["imported ", category, " needs kind, constructor or dictionary elaboration: ", name]
+  unsupported-decl :: Decl -> String
+  unsupported-decl d = case d of
+    DInstance s only name ps app members -> "instance declarations are not supported in this rung"
+    DClass s name ps members -> "class declarations are not supported in this rung"
+    DForeign s direction abi symbol name ty -> "foreign declarations are not supported in this rung"
+    DEffect s name ps ops -> "effect declarations are not supported in this rung"
+    DRefine s name ps binder predicate -> "named refinement declarations need proof checking, which is not supported in this rung"
+    DImport s path mods alias members args -> "module imports need interface resolution, which is not supported in this rung"
+    other -> "declaration needs dictionary, effect or dependent elaboration"
+  bad :: Span -> String -> Store -> (UType, Store)
+  bad sp message st = (UError, add-error sp message st)
+  has :: String -> List String -> Bool
+  has name names = case names of Nil -> False; Cons n rest -> same name n || has name rest
+  field :: String -> Json -> Json
+  field name doc = case doc of JObj key value rest -> if same name key then value else field name rest; other -> JNull
+
+  needs-type :: TypeExpr -> Bool
+  needs-type ty = case ty of
+    TName s name -> same name "Nat"
+    TForall s qs body -> True
+    TFun s a b -> needs-type a || needs-type b
+    TFunEff s a row b -> True
+    TBound s name carrier rest -> True
+    TApp s f xs -> needs-type f || needs-type xs
+    TTuple s xs -> needs-type xs
+    TArg s x rest -> needs-type x || needs-type rest
+    TUsing s bounds body -> True
+    TRefined s predicate carrier -> True
+    other -> False
+  needs-decls :: List Decl -> Bool
+  needs-decls ds = case ds of
+    Nil -> False
+    Cons d rest -> (case d of
+      DSig s name ty -> needs-type ty
+      DRefine s name params binder predicate -> True
+      DExternal s name category None metadata -> same category "type" && (case field "kind" metadata of JStr variety -> same variety "refinement"; other -> False)
+      DData s name (Cons p ps) ctors -> True
+      DData s name Nil ctors -> ctor-needs ctors
+      DForeign s direction abi symbol name ty -> True
+      DExternal s name kind (Some ty) metadata -> needs-type ty || (case resolved-text metadata of Some text -> True; other -> False)
+      DFun s name clauses -> clauses-need clauses
+      other -> False) || needs-decls rest
+  clauses-need :: List (List Pat, Expr) -> Bool
+  clauses-need cs = case cs of Nil -> False; Cons (ps, body) rest -> expression-needs body || clauses-need rest
+  expression-needs :: Expr -> Bool
+  expression-needs e = case e of
+    ELam s ps body -> True
+    EApp s f x -> expression-needs f || expression-needs x
+    ECon s name args -> expression-needs args
+    ELet s bs body -> expression-needs bs || expression-needs body
+    EWith s bs body -> True
+    EIf s c a b -> expression-needs c || expression-needs a || expression-needs b
+    ECase s value alts -> expression-needs value || expression-needs alts
+    EAnn s body ty -> needs-type ty || expression-needs body
+    EBin s op a b -> expression-needs a || expression-needs b
+    ENeg s x -> expression-needs x
+    ETuple s xs -> expression-needs xs
+    EArg s x rest -> expression-needs x || expression-needs rest
+    EBinding s name rhs rest -> expression-needs rhs || expression-needs rest
+    EAlt s p rhs rest -> expression-needs rhs || expression-needs rest
+    EGuarded s guard body -> expression-needs guard || expression-needs body
+    other -> False
+  ctor-needs :: List (String, TypeExpr) -> Bool
+  ctor-needs cs = case cs of Nil -> False; Cons (name, ty) rest -> needs-type ty || ctor-needs rest
+  needs-inference :: Program -> Bool
+  needs-inference p = module-needs (program-modules p)
+  module-needs :: List Module -> Bool
+  module-needs ms = case ms of
+    Nil -> False
+    Cons m rest -> let ds = module-decls m in
+      needs-decls ds || unknown-declaration-types ds (data-names ds) || module-needs rest
+  unknown-type-names :: List String -> List String -> Bool
+  unknown-type-names names known = case names of
+    Nil -> False
+    Cons name rest -> (not (primitive name) && not (has name known)) || unknown-type-names rest known
+  unknown-constructor-types :: List (String, TypeExpr) -> List String -> Bool
+  unknown-constructor-types cs known = case cs of
+    Nil -> False
+    Cons (name, ty) rest -> unknown-type-names (type-names ty) known || unknown-constructor-types rest known
+  unknown-declaration-types :: List Decl -> List String -> Bool
+  unknown-declaration-types ds known = case ds of
+    Nil -> False
+    Cons (DSig s name ty) rest -> unknown-type-names (type-names ty) known || unknown-declaration-types rest known
+    Cons (DData s name ps cs) rest -> unknown-constructor-types cs (parameter-names-for-check ps <> known) || unknown-declaration-types rest known
+    Cons d rest -> unknown-declaration-types rest known
+  parameter-names-for-check :: List TypeParam -> List String
+  parameter-names-for-check ps = case ps of Nil -> Nil; Cons p rest -> Cons (param-name p) (parameter-names-for-check rest)
+
+  primitive :: String -> Bool
+  primitive name = has name ["Int", "Nat", "Bool", "Unit", "()", "String", "Char", "Bytes", "Sym", "Isize", "Usize", "I8", "I16", "I32", "I64", "U8", "U16", "U32", "U64", "F32", "F64"]
+  primitive-type :: String -> UType
+  primitive-type name = UCon (if same name "()" then "Unit" else name) KType
+  literal-type :: TypeContext -> String -> UType
+  literal-type kinds name = if same name "String" then
+    (case context-kind (interface-global "Data.String.String") kinds of
+      Some KType -> UCon (interface-global "Data.String.String") KType
+      other -> primitive-type name)
+    else primitive-type name
+  primitive-kinds :: TypeContext
+  primitive-kinds = MkTypeContext (Cons ("b.Io", KFun KRegion KType) (map-primitive ["Int", "Nat", "Bool", "Unit", "()", "String", "Char", "Bytes", "Sym", "Isize", "Usize", "I8", "I16", "I32", "I64", "U8", "U16", "U32", "U64", "F32", "F64"]) ) Nil Nil
+  map-primitive :: List String -> List (String, Kind)
+  map-primitive names = case names of Nil -> Nil; Cons name rest -> Cons (name, KType) (map-primitive rest)
+  lookup-kind :: String -> List (String, Kind) -> Option Kind
+  lookup-kind name rows = case rows of Nil -> None; Cons (n, k) rest -> if same name n then Some k else lookup-kind name rest
+  lookup-local :: String -> List (String, UType) -> Option UType
+  lookup-local name locals = case locals of Nil -> None; Cons (n, ty) rest -> if same name n then Some ty else lookup-local name rest
+
+  -- A universe annotation denotes a kind. Every other annotation must
+  -- elaborate to a proper carrier type in the preceding binder context.
+  -- In particular, Nat -> Int is a function-valued index carrier, whereas
+  -- Type -> Type classifies a type constructor.
+  kind-form :: TypeExpr -> Bool
+  kind-form ty = case ty of
+    TName s name -> has name ["Type", "Region", "Effect", "Row"]
+    TFun s a b -> kind-form a && kind-form b
+    other -> False
+  kind-of :: Bool -> TypeContext -> List (String, UType) -> TypeExpr -> Store -> (Kind, Store)
+  kind-of external kinds locals ty st = case ty of
+    TName s name -> if same name "Type" then (KType, st)
+      else if same name "Region" then (KRegion, st)
+      else if same name "Effect" then (KEffect, st)
+      else if same name "Row" then (KRow, st)
+      else carrier-kind external kinds locals ty st
+    TFun s a b -> if kind-form ty then
+      (case kind-of external kinds locals a st of (ka, sa) -> case kind-of external kinds locals b sa of (kb, sb) -> (KFun ka kb, sb))
+      else carrier-kind external kinds locals ty st
+    other -> carrier-kind external kinds locals ty st
+  carrier-kind :: Bool -> TypeContext -> List (String, UType) -> TypeExpr -> Store -> (Kind, Store)
+  carrier-kind external kinds locals ty st = case convert external kinds locals ty st of
+    (carrier, checked) -> if valid-type carrier && kind-equal (type-kind carrier) KType then (value-kind carrier, checked)
+      else (KType, add-error (type-expr-span ty) "quantifier carrier must be a proper type" checked)
+  parameters :: Bool -> TypeContext -> List (String, UType) -> List TypeParam -> Nat -> List String -> Store -> (List Quant, Store)
+  parameters external kinds locals ps next seen st = case ps of
+    Nil -> (Nil, st)
+    Cons p rest ->
+      let name = param-name p in
+      let sd = if has name seen then add-error (param-span p) (string-concat "duplicate quantified parameter: " name) st else st in
+      let (k, sk) = case param-kind p of None -> (KType, sd); Some annotation -> kind-of external kinds locals annotation sd in
+      let bound = UBound next name k in
+      case parameters external kinds (Cons (name, bound) locals) rest (next + 1) (Cons name seen) sk of
+        (qs, sr) -> (Cons (MkQuant next name k (param-implicit p)) qs, sr)
+  kind-arrow :: List Quant -> Kind
+  kind-arrow qs = case qs of Nil -> KType; Cons q rest -> KFun (quant-kind q) (kind-arrow rest)
+  -- KFun cannot substitute an earlier declaration parameter into a later
+  -- carrier. Refuse this path until a binder-aware declaration kind is
+  -- available; forall/Pi schemes retain their binders and are unaffected.
+  declaration-kind-errors :: Span -> List Quant -> Store -> Store
+  declaration-kind-errors sp qs st = case qs of
+    Nil -> st
+    Cons q rest -> case kind-free-bound (quant-kind q) of
+      Nil -> declaration-kind-errors sp rest st
+      other -> add-error sp "dependent declaration parameter kinds need binder-aware kind application" st
+  quant-locals :: List Quant -> List (String, UType)
+  quant-locals qs = case qs of Nil -> Nil; Cons q rest -> Cons (quant-name q, UBound (quant-id q) (quant-name q) (quant-kind q)) (quant-locals rest)
+
+  append-type-arguments :: TypeExpr -> TypeExpr -> TypeExpr
+  append-type-arguments first second = case first of
+    TArgsEnd sp -> second
+    TArg sp value rest -> TArg sp value (append-type-arguments rest second)
+    other -> first
+  source-type-application :: TypeExpr -> TypeExpr -> (TypeExpr, TypeExpr)
+  source-type-application head args = case head of
+    TApp sp function earlier -> source-type-application function (append-type-arguments earlier args)
+    other -> (head, args)
+  convert-type-head :: Bool -> TypeContext -> List (String, UType) -> TypeExpr -> Store -> (UType, Store)
+  convert-type-head external kinds locals syntax st = case syntax of
+    TName sp name -> case lookup-local name locals of
+      Some value -> (value, st)
+      None -> case (find-refinement name (context-aliases kinds), context-kind name kinds) of
+        (Some definition, Some kind) -> (UCon name kind, st)
+        other -> convert external kinds locals syntax st
+    other -> convert external kinds locals syntax st
+  imported-refinement-parameters :: Span -> Json -> Store -> (List TypeParam, Store)
+  imported-refinement-parameters sp rows st = case rows of
+    JArr row rest -> case (field "name" row, field "kind" row, field "implicit" row) of
+      (JStr name, JStr kind, JBool only) -> case parse-scheme "refinement parameter" (string-to-bytes kind) of
+        Parsed annotation Nil -> case imported-refinement-parameters sp rest st of
+          (more, checked) -> (Cons (MkTypeParam sp name (Some annotation) only) more, checked)
+        other -> (Nil, add-error sp "invalid imported refinement parameter kind" st)
+      other -> (Nil, add-error sp "invalid imported refinement parameter metadata" st)
+    JArrEnd -> (Nil, st)
+    other -> (Nil, add-error sp "missing imported refinement parameters" st)
+  imported-refinement-carrier :: List String -> TypeExpr -> Bool
+  imported-refinement-carrier params syntax = case syntax of
+    TName sp name -> has name params || (primitive name && not (same name "String"))
+    -- A named private carrier needs its actual defining nominal closure.
+    -- Never qualify a display spelling by guessing the owning module.
+    other -> False
+  imported-refinement-param-names :: List TypeParam -> Json -> Bool
+  imported-refinement-param-names params names = case (params, names) of
+    (Nil, JArrEnd) -> True
+    (Cons parameter rest, JArr (JStr name) more) -> same (param-name parameter) name && imported-refinement-param-names rest more
+    other -> False
+  imported-refinement :: Span -> String -> Json -> Store -> (Option Decl, Store)
+  imported-refinement sp owner metadata st = case (field "identity" metadata, field "binder" (field "refinement" metadata), field "carrier" (field "refinement" metadata), field "predicate" (field "refinement" metadata)) of
+    (JStr identity, JStr binder, JStr carrier, JStr predicate) ->
+      if not (same owner (interface-global identity)) || string-length identity == 0 || string-length binder == 0 then
+        (None, add-error sp "imported refinement has an invalid defining identity or binder" st)
+      else case imported-refinement-parameters sp (field "parameters" metadata) st of
+        (params, checked) ->
+          if not (imported-refinement-param-names params (field "params" metadata)) then
+            (None, add-error sp "imported refinement parameter names disagree" checked)
+          else case (parse-scheme "refinement carrier" (string-to-bytes carrier), parse-scheme "refinement predicate" (string-to-bytes predicate)) of
+            (Parsed base Nil, Parsed condition Nil) -> if imported-refinement-carrier (parameter-names-for-check params) base then
+              (Some (DRefine sp owner params (MkTypeParam sp binder (Some base) False) condition), checked)
+              else (None, add-error sp "imported refinement carrier needs defining nominal contracts" checked)
+            other -> (None, add-error sp "invalid imported refinement predicate or carrier syntax" checked)
+    other -> (None, add-error sp "imported refinement is missing its defining contract" st)
+  find-refinement :: String -> List Decl -> Option Decl
+  find-refinement name declarations = case declarations of
+    Nil -> None
+    Cons (DRefine sp actual params binder predicate) rest -> if same name actual then Some (DRefine sp actual params binder predicate) else find-refinement name rest
+    Cons other rest -> find-refinement name rest
+  refinement-application :: UType -> List UType -> (UType, List UType)
+  refinement-application ty args = case ty of UApp head value -> refinement-application head (Cons value args); other -> (ty, args)
+  unfold-refinement :: Span -> TypeContext -> UType -> Store -> (UType, Store)
+  unfold-refinement sp kinds value st = case refinement-application value Nil of
+    (UCon name kind, actuals) -> case find-refinement name (context-aliases kinds) of
+      Some (DRefine source name params binder predicate) -> if list-length actuals < list-length params then bad sp "unsaturated refinement alias needs higher-kinded elaboration" st
+        else case context-enter-alias name kinds of
+          None -> bad sp "recursive refinement alias expansion" st
+          Some scoped -> case refinement-arguments sp scoped params actuals Nil Nil st of
+            (locals, checked) -> instantiate-refinement sp scoped locals binder predicate checked
+      other -> (value, st)
+    other -> (value, st)
+  refinement-arguments :: Span -> TypeContext -> List TypeParam -> List UType -> List (String, UType) -> List String -> Store -> (List (String, UType), Store)
+  refinement-arguments sp kinds params actuals locals seen st = case (params, actuals) of
+    (Nil, Nil) -> (locals, st)
+    (Cons parameter rest, Cons value more) ->
+      let name = param-name parameter in
+      let distinct = if has name seen then add-error sp "duplicate refinement parameter" st else st in
+      let (kind, sk) = case param-kind parameter of None -> (KType, distinct); Some annotation -> kind-of False kinds locals annotation distinct in
+      refinement-arguments sp kinds rest more (Cons (name, value) locals) (Cons name seen) (unify-kind sp kind (type-kind value) sk)
+    other -> (locals, add-error sp "refinement alias arity mismatch" st)
+  instantiate-refinement :: Span -> TypeContext -> List (String, UType) -> TypeParam -> TypeExpr -> Store -> (UType, Store)
+  instantiate-refinement sp kinds locals binder predicate st = case param-kind binder of
+    None -> bad sp "a named refinement needs its declared carrier" st
+    Some syntax -> if has (param-name binder) (local-value-names locals) then bad sp "duplicate refinement binder" st
+      else case convert False kinds locals syntax st of
+        (carrier, checked) -> case fresh-for-types (Cons carrier (local-types locals)) (expect-type sp carrier checked) of
+          (id, prepared) -> finish-refinement False kinds (Cons (param-name binder, UBound id (param-name binder) (value-kind carrier)) locals)
+            sp id (param-name binder) carrier predicate prepared
+  local-value-names :: List (String, UType) -> List String
+  local-value-names locals = case locals of Nil -> Nil; Cons (name, value) rest -> Cons name (local-value-names rest)
+  refinement-mentions :: String -> TypeExpr -> Bool
+  refinement-mentions name syntax = case syntax of
+    TName sp actual -> same name actual
+    TInfix sp op left right -> refinement-mentions name left || refinement-mentions name right
+    TNegate sp body -> refinement-mentions name body
+    TApp sp head args -> refinement-mentions name head || refinement-mentions name args
+    TArg sp first rest -> refinement-mentions name first || refinement-mentions name rest
+    other -> False
+  refinement-predicate-scope :: List String -> TypeExpr -> Bool
+  refinement-predicate-scope names syntax = case syntax of
+    TName sp name -> has name names || has name ["True", "False"]
+    TIndex sp text -> True
+    TNegate sp body -> refinement-predicate-scope names body
+    TInfix sp op first second -> has op ["+", "-", "*", "<", "<=", ">", ">=", "==", "/=", "&&", "||"] && refinement-predicate-scope names first && refinement-predicate-scope names second
+    TApp sp (TName at name) (TArg arg input (TArgsEnd end)) -> same name "NonZero" && refinement-predicate-scope names input
+    other -> False
+  validate-refinement :: TypeContext -> Decl -> Store -> Store
+  validate-refinement kinds declaration st = case declaration of
+    DRefine sp name params binder predicate -> case parameters False kinds Nil params 0 Nil st of
+      (qs, prepared) -> let locals = quant-locals qs in
+        if has (param-name binder) (local-value-names locals) then add-error sp "duplicate refinement binder" prepared
+        else if not (refinement-mentions (param-name binder) predicate) then add-error sp "a named refinement predicate must mention its binder" prepared
+        else if not (refinement-predicate-scope (Cons (param-name binder) (local-value-names locals)) predicate) then add-error sp "named refinement predicate needs checked scope and semantics" prepared
+        else case param-kind binder of
+          None -> add-error sp "a named refinement needs its declared carrier" prepared
+          Some syntax -> case convert False kinds locals syntax prepared of
+            (carrier, checked) -> let proper = expect-type sp carrier checked in
+              case carrier of
+                UBound id name KType -> proper
+                other -> case instantiate-refinement sp kinds locals binder predicate proper of (value, final) -> final
+    other -> st
+  validate-refinements :: TypeContext -> List Decl -> Store -> Store
+  validate-refinements kinds declarations st = case declarations of
+    Nil -> st
+    Cons declaration rest -> validate-refinements kinds rest (validate-refinement kinds declaration st)
+  convert :: Bool -> TypeContext -> List (String, UType) -> TypeExpr -> Store -> (UType, Store)
+  convert external kinds locals ty st = case ty of
+    TName s name -> case lookup-local name locals of
+      Some found -> (found, st)
+      None -> if same name "Io" || same name "b.Io" then (UCon "b.Io" (KFun KRegion KType), st)
+        else if external && same name "String" then bad s (string-concat "imported nominal scheme needs defining-module type identities: " name) st
+        else if primitive name then (literal-type kinds name, st)
+        else if external then bad s (string-concat "imported nominal scheme needs defining-module type identities: " name) st
+        else case context-kind name kinds of Some k -> unfold-refinement s kinds (UCon name k) st; None -> bad s (string-concat "unknown type constructor or unbound type variable: " name) st
+    TFun s a b -> convert-arrow external kinds locals s a None b st
+    TApp s head args -> case source-type-application head args of
+      (function, actuals) -> case convert-type-head external kinds locals function st of
+        (h, sh) -> convert-args external kinds locals s h actuals sh
+    TTuple s args -> case convert-spine external kinds locals args st of (xs, sx) -> (UTuple xs, sx)
+    TForall s qs body -> bad s "higher-rank forall needs explicit elaboration" st
+    TUsing s bounds body -> bad s "using contexts need dictionary and proof elaboration" st
+    TFunEff s a row b -> convert-arrow external kinds locals s a (Some row) b st
+    TRefined s predicate carrier -> convert-refined external kinds locals s predicate carrier st
+    TBound s name kind rest -> bad s "dependent argument binders need index elaboration" st
+    other -> bad (type-expr-span ty) "dependent or unmodeled type needs kernel elaboration" st
+  unqualified-name :: String -> Bool
+  unqualified-name name = no-qualifier (unpack name)
+  no-qualifier :: List Char -> Bool
+  no-qualifier chars = case chars of Nil -> True; Cons char rest -> not (char-code char == 46) && no-qualifier rest
+  refinement-free-names :: TypeContext -> List (String, UType) -> TypeExpr -> List String
+  refinement-free-names kinds locals syntax = case syntax of
+    TName s name -> if has name ["True", "False"] || primitive name || not (unqualified-name name) then Nil else
+      (case lookup-local name locals of Some value -> Nil; None -> case context-kind name kinds of Some kind -> Nil; None -> [name])
+    TInfix s op first second -> unique-names (refinement-free-names kinds locals first <> refinement-free-names kinds locals second) Nil
+    TNegate s input -> refinement-free-names kinds locals input
+    -- A function head is never invented as the result binder. The typed
+    -- call reifier must separately admit a predicate's applications.
+    TApp s head arguments -> refinement-free-names kinds locals arguments
+    TArg s first rest -> unique-names (refinement-free-names kinds locals first <> refinement-free-names kinds locals rest) Nil
+    other -> Nil
+  unique-names :: List String -> List String -> List String
+  unique-names names seen = case names of Nil -> Nil; Cons name rest -> if has name seen then unique-names rest seen else Cons name (unique-names rest (Cons name seen))
+  convert-refined :: Bool -> TypeContext -> List (String, UType) -> Span -> TypeExpr -> TypeExpr -> Store -> (UType, Store)
+  convert-refined external kinds locals sp predicate syntax st = case convert external kinds locals syntax st of
+    (carrier, checked) -> case fresh-for-types (Cons carrier (local-types locals)) (expect-type sp carrier checked) of
+      (id, prepared) -> case refinement-free-names kinds locals predicate of
+        Nil -> finish-refinement external kinds locals sp id "#result" carrier predicate prepared
+        Cons name Nil -> finish-refinement external kinds (Cons (name, UBound id name (value-kind carrier)) locals) sp id name carrier predicate prepared
+        other -> bad sp "refinement predicate has more than one unbound value name" prepared
+  finish-refinement :: Bool -> TypeContext -> List (String, UType) -> Span -> Nat -> String -> UType -> TypeExpr -> Store -> (UType, Store)
+  finish-refinement external kinds locals sp id name carrier predicate st = case convert-predicate external kinds locals predicate st of
+    (condition, checked) -> let out = URefine id name carrier condition in
+      if valid-type out then (out, checked) else bad sp "ill-formed source refinement" checked
+
+  -- Mathematical literal decoding never narrows through a machine word.
+  number-digit :: Char -> Option Int
+  number-digit char = let code = nat-to-int (char-code char) in
+    if code >= 48 && code <= 57 then Some (code - 48)
+    else if code >= 65 && code <= 70 then Some (code - 55)
+    else if code >= 97 && code <= 102 then Some (code - 87) else None
+  number-digits :: Int -> List Char -> Int -> Bool -> Bool -> Option Int
+  number-digits radix chars value seen separator = case chars of
+    Nil -> if seen && not separator then Some value else None
+    Cons char rest -> if char-code char == 95 then
+      (if seen && not separator then number-digits radix rest value seen True else None)
+      else case number-digit char of
+        Some digit -> if digit < radix then number-digits radix rest (value * radix + digit) True False else None
+        None -> None
+  number-base :: List Char -> Option Int
+  number-base chars = case chars of
+    Cons zero (Cons marker rest) -> if char-code zero == 48 then
+      (if char-code marker == 120 || char-code marker == 88 then number-digits 16 rest 0 False False
+       else if char-code marker == 98 || char-code marker == 66 then number-digits 2 rest 0 False False
+       else if char-code marker == 111 || char-code marker == 79 then number-digits 8 rest 0 False False
+       else number-digits 10 chars 0 False False)
+      else number-digits 10 chars 0 False False
+    other -> number-digits 10 chars 0 False False
+  index-number :: String -> Option Int
+  index-number text = case unpack text of
+    Cons sign rest -> if char-code sign == 45 then (case number-base rest of Some n -> Some (0 - n); None -> None) else number-base (unpack text)
+    Nil -> None
+  checked-literal :: Span -> UType -> String -> Store -> (CoreTerm, Store)
+  checked-literal sp carrier text st = case index-number text of
+    Some value -> if math-carrier (normalize st carrier) && valid-type (UIndex (normalize st carrier) (IInteger value)) then
+      (CInt sp carrier (int-to-string value), st) else term-error sp "literal is outside its mathematical carrier" st
+    None -> term-error sp "invalid or machine-suffixed mathematical literal" st
+  math-carrier :: UType -> Bool
+  math-carrier carrier = case carrier of UCon name KType -> same name "Nat" || same name "Int"; other -> False
+  index-math :: String -> IndexTerm -> IndexTerm -> IndexTerm
+  index-math op a b = if same op "+" then IAdd a b else if same op "*" then IMultiply a b else ISubtract a b
+  checked-source-index :: Span -> UType -> IndexTerm -> Store -> (UType, Store)
+  checked-source-index sp carrier value st = let out = UIndex carrier value in
+    if not (valid-type out && index-runtime-admissible carrier value) then bad sp "ill-sorted, partial or unchecked source index" st
+    else (out, unify sp out out st)
+  checked-typed-source-index :: Span -> UType -> Store -> (UType, Store)
+  checked-typed-source-index sp value st = let out = normalize st value in
+    if typed-index-admissible out then (out, unify sp out out st)
+    else bad sp "ill-sorted, partial or unchecked typed source index" st
+  convert-index :: Bool -> TypeContext -> List (String, UType) -> UType -> TypeExpr -> Store -> (UType, Store)
+  convert-index external kinds locals carrier syntax st = case syntax of
+    TIndex sp text -> case index-number text of
+      Some n -> checked-source-index sp carrier (IInteger n) st
+      None -> bad sp "index literal is not a mathematical integer" st
+    TName sp name -> case lookup-local name locals of
+      Some value -> let checked = unify-kind sp (type-kind value) (value-kind carrier) st in
+        checked-typed-source-index sp value checked
+      None -> bad sp "source index has no checked local binding" st
+    TNegate sp input -> case convert-index external kinds locals carrier input st of
+      (value, checked) -> case index-of-type value of
+        Some term -> checked-source-index sp carrier (ISubtract (IInteger 0) term) checked
+        None -> bad sp "invalid negated index" checked
+    TInfix sp op first second -> if has op ["+", "-", "*"] && math-carrier (normalize st carrier) then
+      (case convert-index external kinds locals carrier first st of
+        (a, sa) -> case convert-index external kinds locals carrier second sa of
+          (b, sb) -> checked-typed-source-index sp (UIndexMath op a b) sb)
+      else bad sp "index operator needs checked mathematical semantics" st
+    other -> bad (type-expr-span syntax) "index expression needs checked scope, purity and totality" st
+
+  -- Only real local bindings enter this context. A polymorphic local needs
+  -- explicit instantiation before it can appear in a source type annotation.
+  value-locals :: List CheckedBinding -> List (String, UType) -> List (String, UType)
+  value-locals env locals = case env of
+    Nil -> locals
+    Cons (MkValueBinding name sc id level value) rest -> Cons (name, value) (value-locals rest locals)
+    Cons (MkLocalBinding name sc id level) rest -> case (scheme-params sc, scheme-requirements sc) of
+      (Nil, Nil) -> Cons (name, UIndex (scheme-body sc) (IRigid id name level)) (value-locals rest locals)
+      other -> value-locals rest locals
+    Cons binding rest -> value-locals rest locals
+  find-local-id :: Nat -> List CheckedBinding -> Option CheckedBinding
+  find-local-id id env = case env of
+    Nil -> None
+    Cons (MkLocalBinding name sc key level) rest -> if id == key then Some (MkLocalBinding name sc key level) else find-local-id id rest
+    Cons (MkValueBinding name sc key level value) rest -> if id == key then Some (MkValueBinding name sc key level value) else find-local-id id rest
+    Cons other rest -> find-local-id id rest
+  local-actuals :: Span -> List Quant -> List UType -> List (Nat, UType) -> Store -> (List (Nat, UType), Store)
+  local-actuals sp params actuals earlier st = case (params, actuals) of
+    (Nil, Nil) -> (earlier, st)
+    (Cons q rest, Cons actual more) -> if valid-type actual then
+      (let expected = map-kind-types (substitute-bound earlier) (quant-kind q) in
+       local-actuals sp rest more (Cons (quant-id q, actual) earlier) (unify-kind sp expected (type-kind actual) st))
+      else (earlier, add-error sp "invalid local index instantiation" st)
+    other -> (earlier, add-error sp "local index instantiation arity mismatch" st)
+  reify-argument :: Span -> List CheckedBinding -> CoreTerm -> Store -> (UType, Store)
+  reify-argument sp env term st = case store-errors st of
+    Cons error rest -> (UError, st)
+    Nil -> reify-checked-argument sp env term st
+  reify-checked-argument :: Span -> List CheckedBinding -> CoreTerm -> Store -> (UType, Store)
+  reify-checked-argument sp env term st = case term of
+    CForget source carrier body -> case normalize st (core-type body) of
+      URefine id name domain predicate -> if not (comparison-refinement (normalize st (core-type body))) then bad sp "refinement projection needs checked mathematical semantics" st
+        else case body of
+          CRefine at ty evidence actual -> reify-argument sp env actual (unify sp carrier domain st)
+          other -> case reify-argument sp env body st of
+            (value, checked) -> checked-typed-source-index sp (UIndexForget value) (unify sp carrier domain checked)
+      other -> bad sp "refinement projection needs an actual refined operand" st
+    CLocal source ty id display actuals -> case find-local-id id env of
+      Some (MkLocalBinding name sc key level) -> reify-local-index sp sc level actuals ty (IRigid id display level) st
+      Some (MkValueBinding name sc key level value) -> if level > store-level st then bad sp "local index escapes its binding scope" st
+        else case local-actuals sp (scheme-params sc) actuals Nil st of
+          (pairs, prepared) -> checked-typed-source-index sp value
+            (unify sp (substitute-bound pairs (scheme-body sc)) ty (unify-kind sp (type-kind value) (value-kind ty) prepared))
+      other -> bad sp "index reference is not a checked local identity" st
+    CInt source ty text -> if math-carrier (normalize st ty) then (case index-number text of
+      Some value -> checked-source-index sp (normalize st ty) (IInteger value) st
+      None -> bad sp "invalid mathematical argument literal" st) else bad sp "machine literals cannot enter mathematical index conversion" st
+    CPrimitive source ty op (CArgument a first (CArgument b second (CArgumentsEnd end))) ->
+      if has op ["+", "-", "*"] && math-carrier (normalize st ty) then
+        (case reify-argument sp env first st of
+          (left, sl) -> case reify-argument sp env second sl of
+            (right, sr) -> let sorted = unify-kind sp (type-kind right) (value-kind ty) (unify-kind sp (type-kind left) (value-kind ty) sr) in
+              checked-typed-source-index sp (UIndexMath op left right) sorted)
+      else bad sp "index arithmetic needs mathematical primitive semantics" st
+    CPrimitive source ty op (CArgument a input (CArgumentsEnd end)) -> if same op "negate" && kind-equal (type-kind ty) KType then
+      (case reify-argument sp env input st of
+        (value, checked) -> checked-typed-source-index sp (UIndexMath "-" (UIndex (normalize checked ty) (IInteger 0)) value) checked)
+      else bad sp "unchecked unary operation in index" st
+    CApply source ty (CApply partial function method first) second ->
+      case numeric-method-operation (map-term-types (normalize st) method) (map-term-types (normalize st) first) (map-term-types (normalize st) second) of
+        Some op -> case reify-argument sp env first st of
+          (left, sl) -> case reify-argument sp env second sl of
+            (right, sr) -> checked-typed-source-index sp (UIndexMath op left right) sr
+        None -> bad sp "argument method needs checked mathematical semantics" st
+    other -> bad sp "argument index needs checked pure total reification" st
+
+  reify-projected-argument :: Span -> List CheckedBinding -> CoreTerm -> Store -> (UType, Store)
+  reify-projected-argument sp env term st = case term of
+    CRefine source ty evidence body -> reify-argument sp env body st
+    other -> reify-argument sp env term st
+
+  reify-local-index :: Span -> Scheme -> Nat -> List UType -> UType -> IndexTerm -> Store -> (UType, Store)
+  reify-local-index sp sc level actuals ty index st =
+    if level > store-level st then bad sp "local index escapes its binding scope" st
+    else case scheme-requirements sc of
+      Nil -> case local-actuals sp (scheme-params sc) actuals Nil st of
+        (pairs, prepared) -> let checked = unify sp (substitute-bound pairs (scheme-body sc)) ty prepared in
+          checked-source-index sp (normalize checked ty) index checked
+      other -> bad sp "local index requires unresolved dictionary evidence" st
+
+  let-binding :: Span -> List CheckedBinding -> String -> Scheme -> Nat -> Nat -> CoreTerm -> Store -> (CheckedBinding, Store)
+  let-binding sp env name sc id level value st = case (scheme-params sc, scheme-requirements sc) of
+    (Nil, Nil) -> case reify-argument sp env value st of
+      (index, checked) -> case (store-errors checked, index-of-type index) of
+        (Nil, witness) -> if typed-index-admissible index then (MkValueBinding name sc id level index, checked) else (MkLocalBinding name sc id level, st)
+        other -> (MkLocalBinding name sc id level, st)
+    other -> (MkLocalBinding name sc id level, st)
+
+  pattern-value :: CorePattern -> Option CoreTerm
+  pattern-value pattern = case pattern of
+    CPVar sp ty id name -> Some (CLocal sp ty id name Nil)
+    CPAs sp ty id name inner -> Some (CLocal sp ty id name Nil)
+    CPInt sp ty text -> Some (CInt sp ty text)
+    other -> None
+  bind-arrow-pattern :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Pat -> UType -> Store -> (List CheckedBinding, CorePattern, UType, UType, Store)
+  bind-arrow-pattern classes kinds families env locals pat expected st = case normalize st expected of
+    UPi id name domain effects result -> case bind-pattern classes kinds families env locals pat domain st of
+      (bound, pattern, checked) -> if pi-dependent (normalize checked expected) then
+        (case pattern-value pattern of
+          Some actual -> case reify-argument (pat-span pat) bound actual checked of
+            (index, sr) -> case open-pi (pat-span pat) expected index sr of
+              (out, row, done) -> (bound, pattern, row, out, done)
+          None -> (bound, pattern, UError, UError, add-error (pat-span pat) "dependent pattern needs a checked argument value" checked))
+        else (bound, pattern, effects, result, checked)
+    other -> case arrow-parts (pat-span pat) expected st of
+      (domain, row, result, checked) -> case bind-pattern classes kinds families env locals pat domain checked of
+        (bound, pattern, done) -> (bound, pattern, row, result, done)
+
+  local-types :: List (String, UType) -> List UType
+  local-types locals = case locals of Nil -> Nil; Cons (name, ty) rest -> Cons ty (local-types rest)
+  convert-arrow :: Bool -> TypeContext -> List (String, UType) -> Span -> TypeExpr -> Option TypeExpr -> TypeExpr -> Store -> (UType, Store)
+  convert-arrow external kinds locals sp argument row result st = case argument of
+    TBound s name carrier (TBoundsEnd end) -> case convert external kinds locals carrier st of
+      (domain, checked) -> case fresh-for-types (Cons domain (local-types locals)) (expect-type s domain checked) of
+        (id, fresh) -> let bound = Cons (name, UBound id name (value-kind domain)) locals in
+          case (case row of None -> (URow UEnd, fresh); Some effects -> convert-row bound effects fresh) of
+            (effects, sr) -> case convert external kinds bound result sr of
+              (out, done) -> let ty = UPi id name domain effects out in
+                (ty, if valid-type ty then done else add-error sp "ill-formed source dependent function" done)
+    other -> case convert external kinds locals argument st of
+      (domain, checked) -> case (case row of None -> (URow UEnd, checked); Some effects -> convert-row locals effects checked) of
+        (effects, sr) -> case convert external kinds locals result sr of
+          (out, done) -> (function-type domain effects out, expect-type sp out (expect-type sp domain done))
+
+  expect-type :: Span -> UType -> Store -> Store
+  expect-type sp ty st = if kind-equal (type-kind ty) KType then st else add-error sp "a value type must have kind Type" st
+  convert-row :: List (String, UType) -> TypeExpr -> Store -> (UType, Store)
+  convert-row locals row st = case row of
+    TRow s labels None -> case convert-effects locals labels st of (out, checked) -> (URow out, checked)
+    other -> bad (type-expr-span row) "open effect rows need row-tail elaboration" st
+  convert-effects :: List (String, UType) -> TypeExpr -> Store -> (UType, Store)
+  convert-effects locals labels st = case labels of
+    TArgsEnd s -> (UEnd, st)
+    TArg s label rest -> case convert-effect locals label st of
+      (out, checked) -> case convert-effects locals rest checked of (more, done) -> (UArg out more, done)
+    other -> bad (type-expr-span labels) "malformed effect label spine" st
+  convert-effect :: List (String, UType) -> TypeExpr -> Store -> (UType, Store)
+  convert-effect locals label st = case label of
+    TName s name -> if has name ["Diverge", "Blocking"] then (UCon name KEffect, st)
+      else bad s "effect label needs a checked kernel contract" st
+    TApp s (TName h name) (TArg a (TName r region) (TArgsEnd end)) ->
+      if has name ["IO", "Async", "Cancel", "Eval"] then (case lookup-local region locals of
+        Some ty -> if kind-equal (type-kind ty) KRegion then (UApp (UCon name (KFun KRegion KEffect)) ty, st)
+          else bad r "effect argument must have kind Region" st
+        None -> bad r "unbound effect region" st)
+      else bad s "effect label needs a checked kernel contract" st
+    other -> bad (type-expr-span label) "malformed kernel effect label" st
+  convert-args :: Bool -> TypeContext -> List (String, UType) -> Span -> UType -> TypeExpr -> Store -> (UType, Store)
+  convert-args external kinds locals sp head args st = case args of
+    TArgsEnd end -> unfold-refinement sp kinds head st
+    TArg s arg rest -> case type-kind (normalize st head) of
+      KFun domain result -> case (case value-carrier domain of
+        Some carrier -> convert-index external kinds locals carrier arg st
+        None -> convert external kinds locals arg st) of
+          (x, sx) -> let checked = unify-kind s domain (type-kind x) sx in
+            convert-args external kinds locals sp (UApp head x) rest checked
+      other -> bad sp "type constructor is applied to too many arguments" st
+    other -> bad sp "malformed type argument spine" st
+  convert-spine :: Bool -> TypeContext -> List (String, UType) -> TypeExpr -> Store -> (UType, Store)
+  convert-spine external kinds locals xs st = case xs of
+    TArgsEnd s -> (UEnd, st)
+    TArg s x rest -> case convert external kinds locals x st of
+      (ty, sx) -> case convert-spine external kinds locals rest (expect-type s ty sx) of (ys, sy) -> (UArg ty ys, sy)
+    other -> bad (type-expr-span xs) "malformed tuple type spine" st
+  make-scheme :: Bool -> List (String, Kind) -> TypeContext -> List Quant -> TypeExpr -> Store -> (Scheme, Store)
+  make-scheme external classes kinds inherited ty st = case ty of
+    TForall s binders body -> case inherited of
+      Cons q rest -> (mono UError, add-error s "constructor-local quantifiers need existential/index elaboration" st)
+      Nil -> case parameters external kinds Nil (region-parameters (forall-params-of binders) (region-names body)) 0 Nil (if quantifiers-ok binders then st else add-error s "malformed quantified parameter spine" st) of
+        (qs, sq) -> scheme-body-from external classes kinds (implicit-row-regions qs (latent-regions body)) body sq
+    other -> scheme-body-from external classes kinds (case inherited of Nil -> implicit-row-regions Nil (latent-regions ty); more -> inherited) ty st
+  scheme-body-from :: Bool -> List (String, Kind) -> TypeContext -> List Quant -> TypeExpr -> Store -> (Scheme, Store)
+  scheme-body-from external classes kinds qs ty st = case ty of
+    TUsing s bounds body -> if external then (mono UError, add-error s "imported using context needs a defining signature contract" st)
+      else case convert-requirements classes kinds (quant-locals qs) bounds Nil st of
+        (requirements, sr) -> case convert-contracted False kinds (quant-locals qs) bounds body sr of
+          (out, so) -> (qualified qs requirements out, expect-type s out so)
+    other -> case convert external kinds (quant-locals qs) ty st of (out, so) -> (MkScheme qs out, expect-type (type-expr-span ty) out so)
+  convert-requirements :: List (String, Kind) -> TypeContext -> List (String, UType) -> TypeExpr -> List String -> Store -> (List Requirement, Store)
+  convert-requirements classes kinds locals bounds seen st = case bounds of
+    TBoundsEnd s -> (Nil, st)
+    TBound s name app rest -> if predicate-syntax app then convert-requirements classes kinds locals rest seen st else case convert False kinds locals app st of
+      (ty, sc) ->
+        let checked = if has name seen then add-error s "duplicate dictionary binder" sc
+              else if checked-class-type classes ty then sc else add-error s "using constraint needs a saturated checked signature type" sc in
+        case convert-requirements classes kinds locals rest (Cons name seen) checked of
+          (more, done) -> (Cons (MkRequirement name ty) more, done)
+    other -> (Nil, add-error (type-expr-span bounds) "using predicate needs dependent proof elaboration" st)
+  checked-class-type :: List (String, Kind) -> UType -> Bool
+  checked-class-type classes ty = valid-type ty && kind-equal (type-kind ty) KType && (case root-name ty of
+    Some name -> (case lookup-kind name classes of Some kind -> class-head-kind ty kind; None -> False)
+    None -> False)
+  class-head-kind :: UType -> Kind -> Bool
+  class-head-kind ty expected = case ty of UCon name kind -> kind-equal kind expected; UApp f x -> class-head-kind f expected; other -> False
+  quantifiers-ok :: TypeExpr -> Bool
+  quantifiers-ok qs = case qs of TQuantifier s name only k rest -> quantifier-tail rest; other -> False
+  quantifier-tail :: TypeExpr -> Bool
+  quantifier-tail qs = case qs of TQuantifiersEnd s -> True; TQuantifier s name only k rest -> quantifier-tail rest; other -> False
+  -- Unannotated variables used by kernel capabilities or effect labels have
+  -- kind Region. This does not bind otherwise free names in a using context.
+  region-parameters :: List TypeParam -> List String -> List TypeParam
+  region-parameters ps regions = case ps of
+    Nil -> Nil
+    Cons p rest -> Cons (case p of MkTypeParam s name None only -> if has name regions then MkTypeParam s name (Some (TName s "Region")) only else p; other -> p) (region-parameters rest regions)
+  region-names :: TypeExpr -> List String
+  region-names ty = case ty of
+    TApp s (TName h name) (TArg a (TName r region) (TArgsEnd end)) -> if has name ["Io", "b.Io", "IO", "Async", "Cancel", "Eval"] then [region] else Nil
+    TApp s f xs -> region-names f <> region-names xs
+    TFun s a b -> region-names a <> region-names b
+    TFunEff s a row b -> region-names a <> region-names row <> region-names b
+    TRow s labels tail -> region-names labels
+    TUsing s bounds body -> region-names bounds <> region-names body
+    TBound s name app rest -> region-names app <> region-names rest
+    TArg s x rest -> region-names x <> region-names rest
+    TTuple s xs -> region-names xs
+    other -> Nil
+  latent-regions :: TypeExpr -> List String
+  latent-regions ty = case ty of
+    TFun s a b -> latent-regions a <> latent-regions b
+    TFunEff s a row b -> latent-regions a <> region-names row <> latent-regions b
+    TUsing s bounds body -> latent-regions body
+    TApp s f xs -> latent-regions f <> latent-regions xs
+    TArg s x rest -> latent-regions x <> latent-regions rest
+    TTuple s xs -> latent-regions xs
+    other -> Nil
+  quantified-name :: String -> List Quant -> Bool
+  quantified-name name qs = case qs of Nil -> False; Cons q rest -> same name (quant-name q) || quantified-name name rest
+  implicit-row-regions :: List Quant -> List String -> List Quant
+  implicit-row-regions qs names = case names of
+    Nil -> qs
+    Cons name rest -> implicit-row-regions (if quantified-name name qs then qs else qs <> [MkQuant (list-length qs) name KRegion True]) rest
+
+  imported-kinds :: TypeContext -> Json -> Store -> (List Quant, Store)
+  imported-kinds kinds rows st = case imported-kinds-from kinds Nil 0 Nil rows st of
+    (qs, checked) -> (qs, declaration-kind-errors zero qs checked)
+  imported-kinds-from :: TypeContext -> List (String, UType) -> Nat -> List String -> Json -> Store -> (List Quant, Store)
+  imported-kinds-from kinds locals next seen rows st = case rows of
+    JArr row rest -> case (field "name" row, field "kind" row, field "implicit" row) of
+      (JStr name, JStr text, JBool only) -> case parse-scheme "interface-kind" (string-to-bytes text) of
+        Parsed ast Nil ->
+          let distinct = if has name seen then add-error zero "duplicate imported declaration parameter" st else st in
+          case kind-of True kinds locals ast distinct of
+            (k, sk) -> case imported-kinds-from kinds (Cons (name, UBound next name k) locals) (next + 1) (Cons name seen) rest sk of
+              (qs, sr) -> (Cons (MkQuant next name k only) qs, sr)
+        other -> (Nil, add-error zero "invalid imported declaration kind" st)
+      other -> (Nil, add-error zero "missing imported declaration parameter metadata" st)
+    JArrEnd -> (Nil, st)
+    other -> (Nil, add-error zero "missing imported declaration parameters" st)
+  add-kind :: Span -> String -> Kind -> TypeContext -> Store -> (TypeContext, Store)
+  add-kind sp name k kinds st = case context-kind name kinds of
+    Some old -> (kinds, add-error sp (string-concat "duplicate type declaration: " name) st)
+    None -> (context-add-kind name k kinds, st)
+  collect-kinds :: List Decl -> TypeContext -> Store -> (TypeContext, Store)
+  collect-kinds ds kinds st = case ds of
+    Nil -> (kinds, st)
+    Cons d rest -> case d of
+      DRefine s name ps binder predicate -> case parameters False kinds Nil ps 0 Nil st of
+        (qs, sq) -> case add-kind s name (kind-arrow qs) kinds (declaration-kind-errors s qs sq) of
+          (ks, sk) -> collect-kinds rest (context-add-alias d ks) sk
+      DData s name ps cs -> case parameters False kinds Nil ps 0 Nil st of
+        (qs, sq) -> case add-kind s name (kind-arrow qs) kinds (declaration-kind-errors s qs sq) of (ks, sk) -> collect-kinds rest ks sk
+      DExternal s name category scheme metadata ->
+        if same category "signature" then
+          case imported-kinds kinds (field "parameters" metadata) st of
+            (qs, sq) -> case context-kind name kinds of
+              Some old -> collect-kinds rest kinds sq
+              None -> collect-kinds rest (context-add-kind name (kind-arrow qs) kinds) sq
+        else if same category "type" then
+          case field "kind" metadata of
+            JStr variety ->
+              if same variety "refinement" then
+                (case imported-refinement s name metadata st of
+                  (Some declaration, checked) -> case declaration of
+                    DRefine at owner params binder predicate -> case parameters False kinds Nil params 0 Nil checked of
+                      (qs, prepared) -> case add-kind s owner (kind-arrow qs) kinds (declaration-kind-errors s qs prepared) of
+                        (more, final) -> collect-kinds rest (context-add-alias declaration more) final
+                    other -> collect-kinds rest kinds (add-error s "invalid imported refinement declaration" checked)
+                  (None, checked) -> collect-kinds rest kinds checked)
+              else if same variety "data" || same variety "opaque" || same variety "signature" then
+                case imported-kinds kinds (field "parameters" metadata) st of
+                  (qs, sq) -> case context-kind name kinds of
+                    Some old -> collect-kinds rest kinds sq
+                    None -> collect-kinds rest (context-add-kind name (kind-arrow qs) kinds) sq
+              else collect-kinds rest kinds (add-error s "imported class/refinement type needs kind and proof elaboration" st)
+            other -> collect-kinds rest kinds (add-error s "imported type has no declaration kind" st)
+        else collect-kinds rest kinds st
+      other -> collect-kinds rest kinds st
+
+  lookup-binding :: String -> List CheckedBinding -> Option CheckedBinding
+  lookup-binding name env = case env of Nil -> None; Cons b rest -> if same name (checked-name b) then Some b else lookup-binding name rest
+  add-binding :: Span -> String -> Scheme -> String -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
+  add-binding sp name sc role env st = case lookup-binding name env of
+    Some prior -> (env, add-error sp (string-concat "duplicate signature or constructor: " name) st)
+    None -> (Cons (MkCheckedBinding name sc role) env, st)
+
+  -- Length framing preserves exact defining contract identity even if
+  -- a source spelling contains punctuation. Native emits canonical text;
+  -- differing templates for the same owner are refused before inference.
+  contract-part :: String -> String
+  contract-part value = string-concat-all [nat-to-string (string-length value), ":", value]
+  contract-text :: Json -> String
+  contract-text value = case value of JStr text -> text; other -> ""
+  contract-parameters :: Json -> String
+  contract-parameters rows = case rows of
+    JArr row rest -> string-concat-all [contract-part (contract-text (field "name" row)), contract-part (contract-text (field "kind" row)), (case field "implicit" row of JBool True -> "1"; JBool False -> "0"; other -> "?"), contract-parameters rest]
+    JArrEnd -> "!"
+    other -> "?"
+  refinement-contract-key :: Json -> String
+  refinement-contract-key row = let template = field "refinement" row in
+    string-concat-all [contract-part (contract-parameters (field "parameters" row)), contract-part (contract-text (field "binder" template)), contract-part (contract-text (field "carrier" template)), contract-part (contract-text (field "predicate" template))]
+  previous-contract :: String -> List (String, String) -> Option String
+  previous-contract identity seen = case seen of Nil -> None; Cons (name, key) rest -> if same identity name then Some key else previous-contract identity rest
+  check-refinement-row :: Span -> Json -> List (String, String) -> Store -> (List (String, String), Store)
+  check-refinement-row sp row seen st = case (field "kind" row, field "identity" row) of
+    (JStr kind, JStr identity) -> if not (same kind "refinement") then (seen, st)
+      else let key = refinement-contract-key row in
+        case previous-contract identity seen of
+          None -> (Cons (identity, key) seen, st)
+          Some prior -> (seen, if same key prior then st else add-error sp "conflicting defining refinement contracts" st)
+    other -> (seen, st)
+  check-refinement-rows :: Span -> Json -> List (String, String) -> Store -> (List (String, String), Store)
+  check-refinement-rows sp rows seen st = case rows of
+    JArr row rest -> case check-refinement-row sp row seen st of (more, checked) -> check-refinement-rows sp rest more checked
+    other -> (seen, st)
+  check-instance-refinements :: Span -> Json -> List (String, String) -> Store -> (List (String, String), Store)
+  check-instance-refinements sp rows seen st = case rows of
+    JArr row rest -> case check-refinement-rows sp (resolved-nominals row) seen st of (more, checked) -> check-instance-refinements sp rest more checked
+    other -> (seen, st)
+  check-type-refinements :: Span -> Json -> List (String, String) -> Store -> (List (String, String), Store)
+  check-type-refinements sp rows seen st = case rows of
+    JArr row rest -> case check-refinement-row sp row seen st of
+      (public, checked) -> case check-instance-refinements sp (field "ctors" row) public checked of
+        (more, done) -> check-type-refinements sp rest more done
+    other -> (seen, st)
+  check-signature-refinements :: Span -> Json -> List (String, String) -> Store -> (List (String, String), Store)
+  check-signature-refinements sp rows seen st = case rows of
+    JArr row rest -> case check-instance-refinements sp (field "methods" row) seen st of
+      (more, done) -> check-signature-refinements sp rest more done
+    other -> (seen, st)
+  check-imported-refinements :: List Decl -> List (String, String) -> Store -> Store
+  check-imported-refinements ds seen st = case ds of
+    Nil -> st
+    Cons (DExternal sp name category syntax metadata) rest -> case check-refinement-row sp metadata seen st of
+      (public, checked) -> case check-refinement-rows sp (resolved-nominals metadata) public checked of
+        (all, done) -> check-imported-refinements rest all done
+    Cons (DInterface sp name hash metadata) rest -> case check-type-refinements sp (field "types" (field "exports" metadata)) seen st of
+      (public, checked) -> case check-instance-refinements sp (field "values" (field "exports" metadata)) public checked of
+        (values, sv) -> case check-signature-refinements sp (field "signatures" (field "exports" metadata)) values sv of
+          (methods, sm) -> case check-instance-refinements sp (field "instances" (field "exports" metadata)) methods sm of
+            (all, done) -> check-imported-refinements rest all done
+    Cons other rest -> check-imported-refinements rest seen st
+  register-private-refinement :: Span -> String -> Json -> TypeContext -> Store -> (TypeContext, Store)
+  register-private-refinement sp name row kinds st = case field "kind" row of
+    JStr kind -> if not (same kind "refinement") then (kinds, st)
+      else case find-refinement name (context-aliases kinds) of
+        Some existing -> (kinds, st)
+        None -> case imported-refinement sp name row st of
+          (Some declaration, checked) -> (context-add-alias declaration kinds, checked)
+          (None, checked) -> (kinds, checked)
+    other -> (kinds, add-error sp "missing defining nominal kind" st)
+
+  collect-nominal-rows :: Span -> Json -> TypeContext -> Store -> (TypeContext, Store)
+  collect-nominal-rows sp rows kinds st = case rows of
+    JArr row rest -> case (field "identity" row, imported-kinds kinds (field "parameters" row) st) of
+      (JStr identity, (qs, sq)) ->
+        let name = interface-global identity in
+        let k = kind-arrow qs in
+        let (registered, checked) = case context-kind name kinds of
+              None -> (context-add-kind name k kinds, sq)
+              Some prior -> (kinds, if kind-equal prior k then sq else add-error sp "conflicting defining nominal kinds" sq) in
+        case register-private-refinement sp name row registered checked of
+          (more, done) -> collect-nominal-rows sp rest more done
+      other -> (kinds, add-error sp "invalid resolved nominal identity" st)
+    JArrEnd -> (kinds, st)
+    other -> (kinds, add-error sp "invalid resolved nominal contracts" st)
+  collect-nominal-kinds :: List Decl -> TypeContext -> Store -> (TypeContext, Store)
+  collect-nominal-kinds ds kinds st = case ds of
+    Nil -> (kinds, st)
+    Cons (DExternal s name category scheme metadata) rest -> case resolved-text metadata of
+      None -> collect-nominal-kinds rest kinds st
+      Some text -> if resolved-entry-valid metadata then
+        (case collect-nominal-rows s (resolved-nominals metadata) kinds st of (ks, sk) -> collect-nominal-kinds rest ks sk)
+        else collect-nominal-kinds rest kinds (add-error s "invalid resolved nominal contract" st)
+    Cons (DInterface sp name hash metadata) rest -> case collect-instance-nominals sp (field "instances" (field "exports" metadata)) kinds st of
+      (more, checked) -> collect-nominal-kinds rest more checked
+    Cons d rest -> collect-nominal-kinds rest kinds st
+
+  class-declaration-rows :: Decl -> List Json
+  class-declaration-rows d = case d of
+    DInterface s name hash metadata -> json-rows (field "signatures" (field "exports" metadata))
+    other -> Nil
+  json-rows :: Json -> List Json
+  json-rows rows = case rows of JArr row rest -> Cons row (json-rows rest); other -> Nil
+  class-rows :: List Decl -> List Json
+  class-rows ds = case ds of Nil -> Nil; Cons d rest -> class-declaration-rows d <> class-rows rest
+  class-kinds :: List Json -> TypeContext -> List (String, Kind) -> List (String, Kind)
+  class-kinds rows kinds seen = case rows of
+    Nil -> seen
+    Cons row rest -> case field "identity" row of
+      JStr identity -> let name = interface-global identity in
+        case (context-kind name kinds, lookup-kind name seen) of
+          (Some kind, None) -> class-kinds rest kinds (Cons (name, kind) seen)
+          other -> class-kinds rest kinds seen
+      other -> class-kinds rest kinds seen
+  method-slot-valid :: String -> String -> Nat -> List Json -> Bool
+  method-slot-valid owner name slot rows = case rows of
+    Nil -> False
+    Cons row rest -> case field "identity" row of
+      JStr identity -> if same owner (interface-global identity) then method-slot-in identity name slot (field "methods" row)
+        else method-slot-valid owner name slot rest
+      other -> method-slot-valid owner name slot rest
+  method-slot-in :: String -> String -> Nat -> Json -> Bool
+  method-slot-in owner name slot rows = case rows of
+    JArr row rest -> (case (field "name" row, field "slot" row) of
+      (JStr method, JNum number) -> number == nat-to-int slot && same name (interface-global (string-concat-all [owner, ".", method]))
+      other -> False) || method-slot-in owner name slot rest
+    other -> False
+
+  imported-scheme :: Span -> List (String, Kind) -> TypeContext -> TypeExpr -> Json -> Store -> (Scheme, Store)
+  imported-scheme sp classes kinds fallback metadata st = case resolved-text metadata of
+    None -> make-scheme True classes kinds Nil fallback st
+    Some text -> case parse-scheme "resolved-interface" (string-to-bytes text) of
+      Parsed ty Nil -> case qualify-resolved metadata ty of
+        (qualified, Nil) -> make-scheme False classes kinds Nil qualified st
+        other -> (mono UError, add-error sp "invalid resolved imported scheme" st)
+      other -> (mono UError, add-error sp "invalid resolved imported scheme syntax" st)
+  json-length :: Json -> Nat
+  json-length rows = case rows of JArr row rest -> 1 + json-length rest; other -> 0
+  computational-fields :: Json -> Bool
+  computational-fields rows = case rows of JArr (JBool False) rest -> computational-fields rest; JArrEnd -> True; other -> False
+  ctor-in-rows :: String -> Json -> Bool
+  ctor-in-rows name rows = case rows of
+    JArr (JStr symbol) rest -> same name (interface-global symbol) || ctor-in-rows name rest
+    other -> False
+  ctor-description :: String -> Json -> Option Json
+  ctor-description name rows = case rows of
+    JArr row rest -> if ctor-in-rows name (field "constructors" row) then Some row
+      else ctor-description name rest
+    other -> None
+  same-quant-kinds :: List Quant -> List Quant -> Bool
+  same-quant-kinds first second = case (first, second) of
+    (Nil, Nil) -> True
+    (Cons a rest, Cons b more) -> kind-equal (quant-kind a) (quant-kind b) && same-quant-kinds rest more
+    other -> False
+  regular-imported-constructor :: Span -> String -> Scheme -> Json -> Store -> Store
+  regular-imported-constructor sp owner sc description st = case imported-kinds primitive-kinds (field "parameters" description) st of
+    (parameters, checked) ->
+      let expected = applied-family owner (kind-arrow parameters) (scheme-params sc) in
+      let result-check = unify sp (result-type (scheme-body sc)) expected (empty-store "constructor-shape") in
+      if same-quant-kinds parameters (scheme-params sc) && (case store-errors result-check of Nil -> True; other -> False)
+        then checked
+        else add-error sp "imported constructor needs existential or indexed elaboration" checked
+  check-imported-constructor :: Span -> String -> Scheme -> Json -> Store -> Store
+  check-imported-constructor sp name sc metadata st =
+    let sa = if scheme-arity sc == json-length (field "fields" metadata) && computational-fields (field "erased" metadata) then st
+          else add-error sp "imported constructor arity or erasure disagrees with its resolved scheme" st in
+    case (ctor-description name (resolved-nominals metadata), root-name (result-type (scheme-body sc))) of
+      (Some description, Some result) -> let owner = interface-global (case field "identity" description of JStr identity -> identity; other -> "") in
+        if same owner result then regular-imported-constructor sp owner sc description sa
+        else add-error sp "imported constructor returns a different defining type" sa
+      other -> add-error sp "imported constructor has no defining family contract" sa
+  check-imported-value :: Span -> Scheme -> Json -> Store -> Store
+  check-imported-value sp sc metadata st = case field "arity" metadata of
+    -- Native ABI arity includes dictionary parameters. Dependent implicit
+    -- values remain unsupported by the pure scheme converter above.
+    JNum arity -> if arity == nat-to-int (scheme-arity sc + list-length (scheme-requirements sc)) then st else add-error sp "imported arity disagrees with its checked scheme" st
+    other -> add-error sp "imported value has no arity metadata" st
+  check-imported-contract :: Span -> String -> String -> Scheme -> Json -> Store -> Store
+  check-imported-contract sp name category sc metadata st = if valid-type (scheme-body sc) then
+    (if same category "constructor" then check-imported-constructor sp name sc metadata st else check-imported-value sp sc metadata st)
+    else st
+  register-external :: Span -> String -> String -> TypeExpr -> Json -> List Json -> List (String, Kind) -> TypeContext -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
+  register-external sp name category ty metadata rows classes kinds env st =
+    if same category "builtin" then register-kernel sp name metadata classes kinds env st
+    else if same category "method" then
+      case (field "class" metadata, field "slot" metadata, resolved-text metadata) of
+        (JStr identity, JNum slot, Some text) -> if slot < 0 then (env, add-error sp "negative method dictionary slot" st)
+          else case imported-scheme sp classes kinds ty metadata st of
+            (sc, ss) -> let owner = interface-global identity in
+              let checked = if method-slot-valid owner name (nat-from-int slot) rows && self-requirement owner sc then ss
+                    else add-error sp "method projection disagrees with its defining signature contract" ss in
+              case lookup-binding name env of
+                Some prior -> (env, add-error sp "duplicate imported method" checked)
+                None -> (Cons (MkMethodBinding name sc owner (nat-from-int slot)) env, checked)
+        other -> (env, add-error sp "method needs a resolved dictionary contract" st)
+    else if same category "value" || (same category "constructor" && (case resolved-text metadata of Some text -> True; other -> False)) then
+      case imported-scheme sp classes kinds ty metadata st of
+        (sc, ss) ->
+          let checked = check-imported-contract sp name category sc metadata ss in
+          add-binding sp name sc (if same category "constructor" then "constructor" else "external") env checked
+    else (env, add-error sp (unsupported-import category name) st)
+  self-requirement :: String -> Scheme -> Bool
+  self-requirement owner sc = case scheme-requirements sc of
+    Cons requirement rest -> (case root-name (requirement-type requirement) of Some name -> same name owner; None -> False)
+    Nil -> False
+  builtins :: List CheckedBinding
+  builtins = [MkCheckedBinding "True" (mono (primitive-type "Bool")) "constructor", MkCheckedBinding "False" (mono (primitive-type "Bool")) "constructor"]
+
+  result-type :: UType -> UType
+  result-type ty = case ty of UPi id name a row b -> result-type b; UFun a b -> result-type b; UFunEff a row b -> result-type b; other -> ty
+  domains :: UType -> List UType
+  domains ty = case ty of UPi id name a row b -> Cons a (domains b); UFun a b -> Cons a (domains b); UFunEff a row b -> Cons a (domains b); other -> Nil
+  root-name :: UType -> Option String
+  root-name ty = case ty of UCon name k -> Some name; UApp f x -> root-name f; other -> None
+  occurs-owner :: String -> UType -> Bool
+  occurs-owner name ty = case ty of
+    UCon n k -> same name n
+    UApp f x -> occurs-owner name f || occurs-owner name x
+    UPi id binder a row b -> occurs-owner name a || occurs-owner name row || occurs-owner name b
+    UFun a b -> occurs-owner name a || occurs-owner name b
+    UFunEff a row b -> occurs-owner name a || occurs-owner name b
+    UTuple xs -> occurs-owner name xs
+    UArg x rest -> occurs-owner name x || occurs-owner name rest
+    other -> False
+  positive :: String -> UType -> Bool
+  positive owner ty = case ty of
+    UPi id name a row b -> not (occurs-owner owner a) && positive owner b
+    UFun a b -> not (occurs-owner owner a) && positive owner b
+    UFunEff a row b -> not (occurs-owner owner a) && positive owner b
+    UApp f x -> if occurs-owner owner ty then (case root-name ty of Some name -> same name owner && positive-arguments owner ty; None -> False) else True
+    UTuple xs -> positive owner xs
+    UArg x rest -> positive owner x && positive owner rest
+    other -> True
+  positive-arguments :: String -> UType -> Bool
+  positive-arguments owner ty = case ty of UApp f x -> not (occurs-owner owner x) && positive-arguments owner f; other -> True
+  check-positive :: Span -> String -> List UType -> Store -> Store
+  check-positive sp owner args st = case args of Nil -> st; Cons a rest -> check-positive sp owner rest (if positive owner a then st else add-error sp "recursive field is negative or needs nested positivity evidence" st)
+  applied-family :: String -> Kind -> List Quant -> UType
+  applied-family name k qs = apply-quantifiers (UCon name k) qs
+  apply-quantifiers :: UType -> List Quant -> UType
+  apply-quantifiers head qs = case qs of Nil -> head; Cons q rest -> apply-quantifiers (UApp head (UBound (quant-id q) (quant-name q) (quant-kind q))) rest
+  register-ctors :: TypeContext -> String -> List Quant -> List (String, TypeExpr) -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
+  register-ctors kinds owner qs cs env st = case cs of
+    Nil -> (env, st)
+    Cons (name, ty) rest -> case make-scheme False Nil kinds qs ty (case ty of TForall s binders body -> add-error s "constructor-local quantifiers need existential/index elaboration" st; other -> st) of
+      (sc, ss) ->
+        let sr = unify (type-expr-span ty) (result-type (scheme-body sc)) (applied-family owner (kind-arrow qs) qs) ss in
+        let sp = check-positive (type-expr-span ty) owner (domains (scheme-body sc)) sr in
+        case add-binding (type-expr-span ty) name sc "constructor" env sp of (e, se) -> register-ctors kinds owner qs rest e se
+  register :: List Json -> List (String, Kind) -> TypeContext -> List Decl -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
+  register rows classes kinds ds env st = case ds of
+    Nil -> (env, st)
+    Cons d rest -> case d of
+      DSig s name ty -> case make-scheme False classes kinds Nil ty st of
+        (sc, ss) -> case add-binding s name sc "value" env ss of (e, se) -> register rows classes kinds rest e se
+      DData s owner ps cs -> case parameters False kinds Nil ps 0 Nil st of
+        (qs, sq) -> case register-ctors kinds owner qs cs env sq of (e, se) -> register rows classes kinds rest e se
+      DForeign s direction abi symbol name ty -> case register-intrinsic s direction abi symbol name ty classes kinds env st of
+        (e, se) -> register rows classes kinds rest e se
+      DExternal s name category (Some ty) metadata ->
+        case register-external s name category ty metadata rows classes kinds env st of (e, se) -> register rows classes kinds rest e se
+      DExternal s name category None metadata -> if same category "builtin" then
+        (case register-kernel s name metadata classes kinds env st of (e, se) -> register rows classes kinds rest e se)
+        else if same category "type" || same category "signature" || same category "instance" then register rows classes kinds rest env st
+        else register rows classes kinds rest env (add-error s (unsupported-import category name) st)
+      DSource s name metadata -> register rows classes kinds rest env st
+      DInterface s name hash metadata -> register rows classes kinds rest env st
+      DFun s name clauses -> register rows classes kinds rest env st
+      DRefine s name params binder predicate -> register rows classes kinds rest env st
+      DExport s text items -> register rows classes kinds rest env st
+      other -> register rows classes kinds rest env (add-error (decl-span d) (unsupported-decl d) st)
+  register-intrinsic :: Span -> String -> String -> String -> String -> TypeExpr -> List (String, Kind) -> TypeContext -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
+  register-intrinsic sp direction abi symbol name syntax classes kinds env st =
+    if not (same direction "import" && same abi "ccall") then (env, add-error sp "runtime intrinsic requires foreign import ccall" st)
+    else case intrinsic-contract symbol of
+      None -> (env, add-error sp "foreign declarations are not supported without a checked runtime intrinsic contract" st)
+      Some (text, external) -> case make-scheme False classes kinds Nil syntax st of
+        (sc, checked) -> case (scheme-params sc, scheme-requirements sc) of
+          (Nil, Nil) -> case parse-scheme symbol (string-to-bytes text) of
+            Parsed expected Nil -> case convert False kinds Nil expected checked of
+              (ty, prepared) -> case lookup-binding name env of
+                Some prior -> (env, add-error sp "duplicate intrinsic binding" prepared)
+                None -> (Cons (MkIntrinsicBinding name sc symbol) env, unify sp (scheme-body sc) ty prepared)
+            other -> (env, add-error sp "invalid kernel intrinsic contract" checked)
+          other -> (env, add-error sp "runtime intrinsic cannot be polymorphic or constrained" checked)
+  kernel-metadata :: String -> List Decl -> Option Json
+  kernel-metadata name ds = case ds of
+    Nil -> None
+    Cons (DExternal s symbol category ty metadata) rest -> if same category "builtin" && same name symbol then Some metadata else kernel-metadata name rest
+    Cons d rest -> kernel-metadata name rest
+  same-kernel-fields :: List String -> Json -> Json -> Bool
+  same-kernel-fields keys actual expected = case keys of
+    Nil -> True
+    Cons key rest -> (case (field key actual, field key expected) of
+      (JStr a, JStr b) -> same a b
+      (JNum a, JNum b) -> a == b
+      (JBool a, JBool b) -> if a then b else not b
+      other -> False) && same-kernel-fields rest actual expected
+  register-kernel :: Span -> String -> Json -> List (String, Kind) -> TypeContext -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
+  register-kernel sp name metadata classes kinds env st =
+    if not (has name ["b.newIO", "b.ioWrite", "b.ioSleep", "b.pollCancel"]) then (env, add-error sp (unsupported-import "builtin" name) st)
+    else case kernel-metadata name builtin-declarations of
+      Some trusted -> if same-kernel-fields ["name", "symbol", "operation", "arity", "runtime_abi", "fresh_region", "scheme"] metadata trusted then
+        (case field "scheme" trusted of
+          JStr text -> case parse-scheme name (string-to-bytes text) of
+            Parsed ty Nil -> case make-scheme False classes kinds Nil ty st of
+              (sc, checked) -> add-binding sp name sc "builtin" env checked
+            other -> (env, add-error sp "invalid kernel scheme" st)
+          other -> (env, add-error sp "missing kernel scheme" st))
+        else (env, add-error sp "builtin contract disagrees with the kernel" st)
+      None -> (env, add-error sp "unknown kernel builtin" st)
+
+  -- Reject mutual data recursion until SCC-wide positivity is checked.
+  data-names :: List Decl -> List String
+  data-names ds = case ds of Nil -> Nil; Cons (DData s name ps cs) rest -> Cons name (data-names rest); Cons d rest -> data-names rest
+  type-names :: TypeExpr -> List String
+  type-names ty = case ty of
+    TName s name -> Cons name Nil
+    TFun s a b -> type-names a <> type-names b
+    TApp s f xs -> type-names f <> type-names xs
+    TTuple s xs -> type-names xs
+    TArg s x rest -> type-names x <> type-names rest
+    TForall s qs body -> type-names body
+    other -> Nil
+  order-names :: Span -> List String -> List String -> List String -> Store -> Store
+  order-names sp names all seen st = case names of
+    Nil -> st
+    Cons n rest -> order-names sp rest all seen (if has n all && not (has n seen) then add-error sp "forward data reference needs SCC positivity checking" st else st)
+  order-ctors :: List (String, TypeExpr) -> List String -> List String -> Store -> Store
+  order-ctors cs all seen st = case cs of Nil -> st; Cons (name, ty) rest -> order-ctors rest all seen (order-names (type-expr-span ty) (type-names ty) all seen st)
+  data-order :: List Decl -> List String -> List String -> Store -> Store
+  data-order ds all seen st = case ds of
+    Nil -> st
+    Cons (DData s name ps cs) rest -> data-order rest all (Cons name seen) (order-ctors cs all (Cons name seen) st)
+    Cons d rest -> data-order rest all seen st
+
+  term-error :: Span -> String -> Store -> (CoreTerm, Store)
+  term-error sp message st = (CError sp, add-error sp message st)
+  actual-types :: List (Nat, UType) -> List UType
+  actual-types pairs = case pairs of Nil -> Nil; Cons (id, ty) rest -> Cons ty (actual-types rest)
+  lookup-value :: Span -> String -> List CheckedBinding -> Store -> (CoreTerm, Store)
+  lookup-value sp name env st = case lookup-binding name env of
+    None -> term-error sp (string-concat "unbound variable or constructor: " name) st
+    Some b -> case open-qualified False (checked-scheme b) st of
+      (ty, requirements, pairs, ss) ->
+        let evidence = case requirements of
+              Nil -> Nil
+              more -> needed-evidence sp (env-givens env) requirements in
+        let actuals = actual-types pairs in
+        case b of
+          MkMethodBinding method sc owner slot -> (CMethod sp ty name owner slot actuals evidence, ss)
+          MkGivenBinding source dict symbol -> (CUse sp ty symbol "dictionary" actuals, ss)
+          MkLocalBinding source sc id level -> case requirements of
+            Nil -> (CLocal sp ty id name actuals, ss)
+            more -> term-error sp "local dictionary polymorphism needs explicit evidence" ss
+          MkValueBinding source sc id level value -> (CLocal sp ty id name actuals, ss)
+          MkIntrinsicBinding source sc symbol -> (CUse sp ty symbol "intrinsic" actuals, ss)
+          other -> case requirements of
+            Nil -> (CUse sp ty name (checked-role b) actuals, ss)
+            more -> (CQualifiedUse sp ty name (checked-role b) actuals evidence, ss)
+  env-givens :: List CheckedBinding -> List CoreGiven
+  env-givens env = case env of
+    Nil -> Nil
+    Cons (MkGivenBinding name ty symbol) rest -> Cons (CGiven zero symbol ty) (env-givens rest)
+    Cons b rest -> env-givens rest
+  needed-evidence :: Span -> List CoreGiven -> List Requirement -> List CoreEvidence
+  needed-evidence sp scope requirements = case requirements of
+    Nil -> Nil
+    Cons requirement rest -> Cons (CENeeded sp (requirement-type requirement) scope) (needed-evidence sp scope rest)
+  bind-requirements :: Span -> List Requirement -> List CheckedBinding -> Store -> (List CheckedBinding, List CoreGiven, Store)
+  bind-requirements sp requirements env st = case requirements of
+    Nil -> (env, Nil, st)
+    Cons requirement rest -> case fresh-id st of
+      (id, fresh) -> let symbol = string-concat "#dictionary_" (nat-to-string id) in
+        let ty = requirement-type requirement in
+        case bind-requirements sp rest (Cons (MkGivenBinding (requirement-name requirement) ty symbol) env) fresh of
+          (bound, more, done) -> (bound, Cons (CGiven sp symbol ty) more, done)
+  env-metas :: List CheckedBinding -> Store -> List Nat
+  env-metas env st = case env of Nil -> Nil; Cons b rest -> scheme-metas st (checked-scheme b) <> env-metas rest st
+  proof-gamma :: List CheckedBinding -> Store -> List (Nat, UType)
+  proof-gamma env st = case env of
+    Nil -> Nil
+    Cons (MkLocalBinding name sc id level) rest -> proof-gamma-local sc id (proof-gamma rest st) st
+    Cons (MkValueBinding name sc id level value) rest -> proof-gamma-local sc id (proof-gamma rest st) st
+    Cons b rest -> proof-gamma rest st
+  proof-gamma-local :: Scheme -> Nat -> List (Nat, UType) -> Store -> List (Nat, UType)
+  proof-gamma-local sc id rest st = case (scheme-params sc, scheme-requirements sc) of
+    (Nil, Nil) -> Cons (id, normalize st (scheme-body sc)) rest
+    other -> rest
+  proof-facts :: List CheckedBinding -> List Proposition
+  proof-facts env = case env of Nil -> Nil; Cons (MkProofBinding fact) rest -> Cons fact (proof-facts rest); Cons b rest -> proof-facts rest
+  proof-branch :: List CheckedBinding -> CoreTerm -> Bool -> Store -> List CheckedBinding
+  proof-branch env condition positive st = case core-condition (proof-gamma env st) (proof-facts env) (map-term-types (normalize st) condition) of
+    Some fact -> Cons (MkProofBinding (if positive then fact else PNegate fact)) env
+    None -> env
+  proof-let-env :: List CheckedBinding -> CheckedBinding -> Nat -> Scheme -> CoreTerm -> Store -> List CheckedBinding
+  proof-let-env env binding id sc value st = case core-let-fact (proof-gamma env st) (proof-facts env) id (map-scheme-types (normalize st) sc) (map-term-types (normalize st) value) of
+    Some fact -> Cons (MkProofBinding fact) (Cons binding env)
+    None -> Cons binding env
+  mapped-local :: Nat -> List (Nat, UType) -> Option UType
+  mapped-local id pairs = case pairs of Nil -> None; Cons (n, ty) rest -> if id == n then Some ty else mapped-local id rest
+  opened-locals :: List Quant -> List (Nat, UType) -> List (String, UType)
+  opened-locals qs pairs = case qs of
+    Nil -> Nil
+    Cons q rest -> case mapped-local (quant-id q) pairs of Some ty -> Cons (quant-name q, ty) (opened-locals rest pairs); None -> opened-locals rest pairs
+
+  infer :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Expr -> Store -> (CoreTerm, Store)
+  infer classes kinds families env locals expr st = case expr of
+    EVar s name -> case lookup-value s name env st of (term, checked) -> discharge-call classes s env term checked
+    ECon s name args -> case lookup-value s name env st of (term, sn) -> infer-arguments classes kinds families env locals term args sn
+    ELitInt s text -> checked-literal s (primitive-type "Int") text st
+    ELitStr s text -> (CString s (literal-type kinds "String") text, st)
+    ELitChar s text -> (CChar s (primitive-type "Char") text, st)
+    EUnit s -> (CUnit s (primitive-type "Unit"), st)
+    EApp s f x -> case infer classes kinds families env locals f st of
+      (fun, sf) -> apply-argument classes kinds families env locals s fun x sf
+    ELam s ps body -> case infer-lambda classes kinds families env locals ps body (duplicate-names s (patterns-names ps) Nil st) of
+      (term, ss) -> (term, ensure-coverage s families env (take-types (list-length ps) (domains (normalize ss (core-type term)))) [ps] ss)
+    ELet s bindings body -> infer-let classes kinds families env locals s bindings body st
+    EWith s bindings body -> infer-with classes kinds families env locals bindings body None st
+    EIf s condition yes no -> case fresh-meta KType st of
+      (ty, ss) -> case check classes kinds families env locals condition (primitive-type "Bool") ss of
+        (c, sc) -> case check classes kinds families (proof-branch env c True sc) locals yes ty sc of
+          (a, sa) -> case check classes kinds families (proof-branch env c False sa) locals no ty sa of
+            (b, sb) -> (CIf s ty c a b, sb)
+    ECase s value alts -> case infer classes kinds families env locals value st of
+      (scrut, sv) -> case fresh-meta KType sv of
+        (out, so) -> case check-alternatives classes kinds families env locals (core-type scrut) out alts (ensure-coverage s families env [core-type scrut] (alternative-rows alts) so) of
+          (alternatives, ss) -> (CCase s out scrut alternatives, ss)
+    ETuple s args -> case infer-fields classes kinds families env locals args st of
+      (types, terms, ss) -> (CTuple s (tuple-type types) terms, ss)
+    EAnn s body annotation -> case convert False kinds (value-locals env locals) annotation st of
+      (ty, ss) -> check classes kinds families env locals body ty (expect-type s ty ss)
+    ENeg s value -> case check classes kinds families env locals value (primitive-type "Int") st of
+      (term, ss) -> (CPrimitive s (primitive-type "Int") "negate" (CArgument s term (CArgumentsEnd s)), ss)
+    EBin s op a b -> infer-operator classes kinds families env locals s op a b st
+    other -> term-error (expr-span expr) "expression needs effect, dictionary or dependent elaboration" st
+  check :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Expr -> UType -> Store -> (CoreTerm, Store)
+  check classes kinds families env locals expr expected st = case normalize st expected of
+    URefine id name carrier predicate -> check-refined classes kinds families env locals expr expected carrier st
+    other -> check-unrefined classes kinds families env locals expr expected st
+  check-unrefined :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Expr -> UType -> Store -> (CoreTerm, Store)
+  check-unrefined classes kinds families env locals expr expected st = case expr of
+    EIf s condition yes no -> case check classes kinds families env locals condition (primitive-type "Bool") st of
+      (c, sc) -> case check classes kinds families (proof-branch env c True sc) locals yes expected sc of
+        (a, sa) -> case check classes kinds families (proof-branch env c False sa) locals no expected sa of
+          (b, sb) -> (CIf s expected c a b, sb)
+    ELitInt s text -> case normalize st expected of
+      UCon name KType -> if same name "Nat" || same name "Int" then checked-literal s expected text st else check-inferred classes kinds families env locals expr expected st
+      other -> check-inferred classes kinds families env locals expr expected st
+    ELam s ps body -> case check-lambda classes kinds families env locals ps body expected (duplicate-names s (patterns-names ps) Nil st) of
+      (term, ss) -> (term, ensure-coverage s families env (take-types (list-length ps) (domains (normalize ss expected))) [ps] ss)
+    EWith s bindings body -> infer-with classes kinds families env locals bindings body (Some expected) st
+    other -> check-inferred classes kinds families env locals expr expected st
+  check-inferred :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Expr -> UType -> Store -> (CoreTerm, Store)
+  check-inferred classes kinds families env locals expr expected st = case infer classes kinds families env locals expr st of
+    (term, ss) -> subsume-term (expr-span expr) term expected ss
+  comparison-predicate :: UType -> Bool
+  comparison-predicate predicate = case predicate of UCompare op a b -> True; UPropNonZero value -> valid-type predicate; UPropAnd a b -> comparison-predicate a && comparison-predicate b; other -> False
+  comparison-refinement :: UType -> Bool
+  comparison-refinement ty = case ty of URefine id name carrier predicate -> math-carrier carrier && comparison-predicate predicate; other -> False
+  project-comparison :: Span -> CoreTerm -> Store -> CoreTerm
+  project-comparison sp term st = case normalize st (core-type term) of
+    URefine id name carrier predicate -> if comparison-refinement (normalize st (core-type term)) then CForget sp carrier term else term
+    other -> term
+  subsume-term :: Span -> CoreTerm -> UType -> Store -> (CoreTerm, Store)
+  subsume-term sp term expected st = case normalize st expected of
+    URefine id name carrier predicate -> (term, unify sp (core-type term) expected st)
+    other -> let value = project-comparison sp term st in (value, unify sp (core-type value) expected st)
+  check-refined :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Expr -> UType -> UType -> Store -> (CoreTerm, Store)
+  check-refined classes kinds families env locals expr expected carrier st = case expr of
+    EIf s condition yes no -> check-unrefined classes kinds families env locals expr expected st
+    ECase s value alternatives -> case infer classes kinds families env locals value st of
+      (scrutinee, checked) -> case check-alternatives classes kinds families env locals (core-type scrutinee) expected alternatives (ensure-coverage s families env [core-type scrutinee] (alternative-rows alternatives) checked) of
+        (branches, done) -> (CCase s expected scrutinee branches, done)
+    ELet s bindings body -> check-refined-let classes kinds families env locals s bindings body expected st
+    EWith s bindings body -> infer-with classes kinds families env locals bindings body (Some expected) st
+    ELitInt s text -> case checked-literal s carrier text st of (term, checked) -> introduce-refinement env s expected term checked
+    ELam s patterns body -> case check-unrefined classes kinds families env locals expr carrier st of (term, checked) -> introduce-refinement env s expected term checked
+    other -> case infer classes kinds families env locals expr st of
+      (term, checked) -> case normalize checked (core-type term) of
+        URefine id name domain predicate ->
+          let direct = unify (expr-span expr) (core-type term) expected checked in
+          if list-length (store-errors direct) == list-length (store-errors checked) then (term, direct)
+          else let value = project-comparison (expr-span expr) term checked in
+            introduce-refinement env (expr-span expr) expected value (unify (expr-span expr) (core-type value) carrier checked)
+        other -> introduce-refinement env (expr-span expr) expected term (unify (expr-span expr) (core-type term) carrier checked)
+  introduce-refinement :: List CheckedBinding -> Span -> UType -> CoreTerm -> Store -> (CoreTerm, Store)
+  introduce-refinement env sp expected term st = case store-errors st of
+    Cons error rest -> (CError sp, st)
+    Nil -> case prove-refinement (proof-gamma env st) (proof-facts env) (normalize st expected) (map-term-types (normalize st) term) of
+      Some evidence -> (CRefine sp expected evidence term, st)
+      None -> term-error sp "refinement predicate is not established for this value" st
+  check-refined-let :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Expr -> Expr -> UType -> Store -> (CoreTerm, Store)
+  check-refined-let classes kinds families env locals sp bindings body expected st = case bindings of
+    EBindingsEnd s -> check classes kinds families env locals body expected st
+    EBinding s name rhs rest -> let level = store-level st in
+      case infer classes kinds families env locals rhs (enter-level st) of
+        (value, checked) -> case resolve-dictionary-term-with classes (env-instances env) (env-givens env) value checked of
+          (resolved, ready) -> let (scheme, pairs) = generalize-with level (env-metas env ready) (core-type resolved) ready in
+            case fresh-id (restore-level level ready) of
+              (id, fresh) -> case let-binding s env name scheme id level resolved fresh of
+                (binding, prepared) -> case check-refined-let classes kinds families (proof-let-env env binding id scheme resolved prepared) locals sp rest body expected prepared of
+                  (result, done) -> (CLet s expected id name scheme (abstract-term ready pairs resolved) result, done)
+    other -> term-error sp "malformed let binding spine" st
+
+  infer-arguments :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> CoreTerm -> Expr -> Store -> (CoreTerm, Store)
+  infer-arguments classes kinds families env locals term args st = case args of
+    EArgsEnd s -> (term, st)
+    EArg s x rest -> case apply-argument classes kinds families env locals s term x st of
+      (applied, checked) -> infer-arguments classes kinds families env locals applied rest checked
+    other -> term-error (expr-span args) "malformed constructor argument spine" st
+  infer-fields :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Expr -> Store -> (UType, CoreTerm, Store)
+  infer-fields classes kinds families env locals args st = case args of
+    EArgsEnd s -> (UEnd, CArgumentsEnd s, st)
+    EArg s x rest -> case infer classes kinds families env locals x st of
+      (term, sx) -> case infer-fields classes kinds families env locals rest sx of
+        (types, terms, ss) -> (UArg (core-type term) types, CArgument s term terms, ss)
+    other -> (UEnd, CError (expr-span args), add-error (expr-span args) "malformed tuple expression spine" st)
+  infer-lambda :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> List Pat -> Expr -> Store -> (CoreTerm, Store)
+  infer-lambda classes kinds families env locals ps body st = case ps of
+    Nil -> infer classes kinds families env locals body st
+    Cons p rest -> case fresh-meta KType st of
+      (arg, sa) -> case bind-pattern classes kinds families env locals p arg sa of
+        (bound, pattern, sb) -> case infer-lambda classes kinds families bound locals rest body sb of
+          (rhs, sr) -> (CLambda (pat-span p) (function-type arg (normalize sr (core-effects rhs)) (core-type rhs)) pattern rhs, sr)
+  check-lambda :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> List Pat -> Expr -> UType -> Store -> (CoreTerm, Store)
+  check-lambda classes kinds families env locals ps body expected st = case ps of
+    Nil -> check-required classes kinds families env locals body expected st
+    Cons p rest -> case normalize st expected of
+      UMeta id kind -> case infer-lambda classes kinds families env locals ps body st of
+        (term, checked) -> (term, unify (pat-span p) expected (core-type term) checked)
+      other -> case bind-arrow-pattern classes kinds families env locals p expected st of
+        (bound, pattern, row, result, checked) -> case check-lambda classes kinds families bound locals rest body result checked of
+          (rhs, sr) -> (CLambda (pat-span p) expected pattern rhs, include-effects (expr-span body) (core-effects rhs) row sr)
+  function-type :: UType -> UType -> UType -> UType
+  function-type a row b = case row of URow UEnd -> UFun a b; other -> UFunEff a row b
+  arrow-parts :: Span -> UType -> Store -> (UType, UType, UType, Store)
+  arrow-parts sp ty st = case normalize st ty of
+    UPi id name a row b -> if pi-dependent (normalize st ty) then (UError, UError, UError, add-error sp "dependent arrow needs an actual argument witness" st) else (a, row, b, st)
+    UFun a b -> (a, URow UEnd, b, st)
+    UFunEff a row b -> (a, row, b, st)
+    other -> case fresh-meta KType st of
+      (a, sa) -> case fresh-meta KType sa of
+        (b, sb) -> case fresh-meta KRow sb of
+          (row, sr) -> (a, row, b, unify sp ty (UFunEff a row b) sr)
+  apply-argument :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> CoreTerm -> Expr -> Store -> (CoreTerm, Store)
+  apply-argument classes kinds families env locals sp fun arg st = case normalize st (core-type fun) of
+    UPi id name domain effects result -> case check classes kinds families env locals arg domain st of
+      (value, checked) -> if pi-dependent (normalize checked (core-type fun)) then
+        (apply-dependent classes sp env fun value checked)
+        else discharge-call classes sp env (applied-core sp result effects fun value) checked
+    other -> case arrow-parts sp (core-type fun) st of
+      (a, row, b, sf) -> case check classes kinds families env locals arg a sf of
+        (value, checked) -> discharge-call classes sp env (applied-core sp b (normalize checked row) fun value) checked
+  applied-core :: Span -> UType -> UType -> CoreTerm -> CoreTerm -> CoreTerm
+  applied-core sp result row fun arg = case row of URow UEnd -> CApply sp result fun arg; other -> CApplyEff sp result row fun arg
+  infer-with :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Expr -> Expr -> Option UType -> Store -> (CoreTerm, Store)
+  infer-with classes kinds families env locals bindings body expected st = case bindings of
+    EBindingsEnd s -> case expected of None -> infer classes kinds families env locals body st; Some ty -> check classes kinds families env locals body ty st
+    EBinding s name rhs rest -> case infer classes kinds families env locals rhs st of
+      (value, sv) -> case fresh-meta KRegion sv of
+        (region, sr) -> let ty = UApp (UCon "b.Io" (KFun KRegion KType)) region in
+          case fresh-id (unify s (core-type value) ty sr) of
+            (id, fresh) -> let symbol = string-concat "#capability_" (nat-to-string id) in
+              case infer-with classes kinds families (Cons (MkGivenBinding name ty symbol) env) locals rest body expected fresh of
+                (result, done) -> case resolve-dictionary-term-with classes (env-instances env) (env-givens env) (CWith s (core-type result) (CGiven s symbol ty) value result) done of
+                  (resolved, checked) -> (resolved, check-capability-escape s region (core-type result) checked)
+    other -> term-error (expr-span bindings) "malformed capability binding spine" st
+  contains-meta :: Nat -> List Nat -> Bool
+  contains-meta id ids = case ids of Nil -> False; Cons first rest -> id == first || contains-meta id rest
+  check-capability-escape :: Span -> UType -> UType -> Store -> Store
+  check-capability-escape sp region result st = case normalize st region of
+    UMeta id kind -> if contains-meta id (free-metas st result) then add-error sp "fresh capability region escapes its scope" st else st
+    other -> st
+  infer-let :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Expr -> Expr -> Store -> (CoreTerm, Store)
+  infer-let classes kinds families env locals sp bs body st = case bs of
+    EBindingsEnd s -> infer classes kinds families env locals body st
+    EBinding s name rhs rest ->
+      let level = store-level st in
+      case infer classes kinds families env locals rhs (enter-level st) of
+        (value, sr) -> case resolve-dictionary-term-with classes (env-instances env) (env-givens env) value sr of
+          (resolved, sd) -> let (sc, pairs) = generalize-with level (env-metas env sd) (core-type resolved) sd in
+            case fresh-id (restore-level level sd) of
+              (id, fresh) -> case let-binding s env name sc id level resolved fresh of
+                (binding, prepared) -> case infer-let classes kinds families (proof-let-env env binding id sc resolved prepared) locals sp rest body prepared of
+                  (result, ss) -> (CLet s (core-type result) id name sc (abstract-term sd pairs resolved) result, ss)
+    other -> term-error (expr-span bs) "malformed let binding spine" st
+  infer-operator :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> String -> Expr -> Expr -> Store -> (CoreTerm, Store)
+  infer-operator classes kinds families env locals sp op a b st =
+    if has op ["&&", "||"] then
+      case check classes kinds families env locals a (primitive-type "Bool") st of
+        (first, sa) -> case check classes kinds families (proof-branch env first (same op "&&") sa) locals b (primitive-type "Bool") sa of
+          (second, sb) ->
+            let boolean = primitive-type "Bool" in
+            if same op "&&" then (CIf sp boolean first second (CUse sp boolean "False" "constructor" Nil), sb)
+            else (CIf sp boolean first (CUse sp boolean "True" "constructor" Nil) second, sb)
+    else if has op ["+", "-", "*", "<", ">", "<=", ">="] then
+      case infer classes kinds families env locals a st of
+        (inferred, sa) ->
+          let first = project-comparison sp inferred sa in
+          let carrier = case normalize sa (core-type first) of
+                UCon name KType -> if same name "Nat" then primitive-type "Nat" else primitive-type "Int"
+                other -> primitive-type "Int" in
+          let sorted = unify sp (core-type first) carrier sa in
+          case check classes kinds families env locals b carrier sorted of
+            (second, sb) -> let operation = CPrimitive sp (if has op ["+", "-", "*"] then carrier else primitive-type "Bool") op (CArgument sp first (CArgument sp second (CArgumentsEnd sp))) in
+              if same op "-" && same (type-text carrier) "Nat" then
+                (case prove-subtraction (proof-gamma env sb) (proof-facts env) (map-term-types (normalize sb) first) (map-term-types (normalize sb) second) of
+                  Some evidence -> (CProved sp carrier evidence operation, sb)
+                  None -> term-error sp "Nat subtraction needs checked ordering evidence" sb)
+              else (operation, sb)
+    else if has op ["==", "/="] then case infer classes kinds families env locals a st of
+      (inferred, sa) -> let first = project-comparison sp inferred sa in case check classes kinds families env locals b (core-type first) sa of
+        (second, sb) -> (CPrimitive sp (primitive-type "Bool") op (CArgument sp first (CArgument sp second (CArgumentsEnd sp))),
+          if comparable (normalize sb (core-type first)) then sb else add-error sp "equality needs an Eq dictionary for this type" sb)
+    else term-error sp "operator needs dictionary or NonZero proof elaboration" st
+  comparable :: UType -> Bool
+  comparable ty = case ty of UCon name KType -> has name ["Int", "Nat", "Bool", "Unit", "String", "Char", interface-global "Data.String.String"]; other -> False
+  tuple-type :: UType -> UType
+  tuple-type xs = case xs of UEnd -> primitive-type "Unit"; other -> UTuple xs
+
+  pattern-names :: Pat -> List String
+  pattern-names p = case p of
+    PVar s name -> Cons name Nil
+    PAs s name inner -> Cons name (pattern-names inner)
+    PAnn s inner ty -> pattern-names inner
+    PCon s name args -> pattern-names args
+    PTuple s args -> pattern-names args
+    PArg s x rest -> pattern-names x <> pattern-names rest
+    other -> Nil
+  duplicate-names :: Span -> List String -> List String -> Store -> Store
+  duplicate-names sp names seen st = case names of Nil -> st; Cons n rest -> duplicate-names sp rest (Cons n seen) (if has n seen then add-error sp (string-concat "duplicate pattern binder: " n) st else st)
+  patterns-names :: List Pat -> List String
+  patterns-names ps = case ps of Nil -> Nil; Cons p rest -> pattern-names p <> patterns-names rest
+  bind-pattern :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Pat -> UType -> Store -> (List CheckedBinding, CorePattern, Store)
+  bind-pattern classes kinds families env locals pat expected st = case pat of
+    PWild s -> (env, CPWild s expected, st)
+    PVar s name -> case fresh-id st of
+      (id, fresh) -> (Cons (MkLocalBinding name (mono expected) id (store-level fresh)) env, CPVar s expected id name, fresh)
+    PAs s name inner -> case fresh-id st of
+      (id, fresh) -> case bind-pattern classes kinds families (Cons (MkLocalBinding name (mono expected) id (store-level fresh)) env) locals inner expected fresh of
+        (bound, pattern, ss) -> (bound, CPAs s expected id name pattern, ss)
+    PAnn s inner annotation -> case convert False kinds (value-locals env locals) annotation st of
+      (ty, sa) -> bind-pattern classes kinds families env locals inner expected (unify s expected ty (expect-type s ty sa))
+    PLitInt s text -> let carrier = case normalize st expected of UCon name KType -> if same name "Nat" then primitive-type "Nat" else primitive-type "Int"; other -> primitive-type "Int" in
+      case checked-literal s carrier text (unify s expected carrier st) of
+        (CInt at ty literal, checked) -> (env, CPInt s expected literal, checked)
+        (other, checked) -> (env, CPWild s UError, checked)
+    PLitStr s text -> (env, CPString s expected text, unify s expected (literal-type kinds "String") st)
+    PLitChar s text -> (env, CPChar s expected text, unify s expected (primitive-type "Char") st)
+    PTuple s args -> case pattern-fields args st of
+      (fields, sf) -> case bind-pattern-fields classes kinds families env locals args fields (unify s expected (tuple-type fields) sf) of
+        (bound, patterns, ss) -> (bound, CPTuple s expected patterns, ss)
+    PCon s name args -> case lookup-binding name env of
+      Some b ->
+        if same (checked-role b) "constructor" then
+          case open-scheme False (checked-scheme b) st of
+            (ty, pairs, ss) -> case bind-constructor classes kinds families env locals s args ty expected (if list-length (pats-of args) == scheme-arity (checked-scheme b) then ss else add-error s "constructor pattern arity mismatch" ss) of
+              (bound, fields, sf) -> (bound, CPConstructor s expected name (actual-types pairs) ty fields, sf)
+        else (env, CPWild s UError, add-error s "pattern name is not a constructor" st)
+      None -> (env, CPWild s UError, add-error s (string-concat "unknown constructor: " name) st)
+    other -> (env, CPWild (pat-span pat) UError, add-error (pat-span pat) "pattern needs further elaboration" st)
+  pattern-fields :: Pat -> Store -> (UType, Store)
+  pattern-fields ps st = case ps of
+    PArgsEnd s -> (UEnd, st)
+    PArg s x rest -> case fresh-meta KType st of (ty, ss) -> case pattern-fields rest ss of (ys, sy) -> (UArg ty ys, sy)
+    other -> bad (pat-span ps) "malformed pattern spine" st
+  bind-pattern-fields :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Pat -> UType -> Store -> (List CheckedBinding, CorePattern, Store)
+  bind-pattern-fields classes kinds families env locals ps tys st = case (ps, tys) of
+    (PArgsEnd s, UEnd) -> (env, CPDone s, st)
+    (PArg s p rest, UArg ty tail) -> case bind-pattern classes kinds families env locals p ty st of
+      (bound, pattern, sp) -> case bind-pattern-fields classes kinds families bound locals rest tail sp of
+        (final, patterns, ss) -> (final, CPField s pattern patterns, ss)
+    other -> (env, CPWild (pat-span ps) UError, add-error (pat-span ps) "tuple pattern arity mismatch" st)
+  bind-constructor :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Pat -> UType -> UType -> Store -> (List CheckedBinding, CorePattern, Store)
+  bind-constructor classes kinds families env locals sp ps ty expected st = case ps of
+    PArgsEnd s -> (env, CPDone s, unify sp ty expected st)
+    PArg s p rest -> case normalize st ty of
+      UFun a b -> case bind-pattern classes kinds families env locals p a st of
+        (bound, pattern, sb) -> case bind-constructor classes kinds families bound locals sp rest b expected sb of
+          (final, patterns, ss) -> (final, CPField s pattern patterns, ss)
+      other -> (env, CPWild sp UError, add-error sp "too many constructor pattern arguments" st)
+    other -> (env, CPWild sp UError, add-error sp "malformed constructor pattern spine" st)
+
+  check-alternatives :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> UType -> UType -> Expr -> Store -> (CoreTerm, Store)
+  check-alternatives classes kinds families env locals scrut result alts st = case alts of
+    EAltsEnd s -> (CAlternativesEnd s, st)
+    EAlt s p body rest -> case bind-pattern classes kinds families env locals p scrut (duplicate-names s (pattern-names p) Nil st) of
+      (bound, pattern, sb) -> case check-alt-body classes kinds families bound locals body result sb of
+        (rhs, sr) -> case check-alternatives classes kinds families env locals scrut result rest sr of
+          (more, ss) -> (CAlternative s pattern rhs more, ss)
+    other -> term-error (expr-span alts) "malformed alternative spine" st
+  check-alt-body :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Expr -> UType -> Store -> (CoreTerm, Store)
+  check-alt-body classes kinds families env locals body result st = case body of
+    EGuarded s guard rhs -> case check classes kinds families env locals guard (primitive-type "Bool") st of
+      (condition, sc) -> case check classes kinds families (proof-branch env condition True sc) locals rhs result sc of
+        (value, ss) -> (CGuard s result condition value, ss)
+    other -> check classes kinds families env locals body result st
+  alternative-rows :: Expr -> List (List Pat)
+  alternative-rows alts = case alts of
+    EAlt s p body rest -> case body of EGuarded gs g rhs -> alternative-rows rest; other -> Cons (Cons p Nil) (alternative-rows rest)
+    other -> Nil
+
+  -- A constructor-specializing coverage matrix. Guarded rows never cover
+  -- values for later rows; specialization uses a private copy of the store.
+  wildcard :: Pat -> Bool
+  wildcard p = case p of PWild s -> True; PVar s name -> True; PAs s name inner -> wildcard inner; PAnn s inner ty -> wildcard inner; other -> False
+  strip-pattern :: Pat -> Pat
+  strip-pattern p = case p of PAs s name inner -> strip-pattern inner; PAnn s inner ty -> strip-pattern inner; other -> p
+  defaults :: List (List Pat) -> List (List Pat)
+  defaults rows = case rows of
+    Nil -> Nil
+    Cons (Cons p tail) rest -> if wildcard p then Cons tail (defaults rest) else defaults rest
+    Cons Nil rest -> defaults rest
+  wilds :: Nat -> List Pat
+  wilds n = if n == 0 then Nil else Cons (PWild zero) (wilds (n - 1))
+  specialize :: String -> Nat -> List (List Pat) -> List (List Pat)
+  specialize name count rows = case rows of
+    Nil -> Nil
+    Cons (Cons p tail) rest -> if wildcard p then Cons (wilds count <> tail) (specialize name count rest)
+      else case strip-pattern p of PCon s n args -> if same name n then Cons (pats-of args <> tail) (specialize name count rest) else specialize name count rest; other -> specialize name count rest
+    Cons Nil rest -> specialize name count rest
+  tuple-rows :: Nat -> List (List Pat) -> List (List Pat)
+  tuple-rows count rows = case rows of
+    Nil -> Nil
+    Cons (Cons p tail) rest -> if wildcard p then Cons (wilds count <> tail) (tuple-rows count rest)
+      else case strip-pattern p of PTuple s args -> Cons (pats-of args <> tail) (tuple-rows count rest); other -> tuple-rows count rest
+    Cons Nil rest -> tuple-rows count rest
+  spine-list :: UType -> List UType
+  spine-list xs = case xs of UArg x rest -> Cons x (spine-list rest); other -> Nil
+  family-ctors :: String -> List (String, List String) -> Option (List String)
+  family-ctors name families = case families of Nil -> None; Cons (n, cs) rest -> if same name n then Some cs else family-ctors name rest
+  covers :: List (String, List String) -> List CheckedBinding -> List UType -> List (List Pat) -> Store -> Bool
+  covers families env tys rows st = case tys of
+    Nil -> has-empty-row rows
+    Cons ty rest -> if empty-family (normalize st ty) families then True else case rows of
+      Nil -> False
+      other -> if only-defaults rows then covers families env rest (defaults rows) st else case normalize st ty of
+        UTuple fields -> covers families env (spine-list fields <> rest) (tuple-rows (list-length (spine-list fields)) rows) st
+        other -> case root-name (normalize st ty) of
+          Some name -> case family-ctors name families of
+            Some cs -> cover-constructors families env ty rest rows cs st
+            None -> if same name "Unit" then covers families env rest (tuple-rows 0 rows) st else covers families env rest (defaults rows) st
+          None -> covers families env rest (defaults rows) st
+  empty-family :: UType -> List (String, List String) -> Bool
+  empty-family ty families = case root-name ty of Some name -> (case family-ctors name families of Some Nil -> True; other -> False); None -> False
+  only-defaults :: List (List Pat) -> Bool
+  only-defaults rows = case rows of Nil -> True; Cons (Cons p ps) more -> wildcard p && only-defaults more; Cons Nil more -> False
+  has-empty-row :: List (List Pat) -> Bool
+  has-empty-row rows = case rows of Nil -> False; Cons Nil rest -> True; Cons row rest -> has-empty-row rest
+  cover-constructors :: List (String, List String) -> List CheckedBinding -> UType -> List UType -> List (List Pat) -> List String -> Store -> Bool
+  cover-constructors families env ty tail rows cs st = case cs of
+    Nil -> True
+    Cons name rest -> case lookup-binding name env of
+      None -> covers families env tail (defaults rows) st
+      Some b -> case instantiate (checked-scheme b) st of
+        (ct, sc) -> let su = unify zero (result-type ct) ty sc in
+          covers families env (domains ct <> tail) (specialize name (scheme-arity (checked-scheme b)) rows) su && cover-constructors families env ty tail rows rest st
+  ensure-coverage :: Span -> List (String, List String) -> List CheckedBinding -> List UType -> List (List Pat) -> Store -> Store
+  ensure-coverage sp families env tys rows st = if covers families env tys rows st then st else add-error sp "non-exhaustive patterns" st
+
+  families-of :: List Decl -> List (String, List String)
+  families-of ds = case ds of Nil -> Nil; Cons (DData s name ps cs) rest -> Cons (name, ctor-names cs) (families-of rest); Cons d rest -> families-of rest
+  ctor-names :: List (String, TypeExpr) -> List String
+  ctor-names cs = case cs of Nil -> Nil; Cons (name, ty) rest -> Cons name (ctor-names rest)
+  external-ctor-names :: Json -> List String
+  external-ctor-names rows = case rows of JArr (JStr name) rest -> Cons (interface-global name) (external-ctor-names rest); other -> Nil
+  external-families :: Json -> List (String, List String)
+  external-families rows = case rows of
+    JArr row rest -> (case (field "identity" row, field "kind" row, field "constructors" row) of
+      (JStr identity, JStr category, constructors) -> if same category "data" then Cons (interface-global identity, external-ctor-names constructors) Nil else Nil
+      other -> Nil) <> external-families rest
+    other -> Nil
+  imported-families :: List Decl -> List (String, List String)
+  imported-families ds = case ds of
+    Nil -> Nil
+    Cons (DExternal s name category scheme metadata) rest -> external-families (resolved-nominals metadata) <> imported-families rest
+    Cons d rest -> imported-families rest
+  clause-rows :: List (List Pat, Expr) -> List (List Pat)
+  clause-rows cs = case cs of Nil -> Nil; Cons (ps, body) rest -> case body of EGuarded s g x -> clause-rows rest; other -> Cons ps (clause-rows rest)
+  check-equation :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> List Pat -> Expr -> UType -> Store -> (List CorePattern, CoreTerm, Store)
+  check-equation classes kinds families env locals ps body expected st = check-equation-effects classes kinds families env locals ps body expected (URow UEnd) st
+  check-equation-effects :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> List Pat -> Expr -> UType -> UType -> Store -> (List CorePattern, CoreTerm, Store)
+  check-equation-effects classes kinds families env locals ps body expected allowed st = case ps of
+    Nil -> case check-required classes kinds families env locals body expected st of
+      (rhs, ss) -> (Nil, rhs, include-effects (expr-span body) (core-effects rhs) allowed ss)
+    Cons p rest -> case bind-arrow-pattern classes kinds families env locals p expected (include-effects (pat-span p) allowed (URow UEnd) st) of
+      (bound, pattern, row, result, checked) -> case check-equation-effects classes kinds families bound locals rest body result row checked of
+        (patterns, rhs, ss) -> (Cons pattern patterns, rhs, ss)
+  check-clauses :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> UType -> List (List Pat, Expr) -> Store -> (List CoreClause, Store)
+  check-clauses classes kinds families env locals ty cs st = case cs of
+    Nil -> (Nil, st)
+    Cons (ps, body) rest -> case check-equation classes kinds families env locals ps body ty (duplicate-names (expr-span body) (patterns-names ps) Nil st) of
+      (patterns, rhs, sr) -> case check-clauses classes kinds families env locals ty rest sr of
+        (clauses, ss) -> (Cons (MkCoreClause (expr-span body) patterns rhs) clauses, ss)
+  check-definition :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> Span -> String -> List (List Pat, Expr) -> Store -> (Option CoreDefinition, Store)
+  check-definition classes kinds families env sp name cs st = case lookup-binding name env of
+    None -> (None, add-error sp (string-concat "no signature for " name) st)
+    Some (MkIntrinsicBinding source sc symbol) -> (None, add-error sp "runtime intrinsic cannot also have a source definition" st)
+    Some b ->
+      let level = store-level st in
+      case open-qualified True (checked-scheme b) (enter-level st) of
+        (ty, requirements, pairs, ss) ->
+          let locals = opened-locals (scheme-params (checked-scheme b)) pairs in
+          let (bound, givens, sg) = bind-requirements sp requirements env ss in
+          let (clauses, checked) = check-clauses classes kinds families bound locals ty cs sg in
+          let count = case cs of Nil -> 0; Cons (ps, body) rest -> list-length ps in
+          let types = domains ty in
+          let same-arity = clauses-full-arity cs count && count <= list-length types in
+          let covered = case cs of
+                Nil -> add-error sp "a function declaration has no clauses" checked
+                other -> if same-arity then ensure-coverage sp families env (take-types count types) (clause-rows cs) (check-overlap cs Nil checked)
+                  else add-error sp "function clauses disagree with their declared arity" checked in
+          (Some (MkCoreDefinition sp name (checked-scheme b) pairs givens Nil clauses), restore-level level covered)
+  take-types :: Nat -> List UType -> List UType
+  take-types count types = if count == 0 then Nil else case types of Nil -> Nil; Cons ty rest -> Cons ty (take-types (count - 1) rest)
+  pat-covers :: Pat -> Pat -> Bool
+  pat-covers first second = if wildcard first then True else case (strip-pattern first, strip-pattern second) of
+    (PCon s name args, PCon t other xs) -> same name other && row-covers (pats-of args) (pats-of xs)
+    (PTuple s args, PTuple t xs) -> row-covers (pats-of args) (pats-of xs)
+    (PLitInt s a, PLitInt t b) -> (case (index-number a, index-number b) of (Some x, Some y) -> x == y; other -> False)
+    (PLitStr s a, PLitStr t b) -> same a b
+    (PLitChar s a, PLitChar t b) -> same a b
+    other -> False
+  row-covers :: List Pat -> List Pat -> Bool
+  row-covers first second = case (first, second) of
+    (Nil, Nil) -> True
+    (Cons p ps, Cons q qs) -> pat-covers p q && row-covers ps qs
+    other -> False
+  covered-by :: List (List Pat) -> List Pat -> Bool
+  covered-by rows ps = case rows of Nil -> False; Cons row rest -> row-covers row ps || covered-by rest ps
+  check-overlap :: List (List Pat, Expr) -> List (List Pat) -> Store -> Store
+  check-overlap cs earlier st = case cs of
+    Nil -> st
+    Cons (ps, body) rest -> let ss = if covered-by earlier ps then add-error (expr-span body) "unreachable clause: an earlier clause already matches these patterns" st else st in
+      check-overlap rest (case body of EGuarded s guard rhs -> earlier; other -> Cons ps earlier) ss
+  clauses-full-arity :: List (List Pat, Expr) -> Nat -> Bool
+  clauses-full-arity cs count = case cs of Nil -> True; Cons (ps, body) rest -> list-length ps == count && clauses-full-arity rest count
+  has-definition :: String -> List Decl -> Bool
+  has-definition name ds = case ds of
+    Nil -> False
+    Cons d rest -> case definition-name d of Some n -> same name n || has-definition name rest; None -> has-definition name rest
+  definition-name :: Decl -> Option String
+  definition-name d = case d of DFun s name cs -> Some name; other -> None
+  declaration-clauses :: String -> Decl -> List (List Pat, Expr)
+  declaration-clauses name d = case d of DFun s n cs -> if same name n then cs else Nil; other -> Nil
+  function-clauses :: String -> List Decl -> List (List Pat, Expr)
+  function-clauses name ds = collect-clauses name ds Nil
+  collect-clauses :: String -> List Decl -> List (List Pat, Expr) -> List (List Pat, Expr)
+  collect-clauses name ds backwards = case ds of
+    Nil -> reverse backwards
+    Cons d rest -> collect-clauses name rest (reverse (declaration-clauses name d) <> backwards)
+  -- Keep the large declaration match out of the recursive list frame.
+  -- Complete top-level signatures make each body's inference independent;
+  -- seal it while its substitution cells are still near the store's head.
+  check-body-declaration :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List String -> List Decl -> Decl -> Store -> (List String, Option CoreDefinition, Store)
+  check-body-declaration classes kinds families env seen all d st = case d of
+    DFun s name cs -> if has name seen then (seen, None, st)
+      else case check-definition classes kinds families env s name (function-clauses name all) st of
+        (definition, ss) -> case definition of
+          None -> (Cons name seen, None, ss)
+          Some core -> case resolve-dictionary-definition-with classes (env-instances env) core ss of
+            (resolved, checked) -> (Cons name seen, Some (seal-definition checked resolved), checked)
+    DSig s name ty -> (seen, None, if has-definition name all then st else add-error s (string-concat "signature has no definition: " name) st)
+    other -> (seen, None, st)
+  check-bodies :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List String -> List Decl -> List Decl -> Store -> (List CoreDefinition, Store)
+  check-bodies classes kinds families env seen all ds st = check-body-loop classes kinds families env seen all ds Nil st
+  check-body-loop :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List String -> List Decl -> List Decl -> List CoreDefinition -> Store -> (List CoreDefinition, Store)
+  check-body-loop classes kinds families env seen all ds backwards st = case ds of
+    Nil -> (reverse backwards, st)
+    Cons d rest -> case check-body-declaration classes kinds families env seen all d st of
+      (names, definition, ss) -> check-body-loop classes kinds families env names all rest (case definition of None -> backwards; Some core -> Cons core backwards) ss
+  contexts :: List Decl -> List Json
+  contexts ds = case ds of
+    Nil -> Nil
+    Cons (DSource s name metadata) rest -> Cons metadata (contexts rest)
+    Cons (DForeign s direction abi symbol name syntax) rest -> case intrinsic-contract symbol of
+      Some (text, external) -> Cons (JObj "category" (JStr "intrinsic")
+        (JObj "binding" (JStr name) (JObj "identity" (JStr symbol)
+          (JObj "external" (JStr external) (JObj "runtime_abi" (JNum 5)
+            (JObj "scheme" (JStr text) JObjEnd)))))) (contexts rest)
+      None -> contexts rest
+    Cons d rest -> contexts rest
+  finish-binding :: Store -> CheckedBinding -> CheckedBinding
+  finish-binding st b = case b of
+    MkCheckedBinding n sc role -> MkCheckedBinding n (map-scheme-types (normalize st) sc) role
+    MkMethodBinding n sc owner slot -> MkMethodBinding n (map-scheme-types (normalize st) sc) owner slot
+    MkGivenBinding n ty symbol -> MkGivenBinding n (normalize st ty) symbol
+    MkLocalBinding n sc id level -> MkLocalBinding n (map-scheme-types (normalize st) sc) id level
+    MkValueBinding n sc id level value -> MkValueBinding n (map-scheme-types (normalize st) sc) id level (normalize st value)
+    MkIntrinsicBinding n sc symbol -> MkIntrinsicBinding n (map-scheme-types (normalize st) sc) symbol
+    MkProofBinding fact -> MkProofBinding fact
+  finish-bindings :: Store -> List CheckedBinding -> List CheckedBinding
+  finish-bindings st env = case env of Nil -> Nil; Cons b rest -> Cons (finish-binding st b) (finish-bindings st rest)
+  check-core-closed :: List CoreDefinition -> Store -> Store
+  check-core-closed definitions st = case definitions of
+    Nil -> st
+    Cons d rest -> check-core-closed rest (if core-definition-closed d then st else add-error zero "typed core contains an unresolved scheme or error term" st)
+  -- Reuse the schemes registered and checked above. Re-reading a surface
+  -- constructor type here would discard the exact nominal identities.
+  checked-constructors :: List (String, TypeExpr) -> List CheckedBinding -> Store -> (List CoreConstructor, Store)
+  checked-constructors cs env st = case cs of
+    Nil -> (Nil, st)
+    Cons (name, ty) rest -> case lookup-binding name env of
+      Some binding -> case checked-constructors rest env st of
+        (more, ss) -> (Cons (MkCoreConstructor (type-expr-span ty) name (checked-scheme binding)) more, ss)
+      None -> checked-constructors rest env (add-error (type-expr-span ty) "typed data constructor has no checked binding" st)
+  checked-data-declaration :: TypeContext -> List CheckedBinding -> Decl -> Store -> (Option CoreData, Store)
+  checked-data-declaration kinds env d st = case d of
+    DData s name ps cs -> case context-kind name kinds of
+      Some k -> case parameters False kinds Nil ps 0 Nil st of
+        (qs, sq) -> case checked-constructors cs env sq of
+          (constructors, sc) -> (Some (MkCoreData s name k qs constructors), sc)
+      None -> (None, add-error s "typed data declaration has no checked kind" st)
+    other -> (None, st)
+  checked-data :: TypeContext -> List CheckedBinding -> List Decl -> List CoreData -> Store -> (List CoreData, Store)
+  checked-data kinds env ds backwards st = case ds of
+    Nil -> (reverse backwards, st)
+    Cons d rest -> case checked-data-declaration kinds env d st of
+      (found, ss) -> checked-data kinds env rest (case found of None -> backwards; Some typed -> Cons typed backwards) ss
+  check-data-closed :: List CoreData -> Store -> Store
+  check-data-closed datas st = case datas of
+    Nil -> st
+    Cons d rest -> check-data-closed rest (if core-data-closed d then st else add-error zero "typed data contains an unresolved constructor scheme" st)
+  elaborate-module :: String -> Module -> Elaboration
+  elaborate-module label m =
+    let ds = module-decls m in
+    let contracts = check-imported-refinements ds Nil (empty-store label) in
+    let start = data-order ds (data-names ds) Nil contracts in
+    let (source-kinds, source-store) = collect-kinds ds primitive-kinds start in
+    let (kinds, sk) = collect-nominal-kinds ds source-kinds source-store in
+    let rows = class-rows ds in
+    let classes = Cons ("b.Io", KFun KRegion KType) (class-kinds rows kinds Nil) in
+    let aliases-checked = validate-refinements kinds (context-aliases kinds) sk in
+    let (values, sv) = register rows classes kinds ds builtins aliases-checked in
+    let (env, si) = register-implicit-instances classes kinds ds values sv in
+    let se = check-instance-coherence (env-instances env) si in
+    let families = Cons ("Bool", ["True", "False"]) (families-of ds <> imported-families ds) in
+    let (core, done) = case store-errors se of Nil -> check-bodies classes kinds families env Nil ds ds se; other -> (Nil, se) in
+    let (datas, sd) = case store-errors done of Nil -> checked-data kinds env ds Nil done; other -> (Nil, done) in
+    let finished = case store-errors sd of Nil -> check-data-closed datas (check-core-closed core sd); other -> sd in
+    MkElaboration (store-errors finished) (finish-bindings finished env) (contexts ds) core datas
+  elaborate-modules :: String -> List Module -> Elaboration
+  elaborate-modules label ms = case ms of
+    Nil -> MkElaboration Nil Nil Nil Nil Nil
+    Cons m rest -> case (elaborate-module label m, elaborate-modules label rest) of
+      (MkElaboration errors bindings ctx core datas, MkElaboration more others scopes other-core other-data) -> MkElaboration (errors <> more) (bindings <> others) (ctx <> scopes) (core <> other-core) (datas <> other-data)
+  elaborate-program :: String -> Program -> Elaboration
+  elaborate-program label p = elaborate-modules label (program-modules p)
+  infer-program :: String -> Program -> List Diagnostic
+  infer-program label p = elaboration-errors (elaborate-program label p)
+
+  predicate-syntax :: TypeExpr -> Bool
+  predicate-syntax syntax = case syntax of
+    TInfix s op a b -> has op ["<", "<=", "==", "/=", ">=", ">", "&&", "||"]
+    TName s name -> same name "True" || same name "False"
+    TApp sp (TName at name) (TArg arg input (TArgsEnd end)) -> same name "NonZero"
+    other -> False
+  predicate-carrier :: List (String, UType) -> TypeExpr -> Option UType
+  predicate-carrier locals syntax = case syntax of
+    TName s name -> case lookup-local name locals of Some ty -> value-carrier (type-kind ty); None -> None
+    TInfix s op a b -> merge-predicate-carriers (predicate-carrier locals a) (predicate-carrier locals b)
+    TNegate s a -> predicate-carrier locals a
+    other -> None
+  predicate-base-carrier :: UType -> UType
+  predicate-base-carrier carrier = case carrier of URefine id name base predicate -> predicate-base-carrier base; other -> carrier
+  predicate-math-carrier :: UType -> Bool
+  predicate-math-carrier carrier = case predicate-base-carrier carrier of
+    UCon name KType -> has name ["Nat", "Int", "I8", "I16", "I32", "I64", "U8", "U16", "U32", "U64"]
+    other -> False
+  merge-predicate-carriers :: Option UType -> Option UType -> Option UType
+  merge-predicate-carriers first second = case (first, second) of
+    (Some a, Some b) -> if predicate-math-carrier a && predicate-math-carrier b then
+      Some (if same-type (predicate-base-carrier a) (primitive-type "Nat") && same-type (predicate-base-carrier b) (primitive-type "Nat") then primitive-type "Nat" else primitive-type "Int")
+      else Some (if predicate-math-carrier a then b else a)
+    (Some a, None) -> Some a
+    other -> second
+  predicate-comparison-carrier :: List (String, UType) -> TypeExpr -> TypeExpr -> UType
+  predicate-comparison-carrier locals first second = case merge-predicate-carriers (predicate-carrier locals first) (predicate-carrier locals second) of
+    Some carrier -> if predicate-math-carrier carrier then
+      (if same-type (predicate-base-carrier carrier) (primitive-type "Nat") then primitive-type "Nat" else primitive-type "Int") else carrier
+    None -> primitive-type "Int"
+  predicate-arithmetic-input :: List (String, UType) -> TypeExpr -> Bool
+  predicate-arithmetic-input locals syntax = case syntax of
+    TName sp name -> case lookup-local name locals of Some value -> (case value-carrier (type-kind value) of Some carrier -> math-carrier (predicate-base-carrier carrier); None -> False); None -> False
+    TInfix sp op left right -> predicate-arithmetic-input locals left && predicate-arithmetic-input locals right
+    TNegate sp body -> predicate-arithmetic-input locals body
+    TIndex sp text -> True
+    other -> False
+  same-type :: UType -> UType -> Bool
+  same-type first second = case store-errors (unify (Span 0 0 1 1) first second (empty-store "predicate sort")) of Nil -> True; other -> False
+  predicate-index-value :: Span -> UType -> UType -> Store -> (UType, Store)
+  predicate-index-value sp carrier value st = case value-carrier (type-kind (normalize st value)) of
+    Some (URefine id name base predicate) -> predicate-index-value sp carrier (UIndexForget value) st
+    Some actual -> if same-type actual carrier then checked-typed-source-index sp value st
+      else if same-type carrier (primitive-type "Int") && predicate-math-carrier actual then checked-typed-source-index sp (UIndexPromote value) st
+      else bad sp "proof predicate has incompatible numeric carriers" st
+    None -> bad sp "a type cannot be used as a predicate value" st
+  convert-predicate-index :: Bool -> TypeContext -> List (String, UType) -> UType -> TypeExpr -> Store -> (UType, Store)
+  convert-predicate-index external kinds locals carrier syntax st = case syntax of
+    TName sp name -> case lookup-local name locals of
+      Some value -> predicate-index-value sp carrier value st
+      None -> bad sp "source index has no checked local binding" st
+    TInfix sp op first second -> if not (predicate-arithmetic-input locals syntax) then bad sp "machine arithmetic cannot enter mathematical index conversion" st
+      else if has op ["+", "-", "*"] then
+        (case convert-predicate-index external kinds locals carrier first st of
+          (a, sa) -> case convert-predicate-index external kinds locals carrier second sa of
+            (b, sb) -> checked-typed-source-index sp (UIndexMath op a b) sb)
+      else bad sp "index operator needs checked mathematical semantics" st
+    TNegate sp input -> if not (predicate-arithmetic-input locals syntax) then bad sp "machine arithmetic cannot enter mathematical index conversion" st
+      else case convert-predicate-index external kinds locals carrier input st of
+        (value, checked) -> checked-typed-source-index sp (UIndexMath "-" (UIndex carrier (IInteger 0)) value) checked
+    other -> convert-index external kinds locals carrier syntax st
+  convert-predicate :: Bool -> TypeContext -> List (String, UType) -> TypeExpr -> Store -> (UType, Store)
+  convert-predicate external kinds locals syntax st = case syntax of
+    TName s name -> if same name "True" || same name "False" then (UPropLit (same name "True"), st) else bad s "unsupported proof predicate" st
+    TApp sp (TName at name) (TArg arg input (TArgsEnd end)) ->
+      if not (same name "NonZero") then bad sp "unsupported proof predicate former" st
+      else let carrier = predicate-comparison-carrier locals input input in
+        if math-carrier carrier then (case convert-predicate-index external kinds locals carrier input st of
+          (value, checked) -> let predicate = UPropNonZero value in
+            (predicate, if valid-type predicate then checked else add-error sp "ill-sorted structural NonZero predicate" checked))
+        else bad sp "NonZero needs a checked mathematical carrier" st
+    TInfix s op a b -> if same op "&&" || same op "||" then
+      (case convert-predicate external kinds locals a st of
+        (left, sa) -> case convert-predicate external kinds locals b sa of
+          (right, sb) -> (if same op "&&" then UPropAnd left right else UPropOr left right, sb))
+      else if has op ["<", "<=", "==", "/=", ">=", ">"] then
+        (let carrier = predicate-comparison-carrier locals a b in
+         if math-carrier carrier then (case convert-predicate-index external kinds locals carrier a st of
+           (left, sa) -> case convert-predicate-index external kinds locals carrier b sa of
+             (right, sb) -> let out = UCompare op left right in (out, if valid-type out then sb else add-error s "ill-sorted proof predicate" sb))
+         else bad s "proof predicate needs checked mathematical carriers" st)
+      else bad s "unsupported proof predicate operator" st
+    other -> bad (type-expr-span syntax) "proof predicate needs checked arithmetic" st
+  convert-proof-bounds :: Bool -> TypeContext -> List (String, UType) -> TypeExpr -> Store -> (UType, Store)
+  convert-proof-bounds external kinds locals bounds st = case bounds of
+    TBoundsEnd s -> (UEnd, st)
+    TBound s name app rest -> if predicate-syntax app then
+      (if not (same name "") then bad s "named proof terms need erased proof binding elaboration" st
+       else case convert-predicate external kinds locals app st of
+         (p, sp) -> case convert-proof-bounds external kinds locals rest sp of (ps, done) -> (UArg p ps, done))
+      else convert-proof-bounds external kinds locals rest st
+    other -> bad (type-expr-span bounds) "malformed proof context" st
+  -- Sink a context under its computational binders. Predicates refer to
+  -- those exact Pi IDs, not fresh globals with the same printed names.
+  convert-contracted :: Bool -> TypeContext -> List (String, UType) -> TypeExpr -> TypeExpr -> Store -> (UType, Store)
+  convert-contracted external kinds locals bounds syntax st = case syntax of
+    TFun s domain result -> convert-contracted-arrow external kinds locals bounds s domain None result st
+    TFunEff s domain row result -> convert-contracted-arrow external kinds locals bounds s domain (Some row) result st
+    other -> case convert external kinds locals syntax st of
+      (body, sb) -> case convert-proof-bounds external kinds locals bounds sb of
+        (UEnd, done) -> (body, done)
+        (predicates, done) -> let out = URequire predicates body in (out, if valid-type out then done else add-error (type-expr-span syntax) "ill-formed function proof contract" done)
+  convert-contracted-arrow :: Bool -> TypeContext -> List (String, UType) -> TypeExpr -> Span -> TypeExpr -> Option TypeExpr -> TypeExpr -> Store -> (UType, Store)
+  convert-contracted-arrow external kinds locals bounds sp argument row result st = case argument of
+    TBound s name carrier (TBoundsEnd end) -> case convert external kinds locals carrier st of
+      (domain, checked) -> case fresh-for-types (Cons domain (local-types locals)) (expect-type s domain checked) of
+        (id, fresh) -> let bound = Cons (name, UBound id name (value-kind domain)) locals in
+          case (case row of None -> (URow UEnd, fresh); Some effects -> convert-row bound effects fresh) of
+            (effects, sr) -> case convert-contracted external kinds bound bounds result sr of
+              (body, done) -> (UPi id name domain effects body, done)
+    other -> case convert external kinds locals argument st of
+      (domain, checked) -> case (case row of None -> (URow UEnd, checked); Some effects -> convert-row locals effects checked) of
+        (effects, sr) -> case convert-contracted external kinds locals bounds result sr of
+          (body, done) -> (function-type domain effects body, done)
+  introduce-facts :: List Proposition -> List CheckedBinding -> List CheckedBinding
+  introduce-facts facts env = case facts of Nil -> env; Cons p rest -> Cons (MkProofBinding p) (introduce-facts rest env)
+  check-required :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Expr -> UType -> Store -> (CoreTerm, Store)
+  check-required classes kinds families env locals body expected st = case normalize st expected of
+    URequire predicates result -> case core-predicates (proof-gamma env st) predicates of
+      Some facts -> case check-required classes kinds families (introduce-facts facts env) locals body result st of
+        (term, checked) -> (CRequire (expr-span body) expected term, checked)
+      None -> term-error (expr-span body) "function precondition has no checked argument scope" st
+    other -> check-alt-body classes kinds families env locals body expected st
+  discharge-call :: List (String, Kind) -> Span -> List CheckedBinding -> CoreTerm -> Store -> (CoreTerm, Store)
+  discharge-call classes sp env input before = case resolve-ready-term classes (env-instances env) (env-givens env) input before of
+    (term, st) -> discharge-checked-call sp env term st
+  discharge-checked-call :: Span -> List CheckedBinding -> CoreTerm -> Store -> (CoreTerm, Store)
+  discharge-checked-call sp env term st = case normalize st (core-type term) of
+    URequire predicates result -> case store-errors st of
+      Nil -> case prove-predicates (proof-gamma env st) (proof-facts env) (normalize st (core-type term)) of
+        Some evidence -> (CDischarge sp (required-body (normalize st (core-type term))) evidence term, st)
+        None -> term-error sp "function precondition is not established at this call" st
+      other -> (term, st)
+    other -> (term, st)
+
+  apply-dependent :: List (String, Kind) -> Span -> List CheckedBinding -> CoreTerm -> CoreTerm -> Store -> (CoreTerm, Store)
+  apply-dependent classes sp env fun value st = case reify-argument sp env value st of
+    (index, checked) -> case store-errors checked of
+      Nil -> case open-pi sp (core-type fun) index checked of
+        (out, row, done) -> discharge-call classes sp env (applied-core sp out row fun value) done
+      other -> case value of
+        -- A certified partial operation is a checked runtime value. Bind it
+        -- once, retaining the operation certificate and its equality fact;
+        -- do not smuggle symbolic Nat subtraction into type conversion.
+        CProved source ty evidence body -> materialize-dependent classes sp env fun value st
+        other -> (CError sp, checked)
+  materialize-dependent :: List (String, Kind) -> Span -> List CheckedBinding -> CoreTerm -> CoreTerm -> Store -> (CoreTerm, Store)
+  materialize-dependent classes sp env fun value st = case fresh-id st of
+    (function-id, sf) -> case fresh-id sf of
+      (value-id, sv) ->
+        let function-scheme = mono (core-type fun) in
+        let value-scheme = mono (core-type value) in
+        let level = store-level sv in
+        let function-name = "#dependent-function" in
+        let value-name = "#dependent-argument" in
+        let functions = Cons (MkLocalBinding function-name function-scheme function-id level) env in
+        let binding = MkLocalBinding value-name value-scheme value-id level in
+        let bound = proof-let-env functions binding value-id value-scheme value sv in
+        let actual = CLocal sp (core-type value) value-id value-name Nil in
+        let callee = CLocal sp (core-type fun) function-id function-name Nil in
+        case reify-argument sp bound actual sv of
+          (index, si) -> case open-pi sp (core-type fun) index si of
+            (out, row, so) -> case discharge-call classes sp bound (applied-core sp out row callee actual) so of
+              (call, done) -> let result = core-type call in
+                (CLet sp result function-id function-name function-scheme fun (CLet sp result value-id value-name value-scheme value call), done)
+
+  collect-instance-nominals :: Span -> Json -> TypeContext -> Store -> (TypeContext, Store)
+  collect-instance-nominals sp rows kinds st = case rows of
+    JArr row rest -> case resolved-text row of
+      None -> collect-instance-nominals sp rest kinds st
+      Some text -> if resolved-entry-valid row then
+        (case collect-nominal-rows sp (resolved-nominals row) kinds st of (more, checked) -> collect-instance-nominals sp rest more checked)
+        else (kinds, add-error sp "invalid implicit instance nominal contract" st)
+    JArrEnd -> (kinds, st)
+    other -> (kinds, add-error sp "invalid instance contract array" st)
+  env-instances :: List CheckedBinding -> List (String, Scheme)
+  env-instances env = case env of
+    Nil -> Nil
+    Cons (MkCheckedBinding name sc role) rest -> if same role "implicit-instance" then Cons (name, sc) (env-instances rest) else env-instances rest
+    Cons other rest -> env-instances rest
+  register-instance-rows :: List (String, Kind) -> TypeContext -> Span -> Json -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
+  register-instance-rows classes kinds sp rows env st = case rows of
+    JArr row rest -> case (field "implicit" row, resolved-text row, field "id" row) of
+      (JBool True, Some text, JStr identity) -> case imported-scheme sp classes kinds (TUnmodeled sp "missing resolved instance") row st of
+        (sc, checked) -> if checked-class-type classes (scheme-body sc) then
+          (let name = interface-global identity in case lookup-binding name env of
+            None -> register-instance-rows classes kinds sp rest (Cons (MkCheckedBinding name sc "implicit-instance") env) checked
+            Some prior -> register-instance-rows classes kinds sp rest env (add-error sp "duplicate implicit instance identity" checked))
+          else register-instance-rows classes kinds sp rest env (add-error sp "implicit instance needs a saturated checked signature target" checked)
+      other -> register-instance-rows classes kinds sp rest env st
+    JArrEnd -> (env, st)
+    other -> (env, add-error sp "invalid instance contract array" st)
+  register-implicit-instances :: List (String, Kind) -> TypeContext -> List Decl -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
+  register-implicit-instances classes kinds ds env st = case ds of
+    Nil -> (env, st)
+    Cons (DInterface sp name hash metadata) rest -> case register-instance-rows classes kinds sp (field "instances" (field "exports" metadata)) env st of
+      (more, checked) -> register-implicit-instances classes kinds rest more checked
+    Cons other rest -> register-implicit-instances classes kinds rest env st

@@ -1,0 +1,559 @@
+-- Interface loading and dependency identity checks. The complete JSON
+-- contract remains attached to every loaded module: loading names is not
+-- permission to erase its proofs, layouts, instances or assumptions.
+module Bootstrap.Load where
+
+  import Bootstrap.Ast (TypeExpr)
+  import Bootstrap.Interface (iface-parse, iface-schema-version, fnv-source-hash)
+  import Bootstrap.Parse (parse-scheme)
+  import Bootstrap.Nominal (resolved-entry-valid, resolved-nominals)
+  import Data.Bytes (bytes-compare)
+  import Data.Json
+  import Text.Json (canonical-bytes)
+  import Text.Parse (ParseOutcome, Parsed, Failed)
+  import Algebra.Semigroup
+
+  export ImportedValue, imported-name, imported-symbol, imported-arity, imported-scheme
+  export imported-type
+  export LoadedInterface, loaded-module, loaded-hash, loaded-contract
+  export loaded-values, loaded-fixities, loaded-imports
+  export loaded-exports
+  export load-interface, load-interface-set, validate-interface-set
+  export loaded-entry
+
+  data ImportedValue where
+    MkImportedValue :: String -> String -> Nat -> String -> ImportedValue
+
+  imported-name :: ImportedValue -> String
+  imported-name v = case v of MkImportedValue name symbol arity scheme -> name
+
+  imported-symbol :: ImportedValue -> String
+  imported-symbol v = case v of MkImportedValue name symbol arity scheme -> symbol
+
+  imported-arity :: ImportedValue -> Nat
+  imported-arity v = case v of MkImportedValue name symbol arity scheme -> arity
+
+  imported-scheme :: ImportedValue -> String
+  imported-scheme v = case v of MkImportedValue name symbol arity scheme -> scheme
+
+  imported-type :: ImportedValue -> ParseOutcome TypeExpr
+  imported-type v = parse-scheme (imported-name v) (string-to-bytes (imported-scheme v))
+
+  data LoadedInterface where
+    MkLoadedInterface :: String -> String -> Json -> List ImportedValue
+      -> List (String, String, Nat) -> List (String, String) -> LoadedInterface
+
+  loaded-module :: LoadedInterface -> String
+  loaded-module i = case i of MkLoadedInterface name hash doc values fixes refs -> name
+
+  loaded-hash :: LoadedInterface -> String
+  loaded-hash i = case i of MkLoadedInterface name hash doc values fixes refs -> hash
+
+  loaded-contract :: LoadedInterface -> Json
+  loaded-contract i = case i of MkLoadedInterface name hash doc values fixes refs -> doc
+
+  loaded-values :: LoadedInterface -> List ImportedValue
+  loaded-values i = case i of MkLoadedInterface name hash doc values fixes refs -> values
+
+  loaded-fixities :: LoadedInterface -> List (String, String, Nat)
+  loaded-fixities i = case i of MkLoadedInterface name hash doc values fixes refs -> fixes
+
+  loaded-imports :: LoadedInterface -> List (String, String)
+  loaded-imports i = case i of MkLoadedInterface name hash doc values fixes refs -> refs
+
+  -- Name, namespace category, defining identity. Contract-only class
+  -- members are intentionally absent: only explicit export lists bind
+  -- names in the importing module.
+  loaded-exports :: LoadedInterface -> List (String, String, String)
+  loaded-exports i =
+    let exports = field "exports" (loaded-contract i) in
+    value-exports (field "values" exports) <> type-exports (field "types" exports)
+      <> signature-exports (field "signatures" exports)
+
+  value-exports :: Json -> List (String, String, String)
+  value-exports rows = case rows of
+    JArr row rest -> Cons (text (field "name" row), "value", text (field "symbol" row)) (value-exports rest)
+    other -> Nil
+
+  named-exports :: Json -> String -> String -> List (String, String, String)
+  named-exports names kind identity = case names of
+    JArr (JStr name) rest -> Cons (name, kind, identity) (named-exports rest kind identity)
+    other -> Nil
+
+  ctor-exports :: Json -> List (String, String, String)
+  ctor-exports rows = case rows of
+    JArr row rest -> Cons (text (field "name" row), "constructor", text (field "symbol" row)) (ctor-exports rest)
+    other -> Nil
+
+  type-exports :: Json -> List (String, String, String)
+  type-exports rows = case rows of
+    JArr row rest -> Cons (text (field "name" row), "type", text (field "identity" row))
+      (ctor-exports (field "ctors" row) <> type-exports rest)
+    other -> Nil
+
+  method-exports :: String -> Json -> List (String, String, String)
+  method-exports owner rows = case rows of
+    JArr row rest -> named-exports (field "exports" row) "method"
+      (string-concat-all [owner, ".", text (field "name" row)]) <> method-exports owner rest
+    other -> Nil
+
+  signature-exports :: Json -> List (String, String, String)
+  signature-exports rows = case rows of
+    JArr row rest -> named-exports (field "exports" row) "signature" (text (field "identity" row))
+      <> method-exports (text (field "identity" row)) (field "methods" row) <> signature-exports rest
+    other -> Nil
+
+  -- Recover the full contract for an exported category/identity. Public
+  -- spellings are a scope concern; all aliases share this defining row.
+  loaded-entry :: LoadedInterface -> String -> String -> Option Json
+  loaded-entry i kind identity =
+    let exports = field "exports" (loaded-contract i) in
+    if same kind "value" then entry-by "symbol" identity (field "values" exports)
+    else if same kind "type" then entry-by "identity" identity (field "types" exports)
+    else if same kind "signature" then entry-by "identity" identity (field "signatures" exports)
+    else if same kind "constructor" then ctor-entry identity (field "types" exports)
+    else if same kind "method" then method-entry identity (field "signatures" exports)
+    else if same kind "instance" then entry-by "id" identity (field "instances" exports)
+    else None
+
+  entry-by :: String -> String -> Json -> Option Json
+  entry-by key identity rows = case rows of
+    JArr row rest -> if same identity (text (field key row)) then Some row else entry-by key identity rest
+    other -> None
+
+  ctor-entry :: String -> Json -> Option Json
+  ctor-entry identity rows = case rows of
+    JArr row rest -> case entry-by "symbol" identity (field "ctors" row) of
+      Some entry -> Some entry
+      None -> ctor-entry identity rest
+    other -> None
+
+  method-in :: String -> String -> Json -> Option Json
+  method-in owner identity rows = case rows of
+    JArr row rest -> if same identity (string-concat-all [owner, ".", text (field "name" row)]) then
+      Some (JObj "class" (JStr owner) (JObj "identity" (JStr identity) row))
+      else method-in owner identity rest
+    other -> None
+
+  method-entry :: String -> Json -> Option Json
+  method-entry identity rows = case rows of
+    JArr row rest -> case method-in (text (field "identity" row)) identity (field "methods" row) of
+      Some entry -> Some entry
+      None -> method-entry identity rest
+    other -> None
+
+  same :: String -> String -> Bool
+  same a b = string-compare a b == 0
+
+  field :: String -> Json -> Json
+  field name doc = case doc of
+    JObj key value rest -> if same name key then value else field name rest
+    other -> JNull
+
+  text :: Json -> String
+  text value = case value of JStr s -> s; other -> ""
+
+  number :: Json -> Nat
+  number value = case value of JNum n -> if n >= 0 then nat-from-int n else 0; other -> 0
+
+  object-p :: Json -> Bool
+  object-p value = case value of JObj k v rest -> object-p rest; JObjEnd -> True; other -> False
+
+  array-p :: Json -> Bool
+  array-p value = case value of JArr v rest -> array-p rest; JArrEnd -> True; other -> False
+
+  string-p :: Json -> Bool
+  string-p value = case value of JStr s -> True; other -> False
+
+  nat-p :: Json -> Bool
+  nat-p value = case value of JNum n -> n >= 0; other -> False
+
+  strings-p :: Json -> Bool
+  strings-p value = case value of
+    JArr v rest -> string-p v && strings-p rest
+    JArrEnd -> True
+    other -> False
+
+  strings :: Json -> List String
+  strings value = case value of JArr v rest -> Cons (text v) (strings rest); other -> Nil
+
+  objects-p :: Json -> Bool
+  objects-p value = case value of JArr v rest -> object-p v && objects-p rest; JArrEnd -> True; other -> False
+
+  bools-p :: Json -> Bool
+  bools-p value = case value of
+    JArr (JBool b) rest -> bools-p rest
+    JArrEnd -> True
+    other -> False
+
+  array-length :: Json -> Nat
+  array-length value = case value of JArr v rest -> 1 + array-length rest; other -> 0
+
+  parameters-valid :: Json -> Json -> List String -> Bool
+  parameters-valid parameters names seen = case parameters of
+    JArr p rest -> case names of
+      JArr (JStr name) more -> same name (text (field "name" p)) && not (member name seen)
+        && string-length name > 0 && string-length (text (field "kind" p)) > 0
+        && (case field "implicit" p of JBool b -> True; other -> False)
+        && parameters-valid rest more (Cons name seen)
+      other -> False
+    JArrEnd -> case names of JArrEnd -> True; other -> False
+    other -> False
+
+  ctors-valid :: Json -> List String -> Bool
+  ctors-valid rows seen = case rows of
+    JArr row rest ->
+      let name = text (field "name" row) in
+      string-length name > 0 && not (member name seen)
+      && string-length (text (field "symbol" row)) > 0
+      && string-length (text (field "scheme" row)) > 0 && nat-p (field "tag" row)
+      && resolved-entry-valid row
+      && strings-p (field "fields" row) && bools-p (field "erased" row)
+      && array-length (field "fields" row) == array-length (field "erased" row)
+      && ctors-valid rest (Cons name seen)
+    JArrEnd -> True
+    other -> False
+
+  types-valid :: Json -> List String -> Bool
+  types-valid rows seen = case rows of
+    JArr row rest ->
+      let name = text (field "name" row) in
+      let kind = text (field "kind" row) in
+      string-length name > 0 && not (member name seen)
+      && string-length (text (field "identity" row)) > 0
+      && member kind ["data", "record", "opaque", "refinement", "signature"]
+      && parameters-valid (field "parameters" row) (field "params" row) Nil
+      && ctors-valid (field "ctors" row) Nil && strings-p (field "fields" row)
+      && (if same kind "refinement" then
+        let definition = field "refinement" row in
+        string-length (text (field "binder" definition)) > 0
+        && string-length (text (field "carrier" definition)) > 0
+        && string-length (text (field "predicate" definition)) > 0
+        else case field "refinement" row of JNull -> True; other -> False)
+      && types-valid rest (Cons name seen)
+    JArrEnd -> True
+    other -> False
+
+  method-default-valid :: Json -> Bool
+  method-default-valid row = case row of
+    JObj key value rest -> if same key "default" then (case value of JStr identity -> string-length identity > 0; other -> False)
+      else method-default-valid rest
+    JObjEnd -> True
+    other -> False
+  methods-valid :: Json -> List String -> Bool
+  methods-valid rows seen = case rows of
+    JArr row rest ->
+      let name = text (field "name" row) in
+      string-length name > 0 && not (member name seen)
+      && string-length (text (field "scheme" row)) > 0 && strings-p (field "exports" row)
+      && nat-p (field "slot" row) && number (field "slot" row) == list-length seen
+      && resolved-entry-valid row
+      && method-default-valid row
+      && methods-valid rest (Cons name seen)
+    JArrEnd -> True
+    other -> False
+
+  signatures-valid :: Json -> List String -> Bool
+  signatures-valid rows seen = case rows of
+    JArr row rest ->
+      let identity = text (field "identity" row) in
+      string-length identity > 0 && not (member identity seen) && string-length (text (field "name" row)) > 0
+      && strings-p (field "exports" row)
+      && parameters-valid (field "parameters" row) (field "params" row) Nil
+      && methods-valid (field "methods" row) Nil && signatures-valid rest (Cons identity seen)
+    JArrEnd -> True
+    other -> False
+
+  instance-methods-valid :: Json -> List Nat -> List String -> Bool
+  instance-methods-valid rows slots names = case rows of
+    JArr row rest ->
+      let slot = number (field "slot" row) in
+      let name = text (field "name" row) in
+      nat-p (field "slot" row) && not (member-slot slot slots)
+      && string-length name > 0 && not (member name names)
+      && string-length (text (field "scheme" row)) > 0
+      && instance-methods-valid rest (Cons slot slots) (Cons name names)
+    JArrEnd -> True
+    other -> False
+  member-slot :: Nat -> List Nat -> Bool
+  member-slot slot slots = case slots of Nil -> False; Cons first rest -> slot == first || member-slot slot rest
+  instances-valid :: Json -> List String -> Bool
+  instances-valid rows seen = case rows of
+    JArr row rest ->
+      let identity = text (field "id" row) in
+      string-length identity > 0 && not (member identity seen)
+      && string-length (text (field "class" row)) > 0 && string-length (text (field "target" row)) > 0
+      && strings-p (field "ctx" row) && strings-p (field "methods" row)
+      && (case field "implicit" row of JBool value -> True; other -> False)
+      && resolved-entry-valid row && instance-methods-valid (field "method_contracts" row) Nil Nil
+      && (case field "method_contracts" row of JArrEnd -> True; other -> (case field "resolved" row of JNull -> True; other -> False))
+      && instances-valid rest (Cons identity seen)
+    JArrEnd -> True
+    other -> False
+
+  values-valid :: Json -> List String -> Bool
+  values-valid values seen = case values of
+    JArr v rest ->
+      let name = text (field "name" v) in
+      string-length name > 0 && not (member name seen)
+      && string-length (text (field "symbol" v)) > 0
+      && string-length (text (field "scheme" v)) > 0
+      && resolved-entry-valid v
+      && nat-p (field "arity" v) && values-valid rest (Cons name seen)
+    JArrEnd -> True
+    other -> False
+
+  refs-valid :: Json -> List String -> Bool
+  refs-valid refs seen = case refs of
+    JArr r rest ->
+      let name = text (field "module" r) in
+      string-length name > 0 && not (member name seen)
+      && string-length (text (field "iface_hash" r)) > 0 && refs-valid rest (Cons name seen)
+    JArrEnd -> True
+    other -> False
+
+  fixes-valid :: Json -> List String -> Bool
+  fixes-valid fixes seen = case fixes of
+    JArr f rest ->
+      let op = text (field "op" f) in
+      let assoc = text (field "assoc" f) in
+      string-length op > 0 && not (member op seen)
+      && (same assoc "left" || same assoc "right" || same assoc "none")
+      && nat-p (field "prec" f) && number (field "prec" f) <= 9
+      && fixes-valid rest (Cons op seen)
+    JArrEnd -> True
+    other -> False
+
+  member :: String -> List String -> Bool
+  member name names = case names of Nil -> False; Cons n rest -> same name n || member name rest
+
+  -- These tables remain intact in loaded-contract. Their detailed
+  -- interpretation belongs to kind checking, coherence and ABI lowering.
+  envelope-valid :: Json -> Bool
+  envelope-valid doc =
+    object-p doc && string-length (text (field "module" doc)) > 0
+    && string-p (field "compiler" doc) && string-p (field "source_hash" doc)
+    && same (text (field "language" doc)) "draft-0.2+amendments"
+    && strings-p (field "params" doc) && objects-p (field "units" doc)
+    && objects-p (field "assertions" doc) && objects-p (field "contracts" doc)
+    && objects-p (field "laws" doc) && objects-p (field "upgrades" doc)
+    && strings-p (field "must_use" doc)
+    && (let assumptions = field "assumptions" doc in object-p assumptions
+      && strings-p (field "primitives" assumptions) && strings-p (field "foreign" assumptions)
+      && strings-p (field "declared" assumptions))
+    && (let abi = field "abi" doc in object-p abi
+      && same (text (field "convention" abi)) "uniform-word, curried apply stub"
+      && strings-p (field "symbols" abi) && objects-p (field "layouts" abi))
+    && (let exports = field "exports" doc in object-p exports
+      && values-valid (field "values" exports) Nil && fixes-valid (field "fixities" exports) Nil
+      && types-valid (field "types" exports) Nil && signatures-valid (field "signatures" exports) Nil
+      && instances-valid (field "instances" exports) Nil && objects-p (field "foreign" exports))
+    && refs-valid (field "imports" doc) Nil
+
+  -- Project root fields structurally. A nested field named `compiler`
+  -- or `units` is part of the contract and must never be blanked.
+  contract-projection :: Json -> Json
+  contract-projection doc = case doc of
+    JObj key value rest -> JObj key
+      (if same key "compiler" || same key "source_hash" then JStr ""
+       else if same key "units" then JArrEnd else value)
+      (contract-projection rest)
+    other -> doc
+
+  read-values :: Json -> List ImportedValue
+  read-values values = case values of
+    JArr v rest -> Cons (MkImportedValue (text (field "name" v)) (text (field "symbol" v))
+      (number (field "arity" v)) (text (field "scheme" v))) (read-values rest)
+    other -> Nil
+
+  read-fixes :: Json -> List (String, String, Nat)
+  read-fixes fixes = case fixes of
+    JArr f rest -> Cons (text (field "op" f), text (field "assoc" f), number (field "prec" f)) (read-fixes rest)
+    other -> Nil
+
+  read-refs :: Json -> List (String, String)
+  read-refs refs = case refs of
+    JArr r rest -> Cons (text (field "module" r), text (field "iface_hash" r)) (read-refs rest)
+    other -> Nil
+
+  load-interface :: String -> String -> Bytes -> Result String LoadedInterface
+  load-interface expected-name expected-hash src = case iface-parse src of
+    None -> Err "interface is not valid JSON"
+    Some doc ->
+      if not (same expected-name (text (field "module" doc))) then Err "interface module name mismatch"
+      else if not (nat-p (field "schema" doc)) || number (field "schema" doc) /= iface-schema-version then Err "unsupported interface schema"
+      else if not (nat-p (field "runtime_abi" doc)) || number (field "runtime_abi" doc) /= 5 then Err "interface runtime ABI mismatch"
+      else if not (envelope-valid doc) then Err "malformed interface contract envelope"
+      else let hash = fnv-source-hash (canonical-bytes (contract-projection doc)) in
+        if not (same hash expected-hash) then Err "interface contract identity mismatch"
+        else let exports = field "exports" doc in
+          Ok (MkLoadedInterface expected-name hash doc (read-values (field "values" exports))
+            (read-fixes (field "fixities" exports)) (read-refs (field "imports" doc)))
+
+  find-interface :: String -> List LoadedInterface -> Option LoadedInterface
+  find-interface name loaded = case loaded of
+    Nil -> None
+    Cons i rest -> if same name (loaded-module i) then Some i else find-interface name rest
+
+  read-set :: List (String, String, Bytes) -> List LoadedInterface -> Result String (List LoadedInterface)
+  read-set inputs loaded = case inputs of
+    Nil -> Ok (reverse loaded)
+    Cons (name, hash, src) rest -> case find-interface name loaded of
+      Some previous -> Err (string-concat "duplicate interface module: " name)
+      None -> case load-interface name hash src of
+        Err message -> Err (string-concat-all [name, ": ", message])
+        Ok i -> read-set rest (Cons i loaded)
+
+  verify-refs :: List (String, String) -> List LoadedInterface -> Result String Unit
+  verify-refs refs all = case refs of
+    Nil -> Ok ()
+    Cons (name, hash) rest -> case find-interface name all of
+      None -> Err (string-concat "missing interface dependency: " name)
+      Some i -> if same hash (loaded-hash i) then verify-refs rest all
+        else Err (string-concat "stale interface dependency: " name)
+
+  verify-set :: List LoadedInterface -> List LoadedInterface -> Result String Unit
+  verify-set remaining all = case remaining of
+    Nil -> Ok ()
+    Cons i rest -> case verify-refs (loaded-imports i) all of
+      Err message -> Err (string-concat-all [loaded-module i, ": ", message])
+      Ok unit -> verify-set rest all
+
+  refs-ready :: List (String, String) -> List String -> Bool
+  refs-ready refs done = case refs of Nil -> True; Cons (name, hash) rest -> member name done && refs-ready rest done
+
+  ready-interface :: List LoadedInterface -> List LoadedInterface -> List String -> Option (LoadedInterface, List LoadedInterface)
+  ready-interface remaining before done = case remaining of
+    Nil -> None
+    Cons i rest -> if refs-ready (loaded-imports i) done then Some (i, reverse before <> rest)
+      else ready-interface rest (Cons i before) done
+
+  order-interfaces :: List LoadedInterface -> List LoadedInterface -> List String -> Result String (List LoadedInterface)
+  order-interfaces remaining ordered done = case remaining of
+    Nil -> Ok (reverse ordered)
+    Cons first rest -> case ready-interface remaining Nil done of
+      None -> Err (string-concat "cyclic interface dependencies involving " (loaded-module first))
+      Some (i, pending) -> order-interfaces pending (Cons i ordered) (Cons (loaded-module i) done)
+
+  load-interface-set :: List (String, String, Bytes) -> Result String (List LoadedInterface)
+  load-interface-set inputs = case read-set inputs Nil of
+    Err message -> Err message
+    Ok loaded -> validate-interface-set loaded
+
+  json-rows :: Json -> List Json
+  json-rows rows = case rows of JArr row rest -> Cons row (json-rows rest); other -> Nil
+  exported-nominals :: Json -> List Json
+  exported-nominals rows = case rows of
+    JArr row rest -> json-rows (resolved-nominals row) <> exported-nominals rest
+    other -> Nil
+  constructor-nominals :: Json -> List Json
+  constructor-nominals rows = case rows of
+    JArr row rest -> exported-nominals (field "ctors" row) <> constructor-nominals rest
+    other -> Nil
+  method-nominals :: Json -> List Json
+  method-nominals rows = case rows of
+    JArr row rest -> exported-nominals (field "methods" row) <> method-nominals rest
+    other -> Nil
+  interface-nominals :: LoadedInterface -> List Json
+  interface-nominals i = let exports = field "exports" (loaded-contract i) in
+    exported-nominals (field "values" exports) <> constructor-nominals (field "types" exports)
+      <> method-nominals (field "signatures" exports)
+      <> exported-nominals (field "instances" exports)
+  dependency-names :: List (String, String) -> List String
+  dependency-names refs = case refs of Nil -> Nil; Cons (name, hash) rest -> Cons name (dependency-names rest)
+  reachable-modules :: List String -> List LoadedInterface -> List String -> List String
+  reachable-modules pending all seen = case pending of
+    Nil -> seen
+    Cons name rest -> if member name seen then reachable-modules rest all seen else
+      case find-interface name all of
+        None -> reachable-modules rest all (Cons name seen)
+        Some i -> reachable-modules (dependency-names (loaded-imports i) <> rest) all (Cons name seen)
+  nominal-owner-reversed :: List Char -> Bool -> String
+  nominal-owner-reversed chars has-name = case chars of
+    Nil -> ""
+    Cons c rest -> if char-code c == 46 then (if has-name then pack (reverse rest) else "")
+      else nominal-owner-reversed rest True
+  nominal-owner :: String -> String
+  nominal-owner identity = nominal-owner-reversed (reverse (unpack identity)) False
+  prior-nominal :: String -> List (String, Bytes) -> Option Bytes
+  prior-nominal name seen = case seen of Nil -> None; Cons (n, bytes) rest -> if same name n then Some bytes else prior-nominal name rest
+  method-contracts :: Json -> Json
+  method-contracts rows = case rows of
+    JArr row rest -> JArr (JObj "name" (field "name" row)
+      (JObj "slot" (field "slot" row) (JObj "scheme" (field "scheme" row)
+        (JObj "resolved" (field "resolved" row) (JObj "default" (field "default" row) JObjEnd))))) (method-contracts rest)
+    other -> JArrEnd
+  signature-contract :: Json -> Json
+  signature-contract row = JObj "identity" (field "identity" row)
+    (JObj "parameters" (field "parameters" row) (JObj "methods" (method-contracts (field "methods" row)) JObjEnd))
+  verify-signature-contracts :: Json -> List String -> List LoadedInterface -> Result String Unit
+  verify-signature-contracts rows reachable all = case rows of
+    JArr row rest ->
+      let identity = text (field "identity" row) in
+      let owner-name = nominal-owner identity in
+      if not (member owner-name reachable) then Err (string-concat "signature identity is outside the checked dependency closure: " identity)
+      else case find-interface owner-name all of
+        None -> Err (string-concat "missing defining signature interface: " identity)
+        Some owner -> case entry-by "identity" identity (field "signatures" (field "exports" (loaded-contract owner))) of
+          None -> Err (string-concat "signature identity has no defining contract: " identity)
+          Some definition -> if bytes-compare (canonical-bytes (signature-contract row)) (canonical-bytes (signature-contract definition)) == 0
+            then verify-signature-contracts rest reachable all
+            else Err (string-concat "conflicting defining signature contract: " identity)
+    JArrEnd -> Ok ()
+    other -> Err "invalid signature contract table"
+  signature-owner-valid :: Json -> List LoadedInterface -> Bool
+  signature-owner-valid row all =
+    let identity = text (field "identity" row) in
+    case find-interface (nominal-owner identity) all of
+      None -> False
+      Some owner -> case entry-by "identity" identity (field "signatures" (field "exports" (loaded-contract owner))) of
+        None -> not (same (text (field "kind" row)) "signature")
+        Some definition -> same (text (field "kind" row)) "signature"
+          && bytes-compare (canonical-bytes (field "parameters" row)) (canonical-bytes (field "parameters" definition)) == 0
+  verify-nominal-rows :: List Json -> List String -> List LoadedInterface -> List (String, Bytes) -> Result String (List (String, Bytes))
+  verify-nominal-rows rows reachable all seen = case rows of
+    Nil -> Ok seen
+    Cons row rest ->
+      let identity = text (field "identity" row) in
+      let bytes = canonical-bytes row in
+      if not (member (nominal-owner identity) reachable) then Err (string-concat "nominal identity is outside the checked dependency closure: " identity)
+      else if not (signature-owner-valid row all) then Err (string-concat "signature identity has no matching defining contract: " identity)
+      else case prior-nominal identity seen of
+        None -> verify-nominal-rows rest reachable all (Cons (identity, bytes) seen)
+        Some prior -> if bytes-compare prior bytes == 0 then verify-nominal-rows rest reachable all seen
+          else Err (string-concat "conflicting defining nominal contracts: " identity)
+  verify-nominal-set :: List LoadedInterface -> List LoadedInterface -> List (String, Bytes) -> Result String Unit
+  verify-nominal-set remaining all seen = case remaining of
+    Nil -> Ok ()
+    Cons i rest -> case verify-nominal-rows (interface-nominals i) (reachable-modules [loaded-module i] all Nil) all seen of
+      Err message -> Err (string-concat-all [loaded-module i, ": ", message])
+      Ok checked -> case verify-signature-contracts (field "signatures" (field "exports" (loaded-contract i))) (reachable-modules [loaded-module i] all Nil) all of
+        Err message -> Err message
+        Ok unit -> verify-nominal-set rest all checked
+
+  validate-interface-set :: List LoadedInterface -> Result String (List LoadedInterface)
+  validate-interface-set loaded = if duplicate-module loaded Nil then Err "duplicate interface module in resolved context"
+    else case order-interfaces loaded Nil Nil of
+      Err message -> case verify-set loaded loaded of
+        Err dependency -> if missing-dependency loaded loaded then Err dependency else Err message
+        Ok unit -> Err message
+      Ok ordered -> case verify-set loaded loaded of
+        Err message -> Err message
+        Ok unit -> case verify-nominal-set loaded loaded Nil of Err message -> Err message; Ok checked -> Ok ordered
+
+  duplicate-module :: List LoadedInterface -> List String -> Bool
+  duplicate-module loaded seen = case loaded of
+    Nil -> False
+    Cons i rest -> member (loaded-module i) seen || duplicate-module rest (Cons (loaded-module i) seen)
+
+  missing-ref :: List (String, String) -> List LoadedInterface -> Bool
+  missing-ref refs loaded = case refs of
+    Nil -> False
+    Cons (name, hash) rest -> case find-interface name loaded of
+      None -> True
+      Some i -> missing-ref rest loaded
+
+  missing-dependency :: List LoadedInterface -> List LoadedInterface -> Bool
+  missing-dependency remaining loaded = case remaining of
+    Nil -> False
+    Cons i rest -> missing-ref (loaded-imports i) loaded || missing-dependency rest loaded

@@ -35,11 +35,15 @@ fn imported_fixity_parses_in_a_single_source_program() {
 }
 
 const PLUS_SIBLING: &str = "module Sibling where\n\
+                            \x20 export (<+>)\n\
                             \n\
                             \x20 infixr 6 <+>\n\
                             \n\
                             \x20 (<+>) :: Int -> Int -> Int\n\
-                            \x20 (<+>) a b = b\n\
+                            \x20 (<+>) a b = a - b\n\
+                            \x20 infixl 8 <->\n\
+                            \x20 (<->) :: Int -> Int -> Int\n\
+                            \x20 (<->) a b = a\n\
                             \n\
                             \x20 add-and-flag :: Int -> Int -> Int\n\
                             \x20 add-and-flag a b = a <+> b\n";
@@ -57,19 +61,22 @@ fn project_consumer_parses_imported_operator_and_iface_records_it() {
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).expect("temp project dir");
     std::fs::write(dir.join("Sibling.cinch"), PLUS_SIBLING).expect("write sibling");
+    std::fs::write(dir.join("Facade.cinch"),
+        "module Facade where\n  import Sibling ((<+>) as (<*>))\n  export (<*>)\n"
+    ).expect("write facade");
     std::fs::write(
         dir.join("Main.cinch"),
         "module Main where\n\
-         \x20 import Sibling\n\
+         \x20 import Facade\n\
          \n\
          \x20 main :: Int\n\
-         \x20 main = 0 <+> 1\n",
+         \x20 main = 10 <*> 3 <*> 2\n",
     )
     .expect("write main");
 
     let entry = dir.join("Main.cinch");
     match driver(Mode::Run, &entry, None) {
-        Ok(code) => assert_eq!(code, 1, "the imported operator must run and add"),
+        Ok(code) => assert_eq!(code, 9, "the renamed operator must retain its owner's right association"),
         Err(e) => panic!("a consumer must parse the imported operator without redeclaring it: {e}"),
     }
 
@@ -80,5 +87,14 @@ fn project_consumer_parses_imported_operator_and_iface_records_it() {
         text.contains("<+>"),
         "the interface must record the operator's fixity, got:\n{text}"
     );
+    let sibling = cinch::interface::Iface::from_json(&text).expect("sibling contract");
+    assert_eq!(sibling.exports.fixities.len(), 1, "private operator fixities stay private");
+    let facade = cinch::interface::Iface::from_json(
+        &std::fs::read_to_string(dir.join("build/Facade.cinchif")).expect("facade interface")
+    ).expect("facade contract");
+    assert_eq!(facade.exports.fixities.len(), 1);
+    let fixity = &facade.exports.fixities[0];
+    assert_eq!((&*fixity.op, &*fixity.assoc, fixity.prec), ("<*>", "right", 6));
+    assert!(facade.exports.values.iter().any(|v| v.name == "<*>" && v.symbol == "Sibling.<+>"));
     let _ = std::fs::remove_dir_all(&dir);
 }

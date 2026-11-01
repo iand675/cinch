@@ -36,13 +36,13 @@ Ownership rules:
 3. A class constraint does not entail other classes (the standing
    no-superbundle rule): functions state every constraint they use, so
    `Algebra.Monoid` imports `Algebra.Semigroup` explicitly.
-4. A home that writes an operator infix declares that operator's fixity
-   in its own module (`infixr 6 <>` beside the `import
-   Algebra.Semigroup`). Within the embedded family the import supplies
-   the operator's NAME and the module must supply the fixity, because
-   the family is parsed in two passes and an early home cannot see a
-   late home's table (D381). Outside the family the import alone
-   suffices: the fixity travels with the compiled interface (D360).
+4. Only an operator's declaring module may declare its fixity (user
+   direction, 2026-10-30). An import supplies both the name and its
+   defining fixity; consumers and facades cannot redeclare it, even
+   identically. This also holds inside the embedded family: exported
+   operator headers are collected before parsing bodies, resolving D381.
+   Selections, renames and re-exports carry the defining fact. An operator
+   whose owner declares no fixity is available in prefix form only.
 
 `Prelude` becomes the re-export facade (D107's `export module X` and
 `export A.b`), with an explicit curation list. The split itself is an

@@ -26,6 +26,35 @@
 # compiler/), and clang on PATH for the rungs that link.
 set -euo pipefail
 
+# This script runs from the root, outside Cargo's compiler-local config.
+export CARGO_BUILD_JOBS=1
+export RUST_TEST_THREADS=1
+export CARGO_PROFILE_DEV_CODEGEN_UNITS=1
+export CARGO_PROFILE_TEST_CODEGEN_UNITS=1
+export CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1
+
+# Cargo's compiler/.cargo/config.toml is not read when this script is
+# launched from the repository root. Apply the ladder's heap guard here.
+heap_limit="${CINCH_HEAP_LIMIT:-2G}"
+if [[ ! "$heap_limit" =~ ^([0-9]+)([KkMmGg]?)$ ]]; then
+  echo "run-bootstrap-ladder: CINCH_HEAP_LIMIT must be a positive size, at most 2G" >&2
+  exit 2
+fi
+heap_number="${BASH_REMATCH[1]}"
+heap_suffix="${BASH_REMATCH[2]}"
+while [[ ${#heap_number} -gt 1 && "$heap_number" == 0* ]]; do heap_number="${heap_number#0}"; done
+case "$heap_suffix" in
+  G|g) heap_max=2 ;;
+  M|m) heap_max=2048 ;;
+  K|k) heap_max=2097152 ;;
+  *) heap_max=2147483648 ;;
+esac
+if [[ "$heap_number" == 0 || ${#heap_number} -gt ${#heap_max} || ( ${#heap_number} -eq ${#heap_max} && "$heap_number" > "$heap_max" ) ]]; then
+  echo "run-bootstrap-ladder: CINCH_HEAP_LIMIT must be positive and at most 2G" >&2
+  exit 2
+fi
+export CINCH_HEAP_LIMIT="$heap_limit"
+
 root="$(cd "$(dirname "$0")/.." && pwd)"
 compiler="$root/compiler"
 dir="$(mktemp -d)"
@@ -73,15 +102,15 @@ if [ "$1" = "--all-programs" ]; then
     cp "$root"/bootstrap/*.cinch "$one/"
     cp "$prog" "$one/$name"
     err="$(mktemp)"
-    set +e
-    cargo run -q --manifest-path "$compiler/Cargo.toml" --bin cinch -- run "$one/$name" 2>"$err"
-    code=$?
-    set -e
-    if grep -q '^cinch: ' "$err"; then
+    if ! cargo run -q --manifest-path "$compiler/Cargo.toml" --bin cinch -- build "$one/$name" -o "$one/program" 2>"$err"; then
       echo "run-bootstrap-ladder: DID NOT BUILD $name"
-      grep '^cinch: ' "$err" | head -3 | sed 's/^/    /'
+      tail -20 "$err"
       broke=$((broke + 1))
     else
+      set +e
+      (cd "$one" && "$one/program")
+      code=$?
+      set -e
       echo "run-bootstrap-ladder: ran $name, exit $code"
       built=$((built + 1))
     fi
@@ -93,6 +122,7 @@ if [ "$1" = "--all-programs" ]; then
 fi
 
 program="$1"
+shift
 [ -f "$program" ] || program="$root/bootstrap/$program"
 if [ ! -f "$program" ]; then
   echo "run-bootstrap-ladder: no such program: $1" >&2
@@ -100,4 +130,4 @@ if [ ! -f "$program" ]; then
 fi
 name="$(basename "$program")"
 cp "$program" "$dir/$name"
-cargo run -q --manifest-path "$compiler/Cargo.toml" --bin cinch -- run "$dir/$name"
+cargo run -q --manifest-path "$compiler/Cargo.toml" --bin cinch -- run "$dir/$name" -- "$@"

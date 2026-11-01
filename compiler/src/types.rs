@@ -3162,6 +3162,9 @@ pub enum PropOblig {
 #[derive(Clone, Debug)]
 pub struct Scheme {
     pub params: Vec<String>,
+    /// Resolved higher-kinded type parameters and their argument counts.
+    /// The ordinary type parameters in `params` have kind Type.
+    pub con_params: Vec<(String, usize)>,
     /// Schema-level index parameters (no runtime argument).
     pub idx_params: Vec<IxParam>,
     /// Implicit runtime value arguments, name and type.
@@ -3180,6 +3183,7 @@ pub struct Scheme {
 impl Scheme {
     pub fn mono(ty: Ty) -> Scheme {
         Scheme {
+            con_params: Vec::new(),
             params: Vec::new(),
             idx_params: Vec::new(),
             val_params: Vec::new(),

@@ -1,0 +1,1181 @@
+# Self-hosting acceptance and remaining compiler work
+
+Interface schema 7 carries the defining template of a private named
+refinement when that type occurs in an exported value contract. The closure
+retains its defining module, ordered parameters and kinds, binder, carrier,
+and predicate through renamed, value-only facades. Carrying this metadata
+does not make the private type name available to source importers.
+
+The producer supports closed numeric templates over primitive or declared
+parameter carriers. The consumer registers the defining templates before
+checking imported signatures. Refinements require their template and forbid
+constructor metadata; other nominal declarations require a null refinement
+payload. Contradictory defining contracts are rejected by the interface
+loader, and public/private representations must agree in source checking.
+Template changes participate in canonical interface hashes.
+
+The real Native producer fixture checks private Window and Positive types
+through a facade, parameter order, hidden names, canonical round trips,
+predicate hash changes, and four malformed payloads. The compiled Cinch
+consumer passes seven source cases covering projection, call bounds, hidden
+names, and insufficient result bounds, plus a rehashed contradictory facade
+that must fail in the loader with the exact defining-contract diagnostic.
+All seven validation gates pass, including Native contract tests, import
+regressions, source/type/Core contracts, dictionaries/effects, and the
+pipeline/type-syntax/stage-ladder targets. The first two Native gates reuse
+audited evidence from the byte-identical producer; the consumer and later
+gates are rerun. The final audit covers 560 inputs:
+`812d3b7672c10b46b39f368d9fcef70a6a1eb991342b21c842cfcc344fc1dfba`.
+Evidence is in `/tmp/cinch-refinement-closure-validation-2/`.
+
+The Native seed now matches the exact tested schema-7 sources:
+source `7a2dd486210e6beaaa6db3c7b622983f9f4a6f7afe0481dd2e56b84532c8cd8c`,
+patch `1d3479e414067f9d86a86d927f3ea323f24432632c55743de811a50f18e5d3c3`.
+Archive plus patch reproduces every Native source byte, checked both during
+preparation and independently at installation. Runtime ABI 5 is unchanged.
+Fresh schema-7 stage0 and stage1 builds pass all six smoke checks. The
+actual stage2 attempt exits 4 before body checking with 76 header
+diagnostics, down from 84. It produces no IR or compiler executable. Of
+these diagnostics, 22 have imported/synthetic positions and 19 concern
+unchecked calls; counts include cascades. The final audit confirms all
+560 inputs of staged snapshot
+`9e68828fdc7bd9c28a618c3ff072ac891196c91f8a212d15b9a1c2c76222560a`
+are unchanged. The compiler-source bundle is
+`e3967c48eb773c9b453abeb846794799b979251b6569336fa78c305305b9a57d`.
+Evidence and source-mapped diagnostics are in
+`/tmp/cinch-refinement-closure-stages/`. Generic Div/Rem method contracts
+now expose two abstract-carrier NonZero refusals; those still require
+proper predicate formation and checked numeric reflection.
+
+General nominal carrier closure, anonymous refinement serialization,
+checked measure/call contracts, remaining source forms, independent global
+typing checks, and typed runtime lowering still require implementation.
+These validation gates do not establish a self-built stage2, stage3 fixed
+point, changed-source behavior, or the complete compiler/runtime suite
+through the self-built frontend.
+
+Structural NonZero propositions now retain a distinct typed node through
+substitution, normalization, scope checking and codecs. Logical discharge
+reads the checked numeric operand as inequality to zero; type conversion
+retains the structural proposition identity. Core reifies operands against
+the actual local environment and rechecks refinement evidence. Same-spelled
+refinement constructors in carrier position retain their defining templates;
+the closed structural predicate in predicate position keeps its own meaning.
+
+Source aliases, anonymous refinements and function preconditions use this
+node. Local fixed-width integer predicates retain explicit mathematical
+promotion and the actual input carrier; floating-point operands and machine
+arithmetic remain opaque. Native-produced NonZero preconditions over plain
+Nat/Int arguments now preserve the checked structural predicate, actual
+argument positions and defining function identity through renamed facades.
+Calls needing measure contracts and exported machine-integer preconditions
+remain explicitly unsupported by this producer tier.
+
+The compiled type/Core runner passes 31 checks at each of five runtime
+identities above 2^128. The source checker passes 52 local cases and ten
+real native-interface cases; the imported-precondition runner passes 36
+real-interface caller cases. Native contract tests, all twelve affected
+regression targets, type syntax and the complete pipeline pass. The final
+audit confirms all 557 inputs of snapshot
+`191dbdaa00cfab050fdcc656cb6729c4aae63550467a1424a763b8672879e491`
+are unchanged; evidence is in `/tmp/cinch-nonzero-import-validation-2/`.
+
+The Native seed is intentionally refreshed to the exact tested sources:
+source `70bc65c32dad2b6e376c7c7c31ed5ae1c23c4dc27639cb9e100708f78820c54d`,
+patch `7795dad12688a232db7ec315e5848de375199d7f00bfcf363a054d6adedad0f1`.
+Archive plus patch reproduces every Native source byte. Interface schema 6
+and runtime ABI 5 are unchanged. Fresh staged verification passes the
+combined ladder and all six rebuilt stage0/stage1 smoke checks. Stage2 exits
+4 before body checking with 84 header diagnostics, down from 85; no IR or
+compiler executable is produced. Counts include cascades. There are 30
+imported/synthetic signature diagnostics and 19 unchecked-call diagnostics.
+The 557 inputs of staged snapshot
+`b61cc0462187eb99c74fcb8c53a17abc64067d014f62f2829a65e74edad10305`
+have an unchanged final audit. Evidence is in `/tmp/cinch-nonzero-stages/`;
+the compiler-source bundle is
+`0a26f4889588a531cc57bcc31bace0554cf6d956ac71a0bbb158b323ced36ece`.
+Closed imported refinement/measure contracts, remaining language forms,
+the independent global typing kernel and typed runtime lowering still
+require work. These checks do not establish self-hosting.
+
+Named refinement declarations now register their defining templates and expand
+saturated applications with ordered, kind-checked actual arguments. Expansion
+retains a typed refinement and its proof obligation. Recursive templates,
+wrong scopes and arities, unsupported predicate calls, and unsaturated
+higher-kinded aliases are refused. Imported templates use the actual defining
+identity and checked native-produced refinement metadata, including aliases
+re-exported by a facade; display spellings do not establish ownership.
+Imported private/nominal carriers still need defining contract closure, and
+structural predicates such as NonZero remain a separate required layer.
+
+The compiled source checker passes 24 named-refinement cases and six cases
+using real native-produced interfaces. Anonymous refinements, all affected
+regressions, type/Core contracts, syntax and the complete pipeline pass.
+The final audit confirms all 552 inputs of snapshot
+`83bc43a806260a3e31b8b38ff169a128cc4420e435b3623ef0ecb0bfc7fcc1c0`
+are unchanged; evidence is in `/tmp/cinch-refinement-alias-validation-3/`.
+The native seed is unchanged. Fresh staged verification passes the combined
+ladder and all six rebuilt stage0/stage1 smoke checks. Stage2 exits 4 before
+body checking with 85 header diagnostics, down from 89; no IR or compiler
+executable is produced. Counts include cascades. There are 19 unchecked-call
+diagnostics and 31 imported/synthetic signature diagnostics. Structural
+NonZero predicates, closed imported refinement/measure contracts, remaining
+declarations and typed runtime lowering still require implementation.
+The 552 inputs of staged snapshot
+`4dc4b6669b5c55fefe38f3e5801b0c9e8a8ca5eb58f28ec0b2e06517d0023c14`
+have an unchanged final audit. Evidence is in `/tmp/cinch-refinement-alias-stages/`;
+the compiler-source bundle is
+`0f89a6971df70a2ce8ee871af81f85ceb908e9bb04a204911ece2dc14b677299`.
+These checks do not establish self-hosting.
+
+Source and Core now retain typed value-index projections through dependent
+arguments, numeric arithmetic and local aliases. Predicate comparisons promote
+Nat and fixed-width machine integers explicitly to mathematical Int when
+needed. Projection and promotion check their operand against the actual Core
+local environment; wrong sorts, identities and scope cannot supply proof facts.
+Core comparison canonicalizes both retained value-rigid representations
+consistently; inference still checks their original scope levels and identities.
+The Source Pi regression exercises numeric constructor-pattern applications.
+Machine arithmetic, float comparisons and unverified calls remain opaque.
+
+The runtime-fed source runner passes 51 cases. The compiled type/Core runner
+passes 58 checks at five runtime-selected identities above 2^128, including
+forged projection/promotion and wrong-identity checks. Both earlier refinement
+contract runners, all twelve affected regression targets, type syntax and the
+complete pipeline pass. The final audit confirms all 550
+inputs of snapshot
+`28da388e4a59200a1850e6e90101c304049c210e0fbc6e95556ac78b0ef66503`
+are unchanged; evidence is in `/tmp/cinch-typed-index-source-validation-2/`.
+The native seed is unchanged. Named imported refinement aliases, checked
+primitive/measure contracts, the independent global typing kernel and the
+typed runtime backend remain required. Fresh staged verification passes the
+combined ladder and all six rebuilt stage0/stage1 smoke checks. Stage2 exits
+4 before body checking with 89 header diagnostics, down from 92; no IR or
+compiler executable is produced. Counts include cascades. Mixed Int/Nat/I64
+comparison sort errors are gone. There are 19 unchecked-call diagnostics and
+32 imported/synthetic signature diagnostics. An additional arithmetic refusal
+in Text.Json.digest-hex-into contains unverified bytes-len calls; it is not
+evidence that those calls or machine arithmetic have been admitted. The 550
+inputs of staged snapshot
+`00f38e98c1d90c76fdd8db44ef7b0f6a3ce2f7cfed8601646dff7e11bf665b19`
+have an unchanged final audit. Evidence is in `/tmp/cinch-typed-index-stages-2/`;
+the compiler-source bundle is
+`3aae51ec1cf16bbbde0fc1228bf4e1b6f58605da2f031ca6e54974db08aab5f6`.
+These checks do not establish self-hosting.
+
+Typed value-index projection, integer promotion and mathematical arithmetic
+are integrated in the type engine. The operand retains its actual carrier
+through dependent substitution, meta solutions, scope checks, alpha conversion
+and codecs. Promotion is explicit; unification cannot forget a refinement or
+silently equate Nat, Int and fixed machine integer sorts. Machine arithmetic,
+floats and open partial Nat subtraction remain refused, and D28 conversion
+continues to fold numerals only.
+
+The compiled runner passes 47 checks at each of five runtime-selected
+identities above 2^128. All nine affected regression targets pass. The final
+audit confirms all 550 inputs of snapshot
+`7264ab3b047a7cb309406bf5b580959b4605bf2d976b6400dea3bc2d30477f85`
+are unchanged; evidence is in `/tmp/cinch-typed-index-validation-2/`.
+This is the type-engine layer. Source projection/promotion and the corresponding
+Core proof reifier are prepared separately and are not enabled by this change.
+The new index forms remain refused by Core until that integration is checked.
+The native seed is unchanged; the latest actual staged result remains 92
+header diagnostics, before body checking, with no stage2 IR or executable.
+
+The 2026-10-30 request resumes the bootstrap ladder and extends its target:
+the Cinch compiler must compile itself. Rung 6's Fibonacci compilation is
+useful evidence, but does not establish self-hosting.
+
+`tooling/bootstrap.sh` implements the stage layout and commands. The seed
+lock pins its Git source revision plus the conversion/interface/fixity patch and source
+hash; the developing compiler cannot silently change stage 0. Stage 1
+materializes the compiler modules and toolkit as a project. Stages 2 and 3
+receive one identical frozen source bundle, with no seed frontend in their
+execution path. Successful self-builds require a new executable, IR and
+link report. The final check also requires matching canonical interfaces
+and rebuilds a changed diagnostic label in the checker, then executes that
+changed compiler and requires the new label in an actual refusal.
+
+## Acceptance
+
+1. The Rust seed compiles the Cinch compiler sources into stage 1.
+2. Stage 1 reads and compiles those same sources into stage 2, rebuilding
+   every compiler module. It may use clang, the runtime and checked base
+   library artifacts, as the existing ABI design permits. It must not
+   invoke the Rust compiler frontend or substitute prebuilt compiler code.
+3. Stage 2 repeats the build into stage 3. Canonical interfaces and emitted
+   IR agree between stages 2 and 3. Run the resulting executables as well.
+4. Exercise a changed compiler source through the chain, so reusing an old
+   artifact or emitting a fixed copy of the compiler cannot pass.
+5. The complete compiler and runtime suites pass, including previously
+   ignored tests. External compiler behavior tests must exercise the
+   self-built frontend too; passing the Rust library's unit tests alone
+   does not establish frontend parity.
+
+Keep `CINCH_HEAP_LIMIT` positive and at most 2G throughout. Run gates on
+frozen snapshots, with no time limit, as `next-steps.md` requires.
+Run only one build or test command at a time, with one Cargo build worker
+and one test thread. Rust code generation also uses one unit, including
+root-launched stage builds. Separate snapshots do not make concurrent suites safe:
+the heap cap is per generated program, not a machine-wide resource budget.
+The previous overlapping gates were interrupted by a machine crash and
+must not be reported as completed verification.
+
+## Current boundary
+
+Source anonymous refinement checking is integrated after 42 runtime-fed
+source cases pass, followed by the Core/type contract and syntax checks,
+all eight affected regression targets and the complete pipeline. The source
+runner parses and resolves each input before checking it, then independently
+runs the existing Core scope/certificate checks on the retained elaboration.
+The pipeline confirms a valid refined result reaches the named typed-lowering
+boundary, while an invalid ignored refinement is rejected before producing
+IR or an executable. The final audit confirms all 548 inputs of snapshot
+`99a531ddb9e8f6cb4666915ab2c985f73b6a667c6c99e94cfd830c0a90d6625d`
+are unchanged; evidence is in `/tmp/cinch-refinement-pipeline-validation/`.
+Earlier source/contract/regression results are reused from
+`/tmp/cinch-refinement-source-validation-2/` only after verifying every input
+except the two added pipeline cases is identical.
+
+Anonymous mathematical refinements now retain a scoped result binder,
+carrier and predicate. Expected refinements propagate through branches,
+guards and strict lets; introduction checks the actual value and scope.
+Numeric comparison refinements project explicitly through `CForget` when
+used as ordinary values, while stored refined values retain their facts.
+Generic `refined (True) a` retains its carrier. Source projections preserve
+their real local binding levels. Bad bounds, wrong/shadowed identities,
+ignored invalid arguments/ascriptions, erased effects, replacement comparison
+operators and captured global/argument names are refused. Unknown predicate
+calls and machine/float arithmetic gain no mathematical proof facts.
+
+Named refinement aliases, checked imported refinement and measure contracts,
+typed index projection for dependent refined arguments and the typed runtime
+backend remain required. Global Core references still rely on checked source
+or interface schemes; the independent global typing kernel is incomplete.
+The native seed is unchanged. Fresh staged verification passes the combined
+ladder and all six rebuilt stage0/stage1 smoke checks. Stage2 exits 4 before
+body checking, with 92 header diagnostics and no IR or compiler executable.
+The new refinement path exposes additional call/sorting failures behind the
+earlier blanket refusal; counts include cascades, not independent features.
+The 548 inputs of staged snapshot
+`92a184b7407c73aa2509f9bc1764430bf7f17eef9857203e570143d326e1836e`
+have an unchanged final audit. Evidence is in
+`/tmp/cinch-source-refinement-stages/`; the compiler-source bundle is
+`aab578ea6507272941c756459adf54b42c8b4378762a0153d4b746ba7ea400eb`.
+There are 21 unchecked-call diagnostics in the new result, including calls
+inside the newly elaborated result refinements. Typed index calls/projections,
+mathematical promotion and checked imported refinement/primitive contracts
+remain required. These checks do not establish self-hosting.
+
+Earlier Core-only checkpoint:
+
+Core refinement introduction and projection are now integrated. `CRefine`
+retains its actual value and a certificate; the closed checker recomputes the
+predicate from that value and its actual lexical scope before checking the
+certificate. `CForget` requires the actual refined operand and exact carrier.
+Refined-local facts come from the actual binding types, and both forms retain
+their operand's effects. Bare literals, tuples and primitive nodes cannot
+establish a refinement merely by carrying its type annotation. Refined branch
+and let results are checked on every path, and definition parameter patterns
+must agree with the declared function domains. The earlier scope-test fixture
+now declares the function arrows its argument patterns require.
+
+The compiled Core runner passes 26 checks at five runtime-chosen identities;
+the 29 refinement-type checks also pass with these rules enabled. All nine
+regression targets pass, including the 20 real-interface precondition cases.
+The 546 inputs of snapshot
+`febea3f4922bbbaddb7e6e5b58b29784a1fc5b13e357fc0fd6443297fe6dff9d`
+have an unchanged final audit. Evidence is in
+`/tmp/cinch-refinement-core-validation-2/`; the focused checks are reused from
+`/tmp/cinch-refinement-core-validation/` only after verifying identical
+compiler and focused-test inputs. The sole input change is the separate scope
+fixture's function type.
+
+Source refinement conversion, imported refinement contracts and typed runtime
+lowering remain required. This is the scope/certificate-checking tier; complete
+independent validation of the global typing environment remains required.
+The native seed is unchanged. No new stage-2 executable is established by
+these checks; the latest actual staged boundary remains the 86-header result.
+
+Earlier engine-only checkpoint:
+
+The refinement type engine is integrated after its compiled runner passes
+29 checks over five runtime-chosen identities above 2^128, and all six
+Core/inference/Pi/proposition/value-index/value-kind regression targets pass.
+The final audit confirms the 544 inputs of snapshot
+`6e9007d2745aeb723193cde8526c50682d784908fb747d1c0bec3810133131ac`
+are unchanged; evidence is in `/tmp/cinch-refinement-type-validation-3/`.
+`URefine` retains its carrier, value binder and predicate through codecs,
+alpha comparison, capture-avoiding substitution, normalization, occurs checks
+and scope checks. Opening returns the precise predicate to prove and supplies
+no evidence. Core runtime use remains refused until certified introduction
+and elimination are implemented; source refinements and imported refinement
+contracts are not enabled by this engine change. The native seed is unchanged.
+The most recent actual stage-2 boundary remains the 86-header result below.
+
+The imported-instance and numeric-condition continuation is integrated after
+all four frozen validation groups pass: four native interface targets, the
+compiled instance-resolution checks at five runtime-chosen identities, all
+20 real-interface source cases plus the complete pipeline, and all eight
+affected regression targets. The final audit confirms all 542 inputs of
+snapshot `27e50cd933afc19f63e7cd8fb3de0b8b37a3146ca3791a3cd0a0e47db85f55c9`
+are unchanged. Evidence is in `/tmp/cinch-instance-integration-validation-2/`.
+
+Checked imported implicit factories now resolve recursively after lexical
+givens, with typed contexts, unique determined selection, coherence and
+transactional failed candidates. Canonical mathematical class operations
+retain their runtime dictionaries while proof reification checks their
+actual identities, signatures and operands. Lexical or unresolved dictionaries,
+replacement operators, machine arithmetic and unknown calls gain no proof
+facts. Native resolved interfaces preserve checked numeric conditions and
+their actual dependent argument identities; unsupported refined or conditional
+factory contracts remain unresolved.
+
+The intentional seed update was prepared from those exact validated native
+sources and verified by applying its patch to the pinned revision. Native
+source hash: `07ca077760713a26f6c2ae59b4b82efda8c4d0aeb84a043fb356816f67fd67a3`;
+patch hash: `cb2568a1cb3247fbe12d702a977d5877efa7f2f6c4b18a756b0c54448d8c36f6`.
+Schema 6 and runtime ABI 5 are retained. Fresh staged verification passes
+type syntax, the combined ladder and all six rebuilt stage0/stage1 smoke
+checks. Stage2 still exits 4 with 86 header diagnostics and emits no IR or
+compiler executable. The final audit confirms all 542 inputs of snapshot
+`3e40c92a7d049b87b1e4a78a6f7d4da0edaf1fa4a85486840c1cc54662f6c0fa`
+are unchanged. Evidence is in `/tmp/cinch-instance-stages/`; its compiler
+source bundle is
+`84f6366e1cb42bb497de6aea9574da5286eede765308e4cb3cd74dcfbc917dbd`.
+The pipeline result is reused from the complete candidate validation only
+after verifying the compiler/test inputs are identical; only the intentionally
+verified seed pin/patch and these design records differ. These focused and
+staged results do not replace the full compiler/runtime and self-built
+frontend acceptance gates.
+
+The following schema-5/schema-6 entries record earlier checkpoints.
+
+The schema-5 continuation now passes its focused producer/consumer gates:
+definition-site class contexts, explicit dictionary slots, private method
+closure, owner consistency and portable pure instance heads. Conditional
+instance method proof contracts retain positional arguments; conditional
+and forward family instances remain explicitly unresolved. Native class,
+kind, nominal and refinement metadata tests pass. The Cinch loader passes
+14 contract cases and nine interface-set cases; the nominal/imported-class
+runner passes 22 runtime cases. Inference and parser-corpus gates pass,
+and typed Core passes 14 runtime-input cases including the 1,501-function
+stress input. These are focused results, separate from the complete frozen
+schema-4 baseline below; the complete developing-tree suite remains required.
+
+Qualified schemes bind definition-local dictionary symbols. Calls and
+method projections resolve against those lexical givens before Core is
+sealed; slots are checked against defining signature rows. Qualified value
+ABI arity includes dictionary parameters, and malformed arity is refused.
+The regressions cover calls, shadowing, missing providers and scope leaks.
+Global instance selection, source class/instance declarations and dependent
+proofs remain unsupported. Source capability/effect checking is under active
+verification as described below. Core closure checking is not an
+independent typing or proof kernel.
+
+The next type-engine continuation introduces distinct Region, Effect and
+Row kinds, retained effect arrows and closed rows. Its compiled Cinch
+runner passes four runtime-input checks covering order-independent set
+unification, idempotence/coalescing, transactional backtracking, effect
+inclusion, rigid-region escape, forall opening and generalization. Source
+conversion and capability/effect body elaboration were not enabled by that
+engine change. The subsequent Core, inference and parser regression gate
+passed. Schema 6 now retains explicit Region binders, kernel Io constraints
+and closed kernel effect rows in native resolved value contracts, and the
+Cinch qualifier retains them. The native region/class contract tests and
+loader's 14 contract and nine interface-set cases pass. A second compiled
+type/Core runner passes row-union, effectful application and lexical capability
+evidence checks; binding an IO provider does not mask its body's effects.
+Source-level applications, lambdas, equations and lexical IO bindings now
+use these forms. Their compiled Cinch checker passes 15 runtime-source cases:
+IO propagation, returned closures, using/with providers, fresh providers,
+implicit row regions, rejection of pure-body/callback effect erasure,
+missing/mismatched providers, scope leaks, fresh-region closure escape and
+wrong Region kinds. Builtin metadata is checked against kernel contracts.
+All six regression targets now pass: Core, effect/types, inference, loader,
+nominals/imported classes and parser corpus. ioRead's imported Option contract, foreign declarations and source
+effect handlers remain unsupported.
+Open row tails remain unsupported. The schema-6 seed has
+been intentionally installed after verifying its applied patch against
+the pinned revision and complete native source hash
+`f43379c30a694ba6dd65390ddb2157fb824806dbff702007173e1cf476545c03`.
+The compiler-source bundle is
+`2c226bf447807e6a0b0e91818bfbe824b07ec716f81966b9262ed462450406f3`.
+Stages 0 and 1 rebuilt from that seed and pass all six Fibonacci,
+precedence and named-refusal executable smoke checks. Stage 2 uses the same
+compiler-source hash and exits 4 before body checking, with 136 header
+diagnostics and no IR or executable. The earlier IO/region/effect-arrow
+refusals are gone; dependent binders, proof/refinement contexts, source
+effect/foreign/instance declarations and two unresolved methods remain.
+The count includes cascading diagnostics, not independent missing features.
+Evidence is in `/tmp/cinch-schema6-io-results.json`; the complete
+compiler/runtime run began on the intended 504-input snapshot
+`5ede0e05a98647f36513e42799abad40de095520184f88ca5cf4c8950495c58b`.
+Its parser test exposed a provenance defect: sharing Cargo's target cache
+reused an executable with the live checkout's CARGO_MANIFEST_DIR embedded.
+Its runtime corpus included the new Bootstrap.Proof module (zero unmodeled
+nodes), outside the snapshot. This run cannot establish a frozen full pass. It was stopped after the
+provenance defect was confirmed, and all of its child processes were
+confirmed stopped before focused repair checks started. Partial results and
+the cancellation reason are recorded in `/tmp/cinch-schema6-full/results.json`.
+Snapshot content auditing alone does not establish the runtime inputs of a
+cached test executable.
+
+`tooling/verify_bootstrap.py` is the replacement verifier. All 16 tooling
+unit tests passed initially. The first real capture found the repository's
+internal parser-corpus directory link; the verifier now copies internal
+directory links into ordinary frozen directories and rejects cycles and
+links outside the source tree. All 19 tooling unit tests now pass. Its first
+complete frozen run is still required. It copies source contents, uses private compiler/runtime Cargo
+caches and private stage outputs, audits source contents between gates, and
+runs compiler, runtime, tooling and stage smoke gates sequentially, followed
+by the full stage-2/stage-3 fixed-point and changed-source check. A smoke-only
+pass cannot make the verifier succeed. The common
+bootstrap test harness now refuses an embedded manifest path that differs
+from the active package root. These changes must be verified before a new
+complete frozen result is claimed; historical full-run counts remain
+historical execution evidence rather than proof of the new snapshot setup.
+
+The current native regression run also found interface emission ordering
+failures in higher-kinded, algebra and category library tests: embedded
+consumers were emitted before source copies of their defining class homes.
+The repair computes dependency order from explicit imports and
+required nominal contracts, replacing each embedded home with its source
+copy in that order. Family homes do not gain a Prelude facade back-edge.
+Exact defining-interface hashes remain mandatory. The three source-path
+checks, class-contract test and two-fixture source-override test pass. All
+24 higher-kinded, 22 algebra and 12 category tests pass, including every
+formerly failing case in those targets. The complete current-tree gate
+remains required.
+
+The first runtime-proof gate caught an existing native pattern checker bug:
+nondependent JSON fields incorrectly had to use identical variable names
+across pattern rows. The repair restricts that requirement to fields whose
+names later field types actually mention. Three new regressions cover JSON
+row-local names, independent evidence names and rejection of inconsistent
+dependent binders. Those tests and the existing dependent-type target are
+now pass alongside all 14 existing dependent-type tests and the proof gate.
+Evidence is in `/tmp/cinch-proof-pattern-repair.log`.
+
+The following dependent-proof continuation postdates the legacy snapshot.
+Its compiled Cinch certificate checker and bounded search now pass their
+runtime-input gate. `Bootstrap.Proof` reifies mathematical integer
+arithmetic and Boolean propositions. Bounded Fourier-Motzkin and case-split
+search produces only citations and positive multipliers. A separate checker
+reconstructs every inequality from the actual hypotheses, goal and active
+split alternative, then checks exact cancellation and a negative bound.
+Certificates carry no cached goal or search-produced inequality. Runtime-input
+tests pass for three-term bounds and malicious/stale certificates.
+The runner also decodes complete facts, goals and certificates from JSON
+files supplied after compilation, covering changed identities, negative or
+zero multipliers, invalid citations and sibling-branch evidence. All four
+runtime-input batches (29 checks each) and 16 complete JSON packets pass. This is the compiled-check tier, not
+a reflected soundness theorem. The elaborator must still check index sorts,
+pure total calls and lexical scope, retain dependent argument identities,
+and connect checked certificates to Core obligations. No previously refused
+source proof is accepted by this standalone module change.
+
+A subsequent index-syntax continuation is drafted in `Bootstrap.Index`,
+with distinct bound, rigid, meta and defining-global identities, structural
+alpha equivalence, capture-avoiding simultaneous substitutions and explicit
+scope/escape checks. Its runtime runner has 32 checks at six input nonces
+and 23 complete JSON term/context packets supplied after compilation.
+The compiled runner passes all 32 checks at six input nonces and all 23
+complete JSON packets, including arbitrary-precision binding identities.
+The current-module ladder check and parser corpus also pass with the new
+module included; evidence is in `/tmp/cinch-index-runtime-3.log` and
+`/tmp/cinch-index-integration-regressions.log`. Source proof acceptance is
+unchanged: connecting typed index conversion/unification to source types
+and actual proof contexts remains required.
+
+The developing type engine now retains generic value-parameter carriers
+in `KValue`. To keep the bootstrap language's ordered declaration rules,
+carriers use complete tagged structural type trees, with checked
+`value-kind`/`value-carrier` construction and decoding; display spellings
+are not type identities. Normalization, unification, substitution, inference
+levels and generalization visit those carriers. Quantifier kind holes remain
+visible to scheme closure. Core refuses to freeze an unsolved value index
+into a fabricated private runtime witness. All 33 carrier checks pass at
+five runtime inputs, including malformed-tree and sequence-node rejection.
+The latest checks include pure/empty-effect arrow conversion and rejection
+of effectful carriers. The 523-input private snapshot
+`f607381513aeccfcd7b55e39bd337f8de0b40e11379c84077abbf596f6b48074`
+passed Core and both effect targets, then failed inference compilation:
+generated LLVM reached 2,166,056,592 bytes and exceeded Clang's source-location
+limit. Results are in `/tmp/cinch-carrier-kind-regressions/result.json`.
+No source dependent kind,
+binder, index expression or proof acceptance has been enabled by this type
+engine work; value witnesses and typed Core obligations remain required.
+
+The next internal type-engine slice adds `UIndex carrier expression` and
+connects the structural index syntax to normalization, unification, carrier
+serialization, substitution, inference levels and generalization. Stored
+metavariable carriers are checked before simplification, so an Int variable
+cannot masquerade as a Nat index and zero multiplication cannot hide an
+unknown variable. Simultaneous bound/meta substitutions preserve capture
+avoidance and reject non-value or incompatible carrier replacements. Core
+refuses unsolved index witnesses and opaque computations without checked
+reification. Nat subtraction currently needs a known bound or reflexivity;
+symbolic bounds still require the source proof-context integration.
+The first isolated slice passes 30 checks at five input nonces alongside
+all 33 existing carrier checks. A subsequent frozen run passes 33 checks
+at five nonces and 21 complete type/carrier/index JSON packets supplied
+after compilation, plus the existing carrier checks. Evidence is in
+`/tmp/cinch-value-index-runtime-1/` and `/tmp/cinch-value-index-runtime-2/`;
+both final source audits pass. A later guard prevents zero multiplication
+and reflexive subtraction from erasing opaque evaluation before purity or
+totality has been checked. Its expanded 34-check/24-packet runner and the
+broader bootstrap regressions are running in
+`/tmp/cinch-typed-index-regressions/` and still need final verification.
+The expanded runner, carrier checks and all broader targets pass: 13 Rust
+tests in total, with a final unchanged-source audit. Core, effect types,
+source effects, inference, ladder, nominals, parser, source paths and type
+syntax are covered by this focused snapshot. A subsequent conformance review against D28 and the native
+`ITerm::normalize` tightens conversion to arithmetic on numerals only.
+Symbolic identities such as `n + 0`, `0 * n` and `n - n` need propositional
+evidence; they must not silently extend conversion. This also preserves
+unresolved metas and opaque evaluation. The resulting 37-check/28-packet
+runner and strict JSON-input handling pass at five nonce inputs alongside
+all 33 carrier checks in a subsequent private snapshot
+`d5b973fdabd5202adea8e3decd23e69b872e5b7d64c01a1642884d4dda22cfa1`.
+Its final source audit is unchanged; evidence is in
+`/tmp/cinch-index-conversion-conformance/`. Index checks finish in 35.84
+seconds and carrier checks in 23.52 seconds. The complete current-tree
+compiler/runtime and self-hosting gates were subsequently executed on the
+525-input frozen snapshot
+`c314883e3b3c419e8668e14ca1c7f59231ada5d0768d10a569d3b644d33e743f`.
+All 1,121 compiler tests, 166 runtime tests, 19 tooling tests and six fresh
+stage0/stage1 smoke checks pass, with zero failed or ignored tests. The final
+source audit is unchanged. The self-hosting gate fails: stage2 exits 4 with
+136 header diagnostics and produces no compiler executable. Stage3,
+fixed-point and changed-source checks remain unreachable. Evidence is in
+`/tmp/cinch-d28-full-verification/`. This run predates the Pi and contextual
+source-kind changes described below; it does not verify them.
+These are internal conversion checks. Source dependent kinds, Pi binders,
+refinements, actual bound/global typing and proof-context construction are
+still required; no new source proof acceptance is enabled by this slice.
+
+The next working-tree slice represents dependent function types as
+`UPi binderId displayName domain effectRow codomain`. It includes structural
+carrier encoding, capture-avoiding simultaneous substitution, alpha
+conversion, scoped unification, dependent application and Core visitors.
+Binders scope the row and codomain, never their own domain. Unification
+opens both bodies with a fresh rigid above every existing inference level;
+pre-existing metas cannot capture it. Domain inference is checked again
+before opening, since solving a domain can introduce a binder collision.
+Generalization retains unresolved holes whose carriers depend on Pi-local
+binders rather than hoisting them outside their scope.
+
+The focused `bootstrap_pi` runner passes 34 checks at five nonce inputs and
+26 complete JSON packets supplied after compilation, in 32.72 seconds.
+Its private source snapshot is
+`0dbce34e3abb0d3645e26923146914caa3ae5a5ec42820d9a309e3b940f4034c`;
+evidence is in `/tmp/cinch-pi-regressions-2/pi.log`, with an unchanged final
+source audit. After correcting source-kind pattern syntax, the private
+snapshot `af00d781da6b3e6c5e1bf0d910a5dd215c0a3dd8baac405169446afeba686cc6`
+passes Core, effect-type, source-effect and inference regressions. The
+subsequent 527-input snapshot
+`dba00d2242373bc985adb6839bbee0cf279ad88f648fcd05c14b9d39a591d0be`
+passes the imported-contract, typed-index and carrier-kind regressions,
+with a final unchanged-source audit. Evidence is in
+`/tmp/cinch-pi-regressions-3/` and `/tmp/cinch-pi-regressions-4/`. The compiler
+modules are unchanged between those two snapshots; the latter corrects the
+new import tests to re-export their values, forcing scheme materialization.
+Source Pi checking remains disabled pending actual source integration.
+Source binder/witness association, contextual higher-order inference,
+dependent constructor kinds, multiplicity and proof checking remain required.
+The active full verifier uses the preceding frozen D28 source snapshot; its
+results will not verify these later Pi changes.
+
+The following source-kind change passes those focused regressions. Kind
+annotations now elaborate with preceding quantified parameters in scope:
+`forall a (x :: a)` retains the identity of `a` in the carrier of `x`.
+Function carriers such as `a -> a` remain value kinds; universe arrows such
+as `Type -> Type` remain constructor kinds. Imported declaration parameters
+are assigned identities in declaration order, with duplicate names rejected.
+The inference runner adds five accepting and four rejecting source cases,
+plus an assertion over the actual checked carrier annotations. These changes
+do not enable source Pi binders, dependent pattern matching or proofs.
+Resolved imported schemes now qualify carrier annotations in the preceding
+binder context too, including nominal carriers through their defining
+identities. Six synthetic interface-consumer cases exercise generic,
+function and nominal carriers and reject forward, self and unknown names.
+All 28 imported-contract cases pass, including these six carrier cases.
+The expanded index runner passes 37 checks at five inputs and 28 runtime
+JSON packets, and the carrier runner passes its 33 checks at five inputs.
+A fresh staged build on snapshot
+`7b687e73f56f0b95f0a448e207d3d4cfb84d6a8f0b3697a41589d3a965ace379`
+passes all six stage0/stage1 smoke checks, with a final unchanged-source
+audit over 527 inputs. Stage2 checks compiler bundle
+`dc4c87c3f547a545451b96de8253f28edee91c01eaedbbca57e9bc3caf0f34f0`
+and still exits 4 with 136 header diagnostics, with the same categories as
+the preceding full baseline. No stage2 compiler executable is produced.
+Evidence is in `/tmp/cinch-pi-source-stages/`. The internal Pi machinery
+does not yet admit source dependent binders: 49 diagnostics name that
+missing elaboration. Connecting those binders to actual term arguments in
+typed Core is the next step. These focused and staged results do not
+establish self-hosting or a full current-tree compiler/runtime pass.
+
+The next Core change gives `CPVar`, `CPAs` and `CLet` stable numeric local
+identities and uses a distinct `CLocal` term for their references. The
+elaborator retains each local's identity and inference level, including
+ordinary parameters, lambda/case patterns and generalized lets. Mapping,
+freezing, meta collection and dictionary traversal preserve those identities.
+Core closure now also checks lexical local scope: a let does not bind its
+own RHS, branch/lambda binders stay in their bodies, duplicate active
+identities reject, and a bare name with role `local` cannot bypass the check.
+This is not an independent type, kind or proof rechecker.
+
+The expanded Core runtime reader passes 19 source cases, including shadowing,
+as-pattern binding, ten malformed/local-scope invariants and the existing
+1,501-definition stress case, in 64.31 seconds. Effect-type regressions also
+pass. Evidence is in `/tmp/cinch-term-identities-3/`, frozen snapshot
+`b9d7fae71f11662ed685bac2f9005a450a53ad70d2c14ea4a1e2a0bd7e11ee91`.
+The broader effect, inference, imported-contract, parser, Pi and index/carrier
+regressions also pass, with a final unchanged-source audit. The new as-pattern case exposed a
+parser mismatch: Cinch now parses native `name@atomic-pattern`, and refuses
+the former nonstandard postfix `pattern as name`. Source dependent binders
+and index reification are still not enabled by this identity change.
+
+The following source-Pi slice now converts named function binders with
+identities fresh for the complete quantifier context, binds actual pattern
+values, and instantiates result types and effects from checked Core
+arguments. Local indices use `CLocal` identities and validated scheme
+instantiations. Mathematical literals decode without machine narrowing;
+unknown calls and unchecked operations cannot be reflected merely because
+they have a pure-looking type. Core closure checks bound/rigid index scope,
+including local-index escape through a let or inferred lambda. Erased forall
+indices do not authorize runtime local references.
+
+All 20 initial runtime source cases pass in 75.91 seconds in snapshot
+`4d8aebb65c056ff68290428f45b211c23ecbb0a5df41600a011da219885b35ad`,
+with evidence in `/tmp/cinch-source-pi-2/source-pi.log`. The broader run caught
+an error-recovery hole: malformed class applications could be classified as
+checked constraints. They now require `valid-type` too. A further guard
+refuses dependent declaration parameter kinds until binder-aware kind
+application is implemented; ordinary `KFun` cannot preserve their scope.
+All 21 source cases, including those guards, pass in 75.75 seconds on the
+529-input snapshot
+`89641068821fc2f05cc2ea872e7661abfa79ed4363877ef2f3a443253fe0ba29`;
+evidence is in `/tmp/cinch-source-pi-3/source-pi.log`. All nine affected
+regression targets also pass: Core, effect types, effects, inference,
+nominals, parsing, Pi, value indices and value kinds. The final source audit
+confirms the same 529 inputs are unchanged. This is focused verification,
+not a full current-tree verification result.
+Source proof contexts, dependent constructor patterns, total-call reification,
+dependent-let beta checking, inferred dependent lambdas and the shared ABI
+backend remain required.
+
+A fresh staged attempt on the 529-input snapshot
+`de7349e0d853ba3504c7580bc6bf1014b3dc57c64d9903f07635bb96db127669`
+passes the type-syntax, combined ladder and end-to-end pipeline regressions,
+then rebuilds stages 0 and 1 and passes all six executable smoke checks.
+Stage 2 exits 4 with 94 header diagnostics, down from 136 in the preceding
+attempt. No stage-2 executable or IR is produced. Source named-binder
+refusals are gone; proof predicates and refinements, declaration support
+and shared runtime lowering still block the self-build. The diagnostic
+count includes cascades and is not a count of independent missing features.
+Evidence and the final unchanged-source audit are in
+`/tmp/cinch-source-pi-pipeline-stages/`. The compiler bundle hash is
+`a67b08ceaedde83e4ba9d660789d666e245d30497cd8392944bd39033efda108`.
+
+The next slice retains checked index values for strict, monomorphic let
+aliases. A literal, actual outer local or reifiable mathematical operation
+can supply the alias's type-level value; the runtime `CLet` and `CLocal`
+slot remain in Core. Failed reification retains an opaque local and rolls
+back its speculative store, so an unknown call is never unfolded as an
+index. Source mathematical operators now retain an explicitly inferred
+`Nat` carrier for total operations; `Nat` subtraction still requires
+ordering evidence. All 30 runtime-source cases pass in 76.36 seconds on
+snapshot
+`8643e7d003a048c2eb812a69cde60bd79f72dfdb85c3e8ec5c3b5f6756ab438f`,
+including alias chains, annotation scope, preserved runtime slots and
+negative identity/carrier/partial-operation checks. All nine affected
+regression targets also pass, with a final unchanged-source audit of the
+529 inputs in `/tmp/cinch-let-index-2/`. This slice has not yet had a
+fresh staged attempt; arbitrary dependent let expressions and complete
+dependent conversion remain required.
+
+Source foreign declarations now have checked contracts for ABI 5's seven
+pure text intrinsics: SHA-256, SHA-512, SHA-1, MD5, HMAC-SHA-256 and both
+F64/text conversions. Registration checks the source scheme against the
+kernel contract and rejects polymorphic/constrained declarations, wrong
+types, unsupported ABIs or symbols, duplicates and source definitions that
+would replace an intrinsic. Core uses retain the canonical intrinsic
+identity; declaration contexts retain the runtime extern and ABI version.
+The compiled Cinch checker passes 20 runtime-source cases in 76.81 seconds
+on the 531-input snapshot
+`60dfbc003b9f17b229d27aa3bf0918203373779ef492e9682564b1e4bff524d4`.
+The cases also compare retained externs with the native runtime contract.
+Evidence is in `/tmp/cinch-intrinsics/intrinsics.log`. The affected Core,
+effects, inference and 30-case source-Pi regressions also pass, with a final
+unchanged-source audit of all 531 inputs. The fragment emitter continues to refuse
+foreign declarations before producing IR. A fresh pipeline and staged
+attempt now passes type syntax, the combined ladder, the end-to-end
+pipeline (including intrinsic imports through module aliases), and all six
+stage0/stage1 executable smoke checks. Stage2 exits 4 with 91 header
+diagnostics, down from 94; the three source foreign-declaration refusals
+are gone. No IR or stage2 compiler is produced. The 531-input staged
+snapshot is
+`535b746836e11a6d3b785c309f1ff35cfa1b939e58325c52f43d18f6eb1d3e5d`,
+with a final unchanged-source audit in
+`/tmp/cinch-intrinsic-pipeline-stages/`. The compiler bundle hash is
+`b0576b53867d0c234fac44273e27912948f199c678c3c6b53b09cee8bfaa133c`.
+This verifies the checker extension, not the remaining shared-ABI backend.
+
+The next source-proof slice handles `Nat` subtraction obligations under
+checked comparisons. Branches, guards and short-circuit expressions carry
+lexical facts identified by actual local IDs; strict numeric lets also
+retain checked equality facts. The elaborator searches for a certificate,
+checks it, and retains it in `CProved` alongside the original operation.
+Core reconstructs the operation's goal, typed numeric locals and branch
+facts from its retained tree and checks the certificate again. Certificates
+cannot supply their own hypotheses or claimed goal. Machine arithmetic and
+unknown calls are not reflected into this arithmetic context. This remains
+the compiled certificate-check tier, not a reflected soundness theorem or
+an independent full typing kernel.
+
+All 25 runtime-source cases pass in 83.51 seconds on the 533-input snapshot
+`4485f9e0b0bd45a6f1dc495b9f313d3b26e747681cf2747ea4643e8fca3b3cd9`.
+The runner also checks seven Core invariants at runtime-chosen local IDs,
+including changed goals, moved certificates, fabricated hypotheses,
+uncertified subtraction and machine-scalar rejection. Evidence is in
+`/tmp/cinch-proof-scope/guarded-arithmetic.log`; affected regressions are
+still running. A later test-harness change copies the proof dependency only
+for projects that need Core or inference. No newer staged result is claimed.
+Source `using` predicates, refined signatures and general dependent
+conversion still require their full contract and erasure implementation.
+
+That 25-case snapshot subsequently passes all seven affected regression
+targets, with a final unchanged-source audit. An additional inferred-lambda
+case exposed a sealing bug: later inference can identify another local as
+`Nat`, adding a domain fact and shifting the earlier certificate's hypothesis
+positions. Snapshot
+`7fd8fa89dfbffa638d392412278e3fbc7c839adc778082066348af0309e99f91`
+rejects that valid source with an unresolved-Core diagnostic. Sealing now
+finishes type substitution first and checks certificates in the resulting
+actual scope. A stale certificate is regenerated only if the retained
+operation is provable in that scope. The independent Core validator still
+rejects invalid certificates without repair. All 26 source cases and the
+seven runtime Core invariants pass in 83.22 seconds on snapshot
+`5bf59aea532baea543aa269140ade154d4b0c8082d8c2f39f92b42fc95b753ef`;
+evidence is in `/tmp/cinch-proof-sealed-scope/guarded-arithmetic.log`.
+All seven affected regression targets also pass, with a final unchanged-source
+audit of the 533 inputs. A fresh pipeline/staged run also passes type syntax,
+the combined ladder, the complete pipeline (including guarded `Nat` lowering
+refusal), and all six stage0/stage1 smoke checks. Stage2 still exits 4 with
+the same 91 header diagnostics and emits no IR or compiler executable.
+The final source audit is unchanged. Evidence is in
+`/tmp/cinch-proof-pipeline-stages/`, snapshot
+`bca5f0d9d2912875b733a95247c703179434d43c56ed529861de7a89c39f4d32`;
+the compiler bundle hash is
+`4df4534b433eee01e2c4d96f1e318e9f11586b7e0c18de02cd5546c37dd9f1e7`.
+
+The next internal type representation adds `KProp`, typed propositions and
+`URequire` function contracts. Predicate operands and required contracts
+survive normalization, substitutions, alpha conversion, scope/occurs/level
+checks and complete dependent-kind carrier encoding. Unification preserves
+requirements; it neither strips them nor treats logical entailment as
+definitional equality. Core rejects propositions and undischarged required
+types as ordinary runtime values. All 33 runtime-nonce checks pass at five
+identifier offsets above 2^128, first in an isolated frozen candidate and
+then in the integrated 535-input snapshot
+`d14fa6cc5ae76e969ae12fa045aae1c6ea8c9ce3755cdf93d885a9f301009f84`
+in 45.89 seconds. Evidence is in `/tmp/cinch-proposition-types/`; all
+13 affected regression targets pass and the final source audit is unchanged.
+
+The next source continuation introduces anonymous arithmetic preconditions
+at declared function boundaries and discharges them at fully applied calls,
+including strict calls whose result is ignored and conditional nullary
+values. `CRequire` retains the declared contract and `CDischarge` retains
+proof certificates. The Core pass reconstructs each goal from the actual
+callee, arguments and lexical facts; arbitrary proof introductions, moved
+certificates and substituted arguments are rejected. Certificates carry no
+cached caller hypotheses. Partial applications and generic identity retain
+contracts. Certified `Nat` subtraction used as a dependent argument is
+bound once with its checked equality fact, preserving evaluation order;
+symbolic partial subtraction is not added to type conversion. Effect rows
+are retained. These are compiled certificate checks, not a reflected
+soundness theorem or an independent full typing kernel.
+
+The isolated frozen candidate
+`fbe02c4f3ac2e5a96554a14314ec01a7d60443b173fde85efe227794e3ce891e`
+builds and passes 25 source cases plus nine Core invariants whose identities
+are chosen from source supplied after executable compilation. Evidence is
+in `/tmp/cinch-function-preconditions-validation-3/`. Its implementation is
+integrated; the focused test passes in 106.25 seconds on snapshot
+`404dcf349f07da6a62d4dc24ed3100d22fa985344e8784c6826c2eb0a7db6a34`
+in `/tmp/cinch-function-preconditions-2/`. All 25 source cases and nine
+Core invariants pass there too. All 14 affected regression targets pass;
+the final audit confirms all 537 snapshot inputs are unchanged. The first integrated test attempt
+failed because its temporary project omitted compiler dependencies, before
+checking source cases; the fixture now includes those dependencies.
+
+Named erased proof bindings, interface predicate preservation, refinements,
+total reflected calls and typed Core runtime lowering remain required.
+Unsupported forms retain named refusals. The fresh staged continuation
+passes type syntax, the combined ladder, the complete pipeline and all six
+stage0/stage1 smoke checks. Stage2 exits 4 with 86 header diagnostics,
+down from 91, and emits no IR or compiler executable. Its remaining errors
+include 17 unchecked index-expression refusals and cascading ill-sorted
+predicates/contracts, six imported using contexts, named refinements,
+dependent declaration kinds, decisions, methods, effects and instances.
+The 537-input snapshot
+`8184038c9013b01ed9f88928600de2a618d22bfeb1ee15af6cda59542cdacf58`
+has a final unchanged-source audit in
+`/tmp/cinch-function-preconditions-stages/`. Its compiler bundle hash is
+`6d2f482c8bda77288a07853b741c56d5cc0ebf91407e4eb79797a71e4aa8d9c4`.
+These diagnostic counts include cascades, not independent feature counts.
+
+A subsequent real-interface consumer test exposed a Core scope bug:
+application validation called inference `open-pi` with a fresh level-zero
+store, rejecting valid surrounding type rigids in a polymorphic caller.
+Closed Core application checking now performs capture-avoiding substitution
+in its already checked lexical context. Source inference retains its strict
+escape checks. The isolated before/after consumer confirms the repair; the
+integrated focused gate passes all 25 source cases plus ten Core invariants
+in 107.51 seconds, including a new generic caller at level one. Snapshot
+`94a659811cfee8eae0275437eb0d904805f7845a5ba0f9be46d743921a571e26`
+passes all six affected regression targets in `/tmp/cinch-core-closed-scope/`;
+the final audit confirms all 537 snapshot inputs are unchanged.
+The 86-header staged evidence above predates this narrow Core repair.
+
+The next interface producer is still isolated. Its four native targets pass,
+but its compiled Cinch consumer found that implicit Prelude operators remain
+method applications, so arithmetic guard reflection cannot recognise them.
+Forwarded assumptions, literals and partial applications work; arbitrary
+method bodies are not mathematical primitive evidence. Checked global
+instance selection and primitive semantics must be implemented before this
+consumer path can be admitted. The native producer, qualifier and seed pin
+have not been integrated from this draft.
+
+The LLVM expansion exposed a native optimizer bug: exceeding the profile's
+measure stopped further rounds but still installed the oversized residual.
+Later callers unfolded those already expanded bodies. The driver now keeps
+the preceding bounded residual, discards helpers and report entries created
+by the rejected round, and refuses to copy a callee larger than the caller's
+entire allowance. A regression over 12 transitive functions, both declaration
+orders and three measure bounds fails before the repair and passes after it.
+The private snapshot
+`53419b9d5e80031fbece5b3683dbc4300cff79c5cc320f20e20ad358d7f6d395`
+passes all 24 selected tests: inference, nominal contracts, effect types,
+indices, carrier kinds, source paths and the 16 optimizer tests. Inference
+now completes in 103.38 seconds rather than failing after 437.17 seconds.
+The final report rollback and complete index-codec round trips pass in
+snapshot `667f98638ac6e477e7f255e4484f957b6d7c165c6957615f693b6a282c09d2fa`:
+the growth regression, all 16 optimizer tests and index tests pass. The latter
+exercise 33 checks at six runtime nonces and 23 complete JSON packets.
+Both snapshots used private caches and passed their final source audits;
+evidence is in `/tmp/cinch-optimizer-bootstrap-regressions/` and
+`/tmp/cinch-optimizer-final-regressions/`. These are focused gates, not a new
+complete compiler/runtime or self-hosting acceptance run.
+
+The schema-6 seed was intentionally refreshed after these focused gates.
+Its source hash is
+`475b8887d71c8becfd9b572897717ac58fac3d3df5db8294c2ed3ef2bb81fcec`
+and patch hash is
+`f7c25689f80fcc6274bb70fec0da942ca1cb2001283144dd3b45ea9bb8a115fc`.
+All patched source bytes were verified against the pinned Git archive;
+the prior seed is backed up in `/tmp/cinch-schema6-5705-before-optimizer`.
+Fresh stages 0/1 have now rebuilt from this pin, and all six executable
+smoke checks pass. The frozen 523-input staged run
+`6590ee7878fb34c3ca1ed4b31ce8f2e33a997f29e97f2877a1a4c62c961f043e`
+also passes all 19 tooling tests and its final source audit. Its compiler
+source bundle is
+`f993990a3dcf5b78ed6eec1a12086335658048136ad47b379f4ffb6a7032b50a`.
+Stage 2 again exits 4 with 136 header diagnostics, before body checking,
+IR or an executable. The current evidence is
+`/tmp/cinch-optimizer-stages/boundary.json` and `stage-summary.json` beside
+it. This run predates the developing typed-index continuation.
+
+The source resolver's dependent-scope continuation passes its isolated
+runtime gate:
+leading `using` conditions now preserve the names of later arguments in the
+same function, while callback-local argument names do not hide outer module
+globals. Three passing regression cases cover direct, later-curried and
+nested callback binders. The resolver runner's older IO assertion has been updated
+to check a valid lexical provider rather than expect IO elaboration to be
+unsupported. These source/test edits are outside the frozen schema-6 gate.
+
+Before the schema-6 rebuild described above, the schema-5 stage rebuild
+produced the following historical results. Its patch was
+applied to the pinned Git revision and all patched source bytes verified
+against the new lock hash. Stages 0/1 have rebuilt, and both pass
+Fibonacci, precedence and named-refusal executable smoke checks. Stage 2
+uses the identical compiler-source hash
+`2f1f58c6a79a07b4016449330e56fa4bc2df6e44e19ae3ad6eae1c5ac57ad10a`
+and still exits 4 before body checking or IR emission. It reports 232
+header diagnostics, compared with 110 before this continuation: the newer
+checker reports cascading errors within contexts rather than refusing each
+whole context once. Remaining unsupported areas include region/effect and
+capability elaboration, dependent binders and predicates, refinements,
+foreign/effect/instance declarations and two unresolved method contracts.
+Three duplicate-binder diagnostics also require examining their source
+predicates. No stage-2 executable exists. Evidence is recorded in
+`/tmp/cinch-schema5-lexical-stage-result.json` and the stage-2 diagnostics;
+the raw diagnostic count is not a count of independent missing features.
+
+`Bootstrap.Pipeline` still compiles a checked integer fragment. Its emitter
+uses `i64` values, direct calls and local slots. It does not yet implement
+the uniform-word constructor, closure, dictionary and reclamation ABI
+needed to compile the compiler. `Bootstrap.Check` now selects the
+`Bootstrap.Infer` rank-one elaborator for quantified signatures,
+parameterized data and inferred lambdas. Fresh instantiation, rigid
+definition variables, occurs checks, scope levels, let generalization,
+higher-kinded type parameters, regular constructor substitution, strict
+positivity and constructor-specializing pattern coverage are implemented
+in Cinch. Constructor-local existentials and indexed families still need
+dependent elaboration. Source class/instance declarations, open effect rows
+and refinements remain explicit refusals; parsing them does not discharge
+their obligations. Lexical class constraints and closed kernel IO effects
+are supported as described above.
+Source module export aliases, definition symbols and source ranges now
+survive aggregation as `DSource` metadata. Successful elaboration exposes
+checked schemes and those source contexts. It now also builds pure typed
+terms in `Bootstrap.Core`: applications retain type instantiations,
+constructor patterns retain their field types, and let bindings retain
+their generalized schemes. Quantified identities stay distinct through
+nested lets. Each function is sealed before checking the next, with
+unconstrained internal monotypes represented by explicit private rigid
+declarations. Typed source data declarations now retain their kinds,
+parameters and complete constructor schemes, including private constructors;
+field types come from the checked schemes. Imported declarations remain
+interface contracts. Failed elaboration exposes no bindings, data or core. This is a
+typed-term producer and closure check, not an independent typing, usage or
+proof kernel. Dependent data/evidence, canonical source interfaces and shared runtime
+lowering still need their full implementation. The existing emitter does
+not consume this core yet.
+`Bootstrap.Resolve` now checks source-module dependencies, selections,
+renames, aliases and export surfaces before assigning distinct global
+symbols. Private declarations neither collide nor leak across modules.
+The pipeline passes the resolved aggregate to the checker and emitter.
+Imports without a source module now resolve through a closed checked-interface
+set supplied with `--interfaces`. Public names and inherited fixities come
+from those contracts; private names are absent from the importing scope.
+The checker and emitter also refuse raw imports or multiple modules if
+called without resolution.
+
+`Bootstrap.Builtin` carries the IO kernel's value contracts independently
+of Prelude exports: `newIO`, its `Runtime.newIO` alias, `ioWrite`, `ioRead`,
+`ioSleep` and `pollCancel`. Region kinds, capability contexts, effect rows,
+runtime ABI and fresh identity creation remain attached to their canonical
+bindings. The checker now accepts the verified newIO/ioWrite/ioSleep/pollCancel
+contracts with lexical providers and retained closed rows. ioRead still
+requires a defining Option contract. This is the IO slice; concurrency,
+staging and other kernel APIs remain outside this builtin environment.
+The decision vocabulary also has explicit contracts: `decide` consumes
+predicate syntax and is not first-class; `Yes` and `No` quantify a Prop
+parameter and have erased positive/negative evidence fields. The checker
+refuses these until dependent predicate and erasure checking exists.
+Capability supplies have structured `EWith` trees and lexical scope;
+handler operations and continuations resolve in their respective scopes.
+Effect declarations and foreign contracts retain their defining names and
+external symbols while their checking and lowering remain explicit refusals.
+Instance heads and bodies also resolve: method labels stay attached to the
+class contract, instance parameters scope their bodies, and an instance
+identifier is not introduced as an ordinary module value. Coherence and
+dictionary elaboration are still required before acceptance.
+Effect arrows now contain structured rows with label applications and an
+optional row tail, so resolution can qualify labels without losing regions.
+
+`Bootstrap.Load` now loads the seed's emitted interfaces as a closed
+dependency set, checking schema, runtime ABI, contract identities, missing
+or stale dependencies, duplicate module names and cycles. The loader
+retains the complete JSON contract, including assumptions, instances and
+layout facts. Selected value schemes parse through `parse-scheme` directly
+into type trees, with full consumption and retained quantifiers and proof
+preconditions. The pipeline now loads these contracts before parsing,
+retains them in the resolved AST, and checks imported monomorphic
+integer/Boolean value schemes. Schema 4 adds pure quantified and nominal
+value and constructor contracts captured at definition-site lookup. Private
+type kinds and complete constructor identities survive without publishing
+their source names. The loader checks the defining modules' dependency
+closure and rejects inconsistent nominal contracts. The checker preserves
+their identities through instantiation and pattern coverage. Overloaded
+selectors retain their candidate identities and are refused until dictionary
+elaboration exists. Effectful, constrained, dependent, record and existential
+imports still need their full checker support.
+Imported code is explicitly refused by the emitter until it can use the
+shared runtime representation and layout registry. Envelope validation
+does not establish kind, coherence or ABI compatibility.
+
+The native backend currently assigns constructor and pointer-map layout
+IDs for one complete program (`compiler/src/codegen.rs`, `Layouts::finish`)
+and the runtime installs one program table
+(`compiler/runtime/src/block.rs`, `register_layouts`). Library and compiler
+code must use one shared registry. The current size/alignment interface
+facts do not establish compatible IDs between independently emitted
+objects. The bootstrap backend must preserve that whole-program invariant
+when incorporating base implementations.
+
+The current continuation fixes the constant evaluator's integer conversions
+and extends the Cinch frontend's syntax contract:
+
+- Structured index expressions, predicate contexts and refined results.
+- Named refinement declarations and quantified parameter kinds retained
+  in the AST, with explicit checker refusal until proof checking exists.
+- Complete `using` lists, including the final constraint.
+- Tuple binding patterns, guarded alternatives and handler clauses.
+- Declaration parameter names, kinds and implicitness; foreign direction,
+  ABI, external symbol and source name; import modifiers, selections,
+  renamings, aliases and arguments.
+- Implicit Prelude fixities, comma-separated fixity declarations and
+  precedence climbing that resumes at the caller's binding power.
+- Operator-owner fixities: importers cannot redeclare them, even
+  identically. Selections, renames and re-exports inherit the defining
+  fact; an operator without a fixity remains usable in prefix form.
+
+Interface schema 4 retains signature preconditions, named refinements,
+declaration parameter kinds and implicitness, constructor schemes with
+result indices and linker symbols, defining type/class identities, and
+explicit public class/method names. Higher-kinded function quantifiers
+retain their resolved kind. This does not yet make interface-only checking
+complete: rich contextual identities, coherence, evidence and ABI consumption
+still need their full implementation. Pure resolved schemes use canonical
+definition identities; unbound type names also route through kind checking
+instead of the legacy monomorphic checker's permissive nominal spelling.
+
+The parser corpus now includes every `bootstrap/*.cinch` source and its
+toolkit. `bootstrap_type_syntax` inspects actual syntax trees: an unmodeled
+count of zero cannot detect a discarded field. `Run.Eval.cinch` checks
+tuple destructuring, guard fall-through and operator precedence against
+observable values.
+
+After the crash, serial focused checks pass for the source resolver,
+operator interface publication, evaluator, IR emitter and end-to-end
+pipeline. The pipeline now also compiles a multi-module program with a
+renamed operator re-export, a global integer constant and a Boolean value,
+then runs the produced native binary. It refuses importer fixity
+redeclarations during parsing and function values that still require
+closure lowering before emitting IR. This evidence is for the current
+fragment, not a self-build or a complete-suite pass.
+
+The refreshed pinned seed and stage 1 both built and passed their Fibonacci,
+precedence and named-refusal executable smoke checks. The schema-3 refresh
+repeated these checks. The subsequent
+connected-loader sources pass native checking and rebuild stage 1 with
+the loader, contract adapter and manifest reader reachable from its entry.
+The connected pipeline integration test passes: real checked imports,
+renamed re-exports, imported type mismatches, private-name rejection,
+operator ownership, unused contracts and invalid manifest schemas are
+exercised through the compiled Cinch pipeline. Imported calls reach the
+explicit shared-ABI refusal; no incompatible library calls are emitted.
+The full parser corpus and source-scope regression runner pass after this
+integration, and the rebuilt stage 1 passes Fibonacci, precedence and
+named-refusal smoke checks. The orchestration suite has 11 passing tests.
+The schema-4 seed and stage 1 have rebuilt. Stage 1 includes the rank-one
+checker, resolved nominal contracts and retained source-module contexts,
+and passes Fibonacci, precedence and named-refusal executable smoke checks.
+The earlier self-build exhausted the stack during reference collection:
+the declaration walker reserved about 200 KiB per recursive list frame.
+Separating the single-declaration match from the traversal fixes that
+failure. The resolver regression exercises more than 6,000 declarations
+and reference order through nested instances and foreign exports.
+
+The fresh stage-2 attempt passes parsing, checked-interface loading and
+source namespace resolution, then exits 4 with 110 checker diagnostics,
+down from the prior 189. Regular imported constructor refusals are gone.
+There are 56 dictionary/proof-context diagnostics and 12 method-contract
+refusals. The five residual nominal refusals name `NonZero` or `InRange`;
+these need their refinement/proof semantics. Dependent arguments, effects,
+regions/capabilities, foreign and instance declarations remain incomplete.
+Header failures prevent body checking, so 110 is not a count of all
+remaining source or elaboration problems. There is no stage-2 compiler or
+emitted IR. Evidence is in `build/bootstrap/stage2/compiler.ll.diagnostics`
+and its `stage.json`; its source identity matches the rebuilt stage 1.
+
+The seed patch was deliberately refreshed for schema 4, with its application
+and resulting source hash verified. All six affected serial regressions
+pass: checker, inference, loader, nominal imports, parser corpus and pipeline.
+The nominal runner checks aliases, private kinds, hidden constructors,
+same-spelling types, literal string identity and rejection of unresolved
+display schemes. The orchestration suite has 11 passing tests. The pipeline
+retains explicit IO, decision, effect, foreign and instance refusals. The
+refreshed module-scope, resolver and syntax-tree gates pass too, including
+the long reference walk. Verification stays one command at a time.
+The interface reader regression also passes all twelve altered-artifact
+cases with a single compiled reader. Its artifact, source and digest inputs
+now come from files, so testing each refusal no longer recompiles the same
+program. A process killed by a signal fails the test instead of counting
+as the malformed-JSON refusal. This gate completes in about 35 seconds.
+The runner takes base contracts only from the verified stage-1 manifest
+and the pinned base-package allowlist. Compiler interfaces cannot substitute
+for rebuilding compiler sources. Manifest and interface bytes participate
+in stage-cache verification.
+
+The first completed serial full baseline on 2026-10-31 records 1102 native
+compiler tests passed, two failed, and zero ignored; the runtime suite
+records 165 passed and no failures or ignored tests. All three stage-0
+smoke checks pass. The original bytes-literal fold and the signed/unsigned
+conversion regressions pass in that run. The failures are the ladder's
+duplicate `interface-global` export and a Prelude probe that uses the
+unordered class-contract table to choose a sequencing method scheme.
+Their repairs pass the focused ladder/Prelude gates. An allocation
+probe's removed heap guard is also repaired: generated programs retain an
+explicit cap, while a runtime unit test checks default/fallback selection.
+That private runtime refactor preserves behavior but changes the pinned
+source inputs. The eight allocation checks and three heap unit tests pass.
+The seed patch and resulting source hash have been refreshed and verified
+against the pinned revision. Stages 0 and 1 have rebuilt from that lock and
+the typed-data sources. The fresh stage-2 attempt again exits 4 with the
+same 110 header diagnostics; its source hash matches stage 1
+(`57dc0ee99c0a0cface79342f34241acbd7c42290e3bc3e3eac2332549d4fc914`).
+There is still no stage-2 IR or executable.
+The baseline precedes these repairs, and it does not establish self-built
+frontend parity. Evidence is in `/tmp/cinch-schema4-full/results.json` and
+the compiler/runtime/smoke logs beside it.
+
+The first core regression passes twelve runtime-input cases, including
+distinct polymorphic instantiations, typed constructor fields, nested
+generalization without capture, private type declarations, guarded
+equations, Boolean short circuit branches and rejection with no core.
+Its large input checks 1,501 function bodies and their solved annotations.
+The parser now retains a guarded function equation as `EGuarded`, and
+normalizes infix Boolean syntax to conditionals before name resolution;
+prefix operators remain ordinary function values. Broader checker,
+inference and parser-corpus regressions pass. All nine subsequent integration
+targets pass too: evaluator, IR, ladder, loader, module scopes, nominal
+imports, pipeline, resolver and retained syntax. A further focused core
+run passes thirteen runtime-input cases, adding empty source data, private
+constructors and higher-kinded declaration parameters. The nominal
+runner now shares each case's diagnostic result between its report and
+assertion; all twelve snapshot cases remain. The full frozen rerun completed
+on 2026-10-31 at 13:57 UTC: 1105 native compiler tests and 166 runtime tests
+pass, with zero failures or ignored tests. Both stage-0 and stage-1 pass
+Fibonacci, precedence and named-refusal executable smokes, six checks in
+all. The snapshot SHA256 is
+`fc21e0d1be1c5a53a1cd36d4b743e83c1ee38e3e6ba190f5acd4f1a319ad8dd3`;
+its source audit confirms all 497 captured inputs are unchanged. The full
+logs, results and source audit are in `/tmp/cinch-typed-core-full/`.
+These results belong to that schema-4 snapshot. The later schema-5 and
+lexical dictionary continuation has a separate focused gate; its first
+Rust build found a class lookup argument type mismatch, now repaired for
+that rerun. None of this establishes a stage-2 self-build.
+
+## Next implementation sequence
+
+1. Preserve the connected loader, kernel contracts and module scope tests.
+   Extend the kernel environment as further compiler features require it;
+   keep capabilities, proposition evidence and erasure rules explicit.
+2. Extend the resolved pure nominal contracts to rich imported schemes, full
+   kind inference, dictionaries, effect rows and the compiler sources'
+   refinement obligations. Imported schemes must use their defining type
+   identities; do not guess a private or aliased type from a short name.
+   Constructor-local existentials require scoped skolemization and indexed
+   constructors require dependent checking. Carry
+   evidence through elaboration; do not erase an unproved obligation to
+   make a source check. Use the retained `DSource` contexts and checked
+   schemes to produce typed modules and canonical source interfaces.
+3. Complete typed core's evidence and module contracts and lower constructors, tuples, cases, closures,
+   partial applications and dictionaries under the runtime ABI. Implement
+   the same representation and reference-counting contract as the seed.
+4. Read checked base interfaces and link the library/runtime artifacts.
+   Preserve their hashes, symbols and assumptions rather than guessing
+   them from source names.
+5. Build and gate stages 1, 2 and 3 as above. Keep the fragment programs as
+   regression tests throughout this port.
+
+Related designs: `bootstrap-ladder.md`, `compiled-interface-metadata.md`,
+`dependent-core-kernel.md`, `ownership-and-usage.md`,
+`effects-capabilities-sequencing.md`, `no-faults.md`, `proof-automation.md`
+and `reclamation.md`.

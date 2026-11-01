@@ -1,0 +1,86 @@
+module Main where
+  import Bootstrap.Type
+  import Bootstrap.Index
+  import Bootstrap.Core
+  import Text.Lex (Span)
+  import Data.Path (path-from-string)
+  import Effect.Fs (fs-read)
+
+  sp :: Span
+  sp = Span 0 0 1 1
+  nat :: UType
+  nat = UCon "Nat" KType
+  integer :: UType
+  integer = UCon "Int" KType
+  clean :: Store -> Bool
+  clean st = case store-errors st of Nil -> True; other -> False
+  good :: UType -> UType -> Bool
+  good a b = clean (unify sp a b (empty-store "nonzero types"))
+  provable :: List (Nat, UType) -> UType -> Bool
+  provable gamma p = case prove-predicates gamma Nil (URequire (UArg p UEnd) nat) of Some evidence -> True; None -> False
+  scoped :: List (Nat, UType) -> UType -> Bool
+  scoped gamma predicate = case core-predicates gamma (UArg predicate UEnd) of Some evidence -> True; None -> False
+  certified :: UType -> CoreTerm -> Bool
+  certified ty body = case prove-refinement Nil Nil ty body of Some evidence -> True; None -> False
+  retained :: UType -> CoreTerm -> Bool
+  retained ty body = case prove-refinement Nil Nil ty body of
+    None -> False
+    Some evidence -> core-definition-closed (MkCoreDefinition sp "checked" (mono ty) Nil Nil Nil [MkCoreClause sp Nil (CRefine sp ty evidence body)])
+      && not (core-definition-closed (MkCoreDefinition sp "forged" (mono ty) Nil Nil Nil [MkCoreClause sp Nil (CRefine sp ty evidence (CInt sp nat "0"))]))
+  checks :: Nat -> List Bool
+  checks nonce =
+    let id = nonce + 1 in
+    let other = nonce + 2 in
+    let n = UIndex nat (IRigid id "n" 0) in
+    let zero = UIndex nat (IInteger 0) in
+    let positive = UPropNonZero (UIndex nat (IInteger 1)) in
+    let machine = UCon "I64" KType in
+    let machine-predicate = UPropNonZero (UIndexPromote (UIndex machine (IRigid id "machine" 0))) in
+    let refined = URefine other "x" nat (UPropNonZero (UIndex nat (IBound other "x"))) in
+    let renamed = URefine id "other" nat (UPropNonZero (UIndex nat (IBound id "other"))) in
+    let raw = UIndex refined (IRigid id "n" 0) in
+    let projected = UIndexForget raw in
+    let (predicate, ps) = fresh-meta KProp (empty-store "predicate") in
+    let (value, vs) = fresh-meta (value-kind nat) (empty-store "value") in
+    let escaping = UPropNonZero (UIndex nat (IRigid other "late" 3)) in
+    let recursive = UIndexForget (UIndex (URefine other "r" nat (UPropNonZero value)) (IBound id "recursive")) in
+    let coded = URefine other "r" nat (UPropNonZero (UIndexPromote (UIndex nat (IBound other "r")))) in
+    let codec = case value-carrier (value-kind coded) of Some decoded -> good coded decoded; None -> False in
+    [ valid-type positive
+    , kind-equal (type-kind positive) KProp
+    , not (valid-type (UPropNonZero nat))
+    , not (valid-type (UPropNonZero (UPropLit True)))
+    , not (valid-type (UPropNonZero (UIndex (UCon "F64" KType) (IRigid id "float" 0))))
+    , not (valid-type (UPropNonZero (UIndex (UCon "I64" KType) (IRigid id "machine" 0))))
+    , valid-type (UPropNonZero (UIndexPromote (UIndex (UCon "I64" KType) (IRigid id "machine" 0))))
+    , scoped [(id, machine)] machine-predicate
+    , not (scoped [(id, nat)] machine-predicate)
+    , not (scoped [(other, machine)] machine-predicate)
+    , valid-type refined
+    , good refined renamed
+    , not (good (UPropNonZero n) (UCompare "/=" n zero))
+    , not (good (UPropNonZero n) (UPropNot (UCompare "==" n zero)))
+    , codec
+    , provable Nil positive
+    , not (provable Nil (UPropNonZero zero))
+    , provable Nil (UPropNonZero (UIndex integer (IInteger (-3))))
+    , not (provable [(id, nat)] (UPropNonZero n))
+    , provable [(id, refined)] (UPropNonZero projected)
+    , not (provable [(id, nat)] (UPropNonZero projected))
+    , not (provable [(other, refined)] (UPropNonZero projected))
+    , clean (unify sp predicate positive ps)
+    , not (clean (unify sp predicate escaping ps))
+    , not (clean (unify sp value recursive vs))
+    , good (substitute-bound [(other, UIndex nat (IInteger 1))] (UPropNonZero (UIndex nat (IBound other "x")))) positive
+    , not (good refined nat)
+    , not (good nat refined)
+    , certified refined (CInt sp nat "1")
+    , not (certified refined (CInt sp nat "0"))
+    , retained refined (CInt sp nat "1")
+    ]
+  verdict :: List Bool -> Int -> Int
+  verdict rows next = case rows of Nil -> 0; Cons True rest -> verdict rest (next + 1); Cons False rest -> next
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in case fs-read (path-from-string "nonce.txt") of
+    Err error -> 90
+    Ok bytes -> verdict (checks (bytes-len bytes + 340282366920938463463374607431768211456)) 1

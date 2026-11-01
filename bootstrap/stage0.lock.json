@@ -1,0 +1,9 @@
+{
+  "description": "Pinned Rust seed with schema-7 definition-site nominal, class, Region and closed kernel effect contracts, dictionary slots, dependency-ordered source family overrides, dependency-sensitive pattern field names and conditional instance method proof contracts, integer conversion fixes, definition-owned fixities, guarded heap defaults and serial build/test settings and enforced optimizer residual growth bounds, portable checked numeric preconditions and dependent argument identities, checked structural NonZero precondition exports with actual argument identities, schema-7 defining refinement payloads and literal index contracts; changed only by an intentional seed update.",
+  "patch": "bootstrap/seed/stage0.patch",
+  "patch_sha256": "1d3479e414067f9d86a86d927f3ea323f24432632c55743de811a50f18e5d3c3",
+  "revision": "275de4f05b230c010aeb4b10265a04b97fb4eb1c",
+  "runtime_abi": 5,
+  "schema": 1,
+  "source_sha256": "7a2dd486210e6beaaa6db3c7b622983f9f4a6f7afe0481dd2e56b84532c8cd8c"
+}

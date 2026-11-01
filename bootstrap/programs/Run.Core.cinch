@@ -1,0 +1,292 @@
+-- The source comes from a file after the reader has been compiled. This
+-- exercises the Cinch elaborator at runtime, including its retained terms.
+module Main where
+
+  import Bootstrap.Core
+  import Bootstrap.Infer
+  import Bootstrap.Type
+  import Bootstrap.Dictionary (resolve-dictionary-definition, resolve-dictionary-term)
+  import Bootstrap.Parse (parse-program)
+  import Bootstrap.Report (render-diagnostics)
+  import Data.Path (path-from-string)
+  import Effect.Fs (fs-read, fs-write)
+  import Text.Parse (ParseOutcome, Parsed, Failed)
+  import Text.Lex (Span)
+
+  same :: String -> String -> Bool
+  same a b = string-compare a b == 0
+  matches :: Bytes -> String -> Bool
+  matches mode name = bytes-compare mode (string-to-bytes name) == 0
+  same-type :: UType -> UType -> Bool
+  same-type a b = list-length (store-errors (unify (Span 0 0 1 1) a b (empty-store "core-test"))) == 0
+  named-type :: String -> UType -> Bool
+  named-type name ty = case ty of UCon actual KType -> same name actual; other -> False
+  find-core :: String -> List CoreDefinition -> Option CoreDefinition
+  find-core name definitions = case definitions of Nil -> None; Cons d rest -> if same name (core-name d) then Some d else find-core name rest
+  all-closed :: List CoreDefinition -> Bool
+  all-closed definitions = case definitions of Nil -> True; Cons d rest -> core-definition-closed d && all-closed rest
+  has-quant :: Nat -> List Quant -> Bool
+  has-quant id qs = case qs of Nil -> False; Cons q rest -> id == quant-id q || has-quant id rest
+
+  -- The same global is instantiated at two distinct types in one body.
+  use-at :: String -> String -> CoreTerm -> Bool
+  use-at name expected term = case term of
+    CApply s result (CUse f ft actual role (Cons ty Nil)) arg -> same name actual && same role "value" && named-type expected ty && named-type expected result
+    other -> False
+  identity-core :: CoreDefinition -> Bool
+  identity-core definition = case (core-openings definition, core-clauses definition) of
+    (Cons (qid, opened) Nil, Cons (MkCoreClause s (Cons (CPVar p ty binder-id name) Nil) (CLocal b result used-id used Nil)) Nil) ->
+      same name used && binder-id == used-id && same-type ty opened && same-type result opened && list-length (core-private-types definition) == 0
+    other -> False
+  polymorphic-core :: List CoreDefinition -> Bool
+  polymorphic-core definitions = case (find-core "identity" definitions, find-core "main" definitions) of
+    (Some identity, Some main) -> identity-core identity && (case core-clauses main of
+      Cons (MkCoreClause s Nil (CIf i ty condition yes no)) Nil -> named-type "Int" ty && use-at "identity" "Bool" condition && use-at "identity" "Int" yes
+      other -> False)
+    other -> False
+
+  constructor-core :: List CoreDefinition -> Bool
+  constructor-core definitions = case find-core "unbox" definitions of
+    Some definition -> case (core-openings definition, core-clauses definition) of
+      (Cons (qid, opened) Nil, Cons (MkCoreClause s (Cons (CPConstructor p result name (Cons actual Nil) ctor (CPField f (CPVar v field binder-id binder) (CPDone end))) Nil) (CLocal u out used-id used Nil)) Nil) ->
+        same name "Box" && same binder used && binder-id == used-id && same-type opened actual && same-type opened field && same-type opened out
+        && (case ctor of UFun domain codomain -> same-type domain opened && same-type codomain result; other -> False)
+        && (case result of UApp (UCon family kind) arg -> same family "Box" && same-type arg opened; other -> False)
+      other -> False
+    None -> False
+
+  -- An outer generalized variable must remain free in the inner scheme;
+  -- the inner forall must not capture it by reusing a binder identity.
+  nested-core :: List CoreDefinition -> Bool
+  nested-core definitions = case find-core "main" definitions of
+    Some definition -> case core-clauses definition of
+      Cons (MkCoreClause s Nil (CLet l ty outer-id outer-name outer-sc (CLambda a ft (CPVar p (UBound xid xn xk) x-id x) (CLet b bt inner-id inner-name inner-sc inner-rhs use)) body)) Nil ->
+        same outer-name "outer" && same inner-name "local" && has-quant xid (scheme-params outer-sc)
+        && (case scheme-params inner-sc of
+          Cons q Nil -> not (quant-id q == xid) && (case scheme-body inner-sc of
+            UFun (UBound yid yn yk) (UTuple (UArg (UBound captured cn ck) (UArg (UBound returned rn rk) UEnd))) ->
+              quant-id q == yid && captured == xid && returned == yid && same-type (core-type inner-rhs) (scheme-body inner-sc)
+            other -> False)
+          other -> False)
+      other -> False
+    None -> False
+
+  shadow-core :: List CoreDefinition -> Bool
+  shadow-core definitions = case find-core "main" definitions of
+    Some definition -> case core-clauses definition of
+      Cons (MkCoreClause s Nil (CLet l ty outer outer-name scheme rhs (CApply a out (CLambda b ft (CPVar p pt inner inner-name) (CLocal u ut used used-name Nil)) (CLocal v vt argument argument-name Nil)))) Nil ->
+        not (outer == inner) && used == inner && argument == outer && same outer-name "x" && same inner-name "x" && same used-name "x" && same argument-name "x" && named-type "Int" out
+      other -> False
+    None -> False
+  as-core :: List CoreDefinition -> Bool
+  as-core definitions = case find-core "keep" definitions of
+    Some definition -> case core-clauses definition of
+      Cons (MkCoreClause s (Cons (CPAs p ty binder name inner) Nil) (CLocal u out used actual Nil)) Nil ->
+        binder == used && same name actual && same-type ty out
+      other -> False
+    None -> False
+  scope-definition :: UType -> List CorePattern -> CoreTerm -> CoreDefinition
+  scope-definition ty patterns body = MkCoreDefinition (Span 0 0 1 1) "scope-test" (mono (scope-arrow patterns ty)) Nil Nil Nil [MkCoreClause (Span 0 0 1 1) patterns body]
+  scope-arrow :: List CorePattern -> UType -> UType
+  scope-arrow patterns result = case patterns of Nil -> result; Cons pattern rest -> UFun (scope-pattern-type pattern) (scope-arrow rest result)
+  scope-pattern-type :: CorePattern -> UType
+  scope-pattern-type pattern = case pattern of
+    CPVar s ty id name -> ty
+    CPAs s ty id name inner -> ty
+    CPWild s ty -> ty
+    CPInt s ty text -> ty
+    CPString s ty text -> ty
+    CPChar s ty text -> ty
+    CPConstructor s ty name actuals constructor fields -> ty
+    CPTuple s ty fields -> ty
+    other -> UError
+  scope-invariants :: Nat -> Bool
+  scope-invariants nonce =
+    let sp = Span 0 0 1 1 in
+    let ty = UCon "Int" KType in
+    let id = nonce + 1 in
+    let other = nonce + 2 in
+    let variable = CPVar sp ty id "x" in
+    let use = CLocal sp ty id "x" Nil in
+    let wrong = CLocal sp ty other "x" Nil in
+    let literal = CInt sp ty "0" in
+    let closed = core-definition-closed (scope-definition ty [variable] use) in
+    let renamed = core-definition-closed (scope-definition ty [variable] (CLocal sp ty id "renamed" Nil)) in
+    let absent = not (core-definition-closed (scope-definition ty Nil use)) in
+    let forged = not (core-definition-closed (scope-definition ty [variable] wrong)) in
+    let bypass = not (core-definition-closed (scope-definition ty [variable] (CUse sp ty "x" "local" Nil))) in
+    let body = core-definition-closed (scope-definition ty Nil (CLet sp ty id "x" (mono ty) literal use)) in
+    let rhs = not (core-definition-closed (scope-definition ty Nil (CLet sp ty id "x" (mono ty) use use))) in
+    let duplicate = not (core-definition-closed (scope-definition ty [variable] (CLet sp ty id "y" (mono ty) literal use))) in
+    let pair = CPTuple sp (UTuple (UArg ty (UArg ty UEnd))) (CPField sp variable (CPField sp (CPVar sp ty id "y") (CPDone sp))) in
+    let repeated = not (core-definition-closed (scope-definition ty [pair] literal)) in
+    let alternatives = CAlternative sp variable use (CAlternative sp (CPWild sp ty) use (CAlternativesEnd sp)) in
+    let escaped = not (core-definition-closed (scope-definition ty Nil (CCase sp ty literal alternatives))) in
+    closed && renamed && absent && forged && bypass && body && rhs && duplicate && repeated && escaped
+
+  all-data-closed :: List CoreData -> Bool
+  all-data-closed datas = case datas of Nil -> True; Cons d rest -> core-data-closed d && all-data-closed rest
+  constructor-data :: List CoreData -> Bool
+  constructor-data datas = case datas of
+    Cons (MkCoreData s name k (Cons q Nil) (Cons constructor Nil)) Nil ->
+      same name "Box" && kind-equal k (KFun KType KType) && kind-equal (quant-kind q) KType
+      && same (core-constructor-name constructor) "Box"
+      && (case (scheme-params (core-constructor-scheme constructor), core-constructor-fields constructor) of
+        (Cons cq Nil, Cons (UBound id n field-kind) Nil) -> quant-id q == quant-id cq && id == quant-id q && kind-equal field-kind KType
+        other -> False)
+    other -> False
+  source-data :: List CoreData -> Bool
+  source-data datas = case datas of
+    Cons empty (Cons box (Cons wrapper Nil)) ->
+      same (core-data-name empty) "Empty" && kind-equal (core-data-kind empty) (KFun KType KType)
+      && list-length (core-data-params empty) == 1 && list-length (core-data-constructors empty) == 0
+      && same (core-data-name box) "Box" && list-length (core-data-constructors box) == 2
+      && (case core-data-constructors box of
+        Cons hide (Cons keep Nil) -> same (core-constructor-name hide) "Hide" && list-length (core-constructor-fields hide) == 1
+          && same (core-constructor-name keep) "Keep" && list-length (core-constructor-fields keep) == 0
+        other -> False)
+      && same (core-data-name wrapper) "Wrap" && kind-equal (core-data-kind wrapper) (KFun (KFun KType KType) (KFun KType KType))
+      && (case (core-data-params wrapper, core-data-constructors wrapper) of
+        (Cons f (Cons a Nil), Cons constructor Nil) -> kind-equal (quant-kind f) (KFun KType KType) && kind-equal (quant-kind a) KType
+          && (case core-constructor-fields constructor of
+            Cons (UApp (UBound fid fn fk) (UBound aid an ak)) Nil -> fid == quant-id f && aid == quant-id a && kind-equal fk (quant-kind f) && kind-equal ak KType
+            other -> False)
+        other -> False)
+    other -> False
+
+  private-core :: List CoreDefinition -> Bool
+  private-core definitions = case find-core "main" definitions of
+    Some definition -> case (core-private-types definition, core-clauses definition) of
+      (Cons (id, KType) Nil, Cons (MkCoreClause s Nil (CApply a out (CUse f ft name role (Cons (UFun (URigid first n lev k) (URigid second m level kind)) Nil)) (CLambda l lt (CPVar p pt binder-id binder) (CLocal u ut used-id used Nil)))) Nil) ->
+        same name "ignore" && id == first && id == second && same binder used && binder-id == used-id && same-type pt ut && named-type "Int" out
+        && list-length (core-private-types (seal-definition (empty-store "reseal") definition)) == 1
+      other -> False
+    None -> False
+
+  guard-core :: List CoreDefinition -> Bool
+  guard-core definitions = case find-core "choose" definitions of
+    Some definition -> case core-clauses definition of
+      Cons (MkCoreClause s (Cons (CPVar p pt binder-id name) Nil) (CGuard g ty condition (CLocal u ut used-id used Nil))) (Cons other Nil) ->
+        same name used && binder-id == used-id && named-type "Int" pt && named-type "Int" ty && named-type "Int" ut && named-type "Bool" (core-type condition)
+      other -> False
+    None -> False
+
+  boolean-core :: Bytes -> List CoreDefinition -> Bool
+  boolean-core mode definitions = case find-core "main" definitions of
+    Some definition -> case core-clauses definition of
+      Cons (MkCoreClause s Nil (CIf i out (CIf b bt left second third) yes no)) Nil ->
+        named-type "Int" out && named-type "Bool" bt && named-type "Bool" (core-type left)
+        && (if matches mode "and" then use-at "identity" "Bool" second && boolean-constant "False" third
+            else use-at "identity" "Bool" third && boolean-constant "True" second)
+      other -> False
+    None -> False
+  boolean-constant :: String -> CoreTerm -> Bool
+  boolean-constant name term = case term of CUse s ty actual role Nil -> named-type "Bool" ty && same name actual && same role "constructor"; other -> False
+
+  many-body :: CoreDefinition -> Bool
+  many-body definition = case core-clauses definition of
+      Cons (MkCoreClause s Nil (CInt i ty text)) Nil -> same (core-name definition) "main" && named-type "Int" ty && same text "0"
+      Cons (MkCoreClause s (Cons (CPVar p pt binder-id binder) Nil) (CPrimitive b out op (CArgument a (CLocal u ut used-id used Nil) (CArgument c (CInt i it text) (CArgumentsEnd end))))) Nil ->
+        same op "+" && same binder used && binder-id == used-id && same text "0"
+        && named-type "Int" pt && named-type "Int" ut && named-type "Int" it && named-type "Int" out
+        && list-length (core-private-types definition) == 0
+      other -> False
+  many-bodies :: List CoreDefinition -> Bool
+  many-bodies definitions = case definitions of Nil -> True; Cons definition rest -> many-body definition && many-bodies rest
+
+  verify :: Bytes -> Elaboration -> Bool
+  verify mode result = if matches mode "rejected" then
+    list-length (elaboration-errors result) > 0 && list-length (elaboration-core result) == 0 && list-length (elaboration-bindings result) == 0 && list-length (elaboration-data result) == 0
+    else list-length (elaboration-errors result) == 0 && all-closed (elaboration-core result) && all-data-closed (elaboration-data result) &&
+      (if matches mode "polymorphic" then polymorphic-core (elaboration-core result)
+       else if matches mode "constructor" then constructor-core (elaboration-core result) && constructor-data (elaboration-data result)
+       else if matches mode "data" then source-data (elaboration-data result)
+       else if matches mode "nested" then nested-core (elaboration-core result)
+       else if matches mode "private" then private-core (elaboration-core result)
+       else if matches mode "guard" then guard-core (elaboration-core result)
+       else if matches mode "and" || matches mode "or" then boolean-core mode (elaboration-core result)
+       else if matches mode "many" then list-length (elaboration-core result) == 1501 && many-bodies (elaboration-core result)
+       else if matches mode "shadow" then shadow-core (elaboration-core result)
+       else if matches mode "as" then as-core (elaboration-core result)
+       else if matches mode "scope" then scope-invariants (list-length (elaboration-core result))
+       else if matches mode "evidence" then evidence-foundation (elaboration-core result)
+       else False)
+
+  no-errors :: Store -> Bool
+  no-errors st = case store-errors st of Nil -> True; other -> False
+  has-errors :: Store -> Bool
+  has-errors st = not (no-errors st)
+  evidence-given :: String -> CoreTerm -> Bool
+  evidence-given expected term = case term of
+    CMethod s ty name owner slot actuals (Cons (CEGiven e goal symbol) Nil) -> same expected symbol
+    CLet s ty id name sc rhs body -> evidence-given expected body
+    other -> False
+  evidence-foundation :: List CoreDefinition -> Bool
+  evidence-foundation definitions = case find-core "main" definitions of
+    None -> False
+    Some main -> dictionary-invariants (scheme-body (core-scheme main))
+  dictionary-invariants :: UType -> Bool
+  dictionary-invariants input =
+    let sp = Span 0 0 1 1 in
+    let owner = string-concat "Test.Eq." (type-text input) in
+    let kind = KFun KType KType in
+    let head = UCon owner kind in
+    let goal = UApp head input in
+    let boolean = UCon "Bool" KType in
+    let other-goal = UApp head boolean in
+    let older = CGiven sp "#older" goal in
+    let newer = CGiven sp "#newer" other-goal in
+    let scope = [older, newer] in
+    let candidates = [newer, older] in
+    let classes = [(owner, kind)] in
+    let method-type = UFun input (UFun input boolean) in
+    let method = CMethod sp method-type "equal" owner 0 [input] [CENeeded sp goal candidates] in
+    let shadowed = CLet sp method-type 10000 "eq" (mono input) (CInt sp input "0") method in
+    let scheme = qualified Nil [MkRequirement "eq" goal, MkRequirement "other" other-goal] method-type in
+    let definition = MkCoreDefinition sp "test" scheme Nil scope Nil [MkCoreClause sp Nil shadowed] in
+    let (resolved, checked) = resolve-dictionary-definition classes definition (empty-store "dictionary-test") in
+    let forged = CMethod sp method-type "equal" owner 0 [input] [CEGiven sp other-goal "#older"] in
+    let (bad, rejected) = resolve-dictionary-term classes scope forged (empty-store "dictionary-test") in
+    let missing = CMethod sp method-type "equal" owner 0 [input] [CENeeded sp goal [CGiven sp "#missing" goal]] in
+    let (absent, out-of-scope) = resolve-dictionary-term classes scope missing (empty-store "dictionary-test") in
+    let altered = CMethod sp method-type "equal" owner 0 [input] [CENeeded sp goal [CGiven sp "#older" other-goal]] in
+    let (unmodified, actual-type) = resolve-dictionary-term classes scope altered (empty-store "dictionary-test") in
+    let (meta, fresh) = fresh-meta KType (empty-store "dictionary-test") in
+    let pending = CMethod sp (UFun meta (UFun meta boolean)) "equal" owner 0 [meta] [CENeeded sp (UApp head meta) candidates] in
+    let (nearest, chosen) = resolve-dictionary-term classes scope pending fresh in
+    let unknown = CQualifiedUse sp input "callee" "value" Nil [CENeeded sp goal Nil] in
+    let (unsolved, no-provider) = resolve-dictionary-term classes scope unknown (empty-store "dictionary-test") in
+    let escaped = CEInstance sp goal "unchecked" Nil (CEArgumentsEnd sp) in
+    let (untrusted, no-instance) = resolve-dictionary-term classes scope (CQualifiedUse sp input "callee" "value" Nil [escaped]) (empty-store "dictionary-test") in
+    let (discarded, legacy) = instantiate scheme (empty-store "dictionary-test") in
+    no-errors checked && no-errors actual-type && no-errors chosen && same-type (normalize chosen meta) boolean
+      && (case core-clauses resolved of Cons (MkCoreClause s ps body) Nil -> evidence-given "#older" body; other -> False)
+      && core-definition-closed (seal-definition checked resolved) && not (core-definition-closed definition)
+      && evidence-given "#older" unmodified && evidence-given "#newer" nearest
+      && has-errors rejected && has-errors out-of-scope && has-errors no-provider && has-errors no-instance && has-errors legacy
+      && qualified-opening input owner
+  qualified-opening :: UType -> String -> Bool
+  qualified-opening input owner =
+    let sp = Span 0 0 1 1 in
+    let variable = UBound 0 "a" KType in
+    let head = UCon owner (KFun KType KType) in
+    let scheme = qualified [MkQuant 0 "a" KType False] [MkRequirement "dict" (UApp head variable)] (UFun variable variable) in
+    case open-qualified False scheme (empty-store "qualified-test") of
+      (opened, Cons requirement Nil, pairs, st) ->
+        let solved = unify sp opened (UFun input input) st in
+        no-errors solved && same-type (normalize solved (requirement-type requirement)) (UApp head input)
+      other -> False
+
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in
+    case fs-read (path-from-string "case.txt") of
+      Err error -> 250
+      Ok mode -> case fs-read (path-from-string "source.cinch") of
+        Err error -> 251
+        Ok source -> case parse-program "core-runtime-input" source of
+          Failed error -> 252
+          Parsed program errors -> if list-length errors > 0 then 253 else
+            let result = elaborate-program "bootstrap.check" program in
+            case fs-write (path-from-string "core-report.txt") (string-to-bytes (render-diagnostics (elaboration-errors result))) of
+              Err error -> 254
+              Ok _ -> if verify mode result then 0 else 1

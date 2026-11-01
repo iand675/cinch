@@ -517,7 +517,6 @@ module Main where
   import Data.Sorted
   import Algebra.Semigroup
 
-  infixr 6 <>
 
   implicit instance Semigroup_SortedReverse :: Semigroup Sorted where
     (<>) p q = (<>) q p

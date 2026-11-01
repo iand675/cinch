@@ -116,6 +116,23 @@ fn bytes_literal_folds_and_map_literal_round_trips() {
 }
 
 #[test]
+fn bytes_literal_folding_preserves_unsigned_byte_boundaries() {
+    let dir = write_project(&[(
+        "Main.cinch",
+        r#"module Main where
+  buf :: Bytes
+  buf = [0, 127, 128, 255]
+  main :: Int
+  main = if bytes-len buf == 4 then
+    if bytes-get buf 0 == 0 && bytes-get buf 1 == 127 && bytes-get buf 2 == 128 && bytes-get buf 3 == 255 then 0 else 1
+    else 2
+"#,
+    )]);
+    assert_eq!(run_entry(&dir, "Main.cinch").expect("run"), 0);
+    assert_eq!(literal_folds(&dir), vec![("list".to_string(), true)]);
+}
+
+#[test]
 fn map_literal_defaults_and_wrong_instance_are_reported() {
     // An unconstrained `{k => v}` defaults to `Map` (decision D142).
     let dir = write_project(&[(

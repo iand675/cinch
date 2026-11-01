@@ -1,0 +1,83 @@
+-- The language's builtin vocabulary has kernel contracts, not Prelude exports.
+-- Keep capability contexts, region kinds, effect rows, fresh identity
+-- creation and decision evidence here, before checker elaboration.
+module Bootstrap.Builtin where
+
+  import Bootstrap.Ast (Decl, DExternal)
+  import Data.Json
+  import Text.Lex (Span)
+
+  export builtin-bindings, builtin-declarations, intrinsic-contract
+
+  -- Runtime ABI 5's pure text intrinsics. The returned scheme is checked
+  -- against the declaration, not taken on trust from foreign source text.
+  -- The extern is retained separately from the language-level identity.
+  intrinsic-contract :: String -> Option (String, String)
+  intrinsic-contract symbol =
+    if string-compare symbol "cinch.runtime.textSha256" == 0 then Some ("Bytes -> Bytes", "cinch_text_sha256")
+    else if string-compare symbol "cinch.runtime.textSha512" == 0 then Some ("Bytes -> Bytes", "cinch_text_sha512")
+    else if string-compare symbol "cinch.runtime.textSha1" == 0 then Some ("Bytes -> Bytes", "cinch_text_sha1")
+    else if string-compare symbol "cinch.runtime.textMd5" == 0 then Some ("Bytes -> Bytes", "cinch_text_md5")
+    else if string-compare symbol "cinch.runtime.textHmacSha256" == 0 then Some ("Bytes -> Bytes -> Bytes", "cinch_text_hmac_sha256")
+    else if string-compare symbol "cinch.runtime.textF64ToDecimal" == 0 then Some ("F64 -> Bytes", "cinch_text_f64_to_decimal")
+    else if string-compare symbol "cinch.runtime.textF64FromDecimal" == 0 then Some ("Bytes -> F64", "cinch_text_f64_from_decimal")
+    else None
+
+  -- Visible spelling and canonical kernel identity. Runtime.newIO is the
+  -- native compiler's qualified alias; other IO operations are unqualified.
+  builtin-bindings :: List (String, String)
+  builtin-bindings =
+    [ ("newIO", "b.newIO"), ("Runtime.newIO", "b.newIO")
+    , ("ioWrite", "b.ioWrite"), ("ioRead", "b.ioRead")
+    , ("ioSleep", "b.ioSleep"), ("pollCancel", "b.pollCancel")
+    , ("decide", "b.decide"), ("Yes", "b.Yes"), ("No", "b.No")
+    ]
+
+  entry :: String -> String -> String -> Bool -> Decl
+  entry name operation scheme fresh = DExternal (Span 0 0 1 1)
+    (string-concat "b." name) "builtin" None
+    (JObj "name" (JStr name)
+      (JObj "symbol" (JStr (string-concat "<builtin>." name))
+        (JObj "operation" (JStr operation)
+          (JObj "arity" (JNum 1)
+            (JObj "runtime_abi" (JNum 5)
+              (JObj "fresh_region" (JBool fresh)
+                (JObj "scheme" (JStr scheme) JObjEnd)))))))
+
+  -- `decide p` consumes predicate syntax and returns Dec p. It is not a
+  -- first-class function taking a proof of p as an ordinary argument.
+  decision-rule :: Decl
+  decision-rule = DExternal (Span 0 0 1 1) "b.decide" "builtin-syntax" None
+    (JObj "name" (JStr "decide")
+      (JObj "operation" (JStr "Decide")
+        (JObj "runtime_abi" (JNum 5)
+          (JObj "first_class" (JBool False)
+            (JObj "predicate_kind" (JStr "Prop")
+              (JObj "scheme" (JStr "forall (p :: Prop). Dec p") JObjEnd))))))
+
+  -- Dec has one Prop parameter. Both constructors bind erased evidence;
+  -- the runtime choice stores only its tag, never a fabricated witness.
+  decision-constructor :: String -> Int -> String -> Decl
+  decision-constructor name tag scheme = DExternal (Span 0 0 1 1)
+    (string-concat "b." name) "builtin-constructor" None
+    (JObj "name" (JStr name)
+      (JObj "family" (JStr "Dec")
+        (JObj "parameter_kind" (JStr "Prop")
+          (JObj "runtime_abi" (JNum 5)
+            (JObj "tag" (JNum tag)
+              (JObj "arity" (JNum 1)
+                (JObj "runtime_arity" (JNum 0)
+                  (JObj "erased" (JArr (JBool True) JArrEnd)
+                    (JObj "scheme" (JStr scheme) JObjEnd)))))))))
+
+  builtin-declarations :: List Decl
+  builtin-declarations =
+    [ entry "newIO" "NewIO" "forall (r :: Region). Unit -> Io r" True
+    , entry "ioWrite" "IoWrite" "forall (r :: Region). using (io :: Io r) => Bytes ->{IO r} Unit" False
+    , entry "ioRead" "IoRead" "forall (r :: Region). using (io :: Io r) => Nat ->{IO r, Diverge} Option Bytes" False
+    , entry "ioSleep" "IoSleep" "forall (r :: Region). using (io :: Io r) => Nat ->{IO r, Cancel r} Unit" False
+    , entry "pollCancel" "PollCancel" "forall (r :: Region). using (io :: Io r) => Unit ->{Cancel r} Bool" False
+    , decision-rule
+    , decision-constructor "Yes" 0 "forall (p :: Prop). (h :: p) -> Dec p"
+    , decision-constructor "No" 1 "forall (p :: Prop). (h :: Not p) -> Dec p"
+    ]

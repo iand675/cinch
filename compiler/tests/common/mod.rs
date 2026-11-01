@@ -45,12 +45,54 @@ pub const TOOLKIT: &[(&str, &str)] = &[
 /// A fresh project directory holding the toolkit and `files`. The caller
 /// owns the directory's lifetime (`cleanup`), because a rung's evidence is
 /// usually a file its program wrote there.
+pub fn assert_source_root(compiled: &Path, active: &Path) {
+    let compiled_root = compiled.canonicalize().expect("compiled package root");
+    let active_root = active.canonicalize().expect("active package root");
+    assert_eq!(compiled_root, active_root,
+        "cached test paths refer to another checkout; use a separate Cargo target directory for this source snapshot");
+}
+
 pub fn project(tag: &str, files: &[(&str, &str)]) -> PathBuf {
+    // A Cargo cache shared by copied checkouts can retain env! paths from
+    // the previous checkout. Refuse that mixture before compiling a rung.
+    let active_root = std::env::var_os("CINCH_TEST_SOURCE_ROOT")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| std::env::current_dir().expect("active package root"));
+    assert_source_root(Path::new(env!("CARGO_MANIFEST_DIR")), &active_root);
     static COUNTER: AtomicU64 = AtomicU64::new(0);
     let n = COUNTER.fetch_add(1, Ordering::SeqCst);
     let dir = std::env::temp_dir().join(format!("cinch_boot_{}_{}_{}", tag, std::process::id(), n));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).expect("project directory");
+    std::fs::write(dir.join("Bootstrap.Index.cinch"), include_str!("../../../bootstrap/Bootstrap.Index.cinch"))
+        .expect("shared index syntax dependency");
+    if files.iter().any(|(name, _)| matches!(*name, "Bootstrap.Core.cinch" | "Bootstrap.Check.cinch" | "Bootstrap.Infer.cinch" | "Bootstrap.Dictionary.cinch")) {
+        std::fs::write(dir.join("Bootstrap.Proof.cinch"), include_str!("../../../bootstrap/Bootstrap.Proof.cinch"))
+            .expect("shared proof checker dependency");
+    }
+    if files.iter().any(|(name, _)| matches!(*name, "Bootstrap.Core.cinch" | "Bootstrap.Dictionary.cinch" | "Bootstrap.Infer.cinch" | "Bootstrap.Check.cinch" | "Bootstrap.Load.cinch" | "Bootstrap.Contracts.cinch")) {
+        for (name, source) in [
+            ("Bootstrap.Nominal.cinch", include_str!("../../../bootstrap/Bootstrap.Nominal.cinch")),
+            ("Bootstrap.Ast.cinch", include_str!("../../../bootstrap/Bootstrap.Ast.cinch")),
+            ("Bootstrap.Report.cinch", include_str!("../../../bootstrap/Bootstrap.Report.cinch")),
+        ] {
+            std::fs::write(dir.join(name), source).expect("nominal contract dependency");
+        }
+    }
+    if files.iter().any(|(name, _)| matches!(*name, "Bootstrap.Check.cinch" | "Bootstrap.Infer.cinch")) {
+        std::fs::write(dir.join("Bootstrap.Builtin.cinch"), include_str!("../../../bootstrap/Bootstrap.Builtin.cinch")).expect("kernel contract dependency");
+    }
+    if files.iter().any(|(name, _)| *name == "Bootstrap.Check.cinch") {
+        for (name, src) in [
+            ("Bootstrap.Type.cinch", include_str!("../../../bootstrap/Bootstrap.Type.cinch")),
+            ("Bootstrap.Core.cinch", include_str!("../../../bootstrap/Bootstrap.Core.cinch")),
+            ("Bootstrap.Dictionary.cinch", include_str!("../../../bootstrap/Bootstrap.Dictionary.cinch")),
+            ("Bootstrap.Infer.cinch", include_str!("../../../bootstrap/Bootstrap.Infer.cinch")),
+            ("Bootstrap.Parse.cinch", include_str!("../../../bootstrap/Bootstrap.Parse.cinch")),
+        ] {
+            std::fs::write(dir.join(name), src).expect("checker dependency");
+        }
+    }
     for (name, src) in TOOLKIT.iter().chain(files.iter()) {
         std::fs::write(dir.join(name), src).unwrap_or_else(|e| panic!("write {name}: {e}"));
     }

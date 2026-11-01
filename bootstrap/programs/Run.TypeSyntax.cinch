@@ -1,0 +1,373 @@
+-- Regression checks for the signatures the compiler's own libraries use.
+-- Inspect the parsed trees, including the last using bound: a zero
+-- unmodeled count alone cannot detect a silently discarded constraint.
+module Main where
+
+  import Bootstrap.Ast
+  import Bootstrap.Parse (parse-program)
+  import Bootstrap.Check (check-program)
+  import Bootstrap.Report (Diagnostic, diagnostic-message)
+  import Text.Parse (ParseOutcome, Parsed, Failed)
+  import Text.Lex (Span)
+
+  source :: String
+  source = string-concat signatures (string-concat metadata-source (string-concat refinement-source export-source))
+
+  signatures :: String
+  signatures = "module Example where\n  f :: using (io :: Io r, n > 0, i + 1 <= n) => (x :: InRange 0 255 I64) -> refined (InRange 0 255 r && r == x) I64\n  indexed :: Vec (n + 1) (InRange (-128) 127 Int)\n  nested :: refined ((x < 1 || x > 3) && x /= 2) Int\n  single :: using (x > 0) => Int\n"
+
+  metadata-source :: String
+  metadata-source = string-concat imports-source "  data Sample (n :: Nat) {a :: Type} b where\n    SampleValue :: b -> Sample n a b\n  record Row (n :: Nat) a where\n    size :: Nat\n  signature Class (a :: Type) where\n    get :: a -> a\n  instance Class_Int (n :: Nat) :: Class Int where\n    get x = x\n  effect Event (r :: Type) where\n    event :: Int ->{Event r} Int\n  foreign import ccall \"cinch.prim.u8ToI64\" widen :: U8 -> I64\n  foreign export ccall \"public_out\" emit-val :: Int -> Int\n"
+
+  imports-source :: String
+  imports-source = "  import stage Tools.Build as B\n  import Data.Example (first as local-first, Second)\n  import Factory (12, (), Data.Example) as Built\n  import replaceable Data.Other\n"
+
+  same :: String -> String -> Bool
+  same a b = string-compare a b == 0
+
+  refinement-source :: String
+  refinement-source = "  type NonEmpty a = refine (xs :: List a) with NotNull xs\n  quantified :: forall (n :: Nat) {a :: Type} . Vec n a -> Vec n a\n"
+
+  refinement-ok :: List Decl -> Bool
+  refinement-ok ds = case find-decl "NonEmpty" ds of
+    Some (DRefine s name (Cons a Nil) binder predicate) ->
+      same (param-name a) "a" && same (param-name binder) "xs"
+      && (case param-kind binder of
+        Some (TApp t (TName h list-name) args) -> same list-name "List" && list-length (type-args-of args) == 1
+        other -> False)
+      && (case predicate of
+        TApp t (TName h pred-name) args -> same pred-name "NotNull" && (case type-args-of args of
+          Cons (TName x bound-name) Nil -> same bound-name "xs"
+          other -> False)
+        other -> False)
+    other -> False
+
+  forall-ok :: List Decl -> Bool
+  forall-ok ds = case find-type "quantified" ds of
+    Some (TForall s binders body) -> case forall-params-of binders of
+      Cons n (Cons a Nil) -> same (param-name n) "n" && kind-is n "Nat" && same (param-name a) "a" && kind-is a "Type" && param-implicit a
+      other -> False
+    other -> False
+
+  export-source :: String
+  export-source = "  export Sample, Tools.Build.build, module Data.Example, (<>), B.(+)\n"
+
+  exports-ok :: List Decl -> Bool
+  exports-ok ds = case ds of
+    Nil -> False
+    Cons d rest -> case d of
+      DExport s text (Cons (ExportName a (Cons one Nil)) (Cons (ExportName b (Cons tools (Cons build (Cons value Nil)))) (Cons (ExportModule c whole) (Cons (ExportName e (Cons op Nil)) (Cons (ExportName f (Cons alias (Cons plus Nil))) Nil))))) ->
+        same one "Sample" && same tools "Tools" && same build "Build" && same value "build"
+        && same whole "Data.Example" && same op "<>" && same alias "B" && same plus "+"
+        && string-length text > 0
+      other -> exports-ok rest
+
+  find-type :: String -> List Decl -> Option TypeExpr
+  find-type name ds = case ds of
+    Nil -> None
+    Cons d rest -> case d of
+      DSig s n t -> if same name n then Some t else find-type name rest
+      other -> find-type name rest
+
+  find-decl :: String -> List Decl -> Option Decl
+  find-decl name ds = case ds of
+    Nil -> None
+    Cons d rest -> case decl-name d of
+      Some n -> if same name n then Some d else find-decl name rest
+      None -> find-decl name rest
+
+  find-fun :: String -> List Decl -> Option Decl
+  find-fun name ds = case ds of
+    Nil -> None
+    Cons d rest -> case d of
+      DFun s found clauses -> if same name found then Some d else find-fun name rest
+      other -> find-fun name rest
+
+  kind-is :: TypeParam -> String -> Bool
+  kind-is parameter expected = case param-kind parameter of
+    Some (TName s name) -> same name expected
+    other -> False
+
+  decl-params :: Decl -> List TypeParam
+  decl-params d = case d of
+    DData s name params fields -> params
+    DRecord s name params fields -> params
+    DClass s name params members -> params
+    DInstance s implicit-flag name params cls members -> params
+    DEffect s name params ops -> params
+    other -> Nil
+
+  named-params :: String -> Nat -> List Decl -> Bool
+  named-params name count ds = case find-decl name ds of
+    Some d -> list-length (decl-params d) == count
+    None -> False
+
+  data-metadata-ok :: List Decl -> Bool
+  data-metadata-ok ds = case find-decl "Sample" ds of
+    Some (DData s name (Cons n (Cons a (Cons b Nil))) ctors) ->
+      same (param-name n) "n" && kind-is n "Nat" && not (param-implicit n)
+      && same (param-name a) "a" && kind-is a "Type" && param-implicit a
+      && same (param-name b) "b" && (case param-kind b of None -> True; Some k -> False)
+    other -> False
+
+  foreign-ok :: String -> String -> String -> List Decl -> Bool
+  foreign-ok name direction expected-symbol ds = case find-decl name ds of
+    Some (DForeign s actual abi symbol surface ty) -> same actual direction && same abi "ccall" && same symbol expected-symbol && same surface name
+    other -> False
+
+  metadata-ok :: List Decl -> Bool
+  metadata-ok ds = data-metadata-ok ds && named-params "Row" 2 ds && named-params "Class" 1 ds && named-params "Class_Int" 1 ds && named-params "Event" 1 ds
+    && foreign-ok "widen" "import" "cinch.prim.u8ToI64" ds && foreign-ok "emit-val" "export" "public_out" ds && imports-ok ds
+
+  imports-ok :: List Decl -> Bool
+  imports-ok ds = selected-import-ok ds && applied-import-ok ds && staged-import-ok ds && modified-import-ok ds
+
+  selected-import-ok :: List Decl -> Bool
+  selected-import-ok ds = case find-decl "Data.Example" ds of
+    Some (DImport s path mods None (Cons (first, Some renamed) (Cons (second, None) Nil)) Nil) -> same first "first" && same renamed "local-first" && same second "Second"
+    other -> False
+
+  applied-import-ok :: List Decl -> Bool
+  applied-import-ok ds = case find-decl "Factory" ds of
+    Some (DImport s path mods (Some alias) Nil (Cons (ELitInt s1 number) (Cons (EUnit s2) (Cons (ECon s3 name args) Nil)))) -> same alias "Built" && same number "12" && same name "Data.Example"
+    other -> False
+
+  staged-import-ok :: List Decl -> Bool
+  staged-import-ok ds = case find-decl "Tools.Build" ds of
+    Some (DImport s path (Cons mode Nil) (Some alias) Nil Nil) -> same mode "stage" && same alias "B"
+    other -> False
+
+  modified-import-ok :: List Decl -> Bool
+  modified-import-ok ds = case find-decl "Data.Other" ds of
+    Some (DImport s path (Cons mode Nil) None Nil Nil) -> same mode "replaceable"
+    other -> False
+
+  function-ok :: TypeExpr -> Bool
+  function-ok t = case t of
+    TUsing s bounds body -> bounds-ok bounds && function-body-ok body
+    other -> False
+
+  function-code :: List Decl -> Int
+  function-code ds = case find-type "f" ds of
+    Some (TUsing s bounds (TFun s2 argument result)) ->
+      if bounds-ok bounds then
+        case argument of
+          TBound s3 name ty end ->
+            if same name "x" then
+              if range-ok ty then
+                if refined-ok result then 0 else 35
+              else 34
+            else 33
+          other -> 32
+      else 31
+    other -> 30
+
+  bounds-ok :: TypeExpr -> Bool
+  bounds-ok t = case type-bounds-of t of
+    Cons (name, ty) (Cons (anon, pred) (Cons (anon2, final) Nil)) ->
+      same name "io" && same anon "" && positive-ok pred && same anon2 "" && last-bound-ok final
+    other -> False
+
+  positive-ok :: TypeExpr -> Bool
+  positive-ok t = case t of
+    TInfix s op left right -> case left of
+      TName s2 name -> case right of
+        TIndex s3 number -> same op ">" && same name "n" && same number "0"
+        other -> False
+      other -> False
+    other -> False
+
+  last-bound-ok :: TypeExpr -> Bool
+  last-bound-ok t = case t of
+    TInfix s op left right -> case left of
+      TInfix s2 plus index one -> same op "<=" && same plus "+"
+      other -> False
+    other -> False
+
+  function-body-ok :: TypeExpr -> Bool
+  function-body-ok t = case t of
+    TFun s argument result -> case argument of
+      TBound s2 name ty end -> same name "x" && range-ok ty && refined-ok result
+      other -> False
+    other -> False
+
+  range-ok :: TypeExpr -> Bool
+  range-ok t = case t of
+    TApp s head args -> case head of
+      TName s2 name -> case type-args-of args of
+        Cons lo (Cons hi (Cons carrier Nil)) -> index-is lo "0" && index-is hi "255" && same name "InRange"
+        other -> False
+      other -> False
+    other -> False
+
+  index-is :: TypeExpr -> String -> Bool
+  index-is t expected = case t of
+    TIndex s text -> same text expected
+    other -> False
+
+  refined-ok :: TypeExpr -> Bool
+  refined-ok t = case t of
+    TRefined s predicate carrier -> case predicate of
+      TInfix s2 op range equality -> case equality of
+        TInfix s3 eq result input -> same op "&&" && same eq "==" && range-ok range
+        other -> False
+      other -> False
+    other -> False
+
+  indexed-ok :: TypeExpr -> Bool
+  indexed-ok t = case t of
+    TApp s head args -> case type-args-of args of
+      Cons size (Cons range Nil) -> case range of
+        TApp s2 range-head indices -> case type-args-of indices of
+          Cons lo (Cons hi (Cons carrier Nil)) -> case lo of
+            TNegate s3 magnitude -> index-is magnitude "128" && index-is hi "127"
+            TIndex s3 number -> same number "-128" && index-is hi "127"
+            other -> False
+          other -> False
+        other -> False
+      other -> False
+    other -> False
+
+  nested-ok :: TypeExpr -> Bool
+  nested-ok t = case t of
+    TRefined s predicate carrier -> case predicate of
+      TInfix s2 and-op left right -> case left of
+        TInfix s3 or-op a b -> same and-op "&&" && same or-op "||"
+        other -> False
+      other -> False
+    other -> False
+
+  single-ok :: TypeExpr -> Bool
+  single-ok t = case t of
+    TUsing s bounds body -> list-length (type-bounds-of bounds) == 1
+    other -> False
+
+  test-type :: String -> (TypeExpr -> Bool) -> List Decl -> Bool
+  test-type name predicate ds = case find-type name ds of
+    Some t -> predicate t
+    None -> False
+
+  has-message :: String -> List Diagnostic -> Bool
+  has-message text ds = case ds of
+    Nil -> False
+    Cons d rest -> same text (diagnostic-message d) || has-message text rest
+
+  refusal-ok :: Bool
+  refusal-ok = case parse-program "refined" (string-to-bytes "module Example where\n  f :: Int -> refined (r > 0) Int\n  f x = x\n") of
+    Failed bundle -> False
+    Parsed program errors -> has-message "refinement predicate is not established for this value" (check-program program)
+
+  malformed-refused :: String -> Bool
+  malformed-refused text = case parse-program "malformed" (string-to-bytes text) of
+    Failed bundle -> True
+    Parsed program errors -> program-unmodeled-count program > 0 || list-length errors > 0
+
+  tuple-check-ok :: Bool
+  tuple-check-ok = case parse-program "tuple" (string-to-bytes "module Main where\n  main :: Int\n  main = let (a, (b, c)) = (1, (2, 3)) in a + b * c\n") of
+    Failed bundle -> False
+    Parsed program errors -> program-unmodeled-count program == 0 && list-length (check-program program) == 0
+
+  handler-source :: String
+  handler-source = "module Main where\n  main :: Int\n  main = handle poke 1 with (handler Poke where\n    return x -> x\n    poke n resume k -> k n)\n"
+
+  handler-ok :: Bool
+  handler-ok = case parse-program "handler" (string-to-bytes handler-source) of
+    Failed bundle -> False
+    Parsed program errors -> case program-modules program of
+      Cons m Nil -> case find-fun "main" (module-decls m) of
+        Some (DFun s name (Cons (Nil, EHandle hs body (EHandler hsp label clauses)) Nil)) -> handler-clauses-ok clauses && program-unmodeled-count program == 0
+        other -> False
+      other -> False
+
+  handler-clauses-ok :: Expr -> Bool
+  handler-clauses-ok clauses = case clauses of
+    EHandlerClause s ret (Cons p Nil) None body (EHandlerClause s2 op (Cons arg Nil) (Some continuation) rhs (EHandlerEnd end)) -> same ret "return" && same op "poke" && same continuation "k"
+    other -> False
+
+  rows-source :: String
+  rows-source = "module Rows where\n  open-row :: Unit ->{IO r, Cancel r | e} Unit\n  tail-row :: Unit ->{e} Unit\n  empty-row :: Unit ->{} Unit\n  qualified-row :: Unit ->{Network.Read r, Foreign CApi} Unit\n"
+
+  row-of :: String -> List Decl -> Option TypeExpr
+  row-of name ds = case find-type name ds of
+    Some (TFunEff s input row output) -> Some row
+    other -> None
+
+  label-is :: TypeExpr -> String -> String -> Bool
+  label-is label expected argument = case label of
+    TApp s (TName hs name) args -> same name expected && (case type-args-of args of
+      Cons (TName arg-span arg) Nil -> same arg argument
+      other -> False)
+    other -> False
+
+  rows-ok :: Bool
+  rows-ok = case parse-program "rows" (string-to-bytes rows-source) of
+    Parsed program Nil -> case program-modules program of
+      Cons m Nil -> let ds = module-decls m in
+        (case row-of "open-row" ds of
+          Some (TRow s labels (Some tail)) -> same tail "e" && (case type-args-of labels of
+            Cons first (Cons second Nil) -> label-is first "IO" "r" && label-is second "Cancel" "r"
+            other -> False)
+          other -> False)
+        && (case row-of "tail-row" ds of Some (TRow s (TArgsEnd end) (Some tail)) -> same tail "e"; other -> False)
+        && (case row-of "empty-row" ds of Some (TRow s (TArgsEnd end) None) -> True; other -> False)
+        && (case row-of "qualified-row" ds of
+          Some (TRow s labels None) -> case type-args-of labels of
+            Cons first (Cons second Nil) -> label-is first "Network.Read" "r" && label-is second "Foreign" "CApi"
+            other -> False
+          other -> False)
+      other -> False
+    other -> False
+
+  with-ok :: Bool
+  with-ok = case parse-program "with" (string-to-bytes "module Main where\n  main :: Int\n  main = with (io = newIO ()) in with (next = io) in next\n") of
+    Parsed program Nil -> case program-modules program of
+      Cons m Nil -> case find-fun "main" (module-decls m) of
+        Some (DFun s name (Cons (Nil, EWith ws (EBinding bs cap rhs (EBindingsEnd end)) (EWith ns (EBinding bs2 cap2 (EVar vs ref) (EBindingsEnd end2)) (EVar body result))) Nil)) ->
+          same cap "io" && same cap2 "next" && same ref "io" && same result "next" && program-unmodeled-count program == 0
+        other -> False
+      other -> False
+    other -> False
+
+  extra-checks :: Int
+  extra-checks =
+    if refusal-ok then
+      if malformed-refused "module X where\n  f :: using (x >) => Int\n" then
+        if malformed-refused "module X where\n  f :: refined (r +) Int\n" then
+          if tuple-check-ok then
+            if handler-ok then
+              if rows-ok && with-ok then
+                if malformed-refused "module X where\n  f :: Unit ->{IO r,} Unit\n" && malformed-refused "module X where\n  f :: Unit ->{IO r |} Unit\n" && malformed-refused "module X where\n  f :: Unit ->{1} Unit\n" && malformed-refused "module X where\n  f = with (io) in 0\n" then 0 else 18
+              else 17
+            else 13
+          else 12
+        else 11
+      else 10
+    else 9
+
+  check-decls :: List Decl -> Int
+  check-decls ds =
+    if test-type "f" function-ok ds then
+      if malformed-refused "module X where\n  empty :: using () => Int\n" then
+        if test-type "indexed" indexed-ok ds then
+          if test-type "nested" nested-ok ds then
+            if test-type "single" single-ok ds then
+              if metadata-ok ds then
+                if refinement-ok ds && forall-ok ds && exports-ok ds then
+                  if malformed-refused "module X where\n  type Bad = refine (x :: Int) with x >\n" && malformed-refused "module X where\n  bad :: forall . Int\n" && malformed-refused "module X where\n  export x,\n" && malformed-refused "module X where\n  export A.\n" then extra-checks else 16
+                else 15
+              else 14
+            else 7
+          else 6
+        else 5
+      else 4
+    else function-code ds
+
+  main :: Int
+  main = case parse-program "types" (string-to-bytes source) of
+    Failed errors -> 1
+    Parsed program errors ->
+      if program-unmodeled-count program == 0 && list-length errors == 0 then
+        case program-modules program of
+          Cons m Nil -> check-decls (module-decls m)
+          other -> 2
+      else 8

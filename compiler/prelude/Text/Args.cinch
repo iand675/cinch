@@ -39,7 +39,6 @@ module Text.Args where
 
   import Algebra.Semigroup
 
-  infixr 6 <>
 
   export ArgSpec, FlagSpec, ValueSpec, Required
   export OptVal, opt-name, opt-value

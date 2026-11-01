@@ -5425,6 +5425,7 @@ struct Driver<'a> {
     changed: bool,
     fuel_left: u32,
     fuel_reported: bool,
+    residual_limit: usize,
 }
 
 impl Driver<'_> {
@@ -5984,10 +5985,18 @@ impl Driver<'_> {
             self.site("unfold", Some("opaque boundary: a replaceable dispatch boundary residualizes".to_string()));
             return None;
         }
-        let f = self.defs.get(&g.0)?.clone();
+        let f = self.defs.get(&g.0)?;
         if f.prim.is_some() || f.ctor.is_some() || f.meta.prim_body || args.len() != f.params.len() {
             return None;
         }
+        // Do not even copy a previously optimized callee that exceeds
+        // this caller's entire residual allowance. Otherwise expansion
+        // can multiply across units before the round-level whistle runs.
+        if size_of(&f.body) > self.residual_limit {
+            self.site("unfold", Some("whistle: the callee exceeds the residual measure bound".to_string()));
+            return None;
+        }
+        let f = f.clone();
         if self.stack.iter().any(|s| s == &g.0) {
             self.site("unfold", Some("whistle: a repeated configuration folds to a residual call".to_string()));
             return None;
@@ -6597,6 +6606,8 @@ pub fn optimize(program: &Program, profile: &TargetProfile) -> Result<(Program, 
         if orig.prim.is_some() || orig.ctor.is_some() {
             continue;
         }
+        let base_size = size_of(&orig.body).max(1);
+        let residual_limit = base_size.saturating_mul(profile.measure.max(1) as usize);
         let mut drv = Driver {
             cx: &cx,
             defs: defs.clone(),
@@ -6616,22 +6627,33 @@ pub fn optimize(program: &Program, profile: &TargetProfile) -> Result<(Program, 
             changed: false,
             fuel_left: profile.fuel,
             fuel_reported: false,
+            residual_limit,
         };
         let mut body = orig.body.clone();
-        let base_size = size_of(&body).max(1);
         let mut rounds = 0;
         loop {
+            let previous = body.clone();
+            let previous_fns = drv.new_fns.len();
+            let previous_fusions = drv.fused.len();
+            let previous_sites = drv.sites.len();
             drv.changed = false;
             drv.drive(&mut body);
             drv.merge_cases(&mut body);
             drv.push_cases(&mut body);
             drv.dead_alts(&mut body);
             rounds += 1;
-            if !drv.changed || rounds >= 8 {
+            if size_of(&body) > residual_limit {
+                // A whistle must residualize the bounded configuration,
+                // not install the expansion that triggered it. Helpers
+                // created only by the rejected round are discarded too.
+                body = previous;
+                drv.new_fns.truncate(previous_fns);
+                drv.fused.truncate(previous_fusions);
+                drv.sites.truncate(previous_sites);
+                drv.site("unfold", Some("whistle: the residual grew past the measure bound; retained the preceding residual".to_string()));
                 break;
             }
-            if size_of(&body) > base_size * profile.measure.max(1) as usize {
-                drv.site("unfold", Some("whistle: the residual grew past the measure bound".to_string()));
+            if !drv.changed || rounds >= 8 {
                 break;
             }
         }
@@ -6730,6 +6752,63 @@ pub(crate) fn child_slots_imm(e: &Core) -> Vec<&Core> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn optimizer_measure_bounds_transitive_unfolding() {
+        // Each caller has two calls to the preceding unit. Feeding an
+        // already expanded callee into the next caller used to multiply
+        // residuals even after the measure whistle had fired.
+        let mut fns = Vec::new();
+        for i in 0..12 {
+            let branch = |value| if i == 0 {
+                Core::Int(value)
+            } else {
+                Core::App(
+                    Box::new(Core::Global(GlobalId(format!("Growth.f{}", i - 1)), vec![])),
+                    vec![Core::Var(LocalId(0))],
+                )
+            };
+            fns.push(FnDef {
+                id: GlobalId(format!("Growth.f{i}")),
+                params: vec!["condition".into()],
+                body: Core::If(
+                    Box::new(Core::Var(LocalId(0))),
+                    CBranch::weighted(None, branch(7)),
+                    CBranch::weighted(None, branch(9)),
+                ),
+                prim: None,
+                ctor: None,
+                hints: FnHints::default(),
+                meta: FnMeta { pure: true, ..FnMeta::default() },
+                repr: UnitRepr { params: vec![Class::Raw], ..UnitRepr::default() },
+            });
+        }
+        let mut program = Program {
+            fns, instances: vec![], main: None, rewrites: vec![],
+            plans: Default::default(), foreigns: Default::default(),
+            prims: vec![], laws: vec![],
+        };
+        for reverse in [false, true] {
+            if reverse { program.fns.reverse(); }
+            for measure in [1, 2, 8] {
+                let mut profile = TargetProfile::native();
+                profile.measure = measure;
+                let (residual, report) = optimize(&program, &profile).expect("bounded optimization");
+                for (original, result) in program.fns.iter().zip(&residual.fns) {
+                    assert!(size_of(&result.body) <= size_of(&original.body) * measure as usize,
+                        "{} grew from {} to {} nodes with measure {measure}",
+                        original.id.0, size_of(&original.body), size_of(&result.body));
+                }
+                if measure == 1 {
+                    assert!(report.sites.iter().any(|site|
+                        site.stop.as_deref().is_some_and(|reason| reason.contains("measure bound"))));
+                    assert!(!report.sites.iter().any(|site|
+                        site.kind == "unfold" && site.stop.is_none()),
+                        "discarded expansions must not be reported as installed");
+                }
+            }
+        }
+    }
 
     /// Every operation's symbol parses back to the same operation.
     #[test]

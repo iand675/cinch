@@ -501,7 +501,6 @@ fn transfer_rejects_sized_ascii_naming_the_conjunct() {
 module Main where
   import Algebra.Semigroup
 
-  infixr 6 <>
 
   type SizedAscii = refine (xs :: List Char) with length xs > 100 && length xs <= 200 && Ascii xs
 
@@ -527,7 +526,6 @@ module Main where
   import Algebra.Semigroup
   import Data.NonEmpty
 
-  infixr 6 <>
 
   combine :: NonEmpty Char -> NonEmpty Char -> NonEmpty Char
   combine a b = a <> b
@@ -559,7 +557,6 @@ fn generic_preserves_transfer_works_where_the_method_preserves() {
 module Main where
   import Algebra.Semigroup
 
-  infixr 6 <>
 {GENERIC_TRANSFER}
 
   combine :: refined (Ascii) (List Char) -> refined (Ascii) (List Char) -> refined (Ascii) (List Char)
@@ -586,7 +583,6 @@ module Main where
   import Algebra.Semigroup
   import Data.Sorted
 
-  infixr 6 <>
 {GENERIC_TRANSFER}
 
   main :: Int
@@ -624,7 +620,6 @@ module Main where
   import Algebra.Semigroup
   import Data.Sorted
 
-  infixr 6 <>
 {GENERIC_TRANSFER}
 
   combine :: Sorted -> Sorted -> Sorted
@@ -847,7 +842,6 @@ module Main where
   import Algebra.Semigroup
   import Data.NonEmpty
 
-  infixr 6 <>
 
   combine :: NonEmpty Char -> NonEmpty Char -> NonEmpty Char
   combine a b = a <> b

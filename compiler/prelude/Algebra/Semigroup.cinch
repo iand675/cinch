@@ -2,11 +2,8 @@
 --
 -- `Semigroup` is the value-level class of the base library scheme
 -- (design/base-library.md): one operator method `<>`, associative by
--- law. The class system is decision D2: operators are class methods and
--- each module declares the fixities of the operators it parses, so the
--- `infixr 6 <>` below is the declaration consumers import (any module
--- that parses `<>` infix may redeclare the same fixity; a redundant
--- declaration of the same fixity is accepted).
+-- law. This module declares the operator and owns its fixity. Consumers
+-- inherit the declaration through imports and cannot redeclare it.
 --
 -- Laws (asserted over sample values in compiler/tests/lib_algebra.rs):
 --   associativity: (x <> y) <> z == x <> (y <> z)

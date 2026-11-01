@@ -1,12 +1,10 @@
 -- Rung 6's runnable program: the whole ladder on one source file.
 --
--- It reads four argument words (source, IR module, executable, report) from
--- the runtime's input source, one per line, and runs
--- `Bootstrap.Pipeline.compile-source` on them. Exit 0 means every stage
--- succeeded and the artifact ran; any other code names the stage that
--- stopped (see Bootstrap.Pipeline's exit codes) or the driver rung's own.
+-- It reads four command-line words (source, IR module, executable,
+-- report) and runs Bootstrap.Pipeline.compile-source on them. Exit 0
+-- means every stage succeeded; other codes name the stage that stopped.
 --
---   printf 'fib.cinch\nfib.ll\nfib.bin\nreport.txt\n' | cinch run Main.cinch
+--   cinch run Main.cinch -- fib.cinch fib.ll fib.bin report.txt
 --
 -- The report the driver rung writes names clang's exit code and the
 -- artifact's, which is where the artifact's own answer lives: the pipeline's
@@ -15,14 +13,31 @@
 module Main where
 
   import Bootstrap.Driver (read-argv)
-  import Bootstrap.Pipeline (compile-source, four-words, pipeline-bad-args)
+  import Bootstrap.Report (render-diagnostic)
+  import Bootstrap.Pipeline (compile-source, compile-source-with-manifest, four-words, pipeline-bad-args)
   import Data.Path (path-from-string)
 
   run-words :: forall r. using (io :: Io r) => List String ->{IO r, Diverge} Int
-  run-words ws = case four-words ws of
+  run-words ws = case ws of
+    Cons flag (Cons manifest rest) ->
+      if string-compare flag "--interfaces" == 0 then
+        case four-words rest of
+          None -> pipeline-bad-args
+          Some (source, ir, exe, report) -> compile-source-with-manifest manifest source (path-from-string ir) (path-from-string exe) (path-from-string report)
+      else run-plain ws
+    other -> run-plain ws
+
+  run-plain :: forall r. using (io :: Io r) => List String ->{IO r, Diverge} Int
+  run-plain ws = case four-words ws of
     None -> pipeline-bad-args
     Some words -> case words of
       (source, ir, exe, report) -> compile-source source (path-from-string ir) (path-from-string exe) (path-from-string report)
 
   main :: Unit ->{IO r, Diverge} Int
-  main u = with (io = newIO ()) in run-words (read-argv u)
+  main u = with (io = newIO ()) in run-cli u
+
+  run-cli :: forall r. using (io :: Io r) => Unit ->{IO r, Diverge} Int
+  run-cli u = case read-argv u of
+    Ok words -> run-words words
+    Err d -> case ioWrite (string-to-bytes (render-diagnostic d)) of
+      _ -> pipeline-bad-args

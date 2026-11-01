@@ -2,7 +2,7 @@
 //!
 //! The rung's program (`bootstrap/programs/Run.Driver.cinch`, shipped as
 //! `Main.cinch`) is compiled as a real project through the harness, then run
-//! with its argument words fed on the runtime input source: the words name a
+//! with real command-line arguments: the words name a
 //! hand-written LLVM IR module, the executable clang must produce, and a
 //! report file. The program reads the IR module through `Effect.Fs`, hands it
 //! to a spawned `clang` on the child's stdin (`Effect.Process`), runs the
@@ -13,17 +13,11 @@
 //! the project, and (c) running that executable yields exactly the value the
 //! IR's `main` returns.
 //!
-//! Why the harness builds the program rather than using `common::run`: a Cinch
-//! program cannot reach the operating system's own argv (no primitive reads
-//! the process command line), so the driver reads its argument words from the
-//! runtime input source. `common::run` (the driver's `Mode::Run`) leaves stdin
-//! inherited and gives no way to feed it, so the test builds the program with
-//! `common::build` and runs the executable itself with a piped stdin, the same
-//! input source `run_source_io` feeds.
+//! The harness builds the program and invokes it directly so its argv,
+//! rather than the seed compiler's argv, is the surface under test.
 
 mod common;
 
-use std::io::Write;
 use std::path::Path;
 use std::process::{Command, Stdio};
 
@@ -47,21 +41,18 @@ const IR_EXIT: i32 = 42;
 /// How a program's exit code is reported when it is killed rather than exiting.
 const KILLED: i32 = -1;
 
-/// Run an executable with `stdin` fed to it, returning its exit code.
-fn run_with_stdin(exe: &Path, stdin: &str) -> i32 {
-    let mut child = Command::new(exe)
-        .stdin(Stdio::piped())
+/// Real command-line arguments, with no stdin channel to fall back to.
+fn run_with_args(exe: &Path, args: &[&str]) -> i32 {
+    Command::new(exe)
+        .args(args)
+        .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
-        .spawn()
-        .unwrap_or_else(|e| panic!("spawn {}: {e}", exe.display()));
-    child
-        .stdin
-        .take()
-        .expect("child stdin")
-        .write_all(stdin.as_bytes())
-        .expect("feed stdin");
-    child.wait().expect("wait for child").code().unwrap_or(KILLED)
+        .output()
+        .unwrap_or_else(|e| panic!("spawn {}: {e}", exe.display()))
+        .status
+        .code()
+        .unwrap_or(KILLED)
 }
 
 /// The rung's project: the shared contract, the rung artifact, and the
@@ -82,22 +73,28 @@ fn driver_project(tag: &str) -> std::path::PathBuf {
 fn driver_links_a_fixed_ir_module_and_reports_both_exit_codes() {
     let dir = driver_project("driver");
 
-    let ir_path = dir.join("input.ll");
+    let ir_path = dir.join("input with spaces.ll");
     std::fs::write(&ir_path, IR).expect("write the IR module");
-    let exe_path = dir.join("prog");
+    let exe_path = dir.join("prog with spaces");
     let report_path = dir.join("report.txt");
 
     let program = common::build(&dir, "Main.cinch", "driver-program")
         .unwrap_or_else(|e| panic!("build the driver program: {e}"));
 
-    // The argument words, one per line, on the runtime input source.
-    let argv = format!(
-        "--input\n{}\n--output\n{}\n--report\n{}\n",
-        ir_path.display(),
-        exe_path.display(),
-        report_path.display(),
+    let ir_word = ir_path.to_string_lossy();
+    let exe_word = exe_path.to_string_lossy();
+    let report_word = report_path.to_string_lossy();
+    let code = run_with_args(
+        &program,
+        &[
+            "--input",
+            &ir_word,
+            "--output",
+            &exe_word,
+            "--report",
+            &report_word,
+        ],
     );
-    let code = run_with_stdin(&program, &argv);
 
     // (a) the program's own exit code reports that clang linked the module.
     assert_eq!(
@@ -106,8 +103,8 @@ fn driver_links_a_fixed_ir_module_and_reports_both_exit_codes() {
     );
 
     // (b) the executable clang produced exists in the project.
-    let meta = std::fs::metadata(&exe_path)
-        .unwrap_or_else(|e| panic!("{}: {e}", exe_path.display()));
+    let meta =
+        std::fs::metadata(&exe_path).unwrap_or_else(|e| panic!("{}: {e}", exe_path.display()));
     assert!(meta.is_file(), "{} is not a file", exe_path.display());
 
     // The report names the child's exit code and the artifact's.
@@ -138,7 +135,7 @@ fn driver_refuses_incomplete_arguments_with_its_named_exit_code() {
         .unwrap_or_else(|e| panic!("build the driver program: {e}"));
 
     // No `--output`: the argument reader refuses with exit 1 (`exit-bad-args`).
-    let code = run_with_stdin(&program, "--input\ninput.ll\n");
+    let code = run_with_args(&program, &["--input", "input.ll"]);
     assert_eq!(code, 1, "an incomplete argument list is exit 1");
 
     common::cleanup(&dir);

@@ -544,6 +544,7 @@ impl Checker {
             module: "<builtin>".into(),
             name: "newIO".into(),
             scheme: Scheme {
+            con_params: Vec::new(),
             obligs: Vec::new(),
                 params: Vec::new(),
                 idx_params: Vec::new(),
@@ -641,6 +642,7 @@ impl Checker {
             self,
             "withScope",
             Scheme {
+            con_params: Vec::new(),
             obligs: Vec::new(),
                 params: vec!["a".to_string()],
                 idx_params: Vec::new(),
@@ -673,6 +675,7 @@ impl Checker {
             self,
             "spawn",
             Scheme {
+            con_params: Vec::new(),
             obligs: Vec::new(),
                 params: vec!["x".to_string(), "a".to_string()],
                 idx_params: Vec::new(),
@@ -708,6 +711,7 @@ impl Checker {
             self,
             "joinAllOrCancel",
             Scheme {
+            con_params: Vec::new(),
             obligs: Vec::new(),
                 params: vec!["x".to_string(), "v".to_string(), "w".to_string()],
                 idx_params: Vec::new(),
@@ -744,6 +748,7 @@ impl Checker {
             self,
             "ioWrite",
             Scheme {
+            con_params: Vec::new(),
             obligs: Vec::new(),
                 params: Vec::new(),
                 idx_params: Vec::new(),
@@ -765,6 +770,7 @@ impl Checker {
             self,
             "ioRead",
             Scheme {
+            con_params: Vec::new(),
             obligs: Vec::new(),
                 params: Vec::new(),
                 idx_params: Vec::new(),
@@ -786,6 +792,7 @@ impl Checker {
             self,
             "ioSleep",
             Scheme {
+            con_params: Vec::new(),
             obligs: Vec::new(),
                 params: Vec::new(),
                 idx_params: Vec::new(),
@@ -807,6 +814,7 @@ impl Checker {
             self,
             "pollCancel",
             Scheme {
+            con_params: Vec::new(),
             obligs: Vec::new(),
                 params: Vec::new(),
                 idx_params: Vec::new(),
@@ -843,6 +851,7 @@ impl Checker {
             module: "<builtin>".to_string(),
             name: "eval".to_string(),
             scheme: Scheme {
+            con_params: Vec::new(),
             obligs: Vec::new(),
                 params: vec!["a".to_string()],
                 idx_params: Vec::new(),
@@ -928,6 +937,7 @@ impl Checker {
                 // `foreign import` schemes classify it.
                 region_params.push("Component".to_string());
                 let scheme = Scheme {
+            con_params: Vec::new(),
             obligs: Vec::new(),
                     params: Vec::new(),
                     idx_params: Vec::new(),
@@ -1089,6 +1099,7 @@ impl Checker {
         ];
         for (name, symbol, ty, arity) in entries {
             let scheme = Scheme {
+            con_params: Vec::new(),
             obligs: Vec::new(),
                 params: vec!["a".to_string()],
                 idx_params: Vec::new(),
@@ -1443,6 +1454,7 @@ impl Checker {
             module: "<builtin>".into(),
             name: "derive".into(),
             scheme: Scheme {
+            con_params: Vec::new(),
             obligs: Vec::new(),
                 params: Vec::new(),
                 idx_params: Vec::new(),
@@ -1481,6 +1493,7 @@ impl Checker {
         ty: Ty,
     ) {
         let scheme = Scheme {
+            con_params: Vec::new(),
             obligs: Vec::new(),
             params,
             idx_params: Vec::new(),
@@ -1648,6 +1661,7 @@ impl Checker {
                 };
             }
             let scheme = Scheme {
+            con_params: Vec::new(),
             obligs: Vec::new(),
                 params: type_params,
                 idx_params,
@@ -1762,6 +1776,7 @@ impl Checker {
             module: "<builtin>".to_string(),
             name: "getCopy".to_string(),
             scheme: Scheme {
+            con_params: Vec::new(),
             obligs: Vec::new(),
                 params: vec!["a".to_string()],
                 idx_params: vec![IxParam::Val("n".to_string(), Ty::Nat)],
@@ -1945,6 +1960,7 @@ impl Checker {
             module: "<builtin>".to_string(),
             name: "vecStreamStep".to_string(),
             scheme: Scheme {
+            con_params: Vec::new(),
             obligs: Vec::new(),
                 params: vec!["a".to_string()],
                 idx_params: vec![IxParam::Val("n".to_string(), Ty::Nat)],
@@ -1977,6 +1993,7 @@ impl Checker {
             module: "<builtin>".to_string(),
             name: "refl".to_string(),
             scheme: Scheme {
+            con_params: Vec::new(),
             obligs: Vec::new(),
                 params: Vec::new(),
                 idx_params: vec![IxParam::Val("x".to_string(), Ty::Nat)],
@@ -1998,6 +2015,7 @@ impl Checker {
             module: "<builtin>".to_string(),
             name: "congr".to_string(),
             scheme: Scheme {
+            con_params: Vec::new(),
             obligs: Vec::new(),
                 params: Vec::new(),
                 idx_params: vec![
@@ -2273,6 +2291,17 @@ impl Checker {
                     self.validate_attr_site(decl_attrs, AttrSite::Decl)?;
                 }
             }
+            let binders = match d {
+                ast::Decl::Data(x) => Some((&x.name, &x.params)),
+                ast::Decl::Record(x) | ast::Decl::Codata(x) => Some((&x.name, &x.params)),
+                ast::Decl::Refine(x) => Some((&x.name, &x.params)),
+                ast::Decl::OpaqueType(x) => Some((&x.name, &x.params)),
+                ast::Decl::Signature(x) => Some((&x.name, &x.params)),
+                _ => None,
+            };
+            if let Some((name, params)) = binders {
+                self.interface_binders.insert((module.clone(), name.text.clone()), params.clone());
+            }
             match d {
                 ast::Decl::NameSpliced { name_tm, .. } => {
                     return Err(Error::at(
@@ -2366,6 +2395,7 @@ impl Checker {
                         return Err(Error::at(*span, format!("duplicate signature for {}", name.text)));
                     }
                     let s = self.conv_scheme(ty)?;
+                    self.remember_interface_scheme(&module, &name.text, ty, &s, &[]);
                     if logical == Some("proof") {
                         // A `proof` declaration constructs erased
                         // evidence: its type is a proposition or a chain
@@ -2557,6 +2587,7 @@ impl Checker {
                             return Err(Error::at(f.span, "a compiler intrinsic cannot be exported"));
                         }
                         let s = self.conv_scheme(&f.ty)?;
+                        self.remember_interface_scheme(&module, &f.name.text, &f.ty, &s, &[]);
                         if !s.params.is_empty() || !s.ctx.is_empty() {
                             return Err(Error::at(f.span, "primitives cannot be polymorphic or constrained"));
                         }
@@ -2645,6 +2676,7 @@ impl Checker {
                         // every type's layout is known
                         // (`build_foreign_contracts`).
                         let s = self.conv_scheme(&f.ty)?;
+                        self.remember_interface_scheme(&module, &f.name.text, &f.ty, &s, &[]);
                         if !s.params.is_empty() || !s.ctx.is_empty() {
                             return Err(Error::at(
                                 f.span,
@@ -3048,6 +3080,7 @@ impl Checker {
                             };
                         }
                         let scheme = Scheme {
+            con_params: higher_kinded_parameters(&params, &param_kinds),
             obligs: Vec::new(),
                             params: type_params,
                             idx_params,
@@ -3058,6 +3091,7 @@ impl Checker {
                             ctx: Vec::new(),
                             ty: scheme_ty,
                         };
+                        self.remember_interface_constructor(&module, &c.name.text, &c.ty, &scheme, &data.params);
                         self.add_value(
                             ValueInfo {
                                 module: module.clone(),
@@ -3301,6 +3335,7 @@ impl Checker {
                         };
                     }
                     let scheme = Scheme {
+            con_params: higher_kinded_parameters(&params, &param_kinds),
             obligs: Vec::new(),
                         params: type_params,
                         idx_params,
@@ -3510,6 +3545,7 @@ impl Checker {
                         };
                     }
                     let scheme = Scheme {
+            con_params: higher_kinded_parameters(&params, &param_kinds),
             obligs: Vec::new(),
                         params: type_params,
                         idx_params,
@@ -3677,6 +3713,7 @@ impl Checker {
                         };
                     }
                     let scheme = Scheme {
+            con_params: higher_kinded_parameters(&params, &param_kinds),
             obligs: Vec::new(),
                         params: type_params,
                         idx_params,
@@ -3749,11 +3786,14 @@ impl Checker {
                     }
                     self.kind_constraints.borrow_mut().clear();
                     let mut methods: Vec<(String, Scheme)> = Vec::new();
+                    let mut method_contracts: Vec<Option<Scheme>> = Vec::new();
                     for (idx, (mname, mty)) in sig.methods.iter().enumerate() {
                         // Method schemes quantify over the signature's
                         // parameters plus their own; the class constraint is
                         // always `ctx[0]`.
                         let mut extra: Vec<String> = Vec::new();
+                        let mut own_binders: Vec<ast::TypeBinder> = Vec::new();
+                        let notes_start = self.kind_constraints.borrow().len();
                         let mut rest = mty;
                         let mut own_ctx: Vec<(String, ClassApp)> = Vec::new();
                         loop {
@@ -3761,6 +3801,7 @@ impl Checker {
                                 ast::Type::Forall(binders, body, _) => {
                                     for b in binders {
                                         extra.push(b.name.text.clone());
+                                        own_binders.push(b.clone());
                                     }
                                     rest = body;
                                 }
@@ -3817,6 +3858,7 @@ impl Checker {
                         methods.push((
                             mname.text.clone(),
                             Scheme {
+            con_params: Vec::new(),
             obligs: Vec::new(),
                                 params: type_params,
                                 idx_params: Vec::new(),
@@ -3828,6 +3870,29 @@ impl Checker {
                                 ty,
                             },
                         ));
+                        // Keep method-local kind inference scoped to this
+                        // method. Another method may quantify the same name
+                        // with a different kind. This metadata copy does not
+                        // change the native checker's method dispatch.
+                        let notes = self.kind_constraints.borrow()[notes_start..].to_vec();
+                        let mut contract = Some(methods.last().unwrap().1.clone());
+                        for binder in &own_binders {
+                            let hint = match &binder.ann {
+                                Some(ann) => match self.source_contract_kind(ann) {
+                                    Some(kind) => Some(kind),
+                                    None => { contract = None; break }
+                                },
+                                None => None,
+                            };
+                            match self.resolve_binder_kind(&binder.name.text, hint.as_ref(), &notes, binder.name.span) {
+                                Ok(ParamKind::Con(arity)) => if let Some(contract) = &mut contract {
+                                    contract.con_params.push((binder.name.text.clone(), arity));
+                                },
+                                Ok(ParamKind::Type) => {},
+                                _ => { contract = None; break }
+                            }
+                        }
+                        method_contracts.push(contract);
                         let info = ValueInfo {
                             module: module.clone(),
                             name: mname.text.clone(),
@@ -3917,6 +3982,7 @@ impl Checker {
                             .filter(|p| !row_params.contains(p) && !region_params.contains(p))
                             .collect();
                         let scheme = Scheme {
+            con_params: Vec::new(),
             obligs: Vec::new(),
                             params: type_params,
                             idx_params: Vec::new(),
@@ -3997,7 +4063,14 @@ impl Checker {
                     self.qualified_types
                         .insert((module.clone(), sig.name.text.clone()), tk);
                     self.sigs.entry(sig.name.text.clone()).or_default().push(info.clone());
-                    self.qualified_sigs.insert((module.clone(), sig.name.text.clone()), info);
+                    self.qualified_sigs.insert((module.clone(), sig.name.text.clone()), info.clone());
+                    for ((name, source), contract) in sig.methods.iter().zip(method_contracts) {
+                        if let Some(mut contract) = contract {
+                            contract.con_params.extend(higher_kinded_parameters(&info.params, &info.param_kinds));
+                            self.remember_source_scheme(&module, &format!("{}.{}", sig.name.text, name.text),
+                                source, &contract, &sig.params, Some(&info), false);
+                        }
+                    }
                 }
                 ast::Decl::Effect(eff) => {
                     if self.effects.contains_key(&eff.name.text) {
@@ -4087,6 +4160,7 @@ impl Checker {
                             .filter(|p| !row_params.contains(p) && !region_params.contains(p))
                             .collect();
                         let scheme = Scheme {
+            con_params: Vec::new(),
             obligs: Vec::new(),
                             params: type_params,
                             idx_params: Vec::new(),
@@ -4825,6 +4899,7 @@ impl Checker {
                 own_obligs = s.obligs;
             }
             let scheme = Scheme {
+                con_params: Vec::new(),
                 obligs: own_obligs,
                 params: extra,
                 idx_params: Vec::new(),
@@ -5343,6 +5418,7 @@ impl Checker {
                     implicit: bi.implicit,
                     base: false,
                     method_obligs: bi.method_obligs.clone(),
+                    method_contracts: bi.method_contracts.clone(),
                 });
                 self.instances.entry(bi.target.class.clone()).or_default().push(idx);
                 unit_insts.push(UnitInst { inst_name: bi.name.clone() });
@@ -9954,6 +10030,7 @@ impl Checker {
             abi: "ccall".to_string(),
             external: f.symbol.clone(),
             ty: render_scheme(&Scheme {
+            con_params: Vec::new(),
             obligs: Vec::new(),
                 params: Vec::new(),
                 idx_params: Vec::new(),
@@ -14734,17 +14811,31 @@ impl Checker {
     }
 }
 
-/// Render a scheme for interface metadata: quantifiers, `using` context,
-/// then the type with its effect rows.
+/// Render a scheme for interface metadata, including the caller's proof
+/// obligations. These are part of the contract, even when the result type
+/// does not itself depend on the arguments they mention.
+fn higher_kinded_parameters(names: &[String], kinds: &[ParamKind]) -> Vec<(String, usize)> {
+    names.iter().zip(kinds).filter_map(|(name, kind)| match kind {
+        ParamKind::Con(n) => Some((name.clone(), *n)),
+        _ => None,
+    }).collect()
+}
+
 fn render_scheme(s: &Scheme) -> String {
     let mut out = String::new();
     let all: Vec<String> = s
         .params
         .iter()
-        .cloned()
-        .chain(s.idx_params.iter().map(|p| p.name().to_string()))
-        .chain(s.val_params.iter().map(|(n, _)| n.clone()))
-        .chain(s.prop_params.iter().cloned())
+        .map(|name| match s.con_params.iter().find(|(n, _)| n == name) {
+            Some((_, arity)) => format!("({name} :: {})", vec!["Type"; arity + 1].join(" -> ")),
+            None => name.clone(),
+        })
+        .chain(s.idx_params.iter().map(|p| match p {
+            IxParam::Val(n, t) => format!("({n} :: {t})"),
+            IxParam::Prop(n) => format!("({n} :: Prop)"),
+        }))
+        .chain(s.val_params.iter().map(|(n, t)| format!("({n} :: {t})")))
+        .chain(s.prop_params.iter().map(|n| format!("({n} :: Prop)")))
         .chain(s.row_params.iter().cloned())
         .chain(s.region_params.iter().cloned())
         .collect();
@@ -14756,20 +14847,131 @@ fn render_scheme(s: &Scheme) -> String {
         }
         out.push_str(". ");
     }
-    if !s.ctx.is_empty() {
+    let (ty, obligs) = interface_arg_binders(s);
+    if !s.ctx.is_empty() || !obligs.is_empty() {
         out.push_str("using (");
-        for (i, (n, c)) in s.ctx.iter().enumerate() {
+        let mut items: Vec<String> = s.ctx.iter().map(|(n, c)| format!("{n} :: {c}")).collect();
+        items.extend(obligs.iter().map(|o| match o {
+            PropOblig::Pred(p) => p.to_string(),
+            PropOblig::Preserves { method, pred } => format!("Preserves ({method}) {pred}"),
+        }));
+        for (i, item) in items.iter().enumerate() {
             if i > 0 {
                 out.push_str(", ");
             }
-            out.push_str(n);
-            out.push_str(" :: ");
-            out.push_str(&c.to_string());
+            out.push_str(item);
         }
         out.push_str(") => ");
     }
-    out.push_str(&s.ty.to_string());
+    out.push_str(&ty.to_string());
     out
+}
+
+/// `conv_scheme` normalizes signature argument references to `$a{i}`.
+/// Bind those positions again before publishing surface syntax. Fresh
+/// names avoid capturing a quantified parameter or an existing index.
+fn interface_arg_binders(s: &Scheme) -> (Ty, Vec<PropOblig>) {
+    if s.obligs.is_empty() {
+        return (s.ty.clone(), Vec::new());
+    }
+    let vocabulary = format!("{:?}", s);
+    let mut used: HashSet<String> = vocabulary
+        .split(|c: char| !c.is_alphanumeric() && c != '-' && c != '_' && c != '\'')
+        .map(str::to_owned)
+        .collect();
+    let mut obligs = s.obligs.clone();
+    fn bind(t: &Ty, i: usize, used: &mut HashSet<String>, obligs: &mut [PropOblig]) -> Ty {
+        let (dom, mult, eff, cod, old) = match t {
+            Ty::Fun(a, m, e, b) => (a, m, e, b, None),
+            Ty::Pi { var, dom, mult, eff, cod } => (dom, mult, eff, cod, Some(var)),
+            _ => return t.clone(),
+        };
+        let mut name = format!("arg{i}");
+        while !used.insert(name.clone()) {
+            name.push('x');
+        }
+        let value = ITerm::Var(name.clone());
+        let pos = format!("$a{i}");
+        let mut cod = cod.subst_idx(&pos, &value);
+        if let Some(old) = old {
+            cod = cod.subst_idx(old, &value);
+        }
+        for o in obligs.iter_mut() {
+            match o {
+                PropOblig::Pred(p) | PropOblig::Preserves { pred: p, .. } => {
+                    *p = p.subst(&pos, &value);
+                }
+            }
+        }
+        Ty::Pi {
+            var: name,
+            dom: dom.clone(),
+            mult: *mult,
+            eff: eff.clone(),
+            cod: Box::new(bind(&cod, i + 1, used, obligs)),
+        }
+    }
+    let ty = bind(&s.ty, 0, &mut used, &mut obligs);
+    (ty, obligs)
+}
+
+#[cfg(test)]
+mod interface_scheme_tests {
+    use super::*;
+
+    fn read_scheme(source: &str) -> Scheme {
+        let source = format!("module Contract where\n  f :: {source}\n");
+        let tokens = crate::layout::layout(crate::lexer::lex(&source).unwrap()).unwrap();
+        let parsed = crate::parser::parse_module(&tokens, &crate::parser::FixityTable::new()).unwrap();
+        let ty = parsed.module.decls.iter().find_map(|d| match d {
+            ast::Decl::ValueSig { ty, .. } => Some(ty),
+            _ => None,
+        }).unwrap();
+        Checker::new().conv_scheme(ty).unwrap()
+    }
+
+    #[test]
+    fn exported_preconditions_round_trip_with_their_argument_positions() {
+        let original = read_scheme("using (0 <= x, x < y) => (x :: I64) -> (y :: I64) -> I64");
+        let rendered = render_scheme(&original);
+        assert!(rendered.contains("using ("), "{rendered}");
+        assert!(!rendered.contains('$'), "internal argument names escaped: {rendered}");
+        let back = read_scheme(&rendered);
+        assert_eq!(original.obligs, back.obligs, "{rendered}");
+        assert_eq!(original.ty, back.ty, "{rendered}");
+    }
+
+    #[test]
+    fn precondition_argument_names_do_not_capture_type_parameters() {
+        let original = read_scheme("forall arg0 . using (0 <= x) => (x :: I64) -> arg0 -> arg0");
+        let rendered = render_scheme(&original);
+        assert!(rendered.contains("arg0x :: I64"), "{rendered}");
+        let back = read_scheme(&rendered);
+        assert_eq!(original.params, back.params);
+        assert_eq!(original.obligs, back.obligs);
+        assert_eq!(original.ty, back.ty);
+    }
+
+    #[test]
+    fn explicit_value_and_proposition_parameter_kinds_are_published() {
+        let mut scheme = Scheme::mono(Ty::Int);
+        scheme.val_params.push(("n".into(), Ty::Nat));
+        scheme.prop_params.push("p".into());
+        let rendered = render_scheme(&scheme);
+        let back = read_scheme(&rendered);
+        assert_eq!(scheme.val_params, back.val_params, "{rendered}");
+        assert_eq!(scheme.prop_params, back.prop_params, "{rendered}");
+    }
+
+    #[test]
+    fn higher_kinded_parameter_annotations_survive_interface_rendering() {
+        let original = read_scheme("forall (f :: Type -> Type) a . f a -> f a");
+        let rendered = render_scheme(&original);
+        assert!(rendered.contains("f :: Type -> Type"), "{rendered}");
+        let back = read_scheme(&rendered);
+        assert_eq!(original.con_params, back.con_params, "{rendered}");
+        assert_eq!(original.ty, back.ty, "{rendered}");
+    }
 }
 
 /// A module's declared import names, keyed by their full dotted names.
@@ -15011,6 +15213,7 @@ impl Checker {
         let pending = std::mem::take(&mut self.pending_instance_heads);
         for (module, inst) in pending {
             self.build_scope(&module, false);
+            let notes_start = self.kind_constraints.borrow().len();
             let params: Vec<String> = inst.params.iter().map(|p| p.text.clone()).collect();
             let mut ctx: Vec<InstCtx> = Vec::new();
             for c in &inst.ctx {
@@ -15034,6 +15237,7 @@ impl Checker {
                     return Err(e);
                 }
             };
+            let head_notes = self.kind_constraints.borrow()[notes_start..].to_vec();
             if class == "Copy" {
                 return Err(Error::at(
                     inst.span,
@@ -15069,6 +15273,7 @@ impl Checker {
             // quantifier, no constraint, and its type must be the class
             // method's at this instance (checked with the body).
             let mut method_obligs: Vec<(usize, String, Vec<PTerm>)> = Vec::new();
+            let mut method_contracts = Vec::new();
             for (mname, mty) in &inst.method_sigs {
                 let midx = self.sigs.get(&class).and_then(|ss| {
                     ss.iter().find_map(|s| s.methods.iter().position(|(m, _)| *m == mname.text))
@@ -15112,10 +15317,11 @@ impl Checker {
                     ));
                 }
                 method_obligs.push((midx, mname.text.clone(), preds));
+                method_contracts.push((midx, mname.text.clone(), s));
             }
             let base_id = fn_id(&module, &inst.name.text);
             let idx = self.instance_list.len();
-            self.instance_list.push(InstanceInfo {
+            let info = InstanceInfo {
                 module: module.clone(),
                 name: inst.name.text.clone(),
                 params,
@@ -15128,7 +15334,10 @@ impl Checker {
                 // published per instantiation.
                 base: self.param_modules.contains(&module),
                 method_obligs,
-            });
+                method_contracts,
+            };
+            self.remember_interface_instance(&inst, &info, &head_notes);
+            self.instance_list.push(info);
             self.instances.entry(class).or_default().push(idx);
         }
         Ok(())
@@ -15212,12 +15421,64 @@ impl Checker {
         Ok(())
     }
 
+    fn interface_parameters(
+        &self, module: &str, name: &str, fallback: &[String], kinds: &[ParamKind],
+    ) -> Vec<crate::interface::ParameterExport> {
+        let binders = self.interface_binders.get(&(module.to_string(), name.to_string()));
+        kinds.iter().enumerate().map(|(i, kind)| {
+            let binder = binders.and_then(|bs| bs.get(i));
+            crate::interface::ParameterExport {
+                name: binder.map(|b| b.name.text.clone()).or_else(|| fallback.get(i).cloned())
+                    .unwrap_or_else(|| format!("p{i}")),
+                kind: match kind {
+                    ParamKind::Type => "Type".to_string(),
+                    ParamKind::Val(ty) => ty.to_string(),
+                    ParamKind::Prop => "Prop".to_string(),
+                    ParamKind::Con(n) => vec!["Type"; n + 1].join(" -> "),
+                },
+                implicit: binder.is_some_and(|b| b.implicit),
+            }
+        }).collect()
+    }
+
+    fn interface_signature(&self, s: &SigInfo, surface: &[(String, SurfaceName)]) -> crate::interface::SigExport {
+        let public = |name: &str| -> Vec<String> {
+            surface.iter().filter(|(_, target)| target.module == s.module && target.name == name)
+                .map(|(name, _)| name.clone()).collect()
+        };
+        let exports = public(&s.name);
+        crate::interface::SigExport {
+            name: exports.first().cloned().unwrap_or_else(|| s.name.clone()),
+            identity: format!("{}.{}", s.module, s.name),
+            exports,
+            params: s.params.clone(),
+            parameters: self.interface_parameters(&s.module, &s.name, &s.params, &s.param_kinds),
+            methods: s.methods.iter().enumerate().map(|(slot, (name, scheme))| {
+                let mut scheme = scheme.clone();
+                if let Some(source) = self.interface_source_schemes.get(&(s.module.clone(), format!("{}.{}", s.name, name))) {
+                    scheme.con_params = source.con_params.clone();
+                } else {
+                    scheme.con_params.extend(higher_kinded_parameters(&s.params, &s.param_kinds));
+                }
+                crate::interface::MethodExport {
+                    name: name.clone(),
+                    slot: slot as u64,
+                    exports: public(name),
+                    scheme: render_scheme(&scheme),
+                    resolved: self.resolved_interface_scheme(&s.module, &format!("{}.{}", s.name, name)),
+                    default: self.default_ids.get(&(s.module.clone(), s.name.clone(), name.clone())).cloned(),
+                }
+            }).collect(),
+        }
+    }
+
     /// Build one module's `.cinchif` content (design note, section 2).
     fn module_iface(
         &self,
         module: &str,
         source_hash: &str,
         imports: &[(String, String)],
+        available: &std::collections::BTreeSet<String>,
     ) -> crate::interface::Iface {
         use crate::interface::*;
         let mut iface = Iface::new(module, source_hash);
@@ -15230,9 +15491,9 @@ impl Checker {
         // The export surface (surface grammar local amendments section
         // 11): with `export` declarations exactly the names their items
         // resolve to, re-exports included; the declared names as before
-        // without them. Instances, fixities and the foreign table stay
-        // module-owned: they are coherence and contract facts, not
-        // names.
+        // without them. Fixities follow each exported operator's defining
+        // binding, including selected and renamed re-exports. Instances
+        // and the foreign table remain module-owned contract facts.
         let mut surface: Vec<(String, SurfaceName)> = match self.module_surface.get(module) {
             Some(sm) => sm
                 .iter()
@@ -15256,10 +15517,11 @@ impl Checker {
         for (local, d) in &surface {
             if let Some(v) = self.qualified.get(&(d.module.clone(), d.name.clone())) {
                 match &v.kind {
-                    ValueKind::TopFn | ValueKind::Prim(_) | ValueKind::PrimDecl { .. } => {
+                    ValueKind::TopFn | ValueKind::Prim(_) | ValueKind::PrimDecl { .. } | ValueKind::Foreign { .. } => {
                         iface.exports.values.push(ValueExport {
                             name: local.clone(),
                             scheme: render_scheme(&v.scheme),
+                            resolved: self.resolved_interface_scheme(&d.module, &d.name),
                             symbol: format!("{}.{}", d.module, d.name),
                             arity: (v.scheme.ty.arity()
                                 + v.scheme.ctx.len()
@@ -15357,6 +15619,9 @@ impl Checker {
                             }) {
                                 ctors.push(CtorExport {
                                     name: ctor_local.clone(),
+                                    symbol: format!("{}.{}", d.module, cname),
+                                    scheme: render_scheme(&v.scheme),
+                                    resolved: self.resolved_interface_scheme(&d.module, cname),
                                     tag: *tag as u64,
                                     fields: fields.clone(),
                                     erased: field_erased.clone(),
@@ -15373,12 +15638,31 @@ impl Checker {
                         params = r.params.clone();
                     }
                 }
+                let parameters = self.interface_parameters(&d.module, &d.name, &params, &t.param_kinds);
+                params = parameters.iter().map(|p| p.name.clone()).collect();
                 iface.exports.types.push(TypeExport {
                     name: local.clone(),
+                    identity: format!("{}.{}", d.module, d.name),
                     params,
-                    kind: if t.fields.is_some() { "record".to_string() } else { "data".to_string() },
+                    parameters,
+                    kind: if t.refine.is_some() {
+                        "refinement".to_string()
+                    } else if t.opaque {
+                        "opaque".to_string()
+                    } else if self.qualified_sigs.contains_key(&(d.module.clone(), d.name.clone())) {
+                        "signature".to_string()
+                    } else if t.fields.is_some() {
+                        "record".to_string()
+                    } else {
+                        "data".to_string()
+                    },
                     ctors,
                     fields: t.fields.clone().unwrap_or_default(),
+                    refinement: t.refine.as_ref().map(|r| RefinementExport {
+                        binder: r.binder.clone(),
+                        carrier: r.base.to_string(),
+                        predicate: r.pred.to_string(),
+                    }),
                 });
                 // Computed layout facts (attribute annotations
                 // specification section 4.3): part of the contract
@@ -15399,27 +15683,75 @@ impl Checker {
                 layout.name = local.clone();
                 iface.layouts.push(layout);
             }
-            if let Some(s) = self
-                .sigs
-                .get(&d.name)
-                .and_then(|ss| ss.iter().find(|s| s.module == d.module))
-            {
-                iface.exports.signatures.push(SigExport {
-                    name: local.clone(),
-                    params: s.params.clone(),
-                    methods: s
-                        .methods
-                        .iter()
-                        .map(|(n, sch)| MethodExport {
-                            name: n.clone(),
-                            scheme: render_scheme(sch),
-                            default: self
-                                .default_ids
-                                .get(&(s.module.clone(), s.name.clone(), n.clone()))
-                                .cloned(),
-                        })
-                        .collect(),
-                });
+        }
+        // A public method carries its class contract even when the class
+        // name itself is private. Only explicit export spellings become
+        // surface names; contract closure does not publish private names.
+        let mut signature_identities = std::collections::BTreeSet::new();
+        for signature in self.qualified_sigs.values() {
+            if surface.iter().any(|(_, target)| target.module == signature.module
+                && (target.name == signature.name || signature.methods.iter().any(|(name, _)| *name == target.name)))
+                && signature_identities.insert((signature.module.clone(), signature.name.clone())) {
+                iface.exports.signatures.push(self.interface_signature(signature, &surface));
+            }
+        }
+        for i in &self.instance_list {
+            if i.module != module {
+                continue;
+            }
+            // Family heads may refer forward to class homes, including
+            // cycles through the shared family. The current per-module
+            // hash protocol cannot publish those forward dependencies;
+            // keep their nonportable contracts explicitly unresolved.
+            let resolved = self.resolved_interface_scheme(&i.module, &format!("@instance:{}", i.name))
+                .filter(|scheme| scheme.nominals.iter().all(|n| n.identity.rsplit_once('.')
+                    .is_some_and(|(owner, _)| owner == module || available.contains(owner))));
+            iface.exports.instances.push(InstanceExport {
+                id: i.base_id.0.clone(),
+                class: i.target.class.clone(),
+                target: i.target.to_string(),
+                resolved,
+                method_contracts: i.method_contracts.iter().map(|(slot, name, scheme)| InstanceMethodContract {
+                    slot: *slot as u64, name: name.clone(), scheme: render_scheme(scheme),
+                }).collect(),
+                ctx: i
+                    .ctx
+                    .iter()
+                    .map(|item| match item {
+                        InstCtx::Dict(n, c) => format!("{n} :: {c}"),
+                        InstCtx::Oblig(PropOblig::Pred(p)) => p.to_string(),
+                        InstCtx::Oblig(PropOblig::Preserves { method, pred }) => {
+                            format!("Preserves ({method}) {pred}")
+                        }
+                    })
+                    .collect(),
+                methods: Vec::new(),
+                implicit: i.implicit,
+            });
+        }
+        // A value may require a private class without exporting any of
+        // its methods. Retain that class's full dictionary contract and
+        // its transitive class dependencies, granting no surface names.
+        let mut pending = std::collections::BTreeSet::new();
+        let class_refs = |scheme: &crate::interface::ResolvedScheme| -> Vec<String> {
+            scheme.nominals.iter().filter(|n| n.kind == "signature").map(|n| n.identity.clone()).collect()
+        };
+        for scheme in iface.exports.values.iter().filter_map(|v| v.resolved.as_ref())
+            .chain(iface.exports.types.iter().flat_map(|t| &t.ctors).filter_map(|c| c.resolved.as_ref()))
+            .chain(iface.exports.signatures.iter().flat_map(|s| &s.methods).filter_map(|m| m.resolved.as_ref()))
+            .chain(iface.exports.instances.iter().filter_map(|i| i.resolved.as_ref())) {
+            pending.extend(class_refs(scheme));
+        }
+        let mut known: std::collections::BTreeSet<_> = iface.exports.signatures.iter().map(|s| s.identity.clone()).collect();
+        while let Some(identity) = pending.pop_first() {
+            if !known.insert(identity.clone()) { continue }
+            let Some((owner, name)) = identity.rsplit_once('.') else { continue };
+            if let Some(signature) = self.qualified_sigs.get(&(owner.to_string(), name.to_string())) {
+                let contract = self.interface_signature(signature, &surface);
+                for method in &contract.methods {
+                    if let Some(scheme) = &method.resolved { pending.extend(class_refs(scheme)); }
+                }
+                iface.exports.signatures.push(contract);
             }
         }
         // `prim` declarations (primitive operations and inline target
@@ -15452,32 +15784,13 @@ impl Checker {
                 }
             }
         }
-        for i in &self.instance_list {
-            if i.module != module {
-                continue;
-            }
-            iface.exports.instances.push(InstanceExport {
-                id: i.base_id.0.clone(),
-                class: i.target.class.clone(),
-                target: i.target.to_string(),
-                ctx: i
-                    .ctx
-                    .iter()
-                    .map(|item| match item {
-                        InstCtx::Dict(n, c) => format!("{n} :: {c}"),
-                        InstCtx::Oblig(PropOblig::Pred(p)) => p.to_string(),
-                        InstCtx::Oblig(PropOblig::Preserves { method, pred }) => {
-                            format!("Preserves ({method}) {pred}")
-                        }
-                    })
-                    .collect(),
-                methods: Vec::new(),
-                implicit: i.implicit,
-            });
-        }
-        for (m, f) in &self.module_fixities {
-            if m == module {
-                iface.exports.fixities.push(f.clone());
+        for (local, definition) in &surface {
+            if let Some((_, fixity)) = self.module_fixities.iter().find(|(owner, fixity)| {
+                owner == &definition.module && fixity.op == definition.name
+            }) {
+                let mut exported = fixity.clone();
+                exported.op = local.clone();
+                iface.exports.fixities.push(exported);
             }
         }
         let mut prims = Vec::new();
@@ -15549,10 +15862,155 @@ impl Checker {
     }
 }
 
+/// Defining interfaces required by a portable checked contract. Surface
+/// imports alone are insufficient for implicit kernel names and private
+/// class closure.
+fn interface_nominal_dependencies(
+    iface: &crate::interface::Iface,
+) -> Result<std::collections::BTreeSet<String>> {
+    let contracts = iface
+        .exports
+        .values
+        .iter()
+        .filter_map(|v| v.resolved.as_ref())
+        .chain(
+            iface
+                .exports
+                .types
+                .iter()
+                .flat_map(|t| &t.ctors)
+                .filter_map(|c| c.resolved.as_ref()),
+        )
+        .chain(
+            iface
+                .exports
+                .signatures
+                .iter()
+                .flat_map(|s| &s.methods)
+                .filter_map(|m| m.resolved.as_ref()),
+        )
+        .chain(
+            iface
+                .exports
+                .instances
+                .iter()
+                .filter_map(|i| i.resolved.as_ref()),
+        );
+    let mut dependencies = std::collections::BTreeSet::new();
+    for identity in iface
+        .exports
+        .signatures
+        .iter()
+        .map(|s| s.identity.as_str())
+        .chain(contracts.flat_map(|c| c.nominals.iter().map(|n| n.identity.as_str())))
+    {
+        let (owner, _) = identity
+            .rsplit_once('.')
+            .ok_or_else(|| Error::plain("resolved nominal has no defining module"))?;
+        if owner != iface.module {
+            dependencies.insert(owner.to_string());
+        }
+    }
+    Ok(dependencies)
+}
+
+// Interface emission has a different dependency order from declaration
+// collection. A source replacement of an embedded home must precede both
+// source and embedded consumers. Family homes do not acquire a dependency
+// on their own Prelude facade merely because their source is on disk.
+fn interface_module_order<'a>(
+    checker: &Checker,
+    prelude: &'a [ast::Module],
+    modules: &'a [ast::Module],
+    facade: &str,
+) -> Result<Vec<(&'a ast::Module, Vec<String>)>> {
+    let family_names: std::collections::BTreeSet<&str> =
+        prelude.iter().map(|m| m.name.text.as_str()).collect();
+    let mut preferred: Vec<&ast::Module> = prelude
+        .iter()
+        .map(|home| {
+            modules
+                .iter()
+                .find(|m| m.name.text == home.name.text)
+                .unwrap_or(home)
+        })
+        .collect();
+    preferred.extend(
+        modules
+            .iter()
+            .filter(|m| !family_names.contains(m.name.text.as_str())),
+    );
+    let plans: Vec<(&ast::Module, Vec<String>)> = preferred
+        .into_iter()
+        .map(|module| -> Result<_> {
+            let mut imports = imports_of(module);
+            if !family_names.contains(module.name.text.as_str())
+                && !imports.iter().any(|name| name == facade)
+            {
+                imports.push(facade.to_string());
+            }
+            // Probe with no prior homes: cyclic/forward instance heads remain
+            // explicitly nonportable. Required value, constructor and class
+            // contracts still determine their complete defining dependencies.
+            let contract = checker.module_iface(&module.name.text, "", &[], &Default::default());
+            for dependency in interface_nominal_dependencies(&contract)? {
+                if !imports.contains(&dependency) {
+                    imports.push(dependency);
+                }
+            }
+            Ok((module, imports))
+        })
+        .collect::<Result<_>>()?;
+    let positions: HashMap<String, usize> = plans
+        .iter()
+        .enumerate()
+        .map(|(index, (module, _))| (module.name.text.clone(), index))
+        .collect();
+    fn visit(
+        index: usize,
+        plans: &[(&ast::Module, Vec<String>)],
+        positions: &HashMap<String, usize>,
+        state: &mut [u8],
+        ordered: &mut Vec<usize>,
+    ) -> Result<()> {
+        match state[index] {
+            2 => return Ok(()),
+            1 => {
+                return Err(Error::plain(format!(
+                    "interface import cycle through {}",
+                    plans[index].0.name.text
+                )))
+            }
+            _ => {}
+        }
+        state[index] = 1;
+        for dependency in &plans[index].1 {
+            if dependency == &plans[index].0.name.text {
+                continue;
+            }
+            if let Some(&next) = positions.get(dependency) {
+                visit(next, plans, positions, state, ordered)?;
+            }
+        }
+        state[index] = 2;
+        ordered.push(index);
+        Ok(())
+    }
+    let mut state = vec![0; plans.len()];
+    let mut ordered = Vec::new();
+    for index in 0..plans.len() {
+        visit(index, &plans, &positions, &mut state, &mut ordered)?;
+    }
+    Ok(ordered
+        .into_iter()
+        .map(|index| plans[index].clone())
+        .collect())
+}
+
 /// Check a program of one or more modules and elaborate it. `modules` is in
 /// dependency order (imports first); the last module is the entry module and
 /// must define `main :: Int`. Returns the program, one interface per module
-/// (prelude first), and the staging report (captured inputs and generated
+/// in contract dependency order, and the staging report (captured inputs and generated
 /// declarations) for the artifact manifest.
 pub fn check_program_multi(
     prelude: &[ast::Module],
@@ -15924,7 +16382,7 @@ fn check_program_multi_full_impl(
     // Interfaces in dependency order: imports are known when built.
     let mut ifaces = Vec::new();
     let mut built: Vec<(String, String)> = Vec::new(); // (module, iface_hash)
-    let mut emit = |c: &Checker, module: &str, imports: &[String]| {
+    let mut emit = |c: &Checker, module: &str, imports: &[String]| -> Result<()> {
         let mut refs: Vec<(String, String)> = Vec::new();
         for i in imports {
             if refs.iter().any(|(m, _)| m == i) {
@@ -15938,24 +16396,25 @@ fn check_program_multi_full_impl(
             .get(module)
             .cloned()
             .unwrap_or_default();
-        let iface = c.module_iface(module, &source_hash, &refs);
+        let available = built.iter().map(|(name, _)| name.clone()).collect();
+        let mut iface = c.module_iface(module, &source_hash, &refs, &available);
+        // The embedded family can see earlier kernel declarations even
+        // without a source import. Their nominal contracts are consumed
+        // dependencies too: publish the exact checked-against identities.
+        let nominal_dependencies = interface_nominal_dependencies(&iface)?;
+        for owner in nominal_dependencies {
+            if iface.imports.iter().any(|r| r.module == owner) { continue }
+            let hash = built.iter().find(|(name, _)| name == &owner).map(|(_, hash)| hash.clone())
+                .ok_or_else(|| Error::plain(format!("{module}: defining nominal interface {owner} must be built before its consumer")))?;
+            iface.imports.push(crate::interface::IfaceRef { module: owner, iface_hash: hash });
+        }
         let hash = iface.iface_hash();
         built.push((module.to_string(), hash));
         ifaces.push(iface);
+        Ok(())
     };
-    // The prelude family emits in dependency order (each module's
-    // imports are already built); user modules implicitly import the
-    // facade.
-    for p in &family {
-        let imports = imports_of(p);
-        emit(&c, &p.name.text, &imports);
-    }
-    for m in modules {
-        let mut imports = imports_of(m);
-        if !imports.contains(&prelude_name) {
-            imports.push(prelude_name.clone());
-        }
-        emit(&c, &m.name.text, &imports);
+    for (module, imports) in interface_module_order(&c, prelude, modules, &prelude_name)? {
+        emit(&c, &module.name.text, &imports)?;
     }
     let diags = std::mem::take(&mut c.diags);
     // P21's probe (the REPL is backed by the analysis layer): evaluate
@@ -18747,7 +19206,13 @@ impl Checker {
         use crate::core::{ArithMode, ArithOp, BitOp, CmpOp, IntOp, NatOp, PrimOp, ShiftOp};
         match op {
             PrimOp::Nat(nat) => {
-                let a = big_of(&args[0], "`Nat`")?;
+                // FromI64 consumes a machine word, not a mathematical
+                // integer. Do not decode it as a Big before dispatch.
+                let a = if matches!(nat, NatOp::FromI64) {
+                    Big::zero()
+                } else {
+                    big_of(&args[0], "`Nat`")?
+                };
                 let b = if args.len() > 1 { big_of(&args[1], "`Nat`")? } else { Big::zero() };
                 Ok(match nat {
                     NatOp::Add => big_value(a.add(&b), true),
@@ -18786,7 +19251,11 @@ impl Checker {
                 })
             }
             PrimOp::Int(int) => {
-                let a = big_of(&args[0], "`Int`")?;
+                let a = if matches!(int, IntOp::FromI64) {
+                    Big::zero()
+                } else {
+                    big_of(&args[0], "`Int`")?
+                };
                 let b = if args.len() > 1 { big_of(&args[1], "`Int`")? } else { Big::zero() };
                 Ok(match int {
                     IntOp::Add => big_value(a.add(&b), false),
@@ -18814,6 +19283,16 @@ impl Checker {
                         big_value(a, true)
                     }
                 })
+            }
+            PrimOp::Conv { from, to, mode: crate::core::ConvMode::Total }
+                if !from.is_float() && !to.is_float() =>
+            {
+                // Widen the source's canonical word, preserving its
+                // signedness, then canonicalize at the destination width.
+                let (from_bits, from_signed) = scalar_shape(from.name()).unwrap();
+                let (to_bits, to_signed) = scalar_shape(to.name()).unwrap();
+                let word = mask_to(from_bits, from_signed, word_of(&args[0], "a machine word")?);
+                Ok(Value::Word(mask_to(to_bits, to_signed, word)))
             }
             PrimOp::EqBool => Ok(Value::Bool(
                 (word_of(&args[0], "`Bool`")? != 0) == (word_of(&args[1], "`Bool`")? != 0),
@@ -20654,6 +21133,7 @@ impl Checker {
                 ctx.push((format!("c{i}"), ClassApp { class: class.class, args }));
             }
             crate::types::Scheme {
+            con_params: Vec::new(),
             obligs: Vec::new(),
                 params: tps,
                 idx_params: Vec::new(),

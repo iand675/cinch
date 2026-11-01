@@ -451,7 +451,6 @@ fn trace_context_propagates_across_run_boundaries_in_one_trace() {
   import Data.Option
   import Data.String
 
-  infixr 6 <>
 
   main :: Unit ->{{IO r}} Int
   main u = with (io = newIO ()) in

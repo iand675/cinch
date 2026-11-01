@@ -73,7 +73,6 @@ module LawCite where
   import Category.Functor
   import Function.Combinators
 
-  infixr 6 <>
 
   rewrite assocRule forall (x :: U32) (y :: U32) (z :: U32). using (sg :: Semigroup U32) where
     match ((x <> y) <> z)
@@ -99,7 +98,6 @@ module LawCite where
 module LawCiteBad where
   import Algebra.Semigroup
 
-  infixr 6 <>
 
   rewrite wrongRule forall (x :: U32) (y :: U32). using (sg :: Semigroup U32) where
     match ((x <> y) <> y)
@@ -165,7 +163,6 @@ fn rewrite_citing_a_law_by_identity_records_the_assumption() {
 module LawAssume where
   import Algebra.Semigroup
 
-  infixr 6 <>
 
   rewrite assocRule forall (x :: U32) (y :: U32) (z :: U32). using (sg :: Semigroup U32) where
     match ((x <> y) <> z)

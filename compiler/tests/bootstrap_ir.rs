@@ -108,14 +108,14 @@ fn the_emitted_ir_assembles_and_runs_to_the_fragments_meaning() {
         "the refusal must name the unmodeled node it cannot lower: {refusals:?}"
     );
 
-    // The emitted text has the shape claimed: one `define` per function,
-    // an i64 helper and an i32 `main`, a direct recursive call, a branch
+    // The emitted text has one worker per function and a C entry wrapper,
+    // a direct recursive call, a branch
     // and a slot.
     let fib_ir = common::read_output(&dir, "program.ll");
     assert_eq!(
         fib_ir.matches("define ").count(),
-        2,
-        "one `define` per function (fib and main):\n{fib_ir}"
+        3,
+        "workers for fib/main plus the C entry wrapper:\n{fib_ir}"
     );
     assert!(
         fib_ir.contains("define i64 @cinch_fib(i64 %"),
@@ -191,8 +191,8 @@ fn a_two_parameter_function_defines_one_symbol_and_its_call_carries_both_argumen
     let pick_ir = common::read_output(&dir, "program-pick.ll");
     assert_eq!(
         pick_ir.matches("define ").count(),
-        2,
-        "one `define` per function (pick and main):\n{pick_ir}"
+        3,
+        "workers for pick/main plus the C entry wrapper:\n{pick_ir}"
     );
     assert!(
         pick_ir.contains("define i64 @cinch_pick(i64 %"),

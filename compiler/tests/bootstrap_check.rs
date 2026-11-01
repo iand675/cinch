@@ -60,9 +60,9 @@ bootstrap.check:4:3: fixity declarations are not supported in this rung
 operator:
 bootstrap.check:5:11: unsupported operator: &&
 expression:
-bootstrap.check:5:11: unsupported expression: tuple
-type-form:
-bootstrap.check:4:8: unsupported type: forall
+bootstrap.check:5:11: unsupported expression: float literal
+missing-polymorphic-body:
+bootstrap.check:4:3: signature has no definition: id
 pattern:
 bootstrap.check:10:5: unsupported pattern: list literal
 unknown-ctor:

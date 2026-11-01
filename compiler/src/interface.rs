@@ -15,7 +15,10 @@
 use std::collections::BTreeMap;
 use std::fmt;
 
-pub const SCHEMA_VERSION: u32 = 1;
+/// 5: definition-site class contexts, method slots and resolved method schemes.
+/// 4: occurrence-resolved pure schemes and their private nominal contracts.
+/// 3: declaration kinds, constructor schemes and class export names.
+pub const SCHEMA_VERSION: u32 = 7;
 /// 5: negative counts are atomic (mark-on-spawn, `cinch_mark_mt`,
 /// `cinch_dup_mt`/`cinch_drop_mt`); joins hand results out once;
 /// `cinch_reclaim_enable`; the quote encoder gains `SET`/`DUP`/`DROP`; one
@@ -85,6 +88,14 @@ pub fn verify_chain(ifaces: &[Iface]) -> Result<(), CoherenceError> {
     let by_module: BTreeMap<&str, &Iface> =
         ifaces.iter().map(|f| (f.module.as_str(), f)).collect();
     for f in ifaces {
+        let mut reachable = std::collections::BTreeSet::new();
+        let mut pending = vec![f.module.as_str()];
+        while let Some(module) = pending.pop() {
+            if !reachable.insert(module) { continue }
+            if let Some(interface) = by_module.get(module) {
+                pending.extend(interface.imports.iter().map(|i| i.module.as_str()));
+            }
+        }
         for imp in &f.imports {
             match by_module.get(imp.module.as_str()) {
                 None => {
@@ -103,8 +114,29 @@ pub fn verify_chain(ifaces: &[Iface]) -> Result<(), CoherenceError> {
                 }
             }
         }
+        for signature in &f.exports.signatures {
+            let (owner, _) = signature.identity.rsplit_once('.').ok_or_else(||
+                CoherenceError(format!("signature {} has no defining module", signature.identity)))?;
+            if !reachable.contains(owner) {
+                return Err(CoherenceError(format!("signature {} is outside the checked dependency closure", signature.identity)));
+            }
+            let defining = by_module.get(owner).and_then(|f| f.exports.signatures.iter()
+                .find(|s| s.identity == signature.identity)).ok_or_else(||
+                    CoherenceError(format!("signature {} has no defining contract", signature.identity)))?;
+            if signature_contract(signature) != signature_contract(defining) {
+                return Err(CoherenceError(format!("conflicting defining signature contract: {}", signature.identity)));
+            }
+        }
     }
     Ok(())
+}
+
+fn signature_contract(signature: &SigExport) -> SigExport {
+    let mut contract = signature.clone();
+    contract.name.clear();
+    contract.exports.clear();
+    for method in &mut contract.methods { method.exports.clear(); }
+    contract
 }
 
 /// Order modules so every import precedes its importers; detect cycles.
@@ -152,33 +184,85 @@ pub struct ValueExport {
     /// Canonical rendering of the scheme (quantifiers, `using` context,
     /// type with effect rows).
     pub scheme: String,
+    pub resolved: Option<ResolvedScheme>,
     pub symbol: String,
+    /// Function arrows plus dictionary and implicit value parameters.
     pub arity: u64,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct CtorExport {
     pub name: String,
+    pub symbol: String,
+    pub scheme: String,
+    pub resolved: Option<ResolvedScheme>,
     pub tag: u64,
     pub fields: Vec<String>,
     pub erased: Vec<bool>,
 }
 
+/// A scheme whose nominal occurrences were resolved at the definition site.
+/// `None` on an export means its richer obligations still require a port;
+/// consumers must not infer identities from the display scheme instead.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct ResolvedScheme {
+    pub scheme: String,
+    pub nominals: Vec<NominalContract>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct NominalContract {
+    pub identity: String,
+    pub kind: String,
+    pub parameters: Vec<ParameterExport>,
+    /// Complete defining constructor identities, including private ones.
+    /// This grants no source names or field access. Opaque types and
+    /// signature dictionary types use None.
+    pub constructors: Option<Vec<String>>,
+    /// The checked defining template for a refinement, including private
+    /// refinements mentioned by an exported value. It grants no source names.
+    pub refinement: Option<RefinementExport>,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct TypeExport {
     pub name: String,
+    pub identity: String,
     pub params: Vec<String>,
-    /// `data`, `record`, or `opaque`.
+    pub parameters: Vec<ParameterExport>,
+    /// `data`, `record`, `refinement`, or `opaque`.
     pub kind: String,
     pub ctors: Vec<CtorExport>,
     /// Record field names in declaration order.
     pub fields: Vec<String>,
+    pub refinement: Option<RefinementExport>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct ParameterExport {
+    pub name: String,
+    pub kind: String,
+    pub implicit: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct RefinementExport {
+    pub binder: String,
+    pub carrier: String,
+    pub predicate: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct MethodExport {
     pub name: String,
+    /// Native dictionary slot, in declaration order. It is part of the ABI
+    /// contract even when no source spelling exports this method.
+    pub slot: u64,
+    /// Public spellings of this method in the exporting facade. Empty
+    /// for a private method retained as part of its class's contract.
+    pub exports: Vec<String>,
     pub scheme: String,
+    pub resolved: Option<ResolvedScheme>,
     /// The identity of the method's default, when the class gives one:
     /// an instance that omits the method inlines the default, so the
     /// default is part of the class's contract.
@@ -188,7 +272,10 @@ pub struct MethodExport {
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct SigExport {
     pub name: String,
+    pub identity: String,
+    pub exports: Vec<String>,
     pub params: Vec<String>,
+    pub parameters: Vec<ParameterExport>,
     pub methods: Vec<MethodExport>,
 }
 
@@ -197,6 +284,10 @@ pub struct InstanceExport {
     pub id: String,
     pub class: String,
     pub target: String,
+    /// Pure dictionary factory scheme, with canonical head/context
+    /// identities. Null preserves unsupported proof or family dependencies.
+    pub resolved: Option<ResolvedScheme>,
+    pub method_contracts: Vec<InstanceMethodContract>,
     pub ctx: Vec<String>,
     pub methods: Vec<String>,
     /// Whether automatic resolution may select this instance (default
@@ -204,6 +295,15 @@ pub struct InstanceExport {
     /// dictionary is selected by name and may coexist with other
     /// implementations of the same class).
     pub implicit: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct InstanceMethodContract {
+    pub slot: u64,
+    pub name: String,
+    /// Retains positional binders and proof preconditions. This remains a
+    /// display contract until dependent occurrence identities are ported.
+    pub scheme: String,
 }
 
 /// One instantiation unit of the module (`import M (args) as N`, module
@@ -505,6 +605,7 @@ impl Iface {
                     JsonValue::obj([
                         ("name", (&v.name).into()),
                         ("scheme", (&v.scheme).into()),
+                        ("resolved", resolved_scheme_json(v.resolved.as_ref())),
                         ("symbol", (&v.symbol).into()),
                         ("arity", v.arity.into()),
                     ])
@@ -515,13 +616,25 @@ impl Iface {
                 JsonValue::arr(&types, |t| {
                     JsonValue::obj([
                         ("name", (&t.name).into()),
+                        ("identity", (&t.identity).into()),
                         ("params", (&t.params).into()),
+                        ("parameters", JsonValue::arr(&t.parameters, parameter_json)),
                         ("kind", (&t.kind).into()),
+                        ("refinement", t.refinement.as_ref().map_or(JsonValue::Null, |r| {
+                            JsonValue::obj([
+                                ("binder", (&r.binder).into()),
+                                ("carrier", (&r.carrier).into()),
+                                ("predicate", (&r.predicate).into()),
+                            ])
+                        })),
                         (
                             "ctors",
                             JsonValue::arr(&t.ctors, |c| {
                                 JsonValue::obj([
                                     ("name", (&c.name).into()),
+                                    ("symbol", (&c.symbol).into()),
+                                    ("scheme", (&c.scheme).into()),
+                                    ("resolved", resolved_scheme_json(c.resolved.as_ref())),
                                     ("tag", c.tag.into()),
                                     ("fields", (&c.fields).into()),
                                     ("erased", (&c.erased).into()),
@@ -537,13 +650,19 @@ impl Iface {
                 JsonValue::arr(&sigs, |s| {
                     JsonValue::obj([
                         ("name", (&s.name).into()),
+                        ("identity", (&s.identity).into()),
+                        ("exports", (&s.exports).into()),
                         ("params", (&s.params).into()),
+                        ("parameters", JsonValue::arr(&s.parameters, parameter_json)),
                         (
                             "methods",
                             JsonValue::arr(&s.methods, |m| {
                                 let mut o = JsonValue::obj([
                                     ("name", (&m.name).into()),
+                                    ("exports", (&m.exports).into()),
                                     ("scheme", (&m.scheme).into()),
+                                    ("slot", m.slot.into()),
+                                    ("resolved", resolved_scheme_json(m.resolved.as_ref())),
                                 ]);
                                 if let (JsonValue::Obj(map), Some(d)) = (&mut o, &m.default) {
                                     map.insert("default".to_string(), d.into());
@@ -557,10 +676,16 @@ impl Iface {
             (
                 "instances",
                 JsonValue::arr(&insts, |inst| {
+                    let mut method_contracts = inst.method_contracts.clone();
+                    method_contracts.sort();
                     JsonValue::obj([
                         ("id", (&inst.id).into()),
                         ("class", (&inst.class).into()),
                         ("target", (&inst.target).into()),
+                        ("resolved", resolved_scheme_json(inst.resolved.as_ref())),
+                        ("method_contracts", JsonValue::arr(&method_contracts, |method| JsonValue::obj([
+                            ("slot", method.slot.into()), ("name", (&method.name).into()), ("scheme", (&method.scheme).into()),
+                        ]))),
                         ("ctx", (&inst.ctx).into()),
                         ("methods", (&inst.methods).into()),
                         ("implicit", inst.implicit.into()),
@@ -787,6 +912,7 @@ impl Iface {
             values.push(ValueExport {
                 name: field_str(o, "name")?,
                 scheme: field_str(o, "scheme")?,
+                resolved: field_resolved_scheme(o)?,
                 symbol: field_str(o, "symbol")?,
                 arity: field_num(o, "arity")?,
             });
@@ -799,6 +925,9 @@ impl Iface {
                 let co = c.as_object().map_err(|_| ParseError("ctor entry".into()))?;
                 ctors.push(CtorExport {
                     name: field_str(co, "name")?,
+                    symbol: field_str(co, "symbol")?,
+                    scheme: field_str(co, "scheme")?,
+                    resolved: field_resolved_scheme(co)?,
                     tag: field_num(co, "tag")?,
                     fields: field_list(co, "fields")?,
                     erased: co
@@ -810,13 +939,37 @@ impl Iface {
                         .collect::<Result<Vec<_>, _>>()?,
                 });
             }
-            types.push(TypeExport {
+            let exported = TypeExport {
                 name: field_str(o, "name")?,
+                identity: field_str(o, "identity")?,
                 params: field_list(o, "params")?,
+                parameters: field_parameters(o)?,
                 kind: field_str(o, "kind")?,
                 ctors,
                 fields: field_list(o, "fields")?,
-            });
+                refinement: match o.get("refinement") {
+                    Some(JsonValue::Null) => None,
+                    Some(value) => {
+                        let r = value.as_object()?;
+                        Some(RefinementExport {
+                            binder: field_str(r, "binder")?,
+                            carrier: field_str(r, "carrier")?,
+                            predicate: field_str(r, "predicate")?,
+                        })
+                    }
+                    None => return Err(ParseError("refinement".into())),
+                },
+            };
+            if (exported.kind == "refinement") != exported.refinement.is_some() {
+                return Err(ParseError("a refinement type must publish its definition".into()));
+            }
+            if exported.identity.is_empty() || exported.params != exported.parameters.iter().map(|p| p.name.clone()).collect::<Vec<_>>() {
+                return Err(ParseError("type identity and parameter metadata must be complete".into()));
+            }
+            if exported.ctors.iter().any(|c| c.symbol.is_empty() || c.scheme.is_empty() || c.fields.len() != c.erased.len()) {
+                return Err(ParseError("constructor contract is incomplete".into()));
+            }
+            types.push(exported);
         }
         let mut signatures = Vec::new();
         for item in ex_get("signatures")?.as_array()? {
@@ -826,35 +979,68 @@ impl Iface {
                 let mo = m.as_object().map_err(|_| ParseError("method entry".into()))?;
                 methods.push(MethodExport {
                     name: field_str(mo, "name")?,
+                    slot: field_num(mo, "slot")?,
+                    exports: field_list(mo, "exports")?,
                     scheme: field_str(mo, "scheme")?,
+                    resolved: field_resolved_scheme(mo)?,
                     default: match mo.get("default") {
                         Some(d) => Some(d.as_str()?.to_string()),
                         None => None,
                     },
                 });
+                let method = methods.last().unwrap();
+                if method.slot != (methods.len() - 1) as u64 || method.name.is_empty()
+                    || method.scheme.is_empty()
+                    || method.default.as_ref().is_some_and(|id| id.is_empty())
+                    || methods[..methods.len() - 1].iter().any(|m| m.name == method.name) {
+                    return Err(ParseError("method dictionary slots must be complete and in declaration order".into()));
+                }
             }
             signatures.push(SigExport {
                 name: field_str(o, "name")?,
+                identity: field_str(o, "identity")?,
+                exports: field_list(o, "exports")?,
                 params: field_list(o, "params")?,
+                parameters: field_parameters(o)?,
                 methods,
             });
+            let signature = signatures.last().unwrap();
+            if signature.identity.is_empty() || signature.params != signature.parameters.iter().map(|p| p.name.clone()).collect::<Vec<_>>() {
+                return Err(ParseError("signature identity and parameter metadata must be complete".into()));
+            }
+            if signatures[..signatures.len() - 1].iter().any(|s| s.identity == signature.identity) {
+                return Err(ParseError("duplicate defining signature identity".into()));
+            }
         }
         let mut instances = Vec::new();
         for item in ex_get("instances")?.as_array()? {
             let o = item.as_object().map_err(|_| ParseError("instance entry".into()))?;
+            let mut method_contracts: Vec<InstanceMethodContract> = Vec::new();
+            for row in o.get("method_contracts").ok_or_else(|| ParseError("instance method contracts".into()))?.as_array()? {
+                let row = row.as_object()?;
+                let contract = InstanceMethodContract { slot: field_num(row, "slot")?, name: field_str(row, "name")?, scheme: field_str(row, "scheme")? };
+                if contract.name.is_empty() || contract.scheme.is_empty()
+                    || method_contracts.iter().any(|m| m.slot == contract.slot || m.name == contract.name) {
+                    return Err(ParseError("invalid instance method contract".into()));
+                }
+                method_contracts.push(contract);
+            }
             instances.push(InstanceExport {
                 id: field_str(o, "id")?,
                 class: field_str(o, "class")?,
                 target: field_str(o, "target")?,
+                resolved: field_resolved_scheme(o)?,
+                method_contracts,
                 ctx: field_list(o, "ctx")?,
                 methods: field_list(o, "methods")?,
-                // A document from before explicit dictionaries records
-                // only implicitly resolvable instances.
-                implicit: match o.get("implicit") {
-                    Some(v) => v.as_bool()?,
-                    None => true,
-                },
+                implicit: field_bool(o, "implicit")?,
             });
+            let instance = instances.last().unwrap();
+            if instance.id.is_empty() || instance.class.is_empty() || instance.target.is_empty()
+                || instances[..instances.len() - 1].iter().any(|i| i.id == instance.id)
+                || (!instance.method_contracts.is_empty() && instance.resolved.is_some()) {
+                return Err(ParseError("invalid instance contract or unresolved method preconditions".into()));
+            }
         }
         let mut fixities = Vec::new();
         for item in ex_get("fixities")?.as_array()? {
@@ -1353,6 +1539,109 @@ fn field_bool(o: &BTreeMap<String, JsonValue>, k: &str) -> Result<bool, ParseErr
 }
 
 /// One foreign parameter or result's binding contract.
+fn parameter_json(p: &ParameterExport) -> JsonValue {
+    JsonValue::obj([
+        ("name", (&p.name).into()),
+        ("kind", (&p.kind).into()),
+        ("implicit", p.implicit.into()),
+    ])
+}
+
+fn resolved_scheme_json(scheme: Option<&ResolvedScheme>) -> JsonValue {
+    let Some(scheme) = scheme else { return JsonValue::Null };
+    let mut nominals = scheme.nominals.clone();
+    nominals.sort();
+    JsonValue::obj([
+        ("scheme", (&scheme.scheme).into()),
+        ("nominals", JsonValue::arr(&nominals, |n| JsonValue::obj([
+            ("identity", (&n.identity).into()),
+            ("kind", (&n.kind).into()),
+            ("params", n.parameters.iter().map(|p| p.name.clone()).collect::<Vec<_>>().into()),
+            ("parameters", JsonValue::arr(&n.parameters, |p| JsonValue::obj([
+                ("name", (&p.name).into()), ("kind", (&p.kind).into()), ("implicit", p.implicit.into()),
+            ]))),
+            ("constructors", n.constructors.clone().into()),
+            ("refinement", match &n.refinement {
+                None => JsonValue::Null,
+                Some(r) => JsonValue::obj([
+                    ("binder", (&r.binder).into()),
+                    ("carrier", (&r.carrier).into()),
+                    ("predicate", (&r.predicate).into()),
+                ]),
+            }),
+        ]))),
+    ])
+}
+
+fn field_resolved_scheme(o: &BTreeMap<String, JsonValue>) -> Result<Option<ResolvedScheme>, ParseError> {
+    let value = o.get("resolved").ok_or_else(|| ParseError("resolved scheme".into()))?;
+    if matches!(value, JsonValue::Null) { return Ok(None) }
+    let value = value.as_object()?;
+    let scheme = field_str(value, "scheme")?;
+    if scheme.is_empty() { return Err(ParseError("empty resolved scheme".into())) }
+    let rows = value.get("nominals").ok_or_else(|| ParseError("nominals".into()))?.as_array()?;
+    let mut nominals: Vec<NominalContract> = Vec::new();
+    for row in rows {
+        let row = row.as_object()?;
+        let identity = field_str(row, "identity")?;
+        let kind = field_str(row, "kind")?;
+        let parameters = field_parameters(row)?;
+        if identity.is_empty() || nominals.iter().any(|n| n.identity == identity)
+            || !matches!(kind.as_str(), "data" | "opaque" | "signature" | "refinement")
+            || field_list(row, "params")? != parameters.iter().map(|p| p.name.clone()).collect::<Vec<_>>() {
+            return Err(ParseError("invalid resolved nominal contract".into()));
+        }
+        let constructors = match row.get("constructors") {
+            Some(JsonValue::Null) if matches!(kind.as_str(), "opaque" | "signature" | "refinement") => None,
+            Some(JsonValue::Arr(items)) if kind == "data" => {
+                let mut symbols = Vec::new();
+                for item in items {
+                    let symbol = item.as_str()?.to_string();
+                    if symbol.is_empty() || symbols.contains(&symbol) { return Err(ParseError("invalid defining constructor set".into())) }
+                    symbols.push(symbol);
+                }
+                Some(symbols)
+            }
+            _ => return Err(ParseError("invalid defining constructor set".into())),
+        };
+        let refinement = match row.get("refinement") {
+            Some(JsonValue::Null) if kind != "refinement" => None,
+            Some(value) if kind == "refinement" => {
+                let r = value.as_object()?;
+                let binder = field_str(r, "binder")?;
+                let carrier = field_str(r, "carrier")?;
+                let predicate = field_str(r, "predicate")?;
+                if binder.is_empty() || carrier.is_empty() || predicate.is_empty()
+                    || parameters.iter().any(|p| p.name == binder) {
+                    return Err(ParseError("invalid defining refinement template".into()));
+                }
+                Some(RefinementExport { binder, carrier, predicate })
+            }
+            _ => return Err(ParseError("inconsistent defining refinement payload".into())),
+        };
+        nominals.push(NominalContract { identity, kind, parameters, constructors, refinement });
+    }
+    Ok(Some(ResolvedScheme { scheme, nominals }))
+}
+
+fn field_parameters(o: &BTreeMap<String, JsonValue>) -> Result<Vec<ParameterExport>, ParseError> {
+    let rows = o.get("parameters").ok_or_else(|| ParseError("parameters".into()))?.as_array()?;
+    let mut params: Vec<ParameterExport> = Vec::new();
+    for row in rows {
+        let row = row.as_object()?;
+        let parameter = ParameterExport {
+            name: field_str(row, "name")?,
+            kind: field_str(row, "kind")?,
+            implicit: row.get("implicit").ok_or_else(|| ParseError("implicit".into()))?.as_bool()?,
+        };
+        if parameter.name.is_empty() || parameter.kind.is_empty() || params.iter().any(|p| p.name == parameter.name) {
+            return Err(ParseError("invalid declaration parameter metadata".into()));
+        }
+        params.push(parameter);
+    }
+    Ok(params)
+}
+
 fn foreign_param_json(p: &ForeignParam) -> JsonValue {
     JsonValue::obj([
         ("type", (&p.ty).into()),
@@ -1644,39 +1933,52 @@ mod tests {
         f.exports.values.push(ValueExport {
             name: "main".into(),
             scheme: "Int".into(),
+            resolved: None,
             symbol: "Main.main".into(),
             arity: 0,
         });
         f.exports.values.push(ValueExport {
             name: "plus".into(),
             scheme: "forall a. using (add :: Add a) => a -> a -> a".into(),
+            resolved: None,
             symbol: "Main.plus".into(),
             arity: 3,
         });
         f.exports.types.push(TypeExport {
             name: "Tree".into(),
+            identity: "Main.Tree".into(),
             params: vec!["a".into()],
+            parameters: vec![ParameterExport { name: "a".into(), kind: "Type".into(), implicit: false }],
             kind: "data".into(),
             ctors: vec![
                 CtorExport {
                     name: "Leaf".into(),
+                    symbol: "Main.Leaf".into(),
+                    scheme: "forall a. a -> Tree a".into(),
+                    resolved: None,
                     tag: 0,
                     fields: vec!["a".into()],
                     erased: vec![false],
                 },
                 CtorExport {
                     name: "Node".into(),
+                    symbol: "Main.Node".into(),
+                    scheme: "forall a. Tree a -> Tree a -> Tree a".into(),
+                    resolved: None,
                     tag: 1,
                     fields: vec!["Tree a".into(), "Tree a".into()],
                     erased: vec![false, false],
                 },
             ],
             fields: vec![],
+            refinement: None,
         });
         f.exports.instances.push(InstanceExport {
             id: "Main.Add_Int".into(),
             class: "Add".into(),
             target: "Add Int".into(),
+            resolved: None,
+            method_contracts: vec![],
             ctx: vec![],
             methods: vec!["Main.Add_Int.+".into()],
             implicit: true,
@@ -1732,6 +2034,26 @@ mod tests {
     }
 
     #[test]
+    fn refinement_definitions_round_trip_and_cannot_be_omitted() {
+        let mut f = sample();
+        let t = &mut f.exports.types[0];
+        t.kind = "refinement".into();
+        t.ctors.clear();
+        t.refinement = Some(RefinementExport {
+            binder: "xs".into(),
+            carrier: "List a".into(),
+            predicate: "NotNull xs".into(),
+        });
+        assert_eq!(Iface::from_json(&f.to_json()).unwrap(), f);
+        let mut missing = f.clone();
+        missing.exports.types[0].refinement = None;
+        assert!(Iface::from_json(&missing.to_json()).is_err());
+        let mut mismatched = f;
+        mismatched.exports.types[0].kind = "data".into();
+        assert!(Iface::from_json(&mismatched.to_json()).is_err());
+    }
+
+    #[test]
     fn canonical_and_stable() {
         let f = sample();
         assert_eq!(f.to_json(), f.to_json());
@@ -1775,7 +2097,7 @@ mod tests {
     #[test]
     fn rejects_wrong_schema() {
         let text = sample().to_json();
-        let wrong = text.replace("\"schema\":1", "\"schema\":99");
+        let wrong = text.replace(&format!("\"schema\":{SCHEMA_VERSION}"), "\"schema\":99");
         assert_ne!(wrong, text, "the schema field was rewritten");
         assert!(Iface::from_json(&wrong).is_err());
     }
@@ -1829,6 +2151,8 @@ mod tests {
             id: "Other.Add_Int".into(),
             class: "Add".into(),
             target: "Add Int".into(),
+            resolved: None,
+            method_contracts: vec![],
             ctx: vec![],
             methods: vec![],
             implicit: true,
@@ -1879,7 +2203,7 @@ mod tests {
     fn parser_is_strict() {
         let text = sample().to_json();
         assert!(Iface::from_json(&format!("{text}trailing")).is_err());
-        let dup = text.replace("\"schema\":1", "\"schema\":1,\"schema\":1");
+        let dup = text.replace(&format!("\"schema\":{SCHEMA_VERSION}"), &format!("\"schema\":{SCHEMA_VERSION},\"schema\":{SCHEMA_VERSION}"));
         assert_ne!(dup, text, "the duplicate was spliced in");
         assert!(Iface::from_json(&dup).is_err());
         assert!(Iface::from_json("{\"schema\": 1, module: 2}").is_err());

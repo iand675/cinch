@@ -65,7 +65,6 @@ module Text.Uri where
 
   import Algebra.Semigroup
 
-  infixr 6 <>
 
   export Uri, MkUri
   export uri-parse, uri-to-string, uri-normalize, uri-resolve

@@ -1,3 +1,11 @@
+[build]
+# Keep local compiler builds to one worker. Full suites must also run one
+# at a time; separate Cargo processes do not share this worker limit.
+jobs = 1
+# One Cargo worker may otherwise launch several LLVM code-generation
+# workers inside rustc. Keep that layer serial as well.
+rustflags = ["-C", "codegen-units=1"]
+
 # Cargo runs the test binaries with a larger default thread stack.
 #
 # The checker elaborates the whole embedded prelude family for every
@@ -9,10 +17,11 @@
 # (tests/json.rs, tests/lib_base64.rs, tests/lib_bigdecimal.rs); this
 # setting gives the rest of the suite the same headroom.
 [env]
+RUST_TEST_THREADS = "1"
 RUST_MIN_STACK = "67108864"
 
 # Every program a test compiles and spawns inherits this, so a runaway
 # allocation faults (exit 73) at 2 GiB instead of reaching the runtime's
-# 8 GiB default with several suites running side by side. Set it to 0
-# for a measurement that needs the whole heap.
+# 8 GiB default. This limit is per generated process, not a total memory
+# budget; never overlap full suites. Bootstrap runs require a positive cap.
 CINCH_HEAP_LIMIT = "2G"

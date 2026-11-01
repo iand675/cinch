@@ -1,0 +1,176 @@
+-- Observable rank-one checking, with namespace/export facts retained.
+module Main where
+
+  import Bootstrap.Ast
+  import Bootstrap.Parse (parse-program)
+  import Bootstrap.Check (check-program)
+  import Bootstrap.Infer
+  import Bootstrap.Type (scheme-params, quant-implicit, scheme-arity, empty-store, fresh-meta,
+    Kind, KType, KFun, UType, UCon, UBound, Scheme, MkScheme, Quant, MkQuant,
+    enter-level, open-scheme, unify, store-errors, value-kind, quant-kind, quant-id, kind-equal, UFun)
+  import Bootstrap.Resolve (resolve-program)
+  import Bootstrap.Report (Diagnostic, diagnostic-message, render-diagnostics)
+  import Data.Json
+  import Data.Path (path-from-string)
+  import Effect.Fs (fs-write)
+  import Text.Parse (ParseOutcome, Parsed, Failed)
+  import Text.Lex (Span)
+
+  identity-source :: String
+  identity-source = "module Main where\n  identity :: forall a. a -> a\n  identity x = x\n"
+  sequence-source :: String
+  sequence-source = "module Main where\n  data Seq a where\n    End :: Seq a\n    Link :: a -> Seq a -> Seq a\n"
+  positive :: List String
+  positive =
+    [ string-concat identity-source "  main :: Int\n  main = if identity True then identity 0 else 1\n"
+    , "module Main where\n  main :: Int\n  main = let local = \\x -> x in if local True then local 0 else 1\n"
+    , string-concat sequence-source "  map-seq :: forall a b. (a -> b) -> Seq a -> Seq b\n  map-seq f End = End\n  map-seq f (Link x xs) = Link (f x) (map-seq f xs)\n  size :: forall a. Seq a -> Int\n  size xs = case xs of End -> 0; Link x rest -> 1 + size rest\n  main :: Int\n  main = size (map-seq (\\x -> x + 1) (Link 1 End))\n"
+    , "module Main where\n  data Wrap (f :: Type -> Type) a where\n    Wrap :: f a -> Wrap f a\n  unwrap :: forall (f :: Type -> Type) a. Wrap f a -> f a\n  unwrap (Wrap x) = x\n  main :: Int\n  main = 0\n"
+    , "module Main where\n  identity :: forall {a :: Type}. a -> a\n  identity x = (x :: a)\n  main :: Int\n  main = identity 0\n"
+    , "module Main where\n  first :: forall a. a -> a\n  first x = second x\n  second :: forall b. b -> b\n  second x = x\n  main :: Int\n  main = first 0\n"
+    , "module Main where\n  data Box a where\n    Box :: a -> Box a\n  unbox :: forall a. Box a -> a\n  unbox (Box x) = x\n  main :: Int\n  main = if unbox (Box True) then unbox (Box 0) else 1\n"
+    , "module Main where\n  consume :: forall a. a -> Unit -> a\n  consume x () = x\n  main :: Int\n  main = consume 0 ()\n"
+    , string-concat identity-source "  pick :: (Int, Bool) -> Int\n  pick (n, True) = n\n  pick (n, False) = 0\n  main :: Int\n  main = pick (identity (0, True))\n"
+    , "module Main where\n  data Empty where {}\n  absurd :: forall a. Empty -> a\n  absurd value = case value of {}\n  main :: Int\n  main = 0\n"
+    , "module Main where\n  constant :: forall a b. a -> b -> a\n  constant x = \\y -> x\n  main :: Int\n  main = constant 0 True\n"
+    , "module Main where\n  constant :: forall (n :: Nat). Int -> Int\n  constant x = x\n  main :: Int\n  main = 0\n"
+    , "module Main where\n  constant :: forall a (x :: a). Int -> Int\n  constant y = y\n  main :: Int\n  main = 0\n"
+    , "module Main where\n  constant :: forall a (f :: a -> a). Int -> Int\n  constant y = y\n  main :: Int\n  main = 0\n"
+    , "module Main where\n  constant :: forall (f :: Type -> Type) a (x :: f a). Int -> Int\n  constant y = y\n  main :: Int\n  main = 0\n"
+    , "module Main where\n  data Token where\n    Token :: Token\n  constant :: forall (x :: Token). Int -> Int\n  constant y = y\n  main :: Int\n  main = 0\n"
+    ]
+
+  negative :: List (String, String)
+  negative =
+    [ ("module Main where\n  bad :: forall a. a -> a\n  bad x = 1\n  main :: Int\n  main = 0\n", "type mismatch")
+    , ("module Main where\n  bad :: forall a. a -> Int\n  bad x = x\n  main :: Int\n  main = 0\n", "type mismatch")
+    , (string-concat identity-source "  main :: Int\n  main = let bad = \\f -> f f in 0\n", "infinite type")
+    , (string-concat identity-source "  main :: Int\n  main = (\\f -> if f True then f 0 else 0) (\\x -> x)\n", "type mismatch")
+    , ("module Main where\n  data Box a where\n    Box :: a -> Box a\n  bad :: Box Int Int -> Int\n  bad x = 0\n  main :: Int\n  main = 0\n", "too many arguments")
+    , ("module Main where\n  bad :: forall (f :: Type -> Type). f -> Int\n  bad x = 0\n  main :: Int\n  main = 0\n", "must have kind Type")
+    , ("module Main where\n  data Box a where\n    Box :: a -> Box Bool\n  main :: Int\n  main = 0\n", "type mismatch")
+    , ("module Main where\n  data Bad a where\n    Bad :: (Bad a -> a) -> Bad a\n  main :: Int\n  main = 0\n", "positivity")
+    , ("module Main where\n  data Box a where\n    Box :: a -> Box a\n  data Nest a where\n    Node :: Box (Nest a) -> Nest a\n  main :: Int\n  main = 0\n", "positivity")
+    , (string-concat sequence-source "  first :: forall a. Seq a -> a\n  first (Link x xs) = x\n  main :: Int\n  main = 0\n", "non-exhaustive")
+    , (string-concat identity-source "  choose :: Int -> Int\n  choose x = case x of _ | True -> 0\n  main :: Int\n  main = 0\n", "non-exhaustive")
+    , ("module Main where\n  same-value :: forall a. a -> Bool\n  same-value x = x == x\n  main :: Int\n  main = 0\n", "Eq dictionary")
+    , (string-concat identity-source "  helper x = x\n  main :: Int\n  main = 0\n", "no signature")
+    , ("module Main where\n  identity :: forall a. a -> a\n", "signature has no definition")
+    , (string-concat sequence-source "  first :: forall a. Seq a -> a\n  first xs = case xs of End -> 0; Link x rest -> x\n  main :: Int\n  main = 0\n", "type mismatch")
+    , ("module Main where\n  bad :: forall a. using (io :: Io r) => a -> a\n  bad x = x\n  main :: Int\n  main = 0\n", "checked signature type")
+    , (string-concat identity-source "  bad :: Int -> Int\n  bad x = x / 0\n  main :: Int\n  main = 0\n", "NonZero proof")
+    , ("module Main where\n  data Hidden where\n    Pack :: forall a. a -> Hidden\n  unpack :: Hidden -> Int\n  unpack (Pack x) = x\n  main :: Int\n  main = 0\n", "constructor-local quantifiers")
+    , (string-concat identity-source "  constant :: Int -> Int\n  constant x = 0\n  constant y = 1\n  main :: Int\n  main = 0\n", "unreachable clause")
+    , ("module Main where\n  main :: Int\n  main = (\\f -> let local = \\y -> f y in if local True then local 0 else 0) (\\x -> x)\n", "type mismatch")
+    , ("module Main where\n  bad :: forall (x :: later) later. Int -> Int\n  bad y = y\n  main :: Int\n  main = 0\n", "unbound type variable")
+    , ("module Main where\n  bad :: forall (f :: Type -> Type) (x :: f). Int -> Int\n  bad y = y\n  main :: Int\n  main = 0\n", "proper type")
+    , ("module Main where\n  bad :: forall (n :: Nat) (x :: n). Int -> Int\n  bad y = y\n  main :: Int\n  main = 0\n", "proper type")
+    , ("module Main where\n  bad :: forall a a. Int -> Int\n  bad y = y\n  main :: Int\n  main = 0\n", "duplicate quantified parameter")
+    ]
+
+  starts :: List Char -> List Char -> Bool
+  starts needle haystack = case needle of
+    Nil -> True
+    Cons n ns -> case haystack of Nil -> False; Cons h hs -> char-code n == char-code h && starts ns hs
+  contains :: String -> String -> Bool
+  contains needle haystack = contains-chars (unpack needle) (unpack haystack)
+  contains-chars :: List Char -> List Char -> Bool
+  contains-chars needle haystack = if starts needle haystack then True else case haystack of Nil -> False; Cons h hs -> contains-chars needle hs
+  has-diagnostic :: String -> List Diagnostic -> Bool
+  has-diagnostic wanted errors = case errors of Nil -> False; Cons d rest -> contains wanted (diagnostic-message d) || has-diagnostic wanted rest
+  -- Share each frontend result between assertions and reporting. A failed
+  -- negative case must show its actual diagnostics, not just an index.
+  evaluate-one :: String -> Option String -> (Bool, String)
+  evaluate-one source expected = case parse-program "inference" (string-to-bytes source) of
+    Parsed program Nil -> if program-unmodeled-count program == 0 && list-length (program-modules program) > 0 then
+      let errors = check-program program in
+      let accepted = case expected of None -> list-length errors == 0; Some message -> has-diagnostic message errors in
+      (accepted, render-diagnostics errors)
+      else (False, "unmodeled or empty input")
+    other -> (False, "parse failure")
+  evaluate-positive :: List String -> List (Bool, String)
+  evaluate-positive cases = case cases of Nil -> Nil; Cons source rest -> Cons (evaluate-one source None) (evaluate-positive rest)
+  evaluate-negative :: List (String, String) -> List (Bool, String)
+  evaluate-negative cases = case cases of Nil -> Nil; Cons (source, message) rest -> Cons (evaluate-one source (Some message)) (evaluate-negative rest)
+  check-results :: List (Bool, String) -> Int -> Int
+  check-results results index = case results of Nil -> 0; Cons (accepted, errors) rest -> if accepted then check-results rest (index + 1) else index
+
+  field :: String -> Json -> Json
+  field name doc = case doc of JObj key value rest -> if string-compare name key == 0 then value else field name rest; other -> JNull
+  find-context :: String -> List Json -> Option Json
+  find-context name contexts = case contexts of
+    Nil -> None
+    Cons ctx rest -> case field "module" ctx of JStr actual -> if string-compare actual name == 0 then Some ctx else find-context name rest; other -> find-context name rest
+  find-binding :: String -> List CheckedBinding -> Option CheckedBinding
+  find-binding name bindings = case bindings of Nil -> None; Cons b rest -> if string-compare name (checked-name b) == 0 then Some b else find-binding name rest
+  scope-source :: String
+  scope-source = "module A where\n  export identity\n  identity :: forall {a :: Type}. a -> a\n  identity x = x\n  hidden :: Int\n  hidden = 1\nmodule Main where\n  import A (identity as use)\n  main :: Int\n  main = use 0\n"
+  scopes-ok :: Bool
+  scopes-ok = case parse-program "scopes" (string-to-bytes scope-source) of
+    Parsed program Nil -> case resolve-program program of
+      (resolved, Nil) -> let result = elaborate-program "bootstrap.check" resolved in
+        if list-length (elaboration-errors result) == 0 then
+          case find-context "A" (elaboration-contexts result) of
+            Some ctx -> case field "exports" ctx of
+              JArr row JArrEnd -> case (field "name" row, field "symbol" row) of
+                (JStr name, JStr symbol) -> string-compare name "identity" == 0 && (case find-binding symbol (elaboration-bindings result) of
+                  Some binding -> scheme-arity (checked-scheme binding) == 1 && (case scheme-params (checked-scheme binding) of Cons q Nil -> quant-implicit q; other -> False)
+                  None -> False)
+                other -> False
+              other -> False
+            None -> False
+        else False
+      other -> False
+    other -> False
+
+  -- Inspect checked parameter annotations, not just successful parsing.
+  -- The function carrier and the later value carrier must both refer to
+  -- the actual preceding type parameter's identity.
+  parameter-carriers-ok :: Bool
+  parameter-carriers-ok = case parse-program "parameter-carriers" (string-to-bytes
+    "module Main where\n  constant :: forall a (f :: a -> a) (x :: a). Int -> Int\n  constant y = y\n  main :: Int\n  main = 0\n") of
+    Parsed program Nil -> let result = elaborate-program "parameter-carriers" program in
+      case (elaboration-errors result, find-binding "constant" (elaboration-bindings result)) of
+        (Nil, Some binding) -> case scheme-params (checked-scheme binding) of
+          Cons a (Cons f (Cons x Nil)) -> let carrier = UBound (quant-id a) "a" KType in
+            kind-equal (quant-kind a) KType && kind-equal (quant-kind f) (value-kind (UFun carrier carrier))
+              && kind-equal (quant-kind x) (value-kind carrier)
+          other -> False
+        other -> False
+    other -> False
+
+  kernel-invariants :: Bool
+  kernel-invariants =
+    let sp = Span 0 0 1 1 in
+    let (outer, s0) = fresh-meta KType (empty-store "kernel-test") in
+    let sc = MkScheme [MkQuant 0 "a" KType False] (UBound 0 "a" KType) in
+    let (rigid, pairs, s1) = open-scheme True sc (enter-level s0) in
+    let escaping = unify sp outer rigid s1 in
+    let (constructor, s2) = fresh-meta (KFun KType KType) (empty-store "kernel-test") in
+    let wrong-kind = unify sp constructor (UCon "Int" KType) s2 in
+    has-diagnostic "escapes" (store-errors escaping) && has-diagnostic "kind mismatch" (store-errors wrong-kind)
+
+  malformed-spine-refused :: Bool
+  malformed-spine-refused =
+    let sp = Span 0 0 1 1 in
+    let int = TName sp "Int" in
+    let ty = TForall sp (TName sp "lost-binders") (TFun sp int int) in
+    let body = DFun sp "identity" [( [PVar sp "x"], EVar sp "x" )] in
+    let program = MkProgram sp [MkModule sp "Main" (decl-spine sp [DSig sp "identity" ty, body])] in
+    has-diagnostic "malformed quantified parameter spine" (check-program program)
+
+  describe :: List (Bool, String) -> Int -> String
+  describe results index = case results of
+    Nil -> ""
+    Cons (accepted, errors) rest -> string-concat-all ["case ", int-to-string index, ": ", errors, "\n", describe rest (index + 1)]
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in
+    let positives = evaluate-positive positive in
+    let negatives = evaluate-negative negative in
+    let report = string-concat (describe positives 1) (describe negatives 101) in
+    case fs-write (path-from-string "infer-report.txt") (string-to-bytes report) of
+      Err error -> 255
+      Ok _ -> let first = check-results positives 1 in
+        if first == 0 then let second = check-results negatives 101 in
+          if second == 0 then if scopes-ok then if kernel-invariants && malformed-spine-refused then if parameter-carriers-ok then 0 else 203 else 202 else 201 else second
+        else first

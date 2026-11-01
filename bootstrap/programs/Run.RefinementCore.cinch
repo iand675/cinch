@@ -1,0 +1,104 @@
+module Main where
+  import Bootstrap.Type
+  import Bootstrap.Index
+  import Bootstrap.Core
+  import Bootstrap.Proof
+  import Text.Lex (Span)
+  import Data.Path (path-from-string)
+  import Effect.Fs (fs-read)
+
+  sp :: Span
+  sp = Span 0 0 1 1
+  nat :: UType
+  nat = UCon "Nat" KType
+  integer :: UType
+  integer = UCon "Int" KType
+  boolean :: UType
+  boolean = UCon "Bool" KType
+  positive :: Nat -> UType
+  positive id = URefine id "result" nat (UCompare ">" (UIndex nat (IBound id "result")) (UIndex nat (IInteger 0)))
+  nonnegative :: Nat -> UType
+  nonnegative id = URefine id "result" nat (UCompare ">=" (UIndex nat (IBound id "result")) (UIndex nat (IInteger 0)))
+  definition :: UType -> CoreTerm -> Bool
+  definition ty body = core-definition-closed (MkCoreDefinition sp "test" (mono ty) Nil Nil Nil [MkCoreClause sp Nil body])
+  function :: UType -> UType -> Nat -> CoreTerm -> Bool
+  function domain result id body = core-definition-closed (MkCoreDefinition sp "function" (mono (UFun domain result)) Nil Nil Nil [MkCoreClause sp [CPVar sp domain id "x"] body])
+  packet :: List (Nat, UType) -> List Proposition -> UType -> CoreTerm -> Option CoreTerm
+  packet gamma facts ty body = case prove-refinement gamma facts ty body of Some evidence -> Some (CRefine sp ty evidence body); None -> None
+  good :: UType -> UType -> Bool
+  good a b = case store-errors (unify sp a b (empty-store "Core refinement")) of Nil -> True; other -> False
+  checks :: Nat -> List Bool
+  checks nonce =
+    let id = nonce + 1 in
+    let binder = nonce + 2 in
+    let pos = positive binder in
+    let weak = nonnegative binder in
+    let one = CInt sp nat "1" in
+    let zero = CInt sp nat "0" in
+    let local = CLocal sp nat id "x" Nil in
+    let gamma = [(id, nat)] in
+    let atom = AVariable (string-concat "#value:" (nat-to-string id)) in
+    let greater = PCompare Greater atom (AInteger 0) in
+    let comparison = CPrimitive sp boolean ">" (CArgument sp local (CArgument sp zero (CArgumentsEnd sp))) in
+    let literal = packet Nil Nil pos one in
+    let literal-ok = case literal of Some term -> definition pos term; None -> False in
+    let literal-negative = case packet Nil Nil pos zero of None -> True; Some term -> False in
+    let copied-value = case literal of Some (CRefine s ty evidence body) -> not (definition pos (CRefine s ty evidence zero)); other -> False in
+    let forged-goal = case literal of Some (CRefine s ty evidence body) -> not (definition (URefine binder "out" nat (UCompare ">" (UIndex nat (IBound binder "out")) (UIndex nat (IInteger 5)))) (CRefine s (URefine binder "out" nat (UCompare ">" (UIndex nat (IBound binder "out")) (UIndex nat (IInteger 5)))) evidence body)); other -> False in
+    let projected = case literal of Some term -> definition nat (CForget sp nat term); None -> False in
+    let wrong-projection = case literal of Some term -> not (definition integer (CForget sp integer term)); None -> False in
+    let guarded = case (packet gamma [greater] pos local, literal) of
+          (Some yes, Some no) -> function nat pos id (CIf sp pos comparison yes no)
+          other -> False in
+    let escaped-guard = case packet gamma [greater] pos local of Some term -> not (function nat pos id term); None -> False in
+    let changed-local = case packet gamma [greater] pos local of Some (CRefine s ty evidence body) -> not (function nat pos id (CRefine s ty evidence (CLocal sp nat (id + 10) "x" Nil))); other -> False in
+    let refined-local = CLocal sp pos id "x" Nil in
+    let projection = CForget sp nat refined-local in
+    let repacked = case packet [(id, pos)] Nil weak projection of Some term -> function pos weak id term; None -> False in
+    let alien-given = case packet [(id, pos)] Nil weak projection of Some term -> not (function nat weak id term); None -> False in
+    let reintroduced = case packet [(id, pos)] Nil pos projection of Some term -> function pos pos id term; None -> False in
+    let copied-context = case packet [(id, pos)] Nil pos projection of Some (CRefine at ty evidence body) -> not (function nat pos id (CRefine at ty evidence local)); other -> False in
+    let param-forgery = not (core-definition-closed (MkCoreDefinition sp "forged-param" (mono (UFun nat nat)) Nil Nil Nil [MkCoreClause sp [CPVar sp pos id "x"] projection])) in
+    let forged-let = CLet sp pos id "x" (mono pos) one refined-local in
+    let forged-branch = case literal of Some term -> not (definition pos (CIf sp pos (CUse sp boolean "True" "constructor" Nil) term one)); None -> False in
+    let wrong-call = CApply sp pos (CUse sp (UFun nat nat) "identity" "value" Nil) one in
+    let plain-call = CApply sp nat (CUse sp (UFun nat nat) "opaque" "value" Nil) one in
+    let opaque-refusal = case packet Nil Nil pos plain-call of None -> True; Some term -> False in
+    let effect-row = URow (UArg (UCon "Diverge" KEffect) UEnd) in
+    let effectful = CApplyEff sp nat effect-row (CUse sp (UFunEff (UCon "Unit" KType) effect-row nat) "effectful" "value" Nil) (CUnit sp (UCon "Unit" KType)) in
+    let unconditional = URefine binder "unused" nat (UPropLit True) in
+    let effects-retained = case packet Nil Nil unconditional effectful of Some term -> definition unconditional term && good effect-row (core-effects term); None -> False in
+    let leaked = MkCoreData sp "metadata" KType Nil [MkCoreConstructor sp "contract" (mono (URefine binder "x" nat (UCompare ">" (UIndex nat (IBound id "free")) (UIndex nat (IInteger 0)))))] in
+    [ literal-ok
+    , literal-negative
+    , copied-value
+    , forged-goal
+    , projected
+    , wrong-projection
+    , guarded
+    , escaped-guard
+    , changed-local
+    , repacked
+    , alien-given
+    , reintroduced
+    , copied-context
+    , param-forgery
+    , not (definition pos (CInt sp pos "1"))
+    , not (definition pos (CInt sp pos "0"))
+    , not (definition pos (CUnit sp pos))
+    , not (definition pos (CTuple sp pos (CArgumentsEnd sp)))
+    , not (definition pos (CPrimitive sp pos "+" (CArgument sp one (CArgument sp one (CArgumentsEnd sp)))))
+    , not (definition pos (CRefine sp pos Trivial one))
+    , not (definition pos forged-let)
+    , forged-branch
+    , not (definition pos wrong-call)
+    , opaque-refusal
+    , effects-retained
+    , not (core-data-closed leaked)
+    ]
+  verdict :: List Bool -> Int -> Int
+  verdict rows next = case rows of Nil -> 0; Cons True rest -> verdict rest (next + 1); Cons False rest -> next
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in case fs-read (path-from-string "nonce.txt") of
+    Err error -> 90
+    Ok bytes -> verdict (checks (bytes-len bytes + 340282366920938463463374607431768211456)) 1

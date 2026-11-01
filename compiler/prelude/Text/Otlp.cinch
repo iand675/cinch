@@ -47,7 +47,6 @@ module Text.Otlp where
   import Text.Show (nat-to-string, int-to-string)
   import Algebra.Semigroup
 
-  infixr 6 <>
 
   export parse-traceparent, format-traceparent
   export otlp-export, any-value, attributes

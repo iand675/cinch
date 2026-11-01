@@ -1,0 +1,3371 @@
+--- a/compiler/.cargo/config.toml
++++ b/compiler/.cargo/config.toml
+@@ -1,3 +1,11 @@
++[build]
++# Keep local compiler builds to one worker. Full suites must also run one
++# at a time; separate Cargo processes do not share this worker limit.
++jobs = 1
++# One Cargo worker may otherwise launch several LLVM code-generation
++# workers inside rustc. Keep that layer serial as well.
++rustflags = ["-C", "codegen-units=1"]
++
+ # Cargo runs the test binaries with a larger default thread stack.
+ #
+ # The checker elaborates the whole embedded prelude family for every
+@@ -9,10 +17,11 @@
+ # (tests/json.rs, tests/lib_base64.rs, tests/lib_bigdecimal.rs); this
+ # setting gives the rest of the suite the same headroom.
+ [env]
++RUST_TEST_THREADS = "1"
+ RUST_MIN_STACK = "67108864"
+ 
+ # Every program a test compiles and spawns inherits this, so a runaway
+ # allocation faults (exit 73) at 2 GiB instead of reaching the runtime's
+-# 8 GiB default with several suites running side by side. Set it to 0
+-# for a measurement that needs the whole heap.
++# 8 GiB default. This limit is per generated process, not a total memory
++# budget; never overlap full suites. Bootstrap runs require a positive cap.
+ CINCH_HEAP_LIMIT = "2G"
+--- a/compiler/prelude/Algebra/Monoid.cinch
++++ b/compiler/prelude/Algebra/Monoid.cinch
+@@ -4,10 +4,8 @@
+ -- (Algebra.Semigroup). The import below is explicit because a class
+ -- constraint entails nothing (the standing no-superbundle rule):
+ -- `Monoid` does not extend `Semigroup`, and every function states the
+--- constraints it uses. The `infixr 6 <>` redeclaration is decision
+--- D2's per-module fixity style (a redundant declaration of the same
+--- fixity is accepted); the imported declaration is the source of
+--- truth.
++-- constraints it uses. The imported operator keeps the fixity declared
++-- by Algebra.Semigroup; this module cannot redeclare it.
+ --
+ -- `mempty` is the nullary class method `mempty :: a` (the higher-kinded
+ -- slice lifted the function-type requirement on class methods): the
+@@ -34,7 +32,6 @@
+   import Algebra.Semigroup
+   import Algebra.Group
+ 
+-  infixr 6 <>
+ 
+   signature Monoid a where
+     mempty :: a
+--- a/compiler/prelude/Algebra/Semigroup.cinch
++++ b/compiler/prelude/Algebra/Semigroup.cinch
+@@ -2,11 +2,8 @@
+ --
+ -- `Semigroup` is the value-level class of the base library scheme
+ -- (design/base-library.md): one operator method `<>`, associative by
+--- law. The class system is decision D2: operators are class methods and
+--- each module declares the fixities of the operators it parses, so the
+--- `infixr 6 <>` below is the declaration consumers import (any module
+--- that parses `<>` infix may redeclare the same fixity; a redundant
+--- declaration of the same fixity is accepted).
++-- law. This module declares the operator and owns its fixity. Consumers
++-- inherit the declaration through imports and cannot redeclare it.
+ --
+ -- Laws (asserted over sample values in compiler/tests/lib_algebra.rs):
+ --   associativity: (x <> y) <> z == x <> (y <> z)
+--- a/compiler/prelude/Data/Ascii.cinch
++++ b/compiler/prelude/Data/Ascii.cinch
+@@ -21,7 +21,6 @@
+   import Data.String
+   import Algebra.Semigroup
+ 
+-  infixr 6 <>
+ 
+   type Ascii = refine (s :: String) with Ascii s
+ 
+--- a/compiler/prelude/Data/IpAddr.cinch
++++ b/compiler/prelude/Data/IpAddr.cinch
+@@ -53,7 +53,6 @@
+   import Data.Bool
+   import Data.Char
+ 
+-  infixr 6 <>
+ 
+   export IpFamily, Ipv4Family, Ipv6Family
+   export Ipv4, ipv4-parse, ipv4-from-octets, ipv4-to-string, ipv4-bytes
+--- a/compiler/prelude/Data/NonEmpty.cinch
++++ b/compiler/prelude/Data/NonEmpty.cinch
+@@ -32,7 +32,6 @@
+   import Category.Applicative
+   import Algebra.Semigroup
+ 
+-  infixr 6 <>
+ 
+   type NonEmpty a = refine (xs :: List a) with NotNull xs
+ 
+--- a/compiler/prelude/Data/NonZero.cinch
++++ b/compiler/prelude/Data/NonZero.cinch
+@@ -29,7 +29,6 @@
+   import Algebra.Semigroup
+   import Algebra.Monoid
+ 
+-  infixr 6 <>
+ 
+   export non-zero, non-zero-nat
+ 
+--- a/compiler/prelude/Data/Path.cinch
++++ b/compiler/prelude/Data/Path.cinch
+@@ -38,7 +38,6 @@
+   import Data.Option
+   import Data.String
+ 
+-  infixr 6 <>
+ 
+   export Path, path-from-string, path-to-string, path-join
+   export path-basename, path-dirname, path-extname, path-stem
+--- a/compiler/prelude/Data/Sorted.cinch
++++ b/compiler/prelude/Data/Sorted.cinch
+@@ -21,7 +21,6 @@
+ 
+   import Algebra.Semigroup
+ 
+-  infixr 6 <>
+ 
+   type Sorted = refine (xs :: List Nat) with Ordered xs
+ 
+--- a/compiler/prelude/Effect/Coverage.cinch
++++ b/compiler/prelude/Effect/Coverage.cinch
+@@ -83,7 +83,6 @@
+   import Data.String
+   import Text.Show
+ 
+-  infixr 6 <>
+ 
+   export Coverage, coverage-new, coverage-hit, coverage-counts, coverage-total, coverage-report, coverage-merge
+ 
+--- a/compiler/prelude/Prelude.cinch
++++ b/compiler/prelude/Prelude.cinch
+@@ -29,10 +29,10 @@
+ -- part of the implicit surface exactly as when they appended to the
+ -- old single module.
+ --
+--- The fixity table below is the operator table the old prelude
+--- declared (decision D90's order): it is the base table every module
+--- parses against, and the operator-owning homes declare the same
+--- fixities per-module (decision D2's style).
++-- The operator table (decision D90's order) is inherited through these
++-- exports from the defining homes. Only an operator's declaring module
++-- may declare its fixity; this facade carries those facts without
++-- redeclaring them (user direction, 2026-10-30).
+ module Prelude where
+ 
+   import Data.Option
+@@ -66,20 +66,8 @@
+   import Prelude.Generated
+ 
+ 
+-  -- Operator precedence follows the Rust reference table (decision D90),
+-  -- laid onto the 0-9 scale; every new binary operator is left
+-  -- associative like Rust's. The relative order of the existing
+-  -- operators is unchanged, so no previously valid program re-parses.
+-  infixl 9 *, /, %
+-  infixl 8 +, -
+-  infixl 7 <<, >>
+-  infixl 6 &
+-  infixl 5 ^
+-  infixl 4 |
+-  infix 3 ==, /=
+-  infix 3 <, <=, >, >=
+-  infixr 2 &&
+-  infixr 1 ||
++  -- Operator fixities are inherited from their defining modules, with
++  -- the exported bindings. The facade does not redeclare them.
+ 
+   export module Data.Option
+   export module Data.Result
+--- a/compiler/prelude/Text/Args.cinch
++++ b/compiler/prelude/Text/Args.cinch
+@@ -39,7 +39,6 @@
+ 
+   import Algebra.Semigroup
+ 
+-  infixr 6 <>
+ 
+   export ArgSpec, FlagSpec, ValueSpec, Required
+   export OptVal, opt-name, opt-value
+--- a/compiler/prelude/Text/Digest.cinch
++++ b/compiler/prelude/Text/Digest.cinch
+@@ -74,7 +74,6 @@
+ 
+   import Algebra.Semigroup
+ 
+-  infixr 6 <>
+ 
+   export Digest, DigestSha256, DigestSha512, DigestSha1, DigestMd5
+   export digest-bytes, digest-string, digest-hex
+--- a/compiler/prelude/Text/Otlp.cinch
++++ b/compiler/prelude/Text/Otlp.cinch
+@@ -47,7 +47,6 @@
+   import Text.Show (nat-to-string, int-to-string)
+   import Algebra.Semigroup
+ 
+-  infixr 6 <>
+ 
+   export parse-traceparent, format-traceparent
+   export otlp-export, any-value, attributes
+--- a/compiler/prelude/Text/Regex.cinch
++++ b/compiler/prelude/Text/Regex.cinch
+@@ -84,7 +84,6 @@
+   import Algebra.Semigroup
+   import Algebra.Monoid
+ 
+-  infixr 6 <>
+ 
+   export Regex, parse-regex, regex-escape
+   export Match, match-start, match-end, match-text, match-group, match-group-count
+--- a/compiler/prelude/Text/Toml.cinch
++++ b/compiler/prelude/Text/Toml.cinch
+@@ -82,7 +82,6 @@
+ 
+   import Algebra.Semigroup
+ 
+-  infixr 6 <>
+ 
+   export TomlError, TomlSyntax, TomlDuplicateKey, TomlDateTime, TomlNotRepresentable
+   export toml-parse, toml-print
+--- a/compiler/prelude/Text/Uri.cinch
++++ b/compiler/prelude/Text/Uri.cinch
+@@ -65,7 +65,6 @@
+ 
+   import Algebra.Semigroup
+ 
+-  infixr 6 <>
+ 
+   export Uri, MkUri
+   export uri-parse, uri-to-string, uri-normalize, uri-resolve
+--- a/compiler/prelude/Text/Zlib.cinch
++++ b/compiler/prelude/Text/Zlib.cinch
+@@ -84,7 +84,6 @@
+ 
+   import Algebra.Semigroup
+ 
+-  infixr 6 <>
+ 
+   export ZlibError, BadHeader, BadChecksum, InvalidCode, TruncatedStream
+   export inflate, deflate, adler32, crc32
+--- a/compiler/runtime/src/heap.rs
++++ b/compiler/runtime/src/heap.rs
+@@ -88,16 +88,23 @@
+     if env_bytes(c"CINCH_ALLOC_STATS") == Some(b"1") {
+         unsafe { atexit(print_stats) };
+     }
+-    let limit = match env_bytes(c"CINCH_HEAP_LIMIT") {
+-        None => DEFAULT_HEAP_LIMIT,
+-        Some(v) => parse_limit(v).unwrap_or(DEFAULT_HEAP_LIMIT),
+-    };
++    let limit = configured_limit(env_bytes(c"CINCH_HEAP_LIMIT"));
+     Config {
+         limit,
+         rc_debug: env_bytes(c"CINCH_RC_DEBUG") == Some(b"1"),
+         leak_check: env_bytes(c"CINCH_LEAK_CHECK") == Some(b"1"),
+     }
+ });
++
++// Keep the default-setting rule testable without launching a generated
++// program with its heap guard removed. Reading this setting does not
++// change CONFIG or allocate memory.
++fn configured_limit(setting: Option<&[u8]>) -> u64 {
++    match setting {
++        None => DEFAULT_HEAP_LIMIT,
++        Some(value) => parse_limit(value).unwrap_or(DEFAULT_HEAP_LIMIT),
++    }
++}
+ 
+ /// Whether `CINCH_RC_DEBUG=1`: freed blocks are poisoned and kept, and the
+ /// count entry points validate headers ([`crate::rc`]).
+@@ -387,6 +394,13 @@
+     use super::*;
+ 
+     #[test]
++    fn missing_and_invalid_limits_use_the_documented_default() {
++        assert_eq!(configured_limit(None), 8 << 30);
++        assert_eq!(configured_limit(Some(b"invalid")), 8 << 30);
++        assert_eq!(configured_limit(Some(b"256M")), 256 << 20);
++    }
++
++    #[test]
+     fn limit_suffixes() {
+         assert_eq!(parse_limit(b"0"), Some(0));
+         assert_eq!(parse_limit(b"123"), Some(123));
+--- a/compiler/src/analysis.rs
++++ b/compiler/src/analysis.rs
+@@ -549,6 +549,7 @@
+         //    fixity tables (imports first).
+         let mut parse_failed = false;
+         let mut parsed: HashMap<String, ast::Module> = HashMap::new();
++        let mut visible_tables = self.ensure_prelude().fixities.clone();
+         let mut tables: HashMap<String, FixityTable> = self
+             .prelude_fixities()
+             .into_iter()
+@@ -565,9 +566,10 @@
+                 // Reuse only when this file parsed cleanly before and no
+                 // fresh parse is pending for it.
+                 if !changed.contains(&file) {
+-                    for (name, fix) in &pm.fixities {
++                    for (name, fix) in &pm.exported_fixities {
+                         tables.insert(name.clone(), fix.clone());
+                     }
++                    for (name, fix) in &pm.fixities { visible_tables.insert(name.clone(), fix.clone()); }
+                     for modu in &pm.modules {
+                         parsed.insert(modu.name.text.clone(), modu.clone());
+                     }
+@@ -578,9 +580,10 @@
+             let banded = self.banded_text(&file, &text);
+             match parse_file(&banded, &file, &self.prelude_base(), &tables) {
+                 Ok(pm) => {
+-                    for (name, fix) in &pm.fixities {
++                    for (name, fix) in &pm.exported_fixities {
+                         tables.insert(name.clone(), fix.clone());
+                     }
++                    for (name, fix) in &pm.fixities { visible_tables.insert(name.clone(), fix.clone()); }
+                     for modu in &pm.modules {
+                         parsed.insert(modu.name.text.clone(), modu.clone());
+                     }
+@@ -604,7 +607,7 @@
+                 let file = self.module_file(m).unwrap_or_default();
+                 let base = self.band_of(&file);
+                 let mut st = index_module(&file, base, modu);
+-                st.fixities = tables.get(m).cloned().unwrap_or_default();
++                st.fixities = visible_tables.get(m).cloned().unwrap_or_default();
+                 self.modules.insert(m.clone(), st);
+             }
+         }
+@@ -852,7 +855,7 @@
+ 
+     fn prelude_fixities(&mut self) -> Vec<(String, FixityTable)> {
+         let p = self.ensure_prelude();
+-        p.fixities.iter().map(|(k, v)| (k.clone(), v.clone())).collect()
++        p.exported_fixities.iter().map(|(k, v)| (k.clone(), v.clone())).collect()
+     }
+ 
+     fn prelude_base(&mut self) -> FixityTable {
+--- a/compiler/src/check.rs
++++ b/compiler/src/check.rs
+@@ -1618,6 +1618,8 @@
+     /// method; the dictionary never reaches code that could apply the
+     /// method without them (a generic callee, a sub-dictionary).
+     method_obligs: Vec<(usize, String, Vec<PTerm>)>,
++    /// Checked per-method signatures retained for interface proof contracts.
++    method_contracts: Vec<(usize, String, Scheme)>,
+ }
+ 
+ /// One module parameter of a parameterized module (`module M (x :: T)
+@@ -2664,6 +2666,12 @@
+     param_inst_defs: HashMap<(String, String), crate::core::InstanceDef>,
+     /// Each module's own fixity declarations, for its interface.
+     module_fixities: Vec<(String, crate::interface::FixityExport)>,
++    /// Source binders retain declaration order and implicitness for
++    /// interface kind metadata; the converted TypeKind supplies kinds.
++    interface_binders: HashMap<(String, String), Vec<ast::TypeBinder>>,
++    /// Captured while checking each source signature, before nominal
++    /// definition identities disappear from the legacy `Ty` spelling.
++    interface_source_schemes: HashMap<(String, String), DefinitionScheme>,
+     /// Each module's foreign declarations, for its interface.
+     module_foreign: Vec<(String, crate::interface::ForeignExport)>,
+     /// Real foreign binding contracts by unit name (foreign function
+@@ -3193,6 +3201,8 @@
+             module_names: std::collections::HashSet::new(),
+             param_inst_defs: HashMap::new(),
+             module_fixities: Vec::new(),
++            interface_binders: HashMap::new(),
++            interface_source_schemes: HashMap::new(),
+             module_foreign: Vec::new(),
+             foreign_plans: Vec::new(),
+             pending_foreign: Vec::new(),
+@@ -7460,6 +7470,7 @@
+                         .collect();
+                     let constraints = self.kind_constraints.borrow().clone();
+                     let mut type_params: Vec<String> = Vec::new();
++                    let mut con_params = Vec::new();
+                     let mut val_params: Vec<(String, Ty)> = Vec::new();
+                     let mut prop_params: Vec<String> = Vec::new();
+                     for (name, hint, span) in binders {
+@@ -7469,12 +7480,17 @@
+                         let kind =
+                             self.resolve_binder_kind(&name, hint.as_ref(), &constraints, span)?;
+                         match kind {
+-                            ParamKind::Type | ParamKind::Con(_) => type_params.push(name),
++                            ParamKind::Type => type_params.push(name),
++                            ParamKind::Con(n) => {
++                                con_params.push((name.clone(), n));
++                                type_params.push(name);
++                            }
+                             ParamKind::Val(vty) => val_params.push((name, vty)),
+                             ParamKind::Prop => prop_params.push(name),
+                         }
+                     }
+                     return Ok(Scheme {
++                        con_params,
+                         params: type_params,
+                         idx_params: Vec::new(),
+                         val_params,
+@@ -9151,3 +9167,4 @@
+ // `check_decls.rs`. Both are included at module scope.
+ include!("check_terms.rs");
+ include!("check_decls.rs");
++include!("check_interface.rs");
+--- a/compiler/src/check_decls.rs
++++ b/compiler/src/check_decls.rs
+@@ -544,6 +544,7 @@
+             module: "<builtin>".into(),
+             name: "newIO".into(),
+             scheme: Scheme {
++            con_params: Vec::new(),
+             obligs: Vec::new(),
+                 params: Vec::new(),
+                 idx_params: Vec::new(),
+@@ -641,6 +642,7 @@
+             self,
+             "withScope",
+             Scheme {
++            con_params: Vec::new(),
+             obligs: Vec::new(),
+                 params: vec!["a".to_string()],
+                 idx_params: Vec::new(),
+@@ -673,6 +675,7 @@
+             self,
+             "spawn",
+             Scheme {
++            con_params: Vec::new(),
+             obligs: Vec::new(),
+                 params: vec!["x".to_string(), "a".to_string()],
+                 idx_params: Vec::new(),
+@@ -708,6 +711,7 @@
+             self,
+             "joinAllOrCancel",
+             Scheme {
++            con_params: Vec::new(),
+             obligs: Vec::new(),
+                 params: vec!["x".to_string(), "v".to_string(), "w".to_string()],
+                 idx_params: Vec::new(),
+@@ -744,6 +748,7 @@
+             self,
+             "ioWrite",
+             Scheme {
++            con_params: Vec::new(),
+             obligs: Vec::new(),
+                 params: Vec::new(),
+                 idx_params: Vec::new(),
+@@ -765,6 +770,7 @@
+             self,
+             "ioRead",
+             Scheme {
++            con_params: Vec::new(),
+             obligs: Vec::new(),
+                 params: Vec::new(),
+                 idx_params: Vec::new(),
+@@ -786,6 +792,7 @@
+             self,
+             "ioSleep",
+             Scheme {
++            con_params: Vec::new(),
+             obligs: Vec::new(),
+                 params: Vec::new(),
+                 idx_params: Vec::new(),
+@@ -807,6 +814,7 @@
+             self,
+             "pollCancel",
+             Scheme {
++            con_params: Vec::new(),
+             obligs: Vec::new(),
+                 params: Vec::new(),
+                 idx_params: Vec::new(),
+@@ -843,6 +851,7 @@
+             module: "<builtin>".to_string(),
+             name: "eval".to_string(),
+             scheme: Scheme {
++            con_params: Vec::new(),
+             obligs: Vec::new(),
+                 params: vec!["a".to_string()],
+                 idx_params: Vec::new(),
+@@ -928,6 +937,7 @@
+                 // `foreign import` schemes classify it.
+                 region_params.push("Component".to_string());
+                 let scheme = Scheme {
++            con_params: Vec::new(),
+             obligs: Vec::new(),
+                     params: Vec::new(),
+                     idx_params: Vec::new(),
+@@ -1089,6 +1099,7 @@
+         ];
+         for (name, symbol, ty, arity) in entries {
+             let scheme = Scheme {
++            con_params: Vec::new(),
+             obligs: Vec::new(),
+                 params: vec!["a".to_string()],
+                 idx_params: Vec::new(),
+@@ -1443,6 +1454,7 @@
+             module: "<builtin>".into(),
+             name: "derive".into(),
+             scheme: Scheme {
++            con_params: Vec::new(),
+             obligs: Vec::new(),
+                 params: Vec::new(),
+                 idx_params: Vec::new(),
+@@ -1481,6 +1493,7 @@
+         ty: Ty,
+     ) {
+         let scheme = Scheme {
++            con_params: Vec::new(),
+             obligs: Vec::new(),
+             params,
+             idx_params: Vec::new(),
+@@ -1648,6 +1661,7 @@
+                 };
+             }
+             let scheme = Scheme {
++            con_params: Vec::new(),
+             obligs: Vec::new(),
+                 params: type_params,
+                 idx_params,
+@@ -1762,6 +1776,7 @@
+             module: "<builtin>".to_string(),
+             name: "getCopy".to_string(),
+             scheme: Scheme {
++            con_params: Vec::new(),
+             obligs: Vec::new(),
+                 params: vec!["a".to_string()],
+                 idx_params: vec![IxParam::Val("n".to_string(), Ty::Nat)],
+@@ -1945,6 +1960,7 @@
+             module: "<builtin>".to_string(),
+             name: "vecStreamStep".to_string(),
+             scheme: Scheme {
++            con_params: Vec::new(),
+             obligs: Vec::new(),
+                 params: vec!["a".to_string()],
+                 idx_params: vec![IxParam::Val("n".to_string(), Ty::Nat)],
+@@ -1977,6 +1993,7 @@
+             module: "<builtin>".to_string(),
+             name: "refl".to_string(),
+             scheme: Scheme {
++            con_params: Vec::new(),
+             obligs: Vec::new(),
+                 params: Vec::new(),
+                 idx_params: vec![IxParam::Val("x".to_string(), Ty::Nat)],
+@@ -1998,6 +2015,7 @@
+             module: "<builtin>".to_string(),
+             name: "congr".to_string(),
+             scheme: Scheme {
++            con_params: Vec::new(),
+             obligs: Vec::new(),
+                 params: Vec::new(),
+                 idx_params: vec![
+@@ -2272,6 +2290,17 @@
+                 _ => {
+                     self.validate_attr_site(decl_attrs, AttrSite::Decl)?;
+                 }
++            }
++            let binders = match d {
++                ast::Decl::Data(x) => Some((&x.name, &x.params)),
++                ast::Decl::Record(x) | ast::Decl::Codata(x) => Some((&x.name, &x.params)),
++                ast::Decl::Refine(x) => Some((&x.name, &x.params)),
++                ast::Decl::OpaqueType(x) => Some((&x.name, &x.params)),
++                ast::Decl::Signature(x) => Some((&x.name, &x.params)),
++                _ => None,
++            };
++            if let Some((name, params)) = binders {
++                self.interface_binders.insert((module.clone(), name.text.clone()), params.clone());
+             }
+             match d {
+                 ast::Decl::NameSpliced { name_tm, .. } => {
+@@ -2366,6 +2395,7 @@
+                         return Err(Error::at(*span, format!("duplicate signature for {}", name.text)));
+                     }
+                     let s = self.conv_scheme(ty)?;
++                    self.remember_interface_scheme(&module, &name.text, ty, &s, &[]);
+                     if logical == Some("proof") {
+                         // A `proof` declaration constructs erased
+                         // evidence: its type is a proposition or a chain
+@@ -2557,6 +2587,7 @@
+                             return Err(Error::at(f.span, "a compiler intrinsic cannot be exported"));
+                         }
+                         let s = self.conv_scheme(&f.ty)?;
++                        self.remember_interface_scheme(&module, &f.name.text, &f.ty, &s, &[]);
+                         if !s.params.is_empty() || !s.ctx.is_empty() {
+                             return Err(Error::at(f.span, "primitives cannot be polymorphic or constrained"));
+                         }
+@@ -2645,6 +2676,7 @@
+                         // every type's layout is known
+                         // (`build_foreign_contracts`).
+                         let s = self.conv_scheme(&f.ty)?;
++                        self.remember_interface_scheme(&module, &f.name.text, &f.ty, &s, &[]);
+                         if !s.params.is_empty() || !s.ctx.is_empty() {
+                             return Err(Error::at(
+                                 f.span,
+@@ -3048,6 +3080,7 @@
+                             };
+                         }
+                         let scheme = Scheme {
++            con_params: higher_kinded_parameters(&params, &param_kinds),
+             obligs: Vec::new(),
+                             params: type_params,
+                             idx_params,
+@@ -3058,6 +3091,7 @@
+                             ctx: Vec::new(),
+                             ty: scheme_ty,
+                         };
++                        self.remember_interface_constructor(&module, &c.name.text, &c.ty, &scheme, &data.params);
+                         self.add_value(
+                             ValueInfo {
+                                 module: module.clone(),
+@@ -3301,6 +3335,7 @@
+                         };
+                     }
+                     let scheme = Scheme {
++            con_params: higher_kinded_parameters(&params, &param_kinds),
+             obligs: Vec::new(),
+                         params: type_params,
+                         idx_params,
+@@ -3510,6 +3545,7 @@
+                         };
+                     }
+                     let scheme = Scheme {
++            con_params: higher_kinded_parameters(&params, &param_kinds),
+             obligs: Vec::new(),
+                         params: type_params,
+                         idx_params,
+@@ -3677,6 +3713,7 @@
+                         };
+                     }
+                     let scheme = Scheme {
++            con_params: higher_kinded_parameters(&params, &param_kinds),
+             obligs: Vec::new(),
+                         params: type_params,
+                         idx_params,
+@@ -3749,11 +3786,14 @@
+                     }
+                     self.kind_constraints.borrow_mut().clear();
+                     let mut methods: Vec<(String, Scheme)> = Vec::new();
++                    let mut method_contracts: Vec<Option<Scheme>> = Vec::new();
+                     for (idx, (mname, mty)) in sig.methods.iter().enumerate() {
+                         // Method schemes quantify over the signature's
+                         // parameters plus their own; the class constraint is
+                         // always `ctx[0]`.
+                         let mut extra: Vec<String> = Vec::new();
++                        let mut own_binders: Vec<ast::TypeBinder> = Vec::new();
++                        let notes_start = self.kind_constraints.borrow().len();
+                         let mut rest = mty;
+                         let mut own_ctx: Vec<(String, ClassApp)> = Vec::new();
+                         loop {
+@@ -3761,6 +3801,7 @@
+                                 ast::Type::Forall(binders, body, _) => {
+                                     for b in binders {
+                                         extra.push(b.name.text.clone());
++                                        own_binders.push(b.clone());
+                                     }
+                                     rest = body;
+                                 }
+@@ -3817,6 +3858,7 @@
+                         methods.push((
+                             mname.text.clone(),
+                             Scheme {
++            con_params: Vec::new(),
+             obligs: Vec::new(),
+                                 params: type_params,
+                                 idx_params: Vec::new(),
+@@ -3828,6 +3870,29 @@
+                                 ty,
+                             },
+                         ));
++                        // Keep method-local kind inference scoped to this
++                        // method. Another method may quantify the same name
++                        // with a different kind. This metadata copy does not
++                        // change the native checker's method dispatch.
++                        let notes = self.kind_constraints.borrow()[notes_start..].to_vec();
++                        let mut contract = Some(methods.last().unwrap().1.clone());
++                        for binder in &own_binders {
++                            let hint = match &binder.ann {
++                                Some(ann) => match self.source_contract_kind(ann) {
++                                    Some(kind) => Some(kind),
++                                    None => { contract = None; break }
++                                },
++                                None => None,
++                            };
++                            match self.resolve_binder_kind(&binder.name.text, hint.as_ref(), &notes, binder.name.span) {
++                                Ok(ParamKind::Con(arity)) => if let Some(contract) = &mut contract {
++                                    contract.con_params.push((binder.name.text.clone(), arity));
++                                },
++                                Ok(ParamKind::Type) => {},
++                                _ => { contract = None; break }
++                            }
++                        }
++                        method_contracts.push(contract);
+                         let info = ValueInfo {
+                             module: module.clone(),
+                             name: mname.text.clone(),
+@@ -3917,6 +3982,7 @@
+                             .filter(|p| !row_params.contains(p) && !region_params.contains(p))
+                             .collect();
+                         let scheme = Scheme {
++            con_params: Vec::new(),
+             obligs: Vec::new(),
+                             params: type_params,
+                             idx_params: Vec::new(),
+@@ -3997,7 +4063,14 @@
+                     self.qualified_types
+                         .insert((module.clone(), sig.name.text.clone()), tk);
+                     self.sigs.entry(sig.name.text.clone()).or_default().push(info.clone());
+-                    self.qualified_sigs.insert((module.clone(), sig.name.text.clone()), info);
++                    self.qualified_sigs.insert((module.clone(), sig.name.text.clone()), info.clone());
++                    for ((name, source), contract) in sig.methods.iter().zip(method_contracts) {
++                        if let Some(mut contract) = contract {
++                            contract.con_params.extend(higher_kinded_parameters(&info.params, &info.param_kinds));
++                            self.remember_source_scheme(&module, &format!("{}.{}", sig.name.text, name.text),
++                                source, &contract, &sig.params, Some(&info), false);
++                        }
++                    }
+                 }
+                 ast::Decl::Effect(eff) => {
+                     if self.effects.contains_key(&eff.name.text) {
+@@ -4087,6 +4160,7 @@
+                             .filter(|p| !row_params.contains(p) && !region_params.contains(p))
+                             .collect();
+                         let scheme = Scheme {
++            con_params: Vec::new(),
+             obligs: Vec::new(),
+                             params: type_params,
+                             idx_params: Vec::new(),
+@@ -4825,6 +4899,7 @@
+                 own_obligs = s.obligs;
+             }
+             let scheme = Scheme {
++                con_params: Vec::new(),
+                 obligs: own_obligs,
+                 params: extra,
+                 idx_params: Vec::new(),
+@@ -5343,6 +5418,7 @@
+                     implicit: bi.implicit,
+                     base: false,
+                     method_obligs: bi.method_obligs.clone(),
++                    method_contracts: bi.method_contracts.clone(),
+                 });
+                 self.instances.entry(bi.target.class.clone()).or_default().push(idx);
+                 unit_insts.push(UnitInst { inst_name: bi.name.clone() });
+@@ -9954,6 +10030,7 @@
+             abi: "ccall".to_string(),
+             external: f.symbol.clone(),
+             ty: render_scheme(&Scheme {
++            con_params: Vec::new(),
+             obligs: Vec::new(),
+                 params: Vec::new(),
+                 idx_params: Vec::new(),
+@@ -14734,17 +14811,31 @@
+     }
+ }
+ 
+-/// Render a scheme for interface metadata: quantifiers, `using` context,
+-/// then the type with its effect rows.
++/// Render a scheme for interface metadata, including the caller's proof
++/// obligations. These are part of the contract, even when the result type
++/// does not itself depend on the arguments they mention.
++fn higher_kinded_parameters(names: &[String], kinds: &[ParamKind]) -> Vec<(String, usize)> {
++    names.iter().zip(kinds).filter_map(|(name, kind)| match kind {
++        ParamKind::Con(n) => Some((name.clone(), *n)),
++        _ => None,
++    }).collect()
++}
++
+ fn render_scheme(s: &Scheme) -> String {
+     let mut out = String::new();
+     let all: Vec<String> = s
+         .params
+         .iter()
+-        .cloned()
+-        .chain(s.idx_params.iter().map(|p| p.name().to_string()))
+-        .chain(s.val_params.iter().map(|(n, _)| n.clone()))
+-        .chain(s.prop_params.iter().cloned())
++        .map(|name| match s.con_params.iter().find(|(n, _)| n == name) {
++            Some((_, arity)) => format!("({name} :: {})", vec!["Type"; arity + 1].join(" -> ")),
++            None => name.clone(),
++        })
++        .chain(s.idx_params.iter().map(|p| match p {
++            IxParam::Val(n, t) => format!("({n} :: {t})"),
++            IxParam::Prop(n) => format!("({n} :: Prop)"),
++        }))
++        .chain(s.val_params.iter().map(|(n, t)| format!("({n} :: {t})")))
++        .chain(s.prop_params.iter().map(|n| format!("({n} :: Prop)")))
+         .chain(s.row_params.iter().cloned())
+         .chain(s.region_params.iter().cloned())
+         .collect();
+@@ -14756,20 +14847,131 @@
+         }
+         out.push_str(". ");
+     }
+-    if !s.ctx.is_empty() {
++    let (ty, obligs) = interface_arg_binders(s);
++    if !s.ctx.is_empty() || !obligs.is_empty() {
+         out.push_str("using (");
+-        for (i, (n, c)) in s.ctx.iter().enumerate() {
++        let mut items: Vec<String> = s.ctx.iter().map(|(n, c)| format!("{n} :: {c}")).collect();
++        items.extend(obligs.iter().map(|o| match o {
++            PropOblig::Pred(p) => p.to_string(),
++            PropOblig::Preserves { method, pred } => format!("Preserves ({method}) {pred}"),
++        }));
++        for (i, item) in items.iter().enumerate() {
+             if i > 0 {
+                 out.push_str(", ");
+             }
+-            out.push_str(n);
+-            out.push_str(" :: ");
+-            out.push_str(&c.to_string());
++            out.push_str(item);
+         }
+         out.push_str(") => ");
+     }
+-    out.push_str(&s.ty.to_string());
++    out.push_str(&ty.to_string());
+     out
++}
++
++/// `conv_scheme` normalizes signature argument references to `$a{i}`.
++/// Bind those positions again before publishing surface syntax. Fresh
++/// names avoid capturing a quantified parameter or an existing index.
++fn interface_arg_binders(s: &Scheme) -> (Ty, Vec<PropOblig>) {
++    if s.obligs.is_empty() {
++        return (s.ty.clone(), Vec::new());
++    }
++    let vocabulary = format!("{:?}", s);
++    let mut used: HashSet<String> = vocabulary
++        .split(|c: char| !c.is_alphanumeric() && c != '-' && c != '_' && c != '\'')
++        .map(str::to_owned)
++        .collect();
++    let mut obligs = s.obligs.clone();
++    fn bind(t: &Ty, i: usize, used: &mut HashSet<String>, obligs: &mut [PropOblig]) -> Ty {
++        let (dom, mult, eff, cod, old) = match t {
++            Ty::Fun(a, m, e, b) => (a, m, e, b, None),
++            Ty::Pi { var, dom, mult, eff, cod } => (dom, mult, eff, cod, Some(var)),
++            _ => return t.clone(),
++        };
++        let mut name = format!("arg{i}");
++        while !used.insert(name.clone()) {
++            name.push('x');
++        }
++        let value = ITerm::Var(name.clone());
++        let pos = format!("$a{i}");
++        let mut cod = cod.subst_idx(&pos, &value);
++        if let Some(old) = old {
++            cod = cod.subst_idx(old, &value);
++        }
++        for o in obligs.iter_mut() {
++            match o {
++                PropOblig::Pred(p) | PropOblig::Preserves { pred: p, .. } => {
++                    *p = p.subst(&pos, &value);
++                }
++            }
++        }
++        Ty::Pi {
++            var: name,
++            dom: dom.clone(),
++            mult: *mult,
++            eff: eff.clone(),
++            cod: Box::new(bind(&cod, i + 1, used, obligs)),
++        }
++    }
++    let ty = bind(&s.ty, 0, &mut used, &mut obligs);
++    (ty, obligs)
++}
++
++#[cfg(test)]
++mod interface_scheme_tests {
++    use super::*;
++
++    fn read_scheme(source: &str) -> Scheme {
++        let source = format!("module Contract where\n  f :: {source}\n");
++        let tokens = crate::layout::layout(crate::lexer::lex(&source).unwrap()).unwrap();
++        let parsed = crate::parser::parse_module(&tokens, &crate::parser::FixityTable::new()).unwrap();
++        let ty = parsed.module.decls.iter().find_map(|d| match d {
++            ast::Decl::ValueSig { ty, .. } => Some(ty),
++            _ => None,
++        }).unwrap();
++        Checker::new().conv_scheme(ty).unwrap()
++    }
++
++    #[test]
++    fn exported_preconditions_round_trip_with_their_argument_positions() {
++        let original = read_scheme("using (0 <= x, x < y) => (x :: I64) -> (y :: I64) -> I64");
++        let rendered = render_scheme(&original);
++        assert!(rendered.contains("using ("), "{rendered}");
++        assert!(!rendered.contains('$'), "internal argument names escaped: {rendered}");
++        let back = read_scheme(&rendered);
++        assert_eq!(original.obligs, back.obligs, "{rendered}");
++        assert_eq!(original.ty, back.ty, "{rendered}");
++    }
++
++    #[test]
++    fn precondition_argument_names_do_not_capture_type_parameters() {
++        let original = read_scheme("forall arg0 . using (0 <= x) => (x :: I64) -> arg0 -> arg0");
++        let rendered = render_scheme(&original);
++        assert!(rendered.contains("arg0x :: I64"), "{rendered}");
++        let back = read_scheme(&rendered);
++        assert_eq!(original.params, back.params);
++        assert_eq!(original.obligs, back.obligs);
++        assert_eq!(original.ty, back.ty);
++    }
++
++    #[test]
++    fn explicit_value_and_proposition_parameter_kinds_are_published() {
++        let mut scheme = Scheme::mono(Ty::Int);
++        scheme.val_params.push(("n".into(), Ty::Nat));
++        scheme.prop_params.push("p".into());
++        let rendered = render_scheme(&scheme);
++        let back = read_scheme(&rendered);
++        assert_eq!(scheme.val_params, back.val_params, "{rendered}");
++        assert_eq!(scheme.prop_params, back.prop_params, "{rendered}");
++    }
++
++    #[test]
++    fn higher_kinded_parameter_annotations_survive_interface_rendering() {
++        let original = read_scheme("forall (f :: Type -> Type) a . f a -> f a");
++        let rendered = render_scheme(&original);
++        assert!(rendered.contains("f :: Type -> Type"), "{rendered}");
++        let back = read_scheme(&rendered);
++        assert_eq!(original.con_params, back.con_params, "{rendered}");
++        assert_eq!(original.ty, back.ty, "{rendered}");
++    }
+ }
+ 
+ /// A module's declared import names, keyed by their full dotted names.
+@@ -15011,6 +15213,7 @@
+         let pending = std::mem::take(&mut self.pending_instance_heads);
+         for (module, inst) in pending {
+             self.build_scope(&module, false);
++            let notes_start = self.kind_constraints.borrow().len();
+             let params: Vec<String> = inst.params.iter().map(|p| p.text.clone()).collect();
+             let mut ctx: Vec<InstCtx> = Vec::new();
+             for c in &inst.ctx {
+@@ -15034,6 +15237,7 @@
+                     return Err(e);
+                 }
+             };
++            let head_notes = self.kind_constraints.borrow()[notes_start..].to_vec();
+             if class == "Copy" {
+                 return Err(Error::at(
+                     inst.span,
+@@ -15069,6 +15273,7 @@
+             // quantifier, no constraint, and its type must be the class
+             // method's at this instance (checked with the body).
+             let mut method_obligs: Vec<(usize, String, Vec<PTerm>)> = Vec::new();
++            let mut method_contracts = Vec::new();
+             for (mname, mty) in &inst.method_sigs {
+                 let midx = self.sigs.get(&class).and_then(|ss| {
+                     ss.iter().find_map(|s| s.methods.iter().position(|(m, _)| *m == mname.text))
+@@ -15112,10 +15317,11 @@
+                     ));
+                 }
+                 method_obligs.push((midx, mname.text.clone(), preds));
++                method_contracts.push((midx, mname.text.clone(), s));
+             }
+             let base_id = fn_id(&module, &inst.name.text);
+             let idx = self.instance_list.len();
+-            self.instance_list.push(InstanceInfo {
++            let info = InstanceInfo {
+                 module: module.clone(),
+                 name: inst.name.text.clone(),
+                 params,
+@@ -15128,7 +15334,10 @@
+                 // published per instantiation.
+                 base: self.param_modules.contains(&module),
+                 method_obligs,
+-            });
++                method_contracts,
++            };
++            self.remember_interface_instance(&inst, &info, &head_notes);
++            self.instance_list.push(info);
+             self.instances.entry(class).or_default().push(idx);
+         }
+         Ok(())
+@@ -15212,12 +15421,64 @@
+         Ok(())
+     }
+ 
++    fn interface_parameters(
++        &self, module: &str, name: &str, fallback: &[String], kinds: &[ParamKind],
++    ) -> Vec<crate::interface::ParameterExport> {
++        let binders = self.interface_binders.get(&(module.to_string(), name.to_string()));
++        kinds.iter().enumerate().map(|(i, kind)| {
++            let binder = binders.and_then(|bs| bs.get(i));
++            crate::interface::ParameterExport {
++                name: binder.map(|b| b.name.text.clone()).or_else(|| fallback.get(i).cloned())
++                    .unwrap_or_else(|| format!("p{i}")),
++                kind: match kind {
++                    ParamKind::Type => "Type".to_string(),
++                    ParamKind::Val(ty) => ty.to_string(),
++                    ParamKind::Prop => "Prop".to_string(),
++                    ParamKind::Con(n) => vec!["Type"; n + 1].join(" -> "),
++                },
++                implicit: binder.is_some_and(|b| b.implicit),
++            }
++        }).collect()
++    }
++
++    fn interface_signature(&self, s: &SigInfo, surface: &[(String, SurfaceName)]) -> crate::interface::SigExport {
++        let public = |name: &str| -> Vec<String> {
++            surface.iter().filter(|(_, target)| target.module == s.module && target.name == name)
++                .map(|(name, _)| name.clone()).collect()
++        };
++        let exports = public(&s.name);
++        crate::interface::SigExport {
++            name: exports.first().cloned().unwrap_or_else(|| s.name.clone()),
++            identity: format!("{}.{}", s.module, s.name),
++            exports,
++            params: s.params.clone(),
++            parameters: self.interface_parameters(&s.module, &s.name, &s.params, &s.param_kinds),
++            methods: s.methods.iter().enumerate().map(|(slot, (name, scheme))| {
++                let mut scheme = scheme.clone();
++                if let Some(source) = self.interface_source_schemes.get(&(s.module.clone(), format!("{}.{}", s.name, name))) {
++                    scheme.con_params = source.con_params.clone();
++                } else {
++                    scheme.con_params.extend(higher_kinded_parameters(&s.params, &s.param_kinds));
++                }
++                crate::interface::MethodExport {
++                    name: name.clone(),
++                    slot: slot as u64,
++                    exports: public(name),
++                    scheme: render_scheme(&scheme),
++                    resolved: self.resolved_interface_scheme(&s.module, &format!("{}.{}", s.name, name)),
++                    default: self.default_ids.get(&(s.module.clone(), s.name.clone(), name.clone())).cloned(),
++                }
++            }).collect(),
++        }
++    }
++
+     /// Build one module's `.cinchif` content (design note, section 2).
+     fn module_iface(
+         &self,
+         module: &str,
+         source_hash: &str,
+         imports: &[(String, String)],
++        available: &std::collections::BTreeSet<String>,
+     ) -> crate::interface::Iface {
+         use crate::interface::*;
+         let mut iface = Iface::new(module, source_hash);
+@@ -15230,9 +15491,9 @@
+         // The export surface (surface grammar local amendments section
+         // 11): with `export` declarations exactly the names their items
+         // resolve to, re-exports included; the declared names as before
+-        // without them. Instances, fixities and the foreign table stay
+-        // module-owned: they are coherence and contract facts, not
+-        // names.
++        // without them. Fixities follow each exported operator's defining
++        // binding, including selected and renamed re-exports. Instances
++        // and the foreign table remain module-owned contract facts.
+         let mut surface: Vec<(String, SurfaceName)> = match self.module_surface.get(module) {
+             Some(sm) => sm
+                 .iter()
+@@ -15256,10 +15517,11 @@
+         for (local, d) in &surface {
+             if let Some(v) = self.qualified.get(&(d.module.clone(), d.name.clone())) {
+                 match &v.kind {
+-                    ValueKind::TopFn | ValueKind::Prim(_) | ValueKind::PrimDecl { .. } => {
++                    ValueKind::TopFn | ValueKind::Prim(_) | ValueKind::PrimDecl { .. } | ValueKind::Foreign { .. } => {
+                         iface.exports.values.push(ValueExport {
+                             name: local.clone(),
+                             scheme: render_scheme(&v.scheme),
++                            resolved: self.resolved_interface_scheme(&d.module, &d.name),
+                             symbol: format!("{}.{}", d.module, d.name),
+                             arity: (v.scheme.ty.arity()
+                                 + v.scheme.ctx.len()
+@@ -15357,6 +15619,9 @@
+                             }) {
+                                 ctors.push(CtorExport {
+                                     name: ctor_local.clone(),
++                                    symbol: format!("{}.{}", d.module, cname),
++                                    scheme: render_scheme(&v.scheme),
++                                    resolved: self.resolved_interface_scheme(&d.module, cname),
+                                     tag: *tag as u64,
+                                     fields: fields.clone(),
+                                     erased: field_erased.clone(),
+@@ -15373,12 +15638,31 @@
+                         params = r.params.clone();
+                     }
+                 }
++                let parameters = self.interface_parameters(&d.module, &d.name, &params, &t.param_kinds);
++                params = parameters.iter().map(|p| p.name.clone()).collect();
+                 iface.exports.types.push(TypeExport {
+                     name: local.clone(),
++                    identity: format!("{}.{}", d.module, d.name),
+                     params,
+-                    kind: if t.fields.is_some() { "record".to_string() } else { "data".to_string() },
++                    parameters,
++                    kind: if t.refine.is_some() {
++                        "refinement".to_string()
++                    } else if t.opaque {
++                        "opaque".to_string()
++                    } else if self.qualified_sigs.contains_key(&(d.module.clone(), d.name.clone())) {
++                        "signature".to_string()
++                    } else if t.fields.is_some() {
++                        "record".to_string()
++                    } else {
++                        "data".to_string()
++                    },
+                     ctors,
+                     fields: t.fields.clone().unwrap_or_default(),
++                    refinement: t.refine.as_ref().map(|r| RefinementExport {
++                        binder: r.binder.clone(),
++                        carrier: r.base.to_string(),
++                        predicate: r.pred.to_string(),
++                    }),
+                 });
+                 // Computed layout facts (attribute annotations
+                 // specification section 4.3): part of the contract
+@@ -15399,67 +15683,37 @@
+                 layout.name = local.clone();
+                 iface.layouts.push(layout);
+             }
+-            if let Some(s) = self
+-                .sigs
+-                .get(&d.name)
+-                .and_then(|ss| ss.iter().find(|s| s.module == d.module))
+-            {
+-                iface.exports.signatures.push(SigExport {
+-                    name: local.clone(),
+-                    params: s.params.clone(),
+-                    methods: s
+-                        .methods
+-                        .iter()
+-                        .map(|(n, sch)| MethodExport {
+-                            name: n.clone(),
+-                            scheme: render_scheme(sch),
+-                            default: self
+-                                .default_ids
+-                                .get(&(s.module.clone(), s.name.clone(), n.clone()))
+-                                .cloned(),
+-                        })
+-                        .collect(),
+-                });
+-            }
+-        }
+-        // `prim` declarations (primitive operations and inline target
+-        // IR specification section 5): a justified prim's contract is
+-        // its signature plus the law identity (bodies are
+-        // representation: replacing a body never stales dependents); an
+-        // assumed prim's body content is contract (editing it stales
+-        // dependents). Selection is representation and never enters the
+-        // contract projection (section 6).
+-        for p in &self.prims {
+-            if p.module != module {
+-                continue;
+-            }
+-            match p.tier {
+-                crate::core::PrimTier::Justified => {
+-                    for l in &p.laws {
+-                        iface.assumptions.declared.push(l.clone());
+-                    }
+-                }
+-                crate::core::PrimTier::Assumed => {
+-                    iface.assumptions.primitives.push(p.identity.clone());
+-                }
+-            }
+-            // The `unsafe` trust (section 12): a trusted body's declared
+-            // row is a recorded assumption with a per-body identity, so
+-            // body edits stale dependents through `iface_hash`.
+-            for b in &p.bodies {
+-                if b.trusted {
+-                    iface.assumptions.declared.push(b.trust_id.clone());
+-                }
++        }
++        // A public method carries its class contract even when the class
++        // name itself is private. Only explicit export spellings become
++        // surface names; contract closure does not publish private names.
++        let mut signature_identities = std::collections::BTreeSet::new();
++        for signature in self.qualified_sigs.values() {
++            if surface.iter().any(|(_, target)| target.module == signature.module
++                && (target.name == signature.name || signature.methods.iter().any(|(name, _)| *name == target.name)))
++                && signature_identities.insert((signature.module.clone(), signature.name.clone())) {
++                iface.exports.signatures.push(self.interface_signature(signature, &surface));
+             }
+         }
+         for i in &self.instance_list {
+             if i.module != module {
+                 continue;
+             }
++            // Family heads may refer forward to class homes, including
++            // cycles through the shared family. The current per-module
++            // hash protocol cannot publish those forward dependencies;
++            // keep their nonportable contracts explicitly unresolved.
++            let resolved = self.resolved_interface_scheme(&i.module, &format!("@instance:{}", i.name))
++                .filter(|scheme| scheme.nominals.iter().all(|n| n.identity.rsplit_once('.')
++                    .is_some_and(|(owner, _)| owner == module || available.contains(owner))));
+             iface.exports.instances.push(InstanceExport {
+                 id: i.base_id.0.clone(),
+                 class: i.target.class.clone(),
+                 target: i.target.to_string(),
++                resolved,
++                method_contracts: i.method_contracts.iter().map(|(slot, name, scheme)| InstanceMethodContract {
++                    slot: *slot as u64, name: name.clone(), scheme: render_scheme(scheme),
++                }).collect(),
+                 ctx: i
+                     .ctx
+                     .iter()
+@@ -15475,9 +15729,68 @@
+                 implicit: i.implicit,
+             });
+         }
+-        for (m, f) in &self.module_fixities {
+-            if m == module {
+-                iface.exports.fixities.push(f.clone());
++        // A value may require a private class without exporting any of
++        // its methods. Retain that class's full dictionary contract and
++        // its transitive class dependencies, granting no surface names.
++        let mut pending = std::collections::BTreeSet::new();
++        let class_refs = |scheme: &crate::interface::ResolvedScheme| -> Vec<String> {
++            scheme.nominals.iter().filter(|n| n.kind == "signature").map(|n| n.identity.clone()).collect()
++        };
++        for scheme in iface.exports.values.iter().filter_map(|v| v.resolved.as_ref())
++            .chain(iface.exports.types.iter().flat_map(|t| &t.ctors).filter_map(|c| c.resolved.as_ref()))
++            .chain(iface.exports.signatures.iter().flat_map(|s| &s.methods).filter_map(|m| m.resolved.as_ref()))
++            .chain(iface.exports.instances.iter().filter_map(|i| i.resolved.as_ref())) {
++            pending.extend(class_refs(scheme));
++        }
++        let mut known: std::collections::BTreeSet<_> = iface.exports.signatures.iter().map(|s| s.identity.clone()).collect();
++        while let Some(identity) = pending.pop_first() {
++            if !known.insert(identity.clone()) { continue }
++            let Some((owner, name)) = identity.rsplit_once('.') else { continue };
++            if let Some(signature) = self.qualified_sigs.get(&(owner.to_string(), name.to_string())) {
++                let contract = self.interface_signature(signature, &surface);
++                for method in &contract.methods {
++                    if let Some(scheme) = &method.resolved { pending.extend(class_refs(scheme)); }
++                }
++                iface.exports.signatures.push(contract);
++            }
++        }
++        // `prim` declarations (primitive operations and inline target
++        // IR specification section 5): a justified prim's contract is
++        // its signature plus the law identity (bodies are
++        // representation: replacing a body never stales dependents); an
++        // assumed prim's body content is contract (editing it stales
++        // dependents). Selection is representation and never enters the
++        // contract projection (section 6).
++        for p in &self.prims {
++            if p.module != module {
++                continue;
++            }
++            match p.tier {
++                crate::core::PrimTier::Justified => {
++                    for l in &p.laws {
++                        iface.assumptions.declared.push(l.clone());
++                    }
++                }
++                crate::core::PrimTier::Assumed => {
++                    iface.assumptions.primitives.push(p.identity.clone());
++                }
++            }
++            // The `unsafe` trust (section 12): a trusted body's declared
++            // row is a recorded assumption with a per-body identity, so
++            // body edits stale dependents through `iface_hash`.
++            for b in &p.bodies {
++                if b.trusted {
++                    iface.assumptions.declared.push(b.trust_id.clone());
++                }
++            }
++        }
++        for (local, definition) in &surface {
++            if let Some((_, fixity)) = self.module_fixities.iter().find(|(owner, fixity)| {
++                owner == &definition.module && fixity.op == definition.name
++            }) {
++                let mut exported = fixity.clone();
++                exported.op = local.clone();
++                iface.exports.fixities.push(exported);
+             }
+         }
+         let mut prims = Vec::new();
+@@ -15549,10 +15862,155 @@
+     }
+ }
+ 
++/// Defining interfaces required by a portable checked contract. Surface
++/// imports alone are insufficient for implicit kernel names and private
++/// class closure.
++fn interface_nominal_dependencies(
++    iface: &crate::interface::Iface,
++) -> Result<std::collections::BTreeSet<String>> {
++    let contracts = iface
++        .exports
++        .values
++        .iter()
++        .filter_map(|v| v.resolved.as_ref())
++        .chain(
++            iface
++                .exports
++                .types
++                .iter()
++                .flat_map(|t| &t.ctors)
++                .filter_map(|c| c.resolved.as_ref()),
++        )
++        .chain(
++            iface
++                .exports
++                .signatures
++                .iter()
++                .flat_map(|s| &s.methods)
++                .filter_map(|m| m.resolved.as_ref()),
++        )
++        .chain(
++            iface
++                .exports
++                .instances
++                .iter()
++                .filter_map(|i| i.resolved.as_ref()),
++        );
++    let mut dependencies = std::collections::BTreeSet::new();
++    for identity in iface
++        .exports
++        .signatures
++        .iter()
++        .map(|s| s.identity.as_str())
++        .chain(contracts.flat_map(|c| c.nominals.iter().map(|n| n.identity.as_str())))
++    {
++        let (owner, _) = identity
++            .rsplit_once('.')
++            .ok_or_else(|| Error::plain("resolved nominal has no defining module"))?;
++        if owner != iface.module {
++            dependencies.insert(owner.to_string());
++        }
++    }
++    Ok(dependencies)
++}
++
++// Interface emission has a different dependency order from declaration
++// collection. A source replacement of an embedded home must precede both
++// source and embedded consumers. Family homes do not acquire a dependency
++// on their own Prelude facade merely because their source is on disk.
++fn interface_module_order<'a>(
++    checker: &Checker,
++    prelude: &'a [ast::Module],
++    modules: &'a [ast::Module],
++    facade: &str,
++) -> Result<Vec<(&'a ast::Module, Vec<String>)>> {
++    let family_names: std::collections::BTreeSet<&str> =
++        prelude.iter().map(|m| m.name.text.as_str()).collect();
++    let mut preferred: Vec<&ast::Module> = prelude
++        .iter()
++        .map(|home| {
++            modules
++                .iter()
++                .find(|m| m.name.text == home.name.text)
++                .unwrap_or(home)
++        })
++        .collect();
++    preferred.extend(
++        modules
++            .iter()
++            .filter(|m| !family_names.contains(m.name.text.as_str())),
++    );
++    let plans: Vec<(&ast::Module, Vec<String>)> = preferred
++        .into_iter()
++        .map(|module| -> Result<_> {
++            let mut imports = imports_of(module);
++            if !family_names.contains(module.name.text.as_str())
++                && !imports.iter().any(|name| name == facade)
++            {
++                imports.push(facade.to_string());
++            }
++            // Probe with no prior homes: cyclic/forward instance heads remain
++            // explicitly nonportable. Required value, constructor and class
++            // contracts still determine their complete defining dependencies.
++            let contract = checker.module_iface(&module.name.text, "", &[], &Default::default());
++            for dependency in interface_nominal_dependencies(&contract)? {
++                if !imports.contains(&dependency) {
++                    imports.push(dependency);
++                }
++            }
++            Ok((module, imports))
++        })
++        .collect::<Result<_>>()?;
++    let positions: HashMap<String, usize> = plans
++        .iter()
++        .enumerate()
++        .map(|(index, (module, _))| (module.name.text.clone(), index))
++        .collect();
++    fn visit(
++        index: usize,
++        plans: &[(&ast::Module, Vec<String>)],
++        positions: &HashMap<String, usize>,
++        state: &mut [u8],
++        ordered: &mut Vec<usize>,
++    ) -> Result<()> {
++        match state[index] {
++            2 => return Ok(()),
++            1 => {
++                return Err(Error::plain(format!(
++                    "interface import cycle through {}",
++                    plans[index].0.name.text
++                )))
++            }
++            _ => {}
++        }
++        state[index] = 1;
++        for dependency in &plans[index].1 {
++            if dependency == &plans[index].0.name.text {
++                continue;
++            }
++            if let Some(&next) = positions.get(dependency) {
++                visit(next, plans, positions, state, ordered)?;
++            }
++        }
++        state[index] = 2;
++        ordered.push(index);
++        Ok(())
++    }
++    let mut state = vec![0; plans.len()];
++    let mut ordered = Vec::new();
++    for index in 0..plans.len() {
++        visit(index, &plans, &positions, &mut state, &mut ordered)?;
++    }
++    Ok(ordered
++        .into_iter()
++        .map(|index| plans[index].clone())
++        .collect())
++}
++
+ /// Check a program of one or more modules and elaborate it. `modules` is in
+ /// dependency order (imports first); the last module is the entry module and
+ /// must define `main :: Int`. Returns the program, one interface per module
+-/// (prelude first), and the staging report (captured inputs and generated
++/// in contract dependency order, and the staging report (captured inputs and generated
+ /// declarations) for the artifact manifest.
+ pub fn check_program_multi(
+     prelude: &[ast::Module],
+@@ -15924,7 +16382,7 @@
+     // Interfaces in dependency order: imports are known when built.
+     let mut ifaces = Vec::new();
+     let mut built: Vec<(String, String)> = Vec::new(); // (module, iface_hash)
+-    let mut emit = |c: &Checker, module: &str, imports: &[String]| {
++    let mut emit = |c: &Checker, module: &str, imports: &[String]| -> Result<()> {
+         let mut refs: Vec<(String, String)> = Vec::new();
+         for i in imports {
+             if refs.iter().any(|(m, _)| m == i) {
+@@ -15938,24 +16396,25 @@
+             .get(module)
+             .cloned()
+             .unwrap_or_default();
+-        let iface = c.module_iface(module, &source_hash, &refs);
++        let available = built.iter().map(|(name, _)| name.clone()).collect();
++        let mut iface = c.module_iface(module, &source_hash, &refs, &available);
++        // The embedded family can see earlier kernel declarations even
++        // without a source import. Their nominal contracts are consumed
++        // dependencies too: publish the exact checked-against identities.
++        let nominal_dependencies = interface_nominal_dependencies(&iface)?;
++        for owner in nominal_dependencies {
++            if iface.imports.iter().any(|r| r.module == owner) { continue }
++            let hash = built.iter().find(|(name, _)| name == &owner).map(|(_, hash)| hash.clone())
++                .ok_or_else(|| Error::plain(format!("{module}: defining nominal interface {owner} must be built before its consumer")))?;
++            iface.imports.push(crate::interface::IfaceRef { module: owner, iface_hash: hash });
++        }
+         let hash = iface.iface_hash();
+         built.push((module.to_string(), hash));
+         ifaces.push(iface);
++        Ok(())
+     };
+-    // The prelude family emits in dependency order (each module's
+-    // imports are already built); user modules implicitly import the
+-    // facade.
+-    for p in &family {
+-        let imports = imports_of(p);
+-        emit(&c, &p.name.text, &imports);
+-    }
+-    for m in modules {
+-        let mut imports = imports_of(m);
+-        if !imports.contains(&prelude_name) {
+-            imports.push(prelude_name.clone());
+-        }
+-        emit(&c, &m.name.text, &imports);
++    for (module, imports) in interface_module_order(&c, prelude, modules, &prelude_name)? {
++        emit(&c, &module.name.text, &imports)?;
+     }
+     let diags = std::mem::take(&mut c.diags);
+     // P21's probe (the REPL is backed by the analysis layer): evaluate
+@@ -18747,7 +19206,13 @@
+         use crate::core::{ArithMode, ArithOp, BitOp, CmpOp, IntOp, NatOp, PrimOp, ShiftOp};
+         match op {
+             PrimOp::Nat(nat) => {
+-                let a = big_of(&args[0], "`Nat`")?;
++                // FromI64 consumes a machine word, not a mathematical
++                // integer. Do not decode it as a Big before dispatch.
++                let a = if matches!(nat, NatOp::FromI64) {
++                    Big::zero()
++                } else {
++                    big_of(&args[0], "`Nat`")?
++                };
+                 let b = if args.len() > 1 { big_of(&args[1], "`Nat`")? } else { Big::zero() };
+                 Ok(match nat {
+                     NatOp::Add => big_value(a.add(&b), true),
+@@ -18786,7 +19251,11 @@
+                 })
+             }
+             PrimOp::Int(int) => {
+-                let a = big_of(&args[0], "`Int`")?;
++                let a = if matches!(int, IntOp::FromI64) {
++                    Big::zero()
++                } else {
++                    big_of(&args[0], "`Int`")?
++                };
+                 let b = if args.len() > 1 { big_of(&args[1], "`Int`")? } else { Big::zero() };
+                 Ok(match int {
+                     IntOp::Add => big_value(a.add(&b), false),
+@@ -18814,6 +19283,16 @@
+                         big_value(a, true)
+                     }
+                 })
++            }
++            PrimOp::Conv { from, to, mode: crate::core::ConvMode::Total }
++                if !from.is_float() && !to.is_float() =>
++            {
++                // Widen the source's canonical word, preserving its
++                // signedness, then canonicalize at the destination width.
++                let (from_bits, from_signed) = scalar_shape(from.name()).unwrap();
++                let (to_bits, to_signed) = scalar_shape(to.name()).unwrap();
++                let word = mask_to(from_bits, from_signed, word_of(&args[0], "a machine word")?);
++                Ok(Value::Word(mask_to(to_bits, to_signed, word)))
+             }
+             PrimOp::EqBool => Ok(Value::Bool(
+                 (word_of(&args[0], "`Bool`")? != 0) == (word_of(&args[1], "`Bool`")? != 0),
+@@ -20654,6 +21133,7 @@
+                 ctx.push((format!("c{i}"), ClassApp { class: class.class, args }));
+             }
+             crate::types::Scheme {
++            con_params: Vec::new(),
+             obligs: Vec::new(),
+                 params: tps,
+                 idx_params: Vec::new(),
+--- /dev/null
++++ b/compiler/src/check_interface.rs
+@@ -0,0 +1,407 @@
++// Definition-site contracts for rank-one values and class dictionaries.
++// Kernel regions and closed builtin effects retain their checked syntax.
++// Unsupported dependent and open-row schemes keep `resolved: null`.
++// Display spellings must never be used to guess a nominal's definition.
++
++#[derive(Clone)]
++struct DefinitionScheme {
++    text: String,
++    references: std::collections::BTreeSet<(String, String)>,
++    con_params: Vec<(String, usize)>,
++}
++
++impl Checker {
++    // Inspect supported kind syntax without calling conversion again:
++    // metadata capture must not add new native inference constraints.
++    fn source_contract_kind(&self, kind: &ast::Type) -> Option<ParamKind> {
++        match kind {
++            ast::Type::Con(path, _) if path.parts().as_slice() == ["Type"] => Some(ParamKind::Type),
++            ast::Type::Fun { arg, res, mult: None, eff: None, .. }
++                if matches!(self.source_contract_kind(arg), Some(ParamKind::Type)) => {
++                    match self.source_contract_kind(res)? {
++                        ParamKind::Type => Some(ParamKind::Con(1)),
++                        ParamKind::Con(n) => Some(ParamKind::Con(n + 1)),
++                        _ => None,
++                    }
++                }
++            _ => None,
++        }
++    }
++
++    fn remember_interface_scheme(
++        &mut self, module: &str, name: &str, source: &ast::Type,
++        scheme: &Scheme, inherited: &[ast::TypeBinder],
++    ) {
++        self.remember_source_scheme(module, name, source, scheme, inherited, None, false);
++    }
++
++    fn remember_interface_constructor(
++        &mut self, module: &str, name: &str, source: &ast::Type,
++        scheme: &Scheme, inherited: &[ast::TypeBinder],
++    ) {
++        // A constructor-local binder may be existential. Publishing it as
++        // an ordinary universal would let a pattern's witness escape.
++        if matches!(source, ast::Type::Forall(..)) { return }
++        self.remember_source_scheme(module, name, source, scheme, inherited, None, false);
++    }
++
++    fn remember_interface_instance(&mut self, source: &ast::InstDecl, info: &InstanceInfo, notes: &[(String, ParamKind)]) {
++        // Conditional method preconditions and module arguments must not
++        // disappear when an instance is imported as a dictionary factory.
++        if info.base || !info.method_obligs.is_empty()
++            || info.ctx.iter().any(|c| matches!(c, InstCtx::Oblig(_))) { return }
++        let mut scheme = Scheme::mono(Ty::Adt(info.target.class.clone(), info.target.args.clone()));
++        scheme.params = info.params.clone();
++        scheme.ctx = InstCtx::dicts(&info.ctx);
++        for parameter in &source.params {
++            match self.resolve_binder_kind(&parameter.text, None, notes, parameter.span) {
++                Ok(ParamKind::Type) => {},
++                Ok(ParamKind::Con(arity)) => scheme.con_params.push((parameter.text.clone(), arity)),
++                _ => return,
++            }
++        }
++        let binders = source.params.iter().map(|name| ast::TypeBinder {
++            name: name.clone(), ann: None, implicit: false,
++        }).collect::<Vec<_>>();
++        let ty = ast::Type::Using(source.ctx.clone(), Box::new(source.target.clone()), source.span);
++        self.remember_source_scheme(&info.module, &format!("@instance:{}", info.name),
++            &ty, &scheme, &binders, None, true);
++    }
++
++    fn remember_source_scheme(
++        &mut self, module: &str, name: &str, source: &ast::Type,
++        scheme: &Scheme, inherited: &[ast::TypeBinder], class: Option<&SigInfo>, class_target: bool,
++    ) {
++        if !scheme.idx_params.is_empty() || !scheme.val_params.is_empty()
++            || !scheme.prop_params.is_empty() || !scheme.row_params.is_empty() { return }
++        let mut references = std::collections::BTreeSet::new();
++        let mut vars = Vec::new();
++        let Some(mut prefix) = self.resolved_binders(inherited, scheme, &mut vars) else { return };
++        // Regions inferred from a latent row need binders too, even when
++        // the surface signature omitted an explicit forall (notably main).
++        let mut explicit: Vec<String> = inherited.iter().map(|b| b.name.text.clone()).collect();
++        let mut outer = source;
++        loop {
++            match outer {
++                ast::Type::Forall(binders, body, _) => {
++                    explicit.extend(binders.iter().map(|b| b.name.text.clone()));
++                    outer = body;
++                }
++                ast::Type::Using(_, body, _) => outer = body,
++                _ => break,
++            }
++        }
++        for region in &scheme.region_params {
++            if !explicit.contains(region) {
++                prefix.push(format!("{{{region} :: Region}}"));
++                vars.push(region.clone());
++            }
++        }
++        let mut context = Vec::new();
++        let mut predicate_count = 0;
++
++        if let Some(class) = class {
++            references.insert((class.module.clone(), class.name.clone()));
++            let args = class.params.iter().map(|p| format!(" {p}")).collect::<String>();
++            let mut binder = "dict".to_string();
++            while scheme.ctx.iter().skip(1).any(|(name, _)| name == &binder) { binder.push('_'); }
++            context.push(format!("{binder} :: {}.{}{args}", class.module, class.name));
++        }
++        // Hoist the scheme's outer binders and contexts into one forall.
++        // A method's inherited parameters must not create a nested forall.
++        let mut body = source;
++        loop {
++            match body {
++                ast::Type::Forall(binders, next, _) => {
++                    let Some(extra) = self.resolved_binders(binders, scheme, &mut vars) else { return };
++                    prefix.extend(extra);
++                    body = next;
++                }
++                ast::Type::Using(bounds, next, _) => {
++                    for bound in bounds {
++                        match bound {
++                            ast::Oblig::Class(bound) => {
++                                let Some(class) = self.resolved_source_constraint(bound, scheme, &vars, &mut references) else { return };
++                                context.push(class);
++                            }
++                            ast::Oblig::Pred(_) => predicate_count += 1,
++                            ast::Oblig::Preserves { .. } => return,
++                        }
++                    }
++                    body = next;
++                }
++                _ => break,
++            }
++        }
++        if context.len() != scheme.ctx.len() || predicate_count != scheme.obligs.len() { return }
++        let Some(predicates) = self.resolved_numeric_preconditions(body, scheme) else { return };
++        context.extend(predicates);
++        let text = if class_target { self.resolved_source_class_type(body, scheme, &vars, &mut references) }
++            else { self.resolved_source_type(body, scheme, &vars, &mut references) };
++        let Some(mut text) = text else { return };
++        if !context.is_empty() { text = format!("using ({}) => {text}", context.join(", ")); }
++        if !prefix.is_empty() { text = format!("forall {}. {text}", prefix.join(" ")); }
++        self.interface_source_schemes.insert((module.to_string(), name.to_string()), DefinitionScheme {
++            text, references, con_params: scheme.con_params.clone(),
++        });
++    }
++
++    fn resolved_source_constraint(
++        &self, bound: &ast::Constraint, scheme: &Scheme, vars: &[String],
++        references: &mut std::collections::BTreeSet<(String, String)>,
++    ) -> Option<String> {
++        let app = self.resolved_source_class_application(&bound.class, &bound.args, scheme, vars, references)?;
++        Some(format!("{} :: {app}", bound.name.text))
++    }
++
++    fn resolved_source_class_type(
++        &self, source: &ast::Type, scheme: &Scheme, vars: &[String],
++        references: &mut std::collections::BTreeSet<(String, String)>,
++    ) -> Option<String> {
++        let mut head = source;
++        let mut args = Vec::new();
++        while let ast::Type::App(f, arg, _) = head { args.push((**arg).clone()); head = f; }
++        args.reverse();
++        let ast::Type::Con(class, _) = head else { return None };
++        self.resolved_source_class_application(class, &args, scheme, vars, references)
++    }
++
++    fn resolved_source_class_application(
++        &self, path: &ast::ConPath, arguments: &[ast::Type], scheme: &Scheme, vars: &[String],
++        references: &mut std::collections::BTreeSet<(String, String)>,
++    ) -> Option<String> {
++        let class = self.lookup_sig(path).ok()?;
++        if class.module == "<builtin>" {
++            // Io is a kernel capability, not a nominal declaration in an
++            // imaginary module. Region arguments must retain their kind.
++            if class.name != "Io" || arguments.len() != 1 { return None }
++            let ast::Type::Var(region, _) = &arguments[0] else { return None };
++            return (vars.contains(&region.text) && scheme.region_params.contains(&region.text))
++                .then(|| format!("Io {}", region.text));
++        }
++        if class.param_kinds.iter()
++            .any(|k| !matches!(k, ParamKind::Type | ParamKind::Con(_))) { return None }
++        references.insert((class.module.clone(), class.name.clone()));
++        let args = arguments.iter().map(|ty| self.resolved_source_type(ty, scheme, vars, references))
++            .collect::<Option<Vec<_>>>()?;
++        let args = args.iter().map(|t| format!(" {t}")).collect::<String>();
++        Some(format!("{}.{}{args}", class.module, class.name))
++    }
++
++    fn resolved_binders(&self, binders: &[ast::TypeBinder], scheme: &Scheme, vars: &mut Vec<String>) -> Option<Vec<String>> {
++        let mut out = Vec::new();
++        for binder in binders {
++            let name = &binder.name.text;
++            if vars.contains(name) { return None }
++            // Explicit annotations were checked by the source checker;
++            // inferred kinds come from its resulting scheme.
++            let kind = if scheme.region_params.contains(name) { "Region".to_string() }
++                else if scheme.params.contains(name) {
++                    let arity = scheme.con_params.iter().find(|(n, _)| n == name).map(|(_, n)| *n).unwrap_or(0);
++                    vec!["Type"; arity + 1].join(" -> ")
++                } else { return None };
++            out.push(if binder.implicit { format!("{{{name} :: {kind}}}") } else { format!("({name} :: {kind})") });
++            vars.push(name.clone());
++        }
++        Some(out)
++    }
++
++    fn resolved_source_type(
++        &self, source: &ast::Type, scheme: &Scheme, vars: &[String],
++        references: &mut std::collections::BTreeSet<(String, String)>,
++    ) -> Option<String> {
++        Some(match source {
++            ast::Type::Con(path, _) => {
++                let parts = path.parts();
++                let name = parts.join(".");
++                if parts.len() == 1 && vars.contains(&name) { name }
++                else if parts.as_slice() == ["Io"] { "Io".to_string() }
++                else if parts.len() == 1 && (Scalar::parse(&name).is_some()
++                    || matches!(name.as_str(), "Int" | "Nat" | "Bool" | "Unit" | "Bytes" | "Sym")) { name }
++                else {
++                    let info = self.lookup_type(&parts).ok()?;
++                    // Kernel modalities and application units need richer
++                    // identities than a source data/opaque declaration.
++                    if info.module == "<builtin>" { return None }
++                    references.insert((info.module.clone(), info.name.clone()));
++                    format!("{}.{}", info.module, info.name)
++                }
++            }
++            ast::Type::Var(name, _) if vars.contains(&name.text) => name.text.clone(),
++            // This source signature was already checked by Native.
++            // Literal index syntax is retained; the consumer checks its
++            // actual argument kind and numerical carrier.
++            ast::Type::Num(number, _) => number.clone(),
++            ast::Type::App(f, x, _) => format!("({} {})",
++                self.resolved_source_type(f, scheme, vars, references)?,
++                self.resolved_source_type(x, scheme, vars, references)?),
++            ast::Type::Fun { arg, res, mult: None, eff, .. } => {
++                let effects = match eff {
++                    None => String::new(),
++                    Some(row) => self.resolved_kernel_effect_row(row, scheme, vars)?,
++                };
++                format!("({} ->{} {})", self.resolved_source_type(arg, scheme, vars, references)?,
++                    effects, self.resolved_source_type(res, scheme, vars, references)?)
++            },
++            ast::Type::DepFun(name, domain, None, row, result, _) => {
++                if vars.contains(&name.text) { return None }
++                let domain = self.resolved_source_type(domain, scheme, vars, references)?;
++                let mut bound = vars.to_vec();
++                bound.push(name.text.clone());
++                let effects = match row {
++                    None => String::new(),
++                    Some(row) => self.resolved_kernel_effect_row(row, scheme, &bound)?,
++                };
++                format!("(({} :: {}) ->{} {})", name.text, domain, effects,
++                    self.resolved_source_type(result, scheme, &bound, references)?)
++            }
++            ast::Type::Unit(_) => "()".to_string(),
++            ast::Type::Tuple(items, _) => format!("({})", items.iter()
++                .map(|t| self.resolved_source_type(t, scheme, vars, references))
++                .collect::<Option<Vec<_>>>()?.join(", ")),
++            // Preserve the display contract, with an explicit refusal in
++            // the consumer, rather than erasing an unsupported obligation.
++            _ => return None,
++        })
++    }
++
++    // Use the checked predicates, whose argument positions are normalized
++    // to $aN by conv_scheme. Rebind only actual computational arguments.
++    // Exporting a conditional signature must not guess from display text.
++    fn resolved_numeric_preconditions(&self, mut source: &ast::Type, scheme: &Scheme) -> Option<Vec<String>> {
++        let mut checked = &scheme.ty;
++        let mut names: Vec<Option<String>> = Vec::new();
++        let mut numeric: Vec<String> = Vec::new();
++        loop {
++            let (name, result) = match source {
++                ast::Type::DepFun(name, _, None, _, result, _) => (Some(name.text.clone()), &**result),
++                ast::Type::Fun { res, mult: None, .. } => (None, &**res),
++                _ => break,
++            };
++            let (domain, codomain) = match checked {
++                Ty::Pi { dom, cod, .. } => (&**dom, &**cod),
++                Ty::Fun(dom, _, _, cod) => (&**dom, &**cod),
++                _ => return None,
++            };
++            if let Some(name) = &name {
++                if names.iter().any(|prior| prior.as_ref() == Some(name)) { return None }
++                if matches!(domain, Ty::Nat | Ty::Int) { numeric.push(name.clone()); }
++            }
++            names.push(name);
++            source = result;
++            checked = codomain;
++        }
++        fn index(term: &ITerm, numeric: &[String]) -> bool {
++            match term {
++                ITerm::Var(name) => numeric.contains(name),
++                ITerm::Num(_) => true,
++                ITerm::Bin(_, a, b) => index(a, numeric) && index(b, numeric),
++                _ => false,
++            }
++        }
++        fn predicate(term: &PTerm, numeric: &[String]) -> bool {
++            match term {
++                PTerm::Cmp(_, a, b) => index(a, numeric) && index(b, numeric),
++                // Preserve the checked structural proposition itself.
++                // Calls and other structural vocabularies still need
++                // their own operand contracts; a spelling is not proof.
++                PTerm::Pred(PredFn::NonZero, value) => index(value, numeric),
++                PTerm::And(a, b) | PTerm::Or(a, b) => predicate(a, numeric) && predicate(b, numeric),
++                _ => false,
++            }
++        }
++        let mut out = Vec::new();
++        for obligation in &scheme.obligs {
++            let PropOblig::Pred(original) = obligation else { return None };
++            let mut rebound = original.clone();
++            for (position, name) in names.iter().enumerate() {
++                if let Some(name) = name {
++                    rebound = rebound.subst(&format!("$a{position}"), &ITerm::Var(name.clone()));
++                }
++            }
++            if !predicate(&rebound, &numeric) { return None }
++            out.push(rebound.to_string());
++        }
++        Some(out)
++    }
++
++    fn resolved_kernel_effect_row(&self, row: &ast::EffectRow, scheme: &Scheme, vars: &[String]) -> Option<String> {
++        if row.tail.is_some() { return None }
++        let mut labels = Vec::new();
++        for (path, arguments) in &row.labels {
++            let parts = path.parts();
++            let [name] = parts.as_slice() else { return None };
++            match (*name, arguments.as_slice()) {
++                ("IO" | "Async" | "Cancel" | "Eval", [region])
++                    if vars.contains(&region.text) && scheme.region_params.contains(&region.text) => {
++                    labels.push(format!("{name} {}", region.text));
++                }
++                ("Diverge" | "Blocking", []) => labels.push((*name).to_string()),
++                _ => return None,
++            }
++        }
++        labels.sort();
++        labels.dedup();
++        Some(format!("{{{}}}", labels.join(", ")))
++    }
++
++    // A closed numeric template has only its actual declared parameters
++    // and binder. Calls require a separate defining measure contract.
++    fn resolved_refinement_template(&self, info: &TypeKind) -> Option<crate::interface::RefinementExport> {
++        let r = info.refine.as_ref()?;
++        let carrier = match &r.base {
++            Ty::Nat | Ty::Int | Ty::Bool | Ty::Unit | Ty::Bytes | Ty::Sym | Ty::Prim(_) => r.base.to_string(),
++            Ty::Param(name) if r.params.contains(name) => name.clone(),
++            _ => return None,
++        };
++        let mut names = r.params.clone();
++        names.push(r.binder.clone());
++        fn index(value: &ITerm, names: &[String]) -> bool {
++            match value {
++                ITerm::Var(name) => names.contains(name),
++                ITerm::Num(_) => true,
++                ITerm::Bin(_, a, b) => index(a, names) && index(b, names),
++                _ => false,
++            }
++        }
++        fn predicate(value: &PTerm, names: &[String]) -> bool {
++            match value {
++                PTerm::Cmp(_, a, b) | PTerm::Eq(a, b) => index(a, names) && index(b, names),
++                PTerm::And(a, b) | PTerm::Or(a, b) => predicate(a, names) && predicate(b, names),
++                PTerm::Not(body) => predicate(body, names),
++                PTerm::Pred(PredFn::NonZero, value) => index(value, names),
++                _ => false,
++            }
++        }
++        predicate(&r.pred, &names).then(|| crate::interface::RefinementExport {
++            binder: r.binder.clone(), carrier, predicate: r.pred.to_string(),
++        })
++    }
++
++    fn resolved_interface_scheme(&self, module: &str, name: &str) -> Option<crate::interface::ResolvedScheme> {
++        let source = self.interface_source_schemes.get(&(module.to_string(), name.to_string()))?;
++        let mut nominals = Vec::new();
++        for (module, name) in &source.references {
++            let info = self.types.get(name)?.iter().find(|t| &t.module == module)?;
++            if info.fields.is_some() { return None }
++            let refined = info.refine.is_some();
++            if info.param_kinds.iter().any(|k| match k {
++                ParamKind::Type | ParamKind::Con(_) => false,
++                ParamKind::Val(ty) if refined => !matches!(ty, Ty::Nat | Ty::Int),
++                _ => true,
++            }) { return None }
++            let refinement = if refined { Some(self.resolved_refinement_template(info)?) } else { None };
++            let signature = self.qualified_sigs.contains_key(&(module.clone(), name.clone()));
++            let params = info.refine.as_ref().map(|r| r.params.as_slice()).unwrap_or(&[]);
++            let parameters = self.interface_parameters(module, name, params, &info.param_kinds);
++            nominals.push(crate::interface::NominalContract {
++                refinement,
++                identity: format!("{module}.{name}"),
++                kind: if refined { "refinement" } else if signature { "signature" } else if info.opaque { "opaque" } else { "data" }.to_string(),
++                parameters,
++                constructors: if refined || signature || info.opaque { None } else { Some(info.ctors.iter().map(|(c, _)| format!("{module}.{c}")).collect()) },
++            });
++        }
++        Some(crate::interface::ResolvedScheme { scheme: source.text.clone(), nominals })
++    }
++}
+--- a/compiler/src/check_terms.rs
++++ b/compiler/src/check_terms.rs
+@@ -6542,6 +6542,7 @@
+         }
+         self.gen_locals.insert(l, metas);
+         Scheme {
++            con_params: Vec::new(),
+             obligs: Vec::new(),
+             params: tps,
+             idx_params: Vec::new(),
+@@ -7207,6 +7208,12 @@
+                             let map = binder_maps.entry(tag).or_default();
+                             for (i, sp) in args.iter().enumerate() {
+                                 let b = &parts.fields[i].0;
++                                if !parts.fields.iter().skip(i + 1).any(|(_, t, _)| ty_mentions(t, b)) {
++                                    // Ordinary fields have no name to substitute
++                                    // in later field types. Their row-local
++                                    // pattern binders may differ freely.
++                                    continue;
++                                }
+                                 if let ast::Pat::Var(n, _) = sp {
+                                     match map.get(b) {
+                                         Some(prev) if *prev != n.text => {
+@@ -7222,12 +7229,7 @@
+                                             map.insert(b.clone(), n.text.clone());
+                                         }
+                                     }
+-                                } else if parts
+-                                    .fields
+-                                    .iter()
+-                                    .enumerate()
+-                                    .any(|(j, (_, t, _))| j > i && ty_mentions(t, b))
+-                                {
++                                } else {
+                                     return Err(Error::at(
+                                         sp.span(),
+                                         format!(
+--- a/compiler/src/core.rs
++++ b/compiler/src/core.rs
+@@ -5425,6 +5425,7 @@
+     changed: bool,
+     fuel_left: u32,
+     fuel_reported: bool,
++    residual_limit: usize,
+ }
+ 
+ impl Driver<'_> {
+@@ -5984,10 +5985,18 @@
+             self.site("unfold", Some("opaque boundary: a replaceable dispatch boundary residualizes".to_string()));
+             return None;
+         }
+-        let f = self.defs.get(&g.0)?.clone();
++        let f = self.defs.get(&g.0)?;
+         if f.prim.is_some() || f.ctor.is_some() || f.meta.prim_body || args.len() != f.params.len() {
+             return None;
+         }
++        // Do not even copy a previously optimized callee that exceeds
++        // this caller's entire residual allowance. Otherwise expansion
++        // can multiply across units before the round-level whistle runs.
++        if size_of(&f.body) > self.residual_limit {
++            self.site("unfold", Some("whistle: the callee exceeds the residual measure bound".to_string()));
++            return None;
++        }
++        let f = f.clone();
+         if self.stack.iter().any(|s| s == &g.0) {
+             self.site("unfold", Some("whistle: a repeated configuration folds to a residual call".to_string()));
+             return None;
+@@ -6597,6 +6606,8 @@
+         if orig.prim.is_some() || orig.ctor.is_some() {
+             continue;
+         }
++        let base_size = size_of(&orig.body).max(1);
++        let residual_limit = base_size.saturating_mul(profile.measure.max(1) as usize);
+         let mut drv = Driver {
+             cx: &cx,
+             defs: defs.clone(),
+@@ -6616,22 +6627,33 @@
+             changed: false,
+             fuel_left: profile.fuel,
+             fuel_reported: false,
++            residual_limit,
+         };
+         let mut body = orig.body.clone();
+-        let base_size = size_of(&body).max(1);
+         let mut rounds = 0;
+         loop {
++            let previous = body.clone();
++            let previous_fns = drv.new_fns.len();
++            let previous_fusions = drv.fused.len();
++            let previous_sites = drv.sites.len();
+             drv.changed = false;
+             drv.drive(&mut body);
+             drv.merge_cases(&mut body);
+             drv.push_cases(&mut body);
+             drv.dead_alts(&mut body);
+             rounds += 1;
++            if size_of(&body) > residual_limit {
++                // A whistle must residualize the bounded configuration,
++                // not install the expansion that triggered it. Helpers
++                // created only by the rejected round are discarded too.
++                body = previous;
++                drv.new_fns.truncate(previous_fns);
++                drv.fused.truncate(previous_fusions);
++                drv.sites.truncate(previous_sites);
++                drv.site("unfold", Some("whistle: the residual grew past the measure bound; retained the preceding residual".to_string()));
++                break;
++            }
+             if !drv.changed || rounds >= 8 {
+-                break;
+-            }
+-            if size_of(&body) > base_size * profile.measure.max(1) as usize {
+-                drv.site("unfold", Some("whistle: the residual grew past the measure bound".to_string()));
+                 break;
+             }
+         }
+@@ -6730,6 +6752,63 @@
+ #[cfg(test)]
+ mod tests {
+     use super::*;
++
++    #[test]
++    fn optimizer_measure_bounds_transitive_unfolding() {
++        // Each caller has two calls to the preceding unit. Feeding an
++        // already expanded callee into the next caller used to multiply
++        // residuals even after the measure whistle had fired.
++        let mut fns = Vec::new();
++        for i in 0..12 {
++            let branch = |value| if i == 0 {
++                Core::Int(value)
++            } else {
++                Core::App(
++                    Box::new(Core::Global(GlobalId(format!("Growth.f{}", i - 1)), vec![])),
++                    vec![Core::Var(LocalId(0))],
++                )
++            };
++            fns.push(FnDef {
++                id: GlobalId(format!("Growth.f{i}")),
++                params: vec!["condition".into()],
++                body: Core::If(
++                    Box::new(Core::Var(LocalId(0))),
++                    CBranch::weighted(None, branch(7)),
++                    CBranch::weighted(None, branch(9)),
++                ),
++                prim: None,
++                ctor: None,
++                hints: FnHints::default(),
++                meta: FnMeta { pure: true, ..FnMeta::default() },
++                repr: UnitRepr { params: vec![Class::Raw], ..UnitRepr::default() },
++            });
++        }
++        let mut program = Program {
++            fns, instances: vec![], main: None, rewrites: vec![],
++            plans: Default::default(), foreigns: Default::default(),
++            prims: vec![], laws: vec![],
++        };
++        for reverse in [false, true] {
++            if reverse { program.fns.reverse(); }
++            for measure in [1, 2, 8] {
++                let mut profile = TargetProfile::native();
++                profile.measure = measure;
++                let (residual, report) = optimize(&program, &profile).expect("bounded optimization");
++                for (original, result) in program.fns.iter().zip(&residual.fns) {
++                    assert!(size_of(&result.body) <= size_of(&original.body) * measure as usize,
++                        "{} grew from {} to {} nodes with measure {measure}",
++                        original.id.0, size_of(&original.body), size_of(&result.body));
++                }
++                if measure == 1 {
++                    assert!(report.sites.iter().any(|site|
++                        site.stop.as_deref().is_some_and(|reason| reason.contains("measure bound"))));
++                    assert!(!report.sites.iter().any(|site|
++                        site.kind == "unfold" && site.stop.is_none()),
++                        "discarded expansions must not be reported as installed");
++                }
++            }
++        }
++    }
+ 
+     /// Every operation's symbol parses back to the same operation.
+     #[test]
+--- a/compiler/src/driver.rs
++++ b/compiler/src/driver.rs
+@@ -282,6 +282,7 @@
+ pub struct PreludeSources {
+     pub modules: Vec<crate::ast::Module>,
+     pub fixities: HashMap<String, FixityTable>,
++    pub exported_fixities: HashMap<String, FixityTable>,
+     pub base: FixityTable,
+ }
+ 
+@@ -289,24 +290,34 @@
+ /// vocabulary appended to the facade's source file (the vocabulary
+ /// declares inside the facade and joins its export list).
+ pub fn parse_prelude(adapters: &[crate::interface::WitAdapter]) -> Result<PreludeSources> {
+-    let empty = FixityTable::new();
+     let facade_src = prelude_source_with(adapters);
+-    let facade_parsed = parse_source(&facade_src, "Prelude.cinch", &empty, &HashMap::new())?;
+-    let base = facade_parsed
+-        .fixities
++    let mut headers = Vec::new();
++    let facade_at = base_package().facade_index();
++    for (i, (path, source)) in prelude_sources().into_iter().enumerate() {
++        let source = if i == facade_at { facade_src.as_str() } else { source };
++        let toks = layout::layout(lexer::lex(source)?)?;
++        headers.extend(crate::parser::fixity_headers(&toks)
++            .map_err(|e| Error::plain(format!("{path}: {e}")))?);
++    }
++    let mut exported_fixities = crate::parser::export_fixity_headers(&headers, &HashMap::new())?;
++    let base = exported_fixities
+         .get("Prelude")
+         .cloned()
+         .unwrap_or_default();
++    let facade_parsed = parse_source(&facade_src, "Prelude.cinch", &base, &exported_fixities)?;
+     let mut fixities = facade_parsed.fixities.clone();
+     let mut early: Vec<crate::ast::Module> = Vec::new();
+     let mut late: Vec<crate::ast::Module> = Vec::new();
+-    let mut tables: HashMap<String, FixityTable> = HashMap::new();
++    let mut tables = exported_fixities.clone();
+     let mut parse_into =
+         |src: &str, path: &str, out: &mut Vec<crate::ast::Module>| -> Result<()> {
+             let parsed = parse_source(src, path, &base, &tables)?;
+             for (m, f) in &parsed.fixities {
+                 fixities.insert(m.clone(), f.clone());
++            }
++            for (m, f) in &parsed.exported_fixities {
+                 tables.insert(m.clone(), f.clone());
++                exported_fixities.insert(m.clone(), f.clone());
+             }
+             out.extend(parsed.modules);
+             Ok(())
+@@ -317,7 +328,6 @@
+     // is parsed above, because ITS fixity table is the base table every
+     // module parses against; every module after the facade is a late
+     // home (checked after it, resolving old-surface names through it).
+-    let facade_at = base_package().facade_index();
+     for (i, (path, src)) in prelude_sources().into_iter().enumerate() {
+         if i == facade_at {
+             continue;
+@@ -339,6 +349,7 @@
+     Ok(PreludeSources {
+         modules,
+         fixities,
++        exported_fixities,
+         base,
+     })
+ }
+@@ -1375,7 +1386,7 @@
+     // `design/compiled-interface-metadata.md` section 2.1, rule 3), so
+     // `import Algebra.Semigroup` supplies `<>`'s fixity exactly as it
+     // supplies the name, and no consumer redeclares it.
+-    let user = parse_source(user_src, user_file, &prelude.base, &prelude.fixities)?;
++    let user = parse_source(user_src, user_file, &prelude.base, &prelude.exported_fixities)?;
+     let mut hashes = HashMap::new();
+     let mut files = HashMap::new();
+     let mut fixities = prelude.fixities.clone();
+@@ -1704,6 +1715,7 @@
+     let prelude = parse_prelude(&adapters)?;
+     let prelude_fixities = prelude.base.clone();
+     let mut module_fixities: HashMap<String, FixityTable> = prelude.fixities.clone();
++    let mut exported_fixities = prelude.exported_fixities.clone();
+     let mut parsed_by_file: HashMap<String, ParsedModules> = HashMap::new();
+     let mut modules: Vec<crate::ast::Module> = Vec::new();
+     // Each file parses once, at the position of its last module in
+@@ -1714,9 +1726,12 @@
+         let key = file.display().to_string();
+         if !parsed_by_file.contains_key(&key) {
+             let src = &project.sources[&key];
+-            let parsed = parse_source(src, &key, &prelude_fixities, &module_fixities)?;
++            let parsed = parse_source(src, &key, &prelude_fixities, &exported_fixities)?;
+             for (m, f) in &parsed.fixities {
+                 module_fixities.insert(m.clone(), f.clone());
++            }
++            for (m, f) in &parsed.exported_fixities {
++                exported_fixities.insert(m.clone(), f.clone());
+             }
+             parsed_by_file.insert(key, parsed);
+         }
+--- a/compiler/src/incremental.rs
++++ b/compiler/src/incremental.rs
+@@ -1214,15 +1214,19 @@
+         self.prelude_order = prelude.modules.iter().map(|m| m.name.text.clone()).collect();
+         let prelude_fixities = prelude.base.clone();
+         let mut module_fixities: HashMap<String, FixityTable> = prelude.fixities.clone();
++        let mut exported_fixities = prelude.exported_fixities.clone();
+         let mut parsed_by_file: HashMap<String, crate::parser::ParsedModules> = HashMap::new();
+         let mut modules: Vec<crate::ast::Module> = Vec::new();
+         for name in slice {
+             let file = self.module_file[name].clone();
+             if !parsed_by_file.contains_key(&file) {
+                 let src = self.texts[&file].clone();
+-                let parsed = parse_source(&src, &file, &prelude_fixities, &module_fixities)?;
++                let parsed = parse_source(&src, &file, &prelude_fixities, &exported_fixities)?;
+                 for (m, f) in &parsed.fixities {
+                     module_fixities.insert(m.clone(), f.clone());
++                }
++                for (m, f) in &parsed.exported_fixities {
++                    exported_fixities.insert(m.clone(), f.clone());
+                 }
+                 parsed_by_file.insert(file.clone(), parsed);
+             }
+@@ -2147,7 +2151,7 @@
+     ) -> Result<crate::parser::ParsedModules> {
+         let adapters = self.wit.clone();
+         let prelude = parse_prelude(&adapters)?;
+-        let mut tables: HashMap<String, FixityTable> = prelude.fixities.clone();
++        let mut tables = prelude.exported_fixities.clone();
+         // Thread the fixities of every file that precedes this one in
+         // project order (dependency order: imports first).
+         let order_files: Vec<String> = self
+@@ -2161,7 +2165,7 @@
+             }
+             let Some(t) = self.texts.get(f) else { continue };
+             if let Ok(pm) = parse_source(t, f, &prelude.base, &tables) {
+-                for (m, fix) in &pm.fixities {
++                for (m, fix) in &pm.exported_fixities {
+                     tables.insert(m.clone(), fix.clone());
+                 }
+             }
+--- a/compiler/src/interface.rs
++++ b/compiler/src/interface.rs
+@@ -15,7 +15,10 @@
+ use std::collections::BTreeMap;
+ use std::fmt;
+ 
+-pub const SCHEMA_VERSION: u32 = 1;
++/// 5: definition-site class contexts, method slots and resolved method schemes.
++/// 4: occurrence-resolved pure schemes and their private nominal contracts.
++/// 3: declaration kinds, constructor schemes and class export names.
++pub const SCHEMA_VERSION: u32 = 7;
+ /// 5: negative counts are atomic (mark-on-spawn, `cinch_mark_mt`,
+ /// `cinch_dup_mt`/`cinch_drop_mt`); joins hand results out once;
+ /// `cinch_reclaim_enable`; the quote encoder gains `SET`/`DUP`/`DROP`; one
+@@ -85,6 +88,14 @@
+     let by_module: BTreeMap<&str, &Iface> =
+         ifaces.iter().map(|f| (f.module.as_str(), f)).collect();
+     for f in ifaces {
++        let mut reachable = std::collections::BTreeSet::new();
++        let mut pending = vec![f.module.as_str()];
++        while let Some(module) = pending.pop() {
++            if !reachable.insert(module) { continue }
++            if let Some(interface) = by_module.get(module) {
++                pending.extend(interface.imports.iter().map(|i| i.module.as_str()));
++            }
++        }
+         for imp in &f.imports {
+             match by_module.get(imp.module.as_str()) {
+                 None => {
+@@ -103,8 +114,29 @@
+                 }
+             }
+         }
++        for signature in &f.exports.signatures {
++            let (owner, _) = signature.identity.rsplit_once('.').ok_or_else(||
++                CoherenceError(format!("signature {} has no defining module", signature.identity)))?;
++            if !reachable.contains(owner) {
++                return Err(CoherenceError(format!("signature {} is outside the checked dependency closure", signature.identity)));
++            }
++            let defining = by_module.get(owner).and_then(|f| f.exports.signatures.iter()
++                .find(|s| s.identity == signature.identity)).ok_or_else(||
++                    CoherenceError(format!("signature {} has no defining contract", signature.identity)))?;
++            if signature_contract(signature) != signature_contract(defining) {
++                return Err(CoherenceError(format!("conflicting defining signature contract: {}", signature.identity)));
++            }
++        }
+     }
+     Ok(())
++}
++
++fn signature_contract(signature: &SigExport) -> SigExport {
++    let mut contract = signature.clone();
++    contract.name.clear();
++    contract.exports.clear();
++    for method in &mut contract.methods { method.exports.clear(); }
++    contract
+ }
+ 
+ /// Order modules so every import precedes its importers; detect cycles.
+@@ -152,33 +184,85 @@
+     /// Canonical rendering of the scheme (quantifiers, `using` context,
+     /// type with effect rows).
+     pub scheme: String,
++    pub resolved: Option<ResolvedScheme>,
+     pub symbol: String,
++    /// Function arrows plus dictionary and implicit value parameters.
+     pub arity: u64,
+ }
+ 
+ #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+ pub struct CtorExport {
+     pub name: String,
++    pub symbol: String,
++    pub scheme: String,
++    pub resolved: Option<ResolvedScheme>,
+     pub tag: u64,
+     pub fields: Vec<String>,
+     pub erased: Vec<bool>,
+ }
+ 
++/// A scheme whose nominal occurrences were resolved at the definition site.
++/// `None` on an export means its richer obligations still require a port;
++/// consumers must not infer identities from the display scheme instead.
++#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
++pub struct ResolvedScheme {
++    pub scheme: String,
++    pub nominals: Vec<NominalContract>,
++}
++
++#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
++pub struct NominalContract {
++    pub identity: String,
++    pub kind: String,
++    pub parameters: Vec<ParameterExport>,
++    /// Complete defining constructor identities, including private ones.
++    /// This grants no source names or field access. Opaque types and
++    /// signature dictionary types use None.
++    pub constructors: Option<Vec<String>>,
++    /// The checked defining template for a refinement, including private
++    /// refinements mentioned by an exported value. It grants no source names.
++    pub refinement: Option<RefinementExport>,
++}
++
+ #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+ pub struct TypeExport {
+     pub name: String,
++    pub identity: String,
+     pub params: Vec<String>,
+-    /// `data`, `record`, or `opaque`.
++    pub parameters: Vec<ParameterExport>,
++    /// `data`, `record`, `refinement`, or `opaque`.
+     pub kind: String,
+     pub ctors: Vec<CtorExport>,
+     /// Record field names in declaration order.
+     pub fields: Vec<String>,
++    pub refinement: Option<RefinementExport>,
++}
++
++#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
++pub struct ParameterExport {
++    pub name: String,
++    pub kind: String,
++    pub implicit: bool,
++}
++
++#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
++pub struct RefinementExport {
++    pub binder: String,
++    pub carrier: String,
++    pub predicate: String,
+ }
+ 
+ #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+ pub struct MethodExport {
+     pub name: String,
++    /// Native dictionary slot, in declaration order. It is part of the ABI
++    /// contract even when no source spelling exports this method.
++    pub slot: u64,
++    /// Public spellings of this method in the exporting facade. Empty
++    /// for a private method retained as part of its class's contract.
++    pub exports: Vec<String>,
+     pub scheme: String,
++    pub resolved: Option<ResolvedScheme>,
+     /// The identity of the method's default, when the class gives one:
+     /// an instance that omits the method inlines the default, so the
+     /// default is part of the class's contract.
+@@ -188,7 +272,10 @@
+ #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+ pub struct SigExport {
+     pub name: String,
++    pub identity: String,
++    pub exports: Vec<String>,
+     pub params: Vec<String>,
++    pub parameters: Vec<ParameterExport>,
+     pub methods: Vec<MethodExport>,
+ }
+ 
+@@ -197,6 +284,10 @@
+     pub id: String,
+     pub class: String,
+     pub target: String,
++    /// Pure dictionary factory scheme, with canonical head/context
++    /// identities. Null preserves unsupported proof or family dependencies.
++    pub resolved: Option<ResolvedScheme>,
++    pub method_contracts: Vec<InstanceMethodContract>,
+     pub ctx: Vec<String>,
+     pub methods: Vec<String>,
+     /// Whether automatic resolution may select this instance (default
+@@ -204,6 +295,15 @@
+     /// dictionary is selected by name and may coexist with other
+     /// implementations of the same class).
+     pub implicit: bool,
++}
++
++#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
++pub struct InstanceMethodContract {
++    pub slot: u64,
++    pub name: String,
++    /// Retains positional binders and proof preconditions. This remains a
++    /// display contract until dependent occurrence identities are ported.
++    pub scheme: String,
+ }
+ 
+ /// One instantiation unit of the module (`import M (args) as N`, module
+@@ -505,6 +605,7 @@
+                     JsonValue::obj([
+                         ("name", (&v.name).into()),
+                         ("scheme", (&v.scheme).into()),
++                        ("resolved", resolved_scheme_json(v.resolved.as_ref())),
+                         ("symbol", (&v.symbol).into()),
+                         ("arity", v.arity.into()),
+                     ])
+@@ -515,13 +616,25 @@
+                 JsonValue::arr(&types, |t| {
+                     JsonValue::obj([
+                         ("name", (&t.name).into()),
++                        ("identity", (&t.identity).into()),
+                         ("params", (&t.params).into()),
++                        ("parameters", JsonValue::arr(&t.parameters, parameter_json)),
+                         ("kind", (&t.kind).into()),
++                        ("refinement", t.refinement.as_ref().map_or(JsonValue::Null, |r| {
++                            JsonValue::obj([
++                                ("binder", (&r.binder).into()),
++                                ("carrier", (&r.carrier).into()),
++                                ("predicate", (&r.predicate).into()),
++                            ])
++                        })),
+                         (
+                             "ctors",
+                             JsonValue::arr(&t.ctors, |c| {
+                                 JsonValue::obj([
+                                     ("name", (&c.name).into()),
++                                    ("symbol", (&c.symbol).into()),
++                                    ("scheme", (&c.scheme).into()),
++                                    ("resolved", resolved_scheme_json(c.resolved.as_ref())),
+                                     ("tag", c.tag.into()),
+                                     ("fields", (&c.fields).into()),
+                                     ("erased", (&c.erased).into()),
+@@ -537,13 +650,19 @@
+                 JsonValue::arr(&sigs, |s| {
+                     JsonValue::obj([
+                         ("name", (&s.name).into()),
++                        ("identity", (&s.identity).into()),
++                        ("exports", (&s.exports).into()),
+                         ("params", (&s.params).into()),
++                        ("parameters", JsonValue::arr(&s.parameters, parameter_json)),
+                         (
+                             "methods",
+                             JsonValue::arr(&s.methods, |m| {
+                                 let mut o = JsonValue::obj([
+                                     ("name", (&m.name).into()),
++                                    ("exports", (&m.exports).into()),
+                                     ("scheme", (&m.scheme).into()),
++                                    ("slot", m.slot.into()),
++                                    ("resolved", resolved_scheme_json(m.resolved.as_ref())),
+                                 ]);
+                                 if let (JsonValue::Obj(map), Some(d)) = (&mut o, &m.default) {
+                                     map.insert("default".to_string(), d.into());
+@@ -557,10 +676,16 @@
+             (
+                 "instances",
+                 JsonValue::arr(&insts, |inst| {
++                    let mut method_contracts = inst.method_contracts.clone();
++                    method_contracts.sort();
+                     JsonValue::obj([
+                         ("id", (&inst.id).into()),
+                         ("class", (&inst.class).into()),
+                         ("target", (&inst.target).into()),
++                        ("resolved", resolved_scheme_json(inst.resolved.as_ref())),
++                        ("method_contracts", JsonValue::arr(&method_contracts, |method| JsonValue::obj([
++                            ("slot", method.slot.into()), ("name", (&method.name).into()), ("scheme", (&method.scheme).into()),
++                        ]))),
+                         ("ctx", (&inst.ctx).into()),
+                         ("methods", (&inst.methods).into()),
+                         ("implicit", inst.implicit.into()),
+@@ -787,6 +912,7 @@
+             values.push(ValueExport {
+                 name: field_str(o, "name")?,
+                 scheme: field_str(o, "scheme")?,
++                resolved: field_resolved_scheme(o)?,
+                 symbol: field_str(o, "symbol")?,
+                 arity: field_num(o, "arity")?,
+             });
+@@ -799,6 +925,9 @@
+                 let co = c.as_object().map_err(|_| ParseError("ctor entry".into()))?;
+                 ctors.push(CtorExport {
+                     name: field_str(co, "name")?,
++                    symbol: field_str(co, "symbol")?,
++                    scheme: field_str(co, "scheme")?,
++                    resolved: field_resolved_scheme(co)?,
+                     tag: field_num(co, "tag")?,
+                     fields: field_list(co, "fields")?,
+                     erased: co
+@@ -810,13 +939,37 @@
+                         .collect::<Result<Vec<_>, _>>()?,
+                 });
+             }
+-            types.push(TypeExport {
++            let exported = TypeExport {
+                 name: field_str(o, "name")?,
++                identity: field_str(o, "identity")?,
+                 params: field_list(o, "params")?,
++                parameters: field_parameters(o)?,
+                 kind: field_str(o, "kind")?,
+                 ctors,
+                 fields: field_list(o, "fields")?,
+-            });
++                refinement: match o.get("refinement") {
++                    Some(JsonValue::Null) => None,
++                    Some(value) => {
++                        let r = value.as_object()?;
++                        Some(RefinementExport {
++                            binder: field_str(r, "binder")?,
++                            carrier: field_str(r, "carrier")?,
++                            predicate: field_str(r, "predicate")?,
++                        })
++                    }
++                    None => return Err(ParseError("refinement".into())),
++                },
++            };
++            if (exported.kind == "refinement") != exported.refinement.is_some() {
++                return Err(ParseError("a refinement type must publish its definition".into()));
++            }
++            if exported.identity.is_empty() || exported.params != exported.parameters.iter().map(|p| p.name.clone()).collect::<Vec<_>>() {
++                return Err(ParseError("type identity and parameter metadata must be complete".into()));
++            }
++            if exported.ctors.iter().any(|c| c.symbol.is_empty() || c.scheme.is_empty() || c.fields.len() != c.erased.len()) {
++                return Err(ParseError("constructor contract is incomplete".into()));
++            }
++            types.push(exported);
+         }
+         let mut signatures = Vec::new();
+         for item in ex_get("signatures")?.as_array()? {
+@@ -826,35 +979,68 @@
+                 let mo = m.as_object().map_err(|_| ParseError("method entry".into()))?;
+                 methods.push(MethodExport {
+                     name: field_str(mo, "name")?,
++                    slot: field_num(mo, "slot")?,
++                    exports: field_list(mo, "exports")?,
+                     scheme: field_str(mo, "scheme")?,
++                    resolved: field_resolved_scheme(mo)?,
+                     default: match mo.get("default") {
+                         Some(d) => Some(d.as_str()?.to_string()),
+                         None => None,
+                     },
+                 });
++                let method = methods.last().unwrap();
++                if method.slot != (methods.len() - 1) as u64 || method.name.is_empty()
++                    || method.scheme.is_empty()
++                    || method.default.as_ref().is_some_and(|id| id.is_empty())
++                    || methods[..methods.len() - 1].iter().any(|m| m.name == method.name) {
++                    return Err(ParseError("method dictionary slots must be complete and in declaration order".into()));
++                }
+             }
+             signatures.push(SigExport {
+                 name: field_str(o, "name")?,
++                identity: field_str(o, "identity")?,
++                exports: field_list(o, "exports")?,
+                 params: field_list(o, "params")?,
++                parameters: field_parameters(o)?,
+                 methods,
+             });
++            let signature = signatures.last().unwrap();
++            if signature.identity.is_empty() || signature.params != signature.parameters.iter().map(|p| p.name.clone()).collect::<Vec<_>>() {
++                return Err(ParseError("signature identity and parameter metadata must be complete".into()));
++            }
++            if signatures[..signatures.len() - 1].iter().any(|s| s.identity == signature.identity) {
++                return Err(ParseError("duplicate defining signature identity".into()));
++            }
+         }
+         let mut instances = Vec::new();
+         for item in ex_get("instances")?.as_array()? {
+             let o = item.as_object().map_err(|_| ParseError("instance entry".into()))?;
++            let mut method_contracts: Vec<InstanceMethodContract> = Vec::new();
++            for row in o.get("method_contracts").ok_or_else(|| ParseError("instance method contracts".into()))?.as_array()? {
++                let row = row.as_object()?;
++                let contract = InstanceMethodContract { slot: field_num(row, "slot")?, name: field_str(row, "name")?, scheme: field_str(row, "scheme")? };
++                if contract.name.is_empty() || contract.scheme.is_empty()
++                    || method_contracts.iter().any(|m| m.slot == contract.slot || m.name == contract.name) {
++                    return Err(ParseError("invalid instance method contract".into()));
++                }
++                method_contracts.push(contract);
++            }
+             instances.push(InstanceExport {
+                 id: field_str(o, "id")?,
+                 class: field_str(o, "class")?,
+                 target: field_str(o, "target")?,
++                resolved: field_resolved_scheme(o)?,
++                method_contracts,
+                 ctx: field_list(o, "ctx")?,
+                 methods: field_list(o, "methods")?,
+-                // A document from before explicit dictionaries records
+-                // only implicitly resolvable instances.
+-                implicit: match o.get("implicit") {
+-                    Some(v) => v.as_bool()?,
+-                    None => true,
+-                },
++                implicit: field_bool(o, "implicit")?,
+             });
++            let instance = instances.last().unwrap();
++            if instance.id.is_empty() || instance.class.is_empty() || instance.target.is_empty()
++                || instances[..instances.len() - 1].iter().any(|i| i.id == instance.id)
++                || (!instance.method_contracts.is_empty() && instance.resolved.is_some()) {
++                return Err(ParseError("invalid instance contract or unresolved method preconditions".into()));
++            }
+         }
+         let mut fixities = Vec::new();
+         for item in ex_get("fixities")?.as_array()? {
+@@ -1353,6 +1539,109 @@
+ }
+ 
+ /// One foreign parameter or result's binding contract.
++fn parameter_json(p: &ParameterExport) -> JsonValue {
++    JsonValue::obj([
++        ("name", (&p.name).into()),
++        ("kind", (&p.kind).into()),
++        ("implicit", p.implicit.into()),
++    ])
++}
++
++fn resolved_scheme_json(scheme: Option<&ResolvedScheme>) -> JsonValue {
++    let Some(scheme) = scheme else { return JsonValue::Null };
++    let mut nominals = scheme.nominals.clone();
++    nominals.sort();
++    JsonValue::obj([
++        ("scheme", (&scheme.scheme).into()),
++        ("nominals", JsonValue::arr(&nominals, |n| JsonValue::obj([
++            ("identity", (&n.identity).into()),
++            ("kind", (&n.kind).into()),
++            ("params", n.parameters.iter().map(|p| p.name.clone()).collect::<Vec<_>>().into()),
++            ("parameters", JsonValue::arr(&n.parameters, |p| JsonValue::obj([
++                ("name", (&p.name).into()), ("kind", (&p.kind).into()), ("implicit", p.implicit.into()),
++            ]))),
++            ("constructors", n.constructors.clone().into()),
++            ("refinement", match &n.refinement {
++                None => JsonValue::Null,
++                Some(r) => JsonValue::obj([
++                    ("binder", (&r.binder).into()),
++                    ("carrier", (&r.carrier).into()),
++                    ("predicate", (&r.predicate).into()),
++                ]),
++            }),
++        ]))),
++    ])
++}
++
++fn field_resolved_scheme(o: &BTreeMap<String, JsonValue>) -> Result<Option<ResolvedScheme>, ParseError> {
++    let value = o.get("resolved").ok_or_else(|| ParseError("resolved scheme".into()))?;
++    if matches!(value, JsonValue::Null) { return Ok(None) }
++    let value = value.as_object()?;
++    let scheme = field_str(value, "scheme")?;
++    if scheme.is_empty() { return Err(ParseError("empty resolved scheme".into())) }
++    let rows = value.get("nominals").ok_or_else(|| ParseError("nominals".into()))?.as_array()?;
++    let mut nominals: Vec<NominalContract> = Vec::new();
++    for row in rows {
++        let row = row.as_object()?;
++        let identity = field_str(row, "identity")?;
++        let kind = field_str(row, "kind")?;
++        let parameters = field_parameters(row)?;
++        if identity.is_empty() || nominals.iter().any(|n| n.identity == identity)
++            || !matches!(kind.as_str(), "data" | "opaque" | "signature" | "refinement")
++            || field_list(row, "params")? != parameters.iter().map(|p| p.name.clone()).collect::<Vec<_>>() {
++            return Err(ParseError("invalid resolved nominal contract".into()));
++        }
++        let constructors = match row.get("constructors") {
++            Some(JsonValue::Null) if matches!(kind.as_str(), "opaque" | "signature" | "refinement") => None,
++            Some(JsonValue::Arr(items)) if kind == "data" => {
++                let mut symbols = Vec::new();
++                for item in items {
++                    let symbol = item.as_str()?.to_string();
++                    if symbol.is_empty() || symbols.contains(&symbol) { return Err(ParseError("invalid defining constructor set".into())) }
++                    symbols.push(symbol);
++                }
++                Some(symbols)
++            }
++            _ => return Err(ParseError("invalid defining constructor set".into())),
++        };
++        let refinement = match row.get("refinement") {
++            Some(JsonValue::Null) if kind != "refinement" => None,
++            Some(value) if kind == "refinement" => {
++                let r = value.as_object()?;
++                let binder = field_str(r, "binder")?;
++                let carrier = field_str(r, "carrier")?;
++                let predicate = field_str(r, "predicate")?;
++                if binder.is_empty() || carrier.is_empty() || predicate.is_empty()
++                    || parameters.iter().any(|p| p.name == binder) {
++                    return Err(ParseError("invalid defining refinement template".into()));
++                }
++                Some(RefinementExport { binder, carrier, predicate })
++            }
++            _ => return Err(ParseError("inconsistent defining refinement payload".into())),
++        };
++        nominals.push(NominalContract { identity, kind, parameters, constructors, refinement });
++    }
++    Ok(Some(ResolvedScheme { scheme, nominals }))
++}
++
++fn field_parameters(o: &BTreeMap<String, JsonValue>) -> Result<Vec<ParameterExport>, ParseError> {
++    let rows = o.get("parameters").ok_or_else(|| ParseError("parameters".into()))?.as_array()?;
++    let mut params: Vec<ParameterExport> = Vec::new();
++    for row in rows {
++        let row = row.as_object()?;
++        let parameter = ParameterExport {
++            name: field_str(row, "name")?,
++            kind: field_str(row, "kind")?,
++            implicit: row.get("implicit").ok_or_else(|| ParseError("implicit".into()))?.as_bool()?,
++        };
++        if parameter.name.is_empty() || parameter.kind.is_empty() || params.iter().any(|p| p.name == parameter.name) {
++            return Err(ParseError("invalid declaration parameter metadata".into()));
++        }
++        params.push(parameter);
++    }
++    Ok(params)
++}
++
+ fn foreign_param_json(p: &ForeignParam) -> JsonValue {
+     JsonValue::obj([
+         ("type", (&p.ty).into()),
+@@ -1644,39 +1933,52 @@
+         f.exports.values.push(ValueExport {
+             name: "main".into(),
+             scheme: "Int".into(),
++            resolved: None,
+             symbol: "Main.main".into(),
+             arity: 0,
+         });
+         f.exports.values.push(ValueExport {
+             name: "plus".into(),
+             scheme: "forall a. using (add :: Add a) => a -> a -> a".into(),
++            resolved: None,
+             symbol: "Main.plus".into(),
+             arity: 3,
+         });
+         f.exports.types.push(TypeExport {
+             name: "Tree".into(),
++            identity: "Main.Tree".into(),
+             params: vec!["a".into()],
++            parameters: vec![ParameterExport { name: "a".into(), kind: "Type".into(), implicit: false }],
+             kind: "data".into(),
+             ctors: vec![
+                 CtorExport {
+                     name: "Leaf".into(),
++                    symbol: "Main.Leaf".into(),
++                    scheme: "forall a. a -> Tree a".into(),
++                    resolved: None,
+                     tag: 0,
+                     fields: vec!["a".into()],
+                     erased: vec![false],
+                 },
+                 CtorExport {
+                     name: "Node".into(),
++                    symbol: "Main.Node".into(),
++                    scheme: "forall a. Tree a -> Tree a -> Tree a".into(),
++                    resolved: None,
+                     tag: 1,
+                     fields: vec!["Tree a".into(), "Tree a".into()],
+                     erased: vec![false, false],
+                 },
+             ],
+             fields: vec![],
++            refinement: None,
+         });
+         f.exports.instances.push(InstanceExport {
+             id: "Main.Add_Int".into(),
+             class: "Add".into(),
+             target: "Add Int".into(),
++            resolved: None,
++            method_contracts: vec![],
+             ctx: vec![],
+             methods: vec!["Main.Add_Int.+".into()],
+             implicit: true,
+@@ -1732,6 +2034,26 @@
+     }
+ 
+     #[test]
++    fn refinement_definitions_round_trip_and_cannot_be_omitted() {
++        let mut f = sample();
++        let t = &mut f.exports.types[0];
++        t.kind = "refinement".into();
++        t.ctors.clear();
++        t.refinement = Some(RefinementExport {
++            binder: "xs".into(),
++            carrier: "List a".into(),
++            predicate: "NotNull xs".into(),
++        });
++        assert_eq!(Iface::from_json(&f.to_json()).unwrap(), f);
++        let mut missing = f.clone();
++        missing.exports.types[0].refinement = None;
++        assert!(Iface::from_json(&missing.to_json()).is_err());
++        let mut mismatched = f;
++        mismatched.exports.types[0].kind = "data".into();
++        assert!(Iface::from_json(&mismatched.to_json()).is_err());
++    }
++
++    #[test]
+     fn canonical_and_stable() {
+         let f = sample();
+         assert_eq!(f.to_json(), f.to_json());
+@@ -1775,7 +2097,7 @@
+     #[test]
+     fn rejects_wrong_schema() {
+         let text = sample().to_json();
+-        let wrong = text.replace("\"schema\":1", "\"schema\":99");
++        let wrong = text.replace(&format!("\"schema\":{SCHEMA_VERSION}"), "\"schema\":99");
+         assert_ne!(wrong, text, "the schema field was rewritten");
+         assert!(Iface::from_json(&wrong).is_err());
+     }
+@@ -1829,6 +2151,8 @@
+             id: "Other.Add_Int".into(),
+             class: "Add".into(),
+             target: "Add Int".into(),
++            resolved: None,
++            method_contracts: vec![],
+             ctx: vec![],
+             methods: vec![],
+             implicit: true,
+@@ -1879,7 +2203,7 @@
+     fn parser_is_strict() {
+         let text = sample().to_json();
+         assert!(Iface::from_json(&format!("{text}trailing")).is_err());
+-        let dup = text.replace("\"schema\":1", "\"schema\":1,\"schema\":1");
++        let dup = text.replace(&format!("\"schema\":{SCHEMA_VERSION}"), &format!("\"schema\":{SCHEMA_VERSION},\"schema\":{SCHEMA_VERSION}"));
+         assert_ne!(dup, text, "the duplicate was spliced in");
+         assert!(Iface::from_json(&dup).is_err());
+         assert!(Iface::from_json("{\"schema\": 1, module: 2}").is_err());
+--- a/compiler/src/parser.rs
++++ b/compiler/src/parser.rs
+@@ -21,7 +21,9 @@
+ /// module's own, which shadow the imported ones.
+ #[derive(Clone, Debug, Default)]
+ pub struct FixityTable {
+-    map: BTreeMap<String, Fixity>,
++    // An exported operator without a fixity still shadows an inherited
++    // operator of the same spelling. It may be used in prefix form only.
++    map: BTreeMap<String, Option<Fixity>>,
+ }
+ 
+ impl FixityTable {
+@@ -31,7 +33,7 @@
+ 
+     /// Fixity of `op` if it is declared.
+     pub fn get(&self, op: &str) -> Option<Fixity> {
+-        self.map.get(op).copied()
++        self.map.get(op).copied().flatten()
+     }
+ 
+     /// Declare `op`'s fixity. Redeclaring the same fixity is accepted;
+@@ -43,12 +45,12 @@
+             )));
+         }
+         match self.map.get(op) {
+-            Some(&(a, p)) if (a, p) == (assoc, prec) => Ok(()),
+-            Some(&(a, p)) => Err(Error::plain(format!(
++            Some(&Some((a, p))) if (a, p) == (assoc, prec) => Ok(()),
++            Some(&Some((a, p))) => Err(Error::plain(format!(
+                 "conflicting fixity declarations for `{op}`: already {a:?} {p}, now {assoc:?} {prec}"
+             ))),
+-            None => {
+-                self.map.insert(op.to_string(), (assoc, prec));
++            None | Some(None) => {
++                self.map.insert(op.to_string(), Some((assoc, prec)));
+                 Ok(())
+             }
+         }
+@@ -105,16 +107,20 @@
+     /// Per-module fixity tables (imported declarations plus the module's
+     /// own), keyed by module name.
+     pub fixities: std::collections::HashMap<String, FixityTable>,
++    /// Only exported operators, with their defining module's fixities.
++    /// Importers must not receive this module's private parsing context.
++    pub exported_fixities: std::collections::HashMap<String, FixityTable>,
+ }
+ 
+ /// Parse one module from a layout-processed token stream. `imported` holds the
+ /// fixities visible through imports; the module's own fixity declarations
+-/// shadow them and are returned in `ParsedModule.fixities`.
++/// belong to operators declared here. Importers cannot redeclare them.
+ pub fn parse_module(tokens: &[Token], imported: &FixityTable) -> Result<ParsedModule> {
+     let mut p = Parser::new(tokens);
+     let mut module = p.parse_module_decl()?;
+     p.expect_eof()?;
+-    let fixities = imported.merge(&p.own_fixities);
++    let own = owned_fixities(&module, &p.own_fixities)?;
++    let fixities = imported.merge(&own);
+     resolve_module(&mut module, &fixities)?;
+     Ok(ParsedModule { module, fixities })
+ }
+@@ -129,25 +135,18 @@
+     base: &FixityTable,
+     tables: &std::collections::HashMap<String, FixityTable>,
+ ) -> Result<ParsedModules> {
+-    let mut p = Parser::new(tokens);
+-    let mut modules: Vec<(Module, FixityTable)> = Vec::new();
+-    while !p.at(&Tok::Eof) {
+-        let module = p.parse_module_decl()?;
+-        let own = std::mem::take(&mut p.own_fixities);
+-        modules.push((module, own));
+-    }
++    let modules = fixity_headers(tokens)?;
++    let exported_fixities = export_fixity_headers(&modules, tables)?;
++    let implicit = exported_fixities.get("Prelude").unwrap_or(base);
+     let mut out = Vec::new();
+     let mut fixities = std::collections::HashMap::new();
+     for (module, own) in &modules {
+         let mut module = module.clone();
+-        let mut table = base.clone();
++        let mut table = implicit.clone();
+         for imp in &module.imports {
+-            // Fixity tables key on the import's full dotted name.
+             let name = imp.path.parts().join(".");
+-            if let Some(t) = modules.iter().find(|(m, _)| m.name.text == name).map(|(_, o)| o) {
+-                table = table.merge(t);
+-            } else if let Some(t) = tables.get(&name) {
+-                table = table.merge(t);
++            if let Some(t) = exported_fixities.get(&name).or_else(|| tables.get(&name)) {
++                table = table.merge(&import_fixities(imp, t, false));
+             }
+         }
+         table = table.merge(own);
+@@ -155,7 +154,158 @@
+         fixities.insert(module.name.text.clone(), table);
+         out.push(module);
+     }
+-    Ok(ParsedModules { modules: out, fixities })
++    Ok(ParsedModules { modules: out, fixities, exported_fixities })
++}
++
++/// Parse declarations without resolving operator chains. The base loader
++/// uses these headers to discover the facade's inherited fixities before
++/// parsing any family member's body.
++pub fn fixity_headers(tokens: &[Token]) -> Result<Vec<(Module, FixityTable)>> {
++    let mut p = Parser::new(tokens);
++    let mut modules = Vec::new();
++    while !p.at(&Tok::Eof) {
++        let module = p.parse_module_decl()?;
++        let own = owned_fixities(&module, &std::mem::take(&mut p.own_fixities))?;
++        modules.push((module, own));
++    }
++    Ok(modules)
++}
++
++fn is_operator_spelling(name: &str) -> bool {
++    name.chars().next().is_some_and(|c| "!#$%&*+./<=>?@\\^|-~:".contains(c))
++}
++
++fn declared_operators(decl: &Decl, out: &mut FixityTable) {
++    let mut add = |name: &Name| {
++        if is_operator_spelling(&name.text) {
++            out.map.entry(name.text.clone()).or_insert(None);
++        }
++    };
++    match decl {
++        Decl::ValueSig { name, .. } => add(name),
++        Decl::Equation { eq, .. } => add(&eq.name),
++        Decl::Signature(s) => for (name, _) in &s.methods { add(name); },
++        Decl::Foreign(f) if f.is_import => add(&f.name),
++        Decl::Prim(p) => add(&p.name),
++        Decl::Effect(e) => for (name, _) in &e.ops { add(name); },
++        Decl::Attributed { inner, .. } => declared_operators(inner, out),
++        _ => {}
++    }
++}
++
++fn owned_fixities(module: &Module, declared: &FixityTable) -> Result<FixityTable> {
++    let mut own = FixityTable::new();
++    for decl in &module.decls { declared_operators(decl, &mut own); }
++    for op in declared.map.keys() {
++        if !own.map.contains_key(op) {
++            let span = module.decls.iter().find_map(|d| match d {
++                Decl::Fixity(f) => f.ops.iter().find(|n| n.text == *op).map(|n| n.span),
++                _ => None,
++            }).unwrap_or(module.span);
++            return Err(Error::at(span, format!(
++                "only the module declaring operator `{op}` may declare its fixity; an importer must inherit it"
++            )));
++        }
++    }
++    Ok(own.merge(declared))
++}
++
++fn import_qualifier(imp: &Import) -> String {
++    imp.alias.as_ref().map(|n| n.text.clone()).unwrap_or_else(|| {
++        imp.path.parts().last().copied().unwrap_or("").to_string()
++    })
++}
++
++fn import_fixities(imp: &Import, source: &FixityTable, qualified: bool) -> FixityTable {
++    if !qualified && imp.alias.is_some() && imp.members.is_empty() {
++        return FixityTable::new();
++    }
++    if imp.members.is_empty() { return source.clone(); }
++    let mut selected = FixityTable::new();
++    for item in &imp.members {
++        if let Some(fix) = source.map.get(&item.name.text) {
++            let local = item.as_name.as_ref().unwrap_or(&item.name);
++            if is_operator_spelling(&local.text) { selected.map.insert(local.text.clone(), *fix); }
++        }
++    }
++    selected
++}
++
++pub fn export_fixity_headers(
++    modules: &[(Module, FixityTable)],
++    external: &std::collections::HashMap<String, FixityTable>,
++) -> Result<std::collections::HashMap<String, FixityTable>> {
++    fn publish(
++        name: &str, modules: &[(Module, FixityTable)],
++        external: &std::collections::HashMap<String, FixityTable>,
++        done: &mut std::collections::HashMap<String, FixityTable>, active: &mut Vec<String>,
++    ) -> Result<FixityTable> {
++        if let Some(table) = done.get(name) { return Ok(table.clone()); }
++        let Some((module, own)) = modules.iter().find(|(m, _)| m.name.text == name) else {
++            return Ok(external.get(name).cloned().unwrap_or_default());
++        };
++        if active.iter().any(|n| n == name) {
++            // The module loader/checker diagnoses import cycles. No
++            // inherited fact is invented to break one during parsing.
++            return Ok(FixityTable::new());
++        }
++        active.push(name.to_string());
++        let mut views = Vec::new();
++        let mut visible = FixityTable::new();
++        for imp in &module.imports {
++            let source = publish(&imp.path.parts().join("."), modules, external, done, active)?;
++            visible = visible.merge(&import_fixities(imp, &source, false));
++            views.push((imp, source));
++        }
++        visible = visible.merge(own);
++        let exports: Vec<&ExportItem> = module.decls.iter().filter_map(|d| match d {
++            Decl::Export(e) => Some(e.items.iter()), _ => None,
++        }).flatten().collect();
++        // An explicit export may name an operator from the implicit Prelude.
++        // Carry its owner's fact just as an explicit import would. Delay this
++        // lookup until needed so the Prelude's own dependencies do not acquire
++        // a spurious cycle back through its facade.
++        if name != "Prelude" && exports.iter().any(|item| match item {
++            ExportItem::Name(n) => is_operator_spelling(&n.text) && !visible.map.contains_key(&n.text),
++            _ => false,
++        }) {
++            let implicit = publish("Prelude", modules, external, done, active)?;
++            visible = implicit.merge(&visible);
++        }
++        let mut surface = if exports.is_empty() { own.clone() } else { FixityTable::new() };
++        for item in exports {
++            match item {
++                ExportItem::Name(n) => if let Some(f) = visible.map.get(&n.text) {
++                    surface.map.insert(n.text.clone(), *f);
++                },
++                ExportItem::Member(path) => {
++                    let parts = path.parts();
++                    let qualifier = parts[..parts.len() - 1].join(".");
++                    let local = parts[parts.len() - 1];
++                    for (imp, source) in &views {
++                        if import_qualifier(imp) == qualifier {
++                            if let Some(f) = import_fixities(imp, source, true).map.get(local) {
++                                surface.map.insert(local.to_string(), *f);
++                            }
++                        }
++                    }
++                }
++                ExportItem::Module(n) => for (imp, source) in &views {
++                    if imp.path.parts().join(".") == n.text || import_qualifier(imp) == n.text {
++                        surface = surface.merge(&import_fixities(imp, source, true));
++                    }
++                },
++            }
++        }
++        active.pop();
++        done.insert(name.to_string(), surface.clone());
++        Ok(surface)
++    }
++    let mut done = std::collections::HashMap::new();
++    for (module, _) in modules {
++        publish(&module.name.text, modules, external, &mut done, &mut Vec::new())?;
++    }
++    Ok(done)
+ }
+ 
+ // ----------------------------------------------------------------- helpers
+@@ -1132,6 +1282,7 @@
+                             self.bump();
+                             Name::new(s, nspan)
+                         }
++                        Tok::LParen => self.parse_value_name()?,
+                         t => {
+                             return Err(self.err(format!(
+                                 "expected a member name, found {}",
+@@ -1147,6 +1298,7 @@
+                                 self.bump();
+                                 Some(Name::new(s, sspan))
+                             }
++                            Tok::LParen => Some(self.parse_value_name()?),
+                             t => {
+                                 return Err(self.err(format!(
+                                     "expected a member name after `as`, found {}",
+@@ -4213,7 +4365,9 @@
+              \x20 plus :: Int -> Int -> Int\n\
+              \x20 plus x y = x + y\n\
+              \x20 foreign import ccall \"sin\" sinF :: Int -> Int\n\
+-             \x20 foreign export ccall \"put\" putF :: Int -> Int\n",
++             \x20 foreign export ccall \"put\" putF :: Int -> Int\n\
++             \x20 (+) x y = x\n\
++             \x20 (&&) x y = x\n",
+         );
+         let m = &p.module;
+         assert_eq!(m.name.text, "T");
+@@ -4221,7 +4375,7 @@
+         assert_eq!(m.imports[0].path.parts(), vec!["Prelude"]);
+         assert_eq!(m.imports[1].path.parts(), vec!["Data", "List"]);
+         assert_eq!(m.imports[1].alias.as_ref().unwrap().text, "DL");
+-        assert_eq!(m.decls.len(), 13);
++        assert_eq!(m.decls.len(), 15);
+ 
+         let data = m
+             .decls
+@@ -4300,7 +4454,7 @@
+     #[test]
+     fn precedence_and_order_independence() {
+         // Fixity declarations come after the equation that needs them.
+-        let p = ok("module T where\n  f = 1 + 2 * 3\n  infixl 6 +\n  infixl 7 *\n");
++        let p = ok("module T where\n  f = 1 + 2 * 3\n  infixl 6 +\n  infixl 7 *\n  (+) x y = x\n  (*) x y = x\n");
+         let (f, args) = app(eq_body(&p.module, "f"));
+         assert_eq!(var(f), "+");
+         assert_eq!(int(&args[0]), 1);
+@@ -4312,7 +4466,7 @@
+ 
+     #[test]
+     fn left_associativity() {
+-        let p = ok("module T where\n  infixl 6 -\n  f = 1 - 2 - 3\n");
++        let p = ok("module T where\n  infixl 6 -\n  f = 1 - 2 - 3\n  (-) x y = x\n");
+         let (f, args) = app(eq_body(&p.module, "f"));
+         assert_eq!(var(f), "-");
+         assert_eq!(int(&args[1]), 3);
+@@ -4324,7 +4478,7 @@
+ 
+     #[test]
+     fn right_associativity() {
+-        let p = ok("module T where\n  infixr 6 ^\n  f = 1 ^ 2 ^ 3\n");
++        let p = ok("module T where\n  infixr 6 ^\n  f = 1 ^ 2 ^ 3\n  (^) x y = x\n");
+         let (f, args) = app(eq_body(&p.module, "f"));
+         assert_eq!(var(f), "^");
+         assert_eq!(int(&args[0]), 1);
+@@ -4336,13 +4490,13 @@
+ 
+     #[test]
+     fn non_associative_chain_is_rejected() {
+-        let e = err("module T where\n  infix 4 ==\n  f = 1 == 2 == 3\n");
++        let e = err("module T where\n  infix 4 ==\n  f = 1 == 2 == 3\n  (==) x y = x\n");
+         assert!(e.contains("cannot be chained"), "{e}");
+     }
+ 
+     #[test]
+     fn mixed_associativity_at_equal_precedence_is_rejected() {
+-        let e = err("module T where\n  infixl 6 +\n  infixr 6 ^\n  f = 1 + 2 ^ 3\n");
++        let e = err("module T where\n  infixl 6 +\n  infixr 6 ^\n  f = 1 + 2 ^ 3\n  (+) x y = x\n  (^) x y = x\n");
+         assert!(e.contains("incompatible associativity"), "{e}");
+     }
+ 
+@@ -4364,7 +4518,7 @@
+ 
+     #[test]
+     fn dollar_is_looser_than_infix_operators() {
+-        let p = ok("module T where\n  infixl 6 +\n  f = p + q $ x\n");
++        let p = ok("module T where\n  infixl 6 +\n  f = p + q $ x\n  (+) a b = a\n");
+         let (f, args) = app(eq_body(&p.module, "f"));
+         // `f $ x` is App(f, [x]), so the head is `p + q`.
+         let (g, gargs) = app(f);
+@@ -4906,31 +5060,20 @@
+ 
+     #[test]
+     fn parses_the_prelude() {
+-        // The prelude is the split family: the facade's curated
+-        // re-export surface plus the scheme homes carrying the
+-        // declarations (the prelude split).
+-        let p = ok(include_str!("../prelude/Prelude.cinch"));
+-        let m = &p.module;
+-        assert_eq!(m.name.text, "Prelude");
+-        let exports = m
+-            .decls
+-            .iter()
+-            .filter(|d| matches!(d, Decl::Export(_)))
+-            .count();
++        let family = crate::driver::parse_prelude(&[]).expect("parse family");
++        let m = family.modules.iter().find(|m| m.name.text == "Prelude").unwrap();
++        let exports = m.decls.iter().filter(|d| matches!(d, Decl::Export(_))).count();
+         assert!(exports >= 20, "expected the curated export surface, got {exports}");
+-        let base = p.fixities.clone();
++        let base = family.base.clone();
+         let mut datas: Vec<String> = Vec::new();
+         let mut foreigns = 0;
+         let mut insts: Vec<InstDecl> = Vec::new();
+-        for (_path, src) in crate::driver::prelude_sources() {
+-            let toks = crate::lexer::lex(src).expect("lex the family");
+-            let toks = crate::layout::layout(toks).expect("lay out the family");
+-            let pm = parse_module(&toks, &base).expect("parse should succeed");
+-            for d in &pm.module.decls {
++        for m in family.modules {
++            for d in m.decls {
+                 match d {
+-                    Decl::Data(x) => datas.push(x.name.text.clone()),
++                    Decl::Data(x) => datas.push(x.name.text),
+                     Decl::Foreign(_) => foreigns += 1,
+-                    Decl::Instance(x) => insts.push(x.clone()),
++                    Decl::Instance(x) => insts.push(x),
+                     _ => {}
+                 }
+             }
+@@ -4951,14 +5094,14 @@
+         );
+         // The operator table (surface grammar local amendments section
+         // 6): Rust's relative precedences in the 0..=9 band.
+-        assert_eq!(p.fixities.get("+"), Some((Assoc::Left, 8)));
+-        assert_eq!(p.fixities.get("*"), Some((Assoc::Left, 9)));
+-        assert_eq!(p.fixities.get("=="), Some((Assoc::None, 3)));
+-        assert_eq!(p.fixities.get("&&"), Some((Assoc::Right, 2)));
++        assert_eq!(base.get("+"), Some((Assoc::Left, 8)));
++        assert_eq!(base.get("*"), Some((Assoc::Left, 9)));
++        assert_eq!(base.get("=="), Some((Assoc::None, 3)));
++        assert_eq!(base.get("&&"), Some((Assoc::Right, 2)));
+     }
+ 
+     #[test]
+-    fn fixity_table_conflicts_and_shadowing() {
++    fn fixity_table_conflicts_and_distinct_local_bindings() {
+         let mut own = FixityTable::new();
+         own.insert("+", Assoc::Left, 6).unwrap();
+         own.insert("+", Assoc::Left, 6).unwrap();
+@@ -4972,17 +5115,75 @@
+     }
+ 
+     #[test]
+-    fn imported_fixities_apply_and_own_decls_shadow_them() {
++    fn imported_fixities_cannot_be_redeclared() {
+         let mut imported = FixityTable::new();
+         imported.insert("+", Assoc::Right, 9).unwrap();
+-        let toks = crate::lexer::lex("module T where\n  infixl 6 +\n  f = 1 + 2 + 3\n").unwrap();
+-        let toks = crate::layout::layout(toks).unwrap();
+-        let p = parse_module(&toks, &imported).unwrap();
+-        assert_eq!(p.fixities.get("+"), Some((Assoc::Left, 6)));
+-        // Shadowed to infixl 6: `1 + 2` groups first.
+-        let (f, args) = app(eq_body(&p.module, "f"));
+-        assert_eq!(var(f), "+");
+-        assert_eq!(int(&args[1]), 3);
++        for declaration in ["infixl 6 +", "infixr 9 +"] {
++            let source = format!("module T where\n  {declaration}\n  f = 1 + 2 + 3\n");
++            let toks = crate::layout::layout(crate::lexer::lex(&source).unwrap()).unwrap();
++            let error = parse_module(&toks, &imported).unwrap_err();
++            assert!(error.message.contains("only the module declaring operator"), "{error}");
++        }
++    }
++
++    fn module_program(source: &str, base: &FixityTable) -> Result<ParsedModules> {
++        let tokens = crate::layout::layout(crate::lexer::lex(source)?)?;
++        let mut external = std::collections::HashMap::new();
++        external.insert("Prelude".to_string(), base.clone());
++        parse_modules(&tokens, base, &external)
++    }
++
++    #[test]
++    fn operator_fixities_follow_selected_renamed_reexports() {
++        let parsed = module_program(
++            "module Owner where\n  infixr 6 <+>\n  (<+>) a b = b\n\
++             module Facade where\n  import Owner ((<+>) as (<*>))\n  export (<*>)\n\
++             module Main where\n  import Facade\n  f = 1 <*> 2 <*> 3\n",
++            &FixityTable::new(),
++        ).unwrap();
++        let main = parsed.modules.iter().find(|m| m.name.text == "Main").unwrap();
++        let (op, args) = app(eq_body(main, "f"));
++        assert_eq!(var(op), "<*>");
++        assert_eq!(int(&args[0]), 1);
++        let (_, right) = app(&args[1]);
++        assert_eq!(int(&right[0]), 2);
++        assert_eq!(int(&right[1]), 3);
++        assert_eq!(parsed.exported_fixities["Facade"].get("<*>"), Some((Assoc::Right, 6)));
++        assert_eq!(parsed.exported_fixities["Facade"].get("<+>"), None);
++    }
++
++    #[test]
++    fn private_fixity_context_is_not_implicitly_reexported() {
++        let source = "module Owner where\n  infixr 6 <+>\n  (<+>) a b = b\n\
++                      module Private where\n  import Owner\n  value = 1 <+> 2\n\
++                      module Main where\n  import Private\n  f = 1 <+> 2\n";
++        assert!(module_program(source, &FixityTable::new()).is_err());
++    }
++
++    #[test]
++    fn new_operator_without_fixity_is_prefix_only_despite_inherited_spelling() {
++        let mut base = FixityTable::new();
++        base.insert("+", Assoc::Left, 8).unwrap();
++        let prefix = "module Local where\n  (+) a b = a\n  f = (+) 1 2\n";
++        module_program(prefix, &base).unwrap();
++        let infix = "module Local where\n  (+) a b = a\n  f = 1 + 2\n";
++        assert!(module_program(infix, &base).is_err());
++        let imported_prefix = "module Owner where\n  (+) a b = a\nmodule Main where\n  import Owner\n  f = (+) 1 2\n";
++        let parsed = module_program(imported_prefix, &base).unwrap();
++        assert_eq!(parsed.fixities["Main"].get("+"), None);
++        let imported_infix = "module Owner where\n  (+) a b = a\nmodule Main where\n  import Owner\n  f = 1 + 2\n";
++        assert!(module_program(imported_infix, &base).is_err());
++    }
++
++    #[test]
++    fn implicit_prelude_operator_reexport_carries_its_fixity() {
++        let mut base = FixityTable::new();
++        base.insert("+", Assoc::Left, 8).unwrap();
++        let parsed = module_program(
++            "module Facade where\n  export (+)\n\
++             module Main where\n  import Facade\n  f = 1 + 2 + 3\n", &base,
++        ).unwrap();
++        assert_eq!(parsed.exported_fixities["Facade"].get("+"), Some((Assoc::Left, 8)));
+     }
+ }
+ 
+--- a/compiler/src/types.rs
++++ b/compiler/src/types.rs
+@@ -3162,6 +3162,9 @@
+ #[derive(Clone, Debug)]
+ pub struct Scheme {
+     pub params: Vec<String>,
++    /// Resolved higher-kinded type parameters and their argument counts.
++    /// The ordinary type parameters in `params` have kind Type.
++    pub con_params: Vec<(String, usize)>,
+     /// Schema-level index parameters (no runtime argument).
+     pub idx_params: Vec<IxParam>,
+     /// Implicit runtime value arguments, name and type.
+@@ -3180,6 +3183,7 @@
+ impl Scheme {
+     pub fn mono(ty: Ty) -> Scheme {
+         Scheme {
++            con_params: Vec::new(),
+             params: Vec::new(),
+             idx_params: Vec::new(),
+             val_params: Vec::new(),

@@ -1618,6 +1618,8 @@ struct InstanceInfo {
     /// method; the dictionary never reaches code that could apply the
     /// method without them (a generic callee, a sub-dictionary).
     method_obligs: Vec<(usize, String, Vec<PTerm>)>,
+    /// Checked per-method signatures retained for interface proof contracts.
+    method_contracts: Vec<(usize, String, Scheme)>,
 }
 
 /// One module parameter of a parameterized module (`module M (x :: T)
@@ -2664,6 +2666,12 @@ struct Checker {
     param_inst_defs: HashMap<(String, String), crate::core::InstanceDef>,
     /// Each module's own fixity declarations, for its interface.
     module_fixities: Vec<(String, crate::interface::FixityExport)>,
+    /// Source binders retain declaration order and implicitness for
+    /// interface kind metadata; the converted TypeKind supplies kinds.
+    interface_binders: HashMap<(String, String), Vec<ast::TypeBinder>>,
+    /// Captured while checking each source signature, before nominal
+    /// definition identities disappear from the legacy `Ty` spelling.
+    interface_source_schemes: HashMap<(String, String), DefinitionScheme>,
     /// Each module's foreign declarations, for its interface.
     module_foreign: Vec<(String, crate::interface::ForeignExport)>,
     /// Real foreign binding contracts by unit name (foreign function
@@ -3193,6 +3201,8 @@ impl Checker {
             module_names: std::collections::HashSet::new(),
             param_inst_defs: HashMap::new(),
             module_fixities: Vec::new(),
+            interface_binders: HashMap::new(),
+            interface_source_schemes: HashMap::new(),
             module_foreign: Vec::new(),
             foreign_plans: Vec::new(),
             pending_foreign: Vec::new(),
@@ -7460,6 +7470,7 @@ impl Checker {
                         .collect();
                     let constraints = self.kind_constraints.borrow().clone();
                     let mut type_params: Vec<String> = Vec::new();
+                    let mut con_params = Vec::new();
                     let mut val_params: Vec<(String, Ty)> = Vec::new();
                     let mut prop_params: Vec<String> = Vec::new();
                     for (name, hint, span) in binders {
@@ -7469,12 +7480,17 @@ impl Checker {
                         let kind =
                             self.resolve_binder_kind(&name, hint.as_ref(), &constraints, span)?;
                         match kind {
-                            ParamKind::Type | ParamKind::Con(_) => type_params.push(name),
+                            ParamKind::Type => type_params.push(name),
+                            ParamKind::Con(n) => {
+                                con_params.push((name.clone(), n));
+                                type_params.push(name);
+                            }
                             ParamKind::Val(vty) => val_params.push((name, vty)),
                             ParamKind::Prop => prop_params.push(name),
                         }
                     }
                     return Ok(Scheme {
+                        con_params,
                         params: type_params,
                         idx_params: Vec::new(),
                         val_params,
@@ -9151,3 +9167,4 @@ fn shifted_meta(meta: &crate::core::FnMeta, k: usize) -> crate::core::FnMeta {
 // `check_decls.rs`. Both are included at module scope.
 include!("check_terms.rs");
 include!("check_decls.rs");
+include!("check_interface.rs");

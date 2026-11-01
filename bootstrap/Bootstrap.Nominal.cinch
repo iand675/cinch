@@ -1,0 +1,199 @@
+-- Definition-site nominal contracts. These private type facts grant no
+-- source names; only the interface's export table builds a source scope.
+module Bootstrap.Nominal where
+
+  import Bootstrap.Ast
+  import Bootstrap.Report (Diagnostic, MkDiagnostic)
+  import Data.Json
+  import Text.Lex (Span)
+  import Algebra.Semigroup
+
+  export interface-global, resolved-entry-valid, resolved-nominals
+  export resolved-text, qualify-resolved, kernel-type-name
+
+  same :: String -> String -> Bool
+  same a b = string-compare a b == 0
+  field :: String -> Json -> Json
+  field name doc = case doc of JObj key value rest -> if same name key then value else field name rest; other -> JNull
+  present :: String -> Json -> Bool
+  present name doc = case doc of JObj key value rest -> same name key || present name rest; other -> False
+  has :: String -> List String -> Bool
+  has name names = case names of Nil -> False; Cons n rest -> same name n || has name rest
+  text :: Json -> String
+  text doc = case doc of JStr value -> value; other -> ""
+  encode :: List Char -> String
+  encode chars = case chars of Nil -> ""; Cons c rest -> string-concat-all [nat-to-string (char-code c), "_", encode rest]
+  interface-global :: String -> String
+  interface-global identity = string-concat "i." (encode (unpack identity))
+  kernel-type-name :: String -> Bool
+  kernel-type-name name = has name ["Int", "Nat", "Bool", "Unit", "()", "Bytes", "Sym", "Char", "I8", "I16", "I32", "I64", "Isize", "U8", "U16", "U32", "U64", "Usize", "F32", "F64"]
+  nonempty :: Json -> Bool
+  nonempty doc = case doc of JStr value -> string-length value > 0; other -> False
+  unique-strings :: Json -> List String -> Bool
+  unique-strings rows seen = case rows of
+    JArr (JStr name) rest -> string-length name > 0 && not (has name seen) && unique-strings rest (Cons name seen)
+    JArrEnd -> True
+    other -> False
+  valid-parameters :: Json -> Json -> List String -> Bool
+  valid-parameters rows names seen = case (rows, names) of
+    (JArr row rest, JArr (JStr name) more) -> same name (text (field "name" row)) && string-length name > 0 && not (has name seen)
+      && nonempty (field "kind" row) && (case field "implicit" row of JBool value -> True; other -> False)
+      && valid-parameters rest more (Cons name seen)
+    (JArrEnd, JArrEnd) -> True
+    other -> False
+  parameter-has-name :: String -> Json -> Bool
+  parameter-has-name name rows = case rows of JArr row rest -> same name (text (field "name" row)) || parameter-has-name name rest; other -> False
+  valid-refinement-row :: Json -> Bool
+  valid-refinement-row row = let template = field "refinement" row in
+    nonempty (field "binder" template) && nonempty (field "carrier" template) && nonempty (field "predicate" template)
+    && not (parameter-has-name (text (field "binder" template)) (field "parameters" row))
+  null-field :: String -> Json -> Bool
+  null-field name row = present name row && (case field name row of JNull -> True; other -> False)
+  valid-nominal-body :: Json -> Bool
+  valid-nominal-body row = let kind = text (field "kind" row) in
+    if same kind "refinement" then null-field "constructors" row && valid-refinement-row row
+    else null-field "refinement" row &&
+      (if same kind "data" then unique-strings (field "constructors" row) Nil
+       else (same kind "opaque" || same kind "signature") && null-field "constructors" row)
+  valid-nominals :: Json -> List String -> Bool
+  valid-nominals rows seen = case rows of
+    JArr row rest -> let identity = text (field "identity" row) in
+      string-length identity > 0 && not (has identity seen)
+      && valid-parameters (field "parameters" row) (field "params" row) Nil
+      && valid-nominal-body row
+      && valid-nominals rest (Cons identity seen)
+    JArrEnd -> True
+    other -> False
+  resolved-entry-valid :: Json -> Bool
+  resolved-entry-valid metadata = present "resolved" metadata && (case field "resolved" metadata of
+    JNull -> True
+    row -> nonempty (field "scheme" row) && valid-nominals (field "nominals" row) Nil)
+  resolved-nominals :: Json -> Json
+  resolved-nominals metadata = case field "resolved" metadata of JNull -> JArrEnd; row -> field "nominals" row
+  resolved-text :: Json -> Option String
+  resolved-text metadata = case field "scheme" (field "resolved" metadata) of JStr scheme -> Some scheme; other -> None
+  contains-identity :: String -> Json -> Bool
+  contains-identity identity rows = case rows of
+    JArr row rest -> same identity (text (field "identity" row)) || contains-identity identity rest
+    other -> False
+  fail :: Span -> String -> (TypeExpr, List Diagnostic)
+  fail sp message = (TUnmodeled sp message, [MkDiagnostic "bootstrap.resolve" sp message])
+  qualify-name :: Json -> List String -> Span -> String -> (TypeExpr, List Diagnostic)
+  qualify-name refs locals sp name =
+    if same name "Io" then (TName sp "b.Io", Nil)
+    else if has name locals || kernel-type-name name then (TName sp name, Nil)
+    else if contains-identity name refs then (TName sp (interface-global name), Nil)
+    else fail sp (string-concat "resolved scheme contains an unbound type name: " name)
+  quantified-names :: TypeExpr -> List String
+  quantified-names qs = case qs of TQuantifier s name only kind rest -> Cons name (quantified-names rest); other -> Nil
+  -- Qualify carrier annotations before adding their binder to the scope.
+  -- The elaborator checks their kinds; this traversal checks provenance
+  -- and ensures that later quantifiers cannot appear in earlier carriers.
+  qualify-kind :: Json -> List String -> TypeExpr -> (TypeExpr, List Diagnostic)
+  qualify-kind refs locals ty = case ty of
+    TName s name -> if has name ["Type", "Region", "Effect", "Row"] then (ty, Nil) else qualify refs locals ty
+    TFun s a b -> case (qualify-kind refs locals a, qualify-kind refs locals b) of
+      ((x, ex), (y, ey)) -> (TFun s x y, ex <> ey)
+    other -> qualify refs locals ty
+  qualify-quantifiers :: Json -> List String -> TypeExpr -> (TypeExpr, List Diagnostic)
+  qualify-quantifiers refs locals qs = case qs of
+    TQuantifier s name only kind rest -> if string-length name == 0 || has name locals then fail s "invalid resolved quantifier kinds or scope"
+      else case (qualify-kind refs locals kind, qualify-quantifiers refs (Cons name locals) rest) of
+        ((annotation, errors), (more, others)) -> (TQuantifier s name only annotation more, errors <> others)
+    TQuantifiersEnd s -> (qs, Nil)
+    other -> fail (type-expr-span qs) "invalid resolved quantifier kinds or scope"
+  signature-reference :: String -> Json -> Bool
+  signature-reference name refs = same name "Io" || signature-in-rows name refs
+  signature-in-rows :: String -> Json -> Bool
+  signature-in-rows name refs = case refs of
+    JArr row rest -> (same name (text (field "identity" row)) && same (text (field "kind" row)) "signature") || signature-in-rows name rest
+    other -> False
+  constraint-head :: TypeExpr -> String
+  constraint-head ty = case ty of TName s name -> name; TApp s head args -> constraint-head head; other -> ""
+  qualify-bounds :: Json -> List String -> List String -> TypeExpr -> (TypeExpr, List Diagnostic)
+  qualify-bounds refs locals seen bounds = case bounds of
+    TBoundsEnd s -> (bounds, Nil)
+    TBound s name class-app rest ->
+      if resolved-predicate-syntax class-app then
+        (if not (same name "") then fail s "resolved named proof binding needs erased proof elaboration"
+         else case (qualify-predicate refs locals class-app, qualify-bounds refs locals seen rest) of
+           ((predicate, errors), (more, others)) -> (TBound s name predicate more, errors <> others))
+      else if string-length name == 0 || has name seen then fail s "invalid resolved dictionary binder scope"
+      else if not (signature-reference (constraint-head class-app) refs) then fail s "resolved context needs a defining signature contract"
+      else case (qualify refs locals class-app, qualify-bounds refs locals (Cons name seen) rest) of
+        ((app, errors), (more, others)) -> (TBound s name app more, errors <> others)
+    other -> fail (type-expr-span bounds) "resolved context needs dictionary or proposition elaboration"
+  qualify :: Json -> List String -> TypeExpr -> (TypeExpr, List Diagnostic)
+  qualify refs locals ty = case ty of
+    TName s name -> qualify-name refs locals s name
+    TIndex s digits -> (ty, Nil)
+    TNegate s body -> case qualify refs locals body of (value, errors) -> (TNegate s value, errors)
+    TFun s (TBound bound name carrier (TBoundsEnd end)) result -> case (qualify refs locals carrier, qualify refs (Cons name locals) result) of
+      ((domain, errors), (out, others)) -> (TFun s (TBound bound name domain (TBoundsEnd end)) out, errors <> others)
+    TFunEff s (TBound bound name carrier (TBoundsEnd end)) row result -> case (qualify refs locals carrier, qualify-row (Cons name locals) row, qualify refs (Cons name locals) result) of
+      ((domain, errors), (effects, more), (out, others)) -> (TFunEff s (TBound bound name domain (TBoundsEnd end)) effects out, errors <> more <> others)
+    TFun s a b -> case (qualify refs locals a, qualify refs locals b) of
+      ((x, ex), (y, ey)) -> (TFun s x y, ex <> ey)
+    TFunEff s a row b -> case (qualify refs locals a, qualify-row locals row, qualify refs locals b) of
+      ((x, ex), (effects, ee), (y, ey)) -> (TFunEff s x effects y, ex <> ee <> ey)
+    TApp s head args -> case (qualify refs locals head, qualify refs locals args) of
+      ((f, ef), (xs, ex)) -> (TApp s f xs, ef <> ex)
+    TTuple s args -> case qualify refs locals args of (xs, errors) -> (TTuple s xs, errors)
+    TArg s x rest -> case (qualify refs locals x, qualify refs locals rest) of
+      ((a, ea), (xs, es)) -> (TArg s a xs, ea <> es)
+    TArgsEnd s -> (ty, Nil)
+    TForall s qs body -> case (qualify-quantifiers refs locals qs, qualify refs (quantified-names qs <> locals) body) of
+      ((binders, errors), (out, others)) -> (TForall s binders out, errors <> others)
+    TUsing s bounds body -> case (qualify-bounds refs (contract-argument-names body <> locals) Nil bounds, qualify refs locals body) of
+      ((context, errors), (out, more)) -> (TUsing s context out, errors <> more)
+    other -> fail (type-expr-span ty) "resolved scheme needs dictionary, effect or dependent elaboration"
+  qualify-row :: List String -> TypeExpr -> (TypeExpr, List Diagnostic)
+  qualify-row locals row = case row of
+    TRow s labels None -> case qualify-effects locals labels of (out, errors) -> (TRow s out None, errors)
+    other -> fail (type-expr-span row) "resolved effect row needs open-row elaboration"
+  qualify-effects :: List String -> TypeExpr -> (TypeExpr, List Diagnostic)
+  qualify-effects locals labels = case labels of
+    TArgsEnd s -> (labels, Nil)
+    TArg s label rest -> case (qualify-effect locals label, qualify-effects locals rest) of
+      ((out, errors), (more, others)) -> (TArg s out more, errors <> others)
+    other -> fail (type-expr-span labels) "invalid resolved effect label spine"
+  qualify-effect :: List String -> TypeExpr -> (TypeExpr, List Diagnostic)
+  qualify-effect locals label = case label of
+    TName s name -> if has name ["Diverge", "Blocking"] then (label, Nil)
+      else fail s "resolved effect label needs a kernel contract"
+    TApp s (TName h name) (TArg a (TName r region) (TArgsEnd end)) ->
+      if has name ["IO", "Async", "Cancel", "Eval"] && has region locals then (label, Nil)
+      else fail s "resolved effect label has an unknown identity or region"
+    other -> fail (type-expr-span label) "resolved effect label needs region elaboration"
+  qualify-resolved :: Json -> TypeExpr -> (TypeExpr, List Diagnostic)
+  qualify-resolved metadata ty = if resolved-entry-valid metadata then qualify (resolved-nominals metadata) Nil ty
+    else fail (type-expr-span ty) "invalid resolved nominal contract"
+
+  contract-argument-names :: TypeExpr -> List String
+  contract-argument-names ty = case ty of
+    TFun s (TBound b name carrier (TBoundsEnd end)) body -> Cons name (contract-argument-names body)
+    TFunEff s (TBound b name carrier (TBoundsEnd end)) row body -> Cons name (contract-argument-names body)
+    TFun s domain body -> contract-argument-names body
+    TFunEff s domain row body -> contract-argument-names body
+    other -> Nil
+
+  resolved-predicate-syntax :: TypeExpr -> Bool
+  resolved-predicate-syntax syntax = case syntax of
+    TInfix s op a b -> has op ["<", "<=", "==", "/=", ">=", ">", "&&", "||"]
+    TName s name -> same name "True" || same name "False"
+    TApp sp (TName at name) (TArg arg input (TArgsEnd end)) -> same name "NonZero"
+    other -> False
+  qualify-predicate :: Json -> List String -> TypeExpr -> (TypeExpr, List Diagnostic)
+  qualify-predicate refs locals syntax = case syntax of
+    TApp sp (TName at name) (TArg arg input (TArgsEnd end)) ->
+      if same name "NonZero" then (case qualify-predicate refs locals input of
+        (value, errors) -> (TApp sp (TName at name) (TArg arg value (TArgsEnd end)), errors))
+      else fail sp "resolved predicate needs checked mathematical operands"
+    TName s name -> if same name "True" || same name "False" then (syntax, Nil) else qualify-name refs locals s name
+    TIndex s text -> (syntax, Nil)
+    TNegate s body -> case qualify-predicate refs locals body of (out, errors) -> (TNegate s out, errors)
+    TInfix s op a b -> if has op ["+", "-", "*", "<", "<=", "==", "/=", ">=", ">", "&&", "||"] then
+      (case (qualify-predicate refs locals a, qualify-predicate refs locals b) of
+        ((left, errors), (right, more)) -> (TInfix s op left right, errors <> more))
+      else fail s "resolved predicate operator needs a checked contract"
+    other -> fail (type-expr-span syntax) "resolved predicate needs checked mathematical operands"

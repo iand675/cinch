@@ -549,6 +549,7 @@ impl Analysis {
         //    fixity tables (imports first).
         let mut parse_failed = false;
         let mut parsed: HashMap<String, ast::Module> = HashMap::new();
+        let mut visible_tables = self.ensure_prelude().fixities.clone();
         let mut tables: HashMap<String, FixityTable> = self
             .prelude_fixities()
             .into_iter()
@@ -565,9 +566,10 @@ impl Analysis {
                 // Reuse only when this file parsed cleanly before and no
                 // fresh parse is pending for it.
                 if !changed.contains(&file) {
-                    for (name, fix) in &pm.fixities {
+                    for (name, fix) in &pm.exported_fixities {
                         tables.insert(name.clone(), fix.clone());
                     }
+                    for (name, fix) in &pm.fixities { visible_tables.insert(name.clone(), fix.clone()); }
                     for modu in &pm.modules {
                         parsed.insert(modu.name.text.clone(), modu.clone());
                     }
@@ -578,9 +580,10 @@ impl Analysis {
             let banded = self.banded_text(&file, &text);
             match parse_file(&banded, &file, &self.prelude_base(), &tables) {
                 Ok(pm) => {
-                    for (name, fix) in &pm.fixities {
+                    for (name, fix) in &pm.exported_fixities {
                         tables.insert(name.clone(), fix.clone());
                     }
+                    for (name, fix) in &pm.fixities { visible_tables.insert(name.clone(), fix.clone()); }
                     for modu in &pm.modules {
                         parsed.insert(modu.name.text.clone(), modu.clone());
                     }
@@ -604,7 +607,7 @@ impl Analysis {
                 let file = self.module_file(m).unwrap_or_default();
                 let base = self.band_of(&file);
                 let mut st = index_module(&file, base, modu);
-                st.fixities = tables.get(m).cloned().unwrap_or_default();
+                st.fixities = visible_tables.get(m).cloned().unwrap_or_default();
                 self.modules.insert(m.clone(), st);
             }
         }
@@ -852,7 +855,7 @@ impl Analysis {
 
     fn prelude_fixities(&mut self) -> Vec<(String, FixityTable)> {
         let p = self.ensure_prelude();
-        p.fixities.iter().map(|(k, v)| (k.clone(), v.clone())).collect()
+        p.exported_fixities.iter().map(|(k, v)| (k.clone(), v.clone())).collect()
     }
 
     fn prelude_base(&mut self) -> FixityTable {

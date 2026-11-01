@@ -1,0 +1,108 @@
+{
+  "date": "2026-11-01",
+  "status": "Partial bootstrap checkpoint; full self-hosting is not achieved",
+  "validation": [
+    {
+      "name": "native-interface-unit",
+      "status": "passed",
+      "exit_code": 0,
+      "reused": true
+    },
+    {
+      "name": "native-contracts",
+      "status": "passed",
+      "exit_code": 0,
+      "reused": true
+    },
+    {
+      "name": "private-refinements",
+      "status": "passed",
+      "exit_code": 0,
+      "reused": false
+    },
+    {
+      "name": "import-regressions",
+      "status": "passed",
+      "exit_code": 0,
+      "reused": false
+    },
+    {
+      "name": "source-and-contracts",
+      "status": "passed",
+      "exit_code": 0,
+      "reused": false
+    },
+    {
+      "name": "dictionary-effects",
+      "status": "passed",
+      "exit_code": 0,
+      "reused": false
+    },
+    {
+      "name": "pipeline",
+      "status": "passed",
+      "exit_code": 0,
+      "reused": false
+    }
+  ],
+  "stages": [
+    {
+      "name": "stage0-smoke",
+      "status": "passed",
+      "exit_code": 0
+    },
+    {
+      "name": "stage1-smoke",
+      "status": "passed",
+      "exit_code": 0
+    },
+    {
+      "name": "self-hosting",
+      "status": "failed",
+      "exit_code": 1
+    }
+  ],
+  "stage2_boundary": {
+    "bundle_sha256": "e3967c48eb773c9b453abeb846794799b979251b6569336fa78c305305b9a57d",
+    "categories": {
+      "NonZero needs a checked mathematical carrier": 2,
+      "builtin constructor needs proposition instantiation and erasure checking: b.No": 1,
+      "builtin constructor needs proposition instantiation and erasure checking: b.Yes": 1,
+      "builtin syntax needs dependent predicate elaboration: b.decide": 1,
+      "effect declarations are not supported in this rung": 1,
+      "ill-formed function proof contract": 12,
+      "ill-formed source dependent function": 4,
+      "ill-formed source refinement": 7,
+      "ill-sorted proof predicate": 17,
+      "imported nominal scheme needs defining-module type identities: NonZero": 1,
+      "imported using context needs a defining signature contract": 6,
+      "index expression needs checked scope, purity and totality": 19,
+      "instance declarations are not supported in this rung": 1,
+      "machine arithmetic cannot enter mathematical index conversion": 1,
+      "proof predicate needs checked mathematical carriers": 1,
+      "type constructor is applied to too many arguments": 1
+    },
+    "diagnostics": 76,
+    "executable_exists": false,
+    "ir_exists": false,
+    "origins": {
+      "imported-or-synthetic": 22,
+      "source": 54
+    },
+    "snapshot_sha256": "9e68828fdc7bd9c28a618c3ff072ac891196c91f8a212d15b9a1c2c76222560a",
+    "stage2_exit_code": 4,
+    "stage2_status": "failed"
+  },
+  "native_seed": {
+    "description": "Pinned Rust seed with schema-7 definition-site nominal, class, Region and closed kernel effect contracts, dictionary slots, dependency-ordered source family overrides, dependency-sensitive pattern field names and conditional instance method proof contracts, integer conversion fixes, definition-owned fixities, guarded heap defaults and serial build/test settings and enforced optimizer residual growth bounds, portable checked numeric preconditions and dependent argument identities, checked structural NonZero precondition exports with actual argument identities, schema-7 defining refinement payloads and literal index contracts; changed only by an intentional seed update.",
+    "patch": "bootstrap/seed/stage0.patch",
+    "patch_sha256": "1d3479e414067f9d86a86d927f3ea323f24432632c55743de811a50f18e5d3c3",
+    "revision": "275de4f05b230c010aeb4b10265a04b97fb4eb1c",
+    "runtime_abi": 5,
+    "schema": 1,
+    "source_sha256": "7a2dd486210e6beaaa6db3c7b622983f9f4a6f7afe0481dd2e56b84532c8cd8c"
+  },
+  "full_compiler_runtime_suite": "Not established for this checkpoint",
+  "validation_source_sha256": "812d3b7672c10b46b39f368d9fcef70a6a1eb991342b21c842cfcc344fc1dfba",
+  "note": "Validation and stage snapshots differ in seed pin and progress documentation; reports preserve their distinct source hashes. Original logs and snapshots remain local."
+}

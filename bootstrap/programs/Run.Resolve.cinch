@@ -1,0 +1,343 @@
+-- Source-level namespace tests, checked and interpreted after elaboration.
+module Main where
+
+  import Bootstrap.Ast
+  import Bootstrap.Parse (parse-program)
+  import Bootstrap.Resolve (resolve-program)
+  import Bootstrap.Contracts (declaration-references)
+  import Bootstrap.Check (check-program)
+  import Bootstrap.Eval (Value, VInt, eval-main, eval-main-result, render-value)
+  import Bootstrap.Report (Diagnostic, diagnostic-message, render-diagnostics)
+  import Text.Parse (ParseOutcome, Parsed, Failed, ParseError, EFail)
+  import Data.Path (path-from-string)
+  import Effect.Fs (fs-read, fs-write)
+  import Data.Json
+  import Text.Lex (Span)
+
+  library :: String
+  library = "module A where\n  export add\n  private :: Int -> Int\n  private n = n + 4\n  add :: Int -> Int\n  add n = private n\n"
+
+  positive :: List (String, Int)
+  positive =
+    [ (string-concat "module Main where\n  import A (add as bump)\n  private :: Int -> Int\n  private n = n * 2\n  main :: Int\n  main = bump 3 + private 5\n" library, 17)
+    , (string-concat library "module Main where\n  import A as L\n  main :: Int\n  main = L.add 5\n", 9)
+    , (string-concat library "module B where\n  import A (add as bump)\n  export module A\nmodule Main where\n  import B\n  main :: Int\n  main = bump 6\n", 10)
+    , (string-concat library "module B where\n  import A as L\n  export L.add\nmodule Main where\n  import B (add as final)\n  main :: Int\n  main = final 7\n", 11)
+    , (string-concat library "module Main where\n  import A\n  add :: Int -> Int\n  add x = x + 20\n  main :: Int\n  main = add 1 + A.add 2\n", 27)
+    , (string-concat library "module Main where\n  import A\n  main :: Int\n  main = let add = 7 in case (2, 3) of (x, y) -> add + x + y\n", 12)
+    , ("module A where\n  data Token where\n    Mk :: Int -> Token\n  unwrap :: Token -> Int\n  unwrap t = case t of Mk x -> x\nmodule B where\n  data Token where\n    Mk :: Bool -> Token\n  unwrap :: Token -> Int\n  unwrap t = case t of Mk x -> if x then 5 else 0\nmodule Main where\n  import A as L\n  import B as R\n  main :: Int\n  main = L.unwrap (L.Mk 7) + R.unwrap (R.Mk True)\n", 12)
+    , ("module Main where\n  infixl 4 <+>\n  (<+>) :: Int -> Int -> Int\n  (<+>) a b = a + b\n  main :: Int\n  main = 3 <+> 4\n", 7)
+    , ("module A where\n  answer :: Int\n  answer = 42\nmodule Main where\n  import A\n  main :: Int\n  main = answer\n", 42)
+    , ("module Tools.Build where\n  step :: Int -> Int\n  step n = n + 1\nmodule Main where\n  import Tools.Build\n  main :: Int\n  main = Build.step 4\n", 5)
+    , ("module A where\n  infixr 6 <+>\n  (<+>) :: Int -> Int -> Int\n  (<+>) a b = a - b\n  calculate :: Int -> Int\n  calculate n = n <+> 3 <+> 2\nmodule Main where\n  import A (calculate)\n  infixl 6 <+>\n  (<+>) :: Int -> Int -> Int\n  (<+>) a b = a - b\n  main :: Int\n  main = calculate 10 + (10 <+> 3 <+> 2)\n", 14)
+    , ("module A where\n  infixr 9 +\n  (+) :: Int -> Int -> Int\n  (+) a b = a - b\n  helper :: Int -> Int\n  helper n = n + 1\nmodule Main where\n  main :: Int\n  main = 2 + 3 * 4\n", 14)
+    , ("module Main where\n  import A\n  main :: Int\n  main = 10 <+> 3 <+> 2\nmodule A where\n  infixr 6 <+>\n  (<+>) :: Int -> Int -> Int\n  (<+>) a b = a - b\n", 9)
+    , ("module A where\n  infixr 6 <+>\n  (<+>) :: Int -> Int -> Int\n  (<+>) a b = a - b\nmodule Facade where\n  import A ((<+>) as (<*>))\n  export (<*>)\nmodule Main where\n  import Facade\n  main :: Int\n  main = 10 <*> 3 <*> 2\n", 9)
+    , ("module A where\n  infixr 6 <+>\n  (<+>) :: Int -> Int -> Int\n  (<+>) a b = a - b\nmodule Facade where\n  import A as Library\n  export Library.(<+>)\nmodule Main where\n  import Facade\n  main :: Int\n  main = 10 <+> 3 <+> 2\n", 9)
+    , ("module A where\n  (<+>) :: Int -> Int -> Int\n  (<+>) a b = a - b\nmodule Main where\n  import A\n  main :: Int\n  main = (<+>) 7 2\n", 5)
+    , ("module Main where\n  ioWrite :: Int -> Int\n  ioWrite x = x + 1\n  main :: Int\n  main = ioWrite 2\n", 3)
+    ]
+
+  negative :: List (String, String)
+  negative =
+    [ (string-concat library "module Main where\n  import A\n  main :: Int\n  main = private 1\n", "name is not in scope: private")
+    , (string-concat library "module Main where\n  import A as L\n  main :: Int\n  main = add 1\n", "name is not in scope: add")
+    , (string-concat library "module Main where\n  import A as L\n  main :: Int\n  main = A.add 1\n", "name is not in scope: A.add")
+    , (string-concat library "module Main where\n  import A (add as bump)\n  main :: Int\n  main = add 1\n", "name is not in scope: add")
+    , (string-concat library "module Main where\n  import A (missing)\n  main :: Int\n  main = 0\n", "A has no exported member: missing")
+    , ("module A where\n  value :: Int\n  value = 1\nmodule B where\n  value :: Int\n  value = 2\nmodule Main where\n  import A\n  import B\n  main :: Int\n  main = 0\n", "name value is imported from both A and B")
+    , ("module A where\n  import B\nmodule B where\n  import A\nmodule Main where\n  main :: Int\n  main = 0\n", "cyclic module imports involving A")
+    , ("module Main where\n  import Missing\n  main :: Int\n  main = 0\n", "missing source module or checked interface: Missing")
+    , ("module Main where\n  main :: Int\n  main = 0\nmodule Main where\n  other :: Int\n  other = 1\n", "duplicate module: Main")
+    , (string-concat library "module B where\n  import A (add)\nmodule Main where\n  import B\n  main :: Int\n  main = add 1\n", "name is not in scope: add")
+    , ("module A where\n  export T\n  data T where\n    Private :: T\nmodule Main where\n  import A\n  main :: Int\n  main = case Private of _ -> 0\n", "name is not in scope: Private")
+    , (string-concat library "module Main where\n  import A\n  export A.private\n  main :: Int\n  main = 0\n", "name is not in scope to export: A.private")
+    , ("module Main where\n  main :: Int\n  main = with (io = io) in 0\n", "name is not in scope: io")
+    , ("module Main where\n  f :: Int -> Int\n  f x = with (io = x) in io\n  main :: Int\n  main = io\n", "name is not in scope: io")
+    , ("module Main where\n  foreign export ccall \"unknown\" missing :: Int -> Int\n  main :: Int\n  main = 0\n", "name is not in scope: missing")
+    ]
+
+  positive-ok :: String -> Int -> Bool
+  positive-ok text expected = case parse-program "resolve-positive" (string-to-bytes text) of
+    Failed bundle -> False
+    Parsed program Nil ->
+      if program-unmodeled-count program == 0 then
+        case resolve-program program of
+          (resolved, Nil) -> case check-program resolved of
+            Nil -> case eval-main resolved of
+              Some actual -> actual == expected
+              None -> False
+            Cons error rest -> False
+          (resolved, errors) -> False
+      else False
+    Parsed program errors -> False
+
+  contains-message :: String -> List Diagnostic -> Bool
+  contains-message expected errors = case errors of
+    Nil -> False
+    Cons d rest -> string-compare expected (diagnostic-message d) == 0 || contains-message expected rest
+
+  negative-ok :: String -> String -> Bool
+  negative-ok text expected = case parse-program "resolve-negative" (string-to-bytes text) of
+    Failed bundle -> False
+    Parsed program Nil ->
+      if program-unmodeled-count program == 0 then
+        case resolve-program program of
+          (resolved, errors) -> contains-message expected errors
+      else False
+    Parsed program errors -> False
+
+  check-positive :: List (String, Int) -> Int -> Int
+  check-positive cases number = case cases of
+    Nil -> 0
+    Cons (text, expected) rest -> if positive-ok text expected then check-positive rest (number + 1) else number
+
+  check-negative :: List (String, String) -> Int -> Int
+  check-negative cases number = case cases of
+    Nil -> 0
+    Cons (text, expected) rest -> if negative-ok text expected then check-negative rest (number + 1) else number
+
+  owner-error :: List ParseError -> Bool
+  owner-error errors = case errors of
+    Nil -> False
+    Cons error rest -> case error of
+      EFail s message -> string-compare message "only the module declaring operator `<+>` may declare its fixity; an importer must inherit it" == 0 || owner-error rest
+      other -> owner-error rest
+
+  ownership-refused :: String -> Bool
+  ownership-refused declaration = case parse-program "fixity-owner" (string-to-bytes (string-concat-all
+    [ "module A where\n  infixr 6 <+>\n  (<+>) :: Int -> Int -> Int\n  (<+>) a b = a - b\nmodule Main where\n  import A\n  "
+    , declaration
+    , "\n  main :: Int\n  main = 0\n"
+    ])) of
+      Parsed program errors -> owner-error errors
+      Failed bundle -> False
+
+  prefix-only-refused :: Unit -> Bool
+  prefix-only-refused unit = case parse-program "prefix-only" (string-to-bytes "module A where\n  (<+>) :: Int -> Int -> Int\n  (<+>) a b = a - b\nmodule Main where\n  import A\n  main :: Int\n  main = 7 <+> 2\n") of
+    Failed bundle -> True
+    Parsed program errors -> program-unmodeled-count program > 0
+
+  fixity-policy-ok :: Unit -> Bool
+  fixity-policy-ok unit = ownership-refused "infixr 6 <+>" && ownership-refused "infixl 9 <+>" && prefix-only-refused () && effect-fixity-ok
+
+  effect-library :: String
+  effect-library = "module A where\n  infixr 6 <+>\n  effect Event where\n    (<+>) :: Int -> Int ->{Event} Int\n"
+
+  effect-fixity-ok :: Bool
+  effect-fixity-ok =
+    (case parse-program "effect-owner" (string-to-bytes (string-concat effect-library "module Main where\n  import A\n  main :: Int\n  main = 1 <+> 2 <+> 3\n")) of
+      Parsed program Nil -> case program-modules program of
+        Cons library-module (Cons main-module Nil) -> case module-decls main-module of
+          Cons imported (Cons sig (Cons (DFun s name (Cons (Nil, EBin bs op left (EBin rs op2 middle right)) Nil)) Nil)) -> string-compare op "<+>" == 0 && string-compare op op2 == 0 && program-unmodeled-count program == 0
+          other -> False
+        other -> False
+      other -> False)
+    && (case parse-program "effect-importer" (string-to-bytes (string-concat effect-library "module Main where\n  import A\n  infixr 6 <+>\n  main :: Int\n  main = 0\n")) of
+      Parsed program errors -> owner-error errors
+      other -> False)
+
+  describe-positive :: String -> String
+  describe-positive text = case parse-program "resolve" (string-to-bytes text) of
+    Failed bundle -> "parse failed"
+    Parsed program Nil -> case resolve-program program of
+      (resolved, Nil) -> case check-program resolved of
+        Nil -> case eval-main-result resolved of
+          Ok actual -> string-concat "value " (render-value (VInt actual))
+          Err errors -> string-concat "evaluation: " (render-diagnostics errors)
+        errors -> string-concat "check: " (render-diagnostics errors)
+      (resolved, errors) -> string-concat "resolve: " (render-diagnostics errors)
+    Parsed program errors -> "recovered parse"
+
+  describe-positives :: List (String, Int) -> Int -> String
+  describe-positives cases number = case cases of
+    Nil -> ""
+    Cons (text, expected) rest -> string-concat-all ["case ", render-value (VInt number), ": ", describe-positive text, "\n", describe-positives rest (number + 1)]
+
+  field :: String -> Json -> Json
+  field name doc = case doc of
+    JObj key value rest -> if string-compare name key == 0 then value else field name rest
+    other -> JNull
+
+  find-external :: String -> List Decl -> Option Decl
+  find-external name ds = case ds of
+    Nil -> None
+    Cons d rest -> case d of
+      DExternal s n kind scheme metadata -> if string-compare name n == 0 then Some d else find-external name rest
+      other -> find-external name rest
+
+  region-binder :: TypeExpr -> Bool
+  region-binder binders = case binders of
+    TQuantifier s name False (TName ks kind) (TQuantifiersEnd end) -> string-compare name "r" == 0 && string-compare kind "Region" == 0
+    other -> False
+
+  region-argument :: TypeExpr -> Bool
+  region-argument args = case type-args-of args of
+    Cons (TName s name) Nil -> string-compare name "r" == 0
+    other -> False
+
+  write-scheme-ok :: TypeExpr -> Bool
+  write-scheme-ok ty = case ty of
+    TForall fs binders (TUsing bs bounds (TFunEff ar (TName by input) (TRow rs labels None) (TName out output))) ->
+      region-binder binders && string-compare input "Bytes" == 0 && string-compare output "Unit" == 0
+      && (case type-bounds-of bounds of Cons (cap, TApp t (TName hs io-type) args) Nil -> string-compare cap "io" == 0 && string-compare io-type "Io" == 0 && region-argument args; other -> False)
+      && (case type-args-of labels of Cons (TApp t (TName hs label) args) Nil -> string-compare label "IO" == 0 && region-argument args; other -> False)
+    other -> False
+
+  builtin-contracts-ok :: List Decl -> Bool
+  builtin-contracts-ok ds =
+    (case find-external "b.newIO" ds of
+      Some (DExternal s name kind (Some (TForall fs binders body)) metadata) -> region-binder binders
+        && (case field "fresh_region" metadata of JBool True -> True; other -> False)
+        && (case body of TFun a (TName us unit) (TApp app (TName io cap) args) -> string-compare unit "Unit" == 0 && string-compare cap "Io" == 0 && region-argument args; other -> False)
+      other -> False)
+    && (case find-external "b.ioWrite" ds of
+      Some (DExternal s name kind (Some ty) metadata) -> write-scheme-ok ty
+      other -> False)
+
+  kernel-source :: String
+  kernel-source = "module Main where\n  writer :: forall r. using (io :: Io r) => Bytes ->{IO r} Unit\n  writer bytes = ioWrite bytes\n  main :: Unit ->{IO r} Int\n  main unit = with (io = Runtime.newIO ()) in 0\n"
+
+  kernel-ok :: Bool
+  kernel-ok = case parse-program "kernel" (string-to-bytes kernel-source) of
+    Parsed program Nil -> case resolve-program program of
+      (resolved, Nil) -> case program-modules resolved of
+        Cons m Nil -> builtin-contracts-ok (module-decls m)
+          && list-length (check-program resolved) == 0
+        other -> False
+      other -> False
+    other -> False
+
+  effect-source :: String
+  effect-source = "module Main where\n  effect Event where\n    poke :: Int ->{Event} Int\n  main :: Int\n  main = handle poke 1 with (handler Event where\n    return x -> x\n    poke n resume k -> k n)\n"
+
+  language-decls :: List Decl -> List Decl
+  language-decls ds = case ds of
+    Nil -> Nil
+    Cons (DSource s name metadata) rest -> language-decls rest
+    Cons d rest -> Cons d (language-decls rest)
+
+  effect-ok :: Bool
+  effect-ok = case parse-program "effect" (string-to-bytes effect-source) of
+    Parsed program Nil -> case resolve-program program of
+      (resolved, Nil) -> case program-modules resolved of
+        Cons m Nil -> case language-decls (module-decls m) of
+          Cons (DEffect s owner Nil (Cons (operation, TFunEff ar input (TRow rs labels None) output) Nil)) (Cons sig (Cons (DFun fs main-name (Cons (Nil, EHandle hs body (EHandler hsp (TName ls label) clauses)) Nil)) Nil)) ->
+            string-compare owner label == 0
+            && (case type-args-of labels of Cons (TName es row-label) Nil -> string-compare row-label owner == 0; other -> False)
+            && (case clauses of EHandlerClause ret return-name return-pats None ret-body (EHandlerClause os op ps (Some k) (EApp app (EVar ks use-k) (EVar ns n)) (EHandlerEnd end)) -> string-compare operation op == 0 && string-compare k use-k == 0 && string-compare n "n" == 0; other -> False)
+          other -> False
+        other -> False
+      other -> False
+    other -> False
+
+  proof-source :: String
+  proof-source = "module Main where\n  choose :: Int -> Int\n  choose n = case decide (n > 0) of\n    Yes evidence -> 1\n    No contrary -> 0\n  main :: Int\n  main = choose 1\n"
+
+  proof-constructor-ok :: String -> Int -> List Decl -> Bool
+  proof-constructor-ok name tag ds = case find-external name ds of
+    Some (DExternal s n kind (Some (TForall fs binders (TFun a field-type result))) metadata) ->
+      (case binders of TQuantifier qs p False (TName ks prop) (TQuantifiersEnd end) -> string-compare p "p" == 0 && string-compare prop "Prop" == 0; other -> False)
+      && (case field "tag" metadata of JNum actual -> actual == tag; other -> False)
+      && (case field "erased" metadata of JArr (JBool True) JArrEnd -> True; other -> False)
+      && (case field "runtime_arity" metadata of JNum arity -> arity == 0; other -> False)
+    other -> False
+
+  proof-ok :: Bool
+  proof-ok = case parse-program "proof" (string-to-bytes proof-source) of
+    Parsed program Nil -> case resolve-program program of
+      (resolved, Nil) -> case program-modules resolved of
+        Cons m Nil -> let ds = module-decls m in
+          proof-constructor-ok "b.Yes" 0 ds && proof-constructor-ok "b.No" 1 ds
+          && (case find-external "b.decide" ds of
+            Some (DExternal s name kind (Some (TForall fs binders (TApp app (TName hs result) args))) metadata) -> string-compare result "Dec" == 0 && (case field "first_class" metadata of JBool False -> True; other -> False)
+            other -> False)
+          && contains-message "builtin syntax needs dependent predicate elaboration: b.decide" (check-program resolved)
+        other -> False
+      other -> False
+    other -> False
+
+  independent-errors-ok :: Bool
+  independent-errors-ok = case parse-program "errors" (string-to-bytes "module A where\n  first :: Int\n  first = missing-first\nmodule B where\n  second :: Int\n  second = missing-second\nmodule Main where\n  main :: Int\n  main = 0\n") of
+    Parsed program Nil -> case resolve-program program of
+      (resolved, errors) -> contains-message "name is not in scope: missing-first" errors && contains-message "name is not in scope: missing-second" errors
+    other -> False
+
+  constant-symbol :: String -> List Decl -> Option String
+  constant-symbol digits ds = case ds of
+    Nil -> None
+    Cons (DFun s name (Cons (Nil, ELitInt at text) Nil)) rest -> if string-compare digits text == 0 then Some name else constant-symbol digits rest
+    Cons d rest -> constant-symbol digits rest
+  precondition-type :: List Decl -> Option TypeExpr
+  precondition-type ds = case ds of
+    Nil -> None
+    Cons (DSig s name ty) rest -> case ty of TUsing at bounds body -> Some ty; other -> precondition-type rest
+    Cons d rest -> precondition-type rest
+  dependent-scope-source :: String -> String -> String
+  dependent-scope-source annotation body = string-concat-all
+    [ "module Main where\n  index :: Nat\n  index = 31\n  limit :: Nat\n  limit = 7\n  f :: using (index <= limit) => "
+    , annotation, "\n  f ", body, "\n  main :: Int\n  main = 0\n" ]
+  dependent-scope-one :: Bool -> String -> String -> Bool
+  dependent-scope-one local annotation body = case parse-program "dependent-scope" (string-to-bytes (dependent-scope-source annotation body)) of
+    Parsed program Nil -> case resolve-program program of
+      (resolved, Nil) -> case program-modules resolved of
+        Cons m Nil -> let ds = module-decls m in
+          case (constant-symbol "31" ds, constant-symbol "7" ds, precondition-type ds) of
+            (Some global-index, Some global-limit, Some (TUsing s bounds result)) -> case type-bounds-of bounds of
+              Cons (binder, TInfix at op (TName x lhs) (TName y rhs)) Nil ->
+                string-compare op "<=" == 0 && string-compare lhs (if local then "index" else global-index) == 0 && string-compare rhs global-limit == 0
+              other -> False
+            other -> False
+        other -> False
+      other -> False
+    other -> False
+  dependent-scopes-ok :: Bool
+  dependent-scopes-ok = dependent-scope-one True "(index :: Nat) -> Nat" "index = index"
+    && dependent-scope-one True "(first :: Nat) -> (index :: Nat) -> Nat" "first index = index"
+    && dependent-scope-one False "((index :: Nat) -> Nat) -> Nat" "callback = 0"
+
+  reference-workload :: Nat -> List Decl
+  reference-workload count = if count == 0 then Nil else
+    Cons (DFun (Span 0 0 1 1) "node" [(Nil, EVar (Span 0 0 1 1) "wanted")]) (reference-workload (count - 1))
+
+  wanted-references :: List String -> Bool
+  wanted-references names = case names of Nil -> True; Cons name rest -> string-compare name "wanted" == 0 && wanted-references rest
+
+  same-references :: List String -> List String -> Bool
+  same-references xs ys = case (xs, ys) of
+    (Nil, Nil) -> True
+    (Cons x rest, Cons y more) -> string-compare x y == 0 && same-references rest more
+    other -> False
+
+  reference-order-ok :: Bool
+  reference-order-ok =
+    let sp = Span 0 0 1 1 in
+    let sig = DSig sp "value" (TName sp "Carrier") in
+    let fun = DFun sp "function" [(Nil, EApp sp (EVar sp "left") (EVar sp "right"))] in
+    let inst = DInstance sp False "dictionary" Nil (TName sp "Class") (decl-spine sp [sig]) in
+    let foreign-decl = DForeign sp "export" "ccall" "external" "shim" (TName sp "Result") in
+    same-references (declaration-references [sig, fun, inst, foreign-decl]) ["Carrier", "left", "right", "Class", "Carrier", "Result", "shim"]
+
+  large-references-ok :: Nat -> Bool
+  large-references-ok count = let names = declaration-references (reference-workload count) in
+    list-length names == count && wanted-references names && reference-order-ok
+
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in
+    case fs-write (path-from-string "resolve-report.txt") (string-to-bytes (describe-positives positive 1)) of
+      Err error -> 255
+      Ok _ -> let first = check-positive positive 1 in
+        if first == 0 then
+          let second = check-negative negative 101 in
+          if second == 0 then
+            if fixity-policy-ok () then
+              if kernel-ok then if effect-ok then if proof-ok then if independent-errors-ok then if dependent-scopes-ok then
+                -- The report is a runtime input, so this walk cannot be
+                -- replaced with a compile-time constant by the seed.
+                case fs-read (path-from-string "resolve-report.txt") of
+                  Ok bytes -> if large-references-ok (6000 + bytes-len bytes) then 0 else 206
+                  Err error -> 255
+              else 207 else 205 else 204 else 203 else 202
+            else 201
+          else second
+        else first

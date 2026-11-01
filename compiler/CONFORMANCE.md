@@ -210,7 +210,7 @@ and dash-style prelude function names.
 | Tail recursion in constant stack, self and mutual (D104) | done (loop-header self-jumps + `musttail` mutual groups, widened to the group's widest arity when members' arities differ (`core.rs::tail_widths`, `@"<unit>#tail"` workers); 1,000,000-deep proofs on an 8 MiB stack, mixed-arity included; `tail_calls` manifest section with Tarjan SCC marks and fallback reasons (D138-D139); `tests/surface.rs` run-tests, `tests/tail_calls.rs`) |
 | `[...]`/`{k => v}` literals desugaring to `FromList`/`FromMap`, with the prelude `Map` (D105) | done (`FromList`/`FromMap` classes, `Map` BST, expected-type instance selection, D92 fold pass with `literal_folds` boundary (D142/D147); `tests/surface.rs`) |
 | Dash-style prelude function names (D106) | done (all 911 prelude-declared functions/methods renamed; compiler-side name references moved; builtin surface values and intrinsic symbols unchanged (D130)) |
-| Export declarations and re-exports (`export module X`, `export A.b`); imports private until re-exported (D107) | done (surface is exactly the named set with `export` decls (D143/D146); instances/fixities/foreign table stay module-owned) |
+| Export declarations and re-exports (`export module X`, `export A.b`); imports private until re-exported (D107) | done (surface is exactly the named set with `export` decls (D143/D146); fixities follow exported operator bindings; instances/foreign table stay module-owned) |
 | Import renaming and selection (`import X as Y`, `import X (a as b)`); duplicate imports error naming both sources (D108) | done (a rename is the name everywhere (D144); duplicate rule over explicit imports (D145)) |
 | File-type import converters: extension-keyed compile-time conversion (`import data "config.json" as config`), built-ins json/txt/bytes, plugins as stage modules with provenance (D109) | done (json/txt/bytes built-ins with budget/depth caps, declared-type decode, `data_imports` provenance (D148/D149); plugin converters deferred: unknown extensions name the built-ins) |
 | Collection literals fold at compile time to direct construction (macro expansion + stage evaluation + constant emission); runtime class call otherwise; fold boundary reported (D110) | done (fold pass in `finish_fn` via the D92 evaluator into P14 constants; boundary in `StageReport.literal_folds` and the manifest; semantics-transparent fallback (D147)) |
@@ -395,6 +395,9 @@ correspondence: one lexeme in expression/pattern, staging `Name`, and
   without them, declared names as before. Instances, fixities, and the
   foreign table stay module-owned (coherence/contract facts, not
   names).
+  The fixity portion is superseded by the 2026-10-30 user direction:
+  only the declaring module may declare an operator's fixity, and that
+  fact follows the binding through selected, renamed and bulk re-exports.
 - **D144 (P19 renames)**: a rename is the name everywhere (`import X
   (a as b)` gives bare `b` and `X.b`; `a` is unreachable); selection
   and alias cannot combine in one import.
@@ -1969,7 +1972,10 @@ so the embedding sweep stays its own decision.
   fixities are syntactic and name-independent), or move the operator
   homes ahead of their users in the early group and let the facade
   collect the later ones. The authoring rule stands either way, so
-  this is a consistency fix, not a blocker.
+  this is a consistency fix, not a blocker. Resolved in the 2026-10-30
+  continuation by harvesting the complete family's exported operator
+  headers before parsing bodies. Consumer redeclarations are removed and
+  rejected, including identical ones, per the user's ownership rule.
 
 - **D382 (compiler defect fixed: interface schemes were not
   re-parseable)**: `Ty`'s `Display` printed an applied type

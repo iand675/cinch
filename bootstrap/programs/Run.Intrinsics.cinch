@@ -1,0 +1,62 @@
+-- The executable receives foreign declarations after it has been built.
+module Main where
+  import Bootstrap.Ast
+  import Bootstrap.Parse (parse-program)
+  import Bootstrap.Check (check-program)
+  import Bootstrap.Infer
+  import Bootstrap.Core
+  import Bootstrap.Report (render-diagnostics)
+  import Data.Json
+  import Data.String (string-from-bytes)
+  import Data.Path (path-from-string)
+  import Effect.Fs (fs-read, fs-write)
+  import Text.Parse (ParseOutcome, Parsed, Failed)
+  import Algebra.Semigroup
+
+  same :: String -> String -> Bool
+  same a b = string-compare a b == 0
+  field :: String -> Json -> Json
+  field name doc = case doc of JObj key value rest -> if same name key then value else field name rest; other -> JNull
+  contract-retained :: String -> String -> List Json -> Bool
+  contract-retained identity external rows = case rows of
+    Nil -> False
+    Cons row rest -> (case (field "category" row, field "identity" row, field "external" row, field "runtime_abi" row) of
+      (JStr category, JStr symbol, JStr external-name, JNum abi) -> same category "intrinsic" && same symbol identity && same external-name external && abi == 5
+      other -> False) || contract-retained identity external rest
+  references :: String -> CoreTerm -> Nat
+  references identity term = case term of
+    CUse s ty name role actuals -> if same role "intrinsic" && same name identity then 1 else 0
+    CApply s ty f x -> references identity f + references identity x
+    CLambda s ty p body -> references identity body
+    CLet s ty id name sc rhs body -> references identity rhs + references identity body
+    other -> 0
+  references-in :: String -> List CoreDefinition -> Nat
+  references-in identity definitions = case definitions of
+    Nil -> 0
+    Cons d rest -> references-clauses identity (core-clauses d) + references-in identity rest
+  references-clauses :: String -> List CoreClause -> Nat
+  references-clauses identity clauses = case clauses of Nil -> 0; Cons (MkCoreClause s ps body) rest -> references identity body + references-clauses identity rest
+  all-closed :: List CoreDefinition -> Bool
+  all-closed definitions = case definitions of Nil -> True; Cons d rest -> core-definition-closed d && all-closed rest
+  run :: Bytes -> String -> String -> (Int, String)
+  run source identity external = case parse-program "intrinsic-source" source of
+    Parsed program Nil -> let errors = check-program program in
+      let result = elaborate-program "intrinsic-source" program in
+      let found = elaboration-errors result in
+      if list-length errors > 0 || list-length found > 0 then (4, render-diagnostics (errors <> found))
+      else if all-closed (elaboration-core result) && references-in identity (elaboration-core result) > 0 && contract-retained identity external (elaboration-contexts result) then (0, "")
+      else (94, "intrinsic lost its canonical identity, ABI contract or closed Core")
+    other -> (2, "source parse failed")
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in case fs-read (path-from-string "source.cinch") of
+    Err error -> 90
+    Ok source -> case fs-read (path-from-string "identity.txt") of
+      Err error -> 90
+      Ok identity -> case fs-read (path-from-string "external.txt") of
+        Err error -> 90
+        Ok external -> case (string-from-bytes identity, string-from-bytes external) of
+          (Some symbol, Some external-name) -> let (status, report) = run source symbol external-name in
+            case fs-write (path-from-string "intrinsic-report.txt") (string-to-bytes report) of
+              Err error -> 91
+              Ok _ -> status
+          other -> 92

@@ -1,0 +1,35 @@
+-- Interfaces and source are runtime inputs to this compiled Cinch checker.
+module Main where
+  import Bootstrap.Ast
+  import Bootstrap.Inputs (read-interfaces)
+  import Bootstrap.Load (LoadedInterface)
+  import Bootstrap.Contracts (interface-headers)
+  import Bootstrap.Parse (parse-program-with)
+  import Bootstrap.Resolve (resolve-program-with)
+  import Bootstrap.Infer (elaborate-program, elaboration-errors, elaboration-core)
+  import Bootstrap.Core (CoreDefinition, core-definition-closed)
+  import Bootstrap.Report (render-diagnostics)
+  import Text.Parse (ParseOutcome, Parsed, Failed, render-bundle)
+  import Data.Path (path-from-string)
+  import Effect.Fs (fs-read, fs-write)
+  closed :: List CoreDefinition -> Bool
+  closed definitions = case definitions of Nil -> True; Cons d rest -> core-definition-closed d && closed rest
+  run :: List LoadedInterface -> Bytes -> (Int, String)
+  run interfaces source = case parse-program-with "imported-preconditions" source (interface-headers interfaces) of
+    Parsed program Nil -> case resolve-program-with program interfaces of
+      (resolved, Nil) -> let result = elaborate-program "imported-preconditions" resolved in
+        case elaboration-errors result of
+          Nil -> if closed (elaboration-core result) then (0, "") else (94, "imported condition lost its Core evidence")
+          errors -> (4, render-diagnostics errors)
+      (resolved, errors) -> (4, render-diagnostics errors)
+    Failed bundle -> (2, render-bundle bundle)
+    other -> (2, "recoverable parse errors")
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in case read-interfaces "interfaces.json" of
+    Err message -> 90
+    Ok interfaces -> case fs-read (path-from-string "source.cinch") of
+      Err error -> 91
+      Ok source -> let (status, report) = run interfaces source in
+        case fs-write (path-from-string "imported-report.txt") (string-to-bytes report) of
+          Err error -> 92
+          Ok _ -> status

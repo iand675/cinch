@@ -1,0 +1,117 @@
+-- Binding identities depend on input supplied after compilation.
+module Main where
+
+  import Bootstrap.Index
+  import Data.Json
+  import Data.Nat (nat-from-int)
+  import Data.Path (path-from-string)
+  import Effect.Fs (fs-read, fs-write)
+  import Text.Json (parse-json)
+  import Text.Parse (ParseOutcome, Parsed, Failed)
+
+  has :: Nat -> List Nat -> Bool
+  has id ids = case ids of Nil -> False; Cons first rest -> id == first || has id rest
+  codec-roundtrips :: List IndexTerm -> Bool
+  codec-roundtrips terms = case terms of
+    Nil -> True
+    Cons term rest -> (case index-from-tree (index-tree term) of Some decoded -> index-equal term decoded; None -> False) && codec-roundtrips rest
+  cases :: Nat -> List (String, Bool)
+  cases nonce =
+    let a = nonce + 1 in
+    let b = nonce + 2 in
+    let c = nonce + 3 in
+    let x = IBound a "same" in
+    let y = IBound b "same" in
+    let z = IBound c "fresh" in
+    let captured = substitute-index [(a, y)] (ILambda b "same" (IAdd x y)) in
+    let meta-captured = substitute-index-metas [(a, y)] (ILambda b "same" (IMeta a)) in
+    [ ("names are not identities", not (index-equal x y))
+    , ("display names can change", index-equal x (IBound a "renamed"))
+    , ("alpha equivalence", index-equal (ILambda a "x" x) (ILambda b "y" y))
+    , ("free is not bound", not (index-equal (ILambda a "x" y) (ILambda b "y" y)))
+    , ("bound is not free", not (index-equal (ILambda b "y" y) (ILambda a "x" y)))
+    , ("nested shadowing", index-equal (ILambda a "x" (ILambda a "x" x)) (ILambda b "y" (ILambda c "z" z)))
+    , ("shadowed outer is distinct", not (index-equal (ILambda a "x" (ILambda b "y" x)) (ILambda c "z" (ILambda c "z" z))))
+    , ("simultaneous substitution", index-equal (substitute-index [(a, y), (b, x)] (IAdd x y)) (IAdd y x))
+    , ("binder masks replacement", index-equal (substitute-index [(a, IInteger 99), (b, IInteger 1)] (ILambda a "x" (IAdd x y))) (ILambda a "x" (IAdd x (IInteger 1))))
+    , ("capture avoidance", index-equal captured (ILambda c "fresh" (IAdd y z)))
+    , ("replacement stays free", has b (index-free-bound captured) && list-length (index-free-bound captured) == 1)
+    , ("nested capture avoidance", index-equal
+        (substitute-index [(a, y)] (ILambda b "outer" (ILambda b "inner" (IAdd x y))))
+        (ILambda a "outer" (ILambda c "inner" (IAdd y z))))
+    , ("bound substitution leaves metas", index-equal (substitute-index [(a, IInteger 4)] (IMeta a)) (IMeta a))
+    , ("meta substitution leaves bound", index-equal (substitute-index-metas [(a, IInteger 4)] x) x)
+    , ("lambda does not bind a meta", index-equal (substitute-index-metas [(a, IInteger 4)] (ILambda a "x" (IMeta a))) (ILambda a "x" (IInteger 4)))
+    , ("meta replacement avoids capture", index-equal meta-captured (ILambda c "fresh" y))
+    , ("occurs beneath a lambda", index-occurs a (ILambda a "x" (IApply x (IMeta a))))
+    , ("bound identity is not a meta", not (index-occurs a x))
+    , ("cyclic map substitutes once", index-equal (substitute-index-metas [(a, IAdd (IMeta a) (IInteger 1))] (IMeta a)) (IAdd (IMeta a) (IInteger 1)))
+    , ("all operator children visited", index-equal (substitute-index [(a, IInteger 3)] (IMultiply (ISubtract x (IInteger 1)) x)) (IMultiply (ISubtract (IInteger 3) (IInteger 1)) (IInteger 3)))
+    , ("bound scope", index-scoped [a] [b] Nil (IApply x (IRigid b "r" 1)))
+    , ("same name does not grant scope", not (index-scoped [a] Nil Nil y))
+    , ("lambda binds its identity", index-scoped Nil Nil Nil (ILambda a "x" x))
+    , ("rigid needs scope", not (index-scoped [b] Nil Nil (IRigid b "r" 1)))
+    , ("unsolved meta is not closed", not (index-scoped [a] [a] Nil (IMeta a)))
+    , ("global defining identities differ", not (index-equal (IGlobal "Left.f") (IGlobal "Right.f")))
+    , ("global needs checked scope", not (index-scoped Nil Nil ["Left.f"] (IGlobal "Right.f")))
+    , ("known global scope", index-scoped [a] Nil ["Left.f"] (IApply (IGlobal "Left.f") x))
+    , ("rigid escape", index-escapes 1 (ILambda b "x" (IRigid b "r" 2)))
+    , ("outer rigid remains local", not (index-escapes 2 (IRigid b "r" 1)))
+    , ("rigid is not captured", index-equal (substitute-index [(a, IRigid b "r" 1)] (ILambda b "x" x)) (ILambda b "x" (IRigid b "r" 1)))
+    , ("arbitrary precision literal", index-equal (substitute-index [(a, IInteger (340282366920938463463374607431768211456 + nat-to-int nonce))] x) (IInteger (340282366920938463463374607431768211456 + nat-to-int nonce)))
+    , ("structural codec preserves every index form", codec-roundtrips
+        [IInteger (0 - 340282366920938463463374607431768211456 - nat-to-int nonce), x,
+         IRigid (340282366920938463463374607431768211456 + a) "rigid" b,
+         IGlobal "Defining.Module.value", IMeta a, IApply x y,
+         ILambda b "binder" (IAdd x y), IAdd x y, ISubtract x y, IMultiply x y])
+    ]
+  failures :: List (String, Bool) -> String
+  failures rows = case rows of Nil -> ""; Cons (name, ok) rest -> string-concat (if ok then "" else string-concat name "\n") (failures rest)
+  same :: String -> String -> Bool
+  same a b = string-compare a b == 0
+  field :: String -> Json -> Json
+  field name doc = case doc of JObj key value rest -> if same name key then value else field name rest; other -> JNull
+  natural :: Json -> Option Nat
+  natural doc = case doc of JNum n -> if n < 0 then None else Some (nat-from-int n); other -> None
+  decode-term :: Json -> Option IndexTerm
+  decode-term doc = index-from-tree doc
+  decode-pairs :: Json -> Option (List (Nat, IndexTerm))
+  decode-pairs doc = case doc of
+    JArrEnd -> Some Nil
+    JArr (JArr key (JArr value JArrEnd)) rest -> case (natural key, decode-term value, decode-pairs rest) of
+      (Some id, Some term, Some more) -> Some (Cons (id, term) more)
+      other -> None
+    other -> None
+  decode-ids :: Json -> Option (List Nat)
+  decode-ids doc = case doc of JArrEnd -> Some Nil; JArr first rest -> (case (natural first, decode-ids rest) of (Some id, Some more) -> Some (Cons id more); other -> None); other -> None
+  decode-globals :: Json -> Option (List String)
+  decode-globals doc = case doc of JArrEnd -> Some Nil; JArr (JStr name) rest -> (case decode-globals rest of Some more -> Some (Cons name more); None -> None); other -> None
+  answer :: Bool -> (Int, String)
+  answer value = (if value then 0 else 4, "index result")
+  request :: Json -> (Int, String)
+  request doc = case field "mode" doc of
+    JStr mode -> if same mode "selftest" then (case natural (field "nonce" doc) of
+      Some nonce -> let report = failures (cases nonce) in (if string-length report == 0 then 0 else 4, report)
+      None -> (2, "invalid nonce"))
+      else if same mode "equal" then (case (decode-term (field "left" doc), decode-term (field "right" doc)) of
+        (Some left, Some right) -> answer (index-equal left right)
+        other -> (2, "invalid term"))
+      else if same mode "substitute" || same mode "substitute-metas" then
+        (case (decode-pairs (field "pairs" doc), decode-term (field "term" doc), decode-term (field "result" doc)) of
+          (Some pairs, Some term, Some result) -> answer (index-equal (if same mode "substitute" then substitute-index pairs term else substitute-index-metas pairs term) result)
+          other -> (2, "invalid substitution"))
+      else if same mode "scope" then
+        (case (decode-ids (field "bound" doc), decode-ids (field "rigid" doc), decode-globals (field "globals" doc), decode-term (field "term" doc)) of
+          (Some bound, Some rigid, Some globals, Some term) -> answer (index-scoped bound rigid globals term)
+          other -> (2, "invalid scope"))
+      else (2, "invalid mode")
+    other -> (2, "missing mode")
+  parse-request :: Bytes -> (Int, String)
+  parse-request bytes = case parse-json "index-input" bytes of Parsed doc Nil -> request doc; other -> (2, "invalid JSON")
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in case fs-read (path-from-string "case.txt") of
+    Err error -> 90
+    Ok input -> let (status, report) = parse-request input in
+      case fs-write (path-from-string "indices-report.txt") (string-to-bytes report) of
+        Err error -> 91
+        Ok _ -> status

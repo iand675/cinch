@@ -1,0 +1,1408 @@
+-- Type inference shared by the elaborator. Error recovery types are used
+-- only after a diagnostic; they are not evidence of type equality.
+module Bootstrap.Type where
+
+  import Bootstrap.Report (Diagnostic, MkDiagnostic)
+  import Text.Lex (Span)
+  import Data.Json
+  import Data.Nat (nat-from-int, nat-to-int)
+  import Bootstrap.Index
+  import Text.Show (int-to-string)
+
+  export Kind, KType, KProp, KRegion, KEffect, KRow, KFun, KValue, kind-equal, kind-text
+  export valid-kind, map-kind-types, value-kind, value-carrier
+  export UType, UPropLit, UCompare, UPropAnd, UPropOr, UPropNot, UPropNonZero, URequire, URefine, UCon, UBound, URigid, UMeta, UIndex, UIndexForget, UIndexPromote, UIndexMath, UPi, UApp, UFun, UFunEff, URow, URowJoin, UTuple, UArg, UEnd, UError
+  export without-index-levels, index-of-type, index-runtime-admissible, typed-index-admissible, open-pi, open-refinement
+  export include-effects, union-effects
+  export Quant, MkQuant, quant-id, quant-name, quant-kind, quant-implicit
+  export Requirement, MkRequirement, requirement-name, requirement-type, map-requirements
+  export Scheme, MkScheme, MkQualifiedScheme, scheme-params, scheme-body, scheme-requirements, mono, qualified
+  export map-scheme-types, open-qualified
+  export Store, empty-store, store-errors, store-level, enter-level, restore-level
+  export add-error, fresh-meta, instantiate, skolemize, open-scheme, normalize, unify, valid-type
+  export type-kind, type-text, free-metas, scheme-metas, generalize, scheme-arity
+  export generalize-with, abstract-metas
+  export fresh-id, substitute-bound, fresh-for-types, pi-dependent, unify-kind, kind-free-bound
+
+  data Kind where
+    KType :: Kind
+    KProp :: Kind
+    KRegion :: Kind
+    KEffect :: Kind
+    KRow :: Kind
+    KFun :: Kind -> Kind -> Kind
+    -- A complete tagged type tree avoids a forward-recursive Kind/UType
+    -- declaration in this bootstrap language. Always use value-kind and
+    -- value-carrier; malformed trees are rejected by valid-kind.
+    KValue :: Json -> Kind
+
+  data UType where
+    UPropLit :: Bool -> UType
+    UCompare :: String -> UType -> UType -> UType
+    UPropAnd :: UType -> UType -> UType
+    UPropOr :: UType -> UType -> UType
+    UPropNot :: UType -> UType
+    -- Structural predicate identity is retained. Logical discharge may
+    -- read it as inequality to zero; type conversion must not erase it.
+    UPropNonZero :: UType -> UType
+    -- Required propositions are part of the type, never a cast to its body.
+    URequire :: UType -> UType -> UType
+    -- The value binder scopes its predicate only; the runtime carrier is
+    -- retained explicitly. No unification rule forgets this predicate.
+    URefine :: Nat -> String -> UType -> UType -> UType
+    UCon :: String -> Kind -> UType
+    UBound :: Nat -> String -> Kind -> UType
+    URigid :: Nat -> String -> Nat -> Kind -> UType
+    UMeta :: Nat -> Kind -> UType
+    UIndex :: UType -> IndexTerm -> UType
+    -- Typed value-index nodes preserve the input carrier through formal
+    -- substitution. Projection is not permission to weaken a binder sort.
+    UIndexForget :: UType -> UType
+    UIndexPromote :: UType -> UType
+    UIndexMath :: String -> UType -> UType -> UType
+    UPi :: Nat -> String -> UType -> UType -> UType -> UType
+    UApp :: UType -> UType -> UType
+    UFun :: UType -> UType -> UType
+    UFunEff :: UType -> UType -> UType -> UType
+    URow :: UType -> UType
+    URowJoin :: UType -> UType -> UType
+    UTuple :: UType -> UType
+    UArg :: UType -> UType -> UType
+    UEnd :: UType
+    UError :: UType
+
+  value-kind :: UType -> Kind
+  value-kind carrier = KValue (carrier-tree carrier)
+  value-carrier :: Kind -> Option UType
+  value-carrier kind = case kind of KValue payload -> read-carrier-tree payload; other -> None
+  tree :: String -> List Json -> Json
+  tree tag fields = JArr (JStr tag) (tree-fields fields)
+  tree-fields :: List Json -> Json
+  tree-fields fields = case fields of Nil -> JArrEnd; Cons field rest -> JArr field (tree-fields rest)
+  kind-tree :: Kind -> Json
+  kind-tree kind = case kind of
+    KType -> JStr "Type"
+    KProp -> JStr "Prop"
+    KRegion -> JStr "Region"
+    KEffect -> JStr "Effect"
+    KRow -> JStr "Row"
+    KFun a b -> tree "kind-fun" [kind-tree a, kind-tree b]
+    KValue payload -> tree "value" [payload]
+  carrier-tree :: UType -> Json
+  carrier-tree ty = case ty of
+    UPropLit value -> tree "prop-literal" [JBool value]
+    UCompare relation left right -> tree "prop-compare" [JStr relation, carrier-tree left, carrier-tree right]
+    UPropAnd left right -> tree "prop-and" [carrier-tree left, carrier-tree right]
+    UPropOr left right -> tree "prop-or" [carrier-tree left, carrier-tree right]
+    UPropNot body -> tree "prop-not" [carrier-tree body]
+    UPropNonZero body -> tree "prop-nonzero" [carrier-tree body]
+    URequire predicates body -> tree "required" [carrier-tree predicates, carrier-tree body]
+    URefine id name carrier predicate -> tree "refined" [JNum (nat-to-int id), JStr name, carrier-tree carrier, carrier-tree predicate]
+    UCon name kind -> tree "con" [JStr name, kind-tree kind]
+    UBound id name kind -> tree "bound" [JNum (nat-to-int id), JStr name, kind-tree kind]
+    URigid id name level kind -> tree "rigid" [JNum (nat-to-int id), JStr name, JNum (nat-to-int level), kind-tree kind]
+    UMeta id kind -> tree "meta" [JNum (nat-to-int id), kind-tree kind]
+    UIndex carrier value -> tree "index" [carrier-tree carrier, index-tree value]
+    UIndexForget value -> tree "index-forget" [carrier-tree value]
+    UIndexPromote value -> tree "index-promote" [carrier-tree value]
+    UIndexMath op left right -> tree "index-math" [JStr op, carrier-tree left, carrier-tree right]
+    UPi id name domain row result -> tree "pi" [JNum (nat-to-int id), JStr name, carrier-tree domain, carrier-tree row, carrier-tree result]
+    UApp f x -> tree "app" [carrier-tree f, carrier-tree x]
+    UFun a b -> tree "fun" [carrier-tree a, carrier-tree b]
+    UFunEff a row b -> tree "effect-fun" [carrier-tree a, carrier-tree row, carrier-tree b]
+    URow labels -> tree "row" [carrier-tree labels]
+    URowJoin a b -> tree "row-join" [carrier-tree a, carrier-tree b]
+    UTuple fields -> tree "tuple" [carrier-tree fields]
+    UArg a rest -> tree "arg" [carrier-tree a, carrier-tree rest]
+    UEnd -> JStr "end"
+    UError -> JStr "error"
+  same-tag :: String -> String -> Bool
+  same-tag a b = string-compare a b == 0
+  tree-natural :: Json -> Option Nat
+  tree-natural value = case value of JNum n -> if n < 0 then None else Some (nat-from-int n); other -> None
+  read-kind-tree :: Json -> Option Kind
+  read-kind-tree doc = case doc of
+    JStr tag -> if same-tag tag "Type" then Some KType else if same-tag tag "Prop" then Some KProp else if same-tag tag "Region" then Some KRegion
+      else if same-tag tag "Effect" then Some KEffect else if same-tag tag "Row" then Some KRow else None
+    JArr (JStr tag) (JArr payload JArrEnd) -> if same-tag tag "value" then Some (KValue payload) else None
+    JArr (JStr tag) (JArr a (JArr b JArrEnd)) -> if same-tag tag "kind-fun" then
+      (case (read-kind-tree a, read-kind-tree b) of (Some left, Some right) -> Some (KFun left right); other -> None) else None
+    other -> None
+  read-carrier-tree :: Json -> Option UType
+  read-carrier-tree doc = case doc of
+    JArr (JStr tag) (JArr (JBool value) JArrEnd) -> if same-tag tag "prop-literal" then Some (UPropLit value) else None
+    JStr tag -> if same-tag tag "end" then Some UEnd else if same-tag tag "error" then Some UError else None
+    JArr (JStr tag) (JArr a JArrEnd) -> case read-carrier-tree a of
+      Some value -> if same-tag tag "row" then Some (URow value) else if same-tag tag "tuple" then Some (UTuple value) else if same-tag tag "prop-not" then Some (UPropNot value) else if same-tag tag "prop-nonzero" then Some (UPropNonZero value) else if same-tag tag "index-forget" then Some (UIndexForget value) else if same-tag tag "index-promote" then Some (UIndexPromote value) else None
+      None -> None
+    JArr (JStr tag) (JArr a (JArr b JArrEnd)) ->
+      if same-tag tag "con" then (case (a, read-kind-tree b) of (JStr name, Some kind) -> Some (UCon name kind); other -> None)
+      else if same-tag tag "meta" then (case (tree-natural a, read-kind-tree b) of (Some id, Some kind) -> Some (UMeta id kind); other -> None)
+      else if same-tag tag "index" then (case (read-carrier-tree a, index-from-tree b) of (Some carrier, Some value) -> Some (UIndex carrier value); other -> None)
+      else case (read-carrier-tree a, read-carrier-tree b) of
+        (Some left, Some right) -> if same-tag tag "app" then Some (UApp left right) else if same-tag tag "fun" then Some (UFun left right)
+          else if same-tag tag "row-join" then Some (URowJoin left right) else if same-tag tag "arg" then Some (UArg left right) else if same-tag tag "prop-and" then Some (UPropAnd left right) else if same-tag tag "prop-or" then Some (UPropOr left right) else if same-tag tag "required" then Some (URequire left right) else None
+        other -> None
+    JArr (JStr tag) (JArr a (JArr b (JArr c JArrEnd))) ->
+      if same-tag tag "prop-compare" then (case (a, read-carrier-tree b, read-carrier-tree c) of (JStr relation, Some left, Some right) -> Some (UCompare relation left right); other -> None)
+      else if same-tag tag "index-math" then (case (a, read-carrier-tree b, read-carrier-tree c) of (JStr op, Some left, Some right) -> Some (UIndexMath op left right); other -> None)
+      else if same-tag tag "bound" then (case (tree-natural a, b, read-kind-tree c) of (Some id, JStr name, Some kind) -> Some (UBound id name kind); other -> None)
+      else if same-tag tag "effect-fun" then (case (read-carrier-tree a, read-carrier-tree b, read-carrier-tree c) of (Some domain, Some row, Some result) -> Some (UFunEff domain row result); other -> None)
+      else None
+    JArr (JStr tag) (JArr a (JArr b (JArr c (JArr d JArrEnd)))) -> if same-tag tag "rigid" then
+      (case (tree-natural a, b, tree-natural c, read-kind-tree d) of (Some id, JStr name, Some level, Some kind) -> Some (URigid id name level kind); other -> None)
+      else if same-tag tag "refined" then (case (tree-natural a, b, read-carrier-tree c, read-carrier-tree d) of
+        (Some id, JStr name, Some carrier, Some predicate) -> Some (URefine id name carrier predicate)
+        other -> None) else None
+    JArr (JStr tag) (JArr a (JArr b (JArr c (JArr d (JArr e JArrEnd))))) ->
+      if same-tag tag "pi" then (case (tree-natural a, b, read-carrier-tree c, read-carrier-tree d, read-carrier-tree e) of
+        (Some id, JStr name, Some domain, Some row, Some result) -> Some (UPi id name domain row result)
+        other -> None) else None
+    other -> None
+
+  kind-equal :: Kind -> Kind -> Bool
+  kind-equal a b = case a of
+    KType -> case b of KType -> True; other -> False
+    KProp -> case b of KProp -> True; other -> False
+    KRegion -> case b of KRegion -> True; other -> False
+    KEffect -> case b of KEffect -> True; other -> False
+    KRow -> case b of KRow -> True; other -> False
+    KFun x y -> case b of KFun u v -> kind-equal x u && kind-equal y v; other -> False
+    KValue payload -> case (value-carrier a, value-carrier b) of (Some carrier, Some other) -> carrier-equal carrier other; other -> False
+
+  -- Compare carriers by the existing type-conversion rules. Metas are
+  -- temporarily rigid: a pure kind equality check must not solve them.
+  -- Parity keeps those temporary identities separate from real rigids.
+  carrier-equal :: UType -> UType -> Bool
+  carrier-equal first second = carrier-type first && carrier-type second &&
+    (same-shape first second || (case store-errors (unify (Span 0 0 1 1) (opaque-carrier first) (opaque-carrier second) (empty-store "kind conversion")) of Nil -> True; other -> False))
+  opaque-carrier :: UType -> UType
+  opaque-carrier ty = case ty of
+    UPropLit value -> UPropLit value
+    UCompare relation left right -> UCompare relation (opaque-carrier left) (opaque-carrier right)
+    UPropAnd left right -> UPropAnd (opaque-carrier left) (opaque-carrier right)
+    UPropOr left right -> UPropOr (opaque-carrier left) (opaque-carrier right)
+    UPropNot body -> UPropNot (opaque-carrier body)
+    UPropNonZero body -> UPropNonZero (opaque-carrier body)
+    URequire predicates body -> URequire (opaque-carrier predicates) (opaque-carrier body)
+    URefine id name carrier predicate -> URefine id name (opaque-carrier carrier) (opaque-carrier predicate)
+    UIndexForget value -> UIndexForget (opaque-carrier value)
+    UIndexPromote value -> UIndexPromote (opaque-carrier value)
+    UIndexMath op left right -> UIndexMath op (opaque-carrier left) (opaque-carrier right)
+    UMeta id k -> URigid (id * 2) "#kind-meta" 0 (map-kind-types opaque-carrier k)
+    URigid id name level k -> URigid (id * 2 + 1) name level (map-kind-types opaque-carrier k)
+    UCon name k -> UCon name (map-kind-types opaque-carrier k)
+    UBound id name k -> UBound id name (map-kind-types opaque-carrier k)
+    UIndex carrier value -> UIndex (opaque-carrier carrier) (opaque-index value)
+    UPi id name domain row result -> UPi id name (opaque-carrier domain) (opaque-carrier row) (opaque-carrier result)
+    UApp f x -> UApp (opaque-carrier f) (opaque-carrier x)
+    UFun a b -> UFun (opaque-carrier a) (opaque-carrier b)
+    UFunEff a row b -> UFunEff (opaque-carrier a) (opaque-carrier row) (opaque-carrier b)
+    URow labels -> URow (opaque-carrier labels)
+    URowJoin a b -> URowJoin (opaque-carrier a) (opaque-carrier b)
+    UTuple fields -> UTuple (opaque-carrier fields)
+    UArg first rest -> UArg (opaque-carrier first) (opaque-carrier rest)
+    other -> ty
+  opaque-index :: IndexTerm -> IndexTerm
+  opaque-index term = case term of
+    IMeta id -> IRigid (id * 2) "#kind-meta" 0
+    IRigid id name level -> IRigid (id * 2 + 1) name level
+    IApply f x -> IApply (opaque-index f) (opaque-index x)
+    ILambda id name body -> ILambda id name (opaque-index body)
+    IAdd a b -> IAdd (opaque-index a) (opaque-index b)
+    ISubtract a b -> ISubtract (opaque-index a) (opaque-index b)
+    IMultiply a b -> IMultiply (opaque-index a) (opaque-index b)
+    other -> term
+
+  kind-text :: Kind -> String
+  kind-text k = case k of
+    KType -> "Type"
+    KProp -> "Prop"
+    KRegion -> "Region"
+    KEffect -> "Effect"
+    KRow -> "Row"
+    KFun a b -> string-concat-all ["(", kind-text a, " -> ", kind-text b, ")"]
+    KValue payload -> case value-carrier k of Some carrier -> type-text carrier; None -> "<invalid value carrier>"
+
+  map-kind-types :: (UType -> UType) -> Kind -> Kind
+  map-kind-types f kind = case kind of
+    KValue payload -> case value-carrier kind of Some carrier -> value-kind (f carrier); None -> kind
+    KFun a b -> KFun (map-kind-types f a) (map-kind-types f b)
+    other -> kind
+  valid-kind :: Kind -> Bool
+  valid-kind kind = case kind of
+    KValue payload -> case value-carrier kind of Some carrier -> carrier-type carrier; None -> False
+    KFun a b -> valid-kind a && valid-kind b
+    other -> True
+
+  -- Sequence nodes have a role inside tuples and rows, but are not
+  -- standalone carrier types or application operands.
+  carrier-type :: UType -> Bool
+  carrier-type ty = kind-equal (type-kind ty) KType && carrier-node ty
+  carrier-node :: UType -> Bool
+  carrier-node ty = valid-type ty && (case ty of
+    UEnd -> False
+    UArg a rest -> False
+    UError -> False
+    UApp f x -> carrier-node f && carrier-node x
+    UFun a b -> carrier-type a && carrier-type b
+    UFunEff a row b -> carrier-type a && carrier-node row && carrier-type b
+    URow labels -> carrier-spine labels False
+    URowJoin a b -> carrier-node a && carrier-node b
+    UTuple fields -> carrier-spine fields True
+    other -> True)
+  carrier-spine :: UType -> Bool -> Bool
+  carrier-spine fields values = case fields of
+    UEnd -> True
+    UArg first rest -> (if values then carrier-type first else carrier-node first) && carrier-spine rest values
+    other -> False
+
+  data Quant where
+    MkQuant :: Nat -> String -> Kind -> Bool -> Quant
+
+  quant-id :: Quant -> Nat
+  quant-id q = case q of MkQuant n name k only -> n
+  quant-name :: Quant -> String
+  quant-name q = case q of MkQuant n name k only -> name
+  quant-kind :: Quant -> Kind
+  quant-kind q = case q of MkQuant n name k only -> k
+  quant-implicit :: Quant -> Bool
+  quant-implicit q = case q of MkQuant n name k only -> only
+
+  data Requirement where
+    MkRequirement :: String -> UType -> Requirement
+  requirement-name :: Requirement -> String
+  requirement-name r = case r of MkRequirement name ty -> name
+  requirement-type :: Requirement -> UType
+  requirement-type r = case r of MkRequirement name ty -> ty
+  map-requirements :: (UType -> UType) -> List Requirement -> List Requirement
+  map-requirements f rs = case rs of Nil -> Nil; Cons (MkRequirement name ty) rest -> Cons (MkRequirement name (f ty)) (map-requirements f rest)
+
+  data Scheme where
+    MkScheme :: List Quant -> UType -> Scheme
+    MkQualifiedScheme :: List Quant -> List Requirement -> UType -> Scheme
+
+  scheme-params :: Scheme -> List Quant
+  scheme-params sc = case sc of MkScheme qs ty -> qs; MkQualifiedScheme qs rs ty -> qs
+  scheme-body :: Scheme -> UType
+  scheme-body sc = case sc of MkScheme qs ty -> ty; MkQualifiedScheme qs rs ty -> ty
+  scheme-requirements :: Scheme -> List Requirement
+  scheme-requirements sc = case sc of MkScheme qs ty -> Nil; MkQualifiedScheme qs rs ty -> rs
+  qualified :: List Quant -> List Requirement -> UType -> Scheme
+  qualified qs rs ty = case rs of Nil -> MkScheme qs ty; other -> MkQualifiedScheme qs rs ty
+  map-scheme-types :: (UType -> UType) -> Scheme -> Scheme
+  map-scheme-types f sc = qualified (map-quant-kinds f (scheme-params sc)) (map-requirements f (scheme-requirements sc)) (f (scheme-body sc))
+  map-quant-kinds :: (UType -> UType) -> List Quant -> List Quant
+  map-quant-kinds f qs = case qs of Nil -> Nil; Cons (MkQuant id name kind only) rest -> Cons (MkQuant id name (map-kind-types f kind) only) (map-quant-kinds f rest)
+  mono :: UType -> Scheme
+  mono ty = MkScheme Nil ty
+
+  data Cell where
+    MkCell :: Nat -> Nat -> Kind -> Option UType -> Cell
+  data Store where
+    MkStore :: String -> Nat -> Nat -> List Cell -> List Diagnostic -> Store
+
+  empty-store :: String -> Store
+  empty-store label = MkStore label 0 0 Nil Nil
+  store-errors :: Store -> List Diagnostic
+  store-errors st = case st of MkStore label next level cells errors -> reverse errors
+  store-level :: Store -> Nat
+  store-level st = case st of MkStore label next level cells errors -> level
+  enter-level :: Store -> Store
+  enter-level st = case st of MkStore label next level cells errors -> MkStore label next (level + 1) cells errors
+  restore-level :: Nat -> Store -> Store
+  restore-level level st = case st of MkStore label next old cells errors -> MkStore label next level cells errors
+  add-error :: Span -> String -> Store -> Store
+  add-error sp message st = case st of
+    MkStore label next level cells errors -> MkStore label next level cells (Cons (MkDiagnostic label sp message) errors)
+
+  fresh-meta :: Kind -> Store -> (UType, Store)
+  fresh-meta k original =
+    let checked = validate-kind-indices (Span 0 0 1 1) k original in
+    if list-length (store-errors checked) > list-length (store-errors original) then (UError, checked)
+    else fresh-meta-checked k checked
+  fresh-meta-checked :: Kind -> Store -> (UType, Store)
+  fresh-meta-checked k st = case st of
+    MkStore label next level cells errors ->
+      let kind = normalize-kind st k in
+      let dependencies = kind-metas st kind in
+      if not (valid-kind kind) then (UError, add-error (Span 0 0 1 1) "invalid inference variable kind" st)
+      else if contains-id next dependencies then (UError, add-error (Span 0 0 1 1) "an inference variable occurs in its own kind" st)
+      else if not (known-metas dependencies st) then (UError, add-error (Span 0 0 1 1) "unknown inference variable in kind" st)
+      else if kind-escapes level kind then (UError, add-error (Span 0 0 1 1) "an inference kind escapes its scope" st)
+      else case lower level dependencies st of
+        MkStore label next level lowered errors -> (UMeta next kind, MkStore label (next + 1) level (Cons (MkCell next level kind None) lowered) errors)
+  known-metas :: List Nat -> Store -> Bool
+  known-metas ids st = case ids of Nil -> True; Cons id rest -> (case find-cell id st of Some cell -> known-metas rest st; None -> False)
+  fresh-id :: Store -> (Nat, Store)
+  fresh-id st = case st of MkStore label next level cells errors -> (next, MkStore label (next + 1) level cells errors)
+
+  cell :: Nat -> List Cell -> Option Cell
+  cell id cells = case cells of
+    Nil -> None
+    Cons c rest -> case c of MkCell n lev k solution -> if n == id then Some c else cell id rest
+  find-cell :: Nat -> Store -> Option Cell
+  find-cell id st = case st of MkStore label next level cells errors -> cell id cells
+  replace-cell :: Cell -> List Cell -> List Cell
+  replace-cell replacement cells = case replacement of
+    MkCell id lev k solution -> case cells of
+      Nil -> Cons replacement Nil
+      Cons c rest -> case c of MkCell n l kind old -> if id == n then Cons replacement rest else Cons c (replace-cell replacement rest)
+  put-cell :: Cell -> Store -> Store
+  put-cell c st = case st of MkStore label next level cells errors -> MkStore label next level (replace-cell c cells) errors
+
+  normalize :: Store -> UType -> UType
+  normalize st ty = case ty of
+    UPropLit value -> UPropLit value
+    UCompare relation left right -> UCompare relation (normalize st left) (normalize st right)
+    UPropAnd left right -> UPropAnd (normalize st left) (normalize st right)
+    UPropOr left right -> UPropOr (normalize st left) (normalize st right)
+    UPropNot body -> UPropNot (normalize st body)
+    UPropNonZero body -> UPropNonZero (normalize st body)
+    URequire predicates body -> URequire (normalize st predicates) (normalize st body)
+    URefine id name carrier predicate -> URefine id name (normalize st carrier) (normalize st predicate)
+    UIndexForget value -> UIndexForget (normalize st value)
+    UIndexPromote value -> normalize-promoted-index (normalize st value)
+    UIndexMath op left right -> make-index-math op (normalize st left) (normalize st right)
+    UMeta id k -> case find-cell id st of
+      Some (MkCell n lev kind (Some solved)) -> normalize st solved
+      Some (MkCell n lev kind None) -> normalized-variable st (UMeta id kind)
+      None -> normalized-variable st ty
+    UCon name k -> normalized-variable st ty
+    UBound id name k -> normalized-variable st ty
+    URigid id name level k -> normalized-variable st ty
+    UIndex carrier value -> normalize-value-index st (normalize st carrier) value
+    UPi id name domain row result -> UPi id name (normalize st domain) (normalize st row) (normalize st result)
+    UApp f x -> UApp (normalize st f) (normalize st x)
+    UFun a b -> UFun (normalize st a) (normalize st b)
+    UFunEff a row b -> UFunEff (normalize st a) (normalize st row) (normalize st b)
+    URow labels -> URow (unique-effects (normalize st labels))
+    URowJoin a b -> union-effects (normalize st a) (normalize st b)
+    UTuple xs -> UTuple (normalize st xs)
+    UArg x rest -> UArg (normalize st x) (normalize st rest)
+    other -> ty
+
+  normalize-kind :: Store -> Kind -> Kind
+  normalize-kind st kind = map-kind-types (normalize st) kind
+  normalized-variable :: Store -> UType -> UType
+  normalized-variable st ty = case ty of
+    UCon name k -> let kind = normalize-kind st k in (case value-carrier kind of Some carrier -> UIndex carrier (IGlobal name); None -> UCon name kind)
+    UMeta id k -> let kind = normalize-kind st k in (case value-carrier kind of Some carrier -> UIndex carrier (IMeta id); None -> UMeta id kind)
+    UBound id name k -> let kind = normalize-kind st k in (case value-carrier kind of Some carrier -> UIndex carrier (IBound id name); None -> UBound id name kind)
+    URigid id name level k -> let kind = normalize-kind st k in (case value-carrier kind of Some carrier -> UIndex carrier (IRigid id name level); None -> URigid id name level kind)
+    other -> ty
+  index-of-type :: UType -> Option IndexTerm
+  index-of-type ty = case ty of
+    UIndex carrier value -> Some value
+    UMeta id k -> case value-carrier k of Some carrier -> Some (IMeta id); None -> None
+    UBound id name k -> case value-carrier k of Some carrier -> Some (IBound id name); None -> None
+    URigid id name level k -> case value-carrier k of Some carrier -> Some (IRigid id name level); None -> None
+    UCon name k -> case value-carrier k of Some carrier -> Some (IGlobal name); None -> None
+    other -> None
+  resolve-index :: Store -> IndexTerm -> IndexTerm
+  resolve-index st value = substitute-index-metas (index-solutions st (index-free-metas value)) value
+  index-solutions :: Store -> List Nat -> List (Nat, IndexTerm)
+  index-solutions st ids = case ids of
+    Nil -> Nil
+    Cons id rest -> case find-cell id st of
+      Some (MkCell key level kind (Some solution)) -> case index-of-type (normalize st solution) of
+        Some value -> Cons (id, value) (index-solutions st rest)
+        None -> index-solutions st rest
+      other -> index-solutions st rest
+
+  type-kind :: UType -> Kind
+  type-kind ty = case ty of
+    UPropLit value -> KProp
+    UCompare relation left right -> KProp
+    UPropAnd left right -> KProp
+    UPropOr left right -> KProp
+    UPropNot body -> KProp
+    UPropNonZero body -> KProp
+    URequire predicates body -> KType
+    URefine id name carrier predicate -> KType
+    UCon n k -> k
+    UBound n name k -> k
+    URigid n name lev k -> k
+    UMeta n k -> k
+    UIndex carrier value -> value-kind carrier
+    UIndexForget value -> case typed-index-carrier value of Some (URefine id name carrier predicate) -> value-kind carrier; other -> KType
+    UIndexPromote value -> value-kind (UCon "Int" KType)
+    UIndexMath op left right -> case typed-index-carrier left of Some carrier -> value-kind carrier; None -> KType
+    UApp f x -> case type-kind f of KFun a b -> b; other -> KType
+    URow labels -> KRow
+    URowJoin a b -> KRow
+    other -> KType
+
+  valid-type :: UType -> Bool
+  valid-type ty = case ty of
+    UPropLit value -> True
+    UCompare relation left right -> valid-comparison relation left right
+    UPropAnd left right -> proposition-type left && proposition-type right
+    UPropOr left right -> proposition-type left && proposition-type right
+    UPropNot body -> proposition-type body
+    UPropNonZero body -> valid-type body && (case typed-index-carrier body of Some carrier -> mathematical-carrier carrier; None -> False)
+    URequire predicates body -> proposition-spine predicates && carrier-type body
+    URefine id name carrier predicate -> valid-refinement id carrier predicate
+    UError -> False
+    UCon name kind -> valid-kind kind
+    UBound id name kind -> valid-kind kind
+    URigid id name level kind -> valid-kind kind
+    UMeta id kind -> valid-kind kind
+    UIndex carrier value -> carrier-type carrier && index-shape carrier value
+    UIndexForget value -> valid-type value && (case typed-index-carrier value of Some (URefine id name carrier predicate) -> carrier-type carrier; other -> False)
+    UIndexPromote value -> valid-type value && (case typed-index-carrier value of Some carrier -> promotable-carrier carrier; None -> False)
+    UIndexMath op left right -> valid-typed-math op left right
+    UPi id name domain row result -> not (contains-id id (type-free-bound domain)) && carrier-type domain && valid-type row && kind-equal (type-kind row) KRow && carrier-type result
+    UApp f x -> valid-type f && valid-type x && (case type-kind f of KFun a b -> kind-equal a (type-kind x); other -> False)
+    UFun a b -> valid-type a && valid-type b && kind-equal (type-kind a) KType && kind-equal (type-kind b) KType
+    UFunEff a row b -> valid-type a && valid-type row && valid-type b && kind-equal (type-kind a) KType && kind-equal (type-kind row) KRow && kind-equal (type-kind b) KType
+    URow labels -> valid-effects labels
+    URowJoin a b -> valid-type a && valid-type b && kind-equal (type-kind a) KRow && kind-equal (type-kind b) KRow
+    UTuple xs -> valid-value-fields xs
+    UArg x rest -> valid-type x && valid-type rest
+    other -> True
+
+  valid-refinement :: Nat -> UType -> UType -> Bool
+  valid-refinement id carrier predicate = carrier-type carrier && not (contains-id id (type-free-bound carrier))
+    && proposition-type predicate
+    && proposition-type (substitute [(id, UBound id "#refined" (value-kind carrier))] predicate)
+
+  proposition-type :: UType -> Bool
+  proposition-type ty = valid-type ty && kind-equal (type-kind ty) KProp
+  proposition-spine :: UType -> Bool
+  proposition-spine predicates = case predicates of UEnd -> True; UArg first rest -> proposition-type first && proposition-spine rest; other -> False
+  valid-comparison :: String -> UType -> UType -> Bool
+  valid-comparison relation left right = case (typed-index-carrier left, typed-index-carrier right) of
+    (Some a, Some b) -> valid-type left && valid-type right && carrier-equal a b &&
+      (if same-tag relation "==" || same-tag relation "/=" then True
+       else mathematical-carrier a && (same-tag relation "<" || same-tag relation "<=" || same-tag relation ">" || same-tag relation ">="))
+    other -> False
+
+  valid-value-fields :: UType -> Bool
+  valid-value-fields fields = case fields of
+    UEnd -> True
+    UArg value rest -> valid-type value && kind-equal (type-kind value) KType && valid-value-fields rest
+    other -> False
+
+  type-text :: UType -> String
+  type-text ty = case ty of
+    UPropLit value -> if value then "True#Prop" else "False#Prop"
+    UCompare relation left right -> string-concat-all ["(", type-text left, " ", relation, " ", type-text right, ")"]
+    UPropAnd left right -> string-concat-all ["(", type-text left, " && ", type-text right, ")"]
+    UPropOr left right -> string-concat-all ["(", type-text left, " || ", type-text right, ")"]
+    UPropNot body -> string-concat "not " (type-text body)
+    UPropNonZero body -> string-concat "NonZero " (type-text body)
+    URequire predicates body -> string-concat-all ["required ", type-text predicates, " => ", type-text body]
+    URefine id name carrier predicate -> string-concat-all ["refine (", name, " :: ", type-text carrier, ") with ", type-text predicate]
+    UCon name k -> name
+    UBound id name k -> name
+    URigid id name lev k -> name
+    UMeta id k -> string-concat "?" (nat-to-string id)
+    UIndex carrier value -> index-display value
+    UIndexForget value -> string-concat "forget-index " (type-text value)
+    UIndexPromote value -> string-concat "integer-index " (type-text value)
+    UIndexMath op left right -> string-concat-all ["(", type-text left, " ", op, " ", type-text right, ")"]
+    UPi id name domain row result -> string-concat-all ["((", name, " :: ", type-text domain, ") ->", type-text row, " ", type-text result, ")"]
+    UApp f x -> string-concat-all ["(", type-text f, " ", type-text x, ")"]
+    UFun a b -> string-concat-all ["(", type-text a, " -> ", type-text b, ")"]
+    UFunEff a row b -> string-concat-all ["(", type-text a, " ->", type-text row, " ", type-text b, ")"]
+    URow labels -> string-concat-all ["{", type-text labels, "}"]
+    URowJoin a b -> string-concat-all ["(", type-text a, " union ", type-text b, ")"]
+    UTuple xs -> string-concat-all ["(", type-text xs, ")"]
+    UArg x UEnd -> type-text x
+    UArg x rest -> string-concat-all [type-text x, ", ", type-text rest]
+    UEnd -> ""
+    UError -> "_"
+
+  contains-id :: Nat -> List Nat -> Bool
+  contains-id id ids = case ids of Nil -> False; Cons n rest -> id == n || contains-id id rest
+  merge-ids :: List Nat -> List Nat -> List Nat
+  merge-ids xs ys = case xs of Nil -> ys; Cons n rest -> merge-ids rest (if contains-id n ys then ys else Cons n ys)
+  free-metas :: Store -> UType -> List Nat
+  free-metas st ty = case normalize st ty of
+    UPropLit value -> Nil
+    UCompare relation left right -> merge-ids (free-metas st left) (free-metas st right)
+    UPropAnd left right -> merge-ids (free-metas st left) (free-metas st right)
+    UPropOr left right -> merge-ids (free-metas st left) (free-metas st right)
+    UPropNot body -> free-metas st body
+    UPropNonZero body -> free-metas st body
+    URequire predicates body -> merge-ids (free-metas st predicates) (free-metas st body)
+    URefine id name carrier predicate -> merge-ids (free-metas st carrier) (free-metas st predicate)
+    UMeta id k -> merge-ids [id] (kind-metas st k)
+    UCon name k -> kind-metas st k
+    UBound id name k -> kind-metas st k
+    URigid id name level k -> kind-metas st k
+    UIndexForget value -> free-metas st value
+    UIndexPromote value -> free-metas st value
+    UIndexMath op left right -> merge-ids (free-metas st left) (free-metas st right)
+    UIndex carrier value -> merge-ids (free-metas st carrier) (index-free-metas value)
+    UPi id name domain row result -> merge-ids (free-metas st domain) (merge-ids (free-metas st row) (free-metas st result))
+    UApp f x -> merge-ids (free-metas st f) (free-metas st x)
+    UFun a b -> merge-ids (free-metas st a) (free-metas st b)
+    UFunEff a row b -> merge-ids (free-metas st a) (merge-ids (free-metas st row) (free-metas st b))
+    URow labels -> free-metas st labels
+    URowJoin a b -> merge-ids (free-metas st a) (free-metas st b)
+    UTuple xs -> free-metas st xs
+    UArg x rest -> merge-ids (free-metas st x) (free-metas st rest)
+    other -> Nil
+  kind-metas :: Store -> Kind -> List Nat
+  kind-metas st kind = case kind of
+    KValue payload -> case value-carrier kind of Some carrier -> free-metas st carrier; None -> Nil
+    KFun a b -> merge-ids (kind-metas st a) (kind-metas st b)
+    other -> Nil
+  quant-metas :: Store -> List Quant -> List Nat
+  quant-metas st qs = case qs of Nil -> Nil; Cons q rest -> merge-ids (kind-metas st (quant-kind q)) (quant-metas st rest)
+  scheme-metas :: Store -> Scheme -> List Nat
+  scheme-metas st sc = merge-ids (quant-metas st (scheme-params sc)) (merge-ids (free-metas st (scheme-body sc)) (requirement-metas st (scheme-requirements sc)))
+  requirement-metas :: Store -> List Requirement -> List Nat
+  requirement-metas st rs = case rs of Nil -> Nil; Cons r rest -> merge-ids (free-metas st (requirement-type r)) (requirement-metas st rest)
+
+  -- Lower younger metavariables when they become part of an older one.
+  -- A rigid variable from a deeper scope must never escape into it.
+  escapes :: Nat -> UType -> Bool
+  escapes level ty = case ty of
+    UPropLit value -> False
+    UCompare relation left right -> escapes level left || escapes level right
+    UPropAnd left right -> escapes level left || escapes level right
+    UPropOr left right -> escapes level left || escapes level right
+    UPropNot body -> escapes level body
+    UPropNonZero body -> escapes level body
+    URequire predicates body -> escapes level predicates || escapes level body
+    URefine id name carrier predicate -> escapes level carrier || escapes level predicate
+    URigid id name lev k -> lev > level || kind-escapes level k
+    UCon name k -> kind-escapes level k
+    UBound id name k -> kind-escapes level k
+    UMeta id k -> kind-escapes level k
+    UIndexForget value -> escapes level value
+    UIndexPromote value -> escapes level value
+    UIndexMath op left right -> escapes level left || escapes level right
+    UIndex carrier value -> escapes level carrier || index-escapes level value
+    UPi id name domain row result -> escapes level domain || escapes level row || escapes level result
+    UApp f x -> escapes level f || escapes level x
+    UFun a b -> escapes level a || escapes level b
+    UFunEff a row b -> escapes level a || escapes level row || escapes level b
+    URow labels -> escapes level labels
+    URowJoin a b -> escapes level a || escapes level b
+    UTuple xs -> escapes level xs
+    UArg x rest -> escapes level x || escapes level rest
+    other -> False
+  kind-escapes :: Nat -> Kind -> Bool
+  kind-escapes level kind = case kind of
+    KValue payload -> case value-carrier kind of Some carrier -> escapes level carrier; None -> True
+    KFun a b -> kind-escapes level a || kind-escapes level b
+    other -> False
+  lower :: Nat -> List Nat -> Store -> Store
+  lower level ids st = case ids of
+    Nil -> st
+    Cons id rest -> case find-cell id st of
+      Some (MkCell n lev k solution) -> lower level rest (if lev > level then put-cell (MkCell n level k solution) st else st)
+      None -> lower level rest st
+
+  bind-meta :: Span -> Nat -> Kind -> UType -> Store -> Store
+  bind-meta sp id k ty st = case normalize st ty of
+    UMeta n kind -> if id == n then (case find-cell id st of
+      Some (MkCell key level declared solution) -> unify-kind sp k kind (unify-kind sp k declared st)
+      None -> add-error sp "unknown inference variable" st)
+      else bind-other sp id k (UMeta n kind) st
+    other -> bind-other sp id k other st
+  bind-other :: Span -> Nat -> Kind -> UType -> Store -> Store
+  bind-other sp id k ty st = case find-cell id st of
+    None -> add-error sp "unknown inference variable" st
+    Some (MkCell n lev kind solution) ->
+      let checked = unify-kind sp k (type-kind ty) (unify-kind sp k kind st) in
+      let solution-type = normalize checked ty in
+      if list-length (store-errors checked) > list-length (store-errors st) then checked
+      else if not (valid-type solution-type) then add-error sp "invalid type in type inference" checked
+      else if contains-id id (free-metas checked solution-type) then add-error sp "infinite type: inference variable occurs in its own solution" checked
+      else if escapes lev solution-type then add-error sp "a quantified type variable escapes its scope" checked
+      else put-cell (MkCell n lev (normalize-kind checked kind) (Some solution-type)) (lower lev (free-metas checked solution-type) checked)
+
+  unify-kind :: Span -> Kind -> Kind -> Store -> Store
+  unify-kind sp first second st =
+    let a = normalize-kind st first in
+    let b = normalize-kind st second in
+    if not (valid-kind a && valid-kind b) then add-error sp "invalid kind in type inference" st
+    else if kind-equal a b then st else case (a, b) of
+      (KValue payload, KValue other) -> (case (value-carrier a, value-carrier b) of (Some carrier, Some right) -> unify sp carrier right st; other -> add-error sp "invalid value carrier" st)
+      (KFun domain range, KFun input output) -> unify-kind sp range output (unify-kind sp domain input st)
+      other -> add-error sp "kind mismatch in type inference" st
+
+  unify :: Span -> UType -> UType -> Store -> Store
+  unify sp first second st =
+    let checked = validate-type-indices sp second (validate-type-indices sp first st) in
+    let a = normalize checked first in
+    let b = normalize checked second in
+    if list-length (store-errors checked) > list-length (store-errors st) then checked
+    else case a of
+      UError -> checked
+      UMeta id k -> bind-meta sp id k b checked
+      UIndex carrier (IMeta id) -> if same-shape a b then checked else bind-meta sp id (value-kind carrier) b checked
+      other -> case b of
+        UError -> checked
+        UMeta id k -> bind-meta sp id k a checked
+        UIndex carrier (IMeta id) -> if same-shape a b then checked else bind-meta sp id (value-kind carrier) a checked
+        other -> unify-structure sp a b checked
+  mismatch :: Span -> UType -> UType -> Store -> Store
+  mismatch sp a b st = add-error sp (string-concat-all ["type mismatch: expected ", type-text b, ", found ", type-text a]) st
+  unify-structure :: Span -> UType -> UType -> Store -> Store
+  unify-structure sp a b st = case a of
+    UPropLit value -> case b of UPropLit other -> if (if value then other else not other) then st else mismatch sp a b st; other -> mismatch sp a b st
+    UCompare relation left right -> case b of UCompare op x y -> if same-tag relation op then unify sp right y (unify sp left x st) else mismatch sp a b st; other -> mismatch sp a b st
+    UPropAnd left right -> case b of UPropAnd x y -> unify sp right y (unify sp left x st); other -> mismatch sp a b st
+    UPropOr left right -> case b of UPropOr x y -> unify sp right y (unify sp left x st); other -> mismatch sp a b st
+    UPropNot body -> case b of UPropNot other -> unify sp body other st; other -> mismatch sp a b st
+    UPropNonZero body -> case b of UPropNonZero other -> unify sp body other st; other -> mismatch sp a b st
+    URequire predicates body -> case b of URequire ps result -> unify sp body result (unify sp predicates ps st); other -> mismatch sp a b st
+    URefine id name carrier predicate -> case b of
+      URefine key other input condition -> if valid-type a && valid-type b then
+        unify-pi sp (refinement-pi id name carrier predicate) (refinement-pi key other input condition) st
+        else add-error sp "ill-formed refinement type" st
+      other -> mismatch sp a b st
+    UIndexForget value -> case b of UIndexForget other -> unify sp value other st; other -> mismatch sp a b st
+    UIndexPromote value -> case b of UIndexPromote other -> unify sp value other st; other -> mismatch sp a b st
+    UIndexMath op left right -> case b of UIndexMath operation a1 a2 -> if same-tag op operation then unify sp right a2 (unify sp left a1 st) else mismatch sp a b st; other -> mismatch sp a b st
+    UPi id name domain row result -> unify-pi sp a (function-pi b) st
+    UIndex carrier value -> case b of
+      UIndex other right -> let checked = unify sp carrier other st in
+        if list-length (store-errors checked) > list-length (store-errors st) then checked
+        else unify-index sp (normalize checked carrier) (resolve-index checked value) (resolve-index checked right) checked
+      other -> mismatch sp a b st
+    UCon n k -> case b of UCon m l -> if string-compare n m == 0 then unify-kind sp k l st else mismatch sp a b st; other -> mismatch sp a b st
+    UBound n name k -> case b of UBound m other l -> if n == m then unify-kind sp k l st else mismatch sp a b st; other -> mismatch sp a b st
+    URigid n name lev k -> case b of URigid m other l kind -> if n == m then unify-kind sp k kind st else mismatch sp a b st; other -> mismatch sp a b st
+    UApp f x -> case b of UApp g y -> unify sp x y (unify sp f g st); other -> mismatch sp a b st
+    UFun x y -> case b of
+      UPi id name domain row result -> unify-pi sp (function-pi a) b st
+      UFun u v -> unify sp y v (unify sp x u st)
+      UFunEff u row v -> unify sp y v (unify sp x u (unify sp (URow UEnd) row st))
+      other -> mismatch sp a b st
+    UFunEff x row y -> case b of
+      UPi id name domain effects result -> unify-pi sp (function-pi a) b st
+      UFun u v -> unify sp y v (unify sp x u (unify sp row (URow UEnd) st))
+      UFunEff u effects v -> unify sp y v (unify sp x u (unify sp row effects st))
+      other -> mismatch sp a b st
+    URow labels -> case b of
+      URow effects -> if valid-effects labels && valid-effects effects then
+        (case match-effects sp True labels effects labels effects st of Some solved -> solved; None -> mismatch sp a b st)
+        else add-error sp "malformed closed effect row" st
+      other -> mismatch sp a b st
+    UTuple xs -> case b of UTuple ys -> unify sp xs ys st; other -> mismatch sp a b st
+    UArg x rest -> case b of UArg y tail -> unify sp rest tail (unify sp x y st); other -> mismatch sp a b st
+    UEnd -> case b of UEnd -> st; other -> mismatch sp a b st
+    other -> mismatch sp a b st
+
+  -- Closed rows are sets, including when region variables later coincide.
+  -- Search is transactional: a rejected label match cannot leave region
+  -- assignments behind. The reverse pass checks equality rather than just
+  -- inclusion; retaining candidates permits idempotent coalescing.
+  effect-head :: UType -> Bool
+  effect-head ty = case ty of UCon name kind -> True; UApp f x -> effect-head f; other -> False
+  valid-effects :: UType -> Bool
+  valid-effects labels = case labels of
+    UEnd -> True
+    UArg label rest -> effect-head label && valid-type label && kind-equal (type-kind label) KEffect && valid-effects rest
+    other -> False
+  same-shape :: UType -> UType -> Bool
+  same-shape first second = case (first, second) of
+    (UPropLit a, UPropLit b) -> if a then b else not b
+    (UCompare rel a b, UCompare op c d) -> same-tag rel op && same-shape a c && same-shape b d
+    (UPropAnd a b, UPropAnd c d) -> same-shape a c && same-shape b d
+    (UPropOr a b, UPropOr c d) -> same-shape a c && same-shape b d
+    (UPropNot a, UPropNot b) -> same-shape a b
+    (UPropNonZero a, UPropNonZero b) -> same-shape a b
+    (URequire a b, URequire c d) -> same-shape a c && same-shape b d
+    (URefine id name carrier predicate, URefine key other input condition) -> same-pi (refinement-pi id name carrier predicate) (refinement-pi key other input condition)
+    (UCon n k, UCon m l) -> string-compare n m == 0 && kind-equal k l
+    (UBound n name k, UBound m other l) -> n == m && kind-equal k l
+    (URigid n name level k, URigid m other outer l) -> n == m && kind-equal k l
+    (UMeta n k, UMeta m l) -> n == m && kind-equal k l
+    (UIndex carrier value, UIndex other right) -> same-shape carrier other && index-equal value right
+    (UIndexForget a, UIndexForget b) -> same-shape a b
+    (UIndexPromote a, UIndexPromote b) -> same-shape a b
+    (UIndexMath op a b, UIndexMath operation c d) -> same-tag op operation && same-shape a c && same-shape b d
+    (UPi id name domain row result, UPi key other input effects output) -> same-pi first second
+    (UApp f x, UApp g y) -> same-shape f g && same-shape x y
+    (UFun a b, UFun c d) -> same-shape a c && same-shape b d
+    (UFunEff a e b, UFunEff c f d) -> same-shape a c && same-shape e f && same-shape b d
+    (URow a, URow b) -> same-shape a b
+    (URowJoin a b, URowJoin c d) -> same-shape a c && same-shape b d
+    (UTuple a, UTuple b) -> same-shape a b
+    (UArg a rest, UArg b more) -> same-shape a b && same-shape rest more
+    (UEnd, UEnd) -> True
+    other -> False
+  has-effect :: UType -> UType -> Bool
+  has-effect label labels = case labels of UArg first rest -> same-shape label first || has-effect label rest; other -> False
+  unique-effects :: UType -> UType
+  unique-effects labels = case labels of
+    UArg label rest -> let more = unique-effects rest in if has-effect label more then more else UArg label more
+    other -> labels
+  match-effects :: Span -> Bool -> UType -> UType -> UType -> UType -> Store -> Option Store
+  match-effects sp reverse-pass remaining candidates original-left original-right st = case normalize st remaining of
+    UEnd -> if reverse-pass then match-effects sp False original-right original-left UEnd UEnd st else Some st
+    UArg label rest -> match-effect-candidates sp reverse-pass label rest candidates candidates original-left original-right st
+    other -> None
+  match-effect-candidates :: Span -> Bool -> UType -> UType -> UType -> UType -> UType -> UType -> Store -> Option Store
+  match-effect-candidates sp reverse-pass label rest remaining all original-left original-right st = case normalize st remaining of
+    UArg candidate more ->
+      let trial = unify sp label candidate st in
+      let result = if list-length (store-errors trial) == list-length (store-errors st) then
+            match-effects sp reverse-pass rest all original-left original-right trial else None in
+      case result of
+        Some solved -> Some solved
+        None -> match-effect-candidates sp reverse-pass label rest more all original-left original-right st
+    other -> None
+  append-effects :: UType -> UType -> UType
+  append-effects first second = case first of UEnd -> second; UArg label rest -> UArg label (append-effects rest second); other -> UError
+  union-effects :: UType -> UType -> UType
+  union-effects first second = case (first, second) of
+    (URow UEnd, other) -> second
+    (other, URow UEnd) -> first
+    (URow a, URow b) -> URow (unique-effects (append-effects a b))
+    other -> if same-shape first second then first else URowJoin first second
+  include-effects :: Span -> UType -> UType -> Store -> Store
+  include-effects sp actual allowed st =
+    let a = normalize st actual in
+    let b = normalize st allowed in
+    if not (valid-type a && valid-type b && kind-equal (type-kind a) KRow && kind-equal (type-kind b) KRow) then add-error sp "malformed effect row" st
+    else if same-shape a b then st else include-effect-rows sp a b st
+  include-effect-rows :: Span -> UType -> UType -> Store -> Store
+  include-effect-rows sp actual allowed st = case (actual, allowed) of
+    (URow UEnd, other) -> st
+    (URow labels, URow permitted) -> (case match-effects sp False labels permitted UEnd UEnd st of
+      Some solved -> solved
+      None -> add-error sp "performed effects exceed the declared row" st)
+    (URowJoin first second, other) -> include-effects sp second allowed (include-effects sp first allowed st)
+    (other, URowJoin first second) ->
+      let trial = include-effects sp actual first st in
+      if list-length (store-errors trial) == list-length (store-errors st) then trial
+      else include-effects sp actual second st
+    other -> add-error sp "effect inclusion needs resolved rows" st
+
+  mapped :: Nat -> List (Nat, UType) -> Option UType
+  mapped id pairs = case pairs of Nil -> None; Cons (n, ty) rest -> if id == n then Some ty else mapped id rest
+  substitute :: List (Nat, UType) -> UType -> UType
+  substitute pairs ty = case ty of
+    UPropLit value -> UPropLit value
+    UCompare relation left right -> UCompare relation (substitute pairs left) (substitute pairs right)
+    UPropAnd left right -> UPropAnd (substitute pairs left) (substitute pairs right)
+    UPropOr left right -> UPropOr (substitute pairs left) (substitute pairs right)
+    UPropNot body -> UPropNot (substitute pairs body)
+    UPropNonZero body -> UPropNonZero (substitute pairs body)
+    URequire predicates body -> URequire (substitute pairs predicates) (substitute pairs body)
+    URefine id name carrier predicate -> substitute-refinement False pairs id name carrier predicate
+    UIndexForget value -> UIndexForget (substitute pairs value)
+    UIndexPromote value -> UIndexPromote (substitute pairs value)
+    UIndexMath op left right -> make-index-math op (substitute pairs left) (substitute pairs right)
+    UPi id name domain row result -> substitute-pi False pairs id name domain row result
+    UIndex carrier value -> substitute-value-index False pairs (substitute pairs carrier) value
+    UBound id name k -> case mapped id pairs of Some replacement -> replacement; None -> UBound id name (map-kind-types (substitute pairs) k)
+    UCon name k -> UCon name (map-kind-types (substitute pairs) k)
+    URigid id name level k -> URigid id name level (map-kind-types (substitute pairs) k)
+    UMeta id k -> UMeta id (map-kind-types (substitute pairs) k)
+    UApp f x -> UApp (substitute pairs f) (substitute pairs x)
+    UFun a b -> UFun (substitute pairs a) (substitute pairs b)
+    UFunEff a row b -> UFunEff (substitute pairs a) (substitute pairs row) (substitute pairs b)
+    URow labels -> URow (substitute pairs labels)
+    URowJoin a b -> union-effects (substitute pairs a) (substitute pairs b)
+    UTuple xs -> UTuple (substitute pairs xs)
+    UArg x rest -> UArg (substitute pairs x) (substitute pairs rest)
+    other -> ty
+  substitute-bound :: List (Nat, UType) -> UType -> UType
+  substitute-bound pairs ty = substitute pairs ty
+  instantiate-params :: Bool -> List Quant -> Store -> (List (Nat, UType), Store)
+  instantiate-params rigid qs st = instantiate-ordered rigid qs Nil st
+  instantiate-ordered :: Bool -> List Quant -> List (Nat, UType) -> Store -> (List (Nat, UType), Store)
+  instantiate-ordered rigid qs earlier st = case qs of
+    Nil -> (Nil, st)
+    Cons q rest -> case st of
+      MkStore label next level cells errors ->
+        let kind = map-kind-types (substitute earlier) (quant-kind q) in
+        let (ty, next-store) = if rigid then (URigid next (quant-name q) level kind, MkStore label (next + 1) level cells errors) else fresh-meta kind st in
+        case instantiate-ordered rigid rest (Cons (quant-id q, ty) earlier) next-store of
+          (pairs, final-store) -> (Cons (quant-id q, ty) pairs, final-store)
+  instantiate :: Scheme -> Store -> (UType, Store)
+  instantiate sc st = case open-scheme False sc st of (ty, pairs, next-store) -> (ty, next-store)
+  skolemize :: Scheme -> Store -> (UType, Store)
+  skolemize sc st = case open-scheme True sc st of (ty, pairs, next-store) -> (ty, next-store)
+  open-scheme :: Bool -> Scheme -> Store -> (UType, List (Nat, UType), Store)
+  open-scheme rigid sc st = case scheme-requirements sc of
+    Nil -> case open-qualified rigid sc st of (ty, requirements, pairs, next-store) -> (ty, pairs, next-store)
+    other -> (UError, Nil, add-error (Span 0 0 1 1) "qualified scheme needs evidence-aware instantiation" st)
+  open-qualified :: Bool -> Scheme -> Store -> (UType, List Requirement, List (Nat, UType), Store)
+  open-qualified rigid sc st = case instantiate-params rigid (scheme-params sc) st of
+    (pairs, next-store) -> (substitute pairs (scheme-body sc), map-requirements (substitute pairs) (scheme-requirements sc), pairs, next-store)
+
+  replace-metas :: List (Nat, UType) -> UType -> UType
+  replace-metas pairs ty = case ty of
+    UPropLit value -> UPropLit value
+    UCompare relation left right -> UCompare relation (replace-metas pairs left) (replace-metas pairs right)
+    UPropAnd left right -> UPropAnd (replace-metas pairs left) (replace-metas pairs right)
+    UPropOr left right -> UPropOr (replace-metas pairs left) (replace-metas pairs right)
+    UPropNot body -> UPropNot (replace-metas pairs body)
+    UPropNonZero body -> UPropNonZero (replace-metas pairs body)
+    URequire predicates body -> URequire (replace-metas pairs predicates) (replace-metas pairs body)
+    URefine id name carrier predicate -> substitute-refinement True pairs id name carrier predicate
+    UIndexForget value -> UIndexForget (replace-metas pairs value)
+    UIndexPromote value -> UIndexPromote (replace-metas pairs value)
+    UIndexMath op left right -> make-index-math op (replace-metas pairs left) (replace-metas pairs right)
+    UPi id name domain row result -> substitute-pi True pairs id name domain row result
+    UIndex carrier value -> substitute-value-index True pairs (replace-metas pairs carrier) value
+    UMeta id k -> case mapped id pairs of Some replacement -> replacement; None -> UMeta id (map-kind-types (replace-metas pairs) k)
+    UCon name k -> UCon name (map-kind-types (replace-metas pairs) k)
+    UBound id name k -> UBound id name (map-kind-types (replace-metas pairs) k)
+    URigid id name level k -> URigid id name level (map-kind-types (replace-metas pairs) k)
+    UApp f x -> UApp (replace-metas pairs f) (replace-metas pairs x)
+    UFun a b -> UFun (replace-metas pairs a) (replace-metas pairs b)
+    UFunEff a row b -> UFunEff (replace-metas pairs a) (replace-metas pairs row) (replace-metas pairs b)
+    URow labels -> URow (replace-metas pairs labels)
+    URowJoin a b -> union-effects (replace-metas pairs a) (replace-metas pairs b)
+    UTuple xs -> UTuple (replace-metas pairs xs)
+    UArg x rest -> UArg (replace-metas pairs x) (replace-metas pairs rest)
+    other -> ty
+  generalized :: Nat -> List Nat -> List Nat -> Nat -> Store -> (List Quant, List (Nat, UType))
+  generalized level blocked ids next st = case ids of
+    Nil -> (Nil, Nil)
+    Cons id rest -> case find-cell id st of
+      Some (MkCell n lev k None) ->
+        if lev > level && not (contains-id id blocked) then
+          let name = string-concat "a" (nat-to-string next) in
+          case generalized level blocked rest (next + 1) st of
+            -- Retain the inference variable's unique identity. Restarting
+            -- ids at zero would capture an outer generalized variable in
+            -- the core of an inner polymorphic let binding.
+            (qs, pairs) -> (Cons (MkQuant id name (normalize-kind st k) False) qs, Cons (id, UBound id name (normalize-kind st k)) pairs)
+        else generalized level blocked rest next st
+      other -> generalized level blocked rest next st
+  generalize :: Nat -> List Nat -> UType -> Store -> Scheme
+  generalize level blocked ty st = case generalize-with level blocked ty st of (sc, pairs) -> sc
+  generalize-with :: Nat -> List Nat -> UType -> Store -> (Scheme, List (Nat, UType))
+  generalize-with level blocked ty st = case ordered-metas (free-metas st ty) st of
+    None -> (mono UError, Nil)
+    Some ids -> let local = pi-escaping-metas (type-pi-ids (normalize st ty)) ids st Nil in
+      case generalized level (merge-ids blocked local) ids 0 st of
+        (qs, pairs) -> let closed = close-pairs Nil pairs in
+          (MkScheme (map-quant-kinds (replace-metas closed) qs) (replace-metas closed (normalize st ty)), closed)
+  -- Generalize kind dependencies first. A value parameter's carrier may
+  -- itself contain type or value inference variables; no raw meta is
+  -- smuggled into a supposedly generalized binder's annotation.
+  ordered-metas :: List Nat -> Store -> Option (List Nat)
+  ordered-metas pending st = case pending of
+    Nil -> Some Nil
+    other -> case ready-meta pending pending st of
+      None -> None
+      Some id -> case ordered-metas (remove-id id pending) st of
+        Some rest -> Some (Cons id rest)
+        None -> None
+  ready-meta :: List Nat -> List Nat -> Store -> Option Nat
+  ready-meta candidates pending st = case candidates of
+    Nil -> None
+    Cons id rest -> let dependencies = case find-cell id st of Some (MkCell key level kind solution) -> kind-metas st kind; None -> Nil in
+      if any-pending dependencies pending then ready-meta rest pending st else Some id
+  any-pending :: List Nat -> List Nat -> Bool
+  any-pending ids pending = case ids of Nil -> False; Cons id rest -> contains-id id pending || any-pending rest pending
+  remove-id :: Nat -> List Nat -> List Nat
+  remove-id id ids = case ids of Nil -> Nil; Cons first rest -> if id == first then remove-id id rest else Cons first (remove-id id rest)
+  close-pairs :: List (Nat, UType) -> List (Nat, UType) -> List (Nat, UType)
+  close-pairs earlier pending = case pending of
+    Nil -> Nil
+    Cons (id, ty) rest -> let closed = replace-metas earlier ty in
+      Cons (id, closed) (close-pairs (Cons (id, closed) earlier) rest)
+  abstract-metas :: List (Nat, UType) -> UType -> UType
+  abstract-metas pairs ty = replace-metas pairs ty
+  scheme-arity :: Scheme -> Nat
+  scheme-arity sc = arrow-count (scheme-body sc)
+  arrow-count :: UType -> Nat
+  arrow-count ty = case ty of UPi id name domain row result -> 1 + arrow-count result; UFun a b -> 1 + arrow-count b; UFunEff a row b -> 1 + arrow-count b; other -> 0
+
+  index-display :: IndexTerm -> String
+  index-display value = case value of
+    IInteger n -> int-to-string n
+    IBound id name -> name
+    IRigid id name level -> name
+    IMeta id -> string-concat "?index" (nat-to-string id)
+    IGlobal name -> name
+    IApply f x -> string-concat-all ["(", index-display f, " ", index-display x, ")"]
+    ILambda id name body -> string-concat-all ["(lambda ", name, ". ", index-display body, ")"]
+    IAdd a b -> string-concat-all ["(", index-display a, " + ", index-display b, ")"]
+    ISubtract a b -> string-concat-all ["(", index-display a, " - ", index-display b, ")"]
+    IMultiply a b -> string-concat-all ["(", index-display a, " * ", index-display b, ")"]
+  mathematical-carrier :: UType -> Bool
+  mathematical-carrier carrier = case carrier of UCon name KType -> same-tag name "Nat" || same-tag name "Int"; other -> False
+  natural-carrier :: UType -> Bool
+  natural-carrier carrier = case carrier of UCon name KType -> same-tag name "Nat"; other -> False
+  index-shape :: UType -> IndexTerm -> Bool
+  index-shape carrier value = case value of
+    IInteger n -> mathematical-carrier carrier && (if natural-carrier carrier then n >= 0 else True)
+    IAdd a b -> mathematical-carrier carrier && index-shape carrier a && index-shape carrier b
+    ISubtract a b -> mathematical-carrier carrier && index-shape carrier a && index-shape carrier b && (not (natural-carrier carrier) || natural-subtraction-defined carrier a b)
+    IMultiply a b -> mathematical-carrier carrier && index-shape carrier a && index-shape carrier b
+    IGlobal name -> string-length name > 0
+    ILambda id name body -> (case carrier of UFun a b -> index-shape b body; UFunEff a row b -> index-shape b body; other -> False)
+    other -> True
+  normalize-index :: UType -> IndexTerm -> IndexTerm
+  normalize-index carrier value = if not (mathematical-carrier carrier) then value else case value of
+    IAdd a b -> fold-index carrier "add" (normalize-index carrier a) (normalize-index carrier b)
+    ISubtract a b -> fold-index carrier "sub" (normalize-index carrier a) (normalize-index carrier b)
+    IMultiply a b -> fold-index carrier "mul" (normalize-index carrier a) (normalize-index carrier b)
+    -- Arguments and lambda bodies need their own checked carriers. No
+    -- untyped beta reduction or arithmetic interpretation occurs here.
+    other -> value
+  fold-index :: UType -> String -> IndexTerm -> IndexTerm -> IndexTerm
+  fold-index carrier op a b = case (a, b) of
+    (IInteger x, IInteger y) -> if same-tag op "add" then IInteger (x + y)
+      else if same-tag op "mul" then IInteger (x * y)
+      else if natural-carrier carrier && x < y then ISubtract a b else IInteger (x - y)
+    -- Conversion is iota on numerals only (D28). Symbolic identities,
+    -- including n + 0, 0 * n and n - n, need propositional evidence.
+    other -> if same-tag op "add" then IAdd a b else if same-tag op "mul" then IMultiply a b else ISubtract a b
+  -- This is the arithmetic part of runtime admissibility. References
+  -- additionally require the actual typed scope; globals/applications and
+  -- lambdas require a separately checked total/pure reifier.
+  index-runtime-admissible :: UType -> IndexTerm -> Bool
+  index-runtime-admissible carrier input =
+    carrier-type carrier && index-shape carrier input && (case input of
+      IMeta id -> False
+      IGlobal name -> False
+      IApply f x -> False
+      ILambda id name body -> False
+      IAdd a b -> index-runtime-admissible carrier a && index-runtime-admissible carrier b
+      IMultiply a b -> index-runtime-admissible carrier a && index-runtime-admissible carrier b
+      ISubtract a b -> index-runtime-admissible carrier a && index-runtime-admissible carrier b
+      other -> True)
+  natural-subtraction-defined :: UType -> IndexTerm -> IndexTerm -> Bool
+  natural-subtraction-defined carrier a b = index-equal a b ||
+    (case (normalize-index carrier a, normalize-index carrier b) of (IInteger x, IInteger y) -> x >= y; other -> False)
+
+  typed-index-carrier :: UType -> Option UType
+  typed-index-carrier value = value-carrier (type-kind value)
+  promotable-carrier :: UType -> Bool
+  promotable-carrier carrier = case carrier of UCon name KType -> same-tag name "Nat" || same-tag name "I8" || same-tag name "I16" || same-tag name "I32" || same-tag name "I64" || same-tag name "U8" || same-tag name "U16" || same-tag name "U32" || same-tag name "U64"; other -> False
+  math-operation :: String -> Bool
+  math-operation op = same-tag op "+" || same-tag op "-" || same-tag op "*"
+  math-index :: String -> IndexTerm -> IndexTerm -> IndexTerm
+  math-index op left right = if same-tag op "+" then IAdd left right else if same-tag op "*" then IMultiply left right else ISubtract left right
+  valid-typed-math :: String -> UType -> UType -> Bool
+  valid-typed-math op left right = valid-type left && valid-type right && math-operation op && (case (typed-index-carrier left, typed-index-carrier right) of
+    (Some a, Some b) -> mathematical-carrier a && carrier-equal a b &&
+      (if same-tag op "-" && natural-carrier a then same-shape left right ||
+        (case (index-of-type left, index-of-type right) of (Some x, Some y) -> natural-subtraction-defined a x y; other -> False)
+       else True)
+    other -> False)
+  make-index-math :: String -> UType -> UType -> UType
+  make-index-math op left right = if not (math-operation op) then UIndexMath op left right else case (left, right) of
+    (UIndex a x, UIndex b y) -> if mathematical-carrier a && carrier-equal a b then UIndex a (normalize-index a (math-index op x y)) else UIndexMath op left right
+    other -> UIndexMath op left right
+  normalize-promoted-index :: UType -> UType
+  normalize-promoted-index value = case value of
+    UIndex (UCon name KType) (IInteger n) -> if same-tag name "Nat" && n >= 0 then UIndex (UCon "Int" KType) (IInteger n) else UIndexPromote value
+    other -> UIndexPromote value
+  typed-index-admissible :: UType -> Bool
+  typed-index-admissible value = valid-type value && (case value of
+    UIndexForget input -> typed-index-admissible input
+    UIndexPromote input -> typed-index-admissible input
+    UIndexMath op left right -> typed-index-admissible left && typed-index-admissible right
+    other -> case (typed-index-carrier value, index-of-type value) of (Some carrier, Some term) -> index-runtime-admissible carrier term; other -> False)
+  typed-index-solutions :: Store -> List Nat -> List (Nat, UType)
+  typed-index-solutions st ids = case ids of
+    Nil -> Nil
+    Cons id rest -> case find-cell id st of
+      Some (MkCell key level kind (Some solution)) -> Cons (id, normalize st solution) (typed-index-solutions st rest)
+      other -> typed-index-solutions st rest
+  normalize-value-index :: Store -> UType -> IndexTerm -> UType
+  normalize-value-index st carrier value = case substitute-value-index True (typed-index-solutions st (index-free-metas value)) carrier value of
+    UIndex actual term -> UIndex actual (normalize-index actual term)
+    other -> normalize st other
+
+  -- Index conversion solves only sorted first-order structural equations.
+  -- Opaque applications/lambdas compare by alpha identity; their argument
+  -- carriers and purity must be checked by the dependent elaborator.
+  unify-index :: Span -> UType -> IndexTerm -> IndexTerm -> Store -> Store
+  unify-index sp carrier first second st =
+    let a = normalize-index carrier (resolve-index st first) in
+    let b = normalize-index carrier (resolve-index st second) in
+    if index-equal a b then st else case (a, b) of
+      (IMeta id, right) -> bind-meta sp id (value-kind carrier) (UIndex carrier b) st
+      (left, IMeta id) -> bind-meta sp id (value-kind carrier) (UIndex carrier a) st
+      (IAdd x y, IAdd u v) -> unify-index sp carrier y v (unify-index sp carrier x u st)
+      (ISubtract x y, ISubtract u v) -> unify-index sp carrier y v (unify-index sp carrier x u st)
+      (IMultiply x y, IMultiply u v) -> unify-index sp carrier y v (unify-index sp carrier x u st)
+      other -> mismatch sp (UIndex carrier a) (UIndex carrier b) st
+
+  validate-kind-indices :: Span -> Kind -> Store -> Store
+  validate-kind-indices sp kind st = case kind of
+    KValue payload -> case value-carrier kind of Some carrier -> validate-type-indices sp carrier st; None -> add-error sp "invalid value carrier" st
+    KFun a b -> validate-kind-indices sp b (validate-kind-indices sp a st)
+    other -> st
+  validate-type-indices :: Span -> UType -> Store -> Store
+  validate-type-indices sp ty st = case ty of
+    UPropLit value -> st
+    UCompare relation left right -> if valid-type ty then validate-type-indices sp right (validate-type-indices sp left (st)) else add-error sp "ill-formed proposition or required type" st
+    UPropAnd left right -> if valid-type ty then validate-type-indices sp right (validate-type-indices sp left (st)) else add-error sp "ill-formed proposition or required type" st
+    UPropOr left right -> if valid-type ty then validate-type-indices sp right (validate-type-indices sp left (st)) else add-error sp "ill-formed proposition or required type" st
+    UPropNot body -> if valid-type ty then validate-type-indices sp body (st) else add-error sp "ill-formed proposition or required type" st
+    UPropNonZero body -> if valid-type ty then validate-type-indices sp body (st) else add-error sp "ill-formed proposition or required type" st
+    URequire predicates body -> if valid-type ty then validate-type-indices sp body (validate-type-indices sp predicates (st)) else add-error sp "ill-formed proposition or required type" st
+    URefine id name carrier predicate -> if valid-type ty then validate-type-indices sp predicate (validate-type-indices sp carrier st) else add-error sp "ill-formed refinement type" st
+    UIndexForget value -> if valid-type ty then validate-type-indices sp value st else add-error sp "ill-sorted index projection" st
+    UIndexPromote value -> if valid-type ty then validate-type-indices sp value st else add-error sp "ill-sorted integer index promotion" st
+    UIndexMath op left right -> if valid-type ty then validate-type-indices sp right (validate-type-indices sp left st) else add-error sp "ill-sorted typed index arithmetic" st
+    UPi id name domain row result -> validate-type-indices sp result (validate-type-indices sp row (validate-type-indices sp domain st))
+    UIndex carrier value ->
+      let checked = validate-type-indices sp carrier st in
+      if not (carrier-type carrier && index-shape carrier value) then add-error sp "ill-sorted or undefined index expression" checked
+      else validate-index-references sp (Some carrier) value checked
+    UCon name k -> validate-kind-indices sp k st
+    UBound id name k -> validate-kind-indices sp k st
+    URigid id name level k -> validate-kind-indices sp k st
+    UMeta id k -> validate-kind-indices sp k st
+    UApp a b -> validate-type-indices sp b (validate-type-indices sp a st)
+    UFun a b -> validate-type-indices sp b (validate-type-indices sp a st)
+    UFunEff a row b -> validate-type-indices sp b (validate-type-indices sp row (validate-type-indices sp a st))
+    URow labels -> validate-type-indices sp labels st
+    URowJoin a b -> validate-type-indices sp b (validate-type-indices sp a st)
+    UTuple fields -> validate-type-indices sp fields st
+    UArg a b -> validate-type-indices sp b (validate-type-indices sp a st)
+    other -> st
+  validate-index-references :: Span -> Option UType -> IndexTerm -> Store -> Store
+  validate-index-references sp expected term st = case term of
+    IMeta id -> case find-cell id st of
+      None -> add-error sp "unknown index inference variable" st
+      Some (MkCell key level kind solution) -> case value-carrier kind of
+        None -> add-error sp "a type inference variable cannot be used as a value index" st
+        Some carrier -> case expected of Some actual -> unify sp actual carrier st; None -> st
+    IAdd a b -> validate-index-references sp expected b (validate-index-references sp expected a st)
+    ISubtract a b -> validate-index-references sp expected b (validate-index-references sp expected a st)
+    IMultiply a b -> validate-index-references sp expected b (validate-index-references sp expected a st)
+    IApply f x -> validate-index-references sp None x (validate-index-references sp None f st)
+    ILambda id name body -> validate-index-references sp (index-result-carrier expected) body st
+    other -> st
+  index-result-carrier :: Option UType -> Option UType
+  index-result-carrier expected = case expected of
+    Some (UFun domain result) -> Some result
+    Some (UFunEff domain row result) -> Some result
+    other -> None
+
+  value-index-pairs :: List (Nat, UType) -> List (Nat, IndexTerm)
+  value-index-pairs pairs = case pairs of
+    Nil -> Nil
+    Cons (id, ty) rest -> case index-of-type ty of Some value -> Cons (id, value) (value-index-pairs rest); None -> value-index-pairs rest
+  without-type-pair :: Nat -> List (Nat, UType) -> List (Nat, UType)
+  without-type-pair id pairs = case pairs of Nil -> Nil; Cons (key, ty) rest -> if id == key then without-type-pair id rest else Cons (key, ty) (without-type-pair id rest)
+  index-replacement-ok :: Nat -> List (Nat, UType) -> Option UType -> Bool
+  index-replacement-ok id pairs expected = case mapped id pairs of
+    None -> True
+    Some replacement -> case (index-of-type replacement, value-carrier (type-kind replacement)) of
+      (Some value, Some carrier) -> valid-type replacement && (case expected of Some actual -> carrier-equal actual carrier; None -> True)
+      other -> False
+  index-replacements-ok :: Bool -> List (Nat, UType) -> Option UType -> IndexTerm -> Bool
+  index-replacements-ok metas pairs expected term = case term of
+    IBound id name -> if metas then True else index-replacement-ok id pairs expected
+    IMeta id -> if metas then index-replacement-ok id pairs expected else True
+    IAdd a b -> index-replacements-ok metas pairs expected a && index-replacements-ok metas pairs expected b
+    ISubtract a b -> index-replacements-ok metas pairs expected a && index-replacements-ok metas pairs expected b
+    IMultiply a b -> index-replacements-ok metas pairs expected a && index-replacements-ok metas pairs expected b
+    IApply f x -> index-replacements-ok metas pairs None f && index-replacements-ok metas pairs None x
+    ILambda id name body -> index-replacements-ok metas (if metas then pairs else without-type-pair id pairs) (index-result-carrier expected) body
+    other -> True
+  substitute-value-index :: Bool -> List (Nat, UType) -> UType -> IndexTerm -> UType
+  substitute-value-index metas pairs carrier value = case value of
+    IBound id name -> if metas then UIndex carrier value else insert-typed-index id pairs carrier value
+    IMeta id -> if metas then insert-typed-index id pairs carrier value else UIndex carrier value
+    IAdd left right -> make-index-math "+" (substitute-value-index metas pairs carrier left) (substitute-value-index metas pairs carrier right)
+    ISubtract left right -> make-index-math "-" (substitute-value-index metas pairs carrier left) (substitute-value-index metas pairs carrier right)
+    IMultiply left right -> make-index-math "*" (substitute-value-index metas pairs carrier left) (substitute-value-index metas pairs carrier right)
+    other -> if not (index-replacements-ok metas pairs (Some carrier) value) then UError
+      else UIndex carrier (if metas then substitute-index-metas (value-index-pairs pairs) value else substitute-index (value-index-pairs pairs) value)
+  insert-typed-index :: Nat -> List (Nat, UType) -> UType -> IndexTerm -> UType
+  insert-typed-index id pairs carrier original = case mapped id pairs of
+    None -> UIndex carrier original
+    Some value -> if valid-type value && (case typed-index-carrier value of Some actual -> carrier-equal carrier actual; None -> False) then value else UError
+
+  -- Pi binders scope the effect row and codomain, never their own domain.
+  -- Id scans include carrier kinds and every Index namespace, so externally
+  -- constructed terms cannot collide with an alpha-comparison witness.
+  index-all-ids :: IndexTerm -> List Nat
+  index-all-ids term = case term of
+    IBound id name -> [id]
+    IRigid id name level -> [id]
+    IMeta id -> [id]
+    ILambda id name body -> merge-ids [id] (index-all-ids body)
+    IApply f x -> merge-ids (index-all-ids f) (index-all-ids x)
+    IAdd a b -> merge-ids (index-all-ids a) (index-all-ids b)
+    ISubtract a b -> merge-ids (index-all-ids a) (index-all-ids b)
+    IMultiply a b -> merge-ids (index-all-ids a) (index-all-ids b)
+    other -> Nil
+  kind-all-ids :: Kind -> List Nat
+  kind-all-ids kind = case kind of
+    KValue payload -> case value-carrier kind of Some carrier -> type-all-ids carrier; None -> Nil
+    KFun a b -> merge-ids (kind-all-ids a) (kind-all-ids b)
+    other -> Nil
+  type-all-ids :: UType -> List Nat
+  type-all-ids ty = case ty of
+    UPropLit value -> Nil
+    UCompare relation left right -> merge-ids (type-all-ids left) (type-all-ids right)
+    UPropAnd left right -> merge-ids (type-all-ids left) (type-all-ids right)
+    UPropOr left right -> merge-ids (type-all-ids left) (type-all-ids right)
+    UPropNot body -> type-all-ids body
+    UPropNonZero body -> type-all-ids body
+    URequire predicates body -> merge-ids (type-all-ids predicates) (type-all-ids body)
+    URefine id name carrier predicate -> merge-ids [id] (merge-ids (type-all-ids carrier) (type-all-ids predicate))
+    UCon name k -> kind-all-ids k
+    UBound id name k -> merge-ids [id] (kind-all-ids k)
+    URigid id name level k -> merge-ids [id] (kind-all-ids k)
+    UMeta id k -> merge-ids [id] (kind-all-ids k)
+    UIndexForget value -> type-all-ids value
+    UIndexPromote value -> type-all-ids value
+    UIndexMath op left right -> merge-ids (type-all-ids left) (type-all-ids right)
+    UIndex carrier value -> merge-ids (type-all-ids carrier) (index-all-ids value)
+    UPi id name domain row result -> merge-ids [id] (merge-ids (type-all-ids domain) (merge-ids (type-all-ids row) (type-all-ids result)))
+    UApp a b -> merge-ids (type-all-ids a) (type-all-ids b)
+    UFun a b -> merge-ids (type-all-ids a) (type-all-ids b)
+    UFunEff a row b -> merge-ids (type-all-ids a) (merge-ids (type-all-ids row) (type-all-ids b))
+    URow labels -> type-all-ids labels
+    URowJoin a b -> merge-ids (type-all-ids a) (type-all-ids b)
+    UTuple fields -> type-all-ids fields
+    UArg a rest -> merge-ids (type-all-ids a) (type-all-ids rest)
+    other -> Nil
+  largest-id :: List Nat -> Nat
+  largest-id ids = case ids of Nil -> 0; Cons id rest -> let more = largest-id rest in if id > more then id else more
+  kind-free-bound :: Kind -> List Nat
+  kind-free-bound kind = case kind of
+    KValue payload -> case value-carrier kind of Some carrier -> type-free-bound carrier; None -> Nil
+    KFun a b -> merge-ids (kind-free-bound a) (kind-free-bound b)
+    other -> Nil
+  type-free-bound :: UType -> List Nat
+  type-free-bound ty = case ty of
+    UPropLit value -> Nil
+    UCompare relation left right -> merge-ids (type-free-bound left) (type-free-bound right)
+    UPropAnd left right -> merge-ids (type-free-bound left) (type-free-bound right)
+    UPropOr left right -> merge-ids (type-free-bound left) (type-free-bound right)
+    UPropNot body -> type-free-bound body
+    UPropNonZero body -> type-free-bound body
+    URequire predicates body -> merge-ids (type-free-bound predicates) (type-free-bound body)
+    URefine id name carrier predicate -> merge-ids (type-free-bound carrier) (remove-id id (type-free-bound predicate))
+    UBound id name k -> merge-ids [id] (kind-free-bound k)
+    UCon name k -> kind-free-bound k
+    URigid id name level k -> kind-free-bound k
+    UMeta id k -> kind-free-bound k
+    UIndexForget value -> type-free-bound value
+    UIndexPromote value -> type-free-bound value
+    UIndexMath op left right -> merge-ids (type-free-bound left) (type-free-bound right)
+    UIndex carrier value -> merge-ids (type-free-bound carrier) (index-free-bound value)
+    UPi id name domain row result -> merge-ids (type-free-bound domain) (remove-id id (merge-ids (type-free-bound row) (type-free-bound result)))
+    UApp a b -> merge-ids (type-free-bound a) (type-free-bound b)
+    UFun a b -> merge-ids (type-free-bound a) (type-free-bound b)
+    UFunEff a row b -> merge-ids (type-free-bound a) (merge-ids (type-free-bound row) (type-free-bound b))
+    URow labels -> type-free-bound labels
+    URowJoin a b -> merge-ids (type-free-bound a) (type-free-bound b)
+    UTuple fields -> type-free-bound fields
+    UArg a rest -> merge-ids (type-free-bound a) (type-free-bound rest)
+    other -> Nil
+  pair-all-ids :: List (Nat, UType) -> List Nat
+  pair-all-ids pairs = case pairs of Nil -> Nil; Cons (id, ty) rest -> merge-ids [id] (merge-ids (type-all-ids ty) (pair-all-ids rest))
+  pair-free-bound :: List (Nat, UType) -> List Nat
+  pair-free-bound pairs = case pairs of Nil -> Nil; Cons (id, ty) rest -> merge-ids (type-free-bound ty) (pair-free-bound rest)
+  transform-type :: Bool -> List (Nat, UType) -> UType -> UType
+  transform-type metas pairs ty = if metas then replace-metas pairs ty else substitute pairs ty
+  substitute-pi :: Bool -> List (Nat, UType) -> Nat -> String -> UType -> UType -> UType -> UType
+  substitute-pi metas pairs id name domain row result =
+    let kept = if metas then pairs else without-type-pair id pairs in
+    let fresh = largest-id (merge-ids (type-all-ids (UPi id name domain row result)) (pair-all-ids pairs)) + 1 in
+    let captures = contains-id id (pair-free-bound kept) in
+    -- The renaming witness uses the original domain. Its annotation is
+    -- transformed once with the body, preserving simultaneous insertion.
+    let witness = UBound fresh name (value-kind domain) in
+    let scoped-row = if captures then substitute [(id, witness)] row else row in
+    let scoped-result = if captures then substitute [(id, witness)] result else result in
+    UPi (if captures then fresh else id) name (transform-type metas pairs domain)
+      (transform-type metas kept scoped-row) (transform-type metas kept scoped-result)
+
+  -- Reuse the checked binder machinery without identifying refinements
+  -- with functions. The encoding is private and never an exported type.
+  refinement-pi :: Nat -> String -> UType -> UType -> UType
+  refinement-pi id name carrier predicate = UPi id name carrier (URow UEnd) (URequire (UArg predicate UEnd) carrier)
+  substitute-refinement :: Bool -> List (Nat, UType) -> Nat -> String -> UType -> UType -> UType
+  substitute-refinement metas pairs id name carrier predicate = case substitute-pi metas pairs id name carrier (URow UEnd) predicate of
+    UPi fresh display domain row condition -> URefine fresh display domain condition
+    other -> UError
+  -- Opening produces the predicate to prove about an actual checked index.
+  -- It supplies no evidence and performs no carrier coercion or erasure.
+  open-refinement :: Span -> UType -> UType -> Store -> (UType, Store)
+  open-refinement sp refined argument st = case normalize st refined of
+    URefine id name carrier predicate -> if valid-type refined then
+      (case open-pi sp (refinement-pi id name carrier predicate) argument st of
+        (URequire (UArg condition UEnd) body, row, checked) -> (condition, checked)
+        (other, row, checked) -> (UError, checked))
+      else (UError, add-error sp "ill-formed refinement type" st)
+    other -> (UError, add-error sp "refinement opening requires a refined type" st)
+
+  same-pi :: UType -> UType -> Bool
+  same-pi first second = case (first, second) of
+    (UPi id name domain row result, UPi key other input effects output) ->
+      let fresh = largest-id (merge-ids (type-all-ids first) (type-all-ids second)) + 1 in
+      let witness = URigid fresh "#pi-alpha" 0 (value-kind domain) in
+      same-shape domain input
+        && same-shape (substitute [(id, witness)] row) (substitute [(key, witness)] effects)
+        && same-shape (substitute [(id, witness)] result) (substitute [(key, witness)] output)
+    other -> False
+  function-pi :: UType -> UType
+  function-pi ty = let fresh = largest-id (type-all-ids ty) + 1 in case ty of
+    UFun domain result -> UPi fresh "_" domain (URow UEnd) result
+    UFunEff domain row result -> UPi fresh "_" domain row result
+    other -> ty
+  reserve-type-ids :: UType -> UType -> Store -> Store
+  reserve-type-ids first second st = case st of
+    MkStore label next level cells errors ->
+      let highest = largest-id (merge-ids (type-all-ids first) (type-all-ids second)) in
+      MkStore label (if next > highest then next else highest + 1) level cells errors
+  cells-level :: List Cell -> Nat
+  cells-level cells = case cells of Nil -> 0; Cons (MkCell id level kind solution) rest -> let more = cells-level rest in if level > more then level else more
+  pi-level :: Store -> Nat
+  pi-level st = case st of MkStore label next level cells errors -> let highest = cells-level cells in (if level > highest then level else highest) + 1
+  unify-pi :: Span -> UType -> UType -> Store -> Store
+  unify-pi sp first second st = case (first, second) of
+    (UPi id name domain row result, UPi key other input effects output) ->
+      if not (valid-type first && valid-type second) then add-error sp "ill-formed dependent function type" st
+      else let checked = unify sp domain input st in
+        if list-length (store-errors checked) > list-length (store-errors st) then checked
+        else if not (valid-type (normalize checked first) && valid-type (normalize checked second)) then
+          add-error sp "dependent domain inference captures a binder" checked
+        else let outer-level = store-level checked in
+          let scoped = restore-level (pi-level checked) (reserve-type-ids first second checked) in
+          case fresh-id scoped of
+            (fresh, prepared) ->
+              -- No pre-existing meta may acquire this newly opened
+              -- binder. Contextual higher-order metas need a later rule.
+              let witness = URigid fresh "#pi" (store-level prepared) (value-kind (normalize checked domain)) in
+              let left-row = substitute [(id, witness)] (normalize checked row) in
+              let right-row = substitute [(key, witness)] (normalize checked effects) in
+              let left-result = substitute [(id, witness)] (normalize checked result) in
+              let right-result = substitute [(key, witness)] (normalize checked output) in
+              let valid = valid-type left-row && valid-type right-row && valid-type left-result && valid-type right-result in
+              let resolved = if valid then unify sp left-result right-result (unify sp left-row right-row prepared)
+                    else add-error sp "invalid dependent binder substitution" prepared in
+              restore-level outer-level resolved
+    other -> mismatch sp first second st
+
+  -- Apply an already checked value index to a dependent arrow. Source
+  -- elaboration must provide its real argument's identity and establish
+  -- scope/purity before any expression is admitted as that index.
+  open-pi :: Span -> UType -> UType -> Store -> (UType, UType, Store)
+  open-pi sp function argument st =
+    let checked = validate-type-indices sp argument (validate-type-indices sp function st) in
+    if list-length (store-errors checked) > list-length (store-errors st) then (UError, UError, checked)
+    else if not (valid-type function && valid-type argument) then (UError, UError, add-error sp "invalid dependent application input" checked)
+    else if escapes (store-level checked) (normalize checked function) || escapes (store-level checked) (normalize checked argument) then
+      (UError, UError, add-error sp "dependent application escapes its scope" checked)
+    else open-pi-normalized sp (normalize checked function) (normalize checked argument) checked
+  open-pi-normalized :: Span -> UType -> UType -> Store -> (UType, UType, Store)
+  open-pi-normalized sp function argument st = case function of
+    UPi id name domain row result ->
+      let checked = validate-type-indices sp argument st in
+      let sorted = if valid-type argument then unify-kind sp (type-kind (normalize checked argument)) (value-kind domain) checked
+            else add-error sp "invalid dependent argument index" checked in
+      if list-length (store-errors sorted) > list-length (store-errors st) then (UError, UError, sorted)
+      else if not (valid-type (normalize sorted function)) then
+        (UError, UError, add-error sp "dependent domain inference captures a binder" sorted)
+      else let pairs = [(id, normalize sorted argument)] in
+        let opened-row = substitute pairs (normalize sorted row) in
+        let opened-result = substitute pairs (normalize sorted result) in
+        if valid-type opened-row && valid-type opened-result then (opened-result, opened-row, sorted)
+        else (UError, UError, add-error sp "invalid dependent application result" sorted)
+    other -> (UError, UError, add-error sp "dependent application requires a Pi type" st)
+
+  -- A Scheme quantifies outside its whole body. Hoisting a meta whose
+  -- carrier mentions a Pi-local binder would leave that quantifier's
+  -- annotation outside the binder's scope. Keep it as an unresolved hole.
+  kind-pi-ids :: Kind -> List Nat
+  kind-pi-ids kind = case kind of
+    KValue payload -> case value-carrier kind of Some carrier -> type-pi-ids carrier; None -> Nil
+    KFun a b -> merge-ids (kind-pi-ids a) (kind-pi-ids b)
+    other -> Nil
+  type-pi-ids :: UType -> List Nat
+  type-pi-ids ty = case ty of
+    UPropLit value -> Nil
+    UCompare relation left right -> merge-ids (type-pi-ids left) (type-pi-ids right)
+    UPropAnd left right -> merge-ids (type-pi-ids left) (type-pi-ids right)
+    UPropOr left right -> merge-ids (type-pi-ids left) (type-pi-ids right)
+    UPropNot body -> type-pi-ids body
+    UPropNonZero body -> type-pi-ids body
+    URequire predicates body -> merge-ids (type-pi-ids predicates) (type-pi-ids body)
+    URefine id name carrier predicate -> merge-ids [id] (merge-ids (type-pi-ids carrier) (type-pi-ids predicate))
+    UPi id name domain row result -> merge-ids [id] (merge-ids (type-pi-ids domain) (merge-ids (type-pi-ids row) (type-pi-ids result)))
+    UCon name k -> kind-pi-ids k
+    UBound id name k -> kind-pi-ids k
+    URigid id name level k -> kind-pi-ids k
+    UMeta id k -> kind-pi-ids k
+    UIndexForget value -> type-pi-ids value
+    UIndexPromote value -> type-pi-ids value
+    UIndexMath op left right -> merge-ids (type-pi-ids left) (type-pi-ids right)
+    UIndex carrier value -> type-pi-ids carrier
+    UApp a b -> merge-ids (type-pi-ids a) (type-pi-ids b)
+    UFun a b -> merge-ids (type-pi-ids a) (type-pi-ids b)
+    UFunEff a row b -> merge-ids (type-pi-ids a) (merge-ids (type-pi-ids row) (type-pi-ids b))
+    URow labels -> type-pi-ids labels
+    URowJoin a b -> merge-ids (type-pi-ids a) (type-pi-ids b)
+    UTuple fields -> type-pi-ids fields
+    UArg a rest -> merge-ids (type-pi-ids a) (type-pi-ids rest)
+    other -> Nil
+  pi-escaping-metas :: List Nat -> List Nat -> Store -> List Nat -> List Nat
+  pi-escaping-metas binders ordered st escaped = case ordered of
+    Nil -> escaped
+    Cons id rest -> case find-cell id st of
+      Some (MkCell key level kind solution) ->
+        let local = any-pending (kind-free-bound (normalize-kind st kind)) binders || any-pending (kind-metas st kind) escaped in
+        pi-escaping-metas binders rest st (if local then Cons id escaped else escaped)
+      None -> pi-escaping-metas binders rest st escaped
+
+  -- Source binders must be fresh for quantified locals too: scheme-bound
+  -- identities need not have been allocated by this Store's meta supply.
+  fresh-for-types :: List UType -> Store -> (Nat, Store)
+  fresh-for-types types st = case types of
+    Nil -> fresh-id st
+    Cons ty rest -> fresh-for-types rest (reserve-type-ids (normalize st ty) UEnd st)
+  pi-dependent :: UType -> Bool
+  pi-dependent ty = case ty of
+    UPi id name domain row result -> contains-id id (merge-ids (type-free-bound row) (type-free-bound result))
+    other -> False
+
+  -- Core compares contracts after lexical scope checking; binder levels are
+  -- inference bookkeeping, while numeric identities still determine values.
+  without-index-levels :: UType -> UType
+  without-index-levels ty = case ty of
+    UCompare relation left right -> UCompare relation (without-index-levels left) (without-index-levels right)
+    UPropAnd left right -> UPropAnd (without-index-levels left) (without-index-levels right)
+    UPropOr left right -> UPropOr (without-index-levels left) (without-index-levels right)
+    UPropNot body -> UPropNot (without-index-levels body)
+    UPropNonZero body -> UPropNonZero (without-index-levels body)
+    URequire predicates body -> URequire (without-index-levels predicates) (without-index-levels body)
+    URefine id name carrier predicate -> URefine id name (without-index-levels carrier) (without-index-levels predicate)
+    UIndexForget value -> UIndexForget (without-index-levels value)
+    UIndexPromote value -> UIndexPromote (without-index-levels value)
+    UIndexMath op left right -> UIndexMath op (without-index-levels left) (without-index-levels right)
+    UPi id name domain row result -> UPi id name (without-index-levels domain) (without-index-levels row) (without-index-levels result)
+    UApp f x -> UApp (without-index-levels f) (without-index-levels x)
+    UFun a b -> UFun (without-index-levels a) (without-index-levels b)
+    UFunEff a row b -> UFunEff (without-index-levels a) (without-index-levels row) (without-index-levels b)
+    URow labels -> URow (without-index-levels labels)
+    URowJoin a b -> URowJoin (without-index-levels a) (without-index-levels b)
+    UTuple fields -> UTuple (without-index-levels fields)
+    UArg x rest -> UArg (without-index-levels x) (without-index-levels rest)
+    UIndex carrier value -> UIndex (without-index-levels carrier) (index-without-levels value)
+    UCon name k -> UCon name (map-kind-types without-index-levels k)
+    UBound id name k -> UBound id name (map-kind-types without-index-levels k)
+    URigid id name level k -> let kind = map-kind-types without-index-levels k in
+      (case value-carrier kind of
+        Some carrier -> UIndex carrier (IRigid id name 0)
+        None -> URigid id name level kind)
+    UMeta id k -> UMeta id (map-kind-types without-index-levels k)
+    other -> ty
+  index-without-levels :: IndexTerm -> IndexTerm
+  index-without-levels term = case term of
+    IRigid id name level -> IRigid id name 0
+    IApply f x -> IApply (index-without-levels f) (index-without-levels x)
+    ILambda id name body -> ILambda id name (index-without-levels body)
+    IAdd a b -> IAdd (index-without-levels a) (index-without-levels b)
+    ISubtract a b -> ISubtract (index-without-levels a) (index-without-levels b)
+    IMultiply a b -> IMultiply (index-without-levels a) (index-without-levels b)
+    other -> term

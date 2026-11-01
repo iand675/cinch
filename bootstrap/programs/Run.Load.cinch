@@ -1,0 +1,249 @@
+-- Exercise real emitted contracts and damaged variants with one build of
+-- the loader. A JSON manifest contains paths and expected identities.
+module Main where
+
+  import Bootstrap.Load
+  import Bootstrap.Ast
+  import Bootstrap.Interface (iface-parse)
+  import Bootstrap.Parse (parse-scheme)
+  import Bootstrap.Nominal (interface-global, resolved-text, qualify-resolved)
+  import Text.Parse (ParseOutcome, Parsed, Failed)
+  import Text.Json (canonical-json, parse-json)
+  import Data.Json
+  import Data.Path (path-from-string)
+  import Effect.Fs (fs-read, fs-write)
+  import Effect.Process (process-args)
+
+  same :: String -> String -> Bool
+  same a b = string-compare a b == 0
+
+  find-value :: String -> List ImportedValue -> Option ImportedValue
+  find-value name values = case values of
+    Nil -> None
+    Cons v rest -> if same name (imported-name v) then Some v else find-value name rest
+
+  value-ok :: String -> List ImportedValue -> Bool
+  value-ok name values = case find-value name values of
+    None -> False
+    Some v -> case imported-type v of
+      Parsed ty Nil ->
+        if same name "answer" then same (imported-symbol v) "Lib.answer" && imported-arity v == 0
+          && (case ty of TName s n -> same n "Int"; other -> False)
+        else if same name "identity" then case ty of
+          TForall s binders (TFun f (TName a first) (TName b second)) ->
+            list-length (forall-params-of binders) == 1 && same first second
+          other -> False
+        else if same name "bounded" then case ty of
+          TUsing s bounds body -> list-length (type-bounds-of bounds) == 2
+          other -> False
+        else False
+      other -> False
+
+  contract-ok :: Bytes -> LoadedInterface -> Bool
+  contract-ok src loaded = case iface-parse src of
+    None -> False
+    Some doc -> same (canonical-json doc) (canonical-json (loaded-contract loaded))
+
+  class-head :: TypeExpr -> String
+  class-head ty = case ty of TName s name -> name; TApp s head args -> class-head head; other -> ""
+  resolved-class :: Json -> String -> Nat -> Bool
+  resolved-class metadata owner count = case resolved-text metadata of
+    None -> False
+    Some text -> case parse-scheme "resolved-class" (string-to-bytes text) of
+      Parsed ty Nil -> case qualify-resolved metadata ty of
+        (TForall s qs (TUsing u bounds body), Nil) -> list-length (forall-params-of qs) == count
+          && (case type-bounds-of bounds of Cons (name, app) Nil -> same (class-head app) (interface-global owner); other -> False)
+        other -> False
+      other -> False
+  qualifier-refusals :: Json -> Bool
+  qualifier-refusals metadata = case resolved-text metadata of
+    None -> False
+    Some text -> case parse-scheme "resolved-class" (string-to-bytes text) of
+      Parsed (TForall s qs (TUsing u (TBound b name app (TBoundsEnd end)) body)) Nil ->
+        let duplicate = TForall s qs (TUsing u (TBound b name app (TBound b name app (TBoundsEnd end))) body) in
+        let data-context = TForall s qs (TUsing u (TBound b name (TName b "Int") (TBoundsEnd end)) body) in
+        (case qualify-resolved metadata duplicate of (out, Cons error more) -> True; other -> False)
+          && (case qualify-resolved metadata data-context of (out, Cons error more) -> True; other -> False)
+      other -> False
+  class-contracts-ok :: LoadedInterface -> Bool
+  class-contracts-ok loaded = case (loaded-entry loaded "value" "Lib.secret-api", loaded-entry loaded "method" "Lib.Mapper.map-item", loaded-entry loaded "method" "Lib.Secret.locked") of
+    (Some value, Some mapper, Some locked) -> resolved-class value "Lib.Secret" 1 && qualifier-refusals value
+      && resolved-class mapper "Lib.Mapper" 3 && resolved-class locked "Lib.Secret" 1
+      && (case field "slot" mapper of JNum index -> index == 0; other -> False)
+      && (case field "class" locked of JStr owner -> same owner "Lib.Secret"; other -> False)
+      && not (visible-name "Secret" (loaded-exports loaded)) && not (visible-name "locked" (loaded-exports loaded))
+    other -> False
+  kernel-contract-ok :: LoadedInterface -> Bool
+  kernel-contract-ok loaded = case loaded-entry loaded "value" "Lib.kernel-write" of
+    None -> False
+    Some value -> case resolved-text value of
+      None -> False
+      Some text -> case parse-scheme "kernel-contract" (string-to-bytes text) of
+        Parsed ty Nil -> (case qualify-resolved value ty of
+          (TForall s (TQuantifier q region only (TName k kind) (TQuantifiersEnd end))
+            (TUsing u (TBound d dictionary (TApp a (TName h head) (TArg x (TName r actual) (TArgsEnd tail))) (TBoundsEnd last))
+              (TFunEff f input (TRow e (TArg c (TApp i (TName n label) (TArg b (TName v runtime) (TArgsEnd done))) (TArgsEnd more)) None) output)), Nil) ->
+                same kind "Region" && same head "b.Io" && same region actual && same actual runtime && same label "IO"
+          other -> False)
+        other -> False
+  instance-target-ok :: Json -> String -> Bool
+  instance-target-ok metadata owner = case resolved-text metadata of
+    None -> False
+    Some text -> case parse-scheme "instance-head" (string-to-bytes text) of
+      Parsed ty Nil -> case qualify-resolved metadata ty of
+        (qualified, Nil) -> same (class-head qualified) (interface-global owner)
+        other -> False
+      other -> False
+  proof-contract-ok :: LoadedInterface -> Bool
+  proof-contract-ok loaded = case (loaded-entry loaded "instance" "Data.Nat.Add_Nat", loaded-entry loaded "instance" "Data.Nat.Sub_Nat") of
+    (Some addition, Some subtraction) -> instance-target-ok addition "Algebra.Arithmetic.Add"
+      && (case field "resolved" subtraction of JNull -> True; other -> False)
+      && (case field "method_contracts" subtraction of
+        JArr method-proof JArrEnd -> (case field "scheme" method-proof of
+          JStr text -> (case parse-scheme "method-proof" (string-to-bytes text) of
+            Parsed (TUsing s bounds body) Nil -> (case type-bounds-of bounds of
+              Cons (name, TInfix p op (TName a first) (TName b second)) Nil -> same op "<=" && same first "arg1" && same second "arg0"
+              other -> False)
+            other -> False)
+          other -> False)
+        other -> False)
+    other -> False
+
+  loaded-ok :: Bytes -> LoadedInterface -> Bool
+  loaded-ok src loaded = contract-ok src loaded &&
+    (if same (loaded-module loaded) "Lib" then
+      value-ok "answer" (loaded-values loaded) && value-ok "identity" (loaded-values loaded)
+      && value-ok "bounded" (loaded-values loaded)
+      && exported "Mapper" "signature" "Lib.Mapper" (loaded-exports loaded)
+      && exported "reveal" "method" "Lib.Hidden.reveal" (loaded-exports loaded)
+      && not (visible-name "Hidden" (loaded-exports loaded))
+      && not (visible-name "private-method" (loaded-exports loaded))
+      && not (visible-name "map-item" (loaded-exports loaded))
+      && class-contracts-ok loaded && kernel-contract-ok loaded
+      && (case loaded-entry loaded "instance" "Lib.Secret_Int" of Some provider -> instance-target-ok provider "Lib.Secret"; other -> False)
+      && not (visible-name "Secret_Int" (loaded-exports loaded))
+      && (case loaded-fixities loaded of
+        Cons (op, assoc, prec) Nil -> same op "<+>" && same assoc "right" && prec == 6
+        other -> False)
+    else if same (loaded-module loaded) "Data.Nat" then proof-contract-ok loaded
+    else True)
+
+  exported :: String -> String -> String -> List (String, String, String) -> Bool
+  exported name kind identity entries = case entries of
+    Nil -> False
+    Cons (n, k, i) rest -> (same name n && same kind k && same identity i) || exported name kind identity rest
+
+  visible-name :: String -> List (String, String, String) -> Bool
+  visible-name name entries = case entries of
+    Nil -> False
+    Cons (n, k, i) rest -> same name n || visible-name name rest
+
+  fail-case :: forall r. using (io :: Io r) => Int -> String -> String ->{IO r} Int
+  fail-case number expected actual =
+    let message = string-concat-all ["case ", int-to-string number, "\nexpected: ", expected, "\nactual: ", actual, "\n"] in
+    case fs-write (path-from-string "load-detail.txt") (string-to-bytes message) of
+      Ok unit -> number
+      Err error -> 252
+
+  check-cases :: forall r. using (io :: Io r) => List (String, String, String, String) -> Int ->{IO r} Int
+  check-cases cases number = case cases of
+    Nil -> 0
+    Cons (name, hash, path, expected) rest -> case fs-read (path-from-string path) of
+      Err error -> 250
+      Ok src -> case load-interface name hash src of
+        Err message -> if same expected message then check-cases rest (number + 1) else fail-case number expected message
+        Ok loaded -> if same expected "" && loaded-ok src loaded then check-cases rest (number + 1)
+          else fail-case number expected (string-concat "accepted interface failed assertions: " name)
+
+  read-inputs :: forall r. using (io :: Io r) => List (String, String, String) ->{IO r} Result String (List (String, String, Bytes))
+  read-inputs inputs = case inputs of
+    Nil -> Ok Nil
+    Cons (name, hash, path) rest -> case fs-read (path-from-string path) of
+      Err error -> Err "cannot read contract fixture"
+      Ok src -> case read-inputs rest of
+        Err error -> Err error
+        Ok rows -> Ok (Cons (name, hash, src) rows)
+
+  check-sets :: forall r. using (io :: Io r) => List (List (String, String, String), String) -> Int ->{IO r} Int
+  check-sets sets number = case sets of
+    Nil -> 0
+    Cons (inputs, expected) rest -> case read-inputs inputs of
+      Err message -> 251
+      Ok rows -> case load-interface-set rows of
+        Err message -> if same message expected then check-sets rest (number + 1) else fail-case number expected message
+        Ok loaded -> if same expected "" && list-length loaded == list-length rows then check-sets rest (number + 1)
+          else fail-case number expected "accepted interface set failed assertions"
+
+  scheme-refused :: String -> Bool
+  scheme-refused source = case parse-standalone source of
+    Failed bundle -> True
+    other -> False
+
+  -- Exercise the same exported type entry point without constructing a
+  -- synthetic declaration around a scheme.
+  parse-standalone :: String -> ParseOutcome TypeExpr
+  parse-standalone source = parse-scheme "standalone" (string-to-bytes source)
+
+  field :: String -> Json -> Json
+  field name doc = case doc of
+    JObj key value rest -> if same name key then value else field name rest
+    other -> JNull
+
+  manifest-cases :: Json -> Option (List (String, String, String, String))
+  manifest-cases rows = case rows of
+    JArr (JArr (JStr name) (JArr (JStr hash) (JArr (JStr path) (JArr (JStr expected) JArrEnd)))) rest ->
+      case manifest-cases rest of
+        None -> None
+        Some cases -> Some (Cons (name, hash, path, expected) cases)
+    JArrEnd -> Some Nil
+    other -> None
+
+  manifest-inputs :: Json -> Option (List (String, String, String))
+  manifest-inputs rows = case rows of
+    JArr (JArr (JStr name) (JArr (JStr hash) (JArr (JStr path) JArrEnd))) rest ->
+      case manifest-inputs rest of
+        None -> None
+        Some inputs -> Some (Cons (name, hash, path) inputs)
+    JArrEnd -> Some Nil
+    other -> None
+
+  manifest-sets :: Json -> Option (List (List (String, String, String), String))
+  manifest-sets rows = case rows of
+    JArr (JArr inputs (JArr (JStr expected) JArrEnd)) rest ->
+      case manifest-inputs inputs of
+        None -> None
+        Some files -> case manifest-sets rest of
+          None -> None
+          Some sets -> Some (Cons (files, expected) sets)
+    JArrEnd -> Some Nil
+    other -> None
+
+  run-manifest :: forall r. using (io :: Io r) => Json ->{IO r} Int
+  run-manifest doc = case manifest-cases (field "cases" doc) of
+    None -> 253
+    Some cases -> case manifest-sets (field "sets" doc) of
+      None -> 253
+      Some sets ->
+        let first = check-cases cases 1 in
+        let result = if first == 0 then check-sets sets 101 else first in
+        if result == 0 then
+          if scheme-refused "Int; module Injected where" && scheme-refused "forall . Int" then 0 else 201
+        else result
+
+  read-manifest :: forall r. using (io :: Io r) => String ->{IO r} Int
+  read-manifest path = case fs-read (path-from-string path) of
+    Err error -> 253
+    Ok src -> case parse-json path src of
+      Parsed doc Nil -> run-manifest doc
+      other -> 253
+
+  main :: Unit ->{IO r} Int
+  main unit = with (io = newIO ()) in
+    let final = case process-args () of
+          Err error -> 253
+          Ok Nil -> read-manifest "load-cases.json"
+          Ok (Cons path Nil) -> read-manifest path
+          other -> 253 in
+    case fs-write (path-from-string "load-report.txt") (string-to-bytes (int-to-string final)) of
+      Err error -> 252
+      Ok unit -> final

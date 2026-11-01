@@ -282,6 +282,7 @@ pub fn prelude_module_names() -> Vec<String> {
 pub struct PreludeSources {
     pub modules: Vec<crate::ast::Module>,
     pub fixities: HashMap<String, FixityTable>,
+    pub exported_fixities: HashMap<String, FixityTable>,
     pub base: FixityTable,
 }
 
@@ -289,24 +290,34 @@ pub struct PreludeSources {
 /// vocabulary appended to the facade's source file (the vocabulary
 /// declares inside the facade and joins its export list).
 pub fn parse_prelude(adapters: &[crate::interface::WitAdapter]) -> Result<PreludeSources> {
-    let empty = FixityTable::new();
     let facade_src = prelude_source_with(adapters);
-    let facade_parsed = parse_source(&facade_src, "Prelude.cinch", &empty, &HashMap::new())?;
-    let base = facade_parsed
-        .fixities
+    let mut headers = Vec::new();
+    let facade_at = base_package().facade_index();
+    for (i, (path, source)) in prelude_sources().into_iter().enumerate() {
+        let source = if i == facade_at { facade_src.as_str() } else { source };
+        let toks = layout::layout(lexer::lex(source)?)?;
+        headers.extend(crate::parser::fixity_headers(&toks)
+            .map_err(|e| Error::plain(format!("{path}: {e}")))?);
+    }
+    let mut exported_fixities = crate::parser::export_fixity_headers(&headers, &HashMap::new())?;
+    let base = exported_fixities
         .get("Prelude")
         .cloned()
         .unwrap_or_default();
+    let facade_parsed = parse_source(&facade_src, "Prelude.cinch", &base, &exported_fixities)?;
     let mut fixities = facade_parsed.fixities.clone();
     let mut early: Vec<crate::ast::Module> = Vec::new();
     let mut late: Vec<crate::ast::Module> = Vec::new();
-    let mut tables: HashMap<String, FixityTable> = HashMap::new();
+    let mut tables = exported_fixities.clone();
     let mut parse_into =
         |src: &str, path: &str, out: &mut Vec<crate::ast::Module>| -> Result<()> {
             let parsed = parse_source(src, path, &base, &tables)?;
             for (m, f) in &parsed.fixities {
                 fixities.insert(m.clone(), f.clone());
+            }
+            for (m, f) in &parsed.exported_fixities {
                 tables.insert(m.clone(), f.clone());
+                exported_fixities.insert(m.clone(), f.clone());
             }
             out.extend(parsed.modules);
             Ok(())
@@ -317,7 +328,6 @@ pub fn parse_prelude(adapters: &[crate::interface::WitAdapter]) -> Result<Prelud
     // is parsed above, because ITS fixity table is the base table every
     // module parses against; every module after the facade is a late
     // home (checked after it, resolving old-surface names through it).
-    let facade_at = base_package().facade_index();
     for (i, (path, src)) in prelude_sources().into_iter().enumerate() {
         if i == facade_at {
             continue;
@@ -339,6 +349,7 @@ pub fn parse_prelude(adapters: &[crate::interface::WitAdapter]) -> Result<Prelud
     Ok(PreludeSources {
         modules,
         fixities,
+        exported_fixities,
         base,
     })
 }
@@ -1375,7 +1386,7 @@ fn parse_family_and_user(
     // `design/compiled-interface-metadata.md` section 2.1, rule 3), so
     // `import Algebra.Semigroup` supplies `<>`'s fixity exactly as it
     // supplies the name, and no consumer redeclares it.
-    let user = parse_source(user_src, user_file, &prelude.base, &prelude.fixities)?;
+    let user = parse_source(user_src, user_file, &prelude.base, &prelude.exported_fixities)?;
     let mut hashes = HashMap::new();
     let mut files = HashMap::new();
     let mut fixities = prelude.fixities.clone();
@@ -1704,6 +1715,7 @@ pub fn driver_with_profile_opts(
     let prelude = parse_prelude(&adapters)?;
     let prelude_fixities = prelude.base.clone();
     let mut module_fixities: HashMap<String, FixityTable> = prelude.fixities.clone();
+    let mut exported_fixities = prelude.exported_fixities.clone();
     let mut parsed_by_file: HashMap<String, ParsedModules> = HashMap::new();
     let mut modules: Vec<crate::ast::Module> = Vec::new();
     // Each file parses once, at the position of its last module in
@@ -1714,9 +1726,12 @@ pub fn driver_with_profile_opts(
         let key = file.display().to_string();
         if !parsed_by_file.contains_key(&key) {
             let src = &project.sources[&key];
-            let parsed = parse_source(src, &key, &prelude_fixities, &module_fixities)?;
+            let parsed = parse_source(src, &key, &prelude_fixities, &exported_fixities)?;
             for (m, f) in &parsed.fixities {
                 module_fixities.insert(m.clone(), f.clone());
+            }
+            for (m, f) in &parsed.exported_fixities {
+                exported_fixities.insert(m.clone(), f.clone());
             }
             parsed_by_file.insert(key, parsed);
         }
