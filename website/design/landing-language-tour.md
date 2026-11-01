@@ -29,3 +29,9 @@ The new sections extend the existing full-width field composition rather than in
 Proof choices are native buttons with pressed state and associated panels. `LiveEvolution.astro` gives incremental rebuilding and stateful hot reload their own section, with a native body/contract edit selector and an explanatory dependency graph. These are local illustrations, not a live compiler session. Long code scrolls within its own frame. The new diagrams use meaningful labels and captions; their geometry represents the example rather than fictional telemetry. Section links near the introduction help navigation through the longer page.
 
 When editing these examples, revisit the source design rather than invent syntax or silently turn a design intention into an implementation claim. Intentional future-facing language is appropriate to the current brief; invented results, benchmark numbers, and unsupported safety guarantees are not.
+
+## Labels and copy (2026-11-01 pass)
+
+The user asked for less filler on the landing page. Section running heads name the feature in one mono label; the numbered `NN /` prefixes and the right-hand label triplets were removed because nothing referred to them. The repeated "types / effects / ownership" noun list, the hero tick track, the console's `C / 01` mark, and per-example "design example" tags are gone. The development note now sits in the hero topline with a link to current support, replacing the closing status aside. The primary hero action leads to the first tutorial, because the downloads page offers sample bundles rather than a compiler. Packages and downloads stay reachable from the header and footer; the separate landing section for them was removed. Hot upgrades appear once, in the live-development section, rather than again in the runtime-contracts list.
+
+Write section copy as what the feature does for the reader, in plain sentences. Add a mono label only when it names something the heading does not.
