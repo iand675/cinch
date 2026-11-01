@@ -23,7 +23,7 @@ module Bootstrap.Infer where
   export needs-inference, infer-program, elaborate-program
   export Elaboration, elaboration-errors, elaboration-bindings, elaboration-contexts, elaboration-core
   export CheckedBinding, checked-name, checked-scheme, checked-role
-  export elaboration-data
+  export elaboration-data, elaboration-effects
 
   -- Surface templates live only in this elaboration context. Checked
   -- Core and the type engine continue to contain typed terms exclusively.
@@ -60,18 +60,21 @@ module Bootstrap.Infer where
   checked-role :: CheckedBinding -> String
   checked-role b = case b of MkCheckedBinding name sc role -> role; MkMethodBinding name sc owner slot -> "method"; MkGivenBinding name ty symbol -> "dictionary"; MkLocalBinding name sc id level -> "local"; MkValueBinding name sc id level value -> "local"; MkIntrinsicBinding name sc symbol -> "intrinsic"; MkProofBinding fact -> "proof"
   data Elaboration where
-    MkElaboration :: List Diagnostic -> List CheckedBinding -> List Json -> List CoreDefinition -> List CoreData -> Elaboration
+    MkElaboration :: List Diagnostic -> List CheckedBinding -> List Json -> List CoreDefinition -> List CoreData -> List CoreEffect -> Elaboration
   elaboration-errors :: Elaboration -> List Diagnostic
-  elaboration-errors e = case e of MkElaboration errors bindings contexts core datas -> errors
+  elaboration-errors e = case e of MkElaboration errors bindings contexts core datas effects -> errors
   elaboration-bindings :: Elaboration -> List CheckedBinding
-  elaboration-bindings e = case e of MkElaboration Nil bindings contexts core datas -> bindings; other -> Nil
+  elaboration-bindings e = case e of MkElaboration Nil bindings contexts core datas effects -> bindings; other -> Nil
   elaboration-contexts :: Elaboration -> List Json
-  elaboration-contexts e = case e of MkElaboration errors bindings contexts core datas -> contexts
+  elaboration-contexts e = case e of MkElaboration errors bindings contexts core datas effects -> contexts
   elaboration-core :: Elaboration -> List CoreDefinition
-  elaboration-core e = case e of MkElaboration Nil bindings contexts core datas -> core; other -> Nil
+  elaboration-core e = case e of MkElaboration Nil bindings contexts core datas effects -> core; other -> Nil
 
   elaboration-data :: Elaboration -> List CoreData
-  elaboration-data e = case e of MkElaboration Nil bindings contexts core datas -> datas; other -> Nil
+  elaboration-data e = case e of MkElaboration Nil bindings contexts core datas effects -> datas; other -> Nil
+
+  elaboration-effects :: Elaboration -> List CoreEffect
+  elaboration-effects e = case e of MkElaboration Nil bindings contexts core datas effects -> effects; other -> Nil
 
   same :: String -> String -> Bool
   same a b = string-compare a b == 0
@@ -118,6 +121,7 @@ module Bootstrap.Infer where
     Cons d rest -> (case d of
       DSig s name ty -> needs-type ty
       DRefine s name params binder predicate -> True
+      DEffect s name params ops -> True
       DExternal s name category None metadata -> same category "type" && (case field "kind" metadata of JStr variety -> same variety "refinement"; other -> False)
       DData s name (Cons p ps) ctors -> True
       DData s name Nil ctors -> ctor-needs ctors
@@ -627,38 +631,42 @@ module Bootstrap.Infer where
     TBound s name carrier (TBoundsEnd end) -> case convert external kinds locals carrier st of
       (domain, checked) -> case fresh-for-types (Cons domain (local-types locals)) (expect-type s domain checked) of
         (id, fresh) -> let bound = Cons (name, UBound id name (value-kind domain)) locals in
-          case (case row of None -> (URow UEnd, fresh); Some effects -> convert-row bound effects fresh) of
+          case (case row of None -> (URow UEnd, fresh); Some effects -> convert-row kinds bound effects fresh) of
             (effects, sr) -> case convert external kinds bound result sr of
               (out, done) -> let ty = UPi id name domain effects out in
                 (ty, if valid-type ty then done else add-error sp "ill-formed source dependent function" done)
     other -> case convert external kinds locals argument st of
-      (domain, checked) -> case (case row of None -> (URow UEnd, checked); Some effects -> convert-row locals effects checked) of
+      (domain, checked) -> case (case row of None -> (URow UEnd, checked); Some effects -> convert-row kinds locals effects checked) of
         (effects, sr) -> case convert external kinds locals result sr of
           (out, done) -> (function-type domain effects out, expect-type sp out (expect-type sp domain done))
 
   expect-type :: Span -> UType -> Store -> Store
   expect-type sp ty st = if kind-equal (type-kind ty) KType then st else add-error sp "a value type must have kind Type" st
-  convert-row :: List (String, UType) -> TypeExpr -> Store -> (UType, Store)
-  convert-row locals row st = case row of
-    TRow s labels None -> case convert-effects locals labels st of (out, checked) -> (URow out, checked)
+  convert-row :: TypeContext -> List (String, UType) -> TypeExpr -> Store -> (UType, Store)
+  convert-row kinds locals row st = case row of
+    TRow s labels None -> case convert-effects kinds locals labels st of (out, checked) -> (URow out, checked)
     other -> bad (type-expr-span row) "open effect rows need row-tail elaboration" st
-  convert-effects :: List (String, UType) -> TypeExpr -> Store -> (UType, Store)
-  convert-effects locals labels st = case labels of
+  convert-effects :: TypeContext -> List (String, UType) -> TypeExpr -> Store -> (UType, Store)
+  convert-effects kinds locals labels st = case labels of
     TArgsEnd s -> (UEnd, st)
-    TArg s label rest -> case convert-effect locals label st of
-      (out, checked) -> case convert-effects locals rest checked of (more, done) -> (UArg out more, done)
+    TArg s label rest -> case convert-effect kinds locals label st of
+      (out, checked) -> case convert-effects kinds locals rest checked of (more, done) -> (UArg out more, done)
     other -> bad (type-expr-span labels) "malformed effect label spine" st
-  convert-effect :: List (String, UType) -> TypeExpr -> Store -> (UType, Store)
-  convert-effect locals label st = case label of
+  convert-effect :: TypeContext -> List (String, UType) -> TypeExpr -> Store -> (UType, Store)
+  convert-effect kinds locals label st = case label of
     TName s name -> if has name ["Diverge", "Blocking"] then (UCon name KEffect, st)
-      else bad s "effect label needs a checked kernel contract" st
+      else convert-declared-effect kinds locals label st
     TApp s (TName h name) (TArg a (TName r region) (TArgsEnd end)) ->
       if has name ["IO", "Async", "Cancel", "Eval"] then (case lookup-local region locals of
         Some ty -> if kind-equal (type-kind ty) KRegion then (UApp (UCon name (KFun KRegion KEffect)) ty, st)
           else bad r "effect argument must have kind Region" st
         None -> bad r "unbound effect region" st)
-      else bad s "effect label needs a checked kernel contract" st
-    other -> bad (type-expr-span label) "malformed kernel effect label" st
+      else convert-declared-effect kinds locals label st
+    other -> convert-declared-effect kinds locals label st
+  convert-declared-effect :: TypeContext -> List (String, UType) -> TypeExpr -> Store -> (UType, Store)
+  convert-declared-effect kinds locals label st = case convert False kinds locals label st of
+    (ty, checked) -> if valid-type ty && kind-equal (type-kind ty) KEffect then (ty, checked)
+      else bad (type-expr-span label) "effect label must be a saturated checked effect constructor" checked
   convert-args :: Bool -> TypeContext -> List (String, UType) -> Span -> UType -> TypeExpr -> Store -> (UType, Store)
   convert-args external kinds locals sp head args st = case args of
     TArgsEnd end -> unfold-refinement sp kinds head st
@@ -791,6 +799,8 @@ module Bootstrap.Infer where
       DForeign s direction abi symbol name syntax ->
         if same direction "import" && same abi "ccall" && same symbol "cinch.runtime.bytesLen" then
           collect-kinds rest (context-add-byte-observation name None kinds) st else collect-kinds rest kinds st
+      DEffect s name ps ops -> case parameters False kinds Nil ps 0 Nil st of
+        (qs, sq) -> case add-kind s name (source-effect-kind qs) kinds (declaration-kind-errors s qs sq) of (ks, sk) -> collect-kinds rest ks sk
       DData s name ps cs -> case parameters False kinds Nil ps 0 Nil st of
         (qs, sq) -> case add-kind s name (kind-arrow qs) kinds (declaration-kind-errors s qs sq) of (ks, sk) -> collect-kinds rest ks sk
       DExternal s name category scheme metadata ->
@@ -1079,12 +1089,26 @@ module Bootstrap.Infer where
         let sr = unify (type-expr-span ty) (result-type (scheme-body sc)) (applied-family owner (kind-arrow qs) qs) ss in
         let sp = check-positive (type-expr-span ty) owner (domains (scheme-body sc)) sr in
         case add-binding (type-expr-span ty) name sc "constructor" env sp of (e, se) -> register-ctors kinds owner qs rest e se
+  source-effect-kind :: List Quant -> Kind
+  source-effect-kind qs = case qs of Nil -> KEffect; Cons q rest -> KFun (quant-kind q) (source-effect-kind rest)
+  operation-syntax :: Span -> List TypeParam -> TypeExpr -> TypeExpr
+  operation-syntax sp inherited ty = case ty of
+    TForall at binders body -> TForall sp (forall-param-spine sp (inherited <> forall-params-of binders)) body
+    other -> case inherited of Nil -> ty; more -> TForall sp (forall-param-spine sp inherited) ty
+  register-operations :: List (String, Kind) -> TypeContext -> List TypeParam -> List (String, TypeExpr) -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
+  register-operations classes kinds ps ops env st = case ops of
+    Nil -> (env, st)
+    Cons (name, ty) rest -> case make-scheme False classes kinds Nil (operation-syntax (type-expr-span ty) ps ty) st of
+      (sc, ss) -> case add-binding (type-expr-span ty) name sc "operation" env ss of
+        (more, checked) -> register-operations classes kinds ps rest more checked
   register :: List Json -> List (String, Kind) -> TypeContext -> List Decl -> List CheckedBinding -> Store -> (List CheckedBinding, Store)
   register rows classes kinds ds env st = case ds of
     Nil -> (env, st)
     Cons d rest -> case d of
       DSig s name ty -> case make-scheme False classes kinds Nil ty st of
         (sc, ss) -> case add-binding s name sc "value" env ss of (e, se) -> register rows classes kinds rest e se
+      DEffect s owner ps ops -> case register-operations classes kinds ps ops env st of
+        (e, se) -> register rows classes kinds rest e se
       DData s owner ps cs -> case parameters False kinds Nil ps 0 Nil st of
         (qs, sq) -> case register-ctors kinds owner qs cs env sq of (e, se) -> register rows classes kinds rest e se
       DForeign s direction abi symbol name ty -> case register-intrinsic s direction abi symbol name ty classes kinds env st of
@@ -1733,7 +1757,7 @@ module Bootstrap.Infer where
   check-definition classes kinds families env sp name cs st = case lookup-binding name env of
     None -> (None, add-error sp (string-concat "no signature for " name) st)
     Some (MkIntrinsicBinding source sc symbol) -> (None, add-error sp "runtime intrinsic cannot also have a source definition" st)
-    Some b ->
+    Some b -> if same (checked-role b) "operation" then (None, add-error sp "effect operation cannot also have a source definition" st) else
       let level = store-level st in
       case open-qualified True (checked-scheme b) (enter-level st) of
         (ty, requirements, pairs, ss) ->
@@ -1858,6 +1882,25 @@ module Bootstrap.Infer where
   check-data-closed datas st = case datas of
     Nil -> st
     Cons d rest -> check-data-closed rest (if core-data-closed d then st else add-error zero "typed data contains an unresolved constructor scheme" st)
+  checked-operations :: Nat -> List (String, TypeExpr) -> List CheckedBinding -> Store -> (List CoreOperation, Store)
+  checked-operations next ops env st = case ops of
+    Nil -> (Nil, st)
+    Cons (name, syntax) rest -> case lookup-binding name env of
+      Some binding -> case checked-operations (next + 1) rest env st of
+        (more, checked) -> (Cons (MkCoreOperation (type-expr-span syntax) name next (checked-scheme binding)) more, checked)
+      None -> checked-operations (next + 1) rest env (add-error (type-expr-span syntax) "effect operation has no checked binding" st)
+  checked-effects :: TypeContext -> List CheckedBinding -> List Decl -> Store -> (List CoreEffect, Store)
+  checked-effects kinds env ds st = case ds of
+    Nil -> (Nil, st)
+    Cons d rest -> case d of
+      DEffect s name ps ops -> case parameters False kinds Nil ps 0 Nil st of
+        (qs, sq) -> case context-kind name kinds of
+          Some kind -> case checked-operations 1 ops env sq of
+            (operations, checked) -> let declaration = MkCoreEffect s name kind qs operations in
+              case checked-effects kinds env rest (if core-effect-closed declaration then checked else add-error s "effect operation must have closed binders and perform exactly its declaring effect on its last arrow" checked) of
+                (more, final) -> (Cons declaration more, final)
+          None -> checked-effects kinds env rest (add-error s "effect has no checked declaration kind" sq)
+      other -> checked-effects kinds env rest st
   elaborate-module :: String -> Module -> Elaboration
   elaborate-module label m =
     let ds = module-decls m in
@@ -1872,15 +1915,16 @@ module Bootstrap.Infer where
     let (env, si) = register-implicit-instances classes kinds ds values sv in
     let se = check-instance-coherence (env-instances env) si in
     let families = Cons ("Bool", ["True", "False"]) (families-of ds <> imported-families ds) in
-    let (core, done) = case store-errors se of Nil -> check-bodies classes kinds families env Nil ds ds se; other -> (Nil, se) in
+    let (effects, sx) = case store-errors se of Nil -> checked-effects kinds env ds se; other -> (Nil, se) in
+    let (core, done) = case store-errors sx of Nil -> check-bodies classes kinds families env Nil ds ds sx; other -> (Nil, sx) in
     let (datas, sd) = case store-errors done of Nil -> checked-data kinds env ds Nil done; other -> (Nil, done) in
     let finished = case store-errors sd of Nil -> check-data-closed datas (check-core-closed core sd); other -> sd in
-    MkElaboration (store-errors finished) (finish-bindings finished env) (contexts ds) core datas
+    MkElaboration (store-errors finished) (finish-bindings finished env) (contexts ds) core datas effects
   elaborate-modules :: String -> List Module -> Elaboration
   elaborate-modules label ms = case ms of
-    Nil -> MkElaboration Nil Nil Nil Nil Nil
+    Nil -> MkElaboration Nil Nil Nil Nil Nil Nil
     Cons m rest -> case (elaborate-module label m, elaborate-modules label rest) of
-      (MkElaboration errors bindings ctx core datas, MkElaboration more others scopes other-core other-data) -> MkElaboration (errors <> more) (bindings <> others) (ctx <> scopes) (core <> other-core) (datas <> other-data)
+      (MkElaboration errors bindings ctx core datas effects, MkElaboration more others scopes other-core other-data other-effects) -> MkElaboration (errors <> more) (bindings <> others) (ctx <> scopes) (core <> other-core) (datas <> other-data) (effects <> other-effects)
   elaborate-program :: String -> Program -> Elaboration
   elaborate-program label p = elaborate-modules label (program-modules p)
   infer-program :: String -> Program -> List Diagnostic
@@ -2006,11 +2050,11 @@ module Bootstrap.Infer where
     TBound s name carrier (TBoundsEnd end) -> case convert external kinds locals carrier st of
       (domain, checked) -> case fresh-for-types (Cons domain (local-types locals)) (expect-type s domain checked) of
         (id, fresh) -> let bound = Cons (name, UBound id name (value-kind domain)) locals in
-          case (case row of None -> (URow UEnd, fresh); Some effects -> convert-row bound effects fresh) of
+          case (case row of None -> (URow UEnd, fresh); Some effects -> convert-row kinds bound effects fresh) of
             (effects, sr) -> case convert-contracted external kinds bound bounds result sr of
               (body, done) -> (UPi id name domain effects body, done)
     other -> case convert external kinds locals argument st of
-      (domain, checked) -> case (case row of None -> (URow UEnd, checked); Some effects -> convert-row locals effects checked) of
+      (domain, checked) -> case (case row of None -> (URow UEnd, checked); Some effects -> convert-row kinds locals effects checked) of
         (effects, sr) -> case convert-contracted external kinds locals bounds result sr of
           (body, done) -> (function-type domain effects body, done)
   introduce-facts :: List Proposition -> List CheckedBinding -> List CheckedBinding

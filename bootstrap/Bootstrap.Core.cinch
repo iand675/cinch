@@ -31,6 +31,138 @@ module Bootstrap.Core where
   export core-constructor-name, core-constructor-scheme, core-constructor-fields
   export core-data-closed
 
+  export CoreEffect, MkCoreEffect, CoreOperation, MkCoreOperation
+  export core-effect-name, core-effect-kind, core-effect-params, core-effect-operations
+  export core-operation-name, core-operation-scheme, core-operation-slot, core-effect-closed
+
+  -- A source effect is a typed declaration, not an unchecked foreign value.
+  -- Operation order is the handler dispatch order, including private slots.
+  data CoreOperation where
+    MkCoreOperation :: Span -> String -> Nat -> Scheme -> CoreOperation
+  data CoreEffect where
+    MkCoreEffect :: Span -> String -> Kind -> List Quant -> List CoreOperation -> CoreEffect
+  core-effect-name :: CoreEffect -> String
+  core-effect-name d = case d of MkCoreEffect s name kind qs ops -> name
+  core-effect-kind :: CoreEffect -> Kind
+  core-effect-kind d = case d of MkCoreEffect s name kind qs ops -> kind
+  core-effect-params :: CoreEffect -> List Quant
+  core-effect-params d = case d of MkCoreEffect s name kind qs ops -> qs
+  core-effect-operations :: CoreEffect -> List CoreOperation
+  core-effect-operations d = case d of MkCoreEffect s name kind qs ops -> ops
+  core-operation-name :: CoreOperation -> String
+  core-operation-name op = case op of MkCoreOperation s name slot sc -> name
+  core-operation-slot :: CoreOperation -> Nat
+  core-operation-slot op = case op of MkCoreOperation s name slot sc -> slot
+  core-operation-scheme :: CoreOperation -> Scheme
+  core-operation-scheme op = case op of MkCoreOperation s name slot sc -> sc
+  effect-kind :: List Quant -> Kind
+  effect-kind qs = case qs of Nil -> KEffect; Cons q rest -> KFun (quant-kind q) (effect-kind rest)
+  effect-label :: String -> Kind -> List Quant -> UType
+  effect-label name kind qs = effect-arguments (UCon name kind) qs
+  effect-arguments :: UType -> List Quant -> UType
+  effect-arguments head qs = case qs of Nil -> head; Cons q rest -> effect-arguments (UApp head (UBound (quant-id q) (quant-name q) (quant-kind q))) rest
+  effect-quant :: Nat -> List Quant -> Option Quant
+  effect-quant id qs = case qs of Nil -> None; Cons q rest -> if id == quant-id q then Some q else effect-quant id rest
+  effect-quant-name :: String -> List Quant -> Bool
+  effect-quant-name name qs = case qs of Nil -> False; Cons q rest -> string-compare name (quant-name q) == 0 || effect-quant-name name rest
+  effect-kind-scope :: List Quant -> Kind -> Bool
+  effect-kind-scope qs kind = valid-kind kind && (case kind of
+    KValue payload -> (case value-carrier kind of Some ty -> effect-type-scope qs ty; None -> False)
+    KFun a b -> effect-kind-scope qs a && effect-kind-scope qs b
+    other -> True)
+  effect-quants-scoped :: List Quant -> List Quant -> Bool
+  effect-quants-scoped qs bound = case qs of
+    Nil -> True
+    Cons q rest -> (case effect-quant (quant-id q) bound of Some old -> False; None -> True)
+      && not (effect-quant-name (quant-name q) bound) && effect-kind-scope bound (quant-kind q)
+      && effect-quants-scoped rest (Cons q bound)
+  effect-binder :: List Quant -> Nat -> String -> UType -> UType -> Bool
+  effect-binder qs id name carrier body = (case effect-quant id qs of Some q -> False; None -> True)
+    && effect-proper-value carrier && effect-type-scope qs carrier && effect-type-scope (Cons (MkQuant id name (value-kind carrier) False) qs) body
+  effect-index-scope :: List Quant -> UType -> IndexTerm -> Bool
+  effect-index-scope qs carrier value = case value of
+    IInteger n -> integer-literal-valid carrier n
+    IBound id name -> case effect-quant id qs of
+      Some q -> (case value-carrier (quant-kind q) of Some declared -> contract-equal carrier declared; None -> False)
+      None -> False
+    IAdd a b -> effect-index-scope qs carrier a && effect-index-scope qs carrier b
+    ISubtract a b -> effect-index-scope qs carrier a && effect-index-scope qs carrier b
+    IMultiply a b -> effect-index-scope qs carrier a && effect-index-scope qs carrier b
+    other -> False
+  effect-proper-value :: UType -> Bool
+  effect-proper-value ty = kind-equal (type-kind ty) KType && valid-kind (value-kind ty)
+  effect-type-scope :: List Quant -> UType -> Bool
+  effect-type-scope qs ty = case ty of
+    UBound id name kind -> case effect-quant id qs of Some q -> kind-equal kind (quant-kind q) && effect-kind-scope qs kind; None -> False
+    UCon name kind -> effect-kind-scope Nil kind
+    URigid id name level kind -> False
+    UMeta id kind -> False
+    UError -> False
+    UIndex carrier value -> effect-type-scope qs carrier && effect-index-scope qs carrier value
+    UIndexForget value -> effect-type-scope qs value
+    UIndexPromote value -> effect-type-scope qs value
+    UIndexByteLength value -> effect-type-scope qs value
+    UIndexMath op a b -> effect-type-scope qs a && effect-type-scope qs b
+    URefine id name carrier predicate -> effect-binder qs id name carrier predicate
+    UPi id name domain row result -> effect-binder qs id name domain (UArg row (UArg result UEnd))
+    UApp a b -> effect-type-scope qs a && effect-type-scope qs b
+    UFun a b -> effect-proper-value a && effect-proper-value b && effect-type-scope qs a && effect-type-scope qs b
+    UFunEff a row b -> effect-proper-value a && effect-proper-value b && effect-type-scope qs a && effect-type-scope qs row && effect-type-scope qs b
+    URow labels -> effect-type-scope qs labels
+    URowJoin a b -> effect-type-scope qs a && effect-type-scope qs b
+    UTuple fields -> effect-type-scope qs fields
+    UArg a rest -> effect-type-scope qs a && effect-type-scope qs rest
+    UCompare relation a b -> effect-type-scope qs a && effect-type-scope qs b
+    UPropAnd a b -> effect-type-scope qs a && effect-type-scope qs b
+    UPropOr a b -> effect-type-scope qs a && effect-type-scope qs b
+    UPropNot body -> effect-type-scope qs body
+    UPropNonZero body -> effect-type-scope qs body
+    UPropNonZeroPending body -> effect-type-scope qs body
+    URequire predicates body -> effect-type-scope qs predicates && effect-type-scope qs body
+    UPropLit value -> True
+    UEnd -> True
+  effect-requirements :: List Quant -> List Requirement -> Bool
+  effect-requirements qs rs = case rs of Nil -> True; Cons r rest -> effect-type-scope qs (requirement-type r) && effect-requirements qs rest
+  effect-parameter-prefix :: List Quant -> List Quant -> Bool
+  effect-parameter-prefix owner actual = case owner of
+    Nil -> True
+    Cons q rest -> case actual of
+      Cons a more -> quant-id q == quant-id a && kind-equal (quant-kind q) (quant-kind a)
+        && quant-implicit q == quant-implicit a && string-compare (quant-name q) (quant-name a) == 0
+        && effect-parameter-prefix rest more
+      Nil -> False
+  operation-function :: UType -> Bool
+  operation-function ty = case ty of UFun a b -> True; UFunEff a row b -> True; UPi id name a row b -> True; other -> False
+  operation-effects :: UType -> UType -> Bool
+  operation-effects label ty = case ty of
+    UFun a b -> operation-effects label b
+    UFunEff a row b -> operation-row label row b
+    UPi id name a row b -> operation-row label row b
+    other -> False
+  operation-row :: UType -> UType -> UType -> Bool
+  operation-row label row result = if operation-function result then
+    contract-equal row (URow UEnd) && operation-effects label result
+    else contract-equal row (URow (UArg label UEnd))
+  effect-operations-closed :: String -> Kind -> List Quant -> Nat -> List String -> List CoreOperation -> Bool
+  effect-operations-closed name kind qs next names ops = case ops of
+    Nil -> True
+    Cons op rest -> let sc = core-operation-scheme op in let all = scheme-params sc in
+      core-operation-slot op == next
+      && not (effect-operation-seen (core-operation-name op) names)
+      && scheme-closed sc && valid-type (scheme-body sc) && scheme-index-scope Nil sc && effect-quants-scoped all Nil
+      && effect-parameter-prefix qs all && effect-type-scope all (scheme-body sc)
+      && effect-requirements all (scheme-requirements sc)
+      && operation-effects (effect-label name kind qs) (scheme-body sc)
+      && effect-operations-closed name kind qs (next + 1) (Cons (core-operation-name op) names) rest
+  effect-operation-seen :: String -> List String -> Bool
+  effect-operation-seen name names = case names of Nil -> False; Cons n rest -> string-compare name n == 0 || effect-operation-seen name rest
+  core-effect-closed :: CoreEffect -> Bool
+  core-effect-closed declaration = case declaration of
+    MkCoreEffect s name kind qs ops -> string-length name > 0 && effect-quants-scoped qs Nil
+      && closed-quants qs && kind-equal kind (effect-kind qs)
+      && (case ops of Nil -> False; Cons op rest -> True)
+      && effect-operations-closed name kind qs 1 Nil ops
+
   -- Source declarations retain every constructor, including private ones.
   -- Export visibility stays in the module contexts. Imported declarations
   -- remain checked interface contracts, not reconstructed source data.

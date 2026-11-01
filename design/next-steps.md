@@ -1,5 +1,52 @@
 # Next steps (as of 2026-11-01)
 
+Source effect declarations now retain checked CoreEffect/CoreOperation records:
+the declaring owner and kind, ordered parameters, operation schemes, and handler
+dispatch slots (return slot 0; operations start at 1). The declaration checker
+rechecks binder identities and kinds, exact index carriers, proper value types,
+parameter prefixes, unique names/slots and the exact declaring effect on the
+last argument arrow. Earlier arrows stay pure. Source operations cannot also
+have an ordinary definition. Calls propagate their declared effect rows.
+The elaboration result retains this typed declaration information.
+
+All four focused gates pass. Twenty changed-source cases cover polymorphic and
+curried operations, type/region parameters, dependent results, first-class calls,
+effect unions, wrong owners/regions and effect erasure refusals. Each run also
+checks 22 Core declaration cases at a runtime-derived identity above 2^128,
+including forged scopes, wrong carrier kinds and invalid argument/result nodes.
+The existing effect-type, effect/capability and Core regressions pass. These are
+Native-assisted executable checks, not the full suite through a self-built
+frontend. The complete current suite has 161 integration targets plus five
+general gates and is not yet completed for this implementation.
+
+Fresh stage0 and stage1 builds pass all six smoke checks. The actual stage2
+attempt exits 4 before body checking with 5 header diagnostics.
+It produces no IR or compiler executable. The exact remaining categories are
+recorded in [the source-effect checkpoint report](../bootstrap/source-effects-checkpoint-results.json).
+Header counts include cascades and are not a completion percentage.
+The frozen staged snapshot has 575 inputs, SHA256
+`4a83dcac07a3df0aeed88f8f49089db7d5ae7bf326ffd4a27137116a087333ae`. Its implementation matches the focused snapshot
+`d32f6cb89ddb4268e4162f0309a771711f82fed9ca5c7c415e7f99c109eafa4e`; only the independently checked guarded-arithmetic
+runner was updated. The compiler bundle is `e10dac1b622287180da4d453b1deff8e92da63ba7c10016e7dda2312c46d0a01`.
+
+The Native seed remains source SHA256 `81bb6e364f45201360e11d5b32e2b3f22cd4719a9dcb018551da034416e725e9`,
+patch SHA256 `655dfb04a042df9cd0aff5abebbbcd23510fb35efc92567e2d9ae8cfb9dedd5d`. A fresh archive-plus-patch check independently
+reproduces its exact source bytes. Interface schema 7 and definition-owned
+fixities remain unchanged. The original working checkout retains the prior
+fully validated byte checkpoint; the published source-effect checkpoint is work
+in progress. The separately running earlier machine suite does not establish
+that the current complete suite passes.
+
+Source proof/decision forms, imported total-measure contracts, source instance
+construction, handler typing/runtime dispatch, an independent global typing
+kernel and typed shared-runtime lowering remain required. Stage2/3 fixed-point
+agreement, changed-source behavior and all tests through a self-built frontend
+remain unproven. Work stays within five concurrent heavy jobs, four shared slots
+and one staged-build lane, with one Cargo worker/test thread and Cinch heaps
+limited to 2G.
+
+## Previous machine-value checkpoint (5d7af34)
+
 The published compiler now includes checked machine-integer value contracts.
 All eight fixed-width carriers retain their exact ranges. Cinch checks integer
 literals and patterns against the expected carrier, projects refined machine

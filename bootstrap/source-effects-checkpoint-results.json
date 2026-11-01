@@ -1,0 +1,128 @@
+{
+  "date": "2026-11-01",
+  "recorded_at": "2026-11-01T21:20:51.875010+00:00",
+  "status": "source-effect checkpoint; focused gates and all six stage0/1 smokes passed; self-hosting and complete current suite unproven",
+  "previous_commit": "5d7af345ce636184fadaa02a6447667e8d279078",
+  "native_seed": {
+    "description": "Pinned Rust seed with schema-7 definition-site nominal, class, Region and closed kernel effect contracts, dictionary slots, dependency-ordered source family overrides, dependency-sensitive pattern field names and conditional instance method proof contracts, integer conversion fixes, definition-owned fixities, guarded heap defaults and serial build/test settings and enforced optimizer residual growth bounds, portable checked numeric preconditions and dependent argument identities, checked structural NonZero precondition exports with actual argument identities, schema-7 defining refinement payloads and literal index contracts, checked anonymous refinements with actual argument/result identities and refined-argument numeric projections, semantic byte-length primitive identity, executable primitive index witnesses and actual signature-telescope observation carrier validation, closed byte-observation signature predicates and private named buffer-refinement contracts, portable checked machine-integer value comparisons with exact defining carrier scopes and opaque machine arithmetic; changed only by an intentional seed update.",
+    "patch": "bootstrap/seed/stage0.patch",
+    "patch_sha256": "655dfb04a042df9cd0aff5abebbbcd23510fb35efc92567e2d9ae8cfb9dedd5d",
+    "revision": "275de4f05b230c010aeb4b10265a04b97fb4eb1c",
+    "runtime_abi": 5,
+    "schema": 1,
+    "source_sha256": "81bb6e364f45201360e11d5b32e2b3f22cd4719a9dcb018551da034416e725e9"
+  },
+  "interface_schema": 7,
+  "focus_source_sha256": "d32f6cb89ddb4268e4162f0309a771711f82fed9ca5c7c415e7f99c109eafa4e",
+  "stage_source_sha256": "4a83dcac07a3df0aeed88f8f49089db7d5ae7bf326ffd4a27137116a087333ae",
+  "snapshot_inputs": 575,
+  "source_cases_passed": 20,
+  "runtime_core_declaration_checks_per_case": 22,
+  "focused_gates": [
+    {
+      "name": "bootstrap_source_effects",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T21:10:19.599611+00:00",
+      "finished": "2026-11-01T21:14:18.001772+00:00"
+    },
+    {
+      "name": "bootstrap_effect_types",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T21:14:18.002511+00:00",
+      "finished": "2026-11-01T21:15:22.012881+00:00"
+    },
+    {
+      "name": "bootstrap_effects",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T21:15:22.013382+00:00",
+      "finished": "2026-11-01T21:17:50.033920+00:00"
+    },
+    {
+      "name": "bootstrap_core",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T21:17:50.034438+00:00",
+      "finished": "2026-11-01T21:20:05.242752+00:00"
+    }
+  ],
+  "stage_results": [
+    {
+      "name": "stage0-smoke",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T21:14:19.160599+00:00",
+      "finished": "2026-11-01T21:15:36.631922+00:00"
+    },
+    {
+      "name": "stage1-smoke",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T21:15:36.632361+00:00",
+      "finished": "2026-11-01T21:18:24.268830+00:00"
+    },
+    {
+      "name": "self-hosting",
+      "status": "failed",
+      "exit_code": 1,
+      "started": "2026-11-01T21:18:24.269517+00:00",
+      "finished": "2026-11-01T21:19:37.776740+00:00"
+    }
+  ],
+  "actual_stage2_boundary": {
+    "bundle_sha256": "e10dac1b622287180da4d453b1deff8e92da63ba7c10016e7dda2312c46d0a01",
+    "categories": {
+      "builtin constructor needs proposition instantiation and erasure checking: b.No": 1,
+      "builtin constructor needs proposition instantiation and erasure checking: b.Yes": 1,
+      "builtin syntax needs dependent predicate elaboration: b.decide": 1,
+      "imported using context needs a defining signature contract": 1,
+      "instance declarations are not supported in this rung": 1
+    },
+    "diagnostics": 5,
+    "executable_exists": false,
+    "ir_exists": false,
+    "origins": {
+      "imported-or-synthetic": 4,
+      "source": 1
+    },
+    "snapshot_sha256": "4a83dcac07a3df0aeed88f8f49089db7d5ae7bf326ffd4a27137116a087333ae",
+    "stage2_exit_code": 4,
+    "stage2_status": "failed"
+  },
+  "combined_fixture_difference": [
+    "bootstrap/programs/Run.GuardedArithmetic.cinch"
+  ],
+  "seed_archive_patch_exact_bytes_verified": true,
+  "root_working_checkout_unchanged": true,
+  "complete_current_suite": {
+    "integration_targets": 161,
+    "general_gates": 5,
+    "status": "not completed for the source-effect implementation",
+    "self_built_frontend": false
+  },
+  "prior_machine_matrix": {
+    "source_sha256": "1cd10f728dc82864948ac6d8eb852e186928d16efbc88d9dd15f569e6b023e05",
+    "counts_at_recording": {
+      "passed": 9,
+      "running": 3,
+      "waiting-shared-slot": 1,
+      "pending": 120
+    },
+    "status": "separate earlier machine implementation; not full-suite evidence for these Core/Infer changes"
+  },
+  "all_tests_passed": false,
+  "bootstrap_achieved": false,
+  "remaining": [
+    "decide/Yes/No checked proof erasure",
+    "checked imported measure contracts",
+    "source instance construction",
+    "effect handler typing and runtime dispatch",
+    "independent global typing kernel",
+    "typed shared-runtime lowering",
+    "real stage2/3 fixed point and changed-source behavior",
+    "complete suite through self-built frontend"
+  ],
+  "resource_limit": "at most five heavy jobs; four shared slots plus one staged-build lane"
+}
