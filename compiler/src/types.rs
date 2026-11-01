@@ -472,6 +472,11 @@ impl fmt::Display for IdxCmp {
     }
 }
 
+/// A semantic primitive key, outside the source module-name grammar.
+/// Only checked `BytesOp::Len` declarations may introduce it. Public
+/// diagnostic rendering keeps the ordinary base-library spelling.
+pub(crate) const BYTE_LENGTH_INDEX: &str = "<intrinsic>.bytes-length";
+
 /// A first-order value embedded in a type (an index): variables shared
 /// with term syntax (the surface shares term syntax between kinds, types
 /// and values), numerals, mathematical arithmetic, and applications of
@@ -694,7 +699,8 @@ impl fmt::Display for ITerm {
             ITerm::Fn(n) => {
                 // The baked measure vocabulary reads as its spelling
                 // (`length xs > 100`, never `<builtin>.length xs > 100`).
-                let n = n.strip_prefix("<builtin>.").unwrap_or(n);
+                let n = if n == BYTE_LENGTH_INDEX { "Data.Bytes.bytes-len" }
+                    else { n.strip_prefix("<builtin>.").unwrap_or(n) };
                 write!(f, "{n}")
             }
             ITerm::MVar(m) => write!(f, "?i{m}"),

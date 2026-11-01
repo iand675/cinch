@@ -2934,8 +2934,8 @@ impl Checker {
                 if !args.iter().all(|a| self.fact_term_ok(env, a)) {
                     return false;
                 }
-                if v.module == "Data.Bytes" && v.name == "bytes-len" {
-                    return true;
+                if matches!(v.kind, ValueKind::Prim(PrimOp::Bytes(BytesOp::Len))) {
+                    return args.len() == 1;
                 }
                 // A pure arithmetic intrinsic applied to all of its
                 // arguments (`u32-to-i64 c`, `bit-and-i64 x 255`,
@@ -3648,7 +3648,7 @@ impl Checker {
                 ),
             ));
         }
-        Ok(ITerm::Fn(fn_id(&v.module, &v.name).0))
+        Ok(ITerm::Fn(value_index_id(v)))
     }
 
     /// A term in index position (a value a dependent type mentions):

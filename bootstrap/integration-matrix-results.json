@@ -1,5 +1,6 @@
 {
-  "bootstrap_achieved": false,
+  "status": "passed",
+  "integration_targets": 155,
   "covered_targets": [
     "alloc_accounting",
     "argv",
@@ -133,6 +134,7 @@
     "prelude_lib",
     "prelude_split",
     "prim",
+    "primitive_length_identity",
     "primitives",
     "range_facts",
     "reclamation",
@@ -156,12 +158,38 @@
     "temporal",
     "wasm"
   ],
-  "focused_evidence": "/tmp/cinch-abstract-nonzero-probe-3/results.json",
-  "general_unit_runtime_tooling_status": "Native/general inputs unchanged from earlier passed evidence; not rerun by this integration-only matrix",
-  "integration_targets": 154,
-  "native_contract_evidence": "/tmp/cinch-anonymous-contract-validation-2/native-contracts.log",
-  "native_evidence": "/tmp/cinch-anonymous-contract-validation-4/native-remainder",
+  "source_sha256": "321673612da1f7a3c2df37f9d82b4e47dbc7cf235bbc50f39f063f241a09a195",
+  "source_inputs": 566,
+  "fresh_matrix_gates": 159,
+  "focused_exact_input_gate": "primitive_length_identity (8 cases passed)",
+  "general_gates": [
+    {
+      "name": "compiler-units",
+      "status": "passed",
+      "exit_code": 0
+    },
+    {
+      "name": "compiler-bin",
+      "status": "passed",
+      "exit_code": 0
+    },
+    {
+      "name": "compiler-docs",
+      "status": "passed",
+      "exit_code": 0
+    },
+    {
+      "name": "runtime",
+      "status": "passed",
+      "exit_code": 0
+    },
+    {
+      "name": "tooling",
+      "status": "passed",
+      "exit_code": 0
+    }
+  ],
+  "source_unchanged": true,
   "self_built_frontend": false,
-  "source_sha256": "41173572185db6c95dbf9606e4bf3830d09b609b42c8b2b91844dc92037cdcfa",
-  "status": "passed"
+  "bootstrap_achieved": false
 }

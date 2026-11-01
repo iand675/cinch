@@ -53,7 +53,7 @@ fn prim_result_promise(op: PrimOp) -> Option<(PTerm, Option<PTerm>)> {
         PrimOp::Bytes(BytesOp::New) => (
             PTerm::Cmp(
                 IdxCmp::Eq,
-                Box::new(ITerm::app_fn("Data.Bytes.bytes-len", vec![ITerm::Var("$it".to_string())])),
+                Box::new(ITerm::app_fn(BYTE_LENGTH_INDEX, vec![ITerm::Var("$it".to_string())])),
                 arg(0),
             ),
             None,

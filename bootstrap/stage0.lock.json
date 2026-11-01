@@ -1,9 +1,9 @@
 {
-  "description": "Pinned Rust seed with schema-7 definition-site nominal, class, Region and closed kernel effect contracts, dictionary slots, dependency-ordered source family overrides, dependency-sensitive pattern field names and conditional instance method proof contracts, integer conversion fixes, definition-owned fixities, guarded heap defaults and serial build/test settings and enforced optimizer residual growth bounds, portable checked numeric preconditions and dependent argument identities, checked structural NonZero precondition exports with actual argument identities, schema-7 defining refinement payloads and literal index contracts, checked anonymous refinements with actual argument/result identities and refined-argument numeric projections; changed only by an intentional seed update.",
+  "description": "Pinned Rust seed with schema-7 definition-site nominal, class, Region and closed kernel effect contracts, dictionary slots, dependency-ordered source family overrides, dependency-sensitive pattern field names and conditional instance method proof contracts, integer conversion fixes, definition-owned fixities, guarded heap defaults and serial build/test settings and enforced optimizer residual growth bounds, portable checked numeric preconditions and dependent argument identities, checked structural NonZero precondition exports with actual argument identities, schema-7 defining refinement payloads and literal index contracts, checked anonymous refinements with actual argument/result identities and refined-argument numeric projections, semantic byte-length primitive identity, executable primitive index witnesses and actual signature-telescope observation carrier validation; changed only by an intentional seed update.",
   "patch": "bootstrap/seed/stage0.patch",
-  "patch_sha256": "3e44439affde5ad755cded95cccd82ccedde6b08f93f7739d4986ba4715a241f",
+  "patch_sha256": "94b0d32ad0cd5620db4d04f9909c957090fac3d81fcfcb25c7213720dc0b3a0b",
   "revision": "275de4f05b230c010aeb4b10265a04b97fb4eb1c",
   "runtime_abi": 5,
   "schema": 1,
-  "source_sha256": "765d2f0118bdce09583b3c1ca581b19cd02be332668488c63e8162d895b70fd8"
+  "source_sha256": "6851c25868101865ee3c137d61a372687ab560e9deb5d98dda6e808d5c4f5335"
 }

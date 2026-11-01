@@ -1,207 +1,50 @@
 {
   "date": "2026-11-01",
-  "status": "Validated generic NonZero checkpoint; real self-build still fails before body checking",
-  "validation": [
-    {
-      "name": "native-contracts",
-      "status": "passed",
-      "exit_code": 0,
-      "reused": true
-    },
-    {
-      "name": "compiled-consumers",
-      "status": "passed",
-      "exit_code": 0,
-      "reused": false
-    },
-    {
-      "name": "import-regressions",
-      "status": "passed",
-      "exit_code": 0,
-      "reused": false
-    },
-    {
-      "name": "source-and-contracts",
-      "status": "passed",
-      "exit_code": 0,
-      "reused": false
-    },
-    {
-      "name": "dictionary-effects",
-      "status": "passed",
-      "exit_code": 0,
-      "reused": false
-    },
-    {
-      "name": "pipeline",
-      "status": "passed",
-      "exit_code": 0,
-      "reused": false
-    }
-  ],
-  "compiled_target_results": [
-    {
-      "name": "bootstrap_source_refinements",
-      "status": "passed",
-      "exit_code": 0
-    },
-    {
-      "name": "bootstrap_anonymous_contracts",
-      "status": "passed",
-      "exit_code": 0
-    },
-    {
-      "name": "bootstrap_infer",
-      "status": "passed",
-      "exit_code": 0
-    },
-    {
-      "name": "bootstrap_source_pi",
-      "status": "passed",
-      "exit_code": 0
-    },
-    {
-      "name": "bootstrap_refinement_closure",
-      "status": "passed",
-      "exit_code": 0
-    },
-    {
-      "name": "bootstrap_interface",
-      "status": "passed",
-      "exit_code": 0
-    },
-    {
-      "name": "bootstrap_load",
-      "status": "passed",
-      "exit_code": 0
-    },
-    {
-      "name": "bootstrap_nominals",
-      "status": "passed",
-      "exit_code": 0
-    },
-    {
-      "name": "bootstrap_imported_nonzero",
-      "status": "passed",
-      "exit_code": 0
-    },
-    {
-      "name": "bootstrap_core",
-      "status": "passed",
-      "exit_code": 0
-    },
-    {
-      "name": "bootstrap_named_refinements",
-      "status": "passed",
-      "exit_code": 0
-    },
-    {
-      "name": "bootstrap_nonzero_source",
-      "status": "passed",
-      "exit_code": 0
-    },
-    {
-      "name": "bootstrap_typed_indices",
-      "status": "passed",
-      "exit_code": 0
-    },
-    {
-      "name": "bootstrap_refinement_types",
-      "status": "passed",
-      "exit_code": 0
-    },
-    {
-      "name": "bootstrap_refinement_core",
-      "status": "passed",
-      "exit_code": 0
-    },
-    {
-      "name": "bootstrap_instance_resolution",
-      "status": "passed",
-      "exit_code": 0
-    },
-    {
-      "name": "bootstrap_effects",
-      "status": "passed",
-      "exit_code": 0
-    },
-    {
-      "name": "bootstrap_type_syntax",
-      "status": "passed",
-      "exit_code": 0
-    },
-    {
-      "name": "bootstrap_pipeline",
-      "status": "passed",
-      "exit_code": 0
-    },
-    {
-      "name": "bootstrap_ladder",
-      "status": "passed",
-      "exit_code": 0
-    }
-  ],
+  "status": "Complete Native-assisted validation passed; fresh stage checks running; self-hosting not achieved",
   "native_seed": {
-    "description": "Pinned Rust seed with schema-7 definition-site nominal, class, Region and closed kernel effect contracts, dictionary slots, dependency-ordered source family overrides, dependency-sensitive pattern field names and conditional instance method proof contracts, integer conversion fixes, definition-owned fixities, guarded heap defaults and serial build/test settings and enforced optimizer residual growth bounds, portable checked numeric preconditions and dependent argument identities, checked structural NonZero precondition exports with actual argument identities, schema-7 defining refinement payloads and literal index contracts, checked anonymous refinements with actual argument/result identities and refined-argument numeric projections; changed only by an intentional seed update.",
+    "description": "Pinned Rust seed with schema-7 definition-site nominal, class, Region and closed kernel effect contracts, dictionary slots, dependency-ordered source family overrides, dependency-sensitive pattern field names and conditional instance method proof contracts, integer conversion fixes, definition-owned fixities, guarded heap defaults and serial build/test settings and enforced optimizer residual growth bounds, portable checked numeric preconditions and dependent argument identities, checked structural NonZero precondition exports with actual argument identities, schema-7 defining refinement payloads and literal index contracts, checked anonymous refinements with actual argument/result identities and refined-argument numeric projections, semantic byte-length primitive identity, executable primitive index witnesses and actual signature-telescope observation carrier validation; changed only by an intentional seed update.",
     "patch": "bootstrap/seed/stage0.patch",
-    "patch_sha256": "3e44439affde5ad755cded95cccd82ccedde6b08f93f7739d4986ba4715a241f",
+    "patch_sha256": "94b0d32ad0cd5620db4d04f9909c957090fac3d81fcfcb25c7213720dc0b3a0b",
     "revision": "275de4f05b230c010aeb4b10265a04b97fb4eb1c",
     "runtime_abi": 5,
     "schema": 1,
-    "source_sha256": "765d2f0118bdce09583b3c1ca581b19cd02be332668488c63e8162d895b70fd8"
+    "source_sha256": "6851c25868101865ee3c137d61a372687ab560e9deb5d98dda6e808d5c4f5335"
   },
-  "validation_source_sha256": "41173572185db6c95dbf9606e4bf3830d09b609b42c8b2b91844dc92037cdcfa",
-  "remaining_integration_tests": "All 154 integration targets passed; Native-assisted frontend",
-  "self_built_frontend": false,
-  "full_bootstrap": false,
-  "native_assisted_integration_targets": 154,
+  "interface_schema": 7,
+  "validation_source_sha256": "321673612da1f7a3c2df37f9d82b4e47dbc7cf235bbc50f39f063f241a09a195",
+  "validation_inputs": 566,
+  "native_assisted_integration_targets": 155,
   "native_assisted_integration_matrix": "passed",
-  "previous_checkpoint_stages": [
+  "general_gates": [
     {
-      "name": "stage0-smoke",
+      "name": "compiler-units",
       "status": "passed",
       "exit_code": 0
     },
     {
-      "name": "stage1-smoke",
+      "name": "compiler-bin",
       "status": "passed",
       "exit_code": 0
     },
     {
-      "name": "self-hosting",
-      "status": "failed",
-      "exit_code": 1
+      "name": "compiler-docs",
+      "status": "passed",
+      "exit_code": 0
+    },
+    {
+      "name": "runtime",
+      "status": "passed",
+      "exit_code": 0
+    },
+    {
+      "name": "tooling",
+      "status": "passed",
+      "exit_code": 0
     }
   ],
-  "previous_checkpoint_stage2_boundary": {
-    "bundle_sha256": "dfd073244314e8d054e99ac7b5ab64b47975f4531baa40199a598a42e65e55c0",
-    "categories": {
-      "NonZero needs a checked mathematical carrier": 2,
-      "builtin constructor needs proposition instantiation and erasure checking: b.No": 1,
-      "builtin constructor needs proposition instantiation and erasure checking: b.Yes": 1,
-      "builtin syntax needs dependent predicate elaboration: b.decide": 1,
-      "effect declarations are not supported in this rung": 1,
-      "ill-formed function proof contract": 12,
-      "ill-formed source dependent function": 3,
-      "ill-formed source refinement": 6,
-      "ill-sorted proof predicate": 17,
-      "imported using context needs a defining signature contract": 5,
-      "index expression needs checked scope, purity and totality": 19,
-      "instance declarations are not supported in this rung": 1,
-      "machine arithmetic cannot enter mathematical index conversion": 1
-    },
-    "diagnostics": 70,
-    "executable_exists": false,
-    "ir_exists": false,
-    "origins": {
-      "imported-or-synthetic": 16,
-      "source": 54
-    },
-    "snapshot_sha256": "3d7017d191bc7cd8803809bff28717e791848fe78ca14982c313d6f783d6cfa9",
-    "stage2_exit_code": 4,
-    "stage2_status": "failed"
-  },
-  "previous_checkpoint_stage_source_sha256": "3d7017d191bc7cd8803809bff28717e791848fe78ca14982c313d6f783d6cfa9",
+  "compiler_unit_tests_passed": 140,
+  "runtime_tests_passed": 166,
+  "focused_primitive_cases": 8,
   "stages": [
     {
       "name": "stage0-smoke",
@@ -215,100 +58,11 @@
     },
     {
       "name": "self-hosting",
-      "status": "failed",
-      "exit_code": 1
+      "status": "running"
     }
   ],
-  "stage_source_sha256": "c1d04f9d2ffe44ec4f981cfdbd37b7744713017cae3175f50fb6268f24a36f72",
-  "generic_nonzero_focused_validation": [
-    {
-      "command": [
-        "cargo",
-        "test",
-        "--target-dir",
-        "/tmp/cinch-abstract-nonzero-probe-2/cargo/compiler",
-        "--test",
-        "bootstrap_abstract_nonzero_types",
-        "--",
-        "--include-ignored",
-        "--nocapture",
-        "--test-threads=1"
-      ],
-      "exit_code": 0,
-      "finished": "2026-11-01T15:59:40.238665+00:00",
-      "log": "/tmp/cinch-abstract-nonzero-probe-2/bootstrap_abstract_nonzero_types.log",
-      "name": "bootstrap_abstract_nonzero_types",
-      "note": "Exact Type/Core/Index/Proof, Native compiler and type fixture inputs; changed Infer and method fixture are not selected by the Type/Core runner.",
-      "pid": 58960,
-      "reused_from": "/tmp/cinch-abstract-nonzero-probe-2",
-      "started": "2026-11-01T15:57:48.430090+00:00",
-      "status": "passed"
-    },
-    {
-      "command": [
-        "cargo",
-        "test",
-        "--target-dir",
-        "/tmp/cinch-abstract-nonzero-probe-3/cargo/compiler",
-        "--test",
-        "bootstrap_abstract_nonzero_methods",
-        "--",
-        "--include-ignored",
-        "--nocapture",
-        "--test-threads=1"
-      ],
-      "exit_code": 0,
-      "finished": "2026-11-01T16:19:24.866882+00:00",
-      "log": "/tmp/cinch-abstract-nonzero-probe-3/bootstrap_abstract_nonzero_methods.log",
-      "name": "bootstrap_abstract_nonzero_methods",
-      "pid": 71313,
-      "started": "2026-11-01T16:08:27.082092+00:00",
-      "status": "passed"
-    },
-    {
-      "command": [
-        "cargo",
-        "test",
-        "--target-dir",
-        "/tmp/cinch-abstract-nonzero-probe-3/cargo/compiler",
-        "--test",
-        "bootstrap_source_refinements",
-        "--",
-        "--include-ignored",
-        "--nocapture",
-        "--test-threads=1"
-      ],
-      "exit_code": 0,
-      "finished": "2026-11-01T16:23:44.359485+00:00",
-      "log": "/tmp/cinch-abstract-nonzero-probe-3/bootstrap_source_refinements.log",
-      "name": "bootstrap_source_refinements",
-      "pid": 87468,
-      "started": "2026-11-01T16:19:24.867270+00:00",
-      "status": "passed"
-    },
-    {
-      "command": [
-        "cargo",
-        "test",
-        "--target-dir",
-        "/tmp/cinch-abstract-nonzero-probe-3/cargo/compiler",
-        "--test",
-        "bootstrap_source_pi",
-        "--",
-        "--include-ignored",
-        "--nocapture",
-        "--test-threads=1"
-      ],
-      "exit_code": 0,
-      "finished": "2026-11-01T16:27:13.056622+00:00",
-      "log": "/tmp/cinch-abstract-nonzero-probe-3/bootstrap_source_pi.log",
-      "name": "bootstrap_source_pi",
-      "pid": 91473,
-      "started": "2026-11-01T16:23:44.359881+00:00",
-      "status": "passed"
-    }
-  ],
-  "stage2_boundary": {
+  "stage_source_sha256": "1719a992b3a2f2a535571436a10800a1790065e2076cda35a9eae7d1c9ced601",
+  "previous_checkpoint_stage2_boundary": {
     "bundle_sha256": "e707fad57653acb7c6a95fe3f9504e8aae68c5f528c7b39a7d07f632f9cf6fcd",
     "categories": {
       "builtin constructor needs proposition instantiation and erasure checking: b.No": 1,
@@ -335,10 +89,7 @@
     "stage2_exit_code": 4,
     "stage2_status": "failed"
   },
-  "stage_source_audit": {
-    "files": 565,
-    "finished": "2026-11-01T17:49:47.345546+00:00",
-    "sha256": "c1d04f9d2ffe44ec4f981cfdbd37b7744713017cae3175f50fb6268f24a36f72",
-    "status": "unchanged"
-  }
+  "self_built_frontend": false,
+  "full_bootstrap": false,
+  "new_cinch_observation_changes_installed": false
 }

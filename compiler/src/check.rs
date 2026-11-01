@@ -10,7 +10,7 @@
 use crate::ast;
 use crate::repr::Class;
 use crate::core::{ArithMode, ArithOp, BytesOp, CAlt, CBranch, CPat, CmpOp, ConcOp, Core, FieldAccess, FieldShape, FnDef, GlobalId, InstanceDef, IntOp, LocalId, NatOp, PrimOp, Program, ProjField, SymOp};
-use crate::types::{ClassApp, EffLabel, EffRow, EitherMeta, IntSort, IxParam, ITerm, IdxCmp, IdxOp, Mult, PTerm, PredFn, PropOblig, PtrRole, RowTail, Scalar, Scheme, Sort, Sorts, Ty, Unifier, c_abi_scalar, collect_row_names, default_mult, linear_entails, pred_alpha_eq, pred_binder, pred_conjuncts, pred_entails, pred_implies};
+use crate::types::{BYTE_LENGTH_INDEX, ClassApp, EffLabel, EffRow, EitherMeta, IntSort, IxParam, ITerm, IdxCmp, IdxOp, Mult, PTerm, PredFn, PropOblig, PtrRole, RowTail, Scalar, Scheme, Sort, Sorts, Ty, Unifier, c_abi_scalar, collect_row_names, default_mult, linear_entails, pred_alpha_eq, pred_binder, pred_conjuncts, pred_entails, pred_implies};
 use crate::{Error, Result};
 use SolveOutcome::{Solved, Ambiguous};
 use std::cell::RefCell;
@@ -3069,6 +3069,15 @@ fn fn_id(module: &str, name: &str) -> GlobalId {
     GlobalId(format!("{module}.{name}"))
 }
 
+/// Two checked declarations of the same primitive denote the same index
+/// operation. A similarly named ordinary definition keeps its own identity.
+fn value_index_id(value: &ValueInfo) -> String {
+    match value.kind {
+        ValueKind::Prim(PrimOp::Bytes(BytesOp::Len)) => BYTE_LENGTH_INDEX.to_string(),
+        _ => fn_id(&value.module, &value.name).0,
+    }
+}
+
 /// The named functions a proposition's index terms apply, with the
 /// argument count of each use (a bare reference is arity zero).
 fn index_heads(p: &PTerm, out: &mut Vec<(String, usize)>) {
@@ -3585,6 +3594,7 @@ impl Checker {
     /// The integer sort of a named function's result applied to `arity`
     /// arguments (the head of an index-level application).
     fn fn_int_sort(&self, head: &str, arity: usize) -> Option<IntSort> {
+        if head == BYTE_LENGTH_INDEX { return (arity == 1).then_some(IntSort::Nat); }
         let (module, name) = head.rsplit_once('.')?;
         let v = self.qualified.get(&(module.to_string(), name.to_string()))?;
         let mut ty = v.scheme.ty.clone();
@@ -3658,6 +3668,9 @@ impl Checker {
             }),
             ITerm::App(f, args) => {
                 let ITerm::Fn(h) = &**f else { return false };
+                if h == BYTE_LENGTH_INDEX {
+                    return args.len() == 1 && args.iter().all(|a| self.stable_reading(a));
+                }
                 let Some((module, name)) = h.rsplit_once('.') else { return false };
                 match self.qualified.get(&(module.to_string(), name.to_string())).map(|v| &v.kind) {
                     Some(ValueKind::Prim(op)) => {
@@ -3714,6 +3727,14 @@ impl Checker {
         let mut apps = Vec::new();
         preds(p, &mut apps);
         for (head, args, term) in apps {
+            if head == BYTE_LENGTH_INDEX {
+                if args.len() == 1 {
+                    if let Some((promise, _)) = prim_result_promise(PrimOp::Bytes(BytesOp::Len)) {
+                        out.push(promise.subst("$it", term));
+                    }
+                }
+                continue;
+            }
             let Some((module, name)) = head.rsplit_once('.') else { continue };
             let Some(v) = self.qualified.get(&(module.to_string(), name.to_string())) else { continue };
             let mut ty = v.scheme.ty.clone();
@@ -4916,6 +4937,7 @@ impl Checker {
                     ))
                 }
             },
+            ITerm::Fn(g) if g == BYTE_LENGTH_INDEX => ECore::Prim(PrimOp::Bytes(BytesOp::Len)),
             ITerm::Fn(g) => {
                 self.check_executable(&g, span)?;
                 ECore::Global(GlobalId(g), Vec::new())
@@ -5853,7 +5875,7 @@ impl Checker {
                 }
             });
             match found {
-                Ok(v) => fn_id(&v.module, &v.name).0,
+                Ok(v) => value_index_id(&v),
                 Err(_) => {
                     return Err(Error::at(
                         span,
@@ -7489,7 +7511,7 @@ impl Checker {
                             ParamKind::Prop => prop_params.push(name),
                         }
                     }
-                    return Ok(Scheme {
+                    let scheme = Scheme {
                         con_params,
                         params: type_params,
                         idx_params: Vec::new(),
@@ -7500,9 +7522,199 @@ impl Checker {
                         ctx,
                         obligs,
                         ty: Self::positional_results(&t, 0),
-                    });
+                    };
+                    self.check_length_scheme(&scheme, ty.span())?;
+                    return Ok(scheme);
                 }
             }
+        }
+    }
+
+    /// Validate primitive observations against the converted signature's actual
+    /// telescope. Kind-inference notes deliberately do not establish value
+    /// carrier equality and must not be used as a typing environment here.
+    fn check_length_scheme(&self, scheme: &Scheme, span: ast::Span) -> Result<()> {
+        let mut env: HashMap<String, Ty> = scheme.val_params.iter().cloned().collect();
+        for p in &scheme.idx_params {
+            if let IxParam::Val(n, t) = p { env.insert(n.clone(), t.clone()); }
+        }
+        for (_, t) in &scheme.val_params { self.check_length_type(t, &env, 0, span)?; }
+        self.check_length_type(&scheme.ty, &env, 0, span)?;
+        // `using` predicates were rewritten to these positional names.
+        let mut cur = &scheme.ty;
+        let mut i = 0;
+        loop {
+            match cur {
+                Ty::Fun(d, _, _, c) => { env.insert(format!("$a{i}"), (**d).clone()); cur = c; }
+                Ty::Pi { var, dom, cod, .. } => {
+                    env.insert(var.clone(), (**dom).clone());
+                    env.insert(format!("$a{i}"), (**dom).clone()); cur = cod;
+                }
+                _ => break,
+            }
+            i += 1;
+        }
+        for (_, c) in &scheme.ctx {
+            for t in &c.args { self.check_length_type(t, &env, 0, span)?; }
+        }
+        for p in &scheme.obligs {
+            let p = match p { PropOblig::Pred(p) | PropOblig::Preserves { pred: p, .. } => p };
+            self.check_length_prop(p, &env, span)?;
+        }
+        Ok(())
+    }
+
+    fn check_length_type(&self, t: &Ty, env: &HashMap<String, Ty>, pos: usize, span: ast::Span) -> Result<()> {
+        match t {
+            Ty::Fun(d, _, _, c) | Ty::Pi { dom: d, cod: c, .. } => {
+                self.check_length_type(d, env, 0, span)?;
+                let mut inner = env.clone();
+                inner.insert(format!("$a{pos}"), (**d).clone());
+                if let Ty::Pi { var, .. } = t { inner.insert(var.clone(), (**d).clone()); }
+                self.check_length_type(c, &inner, pos + 1, span)?;
+            }
+            Ty::Sigma { var, dom, cod } => {
+                self.check_length_type(dom, env, 0, span)?;
+                let mut inner = env.clone(); inner.insert(var.clone(), (**dom).clone());
+                self.check_length_type(cod, &inner, 0, span)?;
+            }
+            Ty::Adt(name, args) => {
+                if let Some(view) = self.refine_view(t) {
+                    let mut inner = env.clone();
+                    if let Some(base) = &view.base {
+                        self.check_length_type(base, env, 0, span)?;
+                        inner.insert(view.binder.clone(), base.clone());
+                    }
+                    self.check_length_prop(&view.pred, &inner, span)?;
+                    // The predicate's binder is scoped by this refinement,
+                    // not by an unrelated sibling type argument.
+                    for a in args { if !matches!(a, Ty::Prp(_)) { self.check_length_type(a, env, 0, span)?; } }
+                } else {
+                    let info = self.types.get(name).and_then(|xs| xs.first());
+                    for (i, a) in args.iter().enumerate() {
+                        if let (Ty::Idx(it), Some(ParamKind::Val(carrier))) = (a, info.and_then(|x| x.param_kinds.get(i))) {
+                            self.check_length_index(it, Some(carrier), env, span)?;
+                        } else { self.check_length_type(a, env, 0, span)?; }
+                    }
+                }
+            }
+            Ty::Idx(it) => self.check_length_index(it, None, env, span)?,
+            Ty::Prp(p) => self.check_length_prop(p, env, span)?,
+            Ty::Tuple(args) => for a in args { self.check_length_type(a, env, 0, span)?; },
+            Ty::App(f, args) => {
+                self.check_length_type(f, env, 0, span)?;
+                for a in args { self.check_length_type(a, env, 0, span)?; }
+            }
+            Ty::Thunk { inner, .. } | Ty::Later(inner) | Ty::Lazy { inner, .. }
+            | Ty::Ref(_, inner) | Ty::Mut(_, inner) | Ty::Ptr { pointee: inner, .. } => self.check_length_type(inner, env, 0, span)?,
+            Ty::Handler { input, output, .. } => {
+                self.check_length_type(input, env, 0, span)?;
+                self.check_length_type(output, env, 0, span)?;
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
+    fn check_length_prop(&self, p: &PTerm, env: &HashMap<String, Ty>, span: ast::Span) -> Result<()> {
+        match p {
+            PTerm::Cmp(_, a, b) | PTerm::Eq(a, b) => {
+                self.check_length_index(a, None, env, span)?;
+                self.check_length_index(b, None, env, span)?;
+            }
+            PTerm::Pred(_, a) => self.check_length_index(a, None, env, span)?,
+            PTerm::Not(p) => self.check_length_prop(p, env, span)?,
+            PTerm::And(a, b) | PTerm::Or(a, b) => {
+                self.check_length_prop(a, env, span)?; self.check_length_prop(b, env, span)?;
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
+    fn length_in_index(it: &ITerm) -> bool {
+        match it {
+            ITerm::Fn(n) => n == BYTE_LENGTH_INDEX,
+            ITerm::App(f, xs) => Self::length_in_index(f) || xs.iter().any(Self::length_in_index),
+            ITerm::Bin(_, a, b) => Self::length_in_index(a) || Self::length_in_index(b),
+            ITerm::Lam(_, body) => Self::length_in_index(body),
+            _ => false,
+        }
+    }
+
+    fn check_length_index(&self, it: &ITerm, expected: Option<&Ty>, env: &HashMap<String, Ty>, span: ast::Span) -> Result<()> {
+        if !Self::length_in_index(it) { return Ok(()); }
+        // This validation must not solve or specialize the enclosing checker.
+        let mut uni = self.uni.clone();
+        let actual = self.length_index_type(it, expected, env, &mut uni, span)?;
+        if let Some(want) = expected {
+            self.length_index_unify(&actual, want, &mut uni, span)?;
+        }
+        Ok(())
+    }
+
+    fn length_index_unify(&self, actual: &Ty, want: &Ty, uni: &mut Unifier, span: ast::Span) -> Result<()> {
+        // A checked refinement may weaken to its carrier. The requested
+        // type is never weakened: that would discharge an unproved contract.
+        let actual = uni.zonk(actual);
+        let actual = if self.refine_view(want).is_none() { self.refine_base(&actual).unwrap_or(actual) } else { actual };
+        uni.unify(&actual, want).map_err(|e| Error::at(span, format!("byte-length index operand/result type: {e}")))
+    }
+
+    fn length_index_type(&self, it: &ITerm, expected: Option<&Ty>, env: &HashMap<String, Ty>, uni: &mut Unifier, span: ast::Span) -> Result<Ty> {
+        match it {
+            ITerm::Var(n) => env.get(n).cloned().ok_or_else(|| Error::at(span, format!("byte-length index operand `{n}` has no checked carrier in scope"))),
+            ITerm::Num(n) => {
+                let t = expected.map(|t| uni.zonk(t)).filter(|t| matches!(t, Ty::Nat | Ty::Int | Ty::Prim(_))).unwrap_or(Ty::Nat);
+                if t == Ty::Nat && n.starts_with('-') { return Err(Error::at(span, "negative index literal cannot inhabit Nat")); }
+                Ok(t)
+            }
+            ITerm::Fn(n) if n == BYTE_LENGTH_INDEX => Ok(Ty::fun_mult(Ty::Bytes, Mult::Many, EffRow::pure(), Ty::Nat)),
+            ITerm::Fn(n) => {
+                let value = self.qualified.values().find(|v| fn_id(&v.module, &v.name).0 == *n)
+                    .ok_or_else(|| Error::at(span, format!("byte-length operand names unchecked index function {n}")))?;
+                let s = &value.scheme;
+                let mut types = HashMap::new(); let mut rows = HashMap::new();
+                for p in &s.params { types.insert(p.clone(), uni.fresh()); }
+                for p in &s.idx_params {
+                    match p { IxParam::Val(n, _) => { types.insert(n.clone(), uni.fresh_idx()); }, IxParam::Prop(n) => { types.insert(n.clone(), uni.fresh_prop()); } }
+                }
+                for (n, _) in &s.val_params { types.insert(n.clone(), uni.fresh_idx()); }
+                for n in &s.prop_params { types.insert(n.clone(), uni.fresh_prop()); }
+                for n in &s.row_params { rows.insert(n.clone(), uni.fresh_row().tail); }
+                Ok(Self::subst_full(&s.ty, &types, &rows, &HashMap::new()))
+            }
+            ITerm::App(f, args) => {
+                let mut ty = self.length_index_type(f, None, env, uni, span)?;
+                for a in args {
+                    let (dom, eff, cod, binder) = match uni.zonk(&ty) {
+                        Ty::Fun(d, _, e, c) => (*d, e, *c, None),
+                        Ty::Pi { var, dom, eff, cod, .. } => (*dom, eff, *cod, Some(var)),
+                        other => return Err(Error::at(span, format!("byte-length index applies non-function carrier {other}; check its arity"))),
+                    };
+                    if !eff.is_pure() { return Err(Error::at(span, "byte-length index operand application must be pure")); }
+                    let actual = self.length_index_type(a, Some(&dom), env, uni, span)?;
+                    self.length_index_unify(&actual, &dom, uni, span)?;
+                    ty = match binder { Some(n) => cod.subst_idx(&n, a), None => cod };
+                }
+                Ok(uni.zonk(&ty))
+            }
+            ITerm::Bin(_, a, b) => {
+                let carrier = self.length_index_type(a, expected, env, uni, span)?;
+                if !matches!(uni.zonk(&carrier), Ty::Nat | Ty::Int) { return Err(Error::at(span, "byte-length index arithmetic requires Nat or Int")); }
+                let right = self.length_index_type(b, Some(&carrier), env, uni, span)?;
+                self.length_index_unify(&right, &carrier, uni, span)?; Ok(uni.zonk(&carrier))
+            }
+            ITerm::Lam(n, body) => {
+                let Some(Ty::Fun(dom, mult, eff, cod)) = expected.map(|t| uni.zonk(t)) else {
+                    return Err(Error::at(span, "byte-length index lambda needs a checked function carrier"));
+                };
+                let mut inner = env.clone(); inner.insert(n.clone(), (*dom).clone());
+                let actual = self.length_index_type(body, Some(&cod), &inner, uni, span)?;
+                self.length_index_unify(&actual, &cod, uni, span)?;
+                Ok(Ty::fun_mult(*dom, mult, eff, *cod))
+            }
+            ITerm::MVar(_) => Err(Error::at(span, "byte-length index operand has an unsolved carrier")),
         }
     }
 

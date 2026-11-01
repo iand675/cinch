@@ -1,45 +1,52 @@
 # Compiler checkpoint — 1 November 2026
 
-The compiler now carries checked anonymous refinement contracts through interfaces
-and retains actual argument/result identities in scoped Core witnesses. Private
-nominal contract closure and definition-owned fixities remain enforced. The pinned
-Rust seed is refreshed to the exact validated Native source.
+The installed Native compiler identifies byte length by its checked primitive
+operation. Fresh foreign aliases preserve its stable facts and execute the
+actual primitive when an index witness is needed. Type-position observations
+validate operand and result carriers against the converted signature telescope.
+The eight focused regressions retain wrong-carrier, wrong-arity and ordinary
+same-name refusals alongside executable witness and allocation-promise cases.
 
-Six focused validation gates pass, including twenty freshly executed compiled
-consumer/import/source/Core/dictionary/effect/pipeline/ladder targets, with audited
-reuse of ten byte-identical Native contract targets. All 94 independent Native
-integration targets pass. All 19 additional/repeated integration targets also pass,
-completing the [152-target Native-assisted integration matrix](integration-matrix-results.json).
-The prior Native units/runtime/tooling/binary/doc gates passed on unchanged selected
-inputs; self-built frontend acceptance remains unproven.
+All 155 Native-assisted integration targets pass, together with fresh compiler
+unit, binary, documentation, runtime and tooling gates. The validation snapshot
+contains 566 unchanged inputs:
+`321673612da1f7a3c2df37f9d82b4e47dbc7cf235bbc50f39f063f241a09a195`.
+Compiler units pass 140 tests and runtime suites pass 166 tests, with no ignored
+tests in those gates. This is not the suite through a self-built frontend.
+Evidence is in `/tmp/cinch-primitive-length-validation-4/`.
 
-At the preceding anonymous-contract checkpoint, stage0 and stage1 builds pass
-all six smoke checks. Its stage2 attempt
-fails before body checking with 70 header diagnostics, down from 76; it produces
-no stage2 IR or compiler executable. Stage3 fixed-point agreement, changed-source
-behavior and the full suite through a self-built frontend remain unproven.
+The independently verified, source-matching Rust seed has source SHA256
+`6851c25868101865ee3c137d61a372687ab560e9deb5d98dda6e808d5c4f5335`
+and patch SHA256
+`94b0d32ad0cd5620db4d04f9909c957090fac3d81fcfcb25c7213720dc0b3a0b`.
+Archive plus patch reproduces every tested Native source byte. Interface
+schema 7, runtime ABI 5, definition-owned fixities, generic NonZero checking,
+expected-result applications and anonymous refinement contracts are retained.
 
-[checkpoint-results.json](checkpoint-results.json) records exact gate outcomes,
-seed identities and failure categories; [native-integration-results.json](native-integration-results.json)
-records the independent Native test scope. Full logs and frozen snapshots remain
-local. [The design record](../design/self-hosting.md) details remaining work.
+Fresh builds are running against this seed. Stage0 smoke checks pass; stage1
+and the actual self-build remain pending. The fresh staged snapshot is
+`1719a992b3a2f2a535571436a10800a1790065e2076cda35a9eae7d1c9ced601`.
+Evidence is in `/tmp/cinch-native-length-stages/`.
 
-The installed compiler now also supports deferred generic NonZero formation
-and result-directed application checking. All 154 Native-assisted integration
-targets pass, including the new abstract NonZero type/Core and generic Div/Rem
-consumer regressions. The exact validated snapshot is
-`41173572185db6c95dbf9606e4bf3830d09b609b42c8b2b91844dc92037cdcfa`
-(565 unchanged inputs). The Native seed is unchanged. Fresh stage0 and stage1
-builds pass all six smoke checks. The new stage2 attempt exits 4 before body
-checking with 66 header diagnostics, down from the preceding checkpoint's 70.
-Twelve positions are imported/synthetic and fifty-four map to source; nineteen
-still concern unchecked index calls. Stage2 produces no IR or compiler executable.
-The unchanged staged snapshot is
-`c1d04f9d2ffe44ec4f981cfdbd37b7744713017cae3175f50fb6268f24a36f72`;
-the compiler bundle is
-`e707fad57653acb7c6a95fe3f9504e8aae68c5f528c7b39a7d07f632f9cf6fcd`.
-Evidence is in `/tmp/cinch-generic-nonzero-stages/`. Diagnostic counts include
-cascades and do not measure completion. Stage2/3 acceptance remains unproven.
+The preceding generic NonZero checkpoint passed all six stage0/stage1 smoke
+checks, then failed stage2 before body checking with 66 header diagnostics,
+nineteen concerning unchecked index calls. It produced no stage2 IR or
+executable. Its evidence remains in `/tmp/cinch-generic-nonzero-stages/`;
+those counts do not yet describe the fresh attempt.
 
-Unrelated website, branding and reader-documentation work is managed separately.
-Compiler changes are pushed incrementally with their validation status recorded.
+Cinch-side byte observations, closed private observation contracts and a fix
+for unconstrained expected-result hints are in private validation. Type/Core,
+seventeen source cases and ten imported observation cases pass across recorded
+snapshots. The combined wire-contract and existing source regression gates
+are running. These Cinch changes are not installed in this checkpoint.
+
+Remaining source declarations, proof forms, an independent global typing
+kernel and shared-runtime typed lowering are still required. Stage2/3 fixed-point
+agreement, changed-source behavior and all tests through a self-built frontend
+remain unproven. Work uses at most five concurrent jobs, one Cargo worker and
+one test thread per job, and generated Cinch heaps limited to 2G.
+
+[checkpoint-results.json](checkpoint-results.json) records the exact seed and stage status;
+[integration-matrix-results.json](integration-matrix-results.json) records the completed validation scope.
+Full logs and frozen snapshots remain local. Compiler work is pushed incrementally;
+unrelated website, branding and reader-documentation changes are managed separately.
