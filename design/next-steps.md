@@ -19,7 +19,9 @@ header is resolved; no stage2 IR or compiler executable is produced.
 
 The complete Native-assisted suite of 162 integration targets and five general
 gates is running. Exact-source audits reuse only unchanged whole targets; the
-independent checker fixture is rerun. This is not a complete current-suite pass
+independent checker and parser corpus fixtures are rerun. The parser reads the
+new Bootstrap.Instance module with zero unmodeled nodes; its pinned corpus table
+now includes that measured entry, with every previous count unchanged. This is not a complete current-suite pass
 or the suite through a self-built frontend. The previously verified baseline
 remains commit 623d33e. Header counts do not measure overall completion.
 [The instance checkpoint report](../bootstrap/source-instances-checkpoint-results.json)

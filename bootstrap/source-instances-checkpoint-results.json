@@ -92,13 +92,14 @@
   ],
   "complete_current_suite": {
     "status": "running",
+    "source_sha256": "17eb475ff90ee322c1499a5581ed30f2136e268c0778749032aa1e645d1a0c48",
     "integration_targets": 162,
     "general_gates": 5,
     "fresh_counts": {
-      "passed": 2,
-      "waiting-shared-slot": 1,
+      "passed": 4,
       "running": 3,
-      "pending": 145
+      "waiting-shared-slot": 1,
+      "pending": 121
     },
     "plan": {
       "focused_targets": [
@@ -108,10 +109,11 @@
         "bootstrap_effects",
         "bootstrap_instance_resolution",
         "bootstrap_nominals",
+        "bootstrap_parse",
         "bootstrap_resolve",
         "bootstrap_source_instances"
       ],
-      "fresh_matrix_gates": 151,
+      "fresh_matrix_gates": 129,
       "general_gates": 5,
       "integration_targets": 162,
       "reused_or_inflight_whole_targets": [
@@ -122,18 +124,38 @@
         "bootstrap_abstract_nonzero_types",
         "bootstrap_anonymous_contracts",
         "bootstrap_buffer_aliases",
-        "bootstrap_byte_observations"
+        "bootstrap_byte_observations",
+        "bootstrap_contract",
+        "bootstrap_driver",
+        "bootstrap_eval",
+        "bootstrap_function_preconditions",
+        "bootstrap_guarded_arithmetic",
+        "bootstrap_imported_nonzero",
+        "bootstrap_imported_preconditions",
+        "bootstrap_indices",
+        "bootstrap_infer",
+        "bootstrap_interface",
+        "bootstrap_intrinsics",
+        "bootstrap_ir",
+        "bootstrap_ladder",
+        "bootstrap_lexer",
+        "bootstrap_load",
+        "bootstrap_machine_values",
+        "bootstrap_manifest",
+        "bootstrap_module_scopes",
+        "bootstrap_named_refinements",
+        "bootstrap_nonzero_source",
+        "bootstrap_nonzero_types"
       ],
       "self_built_frontend": false,
       "slots": "four shared slots, including the global-reference probe; stage6 owns sole outside fifth lane",
-      "source_sha256": "5530920cd1c6956231602d9e1013d08df207e3142d87627592d1860fd136bcf4",
+      "source_sha256": "17eb475ff90ee322c1499a5581ed30f2136e268c0778749032aa1e645d1a0c48",
       "workers": 4
     },
     "reuse_audit": {
       "all_native_bootstrap_implementation_prelude_runtime_harness_and_other_fixtures_unchanged": true,
       "changed_inputs": [
-        "bootstrap/programs/Run.Check.cinch",
-        "compiler/tests/bootstrap_check.rs"
+        "compiler/tests/bootstrap_parse.rs"
       ],
       "filtered_target_coverage": {
         "status": "all reused checks are whole targets; no filtered reuse"
@@ -141,33 +163,253 @@
       "focused_results": [
         "/tmp/cinch-source-instances-validation-6/results.json",
         "/tmp/cinch-source-instances-validation-6/regressions/results.json",
-        "/tmp/cinch-source-instances-validation-7/results.json"
+        "/tmp/cinch-source-instances-validation-7/results.json",
+        "/tmp/cinch-source-instances-validation-8/results.json"
       ],
-      "from_source_sha256": "a80b991bfac3e483debfc815b930cacc463707a6dd057472ce84d8fe5e483801",
-      "old_results": "/tmp/cinch-source-instances-validation-6/complete-matrix/results.json",
-      "previous_full_run_status": "failed obsolete blanket source-instance refusal diagnostic; not a full pass",
+      "from_source_sha256": "5530920cd1c6956231602d9e1013d08df207e3142d87627592d1860fd136bcf4",
+      "old_results": "/tmp/cinch-source-instances-validation-7/complete-matrix/results.json",
+      "previous_full_run_status": "failed because the measured new Instance module was missing from the parser corpus table; not a full pass",
       "prior_focused_reuse_audit": {
+        "all_native_bootstrap_implementation_prelude_runtime_harness_and_other_fixtures_unchanged": true,
+        "changed_inputs": [
+          "bootstrap/programs/Run.Check.cinch",
+          "compiler/tests/bootstrap_check.rs"
+        ],
+        "filtered_target_coverage": {
+          "status": "all reused checks are whole targets; no filtered reuse"
+        },
         "focused_results": [
           "/tmp/cinch-source-instances-validation-6/results.json",
-          "/tmp/cinch-source-instances-validation-6/regressions/results.json"
+          "/tmp/cinch-source-instances-validation-6/regressions/results.json",
+          "/tmp/cinch-source-instances-validation-7/results.json"
         ],
-        "older_checkpoint_results_reused": false,
-        "source_inputs": 579,
-        "source_sha256": "a80b991bfac3e483debfc815b930cacc463707a6dd057472ce84d8fe5e483801",
-        "status": "identical frozen inputs; all focused gates run from this same source",
+        "from_source_sha256": "a80b991bfac3e483debfc815b930cacc463707a6dd057472ce84d8fe5e483801",
+        "old_results": "/tmp/cinch-source-instances-validation-6/complete-matrix/results.json",
+        "previous_full_run_status": "failed obsolete blanket source-instance refusal diagnostic; not a full pass",
+        "prior_focused_reuse_audit": {
+          "focused_results": [
+            "/tmp/cinch-source-instances-validation-6/results.json",
+            "/tmp/cinch-source-instances-validation-6/regressions/results.json"
+          ],
+          "older_checkpoint_results_reused": false,
+          "source_inputs": 579,
+          "source_sha256": "a80b991bfac3e483debfc815b930cacc463707a6dd057472ce84d8fe5e483801",
+          "status": "identical frozen inputs; all focused gates run from this same source",
+          "whole_targets": [
+            "bootstrap_core",
+            "bootstrap_effect_types",
+            "bootstrap_effects",
+            "bootstrap_instance_resolution",
+            "bootstrap_nominals",
+            "bootstrap_resolve",
+            "bootstrap_source_instances"
+          ]
+        },
+        "status": "source inputs audited; only the independent checker runner and its pinned Rust expectation changed",
+        "to_source_sha256": "5530920cd1c6956231602d9e1013d08df207e3142d87627592d1860fd136bcf4",
         "whole_targets": [
-          "bootstrap_core",
-          "bootstrap_effect_types",
-          "bootstrap_effects",
-          "bootstrap_instance_resolution",
-          "bootstrap_nominals",
-          "bootstrap_resolve",
-          "bootstrap_source_instances"
+          {
+            "exit_code": 0,
+            "finished": "2026-11-01T22:31:42.836963+00:00",
+            "name": "alloc_accounting",
+            "started": "2026-11-01T22:31:16.984531+00:00",
+            "status": "passed"
+          },
+          {
+            "exit_code": 0,
+            "finished": "2026-11-01T22:31:35.183012+00:00",
+            "name": "argv",
+            "started": "2026-11-01T22:31:16.985832+00:00",
+            "status": "passed"
+          },
+          {
+            "exit_code": 0,
+            "finished": "2026-11-01T22:31:38.971978+00:00",
+            "name": "attributes",
+            "started": "2026-11-01T22:31:16.989150+00:00",
+            "status": "passed"
+          },
+          {
+            "name": "bootstrap_abstract_nonzero_methods",
+            "started": "2026-11-01T22:35:19.486164+00:00",
+            "status": "running"
+          },
+          {
+            "exit_code": 0,
+            "finished": "2026-11-01T22:32:28.695699+00:00",
+            "name": "bootstrap_abstract_nonzero_types",
+            "started": "2026-11-01T22:31:35.186578+00:00",
+            "status": "passed"
+          },
+          {
+            "name": "bootstrap_anonymous_contracts",
+            "started": "2026-11-01T22:31:38.974488+00:00",
+            "status": "running"
+          },
+          {
+            "exit_code": 0,
+            "finished": "2026-11-01T22:34:15.530732+00:00",
+            "name": "bootstrap_buffer_aliases",
+            "started": "2026-11-01T22:31:42.840307+00:00",
+            "status": "passed"
+          },
+          {
+            "name": "bootstrap_byte_observations",
+            "started": "2026-11-01T22:32:28.698251+00:00",
+            "status": "running"
+          }
         ]
       },
-      "status": "source inputs audited; only the independent checker runner and its pinned Rust expectation changed",
-      "to_source_sha256": "5530920cd1c6956231602d9e1013d08df207e3142d87627592d1860fd136bcf4",
+      "status": "source inputs audited; only the parser corpus table gained the new Instance module at measured zero; prior whole-target reuse inherited under its exact-source audit",
+      "to_source_sha256": "17eb475ff90ee322c1499a5581ed30f2136e268c0778749032aa1e645d1a0c48",
       "whole_targets": [
+        {
+          "exit_code": 0,
+          "finished": "2026-11-01T22:41:04.584800+00:00",
+          "name": "bootstrap_contract",
+          "started": "2026-11-01T22:40:59.979689+00:00",
+          "status": "passed"
+        },
+        {
+          "exit_code": 0,
+          "finished": "2026-11-01T22:44:15.728457+00:00",
+          "name": "bootstrap_driver",
+          "started": "2026-11-01T22:44:06.137332+00:00",
+          "status": "passed"
+        },
+        {
+          "exit_code": 0,
+          "finished": "2026-11-01T22:41:16.673076+00:00",
+          "name": "bootstrap_eval",
+          "started": "2026-11-01T22:41:03.823847+00:00",
+          "status": "passed"
+        },
+        {
+          "exit_code": 0,
+          "finished": "2026-11-01T22:44:06.603450+00:00",
+          "name": "bootstrap_function_preconditions",
+          "started": "2026-11-01T22:41:44.104132+00:00",
+          "status": "passed"
+        },
+        {
+          "exit_code": 0,
+          "finished": "2026-11-01T22:43:09.521375+00:00",
+          "name": "bootstrap_guarded_arithmetic",
+          "started": "2026-11-01T22:41:04.587701+00:00",
+          "status": "passed"
+        },
+        {
+          "exit_code": 0,
+          "finished": "2026-11-01T22:59:56.420646+00:00",
+          "name": "bootstrap_imported_nonzero",
+          "started": "2026-11-01T22:41:16.676454+00:00",
+          "status": "passed"
+        },
+        {
+          "exit_code": 0,
+          "finished": "2026-11-01T22:52:36.857462+00:00",
+          "name": "bootstrap_imported_preconditions",
+          "started": "2026-11-01T22:43:09.525497+00:00",
+          "status": "passed"
+        },
+        {
+          "exit_code": 0,
+          "finished": "2026-11-01T22:44:14.335875+00:00",
+          "name": "bootstrap_indices",
+          "started": "2026-11-01T22:44:06.606409+00:00",
+          "status": "passed"
+        },
+        {
+          "exit_code": 0,
+          "finished": "2026-11-01T22:46:56.201866+00:00",
+          "name": "bootstrap_infer",
+          "started": "2026-11-01T22:44:14.340118+00:00",
+          "status": "passed"
+        },
+        {
+          "exit_code": 0,
+          "finished": "2026-11-01T22:44:26.276833+00:00",
+          "name": "bootstrap_interface",
+          "started": "2026-11-01T22:44:15.731962+00:00",
+          "status": "passed"
+        },
+        {
+          "exit_code": 0,
+          "finished": "2026-11-01T22:46:27.429054+00:00",
+          "name": "bootstrap_intrinsics",
+          "started": "2026-11-01T22:44:26.280074+00:00",
+          "status": "passed"
+        },
+        {
+          "exit_code": 0,
+          "finished": "2026-11-01T22:47:02.872541+00:00",
+          "name": "bootstrap_ir",
+          "started": "2026-11-01T22:46:27.432082+00:00",
+          "status": "passed"
+        },
+        {
+          "exit_code": 0,
+          "finished": "2026-11-01T22:49:44.024824+00:00",
+          "name": "bootstrap_ladder",
+          "started": "2026-11-01T22:46:56.205667+00:00",
+          "status": "passed"
+        },
+        {
+          "exit_code": 0,
+          "finished": "2026-11-01T22:47:27.948587+00:00",
+          "name": "bootstrap_lexer",
+          "started": "2026-11-01T22:47:02.876699+00:00",
+          "status": "passed"
+        },
+        {
+          "exit_code": 0,
+          "finished": "2026-11-01T22:48:40.235751+00:00",
+          "name": "bootstrap_load",
+          "started": "2026-11-01T22:47:27.960884+00:00",
+          "status": "passed"
+        },
+        {
+          "exit_code": 0,
+          "finished": "2026-11-01T22:51:56.936548+00:00",
+          "name": "bootstrap_machine_values",
+          "started": "2026-11-01T22:48:40.239036+00:00",
+          "status": "passed"
+        },
+        {
+          "exit_code": 0,
+          "finished": "2026-11-01T22:50:17.016149+00:00",
+          "name": "bootstrap_manifest",
+          "started": "2026-11-01T22:49:44.027824+00:00",
+          "status": "passed"
+        },
+        {
+          "exit_code": 0,
+          "finished": "2026-11-01T22:52:24.947109+00:00",
+          "name": "bootstrap_module_scopes",
+          "started": "2026-11-01T22:50:17.019874+00:00",
+          "status": "passed"
+        },
+        {
+          "exit_code": 0,
+          "finished": "2026-11-01T22:56:45.814573+00:00",
+          "name": "bootstrap_named_refinements",
+          "started": "2026-11-01T22:51:56.939606+00:00",
+          "status": "passed"
+        },
+        {
+          "exit_code": 0,
+          "finished": "2026-11-01T22:58:41.957595+00:00",
+          "name": "bootstrap_nonzero_source",
+          "started": "2026-11-01T22:52:24.950165+00:00",
+          "status": "passed"
+        },
+        {
+          "exit_code": 0,
+          "finished": "2026-11-01T22:58:16.032834+00:00",
+          "name": "bootstrap_nonzero_types",
+          "started": "2026-11-01T22:57:24.090161+00:00",
+          "status": "passed"
+        },
         {
           "exit_code": 0,
           "finished": "2026-11-01T22:31:42.836963+00:00",
@@ -190,9 +432,11 @@
           "status": "passed"
         },
         {
+          "exit_code": 0,
+          "finished": "2026-11-01T22:44:06.056880+00:00",
           "name": "bootstrap_abstract_nonzero_methods",
           "started": "2026-11-01T22:35:19.486164+00:00",
-          "status": "running"
+          "status": "passed"
         },
         {
           "exit_code": 0,
@@ -202,9 +446,11 @@
           "status": "passed"
         },
         {
+          "exit_code": 0,
+          "finished": "2026-11-01T22:41:03.670772+00:00",
           "name": "bootstrap_anonymous_contracts",
           "started": "2026-11-01T22:31:38.974488+00:00",
-          "status": "running"
+          "status": "passed"
         },
         {
           "exit_code": 0,
@@ -214,9 +460,11 @@
           "status": "passed"
         },
         {
+          "exit_code": 0,
+          "finished": "2026-11-01T22:41:44.008805+00:00",
           "name": "bootstrap_byte_observations",
           "started": "2026-11-01T22:32:28.698251+00:00",
-          "status": "running"
+          "status": "passed"
         }
       ]
     },
@@ -498,5 +746,30 @@
       "self_built_frontend": false,
       "all_tests_passed": false
     }
+  },
+  "parser_corpus_update": {
+    "recorded_at": "2026-11-01T23:06:59.534920+00:00",
+    "source_sha256": "17eb475ff90ee322c1499a5581ed30f2136e268c0778749032aa1e645d1a0c48",
+    "changed_inputs": [
+      "compiler/tests/bootstrap_parse.rs"
+    ],
+    "measured_difference": {
+      "Bootstrap.Instance": {
+        "previous_entry": null,
+        "actual_unmodeled_nodes": 0
+      }
+    },
+    "status": "whole parser corpus target passed; all prior counts unchanged",
+    "focused_results": [
+      {
+        "name": "bootstrap_parse",
+        "status": "passed",
+        "exit_code": 0,
+        "started": "2026-11-01T23:00:42.727329+00:00",
+        "finished": "2026-11-01T23:02:02.728922+00:00"
+      }
+    ],
+    "compiler_bundle_unchanged": true,
+    "previous_matrix": "stopped on the missing new-module corpus entry; not a full pass"
   }
 }
