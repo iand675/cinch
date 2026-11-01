@@ -1,75 +1,51 @@
 # Next steps (as of 2026-11-01)
 
-The anonymous-contract checkpoint carries refinement contracts from
-checked Native schemes through renamed interfaces. Result binders are fresh
-and scoped against real argument identities, including exported contracts over
-refined arguments. Private defining refinement templates remain closed in
-interface metadata. The producer uses the original checked syntax and scheme;
-it does not infer a new contract while serializing it.
+The installed compiler supports generic NonZero predicates before their carrier
+is concrete. Specialization validates the actual carrier; an abstract predicate
+does not supply Nat arithmetic facts. Application checking uses the expected
+result before checking nondependent arguments, including generic Div/Rem calls.
+Checked anonymous refinement contracts, actual argument/result identities,
+scoped Core witnesses, effect rows and private definition-site templates remain
+retained. Fixities belong to the declaring module.
 
-The Cinch consumer retains dependent argument/result witnesses in Core let
-scopes, checks requested refinements inside those scopes, and preserves effect
-rows. Weakening a refined local also retains its checked equality to the actual
-right-hand side through the existing Core let rule. A call result supplies only
-its checked exported contract; an unchecked call is not an arithmetic fact.
-Runtime evaluation remains once per materialized witness, and witness-local
-indices cannot escape in outer annotations.
+All 154 Native-assisted integration targets pass. This combines freshly executed
+Cinch-associated targets with explicitly audited reuse of byte-identical Native
+inputs. The validation snapshot contains 565 unchanged inputs:
+`41173572185db6c95dbf9606e4bf3830d09b609b42c8b2b91844dc92037cdcfa`.
+Earlier compiler unit, runtime, tooling, binary and documentation gates passed
+on unchanged selected inputs. This is not the full suite through a self-built
+compiler frontend. Evidence is in `/tmp/cinch-abstract-nonzero-probe-3/`.
 
-All six focused validation gates pass: ten Native contract targets with audited
-reuse of byte-identical selected inputs, twenty fresh compiled-consumer/import/
-source/type/Core/dictionary/effect/pipeline/ladder targets, including seventeen
-anonymous-contract consumers, eight private-refinement consumers and sixty-three
-source-refinement cases. All ninety-four independent Native integration targets
-also pass. The final focused audit covers 562 unchanged inputs, snapshot
-`b84b7a8dc278a0468e43a922de01d7565af717ef8d677026f88304ae36ac8acc`.
-Evidence is in `/tmp/cinch-anonymous-contract-validation-5/` and the earlier
-Native-input-identical `/tmp/cinch-anonymous-contract-validation-4/native-remainder/`.
-The nineteen additional or repeated targets also pass, completing the 152-target
-Native-assisted integration matrix. The earlier Native compiler unit, runtime,
-tooling, binary and documentation gates pass on unchanged selected inputs.
-This does not establish the suite through a self-built compiler frontend.
+The installed Native seed remains source-matching, runtime ABI 5 and interface
+schema 7. Its source SHA256 is
+`765d2f0118bdce09583b3c1ca581b19cd02be332668488c63e8162d895b70fd8`;
+the patch SHA256 is
+`3e44439affde5ad755cded95cccd82ccedde6b08f93f7739d4986ba4715a241f`.
+Archive plus patch reproduces every Native source byte, independently verified
+at installation.
 
-The source-matching Rust seed is intentionally refreshed: source
-`765d2f0118bdce09583b3c1ca581b19cd02be332668488c63e8162d895b70fd8`,
-patch `3e44439affde5ad755cded95cccd82ccedde6b08f93f7739d4986ba4715a241f`.
-Archive plus patch reproduces every Native source byte, checked during
-preparation and independently at installation. Runtime ABI 5 and interface
-schema 7 remain unchanged.
-
-At that checkpoint, fresh stage0/stage1 builds pass all six smoke checks. The stage2 attempt
-exits 4 before body checking with 70 header diagnostics, down from 76. Sixteen
-positions are imported/synthetic and fifty-four map to source; nineteen concern
-unchecked calls. Counts include cascades and do not measure completion.
-Stage2 produces no IR or compiler executable. The final stage audit covers
-562 unchanged inputs, snapshot
-`3d7017d191bc7cd8803809bff28717e791848fe78ca14982c313d6f783d6cfa9`;
-the compiler bundle is
-`dfd073244314e8d054e99ac7b5ab64b47975f4531baa40199a598a42e65e55c0`.
-Evidence and source-mapped diagnostics are in `/tmp/cinch-anonymous-contract-stages/`.
-
-The installed compiler now also supports deferred generic NonZero formation
-and result-directed application checking. All 154 Native-assisted integration
-targets pass, including the new abstract NonZero type/Core and generic Div/Rem
-consumer regressions. The exact validated snapshot is
-`41173572185db6c95dbf9606e4bf3830d09b609b42c8b2b91844dc92037cdcfa`
-(565 unchanged inputs). The Native seed is unchanged. Fresh stage0 and stage1
-builds pass all six smoke checks. The new stage2 attempt exits 4 before body
-checking with 66 header diagnostics, down from the preceding checkpoint's 70.
-Twelve positions are imported/synthetic and fifty-four map to source; nineteen
-still concern unchecked index calls. Stage2 produces no IR or compiler executable.
-The unchanged staged snapshot is
-`c1d04f9d2ffe44ec4f981cfdbd37b7744713017cae3175f50fb6268f24a36f72`;
-the compiler bundle is
+Fresh stage0 and stage1 builds pass all six smoke checks. The real stage2 attempt
+exits 4 before body checking with 66 header diagnostics, down from the preceding
+anonymous-contract checkpoint's 70. Twelve positions are imported/synthetic and
+fifty-four map to source; nineteen concern unchecked index calls. Counts include
+cascades and do not measure completion. Stage2 produces no IR or executable.
+The staged snapshot contains 565 unchanged inputs:
+`c1d04f9d2ffe44ec4f981cfdbd37b7744713017cae3175f50fb6268f24a36f72`.
+The compiler bundle is
 `e707fad57653acb7c6a95fe3f9504e8aae68c5f528c7b39a7d07f632f9cf6fcd`.
-Evidence is in `/tmp/cinch-generic-nonzero-stages/`. Diagnostic counts include
-cascades and do not measure completion. Stage2/3 acceptance remains unproven.
+Evidence and mapped diagnostics are in `/tmp/cinch-generic-nonzero-stages/`.
 
-Checked observation/call contracts, remaining source declarations and proof
-forms, an independent global typing kernel and shared-runtime typed lowering
-remain required. Stage2/3 fixed-point agreement, changed-source compiler
-behavior and the full suite through a self-built frontend are unproven.
-Work uses at most five concurrent jobs, with one Cargo worker and one test
-thread per job and generated Cinch heaps limited to 2G.
+Byte-observation support is being developed in private snapshots. Focused Native
+identity/carrier/witness cases and Cinch Type/Core/source cases pass; imported
+observation and broader regression validation are still running. These changes
+are not installed and do not establish another successful bootstrap stage.
+
+Checked observation contracts, remaining source declarations and proof forms,
+an independent global typing kernel and shared-runtime typed lowering remain
+required. Stage2/3 fixed-point agreement, changed-source compiler behavior and
+the full suite through a self-built frontend remain unproven. Work uses at most
+five concurrent jobs, with one Cargo worker and one test thread per job and
+generated Cinch heaps limited to 2G.
 
 ## Prior checkpoint history and acceptance details
 
