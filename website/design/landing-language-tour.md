@@ -2,10 +2,11 @@
 
 The expanded landing page follows the intended language design. The user explicitly asked to feature unfinished functionality as well as implemented features, rather than limit this private iteration to today's compiler. The site is not public yet. On 2026-11-01 the user asked for the landing copy to read as if Cinch were at a full v1: present tense, no development note, no implementation caveats. This is a copy decision for an unpublished site, not a declaration of release readiness; revisit it before the site goes public.
 
-The hero and nonempty-vector example are followed by `LanguageTour.astro`, then the broader runtime feature list in `src/pages/index.astro`. `CodeExcerpt.astro` renders selectable, escaped text with lightweight display highlighting; it does not parse, type-check, or execute Cinch. The staging expansion is an explanatory illustration.
+The hero console and the memory-safety section (`BoundsSection.astro`) are followed by `LanguageTour.astro`, then the broader runtime feature list in `src/pages/index.astro`. `CodeExcerpt.astro` renders selectable, escaped text with lightweight display highlighting; it does not parse, type-check, or execute Cinch. The staging expansion is an explanatory illustration.
 
 | Landing material | Primary repository source | Editorial constraints |
 | --- | --- | --- |
+| Hero console and the Heartbleed section | `src/data/examples/payload-checked.cinch` and `payload-unchecked.cinch`; `library/Data.Bytes.md` (`bytes-get`, `bytes-new`, `bytes-copy-range dst src di si n`) | Both files are checked as stored: `../compiler/target/release/cinch check src/data/examples/<file>` accepts the checked file and rejects the unchecked one at `10:15` naming `(1 + n) <= (Data.Bytes.bytes-len msg)`. The page shows each module up to `main` with the compiler's line numbers and an abridged diagnostic marked `[…]`. The console simulates the checked function on a six-byte message. Heartbleed history: OpenSSL echoed as many bytes as the heartbeat's length field claimed (up to 64 KB) |
 | Runtime bounds evidence and `plusZero` induction | `tutorials/02-proofs-and-runtime-checks.md` | Concrete decision evidence differs from a universal proof; erasure does not remove the executable comparison |
 | `NonEmpty` refinement | `design/refinement-types.md` | Keep the container representation; method availability depends on preservation; distinguish refinements from semantic newtypes |
 | Tactics, certificate checking, proof kernel | `design/proof-automation.md` | Search is untrusted; accepted evidence is checked; unresolved work is not a proof |
@@ -35,3 +36,20 @@ When editing these examples, revisit the source design rather than invent syntax
 The user asked for less filler on the landing page. Section running heads name the feature in one mono label; the numbered `NN /` prefixes and the right-hand label triplets were removed because nothing referred to them. The repeated "types / effects / ownership" noun list, the hero tick track, the console's `C / 01` mark, and per-example "design example" tags are gone. The closing status aside and the hero development line were both removed under the v1 framing above. The primary hero action is "Get Cinch" (downloads); the first tutorial is the secondary action and the closing call to action. Packages and downloads stay reachable from the header and footer; the separate landing section for them was removed. Hot upgrades appear once, in the live-development section, rather than again in the runtime-contracts list.
 
 Write section copy as what the feature does for the reader, in plain sentences. Add a mono label only when it names something the heading does not.
+
+## Gadgets (2026-11-01)
+
+The user asked for more gadgets and animation beyond the console. Each one controls a quantity its section is about, and animation only plays when the reader acts:
+
+| Gadget | Section | What it changes |
+| --- | --- | --- |
+| Length byte dial | Hero console | The claimed payload length; cells, `1 + n` comparison, and `payload`'s result |
+| Version keys | Memory safety | Rejected and accepted `payload`, with the compiler's verdict |
+| Bit toggles | Type specialization | One `List Bool` value shown as cons cells and as packed bits |
+| Spliced value | Typed staging | The literal in the generator, the generated declaration, and its value |
+| Before / after fusion | Verified optimization | Two traversals and an intermediate list, or one traversal |
+| Element count and run | SIMD | How elements split into four-lane loads and a scalar tail |
+| Body / contract keys | Incremental builds | Which dependents rebuild; affected nodes pulse once |
+| Run an upgrade | Hot reload | Steps through prepare, coordinate, activate, retire |
+
+Toggles share the `.deck-keys` control: raised keys in a dark housing that drop into it when pressed, after the deck keys in the cassette-interior reference. The runtime-contracts list is set as a manual spread (numbered paragraphs with underlined run-in heads, two columns with a rule), and the documentation bay is a wall of cream modules in a dark recess with slot handles.

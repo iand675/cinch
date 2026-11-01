@@ -1,0 +1,17 @@
+module Main where
+  import Data.Bytes
+
+  -- One length byte, then that many payload bytes.
+  payload :: Bytes -> Option Bytes
+  payload msg =
+    if 0 < bytes-len msg then
+      let n = bytes-get msg 0 in
+      if 1 + n <= bytes-len msg then
+        let out = bytes-new n in
+        let _ = bytes-copy-range out msg 0 1 n in
+        Some out
+      else None
+    else None
+
+  main :: Int
+  main = 0

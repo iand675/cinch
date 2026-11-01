@@ -1,0 +1,88 @@
+---
+import { tokenize } from '../lib/highlight';
+import unchecked from '../data/examples/payload-unchecked.cinch?raw';
+import checked from '../data/examples/payload-checked.cinch?raw';
+import '../styles/technical-figure.css';
+import '../styles/bounds.css';
+
+// Both files pass through `cinch check` as stored (see design/landing-language-tour.md).
+// The page shows each module up to its `main`, keeping the compiler's line numbers.
+const shown = (source: string) => source.split('\n\n  main ::')[0].split('\n');
+const versions = [
+  {
+    id: 'unchecked', key: 'Trust the length', lines: shown(unchecked), mark: 10,
+    verdict: 'Rejected',
+    output: 'cinch: 10:15: the obligation `(1 + n) <= (Data.Bytes.bytes-len msg)` needs `Dec` evidence or a branch fact at this use […]: no evidence for `(1 + n) <= (Data.Bytes.bytes-len msg)` is in scope here',
+    note: 'The compiler’s message, shortened. The full text lists three ways to supply the evidence.',
+  },
+  {
+    id: 'checked', key: 'Check the length', lines: shown(checked), mark: 9,
+    verdict: 'Accepted',
+    output: 'cinch check payload.cinch',
+    note: 'No output: the module checks. Inside the branch, the bound is a known fact.',
+  },
+];
+const cells = (y: number, length: string) => [
+  `<rect class="msg-cell msg-length" x="150" y="${y}" width="64" height="50" />`,
+  ...[...'hello'].map((_, i) => `<rect class="msg-cell" x="${214 + i * 64}" y="${y}" width="64" height="50" />`),
+  `<text class="msg-value" x="182" y="${y + 32}" text-anchor="middle">${length}</text>`,
+  ...[...'hello'].map((ch, i) => `<text class="msg-value" x="${246 + i * 64}" y="${y + 32}" text-anchor="middle">${ch}</text>`),
+].join('');
+const dimension = (x1: number, x2: number, y: number, label: string, open = false) =>
+  `<g class="msg-dimension"><path d="M${x1} ${y - 6}V${y + 6}${open ? '' : `M${x2} ${y - 6}V${y + 6}`}" /><path d="M${x1 + 4} ${y}H${x2 - 4}" marker-start="url(#bounds-arrow)" marker-end="url(#bounds-arrow)" /><text x="${open ? x1 + 8 : (x1 + x2) / 2}" y="${y + 17}" text-anchor="${open ? 'start' : 'middle'}">${label}</text></g>`;
+---
+<section class="proof-section bounds-section" id="bounds" aria-labelledby="bounds-title">
+  <div class="section-index mono"><span>MEMORY SAFETY</span></div>
+  <div class="proof-grid bounds-grid">
+    <div class="proof-copy">
+      <h2 id="bounds-title">The Heartbleed bug <br /><em>does not compile.</em></h2>
+      <p>In 2014, OpenSSL answered each heartbeat message by copying back as many bytes as the message said it carried. It never checked that the message was that long. Attackers sent a few bytes, claimed sixty-four thousand, and read back server memory, private keys included.</p>
+      <p class="muted">In Cinch, <code>bytes-copy-range</code> states its bounds in its type: copying <code>n</code> bytes from offset 1 requires <code>1 + n &lt;= bytes-len msg</code>. The compiler accepts the call only where it can see that fact, and an ordinary <code>if</code> is enough. The check you write is the only one that runs.</p>
+      <a class="text-link" href="/learn/13-refinements-and-safe-operations/">Refinements and safe operations <span>↗</span></a>
+    </div>
+    <div class="source-bench">
+      <div class="deck-keys" role="group" aria-label="Version of payload">
+        {versions.map((v, i) => <button type="button" data-bounds-key={v.id} aria-pressed={i === 0 ? 'true' : 'false'} aria-controls={`bounds-${v.id}`}><span class="mono">0{i + 1}</span>{v.key}</button>)}
+      </div>
+      {versions.map((v, i) => (
+        <div class:list={['source-panel', `is-${v.id}`]} id={`bounds-${v.id}`} data-bounds-panel={v.id} hidden={i !== 0}>
+          <div class="source-head mono"><span>payload.cinch</span><span class="source-verdict">{v.verdict}</span></div>
+          <pre aria-label={`payload.cinch, ${v.key.toLowerCase()} version`}><code>{v.lines.map((line, n) => <span class:list={['source-line', { 'is-marked': n + 1 === v.mark }]}><span class="source-gutter" aria-hidden="true">{n + 1}</span>{tokenize(line).map(t => <span class={t.kind && `excerpt-${t.kind}`}>{t.text}</span>)}{'\n'}</span>)}</code></pre>
+          <div class="source-output"><code>{v.output}</code><p>{v.note}</p></div>
+        </div>
+      ))}
+    </div>
+  </div>
+  <figure class="technical-figure bounds-figure" aria-labelledby="bounds-figure-caption">
+    <div class="figure-running-head"><span>FIG. 1</span><span>A HEARTBEAT MESSAGE</span></div>
+    <div class="figure-drawing">
+      <svg viewBox="0 0 780 410" role="img" aria-labelledby="bounds-figure-title bounds-figure-desc">
+        <title id="bounds-figure-title">Two six-byte heartbeat messages</title>
+        <desc id="bounds-figure-desc">Each message is a length byte followed by five payload bytes, h e l l o. In the first, the length byte is 3: one plus three is four, which fits within the six bytes, so three bytes are copied. In the second, the length byte is 200: one plus two hundred is far beyond six bytes, so a copy would continue past the end of the message.</desc>
+        <defs>
+          <marker id="bounds-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1 1L7 4 1 7" fill="none" stroke="currentColor" /></marker>
+          <pattern id="bounds-hatch" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(35)"><path d="M0 0V5" stroke="currentColor" stroke-width=".7" opacity=".45" /></pattern>
+        </defs>
+        <g class="msg-tag"><text x="40" y="104">(a)</text><text class="msg-small" x="40" y="122">CHECK PASSES</text><text x="40" y="294">(b)</text><text class="msg-small" x="40" y="312">CHECK FAILS</text></g>
+        <g class="msg-label"><text x="182" y="40" text-anchor="middle">LENGTH BYTE</text><text x="310" y="40" text-anchor="middle">COPIED</text><text x="182" y="230" text-anchor="middle">LENGTH BYTE</text><text x="636" y="230" text-anchor="middle">PAST THE END OF msg</text></g>
+        <g class="msg-leader"><path d="M182 46V76" marker-end="url(#bounds-arrow)" /><path d="M222 54H398M222 54V76M398 54V76M310 46V54" /><path d="M182 236V266" marker-end="url(#bounds-arrow)" /><path d="M636 236V266" marker-end="url(#bounds-arrow)" /></g>
+        <rect class="msg-copied" x="214" y="78" width="192" height="50" fill="url(#bounds-hatch)" />
+        <rect class="msg-copied" x="214" y="268" width="320" height="50" fill="url(#bounds-hatch)" />
+        <path class="msg-beyond" d="M534 268H730L722 280 738 293 722 306 730 318H534Z" fill="url(#bounds-hatch)" />
+        <Fragment set:html={cells(78, '3') + cells(268, '200')} />
+        <Fragment set:html={dimension(150, 406, 146, '1 + n = 4') + dimension(150, 534, 184, 'bytes-len msg = 6')} />
+        <Fragment set:html={dimension(150, 760, 336, '1 + n = 201', true) + dimension(150, 534, 374, 'bytes-len msg = 6')} />
+      </svg>
+    </div>
+    <figcaption id="bounds-figure-caption"><strong>Figure 1. A heartbeat message.</strong> A length byte <code>n</code>, then the payload. In (a), <code>1 + n</code> fits inside the message, so the first three payload bytes are copied. In (b), the length byte claims 200 bytes in a six-byte message. OpenSSL copied anyway and sent back whatever memory followed. Cinch’s <code>payload</code> returns <code>None</code>.</figcaption>
+  </figure>
+</section>
+<script>
+  const bench = document.querySelector('#bounds .source-bench');
+  const keys = bench?.querySelectorAll<HTMLButtonElement>('[data-bounds-key]');
+  const panels = bench?.querySelectorAll<HTMLElement>('[data-bounds-panel]');
+  keys?.forEach((key) => key.addEventListener('click', () => {
+    keys.forEach((other) => other.setAttribute('aria-pressed', String(other === key)));
+    panels?.forEach((panel) => { panel.hidden = panel.dataset.boundsPanel !== key.dataset.boundsKey; });
+  }));
+</script>

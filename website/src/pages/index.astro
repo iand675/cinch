@@ -2,7 +2,7 @@
 import Brand from '../components/Brand.astro';
 import HeroHeadline from '../components/HeroHeadline.astro';
 import ContractConsole from '../components/ContractConsole.astro';
-import TechnicalFigure from '../components/TechnicalFigure.astro';
+import BoundsSection from '../components/BoundsSection.astro';
 import LanguageTour from '../components/LanguageTour.astro';
 import LiveEvolution from '../components/LiveEvolution.astro';
 import SiteNavigation from '../components/SiteNavigation.astro';
@@ -58,26 +58,13 @@ const features = [
         <nav class="language-jump" aria-label="Explore language features"><a href="#proofs">Proofs and refinements ↓</a><a href="#specialization">Type specialization ↓</a><a href="#staging">Typed staging ↓</a><a href="#optimization">Verified optimization ↓</a><a href="#live-development">Incremental builds and hot reload ↓</a><a href="#runtime-contracts">Runtime contracts ↓</a></nav>
       </section>
       <div class="panel-joint" aria-hidden="true"><span></span><i></i><span></span></div>
-      <section class="proof-section" aria-labelledby="proof-title">
-        <div class="section-index mono"><span>DEPENDENT TYPES</span></div>
-        <div class="proof-grid">
-          <div class="proof-copy"><h2 id="proof-title">A first element <br />requires <br /><em>a nonempty vector.</em></h2><p>The input has length n + 1. An empty vector has length 0, so it cannot be passed to this function.</p><p class="muted">Pattern matching leaves one constructor to handle. The returned reference borrows from the input and cannot outlive it.</p><a class="text-link" href="/learn/14-dependent-types-and-proofs/#vectors-retain-a-length">Read the example in context <span>↗</span></a></div>
-          <div class="code-window"><div class="code-toolbar mono"><span><i></i> first.cinch</span></div><pre aria-label="Cinch dependent type example"><code><span class="code-comment">-- Borrow the first element of a nonempty vector.</span>
-<span class="code-name">first</span> <span class="code-punct">::</span> <span class="code-keyword">forall</span> a n region.
-  <span class="code-type">Ref</span> region (<span class="code-type">Vec</span> (n + <span class="code-number">1</span>) a)
-  <span class="code-punct">-&gt;</span> <span class="code-type">Ref</span> region a
-
-<span class="code-name">first</span> xs = <span class="code-keyword">case</span> xs <span class="code-keyword">of</span>
-  <span class="code-type">Cons</span> x rest <span class="code-punct">-&gt;</span> x</code></pre><div class="code-note"><span class="proof-check">↳</span><p><strong>Why there is no Nil branch</strong><br /><code>Nil</code> has length 0. This input requires <code>n + 1</code>.</p></div></div>
-        </div>
-        <TechnicalFigure id="landing-vector-figure" />
-      </section>
+      <BoundsSection />
       <LanguageTour />
       <LiveEvolution />
       <section class="feature-section light-section" id="runtime-contracts" aria-labelledby="features-title">
         <div class="section-index mono"><span>RUNTIME CONTRACTS</span></div>
         <h2 id="features-title">Carry the contract<br />into a running system.</h2>
-        <div class="feature-list">{features.map(feature => <article class="feature-row"><span class="feature-number mono" aria-hidden="true">{feature.n}</span><div><h3>{feature.title}</h3></div><div><p>{feature.text}</p><a class="text-link" href={feature.href}>{feature.link}<span>↗</span></a></div></article>)}</div>
+        <div class="manual-spread"><p class="manual-head mono" aria-hidden="true"><span></span>CONTRACTS THAT HOLD WHILE THE PROGRAM RUNS<span></span></p><ol class="manual-paragraphs">{features.map(feature => <li><h3><span class="manual-number mono" aria-hidden="true">({Number(feature.n)})</span> <span class="manual-runin">{feature.title}.</span></h3><p>{feature.text}</p><a class="manual-ref" href={feature.href}>{feature.link} <span aria-hidden="true">↗</span></a></li>)}</ol></div>
       </section>
       <section class="reading-section" aria-labelledby="reading-title">
         <div class="section-index mono"><span>DOCUMENTATION</span></div>
