@@ -2200,23 +2200,23 @@ fn collect_idx_reads(t: &ITerm, out: &mut Vec<String>) {
 }
 
 /// Whether every occurrence of the binder in an index term sits under
-/// a baked measure (`length`/`toNat`, the compiler's own measure
-/// vocabulary): a measure atom over a non-numeric container reads the
+/// a baked measure (`length`/`toNat`) or the checked byte-length
+/// primitive over an actual Bytes carrier: a measure atom over a non-numeric container reads the
 /// binder's value through the measure, never bare and never through a
 /// source function a shadowing module could lie with.
-fn measure_covers(t: &ITerm, binder: &str) -> bool {
+fn measure_covers(t: &ITerm, binder: &str, byte_length: bool) -> bool {
     match t {
         ITerm::Var(n) => n != binder,
         ITerm::Num(_) | ITerm::Fn(_) | ITerm::MVar(_) => true,
-        ITerm::Lam(_, body) => measure_covers(body, binder),
-        ITerm::Bin(_, a, b) => measure_covers(a, binder) && measure_covers(b, binder),
+        ITerm::Lam(_, body) => measure_covers(body, binder, byte_length),
+        ITerm::Bin(_, a, b) => measure_covers(a, binder, byte_length) && measure_covers(b, binder, byte_length),
         ITerm::App(f, args) => {
             let measured = matches!(
                 &**f,
                 ITerm::Fn(k) if k == "<builtin>.length" || k == "<builtin>.toNat"
-            );
-            args.iter().all(|a| measure_covers(a, binder) || (measured && is_binder(a, binder)))
-                && measure_covers(f, binder)
+            ) || (byte_length && args.len() == 1 && matches!(&**f, ITerm::Fn(k) if k == BYTE_LENGTH_INDEX));
+            args.iter().all(|a| measure_covers(a, binder, byte_length) || (measured && is_binder(a, binder)))
+                && measure_covers(f, binder, byte_length)
         }
     }
 }
@@ -6090,7 +6090,7 @@ impl Checker {
                             // A measure atom over any container: the
                             // binder may appear only under the baked
                             // measures (`length xs > 100`).
-                            if measure_covers(a, binder) && measure_covers(b, binder) {
+                            if measure_covers(a, binder, matches!(base, Ty::Bytes)) && measure_covers(b, binder, matches!(base, Ty::Bytes)) {
                                 Ok(())
                             } else {
                                 Err(Error::at(

@@ -36,7 +36,9 @@ fn checked_anonymous_contracts_survive_facades() {
     assert!(remainder.scheme.contains("refined") && remainder.scheme.contains("Algebra.Arithmetic.NonZero"), "{}", remainder.scheme);
     assert!(remainder.nominals.iter().any(|row| row.identity == "Algebra.Arithmetic.NonZero" && row.refinement.is_some()));
     let bytes = read("Data.Bytes");
-    assert!(get(&bytes, "bytes-new").is_none(), "unknown result-predicate calls require checked measure contracts");
+    let allocated = get(&bytes, "bytes-new").expect("checked byte-length primitive closes the allocation promise");
+    assert_eq!(allocated.scheme, "((n :: Nat) -> (refined ((b.bytesLen cinch-result) == n) Bytes))");
+    assert!(allocated.nominals.is_empty(), "kernel observation must not invent a nominal type");
     let mut changed = facade.clone();
     changed.exports.values.iter_mut().find(|v| v.name == "bound").unwrap().resolved.as_mut().unwrap().scheme = bounded.scheme.replace(" <= ", " < ");
     assert_ne!(changed.iface_hash(), facade.iface_hash());

@@ -106,5 +106,6 @@
   "full_integration_matrix_complete": false,
   "self_built_frontend": false,
   "bootstrap_complete": false,
-  "remaining": "Broader Cinch checker gates and19 additional/repeated integration targets; fresh stages; eventual self-built frontend parity and stage2/3 fixed point."
+  "remaining": "Broader Cinch checker gates and19 additional/repeated integration targets; fresh stages; eventual self-built frontend parity and stage2/3 fixed point.",
+  "historical_scope": "Historical earlier Native checkpoint evidence only; not the pending 158-target matrix for this checkpoint."
 }

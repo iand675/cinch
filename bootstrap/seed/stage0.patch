@@ -361,6 +361,38 @@
  }
  
  /// One module parameter of a parameterized module (`module M (x :: T)
+@@ -2198,23 +2200,23 @@
+ }
+ 
+ /// Whether every occurrence of the binder in an index term sits under
+-/// a baked measure (`length`/`toNat`, the compiler's own measure
+-/// vocabulary): a measure atom over a non-numeric container reads the
++/// a baked measure (`length`/`toNat`) or the checked byte-length
++/// primitive over an actual Bytes carrier: a measure atom over a non-numeric container reads the
+ /// binder's value through the measure, never bare and never through a
+ /// source function a shadowing module could lie with.
+-fn measure_covers(t: &ITerm, binder: &str) -> bool {
++fn measure_covers(t: &ITerm, binder: &str, byte_length: bool) -> bool {
+     match t {
+         ITerm::Var(n) => n != binder,
+         ITerm::Num(_) | ITerm::Fn(_) | ITerm::MVar(_) => true,
+-        ITerm::Lam(_, body) => measure_covers(body, binder),
+-        ITerm::Bin(_, a, b) => measure_covers(a, binder) && measure_covers(b, binder),
++        ITerm::Lam(_, body) => measure_covers(body, binder, byte_length),
++        ITerm::Bin(_, a, b) => measure_covers(a, binder, byte_length) && measure_covers(b, binder, byte_length),
+         ITerm::App(f, args) => {
+             let measured = matches!(
+                 &**f,
+                 ITerm::Fn(k) if k == "<builtin>.length" || k == "<builtin>.toNat"
+-            );
+-            args.iter().all(|a| measure_covers(a, binder) || (measured && is_binder(a, binder)))
+-                && measure_covers(f, binder)
++            ) || (byte_length && args.len() == 1 && matches!(&**f, ITerm::Fn(k) if k == BYTE_LENGTH_INDEX));
++            args.iter().all(|a| measure_covers(a, binder, byte_length) || (measured && is_binder(a, binder)))
++                && measure_covers(f, binder, byte_length)
+         }
+     }
+ }
 @@ -2664,6 +2666,12 @@
      param_inst_defs: HashMap<(String, String), crate::core::InstanceDef>,
      /// Each module's own fixity declarations, for its interface.
@@ -449,6 +481,15 @@
                  Err(_) => {
                      return Err(Error::at(
                          span,
+@@ -6058,7 +6090,7 @@
+                             // A measure atom over any container: the
+                             // binder may appear only under the baked
+                             // measures (`length xs > 100`).
+-                            if measure_covers(a, binder) && measure_covers(b, binder) {
++                            if measure_covers(a, binder, matches!(base, Ty::Bytes)) && measure_covers(b, binder, matches!(base, Ty::Bytes)) {
+                                 Ok(())
+                             } else {
+                                 Err(Error::at(
 @@ -7460,6 +7492,7 @@
                          .collect();
                      let constraints = self.kind_constraints.borrow().clone();
@@ -898,7 +939,21 @@
                          self.add_value(
                              ValueInfo {
                                  module: module.clone(),
-@@ -3301,6 +3335,7 @@
+@@ -3224,6 +3258,13 @@
+                     }
+                     vars.push(r.binder.text.clone());
+                     let pred = self.conv_prop(&r.pred, &vars)?;
++                    // A defining refinement is checked before any use of
++                    // its constructor. Its actual declaration telescope,
++                    // not advisory kind-use notes, supplies operand types.
++                    let mut observation_scope: HashMap<String, Ty> = params.iter().zip(&param_kinds)
++                        .filter_map(|(n, k)| match k { ParamKind::Val(t) => Some((n.clone(), t.clone())), _ => None }).collect();
++                    observation_scope.insert(r.binder.text.clone(), base.clone());
++                    self.check_length_prop(&pred, &observation_scope, r.pred.span())?;
+                     if !pred.mentions(&r.binder.text) {
+                         return Err(Error::at(
+                             r.pred.span(),
+@@ -3301,6 +3342,7 @@
                          };
                      }
                      let scheme = Scheme {
@@ -906,7 +961,7 @@
              obligs: Vec::new(),
                          params: type_params,
                          idx_params,
-@@ -3510,6 +3545,7 @@
+@@ -3510,6 +3552,7 @@
                          };
                      }
                      let scheme = Scheme {
@@ -914,7 +969,7 @@
              obligs: Vec::new(),
                          params: type_params,
                          idx_params,
-@@ -3677,6 +3713,7 @@
+@@ -3677,6 +3720,7 @@
                          };
                      }
                      let scheme = Scheme {
@@ -922,7 +977,7 @@
              obligs: Vec::new(),
                          params: type_params,
                          idx_params,
-@@ -3749,11 +3786,14 @@
+@@ -3749,11 +3793,14 @@
                      }
                      self.kind_constraints.borrow_mut().clear();
                      let mut methods: Vec<(String, Scheme)> = Vec::new();
@@ -937,7 +992,7 @@
                          let mut rest = mty;
                          let mut own_ctx: Vec<(String, ClassApp)> = Vec::new();
                          loop {
-@@ -3761,6 +3801,7 @@
+@@ -3761,6 +3808,7 @@
                                  ast::Type::Forall(binders, body, _) => {
                                      for b in binders {
                                          extra.push(b.name.text.clone());
@@ -945,7 +1000,7 @@
                                      }
                                      rest = body;
                                  }
-@@ -3817,6 +3858,7 @@
+@@ -3817,6 +3865,7 @@
                          methods.push((
                              mname.text.clone(),
                              Scheme {
@@ -953,7 +1008,7 @@
              obligs: Vec::new(),
                                  params: type_params,
                                  idx_params: Vec::new(),
-@@ -3828,6 +3870,29 @@
+@@ -3828,6 +3877,29 @@
                                  ty,
                              },
                          ));
@@ -983,7 +1038,7 @@
                          let info = ValueInfo {
                              module: module.clone(),
                              name: mname.text.clone(),
-@@ -3917,6 +3982,7 @@
+@@ -3917,6 +3989,7 @@
                              .filter(|p| !row_params.contains(p) && !region_params.contains(p))
                              .collect();
                          let scheme = Scheme {
@@ -991,7 +1046,7 @@
              obligs: Vec::new(),
                              params: type_params,
                              idx_params: Vec::new(),
-@@ -3997,7 +4063,14 @@
+@@ -3997,7 +4070,14 @@
                      self.qualified_types
                          .insert((module.clone(), sig.name.text.clone()), tk);
                      self.sigs.entry(sig.name.text.clone()).or_default().push(info.clone());
@@ -1007,7 +1062,7 @@
                  }
                  ast::Decl::Effect(eff) => {
                      if self.effects.contains_key(&eff.name.text) {
-@@ -4087,6 +4160,7 @@
+@@ -4087,6 +4167,7 @@
                              .filter(|p| !row_params.contains(p) && !region_params.contains(p))
                              .collect();
                          let scheme = Scheme {
@@ -1015,7 +1070,7 @@
              obligs: Vec::new(),
                              params: type_params,
                              idx_params: Vec::new(),
-@@ -4825,6 +4899,7 @@
+@@ -4825,6 +4906,7 @@
                  own_obligs = s.obligs;
              }
              let scheme = Scheme {
@@ -1023,7 +1078,7 @@
                  obligs: own_obligs,
                  params: extra,
                  idx_params: Vec::new(),
-@@ -5343,6 +5418,7 @@
+@@ -5343,6 +5425,7 @@
                      implicit: bi.implicit,
                      base: false,
                      method_obligs: bi.method_obligs.clone(),
@@ -1031,7 +1086,7 @@
                  });
                  self.instances.entry(bi.target.class.clone()).or_default().push(idx);
                  unit_insts.push(UnitInst { inst_name: bi.name.clone() });
-@@ -9954,6 +10030,7 @@
+@@ -9954,6 +10037,7 @@
              abi: "ccall".to_string(),
              external: f.symbol.clone(),
              ty: render_scheme(&Scheme {
@@ -1039,7 +1094,7 @@
              obligs: Vec::new(),
                  params: Vec::new(),
                  idx_params: Vec::new(),
-@@ -14734,17 +14811,31 @@
+@@ -14734,17 +14818,31 @@
      }
  }
  
@@ -1077,7 +1132,7 @@
          .chain(s.row_params.iter().cloned())
          .chain(s.region_params.iter().cloned())
          .collect();
-@@ -14756,20 +14847,131 @@
+@@ -14756,20 +14854,131 @@
          }
          out.push_str(". ");
      }
@@ -1215,7 +1270,7 @@
  }
  
  /// A module's declared import names, keyed by their full dotted names.
-@@ -15011,6 +15213,7 @@
+@@ -15011,6 +15220,7 @@
          let pending = std::mem::take(&mut self.pending_instance_heads);
          for (module, inst) in pending {
              self.build_scope(&module, false);
@@ -1223,7 +1278,7 @@
              let params: Vec<String> = inst.params.iter().map(|p| p.text.clone()).collect();
              let mut ctx: Vec<InstCtx> = Vec::new();
              for c in &inst.ctx {
-@@ -15034,6 +15237,7 @@
+@@ -15034,6 +15244,7 @@
                      return Err(e);
                  }
              };
@@ -1231,7 +1286,7 @@
              if class == "Copy" {
                  return Err(Error::at(
                      inst.span,
-@@ -15069,6 +15273,7 @@
+@@ -15069,6 +15280,7 @@
              // quantifier, no constraint, and its type must be the class
              // method's at this instance (checked with the body).
              let mut method_obligs: Vec<(usize, String, Vec<PTerm>)> = Vec::new();
@@ -1239,7 +1294,7 @@
              for (mname, mty) in &inst.method_sigs {
                  let midx = self.sigs.get(&class).and_then(|ss| {
                      ss.iter().find_map(|s| s.methods.iter().position(|(m, _)| *m == mname.text))
-@@ -15112,10 +15317,11 @@
+@@ -15112,10 +15324,11 @@
                      ));
                  }
                  method_obligs.push((midx, mname.text.clone(), preds));
@@ -1252,7 +1307,7 @@
                  module: module.clone(),
                  name: inst.name.text.clone(),
                  params,
-@@ -15128,7 +15334,10 @@
+@@ -15128,7 +15341,10 @@
                  // published per instantiation.
                  base: self.param_modules.contains(&module),
                  method_obligs,
@@ -1264,7 +1319,7 @@
              self.instances.entry(class).or_default().push(idx);
          }
          Ok(())
-@@ -15212,12 +15421,64 @@
+@@ -15212,12 +15428,64 @@
          Ok(())
      }
  
@@ -1329,7 +1384,7 @@
      ) -> crate::interface::Iface {
          use crate::interface::*;
          let mut iface = Iface::new(module, source_hash);
-@@ -15230,9 +15491,9 @@
+@@ -15230,9 +15498,9 @@
          // The export surface (surface grammar local amendments section
          // 11): with `export` declarations exactly the names their items
          // resolve to, re-exports included; the declared names as before
@@ -1342,7 +1397,7 @@
          let mut surface: Vec<(String, SurfaceName)> = match self.module_surface.get(module) {
              Some(sm) => sm
                  .iter()
-@@ -15256,10 +15517,11 @@
+@@ -15256,10 +15524,11 @@
          for (local, d) in &surface {
              if let Some(v) = self.qualified.get(&(d.module.clone(), d.name.clone())) {
                  match &v.kind {
@@ -1355,7 +1410,7 @@
                              symbol: format!("{}.{}", d.module, d.name),
                              arity: (v.scheme.ty.arity()
                                  + v.scheme.ctx.len()
-@@ -15357,6 +15619,9 @@
+@@ -15357,6 +15626,9 @@
                              }) {
                                  ctors.push(CtorExport {
                                      name: ctor_local.clone(),
@@ -1365,7 +1420,7 @@
                                      tag: *tag as u64,
                                      fields: fields.clone(),
                                      erased: field_erased.clone(),
-@@ -15373,12 +15638,31 @@
+@@ -15373,12 +15645,31 @@
                          params = r.params.clone();
                      }
                  }
@@ -1398,7 +1453,7 @@
                  });
                  // Computed layout facts (attribute annotations
                  // specification section 4.3): part of the contract
-@@ -15399,67 +15683,37 @@
+@@ -15399,67 +15690,37 @@
                  layout.name = local.clone();
                  iface.layouts.push(layout);
              }
@@ -1487,7 +1542,7 @@
                  ctx: i
                      .ctx
                      .iter()
-@@ -15475,9 +15729,68 @@
+@@ -15475,9 +15736,68 @@
                  implicit: i.implicit,
              });
          }
@@ -1559,7 +1614,7 @@
              }
          }
          let mut prims = Vec::new();
-@@ -15549,10 +15862,155 @@
+@@ -15549,10 +15869,155 @@
      }
  }
  
@@ -1716,7 +1771,7 @@
  /// declarations) for the artifact manifest.
  pub fn check_program_multi(
      prelude: &[ast::Module],
-@@ -15924,7 +16382,7 @@
+@@ -15924,7 +16389,7 @@
      // Interfaces in dependency order: imports are known when built.
      let mut ifaces = Vec::new();
      let mut built: Vec<(String, String)> = Vec::new(); // (module, iface_hash)
@@ -1725,7 +1780,7 @@
          let mut refs: Vec<(String, String)> = Vec::new();
          for i in imports {
              if refs.iter().any(|(m, _)| m == i) {
-@@ -15938,24 +16396,25 @@
+@@ -15938,24 +16403,25 @@
              .get(module)
              .cloned()
              .unwrap_or_default();
@@ -1765,7 +1820,7 @@
      }
      let diags = std::mem::take(&mut c.diags);
      // P21's probe (the REPL is backed by the analysis layer): evaluate
-@@ -18747,7 +19206,13 @@
+@@ -18747,7 +19213,13 @@
          use crate::core::{ArithMode, ArithOp, BitOp, CmpOp, IntOp, NatOp, PrimOp, ShiftOp};
          match op {
              PrimOp::Nat(nat) => {
@@ -1780,7 +1835,7 @@
                  let b = if args.len() > 1 { big_of(&args[1], "`Nat`")? } else { Big::zero() };
                  Ok(match nat {
                      NatOp::Add => big_value(a.add(&b), true),
-@@ -18786,7 +19251,11 @@
+@@ -18786,7 +19258,11 @@
                  })
              }
              PrimOp::Int(int) => {
@@ -1793,7 +1848,7 @@
                  let b = if args.len() > 1 { big_of(&args[1], "`Int`")? } else { Big::zero() };
                  Ok(match int {
                      IntOp::Add => big_value(a.add(&b), false),
-@@ -18814,6 +19283,16 @@
+@@ -18814,6 +19290,16 @@
                          big_value(a, true)
                      }
                  })
@@ -1810,7 +1865,7 @@
              }
              PrimOp::EqBool => Ok(Value::Bool(
                  (word_of(&args[0], "`Bool`")? != 0) == (word_of(&args[1], "`Bool`")? != 0),
-@@ -20654,6 +21133,7 @@
+@@ -20654,6 +21140,7 @@
                  ctx.push((format!("c{i}"), ClassApp { class: class.class, args }));
              }
              crate::types::Scheme {
@@ -1820,7 +1875,7 @@
                  idx_params: Vec::new(),
 --- /dev/null
 +++ b/compiler/src/check_interface.rs
-@@ -0,0 +1,523 @@
+@@ -0,0 +1,534 @@
 +// Definition-site contracts for rank-one values and class dictionaries.
 +// Kernel regions and closed builtin effects retain their checked syntax.
 +// Unsupported dependent and open-row schemes keep `resolved: null`.
@@ -1834,6 +1889,55 @@
 +}
 +
 +impl Checker {
++    // Portable observation terms use a closed kernel wire operation. It
++    // is emitted only for the checked primitive identity, never a function
++    // spelling, and only over actual buffer-typed binders in this scope.
++    fn interface_carrier_is(&self, ty: &Ty, bytes: bool, seen: &mut Vec<Ty>) -> bool {
++        let direct = if bytes { matches!(ty, Ty::Bytes) } else { matches!(ty, Ty::Nat | Ty::Int) };
++        if direct { return true }
++        if !matches!(ty, Ty::Adt(..)) || seen.contains(ty) { return false }
++        seen.push(ty.clone());
++        self.refine_view(ty).and_then(|v| v.base)
++            .is_some_and(|base| self.interface_carrier_is(&base, bytes, seen))
++    }
++
++    fn portable_index(term: &ITerm, numeric: &[String], buffers: &[String]) -> Option<ITerm> {
++        Some(match term {
++            ITerm::Var(n) if numeric.contains(n) => term.clone(),
++            ITerm::Num(_) => term.clone(),
++            ITerm::Bin(op, a, b) => ITerm::Bin(*op,
++                Box::new(Self::portable_index(a, numeric, buffers)?),
++                Box::new(Self::portable_index(b, numeric, buffers)?)),
++            ITerm::App(f, args) if matches!(&**f, ITerm::Fn(n) if n == BYTE_LENGTH_INDEX) => {
++                let [ITerm::Var(n)] = args.as_slice() else { return None };
++                if !buffers.contains(n) { return None }
++                ITerm::app_fn("b.bytesLen", vec![ITerm::Var(n.clone())])
++            }
++            _ => return None,
++        })
++    }
++
++    fn portable_predicate(term: &PTerm, numeric: &[String], buffers: &[String], negation: bool) -> Option<PTerm> {
++        Some(match term {
++            PTerm::Cmp(op, a, b) => PTerm::Cmp(*op,
++                Box::new(Self::portable_index(a, numeric, buffers)?),
++                Box::new(Self::portable_index(b, numeric, buffers)?)),
++            PTerm::Eq(a, b) if negation => PTerm::Eq(
++                Box::new(Self::portable_index(a, numeric, buffers)?),
++                Box::new(Self::portable_index(b, numeric, buffers)?)),
++            PTerm::And(a, b) => PTerm::And(
++                Box::new(Self::portable_predicate(a, numeric, buffers, negation)?),
++                Box::new(Self::portable_predicate(b, numeric, buffers, negation)?)),
++            PTerm::Or(a, b) => PTerm::Or(
++                Box::new(Self::portable_predicate(a, numeric, buffers, negation)?),
++                Box::new(Self::portable_predicate(b, numeric, buffers, negation)?)),
++            PTerm::Not(p) if negation => PTerm::Not(Box::new(Self::portable_predicate(p, numeric, buffers, true)?)),
++            PTerm::Pred(PredFn::NonZero, value) => PTerm::Pred(PredFn::NonZero,
++                Box::new(Self::portable_index(value, numeric, buffers)?)),
++            _ => return None,
++        })
++    }
++
 +    // Inspect supported kind syntax without calling conversion again:
 +    // metadata capture must not add new native inference constraints.
 +    fn source_contract_kind(&self, kind: &ast::Type) -> Option<ParamKind> {
@@ -2142,33 +2246,17 @@
 +                    .is_some_and(|base| mathematical(checker, &base, seen))
 +            }
 +            let mut numeric = Vec::new();
++            let mut buffers = Vec::new();
++            if self.interface_carrier_is(carrier, true, &mut Vec::new()) { buffers.push(result.clone()); }
 +            if mathematical(self, carrier, &mut Vec::new()) { numeric.push(result); }
 +            for (position, (name, ty)) in arguments.iter().enumerate() {
 +                if let Some(name) = name {
 +                    predicate = predicate.subst(&format!("$a{position}"), &ITerm::Var(name.clone()));
 +                    if mathematical(self, ty, &mut Vec::new()) { numeric.push(name.clone()); }
++                    if self.interface_carrier_is(ty, true, &mut Vec::new()) { buffers.push(name.clone()); }
 +                }
 +            }
-+            fn index(value: &ITerm, numeric: &[String]) -> bool {
-+                match value {
-+                    ITerm::Var(name) => numeric.contains(name),
-+                    ITerm::Num(_) => true,
-+                    ITerm::Bin(_, a, b) => index(a, numeric) && index(b, numeric),
-+                    _ => false,
-+                }
-+            }
-+            fn closed(value: &PTerm, numeric: &[String]) -> bool {
-+                match value {
-+                    PTerm::Cmp(_, a, b) => index(a, numeric) && index(b, numeric),
-+                    PTerm::And(a, b) | PTerm::Or(a, b) => closed(a, numeric) && closed(b, numeric),
-+                    PTerm::Pred(PredFn::NonZero, value) => index(value, numeric),
-+                    _ => false,
-+                }
-+            }
-+            // A machine carrier, float, call, or unknown operand yields
-+            // no portable mathematical fact. Structural NonZero stays
-+            // its own proposition rather than being rewritten to /= 0.
-+            if !closed(&predicate, &numeric) { return None }
++            let predicate = Self::portable_predicate(&predicate, &numeric, &buffers, false)?;
 +            return Some(format!("(refined ({predicate}) {carrier_text})"));
 +        }
 +        match (source, checked) {
@@ -2211,6 +2299,7 @@
 +        let mut checked = &scheme.ty;
 +        let mut names: Vec<Option<String>> = Vec::new();
 +        let mut numeric: Vec<String> = Vec::new();
++        let mut buffers: Vec<String> = Vec::new();
 +        loop {
 +            let (name, result) = match source {
 +                ast::Type::DepFun(name, _, None, _, result, _) => (Some(name.text.clone()), &**result),
@@ -2224,30 +2313,12 @@
 +            };
 +            if let Some(name) = &name {
 +                if names.iter().any(|prior| prior.as_ref() == Some(name)) { return None }
-+                if matches!(domain, Ty::Nat | Ty::Int) { numeric.push(name.clone()); }
++                if self.interface_carrier_is(domain, false, &mut Vec::new()) { numeric.push(name.clone()); }
++                if self.interface_carrier_is(domain, true, &mut Vec::new()) { buffers.push(name.clone()); }
 +            }
 +            names.push(name);
 +            source = result;
 +            checked = codomain;
-+        }
-+        fn index(term: &ITerm, numeric: &[String]) -> bool {
-+            match term {
-+                ITerm::Var(name) => numeric.contains(name),
-+                ITerm::Num(_) => true,
-+                ITerm::Bin(_, a, b) => index(a, numeric) && index(b, numeric),
-+                _ => false,
-+            }
-+        }
-+        fn predicate(term: &PTerm, numeric: &[String]) -> bool {
-+            match term {
-+                PTerm::Cmp(_, a, b) => index(a, numeric) && index(b, numeric),
-+                // Preserve the checked structural proposition itself.
-+                // Calls and other structural vocabularies still need
-+                // their own operand contracts; a spelling is not proof.
-+                PTerm::Pred(PredFn::NonZero, value) => index(value, numeric),
-+                PTerm::And(a, b) | PTerm::Or(a, b) => predicate(a, numeric) && predicate(b, numeric),
-+                _ => false,
-+            }
 +        }
 +        let mut out = Vec::new();
 +        for obligation in &scheme.obligs {
@@ -2258,8 +2329,7 @@
 +                    rebound = rebound.subst(&format!("$a{position}"), &ITerm::Var(name.clone()));
 +                }
 +            }
-+            if !predicate(&rebound, &numeric) { return None }
-+            out.push(rebound.to_string());
++            out.push(Self::portable_predicate(&rebound, &numeric, &buffers, false)?.to_string());
 +        }
 +        Some(out)
 +    }
@@ -2293,27 +2363,23 @@
 +            Ty::Param(name) if r.params.contains(name) => name.clone(),
 +            _ => return None,
 +        };
-+        let mut names = r.params.clone();
-+        names.push(r.binder.clone());
-+        fn index(value: &ITerm, names: &[String]) -> bool {
-+            match value {
-+                ITerm::Var(name) => names.contains(name),
-+                ITerm::Num(_) => true,
-+                ITerm::Bin(_, a, b) => index(a, names) && index(b, names),
-+                _ => false,
++        let mut numeric = Vec::new();
++        let mut buffers = Vec::new();
++        for (name, kind) in r.params.iter().zip(&info.param_kinds) {
++            if let ParamKind::Val(ty) = kind {
++                if self.interface_carrier_is(ty, false, &mut Vec::new()) { numeric.push(name.clone()); }
++                if self.interface_carrier_is(ty, true, &mut Vec::new()) { buffers.push(name.clone()); }
 +            }
 +        }
-+        fn predicate(value: &PTerm, names: &[String]) -> bool {
-+            match value {
-+                PTerm::Cmp(_, a, b) | PTerm::Eq(a, b) => index(a, names) && index(b, names),
-+                PTerm::And(a, b) | PTerm::Or(a, b) => predicate(a, names) && predicate(b, names),
-+                PTerm::Not(body) => predicate(body, names),
-+                PTerm::Pred(PredFn::NonZero, value) => index(value, names),
-+                _ => false,
-+            }
++        // A generic numeric template retains its historical parameter
++        // carrier. It may not use that abstract carrier as a byte buffer.
++        if matches!(&r.base, Ty::Param(n) if r.params.contains(n)) || self.interface_carrier_is(&r.base, false, &mut Vec::new()) {
++            numeric.push(r.binder.clone());
 +        }
-+        predicate(&r.pred, &names).then(|| crate::interface::RefinementExport {
-+            binder: r.binder.clone(), carrier, predicate: r.pred.to_string(),
++        if self.interface_carrier_is(&r.base, true, &mut Vec::new()) { buffers.push(r.binder.clone()); }
++        Some(crate::interface::RefinementExport {
++            binder: r.binder.clone(), carrier,
++            predicate: Self::portable_predicate(&r.pred, &numeric, &buffers, true)?.to_string(),
 +        })
 +    }
 +
@@ -2326,7 +2392,7 @@
 +            let refined = info.refine.is_some();
 +            if info.param_kinds.iter().any(|k| match k {
 +                ParamKind::Type | ParamKind::Con(_) => false,
-+                ParamKind::Val(ty) if refined => !matches!(ty, Ty::Nat | Ty::Int),
++                ParamKind::Val(ty) if refined => !matches!(ty, Ty::Nat | Ty::Int | Ty::Bytes),
 +                _ => true,
 +            }) { return None }
 +            let refinement = if refined { Some(self.resolved_refinement_template(info)?) } else { None };

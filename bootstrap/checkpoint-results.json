@@ -1,129 +1,152 @@
 {
   "date": "2026-11-01",
-  "status": "Complete Native-assisted validation and all six fresh stage0/stage1 smokes passed; actual stage2 still fails",
+  "status": "work in progress; six fresh smokes passed, stage2 has seven header diagnostics, full regression matrix pending",
   "native_seed": {
-    "description": "Pinned Rust seed with schema-7 definition-site nominal, class, Region and closed kernel effect contracts, dictionary slots, dependency-ordered source family overrides, dependency-sensitive pattern field names and conditional instance method proof contracts, integer conversion fixes, definition-owned fixities, guarded heap defaults and serial build/test settings and enforced optimizer residual growth bounds, portable checked numeric preconditions and dependent argument identities, checked structural NonZero precondition exports with actual argument identities, schema-7 defining refinement payloads and literal index contracts, checked anonymous refinements with actual argument/result identities and refined-argument numeric projections, semantic byte-length primitive identity, executable primitive index witnesses and actual signature-telescope observation carrier validation; changed only by an intentional seed update.",
+    "description": "Pinned Rust seed with schema-7 definition-site nominal, class, Region and closed kernel effect contracts, dictionary slots, dependency-ordered source family overrides, dependency-sensitive pattern field names and conditional instance method proof contracts, integer conversion fixes, definition-owned fixities, guarded heap defaults and serial build/test settings and enforced optimizer residual growth bounds, portable checked numeric preconditions and dependent argument identities, checked structural NonZero precondition exports with actual argument identities, schema-7 defining refinement payloads and literal index contracts, checked anonymous refinements with actual argument/result identities and refined-argument numeric projections, semantic byte-length primitive identity, executable primitive index witnesses and actual signature-telescope observation carrier validation, closed byte-observation signature predicates and private named buffer-refinement contracts; changed only by an intentional seed update.",
     "patch": "bootstrap/seed/stage0.patch",
-    "patch_sha256": "94b0d32ad0cd5620db4d04f9909c957090fac3d81fcfcb25c7213720dc0b3a0b",
+    "patch_sha256": "61685f05a4a781d58fa0417df2282402e9e2b76ad0fb1bb07303bcdfc6e25825",
     "revision": "275de4f05b230c010aeb4b10265a04b97fb4eb1c",
     "runtime_abi": 5,
     "schema": 1,
-    "source_sha256": "6851c25868101865ee3c137d61a372687ab560e9deb5d98dda6e808d5c4f5335"
+    "source_sha256": "74b4457a63c4898091ad5a31324a8ca098cf1aecfa789670926fff3be2f9b1ab"
   },
   "interface_schema": 7,
-  "validation_source_sha256": "321673612da1f7a3c2df37f9d82b4e47dbc7cf235bbc50f39f063f241a09a195",
-  "validation_inputs": 566,
-  "native_assisted_integration_targets": 155,
-  "native_assisted_integration_matrix": "passed",
-  "general_gates": [
+  "stage_validation_source_sha256": "85a0ddb9f861a44c76fb66635f8fde71c495073307eb15d05aa8db4d6fc7c232",
+  "stage_validation_inputs": 570,
+  "focused_validation_source_sha256": "e1f2c42360a44b5b282789886e1391e9fe1e28b00729da1644075dbb8ad47c03",
+  "focused_gates": [
     {
-      "name": "compiler-units",
+      "name": "interface_anonymous_contracts",
+      "target": "interface_anonymous_contracts",
+      "filter": null,
       "status": "passed",
-      "exit_code": 0
+      "exit_code": 0,
+      "started": "2026-11-01T19:30:31.566202+00:00",
+      "finished": "2026-11-01T19:31:01.193311+00:00"
     },
     {
-      "name": "compiler-bin",
+      "name": "core_alias_certificates",
+      "target": "bootstrap_byte_observations",
+      "filter": "byte_observations_recheck_typed_input_scope_and_runtime_identity",
       "status": "passed",
-      "exit_code": 0
+      "exit_code": 0,
+      "started": "2026-11-01T19:31:01.193762+00:00",
+      "finished": "2026-11-01T19:33:10.526075+00:00"
     },
     {
-      "name": "compiler-docs",
+      "name": "buffer_alias_source",
+      "target": "bootstrap_buffer_aliases",
+      "filter": null,
       "status": "passed",
-      "exit_code": 0
+      "exit_code": 0,
+      "started": "2026-11-01T19:33:10.528969+00:00",
+      "finished": "2026-11-01T19:40:30.056072+00:00"
     },
     {
-      "name": "runtime",
-      "status": "passed",
-      "exit_code": 0
+      "name": "observation_source_and_imports",
+      "target": "bootstrap_byte_observations",
+      "filter": null,
+      "status": "running",
+      "started": "2026-11-01T19:40:30.057119+00:00"
     },
     {
-      "name": "tooling",
-      "status": "passed",
-      "exit_code": 0
+      "name": "bootstrap_refinement_core",
+      "target": "bootstrap_refinement_core",
+      "filter": null,
+      "status": "pending"
+    },
+    {
+      "name": "bootstrap_typed_indices",
+      "target": "bootstrap_typed_indices",
+      "filter": null,
+      "status": "pending"
+    },
+    {
+      "name": "bootstrap_function_preconditions",
+      "target": "bootstrap_function_preconditions",
+      "filter": null,
+      "status": "pending"
+    },
+    {
+      "name": "bootstrap_source_pi",
+      "target": "bootstrap_source_pi",
+      "filter": null,
+      "status": "pending"
+    },
+    {
+      "name": "bootstrap_source_refinements",
+      "target": "bootstrap_source_refinements",
+      "filter": null,
+      "status": "pending"
+    },
+    {
+      "name": "bootstrap_core",
+      "target": "bootstrap_core",
+      "filter": null,
+      "status": "pending"
+    },
+    {
+      "name": "interface_byte_observations",
+      "target": "interface_byte_observations",
+      "filter": null,
+      "status": "pending"
     }
   ],
-  "compiler_unit_tests_passed": 140,
-  "runtime_tests_passed": 166,
-  "focused_primitive_cases": 8,
   "stages": [
     {
       "name": "stage0-smoke",
       "status": "passed",
-      "exit_code": 0
+      "exit_code": 0,
+      "started": "2026-11-01T19:34:13.080056+00:00",
+      "finished": "2026-11-01T19:36:10.403919+00:00"
     },
     {
       "name": "stage1-smoke",
       "status": "passed",
-      "exit_code": 0
+      "exit_code": 0,
+      "started": "2026-11-01T19:36:10.404663+00:00",
+      "finished": "2026-11-01T19:39:41.355178+00:00"
     },
     {
       "name": "self-hosting",
       "status": "failed",
-      "exit_code": 1
+      "exit_code": 1,
+      "started": "2026-11-01T19:39:41.355816+00:00",
+      "finished": "2026-11-01T19:41:18.814860+00:00"
     }
   ],
-  "stage_source_sha256": "1719a992b3a2f2a535571436a10800a1790065e2076cda35a9eae7d1c9ced601",
-  "previous_checkpoint_stage2_boundary": {
-    "bundle_sha256": "e707fad57653acb7c6a95fe3f9504e8aae68c5f528c7b39a7d07f632f9cf6fcd",
-    "categories": {
-      "builtin constructor needs proposition instantiation and erasure checking: b.No": 1,
-      "builtin constructor needs proposition instantiation and erasure checking: b.Yes": 1,
-      "builtin syntax needs dependent predicate elaboration: b.decide": 1,
-      "effect declarations are not supported in this rung": 1,
-      "ill-formed function proof contract": 12,
-      "ill-formed source dependent function": 3,
-      "ill-formed source refinement": 4,
-      "ill-sorted proof predicate": 17,
-      "imported using context needs a defining signature contract": 5,
-      "index expression needs checked scope, purity and totality": 19,
-      "instance declarations are not supported in this rung": 1,
-      "machine arithmetic cannot enter mathematical index conversion": 1
-    },
-    "diagnostics": 66,
-    "executable_exists": false,
-    "ir_exists": false,
-    "origins": {
-      "imported-or-synthetic": 12,
-      "source": 54
-    },
-    "snapshot_sha256": "c1d04f9d2ffe44ec4f981cfdbd37b7744713017cae3175f50fb6268f24a36f72",
-    "stage2_exit_code": 4,
-    "stage2_status": "failed"
-  },
-  "self_built_frontend": false,
-  "full_bootstrap": false,
-  "new_cinch_observation_changes_installed": false,
   "stage2_boundary": {
-    "bundle_sha256": "e707fad57653acb7c6a95fe3f9504e8aae68c5f528c7b39a7d07f632f9cf6fcd",
+    "bundle_sha256": "ecebef95541d62e92f8020553668c31e4ab31fa152c136a2994ad906fa9b0a66",
     "categories": {
       "builtin constructor needs proposition instantiation and erasure checking: b.No": 1,
       "builtin constructor needs proposition instantiation and erasure checking: b.Yes": 1,
       "builtin syntax needs dependent predicate elaboration: b.decide": 1,
       "effect declarations are not supported in this rung": 1,
-      "ill-formed function proof contract": 12,
-      "ill-formed source dependent function": 3,
-      "ill-formed source refinement": 4,
-      "ill-sorted proof predicate": 17,
-      "imported using context needs a defining signature contract": 5,
-      "index expression needs checked scope, purity and totality": 19,
-      "instance declarations are not supported in this rung": 1,
-      "machine arithmetic cannot enter mathematical index conversion": 1
+      "imported using context needs a defining signature contract": 2,
+      "instance declarations are not supported in this rung": 1
     },
-    "diagnostics": 66,
+    "diagnostics": 7,
     "executable_exists": false,
     "ir_exists": false,
     "origins": {
-      "imported-or-synthetic": 12,
-      "source": 54
+      "imported-or-synthetic": 5,
+      "source": 2
     },
-    "snapshot_sha256": "1719a992b3a2f2a535571436a10800a1790065e2076cda35a9eae7d1c9ced601",
+    "snapshot_sha256": "85a0ddb9f861a44c76fb66635f8fde71c495073307eb15d05aa8db4d6fc7c232",
     "stage2_exit_code": 4,
     "stage2_status": "failed"
   },
   "stage_source_audit": {
-    "files": 566,
-    "finished": "2026-11-01T19:05:17.965991+00:00",
-    "sha256": "1719a992b3a2f2a535571436a10800a1790065e2076cda35a9eae7d1c9ced601",
+    "files": 570,
+    "finished": "2026-11-01T19:41:18.854414+00:00",
+    "sha256": "85a0ddb9f861a44c76fb66635f8fde71c495073307eb15d05aa8db4d6fc7c232",
     "status": "unchanged"
-  }
+  },
+  "native_assisted_integration_targets": 158,
+  "native_assisted_integration_matrix": "running",
+  "self_built_frontend": false,
+  "full_bootstrap": false,
+  "previous_checkpoint": "6d67ed6",
+  "previous_checkpoint_stage2_boundary": 66,
+  "resource_policy": "four shared slots plus one focused slot; max five heavy jobs; nice10; cargo/test/codegen workers one; Cinch heap2G"
 }

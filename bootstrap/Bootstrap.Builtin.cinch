@@ -9,7 +9,7 @@ module Bootstrap.Builtin where
 
   export builtin-bindings, builtin-declarations, intrinsic-contract
 
-  -- Runtime ABI 5's pure text intrinsics. The returned scheme is checked
+  -- Runtime ABI 5's pure runtime intrinsics. The returned scheme is checked
   -- against the declaration, not taken on trust from foreign source text.
   -- The extern is retained separately from the language-level identity.
   intrinsic-contract :: String -> Option (String, String)
@@ -21,6 +21,7 @@ module Bootstrap.Builtin where
     else if string-compare symbol "cinch.runtime.textHmacSha256" == 0 then Some ("Bytes -> Bytes -> Bytes", "cinch_text_hmac_sha256")
     else if string-compare symbol "cinch.runtime.textF64ToDecimal" == 0 then Some ("F64 -> Bytes", "cinch_text_f64_to_decimal")
     else if string-compare symbol "cinch.runtime.textF64FromDecimal" == 0 then Some ("Bytes -> F64", "cinch_text_f64_from_decimal")
+    else if string-compare symbol "cinch.runtime.bytesLen" == 0 then Some ("Bytes -> Nat", "cinch_bytes_len")
     else None
 
   -- Visible spelling and canonical kernel identity. Runtime.newIO is the

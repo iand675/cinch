@@ -9,7 +9,7 @@ module Bootstrap.Nominal where
   import Algebra.Semigroup
 
   export interface-global, resolved-entry-valid, resolved-nominals
-  export resolved-text, qualify-resolved, kernel-type-name
+  export resolved-text, qualify-resolved, kernel-type-name, qualify-refinement-predicate
 
   same :: String -> String -> Bool
   same a b = string-compare a b == 0
@@ -203,7 +203,9 @@ module Bootstrap.Nominal where
   qualify-predicate :: Json -> List String -> TypeExpr -> (TypeExpr, List Diagnostic)
   qualify-predicate refs locals syntax = case syntax of
     TApp sp (TName at name) (TArg arg input (TArgsEnd end)) ->
-      if same name "NonZero" then (case qualify-predicate refs locals input of
+      if same name "b.bytesLen" then (case qualify-predicate refs locals input of
+        (value, errors) -> (TApp sp (TName at "#kernel.bytes-length") (TArg arg value (TArgsEnd end)), errors))
+      else if same name "NonZero" then (case qualify-predicate refs locals input of
         (value, errors) -> (TApp sp (TName at name) (TArg arg value (TArgsEnd end)), errors))
       else fail sp "resolved predicate needs checked mathematical operands"
     TName s name -> if same name "True" || same name "False" then (syntax, Nil) else qualify-name refs locals s name
@@ -214,3 +216,8 @@ module Bootstrap.Nominal where
         ((left, errors), (right, more)) -> (TInfix s op left right, errors <> more))
       else fail s "resolved predicate operator needs a checked contract"
     other -> fail (type-expr-span syntax) "resolved predicate needs checked mathematical operands"
+
+  -- A private defining template has a closed binder/parameter telescope.
+  -- Decode its kernel operations using the same rule as resolved schemes.
+  qualify-refinement-predicate :: List String -> TypeExpr -> (TypeExpr, List Diagnostic)
+  qualify-refinement-predicate locals syntax = qualify-predicate JArrEnd locals syntax

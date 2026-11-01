@@ -118,3 +118,14 @@ module Main where
     common::check(&dir,"Main.cinch").expect("refined Bytes and instantiated helper result are valid observation operands");
     common::cleanup(&dir);
 }
+
+#[test]
+fn named_observation_refinements_check_the_defining_carrier_even_when_unused() {
+    for carrier in ["Nat", "Int", "Bool", "Bytes"] {
+        let source=format!("module Main where\n  foreign import ccall \"cinch.runtime.bytesLen\" extent :: Bytes -> Nat\n  type Positive = refine (value :: {carrier}) with extent value > 0\n  main :: Int\n  main = 0\n");
+        let dir=common::project("length_named_carrier", &[("Main.cinch", &source)]);
+        if carrier=="Bytes" { common::check(&dir,"Main.cinch").expect("a genuine byte observation is admissible over a Bytes binder"); }
+        else { let error=common::check(&dir,"Main.cinch").expect_err("an unused refinement must still type its actual observation input"); assert!(error.contains("Bytes"),"{carrier}: {error}"); }
+        common::cleanup(&dir);
+    }
+}

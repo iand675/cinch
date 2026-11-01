@@ -11,6 +11,55 @@ struct DefinitionScheme {
 }
 
 impl Checker {
+    // Portable observation terms use a closed kernel wire operation. It
+    // is emitted only for the checked primitive identity, never a function
+    // spelling, and only over actual buffer-typed binders in this scope.
+    fn interface_carrier_is(&self, ty: &Ty, bytes: bool, seen: &mut Vec<Ty>) -> bool {
+        let direct = if bytes { matches!(ty, Ty::Bytes) } else { matches!(ty, Ty::Nat | Ty::Int) };
+        if direct { return true }
+        if !matches!(ty, Ty::Adt(..)) || seen.contains(ty) { return false }
+        seen.push(ty.clone());
+        self.refine_view(ty).and_then(|v| v.base)
+            .is_some_and(|base| self.interface_carrier_is(&base, bytes, seen))
+    }
+
+    fn portable_index(term: &ITerm, numeric: &[String], buffers: &[String]) -> Option<ITerm> {
+        Some(match term {
+            ITerm::Var(n) if numeric.contains(n) => term.clone(),
+            ITerm::Num(_) => term.clone(),
+            ITerm::Bin(op, a, b) => ITerm::Bin(*op,
+                Box::new(Self::portable_index(a, numeric, buffers)?),
+                Box::new(Self::portable_index(b, numeric, buffers)?)),
+            ITerm::App(f, args) if matches!(&**f, ITerm::Fn(n) if n == BYTE_LENGTH_INDEX) => {
+                let [ITerm::Var(n)] = args.as_slice() else { return None };
+                if !buffers.contains(n) { return None }
+                ITerm::app_fn("b.bytesLen", vec![ITerm::Var(n.clone())])
+            }
+            _ => return None,
+        })
+    }
+
+    fn portable_predicate(term: &PTerm, numeric: &[String], buffers: &[String], negation: bool) -> Option<PTerm> {
+        Some(match term {
+            PTerm::Cmp(op, a, b) => PTerm::Cmp(*op,
+                Box::new(Self::portable_index(a, numeric, buffers)?),
+                Box::new(Self::portable_index(b, numeric, buffers)?)),
+            PTerm::Eq(a, b) if negation => PTerm::Eq(
+                Box::new(Self::portable_index(a, numeric, buffers)?),
+                Box::new(Self::portable_index(b, numeric, buffers)?)),
+            PTerm::And(a, b) => PTerm::And(
+                Box::new(Self::portable_predicate(a, numeric, buffers, negation)?),
+                Box::new(Self::portable_predicate(b, numeric, buffers, negation)?)),
+            PTerm::Or(a, b) => PTerm::Or(
+                Box::new(Self::portable_predicate(a, numeric, buffers, negation)?),
+                Box::new(Self::portable_predicate(b, numeric, buffers, negation)?)),
+            PTerm::Not(p) if negation => PTerm::Not(Box::new(Self::portable_predicate(p, numeric, buffers, true)?)),
+            PTerm::Pred(PredFn::NonZero, value) => PTerm::Pred(PredFn::NonZero,
+                Box::new(Self::portable_index(value, numeric, buffers)?)),
+            _ => return None,
+        })
+    }
+
     // Inspect supported kind syntax without calling conversion again:
     // metadata capture must not add new native inference constraints.
     fn source_contract_kind(&self, kind: &ast::Type) -> Option<ParamKind> {
@@ -319,33 +368,17 @@ impl Checker {
                     .is_some_and(|base| mathematical(checker, &base, seen))
             }
             let mut numeric = Vec::new();
+            let mut buffers = Vec::new();
+            if self.interface_carrier_is(carrier, true, &mut Vec::new()) { buffers.push(result.clone()); }
             if mathematical(self, carrier, &mut Vec::new()) { numeric.push(result); }
             for (position, (name, ty)) in arguments.iter().enumerate() {
                 if let Some(name) = name {
                     predicate = predicate.subst(&format!("$a{position}"), &ITerm::Var(name.clone()));
                     if mathematical(self, ty, &mut Vec::new()) { numeric.push(name.clone()); }
+                    if self.interface_carrier_is(ty, true, &mut Vec::new()) { buffers.push(name.clone()); }
                 }
             }
-            fn index(value: &ITerm, numeric: &[String]) -> bool {
-                match value {
-                    ITerm::Var(name) => numeric.contains(name),
-                    ITerm::Num(_) => true,
-                    ITerm::Bin(_, a, b) => index(a, numeric) && index(b, numeric),
-                    _ => false,
-                }
-            }
-            fn closed(value: &PTerm, numeric: &[String]) -> bool {
-                match value {
-                    PTerm::Cmp(_, a, b) => index(a, numeric) && index(b, numeric),
-                    PTerm::And(a, b) | PTerm::Or(a, b) => closed(a, numeric) && closed(b, numeric),
-                    PTerm::Pred(PredFn::NonZero, value) => index(value, numeric),
-                    _ => false,
-                }
-            }
-            // A machine carrier, float, call, or unknown operand yields
-            // no portable mathematical fact. Structural NonZero stays
-            // its own proposition rather than being rewritten to /= 0.
-            if !closed(&predicate, &numeric) { return None }
+            let predicate = Self::portable_predicate(&predicate, &numeric, &buffers, false)?;
             return Some(format!("(refined ({predicate}) {carrier_text})"));
         }
         match (source, checked) {
@@ -388,6 +421,7 @@ impl Checker {
         let mut checked = &scheme.ty;
         let mut names: Vec<Option<String>> = Vec::new();
         let mut numeric: Vec<String> = Vec::new();
+        let mut buffers: Vec<String> = Vec::new();
         loop {
             let (name, result) = match source {
                 ast::Type::DepFun(name, _, None, _, result, _) => (Some(name.text.clone()), &**result),
@@ -401,30 +435,12 @@ impl Checker {
             };
             if let Some(name) = &name {
                 if names.iter().any(|prior| prior.as_ref() == Some(name)) { return None }
-                if matches!(domain, Ty::Nat | Ty::Int) { numeric.push(name.clone()); }
+                if self.interface_carrier_is(domain, false, &mut Vec::new()) { numeric.push(name.clone()); }
+                if self.interface_carrier_is(domain, true, &mut Vec::new()) { buffers.push(name.clone()); }
             }
             names.push(name);
             source = result;
             checked = codomain;
-        }
-        fn index(term: &ITerm, numeric: &[String]) -> bool {
-            match term {
-                ITerm::Var(name) => numeric.contains(name),
-                ITerm::Num(_) => true,
-                ITerm::Bin(_, a, b) => index(a, numeric) && index(b, numeric),
-                _ => false,
-            }
-        }
-        fn predicate(term: &PTerm, numeric: &[String]) -> bool {
-            match term {
-                PTerm::Cmp(_, a, b) => index(a, numeric) && index(b, numeric),
-                // Preserve the checked structural proposition itself.
-                // Calls and other structural vocabularies still need
-                // their own operand contracts; a spelling is not proof.
-                PTerm::Pred(PredFn::NonZero, value) => index(value, numeric),
-                PTerm::And(a, b) | PTerm::Or(a, b) => predicate(a, numeric) && predicate(b, numeric),
-                _ => false,
-            }
         }
         let mut out = Vec::new();
         for obligation in &scheme.obligs {
@@ -435,8 +451,7 @@ impl Checker {
                     rebound = rebound.subst(&format!("$a{position}"), &ITerm::Var(name.clone()));
                 }
             }
-            if !predicate(&rebound, &numeric) { return None }
-            out.push(rebound.to_string());
+            out.push(Self::portable_predicate(&rebound, &numeric, &buffers, false)?.to_string());
         }
         Some(out)
     }
@@ -470,27 +485,23 @@ impl Checker {
             Ty::Param(name) if r.params.contains(name) => name.clone(),
             _ => return None,
         };
-        let mut names = r.params.clone();
-        names.push(r.binder.clone());
-        fn index(value: &ITerm, names: &[String]) -> bool {
-            match value {
-                ITerm::Var(name) => names.contains(name),
-                ITerm::Num(_) => true,
-                ITerm::Bin(_, a, b) => index(a, names) && index(b, names),
-                _ => false,
+        let mut numeric = Vec::new();
+        let mut buffers = Vec::new();
+        for (name, kind) in r.params.iter().zip(&info.param_kinds) {
+            if let ParamKind::Val(ty) = kind {
+                if self.interface_carrier_is(ty, false, &mut Vec::new()) { numeric.push(name.clone()); }
+                if self.interface_carrier_is(ty, true, &mut Vec::new()) { buffers.push(name.clone()); }
             }
         }
-        fn predicate(value: &PTerm, names: &[String]) -> bool {
-            match value {
-                PTerm::Cmp(_, a, b) | PTerm::Eq(a, b) => index(a, names) && index(b, names),
-                PTerm::And(a, b) | PTerm::Or(a, b) => predicate(a, names) && predicate(b, names),
-                PTerm::Not(body) => predicate(body, names),
-                PTerm::Pred(PredFn::NonZero, value) => index(value, names),
-                _ => false,
-            }
+        // A generic numeric template retains its historical parameter
+        // carrier. It may not use that abstract carrier as a byte buffer.
+        if matches!(&r.base, Ty::Param(n) if r.params.contains(n)) || self.interface_carrier_is(&r.base, false, &mut Vec::new()) {
+            numeric.push(r.binder.clone());
         }
-        predicate(&r.pred, &names).then(|| crate::interface::RefinementExport {
-            binder: r.binder.clone(), carrier, predicate: r.pred.to_string(),
+        if self.interface_carrier_is(&r.base, true, &mut Vec::new()) { buffers.push(r.binder.clone()); }
+        Some(crate::interface::RefinementExport {
+            binder: r.binder.clone(), carrier,
+            predicate: Self::portable_predicate(&r.pred, &numeric, &buffers, true)?.to_string(),
         })
     }
 
@@ -503,7 +514,7 @@ impl Checker {
             let refined = info.refine.is_some();
             if info.param_kinds.iter().any(|k| match k {
                 ParamKind::Type | ParamKind::Con(_) => false,
-                ParamKind::Val(ty) if refined => !matches!(ty, Ty::Nat | Ty::Int),
+                ParamKind::Val(ty) if refined => !matches!(ty, Ty::Nat | Ty::Int | Ty::Bytes),
                 _ => true,
             }) { return None }
             let refinement = if refined { Some(self.resolved_refinement_template(info)?) } else { None };

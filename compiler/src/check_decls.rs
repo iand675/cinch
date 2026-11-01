@@ -3258,6 +3258,13 @@ impl Checker {
                     }
                     vars.push(r.binder.text.clone());
                     let pred = self.conv_prop(&r.pred, &vars)?;
+                    // A defining refinement is checked before any use of
+                    // its constructor. Its actual declaration telescope,
+                    // not advisory kind-use notes, supplies operand types.
+                    let mut observation_scope: HashMap<String, Ty> = params.iter().zip(&param_kinds)
+                        .filter_map(|(n, k)| match k { ParamKind::Val(t) => Some((n.clone(), t.clone())), _ => None }).collect();
+                    observation_scope.insert(r.binder.text.clone(), base.clone());
+                    self.check_length_prop(&pred, &observation_scope, r.pred.span())?;
                     if !pred.mentions(&r.binder.text) {
                         return Err(Error::at(
                             r.pred.span(),

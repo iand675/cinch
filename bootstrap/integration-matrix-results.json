@@ -1,195 +1,914 @@
 {
-  "status": "passed",
-  "integration_targets": 155,
-  "covered_targets": [
-    "alloc_accounting",
-    "argv",
-    "attributes",
-    "bootstrap_abstract_nonzero_methods",
-    "bootstrap_abstract_nonzero_types",
-    "bootstrap_anonymous_contracts",
-    "bootstrap_check",
-    "bootstrap_contract",
-    "bootstrap_core",
-    "bootstrap_driver",
-    "bootstrap_effect_types",
-    "bootstrap_effects",
-    "bootstrap_eval",
-    "bootstrap_function_preconditions",
-    "bootstrap_guarded_arithmetic",
-    "bootstrap_imported_nonzero",
-    "bootstrap_imported_preconditions",
-    "bootstrap_indices",
-    "bootstrap_infer",
-    "bootstrap_instance_resolution",
-    "bootstrap_interface",
-    "bootstrap_intrinsics",
-    "bootstrap_ir",
-    "bootstrap_ladder",
-    "bootstrap_lexer",
-    "bootstrap_load",
-    "bootstrap_manifest",
-    "bootstrap_module_scopes",
-    "bootstrap_named_refinements",
-    "bootstrap_nominals",
-    "bootstrap_nonzero_source",
-    "bootstrap_nonzero_types",
-    "bootstrap_parse",
-    "bootstrap_pi",
-    "bootstrap_pipeline",
-    "bootstrap_proof",
-    "bootstrap_proposition_types",
-    "bootstrap_refinement_closure",
-    "bootstrap_refinement_core",
-    "bootstrap_refinement_types",
-    "bootstrap_resolve",
-    "bootstrap_source_paths",
-    "bootstrap_source_pi",
-    "bootstrap_source_refinements",
-    "bootstrap_test_runner",
-    "bootstrap_type_syntax",
-    "bootstrap_typed_indices",
-    "bootstrap_value_indices",
-    "bootstrap_value_kinds",
-    "canonical_artifacts",
-    "case_evidence",
-    "class_defaults",
-    "codata",
-    "concurrency",
-    "dependent",
-    "effects",
-    "evidence_invalidation",
-    "evolution",
-    "exhaustion",
-    "ffi",
-    "fixity_interfaces",
-    "guard_coverage",
-    "hk",
-    "incremental",
-    "integration",
-    "interface_anonymous_contracts",
-    "interface_class_contracts",
-    "interface_kinds",
-    "interface_nominals",
-    "interface_preconditions",
-    "interface_prelude_overrides",
-    "interface_refinement_closure",
-    "interface_refinements",
-    "interface_region_effects",
-    "json",
-    "lattice",
-    "laws",
-    "letrec",
-    "lib_algebra",
-    "lib_base64",
-    "lib_benchmark",
-    "lib_bigdecimal",
-    "lib_builder",
-    "lib_category",
-    "lib_char_tuple",
-    "lib_civil_time",
-    "lib_complex",
-    "lib_coverage",
-    "lib_csv",
-    "lib_digest",
-    "lib_file_utils",
-    "lib_find",
-    "lib_foldable",
-    "lib_function_ord",
-    "lib_hash_keys",
-    "lib_hashmap_real",
-    "lib_http",
-    "lib_list",
-    "lib_map_set_ops",
-    "lib_matrix",
-    "lib_option_parser",
-    "lib_option_result",
-    "lib_pty",
-    "lib_random",
-    "lib_rational",
-    "lib_resolv",
-    "lib_shellwords",
-    "lib_signal",
-    "lib_string_io",
-    "lib_test_runner",
-    "lib_text_ops",
-    "lib_toml",
-    "lib_uri_ipaddr",
-    "lib_yaml",
-    "lib_zlib",
-    "linear_facts",
-    "llvm_contract",
-    "lsp",
-    "modules",
-    "observability",
-    "optimizer",
-    "order_independence",
-    "ownership",
-    "package_manifest",
-    "package_store",
-    "params",
-    "parsers",
-    "pattern_field_names",
-    "platform",
-    "prelude_lib",
-    "prelude_split",
-    "prim",
-    "primitive_length_identity",
-    "primitives",
-    "range_facts",
-    "reclamation",
-    "reclamation_tasks",
-    "refinements",
-    "regex",
-    "repl",
-    "repr_classes",
-    "runtime_net_prims",
-    "runtime_prims",
-    "safe_bytes",
-    "safe_division",
-    "safe_subtraction",
-    "safety",
-    "small_nats",
-    "staging",
-    "string_literals",
-    "surface",
-    "sym",
-    "tail_calls",
-    "temporal",
-    "wasm"
-  ],
-  "source_sha256": "321673612da1f7a3c2df37f9d82b4e47dbc7cf235bbc50f39f063f241a09a195",
-  "source_inputs": 566,
-  "fresh_matrix_gates": 159,
-  "focused_exact_input_gate": "primitive_length_identity (8 cases passed)",
-  "general_gates": [
+  "status": "running",
+  "integration_targets": 158,
+  "general_gates": 5,
+  "source_sha256": "e1f2c42360a44b5b282789886e1391e9fe1e28b00729da1644075dbb8ad47c03",
+  "source_inputs": 570,
+  "fresh_matrix_gates": 153,
+  "matrix_gates": [
+    {
+      "name": "primitive_length_identity",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T19:32:49.544644+00:00",
+      "finished": "2026-11-01T19:33:43.236075+00:00"
+    },
+    {
+      "name": "bootstrap_named_refinements",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T19:32:49.546143+00:00",
+      "finished": "2026-11-01T19:42:37.247165+00:00"
+    },
+    {
+      "name": "bootstrap_abstract_nonzero_methods",
+      "status": "running",
+      "started": "2026-11-01T19:32:49.550564+00:00"
+    },
+    {
+      "name": "bootstrap_infer",
+      "status": "running",
+      "started": "2026-11-01T19:41:18.940698+00:00"
+    },
+    {
+      "name": "interface_refinement_closure",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T19:33:43.240179+00:00",
+      "finished": "2026-11-01T19:33:50.480441+00:00"
+    },
+    {
+      "name": "bootstrap_pipeline",
+      "status": "running",
+      "started": "2026-11-01T19:33:50.483836+00:00"
+    },
+    {
+      "name": "bootstrap_ladder",
+      "status": "running",
+      "started": "2026-11-01T19:42:37.251754+00:00"
+    },
+    {
+      "name": "alloc_accounting",
+      "status": "pending"
+    },
+    {
+      "name": "argv",
+      "status": "pending"
+    },
+    {
+      "name": "attributes",
+      "status": "pending"
+    },
+    {
+      "name": "bootstrap_abstract_nonzero_types",
+      "status": "pending"
+    },
+    {
+      "name": "bootstrap_anonymous_contracts",
+      "status": "pending"
+    },
+    {
+      "name": "bootstrap_check",
+      "status": "pending"
+    },
+    {
+      "name": "bootstrap_contract",
+      "status": "pending"
+    },
+    {
+      "name": "bootstrap_driver",
+      "status": "pending"
+    },
+    {
+      "name": "bootstrap_effect_types",
+      "status": "pending"
+    },
+    {
+      "name": "bootstrap_effects",
+      "status": "pending"
+    },
+    {
+      "name": "bootstrap_eval",
+      "status": "pending"
+    },
+    {
+      "name": "bootstrap_guarded_arithmetic",
+      "status": "pending"
+    },
+    {
+      "name": "bootstrap_imported_nonzero",
+      "status": "pending"
+    },
+    {
+      "name": "bootstrap_imported_preconditions",
+      "status": "pending"
+    },
+    {
+      "name": "bootstrap_indices",
+      "status": "pending"
+    },
+    {
+      "name": "bootstrap_instance_resolution",
+      "status": "pending"
+    },
+    {
+      "name": "bootstrap_interface",
+      "status": "pending"
+    },
+    {
+      "name": "bootstrap_intrinsics",
+      "status": "pending"
+    },
+    {
+      "name": "bootstrap_ir",
+      "status": "pending"
+    },
+    {
+      "name": "bootstrap_lexer",
+      "status": "pending"
+    },
+    {
+      "name": "bootstrap_load",
+      "status": "pending"
+    },
+    {
+      "name": "bootstrap_manifest",
+      "status": "pending"
+    },
+    {
+      "name": "bootstrap_module_scopes",
+      "status": "pending"
+    },
+    {
+      "name": "bootstrap_nominals",
+      "status": "pending"
+    },
+    {
+      "name": "bootstrap_nonzero_source",
+      "status": "pending"
+    },
+    {
+      "name": "bootstrap_nonzero_types",
+      "status": "pending"
+    },
+    {
+      "name": "bootstrap_parse",
+      "status": "pending"
+    },
+    {
+      "name": "bootstrap_pi",
+      "status": "pending"
+    },
+    {
+      "name": "bootstrap_proof",
+      "status": "pending"
+    },
+    {
+      "name": "bootstrap_proposition_types",
+      "status": "pending"
+    },
+    {
+      "name": "bootstrap_refinement_closure",
+      "status": "pending"
+    },
+    {
+      "name": "bootstrap_refinement_types",
+      "status": "pending"
+    },
+    {
+      "name": "bootstrap_resolve",
+      "status": "pending"
+    },
+    {
+      "name": "bootstrap_source_paths",
+      "status": "pending"
+    },
+    {
+      "name": "bootstrap_test_runner",
+      "status": "pending"
+    },
+    {
+      "name": "bootstrap_type_syntax",
+      "status": "pending"
+    },
+    {
+      "name": "bootstrap_value_indices",
+      "status": "pending"
+    },
+    {
+      "name": "bootstrap_value_kinds",
+      "status": "pending"
+    },
+    {
+      "name": "canonical_artifacts",
+      "status": "pending"
+    },
+    {
+      "name": "case_evidence",
+      "status": "pending"
+    },
+    {
+      "name": "class_defaults",
+      "status": "pending"
+    },
+    {
+      "name": "codata",
+      "status": "pending"
+    },
+    {
+      "name": "concurrency",
+      "status": "pending"
+    },
+    {
+      "name": "dependent",
+      "status": "pending"
+    },
+    {
+      "name": "effects",
+      "status": "pending"
+    },
+    {
+      "name": "evidence_invalidation",
+      "status": "pending"
+    },
+    {
+      "name": "evolution",
+      "status": "pending"
+    },
+    {
+      "name": "exhaustion",
+      "status": "pending"
+    },
+    {
+      "name": "ffi",
+      "status": "pending"
+    },
+    {
+      "name": "fixity_interfaces",
+      "status": "pending"
+    },
+    {
+      "name": "guard_coverage",
+      "status": "pending"
+    },
+    {
+      "name": "hk",
+      "status": "pending"
+    },
+    {
+      "name": "incremental",
+      "status": "pending"
+    },
+    {
+      "name": "integration",
+      "status": "pending"
+    },
+    {
+      "name": "interface_class_contracts",
+      "status": "pending"
+    },
+    {
+      "name": "interface_kinds",
+      "status": "pending"
+    },
+    {
+      "name": "interface_nominals",
+      "status": "pending"
+    },
+    {
+      "name": "interface_preconditions",
+      "status": "pending"
+    },
+    {
+      "name": "interface_prelude_overrides",
+      "status": "pending"
+    },
+    {
+      "name": "interface_refinements",
+      "status": "pending"
+    },
+    {
+      "name": "interface_region_effects",
+      "status": "pending"
+    },
+    {
+      "name": "json",
+      "status": "pending"
+    },
+    {
+      "name": "lattice",
+      "status": "pending"
+    },
+    {
+      "name": "laws",
+      "status": "pending"
+    },
+    {
+      "name": "letrec",
+      "status": "pending"
+    },
+    {
+      "name": "lib_algebra",
+      "status": "pending"
+    },
+    {
+      "name": "lib_base64",
+      "status": "pending"
+    },
+    {
+      "name": "lib_benchmark",
+      "status": "pending"
+    },
+    {
+      "name": "lib_bigdecimal",
+      "status": "pending"
+    },
+    {
+      "name": "lib_builder",
+      "status": "pending"
+    },
+    {
+      "name": "lib_category",
+      "status": "pending"
+    },
+    {
+      "name": "lib_char_tuple",
+      "status": "pending"
+    },
+    {
+      "name": "lib_civil_time",
+      "status": "pending"
+    },
+    {
+      "name": "lib_complex",
+      "status": "pending"
+    },
+    {
+      "name": "lib_coverage",
+      "status": "pending"
+    },
+    {
+      "name": "lib_csv",
+      "status": "pending"
+    },
+    {
+      "name": "lib_digest",
+      "status": "pending"
+    },
+    {
+      "name": "lib_file_utils",
+      "status": "pending"
+    },
+    {
+      "name": "lib_find",
+      "status": "pending"
+    },
+    {
+      "name": "lib_foldable",
+      "status": "pending"
+    },
+    {
+      "name": "lib_function_ord",
+      "status": "pending"
+    },
+    {
+      "name": "lib_hash_keys",
+      "status": "pending"
+    },
+    {
+      "name": "lib_hashmap_real",
+      "status": "pending"
+    },
+    {
+      "name": "lib_http",
+      "status": "pending"
+    },
+    {
+      "name": "lib_list",
+      "status": "pending"
+    },
+    {
+      "name": "lib_map_set_ops",
+      "status": "pending"
+    },
+    {
+      "name": "lib_matrix",
+      "status": "pending"
+    },
+    {
+      "name": "lib_option_parser",
+      "status": "pending"
+    },
+    {
+      "name": "lib_option_result",
+      "status": "pending"
+    },
+    {
+      "name": "lib_pty",
+      "status": "pending"
+    },
+    {
+      "name": "lib_random",
+      "status": "pending"
+    },
+    {
+      "name": "lib_rational",
+      "status": "pending"
+    },
+    {
+      "name": "lib_resolv",
+      "status": "pending"
+    },
+    {
+      "name": "lib_shellwords",
+      "status": "pending"
+    },
+    {
+      "name": "lib_signal",
+      "status": "pending"
+    },
+    {
+      "name": "lib_string_io",
+      "status": "pending"
+    },
+    {
+      "name": "lib_test_runner",
+      "status": "pending"
+    },
+    {
+      "name": "lib_text_ops",
+      "status": "pending"
+    },
+    {
+      "name": "lib_toml",
+      "status": "pending"
+    },
+    {
+      "name": "lib_uri_ipaddr",
+      "status": "pending"
+    },
+    {
+      "name": "lib_yaml",
+      "status": "pending"
+    },
+    {
+      "name": "lib_zlib",
+      "status": "pending"
+    },
+    {
+      "name": "linear_facts",
+      "status": "pending"
+    },
+    {
+      "name": "llvm_contract",
+      "status": "pending"
+    },
+    {
+      "name": "lsp",
+      "status": "pending"
+    },
+    {
+      "name": "modules",
+      "status": "pending"
+    },
+    {
+      "name": "observability",
+      "status": "pending"
+    },
+    {
+      "name": "optimizer",
+      "status": "pending"
+    },
+    {
+      "name": "order_independence",
+      "status": "pending"
+    },
+    {
+      "name": "ownership",
+      "status": "pending"
+    },
+    {
+      "name": "package_manifest",
+      "status": "pending"
+    },
+    {
+      "name": "package_store",
+      "status": "pending"
+    },
+    {
+      "name": "params",
+      "status": "pending"
+    },
+    {
+      "name": "parsers",
+      "status": "pending"
+    },
+    {
+      "name": "pattern_field_names",
+      "status": "pending"
+    },
+    {
+      "name": "platform",
+      "status": "pending"
+    },
+    {
+      "name": "prelude_lib",
+      "status": "pending"
+    },
+    {
+      "name": "prelude_split",
+      "status": "pending"
+    },
+    {
+      "name": "prim",
+      "status": "pending"
+    },
+    {
+      "name": "primitives",
+      "status": "pending"
+    },
+    {
+      "name": "range_facts",
+      "status": "pending"
+    },
+    {
+      "name": "reclamation",
+      "status": "pending"
+    },
+    {
+      "name": "reclamation_tasks",
+      "status": "pending"
+    },
+    {
+      "name": "refinements",
+      "status": "pending"
+    },
+    {
+      "name": "regex",
+      "status": "pending"
+    },
+    {
+      "name": "repl",
+      "status": "pending"
+    },
+    {
+      "name": "repr_classes",
+      "status": "pending"
+    },
+    {
+      "name": "runtime_net_prims",
+      "status": "pending"
+    },
+    {
+      "name": "runtime_prims",
+      "status": "pending"
+    },
+    {
+      "name": "safe_bytes",
+      "status": "pending"
+    },
+    {
+      "name": "safe_division",
+      "status": "pending"
+    },
+    {
+      "name": "safe_subtraction",
+      "status": "pending"
+    },
+    {
+      "name": "safety",
+      "status": "pending"
+    },
+    {
+      "name": "small_nats",
+      "status": "pending"
+    },
+    {
+      "name": "staging",
+      "status": "pending"
+    },
+    {
+      "name": "string_literals",
+      "status": "pending"
+    },
+    {
+      "name": "surface",
+      "status": "pending"
+    },
+    {
+      "name": "sym",
+      "status": "pending"
+    },
+    {
+      "name": "tail_calls",
+      "status": "pending"
+    },
+    {
+      "name": "temporal",
+      "status": "pending"
+    },
+    {
+      "name": "wasm",
+      "status": "pending"
+    },
     {
       "name": "compiler-units",
-      "status": "passed",
-      "exit_code": 0
+      "status": "pending"
     },
     {
       "name": "compiler-bin",
-      "status": "passed",
-      "exit_code": 0
+      "status": "pending"
     },
     {
       "name": "compiler-docs",
-      "status": "passed",
-      "exit_code": 0
+      "status": "pending"
     },
     {
       "name": "runtime",
-      "status": "passed",
-      "exit_code": 0
+      "status": "pending"
     },
     {
       "name": "tooling",
-      "status": "passed",
-      "exit_code": 0
+      "status": "pending"
     }
   ],
-  "source_unchanged": true,
+  "same_snapshot_focused_gates": [
+    {
+      "name": "interface_anonymous_contracts",
+      "target": "interface_anonymous_contracts",
+      "filter": null,
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T19:30:31.566202+00:00",
+      "finished": "2026-11-01T19:31:01.193311+00:00"
+    },
+    {
+      "name": "core_alias_certificates",
+      "target": "bootstrap_byte_observations",
+      "filter": "byte_observations_recheck_typed_input_scope_and_runtime_identity",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T19:31:01.193762+00:00",
+      "finished": "2026-11-01T19:33:10.526075+00:00"
+    },
+    {
+      "name": "buffer_alias_source",
+      "target": "bootstrap_buffer_aliases",
+      "filter": null,
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T19:33:10.528969+00:00",
+      "finished": "2026-11-01T19:40:30.056072+00:00"
+    },
+    {
+      "name": "observation_source_and_imports",
+      "target": "bootstrap_byte_observations",
+      "filter": null,
+      "status": "running",
+      "started": "2026-11-01T19:40:30.057119+00:00"
+    },
+    {
+      "name": "bootstrap_refinement_core",
+      "target": "bootstrap_refinement_core",
+      "filter": null,
+      "status": "pending"
+    },
+    {
+      "name": "bootstrap_typed_indices",
+      "target": "bootstrap_typed_indices",
+      "filter": null,
+      "status": "pending"
+    },
+    {
+      "name": "bootstrap_function_preconditions",
+      "target": "bootstrap_function_preconditions",
+      "filter": null,
+      "status": "pending"
+    },
+    {
+      "name": "bootstrap_source_pi",
+      "target": "bootstrap_source_pi",
+      "filter": null,
+      "status": "pending"
+    },
+    {
+      "name": "bootstrap_source_refinements",
+      "target": "bootstrap_source_refinements",
+      "filter": null,
+      "status": "pending"
+    },
+    {
+      "name": "bootstrap_core",
+      "target": "bootstrap_core",
+      "filter": null,
+      "status": "pending"
+    },
+    {
+      "name": "interface_byte_observations",
+      "target": "interface_byte_observations",
+      "filter": null,
+      "status": "pending"
+    }
+  ],
   "self_built_frontend": false,
-  "bootstrap_achieved": false
+  "bootstrap_achieved": false,
+  "previous_checkpoint": {
+    "commit": "6d67ed6",
+    "scope": "historical evidence for prior sources only",
+    "matrix": {
+      "status": "passed",
+      "integration_targets": 155,
+      "covered_targets": [
+        "alloc_accounting",
+        "argv",
+        "attributes",
+        "bootstrap_abstract_nonzero_methods",
+        "bootstrap_abstract_nonzero_types",
+        "bootstrap_anonymous_contracts",
+        "bootstrap_check",
+        "bootstrap_contract",
+        "bootstrap_core",
+        "bootstrap_driver",
+        "bootstrap_effect_types",
+        "bootstrap_effects",
+        "bootstrap_eval",
+        "bootstrap_function_preconditions",
+        "bootstrap_guarded_arithmetic",
+        "bootstrap_imported_nonzero",
+        "bootstrap_imported_preconditions",
+        "bootstrap_indices",
+        "bootstrap_infer",
+        "bootstrap_instance_resolution",
+        "bootstrap_interface",
+        "bootstrap_intrinsics",
+        "bootstrap_ir",
+        "bootstrap_ladder",
+        "bootstrap_lexer",
+        "bootstrap_load",
+        "bootstrap_manifest",
+        "bootstrap_module_scopes",
+        "bootstrap_named_refinements",
+        "bootstrap_nominals",
+        "bootstrap_nonzero_source",
+        "bootstrap_nonzero_types",
+        "bootstrap_parse",
+        "bootstrap_pi",
+        "bootstrap_pipeline",
+        "bootstrap_proof",
+        "bootstrap_proposition_types",
+        "bootstrap_refinement_closure",
+        "bootstrap_refinement_core",
+        "bootstrap_refinement_types",
+        "bootstrap_resolve",
+        "bootstrap_source_paths",
+        "bootstrap_source_pi",
+        "bootstrap_source_refinements",
+        "bootstrap_test_runner",
+        "bootstrap_type_syntax",
+        "bootstrap_typed_indices",
+        "bootstrap_value_indices",
+        "bootstrap_value_kinds",
+        "canonical_artifacts",
+        "case_evidence",
+        "class_defaults",
+        "codata",
+        "concurrency",
+        "dependent",
+        "effects",
+        "evidence_invalidation",
+        "evolution",
+        "exhaustion",
+        "ffi",
+        "fixity_interfaces",
+        "guard_coverage",
+        "hk",
+        "incremental",
+        "integration",
+        "interface_anonymous_contracts",
+        "interface_class_contracts",
+        "interface_kinds",
+        "interface_nominals",
+        "interface_preconditions",
+        "interface_prelude_overrides",
+        "interface_refinement_closure",
+        "interface_refinements",
+        "interface_region_effects",
+        "json",
+        "lattice",
+        "laws",
+        "letrec",
+        "lib_algebra",
+        "lib_base64",
+        "lib_benchmark",
+        "lib_bigdecimal",
+        "lib_builder",
+        "lib_category",
+        "lib_char_tuple",
+        "lib_civil_time",
+        "lib_complex",
+        "lib_coverage",
+        "lib_csv",
+        "lib_digest",
+        "lib_file_utils",
+        "lib_find",
+        "lib_foldable",
+        "lib_function_ord",
+        "lib_hash_keys",
+        "lib_hashmap_real",
+        "lib_http",
+        "lib_list",
+        "lib_map_set_ops",
+        "lib_matrix",
+        "lib_option_parser",
+        "lib_option_result",
+        "lib_pty",
+        "lib_random",
+        "lib_rational",
+        "lib_resolv",
+        "lib_shellwords",
+        "lib_signal",
+        "lib_string_io",
+        "lib_test_runner",
+        "lib_text_ops",
+        "lib_toml",
+        "lib_uri_ipaddr",
+        "lib_yaml",
+        "lib_zlib",
+        "linear_facts",
+        "llvm_contract",
+        "lsp",
+        "modules",
+        "observability",
+        "optimizer",
+        "order_independence",
+        "ownership",
+        "package_manifest",
+        "package_store",
+        "params",
+        "parsers",
+        "pattern_field_names",
+        "platform",
+        "prelude_lib",
+        "prelude_split",
+        "prim",
+        "primitive_length_identity",
+        "primitives",
+        "range_facts",
+        "reclamation",
+        "reclamation_tasks",
+        "refinements",
+        "regex",
+        "repl",
+        "repr_classes",
+        "runtime_net_prims",
+        "runtime_prims",
+        "safe_bytes",
+        "safe_division",
+        "safe_subtraction",
+        "safety",
+        "small_nats",
+        "staging",
+        "string_literals",
+        "surface",
+        "sym",
+        "tail_calls",
+        "temporal",
+        "wasm"
+      ],
+      "source_sha256": "321673612da1f7a3c2df37f9d82b4e47dbc7cf235bbc50f39f063f241a09a195",
+      "source_inputs": 566,
+      "fresh_matrix_gates": 159,
+      "focused_exact_input_gate": "primitive_length_identity (8 cases passed)",
+      "general_gates": [
+        {
+          "name": "compiler-units",
+          "status": "passed",
+          "exit_code": 0
+        },
+        {
+          "name": "compiler-bin",
+          "status": "passed",
+          "exit_code": 0
+        },
+        {
+          "name": "compiler-docs",
+          "status": "passed",
+          "exit_code": 0
+        },
+        {
+          "name": "runtime",
+          "status": "passed",
+          "exit_code": 0
+        },
+        {
+          "name": "tooling",
+          "status": "passed",
+          "exit_code": 0
+        }
+      ],
+      "source_unchanged": true,
+      "self_built_frontend": false,
+      "bootstrap_achieved": false
+    }
+  }
 }
