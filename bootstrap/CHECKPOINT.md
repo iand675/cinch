@@ -23,16 +23,17 @@ Archive plus patch reproduces every tested Native source byte. Interface
 schema 7, runtime ABI 5, definition-owned fixities, generic NonZero checking,
 expected-result applications and anonymous refinement contracts are retained.
 
-Fresh builds are running against this seed. Stage0 smoke checks pass; stage1
-and the actual self-build remain pending. The fresh staged snapshot is
+Fresh stage0 and stage1 builds against this seed pass all six smoke checks.
+The real stage2 attempt exits 4 before body checking with 66 header diagnostics:
+twelve imported/synthetic positions and fifty-four source positions, including
+nineteen unchecked index calls. Stage2 produces no IR or compiler executable.
+The count matches the preceding generic NonZero checkpoint; it includes cascades
+and does not measure completion. The fresh staged snapshot has 566 unchanged
+inputs, SHA256
 `1719a992b3a2f2a535571436a10800a1790065e2076cda35a9eae7d1c9ced601`.
-Evidence is in `/tmp/cinch-native-length-stages/`.
-
-The preceding generic NonZero checkpoint passed all six stage0/stage1 smoke
-checks, then failed stage2 before body checking with 66 header diagnostics,
-nineteen concerning unchecked index calls. It produced no stage2 IR or
-executable. Its evidence remains in `/tmp/cinch-generic-nonzero-stages/`;
-those counts do not yet describe the fresh attempt.
+The compiler bundle is
+`e707fad57653acb7c6a95fe3f9504e8aae68c5f528c7b39a7d07f632f9cf6fcd`.
+Evidence and source-mapped diagnostics are in `/tmp/cinch-native-length-stages/`.
 
 Cinch-side byte observations, closed private observation contracts and a fix
 for unconstrained expected-result hints are in private validation. Type/Core,
