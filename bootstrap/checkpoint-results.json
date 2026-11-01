@@ -197,7 +197,9 @@
   },
   "validation_source_sha256": "b84b7a8dc278a0468e43a922de01d7565af717ef8d677026f88304ae36ac8acc",
   "stage_source_sha256": "3d7017d191bc7cd8803809bff28717e791848fe78ca14982c313d6f783d6cfa9",
-  "remaining_integration_tests": "19 additional/repeated targets in progress; not a complete-matrix pass",
+  "remaining_integration_tests": "All19additional/repeated targets passed",
   "self_built_frontend": false,
-  "full_bootstrap": false
+  "full_bootstrap": false,
+  "native_assisted_integration_targets": 152,
+  "native_assisted_integration_matrix": "passed"
 }

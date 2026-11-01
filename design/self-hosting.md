@@ -24,8 +24,10 @@ also pass. The final focused audit covers 562 unchanged inputs, snapshot
 `b84b7a8dc278a0468e43a922de01d7565af717ef8d677026f88304ae36ac8acc`.
 Evidence is in `/tmp/cinch-anonymous-contract-validation-5/` and the earlier
 Native-input-identical `/tmp/cinch-anonymous-contract-validation-4/native-remainder/`.
-Nineteen additional or repeated integration targets are still running; this is
-not yet a claim that the complete integration matrix passes.
+The nineteen additional or repeated targets also pass, completing the 152-target
+Native-assisted integration matrix. The earlier Native compiler unit, runtime,
+tooling, binary and documentation gates pass on unchanged selected inputs.
+This does not establish the suite through a self-built compiler frontend.
 
 The source-matching Rust seed is intentionally refreshed: source
 `765d2f0118bdce09583b3c1ca581b19cd02be332668488c63e8162d895b70fd8`,

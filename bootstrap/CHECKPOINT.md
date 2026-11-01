@@ -8,8 +8,10 @@ Rust seed is refreshed to the exact validated Native source.
 Six focused validation gates pass, including twenty freshly executed compiled
 consumer/import/source/Core/dictionary/effect/pipeline/ladder targets, with audited
 reuse of ten byte-identical Native contract targets. All 94 independent Native
-integration targets pass. The 19 additional/repeated integration targets are still
-running; a full-matrix pass is not claimed.
+integration targets pass. All 19 additional/repeated integration targets also pass,
+completing the [152-target Native-assisted integration matrix](integration-matrix-results.json).
+The prior Native units/runtime/tooling/binary/doc gates passed on unchanged selected
+inputs; self-built frontend acceptance remains unproven.
 
 Fresh stage0 and stage1 builds pass all six smoke checks. The actual stage2 attempt
 fails before body checking with 70 header diagnostics, down from 76; it produces
