@@ -1,6 +1,6 @@
 {
   "date": "2026-11-01",
-  "status": "Generic NonZero and expected application result checkpoint; fresh self-hosting attempt running",
+  "status": "Validated generic NonZero checkpoint; real self-build still fails before body checking",
   "validation": [
     {
       "name": "native-contracts",
@@ -215,7 +215,8 @@
     },
     {
       "name": "self-hosting",
-      "status": "running"
+      "status": "failed",
+      "exit_code": 1
     }
   ],
   "stage_source_sha256": "c1d04f9d2ffe44ec4f981cfdbd37b7744713017cae3175f50fb6268f24a36f72",
@@ -306,5 +307,38 @@
       "started": "2026-11-01T16:23:44.359881+00:00",
       "status": "passed"
     }
-  ]
+  ],
+  "stage2_boundary": {
+    "bundle_sha256": "e707fad57653acb7c6a95fe3f9504e8aae68c5f528c7b39a7d07f632f9cf6fcd",
+    "categories": {
+      "builtin constructor needs proposition instantiation and erasure checking: b.No": 1,
+      "builtin constructor needs proposition instantiation and erasure checking: b.Yes": 1,
+      "builtin syntax needs dependent predicate elaboration: b.decide": 1,
+      "effect declarations are not supported in this rung": 1,
+      "ill-formed function proof contract": 12,
+      "ill-formed source dependent function": 3,
+      "ill-formed source refinement": 4,
+      "ill-sorted proof predicate": 17,
+      "imported using context needs a defining signature contract": 5,
+      "index expression needs checked scope, purity and totality": 19,
+      "instance declarations are not supported in this rung": 1,
+      "machine arithmetic cannot enter mathematical index conversion": 1
+    },
+    "diagnostics": 66,
+    "executable_exists": false,
+    "ir_exists": false,
+    "origins": {
+      "imported-or-synthetic": 12,
+      "source": 54
+    },
+    "snapshot_sha256": "c1d04f9d2ffe44ec4f981cfdbd37b7744713017cae3175f50fb6268f24a36f72",
+    "stage2_exit_code": 4,
+    "stage2_status": "failed"
+  },
+  "stage_source_audit": {
+    "files": 565,
+    "finished": "2026-11-01T17:49:47.345546+00:00",
+    "sha256": "c1d04f9d2ffe44ec4f981cfdbd37b7744713017cae3175f50fb6268f24a36f72",
+    "status": "unchanged"
+  }
 }

@@ -53,8 +53,16 @@ targets pass, including the new abstract NonZero type/Core and generic Div/Rem
 consumer regressions. The exact validated snapshot is
 `41173572185db6c95dbf9606e4bf3830d09b609b42c8b2b91844dc92037cdcfa`
 (565 unchanged inputs). The Native seed is unchanged. Fresh stage0 and stage1
-smoke checks pass; the new stage2 attempt is still running. The 70 diagnostics
-above describe the preceding anonymous-contract checkpoint, not this attempt.
+builds pass all six smoke checks. The new stage2 attempt exits 4 before body
+checking with 66 header diagnostics, down from the preceding checkpoint's 70.
+Twelve positions are imported/synthetic and fifty-four map to source; nineteen
+still concern unchecked index calls. Stage2 produces no IR or compiler executable.
+The unchanged staged snapshot is
+`c1d04f9d2ffe44ec4f981cfdbd37b7744713017cae3175f50fb6268f24a36f72`;
+the compiler bundle is
+`e707fad57653acb7c6a95fe3f9504e8aae68c5f528c7b39a7d07f632f9cf6fcd`.
+Evidence is in `/tmp/cinch-generic-nonzero-stages/`. Diagnostic counts include
+cascades and do not measure completion. Stage2/3 acceptance remains unproven.
 
 Checked observation/call contracts, remaining source declarations and proof
 forms, an independent global typing kernel and shared-runtime typed lowering
