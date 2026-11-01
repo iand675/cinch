@@ -1,6 +1,6 @@
 {
   "date": "2026-11-01",
-  "status": "work in progress; six fresh smokes and byte precondition caller checks pass; stage2 has seven headers; remaining matrix running",
+  "status": "complete Native-assisted suite and all six stage0/1 smokes passed; actual stage2 still has seven header diagnostics",
   "native_seed": {
     "description": "Pinned Rust seed with schema-7 definition-site nominal, class, Region and closed kernel effect contracts, dictionary slots, dependency-ordered source family overrides, dependency-sensitive pattern field names and conditional instance method proof contracts, integer conversion fixes, definition-owned fixities, guarded heap defaults and serial build/test settings and enforced optimizer residual growth bounds, portable checked numeric preconditions and dependent argument identities, checked structural NonZero precondition exports with actual argument identities, schema-7 defining refinement payloads and literal index contracts, checked anonymous refinements with actual argument/result identities and refined-argument numeric projections, semantic byte-length primitive identity, executable primitive index witnesses and actual signature-telescope observation carrier validation, closed byte-observation signature predicates and private named buffer-refinement contracts; changed only by an intentional seed update.",
     "patch": "bootstrap/seed/stage0.patch",
@@ -109,8 +109,10 @@
       "name": "interface_byte_observations",
       "target": "interface_byte_observations",
       "filter": null,
-      "status": "running",
-      "started": "2026-11-01T20:19:05.009447+00:00"
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:19:05.009447+00:00",
+      "finished": "2026-11-01T20:27:28.168374+00:00"
     }
   ],
   "stages": [
@@ -164,7 +166,7 @@
     "status": "unchanged"
   },
   "native_assisted_integration_targets": 158,
-  "native_assisted_integration_matrix": "running",
+  "native_assisted_integration_matrix": "passed",
   "self_built_frontend": false,
   "full_bootstrap": false,
   "previous_checkpoint": "6d67ed6",
@@ -232,5 +234,76 @@
     "shared_harness_identical": true,
     "source_sha256": "db363ca63a9fc22322ad420233ff206d00ffa879d7761a66c56a962e029ebe52",
     "source_unchanged_audits": "checked before reuse and again at completion"
+  },
+  "general_gates": [
+    {
+      "name": "compiler-units",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:37:54.288733+00:00",
+      "finished": "2026-11-01T20:38:39.206303+00:00"
+    },
+    {
+      "name": "compiler-bin",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:37:56.546553+00:00",
+      "finished": "2026-11-01T20:38:18.623789+00:00"
+    },
+    {
+      "name": "compiler-docs",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:38:01.569818+00:00",
+      "finished": "2026-11-01T20:38:19.035264+00:00"
+    },
+    {
+      "name": "runtime",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:38:09.740020+00:00",
+      "finished": "2026-11-01T20:38:20.498478+00:00"
+    },
+    {
+      "name": "tooling",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:38:18.627183+00:00",
+      "finished": "2026-11-01T20:38:19.071168+00:00"
+    }
+  ],
+  "compiler_unit_tests_passed": 140,
+  "runtime_tests_passed": 166,
+  "root_installation": {
+    "bootstrap_achieved": false,
+    "general_gates": 5,
+    "integration_targets": 158,
+    "native_source_sha256": "74b4457a63c4898091ad5a31324a8ca098cf1aecfa789670926fff3be2f9b1ab",
+    "patch_sha256": "61685f05a4a781d58fa0417df2282402e9e2b76ad0fb1bb07303bcdfc6e25825",
+    "source_sha256": "db363ca63a9fc22322ad420233ff206d00ffa879d7761a66c56a962e029ebe52",
+    "stage0_stage1_smokes": "passed",
+    "status": "installed"
+  },
+  "new_machine_changes_installed": false,
+  "machine_prototype_boundary": {
+    "bundle_sha256": "97a3955a6d20bc6d10b3ba5cb40c65d1f4d6f862634ba11a3e411519e4ed5a16",
+    "categories": {
+      "builtin constructor needs proposition instantiation and erasure checking: b.No": 1,
+      "builtin constructor needs proposition instantiation and erasure checking: b.Yes": 1,
+      "builtin syntax needs dependent predicate elaboration: b.decide": 1,
+      "effect declarations are not supported in this rung": 1,
+      "imported using context needs a defining signature contract": 1,
+      "instance declarations are not supported in this rung": 1
+    },
+    "diagnostics": 6,
+    "executable_exists": false,
+    "ir_exists": false,
+    "origins": {
+      "imported-or-synthetic": 4,
+      "source": 2
+    },
+    "snapshot_sha256": "e4660d2a9ee60d01f536d9a0db6997947860d4346471357918a22e8b15d7b934",
+    "stage2_exit_code": 4,
+    "stage2_status": "failed"
   }
 }
