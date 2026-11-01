@@ -17,10 +17,12 @@ unimported class methods remain hidden. Parser coverage for Bootstrap.Global is
 zero unmodeled nodes.
 
 This remains a work-in-progress checkpoint. The complete current suite has 163
-integration targets and five general gates and has not run. The separately
-running 162-target source-instance suite does not establish this implementation's
-complete result. A fresh stage attempt is queued or running in one shared worker
-slot. [The global-reference report](../bootstrap/global-reference-checkpoint-results.json)
+integration targets and five general gates and has not run. The completed
+162-target source-instance suite establishes the preceding implementation's
+Native-assisted result. Its exact sources are installed in the main working
+checkout. That pass does not establish this later implementation's complete
+result. Fresh stage0/1 smokes pass for the global-reference implementation;
+stage2 still exits4 with four headers before bodies and produces no IR/executable. [The global-reference report](../bootstrap/global-reference-checkpoint-results.json)
 records exact sources and results. The prior fully completed Native-assisted
 checkpoint remains 623d33e; no self-built frontend suite has passed.
 
