@@ -45,6 +45,9 @@ The public origin is `https://cinch.systems`. Vercel hosts the `cinch` project w
 `website` as its root directory, Node 24, `npm ci`, `npm run build`, and `dist` as
 the output directory. Pushes to `deploy/cinch-site` create production deployments.
 The lockfile uses the public npm registry so builds need no private network access.
+`website/.npmrc` pins `registry=https://registry.npmjs.org/`; it overrides a
+user-level registry setting, so `npm install` on a machine configured for a
+private mirror does not rewrite the lockfile to that mirror.
 Include source files outside the root directory: the docs
 loader and navigation read Markdown from the repository's parent directories.
 Cloudflare remains the authoritative DNS provider; web records point to the
