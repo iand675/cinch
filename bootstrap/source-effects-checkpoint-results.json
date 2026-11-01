@@ -99,8 +99,9 @@
   "complete_current_suite": {
     "integration_targets": 161,
     "general_gates": 5,
-    "status": "not completed for the source-effect implementation",
-    "self_built_frontend": false
+    "status": "running against combined current compiler and corrected runner fixtures",
+    "self_built_frontend": false,
+    "source_sha256": "8b0fe40febabe2529f791a97023103e622917050136a90d315a2295b6eb05ad9"
   },
   "prior_machine_matrix": {
     "source_sha256": "1cd10f728dc82864948ac6d8eb852e186928d16efbc88d9dd15f569e6b023e05",
@@ -124,5 +125,89 @@
     "real stage2/3 fixed point and changed-source behavior",
     "complete suite through self-built frontend"
   ],
-  "resource_limit": "at most five heavy jobs; four shared slots plus one staged-build lane"
+  "resource_limit": "at most five heavy jobs; four shared slots plus one staged-build lane",
+  "validation_update": {
+    "recorded_at": "2026-11-01T21:28:07.663195+00:00",
+    "source_sha256": "8b0fe40febabe2529f791a97023103e622917050136a90d315a2295b6eb05ad9",
+    "status": "current combined 161-target complete suite running; both updated runner targets pass",
+    "changed_since_staged_snapshot": [
+      "bootstrap/programs/Run.InstanceResolution.cinch"
+    ],
+    "compiler_bundle_byte_identical_to_fresh_stage6": true,
+    "compiler_sources_sha256": "e10dac1b622287180da4d453b1deff8e92da63ba7c10016e7dda2312c46d0a01",
+    "compiler_bundle_bytes_sha256": "27ddda055b2a0bdbb7be53ea70963ea5bc29ca907fa9f288a2752bdfa5de8541",
+    "focused_runner_results": [
+      {
+        "name": "bootstrap_instance_resolution",
+        "status": "passed",
+        "exit_code": 0,
+        "started": "2026-11-01T21:23:18.741542+00:00",
+        "finished": "2026-11-01T21:24:59.864351+00:00"
+      },
+      {
+        "name": "bootstrap_guarded_arithmetic",
+        "status": "passed",
+        "exit_code": 0,
+        "started": "2026-11-01T21:24:59.864807+00:00",
+        "finished": "2026-11-01T21:27:09.113256+00:00"
+      }
+    ],
+    "instance_runtime_inputs": [
+      0,
+      1,
+      17,
+      129,
+      4096
+    ],
+    "additional_instance_guards": [
+      "checked I64 comparisons accepted",
+      "opaque lexical I64 ordering refused",
+      "wrong method slot refused",
+      "wrong actual carrier scope refused",
+      "machine arithmetic method remains opaque"
+    ],
+    "complete_matrix_plan": {
+      "filtered_full_target_coverage": {},
+      "focused_exact_snapshot_targets": [
+        "bootstrap_core",
+        "bootstrap_effect_types",
+        "bootstrap_effects",
+        "bootstrap_guarded_arithmetic",
+        "bootstrap_instance_resolution",
+        "bootstrap_source_effects"
+      ],
+      "fresh_matrix_gates": 160,
+      "integration_targets": 161,
+      "self_built_frontend": false,
+      "slot_policy": "all matrix/focus jobs share four global slots; fifth reserved only for one explicit staged build",
+      "source_sha256": "8b0fe40febabe2529f791a97023103e622917050136a90d315a2295b6eb05ad9",
+      "workers": 4
+    },
+    "counts_at_recording": {
+      "passed": 2,
+      "running": 3,
+      "waiting-shared-slot": 1,
+      "pending": 154
+    },
+    "focused_reuse_audit": {
+      "current_source_sha256": "8b0fe40febabe2529f791a97023103e622917050136a90d315a2295b6eb05ad9",
+      "native_and_cinch_implementation_shared_harness_and_reused_own_fixtures_unchanged": true,
+      "older_machine_matrix_results_not_reused": true,
+      "only_changed_inputs": [
+        "bootstrap/programs/Run.GuardedArithmetic.cinch",
+        "bootstrap/programs/Run.InstanceResolution.cinch"
+      ],
+      "previous_source_sha256": "d32f6cb89ddb4268e4162f0309a771711f82fed9ca5c7c415e7f99c109eafa4e",
+      "prior_results": "/tmp/cinch-source-effects-validation-5/results.json",
+      "reused_whole_targets": [
+        "bootstrap_source_effects",
+        "bootstrap_effect_types",
+        "bootstrap_effects",
+        "bootstrap_core"
+      ],
+      "status": "four completed whole focused targets reused under exact-source audit"
+    },
+    "all_tests_passed": false,
+    "self_built_frontend": false
+  }
 }

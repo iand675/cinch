@@ -19,6 +19,19 @@ Native-assisted executable checks, not the full suite through a self-built
 frontend. The complete current suite has 161 integration targets plus five
 general gates and is not yet completed for this implementation.
 
+The current combined complete suite is now running from snapshot
+`8b0fe40febabe2529f791a97023103e622917050136a90d315a2295b6eb05ad9`.
+Its updated instance-resolution runner passes at all five runtime inputs; it
+accepts checked I64 comparisons while refusing opaque lexical ordering, wrong
+slots/carriers and machine arithmetic facts. The guarded-arithmetic runner also
+passes all 26 source cases. Six focused whole targets plus 160 fresh remaining
+gates cover the planned 161 integration targets and five general gates.
+The four earlier focused targets are reused only after auditing that their
+implementation, harness and own fixtures are unchanged. This snapshot changes
+only the instance runner from the staged snapshot; the actual compiler bundle
+is byte-identical, so the verified stage boundary above still applies.
+The full suite is pending; neither earlier stopped machine matrix was a full pass.
+
 Fresh stage0 and stage1 builds pass all six smoke checks. The actual stage2
 attempt exits 4 before body checking with 5 header diagnostics.
 It produces no IR or compiler executable. The exact remaining categories are

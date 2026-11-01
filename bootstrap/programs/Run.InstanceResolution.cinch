@@ -62,12 +62,20 @@ module Main where
     let machine = UCon "I64" KType in
     let machine-evidence = CEInstance s (UApp (UCon owner (KFun KType KType)) machine) "machine" Nil (CEArgumentsEnd s) in
     let machine-call = comparison-call machine owner name 2 machine-evidence id in
+    let machine-local = comparison-call machine owner name 2 (CEGiven s (UApp (UCon owner (KFun KType KType)) machine) "opaque-machine-order") id in
+    let machine-wrong-slot = comparison-call machine owner name 0 machine-evidence id in
+    let add-owner = interface-global "Algebra.Arithmetic.Add" in
+    let machine-add = CMethod s (UFun machine (UFun machine machine)) (interface-global "Algebra.Arithmetic.Add.+") add-owner 0 [machine]
+          [CEInstance s (UApp (UCon add-owner (KFun KType KType)) machine) "machine-add" Nil (CEArgumentsEnd s)] in
+    let no-machine-arithmetic = case numeric-method-operation machine-add (CLocal s machine id "x" Nil) (CInt s machine "1") of None -> True; Some op -> False in
     let effect-method = CMethod s (UFunEff nat (URow (UArg (UCon "Diverge" KEffect) UEnd)) (UFun nat boolean)) name owner 2 [nat] [evidence] in
     let effect-call = CApply s boolean (CApply s (UFun nat boolean) effect-method (CLocal s nat id "x" Nil)) (CInt s nat "0") in
     let gamma = [(id, nat)] in
     has-fact gamma good && not (has-fact gamma local) && not (has-fact gamma pending)
       && not (has-fact gamma wrong-name) && not (has-fact gamma wrong-slot) && not (has-fact gamma wrong-owner)
-      && not (has-fact [(id, floating)] float-call) && not (has-fact [(id, machine)] machine-call)
+      && not (has-fact [(id, floating)] float-call) && has-fact [(id, machine)] machine-call
+      && not (has-fact [(id, machine)] machine-local) && not (has-fact [(id, machine)] machine-wrong-slot)
+      && not (has-fact [(id, nat)] machine-call) && no-machine-arithmetic
       && not (has-fact gamma effect-call) && not (has-fact Nil good) && not (has-fact [(id, integer)] good)
   arithmetic-checks :: Nat -> Bool
   arithmetic-checks nonce =
