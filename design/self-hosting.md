@@ -34,10 +34,20 @@ The independently audited staged snapshot contains 570 unchanged inputs,
 SHA256 `85a0ddb9f861a44c76fb66635f8fde71c495073307eb15d05aa8db4d6fc7c232`.
 Evidence is in `/tmp/cinch-byte-observer-stages-12/`.
 
+The byte-length NonZero contract now passes 41 real caller cases, including
+wrong-buffer, shadowed-buffer and missing-condition refusals. Numeric interface
+regressions check the closed primitive contract and keep ordinary same-name
+functions unresolved. These replace expectations from the preceding unsupported
+tier; no compiler, bootstrap or runtime implementation changed for these updates.
+
 The full 158-target Native-assisted integration matrix and five general gates
-are running against frozen candidate snapshot
-`e1f2c42360a44b5b282789886e1391e9fe1e28b00729da1644075dbb8ad47c03`.
-The stage snapshot differs only in the independently verified seed lock/patch.
+are continuing against frozen candidate snapshot
+`db363ca63a9fc22322ad420233ff206d00ffa879d7761a66c56a962e029ebe52`.
+Twenty completed matrix targets and the continuing focused gates retain exact
+compiler, bootstrap, prelude/runtime, shared harness and own-fixture bytes; only
+the two revised Rust test fixtures differ. The revised NonZero target is rerun,
+and all remaining targets run fresh. Staged implementation sources are identical;
+the staged snapshot additionally differs in its verified seed lock/patch.
 The matrix is not yet a full pass. The preceding snapshot's ten passing gates
 and outdated bytes-new refusal assertion are retained as diagnostic history,
 not treated as a completed suite. The preceding installed checkpoint passed

@@ -24,7 +24,8 @@ fn numeric_conditions_keep_checked_argument_positions_and_reexports() {
   reflected bytes n = n
 "#),
         ("Facade.cinch", "module Facade where\n  import A (pred as previous, difference, keep)\n  export previous, difference, keep\n"),
-        ("Main.cinch", "module Main where\n  import Facade\n  main :: Int\n  main = 0\n"),
+        ("Untrusted.cinch", "module Untrusted where\n  bytes-len :: Nat -> Nat\n  bytes-len n = n\n  reflected :: using (bytes-len n > 0) => (n :: Nat) -> Nat\n  reflected n = n\n"),
+        ("Main.cinch", "module Main where\n  import Facade\n  import Untrusted\n  main :: Int\n  main = 0\n"),
     ]);
     common::check(&dir, "Main.cinch").expect("emit checked numeric contracts");
     let read = |name: &str| Iface::from_json(&std::fs::read_to_string(dir.join(format!("build/{name}.cinchif"))).unwrap()).unwrap();
@@ -41,9 +42,11 @@ fn numeric_conditions_keep_checked_argument_positions_and_reexports() {
     assert_eq!(keep.nominals.iter().map(|n| n.identity.as_str()).collect::<Vec<_>>(), ["A.Token"]);
     let difference = a.exports.values.iter().find(|v| v.name == "difference").unwrap().resolved.as_ref().unwrap();
     assert!(difference.scheme.contains("left >= right"), "{}", difference.scheme);
-    for name in ["scalar", "reflected"] {
-        assert!(a.exports.values.iter().find(|v| v.name == name).unwrap().resolved.is_none(), "{name} needs a richer checked contract");
-    }
+    assert!(a.exports.values.iter().find(|v| v.name == "scalar").unwrap().resolved.is_none(), "machine predicates still need checked carrier support");
+    let reflected = a.exports.values.iter().find(|v| v.name == "reflected").unwrap().resolved.as_ref().expect("actual byte-length primitive closes its checked bound");
+    assert!(reflected.scheme.contains("n <= (b.bytesLen bytes)") && reflected.scheme.contains("bytes :: Bytes") && reflected.scheme.contains("n :: Nat"), "{}", reflected.scheme);
+    let untrusted = read("Untrusted");
+    assert!(untrusted.exports.values.iter().find(|v| v.name == "reflected").unwrap().resolved.is_none(), "ordinary same-named function cannot supply the primitive contract");
     let mixed = a.exports.values.iter().find(|v| v.name == "keep-with").unwrap();
     let mixed_contract = mixed.resolved.as_ref().expect("dictionary and proof contexts survive together");
     assert_eq!(mixed.arity, 3, "one dictionary plus two computational arguments, no proof argument");

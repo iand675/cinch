@@ -1,6 +1,6 @@
 {
   "date": "2026-11-01",
-  "status": "work in progress; six fresh smokes passed, stage2 has seven header diagnostics, full regression matrix pending",
+  "status": "work in progress; six fresh smokes and byte precondition caller checks pass; stage2 has seven headers; remaining matrix running",
   "native_seed": {
     "description": "Pinned Rust seed with schema-7 definition-site nominal, class, Region and closed kernel effect contracts, dictionary slots, dependency-ordered source family overrides, dependency-sensitive pattern field names and conditional instance method proof contracts, integer conversion fixes, definition-owned fixities, guarded heap defaults and serial build/test settings and enforced optimizer residual growth bounds, portable checked numeric preconditions and dependent argument identities, checked structural NonZero precondition exports with actual argument identities, schema-7 defining refinement payloads and literal index contracts, checked anonymous refinements with actual argument/result identities and refined-argument numeric projections, semantic byte-length primitive identity, executable primitive index witnesses and actual signature-telescope observation carrier validation, closed byte-observation signature predicates and private named buffer-refinement contracts; changed only by an intentional seed update.",
     "patch": "bootstrap/seed/stage0.patch",
@@ -46,50 +46,71 @@
       "name": "observation_source_and_imports",
       "target": "bootstrap_byte_observations",
       "filter": null,
-      "status": "running",
-      "started": "2026-11-01T19:40:30.057119+00:00"
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T19:40:30.057119+00:00",
+      "finished": "2026-11-01T19:58:01.099244+00:00"
     },
     {
       "name": "bootstrap_refinement_core",
       "target": "bootstrap_refinement_core",
       "filter": null,
-      "status": "pending"
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T19:58:01.099735+00:00",
+      "finished": "2026-11-01T19:59:50.312297+00:00"
     },
     {
       "name": "bootstrap_typed_indices",
       "target": "bootstrap_typed_indices",
       "filter": null,
-      "status": "pending"
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T19:59:50.312973+00:00",
+      "finished": "2026-11-01T20:01:38.303168+00:00"
     },
     {
       "name": "bootstrap_function_preconditions",
       "target": "bootstrap_function_preconditions",
       "filter": null,
-      "status": "pending"
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:01:38.303635+00:00",
+      "finished": "2026-11-01T20:05:06.762590+00:00"
     },
     {
       "name": "bootstrap_source_pi",
       "target": "bootstrap_source_pi",
       "filter": null,
-      "status": "pending"
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:05:06.763077+00:00",
+      "finished": "2026-11-01T20:09:06.923792+00:00"
     },
     {
       "name": "bootstrap_source_refinements",
       "target": "bootstrap_source_refinements",
       "filter": null,
-      "status": "pending"
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:09:06.924248+00:00",
+      "finished": "2026-11-01T20:14:48.087583+00:00"
     },
     {
       "name": "bootstrap_core",
       "target": "bootstrap_core",
       "filter": null,
-      "status": "pending"
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T20:14:48.088060+00:00",
+      "finished": "2026-11-01T20:19:05.008801+00:00"
     },
     {
       "name": "interface_byte_observations",
       "target": "interface_byte_observations",
       "filter": null,
-      "status": "pending"
+      "status": "running",
+      "started": "2026-11-01T20:19:05.009447+00:00"
     }
   ],
   "stages": [
@@ -148,5 +169,68 @@
   "full_bootstrap": false,
   "previous_checkpoint": "6d67ed6",
   "previous_checkpoint_stage2_boundary": 66,
-  "resource_policy": "four shared slots plus one focused slot; max five heavy jobs; nice10; cargo/test/codegen workers one; Cinch heap2G"
+  "resource_policy": "four shared slots plus one focused slot; max five heavy jobs; nice10; cargo/test/codegen workers one; Cinch heap2G",
+  "current_matrix_source_sha256": "db363ca63a9fc22322ad420233ff206d00ffa879d7761a66c56a962e029ebe52",
+  "current_matrix_inputs": 570,
+  "revised_nonzero_gate": [
+    {
+      "name": "bootstrap_imported_nonzero",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T19:59:02.781533+00:00",
+      "finished": "2026-11-01T20:18:03.704572+00:00"
+    }
+  ],
+  "byte_nonzero_caller_cases": 41,
+  "fixture_updates": [
+    "bootstrap_imported_nonzero: actual primitive NonZero export plus real caller tests",
+    "interface_preconditions: actual primitive export and ordinary same-name refusal"
+  ],
+  "matrix_evidence_reuse": {
+    "changed_files": [
+      "compiler/tests/bootstrap_imported_nonzero.rs",
+      "compiler/tests/interface_preconditions.rs"
+    ],
+    "compiler_and_bootstrap_code_identical": true,
+    "native_assisted": true,
+    "not_self_built_frontend": true,
+    "original_source_sha256": "e1f2c42360a44b5b282789886e1391e9fe1e28b00729da1644075dbb8ad47c03",
+    "reused_matrix_targets": [
+      "alloc_accounting",
+      "argv",
+      "attributes",
+      "bootstrap_abstract_nonzero_methods",
+      "bootstrap_abstract_nonzero_types",
+      "bootstrap_anonymous_contracts",
+      "bootstrap_check",
+      "bootstrap_contract",
+      "bootstrap_driver",
+      "bootstrap_effect_types",
+      "bootstrap_effects",
+      "bootstrap_eval",
+      "bootstrap_guarded_arithmetic",
+      "bootstrap_imported_preconditions",
+      "bootstrap_infer",
+      "bootstrap_ladder",
+      "bootstrap_named_refinements",
+      "bootstrap_pipeline",
+      "interface_refinement_closure",
+      "primitive_length_identity"
+    ],
+    "same_code_focused_targets": [
+      "bootstrap_buffer_aliases",
+      "bootstrap_byte_observations",
+      "bootstrap_core",
+      "bootstrap_function_preconditions",
+      "bootstrap_refinement_core",
+      "bootstrap_source_pi",
+      "bootstrap_source_refinements",
+      "bootstrap_typed_indices",
+      "interface_anonymous_contracts",
+      "interface_byte_observations"
+    ],
+    "shared_harness_identical": true,
+    "source_sha256": "db363ca63a9fc22322ad420233ff206d00ffa879d7761a66c56a962e029ebe52",
+    "source_unchanged_audits": "checked before reuse and again at completion"
+  }
 }

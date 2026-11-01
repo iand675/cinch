@@ -14,7 +14,7 @@ fn quote(text: &str) -> String {
 fn imported_structural_nonzero_uses_checked_argument_identity() {
     let source = common::project("nonzero_condition_source", &[
         ("A.cinch", "module A where\n  pred :: using (n > 0) => (n :: Nat) -> Nat\n  pred actual = actual - 1\n  signature Gate a where\n    gate :: a -> a\n  keep-with :: forall a. using (witness :: Gate a, n > 0) => (n :: Nat) -> a -> a\n  keep-with n value = value\n  difference :: using (left >= right) => (left :: Nat) -> (right :: Nat) -> Nat\n  difference a b = a - b\n  need :: using (NonZero n) => (n :: Nat) -> Nat\n  need actual = actual\n  need-int :: using (NonZero n) => (n :: Int) -> Int\n  need-int actual = actual\n  both :: using (NonZero left, NonZero right) => (left :: Nat) -> (right :: Nat) -> Nat\n  both a b = a\n  scalar :: using (NonZero n) => (n :: I64) -> I64\n  scalar n = n\n  reflected :: using (NonZero (bytes-len bytes)) => (bytes :: Bytes) -> Bytes\n  reflected bytes = bytes\n"),
-        ("Facade.cinch", "module Facade where\n  import A (pred as previous, difference, Gate, keep-with, need as require-value, need-int, both)\n  export previous, difference, Gate, keep-with, require-value, need-int, both\n"),
+        ("Facade.cinch", "module Facade where\n  import A (pred as previous, difference, Gate, keep-with, need as require-value, need-int, both, reflected as require-buffer)\n  import Data.Bytes (bytes-len as measure)\n  export previous, difference, Gate, keep-with, require-value, need-int, both, require-buffer, measure\n"),
         ("Main.cinch", "module Main where\n  import Facade\n  main :: Int\n  main = 0\n"),
     ]);
     common::check(&source, "Main.cinch").expect("emit portable preconditions");
@@ -27,9 +27,9 @@ fn imported_structural_nonzero_uses_checked_argument_identity() {
     assert!(!need.scheme.contains('$'));
     assert_eq!(get(&facade, "require-value"), Some(need.clone()));
     assert_eq!(Iface::from_json(&a.to_json()).unwrap(), a);
-    for name in ["scalar", "reflected"] {
-        assert!(get(&a, name).is_none(), "{name}: unsupported carrier/call must remain explicit");
-    }
+    assert!(get(&a, "scalar").is_none(), "machine-carrier contracts require their checked conversion support");
+    let reflected = get(&a, "reflected").expect("checked byte-length NonZero predicate closes over its actual buffer");
+    assert!(reflected.scheme.contains("NonZero (b.bytesLen bytes)") && reflected.scheme.contains("bytes :: Bytes"), "{}", reflected.scheme);
     let mut changed = a.clone();
     changed.exports.values.iter_mut().find(|v| v.name == "need").unwrap().resolved.as_mut().unwrap().scheme = need.scheme.replace("NonZero n", "n > 0");
     assert_ne!(changed.iface_hash(), a.iface_hash(), "structural predicate identity must participate in hashing");
@@ -59,6 +59,11 @@ fn imported_structural_nonzero_uses_checked_argument_identity() {
     std::fs::write(dir.join("interfaces.json"), format!("{{\"schema\":1,\"interfaces\":[{}]}}", rows.join(","))).unwrap();
     let exe = common::build(&dir, "Main.cinch", "imported-preconditions").expect("build imported precondition consumer");
     let cases = [
+        ("primitive NonZero buffer", "safe :: Bytes -> Bytes\n  safe b = if measure b > 0 then require-buffer b else b", 0),
+        ("primitive NonZero requires condition", "bad :: Bytes -> Bytes\n  bad b = require-buffer b", 4),
+        ("primitive NonZero wrong buffer", "bad :: Bytes -> Bytes -> Bytes\n  bad b c = if measure b > 0 then require-buffer c else c", 4),
+        ("primitive NonZero shadowed buffer", "bad :: Bytes -> Bytes -> Bytes\n  bad b c = if measure b > 0 then (let b = c in require-buffer b) else c", 4),
+        ("primitive NonZero forwarded premise", "safe :: using (NonZero (measure b)) => (b :: Bytes) -> Bytes\n  safe b = require-buffer b", 0),
         ("NonZero literal", "answer :: Nat\n  answer = require-value 1", 0),
         ("NonZero rejects zero", "bad :: Nat\n  bad = require-value 0", 4),
         ("NonZero actual guarded argument", "safe :: Nat -> Nat\n  safe n = if n /= 0 then require-value n else 0", 0),
@@ -97,7 +102,7 @@ fn imported_structural_nonzero_uses_checked_argument_identity() {
         ("lexical ordering dictionary is opaque", "bad :: using (ordering :: Ord Nat) => Nat -> Nat\n  bad n = if n > 0 then previous n else 0", 4),
     ];
     for (name, body, wanted) in cases {
-        let input = format!("module Main where\n  import Facade (previous, difference, Gate, keep-with, require-value, need-int, both)\n  {body}\n  main :: Int\n  main = 0\n");
+        let input = format!("module Main where\n  import Facade (previous, difference, Gate, keep-with, require-value, need-int, both, require-buffer, measure)\n  {body}\n  main :: Int\n  main = 0\n");
         std::fs::write(dir.join("source.cinch"), &input).unwrap();
         let output = std::process::Command::new(&exe).current_dir(&dir).output().unwrap();
         let report = common::read_output(&dir, "imported-report.txt");
