@@ -1,5 +1,38 @@
 # Next steps (as of 2026-11-02)
 
+Core annotations now receive a separate kind, type and effect check after
+elaboration. Nominal names must match their declaring kinds; quantified and
+value-index references must belong to their actual scopes. Applications,
+lambda and clause results, constructor fields, branches, tuples, primitive
+operands, strict lets and latent effect rows are rechecked. The global-reference
+checks apply to the same source definitions and dictionary method bodies.
+
+All seven focused whole Rust targets pass: forged Core annotations, source
+dictionaries, dependent functions, effects, inference, parser coverage and the
+complete pipeline. Runtime-input checks use five identities above 2^128. All
+21 source dictionary cases, actual Text.Json, strict-let dependent aliases,
+function-valued indices and retained rejection cases pass. The implementation
+and each reused target's own fixtures are byte-identical; only the separately
+rerun pipeline Rust fixture differs from the preceding focused snapshot.
+
+The complete current Native-assisted suite of 164 integration targets and five
+general gates is running, using 162 fresh gates and seven passed whole focused
+targets. A fresh staged build is running in the fifth lane. The prior installed
+source-instance snapshot passed all162+5 gates, including 140 compiler units and
+166 runtime tests; that result does not establish this implementation's complete
+suite. [The Core typing report](../bootstrap/core-typing-checkpoint-results.json)
+records exact source and validation scope.
+
+This is not a complete independent proof/usage kernel. Complete declaration and
+coverage checking, actual primitive/instance-body numeric authority, totality,
+ownership and generative regions, and decision/proof erasure remain required.
+Ordinary measure contracts, handlers and typed shared-runtime lowering are also
+unfinished. Actual stage2/3 fixed point, changed-source behavior and the full
+self-built frontend suite remain unproven. The seed, ABI5/schema7 and
+definition-owned fixities are unchanged; work stays within five heavy jobs.
+
+## Previous global-reference checkpoint (426d796)
+
 Core references now undergo an independent check against retained global
 declarations. Global and local uses must match their actual schemes and type
 argument kinds. Method owners and slots, constructor schemes, dictionary factory

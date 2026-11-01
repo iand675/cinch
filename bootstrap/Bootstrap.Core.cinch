@@ -27,6 +27,7 @@ module Bootstrap.Core where
   export map-pattern-types, map-term-types, abstract-term, seal-definition, core-definition-closed
 
   export contract-quants-closed, contract-scheme-closed, core-definition-result-types
+  export arrow-result, pattern-result, proof-pattern, proof-patterns, scope-let
   export CoreData, MkCoreData, CoreConstructor, MkCoreConstructor
   export core-data-name, core-data-kind, core-data-params, core-data-constructors
   export core-constructor-name, core-constructor-scheme, core-constructor-fields

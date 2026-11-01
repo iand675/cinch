@@ -1,0 +1,313 @@
+{
+  "recorded_at": "2026-11-01T23:47:58.411266+00:00",
+  "status": "all seven focused whole Rust targets and two Native static preflights passed; full current suite and staged bootstrap in progress",
+  "source_sha256": "d6fbf3526a03fb95a0d4bcaec732d221481379c7e8cd298ddd428ea103f5b0cc",
+  "source_inputs": 586,
+  "compiler_named_source_sha256": "d340cbdc603dcbd2d24f93a0d98ecc62a75e4cffc77c0e981ac4ab8c705b9b7f",
+  "compiler_bundle_bytes_sha256": "0f3799aea9319b290c4de9194f67ff6aea9ccec0d0b211fd6eb749d0287704e1",
+  "owned_changes": [
+    "bootstrap/Bootstrap.Core.cinch",
+    "bootstrap/Bootstrap.Infer.cinch",
+    "bootstrap/Bootstrap.Kinds.cinch",
+    "bootstrap/Bootstrap.Typing.cinch",
+    "bootstrap/programs/Run.CoreTyping.cinch",
+    "compiler/tests/bootstrap_parse.rs",
+    "compiler/tests/bootstrap_typing.rs",
+    "compiler/tests/common/mod.rs"
+  ],
+  "focused_results": [
+    {
+      "name": "typing-preflight",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T23:04:43.249455+00:00",
+      "finished": "2026-11-01T23:05:11.323768+00:00"
+    },
+    {
+      "name": "source-preflight",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T23:05:11.324162+00:00",
+      "finished": "2026-11-01T23:06:39.243514+00:00"
+    },
+    {
+      "name": "bootstrap_typing",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T23:06:39.243938+00:00",
+      "finished": "2026-11-01T23:08:26.720225+00:00"
+    },
+    {
+      "name": "bootstrap_source_instances",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T23:08:26.720645+00:00",
+      "finished": "2026-11-01T23:19:27.329724+00:00"
+    },
+    {
+      "name": "bootstrap_source_pi",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T23:19:27.330137+00:00",
+      "finished": "2026-11-01T23:21:32.237381+00:00"
+    },
+    {
+      "name": "bootstrap_effects",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T23:21:32.237869+00:00",
+      "finished": "2026-11-01T23:23:55.796852+00:00"
+    },
+    {
+      "name": "bootstrap_infer",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T23:23:55.797249+00:00",
+      "finished": "2026-11-01T23:26:34.707563+00:00"
+    },
+    {
+      "name": "bootstrap_parse",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T23:26:34.707975+00:00",
+      "finished": "2026-11-01T23:27:15.181307+00:00"
+    },
+    {
+      "name": "bootstrap_pipeline",
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T23:34:22.114441+00:00",
+      "finished": "2026-11-01T23:41:14.825572+00:00"
+    }
+  ],
+  "focused_reuse_audit": {
+    "changed_inputs": [
+      "compiler/tests/bootstrap_pipeline.rs"
+    ],
+    "from_source_sha256": "96abb7d85822675d2514872959ef85a56bfbafdc757356c377b80a82faa7ab13",
+    "results": [
+      {
+        "command": [
+          "/tmp/cinch-source-effects-stages-6/source/build/bootstrap/stage0/cinch",
+          "check",
+          "/tmp/cinch-typing-validation-2/direct-preflight/Main.cinch"
+        ],
+        "cwd": "/tmp/cinch-typing-validation-2/direct-preflight",
+        "exit_code": 0,
+        "finished": "2026-11-01T23:05:11.323768+00:00",
+        "name": "typing-preflight",
+        "pid": 26398,
+        "started": "2026-11-01T23:04:43.249455+00:00",
+        "status": "passed"
+      },
+      {
+        "command": [
+          "/tmp/cinch-source-effects-stages-6/source/build/bootstrap/stage0/cinch",
+          "check",
+          "/tmp/cinch-typing-validation-2/preflight/Main.cinch"
+        ],
+        "cwd": "/tmp/cinch-typing-validation-2/preflight",
+        "exit_code": 0,
+        "finished": "2026-11-01T23:06:39.243514+00:00",
+        "name": "source-preflight",
+        "pid": 26675,
+        "started": "2026-11-01T23:05:11.324162+00:00",
+        "status": "passed"
+      },
+      {
+        "command": [
+          "cargo",
+          "test",
+          "--target-dir",
+          "/tmp/cinch-typing-validation-2/cargo/compiler",
+          "--test",
+          "bootstrap_typing",
+          "--",
+          "--include-ignored",
+          "--nocapture",
+          "--test-threads=1"
+        ],
+        "cwd": "/tmp/cinch-typing-validation-2/source/compiler",
+        "exit_code": 0,
+        "finished": "2026-11-01T23:08:26.720225+00:00",
+        "name": "bootstrap_typing",
+        "pid": 27657,
+        "started": "2026-11-01T23:06:39.243938+00:00",
+        "status": "passed"
+      },
+      {
+        "command": [
+          "cargo",
+          "test",
+          "--target-dir",
+          "/tmp/cinch-typing-validation-2/cargo/compiler",
+          "--test",
+          "bootstrap_source_instances",
+          "--",
+          "--include-ignored",
+          "--nocapture",
+          "--test-threads=1"
+        ],
+        "cwd": "/tmp/cinch-typing-validation-2/source/compiler",
+        "exit_code": 0,
+        "finished": "2026-11-01T23:19:27.329724+00:00",
+        "name": "bootstrap_source_instances",
+        "pid": 28879,
+        "started": "2026-11-01T23:08:26.720645+00:00",
+        "status": "passed"
+      },
+      {
+        "command": [
+          "cargo",
+          "test",
+          "--target-dir",
+          "/tmp/cinch-typing-validation-2/cargo/compiler",
+          "--test",
+          "bootstrap_source_pi",
+          "--",
+          "--include-ignored",
+          "--nocapture",
+          "--test-threads=1"
+        ],
+        "cwd": "/tmp/cinch-typing-validation-2/source/compiler",
+        "exit_code": 0,
+        "finished": "2026-11-01T23:21:32.237381+00:00",
+        "name": "bootstrap_source_pi",
+        "pid": 37333,
+        "started": "2026-11-01T23:19:27.330137+00:00",
+        "status": "passed"
+      },
+      {
+        "command": [
+          "cargo",
+          "test",
+          "--target-dir",
+          "/tmp/cinch-typing-validation-2/cargo/compiler",
+          "--test",
+          "bootstrap_effects",
+          "--",
+          "--include-ignored",
+          "--nocapture",
+          "--test-threads=1"
+        ],
+        "cwd": "/tmp/cinch-typing-validation-2/source/compiler",
+        "exit_code": 0,
+        "finished": "2026-11-01T23:23:55.796852+00:00",
+        "name": "bootstrap_effects",
+        "pid": 39723,
+        "started": "2026-11-01T23:21:32.237869+00:00",
+        "status": "passed"
+      },
+      {
+        "command": [
+          "cargo",
+          "test",
+          "--target-dir",
+          "/tmp/cinch-typing-validation-2/cargo/compiler",
+          "--test",
+          "bootstrap_infer",
+          "--",
+          "--include-ignored",
+          "--nocapture",
+          "--test-threads=1"
+        ],
+        "cwd": "/tmp/cinch-typing-validation-2/source/compiler",
+        "exit_code": 0,
+        "finished": "2026-11-01T23:26:34.707563+00:00",
+        "name": "bootstrap_infer",
+        "pid": 43560,
+        "started": "2026-11-01T23:23:55.797249+00:00",
+        "status": "passed"
+      },
+      {
+        "command": [
+          "cargo",
+          "test",
+          "--target-dir",
+          "/tmp/cinch-typing-validation-2/cargo/compiler",
+          "--test",
+          "bootstrap_parse",
+          "--",
+          "--include-ignored",
+          "--nocapture",
+          "--test-threads=1"
+        ],
+        "cwd": "/tmp/cinch-typing-validation-2/source/compiler",
+        "exit_code": 0,
+        "finished": "2026-11-01T23:27:15.181307+00:00",
+        "name": "bootstrap_parse",
+        "pid": 49231,
+        "started": "2026-11-01T23:26:34.707975+00:00",
+        "status": "passed"
+      }
+    ],
+    "status": "all implementation, Native sources, shared harness and reused own fixtures byte-identical",
+    "to_source_sha256": "d6fbf3526a03fb95a0d4bcaec732d221481379c7e8cd298ddd428ea103f5b0cc",
+    "whole_targets": [
+      "bootstrap_typing",
+      "bootstrap_source_instances",
+      "bootstrap_source_pi",
+      "bootstrap_effects",
+      "bootstrap_infer",
+      "bootstrap_parse"
+    ]
+  },
+  "runtime_identity_inputs": [
+    0,
+    1,
+    17,
+    129,
+    4096
+  ],
+  "runtime_identity_base": "340282366920938463463374607431768211456",
+  "source_dictionary_cases": 21,
+  "actual_Text_Json_source_instance": "passed",
+  "complete_current_suite": {
+    "status": "running",
+    "integration_targets": 164,
+    "general_gates": 5,
+    "plan": {
+      "focused_whole_targets": [
+        "bootstrap_effects",
+        "bootstrap_infer",
+        "bootstrap_parse",
+        "bootstrap_pipeline",
+        "bootstrap_source_instances",
+        "bootstrap_source_pi",
+        "bootstrap_typing"
+      ],
+      "fresh_matrix_gates": 162,
+      "general_gates": 5,
+      "integration_targets": 164,
+      "reuse": "seven whole focused targets; only the independent pipeline Rust fixture differs from typing2; all implementation, harness and reused own fixtures match",
+      "self_built_frontend": false,
+      "slots": "four global shared slots; typing3 fresh stages own sole outside fifth lane",
+      "source_sha256": "d6fbf3526a03fb95a0d4bcaec732d221481379c7e8cd298ddd428ea103f5b0cc",
+      "workers": 4
+    },
+    "all_tests_passed": false,
+    "self_built_frontend": false
+  },
+  "fresh_stages": {
+    "status": "queued or running in sole fifth lane",
+    "complete": false
+  },
+  "seed_unchanged": true,
+  "runtime_abi": 5,
+  "interface_schema": 7,
+  "self_hosting_achieved": false,
+  "remaining_kernel_requirements": [
+    "Authoritative complete data/class/effect declaration contexts and independent coverage/positivity checks.",
+    "Actual primitive and selected instance-body semantic authority for numeric reflection.",
+    "Termination and totality evidence for ordinary measure calls and proof computation.",
+    "Ownership, usage and generative region checks independent of elaboration.",
+    "Proposition terms, decision constructors and checked proof erasure."
+  ],
+  "remaining_bootstrap_requirements": [
+    "Imported total-measure contracts",
+    "source decision/proof forms",
+    "handler typing and dispatch",
+    "typed shared-runtime lowering including dictionaries and closures",
+    "actual stage2/3 fixed point, changed-source behavior and full self-built frontend suite"
+  ]
+}

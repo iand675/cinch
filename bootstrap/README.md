@@ -122,6 +122,16 @@ gates are recorded in
 [the global-reference report](global-reference-checkpoint-results.json)
 and [the self-hosting design](../design/self-hosting.md).
 
+`Bootstrap.Kinds` and `Bootstrap.Typing` separately check the nominal and
+lexical kind contexts and the types/effects of retained Core terms. This
+includes application and branch results, patterns and constructor fields,
+primitive operands, strict lets and latent rows. They run after source
+elaboration and global-reference checking. Their focused tests and the
+full pipeline pass; the complete current164-target Native-assisted suite
+and fresh staged build are still running. Full declaration/coverage,
+semantic proof authority, totality and usage remain required; see
+[the Core typing report](core-typing-checkpoint-results.json).
+
 The orchestration checks run with:
 
     python3 -m unittest discover -s tooling/tests -v

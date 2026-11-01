@@ -1,0 +1,229 @@
+-- Core typing is checked after elaboration, using declarations and lexical
+-- scopes rather than the producer's cached application/branch annotations.
+-- Numeric reflection authority, totality and usage still need their own checks.
+module Bootstrap.Typing where
+  import Bootstrap.Type
+  import Bootstrap.Index
+  import Bootstrap.Core
+  import Bootstrap.Global
+  import Bootstrap.Kinds
+  import Bootstrap.Proof (Proposition, PNegate)
+  import Bootstrap.Nominal (interface-global)
+  import Text.Lex (Span)
+  import Algebra.Semigroup
+
+  export TypingContext, close-typing-context, typing-definition-closed
+  data TypingContext where
+    CheckedTypingContext :: List (String, Kind) -> CoreGlobals -> TypingContext
+  context-kinds :: TypingContext -> List (String, Kind)
+  context-kinds context = case context of CheckedTypingContext kinds globals -> kinds
+  same :: String -> String -> Bool
+  same a b = string-compare a b == 0
+  equal-type :: UType -> UType -> Bool
+  equal-type a b = valid-type a && valid-type b && (case store-errors (unify (Span 0 0 1 1) (without-index-levels a) (without-index-levels b) (empty-store "Core typing")) of Nil -> True; other -> False)
+  has :: String -> List String -> Bool
+  has name names = case names of Nil -> False; Cons key rest -> same name key || has name rest
+  empty-row :: UType
+  empty-row = URow UEnd
+  effects-fit :: UType -> UType -> Bool
+  effects-fit actual allowed = case store-errors (include-effects (Span 0 0 1 1) actual allowed (empty-store "Core effects")) of Nil -> True; other -> False
+  type-is :: String -> UType -> Bool
+  type-is name ty = equal-type (UCon name KType) ty
+  string-type :: UType -> Bool
+  string-type ty = type-is "String" ty || type-is (interface-global "Data.String.String") ty
+  constructor-pure :: UType -> Bool
+  constructor-pure ty = case ty of
+    UFun a b -> constructor-pure b
+    UFunEff a row b -> effects-fit row empty-row && constructor-pure b
+    UPi id name a row b -> effects-fit row empty-row && constructor-pure b
+    other -> True
+  global-types :: List (String, Kind) -> List CoreGlobal -> Bool
+  global-types kinds declarations = case declarations of
+    Nil -> True
+    Cons declaration rest -> scheme-well-formed kinds empty-type-scope (global-scheme declaration)
+      && (case declaration of GlobalValue name role sc -> not (same role "constructor") || constructor-pure (scheme-body sc); other -> True)
+      && global-types kinds rest
+  kernel-effect-kinds :: List (String, Kind)
+  kernel-effect-kinds = [("Diverge", KEffect), ("Blocking", KEffect), ("IO", KFun KRegion KEffect), ("Async", KFun KRegion KEffect), ("Cancel", KFun KRegion KEffect), ("Eval", KFun KRegion KEffect)]
+  close-typing-context :: List (String, Kind) -> List CoreGlobal -> Option TypingContext
+  close-typing-context kinds declarations = let all = kernel-effect-kinds <> kinds in
+    if nominal-kinds-closed all && global-types all declarations then
+    (case close-globals declarations of Some globals -> Some (CheckedTypingContext all globals); None -> None)
+    else None
+  wf :: TypingContext -> TypeScope -> UType -> Bool
+  wf context scope ty = type-well-formed (context-kinds context) scope ty
+  actual-types :: TypingContext -> TypeScope -> List UType -> Bool
+  actual-types context scope types = case types of Nil -> True; Cons ty rest -> argument-well-formed (context-kinds context) scope ty && actual-types context scope rest
+  evidence-types :: TypingContext -> TypeScope -> CoreEvidence -> Bool
+  evidence-types context scope evidence = case evidence of
+    CEGiven sp ty symbol -> wf context scope ty
+    CEInstance sp ty symbol actuals args -> wf context scope ty && actual-types context scope actuals && evidence-types context scope args
+    CEArgument sp first rest -> evidence-types context scope first && evidence-types context scope rest
+    CEArgumentsEnd sp -> True
+    other -> False
+  evidences-types :: TypingContext -> TypeScope -> List CoreEvidence -> Bool
+  evidences-types context scope evidence = case evidence of Nil -> True; Cons first rest -> evidence-types context scope first && evidences-types context scope rest
+  pattern-type :: CorePattern -> UType
+  pattern-type pattern = case pattern of
+    CPWild sp ty -> ty
+    CPVar sp ty id name -> ty
+    CPAs sp ty id name inner -> ty
+    CPConstructor sp ty name actuals constructor fields -> ty
+    CPInt sp ty text -> ty
+    CPString sp ty text -> ty
+    CPChar sp ty text -> ty
+    CPTuple sp ty fields -> ty
+    other -> UError
+  char-value :: String -> Bool
+  char-value text = case unpack text of Cons first Nil -> True; other -> False
+  tuple-fields :: UType -> Option UType
+  tuple-fields ty = case ty of UTuple fields -> Some fields; UCon name KType -> if same name "Unit" then Some UEnd else None; other -> None
+  pattern-scope :: TypingContext -> TypeScope -> UType -> CorePattern -> Option TypeScope
+  pattern-scope context scope expected pattern = if not (wf context scope expected && proper-type expected && equal-type expected (pattern-type pattern)) then None else case pattern of
+    CPWild sp ty -> Some scope
+    CPVar sp ty id name -> add-local-scheme id (mono ty) scope
+    CPAs sp ty id name inner -> case add-local-scheme id (mono ty) scope of Some bound -> pattern-scope context bound expected inner; None -> None
+    CPConstructor sp ty name actuals constructor fields -> if wf context scope constructor && actual-types context scope actuals then constructor-fields context scope expected constructor fields else None
+    CPTuple sp ty fields -> case tuple-fields ty of Some types -> tuple-patterns context scope types fields; None -> None
+    CPInt sp ty text -> if integer-carrier ty then Some scope else None
+    CPString sp ty text -> if string-type ty then Some scope else None
+    CPChar sp ty text -> if type-is "Char" ty && char-value text then Some scope else None
+    other -> None
+  tuple-patterns :: TypingContext -> TypeScope -> UType -> CorePattern -> Option TypeScope
+  tuple-patterns context scope types patterns = case (types, patterns) of
+    (UEnd, CPDone sp) -> Some scope
+    (UArg ty rest, CPField sp first more) -> case pattern-scope context scope ty first of Some bound -> tuple-patterns context bound rest more; None -> None
+    other -> None
+  arrow-domain :: UType -> Option (UType, UType)
+  arrow-domain ty = case ty of
+    UFun a b -> Some (a, empty-row)
+    UFunEff a row b -> Some (a, row)
+    UPi id name a row b -> Some (a, row)
+    other -> None
+  constructor-fields :: TypingContext -> TypeScope -> UType -> UType -> CorePattern -> Option TypeScope
+  constructor-fields context scope expected ty fields = case fields of
+    CPDone sp -> if equal-type expected ty then Some scope else None
+    CPField sp first rest -> case arrow-domain ty of
+      Some (domain, row) -> if not (effects-fit row empty-row) then None else
+        (case pattern-scope context scope domain first of Some bound -> (case pattern-result ty first of Some result -> constructor-fields context bound expected result rest; None -> None); None -> None)
+      None -> None
+    other -> None
+  branch-facts :: ProofScope -> List Proposition -> CoreTerm -> Bool -> List Proposition
+  branch-facts gamma facts condition positive = case scoped-core-condition gamma facts condition of Some p -> Cons (if positive then p else PNegate p) facts; None -> facts
+  lookup-local :: Nat -> List (Nat, Scheme) -> Option Scheme
+  lookup-local id locals = case locals of Nil -> None; Cons (key, sc) rest -> if key == id then Some sc else lookup-local id rest
+  application-result :: TypingContext -> TypeScope -> ProofScope -> List Proposition -> UType -> CoreTerm -> Option (UType, UType)
+  application-result context scope gamma facts function argument = case arrow-result gamma facts function argument of
+    Some result -> Some result
+    None -> (case (function, argument) of
+      (UPi id name domain row result, CLocal sp ty key display actuals) -> if not (equal-type domain ty) then None else
+        (case lookup-local key (scope-locals scope) of
+          Some sc -> (case scheme-params sc of
+            Cons q rest -> let value = UIndex ty (IRigid key display 0) in
+              if wf context scope value then Some (substitute-bound [(id, value)] result, substitute-bound [(id, value)] row) else None
+            Nil -> None)
+          None -> None)
+      other -> None)
+  checked-application :: TypingContext -> TypeScope -> ProofScope -> List Proposition -> UType -> UType -> CoreTerm -> CoreTerm -> Bool
+  checked-application context scope gamma facts ty row f x = checked-term context scope gamma facts f && checked-term context scope gamma facts x
+    && (case application-result context scope gamma facts (core-type f) x of Some (result, effects) -> equal-type result ty && equal-type effects row; None -> False)
+  tuple-terms :: TypingContext -> TypeScope -> ProofScope -> List Proposition -> UType -> CoreTerm -> Bool
+  tuple-terms context scope gamma facts types terms = case (types, terms) of
+    (UEnd, CArgumentsEnd sp) -> True
+    (UArg ty rest, CArgument sp first more) -> equal-type ty (core-type first) && checked-term context scope gamma facts first && tuple-terms context scope gamma facts rest more
+    other -> False
+  mathematical :: UType -> Bool
+  mathematical ty = type-is "Int" ty || type-is "Nat" ty
+  comparable :: UType -> Bool
+  comparable ty = mathematical ty || type-is "Bool" ty || type-is "Unit" ty || type-is "Char" ty || string-type ty
+  primitive-types :: UType -> String -> CoreTerm -> Bool
+  primitive-types ty name arguments = case arguments of
+    CArgument sp first (CArgumentsEnd end) -> same name "negate" && type-is "Int" ty && equal-type ty (core-type first)
+    CArgument sp first (CArgument at second (CArgumentsEnd end)) -> let carrier = core-type first in
+      equal-type carrier (core-type second) && (if has name ["+", "-", "*"] then mathematical carrier && equal-type ty carrier
+        else if has name ["<", "<=", ">", ">="] then mathematical carrier && type-is "Bool" ty
+        else if has name ["==", "/="] then comparable carrier && type-is "Bool" ty
+        else False)
+    other -> False
+  argument-terms :: TypingContext -> TypeScope -> ProofScope -> List Proposition -> CoreTerm -> Bool
+  argument-terms context scope gamma facts terms = case terms of CArgumentsEnd sp -> True; CArgument sp first rest -> checked-term context scope gamma facts first && argument-terms context scope gamma facts rest; other -> False
+  alternatives-typed :: TypingContext -> TypeScope -> ProofScope -> List Proposition -> UType -> UType -> CoreTerm -> Bool
+  alternatives-typed context scope gamma facts scrutinee expected alternatives = case alternatives of
+    CAlternativesEnd sp -> True
+    CAlternative sp pattern body rest -> (case pattern-scope context scope scrutinee pattern of
+      Some bound -> equal-type expected (core-type body) && checked-term context bound (proof-pattern pattern gamma) facts body
+      None -> False) && alternatives-typed context scope gamma facts scrutinee expected rest
+    other -> False
+  checked-term :: TypingContext -> TypeScope -> ProofScope -> List Proposition -> CoreTerm -> Bool
+  checked-term context scope gamma facts term = proper-type (core-type term) && wf context scope (core-type term) && (case term of
+    CUse sp ty name role actuals -> actual-types context scope actuals
+    CLocal sp ty id name actuals -> actual-types context scope actuals
+    CQualifiedUse sp ty name role actuals evidence -> actual-types context scope actuals && evidences-types context scope evidence
+    CMethod sp ty name owner slot actuals evidence -> actual-types context scope actuals && evidences-types context scope evidence
+    CInt sp ty value -> integer-carrier ty
+    CString sp ty value -> string-type ty
+    CChar sp ty value -> type-is "Char" ty && char-value value
+    CUnit sp ty -> type-is "Unit" ty
+    CApply sp ty f x -> checked-application context scope gamma facts ty empty-row f x
+    CApplyEff sp ty row f x -> wf context scope row && checked-application context scope gamma facts ty row f x
+    CLambda sp ty pattern body -> (case (arrow-domain ty, pattern-result ty pattern) of
+      (Some (domain, row), Some result) -> (case pattern-scope context scope domain pattern of
+        Some bound -> equal-type result (core-type body) && checked-term context bound (proof-pattern pattern gamma) facts body && effects-fit (core-effects body) row
+        None -> False)
+      other -> False)
+    CWith sp ty given value body -> wf context scope (given-type given) && equal-type (given-type given) (core-type value)
+      && equal-type ty (core-type body) && checked-term context scope gamma facts value && checked-term context scope gamma facts body
+    CLet sp ty id name sc rhs body -> checked-let context scope gamma facts ty id sc rhs body
+    CIf sp ty condition yes no -> type-is "Bool" (core-type condition) && equal-type ty (core-type yes) && equal-type ty (core-type no)
+      && checked-term context scope gamma facts condition && checked-term context scope gamma (branch-facts gamma facts condition True) yes && checked-term context scope gamma (branch-facts gamma facts condition False) no
+    CCase sp ty value alternatives -> checked-term context scope gamma facts value && alternatives-typed context scope gamma facts (core-type value) ty alternatives
+    CTuple sp ty fields -> (case tuple-fields ty of Some types -> tuple-terms context scope gamma facts types fields; None -> False)
+    CPrimitive sp ty name args -> primitive-types ty name args && argument-terms context scope gamma facts args
+    CProved sp ty certificate body -> equal-type ty (core-type body) && checked-term context scope gamma facts body
+    CRefine sp ty certificate body -> (case ty of URefine id name carrier predicate -> equal-type carrier (core-type body) && checked-term context scope gamma facts body; other -> False)
+    CForget sp ty body -> (case core-type body of URefine id name carrier predicate -> equal-type carrier ty && checked-term context scope gamma facts body; other -> False)
+    CRequire sp ty body -> (case ty of URequire predicates result -> equal-type result (core-type body) && (case scoped-core-predicates gamma predicates of Some introduced -> checked-term context scope gamma (introduced <> facts) body; None -> False); other -> False)
+    CDischarge sp ty certificates body -> equal-type ty (required-body (core-type body)) && checked-term context scope gamma facts body
+    CGuard sp ty condition body -> type-is "Bool" (core-type condition) && equal-type ty (core-type body) && checked-term context scope gamma facts condition && checked-term context scope gamma (branch-facts gamma facts condition True) body
+    other -> False)
+  checked-let :: TypingContext -> TypeScope -> ProofScope -> List Proposition -> UType -> Nat -> Scheme -> CoreTerm -> CoreTerm -> Bool
+  checked-let context scope gamma facts ty id sc rhs body = scheme-well-formed (context-kinds context) scope sc
+    && (case scheme-requirements sc of Nil -> True; other -> False)
+    && equal-type (scheme-body sc) (core-type rhs) && equal-type ty (core-type body)
+    && (case scheme-type-scope (context-kinds context) scope (scheme-params sc) of Some universal -> checked-term context universal gamma facts rhs; None -> False)
+    && (case add-local-scheme id sc scope of
+      Some bound -> let next = scope-let gamma facts id sc rhs in
+        let more = case scoped-core-let-fact gamma facts id sc rhs of Some p -> Cons p facts; None -> facts in
+        checked-term context bound next more body
+      None -> False)
+  openings-scope :: TypingContext -> TypeScope -> List (Nat, UType) -> Option TypeScope
+  openings-scope context scope openings = case openings of
+    Nil -> Some scope
+    Cons (key, URigid id name level kind) rest -> if kind-well-formed (context-kinds context) scope kind then
+      (case add-rigid-kind id kind scope of Some bound -> openings-scope context bound rest; None -> None) else None
+    other -> None
+  private-scope :: TypeScope -> List (Nat, Kind) -> Option TypeScope
+  private-scope scope entries = case entries of Nil -> Some scope; Cons (id, kind) rest -> case add-rigid-kind id kind scope of Some bound -> private-scope bound rest; None -> None
+  private-kinds :: TypingContext -> TypeScope -> List (Nat, Kind) -> Bool
+  private-kinds context scope entries = case entries of Nil -> True; Cons (id, kind) rest -> kind-well-formed (context-kinds context) scope kind && private-kinds context scope rest
+  givens-typed :: TypingContext -> TypeScope -> List CoreGiven -> Bool
+  givens-typed context scope givens = case givens of Nil -> True; Cons given rest -> wf context scope (given-type given) && givens-typed context scope rest
+  clause-typed :: TypingContext -> TypeScope -> ProofScope -> UType -> UType -> List CorePattern -> CoreTerm -> Bool
+  clause-typed context scope gamma expected allowed patterns body = case patterns of
+    Nil -> equal-type expected (core-type body) && checked-term context scope gamma Nil body && effects-fit (core-effects body) allowed
+    Cons pattern rest -> effects-fit allowed empty-row && (case (arrow-domain expected, pattern-result expected pattern) of
+      (Some (domain, row), Some result) -> (case pattern-scope context scope domain pattern of Some bound -> clause-typed context bound (proof-pattern pattern gamma) result row rest body; None -> False)
+      other -> False)
+  clauses-typed :: TypingContext -> TypeScope -> UType -> List CoreClause -> Bool
+  clauses-typed context scope expected clauses = case clauses of
+    Nil -> True
+    Cons (MkCoreClause sp patterns body) rest -> clause-typed context scope (make-proof-scope Nil Nil) expected empty-row patterns body && clauses-typed context scope expected rest
+  typing-definition-closed :: TypingContext -> CoreDefinition -> Bool
+  typing-definition-closed context definition = (case context of CheckedTypingContext kinds globals -> global-definition-closed globals definition)
+    && core-definition-closed definition
+    && (case openings-scope context empty-type-scope (core-openings definition) of
+      Some opened -> (case private-scope opened (core-private-types definition) of
+        Some scope -> private-kinds context scope (core-private-types definition) && givens-typed context scope (core-givens definition)
+          && clauses-typed context scope (substitute-bound (core-openings definition) (scheme-body (core-scheme definition))) (core-clauses definition)
+        None -> False)
+      None -> False)

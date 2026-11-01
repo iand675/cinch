@@ -58,6 +58,8 @@ const EXPECTED_UNMODELED: &[(&str, usize)] = &[
     ("Bootstrap.Inputs", 0),
     ("Bootstrap.Instance", 0),
     ("Bootstrap.Global", 0),
+    ("Bootstrap.Kinds", 0),
+    ("Bootstrap.Typing", 0),
     ("Bootstrap.Interface", 0),
     ("Bootstrap.Ir", 0),
     ("Bootstrap.Load", 0),

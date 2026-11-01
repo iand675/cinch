@@ -327,5 +327,6 @@
     "runtime_tests": 166,
     "self_built_frontend": false,
     "bootstrap_achieved": false
-  }
+  },
+  "scope": "Global-reference implementation before the subsequent independent kind/term rechecker; current validation is in core-typing-checkpoint-results.json."
 }
