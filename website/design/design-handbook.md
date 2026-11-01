@@ -123,7 +123,7 @@ Do not add fake switches, random LEDs, decorative terminal prompts, uptime count
 
 The military maintenance manual is the reference for technical communication. Borrow its hierarchy and clarity: figure number, descriptive title, consistent stroke weights, explicit part labels, leader lines, construction lines, occasional crosshatching, and a caption that explains the relationship.
 
-`BoundsSection.astro` holds the landing example, Figure 1: two heartbeat messages drawn as byte strips with labelled leaders and dimension lines for `1 + n` against `bytes-len msg`. `TechnicalFigure.astro` is the tutorial example. It shows an actual nonempty vector, its tail, and the borrowed result. Its isometric cells, dimension labels, dashed construction, and numbered legend explain the code alongside it. An illustration of an unrelated engine pasted beside code would copy the surface of the manual and lose the point.
+`AverageFigure.astro` reuses the same isometric drawing on the landing page for the average-order-value example. `TechnicalFigure.astro` is the tutorial example. It shows an actual nonempty vector, its tail, and the borrowed result. Its isometric cells, dimension labels, dashed construction, and numbered legend explain the code alongside it. An illustration of an unrelated engine pasted beside code would copy the surface of the manual and lose the point.
 
 For a new figure:
 

@@ -34,11 +34,10 @@ These instructions apply to `website/`. This site has an established, user-selec
 | Theme preference and initial paint | `src/components/ThemeInit.astro`, `src/components/ThemeControl.astro`; Starlight's own selector on docs |
 | Native scrollbar materials | `src/styles/scrollbars.css` |
 | Docs code palettes and render-cache identity | `src/themes/syntax.mjs`, `astro.config.mjs`, `src/loaders/safelang-docs.ts` |
-| Hero console (length-byte example) | `src/components/ContractConsole.astro` and its rules in `landing.css` |
-| Memory-safety section, Figure 1, checked example sources | `src/components/BoundsSection.astro`, `src/styles/bounds.css`, `src/data/examples/*.cinch` |
-| Landing gadgets (bits, SIMD, fusion, staging, upgrade) | `src/components/LanguageTour.astro`, `src/components/LiveEvolution.astro`, rules in `src/styles/language-tour.css` |
-| Deck keys (shared toggle control) | `.deck-keys` in `src/styles/landing.css` |
-| Manual-style technical figure | `src/components/TechnicalFigure.astro`, `src/styles/technical-figure.css` |
+| Interactive type illustration | `src/components/ContractConsole.astro` and its rules in `landing.css` |
+| Manual-style technical figure | `src/components/TechnicalFigure.astro` (tutorial), `src/components/AverageFigure.astro` (landing), `src/styles/technical-figure.css` |
+| Checked landing examples | `src/data/examples/*.cinch` |
+| Landing gadgets (bits, staging, fusion, SIMD, upgrade) | `src/components/LanguageTour.astro`, `src/components/LiveEvolution.astro`, rules in `src/styles/language-tour.css` |
 | Docs content and route adaptation | `src/loaders/safelang-docs.ts`, `src/components/MarkdownContent.astro`, `astro.config.mjs` |
 | Package fixtures and generated API references | `src/lib/catalogue.ts`, `src/pages/packages/`, `src/components/catalogue/` |
 | Sample releases and downloads | `src/lib/downloads.ts`, `src/pages/downloads/` |
@@ -49,9 +48,9 @@ Reuse the owning layout/component before duplicating it. Prefer semantic colour 
 ## Content and interaction constraints
 
 - Preserve the source Markdown, heading anchors, existing documentation routes, and navigation. The loader reads documentation outside `website/`; do not create parallel copies of the book or change technical examples merely to fit a layout.
-- The console runs the checked `payload` example against one fixed message; it does not run a compiler. Its controls must keep the length byte, the highlighted cells, the equation, the result, and the accessible state in agreement.
-- Landing code that claims to compile or to be rejected comes from `src/data/examples/`, and each file must give that result under `cinch check` (see the landing tour notes). Do not edit the displayed code without re-running the check.
-- A landing gadget must change a quantity the section is about (a length byte, a bit, an element count, a spliced value, an upgrade stage). Animate only in response to the reader, finish in under a few seconds, and honour `prefers-reduced-motion`. No idle loops.
+- The console illustrates `average :: NonEmpty Int -> Int` on one customer's orders; it does not run a compiler. Its controls must keep the order count, visual cells, equation, explanation, and accessible state in agreement.
+- Landing examples should be code a working programmer recognises from their own job (the average-order-value crash), not a famous incident or a type-theory exercise. Code shown as compiling or rejected comes from `src/data/examples/` and must give that result under `cinch check`.
+- Gadgets change a quantity their section is about, animate only when the reader acts, and honour `prefers-reduced-motion`. Their controls are console keycaps (`.gadget-key`, `.gadget-stepper`), never tab bars. The user rejected tabbed "deck key" selectors, a manual-spread restyle of the runtime-contracts rows, and a module-wall restyle of the documentation links (2026-11-01).
 - Packages, versions, API signatures, and release bundles currently include **explicitly labelled sample data**. Keep those labels and indexing rules until real data replaces the fixtures. A sample ZIP is not a compiler distribution. Do not invent compatibility, adoption, benchmark, security, or release claims.
 - Keep real controls native and keyboard-operable where practical. Preserve skip links, visible focus, meaningful link names, selectable code, figure descriptions, and local overflow for long signatures. Decorative SVG/CSS belongs outside the accessibility tree; informative diagrams need a description and caption.
 - Keep font licences. Paid Domaine/Founders captures are historical design specimens, not licensed production webfonts. Archived reference imagery lives outside `public/`; use it to understand the design, not as unreviewed page artwork.

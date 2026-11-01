@@ -1,0 +1,17 @@
+module Main where
+  import Data.List
+  import Data.NonEmpty
+
+  -- Average order value. Needs at least one order.
+  average :: NonEmpty Int -> Int
+  average orders =
+    sum-list 0 (unrefine orders) / length (unrefine orders)
+
+  -- Decide once what no orders means.
+  report :: List Int -> Option Int
+  report orders = case non-empty orders of
+    Some xs -> Some (average xs)
+    None -> None
+
+  main :: Int
+  main = 0

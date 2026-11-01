@@ -1,10 +1,7 @@
 ---
-// The checked `payload` from src/data/examples/payload-checked.cinch, run
-// against one fixed message. The dial sets the message's length byte; the
-// screen shows which bytes the copy would cover and what payload returns.
-const payloadText = 'hello';
-const maxClaim = 7;
-const initial = 3;
+// One customer's order totals. The screen shows what `average :: NonEmpty Int -> Int`
+// accepts as the number of orders changes (see src/data/examples/average.cinch).
+const orders = [24, 36, 12, 48, 30];
 ---
 <section class="contract-console" aria-labelledby="console-title">
   <div class="case-fittings" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
@@ -12,55 +9,52 @@ const initial = 3;
   <div class="console-label"><span class="mono" id="console-title">INTERACTIVE EXAMPLE</span><span class="console-vents" aria-hidden="true"></span></div>
   <div class="display-bezel">
     <div class="contract-screen" data-contract-screen>
-      <div class="screen-header mono"><span>payload.cinch</span><span>msg = 6 bytes</span></div>
-      <div class="screen-signature"><span>payload</span> <span class="screen-colon">:: Bytes → Option Bytes</span><br /><span class="screen-type">if 1 + n &lt;= bytes-len msg</span></div>
-      <div class="message-strip" aria-hidden="true">
-        <div class="message-cells">
-          <span class="message-cell is-length" data-length-cell>{initial}</span>
-          {[...payloadText].map((ch, i) => <span class="message-cell" data-byte-cell={i + 1} style={`--i:${i + 1}`}>{ch}</span>)}
-          {[0, 1].map((i) => <span class="message-cell is-outside" data-byte-cell={payloadText.length + 1 + i} style={`--i:${payloadText.length + 1 + i}`}></span>)}
-        </div>
-        <div class="message-scale mono"><span>n</span><span>payload</span><span>past the end</span></div>
+      <div class="screen-header mono"><span>average.cinch</span></div>
+      <div class="screen-signature"><span>average</span> <span class="screen-colon">::</span><br /><span class="screen-type">NonEmpty Int<br />→ Int</span></div>
+      <div class="vector-visual" aria-label="3 orders">
+        <span class="vector-bracket" aria-hidden="true">[</span>
+        <div class="vector-cells" aria-hidden="true">{orders.map((total, i) => <span class:list={['vector-cell', {'is-filled':i < 3}]} data-vector-cell>{total}</span>)}</div>
+        <span class="vector-bracket" aria-hidden="true">]</span>
       </div>
+      <div class="screen-scale mono" aria-hidden="true"><span>ORDER TOTALS</span><span>0 — 5 ORDERS</span></div>
       <div class="contract-result" aria-live="polite" aria-atomic="true">
-        <div class="result-heading"><span class="result-lamp" aria-hidden="true"></span><strong data-result-title>Some "hel"</strong><span class="mono" data-result-equation>1 + 3 ≤ 6</span></div>
-        <p data-result-description>The length byte fits the message, so payload copies 3 bytes.</p>
+        <div class="result-heading"><span class="result-lamp" aria-hidden="true"></span><strong data-result-title>Average: 24</strong><span class="mono" data-result-equation>72 / 3 = 24</span></div>
+        <p data-result-description>A NonEmpty list never has length 0, so the division needs no check.</p>
       </div>
     </div>
   </div>
   <div class="console-controls">
-    <div class="length-control"><label class="mono" for="claim-length">LENGTH BYTE</label><div class="length-keys"><button type="button" data-length-step="-1" aria-label="Decrease the length byte">−</button><div class="length-dial"><output for="claim-length" id="length-readout">{initial}</output></div><button type="button" data-length-step="1" aria-label="Increase the length byte">+</button></div><input id="claim-length" type="range" min="0" max={maxClaim} value={initial} aria-label="Length byte" /></div>
-    <a href="#bounds" class="example-key"><span class="mono">THE SOURCE</span><span>Why this matters <span aria-hidden="true">↓</span></span></a>
+    <div class="length-control"><label class="mono" for="vector-length">ORDERS</label><div class="length-keys"><button type="button" data-length-step="-1" aria-label="Remove an order">−</button><div class="length-dial"><output for="vector-length" id="length-readout">03</output></div><button type="button" data-length-step="1" aria-label="Add an order">+</button></div><input id="vector-length" type="range" min="0" max="5" value="3" aria-label="Number of orders" /></div>
+    <a href="#average" class="example-key"><span class="mono">AVERAGE.CINCH</span><span>Read the code <span aria-hidden="true">↓</span></span></a>
   </div>
-  <div class="console-bottom mono"><span>Raise the length byte past 5 to claim more than the message holds.</span></div>
+  <div class="console-bottom mono"><span>Take every order away to see what average refuses.</span></div>
 </section>
-<script define:vars={{ payloadText, maxClaim }}>
-  const range = document.querySelector('#claim-length');
+<script define:vars={{ orders }}>
+  const range = document.querySelector('#vector-length');
   if (range) {
-    const total = payloadText.length + 1;
     const steps = document.querySelectorAll('[data-length-step]');
     const render = () => {
-      const n = Number(range.value);
-      const fits = 1 + n <= total;
-      document.querySelector('.length-dial')?.style.setProperty('--dial-angle', `${-120 + n * (240 / maxClaim)}deg`);
-      document.querySelector('[data-contract-screen]')?.classList.toggle('is-empty', !fits);
-      document.querySelector('#length-readout').textContent = String(n);
-      document.querySelector('[data-length-cell]').textContent = String(n);
-      document.querySelectorAll('[data-byte-cell]').forEach((cell) => {
-        const i = Number(cell.dataset.byteCell);
-        cell.classList.toggle('is-copied', i <= n && fits);
-        cell.classList.toggle('is-overrun', i <= n && !fits);
-      });
-      document.querySelector('[data-result-title]').textContent = fits ? `Some "${payloadText.slice(0, n)}"` : 'None';
-      document.querySelector('[data-result-equation]').textContent = `1 + ${n} ${fits ? '≤' : '>'} ${total}`;
-      document.querySelector('[data-result-description]').textContent = fits
-        ? `The length byte fits the message, so payload copies ${n} ${n === 1 ? 'byte' : 'bytes'}.`
-        : `The message claims ${n} bytes but carries ${payloadText.length}. The check fails and nothing is copied. Without the check, the copy does not compile.`;
-      steps.forEach((button) => { button.disabled = Number(button.dataset.lengthStep) < 0 ? n === 0 : n === maxClaim; });
+      const length = Number(range.value);
+      document.querySelector('.length-dial')?.style.setProperty('--dial-angle', `${-120 + length * 48}deg`);
+      const screen = document.querySelector('[data-contract-screen]');
+      screen?.classList.toggle('is-empty', length === 0);
+      const readout = document.querySelector('#length-readout');
+      if (readout) readout.textContent = String(length).padStart(2,'0');
+      document.querySelectorAll('[data-vector-cell]').forEach((cell,i) => cell.classList.toggle('is-filled',i < length));
+      document.querySelector('.vector-visual')?.setAttribute('aria-label',`${length} ${length === 1 ? 'order' : 'orders'}`);
+      const sum = orders.slice(0, length).reduce((a, b) => a + b, 0);
+      const mean = length ? Math.trunc(sum / length) : 0;
+      const title = document.querySelector('[data-result-title]');
+      const equation = document.querySelector('[data-result-equation]');
+      const description = document.querySelector('[data-result-description]');
+      if (title) title.textContent = length ? `Average: ${mean}` : 'No orders';
+      if (equation) equation.textContent = length ? `${sum} / ${length} = ${mean}` : '[] is not NonEmpty';
+      if (description) description.textContent = length ? 'A NonEmpty list never has length 0, so the division needs no check.' : 'An empty list is not a NonEmpty Int, so this call does not compile. The caller decides what no orders means before it gets here.';
+      steps.forEach(button => button.disabled = Number(button.dataset.lengthStep) < 0 ? length === 0 : length === 5);
     };
-    range.addEventListener('input', render);
-    steps.forEach((button) => button.addEventListener('click', () => {
-      range.value = String(Math.min(maxClaim, Math.max(0, Number(range.value) + Number(button.dataset.lengthStep))));
+    range.addEventListener('input',render);
+    steps.forEach(button => button.addEventListener('click',() => {
+      range.value = String(Math.min(5,Math.max(0,Number(range.value) + Number(button.dataset.lengthStep))));
       render();
     }));
     render();

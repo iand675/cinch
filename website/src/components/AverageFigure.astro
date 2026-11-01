@@ -1,0 +1,53 @@
+---
+// Landing Figure 01: TechnicalFigure's isometric drawing, labelled for the
+// average-order-value example in src/data/examples/average.cinch.
+import '../styles/technical-figure.css';
+interface Props { id?: string; }
+const { id = 'average-figure' } = Astro.props;
+---
+<figure class="technical-figure not-content" aria-labelledby={`${id}-caption`}>
+  <div class="figure-running-head"><span>FIG. 01 / REFINEMENT TYPES</span><span>ORDERS → AVERAGE</span></div>
+  <div class="figure-drawing">
+    <svg viewBox="0 0 720 310" role="img" aria-labelledby={`${id}-title ${id}-description`}>
+      <title id={`${id}-title`}>Three order totals and their average</title>
+      <desc id={`${id}-description`}>Three cells hold the order totals 24, 36 and 12. A dimension line above them gives the list's length, 3, which a nonempty list guarantees is not zero. A dimension line below gives their sum, 72. The average is 72 divided by 3, which is 24.</desc>
+      <defs>
+        <pattern id={`${id}-hatch`} width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(35)"><path d="M0 0V5" stroke="currentColor" stroke-width=".6" opacity=".38" /></pattern>
+        <marker id={`${id}-arrow`} viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1 1L7 4 1 7" fill="none" stroke="currentColor" stroke-width="1" /></marker>
+      </defs>
+      <g class="figure-construction" fill="none" stroke="currentColor" stroke-width=".8" stroke-dasharray="3 4">
+        <path d="M172 109V53M536 109V53M172 224H536M172 109H536M172 109V224M536 109V224" />
+        <path d="M280 121L306 105M388 121L414 105" />
+      </g>
+      <g fill="none" stroke="currentColor" stroke-width="1">
+        <path d="M178 60H530" marker-start={`url(#${id}-arrow)`} marker-end={`url(#${id}-arrow)`} />
+        <path d="M172 54V66M536 54V66" />
+      </g>
+      <text class="figure-dimension" x="354" y="43" text-anchor="middle">length orders = 3, never 0</text>
+      <g stroke="currentColor" stroke-width="1.25" stroke-linejoin="round">
+        {[167, 307, 415].map((x) => <>
+          <path class="figure-first-top" d={`M${x} 135L${x + 34} 113H${x + 120}L${x + 86} 135Z`} />
+          <path class="figure-first-front" d={`M${x} 135H${x + 86}V200H${x}Z`} />
+          <path class="figure-first-side" d={`M${x + 86} 135L${x + 120} 113V178L${x + 86} 200Z`} />
+          <path d={`M${x} 135H${x + 86}V200H${x}Z`} fill={`url(#${id}-hatch)`} />
+        </>)}
+        <path d="M157 219H511L548 195M157 219V230M511 219V230" fill="none" />
+      </g>
+      <g class="figure-value" text-anchor="middle"><text x="210" y="175">24</text><text x="350" y="175">36</text><text x="458" y="175">12</text></g>
+      <g fill="none" stroke="currentColor" stroke-width="1.1">
+        <path d="M82 95H127L167 134" /><circle cx="69" cy="95" r="12" />
+        <path d="M625 93H587L540 64" /><circle cx="638" cy="93" r="12" />
+        <path d="M83 273H146L166 251" marker-end={`url(#${id}-arrow)`} /><circle cx="70" cy="273" r="12" />
+        <path d="M167 245H501M167 239V251M501 239V251" />
+      </g>
+      <g class="figure-callout" text-anchor="middle"><text x="69" y="99">1</text><text x="638" y="97">2</text><text x="70" y="277">3</text></g>
+      <text class="figure-dimension" x="334" y="273" text-anchor="middle">sum = 72</text>
+    </svg>
+  </div>
+  <ol class="figure-legend">
+    <li><span>Input</span><code>NonEmpty Int</code><p>One customer’s orders, at least one.</p></li>
+    <li><span>Divisor</span><code>length orders</code><p>Nonzero, because the list is nonempty.</p></li>
+    <li><span>Result</span><code>72 / 3 = 24</code><p>No runtime check on the division.</p></li>
+  </ol>
+  <figcaption id={`${id}-caption`}><strong>Figure 01. Average order value.</strong> Three orders total 72. The list’s type guarantees its length is not 0, so the division is safe as written. An empty order history never reaches <code>average</code>.</figcaption>
+</figure>
