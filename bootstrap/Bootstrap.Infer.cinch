@@ -11,6 +11,7 @@ module Bootstrap.Infer where
   import Text.Show (int-to-string)
   import Bootstrap.Core
   import Bootstrap.Instance
+  import Bootstrap.Global
   import Bootstrap.Builtin (builtin-declarations, intrinsic-contract)
   import Bootstrap.Dictionary (resolve-dictionary-definition-with, resolve-dictionary-term-with, resolve-ready-term, check-instance-coherence)
   import Bootstrap.Parse (parse-scheme)
@@ -1910,10 +1911,34 @@ module Bootstrap.Infer where
     MkProofBinding fact -> MkProofBinding fact
   finish-bindings :: Store -> List CheckedBinding -> List CheckedBinding
   finish-bindings st env = case env of Nil -> Nil; Cons b rest -> Cons (finish-binding st b) (finish-bindings st rest)
-  check-core-closed :: List CoreDefinition -> Store -> Store
-  check-core-closed definitions st = case definitions of
+  global-bindings :: List CheckedBinding -> List CoreGlobal -> List CoreGlobal
+  global-bindings bindings globals = case bindings of
+    Nil -> globals
+    Cons binding rest -> global-bindings rest (case binding of
+      MkCheckedBinding name sc role -> add-global (GlobalValue name role sc) globals
+      MkMethodBinding name sc owner slot -> add-global (GlobalMethod name owner slot sc) globals
+      MkIntrinsicBinding name sc symbol -> add-global (GlobalValue symbol "intrinsic" sc) globals
+      other -> globals)
+  field-globals :: List CoreDictionaryField -> List CoreGlobal -> List CoreGlobal
+  field-globals fields globals = case fields of
+    Nil -> globals
+    Cons field rest -> let definition = dictionary-field-definition field in
+      field-globals rest (add-global (GlobalValue (core-name definition) "instance-method" (core-scheme definition)) globals)
+  instance-globals :: List CoreInstance -> List CoreGlobal -> List CoreGlobal
+  instance-globals instances globals = case instances of Nil -> globals; Cons dictionary rest -> instance-globals rest (field-globals (instance-fields dictionary) globals)
+  check-core-closed :: CoreGlobals -> List CoreDefinition -> Store -> Store
+  check-core-closed globals definitions st = case definitions of
     Nil -> st
-    Cons d rest -> check-core-closed rest (if core-definition-closed d then st else add-error zero "typed core contains an unresolved scheme or error term" st)
+    Cons d rest -> check-core-closed globals rest (if not (core-definition-closed d) then add-error zero "typed core contains an unresolved scheme or error term" st
+      else if global-definition-closed globals d then st else add-error zero (string-concat "typed core reference disagrees with the global environment: " (core-name d)) st)
+  check-field-globals :: CoreGlobals -> List CoreDictionaryField -> Store -> Store
+  check-field-globals globals fields st = case fields of Nil -> st; Cons field rest -> check-field-globals globals rest (check-core-closed globals [dictionary-field-definition field] st)
+  check-instance-globals :: CoreGlobals -> List CoreInstance -> Store -> Store
+  check-instance-globals globals instances st = case instances of Nil -> st; Cons dictionary rest -> check-instance-globals globals rest (check-field-globals globals (instance-fields dictionary) st)
+  check-global-core :: List CheckedBinding -> List CoreInstance -> List CoreDefinition -> Store -> Store
+  check-global-core bindings instances definitions st = case close-globals (instance-globals instances (global-bindings (finish-bindings st bindings) Nil)) of
+    Some globals -> check-instance-globals globals instances (check-core-closed globals definitions st)
+    None -> add-error zero "global declaration environment is not closed or contains conflicting identities" st
   -- Reuse the schemes registered and checked above. Re-reading a surface
   -- constructor type here would discard the exact nominal identities.
   checked-constructors :: List (String, TypeExpr) -> List CheckedBinding -> Store -> (List CoreConstructor, Store)
@@ -2039,7 +2064,7 @@ module Bootstrap.Infer where
     let (descriptions, instances, sm) = case store-errors sx of Nil -> checked-source-instances rows classes kinds families env ds Nil sx; other -> (Nil, Nil, sx) in
     let (core, done) = case store-errors sm of Nil -> check-bodies classes kinds families env Nil ds ds sm; other -> (Nil, sm) in
     let (datas, sd) = case store-errors done of Nil -> checked-data kinds env ds Nil done; other -> (Nil, done) in
-    let finished = case store-errors sd of Nil -> check-data-closed datas (check-core-closed core sd); other -> sd in
+    let finished = case store-errors sd of Nil -> check-data-closed datas (check-global-core env instances core sd); other -> sd in
     MkElaboration (store-errors finished) (finish-bindings finished env) (contexts ds) core datas effects (MkCoreClassContext classes descriptions) instances
   elaborate-modules :: String -> List Module -> Elaboration
   elaborate-modules label ms = case ms of

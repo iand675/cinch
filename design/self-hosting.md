@@ -1,4 +1,38 @@
-# Next steps (as of 2026-11-01)
+# Next steps (as of 2026-11-02)
+
+Core references now undergo an independent check against retained global
+declarations. Global and local uses must match their actual schemes and type
+argument kinds. Method owners and slots, constructor schemes, dictionary factory
+arguments, lexical providers, universal openings and declared dictionary binders
+are rechecked. Dictionary method bodies pass the same reference checks as ordinary
+source definitions. The global context has a private validated constructor.
+
+All six focused whole Rust targets pass: global-reference forgeries, real source
+dictionaries, inference, intrinsics, the parser corpus and the complete pipeline.
+The compiled Cinch tests run at five input-derived identities above 2^128; all
+21 source dictionary cases and the actual Text.Json source dictionary pass.
+The pipeline accepts dictionary declarations and explicit selection, then reaches
+the emitter's dictionary refusal. Using a dictionary as Int remains a type error;
+unimported class methods remain hidden. Parser coverage for Bootstrap.Global is
+zero unmodeled nodes.
+
+This remains a work-in-progress checkpoint. The complete current suite has 163
+integration targets and five general gates and has not run. The separately
+running 162-target source-instance suite does not establish this implementation's
+complete result. A fresh stage attempt is queued or running in one shared worker
+slot. [The global-reference report](../bootstrap/global-reference-checkpoint-results.json)
+records exact sources and results. The prior fully completed Native-assisted
+checkpoint remains 623d33e; no self-built frontend suite has passed.
+
+This phase does not validate all interior term/kind rules or numeric primitive
+semantics. A separate kind and Core term checker is under validation. Actual
+primitive or checked instance-body authority, totality, decision/proof erasure,
+measure contracts, handlers, usage checking and typed shared-runtime lowering
+remain required. Stage2/3 fixed-point and changed-source behavior remain unproven.
+The Native seed stays source81/patch655, runtime ABI5/interface schema7, with
+definition-owned fixities. Work stays within five heavy jobs.
+
+## Previous source-instance checkpoint (146b3b2)
 
 Source instance dictionaries are now published as a work-in-progress checkpoint.
 The typed class and instance records retain defining owners, exact method slots,

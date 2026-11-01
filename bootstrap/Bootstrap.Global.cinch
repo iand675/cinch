@@ -1,0 +1,201 @@
+-- Independent reference checking over retained global contracts. The context
+-- comes from checked declarations/interfaces, never from a term's annotations.
+-- Full term typing, totality and semantic proof authority are separate checks.
+module Bootstrap.Global where
+  import Bootstrap.Type
+  import Bootstrap.Core
+  import Bootstrap.Instance (scheme-equivalent)
+  import Text.Lex (Span)
+  import Algebra.Semigroup
+
+  export CoreGlobal, GlobalValue, GlobalMethod, global-name, global-scheme
+  export CoreGlobals, add-global, globals-closed, close-globals, global-definition-closed
+
+  data CoreGlobal where
+    GlobalValue :: String -> String -> Scheme -> CoreGlobal
+    GlobalMethod :: String -> String -> Nat -> Scheme -> CoreGlobal
+  data CoreGlobals where
+    ClosedGlobals :: List CoreGlobal -> CoreGlobals
+  global-name :: CoreGlobal -> String
+  global-name declaration = case declaration of GlobalValue name role sc -> name; GlobalMethod name owner slot sc -> name
+  global-scheme :: CoreGlobal -> Scheme
+  global-scheme declaration = case declaration of GlobalValue name role sc -> sc; GlobalMethod name owner slot sc -> sc
+  same :: String -> String -> Bool
+  same a b = string-compare a b == 0
+  equal-type :: UType -> UType -> Bool
+  equal-type a b = valid-type a && valid-type b && (case store-errors (unify (Span 0 0 1 1) (without-index-levels a) (without-index-levels b) (empty-store "global reference")) of Nil -> True; other -> False)
+  lookup-global :: String -> List CoreGlobal -> Option CoreGlobal
+  lookup-global name declarations = case declarations of Nil -> None; Cons declaration rest -> if same name (global-name declaration) then Some declaration else lookup-global name rest
+  same-global :: CoreGlobal -> CoreGlobal -> Bool
+  same-global first second = same (global-name first) (global-name second) && scheme-equivalent (global-scheme first) (global-scheme second) && (case (first, second) of
+    (GlobalValue a role sc, GlobalValue b other ty) -> same role other
+    (GlobalMethod a owner slot sc, GlobalMethod b other number ty) -> same owner other && slot == number
+    other -> False)
+  -- Several checked source aliases can name one runtime intrinsic. Keep a
+  -- conflicting duplicate so that context validation refuses it.
+  add-global :: CoreGlobal -> List CoreGlobal -> List CoreGlobal
+  add-global declaration declarations = case lookup-global (global-name declaration) declarations of
+    Some prior -> if same-global declaration prior then declarations else Cons declaration declarations
+    None -> Cons declaration declarations
+  has-name :: String -> List String -> Bool
+  has-name name names = case names of Nil -> False; Cons key rest -> same key name || has-name name rest
+  role-valid :: String -> Bool
+  role-valid role = has-name role ["value", "external", "constructor", "builtin", "intrinsic", "instance", "implicit-instance", "instance-method", "operation"]
+  root-name :: UType -> Option String
+  root-name ty = case ty of UCon name kind -> Some name; UApp f x -> root-name f; other -> None
+  method-self :: String -> Scheme -> Bool
+  method-self owner sc = case scheme-requirements sc of Cons r rest -> (case root-name (requirement-type r) of Some name -> same owner name; None -> False); Nil -> False
+  globals-seen :: List CoreGlobal -> List String -> Bool
+  globals-seen declarations names = case declarations of
+    Nil -> True
+    Cons declaration rest -> let name = global-name declaration in
+      string-length name > 0 && not (has-name name names) && contract-scheme-closed (global-scheme declaration)
+      && (case declaration of GlobalValue symbol role sc -> role-valid role; GlobalMethod symbol owner slot sc -> string-length owner > 0 && method-self owner sc)
+      && globals-seen rest (Cons name names)
+  globals-closed :: List CoreGlobal -> Bool
+  globals-closed declarations = globals-seen declarations Nil
+  close-globals :: List CoreGlobal -> Option CoreGlobals
+  close-globals declarations = if globals-closed declarations then Some (ClosedGlobals declarations) else None
+
+  -- Substitution checks kinds in declaration order, including a value
+  -- parameter whose carrier mentions an earlier type parameter.
+  actuals-pairs :: List Quant -> List UType -> List (Nat, UType) -> Option (List (Nat, UType))
+  actuals-pairs params actuals pairs = case (params, actuals) of
+    (Nil, Nil) -> Some pairs
+    (Cons q rest, Cons actual more) -> if valid-type actual && kind-equal (map-kind-types (substitute-bound pairs) (quant-kind q)) (type-kind actual) then
+      actuals-pairs rest more (Cons (quant-id q, actual) pairs) else None
+    other -> None
+  instantiate-contract :: Scheme -> List UType -> Option (UType, List Requirement)
+  instantiate-contract sc actuals = case actuals-pairs (scheme-params sc) actuals Nil of
+    Some pairs -> Some (substitute-bound pairs (scheme-body sc), map-requirements (substitute-bound pairs) (scheme-requirements sc))
+    None -> None
+  lookup-given :: String -> List CoreGiven -> Option UType
+  lookup-given name givens = case givens of Nil -> None; Cons given rest -> if same name (given-symbol given) then Some (given-type given) else lookup-given name rest
+  instance-role :: String -> Bool
+  instance-role role = same role "instance" || same role "implicit-instance"
+  evidence-valid :: List CoreGlobal -> List CoreGiven -> CoreEvidence -> Bool
+  evidence-valid globals givens evidence = case evidence of
+    CEGiven sp ty name -> case lookup-given name givens of Some expected -> equal-type ty expected; None -> False
+    CEInstance sp ty name actuals arguments -> case lookup-global name globals of
+      Some (GlobalValue symbol role sc) -> instance-role role && (case instantiate-contract sc actuals of
+        Some (expected, requirements) -> equal-type ty expected && evidence-arguments globals givens requirements arguments
+        None -> False)
+      other -> False
+    other -> False
+  evidence-arguments :: List CoreGlobal -> List CoreGiven -> List Requirement -> CoreEvidence -> Bool
+  evidence-arguments globals givens requirements arguments = case (requirements, arguments) of
+    (Nil, CEArgumentsEnd sp) -> True
+    (Cons r rest, CEArgument sp first more) -> equal-type (requirement-type r) (evidence-type first)
+      && evidence-valid globals givens first && evidence-arguments globals givens rest more
+    other -> False
+  evidence-list :: List CoreGlobal -> List CoreGiven -> List Requirement -> List CoreEvidence -> Bool
+  evidence-list globals givens requirements evidence = case (requirements, evidence) of
+    (Nil, Nil) -> True
+    (Cons r rest, Cons first more) -> equal-type (requirement-type r) (evidence-type first)
+      && evidence-valid globals givens first && evidence-list globals givens rest more
+    other -> False
+  value-reference :: List CoreGlobal -> List CoreGiven -> UType -> String -> String -> List UType -> List CoreEvidence -> Bool
+  value-reference globals givens ty name role actuals evidence =
+    if same role "dictionary" then (case (actuals, evidence, lookup-given name givens) of (Nil, Nil, Some expected) -> equal-type ty expected; other -> False)
+    else case lookup-global name globals of
+      Some (GlobalValue symbol declared sc) -> same role declared && (case instantiate-contract sc actuals of
+        Some (expected, requirements) -> equal-type ty expected && evidence-list globals givens requirements evidence
+        None -> False)
+      other -> False
+  method-reference :: List CoreGlobal -> List CoreGiven -> UType -> String -> String -> Nat -> List UType -> List CoreEvidence -> Bool
+  method-reference globals givens ty name owner slot actuals evidence = case lookup-global name globals of
+    Some (GlobalMethod symbol declared number sc) -> same owner declared && slot == number && (case instantiate-contract sc actuals of
+      Some (expected, requirements) -> equal-type ty expected && evidence-list globals givens requirements evidence
+      None -> False)
+    other -> False
+  lookup-local :: Nat -> List (Nat, Scheme) -> Option Scheme
+  lookup-local id locals = case locals of Nil -> None; Cons (key, sc) rest -> if id == key then Some sc else lookup-local id rest
+  local-reference :: List (Nat, Scheme) -> UType -> Nat -> List UType -> Bool
+  local-reference locals ty id actuals = case lookup-local id locals of
+    Some sc -> (case instantiate-contract sc actuals of Some (expected, Nil) -> equal-type ty expected; other -> False)
+    None -> False
+  bind-local :: Nat -> Scheme -> List (Nat, Scheme) -> Option (List (Nat, Scheme))
+  bind-local id sc locals = case lookup-local id locals of Some prior -> None; None -> Some (Cons (id, sc) locals)
+  constructor-reference :: List CoreGlobal -> String -> List UType -> UType -> Bool
+  constructor-reference globals name actuals ty = case lookup-global name globals of
+    Some (GlobalValue symbol role sc) -> same role "constructor" && (case instantiate-contract sc actuals of Some (expected, Nil) -> equal-type ty expected; other -> False)
+    other -> False
+  pattern-locals :: List CoreGlobal -> List (Nat, Scheme) -> CorePattern -> Option (List (Nat, Scheme))
+  pattern-locals globals locals pattern = case pattern of
+    CPVar sp ty id name -> bind-local id (mono ty) locals
+    CPAs sp ty id name inner -> case bind-local id (mono ty) locals of Some bound -> pattern-locals globals bound inner; None -> None
+    CPConstructor sp ty name actuals constructor fields -> if constructor-reference globals name actuals constructor then pattern-locals globals locals fields else None
+    CPTuple sp ty fields -> pattern-locals globals locals fields
+    CPField sp first rest -> case pattern-locals globals locals first of Some bound -> pattern-locals globals bound rest; None -> None
+    CPWild sp ty -> Some locals
+    CPInt sp ty text -> Some locals
+    CPString sp ty text -> Some locals
+    CPChar sp ty text -> Some locals
+    CPDone sp -> Some locals
+  patterns-locals :: List CoreGlobal -> List (Nat, Scheme) -> List CorePattern -> Option (List (Nat, Scheme))
+  patterns-locals globals locals patterns = case patterns of Nil -> Some locals; Cons first rest -> case pattern-locals globals locals first of Some bound -> patterns-locals globals bound rest; None -> None
+  term-references :: List CoreGlobal -> List (Nat, Scheme) -> List CoreGiven -> CoreTerm -> Bool
+  term-references globals locals givens term = case term of
+    CUse sp ty name role actuals -> value-reference globals givens ty name role actuals Nil
+    CQualifiedUse sp ty name role actuals evidence -> value-reference globals givens ty name role actuals evidence
+    CMethod sp ty name owner slot actuals evidence -> method-reference globals givens ty name owner slot actuals evidence
+    CLocal sp ty id name actuals -> local-reference locals ty id actuals
+    CApply sp ty f x -> term-references globals locals givens f && term-references globals locals givens x
+    CApplyEff sp ty row f x -> term-references globals locals givens f && term-references globals locals givens x
+    CWith sp ty given value body -> (case lookup-given (given-symbol given) givens of Some prior -> False; None -> True)
+      && equal-type (given-type given) (core-type value) && term-references globals locals givens value
+      && term-references globals locals (Cons given givens) body
+    CLambda sp ty pattern body -> case pattern-locals globals locals pattern of Some bound -> term-references globals bound givens body; None -> False
+    CLet sp ty id name sc rhs body -> term-references globals locals givens rhs && (case bind-local id sc locals of Some bound -> term-references globals bound givens body; None -> False)
+    CIf sp ty condition yes no -> term-references globals locals givens condition && term-references globals locals givens yes && term-references globals locals givens no
+    CCase sp ty value alternatives -> term-references globals locals givens value && term-references globals locals givens alternatives
+    CTuple sp ty fields -> term-references globals locals givens fields
+    CPrimitive sp ty name args -> term-references globals locals givens args
+    CProved sp ty certificate body -> term-references globals locals givens body
+    CRefine sp ty certificate body -> term-references globals locals givens body
+    CForget sp ty body -> term-references globals locals givens body
+    CRequire sp ty body -> term-references globals locals givens body
+    CDischarge sp ty proofs body -> term-references globals locals givens body
+    CGuard sp ty condition body -> term-references globals locals givens condition && term-references globals locals givens body
+    CArgument sp first rest -> term-references globals locals givens first && term-references globals locals givens rest
+    CAlternative sp pattern body rest -> (case pattern-locals globals locals pattern of Some bound -> term-references globals bound givens body; None -> False) && term-references globals locals givens rest
+    CInt sp ty value -> True
+    CString sp ty value -> True
+    CChar sp ty value -> True
+    CUnit sp ty -> True
+    CArgumentsEnd sp -> True
+    CAlternativesEnd sp -> True
+    CError sp -> False
+  clause-references :: List CoreGlobal -> List CoreGiven -> List CoreClause -> Bool
+  clause-references globals givens clauses = case clauses of
+    Nil -> True
+    Cons (MkCoreClause sp patterns body) rest -> (case patterns-locals globals Nil patterns of
+      Some locals -> term-references globals locals givens body
+      None -> False) && clause-references globals givens rest
+  has-id :: Nat -> List Nat -> Bool
+  has-id id ids = case ids of Nil -> False; Cons key rest -> id == key || has-id id rest
+  definition-openings :: List Quant -> List (Nat, UType) -> List (Nat, UType) -> List Nat -> Bool
+  definition-openings params openings earlier seen = case (params, openings) of
+    (Nil, Nil) -> True
+    (Cons q rest, Cons (id, actual) more) -> id == quant-id q && valid-type actual
+      && kind-equal (map-kind-types (substitute-bound earlier) (quant-kind q)) (type-kind actual)
+      && (case actual of
+        URigid fresh name level kind -> not (has-id fresh seen) && definition-openings rest more (Cons (id, actual) earlier) (Cons fresh seen)
+        other -> False)
+    other -> False
+  declared-givens :: List Requirement -> List CoreGiven -> List String -> Bool
+  declared-givens requirements givens names = case (requirements, givens) of
+    (Nil, Nil) -> True
+    (Cons r rest, Cons given more) -> let name = given-symbol given in
+      string-length name > 0 && not (has-name name names)
+      && equal-type (requirement-type r) (given-type given)
+      && declared-givens rest more (Cons name names)
+    other -> False
+  global-definition-closed :: CoreGlobals -> CoreDefinition -> Bool
+  global-definition-closed context definition = case context of ClosedGlobals globals -> (case lookup-global (core-name definition) globals of
+    Some (GlobalValue name role sc) -> (same role "value" || same role "instance-method") && scheme-equivalent sc (core-scheme definition)
+      && definition-openings (scheme-params (core-scheme definition)) (core-openings definition) Nil Nil
+      && declared-givens (map-requirements (substitute-bound (core-openings definition)) (scheme-requirements (core-scheme definition))) (core-givens definition) Nil
+      && core-definition-result-types definition
+      && clause-references globals (core-givens definition) (core-clauses definition)
+    other -> False)

@@ -32,8 +32,10 @@ refusal is an actual bootstrap blocker, recorded with its diagnostics;
 there is no fallback to the Rust frontend. `design/self-hosting.md` states
 what remains before that build and the complete bootstrap check can pass.
 The runner applies a positive heap cap of at most 2G to every program.
-Builds and tests run one command at a time, with one build worker and one
-test thread. The heap cap applies to each generated process separately.
+Each stage chain runs one command at a time, with one build worker and one
+test thread. Independent validation jobs share a limit of five heavy jobs:
+four shared slots and one explicitly assigned probe lane. The heap cap
+applies to each generated process separately.
 
 The complete verification entry point is:
 
@@ -44,16 +46,18 @@ uses private build caches, checks the test executables' source paths, and
 runs compiler, runtime, tooling and bootstrap checks sequentially at reduced
 priority. Its final gate requires stage 2, stage 3, their fixed point and
 the changed-source probe; the current stage-2 refusal therefore prevents a
-complete pass. The verifier's tooling unit tests pass; its first complete
-frozen run is still required.
+complete pass. The verifier's tooling unit tests pass. Earlier completed
+Native-assisted suites do not establish the final self-hosting gate.
 
 The pipeline also accepts `--interfaces MANIFEST` before its four paths.
 The manifest is JSON: `{"schema":1,"interfaces":[["Module","hash","path"]]}`.
 Paths are absolute or relative to the process's working directory. The
 loader verifies the entire dependency set before source parsing, so
 operator fixities come from checked public interfaces. Resolution retains
-full contracts and defining identities. Schema 4 carries definition-site
-pure schemes and private nominal kinds. Pure polymorphic values and
+full contracts and defining identities. Schema 7 carries definition-site
+schemes, private nominal kinds, class contracts, Region and closed effect
+contexts, exact value-index carriers, refinements and byte observations.
+Pure polymorphic values and
 regular imported constructors enter checking under those contracts;
 display spellings do not establish a nominal identity. Private constructor
 identities constrain coverage without exposing source names. The loader
@@ -72,8 +76,10 @@ accepts the kernel newIO/ioWrite/ioSleep/pollCancel contracts, lexical Io
 providers, Region binders and closed kernel effect arrows. Function bodies
 must fit their declared rows; a with binding does not remove effects.
 Fresh regions cannot escape in inferred returned closures. Open row tails,
-ioRead's imported Option contract, foreign declarations and effect handlers
-still need elaboration.
+ioRead's imported Option contract, foreign declarations outside checked
+runtime intrinsics, and effect handlers still need elaboration. Source
+effect declarations retain checked operation schemes and dispatch slots;
+operation calls retain their declared effect rows.
 The decision contracts keep `decide` as predicate syntax and retain
 `Yes`/`No`'s erased evidence fields; they require dependent checking before
 acceptance.
@@ -83,8 +89,14 @@ fresh instantiation, rigid quantified variables, kind checks, occurs and
 scope-escape checks, let generalization, regular parameterized constructors,
 positivity and pattern coverage. Pure polymorphic programs now reach the
 emitter's explicit refusal for typed lowering. Lexical dictionary evidence
-and kernel IO effects are retained; global instance selection, existential
-and dependent obligations remain checker refusals.
+and kernel IO effects are retained. Coherent implicit instance selection
+and named explicit dictionary values are supported. Source instances of
+checked defining class interfaces retain specialized method schemes,
+captured contexts and typed dictionary fields. Only implicit instances
+participate in automatic search. A named dictionary may be supplied with
+`with`; its member labels do not become new public functions. Source
+class declarations, existential/indexed constructor elaboration and
+decision/proof erasure remain required.
 `Bootstrap.Core` retains the checked terms, effect rows, capability scopes, constructor field types,
 type instantiations and generalized let schemes. Failed elaboration exposes
 no core. Source data retain their kinds, parameters and complete constructor
@@ -96,6 +108,19 @@ source-effects runner reads changed programs after compilation and passes
 region mismatches, scope leaks and fresh-region closure escape.
 The resolver keeps public aliases and source-module provenance in `DSource`
 nodes so the later typed interface writer can retain the original scopes.
+
+`Bootstrap.Global` independently rechecks Core references against retained
+global declarations: schemes and type argument kinds, roles, method
+owners/slots, constructor schemes, dictionary factories and lexical
+providers. Universal openings and declared dictionary binders are checked
+too, including within source dictionary method bodies. Its validated
+context constructor is private. This reference checker is not the full
+independent kind/term/proof kernel. Numeric reflection still needs actual
+checked primitive or instance-body semantics; a canonical class name and
+slot do not establish those semantics. Current evidence and remaining
+gates are recorded in
+[the global-reference report](global-reference-checkpoint-results.json)
+and [the self-hosting design](../design/self-hosting.md).
 
 The orchestration checks run with:
 

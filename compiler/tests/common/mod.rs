@@ -80,6 +80,7 @@ pub fn project(tag: &str, files: &[(&str, &str)]) -> PathBuf {
         }
     }
     if files.iter().any(|(name, _)| matches!(*name, "Bootstrap.Check.cinch" | "Bootstrap.Infer.cinch")) {
+        std::fs::write(dir.join("Bootstrap.Global.cinch"), include_str!("../../../bootstrap/Bootstrap.Global.cinch")).expect("global reference checking dependency");
         std::fs::write(dir.join("Bootstrap.Instance.cinch"), include_str!("../../../bootstrap/Bootstrap.Instance.cinch")).expect("typed source instance dependency");
         std::fs::write(dir.join("Bootstrap.Builtin.cinch"), include_str!("../../../bootstrap/Bootstrap.Builtin.cinch")).expect("kernel contract dependency");
     }
