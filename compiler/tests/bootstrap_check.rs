@@ -54,7 +54,7 @@ bootstrap.check:10:5: unmodeled pattern: Pz | Ps q
 class:
 bootstrap.check:4:3: class declarations are not supported in this rung
 instance:
-bootstrap.check:4:3: instance declarations are not supported in this rung
+bootstrap.check:4:3: source instance needs a closed saturated signature target
 fixity:
 bootstrap.check:4:3: fixity declarations are not supported in this rung
 operator:

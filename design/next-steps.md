@@ -9,10 +9,19 @@ class dictionaries and retains the existing Io region-escape check.
 Ordinary values remain invalid dictionary arguments; only implicit instances
 participate in implicit search. Fixities remain owned by their declaring module.
 
-The focused instance target and six existing regression targets are still under
-validation. The complete suite for this implementation has not run, and its
-fresh staged build is queued after the focused checks. The previous checkpoint's
-161 passing integration targets do not establish that this implementation passes.
+All eight focused whole targets pass: the new dictionary checks, six existing
+regressions, and the checker fixture corrected to retain its non-signature-target
+refusal. The compiled Cinch checker passes 21 source cases and the actual
+Text.Json source dictionary. Fresh stage0 and stage1 pass all six smoke checks.
+The actual stage2 attempt now reports four header diagnostics before bodies:
+decide/Yes/No evidence and the imported measure contract. The source instance
+header is resolved; no stage2 IR or compiler executable is produced.
+
+The complete Native-assisted suite of 162 integration targets and five general
+gates is running. Exact-source audits reuse only unchanged whole targets; the
+independent checker fixture is rerun. This is not a complete current-suite pass
+or the suite through a self-built frontend. The previously verified baseline
+remains commit 623d33e. Header counts do not measure overall completion.
 [The instance checkpoint report](../bootstrap/source-instances-checkpoint-results.json)
 records the frozen inputs and the exact validation state at publication.
 Real dictionary runtime lowering, the independent global kernel, and the full

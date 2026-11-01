@@ -481,7 +481,7 @@ module Main where
     <> (one (MkCheck "unmodeled-type" unmodeled-type-program "bootstrap.check:4:8: unmodeled type: (a, b) -> Int\n"))
     <> (one (MkCheck "unmodeled-pattern" unmodeled-pattern-program "bootstrap.check:10:5: unmodeled pattern: Pz | Ps q\n"))
     <> (one (MkCheck "class" class-program "bootstrap.check:4:3: class declarations are not supported in this rung\n"))
-    <> (one (MkCheck "instance" instance-program "bootstrap.check:4:3: instance declarations are not supported in this rung\n"))
+    <> (one (MkCheck "instance" instance-program "bootstrap.check:4:3: source instance needs a closed saturated signature target\n"))
     <> (one (MkCheck "fixity" fixity-program "bootstrap.check:4:3: fixity declarations are not supported in this rung\n"))
     <> (one (MkCheck "operator" operator-program "bootstrap.check:5:11: unsupported operator: &&\n"))
     <> (one (MkCheck "expression" expression-program "bootstrap.check:5:11: unsupported expression: float literal\n"))

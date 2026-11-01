@@ -1,6 +1,6 @@
 {
   "recorded_at": "2026-11-01T22:29:26.676688+00:00",
-  "status": "work in progress; focused validation incomplete",
+  "status": "work in progress; focused checks pass; complete suite running; no stage2 compiler",
   "last_complete_native_assisted_checkpoint": "623d33e0f02198e701ac8a899f3e92ee6462a266",
   "source_sha256": "a80b991bfac3e483debfc815b930cacc463707a6dd057472ce84d8fe5e483801",
   "source_inputs": 579,
@@ -19,8 +19,10 @@
   "focused_target": [
     {
       "name": "bootstrap_source_instances",
-      "status": "running",
-      "started": "2026-11-01T22:18:01.917347+00:00"
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T22:18:01.917347+00:00",
+      "finished": "2026-11-01T22:29:56.835968+00:00"
     }
   ],
   "source_cases_passed_at_recording": [
@@ -75,8 +77,10 @@
     },
     {
       "name": "bootstrap_nominals",
-      "status": "running",
-      "started": "2026-11-01T22:27:08.106653+00:00"
+      "status": "passed",
+      "exit_code": 0,
+      "started": "2026-11-01T22:27:08.106653+00:00",
+      "finished": "2026-11-01T22:35:19.457999+00:00"
     },
     {
       "name": "bootstrap_instance_resolution",
@@ -87,11 +91,169 @@
     }
   ],
   "complete_current_suite": {
-    "status": "not run",
+    "status": "running",
     "integration_targets": 162,
-    "general_gates": 5
+    "general_gates": 5,
+    "fresh_counts": {
+      "passed": 2,
+      "waiting-shared-slot": 1,
+      "running": 3,
+      "pending": 145
+    },
+    "plan": {
+      "focused_targets": [
+        "bootstrap_check",
+        "bootstrap_core",
+        "bootstrap_effect_types",
+        "bootstrap_effects",
+        "bootstrap_instance_resolution",
+        "bootstrap_nominals",
+        "bootstrap_resolve",
+        "bootstrap_source_instances"
+      ],
+      "fresh_matrix_gates": 151,
+      "general_gates": 5,
+      "integration_targets": 162,
+      "reused_or_inflight_whole_targets": [
+        "alloc_accounting",
+        "argv",
+        "attributes",
+        "bootstrap_abstract_nonzero_methods",
+        "bootstrap_abstract_nonzero_types",
+        "bootstrap_anonymous_contracts",
+        "bootstrap_buffer_aliases",
+        "bootstrap_byte_observations"
+      ],
+      "self_built_frontend": false,
+      "slots": "four shared slots, including the global-reference probe; stage6 owns sole outside fifth lane",
+      "source_sha256": "5530920cd1c6956231602d9e1013d08df207e3142d87627592d1860fd136bcf4",
+      "workers": 4
+    },
+    "reuse_audit": {
+      "all_native_bootstrap_implementation_prelude_runtime_harness_and_other_fixtures_unchanged": true,
+      "changed_inputs": [
+        "bootstrap/programs/Run.Check.cinch",
+        "compiler/tests/bootstrap_check.rs"
+      ],
+      "filtered_target_coverage": {
+        "status": "all reused checks are whole targets; no filtered reuse"
+      },
+      "focused_results": [
+        "/tmp/cinch-source-instances-validation-6/results.json",
+        "/tmp/cinch-source-instances-validation-6/regressions/results.json",
+        "/tmp/cinch-source-instances-validation-7/results.json"
+      ],
+      "from_source_sha256": "a80b991bfac3e483debfc815b930cacc463707a6dd057472ce84d8fe5e483801",
+      "old_results": "/tmp/cinch-source-instances-validation-6/complete-matrix/results.json",
+      "previous_full_run_status": "failed obsolete blanket source-instance refusal diagnostic; not a full pass",
+      "prior_focused_reuse_audit": {
+        "focused_results": [
+          "/tmp/cinch-source-instances-validation-6/results.json",
+          "/tmp/cinch-source-instances-validation-6/regressions/results.json"
+        ],
+        "older_checkpoint_results_reused": false,
+        "source_inputs": 579,
+        "source_sha256": "a80b991bfac3e483debfc815b930cacc463707a6dd057472ce84d8fe5e483801",
+        "status": "identical frozen inputs; all focused gates run from this same source",
+        "whole_targets": [
+          "bootstrap_core",
+          "bootstrap_effect_types",
+          "bootstrap_effects",
+          "bootstrap_instance_resolution",
+          "bootstrap_nominals",
+          "bootstrap_resolve",
+          "bootstrap_source_instances"
+        ]
+      },
+      "status": "source inputs audited; only the independent checker runner and its pinned Rust expectation changed",
+      "to_source_sha256": "5530920cd1c6956231602d9e1013d08df207e3142d87627592d1860fd136bcf4",
+      "whole_targets": [
+        {
+          "exit_code": 0,
+          "finished": "2026-11-01T22:31:42.836963+00:00",
+          "name": "alloc_accounting",
+          "started": "2026-11-01T22:31:16.984531+00:00",
+          "status": "passed"
+        },
+        {
+          "exit_code": 0,
+          "finished": "2026-11-01T22:31:35.183012+00:00",
+          "name": "argv",
+          "started": "2026-11-01T22:31:16.985832+00:00",
+          "status": "passed"
+        },
+        {
+          "exit_code": 0,
+          "finished": "2026-11-01T22:31:38.971978+00:00",
+          "name": "attributes",
+          "started": "2026-11-01T22:31:16.989150+00:00",
+          "status": "passed"
+        },
+        {
+          "name": "bootstrap_abstract_nonzero_methods",
+          "started": "2026-11-01T22:35:19.486164+00:00",
+          "status": "running"
+        },
+        {
+          "exit_code": 0,
+          "finished": "2026-11-01T22:32:28.695699+00:00",
+          "name": "bootstrap_abstract_nonzero_types",
+          "started": "2026-11-01T22:31:35.186578+00:00",
+          "status": "passed"
+        },
+        {
+          "name": "bootstrap_anonymous_contracts",
+          "started": "2026-11-01T22:31:38.974488+00:00",
+          "status": "running"
+        },
+        {
+          "exit_code": 0,
+          "finished": "2026-11-01T22:34:15.530732+00:00",
+          "name": "bootstrap_buffer_aliases",
+          "started": "2026-11-01T22:31:42.840307+00:00",
+          "status": "passed"
+        },
+        {
+          "name": "bootstrap_byte_observations",
+          "started": "2026-11-01T22:32:28.698251+00:00",
+          "status": "running"
+        }
+      ]
+    },
+    "self_built_frontend": false,
+    "all_tests_passed": false
   },
-  "fresh_staged_build": "queued after the focused target and all six regressions pass",
+  "fresh_staged_build": {
+    "smokes": 6,
+    "status": "all smokes passed; stage2 exit4 before bodies; no IR/executable",
+    "stage2": {
+      "diagnostic_categories": {
+        "builtin constructor needs proposition instantiation and erasure checking: b.No": 1,
+        "builtin constructor needs proposition instantiation and erasure checking: b.Yes": 1,
+        "builtin syntax needs dependent predicate elaboration: b.decide": 1,
+        "imported using context needs a defining signature contract": 1
+      },
+      "diagnostics": 4,
+      "exit_code": 4,
+      "inputs": {
+        "builder_sha256": "d173276b1c8c1a92551b4725b8dde3615ab8a89dbe420966d6590b6afd0ee507",
+        "built_by_stage": 1,
+        "host": {
+          "machine": "arm64",
+          "system": "Darwin"
+        },
+        "interface_set_sha256": "2bb336eef7205cf4f9550dee7a311967c9774a959b0bfc8ebba17b9278f3e586",
+        "protocol": 2,
+        "source_sha256": "bb47edd379b412bdd64ce47d04e21f87b131144a88afd184687edf4debf56867"
+      },
+      "log": "/private/tmp/cinch-source-instances-stages-6/source/build/bootstrap/stage2/build.log",
+      "status": "failed"
+    },
+    "source_unchanged": true,
+    "compiler_named_source_sha256": "bb47edd379b412bdd64ce47d04e21f87b131144a88afd184687edf4debf56867",
+    "compiler_bundle_bytes_sha256": "d0e138a272b030d766d2372d4064f018706ed6c773992dedbcb421bd35ebbd0d",
+    "published_compiler_bytes_match_staged_bundle": true
+  },
   "self_hosting_achieved": false,
   "full_self_built_frontend_suite_passed": false,
   "remaining": [
@@ -101,5 +263,240 @@
     "independent global typing and proof kernel",
     "typed shared-runtime lowering including real dictionaries",
     "stage2 and stage3 fixed point, changed-source behavior, and full self-built frontend suite"
-  ]
+  ],
+  "latest_update": {
+    "recorded_at": "2026-11-01T22:41:52.898151+00:00",
+    "status": "all eight focused whole targets pass; complete Native-assisted suite running",
+    "source_sha256": "5530920cd1c6956231602d9e1013d08df207e3142d87627592d1860fd136bcf4",
+    "source_inputs": 579,
+    "changed_inputs_from_instance6": [
+      "bootstrap/programs/Run.Check.cinch",
+      "compiler/tests/bootstrap_check.rs"
+    ],
+    "fixture_correction": "the invalid instance target Int remains rejected as a non-signature; the old blanket source-instance refusal no longer describes this checker",
+    "focused_results": [
+      {
+        "name": "bootstrap_source_instances",
+        "status": "passed",
+        "exit_code": 0,
+        "started": "2026-11-01T22:18:01.917347+00:00",
+        "finished": "2026-11-01T22:29:56.835968+00:00"
+      },
+      {
+        "name": "bootstrap_effect_types",
+        "status": "passed",
+        "exit_code": 0,
+        "started": "2026-11-01T22:25:07.157471+00:00",
+        "finished": "2026-11-01T22:26:03.951543+00:00"
+      },
+      {
+        "name": "bootstrap_effects",
+        "status": "passed",
+        "exit_code": 0,
+        "started": "2026-11-01T22:25:07.158003+00:00",
+        "finished": "2026-11-01T22:27:35.273973+00:00"
+      },
+      {
+        "name": "bootstrap_core",
+        "status": "passed",
+        "exit_code": 0,
+        "started": "2026-11-01T22:25:07.160365+00:00",
+        "finished": "2026-11-01T22:27:08.105558+00:00"
+      },
+      {
+        "name": "bootstrap_resolve",
+        "status": "passed",
+        "exit_code": 0,
+        "started": "2026-11-01T22:26:03.952488+00:00",
+        "finished": "2026-11-01T22:29:00.275112+00:00"
+      },
+      {
+        "name": "bootstrap_nominals",
+        "status": "passed",
+        "exit_code": 0,
+        "started": "2026-11-01T22:27:08.106653+00:00",
+        "finished": "2026-11-01T22:35:19.457999+00:00"
+      },
+      {
+        "name": "bootstrap_instance_resolution",
+        "status": "passed",
+        "exit_code": 0,
+        "started": "2026-11-01T22:27:35.274854+00:00",
+        "finished": "2026-11-01T22:28:29.045445+00:00"
+      },
+      {
+        "name": "bootstrap_check",
+        "status": "passed",
+        "exit_code": 0,
+        "started": "2026-11-01T22:38:08.358084+00:00",
+        "finished": "2026-11-01T22:40:58.556183+00:00"
+      }
+    ],
+    "source_case_count": 21,
+    "actual_Text_Json_source_instance": "passed",
+    "fresh_stages": {
+      "smokes": 6,
+      "status": "all smokes passed; stage2 exit4 before bodies; no IR/executable",
+      "stage2": {
+        "diagnostic_categories": {
+          "builtin constructor needs proposition instantiation and erasure checking: b.No": 1,
+          "builtin constructor needs proposition instantiation and erasure checking: b.Yes": 1,
+          "builtin syntax needs dependent predicate elaboration: b.decide": 1,
+          "imported using context needs a defining signature contract": 1
+        },
+        "diagnostics": 4,
+        "exit_code": 4,
+        "inputs": {
+          "builder_sha256": "d173276b1c8c1a92551b4725b8dde3615ab8a89dbe420966d6590b6afd0ee507",
+          "built_by_stage": 1,
+          "host": {
+            "machine": "arm64",
+            "system": "Darwin"
+          },
+          "interface_set_sha256": "2bb336eef7205cf4f9550dee7a311967c9774a959b0bfc8ebba17b9278f3e586",
+          "protocol": 2,
+          "source_sha256": "bb47edd379b412bdd64ce47d04e21f87b131144a88afd184687edf4debf56867"
+        },
+        "log": "/private/tmp/cinch-source-instances-stages-6/source/build/bootstrap/stage2/build.log",
+        "status": "failed"
+      },
+      "source_unchanged": true,
+      "compiler_named_source_sha256": "bb47edd379b412bdd64ce47d04e21f87b131144a88afd184687edf4debf56867",
+      "compiler_bundle_bytes_sha256": "d0e138a272b030d766d2372d4064f018706ed6c773992dedbcb421bd35ebbd0d",
+      "published_compiler_bytes_match_staged_bundle": true
+    },
+    "complete_suite": {
+      "status": "running",
+      "integration_targets": 162,
+      "general_gates": 5,
+      "fresh_counts": {
+        "passed": 2,
+        "waiting-shared-slot": 1,
+        "running": 3,
+        "pending": 145
+      },
+      "plan": {
+        "focused_targets": [
+          "bootstrap_check",
+          "bootstrap_core",
+          "bootstrap_effect_types",
+          "bootstrap_effects",
+          "bootstrap_instance_resolution",
+          "bootstrap_nominals",
+          "bootstrap_resolve",
+          "bootstrap_source_instances"
+        ],
+        "fresh_matrix_gates": 151,
+        "general_gates": 5,
+        "integration_targets": 162,
+        "reused_or_inflight_whole_targets": [
+          "alloc_accounting",
+          "argv",
+          "attributes",
+          "bootstrap_abstract_nonzero_methods",
+          "bootstrap_abstract_nonzero_types",
+          "bootstrap_anonymous_contracts",
+          "bootstrap_buffer_aliases",
+          "bootstrap_byte_observations"
+        ],
+        "self_built_frontend": false,
+        "slots": "four shared slots, including the global-reference probe; stage6 owns sole outside fifth lane",
+        "source_sha256": "5530920cd1c6956231602d9e1013d08df207e3142d87627592d1860fd136bcf4",
+        "workers": 4
+      },
+      "reuse_audit": {
+        "all_native_bootstrap_implementation_prelude_runtime_harness_and_other_fixtures_unchanged": true,
+        "changed_inputs": [
+          "bootstrap/programs/Run.Check.cinch",
+          "compiler/tests/bootstrap_check.rs"
+        ],
+        "filtered_target_coverage": {
+          "status": "all reused checks are whole targets; no filtered reuse"
+        },
+        "focused_results": [
+          "/tmp/cinch-source-instances-validation-6/results.json",
+          "/tmp/cinch-source-instances-validation-6/regressions/results.json",
+          "/tmp/cinch-source-instances-validation-7/results.json"
+        ],
+        "from_source_sha256": "a80b991bfac3e483debfc815b930cacc463707a6dd057472ce84d8fe5e483801",
+        "old_results": "/tmp/cinch-source-instances-validation-6/complete-matrix/results.json",
+        "previous_full_run_status": "failed obsolete blanket source-instance refusal diagnostic; not a full pass",
+        "prior_focused_reuse_audit": {
+          "focused_results": [
+            "/tmp/cinch-source-instances-validation-6/results.json",
+            "/tmp/cinch-source-instances-validation-6/regressions/results.json"
+          ],
+          "older_checkpoint_results_reused": false,
+          "source_inputs": 579,
+          "source_sha256": "a80b991bfac3e483debfc815b930cacc463707a6dd057472ce84d8fe5e483801",
+          "status": "identical frozen inputs; all focused gates run from this same source",
+          "whole_targets": [
+            "bootstrap_core",
+            "bootstrap_effect_types",
+            "bootstrap_effects",
+            "bootstrap_instance_resolution",
+            "bootstrap_nominals",
+            "bootstrap_resolve",
+            "bootstrap_source_instances"
+          ]
+        },
+        "status": "source inputs audited; only the independent checker runner and its pinned Rust expectation changed",
+        "to_source_sha256": "5530920cd1c6956231602d9e1013d08df207e3142d87627592d1860fd136bcf4",
+        "whole_targets": [
+          {
+            "exit_code": 0,
+            "finished": "2026-11-01T22:31:42.836963+00:00",
+            "name": "alloc_accounting",
+            "started": "2026-11-01T22:31:16.984531+00:00",
+            "status": "passed"
+          },
+          {
+            "exit_code": 0,
+            "finished": "2026-11-01T22:31:35.183012+00:00",
+            "name": "argv",
+            "started": "2026-11-01T22:31:16.985832+00:00",
+            "status": "passed"
+          },
+          {
+            "exit_code": 0,
+            "finished": "2026-11-01T22:31:38.971978+00:00",
+            "name": "attributes",
+            "started": "2026-11-01T22:31:16.989150+00:00",
+            "status": "passed"
+          },
+          {
+            "name": "bootstrap_abstract_nonzero_methods",
+            "started": "2026-11-01T22:35:19.486164+00:00",
+            "status": "running"
+          },
+          {
+            "exit_code": 0,
+            "finished": "2026-11-01T22:32:28.695699+00:00",
+            "name": "bootstrap_abstract_nonzero_types",
+            "started": "2026-11-01T22:31:35.186578+00:00",
+            "status": "passed"
+          },
+          {
+            "name": "bootstrap_anonymous_contracts",
+            "started": "2026-11-01T22:31:38.974488+00:00",
+            "status": "running"
+          },
+          {
+            "exit_code": 0,
+            "finished": "2026-11-01T22:34:15.530732+00:00",
+            "name": "bootstrap_buffer_aliases",
+            "started": "2026-11-01T22:31:42.840307+00:00",
+            "status": "passed"
+          },
+          {
+            "name": "bootstrap_byte_observations",
+            "started": "2026-11-01T22:32:28.698251+00:00",
+            "status": "running"
+          }
+        ]
+      },
+      "self_built_frontend": false,
+      "all_tests_passed": false
+    }
+  }
 }
