@@ -1225,9 +1225,12 @@ module Bootstrap.Infer where
   comparison-refinement :: UType -> Bool
   comparison-refinement ty = case ty of URefine id name carrier predicate -> math-carrier carrier && comparison-predicate predicate; other -> False
   project-comparison :: Span -> CoreTerm -> Store -> CoreTerm
-  project-comparison sp term st = case normalize st (core-type term) of
-    URefine id name carrier predicate -> if comparison-refinement (normalize st (core-type term)) then CForget sp carrier term else term
-    other -> term
+  project-comparison sp term st = case term of
+    CLet at ty id name sc rhs body -> let result = project-comparison sp body st in
+      CLet at (core-type result) id name sc rhs result
+    other -> case normalize st (core-type term) of
+      URefine id name carrier predicate -> if comparison-refinement (normalize st (core-type term)) then CForget sp carrier term else term
+      other -> term
   subsume-term :: Span -> CoreTerm -> UType -> Store -> (CoreTerm, Store)
   subsume-term sp term expected st = case normalize st expected of
     URefine id name carrier predicate -> (term, unify sp (core-type term) expected st)
@@ -1243,32 +1246,76 @@ module Bootstrap.Infer where
     ELitInt s text -> case checked-literal s carrier text st of (term, checked) -> introduce-refinement env s expected term checked
     ELam s patterns body -> case check-unrefined classes kinds families env locals expr carrier st of (term, checked) -> introduce-refinement env s expected term checked
     other -> case infer classes kinds families env locals expr st of
-      (term, checked) -> case normalize checked (core-type term) of
-        URefine id name domain predicate ->
-          let direct = unify (expr-span expr) (core-type term) expected checked in
-          if list-length (store-errors direct) == list-length (store-errors checked) then (term, direct)
-          else let value = project-comparison (expr-span expr) term checked in
-            introduce-refinement env (expr-span expr) expected value (unify (expr-span expr) (core-type value) carrier checked)
-        other -> introduce-refinement env (expr-span expr) expected term (unify (expr-span expr) (core-type term) carrier checked)
+      (term, checked) -> refine-inferred env (expr-span expr) expected carrier term checked
+  -- Check the requested result inside materialized witness scopes, then
+  -- close each CLet with that requested type. No local index escapes in
+  -- an outer annotation, and every RHS remains evaluated exactly once.
+  refine-inferred :: List CheckedBinding -> Span -> UType -> UType -> CoreTerm -> Store -> (CoreTerm, Store)
+  refine-inferred env sp expected carrier term st = case term of
+    CLet at ty id name sc rhs body ->
+      let binding = MkLocalBinding name sc id (store-level st) in
+      let bound = proof-let-env env binding id sc rhs st in
+      case refine-inferred bound sp expected carrier body st of
+        (result, done) -> (CLet at expected id name sc rhs result, done)
+    CForget at plain body -> if comparison-refinement (normalize st (core-type body)) then
+      refine-inferred env sp expected carrier body st
+      else introduce-refinement env sp expected term (unify sp (core-type term) carrier st)
+    other -> case normalize st (core-type term) of
+      URefine id name domain predicate -> let direct = unify sp (core-type term) expected st in
+        if list-length (store-errors direct) == list-length (store-errors st) then (term, direct)
+        else materialize-refinement env sp expected carrier term st
+      other -> introduce-refinement env sp expected term (unify sp (core-type term) carrier st)
+  -- A call's result is a value, not a stable symbolic call. Bind that
+  -- result once before weakening its checked refinement. The ordinary
+  -- CLet/CLocal/CForget/CRefine rules recheck the certificate under the
+  -- actual fresh local identity and retain the producer's effect row.
+  materialize-refinement :: List CheckedBinding -> Span -> UType -> UType -> CoreTerm -> Store -> (CoreTerm, Store)
+  materialize-refinement env sp expected carrier term st = case fresh-id st of
+    (id, fresh) ->
+      let actual = normalize fresh (core-type term) in
+      let scheme = mono actual in
+      let name = "#refinement-result" in
+      let binding = MkLocalBinding name scheme id (store-level fresh) in
+      let bound = proof-let-env env binding id scheme term fresh in
+      let local = CLocal sp actual id name Nil in
+      let value = project-comparison sp local fresh in
+      case introduce-refinement bound sp expected value (unify sp (core-type value) carrier fresh) of
+        (result, checked) -> (CLet sp expected id name scheme term result, checked)
   introduce-refinement :: List CheckedBinding -> Span -> UType -> CoreTerm -> Store -> (CoreTerm, Store)
   introduce-refinement env sp expected term st = case store-errors st of
     Cons error rest -> (CError sp, st)
     Nil -> case prove-refinement (proof-gamma env st) (proof-facts env) (normalize st expected) (map-term-types (normalize st) term) of
       Some evidence -> (CRefine sp expected evidence term, st)
       None -> term-error sp "refinement predicate is not established for this value" st
+  let-result-escapes :: CoreTerm -> Bool
+  let-result-escapes term = let-chain-mentions (type-all-ids (core-type term)) term
+  let-chain-mentions :: List Nat -> CoreTerm -> Bool
+  let-chain-mentions ids term = case term of
+    CLet sp ty id name sc rhs body -> contains-meta id ids || let-chain-mentions ids body
+    other -> False
   check-refined-let :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Expr -> Expr -> UType -> Store -> (CoreTerm, Store)
   check-refined-let classes kinds families env locals sp bindings body expected st = case bindings of
     EBindingsEnd s -> check classes kinds families env locals body expected st
     EBinding s name rhs rest -> let level = store-level st in
       case infer classes kinds families env locals rhs (enter-level st) of
         (value, checked) -> case resolve-dictionary-term-with classes (env-instances env) (env-givens env) value checked of
-          (resolved, ready) -> let (scheme, pairs) = generalize-with level (env-metas env ready) (core-type resolved) ready in
-            case fresh-id (restore-level level ready) of
-              (id, fresh) -> case let-binding s env name scheme id level resolved fresh of
-                (binding, prepared) -> case check-refined-let classes kinds families (proof-let-env env binding id scheme resolved prepared) locals sp rest body expected prepared of
-                  (result, done) -> (CLet s expected id name scheme (abstract-term ready pairs resolved) result, done)
+          (resolved, ready) -> check-refined-binding classes kinds families env locals sp s name rest body expected level resolved ready
     other -> term-error sp "malformed let binding spine" st
 
+  check-refined-binding :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Span -> String -> Expr -> Expr -> UType -> Nat -> CoreTerm -> Store -> (CoreTerm, Store)
+  check-refined-binding classes kinds families env locals sp at name rest body expected level value st =
+    if let-result-escapes value then (case value of
+      CLet s ty id display sc rhs inner ->
+        let binding = MkLocalBinding display sc id level in
+        let bound = proof-let-env env binding id sc rhs st in
+        case check-refined-binding classes kinds families bound locals sp at name rest body expected level inner st of
+          (result, done) -> (CLet s expected id display sc rhs result, done)
+      other -> term-error at "dependent let result has no retained witness scope" st)
+    else let (scheme, pairs) = generalize-with level (env-metas env st) (core-type value) st in
+      case fresh-id (restore-level level st) of
+        (id, fresh) -> case let-binding at env name scheme id level value fresh of
+          (binding, prepared) -> case check-refined-let classes kinds families (proof-let-env env binding id scheme value prepared) locals sp rest body expected prepared of
+            (result, done) -> (CLet at expected id name scheme (abstract-term st pairs value) result, done)
   infer-arguments :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> CoreTerm -> Expr -> Store -> (CoreTerm, Store)
   infer-arguments classes kinds families env locals term args st = case args of
     EArgsEnd s -> (term, st)
@@ -1345,12 +1392,22 @@ module Bootstrap.Infer where
       let level = store-level st in
       case infer classes kinds families env locals rhs (enter-level st) of
         (value, sr) -> case resolve-dictionary-term-with classes (env-instances env) (env-givens env) value sr of
-          (resolved, sd) -> let (sc, pairs) = generalize-with level (env-metas env sd) (core-type resolved) sd in
-            case fresh-id (restore-level level sd) of
-              (id, fresh) -> case let-binding s env name sc id level resolved fresh of
-                (binding, prepared) -> case infer-let classes kinds families (proof-let-env env binding id sc resolved prepared) locals sp rest body prepared of
-                  (result, ss) -> (CLet s (core-type result) id name sc (abstract-term sd pairs resolved) result, ss)
+          (resolved, sd) -> infer-let-binding classes kinds families env locals sp s name rest body level resolved sd
     other -> term-error (expr-span bs) "malformed let binding spine" st
+  infer-let-binding :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> Span -> String -> Expr -> Expr -> Nat -> CoreTerm -> Store -> (CoreTerm, Store)
+  infer-let-binding classes kinds families env locals sp at name rest body level value st =
+    if let-result-escapes value then (case value of
+      CLet s ty id display sc rhs inner ->
+        let binding = MkLocalBinding display sc id level in
+        let bound = proof-let-env env binding id sc rhs st in
+        case infer-let-binding classes kinds families bound locals sp at name rest body level inner st of
+          (result, done) -> (CLet s (core-type result) id display sc rhs result, done)
+      other -> term-error at "dependent let result has no retained witness scope" st)
+    else let (scheme, pairs) = generalize-with level (env-metas env st) (core-type value) st in
+      case fresh-id (restore-level level st) of
+        (id, fresh) -> case let-binding at env name scheme id level value fresh of
+          (binding, prepared) -> case infer-let classes kinds families (proof-let-env env binding id scheme value prepared) locals sp rest body prepared of
+            (result, done) -> (CLet at (core-type result) id name scheme (abstract-term st pairs value) result, done)
   infer-operator :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> String -> Expr -> Expr -> Store -> (CoreTerm, Store)
   infer-operator classes kinds families env locals sp op a b st =
     if has op ["&&", "||"] then
@@ -1861,6 +1918,7 @@ module Bootstrap.Infer where
         -- once, retaining the operation certificate and its equality fact;
         -- do not smuggle symbolic Nat subtraction into type conversion.
         CProved source ty evidence body -> materialize-dependent classes sp env fun value st
+        CRefine source ty evidence body -> materialize-dependent classes sp env fun value st
         other -> (CError sp, checked)
   materialize-dependent :: List (String, Kind) -> Span -> List CheckedBinding -> CoreTerm -> CoreTerm -> Store -> (CoreTerm, Store)
   materialize-dependent classes sp env fun value st = case fresh-id st of

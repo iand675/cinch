@@ -126,6 +126,13 @@ module Bootstrap.Nominal where
   qualify :: Json -> List String -> TypeExpr -> (TypeExpr, List Diagnostic)
   qualify refs locals ty = case ty of
     TName s name -> qualify-name refs locals s name
+    TRefined s predicate carrier -> case qualify refs locals carrier of
+      (base, errors) -> case anonymous-predicate-names locals predicate Nil of
+        Nil -> case qualify-predicate refs locals predicate of
+          (condition, more) -> (TRefined s condition base, errors <> more)
+        Cons name Nil -> case qualify-predicate refs (Cons name locals) predicate of
+          (condition, more) -> (TRefined s condition base, errors <> more)
+        other -> fail s "resolved refinement has more than one unbound result name"
     TIndex s digits -> (ty, Nil)
     TNegate s body -> case qualify refs locals body of (value, errors) -> (TNegate s value, errors)
     TFun s (TBound bound name carrier (TBoundsEnd end)) result -> case (qualify refs locals carrier, qualify refs (Cons name locals) result) of
@@ -147,6 +154,16 @@ module Bootstrap.Nominal where
     TUsing s bounds body -> case (qualify-bounds refs (contract-argument-names body <> locals) Nil bounds, qualify refs locals body) of
       ((context, errors), (out, more)) -> (TUsing s context out, errors <> more)
     other -> fail (type-expr-span ty) "resolved scheme needs dictionary, effect or dependent elaboration"
+  -- Predicate application heads are contracts, never implicit binders.
+  -- The predicate qualifier separately checks the admitted vocabulary.
+  anonymous-predicate-names :: List String -> TypeExpr -> List String -> List String
+  anonymous-predicate-names locals syntax seen = case syntax of
+    TName s name -> if has name locals || has name seen || has name ["True", "False"] then seen else Cons name seen
+    TInfix s op a b -> anonymous-predicate-names locals b (anonymous-predicate-names locals a seen)
+    TNegate s body -> anonymous-predicate-names locals body seen
+    TApp s head args -> anonymous-predicate-names locals args seen
+    TArg s first rest -> anonymous-predicate-names locals rest (anonymous-predicate-names locals first seen)
+    other -> seen
   qualify-row :: List String -> TypeExpr -> (TypeExpr, List Diagnostic)
   qualify-row locals row = case row of
     TRow s labels None -> case qualify-effects locals labels of (out, errors) -> (TRow s out None, errors)

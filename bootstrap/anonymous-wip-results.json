@@ -1,0 +1,464 @@
+{
+  "status": "WIP; broader validation pending",
+  "candidate_snapshot_sha256": "b84b7a8dc278a0468e43a922de01d7565af717ef8d677026f88304ae36ac8acc",
+  "candidate_files": {
+    "bootstrap/Bootstrap.Core.cinch": "5ef8ebc383b5101b8f001be57a983fd813f97fe02d47f93b1c1903b5d5df236a",
+    "bootstrap/Bootstrap.Infer.cinch": "f4fb793fd78116bc5fdcf9d37672c63eddbefd5f3c41760f295c5f8ee41ea379",
+    "bootstrap/Bootstrap.Nominal.cinch": "5acc928834b4762b5ef17670dbc50698826c2e8e7cc22263d92e869d7023a4dd",
+    "bootstrap/Bootstrap.Type.cinch": "738a79770673fd2aca83ef2716e16b4230e40dc8bff26d88a6fdab7cc826888c",
+    "compiler/tests/bootstrap_anonymous_contracts.rs": "d42127baf05c8b0789345763a24c3f6bbd2f6d6bab68894d7d987c654019178c",
+    "compiler/tests/bootstrap_source_refinements.rs": "9c06757801fcaa72a3a3a631dedea03f3088c053fb092096148bc507fd991311",
+    "compiler/src/check_interface.rs": "1b85181bae1c52374b0f880d4818774e668036e429d4daa8b2234cfb0f4681d7",
+    "compiler/tests/interface_anonymous_contracts.rs": "e92c0793b32a307d30e50d3819782bd589cda70116731d8d75582a274178cf8b"
+  },
+  "focused_source_refinements": {
+    "cases": 63,
+    "expected_cases": 63,
+    "status": "passed",
+    "unchanged_inputs": true
+  },
+  "focused_cases": [
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "certified refined argument dependent result",
+      "report": "",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "certified argument witness survives result let",
+      "report": "",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "certified argument result projects to carrier",
+      "report": "",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "certified argument witness survives ordinary let",
+      "report": "",
+      "status": "passed"
+    },
+    {
+      "exit_code": 4,
+      "expected": 4,
+      "name": "certified argument cannot accept zero",
+      "report": "bootstrap.check:5:15: refinement predicate is not established for this value\n",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "certified argument retains call effect",
+      "report": "",
+      "status": "passed"
+    },
+    {
+      "exit_code": 4,
+      "expected": 4,
+      "name": "certified argument cannot erase call effect",
+      "report": "bootstrap.check:5:9: performed effects exceed the declared row\n",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "call result reversed bound",
+      "report": "",
+      "status": "passed"
+    },
+    {
+      "exit_code": 4,
+      "expected": 4,
+      "name": "call bound cannot strengthen from implementation",
+      "report": "bootstrap.check:5:9: refinement predicate is not established for this value\n",
+      "status": "passed"
+    },
+    {
+      "exit_code": 4,
+      "expected": 4,
+      "name": "call bound cannot use another argument identity",
+      "report": "bootstrap.check:5:13: refinement predicate is not established for this value\n",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "effectful result weakening retains row",
+      "report": "",
+      "status": "passed"
+    },
+    {
+      "exit_code": 4,
+      "expected": 4,
+      "name": "effectful result weakening cannot erase row",
+      "report": "bootstrap.check:5:14: performed effects exceed the declared row\n",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "named refined parameter dependent result",
+      "report": "",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "named refined parameter dependent call",
+      "report": "",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "dependent arithmetic retains projection",
+      "report": "",
+      "status": "passed"
+    },
+    {
+      "exit_code": 4,
+      "expected": 4,
+      "name": "dependent refined argument cannot borrow another identity",
+      "report": "bootstrap.check:3:13: refinement predicate is not established for this value\n",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "mixed Nat Int contract",
+      "report": "",
+      "status": "passed"
+    },
+    {
+      "exit_code": 4,
+      "expected": 4,
+      "name": "mixed Nat Int contract cannot strengthen",
+      "report": "bootstrap.check:3:13: refinement predicate is not established for this value\n",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "fixed integer comparison contract",
+      "report": "",
+      "status": "passed"
+    },
+    {
+      "exit_code": 4,
+      "expected": 4,
+      "name": "fixed integer needs evidence",
+      "report": "bootstrap.check:3:11: refinement predicate is not established for this value\n",
+      "status": "passed"
+    },
+    {
+      "exit_code": 4,
+      "expected": 4,
+      "name": "wrapping arithmetic remains opaque",
+      "report": "bootstrap.check:2:39: machine arithmetic cannot enter mathematical index conversion\nbootstrap.check:2:33: ill-sorted proof predicate\nbootstrap.check:2:24: ill-formed source refinement\nbootstrap.check:2:10: ill-formed source dependent function\n",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "generic result proof",
+      "report": "",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "generic refined identity",
+      "report": "",
+      "status": "passed"
+    },
+    {
+      "exit_code": 4,
+      "expected": 4,
+      "name": "non-comparison point needs explicit projection",
+      "report": "bootstrap.check:3:11: type mismatch: expected a, found refine (#result :: a) with True#Prop\n",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "literal",
+      "report": "",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "integer literal",
+      "report": "",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "global preserves result",
+      "report": "",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "global numeric projection",
+      "report": "",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "positive successor",
+      "report": "",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "branch evidence",
+      "report": "",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "case branches",
+      "report": "",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "guard evidence",
+      "report": "",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "let within expected result",
+      "report": "",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "local preserves refinement",
+      "report": "",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "comparison weakening",
+      "report": "",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "numeric parameter projection",
+      "report": "",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "refined arithmetic",
+      "report": "",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "refined comparison",
+      "report": "",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "refined equality",
+      "report": "",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "higher order result",
+      "report": "",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "declared assumption",
+      "report": "",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "dependent result",
+      "report": "",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "effectful caller retains row",
+      "report": "",
+      "status": "passed"
+    },
+    {
+      "exit_code": 4,
+      "expected": 4,
+      "name": "own operator gives no mathematical fact",
+      "report": "bootstrap.check:6:25: refinement predicate is not established for this value\n",
+      "status": "passed"
+    },
+    {
+      "exit_code": 4,
+      "expected": 4,
+      "name": "global name is not a result binder",
+      "report": "bootstrap.check:4:19: source index has no checked local binding\nbootstrap.check:4:19: ill-sorted proof predicate\nbootstrap.check:4:10: ill-formed source refinement\n",
+      "status": "passed"
+    },
+    {
+      "exit_code": 4,
+      "expected": 4,
+      "name": "argument name is not a result binder",
+      "report": "bootstrap.check:3:11: refinement predicate is not established for this value\n",
+      "status": "passed"
+    },
+    {
+      "exit_code": 0,
+      "expected": 0,
+      "name": "scalar annotation enters typed checking",
+      "report": "",
+      "status": "passed"
+    },
+    {
+      "exit_code": 4,
+      "expected": 4,
+      "name": "annotation cannot erase failure",
+      "report": "bootstrap.check:3:10: refinement predicate is not established for this value\n",
+      "status": "passed"
+    },
+    {
+      "exit_code": 4,
+      "expected": 4,
+      "name": "ignored annotation stays strict",
+      "report": "bootstrap.check:3:24: refinement predicate is not established for this value\n",
+      "status": "passed"
+    },
+    {
+      "exit_code": 4,
+      "expected": 4,
+      "name": "zero rejected",
+      "report": "bootstrap.check:3:9: refinement predicate is not established for this value\n",
+      "status": "passed"
+    },
+    {
+      "exit_code": 4,
+      "expected": 4,
+      "name": "negative rejected",
+      "report": "bootstrap.check:3:9: refinement predicate is not established for this value\n",
+      "status": "passed"
+    },
+    {
+      "exit_code": 4,
+      "expected": 4,
+      "name": "unproved parameter",
+      "report": "bootstrap.check:3:11: refinement predicate is not established for this value\n",
+      "status": "passed"
+    },
+    {
+      "exit_code": 4,
+      "expected": 4,
+      "name": "bad branch",
+      "report": "bootstrap.check:3:32: refinement predicate is not established for this value\n",
+      "status": "passed"
+    },
+    {
+      "exit_code": 4,
+      "expected": 4,
+      "name": "wrong identity",
+      "report": "bootstrap.check:3:27: refinement predicate is not established for this value\n",
+      "status": "passed"
+    },
+    {
+      "exit_code": 4,
+      "expected": 4,
+      "name": "shadowed identity",
+      "report": "bootstrap.check:3:48: refinement predicate is not established for this value\n",
+      "status": "passed"
+    },
+    {
+      "exit_code": 4,
+      "expected": 4,
+      "name": "branch cannot escape",
+      "report": "bootstrap.check:3:51: refinement predicate is not established for this value\n",
+      "status": "passed"
+    },
+    {
+      "exit_code": 4,
+      "expected": 4,
+      "name": "unused false definition",
+      "report": "bootstrap.check:3:9: refinement predicate is not established for this value\n",
+      "status": "passed"
+    },
+    {
+      "exit_code": 4,
+      "expected": 4,
+      "name": "strict argument",
+      "report": "bootstrap.check:5:28: refinement predicate is not established for this value\nbootstrap.check:5:9: type mismatch: expected Nat, found Int\n",
+      "status": "passed"
+    },
+    {
+      "exit_code": 4,
+      "expected": 4,
+      "name": "weak cannot strengthen",
+      "report": "bootstrap.check:3:11: refinement predicate is not established for this value\n",
+      "status": "passed"
+    },
+    {
+      "exit_code": 4,
+      "expected": 4,
+      "name": "float is opaque",
+      "report": "bootstrap.check:2:26: proof predicate needs checked mathematical carriers\nbootstrap.check:2:17: ill-formed source refinement\n",
+      "status": "passed"
+    },
+    {
+      "exit_code": 4,
+      "expected": 4,
+      "name": "ambiguous result names",
+      "report": "bootstrap.check:2:10: refinement predicate has more than one unbound value name\n",
+      "status": "passed"
+    },
+    {
+      "exit_code": 4,
+      "expected": 4,
+      "name": "unknown call stays opaque",
+      "report": "bootstrap.check:2:19: index expression needs checked scope, purity and totality\nbootstrap.check:2:19: ill-sorted proof predicate\nbootstrap.check:2:10: ill-formed source refinement\n",
+      "status": "passed"
+    },
+    {
+      "exit_code": 4,
+      "expected": 4,
+      "name": "effect cannot erase",
+      "report": "bootstrap.check:5:14: performed effects exceed the declared row\n",
+      "status": "passed"
+    }
+  ],
+  "seed_status": "Pinned seed intentionally remains at last verified checkpoint; candidate Native source changes are not installed into seed yet. Stage acceptance is unverified for this WIP."
+}

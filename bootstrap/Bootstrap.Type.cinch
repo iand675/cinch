@@ -23,6 +23,7 @@ module Bootstrap.Type where
   export type-kind, type-text, free-metas, scheme-metas, generalize, scheme-arity
   export generalize-with, abstract-metas
   export fresh-id, substitute-bound, fresh-for-types, pi-dependent, unify-kind, kind-free-bound
+  export type-all-ids
 
   data Kind where
     KType :: Kind

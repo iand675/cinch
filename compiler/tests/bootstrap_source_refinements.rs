@@ -15,6 +15,18 @@ fn source_refinements_check_actual_values_and_preserve_effects() {
     ]);
     let exe = common::build(&dir, "Main.cinch", "source-refinements").expect("build the Cinch source refinement checker");
     let cases = [
+        ("certified refined argument dependent result", "below :: (d :: refined (n > 0) Nat) -> refined (out < d) Nat\n  below d = 0\n  use :: refined (r < 3) Nat\n  use = below 3", 0, ""),
+        ("certified argument witness survives result let", "below :: (d :: refined (n > 0) Nat) -> refined (out < d) Nat\n  below d = 0\n  use :: refined (r < 3) Nat\n  use = let value = below 3 in value", 0, ""),
+        ("certified argument result projects to carrier", "below :: (d :: refined (n > 0) Nat) -> refined (out < d) Nat\n  below d = 0\n  use :: Nat\n  use = below 3", 0, ""),
+        ("certified argument witness survives ordinary let", "below :: (d :: refined (n > 0) Nat) -> refined (out < d) Nat\n  below d = 0\n  use :: Nat\n  use = let value = below 3 in value", 0, ""),
+        ("certified argument cannot accept zero", "below :: (d :: refined (n > 0) Nat) -> refined (out < d) Nat\n  below d = 0\n  bad :: Nat\n  bad = below 0", 4, "refinement predicate is not established"),
+        ("certified argument retains call effect", "below :: (d :: refined (n > 0) Nat) ->{Diverge} refined (out < d) Nat\n  below d = 0\n  use :: Unit ->{Diverge} refined (r < 3) Nat\n  use unit = below 3", 0, ""),
+        ("certified argument cannot erase call effect", "below :: (d :: refined (n > 0) Nat) ->{Diverge} refined (out < d) Nat\n  below d = 0\n  bad :: Nat\n  bad = below 3", 4, "effect"),
+        ("call result reversed bound", "under :: (limit :: Nat) -> refined (limit >= out) Nat\n  under limit = 0\n  use :: refined (r <= 4) Nat\n  use = under 4", 0, ""),
+        ("call bound cannot strengthen from implementation", "under :: (limit :: Nat) -> refined (limit >= out) Nat\n  under limit = 0\n  bad :: refined (r < 4) Nat\n  bad = under 4", 4, "refinement predicate is not established"),
+        ("call bound cannot use another argument identity", "under :: (limit :: Nat) -> refined (limit >= out) Nat\n  under limit = 0\n  bad :: (a :: Nat) -> (b :: Nat) -> refined (out <= a) Nat\n  bad a b = under b", 4, "refinement predicate is not established"),
+        ("effectful result weakening retains row", "next :: Unit ->{Diverge} refined (r > 0) Nat\n  next unit = 1\n  use :: Unit ->{Diverge} refined (out >= 0) Nat\n  use unit = next unit", 0, ""),
+        ("effectful result weakening cannot erase row", "next :: Unit ->{Diverge} refined (r > 0) Nat\n  next unit = 1\n  bad :: Unit -> refined (out >= 0) Nat\n  bad unit = next unit", 4, "effect"),
         ("named refined parameter dependent result", "keep :: (n :: refined (r > 0) Nat) -> refined (out == n) Nat\n  keep n = n", 0, ""),
         ("named refined parameter dependent call", "keep :: (n :: refined (r > 0) Nat) -> refined (out == n) Nat\n  keep n = n\n  use :: (m :: refined (r > 0) Nat) -> refined (out == m) Nat\n  use m = keep m", 0, ""),
         ("dependent arithmetic retains projection", "copy :: (n :: Nat) -> refined (out == n) Nat\n  copy n = n\n  use :: (m :: refined (r > 0) Nat) -> refined (out == m + 1) Nat\n  use m = copy (m + 1)", 0, ""),

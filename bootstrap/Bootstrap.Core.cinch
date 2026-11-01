@@ -752,8 +752,12 @@ module Bootstrap.Core where
     other -> False)
   core-let-fact :: List (Nat, UType) -> List Proposition -> Nat -> Scheme -> CoreTerm -> Option Proposition
   core-let-fact gamma facts id sc rhs = case (scheme-params sc, scheme-requirements sc) of
-    (Nil, Nil) -> if same-number-sort (scheme-body sc) (core-type rhs) then
-      (case core-arithmetic gamma facts rhs of Some value -> Some (PCompare Equal (proof-variable id) value); None -> None) else None
+    (Nil, Nil) -> if not (contract-equal (scheme-body sc) (core-type rhs)) then None
+      else let carrier = numeric-carrier-view (scheme-body sc) in
+        if same-number-sort carrier carrier then
+          (let value = if is-refinement (core-type rhs) then CForget (Span 0 0 1 1) carrier rhs else rhs in
+           case core-arithmetic gamma facts value of Some reading -> Some (PCompare Equal (proof-variable id) reading); None -> None)
+        else None
     other -> None
   proof-pattern :: CorePattern -> List (Nat, UType) -> List (Nat, UType)
   proof-pattern pattern gamma = case pattern of
