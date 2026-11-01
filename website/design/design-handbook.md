@@ -148,7 +148,7 @@ The gold wordmark and many-tailed fox are archived brand origins. Their continue
 
 ### Landing page
 
-The user subsequently asked for a substantially richer tour of the intended language, including unfinished features. Keep the design ambitious and use the language design documents as the content source. A single development note can establish that scope; do not dilute every example with a separate implementation disclaimer. [The landing language-tour source map](landing-language-tour.md) records the current examples and their constraints.
+The user subsequently asked for a substantially richer tour of the intended language, including unfinished features. Keep the design ambitious and use the language design documents as the content source. The site is not public yet, and the user asked (2026-11-01) for landing copy written as if Cinch were at a full v1: describe every feature in the present tense, with no development note, "designed to", or implementation disclaimers. This applies to landing copy; sample-data labels on the package and download pages stay until real data replaces them. [The landing language-tour source map](landing-language-tour.md) records the current examples and their constraints.
 
 Lead with the language's purpose, a confident typographic hero, and a useful action. Use a concrete interactive example as evidence. Continue with broad alternating fields, prose/code relationships, a manual-style illustration, horizontal feature rows, and clear paths into documentation, downloads, and libraries. Preserve the spaciousness between these ideas.
 

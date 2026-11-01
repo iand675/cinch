@@ -40,14 +40,13 @@ const features = [
     </header>
     <main id="main">
       <section class="hero" aria-labelledby="hero-title">
-        <div class="hero-topline"><span class="mono"><i class="status-lamp" aria-hidden="true"></i> IN DEVELOPMENT</span><p>This page covers the full language design, including features not built yet. <a href="/reference/16-support-and-roadmap/">What works today&nbsp;→</a></p></div>
-        <div class="hero-grid">
+                <div class="hero-grid">
           <div class="hero-copy">
             <div class="hero-stripes" aria-hidden="true"><span></span><span></span><span></span></div>
             <HeroHeadline />
             <p class="hero-description">A strict functional language whose types say what a function needs, what it does, and what it borrows.</p>
-            <p class="hero-detail">The compiler checks every one of those claims before the program runs. Cinch is designed so that a program that compiles does not crash: anything that can still go wrong appears in its type.</p>
-            <div class="hero-actions"><a class="button button-primary" href={tutorial}>Write your first program <span>→</span></a><a class="text-link" href="/documentation/">Read the documentation <span>↗</span></a></div>
+            <p class="hero-detail">The compiler checks every one of those claims before the program runs. A Cinch program that compiles does not crash: anything that can still go wrong appears in its type, and you handle it.</p>
+            <div class="hero-actions"><a class="button button-primary" href="/downloads/">Get Cinch <span>↗</span></a><a class="text-link" href={tutorial}>Write your first program <span>→</span></a></div>
           </div>
           <ContractConsole />
         </div>
@@ -83,7 +82,7 @@ const features = [
       <section class="reading-section" aria-labelledby="reading-title">
         <div class="section-index mono"><span>DOCUMENTATION</span></div>
         <div class="reading-heading"><h2 id="reading-title">Learn the<br />language.</h2><p>Start with a working program.<br />Keep the compiler guide nearby.</p></div>
-        <div class="reading-links"><a href={tutorial}><h3>Tutorials</h3><p>22 chapters, from a first executable to dependent proofs, each with worked programs and exercises.</p><span class="reading-arrow" aria-hidden="true">↗</span></a><a href="/reference/00-guide/"><h3>Compiler guide</h3><p>Syntax, checking rules, commands, and runtime controls, with what works today marked apart from what is planned.</p><span class="reading-arrow" aria-hidden="true">↗</span></a><a href="/library/00-index/"><h3>Library reference</h3><p>Every module that ships with the compiler, documented from its checked interface.</p><span class="reading-arrow" aria-hidden="true">↗</span></a></div>
+        <div class="reading-links"><a href={tutorial}><h3>Tutorials</h3><p>22 chapters, from a first executable to dependent proofs, each with worked programs and exercises.</p><span class="reading-arrow" aria-hidden="true">↗</span></a><a href="/reference/00-guide/"><h3>Compiler guide</h3><p>Syntax, checking rules, commands, and runtime controls.</p><span class="reading-arrow" aria-hidden="true">↗</span></a><a href="/library/00-index/"><h3>Library reference</h3><p>Every module that ships with the compiler, documented from its checked interface.</p><span class="reading-arrow" aria-hidden="true">↗</span></a></div>
         
       </section>
       <section class="closing"><div class="mono">TUTORIAL 1 / BUILD AND RUN A PROGRAM</div><a href={tutorial}><h2>Write your<br /><span>first program.</span></h2><span class="closing-arrow" aria-hidden="true">↗</span></a></section>
