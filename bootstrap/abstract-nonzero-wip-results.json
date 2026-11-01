@@ -1,0 +1,30 @@
+{
+  "status": "Exploratory WIP, no full validation or stage-chain claim",
+  "source_snapshot_sha256": "4e927797312f88a35457ef618a2c27022976a57d3c3825bfed45b25659255d00",
+  "base_candidate_sha256": "b84b7a8dc278a0468e43a922de01d7565af717ef8d677026f88304ae36ac8acc",
+  "files": {
+    "bootstrap/Bootstrap.Core.cinch": "58efa47d855338063f879572a0baf5f81ec3eaa86c0d17139a39742107193347",
+    "bootstrap/Bootstrap.Infer.cinch": "a2b13a9d780f95178ff2a38926331da4183dd416cbf0227a07287156bfdeeb3c",
+    "bootstrap/Bootstrap.Type.cinch": "24963c8d7c6e7f8b3ecf16eaed0c7b06be0b7ea43d21f63a0b4f7c2c93f8aa27",
+    "bootstrap/programs/Run.AbstractNonZeroTypes.cinch": "68260d0388ab0015030b82857555e6e5ce63f36897be16650ea4aa42ca212a1f",
+    "compiler/tests/bootstrap_abstract_nonzero_methods.rs": "7076e910c22b4bc235534a050695ebecaca83cf2405772979e7cf0a03f5dd9a9",
+    "compiler/tests/bootstrap_abstract_nonzero_types.rs": "465680137b7b3d25e9de191380c9beeac2a74ae68e02b6685214b6085a855d6a"
+  },
+  "tests": [
+    {
+      "name": "bootstrap_abstract_nonzero_types",
+      "status": "passed",
+      "exit_code": 0
+    },
+    {
+      "name": "bootstrap_abstract_nonzero_methods",
+      "status": "running"
+    }
+  ],
+  "type_core_checks": 51,
+  "distinct_runtime_inputs": 5,
+  "generic_interface_cases": 11,
+  "generic_interface_status": "pending; results may change after this checkpoint",
+  "seed": "Not refreshed; last installed schema-7 checkpoint pin remains",
+  "invariant": "Pending NonZero over abstract carriers gives no arithmetic fact. Normalize only after supported concrete carrier and explicit integer promotion are checked."
+}

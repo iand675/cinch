@@ -270,6 +270,7 @@ module Bootstrap.Core where
     UPropOr left right -> UPropOr (freeze left) (freeze right)
     UPropNot body -> UPropNot (freeze body)
     UPropNonZero body -> UPropNonZero (freeze body)
+    UPropNonZeroPending body -> UPropNonZeroPending (freeze body)
     URequire predicates body -> URequire (freeze predicates) (freeze body)
     URefine id name carrier predicate -> URefine id name (freeze carrier) (freeze predicate)
     UIndexForget value -> UIndexForget (freeze value)
@@ -302,6 +303,7 @@ module Bootstrap.Core where
     UPropOr left right -> type-metas st left <> type-metas st right
     UPropNot body -> type-metas st body
     UPropNonZero body -> type-metas st body
+    UPropNonZeroPending body -> type-metas st body
     URequire predicates body -> type-metas st predicates <> type-metas st body
     URefine id name carrier predicate -> type-metas st carrier <> type-metas st predicate
     UIndexForget value -> type-metas st value
@@ -414,6 +416,7 @@ module Bootstrap.Core where
     UPropOr left right -> valid-type ty && (closed-type left && closed-type right)
     UPropNot body -> valid-type ty && (closed-type body)
     UPropNonZero body -> valid-type ty && (closed-type body)
+    UPropNonZeroPending body -> valid-type ty && (closed-type body)
     URequire predicates body -> valid-type ty && (closed-type predicates && closed-type body)
     UPi id name domain row result -> valid-type ty && closed-type domain && closed-type row && closed-type result
     UIndex carrier value -> valid-type ty && closed-type carrier && index-runtime-admissible carrier value && (case index-free-metas value of Nil -> True; other -> False)
@@ -530,6 +533,7 @@ module Bootstrap.Core where
     UPropOr left right -> type-index-scope bound rigid left && type-index-scope bound rigid right
     UPropNot body -> type-index-scope bound rigid body
     UPropNonZero body -> type-index-scope bound rigid body
+    UPropNonZeroPending body -> type-index-scope bound rigid body
     URequire predicates body -> type-index-scope bound rigid predicates && type-index-scope bound rigid body
     URefine id name carrier predicate -> type-index-scope bound rigid carrier && type-index-scope (Cons id bound) rigid predicate
     UIndexForget value -> type-index-scope bound rigid value
@@ -960,6 +964,7 @@ module Bootstrap.Core where
     UPropOr a b -> case (core-predicate gamma a, core-predicate gamma b) of (Some x, Some y) -> Some (PEither x y); other -> None
     UPropNot a -> case core-predicate gamma a of Some p -> Some (PNegate p); None -> None
     UPropNonZero value -> case typed-index-arithmetic gamma value of Some actual -> Some (PCompare Unequal actual (AInteger 0)); None -> None
+    UPropNonZeroPending value -> None
     other -> None
   core-predicates :: List (Nat, UType) -> UType -> Option (List Proposition)
   core-predicates gamma predicates = case predicates of

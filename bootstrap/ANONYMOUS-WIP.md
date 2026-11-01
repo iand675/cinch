@@ -1,5 +1,9 @@
 # Anonymous refinement contracts: work in progress
 
+The latest commit also contains the separate [deferred NonZero WIP](ABSTRACT-NONZERO-WIP.md).
+The results below describe the preceding anonymous-contract snapshot, whose
+broader checks are still running independently.
+
 This branch preserves the candidate changes under active validation. Its parent
 `codex/cinch-bootstrap` is the last installed checkpoint. This is a development
 snapshot, not a passing bootstrap or a completed validation result.

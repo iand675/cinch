@@ -1834,6 +1834,12 @@ module Bootstrap.Infer where
       else case convert-predicate-index external kinds locals carrier input st of
         (value, checked) -> checked-typed-source-index sp (UIndexMath "-" (UIndex carrier (IInteger 0)) value) checked
     other -> convert-index external kinds locals carrier syntax st
+  abstract-predicate-carrier :: UType -> Bool
+  abstract-predicate-carrier carrier = case carrier of
+    UBound id name kind -> kind-equal kind KType
+    URigid id name level kind -> kind-equal kind KType
+    UMeta id kind -> kind-equal kind KType
+    other -> False
   convert-predicate :: Bool -> TypeContext -> List (String, UType) -> TypeExpr -> Store -> (UType, Store)
   convert-predicate external kinds locals syntax st = case syntax of
     TName s name -> if same name "True" || same name "False" then (UPropLit (same name "True"), st) else bad s "unsupported proof predicate" st
@@ -1843,6 +1849,10 @@ module Bootstrap.Infer where
         if math-carrier carrier then (case convert-predicate-index external kinds locals carrier input st of
           (value, checked) -> let predicate = UPropNonZero value in
             (predicate, if valid-type predicate then checked else add-error sp "ill-sorted structural NonZero predicate" checked))
+        else if abstract-predicate-carrier carrier then
+          (case convert-predicate-index external kinds locals carrier input st of
+            (value, checked) -> let predicate = UPropNonZeroPending value in
+              (predicate, if valid-type predicate then checked else add-error sp "ill-sorted abstract NonZero predicate" checked))
         else bad sp "NonZero needs a checked mathematical carrier" st
     TInfix s op a b -> if same op "&&" || same op "||" then
       (case convert-predicate external kinds locals a st of
