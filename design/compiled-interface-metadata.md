@@ -7,15 +7,21 @@ where that chapter states obligations, this note fixes the mechanism.
 Status: design accepted for implementation (roadmap slice P3 in
 `compiler/CONFORMANCE.md`).
 
-The developing interface schema and pinned seed are now 6.
-Schema 5's class-contract producer/consumer focused gates pass. Both seed
-refreshes verified the applied patch and complete source hash. Schema 6's native region
-contract tests and Cinch loader contract/set tests pass. It adds explicit
-Region binders, the kernel Io context and closed kernel effect rows to
-resolved value schemes. Open rows and dependent obligations remain unresolved.
-The completed full regression gate belongs to the earlier frozen schema-4
-snapshot; a complete gate for the developing tree remains required.
-Schema 1 omitted signature proof
+The installed interface schema is 7 and the runtime ABI is 5. Schema 7 retains
+checked definition-site refinement templates, including private nominal closure,
+anonymous result contracts and scoped argument/result identities. Definition-owned
+fixities remain part of the exported contract. See [next steps](next-steps.md)
+for the exact installed seed, validation snapshots and current bootstrap boundary.
+Stage0/1 smoke checks pass; a self-built stage2 compiler remains unproven.
+
+Region binders, kernel Io contexts, closed kernel effect rows, dictionaries and
+portable numeric proof preconditions are represented in supported resolved
+schemes. Unsupported forms retain an explicit null resolved contract. Checked
+byte-observation predicates are under private development and are not part of
+the installed checkpoint yet. Source checking, independent global typing and
+complete ABI consumption remain required for full self-hosting.
+
+Earlier format history follows. Schema 1 omitted signature proof
 preconditions and named refinements. Schema 2 added those facts but omitted
 declaration parameter kinds, constructor result schemes, and precise method
 visibility. Schema 3 records these, defining identities, constructor symbols
