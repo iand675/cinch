@@ -47,8 +47,12 @@ module Main where
                 Some forged -> not (core-definition-closed (definition fn-type parameters (CProved s nat forged operation)))
                 None -> False in
           let machine = CLocal s (UCon "I64" KType) first-id "x" Nil in
-          let no-machine-proof = case core-condition [(first-id, UCon "I64" KType)] Nil (CPrimitive s boolean ">=" (CArgument s machine (CArgument s machine (CArgumentsEnd s)))) of None -> True; Some p -> False in
-          closed && wrong-goal && wrong-branch && outside && missing && forged-false && no-machine-proof
+          let machine-gamma = [(first-id, UCon "I64" KType)] in
+          let machine-comparison = case core-condition machine-gamma Nil (CPrimitive s boolean ">=" (CArgument s machine (CArgument s machine (CArgumentsEnd s)))) of None -> False; Some p -> True in
+          let no-machine-subtraction = case prove-subtraction machine-gamma Nil machine machine of None -> True; Some evidence -> False in
+          let machine-sum = CPrimitive s (UCon "I64" KType) "+" (CArgument s machine (CArgument s (CInt s (UCon "I64" KType) "1") (CArgumentsEnd s))) in
+          let no-wrapping-fact = case core-condition machine-gamma Nil (CPrimitive s boolean ">" (CArgument s machine-sum (CArgument s machine (CArgumentsEnd s)))) of None -> True; Some p -> False in
+          closed && wrong-goal && wrong-branch && outside && missing && forged-false && machine-comparison && no-machine-subtraction && no-wrapping-fact
   certificates :: CoreTerm -> Nat
   certificates term = case term of
     CProved s ty evidence body -> 1 + certificates body

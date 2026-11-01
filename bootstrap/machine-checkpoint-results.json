@@ -157,7 +157,7 @@
       "source_sha256": "eaa5d0e0e8e52b2ef0e6e9dae8a4cbc7843ee97ceb6fa35226cc2c0541d124f2",
       "workers": 4
     },
-    "status": "running",
+    "status": "superseded: obsolete guarded-arithmetic expectation failed; see validation_update for correction and resumed run",
     "counts_at_recording": {
       "passed": 10,
       "waiting-shared-slot": 1,
@@ -857,5 +857,251 @@
     "Independent global typing kernel and typed shared-runtime lowering remain required.",
     "Stage2/3 fixed point, changed-source checks and full suite through self-built frontend remain unproven."
   ],
-  "resources": "maximum five heavy jobs; four shared slots plus one staged-build lane; Cargo jobs 1 and test threads 1"
+  "resources": "maximum five heavy jobs; four shared slots plus one staged-build lane; Cargo jobs 1 and test threads 1",
+  "validation_update": {
+    "recorded_at": "2026-11-01T21:09:54.757848+00:00",
+    "status": "prior full matrix found an obsolete machine-comparison refusal expectation; corrected runner passed, remaining matrix running",
+    "source_sha256": "1cd10f728dc82864948ac6d8eb852e186928d16efbc88d9dd15f569e6b023e05",
+    "changed_input": "bootstrap/programs/Run.GuardedArithmetic.cinch",
+    "guarded_runner_cases": 26,
+    "guarded_result": [
+      {
+        "command": [
+          "cargo",
+          "test",
+          "--target-dir",
+          "/tmp/cinch-machine-guarded-validation-19/cargo/compiler",
+          "--test",
+          "bootstrap_guarded_arithmetic",
+          "--",
+          "--include-ignored",
+          "--nocapture",
+          "--test-threads=1"
+        ],
+        "exit_code": 0,
+        "finished": "2026-11-01T21:07:50.778477+00:00",
+        "name": "bootstrap_guarded_arithmetic",
+        "pid": 60128,
+        "started": "2026-11-01T21:04:54.941733+00:00",
+        "status": "passed"
+      }
+    ],
+    "prior_matrix_failure": "bootstrap_guarded_arithmetic invariant expected all I64 comparisons to remain opaque",
+    "replacement_invariants": "checked machine-value comparison accepted; machine subtraction certificates and wrapping-arithmetic facts refused",
+    "resumed_matrix_plan": {
+      "focused_targets": [
+        "bootstrap_byte_observations",
+        "bootstrap_core",
+        "bootstrap_guarded_arithmetic",
+        "bootstrap_imported_nonzero",
+        "bootstrap_machine_values",
+        "bootstrap_refinement_core",
+        "bootstrap_source_refinements",
+        "bootstrap_typed_indices",
+        "interface_anonymous_contracts",
+        "interface_byte_observations",
+        "interface_machine_contracts",
+        "interface_preconditions",
+        "primitive_length_identity"
+      ],
+      "fresh_matrix_gates": 133,
+      "general_gates": 5,
+      "integration_targets": 160,
+      "reused_or_inflight_whole_targets": [
+        "alloc_accounting",
+        "argv",
+        "attributes",
+        "bootstrap_abstract_nonzero_methods",
+        "bootstrap_abstract_nonzero_types",
+        "bootstrap_anonymous_contracts",
+        "bootstrap_buffer_aliases",
+        "bootstrap_check",
+        "bootstrap_contract",
+        "bootstrap_driver",
+        "bootstrap_effect_types",
+        "bootstrap_effects",
+        "bootstrap_eval",
+        "bootstrap_function_preconditions",
+        "bootstrap_imported_preconditions",
+        "bootstrap_ladder",
+        "bootstrap_pipeline",
+        "bootstrap_resolve",
+        "bootstrap_source_paths"
+      ],
+      "self_built_frontend": false,
+      "slots": "four shared slots; source effects has the sole outside fifth lane",
+      "source_sha256": "1cd10f728dc82864948ac6d8eb852e186928d16efbc88d9dd15f569e6b023e05",
+      "workers": 4
+    },
+    "counts_at_recording": {
+      "passed": 1,
+      "running": 2,
+      "waiting-shared-slot": 2,
+      "pending": 128
+    },
+    "reuse_audit": {
+      "all_native_bootstrap_implementation_prelude_runtime_harness_and_other_fixtures_unchanged": true,
+      "changed_inputs": [
+        "bootstrap/programs/Run.GuardedArithmetic.cinch"
+      ],
+      "filtered_target_coverage": {
+        "source_sha256": "eaa5d0e0e8e52b2ef0e6e9dae8a4cbc7843ee97ceb6fa35226cc2c0541d124f2",
+        "status": "listed exact full target functions",
+        "targets": {
+          "bootstrap_machine_values": [
+            "source_machine_literals_and_refinements_keep_range_and_carrier",
+            "type_and_core_recheck_machine_ranges_and_actual_typed_scope"
+          ],
+          "interface_machine_contracts": [
+            "checked_machine_comparisons_export_but_machine_arithmetic_stays_opaque",
+            "compiled_cinch_consumer_rechecks_conversion_bounds_and_result_carriers"
+          ]
+        }
+      },
+      "focused_results": [
+        "/tmp/cinch-machine-contract-validation-18/results.json",
+        "/tmp/cinch-machine-guarded-validation-19/results.json"
+      ],
+      "from_source_sha256": "eaa5d0e0e8e52b2ef0e6e9dae8a4cbc7843ee97ceb6fa35226cc2c0541d124f2",
+      "old_results": "/tmp/cinch-machine-contract-validation-18/complete-matrix/results.json",
+      "previous_full_run_status": "failed obsolete machine-comparison refusal; not a full pass",
+      "status": "source inputs audited; only the guarded-arithmetic runner changed",
+      "to_source_sha256": "1cd10f728dc82864948ac6d8eb852e186928d16efbc88d9dd15f569e6b023e05",
+      "whole_targets": [
+        {
+          "exit_code": 0,
+          "finished": "2026-11-01T20:47:17.822045+00:00",
+          "name": "bootstrap_source_paths",
+          "started": "2026-11-01T20:47:16.144942+00:00",
+          "status": "passed"
+        },
+        {
+          "exit_code": 0,
+          "finished": "2026-11-01T20:49:40.790413+00:00",
+          "name": "bootstrap_check",
+          "started": "2026-11-01T20:47:16.146162+00:00",
+          "status": "passed"
+        },
+        {
+          "exit_code": 0,
+          "finished": "2026-11-01T20:54:04.240405+00:00",
+          "name": "bootstrap_pipeline",
+          "started": "2026-11-01T20:47:16.148753+00:00",
+          "status": "passed"
+        },
+        {
+          "exit_code": 0,
+          "finished": "2026-11-01T21:04:57.794853+00:00",
+          "name": "bootstrap_ladder",
+          "started": "2026-11-01T21:01:45.551036+00:00",
+          "status": "passed"
+        },
+        {
+          "exit_code": 0,
+          "finished": "2026-11-01T20:50:58.111007+00:00",
+          "name": "bootstrap_resolve",
+          "started": "2026-11-01T20:47:17.824655+00:00",
+          "status": "passed"
+        },
+        {
+          "exit_code": 0,
+          "finished": "2026-11-01T20:52:09.975194+00:00",
+          "name": "bootstrap_effects",
+          "started": "2026-11-01T20:49:40.794539+00:00",
+          "status": "passed"
+        },
+        {
+          "exit_code": 0,
+          "finished": "2026-11-01T20:53:04.196140+00:00",
+          "name": "bootstrap_function_preconditions",
+          "started": "2026-11-01T20:50:58.114579+00:00",
+          "status": "passed"
+        },
+        {
+          "exit_code": 0,
+          "finished": "2026-11-01T21:01:15.699751+00:00",
+          "name": "bootstrap_abstract_nonzero_methods",
+          "started": "2026-11-01T20:52:09.986035+00:00",
+          "status": "passed"
+        },
+        {
+          "exit_code": 0,
+          "finished": "2026-11-01T20:53:56.415326+00:00",
+          "name": "alloc_accounting",
+          "started": "2026-11-01T20:53:04.198922+00:00",
+          "status": "passed"
+        },
+        {
+          "exit_code": 0,
+          "finished": "2026-11-01T20:54:13.817140+00:00",
+          "name": "argv",
+          "started": "2026-11-01T20:53:56.418423+00:00",
+          "status": "passed"
+        },
+        {
+          "exit_code": 0,
+          "finished": "2026-11-01T20:55:08.574376+00:00",
+          "name": "attributes",
+          "started": "2026-11-01T20:54:04.242783+00:00",
+          "status": "passed"
+        },
+        {
+          "exit_code": 0,
+          "finished": "2026-11-01T20:55:07.522181+00:00",
+          "name": "bootstrap_abstract_nonzero_types",
+          "started": "2026-11-01T20:54:13.820915+00:00",
+          "status": "passed"
+        },
+        {
+          "exit_code": 0,
+          "finished": "2026-11-01T21:04:21.181781+00:00",
+          "name": "bootstrap_anonymous_contracts",
+          "started": "2026-11-01T20:55:07.525436+00:00",
+          "status": "passed"
+        },
+        {
+          "exit_code": 0,
+          "finished": "2026-11-01T20:58:11.791546+00:00",
+          "name": "bootstrap_buffer_aliases",
+          "started": "2026-11-01T20:55:08.576979+00:00",
+          "status": "passed"
+        },
+        {
+          "exit_code": 0,
+          "finished": "2026-11-01T20:58:17.700013+00:00",
+          "name": "bootstrap_contract",
+          "started": "2026-11-01T20:58:11.794032+00:00",
+          "status": "passed"
+        },
+        {
+          "exit_code": 0,
+          "finished": "2026-11-01T20:58:27.725108+00:00",
+          "name": "bootstrap_driver",
+          "started": "2026-11-01T20:58:17.703274+00:00",
+          "status": "passed"
+        },
+        {
+          "exit_code": 0,
+          "finished": "2026-11-01T20:59:23.433644+00:00",
+          "name": "bootstrap_effect_types",
+          "started": "2026-11-01T20:58:27.728567+00:00",
+          "status": "passed"
+        },
+        {
+          "exit_code": 0,
+          "finished": "2026-11-01T20:59:40.314178+00:00",
+          "name": "bootstrap_eval",
+          "started": "2026-11-01T20:59:23.436103+00:00",
+          "status": "passed"
+        },
+        {
+          "name": "bootstrap_imported_preconditions",
+          "started": "2026-11-01T21:01:15.702399+00:00",
+          "status": "running"
+        }
+      ]
+    },
+    "all_tests_passed": false,
+    "source_effect_work": "separate unpublished candidate, not included in this checkpoint"
+  }
 }

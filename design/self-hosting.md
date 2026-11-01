@@ -18,6 +18,16 @@ fully validated byte-observation checkpoint is commit cf1f491, with 158
 integration targets, 140 compiler units and 166 runtime tests passing.
 Those earlier results do not establish that the new complete suite passes.
 
+The guarded-arithmetic runner now accepts checked machine-value comparisons
+and explicitly rejects machine subtraction certificates and wrapping-arithmetic
+proof facts. All 26 source cases and its retained certificate invariants pass.
+The first complete machine run stopped on its old blanket comparison refusal;
+the corrected snapshot changes only this runner. The remaining 133 gates resume
+with per-target audits for 19 unchanged completed/in-flight targets and the
+unchanged focused gates. The complete suite remains pending; the older stopped
+run is not a full pass. The corrected snapshot is
+`1cd10f728dc82864948ac6d8eb852e186928d16efbc88d9dd15f569e6b023e05`.
+
 Fresh stage0 and stage1 builds pass all six smoke checks with the new seed.
 The actual stage2 attempt exits 4 before body checking with six header
 diagnostics: decide/Yes/No evidence, the utf8-encode-into imported measure
