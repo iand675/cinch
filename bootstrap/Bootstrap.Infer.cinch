@@ -101,7 +101,7 @@ module Bootstrap.Infer where
 
   needs-type :: TypeExpr -> Bool
   needs-type ty = case ty of
-    TName s name -> same name "Nat"
+    TName s name -> has name ["Nat", "I8", "I16", "I32", "I64", "U8", "U16", "U32", "U64"]
     TForall s qs body -> True
     TFun s a b -> needs-type a || needs-type b
     TFunEff s a row b -> True
@@ -442,8 +442,8 @@ module Bootstrap.Infer where
     Nil -> None
   checked-literal :: Span -> UType -> String -> Store -> (CoreTerm, Store)
   checked-literal sp carrier text st = case index-number text of
-    Some value -> if math-carrier (normalize st carrier) && valid-type (UIndex (normalize st carrier) (IInteger value)) then
-      (CInt sp carrier (int-to-string value), st) else term-error sp "literal is outside its mathematical carrier" st
+    Some value -> if integer-literal-valid (normalize st carrier) value then
+      (CInt sp carrier (int-to-string value), st) else term-error sp "literal is outside its integer carrier" st
     None -> term-error sp "invalid or machine-suffixed mathematical literal" st
   math-carrier :: UType -> Bool
   math-carrier carrier = case carrier of UCon name KType -> same name "Nat" || same name "Int"; other -> False
@@ -556,9 +556,9 @@ module Bootstrap.Infer where
           (pairs, prepared) -> checked-typed-source-index sp value
             (unify sp (substitute-bound pairs (scheme-body sc)) ty (unify-kind sp (type-kind value) (value-kind ty) prepared))
       other -> bad sp "index reference is not a checked local identity" st
-    CInt source ty text -> if math-carrier (normalize st ty) then (case index-number text of
+    CInt source ty text -> case index-number text of
       Some value -> checked-source-index sp (normalize st ty) (IInteger value) st
-      None -> bad sp "invalid mathematical argument literal" st) else bad sp "machine literals cannot enter mathematical index conversion" st
+      None -> bad sp "invalid integer argument literal" st
     CPrimitive source ty op (CArgument a first (CArgument b second (CArgumentsEnd end))) ->
       if has op ["+", "-", "*"] && math-carrier (normalize st ty) then
         (case reify-argument sp env first st of
@@ -1286,9 +1286,11 @@ module Bootstrap.Infer where
       (c, sc) -> case check classes kinds families (proof-branch env c True sc) locals yes expected sc of
         (a, sa) -> case check classes kinds families (proof-branch env c False sa) locals no expected sa of
           (b, sb) -> (CIf s expected c a b, sb)
-    ELitInt s text -> case normalize st expected of
-      UCon name KType -> if same name "Nat" || same name "Int" then checked-literal s expected text st else check-inferred classes kinds families env locals expr expected st
-      other -> check-inferred classes kinds families env locals expr expected st
+    ECase s value alternatives -> case infer classes kinds families env locals value st of
+      (scrutinee, checked) -> case check-alternatives classes kinds families env locals (core-type scrutinee) expected alternatives (ensure-coverage s families env [core-type scrutinee] (alternative-rows alternatives) checked) of
+        (branches, done) -> (CCase s expected scrutinee branches, done)
+    ELitInt s text -> if integer-carrier (normalize st expected) then checked-literal s expected text st else check-inferred classes kinds families env locals expr expected st
+    ENeg s (ELitInt at text) -> if integer-carrier (normalize st expected) then checked-literal s expected (string-concat "-" text) st else check-inferred classes kinds families env locals expr expected st
     ELam s ps body -> case check-lambda classes kinds families env locals ps body expected (duplicate-names s (patterns-names ps) Nil st) of
       (term, ss) -> (term, ensure-coverage s families env (take-types (list-length ps) (domains (normalize ss expected))) [ps] ss)
     EWith s bindings body -> infer-with classes kinds families env locals bindings body (Some expected) st
@@ -1333,7 +1335,7 @@ module Bootstrap.Infer where
   comparison-predicate :: UType -> Bool
   comparison-predicate predicate = case predicate of UCompare op a b -> True; UPropNonZero value -> valid-type predicate; UPropAnd a b -> comparison-predicate a && comparison-predicate b; other -> False
   comparison-refinement :: UType -> Bool
-  comparison-refinement ty = case ty of URefine id name carrier predicate -> (math-carrier carrier || same-type carrier (primitive-type "Bytes")) && comparison-predicate predicate; other -> False
+  comparison-refinement ty = case ty of URefine id name carrier predicate -> (integer-carrier carrier || same-type carrier (primitive-type "Bytes")) && comparison-predicate predicate; other -> False
   project-comparison :: Span -> CoreTerm -> Store -> CoreTerm
   project-comparison sp term st = case term of
     CLet at ty id name sc rhs body -> let result = project-comparison sp body st in
@@ -1354,6 +1356,7 @@ module Bootstrap.Infer where
     ELet s bindings body -> check-refined-let classes kinds families env locals s bindings body expected st
     EWith s bindings body -> infer-with classes kinds families env locals bindings body (Some expected) st
     ELitInt s text -> case checked-literal s carrier text st of (term, checked) -> introduce-refinement env s expected term checked
+    ENeg s (ELitInt at text) -> case checked-literal s carrier (string-concat "-" text) st of (term, checked) -> introduce-refinement env s expected term checked
     ELam s patterns body -> case check-unrefined classes kinds families env locals expr carrier st of (term, checked) -> introduce-refinement env s expected term checked
     other -> case infer-expected classes kinds families env locals expr carrier st of
       (term, checked) -> refine-inferred env (expr-span expr) expected carrier term checked
@@ -1575,7 +1578,7 @@ module Bootstrap.Infer where
         (bound, pattern, ss) -> (bound, CPAs s expected id name pattern, ss)
     PAnn s inner annotation -> case convert False kinds (value-locals env locals) annotation st of
       (ty, sa) -> bind-pattern classes kinds families env locals inner expected (unify s expected ty (expect-type s ty sa))
-    PLitInt s text -> let carrier = case normalize st expected of UCon name KType -> if same name "Nat" then primitive-type "Nat" else primitive-type "Int"; other -> primitive-type "Int" in
+    PLitInt s text -> let carrier = if integer-carrier (normalize st expected) then normalize st expected else primitive-type "Int" in
       case checked-literal s carrier text (unify s expected carrier st) of
         (CInt at ty literal, checked) -> (env, CPInt s expected literal, checked)
         (other, checked) -> (env, CPWild s UError, checked)

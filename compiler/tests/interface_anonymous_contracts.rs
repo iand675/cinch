@@ -30,7 +30,8 @@ fn checked_anonymous_contracts_survive_facades() {
     assert!(get(&facade, "collide").unwrap().scheme.contains("cinch-result-r == cinch-result"));
     let argument_only = get(&facade, "argument-only").unwrap();
     assert!(argument_only.scheme.contains("limit >= 0") && !argument_only.scheme.contains("cinch-result"));
-    assert!(get(&a, "fixed").is_none(), "machine comparisons are not mathematical proof facts in this producer tier");
+    let fixed = get(&a, "fixed").expect("checked machine-value comparisons retain their actual carrier");
+    assert!(fixed.scheme.contains("I64") && fixed.scheme.contains(">= 0"), "{}", fixed.scheme);
     let natural = read("Data.Nat");
     let remainder = get(&natural, "nat-rem").expect("real checked remainder result closes its refined argument");
     assert!(remainder.scheme.contains("refined") && remainder.scheme.contains("Algebra.Arithmetic.NonZero"), "{}", remainder.scheme);

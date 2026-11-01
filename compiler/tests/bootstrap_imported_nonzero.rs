@@ -14,7 +14,7 @@ fn quote(text: &str) -> String {
 fn imported_structural_nonzero_uses_checked_argument_identity() {
     let source = common::project("nonzero_condition_source", &[
         ("A.cinch", "module A where\n  pred :: using (n > 0) => (n :: Nat) -> Nat\n  pred actual = actual - 1\n  signature Gate a where\n    gate :: a -> a\n  keep-with :: forall a. using (witness :: Gate a, n > 0) => (n :: Nat) -> a -> a\n  keep-with n value = value\n  difference :: using (left >= right) => (left :: Nat) -> (right :: Nat) -> Nat\n  difference a b = a - b\n  need :: using (NonZero n) => (n :: Nat) -> Nat\n  need actual = actual\n  need-int :: using (NonZero n) => (n :: Int) -> Int\n  need-int actual = actual\n  both :: using (NonZero left, NonZero right) => (left :: Nat) -> (right :: Nat) -> Nat\n  both a b = a\n  scalar :: using (NonZero n) => (n :: I64) -> I64\n  scalar n = n\n  reflected :: using (NonZero (bytes-len bytes)) => (bytes :: Bytes) -> Bytes\n  reflected bytes = bytes\n"),
-        ("Facade.cinch", "module Facade where\n  import A (pred as previous, difference, Gate, keep-with, need as require-value, need-int, both, reflected as require-buffer)\n  import Data.Bytes (bytes-len as measure)\n  export previous, difference, Gate, keep-with, require-value, need-int, both, require-buffer, measure\n"),
+        ("Facade.cinch", "module Facade where\n  import A (pred as previous, difference, Gate, keep-with, need as require-value, need-int, both, scalar as require-scalar, reflected as require-buffer)\n  import Data.Bytes (bytes-len as measure)\n  export previous, difference, Gate, keep-with, require-value, need-int, both, require-scalar, require-buffer, measure\n"),
         ("Main.cinch", "module Main where\n  import Facade\n  main :: Int\n  main = 0\n"),
     ]);
     common::check(&source, "Main.cinch").expect("emit portable preconditions");
@@ -27,7 +27,8 @@ fn imported_structural_nonzero_uses_checked_argument_identity() {
     assert!(!need.scheme.contains('$'));
     assert_eq!(get(&facade, "require-value"), Some(need.clone()));
     assert_eq!(Iface::from_json(&a.to_json()).unwrap(), a);
-    assert!(get(&a, "scalar").is_none(), "machine-carrier contracts require their checked conversion support");
+    let scalar = get(&a, "scalar").expect("machine-value NonZero keeps its actual I64 carrier");
+    assert!(scalar.scheme.contains("NonZero n") && scalar.scheme.contains("n :: I64"), "{}", scalar.scheme);
     let reflected = get(&a, "reflected").expect("checked byte-length NonZero predicate closes over its actual buffer");
     assert!(reflected.scheme.contains("NonZero (b.bytesLen bytes)") && reflected.scheme.contains("bytes :: Bytes"), "{}", reflected.scheme);
     let mut changed = a.clone();
@@ -59,6 +60,10 @@ fn imported_structural_nonzero_uses_checked_argument_identity() {
     std::fs::write(dir.join("interfaces.json"), format!("{{\"schema\":1,\"interfaces\":[{}]}}", rows.join(","))).unwrap();
     let exe = common::build(&dir, "Main.cinch", "imported-preconditions").expect("build imported precondition consumer");
     let cases = [
+        ("machine NonZero negative literal", "answer :: I64\n  answer = require-scalar (-1)", 0),
+        ("machine NonZero zero literal", "bad :: I64\n  bad = require-scalar 0", 4),
+        ("machine NonZero guard", "safe :: I64 -> I64\n  safe n = if n /= 0 then require-scalar n else 0", 0),
+        ("machine NonZero wrong argument", "bad :: I64 -> I64 -> I64\n  bad n m = if n /= 0 then require-scalar m else 0", 4),
         ("primitive NonZero buffer", "safe :: Bytes -> Bytes\n  safe b = if measure b > 0 then require-buffer b else b", 0),
         ("primitive NonZero requires condition", "bad :: Bytes -> Bytes\n  bad b = require-buffer b", 4),
         ("primitive NonZero wrong buffer", "bad :: Bytes -> Bytes -> Bytes\n  bad b c = if measure b > 0 then require-buffer c else c", 4),
@@ -102,7 +107,7 @@ fn imported_structural_nonzero_uses_checked_argument_identity() {
         ("lexical ordering dictionary is opaque", "bad :: using (ordering :: Ord Nat) => Nat -> Nat\n  bad n = if n > 0 then previous n else 0", 4),
     ];
     for (name, body, wanted) in cases {
-        let input = format!("module Main where\n  import Facade (previous, difference, Gate, keep-with, require-value, need-int, both, require-buffer, measure)\n  {body}\n  main :: Int\n  main = 0\n");
+        let input = format!("module Main where\n  import Facade (previous, difference, Gate, keep-with, require-value, need-int, both, require-scalar, require-buffer, measure)\n  {body}\n  main :: Int\n  main = 0\n");
         std::fs::write(dir.join("source.cinch"), &input).unwrap();
         let output = std::process::Command::new(&exe).current_dir(&dir).output().unwrap();
         let report = common::read_output(&dir, "imported-report.txt");

@@ -1,5 +1,58 @@
 # Next steps (as of 2026-11-01)
 
+The published compiler now includes checked machine-integer value contracts.
+All eight fixed-width carriers retain their exact ranges. Cinch checks integer
+literals and patterns against the expected carrier, projects refined machine
+values to that carrier, and propagates expected types through case branches.
+Core independently rechecks literal ranges and derives bounds from actual typed
+local identities. Machine arithmetic remains opaque to mathematical proofs.
+The Native exporter preserves checked comparison and conversion contracts
+through facades. Interface schema 7 and definition-owned fixities are unchanged.
+
+This is a work-in-progress checkpoint. The new focused gates pass: 46 source
+cases, 121 Type/Core checks at each of five runtime-generated identities,
+Native export checks, existing precondition/anonymous-interface tests, and
+13 real compiled Cinch conversion cases. The complete Native-assisted suite
+of 160 integration targets and five general gates is still running. The prior
+fully validated byte-observation checkpoint is commit cf1f491, with 158
+integration targets, 140 compiler units and 166 runtime tests passing.
+Those earlier results do not establish that the new complete suite passes.
+
+Fresh stage0 and stage1 builds pass all six smoke checks with the new seed.
+The actual stage2 attempt exits 4 before body checking with six header
+diagnostics: decide/Yes/No evidence, the utf8-encode-into imported measure
+contract, Text.Parse's effect declaration and Text.Json's instance declaration.
+The nat-to-i64 imported-contract error is resolved. Stage2 produces no IR or
+compiler executable. Diagnostic counts include cascades and are not a measure
+of completion.
+
+The new seed independently reproduces the exact tested Native sources:
+source SHA256
+`81bb6e364f45201360e11d5b32e2b3f22cd4719a9dcb018551da034416e725e9`,
+patch SHA256
+`655dfb04a042df9cd0aff5abebbbcd23510fb35efc92567e2d9ae8cfb9dedd5d`.
+Archive plus patch was independently verified again before publication.
+The frozen validation snapshot has 573 inputs, SHA256
+`eaa5d0e0e8e52b2ef0e6e9dae8a4cbc7843ee97ceb6fa35226cc2c0541d124f2`.
+The staged snapshot differs only in the intentionally updated seed pair:
+`9d8c0744b1cef256ac9dd36d72afa354ced0fa4398633ee7f160d7ec3ba0d10a`.
+The compiler bundle is
+`8500b23e4fd519777f47c2f61c82c39ef290e0206df8f87aa622eacb20e1a46d`.
+Current results and pending gates are recorded in
+[the machine checkpoint report](../bootstrap/machine-checkpoint-results.json).
+The older checkpoint-results.json and integration reports describe cf1f491.
+The original working checkout retains that fully validated byte checkpoint
+until the new complete suite passes; this publication contains the new work.
+
+Proper source declarations and decision/proof forms, checked imported measure
+contracts, an independent global typing kernel and shared-runtime typed lowering
+remain required. Stage2/3 fixed-point agreement, changed-source behavior and all
+tests through a self-built frontend remain unproven. Work uses at most five
+concurrent heavy jobs, one Cargo worker and one test thread per job, and
+limits generated Cinch heaps to 2G.
+
+## Previous fully validated byte-observation checkpoint (cf1f491)
+
 Byte observations and strict-let proof identities are installed and validated.
 Cinch retains the actual typed buffer through inference, substitution, private
 refinement contracts and Core checking. The Native exporter emits a closed

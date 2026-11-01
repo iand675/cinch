@@ -42,7 +42,8 @@ fn numeric_conditions_keep_checked_argument_positions_and_reexports() {
     assert_eq!(keep.nominals.iter().map(|n| n.identity.as_str()).collect::<Vec<_>>(), ["A.Token"]);
     let difference = a.exports.values.iter().find(|v| v.name == "difference").unwrap().resolved.as_ref().unwrap();
     assert!(difference.scheme.contains("left >= right"), "{}", difference.scheme);
-    assert!(a.exports.values.iter().find(|v| v.name == "scalar").unwrap().resolved.is_none(), "machine predicates still need checked carrier support");
+    let scalar = a.exports.values.iter().find(|v| v.name == "scalar").unwrap().resolved.as_ref().expect("direct machine comparison retains checked carrier");
+    assert!(scalar.scheme.contains("n > 0") && scalar.scheme.contains("n :: I64"), "{}", scalar.scheme);
     let reflected = a.exports.values.iter().find(|v| v.name == "reflected").unwrap().resolved.as_ref().expect("actual byte-length primitive closes its checked bound");
     assert!(reflected.scheme.contains("n <= (b.bytesLen bytes)") && reflected.scheme.contains("bytes :: Bytes") && reflected.scheme.contains("n :: Nat"), "{}", reflected.scheme);
     let untrusted = read("Untrusted");

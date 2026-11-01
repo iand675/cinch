@@ -23,7 +23,7 @@ module Bootstrap.Type where
   export type-kind, type-text, free-metas, scheme-metas, generalize, scheme-arity
   export generalize-with, abstract-metas
   export fresh-id, substitute-bound, fresh-for-types, pi-dependent, unify-kind, kind-free-bound
-  export type-all-ids
+  export type-all-ids, integer-carrier, integer-literal-valid, integer-bounds
 
   data Kind where
     KType :: Kind
@@ -976,9 +976,27 @@ module Bootstrap.Type where
   mathematical-carrier carrier = case carrier of UCon name KType -> same-tag name "Nat" || same-tag name "Int"; other -> False
   natural-carrier :: UType -> Bool
   natural-carrier carrier = case carrier of UCon name KType -> same-tag name "Nat"; other -> False
+  integer-carrier :: UType -> Bool
+  integer-carrier carrier = mathematical-carrier carrier || promotable-carrier carrier
+  integer-bounds :: UType -> Option (Int, Int)
+  integer-bounds carrier = case carrier of
+    UCon name KType ->
+      if same-tag name "I8" then Some (-128, 127)
+      else if same-tag name "I16" then Some (-32768, 32767)
+      else if same-tag name "I32" then Some (-2147483648, 2147483647)
+      else if same-tag name "I64" then Some (-9223372036854775808, 9223372036854775807)
+      else if same-tag name "U8" then Some (0, 255)
+      else if same-tag name "U16" then Some (0, 65535)
+      else if same-tag name "U32" then Some (0, 4294967295)
+      else if same-tag name "U64" then Some (0, 18446744073709551615)
+      else None
+    other -> None
+  integer-literal-valid :: UType -> Int -> Bool
+  integer-literal-valid carrier value = if mathematical-carrier carrier then not (natural-carrier carrier) || value >= 0
+    else case integer-bounds carrier of Some (low, high) -> low <= value && value <= high; None -> False
   index-shape :: UType -> IndexTerm -> Bool
   index-shape carrier value = case value of
-    IInteger n -> mathematical-carrier carrier && (if natural-carrier carrier then n >= 0 else True)
+    IInteger n -> integer-literal-valid carrier n
     IAdd a b -> mathematical-carrier carrier && index-shape carrier a && index-shape carrier b
     ISubtract a b -> mathematical-carrier carrier && index-shape carrier a && index-shape carrier b && (not (natural-carrier carrier) || natural-subtraction-defined carrier a b)
     IMultiply a b -> mathematical-carrier carrier && index-shape carrier a && index-shape carrier b
@@ -1040,7 +1058,7 @@ module Bootstrap.Type where
     other -> UIndexMath op left right
   normalize-promoted-index :: UType -> UType
   normalize-promoted-index value = case value of
-    UIndex (UCon name KType) (IInteger n) -> if same-tag name "Nat" && n >= 0 then UIndex (UCon "Int" KType) (IInteger n) else UIndexPromote value
+    UIndex carrier (IInteger n) -> if promotable-carrier carrier && integer-literal-valid carrier n then UIndex (UCon "Int" KType) (IInteger n) else UIndexPromote value
     other -> UIndexPromote value
   typed-index-admissible :: UType -> Bool
   typed-index-admissible value = valid-type value && (case value of

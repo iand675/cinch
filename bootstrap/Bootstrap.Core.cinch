@@ -475,7 +475,7 @@ module Bootstrap.Core where
     CPVar s ty id name -> closed-runtime-type ty
     CPAs s ty id name inner -> closed-runtime-type ty && valid-pattern inner
     CPConstructor s ty name actuals constructor fields -> closed-runtime-type ty && closed-types actuals && closed-type constructor && valid-pattern fields
-    CPInt s ty text -> closed-runtime-type ty
+    CPInt s ty text -> closed-runtime-type ty && valid-integer-literal ty text
     CPString s ty text -> closed-runtime-type ty
     CPChar s ty text -> closed-runtime-type ty
     CPTuple s ty fields -> closed-runtime-type ty && valid-pattern fields
@@ -487,7 +487,7 @@ module Bootstrap.Core where
     CLocal s ty id name actuals -> closed-runtime-type ty && closed-types actuals
     CQualifiedUse s ty name role actuals evidence -> closed-runtime-type ty && closed-types actuals && evidences-closed evidence
     CMethod s ty name owner slot actuals evidence -> closed-runtime-type ty && closed-types actuals && evidences-closed evidence && (case evidence of Cons first rest -> True; Nil -> False)
-    CInt s ty text -> closed-runtime-type ty
+    CInt s ty text -> closed-runtime-type ty && valid-integer-literal ty text
     CString s ty text -> closed-runtime-type ty
     CChar s ty text -> closed-runtime-type ty
     CUnit s ty -> closed-runtime-type ty
@@ -717,6 +717,10 @@ module Bootstrap.Core where
     Cons c rest -> if char-code c == 45 then (case decimal-digits rest 0 False of Some n -> Some (0 - n); None -> None)
       else decimal-digits (Cons c rest) 0 False
     Nil -> None
+  valid-integer-literal :: UType -> String -> Bool
+  valid-integer-literal carrier text = case decimal-value text of Some value -> integer-literal-valid carrier value; None -> False
+  same-integer-carrier :: UType -> UType -> Bool
+  same-integer-carrier first second = integer-carrier first && contract-equal first second
   ordered-id :: Nat -> List Nat -> List Nat
   ordered-id id ids = case ids of Nil -> [id]; Cons key rest -> if id == key then ids else if id < key then Cons id ids else Cons key (ordered-id id rest)
   natural-ids :: List (Nat, UType) -> List Nat
@@ -724,7 +728,20 @@ module Bootstrap.Core where
   natural-facts :: List Nat -> List Proposition
   natural-facts ids = case ids of Nil -> Nil; Cons id rest -> Cons (PCompare AtLeast (proof-variable id) (AInteger 0)) (natural-facts rest)
   proof-assumptions :: ProofScope -> List Proposition -> List Proposition
-  proof-assumptions gamma facts = natural-facts (natural-ids (refinement-gamma (scope-types gamma))) <> byte-length-facts (byte-buffer-ids (scope-types gamma)) <> refinement-facts gamma (scope-types gamma) <> facts
+  proof-assumptions gamma facts = natural-facts (natural-ids (refinement-gamma (scope-types gamma))) <> machine-facts (machine-ids (scope-types gamma)) (scope-types gamma) <> byte-length-facts (byte-buffer-ids (scope-types gamma)) <> refinement-facts gamma (scope-types gamma) <> facts
+  machine-ids :: List (Nat, UType) -> List Nat
+  machine-ids gamma = case gamma of
+    Nil -> Nil
+    Cons (id, ty) rest -> case integer-bounds (numeric-carrier-view ty) of Some bounds -> ordered-id id (machine-ids rest); None -> machine-ids rest
+  machine-facts :: List Nat -> List (Nat, UType) -> List Proposition
+  machine-facts ids gamma = case ids of
+    Nil -> Nil
+    Cons id rest -> case scope-entry id gamma of
+      Some ty -> case integer-bounds (numeric-carrier-view ty) of
+        Some (low, high) -> Cons (PCompare AtLeast (proof-variable id) (AInteger low))
+          (Cons (PCompare AtMost (proof-variable id) (AInteger high)) (machine-facts rest gamma))
+        None -> machine-facts rest gamma
+      None -> machine-facts rest gamma
   byte-buffer-type :: UType -> Bool
   byte-buffer-type ty = case ty of
     UCon name KType -> string-compare name "Bytes" == 0
@@ -771,11 +788,11 @@ module Bootstrap.Core where
       CLocal at refined id name Nil -> Some (proof-variable id)
       other -> core-arithmetic gamma facts body) else None
     CLocal s ty id name Nil -> case proof-local id gamma of
-      Some declared -> if same-number-sort ty declared then Some (proof-variable id) else None
+      Some declared -> if same-integer-carrier ty declared then Some (proof-variable id) else None
       None -> None
-    CInt s ty text -> case (number-sort ty, decimal-value text) of
-      (Some sort, Some n) -> if string-compare sort "Nat" == 0 && n < 0 then None else Some (AInteger n)
-      other -> None
+    CInt s ty text -> case decimal-value text of
+      Some n -> if integer-literal-valid ty n then Some (AInteger n) else None
+      None -> None
     CPrimitive s ty op (CArgument a first (CArgument b second (CArgumentsEnd end))) ->
       if same-number-sort ty (core-type first) && same-number-sort ty (core-type second) then
         (case (core-arithmetic gamma facts first, core-arithmetic gamma facts second) of
@@ -805,7 +822,7 @@ module Bootstrap.Core where
   scoped-core-condition :: ProofScope -> List Proposition -> CoreTerm -> Option Proposition
   scoped-core-condition gamma facts term = if not (bool-type (core-type term)) then None else case term of
     CPrimitive s ty op (CArgument a first (CArgument b second (CArgumentsEnd end))) ->
-      if same-number-sort (core-type first) (core-type second) then
+      if same-integer-carrier (core-type first) (core-type second) then
         (case (comparison-name op, core-arithmetic gamma facts first, core-arithmetic gamma facts second) of
           (Some rel, Some x, Some y) -> Some (PCompare rel x y)
           other -> None) else None
@@ -867,9 +884,7 @@ module Bootstrap.Core where
     CRefine s ty evidence body -> certified-refinement gamma facts ty evidence body
     CForget s ty body -> forgotten gamma facts ty body
     CLocal s ty id name Nil -> case proof-local id gamma of Some declared -> contract-equal ty declared; None -> False
-    CInt s ty text -> case number-sort ty of
-      Some sort -> case decimal-value text of Some n -> (not (nat-type ty) || n >= 0); None -> False
-      None -> True
+    CInt s ty text -> valid-integer-literal ty text
     CRequire s ty body -> False
     CDischarge s ty evidence body -> discharged gamma facts ty evidence body
     CProved s ty evidence body -> certified-operation gamma facts ty evidence body
@@ -895,7 +910,7 @@ module Bootstrap.Core where
   -- local's declared type or licenses an unchecked CLocal projection.
   numeric-carrier-view :: UType -> UType
   numeric-carrier-view ty = case ty of
-    URefine id name carrier predicate -> if valid-type ty && same-number-sort carrier carrier then carrier else ty
+    URefine id name carrier predicate -> if valid-type ty && integer-carrier carrier then carrier else ty
     other -> ty
   refinement-gamma :: List (Nat, UType) -> List (Nat, UType)
   refinement-gamma gamma = case gamma of Nil -> Nil; Cons (id, ty) rest -> Cons (id, numeric-carrier-view ty) (refinement-gamma rest)
@@ -1034,6 +1049,7 @@ module Bootstrap.Core where
     UIndexForget (UIndex carrier (IRigid id name level)) -> case proof-local id gamma of
       Some declared -> if contract-equal carrier declared && (case carrier of URefine key display base predicate -> integer-index-carrier base; other -> False) then Some (proof-variable id) else None
       None -> None
+    UIndexPromote (UIndex carrier (IInteger n)) -> if integer-literal-valid carrier n then Some (AInteger n) else None
     UIndexPromote (UIndex carrier (IRigid id name level)) -> case proof-local id gamma of
       Some declared -> if contract-equal carrier declared then Some (proof-variable id) else None
       None -> None
@@ -1118,6 +1134,7 @@ module Bootstrap.Core where
     CApply s ty (CApply partial function method first) second -> case numeric-method-operation method first second of
       Some op -> if proof-term gamma facts first && proof-term gamma facts second then actual-math-index gamma facts op first second else None
       None -> None
+    CInt s ty text -> case decimal-value text of Some n -> if integer-literal-valid ty n then Some (UIndex ty (IInteger n)) else None; None -> None
     CLocal s ty id name Nil -> scope-index gamma id name ty
     other -> case core-arithmetic gamma facts term of
       Some value -> case arithmetic-index gamma value of Some index -> let out = UIndex (core-type term) index in if valid-type out && index-runtime-admissible (core-type term) index then Some out else None; None -> None
@@ -1204,8 +1221,8 @@ module Bootstrap.Core where
   numeric-method-comparison method first second = case method of
     CMethod sp ty name owner slot [actual] [CEInstance at instance-type symbol types arguments] -> case (ty, instance-type) of
       (UFun left (UFun right result), UApp (UCon signature-name kind) carrier) ->
-        if same-number-sort carrier actual && same-number-sort carrier left && same-number-sort carrier right
-          && same-number-sort carrier (core-type first) && same-number-sort carrier (core-type second)
+        if same-integer-carrier carrier actual && same-integer-carrier carrier left && same-integer-carrier carrier right
+          && same-integer-carrier carrier (core-type first) && same-integer-carrier carrier (core-type second)
           && bool-type result && string-compare signature-name owner == 0
           && evidence-closed (CEInstance at instance-type symbol types arguments) then canonical-comparison owner name slot else None
       other -> None
