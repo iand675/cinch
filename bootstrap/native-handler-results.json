@@ -1,0 +1,25 @@
+{
+  "status": "passed complete Native effects integration target",
+  "source_sha256": "159b0406dc81bb9558cf8ea1ba7dc5db7f4967210f534d50d2146743925a3a51",
+  "tests": 16,
+  "fixes": [
+    "Reject duplicate handler operation clauses for both inline and first-class handler values; no clause body may be silently discarded.",
+    "Check each operation type parameter universally with a fresh rigid type, and reject escape into handler input, answer or captured locals/dictionaries."
+  ],
+  "reproductions": [
+    "Pinned b16 Native accepted duplicate operation clauses.",
+    "Pinned b16 Native accepted a forall a operation resumed with an explicitly annotated Int while the handled call required Bool."
+  ],
+  "coverage": [
+    "inline and first-class duplicate refusal",
+    "polymorphic result specialization refusal",
+    "operation-local parameter escape refusal",
+    "valid polymorphic abort executed with expected exit 7",
+    "all preceding effects, capability and sequencing checks"
+  ],
+  "seed": "Pinned b16 ABI5 producer remains unchanged; these are development Rust compiler repairs. Producer migration requires its own frozen-source validation.",
+  "interface_schema": 8,
+  "runtime_abi": 5,
+  "self_built_frontend_suite": false,
+  "bootstrap_achieved": false
+}

@@ -1,6 +1,15 @@
 # Next steps (as of 2026-11-02)
 
 
+The development Rust checker now rejects duplicate handler operation clauses
+and checks operation type parameters universally, with clause-local scope
+escape checks. The complete16-test effects target passes, including runtime
+execution of a valid polymorphic abort. The pinned b16 producer remains
+unchanged pending separate producer validation. Cinch handler elaboration
+and independent Core checking are under validation; no new stage2 compiler
+is claimed. See [the Native handler results](../bootstrap/native-handler-results.json).
+
+
 Checked refined runtime results now retain their full contracts when used as
 dependent arguments. The original function and value are each bound once;
 only the bound value is projected, preserving effects and call obligations.
