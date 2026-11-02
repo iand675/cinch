@@ -1,6 +1,6 @@
 {
-  "recorded_at": "2026-11-02T04:43:45.384676+00:00",
-  "status": "compiled Cinch body/declaration binding target passes; focused regression results recorded individually",
+  "recorded_at": "2026-11-02T04:51:43.071935+00:00",
+  "status": "compiled Cinch body/declaration binding target and all five whole focused regressions pass",
   "source_sha256": "14e9ffcf9f5e81c9922961eecd35de6b1e4ab96e56a7a0ce6208e23d09d07a4c",
   "source_inputs": 628,
   "owned_changes": [
@@ -569,11 +569,13 @@
         "--nocapture",
         "--test-threads=1"
       ],
+      "exit_code": 0,
+      "finished": "2026-11-02T04:46:37.297897+00:00",
       "name": "bootstrap_pipeline",
       "pid": 16918,
       "source_sha256": "14e9ffcf9f5e81c9922961eecd35de6b1e4ab96e56a7a0ce6208e23d09d07a4c",
       "started": "2026-11-02T04:39:40.134278+00:00",
-      "status": "running"
+      "status": "passed"
     },
     {
       "command": [

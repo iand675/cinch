@@ -8,7 +8,8 @@ Changed bodies invalidate incompatible refinements and stale certificates.
 
 The compiled Cinch target passes 16 checks at five identities above 2^128,
 including missing-authority, conflicting-global and changed-callee cases.
-Focused regression results and the exact snapshot are recorded in
+All five whole focused regressions pass: typing, globals, effects, parser and
+pipeline. Results and the exact snapshot are recorded in
 [the body-binding report](../bootstrap/body-binding-checkpoint-results.json).
 The full 175+5 suite for this newer snapshot has not run. The preceding body-only
 foundation passed all 172 integration targets and five general gates, including
