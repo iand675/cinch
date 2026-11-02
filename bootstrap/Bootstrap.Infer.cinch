@@ -1935,7 +1935,20 @@ module Bootstrap.Infer where
         (b, sb) -> case fresh-meta KRow sb of
           (row, sr) -> (a, row, b, unify sp ty (UFunEff a row b) sr)
   apply-argument :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> CoreTerm -> Expr -> Store -> (CoreTerm, Store)
-  apply-argument classes kinds families env locals sp fun arg st = case normalize st (core-type fun) of
+  apply-argument classes kinds families env locals sp fun arg st = case fun of
+    -- Continue a curried call inside the scopes created for its previous
+    -- strict argument. The argument's equation and declaration stay in
+    -- scope until the remaining preconditions are checked. Hidden names
+    -- keep an inner function-expression let from capturing source args.
+    CLet at ty id name sc rhs body ->
+      let hidden = string-concat "#application-let:" (int-to-string (nat-to-int id)) in
+      let binding = MkLocalBinding hidden sc id (store-level st) in
+      let bound = proof-let-env env binding id sc rhs st in
+      case apply-argument classes kinds families bound locals sp body arg st of
+        (call, checked) -> (CLet at (core-type call) id name sc rhs call, checked)
+    other -> apply-open-argument classes kinds families env locals sp fun arg st
+  apply-open-argument :: List (String, Kind) -> TypeContext -> List (String, List String) -> List CheckedBinding -> List (String, UType) -> Span -> CoreTerm -> Expr -> Store -> (CoreTerm, Store)
+  apply-open-argument classes kinds families env locals sp fun arg st = case normalize st (core-type fun) of
     UProofFun predicate effects result -> case erased-argument sp env arg predicate st of
       (witness, checked) -> discharge-call classes sp env (CErasedApply sp result effects fun witness) checked
     UPi id name domain effects result -> case check classes kinds families env locals arg domain st of

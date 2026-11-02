@@ -1,5 +1,20 @@
 # Next steps (as of 2026-11-02)
 
+Cinch now checks later curried arguments inside the strict scopes created
+for earlier dependent arguments. Their checked equations remain available to
+the final call guard. Hidden environment names preserve the caller scope of
+source arguments when a function expression itself contains a shadowing let.
+
+The compiled Cinch checker passes35 runtime-fed source cases, including the
+previously failing inline byte-copy bounds, explicit offsets, refined buffers,
+wrong offsets/missing guards and argument-capture regressions. The40 call,
+50 body/declaration/stale-alias and50 admission checks also pass. All142 Native
+units and12 whole Native targets pass on the same Native implementation.
+A fresh f88 staged attempt is running; the187+5 sweep remains scoped to the
+preceding742 snapshot. No genuine bootstrap or full current-source suite pass
+is claimed. See [the curried-let scope report](../bootstrap/curried-let-scope-results.json).
+
+
 Rust now retains byte-offset equations through strict Nat lets by inspecting
 the actual typed byte-length operation and selected checked arithmetic bodies.
 Wrong offsets, missing guards, changed bodies and unknown providers remain

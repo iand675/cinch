@@ -1,0 +1,36 @@
+{
+  "body_admission_checks": 50,
+  "bootstrap_achieved": false,
+  "core_body_association_checks": 50,
+  "core_call_checks": 40,
+  "fix": "later arguments of a curried call are checked inside the strict scopes introduced by earlier dependent arguments; hidden environment names preserve the caller scope of source arguments",
+  "full_suite": "preceding742187+5 sweep running; not a complete current-source pass",
+  "native_units": 142,
+  "seed_source_sha256": "f88d6a49cd8fed562f3639165310c2caef228797de2127a9edd0bc8e5502b2a0",
+  "source_cases": 35,
+  "source_sha256": "95daa9c2802ff3a365cffcdc674511be96a26b519783b9dcd612699d5aaf6a97",
+  "stages": "fresh f88stage chain running; preceding7426smokes passed,stage2exit4firstinlinebytecopyguard,noIR/compiler",
+  "status": "passed curried dependent-let scope checkpoint",
+  "verified": [
+    "inline and strict byte-copy offsets over ordinary/refined buffers",
+    "byte result equations",
+    "wrong offset/missing guard/wrong result refused",
+    "inner function-expression lets cannot capture or repair caller arguments",
+    "existing effect and unknown-dictionary checks",
+    "all earlier independent body/declaration/stale-proof checks"
+  ],
+  "whole_native_targets": [
+    "interface_conditional_methods",
+    "interface_class_contracts",
+    "interface_guarded_bodies",
+    "proof_guarded_lets",
+    "proof_value_identity",
+    "refinements",
+    "evidence_invalidation",
+    "case_evidence",
+    "incremental",
+    "linear_facts",
+    "params",
+    "total_bodies"
+  ]
+}
