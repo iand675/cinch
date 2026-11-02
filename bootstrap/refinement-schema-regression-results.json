@@ -1,0 +1,57 @@
+{
+  "current_full182plus5": {
+    "directory": "/tmp/cinch-conditional-full-2/complete-matrix",
+    "exact_input_whole_gates": 12,
+    "fresh_gates": 175,
+    "self_built_frontend": false,
+    "status": "running"
+  },
+  "fix": "Use the compiler schema constant in the private-refinement facade test; retain all actual identity, closure, alias and visibility assertions.",
+  "latest_private_stages": {
+    "directory": "/tmp/cinch-conditional-stages-1",
+    "first_error": "Text.Builder copy-bytes-into precondition; selected Nat subtraction result currently remains opaque",
+    "smokes_passed": 6,
+    "stage2_compiler": false,
+    "stage2_exit_code": 4
+  },
+  "preceding_full180plus5": {
+    "counts": {
+      "failed": 1,
+      "passed": 92,
+      "pending": 91
+    },
+    "directory": "/tmp/cinch-refinement-full-1/complete-matrix",
+    "self_built_frontend": false,
+    "status": "terminal failure at this stale assertion; no complete pass"
+  },
+  "private_consumer": {
+    "published": false,
+    "snapshot": "/tmp/cinch-conditional-consumer-validation-6/source",
+    "source_sha256": "5c14c542c3360529c67ae493b4d2a9dd06415e1f60b263ece981504da4e9cc2b",
+    "status": "19source+40Core passed; seven whole regressions in progress"
+  },
+  "recorded_at": "2026-11-02T11:36:55.843869+00:00",
+  "self_hosting_achieved": false,
+  "status": "obsolete schema7 fixture corrected; whole private-refinement interface target passes",
+  "whole_target": {
+    "command": [
+      "cargo",
+      "test",
+      "--no-fail-fast",
+      "--target-dir",
+      "/tmp/cinch-refinement-schema-validation-1/cargo",
+      "--test",
+      "interface_refinement_closure",
+      "--",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "exit_code": 0,
+    "finished": "2026-11-02T11:11:31.082960+00:00",
+    "lane": "shared slot0; all work obeys four shared slots plus sole fifth lane",
+    "pid": 44509,
+    "source_sha256": "d7b78f41c1a281832d8d053fd0b38c6e529d8e673c04fe46d53c7f2530093cc4",
+    "started": "2026-11-02T11:10:40.525267+00:00",
+    "status": "passed"
+  }
+}

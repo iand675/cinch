@@ -46,9 +46,9 @@
     "stage2_exit_code": 4
   },
   "private_consumer": {
-    "directory": "/tmp/cinch-conditional-consumer-validation-2",
+    "directory": "/tmp/cinch-conditional-consumer-validation-6",
     "published": false,
-    "status": "Native preflight passed;14source+40Core target running"
+    "status": "19source+40Core passed after canonical owner and full conditional declaration closure fixes; seven regressions and current full suite running"
   },
   "recorded_at": "2026-11-02T10:41:17.572154+00:00",
   "seed_update": {

@@ -1,5 +1,17 @@
 # Next steps (as of 2026-11-02)
 
+The remaining stale schema7 assertion in the private-refinement facade
+test now uses the compiler's schema constant. The whole target passes with
+all structural and source-visibility assertions retained. The previous180+5
+matrix stopped after 92 fresh passes at that assertion; it was not a full pass.
+The private conditional consumer passes19source/40Core checks, with seven
+whole regressions and a fresh182+5 matrix running. Its actual stage chain
+passes six smokes but still produces no stage2 compiler: a byte-copy bound
+needs the actual selected subtraction body equation. The consumer is not yet
+published. See [the regression report](../bootstrap/refinement-schema-regression-results.json).
+
+## Previous Native conditional export checkpoint
+
 Native interfaces can now retain an optional checked conditional method
 record: its actual class head, complete dependent preconditioned callable
 scheme and the implementation identity from the real checked dictionary slot.

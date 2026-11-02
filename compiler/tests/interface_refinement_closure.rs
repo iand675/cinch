@@ -1,6 +1,6 @@
 //! Real definition-site closure for private refinements in exported values.
 mod common;
-use cinch::interface::Iface;
+use cinch::interface::{Iface, SCHEMA_VERSION};
 
 #[test]
 fn private_refinement_contracts_survive_value_only_facades() {
@@ -13,7 +13,7 @@ fn private_refinement_contracts_survive_value_only_facades() {
     let read = |name: &str| Iface::from_json(&std::fs::read_to_string(dir.join(format!("build/{name}.cinchif"))).unwrap()).unwrap();
     let a = read("A");
     let facade = read("Facade");
-    assert_eq!(a.schema, 7);
+    assert_eq!(a.schema, SCHEMA_VERSION);
     assert!(a.exports.types.is_empty() && facade.exports.types.is_empty(), "private contract closure must not export source names");
     let get = |iface: &Iface, name: &str| iface.exports.values.iter().find(|v| v.name == name).unwrap().resolved.clone().expect("resolved defining refinement");
     let bounded = get(&a, "bounded");
