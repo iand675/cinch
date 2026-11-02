@@ -1,6 +1,24 @@
 # Next steps (as of 2026-11-02)
 
 
+The parser span helper now binds its endpoint before the existing bounds
+check and its start inside that guarded branch. The whole parser passes
+source checking; its corpus and complete pipeline regression pass. Valid
+handlers reach the emitter's named refusal, while erased clause effects
+still fail checking. The deliberately updated c774 Rust seed reproduces
+its tested sources exactly and passes180 checks. Fresh stage0/1 pass all
+six smokes. Actualstage2 clears the parser and exits4 with1267 diagnostics,
+first at Text.Json.digest-hex-into's nested remainder argument. No stage2
+compiler or IR is produced. Argument witness scopes are the next work.
+
+Verification now captures the merged syntax experiments and runs them in
+an external copy with the frozen Native compiler. All23 tooling and39
+syntax tests pass, with no skips or frozen-input changes. A complete191
+integration plus six-general-gate Native-assisted matrix is running on
+that exact snapshot. This does not establish a self-built frontend pass.
+See [the scoped evidence](../bootstrap/parser-handler-seed-results.json).
+
+
 Cinch now elaborates source handlers to retained, independently checked Core.
 All four focused targets pass:34 Core checks at five large identities,26
 source handler cases,20 source effect cases and the existing typing suite.

@@ -149,8 +149,10 @@ module Bootstrap.Parse where
   -- reads as no text, the same as bytes that do not decode.
   slice-src :: Bytes -> Span -> String
   slice-src src s =
-    if span-end s <= bytes-len src then
-      case string-from-bytes (bytes-slice src (span-start s) (span-end s)) of
+    let finish = span-end s in
+    if finish <= bytes-len src then
+      let begin = span-start s in
+      case string-from-bytes (bytes-slice src begin finish) of
         Some t -> t
         None -> empty-string
     else empty-string

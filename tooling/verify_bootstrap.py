@@ -15,9 +15,9 @@ import sys
 
 import bootstrap
 
-PARTS = ("compiler", "bootstrap", "tooling", "examples", "specifications", "design")
+PARTS = ("compiler", "bootstrap", "tooling", "examples", "specifications", "design", "experiments")
 TOP = ("README.md", "overview.md", "manifest.json", "SHA256SUMS")
-SKIP = {"target", "__pycache__", "node_modules", ".DS_Store"}
+SKIP = {"target", "__pycache__", "node_modules", ".DS_Store", ".generated"}
 
 
 def inputs(root: Path) -> dict[str, str]:
@@ -29,7 +29,9 @@ def inputs(root: Path) -> dict[str, str]:
             if not directory.resolve().is_relative_to(root):
                 raise ValueError(f"source directory link leaves the source tree: {directory}")
             dirs[:] = sorted(name for name in dirs if name not in SKIP
-                             and not (directory == root / "design" and name == "brand"))
+                             and not (directory == root / "design" and name == "brand")
+                             and not (directory == root / "experiments/malleable-syntax/editor"
+                                      and name.startswith("tree-sitter-")))
             ancestors = {directory.resolve()}
             for ancestor in directory.parents:
                 ancestors.add(ancestor.resolve())
@@ -85,6 +87,8 @@ def gates(snapshot: Path, evidence: Path) -> list[tuple[str, Path, list[str]]]:
     return [
         ("source-paths", snapshot / "compiler", ["cargo", "test", "--target-dir", str(evidence / "cargo/compiler"), "--test", "bootstrap_source_paths", "--", "--include-ignored"]),
         ("compiler", snapshot / "compiler", ["cargo", "test", "--target-dir", str(evidence / "cargo/compiler"), "--no-fail-fast", "--", "--include-ignored"]),
+        ("compiler-bin-build", snapshot / "compiler", ["cargo", "build", "--target-dir", str(evidence / "cargo/compiler"), "--bin", "cinch"]),
+        ("malleable-syntax", snapshot, [sys.executable, "tooling/verify_malleable.py", "--source", str(snapshot), "--evidence", str(evidence / "malleable-syntax"), "--compiler", str(evidence / "cargo/compiler/debug/cinch")]),
         ("runtime", snapshot / "compiler/runtime", ["cargo", "test", "--target-dir", str(evidence / "cargo/runtime"), "--no-fail-fast", "--", "--include-ignored"]),
         ("tooling", snapshot, [sys.executable, "-m", "unittest", "discover", "-s", "tooling/tests", "-v"]),
         ("stage0-smoke", snapshot, [sys.executable, "tooling/bootstrap.py", "smoke", "--stage", "0"]),

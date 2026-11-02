@@ -5578,3 +5578,58 @@ index 46c1230..10b1aee 100644
          let crate::core::Value::Adt { ctor, fields, .. } = value else {
              return reify_value(value, string_ctor);
          };
+
+--- a/compiler/src/check_terms.rs
++++ b/compiler/src/check_terms.rs
+@@ -9528,6 +9528,16 @@
+             ));
+         }
+         let head = h.effect.segments[0].text.clone();
++        let mut clause_names = Vec::new();
++        for clause in &h.clauses {
++            if clause_names.contains(&clause.op.text) {
++                return Err(Error::at(
++                    clause.op.span,
++                    format!("duplicate handler clause for operation {}", clause.op.text),
++                ));
++            }
++            clause_names.push(clause.op.text.clone());
++        }
+         let (region_param, ops) = {
+             let e = self.effects.get(&head).ok_or_else(|| {
+                 Error::at(h.effect.span(), format!("unknown effect {head}"))
+@@ -9615,7 +9625,18 @@
+                     )
+                 })?;
+             seen.push(op_name.clone());
+-            let (op_ty, op_ctx, _) = self.instantiate(op_scheme);
++            let (op_ty, op_ctx, _, op_params) = self.instantiate_at(op_scheme);
++            // A clause implements every instantiation of the operation;
++            // checking it at fresh flexible types would let `forall a`
++            // specialize to Int even when this invocation returns Bool.
++            let mut clause_rigids = HashMap::new();
++            for (name, actual) in op_scheme.params.iter().zip(op_params) {
++                let rigid = self.fresh_param(name);
++                self.uni
++                    .unify(&actual, &Ty::Param(rigid.clone()))
++                    .map_err(|message| Error::at(slot_clause.span, message))?;
++                clause_rigids.insert(rigid, Ty::Unit);
++            }
+             if !op_ctx.is_empty() {
+                 return Err(Error::at(
+                     slot_clause.span,
+@@ -9707,6 +9728,14 @@
+             self.lam_depth -= 1;
+             let body = body?;
+             let performed = self.exit_perf(saved);
++            // Operation-local skolems cannot become the enclosing answer
++            // type, handler input, or a captured local/dictionary type.
++            let mut outer_types = vec![self.uni.zonk(&input), self.uni.zonk(&output)];
++            outer_types.extend(env.locals.iter().map(|(_, _, scheme)| self.uni.zonk(&scheme.ty)));
++            outer_types.extend(env.dicts.iter().flat_map(|(_, class)| class.args.iter().map(|ty| self.uni.zonk(ty))));
++            if outer_types.iter().any(|ty| Self::subst_full(ty, &clause_rigids, &HashMap::new(), &HashMap::new()) != *ty) {
++                return Err(Error::at(slot_clause.span, "operation-local type parameter escapes its handler clause"));
++            }
+             clause_eff = self
+                 .uni
+                 .union_rows(&clause_eff, &performed)
