@@ -149,3 +149,31 @@
 .cinch-landing .edit-selector button[aria-pressed='true'] { color:#28271c; background:#dba16a; }
 .cinch-landing .edit-selector button:hover:not([aria-pressed='true']) { background:#303c26; }
 @media(max-width:760px) { .cinch-landing .proof-selector { flex-direction:column; margin-bottom:2rem; }.cinch-landing .proof-selector button { padding:1rem; font-size:.85rem; }.cinch-landing .proof-selector button + button { border-left:0; border-top:1px solid #b9b098; } }
+
+/* For language models: an orange field, a teletype session, six reasons. */
+.cinch-landing .agents-section { background:#e58b4e; color:#28271c; border-radius:90px 0 0 0; }
+.cinch-landing .agents-section .section-index { color:#65442a; }
+.cinch-landing .agents-section .tour-heading > p { color:#593c27; }
+.cinch-landing .agent-loop { margin:0; }
+.cinch-landing .teletype { max-width:860px; margin:0 auto; padding:16px 18px 0; background:#272c21; border:1px solid #9e613b; border-radius:44px 44px 10px 10px; box-shadow:inset 0 1px 0 #ffffff1c, 0 10px 24px #6b3a1a55; }
+.cinch-landing .teletype-head { display:flex; align-items:center; gap:1rem; padding:6px 10px 14px; color:#cca576; }
+.cinch-landing .teletype-head .mono { font-size:.55rem; }
+.cinch-landing .teletype-count { margin-left:auto; color:#e9b071; }
+.cinch-landing .agent-paper { margin:-5px 14px 0; font:.72rem/1.3em 'IBM Plex Mono',monospace; }
+.cinch-landing .agent-turn + .agent-turn { margin-top:1.3em; padding-top:1.3em; border-top:1px dashed #b8b296; }
+.cinch-landing .agent-caption { color:#7a5b3b; }
+.cinch-landing .agent-paper pre { margin:1.3em 0 0; padding:0; overflow-x:auto; font:inherit; line-height:1.3em; white-space:pre; color:#34352a; }
+.cinch-landing .agent-paper pre.agent-output { white-space:pre-wrap; }
+.cinch-landing .agent-command { margin-top:1.3em; color:#6f6b55; }
+.cinch-landing .agent-exit { margin-top:1.3em; color:#a64b27; }
+.cinch-landing .agent-exit.is-ok { color:#4f5b33; }
+.cinch-landing .agent-loop figcaption { max-width:860px; margin:1.2rem auto 0; font-size:.82rem; line-height:1.7; color:#593c27; }
+.cinch-landing .agent-reasons { display:grid; grid-template-columns:repeat(3,1fr); margin:3.5rem 0 0; border-top:1px solid #784d3380; }
+.cinch-landing .agent-reasons article { padding:1.8rem 1.6rem 2rem 0; border-bottom:1px solid #784d3380; }
+.cinch-landing .agent-reasons article:not(:nth-child(3n+1)) { padding-left:1.6rem; border-left:1px solid #784d3380; }
+.cinch-landing .agent-reasons h3 { font:400 1.55rem/1.15 var(--cinch-font-display); letter-spacing:-.03em; margin-bottom:.8rem; }
+.cinch-landing .agent-reasons p { font-size:.88rem; line-height:1.8; color:#4d3522; }
+.cinch-landing .agent-reasons code { font:.9em 'IBM Plex Mono',monospace; }
+.cinch-landing .agent-reasons .text-link { margin-top:1.1rem; font-size:.74rem; }
+@media (max-width:1000px) { .cinch-landing .agent-reasons { grid-template-columns:1fr 1fr; } .cinch-landing .agent-reasons article:not(:nth-child(3n+1)) { padding-left:0; border-left:0; } .cinch-landing .agent-reasons article:nth-child(even) { padding-left:1.6rem; border-left:1px solid #784d3380; } }
+@media (max-width:760px) { .cinch-landing .agents-section { border-radius:60px 0 0 0; } .cinch-landing .agent-reasons { grid-template-columns:1fr; } .cinch-landing .agent-reasons article, .cinch-landing .agent-reasons article:nth-child(even) { padding:1.5rem 0; border-left:0; } .cinch-landing .teletype { padding:12px 10px 0; border-radius:30px 30px 8px 8px; } .cinch-landing .agent-paper { margin-inline:6px; font-size:.6rem; } .cinch-landing .teletype-head { flex-wrap:wrap; } }

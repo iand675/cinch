@@ -83,3 +83,13 @@ The user wants Cinch positioned as a language for correct programs, not as a mat
 - Headline: **Bulletproof code.** It is also the language's design constraint (`design/no-faults.md`: if it compiles, it should be bulletproof).
 - The alternate-universe idea lives in small printed parts of the hardware, not in body copy: the hero running head ("Software from the future we were promised") and the console's maker's plate ("Cinch · made to not fail"). Keep any new ones short, printed in mono, and attached to an object. Body copy stays plain and specific.
 - Keep "proof" out of the hero, section labels, and tour headings. Say checked, guaranteed, or worked out by the compiler. The induction example (`plusZero`) was removed from the landing page; theorem-style examples belong in the tutorials. Proofs stay in the docs and the specification, where library authors meet them.
+
+## For language models (2026-11-02)
+
+The user wants the page to argue that Cinch is the best language for LLMs to write. The section after the average example (`#agents`, orange field) holds:
+
+- `AgentLoop.astro`: an agent session on a teletype, three turns stepped with a keycap. Turn 1 checks `average-unchecked.cinch` (rejected), turn 2 checks `average-match.cinch` (remedy 2, accepted), turn 3 runs `average-report.cinch`. All commands and output come from `recordings.json`.
+- Six reasons, each linked to the chapter that backs it: errors that say what to do next; start loose and tighten (gradual refinement); nothing to fake (kernel re-check, no switch that silences a check, per `design/no-faults.md` section 7); the signature is the context (effects, borrows, and requirements in types; `.cinchif` interfaces); effects you can review; fast without a rewrite (ownership, LLVM, specialization, checked SIMD).
+
+Do not cite token counts, benchmark timings, or comparisons with named languages until they are measured.
+

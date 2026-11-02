@@ -6,6 +6,7 @@ import AverageFigure from '../components/AverageFigure.astro';
 import averageSource from '../data/examples/average-report.cinch?raw';
 import RunnableSource from '../components/RunnableSource.astro';
 import CompilerPrintout from '../components/CompilerPrintout.astro';
+import AgentLoop from '../components/AgentLoop.astro';
 import uncheckedSource from '../data/examples/average-unchecked.cinch?raw';
 import LanguageTour from '../components/LanguageTour.astro';
 import LiveEvolution from '../components/LiveEvolution.astro';
@@ -16,6 +17,15 @@ import FreePagePreview from '../components/FreePagePreview.astro';
 import '../styles/custom.css';
 import '../styles/landing.css';
 const tutorial = '/learn/01-first-program/';
+// Why an agent does better in Cinch. Each claim is backed by the compiler or the design documents linked.
+const agentReasons = [
+  { title: 'Errors that say what to do next', text: 'A rejection names the missing fact and lists the ways to supply it. The agent reads one message and makes one fix, instead of guessing from a stack trace after the code has shipped.', href: '/reference/06-refinements/', link: 'Refinements and obligations' },
+  { title: 'Start loose, tighten as you go', text: 'Begin with plain lists and <code>Option</code>s. When a guarantee pays off, add it to one type, such as <code>NonEmpty</code>, and the compiler points to each caller that now has to supply it, one at a time.', href: '/learn/13-refinements-and-safe-operations/', link: 'Refine values step by step' },
+  { title: 'Nothing to fake', text: 'Whatever the automation concludes is checked again by a small kernel, and no annotation switches a check off. An agent cannot satisfy the compiler by bluffing, so passing the build means the code is right.', href: '/design/proof-automation/', link: 'How checking works' },
+  { title: 'The signature is the context', text: 'A type lists the effects a function performs, the data it borrows, and what it requires of its inputs. Compiled <code>.cinchif</code> interfaces hand an agent a module’s whole contract without its bodies, so less of the context window goes on reading code.', href: '/reference/18-artifacts-and-incremental/', link: 'Compiled interfaces' },
+  { title: 'Effects you can review', text: 'Generated code can perform only the effects its type lists. A function typed without <code>IO</code> cannot open a file or a socket, so reviewing what an agent wrote starts, and often ends, at the signature.', href: '/learn/10-effects-and-io/', link: 'Effects and capabilities' },
+  { title: 'Fast without a rewrite', text: 'Ownership instead of a garbage collector, native code through LLVM, specialized layouts, and checked SIMD. The first correct version an agent writes can also be the fast one, with the same guarantees.', href: '/learn/19-rewrites-and-performance/', link: 'Laws, rewrites, and performance' },
+];
 // What each remedy in the compiler's message means for this code (all three are checked examples).
 const printoutLegend = [
   { title: 'Decide it', text: 'Test at run time and keep the evidence. <code>report</code> does this with <code>non-empty</code>, which returns <code>None</code> for an empty list.' },
@@ -66,7 +76,7 @@ const features = [
       <section class="manifesto light-section" id="why-cinch" aria-labelledby="manifesto-title">
         <div class="section-index mono"><span>THE LANGUAGE</span></div>
         <div class="manifesto-grid"><h2 id="manifesto-title">Familiar code.<br /><span>Stronger types.</span></h2><div class="manifesto-copy"><p>If you have written Haskell or OCaml, most Cinch code will look familiar. What changes is how much a type can say, and that the compiler holds the code to it.</p><p>Algebraic data types, pattern matching, higher-order functions, and instances work as you would expect. Evaluation is strict, and ownership and borrowing manage memory, files, and sockets without a tracing garbage collector.</p><p>When you need a stronger guarantee, such as an index that is in bounds or a list that is never empty, you write it in the type and the compiler checks it. Linear arithmetic like <code>i + 1 &lt;= length xs</code> is checked for you.</p><a class="text-link" href="/specifications/core-language-specification/">Core language specification <span>↗</span></a></div></div>
-        <nav class="language-jump" aria-label="Explore language features"><a href="#proofs">Checked data ↓</a><a href="#specialization">Type specialization ↓</a><a href="#staging">Typed staging ↓</a><a href="#optimization">Optimization ↓</a><a href="#live-development">Incremental builds and hot reload ↓</a><a href="#runtime-contracts">Runtime contracts ↓</a></nav>
+        <nav class="language-jump" aria-label="Explore language features"><a href="#agents">For language models ↓</a><a href="#proofs">Checked data ↓</a><a href="#specialization">Type specialization ↓</a><a href="#staging">Typed staging ↓</a><a href="#optimization">Optimization ↓</a><a href="#live-development">Incremental builds and hot reload ↓</a><a href="#runtime-contracts">Runtime contracts ↓</a></nav>
       </section>
       <div class="panel-joint" aria-hidden="true"><span></span><i></i><span></span></div>
       <section class="proof-section" id="average" aria-labelledby="proof-title">
@@ -76,6 +86,12 @@ const features = [
           <RunnableSource file="average-report.cinch" source={averageSource}><div class="code-note"><span class="proof-check">↳</span><p><strong>Hand it an ordinary list</strong><br /><code>report orders = average orders</code> asks for a fact the compiler cannot see.</p><button type="button" class="gadget-key" data-print aria-pressed="false">Check it <span aria-hidden="true">▸</span></button></div><CompilerPrintout file="average-unchecked.cinch" source={uncheckedSource} legend={printoutLegend} /></RunnableSource>
         </div>
         <AverageFigure id="landing-average-figure" />
+      </section>
+      <section class="agents-section language-section" id="agents" aria-labelledby="agents-title">
+        <div class="section-index mono"><span>FOR LANGUAGE MODELS</span></div>
+        <div class="tour-heading"><h2 id="agents-title">The language your<br />agent should write.</h2><p>An agent writes code, runs the compiler, reads the result, and tries again. Cinch makes every turn of that loop count. The compiler says exactly what is missing and how to supply it, and nothing it accepts can crash in production.</p></div>
+        <AgentLoop />
+        <div class="agent-reasons">{agentReasons.map(r => <article><h3>{r.title}</h3><p set:html={r.text} /><a class="text-link" href={r.href}>{r.link} <span>↗</span></a></article>)}</div>
       </section>
       <LanguageTour />
       <LiveEvolution />

@@ -1,0 +1,67 @@
+---
+// An agent's write, check, fix loop, typed out turn by turn on form paper.
+// Every command and every line of output is a recording made from the real
+// compiler by scripts/record-examples.py; the code is the stored example.
+import recordings from '../data/examples/recordings.json';
+import unchecked from '../data/examples/average-unchecked.cinch?raw';
+import matched from '../data/examples/average-match.cinch?raw';
+type Recording = { command: string; stdout: string; stderr: string; exit: number };
+const rec = recordings as Record<string, Recording>;
+// The `report` declaration from a stored example, outdented.
+const report = (source: string) => {
+  const lines = source.split('\n');
+  const start = lines.findIndex((l) => l.trim().startsWith('report ::'));
+  const end = lines.findIndex((l, i) => i > start && l.trim() === '');
+  return lines.slice(start, end).map((l) => l.replace(/^  /, '')).join('\n');
+};
+const turns = [
+  { caption: 'The agent calls average on a plain list.', code: report(unchecked), run: rec['average-unchecked.cinch'] },
+  { caption: 'It takes remedy 2 from the message and matches on the list.', code: report(matched), run: rec['average-match.cinch'] },
+  { caption: 'The module checks, so it runs the program.', code: '', run: rec['average-report.cinch'] },
+];
+for (const t of turns) if (!t.run) throw new Error('Missing recording: run scripts/record-examples.py');
+---
+<figure class="agent-loop" data-agent-loop aria-labelledby="agent-loop-caption">
+  <div class="teletype">
+    <div class="teletype-head"><span class="mono">AGENT SESSION</span><span class="mono teletype-count" data-turn-count aria-live="polite">TURN 1 OF {turns.length}</span><button type="button" class="gadget-key" data-next-turn>Next turn <span aria-hidden="true">▸</span></button></div>
+    <div class="printout-slot" aria-hidden="true"></div>
+    <div class="printout-paper agent-paper">
+      <div class="printout-feed" aria-hidden="true"></div>
+      <div class="printout-sheet">
+        {turns.map((t, i) => (
+          <section class="agent-turn" data-turn={i} hidden={i !== 0} aria-label={`Turn ${i + 1}`}>
+            <p class="agent-caption">&gt;&gt; turn {i + 1}: {t.caption}</p>
+            {t.code && <pre class="agent-code">{t.code}</pre>}
+            <p class="agent-command">$ {t.run.command}</p>
+            {(t.run.stdout || t.run.stderr) && <pre class="agent-output">{(t.run.stdout + t.run.stderr).replace(/\n$/, '')}</pre>}
+            <p class:list={['agent-exit', { 'is-ok': t.run.exit === 0 }]}>exit {t.run.exit}{t.run.exit === 0 && !t.run.stdout ? ' · no output, the module checks' : ''}</p>
+          </section>
+        ))}
+      </div>
+      <div class="printout-feed" aria-hidden="true"></div>
+    </div>
+  </div>
+  <figcaption id="agent-loop-caption">Three turns, every one of them recorded from the compiler. The first message names three ways to fix the call, and the agent needs nothing else to get it right.</figcaption>
+</figure>
+<script>
+  const loop = document.querySelector<HTMLElement>('[data-agent-loop]');
+  if (loop) {
+    const turns = [...loop.querySelectorAll<HTMLElement>('[data-turn]')];
+    const key = loop.querySelector<HTMLButtonElement>('[data-next-turn]')!;
+    const count = loop.querySelector('[data-turn-count]')!;
+    let shown = 1;
+    const calm = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+    key.addEventListener('click', () => {
+      if (shown === turns.length) {
+        turns.forEach((t, i) => { t.hidden = i !== 0; });
+        shown = 1;
+      } else {
+        const next = turns[shown++];
+        next.hidden = false;
+        if (!calm()) next.animate([{ clipPath: 'inset(0 0 100% 0)' }, { clipPath: 'inset(0 0 0 0)' }], { duration: 700, easing: 'steps(10, end)' });
+      }
+      count.textContent = `TURN ${shown} OF ${turns.length}`;
+      key.firstChild!.textContent = shown === turns.length ? 'Start over ' : 'Next turn ';
+    });
+  }
+</script>
