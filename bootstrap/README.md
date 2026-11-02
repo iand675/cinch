@@ -127,8 +127,9 @@ lexical kind contexts and the types/effects of retained Core terms. This
 includes application and branch results, patterns and constructor fields,
 primitive operands, strict lets and latent rows. They run after source
 elaboration and global-reference checking. Their focused tests and the
-full pipeline pass; the complete current164-target Native-assisted suite
-and fresh staged build are still running. Full declaration/coverage,
+full pipeline pass. Fresh stage0/1 pass six smokes; actual stage2 refuses
+four headers before body checking and produces no compiler. The complete
+current164-target Native-assisted suite is still running. Full declaration/coverage,
 semantic proof authority, totality and usage remain required; see
 [the Core typing report](core-typing-checkpoint-results.json).
 

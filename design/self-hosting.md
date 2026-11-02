@@ -17,7 +17,10 @@ rerun pipeline Rust fixture differs from the preceding focused snapshot.
 
 The complete current Native-assisted suite of 164 integration targets and five
 general gates is running, using 162 fresh gates and seven passed whole focused
-targets. A fresh staged build is running in the fifth lane. The prior installed
+targets. Fresh stage0/1 builds pass all six smoke checks. Actual stage2 exits4
+with four header diagnostics before bodies: decide/Yes/No evidence and the
+imported measure contract. No stage2 IR or compiler executable is produced.
+The exact compiler bundle matches this checkpoint. The prior installed
 source-instance snapshot passed all162+5 gates, including 140 compiler units and
 166 runtime tests; that result does not establish this implementation's complete
 suite. [The Core typing report](../bootstrap/core-typing-checkpoint-results.json)
