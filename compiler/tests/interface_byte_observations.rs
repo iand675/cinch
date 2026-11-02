@@ -37,7 +37,14 @@ fn private_observations_close_over_the_kernel_and_actual_buffer_identity() {
     }
     assert!(a.exports.values.iter().find(|v|v.name=="copy-size").unwrap().resolved.as_ref().unwrap().scheme.contains("b.bytesLen"));
     assert!(a.exports.values.iter().find(|v|v.name=="make-positive").unwrap().resolved.as_ref().unwrap().nominals.iter().any(|n|n.identity=="A.PositiveBytes" && n.refinement.as_ref().is_some_and(|r|r.predicate.contains("b.bytesLen"))));
-    assert!(a.exports.values.iter().find(|v|v.name=="not-portable").unwrap().resolved.is_none(),"ordinary same-spelled function must not be exported as a primitive observation");
+    let ordinary=a.exports.values.iter().find(|v|v.name=="not-portable").unwrap().resolved.as_ref().expect("ordinary checked measure retains its own defining body");
+    assert!(ordinary.scheme.contains("A.bytes-len") && !ordinary.scheme.contains("b.bytesLen"), "{}", ordinary.scheme);
+    assert_eq!(ordinary.measures.len(),1);
+    let measure=&ordinary.measures[0];
+    assert_eq!(measure.identity,"A.bytes-len");
+    assert_eq!(measure.resolved.scheme,"(Nat -> Nat)");
+    assert!(a.exports.values.iter().all(|v|v.name!="bytes-len"),"private measure body does not grant a source name");
+    assert_eq!(measure.total_body.get("A.bytes-len").unwrap().body,cinch::total::Expr::Local(0));
     let dir=common::project("observation_contract_consumer",&[
         ("Bootstrap.Check.cinch",include_str!("../../bootstrap/Bootstrap.Check.cinch")),
         ("Bootstrap.Resolve.cinch",include_str!("../../bootstrap/Bootstrap.Resolve.cinch")),

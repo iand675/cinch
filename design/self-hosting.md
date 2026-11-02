@@ -1,5 +1,22 @@
 # Self-hosting
 
+The Rust producer now preserves a constructor witness's original value
+bindings across shadowing and accepts direct strict-let aliases of the actual
+payload. Hidden logical handles grant no ordinary source names. All 141 Native
+unit tests, eight new witness-identity cases and four whole regression targets
+pass: refinements, mutable-evidence invalidation, case evidence and incremental
+compilation. The pinned seed is intentionally updated to those exact tested
+Native sources; archive plus patch reproduces them. ABI5/schema8 are unchanged.
+
+The complete collection matrix stopped after 85 passes at another obsolete
+primitive-observation refusal assertion. It now checks the ordinary function's
+own private defining body and absence of primitive/name authority. The corrected
+whole byte-observation target and all eight compiled Cinch consumer cases pass
+on the preceding Native fix. Remaining full-suite gates are unproven. The
+private Cinch explicit-refinement-constructor work is still under validation
+and is not part of this published Native checkpoint.
+See [the Rust proof-identity report](../bootstrap/native-proof-identity-checkpoint-results.json).
+
 Collection literals now elaborate through the actual defining `FromList`
 method and retained `Nil`/`Cons` constructors. The independently compiled Cinch
 checker passes all 32 runtime-fed source cases, including custom containers,
@@ -14,10 +31,11 @@ The same Native seed inputs pass 140 unit tests, the prelude split and nominal
 interface targets. Fresh whole source-refinement and interface-precondition
 targets pass. The latter checks an ordinary same-spelled measure's actual
 identity, complete scheme and body, and refuses primitive identity substitution.
-The complete 178-integration plus five-general-gate suite is running on the
-current snapshot; no complete current or self-built frontend pass is claimed.
+The subsequent complete 178-integration plus five-general-gate suite stopped
+at the obsolete assertion described above; no complete current or self-built
+frontend pass is claimed.
 
-The fresh staged attempt for these exact tuple-fixed sources passes all six
+The preceding staged attempt with the collection seed passes all six
 stage0/1 smokes and reaches 215 stage2 body diagnostics, down from 597. Unsupported
 expression diagnostics fall from 333 to one. It produces no stage2 IR or compiler.
 Isolated dependent byte-buffer contracts pass source/Core checks and reach the

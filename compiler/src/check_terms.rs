@@ -3595,6 +3595,8 @@ impl Checker {
                     }
                 }
                 c
+            } else if let Ty::Prp(prop) = self.uni.zonk(dom) {
+                self.check_constructor_proof(env, a, &prop)?
             } else {
                 self.check(env, a, dom)?
             };
@@ -3778,6 +3780,66 @@ impl Checker {
     /// Proof terms check and vanish: they never become runtime code (core
     /// specification section 3), and a failed check never produces
     /// evidence.
+    fn note_value_alias(&mut self, local: LocalId, core: &ECore) {
+        if let ECore::Var(original) = core {
+            let original = self.value_aliases.get(original).copied().unwrap_or(*original);
+            self.value_aliases.insert(local, original);
+        }
+    }
+
+    /// Give equal runtime values the same current lexical spelling while
+    /// retaining a proof's derivation scope. Never reinterpret its old names
+    /// in the caller's newer scope. Internally named hidden locals remain
+    /// resolvable by identity, not by a guessed source spelling.
+    fn proof_in_value_scope(
+        &self, prop: &PTerm, source: &HashMap<String, LocalId>, current: &Env,
+    ) -> PTerm {
+        let mut visible = HashMap::new();
+        for (name, local, _) in &current.locals {
+            if current.lookup(name).is_some_and(|(active, _)| active == *local) {
+                let original = self.value_aliases.get(local).copied().unwrap_or(*local);
+                visible.insert(original, name.clone());
+            }
+        }
+        let mut out = self.reduce_prop(prop);
+        let mut names = Vec::new(); out.free_vars(&mut names);
+        // Simultaneous substitution avoids an alias's spelling being
+        // mistaken for another source name which occurs in the predicate.
+        let replacements: Vec<_> = names.iter().filter_map(|name| {
+            let local = *source.get(name)?;
+            let original = self.value_aliases.get(&local).copied().unwrap_or(local);
+            let fresh = format!("$proof-value:{}", original.0);
+            Some((name.clone(), fresh, original))
+        }).collect();
+        for (name, fresh, _) in &replacements { out = out.subst(name, &ITerm::Var(fresh.clone())); }
+        for (_, fresh, original) in replacements {
+            if let Some(name) = visible.get(&original) { out = out.subst(&fresh, &ITerm::Var(name.clone())); }
+        }
+        out
+    }
+
+    fn check_constructor_proof(&mut self, env: &mut Env, term: &ast::Term, prop: &PTerm) -> Result<ECore> {
+        if let ast::Term::Var(path) = term {
+            if path.quals.is_empty() {
+                if let Some((local, mut scheme)) = env.lookup(&path.name.text) {
+                    if let Ty::Prp(statement) = self.uni.zonk(&scheme.ty) {
+                        if let Some(origin) = self.proof_value_scopes.get(&local) {
+                            let caller: HashMap<_, _> = env.locals.iter().map(|(name, id, _)| (name.clone(), *id)).collect();
+                            let statement = self.proof_in_value_scope(&statement, origin, env);
+                            let goal = self.proof_in_value_scope(prop, &caller, env);
+                            scheme.ty = Ty::Prp(Box::new(statement));
+                            let mut scoped = env.clone();
+                            let binding = scoped.locals.iter_mut().rev().find(|(_, id, _)| *id == local).expect("looked-up proof local");
+                            binding.2 = scheme;
+                            return self.check_proof(&mut scoped, term, &goal);
+                        }
+                    }
+                }
+            }
+        }
+        self.check_proof(env, term, prop)
+    }
+
     fn check_proof(&mut self, env: &mut Env, term: &ast::Term, prop: &PTerm) -> Result<ECore> {
         match self.static_obligation(prop)? {
             ObligStatus::Disproved => {
@@ -5920,6 +5982,7 @@ impl Checker {
                         }
                     };
                     let scheme = self.generalize_local(env, l, &ty, is_value.then_some(&core));
+                    self.note_value_alias(l, &core);
                     self.bind_local(env, &name.text, l, scheme, None, name.span)?;
                     // A let-generalized local's uses are copies of its
                     // definition, so the binding itself is never read.
@@ -5935,6 +5998,7 @@ impl Checker {
                         ast::Pat::Var(n, _) => {
                             let def = is_syntactic_value(body).then_some(&bc);
                             let scheme = self.generalize_local(env, l, &bt, def);
+                            self.note_value_alias(l, &bc);
                             self.bind_local(env, &n.text, l, scheme, None, n.span)?;
                             if self.gen_defs.contains_key(&l) {
                                 continue;

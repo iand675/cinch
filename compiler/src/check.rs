@@ -2687,6 +2687,11 @@ struct Checker {
     /// (local ids are unique across the whole check, so entries never
     /// collide between definitions).
     local_tys: HashMap<LocalId, Ty>,
+    /// Lexical value bindings at the derivation of an erased proof. A later
+    /// source-name shadow cannot change which values its statement names.
+    proof_value_scopes: HashMap<LocalId, HashMap<String, LocalId>>,
+    /// Direct strict-let aliases preserve the same runtime value identity.
+    value_aliases: HashMap<LocalId, LocalId>,
     /// Binders whose class is fixed without a type: dictionaries,
     /// capability evidence and markers.
     local_cls: HashMap<LocalId, crate::repr::Class>,
@@ -3220,6 +3225,8 @@ impl Checker {
             foreign_plans: Vec::new(),
             pending_foreign: Vec::new(),
             local_tys: HashMap::new(),
+            proof_value_scopes: HashMap::new(),
+            value_aliases: HashMap::new(),
             local_cls: HashMap::new(),
             local_origin: HashMap::new(),
             cur_tparams: Vec::new(),
@@ -3432,6 +3439,10 @@ impl Checker {
         // name this derivation site when the item goes stale.
         if matches!(self.uni.zonk(&scheme.ty), Ty::Prp(_)) {
             self.ev_derivs.insert(l, (self.ev_writes.len(), span));
+            let origin = self.value_aliases.get(&l)
+                .and_then(|original| self.proof_value_scopes.get(original)).cloned()
+                .unwrap_or_else(|| env.locals.iter().map(|(n, local, _)| (n.clone(), *local)).collect());
+            self.proof_value_scopes.insert(l, origin);
         }
         env.locals.push((name.to_string(), l, scheme));
         Ok(())
@@ -3447,7 +3458,14 @@ impl Checker {
         let mut muts = Vec::new();
         let mut refs = Vec::new();
         for v in vars {
-            if let Some((_, s)) = env.lookup(&v) {
+            let binding = env.lookup(&v).or_else(|| {
+                // Logical provenance can still name a hidden outer local.
+                // These handles are never ordinary source bindings.
+                let id = v.strip_prefix("$proof-value:")?.parse::<usize>().ok()?;
+                env.locals.iter().find(|(_, local, _)| local.0 == id)
+                    .map(|(_, local, scheme)| (*local, scheme.clone()))
+            });
+            if let Some((_, s)) = binding {
                 match self.uni.zonk(&s.ty) {
                     Ty::Mut(r, _) => {
                         if !muts.contains(&r) {
@@ -9385,3 +9403,16 @@ include!("check_terms.rs");
 include!("check_decls.rs");
 include!("check_interface.rs");
 include!("check_total.rs");
+
+#[cfg(test)]
+mod proof_value_scope_tests {
+    use super::*;
+    #[test]
+    fn logical_provenance_does_not_grant_source_names() {
+        let mut env = Env::default();
+        env.locals.push(("payload".into(), LocalId(1), Scheme::mono(Ty::Unit)));
+        env.locals.push(("payload".into(), LocalId(2), Scheme::mono(Ty::Unit)));
+        assert_eq!(env.lookup("payload").unwrap().0, LocalId(2));
+        assert!(env.lookup("$proof-value:1").is_none());
+    }
+}
