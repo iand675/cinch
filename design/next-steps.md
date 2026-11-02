@@ -1,5 +1,17 @@
 # Next steps (as of 2026-11-02)
 
+The pipeline now retains typed Core instead of discarding it after checking.
+A private `CheckedProgram` constructor associates the resolved source and its
+checked elaboration; the emitter receives that value. Runtime-input tests retain
+polymorphic definitions and data, refuse an actual type error, and reject an
+outside attempt to forge the constructor. Both complete scalar IR cases and the
+whole pipeline regression pass. The existing scalar renderer still uses the
+associated source; typed runtime lowering remains unfinished. The exact earlier
+Stage2 acceptance below belongs to the arity snapshot, before this handoff change.
+See [the retained-Core report](../bootstrap/checked-program-results.json).
+
+## Previous full-source acceptance checkpoint
+
 The genuine Stage2 attempt now accepts the complete compiler source through
 the Cinch frontend. All6925 diagnostics are named bootstrap.ir refusals;
 there are zero frontend diagnostics. Stage2 exits5 and emits neither LLVM

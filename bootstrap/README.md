@@ -348,3 +348,18 @@ modes through a compiled Cinch frontend, including multi-module input, a filenam
 containing a newline, a separately runnable binary and invalid source. This is an
 adapter probe, not a complete self-built frontend suite. Tests that call Native
 APIs directly still require separate coverage and classification.
+
+
+## Retained checked programs
+
+The pipeline now calls `check-and-retain`, which preserves the resolved source
+and its typed elaboration together in `CheckedProgram`. Its constructor is
+private. The typed emitter boundary receives this checked value; scalar emission
+still uses its associated source while shared-runtime Core lowering is built.
+The existing diagnostic-only `check-program` API remains available.
+
+A runtime-input probe checks retention of polymorphic definitions and data,
+rejects an actual type error, and verifies that outside code cannot call the
+checked constructor. The complete scalar IR and pipeline targets pass. This
+boundary is not a claim of complete usage/totality checking, typed runtime
+lowering or successful self-hosting. See [the focused report](checked-program-results.json).

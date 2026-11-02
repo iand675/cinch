@@ -43,6 +43,7 @@
 module Bootstrap.Ir where
 
   import Bootstrap.Ast
+  import Bootstrap.Check (CheckedProgram, checked-surface)
   import Bootstrap.Report
   import Data.List
   import Data.Nat
@@ -57,6 +58,16 @@ module Bootstrap.Ir where
   -- decision states, so the generator's internals cannot collide with
   -- another rung's names.
   export emit-program, emit-diagnostics
+  export emit-checked-program, emit-checked-diagnostics
+
+  -- The pipeline preserves typed Core across this boundary. The existing
+  -- scalar renderer still consumes the associated surface here; shared
+  -- runtime lowering will consume the retained checked elaboration.
+  emit-checked-program :: CheckedProgram -> String
+  emit-checked-program program = emit-program (checked-surface program)
+
+  emit-checked-diagnostics :: CheckedProgram -> List Diagnostic
+  emit-checked-diagnostics program = emit-diagnostics (checked-surface program)
 
   -- ------------------------------------------------------------- the writer
 

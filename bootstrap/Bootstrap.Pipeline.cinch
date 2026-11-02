@@ -17,9 +17,9 @@
 module Bootstrap.Pipeline where
 
   import Bootstrap.Ast (Program)
-  import Bootstrap.Check (check-program)
+  import Bootstrap.Check (CheckedProgram, check-and-retain)
   import Bootstrap.Driver (link-and-report, link-only-and-report)
-  import Bootstrap.Ir (emit-diagnostics, emit-program)
+  import Bootstrap.Ir (emit-checked-diagnostics, emit-checked-program)
   import Bootstrap.Parse (parse-program)
   import Bootstrap.Parse (parse-program-with)
   import Bootstrap.Load (LoadedInterface)
@@ -133,27 +133,27 @@ module Bootstrap.Pipeline where
   after-parse-with mode interfaces name src outcome ir exe report = case outcome of
     Failed bundle -> write-failure ir (render-bundle bundle) pipeline-parse-failed
     Parsed prog Nil -> case resolve-program-with prog interfaces of
-      (resolved, Nil) -> after-check mode (check-program resolved) resolved ir exe report
+      (resolved, Nil) -> after-check mode (check-and-retain resolved) ir exe report
       (resolved, found) -> write-failure ir (render-diagnostics found) pipeline-check-refused
     Parsed prog recoverable -> write-failure ir (render-bundle (Bundle name src recoverable)) pipeline-parse-failed
 
   after-resolve :: forall r. using (io :: Io r) => PipelineMode -> Program -> Path -> Path -> Path ->{IO r, Diverge} Int
   after-resolve mode prog ir exe report = case resolve-program prog of
-    (resolved, Nil) -> after-check mode (check-program resolved) resolved ir exe report
+    (resolved, Nil) -> after-check mode (check-and-retain resolved) ir exe report
     (resolved, found) -> write-failure ir (render-diagnostics found) pipeline-check-refused
 
-  after-check :: forall r. using (io :: Io r) => PipelineMode -> List Diagnostic -> Program -> Path -> Path -> Path ->{IO r, Diverge} Int
-  after-check mode found prog ir exe report = case found of
-    Nil -> case mode of
+  after-check :: forall r. using (io :: Io r) => PipelineMode -> Result (List Diagnostic) CheckedProgram -> Path -> Path -> Path ->{IO r, Diverge} Int
+  after-check mode result ir exe report = case result of
+    Ok prog -> case mode of
       CheckOnly -> case fs-write (refusal-path ir) (string-to-bytes "") of
         Ok written -> pipeline-ok
         Err e -> pipeline-write-failed
-      other -> after-emit mode (emit-diagnostics prog) prog ir exe report
-    Cons d rest -> write-failure ir (render-diagnostics found) pipeline-check-refused
+      other -> after-emit mode (emit-checked-diagnostics prog) prog ir exe report
+    Err found -> write-failure ir (render-diagnostics found) pipeline-check-refused
 
-  after-emit :: forall r. using (io :: Io r) => PipelineMode -> List Diagnostic -> Program -> Path -> Path -> Path ->{IO r, Diverge} Int
+  after-emit :: forall r. using (io :: Io r) => PipelineMode -> List Diagnostic -> CheckedProgram -> Path -> Path -> Path ->{IO r, Diverge} Int
   after-emit mode found prog ir exe report = case found of
-    Nil -> write-module mode ir (emit-program prog) exe report
+    Nil -> write-module mode ir (emit-checked-program prog) exe report
     Cons d rest -> write-failure ir (render-diagnostics found) pipeline-emit-refused
 
   -- The last stage: the module lands, then the driver rung links it, runs

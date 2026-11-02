@@ -64,6 +64,7 @@ fn the_emitted_ir_assembles_and_runs_to_the_fragments_meaning() {
         &[
             ("Bootstrap.Ast.cinch", AST_SRC),
             ("Bootstrap.Report.cinch", REPORT_SRC),
+            ("Bootstrap.Check.cinch", include_str!("../../bootstrap/Bootstrap.Check.cinch")),
             ("Bootstrap.Ir.cinch", IR_SRC),
         ],
     );
@@ -168,6 +169,7 @@ fn a_two_parameter_function_defines_one_symbol_and_its_call_carries_both_argumen
         &[
             ("Bootstrap.Ast.cinch", AST_SRC),
             ("Bootstrap.Report.cinch", REPORT_SRC),
+            ("Bootstrap.Check.cinch", include_str!("../../bootstrap/Bootstrap.Check.cinch")),
             ("Bootstrap.Ir.cinch", IR_SRC),
         ],
     );

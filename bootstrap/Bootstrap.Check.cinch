@@ -44,9 +44,31 @@ module Bootstrap.Check where
   import Bootstrap.Ast
   import Bootstrap.Report
   import Data.Json
-  import Bootstrap.Infer (needs-inference, infer-program)
+  import Bootstrap.Infer (Elaboration, elaborate-program, elaboration-errors, needs-inference, infer-program)
 
-  export check-program
+  export check-program, CheckedProgram, check-and-retain, checked-surface, checked-elaboration
+
+  -- The constructor stays private. A backend receives the resolved source
+  -- and retained typed declarations only after the current independent
+  -- global/kind/term/proof checks have accepted that same program.
+  data CheckedProgram where
+    MkCheckedProgram :: Program -> Elaboration -> CheckedProgram
+
+  checked-surface :: CheckedProgram -> Program
+  checked-surface checked = case checked of MkCheckedProgram surface typed -> surface
+
+  checked-elaboration :: CheckedProgram -> Elaboration
+  checked-elaboration checked = case checked of MkCheckedProgram surface typed -> typed
+
+  check-and-retain :: Program -> Result (List Diagnostic) CheckedProgram
+  check-and-retain program =
+    let legacy = if needs-inference program then Nil else case program of MkProgram s modules -> check-modules modules in
+    case legacy of
+      Cons first rest -> Err legacy
+      Nil -> let typed = elaborate-program rung program in
+        case elaboration-errors typed of
+          Nil -> Ok (MkCheckedProgram program typed)
+          found -> Err found
 
   -- The diagnostics list is appended with the `Semigroup` operator (the
   -- prelude spells list append through it). Its defining module supplies
