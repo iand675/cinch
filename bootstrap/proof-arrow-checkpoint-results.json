@@ -1,0 +1,244 @@
+{
+  "recorded_at": "2026-11-02T00:12:45.921541+00:00",
+  "status": "work in progress: compiled erased-arrow and four existing whole targets pass; remaining focused regressions running",
+  "source_sha256": "f6b78e1327eeec91d4904dd1bff1cabaa0b5627927cb383a39d1928a67d629ea",
+  "source_inputs": 588,
+  "compiler_named_source_sha256": "7e6cb14c67df9c601c44d3aa413967c0ddb6d6bd881075ddc41ebb7ebd7762df",
+  "compiler_bundle_bytes_sha256": "22cad8571a92ddf097c9fe8c0f760fbb44fe56841663f10ccd88b26a794c34e5",
+  "owned_changes": [
+    "bootstrap/Bootstrap.Core.cinch",
+    "bootstrap/Bootstrap.Dictionary.cinch",
+    "bootstrap/Bootstrap.Infer.cinch",
+    "bootstrap/Bootstrap.Kinds.cinch",
+    "bootstrap/Bootstrap.Type.cinch",
+    "bootstrap/Bootstrap.Typing.cinch",
+    "bootstrap/programs/Run.ProofArrows.cinch",
+    "compiler/tests/bootstrap_proof_arrows.rs"
+  ],
+  "focused_results": [
+    {
+      "command": [
+        "/tmp/cinch-source-effects-stages-6/source/build/bootstrap/stage0/cinch",
+        "check",
+        "/tmp/cinch-proof-arrows-validation-3/preflight/Main.cinch"
+      ],
+      "cwd": "/tmp/cinch-proof-arrows-validation-3/preflight",
+      "exit_code": 0,
+      "finished": "2026-11-02T00:04:12.191709+00:00",
+      "name": "proof-arrow-preflight",
+      "started": "2026-11-02T00:03:38.539909+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-proof-arrows-validation-3/cargo/compiler",
+        "--test",
+        "bootstrap_proof_arrows",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "cwd": "/tmp/cinch-proof-arrows-validation-3/source/compiler",
+      "exit_code": 0,
+      "finished": "2026-11-02T00:06:00.955904+00:00",
+      "name": "bootstrap_proof_arrows",
+      "started": "2026-11-02T00:04:12.192078+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-proof-arrows-validation-3/cargo/compiler",
+        "--test",
+        "bootstrap_typing",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "cwd": "/tmp/cinch-proof-arrows-validation-3/source/compiler",
+      "exit_code": 0,
+      "finished": "2026-11-02T00:07:03.581575+00:00",
+      "name": "bootstrap_typing",
+      "started": "2026-11-02T00:06:00.956341+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-proof-arrows-validation-3/cargo/compiler",
+        "--test",
+        "bootstrap_value_kinds",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "cwd": "/tmp/cinch-proof-arrows-validation-3/source/compiler",
+      "exit_code": 0,
+      "finished": "2026-11-02T00:07:58.103368+00:00",
+      "name": "bootstrap_value_kinds",
+      "started": "2026-11-02T00:07:03.582028+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-proof-arrows-validation-3/cargo/compiler",
+        "--test",
+        "bootstrap_effect_types",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "cwd": "/tmp/cinch-proof-arrows-validation-3/source/compiler",
+      "exit_code": 0,
+      "finished": "2026-11-02T00:08:54.899362+00:00",
+      "name": "bootstrap_effect_types",
+      "started": "2026-11-02T00:07:58.103854+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-proof-arrows-validation-3/cargo/compiler",
+        "--test",
+        "bootstrap_source_pi",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "cwd": "/tmp/cinch-proof-arrows-validation-3/source/compiler",
+      "exit_code": 0,
+      "finished": "2026-11-02T00:10:55.413446+00:00",
+      "name": "bootstrap_source_pi",
+      "started": "2026-11-02T00:08:54.899852+00:00",
+      "status": "passed"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-proof-arrows-validation-3/cargo/compiler",
+        "--test",
+        "bootstrap_source_instances",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "cwd": "/tmp/cinch-proof-arrows-validation-3/source/compiler",
+      "name": "bootstrap_source_instances",
+      "started": "2026-11-02T00:10:55.413921+00:00",
+      "status": "running"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-proof-arrows-validation-3/cargo/compiler",
+        "--test",
+        "bootstrap_infer",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "cwd": "/tmp/cinch-proof-arrows-validation-3/source/compiler",
+      "name": "bootstrap_infer",
+      "status": "pending"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-proof-arrows-validation-3/cargo/compiler",
+        "--test",
+        "bootstrap_parse",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "cwd": "/tmp/cinch-proof-arrows-validation-3/source/compiler",
+      "name": "bootstrap_parse",
+      "status": "pending"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--target-dir",
+        "/tmp/cinch-proof-arrows-validation-3/cargo/compiler",
+        "--test",
+        "bootstrap_pipeline",
+        "--",
+        "--include-ignored",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "cwd": "/tmp/cinch-proof-arrows-validation-3/source/compiler",
+      "name": "bootstrap_pipeline",
+      "status": "pending"
+    }
+  ],
+  "runtime_identity_inputs": [
+    0,
+    1,
+    17,
+    129,
+    4096
+  ],
+  "runtime_identity_base": "340282366920938463463374607431768211456",
+  "source_arity_retains_proof_slots": true,
+  "runtime_arity_omits_proof_slots": true,
+  "latent_effect_rows_retained": true,
+  "ordinary_runtime_proof_arguments_refused": true,
+  "source_proof_terms_enabled": false,
+  "decision_headers_enabled": false,
+  "complete_current_suite": {
+    "status": "not run",
+    "integration_targets": 165,
+    "general_gates": 5,
+    "all_tests_passed": false,
+    "self_built_frontend": false
+  },
+  "prior_typing_suite": {
+    "source_sha256": "d6fbf3526a03fb95a0d4bcaec732d221481379c7e8cd298ddd428ea103f5b0cc",
+    "status": "running; applies to preceding implementation only",
+    "integration_targets": 164,
+    "general_gates": 5
+  },
+  "fresh_stages": {
+    "status": "not run for erased-arrow candidate",
+    "previous_typing_stage_report": "core-typing-checkpoint-results.json"
+  },
+  "runtime_abi": 5,
+  "interface_schema": 7,
+  "seed_unchanged": true,
+  "self_hosting_achieved": false,
+  "remaining": [
+    "Scoped proof term and erased application integration, source decisions and checked constructors",
+    "Checked total ordinary measure contracts",
+    "Independent declaration/proof/usage kernel",
+    "Handler dispatch and typed shared-runtime lowering",
+    "Actual stage2/3 fixed point, changed-source behavior and full suite through self-built frontend"
+  ]
+}

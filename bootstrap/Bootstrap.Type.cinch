@@ -11,7 +11,7 @@ module Bootstrap.Type where
 
   export Kind, KType, KProp, KRegion, KEffect, KRow, KFun, KValue, kind-equal, kind-text
   export valid-kind, map-kind-types, value-kind, value-carrier
-  export UType, UPropLit, UCompare, UPropAnd, UPropOr, UPropNot, UPropNonZero, UPropNonZeroPending, URequire, URefine, UCon, UBound, URigid, UMeta, UIndex, UIndexForget, UIndexPromote, UIndexByteLength, UIndexMath, UPi, UApp, UFun, UFunEff, URow, URowJoin, UTuple, UArg, UEnd, UError
+  export UType, UPropLit, UCompare, UPropAnd, UPropOr, UPropNot, UPropNonZero, UPropNonZeroPending, URequire, URefine, UCon, UBound, URigid, UMeta, UIndex, UIndexForget, UIndexPromote, UIndexByteLength, UIndexMath, UPi, UApp, UFun, UFunEff, UProofFun, URow, URowJoin, UTuple, UArg, UEnd, UError
   export without-index-levels, index-of-type, index-runtime-admissible, typed-index-admissible, open-pi, open-refinement
   export include-effects, union-effects
   export Quant, MkQuant, quant-id, quant-name, quant-kind, quant-implicit
@@ -20,7 +20,7 @@ module Bootstrap.Type where
   export map-scheme-types, open-qualified
   export Store, empty-store, store-errors, store-level, enter-level, restore-level
   export add-error, fresh-meta, instantiate, skolemize, open-scheme, normalize, unify, valid-type
-  export type-kind, type-text, free-metas, scheme-metas, generalize, scheme-arity
+  export type-kind, type-text, free-metas, scheme-metas, generalize, scheme-arity, scheme-runtime-arity
   export generalize-with, abstract-metas
   export fresh-id, substitute-bound, fresh-for-types, pi-dependent, unify-kind, kind-free-bound
   export type-all-ids, integer-carrier, integer-literal-valid, integer-bounds
@@ -67,6 +67,9 @@ module Bootstrap.Type where
     UApp :: UType -> UType -> UType
     UFun :: UType -> UType -> UType
     UFunEff :: UType -> UType -> UType -> UType
+    -- The domain is a proposition, not a runtime carrier. Applying an
+    -- erased argument still performs the call and its latent effects.
+    UProofFun :: UType -> UType -> UType -> UType
     URow :: UType -> UType
     URowJoin :: UType -> UType -> UType
     UTuple :: UType -> UType
@@ -115,6 +118,7 @@ module Bootstrap.Type where
     UApp f x -> tree "app" [carrier-tree f, carrier-tree x]
     UFun a b -> tree "fun" [carrier-tree a, carrier-tree b]
     UFunEff a row b -> tree "effect-fun" [carrier-tree a, carrier-tree row, carrier-tree b]
+    UProofFun a row b -> tree "proof-fun" [carrier-tree a, carrier-tree row, carrier-tree b]
     URow labels -> tree "row" [carrier-tree labels]
     URowJoin a b -> tree "row-join" [carrier-tree a, carrier-tree b]
     UTuple fields -> tree "tuple" [carrier-tree fields]
@@ -153,6 +157,7 @@ module Bootstrap.Type where
       else if same-tag tag "index-math" then (case (a, read-carrier-tree b, read-carrier-tree c) of (JStr op, Some left, Some right) -> Some (UIndexMath op left right); other -> None)
       else if same-tag tag "bound" then (case (tree-natural a, b, read-kind-tree c) of (Some id, JStr name, Some kind) -> Some (UBound id name kind); other -> None)
       else if same-tag tag "effect-fun" then (case (read-carrier-tree a, read-carrier-tree b, read-carrier-tree c) of (Some domain, Some row, Some result) -> Some (UFunEff domain row result); other -> None)
+      else if same-tag tag "proof-fun" then (case (read-carrier-tree a, read-carrier-tree b, read-carrier-tree c) of (Some predicate, Some row, Some result) -> Some (UProofFun predicate row result); other -> None)
       else None
     JArr (JStr tag) (JArr a (JArr b (JArr c (JArr d JArrEnd)))) -> if same-tag tag "rigid" then
       (case (tree-natural a, b, tree-natural c, read-kind-tree d) of (Some id, JStr name, Some level, Some kind) -> Some (URigid id name level kind); other -> None)
@@ -205,6 +210,7 @@ module Bootstrap.Type where
     UApp f x -> UApp (opaque-carrier f) (opaque-carrier x)
     UFun a b -> UFun (opaque-carrier a) (opaque-carrier b)
     UFunEff a row b -> UFunEff (opaque-carrier a) (opaque-carrier row) (opaque-carrier b)
+    UProofFun a row b -> UProofFun (opaque-carrier a) (opaque-carrier row) (opaque-carrier b)
     URow labels -> URow (opaque-carrier labels)
     URowJoin a b -> URowJoin (opaque-carrier a) (opaque-carrier b)
     UTuple fields -> UTuple (opaque-carrier fields)
@@ -254,6 +260,7 @@ module Bootstrap.Type where
     UApp f x -> carrier-node f && carrier-node x
     UFun a b -> carrier-type a && carrier-type b
     UFunEff a row b -> carrier-type a && carrier-node row && carrier-type b
+    UProofFun predicate row result -> carrier-node predicate && carrier-node row && carrier-type result
     URow labels -> carrier-spine labels False
     URowJoin a b -> carrier-node a && carrier-node b
     UTuple fields -> carrier-spine fields True
@@ -385,6 +392,7 @@ module Bootstrap.Type where
     UApp f x -> UApp (normalize st f) (normalize st x)
     UFun a b -> UFun (normalize st a) (normalize st b)
     UFunEff a row b -> UFunEff (normalize st a) (normalize st row) (normalize st b)
+    UProofFun a row b -> UProofFun (normalize st a) (normalize st row) (normalize st b)
     URow labels -> URow (unique-effects (normalize st labels))
     URowJoin a b -> union-effects (normalize st a) (normalize st b)
     UTuple xs -> UTuple (normalize st xs)
@@ -488,6 +496,7 @@ module Bootstrap.Type where
     UApp f x -> valid-type f && valid-type x && (case type-kind f of KFun a b -> kind-equal a (type-kind x); other -> False)
     UFun a b -> valid-type a && valid-type b && kind-equal (type-kind a) KType && kind-equal (type-kind b) KType
     UFunEff a row b -> valid-type a && valid-type row && valid-type b && kind-equal (type-kind a) KType && kind-equal (type-kind row) KRow && kind-equal (type-kind b) KType
+    UProofFun predicate row result -> proposition-type predicate && valid-type row && kind-equal (type-kind row) KRow && carrier-type result
     URow labels -> valid-effects labels
     URowJoin a b -> valid-type a && valid-type b && kind-equal (type-kind a) KRow && kind-equal (type-kind b) KRow
     UTuple xs -> valid-value-fields xs
@@ -540,6 +549,7 @@ module Bootstrap.Type where
     UApp f x -> string-concat-all ["(", type-text f, " ", type-text x, ")"]
     UFun a b -> string-concat-all ["(", type-text a, " -> ", type-text b, ")"]
     UFunEff a row b -> string-concat-all ["(", type-text a, " ->", type-text row, " ", type-text b, ")"]
+    UProofFun predicate row result -> string-concat-all ["(erased ", type-text predicate, " ->", type-text row, " ", type-text result, ")"]
     URow labels -> string-concat-all ["{", type-text labels, "}"]
     URowJoin a b -> string-concat-all ["(", type-text a, " union ", type-text b, ")"]
     UTuple xs -> string-concat-all ["(", type-text xs, ")"]
@@ -576,6 +586,7 @@ module Bootstrap.Type where
     UApp f x -> merge-ids (free-metas st f) (free-metas st x)
     UFun a b -> merge-ids (free-metas st a) (free-metas st b)
     UFunEff a row b -> merge-ids (free-metas st a) (merge-ids (free-metas st row) (free-metas st b))
+    UProofFun a row b -> merge-ids (free-metas st a) (merge-ids (free-metas st row) (free-metas st b))
     URow labels -> free-metas st labels
     URowJoin a b -> merge-ids (free-metas st a) (free-metas st b)
     UTuple xs -> free-metas st xs
@@ -619,6 +630,7 @@ module Bootstrap.Type where
     UApp f x -> escapes level f || escapes level x
     UFun a b -> escapes level a || escapes level b
     UFunEff a row b -> escapes level a || escapes level row || escapes level b
+    UProofFun a row b -> escapes level a || escapes level row || escapes level b
     URow labels -> escapes level labels
     URowJoin a b -> escapes level a || escapes level b
     UTuple xs -> escapes level xs
@@ -721,6 +733,9 @@ module Bootstrap.Type where
       UFun u v -> unify sp y v (unify sp x u (unify sp row (URow UEnd) st))
       UFunEff u effects v -> unify sp y v (unify sp x u (unify sp row effects st))
       other -> mismatch sp a b st
+    UProofFun predicate row result -> case b of
+      UProofFun condition effects output -> unify sp result output (unify sp row effects (unify sp predicate condition st))
+      other -> mismatch sp a b st
     URow labels -> case b of
       URow effects -> if valid-effects labels && valid-effects effects then
         (case match-effects sp True labels effects labels effects st of Some solved -> solved; None -> mismatch sp a b st)
@@ -766,6 +781,7 @@ module Bootstrap.Type where
     (UApp f x, UApp g y) -> same-shape f g && same-shape x y
     (UFun a b, UFun c d) -> same-shape a c && same-shape b d
     (UFunEff a e b, UFunEff c f d) -> same-shape a c && same-shape e f && same-shape b d
+    (UProofFun a e b, UProofFun c f d) -> same-shape a c && same-shape e f && same-shape b d
     (URow a, URow b) -> same-shape a b
     (URowJoin a b, URowJoin c d) -> same-shape a c && same-shape b d
     (UTuple a, UTuple b) -> same-shape a b
@@ -846,6 +862,7 @@ module Bootstrap.Type where
     UApp f x -> UApp (substitute pairs f) (substitute pairs x)
     UFun a b -> UFun (substitute pairs a) (substitute pairs b)
     UFunEff a row b -> UFunEff (substitute pairs a) (substitute pairs row) (substitute pairs b)
+    UProofFun a row b -> UProofFun (substitute pairs a) (substitute pairs row) (substitute pairs b)
     URow labels -> URow (substitute pairs labels)
     URowJoin a b -> union-effects (substitute pairs a) (substitute pairs b)
     UTuple xs -> UTuple (substitute pairs xs)
@@ -900,6 +917,7 @@ module Bootstrap.Type where
     UApp f x -> UApp (replace-metas pairs f) (replace-metas pairs x)
     UFun a b -> UFun (replace-metas pairs a) (replace-metas pairs b)
     UFunEff a row b -> UFunEff (replace-metas pairs a) (replace-metas pairs row) (replace-metas pairs b)
+    UProofFun a row b -> UProofFun (replace-metas pairs a) (replace-metas pairs row) (replace-metas pairs b)
     URow labels -> URow (replace-metas pairs labels)
     URowJoin a b -> union-effects (replace-metas pairs a) (replace-metas pairs b)
     UTuple xs -> UTuple (replace-metas pairs xs)
@@ -958,7 +976,18 @@ module Bootstrap.Type where
   scheme-arity :: Scheme -> Nat
   scheme-arity sc = arrow-count (scheme-body sc)
   arrow-count :: UType -> Nat
-  arrow-count ty = case ty of UPi id name domain row result -> 1 + arrow-count result; UFun a b -> 1 + arrow-count b; UFunEff a row b -> 1 + arrow-count b; other -> 0
+  arrow-count ty = case ty of UPi id name domain row result -> 1 + arrow-count result; UFun a b -> 1 + arrow-count b; UFunEff a row b -> 1 + arrow-count b; UProofFun predicate row result -> 1 + arrow-count result; other -> 0
+  -- Source arity retains proof binders. Runtime arity drops those slots;
+  -- this count alone is not permission to remove an effectful call.
+  scheme-runtime-arity :: Scheme -> Nat
+  scheme-runtime-arity sc = runtime-arrow-count (scheme-body sc)
+  runtime-arrow-count :: UType -> Nat
+  runtime-arrow-count ty = case ty of
+    UPi id name domain row result -> 1 + runtime-arrow-count result
+    UFun a b -> 1 + runtime-arrow-count b
+    UFunEff a row b -> 1 + runtime-arrow-count b
+    UProofFun predicate row result -> runtime-arrow-count result
+    other -> 0
 
   index-display :: IndexTerm -> String
   index-display value = case value of
@@ -1125,6 +1154,7 @@ module Bootstrap.Type where
     UApp a b -> validate-type-indices sp b (validate-type-indices sp a st)
     UFun a b -> validate-type-indices sp b (validate-type-indices sp a st)
     UFunEff a row b -> validate-type-indices sp b (validate-type-indices sp row (validate-type-indices sp a st))
+    UProofFun predicate row result -> if valid-type ty then validate-type-indices sp result (validate-type-indices sp row (validate-type-indices sp predicate st)) else add-error sp "ill-formed erased proof arrow" st
     URow labels -> validate-type-indices sp labels st
     URowJoin a b -> validate-type-indices sp b (validate-type-indices sp a st)
     UTuple fields -> validate-type-indices sp fields st
@@ -1228,6 +1258,7 @@ module Bootstrap.Type where
     UApp a b -> merge-ids (type-all-ids a) (type-all-ids b)
     UFun a b -> merge-ids (type-all-ids a) (type-all-ids b)
     UFunEff a row b -> merge-ids (type-all-ids a) (merge-ids (type-all-ids row) (type-all-ids b))
+    UProofFun a row b -> merge-ids (type-all-ids a) (merge-ids (type-all-ids row) (type-all-ids b))
     URow labels -> type-all-ids labels
     URowJoin a b -> merge-ids (type-all-ids a) (type-all-ids b)
     UTuple fields -> type-all-ids fields
@@ -1264,6 +1295,7 @@ module Bootstrap.Type where
     UApp a b -> merge-ids (type-free-bound a) (type-free-bound b)
     UFun a b -> merge-ids (type-free-bound a) (type-free-bound b)
     UFunEff a row b -> merge-ids (type-free-bound a) (merge-ids (type-free-bound row) (type-free-bound b))
+    UProofFun a row b -> merge-ids (type-free-bound a) (merge-ids (type-free-bound row) (type-free-bound b))
     URow labels -> type-free-bound labels
     URowJoin a b -> merge-ids (type-free-bound a) (type-free-bound b)
     UTuple fields -> type-free-bound fields
@@ -1414,6 +1446,7 @@ module Bootstrap.Type where
     UApp a b -> merge-ids (type-pi-ids a) (type-pi-ids b)
     UFun a b -> merge-ids (type-pi-ids a) (type-pi-ids b)
     UFunEff a row b -> merge-ids (type-pi-ids a) (merge-ids (type-pi-ids row) (type-pi-ids b))
+    UProofFun a row b -> merge-ids (type-pi-ids a) (merge-ids (type-pi-ids row) (type-pi-ids b))
     URow labels -> type-pi-ids labels
     URowJoin a b -> merge-ids (type-pi-ids a) (type-pi-ids b)
     UTuple fields -> type-pi-ids fields
@@ -1459,6 +1492,7 @@ module Bootstrap.Type where
     UApp f x -> UApp (without-index-levels f) (without-index-levels x)
     UFun a b -> UFun (without-index-levels a) (without-index-levels b)
     UFunEff a row b -> UFunEff (without-index-levels a) (without-index-levels row) (without-index-levels b)
+    UProofFun a row b -> UProofFun (without-index-levels a) (without-index-levels row) (without-index-levels b)
     URow labels -> URow (without-index-levels labels)
     URowJoin a b -> URowJoin (without-index-levels a) (without-index-levels b)
     UTuple fields -> UTuple (without-index-levels fields)

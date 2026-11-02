@@ -110,6 +110,7 @@ module Bootstrap.Core where
     UApp a b -> effect-type-scope qs a && effect-type-scope qs b
     UFun a b -> effect-proper-value a && effect-proper-value b && effect-type-scope qs a && effect-type-scope qs b
     UFunEff a row b -> effect-proper-value a && effect-proper-value b && effect-type-scope qs a && effect-type-scope qs row && effect-type-scope qs b
+    UProofFun a row b -> valid-type a && kind-equal (type-kind a) KProp && effect-proper-value b && effect-type-scope qs a && effect-type-scope qs row && effect-type-scope qs b
     URow labels -> effect-type-scope qs labels
     URowJoin a b -> effect-type-scope qs a && effect-type-scope qs b
     UTuple fields -> effect-type-scope qs fields
@@ -134,11 +135,12 @@ module Bootstrap.Core where
         && effect-parameter-prefix rest more
       Nil -> False
   operation-function :: UType -> Bool
-  operation-function ty = case ty of UFun a b -> True; UFunEff a row b -> True; UPi id name a row b -> True; other -> False
+  operation-function ty = case ty of UFun a b -> True; UFunEff a row b -> True; UProofFun p row b -> True; UPi id name a row b -> True; other -> False
   operation-effects :: UType -> UType -> Bool
   operation-effects label ty = case ty of
     UFun a b -> operation-effects label b
     UFunEff a row b -> operation-row label row b
+    UProofFun predicate row result -> operation-row label row result
     UPi id name a row b -> operation-row label row b
     other -> False
   operation-row :: UType -> UType -> UType -> Bool
@@ -423,6 +425,7 @@ module Bootstrap.Core where
     UApp f x -> UApp (freeze f) (freeze x)
     UFun a b -> UFun (freeze a) (freeze b)
     UFunEff a row b -> UFunEff (freeze a) (freeze row) (freeze b)
+    UProofFun a row b -> UProofFun (freeze a) (freeze row) (freeze b)
     URow labels -> URow (freeze labels)
     URowJoin a b -> union-effects (freeze a) (freeze b)
     UTuple fields -> UTuple (freeze fields)
@@ -455,6 +458,7 @@ module Bootstrap.Core where
     UApp f x -> type-metas st f <> type-metas st x
     UFun a b -> type-metas st a <> type-metas st b
     UFunEff a row b -> type-metas st a <> type-metas st row <> type-metas st b
+    UProofFun a row b -> type-metas st a <> type-metas st row <> type-metas st b
     URow labels -> type-metas st labels
     URowJoin a b -> type-metas st a <> type-metas st b
     UTuple fields -> type-metas st fields
@@ -566,6 +570,7 @@ module Bootstrap.Core where
     UApp f x -> closed-type f && closed-type x
     UFun a b -> closed-type a && closed-type b
     UFunEff a row b -> closed-type a && closed-type row && closed-type b
+    UProofFun a row b -> valid-type ty && closed-type a && closed-type row && closed-type b
     URow labels -> closed-type labels
     URowJoin a b -> closed-type a && closed-type b
     UTuple fields -> closed-type fields
@@ -687,6 +692,7 @@ module Bootstrap.Core where
     UApp a b -> type-index-scope bound rigid a && type-index-scope bound rigid b
     UFun a b -> type-index-scope bound rigid a && type-index-scope bound rigid b
     UFunEff a row b -> type-index-scope bound rigid a && type-index-scope bound rigid row && type-index-scope bound rigid b
+    UProofFun a row b -> type-index-scope bound rigid a && type-index-scope bound rigid row && type-index-scope bound rigid b
     URow labels -> type-index-scope bound rigid labels
     URowJoin a b -> type-index-scope bound rigid a && type-index-scope bound rigid b
     UTuple fields -> type-index-scope bound rigid fields
@@ -1231,7 +1237,7 @@ module Bootstrap.Core where
     (Cons goal rest, Cons first more) -> check-proof hypotheses goal first && check-goals hypotheses rest more
     other -> False
   contains-required :: UType -> Bool
-  contains-required ty = case ty of URefine id name carrier predicate -> True; URequire predicates body -> True; UPi id name domain row result -> contains-required result; UFun domain result -> contains-required result; UFunEff domain row result -> contains-required result; other -> False
+  contains-required ty = case ty of URefine id name carrier predicate -> True; URequire predicates body -> True; UPi id name domain row result -> contains-required result; UFun domain result -> contains-required result; UFunEff domain row result -> contains-required result; UProofFun predicate row result -> contains-required result; other -> False
   arithmetic-index :: ProofScope -> Arithmetic -> Option IndexTerm
   arithmetic-index gamma term = case term of
     AInteger n -> Some (IInteger n)

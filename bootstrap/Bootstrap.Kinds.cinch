@@ -65,6 +65,7 @@ module Bootstrap.Kinds where
     URefine id name carrier predicate -> highest (type-level carrier) (type-level predicate)
     UPi id name a row b -> highest (type-level row) (highest (type-level a) (type-level b))
     UFunEff a row b -> highest (type-level row) (highest (type-level a) (type-level b))
+    UProofFun a row b -> highest (type-level row) (highest (type-level a) (type-level b))
     UApp a b -> highest (type-level a) (type-level b)
     UFun a b -> highest (type-level a) (type-level b)
     URow labels -> type-level labels
@@ -126,6 +127,7 @@ module Bootstrap.Kinds where
     UApp f x -> type-well-formed kinds scope f && type-well-formed kinds scope x
     UFun a b -> type-well-formed kinds scope a && type-well-formed kinds scope b
     UFunEff a row b -> type-well-formed kinds scope a && type-well-formed kinds scope row && type-well-formed kinds scope b
+    UProofFun a row b -> type-well-formed kinds scope a && type-well-formed kinds scope row && type-well-formed kinds scope b
     UIndexForget value -> type-well-formed kinds scope value
     UIndexPromote value -> type-well-formed kinds scope value
     UIndexByteLength value -> type-well-formed kinds scope value

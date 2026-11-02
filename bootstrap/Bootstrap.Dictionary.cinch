@@ -20,6 +20,7 @@ module Bootstrap.Dictionary where
     UApp f x -> applications-valid f && applications-valid x && (case type-kind f of KFun domain result -> kind-equal domain (type-kind x); other -> False)
     UFun a b -> applications-valid a && applications-valid b && kind-equal (type-kind a) KType && kind-equal (type-kind b) KType
     UFunEff a row b -> valid-type ty
+    UProofFun predicate row result -> valid-type ty
     UTuple xs -> valid-type ty
     UArg x rest -> applications-valid x && kind-equal (type-kind x) KType && applications-valid rest
     UError -> False

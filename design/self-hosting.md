@@ -1,5 +1,26 @@
 # Next steps (as of 2026-11-02)
 
+The type engine now distinguishes an erased proof arrow from a runtime
+function arrow. Its domain must have kind Prop; its result is a proper runtime
+type and its latent effect row is retained. Source arity includes the proof
+slot; runtime arity omits it. Scope checks, substitution, instantiation,
+generalization, normalization, inference escape checks and carrier encoding
+preserve all three parts. Ordinary applications cannot supply runtime values
+as proof arguments.
+
+The compiled proof-arrow target passes at five input-derived identities above
+2^128, together with the existing Core typing, value-kind, effect-type and
+source dependent-function targets. Source-instance, inference, parser and
+pipeline regressions are still running. This is a work-in-progress type
+foundation: named proof terms and decisions are not enabled by this checkpoint.
+The complete new165+5 suite and fresh stages have not run. The running164+5
+matrix belongs to the preceding kind/term checker. No stage2 compiler or
+self-built frontend suite has passed. [The proof-arrow report](../bootstrap/proof-arrow-checkpoint-results.json)
+records exact inputs and validation scope. The seed, ABI5/schema7 and
+definition-owned fixities are unchanged.
+
+## Previous kind/term checkpoint (c757621)
+
 Core annotations now receive a separate kind, type and effect check after
 elaboration. Nominal names must match their declaring kinds; quantified and
 value-index references must belong to their actual scopes. Applications,

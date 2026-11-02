@@ -133,6 +133,12 @@ current164-target Native-assisted suite is still running. Full declaration/cover
 semantic proof authority, totality and usage remain required; see
 [the Core typing report](core-typing-checkpoint-results.json).
 
+`UProofFun` retains a Prop domain, latent effect row and proper result type.
+Source and runtime arity differ explicitly; ordinary runtime arguments cannot
+stand in for erased evidence. Compiled type/scope checks pass, with remaining
+focused regressions still running. This checkpoint does not yet admit source
+proof terms or decisions; see [its report](proof-arrow-checkpoint-results.json).
+
 The orchestration checks run with:
 
     python3 -m unittest discover -s tooling/tests -v

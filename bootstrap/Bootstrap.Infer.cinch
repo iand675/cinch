@@ -1099,9 +1099,9 @@ module Bootstrap.Infer where
   builtins = [MkCheckedBinding "True" (mono (primitive-type "Bool")) "constructor", MkCheckedBinding "False" (mono (primitive-type "Bool")) "constructor"]
 
   result-type :: UType -> UType
-  result-type ty = case ty of UPi id name a row b -> result-type b; UFun a b -> result-type b; UFunEff a row b -> result-type b; other -> ty
+  result-type ty = case ty of UPi id name a row b -> result-type b; UFun a b -> result-type b; UFunEff a row b -> result-type b; UProofFun predicate row result -> result-type result; other -> ty
   domains :: UType -> List UType
-  domains ty = case ty of UPi id name a row b -> Cons a (domains b); UFun a b -> Cons a (domains b); UFunEff a row b -> Cons a (domains b); other -> Nil
+  domains ty = case ty of UPi id name a row b -> Cons a (domains b); UFun a b -> Cons a (domains b); UFunEff a row b -> Cons a (domains b); UProofFun predicate row result -> Cons predicate (domains result); other -> Nil
   root-name :: UType -> Option String
   root-name ty = case ty of UCon name k -> Some name; UApp f x -> root-name f; other -> None
   occurs-owner :: String -> UType -> Bool
@@ -1111,6 +1111,7 @@ module Bootstrap.Infer where
     UPi id binder a row b -> occurs-owner name a || occurs-owner name row || occurs-owner name b
     UFun a b -> occurs-owner name a || occurs-owner name b
     UFunEff a row b -> occurs-owner name a || occurs-owner name b
+    UProofFun predicate row result -> occurs-owner name predicate || occurs-owner name row || occurs-owner name result
     UTuple xs -> occurs-owner name xs
     UArg x rest -> occurs-owner name x || occurs-owner name rest
     other -> False
@@ -1119,6 +1120,7 @@ module Bootstrap.Infer where
     UPi id name a row b -> not (occurs-owner owner a) && positive owner b
     UFun a b -> not (occurs-owner owner a) && positive owner b
     UFunEff a row b -> not (occurs-owner owner a) && positive owner b
+    UProofFun predicate row result -> not (occurs-owner owner predicate || occurs-owner owner row) && positive owner result
     UApp f x -> if occurs-owner owner ty then (case root-name ty of Some name -> same name owner && positive-arguments owner ty; None -> False) else True
     UTuple xs -> positive owner xs
     UArg x rest -> positive owner x && positive owner rest

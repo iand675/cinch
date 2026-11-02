@@ -35,6 +35,7 @@ module Bootstrap.Typing where
   constructor-pure ty = case ty of
     UFun a b -> constructor-pure b
     UFunEff a row b -> effects-fit row empty-row && constructor-pure b
+    UProofFun predicate row result -> effects-fit row empty-row && constructor-pure result
     UPi id name a row b -> effects-fit row empty-row && constructor-pure b
     other -> True
   global-types :: List (String, Kind) -> List CoreGlobal -> Bool
