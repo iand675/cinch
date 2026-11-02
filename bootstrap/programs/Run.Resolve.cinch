@@ -252,7 +252,7 @@ module Main where
           && (case find-external "b.decide" ds of
             Some (DExternal s name kind (Some (TForall fs binders (TApp app (TName hs result) args))) metadata) -> string-compare result "Dec" == 0 && (case field "first_class" metadata of JBool False -> True; other -> False)
             other -> False)
-          && contains-message "builtin syntax needs dependent predicate elaboration: b.decide" (check-program resolved)
+          && (case check-program resolved of Nil -> True; errors -> False)
         other -> False
       other -> False
     other -> False

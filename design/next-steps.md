@@ -16,11 +16,17 @@ method-body aliases. The dependent-function target also passes. Fresh stage0/1
 pass all six smokes. Actual stage2 accepts the decision header and exits4 at
 one imported measure-contract header before bodies; it produces no IR or
 compiler executable. The exact staged compiler bundle matches this checkpoint.
-Broader focused regressions and the complete new170+5 matrix are running.
-The preceding169+5 constructor matrix now passes all gates, including140
-compiler units,166 runtime tests and19 tooling tests with no compiler/runtime
-ignores. Its exact code is installed in the main working checkout. That pass
-does not establish this newer source-decision implementation.
+All 11 whole focused regression targets and the complete 170+5 Native-assisted
+matrix pass, including 140 compiler units, 166 runtime tests and 19 tooling tests
+with no compiler/runtime ignores. The resolver runner now expects successful
+source decision elaboration; its obsolete refusal assertion was the only failure
+in the preceding run. The final frozen snapshot is
+`5e1dd3b718118c664d4243cde312a19774adaa83c0cba405936ed850b3943a75`:
+118 gates ran fresh, and 57 whole-target results have byte-identical implementation
+and fixture inputs. These results establish the published source-decision code;
+the main working checkout still contains the preceding 169+5 constructor baseline.
+The stage evidence remains applicable because the resolver runner is outside the
+unchanged compiler bundle. This is not a full self-built frontend test pass.
 
 Self-hosting remains incomplete. Ordinary total-measure contracts, actual
 primitive/instance-body authority, complete proof/usage/totality checking,
