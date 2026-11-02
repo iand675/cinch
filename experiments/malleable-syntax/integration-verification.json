@@ -1,0 +1,117 @@
+{
+  "version": 1,
+  "status": "passed",
+  "time_utc": "2026-11-02T14:54:11.689211+00:00",
+  "bootstrap_baseline": "695ab0ea7b4ec2ec75e9dda7a0e2952531482815",
+  "validated_source_commit": "ea512cdd3292b9abba9eb6763d44b1ca56836104",
+  "native_source_sha256": "36afc6d6947ce04a047360bd5d1a13d9fcefff3dfa9ed3df8dc32394ffaaf389",
+  "native_units": 142,
+  "native_integration_targets": {
+    "dependent": 14,
+    "evidence_invalidation": 12,
+    "goal_tactics": 11,
+    "incremental": 10,
+    "interface_guarded_bodies": 1,
+    "linear_facts": 8,
+    "lsp": 8,
+    "ownership": 21,
+    "proof_guarded_lets": 5,
+    "proof_value_identity": 1,
+    "staging": 23,
+    "surface": 17
+  },
+  "native_total_tests": 273,
+  "experiment_tests": 39,
+  "positive_programs": 13,
+  "negative_programs": 21,
+  "syntax_libraries": 14,
+  "bootstrap_tooling_tests": 19,
+  "seed_audit": {
+    "status": "passed",
+    "source_baseline": "695ab0ea7b4ec2ec75e9dda7a0e2952531482815",
+    "bootstrap_tree_unchanged": true,
+    "seed_archive_patch_verified": true,
+    "pinned_seed_source_sha256": "f88d6a49cd8fed562f3639165310c2caef228797de2127a9edd0bc8e5502b2a0",
+    "bootstrap_tooling_tests": 19
+  },
+  "execution": {
+    "shared_worker_slot": 0,
+    "nice": 10,
+    "cargo_jobs": 1,
+    "rust_test_threads": 1,
+    "heap_limit": "2G",
+    "test_opt_level": 1,
+    "test_debug": 0
+  },
+  "native_test_hashes": {
+    "dependent": "85fc05cb48ce7df1cc0cd82edba815d824cda22ecf9c03b85bb11e88bdd8232c",
+    "evidence_invalidation": "c5c48a1f176f4b2c54d76a3613607d34574a80d4202d695e8f7aa0b4d34b2a51",
+    "goal_tactics": "b13fe6e36a85876aa18ebb0802008e1b4443f397ed72946107f9b191da536021",
+    "incremental": "ca2eb005b5bae0772efccdfb686c2add144d3bf93bf53ff53cf98273a0928433",
+    "interface_guarded_bodies": "650fd5e8693997c5883bd1766d122723ea4b88b193faa18737e97a871e5aff8d",
+    "linear_facts": "7bcf8be3d4127b1dae0236626c189c4bf484fcdd54bb5462caf96094137f29e2",
+    "lsp": "82dca8fdc28ebd1dd3ccea0e203b453a6603b67c6ab60aee90b91a78143e4f96",
+    "ownership": "8780f966ccdc65f18e5aaf63e7d0e7e69e15920a46621a6b3cc8bc299f3d7c62",
+    "proof_guarded_lets": "1c1481e639a47a53f2cd4d0c527fafba84cae61ba8296e4d195317b0baa79fea",
+    "proof_value_identity": "2035938cf088d52776422cfa90c1112fafaefaf01f4da85ea71f469f7a699ab7",
+    "staging": "0e1336ce600c193eae80c5227d5a0818679d70cec9169129d6452fee59dbc7cb",
+    "surface": "87a83c8e397be22444c3e0c76c31ba74800651aa9e3304ac17e9ba8b8c3d4b7f"
+  },
+  "runs": [
+    {
+      "name": "native",
+      "command": [
+        "cargo",
+        "test",
+        "--quiet",
+        "--lib",
+        "--test",
+        "goal_tactics",
+        "--test",
+        "proof_value_identity",
+        "--test",
+        "proof_guarded_lets",
+        "--test",
+        "ownership",
+        "--test",
+        "surface",
+        "--test",
+        "lsp",
+        "--test",
+        "staging",
+        "--test",
+        "dependent",
+        "--test",
+        "linear_facts",
+        "--test",
+        "evidence_invalidation",
+        "--test",
+        "interface_guarded_bodies",
+        "--test",
+        "incremental"
+      ],
+      "status": "passed",
+      "started": 1793630698.0407538,
+      "exit_code": 0,
+      "finished": 1793631060.129683
+    },
+    {
+      "name": "experiment",
+      "command": [
+        "python3",
+        "experiments/malleable-syntax/verify.py"
+      ],
+      "status": "passed",
+      "started": 1793631060.130029,
+      "exit_code": 0,
+      "finished": 1793631206.237189
+    }
+  ],
+  "log_sha256": {
+    "native": "b730b69c0ee7159507062a3676ec66d7abe33158c87555e521166558ee6f7fe5",
+    "experiment": "22ae177efce688f58427bcd330dbd5b5bc456e6e3e327cff4e73a5d236ed3d9e"
+  },
+  "self_hosting_claim": false,
+  "seed_changed": false,
+  "remote_push": false
+}

@@ -44,6 +44,18 @@ suite. Native compilation and execution run serially in one shared worker slot
 alongside the bootstrap chat's bounded workload. Bootstrap tooling tests and
 archive-plus-patch seed reproduction are checked separately.
 
-Validation results and the final local branch handoff are recorded here after
-the checks finish. This is not a full current-source bootstrap-suite or
-self-hosting claim. No remote push is part of this request.
+The reconciled source at `ea512cd` passed 273 native tests: 142 unit tests and
+all 12 selected integration targets (131 tests). The full experiment suite
+passed 39 tests, including 13 runnable programs, 21 rejection fixtures, 14
+syntax descriptors and the actual native LSP/Tree-sitter checks. All 19
+bootstrap-tooling tests passed. The pinned archive plus patch reproduces the
+same f88 seed, and the bootstrap tree is byte-identical to `695ab0e`.
+
+[integration-verification.json](integration-verification.json) records the
+source identity, commands, counts, log hashes and resource settings.
+[verification.json](verification.json) records the fresh experiment run and
+its checked source hashes. The local handoff merges this reconciled history
+into `codex/cinch-bootstrap` after confirming its clean, held `695ab0e` head.
+
+This is not a full current-source bootstrap-suite or self-hosting claim. No
+remote push is part of this request.
